@@ -1,8 +1,5 @@
 unit notify;
 
-// EZT AZ UNItOT A QUEUE_LOCK LEZARASA UTAN SZABAD CSAK HASZNALNI
-// THIS QUEUE_LOCK after the close of the Unite should only be used
-
 interface
 
 uses Classes, syncobjs, tasksunit, Contnrs;
@@ -52,7 +49,7 @@ const
   section = 'notify';
 
 var
-  gtnno: Integer;
+  glTaskNumber: Integer; //< unique number used to identify the task event
 
 { TSiteResponse }
 
@@ -70,9 +67,8 @@ constructor TTaskNotify.Create;
 begin
   responses := TObjectList.Create;
   tasks := TList.Create;
-  self.tnno := gtnno;
+  self.tnno := {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(glTaskNumber);
   event := TEvent.Create(nil, False, False, 'taskno' + IntToStr(tnno));
-  inc(gtnno);
 end;
 
 destructor TTaskNotify.Destroy;
@@ -87,7 +83,7 @@ procedure NotifyInit;
 begin
   tasknotifies := TObjectList.Create;
   FLockObject := TCriticalSection.Create;
-  gtnno := 0;
+  glTaskNumber := 0;
 end;
 
 procedure NotifyUninit;
