@@ -37,10 +37,6 @@ procedure TaskReady(t: TTask);
 function AddNotify: TTaskNotify;
 procedure RemoveTN(tn: TTaskNotify);
 
-var
-  tasknotifies: TObjectList;
-  FLockObject: TCriticalSection;
-
 implementation
 
 uses SysUtils, Types, irc, debugunit;
@@ -50,6 +46,8 @@ const
 
 var
   glTaskNumber: Integer; //< unique number used to identify the task event
+  tasknotifies: TObjectList; //< list of all current TTaskNotify entities
+  FLockObject: TCriticalSection; //lock for access to tasknotifies list
 
 { TSiteResponse }
 
@@ -156,7 +154,6 @@ begin
     except
       on e: Exception do begin
         Debug(dpError, section, Format('[EXCEPTION] RemoveTN: %s', [e.Message]));
-        Exit;
       end;
     end;
   finally
