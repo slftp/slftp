@@ -7,6 +7,8 @@
 # apt -y install ca-certificates openssl unzip cpp gcc manpages manpages-dev cmake make build-essential bzip2 dpkg-dev fakeroot g++ patch perl rename xz-utils libssl-dev libssl-doc curl libcurl4-openssl-dev git libncurses-dev 
 ##############
 # changelog
+# v20210409 + slftp now supports openssl 1.1
+#           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
 #           # bugfix for invalid SQLite download options
 #           # bugfix for SQLite sha3 chksum (now using sha3-256 instead of sha1sum)

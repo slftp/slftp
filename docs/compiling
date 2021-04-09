@@ -19,10 +19,8 @@ OpenSSL
 on UNIX:
     - We recommend to use the included libinstaller.sh script. -
 
-    NOTE: OpenSSL 1.1.* isn't supported yet.
-
-    wget https://www.openssl.org/source/openssl-1.0.2s.tar.gz
-    tar xf openssl-1.0.2*.tar.gz
+    wget https://www.openssl.org/source/openssl-1.1.1k.tar.gz
+    tar xf openssl-1.1.1k.tar.gz
     ./config shared
     make
     cp lib*.so /path/to/your/slftp/
