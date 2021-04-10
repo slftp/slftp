@@ -167,6 +167,14 @@ upload-package-files:
     - echo "SLCONFIG=slftp-${VERSION}_config.zip" >> build.env
     - echo "SLDOCU=slftp-${VERSION}_documentation.zip" >> build.env
     - echo "SLHELPFILES=slftp-${VERSION}_helpfiles.zip" >> build.env
+    - echo "SLPACKAGE=slFtp.${VERSION}.Linux.Windows.incl.Sources-SLDev.zip" >> build.env
+    - |
+      if [[ -n "${CI_COMMIT_TAG}" ]]
+      then
+        echo "SLBRANCHORTAG=${CI_COMMIT_TAG}" >> build.env
+      else
+        echo "SLBRANCHORTAG=${CI_COMMIT_BRANCH}" >> build.env
+      fi
     # load env variables again
     - source build.env
   script:
@@ -189,6 +197,49 @@ upload-package-files:
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLCONFIG} ${PACKAGE_URL}/${SLCONFIG}
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLDOCU} ${PACKAGE_URL}/${SLDOCU}
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLHELPFILES} ${PACKAGE_URL}/${SLHELPFILES}
+
+     # create complete pack ready to run
+    - |
+     mkdir dist
+     mkdir dist/help
+     mkdir sources
+     cp slftp_x64.exe dist
+     cp slftp_x64 dist
+     cp config/* dist
+     cp helpfiles/* dist/help
+    - |
+     git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/slftp/slftp.git -b ${SLBRANCHORTAG} sources
+    - |
+     curl -s https://cdn.mysql.com/archives/mysql-connector-c/mysql-connector-c-6.1.11-winx64.zip -o mysqlwin64.zip
+    - |
+     unzip -p mysqlwin64.zip */lib/libmysql.dll > dist/libmysql.dll
+    - |
+     rm -f mysqlwin64.zip
+    - |
+     wget https://downloads.mariadb.org/f/mariadb-10.5.9/winx64-packages/mariadb-10.5.9-winx64.zip?serve -O mariadbwin64.zip
+    - |
+     unzip -p mariadbwin64.zip */lib/libmariadb.dll > dist/libmariadb.dll
+    - |
+     rm -f mariadbwin64.zip
+    - |
+     curl -s https://www.sqlite.org/2021/sqlite-dll-win64-x64-3350400.zip -o sqlitewin64.zip
+    - |
+     unzip -p sqlitewin64.zip sqlite3.dll > dist/sqlite3-64.dll
+    - |
+     rm -f sqlitewin64.zip
+    - |
+     curl -s http://wiki.overbyte.eu/arch/openssl-1.1.1k-win64.zip -o opensslwin64.zip
+    - |
+     unzip -p opensslwin64.zip libcrypto-1_1-x64.dll > dist/libcrypto-1_1-x64.dll
+    - |
+     unzip -p opensslwin64.zip libssl-1_1-x64.dll > dist/libssl-1_1-x64.dll
+    - |
+     rm -f opensslwin64.zip
+    - |
+     zip -r ${SLPACKAGE} dist docs sources CHANGELOG
+    # upload the pack
+    - |
+     curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLPACKAGE} ${PACKAGE_URL}/${SLPACKAGE}
   artifacts:
     reports:
       # publish environment variables
@@ -216,5 +267,6 @@ release:
       --assets-link "{\"name\":\"${SLCONFIG}\",\"url\":\"${PACKAGE_URL}/${SLCONFIG}\"}"
       --assets-link "{\"name\":\"${SLDOCU}\",\"url\":\"${PACKAGE_URL}/${SLDOCU}\"}"
       --assets-link "{\"name\":\"${SLHELPFILES}\",\"url\":\"${PACKAGE_URL}/${SLHELPFILES}\"}"
+      --assets-link "{\"name\":\"${SLPACKAGE}\",\"url\":\"${PACKAGE_URL}/${SLPACKAGE}\"}"
   tags:
     - docker
