@@ -209,6 +209,9 @@ upload-package-files:
      cp helpfiles/* dist/help
     - |
      git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/slftp/slftp.git -b ${SLBRANCHORTAG} sources
+    #delete the .git directory to save space
+    - |
+     rm -r sources/.git
     - |
      curl -s https://cdn.mysql.com/archives/mysql-connector-c/mysql-connector-c-6.1.11-winx64.zip -o mysqlwin64.zip
     - |
