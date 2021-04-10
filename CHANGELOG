@@ -52,17 +52,18 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.8 )===================================-
-    {+} Reverse FXP can be enabled by command !reversefxp
+    {+} Reverse FXP can be enabled by command !reversefxp (#9)
     {+} cryptconf functionality integrated into slftp as command line utility, see 'slftp(.exe) --help' (#298)
+    {+} Pure-FTPd support (#303)
+    {+} Added OpenSSL 1.1.1 support (OpenSSL 1.0.2 no longer supported) (#90)
     {#} Fix 'No such directory' error flood if a subdir was deleted during a race (#200)
     {#} Fix not working pretime check retry (settings readd_attempts, readd_interval of [taskpretime])
     {#} Setting !maxupdn 1 0 1 to leech only pres did not work
     {^} New code for IMDb and Box Office Mojo website parsing
     {^} Slightly improved behaviour for STV/Wide/Limited determination
-    {^} Added OpenSSL 1.1.1 support (OpenSSL 1.0.2 no longer supported)
     {^} Less unnecessary 'tell your developer' messages to the admin channel
     {^} Improved detection of FTPD software and version
-    {^} Send PBSZ command (Pure-FTPD requires it)
+    {^} Send PBSZ command (Pure-FTPd requires it)
 
 --=============================( SLFTP v1.5.7 )===================================-
     {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)
