@@ -168,6 +168,9 @@ upload-package-files:
     - echo "SLDOCU=slftp-${VERSION}_documentation.zip" >> build.env
     - echo "SLHELPFILES=slftp-${VERSION}_helpfiles.zip" >> build.env
     - echo "SLPACKAGE=slFtp.${VERSION}.Linux.Windows.incl.Sources-SLDev.zip" >> build.env
+    # usually this will only be executed if a tag is commited. but for developing/testing this script, it's nice to 
+    # have this workingwithout a CI_COMMIT_TAG being set. therefore check if we have a CI_COMMIT_TAG, else use 
+    # CI_COMMIT_BRANCH instead. this is used to download the source code and add it to the complete release package
     - |
       if [[ -n "${CI_COMMIT_TAG}" ]]
       then
