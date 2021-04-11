@@ -79,7 +79,7 @@ type
   { @abstract(Extracts Box Office information from boxofficemojo.com HTML page source) }
   THtmlBoxOfficeMojoParser = class
   public
-    { Checks if the given webpage lists infos for different release groups
+    { Checks if the given webpage lists infos for different release groups (e.g. re-releases or releases for different markets)
       @param(aPageSource Webpage HTML sourcecode)
       @returns(@true if it lists 'By Release', @false otherwise) }
     class function ListsOnlyReleaseGroups(const aPageSource: String): Boolean;
@@ -473,7 +473,9 @@ begin
         fLink := Trim(rr.Match[1]);
         fReleaseGroup := Trim(rr.Match[2]);
 
-        aReleaseGroupLinks.Add(fReleaseGroup, fLink);
+        // some pages list the same release group more than once therefore check if that group already exists
+        if not aReleaseGroupLinks.ContainsKey(fReleaseGroup) then
+          aReleaseGroupLinks.Add(fReleaseGroup, fLink);
       until not rr.ExecNext;
     end;
   finally
