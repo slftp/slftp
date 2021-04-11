@@ -395,8 +395,8 @@ var
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckTrue(226000 < fVotes, 'Votes mismatch');
-  CheckTrue(228000 > fVotes, 'Votes mismatch');
+  CheckTrue(229000 < fVotes, 'Votes mismatch');
+  CheckTrue(249000 > fVotes, 'Votes mismatch');
   CheckTrue(73 < fRating, 'Rating mismatch');
   CheckTrue(76 > fRating, 'Rating mismatch');
 end;
@@ -541,8 +541,8 @@ var
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckTrue(470000 < fVotes, 'Votes mismatch');
-  CheckTrue(480000 > fVotes, 'Votes mismatch');
+  CheckTrue(478000 < fVotes, 'Votes mismatch');
+  CheckTrue(495000 > fVotes, 'Votes mismatch');
   CheckTrue(80 < fRating, 'Rating mismatch');
   CheckTrue(86 > fRating, 'Rating mismatch');
 end;
