@@ -227,6 +227,23 @@ type
     procedure TestGetWidestScreensCountUSA;
   end;
 
+  { The Death of Superman (2018) }
+  TTestTHtmlBoxOfficeMojoParser_tt7167658 = class(TTestCase)
+  private
+    FOverviewPage: String;
+    FOriginalReleasePage: String;
+  protected
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+    {$ENDIF}
+  published
+    procedure TestListsOnlyReleaseGroups;
+    procedure TestGetGroupSpecificLinks;
+    procedure TestGetCountrySpecificLinks;
+  end;
+
   TTestTIMDbInfoChecks = class(TTestCase)
   published
     procedure TestIsSTVBasedOnTitleExtraInfo1;
@@ -378,8 +395,8 @@ var
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckTrue(226000 < fVotes, 'Votes mismatch');
-  CheckTrue(228000 > fVotes, 'Votes mismatch');
+  CheckTrue(229000 < fVotes, 'Votes mismatch');
+  CheckTrue(249000 > fVotes, 'Votes mismatch');
   CheckTrue(73 < fRating, 'Rating mismatch');
   CheckTrue(76 > fRating, 'Rating mismatch');
 end;
@@ -524,8 +541,8 @@ var
 begin
   THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
 
-  CheckTrue(470000 < fVotes, 'Votes mismatch');
-  CheckTrue(480000 > fVotes, 'Votes mismatch');
+  CheckTrue(478000 < fVotes, 'Votes mismatch');
+  CheckTrue(495000 > fVotes, 'Votes mismatch');
   CheckTrue(80 < fRating, 'Rating mismatch');
   CheckTrue(86 > fRating, 'Rating mismatch');
 end;
@@ -1540,6 +1557,76 @@ begin
   CheckEquals(1506, fScreens, 'Screens count mismatch');
 end;
 
+procedure TTestTHtmlBoxOfficeMojoParser_tt7167658.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fResStream: TResourceStream;
+  fStrList: TStringList;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt7167658_BOM', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FOverviewPage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt7167658_BOMOrigRel', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FOriginalReleasePage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt7167658.TestListsOnlyReleaseGroups;
+var
+  fOnlyReleaseGroups: Boolean;
+begin
+  fOnlyReleaseGroups := THtmlBoxOfficeMojoParser.ListsOnlyReleaseGroups(FOverviewPage);
+
+  CheckTrue(fOnlyReleaseGroups, 'Should lists release groups');
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt7167658.TestGetGroupSpecificLinks;
+var
+  fBOMGroupReleaseLinks: TDictionary<String, String>;
+begin
+  fBOMGroupReleaseLinks := TDictionary<String, String>.Create;
+  try
+    THtmlBoxOfficeMojoParser.GetGroupSpecificLinks(FOverviewPage, fBOMGroupReleaseLinks);
+
+    // the commented ones are correct if all release groups with same name would be extracted be we only extract the first occuring one
+    CheckEquals(1, fBOMGroupReleaseLinks.Count, 'Count mismatch');
+    //CheckEquals(2, fBOMGroupReleaseLinks.Count, 'Count mismatch');
+    CheckEqualsString('/releasegroup/gr1831424517', fBOMGroupReleaseLinks.Items['Original Release'], 'Link mismatch');
+    //CheckEqualsString('/releasegroup/gr2792903173', fBOMGroupReleaseLinks.Items['Original Release'], 'Link mismatch');
+  finally
+    fBOMGroupReleaseLinks.Free;
+  end;
+end;
+
+procedure TTestTHtmlBoxOfficeMojoParser_tt7167658.TestGetCountrySpecificLinks;
+var
+  fBOMCountryLinks: TDictionary<String, String>;
+begin
+
+  fBOMCountryLinks := TDictionary<String, String>.Create;
+  try
+    THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOriginalReleasePage, fBOMCountryLinks);
+
+    CheckEquals(1, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEqualsString('/release/rl1760265217', fBOMCountryLinks.Items['New Zealand'], 'Link mismatch');
+  finally
+    fBOMCountryLinks.Free;
+  end;
+end;
+
 procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo1;
 var
   fPageSource: String;
@@ -1727,6 +1814,7 @@ initialization
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt0375568', TTestTHtmlBoxOfficeMojoParser_tt0375568.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt3450958', TTestTHtmlBoxOfficeMojoParser_tt3450958.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt0087332', TTestTHtmlBoxOfficeMojoParser_tt0087332.Suite);
+    RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt7167658', TTestTHtmlBoxOfficeMojoParser_tt7167658.Suite);
 
     RegisterTest('TTestTIMDbInfoChecks', TTestTIMDbInfoChecks.Suite);
   {$ELSE}
@@ -1743,6 +1831,7 @@ initialization
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt0375568);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt3450958);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt0087332);
+    TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt7167658);
 
     TDUnitX.RegisterTestFixture(TTestTIMDbInfoChecks);
   {$ENDIF}
