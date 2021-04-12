@@ -80,6 +80,7 @@ type
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
+    FContainsNFOOnlyDirTag: boolean; //true, if the dir contains a special tag indicating the rls can be complete only containing the NFO (dirfix, nfofix, ...)
 
 
     FCompleteInfo: TCompleteInfo; //< value of @link(TCompleteInfo) status and where we got it
@@ -106,6 +107,7 @@ type
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
+    procedure SetFullPath(const aFullPath: string);
     class function Timestamp(ts: String): TDateTime;
   public
     dirlist_lock: TCriticalSection;
@@ -172,7 +174,7 @@ type
     property CompleteDirTag: String read FCompleteDirTag;
     property StartedTime: TDateTime read FStartedTime;
     property CompletedTime: TDateTime read FCompletedTime;
-    property FullPath: String read FFullPath write FFullPath;
+    property FullPath: String read FFullPath write SetFullPath;
   end;
 
 { Just a helper function to initialize @link(GlobalSkiplistRegex), image_files_priority and video_files_priority }
@@ -325,18 +327,9 @@ begin
     end;
 
     // is the release a special kind of release (dirfix, nfofix, etc.)
-    if not Result then
+    if not Result and FContainsNFOOnlyDirTag then
     begin
-      //debugunit.Debug(dpError, section, '[DEBUG] SpecialDir START - Site %s - Path: %s', [site_name, FFullPath]);
-      for tag in SpecialDirsTags do
-      begin
-        if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(FFullPath, tag) then
-        begin
-          debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [FFullPath, tag]);
-          Result := HasNFO;
-          Break;
-        end;
-      end;
+      Result := HasNFO;
     end;
 
   end;
@@ -1740,6 +1733,23 @@ begin
         irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> dirdepth %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, fDirPathHelper, filename]));
         skiplisted := True;
       end;
+    end;
+  end;
+end;
+
+procedure TDirList.SetFullPath(const aFullPath: string);
+var
+  fTag: string;
+begin
+  FFullPath := aFullPath;
+
+  for fTag in SpecialDirsTags do
+  begin
+    if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(FFullPath, fTag) then
+    begin
+      debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [FFullPath, fTag]);
+      FContainsNFOOnlyDirTag := true;
+      Break;
     end;
   end;
 end;
