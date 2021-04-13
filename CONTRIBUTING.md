@@ -12,37 +12,52 @@ Here are the guidelines we'd like you to follow:
 <a name="aHelpGit"></a> Git Commands 
 -----
  
-Download the newest branches from remote:
+- Download the current source code and commit history from repository into slftp-src folder if the source were never cloned before:
 ```shell
-git fetch
+git clone https://gitlab.com/slftp/slftp.git slftp-src
 ```
-Download and Merge the newest branches from remote:
+
+- Download and merge the newest code and branches from remote into your local repository:
 ```shell
 git pull
 ```
- 
-Download and Merge a specified branch:
+
+- Switch to another branch:
 ```shell
 git checkout branch_name
-``` 
+```
 
-Add your (single) changes and commit:
+- Create your own local branch:
+```shell
+git checkout -b branch_name
+```
+
+- Add your (single) changes and commit:
 ```shell
 git diff
 git add <files>
 git commit
-git push origin <feature-branch>
+git push origin <feature-branch_name>
 ``` 
 
-Updating an outdated branch with latest development branch:
-  - rebase should be favoured over merge to avoid useless merge commits in history
+- Updating an outdated local branch with latest upstream development branch:
 ```shell
 git checkout dev
 git pull
-git checkout mybranch
+git checkout mybranchname
 git rebase dev
-git push --force-with-lease origin mybranch
-``` 
+```
+
+- Recreating outdated local development branch with latest development branch and update upstream version:
+  - rebase should be favoured over merge to avoid useless merge commits in history
+  - these steps are only for developers!
+```shell
+git checkout dev
+git pull
+git checkout new_feature
+git rebase dev
+git push --force-with-lease origin new_feature
+```
 
 [anyway, here is git for dummies](https://www.mediawiki.org/wiki/Git_for_dummies)
 or
