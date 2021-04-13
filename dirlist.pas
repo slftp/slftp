@@ -1137,7 +1137,7 @@ begin
       if i < 0 then Break;
       try
         de := TDirListEntry(entries[i]);
-        if (AnsiCompareText(de.filename, filename) = 0) then
+        if (CompareText(de.filename, filename) = 0) then
         begin
           Result := de;
           Break;
