@@ -649,12 +649,6 @@ begin
             end;
           end;
 
-          // entry is a dir with unwanted characters
-          if ((fDirMask[1] = 'd') and (AnsiMatchText(fFilename, ['[', ']', ',', '=']))) then
-          begin
-            Continue;
-          end;
-
           // file is flagged as skipped
           if (skipped.IndexOf(fFilename) <> -1) then
           begin
