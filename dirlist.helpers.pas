@@ -18,10 +18,15 @@ function IsFtpRushScrewedUpFile(const aFilename, aFileExtension: String): Boolea
   @param(aItem extracted dirname or filename) }
 procedure ParseStatResponseLine(var aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
 
-{ Checks if given input is valid for a file/dir (e.g. doesn't start with dot or is skipped globally)
+{ Checks if given input is valid for a file (e.g. doesn't start with dot or is skipped globally)
   @param(aInput File or Dirname)
   @returns(@true if input is valid, @false otherwise.) }
 function IsValidFilename(const aInput: String): Boolean;
+
+{ Checks if given input is valid for a dir (e.g. doesn't start with dot or is skipped globally)
+  @param(aInput File or Dirname)
+  @returns(@true if input is valid, @false otherwise.) }
+function IsValidDirname(const aInput: String): Boolean;
 
 implementation
 
@@ -98,6 +103,32 @@ begin
       Exit(False);
   finally
     fRegExpr.Free;
+  end;
+
+  Result := True;
+end;
+
+function IsValidDirname(const aInput: String): Boolean;
+var
+  fRegExpr: TRegExpr;
+begin
+  Result := False;
+
+  if (aInput[1] = '.') then
+    Exit(False);
+
+  if GlobalSkiplistDirRegex <> '' then
+  begin
+    fRegExpr := TRegExpr.Create;
+    try
+      fRegExpr.ModifierI := True;
+      fRegExpr.Expression := GlobalSkiplistDirRegex;
+
+      if fRegExpr.Exec(aInput) then
+        Exit(False);
+    finally
+      fRegExpr.Free;
+    end;
   end;
 
   Result := True;

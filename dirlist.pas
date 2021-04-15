@@ -629,10 +629,10 @@ begin
         if fFilesize < 0 then
           Continue;
 
-        if ((fDirMask[1] = 'd') and (fFilename[1] = '.')) then
+        if (fDirMask[1] <> 'd') and (not IsValidFilename(fFilename)) then
           Continue;
 
-        if (not FIsAutoIndex or (fDirMask[1] <> 'd')) and (not IsValidFilename(fFilename)) then
+        if (fDirMask[1] = 'd') and (not IsValidDirname(fFilename)) then
           Continue;
 
         // Do not filter if we call the dirlist from irc
@@ -1741,6 +1741,7 @@ end;
 procedure DirlistInit;
 begin
   GlobalSkiplistRegex := config.ReadString(section, 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+');
+  GlobalSkiplistDirRegex := config.ReadString(section, 'global_skip_dir', '([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+|\[TvMaze\]\W+|\(.+COMPLETE.+\)|\[.+[Cc]omplete.+\]');
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then
