@@ -14,6 +14,7 @@ const
 
 var
   GlobalSkiplistRegex: String; //< global_skip regex from slftp.ini
+  GlobalSkiplistDirRegex: String; //< global_skip_dir regex from slftp.ini
 
 implementation
 
