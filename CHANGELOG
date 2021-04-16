@@ -38,7 +38,7 @@
 
     NEW slftp.ini parameter(s):
       parse_boxofficemojo_always=0 entry was removed
-	  global_skip_dir= global skip is now separate for directories
+      global_skip_dir= global skip is now separate for directories
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -65,7 +65,7 @@
     {^} Less unnecessary 'tell your developer' messages to the admin channel
     {^} Improved detection of FTPD software and version
     {^} Send PBSZ command (Pure-FTPd requires it)
-	{^} Setting global_skip in .ini is now only applied to files, new setting global_skip_dir for directories
+    {^} Setting global_skip in .ini is now only applied to files, new setting global_skip_dir for directories
 
 --=============================( SLFTP v1.5.7 )===================================-
     {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)
