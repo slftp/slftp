@@ -27,6 +27,7 @@ type
     procedure TestIsValidFilename2;
     procedure TestIsValidFilename3;
     procedure TestIsValidDirname1;
+    procedure TestIsValidDirname2;
   end;
 
 implementation
@@ -239,6 +240,30 @@ begin
   CheckFalse(IsValidDirname(fFilename), 'Input is not valid! Globally skipped.');
 
   fFilename := 'Test.Rls.asdf.XXX-GRP';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+end;
+
+procedure TTestDirlistHelpers.TestIsValidDirname2;
+var
+  fFilename: String;
+begin
+  //test some short dir names
+  fFilename := 'A';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+
+  fFilename := '0-9';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+
+  fFilename := 'CD1';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+
+  fFilename := 'Subs';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+
+  fFilename := 'Sample';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+
+  fFilename := 'Proof';
   CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
 end;
 
