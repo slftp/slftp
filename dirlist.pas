@@ -1738,19 +1738,11 @@ begin
 end;
 
 procedure TDirList.SetFullPath(const aFullPath: string);
-var
-  fTag: string;
 begin
-  FFullPath := aFullPath;
-
-  for fTag in SpecialDirsTags do
+  if FFullPath <> aFullPath then
   begin
-    if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(FFullPath, fTag) then
-    begin
-      debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [FFullPath, fTag]);
-      FContainsNFOOnlyDirTag := true;
-      Break;
-    end;
+    FFullPath := aFullPath;
+    FContainsNFOOnlyDirTag := ReleaseOnlyConsistsOfNFO(aFullPath);
   end;
 end;
 
