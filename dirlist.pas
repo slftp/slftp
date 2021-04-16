@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals;
+uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, System.Generics.Collections;
 
 type
   {
@@ -80,6 +80,8 @@ type
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
+    FFilesValidList: TDictionary<string, boolean>; //< cache for results of IsValidFilename
+    FDirsValidList: TDictionary<string, boolean>; //< cache for results of IsValidDirname
 
 
     FCompleteInfo: TCompleteInfo; //< value of @link(TCompleteInfo) status and where we got it
@@ -106,6 +108,13 @@ type
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
+
+    { Tries to get a cached value indicating whether the given string is a valid file name. If no cached value is available,
+      the value is being calculated and then added to the cache }
+    function IsValidFilenameCached(const aFileName: string): boolean;
+    { Tries to get a cached value indicating whether the given string is a valid dir name. If no cached value is available,
+      the value is being calculated and then added to the cache }
+    function IsValidDirnameCached(const aDirName: string): boolean;
     class function Timestamp(ts: String): TDateTime;
   public
     dirlist_lock: TCriticalSection;
@@ -383,6 +392,8 @@ begin
   skipped := TStringList.Create;
   skipped.CaseSensitive := False;
   self.parent := parentdir;
+  self.FFilesValidList := TDictionary<string, boolean>.Create;
+  self.FDirsValidList := TDictionary<string, boolean>.Create;
 
   self.s := s;
   self.skiplist := skiplist;
@@ -415,6 +426,8 @@ begin
   dirlist_lock.Enter;
   try
     entries.Free;
+    FFilesValidList.Free;
+    FDirsValidList.Free;
   finally
     dirlist_lock.Leave;
   end;
@@ -629,10 +642,10 @@ begin
         if fFilesize < 0 then
           Continue;
 
-        if (fDirMask[1] <> 'd') and (not IsValidFilename(fFilename)) then
+        if (fDirMask[1] <> 'd') and (not IsValidFilenameCached(fFilename)) then
           Continue;
 
-        if (fDirMask[1] = 'd') and (not IsValidDirname(fFilename)) then
+        if (fDirMask[1] = 'd') and (not IsValidDirnameCached(fFilename)) then
           Continue;
 
         // Do not filter if we call the dirlist from irc
@@ -1736,6 +1749,24 @@ begin
       end;
     end;
   end;
+end;
+
+function TDirlist.IsValidFilenameCached(const aFileName: string): boolean;
+begin
+  if FFilesValidList.TryGetValue(aFileName, Result) then
+    exit;
+
+  Result := IsValidFilename(aFileName);
+  FFilesValidList.AddOrSetValue(aFileName, Result);
+end;
+
+function TDirlist.IsValidDirnameCached(const aDirName: string): boolean;
+begin
+  if FDirsValidList.TryGetValue(aDirName, Result) then
+    exit;
+
+  Result := IsValidDirname(aDirName);
+  FDirsValidList.AddOrSetValue(aDirName, Result);
 end;
 
 procedure DirlistInit;
