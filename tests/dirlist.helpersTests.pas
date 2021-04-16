@@ -26,6 +26,7 @@ type
     procedure TestIsValidFilename1;
     procedure TestIsValidFilename2;
     procedure TestIsValidFilename3;
+    procedure TestIsValidDirname1;
   end;
 
 implementation
@@ -204,10 +205,10 @@ begin
   // from https://github.com/pzs-ng/pzs-ng/blob/master/configGen/config.yaml#L514-L517
   fFilename := '.diz';
   CheckFalse(IsValidFilename(fFilename), 'Input is not valid! Starts with a dot.');
-  
+
   fFilename := '.debug';
   CheckFalse(IsValidFilename(fFilename), 'Input is not valid! Starts with a dot.');
-  
+
   fFilename := '.url';
   CheckFalse(IsValidFilename(fFilename), 'Input is not valid! Starts with a dot.');
 end;
@@ -225,6 +226,20 @@ begin
 
   fFilename := '[IMDB]=-_Score_6.6_-_Action-Sci_-_unknown_Screens_(1975)_-=[IMDB]';
   CheckFalse(IsValidFilename(fFilename), 'Input is not valid! Globally skipped.');
+end;
+
+procedure TTestDirlistHelpers.TestIsValidDirname1;
+var
+  fFilename: String;
+begin
+  fFilename := '..';
+  CheckFalse(IsValidDirname(fFilename), 'Input is not valid! Starts with a dot.');
+
+  fFilename := '[IMDB]=-_Score_6.6_-_Action-Sci_-_unknown_Screens_(1975)_-=[IMDB]';
+  CheckFalse(IsValidDirname(fFilename), 'Input is not valid! Globally skipped.');
+
+  fFilename := 'Test.Rls.asdf.XXX-GRP';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
 end;
 
 initialization
