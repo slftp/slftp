@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, System.Generics.Collections;
+uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, Generics.Collections;
 
 type
   {
