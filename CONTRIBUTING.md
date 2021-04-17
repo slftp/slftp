@@ -8,6 +8,7 @@ Here are the guidelines we'd like you to follow:
 * [Commit Message Guidelines](#commitGuidelines)
 * [Coding Guidelines](#codingGuidelines)
 * [Semantic Versioning](http://semver.org/spec/v2.0.0.html)
+* [Making a new release Guidelines](#MakingRelease)
 
 <a name="aHelpGit"></a> Git Commands 
 -----
@@ -215,3 +216,15 @@ var
       @param(aInviteOnly @true if channel can only joined with previous invite, @false otherwise) }
     constructor Create(const aNetname, aChannel, aChanRoles: String; aChankey: String = ''; aInviteOnly: Boolean = True);
 ```
+
+<a name="MakingRelease"></a> Making a new release Guidelines
+-----
+The gitlab-ci.yml only creates new releases for tags which should be made from the dev branch only so that they are
+always available and stored in the repository. Thus only annotated tags should be used!
+The release version should follow the semantic versioning. For beta releases only append `b<n>` to the version where `n` is an integer. No extra branches for specific releases since we don't care about old releases and fixing them. Go ahead and follow the flow of new things!
+1. Make sure that the slftp.inc lists the correct slftp and help version
+2. Create an annotated tag locally (only in dev branch!)
+  - for regular releases: `git tag -a v1.5.7 -m "1.5.7"`
+  - for beta releases: `git tag -a v1.5.8b1 -m "1.5.8b1"`
+3. Push the tag to the upstream repo
+4. Increase the version/beta number in the slftp.inc and push this change to the dev branch
