@@ -23,6 +23,7 @@ type
     procedure TestParseStatResponseLineGlftpd2;
     procedure TestParseStatResponseLineDrftpd1;
     procedure TestParseStatResponseLineDrftpd2;
+    procedure TestReleaseContainsNFOOnly;
     procedure TestIsValidFilename1;
     procedure TestIsValidFilename2;
     procedure TestIsValidFilename3;
@@ -172,6 +173,30 @@ begin
   CheckEquals(27212887049, fFilesize);
   CheckEquals('Apr 7 19:36', fDatum);
   CheckEquals('Disaster.Report.4.Summer.Memories-CODEX', fFilename);
+end;
+
+procedure TTestDirlistHelpers.TestReleaseContainsNFOOnly;
+begin
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.DiRFiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.DIRFIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.DiR.FiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.DIR.FIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.NFOFiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.NFOFIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.NFO.FiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.NFO.FIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.PROOFFiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.PROOFFIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.PROOF.FiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.PROOF.FIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.COVERFiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.COVERFIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.COVER.FiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.COVER.FIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.SAMPLEFiX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test.Rls.SAMPLE.FIX.asd-GRP'), 'Only NFO');
+  CheckTrue(ReleaseOnlyConsistsOfNFO('Test-RLS-NNN-XX-NFOFIX-1337-GRP'), 'Only NFO');
+  CheckFalse(ReleaseOnlyConsistsOfNFO('Test.Rls.asd-GRP'), 'Only NFO');
 end;
 
 procedure TTestDirlistHelpers.TestIsValidFilename1;
