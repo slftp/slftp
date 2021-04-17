@@ -109,12 +109,6 @@ type
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
 
-    { Tries to get a cached value indicating whether the given string is a valid file name. If no cached value is available,
-      the value is being calculated and then added to the cache }
-    function IsValidFilenameCached(const aFileName: string): boolean;
-    { Tries to get a cached value indicating whether the given string is a valid dir name. If no cached value is available,
-      the value is being calculated and then added to the cache }
-    function IsValidDirnameCached(const aDirName: string): boolean;
     class function Timestamp(ts: String): TDateTime;
   public
     dirlist_lock: TCriticalSection;
@@ -175,6 +169,12 @@ type
     function HasSFV: Boolean;
     { Sorts the @link(entries) by @link(TDirListEntry.timestamp) }
     procedure SortByModify;
+    { Tries to get a cached value indicating whether the given string is a valid file name. If no cached value is available,
+      the value is being calculated and then added to the cache }
+    function IsValidFilenameCached(const aFileName: string): boolean;
+    { Tries to get a cached value indicating whether the given string is a valid dir name. If no cached value is available,
+      the value is being calculated and then added to the cache }
+    function IsValidDirnameCached(const aDirName: string): boolean;
 
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
