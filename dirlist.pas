@@ -80,8 +80,8 @@ type
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
-    FFilesValidList: TDictionary<string, boolean>; //< cache for results of IsValidFilename
-    FDirsValidList: TDictionary<string, boolean>; //< cache for results of IsValidDirname
+    FIsValidFileCache: TDictionary<string, boolean>; //< cache for results of IsValidFilename
+    FIsValidDirCache: TDictionary<string, boolean>; //< cache for results of IsValidDirname
     FContainsNFOOnlyDirTag: boolean; //true, if the dir contains a special tag indicating the rls can be complete only containing the NFO (dirfix, nfofix, ...)
 
 
@@ -385,8 +385,8 @@ begin
   skipped := TStringList.Create;
   skipped.CaseSensitive := False;
   self.parent := parentdir;
-  self.FFilesValidList := TDictionary<string, boolean>.Create;
-  self.FDirsValidList := TDictionary<string, boolean>.Create;
+  self.FIsValidFileCache := TDictionary<string, boolean>.Create;
+  self.FIsValidDirCache := TDictionary<string, boolean>.Create;
 
   self.s := s;
   self.skiplist := skiplist;
@@ -419,8 +419,8 @@ begin
   dirlist_lock.Enter;
   try
     entries.Free;
-    FFilesValidList.Free;
-    FDirsValidList.Free;
+    FIsValidFileCache.Free;
+    FIsValidDirCache.Free;
   finally
     dirlist_lock.Leave;
   end;
@@ -1746,20 +1746,20 @@ end;
 
 function TDirlist.IsValidFilenameCached(const aFileName: string): boolean;
 begin
-  if FFilesValidList.TryGetValue(aFileName, Result) then
+  if FIsValidFileCache.TryGetValue(aFileName, Result) then
     exit;
 
   Result := IsValidFilename(aFileName);
-  FFilesValidList.AddOrSetValue(aFileName, Result);
+  FIsValidFileCache.AddOrSetValue(aFileName, Result);
 end;
 
 function TDirlist.IsValidDirnameCached(const aDirName: string): boolean;
 begin
-  if FDirsValidList.TryGetValue(aDirName, Result) then
+  if FIsValidDirCache.TryGetValue(aDirName, Result) then
     exit;
 
   Result := IsValidDirname(aDirName);
-  FDirsValidList.AddOrSetValue(aDirName, Result);
+  FIsValidDirCache.AddOrSetValue(aDirName, Result);
 end;
 
 procedure TDirList.SetFullPath(const aFullPath: string);
