@@ -82,6 +82,7 @@ type
     s: String;
     FFilesValidList: TDictionary<string, boolean>; //< cache for results of IsValidFilename
     FDirsValidList: TDictionary<string, boolean>; //< cache for results of IsValidDirname
+    FContainsNFOOnlyDirTag: boolean; //true, if the dir contains a special tag indicating the rls can be complete only containing the NFO (dirfix, nfofix, ...)
 
 
     FCompleteInfo: TCompleteInfo; //< value of @link(TCompleteInfo) status and where we got it
@@ -115,6 +116,7 @@ type
     { Tries to get a cached value indicating whether the given string is a valid dir name. If no cached value is available,
       the value is being calculated and then added to the cache }
     function IsValidDirnameCached(const aDirName: string): boolean;
+    procedure SetFullPath(const aFullPath: string);
     class function Timestamp(ts: String): TDateTime;
   public
     dirlist_lock: TCriticalSection;
@@ -181,7 +183,7 @@ type
     property CompleteDirTag: String read FCompleteDirTag;
     property StartedTime: TDateTime read FStartedTime;
     property CompletedTime: TDateTime read FCompletedTime;
-    property FullPath: String read FFullPath write FFullPath;
+    property FullPath: String read FFullPath write SetFullPath;
   end;
 
 { Just a helper function to initialize @link(GlobalSkiplistRegex), image_files_priority and video_files_priority }
@@ -334,18 +336,9 @@ begin
     end;
 
     // is the release a special kind of release (dirfix, nfofix, etc.)
-    if not Result then
+    if not Result and FContainsNFOOnlyDirTag then
     begin
-      //debugunit.Debug(dpError, section, '[DEBUG] SpecialDir START - Site %s - Path: %s', [site_name, FFullPath]);
-      for tag in SpecialDirsTags do
-      begin
-        if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(FFullPath, tag) then
-        begin
-          debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [FFullPath, tag]);
-          Result := HasNFO;
-          Break;
-        end;
-      end;
+      Result := HasNFO;
     end;
 
   end;
@@ -1151,7 +1144,7 @@ begin
       if i < 0 then Break;
       try
         de := TDirListEntry(entries[i]);
-        if (AnsiUpperCase(de.filename) = AnsiUpperCase(filename)) then
+        if (CompareText(de.filename, filename) = 0) then
         begin
           Result := de;
           Break;
@@ -1767,6 +1760,15 @@ begin
 
   Result := IsValidDirname(aDirName);
   FDirsValidList.AddOrSetValue(aDirName, Result);
+end;
+
+procedure TDirList.SetFullPath(const aFullPath: string);
+begin
+  if FFullPath <> aFullPath then
+  begin
+    FFullPath := aFullPath;
+    FContainsNFOOnlyDirTag := ReleaseOnlyConsistsOfNFO(aFullPath);
+  end;
 end;
 
 procedure DirlistInit;
