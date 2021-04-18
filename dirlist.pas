@@ -1773,8 +1773,8 @@ end;
 
 procedure DirlistInit;
 begin
-  GlobalSkiplistRegex := config.ReadString(section, 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+');
-  GlobalSkiplistDirRegex := config.ReadString(section, 'global_skip_dir', '([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+|\[TvMaze\]\W+|\(.+COMPLETE.+\)|\[.+[Cc]omplete.+\]');
+  GlobalSkiplistFilesRegex := config.ReadString(section, 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+');
+  GlobalSkiplistDirsRegex := config.ReadString(section, 'global_skip_dir', '([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+|\[TvMaze\]\W+');
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then
