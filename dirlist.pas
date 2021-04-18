@@ -635,6 +635,23 @@ begin
         if fFilesize < 0 then
           Continue;
 
+        if not FIsFromIrc then
+        begin
+          // Dont add complete tags to dirlist entries
+          if ((fDirMask[1] = 'd') or (fFilesize < 1)) then
+          begin
+            if FCompleteDirTag = fFilename then //if this has already been identified as complete tag, no need for any further action
+              continue;
+
+            fTagCompleteType := TagComplete(fFilename);
+            if (fTagCompleteType <> tctUNMATCHED) then
+            begin
+              FCompleteDirTag := fFilename;
+              Continue;
+            end;
+          end;
+        end;
+
         if (fDirMask[1] <> 'd') and (not IsValidFilenameCached(fFilename)) then
           Continue;
 
@@ -644,16 +661,6 @@ begin
         // Do not filter if we call the dirlist from irc
         if not FIsFromIrc then
         begin
-          // Dont add complete tags to dirlist entries
-          if ((fDirMask[1] = 'd') or (fFilesize < 1)) then
-          begin
-            fTagCompleteType := TagComplete(fFilename);
-            if (fTagCompleteType <> tctUNMATCHED) then
-            begin
-              FCompleteDirTag := fFilename;
-              Continue;
-            end;
-          end;
 
           // file is flagged as skipped
           if (skipped.IndexOf(fFilename) <> -1) then
