@@ -266,6 +266,13 @@ begin
 
   fFilename := 'Test.Rls.asdf.XXX-GRP';
   CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+
+  //don't skip complete tag dirs as we need those
+  fFilename := '[xxx] - ( 1337M 22F - COMPLETE ) - [xxx]';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+
+  fFilename := '[0 of 2 files = 0% complete at 123.4MB]';
+  CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
 end;
 
 procedure TTestDirlistHelpers.TestIsValidDirname2;
