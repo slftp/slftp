@@ -13,8 +13,8 @@ const
   DATABASEFOLDERNAME = 'databases'; //< foldername for all internal database files
 
 var
-  GlobalSkiplistRegex: String; //< global_skip regex from slftp.ini
-  GlobalSkiplistDirRegex: String; //< global_skip_dir regex from slftp.ini
+  GlobalSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
+  GlobalSkiplistDirsRegex: String; //< global_skip_dirs regex from slftp.ini
 
 implementation
 

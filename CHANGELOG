@@ -38,7 +38,7 @@
 
     NEW slftp.ini parameter(s):
       parse_boxofficemojo_always=0 entry was removed
-      global_skip_dir= global skip is now separate for directories
+      global_skip is removed and replaced by global_skip_files and global_skip_dirs
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder

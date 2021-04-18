@@ -120,7 +120,7 @@ begin
   fRegExpr := TRegExpr.Create;
   try
     fRegExpr.ModifierI := True;
-    fRegExpr.Expression := GlobalSkiplistRegex;
+    fRegExpr.Expression := GlobalSkiplistFilesRegex;
 
     if fRegExpr.Exec(aInput) then
       Exit(False);
@@ -140,12 +140,12 @@ begin
   if (aInput[1] = '.') then
     Exit(False);
 
-  if GlobalSkiplistDirRegex <> '' then
+  if GlobalSkiplistDirsRegex <> '' then
   begin
     fRegExpr := TRegExpr.Create;
     try
       fRegExpr.ModifierI := True;
-      fRegExpr.Expression := GlobalSkiplistDirRegex;
+      fRegExpr.Expression := GlobalSkiplistDirsRegex;
 
       if fRegExpr.Exec(aInput) then
         Exit(False);
