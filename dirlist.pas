@@ -638,7 +638,16 @@ begin
         if not FIsFromIrc then
         begin
           // Dont add complete tags to dirlist entries
-          if ((fDirMask[1] = 'd') or (fFilesize < 1)) then
+
+          //if it's a dir and has already been checked to be valid, it can't be a complete tag
+          if (((fDirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(fFilename))
+
+          //if it's a file and has a size > 0, it can't be a complete tag
+          or ((fFilesize < 1) and (fDirMask[1] <> 'd')
+
+          //if it's a file and has already been checked to be valid, it can't be a complete tag
+            and not FIsValidFileCache.ContainsKey(fFilename)))
+          then
           begin
             if FCompleteDirTag = fFilename then //if this has already been identified as complete tag, no need for any further action
               continue;
