@@ -166,8 +166,8 @@ end;
 
 procedure DirlistHelperInit;
 begin
-  GlSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+');
-  GlSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+|\[TvMaze\]\W+');
+  GlSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
+  GlSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '\[IMDB\]\W+|\[TvMaze\]\W+');
 end;
 
 end.
