@@ -1,5 +1,5 @@
 const
-  SL_VERSION: string = '1.5.8b1';
+  SL_VERSION: string = '1.5.8b2';
   SL_REV: string = '';
   HELP_VERSION: string = '0.5.8';
 
