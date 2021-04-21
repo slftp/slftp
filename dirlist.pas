@@ -661,11 +661,16 @@ begin
           end;
         end;
 
-        if (fDirMask[1] <> 'd') and (not IsValidFilenameCached(fFilename)) then
-          Continue;
-
-        if (fDirMask[1] = 'd') and (not IsValidDirnameCached(fFilename)) then
-          Continue;
+        if (fDirMask[1] = 'd') then
+        begin
+          // directory: fDirMask[1] = 'd'
+          if not IsValidDirnameCached(fFilename) then Continue;
+        end
+        else
+        begin
+          // no directory: fDirMask[1] <> 'd'
+          if not IsValidFilenameCached(fFilename) then Continue;
+        end;
 
         // Do not filter if we call the dirlist from irc
         if not FIsFromIrc then
