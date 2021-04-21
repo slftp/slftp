@@ -33,13 +33,20 @@ function IsValidFilename(const aInput: String): Boolean;
   @returns(@true if input is valid, @false otherwise.) }
 function IsValidDirname(const aInput: String): Boolean;
 
+{ Just a helper function to initialize @link(GlSkiplistFilesRegex) and @link(GlSkiplistDirsRegex) }
+procedure DirlistHelperInit;
+
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit;
 
 const
   section = 'dirlist.helpers';
+
+var
+  GlSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
+  GlSkiplistDirsRegex: String; //< global_skip_dirs regex from slftp.ini
 
 {$I common.inc}
 
@@ -120,7 +127,7 @@ begin
   fRegExpr := TRegExpr.Create;
   try
     fRegExpr.ModifierI := True;
-    fRegExpr.Expression := GlobalSkiplistFilesRegex;
+    fRegExpr.Expression := GlSkiplistFilesRegex;
 
     if fRegExpr.Exec(aInput) then
       Exit(False);
@@ -140,12 +147,12 @@ begin
   if (aInput[1] = '.') then
     Exit(False);
 
-  if GlobalSkiplistDirsRegex <> '' then
+  if GlSkiplistDirsRegex <> '' then
   begin
     fRegExpr := TRegExpr.Create;
     try
       fRegExpr.ModifierI := True;
-      fRegExpr.Expression := GlobalSkiplistDirsRegex;
+      fRegExpr.Expression := GlSkiplistDirsRegex;
 
       if fRegExpr.Exec(aInput) then
         Exit(False);
@@ -155,6 +162,12 @@ begin
   end;
 
   Result := True;
+end;
+
+procedure DirlistHelperInit;
+begin
+  GlSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+');
+  GlSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+|\[TvMaze\]\W+');
 end;
 
 end.
