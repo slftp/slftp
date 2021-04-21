@@ -78,7 +78,8 @@ uses
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
-  slsslTests;
+  slsslTests,
+  sitesunitTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

@@ -8,6 +8,11 @@ interface
   @returns(@true if screwed up file, @false otherwise.) }
 function IsFtpRushScrewedUpFile(const aFilename, aFileExtension: String): Boolean;
 
+{ Returns true, if the dir contains a special tag indicating the rls can be complete only containing the NFO (dirfix, nfofix, ...)
+  @param(aFullPath the path/dir to check)
+  @returns(@true release can contain only a NFO, @false otherwise.) }
+function ReleaseOnlyConsistsOfNFO(const aFullPath: String): Boolean;
+
 { Parses a 'stat -l' line and extracts the information
   @param(aRespLine single line of ftpd response)
   @param(aDirMask extracted dirmask)
@@ -26,10 +31,12 @@ function IsValidFilename(const aInput: String): Boolean;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit;
 
 const
   section = 'dirlist.helpers';
+
+{$I common.inc}
 
 function IsFtpRushScrewedUpFile(const aFilename, aFileExtension: String): Boolean;
 var
@@ -50,6 +57,22 @@ begin
     if ( (aFilename[l-7] = '(') and (aFilename[l-5] = ')') and (aFilename[l-6] in ['0'..'9']) ) then
     begin
       Exit(True);
+    end;
+  end;
+end;
+
+function ReleaseOnlyConsistsOfNFO(const aFullPath: String): Boolean;
+var
+  fTag: string;
+begin
+  Result := False;
+  for fTag in SpecialDirsTags do
+  begin
+    if {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(aFullPath, fTag) then
+    begin
+      debugunit.Debug(dpSpam, section, 'SpecialDir %s contains %s.', [aFullPath, fTag]);
+      Result := true;
+      Break;
     end;
   end;
 end;

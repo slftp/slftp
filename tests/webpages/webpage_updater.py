@@ -7,7 +7,7 @@ import re
 
 IMDB_MOVIE_IDS = ["tt0375568", "tt11095742",
                   "tt7214470", "tt7728344", "tt0455275", "tt3450958"]
-BOM_MOVIE_IDS = ["tt0375568", "tt5093026", "tt3450958", "tt0087332"]
+BOM_MOVIE_IDS = ["tt0375568", "tt5093026", "tt3450958", "tt0087332", "tt7167658"]
 BOM_RELEASES = [{"ID": "tt0375568", "Country": "USA", "Link": "/release/rl3947005441"},
                 {"ID": "tt5093026", "Country": "France",
                     "Link": "/release/rl4152788737"},
@@ -16,7 +16,10 @@ BOM_RELEASES = [{"ID": "tt0375568", "Country": "USA", "Link": "/release/rl394700
                 # special case with several re-releases
                 {"ID": "tt0087332", "Country": "Original Release",
                     "Link": "/releasegroup/gr2193641989"},
-                {"ID": "tt0087332", "Country": "USA", "Link": "/release/rl3696592385"}]
+                {"ID": "tt0087332", "Country": "USA", "Link": "/release/rl3696592385"},
+                # special case with two original releases for different countries but none is useful
+                {"ID": "tt7167658", "Country": "Original Release",
+                    "Link": "/releasegroup/gr1831424517"}]
 
 
 def __save_to_file(filename, content):
@@ -28,6 +31,8 @@ def __save_to_file(filename, content):
     filename = filename.replace("–", "-")
     filename = filename.replace(":", "")
     filename = filename.replace("ä", "ae")
+    # files with slash can't be saved to disk
+    filename = filename.replace("/", "-")
     f = open(filename, "w")
     f.write(content)
     f.close()

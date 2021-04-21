@@ -1370,7 +1370,7 @@ begin
       goto TryAgain;
   end;
 
-  if (ssrc.site.sw = sswDrftpd) or (sfPRET in ssrc.site.features) then
+  if (ssrc.site.sw = sswDrftpd) then
   begin
     if not ssrc.Send('PRET RETR %s', [ssrc.TranslateFilename(filename)]) then
       goto TryAgain;

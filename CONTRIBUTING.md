@@ -8,41 +8,57 @@ Here are the guidelines we'd like you to follow:
 * [Commit Message Guidelines](#commitGuidelines)
 * [Coding Guidelines](#codingGuidelines)
 * [Semantic Versioning](http://semver.org/spec/v2.0.0.html)
+* [Making a new release Guidelines](#MakingRelease)
 
 <a name="aHelpGit"></a> Git Commands 
 -----
  
-Download the newest branches from remote:
+- Download the current source code and commit history from repository into slftp-src folder if the source were never cloned before:
 ```shell
-git fetch
+git clone https://gitlab.com/slftp/slftp.git slftp-src
 ```
-Download and Merge the newest branches from remote:
+
+- Download and merge the newest code and branches from remote into your local repository:
 ```shell
 git pull
 ```
- 
-Download and Merge a specified branch:
+
+- Switch to another branch:
 ```shell
 git checkout branch_name
-``` 
+```
 
-Add your (single) changes and commit:
+- Create your own local branch:
+```shell
+git checkout -b branch_name
+```
+
+- Add your (single) changes and commit:
 ```shell
 git diff
 git add <files>
 git commit
-git push origin <feature-branch>
+git push origin <feature-branch_name>
 ``` 
 
-Updating an outdated branch with latest development branch:
-  - rebase should be favoured over merge to avoid useless merge commits in history
+- Updating an outdated local branch with latest upstream development branch:
 ```shell
 git checkout dev
 git pull
-git checkout mybranch
+git checkout mybranchname
 git rebase dev
-git push --force-with-lease origin mybranch
-``` 
+```
+
+- Recreating outdated local development branch with latest development branch and update upstream version:
+  - rebase should be favoured over merge to avoid useless merge commits in history
+  - these steps are only for developers!
+```shell
+git checkout dev
+git pull
+git checkout new_feature
+git rebase dev
+git push --force-with-lease origin new_feature
+```
 
 [anyway, here is git for dummies](https://www.mediawiki.org/wiki/Git_for_dummies)
 or
@@ -200,3 +216,17 @@ var
       @param(aInviteOnly @true if channel can only joined with previous invite, @false otherwise) }
     constructor Create(const aNetname, aChannel, aChanRoles: String; aChankey: String = ''; aInviteOnly: Boolean = True);
 ```
+
+<a name="MakingRelease"></a> Making a new release Guidelines
+-----
+The gitlab-ci.yml only creates new releases for tags which should be made from the dev branch only so that they are
+always available and stored in the repository. Thus only annotated tags should be used!
+The release version should follow the semantic versioning. For beta releases only append `b<n>` to the version where `n` is an integer. No extra branches for specific releases since we don't care about old releases and fixing them. Go ahead and follow the flow of new things!
+1. Make sure that the slftp.inc lists the correct slftp and help version
+2. Create an annotated tag locally (only in dev branch!)
+  - for regular releases: `git tag -a v1.5.7 -m "1.5.7"`
+  - for beta releases: `git tag -a v1.5.8b1 -m "1.5.8b1"`
+  - **Note**: If you create a tag through the Gitlab web instance, add "Tag name" and "Message" but leave "Release notes" blank as otherwise the publishing will fail as the release is already created
+3. Push the tag to the upstream repo
+4. Increase the version/beta number in the slftp.inc and push this change to the dev branch
+5. Once the release was created from the runner, update the release notes through the Gitlab web instance
