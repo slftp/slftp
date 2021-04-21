@@ -37,15 +37,15 @@ begin
 
     try
       fDirlist := TDirlist.Create('', nil, nil, String.Join(#13, fResp));
-      Assert.AreEqual('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
+      CheckEquals('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
 
       //parse again to see if it's still true
       fDirlist.ParseDirlist(String.Join(#13, fResp));
-      Assert.AreEqual('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
+      CheckEquals('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
 
-      Assert.AreEqual('00-asdf.jpg', TDirListEntry(fDirlist.entries[0]).filename);
-      Assert.AreEqual('02-asdf.mp3', TDirListEntry(fDirlist.entries[1]).filename);
-      Assert.AreEqual(2, fDirlist.entries.Count);
+      CheckEquals('00-asdf.jpg', TDirListEntry(fDirlist.entries[0]).filename);
+      CheckEquals('02-asdf.mp3', TDirListEntry(fDirlist.entries[1]).filename);
+      CheckEquals(2, fDirlist.entries.Count);
     finally
       if fDirlist <> nil then
         fDirlist.Free;
@@ -66,15 +66,15 @@ begin
 
     try
       fDirlist := TDirlist.Create('', nil, nil, String.Join(#13, fResp));
-      Assert.AreEqual('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
+      CheckEquals('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
 
       //parse again to see if it's still true
       fDirlist.ParseDirlist(String.Join(#13, fResp));
-      Assert.AreEqual('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
+      CheckEquals('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
 
-      Assert.AreEqual('00-asdf.jpg', TDirListEntry(fDirlist.entries[0]).filename);
-      Assert.AreEqual('02-asdf.mp3', TDirListEntry(fDirlist.entries[1]).filename);
-      Assert.AreEqual(2, fDirlist.entries.Count);
+      CheckEquals('00-asdf.jpg', TDirListEntry(fDirlist.entries[0]).filename);
+      CheckEquals('02-asdf.mp3', TDirListEntry(fDirlist.entries[1]).filename);
+      CheckEquals(2, fDirlist.entries.Count);
     finally
       if fDirlist <> nil then
         fDirlist.Free;
