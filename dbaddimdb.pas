@@ -1022,6 +1022,7 @@ begin
   gDbAddimdb_cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
+  last_addimdb.OwnsObjects:= true;
 
   ImdbDBModel := CreateIMDBModel;
   try

@@ -402,19 +402,28 @@ var
   i: integer;
 begin
   Result := nil;
+  kb_lock.Enter;
   try
-    i := kb_list.IndexOf(section + '-' + rlsname);
-    if i <> -1 then
-    begin
-      Result := TPazo(kb_list.Objects[i]);
+    try
+      i := kb_list.IndexOf(section + '-' + rlsname);
+      if i <> -1 then
+      begin
+        Result := TPazo(kb_list.Objects[i]);
 
-      if Result <> nil then
-        Result.lastTouch := Now();
+        if Result <> nil then
+          Result.lastTouch := Now;
 
-      exit;
+        exit;
+      end;
+    except
+     on E: Exception do
+     begin
+       Debug(dpError, section, Format('[EXCEPTION] FindPazoByName: %s', [e.Message]));
+       Result := nil;
+     end;
     end;
-  except
-    Result := nil;
+  finally
+     kb_lock.Leave;
   end;
 end;
 
@@ -494,10 +503,12 @@ begin
 
   // ignore this site if you don't have setup download slots for it
   s := FindSiteByName('', Name);
-  if (status in [rssRealPre, rssShouldPre]) then
-    if s.max_pre_dn = 0 then exit
-  else
-    if s.max_dn = 0 then exit;
+  if ((status in [rssRealPre, rssShouldPre])) then
+  begin
+    if s.max_pre_dn = 0 then exit;
+  end
+  else if s.max_dn = 0 then
+    exit;
 
   if (not de.Directory) then
   begin

@@ -2526,10 +2526,10 @@ function TslTextBox.MaxWidth: integer;
 var
   i: integer;
 begin
-  Result := 0;
-  for i := 0 to ftext.Count - 1 do
-    if length(ftext[i]) > Result then
-      Result := length(ftext[i]);
+  Result := 100;
+//  for i := 0 to ftext.Count - 1 do
+//    if length(ftext[i]) > Result then
+//      Result := length(ftext[i]);
 end;
 
 procedure TslTextBox.Repaint;
