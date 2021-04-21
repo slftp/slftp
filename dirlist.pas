@@ -676,6 +676,17 @@ begin
         if not FIsFromIrc then
         begin
 
+          // entry is a dir with unwanted characters
+          // this is probably to avoid complete tags that might not have been handeled by the 'TagComplete' function
+          // to be transfered, because those might contain sensitive info
+          if ((fDirMask[1] = 'd') and
+            (fFilename.Contains('[') or fFilename.Contains(']') or fFilename.Contains(',') or fFilename.Contains('='))) then
+          begin
+            FIsValidDirCache.AddOrSetValue(fFilename, False);
+            Continue;
+          end;
+
+
           // file is flagged as skipped
           if (skipped.IndexOf(fFilename) <> -1) then
           begin
