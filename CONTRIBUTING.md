@@ -226,5 +226,7 @@ The release version should follow the semantic versioning. For beta releases onl
 2. Create an annotated tag locally (only in dev branch!)
   - for regular releases: `git tag -a v1.5.7 -m "1.5.7"`
   - for beta releases: `git tag -a v1.5.8b1 -m "1.5.8b1"`
+  - **Note**: If you create a tag through the Gitlab web instance, add "Tag name" and "Message" but leave "Release notes" blank as otherwise the publishing will fail as the release is already created
 3. Push the tag to the upstream repo
 4. Increase the version/beta number in the slftp.inc and push this change to the dev branch
+5. Once the release was created from the runner, update the release notes through the Gitlab web instance
