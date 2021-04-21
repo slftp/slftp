@@ -124,15 +124,18 @@ begin
   if (aInput[1] = '.') then
     Exit(False);
 
-  fRegExpr := TRegExpr.Create;
-  try
-    fRegExpr.ModifierI := True;
-    fRegExpr.Expression := GlSkiplistFilesRegex;
+  if GlSkiplistFilesRegex <> '' then
+  begin
+    fRegExpr := TRegExpr.Create;
+    try
+      fRegExpr.ModifierI := True;
+      fRegExpr.Expression := GlSkiplistFilesRegex;
 
-    if fRegExpr.Exec(aInput) then
-      Exit(False);
-  finally
-    fRegExpr.Free;
+      if fRegExpr.Exec(aInput) then
+        Exit(False);
+    finally
+      fRegExpr.Free;
+    end;
   end;
 
   Result := True;
