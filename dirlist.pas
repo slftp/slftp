@@ -676,17 +676,6 @@ begin
         if not FIsFromIrc then
         begin
 
-          // entry is a dir with unwanted characters
-          // this is probably to avoid complete tags that might not have been handeled by the 'TagComplete' function
-          // to be transfered, because those might contain sensitive info
-          if ((fDirMask[1] = 'd') and
-            (fFilename.Contains('[') or fFilename.Contains(']') or fFilename.Contains(',') or fFilename.Contains('='))) then
-          begin
-            FIsValidDirCache.AddOrSetValue(fFilename, False);
-            Continue;
-          end;
-
-
           // file is flagged as skipped
           if (skipped.IndexOf(fFilename) <> -1) then
           begin
@@ -1753,6 +1742,18 @@ begin
 
       if ldepth < dirlist.skiplist.dirdepth then
       begin
+
+        // entry is a dir with unwanted characters
+        // this is probably to avoid complete tags that might not have been handeled by the 'TagComplete' function
+        // to be transfered, because those might contain sensitive info
+        if filename.Contains('[') or filename.Contains(']') or filename.Contains(',') or filename.Contains('=') then
+        begin
+          skiplisted := True;
+          dirlist.skipped.Add(filename);
+          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Dir contains not allowed char %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, fDirPathHelper, filename]));
+          exit;
+        end;
+
         // you have to go through the alloweddirs and check if it's allowed
         s := dirlist.Dirname;
         sf := dirlist.skiplist.AllowedDir(s, filename);
