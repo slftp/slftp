@@ -246,7 +246,7 @@ upload-package-files:
     - |
      rm -f opensslwin64.zip
     - |
-     zip -r ${SLPACKAGE} dist docs sources CHANGELOG
+     zip -r ${SLPACKAGE} dist docs sources CHANGELOG README.md
     # upload the pack
     - |
      curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLPACKAGE} ${PACKAGE_URL}/${SLPACKAGE}
