@@ -172,10 +172,12 @@ type
     { Sorts the @link(entries) by @link(TDirListEntry.timestamp) }
     procedure SortByModify;
     { Tries to get a cached value indicating whether the given string is a valid file name. If no cached value is available,
-      the value is being calculated and then added to the cache }
+      the value is being calculated and then added to the cache
+      @returns(@true if input is valid, @false otherwise.) }
     function IsValidFilenameCached(const aFileName: string): boolean;
     { Tries to get a cached value indicating whether the given string is a valid dir name. If no cached value is available,
-      the value is being calculated and then added to the cache }
+      the value is being calculated and then added to the cache
+      @returns(@true if input is valid, @false otherwise.) }
     function IsValidDirnameCached(const aDirName: string): boolean;
 
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
