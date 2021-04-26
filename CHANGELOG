@@ -65,7 +65,7 @@
     {^} Less unnecessary 'tell your developer' messages to the admin channel
     {^} Improved detection of FTPD software and version
     {^} Send PBSZ command (Pure-FTPd requires it)
-    {^} Setting global_skip in .ini is now only applied to files, new setting global_skip_dir for directories
+    {^} Setting global_skip in .ini is removed and replaced by global_skip_files and global_skip_dirs
 
 --=============================( SLFTP v1.5.7 )===================================-
     {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)
