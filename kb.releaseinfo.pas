@@ -77,6 +77,22 @@ type
     property ZeroDayInfo: TZeroDayInfoStore read GetZeroDayInfo;
   end;
 
+  { Audio information of the release }
+  IAudioInfo = interface
+  ['{7373295a-99e7-4b6b-82ac-def8ef80b397}']
+    { Creates the class
+      @param(aRefController reference to the outer reference count used)
+      @param(aSection sectionname)
+      @param(aRlsname releasename) }
+    constructor Create(const aRefController: IUnknown; const aSection, aRlsname: String);
+
+    { Get the instance of the used information store
+      @returns(used information store instance) }
+    function GetAudioInfo: TAudioInfoStore;
+
+    property AudioInfo: TAudioInfoStore read GetAudioInfo;
+  end;
+
 // TRelease
 // TTvRelease
 

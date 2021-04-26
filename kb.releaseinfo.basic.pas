@@ -66,8 +66,6 @@ type
       @param(aSection section)
       @param(aRlsname releasename) }
     constructor Create(const aSection, aRlsname: String);
-    { Cleanup the private fields }
-    //destructor Destroy;
   published
     property SectionName: String read FSectionName;
     property ReleaseName: String read FReleaseName;
@@ -86,14 +84,49 @@ type
   public
     { Create the information store
       @param(aSection section)
-      @param(aRlsname releasename)
-      @param(aZeroDaySource target operating system) }
-    constructor Create(const aSection, aRlsname, aZeroDaySource: String);
+      @param(aRlsname releasename) }
+    constructor Create(const aSection, aRlsname: String);
   published
     property SectionName: String read FSectionName;
     property ReleaseName: String read FReleaseName;
     property ZeroDaySource: String read FZeroDaySource;
   end;
+
+  { storing class for audio (MP3/FLAC) information of the releasename }
+  TAudioInfoStore = class//(TSQLRecord)
+  private
+    FSectionName: String; //< sectionname
+    FReleaseName: String; //< releasename
+    FYear: integer; //< year (see also @link(GetYear))
+    FLanguage: String; //< mapped language from @link(TRelease.language); remains for backward compatibility of mp3language rule
+    FSource: String; //< mp3 source (see @link(GlMP3Sources)) - default value: CD
+    FTypes: TList<String>; //< mp3 types (see @link(glMP3Types)) which where found in the releasename
+    FNumDisks: integer; //< Number of disks
+    FNumDisksWord: String; //< tag/word which was used for the amount of disks value
+    FIsVariousArtists: Boolean; //< @true if made by Various Artists, otherwise @false
+    FIsBootleg: Boolean; //< @true if Bootleg, otherwise @false
+    FIsLive: Boolean; //< @true if LIVE, otherwise @false
+    FGenre: String; //< genre TODO: needs actualizal fucntion
+  public
+    { Create the information store
+      @param(aSection section)
+      @param(aRlsname releasename) }
+    constructor Create(const aSection, aRlsname: String);
+  published
+    property SectionName: String read FSectionName;
+    property ReleaseName: String read FReleaseName;
+    property Year: Integer read FYear;
+    property Language: String read FLanguage;
+    property Source: String read FSource;
+    property Types: TList<String> read FTypes;
+    property NumberOfDisks: Integer read FNumDisks;
+    property NumberOfDisksWord: String read FNumDisksWord;
+    property IsVariousArtists: Boolean read FIsVariousArtists;
+    property IsBootleg: Boolean read FIsBootleg;
+    property IsLive: Boolean read FIsLive;
+    property Genre: String read FGenre;
+  end;
+
 
 type
   { class for basic info from releasename }
@@ -170,29 +203,64 @@ type
 
 // TODO: separate TPreController?
 
+  { class for 0-Day info from releasename }
   TZeroDayController = class(TAggregatedObject, IZeroDayInfo)
   private
     FZeroDayInfoStore: TZeroDayInfoStore; //< class used to store the 0-Day information
 
     { Extract the platform (operating system) from the releasename
-      @param(aRlsname releasename)
-      @returns(releasename with removed special characters) }
-    function ExtractZeroDayTag(const aRlsname: String): String;
+      @param(aRlsnameWordsList list of words from the releasename)
+      @returns(platform from GlNullDayPlatformTags @note(default platform is WIN of no matching string was found!)) }
+    function ExtractZeroDayTag(const aRlsnameWordsList: TStringList): String;
   public
     { Create and parse the 0-Day info from the releasename
       @param(aRefController reference to the class which takes care of the reference count)
       @param(aSection section)
-      @param(aRlsname releasename) }
-    constructor Create(const aRefController: IUnknown; const aSection, aRlsname: String);
+      @param(aRlsname releasename)
+      @param(aRlsnameWordsList list of words from the releasename (basic information class)) }
+    constructor Create(const aRefController: IUnknown; const aSection, aRlsname: String; const aRlsnameWordsList: TStringList);
   published
     { Provide access to the published properties of the internally used information stores }
     function GetZeroDayInfo: TZeroDayInfoStore;
   end;
 
+  { class for audio info from releasename }
+  TAudioController = class(TAggregatedObject, IAudioInfo)
+  private
+    FAudioInfoStore: TAudioInfoStore; //< class used to store the audio information
 
+    { Checks if the typeslist contains the given type @note(internal helper function)
+      @param(aType possible audio type)
+      @param(aTypesList list of audio types found in the releasename)
+      @returns(@true if type is in list, otherwise @false) }
+    function _HasThisAudioType(const aType: String; const aTypesList: TList<String>): Boolean;
 
+    { Checks if the release is made from various artists
+      @param(aRlsname releasename)
+      @returns(@true if from various artists, otherwise @false) }
+    function IsVariousArtists(const aRlsname: String): Boolean;
 
+    { Checks if the typeslist contains 'Bootleg'
+      @param(aTypesList list of audio types found in the releasename)
+      @returns(@true if the type 'Bootleg' is in list, otherwise @false) }
+    function IsBootleg(const aTypesList: TList<String>): Boolean;
 
+    { Checks if the typeslist contains 'Live' or if the Source indicates a live performance
+      @param(aSource source found in releasename)
+      @param(aTypesList list of audio types found in the releasename)
+      @returns(@true if the type 'Bootleg' is in list, otherwise @false) }
+    function IsLive(const aSource: String; const aTypesList: TList<String>): Boolean;
+  public
+    { Create and parse the audio info from the releasename
+      @param(aRefController reference to the class which takes care of the reference count)
+      @param(aSection section)
+      @param(aRlsname releasename)
+      @param(aRlsnameWordsList list of words from the releasename (basic information class)) }
+    constructor Create(const aRefController: IUnknown; const aSection, aRlsname: String; const aRlsnameWordsList: TStringList);
+  published
+    { Provide access to the published properties of the internally used information stores }
+    function GetAudioInfo: TAudioInfoStore;
+  end;
 
 
 
@@ -234,6 +302,39 @@ begin
   FWordsList.Free;
   inherited;
 end;
+
+constructor TPreInfoStore.Create(const aSection, aRlsname: String);
+begin
+  inherited Create;
+  FSectionName := aSection;
+  ReleaseName := aRlsname;
+end;
+
+constructor TZeroDayInfoStore.Create(const aSection, aRlsname: String);
+begin
+  inherited Create;
+  FSectionName := aSection;
+  ReleaseName := aRlsname;
+end;
+
+constructor TAudioInfoStore.Create(const aSection, aRlsname: String);
+begin
+  inherited Create;
+  FSectionName := aSection;
+  ReleaseName := aRlsname;
+  FTypes := TList<String>.Create; // TODO: make case-insensitve but atm causes AV on FPC
+end;
+
+destructor TAudioInfoStore.Destroy;
+begin
+  FTypes.Free;
+  inherited;
+end;
+
+
+
+
+
 
 
 
@@ -419,12 +520,12 @@ begin
   Result := fDiscs;
 end;
 
-constructor TZeroDayController.Create(const aRefController: IUnknown; const aSection, aRlsname: String);
+constructor TZeroDayController.Create(const aRefController: IUnknown; const aSection, aRlsname: String; const aRlsnameWordsList: TStringList);
 begin
   inherited Create(aRefController);
-  FZeroDayInfoStore := TZeroDayController.Create(aSection, aRlsname);
+  FZeroDayInfoStore := TZeroDayInfoStore.Create(aSection, aRlsname);
 
-  FZeroDayInfoStore.FZeroDaySource := ExtractZeroDayTag(aRlsname);
+  FZeroDayInfoStore.FZeroDaySource := ExtractZeroDayTag(aRlsnameWordsList);
 end;
 
 destructor TZeroDayController.Destroy;
@@ -438,13 +539,16 @@ begin
   Result := FZeroDayInfoStore;
 end;
 
-function TZeroDayController.ExtractZeroDayTag(const aRlsname: String): String;
+function TZeroDayController.ExtractZeroDayTag(const aRlsnameWordsList: TStringList): String;
+var
+  i: Integer;
+  j: Integer;
 begin
-  for i := words.Count - 1 downto 1 do // TODO: need access to words list from TBasicInfo
+  for i := aRlsnameWordsList.Count - 1 downto 1 do
   begin
     for j := 0 to GlNullDayPlatformTags.Count - 1 do
     begin
-      if (AnsiContainsText(GlNullDayPlatformTags.ValueFromIndex[j], ' ' + words[i] + ' ')) then
+      if (AnsiContainsText(GlNullDayPlatformTags.ValueFromIndex[j], ' ' + aRlsnameWordsList[i] + ' ')) then
       begin
         Result := GlNullDayPlatformTags.Names[j];
         Break;
@@ -457,6 +561,96 @@ begin
 
   if Result = '' then
     Result := 'WIN';
+end;
+
+constructor TAudioController.Create(const aRefController: IUnknown; const aSection, aRlsname: String; const aRlsnameWordsList: TStringList);
+var
+  i: Integer;
+  fNumberOfDashes: Integer;
+begin
+  inherited Create(aRefController);
+
+  { some kind of fake detection and access violation protection }
+  if aRlsnameWordsList.Count < 3 then
+    raise Exception.Create('Releasename contains less than three words!');
+
+  fNumberOfDashes := 0;
+  for i := 1 to Length(aRlsname) do
+  begin
+      if aRlsname[i] = '-' then
+      begin
+      Inc(fNumberOfDashes);
+      if (fNumberOfDashes = 2) then
+          Break;
+      end;
+  end;
+  if fNumberOfDashes < 2 then
+      raise Exception.Create('Releasename contains less than two dashes');
+
+  FAudioInfoStore := TAudioInfoStore.Create(aSection, aRlsname);
+
+  FAudioInfoStore.FYear := 
+  FAudioInfoStore.FLanguage := // TODO: maybe use own function here so that language != mp3language - removes interdependence
+  FAudioInfoStore.FSource := 
+  FAudioInfoStore.FTypes := 
+  FAudioInfoStore.FNumDisks := 
+  FAudioInfoStore.FNumDisksWord := 
+  FAudioInfoStore.FIsVariousArtists := IsVariousArtists(aRlsname);
+  FAudioInfoStore.FIsBootleg := IsBootleg(FAudioInfoStore.FTypes);
+  FAudioInfoStore.FIsLive := IsLive(FAudioInfoStore.FSource, FAudioInfoStore.FTypes);
+  FAudioInfoStore.FGenre := ''; // TODO: needs to be set trhogh actualizal
+end;
+
+destructor TAudioController.Destroy;
+begin
+  FAudioInfoStore.Free;
+  inherited;
+end;
+
+function TAudioController.GetAudioInfo: TAudioInfoStore;
+begin
+  Result := FAudioInfoStore;
+end;
+
+{ internal function called by other function }
+function TAudioController._HasThisAudioType(const aType: String; const aTypesList: TList<String>): Boolean;
+var
+  fStr: String;
+begin
+  Result := False;
+
+  for fStr in aTypesList do
+  begin
+    if SameText(fStr, aType) then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+function TAudioController.IsVariousArtists(const aRlsname: String): Boolean;
+var
+  fRegex: TRegExpr;
+begin
+  fRegex := TRegExpr.Create;
+  try
+    fRegex.ModifierI := True;
+    fRegex.Expression := '^(va[\-\_\.]|Various[\.\_]Artists?)';
+    Result := fRegex.Exec(aRlsname);
+  finally
+    fRegex.Free;
+  end;
+end;
+
+function TAudioController.IsBootleg(const aTypesList: TList<String>): Boolean;
+begin
+  Result := _HasThisAudioType('Bootleg', aTypesList);
+end;
+
+function TAudioController.IsLive(const aSource: String; const aTypesList: TList<String>): Boolean;
+begin
+  Result := (aSource = 'LIVE') or _HasThisAudioType('LIVE', aTypesList);
 end;
 
 end.
