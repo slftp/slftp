@@ -33,7 +33,7 @@ function IsValidFilename(const aInput: String): Boolean;
   @returns(@true if input is valid, @false otherwise.) }
 function IsValidDirname(const aInput: String): Boolean;
 
-{ Just a helper function to initialize @link(GlSkiplistFilesRegex) and @link(GlSkiplistDirsRegex) }
+{ Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
 
 implementation
@@ -45,8 +45,8 @@ const
   section = 'dirlist.helpers';
 
 var
-  GlSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
-  GlSkiplistDirsRegex: String; //< global_skip_dirs regex from slftp.ini
+  glSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
+  glSkiplistDirsRegex: String; //< global_skip_dirs regex from slftp.ini
 
 {$I common.inc}
 
@@ -124,12 +124,12 @@ begin
   if (aInput[1] = '.') then
     Exit(False);
 
-  if GlSkiplistFilesRegex <> '' then
+  if glSkiplistFilesRegex <> '' then
   begin
     fRegExpr := TRegExpr.Create;
     try
       fRegExpr.ModifierI := True;
-      fRegExpr.Expression := GlSkiplistFilesRegex;
+      fRegExpr.Expression := glSkiplistFilesRegex;
 
       if fRegExpr.Exec(aInput) then
         Exit(False);
@@ -150,12 +150,12 @@ begin
   if (aInput[1] = '.') then
     Exit(False);
 
-  if GlSkiplistDirsRegex <> '' then
+  if glSkiplistDirsRegex <> '' then
   begin
     fRegExpr := TRegExpr.Create;
     try
       fRegExpr.ModifierI := True;
-      fRegExpr.Expression := GlSkiplistDirsRegex;
+      fRegExpr.Expression := glSkiplistDirsRegex;
 
       if fRegExpr.Exec(aInput) then
         Exit(False);
@@ -169,8 +169,8 @@ end;
 
 procedure DirlistHelperInit;
 begin
-  GlSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
-  GlSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '\[IMDB\]\W+|\[TvMaze\]\W+');
+  glSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
+  glSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '\[IMDB\]\W+|\[TvMaze\]\W+');
 end;
 
 end.
