@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals;
+uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, Generics.Collections;
 
 type
   {
@@ -80,6 +80,8 @@ type
     skiplist: TSkipList;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
+    FIsValidFileCache: TDictionary<string, boolean>; //< cache for results of IsValidFilename
+    FIsValidDirCache: TDictionary<string, boolean>; //< cache for results of IsValidDirname
     FContainsNFOOnlyDirTag: boolean; //true, if the dir contains a special tag indicating the rls can be complete only containing the NFO (dirfix, nfofix, ...)
 
 
@@ -107,6 +109,7 @@ type
 
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
+
     procedure SetFullPath(const aFullPath: string);
     class function Timestamp(ts: String): TDateTime;
   public
@@ -168,6 +171,14 @@ type
     function HasSFV: Boolean;
     { Sorts the @link(entries) by @link(TDirListEntry.timestamp) }
     procedure SortByModify;
+    { Tries to get a cached value indicating whether the given string is a valid file name. If no cached value is available,
+      the value is being calculated and then added to the cache
+      @returns(@true if input is valid, @false otherwise.) }
+    function IsValidFilenameCached(const aFileName: string): boolean;
+    { Tries to get a cached value indicating whether the given string is a valid dir name. If no cached value is available,
+      the value is being calculated and then added to the cache
+      @returns(@true if input is valid, @false otherwise.) }
+    function IsValidDirnameCached(const aDirName: string): boolean;
 
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
@@ -177,7 +188,7 @@ type
     property FullPath: String read FFullPath write SetFullPath;
   end;
 
-{ Just a helper function to initialize @link(GlobalSkiplistRegex), image_files_priority and video_files_priority }
+{ Just a helper function to initialize image_files_priority and video_files_priority }
 procedure DirlistInit;
 
 var
@@ -376,6 +387,8 @@ begin
   skipped := TStringList.Create;
   skipped.CaseSensitive := False;
   self.parent := parentdir;
+  self.FIsValidFileCache := TDictionary<string, boolean>.Create;
+  self.FIsValidDirCache := TDictionary<string, boolean>.Create;
 
   self.s := s;
   self.skiplist := skiplist;
@@ -408,6 +421,8 @@ begin
   dirlist_lock.Enter;
   try
     entries.Free;
+    FIsValidFileCache.Free;
+    FIsValidDirCache.Free;
   finally
     dirlist_lock.Leave;
   end;
@@ -622,18 +637,23 @@ begin
         if fFilesize < 0 then
           Continue;
 
-        if ((fDirMask[1] = 'd') and (fFilename[1] = '.')) then
-          Continue;
-
-        if (not FIsAutoIndex or (fDirMask[1] <> 'd')) and (not IsValidFilename(fFilename)) then
-          Continue;
-
-        // Do not filter if we call the dirlist from irc
         if not FIsFromIrc then
         begin
           // Dont add complete tags to dirlist entries
-          if ((fDirMask[1] = 'd') or (fFilesize < 1)) then
+
+          //if it's a dir and has already been checked to be valid, it can't be a complete tag
+          if (((fDirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(fFilename))
+
+          //if it's a file and has a size > 0, it can't be a complete tag
+          or ((fFilesize < 1) and (fDirMask[1] <> 'd')
+
+          //if it's a file and has already been checked to be valid, it can't be a complete tag
+            and not FIsValidFileCache.ContainsKey(fFilename)))
+          then
           begin
+            if FCompleteDirTag = fFilename then //if this has already been identified as complete tag, no need for any further action
+              continue;
+
             fTagCompleteType := TagComplete(fFilename);
             if (fTagCompleteType <> tctUNMATCHED) then
             begin
@@ -641,12 +661,22 @@ begin
               Continue;
             end;
           end;
+        end;
 
-          // entry is a dir with unwanted characters
-          if ((fDirMask[1] = 'd') and (AnsiMatchText(fFilename, ['[', ']', ',', '=']))) then
-          begin
-            Continue;
-          end;
+        if (fDirMask[1] = 'd') then
+        begin
+          // directory: fDirMask[1] = 'd'
+          if not IsValidDirnameCached(fFilename) then Continue;
+        end
+        else
+        begin
+          // no directory: fDirMask[1] <> 'd'
+          if not IsValidFilenameCached(fFilename) then Continue;
+        end;
+
+        // Do not filter if we call the dirlist from irc
+        if not FIsFromIrc then
+        begin
 
           // file is flagged as skipped
           if (skipped.IndexOf(fFilename) <> -1) then
@@ -1714,6 +1744,18 @@ begin
 
       if ldepth < dirlist.skiplist.dirdepth then
       begin
+
+        // entry is a dir with unwanted characters
+        // this is probably to avoid complete tags that might not have been handeled by the 'TagComplete' function
+        // to be transfered, because those might contain sensitive info
+        if filename.Contains('[') or filename.Contains(']') or filename.Contains(',') or filename.Contains('=') then
+        begin
+          skiplisted := True;
+          dirlist.skipped.Add(filename);
+          irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Dir contains not allowed char %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, fDirPathHelper, filename]));
+          exit;
+        end;
+
         // you have to go through the alloweddirs and check if it's allowed
         s := dirlist.Dirname;
         sf := dirlist.skiplist.AllowedDir(s, filename);
@@ -1737,6 +1779,24 @@ begin
   end;
 end;
 
+function TDirlist.IsValidFilenameCached(const aFileName: string): boolean;
+begin
+  if FIsValidFileCache.TryGetValue(aFileName, Result) then
+    exit;
+
+  Result := IsValidFilename(aFileName);
+  FIsValidFileCache.AddOrSetValue(aFileName, Result);
+end;
+
+function TDirlist.IsValidDirnameCached(const aDirName: string): boolean;
+begin
+  if FIsValidDirCache.TryGetValue(aDirName, Result) then
+    exit;
+
+  Result := IsValidDirname(aDirName);
+  FIsValidDirCache.AddOrSetValue(aDirName, Result);
+end;
+
 procedure TDirList.SetFullPath(const aFullPath: string);
 begin
   if FFullPath <> aFullPath then
@@ -1748,7 +1808,7 @@ end;
 
 procedure DirlistInit;
 begin
-  GlobalSkiplistRegex := config.ReadString(section, 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|([^\w].*DONE\s\-\>\s\d+x\d+[^\w]*)|\[IMDB\]\W+');
+  DirlistHelperInit;
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then
