@@ -23,18 +23,30 @@ function ReleaseOnlyConsistsOfNFO(const aFullPath: String): Boolean;
   @param(aItem extracted dirname or filename) }
 procedure ParseStatResponseLine(var aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
 
-{ Checks if given input is valid for a file/dir (e.g. doesn't start with dot or is skipped globally)
+{ Checks if given input is valid for a file (e.g. doesn't start with dot or is skipped globally)
   @param(aInput File or Dirname)
   @returns(@true if input is valid, @false otherwise.) }
 function IsValidFilename(const aInput: String): Boolean;
 
+{ Checks if given input is valid for a dir (e.g. doesn't start with dot or is skipped globally)
+  @param(aInput File or Dirname)
+  @returns(@true if input is valid, @false otherwise.) }
+function IsValidDirname(const aInput: String): Boolean;
+
+{ Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
+procedure DirlistHelperInit;
+
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit;
 
 const
   section = 'dirlist.helpers';
+
+var
+  glSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
+  glSkiplistDirsRegex: String; //< global_skip_dirs regex from slftp.ini
 
 {$I common.inc}
 
@@ -112,18 +124,53 @@ begin
   if (aInput[1] = '.') then
     Exit(False);
 
-  fRegExpr := TRegExpr.Create;
-  try
-    fRegExpr.ModifierI := True;
-    fRegExpr.Expression := GlobalSkiplistRegex;
+  if glSkiplistFilesRegex <> '' then
+  begin
+    fRegExpr := TRegExpr.Create;
+    try
+      fRegExpr.ModifierI := True;
+      fRegExpr.Expression := glSkiplistFilesRegex;
 
-    if fRegExpr.Exec(aInput) then
-      Exit(False);
-  finally
-    fRegExpr.Free;
+      if fRegExpr.Exec(aInput) then
+        Exit(False);
+    finally
+      fRegExpr.Free;
+    end;
   end;
 
   Result := True;
+end;
+
+function IsValidDirname(const aInput: String): Boolean;
+var
+  fRegExpr: TRegExpr;
+begin
+  Result := False;
+
+  if (aInput[1] = '.') then
+    Exit(False);
+
+  if glSkiplistDirsRegex <> '' then
+  begin
+    fRegExpr := TRegExpr.Create;
+    try
+      fRegExpr.ModifierI := True;
+      fRegExpr.Expression := glSkiplistDirsRegex;
+
+      if fRegExpr.Exec(aInput) then
+        Exit(False);
+    finally
+      fRegExpr.Free;
+    end;
+  end;
+
+  Result := True;
+end;
+
+procedure DirlistHelperInit;
+begin
+  glSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
+  glSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '\[IMDB\]\W+|\[TvMaze\]\W+');
 end;
 
 end.
