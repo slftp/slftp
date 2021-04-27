@@ -1284,17 +1284,13 @@ end;
 
 
 
-procedure TQueueThread.RemoveActiveTransfer(t: TTask);
+procedure TQueueThread.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 var
-  tp: TPazoRaceTask;
   i:  integer;
 begin
-  if t.ClassType <> TPazoRaceTask then
-    exit;
-  tp := TPazoRaceTask(t);
-  i  := tp.ps2.activeTransfers.IndexOf(tp.dir + tp.filename);
+  i  := aRaceTask.ps2.activeTransfers.IndexOf(aRaceTask.dir + aRaceTask.filename);
   if i <> -1 then
-    tp.ps2.activeTransfers.Delete(i);
+    aRaceTask.ps2.activeTransfers.Delete(i);
 end;
 
 procedure TQueueThread.Execute;
@@ -1350,8 +1346,8 @@ begin
                   begin
                     dst.event.SetEvent;
                   end;
+                RemoveActiveTransfer(TPazoRaceTask(t));
               end;
-              RemoveActiveTransfer(t);
               RemoveDependencies(t);
               tasks.Remove(t);
               Console_QueueDel(ss);
