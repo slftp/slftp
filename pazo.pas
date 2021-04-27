@@ -1498,36 +1498,13 @@ var
   fJustAdded: boolean;
 begin
   fJustAdded := False;
-
-  // skip filenames dotfiles
-  if ((aFilename = '.') or (aFilename = '..') or (aFilename[1] = '.')) then
-    exit;
-
-  // skip global_skip matches
-  rrgx := TRegExpr.Create;
-  try
-    try
-      rrgx.ModifierI := True;
-      rrgx.Expression := GlobalSkiplistRegex;
-
-      if rrgx.Exec(aFilename) then
-      begin
-        exit;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] ParseDupe global_skip regex: %s', [e.Message]));
-      end;
-    end;
-  finally
-    rrgx.Free;
-  end;
-
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
   try
     aDirlist.dirlist_lock.Enter;
     try
+      if not aDirlist.IsValidFilenameCached(aFileName) then
+        exit;
+
       de := aDirlist.Find(aFilename);
       if de = nil then
       begin
