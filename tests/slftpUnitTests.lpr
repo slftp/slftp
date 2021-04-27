@@ -56,6 +56,7 @@ uses
   ircparsingTests,
   slmasksTests,
   dirlist.helpersTests,
+  dirlistTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
