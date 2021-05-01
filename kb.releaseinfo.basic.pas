@@ -101,8 +101,8 @@ type
     FLanguage: String; //< mapped language from @link(TRelease.language); remains for backward compatibility of mp3language rule
     FSource: String; //< mp3 source (see @link(GlMP3Sources)) - default value: CD
     FTypes: TList<String>; //< mp3 types (see @link(glMP3Types)) which where found in the releasename
-    FNumDisks: integer; //< Number of disks
-    FNumDisksWord: String; //< tag/word which was used for the amount of disks value
+    FNumDiscs: integer; //< Number of discs
+    FNumDiscsWord: String; //< tag/word which was used for the amount of discs value
     FIsVariousArtists: Boolean; //< @true if made by Various Artists, otherwise @false
     FIsBootleg: Boolean; //< @true if Bootleg, otherwise @false
     FIsLive: Boolean; //< @true if LIVE, otherwise @false
@@ -119,8 +119,8 @@ type
     property Language: String read FLanguage;
     property Source: String read FSource;
     property Types: TList<String> read FTypes;
-    property NumberOfDisks: Integer read FNumDisks;
-    property NumberOfDisksWord: String read FNumDisksWord;
+    property NumberOfDisks: Integer read FNumDiscs;
+    property NumberOfDisksWord: String read FNumDiscsWord;
     property IsVariousArtists: Boolean read FIsVariousArtists;
     property IsBootleg: Boolean read FIsBootleg;
     property IsLive: Boolean read FIsLive;
@@ -234,6 +234,29 @@ type
       @param(aTypesList list of audio types found in the releasename)
       @returns(@true if type is in list, otherwise @false) }
     function _HasThisAudioType(const aType: String; const aTypesList: TList<String>): Boolean;
+
+    { Searches for the release year in given words of the releasename
+      @param(aRlsnameWordsList list of words from the releasename)
+      @param(aWordIndexYear index of the word that gives the year, zero if not found)
+      @returns(release year or zero if not found) }
+    function SearchReleaseYear(const aRlsnameWordsList: TStringList; out aWordIndexYear: Integer): Integer;
+
+    { Checks if the releasename contains the number of discs of the release
+      @param(aRlsnameWordsList list of words from the releasename)
+      @param(aAudioNumDisks number of discs, one if none is given)
+      @param(aAudioNumDisksWord word that indicates the number of discs, empty if none is given) }
+    procedure GetNumberOfDiscsFromTag(const aRlsnameWordsList: TStringList; out aAudioNumDisks: Integer; out aAudioNumDisksWord: String);
+
+    { Find the source type from @link(GlMP3Sources) in the release
+      @param(aRlsnameWordsList list of words from the releasename)
+      @param(aAudioNumDisksWord word that indicates the number of discs)
+      @returns(source of the release @note(default type is 'CD') }
+    function FindReleaseSource(const aRlsnameWordsList: TStringList; const aAudioNumDisksWord: String): String;
+
+    { Search for all possible types in @link(glMP3Types)
+      @param(aRlsnameWordsList list of words from the releasename)
+      @param(aTypesList types list where the types should be added to) }
+    procedure FindTypes(const aRlsnameWordsList: TStringList; const aTypesList: TList<String>);
 
     { Checks if the release is made from various artists
       @param(aRlsname releasename)
@@ -407,6 +430,9 @@ begin
     fRegEx.free;
   end;
 
+  // TODO: groupname of needs to be adjusted if it contains WEB (e.g. for Audio releases) -> XY_WEB
+  //       (probably not already detected by existing code?)
+
   // different way if groupname not found by regex
   if (Result = '') then
   begin
@@ -563,10 +589,13 @@ begin
     Result := 'WIN';
 end;
 
-constructor TAudioController.Create(const aRefController: IUnknown; const aSection, aRlsname: String; const aRlsnameWordsList: TStringList);
+constructor TAudioController.Create(const aRefController: IUnknown; const aSection, aRlsname: String; const aRlsnameWordsList: TStringList; const aRlsYear: Integer);
 var
   i: Integer;
   fNumberOfDashes: Integer;
+  fWordIndexYear: Integer;
+  fNumDiscs: Integer;
+  fNumDiscsWord: String;
 begin
   inherited Create(aRefController);
 
@@ -577,24 +606,30 @@ begin
   fNumberOfDashes := 0;
   for i := 1 to Length(aRlsname) do
   begin
-      if aRlsname[i] = '-' then
-      begin
+    if aRlsname[i] = '-' then
+    begin
       Inc(fNumberOfDashes);
       if (fNumberOfDashes = 2) then
-          Break;
-      end;
+        Break;
+    end;
   end;
   if fNumberOfDashes < 2 then
-      raise Exception.Create('Releasename contains less than two dashes');
+    raise Exception.Create('Releasename contains less than two dashes');
 
   FAudioInfoStore := TAudioInfoStore.Create(aSection, aRlsname);
 
-  FAudioInfoStore.FYear := 
+  FAudioInfoStore.FYear := SearchReleaseYear(aRlsnameWordsList, fWordIndexYear);
+  if FAudioInfoStore.FYear = 0 then // TODO: maybe return negative number but must also be used for basic year then
+    FAudioInfoStore.FYear := aRlsYear;
+  if FAudioInfoStore.FYear = 0 then
+    raise Exception.Create('Unable to find out any year');
+
   FAudioInfoStore.FLanguage := // TODO: maybe use own function here so that language != mp3language - removes interdependence
-  FAudioInfoStore.FSource := 
-  FAudioInfoStore.FTypes := 
-  FAudioInfoStore.FNumDisks := 
-  FAudioInfoStore.FNumDisksWord := 
+  GetNumberOfDiscsFromTag(aRlsnameWordsList, fNumDiscs, fNumDiscsWord);
+  FAudioInfoStore.FSource := FindReleaseSource(aRlsnameWordsList, fNumDiscsWord);
+  FindTypes(aRlsnameWordsList, FAudioInfoStore.FTypes);
+  FAudioInfoStore.FNumDiscs := fNumDiscs;
+  FAudioInfoStore.FNumDiscsWord := fNumDiscsWord;
   FAudioInfoStore.FIsVariousArtists := IsVariousArtists(aRlsname);
   FAudioInfoStore.FIsBootleg := IsBootleg(FAudioInfoStore.FTypes);
   FAudioInfoStore.FIsLive := IsLive(FAudioInfoStore.FSource, FAudioInfoStore.FTypes);
@@ -625,6 +660,139 @@ begin
     begin
       Result := True;
       Break;
+    end;
+  end;
+end;
+
+function TAudioController.SearchReleaseYear(const aRlsnameWordsList: TStringList; out aWordIndexYear: Integer): Integer;
+var
+  fYear: Integer;
+
+  { Check if the given word is the release year
+    @param(aWord single word from the releasename)
+    @param(aYear year extracted from single word)
+    @returns(@true if word is the release year, @false otherwise) }
+  function _IsYear(const aWord: String; out aYear: Integer): Boolean;
+  var
+    i: integer;
+    fInputWord: String;
+  begin
+    Result := False;
+    fInputWord := aWord;
+    aYear := -1;
+
+    if (Length(fInputWord) = 4) then
+    begin
+      i := OccurrencesOfNumbers(fInputWord);
+      if (i = 4) then
+      begin
+        aYear := StrToIntDef(fInputWord, 1900);
+        Result := True;
+      end
+      else if ((i = 3) and ((fInputWord[4] = 'x') or (fInputWord[4] = 'X'))) then
+      begin
+        fInputWord[4] := '0';
+        aYear := StrToIntDef(fInputWord, 1900);
+        Result := True;
+      end;
+    end;
+  end;
+
+begin
+  Result := 0;
+  aWordIndexYear := 0;
+  // year has to be near of the end of the releasename
+  for i := 1 to 3 do
+  begin
+    if _IsYear(aRlsnameWordsList[aRlsnameWordsList.Count - i], fYear) then
+    begin
+      aWordIndexYear := aRlsnameWordsList.Count - i;
+      Result := fYear;
+      Break;
+    end;
+  end;
+end;
+
+procedure TAudioController.GetNumberOfDiscsFromTag(const aRlsnameWordsList: TStringList; out aAudioNumDisks: Integer; out aAudioNumDisksWord: String);
+var
+  i, j: Integer;
+  fWordLen: Integer;
+  fNumberDiscs: Integer;
+  fWord: String;
+begin
+  aAudioNumDisks := 1;
+  aAudioNumDisksWord := '';
+  fNumberDiscs := 0;
+
+  for i := aRlsnameWordsList.Count - 1 downto 1 do
+  begin
+    fWord := aRlsnameWordsList[i];
+    fWordLen := Length(fWord);
+
+    for j := 1 to fWordLen do
+    begin
+      if IsANumber(fWord[j]) then
+      begin
+        // e.g.: 5CD or 2DVD
+        fNumberDiscs := fNumberDiscs * 10 + Ord(fWord[j]) - 48;
+      end
+      else
+        Break;
+    end;
+
+    if not fNumberDiscs = 0 then
+      Break;
+  end;
+
+  if ((i <= fWordLen - 2) and (fWord[i] = 'x')) then
+    Inc(i);
+
+  aAudioNumDisks := fNumberDiscs;
+  aAudioNumDisksWord := aRlsnameWordsList[i];
+end;
+
+function TAudioController.FindReleaseSource(const aRlsnameWordsList: TStringList; const aAudioNumDisksWord: String): String;
+var
+  i, j: Integer;
+  fWord: String;
+begin
+  Result := 'CD';
+
+  for i := aRlsnameWordsList.Count - 1 downto 1 do
+  begin
+    fWord := ' ' + aRlsnameWordsList[i] + ' ';
+    for j := 0 to GlMP3Sources.Count - 1 do
+    begin
+      if aAudioNumDisksWord.IsEmpty then
+      begin
+        if ContainsText(GlMP3Sources.ValueFromIndex[j], fWord) then
+        begin
+          Result := GlMP3Sources.Names[j];
+          Break;
+        end;
+      end
+      else
+      begin
+        if ContainsText(GlMP3Sources.ValueFromIndex[j], ' ' + aAudioNumDisksWord + ' ') then
+        begin
+          Result := GlMP3Sources.Names[j];
+          Break;
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure TAudioController.FindTypes(const aRlsnameWordsList: TStringList; const aTypesList: TList<String>);
+var
+  fWord: String;
+begin
+  for fWord in aRlsnameWordsList do
+  begin
+    if (glMP3Types.IndexOf(fWord) <> -1) then
+    begin
+      if not aTypesList.Contains(fWord) then
+        aTypesList.Add(fWord);
     end;
   end;
 end;
