@@ -394,7 +394,7 @@ end;
 function DeleteIMDbDataWithImdbId(const aIMDbId: String): Boolean;
 var
     fIMDbDataRec:  TIMDbData;
-    fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos:           Int64;
+    fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos, fID_IMDbBoomData:           Int64;
 begin
     Result := False;
     fIMDbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbId = ?', [], [aIMDbId]);
@@ -403,9 +403,12 @@ begin
       begin
         fID_FIMDbAlsoKnownAsData := TID(fIMDbDataRec.FIMDbAlsoKnownAsData);
         fID_IMDbReleaseInfos := TID(fIMDbDataRec.FIMDbReleaseInfos);
+        fID_IMDbBoomData := TID(fIMDbDataRec.FIMDbBoomInfos);
+
 
         ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
         ImdbDatabase.Delete(TIMDbReleaseDatesRecord,fID_IMDbReleaseInfos);
+        ImdbDatabase.Delete(TIMDbBoomData,fID_IMDbBoomData);
         ImdbDatabase.Delete(TIMDbData, 'IMDbID=?',[aIMDbId]);
       end;
     finally
@@ -417,7 +420,7 @@ end;
 function DeleteIMDbDataWithReleaseName(const aReleaseName: String): Boolean;
 var
     fIMDbDataRec:  TIMDbData;
-    fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos:           Int64;
+    fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos, fID_IMDbBoomData:           Int64;
 begin
     Result := False;
     fIMDbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsData.IMDbTitle = ?', [], [aReleaseName]);
@@ -426,9 +429,11 @@ begin
       begin
         fID_FIMDbAlsoKnownAsData := TID(fIMDbDataRec.FIMDbAlsoKnownAsData);
         fID_IMDbReleaseInfos := TID(fIMDbDataRec.FIMDbReleaseInfos);
+        fID_IMDbBoomData := TID(fIMDbDataRec.FIMDbBoomInfos);
 
         ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
         ImdbDatabase.Delete(TIMDbReleaseDatesRecord,fID_IMDbReleaseInfos);
+        ImdbDatabase.Delete(TIMDbBoomData,fID_IMDbBoomData);
         ImdbDatabase.Delete(TIMDbData, 'IMDbID=?',[fIMDbDataRec.IMDbId]);
       end;
     finally
@@ -626,7 +631,13 @@ begin
       begin
         if ImdbDatabase.Add(TIMDbDataRec,true)=0 then
         Begin
-          Debug(dpError, section, FORMAT('[Info] dbaddimdb_SaveImdbData : Error adding the data for Release: %s - %s - Data is already there!', [aReleaseName, aImdbData.imdb_id]));
+          if foundMovieAlreadyInDbWithImdbId(aImdbData.imdb_id) then
+          Begin
+            Debug(dpError, section, FORMAT('[Info] dbaddimdb_SaveImdbData : Error adding the data for Release: %s - %s - Data is already there - Cleaning Database!', [aReleaseName, aImdbData.imdb_id]));
+            ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord, TIMDbAlsoKnownAsRecordRec.fiD);
+            ImdbDatabase.Delete(TIMDbReleaseDatesRecord, TIMDbReleaseDatesRecordRec.fiD);
+            ImdbDatabase.Delete(TIMDbBoomData,FIMDbBoomDataRecordRec.fiD);
+          End;
         end
         else
         begin
@@ -884,7 +895,7 @@ var fTask : TPazoHTTPImdbTask;
 begin
   try
     fTask := TPazoHTTPImdbTask.Create(aIMDbId, aReleaseName);
-    if not TaskAlreadyInQueue(fTask) then
+    //if not TaskAlreadyInQueue(fTask) then
       AddTask(fTask);
   except
     on e: Exception do
