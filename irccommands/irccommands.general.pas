@@ -295,13 +295,15 @@ begin
     ii := 0;
     irc_addtext(Netname, Channel, 'Tasks in queue: %d displaycount: %d', [tasks.Count, Min(show_tasks, tasks.Count)]);
 
+    queueth.main_lock.Enter;
+
     for i := 0 to tasks.Count - 1 do
     begin
       try
 
         if show_all then
         begin
-          irc_addtext(Netname, Channel, TTask(tasks[i]).Fullname);
+          irc_addtext(Netname, Channel, Format('%s Ready: %s ReadyError: %s Slot1: %s', [TTask(tasks[i]).Fullname, TTask(tasks[i]).ready.ToString(),TTask(tasks[i]).readyerror.ToString(), PChar(TTask(tasks[i]).slot1)]));
           Continue;
           //        Inc(ii);
         end
@@ -324,6 +326,7 @@ begin
     end;
 
   finally
+    queueth.main_lock.Leave;
     rr.Free;
   end;
 
