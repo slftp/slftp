@@ -162,12 +162,12 @@ upload-package-files:
     # repo url
     - echo "PACKAGE_URL=${PACKAGE_REGISTRY_URL}/slftp_${VERSION}/${NUMBERVERSION}" >> build.env
     # naming convention for files
-    - echo "WINDOWS_x64_BINARY=slftp-${VERSION}_x64.exe" >> build.env
-    - echo "LINUX_x64_BINARY=slftp-${VERSION}_x64" >> build.env
-    - echo "SLCONFIG=slftp-${VERSION}_config.zip" >> build.env
-    - echo "SLDOCU=slftp-${VERSION}_documentation.zip" >> build.env
-    - echo "SLHELPFILES=slftp-${VERSION}_helpfiles.zip" >> build.env
-    - echo "SLPACKAGE=slFtp.${VERSION}.Linux.Windows.incl.Sources-SLDev.zip" >> build.env
+    - echo "WINDOWS_x64_BINARY=slftp-v${VERSION}_x64.exe" >> build.env
+    - echo "LINUX_x64_BINARY=slftp-v${VERSION}_x64" >> build.env
+    - echo "SLCONFIG=slftp-v${VERSION}_config.zip" >> build.env
+    - echo "SLDOCU=slftp-v${VERSION}_documentation.zip" >> build.env
+    - echo "SLHELPFILES=slftp-v${VERSION}_helpfiles.zip" >> build.env
+    - echo "SLPACKAGE=slFtp.v${VERSION}.Linux.Windows.incl.Sources-SLDev.zip" >> build.env
     # usually this will only be executed if a tag is commited. but for developing/testing this script, it's nice to 
     # have this workingwithout a CI_COMMIT_TAG being set. therefore check if we have a CI_COMMIT_TAG, else use 
     # CI_COMMIT_BRANCH instead. this is used to download the source code and add it to the complete release package
