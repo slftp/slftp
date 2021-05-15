@@ -49,6 +49,7 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 	
 --=============================( SLFTP v1.5.9 )===================================-
+    {#} Fixed an issue which could cause autodirlists to stop working on very busy sites when queue clean is enabled
 
 --=============================( SLFTP v1.5.8 )===================================-
     {+} Reverse FXP can be enabled by command !reversefxp (#9)
