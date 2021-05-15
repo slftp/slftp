@@ -37,20 +37,18 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      parse_boxofficemojo_always=0 entry was removed
-      global_skip is removed and replaced by global_skip_files and global_skip_dirs
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
-    3. update your slftp.imdbcountries file with the provided one in /config folder
-    4. update your OpenSSL libraries to version 1.1.1
-    5. enjoy!
+    3. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
+	
+--=============================( SLFTP v1.5.9 )===================================-
 
 --=============================( SLFTP v1.5.8 )===================================-
     {+} Reverse FXP can be enabled by command !reversefxp (#9)
