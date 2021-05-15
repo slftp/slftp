@@ -40,7 +40,9 @@
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
-    3. enjoy!
+    3. add allowedfiles=_MULTICDROOT_:* and alloweddirs=_MULTICDROOT_:* to the default skiplist at
+       the top of slftp.skip to allow multi CD/DVD releases to be transferred with the default skiplist
+    4. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
