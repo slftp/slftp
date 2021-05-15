@@ -1593,7 +1593,7 @@ begin
     try
       ss := TTask(tasks[i]).UidText;
       t  := TTask(tasks[i]);
-      if ((t.assigned = 0) and ((t.startat = 0) or (t.startat <= queue_last_run)) and
+      if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
         (SecondsBetween(t.created, Now()) >= config.ReadInteger('queue',
         'queueclean_unassigned', 600))) then
       begin
