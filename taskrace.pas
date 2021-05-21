@@ -182,6 +182,7 @@ var
   numerrors: integer;
   tname: String;
   ps: TPazoSite;
+  fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
 begin
   numerrors := 0;
@@ -596,12 +597,14 @@ begin
     // check if one dst need more dirlist
     if (not itwasadded) then
     begin
-      for ps in ps1.destinations.Keys do
+      for fDestination in ps1.destinations do
       begin
         if itwasadded then
           Break;
 
         try
+          ps := fDestination.PazoSite;
+
           if (ps.error) then
             Continue;
           if (ps.dirlistgaveup) then
