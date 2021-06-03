@@ -39,6 +39,8 @@ procedure QueueSort;
 procedure QueueClean(run_now: boolean = False);
 
 procedure QueueStat;
+{ Send the current tasks to the queue console window. }
+procedure QueueSendCurrentTasksToConsole;
 
 var
   queue_lock: TslCriticalSection;
@@ -988,6 +990,11 @@ begin
   end;
 end;
 
+procedure AddTaskToConsole(const aTask: TTask);
+begin
+  Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
+end;
+
 procedure AddTask(t: TTask);
 var
   tname: String;
@@ -1025,7 +1032,7 @@ begin
     end;
   end;
 
-  Console_QueueAdd(t.UidText, Format('%s', [tname]));
+  AddTaskToConsole(t);
 end;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
@@ -1813,6 +1820,19 @@ begin
   end;
 
   Console_QueueStat(tasks.Count, t_race, t_dir, t_auto, t_other);
+end;
+
+procedure QueueSendCurrentTasksToConsole;
+var
+  fTask: TTask;
+begin
+  queueth.main_lock.Enter;
+  try
+    for fTask in tasks do
+      AddTaskToConsole(fTask);
+  finally
+    queueth.main_lock.Leave;
+  end;
 end;
 
 end.
