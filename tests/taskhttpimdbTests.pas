@@ -673,7 +673,7 @@ begin
   THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, 'tt7214470', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Heilstätten', fMovieTitle, 'Title mismatch');
-  CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
+  CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
   CheckEquals(2018, fYear, 'Year mismatch');
 end;
 
