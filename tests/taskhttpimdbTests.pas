@@ -1,4 +1,4 @@
-unit taskhttpimdbTests;
+﻿unit taskhttpimdbTests;
 
 interface
 
@@ -278,7 +278,7 @@ begin
   // tt0382625
   fPageSource := '<meta property=''og:title'' content="The Da Vinci Code (2006) - IMDb" />';
 
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt0382625', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('The Da Vinci Code', fMovieTitle, 'Title mismatch');
   CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -294,7 +294,7 @@ begin
   // tt4919664
   fPageSource := '<meta property=''og:title'' content="&quot;The Detour&quot; The Pilot (TV Episode 2016) - IMDb" />';
 
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt4919664', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('&quot;The Detour&quot; The Pilot', fMovieTitle, 'Title mismatch'); // TODO: strip html chars?
   CheckEqualsString('TV Episode', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -310,7 +310,7 @@ begin
   // tt2487090
   fPageSource := '<meta property=''og:title'' content="Sam & Cat (TV Series 2013–2014) - IMDb" />';
 
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt2487090', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Sam & Cat', fMovieTitle, 'Title mismatch'); // TODO: replace & with and?
   CheckEqualsString('TV Series', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -326,7 +326,7 @@ begin
   // tt0107144
   fPageSource := '<meta property=''og:title'' content="Hot Shots! Part Deux (1993) - IMDb" />';
 
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt0107144', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Hot Shots! Part Deux', fMovieTitle, 'Title mismatch'); // TODO: strip ? and !?
   CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -342,7 +342,7 @@ begin
   fPageSource := '    <div class="star-rating-button"><button> <span class="star-rating-star no-rating"></span>' +
     '            <span class="star-rating-text">Rate This</span></button></div>';
 
-  THtmlIMDbParser.ParseVotesAndRating(fPageSource, fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(fPageSource, 'tt0816352', fVotes, fRating);
 
   CheckEquals(0, fVotes, 'Votes mismatch');
   CheckEquals(0, fRating, 'Rating mismatch');
@@ -382,10 +382,10 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, 'tt3450958', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('War for the Planet of the Apes', fMovieTitle, 'Title mismatch');
-  CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
+  CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
   CheckEquals(2017, fYear, 'Year mismatch');
 end;
 
@@ -393,7 +393,7 @@ procedure TTestTHtmlIMDbParser_tt3450958.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, 'tt3450958', fVotes, fRating);
 
   CheckTrue(229000 < fVotes, 'Votes mismatch');
   CheckTrue(249000 > fVotes, 'Votes mismatch');
@@ -416,14 +416,14 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('USA,Canada,New Zealand', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('United States,Canada,New Zealand', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(FMainPage, 'tt3450958', fGenresList);
 
   CheckEqualsString('Action,Adventure,Drama,Sci-Fi,Thriller', fGenresList, 'Genre(s) mismatch');
 end;
@@ -528,7 +528,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, 'tt0455275', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Prison Break', fMovieTitle, 'Title mismatch');
   CheckEqualsString('TV Series', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -539,7 +539,7 @@ procedure TTestTHtmlIMDbParser_tt0455275.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, 'tt0455275', fVotes, fRating);
 
   CheckTrue(478000 < fVotes, 'Votes mismatch');
   CheckTrue(495000 > fVotes, 'Votes mismatch');
@@ -562,14 +562,14 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('UK,USA', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('United Kingdom,United States', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0455275.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(FMainPage, 'tt0455275', fGenresList);
 
   CheckEqualsString('Action,Crime,Drama,Mystery,Thriller', fGenresList, 'Genre(s) mismatch');
 end;
@@ -670,7 +670,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, 'tt7214470', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Heilstätten', fMovieTitle, 'Title mismatch');
   CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -681,10 +681,10 @@ procedure TTestTHtmlIMDbParser_tt7214470.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, 'tt7214470', fVotes, fRating);
 
   CheckTrue(1000 < fVotes, 'Votes mismatch');
-  CheckTrue(1500 > fVotes, 'Votes mismatch');
+  CheckTrue(1600 > fVotes, 'Votes mismatch');
   CheckTrue(39 < fRating, 'Rating mismatch');
   CheckTrue(47 > fRating, 'Rating mismatch');
 end;
@@ -711,7 +711,7 @@ procedure TTestTHtmlIMDbParser_tt7214470.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(FMainPage, 'tt7214470', fGenresList);
 
   CheckEqualsString('Horror,Mystery,Thriller', fGenresList, 'Genre(s) mismatch');
 end;
@@ -812,7 +812,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, 'tt7728344', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Marvel Rising: Secret Warriors', fMovieTitle, 'Title mismatch'); // TODO: strip comma, semicolon, colon?
   CheckEqualsString('TV Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -823,7 +823,7 @@ procedure TTestTHtmlIMDbParser_tt7728344.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, 'tt7728344', fVotes, fRating);
 
   CheckTrue(1000 < fVotes, 'Votes mismatch');
   CheckTrue(1800 > fVotes, 'Votes mismatch');
@@ -846,14 +846,14 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('USA', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('United States', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt7728344.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(FMainPage, 'tt7728344', fGenresList);
 
   CheckEqualsString('Animation,Action,Comedy,Fantasy,Sci-Fi', fGenresList, 'Genre(s) mismatch');
 end;
@@ -944,10 +944,10 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, 'tt11095742', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Boys State', fMovieTitle, 'Title mismatch');
-  CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
+  CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
   CheckEquals(2020, fYear, 'Year mismatch');
 end;
 
@@ -955,7 +955,7 @@ procedure TTestTHtmlIMDbParser_tt11095742.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, 'tt11095742', fVotes, fRating);
 
   CheckTrue(2700 < fVotes, 'Votes mismatch');
   CheckTrue(4000 > fVotes, 'Votes mismatch');
@@ -978,14 +978,14 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('USA', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('United States', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt11095742.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(FMainPage, 'tt11095742', fGenresList);
 
   CheckEqualsString('Documentary', fGenresList, 'Genre(s) mismatch');
 end;
@@ -1081,10 +1081,10 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, 'tt0375568', fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Astro Boy', fMovieTitle, 'Title mismatch');
-  CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
+  CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
   CheckEquals(2009, fYear, 'Year mismatch');
 end;
 
@@ -1092,7 +1092,7 @@ procedure TTestTHtmlIMDbParser_tt0375568.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, 'tt0375568', fVotes, fRating);
 
   CheckTrue(31000 < fVotes, 'Votes mismatch');
   CheckTrue(39000 > fVotes, 'Votes mismatch');
@@ -1115,14 +1115,14 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('Hong Kong,USA', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('Hong Kong,United States', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(FMainPage, 'tt0375568', fGenresList);
 
   CheckEqualsString('Animation,Action,Comedy,Family,Sci-Fi', fGenresList, 'Genre(s) mismatch');
 end;
@@ -1636,7 +1636,7 @@ var
 begin
   // tt0382625
   fPageSource := '<meta property=''og:title'' content="The Da Vinci Code (2006) - IMDb" />';
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt0382625', fMovieTitle, fTitleExtraInfo, fYear);
 
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
 
@@ -1652,7 +1652,7 @@ var
 begin
   // tt4919664
   fPageSource := '<meta property=''og:title'' content="&quot;The Detour&quot; The Pilot (TV Episode 2016) - IMDb" />';
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt4919664', fMovieTitle, fTitleExtraInfo, fYear);
 
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
 
@@ -1668,7 +1668,7 @@ var
 begin
   // tt5667286
   fPageSource := '<meta property=''og:title'' content="The Witcher 3: Wild Hunt - Blood and Wine (Video Game 2016) - IMDb" />';
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt5667286', fMovieTitle, fTitleExtraInfo, fYear);
 
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
 
@@ -1684,7 +1684,7 @@ var
 begin
   // tt2372220
   fPageSource := '<meta property=''og:title'' content="The White Queen (TV Mini-Series 2013) - IMDb" />';
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt2372220', fMovieTitle, fTitleExtraInfo, fYear);
 
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
 
@@ -1715,7 +1715,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('United States', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder2;
@@ -1742,7 +1742,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('United States', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder3;
@@ -1769,7 +1769,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('UK', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('United Kingdom', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder4;
@@ -1796,7 +1796,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('United States', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 initialization
