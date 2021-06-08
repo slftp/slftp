@@ -58,8 +58,29 @@ uses
   mrdohutils,
   slftpUnitTestsSetup,
   // add all test units below
-  //httpTests,
-  taskhttpimdbTests;
+  mystringsTests,
+  mystringsTests.Base64,
+  httpTests,
+  ircblowfish.ECBTests,
+  ircblowfish.CBCTests,
+  tagsTests,
+  ircblowfish.plaintextTests,
+  dbtvinfoTests,
+  sllanguagebaseTests,
+  mygrouphelpersTests,
+  globalskipunitTests,
+  irccolorunitTests,
+  ircparsingTests,
+  slmasksTests,
+  dirlist.helpersTests,
+  dirlistTests,
+  precatcher.helpersTests,
+  kb.releaseinfo.MP3Tests,
+  kb.releaseinfo.NullDayTests,
+  kb.releaseinfo.MVIDTests,
+  taskhttpimdbTests,
+  slsslTests,
+  sitesunitTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
