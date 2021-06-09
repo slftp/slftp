@@ -421,7 +421,15 @@ begin
       if fRegexNewDesign.Exec(fMatch) then
       begin
         repeat
-          aCountriesList := aCountriesList + fRegexNewDesign.Match[1] + ',';
+          fMatch := fRegexNewDesign.Match[1];
+
+          //rewrite to old format
+          if fMatch = 'United States' then
+            fMatch := 'USA'
+          else if fMatch = 'United Kingdom' then
+            fMatch := 'UK';
+
+          aCountriesList := aCountriesList + fMatch + ',';
         until not fRegexNewDesign.ExecNext;
       end;
     end
@@ -732,9 +740,9 @@ var
   fStringIndex2: Integer;
 begin
   // get index to check which country is listed first
-  fStringIndex1 := aImdbCountries.IndexOf('United States');
+  fStringIndex1 := aImdbCountries.IndexOf('USA');
   // fStringIndex1 := aImdbCountries.IndexOf('United States');
-  fStringIndex2 := aImdbCountries.IndexOf('United Kingdom');
+  fStringIndex2 := aImdbCountries.IndexOf('UK');
   // fStringIndex2 := aImdbCountries.IndexOf('United Kingdom');
 
   // pick first one with according country representation used in slftp
@@ -742,19 +750,19 @@ begin
   begin
     // both are listed, take the first occurring one
     if fStringIndex1 < fStringIndex2 then
-      Result := 'United States'
+      Result := 'USA'
     else
-      Result := 'United Kingdom';
+      Result := 'UK';
   end
   else if (fStringIndex2 <> -1) then
   begin
     // only UK is listed
-    Result := 'United Kingdom';
+    Result := 'UK';
   end
   else
   begin
     // USA is listed or used as default fallback
-    Result := 'United States';
+    Result := 'USA';
   end;
 end;
 
