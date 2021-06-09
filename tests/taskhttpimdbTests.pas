@@ -416,7 +416,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('United States,Canada,New Zealand', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('USA,Canada,New Zealand', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieGenres;
@@ -562,7 +562,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('United Kingdom,United States', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('UK,USA', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0455275.TestParseMovieGenres;
@@ -846,7 +846,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('United States', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('USA', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt7728344.TestParseMovieGenres;
@@ -978,7 +978,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('United States', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('USA', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt11095742.TestParseMovieGenres;
@@ -1115,7 +1115,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('Hong Kong,United States', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('Hong Kong,USA', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseMovieGenres;
@@ -1715,7 +1715,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('United States', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder2;
@@ -1742,7 +1742,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('United States', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder3;
@@ -1769,7 +1769,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('United Kingdom', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('UK', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder4;
@@ -1796,7 +1796,7 @@ begin
   THtmlIMDbParser.ParseMovieCountries(fPageSource, fImdbCountry);
   fFirstListedCountry := TIMDbInfoChecks.EstimateEnglishCountryOrder(fImdbCountry);
 
-  CheckEqualsString('United States', fFirstListedCountry, 'First occurring country mismatch');
+  CheckEqualsString('USA', fFirstListedCountry, 'First occurring country mismatch');
 end;
 
 initialization
