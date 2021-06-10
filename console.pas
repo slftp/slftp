@@ -509,7 +509,7 @@ end;
 
 procedure Console_QueueAdd(const name, task: String);
 begin
-  if (no_console_queue) then exit;
+  if (no_console_queue OR (app.queue.Visible <> slvVisible)) then exit;
 
   try
     slvision_lock.Enter();
@@ -529,7 +529,7 @@ end;
 
 procedure Console_QueueDel(const name: String);
 begin
-  if (no_console_queue) then exit;
+  if (no_console_queue OR (app.queue.Visible <> slvVisible)) then exit;
 
   try
     slvision_lock.Enter();
@@ -1147,6 +1147,13 @@ begin
     w := FindWindow;
     if w = nil then exit;
     w.Visible := slvVisible;
+
+    //when the queue window is shown, update the content because that window is not being updated if not visible
+    if UpperCase(w.Title) = 'QUEUE' then
+    begin
+      app.queue.textbox.Text := '';
+      QueueSendCurrentTasksToConsole;
+    end;
   except
     on e: Exception do
     begin

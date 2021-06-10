@@ -224,9 +224,9 @@ always available and stored in the repository. Thus only annotated tags should b
 The release version should follow the semantic versioning. For beta releases only append `b<n>` to the version where `n` is an integer. No extra branches for specific releases since we don't care about old releases and fixing them. Go ahead and follow the flow of new things!
 1. Make sure that the slftp.inc lists the correct slftp and help version
 2. Create an annotated tag locally (only in dev branch!)
-  - for regular releases: `git tag -a v1.5.7 -m "1.5.7"`
-  - for beta releases: `git tag -a v1.5.8b1 -m "1.5.8b1"`
-  - **Note**: If you create a tag through the Gitlab web instance, add "Tag name" and "Message" but leave "Release notes" blank as otherwise the publishing will fail as the release is already created
-3. Push the tag to the upstream repo
+  - for regular releases: `git tag -a 1.5.7 -m "v1.5.7"`
+  - for beta releases: `git tag -a 1.5.8b1 -m "v1.5.8b1"`
+  - **Note**: If you create a tag through the Gitlab web instance, add "Tag name" (should not contain "v"!) and "Message" but leave "Release notes" blank as otherwise the publishing will fail as the release is already created
+3. Push the tag to the upstream repo: git push origin <tagname>
 4. Increase the version/beta number in the slftp.inc and push this change to the dev branch
 5. Once the release was created from the runner, update the release notes through the Gitlab web instance
