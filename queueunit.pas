@@ -40,6 +40,8 @@ procedure QueueSort;
 procedure QueueClean(run_now: boolean = False);
 
 procedure QueueStat;
+{ Send the current tasks to the queue console window. }
+procedure QueueSendCurrentTasksToConsole;
 
 var
   queue_lock: TslCriticalSection;
@@ -989,6 +991,11 @@ begin
   end;
 end;
 
+procedure AddTaskToConsole(const aTask: TTask);
+begin
+  Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
+end;
+
 procedure AddTask(t: TTask);
 var
   tname: String;
@@ -1026,7 +1033,7 @@ begin
     end;
   end;
 
-  Console_QueueAdd(t.UidText, Format('%s', [tname]));
+  AddTaskToConsole(t);
 end;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
@@ -1594,7 +1601,7 @@ begin
     try
       ss := TTask(tasks[i]).UidText;
       t  := TTask(tasks[i]);
-      if ((t.assigned = 0) and ((t.startat = 0) or (t.startat <= queue_last_run)) and
+      if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
         (SecondsBetween(t.created, Now()) >= config.ReadInteger('queue',
         'queueclean_unassigned', 600))) then
       begin
@@ -1814,6 +1821,19 @@ begin
   end;
 
   Console_QueueStat(tasks.Count, t_race, t_dir, t_auto, t_other);
+end;
+
+procedure QueueSendCurrentTasksToConsole;
+var
+  fTask: TTask;
+begin
+  queueth.main_lock.Enter;
+  try
+    for fTask in tasks do
+      AddTaskToConsole(fTask);
+  finally
+    queueth.main_lock.Leave;
+  end;
 end;
 
 end.

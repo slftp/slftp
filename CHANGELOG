@@ -37,20 +37,22 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      parse_boxofficemojo_always=0 entry was removed
-      global_skip is removed and replaced by global_skip_files and global_skip_dirs
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
-    3. update your slftp.imdbcountries file with the provided one in /config folder
-    4. update your OpenSSL libraries to version 1.1.1
-    5. enjoy!
+    3. add allowedfiles=_MULTICDROOT_:* and alloweddirs=_MULTICDROOT_:* to the default skiplist at
+       the top of slftp.skip to allow multi CD/DVD releases to be transferred with the default skiplist
+    4. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
+	
+--=============================( SLFTP v1.5.9 )===================================-
+    {#} sort destinations on KB level to make sure the highest ranked sites get race tasks created first before the queue sort
+    {#} Fixed an issue which could cause autodirlists to stop working on very busy sites when queue clean is enabled
 
 --=============================( SLFTP v1.5.8 )===================================-
     {+} Reverse FXP can be enabled by command !reversefxp (#9)
