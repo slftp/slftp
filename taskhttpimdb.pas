@@ -39,6 +39,7 @@ type
   public
     { Parses title information from the meta property @italic(title) tag
       @param(aPageSource Webpage HTML sourcecode)
+      @param(aImdbID The IMDB ID)
       @param(aMovieTitle Title of the movie (can be empty))
       @param(aTitleExtraInfo Additional info (e.g. TV Series) from the title (can be empty))
       @param(aYear Year of the movie (0 if not available)) }
@@ -46,6 +47,7 @@ type
 
     { Parses votes and rating and removes dots and commas @br @note(default value for both is 0)
       @param(aPageSource Webpage HTML sourcecode)
+      @param(aImdbID The IMDB ID)
       @param(aVotes Votes of the movie, default value is 0)
       @param(aRating Rating of the movie, default value is 0) }
     class procedure ParseVotesAndRating(const aPageSource, aImdbID: String; out aVotes, aRating: Integer);
@@ -62,6 +64,7 @@ type
 
     { Parses Genre(s)
       @param(aPageSource Webpage HTML sourcecode)
+      @param(aImdbID The IMDB ID)
       @param(aGenresList Genre(s) of the movie as comma separated list) }
     class procedure ParseMovieGenres(const aPageSource, aImdbID: String; out aGenresList: String);
 
