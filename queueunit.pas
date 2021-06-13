@@ -17,7 +17,7 @@ type
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     procedure AddIdleTask(s: TSiteSlot);
     procedure AddQuitTask(s: TSiteSlot);
-    procedure RemoveActiveTransfer(t: TTask);
+    procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
   end;
 
 procedure QueueFire;
@@ -991,6 +991,52 @@ begin
   end;
 end;
 
+procedure RemoveDependencies(t: TTask);
+var
+  i, j: integer;
+  tt: TTask;
+begin
+  try
+    for i := tasks.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tasks.Count): %s', [e.Message]));
+          Break;
+        end;
+      end;
+      try
+        tt := TTask(tasks.items[i]);
+
+        if tt = nil then
+          Continue;
+
+        j := tt.dependencies.IndexOf(t.UidText);
+        if j <> -1 then
+        begin
+          tt.dependencies.Delete(j);
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tt.dependencies.Delete): %s', [e.Message]));
+          Continue;
+        end;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
+      exit;
+    end;
+  end;
+end;
+
 procedure AddTaskToConsole(const aTask: TTask);
 begin
   Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
@@ -1007,7 +1053,12 @@ begin
     queueth.main_lock.Enter();
     try
       if TaskAlreadyInQueue(t) then
-        t.ready := True;
+      begin
+        TaskReady(t);
+        RemoveDependencies(t);
+        t.Free;
+        exit;
+      end;
 
       tasks.Add(t);
 
@@ -1244,65 +1295,15 @@ begin
   end;
 end;
 
-procedure RemoveDependencies(t: TTask);
+
+
+procedure TQueueThread.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 var
-  i, j: integer;
-  tt: TTask;
-begin
-  try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tasks.Count): %s', [e.Message]));
-          Break;
-        end;
-      end;
-      try
-        tt := TTask(tasks.items[i]);
-
-        if tt = nil then
-          Continue;
-
-        j := tt.dependencies.IndexOf(t.UidText);
-        if j <> -1 then
-        begin
-          tt.dependencies.Delete(j);
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tt.dependencies.Delete): %s', [e.Message]));
-          Continue;
-        end;
-      end;
-    end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
-      exit;
-    end;
-  end;
-end;
-
-
-
-procedure TQueueThread.RemoveActiveTransfer(t: TTask);
-var
-  tp: TPazoRaceTask;
   i:  integer;
 begin
-  if t.ClassType <> TPazoRaceTask then
-    exit;
-  tp := TPazoRaceTask(t);
-  i  := tp.ps2.activeTransfers.IndexOf(tp.dir + tp.filename);
+  i  := aRaceTask.ps2.activeTransfers.IndexOf(aRaceTask.dir + aRaceTask.filename);
   if i <> -1 then
-    tp.ps2.activeTransfers.Delete(i);
+    aRaceTask.ps2.activeTransfers.Delete(i);
 end;
 
 procedure TQueueThread.Execute;
@@ -1358,8 +1359,8 @@ begin
                   begin
                     dst.event.SetEvent;
                   end;
+                RemoveActiveTransfer(TPazoRaceTask(t));
               end;
-              RemoveActiveTransfer(t);
               RemoveDependencies(t);
               tasks.Remove(t);
               Console_QueueDel(ss);
