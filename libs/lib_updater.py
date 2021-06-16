@@ -121,13 +121,21 @@ def update_mORMot():
                 os.path.join(mainpath, "SQLite3", "Synopse.inc"))
     # write commit info file
     write_versioninfo(mainpath, sha_hash, commit_msg)
+    # set defines for memory-manager
+    with open(os.path.join(mainpath, "SynFPCx64MM.pas"), "r") as sources:
+        lines = sources.readlines()
+    with open(os.path.join(mainpath, "SynFPCx64MM.pas"), "w") as sources:
+        for line in lines:
+            if "$define FPCMM_ASSUMEMULTITHREAD" in line:
+                sources.write('{$define FPCMM_ASSUMEMULTITHREAD}\n')
+            else:
+                sources.write(line)
     # remove existing directory in libs folder and copy new dir over
     shutil.rmtree(LIB_DST_FOLDERNAME)
     shutil.copytree(mainpath, LIB_DST_FOLDERNAME)
     print("Update succeeded")
-    print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
-    print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
-    print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
+    for _ in range(3):
+        print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
 
 
 def update_FastMM5():
