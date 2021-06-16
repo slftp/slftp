@@ -96,7 +96,7 @@ unit SynFPCx64MM;
 // - warning: depending on the workload and hardware, it may actually be slower;
 // consider FPCMM_SERVER as a fair alternative
 {.$define FPCMM_BOOST}
-{.$define FPCMM_BOOSTER}
+{$define FPCMM_BOOSTER}
 
 
 { ---- Fine Grained Memory Manager Tuning }
@@ -121,14 +121,14 @@ unit SynFPCx64MM;
 // won't check the IsMultiThread global, but assume it is true
 // - multi-threaded apps (e.g. a Server Daemon instance) will be faster with it
 // - mono-threaded (console/LCL) apps are faster without this conditional
-{.$define FPCMM_ASSUMEMULTITHREAD}
+{$define FPCMM_ASSUMEMULTITHREAD}
 
 // let Freemem multi-thread contention use a lockless algorithm
 // - on contention, Freemem won't yield the thread using an OS call, but fill
 // an internal Bin list which will be released when the lock becomes available
 // - from our tests on high thread contention, this may be slower on Linux, but
 // sometimes slightly faster on Win64 (in a VM at least)
-{.$define FPCMM_LOCKLESSFREE}
+{$define FPCMM_LOCKLESSFREE}
 
 // won't use mremap but a regular getmem/move/freemem pattern
 // - depending on the actual system (e.g. on a VM), mremap may be slower
