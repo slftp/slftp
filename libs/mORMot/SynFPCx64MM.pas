@@ -121,7 +121,7 @@ unit SynFPCx64MM;
 // won't check the IsMultiThread global, but assume it is true
 // - multi-threaded apps (e.g. a Server Daemon instance) will be faster with it
 // - mono-threaded (console/LCL) apps are faster without this conditional
-{.$define FPCMM_ASSUMEMULTITHREAD}
+{$define FPCMM_ASSUMEMULTITHREAD}
 
 // let Freemem multi-thread contention use a lockless algorithm
 // - on contention, Freemem won't yield the thread using an OS call, but fill
@@ -160,11 +160,11 @@ interface
   {$endif FPCMM_BOOSTER}
   {$ifdef FPCMM_BOOST}
     {$undef FPCMM_SERVER}
-    {$define FPCMM_ASSUMEMULTITHREAD}
+{$define FPCMM_ASSUMEMULTITHREAD}
   {$endif FPCMM_BOOST}
   {$ifdef FPCMM_SERVER}
     {$define FPCMM_DEBUG}
-    {$define FPCMM_ASSUMEMULTITHREAD}
+{$define FPCMM_ASSUMEMULTITHREAD}
   {$endif FPCMM_SERVER}
 {$endif FPC}
 
