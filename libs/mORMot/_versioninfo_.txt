@@ -1,3 +1,4 @@
-cf17849f9f34b0fc7fdb0c96bc683af4a138b24a
+2b96fca9001c5a38a6193f13b5e7bc63ecf87690
+Merge pull request #104 from yonojoy/master
 
-fixed ExistNameValue() for HTTP headers
+support for XE4 for third-party SynTaskDialog4Lazarus
