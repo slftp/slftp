@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """Script for updating used libraries or checking if new versions are available"""
 
 import os
@@ -106,7 +107,7 @@ def update_mORMot():
     # delete unwanted file types
     filetypes = ["*.tmpl", "*.dpk", "*.bdsproj", "*.proj", "*.rc", "*.dproj", "*.ico",
                  "*.resources", "*.res", "*.bmp", "*.cfg*", "*.json*", "*.lpi*", "*.dpr*", "*.png", "*.bat",
-                 "*.c", "*.manifest*", "build-fpc*", "c-fpc*"]
+                 "*.c", "*.manifest*", "build-fpc*", "c-fpc*", ".git*"]
     for filetype_glob in filetypes:
         result = []
         for root, _, files in os.walk(mainpath, topdown=True):
@@ -124,6 +125,9 @@ def update_mORMot():
     shutil.rmtree(LIB_DST_FOLDERNAME)
     shutil.copytree(mainpath, LIB_DST_FOLDERNAME)
     print("Update succeeded")
+    print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
+    print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
+    print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
 
 
 def update_FastMM5():
