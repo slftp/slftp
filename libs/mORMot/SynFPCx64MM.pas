@@ -96,7 +96,7 @@ unit SynFPCx64MM;
 // - warning: depending on the workload and hardware, it may actually be slower;
 // consider FPCMM_SERVER as a fair alternative
 {.$define FPCMM_BOOST}
-{$define FPCMM_BOOSTER}
+{.$define FPCMM_BOOSTER}
 
 
 { ---- Fine Grained Memory Manager Tuning }
@@ -128,7 +128,7 @@ unit SynFPCx64MM;
 // an internal Bin list which will be released when the lock becomes available
 // - from our tests on high thread contention, this may be slower on Linux, but
 // sometimes slightly faster on Win64 (in a VM at least)
-{$define FPCMM_LOCKLESSFREE}
+{.$define FPCMM_LOCKLESSFREE}
 
 // won't use mremap but a regular getmem/move/freemem pattern
 // - depending on the actual system (e.g. on a VM), mremap may be slower
@@ -160,11 +160,11 @@ interface
   {$endif FPCMM_BOOSTER}
   {$ifdef FPCMM_BOOST}
     {$undef FPCMM_SERVER}
-    {$define FPCMM_ASSUMEMULTITHREAD}
+{$define FPCMM_ASSUMEMULTITHREAD}
   {$endif FPCMM_BOOST}
   {$ifdef FPCMM_SERVER}
     {$define FPCMM_DEBUG}
-    {$define FPCMM_ASSUMEMULTITHREAD}
+{$define FPCMM_ASSUMEMULTITHREAD}
   {$endif FPCMM_SERVER}
 {$endif FPC}
 

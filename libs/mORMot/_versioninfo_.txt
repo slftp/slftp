@@ -1,2 +1,4 @@
-f00c5cab00f7ea9e20d5dfa0b8299e89166d88f1
-fixed mORMot.pas unit compilation
+2b96fca9001c5a38a6193f13b5e7bc63ecf87690
+Merge pull request #104 from yonojoy/master
+
+support for XE4 for third-party SynTaskDialog4Lazarus
