@@ -214,6 +214,8 @@ procedure dbaddimdb_FireKbAdd(const aReleaseName : String);
  { Updates the IMDB-Data when neccesary. }
 procedure dbaddimdb_UpdateImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
  { Returns the IMDB-Count in Database as String }
+ procedure  dbaddimdb_InsertOnlyAlsoKnownAs(const aReleaseName: String; aImdbData: TDbImdbData);
+ { Insert a new IMDB-ReleaseName when neccesary. }
 function dbaddimdb_Status: String;
  { Checks the IMDb-ID on right regex conform }
 function check_ImdbId(const aIMDbId: String): Boolean;
@@ -572,6 +574,11 @@ begin
     end
     else
     begin
+    if (not (foundMovieAlreadyInDbWithReleaseName(aReleaseName)) AND foundMovieAlreadyInDbWithImdbId(aImdbData.imdb_id)) then
+    begin
+      dbaddimdb_InsertOnlyAlsoKnownAs(aReleaseName,aImdbData)
+    end
+    else
     try
       try
       Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Start Adding Data: %s', [aReleaseName]));
@@ -795,6 +802,74 @@ begin
           end;
       end;
     Debug(dpError, section, Format('[Info] dbaddimdb_UpdateImdbData : Data for Release: %s successful updated in Database!', [aReleaseName]));
+End;
+
+procedure dbaddimdb_InsertOnlyAlsoKnownAs(const aReleaseName: String; aImdbData: TDbImdbData);
+var
+//    FIMDbID: String; //< IMDb title ID like tt12345
+//    FIMDbTitle: String; //< title from webpage
+//    FIMDbTitleExtras: String; //< extra info from title if available, e.g. TV* or VIDEO* stuff
+//    FIMDbYear: Integer; //< movie year
+//    FIMDbCineyear: Integer; //< cinema year (TODO: which value if not available?)
+//    FIMDbRating: Integer; //< rating (multiplied by 10)
+//    FIMDbVotes: Integer; //< votes
+//
+//    FIMDbScreens: Integer; //< screens
+//    FIMDbLimited: Boolean; //< @true if limited, @false otherwise
+//    FIMDbWide: Boolean; //< @true if wide, @false otherwise
+//    FIMDbFestival: Boolean; //< @true if aired on a festival, @false otherwise
+//    FIMDbSTV: Boolean; //< @true if STV Movie, @false otherwise
+//    FIMDbSTVReason: String; //< reason for STV status
+//
+//    FCreationTime: TDateTime; //< time when the data was fetched
+//
+//    FIMDbAlsoKnownAsData: TIMDbAlsoKnownAsRecord; //< AKA info from releaseinfo page
+//    // code has to select the appropriate country info depending on the release language of the release
+//    FIMDbReleaseInfos: TIMDbReleaseDatesRecord; //< all release dates information
+
+    TIMDbDataRec:   TIMDbData;
+    TIMDbAlsoKnownAsRecordRec: TIMDbAlsoKnownAsRecord;
+    fCleanedMovieName : String;
+begin
+
+    fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
+
+    TIMDbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
+        'IMDbAlsoKnownAsData.IMDbId = ?', [], [aImdbData.imdb_id]);
+        Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Start Inserting Data: %s - %s', [fCleanedMovieName, TIMDbDataRec.IMDbID]));
+    try
+      try
+          TIMDbDataRec.UpdatedTime := Now;
+
+          Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Update AlsoKnownAs Data: %s', [aReleaseName]));
+          TIMDbAlsoKnownAsRecordRec := TIMDbDataRec.IMDbAlsoKnownAsData;
+          TIMDbAlsoKnownAsRecordRec.IMDbCountry := 'DE';
+          TIMDbAlsoKnownAsRecordRec.IMDbTitle := fCleanedMovieName;
+
+          Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Update AsTSQLRecord Data: %s', [aReleaseName]));
+          TIMDbDataRec.IMDbAlsoKnownAsData := TIMDbAlsoKnownAsRecordRec.AsTSQLRecord;
+          Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Insert Row Data: %s', [aReleaseName]));
+
+          if not TIMDbAlsoKnownAsRecordRec.FillOne then
+          begin
+            ImdbDatabase.Add(TIMDbAlsoKnownAsRecordRec,true);
+          end;
+          if ImdbDatabase.Update(TIMDbDataRec, 'UpdatedTime')=false then
+          begin
+            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_InsertOnlyAlsoKnownAs : Error updating TIMDbData data for Release: %s', [aReleaseName]));
+          end;
+        finally
+          FreeAndNil(TIMDbAlsoKnownAsRecordRec);
+          FreeAndNil(TIMDbDataRec);
+        end;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_InsertOnlyAlsoKnownAs : Data for Release: %s - %s Error: %s!', [aReleaseName,aImdbData.imdb_id, e.Message]));
+            Exit;
+          end;
+      end;
+    Debug(dpError, section, Format('[Info] dbaddimdb_InsertOnlyAlsoKnownAs : Data for Release: %s successful inserted in Database!', [aReleaseName]));
 End;
 
 function GetImdbMovieData(const aReleaseName: String): TDbImdbData;
