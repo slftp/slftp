@@ -156,15 +156,6 @@ end;
 
 { THtmlIMDbParser }
 
-procedure freeMormotJSON(const json: variant);
-begin
-  try
-    json.Free;
-  except
-    //mormot's JSON keep causing "Variant Method Calls Not Supported" exception when being freed.
-  end;
-end;
-
 function getJSON(const aPageSource, aImdbID: string): Variant;
 var
   fStartIndex, fEndIndex, fCount: integer;
@@ -211,7 +202,6 @@ begin
     until not rr.ExecNext;
   finally
     rr.Free;
-    freeMormotJSON(fJsonObject);
   end;
 end;
 
@@ -224,13 +214,9 @@ begin
   fJsonObject := getJSON(aPageSource, aImdbID);
   if not VarIsNull(fJsonObject) then
   begin
-    try
-      aMovieTitle := fJsonObject.originalTitleText.text;
-      aTitleExtraInfo := fJsonObject.titleType.text;
-      aYear := fJsonObject.releaseYear.year;
-    finally
-      freeMormotJSON(fJsonObject);
-    end;
+    aMovieTitle := fJsonObject.originalTitleText.text;
+    aTitleExtraInfo := fJsonObject.titleType.text;
+    aYear := fJsonObject.releaseYear.year;
   end
   else
   begin
@@ -290,12 +276,8 @@ begin
   fJsonObject := getJSON(aPageSource, aImdbID);
   if not VarIsNull(fJsonObject) then
   begin
-    try
-      fVotes := fJsonObject.ratingsSummary.voteCount;
-      fRating := fJsonObject.ratingsSummary.aggregateRating;
-    finally
-      freeMormotJSON(fJsonObject);
-    end;
+    fVotes := fJsonObject.ratingsSummary.voteCount;
+    fRating := fJsonObject.ratingsSummary.aggregateRating;
   end
   else
     begin
@@ -498,22 +480,18 @@ begin
   fJsonObject := getJSON(aPageSource, aImdbID);
   if not VarIsNull(fJsonObject) then
   begin
+    rr := TRegExpr.Create;
     try
-      rr := TRegExpr.Create;
-      try
-        TDocVariantData(fJsonObject).GetAsRawUTF8('genres', fGenresJSON);
-        rr.Expression := '"text":"(.*?)"';
-        if rr.Exec(fGenresJSON) then
-        begin
-          repeat
-            aGenresList := aGenresList + rr.Match[1] + ',';
-          until not rr.ExecNext;
-        end;
-      finally
-        rr.Free;
+      TDocVariantData(fJsonObject).GetAsRawUTF8('genres', fGenresJSON);
+      rr.Expression := '"text":"(.*?)"';
+      if rr.Exec(fGenresJSON) then
+      begin
+        repeat
+          aGenresList := aGenresList + rr.Match[1] + ',';
+        until not rr.ExecNext;
       end;
     finally
-      freeMormotJSON(fJsonObject);
+      rr.Free;
     end;
   end
   else
