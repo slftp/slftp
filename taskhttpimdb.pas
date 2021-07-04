@@ -217,58 +217,11 @@ begin
     aMovieTitle := fJsonObject.originalTitleText.text;
     aTitleExtraInfo := fJsonObject.titleType.text;
     aYear := fJsonObject.releaseYear.year;
-  end
-  else
-  begin
-    rr := TRegExpr.Create;
-    try
-      rr.ModifierI := True;
-      rr.Expression := '<meta property=\''og:title\'' content="(.*?)\s*\((.*?)?\s*(\d{4}).*?\"';
-      if rr.Exec(aPageSource) then
-      begin
-        aMovieTitle := rr.Match[1];
-        aTitleExtraInfo := rr.Match[2];
-        aYear := StrToIntDef(rr.Match[3], 0);
-      end;
-    finally
-      rr.Free;
-    end;
   end;
 end;
 
 class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource, aImdbID: String; out aVotes, aRating: Integer);
-type
-  TRegexItem = record
-    RegexString: String; // regex
-    MatchIndex: Integer; // index of match to be used
-  end;
-
-(*
-  Initialize valid regex for imdb rating/votes
-  This allows us to reduce alot of code duplication and nested if/else
-  constructs.
-  Newest versions should be added on top as they will be checked against the
-  website in ascending order. Quicker match = less overhead.
-*)
-
-const
-  VotesRegexList: array [0..3] of TRegexItem = (
-    (RegexString: '<strong.*?on (\S+) user ratings\"><span.*?>\d+[,.]\d<\/span>'; MatchIndex: 1),
-    (RegexString: '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>'; MatchIndex: 1),
-    (RegexString: '\>(\S+) votes<\/a>\)'; MatchIndex: 1),
-    (RegexString: '<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>'; MatchIndex: 1)
-  );
-
-  RatingRegexList: array [0..3] of TRegexItem = (
-    (RegexString: '<strong.*?user ratings\"><span.*?>(\d+[,.]\d)<\/span>'; MatchIndex: 1),
-    (RegexString: '<span[^<>]*itemprop="ratingValue">(\d+[,.]\d+)<\/span>'; MatchIndex: 1),
-    (RegexString: '<span class="rating-rating">(\d+[,.]\d+)<span>\/10<\/span><\/span>'; MatchIndex: 1),
-    (RegexString: '<b>(\d+[,.]\d+)\/10<\/b>'; MatchIndex: 1)
-  );
-
 var
-  rr: TRegExpr;
-  fRegexItem: TRegexItem;
   fVotes, fRating: String;
   fJsonObject: variant;
 begin
@@ -278,110 +231,39 @@ begin
   begin
     fVotes := fJsonObject.ratingsSummary.voteCount;
     fRating := fJsonObject.ratingsSummary.aggregateRating;
-  end
-  else
-    begin
-    rr := TRegExpr.Create;
-    try
-      rr.ModifierI := True;
 
-      for fRegexItem in VotesRegexList do
-      begin
-        rr.Expression := fRegexItem.RegexString;
-        if rr.Exec(aPageSource) then
-        begin
-          fVotes := rr.Match[fRegexItem.MatchIndex];
-          break;
-        end;
-      end;
+    fVotes := StringReplace(fVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
+    fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
+    aVotes := StrToIntDef(fVotes, 0);
 
-      for fRegexItem in RatingRegexList do
-      begin
-        rr.Expression := fRegexItem.RegexString;
-        if rr.Exec(aPageSource) then
-        begin
-          fRating := rr.Match[fRegexItem.MatchIndex];
-          break;
-        end;
-      end;
-    finally
-      rr.Free;
-    end;
+    fRating := StringReplace(fRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
+    fRating := StringReplace(fRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
+    aRating := StrToIntDef(fRating, 0);
   end;
-
-  fVotes := StringReplace(fVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
-  fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
-  aVotes := StrToIntDef(fVotes, 0);
-
-  fRating := StringReplace(fRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
-  fRating := StringReplace(fRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
-  aRating := StrToIntDef(fRating, 0);
 end;
 
 class procedure THtmlIMDbParser.ParseMovieLanguage(const aPageSource: String; out aLanguageList: String);
 var
-  rr, rr2, fRegexNewDesign: TRegExpr;
+  fRegex: TRegExpr;
   fMatch: string;
 begin
 
-  fRegexNewDesign := TRegExpr.Create;
+  fRegex := TRegExpr.Create;
   try
-    fRegexNewDesign.Expression := 'data-testid="title-details-languages">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
-    if fRegexNewDesign.Exec(aPageSource) then
+    fRegex.Expression := 'data-testid="title-details-languages">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
+    if fRegex.Exec(aPageSource) then
     begin
-      //new new design
-      fMatch := fRegexNewDesign.Match[1];
-      fRegexNewDesign.Expression := 'ref_=tt_dt_ln">(.*?)<\/a>';
-      if fRegexNewDesign.Exec(fMatch) then
+      fMatch := fRegex.Match[1];
+      fRegex.Expression := 'ref_=tt_dt_ln">(.*?)<\/a>';
+      if fRegex.Exec(fMatch) then
       begin
         repeat
-          aLanguageList := aLanguageList + fRegexNewDesign.Match[1] + ',';
-        until not fRegexNewDesign.ExecNext;
+          aLanguageList := aLanguageList + fRegex.Match[1] + ',';
+        until not fRegex.ExecNext;
       end;
     end
-    else
-      begin
-      rr := TRegExpr.Create;
-      try
-        rr.ModifierI := True;
-
-        rr2 := TRegExpr.Create;
-        try
-          rr2.ModifierI := True;
-          rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
-
-          // Trying new layout of IMDb first
-          rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Language:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
-          if rr.Exec(aPageSource) then
-          begin
-            if rr2.Exec(rr.Match[1]) then
-            begin
-              repeat
-                aLanguageList := aLanguageList + rr2.Match[1] + ',';
-              until not rr2.ExecNext;
-            end;
-          end
-          else
-          begin
-            // Trying old layout of IMDb if new layout fails
-            rr.Expression := '<div class=\"info\"><h5>Language:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
-            if rr.Exec(aPageSource) then
-            begin
-              if rr2.Exec(rr.Match[1]) then
-                repeat
-                  aLanguageList := aLanguageList + rr2.Match[3] + ',';
-                until not rr2.ExecNext;
-            end;
-          end;
-        finally
-          rr2.Free;
-        end;
-      finally
-        rr.Free;
-      end;
-    end;
   finally
-    fRegexNewDesign.Free;
+    fRegex.Free;
   end;
 
 
@@ -391,22 +273,21 @@ end;
 
 class procedure THtmlIMDbParser.ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
 var
-  rr, rr2, fRegexNewDesign: TRegExpr;
+  fRegex: TRegExpr;
   fMatch: string;
 begin
 
-  fRegexNewDesign := TRegExpr.Create;
+  fRegex := TRegExpr.Create;
   try
-    fRegexNewDesign.Expression := 'data-testid="title-details-origin">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
-    if fRegexNewDesign.Exec(aPageSource) then
+    fRegex.Expression := 'data-testid="title-details-origin">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
+    if fRegex.Exec(aPageSource) then
     begin
-      //new new design
-      fMatch := fRegexNewDesign.Match[1];
-      fRegexNewDesign.Expression := 'ref_=tt_dt_cn">(.*?)<\/a>';
-      if fRegexNewDesign.Exec(fMatch) then
+      fMatch := fRegex.Match[1];
+      fRegex.Expression := 'ref_=tt_dt_cn">(.*?)<\/a>';
+      if fRegex.Exec(fMatch) then
       begin
         repeat
-          fMatch := fRegexNewDesign.Match[1];
+          fMatch := fRegex.Match[1];
 
           //rewrite to old format
           if fMatch = 'United States' then
@@ -415,52 +296,11 @@ begin
             fMatch := 'UK';
 
           aCountriesList := aCountriesList + fMatch + ',';
-        until not fRegexNewDesign.ExecNext;
+        until not fRegex.ExecNext;
       end;
     end
-    else
-    begin
-      rr := TRegExpr.Create;
-      try
-        rr.ModifierI := True;
-
-        rr2 := TRegExpr.Create;
-        try
-          rr2.ModifierI := True;
-          rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
-
-          // Trying new layout of IMDb first
-          rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Country:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
-          if rr.Exec(aPageSource) then
-          begin
-            if rr2.Exec(rr.Match[1]) then
-            begin
-              repeat
-                aCountriesList := aCountriesList + rr2.Match[1] + ',';
-              until not rr2.ExecNext;
-            end;
-          end
-          else
-          begin
-            // Trying old layout of IMDb if new layout fails
-            rr.Expression := '<div class=\"info\"><h5>Country:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
-            if rr.Exec(aPageSource) then
-            begin
-              if rr2.Exec(rr.Match[1]) then
-                repeat
-                  aCountriesList := aCountriesList + rr2.Match[4] + ',';
-                until not rr2.ExecNext;
-            end;
-          end;
-        finally
-          rr2.Free;
-        end;
-      finally
-        rr.Free;
-      end;
-    end;
   finally
-    fRegexNewDesign.Free;
+    fRegex.Free;
   end;
 
 
@@ -489,47 +329,6 @@ begin
         repeat
           aGenresList := aGenresList + rr.Match[1] + ',';
         until not rr.ExecNext;
-      end;
-    finally
-      rr.Free;
-    end;
-  end
-  else
-  begin
-    rr := TRegExpr.Create;
-    try
-      rr.ModifierI := True;
-
-      rr2 := TRegExpr.Create;
-      try
-        rr2.ModifierI := True;
-        rr2.Expression := '<a[^>]+>\s(\S+)<\/a>';
-
-        // Trying new layout of IMDb first
-        rr.Expression := '<h4 class="inline">Genres:<\/h4>((\s*<a href\S+\s*>.*?<\/a>(?:\S+<\/span>)?\s*)+)<\/div>';
-        if rr.Exec(aPageSource) then
-        begin
-          if rr2.Exec(rr.Match[1]) then
-          begin
-            repeat
-              aGenresList := aGenresList + rr2.Match[1] + ',';
-            until not rr2.ExecNext;
-          end;
-        end
-        else
-        begin
-          // Trying old layout of IMDb if new layout fails
-          rr.Expression := '<h5>Genre:<\/h5>\n<div class=\"info-content\">\s+(.*?)<\/div>';
-          if rr.Exec(aPageSource) then
-          begin
-            if rr2.Exec(rr.Match[1]) then
-              repeat
-                aGenresList := aGenresList + rr2.Match[3] + ',';
-              until not rr2.ExecNext;
-          end;
-        end;
-      finally
-        rr2.Free;
       end;
     finally
       rr.Free;
