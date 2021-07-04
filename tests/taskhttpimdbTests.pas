@@ -10,16 +10,6 @@ uses
   {$ENDIF}
 
 type
-  TTestTHtmlIMDbParser = class(TTestCase)
-  published
-    procedure TestParseMetaTitleInformation1;
-    { following titles have special characters }
-    procedure TestParseMetaTitleInformation2;
-    procedure TestParseMetaTitleInformation3;
-    procedure TestParseMetaTitleInformation4;
-    { case of no votes and no rating }
-    procedure TestParseNoVotesAndNoRating;
-  end;
 
   { War for the Planet of the Apes (2017) }
   TTestTHtmlIMDbParser_tt3450958 = class(TTestCase)
@@ -247,9 +237,6 @@ type
   TTestTIMDbInfoChecks = class(TTestCase)
   published
     procedure TestIsSTVBasedOnTitleExtraInfo1;
-    procedure TestIsSTVBasedOnTitleExtraInfo2;
-    procedure TestIsSTVBasedOnTitleExtraInfo3;
-    procedure TestIsSTVBasedOnTitleExtraInfo4;
     procedure TestEstimateEnglishCountryOrder1;
     procedure TestEstimateEnglishCountryOrder2;
     procedure TestEstimateEnglishCountryOrder3;
@@ -266,87 +253,6 @@ uses
 {$ELSE}
   {$R taskhttpimdbTests.res}
 {$ENDIF}
-
-{ TTestTHtmlIMDbParser }
-
-procedure TTestTHtmlIMDbParser.TestParseMetaTitleInformation1;
-var
-  fPageSource: String;
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-begin
-  // tt0382625
-  fPageSource := '<meta property=''og:title'' content="The Da Vinci Code (2006) - IMDb" />';
-
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt0382625', fMovieTitle, fTitleExtraInfo, fYear);
-
-  CheckEqualsString('The Da Vinci Code', fMovieTitle, 'Title mismatch');
-  CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
-  CheckEquals(2006, fYear, 'Year mismatch');
-end;
-
-procedure TTestTHtmlIMDbParser.TestParseMetaTitleInformation2;
-var
-  fPageSource: String;
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-begin
-  // tt4919664
-  fPageSource := '<meta property=''og:title'' content="&quot;The Detour&quot; The Pilot (TV Episode 2016) - IMDb" />';
-
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt4919664', fMovieTitle, fTitleExtraInfo, fYear);
-
-  CheckEqualsString('&quot;The Detour&quot; The Pilot', fMovieTitle, 'Title mismatch'); // TODO: strip html chars?
-  CheckEqualsString('TV Episode', fTitleExtraInfo, 'Title extrainfo mismatch');
-  CheckEquals(2016, fYear, 'Year mismatch');
-end;
-
-procedure TTestTHtmlIMDbParser.TestParseMetaTitleInformation3;
-var
-  fPageSource: String;
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-begin
-  // tt2487090
-  fPageSource := '<meta property=''og:title'' content="Sam & Cat (TV Series 2013–2014) - IMDb" />';
-
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt2487090', fMovieTitle, fTitleExtraInfo, fYear);
-
-  CheckEqualsString('Sam & Cat', fMovieTitle, 'Title mismatch'); // TODO: replace & with and?
-  CheckEqualsString('TV Series', fTitleExtraInfo, 'Title extrainfo mismatch');
-  CheckEquals(2013, fYear, 'Year mismatch');
-end;
-
-procedure TTestTHtmlIMDbParser.TestParseMetaTitleInformation4;
-var
-  fPageSource: String;
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-begin
-  // tt0107144
-  fPageSource := '<meta property=''og:title'' content="Hot Shots! Part Deux (1993) - IMDb" />';
-
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt0107144', fMovieTitle, fTitleExtraInfo, fYear);
-
-  CheckEqualsString('Hot Shots! Part Deux', fMovieTitle, 'Title mismatch'); // TODO: strip ? and !?
-  CheckEqualsString('', fTitleExtraInfo, 'Title extrainfo mismatch');
-  CheckEquals(1993, fYear, 'Year mismatch');
-end;
-
-procedure TTestTHtmlIMDbParser.TestParseNoVotesAndNoRating;
-var
-  fPageSource: String;
-  fVotes, fRating: Integer;
-begin
-  // tt0816352
-  fPageSource := '    <div class="star-rating-button"><button> <span class="star-rating-star no-rating"></span>' +
-    '            <span class="star-rating-text">Rate This</span></button></div>';
-
-  THtmlIMDbParser.ParseVotesAndRating(fPageSource, 'tt0816352', fVotes, fRating);
-
-  CheckEquals(0, fVotes, 'Votes mismatch');
-  CheckEquals(0, fRating, 'Rating mismatch');
-end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
 var
@@ -1643,54 +1549,6 @@ begin
   CheckFalse(fIsSTV, 'STV mismatch');
 end;
 
-procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo2;
-var
-  fPageSource: String;
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-  fIsSTV: Boolean;
-begin
-  // tt4919664
-  fPageSource := '<meta property=''og:title'' content="&quot;The Detour&quot; The Pilot (TV Episode 2016) - IMDb" />';
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt4919664', fMovieTitle, fTitleExtraInfo, fYear);
-
-  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
-
-  CheckTrue(fIsSTV, 'STV mismatch');
-end;
-
-procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo3;
-var
-  fPageSource: String;
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-  fIsSTV: Boolean;
-begin
-  // tt5667286
-  fPageSource := '<meta property=''og:title'' content="The Witcher 3: Wild Hunt - Blood and Wine (Video Game 2016) - IMDb" />';
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt5667286', fMovieTitle, fTitleExtraInfo, fYear);
-
-  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
-
-  CheckTrue(fIsSTV, 'STV mismatch');
-end;
-
-procedure TTestTIMDbInfoChecks.TestIsSTVBasedOnTitleExtraInfo4;
-var
-  fPageSource: String;
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-  fIsSTV: Boolean;
-begin
-  // tt2372220
-  fPageSource := '<meta property=''og:title'' content="The White Queen (TV Mini-Series 2013) - IMDb" />';
-  THtmlIMDbParser.ParseMetaTitleInformation(fPageSource, 'tt2372220', fMovieTitle, fTitleExtraInfo, fYear);
-
-  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
-
-  CheckTrue(fIsSTV, 'STV mismatch');
-end;
-
 procedure TTestTIMDbInfoChecks.TestEstimateEnglishCountryOrder1;
 var
   fStrList: TStringList;
@@ -1818,7 +1676,6 @@ initialization
 
     RegisterTest('TTestTIMDbInfoChecks', TTestTIMDbInfoChecks.Suite);
   {$ELSE}
-    TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser);
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt3450958);
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt0455275);
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt7214470);
