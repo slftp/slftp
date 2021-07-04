@@ -1659,7 +1659,6 @@ end;
 
 initialization
   {$IFDEF FPC}
-    RegisterTest('THtmlIMDbParser', TTestTHtmlIMDbParser.Suite);
     RegisterTest('TTestTHtmlIMDbParser_tt3450958', TTestTHtmlIMDbParser_tt3450958.Suite);
     RegisterTest('TTestTHtmlIMDbParser_tt0455275', TTestTHtmlIMDbParser_tt0455275.Suite);
     RegisterTest('TTestTHtmlIMDbParser_tt7214470', TTestTHtmlIMDbParser_tt7214470.Suite);
