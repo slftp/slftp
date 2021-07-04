@@ -40,11 +40,7 @@ begin
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
   CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Green Book'), 'HTML content should include title');
-  if not ({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta property="og:title" content="Green Book')) then
-  begin
-    //old design
-    CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta name="title" content="Green Book (2018) - IMDb" />'), 'HTML content should include meta name title');
-  end;
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta property="og:title" content="Green Book', 'HTML content should include meta name title'));
 end;
 
 procedure TTestHTTP.TestIMDBHTTPS;
@@ -58,11 +54,8 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
-  if not ({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta property="og:title" content="Green Book')) then
-  begin
-    //old design
-    CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta name="title" content="Green Book (2018) - IMDb" />'), 'HTML content should include meta name title');
-  end;
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Green Book'), 'HTML content should include title');
+  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta property="og:title" content="Green Book', 'HTML content should include meta name title'));
 end;
 
 procedure TTestHTTP.TestBOMHTTP;
