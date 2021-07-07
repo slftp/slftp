@@ -16,6 +16,7 @@ type
     FChanRoles: TList<string>; //< chanroles for @link(Channel), saved under 'names' entry in sites.dat
     function GetChanRoles: String; //< returns the strings in @link(FChanRoles), delimited by a space
     procedure SetChanRoles(const aChanRoles: String); //< adds the @link(aChanRoles) String (multiple roles should be delimited by a space) to @link(FChanRoles) if not added yet, every call to it clears the list as first step
+    destructor Destroy; override;
   public
     { Creates a new TIrcChannelSettings entry which holds infos about Chankey, Chanroles and if channel is invite only
       @param(aNetname irc network name)
@@ -194,6 +195,12 @@ begin
       end;
     end;
   end;
+end;
+
+destructor TIrcChannelSettings.Destroy;
+begin
+  FChanRoles.Free;
+  inherited;
 end;
 
 end.

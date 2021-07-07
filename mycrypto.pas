@@ -14,7 +14,7 @@ function EncryptUDP(const s: String): String;
 implementation
 
 uses
-  SysUtils, delphiblowfish, slssl, configunit, debugunit, Math, mystrings;
+  SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings;
 
 const
   section = 'crypto';

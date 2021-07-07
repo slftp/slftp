@@ -2,8 +2,8 @@ SHELL = /bin/bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
-CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/LibTar -Fulibs/mORMot -Fulibs/mORMot/* -Fulibs/ZeosLib/*
-CTESTINCLUDES = -dUNITTESTING -Futests/* -Futests/fptest/*
+CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot -Fulibs/mORMot/* -Fulibs/ZeosLib/*
+CTESTINCLUDES = -Futests/* -Futests/fptest/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gs -gw3
 # flag for heaptrace output
 # see http://wiki.freepascal.org/heaptrc & http://wiki.freepascal.org/leakview
@@ -83,6 +83,7 @@ cleanuptestdir:
 	@find tests -name "*.ppu" -type f -delete
 	@find tests -name "*.o" -type f -delete
 	@rm -f tests/*.ppu tests/*.o tests/slftpUnitTests tests/*.exe
+	@rm -f tests/*.res tests/*.or
 
 install:
 	@cp slftp $(SLFTPPATH)/slftp

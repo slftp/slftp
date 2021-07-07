@@ -56,10 +56,14 @@ uses
   ircparsingTests,
   slmasksTests,
   dirlist.helpersTests,
+  dirlistTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
-  kb.releaseinfo.MVIDTests;
+  kb.releaseinfo.MVIDTests,
+  taskhttpimdbTests,
+  slsslTests,
+  sitesunitTests;
 
 var
   filecheck: String;
@@ -81,6 +85,7 @@ begin
   InitialGlobalskiplistSetup;
   InitialTagsSetup;
   InitialDirlistSetup;
+  InitialDbAddImdbSetup;
 
 
   // run all registered tests

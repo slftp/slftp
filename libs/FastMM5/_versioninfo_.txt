@@ -1,3 +1,4 @@
-071acc9586dfe0963f3195e5049c4bcfcb763962
+e11d6d4c4216999669eb5a77b555df77ceb88c1b
+Merge pull request #22 from nowlar/nowlar-patch-usesharedmm
 
-Fix a Delphi Seattle and earlier compiler error introduced in previous commit
+Avoid memory allocation before attempting to use shared mm

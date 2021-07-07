@@ -27,42 +27,38 @@ type
 implementation
 
 uses
-  SysUtils, IdSSLOpenSSL, IdSSLOpenSSLHeaders;
+  SysUtils, IdOpenSSLLoader, IdOpenSSLHeaders_crypto;
 
 { TTestIndyOpenSSL }
 
-{$IFDEF FPC}
-  procedure TTestIndyOpenSSL.SetUpOnce;
-{$ELSE}
-  procedure TTestIndyOpenSSL.SetUp;
-{$ENDIF}
+procedure TTestIndyOpenSSL.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fSslLoader: IOpenSSLLoader;
 begin
+  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
   // Tell Indy OpenSSL to load libs from current dir
-  IdOpenSSLSetLibPath('.');
-
-  {$IFDEF UNIX}
-    // do not try to load sym links first
-    IdOpenSSLSetLoadSymLinksFirst(False);
-  {$ENDIF}
+  fSslLoader.OpenSSLPath := '.';
 
   try
-    CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary, 'IdSSLOpenSSL.LoadOpenSSLLibrary failed: ' + IdSSLOpenSSLHeaders.WhichFailedToLoad);
+    CheckTrue(fSslLoader.Load, 'IdOpenSSLLoader.Load failed failed: ' + fSslLoader.FailedToLoad.CommaText);
   except
     on e: Exception do
     begin
       {$IFNDEF FPC}DUnitX.Assert.Assert.{$ENDIF}Fail(Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
     end;
   end;
+
+  // check if we at least have OpenSSL 1.1.0
+  CheckTrue(Assigned(OpenSSL_version), 'OpenSSL needs to be at least OpenSSL 1.1.0');
 end;
 
-{$IFDEF FPC}
-  procedure TTestIndyOpenSSL.TeardownOnce;
-{$ELSE}
-  procedure TTestIndyOpenSSL.Teardown;
-{$ENDIF}
+procedure TTestIndyOpenSSL.{$IFDEF FPC}TeardownOnce{$ELSE}Teardown{$ENDIF};
+var
+  fSslLoader: IOpenSSLLoader;
 begin
   try
-    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
+    fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
+    fSslLoader.Unload;
   except
     on e: Exception do
     begin
@@ -76,7 +72,7 @@ var
   fExpectedResultStr, fShortVersion: String;
   {$I slftp.inc}
 begin
-  fExpectedResultStr := IdSSLOpenSSL.OpenSSLVersion; // e.g. OpenSSL 1.0.2n  7 Dec 2017
+  fExpectedResultStr := OpenSSL_version(OPENSSL_VERSION_CONST); // e.g. OpenSSL 1.0.2n  7 Dec 2017
   fShortVersion := Copy(fExpectedResultStr, 9, 5);
   CheckEqualsString(lib_OpenSSL, fShortVersion, 'OpenSSL version is wrong');
   SetLength(fExpectedResultStr, 13);

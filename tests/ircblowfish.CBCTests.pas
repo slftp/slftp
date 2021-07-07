@@ -23,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, ircchansettings, ircblowfish.CBC, IdSSLOpenSSL, IdSSLOpenSSLHeaders;
+  SysUtils, ircchansettings, ircblowfish.CBC, IdOpenSSLLoader, IdSSLOpenSSLHeaders;
 
 { TTestIrcBlowkeyCBC }
 
@@ -50,17 +50,16 @@ var
   );
 
 procedure TTestIrcBlowkeyCBC.LoadIndyOpenSSL;
+var
+  fSslLoader: IOpenSSLLoader;
 begin
+  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
   // Tell Indy OpenSSL to load libs from current dir
-  IdOpenSSLSetLibPath('.');
+  fSslLoader.OpenSSLPath := '.';
 
-  {$IFDEF UNIX}
-    // do not try to load sym links first
-    IdOpenSSLSetLoadSymLinksFirst(False);
-  {$ENDIF}
 
   try
-    CheckTrue(IdSSLOpenSSL.LoadOpenSSLLibrary, 'IdSSLOpenSSL.LoadOpenSSLLibrary failed: ' + IdSSLOpenSSLHeaders.WhichFailedToLoad);
+    CheckTrue(fSslLoader.Load, 'IdOpenSSLLoader.Load failed: ' + fSslLoader.FailedToLoad.CommaText);
   except
     on e: Exception do
     begin

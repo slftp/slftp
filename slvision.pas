@@ -3016,9 +3016,5 @@ initialization
   lvtf := 0;
 
 finalization
-  {$IFNDEF UNITTESTING}
-    slscreen.normvideo;
-    slscreen.clrscr;
-  {$ENDIF}
   slvision_lock.Free;
 end.

@@ -1,6 +1,46 @@
 # soulless Ftp
 
-### slFtp is an open-source, multithreaded FTP client with native Linux and Windows support, designed for the "scene".
+```
+                                .
+                                ;    .
+                               01.   .
+                               01;, .:
+                               0100 11
+                               1010 01
+                               0100 01
+                             : 1001 00 :
+                             :   `0 01 :
+       _______     _         :  _____._:___              _
+      /      /    / \___     __/          /             / \________
+     /  ,___/____/     /     \    _      / \___________/          /
+  ___\____      /     /______/    /_____/             /    _     /
+ /__     /     /     /      /     ___/ /____      ___/     /    /
+   /    /     /     /      /     /2o!  :   /     /  /     _____/
+  /     _____/_____       /__   /     .:  /     /  /__   /
+ /__   /          /___   /...\_/....:::: /__   /  .   \_/
+    \_.001.  1    .100._/            ...    \_/   .
+       01    10      10               ::          :
+      `10.11 .0  11.01'                `          :
+        1000.  .  .000'                 ........  :
+        `'`101. .101'`1.......:.........:      :..'
+          . `10100'.:         :         :      :
+   --->   :.  `10z.`:  <-- ---+- slFtp -+-     :
+          1:   .`10f.         :         `......:
+          01  .1  `00r.       :.............'
+          00  0:  .100'
+          01  01.101'
+          10  0101' .
+          01  01'  .1
+          0:  10   00
+          :.  1    10
+          .   1    0:
+              0.    :.
+              .     .
+```
+
+* open-source
+* multithreaded FTP client with native Linux and Windows support
+* designed for the "scene"
 
 # Features:
 - FTP client, including
@@ -43,9 +83,10 @@
 - Ident server support
 - And a lot more!
 
-### Licence
+# Licence
 * You can freely use/mod slFtp, but keep the source open.
 
-## Join #slftp@LiNKNET
+# Community
+* Join #slftp@LiNKNET
 
-#### slftp (c) 2006-2009 believe *** (c) 2009 Soulless Developer Team
+# slftp (c) 2006-2009 believe *** (c) 2009 Soulless Developer Team

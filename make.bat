@@ -7,14 +7,14 @@ for /f "delims=" %%a in ('where dcc64.exe') do @set CC_64=%%a
 set CC_EXTRAS=-NSWinapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Data;Datasnap;Web;Soap
 set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
-set CINCLUDES=-Uirccommands -Urules -Ulibs/FastMM5 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot -Ulibs/mORMot/SQLite3 -Ulibs/mORMot/CrossPlatform -Ulibs/ZeosLib -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
+set CINCLUDES=-Uirccommands -Urules -Ulibs/FastMM5 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/Protocols/OpenSSL -Ulibs/Indy10/Protocols/OpenSSL/dynamic -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot -Ulibs/mORMot/SQLite3 -Ulibs/mORMot/CrossPlatform -Ulibs/ZeosLib -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
 set UnitTestAppName="tests\slftpUnitTests.exe --exitbehavior:Continue"
 set CTESTINCLUDES=-Utests/DUnitX
 
 REM
 REM OpenSSL version, depending names for 32/64bit will be added later
 REM
-set OPENSSL_NAME=openssl-1.0.2u
+set OPENSSL_NAME=openssl-1.1.1i
 
 REM
 REM Inject git commit into slftp.inc if .git exists
@@ -86,7 +86,7 @@ goto :eof;
 
 :clean
 echo --- Cleaning files ---
-del /q /s *slftp*.exe *.dcu
+del /q /s *slftp*.exe *.dcu *.res
 goto :eof;
 
 :test_32
@@ -94,7 +94,7 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win32 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('http://wiki.overbyte.eu/arch/%OPENSSL_NAME%-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/releases/-/raw/master/deps/%OPENSSL_NAME%-i386-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
 if errorlevel 1 (
 echo Failure reason for downloading OpenSSL is %errorlevel%
 exit /b %errorlevel%
@@ -106,8 +106,8 @@ echo Failure reason for extracting is %errorlevel%
 exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-i386-win32\libeay32.dll libeay32.dll
-copy /Y %OPENSSL_NAME%-i386-win32\ssleay32.dll ssleay32.dll
+copy /Y %OPENSSL_NAME%-i386-win32\libcrypto-1_1.dll libcrypto-1_1.dll
+copy /Y %OPENSSL_NAME%-i386-win32\libssl-1_1.dll libssl-1_1.dll
 if errorlevel 1 (
 echo Failure reason for copying is %errorlevel%
 exit /b %errorlevel%
@@ -119,6 +119,8 @@ if errorlevel 1 (
 echo Failure reason for deleting is %errorlevel%
 exit /b %errorlevel%
 )
+echo - Creating resource file -
+rc taskhttpimdbTests.rc
 cd ..
 echo - Compiling -
 echo "%CC_32%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr
@@ -140,7 +142,7 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win64 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('http://wiki.overbyte.eu/arch/%OPENSSL_NAME%-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/releases/-/raw/master/deps/%OPENSSL_NAME%-x64_86-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
 if errorlevel 1 (
    echo Failure reason for downloading OpenSSL is %errorlevel%
    exit /b %errorlevel%
@@ -152,8 +154,8 @@ if errorlevel 1 (
    exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-x64_86-win64\libeay32.dll libeay32.dll /Y
-copy /Y %OPENSSL_NAME%-x64_86-win64\ssleay32.dll ssleay32.dll /Y
+copy /Y %OPENSSL_NAME%-x64_86-win64\libcrypto-1_1-x64.dll libcrypto-1_1-x64.dll /Y
+copy /Y %OPENSSL_NAME%-x64_86-win64\libssl-1_1-x64.dll libssl-1_1-x64.dll /Y
 if errorlevel 1 (
    echo Failure reason for copying is %errorlevel%
    exit /b %errorlevel%
@@ -165,6 +167,8 @@ if errorlevel 1 (
    echo Failure reason for deleting is %errorlevel%
    exit /b %errorlevel%
 )
+echo - Creating resource file -
+rc taskhttpimdbTests.rc
 cd ..
 echo - Compiling -
 echo "%CC_64%" %CFLAGS% %CC_EXTRAS% %CINCLUDES% %CTESTINCLUDES% tests\slftpUnitTests.dpr

@@ -1,7 +1,4 @@
 Usage: <cmd> sitename event section rip
 Trigger the KBADD function over irc/console.
-Vailed events are: NEWDIR PRE ADDPRE NUKE and COMPLETE
+Valid events are: PRE SPREAD NEWDIR COMPLETE REQUEST NUKE ADDPRE and UPDATE
 Example: <cmd> HQ1 NEWDIR MP3 VA_-_anything-ANY
-
-
-  

@@ -1,2 +1,3 @@
-Usage: <cmd> window title
+Usage: <cmd> window_title
 Brings the specified console window to the foreground. (Check <cmdprefix>windows for a list)
+To return to the Admin (main) window use the ESC key.
