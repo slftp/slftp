@@ -236,8 +236,14 @@ begin
     fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
     aVotes := StrToIntDef(fVotes, 0);
 
-    fRating := StringReplace(fRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
-    fRating := StringReplace(fRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
+    //if the rating is an even number, it's without decimal place in the JSON. Because we use rating*10 in the rules, add a '0' here.
+    if length(fRating) = 1 then
+      fRating := fRating + '0'
+    else
+    begin
+      fRating := StringReplace(fRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
+      fRating := StringReplace(fRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
+    end;
     aRating := StrToIntDef(fRating, 0);
   end;
 end;
