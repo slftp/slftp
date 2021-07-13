@@ -137,6 +137,20 @@ type
     procedure TestParseAlsoKnownAsInfo;
   end;
 
+  { The Violators (2015) }
+  TTestTHtmlIMDbParser_tt3876702 = class(TTestCase)
+  private
+    FMainPage: String;
+  protected
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+    {$ENDIF}
+  published
+    procedure TestParseVotesAndRating;
+  end;
+
   TTestTHtmlBoxOfficeMojoParser = class(TTestCase)
   published
     procedure TestGetWidestScreensCountNoneAvailable;
@@ -1107,6 +1121,37 @@ begin
   end;
 end;
 
+procedure TTestTHtmlIMDbParser_tt3876702.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fResStream: TResourceStream;
+  fStrList: TStringList;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt3876702_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FMainPage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+end;
+
+procedure TTestTHtmlIMDbParser_tt3876702.TestParseVotesAndRating;
+var
+  fVotes, fRating: Integer;
+begin
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, 'tt3876702', fVotes, fRating);
+
+  CheckTrue(400 < fVotes, 'Votes mismatch');
+  CheckTrue(5000 > fVotes, 'Votes mismatch');
+  CheckTrue(59 < fRating, 'Rating mismatch');
+  CheckTrue(61 > fRating, 'Rating mismatch');
+end;
+
 procedure TTestTHtmlBoxOfficeMojoParser.TestGetWidestScreensCountNoneAvailable;
 var
   fPageSource: String;
@@ -1665,6 +1710,7 @@ initialization
     RegisterTest('TTestTHtmlIMDbParser_tt7728344', TTestTHtmlIMDbParser_tt7728344.Suite);
     RegisterTest('TTestTHtmlIMDbParser_tt11095742', TTestTHtmlIMDbParser_tt11095742.Suite);
     RegisterTest('TTestTHtmlIMDbParser_tt0375568', TTestTHtmlIMDbParser_tt0375568.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt3876702.Suite);
 
     RegisterTest('THtmlBoxOfficeMojoParser', TTestTHtmlBoxOfficeMojoParser.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt5093026', TTestTHtmlBoxOfficeMojoParser_tt5093026.Suite);
@@ -1681,6 +1727,7 @@ initialization
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt7728344);
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt11095742);
     TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt0375568);
+    TDUnitX.RegisterTestFixture(TTestTHtmlIMDbParser_tt3876702);
 
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser);
     TDUnitX.RegisterTestFixture(TTestTHtmlBoxOfficeMojoParser_tt5093026);
