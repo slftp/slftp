@@ -37,6 +37,7 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
+        reduced_speedstat_weight=0
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -53,6 +54,7 @@
 --=============================( SLFTP v1.5.9 )===================================-
     {#} sort destinations on KB level to make sure the highest ranked sites get race tasks created first before the queue sort
     {#} Fixed an issue which could cause autodirlists to stop working on very busy sites when queue clean is enabled
+    {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
 
 --=============================( SLFTP v1.5.8 )===================================-
     {+} Reverse FXP can be enabled by command !reversefxp (#9)
