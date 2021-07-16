@@ -37,6 +37,7 @@ function IrcRebuildSlot(const netname, channel, params: String): boolean;
 function IrcRecalcFreeslots(const netname, channel, params: String): boolean;
 function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean;
 function IrcSetReverseFxp(const netname, channel, params: String): boolean;
+function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -2386,6 +2387,31 @@ begin
       x.Free;
     end;
   end;
+
+  Result := True;
+end;
+
+function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fUseSiteSearch: Integer;
+  fSite: TSite;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fUseSiteSearch := StrToIntDef(SubString(params, ' ', 2), -1);
+  fSite := FindSiteByName(Netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  // only allow 0 and 1 as valid values
+  if ((fUseSiteSearch < 0) or (fUseSiteSearch > 1)) then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> value for use site search on req fill is: %d', [fSite.Name, ord(fSite.UseSiteSearchOnReqFill)])
+  else
+    fSite.UseSiteSearchOnReqFill := boolean(fUseSiteSearch);
 
   Result := True;
 end;
