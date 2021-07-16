@@ -65,7 +65,7 @@ implementation
 uses
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
-  console, mrdohutils, SyncObjs, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SyncObjs, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
@@ -428,6 +428,7 @@ var
   mind: boolean;
   ts_data: TStringList;
   rls, s: String;
+  fRequestDirlistTask: TAutoDirlistTask;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
@@ -539,9 +540,14 @@ begin
           end;
         end;
 
-        if ss.section = 'REQUEST' then
+        if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
         begin
-          // maybe we can do something here to automatically fill requests with a 'site search' like those mirc scripts do
+          MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
+          if not precatcher_debug then
+          begin
+            fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
+            AddTask(fRequestDirlistTask);
+          end;
           exit;
         end;
 

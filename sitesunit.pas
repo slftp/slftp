@@ -356,6 +356,10 @@ type
     function GetUseReverseFxpDestination: boolean;
     { Sets a value indicating whether reverse FXP will be used if the site is the destination for the transfer }
     procedure SetUseReverseFxpDestination(const Value: boolean);
+    { Gets a value indicating whether the 'site search' cmd will be used to find requests }
+    function GetUseSiteSearchOnReqFill: boolean;
+    { Sets a value indicating whether the 'site search' cmd will be used to find requests }
+    procedure SetUseSiteSearchOnReqFill(const Value: boolean);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -523,6 +527,7 @@ type
     property SetDownOnOutOfCredits: Boolean read GetSetDownOnOutOfCredits write SetSetDownOnOutOfCredits; //< per site set_down_on_out_of_credits setting, uses global if not set
     property UseReverseFxpSource: boolean read GetUseReverseFxpSource write SetUseReverseFxpSource; //< a value indicating whether reverse FXP will be used if the site is the source for the transfer
     property UseReverseFxpDestination: boolean read GetUseReverseFxpDestination write SetUseReverseFxpDestination; //< a value indicating whether reverse FXP will be used if the site is the destination for the transfer
+    property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
   end;
 
 function ReadSites(): boolean;
@@ -3222,7 +3227,7 @@ begin
   if t <> nil then
     exit;
 
-  t := TAutoDirlistTask.Create('', '', Name);
+  t := TAutoDirlistTask.Create('', '', Name, '');
   t.startat := NextAutoDirlistDateTime;
   t.dontremove := True;
   try
@@ -3973,6 +3978,16 @@ end;
 procedure TSite.SetUseReverseFxpDestination(const Value: boolean);
 begin
   WCBool('reverse_fxp_destination', Value);
+end;
+
+function TSite.GetUseSiteSearchOnReqFill: boolean;
+begin
+  Result := RCBool('use_site_search_on_reqfill', config.ReadBool('autodirlist', 'use_site_search_on_reqfill', False));
+end;
+
+procedure TSite.SetUseSiteSearchOnReqFill(const Value: boolean);
+begin
+  WCBool('use_site_search_on_reqfill', Value);
 end;
 
 end.
