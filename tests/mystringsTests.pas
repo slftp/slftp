@@ -1,4 +1,4 @@
-unit mystringsTests;
+﻿unit mystringsTests;
 
 interface
 
@@ -45,6 +45,12 @@ type
     procedure TestInternationalCharsToAsciiSceneChars6;
     procedure TestInternationalCharsToAsciiSceneChars7;
     procedure TestInternationalCharsToAsciiSceneChars8;
+    procedure TestParseSiteSearchResult1;
+    procedure TestParseSiteSearchResult2;
+    procedure TestParseSiteSearchResult3;
+    procedure TestParseSiteSearchResult4;
+    procedure TestParseSiteSearchResult5;
+    procedure TestParseSiteSearchResult6;
   end;
 
 implementation
@@ -587,6 +593,143 @@ begin
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
   CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult1;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+begin
+  //glftpd
+  fResp := TArray<String>.Create('200- (Values displayed after dir names are Files/Megs/Age)',
+    '200- Doing case-insensitive search for ''Test.Release-ASDF'':',
+    '200- /ARCHIVE/SECTION/Test.Release-ASDF (4F/119.6M/106d 7h)',
+    '200- /INCOMING/SECTION/Test.Release-ASDF (4F/119.6M/106d 7h)',
+    '200-',
+    '200 2 directories found.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(2, fStringList.Count);
+    CheckEquals('/ARCHIVE/SECTION/Test.Release-ASDF', fStringList[0]);
+    CheckEquals('/INCOMING/SECTION/Test.Release-ASDF', fStringList[1]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult2;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+begin
+  //glftpd
+  fResp := TArray<String>.Create('200- (Values displayed after dir names are Files/Megs/Age)',
+    '200- Doing case-insensitive search for ''Test.Release-ASDF'':',
+    '200- /REQUESTS/_FILLED/FILLED-Test.Release-ASDF/Test.Release-ASDF/Sample (1F/154.3M/58d 18h)',
+    '200- /REQUESTS/_FILLED/FILLED-Test.Release-ASDF (85F/19354.7M/58d 18h)',
+    '200- /REQUESTS/_FILLED/FILLED-Test.Release-ASDF/Test.Release-ASDF (85F/19354.7M/58d 18h)',
+    '200-',
+    '200 2 directories found.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(1, fStringList.Count);
+    CheckEquals('/REQUESTS/_FILLED/FILLED-Test.Release-ASDF/Test.Release-ASDF', fStringList[0]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult3;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+begin
+  //drftpd
+  fResp := TArray<String>.Create('200- Found 1 entries in index (limit 200):',
+    '200- /SECTION/Test.Release-ASDF',
+    '200 Search complete ');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(1, fStringList.Count);
+    CheckEquals('/SECTION/Test.Release-ASDF', fStringList[0]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult4;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+  stri: String;
+begin
+  //ioftpd
+  fResp := TArray<String>.Create('200- /SECTION/Test.Release-ASDF',
+    '200 Command successful.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(1, fStringList.Count);
+    CheckEquals('/SECTION/Test.Release-ASDF', fStringList[0]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult5;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+  stri: String;
+begin
+  //glftpd nuked dir
+  fResp := TArray<String>.Create('200- Doing case-insensitive search for ''Test.Release-ASDF'':',
+    '200- /SECTION/Test.Release-ASDF *NUKED*',
+    '200- /SECTION/Test.Release-ASDF/Sample (1F/22.7M/26d 21h)',
+    '200- /SECTION/(incomplete)-Test.Release-ASDF (49F/2253.1M/26d 21h)',
+    '200-',
+    '200 3 directories found.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(0, fStringList.Count);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult6;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+  stri: String;
+begin
+  //drftpd nuked dir
+  fResp := TArray<String>.Create('200- Found 1 entries in index (limit 50):',
+    '200- /0DAY/0612/[NUKED]-Test.Release-ASDF',
+    '200 Search complete');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(0, fStringList.Count);
+  finally
+    fStringList.Free;
+  end;
 end;
 
 initialization
