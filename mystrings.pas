@@ -1,4 +1,4 @@
-{*****************************************************************************
+﻿{*****************************************************************************
 
  - Soulless robotic engine aka SLFTP
  - Version 1.3
@@ -171,6 +171,12 @@ procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartF
   @param(aCredits Credits (two decimal places) with unit, removes locale delimited and replaces it with a dot)
   @param(aRatio Ratio as seen in the "site stat" output with the exception of 1:0 being returned as the string "Unlimited") }
 procedure ParseSTATLine(const aStatLine: String; out aCredits, aRatio: String);
+
+{ Parses a FTP "site search" result returning the found paths
+  @param(aSearchResult FTP response from a "site search" command)
+  @param(aRlsToSearch The rls name it was searched for)
+  @returns(Paths on the site where the given release was found.) }
+function ParsePathFromSiteSearchResult(const aSearchResult, aRlsToSearch: String): String;
 
 { Converts the punctuation, international and other special characters in a moviename into scene-notation used for release tagging
   @param(aInput Name of the Movie)
@@ -970,6 +976,40 @@ begin
 
   finally
     x.free;
+  end;
+end;
+
+function ParsePathFromSiteSearchResult(const aSearchResult, aRlsToSearch: String): String;
+var
+  fRegex: TRegexpr;
+  fPath: String;
+begin
+  Result := '';
+  fRegex := TRegExpr.Create;
+  try
+    fRegex.Expression := '200- (/[a-zA-Z0-9\._\-()/]*)'; //200- /SECTION/Test.Release-ASDF
+    if fRegex.Exec(aSearchResult) then
+    begin
+      repeat
+        fPath := fRegex.Match[1];
+
+        //index might contain stuff like /FILLED-Test.Release-ASDF/Test.Release-ASDF and also /FILLED-Test.Release-ASDF
+        if not fPath.Contains('/' + aRlsToSearch) then
+          continue;
+
+        //index might contains stuff like /SECTION/Test.Release-ASDF/Sample (1F/154.3M/58d 18h)
+        if fPath.Contains('/' + aRlsToSearch + '/') then
+          continue;
+
+        //200- /SECTION/Test.Release-ASDF *NUKED*
+        if aSearchResult.Contains(fPath + (' *NUKED*')) then
+          continue;
+
+        Result := Result + fPath + #13#10;
+      until not fRegex.ExecNext();
+    end;
+  finally
+    fRegex.Free;
   end;
 end;
 
