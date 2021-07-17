@@ -37,7 +37,11 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-        reduced_speedstat_weight=0
+      reduced_speedstat_weight=0
+      use_site_search_on_reqfill=0
+      fill_already_on_site=0
+      create_already_on_site_in_directory=1
+      compare_files_for_reqfilled_fallback=1
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -52,9 +56,16 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 	
 --=============================( SLFTP v1.5.9 )===================================-
+    {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
     {#} sort destinations on KB level to make sure the highest ranked sites get race tasks created first before the queue sort
     {#} Fixed an issue which could cause autodirlists to stop working on very busy sites when queue clean is enabled
+<<<<<<< HEAD
     {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
+=======
+    {^} Allow to disable creating the 'already on site' dir when req filling by setting create_already_on_site_in_directory=0 (#302)
+    {^} Allow to disable the file compare to determine a complete request by setting compare_files_for_reqfilled_fallback=0
+    {^} Allow to fill requests that are on the site already by setting fill_already_on_site=1
+>>>>>>> dev
 
 --=============================( SLFTP v1.5.8 )===================================-
     {+} Reverse FXP can be enabled by command !reversefxp (#9)
