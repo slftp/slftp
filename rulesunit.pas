@@ -1612,7 +1612,7 @@ function FireRules(p: TPazo; ps: TPazoSite): boolean;
 var
   dstps: TPazoSite;
   y: TStringList;
-  i: integer;
+  i, fCalculatedRank: integer;
   ps_s, dstps_s: TSite;
 begin
   Result := False;
@@ -1679,18 +1679,18 @@ begin
           // i'm allowed to e ...
           if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
           begin
-            if (ps.status in [rssShouldPre, rssRealPre]) then
-            begin
-              if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) *
-                dstps_s.GetRank(p.rls.section)) + 100) then
-                Result := True;
-            end
+
+            //reduce speed stats weight - multiply ranks by 10, then the speedstats can't change the rank, but still change order within the same rank
+            if (config.ReadBool('speedstats', 'reduced_speedstat_weight', False)) then
+              fCalculatedRank := StrToIntDef(y.ValueFromIndex[i], 1) + dstps_s.GetRank(p.rls.section) * 10
             else
-            begin
-              if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) *
-                dstps_s.GetRank(p.rls.section)) then
-                Result := True;
-            end;
+              fCalculatedRank := StrToIntDef(y.ValueFromIndex[i], 1) * dstps_s.GetRank(p.rls.section); //normal calculation
+
+            if (ps.status in [rssShouldPre, rssRealPre]) then
+              fCalculatedRank := fCalculatedRank + 100;
+
+            if ps.AddDestination(dstps, fCalculatedRank) then
+              Result := True;
           end;
         end;
       except
