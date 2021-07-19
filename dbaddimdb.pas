@@ -789,10 +789,19 @@ begin
 
         end;
         finally
-          FreeAndNil(TIMDbReleaseDatesRecordRec);
-          FreeAndNil(TIMDbAlsoKnownAsRecordRec);
-          FreeAndNil(FIMDbBoomDataRecordRec);
-          FreeAndNil(TIMDbDataRec);
+          ClearObject(TIMDbReleaseDatesRecordRec);
+          ClearObject(TIMDbAlsoKnownAsRecordRec);
+          ClearObject(FIMDbBoomDataRecordRec);
+          ClearObject(TIMDbDataRec);
+
+          TIMDbReleaseDatesRecordRec.Free;
+          TIMDbAlsoKnownAsRecordRec.Free;
+          FIMDbBoomDataRecordRec.Free;
+          TIMDbDataRec.Free;
+          //FreeAndNil(TIMDbReleaseDatesRecordRec);
+          //FreeAndNil(TIMDbAlsoKnownAsRecordRec);
+          //FreeAndNil(FIMDbBoomDataRecordRec);
+          //FreeAndNil(TIMDbDataRec);
         end;
         except
           on e: Exception do
@@ -831,13 +840,14 @@ var
     TIMDbAlsoKnownAsRecordRec: TIMDbAlsoKnownAsRecord;
     fCleanedMovieName : String;
 begin
+    try
 
     fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
 
     TIMDbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
-        'IMDbAlsoKnownAsData.IMDbId = ?', [], [aImdbData.imdb_id]);
+        'IMDbId = ?', [], [aImdbData.imdb_id]);
         Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Start Inserting Data: %s - %s', [fCleanedMovieName, TIMDbDataRec.IMDbID]));
-    try
+
       try
           TIMDbDataRec.UpdatedTime := Now;
 
@@ -859,8 +869,11 @@ begin
             Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_InsertOnlyAlsoKnownAs : Error updating TIMDbData data for Release: %s', [aReleaseName]));
           end;
         finally
-          FreeAndNil(TIMDbAlsoKnownAsRecordRec);
-          FreeAndNil(TIMDbDataRec);
+          ClearObject(TIMDbAlsoKnownAsRecordRec);
+          ClearObject(TIMDbDataRec);
+          TIMDbDataRec.Free;
+          TIMDbAlsoKnownAsRecordRec.Free;
+          //FreeAndNil(TIMDbDataRec);
         end;
         except
           on e: Exception do
