@@ -229,8 +229,15 @@ begin
   fJsonObject := getJSON(aPageSource, aImdbID);
   if not VarIsNull(fJsonObject) then
   begin
-    fVotes := fJsonObject.ratingsSummary.voteCount;
-    fRating := fJsonObject.ratingsSummary.aggregateRating;
+    if VarIsNull(fJsonObject.ratingsSummary.voteCount)then
+      fVotes := '0'
+    else
+      fVotes := fJsonObject.ratingsSummary.voteCount;
+
+    if VarIsNull(fJsonObject.ratingsSummary.aggregateRating) then
+      fRating := '0'
+    else
+      fRating := fJsonObject.ratingsSummary.aggregateRating;
 
     fVotes := StringReplace(fVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
     fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
