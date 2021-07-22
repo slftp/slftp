@@ -6,7 +6,7 @@ import time
 import re
 
 IMDB_MOVIE_IDS = ["tt0375568", "tt11095742",
-                  "tt7214470", "tt7728344", "tt0455275", "tt3450958"]
+                  "tt7214470", "tt7728344", "tt0455275", "tt3450958", "tt0382625", "tt4919664", "tt2487090", "tt3876702", "tt0107144", "tt0816352", "tt5667286", "tt2372220"]
 BOM_MOVIE_IDS = ["tt0375568", "tt5093026", "tt3450958", "tt0087332", "tt7167658"]
 BOM_RELEASES = [{"ID": "tt0375568", "Country": "USA", "Link": "/release/rl3947005441"},
                 {"ID": "tt5093026", "Country": "France",
@@ -31,9 +31,10 @@ def __save_to_file(filename, content):
     filename = filename.replace("–", "-")
     filename = filename.replace(":", "")
     filename = filename.replace("ä", "ae")
+    print("filename " + filename)
     # files with slash can't be saved to disk
     filename = filename.replace("/", "-")
-    f = open(filename, "w")
+    f = open(filename, "w", encoding='utf-8')
     f.write(content)
     f.close()
 
@@ -77,10 +78,11 @@ def findOriginalMovieTitle(content) -> str:
     """
     # imdb uses location dependent titles -> use fallback to original title
     match = re.search(
-        r"<meta property='og:title' content=\"(.*?)\" \/>", content)
+        r"<meta property=\"og:title\" content=\"(.*?)\"/>", content)
     if match:
         title = match.group(1)
     else:
+        #__save_to_file("imdb.html", content)
         raise Exception("Impossible to find title!")
     return title
 
@@ -108,6 +110,7 @@ if not current_dir.endswith("webpages"):
 print("Getting latest pagesource for all files:")
 print("\tIMDb")
 for id in IMDB_MOVIE_IDS:
+    print("_" + id + "_")
     htmlcode = get_latest_pagesource("https://www.imdb.com/title/" + id + "/")
     origtitle = findOriginalMovieTitle(htmlcode)
     save_pagesource_to_file(htmlcode, origtitle)
@@ -115,8 +118,8 @@ for id in IMDB_MOVIE_IDS:
         "https://www.imdb.com/title/" + id + "/releaseinfo")
     title = findWebpageTitle(htmlcode)
     first_word_origtitle = origtitle.split()[0]
-    if not title.startswith(first_word_origtitle):
-        raise Exception("Title mismatch between overview and release page!")
+    #if not title.startswith(first_word_origtitle):
+    #    raise Exception("Title mismatch between overview and release page! Title: " + title + " First word orig title: " + first_word_origtitle)
     save_pagesource_to_file(htmlcode, title)
 
 print("\tBox Office Mojo")
