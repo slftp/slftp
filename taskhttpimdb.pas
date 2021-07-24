@@ -37,20 +37,25 @@ type
   { @abstract(Extracts IMDb information from HTML page source) }
   THtmlIMDbParser = class
   public
+    { Parses the JSON from the page source and returns a JSON object variant
+      @param(aPageSource Webpage HTML sourcecode)
+      @returns(a JSON object variant) }
+    class function GenerateJSONObject(const aPageSource, aImdbID: string): Variant;
+
     { Parses title information from the meta property @italic(title) tag
       @param(aPageSource Webpage HTML sourcecode)
-      @param(aImdbID The IMDB ID)
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aMovieTitle Title of the movie (can be empty))
       @param(aTitleExtraInfo Additional info (e.g. TV Series) from the title (can be empty))
       @param(aYear Year of the movie (0 if not available)) }
-    class procedure ParseMetaTitleInformation(const aPageSource, aImdbID: String; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+    class procedure ParseMetaTitleInformation(const aPageSource, aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
 
     { Parses votes and rating and removes dots and commas @br @note(default value for both is 0)
       @param(aPageSource Webpage HTML sourcecode)
-      @param(aImdbID The IMDB ID)
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aVotes Votes of the movie, default value is 0)
       @param(aRating Rating of the movie, default value is 0) }
-    class procedure ParseVotesAndRating(const aPageSource, aImdbID: String; out aVotes, aRating: Integer);
+    class procedure ParseVotesAndRating(const aPageSource, aJsonObject: Variant; out aVotes, aRating: Integer);
 
     { Parses language(s)
       @param(aPageSource Webpage HTML sourcecode)
@@ -64,9 +69,9 @@ type
 
     { Parses Genre(s)
       @param(aPageSource Webpage HTML sourcecode)
-      @param(aImdbID The IMDB ID)
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aGenresList Genre(s) of the movie as comma separated list) }
-    class procedure ParseMovieGenres(const aPageSource, aImdbID: String; out aGenresList: String);
+    class procedure ParseMovieGenres(const aPageSource, aJsonObject: Variant; out aGenresList: String);
 
     { Parses Releasedates(s) for countries included in slftp.imdbcountries
       @param(aPageSource Releasedate Webpage HTML sourcecode)
@@ -156,7 +161,7 @@ end;
 
 { THtmlIMDbParser }
 
-function getJSON(const aPageSource, aImdbID: string): Variant;
+class function THtmlImdbParser.GenerateJSONObject(const aPageSource, aImdbID: string): Variant;
 var
   fStartIndex, fEndIndex, fCount: integer;
   fJsonObject: variant;
@@ -205,39 +210,35 @@ begin
   end;
 end;
 
-class procedure THtmlIMDbParser.ParseMetaTitleInformation(const aPageSource, aImdbID: String; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+class procedure THtmlIMDbParser.ParseMetaTitleInformation(const aPageSource, aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
 var
   rr: TRegExpr;
-  fJsonObject: variant;
   i: integer;
 begin
-  fJsonObject := getJSON(aPageSource, aImdbID);
-  if not VarIsNull(fJsonObject) then
+  if not VarIsNull(aJsonObject) then
   begin
-    aMovieTitle := fJsonObject.originalTitleText.text;
-    aTitleExtraInfo := fJsonObject.titleType.text;
-    aYear := fJsonObject.releaseYear.year;
+    aMovieTitle := aJsonObject.originalTitleText.text;
+    aTitleExtraInfo := aJsonObject.titleType.text;
+    aYear := aJsonObject.releaseYear.year;
   end;
 end;
 
-class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource, aImdbID: String; out aVotes, aRating: Integer);
+class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource, aJsonObject: Variant; out aVotes, aRating: Integer);
 var
   fVotes, fRating: String;
-  fJsonObject: variant;
 begin
 
-  fJsonObject := getJSON(aPageSource, aImdbID);
-  if not VarIsNull(fJsonObject) then
+  if not VarIsNull(aJsonObject) then
   begin
-    if VarIsNull(fJsonObject.ratingsSummary.voteCount)then
+    if VarIsNull(aJsonObject.ratingsSummary.voteCount)then
       fVotes := '0'
     else
-      fVotes := fJsonObject.ratingsSummary.voteCount;
+      fVotes := aJsonObject.ratingsSummary.voteCount;
 
-    if VarIsNull(fJsonObject.ratingsSummary.aggregateRating) then
+    if VarIsNull(aJsonObject.ratingsSummary.aggregateRating) then
       fRating := '0'
     else
-      fRating := fJsonObject.ratingsSummary.aggregateRating;
+      fRating := aJsonObject.ratingsSummary.aggregateRating;
 
     fVotes := StringReplace(fVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
     fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
@@ -322,20 +323,18 @@ begin
   SetLength(aCountriesList, Length(aCountriesList) - 1);
 end;
 
-class procedure THtmlIMDbParser.ParseMovieGenres(const aPageSource, aImdbID: String; out aGenresList: String);
+class procedure THtmlIMDbParser.ParseMovieGenres(const aPageSource, aJsonObject: Variant; out aGenresList: String);
 var
   rr, rr2: TRegExpr;
-  fJsonObject, fu: variant;
   i: integer;
   fGenresJSON: RawUTF8;
 begin
 
-  fJsonObject := getJSON(aPageSource, aImdbID);
-  if not VarIsNull(fJsonObject) then
+  if not VarIsNull(aJsonObject) then
   begin
     rr := TRegExpr.Create;
     try
-      TDocVariantData(fJsonObject).GetAsRawUTF8('genres', fGenresJSON);
+      TDocVariantData(aJsonObject).GetAsRawUTF8('genres', fGenresJSON);
       rr.Expression := '"text":"(.*?)"';
       if rr.Exec(fGenresJSON) then
       begin
@@ -615,6 +614,8 @@ var
   fBOMReleaseGroupPair, fBOMCountryLinkPair: TPair<String, String>;
   fBOMCountryScreens: TDictionary<String, Integer>; // countryname and screens count
   fBomScreensCount: Integer;
+
+  fJsonObject: Variant;
 begin
   Result := False;
 
@@ -628,11 +629,19 @@ begin
     exit;
   end;
 
-  (* Fetch MovieTitle/Extra/Year *)
-  THtmlIMDbParser.ParseMetaTitleInformation(fImdbMainPage, FImdbTitleID, fImdbOriginalTitle, fImdbTitleExtraInfo, FImdbYear);
+  fJsonObject := THtmlImdbParser.GenerateJSONObject(fImdbMainPage, FImdbTitleID);
+  if not VarIsNull(fJsonObject) then
+  begin
+    (* Fetch MovieTitle/Extra/Year *)
+    THtmlIMDbParser.ParseMetaTitleInformation(fImdbMainPage, fJsonObject, fImdbOriginalTitle, fImdbTitleExtraInfo, FImdbYear);
 
-  (* Fetch Votes and Rating *)
-  THtmlIMDbParser.ParseVotesAndRating(fImdbMainPage, FImdbTitleID, fImdbVotes, fImdbRating);
+    (* Fetch Votes and Rating *)
+    THtmlIMDbParser.ParseVotesAndRating(fImdbMainPage, fJsonObject, fImdbVotes, fImdbRating);
+
+    (* Fetch Genres *)
+    THtmlIMDbParser.ParseMovieGenres(fImdbMainPage, fJsonObject, fImdbGenre);
+  end;
+
 
   (* Fetch Languages *)
   THtmlIMDbParser.ParseMovieLanguage(fImdbMainPage, fImdbLanguage);
@@ -640,8 +649,6 @@ begin
   (* Fetch Countries *)
   THtmlIMDbParser.ParseMovieCountries(fImdbMainPage, fImdbCountry);
 
-  (* Fetch Genres *)
-  THtmlIMDbParser.ParseMovieGenres(fImdbMainPage, FImdbTitleID, fImdbGenre);
 
 
   // TODO:
