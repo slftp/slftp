@@ -325,25 +325,17 @@ end;
 
 class procedure THtmlIMDbParser.ParseMovieGenres(const aPageSource, aJsonObject: Variant; out aGenresList: String);
 var
-  rr, rr2: TRegExpr;
-  i: integer;
   fGenresJSON: RawUTF8;
+  fDocVariant: PDocVariantData;
+  fVariant: Variant;
 begin
-
   if not VarIsNull(aJsonObject) then
   begin
-    rr := TRegExpr.Create;
-    try
-      TDocVariantData(aJsonObject).GetAsRawUTF8('genres', fGenresJSON);
-      rr.Expression := '"text":"(.*?)"';
-      if rr.Exec(fGenresJSON) then
-      begin
-        repeat
-          aGenresList := aGenresList + rr.Match[1] + ',';
-        until not rr.ExecNext;
-      end;
-    finally
-      rr.Free;
+    TDocVariantData(aJsonObject).GetAsDocVariant('genres', fDocVariant);
+    fDocVariant.GetAsDocVariant('genres', fDocVariant);
+    for fVariant in fDocVariant.Values do
+    begin
+      aGenresList := aGenresList + fVariant.text + ',';
     end;
   end;
 
