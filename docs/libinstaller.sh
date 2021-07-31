@@ -12,6 +12,7 @@
 #           # egrep is non-standard and deprecated. Use grep -E instead
 #           # It is better to use 'read' with '-r' to read the data
 #           # If a 'cd' is fail, exit the script
+#           # variable in double quotes to avoid globbing and splitting of words.
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -128,7 +129,7 @@ function func_openssl {
    echo "Invalid input. Has to be a valid number."
   else
    if ! [[ "$REPLY" == 0 ]] ; then
-    OPENSSL_FILE=$(echo $OPENSSL_FILES | cut -d' ' -f$REPLY)
+    OPENSSL_FILE=$(echo "$OPENSSL_FILES" | cut -d' ' -f"$REPLY")
     OPENSSL_FILENAME=$(basename "$OPENSSL_FILE")
    fi
   fi
@@ -169,8 +170,8 @@ function func_openssl_dlinst {
   cd - || exit
   cd "$SL_DIR" || exit
   rm libssl.so libcrypto.so
-  ln -s libssl_$OPENSSL_LIBNAME libssl.so
-  ln -s libcrypto_$OPENSSL_LIBNAME libcrypto.so
+  ln -s libssl_"$OPENSSL_LIBNAME" libssl.so
+  ln -s libcrypto_"$OPENSSL_LIBNAME" libcrypto.so
   OPENSSL_INSTALLED=1
  else
   echo "[-] ERROR: Could _NOT_ find compiled libaries."
@@ -184,14 +185,14 @@ function func_sqlite {
  SQLITE_CONTENT=$(wget -O- -q "$MIRROR_SQLITE")
  SQLITE_FILES=$(echo "$SQLITE_CONTENT"  | grep -E "20[^']+sqlite\-amalgamation\-[0-9]+\.zip" | grep -o -E "20[^']+")
  for FILE in $SQLITE_FILES; do
-  TMP=$(echo $SQLITE_CONTENT | grep -o -E "$(basename $FILE)[^\)]+\)[^\)]+" | grep -o -E "[^ ][0-9a-f]+$")
-  SQLITE_CHKSUM=$(echo $SQLITE_CHKSUM $FILE $TMP)
+  TMP=$(echo "$SQLITE_CONTENT" | grep -o -E "$(basename "$FILE")[^\)]+\)[^\)]+" | grep -o -E "[^ ][0-9a-f]+$")
+  SQLITE_CHKSUM=$(echo "$SQLITE_CHKSUM" "$FILE" "$TMP")
  done
  i=0
  echo "Available SQLite versions:"
  for FILE in $SQLITE_FILES; do
   let i+=1
-  echo "  [$i] $(basename $FILE)"
+  echo "  [$i] $(basename "$FILE")"
  done
  echo "  --- -------------------------" 
  echo "  [0] Continue without SQLite."
@@ -206,9 +207,9 @@ function func_sqlite {
    echo "Invalid input. Has to be a valid number."
   else
    if ! [[ "$REPLY" == 0 ]] ; then
-    SQLITE_FILE=$(echo $SQLITE_FILES | cut -d' ' -f$REPLY)
-    SQLITE_FILENAME=$(basename $SQLITE_FILE)
-    SQLITE_CHKSUM=$(echo $SQLITE_CHKSUM | grep -o -E "$SQLITE_FILE [^ ]+" | cut -d' ' -f2)
+    SQLITE_FILE=$(echo "$SQLITE_FILES" | cut -d' ' -f"$REPLY")
+    SQLITE_FILENAME=$(basename "$SQLITE_FILE")
+    SQLITE_CHKSUM=$(echo "$SQLITE_CHKSUM" | grep -o -E "$SQLITE_FILE [^ ]+" | cut -d' ' -f2)
    fi
   fi
  done
@@ -246,11 +247,11 @@ function func_sqlite_dlinst {
  # http://jqnotes.blogspot.com/2011/01/compile-sqlite3-to-be-shared-library.html
  gcc -c -fPIC sqlite3.c && gcc -shared -o libsqlite3.so -fPIC sqlite3.o -ldl -lpthread
  if [[ -e "libsqlite3.so" ]]; then
-  cp -f libsqlite3.so "$SL_DIR"/libsqlite3_$SQLITE_LIBNAME
+  cp -f libsqlite3.so "$SL_DIR"/libsqlite3_"$SQLITE_LIBNAME"
   cd - || exit
   cd "$SL_DIR" || exit
   rm libsqlite3.so
-  ln -s libsqlite3_$SQLITE_LIBNAME libsqlite3.so
+  ln -s libsqlite3_"$SQLITE_LIBNAME" libsqlite3.so
   SQLITE_INSTALLED=1
  else
   echo "[-] ERROR: Could _NOT_ find compiled libaries."
