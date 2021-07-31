@@ -8,6 +8,7 @@
 ##############
 # changelog
 # v20210721 - variable DEVRUN unused, removed
+#           # fix `...` to $(...) http://mywiki.wooledge.org/BashFAQ/082
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -63,7 +64,7 @@ BINS_NEEDED="echo grep egrep wget basename cut sha256sum sha1sum md5sum printf t
 IDS=4
 
 #initiate ids(=x)
-for i in `seq 0 $IDS`; do
+for i in $(seq 0 $IDS); do
  x[$i]=" "
 done
 
@@ -433,7 +434,7 @@ Select your IDs (without any spaces or delimiter): "
    REPLY=
   else
    if ! [[ "$REPLY" == 0 ]] ; then
-    for i in `seq 0 ${#REPLY}`; do
+    for i in $(seq 0 ${#REPLY}); do
      #y x=yes space=no
      y=${x[${REPLY:$i:1}]}
      #z = id
