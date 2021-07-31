@@ -19,6 +19,7 @@
 #           - remove Useless echo
 #           - remove Useless $ in eval ((..))
 #           # A (re) formatting with an indentation of 2 spaces
+#           - remove old code residue
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -215,7 +216,6 @@ function func_sqlite {
 function func_sqlite_dlinst {
   wget "${SQLITE_BASEURL}/${SQLITE_FILE}" -O "$DEVDIR/$SQLITE_FILENAME"
 
-  # if ! [[ "$(sha1sum "$DEVDIR/${SQLITE_FILENAME}"|cut -d' ' -f1)" == "$SQLITE_CHKSUM" ]] ; then
   if ! [[ "$(openssl dgst -sha3-256 "$DEVDIR/${SQLITE_FILENAME}" | cut -d' ' -f2)" == "$SQLITE_CHKSUM" ]]; then
     echo "[-] ERROR: Checksum does _NOT_ match."
     read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue."
@@ -261,7 +261,6 @@ function func_sqlite_dlinst {
 
 function func_mysql {
   MYSQL_CONTENT=$(wget -O- -q "$MIRROR_MYSQL")
-  # MYSQL_FILES=$(echo "$MYSQL_CONTENT" | grep "Download ZIP" | grep -o -E "mysql/mysql-server[^\"]+\.zip")
   MYSQL_FILES=$(echo "$MYSQL_CONTENT" | grep "DOWNLOAD_ZIP" | grep -o -E "mysql/mysql-server[^\"]+\.zip")
   #https://dev.mysql.com/get/Downloads/Connector-C++/mysql-connector-c++-8.0.13-src.tar.gz
   i=0
