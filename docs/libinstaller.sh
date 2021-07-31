@@ -20,6 +20,7 @@
 #           - remove Useless $ in eval ((..))
 #           # A (re) formatting with an indentation of 2 spaces
 #           - remove old code residue
+#           - Remove git and curl from BINS_NEEDED. Not essential when launching the script.
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -64,7 +65,7 @@ export LC_ALL
 
 # these are just some regular files which are used by the script.
 # software developer will need some more libs/bins!
-BINS_NEEDED="echo grep wget basename cut sha256sum sha1sum md5sum printf tr head tail unzip cmake tar curl git"
+BINS_NEEDED="echo grep wget basename cut sha256sum sha1sum md5sum printf tr head tail unzip cmake tar"
 
 #set maximum of ids to choose (LIMITED to 9) -> func_choose
 IDS=4
