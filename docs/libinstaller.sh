@@ -14,7 +14,7 @@
 #           # If a 'cd' is fail, exit the script
 #           # variable in double quotes to avoid globbing and splitting of words.
 #           - MYSQL_VERSION seems unused, have it removed
-#           # 'let i+=1' replace with '(( i++ )) || true' https://wiki.bash-hackers.org/commands/builtin/let
+#           # 'let ...' replace with '(( ... )) || true' https://wiki.bash-hackers.org/commands/builtin/let
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -96,8 +96,8 @@ function func_echo_debug {
 
 function func_maxnum {
  if [ "$i" -gt "9" ] ; then
-  let MAXTEN=$i/10
-  let MAXONE=$i-$MAXTEN*10
+  (( MAXTEN= $i/10 )) || true
+  (( MAXONE=$i-$MAXTEN*10 )) || true
   MAXTWE="|"
   if [ "$i" -gt 19 ] ; then
    MAXTWE="[1-$(($MAXTEN-1))][0-9]|"
