@@ -21,6 +21,7 @@
 #           # A (re) formatting with an indentation of 2 spaces
 #           - remove old code residue
 #           - Remove git and curl from BINS_NEEDED. Not essential when launching the script.
+#           # change DEVDIR from $HOME/_dev to current_dir/_dev. It is better to put _dev in the current directory of the script execution rather than create a residue in $HOME
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -44,7 +45,7 @@ DEBUG=true
 LOGFILE="/tmp/debug.log"
 
 #here we will download/compile
-DEVDIR="$HOME/_dev"
+DEVDIR="$(pwd)/_dev"
 
 MIRROR_OPENSSL="http://artfiles.org/openssl.org/source/"
 # https://www.openssl.org/source/mirror.html
