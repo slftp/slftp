@@ -23,6 +23,7 @@
 #           - Remove git and curl from BINS_NEEDED. Not essential when launching the script.
 #           # change DEVDIR from $HOME/_dev to current_dir/_dev. It is better to put _dev in the current directory of the script execution rather than create a residue in $HOME
 #           # use -s for silent and -j $(nproc) for threads on make.
+#           # bugfix sqlite scraping
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -183,7 +184,7 @@ function func_openssl_dlinst {
 
 function func_sqlite {
   SQLITE_CONTENT=$(wget -O- -q "$MIRROR_SQLITE")
-  SQLITE_FILES=$(echo "$SQLITE_CONTENT" | grep -E "20[^']+sqlite\-amalgamation\-[0-9]+\.zip" | grep -o -E "20[^']+")
+  SQLITE_FILES=$(echo "$SQLITE_CONTENT" | grep -E "'20[^']+sqlite\-amalgamation\-[0-9]+\.zip'" | grep -o -E "20[^']+")
   for FILE in $SQLITE_FILES; do
     TMP=$(echo "$SQLITE_CONTENT" | grep -o -E "$(basename "$FILE")[^\)]+\)[^\)]+" | grep -o -E "[^ ][0-9a-f]+$")
     SQLITE_CHKSUM="$SQLITE_CHKSUM $FILE $TMP"
