@@ -9,6 +9,7 @@
 # changelog
 # v20210721 - variable DEVRUN unused, removed
 #           # fix `...` to $(...) http://mywiki.wooledge.org/BashFAQ/082
+#           # egrep is non-standard and deprecated. Use grep -E instead
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -58,7 +59,7 @@ export LC_ALL
 
 # these are just some regular files which are used by the script.
 # software developer will need some more libs/bins!
-BINS_NEEDED="echo grep egrep wget basename cut sha256sum sha1sum md5sum printf tr head tail unzip cmake tar curl git"
+BINS_NEEDED="echo grep wget basename cut sha256sum sha1sum md5sum printf tr head tail unzip cmake tar curl git"
 
 #set maximum of ids to choose (LIMITED to 9) -> func_choose
 IDS=4
@@ -105,7 +106,7 @@ function func_maxnum {
 
 
 function func_openssl {
- OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" | grep -v "fips" | egrep "([0-9]{6,} bytes|[0-9]+\.?(0-9)*M)" | egrep -o [^\"]*openssl.+ | sed 's/".*//' | sed "s|^\([^fF][^tT][^pP][^:]\)|$MIRROR_OPENSSL\1|g")
+ OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" | grep -v "fips" | grep -E "([0-9]{6,} bytes|[0-9]+\.?(0-9)*M)" | grep -o -E [^\"]*openssl.+ | sed 's/".*//' | sed "s|^\([^fF][^tT][^pP][^:]\)|$MIRROR_OPENSSL\1|g")
  i=0
  echo "Available OpenSSL versions:"
  for FILE in $OPENSSL_FILES; do
@@ -179,11 +180,9 @@ function func_openssl_dlinst {
 
 function func_sqlite {
  SQLITE_CONTENT=$(wget -O- -q "$MIRROR_SQLITE")
- #SQLITE_CONTENT=$(cat sqlite)
-# SQLITE_FILES=$(echo "$SQLITE_CONTENT"  | egrep "sqlite\-amalgamation" | egrep -o "20[^']+")
- SQLITE_FILES=$(echo "$SQLITE_CONTENT"  | egrep "20[^']+sqlite\-amalgamation\-[0-9]+\.zip" | egrep -o "20[^']+")
+ SQLITE_FILES=$(echo "$SQLITE_CONTENT"  | grep -E "20[^']+sqlite\-amalgamation\-[0-9]+\.zip" | grep -o -E "20[^']+")
  for FILE in $SQLITE_FILES; do
-  TMP=$(echo $SQLITE_CONTENT | egrep -o "$(basename $FILE)[^\)]+\)[^\)]+" | egrep -o "[^ ][0-9a-f]+$")
+  TMP=$(echo $SQLITE_CONTENT | grep -o -E "$(basename $FILE)[^\)]+\)[^\)]+" | grep -o -E "[^ ][0-9a-f]+$")
   SQLITE_CHKSUM=$(echo $SQLITE_CHKSUM $FILE $TMP)
  done
  i=0
@@ -207,11 +206,11 @@ function func_sqlite {
    if ! [[ "$REPLY" == 0 ]] ; then
     SQLITE_FILE=$(echo $SQLITE_FILES | cut -d' ' -f$REPLY)
     SQLITE_FILENAME=$(basename $SQLITE_FILE)
-    SQLITE_CHKSUM=$(echo $SQLITE_CHKSUM | egrep -o "$SQLITE_FILE [^ ]+" | cut -d' ' -f2)
+    SQLITE_CHKSUM=$(echo $SQLITE_CHKSUM | grep -o -E "$SQLITE_FILE [^ ]+" | cut -d' ' -f2)
    fi
   fi
  done
- SQLITE_BASEURL=$(echo "$MIRROR_SQLITE" | egrep -o "(f|ht)tps?://[^/]+")
+ SQLITE_BASEURL=$(echo "$MIRROR_SQLITE" | grep -o -E "(f|ht)tps?://[^/]+")
 }
 
 
@@ -336,8 +335,7 @@ function func_mysql_dlinst {
 
 
 function func_mariadb {
- MARIADB_VERSION=$(wget -O- -q "$MIRROR_MARIADB" | grep connector | tail -n1 | egrep -o "connector[^\"]+" | head -n1)
- #MARIADB_VERSION=$(cat maria | grep connector | tail -n1 | egrep -o "connector[^\"]+" | head -n1)
+ MARIADB_VERSION=$(wget -O- -q "$MIRROR_MARIADB" | grep connector | tail -n1 | grep -o -E "connector[^\"]+" | head -n1)
  MARIADB_FILES=$(echo "mariadb-${MARIADB_VERSION}-src.tar.gz")
 #http://downloads.mariadb.com/Connectors/c/connector-c-3.0.7/mariadb-connector-c-3.0.7-src.tar.gz
  i=0
