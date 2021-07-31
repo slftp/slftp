@@ -13,6 +13,7 @@
 #           # It is better to use 'read' with '-r' to read the data
 #           # If a 'cd' is fail, exit the script
 #           # variable in double quotes to avoid globbing and splitting of words.
+#           - MYSQL_VERSION seems unused, have it removed
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -265,7 +266,6 @@ function func_mysql {
  MYSQL_CONTENT=$(wget -O- -q "$MIRROR_MYSQL")
 # MYSQL_FILES=$(echo "$MYSQL_CONTENT" | grep "Download ZIP" | grep -o -E "mysql/mysql-server[^\"]+\.zip")
  MYSQL_FILES=$(echo "$MYSQL_CONTENT" | grep "DOWNLOAD_ZIP" | grep -o -E "mysql/mysql-server[^\"]+\.zip")
- MYSQL_VERSION=$(echo $(basename "$MYSQL_FILES") | sed 's/\.zip//')
 #https://dev.mysql.com/get/Downloads/Connector-C++/mysql-connector-c++-8.0.13-src.tar.gz
  i=0
  echo "Available MySQL versions:"
