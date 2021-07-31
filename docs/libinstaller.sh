@@ -7,23 +7,7 @@
 # apt -y install ca-certificates openssl unzip cpp gcc manpages manpages-dev cmake make build-essential bzip2 dpkg-dev fakeroot g++ patch perl rename xz-utils libssl-dev libssl-doc curl libcurl4-openssl-dev git libncurses-dev
 ##############
 # changelog
-# v20210721 - variable DEVRUN unused, removed
-#           # fix `...` to $(...) http://mywiki.wooledge.org/BashFAQ/082
-#           # egrep is non-standard and deprecated. Use grep -E instead
-#           # It is better to use 'read' with '-r' to read the data
-#           # If a 'cd' is fail, exit the script
-#           # variable in double quotes to avoid globbing and splitting of words.
-#           - MYSQL_VERSION seems unused, have it removed
-#           # 'let ...' replace with '(( ... )) || true' https://wiki.bash-hackers.org/commands/builtin/let
-#           # In functions, use return instead of continue.
-#           - remove Useless echo
-#           - remove Useless $ in eval ((..))
-#           # A (re) formatting with an indentation of 2 spaces
-#           - remove old code residue
-#           - Remove git and curl from BINS_NEEDED. Not essential when launching the script.
-#           # change DEVDIR from $HOME/_dev to current_dir/_dev. It is better to put _dev in the current directory of the script execution rather than create a residue in $HOME
-#           # use -s for silent and -j $(nproc) for threads on make.
-#           # bugfix sqlite scraping
+# now       + Visit Changelog on : https://gitlab.com/slftp/slftp/-/commits/dev/docs/libinstaller.sh
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
