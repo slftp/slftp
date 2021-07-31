@@ -169,16 +169,16 @@ function func_openssl_dlinst {
 
 function func_sqlite {
   SQLITE_CONTENT=$(wget -O- -q "$MIRROR_SQLITE")
-  SQLITE_FILES=$(echo "$SQLITE_CONTENT" | grep -E "'20[^']+sqlite\-amalgamation\-[0-9]+\.zip'" | grep -o -E "20[^']+")
-  for FILE in $SQLITE_FILES; do
-    TMP=$(echo "$SQLITE_CONTENT" | grep -o -E "$(basename "$FILE")[^\)]+\)[^\)]+" | grep -o -E "[^ ][0-9a-f]+$")
-    SQLITE_CHKSUM="$SQLITE_CHKSUM $FILE $TMP"
-  done
+  SQLITE_FILES=$(echo "$SQLITE_CONTENT" | grep -E "PRODUCT,([0-9\.]+),(20[^']+sqlite\-amalgamation\-[0-9]+\.zip),([0-9]+),([A-Fa-f0-9]{64})")
   i=0
   echo "Available SQLite versions:"
   for FILE in $SQLITE_FILES; do
     ((i++)) || true
-    echo "  [$i] $(basename "$FILE")"
+    DATA_TMP_VERS=$(echo "$FILE" | cut -d, -f2)
+    DATA_TMP_PATH=$(echo "$FILE" | cut -d, -f3)
+    DATA_TMP_FILENAME=$(basename "$DATA_TMP_PATH")
+    DATA_TMP_SIZE=$(echo "$FILE" | cut -d, -f4)
+    echo "  [$i] v$DATA_TMP_VERS - $DATA_TMP_FILENAME ($DATA_TMP_SIZE bytes)"
   done
   echo "  --- -------------------------"
   echo "  [0] Continue without SQLite."
@@ -194,16 +194,18 @@ function func_sqlite {
     else
       if ! [[ "$REPLY" == 0 ]]; then
         SQLITE_FILE=$(echo "$SQLITE_FILES" | cut -d' ' -f"$REPLY")
-        SQLITE_FILENAME=$(basename "$SQLITE_FILE")
-        SQLITE_CHKSUM=$(echo "$SQLITE_CHKSUM" | grep -o -E "$SQLITE_FILE [^ ]+" | cut -d' ' -f2)
+        SQLITE_FILEPATH=$(echo "$SQLITE_FILE" | cut -d, -f3)
+        SQLITE_FILENAME=$(basename "$SQLITE_FILEPATH")
+        SQLITE_CHKSUM=$(echo "$SQLITE_FILE" | cut -d, -f5)
       fi
     fi
   done
-  SQLITE_BASEURL=$(echo "$MIRROR_SQLITE" | grep -o -E "(f|ht)tps?://[^/]+")
 }
 
+
 function func_sqlite_dlinst {
-  wget "${SQLITE_BASEURL}/${SQLITE_FILE}" -O "$DEVDIR/$SQLITE_FILENAME"
+  SQLITE_BASEURL=$(echo "$MIRROR_SQLITE" | grep -o -E "(f|ht)tps?://[^/]+")
+  wget "${SQLITE_BASEURL}/${SQLITE_FILEPATH}" -O "$DEVDIR/$SQLITE_FILENAME"
 
   if ! [[ "$(openssl dgst -sha3-256 "$DEVDIR/${SQLITE_FILENAME}" | cut -d' ' -f2)" == "$SQLITE_CHKSUM" ]]; then
     echo "[-] ERROR: Checksum does _NOT_ match."
