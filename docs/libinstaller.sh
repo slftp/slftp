@@ -14,6 +14,7 @@
 #           # If a 'cd' is fail, exit the script
 #           # variable in double quotes to avoid globbing and splitting of words.
 #           - MYSQL_VERSION seems unused, have it removed
+#           # 'let i+=1' replace with '(( i++ )) || true' https://wiki.bash-hackers.org/commands/builtin/let
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -114,7 +115,7 @@ function func_openssl {
  i=0
  echo "Available OpenSSL versions:"
  for FILE in $OPENSSL_FILES; do
-  let i+=1
+  (( i++ )) || true
   echo "  [$i] $(basename "$FILE")"
  done
  echo "  --- -------------------------" 
@@ -192,7 +193,7 @@ function func_sqlite {
  i=0
  echo "Available SQLite versions:"
  for FILE in $SQLITE_FILES; do
-  let i+=1
+  (( i++ )) || true
   echo "  [$i] $(basename "$FILE")"
  done
  echo "  --- -------------------------" 
@@ -270,7 +271,7 @@ function func_mysql {
  i=0
  echo "Available MySQL versions:"
  for FILE in $MYSQL_FILES; do
-  let i+=1
+  (( i++ )) || true
   echo "  [$i] $(basename "$FILE")"
  done
  echo "  --- -------------------------" 
@@ -344,7 +345,7 @@ function func_mariadb {
  i=0
  echo "Available MariaDB versions:"
  for FILE in $MARIADB_FILES; do
-  let i+=1
+  (( i++ )) || true
   echo "  [$i] $(basename "$FILE")"
  done
  echo "  --- -------------------------" 
