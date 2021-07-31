@@ -150,7 +150,7 @@ function func_openssl_dlinst {
     echo "[-] ERROR: Could _NOT_ find extracted directory."
     exit 0
   fi
-  ./config -shared && make clean && make -s -j $(nproc)
+  ./config -shared && make clean && make -s -j "$(nproc)"
   if [[ -e "libssl.so" && -e "libcrypto.so" ]]; then
     cp -f libssl.so "$SL_DIR/libssl_$OPENSSL_LIBNAME"
     cp -f libcrypto.so "$SL_DIR/libcrypto_$OPENSSL_LIBNAME"
@@ -311,7 +311,7 @@ function func_mysql_dlinst {
   fi
   mkdir -p "$DEVDIR/$MYSQL_LIBNAME/bld"
   cd "$DEVDIR/$MYSQL_LIBNAME/bld" || exit
-  cmake ../ -DDOWNLOAD_BOOST=1 -DWITH_BOOST=. -DWITH_UNIT_TESTS=OFF -DWITHOUT_SERVER=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=. && make -s -j $(nproc) libmysql
+  cmake ../ -DDOWNLOAD_BOOST=1 -DWITH_BOOST=. -DWITH_UNIT_TESTS=OFF -DWITHOUT_SERVER=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=. && make -s -j "$(nproc)" libmysql
   if [[ -e "./library_output_directory/libmysqlclient.so" ]]; then
     cp -f "./library_output_directory/libmysqlclient.so" "$SL_DIR/libmysqlclient_$MYSQL_LIBNAME"
     cd "$SL_DIR" || exit
@@ -390,7 +390,7 @@ function func_mariadb_dlinst {
     echo "[-] ERROR: Could _NOT_ find extracted directory."
     exit 0
   fi
-  cmake -G "Unix Makefiles" && make clean && make -s -j $(nproc) libmariadb
+  cmake -G "Unix Makefiles" && make clean && make -s -j "$(nproc)" libmariadb
   if [[ -e "libmariadb/libmariadb.so" ]]; then
     cp -f "libmariadb/libmariadb.so" "$SL_DIR/libmariadb_$MARIADB_LIBNAME"
     cd "$SL_DIR" || exit
