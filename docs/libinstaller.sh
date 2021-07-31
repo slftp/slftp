@@ -89,8 +89,7 @@ clear
 
 
 function func_echo_debug {
- #if [ "$DEBUG" = true ]; then echo "[$(date)] [DEBUG] $@" 2>&1 | tee -a $LOGFILE; fi
- if [ "$DEBUG" = true ]; then echo "[$(date)] [DEBUG] $@"; fi
+ if [ "$DEBUG" = true ]; then echo "[$(date)] [DEBUG] $*"; fi
 }
 
 
