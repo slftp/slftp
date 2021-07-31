@@ -17,6 +17,7 @@
 #           # 'let ...' replace with '(( ... )) || true' https://wiki.bash-hackers.org/commands/builtin/let
 #           # In functions, use return instead of continue.
 #           - remove Useless echo
+#           - remove Useless $ in eval ((..))
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -97,11 +98,11 @@ function func_echo_debug {
 
 function func_maxnum {
  if [ "$i" -gt "9" ] ; then
-  (( MAXTEN= $i/10 )) || true
-  (( MAXONE=$i-$MAXTEN*10 )) || true
+  (( MAXTEN=i/10 )) || true
+  (( MAXONE=i-MAXTEN*10 )) || true
   MAXTWE="|"
   if [ "$i" -gt 19 ] ; then
-   MAXTWE="[1-$(($MAXTEN-1))][0-9]|"
+   MAXTWE="[1-$((MAXTEN-1))][0-9]|"
   fi
   MAXNUM="^([0-9]|$MAXTWE[1-$MAXTEN][0-$MAXONE])$"
  else
