@@ -4,6 +4,12 @@
 slftp.history
 slftp.log
 
+
+#
+# libinstaller.sh directory
+#
+docs/_dev
+
 #
 # Delphi and windows
 #
