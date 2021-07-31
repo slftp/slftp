@@ -113,7 +113,7 @@ function func_maxnum {
 
 
 function func_openssl {
- OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" | grep -v "fips" | grep -E "([0-9]{6,} bytes|[0-9]+\.?(0-9)*M)" | grep -o -E [^\"]*openssl.+ | sed 's/".*//' | sed "s|^\([^fF][^tT][^pP][^:]\)|$MIRROR_OPENSSL\1|g")
+ OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" | grep -v "fips" | grep -E "([0-9]{6,} bytes|[0-9]+\.?(0-9)*M)" | grep -o -E "[^\"]*openssl.+" | sed 's/".*//' | sed "s|^\([^fF][^tT][^pP][^:]\)|$MIRROR_OPENSSL\1|g")
  i=0
  echo "Available OpenSSL versions:"
  for FILE in $OPENSSL_FILES; do
