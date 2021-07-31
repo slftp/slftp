@@ -10,6 +10,7 @@
 # v20210721 - variable DEVRUN unused, removed
 #           # fix `...` to $(...) http://mywiki.wooledge.org/BashFAQ/082
 #           # egrep is non-standard and deprecated. Use grep -E instead
+#           # It is better to use 'read' with '-r' to read the data
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -119,7 +120,7 @@ function func_openssl {
  REPLY=
  while [ -z "$REPLY" ]; do
   echo " "
-  read -p "Which OpenSSL do you want to install? "
+  read -r -p "Which OpenSSL do you want to install? "
   func_maxnum
   if ! [[ "$REPLY" =~ $MAXNUM ]] ; then
    REPLY=
@@ -197,7 +198,7 @@ function func_sqlite {
  REPLY=
  while [ -z "$REPLY" ]; do
   echo " "
-  read -p "Which SQLite do you want to install? "
+  read -r -p "Which SQLite do you want to install? "
   func_maxnum
   if ! [[ "$REPLY" =~ ^[0-$i]$ ]] ; then
    REPLY=
@@ -276,7 +277,7 @@ function func_mysql {
  REPLY=
  while [ -z "$REPLY" ]; do
   echo " "
-  read -p "Which MySQL do you want to install? "
+  read -r -p "Which MySQL do you want to install? "
   func_maxnum
   if ! [[ "$REPLY" =~ $MAXNUM ]] ; then
    REPLY=
@@ -350,7 +351,7 @@ function func_mariadb {
  REPLY=
  while [ -z "$REPLY" ]; do
   echo " "
-  read -p "Which MariaDB do you want to install? "
+  read -r -p "Which MariaDB do you want to install? "
   func_maxnum
   if ! [[ "$REPLY" =~ $MAXNUM ]] ; then
    REPLY=
@@ -416,7 +417,7 @@ function func_choose {
  REPLY=
  while [ -z "$REPLY" ]; do
   func_banner
-  read -p "  id  x=selected to be installed
+  read -r -p "  id  x=selected to be installed
  /   /
 [1] [${x[1]}] Lib of OpenSSL
 [2] [${x[2]}] Lib of SQLite
@@ -505,7 +506,7 @@ function func_init {
  # enter slftp dir
  REPLY=
  while [ -z "$REPLY" ]; do
-  read -p "Where do you want to install your compiled lib/bin (e.g. $HOME/bin/)?  "
+  read -r -p "Where do you want to install your compiled lib/bin (e.g. $HOME/bin/)?  "
   if ! [[ -d "$REPLY" ]] ; then
    REPLY=
    echo "Invalid input. Has to be a valid directory."
