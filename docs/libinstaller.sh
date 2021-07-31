@@ -492,7 +492,7 @@ function func_init {
    BINS_MISSING="$BINS_MISSING $BIN"
   fi
  done
- if ! [ -z "$BINS_MISSING" ]; then
+ if [ -n "$BINS_MISSING" ]; then
   echo "[-] ERROR: Some binaries are missing:$BINS_MISSING"
   echo " "
   read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue."
