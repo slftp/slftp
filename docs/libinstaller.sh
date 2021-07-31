@@ -16,6 +16,7 @@
 #           - MYSQL_VERSION seems unused, have it removed
 #           # 'let ...' replace with '(( ... )) || true' https://wiki.bash-hackers.org/commands/builtin/let
 #           # In functions, use return instead of continue.
+#           - remove Useless echo
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -188,7 +189,7 @@ function func_sqlite {
  SQLITE_FILES=$(echo "$SQLITE_CONTENT"  | grep -E "20[^']+sqlite\-amalgamation\-[0-9]+\.zip" | grep -o -E "20[^']+")
  for FILE in $SQLITE_FILES; do
   TMP=$(echo "$SQLITE_CONTENT" | grep -o -E "$(basename "$FILE")[^\)]+\)[^\)]+" | grep -o -E "[^ ][0-9a-f]+$")
-  SQLITE_CHKSUM=$(echo "$SQLITE_CHKSUM" "$FILE" "$TMP")
+  SQLITE_CHKSUM="$SQLITE_CHKSUM $FILE $TMP"
  done
  i=0
  echo "Available SQLite versions:"
@@ -340,7 +341,7 @@ function func_mysql_dlinst {
 
 function func_mariadb {
  MARIADB_VERSION=$(wget -O- -q "$MIRROR_MARIADB" | grep connector | tail -n1 | grep -o -E "connector[^\"]+" | head -n1)
- MARIADB_FILES=$(echo "mariadb-${MARIADB_VERSION}-src.tar.gz")
+ MARIADB_FILES="mariadb-${MARIADB_VERSION}-src.tar.gz"
 #http://downloads.mariadb.com/Connectors/c/connector-c-3.0.7/mariadb-connector-c-3.0.7-src.tar.gz
  i=0
  echo "Available MariaDB versions:"
