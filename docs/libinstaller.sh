@@ -510,7 +510,7 @@ function func_init {
   # enter slftp dir
   REPLY=
   while [ -z "$REPLY" ]; do
-    read -r -p "Where do you want to install your compiled lib/bin (e.g. $HOME/slftp/)?  "
+    read -r -p "Where do you want to install your compiled lib/bin (e.g. $HOME/slftp )? : "
     if ! [[ -d "$REPLY" ]]; then
       REPLY=
       echo "Invalid input. Has to be a valid directory."
