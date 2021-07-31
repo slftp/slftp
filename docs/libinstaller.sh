@@ -104,7 +104,7 @@ function func_maxnum {
   if [ "$i" -gt 19 ] ; then
    MAXTWE="[1-$((MAXTEN-1))][0-9]|"
   fi
-  MAXNUM="^([0-9]|$MAXTWE[1-$MAXTEN][0-$MAXONE])$"
+  MAXNUM="^([0-9]|${MAXTWE}[1-${MAXTEN}][0-${MAXONE}])$"
  else
   MAXNUM="^[0-$i]$"
  fi
