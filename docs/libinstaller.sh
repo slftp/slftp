@@ -126,7 +126,7 @@ function func_openssl {
       echo "Invalid input. Has to be a valid number."
     else
       if ! [[ "$REPLY" == 0 ]]; then
-        OPENSSL_FILE=$(echo "$OPENSSL_FILES" | cut -d' ' -f"$REPLY")
+        OPENSSL_FILE=$(echo "$OPENSSL_FILES" | cut -d$'\n' -f"$REPLY")
         OPENSSL_FILENAME=$(basename "$OPENSSL_FILE")
       fi
     fi
