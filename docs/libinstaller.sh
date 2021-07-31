@@ -171,8 +171,8 @@ function func_openssl_dlinst {
     cp -f libssl.so "$SL_DIR/libssl_$OPENSSL_LIBNAME"
     cp -f libcrypto.so "$SL_DIR/libcrypto_$OPENSSL_LIBNAME"
     cd "$SL_DIR" || exit
-    [ -e libssl.so ] && rm -- libssl.so
-    [ -e libcrypto.so ] && rm -- libcrypto.so
+    [ -e libssl.so ] && rm libssl.so
+    [ -e libcrypto.so ] && rm libcrypto.so
     ln -s libssl_"$OPENSSL_LIBNAME" libssl.so
     ln -s libcrypto_"$OPENSSL_LIBNAME" libcrypto.so
     OPENSSL_INSTALLED=1
@@ -254,7 +254,7 @@ function func_sqlite_dlinst {
     cp -f libsqlite3.so "$SL_DIR"/libsqlite3_"$SQLITE_LIBNAME"
     cd - || exit
     cd "$SL_DIR" || exit
-    [ -e libsqlite3.so ] && rm -- libsqlite3.so
+    [ -e libsqlite3.so ] && rm libsqlite3.so
     ln -s libsqlite3_"$SQLITE_LIBNAME" libsqlite3.so
     SQLITE_INSTALLED=1
   else
@@ -331,7 +331,7 @@ function func_mysql_dlinst {
   if [[ -e "./library_output_directory/libmysqlclient.so" ]]; then
     cp -f "./library_output_directory/libmysqlclient.so" "$SL_DIR/libmysqlclient_$MYSQL_LIBNAME"
     cd "$SL_DIR" || exit
-    [ -e libmysqlclient.so ] && rm -- libmysqlclient.so
+    [ -e libmysqlclient.so ] && rm libmysqlclient.so
     ln -s "libmysqlclient_$MYSQL_LIBNAME" libmysqlclient.so
     MYSQL_INSTALLED=1
   else
