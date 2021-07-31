@@ -168,9 +168,9 @@ function func_openssl_dlinst {
   if [[ -e "libssl.so" && -e "libcrypto.so" ]]; then
     cp -f libssl.so "$SL_DIR/libssl_$OPENSSL_LIBNAME"
     cp -f libcrypto.so "$SL_DIR/libcrypto_$OPENSSL_LIBNAME"
-    cd - || exit
     cd "$SL_DIR" || exit
-    rm libssl.so libcrypto.so
+    [ -e libssl.so ] && rm -- libssl.so
+    [ -e libcrypto.so ] && rm -- libcrypto.so
     ln -s libssl_"$OPENSSL_LIBNAME" libssl.so
     ln -s libcrypto_"$OPENSSL_LIBNAME" libcrypto.so
     OPENSSL_INSTALLED=1
@@ -252,7 +252,7 @@ function func_sqlite_dlinst {
     cp -f libsqlite3.so "$SL_DIR"/libsqlite3_"$SQLITE_LIBNAME"
     cd - || exit
     cd "$SL_DIR" || exit
-    rm libsqlite3.so
+    [ -e libsqlite3.so ] && rm -- libsqlite3.so
     ln -s libsqlite3_"$SQLITE_LIBNAME" libsqlite3.so
     SQLITE_INSTALLED=1
   else
@@ -328,9 +328,8 @@ function func_mysql_dlinst {
   cmake ../ -DDOWNLOAD_BOOST=1 -DWITH_BOOST=. -DWITH_UNIT_TESTS=OFF -DWITHOUT_SERVER=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=. && make libmysql
   if [[ -e "./library_output_directory/libmysqlclient.so" ]]; then
     cp -f "./library_output_directory/libmysqlclient.so" "$SL_DIR/libmysqlclient_$MYSQL_LIBNAME"
-    cd - || exit
     cd "$SL_DIR" || exit
-    rm libmysqlclient.so
+    [ -e libmysqlclient.so ] && rm -- libmysqlclient.so
     ln -s "libmysqlclient_$MYSQL_LIBNAME" libmysqlclient.so
     MYSQL_INSTALLED=1
   else
@@ -408,9 +407,8 @@ function func_mariadb_dlinst {
   cmake -G "Unix Makefiles" && make clean && make libmariadb
   if [[ -e "libmariadb/libmariadb.so" ]]; then
     cp -f "libmariadb/libmariadb.so" "$SL_DIR/libmariadb_$MARIADB_LIBNAME"
-    cd - || exit
     cd "$SL_DIR" || exit
-    rm libmariadb.so
+    [ -e libmariadb.so ] && rm -- libmariadb.so
     ln -s "libmariadb_$MARIADB_LIBNAME" libmariadb.so
     MARIADB_INSTALLED=1
   else
