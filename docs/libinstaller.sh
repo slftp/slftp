@@ -15,6 +15,7 @@
 #           # variable in double quotes to avoid globbing and splitting of words.
 #           - MYSQL_VERSION seems unused, have it removed
 #           # 'let ...' replace with '(( ... )) || true' https://wiki.bash-hackers.org/commands/builtin/let
+#           # In functions, use return instead of continue.
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -471,7 +472,7 @@ Select your IDs (without any spaces or delimiter): "
 Done with nothing. Hackerman."
   exit 0
  else
-  continue
+  return
   # :)
  fi
 }
