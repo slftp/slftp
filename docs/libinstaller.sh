@@ -11,6 +11,7 @@
 #           # fix `...` to $(...) http://mywiki.wooledge.org/BashFAQ/082
 #           # egrep is non-standard and deprecated. Use grep -E instead
 #           # It is better to use 'read' with '-r' to read the data
+#           # If a 'cd' is fail, exit the script
 # v20210409 + slftp now supports openssl 1.1
 #           # changelog from this point on will be covered in Gitlab
 # v20200727 # bugfix for downloading mysql (github template has been changed)
@@ -146,16 +147,16 @@ function func_openssl_dlinst {
   echo -ne "\033[0K\r"
  fi
  case "${OPENSSL_FILENAME##*.}" in
-  [gG][zZ]     ) cd "$DEVDIR";tar xfz "$DEVDIR/$OPENSSL_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
-  [zZ][iI][pP] ) cd "$DEVDIR";unzip -oq "$DEVDIR/$OPENSSL_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [gG][zZ]     ) cd "$DEVDIR" || exit;tar xfz "$DEVDIR/$OPENSSL_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [zZ][iI][pP] ) cd "$DEVDIR" || exit;unzip -oq "$DEVDIR/$OPENSSL_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
   *            ) echo "[-] ERROR: Could _NOT_ extract. Unknown fileformat." ;;
  esac
 
  if [ -d "$DEVDIR/${OPENSSL_FILENAME%.*}" ]; then
-  cd "$DEVDIR/${OPENSSL_FILENAME%.*}"
+  cd "$DEVDIR/${OPENSSL_FILENAME%.*}" || exit
   OPENSSL_LIBNAME="${OPENSSL_FILENAME%.*}"
  elif [ -d "$DEVDIR/${OPENSSL_FILENAME%.*.*}" ]; then
-  cd "$DEVDIR/${OPENSSL_FILENAME%.*.*}"
+  cd "$DEVDIR/${OPENSSL_FILENAME%.*.*}" || exit
   OPENSSL_LIBNAME="${OPENSSL_FILENAME%.*.*}"
  else
   echo "[-] ERROR: Could _NOT_ find extracted directory."
@@ -165,8 +166,8 @@ function func_openssl_dlinst {
  if [[ -e "libssl.so" && -e "libcrypto.so" ]]; then
   cp -f libssl.so "$SL_DIR/libssl_$OPENSSL_LIBNAME"
   cp -f libcrypto.so "$SL_DIR/libcrypto_$OPENSSL_LIBNAME"
-  cd -
-  cd "$SL_DIR"
+  cd - || exit
+  cd "$SL_DIR" || exit
   rm libssl.so libcrypto.so
   ln -s libssl_$OPENSSL_LIBNAME libssl.so
   ln -s libcrypto_$OPENSSL_LIBNAME libcrypto.so
@@ -227,16 +228,16 @@ function func_sqlite_dlinst {
  fi
 
  case "${SQLITE_FILENAME##*.}" in
-  [gG][zZ]     ) cd "$DEVDIR";tar xfz "$SQLITE_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
-  [zZ][iI][pP] ) cd "$DEVDIR";unzip -oq "$SQLITE_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [gG][zZ]     ) cd "$DEVDIR" || exit;tar xfz "$SQLITE_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [zZ][iI][pP] ) cd "$DEVDIR" || exit;unzip -oq "$SQLITE_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
   *            ) echo "[-] ERROR: Could _NOT_ extract. Unknown fileformat." ;;
  esac
 
  if [ -d "$DEVDIR/${SQLITE_FILENAME%.*}" ]; then
-  cd "$DEVDIR/${SQLITE_FILENAME%.*}"
+  cd "$DEVDIR/${SQLITE_FILENAME%.*}" || exit
   SQLITE_LIBNAME="${SQLITE_FILENAME%.*}"
  elif [ -d "$DEVDIR/${SQLITE_FILENAME%.*.*}" ]; then
-  cd "$DEVDIR/${SQLITE_FILENAME%.*.*}"
+  cd "$DEVDIR/${SQLITE_FILENAME%.*.*}" || exit
   SQLITE_LIBNAME="${SQLITE_FILENAME%.*.*}"
  else
   echo "[-] ERROR: Could _NOT_ find extracted directory."
@@ -246,8 +247,8 @@ function func_sqlite_dlinst {
  gcc -c -fPIC sqlite3.c && gcc -shared -o libsqlite3.so -fPIC sqlite3.o -ldl -lpthread
  if [[ -e "libsqlite3.so" ]]; then
   cp -f libsqlite3.so "$SL_DIR"/libsqlite3_$SQLITE_LIBNAME
-  cd -
-  cd "$SL_DIR"
+  cd - || exit
+  cd "$SL_DIR" || exit
   rm libsqlite3.so
   ln -s libsqlite3_$SQLITE_LIBNAME libsqlite3.so
   SQLITE_INSTALLED=1
@@ -301,29 +302,29 @@ function func_mysql_dlinst {
 #https://dev.mysql.com/downloads/mysql/#downloads does exist. but i am keeping it easy.
 
  case "${MYSQL_FILENAME##*.}" in
-  [gG][zZ]     ) cd "$DEVDIR";tar xfz "$MYSQL_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
-  [zZ][iI][pP] ) cd "$DEVDIR";unzip -oq "$MYSQL_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [gG][zZ]     ) cd "$DEVDIR" || exit;tar xfz "$MYSQL_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [zZ][iI][pP] ) cd "$DEVDIR" || exit;unzip -oq "$MYSQL_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
   *            ) echo "[-] ERROR: Could _NOT_ extract. Unknown fileformat." ;;
  esac
 
  if [ -d "$DEVDIR/${MYSQL_FILENAME%.*}" ]; then
-  cd "$DEVDIR/${MYSQL_FILENAME%.*}"
+  cd "$DEVDIR/${MYSQL_FILENAME%.*}" || exit
   MYSQL_LIBNAME="${MYSQL_FILENAME%.*}"
  elif [ -d "$DEVDIR/${MYSQL_FILENAME%.*.*}" ]; then
-  cd "$DEVDIR/${MYSQL_FILENAME%.*.*}"
+  cd "$DEVDIR/${MYSQL_FILENAME%.*.*}" || exit
   MYSQL_LIBNAME="${MYSQL_FILENAME%.*.*}"
  elif [ -d "$DEVDIR/mysql-server-${MYSQL_FILENAME%.*}" ]; then
-  cd "$DEVDIR/mysql-server-${MYSQL_FILENAME%.*}"
+  cd "$DEVDIR/mysql-server-${MYSQL_FILENAME%.*}" || exit
   MYSQL_LIBNAME="mysql-server-${MYSQL_FILENAME%.*}"
  else
   echo "[-] ERROR: Could _NOT_ find extracted directory."
   exit 0
  fi
- mkdir -p "$DEVDIR/$MYSQL_LIBNAME/bld";cd "$DEVDIR/$MYSQL_LIBNAME/bld";cmake ../ -DDOWNLOAD_BOOST=1 -DWITH_BOOST=. -DWITH_UNIT_TESTS=OFF -DWITHOUT_SERVER=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=. && make libmysql;
+ mkdir -p "$DEVDIR/$MYSQL_LIBNAME/bld";cd "$DEVDIR/$MYSQL_LIBNAME/bld" || exit;cmake ../ -DDOWNLOAD_BOOST=1 -DWITH_BOOST=. -DWITH_UNIT_TESTS=OFF -DWITHOUT_SERVER=ON -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=. && make libmysql;
  if [[ -e "./library_output_directory/libmysqlclient.so" ]]; then
   cp -f "./library_output_directory/libmysqlclient.so" "$SL_DIR/libmysqlclient_$MYSQL_LIBNAME"
-  cd -
-  cd "$SL_DIR"
+  cd - || exit
+  cd "$SL_DIR" || exit
   rm libmysqlclient.so
   ln -s "libmysqlclient_$MYSQL_LIBNAME" libmysqlclient.so
   MYSQL_INSTALLED=1
@@ -380,19 +381,19 @@ function func_mariadb_dlinst {
  fi
 
  case "${MARIADB_FILENAME##*.}" in
-  [gG][zZ]     ) cd "$DEVDIR";tar xfz "$MARIADB_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
-  [zZ][iI][pP] ) cd "$DEVDIR";unzip -oq "$MARIADB_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [gG][zZ]     ) cd "$DEVDIR" || exit;tar xfz "$MARIADB_FILENAME"   || echo "[-] ERROR: Could _NOT_ extract." ;;
+  [zZ][iI][pP] ) cd "$DEVDIR" || exit;unzip -oq "$MARIADB_FILENAME" || echo "[-] ERROR: Could _NOT_ extract." ;;
   *            ) echo "[-] ERROR: Could _NOT_ extract. Unknown fileformat." ;;
  esac
 
  if [ -d "$DEVDIR/${MARIADB_FILENAME%.*}" ]; then
-  cd "$DEVDIR/${MARIADB_FILENAME%.*}"
+  cd "$DEVDIR/${MARIADB_FILENAME%.*}" || exit
   MARIADB_LIBNAME="${MARIADB_FILENAME%.*}"
  elif [ -d "$DEVDIR/${MARIADB_FILENAME%.*.*}" ]; then
-  cd "$DEVDIR/${MARIADB_FILENAME%.*.*}"
+  cd "$DEVDIR/${MARIADB_FILENAME%.*.*}" || exit
   MARIADB_LIBNAME="${MARIADB_FILENAME%.*}"
  elif [ -d "$DEVDIR/${MARIADB_FILENAME%.*}" ]; then
-  cd "$DEVDIR/${MARIADB_FILENAME%.*.*}"
+  cd "$DEVDIR/${MARIADB_FILENAME%.*.*}" || exit
  else
   echo "[-] ERROR: Could _NOT_ find extracted directory."
   exit 0
@@ -400,8 +401,8 @@ function func_mariadb_dlinst {
  cmake -G "Unix Makefiles" && make clean && make libmariadb
  if [[ -e "libmariadb/libmariadb.so" ]]; then
   cp -f "libmariadb/libmariadb.so" "$SL_DIR/libmariadb_$MARIADB_LIBNAME"
-  cd -
-  cd "$SL_DIR"
+  cd - || exit
+  cd "$SL_DIR" || exit
   rm libmariadb.so
   ln -s "libmariadb_$MARIADB_LIBNAME" libmariadb.so
   MARIADB_INSTALLED=1
@@ -496,7 +497,7 @@ function func_init {
   echo -ne "\033[0K\r"
  else
   mkdir -m700 "$DEVDIR"
-  cd "$DEVDIR"
+  cd "$DEVDIR" || exit
  fi
 
  func_banner
