@@ -394,7 +394,7 @@ function func_mariadb_dlinst {
   if [[ -e "libmariadb/libmariadb.so" ]]; then
     cp -f "libmariadb/libmariadb.so" "$SL_DIR/libmariadb_$MARIADB_LIBNAME"
     cd "$SL_DIR" || exit
-    [ -e libmariadb.so ] && rm -- libmariadb.so
+    [ -e libmariadb.so ] && rm libmariadb.so
     ln -s "libmariadb_$MARIADB_LIBNAME" libmariadb.so
     MARIADB_INSTALLED=1
   else
