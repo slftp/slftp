@@ -9,7 +9,9 @@ Austrian=AT,Austria
 Belgian=BE,Belgium
 Brazilian=BR,Brazil
 Canada=CA,Canada
+# IMDb started to use Czechia while BOM uses Czech Republic
 Czech=CZ,Czech Republic
+Czech=CZ,Czechia
 Croatian=HR,Croatia
 Dutch=NL,Netherlands
 Estonian=EE,Estonia
