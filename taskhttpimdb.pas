@@ -43,19 +43,17 @@ type
     class function GenerateJSONObject(const aPageSource, aImdbID: string): Variant;
 
     { Parses title information from the meta property @italic(title) tag
-      @param(aPageSource Webpage HTML sourcecode)
       @param(aJsonObject The JSON from the page as Variant object)
       @param(aMovieTitle Title of the movie (can be empty))
       @param(aTitleExtraInfo Additional info (e.g. TV Series) from the title (can be empty))
       @param(aYear Year of the movie (0 if not available)) }
-    class procedure ParseMetaTitleInformation(const aPageSource, aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+    class procedure ParseMetaTitleInformation(const aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
 
     { Parses votes and rating and removes dots and commas @br @note(default value for both is 0)
-      @param(aPageSource Webpage HTML sourcecode)
       @param(aJsonObject The JSON from the page as Variant object)
       @param(aVotes Votes of the movie, default value is 0)
       @param(aRating Rating of the movie, default value is 0) }
-    class procedure ParseVotesAndRating(const aPageSource, aJsonObject: Variant; out aVotes, aRating: Integer);
+    class procedure ParseVotesAndRating(const aJsonObject: Variant; out aVotes, aRating: Integer);
 
     { Parses language(s)
       @param(aPageSource Webpage HTML sourcecode)
@@ -68,10 +66,9 @@ type
     class procedure ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
 
     { Parses Genre(s)
-      @param(aPageSource Webpage HTML sourcecode)
       @param(aJsonObject The JSON from the page as Variant object)
       @param(aGenresList Genre(s) of the movie as comma separated list) }
-    class procedure ParseMovieGenres(const aPageSource, aJsonObject: Variant; out aGenresList: String);
+    class procedure ParseMovieGenres(const aJsonObject: Variant; out aGenresList: String);
 
     { Parses Releasedates(s) for countries included in slftp.imdbcountries
       @param(aPageSource Releasedate Webpage HTML sourcecode)
@@ -210,10 +207,7 @@ begin
   end;
 end;
 
-class procedure THtmlIMDbParser.ParseMetaTitleInformation(const aPageSource, aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
-var
-  rr: TRegExpr;
-  i: integer;
+class procedure THtmlIMDbParser.ParseMetaTitleInformation(const aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
 begin
   if not VarIsNull(aJsonObject) then
   begin
@@ -223,14 +217,13 @@ begin
   end;
 end;
 
-class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource, aJsonObject: Variant; out aVotes, aRating: Integer);
+class procedure THtmlIMDbParser.ParseVotesAndRating(const aJsonObject: Variant; out aVotes, aRating: Integer);
 var
   fVotes, fRating: String;
 begin
-
   if not VarIsNull(aJsonObject) then
   begin
-    if VarIsNull(aJsonObject.ratingsSummary.voteCount)then
+    if VarIsNull(aJsonObject.ratingsSummary.voteCount) then
       fVotes := '0'
     else
       fVotes := aJsonObject.ratingsSummary.voteCount;
@@ -244,8 +237,9 @@ begin
     fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
     aVotes := StrToIntDef(fVotes, 0);
 
-    //if the rating is an even number, it's without decimal place in the JSON. Because we use rating*10 in the rules, add a '0' here.
-    if length(fRating) = 1 then
+    // if the rating is an even number, it's without decimal place in the JSON
+    // because we use rating*10 in the rules, add a '0' here.
+    if Length(fRating) = 1 then
       fRating := fRating + '0'
     else
     begin
@@ -261,7 +255,6 @@ var
   fRegex: TRegExpr;
   fMatch: string;
 begin
-
   fRegex := TRegExpr.Create;
   try
     fRegex.Expression := 'data-testid="title-details-languages">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
@@ -280,7 +273,6 @@ begin
     fRegex.Free;
   end;
 
-
   // remove additional comma
   SetLength(aLanguageList, Length(aLanguageList) - 1);
 end;
@@ -290,7 +282,6 @@ var
   fRegex: TRegExpr;
   fMatch: string;
 begin
-
   fRegex := TRegExpr.Create;
   try
     fRegex.Expression := 'data-testid="title-details-origin">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
@@ -303,7 +294,7 @@ begin
         repeat
           fMatch := fRegex.Match[1];
 
-          //rewrite to old format
+          // rewrite to old format
           if fMatch = 'United States' then
             fMatch := 'USA'
           else if fMatch = 'United Kingdom' then
@@ -317,15 +308,12 @@ begin
     fRegex.Free;
   end;
 
-
-
   // remove additional comma
   SetLength(aCountriesList, Length(aCountriesList) - 1);
 end;
 
-class procedure THtmlIMDbParser.ParseMovieGenres(const aPageSource, aJsonObject: Variant; out aGenresList: String);
+class procedure THtmlIMDbParser.ParseMovieGenres(const aJsonObject: Variant; out aGenresList: String);
 var
-  fGenresJSON: RawUTF8;
   fDocVariant: PDocVariantData;
   fVariant: Variant;
 begin
@@ -393,7 +381,6 @@ begin
       repeat
         fCountry := Trim(rr.Match[1]);
         fTitle := Trim(rr.Match[2]);
-
         fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
 
         if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
@@ -572,6 +559,8 @@ var
   i: Integer;
   fLanguageFromReleasename: String;
 
+  fJsonObject: Variant;
+
   fImdbMainPage: String;
   fImdbReleasePage: String;
   fImdbOriginalTitle: String;
@@ -606,8 +595,6 @@ var
   fBOMReleaseGroupPair, fBOMCountryLinkPair: TPair<String, String>;
   fBOMCountryScreens: TDictionary<String, Integer>; // countryname and screens count
   fBomScreensCount: Integer;
-
-  fJsonObject: Variant;
 begin
   Result := False;
 
@@ -625,22 +612,28 @@ begin
   if not VarIsNull(fJsonObject) then
   begin
     (* Fetch MovieTitle/Extra/Year *)
-    THtmlIMDbParser.ParseMetaTitleInformation(fImdbMainPage, fJsonObject, fImdbOriginalTitle, fImdbTitleExtraInfo, FImdbYear);
+    THtmlIMDbParser.ParseMetaTitleInformation(fJsonObject, fImdbOriginalTitle, fImdbTitleExtraInfo, FImdbYear);
 
     (* Fetch Votes and Rating *)
-    THtmlIMDbParser.ParseVotesAndRating(fImdbMainPage, fJsonObject, fImdbVotes, fImdbRating);
+    THtmlIMDbParser.ParseVotesAndRating(fJsonObject, fImdbVotes, fImdbRating);
 
     (* Fetch Genres *)
-    THtmlIMDbParser.ParseMovieGenres(fImdbMainPage, fJsonObject, fImdbGenre);
+    THtmlIMDbParser.ParseMovieGenres(fJsonObject, fImdbGenre);
+  end
+  else
+  begin
+    // some values from JSON are needed for further parsing and evaluation of e.g. STV
+    irc_Adderror(Format('<c4>[FAILED]</c> Unable to extract JSON for %s from IMDb', [FImdbTitleID]));
+    Result := True;
+    ready := True;
+    exit;
   end;
-
 
   (* Fetch Languages *)
   THtmlIMDbParser.ParseMovieLanguage(fImdbMainPage, fImdbLanguage);
 
   (* Fetch Countries *)
   THtmlIMDbParser.ParseMovieCountries(fImdbMainPage, fImdbCountry);
-
 
 
   // TODO:
@@ -650,6 +643,7 @@ begin
   //    iterates through all infos to determine the final result but only determines STV as limited/wide is only done via bom screens
 
   // 3. movie extra info have lowest priority as it might not indicate the correct info for each country
+
 
   fIsSTV := False;
   fIsLimited := False;
