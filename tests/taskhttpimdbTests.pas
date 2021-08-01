@@ -393,7 +393,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0382625'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0382625'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('The Da Vinci Code', fMovieTitle, 'Title mismatch');
   CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -406,7 +406,7 @@ var
   fYear: Integer;
   fIsSTV: Boolean;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0382625'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0382625'), fMovieTitle, fTitleExtraInfo, fYear);
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
   CheckFalse(fIsSTV, 'STV mismatch');
 end;
@@ -435,7 +435,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt4919664'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt4919664'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('The Pilot', fMovieTitle, 'Title mismatch'); // TODO: strip html chars?
   CheckEqualsString('TV Episode', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -448,7 +448,7 @@ var
   fYear: Integer;
   fIsSTV: Boolean;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt4919664'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt4919664'), fMovieTitle, fTitleExtraInfo, fYear);
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
   CheckTrue(fIsSTV, 'STV mismatch');
 end;
@@ -477,7 +477,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt2487090'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt2487090'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Sam & Cat', fMovieTitle, 'Title mismatch'); // TODO: replace & with and?
   CheckEqualsString('TV Series', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -508,7 +508,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0107144'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0107144'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Hot Shots! Part Deux', fMovieTitle, 'Title mismatch'); // TODO: strip ? and !?
   CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -538,7 +538,7 @@ procedure TTestTHtmlIMDbParser_tt0816352.TestParseNoVotesAndNoRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0816352'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0816352'), fVotes, fRating);
 
   CheckEquals(0, fVotes, 'Votes mismatch');
   CheckEquals(0, fRating, 'Rating mismatch');
@@ -567,7 +567,7 @@ procedure TTestTHtmlIMDbParser_tt3876702.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3876702'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3876702'), fVotes, fRating);
 
   CheckTrue(400 < fVotes, 'Votes mismatch');
   CheckTrue(5000 > fVotes, 'Votes mismatch');
@@ -600,7 +600,7 @@ var
   fYear: Integer;
   fIsSTV: Boolean;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt5667286'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt5667286'), fMovieTitle, fTitleExtraInfo, fYear);
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
   CheckTrue(fIsSTV, 'STV mismatch');
 end;
@@ -630,7 +630,7 @@ var
   fYear: Integer;
   fIsSTV: Boolean;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt2372220'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt2372220'), fMovieTitle, fTitleExtraInfo, fYear);
   fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
   CheckTrue(fIsSTV, 'STV mismatch');
 end;
@@ -669,7 +669,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3450958'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3450958'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('War for the Planet of the Apes', fMovieTitle, 'Title mismatch');
   CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -680,7 +680,7 @@ procedure TTestTHtmlIMDbParser_tt3450958.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3450958'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3450958'), fVotes, fRating);
 
   CheckTrue(229000 < fVotes, 'Votes mismatch');
   CheckTrue(249000 > fVotes, 'Votes mismatch');
@@ -710,7 +710,7 @@ procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3450958'), fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3450958'), fGenresList);
 
   CheckEqualsString('Action,Adventure,Drama,Sci-Fi,Thriller', fGenresList, 'Genre(s) mismatch');
 end;
@@ -815,7 +815,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Prison Break', fMovieTitle, 'Title mismatch');
   CheckEqualsString('TV Series', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -826,7 +826,7 @@ procedure TTestTHtmlIMDbParser_tt0455275.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fVotes, fRating);
 
   CheckTrue(478000 < fVotes, 'Votes mismatch');
   CheckTrue(495000 > fVotes, 'Votes mismatch');
@@ -856,7 +856,7 @@ procedure TTestTHtmlIMDbParser_tt0455275.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fGenresList);
 
   CheckEqualsString('Action,Crime,Drama,Mystery,Thriller', fGenresList, 'Genre(s) mismatch');
 end;
@@ -957,7 +957,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Heilstätten', fMovieTitle, 'Title mismatch');
   CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -968,7 +968,7 @@ procedure TTestTHtmlIMDbParser_tt7214470.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fVotes, fRating);
 
   CheckTrue(1000 < fVotes, 'Votes mismatch');
   CheckTrue(1600 > fVotes, 'Votes mismatch');
@@ -998,7 +998,7 @@ procedure TTestTHtmlIMDbParser_tt7214470.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fGenresList);
 
   CheckEqualsString('Horror,Mystery,Thriller', fGenresList, 'Genre(s) mismatch');
 end;
@@ -1099,7 +1099,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7728344'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7728344'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Marvel Rising: Secret Warriors', fMovieTitle, 'Title mismatch'); // TODO: strip comma, semicolon, colon?
   CheckEqualsString('TV Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -1110,7 +1110,7 @@ procedure TTestTHtmlIMDbParser_tt7728344.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7728344'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7728344'), fVotes, fRating);
 
   CheckTrue(1000 < fVotes, 'Votes mismatch');
   CheckTrue(1800 > fVotes, 'Votes mismatch');
@@ -1140,7 +1140,7 @@ procedure TTestTHtmlIMDbParser_tt7728344.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7728344'), fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7728344'), fGenresList);
 
   CheckEqualsString('Animation,Action,Comedy,Fantasy,Sci-Fi', fGenresList, 'Genre(s) mismatch');
 end;
@@ -1231,7 +1231,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt11095742'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt11095742'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Boys State', fMovieTitle, 'Title mismatch');
   CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -1242,7 +1242,7 @@ procedure TTestTHtmlIMDbParser_tt11095742.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt11095742'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt11095742'), fVotes, fRating);
 
   CheckTrue(2700 < fVotes, 'Votes mismatch');
   CheckTrue(5000 > fVotes, 'Votes mismatch');
@@ -1272,7 +1272,7 @@ procedure TTestTHtmlIMDbParser_tt11095742.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt11095742'), fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt11095742'), fGenresList);
 
   CheckEqualsString('Documentary', fGenresList, 'Genre(s) mismatch');
 end;
@@ -1368,7 +1368,7 @@ var
   fMovieTitle, fTitleExtraInfo: String;
   fYear: Integer;
 begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fMovieTitle, fTitleExtraInfo, fYear);
+  THtmlIMDbParser.ParseMetaTitleInformation(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fMovieTitle, fTitleExtraInfo, fYear);
 
   CheckEqualsString('Astro Boy', fMovieTitle, 'Title mismatch');
   CheckEqualsString('Movie', fTitleExtraInfo, 'Title extrainfo mismatch');
@@ -1379,7 +1379,7 @@ procedure TTestTHtmlIMDbParser_tt0375568.TestParseVotesAndRating;
 var
   fVotes, fRating: Integer;
 begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fVotes, fRating);
+  THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fVotes, fRating);
 
   CheckTrue(31000 < fVotes, 'Votes mismatch');
   CheckTrue(39000 > fVotes, 'Votes mismatch');
@@ -1409,7 +1409,7 @@ procedure TTestTHtmlIMDbParser_tt0375568.TestParseMovieGenres;
 var
   fGenresList: String;
 begin
-  THtmlIMDbParser.ParseMovieGenres(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fGenresList);
+  THtmlIMDbParser.ParseMovieGenres(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fGenresList);
 
   CheckEqualsString('Animation,Action,Comedy,Family,Sci-Fi', fGenresList, 'Genre(s) mismatch');
 end;
