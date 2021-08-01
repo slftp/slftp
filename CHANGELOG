@@ -61,6 +61,7 @@
     {^} Allow to disable creating the 'already on site' dir when req filling by setting create_already_on_site_in_directory=0 (#302)
     {^} Allow to disable the file compare to determine a complete request by setting compare_files_for_reqfilled_fallback=0
     {^} Allow to fill requests that are on the site already by setting fill_already_on_site=1
+    {^} Adjust IMDB parsing for new IMDB page layout (#311)
 
 --=============================( SLFTP v1.5.8 )===================================-
     {+} Reverse FXP can be enabled by command !reversefxp (#9)

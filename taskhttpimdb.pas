@@ -3,7 +3,7 @@ unit taskhttpimdb;
 interface
 
 uses
-  tasksunit, Generics.Collections;
+  tasksunit, Generics.Collections, SynCommons, Variants;
 
 type
   { @abstract(Class for IMDb release date information) }
@@ -37,18 +37,23 @@ type
   { @abstract(Extracts IMDb information from HTML page source) }
   THtmlIMDbParser = class
   public
-    { Parses title information from the meta property @italic(title) tag
+    { Parses the JSON from the page source and returns a JSON object variant
       @param(aPageSource Webpage HTML sourcecode)
+      @returns(a JSON object variant) }
+    class function GenerateJSONObject(const aPageSource, aImdbID: string): Variant;
+
+    { Parses title information from the meta property @italic(title) tag
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aMovieTitle Title of the movie (can be empty))
       @param(aTitleExtraInfo Additional info (e.g. TV Series) from the title (can be empty))
       @param(aYear Year of the movie (0 if not available)) }
-    class procedure ParseMetaTitleInformation(const aPageSource: String; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+    class procedure ParseMetaTitleInformation(const aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
 
     { Parses votes and rating and removes dots and commas @br @note(default value for both is 0)
-      @param(aPageSource Webpage HTML sourcecode)
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aVotes Votes of the movie, default value is 0)
       @param(aRating Rating of the movie, default value is 0) }
-    class procedure ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: Integer);
+    class procedure ParseVotesAndRating(const aJsonObject: Variant; out aVotes, aRating: Integer);
 
     { Parses language(s)
       @param(aPageSource Webpage HTML sourcecode)
@@ -61,9 +66,9 @@ type
     class procedure ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
 
     { Parses Genre(s)
-      @param(aPageSource Webpage HTML sourcecode)
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aGenresList Genre(s) of the movie as comma separated list) }
-    class procedure ParseMovieGenres(const aPageSource: String; out aGenresList: String);
+    class procedure ParseMovieGenres(const aJsonObject: Variant; out aGenresList: String);
 
     { Parses Releasedates(s) for countries included in slftp.imdbcountries
       @param(aPageSource Releasedate Webpage HTML sourcecode)
@@ -153,137 +158,119 @@ end;
 
 { THtmlIMDbParser }
 
-class procedure THtmlIMDbParser.ParseMetaTitleInformation(const aPageSource: String; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+class function THtmlImdbParser.GenerateJSONObject(const aPageSource, aImdbID: string): Variant;
 var
+  fStartIndex, fEndIndex, fCount: integer;
+  fJsonObject: variant;
+  fJsonString: string;
+  fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
   rr: TRegExpr;
+  doc: TDocVariantData;
+  pdoc: PDocVariantData;
 begin
+  Result := Variants.Null;
+  fStartIndex := Pos('type="application/json">', aPageSource);
+
+  if fStartIndex < 1 then
+    Exit;
+
+  fEndIndex := Pos('</script>', aPageSource, fStartIndex);
+  fCount := fEndIndex - fStartIndex;
+  fJsonString := Copy(aPageSource, fStartIndex + Length('type="application/json">'), fCount);
+  fJsonObject := _JsonFast(fJsonString);
+
+
+  //ugly way to find the right JSON, is there a better way?
   rr := TRegExpr.Create;
   try
-    rr.ModifierI := True;
-    rr.Expression := '<meta property=\''og:title\'' content="(.*?)\s*\((.*?)?\s*(\d{4}).*?\"';
+    rr.Expression := '"([0-9]{4,99})+":\{"data":';
+
     if rr.Exec(aPageSource) then
-    begin
-      aMovieTitle := rr.Match[1];
-      aTitleExtraInfo := rr.Match[2];
-      aYear := StrToIntDef(rr.Match[3], 0);
-    end;
+    repeat
+      doc := TDocVariantData(fJsonObject);
+      doc.GetAsDocVariant('props', pdoc);
+      pdoc.GetAsDocVariant('urqlState', pdoc);
+      pdoc.GetAsDocVariant(rr.Match[1], pdoc);
+      pdoc.GetAsDocVariant('data', pdoc);
+      pdoc.GetAsDocVariant('title', pdoc);
+      pdoc.GetAsRawUTF8('id', fJsonImdbID);
+      pdoc.GetAsRawUTF8('releaseYear', fJsonReleaseYear);
+      pdoc.GetAsRawUTF8('titleType', fTitleType);
+      if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
+      begin
+        Result := _JsonFast(pdoc.ToJSON());
+        exit;
+      end;
+    until not rr.ExecNext;
   finally
     rr.Free;
   end;
 end;
 
-class procedure THtmlIMDbParser.ParseVotesAndRating(const aPageSource: String; out aVotes, aRating: Integer);
-type
-  TRegexItem = record
-    RegexString: String; // regex
-    MatchIndex: Integer; // index of match to be used
+class procedure THtmlIMDbParser.ParseMetaTitleInformation(const aJsonObject: Variant; out aMovieTitle, aTitleExtraInfo: String; out aYear: Integer);
+begin
+  if not VarIsNull(aJsonObject) then
+  begin
+    aMovieTitle := aJsonObject.originalTitleText.text;
+    aTitleExtraInfo := aJsonObject.titleType.text;
+    aYear := aJsonObject.releaseYear.year;
   end;
+end;
 
-(*
-  Initialize valid regex for imdb rating/votes
-  This allows us to reduce alot of code duplication and nested if/else
-  constructs.
-  Newest versions should be added on top as they will be checked against the
-  website in ascending order. Quicker match = less overhead.
-*)
-
-const
-  VotesRegexList: array [0..3] of TRegexItem = (
-    (RegexString: '<strong.*?on (\S+) user ratings\"><span.*?>\d+[,.]\d<\/span>'; MatchIndex: 1),
-    (RegexString: '<span[^<>]*itemprop="ratingCount">(\S+)<\/span>'; MatchIndex: 1),
-    (RegexString: '\>(\S+) votes<\/a>\)'; MatchIndex: 1),
-    (RegexString: '<a href=\"ratings\" class=\"tn15more\">(.*?) (Bewertungen|votes|Stimmen)<\/a>'; MatchIndex: 1)
-  );
-
-  RatingRegexList: array [0..3] of TRegexItem = (
-    (RegexString: '<strong.*?user ratings\"><span.*?>(\d+[,.]\d)<\/span>'; MatchIndex: 1),
-    (RegexString: '<span[^<>]*itemprop="ratingValue">(\d+[,.]\d+)<\/span>'; MatchIndex: 1),
-    (RegexString: '<span class="rating-rating">(\d+[,.]\d+)<span>\/10<\/span><\/span>'; MatchIndex: 1),
-    (RegexString: '<b>(\d+[,.]\d+)\/10<\/b>'; MatchIndex: 1)
-  );
-
+class procedure THtmlIMDbParser.ParseVotesAndRating(const aJsonObject: Variant; out aVotes, aRating: Integer);
 var
-  rr: TRegExpr;
-  fRegexItem: TRegexItem;
   fVotes, fRating: String;
 begin
-  rr := TRegExpr.Create;
-  try
-    rr.ModifierI := True;
+  if not VarIsNull(aJsonObject) then
+  begin
+    if VarIsNull(aJsonObject.ratingsSummary.voteCount) then
+      fVotes := '0'
+    else
+      fVotes := aJsonObject.ratingsSummary.voteCount;
 
-    for fRegexItem in VotesRegexList do
-    begin
-      rr.Expression := fRegexItem.RegexString;
-      if rr.Exec(aPageSource) then
-      begin
-        fVotes := rr.Match[fRegexItem.MatchIndex];
-        break;
-      end;
-    end;
+    if VarIsNull(aJsonObject.ratingsSummary.aggregateRating) then
+      fRating := '0'
+    else
+      fRating := aJsonObject.ratingsSummary.aggregateRating;
 
-    for fRegexItem in RatingRegexList do
+    fVotes := StringReplace(fVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
+    fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
+    aVotes := StrToIntDef(fVotes, 0);
+
+    // if the rating is an even number, it's without decimal place in the JSON
+    // because we use rating*10 in the rules, add a '0' here.
+    if Length(fRating) = 1 then
+      fRating := fRating + '0'
+    else
     begin
-      rr.Expression := fRegexItem.RegexString;
-      if rr.Exec(aPageSource) then
-      begin
-        fRating := rr.Match[fRegexItem.MatchIndex];
-        break;
-      end;
+      fRating := StringReplace(fRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
+      fRating := StringReplace(fRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
     end;
-  finally
-    rr.Free;
+    aRating := StrToIntDef(fRating, 0);
   end;
-
-  fVotes := StringReplace(fVotes, '.', '', [rfReplaceAll, rfIgnoreCase]);
-  fVotes := StringReplace(fVotes, ',', '', [rfReplaceAll, rfIgnoreCase]);
-  aVotes := StrToIntDef(fVotes, 0);
-
-  fRating := StringReplace(fRating, '.', '', [rfReplaceAll, rfIgnoreCase]);
-  fRating := StringReplace(fRating, ',', '', [rfReplaceAll, rfIgnoreCase]);
-  aRating := StrToIntDef(fRating, 0);
 end;
 
 class procedure THtmlIMDbParser.ParseMovieLanguage(const aPageSource: String; out aLanguageList: String);
 var
-  rr, rr2: TRegExpr;
+  fRegex: TRegExpr;
+  fMatch: string;
 begin
-  rr := TRegExpr.Create;
+  fRegex := TRegExpr.Create;
   try
-    rr.ModifierI := True;
-
-    rr2 := TRegExpr.Create;
-    try
-      rr2.ModifierI := True;
-      rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
-
-      // Trying new layout of IMDb first
-      rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Language:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
-      if rr.Exec(aPageSource) then
+    fRegex.Expression := 'data-testid="title-details-languages">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
+    if fRegex.Exec(aPageSource) then
+    begin
+      fMatch := fRegex.Match[1];
+      fRegex.Expression := 'ref_=tt_dt_ln">(.*?)<\/a>';
+      if fRegex.Exec(fMatch) then
       begin
-        if rr2.Exec(rr.Match[1]) then
-        begin
-          repeat
-            aLanguageList := aLanguageList + rr2.Match[1] + ',';
-          until not rr2.ExecNext;
-        end;
-      end
-      else
-      begin
-        // Trying old layout of IMDb if new layout fails
-        rr.Expression := '<div class=\"info\"><h5>Language:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
-        if rr.Exec(aPageSource) then
-        begin
-          if rr2.Exec(rr.Match[1]) then
-            repeat
-              aLanguageList := aLanguageList + rr2.Match[3] + ',';
-            until not rr2.ExecNext;
-        end;
+        repeat
+          aLanguageList := aLanguageList + fRegex.Match[1] + ',';
+        until not fRegex.ExecNext;
       end;
-    finally
-      rr2.Free;
-    end;
+    end
   finally
-    rr.Free;
+    fRegex.Free;
   end;
 
   // remove additional comma
@@ -292,92 +279,52 @@ end;
 
 class procedure THtmlIMDbParser.ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
 var
-  rr, rr2: TRegExpr;
+  fRegex: TRegExpr;
+  fMatch: string;
 begin
-  rr := TRegExpr.Create;
+  fRegex := TRegExpr.Create;
   try
-    rr.ModifierI := True;
-
-    rr2 := TRegExpr.Create;
-    try
-      rr2.ModifierI := True;
-      rr2.Expression := '<a[^>]+href=[^>]+>([^<]+)<\/a>';
-
-      // Trying new layout of IMDb first
-      rr.Expression := '<div class="txt-block">[^<]*<h4 class="inline">Country:<\/h4>[^<]*(<.*?<\/a>)[^<]*<\/div>';
-      if rr.Exec(aPageSource) then
+    fRegex.Expression := 'data-testid="title-details-origin">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
+    if fRegex.Exec(aPageSource) then
+    begin
+      fMatch := fRegex.Match[1];
+      fRegex.Expression := 'ref_=tt_dt_cn">(.*?)<\/a>';
+      if fRegex.Exec(fMatch) then
       begin
-        if rr2.Exec(rr.Match[1]) then
-        begin
-          repeat
-            aCountriesList := aCountriesList + rr2.Match[1] + ',';
-          until not rr2.ExecNext;
-        end;
-      end
-      else
-      begin
-        // Trying old layout of IMDb if new layout fails
-        rr.Expression := '<div class=\"info\"><h5>Country:<\/h5><div class=\"info-content\">(<.*?<\/a>)<\/div><\/div>';
-        if rr.Exec(aPageSource) then
-        begin
-          if rr2.Exec(rr.Match[1]) then
-            repeat
-              aCountriesList := aCountriesList + rr2.Match[4] + ',';
-            until not rr2.ExecNext;
-        end;
+        repeat
+          fMatch := fRegex.Match[1];
+
+          // rewrite to old format
+          if fMatch = 'United States' then
+            fMatch := 'USA'
+          else if fMatch = 'United Kingdom' then
+            fMatch := 'UK';
+
+          aCountriesList := aCountriesList + fMatch + ',';
+        until not fRegex.ExecNext;
       end;
-    finally
-      rr2.Free;
-    end;
+    end
   finally
-    rr.Free;
+    fRegex.Free;
   end;
 
   // remove additional comma
   SetLength(aCountriesList, Length(aCountriesList) - 1);
 end;
 
-class procedure THtmlIMDbParser.ParseMovieGenres(const aPageSource: String; out aGenresList: String);
+class procedure THtmlIMDbParser.ParseMovieGenres(const aJsonObject: Variant; out aGenresList: String);
 var
-  rr, rr2: TRegExpr;
+  fDocVariant: PDocVariantData;
+  fVariant: Variant;
 begin
-  rr := TRegExpr.Create;
-  try
-    rr.ModifierI := True;
-
-    rr2 := TRegExpr.Create;
-    try
-      rr2.ModifierI := True;
-      rr2.Expression := '<a[^>]+>\s(\S+)<\/a>';
-
-      // Trying new layout of IMDb first
-      rr.Expression := '<h4 class="inline">Genres:<\/h4>((\s*<a href\S+\s*>.*?<\/a>(?:\S+<\/span>)?\s*)+)<\/div>';
-      if rr.Exec(aPageSource) then
-      begin
-        if rr2.Exec(rr.Match[1]) then
-        begin
-          repeat
-            aGenresList := aGenresList + rr2.Match[1] + ',';
-          until not rr2.ExecNext;
-        end;
-      end
-      else
-      begin
-        // Trying old layout of IMDb if new layout fails
-        rr.Expression := '<h5>Genre:<\/h5>\n<div class=\"info-content\">\s+(.*?)<\/div>';
-        if rr.Exec(aPageSource) then
-        begin
-          if rr2.Exec(rr.Match[1]) then
-            repeat
-              aGenresList := aGenresList + rr2.Match[3] + ',';
-            until not rr2.ExecNext;
-        end;
-      end;
-    finally
-      rr2.Free;
+  if not VarIsNull(aJsonObject) then
+  begin
+    TDocVariantData(aJsonObject).GetAsDocVariant('genres', fDocVariant);
+    fDocVariant.GetAsDocVariant('genres', fDocVariant);
+    for fVariant in fDocVariant.Values do
+    begin
+      aGenresList := aGenresList + fVariant.text + ',';
     end;
-  finally
-    rr.Free;
   end;
 
   // remove additional comma
@@ -434,7 +381,6 @@ begin
       repeat
         fCountry := Trim(rr.Match[1]);
         fTitle := Trim(rr.Match[2]);
-
         fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
 
         if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
@@ -613,6 +559,8 @@ var
   i: Integer;
   fLanguageFromReleasename: String;
 
+  fJsonObject: Variant;
+
   fImdbMainPage: String;
   fImdbReleasePage: String;
   fImdbOriginalTitle: String;
@@ -650,12 +598,6 @@ var
 begin
   Result := False;
 
-  // TODO: json stuff of new layout
-  // startindex = Pos('type="application/json">', http_response);
-  // endindex = Pos('</script>', http_response, startindex);
-  // count := endindex - startindex;
-  // json := Copy(http_response, startindex + Length('type="application/json">'), count);
-
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then
   begin
@@ -666,20 +608,32 @@ begin
     exit;
   end;
 
-  (* Fetch MovieTitle/Extra/Year *)
-  THtmlIMDbParser.ParseMetaTitleInformation(fImdbMainPage, fImdbOriginalTitle, fImdbTitleExtraInfo, FImdbYear);
+  fJsonObject := THtmlImdbParser.GenerateJSONObject(fImdbMainPage, FImdbTitleID);
+  if not VarIsNull(fJsonObject) then
+  begin
+    (* Fetch MovieTitle/Extra/Year *)
+    THtmlIMDbParser.ParseMetaTitleInformation(fJsonObject, fImdbOriginalTitle, fImdbTitleExtraInfo, FImdbYear);
 
-  (* Fetch Votes and Rating *)
-  THtmlIMDbParser.ParseVotesAndRating(fImdbMainPage, fImdbVotes, fImdbRating);
+    (* Fetch Votes and Rating *)
+    THtmlIMDbParser.ParseVotesAndRating(fJsonObject, fImdbVotes, fImdbRating);
+
+    (* Fetch Genres *)
+    THtmlIMDbParser.ParseMovieGenres(fJsonObject, fImdbGenre);
+  end
+  else
+  begin
+    // some values from JSON are needed for further parsing and evaluation of e.g. STV
+    irc_Adderror(Format('<c4>[FAILED]</c> Unable to extract JSON for %s from IMDb', [FImdbTitleID]));
+    Result := True;
+    ready := True;
+    exit;
+  end;
 
   (* Fetch Languages *)
   THtmlIMDbParser.ParseMovieLanguage(fImdbMainPage, fImdbLanguage);
 
   (* Fetch Countries *)
   THtmlIMDbParser.ParseMovieCountries(fImdbMainPage, fImdbCountry);
-
-  (* Fetch Genres *)
-  THtmlIMDbParser.ParseMovieGenres(fImdbMainPage, fImdbGenre);
 
 
   // TODO:
@@ -689,6 +643,7 @@ begin
   //    iterates through all infos to determine the final result but only determines STV as limited/wide is only done via bom screens
 
   // 3. movie extra info have lowest priority as it might not indicate the correct info for each country
+
 
   fIsSTV := False;
   fIsLimited := False;
