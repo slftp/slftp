@@ -1,4 +1,4 @@
-﻿unit taskhttpimdbTests;
+unit taskhttpimdbTests;
 
 interface
 
@@ -10,7 +10,7 @@ uses
   {$ENDIF}
 
 type
-
+  // TODO: missing tests for release info page
   { The Da Vinci Code (2006) }
   TTestTHtmlIMDbParser_tt0382625 = class(TTestCase)
   private
@@ -69,7 +69,7 @@ type
     procedure TestParseMetaTitleInformation;
   end;
 
-  { _DR-Friland_ Nybyggerne_ Part 1 (TV Episode 2002) }
+  { DR-Friland Nybyggerne Part 1 (TV Episode 2002) }
   TTestTHtmlIMDbParser_tt0816352 = class(TTestCase)
   private
     FMainPage: String;
@@ -82,6 +82,49 @@ type
   published
     procedure TestParseNoVotesAndNoRating;
   end;
+
+  { The Violators (2015) }
+  TTestTHtmlIMDbParser_tt3876702 = class(TTestCase)
+  private
+    FMainPage: String;
+  protected
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+    {$ENDIF}
+  published
+    procedure TestParseVotesAndRating;
+  end;
+
+  { The Witcher 3: Wild Hunt - Blood and Wine (Video Game 2016) }
+  TTestTHtmlIMDbParser_tt5667286 = class(TTestCase)
+  private
+    FMainPage: String;
+  protected
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+    {$ENDIF}
+  published
+    procedure TestIsSTVBasedOnTitleExtraInfo;
+  end;
+
+  { The White Queen (TV Mini-Series 2013) }
+  TTestTHtmlIMDbParser_tt2372220 = class(TTestCase)
+  private
+    FMainPage: String;
+  protected
+    {$IFDEF FPC}
+      procedure SetUpOnce; override;
+    {$ELSE}
+      procedure SetUp; override;
+    {$ENDIF}
+  published
+    procedure TestIsSTVBasedOnTitleExtraInfo;
+  end;
+
 
 
   { War for the Planet of the Apes (2017) }
@@ -208,48 +251,6 @@ type
     procedure TestParseMovieGenres;
     procedure TestParseReleaseDateInfo;
     procedure TestParseAlsoKnownAsInfo;
-  end;
-
-  { The Violators (2015) }
-  TTestTHtmlIMDbParser_tt3876702 = class(TTestCase)
-  private
-    FMainPage: String;
-  protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
-  published
-    procedure TestParseVotesAndRating;
-  end;
-
-  { The Witcher 3: Wild Hunt - Blood and Wine (Video Game 2016) }
-  TTestTHtmlIMDbParser_tt5667286 = class(TTestCase)
-  private
-    FMainPage: String;
-  protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
-  published
-    procedure TestIsSTVBasedOnTitleExtraInfo;
-  end;
-
-  { The White Queen (TV Mini-Series 2013) }
-  TTestTHtmlIMDbParser_tt2372220 = class(TTestCase)
-  private
-    FMainPage: String;
-  protected
-    {$IFDEF FPC}
-      procedure SetUpOnce; override;
-    {$ELSE}
-      procedure SetUp; override;
-    {$ENDIF}
-  published
-    procedure TestIsSTVBasedOnTitleExtraInfo;
   end;
 
   TTestTHtmlBoxOfficeMojoParser = class(TTestCase)
@@ -541,6 +542,97 @@ begin
 
   CheckEquals(0, fVotes, 'Votes mismatch');
   CheckEquals(0, fRating, 'Rating mismatch');
+end;
+
+procedure TTestTHtmlIMDbParser_tt3876702.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fResStream: TResourceStream;
+  fStrList: TStringList;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt3876702_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FMainPage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+end;
+
+procedure TTestTHtmlIMDbParser_tt3876702.TestParseVotesAndRating;
+var
+  fVotes, fRating: Integer;
+begin
+  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3876702'), fVotes, fRating);
+
+  CheckTrue(400 < fVotes, 'Votes mismatch');
+  CheckTrue(5000 > fVotes, 'Votes mismatch');
+  CheckTrue(59 < fRating, 'Rating mismatch');
+  CheckTrue(61 > fRating, 'Rating mismatch');
+end;
+
+procedure TTestTHtmlIMDbParser_tt5667286.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fResStream: TResourceStream;
+  fStrList: TStringList;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt5667286_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FMainPage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+end;
+
+procedure TTestTHtmlIMDbParser_tt5667286.TestIsSTVBasedOnTitleExtraInfo;
+var
+  fMovieTitle, fTitleExtraInfo: String;
+  fYear: Integer;
+  fIsSTV: Boolean;
+begin
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt5667286'), fMovieTitle, fTitleExtraInfo, fYear);
+  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
+  CheckTrue(fIsSTV, 'STV mismatch');
+end;
+
+procedure TTestTHtmlIMDbParser_tt2372220.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
+var
+  fResStream: TResourceStream;
+  fStrList: TStringList;
+begin
+  fStrList := TStringList.Create;
+  try
+    fResStream := TResourceStream.Create(HINSTANCE, 'tt2372220_Main', RT_RCDATA);
+    try
+      fStrList.LoadFromStream(fResStream);
+      FMainPage := fStrList.Text;
+    finally
+      fResStream.Free;
+    end;
+  finally
+    fStrList.Free;
+  end;
+end;
+
+procedure TTestTHtmlIMDbParser_tt2372220.TestIsSTVBasedOnTitleExtraInfo;
+var
+  fMovieTitle, fTitleExtraInfo: String;
+  fYear: Integer;
+  fIsSTV: Boolean;
+begin
+  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt2372220'), fMovieTitle, fTitleExtraInfo, fYear);
+  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
+  CheckTrue(fIsSTV, 'STV mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
@@ -1400,97 +1492,6 @@ begin
   end;
 end;
 
-procedure TTestTHtmlIMDbParser_tt3876702.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
-var
-  fResStream: TResourceStream;
-  fStrList: TStringList;
-begin
-  fStrList := TStringList.Create;
-  try
-    fResStream := TResourceStream.Create(HINSTANCE, 'tt3876702_Main', RT_RCDATA);
-    try
-      fStrList.LoadFromStream(fResStream);
-      FMainPage := fStrList.Text;
-    finally
-      fResStream.Free;
-    end;
-  finally
-    fStrList.Free;
-  end;
-end;
-
-procedure TTestTHtmlIMDbParser_tt3876702.TestParseVotesAndRating;
-var
-  fVotes, fRating: Integer;
-begin
-  THtmlIMDbParser.ParseVotesAndRating(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3876702'), fVotes, fRating);
-
-  CheckTrue(400 < fVotes, 'Votes mismatch');
-  CheckTrue(5000 > fVotes, 'Votes mismatch');
-  CheckTrue(59 < fRating, 'Rating mismatch');
-  CheckTrue(61 > fRating, 'Rating mismatch');
-end;
-
-procedure TTestTHtmlIMDbParser_tt5667286.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
-var
-  fResStream: TResourceStream;
-  fStrList: TStringList;
-begin
-  fStrList := TStringList.Create;
-  try
-    fResStream := TResourceStream.Create(HINSTANCE, 'tt5667286_Main', RT_RCDATA);
-    try
-      fStrList.LoadFromStream(fResStream);
-      FMainPage := fStrList.Text;
-    finally
-      fResStream.Free;
-    end;
-  finally
-    fStrList.Free;
-  end;
-end;
-
-procedure TTestTHtmlIMDbParser_tt5667286.TestIsSTVBasedOnTitleExtraInfo;
-var
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-  fIsSTV: Boolean;
-begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt5667286'), fMovieTitle, fTitleExtraInfo, fYear);
-  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
-  CheckTrue(fIsSTV, 'STV mismatch');
-end;
-
-procedure TTestTHtmlIMDbParser_tt2372220.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
-var
-  fResStream: TResourceStream;
-  fStrList: TStringList;
-begin
-  fStrList := TStringList.Create;
-  try
-    fResStream := TResourceStream.Create(HINSTANCE, 'tt2372220_Main', RT_RCDATA);
-    try
-      fStrList.LoadFromStream(fResStream);
-      FMainPage := fStrList.Text;
-    finally
-      fResStream.Free;
-    end;
-  finally
-    fStrList.Free;
-  end;
-end;
-
-procedure TTestTHtmlIMDbParser_tt2372220.TestIsSTVBasedOnTitleExtraInfo;
-var
-  fMovieTitle, fTitleExtraInfo: String;
-  fYear: Integer;
-  fIsSTV: Boolean;
-begin
-  THtmlIMDbParser.ParseMetaTitleInformation(FMainPage, THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt2372220'), fMovieTitle, fTitleExtraInfo, fYear);
-  fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(fTitleExtraInfo);
-  CheckTrue(fIsSTV, 'STV mismatch');
-end;
-
 procedure TTestTHtmlBoxOfficeMojoParser.TestGetWidestScreensCountNoneAvailable;
 var
   fPageSource: String;
@@ -2034,13 +2035,13 @@ initialization
     RegisterTest('TTestTHtmlIMDbParser_tt11095742', TTestTHtmlIMDbParser_tt11095742.Suite);
     RegisterTest('TTestTHtmlIMDbParser_tt0375568', TTestTHtmlIMDbParser_tt0375568.Suite);
     RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt3876702.Suite);
-    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt0382625.Suite);
-    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt4919664.Suite);
-    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt2487090.Suite);
-    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt0107144.Suite);
-    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt0816352.Suite);
-    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt5667286.Suite);
-    RegisterTest('TTestTHtmlIMDbParser_tt3876702', TTestTHtmlIMDbParser_tt2372220.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt0382625', TTestTHtmlIMDbParser_tt0382625.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt4919664', TTestTHtmlIMDbParser_tt4919664.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt2487090', TTestTHtmlIMDbParser_tt2487090.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt0107144', TTestTHtmlIMDbParser_tt0107144.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt0816352', TTestTHtmlIMDbParser_tt0816352.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt5667286', TTestTHtmlIMDbParser_tt5667286.Suite);
+    RegisterTest('TTestTHtmlIMDbParser_tt2372220', TTestTHtmlIMDbParser_tt2372220.Suite);
 
     RegisterTest('THtmlBoxOfficeMojoParser', TTestTHtmlBoxOfficeMojoParser.Suite);
     RegisterTest('TTestTHtmlBoxOfficeMojoParser_tt5093026', TTestTHtmlBoxOfficeMojoParser_tt5093026.Suite);
