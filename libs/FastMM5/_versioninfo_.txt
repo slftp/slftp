@@ -1,2 +1,4 @@
-f423c4e6c33b4dada148b0edcf31efd0958ee5af
-Add a list of supported conditional defines to the documentation
+e11d6d4c4216999669eb5a77b555df77ceb88c1b
+Merge pull request #22 from nowlar/nowlar-patch-usesharedmm
+
+Avoid memory allocation before attempting to use shared mm

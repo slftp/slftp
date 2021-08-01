@@ -1,12 +1,17 @@
-﻿"""Script for downloading latest HTML pagesource"""
+#!/usr/bin/python3
+
+"""Script for downloading latest HTML pagesource"""
 
 import os
 import urllib.request
 import time
 import re
+from fp.fp import FreeProxy
 
 IMDB_MOVIE_IDS = ["tt0375568", "tt11095742",
-                  "tt7214470", "tt7728344", "tt0455275", "tt3450958"]
+                  "tt7214470", "tt7728344", "tt0455275", "tt3450958", "tt0382625",
+                  "tt4919664", "tt2487090", "tt3876702", "tt0107144", "tt0816352",
+                  "tt5667286", "tt2372220"]
 BOM_MOVIE_IDS = ["tt0375568", "tt5093026", "tt3450958", "tt0087332", "tt7167658"]
 BOM_RELEASES = [{"ID": "tt0375568", "Country": "USA", "Link": "/release/rl3947005441"},
                 {"ID": "tt5093026", "Country": "France",
@@ -21,6 +26,7 @@ BOM_RELEASES = [{"ID": "tt0375568", "Country": "USA", "Link": "/release/rl394700
                 {"ID": "tt7167658", "Country": "Original Release",
                     "Link": "/releasegroup/gr1831424517"}]
 
+proxy = None
 
 def __save_to_file(filename, content):
     """Save given content to filename (overwrites existing file)
@@ -31,9 +37,13 @@ def __save_to_file(filename, content):
     filename = filename.replace("–", "-")
     filename = filename.replace(":", "")
     filename = filename.replace("ä", "ae")
+    # replace html escaped code
+    filename = filename.replace("&quot;", "")
+    filename = filename.replace("&amp;", "&")
     # files with slash can't be saved to disk
     filename = filename.replace("/", "-")
-    f = open(filename, "w")
+    print("filename " + filename)
+    f = open(filename, "w", encoding='utf-8')
     f.write(content)
     f.close()
 
@@ -44,11 +54,22 @@ def get_latest_pagesource(url) -> str:
         url: link to web content
     """
     RETRY_TIME = 2
+    # find US proxy to avoid site changes due to different locations of developers
+    global proxy
+    if not proxy:
+        proxy = FreeProxy(country_id=['US']).get()
+        if not proxy:
+            raise Exception("Impossible to find a free US proxy!")
+        print("using proxy " + proxy)
+    # set proxy for urllib
+    proxy_handler = urllib.request.ProxyHandler({'http': proxy})
+    opener = urllib.request.build_opener(proxy_handler)
+    urllib.request.install_opener(opener)
     while True:
+        # try to fetch website
         try:
-            #content = urllib.request.urlopen(url).read().decode('utf-8')
             req = urllib.request.Request(url, headers={
-                                         'User-Agent': ' Mozilla/5.0 (Windows NT 6.1; WOW64; rv:87.0) Gecko/20100101 Firefox/87.0', "Accept-Language": "en-US,en;q=0.5"})
+                                        'User-Agent': ' Mozilla/5.0 (Windows NT 6.1; WOW64; rv:87.0) Gecko/20100101 Firefox/87.0', "Accept-Language": "en-US,en;q=0.5"})
             content = urllib.request.urlopen(req).read().decode('utf-8')
             break
         except urllib.request.HTTPError:
@@ -77,7 +98,7 @@ def findOriginalMovieTitle(content) -> str:
     """
     # imdb uses location dependent titles -> use fallback to original title
     match = re.search(
-        r"<meta property='og:title' content=\"(.*?)\" \/>", content)
+        r"<meta property=\"og:title\" content=\"(.*?)\"/>", content)
     if match:
         title = match.group(1)
     else:
@@ -108,6 +129,7 @@ if not current_dir.endswith("webpages"):
 print("Getting latest pagesource for all files:")
 print("\tIMDb")
 for id in IMDB_MOVIE_IDS:
+    print("_" + id + "_")
     htmlcode = get_latest_pagesource("https://www.imdb.com/title/" + id + "/")
     origtitle = findOriginalMovieTitle(htmlcode)
     save_pagesource_to_file(htmlcode, origtitle)
@@ -116,7 +138,7 @@ for id in IMDB_MOVIE_IDS:
     title = findWebpageTitle(htmlcode)
     first_word_origtitle = origtitle.split()[0]
     if not title.startswith(first_word_origtitle):
-        raise Exception("Title mismatch between overview and release page!")
+        raise Exception("Title mismatch between overview and release page! Title: " + title + " First word orig title: " + first_word_origtitle)
     save_pagesource_to_file(htmlcode, title)
 
 print("\tBox Office Mojo")

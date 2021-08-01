@@ -580,7 +580,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
       try
         AddTask(r);
@@ -615,9 +615,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
             try
               AddTask(r);
@@ -639,9 +639,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
             try
               AddTask(r);

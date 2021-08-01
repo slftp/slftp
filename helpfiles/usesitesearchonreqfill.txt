@@ -1,0 +1,11 @@
+Usage: <cmd> sitename1 [value]
+Set/Show the use_site_search_on_reqfill value for the given input site.
+If the value is not configured on a per-site basis, the default global 
+value from slftp.ini will be used.
+Might be useful if certain sites have bad performance on site search or outdated indexes.
+
+Valid input for value: 0 or 1
+
+Examples:
+<cmd> HQ <- shows current 'use site search on reqfill' value
+<cmd> HQ 1 <- enables 'use site search on reqfill' for HQ
