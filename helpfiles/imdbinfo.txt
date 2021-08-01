@@ -1,2 +1,2 @@
 Display the IMDB infos from internal database.
-Useage: <cmd> Releasename or IMDB_ID
+Usage: <cmd> Releasename or IMDB_ID
