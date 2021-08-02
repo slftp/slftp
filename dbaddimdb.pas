@@ -1160,6 +1160,9 @@ begin
       fDupe := False;
       for fItem in glLanguageCountryMappingList do
       begin
+        // IMDb and BOM differ for that language, see config file
+        if fLang = 'Czech' then
+          Continue;
         if fItem.Language = fLang then
         begin
           Debug(dpError, section, Format('Ignoring language %s with country %s-%s from slftp.imdbcountries because it already exists', [fLang, fCC, fCountry]));
