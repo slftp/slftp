@@ -649,7 +649,14 @@ begin
     try
       //replace glStatRaceLock with a new queue and process the records of the existing one
       fStatRaceQueue := glStatRaceQueue;
-      glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
+
+      //lock here to be sure the enqueuing threads don't use the old reference while we're iterating
+      glStatRaceLock.Enter;
+      try
+        glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
+      finally
+        glStatRaceLock.Leave;
+      end;
 
       try
         while fStatRaceQueue.Count > 0 do
