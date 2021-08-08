@@ -125,7 +125,7 @@ begin
   end;
 
   // we don't want to use this site for NFO download (e.g. they banned our IP for download because it's a rented one)
-  if s.site.UseForNFOdownload <> 1 then
+  if s.site.UseForNFOdownload <> ufnEnabled then
   begin
     Result := True;
     ready := True;
