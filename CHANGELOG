@@ -58,6 +58,7 @@
     {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
     {#} sort destinations on KB level to make sure the highest ranked sites get race tasks created first before the queue sort
     {#} Fixed an issue which could cause autodirlists to stop working on very busy sites when queue clean is enabled
+    {#} Rules for all sites (*) were not being persisted if split_site_data was enabled. Those are now saved into {admin_sitename}.rtpl
     {^} Allow to disable creating the 'already on site' dir when req filling by setting create_already_on_site_in_directory=0 (#302)
     {^} Allow to disable the file compare to determine a complete request by setting compare_files_for_reqfilled_fallback=0
     {^} Allow to fill requests that are on the site already by setting fill_already_on_site=1
