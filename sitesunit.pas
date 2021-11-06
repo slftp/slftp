@@ -2219,7 +2219,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
+        Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
         exit;
       end;
 
