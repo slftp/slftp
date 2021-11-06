@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -68,6 +68,12 @@ uses
   SysUtils;
 
 type
+  {$IF not declared(TDate)}
+  TDate                = TDateTime;
+  {$IFEND}
+  {$IF not declared(TTime)}
+  TTime                = TDateTime;
+  {$IFEND}
   {$IF not declared(UInt64)}
   UInt64                = QWord;
   {$IFEND}
@@ -79,6 +85,9 @@ type
     {$IFNDEF ENDIAN_BIG}hi,lo{$ELSE}lo, hi{$ENDIF}: UInt64;
   end;
   {$IFEND}
+  {$IF not declared(PUInt128)}
+  PUInt128 = ^UInt128;
+  {$IFEND}
   {$IF not declared(Int128)}
   Int128                = packed record
     {$IFNDEF ENDIAN_BIG}
@@ -89,6 +98,9 @@ type
     hi: Int64;
     {$ENDIF}
   end;
+  {$IFEND}
+  {$IF not declared(PInt128)}
+  PInt128 = ^Int128;
   {$IFEND}
   {$IF not declared(PPLongWord)}
   PPLongWord            = ^PLongWord;
@@ -102,6 +114,9 @@ type
   {$IFEND}
   {$IF not declared(PNativeUInt)} //since FPC2.7 this type is declared too avoid inconsitent builds
   PNativeUInt           = ^NativeUInt;
+  {$IFEND}
+  {$IF not declared(PNativeInt)} //since FPC2.6.4 this type is declared too avoid inconsitent builds
+  PNativeInt           = ^NativeInt;
   {$IFEND}
 {$ELSE}
   {$IFNDEF HAVE_TRUE_NATIVE_TYPES}  //introduced since D2007 but "stable" since XE2
@@ -141,7 +156,6 @@ type
   {$IFEND}
 {$IFDEF FPC}
 {$IFDEF WITH_RAWBYTESTRING}
-Type
   PAnsiRec = ^TAnsiRec;
   TAnsiRec = Record
     CodePage    : TSystemCodePage;
@@ -182,16 +196,23 @@ const
   FirstStringIndex = {$IFDEF ZERO_BASED_STRINGS}0{$ELSE}1{$ENDIF}; //Str[i] fe.
 
 type
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Character ref record</summary>
   PZCharRec = ^TZCharRec;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Character ref record</summary>
   TZCharRec = Record
     Len: Cardinal; //Length of String
     P: Pointer;    //Allocated Mem of String including #0 terminator
     CP: Word;      //CodePage of the String
   end;
 
-  { TZSQLTimeStamp }
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Timestamp record</summary>
   PZTimeStamp = ^TZTimeStamp;
-  TZTimeStamp = packed record //keep it packed !! // Why? This makes accessing elements slower.
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Timestamp record</summary>
+  TZTimeStamp = packed record //keep it packed !! -> clear/copy
     Year: Word;
     Month: Word;
     Day: Word;
@@ -203,18 +224,30 @@ type
     TimeZoneMinute:Word;
     IsNegative: WordBool; //MySQL allows negative timestamp values
   end;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines an array Zeos Timestamp records</summary>
   TZTimeStampDynArray = array of TZTimeStamp;
 
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Date record</summary>
   PZDate = ^TZDate;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Date record</summary>
   TZDate = packed record //keep it packed !!
     Year: Word;
     Month: Word;
     Day: Word;
     IsNegative: WordBool; //MySQL allows negative date values
   end;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines an array Zeos Date records</summary>
   TZDateDynArray = array of TZDate;
 
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a reference of a Zeos Time record</summary>
   PZTime = ^TZTime;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines a Zeos Time record</summary>
   TZTime = packed Record //keep it packed !!
     Hour: Word;
     Minute: Word;
@@ -222,6 +255,8 @@ type
     Fractions: Cardinal; //NanoSeconds
     IsNegative: WordBool; //MySQL allows negative time values
   end;
+  /// <author>EgonHugeist</summary>
+  /// <summary>Defines an array Zeos Time records</summary>
   TZTimeDynArray = array of TZTime;
 
   {$IF NOT DECLARED(TBytes)}
@@ -316,6 +351,9 @@ type
   {$If not declared(UnicodeString)}
   UnicodeString = WideString;
   {$IFEND}
+
+  SQLString = {$IFDEF UNICODE}UnicodeString{$ELSE}RawByteString{$ENDIF};
+
   ZWideString = {$IFDEF PWIDECHAR_IS_PUNICODECHAR}UnicodeString{$ELSE}WideString{$ENDIF};
 
   {$IF not declared(TBooleanDynArray)}
@@ -396,14 +434,6 @@ type
   TZCharRecDynArray = array of TZCharRec;
 
 type
-  {declare move or converter functions for the String Types}
-  TZRawToString = function (const Src: RawByteString; const RawCP, StringCP: Word): String;
-  TZStringToRaw = function (const Src: String; const StringCP, RawCP: Word): RawByteString;
-  TZUnicodeToString = function (const Src: ZWideString; const StringCP: Word): String;
-  TZStringToUnicode = function (const Src: String; const StringCP: Word): ZWideString;
-  TPRawToString = function (Src: PAnsiChar; Len: LengthInt; const RawCP, StringCP: Word): String;
-  TPUnicodeToString = function (Src: PWideChar; CodePoints: NativeUInt; const StringCP: Word): String;
-
   TZCharEncoding = (
     ceDefault,  //Internal switch for the two Functions below do not use it as a CodePage-declaration!
     ceAnsi,     //Base Ansi-String: prefered CodePage
@@ -424,15 +454,6 @@ type
     IsStringFieldCPConsistent: Boolean; //Is the current client characterset codepage consistent for all codepages?
   end;
 
-  TConvertEncodingFunctions = record
-    ZStringToRaw: TZStringToRaw;
-    ZRawToString: TZRawToString;
-    ZUnicodeToString: TZUnicodeToString;
-    ZStringToUnicode: TZStringToUnicode;
-    ZPRawToString: TPRawToString;
-    ZPUnicodeToString: TPUnicodeToString;
-  end;
-
 {$IFNDEF WITH_CHARINSET}
 function CharInSet(const C: AnsiChar; const CharSet: TSysCharSet): Boolean; overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
 function CharInSet(const C: WideChar; const CharSet: TSysCharSet): Boolean; overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
@@ -441,11 +462,11 @@ function CharInSet(const C: Word; const CharSet: TSysCharSet): Boolean; overload
 
 {$IF not Declared(UTF8ToString)}
 {$DEFINE ZUTF8ToString}
-function UTF8ToString(const s: RawByteString): ZWideString;
+function UTF8ToString(const s: RawByteString): UnicodeString;
 {$IFEND}
 
 function Hash(const S : RawByteString) : LongWord; overload;
-function Hash(const Key : ZWideString) : Cardinal; overload;
+function Hash(const Key : UnicodeString) : Cardinal; overload;
 
 {$IFNDEF NO_ANSISTRING}
 procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: {$IFDEF UNICODE}AnsiString{$ELSE}String{$ENDIF}); overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
@@ -453,7 +474,7 @@ procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: {$IFDE
 {$IFNDEF NO_UTF8STRING}
 procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: UTF8String); overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
 {$ENDIF}
-procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: ZWideString); overload; //{$IFDEF WITH_INLINE}Inline;{$ENDIF}
+procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: UnicodeString); overload; //{$IFDEF WITH_INLINE}Inline;{$ENDIF}
 {$IF defined (WITH_RAWBYTESTRING) or defined(WITH_TBYTES_AS_RAWBYTESTRING)}
 procedure ZSetString(const Src: PAnsiChar; const Len: Cardinal; var Dest: RawByteString); overload; {$IFDEF WITH_INLINE}Inline;{$ENDIF}
 {$IFEND}
@@ -518,7 +539,7 @@ end;
 {$Q-}
 {$R-}
 
-function Hash(const key: ZWideString): Cardinal;
+function Hash(const key: UnicodeString): Cardinal;
 var
   I: integer;
 begin
@@ -649,7 +670,7 @@ end;
 {$ENDIF}
 
 {$IFDEF  ZUTF8ToString}
-function UTF8ToString(const s: RawByteString): ZWideString;
+function UTF8ToString(const s: RawByteString): UnicodeString;
 begin
   Result := UTF8Decode(s);
 end;
@@ -704,8 +725,8 @@ begin
 end;
 {$ENDIF}
 
-//EgonHugeist: my fast ByteToWord shift without encoding maps and/or alloc a ZWideString
-procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: ZWideString); overload;
+//EgonHugeist: my fast ByteToWord shift without encoding maps and/or alloc a UnicodeString
+procedure ZSetString(Src: PAnsiChar; const Len: LengthInt; var Dest: UnicodeString); overload;
 var
   PEnd: PAnsiChar;
   PW: PWideChar;

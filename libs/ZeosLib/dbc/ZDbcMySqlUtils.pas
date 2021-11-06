@@ -40,7 +40,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -49,6 +49,13 @@
 {                                                         }
 {                                 Zeos Development Group. }
 {********************************************************@}
+
+{
+constributor(s):
+  aehimself
+  EgonHugeist
+  Martin Schreiber
+}
 
 unit ZDbcMySqlUtils;
 
@@ -194,7 +201,7 @@ procedure ReAllocMySQLColumnBuffer(OldRSCount, NewRSCount: Integer;
   var ColumnsBindingArray: PMYSQL_ColumnsBindingArray; BindOffset: PMYSQL_BINDOFFSETS);
 
 function GetBindOffsets(IsMariaDB: Boolean; Version: Integer): PMYSQL_BINDOFFSETS;
-function GetFieldOffsets(Version: Integer): PMYSQL_FIELDOFFSETS;
+function GetFieldOffsets(IsMariaDB: Boolean; Version: Integer): PMYSQL_FIELDOFFSETS;
 function GetServerStatusOffset(Version: Integer): NativeUInt;
 
 {$ENDIF ZEOS_DISABLE_MYSQL} //if set we have an empty unit
@@ -393,9 +400,6 @@ var
   FieldLength: ULong;
   CS: Word;
   function ValueToString(Buf: PAnsiChar; Len: Cardinal): String;
-  {$IFNDEF UNICODE}
-  var tmp: ZWideString;
-  {$ENDIF}
   begin
     if (Buf = nil) or (AnsiChar(Buf^) = AnsiChar(#0)) then
       Result := ''
@@ -403,12 +407,8 @@ var
       {$IFDEF UNICODE}
       Result := PRawToUnicode(Buf, Len, ConSettings^.ClientCodePage^.CP);
       {$ELSE}
-      if (not ConSettings^.AutoEncode) or (ConSettings^.ClientCodePage^.CP = ConSettings^.CTRL_CP)
-      then System.SetString(Result, Buf, Len)
-      else begin
-        tmp := PRawToUnicode(Buf, len, ConSettings^.ClientCodePage^.CP);
-        Result := ZUnicodeToString(tmp, ConSettings^.CTRL_CP);
-      end;
+      Result := '';
+      System.SetString(Result, Buf, Len)
       {$ENDIF}
     end;
   end;
@@ -463,7 +463,7 @@ begin
         13, 88, {sjis}
         35, 90, 128..151:  {ucs2}
           begin
-            Result.Precision := (FieldLength div 4);
+            Result.Precision := (FieldLength shr 2);
             if Result.ColumnType = stString
             then Result.CharOctedLength := FieldLength
             else Result.CharOctedLength := FieldLength shr 1;
@@ -480,9 +480,9 @@ begin
         54, 55, 101..124, {utf16}
         56, 62, {utf16le}
         60, 61, 160..183, {utf32}
-        45, 46, 224..247: {utf8mb4}
+        45, 46, 224..247, 255: {utf8mb4}
           begin
-            Result.Precision := (FieldLength div 4);
+            Result.Precision := (FieldLength shr 2);
             if Result.ColumnType = stString
             then Result.CharOctedLength := FieldLength
             else Result.CharOctedLength := FieldLength shr 1;
@@ -737,9 +737,9 @@ begin
   else Result := nil
 end;
 
-function GetFieldOffsets(Version: Integer): PMYSQL_FIELDOFFSETS;
+function GetFieldOffsets(IsMariaDB: Boolean; Version: Integer): PMYSQL_FIELDOFFSETS;
 begin
-  if (Version >= 50100) then
+  if (Version >= 50100) or (IsMariaDB) then
     result := @MYSQL_FIELD51_Offset
   else if (Version >= 40100) then
     Result := @MYSQL_FIELD41_Offset
