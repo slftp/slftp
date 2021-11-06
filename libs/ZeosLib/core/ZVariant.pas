@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -72,7 +72,7 @@ const
   StrFalseUp = 'FALSE';
   StrTrueUp = 'TRUE';
   BoolStrsUp: array[Boolean] of string = (StrFalseUp, StrTrueUp);
-  BoolStrsUpW: array[Boolean] of ZWideString = (ZWideString(StrFalseUp), ZWideString(StrTrueUp));
+  BoolStrsUpW: array[Boolean] of UnicodeString = (UnicodeString(StrFalseUp), UnicodeString(StrTrueUp));
 {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
   BoolStrsUpRaw: array[Boolean] of RawByteString = (RawByteString(StrFalseUp), RawByteString(StrTrueUp));
 {$ELSE}
@@ -101,7 +101,7 @@ type
   {** Defines a variant structure. }
   TZVariant = record
     VType: TZVariantType;
-    VUnicodeString: ZWideString;
+    VUnicodeString: UnicodeString;
     VRawByteString: RawByteString;
     VInterface: IZInterface;
     case TZVariantType of
@@ -170,7 +170,7 @@ type
     {$IFNDEF NO_UTF8STRING}
     function GetAsUTF8String(const Value: TZVariant): UTF8String;
     {$ENDIF}
-    function GetAsUnicodeString(const Value: TZVariant): ZWideString;
+    function GetAsUnicodeString(const Value: TZVariant): UnicodeString;
     function GetAsDateTime(const Value: TZVariant): TDateTime;
     function GetAsPointer(const Value: TZVariant): Pointer;
     function GetAsInterface(const Value: TZVariant): IZInterface;
@@ -182,7 +182,7 @@ type
     procedure SetAsUInteger(out Value: TZVariant; const Data: UInt64);
     procedure SetAsDouble(out Value: TZVariant; const Data: Double);
     procedure SetAsCurrency(out Value: TZVariant; const Data: Currency);
-    procedure SetAsBigDecimal(out Value: TZVariant; const Data: TBCD);
+    procedure SetAsBigDecimal(out Value: TZVariant; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Data: TBCD);
     procedure SetAsString(out Value: TZVariant; const Data: String);
     {$IFNDEF NO_ANSISTRING}
     procedure SetAsAnsiString(out Value: TZVariant; const Data: AnsiString);
@@ -192,7 +192,7 @@ type
     {$ENDIF}
     procedure SetAsRawByteString(out Value: TZVariant; const Data: RawByteString);
     procedure SetAsCharRec(out Value: TZVariant; const Data: TZCharRec);
-    procedure SetAsUnicodeString(out Value: TZVariant; const Data: ZWideString);
+    procedure SetAsUnicodeString(out Value: TZVariant; const Data: UnicodeString);
     procedure SetAsDate(out Value: TZVariant; const Data: TZDate);
     procedure SetAsDateTime(out Value: TZVariant; const Data: TDateTime);
     procedure SetAsTime(out Value: TZVariant; const Data: TZTime);
@@ -223,7 +223,7 @@ type
   {** Implements a variant manager with strict convertion rules. }
   TZSoftVariantManager = class (TInterfacedObject, IZVariantManager)
   protected
-    FFormatSettings: TZFormatSettings;
+    FFormatSettings: TZClientFormatSettings;
     procedure ConvertFixedTypesToUnicode(const Value: TZVariant; var Result: UnicodeString);
     procedure ConvertFixedTypesToRaw(const Value: TZVariant; var Result: RawByteString{$IFDEF WITH_RAWBYTESTRING}; CP: Word{$ENDIF});
     procedure PRawCPConvert(Src: PAnsiChar; L: LengthInt; var Dest: RawByteString; FromCP, ToCP: Word);
@@ -288,7 +288,7 @@ type
     function GetAsRawByteString(const Value: TZVariant): RawByteString; overload;
     function GetAsRawByteString(const Value: TZVariant; const RawCP: Word): RawByteString; overload; virtual;
     function GetAsCharRec(const Value: TZVariant): TZCharRec; overload;
-    function GetAsUnicodeString(const Value: TZVariant): ZWideString;
+    function GetAsUnicodeString(const Value: TZVariant): UnicodeString;
     function GetAsDateTime(const Value: TZVariant): TDateTime;
     function GetAsPointer(const Value: TZVariant): Pointer;
     function GetAsInterface(const Value: TZVariant): IZInterface;
@@ -300,7 +300,7 @@ type
     procedure SetAsUInteger(out Value: TZVariant; const Data: UInt64);
     procedure SetAsDouble(out Value: TZVariant; const Data: Double);
     procedure SetAsCurrency(out Value: TZVariant; const Data: Currency);
-    procedure SetAsBigDecimal(out Value: TZVariant; const Data: TBCD);
+    procedure SetAsBigDecimal(out Value: TZVariant; {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Data: TBCD);
     procedure SetAsGUID(out Value: TZVariant; const Data: TGUID);
     procedure SetAsString(out Value: TZVariant; const Data: String);
     {$IFNDEF NO_ANSISTRING}
@@ -311,7 +311,7 @@ type
     {$ENDIF}
     procedure SetAsRawByteString(out Value: TZVariant; const Data: RawByteString);
     procedure SetAsCharRec(out Value: TZVariant; const Data: TZCharRec);
-    procedure SetAsUnicodeString(out Value: TZVariant; const Data: ZWideString);
+    procedure SetAsUnicodeString(out Value: TZVariant; const Data: UnicodeString);
     procedure SetAsDate(out Value: TZVariant; const Data: TZDate);
     procedure SetAsDateTime(out Value: TZVariant; const Data: TDateTime);
     procedure SetAsTime(out Value: TZVariant; const Data: TZTime);
@@ -363,7 +363,7 @@ type
     {$IFNDEF NO_UTF8STRING}
     function GetUTF8String: UTF8String;
     {$ENDIF}
-    function GetUnicodeString: ZWideString;
+    function GetUnicodeString: UnicodeString;
     function GetDateTime: TDateTime;
   end;
 
@@ -413,7 +413,7 @@ type
     {$IFNDEF NO_UTF8STRING}
     function GetUTF8String: UTF8String;
     {$ENDIF}
-    function GetUnicodeString: ZWideString;
+    function GetUnicodeString: UnicodeString;
     function GetDate: TZDate;
     function GetTime: TZTime;
     function GetTimeStamp: TZTimeStamp;
@@ -553,7 +553,7 @@ function EncodeCharRec(const Value: TZCharRec): TZVariant; {$IFDEF WITH_INLINE}i
   @param Value a unicodestring value to be encoded.
   @returns an encoded custom variant.
 }
-function EncodeUnicodeString(const Value: ZWideString): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
+function EncodeUnicodeString(const Value: UnicodeString): TZVariant; {$IFDEF WITH_INLINE}inline;{$ENDIF}
 {**
   Encodes a TDateTime into a custom variant.
   @param Value a TDateTime value to be encoded.
@@ -702,6 +702,7 @@ end;
   @param Value2 the second variant value.
   @return <0 if Value1 < Value 2, =0 if Value1 = Value2, >0 if Value1 > Value2
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "ABCD" does not seem to be initialized} {$ENDIF}
 function TZSoftVariantManager.Compare(const Value1,
   Value2: TZVariant): Integer;
 var
@@ -811,6 +812,7 @@ DoWideCompare:
       Result := 0;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Checks is the specified value NULL.
@@ -1085,6 +1087,7 @@ end;
   @param Value a variant to be converted.
   @param a result value.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "$result" does not seem to be initialized} {$ENDIF}
 function TZSoftVariantManager.GetAsCurrency(
   const Value: TZVariant): Currency;
 begin
@@ -1107,6 +1110,7 @@ begin
     else Result := GetAsDouble(Value);
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets a variant to currency value.
@@ -1270,7 +1274,7 @@ end;
   @param a result value.
 }
 function TZSoftVariantManager.GetAsUnicodeString(
-  const Value: TZVariant): ZWideString;
+  const Value: TZVariant): UnicodeString;
 begin
   Result := Convert(Value, vtUnicodeString).VUnicodeString;
 end;
@@ -1435,7 +1439,7 @@ end;
   @param Data a value to be assigned.
 }
 procedure TZSoftVariantManager.SetAsBigDecimal(out Value: TZVariant;
-  const Data: TBCD);
+  {$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Data: TBCD);
 begin
   Value := EncodeBigDecimal(Data);
 end;
@@ -1529,7 +1533,7 @@ end;
   @param Data a value to be assigned.
 }
 procedure TZSoftVariantManager.SetAsUnicodeString(out Value: TZVariant;
-  const Data: ZWideString);
+  const Data: UnicodeString);
 begin
   Value := EncodeUnicodeString(Data);
 end;
@@ -1596,6 +1600,7 @@ end;
   @param Value2 the second variant argument.
   @returns an operation result.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "ABCD" does not seem to be initialized} {$ENDIF}
 function TZSoftVariantManager.OpAdd(const Value1,
   Value2: TZVariant): TZVariant;
 var BCD: TBCD;
@@ -1649,6 +1654,7 @@ begin
     else RaiseUnsupportedOperation;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Performs '&' operation.
@@ -1676,6 +1682,7 @@ end;
   @param Value2 the second variant argument.
   @returns an operation result.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "BCD" does not seem to be initialized} {$ENDIF}
 function TZSoftVariantManager.OpDiv(const Value1,
   Value2: TZVariant): TZVariant;
 var
@@ -1714,6 +1721,7 @@ begin
     else RaiseUnsupportedOperation;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Performs '=' operation.
@@ -1800,6 +1808,7 @@ end;
   @param Value2 the second variant argument.
   @returns an operation result.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "BCD" does not seem to be initialized} {$ENDIF}
 function TZSoftVariantManager.OpMul(const Value1,
   Value2: TZVariant): TZVariant;
 var BCD: TBCD;
@@ -1836,6 +1845,7 @@ begin
     else RaiseUnsupportedOperation;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Performs unary '-' operation.
@@ -1946,6 +1956,7 @@ end;
   @param Value2 the second variant argument.
   @returns an operation result.
 }
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : Local variable "BCD" does not seem to be initialized} {$ENDIF}
 function TZSoftVariantManager.OpSub(const Value1,
   Value2: TZVariant): TZVariant;
 var BCD: TBCD;
@@ -1982,6 +1993,7 @@ begin
     else RaiseUnsupportedOperation;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Performs '^' operation.
@@ -2039,6 +2051,7 @@ procedure TZSoftVariantManager.ProcessAnsiString(const Value: TZVariant;
 label FromW;
 var ResTmp: RawByteString;
 begin
+  ResTmp := '';
   Result.VType := vtAnsiString;
   case Value.VType of
     {$IFNDEF UNICODE}vtString,{$ENDIF}
@@ -2153,6 +2166,7 @@ procedure TZSoftVariantManager.ProcessString(const Value: TZVariant;
   out Result: TZVariant);
 var Tmp: {$IFDEF UNICODE}UnicodeString{$ELSE}RawByteString{$ENDIF};
 begin
+  Tmp := '';
   Result.VType := vtString;
   case Value.VType of
     {$IFNDEF UNICODE}
@@ -2161,7 +2175,7 @@ begin
     {$IFNDEF NO_ANSISTRING}
     vtAnsiString:
       {$IFDEF UNICODE}
-      Tmp := PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), ZOSCodePage);
+      PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), ZOSCodePage, Tmp);
       {$ELSE}
       Tmp := Value.VRawByteString;
       {$ENDIF}
@@ -2169,7 +2183,7 @@ begin
     {$IFNDEF NO_UTF8STRING}
     vtUTF8String:
       {$IFDEF UNICODE}
-      Tmp := PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), zCP_UTF8);
+      PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), zCP_UTF8, Tmp);
       {$ELSE}
       if (ZOSCodePage = zCP_UTF8)
       then Tmp := Value.VRawByteString
@@ -2188,7 +2202,7 @@ begin
         {$IFDEF UNICODE}
         SetString(Tmp, PChar(Value.VCharRec.P), Value.VCharRec.Len)
         {$ELSE}
-        Tmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, ZOSCodePage)
+        PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, ZOSCodePage, Tmp)
         {$ENDIF}
       else
       {$IFNDEF UNICODE}
@@ -2202,7 +2216,7 @@ begin
         Tmp := String(Result.VUnicodeString);
         Result.VUnicodeString := '';
         {$ELSE}
-        Tmp := PRawToUnicode(Value.VCharRec.P, Value.VCharRec.Len, Value.VCharRec.CP);
+        PRawToUnicode(Value.VCharRec.P, Value.VCharRec.Len, Value.VCharRec.CP, Tmp);
         {$ENDIF}
       end;
     else {$IFDEF UNICODE}ConvertFixedTypesToUnicode{$ELSE}ConvertFixedTypesToRaw{$ENDIF}(Value, Tmp{$IF defined(WITH_RAWBYTESTRING) and not defined(UNICODE)}, ZOSCodePage{$IFEND});
@@ -2218,6 +2232,7 @@ procedure TZSoftVariantManager.ProcessUnicodeString(const Value: TZVariant;
   out Result: TZVariant);
 var ResTmp: UnicodeString;
 begin
+  ResTmp := '';
   Result.VType := vtUnicodeString;
   case Value.VType of
     {$IFNDEF UNICODE}
@@ -2245,6 +2260,7 @@ procedure TZSoftVariantManager.ProcessUTF8String(const Value: TZVariant;
 var ResTmp: RawByteString;
 begin
   Result.VType := vtUTF8String;
+  ResTmp := '';
   case Value.VType of
     {$IFNDEF UNICODE}
     vtString: if ZOSCodePage= zCP_UTF8
@@ -2304,7 +2320,7 @@ begin
                   L := ZSysUtils.FloatToSqlRaw(Value.VDouble, P);
                 end;
     vtCurrency: begin
-                  ZFastCode.CurrToRaw(Value.VDouble, @Buff[0], @P);
+                  ZFastCode.CurrToRaw(Value.VCurrency, '.', @Buff[0], @P);
                   L := P - PAnsiChar(@Buff[0]);
                   P := @Buff[0];
                 end;
@@ -2378,7 +2394,7 @@ begin
                   L := ZSysUtils.FloatToSqlUnicode(Value.VDouble, P);
                 end;
     vtCurrency: begin
-                  ZFastCode.CurrToUnicode(Value.VDouble, @Buff[0], @P);
+                  ZFastCode.CurrToUnicode(Value.VCurrency, '.', @Buff[0], @P);
                   L := P - PWideChar(@Buff[0]);
                   P := @Buff[0];
                 end;
@@ -2721,19 +2737,24 @@ end;
   Gets a stored value converted to time.
   @return a stored value converted to time.
 }
-{$IFDEF FPC}
-  {$PUSH}
+{$IFDEF FPC} {$PUSH}
   {$WARN 5060 off : Function result variable does not seem to be initialized}
+  {$WARN 5058 off : Variable $result does not seem to be initialized}
 {$ENDIF}
 function TZAnyValue.GetTime: TZTime;
 begin
   SoftVarManager.GetAsTime(FValue, Result);
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 {**
   Gets a stored value converted to timestamp.
   @return a stored value converted to timestamp.
 }
+{$IFDEF FPC} {$PUSH}
+  {$WARN 5060 off : Function result variable does not seem to be initialized}
+  {$WARN 5058 off : Variable $result does not seem to be initialized}
+{$ENDIF}
 function TZAnyValue.GetTimeStamp: TZTimeStamp;
 begin
   SoftVarManager.GetAsTimeStamp(FValue, Result);
@@ -2784,7 +2805,7 @@ end;
   Gets a stored value converted to unicode string.
   @return a stored value converted to unicode string.
 }
-function TZAnyValue.GetUnicodeString: ZWideString;
+function TZAnyValue.GetUnicodeString: UnicodeString;
 begin
   Result := SoftVarManager.GetAsUnicodeString(FValue);
 end;
@@ -2793,9 +2814,9 @@ end;
   Gets a stored value converted to date.
   @return a stored value converted to date.
 }
-{$IFDEF FPC} // parameters not used intentionally
-  {$PUSH}
+{$IFDEF FPC} {$PUSH}
   {$WARN 5060 off : Function result variable does not seem to be initialized}
+  {$WARN 5057 off : Variable $result does not seem to be initialized}
 {$ENDIF}
 function TZAnyValue.GetDate: TZDate;
 begin
@@ -2828,22 +2849,33 @@ end;
   @param Value a custom variant value to be encoded.
   @returns an encoded standard variant.
 }
+{$IFDEF FPC}
+  {$PUSH}
+  {$WARN 4055 off : Conversion between ordinals and pointers is not portable}
+  {$WARN 5057 off : Local variable "DT" does not seem to be initialized}
+{$ENDIF}
 function EncodeVariant(const Value: TZVariant): Variant;
+var DT: TDateTime;
 begin
   case Value.VType of
     vtBoolean: Result := Value.VBoolean;
     vtBytes: Result := BytesToVar(Value.VRawByteString);
-    vtInteger: if (Value.VInteger > -MaxInt) and (Value.VInteger < MaxInt) then
-        Result := Integer(Value.VInteger)
-      else
-{$ifdef fpc}
-        Result := Value.VInteger;
-{$else}
-        Result := ZFastCode.IntToStr(Value.VInteger);
-{$endif}
+    vtInteger: if (Value.VInteger > -MaxInt) and (Value.VInteger < MaxInt)
+      then Result := Integer(Value.VInteger)
+      else Result := Value.VInteger;
+    vtUInteger: if Int64Rec(Value.VUInteger).Hi = 0
+      then Result := Int64Rec(Value.VUInteger).Lo
+      else {$IFDEF WITH_VARIANT_UINT64}
+            Result := Value.VUInteger;
+          {$ELSE}
+            Result := ZFastCode.IntToStr(Value.VUInteger);
+          {$ENDIF}
     vtDouble: Result := Value.VDouble;
     vtCurrency: Result := Value.VCurrency;
-    vtBigDecimal: VarFMTBcdCreate(Result, Value.VBigDecimal);
+    vtBigDecimal: begin
+        {$IFDEF WITH_VAR_INIT_WARNING}Result := null;{$ENDIF}
+        VarFMTBcdCreate(Result, Value.VBigDecimal);
+      end;
     vtString: Result := {$IFDEF UNICODE}Value.VUnicodeString{$ELSE}String(Value.VRawByteString){$ENDIF};
     {$IFNDEF NO_ANSISTRING}
     vtAnsiString: Result := AnsiString(Value.VRawByteString);
@@ -2854,12 +2886,17 @@ begin
     vtRawByteString: Result := Value.VRawByteString;
     vtUnicodeString: Result := Value.VUnicodeString;
     vtDateTime: Result := Value.VDateTime;
+    vtDate: if TryDateToDateTime(Value.VDate, DT)
+      then Result := DT
+      else Result := null;
+    vtTime: if TryTimeToDateTime(Value.VTime, DT)
+      then Result := DT
+      else Result := null;
+    vtTimeStamp: if TryTimeStampToDateTime(Value.VTimeStamp, DT)
+      then Result := DT
+      else Result := null;
     vtPointer:
-    {$ifdef fpc}
-        Result := {%H-}NativeUInt(Value.VPointer);
-    {$else}
         Result := NativeUInt(Value.VPointer);
-    {$endif}
     vtInterface: Result := Value.VInterface;
   else
     Result := Null;
@@ -2908,8 +2945,11 @@ begin
     varDate: Result := EncodeDateTime(Value);
     varShortInt, varWord, varLongWord:
       Result := EncodeInteger(Value);
-    varInt64{$IFDEF WITH_VARIANT_UINT64},varUInt64{$ENDIF}:
+    varInt64:
       Result := EncodeInteger(Value);
+    {$IFDEF WITH_VARIANT_UINT64}
+    varUInt64: Result := EncodeUInteger(Value);
+    {$ENDIF}
   else
     Result := EncodeNull;
   end;
@@ -2963,9 +3003,14 @@ end;
   @param Value a value to be assigned.
 }
 function EncodeBytes(const Value: TBytes): TZVariant;
+var L: LengthInt;
 begin
   Result.VType := vtBytes;
-  ZSetString(Pointer(Value), Length(Value), Result.VRawByteString);
+  L := Length(Value);
+  if L > 0 then begin
+    SetLength(Result.VRawByteString, L);
+    Move(Pointer(Value)^, Pointer(Result.VRawByteString)^, L);
+  end;
 end;
 
 {**
@@ -3086,7 +3131,7 @@ end;
   Creates a UnicodeString variant.
   @param Value a value to be assigned.
 }
-function EncodeUnicodeString(const Value: ZWideString): TZVariant;
+function EncodeUnicodeString(const Value: UnicodeString): TZVariant;
 begin
   Result.VType := vtUnicodeString;
   Result.VUnicodeString := Value;
