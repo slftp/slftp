@@ -77,10 +77,12 @@ interface
 // ======== Define options for TRegExpr engine
 {$DEFINE Unicode} // Use WideChar for characters and UnicodeString/WideString for strings
 { off $DEFINE UnicodeEx} // Support Unicode >0xFFFF, e.g. emoji, e.g. "." must find 2 WideChars of 1 emoji
-{ off $DEFINE UseWordChars} // Use WordChars property, otherwise fixed list 'a'..'z','A'..'Z','0'..'9','_'
+{ off $DEFINE UseWordChars} // Use WordChars property, otherwise fixed list 'a'..'z','A'..'Z','0'..'9','_' 
 { off $DEFINE UseSpaceChars} // Use SpaceChars property, otherwise fixed list
 { off $DEFINE UseLineSep} // Use LineSeparators property, otherwise fixed line-break chars
-{$DEFINE FastUnicodeData} // Use arrays for UpperCase/LowerCase/IsWordChar, they take 320K more memory
+{$IFDEF FPC}
+  {$DEFINE FastUnicodeData} // Use arrays for UpperCase/LowerCase/IsWordChar, they take 320K more memory
+{$ENDIF}
 {$DEFINE UseFirstCharSet} // Enable optimization, which finds possible first chars of input string
 {$DEFINE RegExpPCodeDump} // Enable method Dump() to show opcode as string
 {$IFNDEF FPC} // Not supported in FreePascal
@@ -110,6 +112,13 @@ interface
 uses
   Classes, // TStrings in Split method
   SysUtils, // Exception
+  {$IFDEF D2009}
+    {$IFDEF D_XE}
+    System.Character,
+    {$ELSE}
+    Character,
+    {$ENDIF}
+  {$ENDIF}
   Math;
 
 type
@@ -387,7 +396,7 @@ type
     {$IFDEF UseLineSep}
     procedure InitLineSepArray;
     {$ENDIF}
-    procedure FindGroupName(APtr: PRegExprChar; AEndChar: REChar; var AName: RegExprString);
+    procedure FindGroupName(APtr, AEndPtr: PRegExprChar; AEndChar: REChar; var AName: RegExprString);
 
     // Mark programm as having to be [re]compiled
     procedure InvalidateProgramm;
@@ -784,7 +793,7 @@ uses
 const
   // TRegExpr.VersionMajor/Minor return values of these constants:
   REVersionMajor = 1;
-  REVersionMinor = 149;
+  REVersionMinor = 153;
 
   OpKind_End = REChar(1);
   OpKind_MetaClass = REChar(2);
@@ -826,6 +835,11 @@ type
     gkRecursion,
     gkSubCall
     );
+
+// Alexey T.: handling of that define FPC_REQUIRES_PROPER_ALIGNMENT was present even 15 years ago,
+// but with it, we have failing of some RegEx tests, on ARM64 CPU.
+// If I undefine FPC_REQUIRES_PROPER_ALIGNMENT, all tests run OK on ARM64 again.
+{$undef FPC_REQUIRES_PROPER_ALIGNMENT}
 
 const
   REOpSz = SizeOf(TREOp) div SizeOf(REChar);
@@ -1692,12 +1706,12 @@ begin
   fInputString := '';
 
   FillChar(fModifiers, SizeOf(fModifiers), 0);
-  ModifierI := RegExprModifierI;
-  ModifierR := RegExprModifierR;
-  ModifierS := RegExprModifierS;
-  ModifierG := RegExprModifierG;
-  ModifierM := RegExprModifierM;
-  ModifierX := RegExprModifierX;
+  fModifiers.I := RegExprModifierI;
+  fModifiers.R := RegExprModifierR;
+  fModifiers.S := RegExprModifierS;
+  fModifiers.G := RegExprModifierG;
+  fModifiers.M := RegExprModifierM;
+  fModifiers.X := RegExprModifierX;
 
   {$IFDEF UseSpaceChars}
   SpaceChars := RegExprSpaceChars;
@@ -1855,40 +1869,65 @@ end; { of function TRegExpr.GetModifierStr
 
 procedure TRegExpr.SetModifierG(AValue: boolean);
 begin
-  fModifiers.G := AValue;
+  if fModifiers.G <> AValue then
+  begin
+    fModifiers.G := AValue;
+    InvalidateProgramm;
+  end;
 end;
 
 procedure TRegExpr.SetModifierI(AValue: boolean);
 begin
-  fModifiers.I := AValue;
+  if fModifiers.I <> AValue then
+  begin
+    fModifiers.I := AValue;
+    InvalidateProgramm;
+  end;
 end;
 
 procedure TRegExpr.SetModifierM(AValue: boolean);
 begin
-  fModifiers.M := AValue;
+  if fModifiers.M <> AValue then
+  begin
+    fModifiers.M := AValue;
+    InvalidateProgramm;
+  end;
 end;
 
 procedure TRegExpr.SetModifierR(AValue: boolean);
 begin
-  fModifiers.R := AValue;
+  if fModifiers.R <> AValue then
+  begin
+    fModifiers.R := AValue;
+    InvalidateProgramm;
+  end;
 end;
 
 procedure TRegExpr.SetModifierS(AValue: boolean);
 begin
-  fModifiers.S := AValue;
+  if fModifiers.S <> AValue then
+  begin
+    fModifiers.S := AValue;
+    InvalidateProgramm;
+  end;
 end;
 
 procedure TRegExpr.SetModifierX(AValue: boolean);
 begin
-  fModifiers.X := AValue;
+  if fModifiers.X <> AValue then
+  begin
+    fModifiers.X := AValue;
+    InvalidateProgramm;
+  end;
 end;
 
 procedure TRegExpr.SetModifierStr(const AStr: RegExprString);
 begin
-  if not ParseModifiers(PRegExprChar(AStr), Length(AStr), fModifiers) then
+  if ParseModifiers(PRegExprChar(AStr), Length(AStr), fModifiers) then
+    InvalidateProgramm
+  else
     Error(reeModifierUnsupported);
-end; { of procedure TRegExpr.SetModifierStr
-  -------------------------------------------------------------- }
+end;
 
 { ============================================================= }
 { ==================== Compiler section ======================= }
@@ -3760,21 +3799,21 @@ begin
                     begin
                       // named group: (?P<name>regex)
                       GrpKind := gkNormalGroup;
-                      FindGroupName(regParse + 3, '>', GrpName);
+                      FindGroupName(regParse + 3, fRegexEnd, '>', GrpName);
                       Inc(regParse, Length(GrpName) + 4);
                     end;
                   '=':
                     begin
                       // back-reference to named group: (?P=name)
                       GrpKind := gkNamedGroupReference;
-                      FindGroupName(regParse + 3, ')', GrpName);
+                      FindGroupName(regParse + 3, fRegexEnd, ')', GrpName);
                       Inc(regParse, Length(GrpName) + 4);
                     end;
                   '>':
                     begin
                       // subroutine call to named group: (?P>name)
                       GrpKind := gkSubCall;
-                      FindGroupName(regParse + 3, ')', GrpName);
+                      FindGroupName(regParse + 3, fRegexEnd, ')', GrpName);
                       Inc(regParse, Length(GrpName) + 4);
                       GrpIndex := MatchIndexFromName(GrpName);
                       if GrpIndex < 1 then
@@ -3927,7 +3966,7 @@ begin
                 if (regParse + 4 >= fRegexEnd) then
                   Error(reeNamedGroupBad);
                 GrpKind := gkNormalGroup;
-                FindGroupName(regParse + 2, '''', GrpName);
+                FindGroupName(regParse + 2, fRegexEnd, '''', GrpName);
                 Inc(regParse, Length(GrpName) + 3);
               end;
             '&':
@@ -3936,7 +3975,7 @@ begin
                 if (regParse + 2 >= fRegexEnd) then
                   Error(reeBadSubCall);
                 GrpKind := gkSubCall;
-                FindGroupName(regParse + 2, ')', GrpName);
+                FindGroupName(regParse + 2, fRegexEnd, ')', GrpName);
                 Inc(regParse, Length(GrpName) + 3);
                 GrpIndex := MatchIndexFromName(GrpName);
                 if GrpIndex < 1 then
@@ -4223,7 +4262,7 @@ end; { of function TRegExpr.GetCompilerErrorPos
 { ===================== Matching section ====================== }
 { ============================================================= }
 
-procedure TRegExpr.FindGroupName(APtr: PRegExprChar; AEndChar: REChar; var AName: RegExprString);
+procedure TRegExpr.FindGroupName(APtr, AEndPtr: PRegExprChar; AEndChar: REChar; var AName: RegExprString);
 // check that group name is valid identifier, started from non-digit
 // this is to be like in Python regex
 var
@@ -4234,7 +4273,7 @@ begin
     Error(reeNamedGroupBadName);
 
   repeat
-    if P >= fRegexEnd then
+    if P >= AEndPtr then
       Error(reeNamedGroupBad);
     if P^ = AEndChar then
       Break;
@@ -5488,8 +5527,9 @@ begin
 
   if fInputString = '' then
   begin
-    //Error(reeNoInputStringSpecified); // better don't raise error, breaks some apps
-    Exit;
+    // Empty string can match e.g. '^$'
+    if regMustLen > 0 then
+      Exit;
   end;
 
   // Check that the start position is not negative
@@ -5661,7 +5701,7 @@ var
       else
       if Delimited then
       begin
-        FindGroupName(p, '}', GrpName);
+        FindGroupName(p, TemplateEnd, '}', GrpName);
         Result := MatchIndexFromName(GrpName);
         Inc(p, Length(GrpName));
       end;
@@ -6458,23 +6498,24 @@ end;
 function TRegExpr.DumpCheckerIndex(N: byte): RegExprString;
 begin
   Result := '?';
-  if N = CheckerIndex_Word then Exit('\w');
-  if N = CheckerIndex_NotWord then Exit('\W');
-  if N = CheckerIndex_Digit then Exit('\d');
-  if N = CheckerIndex_NotDigit then Exit('\D');
-  if N = CheckerIndex_Space then Exit('\s');
-  if N = CheckerIndex_NotSpace then Exit('\S');
-  if N = CheckerIndex_HorzSep then Exit('\h');
-  if N = CheckerIndex_NotHorzSep then Exit('\H');
-  if N = CheckerIndex_VertSep then Exit('\v');
-  if N = CheckerIndex_NotVertSep then Exit('\V');
-  if N = CheckerIndex_LowerAZ then Exit('az');
-  if N = CheckerIndex_UpperAZ then Exit('AZ');
+  if N = CheckerIndex_Word       then Result := '\w' else
+  if N = CheckerIndex_NotWord    then Result := '\W' else
+  if N = CheckerIndex_Digit      then Result := '\d' else
+  if N = CheckerIndex_NotDigit   then Result := '\D' else
+  if N = CheckerIndex_Space      then Result := '\s' else
+  if N = CheckerIndex_NotSpace   then Result := '\S' else
+  if N = CheckerIndex_HorzSep    then Result := '\h' else
+  if N = CheckerIndex_NotHorzSep then Result := '\H' else
+  if N = CheckerIndex_VertSep    then Result := '\v' else
+  if N = CheckerIndex_NotVertSep then Result := '\V' else
+  if N = CheckerIndex_LowerAZ    then Result := 'az' else
+  if N = CheckerIndex_UpperAZ    then Result := 'AZ' else
+  ;
 end;
 
 function TRegExpr.DumpCategoryChars(ch, ch2: REChar; Positive: boolean): RegExprString;
 const
-  S: array[boolean] of REChar = ('P', 'p');
+  S: array[boolean] of RegExprString = ('P', 'p');
 begin
   Result := '\' + S[Positive] + '{' + ch;
   if ch2 <> #0 then
@@ -6786,11 +6827,13 @@ end;
 {$ENDIF}
 
 procedure TRegExpr.Error(AErrorID: integer);
+  {$IFNDEF LINUX}
   {$IFDEF reRealExceptionAddr}
   function ReturnAddr: Pointer; // ###0.938
   asm
     mov  eax,[ebp+4]
   end;
+  {$ENDIF}
   {$ENDIF}
 var
   e: ERegExpr;
@@ -6805,8 +6848,10 @@ begin
   e.ErrorCode := AErrorID;
   e.CompilerErrorPos := CompilerErrorPos;
   raise e
+    {$IFNDEF LINUX}
     {$IFDEF reRealExceptionAddr}
     at ReturnAddr
+    {$ENDIF}
     {$ENDIF};
 end; { of procedure TRegExpr.Error
   -------------------------------------------------------------- }
