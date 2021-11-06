@@ -143,8 +143,15 @@ type
       @param(aFilename Filename)
       @returns(On successful parsing seconds from MTDM response, otherwise 0) }
     function MdtmSeconds(const aFilename: String): integer;
-    function Read(read_cmd: String = ''): boolean; overload;
-    function Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean; overload;
+    function Read(const read_cmd: String = ''): boolean; overload;
+    { Read FTP response
+      @param(read_cmd Name of the command to read the response to)
+      @param(raiseontimeout Raise error (log to ERROR chan) on timeout)
+      @param(raiseonclose Raise error (log to ERROR chan) on on close)
+      @param(timeout Timeout in ms)
+      @param(aMaxNumReads Max reads (lines))
+      @returns(@true if successful, otherwise @false) }
+    function Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean; overload;
     function Send(const s: String): boolean; overload;
     function Send(const s: String; const Args: array of const): boolean; overload;
     function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
@@ -1866,7 +1873,7 @@ begin
   event.SetEvent;
 end;
 
-function TSiteSlot.Read(read_cmd: String = ''): boolean;
+function TSiteSlot.Read(const read_cmd: String = ''): boolean;
 begin
   try
     Result := Read(read_cmd, True, True, 0);
@@ -1882,7 +1889,7 @@ begin
   end;
 end;
 
-function TSiteSlot.Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean;
+function TSiteSlot.Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean;
 label
   ujra;
 var
@@ -1901,7 +1908,7 @@ begin
 
   ujra:
   Inc(numreads);
-  if numreads > 500 then
+  if numreads > aMaxNumReads then
   begin
     Debug(dpError, section, Format('[ERROR] TSiteSlot.Read numreads', []));
     lastResponse := '';
@@ -2248,7 +2255,9 @@ begin
       exit;
     end;
 
-    if not Read('Dirlist') then
+    //allow up to 50000 items for dirlist (default is 500). i've seen releases with more that 500 files and
+    //autodirlist / autoindex might have more directories
+    if not Read('Dirlist', True, True, 0, 50000) then
     begin
       Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
       exit;
