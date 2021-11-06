@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -55,82 +55,6 @@ interface
 
 {$I ZDbc.inc}
 
-
-uses ZDbcIntfs;
-
-//EH @ Fr0sT and aehimself
-//just a proposal which is not related to the docs you guys are planning
-//it would be nice to have a PropertyEditor possibility for the DataSet guys
-//we could define each prop to a record. in initialization part of the
-//PropertyEditor unit we could load them into "something"
-//much smarter would be to define all records into an static record of TZProperty
-//like TZPropertyArray = Array[0..x] of TZProperty = ( ...... add all of them )
-//that way a PropertyEditor could access the array directly and we would never
-//forget to add that prop to the Editor unit.. would the docs work for array elements too?
-//It's just an Proposal
-Type
-  TZPropertyValueType = (
-    pvtEmpty,
-    pvtBool,
-    pvtNumber,
-    pvtString,
-    pvtBoolOrString);
-
-  TZPropertyLevelTypes = set of (pltConnection, pltTransaction, pltStatement);
-
-  PZPropertyProvider = ^TZPropertyProvider;
-  TZPropertyProvider = record
-    Provider: TZServerProvider;
-    MinimumServerVersion: Integer;
-    MinimumClientVersion: Integer;
-    MinimumProtocolVersion: Integer;
-  end;
-  PZPropertyProviderArray = ^TZPropertyProviderArray;
-  TZPropertyProviderArray = array[Byte] of TZPropertyProvider;
-
-  TZPropertyProviders = record
-    Count: Cardinal;
-    Items: PZPropertyProviderArray;
-  end;
-
-  PProtocolArray = ^TProtocolArray;
-  TProtocolArray = array[Byte] of String;
-
-  TProtocols = record
-    Count: Cardinal;
-    Items: PProtocolArray;
-  end;
-
-  TZPropertyProtocols = record
-    Count: Cardinal;
-    Items: PZPropertyProviderArray;
-  end;
-
-const
-  cProptertyTypeDesc: Array[TZPropertyValueType] of String = (
-    'no value expected',
-    'boolean expresson like ''Y''/''YES''/''T''/''TRUE''/''ON''/<>0 in any case to enable, any other',
-    'any ordinal number',
-    'any string value',
-    'either BOOL expression or string value');
-type
-  PZProperty = ^TZProperty;
-  TZProperty = Record
-    Name: String;
-    Purpose: String;
-    ValueType: TZPropertyValueType;
-    LevelTypes: TZPropertyLevelTypes;
-    Providers: TZPropertyProviders;
-    Protocols: TProtocols;
-  End;
-
-const
-  ProposalConst: TZProperty = (
-    Name: 'proposal';
-    Purpose: 'do what you want';
-    ValueType: pvtEmpty);
-    //add Doc here ?
-
 { WARNING! Some of the parameter values are used directly in DBC API, so they
   must not be changed. }
 
@@ -141,59 +65,184 @@ const
     STR     - string }
 
   { Parameters common for all DBC's }
-
-  // Type: STR
-  // Same as User property
+const
+  /// <type>String</type>
+  /// <Alias>username</Alias>
+  /// <Associates>ConnProps_Username,ConnProps_TrustedConnection</Associates>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_UID]=userid</syntax>
+  /// <summary>Specifies the user ID used to log in to the database.</summary>
+  /// <remarks>
+  ///  You must always supply a user ID when connecting to a database, unless
+  ///  you are using an integrated/trusted or Kerberos login.
+  /// </remarks>
   ConnProps_UID = 'UID';
+  /// <type>String</type>
+  /// <alias>ConnProps_UID</alias>
+  /// <Associates>ConnProps_UID,ConnProps_TrustedConnection</Associates>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_Username]=username</syntax>
+  /// <summary>Specifies the user name used to log in to the database.</summary>
+  /// <remarks>
+  ///  You must always supply a user name when connecting to a database, unless
+  ///  you are using an integrated/trusted or Kerberos login.
+  /// </remarks>
   ConnProps_Username = 'username';
-  // Type: STR
-  // Same as Password property
+  /// <type>String</type>
+  /// <alias>ConnProps_Password</alias>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_PWD]=password</syntax>
+  /// <summary>
+  ///  Provides a password for a connection.
+  /// </summary>
+  /// <remarks>
+  ///  The Password (PWD) connection parameter is not encrypted. An application
+  ///  can include the password in the connection string. If both the Password
+  ///  (PWD) connection parameter and the EncryptedPassword (ENP) (if supported)
+  ///  connection parameter are specified, the Password (PWD) connection
+  ///  parameter takes precedence.
+  /// </remarks>
   ConnProps_PWD = 'PWD';
+  /// <type>String</type>
+  /// <alias>ConnProps_PWD</alias>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_Password]=password</syntax>
+  /// <summary>
+  ///  Provides a password for a connection.
+  /// </summary>
+  /// <remarks>
+  ///  The Password (PWD) connection parameter is not encrypted. An application
+  ///  can include the password in the connection string. If both the Password
+  ///  (PWD) connection parameter and the EncryptedPassword (ENP) (if supported)
+  ///  connection parameter are specified, the Password (PWD) connection
+  ///  parameter takes precedence.
+  /// </remarks>
   ConnProps_Password = 'password';
-  // Type: STR
-  // Same as LibraryLocation property, path to client lib
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_LibLocation]=filename</syntax>
+  /// <summary>Provides a filename for a client library.</summary>
+  /// <remarks>If provided then we'll try to load the library otherwise the
+  ///  default lib-names will be used for.
+  /// </remarks>
   ConnProps_LibLocation = 'LibLocation';
-  // Type: STR, like CP_UTF8
-  // Codepage to interact with driver
+  /// <Type>String</Type>
+  /// <usage>Connection</usage>
+  /// <Associates>ConnProps_Charset_NONE_Alias</Associates>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_CodePage]={value}</syntax>
+  /// <summary>Specifies the character set to interact with driver.</summary>
+  /// <remarks>If you're accessing a CharacterSet "NONE" Firebird/Interbase
+  ///  database you should always use the CharacterSet "NONE" as connection
+  ///  characterset. In addition it's recommented to specify which characterset
+  ///  the "NONE" represents by adding:
+  ///  <c>Properties.Values['Charset_NONE_Alias'] := 'WIN1251'</c> f.e.
+  ///  For odbc_a and ole_db(raw longvarchar only) it's implemented as:
+  ///  set a custom characterset to notify zeos about conversion routines.
+  ///  <c>Note for ODBC_A</c>: This CodePage must be equal for all fields(ODBC).
+  ///  Otherwise use the ODBC_W driver. It's defined as:
+  ///  First place in a name as an charset alias, second add ':'+(codepage),
+  ///  third add '/'+(maximum amount of bytes per character). The definition
+  ///  must equal to database defined charset.
+  ///  Example: CharacterSet=latin1:1252/1 or CharacterSet=utf8:65001/4
+  /// </remarks>
+  ConnProps_Characterset = 'CharacterSet';
+  /// <type>String</type>
+  /// <Alias>CharacterSet</Alias>
+  /// <Associates>ConnProps_Charset_NONE_Alias</Associates>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_CodePage]={value}</syntax>
+  /// <summary>Deprecated use ConnProps_Characterset instead. Specifies the
+  ///  character set to interact with driver.</summary>
+  /// <remarks>If you're accessing a CharacterSet "NONE" Firebird/Interbase
+  ///  database you should always use the CharacterSet "NONE" as connection
+  ///  characterset. In addition it's recommented to specify which characterset
+  ///  the "NONE" represents by adding:
+  ///  <c>Properties.Values['Charset_NONE_Alias'] := 'WIN1251'</c> f.e.
+  ///  For odbc_a and ole_db(raw longvarchar only) it's implemented as:
+  ///  set a custom characterset to notify zeos about conversion routines.
+  ///  <c>Note for ODBC_A</c>: This CodePage must be equal for all fields(ODBC).
+  ///  Otherwise use the ODBC_W driver. It's defined as:
+  ///  First place in a name as an charset alias, second add ':'+(codepage),
+  ///  third add '/'+(maximum amount of bytes per character). The definition
+  ///  must equal to database defined charset.
+  ///  Example: codepage=latin1:1252/1 or codepage=utf8:65001/4
+  /// </remarks>
   ConnProps_CodePage = 'codepage';
-  // Type: BOOLEAN
-  // Same as AutoEncodeStrings property
-  ConnProps_AutoEncodeStrings = 'AutoEncodeStrings';
-  // Type: CP_UTF16 | CP_UTF8 | GET_ACP
-  // Same as ControlsCodePage property
+  /// <type>Enumerator</type>
+  /// <Values>DB_CP|CP_UTF8|DefaultSystemCodePage</Values>
+  /// <Alias>RawStringEncoding</Alias>
+  /// <Associates>ConnProps_RawStringEncoding</Associates>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_ControlsCP]={value}</syntax>
+  /// <summary>dreprecaded use ConnProps_RawStringEncoding  instead;
+  ///  See ConnProps_RawStringEncoding</summary>
   ConnProps_ControlsCP = 'controls_cp';
-  // Type: INT
-  // The login timeout to use in seconds.
+  /// <type>Enumerator</type>
+  /// <Values>DB_CP|CP_UTF8|DefaultSystemCodePage</Values>
+  /// <Alias>RawStringEncoding</Alias>
+  /// <Associates>ConnProps_RawStringEncoding</Associates>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_ControlsCP]={value}</syntax>
+  /// <summary>Defines how Zeos treads the SQL and the
+  ///  <c>Get/SetString(Ansi-Compilers)</c> and <c>Get/SetRawByteString</c> for
+  ///  UTF16 columns/parameters/connections on zdbc. These enum-names are mapped
+  ///  the the W2A2WEncodingSource of the connection settings records.</summary>
+  ConnProps_RawStringEncoding = 'RawStringEncoding';
+  /// <type>Number</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_Timeout]={value}</syntax>
+  /// <summary>Defines the connection/login timeout in seconds. A value smaller
+  ///  than 1 means infinate.</summary>
   ConnProps_Timeout = 'timeout';
-  // Type: STR
-  // Format to display date, like YYYY-MM-DD
-  ConnProps_DateDisplayFormat = 'DateDisplayFormat';
-  // Type: STR
-  // Format to read date
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_DateReadFormat]={value}</syntax>
+  /// <summary>Format to read a date from a database, like YYYY-MM-DD</summary>
+  /// <remarks>Just simple formats are supported. ISO 8601 is prefered.
+  ///  Weekdays, Monthnames and so on are not supported</remarks>
   ConnProps_DateReadFormat = 'DateReadFormat';
-  // Type: STR
-  // Format to write date
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_DateWriteFormat]={value}</syntax>
+  /// <summary>Format to write a date into a database, like YYYY-MM-DD</summary>
+  /// <remarks>Just simple formats are supported. ISO 8601 is prefered.
+  ///  Weekdays, Monthnames and so on are not supported</remarks>
   ConnProps_DateWriteFormat = 'DateWriteFormat';
-  // Type: STR, like HH:MM:SS
-  // Format to display time
-  ConnProps_TimeDisplayFormat = 'TimeDisplayFormat';
-  // Type: STR
-  // Format to read time
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_TimeReadFormat]={value}</syntax>
+  /// <summary>Format to read a time value from a database, like HH:MM:SS.FFF</summary>
   ConnProps_TimeReadFormat = 'TimeReadFormat';
-  // Type: STR
-  // Format to write time
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_TimeReadFormat]={value}</syntax>
+  /// <summary>Format to write a time value into a database, like HH:MM:SS.FFF</summary>
   ConnProps_TimeWriteFormat = 'TimeWriteFormat';
-  // Type: STR
-  // Format to display date & time
-  ConnProps_DateTimeDisplayFormat = 'DatetimeDisplayFormat';
-  // Type: STR
-  // Format to read date & time
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_DateTimeReadFormat]={value}</syntax>
+  /// <summary>Format to read a timestamp from database, like YYYY-MM-DD HH:NN:SS.F</summary>
+  /// <remarks>Just simple formats are supported. ISO 8601 is prefered.
+  ///  If the driver(f.e. SQLite) supports the 'T' delimiter do not hasitate to
+  ///  use it! Weekdays, Monthnames and so on are not supported</remarks>
   ConnProps_DateTimeReadFormat = 'DatetimeReadFormat';
-  // Type: STR
-  // Format to write date & time
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_DateTimeWriteFormat]={value}</syntax>
+  /// <summary>Format to write a timestamp into database, like YYYY-MM-DD HH:NN:SS.F</summary>
+  /// <remarks>Just simple formats are supported. ISO 8601 is prefered.
+  ///  If the driver(f.e. SQLite) supports the 'T' delimiter do not hasitate to
+  ///  use it! Weekdays, Monthnames and so on are not supported</remarks>
   ConnProps_DateTimeWriteFormat = 'DatetimeWriteFormat';
-  // Type: STR
-  // Sets TZAbstractDatabaseInfo.IdentifierQuotes property, refer to Zeos manual for details
+  /// <type>String</type>
+  /// <summary>Sets TZAbstractDatabaseInfo.IdentifierQuotes property. The quote
+  ///  chars are relevant for Postgres dollar quoting, multi drivers like ado,
+  ///  odbc, OleDB same as SQLite where all known identifier quotes are allowed
+  /// </summary>
+  /// <default>""</default>
+  /// <remarks>the quote char(s) count can contain a single char like sql standard " or
+  ///  maximum two characters</remarks>
   ConnProps_IdentifierQuotes = 'identifier_quotes';
 
   { Parameters common for all DBC's }
@@ -205,25 +254,9 @@ const
     from Connection properties retrieved. If it is empty too, the default value
     is returned (usually empty string for options of type STR) }
 
-  // Type: all | changed
-  // Same as Dataset.UpdateMode property
-  DSProps_Update = 'update';
-  // Type: all | keyonly
-  // Same as Dataset.WhereMode property
-  DSProps_Where = 'where';
-  // Type: BOOLEAN
-  // Same as TZDatasetOptions.doCalcDefaults in Dataset.Options property
-  DSProps_Defaults = 'defaults';
   // Type: BOOLEAN
   // Same as TZDatasetOptions.doPreferPrepared in Dataset.Options property
   DSProps_PreferPrepared = 'PreferPrepared';
-  // Type: BOOLEAN
-  // Same as TZDatasetOptions.doCachedLobs in Dataset.Options property
-  DSProps_CachedLobs = 'CachedLob';
-  // Type: INT
-  // Same as Statement.ChunkSize, size of chunks for retrieving/sending long data
-  // depends to your network speed
-  DSProps_ChunkSize = 'chunk_size'; //default is a very low value of 4KB
 
   { Parameters for datasets }
 
@@ -237,22 +270,22 @@ const
 
   { Parameters common for several drivers }
 
-{$IF DEFINED(ENABLE_DBLIB) OR DEFINED(ENABLE_INTERBASE) OR DEFINED(ENABLE_FIREBIRD)}
-  { Parameters that are for datasets and statements but could be set for connections
-    (see comment above) }
-
-  // Type: STR, like CP_UTF8
-  // ?
-  DSProps_ResetCodePage = 'ResetCodePage';
-{$IFEND}
-
-{$IF DEFINED(ENABLE_ORACLE) OR DEFINED(ENABLE_INTERBASE) OR DEFINED(ENABLE_FIREBIRD) OR DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_ADO) OR DEFINED(ENABLE_OLEDB)}
+{$IF DEFINED(ENABLE_ORACLE) OR DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB)}
   { Parameters that are for datasets and statements but could be set for connections
     (see comment above) }
 
   // Type: INT
   // Size of buffer for results
   DSProps_InternalBufSize = 'internal_buffer_size';
+{$IFEND}
+
+{$IF DEFINED(ENABLE_ORACLE) OR DEFINED(ENABLE_INTERBASE) OR DEFINED(ENABLE_FIREBIRD) OR DEFINED(ENABLE_POSTGRES)}
+  /// <type>Enumerator</type>
+  /// <Values>None|OnLoad|OnAccess</Values>
+  /// <usage>Connection,DataSet</usage>
+  /// <syntax>Properties.Values[DSProps_LobCacheMode]={value}</syntax>
+  /// <summary>How to cache lob types. OnLoad caches lobs on record fetch. OnAccess caches lobs only when accessed.</summary>
+  DSProps_LobCacheMode = 'LobCacheMode';
 {$IFEND}
 
 {$IF DEFINED(ENABLE_SQLITE) OR DEFINED(ENABLE_POSTGRESQL)}
@@ -263,6 +296,7 @@ const
   // Treat varchar fields without a length limit as if they had a length limit
   // of <maxlength> thus making these fields usable with TDBEdit components.
   DSProps_UndefVarcharAsStringLength = 'Undefined_Varchar_AsString_Length';
+
 {$IFEND}
 
 {$IF DEFINED(ENABLE_ORACLE) OR DEFINED(ENABLE_POSTGRESQL) OR DEFINED(ENABLE_INTERBASE) OR DEFINED(ENABLE_FIREBIRD)}
@@ -273,18 +307,25 @@ const
 {$IFEND}
 
 {$IF DEFINED(ENABLE_ADO) OR DEFINED(ENABLE_OLEDB)}
-  // Type: STR
-  // ?
+  /// <summary>Defines the driver Provider as a String. This property is used
+  ///  for the OleDB connection only. Example:
+  ///  Properties.Values[ConnProps_Provider]=SQLNCLI11.1</summary>
   ConnProps_Provider = 'Provider';
 {$IFEND}
 
-{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB)}
+{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB) OR DEFINED(ENABLE_ADO)}
   // Type: BOOLEAN
   // Use trusted connection
   ConnProps_TrustedConnection = 'Trusted_Connection';
 {$IFEND}
 
-{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB) OR DEFINED(ENABLE_FIREBIRD) or DEFINED(ZEOS_DISABLE_INTERBASE)}
+{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB)}
+  // Type: BOOLEAN
+  // Defer the prepare?
+  DSProps_DeferPrepare = 'DeferPrepare';
+{$IFEND}
+
+{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB) OR DEFINED(ENABLE_FIREBIRD) or DEFINED(ENABLE_INTERBASE)}
   // Type: INT
   // Execution timeout in seconds/milliseconds for FireBird
   DSProps_StatementTimeOut = 'StatementTimeOut'; //since FB4 also
@@ -292,10 +333,10 @@ const
 
 {$IF defined (ENABLE_MYSQL) or defined (ENABLE_POSTGRESQL)}
   // Type: INT
-  // how many executions must be done to realy prepare the statement?
+  // how many executions must be done to really prepare the statement?
   // JDBC does prepare on after 4 executions.
   // A negative value means never prepare.
-  // actually default is 2 executions before prepare the stmt on the server
+  // Current default is 2 executions before preparing the statement on the server
   DSProps_MinExecCntBeforePrepare = 'MinExecCountBeforePrepare';
   // Type: BOOLEAN
   // http://zeoslib.sourceforge.net/viewtopic.php?f=20&t=10695&p=30151#p30151
@@ -354,9 +395,6 @@ const
   // Type: BOOLEAN
   // Same as CLIENT_CONNECT_WITH_DB, refer to MySql manual for details
   ConnProps_DBLess = 'dbless';
-  // Type: INT
-  // Value used in 'SET GLOBAL max_allowed_packet' statement, refer to MySql manual for details
-  ConnProps_MaxLobSize = 'MaxLobSize';
   // Type: BOOLEAN
   // Value used to identify BIT(1) as Boolean instead of ENUM('Y','N')
   ConnProps_MySQL_FieldType_Bit_1_IsBoolean = 'MySQL_FieldType_Bit_1_IsBoolean';
@@ -369,8 +407,85 @@ const
 
   { In addition, any server parameter prefixed by value of
     ZPlainMySqlConstants.SERVER_ARGUMENTS_KEY_PREFIX constant and all members from
-    ZPlainMySqlConstants.TMYSQL_CLIENT_OPTIONS and ZPlainMySqlConstants.TMySqlOption
     could be used as well. }
+  (* refer MySQL manuals *)
+  ConnProps_MYSQL_OPT_CONNECT_TIMEOUT             = 'MYSQL_OPT_CONNECT_TIMEOUT';
+  ConnProps_MYSQL_OPT_COMPRESS                    = 'MYSQL_OPT_COMPRESS';
+  ConnProps_MYSQL_OPT_NAMED_PIPE                  = 'MYSQL_OPT_NAMED_PIPE';
+  ConnProps_MYSQL_INIT_COMMAND                    = 'MYSQL_INIT_COMMAND';
+  ConnProps_MYSQL_READ_DEFAULT_FILE               = 'MYSQL_READ_DEFAULT_FILE';
+  ConnProps_MYSQL_READ_DEFAULT_GROUP              = 'MYSQL_READ_DEFAULT_GROUP';
+  ConnProps_MYSQL_SET_CHARSET_DIR                 = 'MYSQL_SET_CHARSET_DIR';
+  ConnProps_MYSQL_SET_CHARSET_NAME                = 'MYSQL_SET_CHARSET_NAME';
+  ConnProps_MYSQL_OPT_LOCAL_INFILE                = 'MYSQL_OPT_LOCAL_INFILE';
+  ConnProps_MYSQL_OPT_PROTOCOL                    = 'MYSQL_OPT_PROTOCOL';
+  ConnProps_MYSQL_SHARED_MEMORY_BASE_NAME         = 'MYSQL_SHARED_MEMORY_BASE_NAME';
+  ConnProps_MYSQL_OPT_READ_TIMEOUT                = 'MYSQL_OPT_READ_TIMEOUT';
+  ConnProps_MYSQL_OPT_WRITE_TIMEOUT               = 'MYSQL_OPT_WRITE_TIMEOUT';
+  ConnProps_MYSQL_OPT_USE_RESULT                  = 'MYSQL_OPT_USE_RESULT';
+  ConnProps_MYSQL_OPT_USE_REMOTE_CONNECTION       = 'MYSQL_OPT_USE_REMOTE_CONNECTION';
+  ConnProps_MYSQL_OPT_USE_EMBEDDED_CONNECTION     = 'MYSQL_OPT_USE_EMBEDDED_CONNECTION';
+  ConnProps_MYSQL_OPT_GUESS_CONNECTION            = 'MYSQL_OPT_GUESS_CONNECTION';
+  ConnProps_MYSQL_SET_CLIENT_IP                   = 'MYSQL_SET_CLIENT_IP';
+  ConnProps_MYSQL_SECURE_AUTH                     = 'MYSQL_SECURE_AUTH';
+  ConnProps_MYSQL_REPORT_DATA_TRUNCATION          = 'MYSQL_REPORT_DATA_TRUNCATION';
+  ConnProps_MYSQL_OPT_RECONNECT                   = 'MYSQL_OPT_RECONNECT';
+  ConnProps_MYSQL_OPT_SSL_VERIFY_SERVER_CERT      = 'MYSQL_OPT_SSL_VERIFY_SERVER_CERT';
+  ConnProps_MYSQL_PLUGIN_DIR                      = 'MYSQL_PLUGIN_DIR';
+  ConnProps_MYSQL_DEFAULT_AUTH                    = 'MYSQL_DEFAULT_AUTH';
+  ConnProps_MYSQL_OPT_BIND                        = 'MYSQL_OPT_BIND';
+  ConnProps_MYSQL_OPT_SSL_KEY                     = 'MYSQL_OPT_SSL_KEY';
+  ConnProps_MYSQL_OPT_SSL_CERT                    = 'MYSQL_OPT_SSL_CERT';
+  ConnProps_MYSQL_OPT_SSL_CA                      = 'MYSQL_OPT_SSL_CA';
+  ConnProps_MYSQL_OPT_SSL_CAPATH                  = 'MYSQL_OPT_SSL_CAPATH';
+  ConnProps_MYSQL_OPT_SSL_CIPHER                  = 'MYSQL_OPT_SSL_CIPHER';
+  ConnProps_MYSQL_OPT_SSL_CRL                     = 'MYSQL_OPT_SSL_CRL';
+  ConnProps_MYSQL_OPT_SSL_CRLPATH                 = 'MYSQL_OPT_SSL_CRLPATH';
+  ConnProps_MYSQL_OPT_CONNECT_ATTR_RESET          = 'MYSQL_OPT_CONNECT_ATTR_RESET';
+  ConnProps_MYSQL_OPT_CONNECT_ATTR_ADD            = 'MYSQL_OPT_CONNECT_ATTR_ADD';
+  ConnProps_MYSQL_OPT_CONNECT_ATTR_DELETE         = 'MYSQL_OPT_CONNECT_ATTR_DELETE';
+  ConnProps_MYSQL_SERVER_PUBLIC_KEY               = 'MYSQL_SERVER_PUBLIC_KEY';
+  ConnProps_MYSQL_ENABLE_CLEARTEXT_PLUGIN         = 'MYSQL_ENABLE_CLEARTEXT_PLUGIN';
+  ConnProps_MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS= 'MYSQL_OPT_CAN_HANDLE_EXPIRED_PASSWORDS';
+  ConnProps_MYSQL_OPT_SSL_ENFORCE                 = 'MYSQL_OPT_SSL_ENFORCE';
+  ConnProps_MYSQL_OPT_MAX_ALLOWED_PACKET          = 'MYSQL_OPT_MAX_ALLOWED_PACKET';
+  ConnProps_MYSQL_OPT_NET_BUFFER_LENGTH           = 'MYSQL_OPT_NET_BUFFER_LENGTH';
+  ConnProps_MYSQL_OPT_TLS_VERSION                 = 'MYSQL_OPT_TLS_VERSION';
+  ConnProps_MYSQL_OPT_SSL_MODE                    = 'MYSQL_OPT_SSL_MODE';
+    {MySQL 8:}
+  ConnProps_MYSQL_OPT_GET_SERVER_PUBLIC_KEY       = 'MYSQL_OPT_GET_SERVER_PUBLIC_KEY';
+  ConnProps_MYSQL_OPT_RETRY_COUNT                 = 'MYSQL_OPT_RETRY_COUNT';
+  ConnProps_MYSQL_OPT_OPTIONAL_RESULTSET_METADATA = 'MYSQL_OPT_OPTIONAL_RESULTSET_METADATA';
+  ConnProps_MYSQL_OPT_SSL_FIPS_MODE               = 'MYSQL_OPT_SSL_FIPS_MODE';
+  ConnProps_MYSQL_OPT_TLS_CIPHERSUITES            = 'MYSQL_OPT_TLS_CIPHERSUITES';
+  ConnProps_MYSQL_OPT_COMPRESSION_ALGORITHMS      = 'MYSQL_OPT_COMPRESSION_ALGORITHMS';
+  ConnProps_MYSQL_OPT_ZSTD_COMPRESSION_LEVEL      = 'MYSQL_OPT_ZSTD_COMPRESSION_LEVEL';
+  {MariaDB Connector specific }
+  ConnProps_MYSQL_DATABASE_DRIVER                 = 'MYSQL_DATABASE_DRIVER';
+  ConnProps_MARIADB_OPT_SSL_FP                    = 'MARIADB_OPT_SSL_FP';
+  ConnProps_MARIADB_OPT_SSL_FP_LIST               = 'MARIADB_OPT_SSL_FP_LIST';
+  ConnProps_MARIADB_OPT_TLS_PASSPHRASE            = 'MARIADB_OPT_TLS_PASSPHRASE';
+  ConnProps_MARIADB_OPT_TLS_CIPHER_STRENGTH       = 'MARIADB_OPT_TLS_CIPHER_STRENGTH';
+  ConnProps_MARIADB_OPT_TLS_VERSION               = 'MARIADB_OPT_TLS_VERSION';
+  ConnProps_MARIADB_OPT_TLS_PEER_FP               = 'MARIADB_OPT_TLS_PEER_FP';
+  ConnProps_MARIADB_OPT_TLS_PEER_FP_LIST          = 'MARIADB_OPT_TLS_PEER_FP_LIST';
+  ConnProps_MARIADB_OPT_CONNECTION_READ_ONLY      = 'MARIADB_OPT_CONNECTION_READ_ONLY';
+  ConnProps_MYSQL_OPT_CONNECT_ATTRS               = 'MYSQL_OPT_CONNECT_ATTRS';
+  ConnProps_MARIADB_OPT_USERDATA                  = 'MARIADB_OPT_USERDATA';
+  ConnProps_MARIADB_OPT_CONNECTION_HANDLER        = 'MARIADB_OPT_CONNECTION_HANDLER';
+  ConnProps_MARIADB_OPT_PORT                      = 'MARIADB_OPT_PORT';
+  ConnProps_MARIADB_OPT_UNIXSOCKET                = 'MARIADB_OPT_UNIXSOCKET';
+  ConnProps_MARIADB_OPT_PASSWORD                  = 'MARIADB_OPT_PASSWORD';
+  ConnProps_MARIADB_OPT_HOST                      = 'MARIADB_OPT_HOST';
+  ConnProps_MARIADB_OPT_USER                      = 'MARIADB_OPT_USER';
+  ConnProps_MARIADB_OPT_SCHEMA                    = 'MARIADB_OPT_SCHEMA';
+  ConnProps_MARIADB_OPT_DEBUG                     = 'MARIADB_OPT_DEBUG';
+  ConnProps_MARIADB_OPT_FOUND_ROWS                = 'MARIADB_OPT_FOUND_ROWS';
+  ConnProps_MARIADB_OPT_MULTI_RESULTS             = 'MARIADB_OPT_MULTI_RESULTS';
+  ConnProps_MARIADB_OPT_MULTI_STATEMENTS          = 'MARIADB_OPT_MULTI_STATEMENTS';
+  ConnProps_MARIADB_OPT_INTERACTIVE               = 'MARIADB_OPT_INTERACTIVE';
+  ConnProps_MARIADB_OPT_PROXY_HEADER              = 'MARIADB_OPT_PROXY_HEADER';
+  ConnProps_MARIADB_OPT_IO_WAIT                   = 'MARIADB_OPT_IO_WAIT';
 
   { Parameters that are for datasets and statements but could be set for connections
     (see comment above) }
@@ -382,9 +497,15 @@ const
   // So you can't use it within using metainformations or multiple active
   // resultsets!
   DSProps_UseResult = 'UseResult';
+  // Type: BOOLEAN
+  DSProps_MySQLUseDefaults = 'UseDefaults';
   // Type: INT
   // Sets STMT_ATTR_PREFETCH_ROWS option, refer to MySql manual for details
   DSProps_PrefetchRows = 'prefetch_rows';
+  // Type: INT
+  // Same as Statement.ChunkSize, size of chunks for retrieving/sending long data
+  // depends to your network speed
+  DSProps_ChunkSize = 'chunk_size'; //default is a very low value of 4KB
 {$ENDIF}
 
 {$IFDEF ENABLE_POSTGRESQL}
@@ -393,9 +514,6 @@ const
   // http://zeoslib.sourceforge.net/viewtopic.php?f=40&t=11174
   // http://http://zeoslib.sourceforge.net/viewtopic.php?p=16646&sid=130
   ConnProps_CheckFieldVisibility = 'CheckFieldVisibility';
-  // Type: BOOLEAN
-  // If not set, use cached table info
-  ConnProps_NoTableInfoCache = 'NoTableInfoCache';
   // Type: STR
   // Value used in 'SET standard_conforming_strings = <Value>' query on connect,
   // refer to Postgre manual for details
@@ -435,9 +553,13 @@ const
   // fetch row by row from Server -> do not cache the results in libpq
   DSProps_SingleRowMode = 'SingleRowMode';
   // Type: BOOLEAN
-  // force binary results to be retieved from server. supported since Protocol V3
-  // except libs like pgbouncer which have no pqexecparams/pqexecprepared
+  // force binary results to be retrieved from server. supported since Protocol
+  // V3 except libs like pgbouncer which have no pqexecparams/pqexecprepared
   DSProps_BinaryWireResultMode = 'BinaryWireResultMode';
+  /// <type>Integer</type>
+  /// <summary>Sets Listener interval in milliseconds.</summary>
+  /// <default>250</default>
+  ELProps_ListernerInterval = 'ListernerInterval';
 {$ENDIF}
 
 {$IF defined(ENABLE_INTERBASE) OR DEFINED(ENABLE_FIREBIRD)}
@@ -463,11 +585,26 @@ const
   // Type: STR, like Domain1[, Domain2, ...] (separators: "," or ";")
   // List of domains; if defined, fields of that domains will get GUID type
   ConnProps_GUIDDomains = 'GUIDDomains';
-  // Type: enum, <INET | WNET | XNET | LOCAL>
-  // can be used to define the firebird protocol to be used
-  // for FB 3.0 this will enable the construction of url style connection strings
-  // see firebird 3.0 release notes
+  /// <type>Enumerator</type>
+  /// <values>INET|WNET|XNET|LOCAL</values>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_FBProtocol]={value}</syntax>
+  /// <summary>can be used to define the firebird protocol to be used
+  /// for FB 3.0 this will enable the construction of url style connection
+  /// strings see firebird 3.0 release notes</summary>
   ConnProps_FBProtocol = 'fb_protocol';
+
+  /// <type>String</type>
+  /// <Associates>ConnProps_Characterset</Associates>
+  /// <protocols>firebird,interbase</protocols>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_Charset_NONE_Alias]={value}</syntax>
+  /// <summary>Specifies the character set "NONE" codepage to interact with
+  ///  driver.</summary>
+  /// <remarks>If you're accessing a CharacterSet "NONE" Firebird/Interbase
+  ///  database you should always use the CharacterSet "NONE" as connection
+  ///  characterset.</remarks>
+  ConnProps_Charset_NONE_Alias = 'Charset_NONE_Alias';
 
   { Parameters that are for datasets and statements but could be set for connections
     (see comment above) }
@@ -487,22 +624,126 @@ const
   // In addition, DB-level option affects things besides datasets.
   DSProps_SetGUIDByType = ConnProps_SetGUIDByType;
 
-  { In addition, all isc_dpb_* (connection level) and isc_tpb_* (transaction level)
-    parameters could be used as well, refer to Firebird manual for details.
-    isc_dpb_config parameter could be used to set several DB or connection options,
-    refer to https://firebirdsql.org/file/documentation/release_notes/html/en/3_0/rnfb30-fbconf.html
-    for available parameters and values }
-
-  { These parameters are analogs of general ones:
-      'isc_dpb_username'        = ConnProps_Username
-      'isc_dpb_password'        = ConnProps_Password
-      'isc_dpb_lc_ctype'        = ConnProps_CodePage
-      'isc_dpb_sql_role_name'   = ConnProps_Rolename
-      'isc_dpb_sql_dialect'     = ConnProps_Dialect
-      'isc_dpb_connect_timeout' = ConnProps_Timeout }
-
+  ConnProps_isc_dpb_page_size               = 'isc_dpb_page_size';
+  ConnProps_isc_dpb_num_buffers             = 'isc_dpb_num_buffers';
+  ConnProps_isc_dpb_debug                   = 'isc_dpb_debug';
+  ConnProps_isc_dpb_garbage_collect         = 'isc_dpb_garbage_collect';
+  ConnProps_isc_dpb_verify                  = 'isc_dpb_verify';
+  ConnProps_isc_dpb_sweep                   = 'isc_dpb_sweep';
+  ConnProps_isc_dpb_enable_journal          = 'isc_dpb_enable_journal';
+  ConnProps_isc_dpb_disable_journal         = 'isc_dpb_disable_journal';
+  ConnProps_isc_dpb_dbkey_scope             = 'isc_dpb_dbkey_scope';
+  ConnProps_isc_dpb_trace                   = 'isc_dpb_trace';
+  ConnProps_isc_dpb_no_garbage_collect      = 'isc_dpb_no_garbage_collect';
+  ConnProps_isc_dpb_damaged                 = 'isc_dpb_damaged';
+  ConnProps_isc_dpb_license                 = 'isc_dpb_license';
+  ConnProps_isc_dpb_sys_user_name           = 'isc_dpb_sys_user_name';
+  ConnProps_isc_dpb_encrypt_key             = 'isc_dpb_encrypt_key';
+  ConnProps_isc_dpb_activate_shadow         = 'isc_dpb_activate_shadow';
+  ConnProps_isc_dpb_sweep_interval          = 'isc_dpb_sweep_interval';
+  ConnProps_isc_dpb_delete_shadow           = 'isc_dpb_delete_shadow';
+  ConnProps_isc_dpb_force_write             = 'isc_dpb_force_write';
+  ConnProps_isc_dpb_begin_log               = 'isc_dpb_begin_log';
+  ConnProps_isc_dpb_quit_log                = 'isc_dpb_quit_log';
+  ConnProps_isc_dpb_no_reserve              = 'isc_dpb_no_reserve';
+  ConnProps_isc_dpb_user_name               = 'isc_dpb_user_name';
+  ConnProps_isc_dpb_password                = 'isc_dpb_password';
+  ConnProps_isc_dpb_password_enc            = 'isc_dpb_password_enc';
+  ConnProps_isc_dpb_sys_user_name_enc       = 'isc_dpb_sys_user_name_enc';
+  ConnProps_isc_dpb_interp                  = 'isc_dpb_interp';
+  ConnProps_isc_dpb_online_dump             = 'isc_dpb_online_dump';
+  ConnProps_isc_dpb_old_file_size           = 'isc_dpb_old_file_size';
+  ConnProps_isc_dpb_old_num_files           = 'isc_dpb_old_num_files';
+  ConnProps_isc_dpb_old_file                = 'isc_dpb_old_file';
+  ConnProps_isc_dpb_old_start_page          = 'isc_dpb_old_start_page';
+  ConnProps_isc_dpb_old_start_seqno         = 'isc_dpb_old_start_seqno';
+  ConnProps_isc_dpb_old_start_file          = 'isc_dpb_old_start_file';
+  ConnProps_isc_dpb_drop_walfile            = 'isc_dpb_drop_walfile';
+  ConnProps_isc_dpb_old_dump_id             = 'isc_dpb_old_dump_id';
+  ConnProps_isc_dpb_wal_backup_dir          = 'isc_dpb_wal_backup_dir';
+  ConnProps_isc_dpb_wal_chkptlen            = 'isc_dpb_wal_chkptlen';
+  ConnProps_isc_dpb_wal_numbufs             = 'isc_dpb_wal_numbufs';
+  ConnProps_isc_dpb_wal_bufsize             = 'isc_dpb_wal_bufsize';
+  ConnProps_isc_dpb_wal_grp_cmt_wait        = 'isc_dpb_wal_grp_cmt_wait';
+  ConnProps_isc_dpb_lc_messages             = 'isc_dpb_lc_messages';
+  ConnProps_isc_dpb_lc_ctype                = 'isc_dpb_lc_ctype';
+  ConnProps_isc_dpb_shutdown                = 'isc_dpb_shutdown';
+  ConnProps_isc_dpb_online                  = 'isc_dpb_online';
+  ConnProps_isc_dpb_shutdown_delay          = 'isc_dpb_shutdown_delay';
+  ConnProps_isc_dpb_reserved                = 'isc_dpb_reserved';
+  ConnProps_isc_dpb_overwrite               = 'isc_dpb_overwrite';
+  ConnProps_isc_dpb_sec_attach              = 'isc_dpb_sec_attach';
+  ConnProps_isc_dpb_disable_wal             = 'isc_dpb_disable_wal';
+  ConnProps_isc_dpb_connect_timeout         = 'isc_dpb_connect_timeout';
+  ConnProps_isc_dpb_dummy_packet_interval   = 'isc_dpb_dummy_packet_interval';
+  ConnProps_isc_dpb_gbak_attach             = 'isc_dpb_gbak_attach';
+  ConnProps_isc_dpb_sql_role_name           = 'isc_dpb_sql_role_name';
+  ConnProps_isc_dpb_set_page_buffers        = 'isc_dpb_set_page_buffers';
+  ConnProps_isc_dpb_working_directory       = 'isc_dpb_working_directory';
+  ConnProps_isc_dpb_sql_dialect             = 'isc_dpb_sql_dialect';
+  ConnProps_isc_dpb_set_db_readonly         = 'isc_dpb_set_db_readonly';
+  ConnProps_isc_dpb_set_db_sql_dialect      = 'isc_dpb_set_db_sql_dialect';
+  ConnProps_isc_dpb_gfix_attach             = 'isc_dpb_gfix_attach';
+  ConnProps_isc_dpb_gstat_attach            = 'isc_dpb_gstat_attach';
+  ConnProps_isc_dpb_set_db_charset          = 'isc_dpb_set_db_charset';
+  ConnProps_isc_dpb_gsec_attach             = 'isc_dpb_gsec_attach';
+  ConnProps_isc_dpb_address_path            = 'isc_dpb_address_path';
+  ConnProps_isc_dpb_process_id              = 'isc_dpb_process_id';
+  ConnProps_isc_dpb_no_db_triggers          = 'isc_dpb_no_db_triggers';
+  ConnProps_isc_dpb_trusted_auth            = 'isc_dpb_trusted_auth';
+  ConnProps_isc_dpb_process_name            = 'isc_dpb_process_name';
+  ConnProps_isc_dpb_trusted_role            = 'isc_dpb_trusted_role';
+  ConnProps_isc_dpb_org_filename            = 'isc_dpb_org_filename';
+  ConnProps_isc_dpb_utf8_filename           = 'isc_dpb_utf8_filename';
+  ConnProps_isc_dpb_ext_call_depth          = 'isc_dpb_ext_call_depth';
+  ConnProps_isc_dpb_auth_block              = 'isc_dpb_auth_block';
+  ConnProps_isc_dpb_client_version          = 'isc_dpb_client_version';
+  ConnProps_isc_dpb_remote_protocol         = 'isc_dpb_remote_protocol';
+  ConnProps_isc_dpb_host_name               = 'isc_dpb_host_name';
+  ConnProps_isc_dpb_os_user                 = 'isc_dpb_os_user';
+  ConnProps_isc_dpb_specific_auth_data      = 'isc_dpb_specific_auth_data';
+  ConnProps_isc_dpb_auth_plugin_list        = 'isc_dpb_auth_plugin_list';
+  ConnProps_isc_dpb_auth_plugin_name        = 'isc_dpb_auth_plugin_name';
+  ConnProps_isc_dpb_config                  = 'isc_dpb_config';
+  ConnProps_isc_dpb_nolinger                = 'isc_dpb_nolinger';
+  ConnProps_isc_dpb_reset_icu               = 'isc_dpb_reset_icu';
+  ConnProps_isc_dpb_map_attach              = 'isc_dpb_map_attach';
+  ConnProps_isc_dpb_session_time_zone       = 'isc_dpb_session_time_zone';
+  ConnProps_isc_dpb_set_db_replica          = 'isc_dpb_set_db_replica';
+  ConnProps_isc_dpb_set_bind                = 'isc_dpb_set_bind';
+  ConnProps_isc_dpb_decfloat_round          = 'isc_dpb_decfloat_round';
+  ConnProps_isc_dpb_decfloat_traps          = 'isc_dpb_decfloat_traps';
   { Some of the isc_tpb_* parameters are added internally according to
     Connection.TransactIsolationLevel property }
+  // Type: NONE
+  TxnProps_isc_tpb_consistency              = 'isc_tpb_consistency';
+  TxnProps_isc_tpb_concurrency              = 'isc_tpb_concurrency';
+  TxnProps_isc_tpb_shared                   = 'isc_tpb_shared';
+  TxnProps_isc_tpb_protected                = 'isc_tpb_protected';
+  TxnProps_isc_tpb_exclusive                = 'isc_tpb_exclusive';
+  TxnProps_isc_tpb_wait                     = 'isc_tpb_wait';
+  TxnProps_isc_tpb_nowait                   = 'isc_tpb_nowait';
+  TxnProps_isc_tpb_read                     = 'isc_tpb_read';
+  TxnProps_isc_tpb_write                    = 'isc_tpb_write';
+  // Type: String
+  TxnProps_isc_tpb_lock_read                = 'isc_tpb_lock_read';
+  TxnProps_isc_tpb_lock_write               = 'isc_tpb_lock_write';
+  //not implemented
+  TxnProps_isc_tpb_verb_time                = 'isc_tpb_verb_time';
+  TxnProps_isc_tpb_commit_time              = 'isc_tpb_commit_time';
+  //Type: None
+  TxnProps_isc_tpb_ignore_limbo             = 'isc_tpb_ignore_limbo';
+  TxnProps_isc_tpb_read_committed           = 'isc_tpb_read_committed';
+  TxnProps_isc_tpb_autocommit               = 'isc_tpb_autocommit';
+  TxnProps_isc_tpb_rec_version              = 'isc_tpb_rec_version';
+  TxnProps_isc_tpb_no_rec_version           = 'isc_tpb_no_rec_version';
+  TxnProps_isc_tpb_restart_requests         = 'isc_tpb_restart_requests';
+  TxnProps_isc_tpb_no_auto_undo             = 'isc_tpb_no_auto_undo';
+  TxnProps_isc_tpb_no_savepoint             = 'isc_tpb_no_savepoint';
+  //Type: Int
+  TxnProps_isc_tpb_lock_timeout             = 'isc_tpb_lock_timeout';
+  //Type: None
+  TxnProps_isc_tpb_read_consistency         = 'isc_tpb_read_consistency';
 {$IFEND}
 
 {$IFDEF ENABLE_FIREBIRD}
@@ -512,6 +753,20 @@ const
   // Type: INT
   // Execution timeout in seconds
   ConnProps_StatementTimeOut = DSProps_StatementTimeOut;
+  /// <type>Enum</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_FirebirdAPI]={legacy|interface}</syntax>
+  /// <values>legacy|interface</syntax>
+  /// <summary>
+  ///  defines the Firebird API which is used used for. The default for firebird
+  ///  3+ is object API. If "legacy" is set the old firebird legacy API is used.
+  /// </summary>
+  /// <default>interface</default>
+  /// <remarks>
+  ///  If the library version is lower then 3.0 the parameter is ignored
+  ///  and the legacy API is always used
+  /// </remarks>
+  ConnProps_FirebirdAPI = 'FirebirdAPI';
 {$ENDIF ENABLE_FIREBIRD}
 
 {$IFDEF ENABLE_SQLITE}
@@ -543,13 +798,37 @@ const
   // see sqlite manuals
   // if Value is 'EXCLUSIVE' we're assuming you want emulate a ReadCommitted transaction
   // which blocks read transactions while the transaction is underway
-  DSProps_TransactionBehaviour = 'TransactionBehaviour';
+  TxnProps_TransactionBehaviour = 'TransactionBehaviour';
+  /// <type>Enum</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[DSProps_SQLiteIntAffinity]={False|True}</syntax>
+  /// <values>true|False</values>
+  /// <summary>
+  ///  Treat "INT" fields in any kind as Int64, means ignore all subtypes like
+  ///  [smallint, int32, MEDIUMINT]</summary>
+  /// <default>False</default>
+  DSProps_SQLiteIntAffinity = 'SQLiteIntAffinity';
+  /// <type>Integer</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_SQLiteOpenFlags]=value</syntax>
+  /// <values>are defined in ZPlainSqLiteDriver.pas</values>
+  /// <summary>see: https://www.sqlite.org/c3ref/open.html</summary>
+  ConnProps_SQLiteOpen_Flags = 'SQLiteOpen_Flags';
+  /// <type>String</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_SQLiteOpen_zVfs]=value</syntax>
+  /// <summary>see: https://www.sqlite.org/c3ref/open.html</summary>
+  ConnProps_SQLiteOpen_zVfs = 'SQLiteOpen_zVfs';
 {$ENDIF}
 
 {$IFDEF ENABLE_ORACLE}
   // Type: BOOLEAN
   // If enabled or not specified, sets StatementMode to OCI_STMT_CACHE (refer to Oracle manual for details)
   ConnProps_ServerCachedStmts = 'ServerCachedStmts';
+
+  // Type: INT
+  // Sets value for OCI_ATTR_DEFAULT_LOBPREFETCH_SIZE option, refer to Oracle manual for details
+  ConnProps_BlobPrefetchSize = 'BlobPrefetchSize';
   // Type: INT
   // Sets value for OCI_ATTR_STMTCACHESIZE option, refer to Oracle manual for details
   ConnProps_StatementCache = 'StatementCache';
@@ -560,6 +839,34 @@ const
   // Type: INT
   // Sets value for OCI_ATTR_PREFETCH_MEMORY option, refer to Oracle manual for details
   DSProps_RowPrefetchSize = 'row_prefetch_size';
+
+  /// <type>Int</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_OCIAuthenticateMode]=mode</syntax>
+  /// <summary>
+  ///  Specifies the various modes of operation.
+  ///  The constants are defined in ZPlainOracleDriver.pas
+  /// </summary>
+  /// <remarks>
+  ///  Valid modes are:
+  ///  OCI_DEFAULT - in this mode, the user session context returned may only ever be set with the same server context specified in svchp. For encoding, the server handle uses the setting in the environment handle.
+  ///  OCI_MIGRATE - in this mode, the new user session context may be set in a service handle with a different server handle. This mode establishes the user session context. To create a migratable session, the service handle must already be set with a non-migratable user session, which becomes the "creator" session of the migratable session. That is, a migratable session must have a non-migratable parent session.
+  ///  OCI_SYSDBA - in this mode, the user is authenticated for SYSDBA access.
+  ///  OCI_SYSOPER - in this mode, the user is authenticated for SYSOPER access.
+  ///  OCI_PRELIM_AUTH - this mode may only be used with OCI_SYSDBA or OCI_SYSOPER to authenticate for certain administration tasks.
+  /// </remarks>
+  ConnProps_OCIAuthenticateMode = 'OCIAuthenticateMode';
+
+  /// <type>Boolean</type>
+  /// <usage>Connection</usage>
+  /// <syntax>Properties.Values[ConnProps_OCIMultiThreaded]=True/False</syntax>
+  /// <summary>
+  ///  If set to true, OCI_THREADED will also be used for initializing the connection environment
+  /// </summary>
+  /// <remarks>
+  ///  If set to true, OCI_THREADED will also be used for initializing the connection environment
+  /// </remarks>
+  ConnProps_OCIMultiThreaded = 'OCIMultiThreaded';
 {$ENDIF}
 
 {$IFDEF ENABLE_ASA}
@@ -572,9 +879,7 @@ const
   ConnProps_ASTART = 'ASTART';
   ConnProps_AutoStop = 'AutoStop';
   ConnProps_ASTOP = 'ASTOP';
-  {$IFNDEF ENABLE_ODBC}
   ConnProps_CharSet = 'CharSet';
-  {$ENDIF}
   ConnProps_CS = 'CS';
   ConnProps_CommBufferSize = 'CommBufferSize';
   ConnProps_CBSIZE = 'CBSIZE';
@@ -646,17 +951,12 @@ const
   ConnProps_RetryConnectionTimeout = 'RetryConnectionTimeout';
   ConnProps_RetryConnTO = 'RetryConnTO';
   ConnProps_ServerName = 'ServerName';
-  ConnProps_Server = 'Server';
   ConnProps_StartLine = 'StartLine';
   ConnProps_START = 'START';
   ConnProps_Unconditional = 'Unconditional';
   ConnProps_UNC = 'UNC';
   { Parameters that are for datasets and statements but could be set for connections
     (see comment above) }
-
-  // Type: BOOLEAN
-  // ?
-  DSProps_CachedBlob = 'CachedBlob';
 {$ENDIF}
 
 {$IFDEF ENABLE_OLEDB}
@@ -675,15 +975,30 @@ const
 {$ENDIF}
 
 {$IFDEF ENABLE_ODBC}
-  // Type: STR, like CP_UTF8
-  // Codepage to use (same as ConnProps_CodePage)
-  ConnProps_Charset = 'characterset';
   // Type: SQL_DRIVER_COMPLETE | SQL_DRIVER_PROMPT | SQL_DRIVER_COMPLETE_REQUIRED
   // Refer to ODBC manual for details
   ConnProps_DriverCompletion = 'DriverCompletion';
   // Type: BOOLEAN
   // If set, more info about columns will be retrieved
   DSProps_EnhancedColumnInfo = 'enhanced_column_info';
+  /// <summary>Defines the driver as a String. This property is used
+  ///  for the ODBC connection only. Example:
+  ///  Properties.Values[ConnProps_DRIVER]={SQL Server Native Client 11.0}</summary>
+  ConnProps_DRIVER = 'DRIVER';
+  /// <summary>Defines the server as a String. This property is used
+  ///  for the ODBC connection only. Example:
+  ///  Properties.Values[ConnProps_Server]=(localdb)\ZeosLib</summary>
+  ConnProps_Server = 'Server';
+{$ENDIF}
+
+{$IFNDEF ZEOS_DISABLE_PROXY}
+  /// <summary>
+  ///   Type: &lt;http | https&gt;
+  ///   Defines which protocol the Webservicde Proxy driver uses for connecting to the server.
+  ///   If empty, https will be used.
+  ///   Behavior is undefined if an undefined value is set.
+  /// </summary>
+  ConnProps_ProxyProtocol = 'ProxyProtocol';
 {$ENDIF}
 
 {$IFDEF ENABLE_POOLED}

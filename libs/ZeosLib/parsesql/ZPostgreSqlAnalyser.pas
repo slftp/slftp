@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -55,8 +55,12 @@ interface
 
 {$I ZParseSql.inc}
 
-{$IFNDEF ZEOS_DISABLE_POSTGRESQL}
+{$IF defined(ZEOS_DISABLE_POSTGRESQL) and defined (ZEOS_DISABLE_OLEDB) and
+  defined (ZEOS_DISABLE_ADO) and defined(ZEOS_DISABLE_ODBC) and defined(ZEOS_DISABLE_PROXY)}
+  {$DEFINE EMPTY_ZPostgreSqlAnalyser}
+{$IFEND}
 
+{$IFNDEF EMPTY_ZPostgreSqlAnalyser}
 uses Classes, ZGenericSqlAnalyser;
 
 type
@@ -67,9 +71,9 @@ type
     constructor Create;
   end;
 
-{$ENDIF ZEOS_DISABLE_POSTGRESQL}
+{$ENDIF EMPTY_ZPostgreSqlAnalyser}
 implementation
-{$IFNDEF ZEOS_DISABLE_POSTGRESQL}
+{$IFNDEF EMPTY_ZPostgreSqlAnalyser}
 
 const
   {** The generic constants.}
@@ -102,5 +106,5 @@ begin
   FromClauses := ArrayToStrings(PostgreSQLFromClauses);
 end;
 
-{$ENDIF ZEOS_DISABLE_POSTGRESQL}
+{$ENDIF EMPTY_ZPostgreSqlAnalyser}
 end.

@@ -1,1 +1,7 @@
-r6681 testing-7.3 branch
+6131c4beb3d5987ef1a8df572192bb8dceb2066c
+Merged revision(s) 7692 from trunk:
+By AEHimself: Fix for ORA-24347 + log ORA-24347 warnings, if there were any
+........
+
+
+## Original repository is located at https://sourceforge.net/projects/zeoslib/ ##
