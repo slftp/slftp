@@ -17,6 +17,9 @@ type
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     procedure AddIdleTask(s: TSiteSlot);
     procedure AddQuitTask(s: TSiteSlot);
+    { Removes a race task if one already exists at the destination with the associated dirname and file of the given race task
+       @param(aRaceTask single race task picked from the complete task list by the main TQueueThread execution)
+    }
     procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
   end;
 
@@ -1294,15 +1297,61 @@ begin
   end;
 end;
 
+procedure RemoveDependencies(t: TTask);
+var
+  i, j: integer;
+  tt: TTask;
+begin
+  try
+    for i := tasks.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tasks.Count): %s', [e.Message]));
+          Break;
+        end;
+      end;
+      try
+        tt := TTask(tasks.items[i]);
 
+        if tt = nil then
+          Continue;
+
+        j := tt.dependencies.IndexOf(t.UidText);
+        if j <> -1 then
+        begin
+          tt.dependencies.Delete(j);
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tt.dependencies.Delete): %s', [e.Message]));
+          Continue;
+        end;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
+      exit;
+    end;
+  end;
+end;
 
 procedure TQueueThread.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 var
-  i:  integer;
+  i: Integer;
 begin
-  i  := aRaceTask.ps2.activeTransfers.IndexOf(aRaceTask.dir + aRaceTask.filename);
+  i := aRaceTask.ps2.activeTransfers.IndexOf(aRaceTask.dir + aRaceTask.filename);
   if i <> -1 then
+  begin
     aRaceTask.ps2.activeTransfers.Delete(i);
+  end;
 end;
 
 procedure TQueueThread.Execute;

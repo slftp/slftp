@@ -1632,12 +1632,12 @@ begin
 
       if svalue = -1 then
       begin
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
       end
       else if ((svalue = 1) or (svalue = 0)) then
       begin
-        ss.UseForNFOdownload := svalue;
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+        ss.UseForNFOdownload := TUseForNfoDownload(svalue);
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
       end
       else
         irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
@@ -1655,12 +1655,12 @@ begin
 
     if svalue = -1 then
     begin
-      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
     end
     else if ((svalue = 1) or (svalue = 0)) then
     begin
-      ss.UseForNFOdownload := svalue;
-      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      ss.UseForNFOdownload := TUseForNfoDownload(svalue);
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
     end
     else
       irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
