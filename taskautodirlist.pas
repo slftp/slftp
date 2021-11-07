@@ -342,7 +342,7 @@ begin
       if not s.Dirlist(sectiondir, True) then // daydir might have change
       begin
         readyerror := True;
-        irc_Addadmin(Format('%s: AUTODIRLIST unable to get dirlist for section %s (%s)', [s.site.Name, section, sectiondir]));
+        irc_Adderror(Format('<c4>[ERROR AUTODIRLIST]</c> %s: unable to get dirlist for section %s (%s)', [s.Name, section, sectiondir]));
         continue;
       end;
 
