@@ -6,4 +6,4 @@ const
   (* libraries *)
   lib_OpenSSL: string = '1.1.1';
   lib_Ncurses: string = 'ncurses 5.5.';
-  lib_SQLite3: string = '3.30';
+  lib_SQLite3: string = '3.35';
