@@ -1,4 +1,2 @@
-5b88076683b278037f824b91f9c59c821a634fc8
-Merge pull request #237 from Alexey-T/master
-
-allow '\_'
+9272f73d46baeec75febc25ee41a0b17d17ed675
+Merge pull request #257 from dbcto/master
