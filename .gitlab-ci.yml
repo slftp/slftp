@@ -157,7 +157,7 @@ upload-package-files:
     PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic"
   before_script:
     # Install needed dependencies
-    - apk add --no-cache git curl zip unzip openssh-client ca-certificates
+    - apk add --no-cache grep git curl zip unzip openssh-client ca-certificates
     # save environment variables also for release stage
     # get current version
     - echo "VERSION=$(awk '/SL_VERSION:/{print $NF}' slftp.inc | grep -oP '\d\.\d\.\d\w?\d?')" >> build.env
