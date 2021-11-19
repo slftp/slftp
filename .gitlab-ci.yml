@@ -56,6 +56,7 @@ buildwin64-development:
       # included file
       - slftp_x64-${CI_COMMIT_SHORT_SHA}
   tags:
+    - linux
     - docker
 
 buildlinux64-release:
@@ -100,6 +101,7 @@ testlinux64:
   script:
     - make test
   tags:
+    - linux
     - docker
 
 ### sourcecode documentation stage ###
@@ -124,6 +126,7 @@ src-docs:
   script:
     - pasdoc --format html --write-uses-list --output src-docs irccommands/*.pas *.pas slftp.lpr
   tags:
+    - linux
     - docker
 
 pages:
@@ -147,11 +150,14 @@ pages:
 
 upload-package-files:
   stage: upload
+  image: alpine:latest
   rules:
     - if: $CI_COMMIT_TAG
   variables:
     PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic"
   before_script:
+    # Install needed dependencies
+    - apk add --no-cache git curl zip unzip openssh-client ca-certificates
     # save environment variables also for release stage
     # get current version
     - echo "VERSION=$(awk '/SL_VERSION:/{print $NF}' slftp.inc | grep -oP '\d\.\d\.\d\w?\d?')" >> build.env
@@ -226,7 +232,7 @@ upload-package-files:
     - |
      rm -f mysqlwin64.zip
     - |
-     wget https://downloads.mariadb.org/f/mariadb-10.5.9/winx64-packages/mariadb-10.5.9-winx64.zip?serve -O mariadbwin64.zip
+     curl -s https://archive.mariadb.org/mariadb-10.5.13/winx64-packages/mariadb-10.5.13-winx64.zip -o mariadbwin64.zip
     - |
      unzip -p mariadbwin64.zip */lib/libmariadb.dll > dist/libmariadb.dll
     - |
@@ -256,6 +262,7 @@ upload-package-files:
       dotenv: build.env
   tags:
     - linux
+    - docker
 
 release:
   stage: release
@@ -279,4 +286,5 @@ release:
       --assets-link "{\"name\":\"${SLHELPFILES}\",\"url\":\"${PACKAGE_URL}/${SLHELPFILES}\"}"
       --assets-link "{\"name\":\"${SLPACKAGE}\",\"url\":\"${PACKAGE_URL}/${SLPACKAGE}\"}"
   tags:
+    - linux
     - docker
