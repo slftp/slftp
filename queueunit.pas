@@ -701,7 +701,7 @@ begin
           if not sso then
           begin
             ss := TSiteSlot(s.slots[i]);
-            if ss.status = ssOnline then
+            if ((ss.status = ssOnline) OR (ss.site.Name = 'SLFTP')) then
               sso := True;
           end;
         end;
