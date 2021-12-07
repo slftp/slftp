@@ -1,4 +1,3 @@
-2b96fca9001c5a38a6193f13b5e7bc63ecf87690
-Merge pull request #104 from yonojoy/master
-
-support for XE4 for third-party SynTaskDialog4Lazarus
+ba965121778aa8744f22449bec2667edf4b6d218
+new twoDateTimeWithZ option
+to append an ending 'Z' to TDateTime/TDateTimeMS values

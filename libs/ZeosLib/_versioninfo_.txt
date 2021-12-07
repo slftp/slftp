@@ -1,1 +1,5 @@
-r6681 testing-7.3 branch
+ea3e997d727eec7ecda51c327857e026b1667fba
+Add MSOLEDBSQL to the known OLEDB driver list. See https://zeoslib.sourceforge.io/viewtopic.php?f=48&t=148066
+
+
+## Original repository is located at https://sourceforge.net/projects/zeoslib/ ##
