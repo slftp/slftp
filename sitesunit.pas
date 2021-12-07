@@ -80,6 +80,13 @@ type
   }
   TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2);
 
+  {
+  @value(ufnDisabled NFO download disabled)
+  @value(ufnEnabled NFO download enabled)
+  @value(ufnAutoDisabled NFO download automatically disabled by slftp due to problems (some SSL or out of credits))
+  }
+  TUseForNfoDownload = (ufnDisabled = 0, ufnEnabled = 1, ufnAutoDisabled = 2);
+
   TSite = class; // forward
 
   { @abstract(Object which holds all the slot information for a single slot of a @link(TSite)) }
@@ -311,8 +318,8 @@ type
     { procedure for @link(Ident) property to write ident to inifile }
     procedure SetSiteIdent(const Value: String);
 
-    function GetUseForNFOdownload: integer;
-    procedure SetUseForNFOdownload(Value: integer);
+    function GetUseForNFOdownload: TUseForNfoDownload;
+    procedure SetUseForNFOdownload(const Value: TUseForNfoDownload);
 
     { function for @link(SkipBeingUploadedFiles) property to read skip being uploaded files config value from inifile }
     function GetSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -511,7 +518,7 @@ type
     property sslfxp: TSSLReq read Getsslfxp write Setsslfxp; //< indicates support of Site to Site SSL, see @link(TSSLReq)
     property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
 
-    property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
+    property UseForNFOdownload: TUseForNfoDownload read GetUseForNFOdownload write SetUseForNFOdownload;
     property SkipBeingUploadedFiles: TSkipBeingUploaded read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
@@ -2325,7 +2332,7 @@ begin
       if not idTCP.TurnToSSL(site.io_timeout * 1000) then
       begin
         irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
-        site.UseForNFOdownload := 2; // TODO: rename me
+        site.UseForNFOdownload := ufnAutoDisabled;
         DestroySocket(False);
         Result := -1;
         exit;
@@ -2659,6 +2666,9 @@ begin
       sstUp:
         begin
           irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
+
+          if UseForNfoDownload = ufnAutoDisabled then
+            UseForNfoDownload := ufnEnabled;
 
           if AutoNukeInterval <> 0 then
             AutoNuke;
@@ -3927,17 +3937,14 @@ begin
   WCString('ident_response', Value);
 end;
 
-function TSite.GetUseForNFOdownload: integer;
+function TSite.GetUseForNFOdownload: TUseForNfoDownload;
 begin
-  // 0 means disabled
-  // 1 means enabled
-  // 2 means automatically disabled by slftp due to problems (some SSL or out of credits)
-  Result := RCInteger('usefornfodownload', 1);
+  Result := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
 end;
 
-procedure TSite.SetUseForNFOdownload(Value: integer);
+procedure TSite.SetUseForNFOdownload(const Value: TUseForNfoDownload);
 begin
-  WCInteger('usefornfodownload', Value);
+  WCInteger('usefornfodownload', Ord(Value));
 end;
 
 function TSite.GetSkipBeingUploadedFiles: TSkipBeingUploaded;

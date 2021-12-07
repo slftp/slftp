@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -67,7 +67,7 @@ uses
 
 type
 
-  {** Implements Abstract Database Driver. }
+  /// <summary>Implements an abstract Database Driver object. </summary>
   TZAbstractDriver = class(TInterfacedObject, IZDriver)
   protected
     FCachedPlainDrivers: IZHashMap;
@@ -75,30 +75,95 @@ type
     procedure AddSupportedProtocol(const AProtocol: String);
     function AddPlainDriverToCache(const PlainDriver: IZPlainDriver; const Protocol: string = ''; const LibLocation: string = ''): String;
     function GetPlainDriverFromCache(const Protocol, LibLocation: string): IZPlainDriver;
+    /// <summary>Gets plain driver for selected protocol.</summary>
+    /// <param>"url" the URL of the driver.</param>
+    /// <returns>a selected plaindriver interface.</returns>
     function GetPlainDriver(const Url: TZURL; const InitDriver: Boolean = True): IZPlainDriver; virtual;
   public
+    /// <summary>Constructs this object with default properties.</summary>
     constructor Create; virtual;
+    /// <summary>Destroys this object and cleanups the memory.</summary>
     destructor Destroy; override;
-
+    /// <summary>Get an array of protocols supported by the driver.</summary>
+    /// <returns>an array of protocol names.</returns>
     function GetSupportedProtocols: TStringDynArray;
+    /// <summary>Get an array of character sets supported by the driver.</summary>
+    /// <returns>an array of character set names.</returns>
     function GetClientCodePages(const Url: TZURL): TStringDynArray;
+    /// <summary>Attempts to create a database connection to the given URL.
+    ///  The driver should return "null" if it realizes it is the wrong kind
+    ///  of driver to connect to the given URL. This will be common, as when
+    ///  the zeos driver manager is asked to connect to a given URL it passes
+    ///  the URL to each loaded driver in turn.
+    ///  The driver should raise a EZSQLException if it is the right
+    ///  driver to connect to the given URL, but has trouble loading the
+    ///  library.</summary>
+    /// <param>"url" the connection url to find the Driver.</param>
+    /// <param>"Info" a Connection parameter list.</param>
+    /// <returns>a <c>IZConnection</c> interface that represents a
+    ///  connection to the URL</returns>
     function Connect(const Url: string; Info: TStrings = nil): IZConnection; overload;// deprecated;
+    /// <summary>Attempts to create a database connection to the given URL.
+    ///  The driver should return "null" if it realizes it is the wrong kind
+    ///  of driver to connect to the given URL. This will be common, as when
+    ///  the zeos driver manager is asked to connect to a given URL it passes
+    ///  the URL to each loaded driver in turn.
+    ///  The driver should raise a SQLException if it is the right
+    ///  driver to connect to the given URL, but has trouble loading the
+    ///  library. </summary>
+    ///  <param> url the TZURL Object used to find the Driver, it's library and
+    ///    assigns the connection properties.</param>
+    ///  <returns> a <c>IZConnection</c> interface that represents a
+    ///    connection to the URL</returns>
     function Connect(const {%H-}Url: TZURL): IZConnection; overload; virtual;
+    /// <summary>Returns true if the driver thinks that it can open a connection
+    ///  to the given URL.  Typically drivers will return true if they
+    ///  understand the subprotocol specified in the URL and false if they
+    ///  don't.</summary>
+    /// <param>"url" the URL of the database</param>
+    /// <returns>true if this driver can connect to the given URL.</returns>
     function AcceptsURL(const Url: string): Boolean; virtual;
-
+    /// <summary>Gets information about the possible properties for this driver.
+    ///  The getPropertyInfo method is intended to allow a generic GUI tool to
+    ///  discover what properties it should prompt a human for in order to get
+    ///  enough information to connect to a database.  Note that depending on
+    ///  the values the human has supplied so far, additional values may become
+    ///  necessary, so it may be necessary to iterate though several calls
+    ///  to getPropertyInfo.</summary>
+    /// <param>"url" the URL of the database to which to connect.</param>
+    /// <param>"info" a proposed list of tag/value pairs that will be sent on
+    ///  connect open.</param>
+    /// <returns>an array of DriverPropertyInfo objects describing possible
+    ///  properties.  This array may be an empty array if no properties
+    ///  are required.</returns>
     function GetPropertyInfo(const {%H-}Url: string; {%H-}Info: TStrings): TStrings; virtual;
+    /// <summary>Gets the driver's major version number. Initially this should
+    ///  be 1.</summary>
+    /// <returns>this driver's major version number.</returns>
     function GetMajorVersion: Integer; virtual;
+    /// <summary>Gets the driver's minor version number. Initially this should
+    ///  be 0.</summary>
+    /// <returns>this driver's minor version number.</returns>
     function GetMinorVersion: Integer; virtual;
+    /// <summary>Gets the driver's sub version (revision) number. Initially
+    ///  this should be 0.</summary>
+    /// <returns>this driver's minor version number.</returns>
     function GetSubVersion: Integer; virtual;
+    /// <summary>Creates a generic tokenizer object.</summary>
+    /// <returns>a created generic tokenizer object as interface.</returns>
     function GetTokenizer: IZTokenizer; virtual;
+    /// <summary>Creates a generic statement analyser object.</summary>
+    /// <returns>a created generic tokenizer object as interface.</returns>
     function GetStatementAnalyser: IZStatementAnalyser; virtual;
+    /// <summary>Returns the version of the plain driver library that will be
+    ///  used to open a connection to the given URL.</summary>
+    /// <param>"url" the URL of the databaseparam</param>
+    /// <returns>the version number of the plain driver library for the give
+    ///  URL.</returns>
     function GetClientVersion(const {%H-}Url: string): Integer; virtual;
   end;
 
-  {** Implements Abstract Database Connection. }
-
-  { TZAbstractDbcConnection }
-
+  /// <summary>Implements an abstract Database Connection object</summary>
   TZAbstractDbcConnection = class(TZImmediatelyReleasableObject, IImmediatelyReleasable)
   private
     FOnConnectionLostError: TOnConnectionLostError; //error handle which can be registered
@@ -112,7 +177,9 @@ type
     FURL: TZURL;
     FUseMetadata: Boolean;
     FClientVarManager: IZClientVariantManager;
-    fRegisteredStatements: {$IFDEF TLIST_IS_DEPRECATED}TZSortedList{$ELSE}TList{$ENDIF}; //weak reference to pending stmts
+    fRegisteredStatements: TZSortedList; //weak reference to pending stmts
+    fAddLogMsgToExceptionOrWarningMsg: Boolean;
+    fRaiseWarnings: Boolean;
     function GetHostName: string;
     procedure SetHostName(const Value: String);
     function GetPort: Integer;
@@ -127,28 +194,53 @@ type
   protected
     FByteBuffer: TByteBuffer; //have a static buffer for any conversion oslt
     fWeakReferenceOfSelfInterface: Pointer;
+    FWeakEventListenerSelfPtr, FCreatedWeakEventListenerPtr: Pointer;
     FRestartTransaction: Boolean;
     FDisposeCodePage: Boolean;
-    FChunkSize: Integer; //indicates reading / writing lobs in Chunks of x Byte
     FClientCodePage: String;
     FMetadata: TContainedObject;
     {$IFDEF ZEOS_TEST_ONLY}
     FTestMode: Byte;
     {$ENDIF}
-    procedure BeforeUrlAssign; virtual;
-    procedure InternalCreate; virtual; abstract;
+    FLogMessage: SQLString;
+    /// <summary>Releases a Connection's database and resources immediately
+    ///  instead of waiting for them to be automatically released.</summary>
+    ///  Note: A Connection is automatically closed when it is garbage
+    ///  collected. Certain fatal errors also result in a closed Connection.</summary>
     procedure InternalClose; virtual; abstract;
+    /// <summary>Immediately execute a query and do nothing with the results.</summary>
+    /// <remarks>A new driver needs to implement one of the overloads.</remarks>
+    /// <param>"SQL" a raw encoded query to be executed.</param>
+    /// <param>"LoggingCategory" the LoggingCategory for the Logging listeners.</param>
     procedure ExecuteImmediat(const SQL: RawByteString; LoggingCategory: TZLoggingCategory); overload; virtual;
+    /// <summary>Immediately execute a query and do nothing with the results.</summary>
+    /// <remarks>A new driver needs to implement one of the overloads.</remarks>
+    /// <param>"SQL" a UTF16 encoded query to be executed.</param>
+    /// <param>"LoggingCategory" the LoggingCategory for the Logging listeners.</param>
     procedure ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory); overload; virtual;
     procedure SetDateTimeFormatProperties(DetermineFromInfo: Boolean = True);
     procedure ResetCurrentClientCodePage(const Name: String;
       IsStringFieldCPConsistent: Boolean);
     function GetEncoding: TZCharEncoding;
     function GetClientVariantManager: IZClientVariantManager;
+    /// <author>EgonHugeist</author>
+    /// <summary>Check if the given Charset for Compiler/Database-Support.
+    ///  Not supported means if there is a possible String-DataLoss.
+    ///  So it raises an Exception if case of settings. This handling
+    ///  is an improofment to inform Zeos-Users about the troubles the given
+    ///  CharacterSet may have.</summary>
+    /// <param>"CharSet" the CharacterSet which has to be proofed</param>
+    /// <param>"DoArrange" represents a switch to check and set a aternative
+    ///  ZAlias as default. This means it ignores the choosen
+    ///  Client-CharacterSet and sets a "more" Zeos-Compatible
+    ///  Client-CharacterSet if known.</param>
     procedure CheckCharEncoding(const CharSet: String; const DoArrange: Boolean = False);
     procedure OnPropertiesChange({%H-}Sender: TObject); virtual;
-
+    procedure LogError(const Category: TZLoggingCategory; ErrorCode: Integer;
+      const Sender: IImmediatelyReleasable; const Msg, Error: String);
     procedure SetOnConnectionLostErrorHandler(Handler: TOnConnectionLostError);
+    procedure SetAddLogMsgToExceptionOrWarningMsg(Value: Boolean);
+    procedure SetRaiseWarnings(Value: Boolean);
     procedure RegisterStatement(const Value: IZStatement);
     procedure DeregisterStatement(const Value: IZStatement);
     procedure CloseRegisteredStatements;
@@ -166,111 +258,345 @@ type
     property URL: TZURL read FURL;
     property TransactIsolationLevel: TZTransactIsolationLevel
       read FTransactIsolationLevel write FTransactIsolationLevel;
+    property DriverManager: IZDriverManager read FDriverManager;
   public
+    /// <author>EgonHugeist and MDeams</author>
+    /// <summary>Constructs this object and assignes the main properties.</summary>
+    /// <param>"Driver" the parent ZDBC driver.</param>
+    /// <param>"Url" a connection URL.</param>
+    /// <param>"PlainDriver" a versioned ZPlainDriver object interface.</param>
+    /// <param>"HostName" a name of the host.</param>
+    /// <param>"Port" a port number (0 for default port).</param>
+    /// <param>"Database" a name of the database.</param>
+    /// <param>"User" a user name.</param>
+    /// <param>"Password" a user password.</param>
+    /// <param>"Info" a string list with extra connection parameters.</param>
+    /// <remarks>The old deprecadet constructor which was used
+    ///  from the descendant classes. We left him here for compatibility reasons
+    ///  to existing projects which using the DbcConnections directly.</remarks>
     constructor Create(const {%H-}Driver: IZDriver; const Url: string;
       const {%H-}PlainDriver: IZPlainDriver; const HostName: string; Port: Integer;
       const Database: string; const User: string; const Password: string;
-      Info: TStrings); overload; deprecated;
+      Info: TStrings); overload;
+    /// <summary>Constructs this object and assignes the main properties.</summary>
+    /// <param>"ZUrl§ a connection ZURL-object which exports all connection
+    ///  parameters.</param>
     constructor Create(const ZUrl: TZURL); overload;
+    /// <summary>Destroys this object and cleanups the memory.</summary>
     destructor Destroy; override;
     procedure AfterConstruction; override;
 
+    /// <summary>Creates a <c>Statement</c> interface for sending SQL statements
+    ///  to the database. SQL statements without parameters are normally
+    ///  executed using Statement objects. If the same SQL statement
+    ///  is executed many times, it is more efficient to use a
+    ///  <c>PreparedStatement</c> object. Result sets created using the returned
+    ///  <c>Statement</c> interface will by default have forward-only type and
+    ///  read-only concurrency.</summary>
+    /// <returns>A new Statement interface</returns>
     function CreateStatement: IZStatement;
+    /// <summary>Creates a <c>PreparedStatement</c> interface for sending
+    ///  parameterized SQL statements to the database. A SQL statement with
+    ///  or without IN parameters can be pre-compiled and stored in a
+    ///  PreparedStatement object. This object can then be used to efficiently
+    ///  execute this statement multiple times.
+    ///  Note: This method is optimized for handling parametric SQL statements
+    ///  that benefit from precompilation. If the driver supports
+    ///  precompilation, the method <c>prepareStatement</c> will send the
+    ///  statement to the database for precompilation. Some drivers may not
+    ///  support precompilation. In this case, the statement may not be sent to
+    ///  the database until the <c>PreparedStatement</c> is executed. This has
+    ///  no direct effect on users; however, it does affect which method throws
+    ///  certain SQLExceptions. Result sets created using the returned
+    ///  PreparedStatement will have forward-only type and read-only
+    ///  concurrency, by default.</summary>
+    /// <param>"SQL" a SQL statement that may contain one or more '?' IN
+    ///  parameter placeholders.</param>
+    /// <param> Info a statement parameter list.</param>
+    /// <returns>a new PreparedStatement object containing the
+    ///  optional pre-compiled statement</returns>
     function PrepareStatement(const SQL: string): IZPreparedStatement;
-    function PrepareCall(const SQL: string): IZCallableStatement;
-
-    function CreateNotification(const Event: string): IZNotification; virtual;
+    /// <summary>Creates a <c>CallableStatement</c> object for calling
+    ///  database stored procedures. The <c>CallableStatement</c> object
+    ///  provides methods for setting up its IN and OUT parameters, and methods
+    ///  for executing the call to a stored procedure. Note: This method is
+    ///  optimized for handling stored procedure call statements. Some drivers
+    ///  may send the call statement to the database when the method
+    ///  <c>prepareCall</c> is done; others may wait until the
+    ///  <c>CallableStatement</c> object is executed. This has no direct effect
+    ///  on users; however, it does affect which method throws certain
+    ///  EZSQLExceptions. Result sets created using the returned
+    ///  IZCallableStatement will have forward-only type and read-only
+    ///  concurrency, by default.</summary>
+    /// <param>"Name" a procedure or function name.</param>
+    /// <returns> a new IZCallableStatement interface containing the
+    ///  pre-compiled SQL statement </returns>
+    function PrepareCall(const Name: string): IZCallableStatement;
+    /// <summary>Creates a sequence generator object.</summary>
+    /// <param>"Sequence" a name of the sequence generator.</param>
+    /// <param>"BlockSize" a number of unique keys requested in one trip to SQL
+    ///  server.</param>
+    /// <returns>returns a created sequence object.</returns>
     function CreateSequence(const Sequence: string; BlockSize: Integer):
       IZSequence; virtual;
-
+    /// <summary>Converts the given SQL statement into the system's native SQL
+    ///  grammar. A driver may convert the JDBC sql grammar into its system's
+    ///  native SQL grammar prior to sending it; this method returns the
+    ///  native form of the statement that the driver would have sent.</summary>
+    /// <param>"SQL" a SQL statement that may contain one or more '?' parameter
+    ///  placeholders</param>
+    /// <return>the native form of this statement</returns>
     function NativeSQL(const SQL: string): string; virtual;
-
+    /// <summary>Sets this connection's auto-commit mode. If a connection is in
+    ///  auto-commit mode, then all its SQL statements will be executed and
+    ///  committed as individual transactions. Otherwise, its SQL statements are
+    ///  grouped into transactions that are terminated by a call to either the
+    ///  method <c>commit</c> or the method <c>rollback</c>. By default, new
+    ///  connections are in auto-commit mode. The commit occurs when the
+    ///  statement completes or the next execute occurs, whichever comes first.
+    ///  In the case of statements returning a ResultSet, the statement
+    ///  completes when the last row of the ResultSet has been retrieved or the
+    ///  ResultSet has been closed. In advanced cases, a single statement may
+    ///  return multiple results as well as output parameter values. In these
+    ///  cases the commit occurs when all results and output parameter values
+    ///  have been retrieved. It is not recommented setting autoCommit to false
+    ///  because a call to either the method <c>commit</c> or the method
+    ///  <c>rollback</c> will restart the transaction. It's use full only if
+    ///  repeately many opertions are done and no startTransaction is intended
+    ///  to use. If you change mode to true the current Transaction and it's
+    ///  nested SavePoints are committed then.</summary>
+    /// <param>"Value" true enables auto-commit; false disables auto-commit.</param>
     procedure SetAutoCommit(Value: Boolean); virtual;
+    /// <summary>Gets the current auto-commit state. See setAutoCommit.</summary>
+    /// <returns>the current state of auto-commit mode.</returns>
     function GetAutoCommit: Boolean; virtual;
 
     //2Phase Commit Support initially for PostgresSQL (firmos) 21022006
     procedure PrepareTransaction(const {%H-}transactionid: string);virtual;
     procedure CommitPrepared(const {%H-}transactionid: string);virtual;
     procedure RollbackPrepared(const {%H-}transactionid: string);virtual;
-
-    //Ping Support initially for MySQL 27032006 (firmos)
+    /// <author>firmos (initially for MySQL 27032006)</author>
+    /// <summary>Ping Current Connection's server, if client was disconnected,
+    ///  the connection is resumed.</summary>
+    /// <returns>0 if succesfull or error code if any error occurs</returns>
     function PingServer: Integer; virtual;
+    /// <author>aehimself</author>
+    /// <summary>Immediately abort any kind of queries.</summary>
+    /// <returns>0 if the operation is aborted; Non zero otherwise.</returns>
     function AbortOperation: Integer; virtual;
+    /// <summary>Escape a string so it's acceptable for the Connection's server.</summary>
+    /// <param>"value" a string that should be escaped</param>
+    /// <returns>the escaped string</returns>
     function EscapeString(const Value: RawByteString): RawByteString; overload; virtual;
-
+    /// <summary>Opens a connection to database server with specified parameters.</summary>
     procedure Open; virtual;
+    /// <summary>Releases a Connection's database and resources immediately
+    ///  instead of waiting for them to be automatically released. Note: A
+    ///  Connection is automatically closed when it is garbage collected.
+    ///  Certain fatal errors also result in a closed Connection.</summary>
     procedure Close;
-
+    /// <summary>Releases all driver handles and set the object in a closed
+    ///  Zombi mode waiting for destruction. Each known supplementary object,
+    ///  supporting this interface, gets called too. This may be a recursive
+    ///  call from parant to childs or vice vera. So finally all resources
+    ///  to the servers are released. This method is triggered by a connecton
+    ///  loss. Don't use it by hand except you know what you are doing.</summary>
+    /// <param>"Sender" the object that did notice the connection lost.</param>
+    /// <param>"AError" a reference to an EZSQLConnectionLost error.
+    ///  You may free and nil the error object so no Error is thrown by the
+    ///  generating method. So we start from the premisse you have your own
+    ///  error handling in any kind.</param>
     procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost); virtual;
+    /// <summary>Tests to see if a Connection is closed.</summary>
+    /// <returns><c>True</c> if the connection is closed; <c>False</c> if it's
+    ///  still open</returns>
     function IsClosed: Boolean; virtual;
 
     function GetDriver: IZDriver;
+    /// <summary>Gets the plain driver.</summary>
+    /// <returns>the plain driver interface.</returns>
     function GetIZPlainDriver: IZPlainDriver;
+    /// <summary>Gets the metadata regarding this connection's database.
+    ///  A Connection's database is able to provide information
+    ///  describing its tables, its supported SQL grammar, its stored
+    ///  procedures, the capabilities of this connection, and so on. This
+    ///  information is made available through a DatabaseMetaData object.</summary>
+    /// <returns>a DatabaseMetaData object for this Connection.</returns>
     function GetMetadata: IZDatabaseMetadata;
+    /// <summary>Gets a connection parameters.</summary>
+    /// <returns>a list with connection parameters.</returns>
     function GetParameters: TStrings;
-    {ADDED by fduenas 15-06-2006}
+    /// <author>fduenas</author>
+    /// <summary>Gets the client's full version number. Initially this should be 0.
+    ///  The format of the version returned must be XYYYZZZ where
+    ///  X   = Major version
+    ///  YYY = Minor version
+    ///  ZZZ = Sub version</summary>
+    /// <returns>this clients's full version number</returns>
     function GetClientVersion: Integer; virtual;
+    /// <author>fduenas</author>
+    /// <summary>Gets the host's full version number. Initially this should be 0.
+    ///  The format of the version returned must be XYYYZZZ where
+    ///  X   = Major version
+    ///  YYY = Minor version
+    ///  ZZZ = Sub version</summary>
+    /// <returns>this server's full version number</returns>
     function GetHostVersion: Integer; virtual;
-    {END ADDED by fduenas 15-06-2006}
+    /// <summary>Gets the PlainDriver description.</summary>
+    /// <returns>a the description.</returns>
     function GetDescription: String;
+    /// <summary>Puts this connection in read-only mode as a hint to enable
+    ///  database optimizations. Note: This method cannot be called while in the
+    ///  middle of a transaction.</summary>
+    /// <param>"value" true enables read-only mode; false disables read-only
+    ///  mode.</param>
     procedure SetReadOnly(Value: Boolean); virtual;
+    /// <summary>Check if the current conenction is readonly. See setReadonly.
+    ///  </summary>
+    /// <returns><c>True</c> if the conenction is readonly; <c>False</c>
+    ///  otherwise.</returns>
     function IsReadOnly: Boolean; virtual;
+    /// <summary>Get's the escaped URL used for establishing this connection.</summary>
+    /// <returns>the escaped URL.</returns>
     function GetURL: String;
-
+    /// <summary>Sets a catalog name in order to select a subspace of this
+    ///  Connection's database in which to work. If the driver does not support
+    ///  catalogs, it will silently ignore this request.</summary>
+    /// <param>"value" new catalog name to be used.</param>
     procedure SetCatalog(const {%H-}Catalog: string); virtual;
+    /// <summary>Returns the Connection's current catalog name.</summary>
+    /// <returns>the current catalog name or an empty string.</returns>
     function GetCatalog: string; virtual;
-
+    /// <summary>Attempts to change the transaction isolation level to the one
+    ///  given. The constants defined in the interface <c>Connection</c> are the
+    ///  possible transaction isolation levels. Note: This method cannot be
+    ///  called while in the middle of a transaction.
+    /// <param>"value" one of the TRANSACTION_* isolation values with the
+    ///  exception of TRANSACTION_NONE; some databases may not support other
+    ///  values. See DatabaseInfo.SupportsTransactionIsolationLevel</param>
     procedure SetTransactionIsolation(Level: TZTransactIsolationLevel); virtual;
+    /// <summary>Gets this Connection's current transaction isolation level.</summary>
+    /// <returns>the current TRANSACTION_* mode value.</returns>
     function GetTransactionIsolation: TZTransactIsolationLevel; virtual;
-
+    /// <summary>Returns the first warning reported by calls on this Connection.</summary>
+    /// <remarks>Subsequent warnings will be chained to this EZSQLWarning.</remarks>
+    /// <returns>the first SQLWarning or nil.</returns>
     function GetWarnings: EZSQLWarning; virtual;
+    /// <summary>Clears all warnings reported for this <c>Connection</c> object.
+    ///  After a call to this method, the method <c>getWarnings</c> returns nil
+    ///  until a new warning is reported for this Connection.</summary>
     procedure ClearWarnings; virtual;
 
     function GetBinaryEscapeString(const Value: TBytes): String; overload; virtual;
 
-    function GetEscapeString(const Value: ZWideString): ZWideString; overload; virtual;
+    /// <summary>Escape a string so it's acceptable for the Connection's server.</summary>
+    /// <param>"value" a string that should be escaped</param>
+    /// <returns>an escaped string</returns>
+    function GetEscapeString(const Value: UnicodeString): UnicodeString; overload; virtual;
+    /// <summary>Escape a string so it's acceptable for the Connection's server.</summary>
+    /// <param>"value" a string that should be escaped</param>
+    /// <returns>an escaped string</returns>
     function GetEscapeString(const Value: RawByteString): RawByteString; overload; virtual;
-
+    /// <summary>Are metadata used? If <c>True</c> then we can determine if
+    ///  columns are writeable or not. This is required for generating automatic
+    ///  updates.</summary>
+    /// <returns><c>True</c> if metainformations are turned on; <c>False</c>
+    ///  otherwise.</returns>
     function UseMetadata: boolean;
+    /// <summary>Sets the use of metadata informations. This is required for
+    ///  generating automatic updates.</summary>
+    /// <param>"Value" enables or disables the metadata loading.</param>
     procedure SetUseMetadata(Value: Boolean); virtual;
+    /// <summary>Returns the ServicerProvider for this connection. For some
+    ///  drivers the connection must be opened to determine the provider.</summary>
+    /// <returns>the ServerProvider or spUnknown if not known.</returns>
     function GetServerProvider: TZServerProvider; virtual;
+    /// <summary>Get a generic event alerter object.</summary>
+    /// <param>"Handler" an event handler which gets triggered if the event is received.</param>
+    /// <param>"CloneConnection" if <c>True</c> a new connection will be spawned.</param>
+    /// <returns>a the generic event alerter object as interface or nil.</returns>
+    function GetEventListener(Handler: TZOnEventHandler; CloneConnection: Boolean;
+      Options: TStrings): IZEventListener; virtual;
+    /// <summary>Check if the connection supports an event Listener.</summary>
+    /// <returns><c>true</c> if the connection supports an event Listener;
+    /// <c>false</c> otherwise.</returns>
+    function SupportsEventListener: Boolean;
+    /// <summary>Closes the event alerter.</summary>
+    /// <param>"Value" a reference to the previously created alerter to be released.</param>
+    procedure CloseEventListener(var Value: IZEventListener);
   protected
+    /// <summary>Get the refrence to a fixed TByteBuffer.</summary>
+    /// <returns>the address of the TByteBuffer</returns>
     function GetByteBufferAddress: PByteBuffer;
+  protected
     property Closed: Boolean read IsClosed write FClosed;
+    property AddLogMsgToExceptionOrWarningMsg: Boolean read
+      fAddLogMsgToExceptionOrWarningMsg write fAddLogMsgToExceptionOrWarningMsg;
+    property RaiseWarnings: Boolean read fRaiseWarnings write fRaiseWarnings;
   end;
 
-  TZAbstractDbcSingleTransactionConnection = class(TZAbstractDbcConnection)
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an abstract Database Connection object for
+  ///  driveres having no simultaneous transaction support</summary>
+  TZAbstractSingleTxnConnection = class(TZAbstractDbcConnection,
+    IZTransactionManager)
   protected
     FSavePoints: TStrings;
     FTransactionLevel: Integer;
-    procedure BeforeUrlAssign; override;
+    fTransactions: IZCollection;
+    fActiveTransaction: IZTransaction;
+    fWeakTxnPtr: Pointer;
   public //implement IZTransaction
+    /// <summary>Get's the owner connection that produced that object instance.
+    /// </summary>
+    /// <returns>the connection object interface.</returns>
     function GetConnection: IZConnection;
+    /// <summary>Get the nested transaction level. -1 means no active
+    ///  transaction, 0 means the txn is in AutoCommit-Mode, 1 means a expicit
+    ///  transaction was started. 2 means the transaction was saved. 3 means the
+    ///  previous savepoint got saved too and so on.</summary>
+    /// <returns>Returns the current txn-level. </returns>
     function GetTransactionLevel: Integer;
+  public //implement IZTransactionManager
+    function CreateTransaction(AutoCommit, ReadOnly: Boolean;
+      TransactIsolationLevel: TZTransactIsolationLevel; Params: TStrings): IZTransaction;
+    /// <summary>Remove the given transaction interface from the manager list.
+    ///  This method will be called from the Transaction interface when the
+    ///  Transaction gets closed. If the interface is unknown an SQLException
+    ///  will be raised.</summary>
+    /// <param>"Value" the Transaction interface which should be removed.</param>
+    procedure ReleaseTransaction(const Value: IZTransaction);
+    /// <summary>Test if the interface is known in the Transaction manager.
+    ///  This is usefull if the txn interface was managed, the connection was
+    ///  lost and the txn interface is in destruction.</summary>
+    /// <param>"Value" the Transaction interface which should be checked.</param>
+    /// <returns><c>True</c> if the transaction is known; <c>False</c>
+    ///  otherwise.</returns>
+    function IsTransactionValid(const Value: IZTransaction): Boolean;
+    /// <summary>Clears all transactions.</summary>
+    procedure ClearTransactions;
+    /// <summary>Get the active transaction interces of the connection.</summary>
+    /// <returns>The transaction object</returns>
+    function GetConnectionTransaction: IZTransaction;
+  public //implement IImmediatelyReleasable
+    /// <summary>Releases all driver handles and set the object in a closed
+    ///  Zombi mode waiting for destruction. Each known supplementary object,
+    ///  supporting this interface, gets called too. This may be a recursive
+    ///  call from parant to childs or vice vera. So finally all resources
+    ///  to the servers are released. This method is triggered by a connecton
+    ///  loss. Don't use it by hand except you know what you are doing.</summary>
+    /// <param>"Sender" the object that did notice the connection lost.</param>
+    /// <param>"AError" a reference to an EZSQLConnectionLost error.
+    ///  You may free and nil the error object so no Error is thrown by the
+    ///  generating method. So we start from the premisse you have your own
+    ///  error handling in any kind.</param>
+    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost); override;
   public
+    procedure AfterConstruction; override;
     destructor Destroy; override;
   end;
 
-  {** Implements Abstract Database notification. }
-  TZAbstractNotification = class(TInterfacedObject, IZNotification)
-  private
-    FEventName: string;
-    FConnection: IZConnection;
-  protected
-    property EventName: string read FEventName write FEventName;
-    property Connection: IZConnection read FConnection write FConnection;
-  public
-    constructor Create(const Connection: IZConnection; const EventName: string);
-    function GetEvent: string;
-    procedure Listen; virtual;
-    procedure Unlisten; virtual;
-    procedure DoNotify; virtual;
-    function CheckEvents: string; virtual;
-
-    function GetConnection: IZConnection; virtual;
-  end;
-
-  {** Implements Abstract Sequence generator. }
+  ///<summary>Implements an Abstract Sequence generator.</summary>
   TZAbstractSequence = class(TInterfacedObject, IZSequence)
   private
     FConnection: IZConnection;
@@ -279,84 +605,142 @@ type
   protected
     FName: string;
     FBlockSize: Integer;
+    /// <summary>Sets a name of the sequence generator..</summary>
+    /// <param>"Value" a name of this sequence generator.</param>
     procedure SetName(const Value: string); virtual;
+    /// <summary>Sets the block size for this sequence.</summary>
+    /// <param>Value the block size.</param>
     procedure SetBlockSize(const Value: Integer); virtual;
     property Connection: IZConnection read FConnection write FConnection;
+    /// <summary>Flushs open statements and resultsets.</summary>
+    /// <param>Value the block size.</param>
     procedure FlushResults;
   public
+    /// <summary>Creates this sequence object.</summary>
+    /// <param>"Connection" an SQL connection object.</param>
+    /// <param>"Name" a name of the sequence generator.</param>
+    /// <param>"BlockSize" a number of unique keys requested in one trip to server.</param>
     constructor Create(const Connection: IZConnection; const Name: string;
       BlockSize: Integer);
 
+    /// <summary>Gets the current value of the sequence</summary>
+    /// <returns>the current unique key</returns>
     function GetCurrentValue: Int64;
+    /// <summary>Gets the next unique key generated by this sequence</summary>
+    /// <returns>the next generated unique key</returns>
     function GetNextValue: Int64;
-
+    /// <summary>Get the name of the sequence generator.</summary>
+    /// <returns> a name of this sequence generator.</returns>
     function GetName: string;
+    /// <summary>Get the blocksize/increment_by value of the sequence generator.</summary>
+    /// <returns>the assigned increment_by value.</returns>
     function GetBlockSize: Integer;
+    /// <summary>Returns the SQL to be get the current value.</summary>
+    /// <returns>The SQL string</returns>
     function GetCurrentValueSQL: string; virtual; abstract;
+    /// <summary>Returns the SQL to be get the next value.</summary>
+    /// <returns>The SQL string</returns>
     function GetNextValueSQL: string; virtual; abstract;
-
+    /// <summary>Returns the <c>Connection</c> interface
+    ///  that produced this <c>Sequence</c> object.</summary>
+    /// <returns>the connection that produced this sequence.</returns>
     function GetConnection: IZConnection;
   end;
 
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an abstract identifier sequence object.</summary>
   TZIdentifierSequence = Class(TZAbstractSequence)
   protected
+    /// <summary>Sets a name of the sequence generator..</summary>
+    /// <param>"Value" a name of this sequence generator.</param>
     procedure SetName(const Value: string); override;
   End;
 
-  {** Implements a MSSQL sequence. }
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an abstract MSSQL sequence object.</summary>
   TZMSSQLSequence = class(TZAbstractSequence)
   public
+    /// <summary>Returns the SQL to be get the current value.</summary>
+    /// <returns>The SQL string</returns>
     function GetCurrentValueSQL: string; override;
+    /// <summary>Returns the SQL to be get the next value.</summary>
+    /// <returns>The SQL string</returns>
     function GetNextValueSQL: string; override;
   end;
 
-  {** Implements an abstract sequence using the <Name>.CURRVAL/NEXTVAL Syntax}
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an abstract sequence using the <Name>.CURRVAL/NEXTVAL Syntax</summary>
   TZDotCurrvalNextvalSequence = class(TZIdentifierSequence)
   public
+    /// <summary>Returns the SQL to be get the current value.</summary>
+    /// <returns>The SQL string</returns>
     function GetCurrentValueSQL: string; override;
+    /// <summary>Returns the SQL to be get the next value.</summary>
+    /// <returns>The SQL string</returns>
     function GetNextValueSQL: string; override;
   end;
 
-  {** Implements a Sybase SQL Anywhere sequence. }
-  TZSybaseASASquence = class(TZDotCurrvalNextvalSequence);
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements a Sybase SQL Anywhere sequence.</summary>
+  TZSybaseASASequence = class(TZDotCurrvalNextvalSequence);
 
-  {** Implements an Informix sequence. }
-  TZInformixSquence = class(TZDotCurrvalNextvalSequence);
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an Informix sequence.</summary>
+  TZInformixSequence = class(TZDotCurrvalNextvalSequence);
 
-  {** Implements an DB2 sequence. }
-  TZDB2Squence = class(TZDotCurrvalNextvalSequence);
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an DB2 sequence.</summary>
+  TZDB2Sequence = class(TZDotCurrvalNextvalSequence);
 
-  {** Implements an CUBRID sequence. }
-  TZCubridSquence = class(TZDotCurrvalNextvalSequence);
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an CUBRID sequence.</summary>
+  TZCubridSequence = class(TZDotCurrvalNextvalSequence);
 
-  {** Implements an Oracle sequence. }
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements an Oracle sequence.</summary>
   TZOracleSequence = class(TZDotCurrvalNextvalSequence)
   public
+    /// <summary>Returns the SQL to be get the current value.</summary>
+    /// <returns>The SQL string</returns>
     function GetCurrentValueSQL: string; override;
+    /// <summary>Returns the SQL to be get the next value.</summary>
+    /// <returns>The SQL string</returns>
     function GetNextValueSQL: string; override;
   end;
 
-  {** Implements a FireBird2+ sequence. }
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements a FireBird2+ sequence.</summary>
   TZFirebird2UpSequence = class(TZIdentifierSequence)
   public
+    /// <summary>Returns the SQL to be get the current value.</summary>
+    /// <returns>The SQL string</returns>
     function GetCurrentValueSQL: string; override;
+    /// <summary>Returns the SQL to be get the next value.</summary>
+    /// <returns>The SQL string</returns>
     function GetNextValueSQL: string; override;
   end;
 
-  {** Implements a postresql sequence. }
+  /// <author>EgonHugeist</author>
+  /// <summary>Implements a postresql sequence.</summary>
   TZPostgreSQLSequence = class(TZAbstractSequence)
   public
+    /// <summary>Returns the SQL to be get the current value.</summary>
+    /// <returns>The SQL string</returns>
     function GetCurrentValueSQL: string; override;
+    /// <summary>Returns the SQL to be get the next value.</summary>
+    /// <returns>The SQL string</returns>
     function GetNextValueSQL: string; override;
   end;
 
+  /// <author>EgonHugeist</author>
+  /// <summary>defines a class of an TZAbstractSequence</summary>
   TZAbstractSequenceClass = class of TZAbstractSequence;
 
-  {** Implements a variant manager with connection related convertion rules. }
+  /// <summary>Implements a variant manager with connection related convertion rules.</summary>
   TZClientVariantManager = class (TZSoftVariantManager, IZVariantManager, IZClientVariantManager)
   protected
     FConSettings: PZConSettings;
-    FClientCP, FCtrlsCP: Word;
+    FClientCP, FStringCP: Word;
     FUseWComparsions: Boolean;
     procedure ProcessString(const Value: TZVariant; out Result: TZVariant); override;
     procedure ProcessUnicodeString(const Value: TZVariant; out Result: TZVariant); override;
@@ -365,27 +749,38 @@ type
     {$IFNDEF NO_UTF8STRING}procedure ProcessUTF8String(const Value: TZVariant; out Result: TZVariant); override; {$ENDIF NO_UTF8STRING}
     procedure ProcessCharRec(const Value: TZVariant; out Result: TZVariant); override;
   public
-    constructor Create(const ConSettings: PZConSettings{; FormatSettings: TZFormatSettings});
+    /// <summary>Constructs this object and assigns the main properties.</summary>
+    /// <param>"ConSettings" a connection settings record reference</summary>.
+    constructor Create(const ConSettings: PZConSettings);
     function UseWComparsions: Boolean;
     function GetAsDateTime(const Value: TZVariant): TDateTime; reintroduce;
   end;
 
-  TZEmulatedTransactionManager = class(TZImmediatelyReleasableObject, IZTransactionManager)
+  PZEvent = ^TZEvent;
+  TZEvent = record
+    Name: SQLString;
+    Handler: TZOnEventHandler;
+  end;
+
+  TZEventList = class(TZCustomElementList)
   private
-    fMainConnection: IZConnection;
-    fActiveTransaction: IZTransaction;
-    fTransactions: IZCollection;
-  public //implement IZTransactionManager
-    function CreateTransaction(AutoCommit, ReadOnly: Boolean;
-      TransactIsolationLevel: TZTransactIsolationLevel; Params: TStrings): IZTransaction;
-    procedure ReleaseTransaction(const Transaction: IZTransaction);
-    procedure SetActiveTransaction(const Transaction: IZTransaction);
-    function GetTransactionCount: Integer;
-    function GetTransaction(Index: Cardinal): IZTransaction;
-  public //implement IImmediatelyReleasable
-    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost);
+    FHandler: TZOnEventHandler;
+  protected
+    class function GetElementSize: Cardinal; virtual;
+    /// <summary>Notify about an action which will or was performed.
+    ///  if ElementNeedsFinalize is False the method will never be called.
+    ///  Otherwise you may finalize managed types beeing part of each element,
+    ///  such as Strings, Objects etc.</summary>
+    /// <param>"Ptr" the address of the element an action happens for.</param>
+    /// <param>"Index" the index of the element.</param>
+    procedure Notify(Ptr: Pointer; Action: TListNotification); override;
   public
-    Constructor Create(const Connection: IZConnection);
+    constructor Create(Handler: TZOnEventHandler);
+    procedure Add(const Name: String; Handler: TZOnEventHandler);
+    procedure Remove(const Name: String);
+    function Get(const Index: NativeInt): PZEvent;
+    function GetByName(const Name: String): PZEvent;
+    property Handler: TZOnEventHandler read FHandler;
   end;
 
 type
@@ -400,7 +795,7 @@ const
   cRollbackTo = 'ROLLBACK TO ';
   cRollbackToSP = 'ROLLBACK TO SAVEPOINT ';
   cUnknown = '';
-  //(*
+
   cSavePointSyntaxW: array[TZServerProvider, TZSavePointQueryType] of UnicodeString =
     ( ({spUnknown}    cUnknown,   cUnknown,   cUnknown),
       ({spMSSQL}      cSaveTrans, cEmpty,     cRollbackTran),
@@ -437,12 +832,29 @@ const
       ({spCUBRID}     cUnknown,   cUnknown,   cUnknown),
       ({spFoxPro}     cUnknown,   cUnknown,   cUnknown)
     );
+
+  sCommitMsg = 'COMMIT TRANSACTION';
+  sRollbackMsg = 'ROLLBACK TRANSACTION';
+
+  sSessionTransactionIsolation: array[TZTransactIsolationLevel] of
+    String = (
+    'SET TRANSACTION ISOLATION LEVEL UNDEFINED',
+    'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED',
+    'SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
+    'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ',
+    'SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+
+  cCommit_A: RawByteString = sCommitMsg;
+  cCommit_W: UnicodeString = sCommitMsg;
+  cRollback_A: RawByteString = sRollbackMsg;
+  cRollback_W: UnicodeString = sRollbackMsg;
+
 implementation
 
 uses ZMessages,{$IFNDEF TLIST_IS_DEPRECATED}ZSysUtils, {$ENDIF}
-  ZDbcMetadata, ZDbcUtils, ZEncoding, StrUtils,
-  ZDbcProperties, {$IFDEF FPC}syncobjs{$ELSE}SyncObjs{$ENDIF}
-  {$IFDEF WITH_INLINE},ZFastCode{$ENDIF}
+  ZEncoding, ZFastCode, ZSelectSchema,
+  ZDbcMetadata, ZDbcUtils, ZDbcProperties,
+  StrUtils, {$IFDEF FPC}syncobjs{$ELSE}SyncObjs{$ENDIF}
   {$IFDEF WITH_UNITANSISTRINGS}, AnsiStrings{$ENDIF}
   {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND}
   {$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
@@ -460,27 +872,20 @@ const
     {spMySQL}     nil,
     {spNexusDB}   nil,
     {spSQLite}    nil,
-    {spDB2}       TZDB2Squence,
+    {spDB2}       TZDB2Sequence,
     {spAS400}     nil,
-    {spInformix}  TZInformixSquence,
-    {spCUBRID}    TZCubridSquence,
+    {spInformix}  TZInformixSequence,
+    {spCUBRID}    TZCubridSequence,
     {spFoxPro}    nil
     );
 
-  //*)
 { TZAbstractDriver }
 
-{**
-  Constructs this object with default properties.
-}
 constructor TZAbstractDriver.Create;
 begin
   FCachedPlainDrivers := TZHashMap.Create;
 end;
 
-{**
-  Destroys this object and cleanups the memory.
-}
 destructor TZAbstractDriver.Destroy;
 begin
   FCachedPlainDrivers.Clear;
@@ -493,11 +898,6 @@ begin
   Result := FSupportedProtocols;
 end;
 
-{**
-  EgonHugeist:
-  Get names of the supported CharacterSets.
-  For example: ASCII, UTF8...
-}
 function TZAbstractDriver.GetClientCodePages(const Url: TZURL): TStringDynArray;
 var
   Plain: IZPlainDriver;
@@ -507,29 +907,6 @@ begin
   Result := Plain.GetClientCodePages;
 end;
 
-{**
-  Attempts to make a database connection to the given URL.
-  The driver should return "null" if it realizes it is the wrong kind
-  of driver to connect to the given URL.  This will be common, as when
-  the JDBC driver manager is asked to connect to a given URL it passes
-  the URL to each loaded driver in turn.
-
-  <P>The driver should raise a SQLException if it is the right
-  driver to connect to the given URL, but has trouble connecting to
-  the database.
-
-  <P>The java.util.Properties argument can be used to passed arbitrary
-  string tag/value pairs as connection arguments.
-  Normally at least "user" and "password" properties should be
-  included in the Properties.
-
-  @param url the URL of the database to which to connect
-  @param info a list of arbitrary string tag/value pairs as
-    connection arguments. Normally at least a "user" and
-    "password" property should be included.
-  @return a <code>Connection</code> object that represents a
-    connection to the URL
-}
 {$WARN SYMBOL_DEPRECATED OFF}
 function TZAbstractDriver.Connect(const Url: string; Info: TStrings): IZConnection;
 var
@@ -544,39 +921,11 @@ begin
 end;
 {$WARN SYMBOL_DEPRECATED ON}
 
-{**
-  Attempts to make a database connection to the given URL.
-  The driver should return "null" if it realizes it is the wrong kind
-  of driver to connect to the given URL.  This will be common, as when
-  the JDBC driver manager is asked to connect to a given URL it passes
-  the URL to each loaded driver in turn.
-
-  <P>The driver should raise a SQLException if it is the right
-  driver to connect to the given URL, but has trouble connecting to
-  the database.
-
-  <P>The java.util.Properties argument can be used to passed arbitrary
-  string tag/value pairs as connection arguments.
-  Normally at least "user" and "password" properties should be
-  included in the Properties.
-
-  @param url the TZURL of the database to which to connect
-  @return a <code>Connection</code> object that represents a
-    connection to the URL
-}
 function TZAbstractDriver.Connect(const Url: TZURL): IZConnection;
 begin
   Result := nil;
 end;
 
-{**
-  Returns true if the driver thinks that it can open a connection
-  to the given URL.  Typically drivers will return true if they
-  understand the subprotocol specified in the URL and false if
-  they don't.
-  @param url the URL of the database
-  @return true if this driver can connect to the given URL
-}
 function TZAbstractDriver.AcceptsURL(const Url: string): Boolean;
 var
   I: Integer;
@@ -603,13 +952,10 @@ function TZAbstractDriver.AddPlainDriverToCache(const PlainDriver: IZPlainDriver
 var
   TempKey: IZAnyValue;
 begin
-  if Protocol = '' then
-  begin
+  if Protocol = '' then begin
     Result := PlainDriver.GetProtocol;
     TempKey := TZAnyValue.CreateWithString(AnsiLowerCase(PlainDriver.GetProtocol))
-  end
-  else
-  begin
+  end else begin
     Result := Protocol;
     TempKey := TZAnyValue.CreateWithString(AnsiLowerCase(Protocol+LibLocation));
   end;
@@ -623,23 +969,16 @@ var
 begin
   TempKey := TZAnyValue.CreateWithString(AnsiLowerCase(Protocol+LibLocation));
   Result := FCachedPlainDrivers.Get(TempKey) as IZPlainDriver;
-  if Result = nil then
-  begin
+  if Result = nil then begin
     TempKey := TZAnyValue.CreateWithString(AnsiLowerCase(Protocol));
     TempPlain := FCachedPlainDrivers.Get(TempKey) as IZPlainDriver;
-    if Assigned(TempPlain) then
-    begin
+    if Assigned(TempPlain) then begin
       Result := TempPlain.Clone;
       AddPlainDriverToCache(Result, Protocol, LibLocation);
     end;
   end;
 end;
 
-{**
-  Gets plain driver for selected protocol.
-  @param Url a database connection URL.
-  @return a selected plaindriver.
-}
 function TZAbstractDriver.GetPlainDriver(const Url: TZURL;
   const InitDriver: Boolean): IZPlainDriver;
 begin
@@ -654,77 +993,40 @@ begin
   end;
 end;
 
-{**
-  Gets information about the possible properties for this driver.
-  <p>The getPropertyInfo method is intended to allow a generic GUI tool to
-  discover what properties it should prompt a human for in order to get
-  enough information to connect to a database.  Note that depending on
-  the values the human has supplied so far, additional values may become
-  necessary, so it may be necessary to iterate though several calls
-  to getPropertyInfo.
-
-  @param url the URL of the database to which to connect
-  @param info a proposed list of tag/value pairs that will be sent on
-    connect open
-  @return an array of DriverPropertyInfo objects describing possible
-    properties.  This array may be an empty array if no properties
-    are required.
-}
 function TZAbstractDriver.GetPropertyInfo(const Url: string; Info: TStrings): TStrings;
 begin
   Result := nil;
 end;
 
-{**
-  Gets the driver's major version number. Initially this should be 1.
-  @return this driver's major version number
-}
 function TZAbstractDriver.GetMajorVersion: Integer;
 begin
   Result := 1;
 end;
 
-{**
-  Gets the driver's minor version number. Initially this should be 0.
-  @return this driver's minor version number
-}
 function TZAbstractDriver.GetMinorVersion: Integer;
 begin
   Result := 0;
 end;
 
-{**
-  Gets the driver's sub version (revision) number. Initially this should be 0.
-  @return this driver's sub version number
-}
 function TZAbstractDriver.GetSubVersion: Integer;
 begin
- Result := 0;
+  Result := 0;
 end;
-{**
-  Creates a generic statement analyser object.
-  @returns a generic statement analyser object.
-}
+
 function TZAbstractDriver.GetStatementAnalyser: IZStatementAnalyser;
 begin
   Result := TZGenericStatementAnalyser.Create; { thread save! Allways return a new Analyser! }
 end;
 
-{**
-  Creates a generic tokenizer object.
-  @returns a created generic tokenizer object.
-}
 function TZAbstractDriver.GetTokenizer: IZTokenizer;
 begin
   Result := TZGenericSQLTokenizer.Create;
 end;
 
-{**
-  Returns the version of the plain driver library that will be used to open a connection
-  to the given URL.
-  @param url the URL of the database
-  @return the version number of the plain driver library for the give URL
-}
+{$IFDEF FPC} {$PUSH}
+  {$WARN 5033 off : Function result does not seem to be set}
+  {$WARN 5024 off : Parameter "Event" not used}
+{$ENDIF}
 function TZAbstractDriver.GetClientVersion(const Url: string): Integer;
 begin
   Result := 0;
@@ -777,6 +1079,11 @@ begin
   FURL.UserName := Value;
 end;
 
+function TZAbstractDbcConnection.SupportsEventListener: Boolean;
+begin
+  Result := FWeakEventListenerSelfPtr <> nil;
+end;
+
 function TZAbstractDbcConnection.GetPassword: string;
 begin
   Result := FURL.Password;
@@ -812,11 +1119,6 @@ begin
     SetNotEmptyFormat(Info.Values[ConnProps_DateReadFormat],
       DefDateFormatYMD,
       ConSettings^.ReadFormatSettings.DateFormat);
-
-    SetNotEmptyFormat(Info.Values[ConnProps_DateDisplayFormat],
-      {$IFDEF WITH_FORMATSETTINGS}FormatSettings.{$ENDIF}ShortDateFormat,
-      ConSettings^.DisplayFormatSettings.DateFormat);
-
     {time formats}
     SetNotEmptyFormat(Info.Values[ConnProps_TimeWriteFormat],
       IfThen(GetMetaData.GetDatabaseInfo.SupportsMilliseconds, DefTimeFormatMsecs, DefTimeFormat),
@@ -825,10 +1127,6 @@ begin
     SetNotEmptyFormat(Info.Values[ConnProps_TimeReadFormat],
       IfThen(GetMetaData.GetDatabaseInfo.SupportsMilliseconds, DefTimeFormatMsecs, DefTimeFormat),
       ConSettings^.ReadFormatSettings.TimeFormat);
-
-    SetNotEmptyFormat(Info.Values[ConnProps_TimeDisplayFormat],
-      {$IFDEF WITH_FORMATSETTINGS}FormatSettings.{$ENDIF}LongTimeFormat,
-      ConSettings^.DisplayFormatSettings.TimeFormat);
 
     {timestamp formats}
     SetNotEmptyFormat(Info.Values[ConnProps_DateTimeWriteFormat],
@@ -839,22 +1137,16 @@ begin
       ConSettings^.ReadFormatSettings.DateFormat+' '+ConSettings^.ReadFormatSettings.TimeFormat,
       ConSettings^.ReadFormatSettings.DateTimeFormat);
 
-    SetNotEmptyFormat(Info.Values[ConnProps_DateTimeDisplayFormat],
-      ConSettings^.DisplayFormatSettings.DateFormat+' '+ConSettings^.DisplayFormatSettings.TimeFormat,
-      ConSettings^.DisplayFormatSettings.DateTimeFormat);
   end;
 
   ConSettings^.WriteFormatSettings.DateFormatLen := Length(ConSettings^.WriteFormatSettings.DateFormat);
   ConSettings^.ReadFormatSettings.DateFormatLen := Length(ConSettings^.ReadFormatSettings.DateFormat);
-  ConSettings^.DisplayFormatSettings.DateFormatLen := Length(ConSettings^.DisplayFormatSettings.DateFormat);
 
   ConSettings^.WriteFormatSettings.TimeFormatLen := Length(ConSettings^.WriteFormatSettings.TimeFormat);
   ConSettings^.ReadFormatSettings.TimeFormatLen := Length(ConSettings^.ReadFormatSettings.TimeFormat);
-  ConSettings^.DisplayFormatSettings.TimeFormatLen := Length(ConSettings^.DisplayFormatSettings.TimeFormat);
 
   ConSettings^.WriteFormatSettings.DateTimeFormatLen := Length(ConSettings^.WriteFormatSettings.DateTimeFormat);
   ConSettings^.ReadFormatSettings.DateTimeFormatLen := Length(ConSettings^.ReadFormatSettings.DateTimeFormat);
-  ConSettings^.DisplayFormatSettings.DateTimeFormatLen := Length(ConSettings^.DisplayFormatSettings.DateTimeFormat);
 end;
 
 procedure TZAbstractDbcConnection.SetOnConnectionLostErrorHandler(
@@ -862,7 +1154,7 @@ procedure TZAbstractDbcConnection.SetOnConnectionLostErrorHandler(
 begin
   if Assigned(FOnConnectionLostError) then
     FOnConnectionLostError := Handler
-  else if Assigned(FOnConnectionLostError) then
+  else if Assigned(FOnConnectionLostError) and Assigned(Handler) then
     raise EZSQLException.Create('Error handler registered already!')
   else FOnConnectionLostError := Handler;
 end;
@@ -891,6 +1183,12 @@ begin
     If Supports(IZStatement(fRegisteredStatements[I]), IImmediatelyReleasable, ImmediatelyReleasable)
       and (Sender <> ImmediatelyReleasable) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
+  if FDisposeCodePage then
+  begin
+    Dispose(ConSettings^.ClientCodePage);
+    ConSettings^.ClientCodePage := nil;
+    FDisposeCodePage := False;
+  end;
   if Assigned(FOnConnectionLostError) and (FError <> nil) then
     FOnConnectionLostError(FError);
 end;
@@ -912,11 +1210,6 @@ begin
   ConSettings^.ClientCodePage^.IsStringFieldCPConsistent := IsStringFieldCPConsistent;
   {Also reset the MetaData ConSettings}
   (FMetadata as TZAbstractDatabaseMetadata).ConSettings := ConSettings;
-  {$IFDEF WITH_LCONVENCODING}
-  SetConvertFunctions(ConSettings^.CTRL_CP, ConSettings^.ClientCodePage.CP,
-    ConSettings^.PlainConvertFunc, ConSettings^.DbcConvertFunc);
-  {$ENDIF}
-  SetConvertFunctions(ConSettings);
   FClientVarManager := TZClientVariantManager.Create(ConSettings);
 end;
 
@@ -942,54 +1235,33 @@ end;
 
 procedure TZAbstractDbcConnection.AfterConstruction;
 var iCon: IZConnection;
+    iListener: IZEventListener;
 begin
   if QueryInterface(IZConnection, ICon) = S_OK then begin
     fWeakReferenceOfSelfInterface := Pointer(iCon);
     iCon := nil;
   end;
+  if QueryInterface(IZEventListener, iListener) = S_OK then begin
+    FWeakEventListenerSelfPtr := Pointer(iListener);
+    iListener := nil;
+  end;
   inherited AfterConstruction;
+  FURL.OnPropertiesChange := OnPropertiesChange;
 end;
 
-{**
-  EgonHugeist: Check if the given Charset for Compiler/Database-Support!!
-    Not supported means if there is a possible String-DataLoss.
-    So it raises an Exception if case of settings. This handling
-    is an improofment to inform Zeos-Users about the troubles the given
-    CharacterSet may have.
-  @param CharSet the CharacterSet which has to be proofed
-  @param DoArrange represents a switch to check and set a aternative ZAlias as
-    default. This means it ignores the choosen Client-CharacterSet and sets a
-    "more" Zeos-Compatible Client-CharacterSet if known.
-}
 procedure TZAbstractDbcConnection.CheckCharEncoding(const CharSet: String;
   const DoArrange: Boolean = False);
 begin
   ConSettings.ClientCodePage := GetIZPlainDriver.ValidateCharEncoding(CharSet, DoArrange);
   FClientCodePage := ConSettings.ClientCodePage^.Name; //resets the developer choosen ClientCodePage
-  {$IFDEF WITH_LCONVENCODING}
-  SetConvertFunctions(ConSettings^.CTRL_CP, ConSettings^.ClientCodePage.CP,
-    ConSettings^.PlainConvertFunc, ConSettings^.DbcConvertFunc);
-  {$ENDIF}
-  SetConvertFunctions(ConSettings);
   FClientVarManager := TZClientVariantManager.Create(ConSettings);
+  if (ConSettings.ClientCodePage.Encoding = ceUTF16) and
+    (Info.Values[ConnProps_RawStringEncoding] = '')
+    {$IF declared(ConnProps_ControlsCP)}and (Info.Values[ConnProps_ControlsCP] = ''){$IFEND}
+    then ConSettings.W2A2WEncodingSource := encUTF8;
+
 end;
 
-{**
-  EgonHugeist and MDeams: The old deprecadet constructor which was used
-  from the descendant classes. We left him here for compatibility reasons to
-  exesting projects which using the DbcConnections directly
-
-  Constructs this object and assignes the main properties.
-  @param Driver the parent ZDBC driver.
-  @param Url a connection URL.
-  @param PlainDriver a versioned ZPlainDriver object interface.
-  @param HostName a name of the host.
-  @param Port a port number (0 for default port).
-  @param Database a name pof the database.
-  @param User a user name.
-  @param Password a user password.
-  @param Info a string list with extra connection parameters.
-}
 {$WARN SYMBOL_DEPRECATED OFF}
 constructor TZAbstractDbcConnection.Create(const Driver: IZDriver; const Url: string;
   const PlainDriver: IZPlainDriver;
@@ -1004,52 +1276,33 @@ begin
 end;
 {$WARN SYMBOL_DEPRECATED ON}
 
-{**
-  Constructs this object and assignes the main properties.
-  @param Url a connection ZURL-class which exports all connection parameters.
-}
 constructor TZAbstractDbcConnection.Create(const ZUrl: TZURL);
 begin
   FClosed := True;
   FDisposeCodePage := False;
   if not assigned(ZUrl) then
-    raise Exception.Create('ZUrl is not assigned!')
+    raise EZSQLException.Create('ZUrl is not assigned!')
   else
-    FURL := TZURL.Create();
-  FDriverManager := DriverManager; //just keep refcount high
-  FDriver := DriverManager.GetDriver(ZURL.URL);
+    FURL := TZURL.Create(ZURL);
+  FDriverManager := ZDbcIntfs.DriverManager; //just keep refcount high
+  FDriver := FDriverManager.GetDriver(ZURL.URL);
   FIZPlainDriver := FDriver.GetPlainDriver(ZUrl);
-  fRegisteredStatements := {$IFDEF TLIST_IS_DEPRECATED}TZSortedList{$ELSE}TList{$ENDIF}.Create;
-  BeforeUrlAssign;
-  FURL.OnPropertiesChange := OnPropertiesChange;
-  FURL.URL := ZUrl.URL;
-
-  FClientCodePage := Info.Values[ConnProps_CodePage];
-  {CheckCharEncoding}
-  ConSettings := New(PZConSettings);
-
-  SetConSettingsFromInfo(Info);
-  CheckCharEncoding(FClientCodePage, True);
   FAutoCommit := True;
   FReadOnly := False; //EH: Changed! We definitelly did newer ever open a ReadOnly connection by default!
   FTransactIsolationLevel := tiNone;
   FUseMetadata := True;
-  // should be set BEFORE InternalCreate
-  ConSettings^.Protocol := {$IFDEF UNICODE}UnicodeStringToASCII7{$ENDIF}(FIZPlainDriver.GetProtocol);
-  ConSettings^.Database := ConSettings^.ConvFuncs.ZStringToRaw(FURL.Database, ConSettings^.CTRL_CP, ConSettings^.ClientCodePage^.CP);
-  ConSettings^.User := ConSettings^.ConvFuncs.ZStringToRaw(FURL.UserName, ConSettings^.CTRL_CP, ConSettings^.ClientCodePage^.CP);
-  FChunkSize := StrToIntDef(Info.Values[DSProps_ChunkSize], 4096);
-  // now InternalCreate will work, since it will try to Open the connection
-  InternalCreate;
-
+  fAddLogMsgToExceptionOrWarningMsg := True;
+  fRaiseWarnings := False;
+  fRegisteredStatements := TZSortedList.Create;
   {$IFDEF ZEOS_TEST_ONLY}
   FTestMode := 0;
   {$ENDIF}
+  FClientCodePage := Info.Values[ConnProps_CodePage];
+  ConSettings := New(PZConSettings);
+  CheckCharEncoding(FClientCodePage, True);
+  SetConSettingsFromInfo(Info);
 end;
 
-{**
-  Destroys this object and cleanups the memory.
-}
 destructor TZAbstractDbcConnection.Destroy;
 begin
   if not FClosed then
@@ -1067,60 +1320,17 @@ begin
   inherited Destroy;
 end;
 
-{**
-  Opens a connection to database server with specified parameters.
-}
 procedure TZAbstractDbcConnection.Open;
 begin
   FClosed := False;
   SetDateTimeFormatProperties;
 end;
 
-{**
-  Creates a <code>Statement</code> object for sending
-  SQL statements to the database.
-  SQL statements without parameters are normally
-  executed using Statement objects. If the same SQL statement
-  is executed many times, it is more efficient to use a
-  <code>PreparedStatement</code> object.
-  <P>
-  Result sets created using the returned <code>Statement</code>
-  object will by default have forward-only type and read-only concurrency.
-
-  @return a new Statement object
-}
 function TZAbstractDbcConnection.CreateStatement: IZStatement;
 begin
   Result := IZConnection(fWeakReferenceOfSelfInterface).CreateStatementWithParams(nil);
 end;
 
-{**
-  Creates a <code>PreparedStatement</code> object for sending
-  parameterized SQL statements to the database.
-
-  A SQL statement with or without IN parameters can be
-  pre-compiled and stored in a PreparedStatement object. This
-  object can then be used to efficiently execute this statement
-  multiple times.
-
-  <P><B>Note:</B> This method is optimized for handling
-  parametric SQL statements that benefit from precompilation. If
-  the driver supports precompilation,
-  the method <code>prepareStatement</code> will send
-  the statement to the database for precompilation. Some drivers
-  may not support precompilation. In this case, the statement may
-  not be sent to the database until the <code>PreparedStatement</code> is
-  executed.  This has no direct effect on users; however, it does
-  affect which method throws certain SQLExceptions.
-
-  Result sets created using the returned PreparedStatement will have
-  forward-only type and read-only concurrency, by default.
-
-  @param sql a SQL statement that may contain one or more '?' IN
-    parameter placeholders
-  @return a new PreparedStatement object containing the
-    pre-compiled statement
-}
 function TZAbstractDbcConnection.PrepareStatement(const SQL: string): IZPreparedStatement;
 begin
   Result := IZConnection(fWeakReferenceOfSelfInterface).PrepareStatementWithParams(SQL, nil);
@@ -1131,60 +1341,12 @@ begin
   Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
-{**
-  Creates a <code>CallableStatement</code> object for calling
-  database stored procedures.
-  The <code>CallableStatement</code> object provides
-  methods for setting up its IN and OUT parameters, and
-  methods for executing the call to a stored procedure.
-
-  <P><B>Note:</B> This method is optimized for handling stored
-  procedure call statements. Some drivers may send the call
-  statement to the database when the method <code>prepareCall</code>
-  is done; others
-  may wait until the <code>CallableStatement</code> object
-  is executed. This has no
-  direct effect on users; however, it does affect which method
-  throws certain SQLExceptions.
-
-  Result sets created using the returned CallableStatement will have
-  forward-only type and read-only concurrency, by default.
-
-  @param sql a SQL statement that may contain one or more '?'
-    parameter placeholders. Typically this  statement is a JDBC
-    function call escape string.
-  @return a new CallableStatement object containing the
-    pre-compiled SQL statement
-}
-
 function TZAbstractDbcConnection.PrepareCall(
-  const SQL: string): IZCallableStatement;
+  const Name: string): IZCallableStatement;
 begin
-  Result := IZConnection(fWeakReferenceOfSelfInterface).PrepareCallWithParams(SQL, nil);
+  Result := IZConnection(fWeakReferenceOfSelfInterface).PrepareCallWithParams(Name, nil);
 end;
 
-{**
-  Creates an object to send/recieve notifications from SQL server.
-  @param Event an event name.
-  @returns a created notification object.
-}
-{$IFDEF FPC} {$PUSH}
-  {$WARN 5033 off : Function result does not seem to be set}
-  {$WARN 5024 off : Parameter "Event" not used}
-{$ENDIF}
-function TZAbstractDbcConnection.CreateNotification(
-  const Event: string): IZNotification;
-begin
-  Raise EZUnsupportedException.Create(SUnsupportedOperation);
-end;
-{$IFDEF FPC} {$POP} {$ENDIF}
-
-{**
-  Creates a sequence generator object.
-  @param Sequence a name of the sequence generator.
-  @param BlockSize a number of unique keys requested in one trip to SQL server.
-  @returns a created sequence object.
-}
 function TZAbstractDbcConnection.CreateSequence(const Sequence: string;
   BlockSize: Integer): IZSequence;
 begin
@@ -1195,51 +1357,22 @@ begin
     Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
-{**
-  Converts the given SQL statement into the system's native SQL grammar.
-  A driver may convert the JDBC sql grammar into its system's
-  native SQL grammar prior to sending it; this method returns the
-  native form of the statement that the driver would have sent.
-
-  @param sql a SQL statement that may contain one or more '?'
-    parameter placeholders
-  @return the native form of this statement
-}
 function TZAbstractDbcConnection.NativeSQL(const SQL: string): string;
 begin
   Result := SQL;
 end;
 
-{**
-  Sets this connection's auto-commit mode.
-  If a connection is in auto-commit mode, then all its SQL
-  statements will be executed and committed as individual
-  transactions.  Otherwise, its SQL statements are grouped into
-  transactions that are terminated by a call to either
-  the method <code>commit</code> or the method <code>rollback</code>.
-  By default, new connections are in auto-commit mode.
+procedure TZAbstractDbcConnection.SetAddLogMsgToExceptionOrWarningMsg(
+  Value: Boolean);
+begin
+  fAddLogMsgToExceptionOrWarningMsg := Value;
+end;
 
-  The commit occurs when the statement completes or the next
-  execute occurs, whichever comes first. In the case of
-  statements returning a ResultSet, the statement completes when
-  the last row of the ResultSet has been retrieved or the
-  ResultSet has been closed. In advanced cases, a single
-  statement may return multiple results as well as output
-  parameter values. In these cases the commit occurs when all results and
-  output parameter values have been retrieved.
-
-  @param autoCommit true enables auto-commit; false disables auto-commit.
-}
 procedure TZAbstractDbcConnection.SetAutoCommit(Value: Boolean);
 begin
   FAutoCommit := Value;
 end;
 
-{**
-  Gets the current auto-commit state.
-  @return the current state of auto-commit mode
-  @see #setAutoCommit
-}
 function TZAbstractDbcConnection.GetAutoCommit: Boolean;
 begin
   Result := FAutoCommit;
@@ -1255,11 +1388,6 @@ begin
   Raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
-{**
-  Ping Current Connection's server, if client was disconnected,
-  the connection is resumed.
-  @return 0 if succesfull or error code if any error occurs
-}
 {$IFDEF FPC} {$PUSH} {$WARN 5033 off : Function result does not seem to be set} {$ENDIF}
 function TZAbstractDbcConnection.PingServer: Integer;
 begin
@@ -1267,47 +1395,26 @@ begin
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
-{**
-  Escape a string so it's acceptable for the Connection's server.
-  @param value string that should be escaped
-  @return Escaped string
-}
 function TZAbstractDbcConnection.EscapeString(const Value : RawByteString) : RawByteString;
 begin
   Result := EncodeCString(Value);
 end;
 
-{**
-  Executes any statement immediataly
-  @param SQL the raw encoded sql which should be executed
-  @param LoggingCategory a category for the LoggingListeners
-}
 procedure TZAbstractDbcConnection.ExecuteImmediat(const SQL: RawByteString;
   LoggingCategory: TZLoggingCategory);
+var CP: Word;
 begin
-  ExecuteImmediat(ZRawToUnicode(SQL, ConSettings.CTRL_CP), LoggingCategory);
+  if ConSettings.ClientCodePage.Encoding = ceUTF16
+  then CP := zCP_UTF8
+  else CP := ConSettings.ClientCodePage.CP;
+  ExecuteImmediat(ZRawToUnicode(SQL, CP), LoggingCategory);
 end;
 
-{**
-  Executes any statement immediataly
-  @param SQL the UTF16 encoded sql which should be executed
-  @param LoggingCategory a category for the LoggingListeners
-}
 procedure TZAbstractDbcConnection.ExecuteImmediat(const SQL: UnicodeString;
   LoggingCategory: TZLoggingCategory);
 begin
   ExecuteImmediat(ZUnicodeToRaw(SQL, ConSettings.ClientCodePage.CP), LoggingCategory);
 end;
-
-{**
-  Releases a Connection's database and JDBC resources
-  immediately instead of waiting for
-  them to be automatically released.
-
-  <P><B>Note:</B> A Connection is automatically closed when it is
-  garbage collected. Certain fatal errors also result in a closed
-  Connection.
-}
 
 procedure TZAbstractDbcConnection.Close;
 var RefCountAdded: Boolean;
@@ -1340,6 +1447,21 @@ begin
   end;
 end;
 
+procedure TZAbstractDbcConnection.CloseEventListener(var Value: IZEventListener);
+var con: IZConnection;
+begin
+  if (FCreatedWeakEventListenerPtr <> nil) and IZEventListener(FCreatedWeakEventListenerPtr).IsListening then
+    IZEventListener(FCreatedWeakEventListenerPtr).UnListen;
+
+  if FCreatedWeakEventListenerPtr <> Pointer(Value) then begin
+    Con := Value.GetConnection;
+    Con.CloseEventListener(Value);
+    Con := nil;
+  end else
+    FCreatedWeakEventListenerPtr := nil;
+  Value := nil;
+end;
+
 procedure TZAbstractDbcConnection.CloseRegisteredStatements;
 var I: Integer;
 begin
@@ -1350,50 +1472,22 @@ begin
   end;
 end;
 
-{** do something before the URL OnChange is set }
-procedure TZAbstractDbcConnection.BeforeUrlAssign;
-begin
-  //dummy
-end;
-
-{**
-  Tests to see if a Connection is closed.
-  @return true if the connection is closed; false if it's still open
-}
 function TZAbstractDbcConnection.IsClosed: Boolean;
 begin
   Result := FClosed;
   DriverManager.ClearGarbageCollector;
 end;
 
-{**
-  Gets the parent ZDBC driver.
-  @returns the parent ZDBC driver interface.
-}
 function TZAbstractDbcConnection.GetDriver: IZDriver;
 begin
   Result := FDriver;
 end;
 
-{**
-  Gets the plain driver.
-  @returns the plain driver interface.
-}
 function TZAbstractDbcConnection.GetIZPlainDriver: IZPlainDriver;
 begin
   result := FIZPlainDriver;
 end;
 
-{**
-  Gets the metadata regarding this connection's database.
-  A Connection's database is able to provide information
-  describing its tables, its supported SQL grammar, its stored
-  procedures, the capabilities of this connection, and so on. This
-  information is made available through a DatabaseMetaData
-  object.
-
-  @return a DatabaseMetaData object for this Connection
-}
 function TZAbstractDbcConnection.GetMetadata: IZDatabaseMetadata;
 begin
   if Closed then
@@ -1401,148 +1495,86 @@ begin
   Result := FMetadata as IZDatabaseMetadata;
 end;
 
-{**
-  Gets a connection parameters.
-  @returns a list with connection parameters.
-}
 function TZAbstractDbcConnection.GetParameters: TStrings;
 begin
   Result := Info;
 end;
 
-{**
-  Gets the client's full version number. Initially this should be 0.
-  The format of the version resturned must be XYYYZZZ where
-   X   = Major version
-   YYY = Minor version
-   ZZZ = Sub version
-  @return this clients's full version number
-}
 function TZAbstractDbcConnection.GetClientVersion: Integer;
 begin
   Result := 0;
 end;
 
-{**
-  Gets the host's full version number. Initially this should be 0.
-  The format of the version returned must be XYYYZZZ where
-   X   = Major version
-   YYY = Minor version
-   ZZZ = Sub version
-  @return this server's full version number
-}
 function TZAbstractDbcConnection.GetHostVersion: Integer;
 begin
   Result := 0;
 end;
 
-{**
-  Gets the PlainDriver description.
-  @returns a the description.
-}
 function TZAbstractDbcConnection.GetDescription: String;
 begin
   Result := PlainDriver.GetDescription;
 end;
 
-{END ADDED by fduenas 15-06-2006}
+procedure TZAbstractDbcConnection.SetRaiseWarnings(Value: Boolean);
+begin
+  fRaiseWarnings := Value;
+end;
 
-{**
-  Puts this connection in read-only mode as a hint to enable
-  database optimizations.
-
-  <P><B>Note:</B> This method cannot be called while in the
-  middle of a transaction.
-
-  @param readOnly true enables read-only mode; false disables
-    read-only mode.
-}
 procedure TZAbstractDbcConnection.SetReadOnly(Value: Boolean);
 begin
   FReadOnly := Value;
 end;
 
-{**
-  Tests to see if the connection is in read-only mode.
-  @return true if connection is read-only and false otherwise
-}
 function TZAbstractDbcConnection.IsReadOnly: Boolean;
 begin
   Result := FReadOnly;
 end;
 
-{**
-  get current connection URL from TZURL. Nice to clone the connection by using
-  the IZDriverManager
-  @return true if connection is read-only and false otherwise
-}
+procedure TZAbstractDbcConnection.LogError(const Category: TZLoggingCategory;
+  ErrorCode: Integer; const Sender: IImmediatelyReleasable; const Msg,
+  Error: String);
+var Stmt: IZStatement;
+    AMessage: String;
+begin
+  if (Sender <> nil) and (Sender.QueryInterface(IZStatement, Stmt) = S_OK) then begin
+    AMessage := 'Statement '+{$IFDEF UNICODE}IntToUnicode{$ELSE}IntToRaw{$ENDIF}(Stmt.GetStatementId);
+    if Msg <> '' then
+      AMessage := AMessage+' : ';
+  end else AMessage := '';
+  AMessage := AMessage + Msg;
+  DriverManager.LogError(Category, URL.Protocol, AMessage, ErrorCode, Error);
+end;
+
 function TZAbstractDbcConnection.GetURL: String;
 begin
   Result := FURL.URL
 end;
 
-{**
-  Sets a catalog name in order to select
-  a subspace of this Connection's database in which to work.
-  If the driver does not support catalogs, it will
-  silently ignore this request.
-}
 procedure TZAbstractDbcConnection.SetCatalog(const Catalog: string);
 begin
 end;
 
-{**
-  Returns the Connection's current catalog name.
-  @return the current catalog name or null
-}
 function TZAbstractDbcConnection.GetCatalog: string;
 begin
   Result := '';
 end;
 
-{**
-  Attempts to change the transaction isolation level to the one given.
-  The constants defined in the interface <code>Connection</code>
-  are the possible transaction isolation levels.
-
-  <P><B>Note:</B> This method cannot be called while
-  in the middle of a transaction.
-
-  @param level one of the TRANSACTION_* isolation values with the
-    exception of TRANSACTION_NONE; some databases may not support other values
-  @see DatabaseMetaData#supportsTransactionIsolationLevel
-}
 procedure TZAbstractDbcConnection.SetTransactionIsolation(
   Level: TZTransactIsolationLevel);
 begin
   FTransactIsolationLevel := Level;
 end;
 
-{**
-  Gets this Connection's current transaction isolation level.
-  @return the current TRANSACTION_* mode value
-}
 function TZAbstractDbcConnection.GetTransactionIsolation: TZTransactIsolationLevel;
 begin
   Result := FTransactIsolationLevel;
 end;
 
-{**
-  Returns the first warning reported by calls on this Connection.
-  <P><B>Note:</B> Subsequent warnings will be chained to this
-  SQLWarning.
-  @return the first SQLWarning or null
-}
 function TZAbstractDbcConnection.GetWarnings: EZSQLWarning;
 begin
   Result := nil;
 end;
 
-{**
-  Clears all warnings reported for this <code>Connection</code> object.
-  After a call to this method, the method <code>getWarnings</code>
-    returns null until a new warning is reported for this Connection.
-}
 procedure TZAbstractDbcConnection.ClearWarnings;
 begin
 end;
@@ -1576,7 +1608,7 @@ begin
   Result := @FByteBuffer[0];
 end;
 
-function TZAbstractDbcConnection.GetEscapeString(const Value: ZWideString): ZWideString;
+function TZAbstractDbcConnection.GetEscapeString(const Value: UnicodeString): UnicodeString;
 var P: PWideChar;
     L: LengthInt;
 begin
@@ -1598,6 +1630,25 @@ begin
   else Result := SQLQuotedStr(P, L, AnsiChar(#39));
 end;
 
+function TZAbstractDbcConnection.GetEventListener(Handler: TZOnEventHandler;
+  CloneConnection: Boolean; Options: TStrings): IZEventListener;
+var Con: IZConnection;
+begin
+  Result := nil;
+  if (FWeakEventListenerSelfPtr = nil) then
+    raise EZSQLException.Create('Listener is not supported');
+  if (FCreatedWeakEventListenerPtr <> nil) and not CloneConnection then
+    raise EZSQLException.Create('Listener alredy retrieved');
+  if CloneConnection then begin
+    Con := FDriverManager.GetConnection(FURL.URL);
+    Result := Con.GetEventListener(Handler, False, Options);
+    Con := nil;
+  end else begin
+    Result := IZEventListener(FWeakEventListenerSelfPtr);
+    FCreatedWeakEventListenerPtr := Pointer(Result);
+  end;
+end;
+
 {$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "Sender" not used} {$ENDIF}
 procedure TZAbstractDbcConnection.OnPropertiesChange(Sender: TObject);
 begin
@@ -1605,77 +1656,8 @@ begin
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
-{ TZAbstractNotification }
-
-{**
-  Creates this object and assignes the main properties.
-  @param Connection a database connection object.
-  @param EventName a name of the SQL event.
-}
-constructor TZAbstractNotification.Create(const Connection: IZConnection;
-  const EventName: string);
-begin
-  FConnection := Connection;
-  FEventName := EventName;
-end;
-
-{**
-  Gets an event name.
-  @return an event name for this notification.
-}
-function TZAbstractNotification.GetEvent: string;
-begin
-  Result := FEventName;
-end;
-
-{**
-  Sets a listener to the specified event.
-}
-procedure TZAbstractNotification.Listen;
-begin
-end;
-
-{**
-  Removes a listener to the specified event.
-}
-procedure TZAbstractNotification.Unlisten;
-begin
-end;
-
-{**
-  Checks for any pending events.
-  @return a string with incoming events??
-}
-function TZAbstractNotification.CheckEvents: string;
-begin
-  Result := '';
-end;
-
-{**
-  Sends a notification string.
-}
-procedure TZAbstractNotification.DoNotify;
-begin
-end;
-
-{**
-  Returns the <code>Connection</code> object
-  that produced this <code>Statement</code> object.
-  @return the connection that produced this statement
-}
-function TZAbstractNotification.GetConnection: IZConnection;
-begin
-  Result := FConnection;
-end;
-
 { TZAbstractSequence }
 
-{**
-  Creates this sequence object.
-  @param Connection an SQL connection interface.
-  @param Name a name of the sequence generator.
-  @param BlockSize a number of unique keys requested in one trip to server.
-}
 constructor TZAbstractSequence.Create(const Connection: IZConnection;
   const Name: string; BlockSize: Integer);
 begin
@@ -1684,29 +1666,16 @@ begin
   FBlockSize := BlockSize;
 end;
 
-{**
-  Returns the <code>Connection</code> object
-  that produced this <code>Statement</code> object.
-  @return the connection that produced this statement
-}
 function TZAbstractSequence.GetConnection: IZConnection;
 begin
   Result := FConnection;
 end;
 
-{**
-  Returns a name of the sequence generator.
-  @return a name of this sequence generator.
-}
 function TZAbstractSequence.GetName: string;
 begin
   Result := FName;
 end;
 
-{**
-  Returns the assigned block size for this sequence.
-  @return the assigned block size.
-}
 procedure TZAbstractSequence.FlushResults;
 begin
   if FNextValRS <> nil then begin
@@ -1732,10 +1701,6 @@ begin
   Result := FBlockSize;
 end;
 
-{**
-  Gets the current unique key generated by this sequence.
-  @param the last generated unique key.
-}
 function TZAbstractSequence.GetCurrentValue: Int64;
 begin
   if (FCurrValStmt = nil) or FCurrValStmt.IsClosed then
@@ -1747,10 +1712,6 @@ begin
   FCurrValRS.ResetCursor;
 end;
 
-{**
-  Gets the next unique key generated by this sequence.
-  @param the next generated unique key.
-}
 function TZAbstractSequence.GetNextValue: Int64;
 begin
   if (FNextValStmt = nil) or FNextValStmt.IsClosed then
@@ -1762,24 +1723,16 @@ begin
   FNextValRS.ResetCursor;
 end;
 
-{**
-  Sets the block size for this sequence.
-  @param Value the block size.
-}
 procedure TZAbstractSequence.SetBlockSize(const Value: Integer);
 begin
   FBlockSize := Value;
 end;
 
-{**
-  Sets a name of the sequence generator.
-  @param Value a name of this sequence generator.
-}
 procedure TZAbstractSequence.SetName(const Value: string);
 begin
   if FName <> Value then begin
     FlushResults;
-    FName := FName;
+    FName := Value;
   end;
 end;
 
@@ -1788,7 +1741,7 @@ end;
 procedure TZIdentifierSequence.SetName(const Value: string);
 var QuotedName: String;
 begin
-  QuotedName := FConnection.GetMetadata.GetIdentifierConvertor.Quote(Value);
+  QuotedName := FConnection.GetMetadata.GetIdentifierConverter.Quote(Value, iqSequence);
   inherited SetName(QuotedName);
 end;
 
@@ -1796,7 +1749,7 @@ end;
 
 function TZMSSQLSequence.GetCurrentValueSQL: string;
 begin
-  Result := 'select next value for '+FConnection.GetMetadata.GetIdentifierConvertor.Quote(FName);
+  Result := 'select next value for '+FConnection.GetMetadata.GetIdentifierConverter.Quote(FName, iqSequence);
 end;
 
 function TZMSSQLSequence.GetNextValueSQL: string;
@@ -1854,17 +1807,13 @@ end;
 
 { TZClientVariantManager }
 
-{**
-  Constructs this object and assigns the main properties.
-  @param ClientCodePage the current ClientCodePage.
-}
 constructor TZClientVariantManager.Create(const ConSettings: PZConSettings);
 begin
   inherited Create; //Set all standard converters functions
   FConSettings := ConSettings;
   FFormatSettings := FConSettings.ReadFormatSettings;
   FClientCP := Consettings.ClientCodePage.CP;
-  FCtrlsCP := Consettings.CTRL_CP;
+  FStringCP := GetW2A2WConversionCodePage(ConSettings);
   FUseWComparsions := (FClientCP <> ZOSCodePage) or
     (FClientCP = zCP_UTF8) or
     not Consettings.ClientCodePage.IsStringFieldCPConsistent or
@@ -1914,12 +1863,13 @@ procedure TZClientVariantManager.ProcessAnsiString(const Value: TZVariant;
   out Result: TZVariant);
 var ResTmp: RawByteString;
 begin
+  ResTmp := '';
   Result.VType := vtAnsiString;
   case Value.VType of
     {$IFNDEF UNICODE}
-    vtString: if FConSettings.AutoEncode
-              then ResTmp := ZConvertStringToAnsiWithAutoEncode(Value.VRawByteString, FCtrlsCP)
-              else ResTmp := Value.VRawByteString;
+    vtString: if FStringCP = ZOSCodePage
+              then ResTmp := Value.VRawByteString
+              else PRawToRawConvert(Pointer(Value.VRawByteString), Length(Value.VRawByteString), FStringCP, ZOSCodePage, ResTmp);
     {$ENDIF}
     vtAnsiString: ResTmp := Value.VRawByteString;
     vtUTF8String: if ZOSCodePage = zCP_UTF8
@@ -1933,7 +1883,7 @@ begin
       ResTmp := ZUnicodeToRaw(Value.VUnicodeString, ZOSCodePage);
     vtCharRec:
       if (Value.VCharRec.CP = zCP_UTF16) then
-        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, ZOSCodePage)
+        PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, ZOSCodePage, ResTmp)
       else if (ZOSCodePage = Value.VCharRec.CP) then
         ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp{$IFDEF WITH_RAWBYTESTRING}, ZOSCodePage{$ENDIF})
       else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, ZOSCodePage);
@@ -1958,7 +1908,7 @@ begin
       end;
     {$IFNDEF UNICODE}
     vtString: begin
-        Result.VCharRec.CP := FCtrlsCP;
+        Result.VCharRec.CP := FStringCP;
         goto SetRaw;
       end;
     {$ENDIF}
@@ -1975,7 +1925,7 @@ begin
       end;
     {$ENDIF}
     vtRawByteString: begin
-        Result.VCharRec.CP := fClientCP;
+        Result.VCharRec.CP := FClientCP;
 SetRaw: if Pointer(Result.VRawByteString) = nil then begin
           Result.VCharRec.Len := 0;
           Result.VCharRec.P := PEmptyAnsiString; //avoid nil result
@@ -2024,11 +1974,12 @@ procedure TZClientVariantManager.ProcessRawByteString(const Value: TZVariant;
 var ResTmp: RawByteString;
 begin
   Result.VType := vtRawByteString;
+  ResTmp := '';
   case Value.VType of
     {$IFNDEF UNICODE}
-    vtString: if FConSettings.AutoEncode
-              then ResTmp := ZConvertStringToRawWithAutoEncode(Value.VRawByteString, FCtrlsCP, FClientCP)
-              else ResTmp := Value.VRawByteString;
+    vtString: if FStringCP = FClientCP
+              then ResTmp := Value.VRawByteString
+              else RawCPConvert(Value.VRawByteString, ResTmp, FStringCP, FClientCP);
     {$ENDIF}
     {$IFNDEF NO_ANSISTRING}
     vtAnsiString: if FClientCP = ZOSCodePage
@@ -2042,11 +1993,10 @@ begin
     {$ENDIF}
     vtRawByteString: ResTmp := Value.VRawByteString;
     {$IFDEF UNICODE}vtString,{$ENDIF}
-    vtUnicodeString:
-      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, zCP_UTF8);
+    vtUnicodeString: PUnicodeToRaw(Pointer(Value.VUnicodeString), Length(Value.VUnicodeString), FClientCP, ResTmp);
     vtCharRec:
       if (Value.VCharRec.CP = zCP_UTF16) then
-        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, FClientCP)
+        PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, FClientCP, ResTmp)
       else if (FClientCP = Value.VCharRec.CP) then
         ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp{$IFDEF WITH_RAWBYTESTRING}, FClientCP{$ENDIF})
       else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, FClientCP);
@@ -2069,53 +2019,51 @@ begin
     vtAnsiString: {$IFDEF UNICODE}
                   ResTmp := ZRawToUnicode(Value.VRawByteString, ZOSCodePage);
                   {$ELSE}
-                  if FConSettings^.CTRL_CP = ZOSCodePage
+                  if FStringCP = ZOSCodePage
                   then ResTmp := Value.VRawByteString
-                  else RawCPConvert(Value.VRawByteString, ResTmp, ZOSCodePage, FCtrlsCP);
+                  else RawCPConvert(Value.VRawByteString, ResTmp, ZOSCodePage, FStringCP);
                   {$ENDIF}
     {$ENDIF}
     {$IFNDEF NO_UTF8STRING}
     vtUTF8String: {$IFDEF UNICODE}
                   ResTmp := ZRawToUnicode(Value.VRawByteString, zCP_UTF8);
                   {$ELSE}
-                  if FCtrlsCP = zCP_UTF8
+                  if FStringCP = zCP_UTF8
                   then ResTmp := Value.VRawByteString
-                  else RawCPConvert(Value.VRawByteString, ResTmp, zCP_UTF8, FCtrlsCP);
+                  else RawCPConvert(Value.VRawByteString, ResTmp, zCP_UTF8, FStringCP);
                   {$ENDIF}
     {$ENDIF}
     vtRawByteString: {$IFDEF UNICODE}
                   ResTmp := ZRawToUnicode(Value.VRawByteString, FClientCP);
                   {$ELSE}
-                  if (FCtrlsCP = FClientCP) or (not FConSettings.AutoEncode)
+                  if (FStringCP = FClientCP)
                   then ResTmp := Value.VRawByteString
-                  else RawCPConvert(Value.VRawByteString, ResTmp, FClientCP, FCtrlsCP);
+                  else RawCPConvert(Value.VRawByteString, ResTmp, FClientCP, FStringCP);
                   {$ENDIF}
    {$IFDEF UNICODE}vtString,{$ENDIF}
    vtUnicodeString:
       {$IFDEF UNICODE}
       ResTmp := Value.VUnicodeString;
       {$ELSE}
-      //hint: VarArrayOf(['Test']) returns allways varOleStr which is type WideString don't change that again
-      //this hint means a cast instead of convert. The user should better use WideString constants!
-      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, FCtrlsCP);
+      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, FStringCP);
       {$ENDIF}
     vtCharRec: if (Value.VCharRec.CP = zCP_UTF16) then
         {$IFDEF UNICODE}
         SetString(ResTmp, PChar(Value.VCharRec.P), Value.VCharRec.Len)
         {$ELSE}
-        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, ZOSCodePage)
+        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, FStringCP)
         {$ENDIF}
       else
         {$IFNDEF UNICODE}
-        if (FCtrlsCP = Value.VCharRec.CP)
-        then ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp)
-        else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, FCtrlsCP);
+        if (FStringCP = Value.VCharRec.CP)
+        then ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp{$IFDEF WITH_DEFAULTSYSTEMCODEPAGE},FStringCP{$ENDIF})
+        else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, FStringCP);
         {$ELSE}
         ResTmp := PRawToUnicode(Value.VCharRec.P, Value.VCharRec.Len, Value.VCharRec.CP);
         {$ENDIF}
     vtDateTime:
       ResTmp := ZSysUtils.{$IFDEF UNICODE}DateTimeToUnicodeSQLTimeStamp{$ELSE}DateTimeToRawSQLTimeStamp{$ENDIF}(Value.VDateTime, FFormatSettings, False);
-    else {$IFDEF UNICODE}ConvertFixedTypesToUnicode{$ELSE}ConvertFixedTypesToRaw{$ENDIF}(Value, ResTmp{$IF defined(WITH_RAWBYTESTRING) and not defined(UNICODE)}, FCtrlsCP{$IFEND});
+    else {$IFDEF UNICODE}ConvertFixedTypesToUnicode{$ELSE}ConvertFixedTypesToRaw{$ENDIF}(Value, ResTmp{$IF defined(WITH_RAWBYTESTRING) and not defined(UNICODE)}, DefaultSystemCodePage{$IFEND});
   end;
   Result.{$IFDEF UNICODE}VUnicodeString{$ELSE}VRawByteString{$ENDIF} := ResTmp;
 end;
@@ -2124,26 +2072,25 @@ procedure TZClientVariantManager.ProcessUnicodeString(const Value: TZVariant;
   out Result: TZVariant);
 var ResTmp: UnicodeString;
 begin
+  ResTmp := '';
   Result.VType := vtUnicodeString;
   case Value.VType of
     {$IFNDEF UNICODE}
-    vtString: if FConSettings.AutoEncode
-              then ResTmp := ZConvertStringToUnicodeWithAutoEncode(Value.VRawByteString, FCtrlsCP)
-              else ResTmp := ZRawToUnicode(Value.VRawByteString, FCtrlsCP);
+    vtString: PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), FStringCP, ResTmp);
     {$ENDIF}
     {$IFNDEF NO_ANSISTRING}
-    vtAnsiString: ResTmp := ZRawToUnicode(Value.VRawByteString, ZOSCodePage);
+    vtAnsiString: PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), ZOSCodePage, ResTmp);
     {$ENDIF}
     {$IFNDEF NO_UTF8STRING}
-    vtUTF8String: ResTmp := ZRawToUnicode(Value.VRawByteString, zCP_UTF8);
+    vtUTF8String: PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), zCP_UTF8, ResTmp);
     {$ENDIF}
-    vtRawByteString: ResTmp := ZRawToUnicode(Value.VRawByteString, FClientCP);
+    vtRawByteString: PRawToUnicode(Pointer(Value.VRawByteString), Length(Value.VRawByteString), FClientCP, ResTmp);
     {$IFDEF UNICODE}vtString,{$ENDIF}
     vtUnicodeString: ResTmp := Value.VUnicodeString;
     vtDateTime:      ResTmp := ZSysUtils.DateTimeToUnicodeSQLTimeStamp(Value.VDateTime, FFormatSettings, False);
     vtCharRec: if (Value.VCharRec.CP = zCP_UTF16)
         then SetString(ResTmp, PWideChar(Value.VCharRec.P), Value.VCharRec.Len)
-        else ResTmp := PRawToUnicode(Value.VCharRec.P, Value.VCharRec.Len, Value.VCharRec.CP);
+        else PRawToUnicode(Value.VCharRec.P, Value.VCharRec.Len, Value.VCharRec.CP, ResTmp);
     else ConvertFixedTypesToUnicode(Value, ResTmp);
   end;
   Result.VUnicodeString := ResTmp;
@@ -2155,11 +2102,12 @@ procedure TZClientVariantManager.ProcessUTF8String(const Value: TZVariant;
 var ResTmp: RawByteString;
 begin
   Result.VType := vtUTF8String;
+  ResTmp := '';
   case Value.VType of
     {$IFNDEF UNICODE}
-    vtString: if FConSettings.AutoEncode
-              then ResTmp := ZConvertStringToUTF8WithAutoEncode(Value.VRawByteString, FCtrlsCP)
-              else ResTmp := Value.VRawByteString;
+    vtString:     if FStringCP = zCP_UTF8
+                  then ResTmp := Value.VRawByteString
+                  else RawCPConvert(Value.VRawByteString, ResTmp, FStringCP, zCP_UTF8);
     {$ENDIF}
     {$IFNDEF NO_ANSISTRING}
     vtAnsiString: if ZOSCodePage = zCP_UTF8
@@ -2167,15 +2115,15 @@ begin
                   else RawCPConvert(Value.VRawByteString, ResTmp, ZOSCodePage, zCP_UTF8);
     {$ENDIF}
     vtUTF8String: ResTmp := Value.VRawByteString;
-    vtRawByteString: if ZOSCodePage = FClientCP
+    vtRawByteString: if FClientCP = zCP_UTF8
                      then ResTmp := Value.VRawByteString
-                     else RawCPConvert(Value.VRawByteString, ResTmp, FClientCP, ZOSCodePage);
+                     else RawCPConvert(Value.VRawByteString, ResTmp, FClientCP, zCP_UTF8);
     {$IFDEF UNICODE}vtString,{$ENDIF}
     vtUnicodeString:
-      ResTmp := ZUnicodeToRaw(Value.VUnicodeString, zCP_UTF8);
+      PUnicodeToRaw(Pointer(Value.VUnicodeString), Length(Value.VUnicodeString), zCP_UTF8, ResTmp);
     vtCharRec:
       if (Value.VCharRec.CP = zCP_UTF16) then
-        ResTmp := PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, zCP_UTF8)
+        PUnicodeToRaw(Value.VCharRec.P, Value.VCharRec.Len, zCP_UTF8, ResTmp)
       else if (zCP_UTF8 = Value.VCharRec.CP) then
         ZSetString(PAnsiChar(Value.VCharRec.P), Value.VCharRec.Len, ResTmp{$IFDEF WITH_RAWBYTESTRING}, zCP_UTF8{$ENDIF})
       else PRawCPConvert(Value.VCharRec.P, Value.VCharRec.Len, ResTmp, Value.VCharRec.CP, zCP_UTF8);
@@ -2191,20 +2139,31 @@ begin
   Result := FUseWComparsions;
 end;
 
-{ TZEmulatedTransactionManager }
+{ TZAbstractSingleTxnConnection }
 
-constructor TZEmulatedTransactionManager.Create(const Connection: IZConnection);
+procedure TZAbstractSingleTxnConnection.AfterConstruction;
+var Trans: IZTransaction;
 begin
-  Assert(Connection <> nil, 'Main connection is not assigned');
-  fMainConnection := Connection;
-  ConSettings := Connection.GetConSettings;
+  QueryInterface(IZTransaction, Trans);
+  fWeakTxnPtr := Pointer(Trans);
+  Trans := nil;
+  inherited AfterConstruction;
+  FSavePoints := TStringList.Create;
   fTransactions := TZCollection.Create;
-  Connection.QueryInterface(IZTransaction, fActiveTransaction);
-  fTransactions.Add(fActiveTransaction);
+end;
+
+procedure TZAbstractSingleTxnConnection.ClearTransactions;
+var I: Integer;
+    Txn: IZTransaction;
+begin
+  for i := 0 to fTransactions.Count -1 do
+    if (fTransactions[i] <> nil) and (fTransactions[i].QueryInterface(IZTransaction, Txn) = S_OK) then
+      Txn.Close;
+  fTransactions.Clear;
 end;
 
 {$IFDEF FPC} {$PUSH} {$WARN 5024 off : Parameter "AutoCommit" not used} {$ENDIF}
-function TZEmulatedTransactionManager.CreateTransaction(AutoCommit,
+function TZAbstractSingleTxnConnection.CreateTransaction(AutoCommit,
   ReadOnly: Boolean; TransactIsolationLevel: TZTransactIsolationLevel;
   Params: TStrings): IZTransaction;
 var URL: TZURL;
@@ -2212,94 +2171,154 @@ var URL: TZURL;
 begin
   URL := TZURL.Create;
   Result := nil;
-  if fMainConnection <> nil then //released ?
   try
-    URL.URL := fMainConnection.GetURL;
+    URL.URL := FURL.URL;
     if Params <> nil then
       URL.Properties.AddStrings(Params);
     Connection := DriverManager.GetConnection(URL.URL);
     Connection.SetAutoCommit(True); //do not automatically start a explicit txn that should be done by StartTransaction
     Connection.SetReadOnly(ReadOnly);
     Connection.SetTransactionIsolation(TransactIsolationLevel);
-    Connection.Open; //test if connect succeeded and prevent raise exception on starttransaction
     Result := Connection as IZTransaction; //if not supported we get an invalid interface exc.
-    fTransactions.Add(Result);
+    fTransactions.Add(Result)
   finally
     FreeAndNil(URL);
   end;
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
 
-function TZEmulatedTransactionManager.GetTransaction(
-  Index: Cardinal): IZTransaction;
-begin
-  Result := nil;
-  if fMainConnection <> nil then //released ?
-    if Index = 0
-    then fMainConnection.QueryInterface(IZTransaction, Result)
-    else if Index >= Cardinal(fTransactions.Count)
-      then fTransactions[Index-1].QueryInterface(IZTransaction, Result)
-end;
-
-function TZEmulatedTransactionManager.GetTransactionCount: Integer;
-begin
-  Result := fTransactions.Count +1;
-end;
-
-procedure TZEmulatedTransactionManager.ReleaseImmediat(
-  const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost);
-begin
-  fActiveTransaction := nil;
-  fTransactions.Clear;
-  fMainConnection := nil;
-end;
-
-procedure TZEmulatedTransactionManager.ReleaseTransaction(
-  const Transaction: IZTransaction);
-var I: Integer;
-  Connection: IZConnection;
-begin
-  I := fTransactions.IndexOf(Transaction);
-  if I < 0 then
-    raise EZSQLException.Create('Manager could not locate given transaction');
-  Connection := fTransactions[i] as IZConnection;
-  if Connection <> fMainConnection then
-    Connection.Close;
-  fTransactions.Delete(I);
-end;
-
-procedure TZEmulatedTransactionManager.SetActiveTransaction(
-  const Transaction: IZTransaction);
-begin
-  fActiveTransaction := Transaction;
-end;
-
-{ TZAbstractDbcSingleTransactionConnection }
-
-procedure TZAbstractDbcSingleTransactionConnection.BeforeUrlAssign;
-begin
-  FSavePoints := TStringList.Create;
-end;
-
-destructor TZAbstractDbcSingleTransactionConnection.Destroy;
+destructor TZAbstractSingleTxnConnection.Destroy;
 begin
   try
     inherited Destroy;
   finally
     FreeAndNil(FSavePoints);
+    fTransactions := nil;
   end;
 end;
 
-function TZAbstractDbcSingleTransactionConnection.GetConnection: IZConnection;
+function TZAbstractSingleTxnConnection.GetConnection: IZConnection;
 begin
   Result := IZConnection(fWeakReferenceOfSelfInterface);
 end;
 
-function TZAbstractDbcSingleTransactionConnection.GetTransactionLevel: Integer;
+function TZAbstractSingleTxnConnection.GetConnectionTransaction: IZTransaction;
+begin
+  {$IFDEF DEBUG}
+  if fWeakTxnPtr = nil then
+    raise EZSQLException.Create(SUnsupportedOperation);
+  {$ENDIF}
+  Result := IZTransaction(fWeakTxnPtr);
+end;
+
+function TZAbstractSingleTxnConnection.GetTransactionLevel: Integer;
 begin
   Result := Ord(not AutoCommit);
   if FSavePoints <> nil then
     Result := Result + FSavePoints.Count;
+end;
+
+function TZAbstractSingleTxnConnection.IsTransactionValid(
+  const Value: IZTransaction): Boolean;
+begin
+  if Value = nil then
+    Result := False
+  else if Pointer(Value) = fWeakTxnPtr then
+    Result := True
+  else
+    Result := fTransactions.IndexOf(Value) >= 0;
+end;
+
+procedure TZAbstractSingleTxnConnection.ReleaseImmediat(
+  const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost);
+var I: Integer;
+  Imm: IImmediatelyReleasable;
+begin
+  inherited ReleaseImmediat(Sender, AError);
+  if (fActiveTransaction <> nil) and (fActiveTransaction.QueryInterface(IImmediatelyReleasable, imm) = S_OK) and (imm <> Sender) then begin
+    imm.ReleaseImmediat(Sender, AError);
+    fActiveTransaction := nil;
+  end;
+  if fTransactions <> nil then begin
+    for I := fTransactions.Count -1 downto 0 do
+      if (fTransactions[i] <> nil) and (fTransactions[i].QueryInterface(IImmediatelyReleasable, imm) = S_OK) and (imm <> Sender) then
+        imm.ReleaseImmediat(Sender, AError);
+    fTransactions.Clear;
+  end;
+end;
+
+procedure TZAbstractSingleTxnConnection.ReleaseTransaction(
+  const Value: IZTransaction);
+begin
+  if Pointer(Value) = fWeakTxnPtr
+  then raise EZSQLException.Create(SUnsupportedOperation)
+  else fTransactions.Delete(fTransactions.IndexOf(Value));
+end;
+
+{ TZEventList }
+
+procedure TZEventList.Add(const Name: String; Handler: TZOnEventHandler);
+var Index: NativeInt;
+    Event: PZEvent;
+begin
+  if not Assigned(Handler) then
+    Handler := FHandler;
+  if (Name = '') or not Assigned(Handler) then
+    raise EZSQLException.Create('Name or Handler not set');
+  Event := GetByName(Name);
+  if Event <> nil then
+    raise EZSQLException.Create('Event registered already');
+  Event := inherited Add(Index);
+  Event.Name := Name;
+  Event.Handler := Handler;
+end;
+
+constructor TZEventList.Create(Handler: TZOnEventHandler);
+begin
+  inherited Create(GetElementSize, True);
+  FHandler := Handler;
+end;
+
+function TZEventList.Get(const Index: NativeInt): PZEvent;
+begin
+  Result := inherited Get(Index);
+end;
+
+function TZEventList.GetByName(const Name: String): PZEvent;
+var I: NativeInt;
+begin
+  for i := 0 to Count -1 do begin
+    Result := inherited Get(I);
+    if Result.Name = Name then
+      Exit;
+  end;
+  Result := nil;
+end;
+
+class function TZEventList.GetElementSize: Cardinal;
+begin
+  Result := SizeOf(TZEvent)
+end;
+
+procedure TZEventList.Notify(Ptr: Pointer; Action: TListNotification);
+begin
+  if (Action = lnDeleted) then
+    PZEvent(Ptr).Name := '';
+  inherited Notify(Ptr, Action);
+end;
+
+procedure TZEventList.Remove(const Name: String);
+var I: NativeInt;
+  Event: PZEvent;
+begin
+  for i := 0 to Count -1 do begin
+    Event := inherited Get(I);
+    if Event.Name = Name then begin
+      Delete(I);
+      Exit;
+    end;
+  end;
+  raise EZSQLException.Create('Event is not registered');
 end;
 
 end.
