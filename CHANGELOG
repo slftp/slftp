@@ -37,23 +37,20 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      use_site_search_on_reqfill=0
-      fill_already_on_site=0
-      create_already_on_site_in_directory=1
-      compare_files_for_reqfilled_fallback=1
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
-    3. add allowedfiles=_MULTICDROOT_:* and alloweddirs=_MULTICDROOT_:* to the default skiplist at
-       the top of slftp.skip to allow multi CD/DVD releases to be transferred with the default skiplist
-    4. enjoy!
+    3. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
-	
+
+--=============================( SLFTP v1.5.10 )==================================-
+
+
 --=============================( SLFTP v1.5.9 )===================================-
     {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
     {#} sort destinations on KB level to make sure the highest ranked sites get race tasks created first before the queue sort
