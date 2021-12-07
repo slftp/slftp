@@ -49,6 +49,7 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.10 )==================================-
+    {^} Write race stats to the DB asynchronously
 
 
 --=============================( SLFTP v1.5.9 )===================================-
@@ -61,7 +62,6 @@
     {^} Allow to fill requests that are on the site already by setting fill_already_on_site=1
     {^} Reset auto disabled NFO download for sites to enabled on 'SITE UP'
     {^} Adjust IMDB parsing for new IMDB page layout (#311)
-    {^} Write race stats to the DB asynchronously
 
 --=============================( SLFTP v1.5.8 )===================================-
     {+} Reverse FXP can be enabled by command !reversefxp (#9)
