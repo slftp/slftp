@@ -55,7 +55,7 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZDbcIntfs, ZDbcConnection, ZPlainProxyDriver, ZPlainProxyDriverIntf,
@@ -87,14 +87,14 @@ type
 
   { TZProxyConnection }
 
-  TZDbcProxyConnection = class({$IFNDEF ZEOS73UP}TZAbstractConnection{$ELSE}TZAbstractDbcConnection{$ENDIF},
-    IZConnection, IZDbcProxyConnection)
+  TZDbcProxyConnection = class({$IFNDEF ZEOS73UP}TZAbstractConnection{$ELSE}TZAbstractSingleTxnConnection{$ENDIF},
+    IZConnection, IZTransaction, IZDbcProxyConnection)
   private
     FPlainDriver: IZProxyPlainDriver;
     FConnIntf: IZDbcProxy;
     FDbInfo: ZWideString;
 
-    //shadow properties - the just mirror the values that are set on the server
+    //shadow properties - they just mirror the values that are set on the server
     FCatalog: String;
     FServerProvider: TZServerProvider;
 
@@ -102,23 +102,87 @@ type
     FStartTransactionUsed: Boolean;
     {$ENDIF}
   protected
-    procedure InternalCreate; override;
     procedure transferProperties(PropName, PropValue: String);
     procedure applyProperties(const Properties: String);
     function encodeProperties(PropName, PropValue: String): String;
   public
+    procedure AfterConstruction; override;
     {$IFNDEF ZEOS73UP}
     function CreateRegularStatement(Info: TStrings): IZStatement; override;
     function CreatePreparedStatement(const SQL: string; Info: TStrings): IZPreparedStatement; override;
     {$ELSE}
+    /// <summary>Creates a <c>Statement</c> interface for sending SQL statements
+    ///  to the database. SQL statements without parameters are normally
+    ///  executed using Statement objects. If the same SQL statement
+    ///  is executed many times, it is more efficient to use a
+    ///  <c>PreparedStatement</c> object. Result sets created using the returned
+    ///  <c>Statement</c> interface will by default have forward-only type and
+    ///  read-only concurrency.</summary>
+    /// <param>Info a statement parameters.</param>
+    /// <returns>A new Statement interface</returns>
     function CreateStatementWithParams(Info: TStrings): IZStatement;
+    /// <summary>Creates a <c>PreparedStatement</c> interface for sending
+    ///  parameterized SQL statements to the database. A SQL statement with
+    ///  or without IN parameters can be pre-compiled and stored in a
+    ///  PreparedStatement object. This object can then be used to efficiently
+    ///  execute this statement multiple times.
+    ///  Note: This method is optimized for handling parametric SQL statements
+    ///  that benefit from precompilation. If the driver supports
+    ///  precompilation, the method <c>prepareStatement</c> will send the
+    ///  statement to the database for precompilation. Some drivers may not
+    ///  support precompilation. In this case, the statement may not be sent to
+    ///  the database until the <c>PreparedStatement</c> is executed. This has
+    ///  no direct effect on users; however, it does affect which method throws
+    ///  certain SQLExceptions. Result sets created using the returned
+    ///  PreparedStatement will have forward-only type and read-only
+    ///  concurrency, by default.</summary>
+    /// <param>"SQL" a SQL statement that may contain one or more '?' IN
+    ///  parameter placeholders.</param>
+    /// <param> Info a statement parameter list.</param>
+    /// <returns> a new PreparedStatement object containing the
+    ///  optional pre-compiled statement</returns>
     function PrepareStatementWithParams(const SQL: string; Info: TStrings): IZPreparedStatement;
+    /// <summary>Creates a <code>CallableStatement</code> object for calling
+    ///  database stored procedures. The <code>CallableStatement</code> object
+    ///  provides methods for setting up its IN and OUT parameters, and methods
+    ///  for executing the call to a stored procedure. Note: This method is
+    ///  optimized for handling stored procedure call statements. Some drivers
+    ///  may send the call statement to the database when the method
+    ///  <c>prepareCall</c> is done; others may wait until the
+    ///  <c>CallableStatement</c> object is executed. This has no direct effect
+    ///  on users; however, it does affect which method throws certain
+    ///  EZSQLExceptions. Result sets created using the returned
+    ///  IZCallableStatement will have forward-only type and read-only
+    ///  concurrency, by default.</summary>
+    /// <param>"Name" a procedure or function name.</param>
+    /// <param>"Params" a statement parameters list.</param>
+    /// <returns> a new IZCallableStatement interface containing the
+    ///  pre-compiled SQL statement </returns>
     function PrepareCallWithParams(const SQL: string; Info: TStrings): IZCallableStatement;
     {$ENDIF}
-
+    /// <summary>If the current transaction is saved the current savepoint get's
+    ///  released. Otherwise makes all changes made since the previous commit/
+    ///  rollback permanent and releases any database locks currently held by
+    ///  the Connection. This method should be used only when auto-commit mode
+    ///  has been disabled. See setAutoCommit.</summary>
     procedure Commit;
+    /// <summary>If the current transaction is saved the current savepoint get's
+    ///  rolled back. Otherwise drops all changes made since the previous
+    ///  commit/rollback and releases any database locks currently held by this
+    ///  Connection. This method should be used only when auto-commit has been
+    ///  disabled. See setAutoCommit.</summary>
     procedure Rollback;
     {$IFDEF ZEOS73UP}
+    /// <summary>Starts transaction support or saves the current transaction.
+    ///  If the connection is closed, the connection will be opened.
+    ///  If a transaction is underway a nested transaction or a savepoint will
+    ///  be spawned. While the tranaction(s) is/are underway the AutoCommit
+    ///  property is set to False. Ending up the transaction with a
+    ///  commit/rollback the autocommit property will be restored if changing
+    ///  the autocommit mode was triggered by a starttransaction call.</summary>
+    /// <returns>Returns the current txn-level. 1 means a expicit transaction
+    ///  was started. 2 means the transaction was saved. 3 means the previous
+    ///  savepoint got saved too and so on.</returns>
     function StartTransaction: Integer;
     {$ENDIF}
 
@@ -128,9 +192,19 @@ type
     procedure SetAutoCommit(Value: Boolean); override;
 
     //todo: Get- und SetCatalog implementieren, sowie setter für andere Properties:
-    // ReadOnly needs no implementation - it is only valid for connecting
+    /// <summary>Sets a catalog name in order to select a subspace of this
+    ///  Connection's database in which to work. If the driver does not support
+    ///  catalogs, it will silently ignore this request.</summary>
+    /// <param>"value" new catalog name to be used.</param>
     procedure SetCatalog(const Catalog: string); override;
     function GetCatalog: string; override;
+    /// <summary>Attempts to change the transaction isolation level to the one
+    ///  given. The constants defined in the interface <c>Connection</c> are the
+    ///  possible transaction isolation levels. Note: This method cannot be
+    ///  called while in the middle of a transaction.
+    /// <param>"value" one of the TRANSACTION_* isolation values with the
+    ///  exception of TRANSACTION_NONE; some databases may not support other
+    ///  values. See DatabaseInfo.SupportsTransactionIsolationLevel</param>
     procedure SetTransactionIsolation(Level: TZTransactIsolationLevel); override;
     procedure SetUseMetadata(Value: Boolean); override;
     // AutoEncodeStrings is not supported
@@ -142,21 +216,31 @@ type
     function GetConnectionInterface: IZDbcProxy;
 
     function GetServerProvider: TZServerProvider; override;
-
+    /// <summary>Creates a generic tokenizer interface.</summary>
+    /// <returns>a created generic tokenizer object.</returns>
+    function GetTokenizer: IZTokenizer;
+    /// <summary>Creates a generic statement analyser object.</summary>
+    /// <returns>a created generic tokenizer object as interface.</returns>
+    function GetStatementAnalyser: IZStatementAnalyser;
     function GetDbInfoStr: ZWideString;
+
+    procedure ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory); override;
   end;
 
 var
   {** The common driver manager object. }
   ProxyDriver: IZDriver;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 implementation
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 
 uses
-  ZSysUtils, ZFastCode,
-  ZDbcProxyMetadata, ZDbcStatement, ZDbcProxyStatement,
+  ZSysUtils, ZFastCode, ZEncoding,
+  ZDbcProxyMetadata, ZDbcProxyStatement, ZDbcProperties,
+  ZPostgreSqlAnalyser, ZPostgreSqlToken, ZSybaseAnalyser, ZSybaseToken,
+  ZInterbaseAnalyser, ZInterbaseToken, ZMySqlAnalyser, ZMySqlToken,
+  ZOracleAnalyser, ZOracleToken, ZGenericSqlToken,
   ZMessages, Typinfo
   {$IFDEF WITH_UNITANSISTRINGS}, AnsiStrings{$ENDIF};
 
@@ -252,11 +336,13 @@ end;
 {**
   Constructs this object and assignes the main properties.
 }
-procedure TZDbcProxyConnection.InternalCreate;
+procedure TZDbcProxyConnection.AfterConstruction;
 begin
   FMetadata := TZProxyDatabaseMetadata.Create(Self, Url);
   FConnIntf := GetPlainDriver.GetLibraryInterface;
-  if not assigned(FConnIntf) then raise Exception.Create(GetPlainDriver.GetLastErrorStr);
+  if not assigned(FConnIntf) then
+    raise Exception.Create(String(GetPlainDriver.GetLastErrorStr));
+  inherited AfterConstruction;
 end;
 
 {**
@@ -264,9 +350,10 @@ end;
 }
 procedure TZDbcProxyConnection.Open;
 var
-  LogMessage: RawByteString;
+  LogMessage: String;
   PropList: WideString;
   MyDbInfo: WideString;
+  WsUrl: String; // Webservice URL
 begin
   if not Closed then
     Exit;
@@ -275,15 +362,28 @@ begin
   FStartTransactionUsed := false;
   {$ENDIF}
 
-  LogMessage := 'CONNECT TO "'+ConSettings^.Database+'" AS USER "'+ConSettings^.User+'"';
+  WsUrl := URL.Properties.Values[ConnProps_ProxyProtocol];
+  if WsUrl = '' then
+    WsUrl := 'https';
+  WsUrl := WsUrl + '://' + HostName;
+  if Port <> 0 then
+    WsUrl := WsUrl + ':' + ZFastCode.IntToStr(Port);
+  WsUrl := WsUrl + '/services/IZeosProxy';
 
-  PropList := encodeProperties('autocommit', BoolToStr(GetAutoCommit, True));
-  FConnIntf.Connect(User, Password, HostName, Database, PropList, MyDbInfo);
+  LogMessage := 'CONNECT TO "'+ URL.Database + '" AS USER "' + URL.UserName + '"';
 
-  DriverManager.LogMessage(lcConnect, ConSettings^.Protocol, LogMessage);
+  PropList := WideString(encodeProperties('autocommit', BoolToStr(GetAutoCommit, True)));
+  FConnIntf.Connect(WideString(User), WideString(Password), WideString(WsUrl), WideString(Database), PropList, MyDbInfo);
+
+  DriverManager.LogMessage(lcConnect, URL.Protocol , LogMessage);
   FDbInfo := MyDbInfo;
   inherited Open;
-  applyProperties(PropList);
+  applyProperties(String(PropList));
+  New(ConSettings.ClientCodePage);
+  ConSettings.ClientCodePage.Name := 'UTF16';
+  ConSettings.ClientCodePage.Encoding := ceUTF16;
+  ConSettings.ClientCodePage.CharWidth := 2;
+  ConSettings.ClientCodePage.CP := zCP_UTF16;
 end;
 
 {$IFNDEF ZEOS73UP}
@@ -376,17 +476,13 @@ end;
 {$IFDEF ZEOS73UP}
 function TZDbcProxyConnection.PrepareCallWithParams(const SQL: string; Info: TStrings): IZCallableStatement;
 begin
+  {$IFDEF FPC}
+  Result := nil;
+  {$ENDIF}
   raise Exception.Create('PrepareCallWithParams is not supported!');
 end;
 {$ENDIF}
 
-{**
-  Makes all changes made since the previous
-  commit/rollback permanent and releases any database locks
-  currently held by the Connection. This method should be
-  used only when auto-commit mode has been disabled.
-  @see #setAutoCommit
-}
 procedure TZDbcProxyConnection.Commit;
 begin
   if not Closed then
@@ -402,13 +498,6 @@ begin
       raise Exception.Create(SInvalidOpInAutoCommit);
 end;
 
-{**
-  Drops all changes made since the previous
-  commit/rollback and releases any database locks currently held
-  by this Connection. This method should be used only when auto-
-  commit has been disabled.
-  @see #setAutoCommit
-}
 procedure TZDbcProxyConnection.Rollback;
 begin
   if not Closed then
@@ -435,6 +524,13 @@ begin
   SetAutoCommit(False);
   Result := 1;
 end;
+
+(*
+function TZDbcProxyConnection.GetConnectionTransaction: IZTransaction;
+begin
+  raise Exception.Create('Unsupported');
+end;
+*)
 {$ENDIF}
 
 {**
@@ -448,16 +544,17 @@ end;
 }
 procedure TZDbcProxyConnection.InternalClose;
 var
-  LogMessage: RawByteString;
+  LogMessage: String;
 begin
   if ( Closed ) or (not Assigned(PlainDriver)) then
     Exit;
-  LogMessage := 'DISCONNECT FROM "'+ConSettings^.Database+'"';
+  LogMessage := 'DISCONNECT FROM "' + URL.Database + '"';
 
   FConnIntf.Disconnect;
 
   if Assigned(DriverManager) and DriverManager.HasLoggingListener then //thread save
-    DriverManager.LogMessage(lcDisconnect, ConSettings^.Protocol, LogMessage);
+    DriverManager.LogMessage(lcDisconnect, URL.Protocol, LogMessage);
+  Dispose(ConSettings.ClientCodePage);
 end;
 
 function TZDbcProxyConnection.GetClientVersion: Integer;
@@ -484,6 +581,8 @@ end;
 }
 function TZDbcProxyConnection.GetPlainDriver: IZProxyPlainDriver;
 begin
+  if not Assigned(PlainDriver) then
+    raise EZSQLException.Create('The f*****g plain driver is not assigned.');
   if fPlainDriver = nil then
     fPlainDriver := PlainDriver as IZProxyPlainDriver;
   Result := fPlainDriver;
@@ -572,13 +671,13 @@ end;
 
 procedure TZDbcProxyConnection.transferProperties(PropName, PropValue: String);
 var
-  PropList: String;
+  PropList: ZWideString;
 begin
   if not Closed then begin
-    PropList := encodeProperties(PropName, PropValue);
+    PropList := ZWideString(encodeProperties(PropName, PropValue));
     PropList := FConnIntf.SetProperties(PropList);
   end;
-  applyProperties(PropList);
+  applyProperties(String(PropList));
 end;
 
 procedure TZDbcProxyConnection.SetCatalog(const Catalog: string);
@@ -612,9 +711,49 @@ begin
   Result := FServerProvider;
 end;
 
+function TZDbcProxyConnection.GetStatementAnalyser: IZStatementAnalyser;
+begin
+  case FServerProvider of
+    //spUnknown, spMSSQL, spMSJet,
+    spOracle: Result := TZOracleStatementAnalyser.Create;
+    spMSSQL, spASE, spASA: Result := TZSybaseStatementAnalyser.Create;
+    spPostgreSQL: Result := TZPostgreSQLStatementAnalyser.Create;
+    spIB_FB: Result := TZInterbaseStatementAnalyser.Create;
+    spMySQL: Result := TZMySQLStatementAnalyser.Create;
+    //spNexusDB, spSQLite, spDB2, spAS400,
+    //spInformix, spCUBRID, spFoxPro
+    else Result := TZGenericStatementAnalyser.Create;
+  end;
+end;
+
+function TZDbcProxyConnection.GetTokenizer: IZTokenizer;
+begin
+  case FServerProvider of
+    //spUnknown, spMSJet,
+    spOracle: Result := TZOracleTokenizer.Create;
+    spMSSQL, spASE, spASA: Result := TZSybaseTokenizer.Create;
+    spPostgreSQL: Result := TZPostgreSQLTokenizer.Create;
+    spIB_FB: Result := TZInterbaseTokenizer.Create;
+    spMySQL: Result := TZMySQLTokenizer.Create;
+    //spNexusDB, spSQLite, spDB2, spAS400,
+    //spInformix, spCUBRID, spFoxPro
+    else Result := TZGenericSQLTokenizer.Create;
+  end;
+end;
+
 function TZDbcProxyConnection.GetDbInfoStr: ZWideString;
 begin
   Result := FDbInfo;
+end;
+
+procedure TZDbcProxyConnection.ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory);
+var
+  Statement: IZStatement;
+begin
+  Statement := CreateStatementWithParams(nil);
+  Statement.Execute(SQL);
+  Statement.Close;
+
 end;
 
 initialization
@@ -625,5 +764,5 @@ finalization
     DriverManager.DeregisterDriver(ProxyDriver);
   ProxyDriver := nil;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 end.

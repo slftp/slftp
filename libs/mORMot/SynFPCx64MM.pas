@@ -9,14 +9,8 @@ unit SynFPCx64MM;
     A Multi-thread Friendly Memory Manager for FPC written in x86_64 assembly
     - targetting Linux (and Windows) multi-threaded Services
     - only for FPC on the x86_64 target - use the RTL MM on Delphi or ARM
-    - based on FastMM4 proven algorithms by Pierre le Riche
-    - code has been reduced to the only necessary featureset for production
-    - deep asm refactoring for cross-platform, compactness and efficiency
+    - based on proven FastMM4 by Pierre le Riche - with tuning and enhancements
     - can report detailed statistics (with threads contention and memory leaks)
-    - mremap() makes large block ReallocMem a breeze on Linux :)
-    - inlined SSE2 movaps loop is more efficient that subfunction(s)
-    - lockless round-robin of tiny blocks (<=128/256 bytes) for better scaling
-    - optional lockless bin list to avoid freemem() thread contention
     - three app modes: default mono-thread friendly, FPCMM_SERVER or FPCMM_BOOST
 
     Usage: include this unit as the very first in your FPC project uses clause
@@ -80,21 +74,26 @@ unit SynFPCx64MM;
 
 { ---- Ready-To-Use Scenarios for Memory Manager Tuning }
 
-// by default, we target LCL/console mono-threaded apps to replace the RTL MM
-// - you may define FPCMM_SERVER or even FPCMM_BOOST for a service/daemon
+{
+  TL;DR:
+    1. default settings target LCL/console mono-threaded apps;
+    2. define FPCMM_SERVER for a multi-threaded service/daemon.
+}
 
-// if defined, set FPCMM_DEBUG and FPCMM_ASSUMEMULTITHREAD
-// - those flags target well a multi-threaded service
-// - consider FPCMM_BOOST to try more aggressive settings
+// target a multi-threaded service on a modern CPU
+// - define FPCMM_DEBUG, FPCMM_ASSUMEMULTITHREAD, FPCMM_ERMS, FPCMM_LOCKLESSFREE
+// - currently mormot2tests run with no sleep when FPCMM_SERVER is set :)
+// - you may try to define FPCMM_BOOST for even more aggressive settings.
 {.$define FPCMM_SERVER}
 
-// if defined, tiny blocks <= 256 bytes will have a bigger round-robin cycle
+// increase settings for very aggressive multi-threaded process
 // - try to enable it if unexpected SmallGetmemSleepCount/SmallFreememSleepCount
-// and SleepCount/SleepCycles contentions are reported by CurrentHeapStatus
-// - will also use 2x (FPCMM_BOOST) or 4x (FPCMM_BOOSTER) more tiny blocks
-// arenas to share among the threads - so process will consume slightly more RAM
-// - warning: depending on the workload and hardware, it may actually be slower;
-// consider FPCMM_SERVER as a fair alternative
+// and SleepCount/SleepCycles contentions are reported by CurrentHeapStatus;
+// - tiny blocks will be <= 256 bytes (instead of 128 bytes);
+// - will use 2x (FPCMM_BOOST) or 4x (FPCMM_BOOSTER) more tiny blocks arenas;
+// - will enable FPCMM_SMALLNOTWITHMEDIUM trying to reduce medium sleeps;
+// - warning: depending on the workload and hardware, it may actually be slower,
+// and will consume more RAM: consider FPCMM_SERVER as a fair alternative.
 {.$define FPCMM_BOOST}
 {.$define FPCMM_BOOSTER}
 
@@ -126,18 +125,29 @@ unit SynFPCx64MM;
 // let Freemem multi-thread contention use a lockless algorithm
 // - on contention, Freemem won't yield the thread using an OS call, but fill
 // an internal Bin list which will be released when the lock becomes available
-// - from our tests on high thread contention, this may be slower on Linux, but
-// sometimes slightly faster on Win64 (in a VM at least)
+// - beneficial from our tests on high thread contention (HTTP/REST server)
 {.$define FPCMM_LOCKLESSFREE}
 
 // won't use mremap but a regular getmem/move/freemem pattern
 // - depending on the actual system (e.g. on a VM), mremap may be slower
 {.$define FPCMM_NOMREMAP}
 
+// force the tiny/small blocks to be in their own arena, not with medium blocks
+// - would use a little more memory, but medium pool is less likely to sleep
+{.$define FPCMM_SMALLNOTWITHMEDIUM}
+
+// use "rep movsb/stosd" ERMS for blocks > 256 bytes instead of SSE2 "movaps"
+// - ERMS is available since Ivy Bridge, and we use "movaps" for smallest blocks
+// (to not slow down older CPUs), so it is safe to enable this on Server HW
+{.$define FPCMM_ERMS}
+
 // will export libc-like functions, and not replace the FPC MM
 // - e.g. to use this unit as a stand-alone C memory allocator
 {.$define FPCMM_STANDALONE}
 
+// this whole unit will compile as void
+// - may be defined e.g. when compiled as Design-Time Lazarus package
+{.$define FPCMM_DISABLE}
 
 interface
 
@@ -151,25 +161,33 @@ interface
   {$Q-} // disable overflow checking
   {$B-} // expect short circuit boolean
   {$ifdef CPUX64}
-    {$define FPC_CPUX64} // this unit is for FPC + x86_64 only
+    {$define FPCX64MM} // this unit is for FPC + x86_64 only
     {$asmmode Intel}
   {$endif CPUX64}
   {$ifdef FPCMM_BOOSTER}
     {$define FPCMM_BOOST}
-    {$undef FPCMM_DEBUG} // when performance matters more than stats
   {$endif FPCMM_BOOSTER}
   {$ifdef FPCMM_BOOST}
-    {$undef FPCMM_SERVER}
-{$define FPCMM_ASSUMEMULTITHREAD}
+    {$define FPCMM_SERVER}
+    {$define FPCMM_SMALLNOTWITHMEDIUM}
   {$endif FPCMM_BOOST}
   {$ifdef FPCMM_SERVER}
     {$define FPCMM_DEBUG}
 {$define FPCMM_ASSUMEMULTITHREAD}
+    {$define FPCMM_LOCKLESSFREE}
+    {$define FPCMM_ERMS}
   {$endif FPCMM_SERVER}
+  {$ifdef FPCMM_BOOSTER}
+    {$undef FPCMM_DEBUG} // when performance matters more than stats
+  {$endif FPCMM_BOOSTER}
 {$endif FPC}
 
+{$ifdef FPCMM_DISABLE}
+  {$undef FPCX64MM} // e.g. when compiled as Design-Time Lazarus package
+{$endif FPCMM_DISABLE}
 
-{$ifdef FPC_CPUX64}
+
+{$ifdef FPCX64MM}
 // this unit is available only for FPC + X86_64 CPU
 // other targets would compile as a void unit
 
@@ -194,14 +212,17 @@ type
 
   /// heap information as returned by CurrentHeapStatus
   TMMStatus = record
-    /// how many tiny/small memory blocks (<=2600) are currently allocated
+    /// how many tiny/small memory blocks (<=2600 bytes) are currently allocated
     SmallBlocks: PtrUInt;
     /// how many bytes of tiny/small memory blocks are currently allocated
-    // - this size is part of the Medium.CurrentBytes arena
+    // - this size is included in Medium.CurrentBytes value, even if
+    // FPCMM_SMALLNOTWITHMEDIUM has been defined
     SmallBlocksSize: PtrUInt;
-    /// contain blocks up to 256KB (small and medium blocks)
+    /// information about blocks up to 256KB (tiny, small and medium)
+    // - includes also the memory needed for tiny/small blocks
     Medium: TMMStatusArena;
-    /// large blocks > 256KB which are directly handled by the Operating System
+    /// information about large blocks > 256KB
+    // - those blocks are directly handled by the Operating System
     Large: TMMStatusArena;
     {$ifdef FPCMM_DEBUG}
     {$ifdef FPCMM_SLEEPTSC}
@@ -213,18 +234,18 @@ type
     SleepCycles: PtrUInt;
     {$endif FPCMM_SLEEPTSC}
     {$ifdef FPCMM_LOCKLESSFREE}
-    /// how many types Freemem() did spin to acquire its lock-less bin list
+    /// how many times Freemem() did spin to acquire its lock-less bin list
     SmallFreememLockLessSpin: PtrUInt;
     {$endif FPCMM_LOCKLESSFREE}
     {$endif FPCMM_DEBUG}
     /// how many times the Operating System Sleep/NanoSleep API was called
     // - in a perfect world, should be as small as possible
     SleepCount: PtrUInt;
-    /// how many times Getmem() did block and wait for a small block
-    // - see also GetSmallBlockContention()
+    /// how many times Getmem() did block and wait for a tiny/small block
+    // - see also GetSmallBlockContention() for more detailed information
     SmallGetmemSleepCount: PtrUInt;
-    /// how many times Freemem() did block and wait for a small block
-    // - see also GetSmallBlockContention()
+    /// how many times Freemem() did block and wait for a tiny/small block
+    // - see also GetSmallBlockContention() for more detailed information
     SmallFreememSleepCount: PtrUInt;
   end;
   PMMStatus = ^TMMStatus;
@@ -324,37 +345,49 @@ procedure WriteHeapStatus(const context: shortstring = '';
 
 {$endif FPCMM_STANDALONE}
 
-{$endif FPC_CPUX64}
+{$endif FPCX64MM}
 
 
 
 implementation
 
 {
-   High-level Algorithms Description
-  -----------------------------------
+   High-level Allocation Strategy Description
+  --------------------------------------------
 
   The allocator handles the following families of memory blocks:
-  - TINY   <= 128 B (or <= 256 B for FPCMM_BOOST) - not existing in FastMM4
-    Round-robin distribution into several arenas, fed from medium blocks
+  - TINY <= 128 B (<= 256 B for FPCMM_BOOST)
+    Round-robin distribution into several arenas, fed from shared tiny/small pool
     (fair scaling from multi-threaded calls, with no threadvar nor GC involved)
-  - SMALL  <= 2600 B
-    Single arena per block size, fed from medium blocks
+  - SMALL <= 2600 B
+    One arena per block size, fed from shared tiny/small pool
   - MEDIUM <= 256 KB
-    Pool of bitmap-marked chunks, fed from 1MB of OS mmap/virtualalloc
+    Separated pool of bitmap-marked chunks, fed from 1MB of OS mmap/virtualalloc
   - LARGE  > 256 KB
     Directly fed from OS mmap/virtualalloc with mremap when growing
 
+The original FastMM4 was enhanced as such, especially in FPCMM_SERVER mode:
+  - FPC compatibility, even on POSIX/Linux, also for its specific API behavior;
+  - x86_64 code was refactored and tuned in regard to 2020's hardware;
+  - Inlined SSE2 movaps loop or ERMS are more efficient that subfunction(s);
+  - New round-robin thread-friendly arenas of tiny blocks;
+  - Tiny and small blocks can fed from their own pool, not the medium pool;
+  - Additional bin list to reduce small/tiny Freemem() thread contention;
+  - Memory leaks and thread sleep tracked with almost no performance loss;
+  - On Linux, mremap is used for efficient realloc of large blocks.
+
   About locking:
-  - Tiny and Small blocks have their own per-size lock, in every arena
-  - Medium and Large blocks have one giant lock each (seldom used)
-  - SwitchToThread/FpNanoSleep OS call is done after initial spinning
-  - FPCMM_LOCKLESSFREE reduces OS calls on Freemem() thread contention
-  - FPCMM_DEBUG / WriteHeapStatus allow to identify the lock contention
+  - Tiny and Small blocks have their own per-size lock;
+  - Tiny and Small blocks have one giant lock when fedding from their pool;
+  - Medium blocks have one giant lock over their own pool;
+  - Large blocks have one giant lock over mmap/virtualalloc system calls;
+  - SwitchToThread/FpNanoSleep OS call is done after initial spinning;
+  - FPCMM_LOCKLESSFREE reduces Freemem() thread contention;
+  - FPCMM_DEBUG / WriteHeapStatus can identify the lock contention(s).
 
 }
 
-{$ifdef FPC_CPUX64}
+{$ifdef FPCX64MM}
 // this unit is available only for FPC + X86_64 CPU
 
 {$ifndef FPCMM_NOPAUSE}
@@ -403,7 +436,8 @@ end;
 
 function AllocLarge(Size: PtrInt): pointer; inline;
 begin
-  // top-down allocation to reduce fragmentation
+  // top-down allocation of large blocks to reduce fragmentation
+  // (this feature is not needed on POSIX, but seems less needed)
   result := VirtualAlloc(nil, Size, MEM_COMMIT or MEM_TOP_DOWN, PAGE_READWRITE);
 end;
 
@@ -412,7 +446,7 @@ begin
   VirtualFree(ptr, 0, MEM_RELEASE);
 end;
 
-{$define FPCMM_NOMREMAP}
+{$define FPCMM_NOMREMAP} // our Windows target has no mremap feature yet
 
 {$else}
 
@@ -479,10 +513,11 @@ end;
 
 {$endif MSWINDOWS}
 
-{$ifdef FPCMM_SLEEPTSC}
+{$ifdef FPCMM_DEBUG}
 
 procedure ReleaseCore; nostackframe; assembler;
 asm
+        {$ifdef FPCMM_SLEEPTSC}
         rdtsc // returns the TSC in EDX:EAX
         shl     rdx, 32
         or      rax, rdx
@@ -495,6 +530,10 @@ asm
         lea     rdx, [rip + HeapStatus]
         sub     rax, rcx
    lock add     qword ptr [rdx + TMMStatus.SleepCycles], rax
+        {$else}
+        call    SwitchToThread
+        lea     rdx, [rip + HeapStatus]
+        {$endif FPCMM_SLEEPTSC}
    lock inc     qword ptr [rdx + TMMStatus.SleepCount]
 end;
 
@@ -506,7 +545,7 @@ begin
   inc(HeapStatus.SleepCount); // indicative counter
 end;
 
-{$endif FPCMM_SLEEPTSC}
+{$endif FPCMM_DEBUG}
 
 
 { ********* Some Assembly Helpers }
@@ -514,18 +553,17 @@ end;
 procedure NotifyMediumLargeAlloc(var Arena: TMMStatusArena; Size: PtrUInt);
   nostackframe; assembler;
 asm
-        mov     rax, Size
         {$ifdef FPCMM_DEBUG}
-   lock add     qword ptr [Arena].TMMStatusArena.CurrentBytes, rax
-   lock add     qword ptr [Arena].TMMStatusArena.CumulativeBytes, rax
+   lock add     qword ptr [Arena].TMMStatusArena.CurrentBytes, Size
+   lock add     qword ptr [Arena].TMMStatusArena.CumulativeBytes, Size
    lock inc     qword ptr [Arena].TMMStatusArena.CumulativeAlloc
         mov     rax, qword ptr [Arena].TMMStatusArena.CurrentBytes
         cmp     rax, qword ptr [Arena].TMMStatusArena.PeakBytes
         jbe     @s
         mov     qword ptr [Arena].TMMStatusArena.PeakBytes, rax
 @s:     {$else}
-        add     qword ptr [Arena].TMMStatusArena.CurrentBytes, rax
-        add     qword ptr [Arena].TMMStatusArena.CumulativeBytes, rax
+        add     qword ptr [Arena].TMMStatusArena.CurrentBytes, Size
+        add     qword ptr [Arena].TMMStatusArena.CumulativeBytes, Size
        {$endif FPCMM_DEBUG}
 end;
 
@@ -567,26 +605,28 @@ end;
 { ********* Constants and Data Structures Definitions }
 
 const
-  {$ifdef FPCMM_BOOST} // someimtes the more arenas, the better multi-threadable
+  // (sometimes) the more arenas, the better multi-threadable
   {$ifdef FPCMM_BOOSTER}
-  NumTinyBlockTypesPO2 = 4;
+  NumTinyBlockTypesPO2  = 4;
   NumTinyBlockArenasPO2 = 5; // will probably end up with Medium lock contention
   {$else}
-  NumTinyBlockTypesPO2 = 4;  // tiny are <= 256 bytes
-  NumTinyBlockArenasPO2 = 4; // 16 + 1 arenas
+    {$ifdef FPCMM_BOOST}
+    NumTinyBlockTypesPO2  = 4; // tiny are <= 256 bytes
+    NumTinyBlockArenasPO2 = 4; // 16 + 1 arenas
+    {$else}
+    // default (or FPCMM_SERVER) settings
+    NumTinyBlockTypesPO2  = 3; // multiple arenas for tiny blocks <= 128 bytes
+    NumTinyBlockArenasPO2 = 3; // 8 round-robin arenas + 1 main by default
+    {$endif FPCMM_BOOST}
   {$endif FPCMM_BOOSTER}
-  {$else}
-  NumTinyBlockTypesPO2 = 3;  // multiple arenas for tiny blocks <= 128 bytes
-  NumTinyBlockArenasPO2 = 3; // 8 round-robin arenas + 1 main by default
-  {$endif FPCMM_BOOST}
 
   NumSmallBlockTypes = 46;
   MaximumSmallBlockSize = 2608;
   SmallBlockSizes: array[0..NumSmallBlockTypes - 1] of word = (
-   16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256,
-   272, 288, 304, 320, 352, 384, 416, 448, 480, 528, 576, 624, 672, 736, 800,
-   880, 960, 1056, 1152, 1264, 1376, 1504, 1648, 1808, 1984, 2176, 2384,
-   MaximumSmallBlockSize, MaximumSmallBlockSize, MaximumSmallBlockSize);
+    16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256,
+    272, 288, 304, 320, 352, 384, 416, 448, 480, 528, 576, 624, 672, 736, 800,
+    880, 960, 1056, 1152, 1264, 1376, 1504, 1648, 1808, 1984, 2176, 2384,
+    MaximumSmallBlockSize, MaximumSmallBlockSize, MaximumSmallBlockSize);
   NumTinyBlockTypes = 1 shl NumTinyBlockTypesPO2;
   NumTinyBlockArenas = 1 shl NumTinyBlockArenasPO2;
   NumSmallInfoBlock = NumSmallBlockTypes + NumTinyBlockArenas * NumTinyBlockTypes;
@@ -596,10 +636,10 @@ const
   SmallBlockDownsizeCheckAdder = 64;
   SmallBlockUpsizeAdder = 32;
   {$ifdef FPCMM_LOCKLESSFREE}
-  SmallBlockTypePO2 = 8; // SizeOf(TSmallBlockType)=256
-  SmallBlockBinCount = (((1 shl SmallBlockTypePO2) - 64) div 8) - 1;
+  SmallBlockTypePO2 = 8;  // SizeOf(TSmallBlockType)=256 with Bin list
+  SmallBlockBinCount = (((1 shl SmallBlockTypePO2) - 64) div 8) - 1; // =23
   {$else}
-  SmallBlockTypePO2 = 6;
+  SmallBlockTypePO2 = 6;  // SizeOf(TSmallBlockType)=64
   {$endif FPCMM_LOCKLESSFREE}
 
   MediumBlockPoolSizeMem = 20 * 64 * 1024;
@@ -645,23 +685,31 @@ const
   {$endif FPCMM_PAUSE}
   {$else}
   // pause with constant spinning counts (empirical values from fastmm4-avx)
-  SpinMediumLockCount = 5000;
+  SpinMediumLockCount = 2500;
   SpinLargeLockCount = 5000;
   {$ifdef FPCMM_PAUSE}
   SpinSmallGetmemLockCount = 500;
   SpinSmallFreememLockCount = 500;
   {$ifdef FPCMM_LOCKLESSFREE}
-  SpinSmallFreememBinCount = 1000;
+  SpinFreememBinCount = 500;
   {$endif FPCMM_LOCKLESSFREE}
   {$endif FPCMM_PAUSE}
   {$endif FPCMM_SLEEPTSC}
+
+  {$ifdef FPCMM_ERMS}
+  // pre-ERMS expects at least 256 bytes, IvyBridge+ with ERMS is good from 64
+  // see https://stackoverflow.com/a/43837564/458259 for explanations and timing
+  // -> "movaps" loop is used up to 256 bytes of data: good on all CPUs
+  // -> "movntdq" is used for large blocks on Windows: always faster than ERMS
+  ErmsMinSize = 256;
+  {$endif FPCMM_ERMS}
 
 type
   PSmallBlockPoolHeader = ^TSmallBlockPoolHeader;
 
   // information for each small block size - 64/256 bytes long >= CPU cache line
   TSmallBlockType = record
-    BlockTypeLocked: boolean;
+    Locked: boolean;
     AllowedGroupsForBlockPoolBitmap: byte;
     BlockSize: Word;
     MinimumBlockPoolSize: Word;
@@ -675,8 +723,8 @@ type
     FreememCount: cardinal;
     GetmemSleepCount: cardinal;
     FreememSleepCount: cardinal;
-    {$ifdef FPCMM_LOCKLESSFREE} // 192 optional bytes for FreeMem Bin
-    BinLocked: boolean;
+    {$ifdef FPCMM_LOCKLESSFREE} // 192 optional bytes for FreeMem Bin (= 13KB)
+    BinLocked: boolean; // dedicated lock for less contention
     BinCount: byte;
     BinSpinCount: cardinal;
     BinInstance: array[0.. SmallBlockBinCount - 1] of pointer;
@@ -725,6 +773,23 @@ type
     NextFreeBlock: PMediumFreeBlock;
   end;
 
+  // medium locks occurs at getmem: freemem bin list got MaxCount=0 :(
+  {.$define FPCMM_LOCKLESSFREEMEDIUM}
+
+{$ifdef FPCMM_LOCKLESSFREEMEDIUM}
+const
+  MediumBlockLocklessBinCount = 255;
+
+type
+  // used by TMediumBlockInfo to reduce thread pressure
+  TMediumLocklessBin = record
+    Locked: boolean; // dedicated lock for less contention
+    Count: byte;
+    MaxCount: byte;
+    Instance: array[0 .. MediumBlockLocklessBinCount - 1] of pointer;
+  end;
+{$endif FPCMM_LOCKLESSFREEMEDIUM}
+
   TMediumBlockInfo = record
     Locked: boolean;
     PoolsCircularList: TMediumBlockPoolHeader;
@@ -736,6 +801,9 @@ type
     {$endif FPCMM_ASSUMEMULTITHREAD}
     BinBitmaps: array[0..MediumBlockBinGroupCount - 1] of cardinal;
     Bins: array[0..MediumBlockBinCount - 1] of TMediumFreeBlock;
+    {$ifdef FPCMM_LOCKLESSFREEMEDIUM}
+    LocklessBin: TMediumLocklessBin;
+    {$endif FPCMM_LOCKLESSFREEMEDIUM}
   end;
 
   PLargeBlockHeader = ^TLargeBlockHeader;
@@ -755,6 +823,11 @@ const
 var
   SmallBlockInfo: TSmallBlockInfo;
   MediumBlockInfo: TMediumBlockInfo;
+  SmallMediumBlockInfo: TMediumBlockInfo
+  {$ifdef FPCMM_SMALLNOTWITHMEDIUM} ;
+  {$else} absolute MediumBlockInfo;
+  {$endif FPCMM_SMALLNOTWITHMEDIUM}
+
 
   LargeBlocksLocked: boolean;
   LargeBlocksCircularList: TLargeBlockHeader;
@@ -763,8 +836,8 @@ var
 { ********* Shared Routines }
 
 procedure LockMediumBlocks; nostackframe; assembler;
+// on input/output: r10=TMediumBlockInfo
 asm
-        // on input/output: r10=MediumBlockInfo
         {$ifdef FPCMM_SLEEPTSC}
 @s:     rdtsc   // tsc in edx:eax
         shl     rdx, 32
@@ -788,7 +861,7 @@ asm
   lock  cmpxchg byte ptr [rcx].TMediumBlockInfo.Locked, ah
         je      @ok
         jmp     @sp
-@rc:    push    rsi // preserve POSIX ABI registers
+@rc:    push    rsi // preserve POSIX and Win64 ABI registers
         push    rdi
         push    r10
         push    r11
@@ -805,8 +878,8 @@ asm
 end;
 
 procedure InsertMediumBlockIntoBin; nostackframe; assembler;
+// rcx=P edx=blocksize r10=TMediumBlockInfo - even on POSIX
 asm
-        // rcx=MediumFreeBlock edx=MediumBlockSize r10=MediumBlockInfo - even on POSIX
         mov     rax, rcx
         // Get the bin number for this block size
         sub     edx, MinimumMediumBlockSize
@@ -847,7 +920,7 @@ end;
 
 procedure RemoveMediumFreeBlock; nostackframe; assembler;
 asm
-        // rcx=MediumFreeBlock r10=MediumBlockInfo - even on POSIX
+        // rcx=MediumFreeBlock r10=TMediumBlockInfo - even on POSIX
         // Get the current previous and next blocks
         mov     rdx, TMediumFreeBlock[rcx].PreviousFreeBlock
         mov     rcx, TMediumFreeBlock[rcx].NextFreeBlock
@@ -877,14 +950,15 @@ asm
 @Done:
 end;
 
-procedure BinMediumSequentialFeedRemainder; nostackframe; assembler;
+procedure BinMediumSequentialFeedRemainder(
+  var Info: TMediumBlockInfo); nostackframe; assembler;
 asm
-        // r10=MediumBlockInfo - even on POSIX
-        mov     eax, [r10 + TMediumBlockInfo.SequentialFeedBytesLeft]
+        mov     r10, Info
+        mov     eax, [Info + TMediumBlockInfo.SequentialFeedBytesLeft]
         test    eax, eax
         jz      @Done
         // Is the last fed sequentially block free?
-        mov     rax, [r10 + TMediumBlockInfo.LastSequentiallyFed]
+        mov     rax, [Info + TMediumBlockInfo.LastSequentiallyFed]
         test    byte ptr [rax - BlockHeaderSize], IsFreeBlockFlag
         jnz     @LastBlockFedIsFree
         // Set the "previous block is free" flag in the last block fed
@@ -933,32 +1007,32 @@ begin
   NotifyMediumLargeFree(HeapStatus.Medium, MediumBlockPoolSizeMem);
 end;
 
-function AllocNewSequentialFeedMediumPool(blocksize: cardinal): pointer;
+function AllocNewSequentialFeedMediumPool(BlockSize: cardinal;
+  var Info: TMediumBlockInfo): pointer;
 var
   old: PMediumBlockPoolHeader;
   new: pointer;
 begin
-  BinMediumSequentialFeedRemainder;
+  BinMediumSequentialFeedRemainder(Info);
   new := AllocMedium(MediumBlockPoolSizeMem);
-  with MediumblockInfo do
   if new <> nil then
   begin
-    old := PoolsCircularList.NextMediumBlockPoolHeader;
-    PMediumBlockPoolHeader(new).PreviousMediumBlockPoolHeader := @PoolsCircularList;
-   PoolsCircularList.NextMediumBlockPoolHeader := new;
+    old := Info.PoolsCircularList.NextMediumBlockPoolHeader;
+    PMediumBlockPoolHeader(new).PreviousMediumBlockPoolHeader := @Info.PoolsCircularList;
+   Info.PoolsCircularList.NextMediumBlockPoolHeader := new;
     PMediumBlockPoolHeader(new).NextMediumBlockPoolHeader := old;
     old.PreviousMediumBlockPoolHeader := new;
     PPtrUInt(PByte(new) + MediumBlockPoolSize - BlockHeaderSize)^ := IsMediumBlockFlag;
-    SequentialFeedBytesLeft :=
-      (MediumBlockPoolSize - MediumBlockPoolHeaderSize) - blocksize;
-    result := pointer(PByte(new) + MediumBlockPoolSize - blocksize);
-    LastSequentiallyFed := result;
-    PPtrUInt(PByte(result) - BlockHeaderSize)^ := blocksize or IsMediumBlockFlag;
+    Info.SequentialFeedBytesLeft :=
+      (MediumBlockPoolSize - MediumBlockPoolHeaderSize) - BlockSize;
+    result := pointer(PByte(new) + MediumBlockPoolSize - BlockSize);
+    Info.LastSequentiallyFed := result;
+    PPtrUInt(PByte(result) - BlockHeaderSize)^ := BlockSize or IsMediumBlockFlag;
     NotifyMediumLargeAlloc(HeapStatus.Medium, MediumBlockPoolSizeMem);
   end
   else
   begin
-    SequentialFeedBytesLeft := 0;
+    Info.SequentialFeedBytesLeft := 0;
     result := nil;
   end;
 end;
@@ -1130,12 +1204,12 @@ asm
         // Since most allocations are for small blocks, determine small block type
         lea     rbx, [rip + SmallBlockInfo]
 @VoidSizeToSomething:
-        lea     rdx, [rcx + BlockHeaderSize - 1]
+        lea     rdx, [size + BlockHeaderSize - 1]
         shr     rdx, 4 // div SmallBlockGranularity
         // Is it a tiny/small block?
-        cmp     rcx, (MaximumSmallBlockSize - BlockHeaderSize)
+        cmp     size, (MaximumSmallBlockSize - BlockHeaderSize)
         ja      @NotTinySmallBlock
-        test    rcx, rcx
+        test    size, size
         jz      @VoidSize
         {$ifndef FPCMM_ASSUMEMULTITHREAD}
         mov     rax, qword ptr [rbx].TSmallBlockInfo.IsMultiThreadPtr
@@ -1160,21 +1234,25 @@ asm
 @TinyBlockArenaLoop:
         mov     eax, SizeOf(TTinyBlockTypes)
   lock  xadd    dword ptr [r8 + TSmallBlockInfo.TinyCurrentArena], eax
-        and     eax, (NumTinyBlockArenas * Sizeof(TTinyBlockTypes)) - 1
+        and     eax, (NumTinyBlockArenas * SizeOf(TTinyBlockTypes)) - 1
         add     rax, rcx
         lea     rbx, [r8 + rax].TSmallBlockInfo.Tiny
         mov     eax, $100
-        cmp     [rbx].TSmallBlockType.BlockTypeLocked, ah
+        cmp     [rbx].TSmallBlockType.Locked, ah
         je      @NextTinyBlockArena
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         je      @GotLockOnSmallBlockType
 @NextTinyBlockArena:
         dec     edx
         jnz     @TinyBlockArenaLoop
-        // Also try the default SmallBlockInfo.Small[]
+        // Also try the default SmallBlockInfo.Small[] and its next size
         lea     rbx, [r8 + rcx]
         mov     eax, $100
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
+        je      @GotLockOnSmallBlockType
+        add     rbx, SizeOf(TSmallBlockType)
+        mov     eax, $100
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         je      @GotLockOnSmallBlockType
         // Thread Contention (occurs much less than during _Freemem)
         {$ifdef FPCMM_DEBUG} lock {$endif}
@@ -1201,17 +1279,17 @@ asm
 @LockBlockTypeLoop:
         // Grab the default block type
         mov     eax, $100
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         je      @GotLockOnSmallBlockType
         // Try up to two next sizes
         add     rbx, SizeOf(TSmallBlockType)
         mov     eax, $100
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         je      @GotLockOnSmallBlockType
         pause
         add     rbx, SizeOf(TSmallBlockType)
         mov     eax, $100
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         je      @GotLockOnSmallBlockType
         sub     rbx, 2 * SizeOf(TSmallBlockType)
         {$ifdef FPCMM_PAUSE}
@@ -1240,13 +1318,13 @@ asm
 @GotLockOnSmallBlockType:
         // set rdx=NextPartiallyFreePool rax=FirstFreeBlock rcx=DropSmallFlagsMask
         mov     rdx, [rbx].TSmallBlockType.NextPartiallyFreePool
-        inc     [rbx].TSmallBlockType.GetmemCount
+        add     [rbx].TSmallBlockType.GetmemCount, 1
         mov     rax, [rdx].TSmallBlockPoolHeader.FirstFreeBlock
         mov     rcx, DropSmallFlagsMask
         // Is there a pool with free blocks?
         cmp     rdx, rbx
         je      @TrySmallSequentialFeed
-        inc     [rdx].TSmallBlockPoolHeader.BlocksInUse
+        add     [rdx].TSmallBlockPoolHeader.BlocksInUse, 1
         // Set the new first free block and the block header
         and     rcx, [rax - BlockHeaderSize]
         mov     [rdx].TSmallBlockPoolHeader.FirstFreeBlock, rcx
@@ -1254,7 +1332,7 @@ asm
         // Is the chunk now full?
         jz      @RemoveSmallPool
         // Unlock the block type and leave
-        mov     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, false
+        mov     byte ptr [rbx].TSmallBlockType.Locked, false
         pop     rbx
         {$ifdef MSWINDOWS}
         pop     rdi
@@ -1262,7 +1340,7 @@ asm
         {$endif MSWINDOWS}
         ret
 @VoidSize:
-        inc     ecx // "we always need to allocate something" (see RTL heap.inc)
+        inc     size // "we always need to allocate something" (see RTL heap.inc)
         jmp     @VoidSizeToSomething
 @TrySmallSequentialFeed:
         // Feed a small block sequentially
@@ -1274,9 +1352,9 @@ asm
         ja      @AllocateSmallBlockPool
         // Adjust number of used blocks and sequential feed pool
         mov     [rbx].TSmallBlockType.NextSequentialFeedBlockAddress, rcx
-        inc     [rdx].TSmallBlockPoolHeader.BlocksInUse
+        add     [rdx].TSmallBlockPoolHeader.BlocksInUse, 1
         // Unlock the block type, set the block header and leave
-        mov     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, false
+        mov     byte ptr [rbx].TSmallBlockType.Locked, false
         mov     [rax - BlockHeaderSize], rdx
         pop     rbx
         {$ifdef MSWINDOWS}
@@ -1290,7 +1368,7 @@ asm
         mov     [rcx].TSmallBlockPoolHeader.PreviousPartiallyFreePool, rbx
         mov     [rbx].TSmallBlockType.NextPartiallyFreePool, rcx
         // Unlock the block type and leave
-        mov     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, false
+        mov     byte ptr [rbx].TSmallBlockType.Locked, false
         pop     rbx
         {$ifdef MSWINDOWS}
         pop     rdi
@@ -1299,7 +1377,7 @@ asm
         ret
 @AllocateSmallBlockPool:
         // Access shared information about Medium blocks storage
-        lea     rcx, [rip + MediumBlockInfo]
+        lea     rcx, [rip + SmallMediumBlockInfo]
         mov     r10, rcx
         {$ifndef FPCMM_ASSUMEMULTITHREAD}
         mov     rax, [rcx + TMediumBlockinfo.IsMultiThreadPtr]
@@ -1381,16 +1459,25 @@ asm
         jmp     @GotMediumBlock
 @AllocateNewSequentialFeed:
         // Use the optimal size for allocating this small block pool
-        movzx   size, word ptr [rbx].TSmallBlockType.OptimalBlockPoolSize
-        push    size // use "size" variable = first argument in current ABI call
+        {$ifdef MSWINDOWS}
+        movzx   ecx, word ptr [rbx].TSmallBlockType.OptimalBlockPoolSize
+        lea     rdx, [rip + SmallMediumBlockInfo]
+        push    rcx
+        push    rdx
+        {$else}
+        movzx   edi, word ptr [rbx].TSmallBlockType.OptimalBlockPoolSize
+        lea     rsi, [rip + SmallMediumBlockInfo]
+        push    rdi
+        push    rsi
+        {$endif MSWINDOWS}
         call    AllocNewSequentialFeedMediumPool
-        pop     rdi  // restore edi=blocksize and r10=MediumBlockInfo
-        lea     r10, [rip + MediumBlockInfo]
+        pop     r10
+        pop     rdi  // restore edi=blocksize and r10=TMediumBlockInfo
         mov     rsi, rax
         test    rax, rax
         jnz     @GotMediumBlock // rsi=freeblock rbx=blocktype edi=blocksize
         mov     [r10 + TMediumBlockInfo.Locked], al
-        mov     [rbx].TSmallBlockType.BlockTypeLocked, al
+        mov     [rbx].TSmallBlockType.Locked, al
         pop     rbx
         {$ifdef MSWINDOWS}
         pop     rdi
@@ -1422,7 +1509,7 @@ asm
         sub     rdi, rcx
         mov     [rbx].TSmallBlockType.MaxSequentialFeedBlockAddress, rdi
         // Unlock the small block type, set header and leave
-        mov     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, false
+        mov     byte ptr [rbx].TSmallBlockType.Locked, false
         mov     [rax - BlockHeaderSize], rsi
         pop     rbx
         {$ifdef MSWINDOWS}
@@ -1456,7 +1543,7 @@ asm
         mov     ecx, edx
         shr     edx, 8 + 5
         shr     ecx, 8
-        mov     eax,  - 1
+        mov     eax, -1
         shl     eax, cl
         and     eax, [r10 + TMediumBlockInfo.BinBitmaps + rdx * 4]
         jz      @GroupIsEmpty
@@ -1499,9 +1586,15 @@ asm
         {$endif MSWINDOWS}
         ret
 @AllocateNewSequentialFeedForMedium:
-        mov     size, rbx // 'size' variable is the first argument register in ABI call
+        {$ifdef MSWINDOWS}
+        mov     ecx, ebx
+        lea     rdx, [rip + MediumBlockInfo]
+        {$else}
+        mov     edi, ebx
+        lea     rsi, [rip + MediumBlockInfo]
+        {$endif MSWINDOWS}
         call    AllocNewSequentialFeedMediumPool
-        mov     byte ptr [rip + MediumBlockInfo.Locked], false // r10 has been overwritten
+        mov     byte ptr [rip + MediumBlockInfo.Locked], false
         pop     rbx
         {$ifdef MSWINDOWS}
         pop     rdi
@@ -1521,7 +1614,7 @@ asm
         // Is this bin now empty?
         cmp     rdi, rax
         jne     @MediumBinNotEmptyForMedium
-        // edx = bin group number, ecx = bin number, rdi = @bin, rsi = free block, ebx = block size
+        // edx=bingroupnumber, ecx=binnumber, rdi=@bin, rsi=freeblock, ebx=blocksize
         // Flag this bin and group as empty
         mov     eax,  - 2
         mov     r11d, [r10 + TMediumBlockInfo.BinGroupBitmap]
@@ -1581,10 +1674,10 @@ asm
 end;
 
 function FreeMediumBlock(arg1: pointer): PtrUInt; nostackframe; assembler;
-// rcx=P rdx=[P-BlockHeaderSize]
+// rcx=P rdx=[P-BlockHeaderSize] r10=TMediumBlockInfo
+// (arg1 is used only for proper call of pascal functions below on all ABI)
 asm
-        // Drop the flags, set r10=MediumBlockInfo r11=P rbx=blocksize
-        lea     r10, [rip + MediumBlockInfo]
+        // Drop the flags, and set r11=P rbx=blocksize
         and     rdx, DropMediumAndLargeFlagsMask
         push    rbx
         push    rdx // save blocksize
@@ -1600,6 +1693,36 @@ asm
         mov     eax, $100
   lock  cmpxchg byte ptr [rcx].TMediumBlockInfo.Locked, ah
         je      @MediumBlocksLocked
+        {$ifdef FPCMM_LOCKLESSFREEMEDIUM}
+        // locked: try to put r11=P in TMediumBlockInfo.LocklessBin.Instance[]
+        lea     rcx, [rcx].TMediumBlockInfo.LocklessBin
+        cmp     byte ptr [rcx].TMediumLocklessBin.Count, MediumBlockLocklessBinCount
+        je      @DoLock // all slots are filled
+        mov     r9d, SpinFreememBinCount
+@BinSp: mov     eax, $100
+  lock  cmpxchg byte ptr [rcx].TMediumLocklessBin.Locked, ah
+        je      @BinOk
+@BinNo: pause
+        dec     r9d
+        jnz     @BinSp
+        jmp     @DoLock
+@BinOk: // we acquired TMediumLocklessBin.Locked
+        movzx   eax, byte ptr [rcx].TMediumLocklessBin.Count
+        cmp     al, MediumBlockLocklessBinCount
+        je      @DoLoc2
+        add     byte ptr [rcx].TMediumLocklessBin.Count, 1
+
+        cmp     al, byte ptr [rcx].TMediumLocklessBin.MaxCount
+        jb      @max
+        mov     byte ptr [rcx].TMediumLocklessBin.MaxCount, al
+@max:
+        mov     [rcx + TMediumLocklessBin.Instance + rax * 8], r11
+        mov     byte ptr [rcx].TMediumLocklessBin.Locked, false
+        pop     rax // medium block size
+        pop     rbx
+        ret
+@DoLoc2:mov     byte ptr [rcx].TMediumLocklessBin.Locked, false
+@DoLock:{$endif FPCMM_LOCKLESSFREEMEDIUM}
         call    LockMediumBlocks
 @MediumBlocksLocked:
         // Get rcx = next block size and flags
@@ -1618,14 +1741,30 @@ asm
         // Check if entire medium block pool is free
         cmp     ebx, (MediumBlockPoolSize - MediumBlockPoolHeaderSize)
         je      @EntireMediumPoolFree
-@BinFreeMediumBlock:
-        // Store size of the block, flags and trailing size marker and insert into bin
+@Bin:   // Store size of the block, flags and trailing size marker and insert into bin
         lea     rax, [rbx + IsMediumBlockFlag + IsFreeBlockFlag]
         mov     [r11 - BlockHeaderSize], rax
         mov     [r11 + rbx - 16], rbx
         mov     rcx, r11
         mov     rdx, rbx
-        call    InsertMediumBlockIntoBin // rcx=APMediumFreeBlock, edx=AMediumBlockSize
+        call    InsertMediumBlockIntoBin // rcx=P, edx=blocksize
+        {$ifdef FPCMM_LOCKLESSFREEMEDIUM}
+        // recycle any pending TMediumLocklessBin.Instance[] pointer
+        lea     rcx, [r10].TMediumBlockInfo.LocklessBin
+        cmp     byte ptr [rcx].TMediumLocklessBin.Count, 0
+        je      @Done
+        mov     eax, $100
+  lock  cmpxchg byte ptr [rcx].TMediumLocklessBin.Locked, ah // just try once
+        jne     @Done
+        // compute r11=P and rbx=blocksize from pending pointer
+        movzx   eax, byte ptr [rcx].TMediumLocklessBin.Count
+        dec     byte ptr [rcx].TMediumLocklessBin.Count
+        mov     r11, [rcx + TMediumLocklessBin.Instance - 8 + rax * 8]
+        mov     byte ptr [rcx].TMediumLocklessBin.Locked, false
+        mov     rbx, qword ptr [r11 - BlockHeaderSize]
+        and     rbx, DropMediumAndLargeFlagsMask
+        jmp     @MediumBlocksLocked
+@Done:  {$endif FPCMM_LOCKLESSFREEMEDIUM}
         // Unlock medium blocks and leave
         mov     byte ptr [r10 + TMediumBlockInfo.Locked], false
         pop     rax // medium block size
@@ -1673,6 +1812,7 @@ asm
 @MakeEmptyMediumPoolSequentialFeed:
         // Get rbx = end-marker block, and recycle the current sequential feed pool
         lea     rbx, [r11 + MediumBlockPoolSize - MediumBlockPoolHeaderSize]
+        mov     arg1, r10
         call    BinMediumSequentialFeedRemainder
         // Set this medium pool up as the new sequential feed pool, unlock and leave
         mov     qword ptr [rbx - BlockHeaderSize], IsMediumBlockFlag
@@ -1687,7 +1827,7 @@ procedure FreeSmallLocked; nostackframe; assembler;
 // rbx=TSmallBlockType rcx=P rdx=TSmallBlockPoolHeader
 asm
         // Adjust number of blocks in use, set rax = old first free block
-        inc     [rbx].TSmallBlockType.FreememCount
+        add     [rbx].TSmallBlockType.FreememCount, 1
         mov     rax, [rdx].TSmallBlockPoolHeader.FirstFreeBlock
         sub     [rdx].TSmallBlockPoolHeader.BlocksInUse, 1
         jz      @PoolIsNowEmpty
@@ -1711,7 +1851,7 @@ asm
         cmp     byte ptr [rbx].TSmallBlockType.BinCount, 0
         jne     @ProcessPendingBin
         {$endif FPCMM_LOCKLESSFREE}
-        mov     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, false
+        mov     byte ptr [rbx].TSmallBlockType.Locked, false
         ret
 @PoolIsNowEmpty:
         // FirstFreeBlock=nil means it is the sequential feed pool with a single block
@@ -1730,21 +1870,19 @@ asm
         mov     [rbx].TSmallBlockType.MaxSequentialFeedBlockAddress, rax
 @NotSequentialFeedPool:
         // Unlock blocktype and release this pool
-        mov     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, false
+        mov     byte ptr [rbx].TSmallBlockType.Locked, false
         mov     rcx, rdx
         mov     rdx, qword ptr [rdx - BlockHeaderSize]
+        lea     r10, [rip + SmallMediumBlockInfo]
         jmp     FreeMediumBlock // no call nor BinLocked to avoid race condition
 {$ifdef FPCMM_LOCKLESSFREE}
 @ProcessPendingBin:
-        // Try twice to acquire BinLocked (spinning now may induce race condition)
-        mov     eax, $100
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BinLocked, ah
-        je      @BinLocked
-        pause
+        // Try once to acquire BinLocked (spinning may induce race condition)
+        cmp     byte ptr [rbx].TSmallBlockType.BinLocked, true
+        je      @BinAlreadyLocked
         mov     eax, $100
   lock  cmpxchg byte ptr [rbx].TSmallBlockType.BinLocked, ah
         jne     @BinAlreadyLocked
-@BinLocked:
         movzx   eax, byte ptr [rbx].TSmallBlockType.BinCount
         test    al, al
         jz      @NoBin
@@ -1753,10 +1891,10 @@ asm
         dec     byte ptr [rbx].TSmallBlockType.BinCount
         mov     byte ptr [rbx].TSmallBlockType.BinLocked, false
         mov     rdx, [rcx - BlockHeaderSize]
-        jmp     FreeSmallLocked
+        jmp     FreeSmallLocked // loop until BinCount=0
 @NoBin: mov     byte ptr [rbx].TSmallBlockType.BinLocked, false
 @BinAlreadyLocked:
-        mov     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, false
+        mov     byte ptr [rbx].TSmallBlockType.Locked, false
 {$endif FPCMM_LOCKLESSFREE}
 end;
 
@@ -1789,7 +1927,7 @@ asm
         mov     rbx, [rdx].TSmallBlockPoolHeader.BlockType
         {$ifdef FPCMM_ASSUMEMULTITHREAD}
         mov     eax, $100
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         jne     @CheckTinySmallLock
         {$else}
         cmp     byte ptr [rax], false
@@ -1802,12 +1940,13 @@ asm
 @VoidPointer:
         ret
 @NotSmallBlockInUse:
+        lea     r10, [rip + MediumBlockInfo]
         test    dl, IsFreeBlockFlag + IsLargeBlockFlag
         jz      FreeMediumBlock
         jmp     FreeLargeBlock // P is still in rcx/rdi first param register
 @TinySmallLockLoop:
         mov     eax, $100
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         je      @FreeAndUnlock
 @CheckTinySmallLock:
         {$ifdef FPCMM_LOCKLESSFREE}
@@ -1824,7 +1963,7 @@ asm
         shl     rdx, 32
         lea     r9, [rax + rdx + SpinSmallFreememBinTSC] // r9 = endtsc
         {$else}
-        mov     r9d, SpinSmallFreememBinCount
+        mov     r9d, SpinFreememBinCount
         {$endif FPCMM_SLEEPTSC}
 @SpinBinLock:
         pause
@@ -1852,15 +1991,15 @@ asm
         pop     rdx
         {$endif FPCMM_SLEEPTSC}
         {$endif FPCMM_PAUSE}
-        {$ifdef FPCMM_DEBUG}
-        inc     dword ptr [rbx].TSmallBlockType.BinSpinCount // no lock (informative only)
+        {$ifdef FPCMM_DEBUG} // no lock (informative only)
+        inc     dword ptr [rbx].TSmallBlockType.BinSpinCount
         {$endif FPCMM_DEBUG}
         jmp     @LockBlockTypeSleep
 @BinLocked:
         movzx   eax, byte ptr [rbx].TSmallBlockType.BinCount
         cmp     al, SmallBlockBinCount
         je      @LockBlockType
-        inc     byte ptr [rbx].TSmallBlockType.BinCount
+        add     byte ptr [rbx].TSmallBlockType.BinCount, 1
         mov     [rbx + TSmallBlockType.BinInstance + rax * 8], rcx
         mov     byte ptr [rbx].TSmallBlockType.BinLocked, false
         movzx   eax, word ptr [rbx].TSmallBlockType.BlockSize
@@ -1893,9 +2032,9 @@ asm
         jz      @LockBlockTypeReleaseCore
         {$endif FPCMM_SLEEPTSC}
         mov     eax, $100
-        cmp     byte ptr [rbx].TSmallBlockType.BlockTypeLocked, true
+        cmp     byte ptr [rbx].TSmallBlockType.Locked, true
         je      @SpinLockBlockType
-  lock  cmpxchg byte ptr [rbx].TSmallBlockType.BlockTypeLocked, ah
+  lock  cmpxchg byte ptr [rbx].TSmallBlockType.Locked, ah
         jne     @SpinLockBlockType
         {$ifdef FPCMM_SLEEPTSC}
         pop     rdx
@@ -1991,20 +2130,22 @@ asm
 @MoveFreeMem:
         // copy and free: rax=New r14=P rbx=size-8
         push    rax
+        {$ifdef FPCMM_ERMS}
+        cmp     rbx, ErmsMinSize // startup cost of 0..255 bytes
+        jae     @erms
+        {$endif FPCMM_ERMS}
         lea     rcx, [r14 + rbx]
         lea     rdx, [rax + rbx]
         neg     rbx
         jns     @Last8
         align   16
-@MoveBy16:
-        movaps  xmm0, oword ptr [rcx + rbx]
+@By16:  movaps  xmm0, oword ptr [rcx + rbx]
         movaps  oword ptr [rdx + rbx], xmm0
         add     rbx, 16
-        js      @MoveBy16
+        js      @By16
 @Last8: mov     rax, qword ptr [rcx + rbx]
         mov     qword ptr [rdx + rbx], rax
-@DoFree:
-        mov     P, r14
+@DoFree:mov     P, r14
         call    _FreeMem
         pop     rax
 @Done:  pop     rcx
@@ -2016,12 +2157,20 @@ asm
         {$endif MSWINDOWS}
         mov     qword ptr [rcx], rax // store new pointer in var P
         ret
+        {$ifdef FPCMM_ERMS}
+@erms:  cld
+        mov     rsi, r14
+        mov     rdi, rax
+        lea     rcx, [rbx + 8]
+        rep movsb
+        jmp     @DoFree
+        {$endif FPCMM_ERMS}
 @NotASmallBlock:
         // Is this a medium block or a large block?
         test    cl, IsFreeBlockFlag + IsLargeBlockFlag
         jnz     @PossibleLargeBlock
         // -------------- MEDIUM block -------------
-        // rcx = Current Size + Flags, r14 = P, rdx = Requested Size, r10 = MediumBlockInfo
+        // rcx=CurrentSize+Flags, r14=P, rdx=RequestedSize, r10=TMediumBlockInfo
         lea     rsi, [rdx + rdx]
         lea     r10, [rip + MediumBlockInfo]
         mov     rbx, rcx
@@ -2032,8 +2181,8 @@ asm
         // Is it an upsize or a downsize?
         cmp     rdx, rcx
         ja      @MediumBlockUpsize
-        // rcx = Current Block Size - BlockHeaderSize, rbx = Current Block Flags,
-        // rdi = @Next Block, r14 = P, rdx = Requested Size
+        // rcx=CurrentBlockSize-BlockHeaderSize, rbx=CurrentBlockFlags,
+        // rdi=@NextBlock, r14=P, rdx=RequestedSize
         // Downsize reallocate and move data only if less than half the current size
         cmp     rsi, rcx
         jae     @NoResize
@@ -2165,11 +2314,11 @@ asm
         // Get the maximum of the requested size and the minimum growth size
         xor     edi, edi
         sub     eax, edx
-        adc     edi,  - 1
+        adc     edi, -1
         and     eax, edi
         // Round up to the nearest block size granularity
         lea     rax, [rax + rdx + BlockHeaderSize + MediumBlockGranularity - 1 - MediumBlockSizeOffset]
-        and     eax,  - MediumBlockGranularity
+        and     eax, -MediumBlockGranularity
         add     eax, MediumBlockSizeOffset
         // Calculate the size of the second split and check if it fits
         lea     rdx, [rsi + BlockHeaderSize]
@@ -2242,10 +2391,14 @@ asm
         // Large blocks from mmap/VirtualAlloc are already zero filled
         cmp     rbx, MaximumMediumBlockSize - BlockHeaderSize
         jae     @Done
+        {$ifdef FPCMM_ERMS}
+        cmp     rbx, ErmsMinSize // startup cost of 0..255 bytes
+        jae     @erms
+        {$endif FPCMM_ERMS}
         neg     rbx
         pxor    xmm0, xmm0
         align   16
-@FillLoop: // non-temporal movntdq not needed when size <256KB (small/medium)
+@FillLoop: // non-temporal movntdq not needed with small/medium size
         movaps  oword ptr [rdx + rbx], xmm0
         add     rbx, 16
         js      @FillLoop
@@ -2253,11 +2406,33 @@ asm
 @LastQ: xor     rcx, rcx
         mov     qword ptr [rdx], rcx
 @Done:  pop     rbx
+        {$ifdef FPCMM_ERMS}
+        ret
+        // ERMS has a startup cost, but "rep stosd" is fast enough on all CPUs
+@erms:  mov     rcx, rbx
+        push    rax
+        {$ifdef MSWINDOWS}
+        push    rdi
+        {$endif MSWINDOWS}
+        cld
+        mov     rdi, rdx
+        xor     eax, eax
+        sub     rdi, rbx
+        shr     ecx, 2
+        mov     qword ptr [rdx], rax
+        rep stosd
+        {$ifdef MSWINDOWS}
+        pop     rdi
+        {$endif MSWINDOWS}
+        pop     rax
+        pop     rbx
+        {$endif FPCMM_ERMS}
 end;
 
 function _MemSize(P: pointer): PtrUInt;
 begin
   // AFAIK used only by fpc_AnsiStr_SetLength() in RTL
+  // also used by our static SQLite3 for its xSize() callback
   P := PPointer(PByte(P) - BlockHeaderSize)^;
   if (PtrUInt(P) and (IsMediumBlockFlag or IsLargeBlockFlag)) = 0 then
     result := PSmallBlockPoolHeader(PtrUInt(P) and DropSmallFlagsMask).
@@ -2497,13 +2672,19 @@ begin
   if compilationflags then
     writeln(' Flags: '
       {$ifdef FPCMM_BOOSTER}           + 'BOOSTER '     {$else}
-        {$ifdef FPCMM_BOOST}           + 'BOOST '       {$endif} {$endif}
-      {$ifdef FPCMM_SERVER}            + 'SERVER '      {$endif}
+        {$ifdef FPCMM_BOOST}           + 'BOOST '       {$else}
+          {$ifdef FPCMM_SERVER}        + 'SERVER '      {$endif}
+        {$endif}
+      {$endif}
       {$ifdef FPCMM_ASSUMEMULTITHREAD} + ' assumulthrd' {$endif}
       {$ifdef FPCMM_LOCKLESSFREE}      + ' lockless'    {$endif}
       {$ifdef FPCMM_PAUSE}             + ' pause'       {$endif}
       {$ifdef FPCMM_SLEEPTSC}          + ' rdtsc'       {$endif}
-      {$ifdef FPCMM_NOMREMAP}          + ' nomremap'    {$endif}
+      {$ifdef LINUX}
+        {$ifdef FPCMM_NOMREMAP}        + ' nomremap'    {$endif}
+      {$endif LINUX}
+      {$ifdef FPCMM_SMALLNOTWITHMEDIUM}+ ' smallpool'   {$endif}
+      {$ifdef FPCMM_ERMS}              + ' erms'        {$endif}
       {$ifdef FPCMM_DEBUG}             + ' debug'       {$endif}
       {$ifdef FPCMM_REPORTMEMORYLEAKS} + ' repmemleak'  {$endif});
   with CurrentHeapStatus do
@@ -2631,11 +2812,28 @@ end;
 
 { ********* Initialization and Finalization }
 
+procedure InitializeMediumPool(var Info: TMediumBlockInfo);
+var
+  i: PtrInt;
+  medium: PMediumFreeBlock;
+begin
+  {$ifndef FPCMM_ASSUMEMULTITHREAD}
+  Info.IsMultiThreadPtr := @IsMultiThread;
+  {$endif FPCMM_ASSUMEMULTITHREAD}
+  Info.PoolsCircularList.PreviousMediumBlockPoolHeader := @Info.PoolsCircularList;
+  Info.PoolsCircularList.NextMediumBlockPoolHeader := @Info.PoolsCircularList;
+  for i := 0 to MediumBlockBinCount -1 do
+  begin
+    medium := @Info.Bins[i];
+    medium.PreviousFreeBlock := medium;
+    medium.NextFreeBlock := medium;
+  end;
+end;
+
 procedure InitializeMemoryManager;
 var
   small: PSmallBlockType;
   a, i, min, poolsize, num, perpool, size, start, next: PtrInt;
-  medium: PMediumFreeBlock;
 begin
   small := @SmallBlockInfo;
   assert(SizeOf(small^) = 1 shl SmallBlockTypePO2);
@@ -2662,7 +2860,7 @@ begin
         (MediumBlockBinsPerGroup * MediumBlockGranularity);
       if num > 7 then
         num := 7;
-      small^.AllowedGroupsForBlockPoolBitmap := Byte(Byte(-1) shl num);
+      small^.AllowedGroupsForBlockPoolBitmap := byte(byte(-1) shl num);
       small^.MinimumBlockPoolSize := MinimumMediumBlockSize +
         num * (MediumBlockBinsPerGroup * MediumBlockGranularity);
       poolsize := ((size * TargetSmallBlocksPerPool +
@@ -2680,8 +2878,7 @@ begin
     end;
   assert(small = @SmallBlockInfo.GetmemLookup);
   {$ifndef FPCMM_ASSUMEMULTITHREAD}
-  SmallBlockInfo.IsMultiThreadPtr := @IsMultiThread;
-  MediumBlockInfo.IsMultiThreadPtr := @IsMultiThread;
+  SmallBlockInfo.IsMultiThreadPtr  := @IsMultiThread;
   {$endif FPCMM_ASSUMEMULTITHREAD}
   start := 0;
   with SmallBlockInfo do
@@ -2694,17 +2891,10 @@ begin
         inc(start);
       end;
     end;
-  with MediumBlockInfo do
-  begin
-    PoolsCircularList.PreviousMediumBlockPoolHeader := @PoolsCircularList;
-    PoolsCircularList.NextMediumBlockPoolHeader := @PoolsCircularList;
-    for i := 0 to MediumBlockBinCount -1 do
-    begin
-      medium := @Bins[i];
-      medium.PreviousFreeBlock := medium;
-      medium.NextFreeBlock := medium;
-    end;
-  end;
+  InitializeMediumPool(MediumBlockInfo);
+  {$ifdef FPCMM_SMALLNOTWITHMEDIUM}
+  InitializeMediumPool(SmallMediumBlockInfo);
+  {$endif FPCMM_SMALLNOTWITHMEDIUM}
   LargeBlocksCircularList.PreviousLargeBlockHeader := @LargeBlocksCircularList;
   LargeBlocksCircularList.NextLargeBlockHeader := @LargeBlocksCircularList;
 end;
@@ -2720,9 +2910,9 @@ procedure StartReport;
 begin
   if MemoryLeakReported then
     exit;
-  writeln;
+  writeln {$ifndef MSWINDOWS} (#27'[1;31m') {$endif}; // lightred posix console
   WriteHeapStatus('WARNING! THIS PROGRAM LEAKS MEMORY!'#13#10'Memory Status:');
-  writeln('Leaks Identified:');
+  writeln('Leaks Identified:' {$ifndef MSWINDOWS} + #27'[1;37m' {$endif});
   MemoryLeakReported := true;
 end;
 
@@ -2731,7 +2921,8 @@ end;
   {$define FPCMM_REPORTMEMORYLEAKS_EXPERIMENTAL}
 {$endif LINUX}
 
-procedure MediumMemoryLeakReport(p: PMediumBlockPoolHeader);
+procedure MediumMemoryLeakReport(
+  var Info: TMediumBlockInfo; p: PMediumBlockPoolHeader);
 var
   block: PByte;
   header, size: PtrUInt;
@@ -2752,13 +2943,13 @@ var
   {$endif FPCMM_REPORTMEMORYLEAKS_EXPERIMENTAL}
 
 begin
-  with MediumBlockInfo do
-  if (SequentialFeedBytesLeft = 0) or
-     (PtrUInt(LastSequentiallyFed) < PtrUInt(p)) or
-     (PtrUInt(LastSequentiallyFed) > PtrUInt(p) + MediumBlockPoolSize) then
+  if (Info.SequentialFeedBytesLeft = 0) or
+     (PtrUInt(Info.LastSequentiallyFed) < PtrUInt(p)) or
+     (PtrUInt(Info.LastSequentiallyFed) > PtrUInt(p) + MediumBlockPoolSize) then
     block := Pointer(PByte(p) + MediumBlockPoolHeaderSize)
-  else if SequentialFeedBytesLeft <> MediumBlockPoolSize - MediumBlockPoolHeaderSize then
-      block := LastSequentiallyFed
+  else if Info.SequentialFeedBytesLeft <>
+            MediumBlockPoolSize - MediumBlockPoolHeaderSize then
+      block := Info.LastSequentiallyFed
     else
       exit;
   repeat
@@ -2810,7 +3001,7 @@ begin
       else
       begin
         StartReport;
-        writeln(' medium block leak of ', K(size), 'B');
+        writeln(' medium block leak of ', size, ' bytes (', K(size), 'B)');
       end;
     inc(block, size);
   until false;
@@ -2818,10 +3009,44 @@ end;
 
 {$endif FPCMM_REPORTMEMORYLEAKS}
 
-procedure FreeAllMemory;
+procedure FreeMediumPool(var Info: TMediumBlockInfo);
 var
   medium, nextmedium: PMediumBlockPoolHeader;
   bin: PMediumFreeBlock;
+  i: PtrInt;
+begin
+  medium := Info.PoolsCircularList.NextMediumBlockPoolHeader;
+  while medium <> @Info.PoolsCircularList do
+  begin
+    {$ifdef FPCMM_REPORTMEMORYLEAKS}
+    MediumMemoryLeakReport(Info, medium);
+    {$endif FPCMM_REPORTMEMORYLEAKS}
+    nextmedium := medium.NextMediumBlockPoolHeader;
+    FreeMedium(medium);
+    medium := nextmedium;
+  end;
+  Info.PoolsCircularList.PreviousMediumBlockPoolHeader := @Info.PoolsCircularList;
+  Info.PoolsCircularList.NextMediumBlockPoolHeader := @Info.PoolsCircularList;
+  for i := 0 to MediumBlockBinCount - 1 do
+  begin
+    bin := @Info.Bins[i];
+    bin.PreviousFreeBlock := bin;
+    bin.NextFreeBlock := bin;
+  end;
+  Info.BinGroupBitmap := 0;
+  Info.SequentialFeedBytesLeft := 0;
+  for i := 0 to MediumBlockBinGroupCount - 1 do
+    Info.BinBitmaps[i] := 0;
+  {$ifdef FPCMM_LOCKLESSFREEMEDIUM}
+  with Info.LocklessBin do
+    for i := 0 to Count - 1 do
+      if Instance[i] <> nil then
+        _FreeMem(Instance[i]); // release (unlikely) pending instances
+  {$endif FPCMM_LOCKLESSFREEMEDIUM}
+end;
+
+procedure FreeAllMemory;
+var
   large, nextlarge: PLargeBlockHeader;
   p: PSmallBlockType;
   i, size: PtrUInt;
@@ -2839,9 +3064,11 @@ begin
   for i := 1 to NumSmallInfoBlock do
   begin
     {$ifdef FPCMM_LOCKLESSFREE}
+    if p^.BinCount <> 0 then
+      writeln('BinCount=',p^.BinCount,' for small=',p^.BlockSize);
     for j := 0 to p^.BinCount - 1 do
-      if p^.BinInstance[i] <> nil then
-        _FreeMem(p^.BinInstance[i]); // release (unlikely) pending instances
+      if p^.BinInstance[j] <> nil then
+        _FreeMem(p^.BinInstance[j]); // release (unlikely) pending instances
     {$endif FPCMM_LOCKLESSFREE}
     p^.PreviousPartiallyFreePool := pointer(p);
     p^.NextPartiallyFreePool := pointer(p);
@@ -2863,38 +3090,17 @@ begin
   if leaks <> 0 then
     writeln(' Total small block leaks = ', leaks);
   {$endif FPCMM_REPORTMEMORYLEAKS}
-  with MediumBlockInfo do
-  begin
-    medium := PoolsCircularList.NextMediumBlockPoolHeader;
-    while medium <> @PoolsCircularList do
-    begin
-      {$ifdef FPCMM_REPORTMEMORYLEAKS}
-      MediumMemoryLeakReport(medium);
-      {$endif FPCMM_REPORTMEMORYLEAKS}
-      nextmedium := medium.NextMediumBlockPoolHeader;
-      FreeMedium(medium);
-      medium := nextmedium;
-    end;
-    PoolsCircularList.PreviousMediumBlockPoolHeader := @PoolsCircularList;
-    PoolsCircularList.NextMediumBlockPoolHeader := @PoolsCircularList;
-    for i := 0 to MediumBlockBinCount - 1 do
-    begin
-      bin := @Bins[i];
-      bin.PreviousFreeBlock := bin;
-      bin.NextFreeBlock := bin;
-    end;
-    BinGroupBitmap := 0;
-    SequentialFeedBytesLeft := 0;
-    for i := 0 to MediumBlockBinGroupCount - 1 do
-      BinBitmaps[i] := 0;
-  end;
+  {$ifdef FPCMM_SMALLNOTWITHMEDIUM}
+  FreeMediumPool(SmallMediumBlockInfo);
+  {$endif FPCMM_SMALLNOTWITHMEDIUM}
+  FreeMediumPool(MediumBlockInfo);
   large := LargeBlocksCircularList.NextLargeBlockHeader;
   while large <> @LargeBlocksCircularList do
   begin
     size := large.BlockSizeAndFlags and DropMediumAndLargeFlagsMask;
     {$ifdef FPCMM_REPORTMEMORYLEAKS}
     StartReport;
-    writeln(' large block leak of ', K(size), 'B');
+    writeln(' large block leak of ', size, ' bytes (', K(size), 'B)');
     {$endif FPCMM_REPORTMEMORYLEAKS}
     nextlarge := large.NextLargeBlockHeader;
     FreeLarge(large, size);
@@ -2910,17 +3116,17 @@ end;
 
 const
   NewMM: TMemoryManager = (
-    NeedLock: false;
-    GetMem: @_Getmem;
-    FreeMem: @_FreeMem;
-    FreememSize: @_FreememSize;
-    AllocMem: @_AllocMem;
-    ReallocMem: @_ReAllocMem;
-    MemSize: @_MemSize;
-    InitThread: nil;
-    DoneThread: nil;
-    RelocateHeap: nil;
-    GetHeapStatus: @_GetHeapStatus;
+    NeedLock:         false;
+    GetMem:           @_Getmem;
+    FreeMem:          @_FreeMem;
+    FreememSize:      @_FreememSize;
+    AllocMem:         @_AllocMem;
+    ReallocMem:       @_ReAllocMem;
+    MemSize:          @_MemSize;
+    InitThread:       nil;
+    DoneThread:       nil;
+    RelocateHeap:     nil;
+    GetHeapStatus:    @_GetHeapStatus;
     GetFPCHeapStatus: @_GetFPCHeapStatus);
 
 var
@@ -2937,7 +3143,7 @@ finalization
 
 {$endif FPCMM_STANDALONE}
 
-{$endif FPC_CPUX64}
+{$endif FPCX64MM}
 
 end.
 
