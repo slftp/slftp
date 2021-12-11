@@ -1,0 +1,12 @@
+Usage: <cmd> sitename1 [value]
+Set/Show the reduced_speedstat_weight value for the given input site.
+If the value is not configured on a per-site basis, the default global
+value from slftp.ini will be used.
+If a site has a low rank, but transfers are fast, that site can end up with a high destination priority at races.
+If this setting is enabled, speedstats will no longer change this priority over different ranks, but only change order within the same ranks
+
+Valid input for value: 0 or 1
+
+Examples:
+<cmd> HQ <- shows current 'reduced speedstat weight' value
+<cmd> HQ 1 <- enables 'reduced speedstat weight' for HQ
