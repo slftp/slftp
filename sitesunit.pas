@@ -367,6 +367,10 @@ type
     function GetUseSiteSearchOnReqFill: boolean;
     { Sets a value indicating whether the 'site search' cmd will be used to find requests }
     procedure SetUseSiteSearchOnReqFill(const Value: boolean);
+    { Gets a value indicating whether speedstats should not change calculated rank for this destination site }
+    function GetReducedSpeedstatWeight: boolean;
+    { Sets a value indicating whether speedstats should not change calculated rank for this destination site }
+    procedure SetReducedSpeedstatWeight(const Value: boolean);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -535,6 +539,7 @@ type
     property UseReverseFxpSource: boolean read GetUseReverseFxpSource write SetUseReverseFxpSource; //< a value indicating whether reverse FXP will be used if the site is the source for the transfer
     property UseReverseFxpDestination: boolean read GetUseReverseFxpDestination write SetUseReverseFxpDestination; //< a value indicating whether reverse FXP will be used if the site is the destination for the transfer
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
+    property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
   end;
 
 function ReadSites(): boolean;
@@ -3995,6 +4000,16 @@ end;
 procedure TSite.SetUseSiteSearchOnReqFill(const Value: boolean);
 begin
   WCBool('use_site_search_on_reqfill', Value);
+end;
+
+function TSite.GetReducedSpeedstatWeight: boolean;
+begin
+  Result := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));
+end;
+
+procedure TSite.SetReducedSpeedstatWeight(const Value: boolean);
+begin
+  WCBool('reduced_speedstat_weight', Value);
 end;
 
 end.

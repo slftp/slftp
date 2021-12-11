@@ -37,6 +37,7 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
+      reduced_speedstat_weight=0
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -49,7 +50,7 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.10 )==================================-
-
+    {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
 
 --=============================( SLFTP v1.5.9 )===================================-
     {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
