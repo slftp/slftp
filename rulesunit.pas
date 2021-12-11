@@ -1608,6 +1608,22 @@ begin
 
 end;
 
+function CalculateRank(const aDestSite: TSite; const aSpeedFrom: integer; const aSection: string; const aIsPre: boolean): integer;
+var
+  fCalculatedRank: integer;
+begin
+  //reduce speed stats weight - multiply ranks by 10, then the speedstats can't change the rank, but still change order within the same rank
+  if (aDestSite.ReducedSpeedstatWeight) then
+    fCalculatedRank := aSpeedFrom + aDestSite.GetRank(aSection) * 10
+  else
+    fCalculatedRank := aSpeedFrom * aDestSite.GetRank(aSection); //normal calculation
+
+  if (aIsPre) then
+    fCalculatedRank := Result + 100;
+
+  Result := fCalculatedRank;
+end;
+
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 var
   dstps: TPazoSite;
@@ -1679,18 +1695,7 @@ begin
           // i'm allowed to e ...
           if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
           begin
-            if (ps.status in [rssShouldPre, rssRealPre]) then
-            begin
-              if ps.AddDestination(dstps, (StrToIntDef(y.ValueFromIndex[i], 1) *
-                dstps_s.GetRank(p.rls.section)) + 100) then
-                Result := True;
-            end
-            else
-            begin
-              if ps.AddDestination(dstps, StrToIntDef(y.ValueFromIndex[i], 1) *
-                dstps_s.GetRank(p.rls.section)) then
-                Result := True;
-            end;
+            Result := ps.AddDestination(dstps, CalculateRank(dstps_s, StrToIntDef(y.ValueFromIndex[i], 1), p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
           end;
         end;
       except
