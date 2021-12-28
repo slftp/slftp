@@ -494,16 +494,16 @@ begin
   GlMP3Genres := TStringList.Create;
   GlMP3Genres.Delimiter := ' ';
   GlMP3Genres.QuoteChar := '"';
-  fGenreHelper := '"Instrumental Rock" "Techno Industrial" "Instrumental Pop" "Progressive Rock" "Psychedelic Rock" "Native American" "Symphonic Rock" "Easy Listening" "Southern Rock" "Christian Rap" "National Folk" "Chamber Music" "Rhythmic Soul"';
-  fGenreHelper := fGenreHelper + '"Classic Rock" "Instrumental" "Power Ballad" "Alternative" "Thrash Metal" "Heavy Metal" "Death Metal" "Black Metal" "Euro Techno" "Psychedelic" "Rock & Roll" "Fast Fusion"';
-  fGenreHelper := fGenreHelper + '"Gothic Rock" "Porn Groove" "Industrial" "Soundtrack" "Sound Clip" "AlternRock" "Meditative" "Electronic" "Avantgarde" "Booty Bass" "Euro House" "Dance Hall" "Jazz+Funk" "Classical" "Eurodance"';
-  fGenreHelper := fGenreHelper + '"Showtunes" "Acid Punk" "Acid Jazz" "Hard Rock" "Folk Rock" "Bluegrass" "Slow Rock" "Freestyle" "Punk Rock" "Drum Solo" "A capella" "Trip Hop" "Darkwave" "Pop Folk" "Pop Funk" "New Wave" "Big Band"';
-  fGenreHelper := fGenreHelper + '"Hardcore" "Acoustic" "Symphony" "Slow Jam" "Folklore" "Country" "Hip-Hop" "Hip Hop" "New Age" "Ambient" "Gangsta" "Cabaret" "Trailer" "Musical" "Revival" "Chanson" "Grunge" "Oldies" "Reggae"';
-  fGenreHelper := fGenreHelper + '"Techno" "Pranks" "Fusion" "Trance" "Gospel" "Ethnic" "Gothic" "Comedy" "Top 40" "Jungle"';
-  fGenreHelper := fGenreHelper + '"Tribal" "Celtic" "Chorus" "Humour" "Speech" "Sonata" "Primus" "Satire" "Ballad" "Blues" "Dance" "Disco" "Metal" "Other"';
-  fGenreHelper := fGenreHelper + '"Vocal" "House" "Noise" "Space" "Dream" "Lo Fi" "Polka" "Retro" "Swing" "Bebob" "Latin" "Indie" "Opera" "Tango" "Samba" "Funk" "Jazz" "Rock" "Acid"';
+  fGenreHelper := '"Instrumental Rock" "Techno Industrial" "Instrumental Pop" "Progressive Rock" "Psychedelic Rock" "Native American" "Symphonic Rock" "Easy Listening" "Southern Rock" "Christian Rap" "National Folk" "Chamber Music" "Rhythmic Soul" ';
+  fGenreHelper := fGenreHelper + '"Classic Rock" "Instrumental" "Power Ballad" "Alternative" "Thrash Metal" "Heavy Metal" "Death Metal" "Black Metal" "Euro Techno" "Psychedelic" "Rock & Roll" "Fast Fusion" ';
+  fGenreHelper := fGenreHelper + '"Gothic Rock" "Porn Groove" "Industrial" "Soundtrack" "Sound Clip" "AlternRock" "Meditative" "Electronic" "Avantgarde" "Booty Bass" "Euro House" "Dance Hall" "Jazz+Funk" "Classical" "Eurodance" ';
+  fGenreHelper := fGenreHelper + '"Showtunes" "Acid Punk" "Acid Jazz" "Hard Rock" "Folk Rock" "Bluegrass" "Slow Rock" "Freestyle" "Punk Rock" "Drum Solo" "A capella" "Trip Hop" "Darkwave" "Pop Folk" "Pop Funk" "New Wave" "Big Band" ';
+  fGenreHelper := fGenreHelper + '"Hardcore" "Acoustic" "Symphony" "Slow Jam" "Folklore" "Country" "Hip-Hop" "Hip Hop" "New Age" "Ambient" "Gangsta" "Cabaret" "Trailer" "Musical" "Revival" "Chanson" "Grunge" "Oldies" "Reggae" ';
+  fGenreHelper := fGenreHelper + '"Techno" "Pranks" "Fusion" "Trance" "Gospel" "Ethnic" "Gothic" "Comedy" "Top 40" "Jungle" ';
+  fGenreHelper := fGenreHelper + '"Tribal" "Celtic" "Chorus" "Humour" "Speech" "Sonata" "Primus" "Satire" "Ballad" "Blues" "Dance" "Disco" "Metal" "Other" ';
+  fGenreHelper := fGenreHelper + '"Vocal" "House" "Noise" "Space" "Dream" "Lo Fi" "Polka" "Retro" "Swing" "Bebob" "Latin" "Indie" "Opera" "Tango" "Samba" "Funk" "Jazz" "Rock" "Acid" ';
   fGenreHelper := fGenreHelper + '"Game" "Bass" "Soul" "Punk" "Cult" "Rave" "Folk" "Club" "Duet" "Pop" "R&B" "Rap" "Ska" "CPOP" "KPOP" "JPOP"';
-  GlMP3Genres.DelimitedText := config.ReadString(rsections, 'mp3genres', fGenreHelper);
+  GlMP3Genres.DelimitedText := config.ReadString(configsection, 'mp3genres', fGenreHelper);
   i := 0;
   while (i < GlMP3Genres.Count) do
   begin
