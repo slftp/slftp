@@ -63,7 +63,8 @@ uses
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
   slsslTests,
-  sitesunitTests;
+  sitesunitTests,
+  precatcherTests;
 
 var
   filecheck: String;
@@ -86,6 +87,7 @@ begin
   InitialTagsSetup;
   InitialDirlistSetup;
   InitialDbAddImdbSetup;
+  InitialPrecatcherSetup;
 
 
   // run all registered tests

@@ -128,7 +128,7 @@ begin
   // section correct
   section := ProcessDoReplace(section);
   rls_section := '';
-  rls_section := KibontasSection(' ' + section + ' ', '');
+  rls_section := FindSection(' ' + section + ' ');
   rls_section := PrecatcherSectionMapping(rls, rls_section);
   if ((rls_section = '') or (rls_section = 'TRASH')) then
   begin

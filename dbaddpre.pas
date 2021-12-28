@@ -337,7 +337,7 @@ begin
 
   fSection := ProcessDoReplace(section);
   rls_section := '';
-  rls_section := KibontasSection(' ' + fSection + ' ', '');
+  rls_section := FindSection(' ' + fSection + ' ');
   rls_section := PrecatcherSectionMapping(rls, rls_section);
 
   if (rls_section = 'TRASH') then
