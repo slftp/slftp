@@ -23,6 +23,9 @@ type
     procedure TestIsLineCommentedOut1;
     procedure TestIsLineCommentedOut2;
     procedure TestIsLineCommentedOut3;
+    procedure TestTryToExtractMP3GenreFromSitebotAnnounce1;
+    procedure TestTryToExtractMP3GenreFromSitebotAnnounce2;
+    procedure TestTryToExtractMP3GenreFromSitebotAnnounce3;
   end;
 
 implementation
@@ -142,6 +145,34 @@ var
 begin
   fInputStr := '//this is a comment';
   CheckTrue(IsLineCommentedOut(fInputStr), 'It is a comment!');
+end;
+
+{ TODO: these tests are probably wrong because the sitebot announce is cleaned before }
+procedure TTestPrecatcherHelpers.TestTryToExtractMP3GenreFromSitebotAnnounce1;
+var
+  fInputStr: String;
+begin
+  // original: [info][mp3] Keller_Williams_Kwahtro-Sync-WEB-2017-ENTiTLED remaining(122.4MB) Rock(2017)
+  fInputStr := '[info][mp3]  remaining(122.4MB) Rock(2017)';
+  CheckEqualsString('Rock', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
+end;
+
+procedure TTestPrecatcherHelpers.TestTryToExtractMP3GenreFromSitebotAnnounce2;
+var
+  fInputStr: String;
+begin
+  // original: ( MP3 )-( Presk_-_2BXPRZD-(SOHASOMRGWLD01)-WEB-2017-HQEM )-( Expecting 4F of 320kbps Techno from 2017 )
+  fInputStr := '( MP3 )-(  )-( Expecting 4F of 320kbps Techno from 2017 )';
+  CheckEqualsString('Techno', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
+end;
+
+procedure TTestPrecatcherHelpers.TestTryToExtractMP3GenreFromSitebotAnnounce3;
+var
+  fInputStr: String;
+begin
+  // original: [new]-{mp3} Juan_Mejia--The_Juice_(Remixed)-(DUTCHIEWW108)-WEB-2021-OMA starts by username (tagline)
+  fInputStr := '[new]-{mp3}  starts by username (tagline)';
+  CheckEqualsString('', TryToExtractMP3GenreFromSitebotAnnounce(fInputStr), 'Getting MP3 Genre failed!');
 end;
 
 initialization
