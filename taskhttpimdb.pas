@@ -615,6 +615,23 @@ begin
     gDbAddimdb_cs.Leave;
   end;
 
+	try
+    ffound := (fFound_LastImdb <> -1);
+    if ffound = True then
+    begin
+      Result := True;
+      ready := True;
+      exit;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] taskhttpimdb last_imdbdata.IndexOf: %s', [e.Message]));
+      readyerror := True;
+      exit;
+    end;
+  end;
+
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then
   begin
@@ -854,39 +871,39 @@ begin
       end;
     end;
 
-    (* Get links to each Country and from there the single screen counts *)
-    fBOMCountryLinks := TDictionary<String, String>.Create;
-    try
-      THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomMainPage, fBOMCountryLinks);
-
-      fBOMCountryScreens := TDictionary<String, Integer>.Create;
-      try
-        for fBOMCountryLinkPair in fBOMCountryLinks do
-        begin
-          // all links on original release page have this reference
-          if not HttpGetUrl('https://www.boxofficemojo.com' + fBOMCountryLinkPair.Value + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
-          begin
-            Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
-            irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
-            Result := True;
-            ready := True;
-            exit;
-          end;
-
-          { NOTE: this needs to be saved }
-          fBOMCountryScreens.Add(fBOMCountryLinkPair.Key, THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
-        end;
-
-        { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
-        if not fBOMCountryScreens.TryGetValue(fReleasenameCountry, fBomScreensCount) then
-          fBomScreensCount := 0;
-        { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
-      finally
-        fBOMCountryScreens.Free;
-      end;
-    finally
-      fBOMCountryLinks.Free;
-    end;
+//    (* Get links to each Country and from there the single screen counts *)
+//    fBOMCountryLinks := TDictionary<String, String>.Create;
+//    try
+//      THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomMainPage, fBOMCountryLinks);
+//
+//      fBOMCountryScreens := TDictionary<String, Integer>.Create;
+//      try
+//        for fBOMCountryLinkPair in fBOMCountryLinks do
+//        begin
+//          // all links on original release page have this reference
+//          if not HttpGetUrl('https://www.boxofficemojo.com' + fBOMCountryLinkPair.Value + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
+//          begin
+//            Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+//            irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+//            Result := True;
+//            ready := True;
+//            exit;
+//          end;
+//
+//          { NOTE: this needs to be saved }
+//          fBOMCountryScreens.Add(fBOMCountryLinkPair.Key, THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
+//        end;
+//
+//        { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
+//        if not fBOMCountryScreens.TryGetValue(fReleasenameCountry, fBomScreensCount) then
+//          fBomScreensCount := 0;
+//        { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }
+//      finally
+//        fBOMCountryScreens.Free;
+//      end;
+//    finally
+//      fBOMCountryLinks.Free;
+//    end;
 
     (* Check screen count *)
     if fBomScreensCount = 0 then
