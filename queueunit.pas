@@ -17,6 +17,9 @@ type
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     procedure AddIdleTask(s: TSiteSlot);
     procedure AddQuitTask(s: TSiteSlot);
+    { Removes a race task if one already exists at the destination with the associated dirname and file of the given race task
+       @param(aRaceTask single race task picked from the complete task list by the main TQueueThread execution)
+    }
     procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
   end;
 

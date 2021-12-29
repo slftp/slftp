@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -55,7 +55,7 @@ interface
 
 {$I ZPlain.inc}
 
-{$IFNDEF ZEOS_DISABLE_ASA}
+{$IFNDEF ZEOS_DISABLE_SQLANY}
 
 uses Classes, ZCompatibility, ZPlainDriver;
 
@@ -944,10 +944,10 @@ type
     /// </summary>
     DT_TIMESTAMP = 392,
     /// <summary>
-    /// Varying length character string, in the CHAR character set, with a two-byte length field.
-    /// The maximum length is 32765 bytes. When sending data, you must set the length field.
-    /// When fetching data, the database server sets the length field.
-    /// The data is not null-terminated or blank-padded.
+    ///  Varying length character string, in the CHAR character set, with a two-byte length field.
+    ///  The maximum length is 32765 bytes. When sending data, you must set the length field.
+    ///  When fetching data, the database server sets the length field.
+    ///  The data is not null-terminated or blank-padded.
     /// </summary>
     DT_VARCHAR = 448,
     /// <summary>
@@ -2094,9 +2094,9 @@ type
     function GetDescription: string; override;
   end;
 
-{$ENDIF ZEOS_DISABLE_ASA}
+{$ENDIF ZEOS_DISABLE_SQLANY}
 implementation
-{$IFNDEF ZEOS_DISABLE_ASA}
+{$IFNDEF ZEOS_DISABLE_SQLANY}
 
 uses ZPlainLoader, ZEncoding;
 
@@ -2213,5 +2213,5 @@ begin
 end;
 
 initialization
-{$ENDIF ZEOS_DISABLE_ASA}
+{$ENDIF ZEOS_DISABLE_SQLANY}
 end.

@@ -38,6 +38,7 @@ function IrcRecalcFreeslots(const netname, channel, params: String): boolean;
 function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean;
 function IrcSetReverseFxp(const netname, channel, params: String): boolean;
 function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
+function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -1632,12 +1633,12 @@ begin
 
       if svalue = -1 then
       begin
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
       end
       else if ((svalue = 1) or (svalue = 0)) then
       begin
-        ss.UseForNFOdownload := svalue;
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+        ss.UseForNFOdownload := TUseForNfoDownload(svalue);
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
       end
       else
         irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
@@ -1655,12 +1656,12 @@ begin
 
     if svalue = -1 then
     begin
-      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
     end
     else if ((svalue = 1) or (svalue = 0)) then
     begin
-      ss.UseForNFOdownload := svalue;
-      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      ss.UseForNFOdownload := TUseForNfoDownload(svalue);
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
     end
     else
       irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
@@ -2412,6 +2413,31 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> value for use site search on req fill is: %d', [fSite.Name, ord(fSite.UseSiteSearchOnReqFill)])
   else
     fSite.UseSiteSearchOnReqFill := boolean(fUseSiteSearch);
+
+  Result := True;
+end;
+
+function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fReducedSpeedstatWeight: Integer;
+  fSite: TSite;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fReducedSpeedstatWeight := StrToIntDef(SubString(params, ' ', 2), -1);
+  fSite := FindSiteByName(Netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  // only allow 0 and 1 as valid values
+  if ((fReducedSpeedstatWeight < 0) or (fReducedSpeedstatWeight > 1)) then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> value for reduced speedstat weight is: %d', [fSite.Name, ord(fSite.ReducedSpeedstatWeight)])
+  else
+    fSite.ReducedSpeedstatWeight := boolean(fReducedSpeedstatWeight);
 
   Result := True;
 end;

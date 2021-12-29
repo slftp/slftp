@@ -1608,11 +1608,27 @@ begin
 
 end;
 
+function CalculateRank(const aDestSite: TSite; const aSpeedFrom: integer; const aSection: string; const aIsPre: boolean): integer;
+var
+  fCalculatedRank: integer;
+begin
+  //reduce speed stats weight - multiply ranks by 10, then the speedstats can't change the rank, but still change order within the same rank
+  if (aDestSite.ReducedSpeedstatWeight) then
+    fCalculatedRank := aSpeedFrom + aDestSite.GetRank(aSection) * 10
+  else
+    fCalculatedRank := aSpeedFrom * aDestSite.GetRank(aSection); //normal calculation
+
+  if (aIsPre) then
+    fCalculatedRank := Result + 100;
+
+  Result := fCalculatedRank;
+end;
+
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 var
   dstps: TPazoSite;
   y: TStringList;
-  i, fCalculatedRank: integer;
+  i: integer;
   ps_s, dstps_s: TSite;
 begin
   Result := False;
@@ -1679,18 +1695,7 @@ begin
           // i'm allowed to e ...
           if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
           begin
-
-            //reduce speed stats weight - multiply ranks by 10, then the speedstats can't change the rank, but still change order within the same rank
-            if (config.ReadBool('speedstats', 'reduced_speedstat_weight', False)) then
-              fCalculatedRank := StrToIntDef(y.ValueFromIndex[i], 1) + dstps_s.GetRank(p.rls.section) * 10
-            else
-              fCalculatedRank := StrToIntDef(y.ValueFromIndex[i], 1) * dstps_s.GetRank(p.rls.section); //normal calculation
-
-            if (ps.status in [rssShouldPre, rssRealPre]) then
-              fCalculatedRank := fCalculatedRank + 100;
-
-            if ps.AddDestination(dstps, fCalculatedRank) then
-              Result := True;
+            Result := ps.AddDestination(dstps, CalculateRank(dstps_s, StrToIntDef(y.ValueFromIndex[i], 1), p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
           end;
         end;
       except
@@ -1770,57 +1775,60 @@ end;
 
 procedure RulesSave;
 var
-  i: integer;
-  f: TEncStringlist;
-  a_i: integer;
-  a_j: integer;
-  a_sitename: String;
-  a_rules_path: String;
-  a_sites_done: TStringList;
-  a_siterules: TStringList;
-  a_r: TRule;
+  i, j: integer;
+  fEncStringlist: TEncStringlist;
+  fSitename: String;
+  fRulesPath: String;
+  fSitesDone: TStringList;
+  fSiteRules: TStringList;
+  fRule: TRule;
 begin
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
-    a_sites_done := TStringList.Create;
+    fSitesDone := TStringList.Create;
     try
-      a_rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
-      for a_i := 0 to rules.Count - 1 do
+      fRulesPath := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
+      for i := 0 to rules.Count - 1 do
       begin
-        a_r := TRule(rules[a_i]);
-        a_sitename := a_r.sitename;
-        if (a_sites_done.IndexOf(a_sitename) <> -1) or (a_sitename = '*') then
+        fRule := TRule(rules[i]);
+        fSitename := fRule.sitename;
+
+        if (fSitesDone.IndexOf(fSitename) <> -1) then
           continue;
 
-        a_siterules := TStringList.Create;
+        fSiteRules := TStringList.Create;
         try
-          for a_j := a_i to rules.Count - 1 do
+          for j := i to rules.Count - 1 do
           begin
-            a_r := TRule(rules[a_j]);
-            if a_r.sitename <> a_sitename then
+            fRule := TRule(rules[j]);
+            if fRule.sitename <> fSitename then
               continue;
-            a_siterules.Add(a_r.AsText(True));
+            fSiteRules.Add(fRule.AsText(True));
           end;
 
-          a_siterules.SaveToFile(a_rules_path + a_sitename + '.rtpl');
-          a_sites_done.Add(a_sitename);
+          if fSitename = '*' then
+            fSiteRules.SaveToFile(fRulesPath + getAdminSiteName + '.rtpl')
+          else
+            fSiteRules.SaveToFile(fRulesPath + fSitename + '.rtpl');
+
+          fSitesDone.Add(fSitename);
         finally
-          a_siterules.Free;
+          fSiteRules.Free;
         end;
       end;
     finally
-      a_sites_done.Free;
+      fSitesDone.Free;
     end;
   end
   else
   begin
-    f := TEncStringlist.Create(passphrase);
+    fEncStringlist := TEncStringlist.Create(passphrase);
     try
       for i := 0 to rules.Count - 1 do
-        f.Add(TRule(rules[i]).AsText(True));
-      f.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.rules');
+        fEncStringlist.Add(TRule(rules[i]).AsText(True));
+      fEncStringlist.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.rules');
     finally
-      f.Free;
+      fEncStringlist.Free;
     end;
   end;
 end;

@@ -55,12 +55,12 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 uses
   {$IFDEF WITH_TOBJECTLIST_REQUIRES_SYSTEM_TYPES}System.Types{$IFNDEF NO_UNIT_CONTNRS}, Contnrs{$ENDIF}{$ELSE}Types{$ENDIF},
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZPlainProxyDriverIntf, ZSysUtils, ZDbcIntfs, ZDbcResultSet, ZDbcLogging,{$IFDEF ZEOS73UP}FmtBCD, ZVariant, {$ENDIF}
-  ZDbcResultSetMetadata, ZCompatibility, XmlDoc, XmlIntf;
+  ZDbcResultSetMetadata, ZCompatibility, {$IFDEF FPC}ZXmlCompat{$ELSE} XmlDoc, XmlIntf{$ENDIF};
 
 type
   {** Implements DBC Layer Proxy ResultSet. }
@@ -323,14 +323,14 @@ type
       ParentResultSet: TZAbstractResultSet);
   End;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 implementation
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 
 uses
   {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF} Math,
   ZMessages, ZEncoding, ZFastCode, ZDbcMetadata, ZClasses,
-  TypInfo, Variants, xmldom, {$IFDEF WITH_OMNIXML}Xml.omnixmldom,{$ENDIF} EncdDecd;
+  TypInfo, Variants, ZBase64 {$IFNDEF FPC},xmldom{$ENDIF} {$IFDEF WITH_OMNIXML}, Xml.omnixmldom{$ENDIF};
 
 const
   ValueAttr = 'value';
@@ -355,22 +355,25 @@ var
   ConSettings: PZConSettings;
   Metadata: IZDatabaseMetadata;
   x: String;
-  xmldoc: TXMLDocument;
+  xmldoc: {$IFDEF FPC}TZXMLDocument{$ELSE}TXMLDocument{$ENDIF};
 
-  DomVendor: TDOMVendor;
+  {$IFNDEF FPC}DomVendor: TDOMVendor;{$ENDIF}
 begin
   ConSettings := Connection.GetConSettings;
   Metadata := Connection.GetMetadata;
 
   inherited Create(Statement, SQL,
     TZDbcProxyResultSetMetadata.Create(Metadata, SQL, Self), ConSettings);
-
+  {$IFDEF FPC}
+  xmldoc := TZXmlDocument.Create;
+  {$ELSE}
   xmldoc := TXMLDocument.Create(nil);
   // OmiXml preserves the Carriage Return in Strings -> This solves a problem
   // where CRLF gets converted to LF wit MSXML
   DomVendor := DOMVendors.Find('Omni XML');
   if Assigned(DomVendor) then
     xmldoc.DOMImplementation := DomVendor.DOMImplementation;
+  {$ENDIF}
   FXmlDocument := xmldoc as IXMLDocument;
 
   Stream := TMemoryStream.Create;
@@ -445,20 +448,27 @@ begin
       ColumnLabel := ColumnNode.Attributes['label'];
       ColumnName := ColumnNode.Attributes['name'];
       ColumnType := TZSQLType(GetEnumValue(TypeInfo(TZSQLType), ColumnNode.Attributes['type']));
-      {$IFNDEF ZEOS73UP}
       case ColumnType of
         stString, stUnicodeString:
-          if GetConSettings.CPType = cCP_UTF16 then
-            ColumnType := stUnicodeString
-          else
+          {$IFNDEF ZEOS73UP}if GetConSettings.CPType = cCP_UTF16 then {$ENDIF ZEOS73UP} begin
+            ColumnType := stUnicodeString;
+            ColumnCodePage := zCP_UTF16;
+          {$IFNDEF ZEOS73UP}end else begin
             ColumnType := stString;
+            ColumnCodePage := zCP_UTF8;
+          {$ENDIF ZEOS73UP}
+          end;
         stAsciiStream, stUnicodeStream:
-          if GetConSettings.CPType = cCP_UTF16 then
-            ColumnType := stUnicodeStream
-          else
+          {$IFNDEF ZEOS73UP}if GetConSettings.CPType = cCP_UTF16 then {$ENDIF ZEOS73UP} begin
+            ColumnType := stUnicodeStream;
+            ColumnCodePage := zCP_UTF16;
+          {$IFNDEF ZEOS73UP}
+          end else begin
             ColumnType := stAsciiStream;
+            ColumnCodePage := zCP_UTF8
+          {$ENDIF ZEOS73UP}
+          end;
       end;
-      {$ENDIF}
       DefaultValue := ColumnNode.Attributes['defaultvalue'];
       Precision := StrToInt(ColumnNode.Attributes['precision']);
       Scale := StrToInt(ColumnNode.Attributes['scale']);
@@ -660,7 +670,7 @@ begin
   end;
 
   Val := FCurrentRowNode.ChildNodes.Get(ColumnIndex - FirstDbcIndex).Attributes[ValueAttr];
-  Result := RawByteString(Val);
+  Result := RawByteString(VarToStrDef(Val, ''));
 end;
 
 function TZDbcProxyResultSet.GetUnicodeString(ColumnIndex: Integer): ZWideString;
@@ -736,9 +746,9 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := StrToInt(Val);
     stLong:
-      Result := StrToInt64(Val);
+      Result := StrToInt(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := Trunc(StrToFloat(Val, FFormatSettings));
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
@@ -788,7 +798,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt64(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := StrToInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
@@ -819,7 +829,7 @@ function TZDbcProxyResultSet.GetULong(ColumnIndex: Integer): UInt64;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -838,15 +848,15 @@ begin
     stBoolean:
       Result := BoolToInt(StrToBool(Val));
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := Trunc(StrToFloat(Val, FFormatSettings));
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stDate:
       Result := Trunc(StrToDate(Val, FFormatSettings));
     stTime:
@@ -871,7 +881,7 @@ function TZDbcProxyResultSet.GetFloat(ColumnIndex: Integer): Single;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -892,9 +902,9 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
-      Result := StrToInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := StrToFloat(Val, FFormatSettings);
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
@@ -923,7 +933,7 @@ function TZDbcProxyResultSet.GetDouble(ColumnIndex: Integer): Double;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -944,9 +954,9 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
-      Result := StrToInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := StrToFloat(Val, FFormatSettings);
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
@@ -1020,7 +1030,7 @@ function TZDbcProxyResultSet.GetBigDecimal(ColumnIndex: Integer): TBcd;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1028,7 +1038,7 @@ begin
   LastWasNull := IsNull(ColumnIndex);
 
   if LastWasNull then begin
-    Result := 0;
+    Result :=  IntegerToBcd(0);
     exit;
   end;
 
@@ -1037,19 +1047,19 @@ begin
   ColType := TZColumnInfo(ColumnsInfo.Items[Idx]).ColumnType;
   case ColType of
     stBoolean:
-      Result := BoolToInt(StrToBool(Val));
+      Result := IntegerToBcd(BoolToInt(StrToBool(Val)));
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
-      Result := StrToInt(Val);
+      Result := IntegerToBcd(StrToInt(Val));
     stULong:
-      Result := StrToUInt64(Val);
+      ScaledOrdinal2Bcd(UnicodeToUInt64(Val), 0, Result, False);
     stLong:
-      Result := StrToInt64(Val);
+      ScaledOrdinal2Bcd(StrToInt64(Val), 0, Result);
     stFloat, stDouble, stCurrency, stBigDecimal:
-      Result := StrToBcd(Val, FFormatSettings);
+      Result := UniToBcd(Val);
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
-      Result := StrToBcd(Val, FormatSettings);
+      Result := UniToBcd(Val);
     else
-      Result := 0;
+      Result := IntegerToBcd(0);
   end;
 end;
 {$ENDIF}
@@ -1081,7 +1091,7 @@ function TZDbcProxyResultSet.GetCurrency(
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1102,7 +1112,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stCurrency:
@@ -1135,7 +1145,7 @@ function TZDbcProxyResultSet.GetDate(ColumnIndex: Integer): TDateTime;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1156,7 +1166,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stBigDecimal, stCurrency:
@@ -1240,7 +1250,7 @@ function TZDbcProxyResultSet.GetTimestamp(ColumnIndex: Integer): TDateTime;
 var
   ColType: TZSQLType;
   Idx: Integer;
-  Val: String;
+  Val: ZWideString;
 begin
 {$IFNDEF DISABLE_CHECKING}
   CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1261,7 +1271,7 @@ begin
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
       Result := StrToInt(Val);
     stULong:
-      Result := StrToUInt64(Val);
+      Result := UnicodeToUInt64(Val);
     stLong:
       Result := StrToInt64(Val);
     stFloat, stDouble, stBigDecimal, stCurrency:
@@ -1337,7 +1347,7 @@ var
   ColType: TZSQLType;
   Idx: Integer;
   Val: String;
-  AnsiVal: {$IFDEF NEXTGEN}RawByteString{$ELSE}AnsiString{$ENDIF};
+  //AnsiVal: {$IFDEF NEXTGEN}RawByteString{$ELSE}AnsiString{$ENDIF};
   Bytes: TBytes;
   ColInfo: TZColumnInfo;
 begin
@@ -1360,12 +1370,20 @@ begin
   ColType := ColInfo.ColumnType;
   case ColType of
     stBinaryStream: begin
-      Bytes := DecodeBase64(Val);
+      {$IFDEF NO_ANSISTRING}
+      Bytes := ZDecodeBase64(Val);
+      {$ELSE}
+      Bytes := ZDecodeBase64(AnsiString(Val));
+      {$ENDIF}
       Result := TZAbstractBlob.CreateWithData(@Bytes[0], Length(Bytes)) as IZBlob;
     end;
     stAsciiStream, stUnicodeStream: begin
       if Val <> '' then
+         {$IFDEF WITH_ZEROBASEDSTRINGS}
          Result := TZAbstractCLob.CreateWithData(@Val[Low(Val)], Length(Val), GetConSettings) as IZBlob
+         {$ELSE}
+         Result := TZAbstractCLob.CreateWithData(@Val[1], Length(Val), GetConSettings) as IZBlob
+         {$ENDIF}
        else
          Result := TZAbstractCLob.CreateWithData(nil, 0, GetConSettings) as IZBlob;
     end;
@@ -1406,15 +1424,15 @@ begin
     stBoolean:
       Result := BoolToInt(StrToBool(Val));
     stByte, stShort, stWord, stSmall, stLongWord, stInteger:
-      Result := StrToUInt(Val);
+      Result := UnicodeToUInt32(Val);
     stULong:
-      Result := StrToUInt(Val);
+      Result := UnicodeToUInt32(Val);
     stLong:
-      Result := StrToInt(Val);
+      Result := UnicodeToUInt32(Val);
     stFloat, stDouble, stCurrency, stBigDecimal:
       Result := Trunc(StrToFloat(Val, FFormatSettings));
     stString, stUnicodeString, stAsciiStream, stUnicodeStream:
-      Result := StrToUInt(Val);
+      Result := UnicodeToUInt32(Val);
     stDate:
       Result := Trunc(StrToDate(Val, FFormatSettings));
     stTime:
@@ -1471,12 +1489,12 @@ end;
 
 procedure TZDbcProxyResultSet.GetTime(ColumnIndex: Integer; Var Result: TZTime);
 begin
-  DecodeDateTimeToTime(GetDate(ColumnIndex), Result);
+  DecodeDateTimeToTime(GetTime(ColumnIndex), Result);
 end;
 
 procedure TZDbcProxyResultSet.GetTimestamp(ColumnIndex: Integer; Var Result: TZTimeStamp);
 begin
-  DecodeDateTimeToTimeStamp(GetDate(ColumnIndex), Result);
+  DecodeDateTimeToTimeStamp(GetTimestamp(ColumnIndex), Result);
 end;
 {$ENDIF}
 
@@ -1522,7 +1540,9 @@ begin
   CheckClosed;
 {$ENDIF}
   { Checks for maximum row. }
-  Result := False;
+{$IFDEF FPC} // I suppose FPC compiler needs this initial assignment...?
+   Result := False;
+{$ENDIF}
   { Processes negative rows. }
   if Row < 0 then begin
     Row := LastRowNo + Row + 1;
@@ -1556,10 +1576,10 @@ begin
     end;
     RowNo := Row;
   end else begin
-    RaiseForwardOnlyException;
+    raise EZSQLException.Create('This resultset is forward only.');
   end;
 end;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 end.
 
