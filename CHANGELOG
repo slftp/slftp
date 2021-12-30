@@ -50,6 +50,7 @@
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.10 )==================================-
+    {#} Fix bugs which caused some mp3 genres not to be recognized and setting mp3genres be ignored (#322)
     {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
 
 --=============================( SLFTP v1.5.9 )===================================-
