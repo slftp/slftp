@@ -51,7 +51,7 @@ type
     destructor Destroy; override;
     procedure SetDirectory(const value: Boolean);
     function DirTypeAsString: String;
-    function RegenerateSkiplist: Boolean;
+    procedure RegenerateSkiplist;
 
 
 
@@ -130,7 +130,7 @@ type
     function MultiCD: Boolean;
     function Dirname: String;
     procedure Sort;
-    function RegenerateSkiplist: Boolean;
+    procedure RegenerateSkiplist;
     procedure ParseDirlist(s: String);
     { Does an investigation to determine if TDirlist is complete }
     function Complete: Boolean;
@@ -848,11 +848,10 @@ begin
   debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 end;
 
-function TDirList.RegenerateSkiplist: Boolean;
+procedure TDirList.RegenerateSkiplist;
 var i: Integer;
     ld: TDirListEntry;
 begin
-  Result := False;
   if skiplist = nil then exit;
 
   dirlist_lock.Enter;
@@ -862,7 +861,7 @@ begin
       if i < 0 then Break;
       try
         ld:= TDirListEntry(entries[i]);
-        if ld.RegenerateSkiplist then Result := True;
+        ld.RegenerateSkiplist;
       except
         on E: Exception do
         begin
@@ -1666,14 +1665,12 @@ begin
   end;
 end;
 
-function TDirListEntry.RegenerateSkiplist: Boolean;
+procedure TDirListEntry.RegenerateSkiplist;
 var
   l, ldepth: Integer;
   s, fDirPathHelper: String;
   sf: TSkipListFilter;
 begin
-  Result := False;
-
   if dirlist.skiplist = nil then exit;
 
   if ( not FSkipListGenerated ) then
@@ -1706,10 +1703,6 @@ begin
         dirlist.skipped.Add(filename);
         irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
       end
-      else
-      begin
-        Result := True;
-      end;
     end
     else
     begin
@@ -1738,10 +1731,6 @@ begin
           dirlist.skipped.Add(filename);
           irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, fDirPathHelper, filename]));
         end
-        else
-        begin
-          Result := True;
-        end;
       end
       else
       begin
