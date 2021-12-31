@@ -34,6 +34,7 @@ type
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
+    FSkipListGenerated: Boolean;  //< @true if the skiplist has already been applied to this dirlistentry
   public
     dirlist: TDirList;
     justadded: Boolean;
@@ -1586,6 +1587,7 @@ begin
   self.filename := filename;
   self.FRacedByMe := False;
   self.skiplisted := False;
+  self.FSkipListGenerated := False;
   self.IsOnSite := False;
   self.FIsBeingUploaded := False;
   self.error := False;
@@ -1699,8 +1701,10 @@ begin
 
   if dirlist.skiplist = nil then exit;
 
-  if ( not skiplisted ) then
+  if ( not FSkipListGenerated ) then
   begin
+    FSkipListGenerated := True;
+
     if dirlist.FullPath.EndsWith('/', True) then
       fDirPathHelper := dirlist.FullPath
     else
