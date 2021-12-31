@@ -48,7 +48,6 @@ type
 
     procedure CalcCDNumber;
     constructor Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False); overload;
-    constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
     procedure SetDirectory(const value: Boolean);
     function DirTypeAsString: String;
@@ -1601,30 +1600,6 @@ begin
   begin
     dirlist.FStartedTime := Now();
   end;
-end;
-
-constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False);
-begin
-  self.DirType := de.DirType;
-
-  self.filename := de.filename;
-  self.filesize := de.filesize;
-
-  self.directory := de.directory;
-  self.DirType := de.DirType;
-
-  self.skiplisted := de.skiplisted;
-  self.dirlist := dirlist;
-  self.subdirlist := nil;
-  self.timestamp := de.timestamp;
-  self.IsOnSite := False;
-  self.FIsBeingUploaded := False;
-  self.error := False;
-  self.justadded := True;
-  FFilenameLowerCase := LowerCase(filename);
-  FExtension := ExtractFileExt(FFilenameLowerCase);
-
-  if self.directory then CalcCDNumber;
 end;
 
 destructor TDirListEntry.Destroy;
