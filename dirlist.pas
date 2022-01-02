@@ -79,6 +79,8 @@ type
     s: String;
     FIsValidFileCache: TDictionary<string, boolean>; //< cache for results of IsValidFilename
     FIsValidDirCache: TDictionary<string, boolean>; //< cache for results of IsValidDirname
+    FMatchFileCache: TDictionary<string, integer>; //< cache for results of MatchFile
+    FMatchFileDirectoryCache: TDictionary<string, integer>; //< cache for results of MatchFile (directory)
     FContainsNFOOnlyDirTag: boolean; //true, if the dir contains a special tag indicating the rls can be complete only containing the NFO (dirfix, nfofix, ...)
 
 
@@ -176,6 +178,14 @@ type
       the value is being calculated and then added to the cache
       @returns(@true if input is valid, @false otherwise.) }
     function IsValidDirnameCached(const aDirName: string): boolean;
+    { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for files and at which position.
+      If no cached value is available, the value is being calculated and then added to the cache
+      @returns(Result from MatchFile function of the skiplist.) }
+    function MatchFileCached(const aFileName: string): integer;
+    { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for directories and at which position.
+      If no cached value is available, the value is being calculated and then added to the cache
+      @returns(Result from MatchFile function of the skiplist.) }
+    function MatchFileDirectoryCached(const aDirName: string): integer;
 
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
@@ -271,7 +281,7 @@ begin
     end;
 
     // check if subdir has Useful files
-    if ((not Result) and (ResultType = 'Unknown') and (sf_f <> nil) and (sf_f.MatchFile('.sfv') = -1)) then
+    if ((not Result) and (ResultType = 'Unknown') and (sf_f <> nil) and (MatchFileCached('.sfv') = -1)) then
     begin
       Usefulfiles(files, size);
       Result := ((files <> 0) and (size <> 0));
@@ -386,6 +396,8 @@ begin
   self.parent := parentdir;
   self.FIsValidFileCache := TDictionary<string, boolean>.Create;
   self.FIsValidDirCache := TDictionary<string, boolean>.Create;
+  self.FMatchFileCache := TDictionary<string, integer>.Create;
+  self.FMatchFileDirectoryCache := TDictionary<string, integer>.Create;
 
   self.s := s;
   self.skiplist := skiplist;
@@ -420,6 +432,8 @@ begin
     entries.Free;
     FIsValidFileCache.Free;
     FIsValidDirCache.Free;
+    FMatchFileCache.Free;
+    FMatchFileDirectoryCache.Free;
   finally
     dirlist_lock.Leave;
   end;
@@ -973,8 +987,8 @@ begin
       begin
         if (i1.dirlist.sf_d <> nil) then
         begin
-          c1 := i1.dirlist.sf_d.MatchFile(i1.filename);
-          c2 := i2.dirlist.sf_d.MatchFile(i2.filename);
+          c1 := i1.dirlist.MatchFileDirectoryCached(i1.filename);
+          c2 := i2.dirlist.MatchFileDirectoryCached(i2.filename);
 
           if (c1 > c2) then
             Result := 1
@@ -989,8 +1003,8 @@ begin
       else
       if ((not i1.directory) and (not i2.directory)) then
       begin
-        c1 := i1.dirlist.sf_f.MatchFile(i1.filename);
-        c2 := i2.dirlist.sf_f.MatchFile(i2.filename);
+        c1 := i1.dirlist.MatchFileCached(i1.filename);
+        c2 := i2.dirlist.MatchFileCached(i2.filename);
 
         if (c1 > c2) then
           Result := 1
@@ -1757,6 +1771,24 @@ begin
 
   Result := IsValidDirname(aDirName);
   FIsValidDirCache.AddOrSetValue(aDirName, Result);
+end;
+
+function TDirlist.MatchFileCached(const aFileName: string): integer;
+begin
+  if FMatchFileCache.TryGetValue(aFileName, Result) then
+    exit;
+
+  Result := sf_f.MatchFile(aFileName);
+  FMatchFileCache.AddOrSetValue(aFileName, Result);
+end;
+
+function TDirlist.MatchFileDirectoryCached(const aDirName: string): integer;
+begin
+  if FMatchFileDirectoryCache.TryGetValue(aDirName, Result) then
+    exit;
+
+  Result := sf_d.MatchFile(aDirName);
+  FMatchFileDirectoryCache.AddOrSetValue(aDirName, Result);
 end;
 
 procedure TDirList.SetFullPath(const aFullPath: string);
