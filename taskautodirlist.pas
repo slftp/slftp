@@ -446,7 +446,7 @@ begin
     fSourceSitesInfo := fSourceSitesInfo + TPazoSite(p.PazoSitesList[i]).Name
   end;
 
-  irc_Addstats(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, fSourceSitesInfo, irccmdprefix, p.pazo_id]));
+  irc_Addadmin(Format('<c8>[REQUEST]</c> New request, %s on %s filling from %s, type %sstop %d', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, fSourceSitesInfo, irccmdprefix, p.pazo_id]));
 
   while (true) do
   begin
