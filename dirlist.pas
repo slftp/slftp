@@ -34,6 +34,7 @@ type
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
+    FSkipListGenerated: Boolean;  //< @true if the skiplist has already been applied to this dirlistentry
   public
     dirlist: TDirList;
     justadded: Boolean;
@@ -50,11 +51,10 @@ type
 
     procedure CalcCDNumber;
     constructor Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False); overload;
-    constructor Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False); overload;
     destructor Destroy; override;
     procedure SetDirectory(const value: Boolean);
     function DirTypeAsString: String;
-    function RegenerateSkiplist: Boolean;
+    procedure RegenerateSkiplist;
 
 
 
@@ -82,6 +82,8 @@ type
     s: String;
     FIsValidFileCache: TDictionary<string, boolean>; //< cache for results of IsValidFilename
     FIsValidDirCache: TDictionary<string, boolean>; //< cache for results of IsValidDirname
+    FMatchFileCache: TDictionary<string, integer>; //< cache for results of MatchFile
+    FMatchFileDirectoryCache: TDictionary<string, integer>; //< cache for results of MatchFile (directory)
     FContainsNFOOnlyDirTag: boolean; //true, if the dir contains a special tag indicating the rls can be complete only containing the NFO (dirfix, nfofix, ...)
 
 
@@ -133,7 +135,7 @@ type
     function MultiCD: Boolean;
     function Dirname: String;
     procedure Sort;
-    function RegenerateSkiplist: Boolean;
+    procedure RegenerateSkiplist;
     procedure ParseDirlist(s: String);
     { Does an investigation to determine if TDirlist is complete }
     function Complete: Boolean;
@@ -179,6 +181,14 @@ type
       the value is being calculated and then added to the cache
       @returns(@true if input is valid, @false otherwise.) }
     function IsValidDirnameCached(const aDirName: string): boolean;
+    { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for files and at which position.
+      If no cached value is available, the value is being calculated and then added to the cache
+      @returns(Result from MatchFile function of the skiplist.) }
+    function MatchFileCached(const aFileName: string): integer;
+    { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for directories and at which position.
+      If no cached value is available, the value is being calculated and then added to the cache
+      @returns(Result from MatchFile function of the skiplist.) }
+    function MatchFileDirectoryCached(const aDirName: string): integer;
 
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
@@ -274,7 +284,7 @@ begin
     end;
 
     // check if subdir has Useful files
-    if ((not Result) and (ResultType = 'Unknown') and (sf_f <> nil) and (sf_f.MatchFile('.sfv') = -1)) then
+    if ((not Result) and (ResultType = 'Unknown') and (sf_f <> nil) and (MatchFileCached('.sfv') = -1)) then
     begin
       Usefulfiles(files, size);
       Result := ((files <> 0) and (size <> 0));
@@ -389,6 +399,8 @@ begin
   self.parent := parentdir;
   self.FIsValidFileCache := TDictionary<string, boolean>.Create;
   self.FIsValidDirCache := TDictionary<string, boolean>.Create;
+  self.FMatchFileCache := TDictionary<string, integer>.Create;
+  self.FMatchFileDirectoryCache := TDictionary<string, integer>.Create;
 
   self.s := s;
   self.skiplist := skiplist;
@@ -423,6 +435,8 @@ begin
     entries.Free;
     FIsValidFileCache.Free;
     FIsValidDirCache.Free;
+    FMatchFileCache.Free;
+    FMatchFileDirectoryCache.Free;
   finally
     dirlist_lock.Leave;
   end;
@@ -857,11 +871,10 @@ begin
   debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 end;
 
-function TDirList.RegenerateSkiplist: Boolean;
+procedure TDirList.RegenerateSkiplist;
 var i: Integer;
     ld: TDirListEntry;
 begin
-  Result := False;
   if skiplist = nil then exit;
 
   dirlist_lock.Enter;
@@ -871,7 +884,7 @@ begin
       if i < 0 then Break;
       try
         ld:= TDirListEntry(entries[i]);
-        if ld.RegenerateSkiplist then Result := True;
+        ld.RegenerateSkiplist;
       except
         on E: Exception do
         begin
@@ -983,8 +996,8 @@ begin
       begin
         if (i1.dirlist.sf_d <> nil) then
         begin
-          c1 := i1.dirlist.sf_d.MatchFile(i1.filename);
-          c2 := i2.dirlist.sf_d.MatchFile(i2.filename);
+          c1 := i1.dirlist.MatchFileDirectoryCached(i1.filename);
+          c2 := i2.dirlist.MatchFileDirectoryCached(i2.filename);
 
           if (c1 > c2) then
             Result := 1
@@ -999,8 +1012,8 @@ begin
       else
       if ((not i1.directory) and (not i2.directory)) then
       begin
-        c1 := i1.dirlist.sf_f.MatchFile(i1.filename);
-        c2 := i2.dirlist.sf_f.MatchFile(i2.filename);
+        c1 := i1.dirlist.MatchFileCached(i1.filename);
+        c2 := i2.dirlist.MatchFileCached(i2.filename);
 
         if (c1 > c2) then
           Result := 1
@@ -1596,6 +1609,7 @@ begin
   self.FRacedByMe := False;
   self.done := False;
   self.skiplisted := False;
+  self.FSkipListGenerated := False;
   self.IsOnSite := False;
   self.FIsBeingUploaded := False;
   self.error := False;
@@ -1604,31 +1618,6 @@ begin
   FFilenameLowerCase := LowerCase(filename);
   FExtension := ExtractFileExt(FFilenameLowerCase);
   cdno := 0;
-end;
-
-constructor TDirListEntry.Create(de: TDirlistEntry; dirlist: TDirList; SpeedTest: Boolean = False);
-begin
-  self.DirType := de.DirType;
-
-  self.filename := de.filename;
-  self.filesize := de.filesize;
-
-  self.directory := de.directory;
-  self.DirType := de.DirType;
-
-  self.done := False;
-  self.skiplisted := de.skiplisted;
-  self.dirlist := dirlist;
-  self.subdirlist := nil;
-  self.timestamp := de.timestamp;
-  self.IsOnSite := False;
-  self.FIsBeingUploaded := False;
-  self.error := False;
-  self.justadded := True;
-  FFilenameLowerCase := LowerCase(filename);
-  FExtension := ExtractFileExt(FFilenameLowerCase);
-
-  if self.directory then CalcCDNumber;
 end;
 
 destructor TDirListEntry.Destroy;
@@ -1695,18 +1684,18 @@ begin
   end;
 end;
 
-function TDirListEntry.RegenerateSkiplist: Boolean;
+procedure TDirListEntry.RegenerateSkiplist;
 var
   l, ldepth: Integer;
   s, fDirPathHelper: String;
   sf: TSkipListFilter;
 begin
-  Result := False;
-
   if dirlist.skiplist = nil then exit;
 
-  if ( not skiplisted ) then
+  if ( not FSkipListGenerated ) then
   begin
+    FSkipListGenerated := True;
+
     if dirlist.FullPath.EndsWith('/', True) then
       fDirPathHelper := dirlist.FullPath
     else
@@ -1733,10 +1722,6 @@ begin
         dirlist.skipped.Add(filename);
         irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
       end
-      else
-      begin
-        Result := True;
-      end;
     end
     else
     begin
@@ -1765,10 +1750,6 @@ begin
           dirlist.skipped.Add(filename);
           irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedDir %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, fDirPathHelper, filename]));
         end
-        else
-        begin
-          Result := True;
-        end;
       end
       else
       begin
@@ -1795,6 +1776,24 @@ begin
 
   Result := IsValidDirname(aDirName);
   FIsValidDirCache.AddOrSetValue(aDirName, Result);
+end;
+
+function TDirlist.MatchFileCached(const aFileName: string): integer;
+begin
+  if FMatchFileCache.TryGetValue(aFileName, Result) then
+    exit;
+
+  Result := sf_f.MatchFile(aFileName);
+  FMatchFileCache.AddOrSetValue(aFileName, Result);
+end;
+
+function TDirlist.MatchFileDirectoryCached(const aDirName: string): integer;
+begin
+  if FMatchFileDirectoryCache.TryGetValue(aDirName, Result) then
+    exit;
+
+  Result := sf_d.MatchFile(aDirName);
+  FMatchFileDirectoryCache.AddOrSetValue(aDirName, Result);
 end;
 
 procedure TDirList.SetFullPath(const aFullPath: string);
