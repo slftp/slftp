@@ -412,7 +412,7 @@ begin
   try
     rr.ModifierI := True;
     // only get the matches in 'Release Group' column
-    rr.Expression := '<tr>.*?<a class="a-link-normal" href="(\/releasegroup\/gr\d+).*?">(.*?)<\/a>';
+    rr.Expression := '<tr[^>]*>.*?<a class="a-link-normal" href="(\/releasegroup\/gr\d+).*?">(.*?)<\/a>';
 
     if rr.Exec(aPageSource) then
     begin
