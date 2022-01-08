@@ -189,6 +189,7 @@ begin
     repeat
       doc := TDocVariantData(fJsonObject);
       doc.GetAsDocVariant('props', pdoc);
+      pdoc.GetAsDocVariant('pageProps', pdoc);
       pdoc.GetAsDocVariant('urqlState', pdoc);
       pdoc.GetAsDocVariant(rr.Match[1], pdoc);
       pdoc.GetAsDocVariant('data', pdoc);
