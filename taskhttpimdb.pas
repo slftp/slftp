@@ -189,6 +189,7 @@ begin
     repeat
       doc := TDocVariantData(fJsonObject);
       doc.GetAsDocVariant('props', pdoc);
+      pdoc.GetAsDocVariant('pageProps', pdoc);
       pdoc.GetAsDocVariant('urqlState', pdoc);
       pdoc.GetAsDocVariant(rr.Match[1], pdoc);
       pdoc.GetAsDocVariant('data', pdoc);
@@ -411,7 +412,7 @@ begin
   try
     rr.ModifierI := True;
     // only get the matches in 'Release Group' column
-    rr.Expression := '<tr>.*?<a class="a-link-normal" href="(\/releasegroup\/gr\d+).*?">(.*?)<\/a>';
+    rr.Expression := '<tr[^>]*>.*?<a class="a-link-normal" href="(\/releasegroup\/gr\d+).*?">(.*?)<\/a>';
 
     if rr.Exec(aPageSource) then
     begin
