@@ -641,7 +641,7 @@ begin
         Begin
           if foundMovieAlreadyInDbWithImdbId(aImdbData.imdb_id) then
           Begin
-            Debug(dpError, section, FORMAT('[Info] dbaddimdb_SaveImdbData : Error adding the data for Release: %s - %s - Data is already there - Cleaning Database!', [aReleaseName, aImdbData.imdb_id]));
+            Debug(dpError, section, FORMAT('[Info] dbaddimdb_SaveImdbData : Error adding the data for Release: %s - %s - Error: %s - Cleaning Database!', [aReleaseName, aImdbData.imdb_id,UTF8ToString(ImdbDatabase.LastErrorMessage)]));
             ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord, TIMDbAlsoKnownAsRecordRec.fiD);
             ImdbDatabase.Delete(TIMDbReleaseDatesRecord, TIMDbReleaseDatesRecordRec.fiD);
             ImdbDatabase.Delete(TIMDbBoomData,FIMDbBoomDataRecordRec.fiD);
@@ -785,7 +785,7 @@ begin
           end;
           if ImdbDatabase.Update(TIMDbDataRec, 'IMDbID,IMDbTitle,IMDbTitleExtras,IMDbYear,IMDbCineyear,IMDbRating,IMDbVotes,IMDbLanguages,IMDbCountries,IMDbGenres,CreationTime,UpdatedTime')=false then
           begin
-            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_UpdateImdbData : Error updating TIMDbData data for Release: %s', [aReleaseName]));
+            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_UpdateImdbData : Error updating TIMDbData data for Release: %s - Error: %s', [aReleaseName, UTF8ToString(ImdbDatabase.LastErrorMessage)]));
           end;
 
         end;
@@ -864,7 +864,10 @@ begin
 
           if not TIMDbAlsoKnownAsRecordRec.FillOne then
           begin
-            ImdbDatabase.Add(TIMDbAlsoKnownAsRecordRec,true);
+            if (ImdbDatabase.Add(TIMDbAlsoKnownAsRecordRec,true)=0) then
+            begin
+              Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_InsertOnlyAlsoKnownAs : Error adding the data for Release: %s - %s - Error: %s!', [aReleaseName, aImdbData.imdb_id,UTF8ToString(ImdbDatabase.LastErrorMessage)]));
+            end;
           end;
           if ImdbDatabase.Update(TIMDbDataRec, 'UpdatedTime')=false then
           begin
