@@ -42,9 +42,6 @@ type
     filename: String; //< filename
     filesize: Int64; //< filesize
     skiplisted: Boolean;
-    // TODO: done does not do a real filesize check nor is it reset to false at any time if the file disappears e.g.
-    // which might produce incomplete releases - so it seems not to be a trusty value
-    done: Boolean; //< @true when @link(TDirlist.ParseDirlist) adding of file was successful, @false otherwise.
     cdno: Integer;
     timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
 
@@ -144,7 +141,7 @@ type
 
 
 
-    { The function counts all files inside a Dirlist that are considered @link(TDirListEntry.done) and are not @link(TDirListEntry.skiplisted).
+    { The function counts all files inside a Dirlist that are considered @link(TDirListEntry.IsOnSite) and are not @link(TDirListEntry.skiplisted) or @link(TDirListEntry.IsBeingUploaded).
       Files from subdirs are included in this final count. Directories themselves are not counted.
       This function is mainly used for race stats, to determine how many files there
       were in total and for reqfilling to check that source and target site contain
@@ -712,7 +709,6 @@ begin
           de.FUsername := fUsername;
           de.FGroupname := fGroupname;
           de.timestamp := akttimestamp;
-          de.done := True;
           de.justadded := True;
           de.directory := (fDirMask[1] = 'd');
 
@@ -1275,7 +1271,7 @@ begin
         if de.skiplisted then
           Continue;
 
-        if ((de.done) and (not de.directory)) then
+        if ((de.IsOnSite And Not de.IsBeingUploaded) and (not de.directory)) then
           Inc(Result);
 
         if ((de.directory) and (de.subdirlist <> nil)) then
@@ -1594,7 +1590,6 @@ begin
   self.dirlist := dirlist;
   self.filename := filename;
   self.FRacedByMe := False;
-  self.done := False;
   self.skiplisted := False;
   self.IsOnSite := False;
   self.FIsBeingUploaded := False;
@@ -1616,7 +1611,6 @@ begin
   self.directory := de.directory;
   self.DirType := de.DirType;
 
-  self.done := False;
   self.skiplisted := de.skiplisted;
   self.dirlist := dirlist;
   self.subdirlist := nil;
