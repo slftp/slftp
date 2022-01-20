@@ -563,13 +563,12 @@ begin
     begin
       dbaddimdb_UpdateImdbData(aReleaseName,aImdbData)
     end
-    else
-    begin
-    if (not (foundMovieAlreadyInDbWithReleaseName(aReleaseName)) AND foundMovieAlreadyInDbWithImdbId(aImdbData.imdb_id)) then
+    else if foundMovieAlreadyInDbWithImdbId(aImdbData.imdb_id) then
     begin
       dbaddimdb_InsertOnlyAlsoKnownAs(aReleaseName,aImdbData)
     end
     else
+    begin
     try
       try
       Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Start Adding Data: %s', [aReleaseName]));
