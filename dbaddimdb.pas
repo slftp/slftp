@@ -170,12 +170,6 @@ function UpdateMovieInDbWithReleaseNameNeeded(const aReleasename: String): Boole
 procedure doIMDbDbBackup(const aPath, aFileName: String);
 
 type
-  TDbImdb = class
-    rls: String;
-    imdb_id: String;
-    constructor Create(const aReleaseName, aIMDbId: String);
-    destructor Destroy; override;
-  end;
 
   TDbImdbData = class
     imdb_id: String;
@@ -507,7 +501,6 @@ end;
 procedure dbaddimdb_SaveImdb(const aReleaseName, aIMDbId: String);
 var
   i: Integer;
-  db_imdb: TDbImdb;
   showname: String;
   season: Integer;
   episode: int64;
@@ -523,9 +516,6 @@ begin
     if (aReleaseName <> showname) and ((season > 0) or (episode > 0)) then
       exit;
   end;
-
-    db_imdb := TDbImdb.Create(aReleaseName, aIMDbId);
-
     irc_AddInfo(Format('<c7>[iMDB]</c> for <b>%s</b> : %s', [aReleaseName, aIMDbId]));
     irc_Addtext_by_key('ADDIMDBECHO', '!addimdb '+aReleaseName+' '+aIMDbId);
 
@@ -1207,18 +1197,6 @@ begin
   finally
     Debug(dpSpam, section, 'Uninit ImdbDatabase');
   end;
-end;
-
-{ TDbImdb }
-constructor TDbImdb.Create(const aReleaseName, aIMDbId: String);
-begin
-  self.rls := aReleaseName;
-  self.imdb_id := aIMDbId;
-end;
-
-destructor TDbImdb.Destroy;
-begin
-  inherited;
 end;
 
 function ExcludeCountry(const aCountryname: String): Boolean;
