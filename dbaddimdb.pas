@@ -651,10 +651,14 @@ begin
         end;
       end;
       finally
-        //FreeAndNil(TIMDbReleaseDatesRecordRec);
-        //FreeAndNil(TIMDbAlsoKnownAsRecordRec);
-        //FreeAndNil(FIMDbBoomDataRecordRec);
-        //FreeAndNil(TIMDbDataRec);
+        if TIMDbReleaseDatesRecordRec <> nil then
+          FreeAndNil(TIMDbReleaseDatesRecordRec);
+        if TIMDbAlsoKnownAsRecordRec <> nil then
+          FreeAndNil(TIMDbAlsoKnownAsRecordRec);
+        if FIMDbBoomDataRecordRec <> nil then
+          FreeAndNil(FIMDbBoomDataRecordRec);
+        if TIMDbDataRec <> nil then
+          FreeAndNil(TIMDbDataRec);
       end;
     end;
 
