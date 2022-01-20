@@ -1,7 +1,7 @@
 const
 
 iFileCount = 1;
-cFilecount = 7;
+cFilecount = 8;
 gFilecount = 11;
 
 iniFiles: array[0..iFileCount] of String = (
@@ -10,7 +10,7 @@ iniFiles: array[0..iFileCount] of String = (
 
 commonFiles: array[0..cFilecount] of String = (
 'slftp.knowngroups', 'slftp.precatcher', 'slftp.spamconf', 'slftp.languagebase',
-'slftp.skip', 'slftp.imdbcountries', 'slftp.skipgroups',
+'slftp.skip', 'slftp.imdbcountries', 'slftp.imdbreplace', 'slftp.skipgroups',
 'mirktrade.conf'
 );
 
