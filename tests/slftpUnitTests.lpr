@@ -39,6 +39,7 @@ uses
   {$ENDIF}
   Classes, SysUtils,
   mrdohutils,
+  SynSQLite3,
   slftpUnitTestsSetup,
   // add all test units below
   mystringsTests,
@@ -64,7 +65,8 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
-  precatcherTests;
+  precatcherTests,
+  imdbDatabaseTests;
 
 var
   filecheck: String;
@@ -79,6 +81,7 @@ begin
   end;
 
   {* setup needed internal variables, etc *}
+  sqlite3 := TSQLite3LibraryDynamic.Create({$IFDEF MSWINDOWS}SQLITE_LIBRARY_DEFAULT_NAME{$ELSE}'./libsqlite3.so'{$ENDIF});
   InitialConfigSetup;
   InitialDebugSetup;
   InitialKbSetup;

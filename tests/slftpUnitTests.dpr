@@ -56,6 +56,7 @@ uses
   DUnitX.TestFramework,
   Classes, SysUtils,
   mrdohutils,
+  SynSQLite3,
   slftpUnitTestsSetup,
   // add all test units below
   mystringsTests,
@@ -81,7 +82,8 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
-  precatcherTests;
+  precatcherTests,
+  imdbDatabaseTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -104,6 +106,7 @@ begin
   end;
 
   {* setup needed internal variables, etc *}
+  sqlite3 := TSQLite3LibraryDynamic.Create({$IFDEF MSWINDOWS}SQLITE_LIBRARY_DEFAULT_NAME{$ELSE}'./libsqlite3.so'{$ENDIF});
   InitialConfigSetup;
   InitialDebugSetup;
   InitialKbSetup;
