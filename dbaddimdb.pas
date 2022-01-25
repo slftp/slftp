@@ -892,6 +892,7 @@ var
 
 begin
   result := nil;
+  fImdbMovieData := nil;
   fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
 
   fMovieDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
