@@ -98,6 +98,8 @@ testlinux64:
     - cp /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ./libcrypto.so
     - cp /usr/lib/x86_64-linux-gnu/libssl.so.1.1 ./libssl.so
     - mv config/* tests/
+    - apt-get -y install libsqlite3-dev
+    - cp /usr/lib/x86_64-linux-gnu/libsqlite3.so ./libsqlite3.so
   script:
     - make test
   tags:
