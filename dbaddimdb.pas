@@ -719,7 +719,7 @@ begin
     TIMDbDataRec.IMDbGenres := TStringList.Create;
     try
       try
-      if ((TIMDbDataRec.FillOne) AND (DaysBetween(now,TIMDbDataRec.UpdatedTime)>=config.ReadInteger(section, 'update_time_in_days', 7))) then
+      if TIMDbDataRec.FillOne then
       begin
           TIMDbDataRec.IMDbID := aImdbData.imdb_id;
           TIMDbDataRec.IMDbTitle := StringToUTF8(aImdbData.imdb_origtitle);
