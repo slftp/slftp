@@ -1116,7 +1116,7 @@ begin
   fDBName := Trim(config.ReadString(section, 'database', 'imdb.db'));
 
   imdb_remove_words_list := TStringList.Create;
-  imdb_remove_words_list.LoadFromFile(IMDBREPLACEFILENAME);
+  imdb_remove_words_list.LoadFromFile(ExtractFilePath(ParamStr(0)) + IMDBREPLACEFILENAME);
 
   gDbAddimdb_cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
