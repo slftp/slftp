@@ -994,52 +994,6 @@ begin
   end;
 end;
 
-procedure RemoveDependencies(t: TTask);
-var
-  i, j: integer;
-  tt: TTask;
-begin
-  try
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tasks.Count): %s', [e.Message]));
-          Break;
-        end;
-      end;
-      try
-        tt := TTask(tasks.items[i]);
-
-        if tt = nil then
-          Continue;
-
-        j := tt.dependencies.IndexOf(t.UidText);
-        if j <> -1 then
-        begin
-          tt.dependencies.Delete(j);
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tt.dependencies.Delete): %s', [e.Message]));
-          Continue;
-        end;
-      end;
-    end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
-      exit;
-    end;
-  end;
-end;
-
 procedure AddTaskToConsole(const aTask: TTask);
 begin
   Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
@@ -1056,12 +1010,7 @@ begin
     queueth.main_lock.Enter();
     try
       if TaskAlreadyInQueue(t) then
-      begin
-        TaskReady(t);
-        RemoveDependencies(t);
-        t.Free;
-        exit;
-      end;
+        t.ready := True;
 
       tasks.Add(t);
 
@@ -1298,7 +1247,51 @@ begin
   end;
 end;
 
+procedure RemoveDependencies(t: TTask);
+var
+  i, j: integer;
+  tt: TTask;
+begin
+  try
+    for i := tasks.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tasks.Count): %s', [e.Message]));
+          Break;
+        end;
+      end;
+      try
+        tt := TTask(tasks.items[i]);
 
+        if tt = nil then
+          Continue;
+
+        j := tt.dependencies.IndexOf(t.UidText);
+        if j <> -1 then
+        begin
+          tt.dependencies.Delete(j);
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tt.dependencies.Delete): %s', [e.Message]));
+          Continue;
+        end;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
+      exit;
+    end;
+  end;
+end;
 
 procedure TQueueThread.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 var
