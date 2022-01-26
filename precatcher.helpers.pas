@@ -14,10 +14,15 @@ function StripNoValidChars(const aInput: String): String;
   @returns(@true if line is commented out, @false otherwise.) }
 function IsLineCommentedOut(const aSingleLine: String): Boolean;
 
+{ Check if the sitebot announce contains the MP3 genre for the release and extract it if available
+  @param(aChanAnnounce Announce text from sitebot that might contain the MP3 Genre)
+  @returns(MP3 Genre if found, otherwise empty) }
+function TryToExtractMP3GenreFromSitebotAnnounce(const aChanAnnounce: String): String;
+
 implementation
 
 uses
-  SysUtils, Regexpr, mystrings, precatcher;
+  SysUtils, StrUtils, Regexpr, mystrings, precatcher, kb.releaseinfo;
 
 const
   rsections = 'precatcher.helpers';
@@ -95,6 +100,42 @@ begin
     end;
   finally
     rx.Free;
+  end;
+end;
+
+function TryToExtractMP3GenreFromSitebotAnnounce(const aChanAnnounce: String): String;
+var
+  i: Integer;
+  fGenreVariant1, fGenreVariant2: String;
+begin
+  Result := '';
+  for i := 0 to GlMP3Genres.Count - 1 do
+  begin
+  {
+  * TODO
+  * only useful if we add an extra event for GENRE (need to pass ts_data to this function then)
+    * [info][mp3] Keller_Williams_Kwahtro-Sync-WEB-2017-ENTiTLED remaining(122.4MB) Rock(2017)
+    * ( MP3 )-( Presk_-_2BXPRZD-(SOHASOMRGWLD01)-WEB-2017-HQEM )-( Expecting 4F of 320kbps Techno from 2017 )
+    x := ts_data.IndexOf(GlMP3Genres[i]);
+    if x <> -1 then
+    begin
+      Result := GlMP3Genres[i];
+      Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce TStringList %s %s', [text, Result]));
+    end;
+
+    note: Can't we !catchadd a line with event UPDATE to handle this line ?
+    for cleanliness its better to have an extra event for GENRE but not sure how much extra work this is compared to the UPDATE
+  }
+
+    fGenreVariant1 := GlMP3Genres[i];
+    // replace possible whitespaces
+    fGenreVariant2 := ReplaceText(GlMP3Genres[i], ' ', '');
+
+    if (ContainsText(aChanAnnounce, fGenreVariant1) or ContainsText(fGenreVariant2, aChanAnnounce)) then
+    begin
+      Result := GlMP3Genres[i];
+      break;
+    end;
   end;
 end;
 
