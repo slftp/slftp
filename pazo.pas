@@ -1550,7 +1550,6 @@ begin
         // this means that it has not been fired
         de := TDirListEntry.Create(aFilename, aDirlist);
         de.directory := False;
-        de.done := True;
         de.filesize := -1;
 
         de.RegenerateSkiplist;
@@ -1582,7 +1581,6 @@ begin
       if aSentByMe then
         de.RacedByMe := aSentByMe;
 
-      de.done := True;
       if (not de.IsOnSite) then
       begin
         de.IsOnSite := True;
