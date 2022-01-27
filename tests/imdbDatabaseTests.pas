@@ -15,6 +15,7 @@ type
   published
     procedure InsertUpdateDeleteTest1;
     procedure SameMovieNameOtherYearTest;
+    procedure AlreadyInDbTest;
   end;
 
 implementation
@@ -86,6 +87,26 @@ begin
 
   //we should not find a result with the release from a different year
   CheckNull(GetImdbMovieData(fRlsName2));
+end;
+
+procedure TTestIMDB.AlreadyInDbTest;
+var
+  fImdbData: TDbImdbData;
+  fRlsName: String;
+begin
+  fRlsName := 'Already.In.DB.Test.1999.BluRay.x264-GRP';
+
+  //first make sure the item is not in the database
+  DeleteIMDbDataWithImdbId('tt8718818');
+  CheckEquals(False, foundMovieAlreadyInDbWithReleaseName(fRlsName), 'We should NOT find this in the DB');
+
+  //insert the item into the DB
+  fImdbData := TDbImdbData.Create('tt8718818');
+  fImdbData.imdb_id := 'tt8718818';
+  fImdbData.imdb_year := 1999;
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData);
+
+  CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName), 'We should find this in the DB');
 end;
 
 
