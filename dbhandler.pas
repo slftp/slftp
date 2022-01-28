@@ -29,15 +29,15 @@ uses
 const
   section = 'dbhandler';
 
-procedure _CreateDatabaseFolder;
-begin
-  if not DirectoryExists(DATABASEFOLDERNAME) then
-    Mkdir(DATABASEFOLDERNAME);
-end;
-
 function _GetDatabasePath: String;
 begin
   Result := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim;
+end;
+
+procedure _CreateDatabaseFolder;
+begin
+  if not DirectoryExists(_GetDatabasePath) then
+    Mkdir(_GetDatabasePath);
 end;
 
 function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
