@@ -1130,7 +1130,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] statsInit: %s', [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] dbaddimdbInit: %s', [e.Message]));
       exit;
     end;
   end;
