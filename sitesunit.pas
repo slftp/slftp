@@ -958,6 +958,10 @@ begin
     end
     else
       status := ssMarkedDown;
+  end
+  else
+  begin
+    status := ssOnline;
   end;
 
   // TODO: fix the design flaw of calling .Execute immediately in ancestor after the Create(False)
