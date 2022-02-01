@@ -893,12 +893,14 @@ End;
 function GetImdbMovieData(const aReleaseName: String): TDbImdbData;
 var
   fMovieDataRec: TIMDbAlsoKnownAsRecord;
+  fMovieImdbDataRec: TIMDbData;
   fImdbMovieData: TDbImdbData;
   fCleanedMovieName: string;
 
 begin
   result := nil;
   fImdbMovieData := nil;
+  fMovieImdbDataRec := nil;
   fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
 
   fMovieDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
@@ -920,19 +922,26 @@ begin
       fImdbMovieData.imdb_countries :=  fMovieDataRec.Imdbdata.IMDbCountries;
       fImdbMovieData.imdb_genres :=  fMovieDataRec.Imdbdata.IMDbGenres;
 
-      fImdbMovieData.imdb_screens := fMovieDataRec.Imdbdata.IMDbBoomInfos.IMDbScreens;
-      fImdbMovieData.imdb_rating := fMovieDataRec.Imdbdata.IMDbRating;
-      fImdbMovieData.imdb_votes := fMovieDataRec.Imdbdata.IMDbVotes;
-      fImdbMovieData.imdb_cineyear := fMovieDataRec.Imdbdata.IMDbCineyear;
-      fImdbMovieData.imdb_ldt := fMovieDataRec.Imdbdata.IMDbBoomInfos.IMDbLimited;
-      fImdbMovieData.imdb_wide := fMovieDataRec.Imdbdata.IMDbBoomInfos.IMDbWide;
-      fImdbMovieData.imdb_festival := fMovieDataRec.Imdbdata.IMDbBoomInfos.IMDbFestival;
-      fImdbMovieData.imdb_stvm := fMovieDataRec.Imdbdata.IMDbBoomInfos.IMDbSTV;
-      fImdbMovieData.imdb_stvs := fMovieDataRec.Imdbdata.IMDbBoomInfos.IMDbSTVReason;
+      fMovieImdbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
+      'IMDbID = ?', [], [fMovieDataRec.Imdbdata.IMDbID]);
+
+      while fMovieImdbDataRec.FillOne do
+      begin
+        fImdbMovieData.imdb_screens := fMovieImdbDataRec.IMDbBoomInfos.IMDbScreens;
+        fImdbMovieData.imdb_rating := fMovieImdbDataRec.IMDbRating;
+        fImdbMovieData.imdb_votes := fMovieImdbDataRec.IMDbVotes;
+        fImdbMovieData.imdb_cineyear := fMovieImdbDataRec.IMDbCineyear;
+        fImdbMovieData.imdb_ldt := fMovieImdbDataRec.IMDbBoomInfos.IMDbLimited;
+        fImdbMovieData.imdb_wide := fMovieImdbDataRec.IMDbBoomInfos.IMDbWide;
+        fImdbMovieData.imdb_festival := fMovieImdbDataRec.IMDbBoomInfos.IMDbFestival;
+        fImdbMovieData.imdb_stvm := fMovieImdbDataRec.IMDbBoomInfos.IMDbSTV;
+        fImdbMovieData.imdb_stvs := fMovieImdbDataRec.IMDbBoomInfos.IMDbSTVReason;
+      end;
     end;
     finally
       result := fImdbMovieData;
       fMovieDataRec.Free;
+      fMovieImdbDataRec.Free;
     end;
 end;
 
