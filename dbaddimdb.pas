@@ -981,7 +981,7 @@ begin
   'Imdbdata.IMDbTitle = ?', [], [fCleanedMovieName]);
 
   try
-    Result := GetTDbImdbDataFromRec(fMovieDataRec);
+    Result := GetTDbImdbDataFromRec(fMovieDataRec.FIMDbData);
   finally
     fMovieDataRec.Free;
   end;
