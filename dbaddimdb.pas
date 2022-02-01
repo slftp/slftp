@@ -128,6 +128,29 @@ TIMDbBoomData = class(TSQLRecordNoCase)
     //...
   end;
 
+  TDbImdbData = class
+    imdb_id: String;
+    imdb_year: Integer;
+    imdb_languages: TStringList;
+    imdb_countries: TStringList;
+    imdb_genres: TStringList;
+    imdb_screens: Integer;
+    imdb_rating: Integer;
+    imdb_votes: Integer;
+    imdb_cineyear:integer;
+    imdb_ldt:boolean;
+    imdb_wide:boolean;
+    imdb_festival:boolean;
+    imdb_stvm:boolean;
+    imdb_stvs:String;
+    imdb_boom_country: String;
+    // additional infos
+    imdb_origtitle: String; //< original imdb/movie title
+    constructor Create(const aIMDbId:String);
+    destructor Destroy; override;
+    procedure PostResults(const aRls : String = '');overload;
+  end;
+
 { Checks if Country should be excluded (doesn't exist in slftp.imdbcountries file)
   @param(aCountryname Name of Country to be checked)
   @returns(@true if no entry exists in file (exclude), @false otherwise) }
@@ -159,6 +182,10 @@ Function foundMovieAlreadyInDbWithReleaseName(const aReleasename: String): Boole
   @param(aIMDbID IMDbID)
   @returns(@True if found, @False if not found) }
 Function foundMovieAlreadyInDbWithImdbId(const aImdbId: String): Boolean;
+{ Returns a TImdbData object if the IMDbID is found in Database
+  @param(aIMDbID IMDbID)
+  @returns(a TImdbData object if found, nil otherwise) }
+function FindImdbDataByImdbId(const aImdbId: String): TDbImdbData;
 { Returns True if the IMDB-Data needs to be updated
   @param(aaReleasename aReleasename)
   @returns(@True if updated needed, @False if updated not needed) }
@@ -169,31 +196,6 @@ function UpdateMovieInDbWithReleaseNameNeeded(const aReleasename: String): Boole
   @param(aFileName filename including fileextension) }
 procedure doIMDbDbBackup(const aPath, aFileName: String);
 
-type
-
-  TDbImdbData = class
-    imdb_id: String;
-    imdb_year: Integer;
-    imdb_languages: TStringList;
-    imdb_countries: TStringList;
-    imdb_genres: TStringList;
-    imdb_screens: Integer;
-    imdb_rating: Integer;
-    imdb_votes: Integer;
-    imdb_cineyear:integer;
-    imdb_ldt:boolean;
-    imdb_wide:boolean;
-    imdb_festival:boolean;
-    imdb_stvm:boolean;
-    imdb_stvs:String;
-    imdb_boom_country: String;
-    // additional infos
-    imdb_origtitle: String; //< original imdb/movie title
-    constructor Create(const aIMDbId:String);
-    destructor Destroy; override;
-    procedure PostResults(const aRls : String = '');overload;
-  end;
-
 { Parses the IRC-Message and extracts the IMDB-ID. After that call IMDB_Save.
   Returns True if update is done, else False. }
 function dbaddimdb_Process(aNet, aChan, aNick, aMsg: String): Boolean;
@@ -201,6 +203,8 @@ function dbaddimdb_Process(aNet, aChan, aNick, aMsg: String): Boolean;
 procedure dbaddimdb_SaveImdb(const aReleaseName, aIMDbId: String);
 { save the IMDB-Data into a DataObject. }
 procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
+{ process found IMDB-Data. }
+procedure dbaddimdb_ProcessImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
 { Creates the httptask and checks for duplicates. }
 procedure CreateHttpTask(const aReleaseName, aIMDbId: String);
  { Retriggers the queue. }
@@ -438,6 +442,62 @@ begin
     end;
   end;
 
+function GetTDbImdbDataFromRec(const aImdbRec: TIMDbData): TDbImdbData;
+var
+  fImdbMovieData: TDbImdbData;
+begin
+  Result := nil;
+  fImdbMovieData := nil;
+
+  aImdbRec.IMDbLanguages := TStringList.Create;
+  aImdbRec.IMDbCountries := TStringList.Create;
+  aImdbRec.IMDbGenres := TStringList.Create;
+
+  if aImdbRec.FillOne then
+  begin
+    fImdbMovieData := TDbImdbData.Create(aImdbRec.IMDbID);
+    fImdbMovieData.imdb_id := aImdbRec.IMDbID;
+    fImdbMovieData.imdb_year := aImdbRec.IMDbYear;
+    fImdbMovieData.imdb_origtitle := UTF8ToString(aImdbRec.IMDbTitle);
+
+    fImdbMovieData.imdb_languages :=  aImdbRec.IMDbLanguages;
+    fImdbMovieData.imdb_countries :=  aImdbRec.IMDbCountries;
+    fImdbMovieData.imdb_genres :=  aImdbRec.IMDbGenres;
+
+    fImdbMovieData.imdb_screens := aImdbRec.IMDbBoomInfos.IMDbScreens;
+    fImdbMovieData.imdb_rating := aImdbRec.IMDbRating;
+    fImdbMovieData.imdb_votes := aImdbRec.IMDbVotes;
+    fImdbMovieData.imdb_cineyear := aImdbRec.IMDbCineyear;
+    fImdbMovieData.imdb_ldt := aImdbRec.IMDbBoomInfos.IMDbLimited;
+    fImdbMovieData.imdb_wide := aImdbRec.IMDbBoomInfos.IMDbWide;
+    fImdbMovieData.imdb_festival := aImdbRec.IMDbBoomInfos.IMDbFestival;
+    fImdbMovieData.imdb_stvm := aImdbRec.IMDbBoomInfos.IMDbSTV;
+    fImdbMovieData.imdb_stvs := aImdbRec.IMDbBoomInfos.IMDbSTVReason;
+  end;
+
+  if aImdbRec.FillOne then
+  begin
+    //it's not unique
+    fImdbMovieData.Free;
+    raise Exception.Create('No unique IMDB entry in database found.');
+  end;
+
+  Result := fImdbMovieData;
+end;
+
+function FindImdbDataByImdbId(const aImdbId: String): TDbImdbData;
+var
+  fImdbRec: TIMDbData;
+begin
+  Result := nil;
+  fImdbRec := TIMDbData.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aImdbId]);
+  try
+    Result := GetTDbImdbDataFromRec(fImdbRec);
+  finally
+    fImdbRec.Free;
+  end;
+end;
+
 Function foundMovieAlreadyInDbWithImdbId(const aImdbId: String): Boolean;
 var
     fId_FIMDbData: TIMDbData;
@@ -504,6 +564,7 @@ var
   showname: String;
   season: Integer;
   episode: int64;
+  fImdbData: TDbImdbData;
 begin
   if config.ReadBool(section, 'skip_tv_releases', false) then
   begin
@@ -519,6 +580,17 @@ begin
     irc_AddInfo(Format('<c7>[iMDB]</c> for <b>%s</b> : %s', [aReleaseName, aIMDbId]));
     irc_Addtext_by_key('ADDIMDBECHO', '!addimdb '+aReleaseName+' '+aIMDbId);
 
+    //it might happen, that we have the IMDB ID in our DB, but could not find it with the rls title. So check
+    //if we have the ID in the DB and if so, use the data that we have.
+    if foundMovieAlreadyInDbWithImdbId(aIMDbID) then
+    begin
+      fImdbData := FindImdbDataByImdbId(aIMDbId);
+      if fImdbData = nil then
+        raise Exception.Create('IMDB ID found in DB, but ImdbData is nil.');
+
+      dbaddimdb_SaveImdbData(aReleaseName, fImdbData);
+    end;
+
     try
       CreateHttpTask(aReleaseName, aIMDbId);
     except
@@ -527,6 +599,25 @@ begin
         Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (Parse): %s', [e.Message]));
         exit;
       end;
+  end;
+end;
+
+procedure dbaddimdb_ProcessImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
+begin
+ if config.ReadBool(section, 'post_lookup_infos', false) then
+  begin
+    irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [aReleaseName, aImdbData.imdb_id]));
+    aImdbData.PostResults(aReleaseName);
+  end;
+
+  try
+    dbaddimdb_FireKbAdd(aReleaseName);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (FireKbAdd): %s', [e.Message]));
+      exit;
+    end;
   end;
 end;
 
@@ -660,22 +751,7 @@ begin
           FreeAndNil(TIMDbDataRec);
       end;
     end;
-
-   if config.ReadBool(section, 'post_lookup_infos', false) then
-    begin
-      irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [aReleaseName, aImdbData.imdb_id]));
-      aImdbData.PostResults(aReleaseName);
-    end;
-
-    try
-      dbaddimdb_FireKbAdd(aReleaseName);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (FireKbAdd): %s', [e.Message]));
-        exit;
-      end;
-    end;
+  dbaddimdb_ProcessImdbData(aReleaseName, aImdbData);
 End;
 
 procedure dbaddimdb_UpdateImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
@@ -899,35 +975,10 @@ begin
   'IMDbAlsoKnownAsData.IMDbTitle = ?', [], [fCleanedMovieName]);
 
   try
-    fMovieDataRec.IMDbLanguages := TStringList.Create;
-    fMovieDataRec.IMDbCountries := TStringList.Create;
-    fMovieDataRec.IMDbGenres := TStringList.Create;
-
-    while fMovieDataRec.FillOne do
-    begin
-      fImdbMovieData := TDbImdbData.Create(fMovieDataRec.IMDbID);
-      fImdbMovieData.imdb_id := fMovieDataRec.IMDbID;
-      fImdbMovieData.imdb_year := fMovieDataRec.IMDbYear;
-      fImdbMovieData.imdb_origtitle := UTF8ToString(fMovieDataRec.IMDbTitle);
-
-      fImdbMovieData.imdb_languages :=  fMovieDataRec.IMDbLanguages;
-      fImdbMovieData.imdb_countries :=  fMovieDataRec.IMDbCountries;
-      fImdbMovieData.imdb_genres :=  fMovieDataRec.IMDbGenres;
-
-      fImdbMovieData.imdb_screens := fMovieDataRec.IMDbBoomInfos.IMDbScreens;
-      fImdbMovieData.imdb_rating := fMovieDataRec.IMDbRating;
-      fImdbMovieData.imdb_votes := fMovieDataRec.IMDbVotes;
-      fImdbMovieData.imdb_cineyear := fMovieDataRec.IMDbCineyear;
-      fImdbMovieData.imdb_ldt := fMovieDataRec.IMDbBoomInfos.IMDbLimited;
-      fImdbMovieData.imdb_wide := fMovieDataRec.IMDbBoomInfos.IMDbWide;
-      fImdbMovieData.imdb_festival := fMovieDataRec.IMDbBoomInfos.IMDbFestival;
-      fImdbMovieData.imdb_stvm := fMovieDataRec.IMDbBoomInfos.IMDbSTV;
-      fImdbMovieData.imdb_stvs := fMovieDataRec.IMDbBoomInfos.IMDbSTVReason;
-    end;
-    finally
-      result := fImdbMovieData;
-      fMovieDataRec.Free;
-    end;
+    Result := GetTDbImdbDataFromRec(fMovieDataRec);
+  finally
+    fMovieDataRec.Free;
+  end;
 end;
 
 function dbaddimdb_Process(aNet, aChan, aNick, aMsg: String): Boolean;
