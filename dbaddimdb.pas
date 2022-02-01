@@ -394,51 +394,50 @@ end;
 
 function DeleteIMDbDataWithImdbId(const aIMDbId: String): Boolean;
 var
-    fIMDbDataRec:  TIMDbData;
+    fIMDbDataAlsoKnownAsRec:  TIMDbAlsoKnownAsRecord;
     fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos, fID_IMDbBoomData:           Int64;
 begin
     Result := False;
-    fIMDbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbId = ?', [], [aIMDbId]);
+    fIMDbDataAlsoKnownAsRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'imdbdata.IMDbId = ?', [], [aIMDbId]);
     try
-      while fIMDbDataRec.FillOne do
+      while fIMDbDataAlsoKnownAsRec.FillOne do
       begin
-        //fID_FIMDbAlsoKnownAsData := TID(fIMDbDataRec.FIMDbAlsoKnownAsData);
-        fID_IMDbReleaseInfos := TID(fIMDbDataRec.FIMDbReleaseInfos);
-        fID_IMDbBoomData := TID(fIMDbDataRec.FIMDbBoomInfos);
+        fID_FIMDbAlsoKnownAsData := TID(fIMDbDataAlsoKnownAsRec);
+        fID_IMDbReleaseInfos := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbReleaseInfos);
+        fID_IMDbBoomData := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbBoomInfos);
 
-
-        //ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
         ImdbDatabase.Delete(TIMDbReleaseDatesRecord,fID_IMDbReleaseInfos);
         ImdbDatabase.Delete(TIMDbBoomData,fID_IMDbBoomData);
+        ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
         ImdbDatabase.Delete(TIMDbData, 'IMDbID=?',[aIMDbId]);
       end;
     finally
-      fIMDbDataRec.Free;
+      fIMDbDataAlsoKnownAsRec.Free;
       Result := True;
     end;
 end;
 
 function DeleteIMDbDataWithReleaseName(const aReleaseName: String): Boolean;
 var
-    fIMDbDataRec:  TIMDbData;
+    fIMDbDataAlsoKnownAsRec:  TIMDbAlsoKnownAsRecord;
     fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos, fID_IMDbBoomData:           Int64;
 begin
     Result := False;
-    fIMDbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsData.IMDbTitle = ?', [], [aReleaseName]);
+    fIMDbDataAlsoKnownAsRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [aReleaseName]);
     try
-      while fIMDbDataRec.FillOne do
+      while fIMDbDataAlsoKnownAsRec.FillOne do
       begin
-        //fID_FIMDbAlsoKnownAsData := TID(fIMDbDataRec.FIMDbAlsoKnownAsData);
-        fID_IMDbReleaseInfos := TID(fIMDbDataRec.FIMDbReleaseInfos);
-        fID_IMDbBoomData := TID(fIMDbDataRec.FIMDbBoomInfos);
+        fID_FIMDbAlsoKnownAsData := TID(fIMDbDataAlsoKnownAsRec);
+        fID_IMDbReleaseInfos := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbReleaseInfos);
+        fID_IMDbBoomData := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbBoomInfos);
 
-        //ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
         ImdbDatabase.Delete(TIMDbReleaseDatesRecord,fID_IMDbReleaseInfos);
         ImdbDatabase.Delete(TIMDbBoomData,fID_IMDbBoomData);
-        ImdbDatabase.Delete(TIMDbData, 'IMDbID=?',[fIMDbDataRec.IMDbId]);
+        ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
+        ImdbDatabase.Delete(TIMDbData, 'IMDbID=?',[fIMDbDataAlsoKnownAsRec.IMDbData.IMDbID]);
       end;
     finally
-      fIMDbDataRec.Free;
+      fIMDbDataAlsoKnownAsRec.Free;
       Result := True;
     end;
   end;
@@ -524,7 +523,7 @@ var
 begin
     Result := False;
     fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
-    fId_FIMDbAlsoKnownAsRecord := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbData.IMDbTitle = ?', [], [fCleanedMovieName]);
+    fId_FIMDbAlsoKnownAsRecord := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
     try
       Result := fId_FIMDbAlsoKnownAsRecord.FillOne;
     finally
@@ -539,7 +538,7 @@ var
 begin
     Result := False;
     fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
-    fId_FIMDBAlsoKnownAs := TIMDBAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'ImdbData.IMDbTitle = ?', [], [fCleanedMovieName]);
+    fId_FIMDBAlsoKnownAs := TIMDBAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
     try
       while fId_FIMDBAlsoKnownAs.FillOne do
       Result := False;
@@ -790,7 +789,7 @@ begin
     fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
 
     TIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
-        'IMDbData.IMDbTitle = ?', [], [fCleanedMovieName]);
+        'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
         Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Start Update Data: %s - %s', [fCleanedMovieName, TIMDbDataRec.IMDbID]));
     try
       try
@@ -921,7 +920,7 @@ begin
 
     TIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
         'IMDBData.IMDbId = ?', [], [aImdbData.imdb_id]);
-        Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Start Inserting Data: %s - %s', [fCleanedMovieName, TIMDbDataRec.IMDbID]));
+        Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Start Inserting Data: %s - %s', [fCleanedMovieName, TIMDbAlsoKnownAsRecordRec.ImdbData.IMDbID]));
     while TIMDbAlsoKnownAsRecordRec.FillOne do
     begin
       try
@@ -978,7 +977,7 @@ begin
   fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
 
   fMovieDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
-  'Imdbdata.IMDbTitle = ?', [], [fCleanedMovieName]);
+  'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
 
   try
     Result := GetTDbImdbDataFromRec(fMovieDataRec.FIMDbData);
