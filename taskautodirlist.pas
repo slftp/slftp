@@ -479,18 +479,21 @@ begin
       end;
     end;
 
-    if ((p.ready) and (TPazoSite(p.PazoSitesList[0]).dirlist.Complete)) then
-    begin
-      reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
-      irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, reqfill_delay]));
-      rt := TRawTask.Create('', '', TPazoSite(p.PazoSitesList[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
-      rt.startat := IncSecond(now, reqfill_delay);
-      try
-        AddTask(rt);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections, Format('[EXCEPTION] TReqFillerThread.Execute AddTask: %s', [e.Message]));
+    if p.ready then
+      begin
+      if (TPazoSite(p.PazoSitesList[0]).dirlist.Complete) then
+      begin
+        reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
+        irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, reqfill_delay]));
+        rt := TRawTask.Create('', '', TPazoSite(p.PazoSitesList[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
+        rt.startat := IncSecond(now, reqfill_delay);
+        try
+          AddTask(rt);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, Format('[EXCEPTION] TReqFillerThread.Execute AddTask: %s', [e.Message]));
+          end;
         end;
       end;
       exit;
