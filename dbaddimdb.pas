@@ -968,6 +968,7 @@ End;
 function GetImdbMovieData(const aReleaseName: String): TDbImdbData;
 var
   fMovieDataRec: TIMDbAlsoKnownAsRecord;
+  fMovieImdbDataRec: TIMDbData;
   fImdbMovieData: TDbImdbData;
   fCleanedMovieName: string;
 
@@ -979,8 +980,11 @@ begin
   fMovieDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
   'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
 
+  fMovieImdbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
+      'IMDbID = ?', [], [fMovieDataRec.Imdbdata.IMDbID]);
+
   try
-    Result := GetTDbImdbDataFromRec(fMovieDataRec.FIMDbData);
+    Result := GetTDbImdbDataFromRec(fMovieImdbDataRec);
   finally
     fMovieDataRec.Free;
   end;
