@@ -962,6 +962,7 @@ begin
   imdbdata.imdb_origtitle := fImdbOriginalTitle;
   try
     dbaddimdb_SaveImdbData(FReleaseName, imdbdata);
+    dbaddimdb_ProcessImdbData(FReleaseName, imdbdata);
   except
     on e: Exception do
     begin
