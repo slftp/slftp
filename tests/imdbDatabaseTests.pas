@@ -15,6 +15,10 @@ type
   published
     procedure InsertUpdateDeleteTest1;
     procedure SameMovieNameOtherYearTest;
+    procedure AlreadyInDbWithReleasenameTest;
+    procedure AlreadyInDbWithImdbIDTest;
+    procedure FindExistingMovieByOtherReleaseNameTest;
+    procedure FindExistingMovieByOtherReleaseLanguageTest;
   end;
 
 implementation
@@ -88,6 +92,98 @@ begin
   CheckNull(GetImdbMovieData(fRlsName2));
 end;
 
+procedure TTestIMDB.AlreadyInDbWithReleasenameTest;
+var
+  fImdbData: TDbImdbData;
+  fRlsName: String;
+begin
+  fRlsName := 'Already.In.DB.With.Releasename.Test.1999.BluRay.x264-GRP';
+
+  //first make sure the item is not in the database
+  DeleteIMDbDataWithImdbId('tt8718818');
+  CheckEquals(False, foundMovieAlreadyInDbWithReleaseName(fRlsName), 'We should NOT find this in the DB');
+
+  //insert the item into the DB
+  fImdbData := TDbImdbData.Create('tt8718818');
+  fImdbData.imdb_id := 'tt8718818';
+  fImdbData.imdb_year := 1999;
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData);
+
+  CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName), 'We should find this in the DB');
+end;
+
+procedure TTestIMDB.AlreadyInDbWithImdbIDTest;
+var
+  fImdbData: TDbImdbData;
+  fRlsName, fImdbID: String;
+begin
+  fRlsName := 'Already.In.DB.With.IMDB.ID.1999.BluRay.x264-GRP';
+  fImdbID := 'tt8228818';
+
+  //first make sure the item is not in the database
+  DeleteIMDbDataWithImdbId(fImdbID);
+  CheckEquals(False, foundMovieAlreadyInDbWithImdbID(fImdbID), 'We should NOT find this in the DB');
+
+  //insert the item into the DB
+  fImdbData := TDbImdbData.Create(fImdbID);
+  fImdbData.imdb_id := fImdbID;
+  fImdbData.imdb_year := 1999;
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData);
+
+  CheckEquals(True, foundMovieAlreadyInDbWithImdbID(fImdbID), 'We should find this in the DB');
+end;
+
+procedure TTestIMDB.FindExistingMovieByOtherReleaseNameTest;
+var
+  fRlsName1, fRlsName2, fImdbID: String;
+  fImdbData, fImdbDataResult: TDbImdbData;
+begin
+  fRlsName1 := 'Movie.Name.For.Releasename.Test.720p.BluRay.x264-GRP';
+  fRlsName2 := 'Movie.Name.For.Releasename.Test.1080p.WEB.h264-OTHERGRP';
+  fImdbID := 'tt3417445';
+
+  //first make sure the item is not in the database
+  DeleteIMDbDataWithImdbId(fImdbID);
+  CheckEquals(False, foundMovieAlreadyInDbWithImdbID(fImdbID), 'We should NOT find this in the DB');
+
+  //insert the item into the DB
+  fImdbData := TDbImdbData.Create(fImdbID);
+  fImdbData.imdb_id := fImdbID;
+  fImdbData.imdb_year := 2022;
+  fImdbData.imdb_countries.CommaText := 'Uzbekistan';
+  dbaddimdb_SaveImdbData(fRlsName1, fImdbData);
+
+  //we should find the entry with both release names
+  CheckEquals(True, foundMovieAlreadyInDbWithReleasename(fRlsName1), fRlsName1 + 'not found in the DB');
+  CheckEquals(True, foundMovieAlreadyInDbWithReleasename(fRlsName2), fRlsName2 + 'not found in the DB');
+
+  //check if we get the correct info by other release name
+  fImdbDataResult := GetImdbMovieData(fRlsName2);
+  CheckEquals('Uzbekistan', fImdbDataResult.imdb_countries.CommaText);
+end;
+
+procedure TTestIMDB.FindExistingMovieByOtherReleaseLanguageTest;
+var
+  fRlsName1, fRlsName2, fImdbID: String;
+  fImdbData, fImdbDataResult: TDbImdbData;
+begin
+  fRlsName1 := 'Movie.Name.For.Other.Language.Test.2022.720p.BluRay.x264-GRP';
+  fRlsName2 := 'This.Is.The.Other.Language.2022.FRENCH.1080p.WEB.h264-OTHERGRP';
+  fImdbID := 'tt3977445';
+
+  //insert the item into the DB
+  fImdbData := TDbImdbData.Create(fImdbID);
+  fImdbData.imdb_id := fImdbID;
+  fImdbData.imdb_year := 2022;
+  dbaddimdb_SaveImdbData(fRlsName1, fImdbData);
+
+  //now we should add an 'alsoknownas' entry with the other release name
+  dbaddimdb_SaveImdbData(fRlsName2, fImdbData);
+
+  //we should be able to find the entry with both release names
+  CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName1), 'Could not find the entry with release name ' + fRlsName1);
+  CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName2), 'Could not find the entry with release name ' + fRlsName2);
+end;
 
 initialization
   {$IFDEF FPC}
