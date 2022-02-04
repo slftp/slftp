@@ -589,7 +589,6 @@ begin
         raise Exception.Create('IMDB ID found in DB, but ImdbData is nil.');
 
       dbaddimdb_SaveImdbData(aReleaseName, fImdbData);
-      dbaddimdb_ProcessImdbData(aReleaseName, fImdbData);
     end;
 
     try
@@ -754,6 +753,7 @@ begin
           FreeAndNil(TIMDbDataRec);
       end;
     end;
+  dbaddimdb_ProcessImdbData(aReleaseName, aImdbData);
 End;
 
 procedure dbaddimdb_UpdateImdbData(const aReleaseName: String; aImdbData: TDbImdbData);

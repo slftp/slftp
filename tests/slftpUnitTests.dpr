@@ -58,6 +58,7 @@ uses
   mrdohutils,
   SynSQLite3,
   slftpUnitTestsSetup,
+  ircchansettings,
   // add all test units below
   mystringsTests,
   mystringsTests.Base64,
@@ -116,6 +117,7 @@ begin
   InitialDirlistSetup;
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
+  IrcChannelSettingsInit;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;
