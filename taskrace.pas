@@ -332,7 +332,7 @@ begin
               on e: Exception do
                 Debug(dpError, c_section, '[EXCEPTION] (dirlist no such directory handling): %s', [e.Message]);
             end;
-            if (d = nil) Or d.need_mkdir then
+            if (d = nil) Or (d.need_mkdir and not d.error) then
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
