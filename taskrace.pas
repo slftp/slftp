@@ -504,7 +504,7 @@ begin
   begin
 
     //check if we should give up with empty/incomplete/long release
-    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) ) then
+    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND not d.DirlistGaveUp ) then
     begin
       secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
 
@@ -514,7 +514,7 @@ begin
         begin
           irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        ps1.dirlistgaveup := True;
+        d.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
       end;
 
@@ -524,7 +524,7 @@ begin
         begin
           irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        ps1.dirlistgaveup := True;
+        d.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
       end;
 
@@ -538,7 +538,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
         end;
       end
@@ -552,7 +552,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, config.ReadInteger(c_section, 'newdir_max_created', 600)]));
         end;
 
@@ -562,7 +562,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
         end;
       end;
@@ -573,7 +573,7 @@ begin
 
   // check if need more dirlist
   itwasadded := False;
-  if (not ps1.dirlistgaveup) then
+  if (d <> nil) and (not d.dirlistgaveup) then
   begin
     // check if still incomplete
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
