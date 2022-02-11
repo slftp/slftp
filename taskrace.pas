@@ -609,38 +609,28 @@ begin
             Continue;
           if (ps.dirlistgaveup) then
             Continue;
+          if (ps.dirlist = nil) then
+            Continue;
+          if (ps.dirlist.error) then
+            Continue;
+          if not (ps.status in [rssAllowed]) then
+            Continue;
+          if ps.dirlist.Complete then
+            Continue;
 
-          if ((is_pre) and (ps.status in [rssAllowed]) and (ps.dirlist <> nil) and
-            (not ps.dirlist.Complete) and (not ps.dirlist.error)) then
+          if (dir <> '') then
           begin
-            // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
-
-            try
-              AddTask(r);
-              AddTask(r_dst);
-              itwasadded := True;
-              Break;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, c_section,
-                  Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
-              end;
-            end;
+            d := ps.dirlist.FindDirlist(dir);
+            if (d <> nil) and (d.error or d.Complete) then
+              Continue;
           end;
 
-          if ((ps.status in [rssAllowed]) and (ps.dirlist <> nil) and
-            (not ps.dirlist.Complete) and (ps.dirlist.entries.Count > 0) and
-            (not ps.dirlist.error)) then
+          if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+            r := TPazoDirlistTask.Create('MORSELFPRE', channel, ps1.Name, mainpazo, dir, is_pre);
             r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+            r_dst := TPazoDirlistTask.Create('MOROTHERPRE', channel, ps.Name, mainpazo, dir, False);
             r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
             try
@@ -657,7 +647,11 @@ begin
             end;
           end;
         except
-          Continue;
+          on e: Exception do
+          begin
+            Debug(dpError, c_section,
+              Format('[EXCEPTION] TPazoDirlistTask CheckDestinations: %s', [e.Message]));
+          end;
         end;
       end;
     end;
