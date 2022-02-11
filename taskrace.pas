@@ -576,7 +576,7 @@ begin
   if (d <> nil) and (not d.dirlistgaveup) then
   begin
     // check if still incomplete
-    if ((d <> nil) and (not is_pre) and (not d.Complete)) then
+    if ((d <> nil) and (not is_pre) and (not d.Complete) and not d.error) then
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
