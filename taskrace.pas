@@ -352,7 +352,7 @@ begin
                   exit;
                 end;
 
-                if not s.Cwd(fAbsoluteDir) then
+                if not s.Cwd(fAbsoluteDir, True) then
                 begin
                   irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dir ' + fAbsoluteDir + ' on ' + site1 + ' does not exist']));
                   if (dir = '') then
@@ -1050,7 +1050,7 @@ begin
     if (failure) then
     begin
       fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
-      if not s.Cwd(fulldir) then
+      if not s.Cwd(fulldir, True) then
       begin
         irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
         ps1.MkdirError(dir);
