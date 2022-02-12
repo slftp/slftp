@@ -452,35 +452,30 @@ begin
 
   while (true) do
   begin
-    if p.readyerror then
-    begin
-      irc_Addadmin('readyWithError %s', [p.errorreason]);
-      Break;
-    end;
-
-    (*
-      prefer completion folders over filecount comparison as that is more accurate
-      if the target site does not have completion folders due to missing dirscript
-      in the requests folder we fall back to comparing the filecount of all
-      (sub-)dirs and if those are equal we set CachedCompleteResult on the dirlist to
-      true to indicate the dirlist task can finish because the release is complete
-    *)
-    if config.ReadBool(rsections, 'compare_files_for_reqfilled_fallback', True)
-      and ((TPazoSite(p.PazoSitesList[0]).dirlist.CompleteDirTag = '')
-      and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0)
-      and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
+    if p.ready or p.readyerror then
     begin
 
-      //if there is only 1 file and that file is a NFO, the 'Complete' function will return true if the release type allows it (dirfix, nfofix, ...)
-      //badly spread releases or incomplete archives containing only the NFO would lead to a false reqfilled cmd with only the NFO filled
-      if not ((TPazoSite(p.PazoSitesList[0]).dirlist.done = 1) and TPazoSite(p.PazoSitesList[0]).dirlist.HasNFO) then
+      (*
+        prefer completion folders over filecount comparison as that is more accurate
+        if the target site does not have completion folders due to missing dirscript
+        in the requests folder we fall back to comparing the filecount of all
+        (sub-)dirs and if those are equal we set CachedCompleteResult on the dirlist to
+        true to indicate the dirlist task can finish because the release is complete
+      *)
+      if config.ReadBool(rsections, 'compare_files_for_reqfilled_fallback', True)
+        and ((TPazoSite(p.PazoSitesList[0]).dirlist.CompleteDirTag = '')
+        and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0)
+        and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
       begin
-        TPazoSite(p.PazoSitesList[0]).dirlist.CachedCompleteResult := True;
+
+        //if there is only 1 file and that file is a NFO, the 'Complete' function will return true if the release type allows it (dirfix, nfofix, ...)
+        //badly spread releases or incomplete archives containing only the NFO would lead to a false reqfilled cmd with only the NFO filled
+        if not ((TPazoSite(p.PazoSitesList[0]).dirlist.done = 1) and TPazoSite(p.PazoSitesList[0]).dirlist.HasNFO) then
+        begin
+          TPazoSite(p.PazoSitesList[0]).dirlist.CachedCompleteResult := True;
+        end;
       end;
-    end;
 
-    if p.ready then
-      begin
       if (TPazoSite(p.PazoSitesList[0]).dirlist.Complete) then
       begin
         reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
@@ -495,6 +490,10 @@ begin
             Debug(dpError, rsections, Format('[EXCEPTION] TReqFillerThread.Execute AddTask: %s', [e.Message]));
           end;
         end;
+      end
+      else
+      begin
+        irc_Addadmin(Format('<c8>[REQUEST]</c> Request %s on %s ended without being completed (%s)', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, p.errorreason]));
       end;
       exit;
     end;
