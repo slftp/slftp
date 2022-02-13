@@ -207,12 +207,14 @@ begin
       p := PazoAdd(rls);
       kb_list.AddObject('REQUEST-' + site1 + '-' + releasenametofind, p);
 
-      p.AddSite(site1, maindir);
+      ps := p.AddSite(site1, maindir);
+      ps.status := rssAllowed;
       for i := 0 to x.Count - 1 do
       begin
         ss := x.Names[i];
         sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
+        ps.status := rssRealPre;
         ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
       end;
 
