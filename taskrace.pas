@@ -628,9 +628,9 @@ begin
           if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
-            r := TPazoDirlistTask.Create('MORSELFPRE', channel, ps1.Name, mainpazo, dir, is_pre);
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
             r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
-            r_dst := TPazoDirlistTask.Create('MOROTHERPRE', channel, ps.Name, mainpazo, dir, False);
+            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
             r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
             try
