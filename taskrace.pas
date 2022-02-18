@@ -573,10 +573,10 @@ begin
 
   // check if need more dirlist
   itwasadded := False;
-  if (d <> nil) and (not d.dirlistgaveup) then
+  if (d <> nil) and not d.dirlistgaveup and not d.error then
   begin
     // check if still incomplete
-    if ((d <> nil) and (not is_pre) and (not d.Complete) and not d.error) then
+    if ((d <> nil) and (not is_pre) and (not d.Complete)) then
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
