@@ -79,6 +79,9 @@ testwin64:
   when: on_success
   before_script:
     - move config\* tests
+    - curl -s https://www.sqlite.org/2022/sqlite-dll-win64-x64-3370200.zip -o sqlitewin64.zip
+    - unzip -p sqlitewin64.zip sqlite3.dll > dist/sqlite3-64.dll
+    - rm -f sqlitewin64.zip
   script:
     - make.bat test_64
   artifacts:
