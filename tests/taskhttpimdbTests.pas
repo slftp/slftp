@@ -361,7 +361,7 @@ type
 implementation
 
 uses
-  SysUtils, taskhttpimdb, Generics.Collections, {$IFNDEF FPC}Types,{$ENDIF} Classes;
+  SysUtils, taskhttpimdb, dbaddimdb, Generics.Collections, {$IFNDEF FPC}Types,{$ENDIF} Classes;
 
 {$IFDEF FPC}
   {$R taskhttpimdbTests.rc}
