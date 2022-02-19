@@ -51,7 +51,7 @@ begin
   fImdbData.imdb_stvm := False;
   fImdbData.imdb_stvs := 'Whatever';
   fImdbData.imdb_origtitle := 'Movie Name';
-  dbaddimdb_SaveImdbData(fRlsName, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil);
 
   fImdbDataResult := GetImdbMovieData(fRlsName);
   CheckEqualsString('Movie Name', fImdbDataResult.imdb_origtitle);
@@ -59,7 +59,7 @@ begin
 
   //update the imdb rating
   fImdbData.imdb_rating := 55;
-  dbaddimdb_SaveImdbData(fRlsName, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil);
 
   //check if rating has been updated
   fImdbDataResult := GetImdbMovieData(fRlsName);
@@ -84,7 +84,7 @@ begin
   fImdbData := TDbImdbData.Create('tt872418');
   fImdbData.imdb_id := 'tt872418';
   fImdbData.imdb_year := 1999;
-  dbaddimdb_SaveImdbData(fRlsName1, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName1, fImdbData, nil, nil, nil);
 
   fImdbDataResult := GetImdbMovieData(fRlsName2);
 
@@ -107,7 +107,7 @@ begin
   fImdbData := TDbImdbData.Create('tt8718818');
   fImdbData.imdb_id := 'tt8718818';
   fImdbData.imdb_year := 1999;
-  dbaddimdb_SaveImdbData(fRlsName, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil);
 
   CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName), 'We should find this in the DB');
 end;
@@ -128,7 +128,7 @@ begin
   fImdbData := TDbImdbData.Create(fImdbID);
   fImdbData.imdb_id := fImdbID;
   fImdbData.imdb_year := 1999;
-  dbaddimdb_SaveImdbData(fRlsName, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil);
 
   CheckEquals(True, foundMovieAlreadyInDbWithImdbID(fImdbID), 'We should find this in the DB');
 end;
@@ -138,8 +138,8 @@ var
   fRlsName1, fRlsName2, fImdbID: String;
   fImdbData, fImdbDataResult: TDbImdbData;
 begin
-  fRlsName1 := 'Movie.Name.For.Releasename.Test.720p.BluRay.x264-GRP';
-  fRlsName2 := 'Movie.Name.For.Releasename.Test.1080p.WEB.h264-OTHERGRP';
+  fRlsName1 := 'Movie.Name.For.Releasename.Test.2022.720p.BluRay.x264-GRP';
+  fRlsName2 := 'Movie.Name.For.Releasename.Test.2022.1080p.WEB.h264-OTHERGRP';
   fImdbID := 'tt3417445';
 
   //first make sure the item is not in the database
@@ -151,7 +151,7 @@ begin
   fImdbData.imdb_id := fImdbID;
   fImdbData.imdb_year := 2022;
   fImdbData.imdb_countries.CommaText := 'Uzbekistan';
-  dbaddimdb_SaveImdbData(fRlsName1, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName1, fImdbData, nil, nil, nil);
 
   //we should find the entry with both release names
   CheckEquals(True, foundMovieAlreadyInDbWithReleasename(fRlsName1), fRlsName1 + 'not found in the DB');
@@ -175,10 +175,10 @@ begin
   fImdbData := TDbImdbData.Create(fImdbID);
   fImdbData.imdb_id := fImdbID;
   fImdbData.imdb_year := 2022;
-  dbaddimdb_SaveImdbData(fRlsName1, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName1, fImdbData, nil, nil, nil);
 
   //now we should add an 'alsoknownas' entry with the other release name
-  dbaddimdb_SaveImdbData(fRlsName2, fImdbData);
+  dbaddimdb_SaveImdbData(fRlsName2, fImdbData, nil, nil, nil);
 
   //we should be able to find the entry with both release names
   CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName1), 'Could not find the entry with release name ' + fRlsName1);

@@ -91,6 +91,7 @@ begin
   InitialDirlistSetup;
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
+  InitialKnownGroupsSetup;
 
 
   // run all registered tests

@@ -118,6 +118,7 @@ begin
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
   IrcChannelSettingsInit;
+  InitialKnownGroupsSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

@@ -37,43 +37,11 @@ type
 
   { NOTE: everything which starts with IMDb is data from IMDb }
 
-TIMDbBoomData = class(TSQLRecordNoCase)
-  private
-    FIMDbCountry: RawUTF8; //< country from releaseinfo page
-    // TODO: might need rework as IMDb don't give infos for it anymore?
-    // TODO: therefore some infos are taken from BOM but in the future maybe other sites are supported as well
-    FIMDbScreens: Integer; //< screens
-    FIMDbLimited: Boolean; //< @true if limited, @false otherwise
-    FIMDbWide: Boolean; //< @true if wide, @false otherwise
-    FIMDbFestival: Boolean; //< @true if aired on a festival, @false otherwise
-    FIMDbSTV: Boolean; //< @true if STV Movie, @false otherwise
-    FIMDbSTVReason: RawUTF8; //< reason for STV status
-  published
-    property IMDbCountry: RawUTF8 read FIMDbCountry write FIMDbCountry;
-    property IMDbScreens: Integer read FIMDbScreens write FIMDbScreens;
-    property IMDbLimited: Boolean read FIMDbLimited write FIMDbLimited;
-    property IMDbWide: Boolean read FIMDbWide write FIMDbWide;
-    property IMDbFestival: Boolean read FIMDbFestival write FIMDbFestival;
-    property IMDbSTV: Boolean read FIMDbSTV write FIMDbSTV;
-    property IMDbSTVReason: RawUTF8 read FIMDbSTVReason write FIMDbSTVReason;
-  end;
-
-  // data should be filtered to sort out countries which never get a release
-  TIMDbReleaseDatesRecord = class(TSQLRecordNoCase)
-  private
-    FIMDbCountry: RawUTF8; //< country from releaseinfo page
-    FIMDbReleaseDate: TDateTime; //< release date from releaseinfo page
-    FIMDbReleaseDateExtraInfo: RawUTF8; //< additional info from releaseinfo page
-  published
-    property IMDbCountry: RawUTF8 read FIMDbCountry write FIMDbCountry;
-    property IMDbReleaseDate: TDateTime read FIMDbReleaseDate write FIMDbReleaseDate;
-    property IMDbReleaseDateExtraInfo: RawUTF8 read FIMDbReleaseDateExtraInfo write FIMDbReleaseDateExtraInfo;
-  end;
-
-  TIMDbData = class(TSQLRecord)
+  TIMDbDataRecord = class(TSQLRecord)
   private
     FIMDbID: RawUTF8; //< IMDb title ID like tt12345
     FIMDbTitle: RawUTF8; //< title from webpage
+    FIMDbTitleCleaned: RawUTF8; //< title from webpage
     FIMDbTitleExtras: RawUTF8; //< extra info from title if available, e.g. TV* or VIDEO* stuff
     FIMDbYear: Integer; //< movie year
     FIMDbCineyear: Integer; //< cinema year (TODO: which value if not available?)
@@ -85,19 +53,13 @@ TIMDbBoomData = class(TSQLRecordNoCase)
     FIMDbCountries: TStringList; //< countries
     FIMDbGenres: TStringList; //< genres
 
-
-    //FIMDbAlsoKnownAsData: TIMDbAlsoKnownAsRecord; //< AKA info from releaseinfo page
-    // code has to select the appropriate country info depending on the release language of the release
-    FIMDbReleaseInfos: TIMDbReleaseDatesRecord; //< all release dates information
-    // has all Website-specific Infos for Boom
-    FIMDbBoomInfos: TIMDbBoomData; //< all release dates information
-
     FCreationTime: TDateTime; //< time when the data was fetched
     FUpdatedTime: TDateTime;
   published
     //property IMDbData: TID read fIMDbDataId write fIMDbDataId;
     property IMDbID: RawUTF8 read FIMDbID write FIMDbID stored AS_UNIQUE;
     property IMDbTitle: RawUTF8 read FIMDbTitle write FIMDbTitle;
+    property IMDbTitleCleaned: RawUTF8 read FIMDbTitleCleaned write FIMDbTitleCleaned;
     property IMDbTitleExtras: RawUTF8 read FIMDbTitleExtras write FIMDbTitleExtras;
     property IMDbYear: Integer read FIMDbYear write FIMDbYear;
     property IMDbCineyear: Integer read FIMDbCineyear write FIMDbCineyear;
@@ -108,14 +70,80 @@ TIMDbBoomData = class(TSQLRecordNoCase)
     property IMDbCountries: TStringList read FIMDbCountries write FIMDbCountries;
     property IMDbGenres: TStringList read FIMDbGenres write FIMDbGenres;
 
-    //property IMDbAlsoKnownAsData: TIMDbAlsoKnownAsRecord read FIMDbAlsoKnownAsData write FIMDbAlsoKnownAsData;
-    property IMDbReleaseInfos: TIMDbReleaseDatesRecord read FIMDbReleaseInfos write FIMDbReleaseInfos;
-    property IMDbBoomInfos: TIMDbBoomData read FIMDbBoomInfos write FIMDbBoomInfos;
-
 
     property CreationTime: TDateTime read FCreationTime write FCreationTime;
     property UpdatedTime: TDateTime read FUpdatedTime write FUpdatedTime;
     //...
+  end;
+
+
+TIMDbBomDataRecord = class(TSQLRecordNoCase)
+  private
+    FIMDbCountry: RawUTF8; //< country from releaseinfo page
+    FIMDbScreens: Integer; //< screens
+    FIMDbData:  TIMDbDataRecord;
+  published
+    property IMDbCountry: RawUTF8 read FIMDbCountry write FIMDbCountry;
+    property IMDbScreens: Integer read FIMDbScreens write FIMDbScreens;
+    property IMDbData: TIMDbDataRecord read FIMDbData write FIMDbData;
+  end;
+
+  // data should be filtered to sort out countries which never get a release
+  TIMDbReleaseDatesRecord = class(TSQLRecordNoCase)
+  private
+    FIMDbCountry: RawUTF8; //< country from releaseinfo page
+    FIMDbReleaseDate: TDateTime; //< release date from releaseinfo page
+    FIMDbReleaseDateExtraInfo: RawUTF8; //< additional info from releaseinfo page
+    FIMDbData:  TIMDbDataRecord;
+  published
+    property IMDbCountry: RawUTF8 read FIMDbCountry write FIMDbCountry;
+    property IMDbReleaseDate: TDateTime read FIMDbReleaseDate write FIMDbReleaseDate;
+    property IMDbReleaseDateExtraInfo: RawUTF8 read FIMDbReleaseDateExtraInfo write FIMDbReleaseDateExtraInfo;
+    property IMDbData: TIMDbDataRecord read FIMDbData write FIMDbData;
+  end;
+
+  TIMDbAlsoKnownAsRecord = class(TSQLRecordNoCase)
+  private
+    FCountry: RawUTF8;  //< country from the IMDB homepage
+    FIMDbTitleCleaned: RawUTF8; //< Cleaned title from the release name
+    FImdbTitle: RawUTF8; //< Title from the IMDB homepage
+    FFromImdb: boolean; //< @true if this entry originated from the IMDB homepage, @false if we added it from an unknown release name
+    FIMDbData:  TIMDbDataRecord;
+  published
+    property Country: RawUTF8 read FCountry write FCountry;
+    property IMDbTitleCleaned: RawUTF8 read FIMDbTitleCleaned write FIMDbTitleCleaned;
+    property ImdbTitle: RawUTF8 read FImdbTitle write FImdbTitle;
+    property FromImdb: Boolean read FFromImdb write FFromImdb;
+    property IMDbData: TIMDbDataRecord read FIMDbData write FIMDbData;
+  end;
+
+
+  { @abstract(Class for IMDb also known as (AKA) information) }
+  TIMDbAlsoKnownAsInfo = class
+  private
+    FCountry: String; //< country name (+ extra title information)
+    FTitle: String; //< title name
+  public
+    { Creates a class for specific AKA infos }
+    constructor Create(const aCountry, aTitle: String);
+
+    property Country: String read FCountry;
+    property Title: String read FTitle;
+  end;
+
+  { @abstract(Class for IMDb release date information) }
+  TIMDbReleaseDateInfo = class
+  private
+    FCountry: String; //< country name
+    FReleaseDate: TDateTime; //< release date
+    FExtraInfo: String; //< additional info like dvd premiere, festival, location of premiere, etc
+  public
+    { Creates a class for specific release date infos }
+    constructor Create(const aCountry, aExtraInfo: String; const aReleaseDate: TDateTime);
+
+    property Country: String read FCountry;
+    property ReleaseDate: TDateTime read FReleaseDate;
+    property ExtraInfo: String read FExtraInfo;
   end;
 
   TDbImdbData = class
@@ -133,24 +161,14 @@ TIMDbBoomData = class(TSQLRecordNoCase)
     imdb_festival:boolean;
     imdb_stvm:boolean;
     imdb_stvs:String;
-    imdb_boom_country: String;
+    imdb_bom_country: String;
     // additional infos
     imdb_origtitle: String; //< original imdb/movie title
+    UpdatedTime: TDateTime; //< when was the data updated last time
     constructor Create(const aIMDbId:String);
     destructor Destroy; override;
     procedure PostResults(const aRls : String = '');overload;
 end;
-
-  TIMDbAlsoKnownAsRecord = class(TSQLRecordNoCase)
-  private
-    FIMDbCountry: RawUTF8; //< country from releaseinfo page
-    FIMDbTitle: RawUTF8; //< title from releaseinfo page
-    FIMDbData:  TIMDbData;
-  published
-    property IMDbCountry: RawUTF8 read FIMDbCountry write FIMDbCountry;
-    property IMDbTitle: RawUTF8 read FIMDbTitle write FIMDbTitle;
-    property IMDbData: TIMDbData read FIMDbData write FIMDbData;
-  end;
 
 { Checks if Country should be excluded (doesn't exist in slftp.imdbcountries file)
   @param(aCountryname Name of Country to be checked)
@@ -185,12 +203,17 @@ Function foundMovieAlreadyInDbWithReleaseName(const aReleasename: String): Boole
 Function foundMovieAlreadyInDbWithImdbId(const aImdbId: String): Boolean;
 { Returns a TImdbData object if the IMDbID is found in Database
   @param(aIMDbID IMDbID)
+  @param(aReleaseName The release name)
   @returns(a TImdbData object if found, nil otherwise) }
-function FindImdbDataByImdbId(const aImdbId: String): TDbImdbData;
+function FindImdbDataByImdbId(const aImdbId, aReleaseName: String): TDbImdbData;
 { Returns True if the IMDB-Data needs to be updated
   @param(aaReleasename aReleasename)
   @returns(@True if updated needed, @False if updated not needed) }
 function UpdateMovieInDbWithReleaseNameNeeded(const aReleasename: String): Boolean;
+{ Returns True if the IMDB-Data needs to be updated
+  @param(aaReleasename aReleasename)
+  @returns(@True if updated needed, @False if updated not needed) }
+function UpdateMovieInDbWithImdbDataNeeded(const aImdbData: TDbImdbData): Boolean;
 
 { Creates a backup of IMDb-database - this is needed because the file is in use and can't be copied
   @param(aPath path where the backup should be stored in the filesystem with last slash, e.g. /path/to/file/)
@@ -203,17 +226,13 @@ function dbaddimdb_Process(aNet, aChan, aNick, aMsg: String): Boolean;
 { Checks if the release is TV, creates the IMDBData Object and after that calls CreateHttpTask. }
 procedure dbaddimdb_SaveImdb(const aReleaseName, aIMDbId: String);
 { save the IMDB-Data into a DataObject. }
-procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
+procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData; aIMDbAlsoKnownAsInfoList: TObjectList<TIMDbAlsoKnownAsInfo>; aImdbReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>; aBOMCountryScreens: TDictionary<string, Integer>);
 { process found IMDB-Data. }
 procedure dbaddimdb_ProcessImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
 { Creates the httptask and checks for duplicates. }
 procedure CreateHttpTask(const aReleaseName, aIMDbId: String);
  { Retriggers the queue. }
 procedure dbaddimdb_FireKbAdd(const aReleaseName : String);
- { Updates the IMDB-Data when neccesary. }
-procedure dbaddimdb_UpdateImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
- { Returns the IMDB-Count in Database as String }
- procedure  dbaddimdb_InsertOnlyAlsoKnownAs(const aReleaseName: String; aImdbData: TDbImdbData);
  { Insert a new IMDB-ReleaseName when neccesary. }
 function dbaddimdb_Status: String;
  { Checks the IMDb-ID on right regex conform }
@@ -235,9 +254,9 @@ implementation
 
 uses
 
-  debugunit, configunit, sitesunit, console, StrUtils,
-  DateUtils, mystrings, FLRE, kb, kb.releaseinfo,
-  queueunit, RegExpr, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
+  debugunit, configunit, sitesunit, console, StrUtils, RegExpr,
+  DateUtils, mystrings, FLRE, kb, kb.releaseinfo, sllanguagebase,
+  queueunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 var
 
@@ -248,6 +267,23 @@ var
 const
   IMDBREPLACEFILENAME = 'slftp.imdbreplace';
   section = 'dbaddimdb';
+
+{ TIMDbAlsoKnownAsInfo }
+
+constructor TIMDbAlsoKnownAsInfo.Create(const aCountry, aTitle: String);
+begin
+  FCountry := aCountry;
+  FTitle := aTitle;
+end;
+
+{ TIMDbReleaseDateInfo }
+
+constructor TIMDbReleaseDateInfo.Create(const aCountry, aExtraInfo: String; const aReleaseDate: TDateTime);
+begin
+  FCountry := aCountry;
+  FReleaseDate := aReleaseDate;
+  FExtraInfo := aExtraInfo;
+end;
 
 { TMapLanguageCountry }
 
@@ -272,7 +308,7 @@ end;
 
 function CreateIMDBModel: TSQLModel;
 begin
-  result := TSQLModel.Create([TIMDbData,TIMDbReleaseDatesRecord,TIMDbAlsoKnownAsRecord, TIMDbBoomData]);
+  result := TSQLModel.Create([TIMDbDataRecord,TIMDbReleaseDatesRecord,TIMDbAlsoKnownAsRecord, TIMDbBomDataRecord]);
 end;
 
 { Extracts the moviename from given releasename by stripping year and scene tags
@@ -392,170 +428,360 @@ begin
   Debug(dpError, section, Format('[InternationalToAsciiScene] before: %s - after: %s', [aInput, Result]));
 end;
 
-function DeleteIMDbDataWithImdbId(const aIMDbId: String): Boolean;
+function DeleteIMDbDataWithImdbId(const aIMDbId: String): boolean;
 var
-    fIMDbDataAlsoKnownAsRec:  TIMDbAlsoKnownAsRecord;
-    fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos, fID_IMDbBoomData:           Int64;
+  FIMDbData: TIMDbDataRecord;
 begin
-    Result := False;
-    fIMDbDataAlsoKnownAsRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'imdbdata.IMDbId = ?', [], [aIMDbId]);
-    try
-      while fIMDbDataAlsoKnownAsRec.FillOne do
-      begin
-        fID_FIMDbAlsoKnownAsData := TID(fIMDbDataAlsoKnownAsRec);
-        fID_IMDbReleaseInfos := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbReleaseInfos);
-        fID_IMDbBoomData := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbBoomInfos);
-
-        ImdbDatabase.Delete(TIMDbReleaseDatesRecord,fID_IMDbReleaseInfos);
-        ImdbDatabase.Delete(TIMDbBoomData,fID_IMDbBoomData);
-        ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
-        ImdbDatabase.Delete(TIMDbData, 'IMDbID=?',[aIMDbId]);
-      end;
-    finally
-      fIMDbDataAlsoKnownAsRec.Free;
-      Result := True;
+  FIMDbData := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aIMDbId]);
+  try
+    if FIMDbData.FillOne then
+    begin
+      ImdbDatabase.Delete(TIMDbReleaseDatesRecord, 'IMDbData = ?', [FIMDbData.ID]);
+      ImdbDatabase.Delete(TIMDbBomDataRecord, 'IMDbData = ?', [FIMDbData.ID]);
+      ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord, 'IMDbData = ?', [FIMDbData.ID]);
+      ImdbDatabase.Delete(TIMDbDataRecord, 'IMDbID=?', [aIMDbId]);
     end;
+  finally
+    FIMDbData.Free;
+  end;
 end;
 
-function DeleteIMDbDataWithReleaseName(const aReleaseName: String): Boolean;
+function DeleteIMDbDataWithReleaseName(const aReleaseName: String): boolean;
 var
-    fIMDbDataAlsoKnownAsRec:  TIMDbAlsoKnownAsRecord;
-    fId_FIMDbAlsoKnownAsData, fID_IMDbReleaseInfos, fID_IMDbBoomData:           Int64;
+  FIMDbData: TDbImdbData;
 begin
-    Result := False;
-    fIMDbDataAlsoKnownAsRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [aReleaseName]);
+  FIMDbData := GetImdbMovieData(aReleaseName);
+  if (FIMDbData <> nil) then
+  begin
     try
-      while fIMDbDataAlsoKnownAsRec.FillOne do
-      begin
-        fID_FIMDbAlsoKnownAsData := TID(fIMDbDataAlsoKnownAsRec);
-        fID_IMDbReleaseInfos := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbReleaseInfos);
-        fID_IMDbBoomData := TID(fIMDbDataAlsoKnownAsRec.imdbdata.IMDbBoomInfos);
-
-        ImdbDatabase.Delete(TIMDbReleaseDatesRecord,fID_IMDbReleaseInfos);
-        ImdbDatabase.Delete(TIMDbBoomData,fID_IMDbBoomData);
-        ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord,fID_FIMDbAlsoKnownAsData);
-        ImdbDatabase.Delete(TIMDbData, 'IMDbID=?',[fIMDbDataAlsoKnownAsRec.IMDbData.IMDbID]);
-      end;
+      DeleteIMDbDataWithImdbId(FIMDbData.imdb_id);
     finally
-      fIMDbDataAlsoKnownAsRec.Free;
-      Result := True;
+      FIMDbData.Free;
     end;
   end;
+end;
 
-function GetTDbImdbDataFromRec(const aImdbRec: TIMDbData): TDbImdbData;
+function getCountryFromReleaseName(const aReleaseName: string; const countriesLst: TStringList): string;
 var
+  fLanguageFromReleasename, fStrHelper: string;
+begin
+  fLanguageFromReleasename := FindLanguageOnDirectory(aReleaseName);
+  if (fLanguageFromReleasename <> 'English') then
+    fStrHelper := fLanguageFromReleasename
+  else
+  begin
+    if (countriesLst <> nil) then
+      fStrHelper := TIMDbInfoChecks.EstimateEnglishCountryOrder(countriesLst.CommaText)
+    else
+      fStrHelper := 'USA';
+  end;
+
+  Result := TMapLanguageCountry.GetCountrynameByLanguage(fStrHelper);
+end;
+
+function GetTDbImdbDataFromRec(const aImdbRec: TIMDbDataRecord; const aReleaseName: string): TDbImdbData;
+var
+  fRegExpr: TRegexpr;
   fImdbMovieData: TDbImdbData;
+  fLanguageFromReleasename, fStrHelper, fReleasenameCountry, fImdbRlsdateExtraInfo, fTvShowname, fStatusReason: string;
+  fIsSTV, fIsFestival, fIsLimited, fIsWide: boolean;
+  i, FIMDbCineyear, fTvSeason, fScreensCount: Integer;
+  fTvEpisode: Int64;
+  FIMDbReleaseDate: TDateTime;
+  fIMDbReleaseDatesRecord: TIMDbReleaseDatesRecord;
+  fStatusReasonList: TList<string>;
+  fReleaseDateList: TObjectList<TIMDbReleaseDateInfo>;
+  fIMDbReleaseDateInfo: TIMDbReleaseDateInfo;
+  fIMDbBomData: TIMDbBomDataRecord;
 begin
   Result := nil;
   fImdbMovieData := nil;
 
-  aImdbRec.IMDbLanguages := TStringList.Create;
-  aImdbRec.IMDbCountries := TStringList.Create;
-  aImdbRec.IMDbGenres := TStringList.Create;
-
-  if aImdbRec.FillOne then
-  begin
+  try
     fImdbMovieData := TDbImdbData.Create(aImdbRec.IMDbID);
     fImdbMovieData.imdb_id := aImdbRec.IMDbID;
     fImdbMovieData.imdb_year := aImdbRec.IMDbYear;
     fImdbMovieData.imdb_origtitle := UTF8ToString(aImdbRec.IMDbTitle);
 
-    fImdbMovieData.imdb_languages :=  aImdbRec.IMDbLanguages;
-    fImdbMovieData.imdb_countries :=  aImdbRec.IMDbCountries;
-    fImdbMovieData.imdb_genres :=  aImdbRec.IMDbGenres;
+    fImdbMovieData.imdb_languages := aImdbRec.IMDbLanguages;
+    fImdbMovieData.imdb_countries := aImdbRec.IMDbCountries;
+    fImdbMovieData.imdb_genres := aImdbRec.IMDbGenres;
 
-    fImdbMovieData.imdb_screens := aImdbRec.IMDbBoomInfos.IMDbScreens;
     fImdbMovieData.imdb_rating := aImdbRec.IMDbRating;
     fImdbMovieData.imdb_votes := aImdbRec.IMDbVotes;
     fImdbMovieData.imdb_cineyear := aImdbRec.IMDbCineyear;
-    fImdbMovieData.imdb_ldt := aImdbRec.IMDbBoomInfos.IMDbLimited;
-    fImdbMovieData.imdb_wide := aImdbRec.IMDbBoomInfos.IMDbWide;
-    fImdbMovieData.imdb_festival := aImdbRec.IMDbBoomInfos.IMDbFestival;
-    fImdbMovieData.imdb_stvm := aImdbRec.IMDbBoomInfos.IMDbSTV;
-    fImdbMovieData.imdb_stvs := aImdbRec.IMDbBoomInfos.IMDbSTVReason;
-  end;
 
-  if aImdbRec.FillOne then
-  begin
-    //it's not unique
-    fImdbMovieData.Free;
-    raise Exception.Create('No unique IMDB entry in database found.');
-  end;
+    fImdbMovieData.UpdatedTime := aImdbRec.UpdatedTime;
 
-  Result := fImdbMovieData;
+    fIsSTV := False;
+    fIsLimited := False;
+    fIsWide := True;
+    fIsFestival := False;
+    fScreensCount := 0;
+
+    fStatusReasonList := TList<String>.Create;
+
+    (* Check global STV status based on title *)
+    fIsSTV := TIMDbInfoChecks.IsSTVBasedOnTitleExtraInfo(aImdbRec.FIMDbTitleExtras);
+    if fIsSTV then
+    begin
+      fStatusReasonList.Add(Format('STV due to title extra info: %s', [aImdbRec.FIMDbTitleExtras]));
+      Debug(dpSpam, section, Format('Status from Releasename: %s', [fStatusReasonList.Last]));
+    end;
+
+    (* Check if it's a TV release *)
+    // if we get values for season or episode -> tv show which doesn't has any screens
+    getShowValues(aReleaseName, fTvShowname, fTvSeason, fTvEpisode);
+    if not((fTvSeason > 0) or (fTvEpisode > 0) or (fTvSeason = Ord(tvDatedShow))
+      or (fTvSeason = Ord(tvRegularSerieWithoutSeason)) or
+      (fTvEpisode = Ord(tvNoEpisodeTag))) then
+    begin
+      fIsSTV := True;
+      fStatusReasonList.Add(Format('STV due to being a TV show with season %d and/or episode %d', [fTvSeason, fTvEpisode]));
+      Debug(dpSpam, section, Format('Status from Releasename: %s', [fStatusReasonList.Last]));
+    end;
+
+    fReleasenameCountry := getCountryFromReleaseName(aReleaseName, fImdbMovieData.imdb_countries);
+    Debug(dpSpam, section, Format('Release language %s maps to country %s', [fLanguageFromReleasename, fReleasenameCountry]));
+    if fReleasenameCountry = '' then
+    begin
+      fStrHelper := '[ERROR] No mapping for language to a country found';
+      Debug(dpError, section, fStrHelper);
+
+      fIsSTV := True;
+      fStatusReasonList.Add('STV because ' + fStrHelper);
+
+      fIsFestival := True;
+      fStatusReasonList.Add('Festival because ' + fStrHelper);
+
+      FIMDbCineyear := 0;
+      fStatusReasonList.Add('NOT Cine ' + fStrHelper);
+    end
+    else
+    begin
+
+      // get the release info from DB
+      fReleaseDateList := TObjectList<TIMDbReleaseDateInfo>.Create(True);
+      fIMDbReleaseDatesRecord := TIMDbReleaseDatesRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbData = ?', [], [aImdbRec.ID]);
+
+      while fIMDbReleaseDatesRecord.FillOne do
+      begin
+        fReleaseDateList.Add(TIMDbReleaseDateInfo.Create(fIMDbReleaseDatesRecord.IMDbCountry, fIMDbReleaseDatesRecord.IMDbReleaseDateExtraInfo, fIMDbReleaseDatesRecord.IMDbReleaseDate));
+      end;
+
+      (* STV *)
+      for fIMDbReleaseDateInfo in fReleaseDateList do
+      begin
+        if fIMDbReleaseDateInfo.FCountry = fReleasenameCountry then
+        begin
+          FIMDbReleaseDate := fIMDbReleaseDateInfo.FReleaseDate;
+          fImdbRlsdateExtraInfo := fIMDbReleaseDateInfo.FExtraInfo;
+
+          if fImdbRlsdateExtraInfo <> '' then
+          begin
+            fRegExpr := TRegexpr.Create;
+            try
+              fRegExpr.ModifierI := True;
+
+              fRegExpr.Expression := '(DVD|video|TV|Bluray|Blueray)(\s|\.|\-)?premiere';
+              if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
+              begin
+                fIsSTV := True;
+                fStatusReasonList.Add(Format('STV in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, FIMDbReleaseDate]));
+                Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
+                break;
+              end;
+            finally
+              fRegExpr.Free;
+            end;
+          end;
+        end;
+      end;
+
+      (* Festival info is independent from STV/Limited/Wide -> screened on a festival for movie enthuastics *)
+      for fIMDbReleaseDateInfo in fReleaseDateList do
+      begin
+        if fIMDbReleaseDateInfo.FCountry = fReleasenameCountry then
+        begin
+          FIMDbReleaseDate := fIMDbReleaseDateInfo.FReleaseDate;
+          fImdbRlsdateExtraInfo := fIMDbReleaseDateInfo.FExtraInfo;
+
+          if fImdbRlsdateExtraInfo <> '' then
+          begin
+            fRegExpr := TRegexpr.Create;
+            try
+              fRegExpr.ModifierI := True;
+
+              fRegExpr.Expression := 'F(estival|ilmfest|est|ilm(\s|\.|\-)?Market?)';
+              if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
+              begin
+                fIsFestival := True;
+                fStatusReasonList.Add(Format('Festival in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, FIMDbReleaseDate]));
+                Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
+                break;
+              end;
+            finally
+              fRegExpr.Free;
+            end;
+          end;
+        end;
+      end;
+
+      (* Cinedate info *)
+      if not fIsSTV then
+      begin
+        // pick first entry where third row (extra info) is empty
+        for fIMDbReleaseDateInfo in fReleaseDateList do
+        begin
+          if fIMDbReleaseDateInfo.FCountry = fReleasenameCountry then
+          begin
+            FIMDbReleaseDate := fIMDbReleaseDateInfo.FReleaseDate;
+            fImdbRlsdateExtraInfo := fIMDbReleaseDateInfo.FExtraInfo;
+
+            if fImdbRlsdateExtraInfo = '' then
+            begin
+              FIMDbCineyear := DateUtils.YearOf(FIMDbReleaseDate);
+              fStatusReasonList.Add(Format('Cine year for %s is %d taken from %s', [fReleasenameCountry, FIMDbCineyear, FIMDbReleaseDate]));
+              Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
+              break;
+            end;
+          end;
+        end;
+      end;
+      { NOTE: all that needs to be done separately for each dedicated releasename }
+
+      fIMDbBomData := TIMDbBomDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbData = ?', [], [aImdbRec.ID]);
+      while fIMDbBomData.FillOne do
+      begin
+        if fIMDbBomData.IMDbCountry = fReleasenameCountry then
+        begin
+          fScreensCount := fIMDbBomData.IMDbScreens;
+          break;
+        end;
+      end;
+
+      (* Check screen count *)
+      if fScreensCount = 0 then
+      begin
+        fIsSTV := True;
+        fIsLimited := False;
+        fIsWide := False;
+        fStatusReasonList.Add(Format('STV due to screens count being zero for %s', [fReleasenameCountry]));
+        Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReasonList.Last]));
+      end
+      else if (fScreensCount < 600) then
+      begin
+        // limited release when playing at fewer than 600 theaters
+        fIsSTV := False;
+        fIsLimited := True;
+        fIsWide := False;
+        fStatusReasonList.Add(Format('Limited due to screens %d < 600 for %s', [fScreensCount, fReleasenameCountry]));
+        Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReasonList.Last]));
+      end
+      else
+      begin
+        // movie in wide release or about to go wide when it is playing at 600 or more theaters
+        fIsSTV := False;
+        fIsLimited := False;
+        fIsWide := True;
+        fStatusReasonList.Add(Format('Wide due to screens %d => 600 for %s', [fScreensCount, fReleasenameCountry]));
+        Debug(dpSpam, section, Format('Status from Screen count: %s', [fStatusReasonList.Last]));
+      end;
+
+    end;
+
+    for i := 0 to fStatusReasonList.Count - 1 do
+    begin
+      fStatusReason := fStatusReason + Format('%d - %s%s', [i + 1, fStatusReasonList[i], #13#10]);
+    end;
+
+    fImdbMovieData.imdb_ldt := fIsLimited;
+    fImdbMovieData.imdb_wide := fIsWide;
+    fImdbMovieData.imdb_festival := fIsFestival;
+    fImdbMovieData.imdb_stvm := fIsSTV;
+    fImdbMovieData.imdb_stvs := fStatusReason;
+
+    Result := fImdbMovieData;
+  finally
+    fIMDbReleaseDatesRecord.Free;
+    fStatusReasonList.Free;
+    fReleaseDateList.Free;
+    fIMDbBomData.Free;
+  end;
 end;
 
-function FindImdbDataByImdbId(const aImdbId: String): TDbImdbData;
+function FindImdbDataByImdbId(const aIMDbId, aReleaseName: String): TDbImdbData;
 var
-  fImdbRec: TIMDbData;
+  fImdbRec: TIMDbDataRecord;
 begin
   Result := nil;
-  fImdbRec := TIMDbData.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aImdbId]);
+  fImdbRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aIMDbId]);
   try
-    Result := GetTDbImdbDataFromRec(fImdbRec);
+    if fImdbRec.FillOne then
+      Result := GetTDbImdbDataFromRec(fImdbRec, aReleaseName);
+
+    if fImdbRec.FillOne then
+    begin
+      // it's not unique
+      Result.Free;
+      Result := nil;
+      raise Exception.Create('No unique IMDB entry in database found.');
+    end;
   finally
     fImdbRec.Free;
   end;
 end;
 
-Function foundMovieAlreadyInDbWithImdbId(const aImdbId: String): Boolean;
+Function foundMovieAlreadyInDbWithImdbId(const aIMDbId: String): boolean;
 var
-    fId_FIMDbData: TIMDbData;
+  fId_FIMDbData: TIMDbDataRecord;
 begin
-    Result := False;
-    fId_FIMDbData := TIMDbData.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aImdbId]);
-    try
-      Result := fId_FIMDbData.FillOne;
-    finally
-      fId_FIMDbData.Free;
-    end;
+  Result := False;
+  fId_FIMDbData := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aIMDbId]);
+  try
+    Result := fId_FIMDbData.FillOne;
+  finally
+    fId_FIMDbData.Free;
+  end;
 end;
 
 Function getNbrOfImdbEntries: Integer;
 begin
-  Result := ImdbDatabase.TableRowCount(TIMDbData);
+  Result := ImdbDatabase.TableRowCount(TIMDbDataRecord);
 end;
 
-Function foundMovieAlreadyInDbWithReleaseName(const aReleasename: String): Boolean;
+Function foundMovieAlreadyInDbWithReleaseName(const aReleaseName: String): boolean;
 var
-    fId_FIMDbAlsoKnownAsRecord: TIMDbAlsoKnownAsRecord;
-    fCleanedMovieName: String;
+  fDbImdbData: TDbImdbData;
 begin
-    Result := False;
-    fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
-    fId_FIMDbAlsoKnownAsRecord := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
-    try
-      Result := fId_FIMDbAlsoKnownAsRecord.FillOne;
-    finally
-      fId_FIMDbAlsoKnownAsRecord.Free;
-    end;
+  Result := False;
+
+  try
+    fDbImdbData := GetImdbMovieData(aReleaseName);
+    Result := fDbImdbData <> nil;
+  finally
+    fDbImdbData.Free;
+  end;
+end;
+
+function UpdateMovieInDbWithImdbDataNeeded(const aImdbData: TDbImdbData): Boolean;
+begin
+  Result := DaysBetween(now, aImdbData.UpdatedTime) >= config.ReadInteger(section, 'update_time_in_days', 7);
 end;
 
 Function UpdateMovieInDbWithReleaseNameNeeded(const aReleasename: String): Boolean;
 var
-    fId_FIMDBAlsoKnownAs: TIMDBAlsoKnownAsRecord;
-    fCleanedMovieName: String;
+  fImdbData: TDbImdbData;
 begin
-    Result := False;
-    fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
-    fId_FIMDBAlsoKnownAs := TIMDBAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase, 'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
-    try
-      while fId_FIMDBAlsoKnownAs.FillOne do
+  Result := True;
+
+  try
+    fImdbData := GetImdbMovieData(aReleasename);
+    if (fImdbData <> nil) and not UpdateMovieInDbWithImdbDataNeeded(fImdbData) then
       Result := False;
-      begin
-        if DaysBetween(now,fId_FIMDBAlsoKnownAs.IMDbData.UpdatedTime)>=config.ReadInteger(section, 'update_time_in_days', 7) then
-          begin
-            Debug(dpError, section, Format('[Info] UpdateMovieInDbWithReleaseNameNeeded - Update Needed: %s - %s', [aReleaseName, fCleanedMovieName]));
-            Result := True;
-          end;
-      end;
-    finally
-      if not Result then
-      begin
-        Debug(dpError, section, Format('[Info] UpdateMovieInDbWithReleaseNameNeeded - Update NOT Needed: %s - %s', [aReleaseName, fCleanedMovieName]));
-      end;
-      fId_FIMDBAlsoKnownAs.Free;
-    end;
+  finally
+    fImdbData.Free;
+  end;
 end;
 
 procedure dbaddimdb_SaveImdb(const aReleaseName, aIMDbId: String);
@@ -582,13 +808,16 @@ begin
 
     //it might happen, that we have the IMDB ID in our DB, but could not find it with the rls title. So check
     //if we have the ID in the DB and if so, use the data that we have.
-    if foundMovieAlreadyInDbWithImdbId(aIMDbID) then
+    fImdbData := FindImdbDataByImdbId(aIMDbId, aReleaseName);
+    if fImdbData <> nil then
     begin
-      fImdbData := FindImdbDataByImdbId(aIMDbId);
-      if fImdbData = nil then
-        raise Exception.Create('IMDB ID found in DB, but ImdbData is nil.');
-
-      dbaddimdb_SaveImdbData(aReleaseName, fImdbData);
+      try
+        //invoke SaveImdbData so that the 'also known as' entry will be created and fire kb will be done.
+        dbaddimdb_SaveImdbData(aReleaseName, fImdbData, nil, nil, nil);
+        exit;
+      finally
+        fImdbData.Free;
+      end;
     end;
 
     try
@@ -615,390 +844,179 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (FireKbAdd): %s', [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_ProcessImdbData (FireKbAdd): %s', [e.Message]));
       exit;
     end;
   end;
 end;
 
-procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
+procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData; aIMDbAlsoKnownAsInfoList: TObjectList<TIMDbAlsoKnownAsInfo>; aImdbReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>; aBOMCountryScreens: TDictionary<string, Integer>);
 var
-//    FIMDbID: String; //< IMDb title ID like tt12345
-//    FIMDbTitle: String; //< title from webpage
-//    FIMDbTitleExtras: String; //< extra info from title if available, e.g. TV* or VIDEO* stuff
-//    FIMDbYear: Integer; //< movie year
-//    FIMDbCineyear: Integer; //< cinema year (TODO: which value if not available?)
-//    FIMDbRating: Integer; //< rating (multiplied by 10)
-//    FIMDbVotes: Integer; //< votes
-//
-//    FIMDbScreens: Integer; //< screens
-//    FIMDbLimited: Boolean; //< @true if limited, @false otherwise
-//    FIMDbWide: Boolean; //< @true if wide, @false otherwise
-//    FIMDbFestival: Boolean; //< @true if aired on a festival, @false otherwise
-//    FIMDbSTV: Boolean; //< @true if STV Movie, @false otherwise
-//    FIMDbSTVReason: String; //< reason for STV status
-//
-//    FCreationTime: TDateTime; //< time when the data was fetched
-//
-//    FIMDbAlsoKnownAsData: TIMDbAlsoKnownAsRecord; //< AKA info from releaseinfo page
-//    // code has to select the appropriate country info depending on the release language of the release
-//    FIMDbReleaseInfos: TIMDbReleaseDatesRecord; //< all release dates information
-
-    TIMDbDataRec:   TIMDbData;
-    TIMDbReleaseDatesRecordRec: TIMDbReleaseDatesRecord;
-    TIMDbAlsoKnownAsRecordRec: TIMDbAlsoKnownAsRecord;
-    FIMDbBoomDataRecordRec: TIMDbBoomData;
+  fIMDbDataRec:   TIMDbDataRecord;
+  fIMDbReleaseDatesRecordRec: TIMDbReleaseDatesRecord;
+  fIMDbAlsoKnownAsRecordRec: TIMDbAlsoKnownAsRecord;
+  fIMDbBomDataRecordRec: TIMDbBomDataRecord;
+  fDoUpdate: boolean;
+  fStrHelper, fCleanedMovieName, fLanguageFromReleasename, fReleasenameCountry: string;
+  fIMDbAlsoKnownAsInfo: TIMDbAlsoKnownAsInfo;
+  fIMDbReleaseDateInfo: TIMDbReleaseDateInfo;
+  fBOMCountryScreens: TPair<string, integer>;
 begin
 
-    if foundMovieAlreadyInDbWithReleaseName(aReleaseName) then
+  try
+  fIMDbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aImdbData.imdb_id]);
+    fDoUpdate := fIMDbDataRec.FillOne;
+
+    if not fDoUpdate then
     begin
-      dbaddimdb_UpdateImdbData(aReleaseName,aImdbData)
-    end
-    else if foundMovieAlreadyInDbWithImdbId(aImdbData.imdb_id) then
-    begin
-      dbaddimdb_InsertOnlyAlsoKnownAs(aReleaseName,aImdbData)
-    end
+      fIMDbDataRec.CreationTime := now;
+      fIMDbDataRec.IMDbID := aImdbData.imdb_id;
+    end;
+
+    fIMDbDataRec.IMDbTitle := StringToUTF8(aImdbData.imdb_origtitle);
+    fIMDbDataRec.IMDbTitleCleaned := getMovieNameWithoutSceneTags(StringToUTF8(aImdbData.imdb_origtitle));
+    fIMDbDataRec.IMDbTitleExtras := '';
+    fIMDbDataRec.IMDbYear := aImdbData.imdb_year;
+    fIMDbDataRec.IMDbCineyear := aImdbData.imdb_cineyear;
+    fIMDbDataRec.IMDbRating := aImdbData.imdb_rating;
+    fIMDbDataRec.IMDbVotes := aImdbData.imdb_votes;
+
+    fIMDbDataRec.IMDbLanguages := aImdbData.imdb_languages;
+    fIMDbDataRec.IMDbCountries := aImdbData.imdb_countries;
+    fIMDbDataRec.IMDbGenres := aImdbData.imdb_genres;
+
+    fIMDbDataRec.UpdatedTime := now;
+
+    if fDoUpdate then
+      fDoUpdate := ImdbDatabase.Update(fIMDbDataRec)
     else
+      ImdbDatabase.Add(fIMDbDataRec, True);
+
+    fReleasenameCountry := getCountryFromReleaseName(aReleaseName, aImdbData.imdb_countries);
+
+    if (fReleasenameCountry = '') then
+      fReleasenameCountry := '(original title)';
+
+    fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
+    fIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbData = ? and IMDbTitleCleaned = ? and Country = ?', [], [fIMDbDataRec.ID, fCleanedMovieName, fReleasenameCountry]);
+    if not fIMDbAlsoKnownAsRecordRec.FillOne then
     begin
-    try
-      try
-      Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Start Adding Data: %s', [aReleaseName]));
-      TIMDbDataRec := TIMDbData.Create;
-      TIMDbDataRec.IMDbID := aImdbData.imdb_id;
-      TIMDbDataRec.IMDbTitle := StringToUTF8(aImdbData.imdb_origtitle);
 
-      TIMDbDataRec.IMDbTitleExtras := '';
-      TIMDbDataRec.IMDbYear :=  aImdbData.imdb_year;
-      TIMDbDataRec.IMDbCineyear := aImdbData.imdb_cineyear;
-      TIMDbDataRec.IMDbRating := aImdbData.imdb_rating;
-      TIMDbDataRec.IMDbVotes :=  aImdbData.imdb_votes;
+      // no aka entry found - create one.
+      fIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.Create;
+      fIMDbAlsoKnownAsRecordRec.Country := fReleasenameCountry;
+      fIMDbAlsoKnownAsRecordRec.IMDbTitleCleaned := fCleanedMovieName;
+      fIMDbAlsoKnownAsRecordRec.FromImdb := False;
+      fIMDbAlsoKnownAsRecordRec.IMDbData := fIMDbDataRec.AsTSQLRecord;
+      ImdbDatabase.Add(fIMDbAlsoKnownAsRecordRec, True);
+    end;
 
-      TIMDbDataRec.IMDbLanguages := aImdbData.imdb_languages;
-      TIMDbDataRec.IMDbCountries := aImdbData.imdb_countries;
-      TIMDbDataRec.IMDbGenres := aImdbData.imdb_genres;
+    // delete existing entries if we do update
+    if fDoUpdate then
+    begin
+      if (aImdbReleaseDateInfoList <> nil) then
+        ImdbDatabase.Delete(TIMDbReleaseDatesRecord, 'IMDbData=?', [fIMDbDataRec.ID]);
+      if (aBOMCountryScreens <> nil) then
+        ImdbDatabase.Delete(TIMDbBomDataRecord, 'IMDbData=?', [fIMDbDataRec.ID]);
+      if (aIMDbAlsoKnownAsInfoList <> nil) then
+        ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord, 'IMDbData=? and FromImdb=?', [fIMDbDataRec.ID, True]);
+    end;
 
-      FIMDbBoomDataRecordRec := TIMDbBoomData.Create;
-
-      Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Adding Boom Data: %s', [aReleaseName]));
-      FIMDbBoomDataRecordRec.IMDbScreens := aImdbData.imdb_screens;
-      FIMDbBoomDataRecordRec.IMDbLimited := aImdbData.imdb_ldt;
-      FIMDbBoomDataRecordRec.IMDbWide :=  aImdbData.imdb_wide;
-      FIMDbBoomDataRecordRec.IMDbFestival := aImdbData.imdb_festival;
-      FIMDbBoomDataRecordRec.IMDbSTV := aImdbData.imdb_stvm;
-      FIMDbBoomDataRecordRec.IMDbSTVReason := aImdbData.imdb_stvs;
-      FIMDbBoomDataRecordRec.IMDbCountry := 'DE';
-
-      TIMDbDataRec.CreationTime := Now;
-      TIMDbDataRec.UpdatedTime := Now;
-
-      Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Adding ReleaseDate Data: %s', [aReleaseName]));
-      TIMDbReleaseDatesRecordRec := TIMDbReleaseDatesRecord.Create;
-      TIMDbReleaseDatesRecordRec.IMDbCountry := 'DE';
-      TIMDbReleaseDatesRecordRec.IMDbReleaseDate := Now;
-      TIMDbReleaseDatesRecordRec.IMDbReleaseDateExtraInfo := 'No Infos';
-
-      Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Adding AlsoKnownAs Data: %s', [aReleaseName]));
-      TIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.Create;
-      TIMDbAlsoKnownAsRecordRec.IMDbCountry := 'DE';
-      TIMDbAlsoKnownAsRecordRec.IMDbTitle := getMovieNameWithoutSceneTags(aReleaseName);
-
-      Debug(dpError, section, Format('[INFO] dbaddimdb_SaveImdbData : Adding all Elements to DB: : %s - %s', [aReleaseName, aImdbData.imdb_id]));
-
-      if not TIMDbReleaseDatesRecordRec.FillOne then
-          ImdbDatabase.Add(TIMDbReleaseDatesRecordRec,true);
-      if not FIMDbBoomDataRecordRec.FillOne then
-          ImdbDatabase.Add(FIMDbBoomDataRecordRec,true);
-
-      //TIMDbDataRec.IMDbAlsoKnownAsData := TIMDbAlsoKnownAsRecordRec.AsTSQLRecord;
-      TIMDbDataRec.IMDbReleaseInfos := TIMDbReleaseDatesRecordRec.AsTSQLRecord;
-      TIMDbDataRec.IMDbBoomInfos := FIMDbBoomDataRecordRec.AsTSQLRecord;
-
-
-      if not TIMDbDataRec.FillOne then
+    if (aIMDbAlsoKnownAsInfoList <> nil) then
+    begin
+      for fIMDbAlsoKnownAsInfo in aIMDbAlsoKnownAsInfoList do
       begin
-        if ImdbDatabase.Add(TIMDbDataRec,true)=0 then
-        Begin
-          if foundMovieAlreadyInDbWithImdbId(aImdbData.imdb_id) then
-          Begin
-            Debug(dpError, section, FORMAT('[Info] dbaddimdb_SaveImdbData : Error adding the data for Release: %s - %s - Error: %s - Cleaning Database!', [aReleaseName, aImdbData.imdb_id,UTF8ToString(ImdbDatabase.LastErrorMessage)]));
-            //ImdbDatabase.Delete(TIMDbAlsoKnownAsRecord, TIMDbAlsoKnownAsRecordRec.fiD);
-            ImdbDatabase.Delete(TIMDbReleaseDatesRecord, TIMDbReleaseDatesRecordRec.fiD);
-            ImdbDatabase.Delete(TIMDbBoomData,FIMDbBoomDataRecordRec.fiD);
-          End;
-        end
-        else
-        begin
-          TIMDbAlsoKnownAsRecordRec.IMDbData := TIMDbDataRec.AsTSQLRecord;
-          if not TIMDbAlsoKnownAsRecordRec.FillOne then
-            ImdbDatabase.Add(TIMDbAlsoKnownAsRecordRec,true);
-          Debug(dpError, section, Format('[Info] dbaddimdb_SaveImdbData : Data for Release: %s successful saved in Database!', [aReleaseName]));
-        end;
-      end;
-
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData : Data for Release: %s - %s - Error: %s!', [aReleaseName, aImdbData.imdb_id, e.Message]));
-          exit;
-        end;
-      end;
-      finally
-        if TIMDbReleaseDatesRecordRec <> nil then
-          FreeAndNil(TIMDbReleaseDatesRecordRec);
-        if TIMDbAlsoKnownAsRecordRec <> nil then
-          FreeAndNil(TIMDbAlsoKnownAsRecordRec);
-        if FIMDbBoomDataRecordRec <> nil then
-          FreeAndNil(FIMDbBoomDataRecordRec);
-        if TIMDbDataRec <> nil then
-          FreeAndNil(TIMDbDataRec);
+        fIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.Create;
+        fIMDbAlsoKnownAsRecordRec.Country := fIMDbAlsoKnownAsInfo.Country;
+        fIMDbAlsoKnownAsRecordRec.IMDbTitleCleaned := getMovieNameWithoutSceneTags(fIMDbAlsoKnownAsInfo.Title);
+        fIMDbAlsoKnownAsRecordRec.FromImdb := True;
+        fIMDbAlsoKnownAsRecordRec.IMDbData := fIMDbDataRec.AsTSQLRecord;
+        ImdbDatabase.Add(fIMDbAlsoKnownAsRecordRec, True);
       end;
     end;
-  dbaddimdb_ProcessImdbData(aReleaseName, aImdbData);
-End;
 
-procedure dbaddimdb_UpdateImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
-var
-//    FIMDbID: String; //< IMDb title ID like tt12345
-//    FIMDbTitle: String; //< title from webpage
-//    FIMDbTitleExtras: String; //< extra info from title if available, e.g. TV* or VIDEO* stuff
-//    FIMDbYear: Integer; //< movie year
-//    FIMDbCineyear: Integer; //< cinema year (TODO: which value if not available?)
-//    FIMDbRating: Integer; //< rating (multiplied by 10)
-//    FIMDbVotes: Integer; //< votes
-//
-//    FIMDbScreens: Integer; //< screens
-//    FIMDbLimited: Boolean; //< @true if limited, @false otherwise
-//    FIMDbWide: Boolean; //< @true if wide, @false otherwise
-//    FIMDbFestival: Boolean; //< @true if aired on a festival, @false otherwise
-//    FIMDbSTV: Boolean; //< @true if STV Movie, @false otherwise
-//    FIMDbSTVReason: String; //< reason for STV status
-//
-//    FCreationTime: TDateTime; //< time when the data was fetched
-//
-//    FIMDbAlsoKnownAsData: TIMDbAlsoKnownAsRecord; //< AKA info from releaseinfo page
-//    // code has to select the appropriate country info depending on the release language of the release
-//    FIMDbReleaseInfos: TIMDbReleaseDatesRecord; //< all release dates information
-
-    TIMDbDataRec:   TIMDbData;
-    TIMDbReleaseDatesRecordRec: TIMDbReleaseDatesRecord;
-    TIMDbAlsoKnownAsRecordRec: TIMDbAlsoKnownAsRecord;
-    FIMDbBoomDataRecordRec: TIMDbBoomData;
-    fCleanedMovieName : String;
-begin
-
-    fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
-
-    TIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
-        'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
-        Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Start Update Data: %s', [fCleanedMovieName]));
-    try
-      try
-      if TIMDbAlsoKnownAsRecordRec.FillOne then
-      begin
-
-          TIMDbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
-        'IMDbID = ?', [], [TIMDbAlsoKnownAsRecordRec.IMDbData.IMDbID]);
-        Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Start Update Data: %s - %s', [fCleanedMovieName, TIMDbAlsoKnownAsRecordRec.IMDbData.IMDbId]));
-
-        while TIMDbDataRec.fillOne do
-        begin
-
-          TIMDbDataRec.IMDbLanguages := TStringList.Create;
-          TIMDbDataRec.IMDbCountries := TStringList.Create;
-          TIMDbDataRec.IMDbGenres := TStringList.Create;
-
-          TIMDbDataRec.IMDbID := aImdbData.imdb_id;
-          TIMDbDataRec.IMDbTitle := StringToUTF8(aImdbData.imdb_origtitle);
-
-          TIMDbDataRec.IMDbTitleExtras := '';
-          TIMDbDataRec.IMDbYear :=  aImdbData.imdb_year;
-          TIMDbDataRec.IMDbCineyear := aImdbData.imdb_cineyear;
-          TIMDbDataRec.IMDbRating := aImdbData.imdb_rating;
-          TIMDbDataRec.IMDbVotes := aImdbData.imdb_votes;
-
-          TIMDbDataRec.IMDbLanguages := aImdbData.imdb_languages;
-          TIMDbDataRec.IMDbCountries := aImdbData.imdb_countries;
-          TIMDbDataRec.IMDbGenres := aImdbData.imdb_genres;
-
-          //FIMDbBoomDataRecordRec := TIMDbBoomData.create;
-          FIMDbBoomDataRecordRec := TIMDbDataRec.IMDbBoomInfos;
-
-          Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Update Boom Data: %s', [aReleaseName]));
-          FIMDbBoomDataRecordRec.IMDbScreens := aImdbData.imdb_screens;
-          FIMDbBoomDataRecordRec.IMDbLimited := aImdbData.imdb_ldt;
-          FIMDbBoomDataRecordRec.IMDbWide :=  aImdbData.imdb_wide;
-          FIMDbBoomDataRecordRec.IMDbFestival := aImdbData.imdb_festival;
-          FIMDbBoomDataRecordRec.IMDbSTV := aImdbData.imdb_stvm;
-          FIMDbBoomDataRecordRec.IMDbSTVReason := aImdbData.imdb_stvs;
-          TIMDbDataRec.IMDbBoomInfos.IMDbCountry := 'DE';
-
-          TIMDbDataRec.UpdatedTime := Now;
-
-          Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Update ReleaseDate Data: %s', [aReleaseName]));
-          TIMDbReleaseDatesRecordRec := TIMDbDataRec.IMDbReleaseInfos;
-          TIMDbReleaseDatesRecordRec.IMDbCountry := 'DE';
-          TIMDbReleaseDatesRecordRec.IMDbReleaseDate := Now;
-          TIMDbReleaseDatesRecordRec.IMDbReleaseDateExtraInfo := 'No Infos';
-
-          Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Update AlsoKnownAs Data: %s', [aReleaseName]));
-          TIMDbAlsoKnownAsRecordRec.IMDbData := TIMDbDataRec.AsTSQLRecord;
-          TIMDbAlsoKnownAsRecordRec.IMDbCountry := 'DE';
-          TIMDbAlsoKnownAsRecordRec.IMDbTitle := fCleanedMovieName;
-
-          Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Update AsTSQLRecord Data: %s', [aReleaseName]));
-          //TIMDbDataRec.IMDbAlsoKnownAsData := TIMDbAlsoKnownAsRecordRec.AsTSQLRecord;
-          TIMDbDataRec.IMDbReleaseInfos := TIMDbReleaseDatesRecordRec.AsTSQLRecord;
-          TIMDbDataRec.IMDbBoomInfos := FIMDbBoomDataRecordRec.AsTSQLRecord;
-          Debug(dpError, section, Format('[INFO] dbaddimdb_UpdateImdbData : Insert Row Data: %s', [aReleaseName]));
-
-          if ImdbDatabase.Update(FIMDbBoomDataRecordRec, 'IMDbCountry,IMDbScreens,IMDbLimited,IMDbWide,IMDbFestival,IMDbSTV,IMDbSTVReason')=false then
-          begin
-            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_UpdateImdbData : Error updating TIMDbBoomData data for Release: %s', [aReleaseName]));
-          end;
-          if ImdbDatabase.Update(TIMDbAlsoKnownAsRecordRec, 'IMDbCountry,IMDbTitle')=false then
-          begin
-            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_UpdateImdbData : Error updating TIMDbAlsoKnownAsRecord data for Release: %s', [aReleaseName]));
-          end;
-          if ImdbDatabase.Update(TIMDbReleaseDatesRecordRec, 'IMDbCountry,IMDbReleaseDate,IMDbReleaseDateExtraInfo')=false then
-          begin
-            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_UpdateImdbData : Error updating TIMDbReleaseDatesRecord data for Release: %s', [aReleaseName]));
-          end;
-          if ImdbDatabase.Update(TIMDbDataRec, 'IMDbID,IMDbTitle,IMDbTitleExtras,IMDbYear,IMDbCineyear,IMDbRating,IMDbVotes,IMDbLanguages,IMDbCountries,IMDbGenres,CreationTime,UpdatedTime')=false then
-          begin
-            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_UpdateImdbData : Error updating TIMDbData data for Release: %s - Error: %s', [aReleaseName, UTF8ToString(ImdbDatabase.LastErrorMessage)]));
-          end;
-        end;
-
-        end;
-        finally
-          //ClearObject(TIMDbReleaseDatesRecordRec);
-          //ClearObject(TIMDbAlsoKnownAsRecordRec);
-          //ClearObject(FIMDbBoomDataRecordRec);
-          //ClearObject(TIMDbDataRec);
-
-          //TIMDbReleaseDatesRecordRec.Free;
-          //TIMDbAlsoKnownAsRecordRec.Free;
-          //FIMDbBoomDataRecordRec.Free;
-          //TIMDbDataRec.Free;
-          //FreeAndNil(TIMDbReleaseDatesRecordRec);
-          //FreeAndNil(TIMDbAlsoKnownAsRecordRec);
-          //FreeAndNil(FIMDbBoomDataRecordRec);
-          //FreeAndNil(TIMDbDataRec);
-        end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_UpdateImdbData : Data for Release: %s - %s Error: %s!', [aReleaseName,aImdbData.imdb_id, e.Message]));
-            Exit;
-          end;
-      end;
-    Debug(dpError, section, Format('[Info] dbaddimdb_UpdateImdbData : Data for Release: %s successful updated in Database!', [aReleaseName]));
-End;
-
-procedure dbaddimdb_InsertOnlyAlsoKnownAs(const aReleaseName: String; aImdbData: TDbImdbData);
-var
-//    FIMDbID: String; //< IMDb title ID like tt12345
-//    FIMDbTitle: String; //< title from webpage
-//    FIMDbTitleExtras: String; //< extra info from title if available, e.g. TV* or VIDEO* stuff
-//    FIMDbYear: Integer; //< movie year
-//    FIMDbCineyear: Integer; //< cinema year (TODO: which value if not available?)
-//    FIMDbRating: Integer; //< rating (multiplied by 10)
-//    FIMDbVotes: Integer; //< votes
-//
-//    FIMDbScreens: Integer; //< screens
-//    FIMDbLimited: Boolean; //< @true if limited, @false otherwise
-//    FIMDbWide: Boolean; //< @true if wide, @false otherwise
-//    FIMDbFestival: Boolean; //< @true if aired on a festival, @false otherwise
-//    FIMDbSTV: Boolean; //< @true if STV Movie, @false otherwise
-//    FIMDbSTVReason: String; //< reason for STV status
-//
-//    FCreationTime: TDateTime; //< time when the data was fetched
-//
-//    FIMDbAlsoKnownAsData: TIMDbAlsoKnownAsRecord; //< AKA info from releaseinfo page
-//    // code has to select the appropriate country info depending on the release language of the release
-//    FIMDbReleaseInfos: TIMDbReleaseDatesRecord; //< all release dates information
-
-    TIMDbDataRec:   TIMDbData;
-    TIMDbAlsoKnownAsRecordRec, TIMDbAlsoKnownAsRecordRecNewName: TIMDbAlsoKnownAsRecord;
-    fCleanedMovieName : String;
-begin
-    try
-
-    fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
-
-    TIMDbAlsoKnownAsRecordRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
-        'IMDBData.IMDbId = ?', [], [aImdbData.imdb_id]);
-        Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Start Inserting Data: %s - %s', [fCleanedMovieName, TIMDbAlsoKnownAsRecordRec.ImdbData.IMDbID]));
-    while TIMDbAlsoKnownAsRecordRec.FillOne do
+    if (aImdbReleaseDateInfoList <> nil) then
     begin
-      try
-          TIMDbAlsoKnownAsRecordRecNewName := TIMDbAlsoKnownAsRecord.Create;
-          TIMDbDataRec := TIMDbAlsoKnownAsRecordRec.IMDbData;
-          TIMDbDataRec.UpdatedTime := Now;
-
-          Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Update AlsoKnownAs Data: %s', [aReleaseName]));
-          TIMDbAlsoKnownAsRecordRecNewName.IMDbData := TIMDbDataRec.AsTSQLRecord;
-          TIMDbAlsoKnownAsRecordRecNewName.IMDbCountry := 'DE';
-          TIMDbAlsoKnownAsRecordRecNewName.IMDbTitle := fCleanedMovieName;
-
-          Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Update AsTSQLRecord Data: %s', [aReleaseName]));
-          //TIMDbDataRec.IMDbAlsoKnownAsData := TIMDbAlsoKnownAsRecordRec.AsTSQLRecord;
-          Debug(dpError, section, Format('[INFO] dbaddimdb_InsertOnlyAlsoKnownAs : Insert Row Data: %s', [aReleaseName]));
-
-          if not TIMDbAlsoKnownAsRecordRecNewName.FillOne then
-          begin
-            if (ImdbDatabase.Add(TIMDbAlsoKnownAsRecordRecNewName,true)=0) then
-            begin
-              Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_InsertOnlyAlsoKnownAs : Error adding the data for Release: %s - %s - Error: %s!', [aReleaseName, aImdbData.imdb_id,UTF8ToString(ImdbDatabase.LastErrorMessage)]));
-            end;
-          end;
-          if ImdbDatabase.Update(TIMDbDataRec, 'UpdatedTime')=false then
-          begin
-            Debug(dpError, section, FORMAT('[EXCEPTION] dbaddimdb_InsertOnlyAlsoKnownAs : Error updating TIMDbData data for Release: %s', [aReleaseName]));
-          end;
-        finally
-          //ClearObject(TIMDbAlsoKnownAsRecordRec);
-          //ClearObject(TIMDbDataRec);
-          //TIMDbDataRec.Free;
-          //TIMDbAlsoKnownAsRecordRec.Free;
-          //FreeAndNil(TIMDbDataRec);
-        end;
-        end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_InsertOnlyAlsoKnownAs : Data for Release: %s - %s Error: %s!', [aReleaseName,aImdbData.imdb_id, e.Message]));
-            Exit;
-          end;
+      for fIMDbReleaseDateInfo in aImdbReleaseDateInfoList do
+      begin
+        fIMDbReleaseDatesRecordRec := TIMDbReleaseDatesRecord.Create;
+        fIMDbReleaseDatesRecordRec.IMDbCountry := fIMDbReleaseDateInfo.Country;
+        fIMDbReleaseDatesRecordRec.IMDbReleaseDate := fIMDbReleaseDateInfo.ReleaseDate;
+        fIMDbReleaseDatesRecordRec.IMDbReleaseDateExtraInfo := fIMDbReleaseDateInfo.ExtraInfo;
+        fIMDbReleaseDatesRecordRec.IMDbData := fIMDbDataRec.AsTSQLRecord;
+        ImdbDatabase.Add(fIMDbReleaseDatesRecordRec, True);
       end;
-   Debug(dpError, section, Format('[Info] dbaddimdb_InsertOnlyAlsoKnownAs : Data for Release: %s successful inserted in Database!', [aReleaseName]));
+    end;
+
+    if (aBOMCountryScreens <> nil) then
+    begin
+      for fBOMCountryScreens in aBOMCountryScreens do
+      begin
+        fIMDbBomDataRecordRec := TIMDbBomDataRecord.Create;
+        fIMDbBomDataRecordRec.IMDbCountry := fBOMCountryScreens.Key;
+        fIMDbBomDataRecordRec.IMDbScreens := fBOMCountryScreens.Value;
+        fIMDbBomDataRecordRec.IMDbData := fIMDbDataRec.AsTSQLRecord;
+        ImdbDatabase.Add(fIMDbBomDataRecordRec, True);
+      end;
+    end;
+  finally
+    fIMDbDataRec.Free;
+    //fIMDbReleaseDatesRecordRec.Free;
+    //fIMDbAlsoKnownAsRecordRec.Free;
+    //fIMDbBomDataRecordRec.Free;
+  end;
+
+  dbaddimdb_ProcessImdbData(aReleaseName, aImdbData);
 End;
 
 function GetImdbMovieData(const aReleaseName: String): TDbImdbData;
 var
-  fMovieDataRec: TIMDbAlsoKnownAsRecord;
-  fMovieImdbDataRec: TIMDbData;
+  fAlsoKnownDataRec: TIMDbAlsoKnownAsRecord;
+  fMovieImdbDataRec: TIMDbDataRecord;
   fImdbMovieData: TDbImdbData;
-  fCleanedMovieName: string;
-
+  fCleanedMovieName, fReleasenameCountry: string;
+  fRelease: TRelease;
+  fReleaseYear: integer;
 begin
-  result := nil;
+  Result := nil;
   fImdbMovieData := nil;
-  fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
+  fMovieImdbDataRec := nil;
+  fAlsoKnownDataRec := nil;
+  fRelease := nil;
 
-  fMovieDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
-  'IMDbAlsoKnownAsRecord.IMDbTitle = ?', [], [fCleanedMovieName]);
-
-  while fMovieDataRec.fillOne do
-  begin
-    fMovieImdbDataRec := TIMDbData.CreateAndFillPrepareJoined(ImdbDatabase,
-      'IMDbID = ?', [], [fMovieDataRec.Imdbdata.IMDbID]);
-  end;
   try
-    Result := GetTDbImdbDataFromRec(fMovieImdbDataRec);
+    fCleanedMovieName := getMovieNameWithoutSceneTags(aReleaseName);
+
+    // TODO: extract function to get the year from the release name so we don't have to create a TRelease at this place
+    fRelease := TRelease.Create(aReleaseName, 'IMDB', False);
+    fReleasenameCountry := getCountryFromReleaseName(aReleaseName, nil);
+    fReleaseYear := fRelease.year;
+    if (fReleaseYear = 0) then
+      fReleaseYear := SysUtils.CurrentYear;
+
+    if (fReleasenameCountry = '') then
+      fReleasenameCountry := '(original title)';
+
+    fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase,
+      'IMDbTitleCleaned = ? and IMDbYear = ?', [],
+      [fCleanedMovieName, fRelease.year]);
+    if not fMovieImdbDataRec.FillOne then
+    begin
+      fAlsoKnownDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
+        'IMDbAlsoKnownAsRecord.IMDbTitleCleaned = ? and IMDbAlsoKnownAsRecord.Country = ? and IMDbData.IMDbYear = ?',
+        [], [fCleanedMovieName, fReleasenameCountry, fReleaseYear]);
+
+      if fAlsoKnownDataRec.FillOne then
+        fMovieImdbDataRec := fAlsoKnownDataRec.IMDbData
+      else
+        Exit;
+    end;
+
+    Result := GetTDbImdbDataFromRec(fMovieImdbDataRec, aReleaseName);
   finally
-    fMovieDataRec.Free;
     fMovieImdbDataRec.Free;
+    //fAlsoKnownDataRec.Free;
+    fRelease.Free;
   end;
 end;
 
@@ -1198,7 +1216,7 @@ begin
   ImdbDBModel := CreateIMDBModel;
   try
     ImdbDatabase := CreateORMSQLite3DB(ImdbDBModel, fDBName, '');
-    Console_Addline('', Format('IMDb db loaded. %d Movies', [ImdbDatabase.TableRowCount(TIMDbData)]));
+    Console_Addline('', Format('IMDb db loaded. %d Movies', [ImdbDatabase.TableRowCount(TIMDbDataRecord)]));
   except
     on e: Exception do
     begin
@@ -1332,5 +1350,3 @@ begin
 end;
 
 end.
-
-

@@ -153,7 +153,7 @@ type
       @returns(@true if release is of that type, otherwise @false) }
     function HasThisMP3Type(const aType: String): boolean;
 
-    { Sets @link(FMP3Source) to given source if not already set. Will be set to value from first call if more than one source was detected (multiple calls to function). 
+    { Sets @link(FMP3Source) to given source if not already set. Will be set to value from first call if more than one source was detected (multiple calls to function).
       @param(aSource Detected source type) }
     procedure TrySetSource(const aSource: String);
   public
@@ -1447,7 +1447,8 @@ begin
   try
     pazo := FindPazoByName(section, rlsname);
 
-    if UpdateMovieInDbWithReleaseNameNeeded(rlsname) OR (NOT foundMovieAlreadyInDbWithReleaseName(rlsname)) then
+    imdbdata := GetImdbMovieData(pazo.rls.rlsname);
+    if (imdbdata = nil) or UpdateMovieInDbWithImdbDataNeeded(imdbdata) then
     begin
     // we have the nfo but update needed
       Debug(dpError, rsections, Format('[Info] [Kb.ReleaseInfo] Get or Update IMDB-Infos for ReleaseName: %s', [rlsname]));
@@ -1468,30 +1469,33 @@ begin
     end
     else
     begin
-  // we already have imdb infos
-      imdbdata := GetImdbMovieData(pazo.rls.rlsname);
-      irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!',[pazo.rls.rlsname]));
-      imdbdata.PostResults(pazo.rls.rlsname);
-      if pazo.rls is TIMDBRelease then
-      begin
-        ir := TIMDBRelease(pazo.rls);
-        ir.imdb_id := imdbdata.imdb_id;
-        ir.imdb_year := imdbdata.imdb_year;
-        ir.imdb_languages := imdbdata.imdb_languages;
-        ir.imdb_countries := imdbdata.imdb_countries;
-        ir.imdb_genres := imdbdata.imdb_genres;
-        ir.imdb_screens := imdbdata.imdb_screens;
-        ir.imdb_rating := imdbdata.imdb_rating;
-        ir.imdb_votes := imdbdata.imdb_votes;
-        ir.CineYear := imdbdata.imdb_cineyear;
-        ir.imdb_ldt := imdbdata.imdb_ldt;
-        ir.imdb_wide := imdbdata.imdb_wide;
-        ir.imdb_festival := imdbdata.imdb_festival;
-        ir.imdb_stvm := imdbdata.imdb_stvm;
-        ir.imdb_stvs := imdbdata.imdb_stvs;
-        ir.FLookupDone := True;
+      try
+        // we already have imdb infos
+        irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!', [pazo.rls.rlsname]));
+        imdbdata.PostResults(pazo.rls.rlsname);
+        if pazo.rls is TIMDBRelease then
+        begin
+          ir := TIMDBRelease(pazo.rls);
+          ir.imdb_id := imdbdata.imdb_id;
+          ir.imdb_year := imdbdata.imdb_year;
+          ir.imdb_languages := imdbdata.imdb_languages;
+          ir.imdb_countries := imdbdata.imdb_countries;
+          ir.imdb_genres := imdbdata.imdb_genres;
+          ir.imdb_screens := imdbdata.imdb_screens;
+          ir.imdb_rating := imdbdata.imdb_rating;
+          ir.imdb_votes := imdbdata.imdb_votes;
+          ir.CineYear := imdbdata.imdb_cineyear;
+          ir.imdb_ldt := imdbdata.imdb_ldt;
+          ir.imdb_wide := imdbdata.imdb_wide;
+          ir.imdb_festival := imdbdata.imdb_festival;
+          ir.imdb_stvm := imdbdata.imdb_stvm;
+          ir.imdb_stvs := imdbdata.imdb_stvs;
+          ir.FLookupDone := True;
+        end;
+        Result := True;
+      finally
+        imdbdata.Free;
       end;
-      Result := True;
     end;
   except
     on e: Exception do
@@ -1688,4 +1692,3 @@ begin
 end;
 
 end.
-
