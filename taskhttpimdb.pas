@@ -304,7 +304,12 @@ begin
     rr.Expression := '<td class="release-date.*?><a href="\/calendar\/\?region\=(.*?)\&.*?>(.*?)<\/a><\/td>[\s\n]*?' +
         '<td class="release-date.*?>(.*?)<\/td>[\s\n]*?<td class="release-date.*?>(.*?)<\/td>';
 
-    fFormatStringSettings := TFormatSettings.Create;
+{$IFDEF FPC}
+    fFormatStringSettings := DefaultFormatSettings;
+{$ELSE}
+    fFormatStringSettings := TFormatSettings.Create('en-US');
+{$ENDIF}
+
     fFormatStringSettings.ShortDateFormat := 'dd-MMMM-yyyy';
 
     if rr.Exec(aPageSource) then
