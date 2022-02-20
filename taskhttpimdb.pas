@@ -295,22 +295,16 @@ var
   fCountry: String;
   fReleaseDateString: String;
   fExtraInfo: String;
+  fStringHelper: String;
   fReleaseDate: TDateTime;
-  fFormatStringSettings: TFormatSettings;
+  fReleaseDateSplit: TArray<String>;
+  fReleaseDateMonth: integer;
 begin
   rr := TRegExpr.Create;
   try
     rr.ModifierI := True;
     rr.Expression := '<td class="release-date.*?><a href="\/calendar\/\?region\=(.*?)\&.*?>(.*?)<\/a><\/td>[\s\n]*?' +
         '<td class="release-date.*?>(.*?)<\/td>[\s\n]*?<td class="release-date.*?>(.*?)<\/td>';
-
-{$IFDEF FPC}
-    fFormatStringSettings := DefaultFormatSettings;
-{$ELSE}
-    fFormatStringSettings := TFormatSettings.Create('en-US');
-{$ENDIF}
-
-    fFormatStringSettings.ShortDateFormat := 'dd-MMMM-yyyy';
 
     if rr.Exec(aPageSource) then
     begin
@@ -321,19 +315,50 @@ begin
         fReleaseDateString := Trim(rr.Match[3]);
         fExtraInfo := Trim(rr.Match[4]);
 
-        //try to get a TDateTime from the date string of the web page
+        if ExcludeCountry(fCountry) then
+          Continue;
+
+        // try to get a TDateTime from the date string of the web page. Date from is coming like this: '30 September 2018'
         try
-          fReleaseDate := StrToDateTime(fReleaseDateString, fFormatStringSettings);
+          fReleaseDateSplit := fReleaseDateString.Split([' ']);
+
+          //ugly: try to parse the month part of the date, TODO: make the parse work with format string somehow?
+          fStringHelper := fReleaseDateSplit[1];
+          if (fStringHelper = 'January') then
+            fReleaseDateMonth := 1
+          else if (fStringHelper = 'February') then
+            fReleaseDateMonth := 2
+          else if (fStringHelper = 'March') then
+            fReleaseDateMonth := 3
+          else if (fStringHelper = 'April') then
+            fReleaseDateMonth := 4
+          else if (fStringHelper = 'May') then
+            fReleaseDateMonth := 5
+          else if (fStringHelper = 'June') then
+            fReleaseDateMonth := 6
+          else if (fStringHelper = 'July') then
+            fReleaseDateMonth := 7
+          else if (fStringHelper = 'August') then
+            fReleaseDateMonth := 8
+          else if (fStringHelper = 'September') then
+            fReleaseDateMonth := 9
+          else if (fStringHelper = 'October') then
+            fReleaseDateMonth := 10
+          else if (fStringHelper = 'November') then
+            fReleaseDateMonth := 11
+          else if (fStringHelper = 'December') then
+            fReleaseDateMonth := 12
+          else
+            raise Exception.Create('Unknown month: ' + fStringHelper);
+
+          fReleaseDate := EncodeDate(StrToInt(fReleaseDateSplit[2]), fReleaseDateMonth, StrToInt(fReleaseDateSplit[0]));
         except
           on e: Exception do
           begin
-            Debug(dpMessage, section, 'IMDB release date info: unable to parse as DateTime: ' + fReleaseDateString);
-            continue;
+            Debug(dpMessage, section, 'IMDB release date info: unable to parse as DateTime: ' + fReleaseDateString + ' (' + e.Message + ')');
+            Continue;
           end;
         end;
-
-        if ExcludeCountry(fCountry) then
-          Continue;
 
         aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fExtraInfo, fReleaseDate));
       until not rr.ExecNext;
