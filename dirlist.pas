@@ -787,11 +787,6 @@ begin
             end;
           end;
 
-          if (self.FStartedTime = 0) then
-          begin
-            self.FStartedTime := Now();
-          end;
-
           entries.Add(de);
 
           LastChanged := Now();
@@ -1615,6 +1610,11 @@ begin
   FFilenameLowerCase := LowerCase(filename);
   FExtension := ExtractFileExt(FFilenameLowerCase);
   cdno := 0;
+
+  if (dirlist.FStartedTime = 0) then
+  begin
+    dirlist.FStartedTime := Now();
+  end;
 end;
 
 destructor TDirListEntry.Destroy;
