@@ -716,6 +716,9 @@ var
 begin
   Result := nil;
   fImdbRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aIMDbId]);
+  fImdbRec.IMDbLanguages := TStringList.Create;
+  fImdbRec.IMDbcountries := TStringList.Create;
+  fImdbRec.IMDbGenres := TStringList.Create;
   try
     if fImdbRec.FillOne then
       Result := GetTDbImdbDataFromRec(fImdbRec, aReleaseName);
@@ -864,7 +867,7 @@ var
 begin
 
   try
-  fIMDbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aImdbData.imdb_id]);
+    fIMDbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'IMDbID = ?', [], [aImdbData.imdb_id]);
     fDoUpdate := fIMDbDataRec.FillOne;
 
     if not fDoUpdate then
@@ -1000,6 +1003,10 @@ begin
     fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase,
       'IMDbTitleCleaned = ? and IMDbYear = ?', [],
       [fCleanedMovieName, fRelease.year]);
+    fMovieImdbDataRec.FIMDbCountries := TStringList.Create;
+    fMovieImdbDataRec.FIMDbLanguages := TStringList.Create;
+    fMovieImdbDataRec.FIMDbGenres := TStringList.Create;
+
     if not fMovieImdbDataRec.FillOne then
     begin
       fAlsoKnownDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
@@ -1007,7 +1014,13 @@ begin
         [], [fCleanedMovieName, fReleasenameCountry, fReleaseYear]);
 
       if fAlsoKnownDataRec.FillOne then
-        fMovieImdbDataRec := fAlsoKnownDataRec.IMDbData
+      begin
+        fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'ID = ?', [], [fAlsoKnownDataRec.IMDbData.ID]);
+        fMovieImdbDataRec.FIMDbCountries := TStringList.Create;
+        fMovieImdbDataRec.FIMDbLanguages := TStringList.Create;
+        fMovieImdbDataRec.FIMDbGenres := TStringList.Create;
+        fMovieImdbDataRec.FillOne;
+      end
       else
         Exit;
     end;
