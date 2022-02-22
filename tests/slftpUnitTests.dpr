@@ -119,6 +119,7 @@ begin
   InitialPrecatcherSetup;
   IrcChannelSettingsInit;
   InitialKnownGroupsSetup;
+  InitialSkiplistSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

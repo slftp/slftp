@@ -19,12 +19,13 @@ type
     procedure AlreadyInDbWithImdbIDTest;
     procedure FindExistingMovieByOtherReleaseNameTest;
     procedure FindExistingMovieByOtherReleaseLanguageTest;
+    procedure ImdbDBToKbTest;
   end;
 
 implementation
 
 uses
-  SysUtils, StrUtils, dbaddimdb;
+  SysUtils, StrUtils, dbaddimdb, kb.releaseinfo, pazo, kb;
 
 { TTestHTTP }
 
@@ -183,6 +184,45 @@ begin
   //we should be able to find the entry with both release names
   CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName1), 'Could not find the entry with release name ' + fRlsName1);
   CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName2), 'Could not find the entry with release name ' + fRlsName2);
+end;
+
+procedure TTestIMDB.ImdbDBToKbTest;
+var
+  fRlsName, fSection, fImdbID: String;
+  fImdbData: TDbImdbData;
+  fSectionHandler: TCRelease;
+  fRelease: TRelease;
+  fImdbRelease: TIMDBRelease;
+  fPazo: TPazo;
+begin
+  //first create TIMDBRelease, pazo and KB
+  fRlsName := 'Movie.Name.For.IMDB.to.KB.Test.2022.2160p.WEB.x264-GRP';
+  fSection := 'IMDBTest';
+  fImdbID := 'tt3932245';
+  fSectionHandler := TIMDBRelease;
+  fRelease := fSectionHandler.Create(fRlsName, fSection);
+  fPazo := PazoAdd(fRelease);
+
+  CheckEquals(True, fPazo.rls is TIMDBRelease, 'Release must be a TIMDBRelease');
+
+  fImdbRelease := TIMDBRelease(fPazo.rls);
+
+  kb_list.BeginUpdate;
+  try
+    kb_list.AddObject(fSection + '-' + fRlsName, fPazo);
+  finally
+    kb_list.EndUpdate;
+  end;
+
+  // insert IMDB the item into the DB
+  fImdbData := TDbImdbData.Create(fImdbID);
+  fImdbData.imdb_id := fImdbID;
+  fImdbData.imdb_year := 2022;
+  fImdbData.imdb_languages.CommaText := 'English,French';
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil);
+
+  //check if the countries have been set at the TIMDBRelease
+  CheckEqualsString(fImdbRelease.imdb_languages.CommaText, fImdbData.imdb_languages.CommaText);
 end;
 
 initialization

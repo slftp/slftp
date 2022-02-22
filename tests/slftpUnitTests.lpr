@@ -92,6 +92,7 @@ begin
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
   InitialKnownGroupsSetup;
+  InitialSkiplistSetup;
 
 
   // run all registered tests
