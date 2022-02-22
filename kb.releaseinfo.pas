@@ -1478,9 +1478,9 @@ begin
           ir := TIMDBRelease(pazo.rls);
           ir.imdb_id := imdbdata.imdb_id;
           ir.imdb_year := imdbdata.imdb_year;
-          ir.imdb_languages := imdbdata.imdb_languages;
-          ir.imdb_countries := imdbdata.imdb_countries;
-          ir.imdb_genres := imdbdata.imdb_genres;
+          ir.imdb_languages.CommaText := imdbdata.imdb_languages.CommaText;
+          ir.imdb_countries.CommaText := imdbdata.imdb_countries.CommaText;
+          ir.imdb_genres.CommaText := imdbdata.imdb_genres.CommaText;
           ir.imdb_screens := imdbdata.imdb_screens;
           ir.imdb_rating := imdbdata.imdb_rating;
           ir.imdb_votes := imdbdata.imdb_votes;

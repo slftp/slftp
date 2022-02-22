@@ -503,9 +503,9 @@ begin
     fImdbMovieData.imdb_year := aImdbRec.IMDbYear;
     fImdbMovieData.imdb_origtitle := UTF8ToString(aImdbRec.IMDbTitle);
 
-    fImdbMovieData.imdb_languages := aImdbRec.IMDbLanguages;
-    fImdbMovieData.imdb_countries := aImdbRec.IMDbCountries;
-    fImdbMovieData.imdb_genres := aImdbRec.IMDbGenres;
+    fImdbMovieData.imdb_languages.CommaText := aImdbRec.IMDbLanguages.CommaText;
+    fImdbMovieData.imdb_countries.CommaText := aImdbRec.IMDbCountries.CommaText;
+    fImdbMovieData.imdb_genres.CommaText := aImdbRec.IMDbGenres.CommaText;
 
     fImdbMovieData.imdb_rating := aImdbRec.IMDbRating;
     fImdbMovieData.imdb_votes := aImdbRec.IMDbVotes;
@@ -884,9 +884,13 @@ begin
     fIMDbDataRec.IMDbRating := aImdbData.imdb_rating;
     fIMDbDataRec.IMDbVotes := aImdbData.imdb_votes;
 
-    fIMDbDataRec.IMDbLanguages := aImdbData.imdb_languages;
-    fIMDbDataRec.IMDbCountries := aImdbData.imdb_countries;
-    fIMDbDataRec.IMDbGenres := aImdbData.imdb_genres;
+    fIMDbDataRec.IMDbLanguages := TStringList.Create;
+    fIMDbDataRec.IMDbCountries := TStringList.Create;
+    fIMDbDataRec.IMDbGenres := TStringList.Create;
+
+    fIMDbDataRec.IMDbLanguages.CommaText := aImdbData.imdb_languages.CommaText;
+    fIMDbDataRec.IMDbCountries.CommaText := aImdbData.imdb_countries.CommaText;
+    fIMDbDataRec.IMDbGenres.CommaText := aImdbData.imdb_genres.CommaText;
 
     fIMDbDataRec.UpdatedTime := now;
 
