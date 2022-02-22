@@ -587,7 +587,7 @@ begin
               if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
               begin
                 fIsSTV := True;
-                fStatusReasonList.Add(Format('STV in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, FIMDbReleaseDate]));
+                fStatusReasonList.Add(Format('STV in %s due to %s on ', [fReleasenameCountry, fImdbRlsdateExtraInfo]) + FormatDateTime('dddddd', FIMDbReleaseDate));
                 Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
                 break;
               end;
@@ -616,7 +616,7 @@ begin
               if fRegExpr.Exec(fImdbRlsdateExtraInfo) then
               begin
                 fIsFestival := True;
-                fStatusReasonList.Add(Format('Festival in %s due to %s on %s', [fReleasenameCountry, fImdbRlsdateExtraInfo, FIMDbReleaseDate]));
+                fStatusReasonList.Add(Format('Festival in %s due to %s on ', [fReleasenameCountry, fImdbRlsdateExtraInfo]) + FormatDateTime('dddddd', FIMDbReleaseDate));
                 Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
                 break;
               end;
@@ -641,7 +641,7 @@ begin
             if fImdbRlsdateExtraInfo = '' then
             begin
               FIMDbCineyear := DateUtils.YearOf(FIMDbReleaseDate);
-              fStatusReasonList.Add(Format('Cine year for %s is %d taken from %s', [fReleasenameCountry, FIMDbCineyear, FIMDbReleaseDate]));
+              fStatusReasonList.Add(Format('Cine year for %s is %d taken from ', [fReleasenameCountry, FIMDbCineyear]) + FormatDateTime('dddddd', FIMDbReleaseDate));
               Debug(dpSpam, section, Format('Status from Releasepage: %s', [fStatusReasonList.Last]));
               break;
             end;

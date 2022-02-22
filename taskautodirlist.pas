@@ -207,12 +207,14 @@ begin
       p := PazoAdd(rls);
       kb_list.AddObject('REQUEST-' + site1 + '-' + releasenametofind, p);
 
-      p.AddSite(site1, maindir);
+      ps := p.AddSite(site1, maindir);
+      ps.status := rssAllowed;
       for i := 0 to x.Count - 1 do
       begin
         ss := x.Names[i];
         sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
+        ps.status := rssRealPre;
         ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
       end;
 
@@ -450,46 +452,48 @@ begin
 
   while (true) do
   begin
-    if p.readyerror then
-    begin
-      irc_Addadmin('readyWithError %s', [p.errorreason]);
-      Break;
-    end;
-
-    (*
-      prefer completion folders over filecount comparison as that is more accurate
-      if the target site does not have completion folders due to missing dirscript
-      in the requests folder we fall back to comparing the filecount of all
-      (sub-)dirs and if those are equal we set CachedCompleteResult on the dirlist to
-      true to indicate the dirlist task can finish because the release is complete
-    *)
-    if config.ReadBool(rsections, 'compare_files_for_reqfilled_fallback', True)
-      and ((TPazoSite(p.PazoSitesList[0]).dirlist.CompleteDirTag = '')
-      and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0)
-      and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
+    if p.ready or p.readyerror then
     begin
 
-      //if there is only 1 file and that file is a NFO, the 'Complete' function will return true if the release type allows it (dirfix, nfofix, ...)
-      //badly spread releases or incomplete archives containing only the NFO would lead to a false reqfilled cmd with only the NFO filled
-      if not ((TPazoSite(p.PazoSitesList[0]).dirlist.done = 1) and TPazoSite(p.PazoSitesList[0]).dirlist.HasNFO) then
+      (*
+        prefer completion folders over filecount comparison as that is more accurate
+        if the target site does not have completion folders due to missing dirscript
+        in the requests folder we fall back to comparing the filecount of all
+        (sub-)dirs and if those are equal we set CachedCompleteResult on the dirlist to
+        true to indicate the dirlist task can finish because the release is complete
+      *)
+      if config.ReadBool(rsections, 'compare_files_for_reqfilled_fallback', True)
+        and ((TPazoSite(p.PazoSitesList[0]).dirlist.CompleteDirTag = '')
+        and (TPazoSite(p.PazoSitesList[1]).dirlist.done > 0)
+        and (TPazoSite(p.PazoSitesList[0]).dirlist.done = TPazoSite(p.PazoSitesList[1]).dirlist.done)) then
       begin
-        TPazoSite(p.PazoSitesList[0]).dirlist.CachedCompleteResult := True;
-      end;
-    end;
 
-    if ((p.ready) and (TPazoSite(p.PazoSitesList[0]).dirlist.Complete)) then
-    begin
-      reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
-      irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, reqfill_delay]));
-      rt := TRawTask.Create('', '', TPazoSite(p.PazoSitesList[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
-      rt.startat := IncSecond(now, reqfill_delay);
-      try
-        AddTask(rt);
-      except
-        on e: Exception do
+        //if there is only 1 file and that file is a NFO, the 'Complete' function will return true if the release type allows it (dirfix, nfofix, ...)
+        //badly spread releases or incomplete archives containing only the NFO would lead to a false reqfilled cmd with only the NFO filled
+        if not ((TPazoSite(p.PazoSitesList[0]).dirlist.done = 1) and TPazoSite(p.PazoSitesList[0]).dirlist.HasNFO) then
         begin
-          Debug(dpError, rsections, Format('[EXCEPTION] TReqFillerThread.Execute AddTask: %s', [e.Message]));
+          TPazoSite(p.PazoSitesList[0]).dirlist.CachedCompleteResult := True;
         end;
+      end;
+
+      if (TPazoSite(p.PazoSitesList[0]).dirlist.Complete) then
+      begin
+        reqfill_delay := config.ReadInteger(rsections, 'reqfill_delay', 60);
+        irc_Addadmin(Format('<c8>[REQUEST]</c> Request for %s on %s is ready! Reqfill command will be executed in %ds', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, reqfill_delay]));
+        rt := TRawTask.Create('', '', TPazoSite(p.PazoSitesList[0]).Name, secdir, 'SITE REQFILLED ' + rlsname);
+        rt.startat := IncSecond(now, reqfill_delay);
+        try
+          AddTask(rt);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, rsections, Format('[EXCEPTION] TReqFillerThread.Execute AddTask: %s', [e.Message]));
+          end;
+        end;
+      end
+      else
+      begin
+        irc_Addadmin(Format('<c8>[REQUEST]</c> Request %s on %s ended without being completed (%s)', [p.rls.rlsname, TPazoSite(p.PazoSitesList[0]).Name, p.errorreason]));
       end;
       exit;
     end;
