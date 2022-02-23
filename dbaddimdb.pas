@@ -389,6 +389,7 @@ begin
   // remove scene delimiters
   Result := Result.Replace('.', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
   Result := Result.Replace('_', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
+  Result := Result.Replace('''', '', [rfReplaceAll, SysUtils.rfIgnoreCase]);
   // change special characters
   Result := Result.Replace('ÿ', 'y', [rfReplaceAll, SysUtils.rfIgnoreCase]);
   Result := Result.Replace('ü', 'ue', [rfReplaceAll, SysUtils.rfIgnoreCase]);
