@@ -34,7 +34,7 @@ type
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
-    FSkipListGenerated: Boolean;  //< @true if the skiplist has already been applied to this dirlistentry
+    FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
   public
     dirlist: TDirList;
     justadded: Boolean;
@@ -42,7 +42,7 @@ type
     subdirlist: TDirList;
     filename: String; //< filename
     filesize: Int64; //< filesize
-    skiplisted: Boolean;
+    skiplisted: Boolean; //< @true if the this entity is skiplisted. It will not be transferred.
     cdno: Integer;
     timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
 
@@ -181,10 +181,12 @@ type
     function IsValidDirnameCached(const aDirName: string): boolean;
     { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for files and at which position.
       If no cached value is available, the value is being calculated and then added to the cache
+      @param(aFileName The file name to match.)
       @returns(Result from MatchFile function of the skiplist.) }
     function MatchFileCached(const aFileName: string): integer;
     { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for directories and at which position.
       If no cached value is available, the value is being calculated and then added to the cache
+      @param(aDirName The dir name to match.)
       @returns(Result from MatchFile function of the skiplist.) }
     function MatchFileDirectoryCached(const aDirName: string): integer;
 
@@ -1601,7 +1603,7 @@ begin
   self.filename := filename;
   self.FRacedByMe := False;
   self.skiplisted := False;
-  self.FSkipListGenerated := False;
+  self.FSkipListAlreadyProcessed := False;
   self.IsOnSite := False;
   self.FIsBeingUploaded := False;
   self.error := False;
@@ -1689,9 +1691,9 @@ var
 begin
   if dirlist.skiplist = nil then exit;
 
-  if ( not FSkipListGenerated ) then
+  if ( not FSkipListAlreadyProcessed ) then
   begin
-    FSkipListGenerated := True;
+    FSkipListAlreadyProcessed := True;
 
     if dirlist.FullPath.EndsWith('/', True) then
       fDirPathHelper := dirlist.FullPath
