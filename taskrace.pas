@@ -332,7 +332,7 @@ begin
               on e: Exception do
                 Debug(dpError, c_section, '[EXCEPTION] (dirlist no such directory handling): %s', [e.Message]);
             end;
-            if (d = nil) Or d.need_mkdir then
+            if (d = nil) Or (d.need_mkdir and not d.error) then
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
@@ -352,7 +352,7 @@ begin
                   exit;
                 end;
 
-                if not s.Cwd(fAbsoluteDir) then
+                if not s.Cwd(fAbsoluteDir, True) then
                 begin
                   irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dir ' + fAbsoluteDir + ' on ' + site1 + ' does not exist']));
                   if (dir = '') then
@@ -504,7 +504,7 @@ begin
   begin
 
     //check if we should give up with empty/incomplete/long release
-    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) ) then
+    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND not d.DirlistGaveUp ) then
     begin
       secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
 
@@ -514,7 +514,7 @@ begin
         begin
           irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        ps1.dirlistgaveup := True;
+        d.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
       end;
 
@@ -524,7 +524,7 @@ begin
         begin
           irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        ps1.dirlistgaveup := True;
+        d.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
       end;
 
@@ -538,7 +538,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
         end;
       end
@@ -552,7 +552,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, config.ReadInteger(c_section, 'newdir_max_created', 600)]));
         end;
 
@@ -562,7 +562,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
         end;
       end;
@@ -573,7 +573,7 @@ begin
 
   // check if need more dirlist
   itwasadded := False;
-  if (not ps1.dirlistgaveup) then
+  if (d <> nil) and not d.dirlistgaveup and not d.error then
   begin
     // check if still incomplete
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
@@ -609,33 +609,23 @@ begin
             Continue;
           if (ps.dirlistgaveup) then
             Continue;
+          if (ps.dirlist = nil) then
+            Continue;
+          if (ps.dirlist.error) then
+            Continue;
+          if not (ps.status in [rssAllowed]) then
+            Continue;
+          if ps.dirlist.Complete then
+            Continue;
 
-          if ((is_pre) and (ps.status in [rssAllowed]) and (ps.dirlist <> nil) and
-            (not ps.dirlist.Complete) and (not ps.dirlist.error)) then
+          if (dir <> '') then
           begin
-            // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
-
-            try
-              AddTask(r);
-              AddTask(r_dst);
-              itwasadded := True;
-              Break;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, c_section,
-                  Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
-              end;
-            end;
+            d := ps.dirlist.FindDirlist(dir);
+            if (d <> nil) and (d.error or d.Complete) then
+              Continue;
           end;
 
-          if ((ps.status in [rssAllowed]) and (ps.dirlist <> nil) and
-            (not ps.dirlist.Complete) and (ps.dirlist.entries.Count > 0) and
-            (not ps.dirlist.error)) then
+          if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
@@ -657,7 +647,11 @@ begin
             end;
           end;
         except
-          Continue;
+          on e: Exception do
+          begin
+            Debug(dpError, c_section,
+              Format('[EXCEPTION] TPazoDirlistTask CheckDestinations: %s', [e.Message]));
+          end;
         end;
       end;
     end;
@@ -1050,7 +1044,7 @@ begin
     if (failure) then
     begin
       fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
-      if not s.Cwd(fulldir) then
+      if not s.Cwd(fulldir, True) then
       begin
         irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
         ps1.MkdirError(dir);
