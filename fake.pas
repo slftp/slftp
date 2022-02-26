@@ -250,47 +250,47 @@ var
   ii, i, j: Integer;
   short: Integer;
 begin
-  r.fake := True;
+  r.FIsFake := True;
 
   if length(r.rlsname) < f.fake_min_release_length then
   begin
-    r.fakereason := Format('Too short rlsname. length rlsname %d < fake_min_release_length %d', [length(r.rlsname), f.fake_min_release_length]);
+    r.FFakereason := Format('Too short rlsname. length rlsname %d < fake_min_release_length %d', [length(r.rlsname), f.fake_min_release_length]);
     exit;
   end;
 
   if (Lowercase(Copy(r.rlsname,1,3)) = 'mp3') then
   begin
-    r.fakereason := 'rlsname begins with mp3, better stop here.';
+    r.FFakereason := 'rlsname begins with mp3, better stop here.';
     exit;
   end;
 
-  if (r.vowels >= f.fake_many_vocal) then
+  if (r.FNumberOfVowels >= f.fake_many_vocal) then
   begin
-    r.fakereason := Format('Many vowels/vocal/consonant %d >= fake_many_vocal %d', [r.vowels, f.fake_many_vocal]);
+    r.FFakereason := Format('Many vowels/vocal/consonant %d >= fake_many_vocal %d', [r.FNumberOfVowels, f.fake_many_vocal]);
     exit;
   end;
 
-  if (r.number_of_chars <= f.fake_few_different_chars) then
+  if (r.FNumberOfDifferentChars <= f.fake_few_different_chars) then
   begin
-    r.fakereason := Format('Few different chars %d <= fake_few_different_chars %d', [r.number_of_chars, f.fake_few_different_chars]);
+    r.FFakereason := Format('Few different chars %d <= fake_few_different_chars %d', [r.FNumberOfDifferentChars, f.fake_few_different_chars]);
     exit;
   end;
 
-  if (r.number_of_chars >= f.fake_many_different_chars) then
+  if (r.FNumberOfDifferentChars >= f.fake_many_different_chars) then
   begin
-    r.fakereason := Format('Many different chars %d >= fake_many_different_chars %d', [r.number_of_chars, f.fake_many_different_chars]);
+    r.FFakereason := Format('Many different chars %d >= fake_many_different_chars %d', [r.FNumberOfDifferentChars, f.fake_many_different_chars]);
     exit;
   end;
 
-  if (r.dots >= f.fake_many_dots) then
+  if (r.FNumberOfDots >= f.fake_many_dots) then
   begin
-    r.fakereason := Format('Many dots %d >= fake_many_dots %d', [r.dots, f.fake_many_dots]);
+    r.FFakereason := Format('Many dots %d >= fake_many_dots %d', [r.FNumberOfDots, f.fake_many_dots]);
     exit;
   end;
 
   if (r.groupname = '') then
   begin
-    r.fakereason := 'Invalid (empty!) groupname.';
+    r.FFakereason := 'Invalid (empty!) groupname.';
     exit;
   end;
 
@@ -305,7 +305,7 @@ begin
 
   if short >= f.fake_many_short_words_count then
   begin
-    r.fakereason := Format('Many short words %d >= fake_many_short_words_count %d', [short, f.fake_many_short_words_count]);
+    r.FFakereason := Format('Many short words %d >= fake_many_short_words_count %d', [short, f.fake_many_short_words_count]);
     exit;
   end;
 
@@ -330,13 +330,13 @@ begin
     begin
       if lowercase(f.fake_banned_words[i]) = lowercase(r.words[ii]) then
       begin
-        r.fakereason := Format('Banned word: %s', [f.fake_banned_words[i]]);
+        r.FFakereason := Format('Banned word: %s', [f.fake_banned_words[i]]);
         exit;
       end;
 
       if lowercase(f.fake_banned_words[i]) = ReverseString(lowercase(r.words[ii])) then
       begin
-        r.fakereason := Format('Banned word: %s', [f.fake_banned_words[i]]);
+        r.FFakereason := Format('Banned word: %s', [f.fake_banned_words[i]]);
         exit;
       end;
     end;
@@ -353,7 +353,7 @@ begin
 
         if ((0 <> Pos(r.words[i][j]+r.words[i][j]+r.words[i][j], r.words[i])) and (-1 = kb_sections.IndexOf(r.words[i]))) then
         begin
-          r.fakereason:= '3 same chars in a word';
+          r.FFakereason:= '3 same chars in a word';
           exit;
         end;
 
@@ -361,7 +361,7 @@ begin
     end;
   end;
 
-  r.fake := False;
+  r.FIsFake := False;
 end;
 
 procedure FakeCheckMP3(r: TMP3Release; f: TFakeSettings);
@@ -370,7 +370,7 @@ var
   johetbetu, johetszam: Boolean;
   s: String;
 begin
-  r.fake := True;
+  r.FIsFake := True;
 
   // words.Count - 1 is the groupname -> ignore it
   for i := 0 to r.words.Count - 2 do
@@ -386,7 +386,7 @@ begin
       s := LowerCase(Copy(r.words[i], k-1,2));
       if ((-1 = StrToIntDef(s, -1)) and (not ((s = 'th') or (s = 'rd') or (s  = 'nd')))) then
       begin
-        r.fakereason := Format('Number in word: %s', [r.words[i]]);
+        r.FFakereason := Format('Number in word: %s', [r.words[i]]);
         exit;
       end;
     end;
@@ -405,7 +405,7 @@ begin
             johetbetu := False
           else
           begin
-            r.fakereason := Format('Number in word: %s', [r.words[i]]);
+            r.FFakereason := Format('Number in word: %s', [r.words[i]]);
             exit;
           end;
         end
@@ -413,7 +413,7 @@ begin
         begin
           if not johetbetu then
           begin
-            r.fakereason := Format('Number in word: %s', [r.words[i]]);
+            r.FFakereason := Format('Number in word: %s', [r.words[i]]);
             exit;
           end;
         end;
@@ -421,7 +421,7 @@ begin
     end;
   end;
 
-  r.fake := False;
+  r.FIsFake := False;
 end;
 
 
@@ -432,13 +432,13 @@ var
 begin
 
   try
-    r.fake := False;
+    r.FIsFake := False;
 
     if TFakeSettings(fakes.Objects[0]).enabled then
       FakeCheckI(r, TFakeSettings(fakes.Objects[0])); // general/global fake check
 
     // general/global check is not fake, now we check for section fake rules if exist
-    if not r.fake then
+    if not r.FIsFake then
     begin
       i := fakes.IndexOf(r.section);
 
@@ -451,7 +451,7 @@ begin
           FakeCheckI(r, fs);  // section relating checking of common fake parts
 
           // now we come to additional section checks
-          if not r.fake then
+          if not r.FIsFake then
           begin
             if r is TMP3Release then
               FakeCheckMP3(TMP3Release(r), fs); // mp3 relating fake checking
