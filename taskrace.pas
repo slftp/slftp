@@ -1434,7 +1434,7 @@ begin
   begin
     if not sdst.Send('PRET STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
       goto TryAgain;
-    if not sdst.Read('PRET STOR') then
+    if not sdst.Read('PRET STOR', True, True, 0, 5000) then
       goto TryAgain;
 
 
@@ -1741,7 +1741,7 @@ begin
       goto TryAgain;
   end;
 
-  if not sdst.Read('STOR') then
+  if not sdst.Read('STOR', True, True, 0, 5000) then
   begin
     sdst.Quit;
     if fNeedsImmediateRETR then
