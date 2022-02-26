@@ -143,8 +143,15 @@ type
       @param(aFilename Filename)
       @returns(On successful parsing seconds from MTDM response, otherwise 0) }
     function MdtmSeconds(const aFilename: String): integer;
-    function Read(read_cmd: String = ''): boolean; overload;
-    function Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean; overload;
+    function Read(const read_cmd: String = ''): boolean; overload;
+    { Read FTP response
+      @param(read_cmd Name of the command to read the response to)
+      @param(raiseontimeout Raise error (log to ERROR chan) on timeout)
+      @param(raiseonclose Raise error (log to ERROR chan) on on close)
+      @param(timeout Timeout in ms)
+      @param(aMaxNumReads Max reads (lines))
+      @returns(@true if successful, otherwise @false) }
+    function Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean; overload;
     function Send(const s: String): boolean; overload;
     function Send(const s: String; const Args: array of const): boolean; overload;
     function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
@@ -1875,7 +1882,7 @@ begin
   event.SetEvent;
 end;
 
-function TSiteSlot.Read(read_cmd: String = ''): boolean;
+function TSiteSlot.Read(const read_cmd: String = ''): boolean;
 begin
   try
     Result := Read(read_cmd, True, True, 0);
@@ -1891,7 +1898,7 @@ begin
   end;
 end;
 
-function TSiteSlot.Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean;
+function TSiteSlot.Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean;
 label
   ujra;
 var
@@ -1910,7 +1917,7 @@ begin
 
   ujra:
   Inc(numreads);
-  if numreads > 500 then
+  if numreads > aMaxNumReads then
   begin
     Debug(dpError, section, Format('[ERROR] TSiteSlot.Read numreads', []));
     lastResponse := '';
@@ -2257,7 +2264,9 @@ begin
       exit;
     end;
 
-    if not Read('Dirlist') then
+    //allow up to 50000 items for dirlist (default is 500). i've seen releases with more that 500 files and
+    //autodirlist / autoindex might have more directories
+    if not Read('Dirlist', True, True, 0, 50000) then
     begin
       Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
       exit;
@@ -3296,21 +3305,29 @@ var
   t: TAutoIndexTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoIndexTask) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
       begin
-        t := TAutoIndexTask(tasks[i]);
-        if (t.site1 = Name) then
+      try
+        if (tasks[i] is TAutoIndexTask) then
         begin
-          Result := t;
-          exit;
+          t := TAutoIndexTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoIndex: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3320,21 +3337,29 @@ var
   t: TAutoDirlistTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoDirlistTask) then
-      begin
-        t := TAutoDirlistTask(tasks[i]);
-        if (t.site1 = Name) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TAutoDirlistTask) then
         begin
-          Result := t;
-          exit;
+          t := TAutoDirlistTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoDirlist: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3344,21 +3369,29 @@ var
   t: TAutoNukeTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoNukeTask) then
-      begin
-        t := TAutoNukeTask(tasks[i]);
-        if (t.site1 = Name) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TAutoNukeTask) then
         begin
-          Result := t;
-          exit;
+          t := TAutoNukeTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoNuke: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3368,21 +3401,29 @@ var
   t: TLoginTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TLoginTask) then
-      begin
-        t := TLoginTask(tasks[i]);
-        if (t.site1 = Name) and (t.readd) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TLoginTask) then
         begin
-          Result := t;
-          exit;
+          t := TLoginTask(tasks[i]);
+          if (t.site1 = Name) and (t.readd) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoBnctest: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3392,21 +3433,29 @@ var
   t: TRulesTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TRulesTask) then
-      begin
-        t := TRulesTask(tasks[i]);
-        if (t.site1 = Name) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TRulesTask) then
         begin
-          Result := t;
-          exit;
+          t := TRulesTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoRules: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
