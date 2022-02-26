@@ -98,6 +98,7 @@ type
     FIsSpeedTest: Boolean; //< @true if task is a speedtest, @false otherwise
     FIsAutoIndex: Boolean; //< @true if task was created by autoindexer, @false otherwise
     FIsFromIrc: Boolean; //< @true if task was created by an IRC command (e.g. !dirlist), @false otherwise
+    FDirlistGaveUp: Boolean; //< @true if dirlisting has been given up for this dir
 
     { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
       @returns(@true if determined as COMPLETE, @false otherwise) }
@@ -195,6 +196,7 @@ type
     property StartedTime: TDateTime read FStartedTime;
     property CompletedTime: TDateTime read FCompletedTime;
     property FullPath: String read FFullPath write SetFullPath;
+    property DirlistGaveUp: boolean read FDirlistGaveUp write FDirlistGaveUp;
   end;
 
 { Just a helper function to initialize image_files_priority and video_files_priority }
