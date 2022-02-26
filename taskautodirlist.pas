@@ -108,12 +108,12 @@ begin
       //do a fake check when using site search to make sure we don't do shit like transfering whole sections
       try
         rls := TRelease.Create(releasenametofind, 'FAKECHECK', True, 0);
-        if rls.fake
+        if rls.FIsFake
           //we don't care about these fake reasons. If the site search finds it, it's OK.
-          and not LowerCase(rls.fakereason).Contains('many')
-          and not LowerCase(rls.fakereason).Contains('banned')
-          and not LowerCase(rls.fakereason).Contains('in a word')
-          and not LowerCase(rls.fakereason).Contains('in word') then
+          and not LowerCase(rls.FFakereason).Contains('many')
+          and not LowerCase(rls.FFakereason).Contains('banned')
+          and not LowerCase(rls.FFakereason).Contains('in a word')
+          and not LowerCase(rls.FFakereason).Contains('in word') then
         begin
           Debug(dpSpam, rsections, Format('[REQFILLER] Rls detected as fake, don''t fill: %s', [releasenametofind]));
           rls.Free;
