@@ -40,28 +40,24 @@ type
     aktualizalasfailed: boolean;
 
     words: TStringList; //< list of all words which occur in @link(rlsname), firstly removes () and then replaces .-_ with whitespace
-    disks: integer;
-    kb_event: TKBEventType;
+    disks: integer; //< number of disks from rls name e.g. Foobar.2008.NTSC.3DiSC.MDVDR-GRP
+    kb_event: TKBEventType; //< the KB event type from which the rls was created
     language: String; //< contains the language string which is detected from @link(rlsname)
 
-    legnagyobbcd: integer;
-    sample: boolean;
-    covers: boolean;
-    subs: boolean;
 
-    fake: boolean;
-    fakereason: String;
+    FIsFake: boolean; //< true, if the release name has been detected as fake
+    FFakereason: String; //< if this rls has been detected as fake, this field contains the reason for it
 
     PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
 
     // for fake checking
-    dots: integer; //< amount of dots ('.') in @link(rlsname)
-    number_of_chars: integer;
-    vowels: integer; //< amount of vowels [aeiouAEIOU] in @link(rlsname)
+    FNumberOfDots: integer; //< amount of dots ('.') in @link(rlsname)
+    FNumberOfDifferentChars: integer; //< number of different characters in the release name
+    FNumberOfVowels: integer; //< amount of vowels [aeiouAEIOU] in @link(rlsname)
 
-    year: integer;
+    year: integer; //< the year parsed from the release name
 
-    knowngroup: TKnownGroup;
+    knowngroup: TKnownGroup; //< value indicating whether this rls group is in slftp.knowngroups file. possible values: TKnownGroup = (grp_known, grp_unknown, grp_notconfigured)
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
@@ -83,6 +79,9 @@ type
     { Get default section(s) this class is used for as comma separated list
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; virtual; abstract;
+
+    { Gets a value indicating whether there is a SectionHandler for the given section (e.g. TIMDBRelease, TTVRelease, ...)
+      @returns(True, if there is a section handler for the given section) }
     class function SectionAccepted(const section: String): boolean;
 
     property CurrentYear: Integer read FCurrentYear;
@@ -284,11 +283,11 @@ type
     currentseason: boolean;
     currentepisode: boolean;
     currentair: boolean;
-    daily: boolean;
+    daily: boolean; // < true, if the show is aired more than on one day a week
     showid: String; // aka TVMaze ID
     thetvdbid: String;
     tvrageid: String;
-    tvtag: String;
+    tvtag: String; //< contains the tv tag of the release name (DVDRip HDTV HDTVRip ...)
     tvlanguage: String;
     tvrating: integer; //< tv rating value (max score is 100, min score is 0)
 
@@ -588,8 +587,8 @@ begin
     if disks <> 1 then
       Result := Result + Format('Disks: %d', [disks]) + #13#10;
 
-    if fake then
-      Result := Result + Format('Fake: %s', [fakereason]) + #13#10;
+    if FIsFake then
+      Result := Result + Format('Fake: %s', [FFakereason]) + #13#10;
 
     if language <> '' then
       Result := Result + Format('Language: %s', [language]) + #13#10;
@@ -677,21 +676,21 @@ begin
         FGroupname := words.strings[words.Count - 1];
     end;
 
-    dots := 0;
-    number_of_chars := 0;
-    vowels := 0;
+    FNumberOfDots := 0;
+    FNumberOfDifferentChars := 0;
+    FNumberOfVowels := 0;
     s := '';
     for i := 1 to length(rlsname) do
     begin
       if 0 = Pos(rlsname[i], s) then
       begin
-        Inc(number_of_chars);
+        Inc(FNumberOfDifferentChars);
         s := s + rlsname[i];
       end;
       if rlsname[i] = '.' then
-        Inc(dots);
+        Inc(FNumberOfDots);
       if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
-        Inc(vowels);
+        Inc(FNumberOfVowels);
     end;
 
     FRlsnameWithoutGroupname := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
