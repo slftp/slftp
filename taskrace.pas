@@ -573,10 +573,10 @@ begin
 
   // check if need more dirlist
   itwasadded := False;
-  if (d <> nil) and (not d.dirlistgaveup) then
+  if (d <> nil) and not d.dirlistgaveup and not d.error then
   begin
     // check if still incomplete
-    if ((d <> nil) and (not is_pre) and (not d.Complete) and not d.error) then
+    if ((d <> nil) and (not is_pre) and (not d.Complete)) then
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
@@ -628,9 +628,9 @@ begin
           if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
-            r := TPazoDirlistTask.Create('MORSELFPRE', channel, ps1.Name, mainpazo, dir, is_pre);
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
             r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
-            r_dst := TPazoDirlistTask.Create('MOROTHERPRE', channel, ps.Name, mainpazo, dir, False);
+            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
             r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
             try
@@ -1428,7 +1428,7 @@ begin
   begin
     if not sdst.Send('PRET STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
       goto TryAgain;
-    if not sdst.Read('PRET STOR') then
+    if not sdst.Read('PRET STOR', True, True, 0, 5000) then
       goto TryAgain;
 
 
@@ -1735,7 +1735,7 @@ begin
       goto TryAgain;
   end;
 
-  if not sdst.Read('STOR') then
+  if not sdst.Read('STOR', True, True, 0, 5000) then
   begin
     sdst.Quit;
     if fNeedsImmediateRETR then
