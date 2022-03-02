@@ -735,7 +735,7 @@ begin
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[21];
-    CheckEqualsString('Turkey', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    CheckEqualsString('Romania', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('14 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
@@ -774,7 +774,7 @@ begin
     CheckEqualsString('War for the Planet of the Apes', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
     fAlsoKnownAsInfo := fAlsoKnownAsList[9];
-    CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('La Planète des singes  Suprématie', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
@@ -916,7 +916,7 @@ begin
     CheckEqualsString('Prison Break', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
     fAlsoKnownAsInfo := fAlsoKnownAsList[9];
-    CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Prison Break', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
