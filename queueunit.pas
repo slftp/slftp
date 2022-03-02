@@ -608,7 +608,6 @@ var
   i:   integer;
   ss:  TSiteSlot;
   sst: TSiteSlot;
-  sso: boolean;
   actual_count: integer;
 begin
   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
@@ -681,31 +680,22 @@ begin
         t.readyerror := True;
         exit;
       end;
-      if (ss.todotask <> nil) then
+      if (ss.todotask <> nil) or (ss.status <> ssOnline) then
         exit;
     end;
 
+    // try to find a free and online slot
     if ss = nil then
     begin
-      sso := False;
-      for i := 0 to s.slots.Count - 1 do
+      for sst in s.slots do
       begin
-        try
-          if i > s.slots.Count then
-            Break;
-        except
-          Break;
-        end;
-        if TSiteSlot(s.slots[i]).todotask = nil then
+        if (sst.todotask = nil) and (sst.status = ssOnline) then
         begin
-          if not sso then
-          begin
-            ss := TSiteSlot(s.slots[i]);
-            if ss.status = ssOnline then
-              sso := True;
-          end;
+          ss := sst;
+          break;
         end;
       end;
+
       if ss = nil then
         exit;
     end;
