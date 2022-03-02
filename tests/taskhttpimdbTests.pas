@@ -740,7 +740,7 @@ begin
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[25];
-    CheckEqualsString('France', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    CheckEqualsString('Poland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('2 August 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
