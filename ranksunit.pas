@@ -266,6 +266,7 @@ var
   i, oa, na, rl: Integer;
   s, sitename: String;
   r: TRankStat;
+  ps: TSite;
 begin
   Debug(dpMessage, r_section, '--> Recalculating rank stats');
 
@@ -277,16 +278,13 @@ begin
       try
         r := TRankStat(ranks[i]);
         sitename := r.sitename;
+        ps := findSiteByName(netname, sitename);
         s := r.section;
       except
         Break;
       end;
 
-      rl := sitesdat.ReadInteger('site-' + sitename, 'ranklock-' + s, 0);
-      if rl > 0 then
-        continue;
-
-      rl := sitesdat.ReadInteger('site-' + sitename, 'ranklock', 0);
+      rl := ps.getRankLock(s);
       if rl > 0 then
         continue;
 
