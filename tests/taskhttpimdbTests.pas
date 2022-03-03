@@ -1,4 +1,4 @@
-unit taskhttpimdbTests;
+﻿unit taskhttpimdbTests;
 
 interface
 
@@ -361,7 +361,7 @@ type
 implementation
 
 uses
-  SysUtils, taskhttpimdb, Generics.Collections, {$IFNDEF FPC}Types,{$ENDIF} Classes;
+  SysUtils, taskhttpimdb, dbaddimdb, Generics.Collections, {$IFNDEF FPC}Types,{$ENDIF} Classes;
 
 {$IFDEF FPC}
   {$R taskhttpimdbTests.rc}
@@ -703,7 +703,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('USA,Canada,New Zealand', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('USA', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieGenres;
@@ -739,10 +739,10 @@ begin
     CheckEqualsString('14 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[24];
-    CheckEqualsString('France', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('17 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Paris) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    fReleaseDateInfo := fReleaseDateInfoList[25];
+    CheckEqualsString('Poland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    CheckEqualsString('28 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -829,7 +829,7 @@ begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fVotes, fRating);
 
   CheckTrue(500000 < fVotes, 'Votes mismatch');
-  CheckTrue(510000 > fVotes, 'Votes mismatch');
+  CheckTrue(520000 > fVotes, 'Votes mismatch');
   CheckTrue(80 < fRating, 'Rating mismatch');
   CheckTrue(86 > fRating, 'Rating mismatch');
 end;
@@ -1025,7 +1025,7 @@ begin
     fReleaseDateInfo := fReleaseDateInfoList[3];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('12 February 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Blu-ray and DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    CheckEqualsString('(DVD and Blu-ray and premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[5];
     CheckEqualsString('Netherlands', fReleaseDateInfo.Country, 'Releasedate Country mismatch');

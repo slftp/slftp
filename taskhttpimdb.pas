@@ -167,6 +167,7 @@ var
   rr: TRegExpr;
   doc: TDocVariantData;
   pdoc: PDocVariantData;
+  fYearDoc: PDocVariantData;
 begin
   Result := Variants.Null;
   fStartIndex := Pos('type="application/json">', aPageSource);
@@ -180,31 +181,18 @@ begin
   fJsonObject := _JsonFast(fJsonString);
 
 
-  //ugly way to find the right JSON, is there a better way?
-  rr := TRegExpr.Create;
-  try
-    rr.Expression := '"([0-9]{4,99})+":\{"data":';
-
-    if rr.Exec(aPageSource) then
-    repeat
-      doc := TDocVariantData(fJsonObject);
-      doc.GetAsDocVariant('props', pdoc);
-      pdoc.GetAsDocVariant('pageProps', pdoc);
-      pdoc.GetAsDocVariant('urqlState', pdoc);
-      pdoc.GetAsDocVariant(rr.Match[1], pdoc);
-      pdoc.GetAsDocVariant('data', pdoc);
-      pdoc.GetAsDocVariant('title', pdoc);
-      pdoc.GetAsRawUTF8('id', fJsonImdbID);
-      pdoc.GetAsRawUTF8('releaseYear', fJsonReleaseYear);
-      pdoc.GetAsRawUTF8('titleType', fTitleType);
-      if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
-      begin
-        Result := _JsonFast(pdoc.ToJSON());
-        exit;
-      end;
-    until not rr.ExecNext;
-  finally
-    rr.Free;
+  doc := TDocVariantData(fJsonObject);
+  doc.GetAsDocVariant('props', pdoc);
+  pdoc.GetAsDocVariant('pageProps', pdoc);
+  pdoc.GetAsRawUTF8('tconst', fJsonImdbID);
+  pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
+  pdoc.GetAsDocVariant('releaseYear', fYearDoc);
+  fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear);
+  pdoc.GetAsRawUTF8('titleType', fTitleType);
+  if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
+  begin
+    Result := _JsonFast(pdoc.ToJSON());
+    exit;
   end;
 end;
 
