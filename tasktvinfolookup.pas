@@ -63,7 +63,7 @@ begin
     x.ModifierM := True;
 
     // Cut off Year tag
-    x.Expression := '[-._\s]((19|20)\d{2})[\s._-]?$';
+    x.Expression := '[-._\s]((19|20)\d{2})[\s._-]?';
     if x.Exec(showName) then
     begin
       year := x.Match[1];
@@ -119,10 +119,10 @@ begin
     try
       for I := 0 to jl.Count - 1 do
       begin
-        showA := replaceTVShowChars(ReplaceText(showName, '.', ' '));
-        showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
+        showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
+        showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
 
-        if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
+        if (CompareText(showA,showB)<> 0) then
         begin
           if hadCountry then
           begin
