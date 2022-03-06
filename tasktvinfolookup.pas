@@ -122,7 +122,7 @@ begin
         showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
         showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
 
-        if (CompareText(showA,showB)<> 0) then
+        if (CompareText(showA,showB)= 0) then
         begin
           if hadCountry then
           begin
