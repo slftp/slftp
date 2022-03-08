@@ -14,6 +14,7 @@ type
   TTestIMDB = class(TTestCase)
   published
     procedure InsertUpdateDeleteTest1;
+    procedure InsertUpdateDeleteTest2;
     procedure SameMovieNameOtherYearTest;
     procedure AlreadyInDbWithReleasenameTest;
     procedure AlreadyInDbWithImdbIDTest;
@@ -68,6 +69,40 @@ begin
 
 
   DeleteIMDbDataWithImdbId('tt1337');
+
+  //check if really deleted
+  CheckNull(GetImdbMovieData(fRlsName));
+end;
+
+procedure TTestIMDB.InsertUpdateDeleteTest2;
+var
+  fImdbData, fImdbDataResult: TDbImdbData;
+  fRlsName: string;
+begin
+  fRlsName := 'Resident.Evil.Welcome.To.Raccoon.City.2021.TAMIL.720p.BluRay.x264-GRP';
+
+  fImdbData := TDbImdbData.Create('tt6920084');
+  fImdbData.imdb_id := 'tt6920084';
+  fImdbData.imdb_year := 2021;
+  fImdbData.imdb_languages.CommaText := 'English';
+  fImdbData.imdb_countries.CommaText := 'USA';
+  fImdbData.imdb_genres.CommaText := 'Action,Horror,Science-Fiction';
+  fImdbData.imdb_screens := 123;
+  fImdbData.imdb_rating := 123;
+  fImdbData.imdb_votes := 123;
+  fImdbData.imdb_cineyear := 2021;
+  fImdbData.imdb_ldt := False;
+  fImdbData.imdb_wide := True;
+  fImdbData.imdb_festival := False;
+  fImdbData.imdb_stvm := False;
+  fImdbData.imdb_stvs := 'Whatever';
+  fImdbData.imdb_origtitle := 'Witness the Beginning of Evil.';
+  dbaddimdb_SaveImdbData(fRlsName, fImdbData, nil, nil, nil);
+
+  fImdbDataResult := GetImdbMovieData(fRlsName);
+  CheckEqualsString('Witness the Beginning of Evil.', fImdbDataResult.imdb_origtitle);
+
+  DeleteIMDbDataWithImdbId('tt6920084');
 
   //check if really deleted
   CheckNull(GetImdbMovieData(fRlsName));

@@ -497,6 +497,9 @@ var
 begin
   Result := nil;
   fImdbMovieData := nil;
+  fIMDbReleaseDatesRecord := nil;
+  fReleaseDateList := nil;
+  fIMDbBomData := nil;
 
   try
     fImdbMovieData := TDbImdbData.Create(aImdbRec.IMDbID);
@@ -704,10 +707,14 @@ begin
 
     Result := fImdbMovieData;
   finally
-    fIMDbReleaseDatesRecord.Free;
-    fStatusReasonList.Free;
-    fReleaseDateList.Free;
-    fIMDbBomData.Free;
+    if fIMDbReleaseDatesRecord <> NIL then
+      fIMDbReleaseDatesRecord.Free;
+    if fStatusReasonList <> NIL then
+      fStatusReasonList.Free;
+    if fReleaseDateList <> NIL then
+      fReleaseDateList.Free;
+    if fIMDbBomData<> NIL then
+      fIMDbBomData.Free;
   end;
 end;
 
