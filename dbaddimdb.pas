@@ -1034,7 +1034,31 @@ begin
         fMovieImdbDataRec.FillOne;
       end
       else
-        Exit;
+      begin
+          fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase,
+        'IMDbTitleCleaned = ?', [],
+        [fCleanedMovieName, fRelease.year]);
+        fMovieImdbDataRec.FIMDbCountries := TStringList.Create;
+        fMovieImdbDataRec.FIMDbLanguages := TStringList.Create;
+        fMovieImdbDataRec.FIMDbGenres := TStringList.Create;
+        if not fMovieImdbDataRec.FillOne then
+        begin
+          fAlsoKnownDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
+            'IMDbAlsoKnownAsRecord.IMDbTitleCleaned = ? and IMDbAlsoKnownAsRecord.Country = ?',
+            [], [fCleanedMovieName, fReleasenameCountry, fReleaseYear]);
+
+          if fAlsoKnownDataRec.FillOne then
+          begin
+            fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase, 'ID = ?', [], [fAlsoKnownDataRec.IMDbData.ID]);
+            fMovieImdbDataRec.FIMDbCountries := TStringList.Create;
+            fMovieImdbDataRec.FIMDbLanguages := TStringList.Create;
+            fMovieImdbDataRec.FIMDbGenres := TStringList.Create;
+            fMovieImdbDataRec.FillOne;
+          end
+          else
+            Exit;
+          end;
+      end;
     end;
 
     Result := GetTDbImdbDataFromRec(fMovieImdbDataRec, aReleaseName);
