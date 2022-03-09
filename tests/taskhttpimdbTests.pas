@@ -1025,7 +1025,7 @@ begin
     fReleaseDateInfo := fReleaseDateInfoList[3];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEquals(EncodeDate(2019,2,12), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Blu-ray and DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    CheckEqualsString('(DVD and Blu-ray and premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[5];
     CheckEqualsString('Netherlands', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
