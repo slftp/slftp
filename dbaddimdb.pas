@@ -1014,7 +1014,7 @@ begin
 
     fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase,
       'IMDbTitleCleaned = ? and IMDbYear = ?', [],
-      [fCleanedMovieName, fRelease.year]);
+      [fCleanedMovieName, fReleaseYear]);
     fMovieImdbDataRec.FIMDbCountries := TStringList.Create;
     fMovieImdbDataRec.FIMDbLanguages := TStringList.Create;
     fMovieImdbDataRec.FIMDbGenres := TStringList.Create;
