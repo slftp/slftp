@@ -1033,11 +1033,11 @@ begin
         fMovieImdbDataRec.FIMDbGenres := TStringList.Create;
         fMovieImdbDataRec.FillOne;
       end
-      else
+      else if (fRelease.year = 0) then //if there's no year given in the release name try to find without year
       begin
-          fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase,
-        'IMDbTitleCleaned = ?', [],
-        [fCleanedMovieName, fRelease.year]);
+        fMovieImdbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase,
+          'IMDbTitleCleaned = ?', [],
+          [fCleanedMovieName]);
         fMovieImdbDataRec.FIMDbCountries := TStringList.Create;
         fMovieImdbDataRec.FIMDbLanguages := TStringList.Create;
         fMovieImdbDataRec.FIMDbGenres := TStringList.Create;
@@ -1045,7 +1045,7 @@ begin
         begin
           fAlsoKnownDataRec := TIMDbAlsoKnownAsRecord.CreateAndFillPrepareJoined(ImdbDatabase,
             'IMDbAlsoKnownAsRecord.IMDbTitleCleaned = ? and IMDbAlsoKnownAsRecord.Country = ?',
-            [], [fCleanedMovieName, fReleasenameCountry, fReleaseYear]);
+            [], [fCleanedMovieName, fReleasenameCountry]);
 
           if fAlsoKnownDataRec.FillOne then
           begin
@@ -1057,8 +1057,10 @@ begin
           end
           else
             Exit;
-          end;
-      end;
+        end;
+      end
+      else
+        Exit;
     end;
 
     Result := GetTDbImdbDataFromRec(fMovieImdbDataRec, aReleaseName);
