@@ -1,4 +1,4 @@
-unit taskhttpimdbTests;
+﻿unit taskhttpimdbTests;
 
 interface
 
@@ -703,7 +703,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('USA,Canada,New Zealand', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('USA', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieGenres;
@@ -829,7 +829,7 @@ begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fVotes, fRating);
 
   CheckTrue(500000 < fVotes, 'Votes mismatch');
-  CheckTrue(510000 > fVotes, 'Votes mismatch');
+  CheckTrue(520000 > fVotes, 'Votes mismatch');
   CheckTrue(80 < fRating, 'Rating mismatch');
   CheckTrue(86 > fRating, 'Rating mismatch');
 end;

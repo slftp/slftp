@@ -123,7 +123,7 @@ var
   rr: TRegExpr;
   doc: TDocVariantData;
   pdoc: PDocVariantData;
-  yeardoc: PDocVariantData;
+  fYearDoc: PDocVariantData;
 begin
   Result := Variants.Null;
   fStartIndex := Pos('type="application/json">', aPageSource);
@@ -141,8 +141,8 @@ begin
   pdoc.GetAsDocVariant('pageProps', pdoc);
   pdoc.GetAsRawUTF8('tconst', fJsonImdbID);
   pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
-  pdoc.GetAsDocVariant('releaseYear', yeardoc);
-  yeardoc.GetAsRawUTF8('Year', fJsonReleaseYear);
+  pdoc.GetAsDocVariant('releaseYear', fYearDoc);
+  fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear);
   pdoc.GetAsRawUTF8('titleType', fTitleType);
   if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
   begin
