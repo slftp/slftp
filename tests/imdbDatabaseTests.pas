@@ -21,6 +21,7 @@ type
     procedure FindExistingMovieByOtherReleaseNameTest;
     procedure FindExistingMovieByOtherReleaseLanguageTest;
     procedure ImdbDBToKbTest;
+    procedure FindMovieWithoutYearTest;
   end;
 
 implementation
@@ -258,6 +259,28 @@ begin
 
   //check if the countries have been set at the TIMDBRelease
   CheckEqualsString(fImdbRelease.imdb_languages.CommaText, fImdbData.imdb_languages.CommaText);
+end;
+
+procedure TTestIMDB.FindMovieWithoutYearTest;
+var
+  fRlsName1, fRlsName2, fImdbID: String;
+  fImdbData, fImdbDataResult: TDbImdbData;
+begin
+  fRlsName1 := 'Movie.Name.To.Test.Without.Year.720p.BluRay.x264-GRP';
+  fRlsName2 := 'Movie.Name.To.Test.Without.Year.2022.720p.BluRay.x264-GRP';
+  fImdbID := 'tt44572445';
+
+  DeleteIMDbDataWithImdbId(fImdbID);
+
+  //insert the item into the DB
+  fImdbData := TDbImdbData.Create(fImdbID);
+  fImdbData.imdb_id := fImdbID;
+  fImdbData.imdb_year := 2010;
+  dbaddimdb_SaveImdbData(fRlsName1, fImdbData, nil, nil, nil);
+
+  //we should be able to find the entry with the release name without a year
+  CheckEquals(True, foundMovieAlreadyInDbWithReleaseName(fRlsName1), 'We should find an entry with release name ' + fRlsName1);
+  CheckEquals(False, foundMovieAlreadyInDbWithReleaseName(fRlsName2), 'We should NOT find an entry with release name ' + fRlsName2);
 end;
 
 initialization
