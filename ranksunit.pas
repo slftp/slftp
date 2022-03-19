@@ -20,8 +20,13 @@ procedure RanksInit;
 procedure RanksUnInit;
 procedure RanksSave;
 procedure RanksStart;
-procedure RanksRecalc(const netname, channel: String);
+
 procedure RanksProcess(p: TPazo);
+
+{ Calculates the rank stats based on all @link(ranks)
+  @param(aNetname Name if the IRC network)
+  @param(aChannel Channelname) }
+procedure RanksRecalc(const aNetname, aChannel: String);
 
 { Removes all @link(TRankStat) for given @link(aSitename) from @link(ranks) list
   @param(aSitename name of site which TRankStat should be deleted)
@@ -261,12 +266,12 @@ begin
   end;
 end;
 
-procedure RanksRecalc(const netname, channel: String);
+procedure RanksRecalc(const aNetname, aChannel: String);
 var
-  i, oa, na, rl: Integer;
-  s, sitename: String;
+  i, fOldAvg, fNewAvg, fRankLockValue: Integer;
+  fSection, fSitename: String;
   r: TRankStat;
-  ps: TSite;
+  s: TSite;
 begin
   Debug(dpMessage, r_section, '--> Recalculating rank stats');
 
@@ -277,26 +282,26 @@ begin
       try if i > ranks.Count then Break; except Break; end;
       try
         r := TRankStat(ranks[i]);
-        sitename := r.sitename;
-        ps := findSiteByName(netname, sitename);
-        s := r.section;
+        fSitename := r.sitename;
+        s := findSiteByName(aNetname, fSitename);
+        fSection := r.section;
       except
         Break;
       end;
 
-      rl := ps.getRankLock(s);
-      if rl > 0 then
+      fRankLockValue := s.getRankLock(fSection);
+      if fRankLockValue > 0 then
         continue;
 
-      na := NewAverage(sitename, s);
-      if na = 0 then
-        na := 1;
+      fNewAvg := NewAverage(fSitename, fSection);
+      if fNewAvg = 0 then
+        fNewAvg := 1;
 
-      oa := sitesdat.ReadInteger('site-' + sitename, 'rank-' + s, 1);
-      if na <> oa then
+      fOldAvg := sitesdat.ReadInteger('site-' + fSitename, 'rank-' + fSection, 1);
+      if fNewAvg <> fOldAvg then
       begin
-        sitesdat.WriteInteger('site-' + sitename, 'rank-' + s, na);
-        irc_SendRANKSTATS(Format('Changing rank of %s %s from %d to %d', [sitename, s, oa, na]));
+        sitesdat.WriteInteger('site-' + fSitename, 'rank-' + fSection, fNewAvg);
+        irc_SendRANKSTATS(Format('Changing rank of %s %s from %d to %d', [fSitename, fSection, fOldAvg, fNewAvg]));
       end;
     end;
   except
