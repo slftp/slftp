@@ -550,23 +550,38 @@ begin
   ss := nil;
   try
     s := TSite(t.ssite1);
-
     bnc := '';
-    for i := 0 to s.slots.Count - 1 do
+
+    if (t.wantedslot <> '') then
     begin
-      try
-        if i > s.slots.Count then
-          Break;
-      except
-        Break;
-      end;
-      ss := TSiteSlot(s.slots[i]);
+      ss := FindSlotByName(t.wantedslot);
+      if (ss = nil) then
+        //invalid slot name, should not happen, just exit here
+        exit;
       if ss.Status = ssOnline then
+        //for announce below
         bnc := ss.bnc;
-      if ((ss.todotask = nil) and (ss.Status <> ssOnline)) then
-        Break
-      else
+      if (ss.todotask <> nil) then
         ss := nil;
+    end
+    else
+    begin
+      for i := 0 to s.slots.Count - 1 do
+      begin
+        try
+          if i > s.slots.Count then
+            Break;
+        except
+          Break;
+        end;
+        ss := TSiteSlot(s.slots[i]);
+        if ss.Status = ssOnline then
+          bnc := ss.bnc;
+        if ((ss.todotask = nil) and (ss.Status <> ssOnline)) then
+          Break
+        else
+          ss := nil;
+      end;
     end;
 
     if ss = nil then
@@ -639,7 +654,7 @@ begin
 
     if t is TLoginTask then
     begin
-      if not TLoginTask(t).readd then
+      if (t.wantedslot <> '') then
       begin
         TryToAssignLoginSlot(TLoginTask(t));
         exit;
@@ -688,7 +703,7 @@ begin
     begin
       for sst in s.slots do
       begin
-        if (sst.todotask = nil) and (sst.status = ssOnline) then
+        if (sst.todotask = nil) and ((sst.status = ssOnline) or (t is TLoginTask)) then
         begin
           ss := sst;
           break;
