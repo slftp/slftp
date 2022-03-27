@@ -387,9 +387,7 @@ var
   ss1, ss2: TSiteSlot;
   tt: TTask;
   tpr: TPazoRaceTask;
-  fSlotOnline: Boolean;
 begin
-  fSlotOnline := False;
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
@@ -467,13 +465,14 @@ begin
       if TSiteSlot(s2.slots[i]).todotask = nil then
       begin
         // available slot we might use
-        if not fSlotOnline then
+        if ss2 = nil then
         begin
           ss2 := TSiteSlot(s2.slots[i]);
-          if ss2.status = ssOnline then
+
+          // check if slot is online and available for a new task
+          if ss2.status <> ssOnline then
           begin
-            // slot online and available for a new task
-            fSlotOnline := True;
+            ss2 := nil;
           end;
         end;
       end
