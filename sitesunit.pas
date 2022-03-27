@@ -1663,7 +1663,7 @@ begin
   // successful login
   Result := True;
 
-  // change order of bnc if the current successfull bnc is not the first
+  // change order of bnc if the current successful bnc is not the first
   if i <> 0 then
   begin
     bncList := TStringList.Create;
