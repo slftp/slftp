@@ -590,10 +590,9 @@ begin
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
         else
           irc_Addtext(t, '<b>%s</b> IS ALREADY UP: %s', [t.site1, bnc]);
-
-        s.WorkingStatus := sstUp;
-        debug(dpMessage, section, '%s IS UP', [t.site1]);
       end;
+      s.WorkingStatus := sstUp;
+      debug(dpMessage, section, '%s IS UP', [t.site1]);
       t.ready := True;
       exit;
     end;
