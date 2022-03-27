@@ -56,19 +56,34 @@ begin
     end;
   end;
 
-  if not ((s.site.WorkingStatus = sstUp) and (readd)) then
+  if self.wantedslot = '' then
   begin
-    // site is not up, we have to try to login
-    if ((not readd) or (not (s.site.WorkingStatus in [sstMarkedAsDownByUser]))) then
+    if not readd or (not(s.site.WorkingStatus = sstUp) and not(s.site.WorkingStatus in [sstMarkedAsDownByUser])) then
     begin
+      for s in s.site.slots do
+      begin
+        if (s.Status <> ssOnline) then
+        begin
+          l := TLoginTask.Create(netname, channel, site1, False, False);
+          l.wantedslot := s.Name;
+          AddTask(l);
+        end;
+      end;
+    end;
+  end
+  else
+  begin
+    if (s.Status <> ssOnline) or (not(s.site.WorkingStatus = sstUp) and not(s.site.WorkingStatus in [sstMarkedAsDownByUser])) then
+    begin
+      // site is not up, we have to try to login
       s.Quit;
       Result := s.ReLogin(1, kill, section);
-    end;
 
-    if s.Status = ssOnline then
-    begin
-      // slot is online
-      announce := Format('<b>%s</b>: %s', [s.site.Name, s.bnc]);
+      if readd and (s.Status = ssOnline) then
+      begin
+        // slot is online
+        announce := Format('<b>%s</b>: %s', [s.site.Name, s.bnc]);
+      end;
     end;
   end;
 
