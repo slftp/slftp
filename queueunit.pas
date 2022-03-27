@@ -558,9 +558,6 @@ begin
       if (ss = nil) then
         //invalid slot name, should not happen, just exit here
         exit;
-      if ss.Status = ssOnline then
-        //for announce below
-        bnc := ss.bnc;
       if (ss.todotask <> nil) then
         ss := nil;
     end
@@ -587,7 +584,7 @@ begin
     if ss = nil then
     begin
       // all slots are busy, which means they are already logged in, we can stop here
-      if not t.noannounce then
+      if not t.noannounce and (t.wantedslot = '') then
       begin
         if bnc = '' then
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
