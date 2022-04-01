@@ -126,7 +126,13 @@ type
     ftodotask: TTask;
     site: TSite; //< links to corresponding @link(TSite) class of slot
     procedure DestroySocket(down: boolean);
+    { Invokes Relogin after invoking DestroySocket.
+      @param(aMessage Info which task is issuing this command.) }
+    procedure DestroySocketAndRelogin(const aMessage: string);
     procedure Quit;
+    { Invokes Relogin after invoking Quit.
+      @param(aMessage Info which task is issuing this command.) }
+    procedure QuitAndRelogin(const aMessage: string);
     function Name: String;
     procedure Fire;
     function Login(kill: boolean = False): boolean;
@@ -1011,6 +1017,12 @@ begin
     status := ssOffline;
 end;
 
+procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
+begin
+  DestroySocket(False);
+  Relogin(0, False, aMessage);
+end;
+
 procedure TSiteSlot.Execute;
 var
   tname: String;
@@ -1651,7 +1663,7 @@ begin
   // successful login
   Result := True;
 
-  // change order of bnc if the current successfull bnc is not the first
+  // change order of bnc if the current successful bnc is not the first
   if i <> 0 then
   begin
     bncList := TStringList.Create;
@@ -2070,6 +2082,12 @@ begin
     exit;
   Read('QUIT', False, False);
   DestroySocket(False);
+end;
+
+procedure TSiteSlot.QuitAndRelogin(const aMessage: string);
+begin
+  Quit;
+  Relogin(0, False, aMessage);
 end;
 
 function TSiteSlot.RemoveFile(const dir, filename: String): boolean;
