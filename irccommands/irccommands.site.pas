@@ -2074,8 +2074,8 @@ begin
           irc_addtext(Netname, Channel, Format('%s : %s', [ss.Name, ss.todotask.Name]));
         end;
 
-        irc_addtext(Netname, Channel, Format('%s : Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
-            [ss.Name, TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
+        irc_addtext(Netname, Channel, Format('%s (%s): Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
+            [ss.Name, SlotStatusToString(ss.Status), TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
       end;
     except
       on E: Exception do
