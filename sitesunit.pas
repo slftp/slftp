@@ -630,6 +630,11 @@ procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sit
   @returns(The site software version or an empty string if unsuccessful) }
 function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
 
+{ Gets the given @link(TSlotStatus) as string
+  @param(aSlotStatus The @link(TSlotStatus) to get the string for)
+  @returns(the given @link(TSlotStatus) as string) }
+function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
+
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
@@ -755,6 +760,18 @@ begin
       sstDown, sstTempDown, sstMarkedAsDownByUser: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
+  end;
+end;
+
+function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
+begin
+  Result := 'Unknown';
+  case aSlotStatus of
+    ssNone: Result := 'None';
+    ssDown: Result := 'Down';
+    ssOffline: Result := 'Offline';
+    ssOnline: Result := 'Online';
+    ssMarkedDown: Result := 'Marked Down';
   end;
 end;
 
