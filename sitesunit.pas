@@ -635,6 +635,13 @@ function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText:
   @returns(the given @link(TSlotStatus) as string) }
 function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
 
+{ Checks the site's and its slot's status and adds a login task if necessary before starting to create race tasks
+  @param(aSite The site to check) }
+procedure CheckSiteSlots(const aSite: TSite); overload;
+{ Checks the site's and its slot's status and adds a login task if necessary before starting to create race tasks
+  @param(aSiteName The name of the site to check) }
+procedure CheckSiteSlots(const aSiteName: string); overload;
+
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
@@ -3763,6 +3770,46 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+procedure CheckSiteSlots(const aSite: TSite); overload;
+var
+  fLoginTaskNeeded: boolean;
+  fSiteSlot: TSiteSlot;
+  fLoginTask: TLoginTask;
+begin
+  fLoginTaskNeeded := False;
+  // check if the destination site and its slots are ready
+  if aSite <> nil then
+  begin
+    // check site's working status
+    fLoginTaskNeeded := (aSite.WorkingStatus <> sstUp);
+
+    // check if all the slots are online
+    if not fLoginTaskNeeded then
+    begin
+      for fSiteSlot in aSite.slots do
+      begin
+        if (fSiteSlot.status <> ssOnline) then
+        begin
+          fLoginTaskNeeded := True;
+          Break;
+        end;
+      end;
+    end;
+
+    if fLoginTaskNeeded then
+    begin
+      fLoginTask := TLoginTask.Create('', '', aSite.Name, False, False);
+      fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); //announce if working status of the site is not sstUp
+      AddTask(fLoginTask);
+    end;
+  end;
+end;
+
+procedure CheckSiteSlots(const aSiteName: string); overload;
+begin
+  CheckSiteSlots(FindSiteByName('', aSiteName));
 end;
 
 function TSite.GetSiteInfos: String;
