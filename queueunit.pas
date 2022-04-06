@@ -1004,6 +1004,7 @@ var
   fCheckSiteSlotsSite: TSite;
 begin
   try
+    fCheckSiteSlotsSite := nil;
     tname := t.Name;
 
     //do this check before the task might have been freed already
@@ -1047,7 +1048,7 @@ begin
 
   if fCheckSiteSlotsSite <> nil then
   begin
-    CheckSiteSlots(t.ssite1);
+    CheckSiteSlots(fCheckSiteSlotsSite);
   end;
   AddTaskToConsole(t);
 end;
