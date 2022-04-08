@@ -56,6 +56,12 @@ function _Bnctest(const Netname, Channel: String; s: TSite; tn: TTaskNotify; kil
 var
   l: TLoginTask;
 begin
+
+  //reset the working status to sstUnknown if it has been marked down by user,
+  //because else the Relogin will not take place.
+  if (s.WorkingStatus = sstMarkedAsDownByUser) then
+    s.WorkingStatus := sstUnknown;
+
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
     tn.tasks.Add(l);
