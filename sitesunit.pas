@@ -1854,6 +1854,13 @@ begin
     exit;
   end;
 
+  //this relogin might come from some task retrying, but if the user setdown the site, it should never relogin.
+  if (site.WorkingStatus = sstMarkedAsDownByUser) then
+  begin
+    Result := True;
+    exit;
+  end;
+
   relogins := 0;
   while ((relogins < l_maxrelogins) and (not slshutdown) and (not shouldquit)) do
   begin
