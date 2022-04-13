@@ -93,7 +93,7 @@ begin
   end
   else
   begin
-    if (s.Status <> ssOnline) or (not(s.site.WorkingStatus = sstUp) and not(s.site.WorkingStatus in [sstMarkedAsDownByUser])) then
+    if (s.Status <> ssOnline) or not(s.site.WorkingStatus in [sstUp, sstMarkedAsDownByUser]) then
     begin
       s.Quit;
       Result := s.ReLogin(1, kill, section);
