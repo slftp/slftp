@@ -1904,7 +1904,6 @@ begin
         exit;
       end;
 
-      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
       for i := 0 to site.slots.Count - 1 do
       begin
         ss := TSiteSlot(site.slots[i]);
@@ -1915,6 +1914,7 @@ begin
         end;
       end;
 
+      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
       site.WorkingStatus := sstTempDown;
     end;
   end;
