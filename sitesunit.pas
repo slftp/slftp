@@ -104,7 +104,6 @@ type
     fSSCNEnabled: boolean;
     event: TEvent;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
-    procedure AddLoginTask;
     procedure SetOnline(Value: TSlotStatus);
 
     { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
@@ -880,7 +879,7 @@ end;
 procedure SitesStart;
 var
   x: TStringList;
-  i: integer;
+  i, j: integer;
 begin
   debug(dpSpam, section, 'SitesStart begin');
 
@@ -898,7 +897,15 @@ begin
     sitesdat.ReadSections(x);
     for i := 0 to x.Count - 1 do
       if 1 = Pos('site-', x[i]) then
-        sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+      begin
+        j := sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+
+        //add a login task if autologin is enabled
+        if (((autologin) or (TSite(sites[j]).RCBool('autologin', False))) and not TSite(sites[j]).PermDown) then
+        begin
+          AddTask(TLoginTask.Create('', '', TSite(sites[j]).Name, False, False));
+        end;
+      end;
   finally
     x.Free;
   end;
@@ -944,25 +951,6 @@ begin
   end;
 end;
 
-procedure TSiteSlot.AddLoginTask;
-var
-  t: TLoginTask;
-begin
-
-  t := TLoginTask.Create('', '', site.Name, False, False);
-  t.wantedslot := Name;
-  t.startat := GiveSiteLastStart;
-  try
-    AddTask(t);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.AddLoginTask AddTask: %s',
-        [e.Message]));
-    end;
-  end;
-end;
-
 constructor TSiteSlot.Create(const aSite: TSite; const aSlotNumber: integer);
 begin
   debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
@@ -987,14 +975,10 @@ begin
 
   if (site.Name <> getAdminSiteName) then
   begin
-    if not site.PermDown then
+    if site.PermDown then
     begin
-      // if autologin is turned on then
-      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
-        AddLoginTask;
-    end
-    else
       status := ssMarkedDown;
+    end;
   end
   else
   begin
