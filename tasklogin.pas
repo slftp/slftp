@@ -75,7 +75,9 @@ begin
         end;
       end;
 
-      if (s.Status = ssOnline) then
+      //check all slots if this is not the bnc check. if it's the bnc check and the site might also have an idle
+      //timeout set, we don't want to login all the slots
+      if not readd and (s.Status = ssOnline) then
       begin
         for s in s.site.slots do
         begin
@@ -91,7 +93,7 @@ begin
   end
   else
   begin
-    if (s.Status <> ssOnline) or (not(s.site.WorkingStatus = sstUp) and not(s.site.WorkingStatus in [sstMarkedAsDownByUser])) then
+    if (s.Status <> ssOnline) or not(s.site.WorkingStatus in [sstUp, sstMarkedAsDownByUser]) then
     begin
       s.Quit;
       Result := s.ReLogin(1, kill, section);
