@@ -56,6 +56,12 @@ function _Bnctest(const Netname, Channel: String; s: TSite; tn: TTaskNotify; kil
 var
   l: TLoginTask;
 begin
+
+  //reset the working status to sstUnknown if it has been marked down by user,
+  //because else the Relogin will not take place.
+  if (s.WorkingStatus = sstMarkedAsDownByUser) then
+    s.WorkingStatus := sstUnknown;
+
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
     tn.tasks.Add(l);
@@ -2074,8 +2080,8 @@ begin
           irc_addtext(Netname, Channel, Format('%s : %s', [ss.Name, ss.todotask.Name]));
         end;
 
-        irc_addtext(Netname, Channel, Format('%s : Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
-            [ss.Name, TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
+        irc_addtext(Netname, Channel, Format('%s (%s): Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
+            [ss.Name, SlotStatusToString(ss.Status), TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
       end;
     except
       on E: Exception do
