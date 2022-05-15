@@ -760,6 +760,7 @@ begin
   if delay then
     Result.DelaySetup;
   PazoSitesList.Add(Result);
+  CheckSiteSlots(sitename);
 end;
 
 function TPazo.Age: integer;
@@ -1174,6 +1175,7 @@ begin
       end;
 
       PazoSitesList.Add(ps);
+      CheckSiteSlots(s);
     except
       on e: Exception do
       begin
@@ -1976,4 +1978,3 @@ begin
 end;
 
 end.
-

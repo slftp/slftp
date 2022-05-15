@@ -387,9 +387,7 @@ var
   ss1, ss2: TSiteSlot;
   tt: TTask;
   tpr: TPazoRaceTask;
-  fSlotOnline: Boolean;
 begin
-  fSlotOnline := False;
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
@@ -467,13 +465,14 @@ begin
       if TSiteSlot(s2.slots[i]).todotask = nil then
       begin
         // available slot we might use
-        if not fSlotOnline then
+        if ss2 = nil then
         begin
           ss2 := TSiteSlot(s2.slots[i]);
-          if ss2.status = ssOnline then
+
+          // check if slot is online and available for a new task
+          if ss2.status <> ssOnline then
           begin
-            // slot online and available for a new task
-            fSlotOnline := True;
+            ss2 := nil;
           end;
         end;
       end
@@ -551,38 +550,49 @@ begin
   ss := nil;
   try
     s := TSite(t.ssite1);
-
     bnc := '';
-    for i := 0 to s.slots.Count - 1 do
+
+    if (t.wantedslot <> '') then
     begin
-      try
-        if i > s.slots.Count then
-          Break;
-      except
-        Break;
-      end;
-      ss := TSiteSlot(s.slots[i]);
-      if ss.Status = ssOnline then
-        bnc := ss.bnc;
-      if ((ss.todotask = nil) and (ss.Status <> ssOnline)) then
-        Break
-      else
+      ss := FindSlotByName(t.wantedslot);
+      if (ss = nil) then
+        //invalid slot name, should not happen, just exit here
+        exit;
+      if (ss.todotask <> nil) then
         ss := nil;
+    end
+    else
+    begin
+      for i := 0 to s.slots.Count - 1 do
+      begin
+        try
+          if i > s.slots.Count then
+            Break;
+        except
+          Break;
+        end;
+        ss := TSiteSlot(s.slots[i]);
+        if ss.Status = ssOnline then
+          bnc := ss.bnc;
+        if ((ss.todotask = nil) and (ss.Status <> ssOnline)) then
+          Break
+        else
+          ss := nil;
+      end;
     end;
 
     if ss = nil then
     begin
       // all slots are busy, which means they are already logged in, we can stop here
-      if not t.noannounce then
+      if not t.noannounce and (t.wantedslot = '') then
       begin
         if bnc = '' then
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
         else
           irc_Addtext(t, '<b>%s</b> IS ALREADY UP: %s', [t.site1, bnc]);
-
-        s.WorkingStatus := sstUp;
-        debug(dpMessage, section, '%s IS UP', [t.site1]);
       end;
+      s.WorkingStatus := sstUp;
+      debug(dpMessage, section, '%s IS UP', [t.site1]);
       t.ready := True;
       exit;
     end;
@@ -608,7 +618,6 @@ var
   i:   integer;
   ss:  TSiteSlot;
   sst: TSiteSlot;
-  sso: boolean;
   actual_count: integer;
 begin
   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
@@ -641,7 +650,7 @@ begin
 
     if t is TLoginTask then
     begin
-      if not TLoginTask(t).readd then
+      if (t.wantedslot <> '') then
       begin
         TryToAssignLoginSlot(TLoginTask(t));
         exit;
@@ -681,31 +690,22 @@ begin
         t.readyerror := True;
         exit;
       end;
-      if (ss.todotask <> nil) then
+      if (ss.todotask <> nil) or (ss.status <> ssOnline) then
         exit;
     end;
 
+    // try to find a free and online slot
     if ss = nil then
     begin
-      sso := False;
-      for i := 0 to s.slots.Count - 1 do
+      for sst in s.slots do
       begin
-        try
-          if i > s.slots.Count then
-            Break;
-        except
-          Break;
-        end;
-        if TSiteSlot(s.slots[i]).todotask = nil then
+        if (sst.todotask = nil) and ((sst.status = ssOnline) or (t is TLoginTask)) then
         begin
-          if not sso then
-          begin
-            ss := TSiteSlot(s.slots[i]);
-            if ss.status = ssOnline then
-              sso := True;
-          end;
+          ss := sst;
+          break;
         end;
       end;
+
       if ss = nil then
         exit;
     end;
@@ -1001,9 +1001,20 @@ end;
 procedure AddTask(t: TTask);
 var
   tname: String;
+  fCheckSiteSlotsSite: TSite;
 begin
   try
+    fCheckSiteSlotsSite := nil;
     tname := t.Name;
+
+    //do this check before the task might have been freed already
+    //for races (pazo tasks) the site slots are checked when the site is added to the race,
+    //check here for any other tasks that might come along
+    if (not (t is TPazoPlainTask)) and (not (t is TWaitTask)) and (not (t is TLoginTask)) and (t.ssite1 <> nil) then
+    begin
+      fCheckSiteSlotsSite := t.ssite1;
+    end;
+
     Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
 
     queueth.main_lock.Enter();
@@ -1035,6 +1046,10 @@ begin
     end;
   end;
 
+  if fCheckSiteSlotsSite <> nil then
+  begin
+    CheckSiteSlots(fCheckSiteSlotsSite);
+  end;
   AddTaskToConsole(t);
 end;
 

@@ -273,7 +273,7 @@ begin
       //fix drftpd messed up working directory by reconnect
       if s.site.sw = sswDrftpd then
       begin
-        s.Quit;
+        s.QuitAndRelogin('TPazoDirlistTask');
         goto TryAgain;
       end;
 
@@ -292,7 +292,7 @@ begin
       //fix drftpd messed up working directory by reconnect
       if s.site.sw = sswDrftpd then
       begin
-        s.Quit;
+        s.QuitAndRelogin('TPazoDirlistTask');
         goto TryAgain;
       end;
 
@@ -315,7 +315,7 @@ begin
     case s.lastResponseCode of
       421:
         begin
-          s.DestroySocket(False);
+          s.DestroySocketAndRelogin('TPazoDirlistTask');
           goto TryAgain;
         end;
 
@@ -772,7 +772,7 @@ begin
     //fix drftpd messed up working directory by reconnect
     if s.site.sw = sswDrftpd then
     begin
-      s.Quit;
+      s.QuitAndRelogin('TPazoMkdirTask');
       goto TryAgain;
     end
     else
@@ -1385,7 +1385,7 @@ begin
         begin
           //421 - Service not available, closing control connection. This may be a reply to any command if the service knows it must shut down.
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-          ssrc.Quit;
+          ssrc.QuitAndRelogin('TPazoRaceTask');
           goto TryAgain;
         end;
       426:
@@ -1410,7 +1410,7 @@ begin
           end;
 
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-          ssrc.Quit;
+          ssrc.QuitAndRelogin('TPazoRaceTask');
           goto TryAgain;
         end;
       end;
@@ -1485,7 +1485,7 @@ begin
           //421 - Service not available, closing control connection. This may be a reply to any command if the service knows it must shut down.
           irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-          sdst.Quit;
+          sdst.QuitAndRelogin('TPazoRaceTask');
           goto TryAgain;
         end;
         426:
@@ -1620,7 +1620,7 @@ begin
             irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             mainpazo.errorreason := 'No data connection available';
             readyerror := True;
-            fPassiveSlot.Quit;
+            fPassiveSlot.QuitAndRelogin('TPazoRaceTask');
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
             exit;
           end;
@@ -1737,9 +1737,9 @@ begin
 
   if not sdst.Read('STOR', True, True, 0, 5000) then
   begin
-    sdst.Quit;
+    sdst.QuitAndRelogin('TPazoRaceTask');
     if fNeedsImmediateRETR then
-      ssrc.DestroySocket(False);
+      ssrc.DestroySocketAndRelogin('TPazoRaceTask');
 
     goto TryAgain;
   end;
@@ -1764,7 +1764,7 @@ begin
       //STOR produced an error, but RETR has already been sent to the source site. We need to ABOR that.
 
       if not ssrc.Send('ABOR') then
-        ssrc.DestroySocket(False);
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask');
 
       rss := False; //reset flag. used to remember if 150 response was read (150 File status okay; about to open send data connection.)
 
@@ -1773,7 +1773,7 @@ begin
         ssrc.Read('ABOR', False, True, 1000);
         if ssrc.error <> '' then
         begin
-          ssrc.DestroySocket(False);
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
           rss := True;
           break;
         end;
@@ -1800,12 +1800,12 @@ begin
         //send a command and see if there is a response. if not, invoke DestroySocket.
         if not ssrc.Send('NOOP') then
         begin
-          ssrc.DestroySocket(False);
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
         end
         else if not ssrc.Read('NOOP', False, True, 20) then
         begin
           Debug(dpMessage, c_section, 'Slot seems broken after ABOR: ' + ssrc.Name);
-          ssrc.DestroySocket(False);
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
         end;
       end;
     end;
@@ -1827,8 +1827,8 @@ begin
           if (0 < Pos('Connection closing', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            ssrc.Quit;
-            sdst.Quit;
+            ssrc.QuitAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
 
@@ -1836,7 +1836,7 @@ begin
           if (0 < Pos('closing control connection', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            sdst.Quit;
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
         end;
@@ -1846,8 +1846,8 @@ begin
           if (0 < Pos('Connection refused', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            ssrc.Quit;
-            sdst.Quit;
+            ssrc.QuitAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
 
@@ -1857,7 +1857,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(Format('<c4>[Can''t open data connection]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Can''t open data connection';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1870,7 +1870,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Timeout or building data connection problem';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1883,8 +1883,8 @@ begin
           if (0 < Pos('Broken pipe', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Broken pipe]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            ssrc.Quit;
-            sdst.Quit;
+            ssrc.QuitAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
 
@@ -2005,7 +2005,7 @@ begin
             irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             mainpazo.errorreason := 'No data connection available';
             readyerror := True;
-            sdst.Quit;
+            sdst.QuitAndRelogin('TPazoRaceTask');
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
             exit;
           end;
@@ -2134,7 +2134,7 @@ begin
       irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
 
       mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-      sdst.DestroySocket(False);
+      sdst.DestroySocketAndRelogin('TPazoRaceTask');
       readyerror := True;
       Debug(dpMessage, c_section, '<- ' + tname);
       exit;
@@ -2149,7 +2149,7 @@ begin
   if not ssrc.Read('RETR') then
   begin
     // breastfed, the dst to run because it works at all. closes the login will fuck up again.
-    sdst.Quit;
+    sdst.QuitAndRelogin('TPazoRaceTask');
     goto TryAgain;
   end;
 
@@ -2188,7 +2188,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
 
-              sdst.DestroySocket(False);
+              sdst.DestroySocketAndRelogin('TPazoRaceTask');
               mainpazo.errorreason := 'Timeout or opening data connection problem';
               readyerror := True;
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2204,7 +2204,7 @@ begin
 
 
               // maybe remove the source from race because fxp isn't allowed?
-              sdst.DestroySocket(False);
+              sdst.DestroySocketAndRelogin('TPazoRaceTask');
               mainpazo.errorreason := 'Opening data connection problem';
               readyerror := True;
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2264,7 +2264,7 @@ begin
             // need to have first coded TSite.LastCredits to get it work somehow
             ssrc.site.SetKredits;
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Out of credits';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2287,7 +2287,7 @@ begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Permission denied';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2302,7 +2302,7 @@ begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
             //TODO: Disable downloading for this site for some time until you uploaded more stuff to download again
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Permission denied - limit of bandwidth usage detected';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
