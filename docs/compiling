@@ -1,11 +1,18 @@
                                 Compiling slFtp
 -------------------------------------------------------------------------------
 
+Basic dependencies
+------------------
+on debian:
+    apt install make binutils zlib1g-dev libncurses-dev libsqlite3-dev libssl-dev fpc-3.2.0
+
 Requirements
 ------------
 on UNIX:
-    We currently _only_ support compilation using fpc 3.2+ (currently a beta version).
-    You can also use fpc 3.3.1 (trunk). This is a daily snapshot release and might be unstable.
+    We currently _only_ support compilation using fpc 3.2+.
+    You can also use fpc 3.3.x (trunk) at https://www.freepascal.org/develop.var
+    This is a daily snapshot release and may be unstable.
+
 
     If you want to compile it yourself, see fpc_howto file and figure it out yourself.
     If you have a GUI available, use https://github.com/LongDirtyAnimAlf/fpcupdeluxe
