@@ -1752,6 +1752,9 @@ begin
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
   status := ssOnline;
+
+  if LastNonIdleTaskExecution = 0 then
+    LastNonIdleTaskExecution := Now();
 end;
 
 function TSiteSlot.Login(kill: boolean = False): boolean;
