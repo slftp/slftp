@@ -649,7 +649,7 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit;
 
 const
   section = 'sites';
@@ -1062,7 +1062,15 @@ begin
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask) then
+            if not (todotask is TIdleTask)
+
+              //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
+              //then idle tasks would be created again right away
+              and not (todotask is TQuitTask)
+
+              //ignore login task if its set to readd (autobnctest)
+              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+            then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
             end;
