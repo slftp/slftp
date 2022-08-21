@@ -1668,6 +1668,15 @@ begin
     tryToGetSiteSoftwareAndVersionFromLastResponse;
   end;
 
+  //when there are some tasks running and the user sets the site down meanwhile, then there might be a login
+  //going on at the same time. so after the login, check again if the site is meant to be up.
+  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
+  begin
+    Debug(dpMessage, section, '[Login] Site marked down manually after successful login - quit. %s', [self.Name]);
+    self.Quit;
+    exit;
+  end;
+
   // successful login
   Result := True;
 
@@ -1839,8 +1848,9 @@ begin
   end;
 
   //this relogin might come from some task retrying, but if the user setdown the site, it should never relogin.
-  if (site.WorkingStatus = sstMarkedAsDownByUser) then
+  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
   begin
+    Debug(dpMessage, section, '[ReLogin] Site marked down manually - Abort Relogin. %s', [self.Name]);
     Result := True;
     exit;
   end;
