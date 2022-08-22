@@ -1668,15 +1668,6 @@ begin
     tryToGetSiteSoftwareAndVersionFromLastResponse;
   end;
 
-  //when there are some tasks running and the user sets the site down meanwhile, then there might be a login
-  //going on at the same time. so after the login, check again if the site is meant to be up.
-  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
-  begin
-    Debug(dpMessage, section, '[Login] Site marked down manually after successful login - quit. %s', [self.Name]);
-    self.Quit;
-    exit;
-  end;
-
   // successful login
   Result := True;
 
@@ -1751,6 +1742,16 @@ begin
 
   if spamcfg.readbool(section, 'login_logout', False) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
+
+  //when there are some tasks running and the user sets the site down meanwhile, then there might be a login
+  //going on at the same time. so after the login, check again if the site is meant to be up.
+  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
+  begin
+    Debug(dpMessage, section, '[Login] Site marked down manually after successful login - quit. %s', [self.Name]);
+    self.Quit;
+    Result := False;
+    exit;
+  end;
 
   status := ssOnline;
 end;
