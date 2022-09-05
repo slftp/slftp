@@ -207,6 +207,10 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    fMaxUp: integer;
+    fMaxDn: integer;
+    fMaxPreDn: integer;
+
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -649,7 +653,7 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit;
 
 const
   section = 'sites';
@@ -1062,7 +1066,15 @@ begin
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask) then
+            if not (todotask is TIdleTask)
+
+              //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
+              //then idle tasks would be created again right away
+              and not (todotask is TQuitTask)
+
+              //ignore login task if its set to readd (autobnctest)
+              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+            then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
             end;
@@ -1744,6 +1756,9 @@ begin
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
   status := ssOnline;
+
+  if LastNonIdleTaskExecution = 0 then
+    LastNonIdleTaskExecution := Now();
 end;
 
 function TSiteSlot.Login(kill: boolean = False): boolean;
@@ -2268,7 +2283,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
+        Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
         exit;
       end;
 
@@ -2524,6 +2539,10 @@ begin
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
+  fMaxDn := RCInteger('max_dn', 2);
+  fMaxUp := RCInteger('max_up', 2);
+  fMaxPreDn := RCInteger('max_pre_dn', max_dn);
+
 
   // TODO: remove as its been here for a while now...
   // convert section affils to new global affil format
@@ -2785,34 +2804,40 @@ end;
 
 function TSite.GetMaxDn: integer;
 begin
-  Result := RCInteger('max_dn', 2);
+  Result := fMaxDn;
+  //Result := RCInteger('max_dn', 2);
 end;
 
 procedure TSite.SetMaxDn(Value: integer);
 begin
   WCInteger('max_dn', Value);
+  fMaxDn := Value;
 end;
 
 function TSite.GetMaxPreDn: integer;
 begin
   // if max_pre_dn is not set, we use max_dn value to avoid bugs when users
   // haven't setup their maxupdn again after using new version with this feature
-  Result := RCInteger('max_pre_dn', max_dn);
+  Result := fMaxPreDn;
+  //Result := RCInteger('max_pre_dn', max_dn);
 end;
 
 procedure TSite.SetMaxPreDn(Value: integer);
 begin
   WCInteger('max_pre_dn', Value);
+  fMaxPreDn := Value;
 end;
 
 function TSite.GetMaxUp: integer;
 begin
-  Result := RCInteger('max_up', 2);
+  Result := fMaxUp;
+  //Result := RCInteger('max_up', 2);
 end;
 
 procedure TSite.SetMaxUp(Value: integer);
 begin
   WCInteger('max_up', Value);
+  fMaxUp := Value;
 end;
 
 procedure TSite.Setconnect_timeout(const Value: integer);
