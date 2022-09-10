@@ -569,6 +569,10 @@ begin
       s := FindSiteByName('', dst.Name);
       if (s.max_up = 0) then exit;
 
+      //if the destination is going sstTempDown during the race we would spam race tasks
+      //avoid this and also check other down states just to be sure
+      if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then exit;
+
       // drop sending to this destination if too much crc events
       if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then Continue;
 
