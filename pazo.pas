@@ -571,7 +571,7 @@ begin
 
       //if the destination is going sstTempDown during the race we would spam race tasks
       //avoid this and also check other down states just to be sure
-      if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then exit;
+      if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then continue;
 
       // drop sending to this destination if too much crc events
       if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then Continue;
