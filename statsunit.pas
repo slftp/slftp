@@ -57,6 +57,7 @@ type
   public
     constructor Create;
     procedure Execute; override;
+    destructor Destroy; override;
   end;
 
 { Just a helper function to initialize @link(ORMStatsDB) }
@@ -100,7 +101,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Contnrs, Generics.Collections, dbhandler, mORMotSQLite3, debugunit, configunit, sitesunit, irc, mystrings, SyncObjs;
+  SysUtils, Contnrs, Generics.Collections, dbhandler, mORMotSQLite3, debugunit, configunit, sitesunit, irc, mystrings, SyncObjs, DateUtils;
 
 const
   section = 'stats';
@@ -110,6 +111,9 @@ var
   ORMStatsModel: TSQLModel; //< SQL ORM model for stats database
   glStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
   glStatRaceLock: TCriticalSection; //< Lock for the race stats queue
+  glLastStatsCleanTime: TDateTime;  //< When was the stats DB last cleaned from old entries
+  glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
+  glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
 
 function _GetMinFilesize: Int64; inline;
 begin
@@ -123,6 +127,7 @@ begin
   if not config.ReadBool(section, 'enabled', True) then
     Exit;
 
+  glLastStatsCleanTime := MinDateTime;
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
 
   ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
@@ -145,6 +150,11 @@ begin
   Debug(dpSpam, section, 'Uninit1');
   if Assigned(ORMStatsDB) then
   begin
+    glWriteStatsThreadShouldStop := True;
+
+    while glTWriteStatsThreadRunning do
+      Sleep(100);
+
     FreeAndNil(ORMStatsDB);
   end;
   if Assigned(ORMStatsModel) then
@@ -635,22 +645,31 @@ begin
     NameThreadForDebugging('StatsWriter', self.ThreadID);
   {$ENDIF}
   FreeOnTerminate := True;
+  glTWriteStatsThreadRunning := True;
+end;
+
+destructor TWriteStatsToDBThread.Destroy;
+begin
+  glTWriteStatsThreadRunning := False;
 end;
 
 procedure TWriteStatsToDBThread.Execute;
 var
   fStatRaceQueue: TQueue<TStatRaceRecord>;
+  i: Integer;
+  fRec: TSQLFileInfoRecord;
+  fCleanDate: TDateTime;
 begin
-  while IsStatsDatabaseActive do
+  while IsStatsDatabaseActive and not glWriteStatsThreadShouldStop do
   begin
 
     sleep(1000);
 
     try
-      //replace glStatRaceLock with a new queue and process the records of the existing one
+      // replace glStatRaceLock with a new queue and process the records of the existing one
       fStatRaceQueue := glStatRaceQueue;
 
-      //lock here to be sure the enqueuing threads don't use the old reference while we're iterating
+      // lock here to be sure the enqueuing threads don't use the old reference while we're iterating
       glStatRaceLock.Enter;
       try
         glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
@@ -672,8 +691,47 @@ begin
         Debug(dpError, section, Format('[EXCEPTION] QueueRaceStats: %s', [e.Message]));
       end;
     end;
-  end;
 
+    try
+      if config.ReadInteger(Section, 'delete_after_days', 0) > 0 then
+      begin
+        if glWriteStatsThreadShouldStop then
+          break;
+
+        // clean the stats DB of old entries once each day
+        if (DaysBetween(glLastStatsCleanTime, Today()) > 0) then
+        begin
+          i := 0;
+          fCleanDate := IncDay(Today(), config.ReadInteger(Section, 'delete_after_days', 0) * -1);
+
+          // only delete 1000 at a time
+          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
+          try
+            while not glWriteStatsThreadShouldStop and fRec.FillOne do
+            begin
+              ORMStatsDB.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
+              ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fRec.ID]);
+              i := i + 1;
+            end;
+          finally
+            fRec.Free;
+          end;
+
+          // if no more entries have been found today, check again tomorrow
+          if i = 0 then
+            glLastStatsCleanTime := Today()
+          else
+            Debug(dpSpam, Section, Format('[STATSDB] Cleaned %d entries from stats db which are older than %d days', [i, config.ReadInteger(Section, 'delete_after_days', 0)]));
+
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpSpam, Section, Format('[EXCEPTION] Clean Stats DB: %s', [e.Message]));
+      end;
+    end;
+  end;
 end;
 
 end.
