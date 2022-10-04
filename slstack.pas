@@ -94,7 +94,7 @@ procedure slDebug(s: String);
 
 implementation
 
-uses slhelper, StrUtils;
+uses slhelper, StrUtils, IdStack;
 
 function slStackInit(var error: String): Boolean;
 begin
@@ -277,7 +277,6 @@ end;
     PHostEntry = ^THostEnt;
     PHostEnt = PHostEntry;
 
-  function gethostbyname ( Name : PAnsiChar) : PHostEntry; cdecl; external socklib;
   {$ENDIF}
 {$ENDIF}
 
@@ -285,50 +284,15 @@ end;
 
 // Delphi/Kylix
 function slGetHostByName(AHostName: String; var error: String): String; overload;
-var
-  pa: PAnsiChar;
-  sa: TInAddr;
-  Host: PHostEnt;
 begin
-  Result:= '';
-  {$IFDEF UNICODE}
-    Host := GetHostByName(PAnsiChar(RawByteString(AHostName)));
-  {$ELSE}
-    Host := GetHostByName(PAnsiChar(AHostName));
-  {$ENDIF}
-  if Host <> nil then
-  begin
-  {$IFDEF MSWINDOWS}
-    {$IFDEF FPC}
-    pa := Host^.h_addr_list^;
-    {$ELSE}
-    pa := Host^.h_address_list^;
-    {$ENDIF}
-  {$ELSE}
-    pa := Host^.h_addr_list^;
-  {$ENDIF}
 
-  {$IFDEF FPC}
-    {$IFDEF MSWINDOWS}
-    sa.S_un_b.s_b1 := pa[0];
-    sa.S_un_b.s_b2 := pa[1];
-    sa.S_un_b.s_b3 := pa[2];
-    sa.S_un_b.s_b4 := pa[3];
-    {$ELSE}
-    sa.s_bytes[1] := Ord(pa[0]);
-    sa.s_bytes[2] := Ord(pa[1]);
-    sa.s_bytes[3] := Ord(pa[2]);
-    sa.s_bytes[4] := Ord(pa[3]);
-    {$ENDIF}
-  {$ELSE}
-    sa.S_un_b.s_b1 := Ord(pa[0]);
-    sa.S_un_b.s_b2 := Ord(pa[1]);
-    sa.S_un_b.s_b3 := Ord(pa[2]);
-    sa.S_un_b.s_b4 := Ord(pa[3]);
-  {$ENDIF}
-    result := TInAddrToString(sa);
-  end else
-    error:= 'Cant resolve '+AHostName;
+  Result:= '';
+  TIdStack.IncUsage;
+  result := GStack.ResolveHost(AHostName);
+  if (result = '') then
+  begin
+    error:= 'Cant resolve '+ AHostName;
+  end;
 end;
 
 
@@ -368,39 +332,24 @@ begin
 end;
 
 function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
-type
-  TaPInAddr = Array[0..250] of PInAddr;
-  PaPInAddr = ^TaPInAddr;
 var
-  i: integer;
-  AHost: PHostEnt;
-  PAdrPtr: PaPInAddr;
+  aHost: String;
 begin
-  Result := True; //TODO: shouldn't this be false? And what about returning an error?
-  l.Clear ;
-  AHost := GetHostByName(PAnsiChar(slGetHostName));
-  if AHost <> nil then
+  Result := False;
+  TIdStack.IncUsage;
+  l.Clear;
+  aHost := GStack.ResolveHost(slGetHostName);
+  if aHost = '' then
   begin
-    {$IFDEF FPC}
-      PAdrPtr := PAPInAddr(AHost^.h_addr_list);
-    {$ELSE}
-      {$IFDEF MSWINDOWS}
-      PAdrPtr := PAPInAddr(AHost^.h_address_list);
-      {$ELSE}
-      PAdrPtr := PAPInAddr(AHost^.h_addr_list);
-      {$ENDIF}
-    {$ENDIF}
-    i := 0;
-    while PAdrPtr^[i] <> nil do
-    begin
-      l.Add(TInAddrToString(PAdrPtr^[I]^));
-      Inc(I);
-    end;
+    error:= 'Cant query local addresses';
+    exit;
+  end
+  else
+  begin
+    l.add(GStack.ResolveHost(slGetHostName));
     l.Add('127.0.0.1');
     Result := True;
   end;
-// else
-//    error:= 'Cant query local addresses';
 end;
 
 
