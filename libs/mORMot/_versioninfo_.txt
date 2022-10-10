@@ -1,3 +1,3 @@
-cf17849f9f34b0fc7fdb0c96bc683af4a138b24a
-
-fixed ExistNameValue() for HTTP headers
+ba965121778aa8744f22449bec2667edf4b6d218
+new twoDateTimeWithZ option
+to append an ending 'Z' to TDateTime/TDateTimeMS values

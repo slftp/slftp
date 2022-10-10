@@ -1,5 +1,8 @@
                                        FAQ
 -------------------------------------------------------------------------------
+Q. How to clone the source code and use a different branch than the default 'dev'?
+A. Read the steps provided in CONTRIBUTING.md in the section Git Commands
+
 Q. ERROR channel is filled with: [ERROR Read] SITENAME3/5: WAIT sslread failed: error:00000006:lib(0):func(0):EVP lib 1/100 (1.1.1.1:1111)
    slftp keeps breaking transfer with BAD_FILE_CRC in glftpd.log
 A. Verify slots and maxupdn configuration at that site. Having too many slots or maxupdn can be a cause of this.

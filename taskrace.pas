@@ -183,6 +183,7 @@ var
   numerrors: integer;
   tname: String;
   ps: TPazoSite;
+  fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
 begin
   numerrors := 0;
@@ -273,7 +274,7 @@ begin
       //fix drftpd messed up working directory by reconnect
       if s.site.sw = sswDrftpd then
       begin
-        s.Quit;
+        s.QuitAndRelogin('TPazoDirlistTask');
         goto TryAgain;
       end;
 
@@ -292,7 +293,7 @@ begin
       //fix drftpd messed up working directory by reconnect
       if s.site.sw = sswDrftpd then
       begin
-        s.Quit;
+        s.QuitAndRelogin('TPazoDirlistTask');
         goto TryAgain;
       end;
 
@@ -315,7 +316,7 @@ begin
     case s.lastResponseCode of
       421:
         begin
-          s.DestroySocket(False);
+          s.DestroySocketAndRelogin('TPazoDirlistTask');
           goto TryAgain;
         end;
 
@@ -332,7 +333,7 @@ begin
               on e: Exception do
                 Debug(dpError, c_section, '[EXCEPTION] (dirlist no such directory handling): %s', [e.Message]);
             end;
-            if (d = nil) Or d.need_mkdir then
+            if (d = nil) Or (d.need_mkdir and not d.error) then
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
@@ -352,7 +353,7 @@ begin
                   exit;
                 end;
 
-                if not s.Cwd(fAbsoluteDir) then
+                if not s.Cwd(fAbsoluteDir, True) then
                 begin
                   irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dir ' + fAbsoluteDir + ' on ' + site1 + ' does not exist']));
                   if (dir = '') then
@@ -504,7 +505,7 @@ begin
   begin
 
     //check if we should give up with empty/incomplete/long release
-    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) ) then
+    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND not d.DirlistGaveUp ) then
     begin
       secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
 
@@ -514,7 +515,7 @@ begin
         begin
           irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        ps1.dirlistgaveup := True;
+        d.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
       end;
 
@@ -524,7 +525,7 @@ begin
         begin
           irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        ps1.dirlistgaveup := True;
+        d.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
       end;
 
@@ -538,7 +539,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
         end;
       end
@@ -552,7 +553,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, config.ReadInteger(c_section, 'newdir_max_created', 600)]));
         end;
 
@@ -562,7 +563,7 @@ begin
           begin
             irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          ps1.dirlistgaveup := True;
+          d.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
         end;
       end;
@@ -573,14 +574,14 @@ begin
 
   // check if need more dirlist
   itwasadded := False;
-  if (not ps1.dirlistgaveup) then
+  if (d <> nil) and not d.dirlistgaveup and not d.error then
   begin
     // check if still incomplete
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
       try
         AddTask(r);
@@ -597,49 +598,41 @@ begin
     // check if one dst need more dirlist
     if (not itwasadded) then
     begin
-      for ps in ps1.destinations.Keys do
+      for fDestination in ps1.destinations do
       begin
         if itwasadded then
           Break;
 
         try
+          ps := fDestination.PazoSite;
+
           if (ps.error) then
             Continue;
           if (ps.dirlistgaveup) then
             Continue;
+          if (ps.dirlist = nil) then
+            Continue;
+          if (ps.dirlist.error) then
+            Continue;
+          if not (ps.status in [rssAllowed]) then
+            Continue;
+          if ps.dirlist.Complete then
+            Continue;
 
-          if ((is_pre) and (ps.status in [rssAllowed]) and (ps.dirlist <> nil) and
-            (not ps.dirlist.Complete) and (not ps.dirlist.error)) then
+          if (dir <> '') then
           begin
-            // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
-
-            try
-              AddTask(r);
-              AddTask(r_dst);
-              itwasadded := True;
-              Break;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, c_section,
-                  Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
-              end;
-            end;
+            d := ps.dirlist.FindDirlist(dir);
+            if (d <> nil) and (d.error or d.Complete) then
+              Continue;
           end;
 
-          if ((ps.status in [rssAllowed]) and (ps.dirlist <> nil) and
-            (not ps.dirlist.Complete) and (ps.dirlist.entries.Count > 0) and
-            (not ps.dirlist.error)) then
+          if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 1000));
+            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
 
             try
               AddTask(r);
@@ -655,7 +648,11 @@ begin
             end;
           end;
         except
-          Continue;
+          on e: Exception do
+          begin
+            Debug(dpError, c_section,
+              Format('[EXCEPTION] TPazoDirlistTask CheckDestinations: %s', [e.Message]));
+          end;
         end;
       end;
     end;
@@ -776,7 +773,7 @@ begin
     //fix drftpd messed up working directory by reconnect
     if s.site.sw = sswDrftpd then
     begin
-      s.Quit;
+      s.QuitAndRelogin('TPazoMkdirTask');
       goto TryAgain;
     end
     else
@@ -1048,7 +1045,7 @@ begin
     if (failure) then
     begin
       fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
-      if not s.Cwd(fulldir) then
+      if not s.Cwd(fulldir, True) then
       begin
         irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
         ps1.MkdirError(dir);
@@ -1371,7 +1368,7 @@ begin
       goto TryAgain;
   end;
 
-  if (ssrc.site.sw = sswDrftpd) or (sfPRET in ssrc.site.features) then
+  if (ssrc.site.sw = sswDrftpd) then
   begin
     if not ssrc.Send('PRET RETR %s', [ssrc.TranslateFilename(filename)]) then
       goto TryAgain;
@@ -1389,7 +1386,7 @@ begin
         begin
           //421 - Service not available, closing control connection. This may be a reply to any command if the service knows it must shut down.
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-          ssrc.Quit;
+          ssrc.QuitAndRelogin('TPazoRaceTask');
           goto TryAgain;
         end;
       426:
@@ -1414,7 +1411,7 @@ begin
           end;
 
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-          ssrc.Quit;
+          ssrc.QuitAndRelogin('TPazoRaceTask');
           goto TryAgain;
         end;
       end;
@@ -1432,7 +1429,7 @@ begin
   begin
     if not sdst.Send('PRET STOR %s', [sdst.TranslateFilename(FFilenameForSTORCommand)]) then
       goto TryAgain;
-    if not sdst.Read('PRET STOR') then
+    if not sdst.Read('PRET STOR', True, True, 0, 5000) then
       goto TryAgain;
 
 
@@ -1489,7 +1486,7 @@ begin
           //421 - Service not available, closing control connection. This may be a reply to any command if the service knows it must shut down.
           irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-          sdst.Quit;
+          sdst.QuitAndRelogin('TPazoRaceTask');
           goto TryAgain;
         end;
         426:
@@ -1624,7 +1621,7 @@ begin
             irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             mainpazo.errorreason := 'No data connection available';
             readyerror := True;
-            fPassiveSlot.Quit;
+            fPassiveSlot.QuitAndRelogin('TPazoRaceTask');
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
             exit;
           end;
@@ -1739,11 +1736,11 @@ begin
       goto TryAgain;
   end;
 
-  if not sdst.Read('STOR') then
+  if not sdst.Read('STOR', True, True, 0, 5000) then
   begin
-    sdst.Quit;
+    sdst.QuitAndRelogin('TPazoRaceTask');
     if fNeedsImmediateRETR then
-      ssrc.DestroySocket(False);
+      ssrc.DestroySocketAndRelogin('TPazoRaceTask');
 
     goto TryAgain;
   end;
@@ -1768,7 +1765,7 @@ begin
       //STOR produced an error, but RETR has already been sent to the source site. We need to ABOR that.
 
       if not ssrc.Send('ABOR') then
-        ssrc.DestroySocket(False);
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask');
 
       rss := False; //reset flag. used to remember if 150 response was read (150 File status okay; about to open send data connection.)
 
@@ -1777,7 +1774,7 @@ begin
         ssrc.Read('ABOR', False, True, 1000);
         if ssrc.error <> '' then
         begin
-          ssrc.DestroySocket(False);
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
           rss := True;
           break;
         end;
@@ -1804,12 +1801,12 @@ begin
         //send a command and see if there is a response. if not, invoke DestroySocket.
         if not ssrc.Send('NOOP') then
         begin
-          ssrc.DestroySocket(False);
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
         end
         else if not ssrc.Read('NOOP', False, True, 20) then
         begin
           Debug(dpMessage, c_section, 'Slot seems broken after ABOR: ' + ssrc.Name);
-          ssrc.DestroySocket(False);
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
         end;
       end;
     end;
@@ -1831,8 +1828,8 @@ begin
           if (0 < Pos('Connection closing', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            ssrc.Quit;
-            sdst.Quit;
+            ssrc.QuitAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
 
@@ -1840,7 +1837,7 @@ begin
           if (0 < Pos('closing control connection', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Connection closing]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            sdst.Quit;
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
         end;
@@ -1850,8 +1847,8 @@ begin
           if (0 < Pos('Connection refused', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[REFUSED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            ssrc.Quit;
-            sdst.Quit;
+            ssrc.QuitAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
 
@@ -1861,7 +1858,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(Format('<c4>[Can''t open data connection]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Can''t open data connection';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1874,7 +1871,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Timeout or building data connection problem';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -1887,8 +1884,8 @@ begin
           if (0 < Pos('Broken pipe', lastResponse)) then
           begin
             irc_Adderror(Format('<c4>[Broken pipe]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
-            ssrc.Quit;
-            sdst.Quit;
+            ssrc.QuitAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             goto TryAgain;
           end;
 
@@ -2009,7 +2006,7 @@ begin
             irc_Adderror(Format('<c4>[No data connection available]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             mainpazo.errorreason := 'No data connection available';
             readyerror := True;
-            sdst.Quit;
+            sdst.QuitAndRelogin('TPazoRaceTask');
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
             exit;
           end;
@@ -2138,7 +2135,7 @@ begin
       irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
 
       mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-      sdst.DestroySocket(False);
+      sdst.DestroySocketAndRelogin('TPazoRaceTask');
       readyerror := True;
       Debug(dpMessage, c_section, '<- ' + tname);
       exit;
@@ -2153,7 +2150,7 @@ begin
   if not ssrc.Read('RETR') then
   begin
     // breastfed, the dst to run because it works at all. closes the login will fuck up again.
-    sdst.Quit;
+    sdst.QuitAndRelogin('TPazoRaceTask');
     goto TryAgain;
   end;
 
@@ -2192,7 +2189,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
 
-              sdst.DestroySocket(False);
+              sdst.DestroySocketAndRelogin('TPazoRaceTask');
               mainpazo.errorreason := 'Timeout or opening data connection problem';
               readyerror := True;
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2208,7 +2205,7 @@ begin
 
 
               // maybe remove the source from race because fxp isn't allowed?
-              sdst.DestroySocket(False);
+              sdst.DestroySocketAndRelogin('TPazoRaceTask');
               mainpazo.errorreason := 'Opening data connection problem';
               readyerror := True;
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2268,7 +2265,7 @@ begin
             // need to have first coded TSite.LastCredits to get it work somehow
             ssrc.site.SetKredits;
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Out of credits';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2291,7 +2288,7 @@ begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Permission denied';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2306,7 +2303,7 @@ begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
             //TODO: Disable downloading for this site for some time until you uploaded more stuff to download again
-            sdst.DestroySocket(False);
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Permission denied - limit of bandwidth usage detected';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);

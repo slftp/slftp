@@ -37,3 +37,5 @@ so the bot would know, the race is still in progress or it's being continued (af
 left it incomplete). Simple add several rules for them as NEWDIR.
 
 Event ADDPRE can be used to fill your pre DB using the precatcher, in case your pre source is not using standard !addpre,!sitepre
+
+Event REQUEST can be used to trigger the reqfiller. It only works if the site has set the dir REQUEST section

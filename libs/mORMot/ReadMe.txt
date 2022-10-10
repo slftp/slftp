@@ -2,7 +2,7 @@
   Synopse mORMot framework
 
 An Open Source Client-Server ORM/SOA framework
- (c) 2008-2020 Synopse Informatique
+ (c) 2008-2021 Synopse Informatique
   https://synopse.info
   http://mormot.net
 
@@ -36,6 +36,7 @@ Contributors
   Esteban Martin (EMartin)
   Eugene Ilyin
   Eva Freimann (EVaF)
+  FeelAirSlow
   F-Vicente
   Goran Despalatovic (gigo)
   Jean-Baptiste Roussia (jbroussia)
@@ -53,6 +54,7 @@ Contributors
   Martin Eckes
   Martin Suer
   Mapes
+  Matkov
   Maxim Masiutin
   Mazinsw
   MChaos

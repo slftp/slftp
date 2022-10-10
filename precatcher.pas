@@ -47,7 +47,10 @@ function PrecatcherSectionMapping(const rls, section: String; x_count: integer =
 
 function ExtractReleasename(ts_data: TStringList): String;
 
-function KibontasSection(const s, section: String): String;
+{ Tries to extract the section from the given sitebot announce by iterating through the [sections] items
+  @param(aCleanSitebotAnnounce Sitebot announce with additional characters removed and section enclosed by whitespaces)
+  @returns(First occurring section name of the mapping if section is listed, otherwise empty string) }
+function FindSection(const aCleanSitebotAnnounce: String): String;
 function ProcessDoReplace(const s: String): String;
 
 var
@@ -57,7 +60,6 @@ var
   //  precatcher_auto: Boolean;
   catcherFile: TEncStringlist;
   mappingslist: TObjectList;
-  sectionlist: TStringList;
   minimum_rlsname: integer = 10;
 
 implementation
@@ -65,7 +67,7 @@ implementation
 uses
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
-  console, mrdohutils, SyncObjs, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SyncObjs, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
@@ -80,6 +82,8 @@ var
   debug_f: TextFile;
   precatcher_debug_lock: TCriticalSection;
   precatcher_lock: TCriticalSection;
+
+  glSectionList: TStringList; //< List of all entries of the [sections] category
 
 procedure mydebug(const s: String); overload;
 var
@@ -242,51 +246,16 @@ begin
 
 end;
 
-function KibontasSection(const s, section: String): String;
+function FindSection(const aCleanSitebotAnnounce: String): String;
 var
-  i: integer;
-begin
-  Result := section;
-  if (Result = '') then
-  begin
-    for i := 0 to sectionlist.Count - 1 do
-    begin
-      if AnsiContainsText(s, sectionlist.ValueFromIndex[i]) then
-      begin
-        Result := sectionlist.Names[i];
-        break;
-      end;
-    end;
-  end;
-end;
-
-function _findMP3GenreOnAnnounce(const text: String; ts_data: TStringList): String;
-var
-  //i, x: Integer;
   i: Integer;
 begin
   Result := '';
-  for i := 0 to GlMP3Genres.Count - 1 do
+  for i := 0 to glSectionList.Count - 1 do
   begin
-  {
-  * TODO
-  * only useful if we add an extra event for GENRE
-    * [info][mp3] Keller_Williams_Kwahtro-Sync-WEB-2017-ENTiTLED remaining(122.4MB) Rock(2017)
-    * ( MP3 )-( Presk_-_2BXPRZD-(SOHASOMRGWLD01)-WEB-2017-HQEM )-( Expecting 4F of 320kbps Techno from 2017 )
-    x := ts_data.IndexOf(GlMP3Genres[i]);
-    if x <> -1 then
+    if ContainsText(aCleanSitebotAnnounce, glSectionList.ValueFromIndex[i]) then
     begin
-      Result := GlMP3Genres[i];
-      Debug(dpError, rsections, Format('_findMP3GenreOnAnnounce TStringList %s %s', [text, Result]));
-    end;
-
-    note: Can't we !catchadd a line with event UPDATE to handle this line ?
-
-  }
-
-    if (AnsiContainsText(text, GlMP3Genres[i]) or AnsiContainsText(ReplaceText(GlMP3Genres[i], ' ', ''), text)) then
-    begin
-      Result := GlMP3Genres[i];
+      Result := glSectionList.Names[i];
       break;
     end;
   end;
@@ -343,18 +312,11 @@ begin
   Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
   s := ' ' + s + ' ';
 
-  try
-    if section = '' then
-    begin
-      section := KibontasSection(s, section);
-    end;
-    MyDebug('Section: %s', [section]);
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, rsections, Format('[EXCEPTION] KibontasSection: %s', [e.Message]));
-    end;
+  if section = '' then
+  begin
+    section := FindSection(s);
   end;
+  MyDebug('Section: %s', [section]);
 
   if section <> 'REQUEST' then
   begin
@@ -388,8 +350,9 @@ begin
   if ((kb_event <> kbeNEWDIR) and (FindSectionHandler(section).Name = 'TMP3Release')) then
   begin
     // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
-    // remove rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
-    genre :=  _findMP3GenreOnAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]), ts_data);
+
+    // removes rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
+    genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]));
     if genre <> '' then
     begin
       MyDebug('Genre: %s', [genre]);
@@ -428,6 +391,7 @@ var
   mind: boolean;
   ts_data: TStringList;
   rls, s: String;
+  fRequestDirlistTask: TAutoDirlistTask;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
 
@@ -539,9 +503,14 @@ begin
           end;
         end;
 
-        if ss.section = 'REQUEST' then
+        if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
         begin
-          // maybe we can do something here to automatically fill requests with a 'site search' like those mirc scripts do
+          MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
+          if not precatcher_debug then
+          begin
+            fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
+            AddTask(fRequestDirlistTask);
+          end;
           exit;
         end;
 
@@ -821,7 +790,7 @@ begin
       if ((vv = '') and (v = '')) then
         break;
       if (vv <> '') then
-        sectionlist.Add(section + '= ' + vv + ' ');
+        glSectionList.Add(section + '= ' + vv + ' ');
     end;
   end;
 
@@ -951,7 +920,7 @@ begin
   tagline := TStringList.Create;
   tagline.Delimiter := ' ';
   tagline.QuoteChar := '"';
-  sectionlist := TStringList.Create;
+  glSectionList := TStringList.Create;
   mappingslist := TObjectList.Create;
   skiprlses := THashedStringList.Create;
 
@@ -991,7 +960,7 @@ begin
 
   precatcher_lock.Free;
 
-  sectionlist.Free;
+  glSectionList.Free;
   mappingslist.Free;
   skiprlses.Free;
   tagline.Free;
@@ -1096,7 +1065,7 @@ var
 begin
   // clear in-memory data
   mappingslist.Clear;
-  sectionlist.Clear;
+  glSectionList.Clear;
   irclines_ignorewords.Clear;
   replacefrom.Clear;
   replaceto.Clear;

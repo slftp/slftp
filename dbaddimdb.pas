@@ -510,8 +510,10 @@ begin
   dbaddimdb_cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
+  last_addimdb.OwnsObjects:= True;
   last_imdbdata:= THashedStringList.Create;
   last_imdbdata.CaseSensitive:= False;
+  last_imdbdata.OwnsObjects := True;
   rx_imdbid := TFLRE.Create('tt(\d{6,8})', [rfIGNORECASE]);
   glLanguageCountryMappingList := TObjectList<TMapLanguageCountry>.Create(True);
   fStrList := TStringList.Create;
@@ -535,6 +537,9 @@ begin
       fDupe := False;
       for fItem in glLanguageCountryMappingList do
       begin
+        // IMDb and BOM differ for that language, see config file
+        if fLang = 'Czech' then
+          Continue;
         if fItem.Language = fLang then
         begin
           Debug(dpError, section, Format('Ignoring language %s with country %s-%s from slftp.imdbcountries because it already exists', [fLang, fCC, fCountry]));
