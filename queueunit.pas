@@ -1068,6 +1068,7 @@ begin
   try
     fCheckSiteSlotsSite := nil;
     tname := t.Name;
+    fDependentSite := nil;
 
     //do this check before the task might have been freed already
     //for races (pazo tasks) the site slots are checked when the site is added to the race,
