@@ -1010,7 +1010,15 @@ begin
     //do this check before the task might have been freed already
     //for races (pazo tasks) the site slots are checked when the site is added to the race,
     //check here for any other tasks that might come along
-    if (not (t is TPazoPlainTask)) and (not (t is TWaitTask)) and (not (t is TLoginTask)) and (t.ssite1 <> nil) then
+    if (not (t is TPazoPlainTask)) and (not (t is TWaitTask)) and (not (t is TLoginTask)) and
+      (not (t is TQuitTask)) and (not (t is TIdleTask)) and
+      (t.ssite1 <> nil) 
+
+      //ignore sites with a max idle time because not all slots will always be assigned right away and so
+      //these slots will logout just after login as their idle time is reached. that because the login task does 
+      //not count as non idle operation.
+      //if a site has a max idle time, it's probably not as crucial for all slots to be ready anyway.
+      and (TSite(t.ssite1).maxidle = 0) then
     begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
