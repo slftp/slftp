@@ -1991,7 +1991,7 @@ begin
           if ( (0 < Pos('maximum simultaneous uploads', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
-              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up</c> %s', [tname]);
+              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up (confed max_up: %d)</c> %s (%s)', [sdst.site.max_up, tname, lastResponse]);
 
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
             readyerror := True;
@@ -2086,7 +2086,7 @@ begin
           if 0 < Pos('Your have reached your maximum of', lastResponse) then
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
-              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up</c> %s', [tname]);
+              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up (confed max_up: %d)</c> %s (%s)', [sdst.site.max_up, tname, lastResponse]);
 
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
             readyerror := True;
@@ -2329,7 +2329,7 @@ begin
           if ( (0 < Pos('You have reached your maximum simultaneous downloads allowed', lastResponse)) or (0 < Pos('Your have reached your maximum of', lastResponse)) ) then
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
-              irc_Adderror(ssrc.todotask, '<c4>[ERROR] Maxsim down</c> %s', [tname]);
+              irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim down (confed max_dn/max_pre_dn: %d/%d)</c> %s (%s)', [ssrc.site.max_dn, ssrc.site.max_pre_dn, tname, lastResponse]);
               // on glftpd we could try to kill ghosts if it occurs over and over and on drftpd only setdown the site helps if it occurs over and over
 
             sdst.DestroySocket(False);
