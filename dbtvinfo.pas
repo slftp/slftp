@@ -136,6 +136,7 @@ begin
   fHelper := ReplaceText(fHelper, '.and.', '.%26.');
   fHelper := ReplaceText(fHelper, '_and_', '_%26_');
   fHelper := ReplaceText(fHelper, '', Chr(39));
+  fHelper := ReplaceText(fHelper, '''', '');
 
   if forWebFetch then
   begin

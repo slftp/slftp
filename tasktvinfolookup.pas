@@ -119,10 +119,10 @@ begin
     try
       for I := 0 to jl.Count - 1 do
       begin
-        showA := replaceTVShowChars(ReplaceText(showName, '.', ' '));
-        showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
+        showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
+        showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
 
-        if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
+        if (CompareText(showA,showB)= 0) then
         begin
           if hadCountry then
           begin
