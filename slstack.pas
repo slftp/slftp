@@ -256,45 +256,22 @@ begin
 {$ENDIF}
 end;
 
-
-
-{$IFDEF FPC}
-  {$IFNDEF MSWINDOWS}
-  const
-    { Net type }
-    socklib = 'c';
-
-  Type
-
-    { THostEnt Object }
-    THostEnt = record
-      H_Name     : PAnsiChar;   { Official name }
-      H_Aliases  : ppansichar;  { Null-terminated list of aliases}
-      H_Addrtype : longint;   { Host address type }
-      H_length  : longint;   { Length of address }
-      H_Addr_list : ppansichar;    { null-terminated list of adresses }
-    end;
-    PHostEntry = ^THostEnt;
-    PHostEnt = PHostEntry;
-
-  {$ENDIF}
-{$ENDIF}
-
-
-
-// Delphi/Kylix
 function slGetHostByName(AHostName: String; var error: String): String; overload;
 begin
+  Result := '';
 
-  Result:= '';
   TIdStack.IncUsage;
-  result := GStack.ResolveHost(AHostName);
-  if (result = '') then
+  try
+    Result := GStack.ResolveHost(AHostName);
+  finally
+    TIdStack.DecUsage;
+  end;
+
+  if (Result = '') then
   begin
-    error:= 'Cant resolve '+ AHostName;
+    error := 'Cannot resolve '+ AHostName;
   end;
 end;
-
 
 function slResolve(host: String; var error: String): String;
 begin
