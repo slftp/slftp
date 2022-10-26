@@ -31,6 +31,7 @@ type
     dir: String;
     dependentSiteName: String;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
+	destructor Destroy; override;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -684,6 +685,12 @@ constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TP
 begin
   self.dir := dir;
   inherited Create(netname, channel, site, '', pazo);
+end;
+
+destructor TPazoMkdirTask.Destroy;
+begin
+  if dependentSiteName <> '' then FindSiteByName('', dependentSiteName).RemoveDependencies(UidText);
+  inherited;
 end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;
