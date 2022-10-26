@@ -660,10 +660,12 @@ var
   fRec: TSQLFileInfoRecord;
   fCleanDate: TDateTime;
 begin
-  while IsStatsDatabaseActive and not glWriteStatsThreadShouldStop do
+  while IsStatsDatabaseActive do
   begin
 
-    sleep(1000);
+    //only sleep if the thread should not stop, else finish work as fast as possible
+    if not glWriteStatsThreadShouldStop then
+      sleep(1000);
 
     try
       // replace glStatRaceLock with a new queue and process the records of the existing one
@@ -676,6 +678,10 @@ begin
       finally
         glStatRaceLock.Leave;
       end;
+
+      //if the thread should stop and there are no more items to process, break the loop
+      if glWriteStatsThreadShouldStop and (fStatRaceQueue.Count = 0) then
+        break;
 
       try
         while fStatRaceQueue.Count > 0 do
@@ -693,11 +699,8 @@ begin
     end;
 
     try
-      if config.ReadInteger(Section, 'delete_after_days', 0) > 0 then
+      if (config.ReadInteger(Section, 'delete_after_days', 0) > 0) and not glWriteStatsThreadShouldStop then
       begin
-        if glWriteStatsThreadShouldStop then
-          break;
-
         // clean the stats DB of old entries once each day
         if (DaysBetween(glLastStatsCleanTime, Today()) > 0) then
         begin
