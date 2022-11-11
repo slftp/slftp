@@ -683,10 +683,23 @@ begin
       if glWriteStatsThreadShouldStop and (fStatRaceQueue.Count = 0) then
         break;
 
+      if fStatRaceQueue.Count > 0 then
+        Debug(dpSpam, Section, Format('Write %d stats entries to the DB', [fStatRaceQueue.Count]));
+
       try
-        while fStatRaceQueue.Count > 0 do
-        begin
-          writeStatsToDB(fStatRaceQueue.Dequeue);
+        ORMStatsDB.DB.TransactionBegin;
+        try
+          while fStatRaceQueue.Count > 0 do
+          begin
+            writeStatsToDB(fStatRaceQueue.Dequeue);
+          end;
+          ORMStatsDB.DB.Commit;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, Section, Format('[EXCEPTION] WriteRaceStats DB: %s', [e.Message]));
+            ORMStatsDB.DB.Rollback;
+          end;
         end;
       finally
         fStatRaceQueue.Free;
@@ -694,13 +707,14 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] QueueRaceStats: %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] WriteRaceStats: %s', [e.Message]));
       end;
     end;
 
     try
       if (config.ReadInteger(Section, 'delete_after_days', 0) > 0) and not glWriteStatsThreadShouldStop then
       begin
+
         // clean the stats DB of old entries once each day
         if (DaysBetween(glLastStatsCleanTime, Today()) > 0) then
         begin
@@ -710,11 +724,21 @@ begin
           // only delete 1000 at a time
           fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
           try
-            while not glWriteStatsThreadShouldStop and fRec.FillOne do
-            begin
-              ORMStatsDB.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
-              ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fRec.ID]);
-              i := i + 1;
+            ORMStatsDB.DB.TransactionBegin;
+            try
+              while not glWriteStatsThreadShouldStop and fRec.FillOne do
+              begin
+                ORMStatsDB.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
+                ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fRec.ID]);
+                i := i + 1;
+              end;
+              ORMStatsDB.DB.Commit;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, Section, Format('[EXCEPTION] Clean Stats DB (rollback): %s', [e.Message]));
+                ORMStatsDB.DB.Rollback;
+              end
             end;
           finally
             fRec.Free;
@@ -722,16 +746,20 @@ begin
 
           // if no more entries have been found today, check again tomorrow
           if i = 0 then
-            glLastStatsCleanTime := Today()
+          begin
+            glLastStatsCleanTime := Today();
+            Debug(dpSpam, Section, 'Finished cleaning old stats for today, now do "pragma optimize"');
+            ORMStatsDB.Execute('pragma optimize;');
+          end
           else
-            Debug(dpSpam, Section, Format('[STATSDB] Cleaned %d entries from stats db which are older than %d days', [i, config.ReadInteger(Section, 'delete_after_days', 0)]));
+            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, config.ReadInteger(Section, 'delete_after_days', 0)]));
 
         end;
       end;
     except
       on e: Exception do
       begin
-        Debug(dpSpam, Section, Format('[EXCEPTION] Clean Stats DB: %s', [e.Message]));
+        Debug(dpError, Section, Format('[EXCEPTION] Clean Stats DB: %s', [e.Message]));
       end;
     end;
   end;
