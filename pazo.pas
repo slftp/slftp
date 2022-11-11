@@ -530,6 +530,8 @@ begin
   dst := nil;
   dstdl := nil;
   dde := nil;
+  pm := nil;
+  pr := nil;
 
   // something's fucked
   if error then exit;
@@ -660,6 +662,7 @@ begin
                 pm.dependencies.Add(dstdl.parent.dirlist.dependency_mkdir);
 
               dstdl.dependency_mkdir := pm.UidText;
+              pm.dependentSiteName := dst.Name;
 
             except
             on e: Exception do
@@ -776,7 +779,6 @@ begin
             if (dstdl.dependency_mkdir <> '') and assigned(pm) and not pm.readyerror and not pm.ready then
             begin
               Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (dependency): %s');
-              pm.dependentSiteName := self.Name;
               Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (dependency self.name): %s');
               pr.dependencies.Add(dstdl.dependency_mkdir);
               Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (dependency dstdl.dependency_mkdir): %s');
