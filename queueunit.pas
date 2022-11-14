@@ -16,6 +16,7 @@ end;
 type
   TQueueThread = class(TThread)
     main_lock: TCriticalSection;
+    ThreadList: TThreadList;
     fQueueStat: TQueueStat;
     destructor Destroy; override;
     procedure Execute; override;
@@ -377,11 +378,13 @@ procedure TQueueThread.QueueSort;
 begin
   try
     Debug(dpSpam, section, 'Sorting queue 1');
-    main_lock.Enter();
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       tasks.Sort(@QueueSorter);
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
     Debug(dpSpam, section, 'Sorting queue 2');
   except
@@ -405,6 +408,7 @@ begin
   {$ENDIF}
 
   main_lock := TCriticalSection.Create;
+  ThreadList := TThreadList.Create;
   tasks      := TObjectList.Create(True);
   queueevent := TEvent.Create(nil, False, False, 'queue');
   queue_last_run := Now;
@@ -418,6 +422,7 @@ end;
 destructor TQueueThread.Destroy;
 begin
   main_lock.Free;
+  ThreadList.Destroy;
   tasks.Free;
   queueevent.Free;
   inherited;
@@ -924,7 +929,8 @@ begin
   begin
     try
       tpr := TPazoRaceTask(t);
-      main_lock.Enter;
+      //main_lock.Enter();
+      ThreadList.LockList;
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -951,7 +957,8 @@ begin
           end;
         end;
       finally
-        main_lock.Leave;
+        //main_lock.Leave;
+        ThreadList.UnlockList;
       end;
     except
       on E: Exception do
@@ -968,7 +975,8 @@ begin
   begin
     try
       tpd := TPazoDirlistTask(t);
-      main_lock.Enter;
+      //main_lock.Enter();
+      ThreadList.LockList;
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -995,7 +1003,8 @@ begin
           end;
         end;
       finally
-        main_lock.Leave;
+        //main_lock.Leave;
+        ThreadList.UnlockList;
       end;
     except
       on E: Exception do
@@ -1012,7 +1021,8 @@ begin
   begin
     try
       tpm := TPazoMkdirTask(t);
-      main_lock.Enter;
+      //main_lock.Enter();
+      ThreadList.LockList;
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -1039,7 +1049,8 @@ begin
           end;
         end;
       finally
-        main_lock.Leave;
+        //main_lock.Leave;
+        ThreadList.UnlockList;
       end;
     except
       on E: Exception do
@@ -1080,7 +1091,8 @@ begin
 
     Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
 
-    main_lock.Enter();
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       if TaskAlreadyInQueue(t) then
       begin
@@ -1123,7 +1135,8 @@ begin
       end;
 
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
 
     if fDependentSite <> nil then
@@ -1150,7 +1163,8 @@ var
   ttp: TPazoRaceTask;
 begin
   try
-    main_lock.Enter();
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1172,7 +1186,8 @@ begin
         end;
       end;
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
   except
     on E: Exception do
@@ -1189,7 +1204,8 @@ var
   ttp: TPazoDirlistTask;
 begin
   try
-    main_lock.Enter();
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1211,7 +1227,8 @@ begin
         end;
       end;
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
   except
     on E: Exception do
@@ -1229,7 +1246,8 @@ var
 begin
   Result := False;
   try
-    main_lock.Enter();
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1251,7 +1269,8 @@ begin
         end;
       end;
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
   except
     on E: Exception do
@@ -1270,7 +1289,8 @@ var
   ttp: TPazoMkdirTask;
 begin
   try
-    main_lock.Enter();
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1296,7 +1316,8 @@ begin
         end;
       end;
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
   except
     on E: Exception do
@@ -1312,7 +1333,8 @@ var
   ttp: TPazoRaceTask;
 begin
   try
-    main_lock.Enter();
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       for i := tasks.Count - 1 downto 0 do
       begin
@@ -1342,7 +1364,8 @@ begin
         end;
       end;
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
   except
     on E: Exception do
@@ -1363,7 +1386,8 @@ var
   tt: TTask;
 begin
   try
-    main_lock.Enter;
+    //main_lock.Enter();
+    ThreadList.LockList;
   try
     for i := tasks.Count - 1 downto 0 do
     begin
@@ -1397,7 +1421,8 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    //main_lock.Leave;
+      ThreadList.UnlockList;
   end;
   except
     on e: Exception do
@@ -1439,7 +1464,8 @@ begin
     ts := TSite(fSite);
     Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
     try
-      main_lock.Enter();
+      //main_lock.Enter();
+      ThreadList.LockList;
       try
         for i := tasks.Count - 1 downto 0 do
         begin
@@ -1522,7 +1548,8 @@ begin
         ts.slotsAssignmentCS.Leave;
       end;
       finally
-        main_lock.Leave;
+        //main_lock.Leave;
+        ThreadList.UnlockList;
       end;
 
       QueueStat;
@@ -1670,7 +1697,8 @@ begin
   end;
 
   // Check old tasks, assigned bu long time wait
-  main_lock.Enter();
+  //main_lock.Enter();
+  ThreadList.LockList;
   try
     for i := tasks.Count - 1 downto 0 do
     begin
@@ -1797,7 +1825,8 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    //main_lock.Leave;
+    ThreadList.UnlockList;
   end;
 
 
@@ -2042,14 +2071,16 @@ end;
   var
   fTask: TTask;
   begin
-    main_lock.Enter;
+    //main_lock.Enter();
+    ThreadList.LockList;
     try
       for fTask in tasks do
         taskLst.Add(fTask);
 
       taskLst.Sort(@QueueSorter);
     finally
-      main_lock.Leave;
+      //main_lock.Leave;
+      ThreadList.UnlockList;
     end;
   end;
 
