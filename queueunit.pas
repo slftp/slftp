@@ -506,7 +506,7 @@ begin
     begin
       if i > 2000 then
       begin
-        Debug(dpError, section, 'Gave up on trying to lock for slots assignment from site ' + s1.Name + ' to site ' + s2.Name);
+        Debug(dpSpam, section, 'Gave up on trying to lock for slots assignment from site ' + s1.Name + ' to site ' + s2.Name);
         exit;
       end;
       i := i + 1;
@@ -515,7 +515,7 @@ begin
     try
     if i > 0 then
     begin
-      Debug(dpError, section, 'Lock achieved from site ' + s1.Name + ' to site ' + s2.Name + ' after ' + IntToStr(i) + ' tries');
+      Debug(dpSpam, section, 'Lock achieved from site ' + s1.Name + ' to site ' + s2.Name + ' after ' + IntToStr(i) + ' tries');
     end;
 
     ss2 := nil;
@@ -542,6 +542,11 @@ begin
           if ss2.status <> ssOnline then
           begin
             ss2 := nil;
+            continue;
+          end
+          else
+          begin
+            break;
           end;
         end;
       end
@@ -550,6 +555,18 @@ begin
         tt := TSiteSlot(s2.slots[i]).todotask;
         if tt <> nil then
         begin
+          try
+           if (tt.Name = '') then
+           begin
+            Debug(dpError, section, '[Info] TQueueThread.TryToAssignRaceSlots slot1Name Check: Slot1Name is empty');
+           end;
+           except
+            on e: Exception do
+              begin
+                Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots Classtype Check: %s', [e.Message]);
+                exit;
+              end;
+            end;
           // check for already existing tasks to avoid duping ourself
           if tt.ClassType = TPazoRaceTask then
           begin
@@ -1500,35 +1517,40 @@ begin
           if t = nil then
             Continue;
 
-          begin
-            try
-              if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
-              begin
-                ss := t.uidtext;
-                TaskReady(t);
+        begin
+          try
+            if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
+            begin
+              ss := t.uidtext;
+              TaskReady(t);
 
-                if (t.ClassType = TPazoRaceTask) then
-                begin
-                  with TPazoRaceTask(t) do
-                    if (dst <> nil) then
-                    begin
-                      dst.event.SetEvent;
-                    end;
-                end;
-                RemoveDependencies(t);
-                tasks.Remove(t);
-                Console_QueueDel(ss);
-              end;
-            except
-              on e: Exception do
+              if (t.ClassType = TPazoRaceTask) then
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-                Continue;
-                RemoveActiveTransfer(TPazoRaceTask(t));
+                with TPazoRaceTask(t) do
+                if (dst <> nil) then
+                begin
+                  dst.event.SetEvent;
+                end;
               end;
-            end;
+              RemoveDependencies(t);
+              try
+                ts.slotsAssignmentCS.Enter;
+                tasks.Remove(t);
+              finally
+                ts.slotsAssignmentCS.Leave;
+               end;
+               Console_QueueDel(ss);
+               end;
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
+                  Continue;
+                  RemoveActiveTransfer(TPazoRaceTask(t));
+                end;
           end;
         end;
+      end;
 
         ts.slotsAssignmentCS.Enter;
         try

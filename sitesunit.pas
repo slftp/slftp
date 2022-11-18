@@ -910,18 +910,25 @@ end;
 
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
 begin
-  if not (t.ssite1 = nil) then
-  begin
-    TSite(t.ssite1).AddTask(t, queueFire);
-  end
-  else
-  begin
-    if t.ready or t.readyerror then
+  try
+    if not (t.ssite1 = nil) then
     begin
-      FindSiteByName('', getAdminSiteName).AddTask(t, queueFire);
+        TSite(t.ssite1).AddTask(t, queueFire);
     end
     else
-      debug(dpError, section, 'AddTask - No site for task:' + t.Name);
+    begin
+      if t.ready or t.readyerror then
+      begin
+        FindSiteByName('', getAdminSiteName).AddTask(t, queueFire);
+      end
+      else
+        debug(dpError, section, 'AddTask - No site for task:' + t.Name);
+    end;
+    except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [t.Name, e.Message]);
+    end;
   end;
 end;
 
