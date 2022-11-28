@@ -1124,7 +1124,6 @@ begin
             if ((not t.ready) and (t.dependencies.Count = 0)) then
              begin
               self.TryToAssignSlots(t);
-              AddTaskToConsole(t);
             end;
           finally
             TSite(fSite).slotsAssignmentCS.Leave;
@@ -1150,6 +1149,7 @@ begin
         end;
       end;
 
+      AddTaskToConsole(t);
     finally
       tasks.UnlockList;
       //main_lock.Leave;
