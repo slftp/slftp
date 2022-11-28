@@ -1452,8 +1452,10 @@ begin
     //Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
     try
       try
-        for fTask in fTaskList do
+        for i := fTaskList.Count - 1 downto 0 do
         begin
+          fTask := fTaskList[i];
+
           if fTask = nil then
             Continue;
 
@@ -1476,7 +1478,8 @@ begin
               try
                 ts.slotsAssignmentCS.Enter;
                 //t := NIL;
-                tasks.Remove(fTask);
+                fTaskList.Remove(fTask);
+                FreeAndNil(fTask);
               finally
                 ts.slotsAssignmentCS.Leave;
                end;
