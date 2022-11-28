@@ -2360,8 +2360,8 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read ParseResponseCode: %s',
-        [e.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read ParseResponseCode: %s : %s',
+        [e.Message, lastResponse]));
       lastResponse := '';
       lastResponseCode := 0;
       error := 'TSiteSlot.Read ParseResponseCode';

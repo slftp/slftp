@@ -1124,6 +1124,7 @@ begin
             if ((not t.ready) and (t.dependencies.Count = 0)) then
              begin
               self.TryToAssignSlots(t);
+              AddTaskToConsole(t);
             end;
           finally
             TSite(fSite).slotsAssignmentCS.Leave;
@@ -1170,7 +1171,7 @@ begin
   begin
     CheckSiteSlots(fCheckSiteSlotsSite);
   end;
-  AddTaskToConsole(t);
+  //AddTaskToConsole(t);
 end;
 
 procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
@@ -1485,8 +1486,8 @@ begin
                 on e: Exception do
                 begin
                   Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-                  Continue;
                   RemoveActiveTransfer(TPazoRaceTask(fTask));
+                  Continue;
                 end;
           end;
         end;
