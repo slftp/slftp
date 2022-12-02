@@ -1,4 +1,4 @@
-{*****************************************************************************
+﻿{*****************************************************************************
 
  - Soulless robotic engine aka SLFTP
  - Version 1.3
@@ -452,20 +452,29 @@ function ParseResponseCode(s: String): integer;
 var
   p, l: integer;
 begin
-  Result := 0;
-  s      := RTrimCRLF(s);
-  p      := RPos(#13, s);
-  l      := length(s);
-  if (p <= l - 3) then
-  begin
-    Inc(p);
-    if (s[p] in [#13, #10]) then
-      Inc(p);
-
-    Result := StrToIntDef(Copy(s, p, 3), 0);
-    if ((l > 3) and (s[p + 3] <> ' ')) then
-      Inc(Result, 1000);// and (p + 3 <= l)
-  end;
+    try
+      Result := 0;
+      s      := RTrimCRLF(s);
+      p      := RPos(#13, s);
+      l      := length(s);
+      if (p <= l - 3) then
+      begin
+        Inc(p);
+        if (s[p] in [#13, #10]) then
+          Inc(p);
+      if not TryStrToInt(Copy(s, p, 3),Result) then
+        if not TryStrToInt(LeftStr(s,3),Result) then
+          Result := 0;
+      if ((l > 3) and (s[p + 3] <> ' ')) then
+      Inc(Result, 1000);
+    end;
+    except
+    on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] MyStrings.ParseResponseCode: %s ', [e.Message]));
+        exit;
+      end;
+    end;
 end;
 
 function MyIncludeTrailingSlash(const s: String): String;
