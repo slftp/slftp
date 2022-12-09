@@ -1474,9 +1474,8 @@ begin
                   dst.event.SetEvent;
                 end;
               end;
-              RemoveDependencies(fTask);
+              ts.slotsAssignmentCS.Enter;
               try
-                ts.slotsAssignmentCS.Enter;
                 //t := NIL;
                 fTaskList.Remove(fTask);
                 FreeAndNil(fTask);
