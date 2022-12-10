@@ -1615,6 +1615,7 @@ var
   i, tkill_unassigne, tkill_race, tkill_other: integer;
   ss: String;
   t:  TTask;
+  fTaskList: TList;
 begin
 
   try
@@ -1667,8 +1668,10 @@ begin
   //main_lock.Enter();
   //ThreadList.LockList;
   try
-    for t in tasks.LockList do
+    fTaskList := tasks.LockList;
+    for i := fTaskList.Count - 1 downto 0 do
     begin
+      t := fTaskList[i];
       if ((t.assigned <> 0) and ((t.startat = 0) or (t.startat <= queue_last_run)) and
         (SecondsBetween(t.assigned, Now()) >= config.ReadInteger('queue',
         'queueclean_maxrunning', 900))) then
@@ -2021,6 +2024,8 @@ function TQueueThread.IrcKillAll(const netname, channel, params: String): boolea
 var
   fTask: TTask;
   rx: TRegExpr;
+  i: Int32;
+  fTaskList: TList;
 begin
   Result := False;
 
@@ -2028,7 +2033,9 @@ begin
   try
     rx.ModifierI := False;
     rx.Expression := 'AUTOLOGIN';
-    for fTask in tasks.LockList do
+    fTaskList := tasks.LockList;
+    for i := fTaskList.Count - 1 downto 0 do
+      fTask := fTaskList[i];
       if not rx.Exec(TPazoTask(fTask).Fullname) then
       begin
         irc_addtext(Netname, Channel, 'Removing Task -> %s', [TPazoTask(fTask).Fullname]);
@@ -2039,10 +2046,7 @@ begin
           on E: Exception do
             Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
         end;
-
       end
-      else
-        Continue;
   finally
     tasks.UnlockList;
     rx.Free;
