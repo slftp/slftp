@@ -310,20 +310,27 @@ end;
 
 function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
 var
-  aHost: String;
+  fHost: String;
 begin
   Result := False;
+
   TIdStack.IncUsage;
+  try
+    fHost := GStack.ResolveHost(slGetHostName);
+  finally
+    TIdStack.DecUsage;
+  end;
+
   l.Clear;
-  aHost := GStack.ResolveHost(slGetHostName);
-  if aHost = '' then
+
+  if fHost = '' then
   begin
-    error:= 'Cant query local addresses';
+    error := 'Cant query local addresses';
     exit;
   end
   else
   begin
-    l.add(GStack.ResolveHost(slGetHostName));
+    l.Add(fHost);
     l.Add('127.0.0.1');
     Result := True;
   end;
