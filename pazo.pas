@@ -644,53 +644,62 @@ begin
         end;
       end;
 
+      pm := nil;
       try
         // Check if mkdir is needed
         Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [fd, Name, dst.Name, dst.Name]);
         if ((dstdl.entries <> nil) and (dstdl.entries.Count = 0)) then
         begin
-          if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
-          begin
-            Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
+          dstdl.dirlist_lock.Enter;
+          try
+            if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
+            begin
+              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
-            // Create the mkdir task
-            try
-              pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir);
+              // Create the mkdir task
+              try
+                if (dstdl.parent <> nil) then
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                else
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
 
-              // add delay to mkdir if delay_upload enabled
-              if dst.delay_upload > 0 then pm.startat := IncSecond(Now, dst.delay_upload);
+                // add delay to mkdir if delay_upload enabled
+                if dst.delay_upload > 0 then
+                  pm.startat := IncSecond(Now, dst.delay_upload);
 
-              // Add mkdir dependencies if needed
-              if ((dstdl.parent <> nil) and (dstdl.parent.dirlist.dependency_mkdir <> '')) then
-                pm.dependencies.Add(dstdl.parent.dirlist.dependency_mkdir);
+                dstdl.dependency_mkdir := pm.UidText;
 
-              dstdl.dependency_mkdir := pm.UidText;
-              pm.dependentSiteName := dst.Name;
-
-            except
-            on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj TPazoMkdirTask: %s', [e.Message]));
-                Break;
+              except
+                on E: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj TPazoMkdirTask: %s', [E.Message]));
+                  Break;
+                end;
               end;
             end;
-            // Finally add mkdir task
-            try
-              AddTask(pm, true);
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [e.Message]));
-                Break;
-              end;
-            end;
+          finally
+            dstdl.dirlist_lock.Leave;
           end;
         end;
       except
-      on e: Exception do
+        on E: Exception do
         begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl(all): %s', [e.Message]));
-        Break;
+          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl(all): %s', [E.Message]));
+          Break;
+        end;
+      end;
+
+      // Finally add mkdir task
+      if Assigned(pm) then
+      begin
+        try
+          AddTask(pm, True);
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [E.Message]));
+            Break;
+          end;
         end;
       end;
 
@@ -732,7 +741,7 @@ begin
 
             // Create the race task
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
-            pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, dstrank);
+            pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dstdl, dir, de.filename, de.filesize, dstrank);
 
             Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (TPazoRaceTask): %s');
 
@@ -777,17 +786,6 @@ begin
             end;
 
             Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (delay_leech): %s');
-
-            // Add dependency if a dependent mkdir exists
-            if (dstdl.dependency_mkdir <> '') and assigned(pm) and not pm.readyerror and not pm.ready then
-            begin
-              Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (dependency): %s');
-              Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (dependency self.name): %s');
-              pr.dependencies.Add(dstdl.dependency_mkdir);
-              Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (dependency dstdl.dependency_mkdir): %s');
-            end;
-
-            Debug(dpSpam, section,'[INFO] TPazoSite.Tuzelj (dependency_mkdir): %s');
 
             // finally we can add the task
             try
@@ -1424,6 +1422,10 @@ end;
 function TPazoSite.MkdirReady(const dir: String): boolean;
 var
   d: TDirList;
+  fSiteName: String;
+  fPazoSite: TPazoSite;
+  fSitesList: TList<String>;
+  fDestinationRank: TDestinationRank;
 begin
   Result := False;
 
@@ -1437,8 +1439,41 @@ begin
       Result := True;
     end;
     // dir exist, we can set need_mkdir to false
-    d.need_mkdir := False;
-    d.dependency_mkdir := '';
+    d.dirlist_lock.Enter;
+    try
+      d.need_mkdir := False;
+      d.dependency_mkdir := '';
+    finally
+      d.dirlist_lock.Leave;
+    end;
+
+    //fire the queue for all source sites
+    fSitesList := TList<String>.Create;
+    try
+      //find all sites which have this site as destination
+      for fPazoSite in self.pazo.PazoSitesList do
+      begin
+        for fDestinationRank in fPazoSite.FDestinations do
+        begin
+          if (fDestinationRank.FPazoSite.Name = self.Name) then
+          begin
+            if not fSitesList.Contains(fDestinationRank.PazoSite.Name) then
+            begin
+              fSitesList.Add(fDestinationRank.PazoSite.Name);
+            end;
+            break;
+          end;
+        end;
+      end;
+
+      for fSiteName in fSitesList do
+      begin
+        FindSiteByName('', fSiteName).QueueFire;
+      end;
+    finally
+      fSitesList.Free;
+    end
+
   end;
 
   try

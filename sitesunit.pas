@@ -423,7 +423,6 @@ type
     function IrcKillAll(const netname, channel, params: String): boolean;
     procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
     procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
-    procedure RemoveDependencies(const aTaskUidText: String);
 
     procedure SetOutofSpace;
     procedure SetKredits;
@@ -693,11 +692,6 @@ var
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
-
-  procedure TSite.RemoveDependencies(const aTaskUidText: String);
-  begin
-    fQueue.RemoveDependencies(aTaskUidText);
-  end;
 
 procedure TSite.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 var
@@ -1427,16 +1421,7 @@ begin
                     end;
                   end;
                 end;
-              end
-              else if todotask is TPazoMkdirTask then
-              begin
-                with TPazoMkdirTask(todotask) do
-                begin
-                  if dependentSiteName <> '' then FindSiteByName('', dependentSiteName).RemoveDependencies(todotask.UidText);
-                end;
               end;
-
-              site.RemoveDependencies(todotask.UidText);
 
               if (todotask.slot1 <> nil) then
               begin

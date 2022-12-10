@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo;
+uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -14,8 +14,10 @@ type
   end;
 
   TPazoTask = class(TPazoPlainTask) // announce
-    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo);
+    FDependingOnDirlist: TDirList;
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList);
     destructor Destroy; override;
+    function IsReadyToBeExecuted: boolean; override;
   end;
 
   TPazoDirlistTask = class(TPazoTask)
@@ -29,9 +31,7 @@ type
 
   TPazoMkdirTask = class(TPazoTask)
     dir: String;
-    dependentSiteName: String;
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
-	destructor Destroy; override;
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -68,7 +68,7 @@ type
     isSfv, IsNfo: Boolean;
     isSample, isProof, isCovers, isSubs: Boolean;
     dst: TWaitTask;
-    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir, filename: String; const filesize: Int64; const rank: integer);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -77,7 +77,7 @@ implementation
 
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
-  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist,
+  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news;
 
 const
@@ -114,11 +114,12 @@ begin
   inherited;
 end;
 
-constructor TPazoTask.Create(const netname, channel, site1, site2: String; pazo: TPazo);
+constructor TPazoTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
 
   mainpazo.queuenumber.Increase;
+  self.FDependingOnDirlist := aDependingOnDirlist;
 
   if ClassType = TPazoRaceTask then
   begin
@@ -160,6 +161,11 @@ begin
   inherited;
 end;
 
+function TPazoTask.IsReadyToBeExecuted: boolean;
+begin
+  Result := (self.FDependingOnDirlist = nil) or (not self.FDependingOnDirlist.need_mkdir);
+end;
+
 
 { TPazoDirlistTask }
 constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
@@ -167,7 +173,7 @@ begin
   self.dir := dir;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
-  inherited Create(netname, channel, site, '', pazo);
+  inherited Create(netname, channel, site, '', pazo, nil);
 end;
 
 function TPazoDirlistTask.Execute(slot: Pointer): boolean;
@@ -681,16 +687,10 @@ end;
 
 
 { TPazoMkdirTask }
-constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
+constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
 begin
   self.dir := dir;
-  inherited Create(netname, channel, site, '', pazo);
-end;
-
-destructor TPazoMkdirTask.Destroy;
-begin
-  if dependentSiteName <> '' then FindSiteByName('', dependentSiteName).RemoveDependencies(UidText);
-  inherited;
+  inherited Create(netname, channel, site, '', pazo, aDependingOnDirlist);
 end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;
@@ -1104,9 +1104,9 @@ begin
 end;
 
 { TPazoRaceTask }
-constructor TPazoRaceTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
+constructor TPazoRaceTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir, filename: String; const filesize: Int64; const rank: integer);
 begin
-  inherited Create(netname, channel, site1, site2, pazo);
+  inherited Create(netname, channel, site1, site2, pazo, aDependingOnDirlist);
   self.dir := dir;
   self.rank := rank;
   self.filename := filename;

@@ -52,8 +52,6 @@ procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 function IrcKillAll(const netname, channel, params: String): boolean;
 procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
-procedure RemoveDependencies(t: TTask); overload;
-procedure RemoveDependencies(const aTaskUidText: String); overload;
 
 function RemovePazo(const pazo_id: integer): boolean;
 
@@ -1078,14 +1076,12 @@ end;
 
 procedure TQueueThread.AddTask(t: TTask);
 var
-  tname, fDependingUidText: String;
-  fDependentSite: TSite;
+  tname: String;
   fCheckSiteSlotsSite: TSite;
 begin
   try
     fCheckSiteSlotsSite := nil;
     tname := t.Name;
-    fDependentSite := nil;
 
     //do this check before the task might have been freed already
     //for races (pazo tasks) the site slots are checked when the site is added to the race,
@@ -1117,11 +1113,11 @@ begin
       tasks.Add(t);
 
       try
-        if ((t is TPazoRaceTask) and (not t.ready) and (t.dependencies.Count = 0)) then
+        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted) then
         begin
           TSite(fSite).slotsAssignmentCS.Enter;
           try
-            if ((not t.ready) and (t.dependencies.Count = 0)) then
+            if ((not t.ready) and t.IsReadyToBeExecuted) then
              begin
               self.TryToAssignSlots(t);
             end;
@@ -1136,28 +1132,12 @@ begin
         end;
       end;
 
-      try
-        if t.ready and (t is TPazoMkdirTask) and (TPazoMkdirTask(t).dependentSiteName <> '') then
-        begin
-          fDependentSite := FindSiteByName('', TPazoMkdirTask(t).dependentSiteName);
-          fDependingUidText := t.UidText;
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] AddTask RemoveDependencies: %s', [e.Message]));
-        end;
-      end;
-
       AddTaskToConsole(t);
     finally
       tasks.UnlockList;
       //main_lock.Leave;
       //ThreadList.UnlockList;
     end;
-
-    if fDependentSite <> nil then
-      fDependentSite.RemoveDependencies(fDependingUidText);
 
   except
     on e: Exception do
@@ -1370,54 +1350,6 @@ begin
   end;
 end;
 
-procedure TQueueThread.RemoveDependencies(t: TTask);
-begin
-  RemoveDependencies(t.UidText);
-end;
-
-procedure TQueueThread.RemoveDependencies(const aTaskUidText: String);
-var
-  i, j: integer;
-  tt: TTask;
-  fTask: TTask;
-begin
-  try
-    //main_lock.Enter();
-    //ThreadList.LockList;
-  try
-    for fTask in tasks.LockList() do
-    begin
-      try
-        if fTask = nil then
-          Continue;
-
-        j := fTask.dependencies.IndexOf(aTaskUidText);
-        if j <> -1 then
-        begin
-          fTask.dependencies.Delete(j);
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies (tt.dependencies.Delete): %s', [e.Message]));
-          Continue;
-        end;
-      end;
-    end;
-  finally
-      tasks.UnlockList;
-      //main_lock.Leave;
-      //ThreadList.UnlockList;
-  end;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] RemoveDependencies : %s', [e.Message]));
-      exit;
-    end;
-  end;
-end;
-
 procedure TQueueThread.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 var
   i: Integer;
@@ -1505,7 +1437,7 @@ begin
             begin
               if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
               begin
-                if (fTask.dependencies.Count = 0) then
+                if fTask.IsReadyToBeExecuted then
                   TryToAssignSlots(fTask);
               end;
             end;

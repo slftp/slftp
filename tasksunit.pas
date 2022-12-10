@@ -35,8 +35,6 @@ type
     uid: UInt64;
     time: TDateTime; //< some time value
 
-    dependencies: TStringList;
-
     wanted_up: Boolean;
     wanted_dn: Boolean;
 
@@ -44,7 +42,6 @@ type
 
     constructor Create(const netname, channel, site1: String); overload;
     constructor Create(const netname, channel, site1, site2: String); overload;
-    destructor Destroy; override;
 
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
@@ -53,6 +50,7 @@ type
     function Fullname: String; virtual;
     function UidText: String;
     function ScheduleText: String;
+    function IsReadyToBeExecuted: boolean; virtual;
     procedure DebugTask;
   end;
 
@@ -101,7 +99,6 @@ begin
   announce := '';
   slot1name := '';
   slot2name := '';
-  dependencies := TStringList.Create;
 
 
   ssite1 := FindSiteByName('', site1);
@@ -124,12 +121,6 @@ begin
   end;
 end;
 
-destructor TTask.Destroy;
-begin
-  dependencies.Free;
-  inherited;
-end;
-
 procedure TTask.DebugTask;
 begin
   Debug(dpSpam, section, '%s', [Fullname]);
@@ -138,7 +129,7 @@ end;
 function TTask.Fullname: String;
 begin
   try
-    Result := Format('#%d (%s): %s [%d] [%s]', [uid, site1, name, TryToAssign, dependencies.DelimitedText]);
+    Result := Format('#%d (%s): %s [%d] [%d]', [uid, site1, name, TryToAssign, Ord(IsReadyToBeExecuted)]);
   except
     Result := 'TTask';
   end;
@@ -154,6 +145,12 @@ end;
 function TTask.UidText: String;
 begin
   Result := '#' + IntToStr(uid);
+end;
+
+
+function TTask.IsReadyToBeExecuted: boolean;
+begin
+  Result := True;
 end;
 
 procedure Tasks_Init;
