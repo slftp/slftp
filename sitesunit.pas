@@ -1895,7 +1895,7 @@ begin
 
   if ((not slshutdown) and (not shouldquit)) then
   begin
-    if not Result then
+    if not Result and (site.WorkingStatus <> sstMarkedAsDownByUser) and not site.PermDown then
     begin
       if ((lastResponseCode = 421) and (0 <> Pos('Hammer Protection', lastResponse))) then
       begin
