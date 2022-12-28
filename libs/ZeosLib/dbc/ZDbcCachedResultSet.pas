@@ -70,13 +70,11 @@ uses
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF}FmtBCD,
   ZDbcResultSetMetadata, ZClasses, ZDbcIntfs, ZDbcResultSet, ZDbcCache,
-  ZCompatibility;
+  ZCompatibility, ZExceptions;
 
 type
   // Forward declarations.
   IZCachedResultSet = interface;
-
-  TZHasDefaultValues = ( hdvUnknownDefaults, hdvNoDefaults, hdvHasDefaults);
 
   {** Resolver to post updates. }
   IZCachedResolver = interface (IZInterface)
@@ -121,19 +119,31 @@ type
     /// <summary>Set a new connection.</summary>
     /// <param>"Value" the IZTransaction object.</param>
     procedure SetConnection(const Value: IZConnection);
+    /// <author>Egonhugeist</author>
+    /// <summary>Gets the correct transaction to use for new objects from this Resolver.
+    ///  That is either an explicitly assigned transaction or the currently active transaction
+    ///  from the connection.</summary>
+    /// <returns>A valid transaction.</returns>
+    function GetTransaction: IZTransaction;
   end;
 
   IZGenerateSQLCachedResolver = interface(IZCachedResolver)
     ['{D2694EF6-F6B6-4A11-BB46-456ED63DCC18}']
     /// <summary>Set the readonly state of a field. The value will be ignored
     ///  if the field is not writable.</summary>
-    /// <param>"ColumnIndex" the columnnumber of the field.</param>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex.</param>
     /// <param>"Value" if <c>true</c> then the field will be ignored on
     ///  generating the dml's.</param>
     procedure SetReadOnly(ColumnIndex: Integer; Value: Boolean);
     /// <summary>Set the searchable state of a field. The value will be ignored
     ///  if the field is not searchable at all e.g. LOB's.</summary>
-    /// <param>"ColumnIndex" the columnnumber of the field.</param>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex.</param>
     /// <param>"Value" if <c>true</c> then the field will be ignored on
     ///  generating the where clause of the dml's.</param>
     procedure SetSearchable(ColumnIndex: Integer; Value: Boolean);
@@ -433,7 +443,7 @@ type
     procedure DisposeCachedUpdates; virtual;
     procedure ClearStatementLink; virtual;
     {$IFDEF WITH_COLUMNS_TO_JSON}
-    procedure ColumnsToJSON(JSONWriter: TJSONWriter; JSONComposeOptions: TZJSONComposeOptions = [jcoEndJSONObject, jcoDATETIME_MAGIC]);
+    procedure ColumnsToJSON(ResultsWriter: {$IFDEF MORMOT2}TResultsWriter{$ELSE}TJSONWriter{$ENDIF}; JSONComposeOptions: TZJSONComposeOptions = [jcoEndJSONObject, jcoDATETIME_MAGIC]);
     {$ENDIF WITH_COLUMNS_TO_JSON}
 
     function CreateLob(ColumnIndex: Integer; LobStreamMode: TZLobStreamMode): IZBlob; virtual;
@@ -550,6 +560,7 @@ var SQLType: TZSQLType;
   DataAddress: Pointer;
   IsNull: Boolean;
   CP: Word;
+  CL: Integer;
 label Fail;
 begin
 {$IFNDEF DISABLE_CHECKING}
@@ -559,11 +570,12 @@ begin
     DataAddress := RowAccessor.GetColumnData(ColumnIndex, IsNull);
     SQLType := RowAccessor.GetColumnType(ColumnIndex);
     CP := RowAccessor.GetColumnCodePage(ColumnIndex);
+    CL := RowAccessor.GetColumnLength( ColumnIndex);
     case SQLType of
-      stBytes: if RowAccessor.GetColumnLength( ColumnIndex) <= 0
+      stBytes: if (CL <= 0) or (CL = MaxInt)
           then Result := TZRowAccessorBytesLob.CreateWithDataAddess(DataAddress, zCP_Binary, ConSettings, FOpenLobStreams)
           else goto Fail;
-      stString, stUnicodeString: if RowAccessor.GetColumnLength( ColumnIndex) <= 0 then
+      stString, stUnicodeString: if (CL <= 0) or (CL = MaxInt) then
           if CP = zCP_UTF16
           then Result := TZRowAccessorUnicodeStringLob.CreateWithDataAddess(DataAddress, CP, ConSettings, FOpenLobStreams)
           else Result := TZRowAccessorRawByteStringLob.CreateWithDataAddess(DataAddress, CP, ConSettings, FOpenLobStreams)
@@ -2330,11 +2342,10 @@ var TempRow: PZRowBuffer;
   Succeeded: Boolean;
 begin
   CheckUpdatable;
-
   { Creates a new row. }
   TempRow := FRowAccessor.RowBuffer;
   FRowAccessor.Alloc;
-  FRowAccessor.MoveFrom(FInsertedRow);
+  FRowAccessor.CopyFrom(FInsertedRow);
   FRowAccessor.RowBuffer^.UpdateType := utInserted;
   FRowAccessor.RowBuffer^.Index := GetNextRowIndex;
 
@@ -2359,6 +2370,7 @@ begin
   end;
   FRowsList.Add(FRowAccessor.RowBuffer);
   FRowAccessor.ClearBuffer(FInsertedRow, True);
+
   LastRowNo := FRowsList.Count;
   MoveAbsolute(LastRowNo);
 end;
@@ -2472,10 +2484,10 @@ begin
 end;
 
 {$IFDEF WITH_COLUMNS_TO_JSON}
-procedure TZAbstractCachedResultSet.ColumnsToJSON(JSONWriter: TJSONWriter;
+procedure TZAbstractCachedResultSet.ColumnsToJSON(ResultsWriter: {$IFDEF MORMOT2}TResultsWriter{$ELSE}TJSONWriter{$ENDIF};
   JSONComposeOptions: TZJSONComposeOptions);
 begin
-  FRowAccessor.ColumnsToJSON(JSONWriter, JSONComposeOptions)
+  FRowAccessor.ColumnsToJSON(ResultsWriter, JSONComposeOptions)
 end;
 {$ENDIF WITH_COLUMNS_TO_JSON}
 
@@ -2638,6 +2650,10 @@ begin
       Scale := Metadata.GetScale(I);
       ColumnType := Metadata.GetColumnType(I);
       ColumnCodePage := MetaData.GetColumnCodePage(I);
+
+      If ColumnType In [stString, stUnicodeString] Then
+        If ColumnCodePage = zCP_UTF16 Then ColumnType := stUnicodeString
+          Else ColumnType := stString;
     end;
     ColumnsInfo.Add(ColumnInfo);
   end;
@@ -2992,6 +3008,7 @@ begin
     ColumnInfo.ColumnType := Metadata.GetColumnType(C);
     ColumnInfo.ColumnCodePage := Metadata.GetColumnCodePage(C);
     ColumnInfo.Scale := Metadata.GetScale(C);
+    ColumnInfo.Nullable := Metadata.IsNullable(C);
     ColumnsInfo.Add(ColumnInfo);
   end;
   FCachedUpdates := False;
@@ -3033,6 +3050,7 @@ end;
 procedure TZVirtualResultSet.PostRowUpdates(OldRowAccessor,
   NewRowAccessor: TZRowAccessor);
 begin
+  //NewRowAccessor.GetColumnDefaultExpression(FirstDbcIndex) //EH commented what's purpose of the line? There is no testcase!
 end;
 {$IFDEF FPC} {$POP} {$ENDIF} // empty function - parameter not used intentionally
 

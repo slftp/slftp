@@ -1,12 +1,12 @@
 (******************************************************************************
  *                                   PasMP                                    *
  ******************************************************************************
- *                        Version 2021-05-25-21-26-0000                       *
+ *                        Version 2022-12-11-18-59-0000                       *
  ******************************************************************************
  *                                zlib license                                *
  *============================================================================*
  *                                                                            *
- * Copyright (C) 2016-2021, Benjamin Rosseaux (benjamin@rosseaux.de)          *
+ * Copyright (C) 2016-2022, Benjamin Rosseaux (benjamin@rosseaux.de)          *
  *                                                                            *
  * This software is provided 'as-is', without any express or implied          *
  * warranty. In no event will the authors be held liable for any damages      *
@@ -400,7 +400,7 @@ uses {$ifdef Windows}
         {$ifdef usecthreads}
          cthreads,
         {$endif}
-        BaseUnix,Unix,UnixType,{$ifndef Android}PThreads,{$endif}
+        BaseUnix,Unix,UnixType,{$ifndef AndroidOld}PThreads,{$endif}
         {$if defined(Linux) or defined(Android)}
          Linux,
         {$else}
@@ -1120,7 +1120,7 @@ type TPasMPAvailableCPUCores=array of TPasMPInt32;
       private
        fReadWriteLock:pthread_rwlock_t;
       protected
-{$if not ((defined(Android) and defined(CPUAArch64)) or defined(Darwin))}
+{$if not (defined(CPUAArch64) or defined(Darwin))}
        fCacheLineFillUp:array[0..(PasMPCPUCacheLineSize-SizeOf(pthread_rwlock_t))-1] of TPasMPUInt8;
 {$ifend}
 {$else}
@@ -1193,7 +1193,7 @@ type TPasMPAvailableCPUCores=array of TPasMPInt32;
       private
        fReadWriteLock:pthread_rwlock_t;
       protected
-{$if not ((defined(Android) and defined(CPUAArch64)) or defined(Darwin))}
+{$if not (defined(CPUAArch64) or defined(Darwin))}
        fCacheLineFillUp:array[0..(PasMPCPUCacheLineSize-SizeOf(pthread_rwlock_t))-1] of TPasMPUInt8;
 {$ifend}
 {$else}
@@ -2222,6 +2222,23 @@ type TPasMPAvailableCPUCores=array of TPasMPInt32;
        property OffsetTime:TPasMPHighResolutionTime read fOffsetTime;
      end;
 {$if defined(fpc) and (fpc_version>=3)}{$pop}{$ifend}
+
+{$if declared(TThreadPriority)}
+  {$define HasRealTThreadPriority}
+{$else}
+  {$undef HasRealTThreadPriority}
+     // Workaround for Delphi mobile targets
+     TThreadPriority=
+      (
+       tpIdle,
+       tpLowest,
+       tpLower,
+       tpNormal,
+       tpHigher,
+       tpHighest,
+       tpTimeCritical
+      );
+{$ifend}
 
 {$if defined(fpc) and (fpc_version>=3)}{$push}{$optimization noorderfields}{$ifend}
      TPasMP=class
@@ -5757,11 +5774,11 @@ begin
   NowTime:=GetTime;
   EndTime:=NowTime+pDelay;
   while (NowTime+fTwoMillisecondsInterval)<EndTime do begin
-   Sleep(1);
+   Windows.Sleep(1);
    NowTime:=GetTime;
   end;
   while (NowTime+fMillisecondInterval)<EndTime do begin
-   Sleep(0);
+   Windows.Sleep(0);
    NowTime:=GetTime;
   end;
   while NowTime<EndTime do begin
@@ -7342,7 +7359,7 @@ asm
 @TryDone:
 end;
 {$endif}
-{$else}{$ifdef fpc}{$ifdef CAN_INLINE}inline;{$endif}{$endif}
+{$else}//{$ifdef fpc}{$ifdef CAN_INLINE}inline;{$endif}{$endif}
 begin
  while TPasMPInterlocked.CompareExchange(fState,-1,0)<>0 do begin
   TPasMP.Yield;
@@ -7412,7 +7429,7 @@ asm
  mov dword ptr [rdi+TPasMPSpinLock.fState],0
 end;
 {$endif}
-{$else}{$ifdef fpc}{$ifdef CAN_INLINE}inline;{$endif}{$endif}
+{$else}//{$ifdef fpc}{$ifdef CAN_INLINE}inline;{$endif}{$endif}
 begin
  TPasMPInterlocked.Exchange(fState,0);
 end;
@@ -11074,7 +11091,9 @@ constructor TPasMPWorkerSystemThread.Create(const AJobWorkerThread:TPasMPJobWork
 begin
  fJobWorkerThread:=AJobWorkerThread;
  inherited Create(false);
+{$ifdef HasRealTThreadPriority}
  Priority:=AJobWorkerThread.fPasMPInstance.fWorkerThreadPriority;
+{$endif}
 end;
 
 destructor TPasMPWorkerSystemThread.Destroy;
@@ -11088,7 +11107,9 @@ begin
  NameThreadForDebugging('TPasMPWorkerSystemThread');
 {$endif}
  ReturnValue:=0;
+{$ifdef HasRealTThreadPriority}
  Priority:=fJobWorkerThread.fPasMPInstance.fWorkerThreadPriority;
+{$endif}
  fJobWorkerThread.ThreadProc;
  ReturnValue:=1;
 end;
