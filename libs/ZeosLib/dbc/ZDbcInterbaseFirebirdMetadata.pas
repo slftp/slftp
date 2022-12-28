@@ -421,7 +421,7 @@ uses ZMessages, ZDbcInterbase6Utils,
   ZFastCode, ZSelectSchema, Math, ZDbcUtils, ZPlainFirebirdInterbaseDriver,
   ZDbcFirebirdInterbase, ZDbcCachedResultSet,
   {$IFNDEF ZEOS_DISABLE_FIREBIRD}ZPlainFirebird, ZDbcFirebird,{$ENDIF}
-  ZDbcLogging;
+  ZDbcLogging, ZExceptions;
 
 const
   DBProvider: array[Boolean] of String = ('Interbase', 'Firebird');
@@ -1909,7 +1909,8 @@ begin
     'RF.RDB$FIELD_NAME');
   Connection := GetConnection;
   SQL := ' SELECT RF.RDB$RELATION_NAME, RF.RDB$FIELD_NAME, RF.RDB$FIELD_POSITION,'
-    + ' RF.RDB$NULL_FLAG, RF.RDB$FIELD_SOURCE, F.RDB$FIELD_LENGTH,'
+    + ' COALESCE(RF.RDB$NULL_FLAG, F.RDB$NULL_FLAG) AS RDB$NULL_FLAG,'
+    +' RF.RDB$FIELD_SOURCE, F.RDB$FIELD_LENGTH,'
     + ' F.RDB$FIELD_SCALE, T.RDB$TYPE_NAME, F.RDB$FIELD_TYPE,'
     + ' F.RDB$FIELD_SUB_TYPE, F.RDB$DESCRIPTION, F.RDB$CHARACTER_LENGTH,'
     + ' F.RDB$FIELD_PRECISION, RF.RDB$DEFAULT_SOURCE, F.RDB$DEFAULT_SOURCE'
@@ -1984,6 +1985,7 @@ GUID_Size:  Result.UpdateRawByteString(TableColColumnTypeNameIndex, 'GUID');
             Result.UpdatePAnsiChar(TableColColumnTypeNameIndex, GetPAnsiChar(TYPE_NAME_Index, L), L);
 Str_Size:   Result.UpdateInt(TableColColumnCharOctetLengthIndex, FieldLength);   //CHAR_OCTET_LENGTH
             Result.UpdateInt(TableColColumnSizeIndex, GetInt(CHARACTER_LENGTH_Index));
+            Result.UpdateInt(TableColColumnDecimalDigitsIndex, Precision);
           end;
         else
           Result.UpdatePAnsiChar(TableColColumnTypeNameIndex, GetPAnsiChar(TYPE_NAME_Index, L), L);

@@ -990,7 +990,7 @@ procedure HybridSortSha_0AA(List: PPointerList; Count: integer; Compare: TZListS
 procedure QuickSort(List: PPointerList; L, R: integer; Compare: TZListSortCompare);
 implementation
 
-uses ZMessages, ZFastCode
+uses ZMessages, ZFastCode, ZExceptions
   {$IFDEF WITH_UNITANSISTRINGS},AnsiStrings{$ENDIF}; //need for inlined FloatToText;
 
 {$IFDEF oldFPC}
@@ -1062,7 +1062,7 @@ end;
 
 function TZAbstractObject.Clone: IZInterface;
 begin
-  raise Exception.Create(SClonningIsNotSupported);
+  raise EZSQLException.Create(SClonningIsNotSupported);
   result := nil;
 end;
 
@@ -2723,7 +2723,7 @@ var P, P2: Pointer;
 begin
   {$IFNDEF DISABLE_CHECKING}
   if NativeUInt(Index) >= FCount then
-    Error(@SListIndexError, Index);
+    Error(SListIndexError, Index);
   {$ENDIF DISABLE_CHECKING}
   P := Pointer(NativeUInt(FElements)+(NativeUInt(Index)*FElementSize));
   Dec(FCount);
@@ -2779,7 +2779,7 @@ function TZCustomElementList.Get(Index: NativeInt): Pointer;
 begin
   {$IFNDEF DISABLE_CHECKING}
   if NativeUInt(Index) > FCount then
-    Error(@SListIndexError, Index);
+    Error(SListIndexError, Index);
   {$ENDIF DISABLE_CHECKING}
   Result := Pointer(NativeUInt(FElements)+(NativeUInt(Index)*FElementSize));
 end;

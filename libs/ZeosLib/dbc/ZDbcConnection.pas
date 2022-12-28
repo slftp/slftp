@@ -63,7 +63,7 @@ uses
   {$IFDEF TLIST_IS_DEPRECATED}ZSysUtils,{$ENDIF}
   {$IF defined(UNICODE) and not defined(WITH_UNICODEFROMLOCALECHARS)}Windows,{$IFEND}
   ZClasses, ZDbcIntfs, ZTokenizer, ZCompatibility, ZGenericSqlToken, ZVariant,
-  ZGenericSqlAnalyser, ZPlainDriver, ZCollections, ZDbcLogging;
+  ZGenericSqlAnalyser, ZPlainDriver, ZCollections, ZDbcLogging, ZExceptions;
 
 type
 
@@ -1151,12 +1151,19 @@ end;
 
 procedure TZAbstractDbcConnection.SetOnConnectionLostErrorHandler(
   Handler: TOnConnectionLostError);
+var
+  OldAssigned: Boolean;
+  NewAssigned: Boolean;
 begin
-  if Assigned(FOnConnectionLostError) then
+  OldAssigned := Assigned(FOnConnectionLostError);
+  NewAssigned := Assigned(Handler);
+
+  if Not NewAssigned then // if the new handler is unassigned we always assign it.
     FOnConnectionLostError := Handler
-  else if Assigned(FOnConnectionLostError) and Assigned(Handler) then
-    raise EZSQLException.Create('Error handler registered already!')
-  else FOnConnectionLostError := Handler;
+  else if OldAssigned then // new handler and old handler are assigined
+    raise EZSQLException.Create('Connection lost eError handler registered already!')
+  else //new handler is assigned and old handler is not assigned.
+    FOnConnectionLostError := Handler;
 end;
 
 procedure TZAbstractDbcConnection.RegisterStatement(
@@ -1930,7 +1937,11 @@ SetRaw: if Pointer(Result.VRawByteString) = nil then begin
           Result.VCharRec.Len := 0;
           Result.VCharRec.P := PEmptyAnsiString; //avoid nil result
         end else begin
+          {$IFDEF WITH_INLINE}
+          Result.VCharRec.Len := Length(Result.VRawByteString) {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING} -1{$ENDIF};
+          {$ELSE}
           Result.VCharRec.Len := {%H-}PLengthInt(NativeUInt(Result.VRawByteString) - StringLenOffSet)^; //fast Length() helper
+          {$ENDIF}
           Result.VCharRec.P := Pointer(Result.VRawByteString); //avoid RTL conversion to PAnsiChar
         end;
       end;
@@ -1950,13 +1961,7 @@ SetRaw: if Pointer(Result.VRawByteString) = nil then begin
     else if (Ord(FConSettings^.ClientCodePage^.Encoding) < Ord(ceUTF16)) then begin
           Result.VRawByteString := Convert(Value, vtRawByteString).VRawByteString;
           Result.VCharRec.CP := FClientCP;
-          if Pointer(Result.VRawByteString) = nil then begin
-            Result.VCharRec.Len := 0;
-            Result.VCharRec.P := PEmptyAnsiString; //avoid nil result
-          end else begin
-            Result.VCharRec.Len := {%H-}PLengthInt(NativeUInt(Result.VRawByteString) - StringLenOffSet)^; //fast Length() helper
-            Result.VCharRec.P := Pointer(Result.VRawByteString); //avoid RTL conversion to PAnsiChar
-          end;
+          goto SetRaw;
         end else begin
           Result.VUnicodeString := Convert(Value, vtUnicodeString).VUnicodeString;
           Result.VCharRec.CP := zCP_UTF16;
@@ -2204,9 +2209,9 @@ end;
 
 function TZAbstractSingleTxnConnection.GetConnectionTransaction: IZTransaction;
 begin
-  {$IFDEF DEBUG}
+  {$IFDEF ZEOSDEBUG}
   if fWeakTxnPtr = nil then
-    raise EZSQLException.Create(SUnsupportedOperation);
+    raise EZUnsupportedException.Create(SUnsupportedOperation);
   {$ENDIF}
   Result := IZTransaction(fWeakTxnPtr);
 end;
@@ -2251,7 +2256,7 @@ procedure TZAbstractSingleTxnConnection.ReleaseTransaction(
   const Value: IZTransaction);
 begin
   if Pointer(Value) = fWeakTxnPtr
-  then raise EZSQLException.Create(SUnsupportedOperation)
+  then raise EZUnsupportedException.Create(SUnsupportedOperation)
   else fTransactions.Delete(fTransactions.IndexOf(Value));
 end;
 

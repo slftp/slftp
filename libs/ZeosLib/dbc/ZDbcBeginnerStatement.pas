@@ -226,7 +226,7 @@ type
 implementation
 
 uses ZMessages, ZFastCode, ZSysUtils, ZEncoding,
-  ZDbcResultSet;
+  ZDbcResultSet, ZExceptions;
 {------------------------------------------------------------------------------}
 
 { TZAbstractBeginnerPreparedStatement }
@@ -1536,7 +1536,7 @@ end;
 }
 procedure TZAbstractBeginnerPreparedStatement.AddBatchPrepared;
 begin
-  raise EZSQLException.Create(SUnsupportedOperation);
+  raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 {**
@@ -1547,7 +1547,7 @@ end;
 function TZAbstractBeginnerPreparedStatement.GetMetaData: IZResultSetMetaData;
 begin
   Result := nil;
-  raise EZSQLException.Create(SUnsupportedOperation);
+  raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 function TZAbstractBeginnerPreparedStatement.CreateLogEvent(
@@ -1577,7 +1577,7 @@ end;
 }
 procedure TZAbstractBeginnerPreparedStatement.RaiseUnsupportedException;
 begin
-  raise EZSQLException.Create(SUnsupportedOperation);
+  raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 
 procedure TZAbstractBeginnerPreparedStatement.SetASQL(const Value: RawByteString);

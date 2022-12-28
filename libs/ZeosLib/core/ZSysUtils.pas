@@ -2209,7 +2209,7 @@ uses DateUtils, Math,
   {$IF defined(WITH_RTLCONSTS_SInvalidGuidArray) or defined(TLIST_IS_DEPRECATED)}RTLConsts,{$IFEND}
   SysConst,{keep it after RTLConst -> deprecated warning}
   {$IFDEF WITH_DBCONSTS}DBConsts,{$ENDIF}
-  ZFastCode;
+  ZFastCode, ZExceptions;
 
 const
   u4Zeros: UnicodeString = '0000';
@@ -2953,14 +2953,14 @@ begin
     Ord('y'): if (Pend-Buf) = 1 then
                 Result := True
               else if (Pend-Buf) = 3 then
-                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+1)^) or $20 = Ord('s'));
+                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+2)^) or $20 = Ord('s'));
     { test lowercase "ON" }
     Ord('o'): Result := (Pend-Buf = 2) and (Ord((Buf+1)^) or $20 = Ord('n'));
     { test lowercase "TRUE" / "T"}
     Ord('t'): if Pend-Buf = 1 then
                 Result := True
               else Result := (Pend-Buf = 4) and (Ord((Buf+1)^) or $20 = Ord('r')) and
-                (Ord((Buf+1)^) or $20 = Ord('u')) and (Ord((Buf+1)^) or $20 = Ord('e'));
+                (Ord((Buf+2)^) or $20 = Ord('u')) and (Ord((Buf+3)^) or $20 = Ord('e'));
     else begin
       P := PEnd;
       Result := CheckInt and (ValRawInt(Buf, P) <> 0) and (P = PEnd);
@@ -3036,14 +3036,14 @@ begin
     Ord('y'): if (Pend-Buf) = 1 then
                 Result := True
               else if (Pend-Buf) = 3 then
-                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+1)^) or $20 = Ord('s'));
+                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+2)^) or $20 = Ord('s'));
     { test lowercase "ON" }
     Ord('o'): Result := (Pend-Buf = 2) and (Ord((Buf+1)^) or $20 = Ord('n'));
     { test lowercase "TRUE" / "T"}
     Ord('t'): if Pend-Buf = 1 then
                 Result := True
               else Result := (Pend-Buf = 4) and (Ord((Buf+1)^) or $20 = Ord('r')) and
-                (Ord((Buf+1)^) or $20 = Ord('u')) and (Ord((Buf+1)^) or $20 = Ord('e'));
+                (Ord((Buf+2)^) or $20 = Ord('u')) and (Ord((Buf+3)^) or $20 = Ord('e'));
     else begin
       P := PEnd;
       Result := CheckInt and (ValUnicodeInt(Buf, P) <> 0) and (P = PEnd);
@@ -3338,15 +3338,15 @@ end;
 {$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "operant..." marked as inline is not inlined}{$ENDIF}
 function VarToBytes(const Value: Variant): TBytes;
 var
-  I: Integer;
+  I, hb: Integer;
 begin
   {$IFDEF FPC}Result := nil;{$ENDIF}
   if not (VarIsArray(Value) and (VarArrayDimCount(Value) = 1) and
      ((VarType(Value) and VarTypeMask) = varByte)) then
-    raise Exception.Create(SInvalidVarByteArray);
-
-  SetLength(Result, VarArrayHighBound(Value, 1) + 1);
-  for I := 0 to VarArrayHighBound(Value, 1) do
+    raise EZSQLException.Create(SInvalidVarByteArray);
+  hb := VarArrayHighBound(Value, 1);
+  SetLength(Result, hb + 1);
+  for I := 0 to hb do
     Result[I] := Value[I];
 end;
 {$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
