@@ -1,4 +1,2 @@
-e11d6d4c4216999669eb5a77b555df77ceb88c1b
-Merge pull request #22 from nowlar/nowlar-patch-usesharedmm
-
-Avoid memory allocation before attempting to use shared mm
+4ec5b305f000a3b60357732a10f59c0321cae0ed
+Rebuild the precompiled BorlndMM.dll libraries from the latest source using Delphi 11.3.
