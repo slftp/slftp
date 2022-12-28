@@ -6,7 +6,7 @@ unit SynZip;
 {
     This file is part of Synopse framework.
 
-    Synopse framework. Copyright (C) 2021 Arnaud Bouchez
+    Synopse framework. Copyright (C) 2022 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit SynZip;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2021
+  Portions created by the Initial Developer are Copyright (C) 2022
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -208,11 +208,11 @@ type
 {$endif}
 {$ifdef FPC}
   ZipPtrUInt = PtrUInt;
-  ZipPtrInt = PtrInt;
+  ZipPtrInt  = PtrInt;
 {$else}
   /// as available in FPC
   ZipPtrUInt = {$ifdef CPU64}UInt64{$else}cardinal{$endif};
-  ZipPtrInt = {$ifdef CPU64}Int64{$else}integer{$endif};
+  ZipPtrInt  = {$ifdef CPU64}Int64{$else}integer{$endif};
 {$endif}
 
 /// ZLib INFLATE decompression from memory into a AnsiString (ZipString) variable
@@ -390,7 +390,7 @@ type
   TFileHeader = {$ifdef USERECORDWITHMETHODS}record
     {$else}object{$endif}
     signature     : dword;           // $02014b50 PK#1#2
-    madeBy        : word;            // $14
+    madeBy        : word;            // $0314 = OS + version
     fileInfo      : TFileInfo;
     commentLen    : word;            // 0
     firstDiskNo   : word;            // 0
@@ -709,6 +709,8 @@ type
     // - those will be appended after the data blocks at the end of the .zip file
     Entry: array of record
       /// the file name, as stored in the .zip internal directory
+      // - the path delimiter is forced to '/' just before writing to disk,
+      // as requested by 4.4.17 of reference PKware appnote
       intName: ZipString;
       /// the corresponding file header
       fhr: TFileHeader;
@@ -861,11 +863,13 @@ begin
 end;
 
 function TZipWriteAbstract.InternalAdd(const zipName: TFileName; Buf: pointer; Size: integer): cardinal;
+var
+  i: integer; // ZipPtrInt make a compilation error on Delphi Win64 :(
 begin
   with Entry[Count] do begin
     fHr.signature := ENTRY_SIGNATURE_INC; // +1 to avoid finding it in the exe
     dec(fHr.signature);
-    fHr.madeBy := $14;
+    fHr.madeBy := $0314; // where $03=Unix (for proper UTF8 filenames) and $14=version
     fHr.fileInfo.neededVersion := $14;
     result := InternalWritePosition;
     fHr.localHeadOff := result-fAppendOffset;
@@ -889,6 +893,9 @@ begin
     fhr.fileInfo.extraLen := 0; // source may have something here
     InternalWrite(fMagic,sizeof(fMagic));
     InternalWrite(fhr.fileInfo,sizeof(fhr.fileInfo));
+    for i := 1 to integer(fhr.fileInfo.nameLen) do
+      if intName[i]='\' then
+        intName[i] := '/'; // as stated by 4.4.17 of reference PKware appnote
     InternalWrite(pointer(intName)^,fhr.fileInfo.nameLen);
   end;
   if Buf<>nil then begin
@@ -1030,8 +1037,8 @@ begin
   RecursiveAdd(IncludeTrailingPathDelimiter(FolderName),'');
 end;
 
-procedure TZipWrite.AddDeflated(const aFileName: TFileName; RemovePath: boolean=true;
-  CompressLevel: integer=6; ZipName: TFileName='');
+procedure TZipWrite.AddDeflated(const aFileName: TFileName; RemovePath: boolean;
+  CompressLevel: integer; ZipName: TFileName);
 var {$ifdef MSWINDOWS}
     Time: TFileTime;
     FileTime: LongRec;
@@ -1048,14 +1055,14 @@ begin
     if ZipName='' then
       if RemovePath then
         ZipName := ExtractFileName(aFileName) else
-    {$ifdef MSWINDOWS}
+        {$ifdef MSWINDOWS}
         ZipName := aFileName;
-    GetFileTime(S.Handle,nil,nil,@Time);
-    FileTimeToLocalFileTime(Time,Time);
-    FileTimeToDosDateTime(Time,FileTime.Hi,FileTime.Lo);
-    {$else}
+        GetFileTime(S.Handle,nil,nil,@Time);
+        FileTimeToLocalFileTime(Time,Time);
+        FileTimeToDosDateTime(Time,FileTime.Hi,FileTime.Lo);
+        {$else}
         ZipName := StringReplace(aFileName,'/','\',[rfReplaceAll]);
-    {$endif}
+        {$endif}
     Size := S.Size;
     if Size64.Hi<>0 then
       raise ESynZipException.CreateFmt('%s file too big for .zip',[aFileName]);
