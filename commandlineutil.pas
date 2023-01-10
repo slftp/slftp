@@ -16,7 +16,7 @@ uses
   {$ELSE}
     process, baseunix, pwd, users,
   {$ENDIF}
-  rcmdline, encinifile;//, versioninfo;
+  rcmdline, encinifile, versioninfo;
 
 procedure _ShowFullHelpInformation(const aCmdLineReaderHelp, aBinaryName: String);
 begin
@@ -225,7 +225,7 @@ const
   PF_MODE_HEADER = '___ using passwordfile mode ___';
 var
   fIsHelpMode: Boolean;
-  //fIsShowVersionMode: Boolean;
+  fIsShowVersionMode: Boolean;
   fIsEncryptMode: Boolean;
   fIsDecryptMode: Boolean;
   fIsPasswordMode: Boolean;
@@ -234,7 +234,7 @@ var
   fOutputFilename: String;
   fCmdLineReaderHelp: String;
   fCmdLineReader: TCommandLineReader;
-
+  fVersion: string;
   fPassword: String;
 begin
   fCmdLineReader := TCommandLineReader.Create;
@@ -244,8 +244,8 @@ begin
 
       fCmdLineReader.declareFlag('help', 'Show detailed help');
       fCmdLineReader.addAbbreviation('h', 'help');
-      //fCmdLineReader.declareFlag('version', 'Show version information');
-      //fCmdLineReader.addAbbreviation('v', 'version');
+      fCmdLineReader.declareFlag('version', 'Show version information');
+      fCmdLineReader.addAbbreviation('v', 'version');
 
       fCmdLineReader.beginDeclarationCategory('Funtions for encrypting/decrypting internal files:');
       fCmdLineReader.declareFlag('encrypt', 'Encrypt given file');
@@ -267,7 +267,7 @@ begin
     end;
 
     fIsHelpMode := fCmdLineReader.readFlag('help');
-    //fIsShowVersionMode := fCmdLineReader.readFlag('version');
+    fIsShowVersionMode := fCmdLineReader.readFlag('version');
     fIsEncryptMode := fCmdLineReader.readFlag('encrypt');
     fIsDecryptMode := fCmdLineReader.readFlag('decrypt');
     fIsPasswordMode := fCmdLineReader.readFlag('pw');
@@ -280,11 +280,11 @@ begin
       fCmdLineReaderHelp := fCmdLineReader.availableOptions;
       _ShowFullHelpInformation(fCmdLineReaderHelp, aBinaryName);
     end
-    {else if fIsShowVersionMode then
+    else if fIsShowVersionMode then
     begin
-      WriteLn('version x.y.z');
-      //WriteLn(GetFullVersionString);
-    end}
+      fVersion := GetFullVersionString;
+      WriteLn(fVersion);
+    end
     else if fIsEncryptMode and fIsDecryptMode then
     begin
       WriteLn('Cannot encrypt and decrypt at the same time!');
