@@ -1604,6 +1604,12 @@ begin
     fTaskList := tasks.LockList;
     for i := fTaskList.Count - 1 downto 0 do
     begin
+      try
+      if i < 0 then
+        Break;
+      except
+        Break;
+      end;
       t := fTaskList[i];
       if ((t.assigned <> 0) and ((t.startat = 0) or (t.startat <= queue_last_run)) and
         (SecondsBetween(t.assigned, Now()) >= config.ReadInteger('queue',
@@ -1648,6 +1654,7 @@ begin
           try
             //t := NIL;
             tasks.Remove(t);
+            FreeAndNil(t);
           except
             on e: Exception do
             begin
@@ -1671,6 +1678,7 @@ begin
           try
             //t := NIL;
             tasks.Remove(t);
+            FreeAndNil(t);
           except
             on e: Exception do
             begin
@@ -1710,6 +1718,7 @@ begin
           try
             //t := NIL;
             tasks.Remove(t);
+            FreeAndNil(t);
           except
             on e: Exception do
             begin
@@ -1970,7 +1979,15 @@ begin
     rx.ModifierI := False;
     rx.Expression := 'AUTOLOGIN';
     fTaskList := tasks.LockList;
+
     for i := fTaskList.Count - 1 downto 0 do
+      try
+      if i < 0 then
+        Break;
+      except
+        Break;
+      end;
+
       fTask := fTaskList[i];
       if not rx.Exec(TPazoTask(fTask).Fullname) then
       begin
