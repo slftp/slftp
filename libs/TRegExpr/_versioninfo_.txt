@@ -1,2 +1,4 @@
-9272f73d46baeec75febc25ee41a0b17d17ed675
-Merge pull request #257 from dbcto/master
+7a3ba3732c0a0f6ef20d3d4e22bb141e0b63698f
+Merge pull request #287 from Alexey-T/master
+
+typo in docs

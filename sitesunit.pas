@@ -104,7 +104,6 @@ type
     fSSCNEnabled: boolean;
     event: TEvent;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
-    procedure AddLoginTask;
     procedure SetOnline(Value: TSlotStatus);
 
     { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
@@ -126,7 +125,13 @@ type
     ftodotask: TTask;
     site: TSite; //< links to corresponding @link(TSite) class of slot
     procedure DestroySocket(down: boolean);
+    { Invokes Relogin after invoking DestroySocket.
+      @param(aMessage Info which task is issuing this command.) }
+    procedure DestroySocketAndRelogin(const aMessage: string);
     procedure Quit;
+    { Invokes Relogin after invoking Quit.
+      @param(aMessage Info which task is issuing this command.) }
+    procedure QuitAndRelogin(const aMessage: string);
     function Name: String;
     procedure Fire;
     function Login(kill: boolean = False): boolean;
@@ -624,6 +629,18 @@ procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sit
   @returns(The site software version or an empty string if unsuccessful) }
 function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
 
+{ Gets the given @link(TSlotStatus) as string
+  @param(aSlotStatus The @link(TSlotStatus) to get the string for)
+  @returns(the given @link(TSlotStatus) as string) }
+function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
+
+{ Checks the site's and its slot's status and adds a login task if necessary before starting to create race tasks
+  @param(aSite The site to check) }
+procedure CheckSiteSlots(const aSite: TSite); overload;
+{ Checks the site's and its slot's status and adds a login task if necessary before starting to create race tasks
+  @param(aSiteName The name of the site to check) }
+procedure CheckSiteSlots(const aSiteName: string); overload;
+
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
@@ -632,7 +649,7 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit;
 
 const
   section = 'sites';
@@ -752,6 +769,18 @@ begin
   end;
 end;
 
+function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
+begin
+  Result := 'Unknown';
+  case aSlotStatus of
+    ssNone: Result := 'None';
+    ssDown: Result := 'Down';
+    ssOffline: Result := 'Offline';
+    ssOnline: Result := 'Online';
+    ssMarkedDown: Result := 'Marked Down';
+  end;
+end;
+
 function FeatResponseToFeature(const aFeature: string): TSiteFeature;
 begin
   Result := TEnum<TSiteFeature>.FromString('sf' + aFeature, sfUNKNOWN);
@@ -850,7 +879,7 @@ end;
 procedure SitesStart;
 var
   x: TStringList;
-  i: integer;
+  i, j: integer;
 begin
   debug(dpSpam, section, 'SitesStart begin');
 
@@ -868,7 +897,15 @@ begin
     sitesdat.ReadSections(x);
     for i := 0 to x.Count - 1 do
       if 1 = Pos('site-', x[i]) then
-        sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+      begin
+        j := sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+
+        //add a login task if autologin is enabled
+        if (((autologin) or (TSite(sites[j]).RCBool('autologin', False))) and not TSite(sites[j]).PermDown) then
+        begin
+          AddTask(TLoginTask.Create('', '', TSite(sites[j]).Name, False, False));
+        end;
+      end;
   finally
     x.Free;
   end;
@@ -914,25 +951,6 @@ begin
   end;
 end;
 
-procedure TSiteSlot.AddLoginTask;
-var
-  t: TLoginTask;
-begin
-
-  t := TLoginTask.Create('', '', site.Name, False, False);
-  t.wantedslot := Name;
-  t.startat := GiveSiteLastStart;
-  try
-    AddTask(t);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.AddLoginTask AddTask: %s',
-        [e.Message]));
-    end;
-  end;
-end;
-
 constructor TSiteSlot.Create(const aSite: TSite; const aSlotNumber: integer);
 begin
   debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
@@ -957,14 +975,10 @@ begin
 
   if (site.Name <> getAdminSiteName) then
   begin
-    if not site.PermDown then
+    if site.PermDown then
     begin
-      // if autologin is turned on then
-      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
-        AddLoginTask;
-    end
-    else
       status := ssMarkedDown;
+    end;
   end
   else
   begin
@@ -1011,6 +1025,12 @@ begin
     status := ssOffline;
 end;
 
+procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
+begin
+  DestroySocket(False);
+  Relogin(0, False, aMessage);
+end;
+
 procedure TSiteSlot.Execute;
 var
   tname: String;
@@ -1042,7 +1062,15 @@ begin
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask) then
+            if not (todotask is TIdleTask)
+
+              //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
+              //then idle tasks would be created again right away
+              and not (todotask is TQuitTask)
+
+              //ignore login task if its set to readd (autobnctest)
+              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+            then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
             end;
@@ -1651,7 +1679,7 @@ begin
   // successful login
   Result := True;
 
-  // change order of bnc if the current successfull bnc is not the first
+  // change order of bnc if the current successful bnc is not the first
   if i <> 0 then
   begin
     bncList := TStringList.Create;
@@ -1723,7 +1751,20 @@ begin
   if spamcfg.readbool(section, 'login_logout', False) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
+  //when there are some tasks running and the user sets the site down meanwhile, then there might be a login
+  //going on at the same time. so after the login, check again if the site is meant to be up.
+  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
+  begin
+    Debug(dpMessage, section, '[Login] Site marked down manually after successful login - quit. %s', [self.Name]);
+    self.Quit;
+    Result := False;
+    exit;
+  end;
+
   status := ssOnline;
+
+  if LastNonIdleTaskExecution = 0 then
+    LastNonIdleTaskExecution := Now();
 end;
 
 function TSiteSlot.Login(kill: boolean = False): boolean;
@@ -1818,6 +1859,14 @@ begin
     exit;
   end;
 
+  //this relogin might come from some task retrying, but if the user setdown the site, it should never relogin.
+  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
+  begin
+    Debug(dpMessage, section, '[ReLogin] Site marked down manually - Abort Relogin. %s', [self.Name]);
+    Result := True;
+    exit;
+  end;
+
   relogins := 0;
   while ((relogins < l_maxrelogins) and (not slshutdown) and (not shouldquit)) do
   begin
@@ -1861,7 +1910,6 @@ begin
         exit;
       end;
 
-      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
       for i := 0 to site.slots.Count - 1 do
       begin
         ss := TSiteSlot(site.slots[i]);
@@ -1872,6 +1920,7 @@ begin
         end;
       end;
 
+      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
       site.WorkingStatus := sstTempDown;
     end;
   end;
@@ -2070,6 +2119,12 @@ begin
     exit;
   Read('QUIT', False, False);
   DestroySocket(False);
+end;
+
+procedure TSiteSlot.QuitAndRelogin(const aMessage: string);
+begin
+  Quit;
+  Relogin(0, False, aMessage);
 end;
 
 function TSiteSlot.RemoveFile(const dir, filename: String): boolean;
@@ -3728,6 +3783,46 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+procedure CheckSiteSlots(const aSite: TSite); overload;
+var
+  fLoginTaskNeeded: boolean;
+  fSiteSlot: TSiteSlot;
+  fLoginTask: TLoginTask;
+begin
+  fLoginTaskNeeded := False;
+  // check if the destination site and its slots are ready
+  if aSite <> nil then
+  begin
+    // check site's working status
+    fLoginTaskNeeded := (aSite.WorkingStatus <> sstUp);
+
+    // check if all the slots are online
+    if not fLoginTaskNeeded then
+    begin
+      for fSiteSlot in aSite.slots do
+      begin
+        if (fSiteSlot.status <> ssOnline) then
+        begin
+          fLoginTaskNeeded := True;
+          Break;
+        end;
+      end;
+    end;
+
+    if fLoginTaskNeeded then
+    begin
+      fLoginTask := TLoginTask.Create('', '', aSite.Name, False, False);
+      fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); //announce if working status of the site is not sstUp
+      AddTask(fLoginTask);
+    end;
+  end;
+end;
+
+procedure CheckSiteSlots(const aSiteName: string); overload;
+begin
+  CheckSiteSlots(FindSiteByName('', aSiteName));
 end;
 
 function TSite.GetSiteInfos: String;
