@@ -132,7 +132,10 @@ type
 
 implementation
 
-uses SysUtils, slblowfish, configunit;
+uses SysUtils, slblowfish, configunit, debugunit;
+
+const
+  section = 'encinifile';
 
 { TStringHash }
 
@@ -1012,11 +1015,19 @@ var
 begin
   if FileExists(FileName) then
   begin
-    Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
     try
-      LoadFromStream(Stream);
-    finally
-      Stream.Free;
+      Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
+      try
+        LoadFromStream(Stream);
+      finally
+        Stream.Free;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, Section, Format('[EXCEPTION] TEncStringlist.LoadFromFile %s : %s', [FileName, e.Message]));
+        raise;
+      end;
     end;
   end;
 end;
