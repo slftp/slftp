@@ -37,9 +37,6 @@ type
     //procedure AddQuitTask(s: TSiteSlot);
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
-    { Removes a race task if one already exists at the destination with the associated dirname and file of the given race task
-       @param(aRaceTask single race task picked from the complete task list by the main TQueueThread execution) }
-    procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 
 public
 
@@ -1352,17 +1349,6 @@ begin
   end;
 end;
 
-procedure TQueueThread.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
-var
-  i: Integer;
-begin
-  i := aRaceTask.ps2.activeTransfers.IndexOf(aRaceTask.dir + aRaceTask.filename);
-  if i <> -1 then
-  begin
-    aRaceTask.ps2.activeTransfers.Delete(i);
-  end;
-end;
-
 procedure TQueueThread.Execute;
 var
   i, j: integer;
@@ -1393,7 +1379,6 @@ begin
           if fTask = nil then
             Continue;
 
-        begin
           try
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin
@@ -1407,7 +1392,6 @@ begin
                 begin
                   dst.event.SetEvent;
                 end;
-                RemoveActiveTransfer(TPazoRaceTask(fTask));
               end;
               ts.slotsAssignmentCS.Enter;
               try
@@ -1423,11 +1407,9 @@ begin
                 on e: Exception do
                 begin
                   Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-                  RemoveActiveTransfer(TPazoRaceTask(fTask));
                   Continue;
                 end;
           end;
-        end;
         end;
 
         ts.slotsAssignmentCS.Enter;
