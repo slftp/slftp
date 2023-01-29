@@ -412,8 +412,8 @@ begin
 end;
 
 procedure ConsoleStart;
-//var
-//fSite: TSite;
+var
+  fSite: TSite;
 begin
   slConsoleInit;
 
@@ -427,10 +427,10 @@ begin
         if inited then
         begin
           Debug(dpError, section, 'slFtp exiting');
-          //for fSite in sites do
-          //begin
-          //  fSite.QueueFire;
-          //end;
+          for fSite in sites do
+          begin
+            fSite.QueueFire;
+          end;
           SlotsFire;
         end;
         Free;
