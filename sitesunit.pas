@@ -401,7 +401,7 @@ type
 
     function RCString(const Name, def: String): String;
     procedure WCString(const Name: String; const val: String);
-    function RCInteger(Name: String; def: integer): integer;
+    function RCInteger(const Name: String; const def: integer): integer;
     procedure WCInteger(const Name: String; const val: integer);
     function RCBool(const Name: String; const def: boolean): boolean;
     procedure WCBool(const Name: String; const val: boolean);
@@ -2977,7 +2977,7 @@ begin
   sitesdat.WriteString('site-' + self.Name, Name, val);
 end;
 
-function TSite.RCInteger(Name: String; def: integer): integer;
+function TSite.RCInteger(const Name: String; const def: integer): integer;
 begin
   Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
 end;
