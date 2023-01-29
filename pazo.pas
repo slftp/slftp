@@ -36,10 +36,10 @@ type
 
   TPazoSite = class;
 
-  //used to store destination site and rank
+  //used to store source or destination site and rank
   TSiteRank = record
     private
-      FPazoSite: TPazoSite; //< destination site
+      FPazoSite: TPazoSite; //< Source or Destination site name
       FRank: integer; //< rank
     public
       property PazoSite: TPazoSite read FPazoSite;
@@ -1857,7 +1857,7 @@ end;
 
 function TPazoSite.RoutesText: String;
 var
-  fDestination: TDestinationRank;
+  fDestination: TSiteRank;
 begin
   Result := '<u>' + Name + '</u> -> ';
 
