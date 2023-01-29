@@ -159,8 +159,8 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
-  fSourcesRank: TDestinationRank;
-  fSourceSites: TList<TDestinationRank>;
+  fSourcesRank: TSiteRank;
+  fSourceSites: TList<TSiteRank>;
   fAdder: Integer;
 
   { Removes the oldest knowledge base entries }
@@ -791,7 +791,7 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      fSourceSites := TList<TDestinationRank>.Create;
+      fSourceSites := TList<TSiteRank>.Create;
       for i := p.PazoSitesList.Count - 1 downto 0 do
         begin
         try
@@ -807,7 +807,7 @@ begin
           fAdder := 100;
         end;
 
-        fSourcesRank := TDestinationRank.Create(ps, FindSiteByName(netname, ps.Name).GetRank(p.rls.section) + fAdder);
+        fSourcesRank := TSiteRank.Create(ps, FindSiteByName(netname, ps.Name).GetRank(p.rls.section) + fAdder);
         fSourceSites.Add(fSourcesRank);
         fSourceSites.Sort;
       end;
