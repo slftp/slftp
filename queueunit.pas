@@ -442,7 +442,7 @@ begin
       exit;
 
     // first watch if it is not already in process to upload the same file to the same place
-    if t.ps2.activeTransfers.IndexOf(t.dir + t.filename) <> -1 then
+    if t.ps2.HasActiveTransfer(t.dir + t.filename) then
       exit; // we are already sending this file to the same destination site
 
     if s2.num_up >= s2.max_up then
@@ -588,7 +588,7 @@ begin
 
     // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
     i := ss2.site.MaxUpPerRip;
-    if ((i > 0) and (t.ps2.activeTransfers.Count >= i)) then
+    if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
     begin
       Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
       exit;
@@ -601,7 +601,7 @@ begin
     t.dst.wait_for := t.Name;
     t.dst.slot1 := ss2;
     AddTask(t.dst);
-    t.ps2.activeTransfers.AddObject(t.dir + t.filename, t);
+    t.ps2.AddActiveTransfer(t.dir + t.filename);
     t.slot1      := ss1;
     t.slot1name  := ss1.Name;
     t.slot2      := ss2;

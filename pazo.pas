@@ -51,9 +51,12 @@ type
   private
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
+    FActiveTransfers: TStringList;
+    FActiveTransfersCS: TCriticalSection;
     function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
+    function GetActiveTransferCount: Int32;
 
   public
 
@@ -87,10 +90,9 @@ type
 
     speed_from: TStringList;
 
-    activeTransfers: TStringList;
-
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
+    property ActiveTransferCount: Int32 read GetActiveTransferCount;
 
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
     function Source: boolean;
@@ -154,6 +156,10 @@ type
     procedure SetComplete(const cdno: String);
     function StatusText: String;
     procedure Clear;
+    procedure RemoveActiveTransfer(const aFilepath: String);
+    function HasActiveTransfer(const aFilepath: String): boolean;
+    procedure AddActiveTransfer(const aFilepath: String);
+
   end;
 
   TPazo = class
@@ -1369,7 +1375,8 @@ begin
   pazo := aParentPazo;
   Name := aName;
 
-  activeTransfers := TStringList.Create;
+  FActiveTransfers := TStringList.Create;
+  FActiveTransfersCS := TCriticalSection.Create;
   ts := 0;
   firesourcesinstead := False;
   badcrcevents := 0;
@@ -1408,7 +1415,8 @@ end;
 destructor TPazoSite.Destroy;
 begin
   Debug(dpSpam, section, 'TPazoSite.Destroy: %s', [Name]);
-  activeTransfers.Free;
+  FActiveTransfers.Free;
+  FActiveTransfersCS.Free;
   destinations.Free;
   destinations_cs.Free;
   dirlist.Free;
@@ -2097,6 +2105,52 @@ begin
   delay_upload := fSite.delayupload[pazo.rls.section];
 
   Debug(dpSpam, section, 'DelaySetup %s: %d s for delayleech, %d s for delayupload', [Name, delay_leech, delay_upload]);
+end;
+
+function TPazoSite.GetActiveTransferCount;
+begin
+  Result := FActiveTransfers.Count;
+end;
+
+procedure TPazoSite.RemoveActiveTransfer(const aFilepath: String);
+var
+  i: Int32;
+begin
+  FActiveTransfersCS.Enter;
+  try
+    try
+      i := FActiveTransfers.IndexOf(aFilepath);
+      if i <> -1 then
+        FActiveTransfers.Delete(i);
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TSite.RemoveActiveTransfer: %s', [E.Message]));
+      end;
+    end;
+  finally
+    FActiveTransfersCS.Leave;
+  end;
+end;
+
+function TPazoSite.HasActiveTransfer(const aFilepath: String): boolean;
+begin
+  FActiveTransfersCS.Enter;
+  try
+    Result := FActiveTransfers.IndexOf(aFilepath) <> -1;
+  finally
+    FActiveTransfersCS.Leave;
+  end;
+end;
+
+procedure TPazoSite.AddActiveTransfer(const aFilepath: String);
+begin
+  FActiveTransfersCS.Enter;
+  try
+    FActiveTransfers.Add(aFilepath);
+  finally
+    FActiveTransfersCS.Leave;
+  end;
 end;
 
 end.

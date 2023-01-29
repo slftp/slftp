@@ -422,7 +422,6 @@ type
     procedure RemoveDirlistTasks(const aPazoID: integer);
     function IrcKillAll(const netname, channel, params: String): boolean;
     procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
-    procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 
     procedure SetOutofSpace;
     procedure SetKredits;
@@ -694,27 +693,6 @@ var
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
-
-procedure TSite.RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
-var
-  i:  integer;
-begin
-  slotsAssignmentCS.Enter;
-  try
-    try
-      i  := aRaceTask.ps2.activeTransfers.IndexOf(aRaceTask.dir + aRaceTask.filename);
-      if i <> -1 then
-        aRaceTask.ps2.activeTransfers.Delete(i);
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TSite.RemoveActiveTransfer: %s', [e.Message]));
-      end;
-    end;
-  finally
-    slotsAssignmentCS.Leave;
-  end;
-end;
 
   procedure QueueStart;
   var fSite: TSite;
@@ -1410,7 +1388,12 @@ begin
             try
               if todotask is TPazoRaceTask then
               begin
-                site.RemoveActiveTransfer(TPazoRaceTask(todotask));
+                TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Enter;
+                try
+                  TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
+                finally
+                  TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Leave;
+                end;
 
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
