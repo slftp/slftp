@@ -182,7 +182,7 @@ var
   numerrors: integer;
   tname: String;
   ps: TPazoSite;
-  fDestination: TDestinationRank;
+  fDestination: TSiteRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
 begin
   numerrors := 0;
