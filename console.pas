@@ -1147,6 +1147,7 @@ end;
 procedure TShowWindowTask.Execute;
 var
   w: TslCommandWindow;
+  fSite: TSite;
 begin
   try
     w := FindWindow;
@@ -1157,6 +1158,8 @@ begin
     if UpperCase(w.Title) = 'QUEUE' then
     begin
       app.queue.textbox.Text := '';
+      for fSite in sites do
+        fSite.QueueSendCurrentTasksToConsole;
     end;
   except
     on e: Exception do

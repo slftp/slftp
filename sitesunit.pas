@@ -503,6 +503,8 @@ type
       @param(aSection sectionname)
       @param(Value Value to be set) }
     procedure SetDelayUploadMax(const aSection: String; const Value: integer);
+    { Send the current tasks to the queue console window. }
+    procedure QueueSendCurrentTasksToConsole;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -4037,6 +4039,11 @@ end;
 procedure CheckSiteSlots(const aSiteName: string); overload;
 begin
   CheckSiteSlots(FindSiteByName('', aSiteName));
+end;
+
+procedure TSite.QueueSendCurrentTasksToConsole;
+begin
+  fQueue.QueueSendCurrentTasksToConsole;
 end;
 
 function TSite.GetSiteInfos: String;

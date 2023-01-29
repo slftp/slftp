@@ -35,10 +35,10 @@ type
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     //procedure AddIdleTask(s: TSiteSlot);
     //procedure AddQuitTask(s: TSiteSlot);
-    { Removes a race task if one already exists at the destination with the associated dirname and file of the given race task
-       @param(aRaceTask single race task picked from the complete task list by the main TQueueThread execution) }
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
+    { Removes a race task if one already exists at the destination with the associated dirname and file of the given race task
+       @param(aRaceTask single race task picked from the complete task list by the main TQueueThread execution) }
     procedure RemoveActiveTransfer(const aRaceTask: TPazoRaceTask);
 
 public
@@ -65,10 +65,12 @@ constructor Create(const aSiteName: String);
 
 function FetchAutoIndex: TAutoIndexTask;
 function FetchAutoBnctest: TLoginTask;
-    function FetchAutoRules: TRulesTask;
-    function FetchAutoDirlist: TAutoDirlistTask;
-    function FetchAutoNuke: TAutoNukeTask;
+function FetchAutoRules: TRulesTask;
+function FetchAutoDirlist: TAutoDirlistTask;
+function FetchAutoNuke: TAutoNukeTask;
+
 { Send the current tasks to the queue console window. }
+procedure QueueSendCurrentTasksToConsole;
 
 property QueueLastRun: TDateTime read queue_last_run;
 property QueueCleanLastRun: TDateTime read queueclean_last_run;
@@ -76,7 +78,7 @@ property QueueCleanLastRun: TDateTime read queueclean_last_run;
   end;
 procedure QueueInit;
 procedure QueueUninit;
-  procedure QueueStatAll;
+procedure QueueStatAll;
 
 implementation
 
@@ -1405,6 +1407,7 @@ begin
                 begin
                   dst.event.SetEvent;
                 end;
+                RemoveActiveTransfer(TPazoRaceTask(fTask));
               end;
               ts.slotsAssignmentCS.Enter;
               try
@@ -1845,6 +1848,19 @@ begin
 
 end;
 
+procedure TQueueThread.QueueSendCurrentTasksToConsole;
+var
+  fTask: TTask;
+begin
+  try
+    for fTask in tasks.LockList do
+      AddTaskToConsole(fTask);
+  finally
+    tasks.UnlockList;
+  end;
+end;
+
+
 function TQueueThread.FetchAutoIndex: TAutoIndexTask;
 var
   fTask: TTask;
@@ -1861,7 +1877,10 @@ begin
           exit;
         end;
       except
-        Result := nil;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoIndex: %s', [e.Message]));
+        end;
       end;
     end;
   finally
@@ -1885,7 +1904,10 @@ begin
           exit;
         end;
       except
-        Result := nil;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoDirlist: %s', [e.Message]));
+        end;
       end;
     end;
   finally
@@ -1909,7 +1931,10 @@ begin
           exit;
         end;
       except
-        Result := nil;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoNuke: %s', [e.Message]));
+        end;
       end;
     end;
   finally
@@ -1929,11 +1954,18 @@ begin
       try
         if (fTask is TLoginTask) then
         begin
-          Result := TLoginTask(fTask);
-          exit;
+          t := TLoginTask(fTask);
+          if t.readd then
+          begin
+            Result := TLoginTask(fTask);
+            exit;
+          end;
         end;
       except
-        Result := nil;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoBnctest: %s', [e.Message]));
+        end;
       end;
     end;
   finally
@@ -1957,7 +1989,10 @@ begin
           exit;
         end;
       except
-        Result := nil;
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoRules: %s', [e.Message]));
+        end;
       end;
     end;
   finally

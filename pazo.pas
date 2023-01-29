@@ -1670,11 +1670,6 @@ begin
   fJustAdded := False;
   fTasksAdded := False;
 
-  // skip filenames dotfiles
-  if ((aFilename = '.') or (aFilename = '..') or (aFilename[1] = '.')) then
-    exit;
-
-  // skip global_skip matches
   try
     aDirlist.dirlist_lock.Enter;
     try
