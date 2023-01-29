@@ -1638,6 +1638,7 @@ begin
 
           try
             //t := NIL;
+            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
             tasks.Remove(t);
             FreeAndNil(t);
           except
@@ -1650,8 +1651,6 @@ begin
           Inc(tkill_race);
 
           Console_QueueDel(ss);
-          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-
           Continue;
         end;
 
@@ -1662,6 +1661,7 @@ begin
 
           try
             //t := NIL;
+            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             tasks.Remove(t);
             FreeAndNil(t);
           except
@@ -1674,7 +1674,6 @@ begin
           Inc(tkill_race);
 
           Console_QueueDel(ss);
-          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
 
           Continue;
         end;
@@ -1702,6 +1701,7 @@ begin
 
           try
             //t := NIL;
+            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
             tasks.Remove(t);
             FreeAndNil(t);
           except
@@ -1714,8 +1714,6 @@ begin
           Inc(tkill_other);
 
           Console_QueueDel(ss);
-          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
-
           Continue;
         end;
       end;
