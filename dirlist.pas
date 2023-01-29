@@ -814,21 +814,21 @@ begin
       end;
     end;
 
-  finally
-    dirlist_lock.Leave;
-  end;
-
-  // entries found means the dir exists
-  if ((need_mkdir)) then
-  begin
-    for de in entries do
+    // entries found means the dir exists
+    if ((need_mkdir)) then
     begin
-      if de.IsOnSite then
+      for de in entries do
       begin
-        need_mkdir := False;
-        break;
+        if de.IsOnSite then
+        begin
+          need_mkdir := False;
+          break;
+        end;
       end;
     end;
+
+  finally
+    dirlist_lock.Leave;
   end;
 
   if parent = nil then
