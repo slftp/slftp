@@ -1087,10 +1087,10 @@ begin
     //check here for any other tasks that might come along
     if (not (t is TPazoPlainTask)) and (not (t is TWaitTask)) and (not (t is TLoginTask)) and
       (not (t is TQuitTask)) and (not (t is TIdleTask)) and
-      (t.ssite1 <> nil) 
+      (t.ssite1 <> nil)
 
       //ignore sites with a max idle time because not all slots will always be assigned right away and so
-      //these slots will logout just after login as their idle time is reached. that because the login task does 
+      //these slots will logout just after login as their idle time is reached. that because the login task does
       //not count as non idle operation.
       //if a site has a max idle time, it's probably not as crucial for all slots to be ready anyway.
       and (TSite(t.ssite1).maxidle = 0) then
@@ -1996,27 +1996,30 @@ begin
     fTaskList := tasks.LockList;
 
     for i := fTaskList.Count - 1 downto 0 do
+    begin
       try
-      if i < 0 then
-        Break;
+        if i < 0 then
+          Break;
       except
         Break;
       end;
 
       fTask := fTaskList[i];
-      if not rx.Exec(TPazoTask(fTask).Fullname) then
+      if not rx.Exec(TPazoTask(fTask).FullName) then
       begin
-        irc_addtext(Netname, Channel, 'Removing Task -> %s', [TPazoTask(fTask).Fullname]);
+        irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
         try
           //fTask := NIL;
           tasks.Remove(TPazoTask(fTask));
+          fTask.Free;
         except
-          on E: Exception do
-            Irc_AddText(Netname, Channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
+          on e: Exception do
+            irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
         end;
       end
+    end;
   finally
-    tasks.UnlockList;
+    tasks.UnLockList;
     rx.Free;
   end;
 
