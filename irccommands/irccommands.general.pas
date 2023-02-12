@@ -18,7 +18,7 @@ implementation
 uses
   SysUtils, Classes, StrUtils, Math, Contnrs, irccommandsunit, irc, RegExpr, statsunit, mainthread,
   debugunit, tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
-  console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
+  console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site, irccommands.misc,
   SynCommons, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
 
 const
@@ -162,9 +162,11 @@ end;
 function IrcDie(const netname, channel, params: String): boolean;
 begin
   try
-    slshutdown := IrcSetdown(Netname, Channel, '!ALL!');
+    Result := IrcSetdown(Netname, Channel, '!ALL!');
+    if Result then
+      Result := IrcKillAll(netname, channel, '');
   finally
-    Result := slshutdown;
+    slshutdown := Result;
   end;
 end;
 
