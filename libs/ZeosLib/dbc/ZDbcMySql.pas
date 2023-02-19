@@ -59,7 +59,7 @@ interface
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   ZCompatibility, ZDbcIntfs, ZDbcConnection, ZPlainMySqlDriver, ZPlainDriver,
-  ZDbcLogging, ZTokenizer, ZGenericSqlAnalyser;
+  ZDbcLogging, ZTokenizer, ZGenericSqlAnalyser, ZExceptions;
 type
 
   {** Implements MySQL Database Driver. }
@@ -406,9 +406,9 @@ begin
       try
         if Url.Properties.Values[ConnProps_Datadir] = ''
         then TmpList.Add(EMBEDDED_DEFAULT_DATA_DIR)
-        else Url.Properties.Values[ConnProps_Datadir];
+        else TmpList.Add('--datadir=' + Url.Properties.Values[ConnProps_Datadir]);
         for i := 0 to Url.Properties.Count -1 do
-          if StartsWith(SERVER_ARGUMENTS_KEY_PREFIX, Url.Properties[i]) and
+          if StartsWith(Url.Properties[i], SERVER_ARGUMENTS_KEY_PREFIX) and
             (Length(Url.Properties[i])>Length(SERVER_ARGUMENTS_KEY_PREFIX)+1) then
             TmpList.Add(Url.Properties.ValueFromIndex[i]);
         SetLength(FServerArgs, TmpList.Count);
@@ -426,7 +426,7 @@ begin
         then ErrorNo := PlainDriver.mysql_library_init(i, Pointer(FServerArgs), @SERVER_GROUPS) //<<<-- Isn't threadsafe
         else ErrorNo := PlainDriver.mysql_server_init(I, Pointer(FServerArgs), @SERVER_GROUPS); //<<<-- Isn't threadsafe
         if ErrorNo <> 0 then
-          raise Exception.Create('Could not initialize the MySQL / MariaDB client library. Error No: ' + ZFastCode.IntToStr(ErrorNo));  // The manual says nothing else can be called until this call succeeds. So lets just throw the error number...
+          raise EZSQLException.Create('Could not initialize the MySQL / MariaDB client library. Error No: ' + ZFastCode.IntToStr(ErrorNo));  // The manual says nothing else can be called until this call succeeds. So lets just throw the error number...
         PlainDriver.IsInitialized := True;
       finally
         FreeAndNil(TmpList);
@@ -435,7 +435,7 @@ begin
     end;
   end
   else
-    raise Exception.Create('Can''t receive Plaindriver!');
+    raise EZSQLException.Create('Can''t receive Plaindriver!');
 end;
 
 {**
@@ -511,7 +511,7 @@ var
   sMyOpt: string;
   my_client_Opt:TMYSQL_CLIENT_OPTIONS;
   sMy_client_Opt, sMy_client_Char_Set:String;
-  ClientVersion: Integer;
+  ClientVersion, OptionRequiredVersion: Integer;
   SQL: RawByteString;
   P: PAnsiChar;
   S: String;
@@ -599,7 +599,12 @@ begin
     for myopt := low(TMySQLOption) to high(TMySQLOption) do
     begin
       sMyOpt:= GetMySQLOptionValue(myOpt);
-      if ClientVersion >= TMySqlOptionMinimumVersion[myopt] then //version checked (:
+      if FPLainDriver.IsMariaDBDriver then
+        OptionRequiredVersion := TMariaDBOptionMinimumVersion[myopt]
+      else
+        OptionRequiredVersion := TMySqlOptionMinimumVersion[myopt];
+
+      if ClientVersion >= OptionRequiredVersion then //version checked (:
         case myopt of
           {unsigned int options ...}
           MYSQL_OPT_CONNECT_TIMEOUT,
@@ -1026,7 +1031,7 @@ begin
   if Value <> ReadOnly then begin
     if not Closed then begin
       if not FSupportsReadOnly then
-        raise EZSQLException.Create(SUnsupportedOperation);
+        raise EZUnsupportedException.Create(SUnsupportedOperation);
       ExecuteImmediat(MySQLSessionTransactionReadOnly[ReadOnly], lcTransaction);
     end;
     ReadOnly := Value;
