@@ -26,6 +26,7 @@ type
   tasks:      TThreadList;
   queueevent: TEvent;
   fSiteName: String;
+  fSite: TObject;
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -96,7 +97,6 @@ var
 
   StatsList: TObjectList<TQueueStat>;
   QueueStatUpdateDateTime: TDateTime;
-  fSite: TSite;
 
 procedure TQueueThread.QueueFire;
 begin
