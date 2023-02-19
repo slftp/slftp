@@ -1365,7 +1365,12 @@ begin
     if fSite = nil then
       fSite := FindSiteByName('', fSiteName);
 
-    if fSite = nil then continue; //happens on startup
+    if fSite = nil then
+    begin
+      //happens on startup
+      Sleep(1000);
+      continue;
+    end;
 
     ts := TSite(fSite);
     fTaskList := tasks.LockList;
