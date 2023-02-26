@@ -1213,7 +1213,10 @@ begin
               ttp.ready := True;
           end;
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] RemoveDirlistTasks : %s', [e.Message]));
+          end;
         end;
       end;
     finally
