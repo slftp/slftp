@@ -674,7 +674,7 @@ begin
       try
         RemovePazoMKDIR(p.pazo_id, psource.Name, rls);
         RemoveRaceTasks(p.pazo_id, psource.Name);
-        RemoveDirlistTasks(p.pazo_id, psource.Name);
+        RemovePazoTasks(p.pazo_id, psource.Name);
         psource.dirlistgaveup := True;
       except
         on e: Exception do

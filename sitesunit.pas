@@ -419,7 +419,7 @@ type
     procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
     procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
     procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
-    procedure RemoveDirlistTasks(const aPazoID: integer);
+    procedure RemovePazoTasks(const aPazoID: integer);
     function IrcKillAll(const netname, channel, params: String): boolean;
     procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
 
@@ -583,7 +583,7 @@ function RemovePazo(const aPazoID: integer): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
 procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
-procedure RemoveDirlistTasks(const aPazoID: integer; const aSitename: String);
+procedure RemovePazoTasks(const aPazoID: integer; const aSitename: String);
 function IrcQueueShow(const netname, channel, params: String): boolean;
 procedure QueueEmpty(const sitename: String);
 procedure QueueStart;
@@ -794,9 +794,9 @@ end;
     fQueue.RemoveRaceTasks(aPazoID, aSiteName);
   end;
 
-procedure TSite.RemoveDirlistTasks(const aPazoID: integer);
+procedure TSite.RemovePazoTasks(const aPazoID: integer);
   begin
-    fQueue.RemoveDirlistTasks(aPazoID);
+    fQueue.RemovePazoTasks(aPazoID);
   end;
 
   procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
@@ -807,9 +807,9 @@ procedure TSite.RemoveDirlistTasks(const aPazoID: integer);
       fSite.RemoveRaceTasks(aPazoID, aSiteName);
   end;
 
-procedure RemoveDirlistTasks(const aPazoID: integer; const aSitename: String);
+procedure RemovePazoTasks(const aPazoID: integer; const aSitename: String);
   begin
-    FindSiteByName('', aSitename).RemoveDirlistTasks(aPazoID);
+    FindSiteByName('', aSitename).RemovePazoTasks(aPazoID);
   end;
 
   procedure TSite.RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);

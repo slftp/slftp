@@ -2065,7 +2065,7 @@ begin
     dirlistgaveup := True;
 
     RemoveRaceTasks(pazo.pazo_id, Name);
-    RemoveDirlistTasks(pazo.pazo_id, Name);
+    RemovePazoTasks(pazo.pazo_id, Name);
 
     if not aMessage.IsEmpty then
       irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, aMessage]));
