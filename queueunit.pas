@@ -1385,6 +1385,9 @@ begin
       try
         for i := fTaskList.Count - 1 downto 0 do
         begin
+          if i < 0 then
+            Break;
+
           fTask := fTaskList[i];
 
           if fTask = nil then
