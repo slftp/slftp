@@ -163,7 +163,7 @@ end;
 
 function TPazoTask.IsReadyToBeExecuted: boolean;
 begin
-  Result := (self.FDependingOnDirlist = nil) or (not self.FDependingOnDirlist.need_mkdir);
+  Result := (self.FDependingOnDirlist = nil) or (not self.FDependingOnDirlist.need_mkdir) or self.FDependingOnDirlist.error;
 end;
 
 
