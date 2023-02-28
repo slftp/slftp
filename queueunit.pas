@@ -1341,103 +1341,83 @@ begin
     try
       queueth.main_lock.Enter();
       try
-        for i := tasks.Count - 1 downto 0 do
+        if tasks.Count > 0 then
         begin
-          try
-            if i < 0 then
-              Break;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (tasks.Count) : %s', [e.Message]));
-              Break;
-            end;
-          end;
-          try
-            t := TTask(tasks.items[i]);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
-              Continue;
-            end;
-          end;
-
-          if t = nil then
-            Continue;
-
-          try
-            if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
-            begin
-              ss := t.uidtext;
-              TaskReady(t);
-
-              if (t.ClassType = TPazoRaceTask) then
+          for i := tasks.Count - 1 downto 0 do
+          begin
+            try
+              t := TTask(tasks.items[i]);
+            except
+              on e: Exception do
               begin
-                with TPazoRaceTask(t) do
-                  if (dst <> nil) then
-                  begin
-                    dst.event.SetEvent;
-                  end;
-                RemoveActiveTransfer(TPazoRaceTask(t));
-              end;
-              RemoveDependencies(t);
-              tasks.Remove(t);
-              Console_QueueDel(ss);
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-              Continue;
-            end;
-          end;
-        end;
-
-        for i := 0 to tasks.Count - 1 do
-        begin
-          try
-            if i > tasks.Count then
-              Break;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (tasks.Count) : %s', [e.Message]));
-              Break;
-            end;
-          end;
-
-          try
-            t := TTask(tasks.items[i]);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
-              Continue;
-            end;
-          end;
-
-          if t = nil then
-            Continue;
-
-          try
-            if queue_debug_mode then
-              Continue;
-
-            if ((t.slot1 = nil) and (t.slot2 = nil) and (not t.ready) and
-              (not t.readyerror)) then
-            begin
-              if ((t.startat = 0) or (t.startat <= queue_last_run)) then
-              begin
-                if (t.dependencies.Count = 0) then
-                  TryToAssignSlots(t);
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
+                Continue;
               end;
             end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
+            if t = nil then
               Continue;
+            try
+              if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
+              begin
+                ss := t.UidText;
+                TaskReady(t);
+
+                if (t.ClassType = TPazoRaceTask) then
+                begin
+                  with TPazoRaceTask(t) do
+                    if (dst <> nil) then
+                    begin
+                      dst.event.SetEvent;
+                    end;
+                  RemoveActiveTransfer(TPazoRaceTask(t));
+                end;
+                RemoveDependencies(t);
+                tasks.Remove(t);
+                Console_QueueDel(ss);
+              end;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
+                Continue;
+              end;
+            end;
+          end;
+
+          for i := 0 to tasks.Count - 1 do
+          begin
+
+            try
+              t := TTask(tasks.items[i]);
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
+                Continue;
+              end;
+            end;
+
+            if t = nil then
+              Continue;
+
+            try
+              if queue_debug_mode then
+                Continue;
+
+              if ((t.slot1 = nil) and (t.slot2 = nil) and (not t.ready) and (not t.readyerror)) then
+              begin
+                if ((t.startat = 0) or (t.startat <= queue_last_run)) then
+                begin
+                  if (t.dependencies.Count = 0) then
+                    TryToAssignSlots(t);
+                end;
+              end;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
+                Continue;
+              end;
             end;
           end;
         end;
@@ -1817,27 +1797,22 @@ begin
   t_auto  := 0;
   t_other := 0;
 
-  for i := tasks.Count - 1 downto 0 do
+  if tasks.Count > 0 then
   begin
-    try
-      if i < 0 then
-        Break;
-    except
-      Break;
-    end;
-    try
-      if ((tasks[i].ClassType = TPazoRaceTask) or (tasks[i].ClassType = TWaitTask)) then
-        Inc(t_race)
-      else if ((tasks[i].ClassType = TPazoDirlistTask)) then
-        Inc(t_dir)
-      else if ((tasks[i].ClassType = TAutoNukeTask) or (tasks[i].ClassType = TAutoDirlistTask) or
-        (tasks[i].ClassType = TAutoIndexTask) or (tasks[i].ClassType = TLoginTask) or
-        (tasks[i].ClassType = TRulesTask)) then
-        Inc(t_auto)
-      else
-        Inc(t_other);
-    except
-      Continue;
+    for i := tasks.Count - 1 downto 0 do
+    begin
+      try
+        if ((tasks[i].ClassType = TPazoRaceTask) or (tasks[i].ClassType = TWaitTask)) then
+          Inc(t_race)
+        else if ((tasks[i].ClassType = TPazoDirlistTask)) then
+          Inc(t_dir)
+        else if ((tasks[i].ClassType = TAutoNukeTask) or (tasks[i].ClassType = TAutoDirlistTask) or (tasks[i].ClassType = TAutoIndexTask) or (tasks[i].ClassType = TLoginTask) or (tasks[i].ClassType = TRulesTask)) then
+          Inc(t_auto)
+        else
+          Inc(t_other);
+      except
+        continue;
+      end;
     end;
   end;
 
