@@ -53,7 +53,7 @@ procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
 function RemovePazo(const pazo_id: integer): boolean;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
-procedure RemovePazoDirTasks(const pazo_id: integer);
+procedure RemovePazoTasks(const pazo_id: integer);
 
 procedure QueueSort;
 
@@ -1193,7 +1193,7 @@ begin
   end;
 end;
 
-procedure TQueueThread.RemovePazoDirTasks(const pazo_id: integer);
+procedure TQueueThread.RemovePazoTasks(const pazo_id: integer);
 var
   i:   integer;
   ttp: TPazoTask;
@@ -1206,7 +1206,7 @@ begin
       for fTask in tasks.LockList() do
       begin
         try
-          if (fTask is TPazoDirlistTask) or (fTask is TPazoMkdirTask) then
+          if (fTask is TPazoTask) then
           begin
             ttp := TPazoTask(fTask);
             if ((ttp.ready = False) and (ttp.readyerror = False) and (ttp.slot1 = nil) and (ttp.pazo_id = pazo_id)) then
@@ -1853,6 +1853,7 @@ begin
     tasks.UnlockList;
   end;
 end;
+
 
 function TQueueThread.FetchAutoIndex: TAutoIndexTask;
 var

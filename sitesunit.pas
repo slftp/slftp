@@ -583,7 +583,7 @@ function RemovePazo(const aPazoID: integer): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
 procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
-procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
+procedure RemovePazoTasks(const aPazoID: integer; const aSitename: String);
 function IrcQueueShow(const netname, channel, params: String): boolean;
 procedure QueueEmpty(const sitename: String);
 procedure QueueStart;
@@ -794,9 +794,9 @@ end;
     fQueue.RemoveRaceTasks(aPazoID, aSiteName);
   end;
 
-procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
+procedure TSite.RemovePazoTasks(const aPazoID: integer);
   begin
-    fQueue.RemovePazoDirTasks(aPazoID);
+    fQueue.RemovePazoTasks(aPazoID);
   end;
 
   procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
@@ -807,9 +807,9 @@ procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
       fSite.RemoveRaceTasks(aPazoID, aSiteName);
   end;
 
-procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
+procedure RemovePazoTasks(const aPazoID: integer; const aSitename: String);
   begin
-    FindSiteByName('', aSitename).RemovePazoDirTasks(aPazoID);
+    FindSiteByName('', aSitename).RemovePazoTasks(aPazoID);
   end;
 
   procedure TSite.RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
