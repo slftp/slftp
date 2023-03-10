@@ -11,12 +11,16 @@ HEAPTRACE = -gh
 # flag for valgrind
 # see http://wiki.lazarus.freepascal.org/Profiling#Using_Valgrind.2FCallgrind
 VALGRIND = -gv
+GPROF = -pg
+VTUNE = -dDEBUG -MDelphi -gl -gp -gs -gw3 -O2
 
 default: clean slftp
 
 debug: clean slftp_debug
 heaptrace: clean slftp_debug_heaptrace
 valgrind: clean slftp_debug_valgrind
+gprof: clean slftp_debug_gprof
+vtune: clean slftp_debug_vtune
 
 all: slftp install
 
@@ -65,6 +69,16 @@ slftp_debug_heaptrace:
 slftp_debug_valgrind:
 	$(call revpatch)
 	$(CC) $(CDBFLAGS) $(VALGRIND) $(CINCLUDES) slftp.lpr
+	$(call revpatchrevert)
+
+slftp_debug_gprof:
+	$(call revpatch)
+	$(CC) $(CDBFLAGS) $(GPROF) $(CINCLUDES) slftp.lpr
+	$(call revpatchrevert)
+
+slftp_debug_vtune:
+	$(call revpatch)
+	$(CC) $(VTUNE) $(CINCLUDES) slftp.lpr
 	$(call revpatchrevert)
 
 test:
