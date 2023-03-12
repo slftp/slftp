@@ -89,7 +89,7 @@ function TslMask.Matches(const aInput: String): Boolean;
 begin
   Result := False;
 
-  //FLock.Enter;
+  FLock.Enter;
   try
     if Assigned(dm) then
       Result := dm.Matches(aInput)
@@ -103,7 +103,7 @@ begin
       end;
     end;
   finally
-    //FLock.Leave;
+    FLock.Leave;
   end;
 end;
 
