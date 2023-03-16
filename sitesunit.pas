@@ -706,78 +706,180 @@ var
     fQueue.GetCurrentTasks(taskLst);
   end;
 
-  function IrcQueueShow(const netname, channel, params: String): boolean;
+
+  { Sort the tasks to show for !queue output in a similar less sophisticated way as the queue sorter. }
+  function QueueTaskSorter(Item1, Item2: Pointer): integer;
   var
-  i, ii: integer;
-  show_tasks: integer;
-  show_all: boolean;
-  rr: TRegExpr;
-  fSite: TSite;
-  fTasksList: Contnrs.TObjectList;
-begin
-  rr := TRegExpr.Create;
-  fTasksList := TObjectList.Create(False);
-  try
+    i1, i2: TQueueTask;
+  begin
+    // compare: -1 Item1 is before Item2
+    // compare:  1 Item1 is after Item2
+    // ref: https://www.freepascal.org/docs-html/rtl/classes/tstringlist.customsort.html
+    try
+      i1 := TQueueTask(Item1);
+      i2 := TQueueTask(Item2);
 
-    for fSite in sites do
-    begin
-      fSite.GetCurrentTasks(fTasksList);
-    end;
+      if (i1 = nil) or (i2 = nil) then
+      begin
+        Result := 0;
+        exit;
+      end;
 
-    rr.ModifierI := True;
+      // Give priority to wait
+      if ((i1.FType = TWaitTask) and (i2.FType = TWaitTask)) then
+      begin
+        Result := 0;
+        exit;
+      end;
+      if ((i1.FType = TWaitTask) and (not(i2.FType = TWaitTask))) then
+      begin
+        Result := -1;
+        exit;
+      end;
+      if ((not(i1.FType = TWaitTask)) and (i2.FType = TWaitTask)) then
+      begin
+        Result := 1;
+        exit;
+      end;
 
-    show_tasks := 10;
-    rr.Expression := '-c\:([\d]+)';
-    if rr.Exec(params) then
-    begin
-      show_tasks := StrToIntDef(rr.Match[1], 10);
-    end;
+      // Give priority to PazoTasks
+      if ((not(i1.FType.InheritsFrom(TPazoTask))) and (not(i2.FType.InheritsFrom(TPazoTask)))) then
+      begin
+        Result := 0;
+        exit;
+      end;
+      if ((i1.FType.InheritsFrom(TPazoTask)) and (not(i2.FType.InheritsFrom(TPazoTask)))) then
+      begin
+        Result := -1;
+        exit;
+      end;
+      if ((not(i1.FType.InheritsFrom(TPazoTask))) and (i2.FType.InheritsFrom(TPazoTask))) then
+      begin
+        Result := 1;
+        exit;
+      end;
 
-    show_all := False;
-    rr.Expression := '--all';
-    if rr.Exec(params) then
-    begin
-      show_tasks := fTasksList.Count;
-      show_all := True;
-    end;
+      // Give priority to mkdir
+      if ((i1.FType = TPazoMkdirTask) and (i2.FType = TPazoMkdirTask)) then
+      begin
+        Result := 0;
+        exit;
+      end;
+      if ((i1.FType = TPazoMkdirTask) and (not(i2.FType = TPazoMkdirTask))) then
+      begin
+        Result := -1;
+        exit;
+      end;
+      if ((not(i1.FType = TPazoMkdirTask)) and (i2.FType = TPazoMkdirTask)) then
+      begin
+        Result := 1;
+        exit;
+      end;
 
-    ii := 0;
-    irc_addtext(Netname, Channel, 'Tasks in queue: %d displaycount: %d', [fTasksList.Count, Min(show_tasks, fTasksList.Count)]);
+      // Give priority to RaceTask
+      if ((i1.FType = TPazoRaceTask) and (i2.FType = TPazoRaceTask)) then
+      begin
+        Result := 0;
+        exit;
+      end;
 
-    for i := 0 to fTasksList.Count - 1 do
-    begin
-      try
+      if ((i1.FType = TPazoRaceTask) and (not(i2.FType = TPazoRaceTask))) then
+      begin
+        Result := -1;
+        exit;
+      end;
+      if ((not(i1.FType = TPazoRaceTask)) and (i2.FType = TPazoRaceTask)) then
+      begin
+        Result := 1;
+        exit;
+      end;
 
-        if show_all then
-        begin
-          irc_addtext(Netname, Channel, TTask(fTasksList[i]).Fullname);
-          Continue;
-          //        Inc(ii);
-        end
-        else
-        begin
-
-          if (ii > show_tasks) then
-            break;
-
-          rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
-          if ((not rr.Exec(TTask(fTasksList[i]).Fullname)) and (not TTask(fTasksList[i]).ready) and (not TTask(fTasksList[i]).readyerror)) then
-          begin
-            irc_addtext(Netname, Channel, TTask(fTasksList[i]).Fullname);
-            Inc(ii);
-          end;
-        end;
-      except
-        break;
+      // All others (Dirlists and so on)
+      Result := 0;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
+        Result := 0;
       end;
     end;
-
-  finally
-    rr.Free;
   end;
 
-  Result := True;
-end;
+  function IrcQueueShow(const netname, channel, params: String): boolean;
+  var
+    i, ii: integer;
+    show_tasks: integer;
+    show_all: boolean;
+    rr: TRegExpr;
+    fSite: TSite;
+    fTasksList: Contnrs.TObjectList;
+  begin
+    rr := TRegExpr.Create;
+    fTasksList := TObjectList.Create(True);
+    try
+
+      for fSite in sites do
+      begin
+        fSite.GetCurrentTasks(fTasksList);
+      end;
+
+      fTasksList.Sort(@QueueTaskSorter);
+      rr.ModifierI := True;
+
+      show_tasks := 10;
+      rr.Expression := '-c\:([\d]+)';
+      if rr.Exec(params) then
+      begin
+        show_tasks := StrToIntDef(rr.Match[1], 10);
+      end;
+
+      show_all := False;
+      rr.Expression := '--all';
+      if rr.Exec(params) then
+      begin
+        show_tasks := fTasksList.Count;
+        show_all := True;
+      end;
+
+      ii := 0;
+      irc_addtext(netname, channel, 'Tasks in queue: %d displaycount: %d', [fTasksList.Count, Min(show_tasks, fTasksList.Count)]);
+
+      for i := 0 to fTasksList.Count - 1 do
+      begin
+        try
+
+          if show_all then
+          begin
+            irc_addtext(netname, channel, TQueueTask(fTasksList[i]).FFullname);
+          end
+          else
+          begin
+
+            if (ii > show_tasks) then
+              break;
+
+            rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
+            if ((not rr.Exec(TQueueTask(fTasksList[i]).FFullname))) then
+            begin
+              irc_addtext(netname, channel, TQueueTask(fTasksList[i]).FFullname);
+              Inc(ii);
+            end;
+          end;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section, '[EXCEPTION] IrcQueueShow : %s', [e.Message]);
+          end;
+        end;
+      end;
+
+    finally
+      fTasksList.Free;
+      rr.Free;
+    end;
+
+    Result := True;
+  end;
 
   function TSite.IrcKillAll(const netname, channel, params: String): boolean;
   begin
@@ -4365,4 +4467,3 @@ begin
 end;
 
 end.
-

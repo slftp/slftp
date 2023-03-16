@@ -13,6 +13,11 @@ type TQueueStat = class
     FOtherTaskCount: integer;
 end;
 
+type TQueueTask = class
+  FFullname: string;
+  FType: TClass;
+end;
+
 type
   TQueueThread = class(TThread)
     //main_lock: TThreadList;
@@ -2043,14 +2048,18 @@ end;
   procedure TQueueThread.GetCurrentTasks(const taskLst: Contnrs.TObjectList);
   var
   fTask: TTask;
+  fQueueTask: TQueueTask;
   begin
     //main_lock.Enter();
     //ThreadList.LockList;
     try
       for fTask in tasks.LockList do
-        taskLst.Add(fTask);
-
-      taskLst.Sort(@QueueSorter);
+      begin
+        fQueueTask := TQueueTask.Create;
+        fQueueTask.FFullname := fTask.Fullname;
+        fQueueTask.FType := fTask.ClassType;
+        taskLst.Add(fQueueTask);
+      end;
     finally
       tasks.UnlockList;
       //main_lock.Leave;
