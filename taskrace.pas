@@ -690,13 +690,33 @@ label
   TryAgain;
 var
   s: TSiteSlot;
-  aktdir, fulldir: String;
+  aktdir: String;
   failure: boolean;
   bIsMidnight: boolean;
   r: TRule;
   rule_err: String;
   numerrors: integer;
   tname: String;
+
+  function checkForSiteFailure: boolean;
+  var
+    fulldir: String;
+  begin
+    Result := False;
+    fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+    if not s.Cwd(fulldir, True) then
+    begin
+      irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
+      ps1.MkdirError(dir);
+      if (dir = '') then
+      begin
+        ps1.MarkSiteAsFailed('cant CWD');
+      end;
+      Result := True;
+      readyerror := True;
+    end;
+  end;
+
 begin
   numerrors := 0;
   Result := False;
@@ -729,8 +749,10 @@ begin
     begin
       irc_Adderror(Format('<c4>[ERROR] loop</c> %s', [tname]));
       mainpazo.errorreason := 'MKDir Pazo errornum > 3';
-      readyerror := True;
-      exit;
+      if checkForSiteFailure then
+      begin
+        exit;
+      end;
     end;
   except
     on e: Exception do
@@ -1043,17 +1065,9 @@ begin
   try
     if (failure) then
     begin
-      fulldir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
-      if not s.Cwd(fulldir, True) then
+      if checkForSiteFailure then
       begin
-        irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, s.lastResponse]));
-        ps1.MkdirError(dir);
-        if (dir = '') then
-        begin
-          ps1.MarkSiteAsFailed('cant CWD');
-        end;
         Result := True;
-        readyerror := True;
         exit;
       end;
     end;
@@ -3067,4 +3081,3 @@ begin
 end;
 
 end.
-
