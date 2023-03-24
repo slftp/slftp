@@ -960,7 +960,15 @@ begin
       for i := 0 to x.Count - 1 do
       begin
         //Console_QueueStat(x.Count - i - 1);
-        AddKbPazo(x[i]);
+        try
+          AddKbPazo(x[i]);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, 'kb', Format('[EXCEPTION] AddKbPazo: %s', [e.Message]));
+            exit;
+          end;
+        end;
         if MilliSecondsBetween(Now, last) > 500 then
         begin
           last := Now;
@@ -1496,4 +1504,3 @@ begin
 end;
 
 end.
-
