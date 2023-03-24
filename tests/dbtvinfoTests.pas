@@ -17,6 +17,7 @@ type
     procedure ReplaceTVShowChars3;
     procedure ReplaceTVShowChars4;
     procedure ReplaceTVShowChars5;
+    procedure ReplaceTVShowChars6;
     procedure GetShowValues1;
     procedure GetShowValues2;
     procedure GetShowValues3;
@@ -124,7 +125,7 @@ begin
   fExpectedResultStr := 'Alvin.%26.the.Chipmunks';
   fOutputStr := replaceTVShowChars(fInputStr);
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
-  
+
   fOutputStr := replaceTVShowChars(fInputStr, True);
   fExpectedResultStr := 'Alvin+%26+the+Chipmunks';
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
@@ -142,6 +143,21 @@ begin
   
   fOutputStr := replaceTVShowChars(fInputStr, True);
   fExpectedResultStr := 'Prison+Break';
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
+end;
+
+procedure TTestShowFunctions.ReplaceTVShowChars6;
+var
+  fInputStr, fOutputStr, fExpectedResultStr: String;
+begin
+  fInputStr := 'Let''s Make A Deal'; // High Comma Test
+
+  fExpectedResultStr := 'Lets.Make.A.Deal';
+  fOutputStr := replaceTVShowChars(fInputStr);
+  CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars failed!');
+
+  fOutputStr := replaceTVShowChars(fInputStr, True);
+  fExpectedResultStr := 'Lets+Make+A+Deal';
   CheckEqualsString(fExpectedResultStr, fOutputStr, 'Replacing TV Show Chars for web failed!');
 end;
 

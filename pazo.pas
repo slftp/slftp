@@ -52,6 +52,8 @@ type
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
+    function GetDirlistGaveUp: boolean;
+    procedure SetDirlistGaveUp(const aGaveUp: boolean);
 
   public
 
@@ -77,7 +79,6 @@ type
     status: TRlsSiteStatus;
 
     reason: String;
-    dirlistgaveup: boolean;
 
     badcrcevents: integer; //< total number of bad crc events
 
@@ -88,6 +89,7 @@ type
 
     activeTransfers: TStringList;
 
+    property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
 
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
@@ -494,6 +496,19 @@ begin
   local_pazo_id := 0;
 end;
 
+function TPazoSite.GetDirlistGaveUp: boolean;
+begin
+  Result := False;
+  if (dirlist <> nil) then
+    Result := dirlist.DirlistGaveUp;
+end;
+
+procedure TPazoSite.SetDirlistGaveUp(const aGaveUp: boolean);
+begin
+  if (dirlist <> nil) then
+    dirlist.DirlistGaveUp := aGaveUp;
+end;
+
 function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
@@ -553,6 +568,10 @@ begin
       // ignore this destination if we don't want to upload there
       s := FindSiteByName('', dst.Name);
       if (s.max_up = 0) then exit;
+
+      //if the destination is going sstTempDown during the race we would spam race tasks
+      //avoid this and also check other down states just to be sure
+      if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then continue;
 
       // drop sending to this destination if too much crc events
       if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then Continue;
@@ -745,6 +764,7 @@ begin
   if delay then
     Result.DelaySetup;
   PazoSitesList.Add(Result);
+  CheckSiteSlots(sitename);
 end;
 
 function TPazo.Age: integer;
@@ -1159,6 +1179,7 @@ begin
       end;
 
       PazoSitesList.Add(ps);
+      CheckSiteSlots(s);
     except
       on e: Exception do
       begin
@@ -1961,4 +1982,3 @@ begin
 end;
 
 end.
-

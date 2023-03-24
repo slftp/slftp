@@ -64,7 +64,7 @@ uses
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, FmtBCD,
   {$IF defined(UNICODE) and not defined(WITH_UNICODEFROMLOCALECHARS)}Windows,{$IFEND}
   ZDbcIntfs, ZCompatibility, ZVariant, ZDbcLogging, ZClasses,
-  ZDbcUtils;
+  ZDbcUtils, ZExceptions;
 
 type
   /// <summary> Implements Abstract SQL Statement object.</summary>
@@ -483,6 +483,7 @@ type
     FSupportsBidirectionalParamIO: Boolean;
     property TokenMatchIndex: Integer read FTokenMatchIndex;
     procedure CheckParameterIndex(var Value: Integer); virtual;
+    /// <summary>Prepares eventual structures for binding input parameters.</summary>
     procedure PrepareInParameters; virtual;
     procedure BindInParameters; virtual;
     /// <summary>Removes eventual structures for binding input parameters.</summary>
@@ -503,6 +504,7 @@ type
     function ParamterIndex2ResultSetIndex(Value: Integer): Integer;
     function CreateBindVarOutOfRangeException(Value: Integer): EZSQLException;
     class function GetBindListClass: TZBindListClass; virtual;
+    function CreateParameterValueExceededException(Index: Integer): EZSQLException;
   protected //Properties
     property BatchDMLArrayCount: ArrayLenInt read FBatchDMLArrayCount write FBatchDMLArrayCount;
     property SupportsDMLBatchArrays: Boolean read FSupportsDMLBatchArrays;
@@ -1070,7 +1072,7 @@ type
   ///  question marks in the bindlist</summary>
   TZRawParamDetectPreparedStatement = class(TZRawPreparedStatement)
   protected
-    FBracketClosePos, FBracketOpenPos, FFirstQuestionMark: PChar;
+    FBracketClosePos, FBracketOpenPos, FFirstQuestionMark: NativeUInt;
     class function GetBindListClass: TZBindListClass; override;
   public
     function GetRawEncodedSQL(const SQL: SQLString): RawByteString; override;
@@ -1335,6 +1337,10 @@ type
     FResults: IZCollection;
     FActiveResultIndex: Integer;
     FExecStatement: TZAbstractPreparedStatement;
+    /// <summary>creates an exceution Statement. Which wraps the call.</summary>
+    /// <param>"StoredProcName" the name of the stored procedure or function to
+    ///  be called.</param>
+    /// <returns>a TZAbstractPreparedStatement object.</returns>
     function CreateExecutionStatement(const StoredProcName: String): TZAbstractPreparedStatement; virtual; abstract;
     function IsFunction: Boolean;
     procedure BindInParameters; override;
@@ -1672,6 +1678,8 @@ begin
     if Assigned(Connection) and Supports(Connection, IImmediatelyReleasable, ImmediatelyReleasable) and
        (ImmediatelyReleasable <> Sender) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
+    if FConnection <> nil then
+      FConnection.DeregisterStatement(Self);
   end;
 end;
 
@@ -2529,7 +2537,7 @@ end;
 function TZBindList.Get(Index: NativeInt): PZBindValue;
 begin
   {$IFNDEF DISABLE_CHECKING}
-  if NativeUInt(Index) > FCount then
+  if NativeUInt(Index) > Count then
     Error(SListIndexError, Index);
   {$ENDIF DISABLE_CHECKING}
   Result := Pointer(NativeUInt(FElements)+(NativeUInt(Index)*ElementSize));
@@ -2697,7 +2705,7 @@ begin
   end else begin
     Result := inherited Get(Index);
     if (Result.BindType <> zbtNull) and (Result.BindType <> BindType) then
-      Notify(Result, lnDeleted);
+      SetNull(Index, SQLType);
   end;
   Result.SQLType := SQLType;
   Result.BindType := BindType;
@@ -2914,8 +2922,44 @@ begin
 end;
 
 procedure TZBindList.SetNull(Index: NativeInt; SQLType: TZSQLType);
+var BindValue: PZBindValue;
 begin
-  AcquireBuffer(Index, SQLType, zbtNull);
+  if Index+1 > Count then begin
+    Count := Index+1;
+    BindValue := inherited Get(Index);
+  end else begin
+    BindValue := inherited Get(Index);
+    if (BindValue.BindType <> zbtNull) then
+    if (TZBindTypeSize[BindValue.BindType] = 0) then
+      case BindValue.BindType of
+        zbtRawString,
+        zbtUTF8String
+        {$IFNDEF NO_ANSISTRING}
+        ,zbtAnsiString{$ENDIF}: RawByteString(BindValue.Value) := EmptyRaw; //dec refcnt
+        zbtUniString: UnicodeString(BindValue.Value) := '';
+        zbtBytes:     TBytes(BindValue.Value) := nil;
+        zbtLob:       IZBlob(BindValue.Value) := nil;
+        zbtCustom:    begin
+                        FreeMem(BindValue.Value);
+                        BindValue.Value := nil;
+                      end;
+        else          BindValue.Value := nil;
+      end
+    else begin
+      if BindValue.BindType = zbtRefArray then begin
+        if PZArray(BindValue.Value).vArray <> nil then
+          ZDbcUtils.DeReferenceArray(PZArray(BindValue.Value).vArray,
+            TZSQLType(PZArray(BindValue.Value).VArrayType), PZArray(BindValue.Value).VArrayVariantType);
+        if PZArray(BindValue.Value).VIsNullArray <> nil then
+          ZDbcUtils.DeReferenceArray(PZArray(BindValue.Value)^.VIsNullArray,
+            TZSQLType(PZArray(BindValue.Value).VIsNullArrayType), PZArray(BindValue.Value).VIsNullArrayVariantType);
+      end;
+      FreeMem(BindValue.Value, TZBindTypeSize[BindValue.BindType]);
+      BindValue.Value := nil;
+    end;
+  end;
+  BindValue.BindType := zbtNull;
+  BindValue.SQLType := SQLType;
 end;
 
 procedure TZBindList.SetParamTypes(Index: NativeInt; SQLType: TZSQLType;
@@ -3155,6 +3199,13 @@ begin
       Result := CreateStmtLogEvent(Category, Logstring);
     end
   else Result := inherited CreatelogEvent(Category);
+end;
+
+function TZAbstractPreparedStatement.CreateParameterValueExceededException(
+  Index: Integer): EZSQLException;
+begin
+  {$IFDEF UNICODE}FUniTemp{$ELSE}FRawTemp{$ENDIF} := Format(SParamValueExceeded, [Index]);
+  Result := EZSQLException.Create({$IFDEF UNICODE}FUniTemp{$ELSE}FRawTemp{$ENDIF});
 end;
 
 {**
@@ -3768,9 +3819,6 @@ begin
   FClosed := False;
 end;
 
-{**
-  Prepares eventual structures for binding input parameters.
-}
 procedure TZAbstractPreparedStatement.PrepareInParameters;
 begin
 end;
@@ -4097,13 +4145,13 @@ var BindValue: PZBindValue;
 begin
   if FSupportsDMLBatchArrays then begin
     if (FBindList.Count < ParameterIndex{$IFDEF GENERIC_INDEX}+1{$ENDIF}) then
-      raise Exception.Create('Set Array-Value first');
+      raise EZSQLException.Create('Set Array-Value first');
     {$IFNDEF GENERIC_INDEX}
     ParameterIndex := ParameterIndex -1;
     {$ENDIF}
     BindValue := FBindList.Get(PArameterIndex);
     if (BindValue.BindType <> zbtArray) and (BindValue.BindType <> zbtRefArray) then
-      raise Exception.Create('No Array bound before!');
+      raise EZSQLException.Create('No Array bound before!');
     ValidateArraySizeAndType(Pointer(Value), SQLType, VariantType, ParameterIndex);
     if BindValue.BindType = zbtRefArray then begin
       if PZArray(BindValue.Value).VIsNullArray <> nil then
@@ -4290,25 +4338,29 @@ var Len: ArrayLenInt;
 begin
   if Value = nil then Exit;
   case SQLType of
-    stUnknown: raise Exception.Create('Invalid SQLType for Array binding!');
+    stUnknown: raise EZSQLException.Create('Invalid SQLType for Array binding!');
     stString: if not (VariantType in [vtString,
       {$IFNDEF NO_ANSISTRING}vtAnsiString, {$ENDIF}
       {$IFNDEF NO_UTF8STRING}vtUTF8String, {$ENDIF}
       {$IF declared(vtSynRawUTF8Array)}vtSynRawUTF8Array,{$IFEND}
       vtRawByteString, vtCharRec]) then
-          raise Exception.Create('Invalid Variant-Type for String-Array binding!');
+          raise EZSQLException.Create('Invalid Variant-Type for String-Array binding!');
     stUnicodeString: if not (VariantType in [vtUnicodeString, vtCharRec]) then
-          raise Exception.Create('Invalid Variant-Type for String-Array binding!');
+          raise EZSQLException.Create('Invalid Variant-Type for String-Array binding!');
     stArray, stResultSet:
           raise EZUnsupportedException.Create(sUnsupportedOperation);
     {$IFDEF WITH_CASE_WARNING}else ;{$ENDIF}
   end;
+  {$IFDEF WITH_INLINE}
+  Len := Length(TByteDynArray(Value));
+  {$ELSE}
   Len := {%H-}PArrayLenInt({%H-}NativeUInt(Value) - ArrayLenOffSet)^{$IFDEF FPC}+1{$ENDIF}; //FPC returns High() for this pointer location
+  {$ENDIF}
   if (BindList.ParamTypes[ParamIndex] <> pctResultSet) then
     if (ParamIndex = 0) then
       FBatchDMLArrayCount := Len
     else if (FBatchDMLArrayCount <> 0) and (Len <> FBatchDMLArrayCount) then
-      raise Exception.Create('Array count does not equal with initial count!')
+      raise EZSQLException.Create('Array count does not equal with initial count!')
 end;
 
 { TZRawPreparedStatement }
@@ -4412,7 +4464,7 @@ end;
 procedure TZRawPreparedStatement.SetUnicodeString(
   ParameterIndex: Integer; const Value: UnicodeString);
 begin
-  FRawTemp := ZUnicodeToRaw(Value, FClientCP);
+  PUnicodeToRaw(Pointer(Value), Length(Value), FClientCP, FRawTemp);
   BindRawStr(ParameterIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}, FRawTemp);
 end;
 
@@ -4567,8 +4619,9 @@ var
   Token: PZToken;
   Tokenizer: IZTokenizer;
   ParamFound: Boolean;
-  {$IFDEF UNICODE}
   L: Cardinal;
+  PStart: PChar;
+  {$IFDEF UNICODE}
   FirstComposeToken: PZToken;
   ResultWriter: TZRawSQLStringWriter;
   {$ELSE}
@@ -4576,9 +4629,9 @@ var
   {$ENDIF}
   ComparePrefixTokens: PPreparablePrefixTokens;
 begin
-  FBracketClosePos := nil;
-  FBracketOpenPos := nil;
-  FFirstQuestionMark := nil;
+  FBracketClosePos := 0;
+  FBracketOpenPos := 0;
+  FFirstQuestionMark := 0;
   BracketCount := 0;
   Result := {$IFDEF UNICODE}''{$ELSE}SQL{$ENDIF};
   if SQL = '' then Exit;
@@ -4587,7 +4640,9 @@ begin
   ComparePrefixTokens := GetCompareFirstKeywordStrings;
   if ParamFound or Assigned(ComparePrefixTokens) then begin
     Tokenizer := Connection.GetTokenizer;
-    Tokens := Tokenizer.TokenizeBufferToList(SQL, [toSkipEOF]);
+    PStart := Pointer(SQL);
+    L := Length(SQL);
+    Tokens := Tokenizer.TokenizeBufferToList(PStart, PStart+L, [toSkipEOF]);
     {$IFDEF UNICODE}
     ResultWriter := TZRawSQLStringWriter.Create(Length(SQL) shl 1);
     {$ELSE}
@@ -4626,25 +4681,25 @@ begin
           end;
         if (Token.L = 1) then begin
           if (Token.P^ = '(') then begin
-            if (FFirstQuestionMark = nil) and (FBracketOpenPos = nil) then begin
-              FBracketOpenPos := Token.P;
+            if (FFirstQuestionMark = 0) and (FBracketOpenPos = 0) then begin
+              FBracketOpenPos := Token.P - PStart;
               BracketCount := 0;
-              FBracketClosePos := nil;
+              FBracketClosePos := 0;
             end;
             Inc(BracketCount);
-          end else if (Token.P^ = ')') and (FBracketOpenPos <> nil) then begin
-            if (FFirstQuestionMark = nil)
-            then FBracketOpenPos := nil
+          end else if (Token.P^ = ')') and (FBracketOpenPos > 0) then begin
+            if (FFirstQuestionMark = 0)
+            then FBracketOpenPos := 0
             else begin
               Dec(BracketCount);
               if BracketCount = 0 then
-                FBracketClosePos := Token.P;
+                FBracketClosePos := Token.P - PStart;
             end;
           end else if (Token.P^ = Char('?')) then begin
             if BindList.Capacity <= InParamCount then
               TZQuestionMarkBindList(BindList).Grow;
-            if (FFirstQuestionMark = nil) then
-              FFirstQuestionMark := Token.P;
+            if (FFirstQuestionMark = 0) then
+              FFirstQuestionMark := Token.P - PStart;
             {$IFDEF UNICODE}
             if (FirstComposeToken <> nil) then begin
               Token := Tokens[I-1];
@@ -6355,8 +6410,8 @@ end;
 function TZQuestionMarkBindList.Get(Index: NativeInt): PZQMarkPosBindValue;
 begin
   {$IFNDEF DISABLE_CHECKING}
-  if NativeUInt(Index) > FCapacity then
-    Error(@SListIndexError, Index);
+  if NativeUInt(Index) > Capacity then
+    Error(SListIndexError, Index);
   {$ENDIF DISABLE_CHECKING}
   Result := Pointer(NativeUInt(FElements)+(NativeUInt(Index)*ElementSize));
 end;
@@ -6650,4 +6705,3 @@ begin
 end;
 
 end.
-

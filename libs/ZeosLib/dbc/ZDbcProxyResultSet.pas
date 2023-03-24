@@ -330,7 +330,7 @@ implementation
 uses
   {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings,{$ENDIF} Math,
   ZMessages, ZEncoding, ZFastCode, ZDbcMetadata, ZClasses,
-  TypInfo, Variants, ZBase64 {$IFNDEF FPC},xmldom{$ENDIF} {$IFDEF WITH_OMNIXML}, Xml.omnixmldom{$ENDIF};
+  TypInfo, Variants, ZBase64, ZExceptions {$IFNDEF FPC},xmldom{$ENDIF} {$IFDEF WITH_OMNIXML}, Xml.omnixmldom{$ENDIF};
 
 const
   ValueAttr = 'value';
@@ -354,10 +354,21 @@ var
   Stream: TStream;
   ConSettings: PZConSettings;
   Metadata: IZDatabaseMetadata;
-  x: String;
   xmldoc: {$IFDEF FPC}TZXMLDocument{$ELSE}TXMLDocument{$ENDIF};
 
   {$IFNDEF FPC}DomVendor: TDOMVendor;{$ENDIF}
+
+  procedure addBomToSTream;
+  const
+    {$IFDEF FPC}
+    BOM: AnsiString = #$FF#$FE;
+    {$ELSE}
+    BOM: WideString = #$FEFF;
+    {$ENDIF}
+  begin
+    Stream.Write(BOM[1], 2);
+  end;
+
 begin
   ConSettings := Connection.GetConSettings;
   Metadata := Connection.GetMetadata;
@@ -378,8 +389,7 @@ begin
 
   Stream := TMemoryStream.Create;
   try
-    x := #$FEFF;
-    Stream.Write(x[1], 2);
+    addBomToSTream; // so the XML stuff knows that it is UTF16 encoded.
     Stream.Write(ResultStr[1], Length(ResultStr) * 2);
     Stream.Position := 0;
     FXmlDocument.LoadFromStream(Stream);
@@ -512,7 +522,7 @@ end;
 {$IFNDEF ZEOS73UP}
 function TZDbcProxyResultSet.InternalGetString(ColumnIndex: Integer): RawByteString;
 begin
-  RaiseUnsupportedException;
+  raise EZUnsupportedException.Create(SUnsupportedOperation);
 end;
 {$ENDIF}
 
@@ -563,7 +573,7 @@ begin
     Len := 0
   end;
 {$ELSE}
-  raise Exception.Create('GetPAnsiChar is not supported on Nextgen.');
+  raise EZSQLException.Create('GetPAnsiChar is not supported on Nextgen.');
 {$ENDIF}
 end;
 
@@ -1074,16 +1084,31 @@ end;
     value returned is <code>null</code>
 }
 function TZDbcProxyResultSet.GetBytes(ColumnIndex: Integer): TBytes;
+var
+  ColType: TZSQLType;
+  Idx: Integer;
+  Val: String;
+  ColInfo: TZColumnInfo;
 begin
   LastWasNull := IsNull(ColumnIndex);
 
-//  if LastWasNull then begin
-//    Result := 0;
-//    exit;
-//  end;
+  if LastWasNull then begin
+    //Result := '';
+    exit;
+  end;
 
-  // todo: Implement GetBytes
-  raise Exception.Create('GetBytes is not supported (yet)');
+  Idx := ColumnIndex - FirstDbcIndex;
+  Val := FCurrentRowNode.ChildNodes.Get(Idx).Attributes[ValueAttr];
+  ColInfo := TZColumnInfo(ColumnsInfo.Items[Idx]);
+  ColType := ColInfo.ColumnType;
+
+  case ColType of
+    stBytes, stBinaryStream:
+      Result := ZDecodeBase64(Val);
+    else begin
+      raise EZSQLException.Create('GetBytes is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
+    end;
+  end;
 end;
 
 function TZDbcProxyResultSet.GetCurrency(
@@ -1324,7 +1349,7 @@ begin
   ColInfo := TZColumnInfo(ColumnsInfo.Items[Idx]);
   ColType := ColInfo.ColumnType;
   case ColType of
-    stBinaryStream: begin
+    stBinaryStream, stBytes: begin
       Bytes := DecodeBase64(AnsiString(Val));
       Result := TZAbstractBlob.CreateWithData(@Bytes[0], Length(Bytes)) as IZBlob;
     end;
@@ -1335,7 +1360,7 @@ begin
          Result := TZAbstractCLob.CreateWithData(nil, 0, GetConSettings) as IZBlob;
     end;
     else begin
-      raise Exception.Create('GetBlob is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
+      raise EZSQLException.Create('GetBlob is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
     end;
   end;
 end;
@@ -1352,7 +1377,7 @@ var
   ColInfo: TZColumnInfo;
 begin
   if LobStreamMode <> lsmRead then
-    raise Exception.Create('No lob stream mode besides lsmRead is supported.');
+    raise EZSQLException.Create('No lob stream mode besides lsmRead is supported.');
 
   {$IFNDEF DISABLE_CHECKING}
     CheckColumnConvertion(ColumnIndex, stInteger);
@@ -1388,7 +1413,7 @@ begin
          Result := TZAbstractCLob.CreateWithData(nil, 0, GetConSettings) as IZBlob;
     end;
     else begin
-      raise Exception.Create('GetBlob is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
+      raise EZSQLException.Create('GetBlob is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
     end;
   end;
 end;
@@ -1396,11 +1421,6 @@ end;
 
 
 {$IFDEF ZEOS73UP}
-procedure RaiseUnsupportedException;
-begin
-  raise EZSQLException.Create(SUnsupportedOperation);
-end;
-
 function TZDbcProxyResultSet.GetUInt(ColumnIndex: Integer): Cardinal;
 var
   ColType: TZSQLType;
@@ -1473,13 +1493,13 @@ begin
     stGUID:
       Result := StringToGUID(Val);
     else
-      RaiseUnsupportedException;
+      raise EZUnsupportedException.Create(SUnsupportedOperation);
   end;
 end;
 
 function TZDbcProxyResultSet.GetBytes(ColumnIndex: Integer; out Len: NativeUInt): PByte;
 begin
-  raise Exception.Create('GetBytes is not supported (yet)');
+  raise EZSQLException.Create('GetBytes is not supported (yet)');
 end;
 
 procedure TZDbcProxyResultSet.GetDate(ColumnIndex: Integer; var Result: TZDate);
@@ -1582,4 +1602,3 @@ end;
 
 {$ENDIF ENABLE_PROXY} //if set we have an empty unit
 end.
-

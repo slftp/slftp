@@ -38,10 +38,12 @@ var
   s: TSiteSlot;
   i: Integer;
   l: TLoginTask;
+  fOriginalSlotName: string;
 begin
   Result := False;
   Debug(dpSpam, section, '-->' + Name);
   s := slot;
+  fOriginalSlotName := s.Name;
   i := s.site.AutoBncTestInterval;
 
   // readd is only true if called by autobnctest
@@ -56,19 +58,45 @@ begin
     end;
   end;
 
-  if not ((s.site.WorkingStatus = sstUp) and (readd)) then
+  if self.wantedslot = '' then
   begin
-    // site is not up, we have to try to login
-    if ((not readd) or (not (s.site.WorkingStatus in [sstMarkedAsDownByUser]))) then
+    if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
+    begin
+      if (s.Status <> ssOnline) then
+      begin
+        // site is not up, we have to try to login
+        s.Quit;
+        Result := s.ReLogin(1, kill, section);
+
+        if readd and (s.Status = ssOnline) then
+        begin
+          // slot is online
+          announce := Format('<b>%s</b>: %s', [s.site.Name, s.bnc]);
+        end;
+      end;
+
+      //check all slots if this is not the bnc check. if it's the bnc check and the site might also have an idle
+      //timeout set, we don't want to login all the slots
+      if not readd and (s.Status = ssOnline) then
+      begin
+        for s in s.site.slots do
+        begin
+          if (s.Status <> ssOnline) and (s.Name <> fOriginalSlotName) then
+          begin
+            l := TLoginTask.Create(netname, channel, site1, False, False);
+            l.wantedslot := s.Name;
+            AddTask(l);
+          end;
+        end;
+      end;
+    end;
+  end
+  else
+  begin
+    if (s.Status <> ssOnline) or not(s.site.WorkingStatus in [sstUp, sstMarkedAsDownByUser]) then
     begin
       s.Quit;
       Result := s.ReLogin(1, kill, section);
-    end;
-
-    if s.Status = ssOnline then
-    begin
-      // slot is online
-      announce := Format('<b>%s</b>: %s', [s.site.Name, s.bnc]);
     end;
   end;
 

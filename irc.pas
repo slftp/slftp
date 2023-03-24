@@ -270,6 +270,10 @@ begin
   // okay it's not for the console
   try
     fIrcNetThread := FindIrcnetwork(netname);
+    if  not assigned(fIrcNetThread) then
+     begin
+       exit;
+     end;
     if msg.Length < 250 then
     begin
       if (config.ReadBool(section, 'direct_echo', False)) then
@@ -1737,7 +1741,8 @@ begin
       shouldrestart := False;
       shouldjoin := True;
       error := '';
-      channels.Clear;
+      if Assigned(channels) then
+        channels.Clear;
 
       ClearSiteInvited;
 

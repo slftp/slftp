@@ -236,6 +236,12 @@ type
       const ColumnsLookup: TZIndexPairList): SQLString; virtual;
   public //implement IZCachedResolver
     /// <author>Egonhugeist</author>
+    /// <summary>Gets the correct transaction to use for new objects from this Resolver.
+    ///  That is either an explicitly assigned transaction or the currently active transaction
+    ///  from the connection.</summary>
+    /// <returns>A valid transaction.</returns>
+    function GetTransaction: IZTransaction;
+    /// <author>Egonhugeist</author>
     /// <summary>Sets the appropriate transaction to this resolver object.</summary>
     /// <param>"Value" the transaction to be used.</param>
     procedure SetTransaction(const Value: IZTransaction); virtual;
@@ -314,7 +320,7 @@ type
 
 implementation
 
-uses ZMessages, ZDbcMetadata, ZDbcUtils, ZDbcProperties
+uses ZMessages, ZDbcMetadata, ZDbcUtils, ZDbcProperties, ZExceptions
   {$IFDEF FAST_MOVE}, ZFastCode{$ENDIF};
 
 { TZGenerateSQLCachedResolver }
@@ -961,6 +967,19 @@ begin
   end;
 end;
 
+function TZGenerateSQLCachedResolver.GetTransaction: IZTransaction;
+  function GetConnectionTransaction: IZTransaction;
+  var Connection: IZConnection;
+  begin
+    Connection := FDatabaseMetadata.GetConnection;
+    Result := Connection.GetConnectionTransaction
+  end;
+begin
+  Result := FTransaction;
+  if Result = nil then
+    Result := GetConnectionTransaction;
+end;
+
 procedure TZGenerateSQLCachedResolver.SetCalcDefaults(Value: Boolean);
 begin
   FCalcDefaults := Value;
@@ -1058,7 +1077,7 @@ begin
     DefaultColumnsLookup.Capacity := Metadata.GetColumnCount;
     for I := FirstDbcIndex to Metadata.GetColumnCount{$IFDEF GENERIC_INDEX}-1{$ENDIF} do
       if RowAccessor.IsNull(I) and (Metadata.GetTableName(I) <> '')
-        and ((Metadata.GetDefaultValue(I) <> '') or (RowAccessor.GetColumnDefaultExpression(I) <> '')) then begin
+        and (Metadata.HasDefaultValue(I) or RowAccessor.HasColumnDefaultExpression(I)) then begin
           DefaultColumnsLookup.Add(J, I);
           Inc(J);
         end;
