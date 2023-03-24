@@ -24,6 +24,11 @@ function kb_Add(const netname, channel, sitename, section, genre: String; event:
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
+{ Finds a release in latest KB list
+      @param(aRls The release name to be searched for)
+      @returns(The section name if the release has been found, an empty string otherwise) }
+function FindReleaseInLatestKBList(const aRls: String): String;
+
 function FindSectionHandler(const section: String): TCRelease;
 
 procedure kb_FreeList;
@@ -898,6 +903,23 @@ begin
       Result := kb_list[i];
       break;
     end;
+  end;
+end;
+
+function FindReleaseInLatestKBList(const aRls: String): String;
+var
+  i: integer;
+begin
+  Result := '';
+  kb_lock.Enter;
+  try
+    i := kb_latest.IndexOfName(aRls);
+    if i <> -1 then
+    begin
+      Result := kb_latest.ValueFromIndex[i];
+    end;
+  finally
+    kb_lock.Leave;
   end;
 end;
 
