@@ -10,7 +10,7 @@ procedure Console_Slot_Add(const name, FormatStr: String; const Args: array of c
 procedure ConsoleStart;
 procedure Console_SiteStat(const allsites, upsites, downsites, unknown: Cardinal);
 procedure Console_QueueStat(const queuedb, t_race, t_dir, t_auto, t_other: Cardinal);
-procedure console_addline(const windowtitle, msg: String);
+procedure console_addline(const windowtitle, msg: String; const processImmediately: boolean = False);
 procedure console_repaint();
 procedure console_delwindow(const windowtitle: String);
 procedure console_add_dummywindow(const windowtitle: String);
@@ -266,7 +266,7 @@ begin
   end;
 end;
 
-procedure console_addline(const windowtitle, msg: String);
+procedure console_addline(const windowtitle, msg: String; const processImmediately: boolean = False);
 var w: String;
 begin
   if app = nil then
@@ -287,6 +287,9 @@ begin
       app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now), WrapText(msg, (slScreen.GetWidth() - 2))])))
     else
       app.AddConsoleTask(TTextBoxAddLineTask.Create(w, WrapText(msg, (slScreen.GetWidth() - 2))));
+
+    if processImmediately then
+      app.ProcessMessages;
   except
     on e: Exception do
     begin
