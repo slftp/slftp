@@ -1012,10 +1012,10 @@ begin
     //check here for any other tasks that might come along
     if (not (t is TPazoPlainTask)) and (not (t is TWaitTask)) and (not (t is TLoginTask)) and
       (not (t is TQuitTask)) and (not (t is TIdleTask)) and
-      (t.ssite1 <> nil) 
+      (t.ssite1 <> nil)
 
       //ignore sites with a max idle time because not all slots will always be assigned right away and so
-      //these slots will logout just after login as their idle time is reached. that because the login task does 
+      //these slots will logout just after login as their idle time is reached. that because the login task does
       //not count as non idle operation.
       //if a site has a max idle time, it's probably not as crucial for all slots to be ready anyway.
       and (TSite(t.ssite1).maxidle = 0) then
@@ -1341,83 +1341,59 @@ begin
     try
       queueth.main_lock.Enter();
       try
-        if tasks.Count > 0 then
+        for i := tasks.Count - 1 downto 0 do
         begin
-          for i := tasks.Count - 1 downto 0 do
-          begin
-            try
-              t := TTask(tasks.items[i]);
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
-                Continue;
-              end;
-            end;
-            if t = nil then
-              Continue;
-            try
-              if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
-              begin
-                ss := t.UidText;
-                TaskReady(t);
+          t := TTask(tasks.items[i]);
 
-                if (t.ClassType = TPazoRaceTask) then
-                begin
-                  with TPazoRaceTask(t) do
-                    if (dst <> nil) then
-                    begin
-                      dst.event.SetEvent;
-                    end;
-                  RemoveActiveTransfer(TPazoRaceTask(t));
-                end;
-                RemoveDependencies(t);
-                tasks.Remove(t);
-                Console_QueueDel(ss);
-              end;
-            except
-              on e: Exception do
+          try
+            if (((t.ready) or (t.readyerror)) and (t.slot1 = nil)) then
+            begin
+              ss := t.UidText;
+              TaskReady(t);
+
+              if (t.ClassType = TPazoRaceTask) then
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-                Continue;
+                with TPazoRaceTask(t) do
+                  if (dst <> nil) then
+                  begin
+                    dst.event.SetEvent;
+                  end;
+                RemoveActiveTransfer(TPazoRaceTask(t));
               end;
+              RemoveDependencies(t);
+              tasks.Remove(t);
+              Console_QueueDel(ss);
+            end;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
+              Continue;
             end;
           end;
+        end;
 
-          for i := 0 to tasks.Count - 1 do
-          begin
+        for i := 0 to tasks.Count - 1 do
+        begin
+          t := TTask(tasks.items[i]);
 
-            try
-              t := TTask(tasks.items[i]);
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (t) : %s', [e.Message]));
-                Continue;
-              end;
-            end;
-
-            if t = nil then
+          try
+            if queue_debug_mode then
               Continue;
 
-            try
-              if queue_debug_mode then
-                Continue;
-
-              if ((t.slot1 = nil) and (t.slot2 = nil) and (not t.ready) and (not t.readyerror)) then
+            if ((t.slot1 = nil) and (t.slot2 = nil) and (not t.ready) and (not t.readyerror)) then
+            begin
+              if ((t.startat = 0) or (t.startat <= queue_last_run)) then
               begin
-                if ((t.startat = 0) or (t.startat <= queue_last_run)) then
-                begin
-                  if (t.dependencies.Count = 0) then
-                    TryToAssignSlots(t);
-                end;
+                if (t.dependencies.Count = 0) then
+                  TryToAssignSlots(t);
               end;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
-                Continue;
-              end;
+            end;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
+              Continue;
             end;
           end;
         end;
@@ -1478,18 +1454,15 @@ begin
           try
             if ((s.todotask = nil) and (s.site.Name <> getAdminSiteName)) then
             begin
-              if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0) and
-                (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000)))) then
+              if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0) and (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000)))) then
               begin
                 AddQuitTask(s);
               end
-              //we also want idle tasks to relogin slots that are not ssOnline but the sites are in WorkingStatus sstUp
-              //at startup only few slots are needed (e.g. autologin), but we want all the slots to be ready for action if
-              //an idle interval is configured. also there are several occasions where DestroySocket or Quit are invoked
-              //on a slot. the IdleTask will take care to relogin these slots as well.
-              else if (((s.status = ssOnline) or ((s.site.WorkingStatus in [sstUp]) and
-              ((s.site.maxidle = 0) or (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) < s.site.maxidle * 1000))))
-              and (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000)) then
+              // we also want idle tasks to relogin slots that are not ssOnline but the sites are in WorkingStatus sstUp
+              // at startup only few slots are needed (e.g. autologin), but we want all the slots to be ready for action if
+              // an idle interval is configured. also there are several occasions where DestroySocket or Quit are invoked
+              // on a slot. the IdleTask will take care to relogin these slots as well.
+              else if (((s.status = ssOnline) or ((s.site.WorkingStatus in [sstUp]) and ((s.site.maxidle = 0) or (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) < s.site.maxidle * 1000)))) and (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000)) then
               begin
                 AddIdleTask(s);
               end;
@@ -1512,18 +1485,17 @@ begin
       end;
     end;
 
-    //queueevent.WaitFor($FFFFFFFF);
+    // queueevent.WaitFor($FFFFFFFF);
     case queueevent.WaitFor(15 * 1000) of
       wrSignaled: { Event fired. Normal exit. }
-      begin
+        begin
 
-      end;
-      else { Timeout reach }
+        end;
+    else { Timeout reach }
       begin
         if spamcfg.readbool(section, 'queue_recycle', True) then
           irc_Adderror('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s');
-        Debug(dpMessage, section,
-          'TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s');
+        Debug(dpMessage, section, 'TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s');
       end;
     end;
   end;
@@ -1792,27 +1764,23 @@ procedure QueueStat;
 var
   i, t_race, t_dir, t_auto, t_other: integer;
 begin
-  t_race  := 0;
-  t_dir   := 0;
-  t_auto  := 0;
+  t_race := 0;
+  t_dir := 0;
+  t_auto := 0;
   t_other := 0;
-
-  if tasks.Count > 0 then
+  for i := tasks.Count - 1 downto 0 do
   begin
-    for i := tasks.Count - 1 downto 0 do
-    begin
-      try
-        if ((tasks[i].ClassType = TPazoRaceTask) or (tasks[i].ClassType = TWaitTask)) then
-          Inc(t_race)
-        else if ((tasks[i].ClassType = TPazoDirlistTask)) then
-          Inc(t_dir)
-        else if ((tasks[i].ClassType = TAutoNukeTask) or (tasks[i].ClassType = TAutoDirlistTask) or (tasks[i].ClassType = TAutoIndexTask) or (tasks[i].ClassType = TLoginTask) or (tasks[i].ClassType = TRulesTask)) then
-          Inc(t_auto)
-        else
-          Inc(t_other);
-      except
-        continue;
-      end;
+    try
+      if ((tasks[i].ClassType = TPazoRaceTask) or (tasks[i].ClassType = TWaitTask)) then
+        Inc(t_race)
+      else if ((tasks[i].ClassType = TPazoDirlistTask)) then
+        Inc(t_dir)
+      else if ((tasks[i].ClassType = TAutoNukeTask) or (tasks[i].ClassType = TAutoDirlistTask) or (tasks[i].ClassType = TAutoIndexTask) or (tasks[i].ClassType = TLoginTask) or (tasks[i].ClassType = TRulesTask)) then
+        Inc(t_auto)
+      else
+        Inc(t_other);
+    except
+      Continue;
     end;
   end;
 
@@ -1833,4 +1801,3 @@ begin
 end;
 
 end.
-
