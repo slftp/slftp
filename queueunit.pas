@@ -1553,6 +1553,7 @@ var
   ss: String;
   t:  TTask;
   fTaskList: TList;
+  ts: TSite;
 begin
 
   try
@@ -1562,6 +1563,11 @@ begin
     queueclean_last_run := Now;
     exit;
   end;
+
+  if fSite = nil then
+    exit;
+
+  ts := TSite(fSite);
 
   //irc_Addconsole('QueueClean: process begin');
   //Debug(dpMessage, section, 'QueueClean begin %d', [tasks.Count]);
@@ -1659,8 +1665,13 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-            tasks.Remove(t);
-            FreeAndNil(t);
+            ts.slotsAssignmentCS.Enter;
+            try
+              tasks.Remove(t);
+              FreeAndNil(t);
+            finally
+              ts.slotsAssignmentCS.Leave;
+            end;
           except
             on e: Exception do
             begin
@@ -1682,8 +1693,13 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
-            tasks.Remove(t);
-            FreeAndNil(t);
+            ts.slotsAssignmentCS.Enter;
+            try
+              tasks.Remove(t);
+              FreeAndNil(t);
+            finally
+              ts.slotsAssignmentCS.Leave;
+            end;
           except
             on e: Exception do
             begin
@@ -1722,8 +1738,13 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
-            tasks.Remove(t);
-            FreeAndNil(t);
+            ts.slotsAssignmentCS.Enter;
+            try
+              tasks.Remove(t);
+              FreeAndNil(t);
+            finally
+              ts.slotsAssignmentCS.Leave;
+            end;
           except
             on e: Exception do
             begin
@@ -2005,8 +2026,14 @@ var
   rx: TRegExpr;
   i: Int32;
   fTaskList: TList;
+  ts: TSite;
 begin
   Result := False;
+
+  if fSite = nil then
+    exit;
+
+  ts := TSite(fSite);
 
   rx := TRegExpr.Create;
   try
@@ -2028,9 +2055,13 @@ begin
       begin
         irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
         try
-          //fTask := NIL;
-          tasks.Remove(TPazoTask(fTask));
-          fTask.Free;
+          ts.slotsAssignmentCS.Enter;
+            try
+              tasks.Remove(TPazoTask(fTask));
+              FreeAndNil(fTask);
+            finally
+              ts.slotsAssignmentCS.Leave;
+            end;
         except
           on e: Exception do
             irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
