@@ -65,6 +65,7 @@ implementation
 
 {$I delphiblowfish.inc}
 {$R-}
+{$Q-}
 
 function BlowfishSelfTest;
 const
