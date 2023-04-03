@@ -3794,10 +3794,10 @@ var
 
   function IsLoginTaskRequiredForSlot(const aSlot: TSiteSlot): boolean;
   begin
-    Result := (fSiteSlot.Status <> ssOnline)
+    Result := (aSlot.Status <> ssOnline)
       //there might already be a login task (or maybe a race task which sometimes
       //sets the slot down and relogins it) - don't try to login such slots
-      and (fSiteSlot.todotask = nil);
+      and (aSlot.todotask = nil);
   end;
 
 begin
