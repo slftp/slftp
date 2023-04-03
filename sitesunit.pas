@@ -4092,6 +4092,15 @@ var
   fSiteSlot: TSiteSlot;
   fLoginTask: TLoginTask;
   fWantedSlot: string;
+
+  function IsLoginTaskRequiredForSlot(const aSlot: TSiteSlot): boolean;
+  begin
+    Result := (fSiteSlot.Status <> ssOnline)
+      //there might already be a login task (or maybe a race task which sometimes
+      //sets the slot down and relogins it) - don't try to login such slots
+      and (fSiteSlot.todotask = nil);
+  end;
+
 begin
   fLoginTaskNeeded := False;
   fWantedSlot := '';
@@ -4121,11 +4130,7 @@ begin
         begin
           for fSiteSlot in aSite.slots do
           begin
-            if (fSiteSlot.Status <> ssOnline)
-
-              //there might already be a login task (or maybe a race task which sometimes
-              //sets the slot down and relogins it) - don't try to login such slots
-              and (fSiteSlot.todotask = nil) then
+            if IsLoginTaskRequiredForSlot(fSiteSlot) then
             begin
               fLoginTaskNeeded := True;
               fWantedSlot := fSiteSlot.Name;
@@ -4145,7 +4150,7 @@ begin
           // check if all the slots are online
           for fSiteSlot in aSite.slots do
           begin
-            if (fSiteSlot.Status <> ssOnline) then
+            if IsLoginTaskRequiredForSlot(fSiteSlot) then
             begin
               fLoginTaskNeeded := True;
               break;
