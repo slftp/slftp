@@ -57,7 +57,7 @@ ujra:
     d := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
     try
       if d.entries.Count = 1 then
-        response := IntToStr(TDirListEntry(d.entries[0]).filesize);
+        response := IntToStr(TDirListEntry(d.entries.Objects[0]).filesize);
     finally
       d.Free;
     end;
