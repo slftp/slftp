@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, Generics.Collections;
+uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, Generics.Collections, IniFiles;
 
 type
   {
@@ -121,7 +121,7 @@ type
     sfv_status: TdlSFV;
     biggestcd: Integer;
     parent: TDirListEntry;
-    entries: TObjectList; //< contains the @link(TDirlistEntry) objects for the dirlist
+    entries: THashedStringList; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
     dependency_mkdir: String;
 
@@ -324,7 +324,7 @@ begin
             if i < 0 then
               Break;
             try
-              d := TDirlistEntry(entries[i]);
+              d := TDirlistEntry(entries.Objects[i]);
 
               if d = nil then
                 Continue;
@@ -394,7 +394,10 @@ begin
 
   FLastChanged := Now();
   allcdshere := False;
-  entries := TObjectList.Create;
+  entries := THashedStringList.Create;
+  entries.OwnsObjects := True;
+  entries.CaseSensitive := False;
+  entries.Sorted := False;
   skipped := TStringList.Create;
   skipped.CaseSensitive := False;
   self.parent := parentdir;
@@ -499,7 +502,7 @@ begin
       begin
         if i < 0 then Break;
         try
-          de := TDirListEntry(entries[i]);
+          de := TDirListEntry(entries.Objects[i]);
 
           if de.cdno <> 0 then
           begin
@@ -622,7 +625,7 @@ begin
   try
     for i := entries.Count - 1 downto 0 do
     begin
-      de := TDirlistEntry(entries[i]);
+      de := TDirlistEntry(entries.Objects[i]);
       de.IsOnSite := False;
     end;
 
@@ -789,7 +792,7 @@ begin
             end;
           end;
 
-          entries.Add(de);
+          entries.AddObject(de.filename, de);
 
           LastChanged := Now();
           added := True;
@@ -817,9 +820,9 @@ begin
     // entries found means the dir exists
     if ((need_mkdir)) then
     begin
-      for de in entries do
+      for i := entries.Count - 1 downto 0 do
       begin
-        if de.IsOnSite then
+        if TDirlistEntry(entries.Objects[i]).IsOnSite then
         begin
           need_mkdir := False;
           break;
@@ -887,7 +890,7 @@ begin
     begin
       if i < 0 then Break;
       try
-        ld:= TDirListEntry(entries[i]);
+        ld:= TDirListEntry(entries.Objects[i]);
         ld.RegenerateSkiplist;
       except
         on E: Exception do
@@ -903,7 +906,7 @@ begin
 
 end;
 
-function _DirListSorter(Item1, Item2: Pointer; dirtype: TDirType): Integer;
+function _DirListSorter(aList: TStringList; aIndex1, aIndex2: Integer): Integer;
 var
   i1, i2: TDirlistEntry;
   c1, c2: Integer;
@@ -918,8 +921,8 @@ begin
   Result := 0;
 
   try
-    i1 := TDirlistEntry(Item1);
-    i2 := TDirlistEntry(Item2);
+    i1 := TDirlistEntry(aList.Objects[aIndex1]);
+    i2 := TDirlistEntry(aList.Objects[aIndex2]);
 
     // We don't care about skiplisted entries
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
@@ -1054,7 +1057,7 @@ begin
   dirlist_lock.Enter;
   try
     try
-      entries.Sort(@_DirListSorter);
+      entries.CustomSort(@_DirListSorter);
     except
       on E: Exception do
       begin
@@ -1141,7 +1144,7 @@ begin
     begin
       if i < 0 then Break;
       try
-        de := TDirlistEntry(entries[i]);
+        de := TDirlistEntry(entries.Objects[i]);
         if de.skiplisted then Continue;
 
         if not de.IsAsciiFiletype then
@@ -1179,23 +1182,10 @@ begin
 
   dirlist_lock.Enter;
   try
-    for i := entries.Count - 1 downto 0 do
+    i := entries.IndexOf(filename);
+    if i <> -1 then
     begin
-      if i < 0 then Break;
-      try
-        de := TDirListEntry(entries[i]);
-        if (CompareText(de.filename, filename) = 0) then
-        begin
-          Result := de;
-          Break;
-        end;
-      except
-        on e: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Find: %s', [e.Message]);
-          Continue;
-        end;
-      end;
+      Result := TDirListEntry(entries.Objects[i]);
     end;
   finally
     dirlist_lock.Leave;
@@ -1247,7 +1237,7 @@ begin
         end;
         d := TDirListEntry.Create(firstdir, self);
         d.Directory := True;
-        entries.Add(d);
+        entries.AddObject(d.filename, d);
       end;
     finally
       dirlist_lock.Leave;
@@ -1287,7 +1277,7 @@ begin
     begin
       if i < 0 then Break;
       try
-        de := TDirlistEntry(entries[i]);
+        de := TDirlistEntry(entries.Objects[i]);
 
         if de.skiplisted then
           Continue;
@@ -1323,7 +1313,7 @@ begin
     begin
       if i < 0 then Break;
       try
-        de := TDirlistEntry(entries[i]);
+        de := TDirlistEntry(entries.Objects[i]);
 
         if aExcludeAsciiFiletypes then
         begin
@@ -1366,7 +1356,7 @@ begin
     begin
       if i < 0 then Break;
       try
-        de := TDirlistEntry(entries[i]);
+        de := TDirlistEntry(entries.Objects[i]);
 
         if aExcludeAsciiFiletypes then
         begin
@@ -1416,7 +1406,7 @@ begin
     begin
       if i < 0 then Break;
       try
-        de := TDirlistEntry(entries[i]);
+        de := TDirlistEntry(entries.Objects[i]);
         if ((de.Extension = '.sfv') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
@@ -1455,7 +1445,7 @@ begin
     begin
       if i < 0 then Break;
       try
-        de := TDirlistEntry(entries[i]);
+        de := TDirlistEntry(entries.Objects[i]);
         if ((de.Extension = '.nfo') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
@@ -1491,8 +1481,8 @@ begin
     begin
       try if i < 0 then Break; except Break; end;
       try
-        TDirlistEntry(entries[i]).IsOnSite := False;
-        TDirlistEntry(entries[i]).error := False;
+        TDirlistEntry(entries.Objects[i]).IsOnSite := False;
+        TDirlistEntry(entries.Objects[i]).error := False;
       except
         on E: Exception do
         begin
@@ -1507,14 +1497,14 @@ begin
 
 end;
 
-function _DirListModSorter(Item1, Item2: Pointer): Integer;
+function _DirListModSorter(aList: TStringList; aIndex1, aIndex2: Integer): Integer;
 var
   i1, i2: TDirlistEntry;
 begin
   // compare: -1 -> good order
   // compare:  1 -> exchange
-  i1 := TDirlistEntry(Item1);
-  i2 := TDirlistEntry(Item2);
+  i1 := TDirlistEntry(aList.Objects[aIndex1]);
+  i2 := TDirlistEntry(aList.Objects[aIndex2]);
 
   Result := CompareValue(i2.timestamp, i1.timestamp);
 end;
@@ -1524,7 +1514,7 @@ begin
   dirlist_lock.Enter;
   try
     try
-      entries.Sort(@_DirListModSorter);
+      entries.CustomSort(@_DirListModSorter);
     except
       on E: Exception do
       begin
@@ -1547,7 +1537,7 @@ begin
     for i := 0 to entries.Count - 1 do
     begin
       if i < 0 then Break;
-      try de := TDirlistEntry(entries[i]);
+      try de := TDirlistEntry(entries.Objects[i]);
 
         if ((de.Extension = '.nfo') and (de.filesize > 0) and (de.filesize < 32768)) then //nfo always smaller than 32kb
         begin
