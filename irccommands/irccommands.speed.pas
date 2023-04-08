@@ -29,7 +29,7 @@ begin
   try
     for i := 0 to d.entries.Count - 1 do
     begin
-      de := TDirListEntry(d.entries[i]);
+      de := TDirListEntry(d.entries.Objects[i]);
       if ((de.filesize > fsfilesize) and (de.filesize >=
         config.ReadInteger('speedtest', 'min_filesize', 15) * 1024 * 1024) and
         (de.filesize <= config.ReadInteger('speedtest', 'max_filesize', 120) *

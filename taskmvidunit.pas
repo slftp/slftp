@@ -213,7 +213,7 @@ ujra:
     try
       for i := 0 to d.entries.Count - 1 do
       begin
-        de := TDirlistEntry(d.entries[i]);
+        de := TDirlistEntry(d.entries.Objects[i]);
 
         if ((not de.Directory) and (de.Extension = '.sfv')) then
           fSFVFile := de.filename;
