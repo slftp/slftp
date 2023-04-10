@@ -312,7 +312,7 @@ begin
     Inc(i);
   end;
 
-  sites.Add(TSite.Create(sitename));
+  AddSite(TSite.Create(sitename));
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -458,7 +458,7 @@ begin
     end;
 
     try
-      sites.Delete(sites.IndexOf(s));
+      DeleteSite(s);
     except
       on E: Exception do
         irc_addtext(Netname, Channel, 'Remove <b>TSite Object</b> failed : %s', [E.Message]);
