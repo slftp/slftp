@@ -884,6 +884,7 @@ var
   x: TStringList;
   i: integer;
   fSite: TSite;
+  fSitename: string;
 begin
   debug(dpSpam, section, 'SitesStart begin');
 
@@ -902,7 +903,14 @@ begin
     for i := 0 to x.Count - 1 do
       if 1 = Pos('site-', x[i]) then
       begin
-        fSite := TSite.Create(Copy(x[i], 6, 1000));
+        fSitename := Copy(x[i], 6, 1000);
+
+        //when there is some config entry for the admin site, then this will
+        //produce an error when adding the same site name twice
+        if fSitename = getAdminSiteName then
+          continue;
+
+        fSite := TSite.Create(fSitename);
         AddSite(fSite);
 
         //add a login task if autologin is enabled
