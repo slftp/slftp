@@ -32,6 +32,7 @@ type
   queueevent: TEvent;
   fSiteName: String;
   fSite: TObject;
+  fBusyDestinations: TDictionary<TObject, integer>;
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
@@ -419,6 +420,7 @@ begin
   fQueueStat := TQueueStat.Create();
   StatsList.Add(fQueueStat);
   fSiteName := aSiteName;
+  fBusyDestinations := TDictionary<TObject, integer>.Create;
 end;
 
 destructor TQueueThread.Destroy;
@@ -445,6 +447,12 @@ begin
       exit;
     if s2.freeslots = 0 then
       exit;
+
+    if fBusyDestinations.ContainsKey(s2) then
+    begin
+      Debug(dpSpam, section, 'Targe site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      exit;
+    end;
 
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
@@ -508,6 +516,7 @@ begin
     begin
       if i > 2000 then
       begin
+        fBusyDestinations.Add(s2, 0);
         Debug(dpSpam, section, 'Gave up on trying to lock for slots assignment from site ' + s1.Name + ' to site ' + s2.Name);
         exit;
       end;
@@ -1369,6 +1378,7 @@ var
   s:    TSiteSlot;
   ss:   String;
   ts:   TSite;
+  fBusyDestinationsTmp: TDictionary<TObject, integer>;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1385,6 +1395,9 @@ begin
     end;
 
     ts := TSite(fSite);
+    fBusyDestinationsTmp := fBusyDestinations;
+    fBusyDestinations := TDictionary<TObject, integer>.Create;
+    fBusyDestinationsTmp.Free;
     fTaskList := tasks.LockList;
     //Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
     try
