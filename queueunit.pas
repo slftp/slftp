@@ -856,6 +856,7 @@ var
   tpr, i_tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
+  tpl, i_tpl: TLoginTask;
 
 begin
   Result := False;
@@ -991,6 +992,42 @@ begin
     end;
     exit;
   end;
+
+  if (t is TLoginTask) then
+  begin
+    try
+      tpl := TLoginTask(t);
+      queueth.main_lock.Enter;
+      try
+        for i := tasks.Count - 1 downto 0 do
+        begin
+          if i < 0 then
+            Break;
+          if (tasks[i] is TLoginTask) then
+          begin
+            i_tpl := TLoginTask(tasks[i]);
+            if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
+              (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
+              (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
+            begin
+              Result := True;
+              exit;
+            end;
+          end;
+        end;
+      finally
+        queueth.main_lock.Leave;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TLoginTask : %s', [e.Message]));
+        Result := False;
+        exit;
+      end;
+    end;
+    exit;
+  end;
 end;
 
 procedure AddTaskToConsole(const aTask: TTask);
@@ -1010,7 +1047,8 @@ begin
     //do this check before the task might have been freed already
     //for races (pazo tasks) the site slots are checked when the site is added to the race,
     //check here for any other tasks that might come along
-    if (((not (t is TPazoPlainTask)) and (not (t is TWaitTask)))
+    if (t.ssite1 <> nil) and
+      (((not (t is TPazoPlainTask)) and (not (t is TWaitTask)))
 
       //if the site has a max idle time, also do the slots check for race/wait tasks.
       //The slots might reach idle time at any time even during a race.
@@ -1018,8 +1056,7 @@ begin
       or (TSite(t.ssite1).maxidle <> 0))
 
       //never do this for login, quit and idle tasks because it doesn't make sense
-      and (not (t is TLoginTask)) and (not (t is TQuitTask)) and (not (t is TIdleTask))
-      and (t.ssite1 <> nil) then
+      and (not (t is TLoginTask)) and (not (t is TQuitTask)) and (not (t is TIdleTask)) then
     begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
