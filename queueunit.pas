@@ -721,7 +721,7 @@ begin
   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
-  s := TSite(t.ssite1);
+  s := TSite(self.fSite);
   s.slotsAssignmentCS.Enter;
   try
   if s.freeslots = 0 then
