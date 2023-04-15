@@ -6,11 +6,10 @@ uses tasksunit;
 
 type
   TLoginTask = class(TTask)
-  private
-    kill: Boolean;
   public
     noannounce: Boolean;
     readd: Boolean; //< @true if called from autobnctest, @false otherwise
+    kill: Boolean;
     constructor Create(const netname, channel, site: String; kill: Boolean; readd: Boolean);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
