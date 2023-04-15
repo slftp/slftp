@@ -450,7 +450,7 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
-      Debug(dpSpam, section, 'Targe site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
