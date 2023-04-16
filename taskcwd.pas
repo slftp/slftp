@@ -41,6 +41,7 @@ begin
   Result := False;
   s := slot;
   fNumTries := 0;
+  response := IntToStr(Ord(False));
   Debug(dpMessage, section, Name);
 
 ujra:

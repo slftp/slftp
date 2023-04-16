@@ -120,7 +120,7 @@ begin
         site := FindSiteByName(netname, sitename);
         if IsSourceSiteValid(site) then
         begin
-          fCwdTask := TCWDTask.Create('', '', site.Name, x.Values[x.Names[i]]);
+          fCwdTask := TCWDTask.Create('', '', site.Name, MyIncludeTrailingSlash(x.Values[x.Names[i]]) + MyIncludeTrailingSlash(releasenametofind));
           fTaskNotify.tasks.Add(fCwdTask);
           AddTask(fCwdTask);
         end;

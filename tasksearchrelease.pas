@@ -39,7 +39,6 @@ var
 begin
   Result := inherited Execute(slot);
   fRawResponse := self.response;
-  self.response := '';
   fSlot := slot;
 
   if Result then
@@ -49,6 +48,7 @@ begin
       fFoundPaths.Text := ParsePathFromSiteSearchResult(self.response, self.FReleaseName);
 
       // now check if the directory is actually there by trying to CWD into it
+      self.response := '';
       for fPath in fFoundPaths do
       begin
         if fSlot.Cwd(fPath, true) then
