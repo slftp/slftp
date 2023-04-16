@@ -289,7 +289,7 @@ begin
       app.AddConsoleTask(TTextBoxAddLineTask.Create(w, WrapText(msg, (slScreen.GetWidth() - 2))));
 
     if processImmediately then
-      app.ProcessMessages;
+      app.ProcessMessages(True);
   except
     on e: Exception do
     begin
