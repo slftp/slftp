@@ -1520,9 +1520,9 @@ var
   d: TDirList;
   i: integer;
   de: TDirListEntry;
-  fFoundDirListEntries: TObjectList<TDirListEntry>;
   fTasksAdded: boolean;
   fSite: TSite;
+  fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
 begin
   Result := False;
   fTasksAdded := False;
@@ -1579,6 +1579,7 @@ begin
   if d.entries.Count > 0 then
   begin
     fFoundDirListEntries := TObjectList<TDirListEntry>.Create(False);
+    fRemovePazoRaceEntries := TObjectList<TDirListEntry>.Create(False);
     try
       d.dirlist_lock.Enter;
       try
@@ -1592,7 +1593,7 @@ begin
               if (de.justadded) then
               begin
                 de.justadded := False;
-                RemovePazoRace(self, pazo.pazo_id, Name, dir, de.filename);
+                fRemovePazoRaceEntries.Add(de);
               end;
               de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
             end;
@@ -1617,8 +1618,14 @@ begin
         fSite.QueueFire;
       end;
 
+      for de in fRemovePazoRaceEntries do
+      begin
+        RemovePazoRace(self, pazo.pazo_id, Name, dir, de.filename);
+      end;
+
     finally
       fFoundDirListEntries.Free;
+      fRemovePazoRaceEntries.Free;
     end;
   end;
 
@@ -1725,7 +1732,6 @@ begin
       begin
         de.IsOnSite := True;
         fJustAdded := True;
-        RemovePazoRace(self, pazo.pazo_id, Name, aDir, aFilename);
       end;
     finally
       aDirlist.dirlist_lock.Leave;
@@ -1743,6 +1749,11 @@ begin
       fSite.QueueSort;
       fSite.QueueFire;
     end;
+
+if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
+begin
+RemovePazoRace(self, pazo.pazo_id, Name, aDir, aFilename);
+end;
 
   except
     on E: Exception do
