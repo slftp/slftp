@@ -403,7 +403,7 @@ type
     constructor Create(Width, Height: integer); overload;
     procedure Run;
     procedure Repaint; override;
-    procedure ProcessMessages;
+    procedure ProcessMessages(const aForceProcessing: boolean = False);
     procedure GotoXy(ca: TslRect; x, y: integer); override;
     procedure AddConsoleTask(t: TslConsoleTask);
     property OnExit: TslEvent Read fOnExit Write fOnExit;
@@ -576,7 +576,7 @@ begin
   inherited;
 end;
 
-procedure TslApplication.ProcessMessages;
+procedure TslApplication.ProcessMessages(const aForceProcessing: boolean = False);
 var
   c: Char;
   extended: boolean;
@@ -585,7 +585,7 @@ var
   t: TslConsoleTask;
 begin
   Inc(lvtf);
-  if lvtf >= slVisionThreadFrequency then
+  if aForceProcessing or (lvtf >= slVisionThreadFrequency) then
   begin
     lvtf := 0;
     try
