@@ -57,7 +57,7 @@ begin
         end
         else
         begin
-          irc_Addadmin(Format('<c8>[SITESEARCH]</c> Outdated index on %s: %s', [site1, fPath]));
+          irc_Addadmin(Format('<c8>[SITESEARCH]</c> Cannot CDW into path on %s: %s (%s)', [site1, fPath, fSlot.lastResponse]));
         end;
       end;
     finally
