@@ -3,7 +3,7 @@ unit rulesunit;
 interface
 
 uses
-  Classes, pazo, slmasks, Contnrs, sitesunit;
+  Classes, pazo, slmasks, Contnrs;
 
 type
   TRuleNode = class
@@ -334,7 +334,6 @@ function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 procedure RulesInit;
 procedure RulesUninit;
-function CalculateRank(const aDestSite: TSite; const aSpeedFrom: integer; const aSection: string; const aIsPre: boolean): integer;
 
 function FindConditionClassByName(const Name: String): TConditionClass;
 
@@ -346,7 +345,7 @@ var
 implementation
 
 uses
-  SysUtils, Math, DateUtils, IdGlobal, {$IFDEF MSWINDOWS}Windows,{$ENDIF} Types, configunit, mystrings, encinifile, debugunit,
+  SysUtils, Math, DateUtils, IdGlobal, {$IFDEF MSWINDOWS}Windows,{$ENDIF} Types, configunit, sitesunit, mystrings, encinifile, debugunit,
   ruleconditions.common, ruleconditions.zeroday, ruleconditions.mp3, ruleconditions.tv, ruleconditions.imdb, ruleconditions.mvid, ruleconditions.nfo;
 
 const
@@ -2746,3 +2745,4 @@ begin
 end;
 
 end.
+
