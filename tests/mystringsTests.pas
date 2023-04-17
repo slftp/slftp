@@ -1,4 +1,4 @@
-unit mystringsTests;
+﻿unit mystringsTests;
 
 interface
 
@@ -51,6 +51,7 @@ type
     procedure TestParseSiteSearchResult4;
     procedure TestParseSiteSearchResult5;
     procedure TestParseSiteSearchResult6;
+    procedure TestParseResponseCode1;
   end;
 
 implementation
@@ -730,6 +731,17 @@ begin
   finally
     fStringList.Free;
   end;
+end;
+
+procedure TTestMyStrings.TestParseResponseCode1;
+var
+  fResponseString: String;
+  fResponseCode, fExpectedResponseCode: integer;
+begin
+  fResponseString := '213- status of -l /RACE/X264_1080p_EN/The.Long.Test.Release.1999.1080p.BluRay.x264-GRP/:'#$D#$A'total 123456'#$D#$A'-rw-rw-rw-';
+  fResponseCode := parseResponseCode(fResponseString);
+  fExpectedResponseCode := 213;
+  CheckEquals(fExpectedResponseCode, fResponseCode);
 end;
 
 initialization
