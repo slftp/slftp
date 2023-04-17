@@ -442,6 +442,7 @@ begin
     // Search for sub directories
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
+      r := nil;
       d.dirlist_lock.Enter;
       try
         for i := 0 to d.entries.Count - 1 do
@@ -472,7 +473,6 @@ begin
                 r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);
                 if (de.subdirlist <> nil) then
                   de.subdirlist.dirlistadded := True;
-                AddTask(r);
               except
                 on e: Exception do
                 begin
@@ -486,6 +486,12 @@ begin
         end;
       finally
         d.dirlist_lock.Leave;
+      end;
+
+      //add task outside the dirlist lock to avoid deadlocks with the queue lock
+      if r <> nil then
+      begin
+        AddTask(r);
       end;
     end;
   except
