@@ -927,24 +927,35 @@ end;
 procedure TQueueThread.QueueEmpty(const sitename: String);
 var
   t: TTask;
+  fSetDownPazo: TDictionary<TPazo, integer>;
+  fPazo: TPazo;
 begin
+  Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
+
+  fSetDownPazo := TDictionary<TPazo, integer>.Create;
   try
-    for t in tasks.LockList do
-    begin
-      try
+    try
+      for t in tasks.LockList do
+      begin
         if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
           t.readyerror := True;
 
         if (t is TPazoTask) then
-          TPazoTask(t).mainpazo.SiteDown(sitename);
-      except
-        Continue;
+          fSetDownPazo.AddOrSetValue(TPazoTask(t).mainpazo, 0);
       end;
+    finally
+      tasks.UnLockList;
     end;
-    Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
+
+    for fPazo in fSetDownPazo.Keys do
+    begin
+      fPazo.SiteDown(sitename);
+    end;
   finally
-    tasks.UnlockList;
+    fSetDownPazo.Free;
   end;
+
+  Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
 function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
@@ -2145,5 +2156,4 @@ end;
       //ThreadList.UnlockList;
     end;
   end;
-
 end.
