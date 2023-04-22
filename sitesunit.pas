@@ -2728,6 +2728,12 @@ procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
   if Value <> FWorkingStatus then
   begin
+
+    //if the site is already perm down or set down by user, never set temp down because then some
+    //idle or login task could set the site up again which we clearly do not want
+    if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
+      exit;
+
     FWorkingStatus := Value;
 
     if Name = getAdminSiteName then
