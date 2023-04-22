@@ -1085,15 +1085,12 @@ begin
   begin
     try
       tpl := TLoginTask(t);
-      queueth.main_lock.Enter;
       try
-        for i := tasks.Count - 1 downto 0 do
+        for fTask in tasks.LockList() do
         begin
-          if i < 0 then
-            Break;
-          if (tasks[i] is TLoginTask) then
+          if (fTask is TLoginTask) then
           begin
-            i_tpl := TLoginTask(tasks[i]);
+            i_tpl := TLoginTask(fTask);
             if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
               (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
               (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
@@ -1104,7 +1101,7 @@ begin
           end;
         end;
       finally
-        queueth.main_lock.Leave;
+        tasks.UnLockList()
       end;
     except
       on E: Exception do

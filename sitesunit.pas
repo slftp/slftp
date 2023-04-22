@@ -4165,7 +4165,7 @@ begin
       fLoginTask.wantedslot := fWantedSlot;
       fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); // announce if working status of the site is not sstUp
       AddTask(fLoginTask);
-      QueueFire;
+      aSite.QueueFire;
     end;
   end;
 end;
