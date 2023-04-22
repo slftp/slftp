@@ -450,7 +450,7 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
-      Debug(dpSpam, section, 'Targe site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
@@ -721,7 +721,7 @@ begin
   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
-  s := TSite(t.ssite1);
+  s := TSite(self.fSite);
   s.slotsAssignmentCS.Enter;
   try
   if s.freeslots = 0 then
@@ -954,7 +954,6 @@ var
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
-
 begin
   Result := False;
 
