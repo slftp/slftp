@@ -4164,8 +4164,7 @@ begin
       fLoginTask := TLoginTask.Create('', '', aSite.Name, False, False);
       fLoginTask.wantedslot := fWantedSlot;
       fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); // announce if working status of the site is not sstUp
-      AddTask(fLoginTask);
-      aSite.QueueFire;
+      AddTask(fLoginTask, True);
     end;
   end;
 end;
