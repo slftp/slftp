@@ -559,7 +559,7 @@ begin
         //invalid slot name, should not happen, just exit here
         exit;
       if (ss.todotask <> nil) then
-        ss := nil;
+        exit;  //the slot is already in use, cannot assign the login task
     end
     else
     begin
@@ -584,7 +584,7 @@ begin
     if ss = nil then
     begin
       // all slots are busy, which means they are already logged in, we can stop here
-      if not t.noannounce and (t.wantedslot = '') then
+      if not t.noannounce then
       begin
         if bnc = '' then
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
