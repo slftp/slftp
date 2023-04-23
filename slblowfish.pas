@@ -178,14 +178,17 @@ begin
     if decompressstream then
     begin
       zl:= TDecompressionStream.Create(ostream);
-      aktread:= 1;
-      while aktread <> 0 do
-      begin
-       aktread:= zl.Read(buf, BUFSIZE);
-       if aktread > 0 then
-         output.Write(buf, aktread);
+      try
+        aktread:= 1;
+        while aktread <> 0 do
+        begin
+         aktread:= zl.Read(buf, BUFSIZE);
+         if aktread > 0 then
+           output.Write(buf, aktread);
+        end;
+      finally
+        zl.Free;
       end;
-      zl.Free;
     end
     else
       output.CopyFrom(ostream, ostream.Size);

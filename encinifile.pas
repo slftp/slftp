@@ -132,7 +132,10 @@ type
 
 implementation
 
-uses SysUtils, slblowfish, configunit;
+uses SysUtils, slblowfish, configunit, debugunit;
+
+const
+  section = 'encinifile';
 
 { TStringHash }
 
@@ -667,34 +670,37 @@ begin
         if AnsiEndsText('sites.dat', FFilename) and (1 = Pos('site-', FSections[I])) then
         begin
           ListSplitFile := TStringList.Create;
-          for J := 0 to Strings.Count - 1 do
-          begin
-            S := Strings.Names[J];
-            Found := False;
-            for K := 1 to Length(splitredirectkeys) do
+          try
+            for J := 0 to Strings.Count - 1 do
             begin
-              if S = splitredirectkeys[K] then
+              S := Strings.Names[J];
+              Found := False;
+              for K := 1 to Length(splitredirectkeys) do
               begin
-                Found := True;
-                break;
+                if S = splitredirectkeys[K] then
+                begin
+                  Found := True;
+                  break;
+                end;
               end;
+              if not Found then
+                if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
+                  Found := True;
+
+              if Found then
+                List.Add(Strings[J])
+
+              else
+                ListSplitFile.Add(Strings[J])
             end;
-            if not Found then
-              if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
-                Found := True;
 
-            if Found then
-              List.Add(Strings[J])
-
-          else
-            ListSplitFile.Add(Strings[J])
+            S := FSections[I];
+            S := Copy(S, 6, Length(S) - 5);
+            S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+            ListSplitFile.SaveToFile(S);
+          finally
+            ListSplitFile.Free;
           end;
-
-          S := FSections[I];
-          S := Copy(S, 6, Length(S)-5);
-          S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
-          ListSplitFile.SaveToFile(S);
-          ListSplitFile.Free;
         end
         else
         begin
@@ -723,17 +729,17 @@ begin
   begin
     myS:= TMemoryStream.Create;
     List := TStringList.Create;
-    if not fSima then
-    begin
-      DecryptFileToStream(fFilename, myS, fPassHash, fCompression);
-      List.LoadFromStream(myS);
-    end
-    else
-    begin
-      List.LoadFromFile(fFilename);
-    end;
-
     try
+      if not fSima then
+      begin
+        DecryptFileToStream(FFileName, myS, fPassHash, fCompression);
+        List.LoadFromStream(myS);
+      end
+      else
+      begin
+        List.LoadFromFile(FFileName);
+      end;
+
       SetStrings(List);
 
     finally
@@ -1009,11 +1015,19 @@ var
 begin
   if FileExists(FileName) then
   begin
-    Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
     try
-      LoadFromStream(Stream);
-    finally
-      Stream.Free;
+      Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
+      try
+        LoadFromStream(Stream);
+      finally
+        Stream.Free;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, Section, Format('[EXCEPTION] TEncStringlist.LoadFromFile %s : %s', [FileName, e.Message]));
+        raise;
+      end;
     end;
   end;
 end;
@@ -1022,8 +1036,8 @@ procedure TEncStringlist.LoadFromStream(Stream: TStream);
 var s: TStringStream;
 begin
   s:= TStringStream.Create( '' );
-  BeginUpdate;
   try
+    BeginUpdate;
     DecryptStreamToStream(Stream, s, fPassHash, True);
     SetTextStr(s.DataString);
   finally
@@ -1036,8 +1050,8 @@ procedure TEncStringlist.SaveToStream(Stream: TStream);
 var s: TStringStream;
 begin
   s:= TStringStream.Create( GetTextStr );
-  s.Position:= 0;
   try
+    s.Position:= 0;
     EncryptStreamToStream(s, Stream, FPassHash, True);
   finally
     s.Free;

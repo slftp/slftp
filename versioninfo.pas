@@ -15,11 +15,11 @@ function GetSLConsoleTitle: String;
 implementation
 
 uses
-  configunit, SysUtils, mystrings;
+  configunit, SysUtils;
 
 {$I slftp.inc}
 
-function ShowSLFTPVerison: String;
+function GetFormattedSLFTPVersion: String;
 var
   fCPU: String;
 begin
@@ -57,15 +57,15 @@ end;
 
 function GetFullVersionString: String;
 begin
-  Result := ShowSLFTPVerison;
+  Result := GetFormattedSLFTPVersion;
 end;
 
 function GetVersionOnlyString: String;
 var
   src: String;
 begin
-  src := ShowSLFTPVerison;
-  Result := mystrings.RightStr(src, Pos('v', src));
+  src := GetFormattedSLFTPVersion;
+  Result := Copy(src, Pos('v', src) + 1, Length(src));
 end;
 
 function GetSLConsoleTitle: String;
@@ -74,9 +74,9 @@ var
 begin
   s := config.ReadString('console', 'customtitle', '');
   if s <> '' then
-    result := Format('%s %s', [ShowSLFTPVerison, s])
+    result := Format('%s %s', [GetFormattedSLFTPVersion, s])
   else
-    result := ShowSLFTPVerison;
+    result := GetFormattedSLFTPVersion;
 end;
 
 end.

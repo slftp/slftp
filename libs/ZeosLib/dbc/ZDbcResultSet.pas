@@ -61,7 +61,7 @@ uses
 {$ENDIF}
   Types, Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils, FmtBcd,
   {$IFNDEF NO_UNIT_CONTNRS}Contnrs,{$ENDIF}
-  ZDbcIntfs, ZDbcLogging, ZSysUtils, ZCompatibility, ZVariant, ZClasses;
+  ZDbcIntfs, ZDbcLogging, ZSysUtils, ZCompatibility, ZVariant, ZClasses, ZExceptions;
 
 type
   {** Implements Abstract ResultSet. }
@@ -3485,7 +3485,6 @@ var ImmediatelyReleasable: IImmediatelyReleasable;
   i: Integer;
 begin
   if not FClosed and Assigned(Statement){virtual RS ! } then begin
-    FColumnsInfo.Clear;
     FClosed := True;
     FRowNo := 0;
     FLastRowNo := 0;
@@ -3498,6 +3497,7 @@ begin
     if Supports(Statement, IImmediatelyReleasable, ImmediatelyReleasable) and
        (ImmediatelyReleasable <> Sender) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
+    AfterClose;
   end;
 end;
 
@@ -4948,7 +4948,7 @@ var Stream: TStream;
 begin
   Stream := CreateLobStream(FColumnCodePage, lsmWrite);
   try
-    Stream.Write(Buffer, Len)
+    Stream.Write(Buffer^, Len)
   finally
     Stream.Free;
   end;
@@ -5168,6 +5168,7 @@ begin
   if (Buffer <> nil) and (Len >0) then begin
     SetCapacity(Len);
     Move(Buffer^, FDataRefAddress.VarLenData.Data, Len);
+    FDataRefAddress.IsNotNull := 1;
   end;
 end;
 
