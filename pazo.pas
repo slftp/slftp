@@ -106,7 +106,6 @@ type
     function DirlistGaveUpAndSentNoFiles: Boolean;
     procedure DelaySetup;
 
-    procedure RemoveMkdir;
     { Stop dirlisting and racing on this site as there was a catastrophic failure
       @param(aMessage specific error message with detailed information) }
     procedure MarkSiteAsFailed(const aMessage: string);
@@ -2089,14 +2088,6 @@ begin
   end;
 
   Debug(dpSpam, section, Format('<-- TPazoSite.MarkSiteAsFailed', []));
-end;
-
-procedure TPazoSite.RemoveMkdir;
-begin
-  if dirlist <> nil then
-  begin
-    RemovePazoMKDIR(pazo.pazo_id, Name, '');
-  end;
 end;
 
 function TPazoSite.DirlistGaveUpAndSentNoFiles: Boolean;
