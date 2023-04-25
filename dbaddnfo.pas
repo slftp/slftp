@@ -185,7 +185,7 @@ begin
 
   if sec.ClassName = 'TIMDBRelease' then
   begin
-    if dbaddimdb_parseid(nfo_data, imdbid) then
+    if parseImdbIDFromString(nfo_data, imdbid) then
       dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
     exit;
   end;
