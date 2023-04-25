@@ -1424,9 +1424,10 @@ procedure TKBThread.Execute;
 var
   i: integer;
   p: TPazo;
-  fIncFillPazos: TList<TPazo>;
+  fIncFillPazos, fRemovePazos: TList<TPazo>;
 begin
   fIncFillPazos := TList<TPazo>.Create;
+  fRemovePazos := TList<TPazo>.Create;
   try
     while (not slshutdown) do
     begin
@@ -1457,7 +1458,7 @@ begin
             begin
               if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
               begin
-                RemovePazo(p.pazo_id);
+                fRemovePazos.Add(p);
                 while (not (p.queuenumber.Value <= 0)) do
                 begin
                   p.queuenumber.Decrease;
@@ -1469,7 +1470,7 @@ begin
 
             if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
             begin
-              RemovePazo(p.pazo_id);
+              fRemovePazos.Add(p);
 
               try
                 RanksProcess(p);
@@ -1487,20 +1488,27 @@ begin
         finally
           kb_lock.Leave;
         end;
+
+        // do this outside of kb_lock because of possible long running operations (dirlist)
+        for p in fIncFillPazos do
+        begin
+          Debug(dpSpam, rsections, 'Looking for incomplete sites of %s', [p.rls.rlsname]);
+          AddCompleteTransfers(p);
+        end;
+        fIncFillPazos.Clear;
+
+        for p in fRemovePazos do
+        begin
+          RemovePazo(p.pazo_id);
+        end;
+        fRemovePazos.Clear;
+
       except
         on e: Exception do
         begin
           Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute: %s', [e.Message]);
         end;
       end;
-
-      // do this outside of kb_lock because of possible long running operations (dirlist)
-      for p in fIncFillPazos do
-      begin
-        Debug(dpSpam, rsections, 'Looking for incomplete sites of %s', [p.rls.rlsname]);
-        AddCompleteTransfers(p);
-      end;
-      fIncFillPazos.Clear;
 
       if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
       begin
@@ -1524,6 +1532,7 @@ begin
     end;
   finally
     fIncFillPazos.Free;
+    fRemovePazos.Free;
   end;
 end;
 
