@@ -1424,10 +1424,10 @@ procedure TKBThread.Execute;
 var
   i: integer;
   p: TPazo;
-  fIncFillPazos, fRemovePazos: TList<TPazo>;
+  fIncFillPazos, fFinishedPazos: TList<TPazo>;
 begin
   fIncFillPazos := TList<TPazo>.Create;
-  fRemovePazos := TList<TPazo>.Create;
+  fFinishedPazos := TList<TPazo>.Create;
   try
     while (not slshutdown) do
     begin
@@ -1458,31 +1458,13 @@ begin
             begin
               if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
               begin
-                fRemovePazos.Add(p);
-                while (not (p.queuenumber.Value <= 0)) do
-                begin
-                  p.queuenumber.Decrease;
-                end;
-                p.ExcludeFromIncfiller := True;
                 fIncFillPazos.Add(p);
               end;
             end;
 
             if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
             begin
-              fRemovePazos.Add(p);
-
-              try
-                RanksProcess(p);
-              except
-                on E: Exception do
-                begin
-                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
-                end;
-              end;
-
-              p.Clear;
-              p.stated := True;
+              fFinishedPazos.Add(p);
             end;
           end;
         finally
@@ -1493,15 +1475,31 @@ begin
         for p in fIncFillPazos do
         begin
           Debug(dpSpam, rsections, 'Looking for incomplete sites of %s', [p.rls.rlsname]);
+          while (not(p.queuenumber.Value <= 0)) do
+          begin
+            p.queuenumber.Decrease;
+          end;
+          p.ExcludeFromIncfiller := True;
           AddCompleteTransfers(p);
         end;
         fIncFillPazos.Clear;
 
-        for p in fRemovePazos do
+        for p in fFinishedPazos do
         begin
           RemovePazo(p.pazo_id);
+          try
+            RanksProcess(p);
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+            end;
+          end;
+
+          p.Clear;
+          p.stated := True;
         end;
-        fRemovePazos.Clear;
+        fFinishedPazos.Clear;
 
       except
         on e: Exception do
@@ -1532,7 +1530,7 @@ begin
     end;
   finally
     fIncFillPazos.Free;
-    fRemovePazos.Free;
+    fFinishedPazos.Free;
   end;
 end;
 
