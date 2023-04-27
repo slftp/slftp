@@ -72,7 +72,7 @@ function AddPreDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, RegExpr, IniFiles,
+  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles,
   irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB, http;
 
 const
@@ -93,6 +93,7 @@ var
   dbaddpre_plm2: TPretimeLookupMode;
 
   config_taskpretime_url: String;
+  config_taskpretime_regexp: String;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
 begin
@@ -144,13 +145,13 @@ end;
 
 function ReadPretimeOverHTTP(const rls: String): Int64;
 var
-  response: TStringList;
-  prex: TRegexpr;
+  response: String;
+  rx_pretime: TFLRE;
+  rx_captures: TFLREMultiCaptures;
   url: String;
-  i: integer;
-  read_count: integer;
+  aPretimePos: integer;
+  aPreTimeStr: String;
   fHttpGetErrMsg: String;
-  fStrHelper: String;
 begin
   Result := 0;
   if rls = '' then
@@ -163,57 +164,46 @@ begin
     exit;
   end;
 
-  response := TStringList.Create;
-  prex := TRegexpr.Create;
   try
-    prex.ModifierM := True;
-    prex.Expression := '(\S+) (\S+) (\S+) (\S+) (\S+)$';
-    read_count := 0;
+    rx_pretime := TFLRE.Create(config_taskpretime_regexp, []);
 
-    if not HttpGetUrl(Format(url, [rls]), fStrHelper, fHttpGetErrMsg) then
+    if not HttpGetUrl(Format(url, [rls]), response, fHttpGetErrMsg) then
     begin
       Debug(dpError, section, Format('[FAILED] HTTP Pretime for %s --> %s ', [rls, fHttpGetErrMsg]));
       irc_Adderror(Format('<c4>[FAILED]</c> HTTP Pretime for %s --> %s', [rls, fHttpGetErrMsg]));
       exit;
     end;
 
-    response.Text := fStrHelper;
-
-    Debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response.Text]);
-
-    for i := 0 to response.Count - 1 do
+    Debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response]);
+    if rx_pretime.MatchAll(response, rx_captures, 1, 1) then
     begin
-      Inc(read_count);
-      if read_count > 500 then
+      Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response]);
+      aPretimePos := rx_pretime.NamedGroupIndices['pretime'];
+      if aPretimePos < 0 then
       begin
-        irc_addtext('CONSOLE', 'ADMIN', 'Read count higher then 500');
-        Result := 0;
-        break;
+        irc_addtext('CONSOLE','ADMIN','named capture group: pretime not found');
+        exit;
       end;
-      if prex.Exec(response.strings[i]) then
+      aPreTimeStr := Copy(response, rx_captures[0][aPretimePos].Start, rx_captures[0][aPretimePos].Length);
+      if (aPretimePos >= 0) and (StrToIntDef(aPreTimeStr, 0) <> 0) then
       begin
-        Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response.DelimitedText]);
-
-        if (StrToIntDef(prex.Match[2], 0) <> 0) then
+        Result := StrToIntDef(aPreTimeStr, 0);
+        if ((DaysBetween(Now(), UnixToDateTime(Result, False)) > 30) and
+          config.ReadBool('kb', 'skip_rip_older_then_one_month', False)) then
         begin
-          Result := StrToIntDef(prex.Match[2], 0);
-          if ((DaysBetween(Now(), UnixToDateTime(Result, False)) > 30) and
-            config.ReadBool('kb', 'skip_rip_older_then_one_month', False)) then
-          begin
-            //        irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
-            Result := 0;
-          end;
-        end
-        else
-        begin
-          //      irc_addtext('CONSOLE','ADMIN','regex dosnot match');
+          irc_addtext('CONSOLE','ADMIN','Days higher then 30 days');
           Result := 0;
         end;
+      end
+      else
+      begin
+        irc_addtext('CONSOLE','ADMIN','regex does not match');
+        Result := 0;
       end;
     end;
   finally
-    prex.Free;
-    response.Free;
+    SetLength(rx_captures, 0);
+    rx_pretime.Free;
   end;
 end;
 
@@ -697,6 +687,7 @@ begin
   dbaddpre_plm2 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode_2', 0));
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
+  config_taskpretime_regexp := config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$');
 
   if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
