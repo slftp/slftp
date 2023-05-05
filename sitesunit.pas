@@ -5,7 +5,7 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules;
+  taskrules, Generics.Collections;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -641,6 +641,13 @@ procedure CheckSiteSlots(const aSite: TSite); overload;
   @param(aSiteName The name of the site to check) }
 procedure CheckSiteSlots(const aSiteName: string); overload;
 
+{ Adds a site to the relevant data structures.
+  @param(aSite The @link(TSite) object to add.) }
+procedure AddSite(const aSite: TSite);
+{ Deletes a site from the relevant data structures.
+  @param(aSite The @link(TSite) object to delete.) }
+procedure DeleteSite(const aSite: TSite);
+
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
@@ -663,6 +670,19 @@ var
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
+  sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
+
+procedure AddSite(const aSite: TSite);
+begin
+  sites.Add(aSite);
+  sitesDict.Add(aSite.Name, aSite);
+end;
+
+procedure DeleteSite(const aSite: TSite);
+begin
+  sites.Delete(sites.IndexOf(aSite));
+  sitesDict.Remove(aSite.Name);
+end;
 
 function getAdminSiteName: String;
 begin
@@ -791,25 +811,7 @@ var
   i: integer;
   s: TSite;
 begin
-  Result := nil;
-  try
-    for i := 0 to sites.Count - 1 do
-    begin
-      s := TSite(sites[i]);
-      if s.Name = aSitename then
-      begin
-        if ((aNetname <> '') and (aNetname <> 'CONSOLE') and (s.noannounce)) then
-        begin
-          exit;
-        end;
-
-        Result := s;
-        break;
-      end;
-    end;
-  except
-    Result := nil;
-  end;
+  sitesDict.TryGetValue(aSitename, Result);
 end;
 
 function FindSlotByName(const aSlotname: String): TSiteSlot;
@@ -869,6 +871,7 @@ begin
   sitelaststart := Now();
   bnccsere := TCriticalSection.Create;
   sites := TObjectList.Create;
+  sitesDict := TDictionary<string, TSite>.Create;
 end;
 
 function CompareSiteNamesForAlphabeticalOrder(site1, site2: TSite): Integer;
@@ -879,7 +882,9 @@ end;
 procedure SitesStart;
 var
   x: TStringList;
-  i, j: integer;
+  i: integer;
+  fSite: TSite;
+  fSitename: string;
 begin
   debug(dpSpam, section, 'SitesStart begin');
 
@@ -890,7 +895,7 @@ begin
   killafter := config.ReadInteger(section, 'killafter', 0);
 
   // Add admin site
-  sites.Add(TSite.Create(getAdminSiteName));
+  AddSite(TSite.Create(getAdminSiteName));
 
   x := TStringList.Create;
   try
@@ -898,12 +903,20 @@ begin
     for i := 0 to x.Count - 1 do
       if 1 = Pos('site-', x[i]) then
       begin
-        j := sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+        fSitename := Copy(x[i], 6, 1000);
+
+        //when there is some config entry for the admin site, then this will
+        //produce an error when adding the same site name twice
+        if fSitename = getAdminSiteName then
+          continue;
+
+        fSite := TSite.Create(fSitename);
+        AddSite(fSite);
 
         //add a login task if autologin is enabled
-        if (((autologin) or (TSite(sites[j]).RCBool('autologin', False))) and not TSite(sites[j]).PermDown) then
+        if (((autologin) or (fSite.RCBool('autologin', False))) and not fSite.PermDown) then
         begin
-          AddTask(TLoginTask.Create('', '', TSite(sites[j]).Name, False, False));
+          AddTask(TLoginTask.Create('', '', fSite.Name, False, False));
         end;
       end;
   finally
@@ -924,6 +937,12 @@ begin
   begin
     sites.Free;
     sites := nil;
+  end;
+
+  if sitesDict <> nil then
+  begin
+    sitesDict.Free;
+    sitesDict := nil;
   end;
 
   if sitesdat <> nil then
