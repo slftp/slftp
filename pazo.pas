@@ -1406,7 +1406,7 @@ var
   d: TDirList;
   i: integer;
   de: TDirListEntry;
-  fFoundDirListEntries: TObjectList<TDirListEntry>;
+  fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
 begin
   Result := False;
 
@@ -1462,6 +1462,7 @@ begin
   if d.entries.Count > 0 then
   begin
     fFoundDirListEntries := TObjectList<TDirListEntry>.Create(False);
+    fRemovePazoRaceEntries := TObjectList<TDirListEntry>.Create(False);
     try
       d.dirlist_lock.Enter;
       try
@@ -1475,7 +1476,7 @@ begin
               if (de.justadded) then
               begin
                 de.justadded := False;
-                RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
+                fRemovePazoRaceEntries.Add(de);
               end;
               de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
             end;
@@ -1496,8 +1497,14 @@ begin
         end;
       end;
 
+      for de in fRemovePazoRaceEntries do
+      begin
+        RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
+      end;
+
     finally
       fFoundDirListEntries.Free;
+      fRemovePazoRaceEntries.Free;
     end;
   end;
 
@@ -1605,16 +1612,19 @@ begin
       begin
         de.IsOnSite := True;
         fJustAdded := True;
-        RemovePazoRace(pazo.pazo_id, Name, aDir, aFilename);
       end;
     finally
       aDirlist.dirlist_lock.Leave;
     end;
 
     //do this outside dirlist_lock to avoid deadlocks
-    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite) and Tuzelj(aNetname, aChannel, aDir, de)) then
+    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
     begin
-      QueueFire;
+      if Tuzelj(aNetname, aChannel, aDir, de) then
+      begin
+        QueueFire;
+      end;
+      RemovePazoRace(pazo.pazo_id, Name, aDir, aFilename);
     end;
 
   except
