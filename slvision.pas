@@ -209,6 +209,7 @@ type
 
   TslTextBox = class(TslAlignedControl)
   private
+    fMaxWidth: integer;
     function GetText: String;
     procedure SetText(const Value: String);
   public
@@ -223,6 +224,7 @@ type
     destructor Destroy; override;
     procedure Repaint; override;
     function MaxWidth: integer; override;
+    procedure UpdateMaxWidth;
     function MaxHeight: integer; override;
     property Text: String Read GetText Write SetText;
   end;
@@ -2478,18 +2480,31 @@ begin
 end;
 
 procedure TslTextBox.EndUpdate;
+var
+  fUpdateMaxWidthNeeded: boolean;
 begin
+  fUpdateMaxWidthNeeded := False;
+
   if ftext = nil then
     Exit;
   updateing := False;
   if maxlines <> 0 then
     while (ftext.Count > maxlines) do
+    begin
+      if length(fText[0]) >= fMaxWidth then
+      begin
+        fUpdateMaxWidthNeeded := True;
+      end;
       ftext.Delete(0);
+    end;
 
   if parent is TslScrollArea then
     TslScrollArea(parent).SizeChanged;
 
   Repaint;
+
+  if fUpdateMaxWidthNeeded then
+    UpdateMaxWidth;
 end;
 
 function TslTextBox.GetText: String;
@@ -2522,14 +2537,21 @@ begin
   Result := ftext.Count;
 end;
 
-function TslTextBox.MaxWidth: integer;
+procedure TslTextBox.UpdateMaxWidth;
 var
-  i: integer;
+  fNewMaxWidth, i: integer;
 begin
-  Result := 0;
+  fNewMaxWidth := 0;
   for i := 0 to ftext.Count - 1 do
-    if length(ftext[i]) > Result then
-      Result := length(ftext[i]);
+    if length(ftext[i]) > fNewMaxWidth then
+      fNewMaxWidth := length(ftext[i]);
+
+  fMaxWidth := fNewMaxWidth;
+end;
+
+function TslTextBox.MaxWidth: integer;
+begin
+  Result := fMaxWidth;
 end;
 
 procedure TslTextBox.Repaint;
