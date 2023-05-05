@@ -207,6 +207,9 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    fMaxUp: integer;
+    fMaxDn: integer;
+    fMaxPreDn: integer;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -2555,6 +2558,10 @@ begin
     exit;
   end;
 
+  fMaxDn := RCInteger('max_dn', 2);
+  fMaxUp := RCInteger('max_up', 2);
+  fMaxPreDn := RCInteger('max_pre_dn', max_dn);
+
   siteinvited := False;
   foutofannounce := 0;
   // reset to explore it again on first login
@@ -2832,34 +2839,38 @@ end;
 
 function TSite.GetMaxDn: integer;
 begin
-  Result := RCInteger('max_dn', 2);
+  Result := fMaxDn;
 end;
 
 procedure TSite.SetMaxDn(Value: integer);
 begin
   WCInteger('max_dn', Value);
+  fMaxDn := Value;
 end;
 
 function TSite.GetMaxPreDn: integer;
 begin
   // if max_pre_dn is not set, we use max_dn value to avoid bugs when users
   // haven't setup their maxupdn again after using new version with this feature
-  Result := RCInteger('max_pre_dn', max_dn);
+  Result := fMaxPreDn;
+  //Result := RCInteger('max_pre_dn', max_dn);
 end;
 
 procedure TSite.SetMaxPreDn(Value: integer);
 begin
   WCInteger('max_pre_dn', Value);
+  fMaxPreDn := Value;
 end;
 
 function TSite.GetMaxUp: integer;
 begin
-  Result := RCInteger('max_up', 2);
+  Result := fMaxUp;
 end;
 
 procedure TSite.SetMaxUp(Value: integer);
 begin
   WCInteger('max_up', Value);
+  fMaxUp := Value;
 end;
 
 procedure TSite.Setconnect_timeout(const Value: integer);
