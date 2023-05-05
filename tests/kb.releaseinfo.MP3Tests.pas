@@ -24,6 +24,7 @@ type
     procedure TestTMP3Release10;
     procedure TestTMP3Release11;
     procedure TestTMP3Release12;
+    procedure TestTMP3ReleaseGetNumberOfDiscs1;
   end;
 
 implementation
@@ -304,6 +305,18 @@ begin
     CheckFalse(fClass.mp3va, 'va mismatch');
     CheckFalse(fClass.mp3bootleg, 'Bootleg mismatch');
     CheckFalse(fClass.mp3live, 'mp3live mismatch');
+  finally
+    fClass.Free;
+  end;
+end;
+
+procedure TTestTMP3Release.TestTMP3ReleaseGetNumberOfDiscs1;
+var
+  fClass: TMP3Release;
+begin
+  fClass := TMP3Release.Create('This_Is_The_Remix_Again.._(Remixes)-(5054197560477)-WEB-2023-GRP', 'MP3');
+  try
+    CheckEquals(1, fClass.mp3numdisks, 'numdisks mismatch');
   finally
     fClass.Free;
   end;
