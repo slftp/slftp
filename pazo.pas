@@ -1468,7 +1468,7 @@ begin
       try
         for i := 0 to d.entries.Count - 1 do
         begin
-          de := TDirListEntry(d.entries.items[i]);
+          de := TDirListEntry(d.entries.Objects[i]);
           if ((not de.skiplisted) and (de.IsOnSite)) then
           begin
             if not de.Directory then
@@ -1535,7 +1535,7 @@ begin
       begin
         de := TDirListEntry.Create(filename, dl);
         de.error := True;
-        dl.entries.Add(de);
+        dl.entries.AddObject(de.filename, de);
       end;
     finally
       dl.dirlist_lock.Leave;
@@ -1574,7 +1574,7 @@ begin
         de.filesize := -1;
 
         de.RegenerateSkiplist;
-        aDirlist.entries.Add(de);
+        aDirlist.entries.AddObject(de.filename, de);
         aDirlist.LastChanged := Now();
       end;
 
@@ -1729,7 +1729,7 @@ begin
           begin
             if i < 0 then Break;
             try
-              de := TDirlistEntry(dirlist.entries[i]);
+              de := TDirlistEntry(dirlist.entries.Objects[i]);
               if (de.RacedByMe and not de.IsAsciiFiletype) then
                 Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));

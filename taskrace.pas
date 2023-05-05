@@ -445,7 +445,7 @@ begin
             Break;
           end;
           try
-            de := TDirlistEntry(d.entries[i]);
+            de := TDirlistEntry(d.entries.Objects[i]);
 
             if ((de.directory) and (not de.skiplisted)) then
             begin
