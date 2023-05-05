@@ -955,7 +955,7 @@ begin
         begin
           for i := 0 to fDirlist.entries.Count - 1 do
           begin
-            fDirlistEntry := TDirListEntry(fDirlist.entries[i]);
+            fDirlistEntry := TDirListEntry(fDirlist.entries.Objects[i]);
             if verbose then
               irc_Addtext(netname, channel, 'Found %s in section %s', [fDirlistEntry.filename, section]);
 
@@ -1320,7 +1320,7 @@ begin
           begin
             for ii := 0 to d.entries.Count - 1 do
             begin
-              de := TDirListEntry(d.entries[ii]);
+              de := TDirListEntry(d.entries.Objects[ii]);
               if de.directory then
               begin
                 plist.Values[de.filename] := plist.Values[de.filename] + ' ' + s.Name;
@@ -1362,7 +1362,7 @@ begin
         begin
           for ii := 0 to d.entries.Count - 1 do
           begin
-            de := TDirListEntry(d.entries[ii]);
+            de := TDirListEntry(d.entries.Objects[ii]);
             if de.directory then
             begin
               irc_addtext(netname, channel, '%s', [de.filename]);

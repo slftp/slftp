@@ -72,7 +72,7 @@ var
       for i := 0 to dl.entries.Count - 1 do
       begin
         try
-          de := TDirlistEntry(dl.entries[i]);
+          de := TDirlistEntry(dl.entries.Objects[i]);
           if de.Directory then
           begin
             indexerAddRelease(de.filename, site1, sectionname, path);
@@ -124,7 +124,7 @@ begin
         for j := 0 to dl.entries.Count - 1 do
         begin
           try
-            de := TDirlistEntry(dl.entries[j]);
+            de := TDirlistEntry(dl.entries.Objects[j]);
             if de.Directory then
             begin
               db := doIndexing(slot, sectionname, MyIncludeTrailingSlash(path) + de.filename, aktszint + 1);

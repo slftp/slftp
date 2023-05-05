@@ -62,7 +62,7 @@ begin
     // use RemoveFile with CWD into dir to ensure glftpd/pzs-ng clears the complete dirs
     for i := 0 to d.entries.Count - 1 do
     begin
-      de := TDirListEntry(d.entries[i]);
+      de := TDirListEntry(d.entries.Objects[i]);
       if not de.directory then
         s.RemoveFile(dir, de.filename, True);
     end;
@@ -73,7 +73,7 @@ begin
 
     for i := 0 to d.entries.Count - 1 do
     begin
-      de := TDirListEntry(d.entries[i]);
+      de := TDirListEntry(d.entries.Objects[i]);
       if ((de.filename = '.') or (de.filename = '..')) then Continue;
       if de.directory then
         RemoveDir(slot, dir + de.filename);

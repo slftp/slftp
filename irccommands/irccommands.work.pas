@@ -70,7 +70,7 @@ begin
     begin
       for i := 0 to d.entries.Count - 1 do
       begin
-        de := TDirListEntry(d.entries[i]);
+        de := TDirListEntry(d.entries.Objects[i]);
 
         if de.directory then
           irc_addtext(Netname, Channel, '<b>%s</b>', [de.filename])
@@ -204,7 +204,7 @@ begin
       begin
         if i >= amount then
           break;
-        de := TDirListEntry(d.entries[i]);
+        de := TDirListEntry(d.entries.Objects[i]);
 
         if de.directory then
         begin
@@ -1377,7 +1377,7 @@ begin
       begin
         for ii := 0 to d.entries.Count - 1 do
         begin
-          de := TDirListEntry(d.entries[ii]);
+          de := TDirListEntry(d.entries.Objects[ii]);
           if ((de.directory) and (de.filename = rip)) then
           begin
             if SOK = '' then

@@ -153,7 +153,7 @@ ujra:
     try
       for i := 0 to d.entries.Count - 1 do
       begin
-        de := TDirlistEntry(d.entries[i]);
+        de := TDirlistEntry(d.entries.Objects[i]);
         if ((not de.Directory) and (de.Extension = '.nfo') and (de.filesize < 32768)) then // 32kb-nal nagyobb nfoja csak nincs senkinek
           nfofile := de.filename;
 
