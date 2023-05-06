@@ -12,7 +12,7 @@ HEAPTRACE = -gh
 # see http://wiki.lazarus.freepascal.org/Profiling#Using_Valgrind.2FCallgrind
 VALGRIND = -gv
 GPROF = -pg
-VTUNE = -dDEBUG -MDelphi -gl -gp -gs -gw3 -O2
+VTUNE = -dDEBUG -MDelphi -gl -gp -gw3 -O2
 
 default: clean slftp
 
