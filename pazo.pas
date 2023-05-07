@@ -1519,9 +1519,9 @@ var
   d: TDirList;
   i: integer;
   de: TDirListEntry;
+  fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
   fTasksAdded: boolean;
   fSite: TSite;
-  fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
 begin
   Result := False;
   fTasksAdded := False;
@@ -1749,10 +1749,10 @@ begin
       fSite.QueueFire;
     end;
 
-if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
-begin
-RemovePazoRace(self, pazo.pazo_id, Name, aDir, aFilename);
-end;
+    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
+    begin
+      RemovePazoRace(self, pazo.pazo_id, Name, aDir, aFilename);
+    end;
 
   except
     on E: Exception do
