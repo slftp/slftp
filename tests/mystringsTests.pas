@@ -52,6 +52,7 @@ type
     procedure TestParseSiteSearchResult5;
     procedure TestParseSiteSearchResult6;
     procedure TestParseResponseCode1;
+    procedure TestParseResponseCode2;
   end;
 
 implementation
@@ -739,6 +740,49 @@ var
   fResponseCode, fExpectedResponseCode: integer;
 begin
   fResponseString := '213- status of -l /RACE/X264_1080p_EN/The.Long.Test.Release.1999.1080p.BluRay.x264-GRP/:'#$D#$A'total 123456'#$D#$A'-rw-rw-rw-';
+  fResponseCode := parseResponseCode(fResponseString);
+  fExpectedResponseCode := 213;
+  CheckEquals(fExpectedResponseCode, fResponseCode);
+end;
+
+procedure TTestMyStrings.TestParseResponseCode2;
+var
+  fResponseString: String;
+  fResponseCode, fExpectedResponseCode: integer;
+begin
+  fResponseString := '213- status of -l /FOREIGN-MOVIE-HD/Dungeons.And.Dragons.Honor.Entre.Ladrones.2023.SPANiSH.1080p.WEB.x264-GROUP/:  ' +
+'total 18193800' +
+'drwxrwxrwx   2 User1     Admin        4096 May  4 22:37 Sample' +
+'drwxrwxrwx   2 User1    iND          4096 May  4 22:39 [SITE] - ( 8884M 46F - COMPLETE ) - [SITE]' +
+'-rw-r--r--   1 User1 iND          1392 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.nfo' +
+'-rw-r--r--   1 User1 iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r00' +
+'-rw-r--r--   1 User1 iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r01' +
+'-rw-r--r--   1 User1      iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r02' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r03' +
+'-rw-r--r--   1 User1 iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r04' +
+'-rw-r--r--   1 User1   iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r05' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r06' +
+'-rw-r--r--   1 User1      iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r07' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r08 ' +
+'-rw-r--r--   1 User1      iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r09' +
+'-rw-r--r--   1 User1     Admin    204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r10' +
+'-rw-r--r--   1 User1 iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r11' +
+'-rw-r--r--   1 User1      iND      204800000 May  4 22:38 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r12' +
+'-rw-r--r--   1 User1      iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r13' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:39 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r14' +
+'-rw-r--r--   1 User1      iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r15' +
+'-rw-r--r--   1 User1   iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r16' +
+'-rw-r--r--   1 User1   iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r17' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:38 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r18' +
+'-rw-r--r--   1 User1 iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r19' +
+'-rw-r--r--   1 User1 iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r20' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:38 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r21' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r22' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r23' +
+'-rw-r--r--   1 User1   iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r24' +
+'-rw-r--r--   1 User1 iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r25' +
+'-rw-r--r--   1 User1    iND      204800000 May  4 22:37 dungeons.and.dragons.honor.entre.ladrones.2023.spanish.1080p.web.x264-GROUP.r26' +
+'-rw';
   fResponseCode := parseResponseCode(fResponseString);
   fExpectedResponseCode := 213;
   CheckEquals(fExpectedResponseCode, fResponseCode);
