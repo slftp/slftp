@@ -142,6 +142,10 @@ implementation
 uses SysUtils, slhelper, Math, DateUtils;
 
 
+{$R-}
+{$Q-}
+
+
 var sltcp_lock: TCriticalSection;
 
 

@@ -185,6 +185,10 @@ function InternationalCharsToAsciiSceneChars(const aInput: String): String;
 
 implementation
 
+{$R-}
+{$Q-}
+
+
 uses
   {$IFDEF FPC}
     base64,

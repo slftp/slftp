@@ -452,7 +452,7 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
-      Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      Debug(dpError, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
@@ -519,7 +519,7 @@ begin
         ;
       wrTimeout:
         begin
-          Debug(dpSpam, section, 'Gave up on trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
+          Debug(dpError, section, 'Gave up on trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
           fBusyDestinations.Add(s2, 0);
           exit;
         end;
@@ -780,7 +780,7 @@ begin
         end;
         sst := TSiteSlot(s.slots[i]);
         try
-        if (sst.todotask is TPazoDirlistTask) then
+        if (sst.todotask.ClassType = TPazoDirlistTask) then
         begin
           Inc(actual_count);
         end;
