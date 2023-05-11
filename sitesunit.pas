@@ -394,7 +394,7 @@ type
     ffreeslots: integer;
     Name: String; //< sitename
     slots: TObjectList;
-    slotsAssignmentCS: TCriticalSection;
+    slotsAssignmentCS: TMutex;
 
     constructor Create(const Name: String);
     destructor Destroy; override;
@@ -1508,11 +1508,11 @@ begin
             try
               if todotask is TPazoRaceTask then
               begin
-                TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Enter;
+                TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Acquire;
                 try
                   TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
                 finally
-                  TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Leave;
+                  TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Release;
                 end;
 
                 if ((not shouldquit) and (not slshutdown)) then
@@ -2960,7 +2960,7 @@ begin
   slots := TObjectList.Create();
   self.Name := Name;
   features := [];
-  slotsAssignmentCS := TCriticalSection.Create;
+  slotsAssignmentCS := TMutex.Create(nil, False, 'SLFTP_SlotsAssignmentMutex_' + Name);
   fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then
