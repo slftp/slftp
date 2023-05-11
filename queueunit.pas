@@ -103,7 +103,6 @@ var
 
   StatsList: TObjectList<TQueueStat>;
   QueueStatUpdateDateTime: TDateTime;
-  FSlotsAssignmentLockWaitTime: TTimeSpan;
 
 procedure TQueueThread.QueueFire;
 begin
@@ -513,7 +512,7 @@ begin
       exit;
 
 
-    fWaitResult := s2.slotsAssignmentCS.WaitFor(FSlotsAssignmentLockWaitTime);
+    fWaitResult := s2.slotsAssignmentCS.WaitFor(1);
     case fWaitResult of
       wrSignaled, wrIOCompletion:
         ;
@@ -1597,7 +1596,6 @@ begin
     cover_dirs_priority := 2;
 
   StatsList := TObjectList<TQueueStat>.Create(True);
-  FSlotsAssignmentLockWaitTime := TTimeSpan.Create(2000);
 end;
 
 procedure QueueUninit;
