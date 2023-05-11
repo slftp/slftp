@@ -87,7 +87,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, sitesunit, System.TimeSpan;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, sitesunit;
 
 const
   section = 'queue';
