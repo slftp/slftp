@@ -2960,7 +2960,7 @@ begin
   slots := TObjectList.Create();
   self.Name := Name;
   features := [];
-  slotsAssignmentCS := TEvent.Create(nil, False, 'SLFTP_SlotsAssignmentMutex_' + Name, False);
+  slotsAssignmentCS := TEvent.Create(nil, False, False, 'SLFTP_SlotsAssignmentMutex_' + Name);
   fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then
