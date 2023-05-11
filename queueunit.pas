@@ -514,8 +514,10 @@ begin
 
     fWaitResult := s2.slotsAssignmentCS.WaitFor(1);
     case fWaitResult of
-      wrSignaled, wrIOCompletion:
-        ;
+      wrSignaled: ;
+      {$IFDEF WINDOWS}
+      wrIOCompletion: ;
+      {$ENDIF}
       wrTimeout:
         begin
           Debug(dpSpam, section, 'Gave up on trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
