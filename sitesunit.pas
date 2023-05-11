@@ -394,7 +394,7 @@ type
     ffreeslots: integer;
     Name: String; //< sitename
     slots: TObjectList;
-    slotsAssignmentCS: TMutex;
+    slotsAssignmentCS: TEvent;
 
     constructor Create(const Name: String);
     destructor Destroy; override;
@@ -2960,7 +2960,7 @@ begin
   slots := TObjectList.Create();
   self.Name := Name;
   features := [];
-  slotsAssignmentCS := TMutex.Create(nil, False, 'SLFTP_SlotsAssignmentMutex_' + Name);
+  slotsAssignmentCS := TEvent.Create(nil, False, 'SLFTP_SlotsAssignmentMutex_' + Name, False);
   fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then
