@@ -251,9 +251,13 @@ procedure TslTCPSocket.DisconnectSSL;
 begin
   if fSSL <> nil then
   begin
-    SSL_shutdown(fSSL);
-
-    SSL_free(fSSL);
+    sltcp_lock.Enter;
+    try
+      SSL_shutdown(fSSL);
+      SSL_free(fSSL);
+    finally
+      sltcp_lock.Leave;
+    end;
     fSSL:= nil;
   end;
 
@@ -1294,4 +1298,3 @@ initialization
 finalization
   sltcp_Uninit;
 end.
-
