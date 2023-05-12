@@ -770,7 +770,7 @@ begin
         end;
         sst := TSiteSlot(s.slots[i]);
         try
-        if (sst.todotask is TPazoDirlistTask) then
+        if ((sst.todotask <> nil) and (sst.todotask.ClassType = TPazoDirlistTask)) then
         begin
           Inc(actual_count);
         end;
