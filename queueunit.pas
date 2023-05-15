@@ -439,6 +439,7 @@ var
   ss1, ss2: TSiteSlot;
   tt: TTask;
   tpr: TPazoRaceTask;
+  fWaitResult: TWaitResult;
 begin
   try
     s1 := TSite(t.ssite1);
@@ -511,23 +512,33 @@ begin
       exit;
 
 
-    i := 0;
-    while not s2.slotsAssignmentCS.TryEnter do
-    begin
-      if i > 2000 then
-      begin
-        fBusyDestinations.Add(s2, 0);
-        Debug(dpSpam, section, 'Gave up on trying to lock for slots assignment from site ' + s1.Name + ' to site ' + s2.Name);
-        exit;
-      end;
-      i := i + 1;
+    fWaitResult := s2.AcquireSlotsAssignmentLock(1);
+    case fWaitResult of
+      wrSignaled: ;
+      {$IFDEF WINDOWS}
+      wrIOCompletion: ;
+      {$ENDIF}
+      wrTimeout:
+        begin
+          Debug(dpSpam, section, 'Gave up on trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
+          fBusyDestinations.Add(s2, 0);
+          exit;
+        end;
+      wrAbandoned:
+        begin
+          Debug(dpError, section, 'Mutex abandoned when trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
+          exit;
+        end;
+      wrError:
+        begin
+          Debug(dpError, section, 'Error when trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
+          exit;
+        end;
+    else
+      Debug(dpError, section, 'Unknown wait result when trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
+      exit;
     end;
-
     try
-    if i > 0 then
-    begin
-      Debug(dpSpam, section, 'Lock achieved from site ' + s1.Name + ' to site ' + s2.Name + ' after ' + IntToStr(i) + ' tries');
-    end;
 
     ss2 := nil;
     for i := 0 to s2.slots.Count - 1 do
@@ -627,7 +638,7 @@ begin
     ss2.Fire;
     ss1.Fire;
     finally
-      s2.slotsAssignmentCS.Leave;
+      s2.ReleaseSlotsAssignmentLock;
     end;
   except
   on e: Exception do
@@ -722,7 +733,7 @@ begin
 
   try
   s := TSite(self.fSite);
-  s.slotsAssignmentCS.Enter;
+  s.AcquireSlotsAssignmentLock;
   try
   if s.freeslots = 0 then
     exit;
@@ -862,7 +873,7 @@ begin
     ss.todotask := t;
     ss.Fire;
   finally
-    s.slotsAssignmentCS.Leave;
+    s.ReleaseSlotsAssignmentLock;
   end;
   except
   on e: Exception do
@@ -1163,14 +1174,14 @@ begin
       try
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted) then
         begin
-          TSite(fSite).slotsAssignmentCS.Enter;
+          TSite(fSite).AcquireSlotsAssignmentLock;
           try
             if ((not t.ready) and t.IsReadyToBeExecuted) then
              begin
               self.TryToAssignSlots(t);
             end;
           finally
-            TSite(fSite).slotsAssignmentCS.Leave;
+            TSite(fSite).ReleaseSlotsAssignmentLock;
           end;
         end;
       except
@@ -1460,13 +1471,13 @@ begin
                   dst.event.SetEvent;
                 end;
               end;
-              ts.slotsAssignmentCS.Enter;
+              ts.AcquireSlotsAssignmentLock;
               try
                 //t := NIL;
                 fTaskList.Remove(fTask);
                 FreeAndNil(fTask);
               finally
-                ts.slotsAssignmentCS.Leave;
+                ts.ReleaseSlotsAssignmentLock;
                end;
                Console_QueueDel(ss);
                end;
@@ -1479,7 +1490,7 @@ begin
           end;
         end;
 
-        ts.slotsAssignmentCS.Enter;
+        ts.AcquireSlotsAssignmentLock;
 
         for fTask in fTaskList do
         begin
@@ -1503,7 +1514,7 @@ begin
         end;
       finally
         tasks.UnlockList;
-        ts.slotsAssignmentCS.Leave;
+        ts.ReleaseSlotsAssignmentLock;
       end;
 
       QueueStat;
@@ -1712,12 +1723,12 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-            ts.slotsAssignmentCS.Enter;
+            ts.AcquireSlotsAssignmentLock;
             try
               tasks.Remove(t);
               FreeAndNil(t);
             finally
-              ts.slotsAssignmentCS.Leave;
+              ts.ReleaseSlotsAssignmentLock;
             end;
           except
             on e: Exception do
@@ -1740,12 +1751,12 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
-            ts.slotsAssignmentCS.Enter;
+            ts.AcquireSlotsAssignmentLock;
             try
               tasks.Remove(t);
               FreeAndNil(t);
             finally
-              ts.slotsAssignmentCS.Leave;
+              ts.ReleaseSlotsAssignmentLock;
             end;
           except
             on e: Exception do
@@ -1785,12 +1796,12 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
-            ts.slotsAssignmentCS.Enter;
+            ts.AcquireSlotsAssignmentLock;
             try
               tasks.Remove(t);
               FreeAndNil(t);
             finally
-              ts.slotsAssignmentCS.Leave;
+              ts.ReleaseSlotsAssignmentLock;
             end;
           except
             on e: Exception do
@@ -2102,12 +2113,12 @@ begin
       begin
         irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
         try
-          ts.slotsAssignmentCS.Enter;
+          ts.AcquireSlotsAssignmentLock;
             try
               tasks.Remove(TPazoTask(fTask));
               FreeAndNil(fTask);
             finally
-              ts.slotsAssignmentCS.Leave;
+              ts.ReleaseSlotsAssignmentLock;
             end;
         except
           on e: Exception do

@@ -211,6 +211,8 @@ type
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
+    fSlotsAssignmentLock: TEvent;
+    fSlotsAssignmentOwningThreadID: Cardinal;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -394,7 +396,6 @@ type
     ffreeslots: integer;
     Name: String; //< sitename
     slots: TObjectList;
-    slotsAssignmentCS: TCriticalSection;
 
     constructor Create(const Name: String);
     destructor Destroy; override;
@@ -507,6 +508,9 @@ type
     procedure SetDelayUploadMax(const aSection: String; const Value: integer);
     { Send the current tasks to the queue console window. }
     procedure QueueSendCurrentTasksToConsole;
+
+    function AcquireSlotsAssignmentLock(aTimeout: Cardinal = INFINITE): TWaitResult;
+    procedure ReleaseSlotsAssignmentLock;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -689,7 +693,7 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal;
 
 const
   section = 'sites';
@@ -1508,11 +1512,11 @@ begin
             try
               if todotask is TPazoRaceTask then
               begin
-                TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Enter;
+                TSite(TPazoRaceTask(todotask).ssite2).AcquireSlotsAssignmentLock;
                 try
                   TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
                 finally
-                  TSite(TPazoRaceTask(todotask).ssite2).SlotsAssignmentCS.Leave;
+                  TSite(TPazoRaceTask(todotask).ssite2).ReleaseSlotsAssignmentLock;
                 end;
 
                 if ((not shouldquit) and (not slshutdown)) then
@@ -2960,7 +2964,7 @@ begin
   slots := TObjectList.Create();
   self.Name := Name;
   features := [];
-  slotsAssignmentCS := TCriticalSection.Create;
+  fSlotsAssignmentLock := TEvent.Create(nil, False, True, 'SLFTP_SlotsAssignmentMutex_' + Name + '_' + IntToStr(random(2000000000)));
   fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then
@@ -3118,7 +3122,7 @@ destructor TSite.Destroy;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   slots.Free;
-  slotsAssignmentCS.Free;
+  fSlotsAssignmentLock.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
 end;
@@ -4209,6 +4213,25 @@ end;
 procedure TSite.QueueSendCurrentTasksToConsole;
 begin
   fQueue.QueueSendCurrentTasksToConsole;
+end;
+
+function TSite.AcquireSlotsAssignmentLock(aTimeout: Cardinal = INFINITE): TWaitResult;
+var i: Cardinal;
+begin
+  if self.fSlotsAssignmentOwningThreadID = IdGlobal.CurrentThreadId then
+  begin
+    Result := TWaitResult.wrSignaled;
+    exit;
+  end;
+
+  Result := self.fSlotsAssignmentLock.WaitFor(aTimeout);
+  self.fSlotsAssignmentOwningThreadID := IdGlobal.CurrentThreadId;
+end;
+
+procedure tSite.ReleaseSlotsAssignmentLock;
+begin
+  self.fSlotsAssignmentOwningThreadID := 0;
+  self.fSlotsAssignmentLock.SetEvent;
 end;
 
 function TSite.GetSiteInfos: String;
