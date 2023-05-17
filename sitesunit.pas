@@ -1116,7 +1116,7 @@ begin
       else
       begin
         //event.WaitFor($FFFFFFFF);
-        case event.WaitFor(15 * 60 * 1000) of
+        case event.WaitFor(15 * 60) of
           wrSignaled: { Event fired. Normal exit. }
             begin
 
