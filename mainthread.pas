@@ -245,8 +245,6 @@ begin
   dbaddurlInit;
   console_addline('Admin', 'Init Genre DB', True);
   dbaddgenreInit;
-  console_addline('Admin', 'Init IMDB DB', True);
-  dbaddimdbInit;
   console_addline('Admin', 'Init TV DB', True);
   dbtvinfoInit;
   console_addline('Admin', 'Init Console', True);
