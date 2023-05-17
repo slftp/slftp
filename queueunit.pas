@@ -451,7 +451,7 @@ begin
 
     if fBusyDestinations.ContainsKey(s2) then
     begin
-      Debug(dpError, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
+      Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
@@ -512,32 +512,12 @@ begin
       exit;
 
 
-    fWaitResult := s2.AcquireSlotsAssignmentLock(1);
-    case fWaitResult of
-      wrSignaled: ;
-      {$IFDEF WINDOWS}
-      wrIOCompletion: ;
-      {$ENDIF}
-      wrTimeout:
-        begin
-          Debug(dpError, section, 'Gave up on trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
-          fBusyDestinations.Add(s2, 0);
-          exit;
-        end;
-      wrAbandoned:
-        begin
-          Debug(dpError, section, 'Mutex abandoned when trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
-          exit;
-        end;
-      wrError:
-        begin
-          Debug(dpError, section, 'Error when trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
-          exit;
-        end;
-    else
-      Debug(dpError, section, 'Unknown wait result when trying to lock for slots assignment from site %s to site %s', [s1.Name, s2.Name]);
+    if not s2.AcquireSlotsAssignmentLock(1) then
+    begin
+      fBusyDestinations.Add(s2, 0);
       exit;
     end;
+
     try
 
     ss2 := nil;

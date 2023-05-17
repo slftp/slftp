@@ -212,7 +212,8 @@ type
     fMaxDn: integer;
     fMaxPreDn: integer;
     fSlotsAssignmentLock: TEvent;
-    fSlotsAssignmentOwningThreadID: Cardinal;
+    fSlotsAssignmentOwningThreadID: TThreadID;
+    fSlotsAssignmentLockCount: integer;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -509,7 +510,8 @@ type
     { Send the current tasks to the queue console window. }
     procedure QueueSendCurrentTasksToConsole;
 
-    function AcquireSlotsAssignmentLock(aTimeout: Cardinal = INFINITE): TWaitResult;
+    procedure AcquireSlotsAssignmentLock(); overload;
+    function AcquireSlotsAssignmentLock(const aTimeout: Cardinal): boolean; overload;
     procedure ReleaseSlotsAssignmentLock;
 
     property sections: String read GetSections write SettSections;
@@ -2965,6 +2967,7 @@ begin
   self.Name := Name;
   features := [];
   fSlotsAssignmentLock := TEvent.Create(nil, False, True, 'SLFTP_SlotsAssignmentMutex_' + Name + '_' + IntToStr(random(2000000000)));
+  fSlotsAssignmentLockCount := 0;
   fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then
@@ -4215,23 +4218,53 @@ begin
   fQueue.QueueSendCurrentTasksToConsole;
 end;
 
-function TSite.AcquireSlotsAssignmentLock(aTimeout: Cardinal = INFINITE): TWaitResult;
-var i: Cardinal;
+function TSite.AcquireSlotsAssignmentLock(const aTimeout: Cardinal): boolean;
 begin
-  if self.fSlotsAssignmentOwningThreadID = IdGlobal.CurrentThreadId then
+  if fSlotsAssignmentOwningThreadID = IdGlobal.CurrentThreadId then
   begin
-    Result := TWaitResult.wrSignaled;
-    exit;
+    fSlotsAssignmentLockCount := fSlotsAssignmentLockCount + 1;
+    Result := True;
+  end
+  else
+  begin
+    case self.fSlotsAssignmentLock.WaitFor(aTimeout) of
+      wrSignaled:
+      {$IFDEF WINDOWS}
+      wrIOCompletion:
+      {$ENDIF}
+      begin
+        fSlotsAssignmentOwningThreadID := IdGlobal.CurrentThreadId;
+        Result := True;
+      end;
+      wrTimeout:
+          Result := False;
+      wrAbandoned:
+          raise Exception.Create(Format('Mutex abandoned when trying to lock for slots assignment for site %s', [self.Name]));
+      wrError:
+          raise Exception.Create(Format('Error when trying to lock for slots assignment for site %s', [self.Name]));
+    else
+      raise Exception.Create(Format('Unknown wait result when trying to lock for slots assignment for site %s', [self.Name]));
+    end;
   end;
-
-  Result := self.fSlotsAssignmentLock.WaitFor(aTimeout);
-  self.fSlotsAssignmentOwningThreadID := IdGlobal.CurrentThreadId;
 end;
 
-procedure tSite.ReleaseSlotsAssignmentLock;
+procedure TSite.AcquireSlotsAssignmentLock;
 begin
-  self.fSlotsAssignmentOwningThreadID := 0;
-  self.fSlotsAssignmentLock.SetEvent;
+  if not AcquireSlotsAssignmentLock(INFINITE) then
+    raise Exception.Create(Format('Unable to acquire slots assignment lock for site %s', [self.Name])); //this should not happen
+end;
+
+procedure TSite.ReleaseSlotsAssignmentLock;
+begin
+  if fSlotsAssignmentLockCount > 0 then
+  begin
+    fSlotsAssignmentLockCount := fSlotsAssignmentLockCount - 1;
+  end
+  else
+  begin
+    fSlotsAssignmentOwningThreadID := 0;
+    fSlotsAssignmentLock.SetEvent;
+  end;
 end;
 
 function TSite.GetSiteInfos: String;
