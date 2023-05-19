@@ -1006,7 +1006,7 @@ end;
 procedure TMP3Release.GetNumberOfDisksFromTag(const aWord: String; var aSourceType: String; var aNumberOfDisks: Integer);
 var
   i, fWordLen: Integer;
-  fNumber: Integer;
+  fNumber: int64;
 begin
   fWordLen := Length(aWord);
   fNumber := 0;
@@ -1024,6 +1024,14 @@ begin
 
   if fNumber = 0 then
     exit; // nothing found
+
+  if fNumber > 100 then
+  begin
+    aNumberOfDisks := 0;
+    //// example: This_Is_The_Remix_Again.._(Remixes)-(5054197560477)-WEB-2023-GRP
+    exit; // number of discs not valid or not available
+  end;
+
 
   if ((i <= fWordLen - 2) and (aWord[i] = 'x')) then
     Inc(i);
