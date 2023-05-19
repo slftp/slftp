@@ -47,7 +47,6 @@
 
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
-    Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
 --=============================( SLFTP v1.5.10 )==================================-
     {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
