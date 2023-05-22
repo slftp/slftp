@@ -24,6 +24,11 @@ function kb_Add(const netname, channel, sitename, section, genre: String; event:
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
+{ Finds a release in latest KB list
+      @param(aRls The release name to be searched for)
+      @returns(The section name if the release has been found, an empty string otherwise) }
+function FindReleaseInLatestKBList(const aRls: String): String;
+
 function FindSectionHandler(const section: String): TCRelease;
 
 procedure kb_FreeList;
@@ -919,6 +924,23 @@ begin
   end;
 end;
 
+function FindReleaseInLatestKBList(const aRls: String): String;
+var
+  i: integer;
+begin
+  Result := '';
+  kb_lock.Enter;
+  try
+    i := kb_latest.IndexOfName(aRls);
+    if i <> -1 then
+    begin
+      Result := kb_latest.ValueFromIndex[i];
+    end;
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
 {!--- KB Utils ---?}
 
 procedure KB_start;
@@ -978,7 +1000,15 @@ begin
       for i := 0 to x.Count - 1 do
       begin
         //Console_QueueStat(x.Count - i - 1);
-        AddKbPazo(x[i]);
+        try
+          AddKbPazo(x[i]);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, 'kb', Format('[EXCEPTION] AddKbPazo: %s', [e.Message]));
+            exit;
+          end;
+        end;
         if MilliSecondsBetween(Now, last) > 500 then
         begin
           last := Now;
@@ -1514,4 +1544,3 @@ begin
 end;
 
 end.
-
