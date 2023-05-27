@@ -214,6 +214,7 @@ type
     fSlotsAssignmentLock: TEvent;
     fSlotsAssignmentOwningThreadID: TThreadID;
     fSlotsAssignmentLockCount: integer;
+    fslotsAssignmentLockedName: string;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -510,8 +511,8 @@ type
     { Send the current tasks to the queue console window. }
     procedure QueueSendCurrentTasksToConsole;
 
-    procedure AcquireSlotsAssignmentLock(); overload;
-    function AcquireSlotsAssignmentLock(const aTimeout: Cardinal): boolean; overload;
+    procedure AcquireSlotsAssignmentLock(const aLockName: string); overload;
+    function AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean; overload;
     procedure ReleaseSlotsAssignmentLock;
 
     property sections: String read GetSections write SettSections;
@@ -1455,6 +1456,7 @@ var
   tname: String;
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
+  fSite: TSite;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1514,11 +1516,15 @@ begin
             try
               if todotask is TPazoRaceTask then
               begin
-                TSite(TPazoRaceTask(todotask).ssite2).AcquireSlotsAssignmentLock;
-                try
-                  TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
-                finally
-                  TSite(TPazoRaceTask(todotask).ssite2).ReleaseSlotsAssignmentLock;
+                fSite := TSite(TPazoRaceTask(todotask).ssite2);
+                if fSite <> nil then
+                begin
+                  fSite.AcquireSlotsAssignmentLock('RemoveActiveTransfer');
+                  try
+                    TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
+                  finally
+                    TSite(TPazoRaceTask(todotask).ssite2).ReleaseSlotsAssignmentLock;
+                  end;
                 end;
 
                 if ((not shouldquit) and (not slshutdown)) then
@@ -4222,12 +4228,13 @@ begin
   fQueue.QueueSendCurrentTasksToConsole;
 end;
 
-function TSite.AcquireSlotsAssignmentLock(const aTimeout: Cardinal): boolean;
+function TSite.AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean;
 begin
   if fSlotsAssignmentOwningThreadID = IdGlobal.CurrentThreadId then
   begin
     fSlotsAssignmentLockCount := fSlotsAssignmentLockCount + 1;
     Result := True;
+    fslotsAssignmentLockedName := aLockName;
   end
   else
   begin
@@ -4239,6 +4246,7 @@ begin
       begin
         fSlotsAssignmentOwningThreadID := IdGlobal.CurrentThreadId;
         Result := True;
+        fslotsAssignmentLockedName := aLockName;
       end;
       wrTimeout:
           Result := False;
@@ -4252,10 +4260,10 @@ begin
   end;
 end;
 
-procedure TSite.AcquireSlotsAssignmentLock;
+procedure TSite.AcquireSlotsAssignmentLock(const aLockName: string);
 begin
-  if not AcquireSlotsAssignmentLock(INFINITE) then
-    raise Exception.Create(Format('Unable to acquire slots assignment lock for site %s', [self.Name])); //this should not happen
+  if not AcquireSlotsAssignmentLock(60000, aLockName) then
+    raise Exception.Create(Format('Unable to acquire slots assignment lock for site %s by thread %s is held by thread %s (%d) - %s', [self.Name, IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(fSlotsAssignmentOwningThreadID, 4), fSlotsAssignmentLockCount, fslotsAssignmentLockedName])); //this should not happen
 end;
 
 procedure TSite.ReleaseSlotsAssignmentLock;
@@ -4267,6 +4275,7 @@ begin
   else
   begin
     fSlotsAssignmentOwningThreadID := 0;
+    fslotsAssignmentLockedName := '';
     fSlotsAssignmentLock.SetEvent;
   end;
 end;

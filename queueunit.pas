@@ -512,7 +512,7 @@ begin
       exit;
 
 
-    if not s2.AcquireSlotsAssignmentLock(1) then
+    if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
       exit;
@@ -713,7 +713,7 @@ begin
 
   try
   s := TSite(self.fSite);
-  s.AcquireSlotsAssignmentLock;
+  s.AcquireSlotsAssignmentLock('TryToAssignSlots');
   try
   if s.freeslots = 0 then
     exit;
@@ -1165,7 +1165,7 @@ begin
       try
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted) then
         begin
-          TSite(fSite).AcquireSlotsAssignmentLock;
+          TSite(fSite).AcquireSlotsAssignmentLock('AddTask');
           try
             if ((not t.ready) and t.IsReadyToBeExecuted) then
              begin
@@ -1462,7 +1462,7 @@ begin
                   dst.event.SetEvent;
                 end;
               end;
-              ts.AcquireSlotsAssignmentLock;
+              ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
               try
                 //t := NIL;
                 fTaskList.Remove(fTask);
@@ -1481,7 +1481,7 @@ begin
           end;
         end;
 
-        ts.AcquireSlotsAssignmentLock;
+        ts.AcquireSlotsAssignmentLock('Queue iterate');
 
         for fTask in fTaskList do
         begin
@@ -1714,7 +1714,7 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-            ts.AcquireSlotsAssignmentLock;
+            ts.AcquireSlotsAssignmentLock('QueueClean race');
             try
               tasks.Remove(t);
               FreeAndNil(t);
@@ -1742,7 +1742,7 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
-            ts.AcquireSlotsAssignmentLock;
+            ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
               tasks.Remove(t);
               FreeAndNil(t);
@@ -1787,7 +1787,7 @@ begin
           try
             //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
-            ts.AcquireSlotsAssignmentLock;
+            ts.AcquireSlotsAssignmentLock('QueueClean other');
             try
               tasks.Remove(t);
               FreeAndNil(t);
@@ -2104,7 +2104,7 @@ begin
       begin
         irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
         try
-          ts.AcquireSlotsAssignmentLock;
+          ts.AcquireSlotsAssignmentLock('killall');
             try
               tasks.Remove(TPazoTask(fTask));
               FreeAndNil(fTask);
