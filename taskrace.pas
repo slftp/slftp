@@ -2369,6 +2369,13 @@ begin
     // es majd ugyis automatan ujrabejelentkezik a cumo
     // This is the best salon dst If you close the socket because of spunk ABOR a lot of crap anyway be used.
     // And then anyway Automatic redial occurs in the CumC3
+
+    if sdst.site.sw = sswGlftpd then
+    begin
+      if sdst.Send('ABOR') then
+        sdst.Read('ABOR', False, True, 1000);
+    end;
+
     sdst.DestroySocket(False);
 
     mainpazo.errorreason := 'No free slots?';
