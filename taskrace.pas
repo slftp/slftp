@@ -78,7 +78,7 @@ implementation
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news;
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers;
 
 const
   c_section = 'taskrace';
@@ -522,62 +522,62 @@ begin
     begin
       secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
 
-      if ((d.entries.Count = 0) and (secondsWithNoChange > config.ReadInteger(c_section, 'newdir_max_empty', 300))) then
+      if ((d.entries.Count = 0) and (secondsWithNoChange > GetNewdirMaxEmptyValue())) then
       begin
         if spamcfg.readbool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
         d.DirlistGaveUp := True;
-        Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
+        Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxEmptyValue()]));
       end;
 
-      if ((d.entries.Count > 0) and (secondsWithNoChange > config.ReadInteger(c_section, 'newdir_max_unchanged', 300))) then
+      if ((d.entries.Count > 0) and (secondsWithNoChange > GetNewdirMaxUnchangedValue())) then
       begin
         if spamcfg.readbool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
         d.DirlistGaveUp := True;
-        Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
+        Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxUnchangedValue()]));
       end;
 
       secondsSinceCompleted := SecondsBetween(Now, d.CompletedTime);
 
       if (is_pre) then
       begin
-        if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
+        if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
+          Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
         end;
       end
       else
       begin
         secondsSinceStart := SecondsBetween(Now, d.StartedTime);
 
-        if ( (d.StartedTime <> 0) AND (secondsSinceStart > config.ReadInteger(c_section, 'newdir_max_created', 600)) ) then
+        if ( (d.StartedTime <> 0) AND (secondsSinceStart > GetNewdirMaxCreatedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, config.ReadInteger(c_section, 'newdir_max_created', 600)]));
+          Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, GetNewdirMaxCreatedValue()]));
         end;
 
-        if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
+        if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
+          Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
         end;
       end;
 
@@ -594,7 +594,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
+      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
 
       try
         AddTask(r);
@@ -643,9 +643,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
+            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
+            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
 
             try
               AddTask(r);
@@ -2377,6 +2377,13 @@ begin
     // es majd ugyis automatan ujrabejelentkezik a cumo
     // This is the best salon dst If you close the socket because of spunk ABOR a lot of crap anyway be used.
     // And then anyway Automatic redial occurs in the CumC3
+
+    if sdst.site.sw = sswGlftpd then
+    begin
+      if sdst.Send('ABOR') then
+        sdst.Read('ABOR', False, True, 1000);
+    end;
+
     sdst.DestroySocket(False);
 
     mainpazo.errorreason := 'No free slots?';
