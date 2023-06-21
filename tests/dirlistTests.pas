@@ -43,8 +43,8 @@ begin
       fDirlist.ParseDirlist(String.Join(#13, fResp));
       CheckEquals('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
 
-      CheckEquals('00-asdf.jpg', TDirListEntry(fDirlist.entries[0]).filename);
-      CheckEquals('02-asdf.mp3', TDirListEntry(fDirlist.entries[1]).filename);
+      CheckEquals('00-asdf.jpg', TDirListEntry(fDirlist.entries.Objects[0]).filename);
+      CheckEquals('02-asdf.mp3', TDirListEntry(fDirlist.entries.Objects[1]).filename);
       CheckEquals(2, fDirlist.entries.Count);
     finally
       if fDirlist <> nil then
@@ -72,8 +72,8 @@ begin
       fDirlist.ParseDirlist(String.Join(#13, fResp));
       CheckEquals('[xxx] - ( 11M 1F - COMPLETE - ASDF 1337 ) - [xxx]', fDirlist.CompleteDirTag);
 
-      CheckEquals('00-asdf.jpg', TDirListEntry(fDirlist.entries[0]).filename);
-      CheckEquals('02-asdf.mp3', TDirListEntry(fDirlist.entries[1]).filename);
+      CheckEquals('00-asdf.jpg', TDirListEntry(fDirlist.entries.Objects[0]).filename);
+      CheckEquals('02-asdf.mp3', TDirListEntry(fDirlist.entries.Objects[1]).filename);
       CheckEquals(2, fDirlist.entries.Count);
     finally
       if fDirlist <> nil then
