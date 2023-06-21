@@ -95,8 +95,10 @@ testlinux64:
   image: $SLFTP_CI_IMAGE
   when: on_success
   before_script:
-    - cp /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ./libcrypto.so
-    - cp /usr/lib/x86_64-linux-gnu/libssl.so.1.1 ./libssl.so
+    #- cp /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ./libcrypto.so
+    #- cp /usr/lib/x86_64-linux-gnu/libssl.so.1.1 ./libssl.so
+    - wget -O libcrypto.so https://gitlab.com/slftp/ci-images/-/raw/master/libcrypto_openssl-1.1.1s
+    - wget -O libssl.so https://gitlab.com/slftp/ci-images/-/raw/master/libssl_openssl-1.1.1s
     - mv config/* tests/
   script:
     - make test
