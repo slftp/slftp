@@ -14,7 +14,7 @@ variables:
 .buildwin64: &buildwin64
   stage: build
   script:
-    - make.bat slftp_64
+    - cmd.exe -/c ".\make.bat slftp_64"
   after_script:
     # rename executable
     - ren slftp.exe slftp_x64-%CI_COMMIT_SHORT_SHA%.exe
@@ -80,7 +80,7 @@ testwin64:
   before_script:
     - move config\* tests
   script:
-    - make.bat test_64
+    - cmd.exe -/c ".\make.bat test_64"
   artifacts:
     paths:
       - tests\dunitx-results.xml
