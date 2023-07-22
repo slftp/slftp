@@ -159,7 +159,7 @@ type
     function Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean; overload;
     function Send(const s: String): boolean; overload;
     function Send(const s: String; const Args: array of const): boolean; overload;
-    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
+    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
     function bnc: String;
     function Cwd(dir: String; force: boolean = False): boolean;
     function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
@@ -1860,7 +1860,7 @@ begin
     end;
 end;
 
-function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
+function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
 var
   l_maxrelogins: integer;
   relogins: integer;
@@ -1927,7 +1927,9 @@ begin
 
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
-        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+        if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
+          irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+
         site.WorkingStatus := sstTempDown;
         exit;
       end;
@@ -1942,7 +1944,9 @@ begin
         end;
       end;
 
-      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+      if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
+        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+
       site.WorkingStatus := sstTempDown;
     end;
   end;
