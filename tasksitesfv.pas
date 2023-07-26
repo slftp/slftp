@@ -123,11 +123,13 @@ begin
         exit;
       end;
 
-      fRelativePath := MyIncludeTrailingSlash(mainpazo.rls.rlsname) + MyIncludeTrailingSlash(FDir) + FSFVFilename;
+      fRelativePath := MyIncludeTrailingSlash(mainpazo.rls.rlsname);
+      if fDir <> '' then
+        fRelativePath := fRelativePath + MyIncludeTrailingSlash(FDir);
 
       if not fSlot.Cwd(MyIncludeTrailingSlash(ps1.maindir) + fRelativePath) then
       begin
-        Debug(dpError, section, Format('Unable to CWD for SFV download on %s: %s', [self.site1, FDir]));
+        Debug(dpError, section, Format('Unable to CWD for SFV download on %s: %s', [self.site1, fRelativePath]));
         readyerror := True;
         exit;
       end;
@@ -139,7 +141,7 @@ begin
       // SFV file could not be downloaded. Reschedule the task and exit.
       if i <> 1 then
       begin
-        Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, FDir]));
+        Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
         CreateReattemptTask(True);
       end;
 
