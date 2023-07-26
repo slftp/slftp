@@ -1,0 +1,179 @@
+unit tasksitesfv;
+
+interface
+
+uses Classes, pazo, taskrace;
+
+type
+  TPazoSiteSfvTask = class(TPazoPlainTask)
+  private
+    FAttempt: Integer;
+    FDir, FSFVFilename: String;
+    procedure CreateReattemptTask(const aIncrementAttempts: boolean);
+  public
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer);
+    function Execute(slot: Pointer): boolean; override;
+    function Name: String; override;
+  end;
+
+implementation
+
+uses
+  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, queueunit, dirlist, sitesunit, irc, mystrings;
+
+const
+  section = 'tasksitesfv';
+
+  { TPazoSiteNfoTask }
+constructor TPazoSiteSfvTask.Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer);
+begin
+  self.FAttempt := aAttempt;
+  self.FDir := aDir;
+  self.FSFVFilename := aSFVFilename;
+  self.wanted_dn := True;
+  inherited Create(netname, channel, site, '', pazo);
+end;
+
+procedure TPazoSiteSfvTask.CreateReattemptTask(const aIncrementAttempts: boolean);
+var
+  fSfvTask: TPazoSiteSfvTask;
+  fAttempts: Integer;
+begin
+  fAttempts := self.FAttempt;
+  if aIncrementAttempts then
+  begin
+    if fAttempts > 2 then
+      exit;
+
+    fAttempts := fAttempts + 1;
+  end;
+
+  fSfvTask := TPazoSiteSfvTask.Create(netname, channel, ps1.Name, mainpazo, FDir, FSFVFilename, fAttempts);
+  fSfvTask.startat := IncMilliSecond(Now, 50);
+  AddTask(fSfvTask);
+end;
+
+function TPazoSiteSfvTask.Execute(slot: Pointer): boolean;
+label
+  TryAgain;
+var
+  fSlot: TSiteSlot;
+  i: Integer;
+  fDirlistEntry: TDirListEntry;
+  fDirlist: TDirList;
+  fStream: TStringStream;
+  fRelativePath: String;
+begin
+  Result := False;
+  fSlot := slot;
+
+  Debug(dpMessage, section, '--> ' + Name);
+
+  // exit if pazo is stopped
+  if mainpazo.stopped or mainpazo.ready or mainpazo.readyerror then
+  begin
+    readyerror := True;
+    exit;
+  end;
+
+  // SFV/NFO download disabled for this site
+  if fSlot.site.UseForNFOdownload <> ufnEnabled then
+  begin
+    Result := True;
+    ready := True;
+    exit;
+  end;
+
+  if not self.mainpazo.PazoSFV.SetSFVDownloadRunning(True) then
+  begin
+    CreateReattemptTask(False);
+    Result := True;
+    ready := True;
+    exit;
+  end;
+
+  try
+    try
+      if self.mainpazo.PazoSFV.HasSFV(self.FDir) then
+      begin
+        Result := True;
+        ready := True;
+        exit;
+      end;
+
+      // Check if slot is online. If not try to relogin once.
+      if fSlot.status <> ssOnline then
+      begin
+        if not fSlot.ReLogin(1) then
+        begin
+          readyerror := True;
+          Debug(dpSpam, section, 'SFV Download: site status is offline.');
+          exit;
+        end;
+      end;
+
+      // check if the SFV is available yet on this site, else wait a bit (rescedule task)
+      fDirlist := self.ps1.dirlist.FindDirlist(FDir);
+      fDirlistEntry := fDirlist.Find(FSFVFilename);
+      if (fDirlistEntry = nil) or not fDirlistEntry.IsOnSite or fDirlistEntry.IsBeingUploaded then
+      begin
+        CreateReattemptTask(False);
+        Result := True;
+        ready := True;
+        exit;
+      end;
+
+      fRelativePath := MyIncludeTrailingSlash(mainpazo.rls.rlsname) + MyIncludeTrailingSlash(FDir) + FSFVFilename;
+
+      if not fSlot.Cwd(MyIncludeTrailingSlash(ps1.maindir) + fRelativePath) then
+      begin
+        Debug(dpError, section, Format('Unable to CWD for SFV download on %s: %s', [self.site1, FDir]));
+        readyerror := True;
+        exit;
+      end;
+
+      // try to get the SFV file
+      fStream := TStringStream.Create('');
+      i := fSlot.LeechFile(fStream, FSFVFilename);
+
+      // SFV file could not be downloaded. Reschedule the task and exit.
+      if i <> 1 then
+      begin
+        Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, FDir]));
+        CreateReattemptTask(True);
+      end;
+
+      // SFV file was downloaded. Parse
+      self.mainpazo.PazoSFV.SetSFVList(FDir, ParseSFV(fStream.DataString));
+
+      irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s now has SFV infos', [mainpazo.rls.section, fRelativePath]));
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteSfvTask: LeechFile : %s', [e.Message]));
+        irc_Adderror(Format('[EXCEPTION] TPazoSiteSfvTask: LeechFile : %s', [e.Message]));
+        readyerror := True;
+        exit;
+      end;
+    end;
+  finally
+    self.mainpazo.PazoSFV.SetSFVDownloadRunning(False);
+    if fStream <> nil then
+      fStream.Free;
+  end;
+
+  ready := True;
+  Result := True;
+  Debug(dpMessage, section, '<-- ' + Name);
+end;
+
+function TPazoSiteSfvTask.Name: String;
+begin
+  try
+    Result := Format('SITESFV: %s [pazo_id: %d] [site: %s] [attempt: %d]', [mainpazo.rls.rlsname, pazo_id, site1, FAttempt]);
+  except
+    Result := 'SITESFV';
+  end;
+end;
+
+end.
