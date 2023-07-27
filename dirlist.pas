@@ -369,7 +369,7 @@ end;
 
 constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: boolean = False; FromIrc: boolean = False);
 begin
-  Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc);
+  Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc, False, aPazoSFV);
 end;
 
 constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False; const aPazoSFV: TPazoSFV = nil);
@@ -1724,7 +1724,12 @@ begin
         exit;
       end;
 
-      if (dirlist.FPazoSFV <> nil) and not dirlist.FPazoSFV.CheckSFV(fDirPathHelper, FFilenameLowerCase, Extension) then
+      if dirlist.parent = nil then
+        s := ''
+      else
+        s := dirlist.parent.filename;
+
+      if (dirlist.FPazoSFV <> nil) and not dirlist.FPazoSFV.CheckSFV(s, FFilenameLowerCase, Extension) then
       begin
         skiplisted := True;
         dirlist.skipped.Add(filename);
