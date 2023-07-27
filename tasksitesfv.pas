@@ -148,7 +148,7 @@ begin
       // SFV file was downloaded. Parse
       self.mainpazo.PazoSFV.SetSFVList(FDir, ParseSFV(fStream.DataString));
 
-      irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s now has SFV infos', [mainpazo.rls.section, fRelativePath]));
+      irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s now has SFV infos (%s)', [mainpazo.rls.section, fRelativePath, self.site1]));
     except
       on e: Exception do
       begin
