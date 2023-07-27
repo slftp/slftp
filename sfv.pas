@@ -127,7 +127,7 @@ begin
 
   FSFVList_cs.Enter;
   try
-    Result := FSFVList.TryGetValue(aDir, fSFVFiles) and fSFVFiles.ContainsKey(aFilename);
+    Result := not FSFVList.TryGetValue(aDir, fSFVFiles) or fSFVFiles.ContainsKey(aFilename);
   finally
     FSFVList_cs.Leave;
   end;
