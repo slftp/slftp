@@ -52,6 +52,7 @@ function TPazoSFV.RegisterSFV(const aDir: String): boolean;
 var
   fKey: String;
 begin
+  Result := False;
   FSFVList_cs.Enter;
   try
     if not FSFVList.ContainsKey(aDir) then
@@ -66,6 +67,7 @@ end;
 
 function TPazoSFV.SetSFVDownloadRunning(const aIsRunning: boolean): boolean;
 begin
+  Result := False;
   if aIsRunning then
   begin
     if not FSFVDownloadRunning then
