@@ -52,6 +52,7 @@ function TPazoSFV.RegisterSFV(const aDir: String): boolean;
 var
   fKey: String;
 begin
+  Result := False;
   FSFVList_cs.Enter;
   try
     if not FSFVList.ContainsKey(aDir) then
@@ -66,6 +67,7 @@ end;
 
 function TPazoSFV.SetSFVDownloadRunning(const aIsRunning: boolean): boolean;
 begin
+  Result := False;
   if aIsRunning then
   begin
     if not FSFVDownloadRunning then
@@ -119,10 +121,12 @@ begin
   Result := True;
 
   // only check files which match the files types contained in the SFV
-  if (FSFVFileType = CONST_RAR_FILES) and not IsRarExtension(aExtension) then
-    exit;
-
-  if FSFVFileType <> aExtension then
+  if (FSFVFileType = CONST_RAR_FILES) then
+  begin
+    if not IsRarExtension(aExtension) then
+      exit;
+  end
+  else if FSFVFileType <> aExtension then
     exit;
 
   FSFVList_cs.Enter;
