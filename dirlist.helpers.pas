@@ -33,6 +33,26 @@ function IsValidFilename(const aInput: String): Boolean;
   @returns(@true if input is valid, @false otherwise.) }
 function IsValidDirname(const aInput: String): Boolean;
 
+{ returns the value for NewdirMaxUnchanged initially stored in config to have a better performance and don't load the value everytime from file)
+  @returns(@glNewdirMaxUnchanged) }
+function GetNewdirMaxUnchangedValue(): integer;
+
+{ returns the value for NewdirMaxEmpty initially stored in config to have a better performance and don't load the value everytime from file)
+  @returns(@glNewdirMaxEmpty) }
+function GetNewdirMaxEmptyValue(): integer;
+
+{ returns the value for NewdirMaxCompleted initially stored in config to have a better performance and don't load the value everytime from file)
+  @returns(@glNewdirMaxCompleted) }
+function GetNewdirMaxCompletedValue(): integer;
+
+{ returns the value for NewdirMaxCreated initially stored in config to have a better performance and don't load the value everytime from file)
+  @returns(@glNewdirMaxCreated) }
+function GetNewdirMaxCreatedValue(): integer;
+
+{ returns the value for NewdirDirlistReadd initially stored in config to have a better performance and don't load the value everytime from file)
+  @returns(@glNewdirDirlistReadd) }
+function GetNewdirDirlistReaddValue(): integer;
+
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
 
@@ -47,6 +67,12 @@ const
 var
   glSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
   glSkiplistDirsRegex: String; //< global_skip_dirs regex from slftp.ini
+  glNewdirMaxUnchanged: Integer;
+  glNewdirMaxEmpty: Integer;
+  glNewdirMaxCompleted: Integer;
+  glNewdirMaxCreated: Integer;
+  glNewdirDirlistReadd: Integer;
+
 
 {$I common.inc}
 
@@ -171,6 +197,38 @@ procedure DirlistHelperInit;
 begin
   glSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
   glSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '\[IMDB\]\W+|\[TvMaze\]\W+');
+
+  glNewdirMaxUnchanged := config.ReadInteger('taskrace', 'newdir_max_unchanged', 300);
+  glNewdirMaxEmpty := config.ReadInteger('taskrace', 'newdir_max_empty', 300);
+  glNewdirMaxCompleted := config.ReadInteger('taskrace', 'newdir_max_completed', 300);
+  glNewdirMaxCreated := config.ReadInteger('taskrace', 'newdir_max_created', 600);
+  glNewdirDirlistReadd := config.ReadInteger('taskrace', 'newdir_dirlist_readd', 100);
+end;
+
+function GetNewdirMaxUnchangedValue(): integer;
+begin
+  Result := glNewdirMaxUnchanged;
+end;
+
+function GetNewdirMaxEmptyValue(): integer;
+begin
+  Result := glNewdirMaxEmpty;
+end;
+
+function GetNewdirMaxCompletedValue(): integer;
+begin
+  Result := glNewdirMaxCompleted;
+end;
+
+function GetNewdirMaxCreatedValue(): integer;
+begin
+  Result := glNewdirMaxCreated;
+end;
+
+function GetNewdirDirlistReaddValue(): integer;
+begin
+  Result := glNewdirDirlistReadd;
 end;
 
 end.
+

@@ -265,6 +265,7 @@ const
 
 var
   local_pazo_id: integer;
+  glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -499,6 +500,7 @@ end;
 procedure PazoInit;
 begin
   local_pazo_id := 0;
+  glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
 end;
 
 function TPazoSite.GetDirlistGaveUp: boolean;
@@ -589,7 +591,7 @@ begin
         if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then continue;
 
         // drop sending to this destination if too much crc events
-        if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then Continue;
+        if (dst.badcrcevents > glMaxBadcrcEvents) then Continue;
 
         // Problem with dirlist
         if dirlist = nil then Continue;
