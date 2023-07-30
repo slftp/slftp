@@ -66,6 +66,7 @@ var
 begin
   Result := False;
   fSlot := slot;
+  fStream := nil;
 
   Debug(dpMessage, section, '--> ' + Name);
 
@@ -84,10 +85,10 @@ begin
     exit;
   end;
 
-  Debug(dpSpam, section, 'SFV Task start' + Name);
+  Debug(dpSpam, section, 'SFV Task start ' + Name);
   if not self.mainpazo.PazoSFV.SetSFVDownloadRunning(True) then
   begin
-    Debug(dpSpam, section, 'SFV Task already dunning' + Name);
+    Debug(dpSpam, section, 'SFV Task already dunning ' + Name);
     CreateReattemptTask(False);
     Result := True;
     ready := True;
@@ -95,11 +96,11 @@ begin
   end;
 
   try
-    Debug(dpSpam, section, 'SFV Task download start' + Name);
+    Debug(dpSpam, section, 'SFV Task download start ' + Name);
     try
       if self.mainpazo.PazoSFV.HasSFV(self.FDir) then
       begin
-        Debug(dpSpam, section, 'SFV Task already has sfv' + Name);
+        Debug(dpSpam, section, 'SFV Task already has sfv ' + Name);
         Result := True;
         ready := True;
         exit;
@@ -121,7 +122,7 @@ begin
       fDirlistEntry := fDirlist.Find(FSFVFilename);
       if (fDirlistEntry = nil) or not fDirlistEntry.IsOnSite or fDirlistEntry.IsBeingUploaded then
       begin
-        Debug(dpSpam, section, 'SFV Task SFV not ready' + Name);
+        Debug(dpSpam, section, 'SFV Task SFV not ready ' + Name);
         CreateReattemptTask(False);
         Result := True;
         ready := True;
@@ -133,7 +134,7 @@ begin
         fRelativePath := fRelativePath + MyIncludeTrailingSlash(FDir);
 
 
-      Debug(dpSpam, section, 'SFV Task CWD' + Name);
+      Debug(dpSpam, section, 'SFV Task CWD ' + Name);
       if not fSlot.Cwd(MyIncludeTrailingSlash(ps1.maindir) + fRelativePath) then
       begin
         Debug(dpError, section, Format('Unable to CWD for SFV download on %s: %s', [self.site1, fRelativePath]));
@@ -141,11 +142,11 @@ begin
         exit;
       end;
 
-      Debug(dpSpam, section, 'SFV Task leechfile start' + Name);
+      Debug(dpSpam, section, 'SFV Task leechfile start ' + Name);
       // try to get the SFV file
       fStream := TStringStream.Create('');
       i := fSlot.LeechFile(fStream, FSFVFilename);
-      Debug(dpSpam, section, 'SFV Task end' + Name);
+      Debug(dpSpam, section, 'SFV Task end ' + Name);
 
       // SFV file could not be downloaded. Reschedule the task and exit.
       if i <> 1 then
@@ -156,7 +157,7 @@ begin
 
       // SFV file was downloaded. Parse
       self.mainpazo.PazoSFV.SetSFVList(FDir, ParseSFV(fStream.DataString));
-      Debug(dpSpam, section, 'SFV Task finished' + Name);
+      Debug(dpSpam, section, 'SFV Task finished ' + Name);
 
       irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV infos (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
     except
