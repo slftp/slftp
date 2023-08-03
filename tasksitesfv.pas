@@ -183,7 +183,7 @@ end;
 function TPazoSiteSfvTask.Name: String;
 begin
   try
-    Result := Format('SITESFV: %s [pazo_id: %d] [site: %s] [attempt: %d]', [mainpazo.rls.rlsname, pazo_id, site1, FAttempt]);
+    Result := Format('SITESFV: %s %s [pazo_id: %d] [site: %s] [attempt: %d]', [mainpazo.rls.rlsname, FPath, pazo_id, site1, FAttempt]);
   except
     Result := 'SITESFV';
   end;
