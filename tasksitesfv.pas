@@ -22,7 +22,7 @@ uses
   SysUtils, SyncObjs, StrUtils, debugunit, dateutils, queueunit, dirlist, sitesunit, irc, mystrings;
 
 const
-  section = 'tasksitesfv';
+  section = 'sfv';
 
   { TPazoSiteNfoTask }
 constructor TPazoSiteSfvTask.Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer);
@@ -54,8 +54,6 @@ begin
 end;
 
 function TPazoSiteSfvTask.Execute(slot: Pointer): boolean;
-label
-  TryAgain;
 var
   fSlot: TSiteSlot;
   i: Integer;
@@ -183,7 +181,7 @@ end;
 function TPazoSiteSfvTask.Name: String;
 begin
   try
-    Result := Format('SITESFV: %s %s [pazo_id: %d] [site: %s] [attempt: %d]', [mainpazo.rls.rlsname, FPath, pazo_id, site1, FAttempt]);
+    Result := Format('SITESFV: %s %s [pazo_id: %d] [site: %s] [attempt: %d]', [mainpazo.rls.rlsname, FDir, pazo_id, site1, FAttempt]);
   except
     Result := 'SITESFV';
   end;
