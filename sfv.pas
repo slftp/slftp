@@ -24,7 +24,10 @@ type
 
 implementation
 
-uses SysUtils, mystrings, slconstants;
+uses SysUtils, mystrings, slconstants, debugunit;
+
+const
+  section = 'sfv';
 
 constructor TPazoSFV.Create;
 begin
@@ -97,7 +100,22 @@ var
 begin
   FSFVList_cs.Enter;
   try
-    FSFVList[aDir] := aFiles;
+
+    if FSFVList.ContainsKey(aDir) then
+    begin
+      if FSFVList[aDir].Count = aFiles.Count then
+      begin
+        Debug(dpMessage, section, 'SFV file already registered for dir ' + aDir)
+      end
+      else
+      begin
+        Debug(dpError, section, 'Try to set different SFV for already already registered dir ' + aDir)
+      end;
+
+      exit;
+    end;
+
+    FSFVList.Add(aDir, aFiles);
 
     if (aFiles.Count > 0) and (FSFVFileType = '') then
     begin
