@@ -594,7 +594,7 @@ begin
         if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then continue;
 
         // drop sending to this destination if too much crc events
-        if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then Continue;
+        if (dst.badcrcevents > glMaxBadcrcEvents) then Continue;
 
         // Problem with dirlist
         if dirlist = nil then Continue;
