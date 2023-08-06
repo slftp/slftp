@@ -869,10 +869,13 @@ begin
       // due to delayed rules (imdb, tv, ...) but we don't care about those, the ones we have now should be
       // enough to get the SFV
 
-      for FPazoSite in PazoSitesList do
+      for fPazoSite in PazoSitesList do
       begin
-        if FindSiteByName('', FPazoSite.Name).UseForNFOdownload = ufnEnabled then
-          AddTask(TPazoSiteSfvTask.Create('', '', FPazoSite.Name, self, aDir, aFilename, 1));
+        if FindSiteByName('', fPazoSite.Name).UseForNFOdownload = ufnEnabled then
+        begin
+          Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
+          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, aFilename, 1));
+        end;
       end;
     end;
   end;
