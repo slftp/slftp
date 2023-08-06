@@ -45,7 +45,7 @@ function TPazoSFV.HasSFV(const aDir: String): boolean;
 begin
   FSFVList_cs.Enter;
   try
-    Result := FSFVList.ContainsKey(aDir) and (FSFVList[aDir].Count > 0);
+    Result := FSFVList.ContainsKey(aDir) and (FSFVList[aDir] <> nil);
   finally
     FSFVList_cs.Leave;
   end;
@@ -60,7 +60,7 @@ begin
   try
     if not FSFVList.ContainsKey(aDir) then
     begin
-      FSFVList.Add(aDir, TDictionary<string, integer>.Create);
+      FSFVList.Add(aDir, nil);
       Result := True;
     end;
   finally
@@ -101,7 +101,13 @@ begin
   FSFVList_cs.Enter;
   try
 
-    if FSFVList.ContainsKey(aDir) then
+    if aFiles.Count = 0 then
+    begin
+      Debug(dpError, section, 'Try to set empty SFV list for dir ' + aDir);
+      exit;
+    end;
+
+    if self.HasSFV(aDir) then
     begin
       if FSFVList[aDir].Count = aFiles.Count then
       begin
@@ -115,9 +121,9 @@ begin
       exit;
     end;
 
-    FSFVList.Add(aDir, aFiles);
+    FSFVList[aDir] := aFiles;
 
-    if (aFiles.Count > 0) and (FSFVFileType = '') then
+    if FSFVFileType = '' then
     begin
       fExtension := ExtractFileExt(LowerCase(aFiles.Keys.ToArray()[0]));
 
@@ -149,7 +155,7 @@ begin
 
   FSFVList_cs.Enter;
   try
-    Result := not FSFVList.TryGetValue(aDir, fSFVFiles) or fSFVFiles.ContainsKey(aFilename);
+    Result := not FSFVList.TryGetValue(aDir, fSFVFiles) or (fSFVFiles = nil) or fSFVFiles.ContainsKey(aFilename);
   finally
     FSFVList_cs.Leave;
   end;
