@@ -156,6 +156,8 @@ begin
       begin
         Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
         CreateReattemptTask(True);
+        readyerror := True;
+        exit;
       end;
 
       // SFV file was downloaded. Parse
