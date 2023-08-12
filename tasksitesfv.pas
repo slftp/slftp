@@ -9,9 +9,11 @@ type
   private
     FAttempt: Integer;
     FDir, FSFVFilename: String;
+    FInitialTaskCreationTime: TDateTime;
     procedure CreateReattemptTask(const aIncrementAttempts: boolean);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
   public
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer); overload;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -24,13 +26,19 @@ uses
 const
   section = 'sfv';
 
-  { TPazoSiteNfoTask }
+  { TPazoSiteSfvTask }
 constructor TPazoSiteSfvTask.Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer);
+begin
+  Create(netname, channel, site, pazo, aDir, aSFVFilename, aAttempt, Now())
+end;
+
+constructor TPazoSiteSfvTask.Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime);
 begin
   self.FAttempt := aAttempt;
   self.FDir := aDir;
   self.FSFVFilename := aSFVFilename;
   self.wanted_dn := True;
+  self.FInitialTaskCreationTime := aInitialTaskCreationTime;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
@@ -51,8 +59,15 @@ begin
     fAttempts := fAttempts + 1;
   end;
 
+  if MinutesBetween(Now, self.FInitialTaskCreationTime) > 10 then
+  begin
+    Debug(dpSpam, section, Format('Could not download SFV after %d minutes: %s', [MinutesBetween(Now, self.FInitialTaskCreationTime), Name]));
+    exit;
+  end;
+
   fSfvTask := TPazoSiteSfvTask.Create(netname, channel, ps1.Name, mainpazo, FDir, FSFVFilename, fAttempts);
   fSfvTask.startat := IncMilliSecond(Now, 50);
+  fSfvTask.FInitialTaskCreationTime := self.FInitialTaskCreationTime;
   AddTask(fSfvTask);
 end;
 
