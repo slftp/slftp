@@ -43,7 +43,10 @@ begin
   if aIncrementAttempts then
   begin
     if fAttempts > 2 then
+    begin
+      Debug(dpSpam, section, Format('Don''t retry after %d attempts: %s', [fAttempts, Name]));
       exit;
+    end;
 
     fAttempts := fAttempts + 1;
   end;
@@ -71,6 +74,7 @@ begin
   // exit if pazo is stopped
   if mainpazo.stopped or mainpazo.ready or mainpazo.readyerror then
   begin
+    Debug(dpSpam, section, 'Pazo stopped ' + Name);
     readyerror := True;
     exit;
   end;
@@ -78,6 +82,7 @@ begin
   // SFV/NFO download disabled for this site
   if fSlot.site.UseForNFOdownload <> ufnEnabled then
   begin
+    Debug(dpSpam, section, 'Site disabled for download ' + Name);
     Result := True;
     ready := True;
     exit;
@@ -86,7 +91,7 @@ begin
   Debug(dpSpam, section, 'SFV Task start ' + Name);
   if not self.mainpazo.PazoSFV.SetSFVDownloadRunning(True) then
   begin
-    Debug(dpSpam, section, 'SFV Task already dunning ' + Name);
+    Debug(dpSpam, section, 'SFV Task already running ' + Name);
     CreateReattemptTask(False);
     Result := True;
     ready := True;
@@ -157,7 +162,7 @@ begin
       self.mainpazo.PazoSFV.SetSFVList(FDir, ParseSFV(fStream.DataString));
       Debug(dpSpam, section, 'SFV Task finished ' + Name);
 
-      irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV infos (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
+      irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV information (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
     except
       on e: Exception do
       begin
