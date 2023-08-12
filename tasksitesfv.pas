@@ -9,9 +9,11 @@ type
   private
     FAttempt: Integer;
     FDir, FSFVFilename: String;
+    FInitialTaskCreationTime: TDateTime;
     procedure CreateReattemptTask(const aIncrementAttempts: boolean);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
   public
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer); overload;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -24,13 +26,19 @@ uses
 const
   section = 'sfv';
 
-  { TPazoSiteNfoTask }
+  { TPazoSiteSfvTask }
 constructor TPazoSiteSfvTask.Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer);
+begin
+  Create(netname, channel, site, pazo, aDir, aSFVFilename, aAttempt, Now())
+end;
+
+constructor TPazoSiteSfvTask.Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime);
 begin
   self.FAttempt := aAttempt;
   self.FDir := aDir;
   self.FSFVFilename := aSFVFilename;
   self.wanted_dn := True;
+  self.FInitialTaskCreationTime := aInitialTaskCreationTime;
   inherited Create(netname, channel, site, '', pazo);
 end;
 
@@ -43,13 +51,23 @@ begin
   if aIncrementAttempts then
   begin
     if fAttempts > 2 then
+    begin
+      Debug(dpSpam, section, Format('Don''t retry after %d attempts: %s', [fAttempts, Name]));
       exit;
+    end;
 
     fAttempts := fAttempts + 1;
   end;
 
+  if MinutesBetween(Now, self.FInitialTaskCreationTime) > 10 then
+  begin
+    Debug(dpSpam, section, Format('Could not download SFV after %d minutes: %s', [MinutesBetween(Now, self.FInitialTaskCreationTime), Name]));
+    exit;
+  end;
+
   fSfvTask := TPazoSiteSfvTask.Create(netname, channel, ps1.Name, mainpazo, FDir, FSFVFilename, fAttempts);
   fSfvTask.startat := IncMilliSecond(Now, 50);
+  fSfvTask.FInitialTaskCreationTime := self.FInitialTaskCreationTime;
   AddTask(fSfvTask);
 end;
 
@@ -71,6 +89,7 @@ begin
   // exit if pazo is stopped
   if mainpazo.stopped or mainpazo.ready or mainpazo.readyerror then
   begin
+    Debug(dpSpam, section, 'Pazo stopped ' + Name);
     readyerror := True;
     exit;
   end;
@@ -78,6 +97,7 @@ begin
   // SFV/NFO download disabled for this site
   if fSlot.site.UseForNFOdownload <> ufnEnabled then
   begin
+    Debug(dpSpam, section, 'Site disabled for download ' + Name);
     Result := True;
     ready := True;
     exit;
@@ -86,7 +106,7 @@ begin
   Debug(dpSpam, section, 'SFV Task start ' + Name);
   if not self.mainpazo.PazoSFV.SetSFVDownloadRunning(True) then
   begin
-    Debug(dpSpam, section, 'SFV Task already dunning ' + Name);
+    Debug(dpSpam, section, 'SFV Task already running ' + Name);
     CreateReattemptTask(False);
     Result := True;
     ready := True;
@@ -151,13 +171,15 @@ begin
       begin
         Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
         CreateReattemptTask(True);
+        readyerror := True;
+        exit;
       end;
 
       // SFV file was downloaded. Parse
       self.mainpazo.PazoSFV.SetSFVList(FDir, ParseSFV(fStream.DataString));
       Debug(dpSpam, section, 'SFV Task finished ' + Name);
 
-      irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV infos (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
+      irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV information (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
     except
       on e: Exception do
       begin
