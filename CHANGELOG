@@ -49,11 +49,11 @@
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
 
 --=============================( SLFTP v1.5.10 )==================================-
-    {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
+    {+} Made regex for http pretime configurable (see slftp.ini). It now expects only one row of text from the remote endpoint
     {#} Fix bugs which caused some mp3 genres not to be recognized and setting mp3genres be ignored (#322)
+    {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
     {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
     {^} Improve caching of skiplist values for dirlist
-    {#} Made regex for http pretime configurable (see slftp.ini). It now expects only one row of text from the remote endpoint
 
 --=============================( SLFTP v1.5.9 )===================================-
     {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
