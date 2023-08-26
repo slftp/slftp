@@ -1547,9 +1547,9 @@ begin
       else { Timeout reach }
       begin
         if spamcfg.readbool(section, 'queue_recycle', True) then
-          irc_Adderror('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s');
+          irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
         Debug(dpMessage, section,
-          'TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s');
+          Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
       end;
     end;
   end;
