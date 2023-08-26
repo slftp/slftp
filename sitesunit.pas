@@ -1101,6 +1101,9 @@ begin
           on E: Exception do
           begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+
+            //make sure the task gets cleaned if an unhandled exception occured when executing the task
+            todotask.readyerror := True;
           end;
         end;
 
