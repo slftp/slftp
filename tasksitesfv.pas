@@ -23,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, queueunit, dirlist, sitesunit, irc, mystrings;
+  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings;
 
 const
   section = 'sfv';
@@ -182,7 +182,7 @@ begin
       irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV information (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
 
       // remove SFV tasks for other sites
-      RemovePazoSfv(pazo_id, FDir);
+      fSlot.site.RemovePazoSfv(pazo_id, FDir);
 
       Debug(dpSpam, section, 'SFV Task finished ' + Name);
     except
