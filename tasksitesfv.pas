@@ -16,6 +16,8 @@ type
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer); overload;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
+    property Dir: String read FDir;
+    property SFVFilename: String read FSFVFilename;
   end;
 
 implementation
@@ -177,9 +179,12 @@ begin
 
       // SFV file was downloaded. Parse
       self.mainpazo.PazoSFV.SetSFVList(FDir, ParseSFV(fStream.DataString));
-      Debug(dpSpam, section, 'SFV Task finished ' + Name);
-
       irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV information (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
+
+      // remove SFV tasks for other sites
+      RemovePazoSfv(pazo_id, FDir);
+
+      Debug(dpSpam, section, 'SFV Task finished ' + Name);
     except
       on e: Exception do
       begin

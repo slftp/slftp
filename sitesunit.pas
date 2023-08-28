@@ -424,6 +424,7 @@ type
     procedure QueueCleanInverval(const interval: integer);
     procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
     procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
+    procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
     procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
     procedure RemovePazoDirTasks(const aPazoID: integer);
     function IrcKillAll(const netname, channel, params: String): boolean;
@@ -947,6 +948,11 @@ procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
   procedure TSite.RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
   begin
     fQueue.RemovePazoRace(aPazoID, aDstSite, aDir, aFilename);
+  end;
+
+  procedure TSite.RemovePazoSfv(const aPazoID: integer; const aDir: String);
+  begin
+    fQueue.RemovePazoSfv(aPazoID, aDir);
   end;
 
   procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
