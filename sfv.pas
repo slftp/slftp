@@ -15,11 +15,11 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function RegisterSFV(const aDir: String): boolean;
-    function HasSFV(const aDir: String): boolean;
-    function SetSFVDownloadRunning(const aIsRunning: boolean): boolean;
-    procedure SetSFVList(const aDir: string; const aFiles: TDictionary<string, integer>);
-    function CheckSFV(const aDir, aFilename, aExtension: string): boolean;
+    function RegisterSFV(const aDir: String): boolean; //< Try to register a SFV file. Returns true, if the SFV was registered, False if the SFV was already registered.
+    function HasSFV(const aDir: String): boolean; //< Returns true, if an SFV file has been registered for the given dictionary.
+    function SetSFVDownloadRunning(const aIsRunning: boolean): boolean; //< Sets the SFV download running flag so that there will not be multiple downloads of the same SFV file at once.
+    procedure SetSFVList(const aDir: string; const aFiles: TDictionary<string, integer>); //< Sets the list of files contained in the SFV file after it has been parsed.
+    function CheckSFV(const aDir, aFilename, aExtension: string): boolean;  //< Returns true, if the given file exists in the SFV
   end;
 
 implementation
