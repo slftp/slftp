@@ -2441,7 +2441,7 @@ begin
         if site.fFailedNfoCounter >= CONST_NFO_FAILED_THRESHOLD then
         begin
           site.UseForNFOdownload := ufnAutoDisabled;
-          irc_addadmin(Format('<%s>Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.</c>', [site.Name, site.fFailedNfoCounter]));
+          irc_addadmin(Format('Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.', [site.Name, site.fFailedNfoCounter]));
         end;
 
         DestroySocket(False);
