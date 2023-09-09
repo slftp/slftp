@@ -210,6 +210,7 @@ type
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
+    fFailedNfoCounter: integer;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -659,7 +660,8 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit,
+  slconstants;
 
 const
   section = 'sites';
@@ -2434,11 +2436,20 @@ begin
       if not idTCP.TurnToSSL(site.io_timeout * 1000) then
       begin
         irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
-        site.UseForNFOdownload := ufnAutoDisabled;
+
+        site.fFailedNfoCounter := site.fFailedNfoCounter + 1;
+        if site.fFailedNfoCounter >= CONST_NFO_FAILED_THRESHOLD then
+        begin
+          site.UseForNFOdownload := ufnAutoDisabled;
+          irc_addadmin(Format('<%s>Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.</c>', [site.Name, site.fFailedNfoCounter]));
+        end;
+
         DestroySocket(False);
         Result := -1;
         exit;
-      end;
+      end
+      else
+        site.fFailedNfoCounter := 0; // reset the failed counter if this has worked
 
       if not Read('RETR') then
       begin
@@ -2568,6 +2579,7 @@ begin
   fMaxDn := RCInteger('max_dn', 2);
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
+  fFailedNfoCounter := 0;
 
   siteinvited := False;
   foutofannounce := 0;
