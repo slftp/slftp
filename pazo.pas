@@ -1009,6 +1009,7 @@ begin
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
   FreeAndNil(rls);
+  if FPazoSFV <> nil then FPazoSFV.Free;
 
   inherited;
 end;
