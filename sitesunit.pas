@@ -5,7 +5,7 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules;
+  taskrules, Generics.Collections;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -159,7 +159,7 @@ type
     function Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean; overload;
     function Send(const s: String): boolean; overload;
     function Send(const s: String; const Args: array of const): boolean; overload;
-    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
+    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
     function bnc: String;
     function Cwd(dir: String; force: boolean = False): boolean;
     function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
@@ -207,6 +207,9 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    fMaxUp: integer;
+    fMaxDn: integer;
+    fMaxPreDn: integer;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -641,6 +644,13 @@ procedure CheckSiteSlots(const aSite: TSite); overload;
   @param(aSiteName The name of the site to check) }
 procedure CheckSiteSlots(const aSiteName: string); overload;
 
+{ Adds a site to the relevant data structures.
+  @param(aSite The @link(TSite) object to add.) }
+procedure AddSite(const aSite: TSite);
+{ Deletes a site from the relevant data structures.
+  @param(aSite The @link(TSite) object to delete.) }
+procedure DeleteSite(const aSite: TSite);
+
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
@@ -663,6 +673,19 @@ var
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
+  sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
+
+procedure AddSite(const aSite: TSite);
+begin
+  sites.Add(aSite);
+  sitesDict.Add(aSite.Name, aSite);
+end;
+
+procedure DeleteSite(const aSite: TSite);
+begin
+  sites.Delete(sites.IndexOf(aSite));
+  sitesDict.Remove(aSite.Name);
+end;
 
 function getAdminSiteName: String;
 begin
@@ -791,25 +814,7 @@ var
   i: integer;
   s: TSite;
 begin
-  Result := nil;
-  try
-    for i := 0 to sites.Count - 1 do
-    begin
-      s := TSite(sites[i]);
-      if s.Name = aSitename then
-      begin
-        if ((aNetname <> '') and (aNetname <> 'CONSOLE') and (s.noannounce)) then
-        begin
-          exit;
-        end;
-
-        Result := s;
-        break;
-      end;
-    end;
-  except
-    Result := nil;
-  end;
+  sitesDict.TryGetValue(aSitename, Result);
 end;
 
 function FindSlotByName(const aSlotname: String): TSiteSlot;
@@ -869,6 +874,7 @@ begin
   sitelaststart := Now();
   bnccsere := TCriticalSection.Create;
   sites := TObjectList.Create;
+  sitesDict := TDictionary<string, TSite>.Create;
 end;
 
 function CompareSiteNamesForAlphabeticalOrder(site1, site2: TSite): Integer;
@@ -879,7 +885,9 @@ end;
 procedure SitesStart;
 var
   x: TStringList;
-  i, j: integer;
+  i: integer;
+  fSite: TSite;
+  fSitename: string;
 begin
   debug(dpSpam, section, 'SitesStart begin');
 
@@ -890,7 +898,7 @@ begin
   killafter := config.ReadInteger(section, 'killafter', 0);
 
   // Add admin site
-  sites.Add(TSite.Create(getAdminSiteName));
+  AddSite(TSite.Create(getAdminSiteName));
 
   x := TStringList.Create;
   try
@@ -898,12 +906,20 @@ begin
     for i := 0 to x.Count - 1 do
       if 1 = Pos('site-', x[i]) then
       begin
-        j := sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+        fSitename := Copy(x[i], 6, 1000);
+
+        //when there is some config entry for the admin site, then this will
+        //produce an error when adding the same site name twice
+        if fSitename = getAdminSiteName then
+          continue;
+
+        fSite := TSite.Create(fSitename);
+        AddSite(fSite);
 
         //add a login task if autologin is enabled
-        if (((autologin) or (TSite(sites[j]).RCBool('autologin', False))) and not TSite(sites[j]).PermDown) then
+        if (((autologin) or (fSite.RCBool('autologin', False))) and not fSite.PermDown) then
         begin
-          AddTask(TLoginTask.Create('', '', TSite(sites[j]).Name, False, False));
+          AddTask(TLoginTask.Create('', '', fSite.Name, False, False));
         end;
       end;
   finally
@@ -924,6 +940,12 @@ begin
   begin
     sites.Free;
     sites := nil;
+  end;
+
+  if sitesDict <> nil then
+  begin
+    sitesDict.Free;
+    sitesDict := nil;
   end;
 
   if sitesdat <> nil then
@@ -1079,6 +1101,9 @@ begin
           on E: Exception do
           begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+
+            //make sure the task gets cleaned if an unhandled exception occured when executing the task
+            todotask.readyerror := True;
           end;
         end;
 
@@ -1838,7 +1863,7 @@ begin
     end;
 end;
 
-function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
+function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
 var
   l_maxrelogins: integer;
   relogins: integer;
@@ -1905,7 +1930,9 @@ begin
 
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
-        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+        if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
+          irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+
         site.WorkingStatus := sstTempDown;
         exit;
       end;
@@ -1920,7 +1947,9 @@ begin
         end;
       end;
 
-      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+      if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
+        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+
       site.WorkingStatus := sstTempDown;
     end;
   end;
@@ -2536,6 +2565,10 @@ begin
     exit;
   end;
 
+  fMaxDn := RCInteger('max_dn', 2);
+  fMaxUp := RCInteger('max_up', 2);
+  fMaxPreDn := RCInteger('max_pre_dn', max_dn);
+
   siteinvited := False;
   foutofannounce := 0;
   // reset to explore it again on first login
@@ -2728,6 +2761,12 @@ procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
   if Value <> FWorkingStatus then
   begin
+
+    //if the site is already perm down or set down by user, never set temp down because then some
+    //idle or login task could set the site up again which we clearly do not want
+    if (Value = sstTempDown) and (FWorkingStatus in [sstDown, sstMarkedAsDownByUser]) then
+      exit;
+
     FWorkingStatus := Value;
 
     if Name = getAdminSiteName then
@@ -2807,34 +2846,38 @@ end;
 
 function TSite.GetMaxDn: integer;
 begin
-  Result := RCInteger('max_dn', 2);
+  Result := fMaxDn;
 end;
 
 procedure TSite.SetMaxDn(Value: integer);
 begin
   WCInteger('max_dn', Value);
+  fMaxDn := Value;
 end;
 
 function TSite.GetMaxPreDn: integer;
 begin
   // if max_pre_dn is not set, we use max_dn value to avoid bugs when users
   // haven't setup their maxupdn again after using new version with this feature
-  Result := RCInteger('max_pre_dn', max_dn);
+  Result := fMaxPreDn;
+  //Result := RCInteger('max_pre_dn', max_dn);
 end;
 
 procedure TSite.SetMaxPreDn(Value: integer);
 begin
   WCInteger('max_pre_dn', Value);
+  fMaxPreDn := Value;
 end;
 
 function TSite.GetMaxUp: integer;
 begin
-  Result := RCInteger('max_up', 2);
+  Result := fMaxUp;
 end;
 
 procedure TSite.SetMaxUp(Value: integer);
 begin
   WCInteger('max_up', Value);
+  fMaxUp := Value;
 end;
 
 procedure TSite.Setconnect_timeout(const Value: integer);
@@ -3791,6 +3834,15 @@ var
   fSiteSlot: TSiteSlot;
   fLoginTask: TLoginTask;
   fWantedSlot: string;
+
+  function IsLoginTaskRequiredForSlot(const aSlot: TSiteSlot): boolean;
+  begin
+    Result := (aSlot.Status <> ssOnline)
+      //there might already be a login task (or maybe a race task which sometimes
+      //sets the slot down and relogins it) - don't try to login such slots
+      and (aSlot.todotask = nil);
+  end;
+
 begin
   fLoginTaskNeeded := False;
   fWantedSlot := '';
@@ -3820,11 +3872,7 @@ begin
         begin
           for fSiteSlot in aSite.slots do
           begin
-            if (fSiteSlot.Status <> ssOnline)
-
-              //there might already be a login task (or maybe a race task which sometimes
-              //sets the slot down and relogins it) - don't try to login such slots
-              and (fSiteSlot.todotask = nil) then
+            if IsLoginTaskRequiredForSlot(fSiteSlot) then
             begin
               fLoginTaskNeeded := True;
               fWantedSlot := fSiteSlot.Name;
@@ -3844,7 +3892,7 @@ begin
           // check if all the slots are online
           for fSiteSlot in aSite.slots do
           begin
-            if (fSiteSlot.Status <> ssOnline) then
+            if IsLoginTaskRequiredForSlot(fSiteSlot) then
             begin
               fLoginTaskNeeded := True;
               break;
@@ -3859,6 +3907,7 @@ begin
       fLoginTask.wantedslot := fWantedSlot;
       fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); // announce if working status of the site is not sstUp
       AddTask(fLoginTask);
+      QueueFire;
     end;
   end;
 end;

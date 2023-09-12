@@ -6,11 +6,10 @@ uses tasksunit;
 
 type
   TLoginTask = class(TTask)
-  private
-    kill: Boolean;
   public
     noannounce: Boolean;
     readd: Boolean; //< @true if called from autobnctest, @false otherwise
+    kill: Boolean;
     constructor Create(const netname, channel, site: String; kill: Boolean; readd: Boolean);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
@@ -66,7 +65,7 @@ begin
       begin
         // site is not up, we have to try to login
         s.Quit;
-        Result := s.ReLogin(1, kill, section);
+        Result := s.ReLogin(1, kill, section, readd);
 
         if readd and (s.Status = ssOnline) then
         begin
