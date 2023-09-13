@@ -178,7 +178,7 @@ begin
       begin
         if site.UseSiteSearchOnReqFill and (IsSourceSiteValid(site)) then
         begin
-          fSiteSearchTask := TSearchReleaseTask.Create('', '', site.Name, releasenametofind);
+          fSiteSearchTask := TSearchReleaseTask.Create('', '', site.Name, releasenametofind, False);
           fTaskNotify.tasks.Add(fSiteSearchTask);
           AddTask(fSiteSearchTask);
         end;
