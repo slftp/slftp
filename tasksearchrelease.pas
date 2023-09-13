@@ -9,8 +9,9 @@ type
   TSearchReleaseTask = class(TRawTask)
   private
     FReleaseName: String;
+    FAnnounceCWDFailure: boolean;
   public
-    constructor Create(const aNetname, aChannel, aSite, aRls: String);
+    constructor Create(const aNetname, aChannel, aSite, aRls: String; const aAnnounceCWDFailure: boolean);
     function Name: String; override;
     function Execute(slot: Pointer): Boolean; override;
   end;
@@ -25,10 +26,11 @@ const
 
 { TRawTask }
 
-constructor TSearchReleaseTask.Create(const aNetname, aChannel, aSite, aRls: String);
+constructor TSearchReleaseTask.Create(const aNetname, aChannel, aSite, aRls: String; const aAnnounceCWDFailure: boolean);
 begin
   inherited Create(aNetname, aChannel, aSite, '/', 'SITE SEARCH ' + aRls);
   self.FReleaseName := aRls;
+  self.FAnnounceCWDFailure := aAnnounceCWDFailure;
 end;
 
 function TSearchReleaseTask.Execute(slot: Pointer): Boolean;
@@ -57,7 +59,8 @@ begin
         end
         else
         begin
-          irc_Addadmin(Format('<c8>[SITESEARCH]</c> Cannot CDW into path on %s: %s (%s)', [site1, fPath, fSlot.lastResponse]));
+          if FAnnounceCWDFailure then
+            irc_Addadmin(Format('<c8>[SITESEARCH]</c> Cannot CDW into path on %s: %s (%s)', [site1, fPath, fSlot.lastResponse]));
         end;
       end;
     finally
