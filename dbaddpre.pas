@@ -73,7 +73,7 @@ implementation
 
 uses
   DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles,
-  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, SynDBSQLite3, SynDB, http;
+  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, http, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
 
 const
   section = 'dbaddpre';
@@ -209,7 +209,7 @@ end;
 
 function ReadPretimeOverSQLITE(const rls: String): Int64;
 var
-  fQuery: TQuery;
+  fQuery: TSqlDBSQLite3Statement;
 begin
   Result := 0;
   if rls = '' then
@@ -217,14 +217,14 @@ begin
 
   SQLite3Lock.Enter;
   try
-    fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+    fQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.SQL.Text := 'SELECT ts FROM addpre WHERE rlz = :release';
-      fQuery.ParamByName('release').AsString := rls;
+      fQuery.Prepare('SELECT ts FROM addpre WHERE rlz = ?');
+      fQuery.BindTextS(1, rls);
       try
-        fQuery.Open;
-        if not fQuery.IsEmpty then
-          Result := fQuery.FieldByName('ts').AsInt64;
+        fQuery.ExecutePrepared;
+        if fQuery.Step then
+          Result := fQuery.ColumnInt(0);
       except
         on e: Exception do
         begin
@@ -242,7 +242,7 @@ end;
 
 function ReadPretimeOverMYSQL(const rls: String): Int64;
 var
-  fQuery: TQuery;
+  fQuery: TSqlDBZeosStatement;
   fTimeField, fTableName, fReleaseField: String;
 begin
   Result := 0;
@@ -253,14 +253,14 @@ begin
   fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
   fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
 
-  fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
+  fQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
   try
-    fQuery.SQL.Text := 'SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = :release';
-    fQuery.ParamByName('release').AsString := rls;
+    fQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?');
+    fQuery.BindTextS(1, rls);
     try
-      fQuery.Open;
-      if not fQuery.IsEmpty then
-        Result := fQuery.FieldByName(fTimeField).AsInt64;
+      fQuery.ExecutePrepared;
+      if fQuery.Step then
+        Result := fQuery.ColumnInt(fTimeField);
     except
       on e: Exception do
       begin
@@ -439,7 +439,8 @@ var
   i: integer;
   pretime: Int64;
   addpredata: TDbAddPre;
-  fQuery: TQuery;
+  fMySQLQuery: TSqlDBZeosStatement;
+  fSQLiteQuery: TSqlDBSQLite3Statement;
   fTableName, fReleaseField, fSectionField, fTimeField, fSourceField: String;
 begin
   Result := False;
@@ -482,15 +483,15 @@ begin
       begin
         SQLite3Lock.Enter;
         try
-          fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+          fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
-            fQuery.SQL.Text := 'INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (:release, :section, :timestamp, :source)';
-            fQuery.ParamByName('release').AsString := rls;
-            fQuery.ParamByName('section').AsString := rls_section;
-            fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now(), False);
-            fQuery.ParamByName('source').AsString := Source;
+            fSQLiteQuery.Prepare('INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (?, ?, ?, ?)');
+            fSQLiteQuery.BindTextS(1, rls);
+            fSQLiteQuery.BindTextS(2, rls_section);
+            fSQLiteQuery.Bind(3, DateTimeToUnix(Now(), False));
+            fSQLiteQuery.BindTextS(4, Source);
             try
-              fQuery.ExecSQL;
+              fSQLiteQuery.ExecutePrepared;
             except
               on e: Exception do
               begin
@@ -500,7 +501,7 @@ begin
               end;
             end;
           finally
-            fQuery.free;
+            fSQLiteQuery.free;
           end;
         finally
           SQLite3Lock.Leave;
@@ -508,7 +509,7 @@ begin
       end;
     apmMYSQL:
       begin
-        fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
+        fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
         try
           fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
           fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
@@ -518,19 +519,19 @@ begin
 
           if fSourceField = '-1' then
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`) VALUES (:release, :section, :timestamp);';
+            fMySQLQuery.Prepare('INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`) VALUES (?, ?, ?);');
           end
           else
           begin
-            fQuery.SQL.Text := 'INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`, `' + fSourceField + '`) VALUES (:release, :section, :timestamp, :source);';
-            fQuery.ParamByName('source').AsString := Source;
+            fMySQLQuery.Prepare('INSERT IGNORE INTO `' + fTableName + '` (`' + fReleaseField + '`, `' + fSectionField + '`, `' + fTimeField + '`, `' + fSourceField + '`) VALUES (?, ?, ?, ?);');
+            fMySQLQuery.BindTextS(4, Source);
           end;
 
-          fQuery.ParamByName('release').AsString := rls;
-          fQuery.ParamByName('section').AsString := rls_section;
-          fQuery.ParamByName('timestamp').AsInt64 := DateTimeToUnix(Now(), False);
+          fMySQLQuery.BindTextS(1, rls);
+          fMySQLQuery.BindTextS(2, rls_section);
+          fMySQLQuery.Bind(3, DateTimeToUnix(Now(), False));
           try
-            fQuery.ExecSQL;
+            fMySQLQuery.ExecutePrepared;
           except
             on e: Exception do
             begin
@@ -540,7 +541,7 @@ begin
             end;
           end;
         finally
-          fQuery.free;
+          fMySQLQuery.free;
         end;
       end;
   end;
@@ -550,7 +551,8 @@ end;
 
 function dbaddpre_GetCount: integer;
 var
-  fQuery: TQuery;
+  fMySQLQuery: TSqlDBZeosStatement;
+  fSQLiteQuery: TSqlDBSQLite3Statement;
   fTableName: String;
 begin
   Result := 0;
@@ -563,18 +565,17 @@ begin
       begin
         SQLite3Lock.Enter;
         try
-          fQuery := TQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+          fMySQLQuery := fMySQLQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
-            fQuery.SQL.Text := 'SELECT count(*) FROM addpre';
-            fQuery.Open;
-
-            if fQuery.IsEmpty then
+            fSQLiteQuery.Prepare('SELECT count(*) FROM addpre');
+            fSQLiteQuery.ExecutePrepared;
+            if not fSQLiteQuery.Step then
               Result := 0
             else
-              Result := fQuery.Fields[0].AsInteger;
+              Result := fSQLiteQuery.ColumnInt(0);
 
           finally
-            fQuery.Free;
+            fSQLiteQuery.Free;
           end;
         finally
           SQLite3Lock.Leave;
@@ -582,19 +583,18 @@ begin
       end;
     apmMYSQL:
       begin
-          fQuery := TQuery.Create(MySQLCon.ThreadSafeConnection);
+          fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
           try
             fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-            fQuery.SQL.Text := 'SELECT count(*) FROM `' + fTableName + '`';
-            fQuery.Open;
-
-            if fQuery.IsEmpty then
+            fMySQLQuery.Prepare('SELECT count(*) FROM `' + fTableName + '`');
+            fMySQLQuery.ExecutePrepared;
+            if not fMySQLQuery.Step then
               Result := 0
             else
-              Result := fQuery.Fields[0].AsInteger;
+              Result := fMySQLQuery.ColumnInt(0);
 
           finally
-            fQuery.Free;
+            fMySQLQuery.Free;
           end;
       end;
   end;
