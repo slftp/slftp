@@ -73,7 +73,7 @@ implementation
 
 uses
   DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles,
-  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, http, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
+  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
 
 const
   section = 'dbaddpre';
@@ -551,7 +551,7 @@ end;
 
 function dbaddpre_GetCount: integer;
 var
-  fMySQLQuery: TSqlDBZeosStatement;
+  fMySQLQuery: TSqlDBStatementWithParamsAndColumns; // really not sure why but on FPC this must be a TSqlDBStatementWithParamsAndColumns and not TSqlDBZeosStatement, else we get this compile error: dbaddpre.pas(568,37) Error: Incompatible types: got "TSqlDBStatementWithParamsAndColumns" expected "TSqlDBZeosStatement"
   fSQLiteQuery: TSqlDBSQLite3Statement;
   fTableName: String;
 begin
@@ -586,7 +586,7 @@ begin
           fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
           try
             fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-            fMySQLQuery.Prepare('SELECT count(*) FROM `' + fTableName + '`');
+            fMySQLQuery.Prepare('SELECT count(*) FROM `' + fTableName + '`', True);
             fMySQLQuery.ExecutePrepared;
             if not fMySQLQuery.Step then
               Result := 0
