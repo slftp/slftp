@@ -24,7 +24,7 @@ __history
 *.dll
 *.o
 # required .o files
-!libs/mORMot2/static/*.o
+!libs/mORMot2/static/*/*.o
 *.ppu
 *.BAK
 *.bak
