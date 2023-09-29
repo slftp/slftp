@@ -1,3 +1,3 @@
-ba965121778aa8744f22449bec2667edf4b6d218
-new twoDateTimeWithZ option
-to append an ending 'Z' to TDateTime/TDateTimeMS values
+61ae908b8de4fd156e80cd5094be0a985f4267d6
+TWinHTTP thread safety
+- to fix #442

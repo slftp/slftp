@@ -71,13 +71,17 @@ uses
   ZPlainFirebirdInterbaseDriver, ZDbcInterbase6Utils, ZDbcLogging,
   ZDbcIntfs, ZDbcConnection, ZTokenizer, ZGenericSqlAnalyser, ZDbcCache,
   ZDbcGenericResolver, ZDbcResultSetMetadata, ZDbcCachedResultSet, ZDbcUtils,
-  ZDbcResultSet, ZDbcStatement;
+  ZDbcResultSet, ZDbcStatement, ZExceptions;
 
 type
   /// <summary>Implements Interbase or Firebird Database Driver</summary>
   TZInterbaseFirebirdDriver = class(TZAbstractDriver)
   public
+    /// <summary>Creates a generic tokenizer interface.</summary>
+    /// <returns>a created generic tokenizer object.</returns>
     function GetTokenizer: IZTokenizer; override;
+    /// <summary>Creates a generic statement analyser object.</summary>
+    /// <returns>a created generic tokenizer object as interface.</returns>
     function GetStatementAnalyser: IZStatementAnalyser; override;
   end;
 
@@ -151,6 +155,8 @@ type
     procedure HandleErrorOrWarning(LogCategory: TZLoggingCategory;
       StatusVector: PARRAY_ISC_STATUS; const LogMessage: SQLString;
       const Sender: IImmediatelyReleasable);
+    /// <summary>Returns true if a connection was lost and is not closed yet.</summary>
+    function GetConnectionLost: Boolean;
   end;
 
   TZFirebirdInterbaseEventList = class;
@@ -181,11 +187,14 @@ type
     FInterbaseFirebirdPlainDriver: TZInterbaseFirebirdPlainDriver;
     FLastWarning: EZSQLWarning;
     FEventList: TZFirebirdInterbaseEventList;
+    FConnectionLost: Boolean;
     procedure DetermineClientTypeAndVersion;
     procedure AssignISC_Parameters;
     procedure TransactionParameterPufferChanged;
     function GetActiveTransaction: IZInterbaseFirebirdTransaction;
     procedure OnPropertiesChange(Sender: TObject); override;
+    /// <summary>Constructs the connection string for the current connection</summary>
+    /// <returns>the composed connection string</returns>
     function ConstructConnectionString: SQLString;
     class function GetEventListClass: TZFirebirdInterbaseEventListClass; virtual; abstract;
   protected
@@ -322,6 +331,19 @@ type
     /// <returns>The transaction object</returns>
     function GetConnectionTransaction: IZTransaction;
   public
+    /// <summary>Releases all driver handles and set the object in a closed
+    ///  Zombi mode waiting for destruction. Each known supplementary object,
+    ///  supporting this interface, gets called too. This may be a recursive
+    ///  call from parant to childs or vice vera. So finally all resources
+    ///  to the servers are released. This method is triggered by a connecton
+    ///  loss. Don't use it by hand except you know what you are doing.</summary>
+    /// <param>"Sender" the object that did notice the connection lost.</param>
+    /// <param>"AError" a reference to an EZSQLConnectionLost error.
+    ///  You may free and nil the error object so no Error is thrown by the
+    ///  generating method. So we start from the premisse you have your own
+    ///  error handling in any kind.</param>
+    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost); override;
+  public
     /// <summary>Returns the first warning reported by calls on this Connection.</summary>
     /// <remarks>Subsequent warnings will be chained to this EZSQLWarning.</remarks>
     /// <returns>the first SQLWarning or nil.</returns>
@@ -380,6 +402,8 @@ type
     procedure Unlisten;
     /// <summary>Triggers an event.</summary>
     procedure TriggerEvent(const Name: String);
+    /// <summary>Returns true if a connection was lost and is not closed yet.</summary>
+    function GetConnectionLost: Boolean;
   public { implement IZFirebirdInterbaseEventAlerter}
     procedure SetOnEventAlert(Value: TZFirebirdInterbaseEventAlert);
   end;
@@ -567,6 +591,7 @@ type
   IZInterbaseFirebirdLob = Interface(IZLob)
     ['{5CD97968-D804-43FB-94CF-4794277D7198}']
     function GetBlobId: TISC_QUAD;
+    function LobIsPartOfTxn(const IBTransaction: IZInterbaseFirebirdTransaction): Boolean;
   End;
 
   TZInterbaseFirebirdColumnInfo = Class(TZColumnInfo)
@@ -599,31 +624,290 @@ type
     procedure AfterClose; override;
     constructor Create(const Statement: IZStatement; const SQL: string);
   public
+    /// <summary>Releases all driver handles and set the object in a closed
+    ///  Zombi mode waiting for destruction. Each known supplementary object,
+    ///  supporting this interface, gets called too. This may be a recursive
+    ///  call from parant to childs or vice vera. So finally all resources
+    ///  to the servers are released. This method is triggered by a connecton
+    ///  loss. Don't use it by hand except you know what you are doing.</summary>
+    /// <param>"Sender" the object that did notice the connection lost.</param>
+    /// <param>"AError" a reference to an EZSQLConnectionLost error.
+    ///  You may free and nil the error object so no Error is thrown by the
+    ///  generating method. So we start from the premisse you have your own
+    ///  error handling in any kind.</param>
+    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost); override;
+  public
+    /// <summary>Indicates if the value of the designated column in the current
+    ///  row of this <c>ResultSet</c> object is Null.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>true</c>. <c>false</c> otherwise.</returns>
     function IsNull(ColumnIndex: Integer): Boolean;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>PAnsiChar</c> text reference in
+    ///  the pascal programming language. Live time is per call. It's not
+    ///  guaranteed the address is valid after the row position changed,
+    ///  or another column of same row has been accessed. It is an error to
+    ///  write into the buffer. The driver try convert the value if it's not a
+    ///  raw text value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>"Len" returns the length of the buffer value in bytes.</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NIL</c>. The buffer address otherwise.</returns>
     function GetPAnsiChar(ColumnIndex: Integer; out Len: NativeUInt): PAnsiChar;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>PWideChar</c> text reference in
+    ///  the pascal programming language. Live time is per call. It's not
+    ///  guaranteed the address is valid after the row position changed,
+    ///  or another column of same row has been accessed. It is an error to
+    ///  write into the buffer. The driver will try to convert the value if it's
+    ///  not a UTF16 text value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>"Len" returns the length of the buffer value in words.</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NIL</c>. The buffer address otherwise.</returns>
     function GetPWideChar(ColumnIndex: Integer; out Len: NativeUInt): PWideChar;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>Boolean</c> value.The driver will
+    ///  try to convert the value if it's not a Boolean value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>False</c>. The value otherwise.</returns>
     function GetBoolean(ColumnIndex: Integer): Boolean;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>Cardinal</c> value.The driver will
+    ///  try to convert the value if it's not a Cardinal value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>0</c>. The value otherwise.</returns>
     function GetUInt(ColumnIndex: Integer): Cardinal;
+    /// <summary>Gets the value of the designated parameter as a Integer value.
+    ///  The driver will try to convert the value if it's not a Integer value.
+    /// </summary>
+    /// <param>"ParameterIndex" the first Parameter is 1, the second is 2, ...
+    ///  unless <c>GENERIC_INDEX</c> is defined. Then the first Parameter is 0,
+    ///  the second is 1. This will change in future to a zero based index. It's
+    ///  recommented to use an incrementation of FirstDbcIndex. <c>Note</c> only
+    ///  as InOut,Out,Result registered parameters can be accessed after the
+    ///  statement has been executed and the out params are available.
+    ///  Otherwise an EZSQLException is thrown.</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>0</c>. The value otherwise.</returns>
     function GetInt(ColumnIndex: Integer): Integer;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>Int64</c> value.The driver will
+    ///  try to convert the value if it's not a Int64 value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>0</c>. The value otherwise.</returns>
     function GetLong(ColumnIndex: Integer): Int64;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>UInt64</c> value.The driver will
+    ///  try to convert the value if it's not a UInt64 value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>0</c>. The value otherwise.</returns>
     function GetULong(ColumnIndex: Integer): UInt64;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>Single</c> value.The driver will
+    ///  try to convert the value if it's not a Single value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>0</c>. The value otherwise.</returns>
     function GetFloat(ColumnIndex: Integer): Single;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>Double</c> value.The driver will
+    ///  try to convert the value if it's not a Double value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>0</c>. The value otherwise.</returns>
     function GetDouble(ColumnIndex: Integer): Double;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>Currency</c> value.The driver will
+    ///  try to convert the value if it's not a Currency value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>0</c>. The value otherwise.</returns>
     function GetCurrency(ColumnIndex: Integer): Currency;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>TBCD</c> value.The driver will
+    ///  try to convert the value if it's not a TBCD value. The value will be
+    ///  filled with the minimum of digits and precision.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>"Result" if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NULL-BCD</c>. The value otherwise.</param>
     procedure GetBigDecimal(ColumnIndex: Integer; var Result: TBCD);
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>TGUID</c> value.The driver will
+    ///  try to convert the value if it's not a ShortInt value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NULL-UID</c>. The value otherwise.</param>
     procedure GetGUID(ColumnIndex: Integer; var Result: TGUID);
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>PByte</c> binary reference.
+    ///  Live time is per call. It's not guaranteed the address is valid after
+    ///  the row position changed, or another column of same row has been
+    ///  accessed. It is an error to write into the buffer. The driver will try
+    ///  to convert the value if it's not a binary value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>"Len" returns the length of the buffer value in bytes.</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NIL</c>. The buffer address otherwise.</returns>
     function GetBytes(ColumnIndex: Integer; out Len: NativeUInt): PByte; overload;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>TZDate</c> value. The driver will
+    ///  try to convert the value if it's not a Date value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>"Result" if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NULL-TZDATE</c>. The value otherwise.</param>
     procedure GetDate(ColumnIndex: Integer; var Result: TZDate); reintroduce; overload;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>TZTime</c> value. The driver will
+    ///  try to convert the value if it's not a Time value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>"Result" if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NULL-TZTime</c>. The value otherwise.</returns>
     procedure GetTime(ColumnIndex: Integer; var Result: TZTime); reintroduce; overload;
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>TZTimestamp</c> value. The driver
+    ///  will try to convert the value if it's not a Timestamp value.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <param>"Result" if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NULL-TZTimestamp</c>. The value otherwise.</param>
     procedure GetTimestamp(ColumnIndex: Integer; var Result: TZTimeStamp); reintroduce; overload;
     {$IFNDEF NO_ANSISTRING}
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>AnsiString</c>. The driver will
+    ///  try to convert the value if it's not a raw value in operating system
+    ///  encoding.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NIL</c>. The value otherwise.</returns>
     function GetAnsiString(ColumnIndex: Integer): AnsiString;
     {$ENDIF}
     {$IFNDEF NO_UTF8STRING}
+    /// <summary>Gets the value of the designated column in the current row of
+    ///  this <c>ResultSet</c> object as a <c>UTF8String</c>. The driver will
+    ///  try to convert the value if it's not a raw value in UTF8 encoding.</summary>
+    /// <param>"ColumnIndex" the first Column is 1, the second is 2, ... unless
+    ///  <c>GENERIC_INDEX</c> is defined. Then the first column is 0, the second
+    ///  is 1. This will change in future to a zero based index. It's recommented
+    ///  to use an incrementation of FirstDbcIndex. <c>Note</c> the cursor must
+    ///  be on a valid position and the Index must be valid. Otherwise the
+    ///  results may be unexpected. See traversal/positioning method's like
+    ///  <c>IsBeforeFirst</c>,<c>Next()</c>,<c>IsAfterLast</c>...</param>
+    /// <returns>if the value is SQL <c>NULL</c>, the value returned is
+    ///  <c>NIL</c>. The value otherwise.</returns>
     function GetUTF8String(ColumnIndex: Integer): UTF8String;
     {$ENDIF}
     {$IFDEF WITH_COLUMNS_TO_JSON}
-    procedure ColumnsToJSON(JSONWriter: TJSONWriter; JSONComposeOptions: TZJSONComposeOptions);
+    /// <summary>Fill the JSONWriter with column data</summary>
+    /// <param>"JSONComposeOptions" the TZJSONComposeOptions used for composing
+    ///  the JSON contents</param>
+    procedure ColumnsToJSON(ResultsWriter: {$IFDEF MORMOT2}TResultsWriter{$ELSE}TJSONWriter{$ENDIF}; JSONComposeOptions: TZJSONComposeOptions);
     {$ENDIF WITH_COLUMNS_TO_JSON}
   end;
 
@@ -651,7 +935,7 @@ type
     procedure SetPAnsiChar(Index: Cardinal; Value: PAnsiChar; Len: LengthInt);
     procedure SetPWideChar(Index: Cardinal; Value: PWideChar; Len: LengthInt);
   protected
-    FInParamDescripors: PZInterbaseFirerbirdParamArray;
+    FInParamDescripors: PZInterbaseFirebirdParamArray;
     FBatchStmts: array[Boolean] of TZIB_FBStmt;
     FDB_CP_ID: Word;
     FStatementType: TZIbSqlStatementType;
@@ -669,6 +953,7 @@ type
       PlainDriver: TZInterbaseFirebirdPlainDriver): RawByteString;
     procedure WriteLobBuffer(Index: Cardinal; P: PAnsiChar; Len: NativeUInt); virtual; abstract;
     function CreateConversionError(Index: Cardinal; Current: TZSQLType): EZSQLException; virtual; abstract;
+    function LobTransactionEqualsToActiveTransaction(const Lob: IZInterbaseFirebirdLob): Boolean; virtual; abstract;
   protected
     procedure UnPrepareInParameters; override;
     procedure CheckParameterIndex(var Value: Integer); override;
@@ -939,8 +1224,17 @@ type
 
   TZAbstractInterbaseFirebirdCallableStatement = class(TZAbstractCallableStatement_A, IZCallableStatement)
   protected
+    /// <summary>creates an exceution Statement</summary>
+    /// <param>"Connection" the owner firebird/interbase-connection interface.</param>
+    /// <param>"SQL" the SQL to be prepared and executed.</param>
+    /// <param>"Params" a parameter list to setup behaviors.</param>
+    /// <returns>a TZAbstractPreparedStatement object.</returns>
     function InternalCreateExecutionStatement(const Connection: IZInterbaseFirebirdConnection;
       const SQL: String; Info: TStrings): TZAbstractPreparedStatement; virtual; abstract;
+    /// <summary>creates an exceution Statement. Which wraps the call.</summary>
+    /// <param>"StoredProcName" the name of the stored procedure or function to
+    ///  be called.</param>
+    /// <returns>a TZAbstractPreparedStatement object.</returns>
     function CreateExecutionStatement(const StoredProcName: String): TZAbstractPreparedStatement; override;
   end;
 
@@ -1118,19 +1412,11 @@ uses ZSysUtils, ZFastCode, ZEncoding, ZMessages, ZVariant,
 
 { TZInterbaseFirebirdDriver }
 
-{**
-  Creates a statement analyser object.
-  @returns a statement analyser object.
-}
 function TZInterbaseFirebirdDriver.GetStatementAnalyser: IZStatementAnalyser;
 begin
   Result := TZInterbaseStatementAnalyser.Create;
 end;
 
-{**
-  Gets a SQL syntax tokenizer.
-  @returns a SQL syntax tokenizer object.
-}
 function TZInterbaseFirebirdDriver.GetTokenizer: IZTokenizer;
 begin
   Result := TZInterbaseTokenizer.Create;
@@ -1270,14 +1556,10 @@ begin
   fTransactions.Add(nil);
 end;
 
-{**
-  Clears all warnings reported for this <code>Connection</code> object.
-  After a call to this method, the method <code>getWarnings</code>
-    returns null until a new warning is reported for this Connection.
-}
 procedure TZInterbaseFirebirdConnection.ClearWarnings;
 begin
-  FreeAndNil(FLastWarning);
+  if FLastWarning <> nil then
+    FreeAndNil(FLastWarning);
 end;
 
 procedure TZInterbaseFirebirdConnection.Commit;
@@ -1293,9 +1575,6 @@ begin
   end;
 end;
 
-{**
-  Constructs the connection string for the current connection
-}
 function TZInterbaseFirebirdConnection.ConstructConnectionString: SQLString;
 var
   Protocol: String;
@@ -1696,8 +1975,8 @@ var
 begin
   { usually first isc_status is gds_arg_gds .. }
   // exit if there is no error
-  StatusArg := StatusVector[1];
-  WarningArg := StatusVector[2];
+  StatusArg := StatusVector^[1];
+  WarningArg := StatusVector^[2];
   if (StatusArg = isc_arg_end) and (WarningArg = isc_arg_end) then begin
     Exit; //neither Warning nor an Error
   end;
@@ -1727,8 +2006,12 @@ begin
     then ExeptionClass := EZIBSQLException
     else case error_code of
       isc_network_error..isc_net_write_err, isc_lost_db_connection, isc_att_shut_idle,
-      isc_att_shut_db_down, isc_att_shut_engine: ExeptionClass := EZSQLConnectionLost
-      else ExeptionClass := EZIBSQLException;
+      isc_att_shut_db_down, isc_att_shut_engine, isc_att_shutdown: begin
+        ExeptionClass := EZSQLConnectionLost;
+        FConnectionLost := True;
+      end
+      else
+        ExeptionClass := EZIBSQLException;
     end;
   //used for clearing the current status vector, OTH, we permanently need a new IStatus, or IStatus.Init.
   FillChar(Pointer(OrgStatusVector)^, (PAnsiChar(StatusVector) - PAnsiChar(OrgStatusVector))+SizeOf(ISC_STATUS), #0);//init the vector again for FB3+
@@ -1774,6 +2057,7 @@ procedure TZInterbaseFirebirdConnection.InternalClose;
 var I: Integer;
   Txn: IZTransaction;
 begin
+  FConnectionLost := False;
   AutoCommit := not FRestartTransaction;
   if fTransactions <> nil then begin
     for I := fTransactions.Count -1 downto 0 do
@@ -1910,6 +2194,24 @@ begin
   FHardCommit := HC;
 end;
 {$IFDEF FPC} {$POP} {$ENDIF}
+
+procedure TZInterbaseFirebirdConnection.ReleaseImmediat(const Sender: IImmediatelyReleasable;
+  var AError: EZSQLConnectionLost);
+var I: Integer;
+  ImmediatelyReleasable: IImmediatelyReleasable;
+begin
+  try
+    inherited;
+  finally
+    if (fActiveTransaction <> nil) and Supports(fActiveTransaction, IImmediatelyReleasable, ImmediatelyReleasable)
+    and (ImmediatelyReleasable <> Sender) then
+      ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
+    for I:= fTransactions.Count - 1 downto 0 do
+      if Supports(IZTransaction(fTransactions[I]), IImmediatelyReleasable, ImmediatelyReleasable)
+      and (Sender <> ImmediatelyReleasable) then
+        ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
+  end;
+end;
 
 procedure TZInterbaseFirebirdConnection.ReleaseTransaction(
   const Value: IZTransaction);
@@ -2065,6 +2367,11 @@ begin
     raise EZSQLException.Create('no events registered');
 end;
 
+function TZInterbaseFirebirdConnection.GetConnectionLost: Boolean;
+begin
+  Result := FConnectionLost;
+end;
+
 { TZInterbaseFirebirdTransaction }
 
 procedure TZInterbaseFirebirdTransaction.AfterConstruction;
@@ -2118,18 +2425,18 @@ end;
 procedure TZInterbaseFirebirdTransaction.DeRegisterOpencursor(const CursorRS: IZResultSet);
 var I: Integer;
 begin
-  {$IFDEF DEBUG}Assert(FOpenCursors <> nil, 'Wrong DeRegisterOpenCursor beahvior'); {$ENDIF DEBUG}
+  {$IFDEF ZEOSDEBUG}Assert(FOpenCursors <> nil, 'Wrong DeRegisterOpenCursor beahvior'); {$ENDIF ZEOSDEBUG}
   I := FOpenCursors.IndexOf(Pointer(CursorRS));
-  {$IFDEF DEBUG}Assert(I > -1, 'Wrong DeRegisterOpenCursor beahvior'); {$ENDIF DEBUG}
+  {$IFDEF ZEOSDEBUG}Assert(I > -1, 'Wrong DeRegisterOpenCursor beahvior'); {$ENDIF ZEOSDEBUG}
   FOpenCursors.Delete(I);
 end;
 
 procedure TZInterbaseFirebirdTransaction.DeRegisterOpenUnCachedLob(const Lob: IZlob);
 var I: Integer;
 begin
-  {$IFDEF DEBUG}Assert(FOpenUncachedLobs <> nil, 'Wrong DeRegisterOpenUnCachedLob beahvior'); {$ENDIF DEBUG}
+  {$IFDEF ZEOSDEBUG}Assert(FOpenUncachedLobs <> nil, 'Wrong DeRegisterOpenUnCachedLob beahvior'); {$ENDIF ZEOSDEBUG}
   I := FOpenUncachedLobs.IndexOf(Pointer(Lob));
-  {$IFDEF DEBUG}Assert(I > -1, 'Wrong DeRegisterOpenUnCachedLob beahvior'); {$ENDIF DEBUG}
+  {$IFDEF ZEOSDEBUG}Assert(I > -1, 'Wrong DeRegisterOpenUnCachedLob beahvior'); {$ENDIF ZEOSDEBUG}
   FOpenUncachedLobs.Delete(I);
 end;
 
@@ -2185,6 +2492,9 @@ begin
     if Supports(IZBlob(FOpenUncachedLobs[i]), IImmediatelyReleasable, ImmediatelyReleasable) and
        (Sender <> ImmediatelyReleasable) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
+  ImmediatelyReleasable := FOwner;
+  if (Sender <> ImmediatelyReleasable) then
+    ImmediatelyReleasable.ReleaseImmediat(ImmediatelyReleasable, AError);
 end;
 
 procedure TZInterbaseFirebirdTransaction.SetAutoCommit(Value: Boolean);
@@ -2610,8 +2920,10 @@ begin
     then Len := CharOctedLength
     else Len := ZDbcUtils.GetAbsorbedTrailingSpacesLen(Result, CharOctedLength);
   end else begin
-    Result := @PISC_VARYING(sqldata).str[0];
     Len := PISC_VARYING(sqldata).strlen;
+    if Len = 0 
+    then Result := nil // in case of empty string data contains previous value, don't return it
+    else Result := @PISC_VARYING(sqldata).str[0];
   end;
 end;
 
@@ -2636,9 +2948,19 @@ begin
   inherited AfterClose;
 end;
 
+procedure TZAbstractInterbaseFirebirdResultSet.ReleaseImmediat(const Sender: IImmediatelyReleasable; 
+  var AError: EZSQLConnectionLost);
+begin
+  try
+    inherited;
+  finally
+    FreeAndNil(FGUIDProps);
+  end;
+end;
+
 {$IFDEF WITH_COLUMNS_TO_JSON}
-procedure TZAbstractInterbaseFirebirdResultSet.ColumnsToJSON(
-  JSONWriter: TJSONWriter; JSONComposeOptions: TZJSONComposeOptions);
+procedure TZAbstractInterbaseFirebirdResultSet.ColumnsToJSON(ResultsWriter: {$IFDEF MORMOT2}TResultsWriter{$ELSE}TJSONWriter{$ENDIF};
+  JSONComposeOptions: TZJSONComposeOptions);
 var L, H, I: Integer;
     P: Pointer;
     C: ISC_SHORT;
@@ -2646,7 +2968,7 @@ var L, H, I: Integer;
   procedure WConvert(P: PAnsiChar; L: ISC_SHORT; CP: word); //no _UStrClr in method
   begin
     FUniTemp := PRawToUnicode(P, L, CP);
-    JSONWriter.AddJSONEscapeW(Pointer(FUniTemp), Length(FUniTemp))
+    ResultsWriter.AddJSONEscapeW(Pointer(FUniTemp), Length(FUniTemp))
   end;
   procedure ReadUTF8CLob(Index: Integer);
   var Stream: TStream;
@@ -2670,7 +2992,7 @@ var L, H, I: Integer;
       GetMem(Buf, L);
       repeat
         R := Stream.Read(Buf^, L);
-        JSONWriter.AddJSONEscape(Buf, R); //is not #0 terminated
+        ResultsWriter.AddJSONEscape(Buf, R); //is not #0 terminated
         Dec(Size, R);
         if L > Size then
           L := Size;
@@ -2693,7 +3015,7 @@ var L, H, I: Integer;
     Blob := nil;
     try
       PW := CLob.GetPWideChar(FUniTemp, L);
-      JSONWriter.AddJSONEscapeW(PW, L); //is not #0 terminated
+      ResultsWriter.AddJSONEscapeW(PW, L); //is not #0 terminated
       FUniTemp := '';
     finally
       Clob := nil;
@@ -2707,89 +3029,89 @@ var L, H, I: Integer;
     Blob := IZResultSet(FWeakIZResultSetPtr).GetBlob(Index{$IFNDEF GENERIC_INDEX}+1{$ENDIF});
     try
       P := Blob.GetBuffer(FRawTemp, L); //base 64 can not be added in chunks ):
-      JSONWriter.WrBase64(P, L, True);
+      ResultsWriter.WrBase64(P, L, True);
       FRawTemp := '';
     finally
       Blob := nil;
     end;
   end;
 begin
-  if JSONWriter.Expand then
-    JSONWriter.Add('{');
-  if Assigned(JSONWriter.Fields) then
-    H := High(JSONWriter.Fields) else
-    H := High(JSONWriter.ColNames);
+  if ResultsWriter.Expand then
+    ResultsWriter.Add('{');
+  if Assigned(ResultsWriter.Fields) then
+    H := High(ResultsWriter.Fields) else
+    H := High(ResultsWriter.ColNames);
   for I := 0 to H do begin
-    if Pointer(JSONWriter.Fields) = nil then
+    if Pointer(ResultsWriter.Fields) = nil then
       C := I else
-      C := JSONWriter.Fields[i];
+      C := ResultsWriter.Fields[i];
     {$R-}
     with TZInterbaseFirebirdColumnInfo(ColumnsInfo[c]) do
       if (sqlind <> nil) and (sqlind^ = ISC_NULL) then
-        if JSONWriter.Expand then begin
+        if ResultsWriter.Expand then begin
           if not (jcsSkipNulls in JSONComposeOptions) then begin
-            JSONWriter.AddString(JSONWriter.ColNames[I]);
-            JSONWriter.AddShort('null,')
+            ResultsWriter.AddString(ResultsWriter.ColNames[I]);
+            ResultsWriter.AddShort('null,')
           end;
         end else
-          JSONWriter.AddShort('null,')
+          ResultsWriter.AddShort('null,')
       else begin
-        if JSONWriter.Expand then
-          JSONWriter.AddString(JSONWriter.ColNames[I]);
+        if ResultsWriter.Expand then
+          ResultsWriter.AddString(ResultsWriter.ColNames[I]);
         case sqltype of
           SQL_VARYING   : if ColumnCodePage = zCP_Binary {octets} then
-                            JSONWriter.WrBase64(@PISC_VARYING(sqldata).str[0], PISC_VARYING(sqldata).strlen, True)
+                            ResultsWriter.WrBase64(@PISC_VARYING(sqldata).str[0], PISC_VARYING(sqldata).strlen, True)
                           else begin
-                            JSONWriter.Add('"');
+                            ResultsWriter.Add('"');
                             if ColumnCodePage = zCP_UTF8
-                            then JSONWriter.AddJSONEscape(@PISC_VARYING(sqldata).str[0], PISC_VARYING(sqldata).strlen)
+                            then ResultsWriter.AddJSONEscape(@PISC_VARYING(sqldata).str[0], PISC_VARYING(sqldata).strlen)
                             else WConvert(@PISC_VARYING(sqldata).str[0], PISC_VARYING(sqldata).strlen, ColumnCodePage);
-                            JSONWriter.Add('"');
+                            ResultsWriter.Add('"');
                           end;
           SQL_TEXT      : if ColumnCodePage = zCP_Binary then
-                            JSONWriter.WrBase64(sqldata, CharOctedLength, True)
+                            ResultsWriter.WrBase64(sqldata, CharOctedLength, True)
                           else begin
-                            JSONWriter.Add('"');
+                            ResultsWriter.Add('"');
                             L := GetAbsorbedTrailingSpacesLen(PAnsiChar(sqldata), CharOctedLength);
                             if ColumnCodePage = zCP_UTF8
-                            then JSONWriter.AddJSONEscape(sqldata, L)
+                            then ResultsWriter.AddJSONEscape(sqldata, L)
                             else WConvert(sqldata, L, ColumnCodePage);
-                            JSONWriter.Add('"');
+                            ResultsWriter.Add('"');
                           end;
           SQL_D_FLOAT,
-          SQL_DOUBLE    : JSONWriter.AddDouble(PDouble(sqldata)^);
-          SQL_FLOAT     : JSONWriter.AddSingle(PSingle(sqldata)^);
+          SQL_DOUBLE    : ResultsWriter.AddDouble(PDouble(sqldata)^);
+          SQL_FLOAT     : ResultsWriter.AddSingle(PSingle(sqldata)^);
           SQL_SHORT     : if sqlscale = 0 then
-                            JSONWriter.Add(PISC_SHORT(sqldata)^)
+                            ResultsWriter.Add(PISC_SHORT(sqldata)^)
                           else begin
                             ScaledOrdinal2Raw(Integer(PISC_SHORT(sqldata)^), PAnsiChar(FByteBuffer), @P, -sqlscale);
-                            JSONWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer), PAnsiChar(P)-PAnsiChar(FByteBuffer));
+                            ResultsWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer), PAnsiChar(P)-PAnsiChar(FByteBuffer));
                           end;
           SQL_LONG      : if sqlscale = 0 then
-                            JSONWriter.Add(PISC_LONG(sqldata)^)
+                            ResultsWriter.Add(PISC_LONG(sqldata)^)
                           else begin
                             ScaledOrdinal2Raw(PISC_LONG(sqldata)^, PAnsiChar(FByteBuffer), @P, -sqlscale);
-                            JSONWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer), PAnsiChar(P)-PAnsiChar(FByteBuffer));
+                            ResultsWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer), PAnsiChar(P)-PAnsiChar(FByteBuffer));
                           end;
           SQL_INT64     : if (sqlscale = 0) then
-                            JSONWriter.Add(PISC_INT64(sqldata)^)
+                            ResultsWriter.Add(PISC_INT64(sqldata)^)
                           else if sqlScale = -4 then
-                            JSONWriter.AddCurr64({$IFDEF MORMOT2}PInt64(sqldata){$ELSE}PISC_INT64(sqldata)^{$ENDIF})
+                            ResultsWriter.AddCurr64({$IFDEF MORMOT2}PInt64(sqldata){$ELSE}PISC_INT64(sqldata)^{$ENDIF})
                           else begin
                             ScaledOrdinal2Raw(PISC_INT64(sqldata)^, PAnsiChar(FByteBuffer), @P, -sqlscale);
-                            JSONWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer), PAnsiChar(P)-PAnsiChar(FByteBuffer));
+                            ResultsWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer), PAnsiChar(P)-PAnsiChar(FByteBuffer));
                           end;
           SQL_TIMESTAMP : begin
                             if jcoMongoISODate in JSONComposeOptions then
-                              JSONWriter.AddShort('ISODate("')
+                              ResultsWriter.AddShort('ISODate("')
                             else if jcoDATETIME_MAGIC in JSONComposeOptions then
                               {$IFDEF MORMOT2}
-                              JSONWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
+                              ResultsWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
                               {$ELSE}
-                              JSONWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
+                              ResultsWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
                               {$ENDIF}
                             else
-                              JSONWriter.Add('"');
+                              ResultsWriter.Add('"');
                             isc_decode_date(PISC_TIMESTAMP(sqldata).timestamp_date,
                               TempDate.Year, TempDate.Month, Tempdate.Day);
                             DateToIso8601PChar(Pointer(FByteBuffer), True, TempDate.Year, TempDate.Month, TempDate.Day);
@@ -2797,72 +3119,72 @@ begin
                               TempDate.Hour, TempDate.Minute, Tempdate.Second, Tempdate.Fractions);
                             TimeToIso8601PChar(Pointer(PAnsiChar(FByteBuffer)+10), True, TempDate.Hour, TempDate.Minute,
                               TempDate.Second, TempDate.Fractions div 10, 'T', jcoMilliseconds in JSONComposeOptions);
-                            JSONWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer),19+(4*Ord(jcoMilliseconds in JSONComposeOptions)));
+                            ResultsWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer),19+(4*Ord(jcoMilliseconds in JSONComposeOptions)));
                             if jcoMongoISODate in JSONComposeOptions
-                            then JSONWriter.AddShort('Z")')
-                            else JSONWriter.Add('"');
+                            then ResultsWriter.AddShort('Z")')
+                            else ResultsWriter.Add('"');
                           end;
           SQL_QUAD,
           SQL_BLOB      : begin
                             if ColumnCodePage <> zCP_Binary then begin
-                              JSONWriter.Add('"');
+                              ResultsWriter.Add('"');
                               if ColumnCodePage = zCP_UTF8
                               then ReadUTF8CLob(C)
                               else ReadAsWCLob(C);
-                              JSONWriter.Add('"');
+                              ResultsWriter.Add('"');
                             end else ReadBlob(C);
                           end;
-          //SQL_ARRAY     : JSONWriter.AddShort('"Array"');
+          //SQL_ARRAY     : ResultsWriter.AddShort('"Array"');
           SQL_TYPE_TIME : begin
                             if jcoMongoISODate in JSONComposeOptions then
-                              JSONWriter.AddShort('ISODate("0000-00-00')
+                              ResultsWriter.AddShort('ISODate("0000-00-00')
                             else if jcoDATETIME_MAGIC in JSONComposeOptions then begin
                               {$IFDEF MORMOT2}
-                              JSONWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
+                              ResultsWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
                               {$ELSE}
-                              JSONWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
+                              ResultsWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
                               {$ENDIF}
                             end else
-                              JSONWriter.Add('"');
+                              ResultsWriter.Add('"');
                             isc_decode_time(PISC_TIME(sqldata)^, TempDate.Hour,
                               TempDate.Minute, Tempdate.Second, Tempdate.Fractions);
                             TimeToIso8601PChar(Pointer(FByteBuffer), True, TempDate.Hour, TempDate.Minute,
                               TempDate.Second,  TempDate.Fractions div 10, 'T', jcoMilliseconds in JSONComposeOptions);
-                            JSONWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer),9+(4*Ord(jcoMilliseconds in JSONComposeOptions)));
+                            ResultsWriter.AddNoJSONEscape(PAnsiChar(FByteBuffer),9+(4*Ord(jcoMilliseconds in JSONComposeOptions)));
                             if jcoMongoISODate in JSONComposeOptions
-                            then JSONWriter.AddShort('Z)"')
-                            else JSONWriter.Add('"');
+                            then ResultsWriter.AddShort('Z)"')
+                            else ResultsWriter.Add('"');
                           end;
           SQL_TYPE_DATE : begin
                             if jcoMongoISODate in JSONComposeOptions then
-                              JSONWriter.AddShort('ISODate("')
+                              ResultsWriter.AddShort('ISODate("')
                             else if jcoDATETIME_MAGIC in JSONComposeOptions then
                               {$IFDEF MORMOT2}
-                              JSONWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
+                              ResultsWriter.AddShorter(JSON_SQLDATE_MAGIC_QUOTE_STR)
                               {$ELSE}
-                              JSONWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
+                              ResultsWriter.AddNoJSONEscape(@JSON_SQLDATE_MAGIC_QUOTE_VAR,4)
                               {$ENDIF}
                             else
-                              JSONWriter.Add('"');
+                              ResultsWriter.Add('"');
                             isc_decode_date(PISC_DATE(sqldata)^, TempDate.Year, TempDate.Month, Tempdate.Day);
                             DateToIso8601PChar(Pointer(FByteBuffer), True, TempDate.Year, TempDate.Month, Tempdate.Day);
-                            JSONWriter.AddNoJSONEscape(Pointer(FByteBuffer),10);
+                            ResultsWriter.AddNoJSONEscape(Pointer(FByteBuffer),10);
                             if jcoMongoISODate in JSONComposeOptions
-                            then JSONWriter.AddShort('Z")')
-                            else JSONWriter.Add('"');
+                            then ResultsWriter.AddShort('Z")')
+                            else ResultsWriter.Add('"');
                           end;
-          SQL_BOOLEAN   : JSONWriter.AddShort(JSONBool[PISC_BOOLEAN(sqldata)^ <> 0]);
-          SQL_BOOLEAN_FB: JSONWriter.AddShort(JSONBool[PISC_BOOLEAN_FB(sqldata)^ <> 0]);
+          SQL_BOOLEAN   : ResultsWriter.AddShort(JSONBool[PISC_BOOLEAN(sqldata)^ <> 0]);
+          SQL_BOOLEAN_FB: ResultsWriter.AddShort(JSONBool[PISC_BOOLEAN_FB(sqldata)^ <> 0]);
           else          raise ZDbcUtils.CreateConversionError(C, ColumnType, stString);
         end;
-        JSONWriter.Add(',');
+        ResultsWriter.Add(',');
       end;
     {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
   end;
   if jcoEndJSONObject in JSONComposeOptions then begin
-    JSONWriter.CancelLastComma; // cancel last ','
-    if JSONWriter.Expand then
-      JSONWriter.Add('}');
+    ResultsWriter.CancelLastComma; // cancel last ','
+    if ResultsWriter.Expand then
+      ResultsWriter.Add('}');
   end;
 end;
 {$ENDIF WITH_COLUMNS_TO_JSON}
@@ -3006,15 +3328,6 @@ begin
   end;
 end;
 
-{**
-  Gets the value of the designated column in the current row
-  of this <code>ResultSet</code> object as
-  a <code>boolean</code>.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return the column value; if the value is SQL <code>NULL</code>, the
-    value returned is <code>false</code>
-}
 function TZAbstractInterbaseFirebirdResultSet.GetBoolean(ColumnIndex: Integer): Boolean;
 var
   P: PAnsiChar;
@@ -3593,14 +3906,6 @@ begin
   end;
 end;
 
-{**
-  Indicates if the value of the designated column in the current row
-  of this <code>ResultSet</code> object is Null.
-
-  @param columnIndex the first column is 1, the second is 2, ...
-  @return if the value is SQL <code>NULL</code>, the
-    value returned is <code>true</code>. <code>false</code> otherwise.
-}
 function TZAbstractInterbaseFirebirdResultSet.IsNull(ColumnIndex: Integer): Boolean;
 begin
   {$IFNDEF DISABLE_CHECKING}
@@ -4132,6 +4437,19 @@ begin
     FOrgTypeList.Clear;
     FreeAndNil(FOrgTypeList);
   end;
+  // cleanup memory of zombie statement
+  if FInParamDescripors <> nil then begin
+    FreeMem(FInParamDescripors);
+    FInParamDescripors := nil;
+  end;
+  if FInData <> nil then begin
+    FreeMem(FInData);
+    FInData := nil;
+  end;
+  if FOutData <> nil then begin
+    FreeMem(FOutData);
+    FOutData := nil;
+  end;
 end;
 
 procedure BindSQLDAInParameters(BindList: TZBindList;
@@ -4141,6 +4459,12 @@ var
   { array DML bindings }
   ZData: Pointer; //array entry
   ZArray: PZArray;
+  {small opt: keep the intfclr out of main code}
+  procedure SetLob(Stmt: TZAbstractFirebirdInterbasePreparedStatement;
+    ParamIndex: Integer; IntfPtr: Pointer; SQLType: TZSQLType);
+  begin
+    Stmt.SetBlob(ParamIndex, SQLType, IInterface(IntfPtr) as IZBlob);
+  end;
 begin
   ParamIndex := FirstDbcIndex;
   for J := ArrayOffSet to ArrayOffSet+ArrayItersCount-1 do
@@ -4177,7 +4501,7 @@ begin
                 vtUnicodeString: Stmt.SetUnicodeString(ParamIndex, TUnicodeStringDynArray(ZData)[j]);
                 vtCharRec: Stmt.SetCharRec(ParamIndex, TZCharRecDynArray(ZData)[j]);
                 else
-                  raise Exception.Create('Unsupported String Variant');
+                  raise EZSQLException.Create('Unsupported String Variant');
               end;
         stBytes:      Stmt.SetBytes(ParamIndex, TBytesDynArray(ZData)[j]);
         stDate:       if ZArray.VArrayVariantType = vtDate
@@ -4191,7 +4515,7 @@ begin
                       else Stmt.SetTimestamp(ParamIndex, TDateTimeDynArray(ZData)[j]);
         stAsciiStream,
         stUnicodeStream,
-        stBinaryStream: Stmt.SetBlob(ParamIndex, TZSQLType(ZArray.VArrayType), TInterfaceDynArray(ZData)[j] as IZBlob);
+        stBinaryStream: SetLob(Stmt, ParamIndex, TPointerDynArray(ZData)[j], TZSQLType(ZArray.VArrayType));
         else raise EZIBConvertError.Create(SUnsupportedParameterType);
       end;
       Inc(ParamIndex);
@@ -4331,7 +4655,11 @@ var
           else raise ZDbcUtils.CreateUnsupportedParameterTypeException(ParamIndex, stUnknown);
         end;
         SQLWriter.Finalize(TypeToken^);
+        {$IFDEF WITH_INLINE}
+        FTypeTokensLen := FTypeTokensLen + Cardinal(Length(TypeToken^));
+        {$ELSE}
         FTypeTokensLen := FTypeTokensLen + Cardinal(PLengthInt(NativeUInt(TypeToken^) - StringLenOffSet)^);
+        {$ENDIF}
       end;
     Finally
       FreeAndNil(SQLWriter);
@@ -4436,11 +4764,19 @@ begin
       Inc(PResult, Digits);
       IntToRaw(Cardinal(Row), PStmts, Digits);
       Inc(PStmts, Digits);
+      {$IFDEF WITH_INLINE}
+      LastStmLen := Cardinal(Length(TypeToken^));
+      {$ELSE}
       LastStmLen := Cardinal(PLengthInt(NativeUInt(TypeToken^) - StringLenOffSet)^);
+      {$ENDIF}
       Move(Pointer(TypeToken^)^, PResult^, LastStmLen);
       Inc(PResult, LastStmLen);
     end;
+    {$IFDEF WITH_INLINE}
+    InitialStmtLen := Cardinal(Length(fASQL)) - LastPos;
+    {$ELSE}
     InitialStmtLen := Cardinal(PLengthInt(NativeUInt(fASQL) - StringLenOffSet)^) - LastPos;
+    {$ENDIF}
     Move(P^, PStmts^, Integer(InitialStmtLen));
     Inc(PStmts, InitialStmtLen);
     PByte(PStmts)^ := Byte(';');
@@ -4634,6 +4970,7 @@ procedure TZAbstractFirebirdInterbasePreparedStatement.SetBlob(Index: Integer;
 var P: PAnsiChar;
   L: NativeUInt;
   IBLob: IZInterbaseFirebirdLob;
+  Clob: IZCLob absolute IBlob;
 label jmpNotNull;
 begin
   {$IFNDEF GENERIC_INDEX}Dec(Index);{$ENDIF}
@@ -4646,15 +4983,16 @@ begin
       BindList.SetNull(Index, ASQLType);
       P := nil;
       L := 0;//satisfy compiler
-    end else if Supports(Value, IZInterbaseFirebirdLob, IBLob) and ((sqltype = SQL_QUAD) or (sqltype = SQL_BLOB)) then begin
-      //sqldata := GetMemory(SizeOf(TISC_QUAD)); EH@Jan what's that? we have one big buffer as described by FB/IB.
-	  //Jan@EH: See commit message for Rev. 6595 + Ticket 429
+    // Deactivated because it can lead to errors when BLOBs are loaded from different connections or different transactions:
+    end else if Supports(Value, IZInterbaseFirebirdLob, IBLob) and (sqltype = SQL_BLOB) and LobTransactionEqualsToActiveTransaction(IBLob) then begin
+      Value.GetStream.Free;
+      IBLob.Open(lsmRead);
       PISC_QUAD(sqldata)^ := IBLob.GetBlobId;
       goto jmpNotNull;
     end else if (Value <> nil) and (codepage <> zCP_Binary) then
-      if Value.IsClob then begin
-        Value.SetCodePageTo(codepage);
-        P := Value.GetPAnsiChar(codepage, FRawTemp, L)
+      if Value.QueryInterface(IZClob, Clob) = S_OK then begin
+        //Clob.SetCodePageTo(codepage);
+        P := Clob.GetPAnsiChar(codepage, FRawTemp, L)
       end else raise CreateConversionError(Index, stBinaryStream)
     else P := Value.GetBuffer(FRawTemp, L);
     if P <> nil then begin
@@ -5020,10 +5358,10 @@ end;
   @param x the parameter value
 }
 procedure TZAbstractFirebirdInterbasePreparedStatement.SetInt(Index, Value: Integer);
-var P: PAnsiChar;
-    Digits: Byte;
-    IsNegative: Boolean;
-    C: Cardinal;
+//var P: PAnsiChar;
+//    Digits: Byte;
+//    IsNegative: Boolean;
+//    C: Cardinal;
 begin
   {$IFNDEF GENERIC_INDEX}Dec(Index);{$ENDIF}
   CheckParameterIndex(Index);
@@ -5048,6 +5386,7 @@ begin
                       else PISC_INT64(sqldata)^ := Value*IBScaleDivisor[sqlscale];
       SQL_TEXT,
       SQL_VARYING   : begin
+                        (*
                         Digits := GetOrdinalDigits(Value, C, IsNegative);
                         if (Digits+Byte(IsNegative)) > sqllen then begin
                           PISC_VARYING(sqldata).strlen := sqllen;
@@ -5059,6 +5398,9 @@ begin
                           Inc(P);
                         end;
                         IntToRaw(C, P, Digits);
+                        *)
+                        // Changing this fixes an error. See SF##541
+                        SetString(Index, ZFastCode.IntToStr(Value));
                       end;
       else raise CreateConversionError(Index, stInteger);
     end;
@@ -5077,10 +5419,10 @@ end;
 {$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "GetOrdinalDigits" marked as inline is not inlined}{$ENDIF}
 procedure TZAbstractFirebirdInterbasePreparedStatement.SetLong(Index: Integer;
   const Value: Int64);
-var U: UInt64;
-  P: PAnsiChar;
-  Digits: Byte;
-  IsNegative: Boolean;
+//var U: UInt64;
+//  P: PAnsiChar;
+//  Digits: Byte;
+//  IsNegative: Boolean;
 begin
   {$IFNDEF GENERIC_INDEX}Dec(Index);{$ENDIF}
   CheckParameterIndex(Index);
@@ -5105,6 +5447,7 @@ begin
                       else PISC_INT64(sqldata)^ := Value*IBScaleDivisor[sqlscale];
       SQL_TEXT,
       SQL_VARYING   : begin
+                        (*
                         Digits := GetOrdinalDigits(Value, U, IsNegative);
                         if (Digits+Byte(IsNegative)) > sqllen then begin
                           PISC_VARYING(sqldata).strlen := sqllen;
@@ -5116,6 +5459,9 @@ begin
                           Inc(P);
                         end;
                         IntToRaw(U, P, Digits);
+                        *)
+                        // Changing this fixes an error. See SF##541
+                        SetString(Index, ZFastCode.IntToStr(Value));
                       end;
       else raise CreateConversionError(Index, stLong);
     end;
@@ -5296,10 +5642,10 @@ begin
 end;
 
 procedure TZAbstractFirebirdInterbasePreparedStatement.SetSmall(Index: Integer; Value: SmallInt);
-var P: PAnsiChar;
-    W: Word;
-    Digits: Byte;
-    IsNegative: Boolean;
+//var P: PAnsiChar;
+//    W: Word;
+//    Digits: Byte;
+//    IsNegative: Boolean;
 begin
   {$IFNDEF GENERIC_INDEX}Dec(Index);{$ENDIF}
   CheckParameterIndex(Index);
@@ -5324,6 +5670,7 @@ begin
                       else PISC_INT64(sqldata)^ := Value*IBScaleDivisor[sqlscale];
       SQL_TEXT,
       SQL_VARYING   : begin
+                        (*
                         Digits := GetOrdinalDigits(Value, W, IsNegative);
                         if (Digits+Byte(IsNegative)) > sqllen then begin
                           PISC_VARYING(sqldata).strlen := sqllen;
@@ -5335,6 +5682,9 @@ begin
                           Inc(P);
                         end;
                         IntToRaw(W, P, Digits);
+                        *)
+                        // Changing this fixes an error. See SF##541
+                        SetString(Index, ZFastCode.IntToStr(Value));
                       end;
       else raise CreateConversionError(Index, stSmall);
     end;
@@ -5634,7 +5984,7 @@ begin
       Token := Tokens[I];
       if (Token.L = 1) and (Token.P^ = Char('?')) then begin
         if DoRealloc then
-          ReallocMem(FInParamDescripors, SizeOf(TZInterbaseFirerbirdParam)*(InParamCount+1));
+          ReallocMem(FInParamDescripors, SizeOf(TZInterbaseFirebirdParam)*(InParamCount+1));
         {$IFDEF UNICODE}
         if (FirstComposeToken <> nil) then begin
           Token := Tokens[I-1];

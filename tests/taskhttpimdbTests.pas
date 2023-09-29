@@ -1,4 +1,4 @@
-unit taskhttpimdbTests;
+﻿unit taskhttpimdbTests;
 
 interface
 
@@ -361,7 +361,7 @@ type
 implementation
 
 uses
-  SysUtils, taskhttpimdb, Generics.Collections, {$IFNDEF FPC}Types,{$ENDIF} Classes;
+  SysUtils, taskhttpimdb, dbaddimdb, Generics.Collections, {$IFNDEF FPC}Types,{$ENDIF} Classes;
 
 {$IFDEF FPC}
   {$R taskhttpimdbTests.rc}
@@ -571,8 +571,8 @@ begin
 
   CheckTrue(400 < fVotes, 'Votes mismatch');
   CheckTrue(5000 > fVotes, 'Votes mismatch');
-  CheckTrue(59 < fRating, 'Rating mismatch');
-  CheckTrue(61 > fRating, 'Rating mismatch');
+  CheckTrue(60 < fRating, 'Rating mismatch');
+  CheckTrue(62 > fRating, 'Rating mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt5667286.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
@@ -703,7 +703,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('USA,Canada,New Zealand', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('USA', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt3450958.TestParseMovieGenres;
@@ -739,10 +739,10 @@ begin
     CheckEqualsString('14 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[24];
-    CheckEqualsString('France', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('17 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Paris) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    fReleaseDateInfo := fReleaseDateInfoList[25];
+    CheckEqualsString('Poland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    CheckEqualsString('28 July 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -828,8 +828,8 @@ var
 begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fVotes, fRating);
 
-  CheckTrue(478000 < fVotes, 'Votes mismatch');
-  CheckTrue(495000 > fVotes, 'Votes mismatch');
+  CheckTrue(500000 < fVotes, 'Votes mismatch');
+  CheckTrue(520000 > fVotes, 'Votes mismatch');
   CheckTrue(80 < fRating, 'Rating mismatch');
   CheckTrue(86 > fRating, 'Rating mismatch');
 end;
@@ -870,22 +870,22 @@ begin
   try
     THtmlIMDbParser.ParseReleaseDateInfo(FReleasePage, fReleaseDateInfoList);
 
-    fReleaseDateInfo := fReleaseDateInfoList[0];
+    fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('29 August 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[3];
+    fReleaseDateInfo := fReleaseDateInfoList[4];
     CheckEqualsString('Norway', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('5 January 2006', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[7];
+    fReleaseDateInfo := fReleaseDateInfoList[8];
     CheckEqualsString('Japan', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('11 May 2006', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[16];
+    fReleaseDateInfo := fReleaseDateInfoList[17];
     CheckEqualsString('Switzerland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('7 June 2007', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(German speaking region)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
@@ -970,8 +970,8 @@ var
 begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fVotes, fRating);
 
-  CheckTrue(1000 < fVotes, 'Votes mismatch');
-  CheckTrue(1600 > fVotes, 'Votes mismatch');
+  CheckTrue(1500 < fVotes, 'Votes mismatch');
+  CheckTrue(1800 > fVotes, 'Votes mismatch');
   CheckTrue(39 < fRating, 'Rating mismatch');
   CheckTrue(47 > fRating, 'Rating mismatch');
 end;
@@ -1025,7 +1025,7 @@ begin
     fReleaseDateInfo := fReleaseDateInfoList[3];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('12 February 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Blu-ray and DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    CheckEqualsString('(DVD and Blu-ray and premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[5];
     CheckEqualsString('Netherlands', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
@@ -1411,7 +1411,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieGenres(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fGenresList);
 
-  CheckEqualsString('Animation,Action,Comedy,Family,Sci-Fi', fGenresList, 'Genre(s) mismatch');
+  CheckEqualsString('Animation,Action,Adventure,Comedy,Drama,Family,Fantasy,Sci-Fi', fGenresList, 'Genre(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseReleaseDateInfo;
@@ -1812,13 +1812,14 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetGroupSpecificLinks(FOverviewPage, fBOMGroupReleaseLinks);
 
-    CheckEquals(6, fBOMGroupReleaseLinks.Count, 'Count mismatch');
+    CheckEquals(7, fBOMGroupReleaseLinks.Count, 'Count mismatch');
     CheckEqualsString('/releasegroup/gr2193641989', fBOMGroupReleaseLinks.Items['Original Release'], 'Link mismatch');
     CheckEqualsString('/releasegroup/gr2210419205', fBOMGroupReleaseLinks.Items['1985 Re-release'], 'Link mismatch');
     CheckEqualsString('/releasegroup/gr2160087557', fBOMGroupReleaseLinks.Items['2011 Re-release'], 'Link mismatch');
     CheckEqualsString('/releasegroup/gr2176864773', fBOMGroupReleaseLinks.Items['30th Anniversary Release'], 'Link mismatch');
     CheckEqualsString('/releasegroup/gr2260750853', fBOMGroupReleaseLinks.Items['2019 Re-release'], 'Link mismatch');
     CheckEqualsString('/releasegroup/gr3449901573', fBOMGroupReleaseLinks.Items['2020 Re-release'], 'Link mismatch');
+    CheckEqualsString('/releasegroup/gr2091930117', fBOMGroupReleaseLinks.Items['2021 Re-release'], 'Link mismatch');
   finally
     fBOMGroupReleaseLinks.Free;
   end;

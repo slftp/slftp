@@ -61,6 +61,9 @@ function MD5DigestCompare(const Digest1, Digest2: TMD5Digest): Boolean;
 
 implementation
 
+{$R-}
+{$Q-}
+
 {
 Copyright (C) 1991-2, RSA Data Security, Inc. Created 1991. All
 rights reserved.

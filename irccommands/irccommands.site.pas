@@ -38,6 +38,7 @@ function IrcRecalcFreeslots(const netname, channel, params: String): boolean;
 function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean;
 function IrcSetReverseFxp(const netname, channel, params: String): boolean;
 function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
+function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -55,6 +56,12 @@ function _Bnctest(const Netname, Channel: String; s: TSite; tn: TTaskNotify; kil
 var
   l: TLoginTask;
 begin
+
+  //reset the working status to sstUnknown if it has been marked down by user,
+  //because else the Relogin will not take place.
+  if (s.WorkingStatus = sstMarkedAsDownByUser) then
+    s.WorkingStatus := sstUnknown;
+
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
     tn.tasks.Add(l);
@@ -305,7 +312,7 @@ begin
     Inc(i);
   end;
 
-  sites.Add(TSite.Create(sitename));
+  AddSite(TSite.Create(sitename));
 
   s := FindSiteByName(Netname, sitename);
   if s = nil then
@@ -451,7 +458,7 @@ begin
     end;
 
     try
-      sites.Delete(sites.IndexOf(s));
+      DeleteSite(s);
     except
       on E: Exception do
         irc_addtext(Netname, Channel, 'Remove <b>TSite Object</b> failed : %s', [E.Message]);
@@ -2073,8 +2080,8 @@ begin
           irc_addtext(Netname, Channel, Format('%s : %s', [ss.Name, ss.todotask.Name]));
         end;
 
-        irc_addtext(Netname, Channel, Format('%s : Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
-            [ss.Name, TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
+        irc_addtext(Netname, Channel, Format('%s (%s): Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
+            [ss.Name, SlotStatusToString(ss.Status), TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
       end;
     except
       on E: Exception do
@@ -2412,6 +2419,31 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> value for use site search on req fill is: %d', [fSite.Name, ord(fSite.UseSiteSearchOnReqFill)])
   else
     fSite.UseSiteSearchOnReqFill := boolean(fUseSiteSearch);
+
+  Result := True;
+end;
+
+function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fReducedSpeedstatWeight: Integer;
+  fSite: TSite;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fReducedSpeedstatWeight := StrToIntDef(SubString(params, ' ', 2), -1);
+  fSite := FindSiteByName(Netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  // only allow 0 and 1 as valid values
+  if ((fReducedSpeedstatWeight < 0) or (fReducedSpeedstatWeight > 1)) then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> value for reduced speedstat weight is: %d', [fSite.Name, ord(fSite.ReducedSpeedstatWeight)])
+  else
+    fSite.ReducedSpeedstatWeight := boolean(fReducedSpeedstatWeight);
 
   Result := True;
 end;
