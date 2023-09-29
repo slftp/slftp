@@ -101,7 +101,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, mormot.rest.sqlite3, mormot.core.unicode, DateUtils;
+  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, mormot.rest.sqlite3, mormot.core.unicode, DateUtils, SyncObjs;
 
 const
   section = 'stats';
