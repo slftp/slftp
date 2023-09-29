@@ -1146,7 +1146,9 @@ begin
     try
       if TaskAlreadyInQueue(t) then
       begin
-        t.ready := True;
+        TaskReady(t);
+        t.Free;
+        exit;
       end;
 
       tasks.Add(t);
