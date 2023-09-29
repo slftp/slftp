@@ -19,7 +19,7 @@ uses
   SysUtils, Classes, StrUtils, Math, Contnrs, irccommandsunit, irc, RegExpr, statsunit, mainthread,
   debugunit, tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
   console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
-  SynCommons, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
+  mormot.core.os, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
 
 const
   section = 'irccommands.general';

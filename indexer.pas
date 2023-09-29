@@ -16,7 +16,7 @@ implementation
 
 uses
   configunit, debugunit, DateUtils, SysUtils, console, slvision, slblowfish,
-  StrUtils, Classes, SyncObjs, dbhandler, SynDBSQLite3, SynDB;
+  StrUtils, Classes, SyncObjs, dbhandler, mormot.db.sql.sqlite3;
 
 const
   section = 'indexer';
@@ -35,19 +35,19 @@ end;
 
 procedure indexerAddRelease(const rls, site, section, path: String);
 var
-  fQuery: TQuery;
+  fQuery: TSqlDBSQLite3Statement;
 begin
   SQLite3Lock.Enter;
   try
-    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.SQL.Text := 'INSERT INTO rls (rls, sitename, section, path) VALUES (:release, :sitename, :section, :path)';
-      fQuery.ParamByName('release').AsString := rls;
-      fQuery.ParamByName('sitename').AsString := site;
-      fQuery.ParamByName('section').AsString := section;
-      fQuery.ParamByName('path').AsString := path;
+      fQuery.Prepare('INSERT INTO rls (rls, sitename, section, path) VALUES (?, ?, ?, ?)');
+      fQuery.BindTextS(1, rls);
+      fQuery.BindTextS(2, site);
+      fQuery.BindTextS(3, section);
+      fQuery.BindTextS(4, path);
       try
-        fQuery.ExecSQL;
+        fQuery.ExecutePrepared;
       except
         on e: Exception do
         begin
@@ -65,25 +65,25 @@ end;
 
 procedure indexerRemoveSiteSection(const site, section: String);
 var
-  fQuery: TQuery;
+  fQuery: TSqlDBSQLite3Statement;
 begin
   SQLite3Lock.Enter;
   try
-    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
       if section = '' then
       begin
-        fQuery.SQL.Text := 'DELETE FROM rls WHERE sitename = :sitename';
-        fQuery.ParamByName('sitename').AsString := site;
+        fQuery.Prepare('DELETE FROM rls WHERE sitename = ?');
+        fQuery.BindTextS(1, site);
       end
       else
       begin
-        fQuery.SQL.Text := 'DELETE FROM rls WHERE sitename = :sitename AND section = :section';
-        fQuery.ParamByName('sitename').AsString := site;
-        fQuery.ParamByName('section').AsString := section;
+        fQuery.Prepare('DELETE FROM rls WHERE sitename = ? AND section = ?');
+        fQuery.BindTextS(1, site);
+        fQuery.BindTextS(2, section);
       end;
       try
-        fQuery.ExecSQL;
+        fQuery.ExecutePrepared;
       except
         on e: Exception do
         begin
@@ -149,7 +149,7 @@ end;
 
 function indexerStat: String;
 var
-  fQuery: TQuery;
+  fQuery: TSqlDBSQLite3Statement;
   fAll, fCount: Integer;
 begin
   Result := '';
@@ -157,23 +157,16 @@ begin
 
   SQLite3Lock.Enter;
   try
-    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.SQL.Text := 'SELECT sitename, section, COUNT(*) FROM rls GROUP BY sitename, section ORDER BY sitename, section';
+      fQuery.Prepare('SELECT sitename, section, COUNT(*) FROM rls GROUP BY sitename, section ORDER BY sitename, section');
       try
-        fQuery.Open;
-
-        if not fQuery.IsEmpty then
+        fQuery.ExecutePrepared;
+        while fQuery.Step do
         begin
-          fQuery.First;
-
-          while not fQuery.Eof do
-          begin
-            fCount := fQuery.Fields[2].AsInteger;
-            Result := Result + Format('%s-%s=%d', [fQuery.FieldByName('sitename').AsString, fQuery.FieldByName('section').AsString, fCount]) + #13#10;
-            Inc(fAll, fCount);
-            fQuery.Next;
-          end;
+          fCount := fQuery.ColumnInt(2);
+          Result := Result + Format('%s-%s=%d', [fQuery.ColumnUtf8('sitename'), fQuery.ColumnUtf8('section'), fCount]) + #13#10;
+          Inc(fAll, fCount);
         end;
         Result := Result + 'Total: ' + IntToStr(fAll) + ' releases';
       except
@@ -193,29 +186,22 @@ end;
 
 function indexerQuery(var aRls: String): String;
 var
-  fQuery: TQuery;
+  fQuery: TSqlDBSQLite3Statement;
 begin
   Result := '';
 
   SQLite3Lock.Enter;
   try
-    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.SQL.Text := 'SELECT sitename, section, path, rls FROM rls WHERE rls = :release';
-      fQuery.ParamByName('release').AsString := aRls;
+      fQuery.Prepare('SELECT sitename, section, path, rls FROM rls WHERE rls = ?');
+      fQuery.BindTextS(1, aRls);
       try
-        fQuery.Open;
-
-        if not fQuery.IsEmpty then
+        fQuery.ExecutePrepared;
+        while fQuery.Step do
         begin
-          fQuery.First;
-
-          while not fQuery.Eof do
-          begin
-            Result := Result + fQuery.FieldByName('sitename').AsString + '-' + fQuery.FieldByName('section').AsString + '=' + fQuery.FieldByName('path').AsString + #13#10;
-            aRls := fQuery.FieldByName('rls').AsString;
-            fQuery.Next;
-          end;
+          Result := Result + fQuery.ColumnUtf8('sitename') + '-' + fQuery.ColumnUtf8('section') + '=' + fQuery.ColumnUtf8('path') + #13#10;
+          aRls := fQuery.ColumnUtf8('rls');
         end;
       except
         on e: Exception do
@@ -234,7 +220,7 @@ end;
 
 function indexerQueryPartially(var aRls: String; const aLimit: Integer): String;
 var
-  fQuery: TQuery;
+  fQuery: TSqlDBSQLite3Statement;
 begin
   Result := '';
 
@@ -244,23 +230,16 @@ begin
 
   SQLite3Lock.Enter;
   try
-    fQuery := TQuery.Create(indexesSQLite3DBCon.ThreadSafeConnection);
+    fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.SQL.Text := 'SELECT sitename, section, path, rls FROM rls WHERE rls LIKE :name ORDER BY rls LIMIT :limit';
-      fQuery.ParamByName('name').AsString := aRls;
-      fQuery.ParamByName('limit').AsInteger := aLimit;
+      fQuery.Prepare('SELECT sitename, section, path, rls FROM rls WHERE rls LIKE ? ORDER BY rls LIMIT ?');
+      fQuery.BindTextS(1, aRls);
+      fQuery.Bind(2, aLimit);
       try
-        fQuery.Open;
-
-        if not fQuery.IsEmpty then
+        fQuery.ExecutePrepared;
+        while fQuery.Step do
         begin
-          fQuery.First;
-
-          while not fQuery.Eof do
-          begin
-            Result := Result + fQuery.FieldByName('sitename').AsString + '-' + fQuery.FieldByName('section').AsString + '=' + fQuery.FieldByName('path').AsString + '/' + fQuery.FieldByName('rls').AsString + #13#10;
-            fQuery.Next;
-          end;
+          Result := Result + fQuery.ColumnUtf8('sitename') + '-' + fQuery.ColumnUtf8('section') + '=' + fQuery.ColumnUtf8('path') + '/' + fQuery.ColumnUtf8('rls') + #13#10;
         end;
       except
         on e: Exception do
