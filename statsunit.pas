@@ -722,7 +722,7 @@ begin
           fCleanDate := IncDay(Today(), config.ReadInteger(Section, 'delete_after_days', 0) * -1);
 
           // only delete 1000 at a time
-          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
+          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
           try
             ORMStatsDB.DB.TransactionBegin;
             try
