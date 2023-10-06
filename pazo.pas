@@ -53,7 +53,7 @@ type
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     FActiveTransfers: TStringList;
     FActiveTransfersCS: TCriticalSection;
-    function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
+    procedure Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>);
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
     function GetActiveTransferCount: Int32;
@@ -148,6 +148,8 @@ type
       @param(aSentByMe the file was sent or is being sent by me)
       @param(aIsComplete the file is complete) }
     procedure ParseDupe(const aNetname, aChannel: String; aDirlist: TDirlist; const aDir, aFilename: String; const aSentByMe, aIsComplete: boolean) overload;
+
+    procedure ParseDupe(const aNetname, aChannel: String; aDirlist: TDirList; const aDir: string; const aFilenames: TArray<String>; const aSentByMe, aIsComplete: boolean) overload;
 
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
@@ -519,7 +521,7 @@ begin
     dirlist.DirlistGaveUp := aGaveUp;
 end;
 
-function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
+procedure TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>);
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
@@ -531,12 +533,11 @@ var
   pm: TPazoMkdirTask;
   pr: TPazoRaceTask;
   pd: TPazoDirlistTask;
-  dde: TDirListEntry;
+  de, dde: TDirListEntry;
   s: TSite;
   fd: String;
-  fExtensionMatchSFV, fExtensionMatchNFO: boolean;
+  fExtensionMatchSFV, fExtensionMatchNFO, fTaskAddedForDestination: boolean;
 begin
-  Result := False;
   dst := nil;
   dstdl := nil;
   dde := nil;
@@ -560,17 +561,12 @@ begin
   else if s.max_dn = 0 then
     exit;
 
-  if (not de.Directory) then
-  begin
-    if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then exit;
-    if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then exit;
-  end;
-
   pazo.lastTouch := Now();
 
   // enumerate possible destinations
   for fDestination in destinations do
   begin
+    fTaskAddedForDestination := False;
     try
       dst := fDestination.PazoSite;
       dstrank := fDestination.Rank;
@@ -607,6 +603,19 @@ begin
           Break;
         end;
       end;
+
+         for de in aDirListEntries do
+      begin
+
+        if (not de.Directory) then
+        begin
+          if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then
+            Continue;
+          if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then
+            Continue;
+        end;
+
+
 
       // Find the dirlist for destination site
       try
@@ -801,7 +810,7 @@ begin
               if pr = NIL then
                 Debug(dpError, section, '[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr): NIL):');
               AddTask(pr);
-              Result := True;
+              fTaskAddedForDestination := True;
             except
               on e: Exception do
               begin
@@ -818,12 +827,20 @@ begin
               Break;
             end;
         end;
+        end;
     except
       on e: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (Loop): %s', [e.Message]));
         Break;
       end;
+    end;
+
+    // tasks were added for this destination, so fire the queue
+    if fTaskAddedForDestination then
+    begin
+      s.QueueSort;
+      s.QueueFire;
     end;
   end;
 end;
@@ -1633,17 +1650,7 @@ begin
       end;
 
       //do this outside dirlist_lock to avoid deadlocks
-      for de in fFoundDirListEntries do
-      begin
-        fTasksAdded := Tuzelj(netname, channel, dir, de) or fTasksAdded;
-      end;
-
-      if fTasksAdded then
-      begin
-        fSite := FindSiteByName('', Name);
-        fSite.QueueSort;
-        fSite.QueueFire;
-      end;
+      Tuzelj(netname, channel, dir, fFoundDirListEntries);
 
       for de in fRemovePazoRaceEntries do
       begin
@@ -1702,91 +1709,90 @@ begin
 end;
 
 procedure TPazoSite.ParseDupe(const aNetname, aChannel: String; aDirlist: TDirlist; const aDir, aFilename: String; const aSentByMe, aIsComplete: boolean);
-var
-  de: TDirlistEntry;
-  rrgx: TRegExpr;
-  fJustAdded: boolean;
-  fTasksAdded: boolean;
-  fSite: TSite;
 begin
-  fJustAdded := False;
-  fTasksAdded := False;
+  ParseDupe(aNetname, aChannel, aDirlist, aDir, [aFilename], aSentByMe, aIsComplete);
+end;
 
+procedure TPazoSite.ParseDupe(const aNetname, aChannel: String; aDirlist: TDirList; const aDir: string; const aFilenames: TArray<String>; const aSentByMe, aIsComplete: boolean);
+var
+  de: TDirListEntry;
+  rrgx: TRegExpr;
+  fFilesToRace: TList<TDirListEntry>;
+  fFilename: string;
+begin
+  //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
+  fFilesToRace := TList<TDirListEntry>.Create;
   try
-    aDirlist.dirlist_lock.Enter;
     try
-      if not aDirlist.IsValidFilenameCached(aFileName) then
-        exit;
-
-      de := aDirlist.Find(aFilename);
-      if de = nil then
-      begin
-        // this means that it has not been fired
-        de := TDirListEntry.Create(aFilename, aDirlist);
-        de.directory := False;
-        de.filesize := -1;
-
-        de.RegenerateSkiplist;
-        aDirlist.entries.AddObject(de.filename, de);
-        aDirlist.LastChanged := Now();
-      end;
-
-      if aIsComplete then
-      begin
-        if (de.filesize < 1) then
+      aDirlist.dirlist_lock.Enter;
+      try
+        for fFilename in aFilenames do
         begin
-          //try to get the actual file size from pazo
-          de.filesize := pazo.PFileSize(aDir, aFilename);
+          if not aDirlist.IsValidFilenameCached(fFilename) then
+            exit;
 
-          if (de.filesize < 1) then
+          de := aDirlist.Find(fFilename);
+          if de = nil then
           begin
-            //since the file is complete, it must have at least size 1.
-            de.filesize := 1;
+            // this means that it has not been fired
+            de := TDirListEntry.Create(fFilename, aDirlist);
+            de.Directory := False;
+            de.filesize := -1;
+
+            de.RegenerateSkiplist;
+            aDirlist.entries.AddObject(de.filename, de);
+            aDirlist.LastChanged := Now();
+          end;
+
+          if aIsComplete then
+          begin
+            if (de.filesize < 1) then
+            begin
+              //try to get the actual file size from pazo
+              de.filesize := pazo.PFileSize(aDir, fFilename);
+
+              if (de.filesize < 1) then
+              begin
+                //since the file is complete, it must have at least size 1.
+                de.filesize := 1;
+              end;
+            end;
+            de.IsBeingUploaded := False;
+          end;
+
+          if (de.Extension = '.sfv') then
+          begin
+            aDirlist.sfv_status := dlSFVFound;
+          end;
+
+          if aSentByMe then
+            de.RacedByMe := aSentByMe;
+
+          if (not de.IsOnSite) then
+          begin
+            de.IsOnSite := True;
+            if not de.skiplisted then
+              fFilesToRace.Add(de);
           end;
         end;
-        de.IsBeingUploaded := False;
+      finally
+        aDirlist.dirlist_lock.Leave;
       end;
 
-      if (de.Extension = '.sfv') then
+      //do this outside dirlist_lock to avoid deadlocks
+      Tuzelj(aNetname, aChannel, aDir, fFilesToRace);
+
+      for de in fFilesToRace do
+        RemovePazoRace(self, pazo.pazo_id, Name, aDir, fFilename);
+
+    except
+      on E: Exception do
       begin
-        aDirlist.sfv_status := dlSFVFound;
+        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
       end;
-
-      if aSentByMe then
-        de.RacedByMe := aSentByMe;
-
-      if (not de.IsOnSite) then
-      begin
-        de.IsOnSite := True;
-        fJustAdded := True;
-      end;
-    finally
-      aDirlist.dirlist_lock.Leave;
     end;
-
-    //do this outside dirlist_lock to avoid deadlocks
-    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
-    begin
-      fTasksAdded := Tuzelj(aNetname, aChannel, aDir, de) or fTasksAdded;
-    end;
-
-    if fTasksAdded then
-    begin
-      fSite := FindSiteByName('', Name);
-      fSite.QueueSort;
-      fSite.QueueFire;
-    end;
-
-    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
-    begin
-      RemovePazoRace(self, pazo.pazo_id, Name, aDir, aFilename);
-    end;
-
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
-    end;
+  finally
+    fFilesToRace.Free;
   end;
   //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
 end;
@@ -1831,10 +1837,7 @@ begin
       if not ParseXDupeResponseToFilenameList(aFullResponse, fFileList) then
         exit;
 
-      for fFilename in fFileList do
-      begin
-        ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False, False);
-      end;
+      ParseDupe(aNetname, aChannel, dl, aDir, fFileList.ToArray, False, False);
     finally
       fFileList.Free;
     end;
