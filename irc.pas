@@ -270,7 +270,7 @@ begin
   // okay it's not for the console
   try
     fIrcNetThread := FindIrcnetwork(netname);
-    if  not assigned(fIrcNetThread) then
+     if  not assigned(fIrcNetThread) then
      begin
        exit;
      end;
