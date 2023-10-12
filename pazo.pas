@@ -568,7 +568,7 @@ begin
 
       // ignore this destination if we don't want to upload there
       s := FindSiteByName('', dst.Name);
-      if (s.max_up = 0) then exit;
+      if (s.max_up = 0) then Continue;
 
       //if the destination is going sstTempDown during the race we would spam race tasks
       //avoid this and also check other down states just to be sure
