@@ -80,6 +80,7 @@ var
   enable_try_to_complete: boolean;
   try_to_complete_after: integer;
   kb_save_entries: integer;
+  kb_keep_entries: integer;
 
   rename_patterns: integer;
   taskpretime_mode: integer;
@@ -1039,7 +1040,6 @@ var
 begin
   kb_last_saved := Now();
   Debug(dpSpam, rsections, 'kb_Save');
-  seconds := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
   x := TEncStringList.Create(passphrase);
   try
     try
@@ -1048,7 +1048,7 @@ begin
         p := TPazo(kb_list.Objects[i]);
         if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
           (1 <> Pos('REQUEST-', kb_list[i])) and
-          (SecondsBetween(Now, p.added) < seconds)) then
+          (SecondsBetween(Now, p.added) < kb_keep_entries)) then
           x.Add(GetKbPazoInfoLine(p));
       end;
     except
@@ -1158,16 +1158,13 @@ begin
   kb_list := TStringList.Create;
   kb_list.CaseSensitive := False;
   kb_list.Duplicates := dupIgnore;
+  kb_list.OwnsObjects := True;
 
   kb_sections := TStringList.Create;
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
 
   rename_patterns := 4;
-
-  //xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  //  xin.ReadSection('sections', kb_sections);
-  //  xin.Free;
 
   kb_groupcheck_rls := THashedStringList.Create;
   kb_latest := THashedStringList.Create;
@@ -1180,7 +1177,8 @@ begin
   enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
   try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 450);
 
-  kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
+  kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 0);
+  kb_keep_entries := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
 end;
@@ -1423,6 +1421,7 @@ var
   i: integer;
   p: TPazo;
   fIncFillPazos: TList<TPazo>;
+  fIsSpecialKB, fLastTouchExceeded: boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   try
@@ -1432,26 +1431,15 @@ begin
         kb_lock.Enter;
         p := nil;
         try
-          for i := 0 to kb_list.Count - 1 do
+          for i := kb_list.Count - 1 downto 0 do
           begin
-            if kb_list[i].StartsWith('TRANSFER-') then
-              Continue;
-            if kb_list[i].StartsWith('REQUEST-') then
-              Continue;
-            if kb_list[i].StartsWith('INC-') then
-              Continue;
+            if i < 0 then
+              Break;
 
-            try
-              p := TPazo(kb_list.Objects[i]);
-            except
-              Continue;
-            end;
-            if p = nil then
-              Continue;
-            if p.rls = nil then
-              Continue;
+            fIsSpecialKB := kb_list[i].StartsWith('TRANSFER-') Or kb_list[i].StartsWith('REQUEST-') Or kb_list[i].StartsWith('INC-');
+            p := TPazo(kb_list.Objects[i]);
 
-            if enable_try_to_complete then
+            if enable_try_to_complete and not fIsSpecialKB then
             begin
               if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
               begin
@@ -1465,21 +1453,31 @@ begin
               end;
             end;
 
-            if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
+            fLastTouchExceeded := SecondsBetween(Now, p.lastTouch) > 3600;
+                        fLastTouchExceeded := SecondsBetween(Now, p.lastTouch) > 5;
+            if ((p.ready) and fLastTouchExceeded and (not p.stated) and (not p.cleared)) then
             begin
               RemovePazo(p.pazo_id);
 
-              try
-                RanksProcess(p);
-              except
-                on E: Exception do
-                begin
-                  Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+              if not fIsSpecialKB then
+              begin
+                try
+                  RanksProcess(p);
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+                  end;
                 end;
               end;
 
               p.Clear;
               p.stated := True;
+            end;
+
+            if p.cleared and p.stated and fLastTouchExceeded and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
+            begin
+              kb_list.Delete(i);
             end;
           end;
         finally
@@ -1517,7 +1515,6 @@ begin
         end;
       end;
 
-      //sleep(900);
       kbevent.WaitFor(5000);
     end;
   finally
