@@ -153,7 +153,6 @@ type
 
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
-    function Allfiles: String;
     procedure SetComplete(const cdno: String);
     function StatusText: String;
     procedure Clear;
@@ -208,9 +207,6 @@ type
     sl: TSkipList;
 
     added: TDateTime;
-
-    //global dirlist
-    main_dirlist: TDirlist;
 
     // Integers with locking and event
     queuenumber: TIdThreadSafeInt32WithEvent;
@@ -994,7 +990,6 @@ begin
   dirlisttasks := TIdThreadSafeInt32.Create;
   racetasks := TIdThreadSafeInt32.Create;
   mkdirtasks := TIdThreadSafeInt32.Create;
-  main_dirlist := nil;
 
   readyerror := False;
   PazoSitesList := TObjectList<TPazoSite>.Create(True);
@@ -1018,6 +1013,7 @@ end;
 destructor TPazo.Destroy;
 begin
   Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  Clear;
   PazoSitesList.Free;
   queuenumber.Free;
   dirlisttasks.Free;
@@ -1224,7 +1220,6 @@ begin
     errorreason := '';
     FUniqueFileListOfRelease.Clear;
     PazoSitesList.Clear;
-    main_dirlist := nil;
 
     self.cleared := True;
   except
@@ -2048,16 +2043,6 @@ begin
   Result.TrimRight;
 
   Result := Result + #13#10;
-end;
-
-function TPazoSite.Allfiles: String;
-begin
-  Result := Name;
-
-  if ((status = rssRealPre) and (pazo.main_dirlist <> self.dirlist)) then
-    Result := Format('%s-%d', [Name, pazo.main_dirlist.Done])
-  else if dirlist <> nil then
-    Result := Format('%s-%d', [Name, dirlist.Done]);
 end;
 
 function TPazoSite.StatusText: String;
