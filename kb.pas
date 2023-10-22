@@ -1454,7 +1454,6 @@ begin
             end;
 
             fLastTouchExceeded := SecondsBetween(Now, p.lastTouch) > 3600;
-                        fLastTouchExceeded := SecondsBetween(Now, p.lastTouch) > 5;
             if ((p.ready) and fLastTouchExceeded and (not p.stated) and (not p.cleared)) then
             begin
               RemovePazo(p.pazo_id);
