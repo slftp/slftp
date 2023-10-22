@@ -1157,7 +1157,7 @@ begin
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
 
-  kb_list := TStringList.Create;
+  kb_list := TStringList.Create(True);
   kb_list.CaseSensitive := False;
   kb_list.Duplicates := dupIgnore;
   kb_list.OwnsObjects := True;
@@ -1423,7 +1423,12 @@ var
   i: integer;
   p: TPazo;
   fIncFillPazos, fFinishedPazos: TList<TPazo>;
-  fIsSpecialKB, fLastTouchExceeded: boolean;
+
+  function IsSpecialKB(const aPazoName: string): boolean;
+  begin
+    Result := aPazoName.StartsWith('TRANSFER-') Or aPazoName.StartsWith('REQUEST-') Or aPazoName.StartsWith('INC-');
+  end;
+
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
@@ -1439,10 +1444,9 @@ begin
             if i < 0 then
               Break;
 
-            fIsSpecialKB := kb_list[i].StartsWith('TRANSFER-') Or kb_list[i].StartsWith('REQUEST-') Or kb_list[i].StartsWith('INC-');
             p := TPazo(kb_list.Objects[i]);
 
-            if enable_try_to_complete and not fIsSpecialKB then
+            if enable_try_to_complete and not IsSpecialKB(kb_list[i]) then
             begin
               if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
               begin
@@ -1457,7 +1461,7 @@ begin
               fFinishedPazos.Add(p);
             end;
 
-            if p.cleared and p.stated and fLastTouchExceeded and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
+            if p.stated and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
             end;
