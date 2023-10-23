@@ -1419,16 +1419,12 @@ procedure TKBThread.Execute;
 var
   i: integer;
   p: TPazo;
-  fIncFillPazos, fFinishedPazos: TList<TPazo>;
-
-  function IsSpecialKB(const aPazoName: string): boolean;
-  begin
-    Result := aPazoName.StartsWith('TRANSFER-') Or aPazoName.StartsWith('REQUEST-') Or aPazoName.StartsWith('INC-');
-  end;
-
+  fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos: TList<TPazo>;
+  fIsSpecialKB: boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
+  fFinishedRankCalcPazos := TList<TPazo>.Create;
   try
     while (not slshutdown) do
     begin
@@ -1442,8 +1438,9 @@ begin
               Break;
 
             p := TPazo(kb_list.Objects[i]);
+            fIsSpecialKB := kb_list[i].StartsWith('TRANSFER-') Or kb_list[i].StartsWith('REQUEST-') Or kb_list[i].StartsWith('INC-');
 
-            if enable_try_to_complete and not IsSpecialKB(kb_list[i]) then
+            if enable_try_to_complete and not fIsSpecialKB then
             begin
               if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
               begin
@@ -1454,8 +1451,13 @@ begin
             if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
             begin
               fFinishedPazos.Add(p);
+              if not fIsSpecialKB then
+              begin
+                fFinishedRankCalcPazos.Add(p);
+              end;
             end;
 
+            // finally if the pazo has been cleared and the time to keep it has been reached, delete it from the kb_list
             if p.stated and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
@@ -1482,12 +1484,15 @@ begin
         for p in fFinishedPazos do
         begin
           RemovePazo(p.pazo_id);
-          try
-            RanksProcess(p);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+          if (fFinishedRankCalcPazos.Contains(p)) then
+          begin
+            try
+              RanksProcess(p);
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+              end;
             end;
           end;
 
@@ -1495,6 +1500,7 @@ begin
           p.stated := True;
         end;
         fFinishedPazos.Clear;
+        fFinishedRankCalcPazos.Clear;
 
       except
         on e: Exception do
@@ -1525,6 +1531,7 @@ begin
   finally
     fIncFillPazos.Free;
     fFinishedPazos.Free;
+    fFinishedRankCalcPazos.Free;
   end;
 end;
 
