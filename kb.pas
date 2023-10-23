@@ -1450,7 +1450,7 @@ begin
               end;
             end;
 
-            if ((p.ready) and fLastTouchExceeded and (not p.stated) and (not p.cleared)) then
+            if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
             begin
               fFinishedPazos.Add(p);
               if not fIsSpecialKB then
