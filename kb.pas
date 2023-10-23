@@ -1027,7 +1027,6 @@ end;
 procedure kb_Save;
 var
   i: integer;
-  seconds: integer;
   x: TEncStringList;
   p: TPazo;
 
@@ -1157,7 +1156,7 @@ begin
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
 
-  kb_list := TStringList.Create(True);
+  kb_list := TStringList.Create;
   kb_list.CaseSensitive := False;
   kb_list.Duplicates := dupIgnore;
   kb_list.OwnsObjects := True;
