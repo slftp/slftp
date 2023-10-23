@@ -1450,8 +1450,6 @@ begin
               end;
             end;
 
-            fLastTouchExceeded := SecondsBetween(Now, p.lastTouch) > 3600;
-                        fLastTouchExceeded := SecondsBetween(Now, p.lastTouch) > 5;
             if ((p.ready) and fLastTouchExceeded and (not p.stated) and (not p.cleared)) then
             begin
               fFinishedPazos.Add(p);
@@ -1487,11 +1485,7 @@ begin
         for p in fFinishedPazos do
         begin
           RemovePazo(p.pazo_id);
-<<<<<<< HEAD
-          if not fIsSpecialKB then
-=======
           if (fFinishedRankCalcPazos.Contains(p)) then
->>>>>>> kb_execute_removepazo_outside_kb_lock
           begin
             try
               RanksProcess(p);
