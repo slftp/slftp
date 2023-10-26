@@ -1157,7 +1157,7 @@ begin
   kb_list := TStringList.Create;
   kb_list.CaseSensitive := False;
   kb_list.Duplicates := dupIgnore;
-  kb_list.OwnsObjects := True;
+  kb_list.OwnsObjects := False;
 
   kb_sections := TStringList.Create;
   kb_sections.Sorted := True;
@@ -1419,12 +1419,13 @@ procedure TKBThread.Execute;
 var
   i: integer;
   p: TPazo;
-  fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos: TList<TPazo>;
+  fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos, fDeletedPazos: TList<TPazo>;
   fIsSpecialKB, fTryToCompleteTimeReached: boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
   fFinishedRankCalcPazos := TList<TPazo>.Create;
+  fDeletedPazos := TList<TPazo>.Create;
   try
     while (not slshutdown) do
     begin
@@ -1463,6 +1464,7 @@ begin
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
+              fDeletedPazos.Add(p);
             end;
 
           end;
@@ -1504,6 +1506,19 @@ begin
         fFinishedPazos.Clear;
         fFinishedRankCalcPazos.Clear;
 
+        for p in fDeletedPazos do
+        begin
+          try
+            p.Free;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute FreePazo: %s', [e.Message]);
+            end;
+          end;
+        end;
+        fDeletedPazos.Clear;
+
       except
         on e: Exception do
         begin
@@ -1534,6 +1549,7 @@ begin
     fIncFillPazos.Free;
     fFinishedPazos.Free;
     fFinishedRankCalcPazos.Free;
+    fDeletedPazos.Free;
   end;
 end;
 
