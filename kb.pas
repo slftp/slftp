@@ -1422,7 +1422,7 @@ var
   i: integer;
   p: TPazo;
   fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos: TList<TPazo>;
-  fIsSpecialKB: boolean;
+  fIsSpecialKB, fTryToCompleteTimeReached: boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
@@ -1441,10 +1441,12 @@ begin
 
             p := TPazo(kb_list.Objects[i]);
             fIsSpecialKB := kb_list[i].StartsWith('TRANSFER-') Or kb_list[i].StartsWith('REQUEST-') Or kb_list[i].StartsWith('INC-');
+            fTryToCompleteTimeReached := True;
 
             if enable_try_to_complete and not fIsSpecialKB then
             begin
-              if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+              fTryToCompleteTimeReached := (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after);
+              if ((not p.ExcludeFromIncfiller) and (not p.stopped) and fTryToCompleteTimeReached) then
               begin
                 fIncFillPazos.Add(p);
               end;
@@ -1460,7 +1462,7 @@ begin
             end;
 
             // finally if the pazo has been cleared and the time to keep it has been reached, delete it from the kb_list
-            if p.stated and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
+            if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
             end;
