@@ -582,9 +582,9 @@ begin
         if error then exit;
         if dst.error then Continue;
 
-        // ignore this destination if we don't want to upload there
-        s := FindSiteByName('', dst.Name);
-        if (s.max_up = 0) then exit;
+      // ignore this destination if we don't want to upload there
+      s := FindSiteByName('', dst.Name);
+      if (s.max_up = 0) then Continue;
 
         //if the destination is going sstTempDown during the race we would spam race tasks
         //avoid this and also check other down states just to be sure
