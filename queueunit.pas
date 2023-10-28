@@ -919,12 +919,10 @@ end;
 procedure TQueueThread.QueueEmpty(const sitename: String);
 var
   t: TTask;
-  fSetDownPazo: TDictionary<TPazo, integer>;
+  fSetDownPazo: TList<TPazo>;
   fPazo: TPazo;
 begin
-  Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
-
-  fSetDownPazo := TDictionary<TPazo, integer>.Create;
+  fSetDownPazo := TList<TPazo>.Create;
   try
     try
       for t in tasks.LockList do
@@ -932,14 +930,14 @@ begin
         if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
           t.readyerror := True;
 
-        if (t is TPazoTask) then
-          fSetDownPazo.AddOrSetValue(TPazoTask(t).mainpazo, 0);
+        if (t is TPazoTask) and not fSetDownPazo.Contains(TPazoTask(t).mainpazo) then
+          fSetDownPazo.Add(TPazoTask(t).mainpazo);
       end;
     finally
-      tasks.UnLockList;
+      tasks.UnlockList;
     end;
 
-    for fPazo in fSetDownPazo.Keys do
+    for fPazo in fSetDownPazo do
     begin
       fPazo.SiteDown(sitename);
     end;

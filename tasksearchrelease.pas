@@ -60,7 +60,7 @@ begin
         else
         begin
           if FAnnounceCWDFailure then
-            irc_Addadmin(Format('<c8>[SITESEARCH]</c> Cannot CDW into path on %s: %s (%s)', [site1, fPath, fSlot.lastResponse]));
+            irc_Addadmin(Format('<c8>[SITESEARCH]</c> Cannot CWD into path on %s: %s (%s)', [site1, fPath, fSlot.lastResponse]));
         end;
       end;
     finally
