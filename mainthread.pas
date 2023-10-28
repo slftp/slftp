@@ -56,7 +56,8 @@ uses
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
-  StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto;
+  StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto,
+  taskautodirlist;
 
 {$I slftp.inc}
 
@@ -302,6 +303,8 @@ begin
   SpeedTestInit;
   console_addline('Admin', 'Init Global Skiplist', True);
   Initglobalskiplist;
+  console_addline('Admin', 'Init Autodirlist', True);
+  AutoDirlistInit;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
@@ -581,6 +584,7 @@ begin
   dbaddimdbUnInit;
   dbtvinfoUnInit;
   NewsUnInit;
+  AutodirlistUninit;
 
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then

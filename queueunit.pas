@@ -1288,7 +1288,7 @@ end;
 function TQueueThread.RemovePazo(const pazo_id: integer): boolean;
 var
   i: integer;
-  t: TPazoTask;
+  t: TPazoPlainTask;
   fTask: TTask;
 begin
   Result := False;
@@ -1299,14 +1299,17 @@ begin
       for fTask in tasks.LockList() do
       begin
         try
-          if fTask is TPazoTask then
+          if fTask is TPazoPlainTask then
           begin
             t := TPazoTask(fTask);
             if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
               t.readyerror := True;
           end;
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] RemovePazo (loop): %s', [e.Message]));
+          end;
         end;
       end;
     finally
