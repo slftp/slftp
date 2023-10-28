@@ -1180,7 +1180,7 @@ end;
 function RemovePazo(const pazo_id: integer): boolean;
 var
   i: integer;
-  t: TPazoTask;
+  t: TPazoPlainTask;
 begin
   Result := False;
   try
@@ -1191,18 +1191,18 @@ begin
         try
           if i < 0 then
             Break;
-        except
-          Break;
-        end;
-        try
-          if tasks[i] is TPazoTask then
+
+          if tasks[i] is TPazoPlainTask then
           begin
-            t := TPazoTask(tasks[i]);
+            t := TPazoPlainTask(tasks[i]);
             if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
               t.readyerror := True;
           end;
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] RemovePazo (loop): %s', [e.Message]));
+          end;
         end;
       end;
     finally
