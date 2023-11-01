@@ -1211,7 +1211,7 @@ end;
 procedure TPazo.Clear;
 begin
   try
-    RemovePazo(pazo_id);
+    RemovePazo(pazo_id, True);
 
     FExcludeFromIncfiller := False;
     stopped := False; // ha stoppoltak korabban akkor ez most szivas

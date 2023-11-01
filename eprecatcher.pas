@@ -54,11 +54,7 @@ end;
 
 constructor TEPrecatcherThread.Create;
 begin
-  {$IFDEF DEBUG}
-    inherited Create('ExternalPreCatcher', True);
-  {$ELSE}
-    inherited Create(True);
-  {$ENDIF}
+  inherited Create('ExternalPreCatcher', True);
 
   if not BindHost(config.ReadString(rsections, 'bindhost', '')) then
     Debug(dpError, rsections, error);
