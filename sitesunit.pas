@@ -1012,11 +1012,7 @@ begin
   // segfault because values aren't initialized yet
   // * the calls below should normally be at top of this function to avoid overwriting/resetting
   // * of class values by its ancestor
-  {$IFDEF DEBUG}
     inherited Create(Name, False);
-  {$ELSE}
-    inherited Create(False);
-  {$ENDIF}
 
   debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
