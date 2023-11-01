@@ -30,7 +30,7 @@ procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 
-function RemovePazo(const pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
@@ -1177,7 +1177,7 @@ begin
   end;
 end;
 
-function RemovePazo(const pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 var
   i: integer;
   t: TPazoPlainTask;
@@ -1195,8 +1195,26 @@ begin
           if tasks[i] is TPazoPlainTask then
           begin
             t := TPazoPlainTask(tasks[i]);
-            if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
-              t.readyerror := True;
+            if ((t.pazo_id = pazo_id)) then
+            begin
+              if t.slot1 = nil then
+              begin
+                t.readyerror := True;
+              end
+              else if aForce then
+              begin
+                Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
+                t.readyerror := True;
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  with TSiteSlot(t.slot1) do
+                  begin
+                    Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [Name]));
+                    site.RebuildSlot(SlotNumber);
+                  end;
+                end;
+              end;
+            end;
           end;
         except
           on E: Exception do
