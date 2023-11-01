@@ -139,7 +139,7 @@ var
 
 implementation
 
-uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc;;
+uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc;
 
 
 var sltcp_lock: TCriticalSection;
