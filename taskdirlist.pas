@@ -49,7 +49,7 @@ ujra:
   inc(numerrors);
   if numerrors > 3 then
   begin
-    Debug(dpError, section, Format('ERROR: numerrors > 3 for %s @ %s', [dir, s.Name]));
+    Debug(dpMessage, section, Format('ERROR: numerrors > 3 for %s @ %s', [dir, s.Name]));
     readyerror := True;
     exit;
   end;
@@ -68,7 +68,7 @@ ujra:
       goto ujra;
 
     // could not list directory
-    Debug(dpError, section, Format('ERROR: can not dirlist dir %s on %s with forcecwd value %s', [dir, site1, BoolToStr(forcecwd, True)]));
+    Debug(dpMessage, section, Format('ERROR: can not dirlist dir %s on %s with forcecwd value %s', [dir, site1, BoolToStr(forcecwd, True)]));
     readyerror := True;
     exit;
   end;
