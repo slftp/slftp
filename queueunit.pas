@@ -1205,7 +1205,7 @@ begin
               begin
                 Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
                 t.readyerror := True;
-                if TSiteSlot(t.slot1).todotask = t then
+                if (t.slot1 <> nil) and (TSiteSlot(t.slot1).todotask = t) then
                 begin
                   with TSiteSlot(t.slot1) do
                   begin
