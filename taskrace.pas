@@ -1138,7 +1138,7 @@ var
   RequireSSL, fUseReverseFXP, fNeedsImmediateRETR: boolean;
   host: String;
   port: integer;
-  FileSendByMe: boolean;
+  FileSendByMe, fIsTransferStuck: boolean;
   numerrors: integer;
   started, ended: TDateTime;
   time_race: integer;
@@ -1149,6 +1149,8 @@ var
   fsize, racebw: double;
   lastResponseCode: integer;
   lastResponse: String;
+  fDirlist: TDirlist;
+  fDirlistEntry: TDirlistEntry;
 
   procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
   begin
@@ -1190,6 +1192,7 @@ begin
   sdst := slot2;
   numerrors := 0;
   tname := Name;
+  fIsTransferStuck := False;
 
   if mainpazo.stopped then
   begin
@@ -2410,6 +2413,38 @@ begin
 
     if ((rsd) and (rss)) then
       Break;
+
+    if not fIsTransferStuck and (SecondsBetween(Now, started) > 3) then // after 3 seconds, check if the transfer is stuck
+    begin
+      fDirlist := ps2.dirlist.FindDirlist(dir);
+      fDirlist.dirlist_lock.Enter;
+      try
+        fDirlistEntry := fDirlist.Find(filename);
+        if MillisecondsBetween(Now, fDirlistEntry.timestamp) < 100 then // the dirlist is fairly up to date
+        begin
+          if not fDirlistEntry.IsOnSite then
+          begin
+            fIsTransferStuck := True;
+            irc_Addadmin(Format('<c4>[STUCK] File no longer exists in dirlist:</c> %s', [tname]));
+            Debug(dpError, c_section, Format('[STUCK] File no longer exists in dirlist:< %s', [tname]));
+          end
+          else if not sdst.site.UserName.StartsWith(fDirlistEntry.FUsername, True) then
+          begin
+            fIsTransferStuck := True;
+            irc_Addadmin(Format('<c4>[STUCK] File shows up in dirlist with different user:</c> %s %s', [fDirlistEntry.FUsername, tname]));
+            Debug(dpError, c_section, Format('[STUCK] File shows up in dirlist with different user:< %s %s', [fDirlistEntry.FUsername, tname]));
+          end
+          else if fDirlistEntry.filesize = 0 then
+          begin
+            fIsTransferStuck := True;
+            irc_Addadmin(Format('<c4>[STUCK] Transfer stuck at 0 bytes:</c> %s', [tname]));
+            Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes:< %s', [tname]));
+          end;
+        end;
+      finally
+        fDirlist.dirlist_lock.Leave;
+      end;
+    end;
 
     if (SecondsBetween(Now, started) > 600) then
     begin
