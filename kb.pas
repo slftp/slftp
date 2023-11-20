@@ -80,6 +80,7 @@ var
   enable_try_to_complete: boolean;
   try_to_complete_after: integer;
   kb_save_entries: integer;
+  kb_keep_entries: integer;
 
   rename_patterns: integer;
   taskpretime_mode: integer;
@@ -1044,7 +1045,6 @@ end;
 procedure kb_Save;
 var
   i: integer;
-  seconds: integer;
   x: TEncStringList;
   p: TPazo;
 
@@ -1059,7 +1059,6 @@ var
 begin
   kb_last_saved := Now();
   Debug(dpSpam, rsections, 'kb_Save');
-  seconds := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
   x := TEncStringList.Create(passphrase);
   try
     try
@@ -1068,7 +1067,7 @@ begin
         p := TPazo(kb_list.Objects[i]);
         if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
           (1 <> Pos('REQUEST-', kb_list[i])) and
-          (SecondsBetween(Now, p.added) < seconds)) then
+          (SecondsBetween(Now, p.added) < kb_keep_entries)) then
           x.Add(GetKbPazoInfoLine(p));
       end;
     except
@@ -1178,16 +1177,13 @@ begin
   kb_list := TStringList.Create;
   kb_list.CaseSensitive := False;
   kb_list.Duplicates := dupIgnore;
+  kb_list.OwnsObjects := False;
 
   kb_sections := TStringList.Create;
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
 
   rename_patterns := 4;
-
-  //xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
-  //  xin.ReadSection('sections', kb_sections);
-  //  xin.Free;
 
   kb_groupcheck_rls := THashedStringList.Create;
   kb_latest := THashedStringList.Create;
@@ -1200,7 +1196,8 @@ begin
   enable_try_to_complete := config.ReadBool(rsections, 'enable_try_to_complete', False);
   try_to_complete_after := config.ReadInteger(rsections, 'try_to_complete_after', 450);
 
-  kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 3600);
+  kb_save_entries := config.ReadInteger(rsections, 'kb_save_entries', 0);
+  kb_keep_entries := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
 end;
@@ -1442,10 +1439,13 @@ procedure TKBThread.Execute;
 var
   i: integer;
   p: TPazo;
-  fIncFillPazos, fFinishedPazos: TList<TPazo>;
+  fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos, fDeletedPazos: TList<TPazo>;
+  fIsSpecialKB, fTryToCompleteTimeReached: boolean;
 begin
   fIncFillPazos := TList<TPazo>.Create;
   fFinishedPazos := TList<TPazo>.Create;
+  fFinishedRankCalcPazos := TList<TPazo>.Create;
+  fDeletedPazos := TList<TPazo>.Create;
   try
     while (not slshutdown) do
     begin
@@ -1453,28 +1453,19 @@ begin
         kb_lock.Enter;
         p := nil;
         try
-          for i := 0 to kb_list.Count - 1 do
+          for i := kb_list.Count - 1 downto 0 do
           begin
-            if kb_list[i].StartsWith('TRANSFER-') then
-              Continue;
-            if kb_list[i].StartsWith('REQUEST-') then
-              Continue;
-            if kb_list[i].StartsWith('INC-') then
-              Continue;
+            if i < 0 then
+              Break;
 
-            try
-              p := TPazo(kb_list.Objects[i]);
-            except
-              Continue;
-            end;
-            if p = nil then
-              Continue;
-            if p.rls = nil then
-              Continue;
+            p := TPazo(kb_list.Objects[i]);
+            fIsSpecialKB := kb_list[i].StartsWith('TRANSFER-') Or kb_list[i].StartsWith('REQUEST-') Or kb_list[i].StartsWith('INC-');
+            fTryToCompleteTimeReached := True;
 
-            if enable_try_to_complete then
+            if enable_try_to_complete and not fIsSpecialKB then
             begin
-              if ((not p.ExcludeFromIncfiller) and (not p.stopped) and (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after)) then
+              fTryToCompleteTimeReached := (SecondsBetween(Now, p.lastTouch) >= try_to_complete_after);
+              if ((not p.ExcludeFromIncfiller) and (not p.stopped) and fTryToCompleteTimeReached) then
               begin
                 fIncFillPazos.Add(p);
               end;
@@ -1483,6 +1474,17 @@ begin
             if ((p.ready) and (SecondsBetween(Now, p.lastTouch) > 3600) and (not p.stated) and (not p.cleared)) then
             begin
               fFinishedPazos.Add(p);
+              if not fIsSpecialKB then
+              begin
+                fFinishedRankCalcPazos.Add(p);
+              end;
+            end;
+
+            // finally if the pazo has been cleared and the time to keep it has been reached, delete it from the kb_list
+            if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
+            begin
+              kb_list.Delete(i);
+              fDeletedPazos.Add(p);
             end;
           end;
         finally
@@ -1505,12 +1507,15 @@ begin
         for p in fFinishedPazos do
         begin
           RemovePazo(p.pazo_id);
-          try
-            RanksProcess(p);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+          if (fFinishedRankCalcPazos.Contains(p)) then
+          begin
+            try
+              RanksProcess(p);
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, rsections, Format('[EXCEPTION] TKBThread.Execute RanksProcess(p) : %s', [e.Message]));
+              end;
             end;
           end;
 
@@ -1518,6 +1523,20 @@ begin
           p.stated := True;
         end;
         fFinishedPazos.Clear;
+        fFinishedRankCalcPazos.Clear;
+
+        for p in fDeletedPazos do
+        begin
+          try
+            p.Free;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, rsections, '[EXCEPTION] TKBThread.Execute FreePazo: %s', [e.Message]);
+            end;
+          end;
+        end;
+        fDeletedPazos.Clear;
 
       except
         on e: Exception do
@@ -1543,12 +1562,13 @@ begin
         end;
       end;
 
-      //sleep(900);
       kbevent.WaitFor(5000);
     end;
   finally
     fIncFillPazos.Free;
     fFinishedPazos.Free;
+    fFinishedRankCalcPazos.Free;
+    fDeletedPazos.Free;
   end;
 end;
 
