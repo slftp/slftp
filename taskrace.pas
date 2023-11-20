@@ -2420,25 +2420,25 @@ begin
       fDirlist.dirlist_lock.Enter;
       try
         fDirlistEntry := fDirlist.Find(filename);
-        if MillisecondsBetween(Now, fDirlistEntry.timestamp) < 100 then // the dirlist is fairly up to date
+        if MillisecondsBetween(Now, fDirlist.LastChanged) < 100 then // the dirlist is fairly up to date
         begin
           if not fDirlistEntry.IsOnSite then
           begin
             fIsTransferStuck := True;
             irc_Addadmin(Format('<c4>[STUCK] File no longer exists in dirlist:</c> %s', [tname]));
-            Debug(dpError, c_section, Format('[STUCK] File no longer exists in dirlist:< %s', [tname]));
+            Debug(dpError, c_section, Format('[STUCK] File no longer exists in dirlist: %s', [tname]));
           end
           else if not sdst.site.UserName.StartsWith(fDirlistEntry.FUsername, True) then
           begin
             fIsTransferStuck := True;
             irc_Addadmin(Format('<c4>[STUCK] File shows up in dirlist with different user:</c> %s %s', [fDirlistEntry.FUsername, tname]));
-            Debug(dpError, c_section, Format('[STUCK] File shows up in dirlist with different user:< %s %s', [fDirlistEntry.FUsername, tname]));
+            Debug(dpError, c_section, Format('[STUCK] File shows up in dirlist with different user: %s %s', [fDirlistEntry.FUsername, tname]));
           end
           else if fDirlistEntry.filesize = 0 then
           begin
             fIsTransferStuck := True;
             irc_Addadmin(Format('<c4>[STUCK] Transfer stuck at 0 bytes:</c> %s', [tname]));
-            Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes:< %s', [tname]));
+            Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes: %s', [tname]));
           end;
         end;
       finally
