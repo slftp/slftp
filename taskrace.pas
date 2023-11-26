@@ -2978,7 +2978,7 @@ begin
     begin
       if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
       begin
-        irc_Adderror('<c4>[NOT ALLOWED]</c> %s', [Name]);
+        irc_Adderror(sdst.todotask, '<c4>[NOT ALLOWED]</c> %s', [Name]);
       end;
       ps2.SetFileError(netname, channel, dir, filename);
     end;
