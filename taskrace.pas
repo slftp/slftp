@@ -2925,9 +2925,10 @@ begin
   //this is a very fucked-up case, we'll try again.
   if ( (mainpazo.rls <> nil) and (FileSendByMe) and
     ( (sdst.lastResponse.Contains('CRC-Check: SFV first')) or
+      (sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) or
       (sdst.lastResponse.Contains('CRC-Check: BAD!')) or
       (sdst.lastResponse.Contains('CRC-Check: Not in sfv!')) or
-      (sdst.lastResponse.Contains('0byte-file: Not allowed')) or
+      (sdst.lastResponse.Contains('-file: Not allowed')) or
       (sdst.lastResponse.Contains('NFO-File: DUPE!')) ) ) then
   begin
     Debug(dpSpam, c_section, 'Broken transfer event!');
@@ -2935,40 +2936,49 @@ begin
     if sdst.lastResponse.Contains('CRC-Check: SFV first') then
     begin
       //do nothing
-    end;
+    end
 
-    if sdst.lastResponse.Contains('CRC-Check: BAD!') then
+    else if (sdst.lastResponse.Contains('CRC-Check: BAD!') or sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
       Inc(ps2.badcrcevents);
-    end;
+    end
 
-    if sdst.lastResponse.Contains('0byte-file: Not allowed') then
+    else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
       Inc(ps2.badcrcevents);
-    end;
+    end
 
-    if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
+    else if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
       end;
       ps2.SetFileError(netname, channel, dir, filename);
-    end;
+    end
 
-    if sdst.lastResponse.Contains('NFO-File: DUPE!') then
+    else if sdst.lastResponse.Contains('NFO-File: DUPE!') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NFO DUPE]</c> %s', [Name]);
+      end;
+      ps2.SetFileError(netname, channel, dir, filename);
+    end
+
+    else if sdst.lastResponse.Contains('-file: Not allowed') then
+    begin
+      if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+      begin
+        irc_Adderror('<c4>[NOT ALLOWED]</c> %s', [Name]);
       end;
       ps2.SetFileError(netname, channel, dir, filename);
     end;
