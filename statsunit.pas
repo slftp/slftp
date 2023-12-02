@@ -3,24 +3,24 @@ unit statsunit;
 interface
 
 uses
-  SynCommons, mORMot;
+  mormot.orm.core, mormot.core.base, mormot.orm.base;
 
 type
-  TSQLSitesRecord = class(TSQLRecordNoCase)
+  TSQLSitesRecord = class(TOrmNoCase)
   private
     FName: RawUTF8; //< sitename
   published
     property Name: RawUTF8 read FName write FName stored AS_UNIQUE;
   end;
 
-  TSQLSectionRecord = class(TSQLRecordNoCase)
+  TSQLSectionRecord = class(TOrmNoCase)
   private
     FSection: RawUTF8; //< sectionname
   published
     property Section: RawUTF8 read FSection write FSection stored AS_UNIQUE;
   end;
 
-  TSQLFileInfoRecord = class(TSQLRecordNoCase)
+  TSQLFileInfoRecord = class(TOrmNoCase)
   private
     FReleaseName: RawUTF8; //< releasename
     FFileName: RawUTF8; //< filename
@@ -33,7 +33,7 @@ type
     property TimeStamp: TDateTime read FTimeStamp write FTimeStamp;
   end;
 
-  TSQLStatsRecord = class(TSQLRecord)
+  TSQLStatsRecord = class(TOrm)
   private
     FSrcSite: TSQLSitesRecord; //< reference to source sitename
     FDstSite: TSQLSitesRecord; //< reference to destination sitename
@@ -46,7 +46,7 @@ type
     property FileInfoRec: TSQLFileInfoRecord read FFileInfo write FFileInfo;
   end;
 
-{ Just a helper function to initialize @link(ORMStatsDB) }
+  { Just a helper function to initialize @link(ORMStatsDB) }
 procedure statsInit;
 
 { Just a helper function to free @link(ORMStatsDB) }
@@ -87,7 +87,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, Generics.Collections, dbhandler, mORMotSQLite3, debugunit, configunit, sitesunit, irc, mystrings;
+  SysUtils, Classes, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, mormot.rest.sqlite3, mormot.core.unicode;
 
 const
   section = 'stats';
@@ -165,9 +165,9 @@ begin
   end;
 
   // we only need the ID
-  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB, 'Name = ?', [aSrcSite], 'ID');
-  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB, 'Name = ?', [aDstSite], 'ID');
-  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(ORMStatsDB, 'Section = ?', [aSection], 'ID');
+  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aSrcSite], 'ID');
+  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aDstSite], 'ID');
+  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Section = ?', [aSection], 'ID');
   try
     if not fSrcSiteRec.FillOne then
     begin
@@ -203,7 +203,7 @@ begin
     end;
 
     // we only need the ID
-    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB, 'ReleaseName = ? AND FileName = ?', [aRls, aFilename], 'ID');
+    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'ReleaseName = ? AND FileName = ?', [aRls, aFilename], 'ID');
     try
       if not fFileInfoRec.FillOne then
       begin
@@ -220,14 +220,14 @@ begin
       end;
 
       // prevent duplicate entries
-      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.ID, fDstSiteRec.ID, fSectionRec.ID, fFileInfoRec.ID], 'ID');
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.ID, fDstSiteRec.ID, fSectionRec.ID, fFileInfoRec.ID], 'ID');
       try
         if not fStatsRec.FillOne then
         begin
-          fStatsRec.SrcSiteRec := fSrcSiteRec.AsTSQLRecord;
-          fStatsRec.DstSiteRec := fDstSiteRec.AsTSQLRecord;
-          fStatsRec.SectionRec := fSectionRec.AsTSQLRecord;
-          fStatsRec.FileInfoRec := fFileInfoRec.AsTSQLRecord;
+          fStatsRec.SrcSiteRec := fSrcSiteRec.AsTOrm;
+          fStatsRec.DstSiteRec := fDstSiteRec.AsTOrm;
+          fStatsRec.SectionRec := fSectionRec.AsTOrm;
+          fStatsRec.FileInfoRec := fFileInfoRec.AsTOrm;
 
           if ORMStatsDB.Add(fStatsRec, True, False) = 0 then
           begin
@@ -282,7 +282,7 @@ begin
   fFileInfoIDs := TList<Integer>.Create;
   try
     // get all file IDs where src and dst are already deleted
-    fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, 'SrcSiteRec = ? AND DstSiteRec = ?', [], [0, 0]);
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'SrcSiteRec = ? AND DstSiteRec = ?', [], [0, 0]);
     try
       while fStatsRec.FillOne do
       begin
@@ -299,7 +299,7 @@ begin
       fOnlyUsedForDeletedSites := True;
 
       // try to get entry which use the same FileInfo Record but at least one site is still there
-      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB, '(SrcSiteRec <> ? OR DstSiteRec <> ?) AND FileInfoRec = ?', [], [0, 0, fItem]);
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB.Client, '(SrcSiteRec <> ? OR DstSiteRec <> ?) AND FileInfoRec = ?', [], [0, 0, fItem]);
       try
         if fStatsRec.FillOne then
         begin
@@ -314,8 +314,8 @@ begin
       begin
         if not ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fItem]) then
         begin
-          Debug(dpError, section, '[RemoveStats] Could not delete fileinfo ID %d!', [fItem]);
-          exit;
+          Debug(dpError, Section, '[RemoveStats] Could not delete fileinfo ID %d!', [fItem]);
+          Exit;
         end;
       end;
     end;
@@ -380,7 +380,7 @@ var
   begin
     InitValues(aFileSizeStats);
 
-    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client, 
       '(DstSiteRec.Name = ? OR SrcSiteRec.Name = ?) AND timestamp > date(?, ?)',
       [], [aSitename, aSitename, 'now', aSQLPeriod]);
     try
@@ -415,92 +415,92 @@ var
     try
       case aDirection of
         stFrom:
-        begin
-          // input site is source
-          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
-            'SrcSiteRec.Name = ? AND timestamp > date(?, ?)',
-            [], [aSitename, 'now', aSQLPeriod]);
-          try
-            while fStatsRec.FillOne do
-            begin
-              if aSitename = UTF8ToString(fStatsRec.SrcSiteRec.Name) then
+          begin
+            // input site is source
+            fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client,
+              'SrcSiteRec.Name = ? AND timestamp > date(?, ?)',
+              [], [aSitename, 'now', aSQLPeriod]);
+            try
+              while fStatsRec.FillOne do
               begin
-                fSitename := UTF8ToString(fStatsRec.DstSiteRec.Name);
-                if not fSiteInfosList.ContainsKey(fSitename) then
+                if aSitename = UTF8ToString(fStatsRec.SrcSiteRec.Name) then
                 begin
-                  InitValues(fFileSizeStats);
+                  fSitename := UTF8ToString(fStatsRec.DstSiteRec.Name);
+                  if not fSiteInfosList.ContainsKey(fSitename) then
+                  begin
+                    InitValues(fFileSizeStats);
 
-                  fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
-                  Inc(fFileSizeStats.FilesCountOut);
+                    fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
+                    Inc(fFileSizeStats.FilesCountOut);
 
-                  fSiteInfosList.Add(fSitename, fFileSizeStats);
-                end
-                else
-                begin
-                  fFileSizeStats := fSiteInfosList.Items[fSitename];
+                    fSiteInfosList.Add(fSitename, fFileSizeStats);
+                  end
+                  else
+                  begin
+                    fFileSizeStats := fSiteInfosList.Items[fSitename];
 
-                  fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
-                  Inc(fFileSizeStats.FilesCountOut);
+                    fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
+                    Inc(fFileSizeStats.FilesCountOut);
 
-                  fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
+                    fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
+                  end;
                 end;
               end;
+            finally
+              fStatsRec.Free;
             end;
-          finally
-            fStatsRec.Free;
-          end;
 
-          for fListItem in fSiteInfosList do
-          begin
-            fSize := fListItem.Value.SizeOut;
-            RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
-            irc_addtext(aNetname, aChannel, Format('  <b>to</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountOut]));
+            for fListItem in fSiteInfosList do
+            begin
+              fSize := fListItem.Value.SizeOut;
+              RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
+              irc_addtext(aNetname, aChannel, Format('  <b>to</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountOut]));
+            end;
           end;
-        end;
 
         stTo:
-        begin
-          // input site is destination
-          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB,
-            'DstSiteRec.Name = ? AND timestamp > date(?, ?)',
-            [], [aSitename, 'now', aSQLPeriod]);
-          try
-            while fStatsRec.FillOne do
-            begin
-              if aSitename = UTF8ToString(fStatsRec.DstSiteRec.Name) then
+          begin
+            // input site is destination
+            fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client,
+              'DstSiteRec.Name = ? AND timestamp > date(?, ?)',
+              [], [aSitename, 'now', aSQLPeriod]);
+            try
+              while fStatsRec.FillOne do
               begin
-                fSitename := UTF8ToString(fStatsRec.SrcSiteRec.Name);
-                if not fSiteInfosList.ContainsKey(fSitename) then
+                if aSitename = UTF8ToString(fStatsRec.DstSiteRec.Name) then
                 begin
-                  InitValues(fFileSizeStats);
+                  fSitename := UTF8ToString(fStatsRec.SrcSiteRec.Name);
+                  if not fSiteInfosList.ContainsKey(fSitename) then
+                  begin
+                    InitValues(fFileSizeStats);
 
-                  fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
-                  Inc(fFileSizeStats.FilesCountIn);
+                    fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
+                    Inc(fFileSizeStats.FilesCountIn);
 
-                  fSiteInfosList.Add(fSitename, fFileSizeStats);
-                end
-                else
-                begin
-                  fFileSizeStats := fSiteInfosList.Items[fSitename];
+                    fSiteInfosList.Add(fSitename, fFileSizeStats);
+                  end
+                  else
+                  begin
+                    fFileSizeStats := fSiteInfosList.Items[fSitename];
 
-                  fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
-                  Inc(fFileSizeStats.FilesCountIn);
+                    fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
+                    Inc(fFileSizeStats.FilesCountIn);
 
-                  fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
+                    fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
+                  end;
                 end;
               end;
+            finally
+              fStatsRec.Free;
             end;
-          finally
-            fStatsRec.Free;
-          end;
 
-          for fListItem in fSiteInfosList do
-          begin
-            fSize := fListItem.Value.SizeIn;
-            RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
-            irc_addtext(aNetname, aChannel, Format('  <b>from</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountIn]));
+            for fListItem in fSiteInfosList do
+            begin
+              fSize := fListItem.Value.SizeIn;
+              RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
+              irc_addtext(aNetname, aChannel, Format('  <b>from</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountIn]));
+            end;
           end;
-        end;
       end;
     finally
       fSiteInfosList.Free;
