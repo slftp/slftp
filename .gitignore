@@ -24,8 +24,7 @@ __history
 *.dll
 *.o
 # required .o files
-!libs/mORMot/SQLite3/sqlite3.o
-!libs/mORMot/static/*.o
+!libs/mORMot2/static/*/*.o
 *.ppu
 *.BAK
 *.bak
