@@ -311,6 +311,7 @@ constructor TZMySQLDriver.Create;
 begin
   inherited Create;
   AddSupportedProtocol(AddPlainDriverToCache(TZMySQLPlainDriver.Create));
+  AddSupportedProtocol(AddPlainDriverToCache(TZMariaDBPlainDriver.Create));
 end;
 
 {**
@@ -581,9 +582,7 @@ begin
     end;
   end;
   try
-    { Sets a default port number. }
-    if Port = 0 then
-       Port := MYSQL_PORT;
+    { Port = 0 means default port number, pass it to driver. }
 
     { Turn on compression protocol. }
     if StrToBoolEx(Info.Values[ConnProps_Compress]) and
@@ -1004,8 +1003,6 @@ procedure TZMySQLConnection.AfterConstruction;
 begin
   FPlainDriver := PlainDriver.GetInstance as TZMySQLPlainDriver;
   FIKnowMyDatabaseName := False;
-  if Self.Port = 0 then
-     Self.Port := MYSQL_PORT;
   FMetaData := TZMySQLDatabaseMetadata.Create(Self, Url);
   inherited AfterConstruction;
   inherited SetTransactionIsolation(tiRepeatableRead);
