@@ -1194,56 +1194,6 @@ var
     end;
   end;
 
-  procedure _abor(const aSlot: TSiteSlot);
-  var
-    fSuccess: boolean;
-  begin
-      if not aSlot.Send('ABOR') then
-        aSlot.DestroySocketAndRelogin('TPazoRaceTask');
-
-      fSuccess := False; //reset flag. used to remember if 150 response was read (150 File status okay; about to open send data connection.)
-
-      //there may be any kind or amount of responses coming after sending ABOR. Read until 'ABOR command successful'.
-      repeat
-        aSlot.Read('ABOR', False, True, 1000);
-        if aSlot.error <> '' then
-        begin
-          aSlot.DestroySocketAndRelogin('TPazoRaceTask');
-          exit;
-        end;
-
-        if aSlot.lastResponseCode = 150 then
-          fSuccess := True;
-
-        //response code should be 226, might also be 225
-        //glFTPd: ABOR command successful.
-        //glFTPd: Abort successful
-        //DrFTPD: ABOR command successful
-        //ioFTPD: ABOR command successful.
-        //RaidenFTPD: Abort successful.
-        until ((aSlot.lastResponseCode > 199) and (aSlot.lastResponseCode < 300) and
-          ((aSlot.lastResponse.Contains('ABOR')) or (aSlot.lastResponse.Contains('Abort successful'))));
-
-      if aSlot.site.sw = sswDrftpd then
-      begin
-        //drftpd sometimes sends 150 response even after "ABOR command successful". So wait for that a bit.
-        if not fSuccess then
-          aSlot.Read('ABOR', False, True, 10);
-
-        //ok and sometimes the ABOR command destroys the session for drftpd (following commands do not send a response -> timeout)
-        //send a command and see if there is a response. if not, invoke DestroySocket.
-        if not aSlot.Send('NOOP') then
-        begin
-          aSlot.DestroySocketAndRelogin('TPazoRaceTask');
-        end
-        else if not aSlot.Read('NOOP', False, True, 20) then
-        begin
-          Debug(dpMessage, c_section, 'Slot seems broken after ABOR: ' + aSlot.Name);
-          aSlot.DestroySocketAndRelogin('TPazoRaceTask');
-        end;
-      end;
-  end;
-
 begin
   Result := False;
   ssrc := slot1;
@@ -1843,7 +1793,52 @@ begin
     begin
 
       //STOR produced an error, but RETR has already been sent to the source site. We need to ABOR that.
-      _abor(ssrc);
+
+      if not ssrc.Send('ABOR') then
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+
+      rss := False; //reset flag. used to remember if 150 response was read (150 File status okay; about to open send data connection.)
+
+      //there may be any kind or amount of responses coming after sending ABOR. Read until 'ABOR command successful'.
+      repeat
+        ssrc.Read('ABOR', False, True, 1000);
+        if ssrc.error <> '' then
+        begin
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+          rss := True;
+          break;
+        end;
+
+        if ssrc.lastResponseCode = 150 then
+          rss := True;
+
+        //response code should be 226, might also be 225
+        //glFTPd: ABOR command successful.
+        //glFTPd: Abort successful
+        //DrFTPD: ABOR command successful
+        //ioFTPD: ABOR command successful.
+        //RaidenFTPD: Abort successful.
+        until ((ssrc.lastResponseCode > 199) and (ssrc.lastResponseCode < 300) and
+          ((ssrc.lastResponse.Contains('ABOR')) or (ssrc.lastResponse.Contains('Abort successful'))));
+
+      if ssrc.site.sw = sswDrftpd then
+      begin
+        //drftpd sometimes sends 150 response even after "ABOR command successful". So wait for that a bit.
+        if not rss then
+          ssrc.Read('ABOR', False, True, 10);
+
+        //ok and sometimes the ABOR command destroys the session for drftpd (following commands do not send a response -> timeout)
+        //send a command and see if there is a response. if not, invoke DestroySocket.
+        if not ssrc.Send('NOOP') then
+        begin
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+        end
+        else if not ssrc.Read('NOOP', False, True, 20) then
+        begin
+          Debug(dpMessage, c_section, 'Slot seems broken after ABOR: ' + ssrc.Name);
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+        end;
+      end;
     end;
 
     case lastResponseCode of
@@ -2447,10 +2442,6 @@ begin
             fIsTransferStuck := True;
             irc_Addadmin(Format('<c4>[STUCK] Transfer stuck at 0 bytes:</c> %s', [tname]));
             Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes: %s', [tname]));
-            _abor(sdst);
-            _abor(ssrc);
-            readyerror := True;
-            exit;
           end;
         end;
       finally
