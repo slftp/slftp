@@ -246,8 +246,6 @@ begin
   dbaddurlInit;
   console_addline('Admin', 'Init Genre DB', True);
   dbaddgenreInit;
-  console_addline('Admin', 'Init IMDB DB', True);
-  dbaddimdbInit;
   console_addline('Admin', 'Init TV DB', True);
   dbtvinfoInit;
   console_addline('Admin', 'Init Console', True);
@@ -479,7 +477,7 @@ begin
   console_addline('Admin', 'Start Genre DB', True);
   dbaddgenreStart;
   console_addline('Admin', 'Start IMDB DB', True);
-  dbaddimdbStart;
+  dbaddimdbInit;
   console_addline('Admin', 'Start TV DB', True);
   dbtvinfoStart;
   console_addline('Admin', 'Start Ranks', True);

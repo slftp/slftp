@@ -53,7 +53,7 @@ uses
   taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
+  sllanguagebase, taskmvidunit, dbaddpre, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
@@ -165,6 +165,9 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  fSourcesRank: TDestinationRank;
+  fSourceSites: TList<TDestinationRank>;
+  fAdder: Integer;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -794,16 +797,31 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
+      fSourceSites := TList<TDestinationRank>.Create;
       for i := p.PazoSitesList.Count - 1 downto 0 do
-      begin
+        begin
         try
           if i < 0 then
             Break;
         except
           Break;
         end;
+        ps := TPazoSite(p.PazoSitesList[i]);
+        fAdder := 0;
+        if ps.status in [rssShouldPre, rssRealPre] then
+        begin
+          fAdder := 100;
+        end;
+
+        fSourcesRank := TDestinationRank.Create(ps, FindSiteByName(netname, ps.Name).GetRank(p.rls.section) + fAdder);
+        fSourceSites.Add(fSourcesRank);
+        fSourceSites.Sort;
+      end;
+
+      for fSourcesRank in fSourceSites do
+      begin
         try
-          ps := TPazoSite(p.PazoSitesList[i]);
+          ps := fSourcesRank.PazoSite;
 
           // dirlist not available
           if ps.dirlist = nil then

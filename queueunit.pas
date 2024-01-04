@@ -1116,7 +1116,6 @@ begin
   end;
 end;
 
-
 procedure AddTaskToConsole(const aTask: TTask);
 begin
   Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));

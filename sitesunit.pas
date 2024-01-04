@@ -2753,7 +2753,7 @@ begin
     if dir <> '' then
       if not Cwd(dir, forcecwd) then
       begin
-        Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
+        Debug(dpError, section, 'TSiteSlot.Dirlist ERROR: can not CWD to %s on %s', [dir, site.Name]);
         exit;
       end;
 
@@ -3026,6 +3026,10 @@ begin
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
+  fMaxDn := RCInteger('max_dn', 2);
+  fMaxUp := RCInteger('max_up', 2);
+  fMaxPreDn := RCInteger('max_pre_dn', max_dn);
+
 
   // TODO: remove as its been here for a while now...
   // convert section affils to new global affil format
