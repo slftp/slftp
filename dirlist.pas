@@ -27,7 +27,6 @@ type
   private
     FFilenameLowerCase: String; //< lowercased filename
     FExtension: String; //< lowercased file extension, includes the '.' prefix - such as '.nfo'
-    FUsername: String; //< name of user who sent this file
     FRacedByMe: Boolean; //< @true if we send this file to the site, @false otherwise.
     FGroupname: String; //< name of group the @link(FUsername) is associated with
     FDirectory: Boolean; //< @true if current dir is a directory
@@ -42,6 +41,7 @@ type
     subdirlist: TDirList;
     filename: String; //< filename
     filesize: Int64; //< filesize
+    FUsername: String; //< name of user who sent this file
     skiplisted: Boolean; //< @true if the this entity is skiplisted. It will not be transferred.
     cdno: Integer;
     timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
