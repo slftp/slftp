@@ -76,7 +76,8 @@ implementation
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist,
-  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers;
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
+  Generics.Collections;
 
 const
   c_section = 'taskrace';
@@ -176,6 +177,7 @@ var
   i: integer;
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
+  fSubDirlistTasks: TList<TPazoDirlistTask>;
   d: TDirList;
   aktdir, fAbsoluteDir: String;
   itwasadded: boolean;
@@ -189,6 +191,7 @@ begin
   Result := False;
   s := slot;
   tname := Name;
+  fSubDirlistTasks := nil;
 
   if mainpazo.stopped then
   begin
@@ -432,9 +435,9 @@ begin
       d.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
 
     // Search for sub directories
+    fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
-      r := nil;
       d.dirlist_lock.Enter;
       try
         for i := 0 to d.entries.Count - 1 do
@@ -462,26 +465,29 @@ begin
                 Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
                 [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
               try
-                r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);
+                fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre));
                 if (de.subdirlist <> nil) then
                   de.subdirlist.dirlistadded := True;
               except
                 on e: Exception do
                 begin
-                  Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                  Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask Create: %s', [e.Message]));
                 end;
               end;
             end;
-          except
-            Continue;
-          end;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask Subdir loop: %s', [e.Message]));
+              end;
+            end;
         end;
       finally
         d.dirlist_lock.Leave;
       end;
 
       //add task outside the dirlist lock to avoid deadlocks with the queue lock
-      if r <> nil then
+      for r in fSubDirlistTasks do
       begin
         AddTask(r);
       end;
@@ -492,6 +498,8 @@ begin
       Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask: %s', [e.Message]));
     end;
   end;
+
+  FreeAndNil(fSubDirlistTasks);
 
   if ((not is_pre) and (d <> nil) and (d.Complete) and (ps1.status <> rssComplete)) then
   begin
