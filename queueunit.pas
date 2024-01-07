@@ -60,7 +60,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautodirlist, taskautoindex,
-  taskhttpnfo, taskrules, tasksitesfv;
+  tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo, tasksitesfv, Generics.Collections;
 
 const
   section = 'queue';
@@ -830,24 +830,39 @@ procedure QueueEmpty(const sitename: String);
 var
   i: integer;
   t: TTask;
+  fSetDownPazo: TList<TPazo>;
+  fPazo: TPazo;
 begin
   Debug(dpSpam, section, 'QueueEmpty start: ' + sitename);
 
-  for i := tasks.Count - 1 downto 0 do
-  begin
-    if i < 0 then
-      Break;
+  fSetDownPazo := TList<TPazo>.Create;
+  try
+    queueth.main_lock.Enter;
     try
-      t := TTask(tasks[i]);
-      if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
-        t.readyerror := True;
+      for i := tasks.Count - 1 downto 0 do
+      begin
+        if i < 0 then
+          Break;
 
-      if (t is TPazoTask) then
-        TPazoTask(t).mainpazo.SiteDown(sitename);
-    except
-      Continue;
+        t := TTask(tasks[i]);
+        if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
+          t.readyerror := True;
+
+        if (t is TPazoTask) and not fSetDownPazo.Contains(TPazoTask(t).mainpazo) then
+          fSetDownPazo.Add(TPazoTask(t).mainpazo);
+      end;
+    finally
+      queueth.main_lock.Leave;
     end;
+
+    for fPazo in fSetDownPazo do
+    begin
+      fPazo.SiteDown(sitename);
+    end;
+  finally
+    fSetDownPazo.Free;
   end;
+
   Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
