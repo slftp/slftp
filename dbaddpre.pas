@@ -565,7 +565,7 @@ begin
       begin
         SQLite3Lock.Enter;
         try
-          fMySQLQuery := fMySQLQuery.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+          fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
             fSQLiteQuery.Prepare('SELECT count(*) FROM addpre');
             fSQLiteQuery.ExecutePrepared;
