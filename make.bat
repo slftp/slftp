@@ -17,6 +17,11 @@ REM
 set OPENSSL_NAME=openssl-1.1.1i
 
 REM
+REM SQLite download URL
+REM
+set SQLITE_URL_X64=https://www.sqlite.org/2023/sqlite-dll-win-x64-3440200.zip
+
+REM
 REM Inject git commit into slftp.inc if .git exists
 REM
 if exist .git\ (
@@ -163,6 +168,31 @@ if errorlevel 1 (
 echo - Removing temp OpenSSL stuff -
 del /Q %OPENSSL_NAME%-x64_86-win64.zip
 rmdir /Q /S %OPENSSL_NAME%-x64_86-win64
+if errorlevel 1 (
+   echo Failure reason for deleting is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Downloading SQLite3 library -
+powershell -Command "(New-Object Net.WebClient).DownloadFile('%SQLITE_URL_X64%', 'sqlite.zip')"
+if errorlevel 1 (
+   echo Failure reason for downloading SQLite is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Extracting SQLite libraries -
+powershell expand-archive sqlite.zip
+if errorlevel 1 (
+   echo Failure reason for extracting is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Copying SQLite libraries -
+copy /Y sqlite\sqlite3.dll sqlite3-64.dll /Y
+if errorlevel 1 (
+   echo Failure reason for copying is %errorlevel%
+   exit /b %errorlevel%
+)
+echo - Removing temp SQLite stuff -
+del /Q sqlite.zip
+rmdir /Q /S sqlite
 if errorlevel 1 (
    echo Failure reason for deleting is %errorlevel%
    exit /b %errorlevel%
