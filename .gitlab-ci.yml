@@ -100,6 +100,7 @@ testlinux64:
     - wget -O libcrypto.so https://gitlab.com/slftp/ci-images/-/raw/master/libcrypto_openssl-1.1.1s
     - wget -O libssl.so https://gitlab.com/slftp/ci-images/-/raw/master/libssl_openssl-1.1.1s
     - mv config/* tests/
+    - apt-get update
     - apt-get -y install libsqlite3-dev
     - cp /usr/lib/x86_64-linux-gnu/libsqlite3.so ./libsqlite3.so
   script:
