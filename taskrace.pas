@@ -1198,8 +1198,13 @@ var
   var
     fSuccess: boolean;
   begin
+      Debug(dpError, c_section, 'Do ABOR ' + aSlot.Name + ' ' + tname);
+
       if not aSlot.Send('ABOR') then
+      begin
+        Debug(dpError, c_section, 'Error ABOR send ' + aSlot.Name + ' ' + tname);
         aSlot.DestroySocketAndRelogin('TPazoRaceTask');
+      end;
 
       fSuccess := False; //reset flag. used to remember if 150 response was read (150 File status okay; about to open send data connection.)
 
@@ -1208,6 +1213,7 @@ var
         aSlot.Read('ABOR', False, True, 1000);
         if aSlot.error <> '' then
         begin
+          Debug(dpError, c_section, 'Error ABOR read ' + aSlot.Name + ' ' + tname);
           aSlot.DestroySocketAndRelogin('TPazoRaceTask');
           exit;
         end;
@@ -1234,11 +1240,12 @@ var
         //send a command and see if there is a response. if not, invoke DestroySocket.
         if not aSlot.Send('NOOP') then
         begin
+          Debug(dpError, c_section, 'Error ABOR NOOP ' + aSlot.Name + ' ' + tname);
           aSlot.DestroySocketAndRelogin('TPazoRaceTask');
         end
         else if not aSlot.Read('NOOP', False, True, 20) then
         begin
-          Debug(dpMessage, c_section, 'Slot seems broken after ABOR: ' + aSlot.Name);
+          Debug(dpError, c_section, 'Slot seems broken after ABOR: ' + aSlot.Name + ' ' + tname);
           aSlot.DestroySocketAndRelogin('TPazoRaceTask');
         end;
       end;
