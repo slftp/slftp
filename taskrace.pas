@@ -1249,6 +1249,8 @@ var
           aSlot.DestroySocketAndRelogin('TPazoRaceTask');
         end;
       end;
+
+      Debug(dpError, c_section, 'Done ABOR ' + aSlot.Name + ' ' + tname);
   end;
 
 begin
