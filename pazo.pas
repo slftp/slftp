@@ -880,6 +880,13 @@ begin
   Result := rls.AsText(pazo_id);
 
   Result := Result + Format('Age: %ds %s', [age, #13#10]);
+
+  Result := Result + 'Skiplist: ';
+  if sl <> nil then
+    Result := Result + Format('%s%s', [sl.sectionname, #13#10])
+  else
+    Result := Result + '?#13#10';
+
   Result := Result + Format('Sites: %d %s', [PazoSitesList.Count, #13#10]);
 
   for ps in PazoSitesList do
