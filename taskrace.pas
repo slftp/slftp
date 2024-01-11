@@ -24,6 +24,7 @@ type
     dir: String;
     is_pre: boolean;
     FDoIncFilling: boolean; //< @true if created to do incomplete filling, @false otherwise
+    FDirlist: TDirlist;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
@@ -173,6 +174,7 @@ begin
   self.dir := dir;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
+  self.FDirlist := nil;
   inherited Create(netname, channel, site, '', pazo, nil);
 end;
 
@@ -194,6 +196,24 @@ var
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
 begin
+
+  procedure setDirlist;
+  begin
+    if FDirlist = nil then
+    begin
+      try
+        FDirlist := ps1.dirlist.FindDirlist(dir);
+      except
+        on e: Exception do
+          Debug(dpError, c_section, '[EXCEPTION] FDirlist := ps1.dirlist.FindDirlist(dir): %s', [e.Message]);
+      end;
+
+      // set the dirlist full path. Used mainly for debug outputing.
+      if FDirlist <> nil then
+        FDirlist.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+    end;
+  end;
+
   numerrors := 0;
   Result := False;
   s := slot;
@@ -336,13 +356,8 @@ begin
           begin
             Debug(dpMessage, c_section, '<- ' + s.lastResponse + ' ' + tname);
 
-            try
-              d := ps1.dirlist.FindDirlist(dir);
-            except
-              on e: Exception do
-                Debug(dpError, c_section, '[EXCEPTION] (dirlist no such directory handling): %s', [e.Message]);
-            end;
-            if (d = nil) Or (d.need_mkdir and not d.error) then
+            setDirlist;
+            if (FDirlist = nil) Or (FDirlist.need_mkdir and not FDirlist.error) then
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
@@ -428,19 +443,7 @@ begin
     end;
   end;
 
-  d := nil;
   try
-    try
-      d := ps1.dirlist.FindDirlist(dir);
-    except
-      on e: Exception do
-        Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s', [e.Message]);
-    end;
-
-    // set the dirlist full path. Used mainly for debug outputing.
-    if d <> nil then
-      d.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
-
     // Search for sub directories
     fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
@@ -642,7 +645,7 @@ begin
           if (dir <> '') then
           begin
             d := ps.dirlist.FindDirlist(dir);
-            if (d <> nil) and (d.error or d.Complete) then
+            if (FDirlist <> nil) and (FDirlist.error or FDirlist.Complete) then
               Continue;
           end;
 

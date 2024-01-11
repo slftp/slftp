@@ -356,6 +356,10 @@ begin
       exit;
     end;
 
+
+    //if (tp1 is TPazoDirlistTask) and TPazoDirlistTask(tp1).FDirlist.LastChanged ....
+
+
     if ((tp1 is TPazoRaceTask) and (not (tp2 is TPazoRaceTask))) then
     begin
       Result := -1;
