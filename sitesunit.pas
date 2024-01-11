@@ -4185,69 +4185,76 @@ var
   end;
 
 begin
-  fLoginTaskNeeded := False;
-  fWantedSlot := '';
+  try
+    fLoginTaskNeeded := False;
+    fWantedSlot := '';
 
-  // check if the destination site and its slots are ready
-  if aSite <> nil then
-  begin
+    // check if the destination site and its slots are ready
+    if aSite <> nil then
     begin
-
-      //if the site has a max idle time, login only one slot. when we login all slots, not needed slots
-      //would immediately be logged out again
-      if aSite.maxidle <> 0 then
       begin
-        fLoginTaskNeeded := True;
-        for fSiteSlot in aSite.slots do
-        begin
-          if (fSiteSlot.Status = ssOnline) and (fSiteSlot.todotask = nil) then
-          begin
-            // there is an online slot which has no task assigned, no login needed
-            fLoginTaskNeeded := False;
-            break;
-          end;
-        end;
 
-        //we need to login one slot
-        if fLoginTaskNeeded then
+        // if the site has a max idle time, login only one slot. when we login all slots, not needed slots
+        // would immediately be logged out again
+        if aSite.maxidle <> 0 then
         begin
+          fLoginTaskNeeded := True;
           for fSiteSlot in aSite.slots do
           begin
-            if IsLoginTaskRequiredForSlot(fSiteSlot) then
+            if (fSiteSlot.Status = ssOnline) and (fSiteSlot.todotask = nil) then
             begin
-              fLoginTaskNeeded := True;
-              fWantedSlot := fSiteSlot.Name;
+              // there is an online slot which has no task assigned, no login needed
+              fLoginTaskNeeded := False;
               break;
             end;
           end;
-        end;
-      end
 
-      //login all slots for sites with no max idle time
-      else
-      begin
-        // check site's working status
-        fLoginTaskNeeded := (aSite.WorkingStatus <> sstUp);
-
-        if not fLoginTaskNeeded then
-          // check if all the slots are online
-          for fSiteSlot in aSite.slots do
+          // we need to login one slot
+          if fLoginTaskNeeded then
           begin
-            if IsLoginTaskRequiredForSlot(fSiteSlot) then
+            for fSiteSlot in aSite.slots do
             begin
-              fLoginTaskNeeded := True;
-              break;
+              if IsLoginTaskRequiredForSlot(fSiteSlot) then
+              begin
+                fLoginTaskNeeded := True;
+                fWantedSlot := fSiteSlot.Name;
+                break;
+              end;
             end;
           end;
+        end
+
+        // login all slots for sites with no max idle time
+        else
+        begin
+          // check site's working status
+          fLoginTaskNeeded := (aSite.WorkingStatus <> sstUp);
+
+          if not fLoginTaskNeeded then
+            // check if all the slots are online
+            for fSiteSlot in aSite.slots do
+            begin
+              if IsLoginTaskRequiredForSlot(fSiteSlot) then
+              begin
+                fLoginTaskNeeded := True;
+                break;
+              end;
+            end;
+        end;
+      end;
+
+      if fLoginTaskNeeded then
+      begin
+        fLoginTask := TLoginTask.Create('', '', aSite.Name, False, False);
+        fLoginTask.wantedslot := fWantedSlot;
+        fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); // announce if working status of the site is not sstUp
+        AddTask(fLoginTask, True);
       end;
     end;
-
-    if fLoginTaskNeeded then
+  except
+    on e: Exception do
     begin
-      fLoginTask := TLoginTask.Create('', '', aSite.Name, False, False);
-      fLoginTask.wantedslot := fWantedSlot;
-      fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); // announce if working status of the site is not sstUp
-      AddTask(fLoginTask, True);
+      Debug(dpError, section, Format('[EXCEPTION] CheckSiteSlots: %s', [e.Message]));
     end;
   end;
 end;
