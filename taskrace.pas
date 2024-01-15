@@ -175,6 +175,7 @@ begin
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
   self.FDirlist := nil;
+  Debug(dpError, c_section, Format('[InfoDirlist] DIRLIST : %d <b>%s</b> <b>PRE</b> %s', [pazo.pazo_id, site, pazo.rls.rlsname]));
   inherited Create(netname, channel, site, '', pazo, nil);
 end;
 
@@ -195,7 +196,6 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
-begin
 
   procedure setDirlist;
   begin
@@ -214,6 +214,7 @@ begin
     end;
   end;
 
+begin
   numerrors := 0;
   Result := False;
   s := slot;
@@ -357,6 +358,7 @@ begin
             Debug(dpMessage, c_section, '<- ' + s.lastResponse + ' ' + tname);
 
             setDirlist;
+            d := fDirlist;
             if (FDirlist = nil) Or (FDirlist.need_mkdir and not FDirlist.error) then
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
@@ -442,6 +444,10 @@ begin
       end;
     end;
   end;
+
+  d := nil;
+  setdirlist;
+  d := FDirlist;
 
   try
     // Search for sub directories
@@ -644,7 +650,7 @@ begin
 
           if (dir <> '') then
           begin
-            d := ps.dirlist.FindDirlist(dir);
+            FDirlist := ps.dirlist.FindDirlist(dir);
             if (FDirlist <> nil) and (FDirlist.error or FDirlist.Complete) then
               Continue;
           end;
@@ -1169,6 +1175,8 @@ var
   lastResponse: String;
   fDirlist: TDirlist;
   fDirlistEntry: TDirlistEntry;
+  fDiffSec: integer;
+  fDiffMSec: integer;
 
   procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
   begin
@@ -1270,6 +1278,8 @@ begin
   numerrors := 0;
   tname := Name;
   fIsTransferStuck := False;
+  fDiffSec := 0;
+  fDiffMSec := 0;
 
   if mainpazo.stopped then
   begin
@@ -2453,21 +2463,30 @@ begin
     if ((rsd) and (rss)) then
       Break;
 
-    if not fIsTransferStuck and (SecondsBetween(Now, started) > 3) then // after 3 seconds, check if the transfer is stuck
+    fDiffSec := SecondsBetween(Now, started);
+    if not fIsTransferStuck and (fDiffSec > 3) then // after 3 seconds, check if the transfer is stuck
     begin
       fDirlist := ps2.dirlist.FindDirlist(dir);
       fDirlist.dirlist_lock.Enter;
       try
         fDirlistEntry := fDirlist.Find(filename);
-        if MillisecondsBetween(Now, fDirlist.LastChanged) < 100 then // the dirlist is fairly up to date
+        fDiffMSec := MillisecondsBetween(Now, fDirlist.LastChanged);
+        if fDirlistEntry.filesize = 0 then
+	      begin
+           Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes (First Check): Dirlist Difference: %d SecondsBetween: %d %s', [fDiffMSec, fDiffSec, tname]));
+           irc_Addadmin(Format('<c4>[STUCK] Transfer stuck at 0 bytes (First Check):</c> Dirlist Difference: %d SecondsBetween: %d %s', [fDiffMSec, fDiffSec, tname]));
+        end;
+	      if fDiffMSec < 500 then // the dirlist is fairly up to date
         begin
           if fDirlistEntry.filesize = 0 then
           begin
             fIsTransferStuck := True;
-            irc_Addadmin(Format('<c4>[STUCK] Transfer stuck at 0 bytes:</c> %s', [tname]));
-            Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes: %s', [tname]));
-            _abor(sdst);
-            _abor(ssrc);
+            irc_Addadmin(Format('<c4>[STUCK] Transfer stuck at 0 bytes with updated dirlist:</c> Dirlist Difference: %d SecondsBetween: %d %s', [fDiffMSec, fDiffSec, tname]));
+            Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 byte with updated dirlists: Dirlist Difference: %d SecondsBetween: %d %s', [fDiffMSec, fDiffSec, tname]));
+            ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+            Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes - First Socket Destroyed: %s', [tname]));
+	          sdst.DestroySocketAndRelogin('TPazoRaceTask');
+	          Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes - Second Socket Destroyed: %s', [tname]));
             readyerror := True;
             exit;
           end;
