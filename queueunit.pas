@@ -1567,12 +1567,15 @@ begin
 
       QueueStat;
 
+      i := 0;
       // We are looking for idle
         for s in ts.slots do
         begin
           try
             if ((s.todotask = nil) and (s.site.Name <> getAdminSiteName)) then
             begin
+              i := i + 1;
+
               if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0) and
                 (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000)))) then
               begin
@@ -1597,6 +1600,9 @@ begin
             end;
           end;
         end;
+
+        if ts.Name <> getAdminSiteName then
+          Debug(dpError, section, Format('Number of idle slots on %s: %d', [ts.Name, i]));
 
       //Debug(dpSpam, section, 'Queue Iteration end [%d tasks]', [tasks.Count]);
     except
