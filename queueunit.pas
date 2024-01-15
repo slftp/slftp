@@ -356,8 +356,25 @@ begin
       exit;
     end;
 
+    // Give priority to Dirlist if Dirlist is to old
+    if ((tp1 is TPazoRaceTask) and (tp2 is TPazoDirlistTask) AND (TPazoDirlistTask(tp2).FDirlist <> NIL)) then
+    begin
+      if  (MilliSecondsBetween(now,TPazoDirlistTask(tp2).FDirlist.LastChanged) > 400) THEN
+      BEGIN
+        Result := 1;
+        Exit;
+      END;
+    end;
 
-    //if (tp1 is TPazoDirlistTask) and TPazoDirlistTask(tp1).FDirlist.LastChanged ....
+    // Give priority to Dirlist if Dirlist is to old
+    if ((tp2 is TPazoRaceTask) and (tp1 is TPazoDirlistTask) AND (TPazoDirlistTask(tp1).FDirlist <> NIL)) then
+    begin
+      if  (MilliSecondsBetween(now,TPazoDirlistTask(tp1).FDirlist.LastChanged) > 400) THEN
+      BEGIN
+        Result := -1;
+        Exit;
+      END;
+    end;
 
 
     if ((tp1 is TPazoRaceTask) and (not (tp2 is TPazoRaceTask))) then
