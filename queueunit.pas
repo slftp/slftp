@@ -1591,6 +1591,10 @@ begin
               begin
                 AddIdleTask(s, self);
               end;
+            end
+            else if s.site.Name <> getAdminSiteName then
+            begin
+              Debug(dpError, section, Format('Slot busy %s: %s', [s.Name, s.todotask.Name]));
             end;
           except
             on e: Exception do
