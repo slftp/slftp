@@ -436,7 +436,7 @@ begin
     try
       parseDirlistStart := Now;
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
-      Debug(dpError, c_section, 'Duration ParseDirlist: %s - %d', [self.Name, MillisecondsBetween(Now, fDirlist.LastChanged)]);
+      Debug(dpError, c_section, 'Duration ParseDirlist: %s - %d', [self.Name, MillisecondsBetween(Now, parseDirlistStart)]);
     except
       on e: Exception do
       begin
