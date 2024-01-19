@@ -2473,7 +2473,7 @@ begin
       fDirlist.dirlist_lock.Enter;
       try
         fDirlistEntry := fDirlist.Find(filename);
-        fDiffMSec := MillisecondsBetween(Now, fDirlist.LastChanged);
+        fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
         if fDirlistEntry.filesize = 0 then
 	      begin
            Debug(dpError, c_section, Format('[STUCK] Transfer stuck at 0 bytes (First Check): Dirlist Difference: %d SecondsBetween: %d %s', [fDiffMSec, fDiffSec, tname]));
