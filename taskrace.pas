@@ -2386,7 +2386,7 @@ begin
   end;
 
   //add this file as incomplete, transfer is running at this point
-  ps2.ParseDupe(netname, channel, dir, filename, True, False);
+  ps2.ParseDupe(netname, channel, dir, filename, False, False);
 
   Debug(dpSpam, 'taskrace', '--> WAIT');
 
