@@ -567,10 +567,6 @@ begin
           begin
             ss2 := nil;
             continue;
-          end
-          else
-          begin
-            break;
           end;
         end;
       end
