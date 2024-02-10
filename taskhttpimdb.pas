@@ -913,6 +913,7 @@ begin
   imdbdata.imdb_festival := fIsFestival;
   imdbdata.imdb_stvm := fIsSTV;
   imdbdata.imdb_stvs := fStatusReason;
+  imdbdata.imdb_type := fImdbTitleExtraInfo;
   imdbdata.imdb_origtitle := fImdbOriginalTitle;
   try
     dbaddimdb_SaveImdbData(FReleaseName, imdbdata);
