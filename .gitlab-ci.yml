@@ -17,13 +17,13 @@ variables:
     - cmd.exe -/c ".\make.bat slftp_64"
   after_script:
     # rename executable
-    - ren slftp.exe slftp_x64-%CI_COMMIT_SHORT_SHA%.exe
+    - ren slftp.exe slftp_x64-${CI_COMMIT_SHORT_SHA}.exe
   artifacts:
     # name of the generated zipfile
-    name: "slftp_x64-%CI_JOB_NAME%-%CI_COMMIT_REF_NAME%-%CI_COMMIT_SHA%"
+    name: "slftp_x64-${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
     paths:
       # included file
-      - slftp_x64-%CI_COMMIT_SHORT_SHA%.exe
+      - slftp_x64-${CI_COMMIT_SHORT_SHA}.exe
   tags:
     - windows
     - delphi 64bit
