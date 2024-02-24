@@ -2092,6 +2092,7 @@ begin
   conditions.Add(TConditionIMDBVotes);
   conditions.Add(TConditionIMDBCineyear);
   conditions.Add(TConditionIMDBCurrentCineyear);
+  conditions.Add(TConditionIMDBType);
 
   conditions.Add(TConditionMVIDLookupDone);
   conditions.Add(TConditionMVIDGenre);
