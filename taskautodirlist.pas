@@ -15,15 +15,21 @@ type
     function Name: String; override;
   end;
 
+  procedure AutoDirlistInit;
+  procedure AutoDirlistUninit;
+
 implementation
 
 uses
   SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
-  kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, taskcwd;
+  kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, Generics.Collections, taskcwd;
 
 const
   rsections = 'autodirlist';
+
+var
+  FilledReqs: TThreadList<string>;
 
 type
   TReqFillerThread = class(TThread)
@@ -35,6 +41,31 @@ type
     constructor Create(p: Tpazo; const secdir, rlsname: String);
     procedure Execute; override;
   end;
+
+procedure AutoDirlistInit;
+begin
+  FilledReqs := TThreadList<string>.Create;
+end;
+
+procedure AutoDirlistUninit;
+begin
+  FreeAndNil(FilledReqs);
+end;
+
+procedure SetRequestFilled(const aKbKey: string);
+begin
+  FilledReqs.Add(aKbKey);
+end;
+
+function IsRequestAlreadyFilled(const aKbKey: string): boolean;
+begin
+  try
+    Result := FilledReqs.LockList.Contains(aKbKey);
+  finally
+    FilledReqs.UnlockList;
+  end;
+end;
+
 
 { TAutoDirlistTask }
 
@@ -66,6 +97,7 @@ var
   fCwdTask: TCWDTask; //< used to check whether the rls is actually present on the site
   fTaskNotify: TTaskNotify; //< wait for tasks
   fSiteResponse: TSiteResponse; //< site search response
+  fKbKey: String; //< dummy release name to be used for adding the req filling pazo to the KB
 
   function IsSourceSiteValid(aSite: TSite): boolean;
   var
@@ -90,7 +122,13 @@ begin
     releasenametofind := Copy(releasenametofind, 12, 1000);
   end;
 
-  i := kb_list.IndexOf('REQUEST-' + site1 + '-' + releasenametofind);
+  fKbKey := 'REQUEST-' + site1 + '-' + releasenametofind;
+  if IsRequestAlreadyFilled(fKbKey) then
+  begin
+    exit;
+  end;
+
+  i := kb_list.IndexOf(fKbKey);
   if i <> -1 then
   begin
     exit;
@@ -249,7 +287,8 @@ begin
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasenametofind, ss);
       p := PazoAdd(rls);
-      kb_list.AddObject('REQUEST-' + site1 + '-' + releasenametofind, p);
+      kb_list.AddObject(fKbKey, p);
+      SetRequestFilled(fKbKey);
 
       ps := p.AddSite(site1, maindir);
       ps.status := rssAllowed;
