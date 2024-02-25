@@ -1489,7 +1489,7 @@ begin
                 de.justadded := False;
                 fRemovePazoRaceEntries.Add(de);
               end;
-              de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
+              pazo.PRegisterFile(dir, de.filename, de.filesize);
             end;
 
             fFoundDirListEntries.Add(de);
