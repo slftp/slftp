@@ -1054,9 +1054,11 @@ procedure AddTask(t: TTask);
 var
   tname: String;
   fCheckSiteSlotsSite: TSite;
+  fIsAlreadyInQueue: boolean;
 begin
   try
     fCheckSiteSlotsSite := nil;
+    fIsAlreadyInQueue := False;
     tname := t.Name;
 
     //do this check before the task might have been freed already
@@ -1080,7 +1082,8 @@ begin
 
     queueth.main_lock.Enter();
     try
-      if TaskAlreadyInQueue(t) then
+      fIsAlreadyInQueue := TaskAlreadyInQueue(t);
+      if fIsAlreadyInQueue then
         t.ready := True;
 
       tasks.Add(t);
@@ -1107,11 +1110,14 @@ begin
     end;
   end;
 
-  if fCheckSiteSlotsSite <> nil then
+  if not fIsAlreadyInQueue then
   begin
-    CheckSiteSlots(fCheckSiteSlotsSite);
+    if fCheckSiteSlotsSite <> nil then
+    begin
+      CheckSiteSlots(fCheckSiteSlotsSite);
+    end;
+    AddTaskToConsole(t);
   end;
-  AddTaskToConsole(t);
 end;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
