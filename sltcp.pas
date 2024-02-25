@@ -300,7 +300,7 @@ begin
   if slsocket.socket = slsocketerror then exit;
 
   try
-    i:= 0;
+    i:= 1;
     while(true) do
     begin
       error:= '';
