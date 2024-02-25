@@ -3,7 +3,7 @@ unit statsunit;
 interface
 
 uses
-  mormot.orm.core, mormot.core.base, mormot.orm.base;
+  Classes, mormot.orm.core, mormot.core.base, mormot.orm.base;
 
 type
   TSQLSitesRecord = class(TOrmNoCase)
@@ -46,7 +46,21 @@ type
     property FileInfoRec: TSQLFileInfoRecord read FFileInfo write FFileInfo;
   end;
 
-  { Just a helper function to initialize @link(ORMStatsDB) }
+  { Used to store race stat info of a transfer for later saving into the DB }
+  TStatRaceRecord = record
+     FSrcSite, FDstSite, FSection, FRls, FFilename: String;
+     FFilesize: Int64;
+   end;
+
+  { Consumes the race stats queue and writes the stats into the DB }
+  TWriteStatsToDBThread = class(TThread)
+  public
+    constructor Create;
+    procedure Execute; override;
+    destructor Destroy; override;
+  end;
+
+{ Just a helper function to initialize @link(ORMStatsDB) }
 procedure statsInit;
 
 { Just a helper function to free @link(ORMStatsDB) }
@@ -56,7 +70,7 @@ procedure statsUninit;
   @returns(@true if @link(ORMStatsDB) is not nil, @false otherwise.) }
 function IsStatsDatabaseActive: Boolean;
 
-{ Add the raced file and appropriate infos into database
+{ Queue the raced file and appropriate infos to be added into database
   @param(aSrcSite source sitename)
   @param(aDstSite destination sitename)
   @param(aSection sectionname)
@@ -87,7 +101,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, mormot.rest.sqlite3, mormot.core.unicode;
+  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, SyncObjs, DateUtils, mormot.rest.sqlite3, mormot.core.unicode;
 
 const
   section = 'stats';
@@ -95,6 +109,11 @@ const
 var
   ORMStatsDB: TSQLRestClientDB; //< Rest Client for all database interactions
   ORMStatsModel: TSQLModel; //< SQL ORM model for stats database
+  glStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
+  glStatRaceLock: TCriticalSection; //< Lock for the race stats queue
+  glLastStatsCleanTime: TDateTime;  //< When was the stats DB last cleaned from old entries
+  glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
+  glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
 
 function _GetMinFilesize: Int64; inline;
 begin
@@ -108,11 +127,15 @@ begin
   if not config.ReadBool(section, 'enabled', True) then
     Exit;
 
+  glLastStatsCleanTime := MinDateTime;
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
 
   ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
     ORMStatsDB := CreateORMSQLite3DB(ORMStatsModel, fDBName, '');
+    glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
+    glStatRaceLock := TCriticalSection.Create;
+    TWriteStatsToDBThread.Create;
   except
     on e: Exception do
     begin
@@ -127,12 +150,19 @@ begin
   Debug(dpSpam, section, 'Uninit1');
   if Assigned(ORMStatsDB) then
   begin
-    ORMStatsDB.Free;
+    glWriteStatsThreadShouldStop := True;
+
+    while glTWriteStatsThreadRunning do
+      Sleep(100);
+
+    FreeAndNil(ORMStatsDB);
   end;
   if Assigned(ORMStatsModel) then
   begin
     ORMStatsModel.Free;
   end;
+  glStatRaceLock.Free;
+  glStatRaceQueue.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
@@ -144,77 +174,64 @@ begin
     Result := True;
 end;
 
-procedure statsProcessRace(const aSrcSite, aDstSite, aSection, aRls, aFilename: String; const aFilesize: Int64);
+procedure writeStatsToDB(const aStatRaceRecord: TStatRaceRecord);
 var
   fSrcSiteRec, fDstSiteRec: TSQLSitesRecord;
   fSectionRec: TSQLSectionRecord;
   fFileInfoRec: TSQLFileInfoRecord;
   fStatsRec: TSQLStatsRecord;
 begin
-
-  if not IsStatsDatabaseActive then
-  begin
-    Debug(dpSpam, section, '[statsProcessRace] stats disabled.');
-    exit;
-  end;
-
-  if (aFilesize < _GetMinFilesize) then
-  begin
-    Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s is too small', [aFilesize, aFilename]));
-    exit;
-  end;
-
   // we only need the ID
-  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aSrcSite], 'ID');
-  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aDstSite], 'ID');
-  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Section = ?', [aSection], 'ID');
+  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aStatRaceRecord.FSrcSite], 'ID');
+  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aStatRaceRecord.FDstSite], 'ID');
+  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Section = ?', [aStatRaceRecord.FSection], 'ID');
   try
     if not fSrcSiteRec.FillOne then
     begin
-      fSrcSiteRec.Name := StringToUTF8(aSrcSite);
+      fSrcSiteRec.Name := StringToUTF8(aStatRaceRecord.FSrcSite);
 
       if ORMStatsDB.Add(fSrcSiteRec, True, False) = 0 then
       begin
-        Debug(dpError, section, '[statsProcessRace] Could not add srcsite %s to database!', [aSrcSite]);
+        Debug(dpError, section, '[statsProcessRace] Could not add srcsite %s to database!', [aStatRaceRecord.FSrcSite]);
         exit;
       end;
     end;
 
     if not fDstSiteRec.FillOne then
     begin
-      fDstSiteRec.Name := StringToUTF8(aDstSite);
+      fDstSiteRec.Name := StringToUTF8(aStatRaceRecord.FDstSite);
 
       if ORMStatsDB.Add(fDstSiteRec, True, False) = 0 then
       begin
-        Debug(dpError, section, '[statsProcessRace] Could not add dstsite %s to database!', [aDstSite]);
+        Debug(dpError, section, '[statsProcessRace] Could not add dstsite %s to database!', [aStatRaceRecord.FDstSite]);
         exit;
       end;
     end;
 
     if not fSectionRec.FillOne then
     begin
-      fSectionRec.Section := StringToUTF8(aSection);
+      fSectionRec.Section := StringToUTF8(aStatRaceRecord.FSection);
 
       if ORMStatsDB.Add(fSectionRec, True, False) = 0 then
       begin
-        Debug(dpError, section, '[statsProcessRace] Could not add section %s to database!', [aSection]);
+        Debug(dpError, section, '[statsProcessRace] Could not add section %s to database!', [aStatRaceRecord.FSection]);
         exit;
       end;
     end;
 
     // we only need the ID
-    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'ReleaseName = ? AND FileName = ?', [aRls, aFilename], 'ID');
+    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'ReleaseName = ? AND FileName = ?', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename], 'ID');
     try
       if not fFileInfoRec.FillOne then
       begin
-        fFileInfoRec.ReleaseName := StringToUTF8(aRls);
-        fFileInfoRec.FileName := StringToUTF8(aFilename);
-        fFileInfoRec.FileSize := aFilesize;
+        fFileInfoRec.ReleaseName := StringToUTF8(aStatRaceRecord.FRls);
+        fFileInfoRec.FileName := StringToUTF8(aStatRaceRecord.FFilename);
+        fFileInfoRec.FileSize := aStatRaceRecord.FFilesize;
         fFileInfoRec.TimeStamp := Now;
 
         if ORMStatsDB.Add(fFileInfoRec, True, False) = 0 then
         begin
-          Debug(dpError, section, '[statsProcessRace] Could not add %s file info for %s (%d) to database!', [aRls, aFilename, aFilesize]);
+          Debug(dpError, section, '[statsProcessRace] Could not add %s file info for %s (%d) to database!', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename, aStatRaceRecord.FFilesize]);
           exit;
         end;
       end;
@@ -231,7 +248,7 @@ begin
 
           if ORMStatsDB.Add(fStatsRec, True, False) = 0 then
           begin
-            Debug(dpError, section, '[statsProcessRace] Could not add stats record for %s %s (%d) to database!', [aRls, aFilename, aFilesize]);
+            Debug(dpError, section, '[statsProcessRace] Could not add stats record for %s %s (%d) to database!', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename, aStatRaceRecord.FFilesize]);
             exit;
           end;
         end;
@@ -245,6 +262,46 @@ begin
     fSrcSiteRec.Free;
     fDstSiteRec.Free;
     fSectionRec.Free;
+  end;
+end;
+
+procedure statsProcessRace(const aSrcSite, aDstSite, aSection, aRls, aFilename: String; const aFilesize: Int64);
+var
+  fStatRaceRecord: TStatRaceRecord;
+begin
+
+  if not IsStatsDatabaseActive then
+  begin
+    Debug(dpSpam, section, '[statsProcessRace] stats disabled.');
+    exit;
+  end;
+
+  if (aFilesize < _GetMinFilesize) then
+  begin
+    Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s is too small', [aFilesize, aFilename]));
+    exit;
+  end;
+
+  //add the race stats to the queue
+  fStatRaceRecord.FSrcSite := aSrcSite;
+  fStatRaceRecord.FDstSite := aDstSite;
+  fStatRaceRecord.FSection := aSection;
+  fStatRaceRecord.FRls := aRls;
+  fStatRaceRecord.FFilename := aFileName;
+  fStatRaceRecord.FFilesize := aFilesize;
+
+  try
+    glStatRaceLock.Enter;
+    try
+      glStatRaceQueue.Enqueue(fStatRaceRecord);
+    finally
+      glStatRaceLock.Leave;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] QueueStats: %s', [e.Message]));
+    end;
   end;
 end;
 
@@ -579,6 +636,133 @@ begin
 
   if ORMStatsDB.DB.BackupBackground(aPath + aFileName, -1, 0, nil) then
     ORMStatsDB.DB.BackupBackgroundWaitUntilFinished(5);
+end;
+
+constructor TWriteStatsToDBThread.Create;
+begin
+  inherited Create(False);
+  {$IFDEF DEBUG}
+    NameThreadForDebugging('StatsWriter', self.ThreadID);
+  {$ENDIF}
+  FreeOnTerminate := True;
+  glTWriteStatsThreadRunning := True;
+end;
+
+destructor TWriteStatsToDBThread.Destroy;
+begin
+  glTWriteStatsThreadRunning := False;
+end;
+
+procedure TWriteStatsToDBThread.Execute;
+var
+  fStatRaceQueue: TQueue<TStatRaceRecord>;
+  i: Integer;
+  fRec: TSQLFileInfoRecord;
+  fCleanDate: TDateTime;
+begin
+  while IsStatsDatabaseActive do
+  begin
+
+    //only sleep if the thread should not stop, else finish work as fast as possible
+    if not glWriteStatsThreadShouldStop then
+      sleep(1000);
+
+    try
+      // replace glStatRaceLock with a new queue and process the records of the existing one
+      fStatRaceQueue := glStatRaceQueue;
+
+      // lock here to be sure the enqueuing threads don't use the old reference while we're iterating
+      glStatRaceLock.Enter;
+      try
+        glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
+      finally
+        glStatRaceLock.Leave;
+      end;
+
+      //if the thread should stop and there are no more items to process, break the loop
+      if glWriteStatsThreadShouldStop and (fStatRaceQueue.Count = 0) then
+        break;
+
+      if fStatRaceQueue.Count > 0 then
+        Debug(dpSpam, Section, Format('Write %d stats entries to the DB', [fStatRaceQueue.Count]));
+
+      try
+        ORMStatsDB.DB.TransactionBegin;
+        try
+          while fStatRaceQueue.Count > 0 do
+          begin
+            writeStatsToDB(fStatRaceQueue.Dequeue);
+          end;
+          ORMStatsDB.DB.Commit;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, Section, Format('[EXCEPTION] WriteRaceStats DB: %s', [e.Message]));
+            ORMStatsDB.DB.Rollback;
+          end;
+        end;
+      finally
+        fStatRaceQueue.Free;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] WriteRaceStats: %s', [e.Message]));
+      end;
+    end;
+
+    try
+      if (config.ReadInteger(Section, 'delete_after_days', 0) > 0) and not glWriteStatsThreadShouldStop then
+      begin
+
+        // clean the stats DB of old entries once each day
+        if (DaysBetween(glLastStatsCleanTime, Today()) > 0) then
+        begin
+          i := 0;
+          fCleanDate := IncDay(Today(), config.ReadInteger(Section, 'delete_after_days', 0) * -1);
+
+          // only delete 1000 at a time
+          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
+          try
+            ORMStatsDB.DB.TransactionBegin;
+            try
+              while not glWriteStatsThreadShouldStop and fRec.FillOne do
+              begin
+                ORMStatsDB.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
+                ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fRec.ID]);
+                i := i + 1;
+              end;
+              ORMStatsDB.DB.Commit;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, Section, Format('[EXCEPTION] Clean Stats DB (rollback): %s', [e.Message]));
+                ORMStatsDB.DB.Rollback;
+              end
+            end;
+          finally
+            fRec.Free;
+          end;
+
+          // if no more entries have been found today, check again tomorrow
+          if i = 0 then
+          begin
+            glLastStatsCleanTime := Today();
+            Debug(dpSpam, Section, 'Finished cleaning old stats for today, now do "pragma optimize"');
+            ORMStatsDB.Execute('pragma optimize;');
+          end
+          else
+            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, config.ReadInteger(Section, 'delete_after_days', 0)]));
+
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, Section, Format('[EXCEPTION] Clean Stats DB: %s', [e.Message]));
+      end;
+    end;
+  end;
 end;
 
 end.
