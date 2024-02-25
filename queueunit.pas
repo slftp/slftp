@@ -30,7 +30,7 @@ procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 
-function RemovePazo(const pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
@@ -1192,10 +1192,10 @@ begin
   end;
 end;
 
-function RemovePazo(const pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 var
   i: integer;
-  t: TPazoTask;
+  t: TPazoPlainTask;
 begin
   Result := False;
   try
@@ -1206,18 +1206,39 @@ begin
         try
           if i < 0 then
             Break;
-        except
-          Break;
-        end;
-        try
-          if tasks[i] is TPazoTask then
+
+          if tasks[i] is TPazoPlainTask then
           begin
-            t := TPazoTask(tasks[i]);
-            if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
-              t.readyerror := True;
+            t := TPazoPlainTask(tasks[i]);
+            if ((t.pazo_id = pazo_id)) then
+            begin
+              if t.slot1 = nil then
+              begin
+                t.readyerror := True;
+              end
+              else if aForce then
+              begin
+                Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
+                t.readyerror := True;
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  with TSiteSlot(t.slot1) do
+                  begin
+                    Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [Name]));
+                    site.RebuildSlot(SlotNumber);
+                  end;
+                end;
+
+                t.slot1 := nil;
+                t.slot2 := nil;
+              end;
+            end;
           end;
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] RemovePazo (loop): %s', [e.Message]));
+          end;
         end;
       end;
     finally
