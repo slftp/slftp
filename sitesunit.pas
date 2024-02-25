@@ -194,6 +194,7 @@ type
     property LastIO: TDateTime read FLastIO write FLastIO; //< time of last I/O operation, renewed on every read/write
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
+    property SlotNumber: integer read FSlotNumber;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -488,6 +489,8 @@ type
       @param(aSection sectionname)
       @param(Value Value to be set) }
     procedure SetDelayUploadMax(const aSection: String; const Value: integer);
+
+    procedure RebuildSlot(const aSlotNumber: integer);
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -1012,11 +1015,7 @@ begin
   // segfault because values aren't initialized yet
   // * the calls below should normally be at top of this function to avoid overwriting/resetting
   // * of class values by its ancestor
-  {$IFDEF DEBUG}
-    inherited Create(Name, False);
-  {$ELSE}
-    inherited Create(False);
-  {$ENDIF}
+  inherited Create(Name, False);
 
   debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
@@ -3826,6 +3825,15 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+procedure TSite.RebuildSlot(const aSlotNumber: integer);
+begin
+  if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
+    raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
+
+  self.slots[aSlotNumber] := nil;
+  self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;

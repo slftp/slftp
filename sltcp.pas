@@ -106,13 +106,13 @@ type
   private
     thread_running: Boolean;
     connectionThread: TslCCHThread;
+    FThreadName: String;
   protected
     procedure WFS(socket: TslTCPSocket; var ShouldQuit: Boolean); virtual;
   public
     shouldquit: Boolean;
     procedure Execute; virtual; abstract;
-    constructor Create(createSuspended: Boolean = True); overload;
-    constructor Create(const aThreadName: String; createSuspended: Boolean = True); overload;
+    constructor Create(const aThreadName: String; createSuspended: Boolean = True);
     destructor Destroy; override;
     procedure Start;
     procedure Stop; virtual;
@@ -139,7 +139,7 @@ var
 
 implementation
 
-uses SysUtils, slhelper, Math, DateUtils;
+uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc;
 
 
 var sltcp_lock: TCriticalSection;
@@ -267,7 +267,7 @@ begin
 
   DisconnectSSL;
 
-  slShutdown(slSocket);
+  slstack.slShutdown(slSocket);
   slClose(slSocket);
   ClearSocket;
   Result:= True;
@@ -1223,18 +1223,12 @@ end;
 
 { TslTCPThread }
 
-constructor TslTCPThread.Create(createSuspended: Boolean = True);
-begin
-  inherited Create;
-  OnWaitingforSocket := WFS;
-  connectionThread := TslCCHThread.Create(self, createSuspended);
-end;
-
 constructor TslTCPThread.Create(const aThreadName: String; createSuspended: Boolean = True);
 begin
   inherited Create;
   OnWaitingforSocket := WFS;
   connectionThread := TslCCHThread.Create(self, createSuspended);
+  FThreadName := aThreadName;
 
   {$IFDEF DEBUG}
     connectionThread.NameThreadForDebugging(aThreadName, connectionThread.ThreadID);
@@ -1257,9 +1251,31 @@ begin
 end;
 
 procedure TslTCPThread.Stop;
+var
+  fStopRequestedTime: TDateTime;
+  fWaitTimeSeconds: integer;
 begin
   shouldquit:= True;
-  while thread_running do Sleep(100);
+  fStopRequestedTime := Now();
+
+  if mainthread.slshutdown then
+    fWaitTimeSeconds := 10
+  else
+    fWaitTimeSeconds := 60;
+
+  while thread_running do
+  begin
+    if SecondsBetween(Now(), fStopRequestedTime) > fWaitTimeSeconds then
+    begin
+      if not mainthread.slshutdown then
+      begin
+        Debug(dpError, 'sltcp', Format('Timeout while stopping thread: %s', [FThreadName]));
+        irc_addadmin(Format('<%s>Timeout while stopping thread:</c> %s', [globals.SiteColorOffline, FThreadName]));
+      end;
+      break;
+    end;
+    Sleep(100);
+  end;
 end;
 
 procedure TslTCPThread.WFS(socket: TslTCPSocket; var ShouldQuit: Boolean);
