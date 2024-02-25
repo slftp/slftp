@@ -73,6 +73,8 @@ begin
     Result.DB.LockingMode := lmExclusive;
     // enable Write-Ahead Logging mode a which is slightly faster
     Result.DB.WALMode := True;
+    Result.DB.Synchronous := smNormal;
+
     // create missing sql tables
     Result.Server.CreateMissingTables;
   except

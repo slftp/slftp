@@ -55,6 +55,7 @@
     {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
     {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
     {^} Improve caching of skiplist values for dirlist
+    {^} Write race stats to the DB asynchronously
 
 --=============================( SLFTP v1.5.9 )===================================-
     {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
