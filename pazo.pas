@@ -592,16 +592,9 @@ begin
             Continue;
         end;
 
-        // When in a subdir, pass along the DirType of the source site subdir
-        if (dstdl.parent <> nil) then
-          dstdl.parent.DirType := de.DirType;
-
         // find the dirlist entry
         try
           dde := dstdl.Find(de.filename);
-          // Pass along the DirType of the source site entry
-          if (dde <> nil) then
-            dde.DirType := de.DirType;
         except
           on e: Exception do
           begin
@@ -1544,7 +1537,7 @@ begin
       end
       else
       begin
-        de := TDirListEntry.Create(filename, dl);
+        de := TDirListEntry.Create(filename, dl, False);
         de.error := True;
         dl.entries.AddObject(de.filename, de);
       end;
@@ -1589,8 +1582,7 @@ begin
           if de = nil then
           begin
             // this means that it has not been fired
-            de := TDirListEntry.Create(fFilename, aDirlist);
-            de.Directory := False;
+            de := TDirListEntry.Create(fFilename, aDirlist, False);
             de.filesize := -1;
 
             de.RegenerateSkiplist;
