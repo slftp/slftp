@@ -1046,8 +1046,21 @@ begin
 end;
 
 procedure AddTaskToConsole(const aTask: TTask);
+var
+  fTaskUid, fTaskName: string;
 begin
-  Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
+  try
+    fTaskUid := aTask.UidText;
+    fTaskName := aTask.Name;
+  except
+    on e: Exception do
+    begin
+      // it seems this could happen when the task has been freed already (because we are not inside queue lock here).
+      Debug(dpSpam, section, Format('[EXCEPTION] AddTaskToConsole task not available : %s', [e.Message]));
+      exit;
+    end;
+  end;
+  Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
 procedure AddTask(t: TTask);
