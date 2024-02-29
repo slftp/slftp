@@ -39,6 +39,7 @@ function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean
 function IrcSetReverseFxp(const netname, channel, params: String): boolean;
 function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
 function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
+function IrcKillConnectionOnStalledTransfer(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -2443,6 +2444,31 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> value for reduced speedstat weight is: %d', [fSite.Name, ord(fSite.ReducedSpeedstatWeight)])
   else
     fSite.ReducedSpeedstatWeight := boolean(fReducedSpeedstatWeight);
+
+  Result := True;
+end;
+
+function IrcKillConnectionOnStalledTransfer(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fSeconds: Integer;
+  fSite: TSite;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fSeconds := StrToIntDef(SubString(params, ' ', 2), -1);
+  fSite := FindSiteByName(Netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  // if no valid value has been given, output the current value
+  if fSeconds < 0 then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> seconds after which stalled transfers are killed: %d', [fSite.Name, fSite.KillConnectionOnStalledTransferSeconds])
+  else
+    fSite.KillConnectionOnStalledTransferSeconds := fSeconds;
 
   Result := True;
 end;
