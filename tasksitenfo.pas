@@ -34,9 +34,8 @@ begin
 
   if sec.ClassName = 'TIMDBRelease' then
   begin
-    if dbaddimdb_parseid(nfo_data, imdbid) then
+    if parseImdbIDFromString(nfo_data, imdbid) then
     begin
-      dbaddimdb_SaveImdb(rls, imdbid);
       dbaddurl_SaveUrl(rls, 'http://www.imdb.com/title/' + imdbid + '/');
     end;
   end;
@@ -81,29 +80,6 @@ begin
   begin
     readyerror := True;
     exit;
-  end;
-
-  // exit if imdb info is already known in last_imdbdata
-  dbaddimdb_cs.Enter;
-  try
-    try
-      i := last_imdbdata.IndexOf(mainpazo.rls.rlsname);
-      if i <> -1 then
-      begin
-        Result := True;
-        ready := True;
-        exit;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
-        readyerror := True;
-        exit;
-      end;
-    end;
-  finally
-    dbaddimdb_cs.Leave;
   end;
 
   // exit if nfo is already in dbaddnfo

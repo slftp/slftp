@@ -137,7 +137,7 @@ var
   imdbid: String;
 begin
   try
-    if dbaddimdb_parseid(url, imdbid) then
+    if parseImdbIDFromString(url, imdbid) then
       dbaddimdb_SaveImdb(rls, imdbid);
   except
     on e: Exception do
