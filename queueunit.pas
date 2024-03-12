@@ -56,7 +56,7 @@ procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: S
 function IrcKillAll(const netname, channel, params: String): boolean;
 procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
 
-function RemovePazo(const pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 procedure RemovePazoDirTasks(const pazo_id: integer);
@@ -1197,7 +1197,7 @@ begin
   begin
     CheckSiteSlots(fCheckSiteSlotsSite);
   end;
-  //AddTaskToConsole(t);
+  AddTaskToConsole(t);
 end;
 
 procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
@@ -1280,10 +1280,10 @@ begin
   end;
 end;
 
-function TQueueThread.RemovePazo(const pazo_id: integer): boolean;
+function TQueueThread.RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 var
   i: integer;
-  t: TPazoTask;
+  t: TPazoPlainTask;
   fTask: TTask;
 begin
   Result := False;
@@ -1294,14 +1294,38 @@ begin
       for fTask in tasks.LockList() do
       begin
         try
-          if fTask is TPazoTask then
+          if fTask is TPazoPlainTask then
           begin
-            t := TPazoTask(fTask);
-            if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
-              t.readyerror := True;
+            t := TPazoPlainTask(fTask);
+            if ((t.pazo_id = pazo_id)) then
+            begin
+              if t.slot1 = nil then
+              begin
+                t.readyerror := True;
+              end
+              else if aForce then
+              begin
+                Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
+                t.readyerror := True;
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  with TSiteSlot(t.slot1) do
+                  begin
+                    Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [Name]));
+                    site.RebuildSlot(SlotNumber);
+                  end;
+                end;
+
+                t.slot1 := nil;
+                t.slot2 := nil;
+              end;
+            end;
           end;
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] RemovePazo (loop): %s', [e.Message]));
+          end;
         end;
       end;
     finally

@@ -306,39 +306,9 @@ function IrcSetDebugverbosity(const netname, channel, params: String): boolean;
 var
   val: integer;
 begin
-  val := StrToIntDef(params, -1);
-  if val = -1 then
-  begin
-
-    case config.ReadInteger('debug', 'verbosity', 0) of
-      0: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
-      1: irc_Addtext(Netname, Channel, 'Only Logging Errors and common Messages.');
-      2: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
-      3: irc_Addtext(Netname, Channel, 'Skip Logging...');
-    end;
+  Result := False;
+  if WriteDebugVerbosity(netname, channel, params) then
     Result := True;
-    Exit;
-  end
-  else if (val <= 3) then
-  begin
-    config.WriteInteger('debug', 'verbosity', val);
-    config.UpdateFile;
-    case config.ReadInteger('debug', 'verbosity', 0) of
-      0: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
-      1: irc_Addtext(Netname, Channel, 'Only Logging Errors and common Messages.');
-      2: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
-      3: irc_Addtext(Netname, Channel, 'Skip Logging...');
-    end;
-    Result := True;
-    Exit;
-  end
-  else
-  begin
-    irc_Addtext(Netname, Channel, '<c4>Syntax error</c>, unknown verbosity.');
-    Result := False;
-    Exit;
-  end;
-  Result := True;
 end;
 
 function IrcCreateBackup(const netname, channel, params: String): boolean;

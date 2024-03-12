@@ -194,6 +194,7 @@ type
     property LastIO: TDateTime read FLastIO write FLastIO; //< time of last I/O operation, renewed on every read/write
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
+    property SlotNumber: integer read FSlotNumber;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -418,7 +419,7 @@ type
     procedure QueueFire;
     procedure QueueClean;
     procedure QueueSort;
-    function RemovePazo(const aPazoID: integer): boolean;
+    function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
     //procedure QueueEmpty(const sitename: String);
     procedure QueueFireInverval(const interval: integer);
     procedure QueueCleanInverval(const interval: integer);
@@ -515,6 +516,8 @@ type
     function AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean; overload;
     procedure ReleaseSlotsAssignmentLock;
 
+    procedure RebuildSlot(const aSlotNumber: integer);
+
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
@@ -589,7 +592,7 @@ procedure SiteAutoStart;
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
 procedure QueueFireInverval(const interval: integer);
 procedure QueueCleanInverval(const interval: integer);
-function RemovePazo(const aPazoID: integer): boolean;
+function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
 procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
@@ -975,19 +978,19 @@ begin
   FindSiteByName('', sitename).RemovePazoMKDIR(pazo_id, dir);
 end;
 
-function RemovePazo(const aPazoID: integer): boolean;
+function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 var fSite: TSite;
 begin
   Result := True;
   for fSite in sites do
   begin
-    Result := fSite.RemovePazo(aPazoID) and Result;
+    Result := fSite.RemovePazo(aPazoID, aForce) and Result;
   end;
 end;
 
-function TSite.RemovePazo(const aPazoID: integer): boolean;
+function TSite.RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 begin
-  Result := fQueue.RemovePazo(aPazoID);
+  Result := fQueue.RemovePazo(aPazoID, aForce);
 end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
@@ -1410,11 +1413,7 @@ begin
   // segfault because values aren't initialized yet
   // * the calls below should normally be at top of this function to avoid overwriting/resetting
   // * of class values by its ancestor
-  {$IFDEF DEBUG}
-    inherited Create(Name, False);
-  {$ELSE}
-    inherited Create(False);
-  {$ENDIF}
+  inherited Create(Name, False);
 
   debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
@@ -4137,6 +4136,15 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+procedure TSite.RebuildSlot(const aSlotNumber: integer);
+begin
+  if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
+    raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
+
+  self.slots[aSlotNumber] := nil;
+  self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;

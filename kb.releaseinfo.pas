@@ -237,6 +237,7 @@ type
     imdb_festival: boolean;
     imdb_stvm: boolean; // TODO: rename this to make it more clear; stvm and stvs aren't clear yet
     imdb_stvs: String;
+    imdb_type: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
@@ -1514,6 +1515,7 @@ begin
         imdb_festival := imdbdata.imdb_festival;
         imdb_stvm := imdbdata.imdb_stvm;
         imdb_stvs := imdbdata.imdb_stvs;
+        imdb_type := imdbdata.imdb_type;
 
         FLookupDone := True;
       except
@@ -1557,6 +1559,7 @@ begin
     Result := Result + Format('IMDB Natowide: %s', [BoolToStr(imdb_wide, True)]) + #13#10;
     Result := Result + Format('IMDB STV: %s', [BoolToStr(imdb_stvm, True)]) + #13#10;
     Result := Result + Format('IMDB STVS: %s', [imdb_stvs]);
+    Result := Result + Format('IMDB Type: %s', [imdb_type]);
   except
     on e: Exception do
     begin
