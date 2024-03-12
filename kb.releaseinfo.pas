@@ -1503,9 +1503,9 @@ begin
 
         imdb_id := imdbdata.imdb_id;
         imdb_year := imdbdata.imdb_year;
-        imdb_languages := imdbdata.imdb_languages;
-        imdb_countries := imdbdata.imdb_countries;
-        imdb_genres := imdbdata.imdb_genres;
+        imdb_languages.DelimitedText := imdbdata.imdb_languages.DelimitedText;
+        imdb_countries.DelimitedText := imdbdata.imdb_countries.DelimitedText;
+        imdb_genres.DelimitedText := imdbdata.imdb_genres.DelimitedText;
         imdb_screens := imdbdata.imdb_screens;
         imdb_rating := imdbdata.imdb_rating;
         imdb_votes := imdbdata.imdb_votes;
