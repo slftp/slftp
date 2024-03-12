@@ -1629,7 +1629,7 @@ begin
       Tuzelj(aNetname, aChannel, aDir, fFilesToRace);
 
       for de in fFilesToRace do
-        RemovePazoRace(pazo.pazo_id, Name, aDir, fFilename);
+        RemovePazoRace(pazo.pazo_id, Name, aDir, de.filename);
 
     except
       on E: Exception do
