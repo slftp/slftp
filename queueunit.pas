@@ -1215,8 +1215,11 @@ function RemovePazo(const pazo_id: integer; const aForce: boolean = False): bool
 var
   i: integer;
   t: TPazoPlainTask;
+  fSlotsToRebuild: TList<TSiteSlot>;
+  fSlot: TSiteSlot;
 begin
   Result := False;
+  fSlotsToRebuild := TList<TSiteSlot>.Create;
   try
     queueth.main_lock.Enter();
     try
@@ -1239,13 +1242,11 @@ begin
               begin
                 Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
                 t.readyerror := True;
+
+                // if the site slot actually has this task assigned, we need to rebuild it
                 if TSiteSlot(t.slot1).todotask = t then
                 begin
-                  with TSiteSlot(t.slot1) do
-                  begin
-                    Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [Name]));
-                    site.RebuildSlot(SlotNumber);
-                  end;
+                  fSlotsToRebuild.Add(TSiteSlot(t.slot1));
                 end;
 
                 t.slot1 := nil;
@@ -1263,6 +1264,22 @@ begin
     finally
       queueth.main_lock.Leave;
     end;
+
+    // now rebuild the slot(s) outside of the queue lock
+    for fSlot in fSlotsToRebuild do
+    begin
+      Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [fSlot.Name]));
+      irc_Addadmin('[SITESLOT]: Rebuild slot with stuck task: %s', [fSlot.Name]);
+      try
+        fSlot.site.RebuildSlot(fSlot.SlotNumber);
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemovePazo (RebuildSlot): %s', [e.Message]));
+        end;
+      end;
+    end;
+    fSlotsToRebuild.Free;
   except
     on E: Exception do
     begin
