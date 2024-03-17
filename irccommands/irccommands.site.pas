@@ -2457,7 +2457,7 @@ begin
   Result := False;
   fSiteName := UpperCase(SubString(params, ' ', 1));
   fSeconds := StrToIntDef(SubString(params, ' ', 2), -1);
-  fSite := FindSiteByName(Netname, fSiteName);
+  fSite := FindSiteByName(netname, fSiteName);
   if fSite = nil then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
