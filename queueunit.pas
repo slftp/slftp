@@ -1113,8 +1113,21 @@ end;
 
 
 procedure AddTaskToConsole(const aTask: TTask);
+var
+  fTaskUid, fTaskName: string;
 begin
-  Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
+  try
+    fTaskUid := aTask.UidText;
+    fTaskName := aTask.Name;
+  except
+    on e: Exception do
+    begin
+      // it seems this could happen when the task has been freed already (because we are not inside queue lock here).
+      Debug(dpSpam, section, Format('[EXCEPTION] AddTaskToConsole task not available : %s', [e.Message]));
+      exit;
+    end;
+  end;
+  Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
 procedure TQueueThread.AddTask(t: TTask);
@@ -1285,8 +1298,11 @@ var
   i: integer;
   t: TPazoPlainTask;
   fTask: TTask;
+  fSlotsToRebuild: TList<TSiteSlot>;
+  fSlot: TSiteSlot;
 begin
   Result := False;
+  fSlotsToRebuild := TList<TSiteSlot>.Create;
   try
     //main_lock.Enter();
     //ThreadList.LockList;
@@ -1307,13 +1323,11 @@ begin
               begin
                 Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
                 t.readyerror := True;
+
+                // if the site slot actually has this task assigned, we need to rebuild it
                 if TSiteSlot(t.slot1).todotask = t then
                 begin
-                  with TSiteSlot(t.slot1) do
-                  begin
-                    Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [Name]));
-                    site.RebuildSlot(SlotNumber);
-                  end;
+                  fSlotsToRebuild.Add(TSiteSlot(t.slot1));
                 end;
 
                 t.slot1 := nil;
@@ -1333,6 +1347,22 @@ begin
       //main_lock.Leave;
       //ThreadList.UnlockList;
     end;
+
+    // now rebuild the slot(s) outside of the queue lock
+    for fSlot in fSlotsToRebuild do
+    begin
+      Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [fSlot.Name]));
+      irc_Addadmin('[SITESLOT]: Rebuild slot with stuck task: %s', [fSlot.Name]);
+      try
+        fSlot.site.RebuildSlot(fSlot.SlotNumber);
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemovePazo (RebuildSlot): %s', [e.Message]));
+        end;
+      end;
+    end;
+    fSlotsToRebuild.Free;
   except
     on E: Exception do
     begin
