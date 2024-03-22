@@ -1125,6 +1125,26 @@ begin
 
   if not fIsAlreadyInQueue then
   begin
+
+    // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
+    // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
+    // dependencies of the race task never be resolved and it would remain and pollute the queue.
+    try
+      if t is TPazoPlainTask and (TPazoPlainTask(t).ps1.error or ((TPazoPlainTask(t).ps2 <> nil) and TPazoPlainTask(t).ps2.error)) then
+      begin
+        t.readyerror := true;
+        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+        exit
+      end;
+    except
+      on e: Exception do
+      begin
+        // expect to get some exceptions because we are outside of the queue lock and accessing a task
+        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+        exit;
+      end;
+    end;
+
     if fCheckSiteSlotsSite <> nil then
     begin
       CheckSiteSlots(fCheckSiteSlotsSite);
