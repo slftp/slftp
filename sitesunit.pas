@@ -2548,7 +2548,7 @@ var
   ss, affils: String;
 begin
   debug(dpSpam, section, 'Start creating of site %s', [Name]);
-  slots := TObjectList.Create();
+  slots := TObjectList.Create(False);
   self.Name := Name;
   features := [];
 
@@ -2704,9 +2704,13 @@ begin
 end;
 
 destructor TSite.Destroy;
+var
+  fSlot: TSiteSlot;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   QueueEmpty(Name);
+  for fSlot in slots do
+    fSlot.Free;
   slots.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
@@ -3776,30 +3780,6 @@ begin
   fs := 0;
   for i := 0 to slots.Count - 1 do
   begin
-    (*
-        try
-          ss:= TSiteSlot(slots[i]);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-            irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-            slots[i] := nil;
-            slots[i] := TSiteSlot.Create(self, i);
-            ss:= TSiteSlot(slots[i]);
-            irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-          end;
-        end;
-        if ((slots[i] = nil) or (ss = nil)) then
-        begin
-          Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-          irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-          slots[i] := nil;
-          slots[i] := TSiteSlot.Create(self, i);
-          ss:= TSiteSlot(slots[i]);
-          irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-        end;
-    *)
     ss := TSiteSlot(slots[i]);
     if ss.todotask = nil then
       Inc(fs);
@@ -3828,12 +3808,15 @@ begin
 end;
 
 procedure TSite.RebuildSlot(const aSlotNumber: integer);
+var
+  fOldSiteSlot: TSiteSlot;
 begin
   if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
     raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
 
-  self.slots[aSlotNumber] := nil;
+  fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
   self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
+  fOldSiteSlot.Free;
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;

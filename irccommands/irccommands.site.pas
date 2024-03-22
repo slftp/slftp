@@ -927,6 +927,7 @@ var
   oldslots, newslots: integer;
   ii, i: integer;
   fDoOutputOnly: boolean;
+  fSiteSlot: TSiteSlot;
 begin
   Result := False;
 
@@ -963,8 +964,9 @@ begin
         // you have to remove some slots
         for ii := 1 to oldslots - newslots do
         begin
-          TSiteSlot(s.slots[s.slots.Count - 1]).Stop;
+          fSiteSlot := TSiteSlot(s.slots[s.slots.Count - 1]);
           s.slots.Delete(s.slots.Count - 1);
+          fSiteSlot.Free;
         end;
       end
       else if oldslots < newslots then
@@ -1008,8 +1010,9 @@ begin
           // you have to remove some slots
           for ii := 1 to oldslots - newslots do
           begin
-            TSiteSlot(s.slots[s.slots.Count - 1]).Stop;
+            fSiteSlot := TSiteSlot(s.slots[s.slots.Count - 1]);
             s.slots.Delete(s.slots.Count - 1);
+            fSiteSlot.Free;
           end;
         end
         else if oldslots < newslots then
