@@ -35,6 +35,7 @@ type
     FIsInternal: Boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     FPretimeUTC: Int64; //< UTC pretime for release
     FPretimeSource: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
+    FIsSFVRelease: boolean;
   public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
@@ -92,6 +93,7 @@ type
     property IsInternal: Boolean read FIsInternal;
     property Pretime: Int64 read FPretimeUTC;
     property PretimeSource: String read FPretimeSource;
+    property IsSFVRelease: Boolean read FIsSFVRelease;
   end;
 
   { @abstract(Class with support for 0-DAY release information) }
@@ -414,6 +416,7 @@ var
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
   glMP3Types: TStringList; //< List of MP3 types
+  glSFVReleaseSectionMask: TslMask;
 
 procedure KbReleaseInit;
 var
@@ -519,6 +522,13 @@ begin
   GlTvTags := TStringList.Create;
   GlTvTags.CaseSensitive := False;
   GlTvTags.DelimitedText := config.ReadString(configsection, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
+
+
+  ss := config.ReadString('taskrace', 'SFVRelease', '');
+  if ss <> '' then
+  begin
+    glSFVReleaseSectionMask := TslMask.Create(ss);
+  end;
 end;
 
 procedure KbReleaseUninit;
@@ -539,6 +549,11 @@ begin
     end;
   end;
   kb_sectionhandlers.Free;
+
+  if glSFVReleaseSectionMask <> nil then
+  begin
+    glSFVReleaseSectionMask.Free;
+  end;
 end;
 
 function EventStringToTKBEventType(const aEvent: string): TKBEventType;
@@ -751,6 +766,11 @@ begin
 
   if FakeChecking then
     FakeCheck(self);
+
+  if glSFVReleaseSectionMask <> nil then
+  begin
+    FIsSFVRelease := glSFVReleaseSectionMask.Matches(self.section);
+  end;
 end;
 
 destructor TRelease.Destroy;
