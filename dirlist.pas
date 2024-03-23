@@ -75,6 +75,7 @@ type
   TDirList = class
   private
     FLastChanged: TDateTime;
+    FLastUpdated: TDateTime;
     allcdshere: Boolean;
     skiplist: TSkipList;
     FPazoSFV: TPazoSFV;
@@ -197,6 +198,7 @@ type
     property CompletedTime: TDateTime read FCompletedTime;
     property FullPath: String read FFullPath write SetFullPath;
     property DirlistGaveUp: boolean read FDirlistGaveUp write FDirlistGaveUp;
+    property LastUpdated: TDateTime read FLastUpdated write FLastUpdated;
   end;
 
 { Just a helper function to initialize image_files_priority and video_files_priority }
@@ -393,6 +395,7 @@ begin
   FCompleteInfo := NotComplete;
 
   FLastChanged := Now();
+  FLastUpdated := Now();
   allcdshere := False;
   entries := THashedStringList.Create;
   entries.OwnsObjects := True;
@@ -810,6 +813,8 @@ begin
   finally
     dirlist_lock.Leave;
   end;
+
+  FLastUpdated := Now();
 
   if parent = nil then
   begin
@@ -1448,6 +1453,7 @@ var
 begin
   allcdshere := False;
   FLastChanged := 0;
+  FLastUpdated := 0;
   biggestcd := 0;
 
   dirlist_lock.Enter;
