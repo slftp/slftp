@@ -3155,13 +3155,10 @@ var
   fSlot: TSiteSlot;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
-<<<<<<< HEAD
   fQueue.Free;
-=======
   QueueEmpty(Name);
   for fSlot in slots do
     fSlot.Free;
->>>>>>> fix_rebuildslot_slot_free_timeout_errors
   slots.Free;
   fSlotsAssignmentLock.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
