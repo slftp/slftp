@@ -119,10 +119,10 @@ begin
     try
       for I := 0 to jl.Count - 1 do
       begin
-        showA := replaceTVShowChars(ReplaceText(showName, '.', ' '));
-        showB := replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value);
+        showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
+        showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
 
-        if onlyEnglishAlpha(showA) = onlyEnglishAlpha(showB) then
+        if (CompareText(showA,showB)= 0) then
         begin
           if hadCountry then
           begin
@@ -255,7 +255,7 @@ begin
   except on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] in findCurrentAirDate (previousepisode): ' + e.Message);
-      Irc_AddAdmin('[EXCEPTION] findCurrentAirDate (previousepisode): ' + e.Message);
+      Irc_AddError('[EXCEPTION] findCurrentAirDate (previousepisode): ' + e.Message);
     end;
   end;
 
@@ -277,7 +277,7 @@ begin
   except on e: Exception do
     begin
       Debug(dpError, section, '[EXCEPTION] findCurrentAirDate (nextepisode): ' + e.Message);
-      Irc_AddAdmin('[EXCEPTION] findCurrentAirDate (nextepisode): ' + e.Message);
+      Irc_AddError('[EXCEPTION] findCurrentAirDate (nextepisode): ' + e.Message);
     end;
   end;
 
@@ -570,7 +570,7 @@ begin
     else
     begin
       debug(dpSpam, section, 'READD: no more attempts for %s...', [tr.showname]);
-      irc_addadmin('<c4>ERROR</c> No TVMaze ID found for <b>%s</b> ( %s )', [tr.showname, tr.rlsname]);
+      Irc_AddError(Format('<c4>ERROR</c> No TVMaze ID found for <b>%s</b> (%s)', [tr.showname, tr.rlsname]));
       SlftpNewsAdd('TVMAZE', Format('<c4>ERROR</c> No TVMaze ID found for <b>%s</b>', [tr.showname]), True);
     end;
 
@@ -592,7 +592,7 @@ begin
 
   if ((tvmaz = '') or (tvmaz = '[]')) then
   begin
-    irc_addadmin('<c4><b>ERROR</c></b> http response is empty for ' + tr.showname);
+    Irc_AddError('<c4><b>ERROR</c></b> http response is empty for ' + tr.showname);
     Debug(dpSpam, section, 'ERROR http response is empty for ' + tr.showname);
     Result := True;
     readyerror := True;
@@ -614,7 +614,7 @@ begin
 
   if ((config.ReadBool(section, 'stop_on_englishcheck', True)) and (onlyEnglishAlpha(showA) <> onlyEnglishAlpha(showB))) then
   begin
-    irc_addadmin('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [onlyEnglishAlpha(showA), onlyEnglishAlpha(showB)]);
+    Irc_AddError(Format('<c14><b>Info</b></c>: Alphanumeric check dont match! %s <> %s', [onlyEnglishAlpha(showA), onlyEnglishAlpha(showB)]));
     Result := True;
     ready := True;
     exit;

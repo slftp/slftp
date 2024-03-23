@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -62,18 +62,55 @@ uses ZClasses
 
 type
 
-  {** Implements an enum for and identifier case Sensitive/Unsensitive value }
+  /// <summary>defines an enum for and identifier case Sensitive/Unsensitive
+  ///  value.</summary>
   TZIdentifierCase = (icNone, icLower, icUpper, icMixed, icSpecial);
 
-  {** Case Sensitive/Unsensitive identificator processor. }
-  IZIdentifierConvertor = interface (IZInterface)
+  /// <author>EgonHugeist</author>
+  /// <summary>defines an enumerator for the quoting rules of qualifiers.</summary>
+  TZIdentifierQualifier = (iqUnspecified, iqCatalog, iqSchema, iqTable, iqEvent,
+    iqTrigger, iqStoredProcedure, iqStoredFunction, iqSequence, iqColumn,
+    iqParameter, iqIndex, iqForeignKey);
+
+  /// <summary>Case Sensitive/Unsensitive identificator processor.</summary>
+  IZIdentifierConverter = interface (IZInterface)
     ['{2EB07B9B-1E96-4A42-8084-6F98D9140B27}']
+    /// <summary>Checks is the string case sensitive.</summary>
+    /// <param>"Value" an identifier string.</param>
+    /// <returns><c>True</c> if the identifier string is case sensitive;
+    ///  <c>False</c> otherwise.</returns>
     function IsCaseSensitive(const Value: string): Boolean;
+    /// <summary>Checks is the string quoted.</summary>
+    /// <param>"Value" an identifier string.</param>
+    /// <returns><c>True</c> if the identifier string is case quoted;
+    ///  <c>False</c> otherwise.</returns>
     function IsQuoted(const Value: string): Boolean;
+    /// <author>FrOsT</author>
+    /// <summary>Get the indentifier case.</summary>
+    /// <param>"Value" an identifier string.</param>
+    /// <param>"TestKeyWords" indicate if reserved Keywords should be compared.</param>
+    /// <returns>on of the following:
+    ///  icNone - just numbers starting with a underscore found,
+    ///  icLower - the indentifier is lower case,
+    ///  icUpper - the indentifier is upper case,
+    ///  icMixed - the indentifier is mixed case,
+    ///  icSpecial - the identifier is a reserved keyword or contains a
+    ///    character not matching '_','0'..'9','a'..'z' and 'A'..'Z'.</returns>
     function GetIdentifierCase(const Value: String; TestKeyWords: Boolean): TZIdentifierCase;
-    function Quote(const Value: string): string;
+    /// <summary>Quotes the identifier string.</summary>
+    /// <param>"Value" an identifier string.</param>
+    /// <param>"Qualifier" an identifier qualifier. Default is <c>iqUnspecified</c>.</param>
+    /// <returns>a quoted string.</returns>
+    function Quote(const Value: string; Qualifier: TZIdentifierQualifier = iqUnspecified): string;
+    /// <summary>Extracts the quote from the idenfitier string.</summary>
+    /// <param>"Value" an identifier string.</param>
+    /// <returns>an extracted and processed string.</returns>
     function ExtractQuote(const Value: string): string;
   end;
+
+  /// <author>EgonoHugeist</author>
+  /// <summary>Defines a backward compatible alias for the IZIdentifierConverter</summary>
+  IZIdentifierConvertor = IZIdentifierConverter;
 
   {** Implements a table reference assembly. }
   TZTableRef = class (TObject)
@@ -107,34 +144,47 @@ type
     constructor Create(IsField: Boolean; const Catalog, Schema, Table,
       Field, Alias: string; TableRef: TZTableRef);
 
+    /// <summary>Indicates if the field is a real field or an aggreagete f.e.</summary>
     property IsField: Boolean read FIsField write FIsField;
+    /// <summary>Defines the catalog of the field.</summary>
     property Catalog: string read FCatalog write FCatalog;
+    /// <summary>Defines the schema of the field.</summary>
     property Schema: string read FSchema write FSchema;
+    /// <summary>Defines the table of the field.</summary>
     property Table: string read FTable write FTable;
+    /// <summary>Defines the fieldname.</summary>
     property Field: string read FField write FField;
+    /// <summary>Defines the table alias of the field.</summary>
     property Alias: string read FAlias write FAlias;
+    /// <summary>Defines the table reference of the field.</summary>
     property TableRef: TZTableRef read FTableRef write FTableRef;
+    /// <summary>Indicates if the FieldRef is linked to a column in the
+    ///  fieldlist.</summary>
     property Linked: Boolean read FLinked write FLinked;
   end;
 
   {** Defines an interface to select assembly. }
   IZSelectSchema = interface (IZInterface)
     ['{3B892975-57E9-4EB7-8DB1-BDDED91E7FBC}']
-
+    /// <summary>Adds a new field to this select schema.</summary>
+    /// <param>"FieldRef" a field reference object.</param>
     procedure AddField({$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
+    /// <summary>Inserts a new field to this select schema.</summary>
+    /// <param>"Index" an index where to insert a new field reference.</param>
+    /// <param>"FieldRef" a field reference object.</param>
     procedure InsertField(Index: Integer; {$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
     procedure DeleteField({$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
 
     procedure AddTable({$IFDEF AUTOREFCOUNT}const{$ENDIF}TableRef: TZTableRef);
 
-    procedure LinkReferences(const Convertor: IZIdentifierConvertor);
+    procedure LinkReferences(const Converter: IZIdentifierConverter);
 
     function FindTableByFullName(const Catalog, Schema, Table: string): TZTableRef;
     function FindTableByShortName(const Table: string): TZTableRef;
     function FindFieldByShortName(const Field: string): TZFieldRef;
 
     function LinkFieldByIndexAndShortName(ColumnIndex: Integer; const Field: string;
-      const Convertor: IZIdentifierConvertor): TZFieldRef;
+      const Converter: IZIdentifierConverter): TZFieldRef;
 
     function GetFieldCount: Integer;
     function GetTableCount: Integer;
@@ -153,25 +203,36 @@ type
     FFields: TObjectList;
     FTables: TObjectList;
 
-    procedure ConvertIdentifiers(const Convertor: IZIdentifierConvertor);
+    procedure ConvertIdentifiers(const Converter: IZIdentifierConverter);
   public
     constructor Create;
     destructor Destroy; override;
 
+    /// <summary>Adds a new field to this select schema.</summary>
+    /// <param>"FieldRef" a field reference object.</param>
     procedure AddField({$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
+    /// <summary>Inserts a new field to this select schema.</summary>
+    /// <param>"Index" an index where to insert a new field reference.</param>
+    /// <param>"FieldRef" a field reference object.</param>
     procedure InsertField(Index: Integer; {$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
     procedure DeleteField({$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
 
     procedure AddTable({$IFDEF AUTOREFCOUNT}const{$ENDIF}TableRef: TZTableRef);
 
-    procedure LinkReferences(const Convertor: IZIdentifierConvertor);
+    procedure LinkReferences(const Converter: IZIdentifierConverter);
 
     function FindTableByFullName(const Catalog, Schema, Table: string): TZTableRef;
     function FindTableByShortName(const Table: string): TZTableRef;
     function FindFieldByShortName(const Field: string): TZFieldRef;
 
+    /// <summary>Links a field reference by index and/or field name or field
+    ///  alias.</summary>
+    /// <param>"ColumnIndex" an index of the column.</param>
+    /// <param>"Field" a table field name or alias.</param>
+    /// <param>"Converter" a Identifier converter interface for the quote rules.</param>
+    /// <returns>a found field reference object or <c>null</c> otherwise.</returns>
     function LinkFieldByIndexAndShortName(ColumnIndex: Integer; const Field: string;
-      const Convertor: IZIdentifierConvertor): TZFieldRef;
+      const Converter: IZIdentifierConverter): TZFieldRef;
 
     function GetFieldCount: Integer;
     function GetTableCount: Integer;
@@ -183,6 +244,8 @@ type
     property TableCount: Integer read GetTableCount;
     property Tables[Index: Integer]: TZTableRef read GetTable;
   end;
+
+  IZSelectSchemas = Array Of IZSelectSchema;
 
 implementation
 
@@ -243,8 +306,8 @@ begin
   FField := Field;
   FAlias := Alias;
   FTableRef := TableRef;
-  //http://zeoslib.sourceforge.net/viewtopic.php?f=40&t=71516&sid=97f200f6e575ecf37f4e6364c3102ea5&start=15
-  FLinked := TableRef <> nil; //set linked if a table ref already could be given
+  //EH: Dev-Note the Linked attribute is a tag if a column was found infieldlist!
+  //FLinked := False;
 end;
 
 { TZSelectSchema }
@@ -386,14 +449,8 @@ begin
   end;
 end;
 
-{**
-  Links a field reference by index and/or field name or field alias.
-  @param ColumnIndex an index of the column.
-  @param Field a table field name or alias.
-  @return a found field reference object or <code>null</code> otherwise.
-}
 function TZSelectSchema.LinkFieldByIndexAndShortName(ColumnIndex: Integer;
-  const Field: string; const Convertor: IZIdentifierConvertor): TZFieldRef;
+  const Field: string; const Converter: IZIdentifierConverter): TZFieldRef;
 var
   I: Integer;
   Current: TZFieldRef;
@@ -403,22 +460,17 @@ begin
   if Field = '' then
     Exit;
 
-  FieldQuoted := Convertor.Quote(Field);
-  FieldUnquoted := Convertor.ExtractQuote(Field);
+  FieldQuoted := Converter.Quote(Field);
+  FieldUnquoted := Converter.ExtractQuote(Field);
 
   {$IFNDEF GENERIC_INDEX}
   ColumnIndex := ColumnIndex -1;
   {$ENDIF}
 
   { Looks by field index. }
-  if (ColumnIndex >= 0) and (ColumnIndex <= FFields.Count - 1) then
-  begin
+  if (ColumnIndex >= 0) and (ColumnIndex <= FFields.Count - 1) then begin
     Current := TZFieldRef(FFields[ColumnIndex]);
-    if Current.Linked then begin //a linket column has a table ref!
-      Result := Current; //http://zeoslib.sourceforge.net/viewtopic.php?f=40&t=71516&sid=97f200f6e575ecf37f4e6364c3102ea5&start=15
-      exit;
-    end  //note http://sourceforge.net/p/zeoslib/tickets/101/
-    else if ((Current.Alias = Field) or (Current.Field = Field) or (Current.Field = FieldQuoted) or (Current.Alias = FieldUnquoted)) then begin
+    if ((Current.Alias = Field) or (Current.Field = Field) or (Current.Field = FieldQuoted) or (Current.Alias = FieldUnquoted)) then begin
       Result := Current;
       Result.Linked := True;
       Exit;
@@ -426,12 +478,10 @@ begin
   end;
 
   { Looks a field by it's alias. }
-  for I := 0 to FFields.Count - 1 do
-  begin
+  for I := 0 to FFields.Count - 1 do begin
     Current := TZFieldRef(FFields[I]);
     if not Current.Linked and (Current.Alias <> '') and
-       ((Current.Alias = Field) or (Current.Alias = FieldQuoted) or (Current.Alias = FieldUnquoted)) then
-    begin
+       ((Current.Alias = Field) or (Current.Alias = FieldQuoted) or (Current.Alias = FieldUnquoted)) then begin
       Result := Current;
       Result.Linked := True;
       Exit;
@@ -439,13 +489,11 @@ begin
   end;
 
   { Looks a field by field and table aliases. }
-  for I := 0 to FFields.Count - 1 do
-  begin
+  for I := 0 to FFields.Count - 1 do begin
     Current := TZFieldRef(FFields[I]);
-    if not Current.Linked and Assigned(Current.TableRef)
-      and (((Current.TableRef.Alias + '.' + Current.Field) = Field)
-      or (((Current.TableRef.Table + '.' + Current.Field) = Field))) then
-    begin
+    if not Current.Linked and Assigned(Current.TableRef) and
+       (((Current.TableRef.Alias + '.' + Current.Field) = Field) or
+        (((Current.TableRef.Table + '.' + Current.Field) = Field))) then begin
       Result := Current;
       Result.Linked := True;
       Exit;
@@ -453,12 +501,10 @@ begin
   end;
 
   { Looks a field by it's name. }
-  for I := 0 to FFields.Count - 1 do
-  begin
+  for I := 0 to FFields.Count - 1 do begin
     Current := TZFieldRef(FFields[I]);
     if not Current.Linked and (Current.Field <> '') and
-       ((Current.Field = Field) or (Current.Field = FieldQuoted) or (Current.Field = FieldUnquoted)) then
-    begin
+       ((Current.Field = Field) or (Current.Field = FieldQuoted) or (Current.Field = FieldUnquoted)) then begin
       Result := Current;
       Result.Linked := True;
       Exit;
@@ -468,9 +514,9 @@ end;
 
 {**
   Convert all table and field identifiers..
-  @param Convertor an identifier convertor.
+  @param Converter an identifier Converter.
 }
-procedure TZSelectSchema.ConvertIdentifiers(const Convertor: IZIdentifierConvertor);
+procedure TZSelectSchema.ConvertIdentifiers(const Converter: IZIdentifierConverter);
 var
   I: Integer;
   function ExtractNeedlessQuote(const Value : String) : String;
@@ -480,12 +526,12 @@ var
       Result := '';
       Exit;
     end;
-    Result := Convertor.ExtractQuote(Value);
-    if Convertor.GetIdentifierCase(Result, True) in [icMixed, icSpecial] then
+    Result := Converter.ExtractQuote(Value);
+    if Converter.GetIdentifierCase(Result, True) in [icMixed, icSpecial] then
       Result := Value;
   end;
 begin
-  if Convertor = nil then Exit;
+  if Converter = nil then Exit;
 
   for I := 0 to FFields.Count - 1 do
   begin
@@ -513,16 +559,16 @@ end;
 
 {**
   Links references between fields and tables.
-  @param Convertor an identifier convertor.
+  @param Converter an identifier Converter.
 }
-procedure TZSelectSchema.LinkReferences(const Convertor: IZIdentifierConvertor);
+procedure TZSelectSchema.LinkReferences(const Converter: IZIdentifierConverter);
 var
   I, J: Integer;
   FieldRef: TZFieldRef;
   TableRef: TZTableRef;
   TempFields: TObjectList;
 begin
-  ConvertIdentifiers(Convertor);
+  ConvertIdentifiers(Converter);
   TempFields := FFields;
   FFields := TObjectList.Create;
 
@@ -563,20 +609,11 @@ begin
   end;
 end;
 
-{**
-  Adds a new field to this select schema.
-  @param FieldRef a field reference object.
-}
 procedure TZSelectSchema.AddField({$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
 begin
   FFields.Add(FieldRef);
 end;
 
-{**
-  Inserts a new field to this select schema.
-  @param Index an index where to insert a new field reference.
-  @param FieldRef a field reference object.
-}
 procedure TZSelectSchema.InsertField(Index: Integer; {$IFDEF AUTOREFCOUNT}const{$ENDIF}FieldRef: TZFieldRef);
 begin
   FFields.Insert(Index, FieldRef);

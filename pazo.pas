@@ -34,14 +34,34 @@ type
   }
   TRlsSiteStatus = (rssNotAllowed, rssNotAllowedButItsThere, rssAllowed, rssShouldPre, rssRealPre, rssComplete, rssNuked);
 
+  TPazoSite = class;
+
+  //used to store destination site and rank
+  TDestinationRank = record
+    private
+      FPazoSite: TPazoSite; //< destination site
+      FRank: integer; //< rank
+    public
+      property PazoSite: TPazoSite read FPazoSite;
+      property Rank: integer read FRank;
+      constructor Create(const aPazoSite: TPazoSite; const aRank: integer);
+   end;
+
   TPazoSite = class
+  private
+    cds: String;
+    FDestinations: TList<TDestinationRank>; //< destination sites and ranks
+    function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
+    function GetDirlistGaveUp: boolean;
+    procedure SetDirlistGaveUp(const aGaveUp: boolean);
+
   public
+
     midnightdone: boolean;
     Name: String; //< sitename
     maindir: String; //< sectiondir? TODO: debug real value
     pazo: TPazo; //< pazo where this TPazoSite belongs to
     destinations_cs: TCriticalSection; //< Critical section to protect adding of values to @link(destinations)
-    destinations: TObjectDictionary<TPazoSite, integer>; //< key = destination site, value = rank
     dirlist: TDirList;
 
     delay_leech: integer; //< value of delay for leeching from site in seconds
@@ -59,7 +79,6 @@ type
     status: TRlsSiteStatus;
 
     reason: String;
-    dirlistgaveup: boolean;
 
     badcrcevents: integer; //< total number of bad crc events
 
@@ -69,6 +88,9 @@ type
     speed_from: TStringList;
 
     activeTransfers: TStringList;
+
+    property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
+    property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
 
     function StatusRealPreOrShouldPre: boolean;  //< returns @true if its a pre or at least it should be one
     function Source: boolean;
@@ -132,9 +154,6 @@ type
     procedure SetComplete(const cdno: String);
     function StatusText: String;
     procedure Clear;
-  private
-    cds: String;
-    function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
   end;
 
   TPazo = class
@@ -242,6 +261,12 @@ const
 var
   local_pazo_id: integer;
 
+
+constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
+begin
+  FPazoSite := aPazoSite;
+  FRank := aRank;
+end;
 
 { TIdThreadSafeInt32WithEvent }
 
@@ -402,19 +427,28 @@ var
   i: integer;
 begin
   Result := nil;
+  kb_lock.Enter;
   try
-    i := kb_list.IndexOf(section + '-' + rlsname);
-    if i <> -1 then
-    begin
-      Result := TPazo(kb_list.Objects[i]);
+    try
+      i := kb_list.IndexOf(section + '-' + rlsname);
+      if i <> -1 then
+      begin
+        Result := TPazo(kb_list.Objects[i]);
 
-      if Result <> nil then
-        Result.lastTouch := Now();
+        if Result <> nil then
+          Result.lastTouch := Now;
 
-      exit;
+        exit;
+      end;
+    except
+     on E: Exception do
+     begin
+       Debug(dpError, section, Format('[EXCEPTION] FindPazoByName: %s', [e.Message]));
+       Result := nil;
+     end;
     end;
-  except
-    Result := nil;
+  finally
+     kb_lock.Leave;
   end;
 end;
 
@@ -462,12 +496,25 @@ begin
   local_pazo_id := 0;
 end;
 
+function TPazoSite.GetDirlistGaveUp: boolean;
+begin
+  Result := False;
+  if (dirlist <> nil) then
+    Result := dirlist.DirlistGaveUp;
+end;
+
+procedure TPazoSite.SetDirlistGaveUp(const aGaveUp: boolean);
+begin
+  if (dirlist <> nil) then
+    dirlist.DirlistGaveUp := aGaveUp;
+end;
+
 function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
 var
-  fPair: TPair<TPazoSite, Integer>;
+  fDestination: TDestinationRank;
   dst: TPazoSite;
   dstrank: Integer;
   dstdl: TDirList;
@@ -494,10 +541,12 @@ begin
 
   // ignore this site if you don't have setup download slots for it
   s := FindSiteByName('', Name);
-  if (status in [rssRealPre, rssShouldPre]) then
-    if s.max_pre_dn = 0 then exit
-  else
-    if s.max_dn = 0 then exit;
+  if ((status in [rssRealPre, rssShouldPre])) then
+  begin
+    if s.max_pre_dn = 0 then exit;
+  end
+  else if s.max_dn = 0 then
+    exit;
 
   if (not de.Directory) then
   begin
@@ -508,10 +557,10 @@ begin
   pazo.lastTouch := Now();
 
   // enumerate possible destinations
-  for fPair in destinations do
+  for fDestination in destinations do
   begin
-    dst := fPair.Key;
-    dstrank := fPair.Value;
+    dst := fDestination.PazoSite;
+    dstrank := fDestination.Rank;
     try
       if error then exit;
       if dst.error then Continue;
@@ -519,6 +568,10 @@ begin
       // ignore this destination if we don't want to upload there
       s := FindSiteByName('', dst.Name);
       if (s.max_up = 0) then exit;
+
+      //if the destination is going sstTempDown during the race we would spam race tasks
+      //avoid this and also check other down states just to be sure
+      if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then continue;
 
       // drop sending to this destination if too much crc events
       if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then Continue;
@@ -711,6 +764,7 @@ begin
   if delay then
     Result.DelaySetup;
   PazoSitesList.Add(Result);
+  CheckSiteSlots(sitename);
 end;
 
 function TPazo.Age: integer;
@@ -1125,6 +1179,7 @@ begin
       end;
 
       PazoSitesList.Add(ps);
+      CheckSiteSlots(s);
     except
       on e: Exception do
       begin
@@ -1181,6 +1236,8 @@ begin
 end;
 
 function TPazoSite.AddDestination(const ps: TPazoSite; const rank: integer): boolean;
+var
+  fDestinationRank: TDestinationRank;
 begin
   Result := False;
   if error = True then
@@ -1194,7 +1251,15 @@ begin
 
       destinations_cs.Enter;
       try
-        destinations.AddOrSetValue(ps, rank);
+        for fDestinationRank in destinations do
+        begin
+          if fDestinationRank.FPazoSite.Name = ps.Name then
+            exit; //already have this destination
+        end;
+
+        fDestinationRank := TDestinationRank.Create(ps, rank);
+        destinations.Add(fDestinationRank);
+        destinations.Sort;
       finally
         destinations_cs.Leave;
       end;
@@ -1222,6 +1287,12 @@ begin
   end;
 end;
 
+//compare function to sort by rank
+function _CompareDestinationRanks({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TDestinationRank): Integer;
+begin
+  Result := TComparer<Integer>.Default.Compare(Right.FRank, Left.FRank); //descending
+end;
+
 constructor TPazoSite.Create(const aParentPazo: TPazo; const aName, aMaindir: String);
 begin
   inherited Create;
@@ -1234,8 +1305,8 @@ begin
   ts := 0;
   firesourcesinstead := False;
   badcrcevents := 0;
-  // just a collection of pointers, no TPazoSite is created -> does not own any object
-  destinations := TObjectDictionary<TPazoSite, Integer>.Create([]);
+
+  FDestinations := TList<TDestinationRank>.Create(TComparer<TDestinationRank>.Construct(_CompareDestinationRanks));
   destinations_cs := TCriticalSection.Create;
 
   dirlist := TDirlist.Create(Name, nil, pazo.sl);
@@ -1487,43 +1558,19 @@ var
   fJustAdded: boolean;
 begin
   fJustAdded := False;
-
-  // skip filenames dotfiles
-  if ((aFilename = '.') or (aFilename = '..') or (aFilename[1] = '.')) then
-    exit;
-
-  // skip global_skip matches
-  rrgx := TRegExpr.Create;
-  try
-    try
-      rrgx.ModifierI := True;
-      rrgx.Expression := GlobalSkiplistRegex;
-
-      if rrgx.Exec(aFilename) then
-      begin
-        exit;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] ParseDupe global_skip regex: %s', [e.Message]));
-      end;
-    end;
-  finally
-    rrgx.Free;
-  end;
-
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
   try
     aDirlist.dirlist_lock.Enter;
     try
+      if not aDirlist.IsValidFilenameCached(aFileName) then
+        exit;
+
       de := aDirlist.Find(aFilename);
       if de = nil then
       begin
         // this means that it has not been fired
         de := TDirListEntry.Create(aFilename, aDirlist);
         de.directory := False;
-        de.done := True;
         de.filesize := -1;
 
         de.RegenerateSkiplist;
@@ -1555,7 +1602,6 @@ begin
       if aSentByMe then
         de.RacedByMe := aSentByMe;
 
-      de.done := True;
       if (not de.IsOnSite) then
       begin
         de.IsOnSite := True;
@@ -1778,7 +1824,7 @@ end;
 
 function TPazoSite.AsText: String;
 var
-  fPair: TPair<TPazoSite, Integer>;
+  fDestination: TDestinationRank;
 begin
   Result := '<u><b>SITE: ' + Name + '</b></u>';
   Result := Result + Format(': %s (%d items)', [maindir, dirlist.entries.Count]);
@@ -1790,9 +1836,9 @@ begin
   Result := Result + #13#10;
 
   Result := Result + 'Destinations:';
-  for fPair in destinations do
+  for fDestination in destinations do
   begin
-    Result := Result + Format(' %s(%d)', [fPair.Key.Name, fPair.Value]);
+    Result := Result + Format(' %s(%d)', [fDestination.FPazoSite.Name, fDestination.FRank]);
   end;
   Result := Result + #13#10;
 
@@ -1817,18 +1863,18 @@ end;
 
 function TPazoSite.RoutesText: String;
 var
-  fPair: TPair<TPazoSite, Integer>;
+  fDestination: TDestinationRank;
 begin
   Result := '<u>' + Name + '</u> -> ';
 
-  for fPair in destinations do
+  for fDestination in destinations do
   begin
-    Result := Result + Format('%s(%d) ', [fPair.Key.Name, fPair.Value]);
+    Result := Result + Format('%s(%d) ', [fDestination.FPazoSite.Name, fDestination.FRank]);
 
-    if (fPair.Key.delay_upload > 0) then
-      Result := Result + Format('[delayed upload for %ds] ', [fPair.Key.delay_upload])
-    else if (fPair.Key.delay_leech > 0) then
-      Result := Result + Format('[delayed leech for %ds] ', [fPair.Key.delay_leech]);
+    if (fDestination.FPazoSite.delay_upload > 0) then
+      Result := Result + Format('[delayed upload for %ds] ', [fDestination.FPazoSite.delay_upload])
+    else if (fDestination.FPazoSite.delay_leech > 0) then
+      Result := Result + Format('[delayed leech for %ds] ', [fDestination.FPazoSite.delay_leech]);
   end;
 
   // remove superfluous whitespace
@@ -1936,4 +1982,3 @@ begin
 end;
 
 end.
-

@@ -3,7 +3,7 @@ unit sitesunit;
 interface
 
 uses
-  Classes, encinifile, Contnrs, sltcp, slssl, SyncObjs, Regexpr, typinfo,
+  Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules;
 
@@ -12,18 +12,11 @@ type
 
   {
   @value(sslNone no encryption used)
-  @value(sslImplicitSSLv23 implicit ssl handshake using SSLv23 after TCP connection was established)
-  @value(sslAuthSslSSLv23 AUTH SSL then ssl handshake using SSLv23)
-  @value(sslAuthTLSSSLv23 AUTH TLS then ssl handshake using SSLv23)
-  @value(sslAuthSslTLSv1 AUTH SSL then ssl handshake using TLSv1)
-  @value(sslAuthTlsTLSv1 AUTH TLS then ssl handshake using TLSv1)
-  @value(sslImplicitTLSv1 implicit ssl handshake using TLSv1 after TCP connection was established)
-  @value(sslAuthTlsTLSv1_2 AUTH TLS then ssl handshake using TLSv1.2)
-  @value(sslImplicitTLSv1_2 implicit ssl handshake using TLSv1.2 after TCP connection was established)
+  @value(sslImplicitSSL Implicit SSL)
+  @value(sslAuthSsl AUTH SSL)
+  @value(sslAuthTLS AUTH TLS)
   }
-  TSSLMethods = (sslNone, sslImplicitSSLv23, sslAuthSslSSLv23,
-    sslAuthTLSSSLv23, sslAuthSslTLSv1, sslAuthTlsTLSv1,
-    sslImplicitTLSv1, sslAuthTlsTLSv1_2, sslImplicitTLSv1_2);
+  TSSLMethods = (sslNone, sslImplicitSSL, sslAuthSsl, sslAuthTLS);
 
   {
   @value(sfUnknown unknown feature flag)
@@ -50,8 +43,9 @@ type
   @value(sswDrftpd DrFTPD software)
   @value(sswIoftpd ioFTPD software)
   @value(sswRaidenftpd RaidenFTPD software)
+  @value(sswPureFTPd, Pure-FTPd software)
   }
-  TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd, sswRaidenftpd);
+  TSiteSw = (sswUnknown, sswGlftpd, sswDrftpd, sswIoftpd, sswRaidenftpd, sswPureFTPd);
 
   {
   @abstract(data channel PROTection level)
@@ -86,6 +80,13 @@ type
   }
   TSkipBeingUploaded = (sbuOnly0Byte = 0, sbuBeingUploaded = 1, sbuNone = 2);
 
+  {
+  @value(ufnDisabled NFO download disabled)
+  @value(ufnEnabled NFO download enabled)
+  @value(ufnAutoDisabled NFO download automatically disabled by slftp due to problems (some SSL or out of credits))
+  }
+  TUseForNfoDownload = (ufnDisabled = 0, ufnEnabled = 1, ufnAutoDisabled = 2);
+
   TSite = class; // forward
 
   { @abstract(Object which holds all the slot information for a single slot of a @link(TSite)) }
@@ -103,9 +104,11 @@ type
     fSSCNEnabled: boolean;
     event: TEvent;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
-    procedure AddLoginTask;
     procedure SetOnline(Value: TSlotStatus);
-    procedure ProcessFeat;
+
+    { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
+      @param(aDoUpdateSiteSoftware If true, try to determine the site software version from the FEAT list.) }
+    procedure ProcessFeat(aDoUpdateSiteSoftware: boolean);
     procedure SetDownloadingFrom(const Value: boolean);
     procedure SetUploadingTo(const Value: boolean);
     procedure SetTodotask(Value: TTask);
@@ -122,7 +125,13 @@ type
     ftodotask: TTask;
     site: TSite; //< links to corresponding @link(TSite) class of slot
     procedure DestroySocket(down: boolean);
+    { Invokes Relogin after invoking DestroySocket.
+      @param(aMessage Info which task is issuing this command.) }
+    procedure DestroySocketAndRelogin(const aMessage: string);
     procedure Quit;
+    { Invokes Relogin after invoking Quit.
+      @param(aMessage Info which task is issuing this command.) }
+    procedure QuitAndRelogin(const aMessage: string);
     function Name: String;
     procedure Fire;
     function Login(kill: boolean = False): boolean;
@@ -139,8 +148,15 @@ type
       @param(aFilename Filename)
       @returns(On successful parsing seconds from MTDM response, otherwise 0) }
     function MdtmSeconds(const aFilename: String): integer;
-    function Read(read_cmd: String = ''): boolean; overload;
-    function Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean; overload;
+    function Read(const read_cmd: String = ''): boolean; overload;
+    { Read FTP response
+      @param(read_cmd Name of the command to read the response to)
+      @param(raiseontimeout Raise error (log to ERROR chan) on timeout)
+      @param(raiseonclose Raise error (log to ERROR chan) on on close)
+      @param(timeout Timeout in ms)
+      @param(aMaxNumReads Max reads (lines))
+      @returns(@true if successful, otherwise @false) }
+    function Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean; overload;
     function Send(const s: String): boolean; overload;
     function Send(const s: String; const Args: array of const): boolean; overload;
     function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
@@ -191,6 +207,7 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
 
@@ -313,8 +330,8 @@ type
     { procedure for @link(Ident) property to write ident to inifile }
     procedure SetSiteIdent(const Value: String);
 
-    function GetUseForNFOdownload: integer;
-    procedure SetUseForNFOdownload(Value: integer);
+    function GetUseForNFOdownload: TUseForNfoDownload;
+    procedure SetUseForNFOdownload(const Value: TUseForNfoDownload);
 
     { function for @link(SkipBeingUploadedFiles) property to read skip being uploaded files config value from inifile }
     function GetSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -349,6 +366,23 @@ type
     procedure SetSetDownOnOutOfCredits(const Value: boolean);
     { Sets the necessary values to set the site down due to no space or credits left }
     procedure SetDownSiteDueToCreditsOrSpace;
+
+    { Gets a value indicating whether reverse FXP will be used if the site is the source for the transfer }
+    function GetUseReverseFxpSource: boolean;
+    { Sets a value indicating whether reverse FXP will be used if the site is the source for the transfer }
+    procedure SetUseReverseFxpSource(const Value: boolean);
+    { Gets a value indicating whether reverse FXP will be used if the site is the destination for the transfer }
+    function GetUseReverseFxpDestination: boolean;
+    { Sets a value indicating whether reverse FXP will be used if the site is the destination for the transfer }
+    procedure SetUseReverseFxpDestination(const Value: boolean);
+    { Gets a value indicating whether the 'site search' cmd will be used to find requests }
+    function GetUseSiteSearchOnReqFill: boolean;
+    { Sets a value indicating whether the 'site search' cmd will be used to find requests }
+    procedure SetUseSiteSearchOnReqFill(const Value: boolean);
+    { Gets a value indicating whether speedstats should not change calculated rank for this destination site }
+    function GetReducedSpeedstatWeight: boolean;
+    { Sets a value indicating whether speedstats should not change calculated rank for this destination site }
+    procedure SetReducedSpeedstatWeight(const Value: boolean);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -395,6 +429,11 @@ type
     function GetSw: TSiteSw;
     { procedure for @link(sw) property to write Site Software to inifile }
     procedure SetSw(const Value: TSiteSw);
+
+    { function for @link(swVersion) property to read Site Software version from inifile }
+    function GetSwVersion: String;
+    { procedure for @link(swVersion) property to write Site Software version to inifile }
+    procedure SetSwVersion(const Value: String);
 
     function GetRank(const section: String): integer;
     procedure SetRank(const section: String; Value: integer);
@@ -479,6 +518,7 @@ type
     property Ident: String read GetSiteIdent write SetSiteIdent; //< Ident reply for the site
   published
     property sw: TSiteSw read GetSw write SetSw; //< FTPd software, see @link(TSiteSw)
+    property swVersion: String read GetSwVersion write SetSwVersion; //< FTPd software version
     property features: TSiteFeatures read fFeatures write fFeatures;
     property noannounce: boolean read GetNoannounce write SetNoAnnounce;
     property WorkingStatus: TSiteStatus read FWorkingStatus write SetWorking; //< indicates current site status, see @link(TSiteStatus)
@@ -494,7 +534,7 @@ type
     property sslfxp: TSSLReq read Getsslfxp write Setsslfxp; //< indicates support of Site to Site SSL, see @link(TSSLReq)
     property legacydirlist: boolean read Getlegacydirlist write Setlegacydirlist;
 
-    property UseForNFOdownload: integer read GetUseForNFOdownload write SetUseForNFOdownload;
+    property UseForNFOdownload: TUseForNfoDownload read GetUseForNFOdownload write SetUseForNFOdownload;
     property SkipBeingUploadedFiles: TSkipBeingUploaded read GetSkipBeingUploadedFiles write SetSkipBeingUploadedFiles;
     property PermDown: boolean read GetPermDownStatus write SetPermDownStatus;
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
@@ -508,6 +548,10 @@ type
     property AutoRulesStatus: integer read GetAutoRulesStatus write SetAutoRulesStatus; //< Interval in seconds for autorules, zero means turned off
     property SetDownOnOutOfSpace: Boolean read GetSetDownOnOutOfSpace write SetSetDownOnOutOfSpace; //< per site set_down_on_out_of_space setting, uses global if not set
     property SetDownOnOutOfCredits: Boolean read GetSetDownOnOutOfCredits write SetSetDownOnOutOfCredits; //< per site set_down_on_out_of_credits setting, uses global if not set
+    property UseReverseFxpSource: boolean read GetUseReverseFxpSource write SetUseReverseFxpSource; //< a value indicating whether reverse FXP will be used if the site is the source for the transfer
+    property UseReverseFxpDestination: boolean read GetUseReverseFxpDestination write SetUseReverseFxpDestination; //< a value indicating whether reverse FXP will be used if the site is the destination for the transfer
+    property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
+    property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
   end;
 
 function ReadSites(): boolean;
@@ -544,10 +588,15 @@ function SiteSoftWareToString(const aSitename: String): String; overload;
   @returns(FTPd software as string) }
 function SiteSoftWareToString(aSite: TSite): String; overload;
 
+{ Get the used FTPd software as string.
+  @param(aSiteSoftware @link(TSiteSw) TSiteSw enum)
+  @returns(FTPd software as string) }
+function SiteSoftWareToString(aSiteSoftware: TSiteSw): String; overload;
+
 { Get the FTPd software enum for given FTPd software name.
-  @param(s FTPd software string)
+  @param(aString FTPd software string)
   @returns(@link(TSiteSw) if existing, otherwise @link(TSiteSw.sswUnknown)) }
-function StringToSiteSoftWare(s: String): TSiteSw;
+function StringToSiteSoftWare(aString: String): TSiteSw;
 
 { Convert String from FTPd response into internal used @link(TSiteFeature) enum
   @param(aFeature Single FTPd FEAT response string)
@@ -573,6 +622,25 @@ function sslMethodToString(aSite: TSite): String; overload;
   @param(sitespd Stringlist for permdown (PermDown) sites) }
 procedure SitesWorkingStatusToStringlist(const Netname, Channel: String; var sitesup, sitesdn, sitesuk, sitespd: TStringList);
 
+{ Tries to parse the site software's version from a given string for a given @link(TSiteSw).
+  Returns an empty string if unsuccessful.
+  @param(aSiteSoftWare The @link(TSiteSw) to parse the version for)
+  @param(aText Text to parse)
+  @returns(The site software version or an empty string if unsuccessful) }
+function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
+
+{ Gets the given @link(TSlotStatus) as string
+  @param(aSlotStatus The @link(TSlotStatus) to get the string for)
+  @returns(the given @link(TSlotStatus) as string) }
+function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
+
+{ Checks the site's and its slot's status and adds a login task if necessary before starting to create race tasks
+  @param(aSite The site to check) }
+procedure CheckSiteSlots(const aSite: TSite); overload;
+{ Checks the site's and its slot's status and adds a login task if necessary before starting to create race tasks
+  @param(aSiteName The name of the site to check) }
+procedure CheckSiteSlots(const aSiteName: string); overload;
+
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: TObjectList = nil; //< holds a list of all @link(TSite) objects
@@ -581,7 +649,7 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit;
 
 const
   section = 'sites';
@@ -608,30 +676,55 @@ end;
 
 function SiteSoftWareToString(aSite: TSite): String;
 begin
+  Result := SiteSoftWareToString(aSite.Software);
+end;
+
+function SiteSoftWareToString(aSiteSoftware: TSiteSw): String;
+begin
   Result := 'Unknown';
 
-  case TSite(aSite).Software of
+  case aSiteSoftware of
     sswUnknown: Result := 'Unknown';
     sswGlftpd: Result := 'GlFTPD';
     sswDrftpd: Result := 'DrFTPD';
     sswIoftpd: Result := 'ioFTPD';
     sswRaidenftpd: Result := 'RaidenFTPD';
+    sswPureFTPd: Result := 'PureFTPd';
   end;
 end;
 
-function StringToSiteSoftWare(s: String): TSiteSw;
+function StringToSiteSoftWare(aString: String): TSiteSw;
+var
+  fLowerCaseString: String;
 begin
   Result := sswUnknown;
-  s := LowerCase(s);
+  fLowerCaseString := LowerCase(aString);
 
-  if s = 'glftpd' then
+  if fLowerCaseString = 'glftpd' then
     Result := sswGlftpd;
-  if s = 'drftpd' then
+  if fLowerCaseString = 'drftpd' then
     Result := sswDrftpd;
-  if s = 'ioftpd' then
+  if fLowerCaseString = 'ioftpd' then
     Result := sswIoftpd;
-  if s = 'raidenftpd' then
+  if fLowerCaseString = 'raidenftpd' then
     Result := sswRaidenftpd;
+  if fLowerCaseString = 'pureftpd' then
+    Result := sswPureFTPd;
+
+  //try to find FTPD software in FTP response messages
+  if Result = sswUnknown then
+  begin
+    if aString.Contains('glFTPd') then
+      Result := sswGlftpd
+    else if aString.Contains('DrFTPD') then
+      Result := sswDrftpd
+    else if aString.Contains('ioFTPD') then
+      Result := sswIoftpd
+    else if aString.Contains('RaidenFTPD') then
+      Result := sswRaidenftpd
+    else if aString.Contains('Pure-FTPd') then
+      Result := sswPureFTPd;
+  end;
 end;
 
 function sslMethodToString(const aSitename: String): String;
@@ -644,14 +737,9 @@ begin
   Result := 'Unknown';
   case TSite(aSite).sslmethod of
     sslNone: Result := ' no encryption used';
-    sslImplicitSSLv23: Result := ' implicit ssl handshake using SSLv23 after TCP connection was established';
-    sslAuthSslSSLv23: Result := ' AUTH SSL then ssl handshake using SSLv23';
-    sslAuthTLSSSLv23: Result := ' AUTH TLS then ssl handshake using SSLv23';
-    sslAuthSslTLSv1: Result := ' AUTH SSL then ssl handshake using TLSv1';
-    sslAuthTlsTLSv1: Result := ' AUTH TLS then ssl handshake using TLSv1';
-    sslImplicitTLSv1: Result := ' implicit ssl handshake using TLSv1 after TCP connection was established';
-    sslAuthTlsTLSv1_2: Result := ' AUTH TLS then ssl handshake using TLSv1.2';
-    sslImplicitTLSv1_2: Result := ' implicit ssl handshake using TLSv1.2 after TCP connection was established';
+    sslImplicitSSL: Result := ' Implicit SSL';
+    sslAuthSsl: Result := ' AUTH SSL';
+    sslAuthTLS: Result := ' AUTH TLS';
   end;
 end;
 
@@ -678,6 +766,18 @@ begin
       sstDown, sstTempDown, sstMarkedAsDownByUser: sitesdn.Add('<b>' + s.Name + '</b>');
       sstUnknown: sitesuk.Add('<b>' + s.Name + '</b>');
     end;
+  end;
+end;
+
+function SlotStatusToString(const aSlotStatus: TSlotStatus): String;
+begin
+  Result := 'Unknown';
+  case aSlotStatus of
+    ssNone: Result := 'None';
+    ssDown: Result := 'Down';
+    ssOffline: Result := 'Offline';
+    ssOnline: Result := 'Online';
+    ssMarkedDown: Result := 'Marked Down';
   end;
 end;
 
@@ -779,7 +879,7 @@ end;
 procedure SitesStart;
 var
   x: TStringList;
-  i: integer;
+  i, j: integer;
 begin
   debug(dpSpam, section, 'SitesStart begin');
 
@@ -797,7 +897,15 @@ begin
     sitesdat.ReadSections(x);
     for i := 0 to x.Count - 1 do
       if 1 = Pos('site-', x[i]) then
-        sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+      begin
+        j := sites.Add(TSite.Create(Copy(x[i], 6, 1000)));
+
+        //add a login task if autologin is enabled
+        if (((autologin) or (TSite(sites[j]).RCBool('autologin', False))) and not TSite(sites[j]).PermDown) then
+        begin
+          AddTask(TLoginTask.Create('', '', TSite(sites[j]).Name, False, False));
+        end;
+      end;
   finally
     x.Free;
   end;
@@ -843,25 +951,6 @@ begin
   end;
 end;
 
-procedure TSiteSlot.AddLoginTask;
-var
-  t: TLoginTask;
-begin
-
-  t := TLoginTask.Create('', '', site.Name, False, False);
-  t.wantedslot := Name;
-  t.startat := GiveSiteLastStart;
-  try
-    AddTask(t);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.AddLoginTask AddTask: %s',
-        [e.Message]));
-    end;
-  end;
-end;
-
 constructor TSiteSlot.Create(const aSite: TSite; const aSlotNumber: integer);
 begin
   debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
@@ -886,14 +975,14 @@ begin
 
   if (site.Name <> getAdminSiteName) then
   begin
-    if not site.PermDown then
+    if site.PermDown then
     begin
-      // if autologin is turned on then
-      if (((autologin) or (RCBool('autologin', False))) and not site.PermDown) then
-        AddLoginTask;
-    end
-    else
       status := ssMarkedDown;
+    end;
+  end
+  else
+  begin
+    status := ssOnline;
   end;
 
   // TODO: fix the design flaw of calling .Execute immediately in ancestor after the Create(False)
@@ -936,6 +1025,12 @@ begin
     status := ssOffline;
 end;
 
+procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
+begin
+  DestroySocket(False);
+  Relogin(0, False, aMessage);
+end;
+
 procedure TSiteSlot.Execute;
 var
   tname: String;
@@ -967,7 +1062,15 @@ begin
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask) then
+            if not (todotask is TIdleTask)
+
+              //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
+              //then idle tasks would be created again right away
+              and not (todotask is TQuitTask)
+
+              //ignore login task if its set to readd (autobnctest)
+              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+            then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
             end;
@@ -1124,7 +1227,7 @@ begin
   Result := True;
 end;
 
-procedure TSiteSlot.ProcessFeat;
+procedure TSiteSlot.ProcessFeat(aDoUpdateSiteSoftware: boolean);
 var
   sFeatures: TArray<String>;
   feature: TSiteFeature;
@@ -1238,25 +1341,28 @@ begin
 
   site.features := features;
 
-  if (sfPRET in features) then
-  begin
-    if site.sw <> sswDrftpd then
-      site.sw := sswDrftpd;
-  end
-  else if (sfUTF8 in features) and (sfMFMT in features) then
-  begin
-    if site.sw <> sswRaidenftpd then
-      site.sw := sswRaidenftpd;
-  end
-  else if (0 < Pos('Command not understood', lastResponse)) or (sfTVFS in features) or (sfXCRC in features) then
-  begin
-    if site.sw <> sswIoftpd then
-      site.sw := sswIoftpd;
-  end
-  else if (sfCPSV in features) then
-  begin
-    if site.sw <> sswGlftpd then
-      site.sw := sswGlftpd;
+  if aDoUpdateSiteSoftware then
+    begin
+    if (sfPRET in features) then
+    begin
+      if site.sw <> sswDrftpd then
+        site.sw := sswDrftpd;
+    end
+    else if (sfUTF8 in features) and (sfMFMT in features) then
+    begin
+      if site.sw <> sswRaidenftpd then
+        site.sw := sswRaidenftpd;
+    end
+    else if (0 < Pos('Command not understood', lastResponse)) or (sfTVFS in features) or (sfXCRC in features) then
+    begin
+      if site.sw <> sswIoftpd then
+        site.sw := sswIoftpd;
+    end
+    else if (sfCPSV in features) then
+    begin
+      if site.sw <> sswGlftpd then
+        site.sw := sswGlftpd;
+    end;
   end;
 end;
 
@@ -1315,6 +1421,48 @@ begin
   Result := True;
 end;
 
+function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
+  var fTRegExpr: TRegExpr;
+begin
+  Result := '';
+  fTRegExpr := TRegExpr.Create;
+  try
+    case aSiteSoftWare of
+      sswGlftpd:
+      begin
+        //glFTPd 2.11a
+        fTRegExpr.Expression := '(glFTPd) ([0-9]\.[0-9][0-9][a-z]?)';
+        if fTRegExpr.Exec(aText) then
+          Result := fTRegExpr.Match[2];
+      end;
+      sswDrftpd:
+      begin
+        //DrFTPD 3.2.0
+        //DrFTPD 4.0.1-SNAPSHOT
+        fTRegExpr.Expression := '(DrFTPD) ([0-9]\.[0-9]\.[0-9][\-a-zA-Z]*)';
+        if fTRegExpr.Exec(aText) then
+          Result := fTRegExpr.Match[2];
+      end;
+      sswIoftpd:
+      begin
+        //ioFTPD version: 7-7-3r
+        fTRegExpr.Expression := '(ioFTPD version: )([0-9]\-[0-9]\-[0-9][a-z]?)';
+        if fTRegExpr.Exec(aText) then
+          Result := fTRegExpr.Match[2];
+        end;
+      sswRaidenftpd, sswPureFTPd:
+        //no way to find out the version.
+      else
+        raise Exception.Create('Unknown site software');
+    end;
+
+
+  finally
+    fTRegExpr.Free;
+  end;
+
+end;
+
 function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False): boolean;
 var
   sslm: TSSLMethods;
@@ -1323,6 +1471,27 @@ var
   j: Integer;
   currentBnc, tmpBnc, tmpHost: String;
   tmpPort: Integer;
+  fDoCheckSiteSoftware: boolean;
+
+  procedure tryToGetSiteSoftwareAndVersionFromLastResponse();
+    var fSiteSoftware: TSiteSw;
+  begin
+    if fDoCheckSiteSoftware then
+    begin
+      fSiteSoftware := StringToSiteSoftWare(lastResponse);
+
+      if fSiteSoftware <> sswUnknown then
+      begin
+        site.sw := fSiteSoftware;
+        site.swVersion := ''; //try to get the version below
+        fDoCheckSiteSoftware := False; //we found the site software, no need to do that again
+      end;
+    end;
+
+    if (site.sw <> sswUnknown) and (site.swVersion = '') then
+      site.swVersion := ParseSiteSoftwareVersionFromString(site.sw, lastResponse);
+  end;
+
 begin
   Result := False;
 
@@ -1347,15 +1516,14 @@ begin
   localport := slSocket.localPort;
 
   sslm := TSSLMethods(site.sslmethod);
-  if sslm in [sslImplicitSSLv23, sslImplicitTLSv1, sslImplicitTLSv1_2] then
+  if sslm in [sslImplicitSSL] then
   begin
-    if sslm = sslImplicitTLSv1_2 then
-      SetSSLContext(slTLSv1_2)
-    else
-      SetSSLContext(slTLSv1);
+    SetSSLContext();
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
   end;
+
+  fDoCheckSiteSoftware := (site.sw = sswUnknown) or (not site.IsUp);
 
   // banner
   if not Read('BANNER') then
@@ -1367,18 +1535,13 @@ begin
     exit;
   end;
 
-  if (sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1, sslAuthTlsSSLv23, sslAuthTlsTLSv1, sslAuthTlsTLSv1_2]) then
+  tryToGetSiteSoftwareAndVersionFromLastResponse;
+
+  if (sslm in [sslAuthSsl, sslAuthTls]) then
   begin
-    if sslm in [sslAuthSslSSLv23, sslAuthTlsSSLv23] then
-      SetSSLContext(slSslv23);
+    SetSSLContext();
 
-    if sslm in [sslAuthTlsTLSv1] then
-      SetSSLContext(slTLSv1);
-
-    if sslm in [sslAuthTlsTLSv1_2] then
-      SetSSLContext(slTLSv1_2);
-
-    if sslm in [sslAuthSslSSLv23, sslAuthSslTLSv1] then
+    if sslm in [sslAuthSsl] then
       tmp := 'AUTH SSL'
     else
       tmp := 'AUTH TLS';
@@ -1394,9 +1557,17 @@ begin
 
     if not TurnToSSL(site.io_timeout * 1000) then
       exit;
+
+    //After completing the negotiation of a secure connection with the server, the client must issue the PBSZ command.
+    //Pure-FTPd requires this. Other FTPDs work well without it.
+    if not Send('PBSZ 0') then
+      exit;
+    if not Read('PBSZ 0') then
+      exit;
   end;
   //else
   //  Debug(dpMessage, section, '%s: TRYING PLAINTEXT LOGIN', [name]);
+
 
   un := self.site.UserName;
   upw := self.site.PassWord;
@@ -1429,21 +1600,20 @@ begin
     exit;
   end;
 
+  tryToGetSiteSoftwareAndVersionFromLastResponse;
+
   if not Send('TYPE I') then
     exit;
   if not Read('TYPE I') then
     exit;
 
   // check FEAT when site comes up or we dont know the site software
-  if ((site.sw = sswUnknown) or (not site.IsUp)) then
-  begin
-    if not Send('FEAT') then
-      exit;
-    if not Read('FEAT') then
-      exit;
+  if not Send('FEAT') then
+    exit;
+  if not Read('FEAT') then
+    exit;
 
-    ProcessFeat();
-  end;
+  ProcessFeat(fDoCheckSiteSoftware);
 
   if not Send('SITE XDUPE 3') then
     exit;
@@ -1464,10 +1634,52 @@ begin
       exit;
   end;
 
+  //try to determine the site software
+  if fDoCheckSiteSoftware then
+  begin
+    //try the STAT command which is working fine for glFTPd and DrFTPD
+    if not Send('STAT') then
+      exit;
+    if not Read('STAT') then
+      exit;
+
+    if (lastResponseCode = 501) and lastResponse.Contains('Not enough parameters') then
+    begin
+      //it's very likely a ioFTPD in this case.
+
+      if not Send('SITE ioversion') then
+        exit;
+      if not Read('SITE ioversion') then
+        exit;
+
+      if lastResponse.Contains('Access denied') then //it knows the cmd 'SITE ioversion', but we don't have access
+      begin
+        site.sw := sswIoftpd;
+        site.swVersion := '';
+        fDoCheckSiteSoftware := False;
+      end
+      else
+        tryToGetSiteSoftwareAndVersionFromLastResponse;
+    end
+    else
+      tryToGetSiteSoftwareAndVersionFromLastResponse;
+  end;
+
+  if fDoCheckSiteSoftware then //did not work, try something else
+  begin
+    //try SITE VERS
+    if not Send('SITE VERS') then
+      exit;
+    if not Read('SITE VERS') then
+      exit;
+
+    tryToGetSiteSoftwareAndVersionFromLastResponse;
+  end;
+
   // successful login
   Result := True;
 
-  // change order of bnc if the current successfull bnc is not the first
+  // change order of bnc if the current successful bnc is not the first
   if i <> 0 then
   begin
     bncList := TStringList.Create;
@@ -1539,7 +1751,20 @@ begin
   if spamcfg.readbool(section, 'login_logout', False) then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
+  //when there are some tasks running and the user sets the site down meanwhile, then there might be a login
+  //going on at the same time. so after the login, check again if the site is meant to be up.
+  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
+  begin
+    Debug(dpMessage, section, '[Login] Site marked down manually after successful login - quit. %s', [self.Name]);
+    self.Quit;
+    Result := False;
+    exit;
+  end;
+
   status := ssOnline;
+
+  if LastNonIdleTaskExecution = 0 then
+    LastNonIdleTaskExecution := Now();
 end;
 
 function TSiteSlot.Login(kill: boolean = False): boolean;
@@ -1634,6 +1859,14 @@ begin
     exit;
   end;
 
+  //this relogin might come from some task retrying, but if the user setdown the site, it should never relogin.
+  if (site.WorkingStatus = sstMarkedAsDownByUser) or site.PermDown then
+  begin
+    Debug(dpMessage, section, '[ReLogin] Site marked down manually - Abort Relogin. %s', [self.Name]);
+    Result := True;
+    exit;
+  end;
+
   relogins := 0;
   while ((relogins < l_maxrelogins) and (not slshutdown) and (not shouldquit)) do
   begin
@@ -1677,7 +1910,6 @@ begin
         exit;
       end;
 
-      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
       for i := 0 to site.slots.Count - 1 do
       begin
         ss := TSiteSlot(site.slots[i]);
@@ -1688,6 +1920,7 @@ begin
         end;
       end;
 
+      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
       site.WorkingStatus := sstTempDown;
     end;
   end;
@@ -1698,7 +1931,7 @@ begin
   event.SetEvent;
 end;
 
-function TSiteSlot.Read(read_cmd: String = ''): boolean;
+function TSiteSlot.Read(const read_cmd: String = ''): boolean;
 begin
   try
     Result := Read(read_cmd, True, True, 0);
@@ -1714,7 +1947,7 @@ begin
   end;
 end;
 
-function TSiteSlot.Read(const read_cmd: String; raiseontimeout: boolean; raiseonclose: boolean; timeout: integer = 0): boolean;
+function TSiteSlot.Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean;
 label
   ujra;
 var
@@ -1733,7 +1966,7 @@ begin
 
   ujra:
   Inc(numreads);
-  if numreads > 500 then
+  if numreads > aMaxNumReads then
   begin
     Debug(dpError, section, Format('[ERROR] TSiteSlot.Read numreads', []));
     lastResponse := '';
@@ -1810,6 +2043,7 @@ begin
     Console_Slot_Add(Name, s);
     console_addline(Name, s);
 
+
     if not WriteLn(s, site.io_timeout * 1000) then
     begin
       irc_Adderror(todotask, '<c4>[ERROR Send]</c> %s: %s (%s)', [Name, error, s]);
@@ -1885,6 +2119,12 @@ begin
     exit;
   Read('QUIT', False, False);
   DestroySocket(False);
+end;
+
+procedure TSiteSlot.QuitAndRelogin(const aMessage: string);
+begin
+  Quit;
+  Relogin(0, False, aMessage);
 end;
 
 function TSiteSlot.RemoveFile(const dir, filename: String): boolean;
@@ -2079,7 +2319,9 @@ begin
       exit;
     end;
 
-    if not Read('Dirlist') then
+    //allow up to 50000 items for dirlist (default is 500). i've seen releases with more that 500 files and
+    //autodirlist / autoindex might have more directories
+    if not Read('Dirlist', True, True, 0, 50000) then
     begin
       Debug(dpMessage, section, 'TSiteSlot.Dirlist ERROR: can not read answer of %s from %s', [cmd, site.Name]);
       exit;
@@ -2163,7 +2405,7 @@ begin
       if not idTCP.TurnToSSL(site.io_timeout * 1000) then
       begin
         irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
-        site.UseForNFOdownload := 2; // TODO: rename me
+        site.UseForNFOdownload := ufnAutoDisabled;
         DestroySocket(False);
         Result := -1;
         exit;
@@ -2498,6 +2740,9 @@ begin
         begin
           irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
 
+          if UseForNfoDownload = ufnAutoDisabled then
+            UseForNfoDownload := ufnEnabled;
+
           if AutoNukeInterval <> 0 then
             AutoNuke;
           if AutoIndexInterval <> 0 then
@@ -2613,8 +2858,22 @@ begin
 end;
 
 function TSite.Getsslmethod: TSSLMethods;
+var
+  fSslMethod: Integer;
 begin
-  Result := TSSLMethods(RCInteger('sslmethod', integer(sslAuthTlsTLSv1_2)));
+  fSslMethod := RCInteger('sslmethod', integer(FDefaultSslMethod));
+
+  //if the site has set an old value (>3) then set it to the default
+  if fSslMethod > integer(High(TSSLMethods)) then
+  begin
+    Setsslmethod(FDefaultSslMethod);
+    irc_Addadmin(Format('%s: Defaulting legacy sslmethod (%d) to: %s', [Name, fSslMethod, sslMethodToString(self)]));
+    Debug(dpMessage, section, Format('%s: Defaulting legacy sslmethod (%d) to: %s', [Name, fSslMethod, sslMethodToString(self)]));
+    Result := FDefaultSslMethod;
+    exit;
+  end;
+
+  Result := TSSLMethods(fSslMethod);
 end;
 
 procedure TSite.Setsslmethod(const Value: TSSLMethods);
@@ -3051,7 +3310,7 @@ begin
   if t <> nil then
     exit;
 
-  t := TAutoDirlistTask.Create('', '', Name);
+  t := TAutoDirlistTask.Create('', '', Name, '');
   t.startat := NextAutoDirlistDateTime;
   t.dontremove := True;
   try
@@ -3101,21 +3360,29 @@ var
   t: TAutoIndexTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoIndexTask) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
       begin
-        t := TAutoIndexTask(tasks[i]);
-        if (t.site1 = Name) then
+      try
+        if (tasks[i] is TAutoIndexTask) then
         begin
-          Result := t;
-          exit;
+          t := TAutoIndexTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoIndex: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3125,21 +3392,29 @@ var
   t: TAutoDirlistTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoDirlistTask) then
-      begin
-        t := TAutoDirlistTask(tasks[i]);
-        if (t.site1 = Name) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TAutoDirlistTask) then
         begin
-          Result := t;
-          exit;
+          t := TAutoDirlistTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoDirlist: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3149,21 +3424,29 @@ var
   t: TAutoNukeTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TAutoNukeTask) then
-      begin
-        t := TAutoNukeTask(tasks[i]);
-        if (t.site1 = Name) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TAutoNukeTask) then
         begin
-          Result := t;
-          exit;
+          t := TAutoNukeTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoNuke: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3173,21 +3456,29 @@ var
   t: TLoginTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TLoginTask) then
-      begin
-        t := TLoginTask(tasks[i]);
-        if (t.site1 = Name) and (t.readd) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TLoginTask) then
         begin
-          Result := t;
-          exit;
+          t := TLoginTask(tasks[i]);
+          if (t.site1 = Name) and (t.readd) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoBnctest: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3197,21 +3488,29 @@ var
   t: TRulesTask;
 begin
   Result := nil;
-  for i := 0 to tasks.Count - 1 do
-  begin
-    try
-      if (tasks[i] is TRulesTask) then
-      begin
-        t := TRulesTask(tasks[i]);
-        if (t.site1 = Name) then
+  queue_lock.Enter;
+  try
+    for i := 0 to tasks.Count - 1 do
+    begin
+      try
+        if (tasks[i] is TRulesTask) then
         begin
-          Result := t;
-          exit;
+          t := TRulesTask(tasks[i]);
+          if (t.site1 = Name) then
+          begin
+            Result := t;
+            exit;
+          end;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoRules: %s', [e.Message]));
         end;
       end;
-    except
-      Result := nil;
     end;
+  finally
+    queue_lock.Leave;
   end;
 end;
 
@@ -3332,6 +3631,16 @@ end;
 procedure TSite.SetSw(const Value: TSiteSw);
 begin
   WCInteger('sw', integer(Value));
+end;
+
+function TSite.GetSwVersion: String;
+begin
+  Result := RCString('swversion', '');
+end;
+
+procedure TSite.SetSwVersion(const Value: String);
+begin
+  WCString('swversion', Value);
 end;
 
 function TSite.GetRank(const section: String): integer;
@@ -3474,6 +3783,89 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+procedure CheckSiteSlots(const aSite: TSite); overload;
+var
+  fLoginTaskNeeded: boolean;
+  fSiteSlot: TSiteSlot;
+  fLoginTask: TLoginTask;
+  fWantedSlot: string;
+begin
+  fLoginTaskNeeded := False;
+  fWantedSlot := '';
+
+  // check if the destination site and its slots are ready
+  if aSite <> nil then
+  begin
+    begin
+
+      //if the site has a max idle time, login only one slot. when we login all slots, not needed slots
+      //would immediately be logged out again
+      if aSite.maxidle <> 0 then
+      begin
+        fLoginTaskNeeded := True;
+        for fSiteSlot in aSite.slots do
+        begin
+          if (fSiteSlot.Status = ssOnline) and (fSiteSlot.todotask = nil) then
+          begin
+            // there is an online slot which has no task assigned, no login needed
+            fLoginTaskNeeded := False;
+            break;
+          end;
+        end;
+
+        //we need to login one slot
+        if fLoginTaskNeeded then
+        begin
+          for fSiteSlot in aSite.slots do
+          begin
+            if (fSiteSlot.Status <> ssOnline)
+
+              //there might already be a login task (or maybe a race task which sometimes
+              //sets the slot down and relogins it) - don't try to login such slots
+              and (fSiteSlot.todotask = nil) then
+            begin
+              fLoginTaskNeeded := True;
+              fWantedSlot := fSiteSlot.Name;
+              break;
+            end;
+          end;
+        end;
+      end
+
+      //login all slots for sites with no max idle time
+      else
+      begin
+        // check site's working status
+        fLoginTaskNeeded := (aSite.WorkingStatus <> sstUp);
+
+        if not fLoginTaskNeeded then
+          // check if all the slots are online
+          for fSiteSlot in aSite.slots do
+          begin
+            if (fSiteSlot.Status <> ssOnline) then
+            begin
+              fLoginTaskNeeded := True;
+              break;
+            end;
+          end;
+      end;
+    end;
+
+    if fLoginTaskNeeded then
+    begin
+      fLoginTask := TLoginTask.Create('', '', aSite.Name, False, False);
+      fLoginTask.wantedslot := fWantedSlot;
+      fLoginTask.noannounce := (aSite.WorkingStatus <> sstUp); // announce if working status of the site is not sstUp
+      AddTask(fLoginTask);
+    end;
+  end;
+end;
+
+procedure CheckSiteSlots(const aSiteName: string); overload;
+begin
+  CheckSiteSlots(FindSiteByName('', aSiteName));
 end;
 
 function TSite.GetSiteInfos: String;
@@ -3741,17 +4133,14 @@ begin
   WCString('ident_response', Value);
 end;
 
-function TSite.GetUseForNFOdownload: integer;
+function TSite.GetUseForNFOdownload: TUseForNfoDownload;
 begin
-  // 0 means disabled
-  // 1 means enabled
-  // 2 means automatically disabled by slftp due to problems (some SSL or out of credits)
-  Result := RCInteger('usefornfodownload', 1);
+  Result := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
 end;
 
-procedure TSite.SetUseForNFOdownload(Value: integer);
+procedure TSite.SetUseForNFOdownload(const Value: TUseForNfoDownload);
 begin
-  WCInteger('usefornfodownload', Value);
+  WCInteger('usefornfodownload', Ord(Value));
 end;
 
 function TSite.GetSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -3774,5 +4163,44 @@ begin
   WCBool('permdown', Value);
 end;
 
-end.
+function TSite.GetUseReverseFxpSource: boolean;
+begin
+  Result := RCBool('reverse_fxp_source', False);
+end;
 
+procedure TSite.SetUseReverseFxpSource(const Value: boolean);
+begin
+  WCBool('reverse_fxp_source', Value);
+end;
+
+function TSite.GetUseReverseFxpDestination: boolean;
+begin
+  Result := RCBool('reverse_fxp_destination', False);
+end;
+
+procedure TSite.SetUseReverseFxpDestination(const Value: boolean);
+begin
+  WCBool('reverse_fxp_destination', Value);
+end;
+
+function TSite.GetUseSiteSearchOnReqFill: boolean;
+begin
+  Result := RCBool('use_site_search_on_reqfill', config.ReadBool('autodirlist', 'use_site_search_on_reqfill', False));
+end;
+
+procedure TSite.SetUseSiteSearchOnReqFill(const Value: boolean);
+begin
+  WCBool('use_site_search_on_reqfill', Value);
+end;
+
+function TSite.GetReducedSpeedstatWeight: boolean;
+begin
+  Result := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));
+end;
+
+procedure TSite.SetReducedSpeedstatWeight(const Value: boolean);
+begin
+  WCBool('reduced_speedstat_weight', Value);
+end;
+
+end.

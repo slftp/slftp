@@ -55,7 +55,7 @@ interface
 
 {$I ZDbc.inc}
 
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 uses
   Classes, {$IFDEF MSEgui}mclasses,{$ENDIF} SysUtils,
   {$IF defined(UNICODE) and not defined(WITH_UNICODEFROMLOCALECHARS)}Windows,{$IFEND}
@@ -126,9 +126,9 @@ type
     function ExecutePrepared: Boolean; override;
   end;
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 implementation
-{$IFNDEF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$IFDEF ENABLE_PROXY} //if set we have an empty unit
 
 uses
   {$IFDEF WITH_UNITANSISTRINGS}AnsiStrings, {$ENDIF}
@@ -136,7 +136,7 @@ uses
   ZEncoding, ZTokenizer, ZClasses,
   // For the resolvers:
   ZDbcInterbase6, ZDbcASA,ZDbcDbLibResultSet, ZDbcOracle, ZdbcPostgreSqlStatement,
-  TypInfo, Variants, NetEncoding
+  TypInfo, Variants, ZBase64, ZExceptions{$IFDEF ZEOS73UP}, FmtBcd{$ENDIF}
   {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND}
   {$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
 
@@ -209,9 +209,9 @@ begin
   Result := FloatToStr(Value, ProxyFormatSettings);
 end;
 {$ELSE}
-function BcdParamToStr(const Value: TFMTBcd): String;
+function BcdParamToString(const Value: TBCD): String;
 begin
-  Result := BcdToStr(Value, ProxyFormatSettings);
+  Result := BcdToSQLUni(Value);
 end;
 {$ENDIF}
 
@@ -242,6 +242,9 @@ var
   Line: String;
   x: Integer;
   TempBlob: IZBlob;
+  {$IFDEF ZEOS73UP}
+  LocalBCD: TBCD;
+  {$ENDIF}
 begin
   if InParamCount = 0 then
     exit;
@@ -268,8 +271,10 @@ begin
           {$ELSE}
           stFloat, stDouble, stCurrency:
             Line := DoubleParamToStr(ClientVarManager.GetAsDouble(InParamValues[x]));
-          stBigDecimal:
-            Line := Line := BcdParamToString(ClientVarManager.GetAsBigDecimal(InParamValues[x]));
+          stBigDecimal: begin
+              ClientVarManager.GetAsBigDecimal(InParamValues[x], LocalBCD);
+              Line := BcdParamToString(LocalBCD);
+            end;
           {$ENDIF}
           stString, stUnicodeString:
             Line := StrParamToStr(ClientVarManager.GetAsString(InParamValues[x]));
@@ -287,11 +292,14 @@ begin
             end;
           stBinaryStream:
             if (InParamValues[x].VType = vtInterface) and Supports(InParamValues[x].VInterface, IZBlob, TempBlob) then begin
-              Line := StrParamToStr(TNetEncoding.Base64.EncodeBytesToString(TempBlob.GetBytes));
+              Line := StrParamToStr(String(ZEncodeBase64(TempBlob.GetBytes)));
             end else begin
-              raise Exception.Create('Conversion of parameter of type ' + TypeName + ' to stBinaryStream is not supported (yet).');
+              raise EZSQLException.Create('Conversion of parameter of type ' + TypeName + ' to stBinaryStream is not supported (yet).');
             end;
-          else raise Exception.Create('Conversion of parameter of type ' + TypeName + ' is not supported (yet).');
+          stBytes:
+              line := StrParamToStr(String(ZEncodeBase64(StrToBytes(InParamValues[x].VRawByteString))));
+          else
+            raise EZSQLException.Create('Conversion of parameter of type ' + TypeName + ' is not supported (yet).');
         end;
         Line := 'value="' + Line + '"';
       end;
@@ -319,11 +327,13 @@ function TZDbcProxyPreparedStatement.ExecutePrepared: Boolean;
 var
   Params: String;
   ResultStr: String;
+  xSQL: ZWideString;
 const
   ResultSetStart = '<resultset ';
 begin
   Params := EncodeParams;
-  ResultStr := (Connection as IZDbcProxyConnection).GetConnectionInterface.ExecuteStatement(SQL, Params, GetMaxRows);
+  xSQL := {$IFDEF UNICODE}FWSQL{$ELSE}UTF8Decode(FASQL){$ENDIF};
+  ResultStr := (Connection as IZDbcProxyConnection).GetConnectionInterface.ExecuteStatement(xSQL, Params, GetMaxRows);
 
   if copy(ResultStr, 1, length(ResultSetStart)) = ResultSetStart  then begin
     Result := True;
@@ -347,6 +357,5 @@ initialization
   ProxyFormatSettings.TimeSeparator := ':';
   ProxyFormatSettings.ThousandSeparator := ',';
 
-{$ENDIF ZEOS_DISABLE_PROXY} //if set we have an empty unit
+{$ENDIF ENABLE_PROXY} //if set we have an empty unit
 end.
-

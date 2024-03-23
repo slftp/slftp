@@ -172,6 +172,17 @@ procedure RecalcSizeValueAndUnit(var size: double; out sizevalue: String; StartF
   @param(aRatio Ratio as seen in the "site stat" output with the exception of 1:0 being returned as the string "Unlimited") }
 procedure ParseSTATLine(const aStatLine: String; out aCredits, aRatio: String);
 
+{ Parses a FTP "site search" result returning the found paths
+  @param(aSearchResult FTP response from a "site search" command)
+  @param(aRlsToSearch The rls name it was searched for)
+  @returns(Paths on the site where the given release was found.) }
+function ParsePathFromSiteSearchResult(const aSearchResult, aRlsToSearch: String): String;
+
+{ Converts the punctuation, international and other special characters in a moviename into scene-notation used for release tagging
+  @param(aInput Name of the Movie)
+  @returns(Moviename in scene notation) }
+function InternationalCharsToAsciiSceneChars(const aInput: String): String;
+
 implementation
 
 uses
@@ -896,77 +907,169 @@ begin
 end;
 
 procedure ParseSTATLine(const aStatLine: String; out aCredits, aRatio: String);
-  var
-    x: TRegExpr;
-    ss, ratio: String;
-    c: double;
-    sizeValueIndex: Integer;
-  begin
-    aRatio := '';
-    aCredits := '';
-    sizeValueIndex := 2;
+var
+  x: TRegExpr;
+  ss, ratio: String;
+  c: double;
+  sizeValueIndex: Integer;
+begin
+  aRatio := '';
+  aCredits := '';
+  sizeValueIndex := 2;
 
-    x := TRegExpr.Create;
-    try
-      x.ModifierI := True;
+  x := TRegExpr.Create;
+  try
+    x.ModifierI := True;
 
-      x.Expression := config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)(\.\d+)?');
-      if x.Exec(aStatLine) then
-      begin
-        if (AnsiContainsText(x.Match[2], 'Unlimited') or (x.Match[2] = '1:0')) then
-          ratio := 'Unlimited'
-        else
-          ratio := x.Match[2];
-      end;
-
-      // ratio(UL: 1:3 | DL: 1:1)
-      if ratio = '' then
-      begin
-        x.Expression := '(Ratio\(\w*:\s*(\d+:\d+).*?\))';
-        if x.Exec(aStatLine) then
-        begin
-          ratio := x.Match[2];
-        end;
-      end;
-
-      x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?');
-      if x.Exec(aStatLine) then
-      begin
-        ss := x.Match[2];
-
-        {$IFDEF FPC}
-          ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
-        {$ELSE}
-          ss := StringReplace(ss, '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
-        {$ENDIF}
-
-        c := strtofloat(ss);
-        ss := UpperCase(x.Match[3]);
-
-        if (ss = 'MB') or (ss = 'MIB') then
-        begin
-          ss := 'MB';
-          RecalcSizeValueAndUnit(c, ss, sizeValueIndex);
-        end
-        else if (ss = 'GB') or (ss = 'GIB') then
-        begin
-          ss := 'GB';
-          RecalcSizeValueAndUnit(c, ss, sizeValueIndex+1);
-        end
-        else if (ss = 'TIB') then
-        begin
-          ss := 'TB';
-        end;
-
-        aCredits := Format('%.2f %s', [c, ss] );
-        aCredits := StringReplace(aCredits, ',', '.', [rfReplaceAll, rfIgnoreCase]);
-        aRatio := ratio;
-      end;
-
-    finally
-      x.free;
+    x.Expression := config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)(\.\d+)?');
+    if x.Exec(aStatLine) then
+    begin
+      if (AnsiContainsText(x.Match[2], 'Unlimited') or (x.Match[2] = '1:0')) then
+        ratio := 'Unlimited'
+      else
+        ratio := x.Match[2];
     end;
-  end;
 
+    // ratio(UL: 1:3 | DL: 1:1)
+    if ratio = '' then
+    begin
+      x.Expression := '(Ratio\(\w*:\s*(\d+:\d+).*?\))';
+      if x.Exec(aStatLine) then
+      begin
+        ratio := x.Match[2];
+      end;
+    end;
+
+    x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?');
+    if x.Exec(aStatLine) then
+    begin
+      ss := x.Match[2];
+
+      {$IFDEF FPC}
+        ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
+      {$ELSE}
+        ss := StringReplace(ss, '.', {$IFDEF UNICODE}FormatSettings.DecimalSeparator{$ELSE}DecimalSeparator{$ENDIF}, [rfReplaceAll, rfIgnoreCase]);
+      {$ENDIF}
+
+      c := strtofloat(ss);
+      ss := UpperCase(x.Match[3]);
+
+      if (ss = 'MB') or (ss = 'MIB') then
+      begin
+        ss := 'MB';
+        RecalcSizeValueAndUnit(c, ss, sizeValueIndex);
+      end
+      else if (ss = 'GB') or (ss = 'GIB') then
+      begin
+        ss := 'GB';
+        RecalcSizeValueAndUnit(c, ss, sizeValueIndex+1);
+      end
+      else if (ss = 'TIB') then
+      begin
+        ss := 'TB';
+      end;
+
+      aCredits := Format('%.2f %s', [c, ss] );
+      aCredits := StringReplace(aCredits, ',', '.', [rfReplaceAll, rfIgnoreCase]);
+      aRatio := ratio;
+    end;
+
+  finally
+    x.free;
+  end;
+end;
+
+function ParsePathFromSiteSearchResult(const aSearchResult, aRlsToSearch: String): String;
+var
+  fRegex: TRegexpr;
+  fPath: String;
+begin
+  Result := '';
+  fRegex := TRegExpr.Create;
+  try
+    fRegex.Expression := '200- (/[a-zA-Z0-9\._\-()/]*)'; //200- /SECTION/Test.Release-ASDF
+    if fRegex.Exec(aSearchResult) then
+    begin
+      repeat
+        fPath := fRegex.Match[1];
+
+        //index might contain stuff like /FILLED-Test.Release-ASDF/Test.Release-ASDF and also /FILLED-Test.Release-ASDF
+        if not fPath.Contains('/' + aRlsToSearch) then
+          continue;
+
+        //index might contains stuff like /SECTION/Test.Release-ASDF/Sample (1F/154.3M/58d 18h)
+        if fPath.Contains('/' + aRlsToSearch + '/') then
+          continue;
+
+        //200- /SECTION/Test.Release-ASDF *NUKED*
+        if aSearchResult.Contains(fPath + (' *NUKED*')) then
+          continue;
+
+        Result := Result + fPath + #13#10;
+      until not fRegex.ExecNext();
+    end;
+  finally
+    fRegex.Free;
+  end;
+end;
+
+function InternationalCharsToAsciiSceneChars(const aInput: String): String;
+begin
+  Result := aInput;
+
+  // remove scene delimiters
+  //Result := Result.Replace('.', '', [rfReplaceAll, rfIgnoreCase]);
+  //Result := Result.Replace('_', '', [rfReplaceAll, rfIgnoreCase]);
+  // change special international characters
+  Result := Result.Replace('ÿ', 'y', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('ü', 'ue', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('ö', 'oe', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('ï', 'i', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('ë', 'e', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('ä', 'ae', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('ß', 'ss', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('À', 'a', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Á', 'a', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Â', 'a', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ã', 'a', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Å', 'a', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Æ', 'ae', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ç', 'c', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('È', 'e', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('É', 'e', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ê', 'e', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ì', 'i', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Í', 'i', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Î', 'i', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ð', 'd', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ñ', 'n', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ò', 'o', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ó', 'o', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ô', 'o', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Õ', 'o', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ø', 'o', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Œ', 'oe', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ù', 'u', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ú', 'u', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Û', 'u', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Ý', 'y', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('Š', '', [rfReplaceAll, rfIgnoreCase]);
+  // change punctuation characters
+  Result := Result.Replace('&quot;', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('.', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace(';', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace(',', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('''', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('-', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('?', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('!', '', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('&', '', [rfReplaceAll, rfIgnoreCase]);
+  // finally replace more than one whitespace with one
+  Result := Result.Replace('   ', ' ', [rfReplaceAll, rfIgnoreCase]);
+  Result := Result.Replace('  ', ' ', [rfReplaceAll, rfIgnoreCase]);
+
+  Debug(dpSpam, section, Format('Changed international %s to ascii scene %s', [aInput, Result]));
+end;
 
 end.

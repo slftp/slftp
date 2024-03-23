@@ -73,10 +73,15 @@ uses
   ircparsingTests,
   slmasksTests,
   dirlist.helpersTests,
+  dirlistTests,
   precatcher.helpersTests,
   kb.releaseinfo.MP3Tests,
   kb.releaseinfo.NullDayTests,
-  kb.releaseinfo.MVIDTests;
+  kb.releaseinfo.MVIDTests,
+  taskhttpimdbTests,
+  slsslTests,
+  sitesunitTests,
+  precatcherTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -106,6 +111,8 @@ begin
   InitialGlobalskiplistSetup;
   InitialTagsSetup;
   InitialDirlistSetup;
+  InitialDbAddImdbSetup;
+  InitialPrecatcherSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

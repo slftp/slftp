@@ -2,9 +2,29 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, IniFiles, irc, Contnrs, SyncObjs;
+uses Classes, IniFiles, irc, Contnrs, SyncObjs, Generics.Collections;
 
 type
+  { @abstract(Class for information from each single line of the slftp.imdbcountries file) }
+  TMapLanguageCountry = class
+  private
+    FLanguage: String; //< language
+    FCountryCode: String; //< country code (for backward compatibility of the existing file, not really needed at the moment)
+    FCountry: String; //< country name
+  public
+    { Creates a class with the given information }
+    constructor Create(const aLanguage, aCountryCode, aCountry: String);
+
+    { Returns the Countryname for a given Language
+      @param(aLanguage Name of Language)
+      @returns(Countryname @br @note(empty string if Language->Country does not exist)) }
+    class function GetCountrynameByLanguage(const aLanguage: String): String;
+
+    property Language: String read FLanguage;
+    property CountryCode: String read FCountryCode;
+    property Country: String read FCountry;
+  end;
+
   TDbImdb = class
     rls: String;
     imdb_id: String;
@@ -35,6 +55,11 @@ type
     procedure PostResults(const netname, channel: String; rls : String = '');overload;
   end;
 
+{ Checks if Country should be excluded (doesn't exist in slftp.imdbcountries file)
+  @param(aCountryname Name of Country to be checked)
+  @returns(@true if no entry exists in file (exclude), @false otherwise) }
+function ExcludeCountry(const aCountryname: String): Boolean;
+
 function dbaddimdb_Process(net, chan, nick, msg: String): Boolean;
 procedure dbaddimdb_SaveImdb(rls, imdb_id: String);
 procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
@@ -54,7 +79,6 @@ var
   last_addimdb: THashedStringList;
   last_imdbdata: THashedStringList;
   dbaddimdb_cs: TCriticalSection;
-  imdbcountries: TIniFile;
 
 implementation
 
@@ -68,6 +92,28 @@ var
   rx_imdbid: TFLRE;
   rx_captures: TFLREMultiCaptures;
   addimdbcmd: String;
+  glLanguageCountryMappingList: TObjectList<TMapLanguageCountry>;
+
+{ TMapLanguageCountry }
+
+constructor TMapLanguageCountry.Create(const aLanguage, aCountryCode, aCountry: String);
+begin
+  FLanguage := aLanguage;
+  FCountryCode := aCountryCode;
+  FCountry := aCountry;
+end;
+
+class function TMapLanguageCountry.GetCountrynameByLanguage(const aLanguage: String): String;
+var
+  fItem: TMapLanguageCountry;
+begin
+  Result := '';
+  for fItem in glLanguageCountryMappingList do
+  begin
+    if fItem.FLanguage = aLanguage then
+      Exit(fItem.Country);
+  end;
+end;
 
 { TDbImdb }
 constructor TDbImdb.Create(rls, imdb_id: String);
@@ -131,7 +177,27 @@ begin
   irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s)',[imdb_rating,imdb_votes,imdb_screens,status]));
 end;
 
-{ Proc/Func }
+function ExcludeCountry(const aCountryname: String): Boolean;
+var
+  fItem: TMapLanguageCountry;
+begin
+  Result := True;
+  for fItem in glLanguageCountryMappingList do
+  begin
+    if (fItem.Country = 'UK') or (fItem.Country = 'USA') then
+    begin
+      // to avoid matching Ukraine with UK
+      if aCountryname.StartsWith(fItem.Country, False) then
+        Exit(False);
+    end
+    else
+    begin
+      // match things like 'Canada (French title)' and 'Canada (English title)'
+      if aCountryname.StartsWith(fItem.Country, True) then
+        Exit(False);
+    end;
+  end;
+end;
 
 function dbaddimdb_Process(net, chan, nick, msg: String): Boolean;
 begin
@@ -434,14 +500,61 @@ end;
 { Init }
 
 procedure dbaddimdbInit;
+var
+  fStrList: TStringList;
+  i, j: Integer;
+  fLang, fCC, fCountry, fHelper: String;
+  fItem: TMapLanguageCountry;
+  fDupe: Boolean;
 begin
   dbaddimdb_cs := TCriticalSection.Create;
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
+  last_addimdb.OwnsObjects:= True;
   last_imdbdata:= THashedStringList.Create;
   last_imdbdata.CaseSensitive:= False;
+  last_imdbdata.OwnsObjects := True;
   rx_imdbid := TFLRE.Create('tt(\d{6,8})', [rfIGNORECASE]);
-  imdbcountries := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
+  glLanguageCountryMappingList := TObjectList<TMapLanguageCountry>.Create(True);
+  fStrList := TStringList.Create;
+  try
+    fStrList.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries');
+    for i := 0 to fStrList.Count - 1 do
+    begin
+      (* ignore inifile section and comments *)
+      if fStrList.Strings[i].StartsWith('[') then
+        Continue;
+      if fStrList.Strings[i].Contains('//') then
+        Continue;
+      if fStrList.Strings[i].Contains('#') then
+        Continue;
+
+      fLang := Trim(SubString(fStrList.Strings[i], '=', 1));
+      fHelper := SubString(fStrList.Strings[i], '=', 2);
+      fCC := Trim(SubString(fHelper, ',', 1));
+      fCountry := Trim(SubString(fHelper, ',', 2));
+
+      fDupe := False;
+      for fItem in glLanguageCountryMappingList do
+      begin
+        // IMDb and BOM differ for that language, see config file
+        if fLang = 'Czech' then
+          Continue;
+        if fItem.Language = fLang then
+        begin
+          Debug(dpError, section, Format('Ignoring language %s with country %s-%s from slftp.imdbcountries because it already exists', [fLang, fCC, fCountry]));
+          fDupe := True;
+        end;
+      end;
+
+      if fDupe then
+        Continue;
+
+      glLanguageCountryMappingList.Add(TMapLanguageCountry.Create(fLang, fCC, fCountry));
+    end;
+  finally
+    fStrList.Free;
+  end;
 end;
 
 procedure dbaddimdbStart;
@@ -451,7 +564,7 @@ end;
 
 procedure dbaddimdbUninit;
 begin
-  imdbcountries.Free;
+  glLanguageCountryMappingList.Free;
   dbaddimdb_cs.Enter;
   try
     FreeAndNil(last_addimdb);

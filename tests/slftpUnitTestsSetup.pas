@@ -10,11 +10,13 @@ procedure InitialSLLanguagesSetup;
 procedure InitialGlobalskiplistSetup;
 procedure InitialTagsSetup;
 procedure InitialDirlistSetup;
+procedure InitialDbAddImdbSetup;
+procedure InitialPrecatcherSetup;
 
 implementation
 
 uses
-  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist;
+  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher;
 
 procedure InitialConfigSetup;
 var
@@ -52,6 +54,17 @@ end;
 procedure InitialDirlistSetup;
 begin
   DirlistInit;
+end;
+
+procedure InitialDbAddImdbSetup;
+begin
+  dbaddimdbInit;
+end;
+
+procedure InitialPrecatcherSetup;
+begin
+  Precatcher_Init;
+  PrecatcherStart;
 end;
 
 end.

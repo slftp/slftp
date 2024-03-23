@@ -39,7 +39,7 @@
 {                                                         }
 {                                                         }
 { The project web site is located on:                     }
-{   http://zeos.firmos.at  (FORUM)                        }
+{   https://zeoslib.sourceforge.io/ (FORUM)               }
 {   http://sourceforge.net/p/zeoslib/tickets/ (BUGTRACKER)}
 {   svn://svn.code.sf.net/p/zeoslib/code-0/trunk (SVN)    }
 {                                                         }
@@ -61,8 +61,8 @@ uses
   ZMessages, ZCompatibility, FmtBCD;
 
 type
-  {** some formats for it's purpose }
-  TZFormatSettings = Record
+  /// <summary>Declares a TZClientFormatSettings record.</summary>
+  TZClientFormatSettings = Record
     DateFormat: String;
     DateFormatLen: Byte;
     TimeFormat: String;
@@ -71,6 +71,7 @@ type
     DateTimeFormatLen: Byte;
   End;
 
+  /// <summary>Implements a EArgumentException if not known by compiler</summary>
   {$IF NOT DECLARED(EArgumentException)}
   EArgumentException = Class(Exception);
   {$IFEND}
@@ -85,7 +86,7 @@ const
   YesNoStrsRaw: array[Boolean] of RawByteString = ('NO', 'YES');
   {$ENDIF}
   BoolStrs: array[Boolean] of string = (StrFalse, StrTrue);
-  BoolStrsW: array[Boolean] of ZWideString = (ZWideString(StrFalse), ZWideString(StrTrue));
+  BoolStrsW: array[Boolean] of UnicodeString = (UnicodeString(StrFalse), UnicodeString(StrTrue));
   SQLDateTimeFmt = 'YYYY"-"MM"-"DD HH":"NN":"SS';
   SQLDateTimeFmtMSecs = 'YYYY"-"MM"-"DD HH":"NN":"SS"."ZZZ';
   YesNoStrs: array[Boolean] of string = ('NO', 'YES');
@@ -99,1216 +100,2081 @@ var
   YesNoStrsRaw: array[Boolean] of RawByteString;
   {$ENDIF}
 
-{**
-  Determines a position of a first delimiter.
-  @param Delimiters a string with possible delimiters.
-  @param Str a string to be checked.
-  @return a position of the first found delimiter or 0 if no delimiters was found.
-}
+/// <summary>Determines a position of a first delimiter.</summary>
+/// <param>"Delimiters" a string with possible delimiters</param>
+/// <param>"Str" a string to be checked.</param>
+/// <returns>a position of the first found delimiter or
+///  <c>0</c> if no delimiters was found</returns>
 function FirstDelimiter(const Delimiters, Str: string): Integer;
 
-{**
-  Determines a position of a LAST delimiter.
-  @param Delimiters a string with possible delimiters.
-  @param Str a string to be checked.
-  @return a position of the last found delimiter or 0 if no delimiters was found.
-}
+/// <summary>Determines a position of a last delimiter.</summary>
+/// <param>"Delimiters" a string with possible delimiters</param>
+/// <param>"Str" a string to be checked.</param>
+/// <returns>a position of the first found delimiter or
+///  <c>0</c> if no delimiters was found</returns>
 function LastDelimiter(const Delimiters, Str: string): Integer;
 
-{**
-  Compares two Buffers with fixed length
-  @param P1 first Pointer
-  @param P2 seconds Pointer
-  @return <code>Integer</code> if the memory equals else return PByte(P1)-PByte(B2)
-}
+/// <author>EgonHugeist</author>
+/// <summary>Compares two Buffers with fixed length.</summary>
+/// <param>"P1" the first Pointer to be compared</param>
+/// <param>"P2" the second Pointer to be compared</param>
+/// <param>"Len" the length in bytes of the given buffers</param>
+/// <returns><c>0</c> if the memory equals else return byte diff on first
+///  failing postion</returns>
 function ZMemLComp(P1, P2: PAnsiChar; Len: Cardinal): Integer;
 
-{**
-  Compares two PWideChars without stopping at #0 (Unicode Version)
-  @param P1 first PWideChars
-  @param P2 seconds PWideChars
-  @return <code>True</code> if the memory at P1 and P2 are equal
-}
+/// <author>EgonHugeist</author>
+/// <summary>Compares two WideChar Buffers with fixed length.</summary>
+/// <param>"P1" the first Pointer to be compared</param>
+/// <param>"P2" the second Pointer to be compared</param>
+/// <param>"Len" the length in words of the given buffers</param>
+/// <returns><c>True</c> if the memory equals</returns>
 function MemLCompUnicode(P1, P2: PWideChar; Len: Integer): Boolean;
 
-{**
-  Compares two PAnsiChars without stopping at #0
-  @param P1 first PAnsiChar
-  @param P2 seconds PAnsiChar
-  @return <code>True</code> if the memory at P1 and P2 are equal
-}
+/// <author>EgonHugeist</author>
+/// <summary>Compares two raw Buffers with fixed length.</summary>
+/// <param>"P1" the first Pointer to be compared</param>
+/// <param>"P2" the second Pointer to be compared</param>
+/// <param>"Len" the length in bytes of the given buffers</param>
+/// <returns><c>True</c> if the memory equals</returns>
 function MemLCompAnsi(P1, P2: PAnsiChar; Len: Integer): Boolean;
 
-{**
-  Checks is the string starts with substring.
-  @param Str a WideString/UnicodeString to be checked.
-  @param SubStr a WideString/UnicodeString to test at the start of the Str.
-  @return <code>True</code> if Str started with SubStr;
-}
-function StartsWith(const Str, SubStr: ZWidestring): Boolean; overload;
+/// <summary>Checks is the string starts with substring.</summary>
+/// <param>"Str" a UnicodeString to be compared</param>
+/// <param>"SubStr">a UnicodeString to test at the start of the Str</param>
+/// <returns><c>True</c> if Str starts with SubStr</returns>
+function StartsWith(const Str, SubStr: UnicodeString): Boolean; overload;
 
-{**
-  Checks is the string starts with substring.
-  @param Str a AnsiString/RawByteString to be checked.
-  @param SubStr a AnsiString/RawByteString to test at the start of the Str.
-  @return <code>True</code> if Str started with SubStr;
-}
-
+/// <summary>Checks is the string starts with substring.</summary>
+/// <param>"Str">a RawByteString to be compared</param>
+/// <param>"SubStr">a RawByteString to test at the start of the Str</param>
+/// <returns><c>True</c> if Str starts with SubStr</returns>
 function StartsWith(const Str, SubStr: RawByteString): Boolean; overload;
 
-{**
-  Checks is the string ends with substring.
-  @param Str a AnsiString/RawByteString to be checked.
-  @param SubStr a AnsiString/RawByteString to test at the end of the Str.
-  @return <code>True</code> if Str ended with SubStr;
-}
+/// <summary>Checks is the string ends with substring.</summary>
+/// <param>"Str">a RawByteString the String to be compared</param>
+/// <param>"SubStr">a RawByteString to test at the end of the Str</param>
+/// <returns><c>True</c> if Str ends with SubStr</returns>
 function EndsWith(const Str, SubStr: RawByteString): Boolean; overload;
 
-{**
-  Checks is the string ends with substring.
-  @param Str a WideString/UnicodeString to be checked.
-  @param SubStr a WideString/UnicodeString to test at the end of the Str.
-  @return <code>True</code> if Str ended with SubStr;
-}
-function EndsWith(const Str, SubStr: ZWideString): Boolean; overload;
+/// <summary>Checks is the string ends with substring.</summary>
+/// <param>"Str">a UnicodeString the String to be compared</param>
+/// <param>"SubStr">a UnicodeString to test at the end of the Str</param>
+/// <returns><c>True</c> if Str ends with SubStr</returns>
+function EndsWith(const Str, SubStr: UnicodeString): Boolean; overload;
 
-{** EH:
-  Converts SQL PAnsiChar into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert a PAnsiChar into an Extendend float value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a PAnsiChar of a raw character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Len" the length in bytes of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
+/// <returns>a converted value or Def if conversion fails.</returns>
 function SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended; Len: NativeUInt = 0): Extended; overload;
 
-{** EH:
-  Converts SQL PAnsiChar into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PAnsiChar into an Extendend float value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a PAnsiChar of a raw character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in bytes of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended; out Result: Extended; Len: NativeUInt = 0); overload;
 
-
-{** EH:
-  Converts SQL PAnsiChar into currency value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PAnsiChar into a Currency value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a PAnsiChar of a raw character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in bytes of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Currency; out Result: Currency; Len: NativeUInt = 0); overload;
 
-{** EH:
-  Converts SQL PAnsiChar into currency value.
-  Possible is SQLFloat, Float, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param DecimalSep a reference to decimal seperator to be used;
-          we will initialize this sep with '.' or replace it if with the Sep we found
-  @param Result return a converted value or Def if conversion did fail.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PAnsiChar into a Currency value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a PAnsiChar of a raw character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"DecimalSep" a reference to decimal seperator to be used.
+///  We will initialize this sep with '.' or replace it with the Sep we found</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in bytes of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Currency; Var DecimalSep: Char; out Result: Currency; Len: NativeUInt = 0); overload;
+
 {$IF defined(DELPHI) or defined(FPC_HAS_TYPE_EXTENDED)}
-{** EH:
-  Converts SQL PAnsiChar into double precison value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PAnsiChar into a Double value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a PAnsiChar of a raw character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in bytes of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Double; out Result: Double; Len: NativeUInt = 0); overload;
 {$IFEND}
-{** EH:
-  Converts SQL PAnsiChar into single precison value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PAnsiChar into a Single value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a PAnsiChar of a raw character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in bytes of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Single; out Result: Single; Len: NativeUInt = 0); overload;
 
-{** EH:
-  Converts SQL PWideChar into REAL10 value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to UTF16 data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert a PWideChar into an Extendend float value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a Pointer to an UTF16 character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Len" the length in words of the given buffer. If Len is zero the buffer should be #0#0 terminated.</param>
+/// <returns>a converted value or Def if conversion fails.</returns>
 function SQLStrToFloatDef(Value: PWideChar; const Def: Extended; Len: NativeUInt = 0): Extended; overload;
 
-{** EH:
-  Converts a UTF16 buffer into REAL10 value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to UTF16 data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PWideChar into an Extendend float value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a Pointer to an UTF16 character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in words of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Extended; out Result: Extended; Len: NativeUInt = 0); overload;
 
-{** EH:
-  Converts a UTF16 buffer into currency value.
-  Possible is SQLFloat, Float, Money+Suffix
-  @param Value an Pointer to UTF16 data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PWideChar into an Extendend float value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a Pointer to an UTF16 character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in words of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Currency; out Result: Currency; Len: NativeUInt = 0); overload;
 
-{** EH:
-  Converts a UTF16 buffer into currency value.
-  Possible is SQLFloat, Float, Money+Suffix
-  @param Value an Pointer to UTF16 data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param DecimalSep a reference to decimal seperator to be used;
-          we will initialize this sep with '.' or replace it if with the Sep we found
-  @param Result return a converted value or Def if conversion did fail.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PWideChar into a Currency value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a Pointer to an UTF16 character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"DecimalSep" DecimalSep a reference to decimal seperator to be used.
+///  We will initialize this sep with '.' or replace it if with the Sep was found</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in words of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Currency; Var DecimalSep: Char; out Result: Currency; Len: NativeUInt = 0); overload;
+
 {$IF defined(DELPHI) or defined(FPC_HAS_TYPE_EXTENDED)}
-{** EH:
-  Converts a UTF16 buffer into double precsion value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to UTF16 data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PWideChar into a Double float value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a Pointer to an UTF16 character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in words of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Double; out Result: Double; Len: NativeUInt = 0); overload;
 {$IFEND}
-{** EH:
-  Converts a UTF16 buffer into single precsion value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to UTF16 data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert PWideChar into a Single float value.
+///  Supported string formats are SQLFloat, Float, Hex, Money+Suffix</summary>
+/// <param>"Value" a Pointer to an UTF16 character buffer we want to convert.</param>
+/// <param>"Def" a default value if the value can not be converted.</param>
+/// <param>"Result" return a converted value or Def if conversion fails.</param>
+/// <param>"Len" the length in words of the given buffer. If Len is zero the buffer should be #0 terminated.</param>
 procedure SQLStrToFloatDef(Value: PWideChar; const Def: Single; out Result: Single; Len: NativeUInt = 0); overload;
 
-{**
-  Converts a character buffer into pascal string.
-  @param Buffer a character buffer pointer.
-  @param Length a buffer length.
-  @return a string retrived from the buffer.
-}
 {$IFDEF UNICODE}
+/// <summary>convert a character buffer into pascal string.</summary>
+/// <param>"Buffer" a character buffer pointer.</param>
+/// <param>"Length" the buffer length.</param>
+/// <returns>a string retrived from the buffer.</returns>
 function BufferToStr(Buffer: PWideChar; Length: Integer): string;
 {$ELSE}
+/// <summary>convert a character buffer into pascal string.</summary>
+/// <param>"Buffer" a character buffer pointer.</param>
+/// <param>"Length" the buffer length.</param>
+/// <returns>a string retrived from the buffer.</returns>
 function BufferToStr(Buffer: PAnsiChar; Length: Integer): string;
 {$ENDIF}
 
-{**
-  Converts a character buffer into pascal string.
-  @param Buffer a character buffer pointer.
-  @param Length a buffer length.
-  @return a TBytes retrived from the buffer.
-}
+/// <summary>convert a buffer into an array of bytes.</summary>
+/// <param>"Buffer" a buffer pointer.</param>
+/// <param>"Length" the buffer length.</param>
+/// <returns>a TBytes retrieved from the buffer.</returns>
 function BufferToBytes(Buffer: Pointer; Length: Integer): TBytes; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
-{**
-  Converts a string into boolean value.
-  @param Str a RawByteString value.
-  @param CheckInt Check for "0" char too?
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
+/// <summary>Case insensitive conversion of a RawByteString into boolean value.</summary>
+/// <param>"Str" a RawByteString value to be converted.</param>
+/// <param>"CheckInt" Check for "0" char too? Default is True</param>
+/// <returns><c>True</c> if Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/!=0</returns>
 function StrToBoolEx(const Str: RawByteString; const CheckInt: Boolean = True): Boolean; overload;
 
-{**
-  Converts a zero terminated raw buffer into boolean value.
-  @param Str a PAnsiChar value.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
+/// <author>EgonHugeist</author>
+/// <summary>Case insensitive conversion of a Raw zero terminated buffer
+///  into boolean value.</summary>
+/// <param>"Str" a RawByteString buffer to be converted.</param>
+/// <param>"CheckInt" Check for "0" char too? Default is True</param>
+/// <param>"IgnoreTrailingSaces" Ignore trailing spaces for fixed char fields f.e.</param>
+/// <returns><c>True</c> if Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/!=0</returns>
 function StrToBoolEx(Str: PAnsiChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 
-{**
-  Converts a raw buffer into boolean value.
-  @param Str a PAnsiChar value.
-  @param PEnd points to the end of the buffer.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
+/// <author>EgonHugeist</author>
+/// <summary>Case insensitive conversion of a Raw buffer into boolean value.</summary>
+/// <param>"Buf" a RawByteString buffer to be converted.</param>
+/// <param>"PEnd" the end of then buffer. Usually the zero byte</param>
+/// <param>"CheckInt" Check for "0" char too? Default is True</param>
+/// <param>"IgnoreTrailingSaces" Ignore trailing spaces for fixed char fields f.e.</param>
+/// <returns><c>True</c> if Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/!=0</returns>
 function StrToBoolEx(Buf, PEnd: PAnsiChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 
-{**
-  Converts a string into boolean value.
-  @param Str a ZWideString value.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
-function StrToBoolEx(const Str: ZWideString; const CheckInt: Boolean = True): Boolean; overload;
+/// <summary>Case insensitive conversion of a UnicodeString into boolean value.</summary>
+/// <param>"Str" a UnicodeString value to be converted.</param>
+/// <param>"CheckInt" Check for "0" char too? Default is True</param>
+/// <returns><c>True</c> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/!=0</returns>
+function StrToBoolEx(const Str: UnicodeString; const CheckInt: Boolean = True): Boolean; overload;
 
-{**
-  Converts a zero terminated UTF16 buffer into boolean value.
-  @param Str a PWideChar value.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
+/// <author>EgonHugeist</author>
+/// <summary>Case insensitive conversion of a UTF16 zero terminated buffer
+///  into boolean value.</summary>
+/// <param>"Str" a UTF16 buffer to be converted.</param>
+/// <param>"CheckInt" Check for "0" char too? Default is True</param>
+/// <param>"IgnoreTrailingSaces" Ignore trailing spaces for fixed char fields f.e.</param>
+/// <returns><c>True</c> if Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/!=0</returns>
 function StrToBoolEx(Str: PWideChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 
-{**
-  Converts a UTF16 buffer into boolean value.
-  @param Buf a PWideChar value.
-  @param PEnd points to the end of the buffer.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
+/// <author>EgonHugeist</author>
+/// <summary>Case insensitive conversion of a UTF16 buffer into boolean value.</summary>
+/// <param>"Buf" a UTF16 buffer to be converted.</param>
+/// <param>"PEnd" the end of then buffer. Usually the zero word</param>
+/// <param>"CheckInt" Check for "0" char too? Default is True</param>
+/// <param>"IgnoreTrailingSaces" Ignore trailing spaces for fixed char fields f.e.</param>
+/// <returns><c>True</c> if Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/!=0</returns>
 function StrToBoolEx(Buf, PEnd: PWideChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 
-{**
-  Converts a boolean into string value.
-  @param Bool a boolean value.
-  @return <code>"True"</code> or <code>"False"</code>
-}
-function BoolToUnicodeEx(Value: Boolean): ZWideString; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+/// <summary>convert a boolean into a UnicodeString value.</summary>
+/// <param>"Value" a boolean value</param>
+/// <returns><c>"True"</c> or <c>"False"</c></returns>
+function BoolToUnicodeEx(Value: Boolean): UnicodeString; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
-{**
-  Converts a boolean into RawByteString value.
-  @param Bool a boolean value.
-  @return <code>"True"</code> or <code>"False"</code>
-}
+/// <summary>convert a boolean into a RawByteString value.</summary>
+/// <param>"Value" a boolean value</param>
+/// <returns><c>"True"</c> or <c>"False"</c></returns>
 function BoolToRawEx(Value: Boolean): RawByteString; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
-{**
-  Converts a boolean into native string value.
-  @param Bool a boolean value.
-  @return <code>"True"</code> or <code>"False"</code>
-}
+/// <summary>convert a boolean into a String value.</summary>
+/// <param>"Value" a boolean value</param>
+/// <returns><c>"True"</c> or <c>"False"</c></returns>
 function BoolToStrEx(Value: Boolean): string; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
 {$IFDEF ENABLE_POSTGRESQL}
-{**
-  Checks if the specified string can represent an IP address.
-  @param Str a string value.
-  @return <code>True</code> if the string can represent an IP address
-    or <code>False</code> otherwise.
-}
+/// <summary>Checks if the specified string can represent an IP address.</summary>
+/// <param>"Str" a string value.</param>
+/// <returns><c>True</c> if the string can represent an IP address
+///  or <c>False</c> otherwise.</returns>
 function IsIpAddr(const Str: string): Boolean;
 {$ENDIF}
 
-{**
-  Splits string using the multiple chars.
-  @param Str the source string
-  @param Delimiters the delimiters string
-  @return the result list where plased delimited string
-}
+/// <summary>Splits a string using the multiple chars.</summary>
+/// <param>"Str" the source string.</param>
+/// <param>"Delimiters" Str the delimiters string.</param>
+/// <returns>result list where plased delimited string.</returns>
 function SplitString(const Str, Delimiters: string): TStrings;
 
-{**
-  Puts to list a splitted string using the multiple chars which replaces
-  the previous list content.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiters string
-}
+/// <summary>Puts to list a splitted string using the multiple chars which
+///  replaces the previous list content.</summary>
+/// <param>"List" a list with strings.</param>
+/// <param>"Str" the source string</param>
+/// <param>"Delimiters" the delimiters string</param>
 procedure PutSplitString(List: TStrings; const Str, Delimiters: string);
 
-{**
-  Appends to list a splitted string using the multiple chars.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiters string
-}
+/// <summary>Appends to list a splitted string using the multiple chars.</summary>
+/// <param>"List" a list with strings.</param>
+/// <param>"Str" the source string</param>
+/// <param>"Delimiters" the delimiters string</param>
 procedure AppendSplitString(List: TStrings; const Str, Delimiters: string);
 
-{**
-  Composes a string from the specified strings list delimited with
-  a special character.
-  @param List a list of strings.
-  @param Delimiter a delimiter string.
-  @return a composed string from the list.
-}
+/// <summary>Composes a string from the specified strings list delimited with
+///  a special character.</summary>
+/// <param>"List" a list of strings.</param>
+/// <param>"Delimiter" a delimiters string.</param>
+/// <returns>a composed string from the list.</returns>
 function ComposeString(List: TStrings; const Delimiter: string): string;
 
-{**
-  Converts a float value into SQL string with '.' delimiter.
-  @param Value a float value to be converted.
-  @return a converted string value.
-}
+/// <summary>convert a float value into SQL string with '.' decimal seperator.</summary>
+/// <param>"Value" a float value to be converted.</param>
+/// <returns>a converted string value.</returns>
 function FloatToSQLStr(Value: Extended): string;
 
-{**
-  Converts SQL string with '.' delimiter into a float value.
-  @param Str a string value to be converted.
-  @return a converted float value.
-}
+/// <summary>convert SQL string with '.' decimal seperator into a float value.</summary>
+/// <param>"Str" a string value to be converted.</param>
+/// <returns>a converted float value.</returns>
 function SQLStrToFloat(const Str: String): Extended;
 
-{**
-  Puts to list a splitted string using the delimiter string which replaces
-  the previous list content.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiter string
-}
+/// <summary>Puts to list a splitted string using the delimiter string which replaces
+///  the previous list content.</summary>
+/// <param>"List" a list with strings.</param>
+/// <param>"Str" the source string</param>
+/// <param>"Delimiters" the delimiters string</param>
 procedure PutSplitStringEx(List: TStrings; const Str, Delimiter: string);
 
-{**
-  Splits string using the delimiter string.
-  @param Str the source string
-  @param Delimiters the delimiter string
-  @return the result list where plased delimited string
-}
+/// <summary>Splits string using the delimiter string.</summary>
+/// <param>"Str" the source string</param>
+/// <param>"Delimiters" the delimiters string.</param>
+/// <returns>the result list where placed delimited string.</returns>
 function SplitStringEx(const Str, Delimiter: string): TStrings;
 
-{**
-  Appends to list a splitted string using the delimeter string.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiters string
-}
+/// <summary>Appends to list a splitted string using the delimeter string.</summary>
+/// <param>"List" a list with strings.</param>
+/// <param>"Str" the source string</param>
+/// <param>"Delimiters" the delimiters string.</param>
+/// <returns>the result list where placed delimited string.</returns>
 procedure AppendSplitStringEx(List: TStrings; const Str, Delimiter: string);
 
-{**
-  Converts bytes into a AnsiString representation.
-  @param Value an array of bytes to be converted.
-  @return a converted AnsiString.
-}
+/// <summary>convert bytes into a RawByteString representation.</summary>
+/// <param>"Value" an array of bytes to be converted.</param>
+/// <returns>a converted RawByteString.</returns>
 function BytesToStr(const Value: TBytes): RawByteString;
 
-{**
-  Converts a RawByteString into an array of bytes.
-  @param Value a UTF8String to be converted.
-  @return a converted array of bytes.
-}
+/// <summary>convert a RawByteString into an array of bytes.</summary>
+/// <param>"Value" a RawByteString to be converted.</param>
+/// <returns>an array of bytes.</returns>
 function StrToBytes(const Value: RawByteString): TBytes; overload;
 
-{**
-  Converts bytes into a variant representation.
-  @param Value an array of bytes to be converted.
-  @return a converted variant.
-}
 {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
+/// <summary>convert an array of bytes into a variant representation.</summary>
+/// <param>"Value" an array of bytes to be converted.</param>
+/// <returns>a converted variant.</returns>
 function BytesToVar(const Value: TBytes): Variant; overload;
 {$ENDIF}
+
+/// <summary>convert the RawByteString containing bytes into a byte-array
+///  variant representation.</summary>
+/// <param>"Value" a RawByteString to be converted.</param>
+/// <returns>a byte-array converted variant.</returns>
 function BytesToVar(const Value: RawByteString): Variant; {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}overload;{$ENDIF}
 
-{**
-  Converts variant into an array of bytes.
-  @param Value a varaint to be converted.
-  @return a converted array of bytes.
-}
+/// <summary>convert variant into an array of bytes.</summary>
+/// <param>"Value" a varaint to be converted.</param>
+/// <returns>a converted array of bytes.</returns>
 function VarToBytes(const Value: Variant): TBytes;
 
-{** EH:
-  Converts raw SQL Date (DateFormat) to TZDate value
-  We do not check if the date is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash
-  @param Value a pointer to the raw encoded date string.
-  @param Len the length of the buffer
-  @param format a DateFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw SQL Date (DateFormat) to TZDate value.
+///  We do not check if the date is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  The year may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Value" a pointer to the raw encoded date string buffer.</param>
+/// <param>"Len" the length of the buffer.</param>
+/// <param>"Format" a DateFormat string used for the convertion.</param>
+/// <param>"Result" a reference to the TZDate-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryRawToDate(Value: PAnsiChar; Len: Cardinal;
   const Format: String; var Date: TZDate): Boolean;
 
-{** EH:
-  Converts unicode SQL Date (DateFormat) to TZDate value
-  We do not check if the date is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash
-  @param Value a pointer to the UTF16 encoded date string.
-  @param Len the length of the buffer
-  @param format a DateFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert an UTF16 SQL Date to TZDate value.
+///  We do not check if the date is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  The year may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Value" a pointer to the UTF16 encoded date string buffer.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Format" a DateFormat string used for the convertion.</param>
+/// <param>"Result" a reference to the TZDate-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryUniToDate(Value: PWideChar; Len: Cardinal;
   const Format: String; var Date: TZDate): Boolean;
 
-{** EH:
-  Converts raw SQL Time (TimeFormat) to TZTime value
-  We do not check if the time is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'H'/'h' for the year,
-    'M'/'n'/'N','n' for the minute,
-    'S'/'s' for the seconds.
-    '.','F','f','Z'/'z' for the Fractions.
-    The hour may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,doubledot
-  @param Value a pointer to the raw encoded time string.
-  @param Len the length of the buffer
-  @param format a TimeFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw SQL Date to TZTime value.
+///  We do not check if the time is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for second, '.','F','f','Z'/'z' for fractions.
+///  The hour may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/','.',':'.</summary>
+/// <param>"Value" a pointer to the raw encoded date string buffer.</param>
+/// <param>"Len" the length of the buffer.</param>
+/// <param>"Format" a TimeFormat string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTime-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryRawToTime(Value: PAnsiChar; Len: Cardinal;
   const Format: String; var Time: TZTime): Boolean;
 
-{** EH:
-  Converts uniocde SQL Time (TimeFormat) to TZTime value
-  We do not check if the time is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'H'/'h' for the year,
-    'M'/'n'/'N','n' for the minute,
-    'S'/'s' for the seconds.
-    'Z'/'z' for the Fractions.
-    The hour may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,dot,doubledot
-  @param Value a pointer to the UTF16 encoded time string.
-  @param Len the length of the buffer
-  @param format a TimeFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert an UTF16 SQL Date to TZTime value.
+///  We do not check if the time is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for second, '.','F','f','Z'/'z' for fractions.
+///  The hour may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/','.',':'.</summary>
+/// <param>"Value" a pointer to the UTF16 encoded date string buffer.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Format" a TimeFormat string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTime-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryUniToTime(Value: PWideChar; Len: Cardinal;
   const Format: String; var Time: TZTime): Boolean;
 
-{** EH:
-  Converts raw SQL TimeStamp (TimeStampFormat) to TZTimeStamp value
-  We do not check if the time is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    'H'/'h' for the year,
-    'N','n' for the minute,
-    'S'/'s' for the seconds.
-    'P'/'p' for the UTC offset.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,dot,doubledot
-  @param Value a pointer to the raw encoded string.
-  @param Len the length of the buffer
-  @param format a TimeStampFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw SQL TimeStamp to TZTimeStamp value.
+///  We do not check if the timestamp is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day, 'H'/'h' for hour,
+///  'N'/'n' for minute, 'S'/'s' for second, '.','F','f','Z'/'z' for fractions,
+///  'P'/'p' for the UTC offset. The year may be negative using explicit '-' to
+///  sign as is. Valid delimiters (if given) are ' ','-','\','/','.',':'.</summary>
+/// <param>"Value" a pointer to the raw encoded date string buffer.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
+/// <param>"Format" a Timestamp-Format string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTimeStamp-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryRawToTimeStamp(Value: PAnsiChar; Len: Cardinal;
   const Format: String; var TimeStamp: TZTimeStamp): Boolean;
 
-{** EH:
-  Converts unicode SQL TimeStamp (TimeStampFormat) to TZTimeStamp value
-  We do not check if the time is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    'H'/'h' for the year,
-    'N','n' for the minute,
-    'S'/'s' for the seconds.
-    'Z'/'z' for the Fractions.
-    'P'/'p' for the UTC offset.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,dot,doubledot
-  @param Value a pointer to the UTF16 encoded string.
-  @param Len the length of the buffer
-  @param format a TimeStampFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
+/// <author>EgonHugeist</author>
+/// <summary>convert an UTF16 SQL TimeStamp to TZTimeStamp value.
+///  We do not check if the timestamp is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day, 'H'/'h' for hour,
+///  'N'/'n' for minute, 'S'/'s' for second, '.','F','f','Z'/'z' for fractions,
+///  'P'/'p' for the UTC offset. The year may be negative using explicit '-' to
+///  sign as is. Valid delimiters (if given) are ' ','-','\','/','.',':'.</summary>
+/// <param>"Value" a pointer to the UTF16 encoded date string buffer.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Format" a Timestamp-Format string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTimeStamp-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryUniToTimeStamp(Value: PWideChar; Len: Cardinal;
   const Format: String; var TimeStamp: TZTimeStamp): Boolean;
 
+/// <author>EgonHugeist</author>
+/// <summary>Trys to convert a TZDate-Value into a pascal TDateTime representation</summary>
+/// <param>"Value" a TZDate value to be converted.</param>
+/// <param>"DT" a reference to the TDateTime-Value we try to convert in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryDateToDateTime(const Value: TZDate; var DT: TDateTime): Boolean;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trys to convert a TZTime-Value into a pascal TDateTime representation</summary>
+/// <param>"Value" a TZTime value to be converted.</param>
+/// <param>"DT" a reference to the TDateTime-Value we try to convert in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryTimeToDateTime(const Value: TZTime; var DT: TDateTime): Boolean;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trys to convert a TZTimeStamp-Value into a pascal TDateTime representation</summary>
+/// <param>"Value" a TZTimeStamp value to be converted.</param>
+/// <param>"DT" a reference to the TDateTime-Value we try to convert in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
 function TryTimeStampToDateTime(const Value: TZTimeStamp; var DT: TDateTime): Boolean;
 
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a pascal TDateTime vlaue into the TZDate reprensentation</summary>
+/// <param>"Value" a TDateTime value to be converted.</param>
+/// <param>"Date" a reference to the TZDate-Value we decode in.</param>
 procedure DecodeDateTimeToDate(const Value: TDateTime; var Date: TZDate);
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a pascal TDateTime vlaue into the TZTime reprensentation</summary>
+/// <param>"Value" a TDateTime value to be converted.</param>
+/// <param>"Time" a reference to the TZTime-Value we decode in.</param>
 procedure DecodeDateTimeToTime(const Value: TDateTime; var Time: TZTime);
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a pascal TDateTime vlaue into the TZTimeStamp reprensentation</summary>
+/// <param>"Value" a TDateTime value to be converted.</param>
+/// <param>"TimeStamp" a reference to the TZTimeStamp-Value we decode in.</param>
 procedure DecodeDateTimeToTimeStamp(const Value: TDateTime; var TimeStamp: TZTimeStamp);
 
+/// <author>EgonHugeist</author>
+/// <summary>convert a TZTime-Value into the TZTimeStamp reprensentation</summary>
+/// <param>"Time" a TZTime value to be converted.</param>
+/// <param>"TS" a reference to the TZTimeStamp-Value we convert in.</param>
 procedure TimeStampFromTime(const Time: TZTime; var TS: TZTimeStamp);
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a TZDate-Value into the TZTimeStamp reprensentation</summary>
+/// <param>"Date" a TZDate value to be converted.</param>
+/// <param>"TS" a reference to the TZTimeStamp-Value we convert in.</param>
 procedure TimeStampFromDate(const Date: TZDate; var TS: TZTimeStamp);
 
+/// <author>EgonHugeist</author>
+/// <summary>convert a TZTimeStamp-Value into the TZTime reprensentation</summary>
+/// <param>"TS" a TZTimeStamp value to be converted.</param>
+/// <param>"Time" a reference to the TZTime-Value we convert in.</param>
 procedure TimeFromTimeStamp(const TS: TZTimeStamp; var Time: TZTime);
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a TZTimeStamp-Value into the TZDate reprensentation</summary>
+/// <param>"TS" a TZTimeStamp value to be converted.</param>
+/// <param>"Date" a reference to the TZDate-Value we convert in.</param>
 procedure DateFromTimeStamp(const TS: TZTimeStamp; var Date: TZDate);
 
+/// <author>EgonHugeist</author>
+/// <summary>compares two pascal TDateTime-Values</summary>
+/// <param>"Value1" the first value to be compared.</param>
+/// <param>"Value2" the second value to be compared.</param>
+/// <returns><c>0</c> if both values are equal, -1 if Value1 is less than Value2,
+///  1 otherwise</returns>
 function ZCompareDateTime(const Value1, Value2: TDateTime): Integer;
+
+/// <author>EgonHugeist</author>
+/// <summary>compares two TZDate-Values</summary>
+/// <param>"Value1" the first value to be compared.</param>
+/// <param>"Value2" the second value to be compared.</param>
+/// <returns><c>0</c> if both values are equal, -1 if Value1 is less than Value2,
+///  1 otherwise</returns>
 function ZCompareDate(const Value1, Value2: TZDate): Integer;
+
+/// <author>EgonHugeist</author>
+/// <summary>compares two TZTime-Values</summary>
+/// <param>"Value1" the first value to be compared.</param>
+/// <param>"Value2" the second value to be compared.</param>
+/// <returns><c>0</c> if both values are equal, -1 if Value1 is less than Value2,
+///  1 otherwise</returns>
 function ZCompareTime(const Value1, Value2: TZTime): Integer;
+
+/// <author>EgonHugeist</author>
+/// <summary>compares two TZTimeStamp-Values</summary>
+/// <param>"Value1" the first value to be compared.</param>
+/// <param>"Value2" the second value to be compared.</param>
+/// <returns><c>0</c> if both values are equal, -1 if Value1 is less than Value2,
+///  1 otherwise</returns>
 function ZCompareTimeStamp(const Value1, Value2: TZTimeStamp): Integer;
 
-function TryPCharToDate(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var Date: TZDate): Boolean; overload;
-function TryPCharToDate(P: PWideChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var Date: TZDate): Boolean; overload;
-function TryPCharToTime(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var Time: TZTime): Boolean; overload;
-function TryPCharToTime(P: PWideChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var Time: TZTime): Boolean; overload;
-function TryPCharToTimeStamp(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var TimeStamp: TZTimeStamp): Boolean; overload;
-function TryPCharToTimeStamp(P: PWideChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var TimeStamp: TZTimeStamp): Boolean; overload;
-function TryPCharToDateTime(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var DateTime: TDateTime): Boolean; overload;
-function TryPCharToDateTime(P: PWideChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var DateTime: TDateTime): Boolean; overload;
+/// <author>EgonHugeist</author>
+/// <summary>Trys to convert a character buffer into a TZDate-representation
+///  We do not check if the date is valid. We just convert numbers into the
+///  Result record using the TZClientFormatSettings as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  The year may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported. If conversion fails, a second approach using
+///  ISO8601 format is made</summary>
+/// <param>"P" the pointer to a raw encoded buffer to be converted.</param>
+/// <param>"Len" the length of the buffer.</param>
+/// <param>"FormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Date" a reference to the TZDate-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
+function TryPCharToDate(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var Date: TZDate): Boolean; overload;
 
-{**
-  Converts Ansi SQL Date/Time to TDateTime
-  @param Value a date and time string.
-  @return a decoded TDateTime value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Trys to convert a character buffer into a TZDate-representation
+///  We do not check if the date is valid. We just convert numbers into the
+///  Result record using the TZClientFormatSettings as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  The year may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/'. Long names are not supported.
+///  If conversion fails, a second approach using ISO8601 format is performed</summary>
+/// <param>"P" the pointer to a UTF16 encoded buffer to be converted.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"FormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Date" a reference to the TZDate-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
+function TryPCharToDate(P: PWideChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var Date: TZDate): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw SQL Time to TZTime value.
+///  We do not check if the time is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for second, '.','F','f','Z'/'z' for fractions.
+///  The hour may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/','.',':'. If conversion
+///  fails, a second approach using ISO8601 format is performed</summary>
+/// <param>"P" a pointer to the raw encoded time string buffer.</param>
+/// <param>"Len" the length of the buffer.</param>
+/// <param>"Format" a TimeFormat string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTime-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise.</returns>
+function TryPCharToTime(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var Time: TZTime): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a UTF16 SQL Time to TZTime value.
+///  We do not check if the time is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for second, '.','F','f','Z'/'z' for fractions.
+///  The hour may be negative using explicit '-' to sign as is.
+///  Valid delimiters (if given) are ' ','-','\','/','.',':'. If conversion
+///  fails, a second approach using ISO8601 format is performed</summary>
+/// <param>"P" a pointer to the UTF16 encoded time string buffer.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Format" a TimeFormat string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTime-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise.</returns>
+function TryPCharToTime(P: PWideChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var Time: TZTime): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Try to convert a raw SQL TimeStamp to TZTimeStamp value.
+///  We do not check if the timestamp is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day, 'H'/'h' for hour,
+///  'N'/'n' for minute, 'S'/'s' for second, '.','F','f','Z'/'z' for fractions,
+///  'P'/'p' for the UTC offset. The year may be negative using explicit '-' to
+///  sign as is. Valid delimiters (if given) are ' ','-','\','/','.',':'. If
+///  conversion fails, a second approach using ISO8601 format is performed</summary>
+/// <param>"P" a pointer to the raw encoded timestamp string buffer.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
+/// <param>"Format" a Timestamp-Format string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTimeStamp-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
+function TryPCharToTimeStamp(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var TimeStamp: TZTimeStamp): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Try to convert a UTF16 SQL TimeStamp to TZTimeStamp value.
+///  We do not check if the timestamp is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day, 'H'/'h' for hour,
+///  'N'/'n' for minute, 'S'/'s' for second, '.','F','f','Z'/'z' for fractions,
+///  'P'/'p' for the UTC offset. The year may be negative using explicit '-' to
+///  sign as is. Valid delimiters (if given) are ' ','-','\','/','.',':'. If
+///  conversion fails, a second approach using ISO8601 format is performed</summary>
+/// <param>"P" a pointer to the UTF16 encoded timestamp string buffer.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Format" a Timestamp-Format string used for the convertion.</param>
+/// <param>"Result" a reference to the TZTimeStamp-record we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
+function TryPCharToTimeStamp(P: PWideChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var TimeStamp: TZTimeStamp): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Try to convert a raw SQL TimeStamp to pascal TDateTime value.
+///  We do not check if the timestamp is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day, 'H'/'h' for hour,
+///  'N'/'n' for minute, 'S'/'s' for second, '.','F','f','Z'/'z' for fractions,
+///  'P'/'p' for the UTC offset. The year may be negative using explicit '-' to
+///  sign as is. Valid delimiters (if given) are ' ','-','\','/','.',':'. If
+///  conversion fails, a second approach using ISO8601 format is performed</summary>
+/// <param>"P" a pointer to the raw encoded timestamp string buffer.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
+/// <param>"Format" a Timestamp-Format string used for the convertion.</param>
+/// <param>"Result" a reference to the TDateTime value we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
+function TryPCharToDateTime(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var DateTime: TDateTime): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Try to convert a UTF16 SQL TimeStamp to pascal TDateTime value.
+///  We do not check if the timestamp is valid. We just convert numbers into the
+///  Result record using the Formatstring as match pattern. Valid format tokens are:
+///  'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day, 'H'/'h' for hour,
+///  'N'/'n' for minute, 'S'/'s' for second, '.','F','f','Z'/'z' for fractions,
+///  'P'/'p' for the UTC offset. The year may be negative using explicit '-' to
+///  sign as is. Valid delimiters (if given) are ' ','-','\','/','.',':'. If
+///  conversion fails, a second approach using ISO8601 format is performed</summary>
+/// <param>"P" a pointer to the UTF16 encoded timestamp string buffer.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Format" a Timestamp-Format string used for the convertion.</param>
+/// <param>"Result" a reference to the TDateTime value we write in.</param>
+/// <returns><c>True</c> if the conversion was successful, <c>False</c> otherwise</returns>
+function TryPCharToDateTime(P: PWideChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var DateTime: TDateTime): Boolean; overload;
+
+/// <summary>convert an ISO8601 formated String into a pascal TDateTime value.</summary>
+/// <param>"Value" a UnicodeString to be converted.</param>
+/// <returns>a converted value or zero if conversion fails.</returns>
 function AnsiSQLDateToDateTime(const Value: UnicodeString): TDateTime; overload;
+
+/// <summary>convert an ISO8601 formated String into a pascal TDateTime value.</summary>
+/// <param>"P" a pointer to a UTF16 buffer to be converted.</param>
+/// <param>"L" the length in words of the buffer.</param>
+/// <returns>a converted value or zero if conversion fails.</returns>
 function AnsiSQLDateToDateTime(P: PWideChar; L: LengthInt): TDateTime; overload;
+
+/// <summary>convert an ISO8601 formated String into a pascal TDateTime value.</summary>
+/// <param>"Value" a RawByteString to be converted.</param>
+/// <returns>a converted value or zero if conversion fails.</returns>
 function AnsiSQLDateToDateTime(const Value: RawByteString): TDateTime; overload;
+
+/// <summary>convert an ISO8601 formated String into a pascal TDateTime value.</summary>
+/// <param>"P" a pointer to a raw encoded buffer to be converted.</param>
+/// <param>"L" the length in bytes of the buffer.</param>
+/// <returns>a converted value or zero if conversion fails.</returns>
 function AnsiSQLDateToDateTime(P: PAnsiChar; L: LengthInt): TDateTime; overload;
 
-{** EH:
-  Converts DateTime value into a raw encoded string with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return a formated RawByteString with Date-Format pattern.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a string. Valid format tokens
+///  are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+///  String i.e. Postgres ::date.</param>
+/// <returns>a formated RawByteString in Date-Format pattern</returns>
 function DateTimeToRawSQLDate(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): RawByteString; overload;
 
-{** EH:
-  Converts DateTime value into a raw buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the raw buffer to write in.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return the length in bytes of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a string buffer. Valid format
+///  tokens are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"Buf" the raw buffer we write in.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+///  String i.e. Postgres ::date.</param>
+/// <returns>the length in bytes of written value.</returns>
 function DateTimeToRawSQLDate(const Value: TDateTime; Buf: PAnsichar;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): Word; overload;
 
-{** EH:
-  Converts date values into a buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Buf a raw buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in bytes of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a Year, Month, Day values into a string buffer. Valid format
+///  tokens are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Year" the year of the date string.</param>
+/// <param>"Month" the month of the date string.</param>
+/// <param>"Day" the day of the date string.</param>
+/// <param>"Buf" the raw buffer we write in.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Neagtive" if the year is negative.</param>
+/// <returns>the length in bytes of written value.</returns>
 function DateToRaw(Year, Month, Day: Word; Buf: PAnsichar;
-  const Format: String; Quoted, Negative: Boolean): Byte;
+  const Format: String; Quoted, Negative: Boolean): Byte; overload;
 
-{** EH:
-  Converts date value into a WideString/UnicodeString with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return a formated WideString/UnicodeString with Date-Format pattern.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a Year, Month, Day values into a string buffer. Valid format
+///  tokens are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Year" the year of the date string.</param>
+/// <param>"Month" the month of the date string.</param>
+/// <param>"Day" the day of the date string.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Neagtive" if the year is negative.</param>
+/// <param>"CodePage" the codepage of the output string.</param>
+/// <returns>a converted string.</returns>
+function DateToRaw(Year, Month, Day: Word; const Format: String; const Suffix: RawByteString;
+  Quoted, Negative: Boolean{$IFDEF WITH_RAWBYTESTRING}; CodePage: Word = $FFFF{$ENDIF}): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a string. Valid format tokens
+///  are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+///  String i.e. Postgres ::date.</param>
+/// <returns>a formated UnicodeString in Date-Format pattern</returns>
 function DateTimeToUnicodeSQLDate(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): ZWideString; overload;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): UnicodeString; overload;
 
-{** EH:
-  Converts date value into a UCS2 buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the UCS2 buffer to write in.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return the length in code-points of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a string buffer. Valid format
+///  tokens are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"Buf" the UTF16 buffer we write in.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+///  String i.e. Postgres ::date.</param>
+/// <returns>the length in words of written value.</returns>
 function DateTimeToUnicodeSQLDate(const Value: TDateTime; Buf: PWideChar;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): Word; overload;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): Word; overload;
 
-{** EH:
-  Converts date values into a buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Buf a UCS2 buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in code-points of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a Year, Month, Day values into a string buffer. Valid format
+///  tokens are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Year" the year of the date string.</param>
+/// <param>"Month" the month of the date string.</param>
+/// <param>"Day" the day of the date string.</param>
+/// <param>"Buf" the UTF16 buffer we write in.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Neagtive" if the year is negative.</param>
+/// <returns>the length in words of written value.</returns>
 function DateToUni(Year, Month, Day: Word; Buf: PWideChar;
-  const Format: String; Quoted, Negative: Boolean): Byte;
+  const Format: String; Quoted, Negative: Boolean): Byte; overload;
 
-{**
-  Converts DateTime value to native string
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a Year, Month, Day values into a string buffer. Valid format
+///  tokens are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Year" the year of the date string.</param>
+/// <param>"Month" the month of the date string.</param>
+/// <param>"Day" the day of the date string.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Neagtive" if the year is negative.</param>
+/// <returns>a converted string.</returns>
+function DateToUni(Year, Month, Day: Word; const Format: String; const Suffix: UnicodeString;
+  Quoted, Negative: Boolean): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a string. Valid format tokens
+///  are: 'Y'/'y' for year,'M'/'m' for month,'D'/'d' for day.
+///  Valid delimiters (if given) are ' ','-','\','/'.
+///  Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+///  String i.e. Postgres ::date.</param>
+/// <returns>a formated String in Date-Format pattern</returns>
 function DateTimeToSQLDate(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: string = ''): string;
 
-{** EH:
-  Converts time value into a raw encoded string with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return a formated RawByteString with Time-Format pattern.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a string. Valid format tokens
+///  are 'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+///  String i.e. Postgres ::time.</param>
+/// <returns>a formated RawByteString in Time-Format pattern</returns>
 function DateTimeToRawSQLTime(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): RawByteString; overload;
 
-{** EH:
-  Converts a time value into a raw buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the raw buffer to write in.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return the length in bytes of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a raw string buffer. Valid
+///  format tokens are 'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for
+///  second, '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. </summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" a suffix string which can be appendened to the result
+///  String i.e. Postgres ::time.</param>
+/// <returns>the length in bytes of written value.</returns>
 function DateTimeToRawSQLTime(const Value: TDateTime; Buffer: PAnsichar;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): Word; overload;
 
-{** EH:
-  Converts a time values into a raw buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param Fractions the nano fractions of the .
-  @param Buf the raw buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @return the length in bytes of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a time fractions into a raw string buffer. Valid
+///  format tokens are 'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for
+///  second, '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. </summary>
+/// <param>"Hour" the hour to be converted.</param>
+/// <param>"Minute" the minute to be converted.</param>
+/// <param>"Second" the second to be converted.</param>
+/// <param>"Fractions" the second-fractions to be converted.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"IsNegative" if the value time value is negative</param>
+/// <returns>the length in bytes of written value.</returns>
 function TimeToRaw(Hour, Minute, Second: Word; Fractions: Cardinal;
   Buf: PAnsichar; const Format: String; Quoted: Boolean; IsNegative: Boolean): Byte; overload;
 
-{** EH:
-  Converts a time value into a WideString/UnicodeString with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return a formated WideString/UnicodeString with Time-Format pattern.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a string. Valid format tokens
+///  are 'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. </summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" ia suffix string which can be appendened to the result
+///  String i.e. Postgres ::time.</param>
+/// <returns>a formated UnicodeString in Time-Format pattern</returns>
 function DateTimeToUnicodeSQLTime(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): ZWideString; overload;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): UnicodeString; overload;
 
-{** EH:
-  Converts a time value into a UCS2 buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf then UCS2 buffer to write in.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return the length in codepoints of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a UTF16 string buffer. Valid
+///  format tokens are 'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for
+///  second, '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. </summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" a suffix string which can be appendened to the result
+///  String i.e. Postgres ::time.</param>
+/// <returns>the length in words of written value.</returns>
 function DateTimeToUnicodeSQLTime(const Value: TDateTime; Buf: PWideChar;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): Word; overload;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): Word; overload;
 
-{** EH:
-  Converts a time values into a UCS2 buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param MSec a millisecond value with range of 0..999.
-  @param Buf the unicode buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @return the length in codepoints of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a time fractions into a UTF16 string buffer. Valid
+///  format tokens are: 'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for
+///  second, '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. </summary>
+/// <param>"Hour" the hour to be converted.</param>
+/// <param>"Minute" the minute to be converted.</param>
+/// <param>"Second" the second to be converted.</param>
+/// <param>"Fractions" the second-fractions to be converted.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"IsNegative" if the value time value is negative</param>
+/// <returns>the length in words of written value.</returns>
 function TimeToUni(Hour, Minute, Second: Word; Fractions: Cardinal;
   Buf: PWideChar; const Format: String; Quoted, IsNegative: Boolean): Byte; overload;
 
-{**
-  Converts DateTime value to native string
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into s String. Valid
+///  format tokens are: 'H'/'h' for hour,'M'/'m'/'N'/'n' for minute,'S'/'s' for
+///  second, '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. </summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" a suffix string which can be appendened to the result
+///  String i.e. Postgres ::time.</param>
+/// <returns>a formated String in Time-Format pattern</returns>
 function DateTimeToSQLTime(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: string = ''): string; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
-{** EH:
-  Converts datetime value into a raw encoded string with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateTimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return a formated RawByteString with DateTime-Format pattern.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a String. Valid
+///  format tokens are: 'Y'/'y' for year,'N'/'n' for month,'D'/'d' for day,
+///  'H'/'h' for hour,'M'/'m' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" a suffix string which can be appendened to the result
+///  String i.e. Postgres ::timestamp.</param>
+/// <returns>a formated RawByteString in DateTime-Format pattern</returns>
 function DateTimeToRawSQLTimeStamp(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): RawByteString; overload;
 
-{** EH:
-  Converts datetime value into a raw encoded buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the raw buffer we write in.
-  @param ConFormatSettings then DateTimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return a formated RawByteString with DateTime-Format pattern.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a String. Valid
+///  format tokens are: 'Y'/'y' for year,'N'/'n' for month,'D'/'d' for day,
+///  'H'/'h' for hour,'M'/'m' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"Buf" the raw buffer we write in.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" a suffix string which can be appendened to the result
+///  String i.e. Postgres ::timestamp.</param>
+/// <returns>the length in bytes we wrote into the buffer</returns>
 function DateTimeToRawSQLTimeStamp(const Value: TDateTime; Buf: PAnsiChar;
-  const ConFormatSettings: TZFormatSettings; Quoted: Boolean;
+  const ConFormatSettings: TZClientFormatSettings; Quoted: Boolean;
   const Suffix: RawByteString = EmptyRaw): Word; overload;
 
-{** EH:
-  Converts a datetime values into a raw buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param MSec a millisecond value with range of 0..999.
-  @param Buf the raw buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in bytes of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert DateTime values into a String. Valid
+///  format tokens are: 'Y'/'y' for year,'N'/'n' for month,'D'/'d' for day,
+///  'H'/'h' for hour,'M'/'m' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. Long names are not supported.</summary>
+/// <param>"Year" the year to be converted.</param>
+/// <param>"Month" the month to be converted.</param>
+/// <param>"Day" the day to be converted.</param>
+/// <param>"Hour" the hour to be converted.</param>
+/// <param>"Minute" the minute to be converted.</param>
+/// <param>"Second" the second to be converted.</param>
+/// <param>"Fractions" the second-fractions to be converted.</param>
+/// <param>"Buf" the raw buffer we write in.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Negative" if the year should be negative</param>
+/// <returns>the length in bytes we wrote into the buffer</returns>
 function DateTimeToRaw(Year, Month, Day, Hour, Minute, Second: Word;
   Fractions: Cardinal; Buf: PAnsiChar; const Format: String; Quoted, Negative: Boolean): Byte;
 
-{** EH:
-  Converts datetime value into a Unicode/Widestring with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateTimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return a formated UCS2-String with DateTime-Format pattern.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a String. Valid
+///  format tokens are: 'Y'/'y' for year,'N'/'n' for month,'D'/'d' for day,
+///  'H'/'h' for hour,'M'/'m' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" a suffix string which can be appendened to the result
+///  String i.e. Postgres ::timestamp.</param>
+/// <returns>a formated UnicodeString in DateTime-Format pattern</returns>
 function DateTimeToUnicodeSQLTimeStamp(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): ZWideString; overload;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): UnicodeString; overload;
 
-{** EH:
-  Converts a datetime value into a UCS2 buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf then UCS2 buffer to write in.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return the length in codepoints of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert a pascal TDateTime value into a String. Valid
+///  format tokens are: 'Y'/'y' for year,'N'/'n' for month,'D'/'d' for day,
+///  'H'/'h' for hour,'M'/'m' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':'. Long names are not supported.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <param>"Buf" the UTF16 buffer we write in.</param>
+/// <param>"ConFormatSettings" the TZClientFormatSettings to be used as format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Suffix" a suffix string which can be appendened to the result
+///  String i.e. Postgres ::timestamp.</param>
+/// <returns>the length in words we wrote into the buffer</returns>
 function DateTimeToUnicodeSQLTimeStamp(const Value: TDateTime; Buf: PWideChar;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): Word; overload;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): Word; overload;
 
-{** EH:
-  Converts date and time values into a UCS2 buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param MSec a millisecond value with range of 0..999.
-  @param Buf the unicode buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in bytes of written value.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Convert DateTime values into a String. Valid
+///  format tokens are: 'Y'/'y' for year,'N'/'n' for month,'D'/'d' for day,
+///  'H'/'h' for hour,'M'/'m' for minute,'S'/'s' for second,
+///  '.','F','f','Z'/'z' for fractions. Valid delimiters (if given) are
+///  ' ','-','\','/','.',':','T'. Long names are not supported.</summary>
+/// <param>"Year" the year to be converted.</param>
+/// <param>"Month" the month to be converted.</param>
+/// <param>"Day" the day to be converted.</param>
+/// <param>"Hour" the hour to be converted.</param>
+/// <param>"Minute" the minute to be converted.</param>
+/// <param>"Second" the second to be converted.</param>
+/// <param>"Fractions" the second-fractions to be converted.</param>
+/// <param>"Buf" the UTF16 buffer we write in.</param>
+/// <param>"Format" the format template</param>
+/// <param>"Quoted" if the result should be quoted with a #39 char.</param>
+/// <param>"Negative" if the year should be negative</param>
+/// <returns>the length in words we wrote into the buffer</returns>
 function DateTimeToUni(Year, Month, Day, Hour, Minute, Second: Word;
   Fractions: Cardinal; Buf: PWideChar; const Format: String;
   Quoted, Negative: Boolean): Byte;
 
-{**
-  Converts an string into escape PostgreSQL format.
-  @param Value a regular string.
-  @return a string in PostgreSQL escape format.
-}
-function EncodeCString(const Value: ZWideString): ZWideString; overload;
+/// <summary>convert a string into escape PostgreSQL format.</summary>
+/// <param>"Value" a regular UnicodeString.</param>
+/// <returns>a UnicodeString in PostgreSQL escape format.</returns>
+function EncodeCString(const Value: UnicodeString): UnicodeString; overload;
+
+/// <summary>convert a string into escape PostgreSQL format.</summary>
+/// <param>"Value" a regular RawByteString.</param>
+/// <returns>a RawByteString in PostgreSQL escape format.</returns>
 function EncodeCString(const Value: RawByteString): RawByteString; overload;
-{**
-  Converts an string from escape PostgreSQL format.
-  @param Value a string in PostgreSQL escape format.
-  @return a regular string.
-}
-function DecodeCString(const Value: ZWideString): ZWideString; overload;
+
+/// <summary>convert a string from escape PostgreSQL format.</summary>
+/// <param>"Value" Value a UnicodeString in PostgreSQL escape format.</param>
+/// <returns>a regular UnicodeString.</returns>
+function DecodeCString(const Value: UnicodeString): UnicodeString; overload;
+
+/// <summary>convert a string from escape PostgreSQL format.</summary>
+/// <param>"Value" Value a RawByteString in PostgreSQL escape format.</param>
+/// <returns>a regular RawByteString.</returns>
 function DecodeCString(const Value: RawByteString): RawByteString; overload;
 
-procedure DecodeCString(SrcLength: LengthInt; SrcBuffer: PWideChar; out Result: ZWideString); overload;
+/// <summary>convert a UTF16 buffer from escape PostgreSQL format.</summary>
+/// <param>"SrcLength" the length in words of the buffer.</param>
+/// <param>"SrcBuffer" a UTF16 buffer in PostgreSQL escape format.</param>
+/// <param>"Result" returns a regular UnicodeString.</param>
+procedure DecodeCString(SrcLength: LengthInt; SrcBuffer: PWideChar; out Result: UnicodeString); overload;
+
+/// <summary>convert a raw buffer from escape PostgreSQL format.</summary>
+/// <param>"SrcLength" the length in bytes of the buffer.</param>
+/// <param>"SrcBuffer" a raw buffer in PostgreSQL escape format.</param>
+/// <param>"Result" returns a regular RawByteString.</param>
 procedure DecodeCString(SrcLength: LengthInt; SrcBuffer: PAnsiChar; out Result: RawByteString); overload;
 
+/// <summary>convert a UTF16 buffer from escape PostgreSQL format.</summary>
+/// <param>"SrcLength" the length in words of the buffer.</param>
+/// <param>"SrcBuffer" a UTF16 buffer in PostgreSQL escape format.</param>
+/// <param>"DestBuffer" the UTF16 buffer we wite the regular result in.</param>
+/// <returns>the length in words we wrote in</returns>
 function DecodeCString(SrcLength: LengthInt; SrcBuffer, DestBuffer: PWideChar): LengthInt; overload;
+
+/// <summary>convert a raw buffer from escape PostgreSQL format.</summary>
+/// <param>"SrcLength" the length in words of the buffer.</param>
+/// <param>"SrcBuffer" a raw buffer in PostgreSQL escape format.</param>
+/// <param>"DestBuffer" the raw buffer we wite the regular result in.</param>
+/// <returns>the length in bytes we wrote in</returns>
 function DecodeCString(SrcLength: LengthInt; SrcBuffer, DestBuffer: PAnsiChar): LengthInt; overload;
 
-{**
-  Replace chars in the string
-  @param Source a char to search.
-  @param Target a char to replace.
-  @param Str a source string.
-  @return a string with replaced chars.
-}
-function ReplaceChar(const Source, Target: Char; const Str: string): string;
+/// <author>Fr0sT</author>
+/// <summary>Replace chars in the string.</summary>
+/// <param>"Source" a char to search.</param>
+/// <param>"Target" Target a char to replace.</param>
+/// <param>"Str" a source string.</param>
+/// <returns>a string with replaced chars.</returns>
+function ReplaceChar(const Source, Target: Char; const Str: string): string; overload;
 
-{**
-  Remove chars in the string.
-  More obvious and ~35 times faster than StringReplace(Str, ToRemove, '')
-  @param ToRemove a char to search and remove.
-  @param Str a source string.
-  @return a string with removed chars.
-}
+/// <author>EgonHugeist</author>
+/// <summary>Replace chars in the string.</summary>
+/// <param>"Str" a reference to the string with replaced chars.</param>
+/// <param>"Source" a char to search.</param>
+/// <param>"Target" Target a char to replace.</param>
+procedure ReplaceChar(Var Str: string; const Source, Target: Char); overload;
+
+/// <author>Fr0sT</author>
+/// <summary>Remove chars in the string. More obvious and ~35 times faster
+///  than StringReplace(Str, ToRemove, '')</summary>
+/// <param>"ToRemove" a char to search and remove.</param>
+/// <param>"Str" a source string.</param>
+/// <returns>a string with removed chars.</returns>
 function RemoveChar(ToRemove: Char; const Str: string): string;
 
-{**
-  Append a string to another string separating the added string with delimiter.
-  Correctly processes cases where any of the arguments is empty
-  @param Str source string to append to. If empty, resulting Str value will be AddStr
-  @param AddStr string to append. If empty, Str won't be changed
-  @param Delimiter string to separate AddStr from Str
-}
+/// <author>Fr0sT</author>
+/// <summary>Append a string to another string separating the added string with
+///  delimiter. Correctly processes cases where any of the arguments is empty</summary>
+/// <param>"Str" source string to append to. If empty, resulting Str value will be AddStr.</param>
+/// <param>"AddStr" string to append. If empty, Str won't be changed.</param>
+/// <param>"Delimiter" string to separate AddStr from Str.</param>
 procedure AppendSepString(var Str: string; const AddStr, Delimiter: string);
 
-{**
-  Break a string into two parts according to appearance of Delimiter.
-  @param Str source string
-  @param Delimiter separator string; Str=Left+Delimiter+Right
-  @param Left left part of Str from the start to the first Delimiter.
-    Equals to Str if Str doesn't contain Delimiter
-  @param Right left part of Str from the first Delimiter to the end.
-    Empty if Str doesn't contain Delimiter
-}
+/// <author>Fr0sT</author>
+/// <summary>Break a string into two parts according to appearance of Delimiter.</summary>
+/// <param>"Str" source string.</param>
+/// <param>"Delimiter" separator string; Str=Left+Delimiter+Right.</param>
+/// <param>"Left" left part of Str from the start to the first Delimiter.
+///  Equals to Str if Str doesn't contain Delimiter.</param>
+/// <param>"Right" right part of Str from the first Delimiter to the end.
+///  Empty if Str doesn't contain Delimiter.</param>
 procedure BreakString(const Str, Delimiter: String; var Left, Right: String);
 
-{**
-  Decodes a Full Version Value encoded with the format:
-   (major_version * 1,000,000) + (minor_version * 1,000) + sub_version
-  into separated major, minor and subversion values
-  @param FullVersion an integer containing the Full Version to decode.
-  @param MajorVersion an integer containing the Major Version decoded.
-  @param MinorVersion an integer containing the Minor Version decoded.
-  @param SubVersion an integer contaning the Sub Version (revision) decoded.
-}
+/// <summary>Decodes a Full Version Value encoded with the format:
+///  (major_version * 1,000,000) + (minor_version * 1,000) + sub_version
+///  into separated major, minor and subversion values</summary>
+/// <param>"FullVersion" an integer containing the Full Version to decode.</param>
+/// <param>"MajorVersion" an integer containing the Major Version decoded.</param>
+/// <param>"MinorVersion" an integer containing the Minor Version decoded.</param>
+/// <param>"SubVersion" an integer contaning the Sub Version (revision) decoded.</param>
 procedure DecodeSQLVersioning(const FullVersion: Integer;
  out MajorVersion: Integer; out MinorVersion: Integer;
  out SubVersion: Integer);
 
-{**
-  Encodes major, minor and subversion (revision) values in this format:
-   (major_version * 1,000,000) + (minor_version * 1,000) + sub_version
-  For example, 4.1.12 is returned as 4001012.
-  @param MajorVersion an integer containing the Major Version.
-  @param MinorVersion an integer containing the Minor Version.
-  @param SubVersion an integer containing the Sub Version (revision).
-  @return an integer containing the full version.
-}
+/// <summary>Encodes major, minor and subversion (revision) values in this format:
+///  (major_version * 1,000,000) + (minor_version * 1,000) + sub_version</summary>
+/// <param>"MajorVersion" an integer containing the Major Version.</param>
+/// <param>"MinorVersion" an integer containing the Minor Version.</param>
+/// <param>"SubVersion" an integer containing the Sub Version (revision).</param>
+/// <returns>an integer containing the full version.</returns>
 function EncodeSQLVersioning(const MajorVersion: Integer;
  const MinorVersion: Integer; const SubVersion: Integer): Integer;
 
-{**
-  Formats a Zeos SQL Version format to X.Y.Z where:
-   X = major_version
-   Y = minor_version
-   Z = sub version
-  @param SQLVersion an integer
-  @return Formated Zeos SQL Version Value.
-}
+/// <summary>Formats a Zeos SQL Version format to X.Y.Z where:
+///  X = major_version, Y = minor_version, Z = sub_version</summary>
+/// <param>"SQLVersion" an integer.</param>
+/// <returns>Formated Zeos SQL Version Value.</returns>
 function FormatSQLVersion( const SQLVersion: Integer ): String;
 
-{**
-  Appends WHERE clause condition. Returns ' and '+Condition if Condition is not empty
-  and empty string otherwise.
-  This allows short constructions like
-    'WHERE 1=1'+AppendCondition(Cond1)+AppendCondition(Cond2)...
-}
+/// <summary>Appends WHERE clause condition. Returns ' and '+Condition if
+///  Condition is not empty and empty string otherwise. This allows short
+///  constructions like 'WHERE 1=1'+AppendCondition(Cond1)+
+/// AppendCondition(Cond2)...</summary>
+/// <param>"Condition" the condition to add.</param>
+/// <returns>' and '+Condition or an empty string.</returns>
 function AppendCondition(const Condition: string): string;
 
-function ASCII7ToUnicodeString(const Src: RawByteString): ZWideString; overload;
-function ASCII7ToUnicodeString(Src: PAnsiChar; const Len: LengthInt): ZWideString; overload;
-function UnicodeStringToASCII7(const Src: ZWideString): RawByteString; overload;
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw string into an UnicodeString by widening the
+///  bytes to words. This is safe only if all bytes are less or equal to 127</summary>
+/// <param>"Src" the raw String to be converted.</param>
+/// <returns>a converted UnicodeString</returns>
+function ASCII7ToUnicodeString(const Src: RawByteString): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw buffer into an UnicodeString by widening the
+///  bytes to words. This is safe only if all bytes are less or equal to 127</summary>
+/// <param>"Src" the raw buffer to be converted.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
+/// <returns>a converted UnicodeString</returns>
+function ASCII7ToUnicodeString(Src: PAnsiChar; const Len: LengthInt): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw buffer into an UnicodeString by widening the
+///  bytes to words. This is safe only if all bytes are less or equal to 127</summary>
+/// <param>"Src" the raw buffer to be converted.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
+/// <param>"Result" a referenc to the converted UnicodeString</param>
+procedure ASCII7ToUnicodeString(Src: PAnsiChar; const Len: LengthInt; var Result: UnicodeString); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a UnicodeString into an RawbyteString by shorten the
+///  words to bytes. This is safe only if all words are less or equal to 127</summary>
+/// <param>"Src" the UnicodeString to be converted.</param>
+/// <returns>a converted RawByteString</returns>
+function UnicodeStringToASCII7(const Src: UnicodeString): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a UTF16 buffer into an RawbyteString by shorten the
+///  words to bytes. This is safe only if all words are less or equal to 127</summary>
+/// <param>"Src" the UTF16 buffer to be converted.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <returns>a converted RawByteString</returns>
 function UnicodeStringToASCII7(const Src: PWideChar; const Len: LengthInt): RawByteString; overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>convert a UTF16 buffer into an RawbyteString by shorten the
+///  words to bytes. This is safe only if all words are less or equal to 127</summary>
+/// <param>"Src" the UTF16 buffer to be converted.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Result" a reference to the converted RawByteString</returns>
+procedure UnicodeStringToASCII7(const Src: PWideChar; const Len: LengthInt; var Result: RawByteString); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a RawByteString using ffGeneral format.
+///  DecimalSeparator is from global formatsettings</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <returns>a converted RawByteString</returns>
 function FloatToRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): RawByteString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a raw buffer using ffGeneral format.
+///  DecimalSeparator is from global formatsettings</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <param>"Buf" the buffer we write in.</param>
+/// <returns>the length in bytes we wrote.</returns>
 function FloatToRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PAnsiChar): LengthInt; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a RawByteString using ffGeneral format.
+///  DecimalSeparator is always the '.'(dot)</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <returns>a converted RawByteString</returns>
 function FloatToSqlRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): RawByteString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a raw buffer using ffGeneral format.
+///  DecimalSeparator is always the '.'(dot)</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <param>"Buf" the buffer we write in.</param>
+/// <returns>the length in bytes we wrote.</returns>
 function FloatToSqlRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PAnsiChar): LengthInt; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
-function FloatToUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): ZWideString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a UnicodeString using ffGeneral format.
+///  DecimalSeparator is from global formatsettings</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <returns>a converted UnicodeString</returns>
+function FloatToUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): UnicodeString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a UTF16 buffer using ffGeneral format.
+///  DecimalSeparator is from global formatsettings</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <param>"Buf" the buffer we write in.</param>
+/// <returns>the length in words we wrote.</returns>
 function FloatToUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PWideChar): LengthInt; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
-function FloatToSqlUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): ZWideString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a UnicodeString using ffGeneral format.
+///  DecimalSeparator is always the '.'(dot)</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <returns>a converted UnicodeString</returns>
+function FloatToSqlUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): UnicodeString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a float value into a UTF16 buffer using ffGeneral format.
+///  DecimalSeparator is always the '.'(dot)</summary>
+/// <param>"Value" the Value to be converted.</param>
+/// <param>"Buf" the buffer we write in.</param>
+/// <returns>the length in words we wrote.</returns>
 function FloatToSqlUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PWideChar): LengthInt; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
+/// <author>EgonHugeist</author>
+/// <summary>convert a binary buffer into it's hexadecimal representation</summary>
+/// <param>"Buffer" the buffer to be converted.</param>
+/// <param>"Text" the raw buffer we write in. Size of the buffer must be Lenx2.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
 procedure ZBinToHex(Buffer, Text: PAnsiChar; const Len: LengthInt); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a binary buffer into it's hexadecimal representation</summary>
+/// <param>"Buffer" the buffer to be converted.</param>
+/// <param>"Text" the UTF16 buffer we write in. Length in words of the buffer must be Lenx2.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
 procedure ZBinToHex(Buffer: PAnsiChar; Text: PWideChar; const Len: LengthInt); overload;
 
 type
+  /// <summary>defines GUID conversion options</summary>
   TGUIDConvOption = (guidWithBrackets, guidQuoted, guidSet0Term);
+  /// <summary>defines a set of GUID conversion options</summary>
   TGUIDConvOptions = set of TGUIDConvOption;
 
+/// <author>EgonHugeist</author>
+/// <summary>convert a binary buffer 16 byte long buffer into it's human
+///  readable representation.</summary>
+/// <param>"Source" the buffer to be converted.</param>
+/// <param>"Dest" the raw buffer we write in.</param>
+/// <param>"Options" the conversion options.</param>
 procedure GUIDToBuffer(const Source: Pointer; Dest: PAnsiChar; const Options: TGUIDConvOptions); overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a binary buffer 16 byte long buffer into it's human
+///  readable representation.</summary>
+/// <param>"Source" the buffer to be converted.</param>
+/// <param>"Dest" the raw buffer we write in.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <param>"SetTerm" write a trailing #0 byte?</param>
 procedure GUIDToBuffer(const Source: Pointer; Dest: PAnsiChar; WithBrackets, SetTerm: Boolean); overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a binary buffer 16 byte long buffer into it's human
+///  readable representation.</summary>
+/// <param>"Source" the buffer to be converted.</param>
+/// <param>"Dest" the UTF16 buffer we write in.</param>
+/// <param>"Options" the conversion options.</param>
 procedure GUIDToBuffer(const Source: Pointer; Dest: PWideChar; const Options: TGUIDConvOptions); overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a binary buffer 16 byte long buffer into it's human
+///  readable representation.</summary>
+/// <param>"Source" the buffer to be converted.</param>
+/// <param>"Dest" the UTF16 buffer we write in.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <param>"SetTerm" write a trailing #0#0 word?</param>
 procedure GUIDToBuffer(const Source: Pointer; Dest: PWideChar; WithBrackets, SetTerm: Boolean); overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
+/// <author>EgonHugeist</author>
+/// <summary>GUID reference into it's human readable representation.</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"Options" the conversion options.</param>
+/// <param>"Result" a reference to the RawByteString we fill.</param>
 procedure GUIDToRaw(Value: PGUID; const Options: TGUIDConvOptions; var Result: RawByteString); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a GUID into it's human readable representation</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"Options" the conversion options.</param>
+/// <returns>the RawByteString we've filled.</returns>
 function GUIDToRaw(const GUID: TGUID; const Options: TGUIDConvOptions): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a GUID into it's human readable representation.</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the RawByteString we've filled.</returns>
 function GUIDToRaw(const GUID: TGUID; WithBrackets: Boolean = True): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a 16byte long byte array into it's human readable representation.</summary>
+/// <param>"Bts" a dynamic byte-array. If length of this array !=16
+///  a EArgumentException is raised.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the RawByteString we've filled.</returns>
 function GUIDToRaw(const Bts: TBytes; WithBrackets: Boolean = True): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a buffer into it's human readable representation.</summary>
+/// <param>"Buffer" a buffer we read from.</param>
+/// <param>"Len" the length of the buffer we read from. If this value !=16
+///  a EArgumentException is raised.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the RawByteString we've filled.</returns>
 function GUIDToRaw(Buffer: Pointer; Len: Byte; WithBrackets: Boolean = True): RawByteString; overload;
 
-procedure GUIDToUnicode(Value: PGUID; const Options: TGUIDConvOptions; var Result: ZWideString); overload;
-function GUIDToUnicode(const GUID: TGUID; const Options: TGUIDConvOptions): ZWideString; overload;
-function GUIDToUnicode(const GUID: TGUID; WithBrackets: Boolean = True): ZWideString; overload;
-function GUIDToUnicode(const Bts: TBytes; WithBrackets: Boolean = True): ZWideString; overload;
-function GUIDToUnicode(Buffer: Pointer; Len: Byte; WithBrackets: Boolean = True): ZWideString; overload;
+/// <author>EgonHugeist</author>
+/// <summary>GUID reference into it's human readable representation.</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"Options" the conversion options.</param>
+/// <param>"Result" a reference to the UnicodeString we fill.</param>
+procedure GUIDToUnicode(Value: PGUID; const Options: TGUIDConvOptions; var Result: UnicodeString); overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>convert a GUID into it's human readable representation</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"Options" the conversion options.</param>
+/// <returns>the UnicodeString we've filled.</returns>
+function GUIDToUnicode(const GUID: TGUID; const Options: TGUIDConvOptions): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a GUID into it's human readable representation.</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the UnicodeString we've filled.</returns>
+function GUIDToUnicode(const GUID: TGUID; WithBrackets: Boolean = True): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a 16byte long byte array into it's human readable representation.</summary>
+/// <param>"Bts" a dynamic byte-array. If length of this array !=16
+///  a EArgumentException is raised.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the UnicodeString we've filled.</returns>
+function GUIDToUnicode(const Bts: TBytes; WithBrackets: Boolean = True): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a buffer into it's human readable representation.</summary>
+/// <param>"Buffer" a buffer we read from.</param>
+/// <param>"Len" the length of the buffer we read from. If this value !=16
+///  a EArgumentException is raised.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the UnicodeString we've filled.</returns>
+function GUIDToUnicode(Buffer: Pointer; Len: Byte; WithBrackets: Boolean = True): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>GUID reference into it's human readable representation.</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"Options" the conversion options.</param>
+/// <param>"Result" a reference to the String we fill.</param>
 function GUIDToStr(Value: PGUID; const Options: TGUIDConvOptions): String; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a GUID into it's human readable representation</summary>
+/// <param>"Value" a reference the TGUID to be converted.</param>
+/// <param>"Options" the conversion options.</param>
+/// <returns>the String we've filled.</returns>
 function GUIDToStr(const GUID: TGUID; WithBrackets: Boolean = True): string; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a 16byte long byte array into it's human readable representation.</summary>
+/// <param>"Bts" a dynamic byte-array. If length of this array !=16
+///  a EArgumentException is raised.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the String we've filled.</returns>
 function GUIDToStr(const Bts: TBytes; WithBrackets: Boolean = True): string; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a buffer into it's human readable representation.</summary>
+/// <param>"Buffer" a buffer we read from.</param>
+/// <param>"Len" the length of the buffer we read from. If this value !=16
+///  a EArgumentException is raised.</param>
+/// <param>"WithBrackets" should the value start with '{' and end with '}'?</param>
+/// <returns>the String we've filled.</returns>
 function GUIDToStr(Buffer: Pointer; Len: Byte; WithBrackets: Boolean = True): string; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 
+/// <author>EgonHugeist</author>
+/// <summary>convert a raw human readable representation of a guid into
+///  it's binary 16 format. Conversion is 1,5x faster than compiler's</summary>
+/// <param>"Src" a raw buffer we read from.</param>
+/// <param>"Dest" the buffer we write in.</param>
 procedure ValidGUIDToBinary(Src, Dest: PAnsiChar); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>convert a UTF16 human readable representation of a guid into
+///  it's binary 16 format. Conversion is 1,5x faster than compiler's</summary>
+/// <param>"Src" a UTF16 buffer we read from.</param>
+/// <param>"Dest" the buffer we write in.</param>
 procedure ValidGUIDToBinary(Src: PWideChar; Dest: PAnsiChar); overload;
 
-function SQLQuotedStr(const S: ZWideString; Quote: WideChar): ZWideString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
-function SQLQuotedStr(Src: PWideChar; Len: LengthInt; Quote: WideChar): ZWideString; overload;
+/// <author>EgonHugeist</author>
+/// <summary>Standard quoting. Result starts and ends with a quote, each half
+///  quote get's a second quote.</summary>
+/// <param>"S" a String to be quoted.</param>
+/// <param>"Quote" the wide quote-char to be used</param>
+/// <returns>the quoted UnicodeString.</returns>
+function SQLQuotedStr(const S: UnicodeString; Quote: WideChar): UnicodeString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>Standard quoting. Result starts and ends with a quote, each half
+///  quote get's a second quote.</summary>
+/// <param>"Src" a UTF16 buffer to be quoted.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Quote" the wide quote-char to be used</param>
+/// <returns>the quoted UnicodeString.</returns>
+function SQLQuotedStr(Src: PWideChar; Len: LengthInt; Quote: WideChar): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Standard quoting. Result starts and ends with a quote, each half
+///  quote get's a second quote.</summary>
+/// <param>"S" a String to be quoted.</param>
+/// <param>"Quote" the quote-char to be used</param>
+/// <returns>the quoted RawByteString.</returns>
 function SQLQuotedStr(const S: RawByteString; Quote: AnsiChar): RawByteString; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>EgonHugeist</author>
+/// <summary>Standard quoting. Result starts and ends with a quote, each half
+///  quote get's a second quote.</summary>
+/// <param>"Src" a raw buffer to be quoted.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <param>"Quote" the quote-char to be used</param>
+/// <returns>the quoted RawByteString.</returns>
 function SQLQuotedStr(Src: PAnsiChar; Len: LengthInt; Quote: AnsiChar): RawByteString; overload;
 
+/// <author>Fr0sT</author>
+/// <summary>Standard quoting with 2 quoting chars: Result := QuoteLeft +
+///  Double_Quotes(Src, QuoteLeft, QuoteRight) + QuoteRight. This version is a
+///  bit slower than that with one quoting char so use it only when
+///  QuoteLeft!=QuoteRight</summary>
+/// <param>"S" a String to be quoted.</param>
+/// <param>"QuoteLeft" the left quote-char to be used.</param>
+/// <param>"QuoteRight" the right quote-char to be used.</param>
+/// <returns>the quoted String.</returns>
 function SQLQuotedStr(const S: string; QuoteLeft, QuoteRight: Char): string; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <author>Fr0sT</author>
+/// <summary>Standard quoting with 2 quoting chars: Result := QuoteLeft +
+///  Double_Quotes(Src, QuoteLeft, QuoteRight) + QuoteRight. This version is a
+///  bit slower than that with one quoting char so use it only when
+///  QuoteLeft!=QuoteRight</summary>
+/// <param>"Src" a String buffer to be quoted.</param>
+/// <param>"Len" the length of the buffer.</param>
+/// <param>"QuoteLeft" the left quote-char to be used.</param>
+/// <param>"QuoteRight" the right quote-char to be used.</param>
+/// <returns>The quoted String.</returns>
 function SQLQuotedStr(Src: PChar; Len: LengthInt; QuoteLeft, QuoteRight: Char): string; overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>Standard dequoting of a String.</summary>
+/// <param>"S" a String to be dequoted.</param>
+/// <param>"QuoteChar" the quote-char to be used.</param>
+/// <returns>The dequoted String. If Quotes are not given or quote-count
+///  dosn't match the Quote rules, then the original string is returned.</returns>
 function SQLDequotedStr(const S: string; QuoteChar: Char): string; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Standard dequoting of a string buffer.</summary>
+/// <param>"Src" a buffer to be dequoted.</param>
+/// <param>"Len" the buffer length. Either count of bytes for Ansi-Compiler or
+///  words for Unicode comiler.</param>
+/// <param>"QuoteChar" the quote-char to be used.</param>
+/// <returns>The dequoted String. If Quotes are not given or quote-count
+///  dosn't match the Quote rules, then the original string is returned.</returns>
 function SQLDequotedStr(Src: PChar; Len: LengthInt; QuoteChar: Char): string; overload;
+
+/// <author>Fr0sT</author>
+/// <summary>Dequoting of a string buffer using different quote chars for State&End.</summary>
+/// <param>"S" a String to be dequoted.</param>
+/// <param>"QuoteLeft" the left quote-char to be used.</param>
+/// <param>"QuoteRight" the rigth quote-char to be used.</param>
+/// <returns>The dequoted String. If Quotes are not matching the dequoting rules
+///  a EArgumentException is raised (Decison by author). </returns>
 function SQLDequotedStr(const S: string; QuoteLeft, QuoteRight: Char): string; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Standard dequoting of a raw buffer into another raw buffer.</summary>
+/// <param>"pSrc" a String buffer to be dequoted.</param>
+/// <param>"pDst" a String buffer to we write in.</param>
+/// <param>"Len" a reference to a lenght in bytes. <c>In</c> the actual length
+///  of the source buffer. <c>Out</c> the length which was written into the dest
+///  buffer.</param>
+/// <param>"QuoteChar" the quote-char to be used.</param>
 procedure SQLDequotedStr(pSrc, pDst: PAnsiChar; var Len: LengthInt; QuoteChar: AnsiChar); overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>ASCII7 case insensitive compare of two buffer with minimum same
+///  length.</summary>
+/// <param>"Val1" the first raw buffer to be compared.</param>
+/// <param>"Val2" the first raw buffer to be compared.</param>
+/// <param>"Len" the lenght in bytes of the buffers.</param>
+/// <returns><c>True</c> if the comparsion was successful, <c>False</c> otherwise</returns>
 function SameText(Val1, Val2: PAnsiChar; Len: LengthInt): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>ASCII7 case insensitive compare of two buffer with minimum same
+///  length.</summary>
+/// <param>"Val1" the first UTF16 buffer to be compared.</param>
+/// <param>"Val2" the first UTF16 buffer to be compared.</param>
+/// <param>"Len" the lenght in words of the buffers.</param>
+/// <returns><c>True</c> if the comparsion was successful, <c>False</c> otherwise</returns>
 function SameText(Val1, Val2: PWideChar; Len: LengthInt): Boolean; overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>Trims raw buffer. Each starting and trailing character smaller
+///  than ordinal(' '/space) get's trimmed away.</summary>
+/// <param>"L" <c>In</c> the length in bytes of the buffer. <c>Out</c> the
+///  length in bytes the final buffer have after right-trimming.</param>
+/// <param>"P" <c>In</c> a reference to the input buffer which should be
+///  trimmed. <c>Out</c> the new refernece of the input buffer after left
+///  trimming was done.</param>
 procedure Trim(var L: NativeUInt; var P: PAnsiChar); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trims UTF16 buffer. Each starting and trailing character smaller
+///  than ordinal(' '/space) get's trimmed away.</summary>
+/// <param>"L" <c>In</c> the length in words of the buffer. <c>Out</c> than
+///  length in words the final buffer have after right-trimming.</param>
+/// <param>"P" <c>In</c> a reference to the input buffer which should be
+///  trimmed. <c>Out</c> the new refernece of the input buffer after left
+///  trimming was done.</param>
 procedure Trim(var L: NativeUInt; var P: PWideChar); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trims raw buffer into a raw string. Each starting and trailing
+///  character smaller than ordinal(' '/space) get's trimmed away.</summary>
+/// <param>"P" the input buffer which should be trimmed. </param>
+/// <param>"L" the length in bytes of the buffer.</param>
+/// <returns>a trimmed raw encoded string.</returns>
 function Trim(P: PAnsiChar; L: LengthInt): RawByteString; overload;
-function LTrim(P: PAnsiChar; L: LengthInt): RawByteString; overload;
-function RTrim(P: PAnsiChar; L: LengthInt): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trims raw #0 terminated buffer into a raw string. Each starting and
+/// trailing character smaller then ordinal(' '/space) get's trimmed away.</summary>
+/// <param>"P" the input buffer which should be trimmed. </param>
+/// <returns>a trimmed raw encoded string.</returns>
 function Trim(P: PAnsiChar): RawByteString; overload;
-function Trim(P: PWideChar; L: LengthInt): ZWideString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trims a UTF16 buffer. Each starting and trailing character smaller
+///  than ordinal(' '/space) get's trimmed away.</summary>
+/// <param>"P" <c>In</c>the input buffer which should be trimmed.</param>
+/// <param>"L" <c>In</c> the length in words of the buffer.</param>
+/// <returns>a trimmed UnicodeString.</returns>
+function Trim(P: PWideChar; L: LengthInt): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Left trims a raw buffer. Each starting and trailing character
+///  smaller than ordinal (' '/space) get's trimmed away.</summary>
+/// <param>"P" <c>In</c>the input buffer which should be left trimmed.</param>
+/// <param>"L" <c>In</c> the length in bytes of the buffer.</param>
+/// <returns>a trimmed RawByteString.</returns>
+function LTrim(P: PAnsiChar; L: LengthInt): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Right trims a raw buffer. Each starting and trailing character
+///  smaller than ordinal (' '/space) get's trimmed away.</summary>
+/// <param>"P" <c>In</c>the input buffer which should be right trimmed.</param>
+/// <param>"L" <c>In</c> the length in bytes of the buffer.</param>
+/// <returns>a trimmed RawByteString.</returns>
+function RTrim(P: PAnsiChar; L: LengthInt): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Left trims a UTF16 buffer. Each starting and trailing character
+///  smaller than ordinal (' '/space) get's trimmed away.</summary>
+/// <param>"P" <c>In</c>the input buffer which should be right trimmed.</param>
+/// <param>"L" <c>In</c> the length in words of the buffer.</param>
+/// <returns>a trimmed UnicodeString.</returns>
 function LTrim(P: PWideChar; L: LengthInt): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Right trims a UTF16 buffer. Each starting and trailing character
+///  smaller than ordinal (' '/space) get's trimmed away.</summary>
+/// <param>"P" <c>In</c>the input buffer which should be right trimmed.</param>
+/// <param>"L" <c>In</c> the length in words of the buffer.</param>
+/// <returns>a trimmed UnicodeString.</returns>
 function RTrim(P: PWideChar; L: LengthInt): UnicodeString; overload;
-{$IF defined(UNICODE) and not defined(WITH_UNITANSISTRINGS)}
-function Trim(const Value: RawByteString): RawByteString; overload;
-function LowerCase(const Value: RawByteString): RawByteString; overload;
-function UpperCase(const Value: RawByteString): RawByteString; overload;
-{$IFEND}
+
 {$IFNDEF UNICODE}
-function Trim(const Value: ZWideString): ZWideString; overload;
+/// <author>EgonHugeist</author>
+/// <summary>Trims a UnicodeString. Each starting and trailing character smaller
+///  than ordinal(' '/space) get's trimmed away.</summary>
+/// <param>"Value" the UTF16 string to be trimmed.</param>
+/// <returns>a trimmed UnicodeString.</returns>
+function Trim(const Value: UnicodeString): UnicodeString; overload;
 {$ENDIF}
 
+{$IF defined(UNICODE) and not defined(WITH_UNITANSISTRINGS)}
+/// <author>EgonHugeist</author>
+/// <summary>Trims a rawbytestring. Each starting and trailing character smaller
+///  than ordinal(' '/space) get's trimmed away.</summary>
+/// <param>"Value" the raw string to be trimmed.</param>
+/// <returns>a trimmed RawByteString.</returns>
+function Trim(const Value: RawByteString): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>ASCII7 lowercase a raw encoded string.</summary>
+/// <param>"Value" the raw string.</param>
+/// <returns>a lowercase RawByteString.</returns>
+function LowerCase(const Value: RawByteString): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>ASCII7 uppercase a raw encoded string.</summary>
+/// <param>"Value" the raw string.</param>
+/// <returns>a uppercase RawByteString.</returns>
+function UpperCase(const Value: RawByteString): RawByteString; overload;
+{$IFEND}
+
 {$IFDEF NO_RAW_HEXTOBIN}
+/// <author>Arnaud Bouchez</author>
+/// <summary>fast conversion from hexa chars into binary data. Using this
+///  function with Bin^ as an integer value will decode in big-endian order
+///  (most-signignifican byte first)</summary>
+/// <param>"Hex" the buffer must contain at least BinBytes*2 chars to be converted.</param>
+/// <param>"Bin" the buffer must reserve BinBytes space. if Bin=nil, no output
+///  data is written, but the Hex^ format is checked.</param>
+/// <returns><c>False</c> if any invalid (non hexa) char is found in Hex^,
+///  <c>True</c> otherwise.</returns>
 function HexToBin(Hex: PAnsiChar; Bin: PByte; BinBytes: Integer): Boolean;
 {$ENDIF}
 
-{**
-   Creates a memory stream with copy of data in buffer.
-   If buffer contains no data, creates an empty stream.
-}
+/// <summary>Creates a memory stream with copy of data in buffer. If buffer
+///  contains no data, creates an empty stream.</summary>
+/// <param>"Buffer" the buffer copied into the result stream.</param>
+/// <param>"Size" the size in bytes of the buffer.</param>
+/// <returns>a TMemoryStream object.</returns>
 function StreamFromData(Buffer: Pointer; Size: Integer): TMemoryStream; overload;
-function StreamFromData(const AString: ZWideString): TMemoryStream; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <summary>Creates a memory stream with copy of a UnicodeString</summary>
+/// <param>"AString" the source string to be copied.</param>
+/// <returns>a TMemoryStream object.</returns>
+function StreamFromData(const AString: UnicodeString): TMemoryStream; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
+/// <summary>Creates a memory stream with copy of a byte array.</summary>
+/// <param>"Bytes" the source bytes to be copied.</param>
+/// <returns>a TMemoryStream object.</returns>
 function StreamFromData(const Bytes: TBytes): TMemoryStream; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
+
 {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
+/// <summary>Creates a memory stream with copy of a RawByteString</summary>
+/// <param>"AString" the source string to be copied.</param>
+/// <returns>a TMemoryStream object.</returns>
 function StreamFromData(const AString: RawByteString): TMemoryStream; overload; {$IFDEF WITH_INLINE} inline;{$ENDIF}
 {$ENDIF}
 
-{** EH:
-   Encode a currency value to a TBCD
-   @param value the currency to be converted
-   @param Result the slow Delphi result bcd record to be filled
-}
+/// <author>EgonHugeist</author>
+/// <summary>Encode a currency value to a TBCD.</summary>
+/// <param>"Value" the source value to be encoded.</param>
+/// <param>"Result" a TBCD-record reference to write in.</param>
 procedure Currency2Bcd(const Value: Currency; var Result: TBCD);
 
-{** EH:
-   Encode a scaled signed longlong to a TBCD
-   @param value the longlong to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-}
+/// <author>EgonHugeist</author>
+/// <summary>Encode a scaled Int64 to a TBCD.</summary>
+/// <param>"Value" the source value to be encoded.</param>
+/// <param>"Scale" the the scale digits.</param>
+/// <param>"Result" a TBCD-record reference to write in.</param>
 procedure ScaledOrdinal2Bcd(const Value: Int64; Scale: Byte; var Result: TBCD); overload;
 
-{** EH:
-   Encode a scaled unsigned longlong to a TBCD
-   @param value the longlong to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-   @param Negative the converted value was negative
-}
+/// <author>EgonHugeist</author>
+/// <summary>Encode a scaled UInt64 to a TBCD.</summary>
+/// <param>"Value" the source value to be encoded.</param>
+/// <param>"Scale" the the scale digits.</param>
+/// <param>"Result" a TBCD-record reference to write in.</param>
+/// <param>"Negative" if Result should be negative.</param>
 procedure ScaledOrdinal2Bcd(Value: UInt64; Scale: Byte; var Result: TBCD; Negative: Boolean); overload;
 
-{** EH:
-   Encode a scaled signed long to a TBCD
-   @param value the long to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-}
+/// <author>EgonHugeist</author>
+/// <summary>Encode a scaled Integer to a TBCD.</summary>
+/// <param>"Value" the source value to be encoded.</param>
+/// <param>"Scale" the the scale digits.</param>
+/// <param>"Result" a TBCD-record reference to write in.</param>
 procedure ScaledOrdinal2Bcd(Value: Integer; Scale: Byte; var Result: TBCD); overload;
 
-{** EH:
-   Encode a scaled unsigned long to a TBCD
-   @param value the longlong to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-   @param Negative the converted value was negative
-}
+/// <author>EgonHugeist</author>
+/// <summary>Encode a scaled Cardinal to a TBCD.</summary>
+/// <param>"Value" the source value to be encoded.</param>
+/// <param>"Scale" the the scale digits.</param>
+/// <param>"Result" a TBCD-record reference to write in.</param>
+/// <param>"Negative" if Result should be negative.</param>
 procedure ScaledOrdinal2Bcd(Value: Cardinal; Scale: Byte; var Result: TBCD; Negative: Boolean); overload;
 
-{** EH:
-   Encode a scaled signed short to a TBCD
-   @param value the short to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-}
+/// <author>EgonHugeist</author>
+/// <summary>Encode a scaled SmallInt to a TBCD.</summary>
+/// <param>"Value" the source value to be encoded.</param>
+/// <param>"Scale" the the scale digits.</param>
+/// <param>"Result" a TBCD-record reference to write in.</param>
 procedure ScaledOrdinal2Bcd(Value: SmallInt; Scale: Byte; var Result: TBCD); overload;
 
-{** EH:
-   Encode a scaled unsigned short to a TBCD
-   @param value the short to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-   @param Negative the converted value was negative
-}
+/// <author>EgonHugeist</author>
+/// <summary>Encode a scaled Word to a TBCD.</summary>
+/// <param>"Value" the source value to be encoded.</param>
+/// <param>"Scale" the the scale digits.</param>
+/// <param>"Result" a TBCD-record reference to write in.</param>
+/// <param>"Negative" if Result should be negative.</param>
 procedure ScaledOrdinal2Bcd(Value: Word; Scale: Byte; var Result: TBCD; Negative: Boolean); overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>Case sensitive string replace all. Length of NewPattern must be
+///  smaller or equal to NewPattern. Otherwise if Assertiation are turned off
+///  the Results my be unexpected.</summary>
+/// <param>"Source" the raw source value we replace from.</param>
+/// <param>"OldPattern" the raw search string.</param>
+/// <param>"NewPattern" the raw new string.</param>
+/// <returns>a RawByteString.</returns>
 function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;
-function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: ZWideString): ZWideString; overload;
 
-(*function StringReplaceAll_CS_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;
-function StringReplaceAll_CI_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;*)
+/// <author>EgonHugeist</author>
+/// <summary>Case sensitive string replace all. Length of NewPattern must be
+///  smaller or equal to NewPattern. Otherwise if Assertiation are turned off
+///  the Results my be unexpected.</summary>
+/// <param>"Source" the UTF16 source value we replace from.</param>
+/// <param>"OldPattern" the UTF16 search string.</param>
+/// <param>"NewPattern" the UTF16 new string.</param>
+/// <returns>a UnicodeString.</returns>
+function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: UnicodeString): UnicodeString; overload;
 
-function BcdToSQLRaw(const Value: TBCD): RawByteString; overload;
+/// <author>EgonHugeist</author>
+/// <summary>Case sensitive string replace all. Length of NewPattern must be
+///  greater or equal to NewPattern. Otherwise if Assertiation are turned off
+///  the Results my be unexpected.</summary>
+/// <param>"Source" the raw source value we replace from.</param>
+/// <param>"OldPattern" the raw search string.</param>
+/// <param>"NewPattern" the raw new string.</param>
+/// <returns>a RawByteString.</returns>
+function StringReplaceAll_CS_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;
 
-{** EH:
-   convert a BCD record into a raw buffer
-   @param Bcd the value to be converted
-   @param Buf the buffer we write into
-   @param DecimalSep the decimal-seperator
-   @return the count of bytes we wrote into the buffer
-}
-function BcdToRaw(const Bcd: TBcd; Buf: PAnsiChar; DecimalSep: Char): LengthInt; overload;
+/// <author>EgonHugeist</author>
+/// <summary>Case sensitive string replace all. Length of NewPattern must be
+///  greater or equal to NewPattern. Otherwise if Assertiation are turned off
+///  the Results my be unexpected.</summary>
+/// <param>"Source" the UTF16 source value we replace from.</param>
+/// <param>"OldPattern" the UTF16 search string.</param>
+/// <param>"NewPattern" the UTF16 new string.</param>
+/// <returns>a UnicodeString.</returns>
+function StringReplaceAll_CS_GToEQ(const Source, OldPattern, NewPattern: UnicodeString): UnicodeString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a TBCD value into a string. Decimal-seperator is allways
+///  the '.'(dot). Trailing and leading zeroes are padded away, means then
+///  result is allways the shortes representation.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <returns>a converted RawByteString.</returns>
+function BcdToSQLRaw({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): RawByteString; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a TBCD value into a string. Trailing and leading zeroes
+///  are padded away, means then result is allways the shortes representation.</summary>
+/// <param>"Bcd" the value to be converted.</param>
+/// <param>"Buf" a raw buffer we write in. Buffer must have reserve enough space.</param>
+/// <param>"DecimalSep" the Decimal-seperator to be used.</param>
+/// <returns>the count of bytes we wrote into the buffer.</returns>
+function BcdToRaw({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Bcd: TBcd; Buf: PAnsiChar; DecimalSep: Char): LengthInt; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Encodes a TBCD value from raw buffer. Trailing and leading zeroes
+///  are padded away, means then result is allways the shortes representation.
+///  Decimal-Seperator is the '.'(dot). If conversion fails a EBcdException
+///  get's raised.</summary>
+/// <param>"Value" the value buffer we read from.</param>
+/// <param>"Len" the length in bytes of the buffer.</param>
+/// <returns>Encoded BCD-record.</returns>
 function RawToBCD(Value: PAnsiChar; Len: LengthInt): TBCD; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Encodes a TBCD value from a string. Trailing and leading zeroes
+///  are padded away, means then result is allways the shortes representation.
+///  Decimal-Seperator is the '.'(dot). If conversion fails a EBcdException
+///  get's raised.</summary>
+/// <param>"Value" the raw string to be used for the conversion.</param>
+/// <returns>Encoded BCD-record.</returns>
 function RawToBCD(const Value: RawByteString): TBCD; overload;
 
-{** EH:
-   convert a BCD record into a UTF16 buffer
-   @param Bcd the value to be converted
-   @param Buf the buffer we write into
-   @param DecimalSep the decimal-seperator
-   @return the count of words we wrote into the buffer
-}
-function BcdToSQLUni(const Value: TBCD): ZWideString;
-function BcdToUni(const Bcd: TBcd; Buf: PWideChar; DecimalSep: Char): LengthInt;
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a TBCD value into a string. Decimal-seperator is allways
+///  the '.'(dot). Trailing and leading zeroes are padded away, means then
+///  result is allways the shortes representation.</summary>
+/// <param>"Value" the value to be converted.</param>
+/// <returns>a converted UnicodeString.</returns>
+function BcdToSQLUni({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): UnicodeString;
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a TBCD value into a string. Trailing and leading zeroes
+///  are padded away, means then result is allways the shortes representation.</summary>
+/// <param>"Bcd" the value to be converted.</param>
+/// <param>"Buf" a UTF16 buffer we write in. Buffer must have reserve enough space.</param>
+/// <param>"DecimalSep" the Decimal-seperator to be used.</param>
+/// <returns>the count of words we wrote into the buffer.</returns>
+function BcdToUni({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Bcd: TBcd; Buf: PWideChar; DecimalSep: Char): LengthInt;
+
+/// <author>EgonHugeist</author>
+/// <summary>Encodes a TBCD value from UTF16 buffer. Trailing and leading zeroes
+///  are padded away, means then result is allways the shortes representation.
+///  Decimal-Seperator is the '.'(dot). If conversion fails a EBcdException
+///  get's raised.</summary>
+/// <param>"Value" the value buffer we read from.</param>
+/// <param>"Len" the length in words of the buffer.</param>
+/// <returns>Encoded BCD-record.</returns>
 function UniToBCD(Value: PWideChar; Len: LengthInt): TBCD; overload;
-function UniToBCD(const Value: ZWideString): TBCD; overload;
 
-procedure BCD2Int64(const Value: TBCD; out Result: Int64); overload;
-function BCD2Int64(const Value: TBCD): Int64; overload;
-procedure BCD2UInt64(const Value: TBCD; out Result: UInt64); overload;
-function BCD2UInt64(const Value: TBCD): UInt64; overload;
+/// <author>EgonHugeist</author>
+/// <summary>Encodes a TBCD value from a string. Trailing and leading zeroes
+///  are padded away, means then result is allways the shortes representation.
+///  Decimal-Seperator is the '.'(dot). If conversion fails a EBcdException
+///  get's raised.</summary>
+/// <param>"Value" the UniocdeString to be used for the conversion.</param>
+/// <returns>Encoded BCD-record.</returns>
+function UniToBCD(const Value: UnicodeString): TBCD; overload;
 
-function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
-function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a BCD to a Int64. If conversion fails a EBcdException
+///  get's raised.</summary>
+/// <param>"Value" the value to be decoded.</param>
+/// <param>"Result" the Int64 decoded.</param>
+procedure BCD2Int64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD; out Result: Int64); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a BCD to a Int64. If conversion fails a EBcdException
+///  get's raised.</summary>
+/// <param>"Value" the value to be decoded.</param>
+/// <returns>the Int64 decoded.</returns>
+function BCD2Int64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): Int64; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a BCD to a UInt64</summary>
+/// <param>"Value" the value to be decoded.</param>
+/// <param>"Result" the UInt64 decoded.</param>
+procedure BCD2UInt64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD; out Result: UInt64); overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Decodes a BCD to a UInt64. If conversion fails a EBcdException
+///  get's raised.</summary>
+/// <param>"Value" the value to be decoded.</param>
+/// <returns>the UInt64 decoded.</returns>
+function BCD2UInt64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): UInt64; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trys to encode a BCD from a String.</summary>
+/// <param>"Value" the UnicodeString to be used.</param>
+/// <param>"Bcd" the reference to the BCD we write in.</param>
+/// <param>"FormatSettings" the FormatSettings to be used for the
+///  decimal-seperator.</param>
+/// <returns><c>True</c> if conversion was successfull;
+///  <c>False</c> otherwise.</returns>
+function TryUniToBcd(const Value: UnicodeString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trys to encode a BCD from a String.</summary>
+/// <param>"Value" the UnicodeString to be used.</param>
+/// <param>"Bcd" the reference to the BCD we write in.</param>
+/// <param>"FormatSettings" the FormatSettings to be used for the
+///  decimal-seperator.</param>
+/// <returns><c>True</c> if conversion was successfull;
+///  <c>False</c> otherwise.</returns>
+function TryUniToBcd(const Value: UnicodeString; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trys to encode a BCD from a UTF16 String buffer.</summary>
+/// <param>"Buf" the UTF16 buffer to be used.</param>
+/// <param>"Len" the length in words of the buffer</param>
+/// <param>"Bcd" the reference to the BCD we write in.</param>
+/// <param>"DecimalSep" the decimal-seperator to be used.</param>
+/// <returns><c>True</c> if conversion was successfull;
+///  <c>False</c> otherwise.</returns>
 function TryUniToBcd(Buf: PWideChar; Len: LengthInt; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>Trys to encode a BCD from a String.</summary>
+/// <param>"Value" the RawByteString to be used.</param>
+/// <param>"Bcd" the reference to the BCD we write in.</param>
+/// <param>"FormatSettings" the FormatSettings to be used for the
+///  decimal-seperator.</param>
+/// <returns><c>True</c> if conversion was successfull;
+///  <c>False</c> otherwise.</returns>
 function TryRawToBcd(const Value: RawByteString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trys to encode a BCD from a String.</summary>
+/// <param>"Value" the RawByteString to be used.</param>
+/// <param>"Bcd" the reference to the BCD we write in.</param>
+/// <param>"DecimalSep" the decimal-seperator to be used.</param>
+/// <returns><c>True</c> if conversion was successfull;
+///  <c>False</c> otherwise.</returns>
 function TryRawToBcd(const Value: RawByteString; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
+
+/// <author>EgonHugeist</author>
+/// <summary>Trys to encode a BCD from a raw String buffer.</summary>
+/// <param>"Buf" the raw buffer to be used.</param>
+/// <param>"Len" the length in words of the buffer</param>
+/// <param>"Bcd" the reference to the BCD we write in.</param>
+/// <param>"DecimalSep" the decimal-seperator to be used.</param>
+/// <returns><c>True</c> if conversion was successfull;
+///  <c>False</c> otherwise.</returns>
 function TryRawToBcd(Buf: PAnsiChar; Len: LengthInt; var Bcd: TBcd; DecimalSep: Char): Boolean; overload;
 
+/// <author>EgonHugeist</author>
+/// <summary>Trys to encode a BCD from a String.</summary>
+/// <param>"Value" the String to be used.</param>
+/// <param>"Bcd" the reference to the BCD we write in.</param>
+/// <param>"FormatSettings" the FormatSettings to be used for the
+///  decimal-seperator.</param>
+/// <returns><c>True</c> if conversion was successfull;
+///  <c>False</c> otherwise.</returns>
 function TryStr2BCD(const Value: String; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean;
+
+/// <author>EgonHugeist</author>
+/// <summary>Encodes a TBCD value from a string. Trailing and leading zeroes
+///  are padded away, means then result is allways the shortes representation.
+///  If conversion fails a EBcdException get's raised.</summary>
+/// <param>"Value" the raw string to be used for the conversion.</param>
+/// <param>"FormatSettings" the FormatSettings to be used for the
+///  decimal-seperator.</param>
+/// <returns>Encoded BCD-record.</returns>
 function Str2BCD(const Value: String{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): TBCD;
 
+/// <author>EgonHugeist</author>
+/// <summary>Encode a Double Value into it's TBCD representation.</summary>
+/// <param>"Value" the floiting value be used for the conversion.</param>
+/// <param>"Result" the BCD-record reference we write in.</param>
 procedure Double2BCD(const Value: Double; var Result: TBCD);
 
-{** EH:
-   get reading offsets of the bcd, including packet Precsion and Scale
-   @param GetFirstBCDHalfByte if true the first byte of pNibble counts otherwise skip it
-   @return true if packing is possible
-}
+/// <author>EgonHugeist</author>
+/// <summary>get reading offsets of the bcd, including packet Precsion and Scale</summary>
+/// <param>"Value" a const reference to the BCD.</param>
+/// <param>"PNibble" a pointer to the first significant nibble.</param>
+/// <param>"PLastNibble" a pointer to the last significant nibble.</param>
+/// <param>"Precision" the packed result precision.</param>
+/// <param>"Scale" the packed result scale.</param>
+/// <param>"GetFirstBCDHalfByte" indicate if the first halfbyte of PNibble counts.</param>
+/// <returns><c>True</c> if packing is possible; <c>False</c> otherwise.</returns>
 function GetPacketBCDOffSets({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD;
   out PNibble, PLastNibble: PAnsiChar; out Precision, Scale: Word; out GetFirstBCDHalfByte: Boolean): Boolean;
 
-{** EH:
-   pack the bcd to top of data, remove useless trailing or leading zeros
-   @param Value the value to be packet
-}
+/// <author>EgonHugeist</author>
+/// <summary>pack the bcd to top of data, remove useless trailing or leading zeros.</summary>
+/// <param>"Value" a reference to the TBCD record which should be packed.</param>
+/// <param>"PNibble" a reference to the first nibble containing significant data.</param>
+/// <param>"PLastNibble" a reference to the last nibble containing significant data.</param>
+/// <param>"Precision" the new Precision we write.</param>
+/// <param>"Scale" the new Scale we write.</param>
+/// <param>"GetFirstBCDHalfByte" does the first half-byte count?</param>
 procedure ZPackBCDToLeft(var Value: TBCD; var PNibble, PLastNibble: PAnsiChar;
   Precision, Scale: Word; GetFirstBCDHalfByte: Boolean);
 
-{** EH:
-   compare two bcd's
-   @param Value1 the first value to be compared return a packet bcd if not packet
-   @param Value2 the second value to be compared return a packet bcd if not packet
-   @return 0 if equal or -1 if value1 is smaller than value2 or 1 if value1 is smaller than value2
-}
+/// <author>EgonHugeist</author>
+/// <summary>Compares and packs two TBCD records.</summary>
+/// <param>"Value1" a reference to the first BCD that should pe compared.</param>
+/// <param>"Value2" a reference to the second BCD that should pe compared.</param>
+/// <returns><c>0</c> if both values are equal, -1 if Value1 is less than Value2,
+///  1 otherwise</returns>
 function ZBCDCompare(var Value1, Value2: TBCD): Integer;
 
+/// <summary>defines a currency fraction rounding scale.</summary>
 Type TCurrRoundToScale = 0..4;
 
-{** EH:
-   round a currency value half away from zero to it's exact scale digits
-   @param Value the value to be rounded
-   @param Scale the exact scale digt we want to round valid is 0..4. even if 4 is a noop
-   @return a rounded value
-}
+/// <author>EgonHugeist</author>
+/// <summary>round a currency value half away from zero to it's exact scale
+///  digits.</summary>
+/// <param>"Value" the value to be rounded.</param>
+/// <param>"Scale" the exact scale digt we want to round valid is 0..4. even
+///  if 4 is a noop</param>
+/// <returns>a rounded value</returns>
 function RoundCurrTo(const Value: Currency; Scale: TCurrRoundToScale): Currency;
 
+/// <summary>defines a nano second fraction rounding scale.</summary>
 Type TFractionRoundToScale = 0..9;
 
-{** EH:
-   round a fraction cardinal value half away from zero to it's exact scale digits
-   @param Value the value to be rounded
-   @param Scale the exact scale digt we want to round valid is 0..9. even if 9 is a noop
-   @return a rounded value
-}
-function RoundNanoFractionTo(const Value: Cardinal; Scale: TFractionRoundToScale): Cardinal;
+/// <author>EgonHugeist</author>
+/// <summary>round a fraction cardinal value half away from zero to it's exact
+///  scale digits.</summary>
+/// <param>"Value" the value to be rounded.</param>
+/// <param>"Scale" the exact scale digt we want to round valid is 0..9. even
+///  if 9 is a noop</param>
+/// <returns>a rounded value</returns>
+function RoundNanoFractionTo(const Value: Cardinal;
+  Scale: TFractionRoundToScale): Cardinal;
 
+/// <author>EgonHugeist</author>
+/// <summary>Find a position of a Char using ASCII7 case insensitive
+///  comparsion.</summary>
+/// <param>"C" the Char to be searched.</param>
+/// <param>"Str" the String we search in.</param>
+/// <returns><c>0</c> if the char could not be found; The 1-based offset
+///  otherwise</returns>
 function CharPos_CI(C: Char; const Str: string): NativeInt;
 
-{** EH:
-   round a fraction cardinal value half away from zero
-   @param Value the value to be rounded
-   @return a rounded value with millisecond precision
-}
+/// <author>EgonHugeist</author>
+/// <summary>round a nano second fraction value up to milliseconds.</summary>
+/// <param>"Value" the value to be rounded.</param>
+/// <returns>a rounded value with millisecond precision</returns>
 function RoundNanoFractionToMillis(const Value: Cardinal): Word;
 
+Type
+  TZBCDScale = 0..MaxFMTBcdFractionSize;
+
+/// <author>EgonHugeist</author>
+/// <summary>rounds a TBCD half away from zero to it's given scale.</summary>
+/// <param>"Value" the value to be rounded.</param>
+/// <param>"Scale" the TZBCDScale used for rounding.</param>
+/// <param>"Precision" the new Precision after rounding.</param>
+procedure ZRoundBCD(var Value: TBCD; Scale: TZBCDScale; Out Precision: Word);
+
 var
+  /// <summary>defines a lookup table for Byte to Nibble conversions.</summary>
   ZBase100Byte2BcdNibbleLookup: array[0..99] of Byte;
+  /// <summary>defines a lookup table for Nibble to Byte conversions.</summary>
   ZBcdNibble2Base100ByteLookup: array[0..153] of Byte;
 
 const
-  // Local copy of current FormatSettings with '.' as DecimalSeparator and empty other fields
+  /// <summary>defines a local copy of current FormatSettings with '.' as
+  ///  DecimalSeparator and empty other fields</summary>
   FmtSettFloatDot: TFormatSettings = ( DecimalSeparator: {%H-}'.' );
+  /// <summary>defines a millisecond multiply table.</summary>
   MSecMulTable: array[1..3] of Word = (100,10,1);
+  /// <summary>defines a fraction to nanosecond multiply table.</summary>
   FractionLength2NanoSecondMulTable: array[0..9] of Cardinal = (
     0,
     100000000,
@@ -1343,7 +2209,7 @@ uses DateUtils, Math,
   {$IF defined(WITH_RTLCONSTS_SInvalidGuidArray) or defined(TLIST_IS_DEPRECATED)}RTLConsts,{$IFEND}
   SysConst,{keep it after RTLConst -> deprecated warning}
   {$IFDEF WITH_DBCONSTS}DBConsts,{$ENDIF}
-  ZFastCode;
+  ZFastCode, ZExceptions;
 
 const
   u4Zeros: UnicodeString = '0000';
@@ -1357,12 +2223,6 @@ var
   r8Zeros: RawByteString;
 {$ENDIF}
 
-{**
-  Determines a position of a first delimiter.
-  @param Delimiters a string with possible delimiters.
-  @param Str a string to be checked.
-  @return a position of the first found delimiter or 0 or -1(Zero based strings) if no delimiters was found.
-}
 function FirstDelimiter(const Delimiters, Str: string): Integer;
 var P: PChar absolute Str;
   PStart, PEnd, PDStart, PDEnd: PChar;
@@ -1385,12 +2245,6 @@ begin
   end;
 end;
 
-{**
-  Determines a position of a LAST delimiter.
-  @param Delimiters a string with possible delimiters.
-  @param Str a string to be checked.
-  @return a position of the last found delimiter or 0 if no delimiters was found.
-}
 function LastDelimiter(const Delimiters, Str: string): Integer;
 var P: PChar absolute Str;
   PStart, PEnd, PDStart, PDEnd: PChar;
@@ -1413,24 +2267,6 @@ begin
   end;
 end;
 
-{**
-  Compares two PWideChars without stopping at #0 (Unicode Version)
-  @param P1 first PWideChar
-  @param P2 seconds PWideChar
-  @return <code>True</code> if the memory at P1 and P2 are equal
-}
-function MemLCompUnicode(P1, P2: PWideChar; Len: Integer): Boolean;
-begin
-  Result := ZMemLComp(Pointer(P1), Pointer(P2), Len shl 1) = 0;
-end;
-
-{**  EH:
-  Compares two Pointers with a maximum len
-  @param P1 first PAnsiChar
-  @param P2 seconds PAnsiChar
-  @return <code>Integer</code> 0 if the memory at P1 and P2 are equal, otherwise
-    return the byte difference
-}
 function ZMemLComp(P1, P2: PAnsiChar; Len: Cardinal): Integer;
 Label Fail;
 var
@@ -1480,23 +2316,16 @@ Fail:
   end;
 end;
 
-{**
-  Compares two PAnsiChars without stopping at #0
-  @param P1 first PAnsiChar
-  @param P2 seconds PAnsiChar
-  @return <code>True</code> if the memory at P1 and P2 are equal
-}
+function MemLCompUnicode(P1, P2: PWideChar; Len: Integer): Boolean;
+begin
+  Result := ZMemLComp(Pointer(P1), Pointer(P2), Len shl 1) = 0;
+end;
+
 function MemLCompAnsi(P1, P2: PAnsiChar; Len: Integer): Boolean;
 begin
   Result := ZMemLComp(P1, P2, Len) = 0;
 end;
 
-{**
-  Checks is the string starts with substring.
-  @param Str a AnsiString/RaweByteString to be checked.
-  @param SubStr a AnsiString/RaweByteString to test at the start of the Str.
-  @return <code>True</code> if Str started with SubStr;
-}
 function StartsWith(const Str, SubStr: RawByteString): Boolean;
 var
   LenSubStr: Integer;
@@ -1511,13 +2340,7 @@ begin
   end;
 end;
 
-{**
-  Checks is the string starts with substring.
-  @param Str a WideString/UnicodeString to be checked.
-  @param SubStr a WideString/UnicodeString to test at the start of the Str.
-  @return <code>True</code> if Str started with SubStr;
-}
-function StartsWith(const Str, SubStr: ZWideString): Boolean;
+function StartsWith(const Str, SubStr: UnicodeString): Boolean;
 var
   LenSubStr: Integer;
 begin
@@ -1531,13 +2354,7 @@ begin
   end;
 end;
 
-{**
-  Checks is the string ends with substring.
-  @param Str a WideString/UnicodeString to be checked.
-  @param SubStr a WideString/UnicodeString to test at the end of the Str.
-  @return <code>True</code> if Str ended with SubStr;
-}
-function EndsWith(const Str, SubStr: ZWideString): Boolean;
+function EndsWith(const Str, SubStr: UnicodeString): Boolean;
 var
   LenSubStr: Integer;
   LenStr: Integer;
@@ -1554,12 +2371,6 @@ begin
   end;
 end;
 
-{**
-  Checks is the string ends with substring.
-  @param Str a AnsiString/RawbyteString to be checked.
-  @param SubStr a AnsiString/RawbyteString to test at the end of the Str.
-  @return <code>True</code> if Str ended with SubStr;
-}
 function EndsWith(const Str, SubStr: RawByteString): Boolean;
 var
   LenSubStr: Integer;
@@ -1577,14 +2388,6 @@ begin
   end;
 end;
 
-{** EH:
-  Converts SQL PAnsiChar into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @return a converted value or Def if conversion did fail.
-}
 function SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended;
   Len: NativeUInt = 0): Extended;
 begin
@@ -1661,14 +2464,6 @@ Fail:
   Result := False;
 end;
 
-{** EH:
-  Converts SQL PAnsiChar into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix
-  @param Value an Pointer to raw data we want to convert.
-  @param Def a default value if the value can not be converted.
-  @param Len the length of the buffer. If Len is zero we the buffer should be #0 terminated.
-  @param Result return a converted value or Def if conversion did fail.
-}
 procedure SQLStrToFloatDef(Value: PAnsiChar; const Def: Extended;
   out Result: Extended; Len: NativeUInt);
 var
@@ -1820,13 +2615,6 @@ begin
   end;
 end;
 
-{**
-  Converts SQL Unicode String into float value.
-  Possible is SQLFloat, Float, Hex, Money+Suffix and ThousandSeparators
-  @param Str an SQL AnsiString/RawByteString with comma or dot delimiter.
-  @param Def a default value if the string can not be converted.
-  @return a converted value or Def if conversion was failt.
-}
 function SQLStrToFloatDef(Value: PWideChar; const Def: Extended;
   Len: NativeUInt = 0): Extended;
 begin
@@ -2079,7 +2867,6 @@ begin
   end;
 end;
 
-{ Convert string buffer into pascal string }
 {$IFDEF UNICODE}
 function BufferToStr(Buffer: PWideChar; Length: Integer): string;
 {$ELSE}
@@ -2098,23 +2885,11 @@ begin
   {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Buffer^, Pointer(Result)^, Length);
 end;
 
-{**
-  Converts a string into boolean value.
-  @param Str a RawByteString value.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
 function StrToBoolEx(const Str: RawByteString; const CheckInt: Boolean = True): Boolean;
 begin
   Result := StrToBoolEx(PAnsiChar(Pointer(Str)), CheckInt, False);
 end;
 
-{**
-  Converts a string into boolean value.
-  @param Str a PAnsiChar value.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
 function StrToBoolEx(Str: PAnsiChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean;
 label SkipSpaces;
@@ -2163,14 +2938,6 @@ SkipSpaces: while PByte(Str)^ = Ord(' ') do Inc(Str);
     end;
 end;
 
-{**
-  Converts a string into boolean value.
-  @param Buf the raw string buffer.
-  @param PEnd the end of the string buffer, might be a trailing #0 term.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
 function StrToBoolEx(Buf, PEnd: PAnsiChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 var P: PAnsiChar;
@@ -2186,14 +2953,14 @@ begin
     Ord('y'): if (Pend-Buf) = 1 then
                 Result := True
               else if (Pend-Buf) = 3 then
-                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+1)^) or $20 = Ord('s'));
+                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+2)^) or $20 = Ord('s'));
     { test lowercase "ON" }
     Ord('o'): Result := (Pend-Buf = 2) and (Ord((Buf+1)^) or $20 = Ord('n'));
     { test lowercase "TRUE" / "T"}
     Ord('t'): if Pend-Buf = 1 then
                 Result := True
               else Result := (Pend-Buf = 4) and (Ord((Buf+1)^) or $20 = Ord('r')) and
-                (Ord((Buf+1)^) or $20 = Ord('u')) and (Ord((Buf+1)^) or $20 = Ord('e'));
+                (Ord((Buf+2)^) or $20 = Ord('u')) and (Ord((Buf+3)^) or $20 = Ord('e'));
     else begin
       P := PEnd;
       Result := CheckInt and (ValRawInt(Buf, P) <> 0) and (P = PEnd);
@@ -2201,23 +2968,11 @@ begin
   end;
 end;
 
-{**
-  Converts a string into boolean value.
-  @param Str a ZWideString value.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/<>0
-}
-function StrToBoolEx(const Str: ZWideString; const CheckInt: Boolean = True): Boolean;
+function StrToBoolEx(const Str: UnicodeString; const CheckInt: Boolean = True): Boolean;
 begin
   Result := StrToBoolEx(PWideChar(Pointer(Str)), CheckInt, False);
 end;
 
-{**
-  Converts a string into boolean value.
-  @param Str a PWideChar value.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/<>0
-}
 function StrToBoolEx(Str: PWideChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean;
 label SkipSpaces;
@@ -2266,14 +3021,6 @@ SkipSpaces: while PWord(Str)^ = Ord(' ') do Inc(Str);
     end;
 end;
 
-{**
-  Converts a string into boolean value.
-  @param Buf the usc2 string buffer.
-  @param PEnd the end of the string buffer, might be a trailing #0 term.
-  @param CheckInt Check for "0" char too?
-  @param IgnoreTrailingSaces Ignore trailing spaces for fixed char fields f.e.
-  @return <code>True</code> is Str = 'Y'/'YES'/'T'/'TRUE'/'ON'/<>0
-}
 function StrToBoolEx(Buf, PEnd: PWideChar; const CheckInt: Boolean = True;
   const IgnoreTrailingSaces: Boolean = True): Boolean; overload;
 var P: PWideChar;
@@ -2289,14 +3036,14 @@ begin
     Ord('y'): if (Pend-Buf) = 1 then
                 Result := True
               else if (Pend-Buf) = 3 then
-                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+1)^) or $20 = Ord('s'));
+                Result := (Ord((Buf+1)^) or $20 = Ord('e')) and (Ord((Buf+2)^) or $20 = Ord('s'));
     { test lowercase "ON" }
     Ord('o'): Result := (Pend-Buf = 2) and (Ord((Buf+1)^) or $20 = Ord('n'));
     { test lowercase "TRUE" / "T"}
     Ord('t'): if Pend-Buf = 1 then
                 Result := True
               else Result := (Pend-Buf = 4) and (Ord((Buf+1)^) or $20 = Ord('r')) and
-                (Ord((Buf+1)^) or $20 = Ord('u')) and (Ord((Buf+1)^) or $20 = Ord('e'));
+                (Ord((Buf+2)^) or $20 = Ord('u')) and (Ord((Buf+3)^) or $20 = Ord('e'));
     else begin
       P := PEnd;
       Result := CheckInt and (ValUnicodeInt(Buf, P) <> 0) and (P = PEnd);
@@ -2304,43 +3051,22 @@ begin
   end;
 end;
 
-{**
-  Converts a boolean into string value.
-  @param Bool a boolean value.
-  @return <code>"True"</code> or <code>"False"</code>
-}
-function BoolToUnicodeEx(Value: Boolean): ZWideString;
+function BoolToUnicodeEx(Value: Boolean): UnicodeString;
 begin
   Result := BoolStrsW[Value];
 end;
 
-{**
-  Converts a boolean into string value.
-  @param Bool a boolean value.
-  @return <code>"True"</code> or <code>"False"</code>
-}
 function BoolToRawEx(Value: Boolean): RawByteString;
 begin
   Result := BoolStrsRaw[Value];
 end;
 
-{**
-  Converts a boolean into native string value.
-  @param Bool a boolean value.
-  @return <code>"True"</code> or <code>"False"</code>
-}
 function BoolToStrEx(Value: Boolean): string;
 begin
   Result := BoolStrs[Value];
 end;
 
 {$IFDEF ENABLE_POSTGRESQL}
-{**
-  Checks if the specified string can represent an IP address.
-  @param Str a string value.
-  @return <code>True</code> if the string can represent an IP address
-    or <code>False</code> otherwise.
-}
 function IsIpAddr(const Str: string): Boolean;
 LAbel LExit;
 var
@@ -2421,54 +3147,35 @@ begin
     List.Add(Str);
 end;*)
 
-{**
-  Splits string using the multiple chars.
-  @param Str the source string
-  @param Delimiters the delimiters string
-  @return the result list where plased delimited string
-}
 function SplitString(const Str, Delimiters: string): TStrings;
+var Succeeded: Boolean;
 begin
   Result := TStringList.Create;
+  Succeeded := False;
   try
     SplitToStringList(Result, Str, Delimiters);
-  except
+    Succeeded := True;
+  finally
+    if not Succeeded then
+      FreeAndNil(Result);
+  end;
+  {except
     Result.Free;
     raise;
-  end;
+  end;}
 end;
 
-{**
-  Puts to list a splitted string using the multiple chars which replaces
-  the previous list content.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiters string
-}
 procedure PutSplitString(List: TStrings; const Str, Delimiters: string);
 begin
   List.Clear;
   SplitToStringList(List, Str, Delimiters);
 end;
 
-{**
-  Appends to list a splitted string using the multiple chars.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiters string
-}
 procedure AppendSplitString(List: TStrings; const Str, Delimiters: string);
 begin
   SplitToStringList(List, Str, Delimiters);
 end;
 
-{**
-  Composes a string from the specified strings list delimited with
-  a special character.
-  @param List a list of strings.
-  @param Delimiter a delimiter string.
-  @return a composed string from the list.
-}
 function ComposeString(List: TStrings; const Delimiter: string): string;
 var
   i, Len, DelimLen: Integer;
@@ -2477,8 +3184,7 @@ var
 begin
   DelimLen := Length(Delimiter);
   Len := 0;
-  if List.Count > 0 then
-  begin
+  if List.Count > 0 then begin
     Inc(Len, Length(List[0]));
     for i := 1 to List.Count - 1 do
       Inc(Len, DelimLen + Length(List[i]));
@@ -2486,28 +3192,20 @@ begin
   {$IFDEF FPC}Result := '';{$ENDIF}
   SetLength(Result, Len);
   P := Pointer(Result);
-  for i := 0 to List.Count - 1 do
-  begin
-    if (i > 0) and (DelimLen > 0) then
-    begin
+  for i := 0 to List.Count - 1 do begin
+    if (i > 0) and (DelimLen > 0) then begin
       {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Pointer(Delimiter)^, P^, DelimLen * SizeOf(Char));
       Inc(P, DelimLen);
     end;
     S := List[i];
     Len := Length(S);
-    if Len > 0 then
-    begin
+    if Len > 0 then begin
       {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Pointer(S)^, P^, Len * SizeOf(Char));
       Inc(P, Len);
     end;
   end;
 end;
 
-{**
-  Converts a float value into SQL string with '.' delimiter.
-  @param Value a float value to be converted.
-  @return a converted string value.
-}
 function FloatToSQLStr(Value: Extended): string;
 begin
   Result := FloatToStr(Value, FmtSettFloatDot);
@@ -2518,14 +3216,6 @@ begin
   Result := StrToFloat(Str, FmtSettFloatDot);
 end;
 
-{**
-  Split a single string using the delimiter, appending the resulting strings
-  to the List. (gto: New version, now unicode safe and without the bug which
-  adds a blank line before the last found string)
-  @param List a list to append the result.
-  @param Str the source string
-  @param Delimiters the delimiter string
-}
 procedure SplitToStringListEx(List: TStrings; const Str, Delimiter: string);
 var P: PChar absolute Str;
   temp: string;
@@ -2554,57 +3244,40 @@ begin
     if OffSet = 1
     then List.Add(Str)
     else begin
-      SetString(temp, (P+OffSet-1), (L-(OffSet-LD))-1);
+      SetString(temp, (P+OffSet-1), (L-OffSet+1));
       List.Add(temp);
     end;
 end;
 
-{**
-  Puts to list a splitted string using the delimiter string which replaces
-  the previous list content.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiter string
-}
 procedure PutSplitStringEx(List: TStrings; const Str, Delimiter: string);
 begin
   List.Clear;
   SplitToStringListEx(List, Str, Delimiter);
 end;
 
-{**
-  Splits string using the delimiter string.
-  @param Str the source string
-  @param Delimiters the delimiter string
-  @return the result list where plased delimited string
-}
 function SplitStringEx(const Str, Delimiter: string): TStrings;
+var Succeeded: Boolean;
 begin
   Result := TStringList.Create;
+  Succeeded := False;
   try
     SplitToStringListEx(Result, Str, Delimiter);
-  except
+    Succeeded := True;
+  finally
+    if not Succeeded then
+      FreeAndNil(Result);
+  end;
+  {except
     Result.Free;
     raise;
-  end;
+  end;}
 end;
 
-{**
-  Appends to list a splitted string using the delimeter string.
-  @param List a list with strings.
-  @param Str the source string
-  @param Delimiters the delimiters string
-}
 procedure AppendSplitStringEx(List: TStrings; const Str, Delimiter: string);
 begin
   SplitToStringListEx(List, Str, Delimiter);
 end;
 
-{**
-  Converts bytes into a AnsiString representation.
-  @param Value an array of bytes to be converted.
-  @return a converted AnsiString.
-}
 function BytesToStr(const Value: TBytes): RawByteString;
 {$IF defined(MISS_RBS_SETSTRING_OVERLOAD) and not defined(WITH_TBYTES_AS_RAWBYTESTRING)}
 var L: Integer;
@@ -2624,26 +3297,17 @@ begin
   {$ENDIF}
 end;
 
-{**
-  Converts a RawByteString into an array of bytes.
-  @param Value a RawByteString to be converted.
-  @return a converted array of bytes.
-}
 function StrToBytes(const Value: RawByteString): TBytes;
 var L: Integer;
 begin
   L := Length(Value);
   {$IFDEF FPC} Result := nil;{$ENDIF}
   SetLength(Result, L);
-  if Value <> '' then
+  if Value <> EmptyRaw then
     {$IFDEF FAST_MOVE}ZFastCode{$ELSE}System{$ENDIF}.Move(Pointer(Value)^, Pointer(Result)^, L);
 end;
 
-{**
-  Converts bytes into a variant representation.
-  @param Value an array of bytes to be converted.
-  @return a converted variant.
-}
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "operant..." marked as inline is not inlined}{$ENDIF}
 function BytesToVar(const Value: TBytes): Variant;
 var
   I: Integer;
@@ -2652,8 +3316,10 @@ begin
   for I := 0 to Length(Value) - 1 do
     Result[I] := Value[I];
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
 {$IFNDEF WITH_TBYTES_AS_RAWBYTESTRING}
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "operator := (const Source: Byte): Variant;" marked as inline is not inlined}{$ENDIF}
 function BytesToVar(const Value: RawByteString): Variant;
 var
   I: Integer;
@@ -2666,44 +3332,25 @@ begin
     Inc(P);
   end;
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 {$ENDIF WITH_TBYTES_AS_RAWBYTESTRING}
 
-{**
-  Converts variant into an array of bytes.
-  @param Value a varaint to be converted.
-  @return a converted array of bytes.
-}
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "operant..." marked as inline is not inlined}{$ENDIF}
 function VarToBytes(const Value: Variant): TBytes;
 var
-  I: Integer;
+  I, hb: Integer;
 begin
   {$IFDEF FPC}Result := nil;{$ENDIF}
   if not (VarIsArray(Value) and (VarArrayDimCount(Value) = 1) and
      ((VarType(Value) and VarTypeMask) = varByte)) then
-    raise Exception.Create(SInvalidVarByteArray);
-
-  SetLength(Result, VarArrayHighBound(Value, 1) + 1);
-  for I := 0 to VarArrayHighBound(Value, 1) do
+    raise EZSQLException.Create(SInvalidVarByteArray);
+  hb := VarArrayHighBound(Value, 1);
+  SetLength(Result, hb + 1);
+  for I := 0 to hb do
     Result[I] := Value[I];
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
-{**
-  Converts Ansi SQL Date (DateFormat) to TZDate
-  We do not check if the date is valid. We just convert the numers into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash
-  We do not check if the date is valid. We just try convert the numers into the
-  result record using the format-string.
-  @param Value a pointer to the raw encoded date string.
-  @param Len the length of the buffer
-  @param Dateformat a DateFormat string used for the convertion.
-  @param Result the record we write in.
-  @return @return <code>True</code> if the conversion was successful.
-}
 function TryRawToDate(Value: PAnsiChar; Len: Cardinal;
   const Format: String; var Date: TZDate): Boolean;
 var VEnd: PAnsiChar;
@@ -2759,21 +3406,6 @@ Next:   Inc(Value);
   Result := True;
 end;
 
-{** EH:
-  Converts raw SQL Date (DateFormat) to TZDate value
-  We do not check if the date is valid. We just convert the numers into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash
-  @param Value a pointer to the raw encoded date string.
-  @param Len the length of the buffer
-  @param Dateformat a DateFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
 function TryUniToDate(Value: PWideChar; Len: Cardinal;
   const Format: String; var Date: TZDate): Boolean;
 var VEnd: PWideChar;
@@ -2828,22 +3460,6 @@ IncF:   Inc(PF);
   Result := True;
 end;
 
-{** EH:
-  Converts raw SQL Time (TimeFormat) to TZTime value
-  We do not check if the time is valid. We just convert the numers into the
-  Result record using the Formatstring. Valid format tokens are:
-    'H'/'h' for the year,
-    'M'/'n'/'N','n' for the minute,
-    'S'/'s' for the seconds.
-    'Z'/'z' for the Fractions.
-    The hour may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,doubledot
-  @param Value a pointer to the raw encoded time string.
-  @param Len the length of the buffer
-  @param timeformat a TimeFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
 function TryRawToTime(Value: PAnsiChar; Len: Cardinal;
   const Format: String; var Time: TZTime): Boolean;
 var VEnd, PFDot: PAnsiChar;
@@ -2935,22 +3551,6 @@ zFlush: Inc(Value);
   Result := True;
 end;
 
-{** EH:
-  Converts uniocde SQL Time (TimeFormat) to TZTime value
-  We do not check if the time is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'H'/'h' for the year,
-    'M'/'n'/'N','n' for the minute,
-    'S'/'s' for the seconds.
-    'Z'/'z' for the Fractions.
-    The hour may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,doubledot
-  @param Value a pointer to the UTF16 encoded time string.
-  @param Len the length of the buffer
-  @param timeformat a TimeFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
 function TryUniToTime(Value: PWideChar; Len: Cardinal;
   const Format: String; var Time: TZTime): Boolean;
 var VEnd, PFDot: PWideChar;
@@ -3043,26 +3643,6 @@ zFlush: Inc(Value);
   Result := True;
 end;
 
-{** EH:
-  Converts raw SQL TimeStamp (TimeStampFormat) to TZTimeStamp value
-  We do not check if the time is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    'H'/'h' for the year,
-    'N','n' for the minute,
-    'S'/'s' for the seconds.
-    'Z'/'z' for the Fractions.
-    'P'/'p' for the UTC offset.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,dot,doubledot
-  @param Value a pointer to the raw encoded string.
-  @param Len the length of the buffer
-  @param format a TimeStampFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
 function TryRawToTimeStamp(Value: PAnsiChar; Len: Cardinal;
   const Format: String; var TimeStamp: TZTimeStamp): Boolean;
 var VEnd{End of value +1}, PTZ{remander of TimeZone sign},
@@ -3188,26 +3768,6 @@ zFlush: Inc(Value);
   Result := True;
 end;
 
-{** EH:
-  Converts unicode SQL TimeStamp (TimeStampFormat) to TZTimeStamp value
-  We do not check if the time is valid. We just convert !numers! into the
-  Result record using the Formatstring. Valid format tokens are:
-    'Y'/'y' for the year,
-    'M'/'n' for the month's,
-    'D'/'d' for the Day.
-    'H'/'h' for the year,
-    'N','n' for the minute,
-    'S'/'s' for the seconds.
-    'Z'/'z' for the Fractions.
-    'P'/'p' for the UTC offset.
-    The year may be negative using explicit '-' to sign as is.
-    Valid delimiters (if given) are space,minus,slash,backslash,dot,doubledot
-  @param Value a pointer to the UTF16 encoded string.
-  @param Len the length of the buffer
-  @param format a TimeStampFormat string used for the convertion.
-  @param Result the record we write in.
-  @return true if the conversion was successful.
-}
 function TryUniToTimeStamp(Value: PWideChar; Len: Cardinal;
   const Format: String; var TimeStamp: TZTimeStamp): Boolean;
 var VEnd{End of value +1}, PTZ{remander of TimeZone sign},
@@ -3424,7 +3984,6 @@ begin
   Date.IsNegative := TS.IsNegative;
 end;
 
-{** EH: overflow safe and exact comparision of pascal datetime values }
 function ZCompareDateTime(const Value1, Value2: TDateTime): Integer;
 var
   TS1, TS2: TTimeStamp;
@@ -3522,8 +4081,9 @@ begin
   Exit;
 end;
 
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "TS" does not seem to be intialized} {$ENDIF}
 function TryPCharToDate(P: PAnsiChar; Len: Cardinal;
-  const FormatSettings: TZFormatSettings; var Date: TZDate): Boolean;
+  const FormatSettings: TZClientFormatSettings; var Date: TZDate): Boolean;
 var TS: TZTimeStamp;
 begin
   if Len <= FormatSettings.DateFormatLen then begin
@@ -3531,7 +4091,7 @@ begin
     if not Result and not FormatCompare(FormatSettings.DateFormat, DefDateFormatYMD, FormatSettings.DateFormatLen) then
       Result := TryRawToDate(P,  Len, DefDateFormatYMD, Date);
   end else begin
-    Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS{%H-});
+    Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS);
     if Result then begin
       Date.Year := TS.Year;
       Date.Month := Ts.Month;
@@ -3541,9 +4101,11 @@ begin
       PInt64(@Date.Year)^ := 0;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "TS" does not seem to be intialized} {$ENDIF}
 function TryPCharToDate(P: PWideChar; Len: Cardinal;
-  const FormatSettings: TZFormatSettings; var Date: TZDate): Boolean;
+  const FormatSettings: TZClientFormatSettings; var Date: TZDate): Boolean;
 var TS: TZTimeStamp;
 begin
   if Len <= FormatSettings.DateFormatLen then begin
@@ -3551,7 +4113,7 @@ begin
     if not Result and not FormatCompare(FormatSettings.DateFormat, DefDateFormatYMD, FormatSettings.DateFormatLen) then
       Result := TryUniToDate(P,  Len, DefDateFormatYMD, Date);
   end else begin
-    Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS{%H-});
+    Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS);
     if Result then begin
       Date.Year := TS.Year;
       Date.Month := Ts.Month;
@@ -3561,9 +4123,11 @@ begin
       PInt64(@Date.Year)^ := 0;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "TS" does not seem to be intialized} {$ENDIF}
 function TryPCharToTime(P: PAnsiChar; Len: Cardinal;
-  const FormatSettings: TZFormatSettings; var Time: TZTime): Boolean;
+  const FormatSettings: TZClientFormatSettings; var Time: TZTime): Boolean;
 var TS: TZTimeStamp;
 begin
   Result := False;
@@ -3571,7 +4135,7 @@ begin
     if (PByte(P+2)^ = Ord(':')) or (Len = FormatSettings.TimeFormatLen)
     then Result := TryRawToTime(P, Len, FormatSettings.TimeFormat, Time)
     else begin
-      Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS{%H-});
+      Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS);
       if Result then begin
         Time.Hour := TS.Hour;
         Time.Minute := TS.Minute;
@@ -3585,9 +4149,11 @@ begin
     PInt64(@Time.Second)^ := 0;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "TS" does not seem to be intialized} {$ENDIF}
 function TryPCharToTime(P: PWideChar; Len: Cardinal;
-  const FormatSettings: TZFormatSettings; var Time: TZTime): Boolean;
+  const FormatSettings: TZClientFormatSettings; var Time: TZTime): Boolean;
 var TS: TZTimeStamp;
 begin
   Result := False;
@@ -3595,7 +4161,7 @@ begin
     if (PWord(P+2)^ = Ord(':')) or (Len = FormatSettings.TimeFormatLen)
     then Result := TryUniToTime(P, Len, FormatSettings.TimeFormat, Time)
     else begin
-      Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS{%H-});
+      Result := TryPCharToTimeStamp(P, Len, FormatSettings, TS);
       if Result then begin
         Time.Hour := TS.Hour;
         Time.Minute := TS.Minute;
@@ -3609,9 +4175,10 @@ begin
     PInt64(@Time.Second)^ := 0;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 function TryPCharToTimeStamp(P: PAnsiChar; Len: Cardinal;
-  const FormatSettings: TZFormatSettings; var TimeStamp: TZTimeStamp): Boolean;
+  const FormatSettings: TZClientFormatSettings; var TimeStamp: TZTimeStamp): Boolean;
 begin
   if (Len > 2) and (P <> nil) then
     if PByte(P+2)^ = Ord(':') then begin
@@ -3628,7 +4195,9 @@ begin
     end else begin
       PInt64(@TimeStamp.Hour)^ := 0;
       PInt64(@TimeStamp.Fractions)^ := 0;
-      Result := TryPCharToDate(P, Len, FormatSettings, PZDate(@TimeStamp.Year)^);
+      Result := TryRawToDate(P, Len, FormatSettings.DateFormat, PZDate(@TimeStamp.Year)^);
+      if not Result and not FormatCompare(FormatSettings.DateFormat, DefDateFormatYMD, 10) then
+        Result := TryRawToDate(P, Len, DefDateFormatYMD, PZDate(@TimeStamp.Year)^);
       TimeStamp.IsNegative := PZDate(@TimeStamp.Year).IsNegative;
       PZDate(@TimeStamp.Year).IsNegative := False;
     end
@@ -3636,7 +4205,7 @@ begin
 end;
 
 function TryPCharToTimeStamp(P: PWideChar; Len: Cardinal;
-  const FormatSettings: TZFormatSettings; var TimeStamp: TZTimeStamp): Boolean;
+  const FormatSettings: TZClientFormatSettings; var TimeStamp: TZTimeStamp): Boolean;
 begin
   if (Len > 2) and (P <> nil) then
     if PByte(P+2)^ = Ord(':') then begin
@@ -3652,41 +4221,42 @@ begin
     end else begin
       PInt64(@TimeStamp.Hour)^ := 0;
       PInt64(@TimeStamp.Fractions)^ := 0;
-      Result := TryPCharToDate(P, Len, FormatSettings, PZDate(@TimeStamp.Year)^);
+      Result := TryUniToDate(P, Len, FormatSettings.DateFormat, PZDate(@TimeStamp.Year)^);
+      if not Result and not FormatCompare(FormatSettings.DateFormat, DefDateFormatYMD, 10) then
+        Result := TryUniToDate(P, Len, DefDateFormatYMD, PZDate(@TimeStamp.Year)^);
       PZDate(@TimeStamp.Year).IsNegative := False;
       TimeStamp.IsNegative := PZDate(@TimeStamp.Year).IsNegative;
     end
   else Result := False;
 end;
 
-function TryPCharToDateTime(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var DateTime: TDateTime): Boolean;
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "TS" does not seem to be intialized} {$ENDIF}
+function TryPCharToDateTime(P: PAnsiChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var DateTime: TDateTime): Boolean;
 var TS: TZTimeStamp;
 begin
-  if TryPCharToTimeStamp(P, Len, FormatSettings, TS{%H-}) then
+  if TryPCharToTimeStamp(P, Len, FormatSettings, TS) then
     Result := TryTimeStampToDateTime(TS, DateTime)
   else begin
     Result := False;
     Datetime := 0;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
-function TryPCharToDateTime(P: PWideChar; Len: Cardinal; const FormatSettings: TZFormatSettings; var DateTime: TDateTime): Boolean;
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "TS" does not seem to be intialized} {$ENDIF}
+function TryPCharToDateTime(P: PWideChar; Len: Cardinal; const FormatSettings: TZClientFormatSettings; var DateTime: TDateTime): Boolean;
 var TS: TZTimeStamp;
 begin
-  if TryPCharToTimeStamp(P, Len, FormatSettings, TS{%H-}) then
+  if TryPCharToTimeStamp(P, Len, FormatSettings, TS) then
     Result := TryTimeStampToDateTime(TS, DateTime)
   else begin
     Result := False;
     Datetime := 0;
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
-{**
-  Converts Ansi SQL Date/Time (yyyy-mm-dd hh:nn:ss or yyyy-mm-dd hh:nn:ss.zzz)
-  to TDateTime
-  @param Value a date and time string.
-  @return a decoded TDateTime value.
-}
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "Hour, Min, Sec, MSec" does not seem to be intialized} {$ENDIF}
 function AnsiSQLDateToDateTime(P: PWideChar; L: LengthInt): TDateTime;
 var
   Year, Month, Day, Hour, Min, Sec, MSec: Word;
@@ -3735,6 +4305,7 @@ begin
       else Result := Result - Tmp
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 function AnsiSQLDateToDateTime(const Value: UnicodeString): TDateTime;
 var P: PWideChar;
@@ -3745,12 +4316,7 @@ begin
   else Result := AnsiSQLDateToDateTime(P, Length(Value));
 end;
 
-{**
-  Converts Ansi SQL Date/Time (yyyy-mm-dd hh:nn:ss or yyyy-mm-dd hh:nn:ss.zzz)
-  to TDateTime
-  @param Value a date and time string.
-  @return a decoded TDateTime value.
-}
+{$IFDEF FPC} {$PUSH} {$WARN 5057 off : hint local variable "Hour, Min, Sec, MSec" does not seem to be intialized} {$ENDIF}
 function AnsiSQLDateToDateTime(P: PAnsiChar; L: LengthInt): TDateTime;
 var
   Year, Month, Day, Hour, Min, Sec, MSec: Word;
@@ -3799,6 +4365,7 @@ begin
       else Result := Result - Tmp
   end;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 function AnsiSQLDateToDateTime(const Value: RawByteString): TDateTime;
 var P: PAnsiChar;
@@ -3809,49 +4376,18 @@ begin
   else Result := AnsiSQLDateToDateTime(P, Length(Value));
 end;
 
-{**
-  Converts DateTime value into a raw encoded string with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return a formated RawByteString with Date-Format pattern.
-}
 function DateTimeToRawSQLDate(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): RawByteString;
-var L, L2, Year, Month, Day: Word;
-  Buffer: array[0..cMaxDateLenQuoted] of AnsiChar;
-  P: PAnsiChar;
+var Year, Month, Day: Word;
 begin
   DecodeDate(Value, Year, Month, Day);
-  L := DateToRaw(Year, Month, Day, @Buffer[0],
-    ConFormatSettings.DateFormat, Quoted, False);
-  l2 := Length(Suffix);
-  {$IFDEF WITH_TBYTES_AS_RAWBYTESTRING}
-  ZSetString(nil, l+l2, Result);
-  {$ELSE}
-  System.SetString(Result, nil , L+L2);
-  {$ENDIF}
-  P := Pointer(Result);
-  Move(Buffer[0], P^, L);
-  if L2 > 0 then
-    Move(Pointer(Suffix)^, (P+L)^, L2);
+  Result := DateToRaw(Year, Month, Day,
+    ConFormatSettings.DateFormat, Suffix, Quoted, False);
 end;
 
-{** EH:
-  Converts DateTime value into a raw buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the raw buffer to write in.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return the length in bytes of written value.
-}
 function DateTimeToRawSQLDate(const Value: TDateTime; Buf: PAnsichar;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): Word;
 var L, Year, Month, Day: Word;
 begin
@@ -3865,19 +4401,6 @@ begin
   end;
 end;
 
-{** EH:
-  Converts date values into a buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Buf a raw buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in bytes of written value.
-}
 function DateToRaw(Year, Month, Day: Word; Buf: PAnsichar;
   const Format: String; Quoted, Negative: Boolean): Byte;
 var PStart: PAnsiChar;
@@ -3976,19 +4499,29 @@ Inc_dbl:          Inc(Buf, 2);
     Result := Buf-PStart;
 end;
 
-{** EH:
-  Converts date value into a UCS2 buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the UCS2 buffer to write in.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return the length in code-points of written value.
-}
+function DateToRaw(Year, Month, Day: Word; const Format: String; const Suffix: RawByteString;
+  Quoted, Negative: Boolean{$IFDEF WITH_RAWBYTESTRING}; CodePage: Word = $FFFF{$ENDIF}): RawByteString;
+var L, L2: Word;
+  Buffer: array[0..cMaxDateLenQuoted] of AnsiChar;
+  P: PWideChar;
+begin
+  L := DateToRaw(Year, Month, Day, @Buffer[0], Format, Quoted, Negative);
+  l2 := Length(Suffix);
+  Result := '';
+  {$IF defined(WITH_RAWBYTESTRING) or defined(WITH_TBYTES_AS_RAWBYTESTRING)}
+  ZSetString(nil, l+l2, Result{$IFDEF WITH_RAWBYTESTRING}, CodePage{$ENDIF});
+  {$ELSE}
+  System.SetString(Result, nil , L+L2);
+  {$IFEND}
+  P := Pointer(Result);
+  Move(Buffer[0], P^, L shl 1);
+  if L2 > 0 then
+    Move(Pointer(Suffix)^, (P+L)^, L2);
+end;
+
 function DateTimeToUnicodeSQLDate(const Value: TDateTime; Buf: PWideChar;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): word;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): word;
 var L, Year, Month, Day: Word;
 begin
   DecodeDate(Value, Year, Month, Day);
@@ -4001,19 +4534,6 @@ begin
   end;
 end;
 
-{** EH:
-  Converts date values into a buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Buf a UCS2 buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in code-points of written value.
-}
 function DateToUni(Year, Month, Day: Word; Buf: PWideChar;
   const Format: String; Quoted, Negative: Boolean): Byte;
 var PStart: PWideChar;
@@ -4112,18 +4632,25 @@ Inc_dbl:          Inc(Buf, 2);
     Result := Buf-PStart;
 end;
 
-{** EH:
-  Converts date value into a WideString/UnicodeString with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::date.
-  @return a formated WideString/UnicodeString with Date-Format pattern.
-}
+function DateToUni(Year, Month, Day: Word; const Format: String; const Suffix: UnicodeString;
+  Quoted, Negative: Boolean): UnicodeString; overload;
+var L, L2: Word;
+  Buffer: array[0..cMaxDateLenQuoted] of WideChar;
+  P: PWideChar;
+begin
+  L := DateToUni(Year, Month, Day, @Buffer[0], Format, Quoted, Negative);
+  l2 := Length(Suffix);
+  Result := '';
+  System.SetLength(Result, L+L2);
+  P := Pointer(Result);
+  Move(Buffer[0], P^, L shl 1);
+  if L2 > 0 then
+    Move(Pointer(Suffix)^, (P+L)^, L2 shl 1);
+end;
+
 function DateTimeToUnicodeSQLDate(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString): ZWideString;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString): UnicodeString;
 var L, L2, Year, Month, Day: Word;
   Buffer: array[0..cMaxDateLenQuoted] of WideChar;
   P: PWideChar;
@@ -4139,27 +4666,15 @@ begin
     Move(Pointer(Suffix)^, (P+L)^, L2 shl 1);
 end;
 
-{**
-  Converts DateTime value to native string
-}
 function DateTimeToSQLDate(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: string): string;
 begin
   Result := {$IFDEF UNICODE} DateTimeToUnicodeSQLDate {$ELSE} DateTimeToRawSQLDate {$ENDIF} (Value, ConFormatSettings, Quoted, Suffix);
 end;
 
-{** EH:
-  Converts time value into a raw encoded string with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return a formated RawByteString with Time-Format pattern.
-}
 function DateTimeToRawSQLTime(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): RawByteString;
 var l, l2, Hour, Minute, Second, MSec: Word;
   Buffer: array[0..cMaxTimeLenQuoted] of AnsiChar;
@@ -4180,18 +4695,8 @@ begin
     Move(Pointer(Suffix)^, (P+L)^, L2);
 end;
 
-{** EH:
-  Converts a time value into a raw buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the raw buffer to write in.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return the length in bytes of written value.
-}
 function DateTimeToRawSQLTime(const Value: TDateTime; Buffer: PAnsichar;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): Word;
 var l, Hour, Minute, Second, MSec: Word;
 begin
@@ -4205,18 +4710,6 @@ begin
   end;
 end;
 
-{** EH:
-  Converts a time values into a raw buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param Fractions a millisecond fraction value with range of 0..999.999.999
-  @param Buf the raw buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @return the length in bytes of written value.
-}
 function TimeToRaw(Hour, Minute, Second: Word; Fractions: Cardinal;
   Buf: PAnsichar; const Format: String; Quoted, IsNegative: Boolean): Byte;
 var PStart, ZStart: PAnsiChar;
@@ -4292,18 +4785,9 @@ Inc_dbl:          Inc(Buf, 2);
     Result := Buf-PStart;
 end;
 
-{** EH:
-  Converts a time value into a WideString/UnicodeString with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return a formated WideString/UnicodeString with Time-Format pattern.
-}
 function DateTimeToUnicodeSQLTime(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString): ZWideString;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString): UnicodeString;
 var l, l2, Hour, Minute, Second, MSec: Word;
   Buffer: array[0..cMaxTimeLenQuoted] of WideChar;
   P: PWideChar;
@@ -4319,19 +4803,9 @@ begin
     Move(Pointer(Suffix)^, (P+L)^, L2 shl 1);
 end;
 
-{** EH:
-  Converts a time value into a UCS2 buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf then UCS2 buffer to write in.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::time.
-  @return the length in codepoints of written value.
-}
 function DateTimeToUnicodeSQLTime(const Value: TDateTime; Buf: PWideChar;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): Word;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): Word;
 var l, Hour, Minute, Second, MSec: Word;
 begin
   DecodeTime(Value, Hour, Minute, Second, MSec);
@@ -4344,18 +4818,6 @@ begin
   end;
 end;
 
-{** EH:
-  Converts a time values into a UCS2 buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param Fractions a nanosecond fraction value with range of 0..999.999.999.
-  @param Buf the unicode buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @return the length in codepoints of written value.
-}
 function TimeToUni(Hour, Minute, Second: Word; Fractions: Cardinal;
   Buf: PWideChar; const Format: String; Quoted, IsNegative: Boolean): Byte;
 var PStart, ZStart: PWideChar;
@@ -4432,27 +4894,15 @@ Inc_dbl:          Inc(Buf, 2);
     Result := Buf-PStart;
 end;
 
-{**
-  Converts DateTime value to native string
-}
 function DateTimeToSQLTime(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: string): string;
 begin
   Result := {$IFDEF UNICODE} DateTimeToUnicodeSQLTime {$ELSE} DateTimeToRawSQLTime {$ENDIF} (Value, ConFormatSettings, Quoted, Suffix);
 end;
 
-{** EH:
-  Converts datetime value into a raw encoded string with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateTimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return a formated RawByteString with DateTime-Format pattern.
-}
 function DateTimeToRawSQLTimeStamp(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
+  const ConFormatSettings: TZClientFormatSettings;
   const Quoted: Boolean; const Suffix: RawByteString = EmptyRaw): RawByteString;
 var l, l2, Year, Month, Day, Hour, Minute, Second, MSec: Word;
   Buffer: array[0..cMaxTimeStampLenQuoted] of AnsiChar;
@@ -4473,18 +4923,8 @@ begin
     Move(Pointer(Suffix)^, (P+L)^, L2);
 end;
 
-{** EH:
-  Converts datetime value into a raw encoded buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf the raw buffer we write in.
-  @param ConFormatSettings then DateTimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return a formated RawByteString with DateTime-Format pattern.
-}
 function DateTimeToRawSQLTimeStamp(const Value: TDateTime; Buf: PAnsiChar;
-  const ConFormatSettings: TZFormatSettings; Quoted: Boolean;
+  const ConFormatSettings: TZClientFormatSettings; Quoted: Boolean;
   const Suffix: RawByteString = EmptyRaw): Word;
 var l, Year, Month, Day, Hour, Minute, Second, MSec: Word;
 begin
@@ -4498,23 +4938,6 @@ begin
   end;
 end;
 
-{** EH:
-  Converts date and time values into a raw buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param MSec a millisecond value with range of 0..999.
-  @param Buf the raw buffer we write in.
-  @param Format the result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in bytes of written value.
-}
 function DateTimeToRaw(Year, Month, Day, Hour, Minute, Second: Word;
   Fractions: Cardinal; Buf: PAnsiChar; const Format: String;
   Quoted, Negative: Boolean): Byte;
@@ -4654,19 +5077,9 @@ Inc_dbl:          Inc(Buf, 2);
     Result := Buf-PStart;
 end;
 
-{** EH:
-  Converts a datetime value into a UCS2 buffer with format pattern
-  @param Value a TDateTime value.
-  @param Buf then UCS2 buffer to write in.
-  @param ConFormatSettings then TimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return the length in codepoints of written value.
-}
 function DateTimeToUnicodeSQLTimeStamp(const Value: TDateTime; Buf: PWideChar;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): Word;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): Word;
 var l, Year, Month, Day, Hour, Minute, Second, MSec: Word;
 begin
   DecodeDateTime(Value, Year, Month, Day, Hour, Minute, Second, MSec);
@@ -4679,23 +5092,6 @@ begin
   end;
 end;
 
-{** EH:
-  Converts date and time values into a UCS2 buffer with format pattern
-  We don't take care for the ranges of the Values. That's users turn to do!
-  I'm aware year/month/day with value 0 do not exist but MySQL f.e. allows it!
-  @param Year a Year value with range of 0..9999.
-  @param Month a Month value with range of 0..12.
-  @param Day a Day value with range of 0..31.
-  @param Hour a hour value with range of 0..23.
-  @param Minute a minute value with range of 0..59.
-  @param Second a second value with range of 0..59.
-  @param MSec a millisecond value with range of 0..999.
-  @param Buf the unicode buffer we write in.
-  @param Format the !valid! result format.
-  @param Quoted if the result should be quoted.
-  @param Negative if the date is negative (i.e. bc).
-  @return the length in bytes of written value.
-}
 function DateTimeToUni(Year, Month, Day, Hour, Minute, Second: Word;
   Fractions: Cardinal; Buf: PWideChar; const Format: String;
   Quoted, Negative: Boolean): Byte;
@@ -4836,18 +5232,9 @@ Inc_dbl:          Inc(Buf, 2);
     Result := Buf-PStart;
 end;
 
-{** EH:
-  Converts datetime value into a Unicode/Widestring with format pattern
-  @param Value a TDateTime value.
-  @param ConFormatSettings then DateTimeFormat settings of the result.
-  @param Quoted if the result should be quoted.
-  @param Suffix a suffix string which can be appendened to the result String
-    i.e. Postgres ::timestamp.
-  @return a formated UCS2-String with DateTime-Format pattern.
-}
 function DateTimeToUnicodeSQLTimeStamp(const Value: TDateTime;
-  const ConFormatSettings: TZFormatSettings;
-  const Quoted: Boolean; const Suffix: ZWideString = ''): ZWideString;
+  const ConFormatSettings: TZClientFormatSettings;
+  const Quoted: Boolean; const Suffix: UnicodeString = ''): UnicodeString;
 var l, l2, Year, Month, Day, Hour, Minute, Second, MSec: Word;
   Buffer: array[0..cMaxTimeStampLenQuoted] of WideChar;
   P: PWideChar;
@@ -4863,12 +5250,7 @@ begin
     Move(Pointer(Suffix)^, (P+L)^, L2 shl 1);
 end;
 
-{**
-  Converts an string into escape PostgreSQL format.
-  @param Value a regular string.
-  @return a string in PostgreSQL escape format.
-}
-function EncodeCString(const Value: ZWideString): ZWideString;
+function EncodeCString(const Value: UnicodeString): UnicodeString;
 var
   I: Integer;
   SrcLength, DestLength: Integer;
@@ -4973,13 +5355,6 @@ begin
   end;
 end;
 
-{**
-  Converts a buffer from escape PostgreSQL format.
-  @param SrcLength the souce buffer length.
-  @param SrcBuffer the souce buffer.
-  @param SrcBuffer the destination buffer we write in.
-  @return Length of dest chars.
-}
 function DecodeCString(SrcLength: LengthInt; SrcBuffer, DestBuffer: PWideChar): LengthInt; overload;
 begin
   Result := 0;
@@ -5056,13 +5431,7 @@ begin
   end;
 end;
 
-{**
-  Converts a string from escape PostgreSQL format.
-  @param SrcLength the souce buffer length.
-  @param SrcBuffer the souce buffer.
-  @return a regular string.
-}
-procedure DecodeCString(SrcLength: LengthInt; SrcBuffer: PWideChar; out Result: ZWideString);
+procedure DecodeCString(SrcLength: LengthInt; SrcBuffer: PWideChar; out Result: UnicodeString);
 begin
   Result := '';
   SetLength(Result, SrcLength);
@@ -5071,34 +5440,21 @@ end;
 
 procedure DecodeCString(SrcLength: LengthInt; SrcBuffer: PAnsiChar; out Result: RawByteString);
 begin
-  Result := '';
+  Result := EmptyRaw;
   SetLength(Result, SrcLength);
   SetLength(Result, DecodeCString(SrcLength, SrcBuffer, Pointer(Result)));
 end;
 
-{**
-  Converts a string from escape PostgreSQL format.
-  @param Value a string in PostgreSQL escape format.
-  @return a regular string.
-}
 function DecodeCString(const Value: RawByteString): RawByteString;
 begin
   DecodeCString(Length(Value), Pointer(Value), Result);
 end;
 
-function DecodeCString(const Value: ZWideString): ZWideString;
+function DecodeCString(const Value: UnicodeString): UnicodeString;
 begin
   DecodeCString(Length(Value), Pointer(Value), Result);
 end;
 
-
-{**
-  Replace chars in the string
-  @param Source a char to search.
-  @param Target a char to replace.
-  @param Str a source string.
-  @return a string with replaced chars.
-}
 function ReplaceChar(const Source, Target: Char; const Str: string): string;
 var
   P: PChar;
@@ -5115,14 +5471,19 @@ begin
   end;
 end;
 
+procedure ReplaceChar(Var Str: string; const Source, Target: Char);
+var P, PEnd: PChar;
+begin
+  UniqueString(Str);
+  P := Pointer(Str);
+  PEnd := P + Length(Str);
+  while P < PEnd do begin
+    if P^ = Source then
+      P^ := Target;
+    Inc(P);
+  end;
+end;
 
-{**
-  Remove chars in the string.
-  More obvious and ~35 times faster than StringReplace(Str, ToRemove, '')
-  @param ToRemove a char to search and remove.
-  @param Str a source string.
-  @return a string with removed chars.
-}
 function RemoveChar(ToRemove: Char; const Str: string): string;
 var
   PSrc, PSrcEnd, PDest: PChar;
@@ -5151,13 +5512,6 @@ begin
   SetLength(Result, Len);
 end;
 
-{**
-  Append a string to another string separating the added string with delimiter.
-  Correctly processes cases where any of the arguments could be empty
-  @param Str source string to append to. If empty, resulting Str value will be AddStr
-  @param AddStr string to append. If empty, Str won't be changed
-  @param Delimiter string to separate AddStr from Str
-}
 procedure AppendSepString(var Str: string; const AddStr, Delimiter: string);
 begin
   if AddStr <> '' then
@@ -5167,24 +5521,6 @@ begin
       Str := Str + Delimiter + AddStr;
 end;
 
-{**
-  Break a string into two parts according to appearance of Delimiter.
-  @param Str source string
-  @param Delimiter separator string; Str=Left+Delimiter+Right
-  @param Left left part of Str from the start to the first Delimiter.
-    Equals to Str if Str doesn't contain Delimiter
-  @param Right left part of Str from the first Delimiter to the end.
-    Empty if Str doesn't contain Delimiter
-
-  NB: "var" modifier here allows using the same variable both as source and dest,
-  for ex. in a loop like
-    while Str <> '' do
-    begin
-      BreakString(Str, Delim, Fragment, Str);
-      ...
-    end;
-  "out" modifier will clear the value at the entry of the proc!
-}
 procedure BreakString(const Str, Delimiter: String; var Left, Right: String);
 var
   DelimPos, DelimLen: Integer;
@@ -5203,47 +5539,21 @@ begin
 end;
 
 
-{**
-  Decodes a full version value encoded with Zeos SQL format:
-   (major_version * 1,000,000) + (minor_version * 1,000) + sub_version
-  into separated major, minor and subversion values
-  @param FullVersion an integer containing the Full Version to decode.
-  @param MajorVersion an integer containing the Major Version decoded.
-  @param MinorVersion an integer containing the Minor Version decoded.
-  @param SubVersion an integer contaning the Sub Version (revision) decoded.
-}
 procedure DecodeSQLVersioning(const FullVersion: Integer;
  out MajorVersion: Integer; out MinorVersion: Integer;
  out SubVersion: Integer);
 begin
  MajorVersion := FullVersion div 1000000;
- MinorVersion := (FullVersion - (MajorVersion * 1000000)) div 1000;
- SubVersion   := FullVersion-(MajorVersion*1000000)-(MinorVersion*1000);
+ MinorVersion := (FullVersion - (MajorVersion * 1000000)) div 10000;
+ SubVersion   := FullVersion-(MajorVersion*1000000)-(MinorVersion*10000);
 end;
 
-{**
-  Encodes major, minor and subversion (revision) values in Zeos SQL format:
-   (major_version * 1,000,000) + (minor_version * 1,000) + sub_version
-  For example, 4.1.12 is returned as 4001012.
-  @param MajorVersion an integer containing the Major Version.
-  @param MinorVersion an integer containing the Minor Version.
-  @param SubVersion an integer containing the Sub Version (revision).
-  @return an integer containing the full version.
-}
 function EncodeSQLVersioning(const MajorVersion: Integer;
  const MinorVersion: Integer; const SubVersion: Integer): Integer;
 begin
- Result := (MajorVersion * 1000000) + (MinorVersion * 1000) + SubVersion;
+  Result := (MajorVersion * 1000000) + (MinorVersion * 10000) + SubVersion;
 end;
 
-{**
-  Formats a Zeos SQL Version format to X.Y.Z where:
-   X = major_version
-   Y = minor_version
-   Z = sub version
-  @param SQLVersion an integer
-  @return Formated Zeos SQL Version Value.
-}
 function FormatSQLVersion(const SQLVersion: Integer): string;
 var
    MajorVersion, MinorVersion, SubVersion: Integer;
@@ -5261,12 +5571,12 @@ begin
     else Result := ' AND ' + Condition;
 end;
 
-function ASCII7ToUnicodeString(const Src: RawByteString): ZWideString;
+function ASCII7ToUnicodeString(const Src: RawByteString): UnicodeString;
 begin
   Result := Ascii7ToUnicodeString(Pointer(Src), Length(Src));
 end;
 
-function ASCII7ToUnicodeString(Src: PAnsiChar; const Len: LengthInt): ZWideString;
+function ASCII7ToUnicodeString(Src: PAnsiChar; const Len: LengthInt): UnicodeString;
 var Source: PByteArray absolute Src;
   PEnd: PAnsiChar;
   Dest: PWordArray;
@@ -5298,7 +5608,39 @@ begin
   end;
 end;
 
-function UnicodeStringToASCII7(const Src: ZWideString): RawByteString;
+procedure ASCII7ToUnicodeString(Src: PAnsiChar; const Len: LengthInt; var Result: UnicodeString);
+var Source: PByteArray absolute Src;
+  PEnd: PAnsiChar;
+  Dest: PWordArray;
+begin
+  if Src = nil then begin
+    Result := '';
+    Exit;
+  end;
+  System.SetString(Result, nil, Len);
+  Dest := Pointer(Result);
+  PEnd := PAnsiChar(Source)+Len-8;
+  while PAnsiChar(Source) < PEnd do begin//making a octed processing loop
+    Dest[0] := Source[0];
+    Dest[1] := Source[1];
+    Dest[2] := Source[2];
+    Dest[3] := Source[3];
+    Dest[4] := Source[4];
+    Dest[5] := Source[5];
+    Dest[6] := Source[6];
+    Dest[7] := Source[7];
+    Inc(PWideChar(Dest), 8);
+    Inc(PAnsiChar(Src), 8);
+  end;
+  Inc(PEnd, 8);
+  while PAnsiChar(Source) < PEnd do begin//processing final bytes
+    Dest[0] := Source[0];
+    inc(PAnsiChar(Source));
+    inc(PWideChar(Dest));
+  end;
+end;
+
+function UnicodeStringToASCII7(const Src: UnicodeString): RawByteString;
 begin
   Result := UnicodeStringToASCII7(Pointer(Src), Length(Src));
 end;
@@ -5319,18 +5661,41 @@ begin
     {$ENDIF}
 {$R-}
     for i := 0 to len-1 do
-      BArr[i] := WArr[i]; //0..255 equals to widechars
+      BArr[i] := WArr[i]; //0..127 equals to widechars
 {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
   end;
 end;
 
+procedure UnicodeStringToASCII7(const Src: PWideChar; const Len: LengthInt; var Result: RawByteString);
+var i: integer;
+  BArr: PByteArray absolute Result;
+  WArr: PWordArray absolute Src;
+begin
+  if (Src = nil) or (Len = 0) then
+    Result := EmptyRaw
+  else begin
+    {$IFDEF MISS_RBS_SETSTRING_OVERLOAD}
+    Result := EmptyRaw; //speeds up SetLength x2
+    SetLength(Result, len);
+    {$ELSE}
+    System.SetString(Result,nil, Len);
+    {$ENDIF}
+{$R-}
+    for i := 0 to len-1 do
+      BArr[i] := WArr[i]; //0..127 equals to widechars
+{$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
+  end;
+end;
+
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "FloatToRaw" marked as inline is not inlined}{$ENDIF}
 function FloatToRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): RawByteString;
 var
   Buffer: array[0..63] of AnsiChar;
 begin
-  {$IFDEF FPC}Result := '';{$ENDIF}
-  ZSetString(PAnsiChar(@Buffer[0]), FloatToRaw(Value, @Buffer[0]), Result);
+  Result := '';
+  System.SetString(Result, PAnsiChar(@Buffer[0]), FloatToRaw(Value, @Buffer[0]));
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
 function FloatToRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PAnsiChar): LengthInt;
 {$IFDEF NEXTGEN}
@@ -5349,13 +5714,15 @@ begin
   {$ENDIF}
 end;
 
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "FloatToSqlRaw" marked as inline is not inlined}{$ENDIF}
 function FloatToSqlRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): RawByteString;
 var
   Buffer: array[0..63] of AnsiChar;
 begin
-  {$IFDEF FPC}Result := '';{$ENDIF}
-  ZSetString(PAnsiChar(@Buffer[0]), FloatToSqlRaw(Value, @Buffer[0]), Result);
+  Result := '';
+  System.SetString(Result, PAnsiChar(@Buffer[0]), FloatToSqlRaw(Value, @Buffer[0]));
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
 function FloatToSqlRaw(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PAnsiChar): LengthInt;
 {$IFDEF NEXTGEN}
@@ -5374,12 +5741,15 @@ begin
   {$ENDIF}
 end;
 
-function FloatToUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): ZWideString;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "FloatToUnicode" marked as inline is not inlined}{$ENDIF}
+function FloatToUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): UnicodeString;
 var
   Buffer: array[0..63] of WideChar;
 begin
+  Result := '';
   System.SetString(Result, PWideChar(@Buffer[0]), FloatToUnicode(Value, @Buffer[0]));
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
 function FloatToUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PWideChar): LengthInt;
 {$IFNDEF UNICODE}
@@ -5397,12 +5767,15 @@ begin
   {$ENDIF}
 end;
 
-function FloatToSqlUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): ZWideString;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "FloatToSqlUnicode" marked as inline is not inlined}{$ENDIF}
+function FloatToSqlUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}): UnicodeString;
 var
   Buffer: array[0..63] of WideChar;
 begin
+  Result := '';
   System.SetString(Result, PWideChar(@Buffer[0]), FloatToSqlUnicode(Value, @Buffer[0]));
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
 function FloatToSqlUnicode(const Value: {$IFDEF CPU64}Double{$ELSE}Extended{$ENDIF}; Buf: PWideChar): LengthInt;
 {$IFNDEF UNICODE}
@@ -5487,15 +5860,6 @@ type
   PNormTableByte = ^TNormTableByte;
   TNormTableByte = packed array[byte] of byte;
 
-{**
- fast conversion from hexa chars into binary data from Arnaud Bouchez
-// - BinBytes contain the bytes count to be converted: Hex^ must contain
-//  at least BinBytes*2 chars to be converted, and Bin^ enough space
-// - if Bin=nil, no output data is written, but the Hex^ format is checked
-// - return false if any invalid (non hexa) char is found in Hex^
-// - using this function with Bin^ as an integer value will decode in big-endian
-// order (most-signignifican byte first)
-*}
 function HexToBin(Hex: PAnsiChar; Bin: PByte; BinBytes: Integer): Boolean; overload;
 var I: Integer;
     B,C: NativeUInt;//PtrUInt;
@@ -5669,7 +6033,6 @@ begin
   GUIDToBuffer(@GUID.D1, P, Options);
 end;
 
-//EgonHugeist: my conversion is 10x faster than IDE's
 function GUIDToRaw(const GUID: TGUID; WithBrackets: Boolean): RawByteString;
 var Options: TGUIDConvOptions;
   P: PAnsiChar;
@@ -5694,7 +6057,7 @@ begin
   GUIDToBuffer(Buffer, P, Options);
 end;
 
-//EgonHugeist: my conversion is 10x faster than IDE's
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "GUIDToBuffer" marked as inline is not inlined}{$ENDIF}
 function GUIDToRaw(const Bts: TBytes; WithBrackets: Boolean): RawByteString;
 var Options: TGUIDConvOptions;
   P: PAnsiChar;
@@ -5703,12 +6066,14 @@ begin
     raise EArgumentException.CreateResFmt(@SInvalidGuidArray, [16]);
   Options := [];
   if WithBrackets then include(Options, guidWithBrackets);
-  ZSetString(nil, 36+(Ord(WithBrackets) shl 1), Result{%H-});
+  Result := '';
+  SetLength(Result, 36+(Ord(WithBrackets) shl 1));
   P := Pointer(Result);
   GUIDToBuffer(Pointer(Bts), P, Options);
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
-function GUIDToUnicode(const GUID: TGUID; const Options: TGUIDConvOptions): ZWideString;
+function GUIDToUnicode(const GUID: TGUID; const Options: TGUIDConvOptions): UnicodeString;
 var P: PWideChar;
 begin
   ZSetString(nil, 36+((Ord(guidWithBrackets in Options)+Ord(guidQuoted in Options)) shl 1), Result{%H-});
@@ -5716,28 +6081,29 @@ begin
   GUIDToBuffer(@GUID.D1, P, Options);
 end;
 
-procedure GUIDToUnicode(Value: PGUID; const Options: TGUIDConvOptions; var Result: ZWideString);
+procedure GUIDToUnicode(Value: PGUID; const Options: TGUIDConvOptions; var Result: UnicodeString);
 var P: PWideChar;
 begin
-  ZSetString(nil, 36+((Ord(guidWithBrackets in Options)+Ord(guidQuoted in Options)) shl 1), Result{%H-});
+  Result := '';
+  SetLength(Result, 36+((Ord(guidWithBrackets in Options)+Ord(guidQuoted in Options)) shl 1));
   P := Pointer(Result);
   GUIDToBuffer(Value, P, Options);
 end;
 
-//EgonHugeist: my conversion is 10x faster than IDE's
-function GUIDToUnicode(const GUID: TGUID; WithBrackets: Boolean): ZWideString;
+function GUIDToUnicode(const GUID: TGUID; WithBrackets: Boolean): UnicodeString;
 var Options: TGUIDConvOptions;
   P: PWideChar;
 begin
   Options := [];
   if WithBrackets then include(Options, guidWithBrackets);
-  ZSetString(nil, 36+(Ord(WithBrackets) shl 1), Result{%H-});
+  Result := '';
+  SetLength(Result, 36+(Ord(WithBrackets) shl 1));
   P := Pointer(Result);
   GUIDToBuffer(@GUID.D1, P, Options);
 end;
 
-//EgonHugeist: my conversion is 10x faster than IDE's
-function GUIDToUnicode(const Bts: TBytes; WithBrackets: Boolean): ZWideString;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$PUSH}{$WARN 6058 off : Call to subroutine "GUIDToBuffer" marked as inline is not inlined}{$ENDIF}
+function GUIDToUnicode(const Bts: TBytes; WithBrackets: Boolean): UnicodeString;
 var Options: TGUIDConvOptions;
   P: PWideChar;
 begin
@@ -5745,12 +6111,14 @@ begin
     raise EArgumentException.CreateResFmt(@SInvalidGuidArray, [16]);
   Options := [];
   if WithBrackets then include(Options, guidWithBrackets);
-  ZSetString(nil, 36+(Ord(WithBrackets) shl 1), Result{%H-});
+  Result := '';
+  SetLength(Result, 36+(Ord(WithBrackets) shl 1));
   P := Pointer(Result);
   GUIDToBuffer(Pointer(Bts), P, Options);
 end;
+{$IFDEF WITH_NOT_INLINED_WARNING}{$POP}{$ENDIF}
 
-function GUIDToUnicode(Buffer: Pointer; Len: Byte; WithBrackets: Boolean = True): ZWideString; overload;
+function GUIDToUnicode(Buffer: Pointer; Len: Byte; WithBrackets: Boolean = True): UnicodeString; overload;
 var Options: TGUIDConvOptions;
   P: PWideChar;
 begin
@@ -5758,7 +6126,8 @@ begin
     raise EArgumentException.CreateResFmt(@SInvalidGuidArray, [16]);
   Options := [];
   if WithBrackets then include(Options, guidWithBrackets);
-  ZSetString(nil, 36+(Ord(WithBrackets) shl 1), Result{%H-});
+  Result := '';
+  SetLength(Result, 36+(Ord(WithBrackets) shl 1));
   P := Pointer(Result);
   GUIDToBuffer(Buffer, P, Options);
 end;
@@ -5788,13 +6157,7 @@ procedure InvalidGUID(C: Char);
 begin
   raise EArgumentException.CreateResFmt(@SInvalidGUID, [String(C)]);
 end;
-{**
-  EgonHugeist: my conversion is 1,5x faster than IDE's
-  converty hex-dezimal guid-string into a binary format
-  @param Src a Pointer to the ansi Source-String
-  @param Dest a Pointer to a 16-Bytes buffer
-    Note it works with TGUID using @GUID.D1 and all other Buffers
-}
+
 procedure ValidGUIDToBinary(Src, Dest: PAnsiChar);
   function HexChar(c: AnsiChar): Byte;
   begin
@@ -5845,13 +6208,6 @@ begin
   if not ((Ord(Src^) = Ord('}')) or (Ord(Src^) = Ord(#0))) then InvalidGUID(Char(Src^));
 end;
 
-{**
-  EgonHugeist: my conversion is 1,5x faster than IDE's
-  converty hex-dezimal unicode guid-string into a binary format
-  @param Src a Pointer to the Unicode Source-String
-  @param Dest a Pointer to a 16-Bytes buffer
-    Note it works with TGUID using @GUID.D1 and all other Buffers
-}
 procedure ValidGUIDToBinary(Src: PWideChar; Dest: PAnsiChar);
   function HexChar(c: WideChar): Byte;
   begin
@@ -5902,10 +6258,8 @@ begin
   if not ((Src^ = '}') or (Src^ = #0)) then InvalidGUID(Char(Src^));
 end;
 
-{**
-  Standard quoting: Result := Quote + Double_Quotes(Src, Quote) + Quote
-}
-function SQLQuotedStr(Src: PWideChar; Len: LengthInt; Quote: WideChar): ZWideString; overload;
+{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
+function SQLQuotedStr(Src: PWideChar; Len: LengthInt; Quote: WideChar): UnicodeString; overload;
 var
   P, Dest, PEnd, PFirst: PWideChar;
 begin
@@ -5917,12 +6271,12 @@ begin
     if (P^=Quote) then begin
       if Dest = nil then
         PFirst := P;
-      Inc({%H-}NativeUInt(Dest));
+      Inc(NativeUInt(Dest));
     end;
     Inc(P);
   end;
   if Dest = nil then begin
-    {$IFDEF FPC} Result := '';{$ENDIF}
+    Result := '';
     System.SetLength(Result, Len+2);
     Dest := Pointer(Result);
     Dest^ := Quote;
@@ -5934,14 +6288,14 @@ begin
     Dest^ := Quote;
     Exit;
   end;
-  SetLength(Result, Len + {%H-}NativeInt(Dest) + 2);
+  SetLength(Result, Len + NativeInt(NativeUint(Dest)) + 2);
   Dest := Pointer(Result);
   Dest^ := Quote;
   Inc(Dest);
   P := PFirst;
   repeat
     Inc(P);
-    Move(Src^, Dest^, (P - Src) shl 1);
+    Move(Src^, Dest^, (NativeUInt(P) - NativeUInt(Src)));
     Inc(Dest, (P - Src));
     Dest^ := Quote;
     Inc(Dest);
@@ -5950,16 +6304,18 @@ begin
       then Break
       else Inc(P);
   until P = PEnd;
-  Move(Src^, Dest^, (PEnd - Src) shl 1);
+  Move(Src^, Dest^, (NativeUInt(PEnd) - NativeUInt(Src)));
   Inc(Dest, PEnd - Src);
   Dest^ := Quote;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
-function SQLQuotedStr(const S: ZWideString; Quote: WideChar): ZWideString;
+function SQLQuotedStr(const S: UnicodeString; Quote: WideChar): UnicodeString;
 begin
   Result := SQLQuotedStr(Pointer(S), Length(S), Quote);
 end;
 
+{$IFDEF FPC} {$PUSH} {$WARN 4055 off : Conversion between ordinals and pointers is not portable} {$ENDIF}
 function SQLQuotedStr(Src: PAnsiChar; Len: LengthInt; Quote: AnsiChar): RawByteString;
 var
   P, Dest, PEnd, PFirst: PAnsiChar;
@@ -5972,7 +6328,7 @@ begin
     if (AnsiChar(P^)=Quote) then begin
       if Dest = nil then
         PFirst := P;
-      Inc({%H-}NativeUInt(Dest));
+      Inc(NativeUInt(Dest));
     end;
     Inc(P);
   end;
@@ -5989,7 +6345,7 @@ begin
     AnsiChar(Dest^) := Quote;
     Exit;
   end;
-  SetLength(Result, Len + {%H-}NativeInt(Dest) + 2);
+  SetLength(Result, Len + NativeInt(NativeUint(Dest)) + 2);
   Dest := Pointer(Result);
   AnsiChar(Dest^) := Quote;
   Inc(Dest);
@@ -6009,16 +6365,13 @@ begin
   Inc(Dest, PEnd - Src);
   AnsiChar(Dest^) := Quote;
 end;
+{$IFDEF FPC} {$POP} {$ENDIF}
 
 function SQLQuotedStr(const S: RawByteString; Quote: AnsiChar): RawByteString;
 begin
   Result := SQLQuotedStr(Pointer(S), Length(S), Quote);
 end;
 
-{**
-  Standard quoting with 2 quoting chars: Result := QuoteLeft + Double_Quotes(Src, QuoteLeft, QuoteRight) + QuoteRight
-  This version is a bit slower than that with one quoting char so use it only when QuoteLeft <> QuoteRight
-}
 function SQLQuotedStr(Src: PChar; Len: LengthInt; QuoteLeft, QuoteRight: Char): string;
 var
   EscChars: LengthInt;
@@ -6468,7 +6821,7 @@ begin
   Result := Trim(P, StrLen(P));
 end;
 
-function Trim(P: PWideChar; L: LengthInt): ZWideString;
+function Trim(P: PWideChar; L: LengthInt): UnicodeString;
 var PEnd: PWideChar;
 begin
   PEnd := P + L -1;
@@ -6568,7 +6921,7 @@ end;
 {$IFEND}
 
 {$IFNDEF UNICODE}
-function Trim(const Value: ZWideString): ZWideString; overload;
+function Trim(const Value: UnicodeString): UnicodeString; overload;
 var
   P, PEnd: PWideChar;
 begin
@@ -6590,10 +6943,6 @@ begin
 end;
 {$ENDIF}
 
-{**
-   Creates a memory stream with copy of data in buffer.
-   If buffer contains no data, creates an empty stream.
-}
 function StreamFromData(Buffer: Pointer; Size: Integer): TMemoryStream;
 begin
   Result := TMemoryStream.Create;
@@ -6601,7 +6950,7 @@ begin
   Result.Position := 0;
 end;
 
-function StreamFromData(const AString: ZWideString): TMemoryStream;
+function StreamFromData(const AString: UnicodeString): TMemoryStream;
 begin
   Result := StreamFromData(Pointer(AString), Length(AString)*SizeOf(WideChar));
 end;
@@ -6618,11 +6967,6 @@ begin
 end;
 {$ENDIF}
 
-{** EH:
-   Encode a currency value to a TBCD
-   @param value the currency to be converted
-   @param Result the slow Delphi result bcd record to be filled
-}
 {$R-} {$Q-}
 procedure Currency2Bcd(const Value: Currency; var Result: TBCD);
 var V2: UInt64;
@@ -6643,12 +6987,6 @@ end;
 const
   SignSpecialPlacesArr: Array[Boolean] of Byte = ($00, $80);
 
-{** EH:
-   Encode a scaled signed longlong to a TBCD
-   @param value the longlong to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-}
 procedure ScaledOrdinal2Bcd(const Value: Int64; Scale: Byte; var Result: TBCD); overload;
 var V2: UInt64;
   iRec: Int64Rec absolute V2;
@@ -6666,13 +7004,6 @@ begin
   {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 end;
 
-{** EH:
-   Encode a scaled unsigned longlong to a TBCD
-   @param value the longlong to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-   @param Negative the converted value was negative
-}
  {$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: UInt64; Scale: Byte; var Result: TBCD; Negative: Boolean);
 var V2: UInt64;
@@ -6696,6 +7027,7 @@ begin
   end;
   LastWasZero := True;
   LastPlace := ((Precision - 1) shr 1);
+  PCardinal(@Result.Fraction[LastPlace+1])^ := 0; //some compilers read over lastnibble (FPC+XE10.3x64 f.e.)
   if (Precision and 1) = 1 then
     if Digits = 1 then begin
       Result.Fraction[LastPlace] := Byte(Value) shl 4;
@@ -6739,12 +7071,6 @@ end;
 {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
 {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
-{** EH:
-   Encode a scaled signed long to a TBCD
-   @param value the long to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-}
 {$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: Integer; Scale: Byte; var Result: TBCD);
 begin
@@ -6755,13 +7081,6 @@ end;
 {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
 {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
-{** EH:
-   Encode a scaled unsigned long to a TBCD
-   @param value the longlong to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-   @param Negative the converted value was negative
-}
 {$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: Cardinal; Scale: Byte; var Result: TBCD; Negative: Boolean);
 var Precision, V2, B, LastPlace, FirstPlace, Place, Digits: Cardinal; //B: D7 int overflow -> reason unknown
@@ -6770,9 +7089,7 @@ label Done;
 begin
   Digits := GetOrdinalDigits(Value);
   if (Digits = 1) and (byte(Value) = 0) then begin
-    Result.Fraction[0] := 0;
-    Result.Precision := 1;
-    Result.SignSpecialPlaces := 0;
+    PCardinal(@Result.Precision)^ := ZInitZeroBCD;
     Exit;
   end;
   if Digits < Scale then begin
@@ -6785,6 +7102,7 @@ begin
   end;
   LastWasZero := True;
   LastPlace := ((Precision - 1) shr 1);
+  PCardinal(@Result.Fraction[LastPlace+1])^ := 0; //some compilers read over lastnibble (FPC+XE10.3x64 f.e.)
   if Precision and 1 = 1 then
     if Digits = 1 then begin
       Result.Fraction[LastPlace] := Byte(Value) shl 4;
@@ -6828,12 +7146,6 @@ end;
 {$IFDEF RangeCheckEnabled} {$R+} {$ENDIF}
 {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 
-{** EH:
-   Encode a scaled signed short to a TBCD
-   @param value the short to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-}
 procedure ScaledOrdinal2Bcd(Value: SmallInt; Scale: Byte; var Result: TBCD); overload;
 begin
   {$R-} {$Q-}
@@ -6844,13 +7156,6 @@ begin
   {$IFDEF OverFlowCheckEnabled} {$Q+} {$ENDIF}
 end;
 
-{** EH:
-   Encode a scaled unsigned short to a TBCD
-   @param value the short to be converted
-   @param Scale the scale digits
-   @param Result the slow Delphi result bcd record to be filled
-   @param Negative the converted value was negative
-}
 {$R-} {$Q-}
 procedure ScaledOrdinal2Bcd(Value: Word; Scale: Byte; var Result: TBCD; Negative: Boolean);
 var Precision, V2, B, LastPlace, FirstPlace, Digits: Word; //B: D7 int overflow -> reason unknown
@@ -6859,9 +7164,7 @@ label Done;
 begin
   Digits := GetOrdinalDigits(Value);
   if (Digits = 1) and (byte(Value) = 0) then begin
-    Result.Fraction[0] := 0;
-    Result.Precision := 1;
-    Result.SignSpecialPlaces := 0;
+    PCardinal(@Result.Precision)^ := ZInitZeroBCD;
     Exit;
   end;
   if Digits < Scale then begin
@@ -6873,6 +7176,7 @@ begin
     FirstPlace := 0;
   end;
   LastPlace := ((Precision - 1) shr 1);
+  PCardinal(@Result.Fraction[LastPlace+1])^ := 0; //some compilers read over lastnibble (FPC+XE10.3x64 f.e.)
   LastWasZero := True;
   if Precision and 1 = 1 then
     if Digits = 1 then begin
@@ -6958,7 +7262,7 @@ begin
   SetLength(Result, L-(PResEnd-PRes));
 end;
 
-function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: ZWideString): ZWideString;
+function StringReplaceAll_CS_LToEQ(const Source, OldPattern, NewPattern: UnicodeString): UnicodeString;
 var PSrc, PEnd: PWideChar;
   POld: PWideChar absolute OldPattern;
   PNew: PWideChar absolute NewPattern;
@@ -6998,6 +7302,97 @@ begin
   SetLength(Result, L-(PResEnd-PRes));
 end;
 
+function StringReplaceAll_CS_GToEQ(const Source, OldPattern, NewPattern: RawByteString): RawByteString; overload;
+var Cnt, LOld, LNew, LSrc, I, OffSet: Integer;
+  PSrc, PNewP, PDest, PEnd: PAnsiChar;
+begin
+  Cnt := 0;
+  OffSet := 1;
+  LOld := Length(OldPattern);
+  while true do begin
+    OffSet := ZFastCode.PosEx(OldPattern, Source, OffSet);
+    if OffSet = 0 then
+      Break;
+    Inc(Cnt);
+    Inc(OffSet, LOld);
+  end;
+  if Cnt = 0 then begin
+    Result := Source;
+    Exit;
+  end;
+  LNew := Length(NewPattern);
+  Assert(LNew >= LOld);
+  Result := EmptyRaw;
+  I := (LNew - LOld);
+  I := ((I * Cnt) + Length(Source));
+  SetLength(Result, I);
+  PDest := Pointer(Result);
+  PSrc  := Pointer(Source);
+  LSrc := Length(Source);
+  PEnd := PSrc+LSrc;
+  PNewP := Pointer(NewPattern);
+  OffSet := ZFastCode.PosEx(OldPattern, Source, 1);
+  I := OffSet-1;
+  repeat
+    Move(PSrc^, PDest^, I);
+    Inc(PDest, Cardinal(I));
+    Inc(PSrc, Cardinal(I+LOld));
+    Move(PNewP^, PDest^, LNew);
+    Inc(PDest, Cardinal(LNew));
+    OffSet := OffSet + LOld;
+    I := OffSet;
+    OffSet := ZFastCode.PosEx(OldPattern, Source, OffSet);
+    I := OffSet - I;
+  until OffSet = 0;
+  if (PSrc <= PEnd) then
+    Move(PSrc^, PDest^, (PAnsiChar(PEnd)-PAnsiChar(PSrc)));
+end;
+
+function StringReplaceAll_CS_GToEQ(const Source, OldPattern, NewPattern: UnicodeString): UnicodeString;
+var Cnt, LOld, LNew, LSrc, I, OffSet: Integer;
+  PSrc, PNewP, PDest, PEnd: PWideChar;
+begin
+  Cnt := 0;
+  OffSet := 1;
+  LOld := Length(OldPattern);
+  while true do begin
+    OffSet := ZFastCode.PosEx(OldPattern, Source, OffSet);
+    if OffSet = 0 then
+      Break;
+    Inc(Cnt);
+    Inc(OffSet, LOld);
+  end;
+  if Cnt = 0 then begin
+    Result := Source;
+    Exit;
+  end;
+  LNew := Length(NewPattern);
+  Assert(LNew >= LOld);
+  Result := '';
+  I := (LNew - LOld);
+  I := ((I * Cnt) + Length(Source));
+  SetLength(Result, I);
+  PDest := Pointer(Result);
+  PSrc  := Pointer(Source);
+  LSrc := Length(Source);
+  PEnd := PSrc+LSrc;
+  PNewP := Pointer(NewPattern);
+  OffSet := ZFastCode.PosEx(OldPattern, Source, 1);
+  I := (OffSet-1);
+  repeat
+    Move(PSrc^, PDest^, I shl 1);
+    Inc(PDest, Cardinal(I));
+    Inc(PSrc, Cardinal(I+LOld));
+    Move(PNewP^, PDest^, LNew shl 1);
+    Inc(PDest, Cardinal(LNew));
+    OffSet := OffSet + LOld;
+    I := OffSet;
+    OffSet := ZFastCode.PosEx(OldPattern, Source, OffSet);
+    I := OffSet - I;
+  until OffSet = 0;
+  if (PSrc <= PEnd) then
+    Move(PSrc^, PDest^, (PAnsiChar(PEnd)-PAnsiChar(PSrc)));
+end;
 
 procedure RaiseBcd2OrdException(P, PEnd: PChar);
 var S: String;
@@ -7006,7 +7401,7 @@ begin
   raise EConvertError.CreateResFmt(@SInvalidInteger, [S])
 end;
 
-procedure BCD2Int64(const Value: TBCD; out Result: Int64);
+procedure BCD2Int64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD; out Result: Int64);
 var Buf: array[0..MaxFMTBcdFractionSize+2] of Char;
  P, PEnd, PFail: PChar;
 begin
@@ -7018,17 +7413,17 @@ begin
     RaiseBcd2OrdException(P, PEnd);
 end;
 
-function BCD2Int64(const Value: TBCD): Int64;
+function BCD2Int64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): Int64;
 begin
   BCD2Int64(Value, Result);
 end;
 
-procedure BCD2UInt64(const Value: TBCD; out Result: UInt64);
+procedure BCD2UInt64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD; out Result: UInt64);
 begin
   Result := {$IFDEF UNICODE}UnicodeToUInt64Def{$ELSE}RawToUInt64Def{$ENDIF}(BcdToStr(Value), Uint64(0));
 end;
 
-function BCD2UInt64(const Value: TBCD): UInt64;
+function BCD2UInt64({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): UInt64;
 var Buf: array[0..MaxFMTBcdFractionSize+2] of Char;
  P, PEnd, PFail: PChar;
 begin
@@ -7040,12 +7435,12 @@ begin
     RaiseBcd2OrdException(P, PEnd);
 end;
 
-function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
+function TryUniToBcd(const Value: UnicodeString; var Bcd: TBcd{$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}; const FormatSettings: TFormatSettings{$ENDIF}): Boolean; overload;
 begin
   Result := TryUniToBCD(Value, BCD, {$IFDEF HAVE_BCDTOSTR_FORMATSETTINGS}FormatSettings.DecimalSeparator{$ELSE}'.'{$ENDIF});
 end;
 
-function TryUniToBcd(const Value: ZWideString; var Bcd: TBcd; DecimalSep: Char): Boolean;
+function TryUniToBcd(const Value: UnicodeString; var Bcd: TBcd; DecimalSep: Char): Boolean;
 begin
   if Value = ''
   then Result := False
@@ -7141,8 +7536,8 @@ CheckPos:
     goto Fail;
 Finalize:
   if Pos = 0 then begin //zero
-    Bcd.Precision := 10;
-    Bcd.SignSpecialPlaces := 2;
+    Bcd.Precision := 1;//10 = delphi/FPC defaults for a zero BCD are disturbing the FPC users
+    Bcd.SignSpecialPlaces := 0; //2 = delphi/FPC defaults for a zero BCD are disturbing the FPC users
   end else begin
     if Pos > MaxFMTBcdFractionSize
     then goto Fail;
@@ -7258,8 +7653,8 @@ CheckPos:
     goto Fail;
 Finalize:
   if Pos = 0 then begin //zero
-    Bcd.Precision := 10;
-    Bcd.SignSpecialPlaces := 2;
+    Bcd.Precision := 1;//10 = delphi/FPC defaults for a zero BCD are disturbing the FPC users
+    Bcd.SignSpecialPlaces := 0; //2 = delphi/FPC defaults for a zero BCD are disturbing the FPC users
   end else begin
     if Pos > MaxFMTBcdFractionSize
     then goto Fail;
@@ -7319,10 +7714,13 @@ begin
   { padd leading zeroes away }
   while (Precision > 1) and (Precision > Scale) do begin
     if PByte(pNibble)^ = 0 then begin
-      Inc(PNibble);
-      Dec(Precision, 1+Ord(Precision > 1));
+      Dec(Precision);
       Result := True;
-      Continue;
+      if (Precision > 1) and (Precision > Scale) then begin
+        Inc(PNibble);
+        Dec(Precision);
+        Continue;
+      end else GetFirstBCDHalfByte := False;
     end else if (PByte(pNibble)^ shr 4) = 0 then begin
       GetFirstBCDHalfByte := False;
       Dec(Precision);
@@ -7351,22 +7749,27 @@ end;
 procedure ZPackBCDToLeft(var Value: TBCD; var PNibble, PLastNibble: PAnsiChar;
   Precision, Scale: Word; GetFirstBCDHalfByte: Boolean);
 var PFirstNibble: PAnsiChar;
+  B: Byte absolute GetFirstBCDHalfByte;
 begin
   PFirstNibble := @Value.Fraction[0];
   if (PFirstNibble < PNibble) or not GetFirstBCDHalfByte then begin
-    if GetFirstBCDHalfByte then begin
+    if GetFirstBCDHalfByte then //byte move
       while PNibble <= PLastNibble do begin
         PFirstNibble^ := PNibble^;
         Inc(PNibble);
         Inc(PFirstNibble);
-      end;
-    end else begin
-      while PNibble < PLastNibble do begin
-        PByte(PFirstNibble)^ := Byte((PByte(PNibble)^ and $0F) shl 4) or Byte(PByte(PNibble+1)^ shr 4);
+      end
+    else begin {move half nibbles:
+       /\/\/\/\/\/\...
+      /\/\/\/\/\/... }
+      B := PByte(PNibble)^ and $0F; //save second half byte
+      while (PNibble < PLastNibble) do begin
+        PByte(PFirstNibble)^ := (B shl 4) or (PByte(PNibble+1)^ shr 4);
         Inc(PNibble);
+        B := PByte(PNibble)^ and $0F; //second half byte
         Inc(PFirstNibble);
       end;
-      PByte(PFirstNibble)^ := (PByte(PNibble)^ and $0F) shl 4
+      PByte(PFirstNibble)^ := (B shl 4);
     end;
   end;
   PNibble := @Value.Fraction;
@@ -7376,12 +7779,6 @@ begin
   Value.SignSpecialPlaces := Scale or SignSpecialPlacesArr[GetFirstBCDHalfByte];
 end;
 
-{** EH:
-   compare two bcd's
-   @param Value1 the first value to be compared return a packet bcd if not packet
-   @param Value2 the second value to be compared return a packet bcd if not packet
-   @return 0 if equal or -1 if value1 is smaller than value2 or 1 if value1 is smaller than value2
-}
 function ZBCDCompare(var Value1, Value2: TBCD): Integer;
 var PNibble1, PNibble2, PLastNibble1, PLastNibble2, PNibble, PLastNibble: PAnsiChar;
     Prec1, Prec2, Scale1, Scale2: Word;
@@ -7394,7 +7791,7 @@ begin
     if GetPacketBCDOffSets(Value1, pNibble1, pLastNibble1, Prec1, Scale1, GetFB1) then
       ZPackBCDToLeft(Value1, pNibble1, pLastNibble1, Prec1, Scale1, GetFB1);
     if GetPacketBCDOffSets(Value2, pNibble2, pLastNibble2, Prec2, Scale2, GetFB2) then
-      ZPackBCDToLeft(Value2, pNibble2, pNibble2, Prec2, Scale2, GetFB2);
+      ZPackBCDToLeft(Value2, pNibble2, pLastNibble2, Prec2, Scale2, GetFB2);
     {determine digits before fractions start: }
     s1 := Integer(Prec1)-Scale1;
     s2 := Integer(Prec2)-Scale2;
@@ -7443,79 +7840,15 @@ begin
   end;
 end;
 
-function BcdToSQLRaw(const Value: TBCD): RawByteString;
+function BcdToSQLRaw({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): RawByteString;
 var Digits: array[0..MaxFMTBcdFractionSize-1+1{sign}+1{dot}] of AnsiChar;
 begin
   {$IFDEF FPC}Result := '';{$ENDIF}
   ZSetString(PAnsiChar(@Digits[0]), BcdToRaw(Value, @Digits[0], '.'),Result)
 end;
 
-{  Egonhugeist:
-  Each half byte represents one nibble from 0..9 High nibble first means we read
-  big endian order from left to right. First half byte will be left shift by 4,
-  second will be added to first half byte. There are no other knwon rules!
-  All bytes until Precison div 2 must be valid. All trailing bytes are ignored.
-  Loops are done without half byte conversions.
-
-  Human readable examples to show what i mean:
-  Precison: 10 Scale: 8  Value: 12.34567891
-  FN DN       LN
-  12.34 56 78 91 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
-  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
-  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
-  0..9                          10 .. 19                      20..29                        30..31<-
-  Precison: 11 Scale: 8  Value: 12.34567891
-  FN  DN          LN
-  01 2.3 45 67 89 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00<-nibbles
-  \/ \/ \/ \/  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
-  n0,n1,n2,n3, n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
-  0..9                          10 .. 19                      20..29                        30..31
-  Precison: 11 Scale: 9  Value: 12.345678901
-  FN DN         LN
-  12.34 56 78 90 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
-  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
-  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
-  0..9                          10 .. 19                      20..29                        30..31
-  Precison: 17 Scale: 8  Value: 12.34567891
-           FN DN        LN
-  00 00 00 01 2.3 45 67 89 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
-  \/ \/ \/ \/  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
-  n0,n1,n2,n3, n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
-  0..9                          10 .. 19                      20..29                        30..31
-  Precison: 10 Scale: 0  Value: 1188888888
-  FN                   LN DN
-  11 88 88 88 88 88 88 88 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
-  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
-  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
-  0..9                          10 .. 19                      20..29                        30..31
-  Precison: 17 Scale: 0  Value: 1188888888
-                                       DN
-        FN                       LN    Pr
-  00 00 01 18 88 88 88 88 88 88 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 <-nibbles
-  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
-  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
-  0..9                          10 .. 19                      20..29                        30..31
-
-  Precison: 64 Scale: 0  Value: 1
-        FN                       LN    Pr
-  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 <-nibbles
-  \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/
-  n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1,n2,n3,n4,n5,n6,n7,n8,n9,n0,n1 <-bytes
-  0..9                          10 .. 19                      20..29                        30..31
-
-  FN is the nibble we start with. It's possible 2. half byte written and first half byte is zero.
-  LN is the nibble we end. It's possible 1. half byte written and second half byte is ignored.
-  DN is the decimal pos nibble. If Odd prec it's the nibble where second half byte is after the
-     decimal separator else it's the double nibble after the decimal separator.
-}
-{** EH:
-   convert a BCD record into a raw buffer
-   @param Bcd the value to be converted
-   @param Buf the buffer we write into
-   @param DecimalSep the decimal-seperator
-   @return the count of bytes we wrote into the buffer
-}
-function BcdToRaw(const Bcd: TBcd; Buf: PAnsiChar; DecimalSep: Char): LengthInt;
+function BcdToRaw({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Bcd: TBcd;
+  Buf: PAnsiChar; DecimalSep: Char): LengthInt;
 var
   PBuf, pCN{current nibble}, pDN{decimal nibble}, pLN{last bibble}, pFN{firts nibble}: PAnsiChar;
   Scale, Precision, i: Integer;
@@ -7580,14 +7913,7 @@ zero: Result := 1;
   Result := (Buf-PBuf);
 end;
 
-{** EH:
-   convert a BCD record into a UTF16 buffer
-   @param Bcd the value to be converted
-   @param Buf the buffer we write into
-   @param DecimalSep the decimal-seperator
-   @return the count of words we wrote into the buffer
-}
-function BcdToUni(const Bcd: TBcd; Buf: PWideChar; DecimalSep: Char): LengthInt;
+function BcdToUni({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Bcd: TBcd; Buf: PWideChar; DecimalSep: Char): LengthInt;
 var
   pCN{current nibble}, pDN{decimal nibble}, pLN{last bibble}, pFN{firts nibble}: PAnsiChar;
   PBuf: PWideChar;
@@ -7664,7 +7990,7 @@ begin
   Result := RawToBCD(Pointer(Value), Length(Value));
 end;
 
-function BcdToSQLUni(const Value: TBCD): ZWideString;
+function BcdToSQLUni({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} Value: TBCD): UnicodeString;
 var Digits: array[0..MaxFMTBcdFractionSize-1+1{sign}+1{dot}] of WideChar;
 begin
   {$IFDEF FPC}Result := '';{$ENDIF}
@@ -7677,7 +8003,7 @@ begin
     raise EBcdException.CreateFmt(SInvalidBcdValue, [Value]);
 end;
 
-function UniToBCD(const Value: ZWideString): TBCD;
+function UniToBCD(const Value: UnicodeString): TBCD;
 begin
   Result := UniToBCD(Pointer(Value), Length(Value));
 end;
@@ -7691,12 +8017,6 @@ const CInt64Table:    array[TCurrRoundToScale]  of Int64   = (10000, 1000, 100, 
 const PosHalfModulos: array [TCurrRoundToScale] of Integer = ( 4445,  445,  45,  5, 0);
 const NegHalfModulos: array [TCurrRoundToScale] of Integer = (-4445, -445, -45, -5, 0);
 
-{** EH:
-   round a currency value half away from zero to it's exact scale digits
-   @param Value the value to be rounded
-   @param Scale the exact scale digt we want to round valid is 0..4. even if 4 is a nop
-   @return a rounded value
-}
 function RoundCurrTo(const Value: Currency; Scale: TCurrRoundToScale): Currency;
 var Modulo: Integer;
   {$IFNDEF CPU64}
@@ -7731,12 +8051,6 @@ end;
 const HalfFractModulos:     array [TFractionRoundToScale] of Cardinal = ( 444444445, 44444445,  4444445,  444445,  44445,  4445,  445, 45, 5,0);
 const FractionRoundSummant: array [TFractionRoundToScale] of Cardinal = (1000000000,100000000, 10000000, 1000000, 100000, 10000, 1000,100,10,1);
 
-{** EH:
-   round a fraction cardinal value half away from zero to it's exact scale digits
-   @param Value the value to be rounded
-   @param Scale the exact scale digt we want to round valid is 0..8. even if 9 is a noop
-   @return a rounded value
-}
 function RoundNanoFractionTo(const Value: Cardinal; Scale: TFractionRoundToScale): Cardinal;
 var Modulo: Cardinal;
 begin
@@ -7751,11 +8065,6 @@ begin
   end else Result := Value;
 end;
 
-{** EH:
-   round a fraction cardinal value half away from zero
-   @param Value the value to be rounded
-   @return a rounded value with millisecond precision
-}
 function RoundNanoFractionToMillis(const Value: Cardinal): Word;
 var F, Modulo: Cardinal;
 begin
@@ -7764,6 +8073,60 @@ begin
   Modulo := Value - F;
   if Modulo >= HalfFractModulos[3] then
     Result := Result + 1;
+end;
+
+procedure ZRoundBCD(var Value: TBCD; Scale: TZBCDScale; Out Precision: Word);
+var PNibble, PLastNibble: PAnsiChar;
+  BcdScale, BcdPrecision: Word;
+  Negative: Boolean;
+  Current, Prior, Remainder: Byte;
+begin
+  BcdScale := Scale;
+  if GetPacketBCDOffSets(Value, PNibble, PLastNibble, Precision, BcdScale, Negative) then
+    ZPackBCDToLeft(Value, pNibble, pLastNibble, Precision, BcdScale, Negative);
+  if BcdScale <= Scale then Exit; //left packing did the job
+  Negative := (Value.SignSpecialPlaces and $80) = $80;
+  Remainder := 0;
+  Value.SignSpecialPlaces := 9;
+  BcdPrecision := Precision;
+  if Precision < MaxFMTBcdFractionSize-1 then
+    PByte(PLastNibble+1)^ := 0; //clear overlong nibble in case Remainder is not zero after loop
+  while (BcdPrecision > 0) and ((BcdScale > Scale) or Boolean(Remainder)) do begin
+    if Odd(BcdPrecision) then begin
+      Current := PByte(PLastNibble)^ shr 4;
+      PByte(PLastNibble)^ := 0;
+      Dec(PLastNibble);
+      Prior := PByte(PLastNibble)^ and $0F;
+    end else begin
+      Current := PByte(PLastNibble)^ and $0F;
+      Prior := PByte(PLastNibble)^ shr 4;
+    end;
+    Current := Current + Remainder;
+    if (Current >= 5) then
+      if (Prior = 9)
+      then Remainder := 1
+      else begin
+        Remainder := 0;
+        Inc(Prior);
+        if Odd(BcdPrecision) then begin
+          Current := PByte(PLastNibble)^ shr 4;
+          PByte(PLastNibble)^ := (Current shl 4) or Prior;
+        end else
+          PByte(PLastNibble)^ := Prior shl 4;
+      end;
+    if (BcdScale > 0) and (Precision >= BcdScale) then begin
+      Dec(Precision);
+      Dec(BcdScale);
+    end;
+    Dec(BcdPrecision)
+  end;
+  if Remainder <> 0 then begin//all walues have been rounded to 10
+    BcdScale := 0;
+    PByte(PNibble)^ := 1 shl 4;
+    Inc(Precision);
+  end;
+  Value.Precision := Precision;
+  Value.SignSpecialPlaces := SignSpecialPlacesArr[Negative] or BcdScale;
 end;
 
 function CharPos_CI(C: Char; const Str: string): NativeInt;
@@ -7820,7 +8183,7 @@ begin
     TwoDigitLookupHexW[i] := PWord(Pointer(RawByteString(Hex)))^;
     {$ELSE}
     TwoDigitLookupHexW[i] := PWord(Pointer(Hex))^;
-    TwoDigitLookupHexLW[i] := PCardinal(Pointer(ZWideString(Hex)))^;
+    TwoDigitLookupHexLW[i] := PCardinal(Pointer(UnicodeString(Hex)))^;
     {$ENDIF}
   end;
   {$IFDEF NO_RAW_HEXTOBIN}

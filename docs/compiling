@@ -1,11 +1,18 @@
                                 Compiling slFtp
 -------------------------------------------------------------------------------
 
+Basic dependencies
+------------------
+on debian:
+    apt install make binutils zlib1g-dev libncurses-dev libsqlite3-dev libssl-dev fpc-3.2.0
+
 Requirements
 ------------
 on UNIX:
-    We currently _only_ support compilation using fpc 3.2+ (currently a beta version).
-    You can also use fpc 3.3.1 (trunk). This is a daily snapshot release and might be unstable.
+    We currently _only_ support compilation using fpc 3.2+.
+    You can also use fpc 3.3.x (trunk) at https://www.freepascal.org/develop.var
+    This is a daily snapshot release and may be unstable.
+
 
     If you want to compile it yourself, see fpc_howto file and figure it out yourself.
     If you have a GUI available, use https://github.com/LongDirtyAnimAlf/fpcupdeluxe
@@ -17,12 +24,11 @@ on WINDOWS:
 OpenSSL
 -------
 on UNIX:
-    - We recommend to use the included libinstaller.sh script. -
+    - We recommend to use the included libinstaller.sh script in docs/ directory. -
 
-    NOTE: OpenSSL 1.1.* isn't supported yet.
-
-    wget https://www.openssl.org/source/openssl-1.0.2s.tar.gz
-    tar xf openssl-1.0.2*.tar.gz
+    wget https://www.openssl.org/source/openssl-1.1.1k.tar.gz
+    tar xf openssl-1.1.1k.tar.gz
+    cd openssl-1.1.1k
     ./config shared
     make
     cp lib*.so /path/to/your/slftp/
@@ -36,7 +42,12 @@ on WINDOWS:
 SQLite
 ------
 on UNIX:
-    - We recommend to use the included libinstaller.sh script. -
+    - We recommend to use the included libinstaller.sh script in docs/ directory. -
+    wget https://www.sqlite.org/2021/sqlite-amalgamation-3360000.zip
+    unzip sqlite-amalgamation-3360000.zip
+    cd sqlite-amalgamation-3360000/
+    gcc -c -fPIC sqlite3.c && gcc -shared -o libsqlite3.so -fPIC sqlite3.o -ldl -lpthread
+    cp libsqlite3.so /path/to/your/slftp/
 
 on WINDOWS:
     Download 'Precompiled Binaries for Windows' from https://www.sqlite.org/download.html
@@ -53,7 +64,7 @@ MySQL and MariaDB support requires appropriate libraries (MySQL/MariaDB Client).
 You also need to add an user to your Database with read and write privileges.
 
 on UNIX:
-	- We recommend to use the included libinstaller.sh script. -
+	- We recommend to use the included libinstaller.sh script in docs/ directory. -
 
 	compile your own library and copy it into slftp folder.
 	https://dev.mysql.com/downloads/connector/c/

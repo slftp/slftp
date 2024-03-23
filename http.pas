@@ -13,8 +13,8 @@ function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: Strin
 implementation
 
 uses
-  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdSSLOpenSSL, IdCompressorZLib, IdSocks, configunit,
-  mslproxys, IdExceptionCore;
+  SysUtils, StrUtils, debugunit, math, IdHTTP, IdURI, IdOpenSSLIOHandlerClient, IdCompressorZLib, IdSocks, configunit,
+  mslproxys, {$IFNDEF UNICODE}IdGlobal,{$ENDIF} IdExceptionCore;
 
 const
   section = 'http';
@@ -31,7 +31,7 @@ label
   TryAgain;
 var
   fIdHTTP: TIdHTTP;
-  fIdSSLIOHandlerSocketOpenSSL: TIdSSLIOHandlerSocketOpenSSL;
+  fIdSSLIOHandlerSocketOpenSSL: TIdOpenSSLIOHandlerClient;
   fIdSocksInfo: TIdSocksInfo;
   fEncodedUrl: String;
   fProxyname: String;
@@ -119,9 +119,9 @@ begin
       end;
 
       // secure connection setup
-      fIdSSLIOHandlerSocketOpenSSL := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+      fIdSSLIOHandlerSocketOpenSSL := TIdOpenSSLIOHandlerClient.Create(nil);
       // negotiate highest possible SSL version between client and server
-      fIdSSLIOHandlerSocketOpenSSL.SSLOptions.SSLVersions := [sslvSSLv23];
+      fIdSSLIOHandlerSocketOpenSSL.Options.VerifyServerCertificate := False;
 
       // set socks5 proxy if configured to use one
       if fIdSocksInfo <> nil then
@@ -140,7 +140,14 @@ begin
         with fIdHTTP do
         begin
           try
-            aRecvStr := Get(fEncodedUrl);
+            {$IFNDEF UNICODE}
+              // in case of utf8 response content it gets converted correctly to unicode
+              // but the string in FPC is still ansistring and thus the unicode is converted
+              // back by Indy defaults user encoding Ascii => so set UTF8 encoding explicitly
+              aRecvStr := Get(fEncodedUrl, IndyTextEncoding_UTF8);
+            {$ELSE}
+              aRecvStr := Get(fEncodedUrl);
+            {$ENDIF}
           except
             on e: EIdReadTimeout do
             begin
@@ -179,7 +186,13 @@ begin
       Result := True;
 
     finally
+      if fIdHTTP.Compressor <> nil then
+        fIdHTTP.Compressor.Free;
+
       fIdHTTP.Free;
+
+      if fIdSSLIOHandlerSocketOpenSSL <> nil then
+        fIdSSLIOHandlerSocketOpenSSL.Free;
     end;
   except
     on e: Exception do

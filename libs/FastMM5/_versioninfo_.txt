@@ -1,3 +1,2 @@
-071acc9586dfe0963f3195e5049c4bcfcb763962
-
-Fix a Delphi Seattle and earlier compiler error introduced in previous commit
+4ec5b305f000a3b60357732a10f59c0321cae0ed
+Rebuild the precompiled BorlndMM.dll libraries from the latest source using Delphi 11.3.

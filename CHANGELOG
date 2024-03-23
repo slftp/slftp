@@ -37,7 +37,7 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      none so far
+      reduced_speedstat_weight=0
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -45,13 +45,41 @@
 
 --==============================( KNOWN BUGS )====================================-
 
-    OpenSSL v1.1.* isn't supported yet
     Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
     Dirlist confusion on linux development builds causing wrong skip files output (#265)
 
---=============================( SLFTP v1.5.8 )===================================-
+--=============================( SLFTP v1.5.10 )==================================-
+    {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
+    {#} Fix bugs which caused some mp3 genres not to be recognized and setting mp3genres be ignored (#322)
+    {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
+    {^} Improve caching of skiplist values for dirlist
 
+--=============================( SLFTP v1.5.9 )===================================-
+    {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site
+    {#} sort destinations on KB level to make sure the highest ranked sites get race tasks created first before the queue sort
+    {#} Fixed an issue which could cause autodirlists to stop working on very busy sites when queue clean is enabled
+    {#} Rules for all sites (*) were not being persisted if split_site_data was enabled. Those are now saved into {admin_sitename}.rtpl
+    {^} Allow to disable creating the 'already on site' dir when req filling by setting create_already_on_site_in_directory=0 (#302)
+    {^} Allow to disable the file compare to determine a complete request by setting compare_files_for_reqfilled_fallback=0
+    {^} Allow to fill requests that are on the site already by setting fill_already_on_site=1
+    {^} Reset auto disabled NFO download for sites to enabled on 'SITE UP'
+    {^} Adjust IMDB parsing for new IMDB page layout (#311)
+
+--=============================( SLFTP v1.5.8 )===================================-
+    {+} Reverse FXP can be enabled by command !reversefxp (#9)
+    {+} cryptconf functionality integrated into slftp as command line utility, see 'slftp(.exe) --help' (#298)
+    {+} Pure-FTPd support (#303)
+    {+} Added OpenSSL 1.1.1 support (OpenSSL 1.0.2 no longer supported) (#90)
+    {#} Fix 'No such directory' error flood if a subdir was deleted during a race (#200)
+    {#} Fix not working pretime check retry (settings readd_attempts, readd_interval of [taskpretime])
+    {#} Setting !maxupdn 1 0 1 to leech only pres did not work
+    {^} New code for IMDb and Box Office Mojo website parsing
+    {^} Slightly improved behaviour for STV/Wide/Limited determination
+    {^} Less unnecessary 'tell your developer' messages to the admin channel
+    {^} Improved detection of FTPD software and version
+    {^} Send PBSZ command (Pure-FTPd requires it)
+    {^} Setting global_skip in .ini is removed and replaced by global_skip_files and global_skip_dirs
 
 --=============================( SLFTP v1.5.7 )===================================-
     {+} FastMM5 memory manager with better multithreading scaling for Windows (https://github.com/pleriche/FastMM5)

@@ -37,6 +37,20 @@ type
     procedure TestParseSTATLine8;
     procedure TestParseSTATLine9;
     procedure TestParseSTATLine10;
+    procedure TestInternationalCharsToAsciiSceneChars1;
+    procedure TestInternationalCharsToAsciiSceneChars2;
+    procedure TestInternationalCharsToAsciiSceneChars3;
+    procedure TestInternationalCharsToAsciiSceneChars4;
+    procedure TestInternationalCharsToAsciiSceneChars5;
+    procedure TestInternationalCharsToAsciiSceneChars6;
+    procedure TestInternationalCharsToAsciiSceneChars7;
+    procedure TestInternationalCharsToAsciiSceneChars8;
+    procedure TestParseSiteSearchResult1;
+    procedure TestParseSiteSearchResult2;
+    procedure TestParseSiteSearchResult3;
+    procedure TestParseSiteSearchResult4;
+    procedure TestParseSiteSearchResult5;
+    procedure TestParseSiteSearchResult6;
   end;
 
 implementation
@@ -361,7 +375,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine2;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.09 MB Ratio
   fStatLine := '226  [Section: DEFAULT] [Credits: 14.6MB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -375,7 +389,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine3;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.09 MB Ratio MiB -> GB
   fStatLine := '226  [Section: DEFAULT] [Credits: 1400.6MB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -389,7 +403,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine4;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.10 MiB Ratio
   fStatLine := '226  [Section: DEFAULT] [Credits: 14.6MiB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -403,7 +417,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine5;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.10 GiB Ratio
   fStatLine := '226  [Section: DEFAULT] [Credits: 14.6GiB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -417,7 +431,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine6;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // GL 2.10 MiB Ratio -> GB
   fStatLine := '226  [Section: DEFAULT] [Credits: 1400.6MiB] [Ratio: UL: 1:3 | DL: 1:1]';
@@ -431,7 +445,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine7;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // DrFTPd leech
   fStatLine := '200-      [Credits: 1.1TB] [Ratio: 1:0.0]';
@@ -445,7 +459,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine8;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // DrFTPd
   fStatLine := '200-      [Credits: 4.9TB] [Ratio: 1:3.0]';
@@ -459,7 +473,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine9;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // glftpd Credits mb -> gb
   fStatLine := '226  daydn(0.0mb) weekdn(0.0mb) monthdn(0.0mb) alup(1471.5mb) aldn(422927.2mb) credits(1476624.8mb) ratio(UL: 1:3 | DL: 1:1)';
@@ -473,7 +487,7 @@ end;
 
 procedure TTestMyStrings.TestParseSTATLine10;
 var
-   fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
+  fStatLine, fExpectedCredits, fExpectedRatio, fCredits, fRatio: String;
 begin
   // glftpd negative credits
   fStatLine := '[Section: DEFAULT] [Credits: -106.6MB] [Ratio: UL&DL: Unlimited]';
@@ -483,6 +497,239 @@ begin
 
   CheckEqualsString(fExpectedCredits, fCredits);
   CheckEqualsString(fExpectedRatio, fRatio);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars1;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt6586440/
+  fMovieName := 'Ein Lächeln nachts um vier';
+  fExpectedStr := 'Ein Laecheln nachts um vier';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars2;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt0566334/
+  fMovieName := '&quot;The Drew Carey Show&quot; Bananas: Part 2';
+  fExpectedStr := 'The Drew Carey Show Bananas Part 2';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars3;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt13649700/
+  fMovieName := 'Crack: Cocaine, Corruption & Conspiracy';
+  fExpectedStr := 'Crack Cocaine Corruption Conspiracy';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars4;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt12384470/
+  fMovieName := '&quot;Cinematic Venom Presents: 1001 Movies You Must See Before You Die&quot; Whiplash';
+  fExpectedStr := 'Cinematic Venom Presents 1001 Movies You Must See Before You Die Whiplash';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars5;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt13639672/
+  fMovieName := 'Matthew Bourne''s Romeo and Juliet';
+  fExpectedStr := 'Matthew Bournes Romeo and Juliet';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars6;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt13649700/
+  fMovieName := '&quot;37 Grad&quot; Auf der Spur der Täter - Delikt Kinderpornografie';
+  fExpectedStr := '37 Grad Auf der Spur der Taeter Delikt Kinderpornografie';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars7;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt3450958/
+  fMovieName := 'War for the Planet of the Apes';
+  fExpectedStr := 'War for the Planet of the Apes';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars8;
+var
+  fMovieName, fExpectedStr, fAsciiToScene: String;
+begin
+  // https://www.imdb.com/title/tt12885852/
+  fMovieName := 'Batman: Soul of the Dragon';
+  fExpectedStr := 'Batman Soul of the Dragon';
+  fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
+
+  CheckEqualsString(fExpectedStr, fAsciiToScene);
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult1;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+begin
+  //glftpd
+  fResp := TArray<String>.Create('200- (Values displayed after dir names are Files/Megs/Age)',
+    '200- Doing case-insensitive search for ''Test.Release-ASDF'':',
+    '200- /ARCHIVE/SECTION/Test.Release-ASDF (4F/119.6M/106d 7h)',
+    '200- /INCOMING/SECTION/Test.Release-ASDF (4F/119.6M/106d 7h)',
+    '200-',
+    '200 2 directories found.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(2, fStringList.Count);
+    CheckEquals('/ARCHIVE/SECTION/Test.Release-ASDF', fStringList[0]);
+    CheckEquals('/INCOMING/SECTION/Test.Release-ASDF', fStringList[1]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult2;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+begin
+  //glftpd
+  fResp := TArray<String>.Create('200- (Values displayed after dir names are Files/Megs/Age)',
+    '200- Doing case-insensitive search for ''Test.Release-ASDF'':',
+    '200- /REQUESTS/_FILLED/FILLED-Test.Release-ASDF/Test.Release-ASDF/Sample (1F/154.3M/58d 18h)',
+    '200- /REQUESTS/_FILLED/FILLED-Test.Release-ASDF (85F/19354.7M/58d 18h)',
+    '200- /REQUESTS/_FILLED/FILLED-Test.Release-ASDF/Test.Release-ASDF (85F/19354.7M/58d 18h)',
+    '200-',
+    '200 2 directories found.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(1, fStringList.Count);
+    CheckEquals('/REQUESTS/_FILLED/FILLED-Test.Release-ASDF/Test.Release-ASDF', fStringList[0]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult3;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+begin
+  //drftpd
+  fResp := TArray<String>.Create('200- Found 1 entries in index (limit 200):',
+    '200- /SECTION/Test.Release-ASDF',
+    '200 Search complete ');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(1, fStringList.Count);
+    CheckEquals('/SECTION/Test.Release-ASDF', fStringList[0]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult4;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+  stri: String;
+begin
+  //ioftpd
+  fResp := TArray<String>.Create('200- /SECTION/Test.Release-ASDF',
+    '200 Command successful.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(1, fStringList.Count);
+    CheckEquals('/SECTION/Test.Release-ASDF', fStringList[0]);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult5;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+  stri: String;
+begin
+  //glftpd nuked dir
+  fResp := TArray<String>.Create('200- Doing case-insensitive search for ''Test.Release-ASDF'':',
+    '200- /SECTION/Test.Release-ASDF *NUKED*',
+    '200- /SECTION/Test.Release-ASDF/Sample (1F/22.7M/26d 21h)',
+    '200- /SECTION/(incomplete)-Test.Release-ASDF (49F/2253.1M/26d 21h)',
+    '200-',
+    '200 3 directories found.');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(0, fStringList.Count);
+  finally
+    fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSiteSearchResult6;
+var
+  fResp: TArray<String>;
+  fStringList: TStringList;
+  stri: String;
+begin
+  //drftpd nuked dir
+  fResp := TArray<String>.Create('200- Found 1 entries in index (limit 50):',
+    '200- /0DAY/0612/[NUKED]-Test.Release-ASDF',
+    '200 Search complete');
+
+  fStringList := TStringList.Create;
+  try
+    fStringList.Text := ParsePathFromSiteSearchResult(String.Join(#13#10, fResp), 'Test.Release-ASDF');
+
+    CheckEquals(0, fStringList.Count);
+  finally
+    fStringList.Free;
+  end;
 end;
 
 initialization

@@ -55,7 +55,7 @@ interface
 
 {$I ZPlain.inc}
 
-{$IFNDEF ZEOS_DISABLE_PROXY}
+{$IF DEFINED(ENABLE_PROXY) AND DEFINED(ENABLE_INTERNAL_PROXY)}
 
 uses
   Classes, ZPlainProxyDriverIntf, ZPlainProxyDriverSoapProxy;
@@ -63,13 +63,13 @@ uses
 function GetLastErrorStr: WideString; stdcall;
 function GetInterface: IZDbcProxy; stdcall;
 
-{$ENDIF ZEOS_DISABLE_PROXY}
+{$IFEND}
 
 implementation
 
-{$IFNDEF ZEOS_DISABLE_PROXY}
+{$IF DEFINED(ENABLE_PROXY) AND DEFINED(ENABLE_INTERNAL_PROXY)}
 
-uses SysUtils, {$IFNDEF NO_SAFECALL}ActiveX, ComObj,{$ENDIF} SOAPHTTPClient;
+uses SysUtils, {$IFNDEF NO_SAFECALL}ActiveX, ComObj,{$ENDIF} SOAPHTTPClient, ZExceptions;
 
 type
   TZDbcProxy = class(TInterfacedObject, IZDbcProxy{$IFNDEF NO_SAFECALL}, ISupportErrorInfo{$ENDIF})
@@ -87,7 +87,7 @@ type
       function SafeCallException(ExceptObject: TObject; ExceptAddr: Pointer): HResult; override;
       {$ENDIF}
 
-      procedure Connect(const UserName, Password, DbHost, DbName: WideString; var Properties: WideString; out DbInfo: WideString); {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
+      procedure Connect(const UserName, Password, ServiceEndpoint, DbName: WideString; var Properties: WideString; out DbInfo: WideString); {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       procedure Disconnect; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       procedure SetAutoCommit(const Value: LongBool); {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
       procedure Commit; {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
@@ -140,7 +140,7 @@ end;
 procedure TZDbcProxy.CheckConnected;
 begin
   if not Assigned(FService) then
-    raise Exception.Create('No connection has been established yet!');
+    raise EZSQLException.Create('No connection has been established yet!');
 end;
 
 {$IFNDEF NO_SAFECALL}
@@ -167,32 +167,18 @@ begin
  FService := nil;
 end;
 
-procedure TZDbcProxy.Connect(const UserName, Password, DbHost, DbName: WideString; var Properties: WideString; out DbInfo: WideString); {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
+procedure TZDbcProxy.Connect(const UserName, Password, ServiceEndpoint, DbName: WideString; var Properties: WideString; out DbInfo: WideString); {$IFNDEF NO_SAFECALL}safecall;{$ENDIF}
 var
   Url: String;
-  LocalProperties: String;
   FRIO: THTTPRIO;
   MyInProperties: UnicodeString;
   MyOutProperties: UnicodeString;
   MyDbInfo: UnicodeString;
 begin
-// Url := 'http://' + DbHost + ':8000/services/IZeosProxy';
-// //FService := wst_CreateInstance_IZeosProxy('SOAP:', 'HTTP:', 'http://127.0.0.1:8000/services/IZeosProxy');
-// FService := wst_CreateInstance_IZeosProxy('SOAP:', 'HTTP:', Url);
-
-// if using a reverse proxy, this seems to work well:
-// Url := 'https://' + DbHost + '/services/IZeosProxy';
-// //FService := wst_CreateInstance_IZeosProxy('SOAP:', 'HTTP:', 'http://127.0.0.1:8000/services/IZeosProxy');
-// FService := wst_CreateInstance_IZeosProxy('SOAP:', 'HTTP:', Url);
-
-  //FService := GetIZeosProxy(false, 'http://zeos-test:8000/services/IZeosProxy');
-//  FService := GetIZeosProxy(false, 'http://' + DbHost + ':8000/services/IZeosProxy');
   FRIO := THTTPRIO.Create(nil);
-  // if the certificate should not be checked, then the option soIgnoreInvalidCerts
-  // from the SOAPHTTPTrans unit can be set or the following line can be removed.
-  // [soIgnoreInvalidCerts, soAutoCheckAccessPointViaUDDI] is the default setting.
+  Url := ServiceEndpoint;
   FRIO.HTTPWebNode.InvokeOptions := [];
-  FService := GetIZeosProxy(false, 'http://' + DbHost + ':8000/services/IZeosProxy', FRIO);
+  FService := GetIZeosProxy(false, Url, FRIO);
   if Assigned(FService) then begin
     MyInProperties := Properties;
     FConnectionID := FService.Connect(UserName, Password, DbName, MyInProperties, MyOutProperties, MyDbInfo);
@@ -348,6 +334,6 @@ end;
 initialization
   LastErrorStr := 'No Error happened yet!'
 
-{$ENDIF ZEOS_DISABLE_PROXY}
+{$IFEND}
 
 end.

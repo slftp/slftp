@@ -39,8 +39,8 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Green Book (2018) - IMDb</title>'), 'HTML content should include title');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta name="title" content="Green Book (2018) - IMDb" />'), 'HTML content should include meta name title');
+  CheckTrue(ContainsText(fHTML, '<title>Green Book'), 'HTML content should include title');
+  CheckTrue(ContainsText(fHTML, '<meta property="og:title" content="Green Book'), 'HTML content should include meta name title');
 end;
 
 procedure TTestHTTP.TestIMDBHTTPS;
@@ -54,8 +54,8 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title>Green Book (2018) - IMDb</title>'), 'HTML content should include title');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<meta name="title" content="Green Book (2018) - IMDb" />'), 'HTML content should include meta name title');
+  CheckTrue(ContainsText(fHTML, '<title>Green Book'), 'HTML content should include title');
+  CheckTrue(ContainsText(fHTML, '<meta property="og:title" content="Green Book'), 'HTML content should include meta name title');
 end;
 
 procedure TTestHTTP.TestBOMHTTP;
@@ -69,8 +69,8 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for BOM is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title dir="ltr">Avengers: Endgame - Box Office Mojo</title>'), 'HTML content should include title');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<span>3 hr 1 min</span>'), 'HTML content should include Runtime (3hrs 1min)');
+  CheckTrue(ContainsText(fHTML, '<title dir="ltr">Avengers: Endgame - Box Office Mojo</title>'), 'HTML content should include title');
+  CheckTrue(ContainsText(fHTML, '<span>3 hr 1 min</span>'), 'HTML content should include Runtime (3hrs 1min)');
 end;
 
 procedure TTestHTTP.TestBOMHTTPS;
@@ -84,8 +84,8 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for BOM is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<title dir="ltr">Avengers: Endgame - Box Office Mojo</title>'), 'HTML content should include title');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '<span>3 hr 1 min</span>'), 'HTML content should include Runtime (3hrs 1min)');
+  CheckTrue(ContainsText(fHTML, '<title dir="ltr">Avengers: Endgame - Box Office Mojo</title>'), 'HTML content should include title');
+  CheckTrue(ContainsText(fHTML, '<span>3 hr 1 min</span>'), 'HTML content should include Runtime (3hrs 1min)');
 end;
 
 procedure TTestHTTP.TestTVMAZEHTTP;
@@ -99,8 +99,8 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for TVMAZE is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"http://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
+  CheckTrue(ContainsText(fHTML, '{"id":64,"url":"https://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
+  CheckTrue(ContainsText(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
 end;
 
 procedure TTestHTTP.TestTVMAZEHTTPS;
@@ -114,8 +114,8 @@ begin
   CheckTrue(Result, 'The HTTP fetch should work!');
   CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
   CheckEqualsString('', fErrMsg, 'Error message for TVMAZE is unexpected');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '{"id":64,"url":"http://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
-  CheckTrue({$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
+  CheckTrue(ContainsText(fHTML, '{"id":64,"url":"https://www.tvmaze.com/shows/64/utopia","name":"Utopia",'), 'HTML content should include ID 64 - Utopia');
+  CheckTrue(ContainsText(fHTML, '"country":{"name":"Australia","code":"AU"'), 'HTML content should include country Australia AU');
 end;
 
 initialization

@@ -1,10 +1,17 @@
 [COMMON]
+# special entries for US & United Kingdom
+USA=US,USA
+UK=UK,UK
+# below the format is:
+# language = countrycode, countryname
 Albanian=AL,Albania
 Austrian=AT,Austria
 Belgian=BE,Belgium
 Brazilian=BR,Brazil
 Canada=CA,Canada
+# IMDb started to use Czechia while BOM uses Czech Republic
 Czech=CZ,Czech Republic
+Czech=CZ,Czechia
 Croatian=HR,Croatia
 Dutch=NL,Netherlands
 Estonian=EE,Estonia
@@ -35,4 +42,3 @@ Swiss=CH,Switzerland
 Swissgerman=CH,Switzerland
 Thai=TH,Thailand
 Turkish=TR,Turkey
-USA=US,USA

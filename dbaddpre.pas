@@ -337,7 +337,7 @@ begin
 
   fSection := ProcessDoReplace(section);
   rls_section := '';
-  rls_section := KibontasSection(' ' + fSection + ' ', '');
+  rls_section := FindSection(' ' + fSection + ' ');
   rls_section := PrecatcherSectionMapping(rls, rls_section);
 
   if (rls_section = 'TRASH') then
@@ -368,7 +368,17 @@ begin
   if ((rls <> '') and (length(rls) > minimum_rlsname)) then
   begin
     if dbaddpre_mode <> apmNone then
-      dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname);
+    begin
+      if dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname) then
+      begin
+        // we just inserted the pre time, find out if there's already a KB entry
+        rls_section := FindReleaseInLatestKBList(rls);
+
+        //send event to kb_add to trigger race evaluation
+        if rls_section <> '' then
+          kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '');
+      end;
+    end;
 
     if ((event = kbeADDPRE) and (kbadd_addpre)) then
     begin

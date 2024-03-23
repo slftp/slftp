@@ -1,13 +1,13 @@
 {
 
-FastMM 5.01
+FastMM 5.04
 
 Description:
   A fast replacement memory manager for Embarcadero Delphi applications that scales well across multiple threads and CPU
   cores, is not prone to memory fragmentation, and supports shared memory without the use of external .DLL files.
 
 Developed by:
-  Pierre le Riche
+  Pierre le Riche, copyright 2004 - 2021, all rights reserved
 
 Sponsored by:
   gs-soft AG
@@ -17,18 +17,25 @@ Homepage:
 
 Licence:
   FastMM 5 is dual-licensed.  You may choose to use it under the restrictions of the GPL v3 licence at no cost to you,
-  or you may purchase a commercial licence.  A commercial licence includes all future updates.  The commercial licence
-  pricing is as follows:
+  or you may purchase a commercial licence.  A commercial licence grants you the right to use FastMM5 in your own
+  applications, royalty free, and without any requirement to disclose your source code nor any modifications to FastMM
+  to any other party.  A commercial licence lasts into perpetuity, and entitles you to all future updates, free of
+  charge.  A commercial licence is sold per developer developing applications that use FastMM, as follows:
     1 developer = $99
     2 developers = $189
     3 developers = $269
     4 developers = $339
     5 developers = $399
     >5 developers = $399 + $50 per developer from the 6th onwards
-    site licence (unlimited developers) = $999
-  Please send an e-mail to fastmm@leriche.org to request an invoice before or after payment is made at
-  https://www.paypal.me/fastmm (paypal@leriche.org). Support is available for users with a commercial licence via the
-  same e-mail address.
+    site licence = $999 (unlimited number of developers affiliated with the owner of the licence, i.e. employees,
+    co-workers, interns and contractors)
+
+  Please send an e-mail to fastmm@leriche.org to request an invoice before or after payment is made.  Payment may be
+  made via PayPal at https://www.paypal.me/fastmm (paypal@leriche.org), or via bank transfer.  Bank details will be
+  provided on the invoice.
+
+  Support (via e-mail) is available for users with a commercial licence.  Enhancement requests submitted by users with a
+  commercial licence will be prioritized.
 
 Usage Instructions:
   Add FastMM5.pas as the first unit in your project's DPR file.  It will install itself automatically during startup,
@@ -63,6 +70,67 @@ Usage Instructions:
   favour performance, low memory usage, or a blend of both.  The default strategy is to blend the performance and low
   memory usage goals.
 
+  The following conditional defines are supported:
+    FastMM_FullDebugMode (or FullDebugMode) - If defined then FastMM_EnterDebugMode will be called on startup so that
+    the memory manager starts in debug mode.  If FastMM_FullDebugMode is defined and FastMM_DebugLibraryDynamicLoading
+    (or LoadDebugDLLDynamically) is not defined then FastMM_DebugLibraryStaticDependency is implied.
+
+    FastMM_FullDebugModeWhenDLLAvailable (or FullDebugModeWhenDLLAvailable) - If defined an attempt will be made to load
+    the debug support library during startup.  If successful then FastMM_EnterDebugMode will be called so that the
+    memory manager starts up in debug mode.
+
+    FastMM_DebugLibraryStaticDependency - If defined there will be a static dependency on the debug support library,
+    FastMM_FullDebugMode.dll (32-bit) or FastMM_FullDebugMode64.dll (64-bit).  If FastMM_EnterDebugMode will be called
+    in the startup code and the memory manager will also be shared between an application and libraries, then it
+    may be necessary to enable this define in order to avoid DLL unload order issues during application shutdown
+    (typically manifesting as an access violation when attempting to report on memory leaks during shutdown).
+    It is a longstanding issue with Windows that it is not always able to unload DLLs in the correct order during
+    application shutdown when DLLs are loaded dynamically during startup.  Note that while enabling this define will
+    introduce a static dependency on the debug support library, it does not actually enter debug mode by default -
+    FastMM_EnterDebugMode must still be called to enter debug mode, and FastMM_ExitDebugMode can be called to exit debug
+    mode at any time.
+
+    FastMM_ClearLogFileOnStartup (or ClearLogFileOnStartup) - When defined FastMM_DeleteEventLogFile will be called
+    during startup, deleting the event log file (if it exists).
+
+    FastMM_Align16Bytes (or Align16Bytes) - When defined FastMM_EnterMinimumAddressAlignment(maa16Bytes) will be called
+    during startup, forcing a minimum of 16 byte alignment for memory blocks.  Note that this has no effect under 64
+    bit, since 16 bytes is already the minimum alignment.
+
+    FastMM_5Arenas, FastMM_6Arenas .. FastMM_16Arenas - Increases the number of arenas from the default values.  See the
+    notes for the CFastMM_SmallBlockArenaCount constant for guidance on the appropriate number of arenas.
+
+    FastMM_DisableAutomaticInstall - Disables automatic installation of FastMM as the memory manager.  If defined then
+    FastMM_Initialize should be called from application code in order to install FastMM, and FastMM_Finalize to
+    uninstall and perform the leak check (if enabled), etc.
+
+    FastMM_EnableMemoryLeakReporting (or EnableMemoryLeakReporting) - If defined then the memory leak summary and detail
+    will be added to the set of events logged to file (FastMM_LogToFileEvents) and the leak summary will be added to the
+    set of events displayed on-screen (FastMM_MessageBoxEvents).
+
+    FastMM_RequireDebuggerPresenceForLeakReporting (or RequireDebuggerPresenceForLeakReporting) - Used in conjunction
+    with EnableMemoryLeakReporting - if the application is not running under the debugger then the
+    EnableMemoryLeakReporting define is ignored.
+
+    FastMM_NoMessageBoxes (or NoMessageBoxes) - Clears the set of events that will cause a message box to be displayed
+    (FastMM_MessageBoxEvents) on startup.
+
+    FastMM_ShareMM (or ShareMM) - If defined then FastMM_ShareMemoryManager will be called during startup, sharing the
+    memory manager of the module if the memory manager of another module is not already being shared.
+
+    FastMM_ShareMMIfLibrary (or ShareMMIfLibrary) - If defined and the module is not a library then the ShareMM define
+    is disabled.
+
+    FastMM_AttemptToUseSharedMM (or AttemptToUseSharedMM) - If defined FastMM_AttemptToUseSharedMemoryManager will be
+    called during startup, switching to using the memory manager shared by another module (if there is a shared memory
+    manager).
+
+    FastMM_NeverUninstall (or NeverUninstall) - Sets the FastMM_NeverUninstall global variable to True.  Use this if any
+    leaked pointers should remain valid after this unit is finalized.
+
+    PurePascal - The assembly language code paths are disabled, and only the Pascal code paths are used.  This is
+    normally used for debugging purposes only.
+
 Supported Compilers:
   Delphi XE3 and later
 
@@ -86,6 +154,34 @@ uses
 {$TypedAddress Off}
 {$LongStrings On}
 {$Align 8}
+
+{Optionally import the legacy version 4 defines.}
+{$ifdef FastMM_IncludeLegacyOptionsFile}
+  {$Include FastMM4Options.inc}
+{$endif}
+
+{Translate legacy v4 defines to their current names.}
+{$ifdef FullDebugMode} {$define FastMM_FullDebugMode} {$endif}
+{$ifdef LoadDebugDLLDynamically} {$define FastMM_DebugLibraryDynamicLoading} {$endif}
+{$ifdef FullDebugModeWhenDLLAvailable} {$define FastMM_FullDebugModeWhenDLLAvailable} {$endif}
+{$ifdef ClearLogFileOnStartup} {$define FastMM_ClearLogFileOnStartup} {$endif}
+{$ifdef Align16Bytes} {$define FastMM_Align16Bytes} {$endif}
+{$ifdef EnableMemoryLeakReporting} {$define FastMM_EnableMemoryLeakReporting} {$endif}
+{$ifdef RequireDebuggerPresenceForLeakReporting} {$define FastMM_RequireDebuggerPresenceForLeakReporting} {$endif}
+{$ifdef NoMessageBoxes} {$define FastMM_NoMessageBoxes} {$endif}
+{$ifdef ShareMM} {$define FastMM_ShareMM} {$endif}
+{$ifdef ShareMM} {$define FastMM_ShareMMIfLibrary} {$endif}
+{$ifdef ShareMM} {$define FastMM_AttemptToUseSharedMM} {$endif}
+{$ifdef ShareMM} {$define FastMM_NeverUninstall} {$endif}
+{$ifdef NoDebugInfo} {$undef FastMM_NoDebugInfo} {$endif}
+
+{If the "FastMM_FullDebugMode" is defined then a static dependency on the debug support library is assumed, unless
+dynamic loading is explicitly specified.}
+{$ifdef FastMM_FullDebugMode}
+  {$ifndef FastMM_DebugLibraryDynamicLoading}
+    {$define FastMM_DebugLibraryStaticDependency}
+  {$endif}
+{$endif}
 
 {Calling the deprecated GetHeapStatus is unavoidable, so suppress the warning.}
 {$warn Symbol_Deprecated Off}
@@ -113,29 +209,81 @@ uses
   {$endif}
 {$endif}
 
+{Optionally disable debug info in this unit, so the debugger does not step into it.}
+{$ifdef FastMM_NoDebugInfo}
+  {$DEBUGINFO OFF}
+{$endif}
+
 const
 
   {The current version of FastMM.  The first digit is the major version, followed by a two digit minor version number.}
-  CFastMM_Version = 501;
+  CFastMM_Version = 504;
 
   {The number of arenas for small, medium and large blocks.  Increasing the number of arenas decreases the likelihood
   of thread contention happening (when the number of threads inside a GetMem call is greater than the number of arenas),
   at a slightly higher fixed cost per GetMem call.  Usually two threads can be served simultaneously from the same arena
   (a new block can be split off for one thread while a freed block can be recycled for the other), so the optimal number
-  of arenas is usually somewhere between 0.5x and 1x the number of threads.  If you suspect that thread contention may
-  be dragging down performance, inspect the FastMM_...BlockThreadContentionCount variables - if their numbers are high
-  then an increase in the number of arenas will reduce thread contention.}
+  of arenas is usually somewhere between 0.5x and 1x the number of threads.  Large block arenas are cheaper in both
+  performance and memory usage than small and medium block arenas, so typically more large block arenas are used.  If
+  you suspect that thread contention may be dragging down performance, inspect the FastMM_...BlockThreadContentionCount
+  variables - if their numbers are high then an increase in the number of arenas will reduce thread contention.}
+{$if defined(FastMM_16Arenas)}
+  CFastMM_SmallBlockArenaCount = 16;
+  CFastMM_MediumBlockArenaCount = 16;
+  CFastMM_LargeBlockArenaCount = 16;
+{$elseif defined(FastMM_15Arenas)}
+  CFastMM_SmallBlockArenaCount = 15;
+  CFastMM_MediumBlockArenaCount = 15;
+  CFastMM_LargeBlockArenaCount = 15;
+{$elseif defined(FastMM_14Arenas)}
+  CFastMM_SmallBlockArenaCount = 14;
+  CFastMM_MediumBlockArenaCount = 14;
+  CFastMM_LargeBlockArenaCount = 14;
+{$elseif defined(FastMM_13Arenas)}
+  CFastMM_SmallBlockArenaCount = 13;
+  CFastMM_MediumBlockArenaCount = 13;
+  CFastMM_LargeBlockArenaCount = 13;
+{$elseif defined(FastMM_12Arenas)}
+  CFastMM_SmallBlockArenaCount = 12;
+  CFastMM_MediumBlockArenaCount = 12;
+  CFastMM_LargeBlockArenaCount = 12;
+{$elseif defined(FastMM_11Arenas)}
+  CFastMM_SmallBlockArenaCount = 11;
+  CFastMM_MediumBlockArenaCount = 11;
+  CFastMM_LargeBlockArenaCount = 11;
+{$elseif defined(FastMM_10Arenas)}
+  CFastMM_SmallBlockArenaCount = 10;
+  CFastMM_MediumBlockArenaCount = 10;
+  CFastMM_LargeBlockArenaCount = 10;
+{$elseif defined(FastMM_9Arenas)}
+  CFastMM_SmallBlockArenaCount = 9;
+  CFastMM_MediumBlockArenaCount = 9;
+  CFastMM_LargeBlockArenaCount = 9;
+{$elseif defined(FastMM_8Arenas)}
+  CFastMM_SmallBlockArenaCount = 8;
+  CFastMM_MediumBlockArenaCount = 8;
+  CFastMM_LargeBlockArenaCount = 8;
+{$elseif defined(FastMM_7Arenas)}
+  CFastMM_SmallBlockArenaCount = 7;
+  CFastMM_MediumBlockArenaCount = 7;
+  CFastMM_LargeBlockArenaCount = 8;
+{$elseif defined(FastMM_6Arenas)}
+  CFastMM_SmallBlockArenaCount = 6;
+  CFastMM_MediumBlockArenaCount = 6;
+  CFastMM_LargeBlockArenaCount = 8;
+{$elseif defined(FastMM_5Arenas)}
+  CFastMM_SmallBlockArenaCount = 5;
+  CFastMM_MediumBlockArenaCount = 5;
+  CFastMM_LargeBlockArenaCount = 8;
+{$else}
+  {Default values - typically performs fine up to 8 simultaneous threads.}
   CFastMM_SmallBlockArenaCount = 4;
   CFastMM_MediumBlockArenaCount = 4;
   CFastMM_LargeBlockArenaCount = 8;
-
-  {The number of entries per stack trace differs between 32-bit and 64-bit in order to ensure that the debug header is
-  always a multiple of 64 bytes.}
-{$ifdef 32Bit}
-  CFastMM_StackTraceEntryCount = 19; //8 stack trace entries per 64 bytes
-{$else}
-  CFastMM_StackTraceEntryCount = 20; //4 stack trace entries per 64 bytes
 {$endif}
+
+  {The default name of debug support library.}
+  CFastMM_DefaultDebugSupportLibraryName = {$ifndef 64Bit}'FastMM_FullDebugMode.dll'{$else}'FastMM_FullDebugMode64.dll'{$endif};
 
 type
 
@@ -175,8 +323,6 @@ type
     {This memory manager has been installed.}
     mmisInstalled);
 
-  TFastMM_StackTrace = array[0..CFastMM_StackTraceEntryCount - 1] of NativeUInt;
-
   {The debug block header.  Must be a multiple of 64 in order to guarantee that minimum block alignment restrictions
   are honoured.}
 {$PointerMath On}
@@ -188,35 +334,49 @@ type
     pointer for the free block linked list.  This space is thus reserved.}
     Reserved1: Pointer;
     Reserved2: Pointer;
+    {Reserved space for future use.}
+{$ifdef 32Bit}
+    ReservedSpace1: array[0..23] of Byte;
+{$else}
+    ReservedSpace1: array[0..7] of Byte;
+{$endif}
+    {The xor of all subsequent dwords in this structure.}
+    HeaderCheckSum: Cardinal;
+    {The allocation number:  All debug mode allocations are numbered sequentially.  This number may be useful in memory
+    leak analysis.  If it reaches 4G it wraps back to 0.}
+    AllocationNumber: Cardinal;
     {The user requested size for the block.}
     UserSize: NativeInt;
     {The object class this block was used for the previous time it was allocated.  When a block is freed, the pointer
     that would normally be in the space of the class pointer is copied here, so if it is detected that the block was
     used after being freed we have an idea what class it is.}
     PreviouslyUsedByClass: Pointer;
-    {The call stack when the block was allocated}
-    AllocationStackTrace: TFastMM_StackTrace;
-    {The call stack when the block was freed}
-    FreeStackTrace: TFastMM_StackTrace;
     {The value of the FastMM_CurrentAllocationGroup when the block was allocated.  Can be used in the debugging process
     to group related memory leaks together.}
     AllocationGroup: Cardinal;
-    {The allocation number:  All debug mode allocations are numbered sequentially.  This number may be useful in memory
-    leak analysis.  If it reaches 4G it wraps back to 0.}
-    AllocationNumber: Cardinal;
     {The ID of the thread that allocated the block}
     AllocatedByThread: Cardinal;
     {The ID of the thread that freed the block}
     FreedByThread: Cardinal;
-    {The sum of the dwords(32-bit)/qwords(64-bit) in this structure starting after the initial two reserved fields up
-    to just before this field.}
-    HeaderCheckSum: NativeUInt;
-{$ifdef 64Bit}
-    Padding1: Cardinal;
-{$endif}
-    Padding2: SmallInt;
+    {Reserved space for future use.}
+    ReservedSpace2: Byte;
+    {The number of entries in the allocation and free call stacks in the debug footer.}
+    StackTraceEntryCount: Byte;
     {The debug block signature.  This will always be CIsDebugBlockFlag.}
     DebugBlockFlags: SmallInt;
+    {Returns a pointer to the start of the debug footer.  The debug footer consists of the footer checksum (dword),
+    followed by the allocation stack trace and then the free stack trace.}
+    function DebugFooterPtr: PCardinal; inline;
+    {Returns a pointer to the first entry in the allocation stack trace in the debug footer.}
+    function DebugFooter_AllocationStackTracePtr: PNativeUInt; inline;
+    {Returns a pointer to the first entry in the free stack trace in the debug footer.}
+    function DebugFooter_FreeStackTracePtr: PNativeUInt; inline;
+    {Calculate the header checksum}
+    function CalculateHeaderCheckSum: Cardinal;
+    {Calculate the checksum for the stack traces that follow after the user data.}
+    function CalculateFooterCheckSum: Cardinal;
+    {Calculates and sets both the header and footer checksums.}
+    procedure CalculateAndSetHeaderAndFooterCheckSums;
   end;
 
   TFastMM_WalkAllocatedBlocksBlockType = (
@@ -262,6 +422,10 @@ type
 
   TFastMM_WalkBlocksCallback = procedure(const ABlockInfo: TFastMM_WalkAllocatedBlocks_BlockInfo);
 
+  {The enumeration returned by the FastMM_DetectStringData, which is used to determine whether a memory block
+  potentially contains string data.}
+  TFastMM_StringDataType = (sdtNotAString, sdtAnsiString, sdtUnicodeString);
+
   TFastMM_MinimumAddressAlignment = (maa8Bytes, maa16Bytes, maa32Bytes, maa64Bytes);
   TFastMM_MinimumAddressAlignmentSet = set of TFastMM_MinimumAddressAlignment;
 
@@ -283,10 +447,13 @@ type
 
   {A routine used to convert a stack trace to a textual representation (typically unit and line information).
   APReturnAddresses points to a buffer with up to AMaxDepth return addresses (zero return addresses are ignored).  The
-  textual representation is stored to APBufferPosition.  The routine will update both APBufferPosition and
-  ARemainingBufferSpaceInWideChars.}
+  textual representation is stored to APBuffer.  The routine will return the new end of the buffer.}
   TFastMM_ConvertStackTraceToText = function(APReturnAddresses: PNativeUInt; AMaxDepth: Cardinal;
     APBuffer, APBufferEnd: PWideChar): PWideChar;
+
+  {The interface for the legacy (version 4) stack trace conversion routine in the FastMM_FullDebugMode library.}
+  TFastMM_LegacyConvertStackTraceToText = function(APReturnAddresses: PNativeUInt; AMaxDepth: Cardinal;
+    APBuffer: PAnsiChar): PAnsiChar;
 
   {List of registered leaks}
   TFastMM_RegisteredMemoryLeak = record
@@ -314,6 +481,12 @@ function FastMM_GetMem(ASize: NativeInt): Pointer;
 function FastMM_FreeMem(APointer: Pointer): Integer;
 function FastMM_ReallocMem(APointer: Pointer; ANewSize: NativeInt): Pointer;
 function FastMM_AllocMem(ASize: NativeInt): Pointer;
+
+{------------------------Debug mode core memory manager interface------------------------}
+function FastMM_DebugGetMem(ASize: NativeInt): Pointer;
+function FastMM_DebugFreeMem(APointer: Pointer): Integer;
+function FastMM_DebugReallocMem(APointer: Pointer; ANewSize: NativeInt): Pointer;
+function FastMM_DebugAllocMem(ASize: NativeInt): Pointer;
 
 {------------------------Expected memory leak management------------------------}
 
@@ -354,11 +527,27 @@ successfully, False if one or more arenas were skipped due to a lock timeout.}
 function FastMM_WalkBlocks(ACallBack: TFastMM_WalkBlocksCallback; AWalkBlockTypes: TFastMM_WalkBlocksBlockTypes = [];
   AWalkUsedBlocksOnly: Boolean = True; AUserData: Pointer = nil; ALockTimeoutMilliseconds: Cardinal = 1000): Boolean;
 
+{Attempts to determine whether APMemoryBlock points to string data.  Used by the leak classification code when a block
+cannot be identified as a class instance.  May also be used inside the FastMM_WalkBlocks callback in order to determine
+the content of walked blocks.}
+function FastMM_DetectStringData(APMemoryBlock: Pointer; AAvailableSpaceInBlock: NativeInt): TFastMM_StringDataType;
+{Attempts to determine whether APointer points to a valid class instance.  Returns the class if it does, otherwise nil.
+APointer is assumed to point to to at least 4 (32-bit) or 8 (64-bit) readable bytes of memory.  This may be used inside
+the FastMM_WalkBlocks callback in order to determine the content of walked blocks.}
+function FastMM_DetectClassInstance(APointer: Pointer): TClass;
+
 {Walks all debug mode blocks (blocks that were allocated between a FastMM_EnterDebugMode and FastMM_ExitDebugMode call),
 checking for corruption of the debug header, footer, and in the case of freed blocks whether the block content was
 modified after the block was freed.  If a corruption is encountered an error message will be logged and/or displayed
-(as per the error logging configuration) and an invalid pointer exception will be raised.}
-procedure FastMM_ScanDebugBlocksForCorruption;
+(as per the error logging configuration) and an invalid pointer exception will be raised.  This is a function that
+always returns True (unless an exception is raised), so may be used in a debug watch to scan blocks every time the
+debugger stops on a breakpoint, etc.}
+function FastMM_ScanDebugBlocksForCorruption: Boolean;
+
+{Returns the number of bytes of address space that is currently either committed or reserved by FastMM.  This includes
+the total used by the heap, as well as all internal management structures.  This may be restricted via the
+FastMM_SetMemoryUsageLimit call.}
+function FastMM_GetCurrentMemoryUsage: NativeUInt;
 
 {Returns a THeapStatus structure with information about the current memory usage.}
 function FastMM_GetHeapStatus: THeapStatus;
@@ -389,6 +578,17 @@ function FastMM_ShareMemoryManager: Boolean;
 
 {------------------------Configuration------------------------}
 
+{Executes the initialization and finalization code for the memory manager.  FastMM_Initialize will run during unit
+initialization and FastMM_Finalize during unit finalization, unless "FastMM_DisableAutomaticInstall" is defined.  If
+"FastMM_DisableAutomaticInstall" is defined then FastMM_Initialize must be called from application code in order to
+initialize and install the memory manager, and FastMM_Finalize must be called to uninstall it and perform leak checks,
+etc.  Note that FastMM cannot be installed if another third party memory manager has already been installed, or if
+memory has already been allocated through the default memory manager.  FastMM_Initialize will return True on successful
+installation, False otherwise.  FastMM_Finalize will return True if FastMM_Initialize was previously called, False
+otherwise.}
+function FastMM_Initialize: Boolean;
+function FastMM_Finalize: Boolean;
+
 {Returns the current installation state of the memory manager.}
 function FastMM_GetInstallationState: TFastMM_MemoryManagerInstallationState;
 
@@ -410,6 +610,14 @@ procedure FastMM_EnterMinimumAddressAlignment(AMinimumAddressAlignment: TFastMM_
 procedure FastMM_ExitMinimumAddressAlignment(AMinimumAddressAlignment: TFastMM_MinimumAddressAlignment);
 {Returns the current minimum address alignment in effect.}
 function FastMM_GetCurrentMinimumAddressAlignment: TFastMM_MinimumAddressAlignment;
+
+{Allows the application to specify a maximum amount of memory that may be allocated through FastMM.  An attempt to
+allocate more than this amount will fail and lead to an "Out of Memory" exception.  Note that after the first failure
+the maximum amount of memory that may be allocated is slightly increased in order to allow the application to allocate
+some additional memory in subsequent attempts.  This is to allow for a graceful shutdown.  Specify 0 for no limit (the
+default).}
+procedure FastMM_SetMemoryUsageLimit(AMaximumAllowedMemoryUsage: NativeUInt);
+function FastMM_GetMemoryUsageLimit: NativeUInt;
 
 {Attempts to load the debug support library specified by FastMM_DebugSupportLibraryName.  On success it will set the
 FastMM_GetStackTrace and FastMM_ConvertStackTraceToText handlers to point to the routines in the debug library, provided
@@ -433,6 +641,22 @@ function FastMM_ExitDebugMode: Boolean;
 {Returns True if debug mode is currently active, i.e. FastMM_EnterDebugMode has been called more times than
 FastMM_ExitDebugMode.}
 function FastMM_DebugModeActive: Boolean;
+
+{Enables/disables the erasure of the content of freed blocks.  Calls may be nested, in which case erasure is only
+disabled when the number of FastMM_EndEraseFreedBlockContent calls equal the number of
+FastMM_BeginEraseFreedBlockContent calls.  When enabled the content of all freed blocks is filled with the debug pattern
+$80808080 before being returned to the memory pool.  This is useful for security purposes, and may also help catch "use
+after free" programming errors (like debug mode, but at reduced CPU cost).}
+function FastMM_BeginEraseFreedBlockContent: Boolean;
+function FastMM_EndEraseFreedBlockContent: Boolean;
+{Returns True if free blocks are currently erased on free, i.e. FastMM_BeginEraseFreedBlockContent has been called more
+times than FastMM_EndEraseFreedBlockContent.}
+function FastMM_EraseFreedBlockContentActive: Boolean;
+
+{Gets/sets the depth of allocation and free stack traces in debug mode.  The minimum stack trace depth is 0, and the
+maximum is CFastMM_MaximumStackTraceEntryCount.}
+function FastMM_GetDebugModeStackTraceEntryCount: Byte;
+procedure FastMM_SetDebugModeStackTraceEntryCount(AStackTraceEntryCount: Byte);
 
 {No-op call stack routines.}
 procedure FastMM_NoOpGetStackTrace(APReturnAddresses: PNativeUInt; AMaxDepth, ASkipFrames: Cardinal);
@@ -467,8 +691,19 @@ var
   call stack to unit and line number information.  The first time EnterDebugMode is called an attempt will be made to
   load this library, unless handlers for both FastMM_GetStackTrace and FastMM_ConvertStackTraceToText have already been
   set.}
-  FastMM_DebugSupportLibraryName: PWideChar = {$ifndef 64Bit}'FastMM_FullDebugMode.dll'{$else}'FastMM_FullDebugMode64.dll'{$endif};
-
+  FastMM_DebugSupportLibraryName: PWideChar = CFastMM_DefaultDebugSupportLibraryName;
+  {If True then FastMM will not be finalized and uninstalled when this unit is finalized.  Use this option when for some
+  reason there are live pointers that will still be in use after this unit is finalized.  Under normal operation this
+  should not be necessary.}
+  FastMM_NeverUninstall: Boolean = False;
+  {Allocates all memory from the top of the address space downward.  This is useful to catch bad pointer typecasts in
+  64-bit code, where pointers would otherwise often fit in a 32-bit variable.  Note that this comes with a performance
+  impact in the other of O(n^2), where n is the number of chunks obtained from the OS.}
+  FastMM_AllocateTopDown: Boolean = False;
+  {When this variable is True and debug mode is enabled, all debug blocks will be checked for corruption on entry to any
+  memory manager operation (i.e. GetMem, FreeMem, AllocMem and ReallocMem).  Note that this comes with an extreme
+  performance penalty.}
+  FastMM_DebugMode_ScanForCorruptionBeforeEveryOperation: Boolean = False;
   {The events that are passed to OutputDebugString.}
   FastMM_OutputDebugStringEvents: TFastMM_MemoryManagerEventTypeSet = [mmetDebugBlockDoubleFree,
     mmetDebugBlockReallocOfFreedBlock, mmetDebugBlockHeaderCorruption, mmetDebugBlockFooterCorruption,
@@ -531,7 +766,6 @@ var
     22: The number of instances of the class (FastMM_LogStateToFile)
     23: The average number of bytes per instance for the class (FastMM_LogStateToFile)
     24: The stack trace for a virtual method call on a freed object
-
   }
 
   {This entry precedes every entry in the event log.}
@@ -628,9 +862,23 @@ var
     + '{20}% Efficiency'#13#10#13#10
     + 'Usage Detail:'#13#10;
   FastMM_LogStateToFileTemplate_UsageDetail: PWideChar = '{21} bytes: {8} x {22} ({23} bytes avg.)'#13#10;
-  {Initialization error messages.}
-  FastMM_DebugSupportLibraryNotAvailableError: PWideChar = 'The FastMM debug support library could not be loaded.';
-  FastMM_DebugSupportLibraryNotAvailableError_Caption: PWideChar = 'Fatal Error';
+
+{$ifndef FastMM_DebugLibraryStaticDependency}
+  {The stack trace routines from the FastMM_FullDebugMode support DLL.  These will only be set if the support DLL is
+  loaded.}
+  DebugLibrary_GetRawStackTrace: TFastMM_GetStackTrace;
+  DebugLibrary_GetFrameBasedStackTrace: TFastMM_GetStackTrace;
+  {The legacy stack trace to text conversion routine from the FastMM_FullDebugMode support DLL.  This will only be set
+  if the support DLL is loaded.  This is used by the FastMM_DebugLibrary_LegacyLogStackTrace_Wrapper function.}
+  DebugLibrary_LogStackTrace_Legacy: TFastMM_LegacyConvertStackTraceToText;
+{$else}
+procedure DebugLibrary_GetRawStackTrace(APReturnAddresses: PNativeUInt; AMaxDepth, ASkipFrames: Cardinal);
+  external CFastMM_DefaultDebugSupportLibraryName name 'GetRawStackTrace';
+procedure DebugLibrary_GetFrameBasedStackTrace(APReturnAddresses: PNativeUInt; AMaxDepth, ASkipFrames: Cardinal);
+  external CFastMM_DefaultDebugSupportLibraryName name 'GetFrameBasedStackTrace';
+function DebugLibrary_LogStackTrace_Legacy(APReturnAddresses: PNativeUInt; AMaxDepth: Cardinal;
+  APBuffer: PAnsiChar): PAnsiChar; external CFastMM_DefaultDebugSupportLibraryName name 'LogStackTrace';
+{$endif}
 
 implementation
 
@@ -772,8 +1020,9 @@ const
   {The number of bytes of address space that is reserved and only released once the first OS allocation request fails.
   This allows some subsequent memory allocation requests to succeed in order to allow the application to allocate some
   memory for error handling, etc. in response to the first EOutOfMemory exception.  This only applies to 32-bit
-  applications.}
-  CEmergencyReserveAddressSpace = CMaximumMediumBlockSpanSize;
+  applications.  The default reserve is enough address space for a medium block span as well as a similarly sized
+  large block.}
+  CEmergencyReserveAddressSpace = 2 * CMaximumMediumBlockSpanSize;
 {$endif}
 
   {Event and state log tokens}
@@ -834,13 +1083,20 @@ const
   CFastMM_StackTrace_SkipFrames_GetMem = 0;
   CFastMM_StackTrace_SkipFrames_FreeMem = 0;
 
+  {The maximum number of entries per stack trace.}
+  CFastMM_StackTrace_MaximumEntryCount = 64;
+  {The default number of entries per stack trace.}
+  CFastMM_StackTrace_DefaultEntryCount = 20;
+
   {The number of bytes in a memory page.  It is assumed that pages are aligned at page size boundaries, and that memory
   protection is set at the page level.}
   CVirtualMemoryPageSize = 4096;
 
-  CCopyrightMessage: PAnsiChar = 'FastMM (c) 2004 - 2020 Pierre le Riche';
+  CCopyrightMessage: PAnsiChar = 'FastMM (c) 2004 - 2021 Pierre le Riche';
 
 type
+
+  TFastMM_MaximumLengthStackTrace = array[0..CFastMM_StackTrace_MaximumEntryCount - 1] of NativeUInt;
 
   {Event log token values are pointers #0 terminated text strings.  The payload for the tokens is in TokenData.}
   TEventLogTokenValues = array[0..CEventLogMaxTokenID] of PWideChar;
@@ -890,8 +1146,8 @@ type
 
   PSmallBlockSpanHeader = ^TSmallBlockSpanHeader;
 
-  {Always 64 bytes in size in order to fit inside a cache line, under both 32-bit and 64-bit.  It should preferably be
-  aligned to 64 bytes.}
+  {Always 64 bytes in size in order to fit inside a cache line, under both 32-bit and 64-bit.  It must be aligned to 64
+  bytes in order to ensure proper alignment of the small blocks following it.}
   TSmallBlockManager = record
     {The first/last partially free span in the arena.  This field must be at the same offsets as
     TSmallBlockSpanHeader.NextPartiallyFreeSpan and TSmallBlockSpanHeader.PreviousPartiallyFreeSpan.}
@@ -1161,9 +1417,6 @@ type
     AccessRights: TMemoryAccessRights;
   end;
 
-  {Used by the DetectStringData routine to detect whether a leaked block contains string data.}
-  TStringDataType = (stNotAString, stAnsiString, stUnicodeString);
-
   {An entry in the binary search tree of memory leaks.  Leaks are grouped by block size and class.}
   TMemoryLeakSummaryEntry = record
     {The user size of the block}
@@ -1189,7 +1442,7 @@ type
   freed object.}
   TFastMM_FreedObject = class(TObject)
   protected
-    class var FVirtualMethodStackTrace: TFastMM_StackTrace;
+    class var FVirtualMethodStackTrace: TFastMM_MaximumLengthStackTrace;
     procedure VirtualMethodOnFreedObject_LogEvent(APMethodName: PWideChar);
     procedure VirtualMethodOnFreedObject(APMethodName: PWideChar); overload;
     procedure VirtualMethodOnFreedObject(AIndex: Byte); overload;
@@ -1233,11 +1486,6 @@ type
     procedure VirtualMethod72; virtual; procedure VirtualMethod73; virtual; procedure VirtualMethod74; virtual;
   end;
 
-  {-------Legacy debug support DLL interface--------}
-  {The interface for the legacy (version 4) stack trace conversion routine in the FastMM_FullDebugMode library.}
-  TFastMM_LegacyConvertStackTraceToText = function(APReturnAddresses: PNativeUInt; AMaxDepth: Cardinal;
-    APBuffer: PAnsiChar): PAnsiChar;
-
 const
   {Structure size constants}
   CBlockStatusFlagsSize = SizeOf(TBlockStatusFlags);
@@ -1246,7 +1494,7 @@ const
   CMediumFreeBlockFooterSize = SizeOf(TMediumFreeBlockFooter);
   CLargeBlockHeaderSize = SizeOf(TLargeBlockHeader);
   CDebugBlockHeaderSize = SizeOf(TFastMM_DebugBlockHeader);
-  CDebugBlockFooterSize = SizeOf(NativeUInt);
+  CDebugBlockFooterCheckSumSize = SizeOf(Cardinal);
 
   CSmallBlockSpanHeaderSize = SizeOf(TSmallBlockSpanHeader);
   CMediumBlockSpanHeaderSize = SizeOf(TMediumBlockSpanHeader);
@@ -1258,7 +1506,9 @@ const
 
   CLargeBlockManagerSize = SizeOf(TLargeBlockManager);
 
-  {Small block sizes (including the header).  The 8 byte aligned sizes are not available under 64-bit.}
+  {Small block sizes (including the header).  The 8 byte aligned sizes are not available under 64-bit.  The first block
+  in a small block span is always 64 byte aligned, so if a block size is a multiple of 8 it will be 8 byte aligned, a
+  multiple of 16 will be 16 byte aligned, a multiple of 32 will be 32 byte aligned, etc.}
   CSmallBlockSizes: array[0..CSmallBlockTypeCount - 1] of Word = (
     {8 byte jumps}
 {$ifdef 32Bit}
@@ -1380,11 +1630,26 @@ var
   EmergencyReserveAddressSpace: Pointer;
 {$endif}
 
+  {The amount of address space that is currently allocated.}
+  MemoryUsageCurrent: NativeUInt;
+
+  {The current memory usage limit.  0 = no limit.}
+  MemoryUsageLimit: NativeUInt;
+  MemoryUsageLimitGraceAmount: NativeUInt;
+
+  {True between the FastMM_Initialize call and the FastMM_Finalize call.}
+  UnitCurrentlyInitialized: Boolean;
   {The current installation state of FastMM.}
   CurrentInstallationState: TFastMM_MemoryManagerInstallationState;
 
-  {The difference between the number of times EnterDebugMode has been called vs ExitDebugMode.}
+  {The difference between the number of times FastMM_EnterDebugMode has been called vs FastMM_ExitDebugMode.}
   DebugModeCounter: Integer;
+
+  {The difference between the number of times FastMM_BeginEraseFreedBlockContent has been called vs FastMM_EndEraseFreedBlockContent.}
+  EraseFreedBlockContentCounter: Integer;
+
+  {The number of entries in stack traces in debug mode.}
+  DebugMode_StackTrace_EntryCount: Byte;
 
   {A lock that allows switching between debug and normal mode to be thread safe.}
   SettingMemoryManager: Integer; //0 = False, 1 = True;
@@ -1395,16 +1660,15 @@ var
   manager which would prevent the switching between debug and normal mode.}
   InstalledMemoryManager: TMemoryManagerEx;
   {The handle to the debug mode support DLL.}
+{$ifndef FastMM_DebugLibraryStaticDependency}
   DebugSupportLibraryHandle: NativeUInt;
+{$endif}
   DebugSupportConfigured: Boolean;
-  {The stack trace routines from the FastMM_FullDebugMode support DLL.  These will only be set if the support DLL is
-  loaded.}
-  DebugLibrary_GetRawStackTrace: TFastMM_GetStackTrace;
-  DebugLibrary_GetFrameBasedStackTrace: TFastMM_GetStackTrace;
-  DebugLibrary_LogStackTrace_Legacy: TFastMM_LegacyConvertStackTraceToText;
 
   {The full path and filename for the event log.}
   EventLogFilename: array[0..CFilenameMaxLength] of WideChar;
+  {The file handle for the event log while it is open.}
+  EventLogFileHandle: THandle;
 
   {The expected memory leaks list}
   ExpectedMemoryLeaks: PExpectedMemoryLeaks;
@@ -1419,11 +1683,76 @@ var
   SharingFileMappingObjectHandle: NativeUInt;
 {$endif}
 
+{--------------------------------------------------------}
+{--------------Debug header record methods---------------}
+{--------------------------------------------------------}
+
+{ TFastMM_DebugBlockHeader }
+
+function TFastMM_DebugBlockHeader.DebugFooterPtr: PCardinal;
+begin
+  {The block footer follows immediately after the user data, the first dword of which is the footer checksum.}
+  Result := @PByte(@Self)[UserSize + CDebugBlockHeaderSize];
+end;
+
+function TFastMM_DebugBlockHeader.DebugFooter_AllocationStackTracePtr: PNativeUInt;
+begin
+  {The allocation stack trace follows immediately after the footer checksum.}
+  Result := @PByte(@Self)[UserSize + (CDebugBlockHeaderSize + CDebugBlockFooterCheckSumSize)];
+end;
+
+function TFastMM_DebugBlockHeader.DebugFooter_FreeStackTracePtr: PNativeUInt;
+begin
+  {The free stack trace follows immediately after the allocation stack trace.}
+  Result := @PByte(@Self)[UserSize + (StackTraceEntryCount * SizeOf(Pointer))
+    + (CDebugBlockHeaderSize + CDebugBlockFooterCheckSumSize)];
+end;
+
+procedure TFastMM_DebugBlockHeader.CalculateAndSetHeaderAndFooterCheckSums;
+begin
+  HeaderCheckSum := CalculateHeaderCheckSum;
+  DebugFooterPtr^ := CalculateFooterCheckSum;
+end;
+
+function TFastMM_DebugBlockHeader.CalculateFooterCheckSum: Cardinal;
+var
+  LPCurPos, LPEnd: PCardinal;
+begin
+  LPCurPos := PCardinal(DebugFooter_AllocationStackTracePtr);
+  LPEnd := @PByte(LPCurPos)[StackTraceEntryCount * (2 * SizeOf(Pointer))];
+
+  Result := Cardinal(-1);
+  while LPCurPos <> LPEnd do
+  begin
+    Result := Result xor LPCurPos^;
+    Inc(LPCurPos);
+  end;
+end;
+
+function TFastMM_DebugBlockHeader.CalculateHeaderCheckSum: Cardinal;
+var
+  LPCurPos, LPEnd: PCardinal;
+begin
+  LPCurPos := @HeaderCheckSum;
+  LPEnd := @PByte(@Self)[CDebugBlockHeaderSize];
+
+  Result := Cardinal(-1);
+  while True do
+  begin
+    Inc(LPCurPos);
+    if LPCurPos = LPEnd then
+      Break;
+
+    Result := Result xor LPCurPos^;
+  end;
+end;
 
 {------------------------------------------}
 {--------------Move routines---------------}
 {------------------------------------------}
 
+{Moves 16 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned for 32-bit code and 16 byte
+aligned for 64-bit code, and the buffers may not overlap.}
 procedure Move16(const ASource; var ADest; ACount: NativeInt);
 {$ifndef PurePascal}
 asm
@@ -1444,6 +1773,8 @@ begin
 {$endif}
 end;
 
+{Moves 32 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned for 32-bit code and 16 byte
+aligned for 64-bit code, and the buffers may not overlap.}
 procedure Move32(const ASource; var ADest; ACount: NativeInt);
 {$ifndef PurePascal}
 asm
@@ -1472,6 +1803,8 @@ begin
 {$endif}
 end;
 
+{Moves 48 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned for 32-bit code and 16 byte
+aligned for 64-bit code, and the buffers may not overlap.}
 procedure Move48(const ASource; var ADest; ACount: NativeInt);
 {$ifndef PurePascal}
 asm
@@ -1508,6 +1841,8 @@ begin
 {$endif}
 end;
 
+{Moves 64 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned for 32-bit code and 16 byte
+aligned for 64-bit code, and the buffers may not overlap.}
 procedure Move64(const ASource; var ADest; ACount: NativeInt);
 {$ifndef PurePascal}
 asm
@@ -1552,8 +1887,9 @@ begin
 {$endif}
 end;
 
-{64-bit is always 16 byte aligned, so the 8 byte aligned moves are not needed under 64-bit.}
+{Blocks under 64-bit are always a multiple of 16 bytes, so the 8 byte multiple moves are not needed under 64-bit.}
 {$ifdef 32Bit}
+{Moves 8 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned and the buffers may not overlap.}
 procedure Move8(const ASource; var ADest; ACount: NativeInt);
 {$ifdef X86ASM}
 asm
@@ -1565,6 +1901,7 @@ begin
 {$endif}
 end;
 
+{Moves 24 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned and the buffers may not overlap.}
 procedure Move24(const ASource; var ADest; ACount: NativeInt);
 {$ifdef X86ASM}
 asm
@@ -1582,6 +1919,7 @@ begin
 {$endif}
 end;
 
+{Moves 40 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned and the buffers may not overlap.}
 procedure Move40(const ASource; var ADest; ACount: NativeInt);
 {$ifdef X86ASM}
 asm
@@ -1605,6 +1943,7 @@ begin
 {$endif}
 end;
 
+{Moves 56 bytes from ASource to ADest.  Both ASource and ADest must be 8 byte aligned and the buffers may not overlap.}
 procedure Move56(const ASource; var ADest; ACount: NativeInt);
 {$ifdef X86ASM}
 asm
@@ -1635,7 +1974,7 @@ begin
 end;
 
 {Moves 8x bytes from ASource to ADest, where x is an integer >= 1.  ASource and ADest are assumed to be aligned on a 8
-byte boundary.  The source and destination buffers may not overlap.}
+byte boundary.  The source and destination buffers may not overlap.  ACount will be rounded up to a multiple of 8.}
 procedure MoveMultipleOf8(const ASource; var ADest; ACount: NativeInt);
 {$ifdef X86ASM}
 asm
@@ -1667,14 +2006,53 @@ begin
 end;
 
 {$ifdef X86ASM}
+
+{Multiple of 16 moves for x86 SSE2.  Both ASource and ADest must be aligned on a 8 byte boundary.}
+
+procedure Move16_x86_SSE2(const ASource; var ADest; ACount: NativeInt);
+asm
+  movdqu xmm0, [eax]
+  movdqu [edx], xmm0
+end;
+
+procedure Move32_x86_SSE2(const ASource; var ADest; ACount: NativeInt);
+asm
+  movdqu xmm0, [eax]
+  movdqu xmm1, [eax + 16]
+  movdqu [edx], xmm0
+  movdqu [edx + 16], xmm1
+end;
+
+procedure Move48_x86_SSE2(const ASource; var ADest; ACount: NativeInt);
+asm
+  movdqu xmm0, [eax]
+  movdqu xmm1, [eax + 16]
+  movdqu xmm2, [eax + 32]
+  movdqu [edx], xmm0
+  movdqu [edx + 16], xmm1
+  movdqu [edx + 32], xmm2
+end;
+
+procedure Move64_x86_SSE2(const ASource; var ADest; ACount: NativeInt);
+asm
+  movdqu xmm0, [eax]
+  movdqu xmm1, [eax + 16]
+  movdqu xmm2, [eax + 32]
+  movdqu xmm3, [eax + 48]
+  movdqu [edx], xmm0
+  movdqu [edx + 16], xmm1
+  movdqu [edx + 32], xmm2
+  movdqu [edx + 48], xmm3
+end;
+
 procedure MoveMultipleOf16_x86_SSE2(const ASource; var ADest; ACount: NativeInt);
 asm
   add eax, ecx
   add edx, ecx
   neg ecx
 @MoveLoop:
-  movdqa xmm0, [eax + ecx]
-  movdqa [edx + ecx], xmm0
+  movdqu xmm0, [eax + ecx]
+  movdqu [edx + ecx], xmm0
   add ecx, 16
   js @MoveLoop
 end;
@@ -1685,10 +2063,10 @@ asm
   add edx, ecx
   neg ecx
 @MoveLoop:
-  movdqa xmm0, [eax + ecx]
-  movdqa xmm1, [eax + ecx + 16]
-  movdqa [edx + ecx], xmm0
-  movdqa [edx + ecx + 16], xmm1
+  movdqu xmm0, [eax + ecx]
+  movdqu xmm1, [eax + ecx + 16]
+  movdqu [edx + ecx], xmm0
+  movdqu [edx + ecx + 16], xmm1
   add ecx, 32
   js @MoveLoop
 end;
@@ -1699,14 +2077,14 @@ asm
   add edx, ecx
   neg ecx
 @MoveLoop:
-  movdqa xmm0, [eax + ecx]
-  movdqa xmm1, [eax + ecx + 16]
-  movdqa xmm2, [eax + ecx + 32]
-  movdqa xmm3, [eax + ecx + 48]
-  movdqa [edx + ecx], xmm0
-  movdqa [edx + ecx + 16], xmm1
-  movdqa [edx + ecx + 32], xmm2
-  movdqa [edx + ecx + 48], xmm3
+  movdqu xmm0, [eax + ecx]
+  movdqu xmm1, [eax + ecx + 16]
+  movdqu xmm2, [eax + ecx + 32]
+  movdqu xmm3, [eax + ecx + 48]
+  movdqu [edx + ecx], xmm0
+  movdqu [edx + ecx + 16], xmm1
+  movdqu [edx + ecx + 32], xmm2
+  movdqu [edx + ecx + 48], xmm3
   add ecx, 64
   js @MoveLoop
 end;
@@ -1714,8 +2092,9 @@ end;
 
 {$endif}
 
-{Moves 16x bytes from ASource to ADest, where x is an integer >= 1.  ASource and ADest are assumed to be aligned on a
-16 byte boundary.  The source and destination buffers may not overlap.}
+{Moves 16x bytes from ASource to ADest, where x is an integer >= 1.  Both ASource and ADest must be 8 byte aligned for
+32-bit code and 16 byte aligned for 64-bit code, and the buffers may not overlap.  ACount will be rounded up to a
+multiple of 16.}
 procedure MoveMultipleOf16(const ASource; var ADest; ACount: NativeInt);
 {$ifndef PurePascal}
 asm
@@ -1761,8 +2140,9 @@ begin
 {$endif}
 end;
 
-{Moves 32x bytes from ASource to ADest, where x is an integer >= 1.  ASource and ADest are assumed to be aligned on a
-32 byte boundary.  The source and destination buffers may not overlap.}
+{Moves 32x bytes from ASource to ADest, where x is an integer >= 1.  Both ASource and ADest must be 8 byte aligned for
+32-bit code and 16 byte aligned for 64-bit code, and the buffers may not overlap.  ACount will be rounded up to a
+multiple of 32.}
 procedure MoveMultipleOf32(const ASource; var ADest; ACount: NativeInt);
 {$ifndef PurePascal}
 asm
@@ -1816,8 +2196,9 @@ begin
 {$endif}
 end;
 
-{Moves 64x bytes from ASource to ADest, where x is an integer >= 1.  ASource and ADest are assumed to be aligned on a
-64 byte boundary.  The source and destination buffers may not overlap.}
+{Moves 64x bytes from ASource to ADest, where x is an integer >= 1.  Both ASource and ADest must be 8 byte aligned for
+32-bit code and 16 byte aligned for 64-bit code, and the buffers may not overlap.  ACount will be rounded up to a
+multiple of 64.}
 procedure MoveMultipleOf64_Small(const ASource; var ADest; ACount: NativeInt);
 {$ifndef PurePascal}
 asm
@@ -1950,10 +2331,23 @@ end;
 procedure ReleaseEmergencyReserveAddressSpace; forward;
 function CharCount(APFirstFreeChar, APBufferStart: PWideChar): Integer; forward;
 
-{Allocates a block of memory from the operating system.  The block is assumed to be aligned to at least a 64 byte
-boundary, and is assumed to be zero initialized.  Returns nil on error.}
-function OS_AllocateVirtualMemory(ABlockSize: NativeInt; AAllocateTopDown: Boolean;
-  AReserveOnlyNoReadWriteAccess: Boolean): Pointer;
+{Releases a block of memory back to the operating system.  Returns 0 on success, -1 on failure.}
+function OS_FreeVirtualMemory(APointer: Pointer; ABlockSize: NativeInt): Integer;
+begin
+  if Winapi.Windows.VirtualFree(APointer, 0, MEM_RELEASE) then
+  begin
+    AtomicDecrement(MemoryUsageCurrent, NativeUInt(ABlockSize));
+    Result := 0;
+  end
+  else
+    Result := -1;
+end;
+
+{Allocates a block of memory from the operating system.  The block will be aligned to at least a 64 byte boundary, and
+will be zero initialized.  Returns nil on error.}
+function OS_AllocateVirtualMemory(ABlockSize: NativeInt; AReserveOnlyNoReadWriteAccess: Boolean): Pointer;
+var
+  LAllocationFlags: Cardinal;
 begin
   if AReserveOnlyNoReadWriteAccess then
   begin
@@ -1961,13 +2355,33 @@ begin
   end
   else
   begin
-    Result := Winapi.Windows.VirtualAlloc(nil, ABlockSize, MEM_COMMIT, PAGE_READWRITE);
+    if FastMM_AllocateTopDown then
+      LAllocationFlags := MEM_COMMIT or MEM_TOP_DOWN
+    else
+      LAllocationFlags := MEM_COMMIT;
+    Result := Winapi.Windows.VirtualAlloc(nil, ABlockSize, LAllocationFlags, PAGE_READWRITE);
     {The emergency address space reserve is released when address space runs out for the first time.  This allows some
     subsequent memory allocation requests to succeed in order to allow the application to allocate some memory for error
     handling, etc. in response to the EOutOfMemory exception.  This only applies to 32-bit applications.}
     if Result = nil then
       ReleaseEmergencyReserveAddressSpace;
   end;
+
+  if Result <> nil then
+  begin
+    AtomicIncrement(MemoryUsageCurrent, NativeUInt(ABlockSize));
+
+    if (MemoryUsageLimit > 0)
+      and (MemoryUsageCurrent > MemoryUsageLimit) then
+    begin
+      Inc(MemoryUsageLimit, MemoryUsageLimitGraceAmount);
+      MemoryUsageLimitGraceAmount := 0;
+
+      OS_FreeVirtualMemory(Result, ABlockSize);
+      Result := nil;
+    end;
+  end;
+
 end;
 
 function OS_AllocateVirtualMemoryAtAddress(APAddress: Pointer; ABlockSize: NativeInt;
@@ -1982,15 +2396,21 @@ begin
     Result := (Winapi.Windows.VirtualAlloc(APAddress, ABlockSize, MEM_RESERVE, PAGE_READWRITE) <> nil)
       and (Winapi.Windows.VirtualAlloc(APAddress, ABlockSize, MEM_COMMIT, PAGE_READWRITE) <> nil);
   end;
-end;
 
-{Releases a block of memory back to the operating system.  Returns 0 on success, -1 on failure.}
-function OS_FreeVirtualMemory(APointer: Pointer): Integer;
-begin
-  if Winapi.Windows.VirtualFree(APointer, 0, MEM_RELEASE) then
-    Result := 0
-  else
-    Result := -1;
+  if Result then
+  begin
+    AtomicIncrement(MemoryUsageCurrent, NativeUInt(ABlockSize));
+
+    if (MemoryUsageLimit > 0)
+      and (MemoryUsageCurrent > MemoryUsageLimit) then
+    begin
+      Inc(MemoryUsageLimit, MemoryUsageLimitGraceAmount);
+      MemoryUsageLimitGraceAmount := 0;
+
+      OS_FreeVirtualMemory(APAddress, ABlockSize);
+      Result := False;
+    end;
+  end;
 end;
 
 {Determines the size and state of the virtual memory region starting at APRegionStart.}
@@ -1998,23 +2418,27 @@ procedure OS_GetVirtualMemoryRegionInfo(APRegionStart: Pointer; var AMemoryRegio
 var
   LMemInfo: TMemoryBasicInformation;
 begin
-  {VirtualQuery might fail if the address is not aligned on a 4K boundary, e.g. it fails when called on Pointer(-1).}
-  APRegionStart := Pointer(NativeUInt(APRegionStart) and (not (CVirtualMemoryPageSize - 1)));
-
-  Winapi.Windows.VirtualQuery(APRegionStart, LMemInfo, SizeOf(LMemInfo));
-
-  AMemoryRegionInfo.RegionStartAddress := LMemInfo.BaseAddress;
-  AMemoryRegionInfo.RegionSize := LMemInfo.RegionSize;
-  AMemoryRegionInfo.RegionIsFree := LMemInfo.State = MEM_FREE;
-  AMemoryRegionInfo.AccessRights := [];
-  if (LMemInfo.State = MEM_COMMIT) and (LMemInfo.Protect and PAGE_GUARD = 0) then
+  if Winapi.Windows.VirtualQuery(APRegionStart, LMemInfo, SizeOf(LMemInfo)) > 0 then
   begin
-    if (LMemInfo.Protect and (PAGE_READONLY or PAGE_READWRITE or PAGE_EXECUTE or PAGE_EXECUTE_READ or PAGE_EXECUTE_READWRITE or PAGE_EXECUTE_WRITECOPY) <> 0) then
-      Include(AMemoryRegionInfo.AccessRights, marRead);
-    if (LMemInfo.Protect and (PAGE_READWRITE or PAGE_EXECUTE_READWRITE or PAGE_EXECUTE_WRITECOPY) <> 0) then
-      Include(AMemoryRegionInfo.AccessRights, marWrite);
-    if (LMemInfo.Protect and (PAGE_EXECUTE or PAGE_EXECUTE_READ or PAGE_EXECUTE_READWRITE or PAGE_EXECUTE_WRITECOPY) <> 0) then
-      Include(AMemoryRegionInfo.AccessRights, marExecute);
+    AMemoryRegionInfo.RegionStartAddress := LMemInfo.BaseAddress;
+    AMemoryRegionInfo.RegionSize := LMemInfo.RegionSize;
+    AMemoryRegionInfo.RegionIsFree := LMemInfo.State = MEM_FREE;
+    AMemoryRegionInfo.AccessRights := [];
+    if (LMemInfo.State = MEM_COMMIT) and (LMemInfo.Protect and PAGE_GUARD = 0) then
+    begin
+      if (LMemInfo.Protect and (PAGE_READONLY or PAGE_READWRITE or PAGE_EXECUTE or PAGE_EXECUTE_READ or PAGE_EXECUTE_READWRITE or PAGE_EXECUTE_WRITECOPY) <> 0) then
+        Include(AMemoryRegionInfo.AccessRights, marRead);
+      if (LMemInfo.Protect and (PAGE_READWRITE or PAGE_EXECUTE_READWRITE or PAGE_EXECUTE_WRITECOPY) <> 0) then
+        Include(AMemoryRegionInfo.AccessRights, marWrite);
+      if (LMemInfo.Protect and (PAGE_EXECUTE or PAGE_EXECUTE_READ or PAGE_EXECUTE_READWRITE or PAGE_EXECUTE_WRITECOPY) <> 0) then
+        Include(AMemoryRegionInfo.AccessRights, marExecute);
+    end;
+  end
+  else
+  begin
+    {VirtualQuery fails for addresses above the highest memory address accessible to the process. (Experimentally
+    determined as addresses >= $ffff0000 under 32-bit, and addresses >= $7fffffff0000 under 64-bit.)}
+    AMemoryRegionInfo := Default(TMemoryRegionInfo);
   end;
 end;
 
@@ -2085,7 +2509,7 @@ begin
     Inc(Result, LNumChars);
 end;
 
-{Returns True if the given file exists.  APFileName must be a #0 terminated.}
+{Returns True if the given file exists.  APFileName must be a #0 terminated string.}
 function OS_FileExists(APFileName: PWideChar): Boolean;
 begin
   {This will return True for folders and False for files that are locked by another process, but is "good enough" for
@@ -2099,27 +2523,35 @@ begin
   Result := Winapi.Windows.DeleteFileW(APFileName);
 end;
 
-{Creates the given file if it does not exist yet, and then appends the given data to it.}
-function OS_CreateOrAppendFile(APFileName: PWideChar; APData: Pointer; ADataSizeInBytes: Integer): Boolean;
-var
-  LFileHandle: THandle;
-  LBytesWritten: Cardinal;
+{Opens the given file for writing, returning the file handle.  If the file does not exist it will be created.  The file
+pointer will be set to the current end of the file.}
+function OS_OpenOrCreateFile(APFileName: PWideChar; var AFileHandle: THandle): Boolean;
 begin
-  if ADataSizeInBytes <= 0 then
-    Exit(True);
-
-  {Try to open/create the log file in read/write mode.}
-  LFileHandle := Winapi.Windows.CreateFileW(APFileName, GENERIC_READ or GENERIC_WRITE, 0, nil, OPEN_ALWAYS,
+  {Try to open/create the file in read/write mode.}
+  AFileHandle := Winapi.Windows.CreateFileW(APFileName, GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ, nil, OPEN_ALWAYS,
     FILE_ATTRIBUTE_NORMAL, 0);
-  if LFileHandle = INVALID_HANDLE_VALUE then
+  if AFileHandle = INVALID_HANDLE_VALUE then
     Exit(False);
 
-  {Add the data to the end of the file}
-  SetFilePointer(LFileHandle, 0, nil, FILE_END);
-  Winapi.Windows.WriteFile(LFileHandle, APData^, Cardinal(ADataSizeInBytes), LBytesWritten, nil);
-  Result := LBytesWritten = Cardinal(ADataSizeInBytes);
+  {Move the file pointer to the end of the file}
+  SetFilePointer(AFileHandle, 0, nil, FILE_END);
 
-  CloseHandle(LFileHandle);
+  Result := True;
+end;
+
+{Writes data to the given file handle, returning True on success}
+function OS_WriteFile(AFileHandle: THandle; APData: Pointer; ADataSizeInBytes: Integer): Boolean;
+var
+  LBytesWritten: Cardinal;
+begin
+  Winapi.Windows.WriteFile(AFileHandle, APData^, Cardinal(ADataSizeInBytes), LBytesWritten, nil);
+  Result := LBytesWritten = Cardinal(ADataSizeInBytes);
+end;
+
+{Closes the given file handle}
+procedure OS_CloseFile(AFileHandle: THandle);
+begin
+  CloseHandle(AFileHandle);
 end;
 
 procedure OS_OutputDebugString(APDebugMessage: PWideChar); inline;
@@ -2217,7 +2649,46 @@ begin
     Dec(Result);
 end;
 
-function AppendTextFile(APFileName, APText: PWideChar; AWideCharCount: Integer): Boolean;
+function OpenOrCreateTextFile(APFileName: PWideChar; AAddLineBreakToExistingFile: Boolean;
+  var AFileHandle: THandle): Boolean;
+const
+  CUTF8_BOM: Cardinal = $BFBBEF;
+  CUTF16LE_BOM: Word = $FEFF;
+  CLineBreakUTF8: Word = $0A0D;
+  CLineBreakUTF16: Cardinal = $000A000D;
+var
+  LFileExisted: Boolean;
+begin
+  LFileExisted := OS_FileExists(APFileName);
+
+  if OS_OpenOrCreateFile(APFileName, AFileHandle) then
+  begin
+    if LFileExisted then
+    begin
+      if AAddLineBreakToExistingFile then
+      begin
+        if FastMM_TextFileEncoding in [teUTF8, teUTF8_BOM] then
+          OS_WriteFile(AFileHandle, @CLineBreakUTF8, SizeOf(CLineBreakUTF8))
+        else
+          OS_WriteFile(AFileHandle, @CLineBreakUTF16, SizeOf(CLineBreakUTF16));
+      end;
+    end
+    else
+    begin
+      {It's a new file, so add the BOM if required.}
+      if FastMM_TextFileEncoding = teUTF8_BOM then
+        OS_WriteFile(AFileHandle, @CUTF8_BOM, 3)
+      else if FastMM_TextFileEncoding = teUTF16LE_BOM then
+        OS_WriteFile(AFileHandle, @CUTF16LE_BOM, SizeOf(CUTF16LE_BOM));
+    end;
+
+    Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function AppendTextFile(AFileHandle: THandle; APText: PWideChar; AWideCharCount: Integer): Boolean;
 var
   LBufferSize: Integer;
   LPBufferStart, LPBufferPos: PByte;
@@ -2227,40 +2698,12 @@ begin
   encoded text.}
   LBufferSize := (AWideCharCount + 4) * 3;
 
-  LPBufferStart := OS_AllocateVirtualMemory(LBufferSize, False, False);
+  LPBufferStart := OS_AllocateVirtualMemory(LBufferSize, False);
   if LPBufferStart = nil then
     Exit(False);
 
   try
     LPBufferPos := LPBufferStart;
-
-    if OS_FileExists(APFileName) then
-    begin
-      {The log file exists:  Add a line break after the previous event.}
-      if FastMM_TextFileEncoding in [teUTF8, teUTF8_BOM] then
-      begin
-        PWord(LPBufferPos)^ := $0A0D;
-        Inc(LPBufferPos, 2);
-      end
-      else
-      begin
-        PCardinal(LPBufferPos)^ := $000A000D;
-        Inc(LPBufferPos, 4);
-      end;
-    end
-    else
-    begin
-      {The file does not exist, so add the BOM if required.}
-      if FastMM_TextFileEncoding = teUTF8_BOM then
-      begin
-        PCardinal(LPBufferPos)^ := $BFBBEF;
-        Inc(LPBufferPos, 3);
-      end else if FastMM_TextFileEncoding = teUTF16LE_BOM then
-      begin
-        PWord(LPBufferPos)^ := $FEFF;
-        Inc(LPBufferPos, 2);
-      end;
-    end;
 
     {Copy the text across to the buffer, converting it as appropriate.}
     if FastMM_TextFileEncoding in [teUTF8, teUTF8_BOM] then
@@ -2273,15 +2716,16 @@ begin
       Inc(LPBufferPos, AWideCharCount * 2);
     end;
 
-    Result := OS_CreateOrAppendFile(APFileName, LPBufferStart, NativeInt(LPBufferPos) - NativeInt(LPBufferStart));
+    Result := OS_WriteFile(AFileHandle, LPBufferStart, NativeInt(LPBufferPos) - NativeInt(LPBufferStart));
 
   finally
-    OS_FreeVirtualMemory(LPBufferStart);
+    OS_FreeVirtualMemory(LPBufferStart, LBufferSize);
   end;
 end;
 
-{Returns the class for a memory block.  Returns nil if it is not a valid class.  Used by the leak detection code.}
-function DetectClassInstance(APointer: Pointer): TClass;
+{Attempts to determine whether APointer points to a valid class instance.  Returns the class if it does, otherwise nil.
+APointer is assumed to point to to at least 4 (32-bit) or 8 (64-bit) readable bytes of memory.}
+function FastMM_DetectClassInstance(APointer: Pointer): TClass;
 var
   LMemoryRegionInfo: TMemoryRegionInfo;
 
@@ -2345,9 +2789,9 @@ begin
     Result := nil;
 end;
 
-{Detects the probable string data type for a memory block.  Used by the leak classification code when a block cannot be
-identified as a known class instance.}
-function DetectStringData(APMemoryBlock: Pointer; AAvailableSpaceInBlock: NativeInt): TStringDataType;
+{Attempts to determine whether APMemoryBlock points to string data.  Used by the leak classification code when a block
+cannot be identified as a class instance.}
+function FastMM_DetectStringData(APMemoryBlock: Pointer; AAvailableSpaceInBlock: NativeInt): TFastMM_StringDataType;
 type
   {The layout of a string header.}
   PStrRec = ^StrRec;
@@ -2374,19 +2818,19 @@ var
 begin
   {Check that the reference count is within a reasonable range}
   if PStrRec(APMemoryBlock).refCnt > CMaxRefCount then
-    Exit(stNotAString);
+    Exit(sdtNotAString);
 
   {Element size must be either 1 (Ansi) or 2 (Unicode)}
   LElementSize := PStrRec(APMemoryBlock).elemSize;
   if (LElementSize <> 1) and (LElementSize <> 2) then
-    Exit(stNotAString);
+    Exit(sdtNotAString);
 
   {Get the string length and check whether it fits inside the block}
   LStringLength := PStrRec(APMemoryBlock).length;
   if (LStringLength <= 0)
     or (LStringLength >= (AAvailableSpaceInBlock - SizeOf(StrRec)) div LElementSize) then
   begin
-    Exit(stNotAString);
+    Exit(sdtNotAString);
   end;
 
   {Check for no characters outside the expected range.  If there are, then it is probably not a string.}
@@ -2396,16 +2840,16 @@ begin
 
     {There must be a trailing #0}
     if LPAnsiString[LStringLength] <> #0 then
-      Exit(stNotAString);
+      Exit(sdtNotAString);
 
     {Check that all characters are in the range considered valid.}
     for LCharInd := 0 to LStringLength - 1 do
     begin
       if LPAnsiString[LCharInd] < CMinCharCode then
-        Exit(stNotAString);
+        Exit(sdtNotAString);
     end;
 
-    Result := stAnsiString;
+    Result := sdtAnsiString;
   end
   else
   begin
@@ -2413,16 +2857,16 @@ begin
 
     {There must be a trailing #0}
     if LPUnicodeString[LStringLength] <> #0 then
-      Exit(stNotAString);
+      Exit(sdtNotAString);
 
     {Check that all characters are in the range considered valid.}
     for LCharInd := 0 to LStringLength - 1 do
     begin
       if LPUnicodeString[LCharInd] < CMinCharCode then
-        Exit(stNotAString);
+        Exit(sdtNotAString);
     end;
 
-    Result := stUnicodeString;
+    Result := sdtUnicodeString;
   end;
 end;
 
@@ -2434,14 +2878,14 @@ end;
 function DetectBlockContentType(APMemoryBlock: Pointer; AAvailableSpaceInBlock: NativeInt): NativeUInt;
 var
   LLeakedClass: TClass;
-  LStringType: TStringDataType;
+  LStringType: TFastMM_StringDataType;
 begin
   {Attempt to determine the class type for the block.}
-  LLeakedClass := DetectClassInstance(APMemoryBlock);
+  LLeakedClass := FastMM_DetectClassInstance(APMemoryBlock);
   if LLeakedClass <> nil then
     Exit(NativeUInt(LLeakedClass));
 
-  LStringType := DetectStringData(APMemoryBlock, AAvailableSpaceInBlock);
+  LStringType := FastMM_DetectStringData(APMemoryBlock, AAvailableSpaceInBlock);
   Result := Ord(LStringType);
 end;
 
@@ -2819,16 +3263,20 @@ begin
   Result := AddTokenValue(ATokenValues, ATokenID, @LTempBuffer, CharCount(LPTarget, @LTempBuffer), Result, APBufferEnd);
 end;
 
-function AddTokenValue_StackTrace(var ATokenValues: TEventLogTokenValues; ATokenID: Integer;
-  const AStackTrace: TFastMM_StackTrace; APTokenValueBufferPos, APBufferEnd: PWideChar): PWideChar;
+function AddTokenValue_StackTrace(var ATokenValues: TEventLogTokenValues; ATokenID: Integer; APStackTrace: PNativeUInt;
+  AStackTraceEntryCount: Cardinal; APTokenValueBufferPos, APBufferEnd: PWideChar): PWideChar;
 var
-  LStackTraceBuffer: array[0..CFastMM_StackTraceEntryCount * 160] of WideChar;
+  LStackTraceBuffer: array[0..CFastMM_StackTrace_MaximumEntryCount * 160] of WideChar;
   LPBuffer: PWideChar;
 begin
   Result := APTokenValueBufferPos;
 
-  LPBuffer := FastMM_ConvertStackTraceToText(@AStackTrace, CFastMM_StackTraceEntryCount, @LStackTraceBuffer,
-    @LStackTraceBuffer[High(LStackTraceBuffer)]);
+  LPBuffer := @LStackTraceBuffer;
+  if AStackTraceEntryCount > 0 then
+  begin
+    LPBuffer := FastMM_ConvertStackTraceToText(APStackTrace, AStackTraceEntryCount, LPBuffer,
+      @LStackTraceBuffer[High(LStackTraceBuffer)]);
+  end;
 
   Result := AddTokenValue(ATokenValues, ATokenID, LStackTraceBuffer, CharCount(LPBuffer, @LStackTraceBuffer), Result,
     APBufferEnd);
@@ -2973,19 +3421,19 @@ begin
     Result := AddTokenValue_NativeUInt(ATokenValues, CEventLogTokenAllocationNumber, LPDebugBlockHeader.AllocationNumber,
       Result, APBufferEnd);
 
-    Result := AddTokenValue_StackTrace(ATokenValues, CEventLogTokenAllocationStackTrace, LPDebugBlockHeader.AllocationStackTrace,
-      Result, APBufferEnd);
+    Result := AddTokenValue_StackTrace(ATokenValues, CEventLogTokenAllocationStackTrace,
+      LPDebugBlockHeader.DebugFooter_AllocationStackTracePtr, LPDebugBlockHeader.StackTraceEntryCount, Result, APBufferEnd);
 
     if LBlockHeader and CBlockIsFreeFlag = CBlockIsFreeFlag then
     begin
       Result := AddTokenValue_Hexadecimal(ATokenValues, CEventLogTokenFreedByThread, LPDebugBlockHeader.FreedByThread,
         Result, APBufferEnd);
 
-      Result := AddTokenValue_StackTrace(ATokenValues, CEventLogTokenFreeStackTrace, LPDebugBlockHeader.FreeStackTrace,
-        Result, APBufferEnd);
+      Result := AddTokenValue_StackTrace(ATokenValues, CEventLogTokenFreeStackTrace, LPDebugBlockHeader.DebugFooter_FreeStackTracePtr,
+        LPDebugBlockHeader.StackTraceEntryCount, Result, APBufferEnd);
 
       {If it is a freed debug block then get the prior class from the debug header.}
-      LBlockContentType := NativeUInt(DetectClassInstance(@LPDebugBlockHeader.PreviouslyUsedByClass));
+      LBlockContentType := NativeUInt(FastMM_DetectClassInstance(@LPDebugBlockHeader.PreviouslyUsedByClass));
       Result := AddTokenValue_BlockContentType(ATokenValues, CEventLogTokenObjectClass, LBlockContentType, Result,
         APBufferEnd);
 
@@ -3064,6 +3512,25 @@ begin
   end;
 end;
 
+function EventLogFileIsOpen: Boolean;
+begin
+  Result := EventLogFileHandle <> INVALID_HANDLE_VALUE;
+end;
+
+function OpenEventLogFile: Boolean;
+begin
+  Result := EventLogFileIsOpen or OpenOrCreateTextFile(@EventLogFilename, True, EventLogFileHandle);
+end;
+
+procedure CloseEventLogFile;
+begin
+  if EventLogFileIsOpen then
+  begin
+    OS_CloseFile(EventLogFileHandle);
+    EventLogFileHandle := INVALID_HANDLE_VALUE;
+  end;
+end;
+
 {Logs an event to OutputDebugString, file or the display (or any combination thereof) depending on configuration.}
 procedure LogEvent(AEventType: TFastMM_MemoryManagerEventType; const ATokenValues: TEventLogTokenValues);
 var
@@ -3071,6 +3538,7 @@ var
   LTextBuffer: array[0..CEventMessageMaxWideChars] of WideChar;
   LPLogHeaderStart, LPBodyStart: PWideChar;
   LPBuffer, LPBufferEnd: PWideChar;
+  LEventLogFileWasOpen: Boolean;
 begin
   LPLogHeaderStart := @LTextBuffer;
   LPBufferEnd := @LTextBuffer[CEventMessageMaxWideChars - 1];
@@ -3175,7 +3643,13 @@ begin
   {Log the message to file, if needed.}
   if AEventType in FastMM_LogToFileEvents then
   begin
-    AppendTextFile(@EventLogFilename, LPLogHeaderStart, CharCount(LPBuffer, @LTextBuffer));
+    LEventLogFileWasOpen := EventLogFileIsOpen;
+
+    if LEventLogFileWasOpen or OpenEventLogFile then
+      AppendTextFile(EventLogFileHandle, LPLogHeaderStart, CharCount(LPBuffer, @LTextBuffer));
+
+    if not LEventLogFileWasOpen then
+      CloseEventLogFile;
   end;
 
   if AEventType in FastMM_OutputDebugStringEvents then
@@ -3185,6 +3659,10 @@ begin
 
   if AEventType in FastMM_MessageBoxEvents then
   begin
+    {Ensure that the event log file is closed before showing any dialogs, so the user can access it while the dialog is
+    displayed.}
+    CloseEventLogFile;
+
     OS_ShowMessageBox(LPBodyStart, LPMessageBoxCaption);
   end;
 
@@ -3258,7 +3736,7 @@ end;
 procedure TFastMM_FreedObject.VirtualMethodOnFreedObject(APMethodName: PWideChar);
 begin
   {Get the stack trace and then log the event.}
-  FastMM_GetStackTrace(@FVirtualMethodStackTrace, CFastMM_StackTraceEntryCount, 0);
+  FastMM_GetStackTrace(@FVirtualMethodStackTrace, Length(FVirtualMethodStackTrace), 0);
   VirtualMethodOnFreedObject_LogEvent(APMethodName);
 end;
 
@@ -3287,7 +3765,7 @@ begin
   LPBufferPos := AddTokenValue(LTokenValues, CEventLogTokenVirtualMethodName, APMethodName,
     GetStringLength(APMethodName), LPBufferPos, LPBufferEnd);
   AddTokenValue_StackTrace(LTokenValues, CEventLogTokenVirtualMethodCallOnFreedObject,
-    TFastMM_FreedObject.FVirtualMethodStackTrace, LPBufferPos, LPBufferEnd);
+    @TFastMM_FreedObject.FVirtualMethodStackTrace, Length(FVirtualMethodStackTrace), LPBufferPos, LPBufferEnd);
 
   LogEvent(mmetVirtualMethodCallOnFreedObject, LTokenValues);
 
@@ -3417,32 +3895,11 @@ begin
     PBlockStatusFlags(APSmallMediumOrLargeBlock)[-1] := PBlockStatusFlags(APSmallMediumOrLargeBlock)[-1] and (not CHasDebugInfoFlag);
 end;
 
-function CalculateDebugBlockHeaderChecksum(APDebugBlockHeader: PFastMM_DebugBlockHeader): NativeUInt;
-var
-  LPCurPos: PNativeUInt;
+{Calculates the size of a debug block footer, given the number of stack trace entries.}
+function CalculateDebugBlockFooterSize(AStackTraceDepth: Byte): NativeInt; inline;
 begin
-  Result := 0;
-  LPCurPos := @APDebugBlockHeader.UserSize;
-  while True do
-  begin
-    Result := Result xor LPCurPos^;
-    Inc(LPCurPos);
-
-    if LPCurPos = @APDebugBlockHeader.HeaderCheckSum then
-      Break;
-  end;
-
-end;
-
-procedure SetDebugBlockHeaderAndFooterChecksums(APDebugBlockHeader: PFastMM_DebugBlockHeader);
-var
-  LHeaderChecksum: NativeUInt;
-  LPFooter: PNativeUInt;
-begin
-  LHeaderChecksum := CalculateDebugBlockHeaderChecksum(APDebugBlockHeader);
-  APDebugBlockHeader.HeaderCheckSum := LHeaderChecksum;
-  LPFooter := PNativeUInt(PByte(APDebugBlockHeader) + APDebugBlockHeader.UserSize + SizeOf(TFastMM_DebugBlockHeader));
-  LPFooter^ := not LHeaderChecksum;
+  {The debug footer consists of a dword checksum, followed by the allocation and free stack traces.}
+  Result := CDebugBlockFooterCheckSumSize + AStackTraceDepth * (2 * SizeOf(Pointer));
 end;
 
 procedure LogDebugBlockHeaderInvalid(APDebugBlockHeader: PFastMM_DebugBlockHeader);
@@ -3479,18 +3936,13 @@ end;
 {Checks the consistency of a block with embedded debug info.  Returns True if the block is intact, otherwise
 (optionally) logs and/or displays the error and returns False.}
 function CheckDebugBlockHeaderAndFooterCheckSumsValid(APDebugBlockHeader: PFastMM_DebugBlockHeader): Boolean;
-var
-  LHeaderChecksum: NativeUInt;
-  LPFooter: PNativeUInt;
 begin
-  LHeaderChecksum := CalculateDebugBlockHeaderChecksum(APDebugBlockHeader);
-  if APDebugBlockHeader.HeaderCheckSum <> LHeaderChecksum then
+  if APDebugBlockHeader.CalculateHeaderCheckSum <> APDebugBlockHeader.HeaderCheckSum then
   begin
     LogDebugBlockHeaderInvalid(APDebugBlockHeader);
     Exit(False);
   end;
-  LPFooter := PNativeUInt(PByte(APDebugBlockHeader) + APDebugBlockHeader.UserSize + SizeOf(TFastMM_DebugBlockHeader));
-  if LPFooter^ <> (not LHeaderChecksum) then
+  if APDebugBlockHeader.CalculateFooterCheckSum <> APDebugBlockHeader.DebugFooterPtr^ then
   begin
     LogDebugBlockFooterInvalid(APDebugBlockHeader);
     Exit(False);
@@ -3698,7 +4150,7 @@ procedure EnsureEmergencyReserveAddressSpaceAllocated;
 begin
 {$ifdef 32Bit}
   if EmergencyReserveAddressSpace = nil then
-    EmergencyReserveAddressSpace := OS_AllocateVirtualMemory(CEmergencyReserveAddressSpace, False, True);
+    EmergencyReserveAddressSpace := OS_AllocateVirtualMemory(CEmergencyReserveAddressSpace, True);
 {$endif}
 end;
 
@@ -3707,7 +4159,7 @@ begin
 {$ifdef 32Bit}
   if EmergencyReserveAddressSpace <> nil then
   begin
-    OS_FreeVirtualMemory(EmergencyReserveAddressSpace);
+    OS_FreeVirtualMemory(EmergencyReserveAddressSpace, CEmergencyReserveAddressSpace);
     EmergencyReserveAddressSpace := nil;
   end;
 {$endif}
@@ -3732,6 +4184,7 @@ begin
   OS_AllowOtherThreadToRun;
 end;
 
+
 {-----------------------------------------}
 {--------Debug block management-----------}
 {-----------------------------------------}
@@ -3746,9 +4199,15 @@ begin
   if not CheckDebugBlockHeaderAndFooterCheckSumsValid(LPActualBlock) then
     System.Error(reInvalidPtr);
 
+  {Avoid a potential race condition here:  While the debug header and footer is being updated the block must be flagged
+  as not containing any debug information, otherwise a concurrent call to FastMM_ScanDebugBlocksForCorruption may flag
+  this block as corrupted.}
+  SetBlockHasDebugInfo(LPActualBlock, False);
+
   {Update the information in the block header.}
   LPActualBlock.FreedByThread := OS_GetCurrentThreadID;
-  FastMM_GetStackTrace(@LPActualBlock.FreeStackTrace, CFastMM_StackTraceEntryCount, CFastMM_StackTrace_SkipFrames_FreeMem);
+  if LPActualBlock.StackTraceEntryCount > 0 then
+    FastMM_GetStackTrace(LPActualBlock.DebugFooter_FreeStackTracePtr, LPActualBlock.StackTraceEntryCount, CFastMM_StackTrace_SkipFrames_FreeMem);
   LPActualBlock.PreviouslyUsedByClass := PPointer(APointer)^;
 
   {Fill the user area of the block with the debug pattern.}
@@ -3758,7 +4217,10 @@ begin
   LPActualBlock.DebugBlockFlags := CIsDebugBlockFlag or CBlockIsFreeFlag;
 
   {Update the header and footer checksums}
-  SetDebugBlockHeaderAndFooterChecksums(LPActualBlock);
+  LPActualBlock.CalculateAndSetHeaderAndFooterCheckSums;
+
+  {Restore the debug information flag.}
+  SetBlockHasDebugInfo(LPActualBlock, True);
 
   {Return the actual block to the memory pool.}
   Result := FastMM_FreeMem(LPActualBlock);
@@ -3768,7 +4230,8 @@ end;
 function FastMM_ReallocMem_ReallocDebugBlock(APointer: Pointer; ANewSize: NativeInt): Pointer;
 var
   LPActualBlock: PFastMM_DebugBlockHeader;
-  LAvailableSpace: NativeInt;
+  LAvailableSpace, LDebugFooterSize: NativeInt;
+  LPOldFooter, LPNewFooter: Pointer;
 begin
   LPActualBlock := @PFastMM_DebugBlockHeader(APointer)[-1];
 
@@ -3778,28 +4241,51 @@ begin
 
   {Can the block be resized in-place?}
   LAvailableSpace := FastMM_BlockMaximumUserBytes(LPActualBlock);
-  if LAvailableSpace >= ANewSize + (CDebugBlockHeaderSize + CDebugBlockFooterSize) then
+  LDebugFooterSize := CalculateDebugBlockFooterSize(LPActualBlock.StackTraceEntryCount);
+  if LAvailableSpace >= (ANewSize + CDebugBlockHeaderSize + LDebugFooterSize) then
   begin
-    {Update the user block size and set the new header and footer checksums.}
+
+    {Avoid a potential race condition here:  While the debug header and footer is being updated the block must be flagged
+    as not containing any debug information, otherwise a concurrent call to FastMM_ScanDebugBlocksForCorruption may flag
+    this block as corrupted.}
+    SetBlockHasDebugInfo(LPActualBlock, False);
+
+    LPOldFooter := LPActualBlock.DebugFooterPtr;
+
+    {Update the user block size and set the new header checksum.  The footer checksum should be unchanged.}
     LPActualBlock.UserSize := ANewSize;
-    SetDebugBlockHeaderAndFooterChecksums(LPActualBlock);
+    LPActualBlock.HeaderCheckSum := LPActualBlock.CalculateHeaderCheckSum;
+
+    {Move the debug footer just beyond the new user size.}
+    LPNewFooter := LPActualBlock.DebugFooterPtr;
+    System.Move(LPOldFooter^, LPNewFooter^, LDebugFooterSize);
+
+    {Restore the debug information flag.}
+    SetBlockHasDebugInfo(LPActualBlock, True);
 
     Result := APointer;
   end
   else
   begin
     {The new size cannot fit in the existing block:  We need to allocate a new block.}
-    Result := FastMM_GetMem(ANewSize + (CDebugBlockHeaderSize + CDebugBlockFooterSize));
+    Result := FastMM_GetMem(ANewSize + CDebugBlockHeaderSize + LDebugFooterSize);
 
     if Result <> nil then
     begin
-      {Move the old data across and free the old block.}
+      {Move the old header and data across}
       System.Move(LPActualBlock^, Result^, LPActualBlock.UserSize + CDebugBlockHeaderSize);
-      FastMM_FreeMem_FreeDebugBlock(APointer);
 
-      {Update the user block size and set the new header and footer checksums.}
+      {Set the user size in the header for the new block and calculate the new header checksum.}
       PFastMM_DebugBlockHeader(Result).UserSize := ANewSize;
-      SetDebugBlockHeaderAndFooterChecksums(PFastMM_DebugBlockHeader(Result));
+      PFastMM_DebugBlockHeader(Result).HeaderCheckSum := PFastMM_DebugBlockHeader(Result).CalculateHeaderCheckSum;
+
+      {Move the debug footer over to the end of the user data.}
+      LPOldFooter := LPActualBlock.DebugFooterPtr;
+      LPNewFooter := PFastMM_DebugBlockHeader(Result).DebugFooterPtr;
+      System.Move(LPOldFooter^, LPNewFooter^, LDebugFooterSize);
+
+      {Free the old block.}
+      FastMM_FreeMem_FreeDebugBlock(APointer);
 
       {Set the flag in the actual block header to indicate that the block contains debug information.}
       SetBlockHasDebugInfo(Result, True);
@@ -3833,7 +4319,7 @@ begin
 
   {Check that the debug block header is intact.  If it is, then a meaningful error may be returned.}
   LPDebugBlockHeader := @PFastMM_DebugBlockHeader(APointer)[-1];
-  LHeaderChecksum := CalculateDebugBlockHeaderChecksum(LPDebugBlockHeader);
+  LHeaderChecksum := LPDebugBlockHeader.CalculateHeaderCheckSum;
   if LPDebugBlockHeader.HeaderCheckSum <> LHeaderChecksum then
     Exit(-1);
 
@@ -3864,7 +4350,7 @@ var
 begin
   if not APLargeBlockHeader.BlockIsSegmented then
   begin
-    Result := OS_FreeVirtualMemory(APLargeBlockHeader);
+    Result := OS_FreeVirtualMemory(APLargeBlockHeader, APLargeBlockHeader.ActualBlockSize);
   end
   else
   begin
@@ -3878,7 +4364,7 @@ begin
     begin
       OS_GetVirtualMemoryRegionInfo(LPCurrentSegment, LMemoryRegionInfo);
 
-      Result := OS_FreeVirtualMemory(LPCurrentSegment);
+      Result := OS_FreeVirtualMemory(LPCurrentSegment, LMemoryRegionInfo.RegionSize);
       if Result <> 0 then
         Break;
 
@@ -3995,9 +4481,8 @@ begin
   LLargeBlockActualSize := (ASize + CLargeBlockHeaderSize + CLargeBlockGranularity - 1) and -CLargeBlockGranularity;
   if LLargeBlockActualSize <= CMaximumMediumBlockSize then
     Exit(nil);
-  {Get the large block.  For segmented large blocks to work in practice without excessive move operations we need to
-  allocate top down.}
-  Result := OS_AllocateVirtualMemory(LLargeBlockActualSize, True, False);
+  {Get the large block.}
+  Result := OS_AllocateVirtualMemory(LLargeBlockActualSize, False);
 
   {Set the Large block fields}
   if Result <> nil then
@@ -4502,7 +4987,7 @@ begin
       APMediumBlockManager.MediumBlockManagerLocked := 0;
 
     {Free the entire span.}
-    Result := OS_FreeVirtualMemory(APMediumBlockSpan);
+    Result := OS_FreeVirtualMemory(APMediumBlockSpan, APMediumBlockSpan.SpanSize);
   end;
 end;
 
@@ -4592,7 +5077,7 @@ begin
   BinMediumSequentialFeedRemainder(APMediumBlockManager);
   {Allocate a new sequential feed block pool.  The block is assumed to be zero initialized.}
   LNewSpanSize := DefaultMediumBlockSpanSize;
-  LPNewSpan := OS_AllocateVirtualMemory(LNewSpanSize, False, False);
+  LPNewSpan := OS_AllocateVirtualMemory(LNewSpanSize, False);
   if LPNewSpan <> nil then
   begin
     LPNewSpan.SpanSize := LNewSpanSize;
@@ -7172,6 +7657,14 @@ begin
 {$endif}
 end;
 
+function FastMM_FreeMem_EraseBeforeFree(APointer: Pointer): Integer;
+begin
+  {Fill the user area of the block with the debug fill pattern before passing the block to the regular FreeMem handler.}
+  FillChar(APointer^, FastMM_BlockMaximumUserBytes(APointer), CDebugFillPattern1B);
+
+  Result := FastMM_FreeMem(APointer);
+end;
+
 function FastMM_ReallocMem(APointer: Pointer; ANewSize: NativeInt): Pointer;
 {$ifndef PurePascal}
 asm
@@ -7281,23 +7774,32 @@ end;
 {--------------------------------------------------------}
 
 function FastMM_DebugGetMem_GetDebugBlock(ASize: NativeInt; AFillBlockWithDebugPattern: Boolean): Pointer;
+var
+  LStackTraceDepth: Byte;
 begin
-  Result := FastMM_GetMem(ASize + (CDebugBlockHeaderSize + CDebugBlockFooterSize));
+  LStackTraceDepth := DebugMode_StackTrace_EntryCount;
+
+  {Add the size of the debug header, footer checksum and two stack traces to the allocation size.}
+  Result := FastMM_GetMem(ASize + CDebugBlockHeaderSize + CalculateDebugBlockFooterSize(LStackTraceDepth));
   if Result = nil then
     Exit;
 
   {Populate the debug header and set the header and footer checksums.}
   PFastMM_DebugBlockHeader(Result).UserSize := ASize;
+  PFastMM_DebugBlockHeader(Result).StackTraceEntryCount := LStackTraceDepth;
   PFastMM_DebugBlockHeader(Result).PreviouslyUsedByClass := nil;
-  FastMM_GetStackTrace(@PFastMM_DebugBlockHeader(Result).AllocationStackTrace, CFastMM_StackTraceEntryCount,
-    CFastMM_StackTrace_SkipFrames_GetMem);
-  PFastMM_DebugBlockHeader(Result).FreeStackTrace := Default(TFastMM_StackTrace);
+  if LStackTraceDepth > 0 then
+  begin
+    FastMM_GetStackTrace(PFastMM_DebugBlockHeader(Result).DebugFooter_AllocationStackTracePtr, LStackTraceDepth,
+      CFastMM_StackTrace_SkipFrames_GetMem);
+    FillChar(PFastMM_DebugBlockHeader(Result).DebugFooter_FreeStackTracePtr^, LStackTraceDepth * SizeOf(Pointer), 0);
+  end;
   PFastMM_DebugBlockHeader(Result).AllocationGroup := FastMM_CurrentAllocationGroup;
   PFastMM_DebugBlockHeader(Result).AllocationNumber := AtomicIncrement(FastMM_LastAllocationNumber);
   PFastMM_DebugBlockHeader(Result).AllocatedByThread := OS_GetCurrentThreadID;
   PFastMM_DebugBlockHeader(Result).FreedByThread := 0;
   PFastMM_DebugBlockHeader(Result).DebugBlockFlags := CIsDebugBlockFlag;
-  SetDebugBlockHeaderAndFooterChecksums(Result);
+  PFastMM_DebugBlockHeader(Result).CalculateAndSetHeaderAndFooterCheckSums;
 
   {Fill the block with the debug pattern}
   if AFillBlockWithDebugPattern then
@@ -7312,11 +7814,17 @@ end;
 
 function FastMM_DebugGetMem(ASize: NativeInt): Pointer;
 begin
+  if FastMM_DebugMode_ScanForCorruptionBeforeEveryOperation then
+    FastMM_ScanDebugBlocksForCorruption;
+
   Result := FastMM_DebugGetMem_GetDebugBlock(ASize, True);
 end;
 
 function FastMM_DebugFreeMem(APointer: Pointer): Integer;
 begin
+  if FastMM_DebugMode_ScanForCorruptionBeforeEveryOperation then
+    FastMM_ScanDebugBlocksForCorruption;
+
   Result := FastMM_FreeMem(APointer);
 end;
 
@@ -7325,6 +7833,9 @@ var
   LBlockHeader: Integer;
   LMoveCount: NativeInt;
 begin
+  if FastMM_DebugMode_ScanForCorruptionBeforeEveryOperation then
+    FastMM_ScanDebugBlocksForCorruption;
+
   {Read the flags from the block header.}
   LBlockHeader := PBlockStatusFlags(APointer)[-1];
 
@@ -7361,10 +7872,16 @@ end;
 
 function FastMM_DebugAllocMem(ASize: NativeInt): Pointer;
 begin
+  if FastMM_DebugMode_ScanForCorruptionBeforeEveryOperation then
+    FastMM_ScanDebugBlocksForCorruption;
+
   Result := FastMM_DebugGetMem_GetDebugBlock(ASize, False);
   {Large blocks are already zero filled}
-  if (Result <> nil) and (ASize <= (CMaximumMediumBlockSize - CMediumBlockHeaderSize - CDebugBlockHeaderSize - CDebugBlockFooterSize)) then
+  if (Result <> nil)
+    and (ASize <= (CMaximumMediumBlockSize - CMediumBlockHeaderSize - CDebugBlockHeaderSize - CalculateDebugBlockFooterSize(PFastMM_DebugBlockHeader(Result).StackTraceEntryCount))) then
+  begin
     FillChar(Result^, ASize, 0);
+  end;
 end;
 
 procedure FastMM_NoOpGetStackTrace(APReturnAddresses: PNativeUInt; AMaxDepth, ASkipFrames: Cardinal);
@@ -7388,7 +7905,7 @@ end;
 function FastMM_DebugLibrary_LegacyLogStackTrace_Wrapper(APReturnAddresses: PNativeUInt; AMaxDepth: Cardinal;
   APBufferPosition, APBufferEnd: PWideChar): PWideChar;
 var
-  LAnsiBuffer: array[0..CFastMM_StackTraceEntryCount * 256] of AnsiChar;
+  LAnsiBuffer: array[0..CFastMM_StackTrace_MaximumEntryCount * 256] of AnsiChar;
   LPEnd, LPCurPos: PAnsiChar;
 begin
   Result := APBufferPosition;
@@ -7730,6 +8247,29 @@ begin
           LBlockOffsetFromMediumSpanStart := LPMediumBlockManager.LastMediumBlockSequentialFeedOffset.IntegerValue;
           if LBlockOffsetFromMediumSpanStart <= CMediumBlockSpanHeaderSize then
             LBlockOffsetFromMediumSpanStart := CMediumBlockSpanHeaderSize;
+
+          {It is possible that a new medium block is in the process of being split off from the sequential feed span by
+          another thread, in which case the block size may not yet be set properly.  In this case we need to wait for
+          the other thread to complete allocation of the block.}
+          LPMediumBlock := PByte(LPMediumBlockSpan) + LBlockOffsetFromMediumSpanStart;
+          LLockWaitTimeMilliseconds := 0;
+          while (GetMediumBlockSize(LPMediumBlock) = 0)
+            and FastMM_WalkBlocks_CheckTimeout(LLockWaitTimeMilliseconds, LTimestampMilliseconds, ALockTimeoutMilliseconds) do
+          begin
+            OS_AllowOtherThreadToRun;
+          end;
+
+          {Has the other thread completed the allocation, or is this perhaps a memory pool corruption?}
+          if GetMediumBlockSize(LPMediumBlock) = 0 then
+          begin
+            {If there was a reasonable wait time then raise an error, otherwise skip the entire span since it is not
+            possible to walk the blocks in the span without knowing the size of the first block.}
+            if ALockTimeoutMilliseconds >= 1000 then
+              System.Error(reInvalidPtr)
+            else
+              LBlockOffsetFromMediumSpanStart := LPMediumBlockSpan.SpanSize;
+          end;
+
         end
         else
           LBlockOffsetFromMediumSpanStart := CMediumBlockSpanHeaderSize;
@@ -7927,9 +8467,11 @@ begin
     System.Error(reInvalidPtr);
 end;
 
-procedure FastMM_ScanDebugBlocksForCorruption;
+function FastMM_ScanDebugBlocksForCorruption: Boolean;
 begin
   FastMM_WalkBlocks(FastMM_ScanDebugBlocksForCorruption_CallBack, [btLargeBlock, btMediumBlock, btSmallBlock], False);
+
+  Result := True;
 end;
 
 procedure FastMM_GetHeapStatus_CallBack(const ABlockInfo: TFastMM_WalkAllocatedBlocks_BlockInfo);
@@ -7976,6 +8518,12 @@ begin
     end;
 
   end;
+end;
+
+{Returns the number of bytes of address space that is currently either committed or reserved by FastMM.}
+function FastMM_GetCurrentMemoryUsage: NativeUInt;
+begin
+  Result := MemoryUsageCurrent;
 end;
 
 {Returns a THeapStatus structure with information about the current memory usage.}
@@ -8256,13 +8804,14 @@ var
   LTokenValues: TEventLogTokenValues;
   LInd: Integer;
   LPNode: PMemoryLogNode;
+  LFileHandle: THandle;
 begin
   {Get the current memory manager usage summary.}
   LMemoryManagerUsageSummary := FastMM_GetUsageSummary;
 
   {Allocate the memory required to store the token buffer, log text, as well as the detailed allocation information.}
   LBufferSize := SizeOf(TMemoryLogInfo) + (CTokenBufferMaxWideChars + CStateLogMaxChars) * SizeOf(Char);
-  LPLogInfo := OS_AllocateVirtualMemory(LBufferSize, False, False);
+  LPLogInfo := OS_AllocateVirtualMemory(LBufferSize, False);
   if LPLogInfo <> nil then
   begin
     try
@@ -8320,10 +8869,16 @@ begin
 
       {Delete the old file and write the new one.}
       OS_DeleteFile(PWideChar(AFilename));
-      Result := AppendTextFile(PWideChar(AFilename), LPStateLogBufferStart, CharCount(LPStateLogPos, LPStateLogBufferStart));
+      if OpenOrCreateTextFile(PWideChar(AFilename), True, LFileHandle) then
+      begin
+        Result := AppendTextFile(LFileHandle, LPStateLogBufferStart, CharCount(LPStateLogPos, LPStateLogBufferStart));
+        OS_CloseFile(LFileHandle);
+      end
+      else
+        Result := False;
 
     finally
-      OS_FreeVirtualMemory(LPLogInfo);
+      OS_FreeVirtualMemory(LPLogInfo, LBufferSize);
     end;
   end
   else
@@ -8464,8 +9019,7 @@ begin
   end
   else
   begin
-    {Either another memory manager has been set or this memory manager is
-     already being shared}
+    {Either another memory manager has been set or this memory manager is already being shared}
     Result := False;
   end;
 end;
@@ -8584,7 +9138,7 @@ begin
 
   {Allocate the list if it does not exist}
   if ExpectedMemoryLeaks = nil then
-    ExpectedMemoryLeaks := OS_AllocateVirtualMemory(CExpectedMemoryLeaksListSize, False, False);
+    ExpectedMemoryLeaks := OS_AllocateVirtualMemory(CExpectedMemoryLeaksListSize, False);
 
   Result := ExpectedMemoryLeaks <> nil;
 end;
@@ -8753,13 +9307,13 @@ begin
   i := 0;
   if APLeakSummary.LeakCount > 0 then
   begin
+    {$if CompilerVersion < 31}
+    LChildDirection := False; //Workaround for spurious warning with older compilers
+    {$endif}
     while True do
     begin
       LPSummaryEntry := @APLeakSummary.MemoryLeakEntries[i];
 
-      {$if CompilerVersion < 31}
-      LChildDirection := False; //Workaround for spurious warning with older compilers
-      {$endif}
       if ABlockUsableSize <> LPSummaryEntry.BlockUsableSize then
       begin
         LChildDirection := ABlockUsableSize > LPSummaryEntry.BlockUsableSize;
@@ -8818,6 +9372,10 @@ begin
     LPBufferEnd := @LTokenValueBuffer[High(LTokenValueBuffer)];
     LPBufferPos := AddTokenValues_GeneralTokens(LTokenValues, @LTokenValueBuffer, LPBufferEnd);
     AddTokenValues_BlockTokens(LTokenValues, ABlockInfo.BlockAddress, LPBufferPos, LPBufferEnd);
+
+    {If leak detail is logged to file, then open the log file once and close it after all leaks have been logged.}
+    if mmetUnexpectedMemoryLeakDetail in FastMM_LogToFileEvents then
+      OpenEventLogFile;
 
     LogEvent(mmetUnexpectedMemoryLeakDetail, LTokenValues);
   end;
@@ -8925,6 +9483,9 @@ begin
   begin
     FastMM_PerformMemoryLeakCheck_LogLeakSummary(LLeakSummary);
   end;
+
+  {The event log file would have been opened when the first leak was detected.}
+  CloseEventLogFile;
 end;
 
 
@@ -9047,9 +9608,35 @@ begin
     Result := maa8Bytes;
 end;
 
+{Allows the application to specify a maximum amount of memory that may be allocated through FastMM.  An attempt to
+allocate more than this amount will fail and lead to an "Out of Memory" exception.  Note that after the first failure
+the maximum amount of memory that may be allocated is slightly increased in order to allow the application to allocate
+some additional memory in subsequent attempts.  This is to allow for a graceful shutdown.  Specify 0 for no limit (the
+default).}
+procedure FastMM_SetMemoryUsageLimit(AMaximumAllowedMemoryUsage: NativeUInt);
+const
+  CMemoryUsageLimitGraceAmount = 32 * 1024 * 1024; //Hopefully enough to allow shutdown code to run
+begin
+  MemoryUsageLimit := AMaximumAllowedMemoryUsage;
+  MemoryUsageLimitGraceAmount := CMemoryUsageLimitGraceAmount;
+end;
+
+function FastMM_GetMemoryUsageLimit: NativeUInt;
+begin
+  Result := MemoryUsageLimit;
+end;
+
 {Gets the optimal move procedure for the given small block size.}
 function FastMM_InitializeMemoryManager_GetOptimalMoveProc(ASmallBlockSize: Integer): TMoveProc;
+{$ifdef X86ASM}
+var
+  LSSE2Available: Boolean;
+{$endif}
 begin
+{$ifdef X86ASM}
+  LSSE2Available := System.TestSSE and 2 <> 0; //Bit 1 = 1 means the CPU supports SSE2
+{$endif}
+
   case ASmallBlockSize of
 
     {64-bit is always 16 byte aligned, so the 8 byte aligned moves are not needed under 64-bit.}
@@ -9060,10 +9647,42 @@ begin
     56: Result := @Move56;
 {$endif}
 
-    16: Result := @Move16;
-    32: Result := @Move32;
-    48: Result := @Move48;
-    64: Result := @Move64;
+    16:
+    begin
+{$ifdef X86ASM}
+      if LSSE2Available then
+        Result := @Move16_x86_SSE2
+      else
+{$endif}
+        Result := @Move16;
+    end;
+    32:
+    begin
+{$ifdef X86ASM}
+      if LSSE2Available then
+        Result := @Move32_x86_SSE2
+      else
+{$endif}
+        Result := @Move32;
+    end;
+    48:
+    begin
+{$ifdef X86ASM}
+      if LSSE2Available then
+        Result := @Move48_x86_SSE2
+      else
+{$endif}
+        Result := @Move48;
+    end;
+    64:
+    begin
+{$ifdef X86ASM}
+      if LSSE2Available then
+        Result := @Move64_x86_SSE2
+      else
+{$endif}
+        Result := @Move64;
+    end
 
   else
     begin
@@ -9072,7 +9691,7 @@ begin
         if ASmallBlockSize < 1024 then
         begin
 {$ifdef X86ASM}
-          if System.TestSSE and 4 <> 0 then //Bit 2 = 1 means the CPU supports SSE2
+          if LSSE2Available then
             Result := @MoveMultipleOf64_Small_x86_SSE2
           else
 {$endif}
@@ -9083,7 +9702,7 @@ begin
       end else if (ASmallBlockSize and 31) = 0 then
       begin
 {$ifdef X86ASM}
-        if System.TestSSE and 4 <> 0 then //Bit 2 = 1 means the CPU supports SSE2
+        if LSSE2Available then
           Result := @MoveMultipleOf32_x86_SSE2
         else
 {$endif}
@@ -9091,7 +9710,7 @@ begin
       end else if (ASmallBlockSize and 15) = 0 then
       begin
 {$ifdef X86ASM}
-        if System.TestSSE and 4 <> 0 then //Bit 2 = 1 means the CPU supports SSE2
+        if LSSE2Available then
           Result := @MoveMultipleOf16_x86_SSE2
         else
 {$endif}
@@ -9143,6 +9762,7 @@ begin
   {---------General configuration-------}
 
   FastMM_SetOptimizationStrategy(mmosBalanced);
+  FastMM_SetDebugModeStackTraceEntryCount(CFastMM_StackTrace_DefaultEntryCount);
 
   GetMemoryManager(PreviousMemoryManager);
   InstalledMemoryManager := PreviousMemoryManager;
@@ -9243,6 +9863,7 @@ begin
   {The first time EnterDebugMode is called an attempt will be made to load the debug support DLL.}
   DebugSupportConfigured := False;
 
+  EventLogFileHandle := INVALID_HANDLE_VALUE;
   FastMM_SetDefaultEventLogFilename;
 
   {---------Sharing setup-------}
@@ -9268,7 +9889,7 @@ begin
     while NativeUInt(LPMediumBlockSpan) <> NativeUInt(LPMediumBlockManager) do
     begin
       LPNextMediumBlockSpan := LPMediumBlockSpan.NextMediumBlockSpanHeader;
-      OS_FreeVirtualMemory(LPMediumBlockSpan);
+      OS_FreeVirtualMemory(LPMediumBlockSpan, LPMediumBlockSpan.SpanSize);
       LPMediumBlockSpan := LPNextMediumBlockSpan;
     end;
 
@@ -9325,7 +9946,7 @@ begin
 
   if ExpectedMemoryLeaks <> nil then
   begin
-    OS_FreeVirtualMemory(ExpectedMemoryLeaks);
+    OS_FreeVirtualMemory(ExpectedMemoryLeaks, CExpectedMemoryLeaksListSize);
     ExpectedMemoryLeaks := nil;
   end;
 
@@ -9364,7 +9985,10 @@ begin
   if DebugModeCounter <= 0 then
   begin
     LNewMemoryManager.GetMem := FastMM_GetMem;
-    LNewMemoryManager.FreeMem := FastMM_FreeMem;
+    if EraseFreedBlockContentCounter <= 0 then
+      LNewMemoryManager.FreeMem := FastMM_FreeMem
+    else
+      LNewMemoryManager.FreeMem := FastMM_FreeMem_EraseBeforeFree;
     LNewMemoryManager.ReallocMem := FastMM_ReallocMem;
     LNewMemoryManager.AllocMem := FastMM_AllocMem;
     LNewMemoryManager.RegisterExpectedMemoryLeak := FastMM_RegisterExpectedMemoryLeak;
@@ -9437,6 +10061,7 @@ end;
 
 function FastMM_LoadDebugSupportLibrary: Boolean;
 begin
+{$ifndef FastMM_DebugLibraryStaticDependency}
   {Already loaded?  If so, return success.}
   if DebugSupportLibraryHandle <> 0 then
     Exit(True);
@@ -9444,9 +10069,9 @@ begin
   DebugSupportLibraryHandle := LoadLibrary(FastMM_DebugSupportLibraryName);
   if DebugSupportLibraryHandle <> 0 then
   begin
-    DebugLibrary_GetRawStackTrace := GetProcAddress(DebugSupportLibraryHandle, 'GetRawStackTrace');
-    DebugLibrary_GetFrameBasedStackTrace := GetProcAddress(DebugSupportLibraryHandle, 'GetFrameBasedStackTrace');
-    DebugLibrary_LogStackTrace_Legacy := GetProcAddress(DebugSupportLibraryHandle, 'LogStackTrace');
+    DebugLibrary_GetRawStackTrace := GetProcAddress(DebugSupportLibraryHandle, PAnsiChar('GetRawStackTrace'));
+    DebugLibrary_GetFrameBasedStackTrace := GetProcAddress(DebugSupportLibraryHandle, PAnsiChar('GetFrameBasedStackTrace'));
+    DebugLibrary_LogStackTrace_Legacy := GetProcAddress(DebugSupportLibraryHandle, PAnsiChar('LogStackTrace'));
 
     {Try to use the stack trace routines from the debug support library, if available.}
     if (@FastMM_GetStackTrace = @FastMM_NoOpGetStackTrace)
@@ -9465,12 +10090,24 @@ begin
   end
   else
     Result := False;
+{$else}
+  {Use the stack trace routines from the debug support library.}
+  if (@FastMM_GetStackTrace = @FastMM_NoOpGetStackTrace) then
+    FastMM_GetStackTrace := @DebugLibrary_GetRawStackTrace;
+
+  if (@FastMM_ConvertStackTraceToText = @FastMM_NoOpConvertStackTraceToText) then
+    FastMM_ConvertStackTraceToText := @FastMM_DebugLibrary_LegacyLogStackTrace_Wrapper;
+
+  Result := True;
+{$endif}
 end;
 
 function FastMM_FreeDebugSupportLibrary: Boolean;
 begin
+{$ifndef FastMM_DebugLibraryStaticDependency}
   if DebugSupportLibraryHandle = 0 then
     Exit(False);
+{$endif}
 
   if (@FastMM_GetStackTrace = @DebugLibrary_GetRawStackTrace)
     or (@FastMM_GetStackTrace = @DebugLibrary_GetFrameBasedStackTrace) then
@@ -9483,8 +10120,14 @@ begin
     FastMM_ConvertStackTraceToText := @FastMM_NoOpConvertStackTraceToText;
   end;
 
+{$ifndef FastMM_DebugLibraryStaticDependency}
   FreeLibrary(DebugSupportLibraryHandle);
   DebugSupportLibraryHandle := 0;
+
+  DebugLibrary_GetRawStackTrace := nil;
+  DebugLibrary_GetFrameBasedStackTrace := nil;
+  DebugLibrary_LogStackTrace_Legacy := nil;
+{$endif}
 
   Result := True;
 end;
@@ -9510,7 +10153,7 @@ begin
       if not DebugSupportConfigured then
         FastMM_ConfigureDebugMode;
 
-      Result := FastMM_SetNormalOrDebugMemoryManager
+      Result := FastMM_SetNormalOrDebugMemoryManager;
     end
     else
       Result := True;
@@ -9537,16 +10180,64 @@ begin
   Result := DebugModeCounter > 0;
 end;
 
-procedure FastMM_ApplyLegacyConditionalDefines;
+function FastMM_GetDebugModeStackTraceEntryCount: Byte;
+begin
+  Result := DebugMode_StackTrace_EntryCount;
+end;
+
+procedure FastMM_SetDebugModeStackTraceEntryCount(AStackTraceEntryCount: Byte);
+begin
+  if AStackTraceEntryCount > CFastMM_StackTrace_MaximumEntryCount then
+    AStackTraceEntryCount := CFastMM_StackTrace_MaximumEntryCount;
+
+  DebugMode_StackTrace_EntryCount := AStackTraceEntryCount;
+end;
+
+function FastMM_BeginEraseFreedBlockContent: Boolean;
+begin
+  if CurrentInstallationState = mmisInstalled then
+  begin
+    if AtomicIncrement(EraseFreedBlockContentCounter) = 1 then
+      Result := FastMM_SetNormalOrDebugMemoryManager
+    else
+      Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function FastMM_EndEraseFreedBlockContent: Boolean;
+begin
+  if CurrentInstallationState = mmisInstalled then
+  begin
+    if AtomicDecrement(EraseFreedBlockContentCounter) = 0 then
+      Result := FastMM_SetNormalOrDebugMemoryManager
+    else
+      Result := True;
+  end
+  else
+    Result := False;
+end;
+
+function FastMM_EraseFreedBlockContentActive: Boolean;
+begin
+  Result := EraseFreedBlockContentCounter > 0;
+end;
+
+procedure FastMM_ApplyConditionalDefines;
 begin
   {This procedure provides backward compatibility with the conditional defines of FastMM4.}
 
-  {$ifdef Align16Bytes}
+  {$ifdef FastMM_ClearLogFileOnStartup}
+  FastMM_DeleteEventLogFile;
+  {$endif}
+
+  {$ifdef FastMM_Align16Bytes}
   FastMM_EnterMinimumAddressAlignment(maa16Bytes);
   {$endif}
 
-  {$ifdef EnableMemoryLeakReporting}
-  {$ifdef RequireDebuggerPresenceForLeakReporting}
+  {$ifdef FastMM_EnableMemoryLeakReporting}
+  {$ifdef FastMM_RequireDebuggerPresenceForLeakReporting}
   if DebugHook <> 0 then
   {$endif}
   begin
@@ -9555,39 +10246,36 @@ begin
   end;
   {$endif}
 
-  {$ifdef NoMessageBoxes}
+  {$ifdef FastMM_NoMessageBoxes}
   FastMM_MessageBoxEvents := [];
   {$endif}
 
-  {$ifdef FullDebugModeWhenDLLAvailable}
-  {$define FullDebugMode}
+  {$ifdef FastMM_FullDebugModeWhenDLLAvailable}
+  {$define StartInDebugMode}
   {$endif}
 
-  {$ifdef FullDebugMode}
+  {$ifdef FastMM_FullDebugMode}
+  {$define StartInDebugMode}
+  {$endif}
+
+  {$ifdef StartInDebugMode}
   if FastMM_LoadDebugSupportLibrary then
-  begin
     FastMM_EnterDebugMode;
-  end
-  else
-  begin
-    {$ifndef FullDebugModeWhenDLLAvailable}
-    {Exception handling is not yet in place, so show an error message and terminate the application.}
-    OS_ShowMessageBox(FastMM_DebugSupportLibraryNotAvailableError, FastMM_DebugSupportLibraryNotAvailableError_Caption);
-    {Return error code 217 - the same error code that would be returned for an exception in an initialization section.}
-    Halt(217);
-    {$endif}
-  end;
   {$endif}
 
-  {$ifdef ShareMM}
-  {$ifndef ShareMMIfLibrary}
+  {$ifdef FastMM_ShareMM}
+  {$ifndef FastMM_ShareMMIfLibrary}
   if not IsLibrary then
   {$endif}
     FastMM_ShareMemoryManager;
   {$endif}
 
-  {$ifdef AttemptToUseSharedMM}
+  {$ifdef FastMM_AttemptToUseSharedMM}
   FastMM_AttemptToUseSharedMemoryManager;
+  {$endif}
+
+  {$ifdef FastMM_NeverUninstall}
+  FastMM_NeverUninstall := True;
   {$endif}
 end;
 
@@ -9599,6 +10287,8 @@ var
   LModuleFilename: array[0..CFilenameMaxLength] of WideChar;
   LPModuleFilenamePos, LPModuleFilenameStart, LPModuleFilenameEnd, LPBufferPos, LPBufferEnd: PWideChar;
 begin
+  CloseEventLogFile;
+
   {Get the module filename into a buffer.}
   LPModuleFilenameEnd := OS_GetApplicationFilename(@LModuleFilename, @LModuleFilename[High(LModuleFilename)], False);
 
@@ -9647,6 +10337,8 @@ procedure FastMM_SetEventLogFilename(APEventLogFilename: PWideChar);
 var
   LPBufferPos, LPBufferEnd: PWideChar;
 begin
+  CloseEventLogFile;
+
   if APEventLogFilename <> nil then
   begin
     LPBufferEnd := @EventLogFilename[High(EventLogFilename)];
@@ -9664,29 +10356,47 @@ end;
 
 function FastMM_DeleteEventLogFile: Boolean;
 begin
+  CloseEventLogFile;
+
   Result := OS_DeleteFile(@EventLogFilename);
 end;
 
-initialization
+function FastMM_Initialize: Boolean;
+begin
+  {Ignore attemts to initialize twice.}
+  if UnitCurrentlyInitialized then
+    Exit(False);
+  UnitCurrentlyInitialized := True;
+
   FastMM_InitializeMemoryManager;
   FastMM_InstallMemoryManager;
 
   {If installation was successful, check for any legacy FastMM4 conditional defines and adjust the configuration
   accordingly.}
   if CurrentInstallationState = mmisInstalled then
-    FastMM_ApplyLegacyConditionalDefines;
+  begin
+    FastMM_ApplyConditionalDefines;
+    Result := True;
+  end
+  else
+    Result := False;
+end;
 
-finalization
+function FastMM_Finalize: Boolean;
+begin
+  if not UnitCurrentlyInitialized then
+    Exit(False);
+  UnitCurrentlyInitialized := False;
 
   {Prevent a potential crash when the finalization code in system.pas tries to free PreferredLanguagesOverride after
   FastMM has been uninstalled:  https://quality.embarcadero.com/browse/RSP-16796}
   if CurrentInstallationState = mmisInstalled then
     SetLocaleOverride('');
 
-  {All pending frees must be released before we can do a leak check.}
+  {All pending frees must be released before a leak check can be performed.}
   FastMM_ProcessAllPendingFrees;
 
-  {Backward compatibility: If ReportMemoryLeaksOnShutdown = True then display the the leak summary.}
+  {Backward compatibility: If ReportMemoryLeaksOnShutdown = True then display the leak summary.}
   if ReportMemoryLeaksOnShutdown then
     Include(FastMM_MessageBoxEvents, mmetUnexpectedMemoryLeakSummary);
 
@@ -9694,11 +10404,25 @@ finalization
   if [mmetUnexpectedMemoryLeakDetail, mmetUnexpectedMemoryLeakSummary] * (FastMM_OutputDebugStringEvents + FastMM_LogToFileEvents + FastMM_MessageBoxEvents) <> [] then
     FastMM_PerformMemoryLeakCheck;
 
-  FastMM_FinalizeMemoryManager;
-  FastMM_UninstallMemoryManager;
+  if not FastMM_NeverUninstall then
+  begin
+    FastMM_FinalizeMemoryManager;
+    FastMM_UninstallMemoryManager;
 
-  {Free all memory.  If this is a .DLL that owns its own memory manager, then it is necessary to prevent the main
-  application from running out of address space.}
-  FastMM_FreeAllMemory;
+    {Free all memory.  If this is a .DLL that owns its own memory manager, then it is necessary to prevent the main
+    application from running out of address space.}
+    FastMM_FreeAllMemory;
+  end;
+
+  Result := True;
+end;
+
+{$ifndef FastMM_DisableAutomaticInstall}
+initialization
+  FastMM_Initialize;
+
+finalization
+  FastMM_Finalize;
+{$endif}
 
 end.

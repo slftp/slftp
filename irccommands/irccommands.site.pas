@@ -36,6 +36,9 @@ function IrcKill(const netname, channel, params: String): boolean;
 function IrcRebuildSlot(const netname, channel, params: String): boolean;
 function IrcRecalcFreeslots(const netname, channel, params: String): boolean;
 function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean;
+function IrcSetReverseFxp(const netname, channel, params: String): boolean;
+function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
+function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -53,6 +56,12 @@ function _Bnctest(const Netname, Channel: String; s: TSite; tn: TTaskNotify; kil
 var
   l: TLoginTask;
 begin
+
+  //reset the working status to sstUnknown if it has been marked down by user,
+  //because else the Relogin will not take place.
+  if (s.WorkingStatus = sstMarkedAsDownByUser) then
+    s.WorkingStatus := sstUnknown;
+
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
     tn.tasks.Add(l);
@@ -1340,7 +1349,6 @@ begin
   if ((method <> '') and ((i < 0) or (i > Integer(High(TSSLMethods))))) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid SSL method.', [method]);
-    Result := True;
     Exit;
   end;
 
@@ -1631,12 +1639,12 @@ begin
 
       if svalue = -1 then
       begin
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
       end
       else if ((svalue = 1) or (svalue = 0)) then
       begin
-        ss.UseForNFOdownload := svalue;
-        irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+        ss.UseForNFOdownload := TUseForNfoDownload(svalue);
+        irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
       end
       else
         irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
@@ -1647,22 +1655,103 @@ begin
     ss := FindSiteByName('', sname);
     if ss = nil then
     begin
-      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [ss.Name]);
+      irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sname]);
       Result := True;
       exit;
     end;
 
     if svalue = -1 then
     begin
-      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
     end
     else if ((svalue = 1) or (svalue = 0)) then
     begin
-      ss.UseForNFOdownload := svalue;
-      irc_addtext(Netname, Channel, '%s use for NFO download: %d', [ss.Name, ss.UseForNFOdownload]);
+      ss.UseForNFOdownload := TUseForNfoDownload(svalue);
+      irc_addtext(Netname, Channel, '%s use for NFO download: %d (%s)', [ss.Name, Ord(ss.UseForNFOdownload), ReplaceText(TEnum<TUseForNfoDownload>.ToString(ss.UseForNFOdownload), 'ufn', '')]);
     end
     else
       irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+  end;
+
+  Result := True;
+end;
+
+function IrcSetReverseFxp(const netname, channel, params: String): boolean;
+var
+  fSiteName, fDirection: String;
+  fDestinationMode: boolean;
+  fValue: integer;
+  fSite: TSite;
+begin
+  Result := False;
+
+  //get the site
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  if fSiteName = getAdminSiteName then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>You can not use admin site with this function</b>.</c>');
+    exit;
+  end;
+
+  fSite := FindSiteByName('', fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  //get the direction for which reverse fxp should be set (when site is used as source or as destination?)
+  fDirection := LowerCase(SubString(params, ' ', 2));
+
+  //if only site parameter is given, show current value for both directions
+  if fDirection.IsEmpty then
+  begin
+    irc_addtext(Netname, Channel, '%s use reverse FXP when destination: %d', [fSite.Name, ord(fSite.UseReverseFxpDestination)]);
+    irc_addtext(Netname, Channel, '%s use reverse FXP when source: %d', [fSite.Name, ord(fSite.UseReverseFxpSource)]);
+    Result := True;
+    exit;
+  end;
+
+  if (fDirection = '--source') or (fDirection = '-s') then
+    fDestinationMode := False
+  else if (fDirection = '--destination') or (fDirection = '-d') then
+    fDestinationMode := True
+  else
+  begin
+    irc_addtext(Netname, Channel, 'Unknown parameter <b>%s</b>. Use either --source (-s) or --destination (-d).', [fDirection]);
+    exit;
+  end;
+
+  //get the value (1 - enable, 0 - disable)
+  fValue := StrToIntDef(SubString(params, ' ', 3), -1);
+
+  //if the value parameter is missing, display the currently set value for the site
+  if fValue = -1 then
+  begin
+  if fDestinationMode then
+    irc_addtext(Netname, Channel, '%s use reverse FXP when destination: %d', [fSite.Name, ord(fSite.UseReverseFxpDestination)])
+  else
+    irc_addtext(Netname, Channel, '%s use reverse FXP when source: %d', [fSite.Name, ord(fSite.UseReverseFxpSource)]);
+  end
+
+  //if a value is given, set it to the site
+  else if ((fValue = 1) or (fValue = 0)) then
+  begin
+    if fDestinationMode then
+    begin
+      fSite.UseReverseFxpDestination := boolean(fValue);
+      irc_addtext(Netname, Channel, '%s use reverse FXP when destination: %d', [fSite.Name, ord(fSite.UseReverseFxpDestination)]);
+    end
+    else
+    begin
+      fSite.UseReverseFxpSource := boolean(fValue);
+      irc_addtext(Netname, Channel, '%s use reverse FXP when source: %d', [fSite.Name, ord(fSite.UseReverseFxpSource)]);
+    end;
+  end
+  else
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> Only 0 and 1 as value allowed!');
+    exit;
   end;
 
   Result := True;
@@ -1991,8 +2080,8 @@ begin
           irc_addtext(Netname, Channel, Format('%s : %s', [ss.Name, ss.todotask.Name]));
         end;
 
-        irc_addtext(Netname, Channel, Format('%s : Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
-            [ss.Name, TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
+        irc_addtext(Netname, Channel, Format('%s (%s): Last execution times - Task: %s, Non-Idle Task: %s, I/O: %s',
+            [ss.Name, SlotStatusToString(ss.Status), TimeToStr(ss.LastTaskExecution), TimeToStr(ss.LastNonIdleTaskExecution), TimeToStr(ss.LastIO)]));
       end;
     except
       on E: Exception do
@@ -2305,6 +2394,56 @@ begin
       x.Free;
     end;
   end;
+
+  Result := True;
+end;
+
+function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fUseSiteSearch: Integer;
+  fSite: TSite;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fUseSiteSearch := StrToIntDef(SubString(params, ' ', 2), -1);
+  fSite := FindSiteByName(Netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  // only allow 0 and 1 as valid values
+  if ((fUseSiteSearch < 0) or (fUseSiteSearch > 1)) then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> value for use site search on req fill is: %d', [fSite.Name, ord(fSite.UseSiteSearchOnReqFill)])
+  else
+    fSite.UseSiteSearchOnReqFill := boolean(fUseSiteSearch);
+
+  Result := True;
+end;
+
+function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fReducedSpeedstatWeight: Integer;
+  fSite: TSite;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fReducedSpeedstatWeight := StrToIntDef(SubString(params, ' ', 2), -1);
+  fSite := FindSiteByName(Netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  // only allow 0 and 1 as valid values
+  if ((fReducedSpeedstatWeight < 0) or (fReducedSpeedstatWeight > 1)) then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> value for reduced speedstat weight is: %d', [fSite.Name, ord(fSite.ReducedSpeedstatWeight)])
+  else
+    fSite.ReducedSpeedstatWeight := boolean(fReducedSpeedstatWeight);
 
   Result := True;
 end;

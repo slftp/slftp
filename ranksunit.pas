@@ -20,26 +20,34 @@ procedure RanksInit;
 procedure RanksUnInit;
 procedure RanksSave;
 procedure RanksStart;
-procedure RanksRecalc(const netname, channel: String);
+
 procedure RanksProcess(p: TPazo);
 
-{ Removes all @link(TRankStat) for given @link(aSitename) from @link(ranks) list
+{ Calculates the rank stats based on all @link(glRanks)
+  @param(aNetname Name if the IRC network)
+  @param(aChannel Channelname) }
+procedure RanksRecalc(const aNetname, aChannel: String);
+
+{ Removes all @link(TRankStat) for given @link(aSitename) from @link(glRanks) list
   @param(aSitename name of site which TRankStat should be deleted)
   @returns(@true if successful, @false on exception) }
 function RemoveRanks(const aSitename: String): boolean; overload;
 
-{ Removes all @link(TRankStat) from @link(ranks) where given @link(aSitename) and @link(aSection) matches exactly the values from @link(TRankStat)
+{ Removes all @link(TRankStat) from @link(glRanks) where given @link(aSitename) and @link(aSection) matches exactly the values from @link(TRankStat)
   @param(aSitename name of site which TRankStat should be deleted)
   @param(aSection name of section)
   @returns(@true if successful, @false on exception) }
 function RemoveRanks(const aSitename, aSection: String): boolean; overload;
+
+{ Helper function to get the number of elements of @link(glRanks) variable
+  @returns(Number of rank stats in list) }
+function GetRanksCount: Cardinal;
 
 function RanksReload: boolean;
 
 var
   ranks_last_save: TDateTime;
   ranks_last_process: TDateTime;
-  ranks: TObjectList;
 
 implementation
 
@@ -51,6 +59,7 @@ const
 
 var
   rankslock: TCriticalSection;
+  glRanks: TObjectList; // TODO: use TObjectList<TRankStat>
 
 function RemoveRanks(const aSitename: String): boolean;
 var
@@ -60,9 +69,9 @@ begin
   try
     rankslock.Enter;
     try
-      for i := ranks.Count - 1 downto 0 do
-        if TRankStat(ranks.Items[i]).sitename = aSitename then
-          ranks.Delete(i);
+      for i := glRanks.Count - 1 downto 0 do
+        if TRankStat(glRanks.Items[i]).sitename = aSitename then
+          glRanks.Delete(i);
     finally
       rankslock.Leave;
     end;
@@ -81,11 +90,11 @@ begin
   try
     rankslock.Enter;
     try
-      for i := ranks.Count - 1 downto 0 do
+      for i := glRanks.Count - 1 downto 0 do
       begin
-        rank := TRankStat(ranks.Items[i]);
+        rank := TRankStat(glRanks.Items[i]);
         if ((rank.sitename = aSitename) and (rank.section = aSection)) then
-          ranks.Delete(i);
+          glRanks.Delete(i);
       end;
     finally
       rankslock.Leave;
@@ -96,12 +105,17 @@ begin
   Result := True;
 end;
 
+function GetRanksCount: Cardinal;
+begin
+  Result := glRanks.Count;
+end;
+
 function RanksReload: boolean;
 begin
   try
     rankslock.Enter;
     try
-      ranks.clear;
+      glRanks.clear;
       RanksStart;
     finally
       rankslock.Leave;
@@ -121,13 +135,13 @@ begin
   rankslock := TCriticalSection.Create;
   ranks_last_save := Now;
   ranks_last_process := Now;
-  ranks := TObjectList.Create;
+  glRanks := TObjectList.Create;
 end;
 
 procedure RanksUnInit;
 begin
   Debug(dpSpam, r_section, 'Uninit1');
-  ranks.Free;
+  glRanks.Free;
   rankslock.Free;
   Debug(dpSpam, r_section, 'Uninit2');
 end;
@@ -142,10 +156,10 @@ begin
   try
     x := TEncStringlist.Create(passphrase);
     try
-      for i := ranks.Count - 1 downto 0 do
+      for i := glRanks.Count - 1 downto 0 do
       begin
         try
-          x.Add(TRankStat(ranks[i]).ToString);
+          x.Add(TRankStat(glRanks[i]).ToString);
         except
           Continue;
         end;
@@ -176,9 +190,9 @@ begin
     db := 0;
     sumvalue := 0;
 
-    for i := 0 to ranks.Count - 1 do
+    for i := 0 to glRanks.Count - 1 do
     begin
-      r := TRankStat(ranks[i]);
+      r := TRankStat(glRanks[i]);
       if (r.sitename = sitename) and (r.section = section) then
       begin
         inc(db);
@@ -261,44 +275,42 @@ begin
   end;
 end;
 
-procedure RanksRecalc(const netname, channel: String);
+procedure RanksRecalc(const aNetname, aChannel: String);
 var
-  i, oa, na, rl: Integer;
-  s, sitename: String;
+  i, fOldAvg, fNewAvg, fRankLockValue: Integer;
+  fSection, fSitename: String;
   r: TRankStat;
+  s: TSite;
 begin
   Debug(dpMessage, r_section, '--> Recalculating rank stats');
 
   ranks_last_process := Now;
   try
-    for i := 0 to ranks.Count - 1 do
+    for i := 0 to glRanks.Count - 1 do
     begin
-      try if i > ranks.Count then Break; except Break; end;
+      try if i > glRanks.Count then Break; except Break; end;
       try
-        r := TRankStat(ranks[i]);
-        sitename := r.sitename;
-        s := r.section;
+        r := TRankStat(glRanks[i]);
+        fSitename := r.sitename;
+        s := findSiteByName(aNetname, fSitename);
+        fSection := r.section;
       except
         Break;
       end;
 
-      rl := sitesdat.ReadInteger('site-' + sitename, 'ranklock-' + s, 0);
-      if rl > 0 then
+      fRankLockValue := s.getRankLock(fSection);
+      if fRankLockValue > 0 then
         continue;
 
-      rl := sitesdat.ReadInteger('site-' + sitename, 'ranklock', 0);
-      if rl > 0 then
-        continue;
+      fNewAvg := NewAverage(fSitename, fSection);
+      if fNewAvg = 0 then
+        fNewAvg := 1;
 
-      na := NewAverage(sitename, s);
-      if na = 0 then
-        na := 1;
-
-      oa := sitesdat.ReadInteger('site-' + sitename, 'rank-' + s, 1);
-      if na <> oa then
+      fOldAvg := sitesdat.ReadInteger('site-' + fSitename, 'rank-' + fSection, 1);
+      if fNewAvg <> fOldAvg then
       begin
-        sitesdat.WriteInteger('site-' + sitename, 'rank-' + s, na);
-        irc_SendRANKSTATS(Format('Changing rank of %s %s from %d to %d', [sitename, s, oa, na]));
+        sitesdat.WriteInteger('site-' + fSitename, 'rank-' + fSection, fNewAvg);
+        irc_SendRANKSTATS(Format('Changing rank of %s %s from %d to %d', [fSitename, fSection, fOldAvg, fNewAvg]));
       end;
     end;
   except
@@ -377,10 +389,10 @@ begin
   try
     rankslock.Enter;
     try
-      ranks.Add(s);
-      while (ranks.Count > max_entries) do
+      glRanks.Add(s);
+      while (glRanks.Count > max_entries) do
       begin
-        ranks.Delete(0);
+        glRanks.Delete(0);
       end;
     finally
       rankslock.Leave;

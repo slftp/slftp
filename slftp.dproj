@@ -66,8 +66,8 @@
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <Icns_MainIcns>$(BDS)\bin\delphi_PROJECTICNS.icns</Icns_MainIcns>
-        <DCC_UnitSearchPath>irccommands;rules;libs\BeRoHighResolutionTimer;libs\FastMM5;libs\FLRE;libs\Indy10\Core;libs\Indy10\Protocols;libs\Indy10\System;libs\LibTar;libs\lkJSON;libs\mORMot;libs\mORMot\SQLite3;libs\pasmp;libs\rcmdline;libs\TRegExpr;libs\ZeosLib\core;libs\ZeosLib\dbc;libs\ZeosLib\parsesql;libs\ZeosLib\plain;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
-        <DCC_ExeOutput>p:\apps\slftp</DCC_ExeOutput>
+        <DCC_UnitSearchPath>irccommands;rules;libs\BeRoHighResolutionTimer;libs\FastMM5;libs\FLRE;libs\Indy10\Core;libs\Indy10\Protocols;libs\Indy10\Protocols\OpenSSL;libs\Indy10\Protocols\OpenSSL\dynamic;libs\Indy10\System;libs\LibTar;libs\lkJSON;libs\mORMot;libs\mORMot\SQLite3;libs\pasmp;libs\rcmdline;libs\TRegExpr;libs\ZeosLib\core;libs\ZeosLib\dbc;libs\ZeosLib\parsesql;libs\ZeosLib\plain;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_ExeOutput>c:\apps\slftp</DCC_ExeOutput>
         <DCC_DcuOutput>_dcu</DCC_DcuOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
@@ -118,6 +118,12 @@
     <PropertyGroup Condition="'$(Cfg_2_Win64)'!=''">
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
+        <DCC_DebugInfoInExe>true</DCC_DebugInfoInExe>
+        <UsePackages>true</UsePackages>
+        <DCC_RangeChecking>true</DCC_RangeChecking>
+        <DCC_IntegerOverflowCheck>true</DCC_IntegerOverflowCheck>
+        <DCC_Optimize>false</DCC_Optimize>
     </PropertyGroup>
     <ProjectExtensions>
         <Borland.Personality>Delphi.Personality.12</Borland.Personality>
@@ -160,8 +166,8 @@
                     <Source Name="MainSource">slftp.dpr</Source>
                 </Source>
                 <Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k260.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
-                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp260.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dcloffice2k270.bpl">Microsoft Office 2000 Sample Automation Server Wrapper Components</Excluded_Packages>
+                    <Excluded_Packages Name="$(BDSBIN)\dclofficexp270.bpl">Microsoft Office XP Sample Automation Server Wrapper Components</Excluded_Packages>
                 </Excluded_Packages>
             </Delphi.Personality>
             <Platforms>

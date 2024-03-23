@@ -24,6 +24,11 @@ function kb_Add(const netname, channel, sitename, section, genre: String; event:
   dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
+{ Finds a release in latest KB list
+      @param(aRls The release name to be searched for)
+      @returns(The section name if the release has been found, an empty string otherwise) }
+function FindReleaseInLatestKBList(const aRls: String): String;
+
 function FindSectionHandler(const section: String): TCRelease;
 
 procedure kb_FreeList;
@@ -158,6 +163,7 @@ var
   rlz, grp: String;
   dlt: TPazoDirlistTask;
   l: TLoginTask;
+  fPretimeLookupTask: TPazoPretimeLookupTask;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -485,12 +491,19 @@ begin
           begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
               irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
+
+            if config.readInteger('taskpretime', 'readd_attempts', 5) > 0 then
+            begin
+              fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
+              fPreTimeLookupTask.startat := IncSecond(Now, config.ReadInteger('taskpretime', 'readd_interval', 3));
+              AddTask(fPreTimeLookupTask);
+            end;
           end;
         end
         else
         begin
           if spamcfg.ReadBool('kb', 'new_rls', True) then
-            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
+            irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
         end;
       end;
     end
@@ -538,7 +551,7 @@ begin
           if (r.pretime <> 0) then
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
-              irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.pretimefrom]));
+              irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
             added := p.AddSites;
             if added then
             begin
@@ -893,6 +906,23 @@ begin
   end;
 end;
 
+function FindReleaseInLatestKBList(const aRls: String): String;
+var
+  i: integer;
+begin
+  Result := '';
+  kb_lock.Enter;
+  try
+    i := kb_latest.IndexOfName(aRls);
+    if i <> -1 then
+    begin
+      Result := kb_latest.ValueFromIndex[i];
+    end;
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
 {!--- KB Utils ---?}
 
 procedure KB_start;
@@ -952,7 +982,15 @@ begin
       for i := 0 to x.Count - 1 do
       begin
         //Console_QueueStat(x.Count - i - 1);
-        AddKbPazo(x[i]);
+        try
+          AddKbPazo(x[i]);
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, 'kb', Format('[EXCEPTION] AddKbPazo: %s', [e.Message]));
+            exit;
+          end;
+        end;
         if MilliSecondsBetween(Now, last) > 500 then
         begin
           last := Now;
@@ -1488,4 +1526,3 @@ begin
 end;
 
 end.
-

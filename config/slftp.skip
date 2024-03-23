@@ -2,7 +2,7 @@
 # allowedfiles=directories:masks
 # masks are case insensitive. seperate values by comma (,)
 # empty directories means top of the rip
-# _MULTICDROOT_ is special, its true only if rip contains CD1 and CD2 directories
+# _MULTICDROOT_ is special, its true only if rip contains CD, DVD, disc or disk directories (including disc numbers)
 # if there is no matching mask for a file, it will be skiplisted.
 #
 # builtin, hardcoded skiplists:
@@ -15,7 +15,9 @@
 # after these generic rules,
 # global skiplist settings allow everything
 allowedfiles=_ROOT_:*
+allowedfiles=_MULTICDROOT_:*
 alloweddirs=_ROOT_:*
+alloweddirs=_MULTICDROOT_:*
 allowedfiles=*:*
 dirdepth=2
 

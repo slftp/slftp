@@ -54,9 +54,9 @@ implementation
 uses
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
-  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, IdSSLOpenSSL, IdSSLOpenSSLHeaders, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
+  mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
-  StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot;
+  StrUtils, news, dbhandler, SynSQLite3, ZPlainMySqlDriver, SynDBZeos, SynDB, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto;
 
 {$I slftp.inc}
 
@@ -80,8 +80,9 @@ end;
 
 function Main_Init: String;
 var
+  fSslLoader: IOpenSSLLoader;
+  fOpenSSLVersion, fSSLErrorMsg: String;
   fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
-  fOpenSSLVersion: String;
   fError: String;
 begin
   Result := '';
@@ -92,39 +93,14 @@ begin
     exit;
   end;
 
-
-  if not slssl_inited then
-  begin
-    Result := 'Could not load OpenSSL!' + #10#13;
-    {$IFDEF MSWINDOWS}
-      Result := Result + 'Install it from:' + #13#10 + 'http://www.slproweb.com/products/Win32OpenSSL.html';
-    {$ELSE}
-      Result := Result + 'Try to copy the libssl.so and libcrypto.so libs into slftp dir!';
-    {$ENDIF}
-    exit;
-  end;
-
-  fOpenSSLVersion := slssl.OpenSSLShortVersion;
-  SetLength(fOpenSSLVersion, 5);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
-  begin
-    Result := Format('OpenSSL %s is not supported! OpenSSL %s needed.', [slssl.OpenSSLShortVersion, lib_OpenSSL]);
-    exit;
-  end;
-
-
-  // Tell Indy OpenSSL to load libs from current dir
-  IdOpenSSLSetLibPath('.');
-
-  {$IFDEF UNIX}
-    // do not try to load sym links first
-    IdOpenSSLSetLoadSymLinksFirst(False);
-  {$ENDIF}
-
+  console_addline('Admin', 'Load OpenSSL', True);
+  { load OpenSSL }
+  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
+  fSslLoader.OpenSSLPath := '.';
   try
-    if not IdSSLOpenSSL.LoadOpenSSLLibrary then
+    if not fSslLoader.Load then
     begin
-      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, IdSSLOpenSSLHeaders.WhichFailedToLoad]);
+      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad.CommaText]);
       exit;
     end;
   except
@@ -135,14 +111,31 @@ begin
     end;
   end;
 
-  fOpenSSLVersion := IdSSLOpenSSL.OpenSSLVersion;
-  fOpenSSLVersion := Copy(fOpenSSLVersion, 9, 5);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
+  // check if we at least have OpenSSL 1.1.0
+  if not Assigned(OpenSSL_version) then
   begin
-    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [fOpenSSLVersion, lib_OpenSSL]);
+    Result := Format('OpenSSL %s needed.', [lib_OpenSSL]);
     exit;
   end;
 
+  { verify that it loaded the correct OpenSSL version }
+  fOpenSSLVersion := GetOpenSSLShortVersion;
+  // remove letter from version
+  SetLength(fOpenSSLVersion, Length(fOpenSSLVersion) - 1);
+  if (fOpenSSLVersion <> lib_OpenSSL) then
+  begin
+    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [GetOpenSSLVersion, lib_OpenSSL]);
+    exit;
+  end;
+
+  { init default SSL/TLS connection context }
+  if not InitOpenSSLConnectionContext(fSSLErrorMsg) then
+  begin
+    Result := Format('Could not initialize default OpenSSL TLS/SSL context: %s%s', [sLineBreak, fSSLErrorMsg]);
+    exit;
+  end;
+
+  console_addline('Admin', 'Load SQLite', True);
   // initialize global SQLite3 object for API calls (only load from current dir)
   try
     sqlite3 := TSQLite3LibraryDynamic.Create({$IFDEF MSWINDOWS}SQLITE_LIBRARY_DEFAULT_NAME{$ELSE}'./libsqlite3.so'{$ENDIF});
@@ -165,6 +158,7 @@ begin
   fHost := config.ReadString('mysql', 'host', '0');
   if fHost <> '0' then
   begin
+    console_addline('Admin', 'Load MYSQL/MariaDB', True);
     fPort := IntToStr(config.ReadInteger('mysql', 'port', 3306));
     fUser := config.ReadString('mysql', 'user', 'dbuser');
     fPass := config.ReadString('mysql', 'pass', 'dbpass');
@@ -206,7 +200,7 @@ begin
     Debug(dpSpam, section, 'MySQL/MariaDB library initialised.');
   end;
 
-
+  console_addline('Admin', 'Check Ncurses version', True);
   {$IFNDEF MSWINDOWS}
     if Ncurses_Version < lib_Ncurses then
     begin
@@ -215,6 +209,7 @@ begin
     end;
   {$ENDIF}
 
+  console_addline('Admin', 'Init Ident server', True);
   fError := IdentServerInit;
   if fError <> '' then
   begin
@@ -224,50 +219,88 @@ begin
 
   if (config.ReadBool('sites', 'split_site_data', False)) then
   begin
+    console_addline('Admin', 'Set split_site_data directories', True);
     ForceDirectories(ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim);
   end;
 
   sltcp_onwaitingforsocket := @kilepescsekker;
 
+  console_addline('Admin', 'Init Stats DB', True);
   StatsInit;
+  console_addline('Admin', 'Init indexer', True);
   IndexerInit;
+  console_addline('Admin', 'Init Socks5', True);
   Socks5Init;
+  console_addline('Admin', 'Init Crypto', True);
   MyCryptoInit;
+  console_addline('Admin', 'Init Proxies', True);
   InitProxys;
+  console_addline('Admin', 'Init RdOHConfig', True);
   InitmRdOHConfigFiles;
+  console_addline('Admin', 'Init Addpre DB', True);
   dbaddpreInit;
+  console_addline('Admin', 'Init NFO DB', True);
   dbaddnfoInit;
+  console_addline('Admin', 'Init URL DB', True);
   dbaddurlInit;
+  console_addline('Admin', 'Init Genre DB', True);
   dbaddgenreInit;
+  console_addline('Admin', 'Init IMDB DB', True);
   dbaddimdbInit;
+  console_addline('Admin', 'Init TV DB', True);
   dbtvinfoInit;
+  console_addline('Admin', 'Init Console', True);
   ConsoleInit;
+  console_addline('Admin', 'Init Tasks', True);
   Tasks_Init;
-  QueueInit;
+  console_addline('Admin', 'Init Sites', True);
   SitesInit;
+  console_addline('Admin', 'Init Queue', True);
+  QueueInit;
+  console_addline('Admin', 'Init KB', True);
   kb_Init;
+  console_addline('Admin', 'Init Idle tasks', True);
   taskidleinit;
+  console_addline('Admin', 'Init Dirlist', True);
   DirlistInit;
+  console_addline('Admin', 'Init Fakes', True);
   FakesInit;
+  console_addline('Admin', 'Init Knowngroups', True);
   KnowngroupsInit;
+  console_addline('Admin', 'Init Midnight', True);
   MidnightInit;
+  console_addline('Admin', 'Init IRC', True);
   IrcInit;
+  console_addline('Admin', 'Init IRC chans', True);
   IrcChannelSettingsInit;
+  console_addline('Admin', 'Init Notify', True);
   NotifyInit;
+  console_addline('Admin', 'Init Racing', True);
   PazoInit;
+  console_addline('Admin', 'Init Prebot', True);
   PrebotInit;
+  console_addline('Admin', 'Init Precatcher', True);
   Precatcher_Init;
+  console_addline('Admin', 'Init Rules', True);
   RulesInit;
+  console_addline('Admin', 'Init Skiplists', True);
   SkiplistsInit;
+  console_addline('Admin', 'Init Languages', True);
   SLLanguagesInit;
+  console_addline('Admin', 'Init Tags', True);
   TagsInit;
   //  EPrecatcherInit;
+  console_addline('Admin', 'Init Nuke', True);
   NukeInit;
+  console_addline('Admin', 'Init News', True);
   NewsInit;
+  console_addline('Admin', 'Init SpeedStats', True);
   SpeedStatsInit;
+  console_addline('Admin', 'Init Ranks', True);
   RanksInit;
+  console_addline('Admin', 'Init Speedtest', True);
   SpeedTestInit;
-  TaskHttpImdbInit;
+  console_addline('Admin', 'Init Global Skiplist', True);
   Initglobalskiplist;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
@@ -406,7 +439,7 @@ end;
 procedure Main_Run;
 begin
   Debug(dpError, section, '%s started', [GetFullVersionString]);
-  Debug(dpMessage, section, Format('OpenSSL version: %s', [OpenSSLVersion()]));
+  Debug(dpMessage, section, Format('OpenSSL version: %s', [GetOpenSSLVersion]));
   Debug(dpMessage, section, Format('SQLite3 version: %s', [sqlite3.Version]));
   {$IFNDEF MSWINDOWS}
     Debug(dpMessage, section, Format('ncurses version: %s', [Ncurses_Version]));
@@ -415,12 +448,14 @@ begin
   started := Now();
 
   // Decrypt sites.dat
+  console_addline('Admin', 'Decrypt sites.dat', True);
   MycryptoStart(passphrase);
 
   // Run backup
   if config.ReadBool('backup', 'run_backup_on_startup', True) then
   begin
     try
+      console_addline('Admin', 'Create backup', True);
       BackupBackup;
     except
       on e: Exception do
@@ -431,29 +466,51 @@ begin
     end;
   end;
 
+  console_addline('Admin', 'Start Proxies', True);
   StartProxys;
+  console_addline('Admin', 'Start Addpre DB', True);
   dbaddpreStart;
+  console_addline('Admin', 'Start NFO DB', True);
   dbaddnfoStart;
+  console_addline('Admin', 'Start URL DB', True);
   dbaddurlStart;
+  console_addline('Admin', 'Start Genre DB', True);
   dbaddgenreStart;
+  console_addline('Admin', 'Start IMDB DB', True);
   dbaddimdbStart;
+  console_addline('Admin', 'Start TV DB', True);
   dbtvinfoStart;
+  console_addline('Admin', 'Start Ranks', True);
   RanksStart;
+  console_addline('Admin', 'Start SpeedStats', True);
   SpeedStatsStart;
+  console_addline('Admin', 'Start Nuke', True);
   NukeStart;
+  console_addline('Admin', 'Start Midnight', True);
   MidnightStart;
+  console_addline('Admin', 'Start Skiplists', True);
   SkiplistStart;
+  console_addline('Admin', 'Start Knowngroups', True);
   KnowngroupsStart;
+  console_addline('Admin', 'Start Rules', True);
   RulesStart();
+  console_addline('Admin', 'Start Fake', True);
   FakeStart();
+  console_addline('Admin', 'Start KB', True);
   kb_Start();
+  console_addline('Admin', 'Start Indexer', True);
   indexerStart;
+  console_addline('Admin', 'Start Sites', True);
   SitesStart;
+  console_addline('Admin', 'Start IRC', True);
   IrcStart();
+  console_addline('Admin', 'Start Precatcher', True);
   PrecatcherStart();
   //  EPrecatcherStart();
+  console_addline('Admin', 'Start Sites Auto Tasks', True);
   SiteAutoStart;
   slshutdown := False;
+  console_addline('Admin', 'Start Queue', True);
   QueueStart();
 end;
 
@@ -474,6 +531,8 @@ begin
 end;
 
 procedure Main_Uninit;
+var
+  fSslLoader: IOpenSSLLoader;
 begin
   Debug(dpSpam, section, 'Uninit1');
   (*
@@ -512,7 +571,6 @@ begin
   UninitmRdOHConfigFiles;
   SLLanguagesUninit;
   UnInitglobalskiplist;
-  TaskHttpImdbUnInit;
   dbaddpreUnInit;
   dbaddnfoUnInit;
   dbaddurlUnInit;
@@ -529,8 +587,12 @@ begin
   if Assigned(MySQLCon) then
     FreeAndNil(MySQLCon);
 
+  { unload OpenSSL }
+  UninitOpenSSLConnectionContext;
+
   try
-    IdSSLOpenSSL.UnLoadOpenSSLLibrary;
+    fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
+    fSslLoader.Unload;
   except
     on e: Exception do
     begin

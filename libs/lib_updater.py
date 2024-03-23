@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 """Script for updating used libraries or checking if new versions are available"""
 
 import os
@@ -106,7 +107,7 @@ def update_mORMot():
     # delete unwanted file types
     filetypes = ["*.tmpl", "*.dpk", "*.bdsproj", "*.proj", "*.rc", "*.dproj", "*.ico",
                  "*.resources", "*.res", "*.bmp", "*.cfg*", "*.json*", "*.lpi*", "*.dpr*", "*.png", "*.bat",
-                 "*.c", "*.manifest*", "build-fpc*", "c-fpc*"]
+                 "*.c", "*.manifest*", "build-fpc*", "c-fpc*", ".git*"]
     for filetype_glob in filetypes:
         result = []
         for root, _, files in os.walk(mainpath, topdown=True):
@@ -120,10 +121,21 @@ def update_mORMot():
                 os.path.join(mainpath, "SQLite3", "Synopse.inc"))
     # write commit info file
     write_versioninfo(mainpath, sha_hash, commit_msg)
+    # set defines for memory-manager
+    with open(os.path.join(mainpath, "SynFPCx64MM.pas"), "r") as sources:
+        lines = sources.readlines()
+    with open(os.path.join(mainpath, "SynFPCx64MM.pas"), "w") as sources:
+        for line in lines:
+            if "$define FPCMM_ASSUMEMULTITHREAD" in line:
+                sources.write('{$define FPCMM_ASSUMEMULTITHREAD}\n')
+            else:
+                sources.write(line)
     # remove existing directory in libs folder and copy new dir over
     shutil.rmtree(LIB_DST_FOLDERNAME)
     shutil.copytree(mainpath, LIB_DST_FOLDERNAME)
     print("Update succeeded")
+    for _ in range(3):
+        print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
 
 
 def update_FastMM5():
@@ -182,16 +194,26 @@ def update_TRegExpr():
     sha_hash, commit_msg = get_HEAD_github_commit_info(author, repo_name)
     # commit_url = "https://github.com/" + author + \
     #    "/" + repo_name + "/commit/" + sha_hash
-    mainpath = os.path.join(EXTRACT_DIR, foldername)
+    mainpath = os.path.join(EXTRACT_DIR, foldername, "src")
+    # rewrite unit name to avoid conflicts with FPC regexpr.pas
+    with open(os.path.join(mainpath, "regexpr.pas"), "r") as sources:
+        lines = sources.readlines()
+    with open(os.path.join(mainpath, "regexpr.pas"), "w") as sources:
+        for line in lines:
+            match = re.search(r"unit\s(regexpr)\;", line)
+            if match:
+                sources.write(line.replace(match.group(1), "RegExpr"))
+            else:
+                sources.write(line)
     # clear existing directory in libs folder
     shutil.rmtree(LIB_DST_FOLDERNAME)
     os.mkdir(LIB_DST_FOLDERNAME)
     # copy needed files
-    shutil.copy(os.path.join(mainpath, "src", "regexpr.pas"),
+    shutil.copy(os.path.join(mainpath, "regexpr.pas"),
                 os.path.join(LIB_DST_FOLDERNAME, "RegExpr.pas"))
-    shutil.copy(os.path.join(mainpath, "src", "regexpr_compilers.inc"),
+    shutil.copy(os.path.join(mainpath, "regexpr_compilers.inc"),
                 os.path.join(LIB_DST_FOLDERNAME, "regexpr_compilers.inc"))
-    shutil.copy(os.path.join(mainpath, "src", "regexpr_unicodedata.pas"),
+    shutil.copy(os.path.join(mainpath, "regexpr_unicodedata.pas"),
                 os.path.join(LIB_DST_FOLDERNAME, "regexpr_unicodedata.pas"))
     # write commit info file
     write_versioninfo(LIB_DST_FOLDERNAME, sha_hash, commit_msg)

@@ -6,7 +6,7 @@ unit mORMotService;
 {
     This file is part of Synopse mORMot framework.
 
-    Synopse mORMot framework. Copyright (C) 2020 Arnaud Bouchez
+    Synopse mORMot framework. Copyright (C) 2022 Arnaud Bouchez
       Synopse Informatique - https://synopse.info
 
   *** BEGIN LICENSE BLOCK *****
@@ -25,7 +25,7 @@ unit mORMotService;
 
   The Initial Developer of the Original Code is Arnaud Bouchez.
 
-  Portions created by the Initial Developer are Copyright (C) 2020
+  Portions created by the Initial Developer are Copyright (C) 2022
   the Initial Developer. All Rights Reserved.
 
   Contributor(s):
@@ -169,7 +169,7 @@ type
   end;
 
   SC_HANDLE = THandle;
-  SERVICE_STATUS_HANDLE = DWORD;
+  SERVICE_STATUS_HANDLE = THandle;
   TServiceTableEntry = record
     lpServiceName: PChar;
     lpServiceProc: procedure(ArgCount: DWORD; Args: PPChar); stdcall;
@@ -1129,29 +1129,35 @@ begin
     result := FArgsList[Idx];
 end;
 
+
 {$ifdef CPUX86}
+  {.$define X86JUMPER} // this preliminary version is buggy so disabled
+  // a single service per excecutable is fine enough for our daemons
+  // also for proper Delphi 10.4 compilation with no hint
+{$endif CPUX86}
+
+{$ifdef X86JUMPER}
 procedure JumpToService;
 asm
   pop  eax
-  mov  eax, [eax]           // retrieve self value
+  mov  eax, [eax]           // retrieve TService self value
   mov  edx, [esp+4]
   call TService.CtrlHandle
   ret  4
 end;
-{$endif CPUX86}
+{$endif X86JUMPER}
 
 function TService.GetControlHandler: TServiceControlHandler;
-{$ifdef CPUX86}
+{$ifdef X86JUMPER}
 var AfterCallAddr: Pointer;
     Offset: Integer;
-{$endif}
+{$endif X86JUMPER}
 begin
   Result := fControlHandler;
   if not Assigned(Result) then
     ServiceLog.Add.Log(sllError,'%.GetControlHandler with fControlHandler=nil: '+
       'use TServiceSingle or set a custom ControlHandler',[self]);
-  {$ifdef CPUX86}
-  exit;
+  {$ifdef X86JUMPER}
   if not Assigned(Result) then
   begin
     raise EServiceException.Create('Automated jumper generation is not working: '+
@@ -1169,7 +1175,7 @@ begin
     end;
     Result := Pointer(fJumper);
   end;
-  {$endif CPUX86}
+  {$endif X86JUMPER}
 end;
 
 function TService.GetInstalled: boolean;
@@ -1349,11 +1355,12 @@ begin
   if i<0 then
     exit; // avoid any GPF
   Srv := Services.Items[i];
-  for i := 1 to ArgCount-1 do begin
-    Inc(Args);
-    SetLength(Srv.FArgsList, length(Srv.FArgsList)+1);
-    Srv.FArgsList[high(Srv.FArgsList)] := Args^;
-  end;
+  if Args<>nil then // Args may be nil 
+    for i := 1 to integer(ArgCount)-1 do begin
+      Inc(Args); // first arg is name of the service
+      SetLength(Srv.FArgsList, length(Srv.FArgsList)+1);
+      Srv.FArgsList[high(Srv.FArgsList)] := Args^;
+    end;
   Srv.FStatusHandle := RegisterServiceCtrlHandler(
     pointer(Srv.fSName), @Srv.ControlHandler);
   if Srv.FStatusHandle = 0 then begin
@@ -1674,7 +1681,9 @@ begin
         ExeVersion.Version.DetailedOrVoid], daemon);
     start;
     while SynDaemonTerminated = 0 do
-      {$ifdef FPC}fpPause{$else}pause{$endif};
+      if GetCurrentThreadID = MainThreadID then
+        CheckSynchronize(100) else
+        Sleep(100);
   finally
     if log <> nil then
       log.Log(sllNewRun, 'Stop /% from Sig=%', [TXT[dofork], SynDaemonTerminated], daemon);
@@ -2000,9 +2009,6 @@ begin
   fLogRotateFileCount := 2;
   fServiceName := UTF8ToString(ExeVersion.ProgramName);
   fServiceDisplayName := fServiceName;
-  {$ifndef MSWINDOWS}
-  fLogPath := GetSystemPath(spLog); // /var/log or $home
-  {$endif MSWINDOWS}
 end;
 
 function TSynDaemonSettings.ServiceDescription: string;

@@ -1,0 +1,4 @@
+7a3ba3732c0a0f6ef20d3d4e22bb141e0b63698f
+Merge pull request #287 from Alexey-T/master
+
+typo in docs

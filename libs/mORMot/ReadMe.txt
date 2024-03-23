@@ -2,7 +2,7 @@
   Synopse mORMot framework
 
 An Open Source Client-Server ORM/SOA framework
- (c) 2008-2020 Synopse Informatique
+ (c) 2008-2022 Synopse Informatique
   https://synopse.info
   http://mormot.net
 
@@ -36,6 +36,7 @@ Contributors
   Esteban Martin (EMartin)
   Eugene Ilyin
   Eva Freimann (EVaF)
+  FeelAirSlow
   F-Vicente
   Goran Despalatovic (gigo)
   Jean-Baptiste Roussia (jbroussia)
@@ -53,6 +54,7 @@ Contributors
   Martin Eckes
   Martin Suer
   Mapes
+  Matkov
   Maxim Masiutin
   Mazinsw
   MChaos
@@ -71,6 +73,7 @@ Contributors
   Pierre le Riche
   RalfS
   Richard6688
+  Rik (rvk)
   Sabbiolina
   Sanyin
   Sinisa (sinisav)
@@ -94,7 +97,7 @@ Contributors
 
   
 Synopse mORMot is an Open Source Client-Server ORM SOA MVC framework
-for Delphi 6 up to Delphi 10.3 Rio and FPC, targeting Windows/Linux
+for Delphi 6 up to the latest Delphi and FPC revisions, targeting Windows/Linux
 for servers, and any platform for clients (including mobile or AJAX).
 
 The main features of mORMot are therefore:

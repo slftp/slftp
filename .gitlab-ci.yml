@@ -13,17 +13,17 @@ variables:
 
 .buildwin64: &buildwin64
   stage: build
-  artifacts:
-    # name of the generated zipfile
-    name: "slftp_x64-%CI_JOB_NAME%-%CI_COMMIT_REF_NAME%-%CI_COMMIT_SHA%"
-    paths:
-      # included files
-      - slftp_x64.exe
   script:
     - make.bat slftp_64
   after_script:
     # rename executable
-    - ren slftp.exe slftp_x64.exe
+    - ren slftp.exe slftp_x64-%CI_COMMIT_SHORT_SHA%.exe
+  artifacts:
+    # name of the generated zipfile
+    name: "slftp_x64-%CI_JOB_NAME%-%CI_COMMIT_REF_NAME%-%CI_COMMIT_SHA%"
+    paths:
+      # included file
+      - slftp_x64-%CI_COMMIT_SHORT_SHA%.exe
   tags:
     - windows
     - delphi 64bit
@@ -44,18 +44,19 @@ buildwin64-development:
 .buildlinux64: &buildlinux64
   stage: build
   image: $SLFTP_CI_IMAGE
-  artifacts:
-    # name of the generated zipfile
-    name: "slftp_x64-${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
-    paths:
-      # included files
-      - slftp_x64
   script:
     - make slftp_64
   after_script:
     # rename executable
-    - mv slftp slftp_x64
+    - mv slftp slftp_x64-${CI_COMMIT_SHORT_SHA}
+  artifacts:
+    # name of the generated zipfile
+    name: "slftp_x64-${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
+    paths:
+      # included file
+      - slftp_x64-${CI_COMMIT_SHORT_SHA}
   tags:
+    - linux
     - docker
 
 buildlinux64-release:
@@ -94,11 +95,13 @@ testlinux64:
   image: $SLFTP_CI_IMAGE
   when: on_success
   before_script:
-    - cp /opt/openssl-1.0.2u/lib*so .
+    - cp /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ./libcrypto.so
+    - cp /usr/lib/x86_64-linux-gnu/libssl.so.1.1 ./libssl.so
     - mv config/* tests/
   script:
     - make test
   tags:
+    - linux
     - docker
 
 ### sourcecode documentation stage ###
@@ -123,6 +126,7 @@ src-docs:
   script:
     - pasdoc --format html --write-uses-list --output src-docs irccommands/*.pas *.pas slftp.lpr
   tags:
+    - linux
     - docker
 
 pages:
@@ -146,11 +150,14 @@ pages:
 
 upload-package-files:
   stage: upload
+  image: alpine:latest
   rules:
     - if: $CI_COMMIT_TAG
   variables:
     PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic"
   before_script:
+    # Install needed dependencies
+    - apk add --no-cache grep git curl zip unzip openssh-client ca-certificates
     # save environment variables also for release stage
     # get current version
     - echo "VERSION=$(awk '/SL_VERSION:/{print $NF}' slftp.inc | grep -oP '\d\.\d\.\d\w?\d?')" >> build.env
@@ -161,14 +168,28 @@ upload-package-files:
     # repo url
     - echo "PACKAGE_URL=${PACKAGE_REGISTRY_URL}/slftp_${VERSION}/${NUMBERVERSION}" >> build.env
     # naming convention for files
-    - echo "WINDOWS_x64_BINARY=slftp-${VERSION}_x64.exe" >> build.env
-    - echo "LINUX_x64_BINARY=slftp-${VERSION}_x64" >> build.env
-    - echo "SLCONFIG=slftp-${VERSION}_config.zip" >> build.env
-    - echo "SLDOCU=slftp-${VERSION}_documentation.zip" >> build.env
-    - echo "SLHELPFILES=slftp-${VERSION}_helpfiles.zip" >> build.env
+    - echo "WINDOWS_x64_BINARY=slftp-v${VERSION}_x64.exe" >> build.env
+    - echo "LINUX_x64_BINARY=slftp-v${VERSION}_x64" >> build.env
+    - echo "SLCONFIG=slftp-v${VERSION}_config.zip" >> build.env
+    - echo "SLDOCU=slftp-v${VERSION}_documentation.zip" >> build.env
+    - echo "SLHELPFILES=slftp-v${VERSION}_helpfiles.zip" >> build.env
+    - echo "SLPACKAGE=slFtp.v${VERSION}.Linux.Windows.incl.Sources-SLDev.zip" >> build.env
+    # usually this will only be executed if a tag is commited. but for developing/testing this script, it's nice to 
+    # have this workingwithout a CI_COMMIT_TAG being set. therefore check if we have a CI_COMMIT_TAG, else use 
+    # CI_COMMIT_BRANCH instead. this is used to download the source code and add it to the complete release package
+    - |
+      if [[ -n "${CI_COMMIT_TAG}" ]]
+      then
+        echo "SLBRANCHORTAG=${CI_COMMIT_TAG}" >> build.env
+      else
+        echo "SLBRANCHORTAG=${CI_COMMIT_BRANCH}" >> build.env
+      fi
     # load env variables again
     - source build.env
   script:
+    # remove git short hash from filename
+    - mv slftp_x64-${CI_COMMIT_SHORT_SHA}.exe slftp_x64.exe
+    - mv slftp_x64-${CI_COMMIT_SHORT_SHA} slftp_x64
     # upload windows versions
     - |
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file slftp_x64.exe ${PACKAGE_URL}/${WINDOWS_x64_BINARY}
@@ -185,12 +206,63 @@ upload-package-files:
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLCONFIG} ${PACKAGE_URL}/${SLCONFIG}
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLDOCU} ${PACKAGE_URL}/${SLDOCU}
       curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLHELPFILES} ${PACKAGE_URL}/${SLHELPFILES}
+
+     # create complete pack ready to run
+    - |
+     mkdir dist
+     mkdir dist/help
+     mkdir sources
+     cp slftp_x64.exe dist
+     cp slftp_x64 dist
+     cp config/* dist
+     cp helpfiles/* dist/help
+    - |
+     git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/slftp/slftp.git -b ${SLBRANCHORTAG} sources
+    #delete the .git directory to save space
+    - |
+     rm -rf sources/.git
+    - |
+     rm -rf sources/config
+     rm -rf sources/docs
+     rm -rf sources/helpfiles
+    - |
+     curl -s https://cdn.mysql.com/archives/mysql-connector-c/mysql-connector-c-6.1.11-winx64.zip -o mysqlwin64.zip
+    - |
+     unzip -p mysqlwin64.zip */lib/libmysql.dll > dist/libmysql.dll
+    - |
+     rm -f mysqlwin64.zip
+    - |
+     curl -s https://archive.mariadb.org/mariadb-10.5.13/winx64-packages/mariadb-10.5.13-winx64.zip -o mariadbwin64.zip
+    - |
+     unzip -p mariadbwin64.zip */lib/libmariadb.dll > dist/libmariadb.dll
+    - |
+     rm -f mariadbwin64.zip
+    - |
+     curl -s https://www.sqlite.org/2021/sqlite-dll-win64-x64-3350400.zip -o sqlitewin64.zip
+    - |
+     unzip -p sqlitewin64.zip sqlite3.dll > dist/sqlite3-64.dll
+    - |
+     rm -f sqlitewin64.zip
+    - |
+     curl -s http://wiki.overbyte.eu/arch/openssl-1.1.1k-win64.zip -o opensslwin64.zip
+    - |
+     unzip -p opensslwin64.zip libcrypto-1_1-x64.dll > dist/libcrypto-1_1-x64.dll
+    - |
+     unzip -p opensslwin64.zip libssl-1_1-x64.dll > dist/libssl-1_1-x64.dll
+    - |
+     rm -f opensslwin64.zip
+    - |
+     zip -r ${SLPACKAGE} dist docs sources CHANGELOG README.md
+    # upload the pack
+    - |
+     curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file ${SLPACKAGE} ${PACKAGE_URL}/${SLPACKAGE}
   artifacts:
     reports:
       # publish environment variables
       dotenv: build.env
   tags:
     - linux
+    - docker
 
 release:
   stage: release
@@ -212,5 +284,7 @@ release:
       --assets-link "{\"name\":\"${SLCONFIG}\",\"url\":\"${PACKAGE_URL}/${SLCONFIG}\"}"
       --assets-link "{\"name\":\"${SLDOCU}\",\"url\":\"${PACKAGE_URL}/${SLDOCU}\"}"
       --assets-link "{\"name\":\"${SLHELPFILES}\",\"url\":\"${PACKAGE_URL}/${SLHELPFILES}\"}"
+      --assets-link "{\"name\":\"${SLPACKAGE}\",\"url\":\"${PACKAGE_URL}/${SLPACKAGE}\"}"
   tags:
+    - linux
     - docker

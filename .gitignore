@@ -3,6 +3,12 @@
 #
 slftp.history
 slftp.log
+slftp
+
+#
+# libinstaller.sh directory
+#
+docs/_dev
 
 #
 # Delphi and windows
@@ -15,8 +21,11 @@ __history
 *.drc
 *.map
 *.exe
-/*.dll
-/*.o
+*.dll
+*.o
+# required .o files
+!libs/mORMot/SQLite3/sqlite3.o
+!libs/mORMot/static/*.o
 *.ppu
 *.BAK
 *.bak
@@ -24,6 +33,7 @@ __history
 *.stat
 *.stats
 *.tvsconfig
+*.rsm
 _dcu/*
 bin/*
 Win32/*
@@ -32,6 +42,7 @@ tests/openssl-*
 
 # Visual Studio Code
 .vscode/*
+.devcontainer/*
 
 #
 # Lazarus
@@ -60,9 +71,6 @@ tests/openssl-*
 backup/*
 *.bak
 lib/*
-
-# created .o files
-libs/ZeosLib/parsesql/*.o
 
 #
 # Gitlab

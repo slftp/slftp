@@ -28,41 +28,36 @@ type
   TRelease = class
   private
     FCurrentYear: Integer; //< Value of the current year (e.g. 2019)
+    FSection: String; //< sectionname
+    FRlsname: String; //< releasename
+    FGroupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
+    FRlsnameWithoutGroupname: String; //< @link(rlsname) with removed @link(groupname)
+    FIsInternal: Boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
+    FPretimeUTC: Int64; //< UTC pretime for release
+    FPretimeSource: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
   public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
-    rlsname: String; //< releasename
-    rlsnamewithoutgrp: String; //< @link(rlsname) with removed @link(groupname)
-    section: String;
+
     words: TStringList; //< list of all words which occur in @link(rlsname), firstly removes () and then replaces .-_ with whitespace
-    groupname: String; //< name of release group extracted from @link(rlsname) by \-([^\-]+)$ regex
-    internal: boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
-    disks: integer;
-    kb_event: TKBEventType;
+    disks: integer; //< number of disks from rls name e.g. Foobar.2008.NTSC.3DiSC.MDVDR-GRP
+    kb_event: TKBEventType; //< the KB event type from which the rls was created
     language: String; //< contains the language string which is detected from @link(rlsname)
 
-    legnagyobbcd: integer;
-    sample: boolean;
-    covers: boolean;
-    subs: boolean;
 
-    fake: boolean;
-    fakereason: String;
+    FIsFake: boolean; //< true, if the release name has been detected as fake
+    FFakereason: String; //< if this rls has been detected as fake, this field contains the reason for it
 
-    pretime: int64; //< UTC pretime for release
-    pretimefrom: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
-
-    pretimefound: boolean;
     PredOnAnySite: boolean; //< indicates if it's pred on any of your sites
 
     // for fake checking
-    dots: integer; //< amount of dots ('.') in @link(rlsname)
-    number_of_chars: integer;
-    vowels: integer; //< amount of vowels [aeiouAEIOU] in @link(rlsname)
+    FNumberOfDots: integer; //< amount of dots ('.') in @link(rlsname)
+    FNumberOfDifferentChars: integer; //< number of different characters in the release name
+    FNumberOfVowels: integer; //< amount of vowels [aeiouAEIOU] in @link(rlsname)
 
-    year: integer;
+    year: integer; //< the year parsed from the release name
 
-    knowngroup: TKnownGroup;
+    knowngroup: TKnownGroup; //< value indicating whether this rls group is in slftp.knowngroups file. possible values: TKnownGroup = (grp_known, grp_unknown, grp_notconfigured)
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); virtual;
     destructor Destroy; override;
@@ -84,9 +79,19 @@ type
     { Get default section(s) this class is used for as comma separated list
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; virtual; abstract;
+
+    { Gets a value indicating whether there is a SectionHandler for the given section (e.g. TIMDBRelease, TTVRelease, ...)
+      @returns(True, if there is a section handler for the given section) }
     class function SectionAccepted(const section: String): boolean;
 
     property CurrentYear: Integer read FCurrentYear;
+    property section: String read FSection;
+    property rlsname: String read FRlsname;
+    property groupname: String read FGroupname;
+    property RlsnameWithoutGroup: String read FRlsnameWithoutGroupname;
+    property IsInternal: Boolean read FIsInternal;
+    property Pretime: Int64 read FPretimeUTC;
+    property PretimeSource: String read FPretimeSource;
   end;
 
   { @abstract(Class with support for 0-DAY release information) }
@@ -278,11 +283,11 @@ type
     currentseason: boolean;
     currentepisode: boolean;
     currentair: boolean;
-    daily: boolean;
+    daily: boolean; // < true, if the show is aired more than on one day a week
     showid: String; // aka TVMaze ID
     thetvdbid: String;
     tvrageid: String;
-    tvtag: String;
+    tvtag: String; //< contains the tv tag of the release name (DVDRip HDTV HDTVRip ...)
     tvlanguage: String;
     tvrating: integer; //< tv rating value (max score is 100, min score is 0)
 
@@ -488,16 +493,16 @@ begin
   GlMP3Genres := TStringList.Create;
   GlMP3Genres.Delimiter := ' ';
   GlMP3Genres.QuoteChar := '"';
-  fGenreHelper := '"Instrumental Rock" "Techno Industrial" "Instrumental Pop" "Progressive Rock" "Psychedelic Rock" "Native American" "Symphonic Rock" "Easy Listening" "Southern Rock" "Christian Rap" "National Folk" "Chamber Music" "Rhythmic Soul"';
-  fGenreHelper := fGenreHelper + '"Classic Rock" "Instrumental" "Power Ballad" "Alternative" "Thrash Metal" "Heavy Metal" "Death Metal" "Black Metal" "Euro Techno" "Psychedelic" "Rock & Roll" "Fast Fusion"';
-  fGenreHelper := fGenreHelper + '"Gothic Rock" "Porn Groove" "Industrial" "Soundtrack" "Sound Clip" "AlternRock" "Meditative" "Electronic" "Avantgarde" "Booty Bass" "Euro House" "Dance Hall" "Jazz+Funk" "Classical" "Eurodance"';
-  fGenreHelper := fGenreHelper + '"Showtunes" "Acid Punk" "Acid Jazz" "Hard Rock" "Folk Rock" "Bluegrass" "Slow Rock" "Freestyle" "Punk Rock" "Drum Solo" "A capella" "Trip Hop" "Darkwave" "Pop Folk" "Pop Funk" "New Wave" "Big Band"';
-  fGenreHelper := fGenreHelper + '"Hardcore" "Acoustic" "Symphony" "Slow Jam" "Folklore" "Country" "Hip-Hop" "Hip Hop" "New Age" "Ambient" "Gangsta" "Cabaret" "Trailer" "Musical" "Revival" "Chanson" "Grunge" "Oldies" "Reggae"';
-  fGenreHelper := fGenreHelper + '"Techno" "Pranks" "Fusion" "Trance" "Gospel" "Ethnic" "Gothic" "Comedy" "Top 40" "Jungle"';
-  fGenreHelper := fGenreHelper + '"Tribal" "Celtic" "Chorus" "Humour" "Speech" "Sonata" "Primus" "Satire" "Ballad" "Blues" "Dance" "Disco" "Metal" "Other"';
-  fGenreHelper := fGenreHelper + '"Vocal" "House" "Noise" "Space" "Dream" "Lo Fi" "Polka" "Retro" "Swing" "Bebob" "Latin" "Indie" "Opera" "Tango" "Samba" "Funk" "Jazz" "Rock" "Acid"';
+  fGenreHelper := '"Instrumental Rock" "Techno Industrial" "Instrumental Pop" "Progressive Rock" "Psychedelic Rock" "Native American" "Symphonic Rock" "Easy Listening" "Southern Rock" "Christian Rap" "National Folk" "Chamber Music" "Rhythmic Soul" ';
+  fGenreHelper := fGenreHelper + '"Classic Rock" "Instrumental" "Power Ballad" "Alternative" "Thrash Metal" "Heavy Metal" "Death Metal" "Black Metal" "Euro Techno" "Psychedelic" "Rock & Roll" "Fast Fusion" ';
+  fGenreHelper := fGenreHelper + '"Gothic Rock" "Porn Groove" "Industrial" "Soundtrack" "Sound Clip" "AlternRock" "Meditative" "Electronic" "Avantgarde" "Booty Bass" "Euro House" "Dance Hall" "Jazz+Funk" "Classical" "Eurodance" ';
+  fGenreHelper := fGenreHelper + '"Showtunes" "Acid Punk" "Acid Jazz" "Hard Rock" "Folk Rock" "Bluegrass" "Slow Rock" "Freestyle" "Punk Rock" "Drum Solo" "A capella" "Trip Hop" "Darkwave" "Pop Folk" "Pop Funk" "New Wave" "Big Band" ';
+  fGenreHelper := fGenreHelper + '"Hardcore" "Acoustic" "Symphony" "Slow Jam" "Folklore" "Country" "Hip-Hop" "Hip Hop" "New Age" "Ambient" "Gangsta" "Cabaret" "Trailer" "Musical" "Revival" "Chanson" "Grunge" "Oldies" "Reggae" ';
+  fGenreHelper := fGenreHelper + '"Techno" "Pranks" "Fusion" "Trance" "Gospel" "Ethnic" "Gothic" "Comedy" "Top 40" "Jungle" ';
+  fGenreHelper := fGenreHelper + '"Tribal" "Celtic" "Chorus" "Humour" "Speech" "Sonata" "Primus" "Satire" "Ballad" "Blues" "Dance" "Disco" "Metal" "Other" ';
+  fGenreHelper := fGenreHelper + '"Vocal" "House" "Noise" "Space" "Dream" "Lo Fi" "Polka" "Retro" "Swing" "Bebob" "Latin" "Indie" "Opera" "Tango" "Samba" "Funk" "Jazz" "Rock" "Acid" ';
   fGenreHelper := fGenreHelper + '"Game" "Bass" "Soul" "Punk" "Cult" "Rave" "Folk" "Club" "Duet" "Pop" "R&B" "Rap" "Ska" "CPOP" "KPOP" "JPOP"';
-  GlMP3Genres.DelimitedText := config.ReadString(rsections, 'mp3genres', fGenreHelper);
+  GlMP3Genres.DelimitedText := config.ReadString(configsection, 'mp3genres', fGenreHelper);
   i := 0;
   while (i < GlMP3Genres.Count) do
   begin
@@ -574,7 +579,7 @@ begin
       Result := Result + '?';
     Result := Result + #13#10;
 
-    if (pretime = 0) then
+    if (Pretime = 0) then
       Result := Result + 'Pretime not found!' + #13#10
     else
       Result := Result + Format('Pretime: %s (%s)', [dbaddpre_GetPreduration(pretime), FormatDateTime('yyyy-mm-dd hh:nn:ss', UnixToDateTime(pretime, False))]) + #13#10;
@@ -582,13 +587,13 @@ begin
     if disks <> 1 then
       Result := Result + Format('Disks: %d', [disks]) + #13#10;
 
-    if fake then
-      Result := Result + Format('Fake: %s', [fakereason]) + #13#10;
+    if FIsFake then
+      Result := Result + Format('Fake: %s', [FFakereason]) + #13#10;
 
     if language <> '' then
       Result := Result + Format('Language: %s', [language]) + #13#10;
 
-    Result := Result + Format('Internal: %s', [BoolToStr(internal, True)]) + #13#10;
+    Result := Result + Format('Internal: %s', [BoolToStr(FIsInternal, True)]) + #13#10;
   except
     on e: Exception do
     begin
@@ -607,13 +612,13 @@ begin
     aktualizalva := False;
     PredOnAnySite := False;
 
-    Self.section := section;
-    Self.rlsname := rlsname;
+    FSection := section;
+    FRlsname := rlsname;
 
     if SavedPretime > -1 then
     begin
       try
-        self.pretime := SavedPretime;
+        FPretimeUTC := SavedPretime;
       except
         on e: Exception do
           irc_Adderror(Format('TRelease.Create: Exception saving pretime %s %d (%s)', [rlsname, SavedPretime, e.Message]));
@@ -641,7 +646,7 @@ begin
 
     words.DelimitedText := s;
 
-    internal := False;
+    FIsInternal := False;
 
     rrgx := TRegExpr.Create;
     try
@@ -649,46 +654,46 @@ begin
 
       rrgx.Expression := '[\_\-\.]\(?(internal|int)\)?([\_\-\.]|$)';
       if rrgx.Exec(rlsname) then
-        internal := True;
+        FIsInternal := True;
 
       // detect groupname
-      groupname := '';
+      FGroupname := '';
       rrgx.Expression := '\-([^\-]+)$';
       if rrgx.Exec(rlsname) then
       begin
-        groupname := rrgx.Match[1];
+        FGroupname := rrgx.Match[1];
       end;
     finally
       rrgx.free;
     end;
 
     // old way if groupname not found by regex
-    if (groupname = '') then
+    if (FGroupname = '') then
     begin
       if UpperCase(words.strings[words.Count - 1]) = 'INT' then
-        groupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
+        FGroupname := words.strings[words.Count - 2] + '_' + words.strings[words.Count - 1]
       else
-        groupname := words.strings[words.Count - 1];
+        FGroupname := words.strings[words.Count - 1];
     end;
 
-    dots := 0;
-    number_of_chars := 0;
-    vowels := 0;
+    FNumberOfDots := 0;
+    FNumberOfDifferentChars := 0;
+    FNumberOfVowels := 0;
     s := '';
     for i := 1 to length(rlsname) do
     begin
       if 0 = Pos(rlsname[i], s) then
       begin
-        Inc(number_of_chars);
+        Inc(FNumberOfDifferentChars);
         s := s + rlsname[i];
       end;
       if rlsname[i] = '.' then
-        Inc(dots);
+        Inc(FNumberOfDots);
       if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
-        Inc(vowels);
+        Inc(FNumberOfVowels);
     end;
 
-    rlsnamewithoutgrp := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
+    FRlsnameWithoutGroupname := Copy(rlsname, 1, Length(rlsname) - Length(groupname));
 
     // language detection
     if (Self is TMP3Release) then
@@ -760,14 +765,14 @@ begin
   Debug(dpSpam, rsections, 'TRelease.SetPretime start');
   if TimeStamp <> 0 then
   begin
-    pretime := TimeStamp;
-    pretimefrom := 'Parameter';
+    FPretimeUTC := TimeStamp;
+    FPretimeSource := 'Parameter';
   end
   else
   begin
     resu := getPretime(rlsname);
-    pretime := resu.pretime;
-    pretimefrom := resu.mode;
+    FPretimeUTC := resu.pretime;
+    FPretimeSource := resu.mode;
   end;
   Debug(dpSpam, rsections, 'TRelease.SetPretime end');
 end;
@@ -922,8 +927,8 @@ begin
       exit; // did not find out the year. Sucking, useless to continue.
 
     { groupname }
-    if ((not internal) and (fYearIndex + 3 = words.Count)) then
-      groupname := words[fYearIndex + 1] + '_' + words[fYearIndex + 2]; // grpnames like XY_WEB
+    if ((not IsInternal) and (fYearIndex + 3 = words.Count)) then
+      FGroupname := words[fYearIndex + 1] + '_' + words[fYearIndex + 2]; // grpnames like XY_WEB
 
     { language }
     FMP3Language := language; // use language from TRelease ancestor
@@ -1099,7 +1104,7 @@ begin
   if nomp3dirlistgenre then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  pazo := FindPazoByName(section, rlsname);
 
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
@@ -1170,9 +1175,9 @@ begin
   if nonfodirlistgenre then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  pazo := FindPazoByName(section, rlsname);
 
-  i := last_addnfo.IndexOf(pazo.rls.rlsname);
+  i := last_addnfo.IndexOf(rlsname);
   if i <> -1 then
     exit;
 
@@ -1260,8 +1265,7 @@ begin
   if showname = '' then
     exit;
 
-  // ugly shit
-  pazo := TPazo(p);
+  pazo := FindPazoByName(section, rlsname);
 
   // check if we already have this showname in database
   try
@@ -1434,14 +1438,12 @@ var
   ps: TPazoSite;
   i, j: integer;
   imdbdata: TDbImdbData;
-  ir: TIMDBRelease;
 begin
   Result := False;
   aktualizalva := True;
 
   try
-    // ugly shit
-    pazo := TPazo(p);
+    pazo := FindPazoByName(section, rlsname);
 
     dbaddimdb_cs.Enter;
     try
@@ -1490,26 +1492,22 @@ begin
           dbaddimdb_cs.Leave;
         end;
 
-        if pazo.rls is TIMDBRelease then
-        begin
-          ir := TIMDBRelease(pazo.rls);
-          ir.imdb_id := imdbdata.imdb_id;
-          ir.imdb_year := imdbdata.imdb_year;
-          ir.imdb_languages := imdbdata.imdb_languages;
-          ir.imdb_countries := imdbdata.imdb_countries;
-          ir.imdb_genres := imdbdata.imdb_genres;
-          ir.imdb_screens := imdbdata.imdb_screens;
-          ir.imdb_rating := imdbdata.imdb_rating;
-          ir.imdb_votes := imdbdata.imdb_votes;
-          ir.CineYear := imdbdata.imdb_cineyear;
-          ir.imdb_ldt := imdbdata.imdb_ldt;
-          ir.imdb_wide := imdbdata.imdb_wide;
-          ir.imdb_festival := imdbdata.imdb_festival;
-          ir.imdb_stvm := imdbdata.imdb_stvm;
-          ir.imdb_stvs := imdbdata.imdb_stvs;
+        imdb_id := imdbdata.imdb_id;
+        imdb_year := imdbdata.imdb_year;
+        imdb_languages := imdbdata.imdb_languages;
+        imdb_countries := imdbdata.imdb_countries;
+        imdb_genres := imdbdata.imdb_genres;
+        imdb_screens := imdbdata.imdb_screens;
+        imdb_rating := imdbdata.imdb_rating;
+        imdb_votes := imdbdata.imdb_votes;
+        CineYear := imdbdata.imdb_cineyear;
+        imdb_ldt := imdbdata.imdb_ldt;
+        imdb_wide := imdbdata.imdb_wide;
+        imdb_festival := imdbdata.imdb_festival;
+        imdb_stvm := imdbdata.imdb_stvm;
+        imdb_stvs := imdbdata.imdb_stvs;
 
-          ir.FLookupDone := True;
-        end;
+        FLookupDone := True;
       except
         on e: Exception do
         begin
@@ -1549,8 +1547,8 @@ begin
     Result := Result + Format('IMDB Festival: %s', [BoolToStr(imdb_festival, True)]) + #13#10;
     Result := Result + Format('IMDB Limited: %s', [BoolToStr(imdb_ldt, True)]) + #13#10;
     Result := Result + Format('IMDB Natowide: %s', [BoolToStr(imdb_wide, True)]) + #13#10;
-    Result := Result + Format('IMDB STV: %s', [BoolToStr(imdb_stvm)]) + #13#10;
-    Result := Result + Format('IMDB STVS: %s', [imdb_stvs]) + #13#10;
+    Result := Result + Format('IMDB STV: %s', [BoolToStr(imdb_stvm, True)]) + #13#10;
+    Result := Result + Format('IMDB STVS: %s', [imdb_stvs]);
   except
     on e: Exception do
     begin
@@ -1658,7 +1656,7 @@ begin
   if nomvdirlistgenre then
     exit;
 
-  pazo := TPazo(p); // ugly shit
+  pazo := FindPazoByName(section, rlsname);
 
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
@@ -1666,8 +1664,6 @@ begin
     AddTask(TPazoMVIDTask.Create('', '', shot.Name, pazo, 1));
     Result := True;
   end;
-
-  // aktualizalva := True;
 end;
 
 procedure TMVIDRelease.SetValuesFromTask(const aFileCount: Integer; const aIsVideoRegionPAL, aIsVideoRegionNTSC: Boolean; const aGenreList: TArray<String>);
