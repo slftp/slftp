@@ -35,6 +35,9 @@ type
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
     FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
+    { Tries to identify the dirtype from subdirectory name by different regexes
+      @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
+    function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
   public
     dirlist: TDirList;
     justadded: Boolean;
@@ -47,9 +50,8 @@ type
     timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
 
     procedure CalcCDNumber;
-    constructor Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False); overload;
+    constructor Create(const filename: String; dirlist: TDirList; const aIsDirectory: boolean); overload;
     destructor Destroy; override;
-    procedure SetDirectory(const value: Boolean);
     function DirTypeAsString: String;
     procedure RegenerateSkiplist;
 
@@ -63,8 +65,8 @@ type
     property FilenameLowerCased: String read FFilenameLowerCase;
     property Extension: String read FExtension;
     property RacedByMe: Boolean read FRacedByMe write FRacedByMe;
-    property Directory: Boolean read FDirectory write SetDirectory;
-    property DirType: TDirType read FDirType write FDirType;
+    property Directory: Boolean read FDirectory;
+    property DirType: TDirType read FDirType;
     property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
   end;
@@ -104,13 +106,10 @@ type
     { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
       @returns(@true if determined as COMPLETE, @false otherwise) }
     function CompleteByTag: Boolean;
-    { Tries to identify the dirtype from subdirectory name by different regexes
-      @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
-    function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
-
+    
     procedure SetSkiplists;
     procedure SetLastChanged(const value: TDateTime);
-
+    
     procedure SetFullPath(const aFullPath: string);
     class function Timestamp(ts: String): TDateTime;
   public
@@ -284,7 +283,7 @@ begin
         Result := ((files <> 0) and (size <> 0));
       end;
     end;
-
+    
     // check if subdir has Useful files
     if ((not Result) and (ResultType = 'Unknown') and (sf_f <> nil) and (MatchFileCached('.sfv') = -1)) then
     begin
@@ -716,7 +715,7 @@ begin
         de := Find(fFilename);
         if de = nil then
         begin
-          de := TDirListEntry.Create(fFilename, self);
+          de := TDirListEntry.Create(fFilename, self, (fDirMask[1] = 'd'));
 
           if ((de.Extension = '.sfv') and (HasSFV)) then
           begin
@@ -732,8 +731,7 @@ begin
           de.FUsername := fUsername;
           de.FGroupname := fGroupname;
           de.timestamp := akttimestamp;
-          de.justadded := True;
-          de.directory := (fDirMask[1] = 'd');
+          de.justadded := True;          
 
           if not de.directory then
             de.filesize := fFilesize;
@@ -741,17 +739,6 @@ begin
           // Do not filter if we call the dirlist from irc
           if not FIsFromIrc then
           begin
-            if (de.directory) then
-            begin
-              try
-                // check if we have a special kind of subdirectory
-                de.DirType := RecognizeDirTypeFromDirname(fFilename);
-              except
-                on e: Exception do
-                  debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirlist (DirType): %s', [e.Message]);
-              end;
-            end;
-
             if ((not de.Directory) and (de.Extension = '') and (not FIsSpeedTest)) then
             begin
               de.Free;
@@ -780,18 +767,6 @@ begin
             de.subdirlist := TDirlist.Create(site_name, de, skiplist, FPazoSFV, FIsSpeedTest, FIsFromIrc);
             if de.subdirlist <> nil then
               de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
-          end
-          else
-          begin
-            (*
-              Pass information about DirType of the parent directory on to child elements
-              so we can use it and evaluate it in e.g. the queue to determine their
-              priority when trading/sorting the queue
-            *)
-            if (parent <> nil) then
-            begin
-              de.DirType := parent.DirType;
-            end;
           end;
 
           entries.AddObject(de.filename, de);
@@ -1087,7 +1062,7 @@ begin
   end;
 end;
 
-function TDirList.RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
+function TDirListEntry.RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
 var
   r: TRegExpr;
 begin
@@ -1237,8 +1212,7 @@ begin
         begin
           exit;
         end;
-        d := TDirListEntry.Create(firstdir, self);
-        d.Directory := True;
+        d := TDirListEntry.Create(firstdir, self, True);
         entries.AddObject(d.filename, d);
       end;
     finally
@@ -1596,10 +1570,27 @@ end;
 
 { TDirListEntry }
 
-constructor TDirListEntry.Create(const filename: String; dirlist: TDirList; SpeedTest: Boolean = False);
+constructor TDirListEntry.Create(const filename: String; dirlist: TDirList; const aIsDirectory: boolean);
 begin
-  self.DirType := IsMain;
-
+  if aIsDirectory then
+  begin
+    try
+      // check if we have a special kind of subdirectory
+      self.FDirType := RecognizeDirTypeFromDirname(filename);
+    except
+      on e: Exception do
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirListEntry.Create (DirType): %s', [e.Message]);
+    end;
+  end
+  else
+  begin
+    if (dirlist <> nil) and (dirlist.parent <> nil) then
+      self.FDirType := dirlist.parent.DirType
+    else
+      self.FDirType := IsMain;
+  end;
+    
+  self.FDirectory := aIsDirectory;
   self.dirlist := dirlist;
   self.filename := filename;
   self.FRacedByMe := False;
@@ -1614,6 +1605,8 @@ begin
   FExtension := ExtractFileExt(FFilenameLowerCase);
   cdno := 0;
 
+  if aIsDirectory then
+    CalcCDNumber;
   if (dirlist.FStartedTime = 0) then
   begin
     dirlist.FStartedTime := Now();
@@ -1659,13 +1652,6 @@ begin
     Result := True;
     exit;
   end;
-end;
-
-procedure TDirListEntry.SetDirectory(const value: Boolean);
-begin
-  FDirectory := value;
-  if directory then
-    CalcCDNumber;
 end;
 
 function TDirListEntry.DirTypeAsString: String;

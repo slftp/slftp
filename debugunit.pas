@@ -30,6 +30,11 @@ procedure Debug(const priority: TDebugPriority; const section, FormatStr: String
   @param(aMaxLinesToRead number of lines to read from logfile)
   @returns(logfile lines) }
 function LogTail(const aMaxLinesToRead: Integer): String;
+{ Writes Debug Level to config file and global variable
+  @param(netname for irc output)
+  @param(channel name for irc output)
+  @param(new debug value) }
+function WriteDebugVerbosity(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -42,6 +47,7 @@ const
 var
   f: TextFile;
   debug_lock: TCriticalSection;
+  glCachedDebugPriority: TDebugPriority;
 
 function _GetDebugLogFileName: String;
 begin
@@ -50,7 +56,47 @@ end;
 
 function _GetDebugVerbosity: TDebugPriority; inline;
 begin
-  Result := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
+  Result := glCachedDebugPriority;
+end;
+
+function WriteDebugVerbosity(const netname, channel, params: String): boolean;
+var
+  val: integer;
+begin
+  Result := False;
+  val := StrToIntDef(params, -1);
+  if val = -1 then
+  begin
+
+    case glCachedDebugPriority of
+      dpError: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
+      dpMessage: irc_Addtext(Netname, Channel, 'Only Logging Errors and common Messages.');
+      dpSpam: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
+      dpNone: irc_Addtext(Netname, Channel, 'Skip Logging...');
+    end;
+    Result := True;
+    Exit;
+  end
+  else if (val <= 3) then
+  begin
+    config.WriteInteger('debug', 'verbosity', val);
+    config.UpdateFile;
+    glCachedDebugPriority := TDebugPriority(val);
+    case glCachedDebugPriority of
+      dpError: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
+      dpMessage: irc_Addtext(Netname, Channel, 'Only Logging Errors and common Messages.');
+      dpSpam: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
+      dpNone: irc_Addtext(Netname, Channel, 'Skip Logging...');
+    end;
+    Result := True;
+    Exit;
+  end
+  else
+  begin
+    irc_Addtext(Netname, Channel, '<c4>Syntax error</c>, unknown verbosity.');
+    Result := False;
+    Exit;
+  end;
 end;
 
 function _GetDebugCategories: String; inline;
@@ -125,6 +171,7 @@ end;
 procedure DebugInit;
 begin
   debug_lock := TCriticalSection.Create;
+  glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
   _OpenLogFile;
 end;
 
@@ -136,7 +183,7 @@ end;
 
 procedure Debug(const priority: TDebugPriority; const section, msg: String); overload;
 var
-  nowstr: String;
+  nowstr, logtext: String;
 begin
   if _GetDebugVerbosity = dpNone then
     exit;
@@ -148,10 +195,11 @@ begin
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
+  logtext := Format('%s (%s) [%-25s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 4), section, msg]);
   debug_lock.Enter;
   try
     try
-      WriteLn(f, Format('%s (%s) [%-25s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 4), section, msg]));
+      WriteLn(f, logtext);
     except
       on e: Exception do
       begin

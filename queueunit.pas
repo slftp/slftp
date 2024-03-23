@@ -31,7 +31,7 @@ procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 
-function RemovePazo(const pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 procedure RemoveDirlistTasks(const pazo_id: integer; const sitename: String);
@@ -1047,17 +1047,32 @@ begin
 end;
 
 procedure AddTaskToConsole(const aTask: TTask);
+var
+  fTaskUid, fTaskName: string;
 begin
-  Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
+  try
+    fTaskUid := aTask.UidText;
+    fTaskName := aTask.Name;
+  except
+    on e: Exception do
+    begin
+      // it seems this could happen when the task has been freed already (because we are not inside queue lock here).
+      Debug(dpSpam, section, Format('[EXCEPTION] AddTaskToConsole task not available : %s', [e.Message]));
+      exit;
+    end;
+  end;
+  Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
 procedure AddTask(t: TTask);
 var
   tname: String;
   fCheckSiteSlotsSite: TSite;
+  fIsAlreadyInQueue: boolean;
 begin
   try
     fCheckSiteSlotsSite := nil;
+    fIsAlreadyInQueue := False;
     tname := t.Name;
 
     //do this check before the task might have been freed already
@@ -1081,7 +1096,8 @@ begin
 
     queueth.main_lock.Enter();
     try
-      if TaskAlreadyInQueue(t) then
+      fIsAlreadyInQueue := TaskAlreadyInQueue(t);
+      if fIsAlreadyInQueue then
         t.ready := True;
 
       tasks.Add(t);
@@ -1108,11 +1124,14 @@ begin
     end;
   end;
 
-  if fCheckSiteSlotsSite <> nil then
+  if not fIsAlreadyInQueue then
   begin
-    CheckSiteSlots(fCheckSiteSlotsSite);
+    if fCheckSiteSlotsSite <> nil then
+    begin
+      CheckSiteSlots(fCheckSiteSlotsSite);
+    end;
+    AddTaskToConsole(t);
   end;
-  AddTaskToConsole(t);
 end;
 
 procedure RemoveRaceTasks(const pazo_id: integer; const sitename: String);
@@ -1193,12 +1212,15 @@ begin
   end;
 end;
 
-function RemovePazo(const pazo_id: integer): boolean;
+function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 var
   i: integer;
-  t: TPazoTask;
+  t: TPazoPlainTask;
+  fSlotsToRebuild: TList<TSiteSlot>;
+  fSlot: TSiteSlot;
 begin
   Result := False;
+  fSlotsToRebuild := TList<TSiteSlot>.Create;
   try
     queueth.main_lock.Enter();
     try
@@ -1207,23 +1229,58 @@ begin
         try
           if i < 0 then
             Break;
-        except
-          Break;
-        end;
-        try
-          if tasks[i] is TPazoTask then
+
+          if tasks[i] is TPazoPlainTask then
           begin
-            t := TPazoTask(tasks[i]);
-            if ((t.pazo_id = pazo_id) and (t.slot1 = nil)) then
-              t.readyerror := True;
+            t := TPazoPlainTask(tasks[i]);
+            if ((t.pazo_id = pazo_id)) then
+            begin
+              if t.slot1 = nil then
+              begin
+                t.readyerror := True;
+              end
+              else if aForce then
+              begin
+                Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
+                t.readyerror := True;
+
+                // if the site slot actually has this task assigned, we need to rebuild it
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  fSlotsToRebuild.Add(TSiteSlot(t.slot1));
+                end;
+
+                t.slot1 := nil;
+                t.slot2 := nil;
+              end;
+            end;
           end;
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] RemovePazo (loop): %s', [e.Message]));
+          end;
         end;
       end;
     finally
       queueth.main_lock.Leave;
     end;
+
+    // now rebuild the slot(s) outside of the queue lock
+    for fSlot in fSlotsToRebuild do
+    begin
+      Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [fSlot.Name]));
+      irc_Addadmin('[SITESLOT]: Rebuild slot with stuck task: %s', [fSlot.Name]);
+      try
+        fSlot.site.RebuildSlot(fSlot.SlotNumber);
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemovePazo (RebuildSlot): %s', [e.Message]));
+        end;
+      end;
+    end;
+    fSlotsToRebuild.Free;
   except
     on E: Exception do
     begin

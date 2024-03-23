@@ -591,11 +591,7 @@ end;
 
 constructor TMyIrcThread.Create(const aNetname: String);
 begin
-  {$IFDEF DEBUG}
-    inherited Create(aNetname, False);
-  {$ELSE}
-    inherited Create(False);
-  {$ENDIF}
+  inherited Create(aNetname, False);
   Debug(dpMessage, section, 'IRC thread for %s started', [aNetname]);
 
   self.netname := aNetname;
