@@ -1140,19 +1140,18 @@ begin
     fCheckSiteSlotsSite := nil;
     tname := t.Name;
 
-    //do this check before the task might have been freed already
-    //for races (pazo tasks) the site slots are checked when the site is added to the race,
-    //check here for any other tasks that might come along
-    if (t.ssite1 <> nil) and
-      (((not (t is TPazoPlainTask)) and (not (t is TWaitTask)))
+    // do this check before the task might have been freed already
+    // for races (pazo tasks) the site slots are checked when the site is added to the race,
+    // check here for any other tasks that might come along
+    if (t.ssite1 <> nil) and (((not(t is TPazoPlainTask)) and (not(t is TWaitTask)))
 
-      //if the site has a max idle time, also do the slots check for race/wait tasks.
-      //The slots might reach idle time at any time even during a race.
-      //The CheckSiteSlots procedure will only login one additional slot for sites with a maxidle setting
+      // if the site has a max idle time, also do the slots check for race/wait tasks.
+      // The slots might reach idle time at any time even during a race.
+      // The CheckSiteSlots procedure will only login one additional slot for sites with a maxidle setting
       or (TSite(t.ssite1).maxidle <> 0))
 
-      //never do this for login, quit and idle tasks because it doesn't make sense
-      and (not (t is TLoginTask)) and (not (t is TQuitTask)) and (not (t is TIdleTask)) then
+    // never do this for login, quit and idle tasks because it doesn't make sense
+      and (not(t is TLoginTask)) and (not(t is TQuitTask)) and (not(t is TIdleTask)) then
     begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
@@ -1160,8 +1159,8 @@ begin
     Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
 
     tasks.LockList;
-    //main_lock.Enter();
-    //ThreadList.LockList;
+    // main_lock.Enter();
+    // ThreadList.LockList;
     try
       if TaskAlreadyInQueue(t) then
       begin
@@ -1178,7 +1177,7 @@ begin
           TSite(fSite).AcquireSlotsAssignmentLock('AddTask');
           try
             if ((not t.ready) and t.IsReadyToBeExecuted) then
-             begin
+            begin
               self.TryToAssignSlots(t);
             end;
           finally
@@ -1194,9 +1193,9 @@ begin
 
       AddTaskToConsole(t);
     finally
-      tasks.UnlockList;
-      //main_lock.Leave;
-      //ThreadList.UnlockList;
+      tasks.UnLockList;
+      // main_lock.Leave;
+      // ThreadList.UnlockList;
     end;
 
   except
@@ -1207,30 +1206,28 @@ begin
     end;
   end;
 
-    // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
-    // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
-    // dependencies of the race task never be resolved and it would remain and pollute the queue.
-    try
-      if t is TPazoPlainTask and (TPazoPlainTask(t).ps1.error or ((TPazoPlainTask(t).ps2 <> nil) and TPazoPlainTask(t).ps2.error)) then
-      begin
-        t.readyerror := true;
-        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
-        exit
-      end;
-    except
-      on e: Exception do
-      begin
-        // expect to get some exceptions because we are outside of the queue lock and accessing a task
-        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
-        exit;
-      end;
-    end;
-
-    if fCheckSiteSlotsSite <> nil then
+  // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
+  // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
+  // dependencies of the race task never be resolved and it would remain and pollute the queue.
+  try
+    if t is TPazoPlainTask and (TPazoPlainTask(t).ps1.error or ((TPazoPlainTask(t).ps2 <> nil) and TPazoPlainTask(t).ps2.error)) then
     begin
-      CheckSiteSlots(fCheckSiteSlotsSite);
+      t.readyerror := True;
+      Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+      exit
     end;
-    AddTaskToConsole(t);
+  except
+    on e: Exception do
+    begin
+      // expect to get some exceptions because we are outside of the queue lock and accessing a task
+      Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+      exit;
+    end;
+  end;
+
+  if fCheckSiteSlotsSite <> nil then
+  begin
+    CheckSiteSlots(fCheckSiteSlotsSite);
   end;
   AddTaskToConsole(t);
 end;

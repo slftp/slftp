@@ -182,7 +182,7 @@ begin
       irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV information (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
 
       // remove SFV tasks for other sites
-      fSlot.site.RemovePazoSfv(pazo_id, FDir);
+      RemovePazoSfv(pazo_id, FDir);
 
       Debug(dpSpam, section, 'SFV Task finished ' + Name);
     except
