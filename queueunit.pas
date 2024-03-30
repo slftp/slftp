@@ -1210,9 +1210,12 @@ begin
   // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
   // dependencies of the race task never be resolved and it would remain and pollute the queue.
   try
-    if t is TPazoPlainTask and (TPazoPlainTask(t).ps1.error or ((TPazoPlainTask(t).ps2 <> nil) and TPazoPlainTask(t).ps2.error)) then
+    if t is TPazoRaceTask and (TPazoRaceTask(t).ps2.error or
+
+      // for subdirs that fail there might only be that dir marked as failed, so if a dir is given, check this as well
+      (TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
     begin
-      t.readyerror := True;
+      t.readyerror := true;
       Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
       exit
     end;
