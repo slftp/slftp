@@ -3,7 +3,7 @@ unit dbhandler;
 interface
 
 uses
-  SynDBSQLite3, SynDBZeos, mORMot, mORMotSQLite3;
+  mormot.db.sql.zeos, mormot.db.sql.sqlite3, mormot.orm.core, mormot.rest.sqlite3;
 
 { Creates an initialized instance of TSQLDBSQLite3ConnectionProperties for further use of given SQLite3 database
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
@@ -24,7 +24,7 @@ var
 implementation
 
 uses
-  SysUtils, debugunit, globals, SynCommons, SynSQLite3;
+  SysUtils, debugunit, globals, mormot.core.unicode, mormot.db.raw.sqlite3;
 
 const
   section = 'dbhandler';
@@ -73,6 +73,8 @@ begin
     Result.DB.LockingMode := lmExclusive;
     // enable Write-Ahead Logging mode a which is slightly faster
     Result.DB.WALMode := True;
+    Result.DB.Synchronous := smNormal;
+
     // create missing sql tables
     Result.Server.CreateMissingTables;
   except

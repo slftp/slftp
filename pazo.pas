@@ -51,7 +51,7 @@ type
   private
     cds: String;
     FDestinations: TList<TSiteRank>; //< destination sites and ranks
-    function Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
+    procedure Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>);
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
 
@@ -147,9 +147,10 @@ type
       @param(aIsComplete the file is complete) }
     procedure ParseDupe(const aNetname, aChannel: String; aDirlist: TDirlist; const aDir, aFilename: String; const aSentByMe, aIsComplete: boolean) overload;
 
+    procedure ParseDupe(const aNetname, aChannel: String; aDirlist: TDirList; const aDir: string; const aFilenames: TArray<String>; const aSentByMe, aIsComplete: boolean) overload;
+
     function SetFileError(const netname, channel, dir, filename: String): boolean; //< Sets error flag to true for filename if it cannot be transfered
     function Stats: String;
-    function Allfiles: String;
     procedure SetComplete(const cdno: String);
     function StatusText: String;
     procedure Clear;
@@ -198,9 +199,6 @@ type
     sl: TSkipList;
 
     added: TDateTime;
-
-    //global dirlist
-    main_dirlist: TDirlist;
 
     // Integers with locking and event
     queuenumber: TIdThreadSafeInt32WithEvent;
@@ -259,6 +257,7 @@ const
 
 var
   local_pazo_id: integer;
+  glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
 
 
 constructor TSiteRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -493,6 +492,7 @@ end;
 procedure PazoInit;
 begin
   local_pazo_id := 0;
+  glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
 end;
 
 function TPazoSite.GetDirlistGaveUp: boolean;
@@ -508,7 +508,7 @@ begin
     dirlist.DirlistGaveUp := aGaveUp;
 end;
 
-function TPazoSite.Tuzelj(const netname, channel, dir: String; de: TDirListEntry): boolean;
+procedure TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>);
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
@@ -520,12 +520,11 @@ var
   pm: TPazoMkdirTask;
   pr: TPazoRaceTask;
   pd: TPazoDirlistTask;
-  dde: TDirListEntry;
+  de, dde: TDirListEntry;
   s: TSite;
   fd: String;
-  fExtensionMatchSFV, fExtensionMatchNFO: boolean;
+  fExtensionMatchSFV, fExtensionMatchNFO, fTaskAddedForDestination: boolean;
 begin
-  Result := False;
   dst := nil;
   dstdl := nil;
   dde := nil;
@@ -547,17 +546,12 @@ begin
   else if s.max_dn = 0 then
     exit;
 
-  if (not de.Directory) then
-  begin
-    if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then exit;
-    if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then exit;
-  end;
-
   pazo.lastTouch := Now();
 
   // enumerate possible destinations
   for fDestination in destinations do
   begin
+    fTaskAddedForDestination := False;
     dst := fDestination.PazoSite;
     dstrank := fDestination.Rank;
     try
@@ -566,14 +560,14 @@ begin
 
       // ignore this destination if we don't want to upload there
       s := FindSiteByName('', dst.Name);
-      if (s.max_up = 0) then exit;
+      if (s.max_up = 0) then Continue;
 
       //if the destination is going sstTempDown during the race we would spam race tasks
       //avoid this and also check other down states just to be sure
       if s.WorkingStatus in [sstDown, sstTempDown, sstMarkedAsDownByUser] then continue;
 
       // drop sending to this destination if too much crc events
-      if (dst.badcrcevents > config.ReadInteger('taskrace', 'badcrcevents', 15)) then Continue;
+      if (dst.badcrcevents > glMaxBadcrcEvents) then Continue;
 
       // Problem with dirlist
       if dirlist = nil then Continue;
@@ -581,166 +575,166 @@ begin
       if dst.dirlist = nil then Continue;
 
       // Find the dirlist for destination site
-      try
-        dstdl := dst.dirlist.FindDirlist(dir, True);
-        // When in a subdir, pass along the DirType of the source site subdir
-        if (dstdl.parent <> nil) then
-          dstdl.parent.DirType := de.DirType;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj FindDirlist: %s', [e.Message]));
-          Continue;
-        end;
-      end;
+      dstdl := dst.dirlist.FindDirlist(dir, True);
 
       // Dirlist for destination site not available
       if dstdl = nil then Continue;
       if dstdl.error then Continue;
 
-      // find the dirlist entry
-      try
-        dde := dstdl.Find(de.filename);
-        // Pass along the DirType of the source site entry
-        if (dde <> nil) then
-          dde.DirType := de.DirType;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
-          Continue;
-        end;
-      end;
-
-      // not really sure
-      (*
-        if ((dde <> nil) and (dde.done)) then Continue;
-      *)
-      if ((dde <> nil) and (dde.IsOnSite)) then Continue;
-      if ((dde <> nil) and (dde.error)) then Continue;
-
-      // Check if mkdir is needed
-      Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [fd, Name, dst.Name, dst.Name]);
-      if ((dstdl.entries <> nil) and (dstdl.entries.Count = 0)) then
+      for de in aDirListEntries do
       begin
-        if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
+
+        if (not de.Directory) then
         begin
-          Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
-
-          // Create the mkdir task
-          pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir);
-
-          // add delay to mkdir if delay_upload enabled
-          if dst.delay_upload > 0 then pm.startat := IncSecond(Now, dst.delay_upload);
-
-          // Add mkdir dependencies if needed
-          if ((dstdl.parent <> nil) and (dstdl.parent.dirlist.dependency_mkdir <> '')) then
-            pm.dependencies.Add(dstdl.parent.dirlist.dependency_mkdir);
-
-          dstdl.dependency_mkdir := pm.UidText;
-
-          // Finally add mkdir task
-          try
-            AddTask(pm);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [e.Message]));
-              Break;
-            end;
-          end;
+          if ((de.IsBeingUploaded or (de.filesize < 1)) and (s.SkipBeingUploadedFiles = sbuBeingUploaded)) then
+            Continue;
+          if ((de.filesize < 1) and (s.SkipBeingUploadedFiles = sbuOnly0Byte)) then
+            Continue;
         end;
-      end;
 
-      // Add dirlist task if needed
-      Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if dirlist is needed on %s', [fd, Name, dst.Name, dst.Name]);
-      if ((dst.status <> rssNotAllowed) and (not dstdl.dirlistadded) and (not dst.dirlistgaveup)) then
-      begin
+        // find the dirlist entry
         try
-          pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
-          Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
-          irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
-          dstdl.dirlistadded := True;
-          AddTask(pd);
+          dde := dstdl.Find(de.filename);
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pd): %s', [e.Message]));
-            Break;
+            Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
+            Continue;
           end;
         end;
-      end;
 
-      // We're handling a file
-      if not de.directory then
-      begin
-        // destination dir is not complete
-        if not dstdl.complete then
+        // not really sure
+        (*
+          if ((dde <> nil) and (dde.done)) then Continue;
+        *)
+        if ((dde <> nil) and (dde.IsOnSite)) then Continue;
+        if ((dde <> nil) and (dde.error)) then Continue;
+
+        // Check if mkdir is needed
+        Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [fd, Name, dst.Name, dst.Name]);
+        if ((dstdl.entries <> nil) and (dstdl.entries.Count = 0)) then
         begin
-          fExtensionMatchSFV := de.Extension = '.sfv';
-          fExtensionMatchNFO := de.Extension = '.nfo';
-          // skip nfo and sfv if already there
-          if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
-            Continue;
-          if ((dstdl.HasNFO) and (fExtensionMatchNFO)) then
-            Continue;
-
-          // Create the race task
-          Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
-          pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, dstrank);
-
-          // Set file type for subdirs
-          if (dstdl.parent <> nil) then
-            case de.DirType of
-              IsSample: pr.IsSample := True;
-              IsProof: pr.IsProof := True;
-              IsCovers: pr.IsCovers := True;
-              IsSubs: pr.IsSubs := True;
-            end;
-
-          // Set file type
-          if (fExtensionMatchSFV) then
-            pr.IsSfv := True;
-          if (fExtensionMatchNFO) then
-            pr.IsNfo := True;
-
-          // sfv not found so we won't race this file yet
-          if ((dstdl.sfv_status = dlSFVNotFound) and (not pr.IsNfo) and (not pr.IsSfv)) then
+          if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
           begin
-            // Sample, Proof, Covers don't usually contain nfo/sfv so we'll race those regardless
-            if not (pr.IsSample or pr.IsProof or pr.IsCovers) then
-            begin
-              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [fd, Name, dst.Name, dst.Name]);
-              FreeAndNil(pr);
-              Continue;
+            Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
+
+            // Create the mkdir task
+            pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dir);
+
+            // add delay to mkdir if delay_upload enabled
+            if dst.delay_upload > 0 then pm.startat := IncSecond(Now, dst.delay_upload);
+
+            // Add mkdir dependencies if needed
+            if ((dstdl.parent <> nil) and (dstdl.parent.dirlist.dependency_mkdir <> '')) then
+              pm.dependencies.Add(dstdl.parent.dirlist.dependency_mkdir);
+
+            dstdl.dependency_mkdir := pm.UidText;
+
+            // Finally add mkdir task
+            try
+              AddTask(pm);
+              fTaskAddedForDestination := True;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [e.Message]));
+                Break;
+              end;
             end;
           end;
+        end;
 
-          // Delay leech stuff
-          if ((delay_leech > 0) or (dst.delay_upload > 0)) then
-          begin
-            if delay_leech > dst.delay_upload then
-              pr.startat := IncSecond(Now, delay_leech)
-            else
-              pr.startat := IncSecond(Now, dst.delay_upload);
-          end;
-
-          // Add dependency if a dependent mkdir exists
-          if dstdl.dependency_mkdir <> '' then
-            pr.dependencies.Add(dstdl.dependency_mkdir);
-
-          // finally we can add the task
+        // Add dirlist task if needed
+        Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if dirlist is needed on %s', [fd, Name, dst.Name, dst.Name]);
+        if ((dst.status <> rssNotAllowed) and (not dstdl.dirlistadded) and (not dst.dirlistgaveup)) then
+        begin
           try
-            AddTask(pr);
+            pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
+            Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
+            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
+            dstdl.dirlistadded := True;
+            AddTask(pd);
+            fTaskAddedForDestination := True;
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr)): %s', [e.Message]));
+              Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pd): %s', [e.Message]));
               Break;
             end;
           end;
         end;
-        Result := True;
+
+        // We're handling a file
+        if not de.directory then
+        begin
+          // destination dir is not complete
+          if not dstdl.complete then
+          begin
+            fExtensionMatchSFV := de.Extension = '.sfv';
+            fExtensionMatchNFO := de.Extension = '.nfo';
+            // skip nfo and sfv if already there
+            if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
+              Continue;
+            if ((dstdl.HasNFO) and (fExtensionMatchNFO)) then
+              Continue;
+
+            // Create the race task
+            Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
+            pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dir, de.filename, de.filesize, dstrank);
+
+            // Set file type for subdirs
+            if (dstdl.parent <> nil) then
+              case de.DirType of
+                IsSample: pr.IsSample := True;
+                IsProof: pr.IsProof := True;
+                IsCovers: pr.IsCovers := True;
+                IsSubs: pr.IsSubs := True;
+              end;
+
+            // Set file type
+            if (fExtensionMatchSFV) then
+              pr.IsSfv := True;
+            if (fExtensionMatchNFO) then
+              pr.IsNfo := True;
+
+            // sfv not found so we won't race this file yet
+            if ((dstdl.sfv_status = dlSFVNotFound) and (not pr.IsNfo) and (not pr.IsSfv)) then
+            begin
+              // Sample, Proof, Covers don't usually contain nfo/sfv so we'll race those regardless
+              if not (pr.IsSample or pr.IsProof or pr.IsCovers) then
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Not creating racetask, missing sfv on %s', [fd, Name, dst.Name, dst.Name]);
+                FreeAndNil(pr);
+                Continue;
+              end;
+            end;
+
+            // Delay leech stuff
+            if ((delay_leech > 0) or (dst.delay_upload > 0)) then
+            begin
+              if delay_leech > dst.delay_upload then
+                pr.startat := IncSecond(Now, delay_leech)
+              else
+                pr.startat := IncSecond(Now, dst.delay_upload);
+            end;
+
+            // Add dependency if a dependent mkdir exists
+            if dstdl.dependency_mkdir <> '' then
+              pr.dependencies.Add(dstdl.dependency_mkdir);
+
+            // finally we can add the task
+            try
+              AddTask(pr);
+              fTaskAddedForDestination := True;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr)): %s', [e.Message]));
+                Break;
+              end;
+            end;
+          end;
+        end;
       end;
     except
       on e: Exception do
@@ -749,6 +743,10 @@ begin
         Break;
       end;
     end;
+
+    // tasks were added for this destination, so fire the queue
+    if fTaskAddedForDestination then
+      QueueFire;
   end;
 end;
 
@@ -791,6 +789,13 @@ begin
   Result := rls.AsText(pazo_id);
 
   Result := Result + Format('Age: %ds %s', [age, #13#10]);
+
+  Result := Result + 'Skiplist: ';
+  if sl <> nil then
+    Result := Result + Format('%s%s', [sl.sectionname, #13#10])
+  else
+    Result := Result + '?#13#10';
+
   Result := Result + Format('Sites: %d %s', [PazoSitesList.Count, #13#10]);
 
   for ps in PazoSitesList do
@@ -879,7 +884,6 @@ begin
   dirlisttasks := TIdThreadSafeInt32.Create;
   racetasks := TIdThreadSafeInt32.Create;
   mkdirtasks := TIdThreadSafeInt32.Create;
-  main_dirlist := nil;
 
   readyerror := False;
   PazoSitesList := TObjectList<TPazoSite>.Create(True);
@@ -901,6 +905,7 @@ end;
 destructor TPazo.Destroy;
 begin
   Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  Clear;
   PazoSitesList.Free;
   queuenumber.Free;
   dirlisttasks.Free;
@@ -1096,7 +1101,7 @@ end;
 procedure TPazo.Clear;
 begin
   try
-    RemovePazo(pazo_id);
+    RemovePazo(pazo_id, True);
 
     FExcludeFromIncfiller := False;
     stopped := False; // ha stoppoltak korabban akkor ez most szivas
@@ -1105,7 +1110,6 @@ begin
     errorreason := '';
     FUniqueFileListOfRelease.Clear;
     PazoSitesList.Clear;
-    main_dirlist := nil;
 
     self.cleared := True;
   except
@@ -1478,7 +1482,7 @@ begin
                 de.justadded := False;
                 fRemovePazoRaceEntries.Add(de);
               end;
-              de.filesize := pazo.PRegisterFile(dir, de.filename, de.filesize);
+              pazo.PRegisterFile(dir, de.filename, de.filesize);
             end;
 
             fFoundDirListEntries.Add(de);
@@ -1489,13 +1493,7 @@ begin
       end;
 
       //do this outside dirlist_lock to avoid deadlocks
-      for de in fFoundDirListEntries do
-      begin
-        if Tuzelj(netname, channel, dir, de) then
-        begin
-          QueueFire;
-        end;
-      end;
+      Tuzelj(netname, channel, dir, fFoundDirListEntries);
 
       for de in fRemovePazoRaceEntries do
       begin
@@ -1539,7 +1537,7 @@ begin
       end
       else
       begin
-        de := TDirListEntry.Create(filename, dl);
+        de := TDirListEntry.Create(filename, dl, False);
         de.error := True;
         dl.entries.AddObject(de.filename, de);
       end;
@@ -1558,80 +1556,89 @@ begin
 end;
 
 procedure TPazoSite.ParseDupe(const aNetname, aChannel: String; aDirlist: TDirlist; const aDir, aFilename: String; const aSentByMe, aIsComplete: boolean);
-var
-  de: TDirlistEntry;
-  rrgx: TRegExpr;
-  fJustAdded: boolean;
 begin
-  fJustAdded := False;
+  ParseDupe(aNetname, aChannel, aDirlist, aDir, [aFilename], aSentByMe, aIsComplete);
+end;
+
+procedure TPazoSite.ParseDupe(const aNetname, aChannel: String; aDirlist: TDirList; const aDir: string; const aFilenames: TArray<String>; const aSentByMe, aIsComplete: boolean);
+var
+  de: TDirListEntry;
+  rrgx: TRegExpr;
+  fFilesToRace: TList<TDirListEntry>;
+  fFilename: string;
+begin
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
+  fFilesToRace := TList<TDirListEntry>.Create;
   try
-    aDirlist.dirlist_lock.Enter;
     try
-      if not aDirlist.IsValidFilenameCached(aFileName) then
-        exit;
-
-      de := aDirlist.Find(aFilename);
-      if de = nil then
-      begin
-        // this means that it has not been fired
-        de := TDirListEntry.Create(aFilename, aDirlist);
-        de.directory := False;
-        de.filesize := -1;
-
-        de.RegenerateSkiplist;
-        aDirlist.entries.AddObject(de.filename, de);
-        aDirlist.LastChanged := Now();
-      end;
-
-      if aIsComplete then
-      begin
-        if (de.filesize < 1) then
+      aDirlist.dirlist_lock.Enter;
+      try
+        for fFilename in aFilenames do
         begin
-          //try to get the actual file size from pazo
-          de.filesize := pazo.PFileSize(aDir, aFilename);
+          if not aDirlist.IsValidFilenameCached(fFilename) then
+            exit;
 
-          if (de.filesize < 1) then
+          de := aDirlist.Find(fFilename);
+          if de = nil then
           begin
-            //since the file is complete, it must have at least size 1.
-            de.filesize := 1;
+            // this means that it has not been fired
+            de := TDirListEntry.Create(fFilename, aDirlist, False);
+            de.filesize := -1;
+
+            de.RegenerateSkiplist;
+            aDirlist.entries.AddObject(de.filename, de);
+            aDirlist.LastChanged := Now();
+          end;
+
+          if aIsComplete then
+          begin
+            if (de.filesize < 1) then
+            begin
+              //try to get the actual file size from pazo
+              de.filesize := pazo.PFileSize(aDir, fFilename);
+
+              if (de.filesize < 1) then
+              begin
+                //since the file is complete, it must have at least size 1.
+                de.filesize := 1;
+              end;
+            end;
+            de.IsBeingUploaded := False;
+          end;
+
+          if (de.Extension = '.sfv') then
+          begin
+            aDirlist.sfv_status := dlSFVFound;
+          end;
+
+          if aSentByMe then
+            de.RacedByMe := aSentByMe;
+
+          if (not de.IsOnSite) then
+          begin
+            de.IsOnSite := True;
+            if not de.skiplisted then
+              fFilesToRace.Add(de);
           end;
         end;
-        de.IsBeingUploaded := False;
+      finally
+        aDirlist.dirlist_lock.Leave;
       end;
 
-      if (de.Extension = '.sfv') then
+      //do this outside dirlist_lock to avoid deadlocks
+      Tuzelj(aNetname, aChannel, aDir, fFilesToRace);
+
+      for de in fFilesToRace do
+        RemovePazoRace(pazo.pazo_id, Name, aDir, de.filename);
+
+    except
+      on E: Exception do
       begin
-        aDirlist.sfv_status := dlSFVFound;
+        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
       end;
-
-      if aSentByMe then
-        de.RacedByMe := aSentByMe;
-
-      if (not de.IsOnSite) then
-      begin
-        de.IsOnSite := True;
-        fJustAdded := True;
-      end;
-    finally
-      aDirlist.dirlist_lock.Leave;
     end;
-
-    //do this outside dirlist_lock to avoid deadlocks
-    if (fJustAdded and (not de.skiplisted) and (de.IsOnSite)) then
-    begin
-      if Tuzelj(aNetname, aChannel, aDir, de) then
-      begin
-        QueueFire;
-      end;
-      RemovePazoRace(pazo.pazo_id, Name, aDir, aFilename);
-    end;
-
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
-    end;
+  finally
+    fFilesToRace.Free;
   end;
   //Debug(dpSpam, section, '<-- '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
 end;
@@ -1676,10 +1683,7 @@ begin
       if not ParseXDupeResponseToFilenameList(aFullResponse, fFileList) then
         exit;
 
-      for fFilename in fFileList do
-      begin
-        ParseDupe(aNetname, aChannel, dl, aDir, fFilename, False, False);
-      end;
+      ParseDupe(aNetname, aChannel, dl, aDir, fFileList.ToArray, False, False);
     finally
       fFileList.Free;
     end;
@@ -1890,16 +1894,6 @@ begin
   Result.TrimRight;
 
   Result := Result + #13#10;
-end;
-
-function TPazoSite.Allfiles: String;
-begin
-  Result := Name;
-
-  if ((status = rssRealPre) and (pazo.main_dirlist <> self.dirlist)) then
-    Result := Format('%s-%d', [Name, pazo.main_dirlist.Done])
-  else if dirlist <> nil then
-    Result := Format('%s-%d', [Name, dirlist.Done]);
 end;
 
 function TPazoSite.StatusText: String;

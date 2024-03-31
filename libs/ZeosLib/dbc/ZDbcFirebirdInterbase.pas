@@ -2207,7 +2207,7 @@ begin
     and (ImmediatelyReleasable <> Sender) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
     for I:= fTransactions.Count - 1 downto 0 do
-      if Supports(IZTransaction(fTransactions[I]), IImmediatelyReleasable, ImmediatelyReleasable)
+      if (fTransactions[I].QueryInterface(IImmediatelyReleasable, ImmediatelyReleasable) = S_OK)
       and (Sender <> ImmediatelyReleasable) then
         ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
   end;
@@ -3910,7 +3910,7 @@ function TZAbstractInterbaseFirebirdResultSet.IsNull(ColumnIndex: Integer): Bool
 begin
   {$IFNDEF DISABLE_CHECKING}
   CheckClosed;
-  Assert((ColumnIndex >= FirstDbcIndex) and (ColumnIndex <= ColumnsInfo.Count {$IFDEF GENERIC_INDEX}-1{$ENDIF}), 'Index out of Range.');
+  CheckError((ColumnIndex >= FirstDbcIndex) and (ColumnIndex <= ColumnsInfo.Count {$IFDEF GENERIC_INDEX}-1{$ENDIF}), 'Index out of Range.');
   {$ENDIF}
   with TZInterbaseFirebirdColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]) do
     Result := (sqlind <> nil) and (sqlind^ = ISC_NULL)

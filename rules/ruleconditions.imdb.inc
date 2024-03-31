@@ -29,3 +29,5 @@ const
   IMDBCineYearDescription: string = 'Returns the screening year of the movie.';
 
   IMDBCurrentCineYearDescription: string = 'Returns true, if the screening year of the movie equals the current year.';
+
+  IMDBTypeDescription: string = 'Returns the type of IMDB entry (e.g. TV movie, Movie, TV Show) as string.';

@@ -53,7 +53,7 @@ uses
     cthreads,
   {$ENDIF}
   {$IFDEF CPUX86_64}
-    SynFPCx64MM,
+    mormot.core.fpcx64mm,
   {$ELSE}
     cmem,
   {$ENDIF}

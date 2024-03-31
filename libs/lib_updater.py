@@ -4,11 +4,13 @@
 import os
 import urllib.request
 import zipfile
+import py7zr
 import json
 import shutil
 import re
 import fnmatch
 import glob
+import stat
 
 EXTRACT_DIR = "_TEMP_"
 
@@ -16,25 +18,31 @@ EXTRACT_DIR = "_TEMP_"
 def dl_and_unzip(url, exp_dirname) -> str:
     """Download file from given url and unzip it
     Args
-        url: link to a ZIP file to download
+        url: link to a ZIP or 7z file to download
         exp_dirname: expected dirname of the extracted content (used to match against)
     Returns
         foldername were the content was extracted to
     """
-    if url[-3:] != "zip":
-        raise Exception("Only zip files are supported")
-    zip_path, _ = urllib.request.urlretrieve(url)
-    with zipfile.ZipFile(zip_path, "r") as f:
-        f.extractall(EXTRACT_DIR)
+    if url[-3:] == "zip":
+        zip_path, _ = urllib.request.urlretrieve(url)
+        with zipfile.ZipFile(zip_path, "r") as f:
+            f.extractall(EXTRACT_DIR)
+    elif url[-3:] == ".7z":
+        zip_path, _ = urllib.request.urlretrieve(url)
+        with py7zr.SevenZipFile(zip_path, mode='r') as z:
+            z.extractall(path=EXTRACT_DIR)
+    else:        
+        raise Exception("Only zip or 7z files are supported")
 
     foldername = ""
-    for dirnames in os.listdir(EXTRACT_DIR):
-        if exp_dirname.lower() in dirnames.lower():
-            foldername = dirnames
-            break
+    if exp_dirname != "":
+        for dirnames in os.listdir(EXTRACT_DIR):
+            if exp_dirname.lower() in dirnames.lower():
+                foldername = dirnames
+                break
 
-    if foldername == "":
-        raise Exception("No matching folder found")
+        if foldername == "":
+            raise Exception("No matching folder found")
 
     return foldername
 
@@ -74,40 +82,34 @@ def cleanup_tempdir() -> None:
     Args
         path: path to temp directory
     """
-    shutil.rmtree(EXTRACT_DIR)
+    if os.path.isdir(EXTRACT_DIR):
+        shutil.rmtree(EXTRACT_DIR)
 
 
 def update_mORMot():
     """Update mORMot files from Github repository"""
-    LIB_DST_FOLDERNAME = "mORMot"  # lib dir name in slftp
+    LIB_DST_FOLDERNAME = "mORMot2"  # lib dir name in slftp
     print("Updating {}".format(LIB_DST_FOLDERNAME))
-    url = "https://github.com/synopse/mORMot/archive/master.zip"
+    url = "https://github.com/synopse/mORMot2/archive/master.zip"
     foldername = dl_and_unzip(url, LIB_DST_FOLDERNAME)
-    author, repo_name = "synopse", "mORMot"
+    author, repo_name = "synopse", "mORMot2"
     sha_hash, commit_msg = get_HEAD_github_commit_info(author, repo_name)
-    # commit_url = "https://github.com/" + author + \
-    #    "/" + repo_name + "/commit/" + sha_hash
+
     # delete unwanted files
     mainpath = os.path.join(EXTRACT_DIR, foldername)
     shutil.rmtree(os.path.join(mainpath, ".github"))
-    shutil.rmtree(os.path.join(mainpath, "CrossPlatform", "templates"))
-    shutil.rmtree(os.path.join(mainpath, "SQLite3", "DDD"))
-    shutil.rmtree(os.path.join(mainpath, "SQLite3", "Documentation"))
-    shutil.rmtree(os.path.join(mainpath, "SQLite3", "Samples"))
-    shutil.rmtree(os.path.join(mainpath, "SQLite3", "amalgamation"))
-    shutil.rmtree(os.path.join(mainpath, "static", "arm-linux"))
-    shutil.rmtree(os.path.join(mainpath, "static", "i386-darwin"))
-    shutil.rmtree(os.path.join(mainpath, "static", "i386-freebsd"))
+    shutil.rmtree(os.path.join(mainpath, "doc"))
     for dirpath in glob.glob(os.path.join(mainpath, "static", "*-android")):
         shutil.rmtree(dirpath)
-    shutil.rmtree(os.path.join(mainpath, "SyNode"))
     shutil.rmtree(os.path.join(mainpath, "Packages"))
-    shutil.rmtree(os.path.join(mainpath, "SynDBDataset"))
-    shutil.rmtree(os.path.join(mainpath, "RTL7"))
+    shutil.rmtree(os.path.join(mainpath, "test"))
+    shutil.rmtree(os.path.join(mainpath, "ex"))
+
     # delete unwanted file types
     filetypes = ["*.tmpl", "*.dpk", "*.bdsproj", "*.proj", "*.rc", "*.dproj", "*.ico",
-                 "*.resources", "*.res", "*.bmp", "*.cfg*", "*.json*", "*.lpi*", "*.dpr*", "*.png", "*.bat",
+                 "*.resources", "*.res", "*.bmp", "*.lpi", "*.dpr", "*.png", "*.bat",
                  "*.c", "*.manifest*", "build-fpc*", "c-fpc*", ".git*"]
+    
     for filetype_glob in filetypes:
         result = []
         for root, _, files in os.walk(mainpath, topdown=True):
@@ -116,23 +118,45 @@ def update_mORMot():
                 fnmatch.translate(filetype_glob), j, re.IGNORECASE)]
         for filepath in result:
             os.remove(filepath)
-    # copy Synopse.inc into SQLite3 dir
-    shutil.copy(os.path.join(mainpath, "Synopse.inc"),
-                os.path.join(mainpath, "SQLite3", "Synopse.inc"))
-    # write commit info file
+
+    # # write commit info file
     write_versioninfo(mainpath, sha_hash, commit_msg)
+
     # set defines for memory-manager
-    with open(os.path.join(mainpath, "SynFPCx64MM.pas"), "r") as sources:
+    with open(os.path.join(mainpath, "src", "core", "mormot.core.fpcx64mm.pas"), "r") as sources:
         lines = sources.readlines()
-    with open(os.path.join(mainpath, "SynFPCx64MM.pas"), "w") as sources:
+    with open(os.path.join(mainpath, "src", "core", "mormot.core.fpcx64mm.pas"), "w") as sources:
         for line in lines:
-            if "$define FPCMM_ASSUMEMULTITHREAD" in line:
-                sources.write('{$define FPCMM_ASSUMEMULTITHREAD}\n')
+            if "$define FPCMM_SERVER" in line:
+                sources.write('{$define FPCMM_SERVER}\n')
             else:
                 sources.write(line)
+
     # remove existing directory in libs folder and copy new dir over
     shutil.rmtree(LIB_DST_FOLDERNAME)
     shutil.copytree(mainpath, LIB_DST_FOLDERNAME)
+    cleanup_tempdir()
+
+
+    # download static files
+    LIB_DST_FOLDERNAME = os.path.join(LIB_DST_FOLDERNAME, "static")
+    url = "https://synopse.info/files/mormot2static.7z"
+    dl_and_unzip(url, "")
+
+    # These files are read only (on windows) after extracting and python encounters an error when trying to delete them
+    os.chmod(os.path.join(EXTRACT_DIR, "delphi", "lizard1-32.dll"), stat.S_IWRITE)
+    os.chmod(os.path.join(EXTRACT_DIR, "delphi", "lizard1-64.dll"), stat.S_IWRITE)
+
+    mainpath = EXTRACT_DIR
+
+    # delete unwanted files
+    shutil.rmtree(os.path.join(mainpath, "arm-linux"))
+    shutil.rmtree(os.path.join(mainpath, "i386-darwin"))
+    shutil.rmtree(os.path.join(mainpath, "i386-freebsd"))
+
+    shutil.rmtree(LIB_DST_FOLDERNAME)
+    shutil.copytree(mainpath, LIB_DST_FOLDERNAME)
+
     print("Update succeeded")
     for _ in range(3):
         print("YOU ALSO NEED TO UPDATE ZeosLib NOW OR MAKE SURE THE Zeos INC FILES ARE KEPT!!!")
@@ -338,9 +362,9 @@ def update_ZeosLib():
     shutil.copytree(mainpath, LIB_DST_FOLDERNAME)
     # copy final Zeos includes to mORMot directory
     shutil.copy(os.path.join(LIB_DST_FOLDERNAME, "Zeos.inc"),
-                os.path.join("mORMot", "Zeos.inc"))
+                os.path.join("mORMot2", "src", "db", "Zeos.inc"))
     shutil.copy(os.path.join(LIB_DST_FOLDERNAME, "ZeosLazarus.inc"),
-                os.path.join("mORMot", "ZeosLazarus.inc"))
+                os.path.join("mORMot2", "src", "db", "ZeosLazarus.inc"))
     print("Update succeeded")
 
 
@@ -445,6 +469,9 @@ print("\t" + "10 - TRegExpr")
 print("\t" + "11 - ZeosLib")
 val = input("Enter a number: ")
 
+# cleanup temp dir in case some rests have been left (error before or something)
+cleanup_tempdir()
+
 val = int(val)
 if val == 1:
     update_BeRoHighResolutionTimer()
@@ -473,5 +500,4 @@ else:
     exit()
 
 # final cleanup
-if os.path.isdir(EXTRACT_DIR):
-    cleanup_tempdir()
+cleanup_tempdir()

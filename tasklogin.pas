@@ -65,7 +65,7 @@ begin
       begin
         // site is not up, we have to try to login
         s.Quit;
-        Result := s.ReLogin(1, kill, section);
+        Result := s.ReLogin(1, kill, section, readd);
 
         if readd and (s.Status = ssOnline) then
         begin

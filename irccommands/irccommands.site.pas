@@ -2284,8 +2284,7 @@ begin
       irc_addtext(Netname, Channel, 'Slot %s/<b>%s</b> not found.', [sitename, s_slot]);
       exit;
     end;
-    site.slots[slot] := nil;
-    site.slots[slot] := TSiteSlot.Create(site, slot);
+    site.RebuildSlot(slot);
   except
     on E: Exception do
     begin

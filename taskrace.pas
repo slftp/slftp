@@ -76,7 +76,8 @@ implementation
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist,
-  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news;
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
+  Generics.Collections;
 
 const
   c_section = 'taskrace';
@@ -176,6 +177,7 @@ var
   i: integer;
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
+  fSubDirlistTasks: TList<TPazoDirlistTask>;
   d: TDirList;
   aktdir, fAbsoluteDir: String;
   itwasadded: boolean;
@@ -189,6 +191,7 @@ begin
   Result := False;
   s := slot;
   tname := Name;
+  fSubDirlistTasks := nil;
 
   if mainpazo.stopped then
   begin
@@ -432,9 +435,9 @@ begin
       d.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
 
     // Search for sub directories
+    fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
-      r := nil;
       d.dirlist_lock.Enter;
       try
         for i := 0 to d.entries.Count - 1 do
@@ -462,26 +465,29 @@ begin
                 Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
                 [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
               try
-                r := TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre);
+                fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre));
                 if (de.subdirlist <> nil) then
                   de.subdirlist.dirlistadded := True;
               except
                 on e: Exception do
                 begin
-                  Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask AddTask: %s', [e.Message]));
+                  Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask Create: %s', [e.Message]));
                 end;
               end;
             end;
-          except
-            Continue;
-          end;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask Subdir loop: %s', [e.Message]));
+              end;
+            end;
         end;
       finally
         d.dirlist_lock.Leave;
       end;
 
       //add task outside the dirlist lock to avoid deadlocks with the queue lock
-      if r <> nil then
+      for r in fSubDirlistTasks do
       begin
         AddTask(r);
       end;
@@ -492,6 +498,8 @@ begin
       Debug(dpError, c_section, Format('[EXCEPTION] TPazoDirlistTask: %s', [e.Message]));
     end;
   end;
+
+  FreeAndNil(fSubDirlistTasks);
 
   if ((not is_pre) and (d <> nil) and (d.Complete) and (ps1.status <> rssComplete)) then
   begin
@@ -514,62 +522,62 @@ begin
     begin
       secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
 
-      if ((d.entries.Count = 0) and (secondsWithNoChange > config.ReadInteger(c_section, 'newdir_max_empty', 300))) then
+      if ((d.entries.Count = 0) and (secondsWithNoChange > GetNewdirMaxEmptyValue())) then
       begin
         if spamcfg.readbool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
         d.DirlistGaveUp := True;
-        Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_empty', 300)]));
+        Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxEmptyValue()]));
       end;
 
-      if ((d.entries.Count > 0) and (secondsWithNoChange > config.ReadInteger(c_section, 'newdir_max_unchanged', 300))) then
+      if ((d.entries.Count > 0) and (secondsWithNoChange > GetNewdirMaxUnchangedValue())) then
       begin
         if spamcfg.readbool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
         d.DirlistGaveUp := True;
-        Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, config.ReadInteger(c_section, 'newdir_max_unchanged', 300)]));
+        Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxUnchangedValue()]));
       end;
 
       secondsSinceCompleted := SecondsBetween(Now, d.CompletedTime);
 
       if (is_pre) then
       begin
-        if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
+        if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
+          Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
         end;
       end
       else
       begin
         secondsSinceStart := SecondsBetween(Now, d.StartedTime);
 
-        if ( (d.StartedTime <> 0) AND (secondsSinceStart > config.ReadInteger(c_section, 'newdir_max_created', 600)) ) then
+        if ( (d.StartedTime <> 0) AND (secondsSinceStart > GetNewdirMaxCreatedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, config.ReadInteger(c_section, 'newdir_max_created', 600)]));
+          Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, GetNewdirMaxCreatedValue()]));
         end;
 
-        if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > config.ReadInteger(c_section, 'newdir_max_completed', 300)) ) then
+        if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
           d.DirlistGaveUp := True;
-          Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, config.ReadInteger(c_section, 'newdir_max_completed', 300)]));
+          Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
         end;
       end;
 
@@ -586,7 +594,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
+      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
 
       try
         AddTask(r);
@@ -635,9 +643,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
+            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), config.ReadInteger(c_section, 'newdir_dirlist_readd', 100));
+            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
 
             try
               AddTask(r);
@@ -2378,7 +2386,7 @@ begin
   end;
 
   //add this file as incomplete, transfer is running at this point
-  ps2.ParseDupe(netname, channel, dir, filename, True, False);
+  ps2.ParseDupe(netname, channel, dir, filename, False, False);
 
   Debug(dpSpam, 'taskrace', '--> WAIT');
 
@@ -2875,9 +2883,10 @@ begin
   //this is a very fucked-up case, we'll try again.
   if ( (mainpazo.rls <> nil) and (FileSendByMe) and
     ( (sdst.lastResponse.Contains('CRC-Check: SFV first')) or
+      (sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) or
       (sdst.lastResponse.Contains('CRC-Check: BAD!')) or
       (sdst.lastResponse.Contains('CRC-Check: Not in sfv!')) or
-      (sdst.lastResponse.Contains('0byte-file: Not allowed')) or
+      (sdst.lastResponse.Contains('-file: Not allowed')) or
       (sdst.lastResponse.Contains('NFO-File: DUPE!')) ) ) then
   begin
     Debug(dpSpam, c_section, 'Broken transfer event!');
@@ -2885,40 +2894,49 @@ begin
     if sdst.lastResponse.Contains('CRC-Check: SFV first') then
     begin
       //do nothing
-    end;
+    end
 
-    if sdst.lastResponse.Contains('CRC-Check: BAD!') then
+    else if (sdst.lastResponse.Contains('CRC-Check: BAD!') or sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
       Inc(ps2.badcrcevents);
-    end;
+    end
 
-    if sdst.lastResponse.Contains('0byte-file: Not allowed') then
+    else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
       end;
       Inc(ps2.badcrcevents);
-    end;
+    end
 
-    if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
+    else if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
       end;
       ps2.SetFileError(netname, channel, dir, filename);
-    end;
+    end
 
-    if sdst.lastResponse.Contains('NFO-File: DUPE!') then
+    else if sdst.lastResponse.Contains('NFO-File: DUPE!') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NFO DUPE]</c> %s', [Name]);
+      end;
+      ps2.SetFileError(netname, channel, dir, filename);
+    end
+
+    else if sdst.lastResponse.Contains('-file: Not allowed') then
+    begin
+      if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[NOT ALLOWED]</c> %s', [Name]);
       end;
       ps2.SetFileError(netname, channel, dir, filename);
     end;

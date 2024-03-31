@@ -3,7 +3,7 @@ unit taskhttpimdb;
 interface
 
 uses
-  tasksunit, Generics.Collections, SynCommons, Variants;
+  tasksunit, Generics.Collections, Variants;
 
 type
   { @abstract(Class for IMDb release date information) }
@@ -134,7 +134,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase;
+  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.base, mormot.core.variants;
 
 const
   section = 'taskhttpimdb';
@@ -913,6 +913,7 @@ begin
   imdbdata.imdb_festival := fIsFestival;
   imdbdata.imdb_stvm := fIsSTV;
   imdbdata.imdb_stvs := fStatusReason;
+  imdbdata.imdb_type := fImdbTitleExtraInfo;
   imdbdata.imdb_origtitle := fImdbOriginalTitle;
   try
     dbaddimdb_SaveImdbData(FReleaseName, imdbdata);

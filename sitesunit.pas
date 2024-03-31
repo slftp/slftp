@@ -159,7 +159,7 @@ type
     function Read(const read_cmd: String; const raiseontimeout, raiseonclose: boolean; timeout: integer = 0; const aMaxNumReads: integer = 500): boolean; overload;
     function Send(const s: String): boolean; overload;
     function Send(const s: String; const Args: array of const): boolean; overload;
-    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
+    function ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
     function bnc: String;
     function Cwd(dir: String; force: boolean = False): boolean;
     function Dirlist(const dir: String; forcecwd: boolean = False; fulldirlist: boolean = False; aIsForIndexing: boolean = False): boolean;
@@ -194,6 +194,7 @@ type
     property LastIO: TDateTime read FLastIO write FLastIO; //< time of last I/O operation, renewed on every read/write
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
+    property SlotNumber: integer read FSlotNumber;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -488,6 +489,8 @@ type
       @param(aSection sectionname)
       @param(Value Value to be set) }
     procedure SetDelayUploadMax(const aSection: String; const Value: integer);
+
+    procedure RebuildSlot(const aSlotNumber: integer);
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -1012,11 +1015,7 @@ begin
   // segfault because values aren't initialized yet
   // * the calls below should normally be at top of this function to avoid overwriting/resetting
   // * of class values by its ancestor
-  {$IFDEF DEBUG}
-    inherited Create(Name, False);
-  {$ELSE}
-    inherited Create(False);
-  {$ENDIF}
+  inherited Create(Name, False);
 
   debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
@@ -1101,6 +1100,9 @@ begin
           on E: Exception do
           begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+
+            //make sure the task gets cleaned if an unhandled exception occured when executing the task
+            todotask.readyerror := True;
           end;
         end;
 
@@ -1860,7 +1862,7 @@ begin
     end;
 end;
 
-function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''): boolean;
+function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
 var
   l_maxrelogins: integer;
   relogins: integer;
@@ -1927,7 +1929,9 @@ begin
 
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
-        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+        if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
+          irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+
         site.WorkingStatus := sstTempDown;
         exit;
       end;
@@ -1942,7 +1946,9 @@ begin
         end;
       end;
 
-      irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+      if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
+        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+
       site.WorkingStatus := sstTempDown;
     end;
   end;
@@ -3819,6 +3825,15 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+procedure TSite.RebuildSlot(const aSlotNumber: integer);
+begin
+  if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
+    raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
+
+  self.slots[aSlotNumber] := nil;
+  self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;

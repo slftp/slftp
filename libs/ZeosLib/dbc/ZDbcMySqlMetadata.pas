@@ -235,6 +235,12 @@ type
     FKnowServerType: Boolean;
     FIsMariaDB: Boolean;
     FIsMySQL: Boolean;
+    function OldUncachedGetCrossReference(const PrimaryCatalog, PrimarySchema, PrimaryTable, ForeignCatalog, ForeignSchema, ForeignTable: string): IZResultSet;
+    function OldUncachedGetExportedKeys(const Catalog, Schema, Table: string): IZResultSet;
+    function OldUncachedGetImportedKeys(const Catalog, Schema, Table: string): IZResultSet;
+    function NewUncachedGetCrossReference(const PrimaryCatalog, PrimarySchema, PrimaryTable, ForeignCatalog, ForeignSchema, ForeignTable: string): IZResultSet;
+    function NewUncachedGetExportedKeys(const Catalog, Schema, Table: string): IZResultSet;
+    function NewUncachedGetImportedKeys(const Catalog, Schema, Table: string): IZResultSet;
   protected
     procedure detectServerType;
     function CreateDatabaseInfo: IZDatabaseInfo; override; // technobot 2008-06-26
@@ -1830,8 +1836,8 @@ begin
   end;
 end;
 
-function TZMySQLDatabaseMetadata.UncachedGetImportedKeys(const Catalog: string;
-  const Schema: string; const Table: string): IZResultSet;
+function TZMySQLDatabaseMetadata.OldUncachedGetImportedKeys(const Catalog,
+  Schema, Table: string): IZResultSet;
 var
   I: Integer;
   KeySeq: Integer;
@@ -1840,9 +1846,6 @@ var
   CommentList, KeyList: TStrings;
   ColumnIndexes : Array[1..2] of integer;
 begin
-  if Table = '' then
-    raise EZSQLException.Create(STableIsNotSpecified); //CHANGE IT!
-
   Result := inherited UncachedGetImportedKeys(Catalog, Schema, Table);
 
   GetCatalogAndNamePattern(Catalog, Schema, Table,
@@ -1855,7 +1858,11 @@ begin
       Format('SHOW TABLE STATUS FROM %s LIKE ''%s''',
       [IC.Quote(LCatalog, iqCatalog), LTable])) do
     begin
-      ColumnIndexes[1] := FindColumn('Type');
+      ColumnIndexes[1] := FindColumn('Engine');
+      // MySQL versions 4.0 and before called that column 'Type', so let's look
+      // for it, if there is no 'Engine column'.
+      if ColumnIndexes[1] = InvalidDbcIndex then
+        ColumnIndexes[1] := FindColumn('Type');
       ColumnIndexes[2] := FindColumn('Comment');
       while Next do
       begin
@@ -1971,8 +1978,33 @@ end;
   @return <code>ResultSet</code> - each row is a foreign key column description
   @see #getImportedKeys
 }
-function TZMySQLDatabaseMetadata.UncachedGetExportedKeys(const Catalog: string;
-  const Schema: string; const Table: string): IZResultSet;
+
+function TZMySQLDatabaseMetadata.UncachedGetCrossReference(const PrimaryCatalog: string;
+  const PrimarySchema: string; const PrimaryTable: string; const ForeignCatalog: string;
+  const ForeignSchema: string; const ForeignTable: string): IZResultSet;
+Var
+  tmpPCat, tmpFcat: String;
+begin
+  if PrimaryTable = '' then
+    raise EZSQLException.Create(STableIsNotSpecified); //CHANGE IT!
+
+  if PrimaryCatalog = '' then
+    tmpPCat := FDatabase
+  else
+    tmpPCat := PrimaryCatalog;
+
+  if ForeignCatalog = '' then
+    tmpFCat := FDatabase
+  else
+    tmpFCat := ForeignCatalog;
+
+  If Self.isMariaDB Or (Self.GetConnection.GetHostVersion Div 1000000 >= 5) Then
+    Result := NewUncachedGetCrossReference(tmpPCat, PrimarySchema, PrimaryTable, tmpFCat, ForeignSchema, ForeignTable)
+  Else
+    Result := OldUncachedGetCrossReference(tmpPCat, PrimarySchema, PrimaryTable, tmpFCat, ForeignSchema, ForeignTable)
+end;
+
+Function TZMySQLDatabaseMetadata.OldUncachedGetExportedKeys(Const Catalog, Schema, Table: String): IZResultSet;
 var
   I: Integer;
   Len: NativeUInt;
@@ -1982,9 +2014,6 @@ var
   CommentList, KeyList: TStrings;
   ColumnIndexes : Array[1..3] of integer;
 begin
-  if Table = '' then
-    raise EZSQLException.Create(STableIsNotSpecified); //CHANGE IT!
-
   Result:=inherited UncachedGetExportedKeys(Catalog, Schema, Table);
 
   GetCatalogAndNamePattern(Catalog, Schema, Table,
@@ -1997,7 +2026,11 @@ begin
       Format('SHOW TABLE STATUS FROM %s',
       [IC.Quote(LCatalog, iqCatalog)])) do
     begin
-      ColumnIndexes[1] := FindColumn('Type');
+      ColumnIndexes[1] := FindColumn('Engine');
+      // MySQL versions 4.0 and before called that column 'Type', so let's look
+      // for it, if there is no 'Engine column'.
+      if ColumnIndexes[1] = InvalidDbcIndex then
+        ColumnIndexes[1] := FindColumn('Type');
       ColumnIndexes[2] := FindColumn('Comment');
       ColumnIndexes[3] := FindColumn('Name');
       while Next do
@@ -2117,9 +2150,9 @@ end;
   @return <code>ResultSet</code> - each row is a foreign key column description
   @see #getImportedKeys
 }
-function TZMySQLDatabaseMetadata.UncachedGetCrossReference(const PrimaryCatalog: string;
-  const PrimarySchema: string; const PrimaryTable: string; const ForeignCatalog: string;
-  const ForeignSchema: string; const ForeignTable: string): IZResultSet;
+function TZMySQLDatabaseMetadata.OldUncachedGetCrossReference(
+  const PrimaryCatalog, PrimarySchema, PrimaryTable, ForeignCatalog,
+  ForeignSchema, ForeignTable: string): IZResultSet;
 var
   I: Integer;
   KeySeq: Integer;
@@ -2128,9 +2161,6 @@ var
   CommentList, KeyList: TStrings;
   ColumnIndexes : Array[1..3] of integer;
 begin
-  if PrimaryTable = '' then
-    raise EZSQLException.Create(STableIsNotSpecified); //CHANGE IT!
-
   Result:=inherited UncachedGetCrossReference(PrimaryCatalog, PrimarySchema, PrimaryTable,
                                               ForeignCatalog, ForeignSchema, ForeignTable);
 
@@ -2146,7 +2176,11 @@ begin
       Format('SHOW TABLE STATUS FROM %s',
       [IC.Quote(LForeignCatalog, iqCatalog)])) do
     begin
-      ColumnIndexes[1] := FindColumn('Type');
+      ColumnIndexes[1] := FindColumn('Engine');
+      // MySQL versions 4.0 and before called that column 'Type', so let's look
+      // for it, if there is no 'Engine column'.
+      if ColumnIndexes[1] = InvalidDbcIndex then
+        ColumnIndexes[1] := FindColumn('Type');
       ColumnIndexes[2] := FindColumn('Comment');
       ColumnIndexes[3] := FindColumn('Name');
       while Next do
@@ -3241,6 +3275,189 @@ function TZMySQLDatabaseMetadata.isMySQL: Boolean;
 begin
   if not FKnowServerType then detectServerType;
   result := FIsMySQL;
+end;
+
+Function TZMySQLDatabaseMetadata.UncachedGetExportedKeys(const Catalog: string; const Schema: string; const Table: string): IZResultSet;
+Var
+  tmpcat: String;
+begin
+  if Table = '' then
+    raise EZSQLException.Create(STableIsNotSpecified); //CHANGE IT!
+
+  if Catalog = '' then
+    tmpcat := FDatabase
+  else
+    tmpcat := Catalog;
+
+  If Self.isMariaDB Or (Self.GetConnection.GetHostVersion Div 1000000 >= 5) Then
+    Result := NewUncachedGetExportedKeys(tmpcat, Schema, Table)
+  Else
+    Result := OldUncachedGetExportedKeys(tmpcat, Schema, Table);
+end;
+
+function TZMySQLDatabaseMetadata.NewUncachedGetCrossReference(
+  const PrimaryCatalog, PrimarySchema, PrimaryTable, ForeignCatalog,
+  ForeignSchema, ForeignTable: string): IZResultSet;
+Var
+  query, cond, LPCatalog, LPTable, LFCatalog, LFTable: String;
+begin
+  GetCatalogAndNamePattern(PrimaryCatalog, PrimarySchema, PrimaryTable, iqTable, LPCatalog, LPTable);
+  GetCatalogAndNamePattern(ForeignCatalog, ForeignSchema, ForeignTable, iqTable, LFCatalog, LFTable);
+
+  query := 'SELECT' + sLineBreak +
+    '  KEY_COLUMN_USAGE.CONSTRAINT_CATALOG PKTABLE_CAT, KEY_COLUMN_USAGE.REFERENCED_TABLE_SCHEMA PKTABLE_SCHEM, KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME PKTABLE_NAME,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.REFERENCED_COLUMN_NAME PKCOLUMN_NAME, KEY_COLUMN_USAGE.TABLE_CATALOG FKTABLE_CAT, KEY_COLUMN_USAGE.TABLE_SCHEMA FKTABLE_SCHEM,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.TABLE_NAME FKTABLE_NAME, KEY_COLUMN_USAGE.COLUMN_NAME FKCOLUMN_NAME, KEY_COLUMN_USAGE.ORDINAL_POSITION KEY_SEQ, NULL UPDATE_RULE, NULL DELETE_RULE,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.CONSTRAINT_NAME FK_NAME, TABLE_CONSTRAINTS.CONSTRAINT_NAME PK_NAME, NULL DEFERRABILITY' + sLineBreak +
+    'FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE' + sLineBreak +
+    '  JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS ON TABLE_CONSTRAINTS.TABLE_SCHEMA = KEY_COLUMN_USAGE.TABLE_SCHEMA AND' + sLineBreak +
+    '    TABLE_CONSTRAINTS.TABLE_NAME = KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME AND CONSTRAINT_TYPE = ''PRIMARY KEY''';
+
+  // Conditions for primary table
+
+  If LPTable <> '' Then
+    cond := cond + sLineBreak + '  ' + ConstructNameCondition(LPTable, 'KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME');
+
+  If PrimarySchema <> '' Then
+  Begin
+    If cond <> '' Then
+      cond := cond + sLineBreak + '  AND ';
+
+    cond := cond + ConstructNameCondition(PrimarySchema, 'KEY_COLUMN_USAGE.CONSTRAINT_CATALOG');
+  End;
+
+  If LPCatalog <> '' Then
+  Begin
+    If cond <> '' Then
+      cond := cond + sLineBreak + '  AND ';
+
+    cond := cond + ConstructNameCondition(LPCatalog, 'KEY_COLUMN_USAGE.CONSTRAINT_SCHEMA');
+  End;
+
+  // Conditions for foreign table
+
+  If (LFTable <> '') And (LFTable <> '%') Then
+  Begin
+    If cond <> '' Then
+      cond := cond + sLineBreak + '  AND ';
+
+    cond := cond + ConstructNameCondition(LFTable, 'TABLE_NAME');
+  End;
+
+  If ForeignSchema <> '' Then
+  Begin
+    If cond <> '' Then
+      cond := cond + sLineBreak + '  AND ';
+
+    cond := cond + ConstructNameCondition(ForeignSchema, 'TABLE_CATALOG');
+  End;
+
+  If LFCatalog <> '' Then
+  Begin
+    If cond <> '' Then
+      cond := cond + sLineBreak + '  AND ';
+
+    cond := cond + ConstructNameCondition(LPCatalog, 'TABLE_SCHEMA');
+  End;
+
+  If cond <> '' Then
+    query := query + sLineBreak + 'WHERE' + cond;
+
+  Result := CopyToVirtualResultSet(GetConnection.CreateStatement.ExecuteQuery(query),
+    ConstructVirtualResultSet(CrossRefColumnsDynArray));
+end;
+
+Function TZMySQLDatabaseMetadata.NewUncachedGetExportedKeys(Const Catalog, Schema, Table: String): IZResultSet;
+var
+  query, cond, LCatalog, LTable: String;
+begin
+  GetCatalogAndNamePattern(Catalog, Schema, Table, iqTable, LCatalog, LTable);
+
+  query := 'SELECT' + sLineBreak +
+    '  KEY_COLUMN_USAGE.CONSTRAINT_CATALOG PKTABLE_CAT, KEY_COLUMN_USAGE.REFERENCED_TABLE_SCHEMA PKTABLE_SCHEM, KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME PKTABLE_NAME,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.REFERENCED_COLUMN_NAME PKCOLUMN_NAME, KEY_COLUMN_USAGE.TABLE_CATALOG FKTABLE_CAT, KEY_COLUMN_USAGE.TABLE_SCHEMA FKTABLE_SCHEM,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.TABLE_NAME FKTABLE_NAME, KEY_COLUMN_USAGE.COLUMN_NAME FKCOLUMN_NAME, KEY_COLUMN_USAGE.ORDINAL_POSITION KEY_SEQ, NULL UPDATE_RULE, NULL DELETE_RULE,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.CONSTRAINT_NAME FK_NAME, TABLE_CONSTRAINTS.CONSTRAINT_NAME PK_NAME, NULL DEFERRABILITY' + sLineBreak +
+    'FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE' + sLineBreak +
+    '  JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS ON TABLE_CONSTRAINTS.TABLE_SCHEMA = KEY_COLUMN_USAGE.TABLE_SCHEMA AND' + sLineBreak +
+    '    TABLE_CONSTRAINTS.TABLE_NAME = KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME AND CONSTRAINT_TYPE = ''PRIMARY KEY''';
+
+  cond := '';
+
+  If LTable <> '' Then
+    cond := cond + sLineBreak + '  ' + ConstructNameCondition(LTable, 'KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME');
+
+  If Schema <> '' Then
+  Begin
+    If cond <> '' Then
+      cond := cond + sLineBreak + '  AND ';
+
+    cond := cond + ConstructNameCondition(Schema, 'KEY_COLUMN_USAGE.CONSTRAINT_CATALOG');
+  End;
+
+  If LCatalog <> '' Then
+  Begin
+    If cond <> '' Then
+      cond := cond + sLineBreak + '  AND ';
+
+    cond := cond + ConstructNameCondition(LCatalog, 'KEY_COLUMN_USAGE.CONSTRAINT_SCHEMA');
+  End;
+
+  If cond <> '' Then
+    query := query + sLineBreak + 'WHERE' + cond;
+
+  Result := CopyToVirtualResultSet(GetConnection.CreateStatement.ExecuteQuery(query),
+    ConstructVirtualResultSet(ExportedKeyColumnsDynArray));
+End;
+
+Function TZMySQLDatabaseMetadata.NewUncachedGetImportedKeys(Const Catalog, Schema, Table: String): IZResultSet;
+Var
+  query, cond, LCatalog, LTable: String;
+Begin
+  GetCatalogAndNamePattern(Catalog, Schema, Table, iqTable, LCatalog, LTable);
+
+  query := 'SELECT' + sLineBreak +
+    '  KEY_COLUMN_USAGE.CONSTRAINT_CATALOG PKTABLE_CAT, KEY_COLUMN_USAGE.REFERENCED_TABLE_SCHEMA PKTABLE_SCHEM, KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME PKTABLE_NAME,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.REFERENCED_COLUMN_NAME PKCOLUMN_NAME, KEY_COLUMN_USAGE.TABLE_CATALOG FKTABLE_CAT, KEY_COLUMN_USAGE.TABLE_SCHEMA FKTABLE_SCHEM,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.TABLE_NAME FKTABLE_NAME, KEY_COLUMN_USAGE.COLUMN_NAME FKCOLUMN_NAME, KEY_COLUMN_USAGE.ORDINAL_POSITION KEY_SEQ, NULL UPDATE_RULE, NULL DELETE_RULE,' + sLineBreak +
+    '  KEY_COLUMN_USAGE.CONSTRAINT_NAME FK_NAME, TABLE_CONSTRAINTS.CONSTRAINT_NAME PK_NAME, NULL DEFERRABILITY' + sLineBreak +
+    'FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE' + sLineBreak +
+    '  JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS ON TABLE_CONSTRAINTS.TABLE_SCHEMA = KEY_COLUMN_USAGE.TABLE_SCHEMA AND' + sLineBreak +
+    '    TABLE_CONSTRAINTS.TABLE_NAME = KEY_COLUMN_USAGE.REFERENCED_TABLE_NAME AND CONSTRAINT_TYPE = ''PRIMARY KEY''';
+
+  cond := sLineBreak + '  REFERENCED_TABLE_NAME IS NOT NULL';
+
+  If LTable <> '' Then
+    cond := cond + sLineBreak + '  AND ' + ConstructNameCondition(LTable, 'KEY_COLUMN_USAGE.TABLE_NAME');
+
+  If Schema <> '' Then
+    cond := cond + sLineBreak + '  AND ' + ConstructNameCondition(Schema, 'KEY_COLUMN_USAGE.TABLE_CATALOG');
+
+  If LCatalog <> '' Then
+    cond := cond + sLineBreak + '  AND ' + ConstructNameCondition(LCatalog, 'KEY_COLUMN_USAGE.TABLE_SCHEMA');
+
+  query := query + sLineBreak + 'WHERE' + cond;
+
+  Result := CopyToVirtualResultSet(GetConnection.CreateStatement.ExecuteQuery(query),
+    ConstructVirtualResultSet(ImportedKeyColumnsDynArray));
+End;
+
+function TZMySQLDatabaseMetadata.UncachedGetImportedKeys(const Catalog: string; const Schema: string; const Table: string): IZResultSet;
+Var
+  tmpcat: String;
+begin
+  if Table = '' then
+    raise EZSQLException.Create(STableIsNotSpecified); //CHANGE IT!
+
+  if Catalog = '' then
+    tmpcat := FDatabase
+  else
+    tmpcat := Catalog;
+
+  If Self.isMariaDB Or (Self.GetConnection.GetHostVersion Div 1000000 >= 5) Then
+    Result := NewUncachedGetImportedKeys(tmpcat, Schema, Table)
+  Else
+    Result := OldUncachedGetImportedKeys(tmpcat, Schema, Table);
 end;
 
 {**
