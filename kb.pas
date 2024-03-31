@@ -55,7 +55,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, Generics.Collections, Generics.Defaults {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -148,6 +148,13 @@ end;
 function trimmedShitChecker(section, rls: String): boolean;
 begin
   Result := False;
+end;
+
+
+//compare function to sort by rank
+function _CompareSiteRanks({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TSiteRank): Integer;
+begin
+  Result := TComparer<Integer>.Default.Compare(Right.Rank, Left.Rank); //descending
 end;
 
 function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
@@ -797,7 +804,7 @@ begin
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      fSourceSites := TList<TSiteRank>.Create;
+      fSourceSites := TList<TSiteRank>.Create(TComparer<TSiteRank>.Construct(_CompareSiteRanks));
       for i := p.PazoSitesList.Count - 1 downto 0 do
         begin
         try
