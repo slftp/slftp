@@ -387,6 +387,10 @@ type
     function GetReducedSpeedstatWeight: boolean;
     { Sets a value indicating whether speedstats should not change calculated rank for this destination site }
     procedure SetReducedSpeedstatWeight(const Value: boolean);
+    { Gets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
+    function GetKillConnectionOnStalledTransferSeconds: integer;
+    { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
+    procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -558,6 +562,7 @@ type
     property UseReverseFxpDestination: boolean read GetUseReverseFxpDestination write SetUseReverseFxpDestination; //< a value indicating whether reverse FXP will be used if the site is the destination for the transfer
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
+    property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
   end;
 
 function ReadSites(): boolean;
@@ -673,6 +678,7 @@ var
   // Config vars
   maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
+  kill_connection_on_stalled_transfer_seconds: integer = 0;
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
@@ -899,6 +905,7 @@ begin
   maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
   autologin := config.ReadBool(section, 'autologin', False);
   killafter := config.ReadInteger(section, 'killafter', 0);
+  kill_connection_on_stalled_transfer_seconds := config.ReadInteger('taskrace', 'kill_connection_on_stalled_transfer_seconds', 0);
 
   // Add admin site
   AddSite(TSite.Create(getAdminSiteName));
@@ -4258,6 +4265,16 @@ end;
 procedure TSite.SetReducedSpeedstatWeight(const Value: boolean);
 begin
   WCBool('reduced_speedstat_weight', Value);
+end;
+
+function TSite.GetKillConnectionOnStalledTransferSeconds: integer;
+begin
+  Result := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
+end;
+
+procedure TSite.SetKillConnectionOnStalledTransferSeconds(const Value: integer);
+begin
+  WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
 end;
 
 end.
