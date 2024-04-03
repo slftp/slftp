@@ -1,0 +1,3 @@
+Usage: <cmd> sitename seconds
+Overrides the global setting of kill_connection_on_stalled_transfer_seconds for the given site.
+Value is in seconds.
