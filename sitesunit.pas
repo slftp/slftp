@@ -523,6 +523,7 @@ type
     procedure ReleaseSlotsAssignmentLock;
 
     procedure RebuildSlot(const aSlotNumber: integer);
+    procedure PrintSiteStatusToIRC;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -3225,6 +3226,15 @@ begin
   WCBool('skip_pre', Value);
 end;
 
+procedure TSite.PrintSiteStatusToIRC;
+begin
+  case FWorkingStatus of
+    sstUp: irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
+    sstDown, sstMarkedAsDownByUser: irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
+    sstTempDown: irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
+  end;
+end;
+
 procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
   if Value <> FWorkingStatus then
@@ -3242,11 +3252,11 @@ begin
       Exit;
     end;
 
+    PrintSiteStatusToIRC;
+
     case Value of
       sstUp:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
-
           if UseForNfoDownload = ufnAutoDisabled then
             UseForNfoDownload := ufnEnabled;
 
@@ -3264,8 +3274,6 @@ begin
         end;
       sstDown, sstMarkedAsDownByUser:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
-
           // removeing all tasks for the site
           RemoveAutoIndex;
           RemoveAutoBnctest;
@@ -3277,8 +3285,6 @@ begin
         end;
       sstTempDown:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
-
           // just temp down, removeing all tasks except autobnctest
           RemoveAutoIndex;
           RemoveAutoRules;

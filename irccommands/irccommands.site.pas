@@ -2132,6 +2132,7 @@ end;
 function IrcBnctest(const netname, channel, params: String): boolean;
 var
   s: TSite;
+  fSiteStatus: TSiteStatus;
   x: TStringList;
   tn: TTaskNotify;
   added: boolean;
@@ -2165,6 +2166,7 @@ begin
         end;
       end;
 
+      fSiteStatus := s.WorkingStatus;
       tn := AddNotify;
       for i := 0 to x.Count - 1 do
       begin
@@ -2209,7 +2211,11 @@ begin
     tn.event.WaitFor($FFFFFFFF);
 
   if (db > 1) then
-    IrcSites(Netname, Channel, 'IrcBnctest');
+    IrcSites(Netname, Channel, 'IrcBnctest')
+
+  // when the status of the site changes, it is being posted anyway, so just do this when the status remains the same
+  else if fSiteStatus = s.WorkingStatus then
+    s.PrintSiteStatusToIRC;
 
   s.RemoveAutoIndex;
   s.RemoveAutoBnctest;
