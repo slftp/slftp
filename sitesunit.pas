@@ -719,6 +719,7 @@ var
   // Config vars
   maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
+  kill_connection_on_stalled_transfer_seconds: integer = 0;
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
@@ -1321,6 +1322,7 @@ begin
   maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
   autologin := config.ReadBool(section, 'autologin', False);
   killafter := config.ReadInteger(section, 'killafter', 0);
+  kill_connection_on_stalled_transfer_seconds := config.ReadInteger('taskrace', 'kill_connection_on_stalled_transfer_seconds', 0);
 
   // Add admin site
   AddSite(TSite.Create(getAdminSiteName));
@@ -4652,7 +4654,7 @@ end;
 
 function TSite.GetKillConnectionOnStalledTransferSeconds: integer;
 begin
-  Result := RCInteger('kill_connection_on_stalled_transfer_seconds', config.ReadInteger('taskrace', 'kill_connection_on_stalled_transfer_seconds', 0));
+  Result := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
 end;
 
 procedure TSite.SetKillConnectionOnStalledTransferSeconds(const Value: integer);
