@@ -392,6 +392,10 @@ type
     function GetReducedSpeedstatWeight: boolean;
     { Sets a value indicating whether speedstats should not change calculated rank for this destination site }
     procedure SetReducedSpeedstatWeight(const Value: boolean);
+    { Gets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
+    function GetKillConnectionOnStalledTransferSeconds: integer;
+    { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
+    procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -517,6 +521,7 @@ type
     procedure ReleaseSlotsAssignmentLock;
 
     procedure RebuildSlot(const aSlotNumber: integer);
+    procedure PrintSiteStatusToIRC;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -584,6 +589,7 @@ type
     property UseReverseFxpDestination: boolean read GetUseReverseFxpDestination write SetUseReverseFxpDestination; //< a value indicating whether reverse FXP will be used if the site is the destination for the transfer
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
+    property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
   end;
 
 function ReadSites(): boolean;
@@ -710,6 +716,7 @@ var
   // Config vars
   maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
+  kill_connection_on_stalled_transfer_seconds: integer = 0;
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
@@ -1297,6 +1304,7 @@ begin
   maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
   autologin := config.ReadBool(section, 'autologin', False);
   killafter := config.ReadInteger(section, 'killafter', 0);
+  kill_connection_on_stalled_transfer_seconds := config.ReadInteger('taskrace', 'kill_connection_on_stalled_transfer_seconds', 0);
 
   // Add admin site
   AddSite(TSite.Create(getAdminSiteName));
@@ -2975,7 +2983,7 @@ var
   ss, affils: String;
 begin
   debug(dpSpam, section, 'Start creating of site %s', [Name]);
-  slots := TObjectList.Create();
+  slots := TObjectList.Create(False);
   self.Name := Name;
   features := [];
   fSlotsAssignmentLock := TEvent.Create(nil, False, True, 'SLFTP_SlotsAssignmentMutex_' + Name + '_' + IntToStr(random(2000000000)));
@@ -3134,9 +3142,14 @@ begin
 end;
 
 destructor TSite.Destroy;
+var
+  fSlot: TSiteSlot;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   fQueue.Free;
+  QueueEmpty(Name);
+  for fSlot in slots do
+    fSlot.Free;
   slots.Free;
   fSlotsAssignmentLock.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
@@ -3187,6 +3200,15 @@ begin
   WCBool('skip_pre', Value);
 end;
 
+procedure TSite.PrintSiteStatusToIRC;
+begin
+  case FWorkingStatus of
+    sstUp: irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
+    sstDown, sstMarkedAsDownByUser: irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
+    sstTempDown: irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
+  end;
+end;
+
 procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
   if Value <> FWorkingStatus then
@@ -3204,11 +3226,11 @@ begin
       Exit;
     end;
 
+    PrintSiteStatusToIRC;
+
     case Value of
       sstUp:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
-
           if UseForNfoDownload = ufnAutoDisabled then
             UseForNfoDownload := ufnEnabled;
 
@@ -3226,8 +3248,6 @@ begin
         end;
       sstDown, sstMarkedAsDownByUser:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
-
           // removeing all tasks for the site
           RemoveAutoIndex;
           RemoveAutoBnctest;
@@ -3239,8 +3259,6 @@ begin
         end;
       sstTempDown:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
-
           // just temp down, removeing all tasks except autobnctest
           RemoveAutoIndex;
           RemoveAutoRules;
@@ -4087,30 +4105,6 @@ begin
   fs := 0;
   for i := 0 to slots.Count - 1 do
   begin
-    (*
-        try
-          ss:= TSiteSlot(slots[i]);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-            irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-            slots[i] := nil;
-            slots[i] := TSiteSlot.Create(self, i);
-            ss:= TSiteSlot(slots[i]);
-            irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-          end;
-        end;
-        if ((slots[i] = nil) or (ss = nil)) then
-        begin
-          Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-          irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-          slots[i] := nil;
-          slots[i] := TSiteSlot.Create(self, i);
-          ss:= TSiteSlot(slots[i]);
-          irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-        end;
-    *)
     ss := TSiteSlot(slots[i]);
     if ss.todotask = nil then
       Inc(fs);
@@ -4139,12 +4133,15 @@ begin
 end;
 
 procedure TSite.RebuildSlot(const aSlotNumber: integer);
+var
+  fOldSiteSlot: TSiteSlot;
 begin
   if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
     raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
 
-  self.slots[aSlotNumber] := nil;
+  fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
   self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
+  fOldSiteSlot.Free;
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;
@@ -4625,6 +4622,16 @@ end;
 procedure TSite.SetReducedSpeedstatWeight(const Value: boolean);
 begin
   WCBool('reduced_speedstat_weight', Value);
+end;
+
+function TSite.GetKillConnectionOnStalledTransferSeconds: integer;
+begin
+  Result := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
+end;
+
+procedure TSite.SetKillConnectionOnStalledTransferSeconds(const Value: integer);
+begin
+  WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
 end;
 
 end.
