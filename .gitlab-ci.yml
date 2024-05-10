@@ -32,7 +32,7 @@ buildwin64-release:
   <<: *buildwin64
   before_script:
     # delete .git dir to avoid patching in git rev
-    - rmdir .git /s /q
+    - Remove-Item .git -Recurse -Force
   only:
     - tags
 
