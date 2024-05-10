@@ -56,8 +56,7 @@ buildwin64-development:
       # included file
       - slftp_x64-${CI_COMMIT_SHORT_SHA}
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 buildlinux64-release:
   <<: *buildlinux64
@@ -103,8 +102,7 @@ testlinux64:
   script:
     - make test
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 ### sourcecode documentation stage ###
 
@@ -128,8 +126,7 @@ src-docs:
   script:
     - pasdoc --format html --write-uses-list --output src-docs irccommands/*.pas *.pas slftp.lpr
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 pages:
   stage: deploy sourcecode documentation
@@ -263,8 +260,7 @@ upload-package-files:
       # publish environment variables
       dotenv: build.env
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 release:
   stage: release
@@ -288,5 +284,4 @@ release:
       --assets-link "{\"name\":\"${SLHELPFILES}\",\"url\":\"${PACKAGE_URL}/${SLHELPFILES}\"}"
       --assets-link "{\"name\":\"${SLPACKAGE}\",\"url\":\"${PACKAGE_URL}/${SLPACKAGE}\"}"
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
