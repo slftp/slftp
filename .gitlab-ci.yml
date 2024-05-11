@@ -225,25 +225,25 @@ upload-package-files:
      rm -rf sources/docs
      rm -rf sources/helpfiles
     - |
-     curl -s https://cdn.mysql.com/archives/mysql-connector-c/mysql-connector-c-6.1.11-winx64.zip -o mysqlwin64.zip
+     curl -s https://downloads.mysql.com/archives/get/p/20/file/mysql-connector-c%2B%2B-8.3.0-winx64.zip -o mysqlwin64.zip
     - |
      unzip -p mysqlwin64.zip */lib/libmysql.dll > dist/libmysql.dll
     - |
      rm -f mysqlwin64.zip
     - |
-     curl -s https://archive.mariadb.org/mariadb-10.5.13/winx64-packages/mariadb-10.5.13-winx64.zip -o mariadbwin64.zip
+     curl -s https://archive.mariadb.org/mariadb-10.5.24/winx64-packages/mariadb-10.5.24-winx64.zip -o mariadbwin64.zip
     - |
      unzip -p mariadbwin64.zip */lib/libmariadb.dll > dist/libmariadb.dll
     - |
      rm -f mariadbwin64.zip
     - |
-     curl -s https://www.sqlite.org/2021/sqlite-dll-win64-x64-3350400.zip -o sqlitewin64.zip
+     curl -s https://www.sqlite.org/2024/sqlite-dll-win-x64-3450300.zip -o sqlitewin64.zip
     - |
      unzip -p sqlitewin64.zip sqlite3.dll > dist/sqlite3-64.dll
     - |
      rm -f sqlitewin64.zip
     - |
-     curl -s http://wiki.overbyte.eu/arch/openssl-1.1.1k-win64.zip -o opensslwin64.zip
+     curl -s http://wiki.overbyte.eu/arch/openssl-1.1.1w-win64.zip -o opensslwin64.zip
     - |
      unzip -p opensslwin64.zip libcrypto-1_1-x64.dll > dist/libcrypto-1_1-x64.dll
     - |
