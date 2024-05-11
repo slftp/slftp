@@ -243,7 +243,7 @@ upload-package-files:
     - |
      rm -f sqlitewin64.zip
     - |
-     curl -s http://wiki.overbyte.eu/arch/openssl-1.1.1w-win64.zip -o opensslwin64.zip
+     curl -s -L http://wiki.overbyte.eu/arch/openssl-1.1.1w-win64.zip -o opensslwin64.zip
     - |
      unzip -p opensslwin64.zip libcrypto-1_1-x64.dll > dist/libcrypto-1_1-x64.dll
     - |
