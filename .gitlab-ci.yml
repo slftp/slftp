@@ -225,7 +225,7 @@ upload-package-files:
      rm -rf sources/docs
      rm -rf sources/helpfiles
     - |
-     curl -s https://downloads.mysql.com/archives/get/p/20/file/mysql-connector-c%2B%2B-8.3.0-winx64.zip -o mysqlwin64.zip
+     curl -s https://cdn.mysql.com/archives/mysql-connector-c/mysql-connector-c-6.1.11-winx64.zip -o mysqlwin64.zip
     - |
      unzip -p mysqlwin64.zip */lib/libmysql.dll > dist/libmysql.dll
     - |
