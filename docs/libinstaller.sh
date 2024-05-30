@@ -124,7 +124,7 @@ function func_openssl {
 function func_openssl_dlinst {
   wget "$OPENSSL_FILE" -O "$DEVDIR/$OPENSSL_FILENAME"
   wget "${OPENSSL_FILE}.sha256" -O "$DEVDIR/${OPENSSL_FILENAME}.sha256"
-  if ! [[ "$(sha256sum "$DEVDIR/${OPENSSL_FILENAME}" | cut -d' ' -f1)" == "$(cat "$DEVDIR/${OPENSSL_FILENAME}.sha256")" ]]; then
+  if ! [[ "$(sha256sum "$DEVDIR/${OPENSSL_FILENAME}" | cut -d' ' -f1)" == "$(cat "$DEVDIR/${OPENSSL_FILENAME}.sha256" | tr -d "[:blank:]")" ]]; then
     echo "[-] ERROR: Checksum does _NOT_ match."
     read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue."
     echo -ne "\033[0K\r"
