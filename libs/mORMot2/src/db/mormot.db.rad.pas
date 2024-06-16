@@ -49,13 +49,14 @@ uses
 
 
 const
-  /// map the LCL/VCL string type, depending on the Delphi compiler version
+  /// map the UI/RTL string type, depending on the actual compiler version
   {$ifdef UNICODE}
   ftDefaultVCLString = ftWideString;
   {$else}
   ftDefaultVCLString = ftString;
   {$endif UNICODE}
-  /// if you prefer LCL/Lazarus
+
+  /// if you prefer LCL/Lazarus naming
   ftDefaultLCLString = ftDefaultVCLString;
 
   /// map the best ft*Memo type available, depending on the Delphi compiler version
@@ -71,7 +72,7 @@ type
   {$endif UNICODE}
 
   {$ifndef ISDELPHIXE4}
-  TValueBuffer = Pointer;
+  TValueBuffer = pointer;
   {$endif ISDELPHIXE4}
   
   PDateTimeRec = ^TDateTimeRec;
@@ -114,7 +115,7 @@ procedure BcdToUtf8(const AValue: TBcd; var result: RawUtf8); overload;
 function BcdToUtf8(const AValue: TBcd): RawUtf8; overload;
   {$ifdef HASINLINE} inline;{$endif}
 
-/// convert a TBcd value into a LCL/VCL string text
+/// convert a TBcd value into a RTL string text
 // - will call fast InternalBcdToBuffer function
 function BcdToString(const AValue: TBcd): string;
 
@@ -554,15 +555,13 @@ var
 begin
   SQLLogBegin(sllDB);
   if fPrepared then
-    raise ESqlDBDataset.CreateUtf8(
-      '%.Prepare(%) shall be called once', [self, aSQL]);
+    ESqlDBDataset.RaiseUtf8('%.Prepare(%) shall be called once', [self, aSQL]);
   inherited Prepare(aSQL, ExpectResults); // connect if necessary
   fPreparedParamsCount := ReplaceParamsByNames(aSQL, sqlu);
   fPrepared := DatasetPrepare(Utf8ToString(sqlu));
   SQLLogEnd;
   if not fPrepared then
-    raise ESqlDBDataset.CreateUtf8(
-      '%.Prepare: DatasetPrepare(%) failed', [self, sqlu]);
+    ESqlDBDataset.RaiseUtf8('%.Prepare: DatasetPrepare(%) failed', [self, sqlu]);
 end;
 
 procedure TSqlDBDatasetStatementAbstract.ExecutePrepared;
@@ -575,8 +574,7 @@ begin
   inherited ExecutePrepared; // set fConnection.fLastAccessTicks
   // 1. bind parameters in fParams[] to fQuery.Params
   if fPreparedParamsCount <> fParamCount then
-    raise ESqlDBDataset.CreateUtf8(
-      '%.ExecutePrepared expected % bound parameters, got %',
+    ESqlDBDataset.RaiseUtf8('%.ExecutePrepared expected % bound parameters, got %',
       [self, fPreparedParamsCount, fParamCount]);
   arrndx := -1; // either Bind() or BindArray() with no Array DML support
   repeat
@@ -773,18 +771,18 @@ begin
           begin
             W.Add('"');
             W.AddDateTime(f.AsDateTime, fForceDateWithMS);
-            W.Add('"');
+            W.AddDirect('"');
           end;
         mormot.db.core.ftUtf8:
           begin
             W.Add('"');
           {$ifndef UNICODE}
             if ColumnValueDBType = IsTWideStringField then
-              W.AddJsonEscapeW(Pointer(TWideStringField(ColumnAttr).Value))
+              W.AddJsonEscapeW(pointer(TWideStringField(ColumnAttr).Value))
             else
           {$endif UNICODE}
               W.AddJsonEscapeString(f.AsString);
-            W.Add('"');
+            W.AddDirect('"');
           end;
         mormot.db.core.ftBlob:
           if fForceBlobAsNull then
@@ -795,7 +793,7 @@ begin
             W.WrBase64(pointer(blob), length(blob), true); // withMagic=true
           end;
       else
-        raise ESqlDBException.CreateUtf8('%: Invalid ColumnType()=%',
+        ESqlDBException.RaiseUtf8('%: Invalid ColumnType()=%',
           [self, ord(ColumnType)]);
       end;
   end;
@@ -896,7 +894,7 @@ begin
             P.AsString := VData;
           {$endif UNICODE}
       else
-        raise ESqlDBDataset.CreateUtf8(
+        ESqlDBDataset.RaiseUtf8(
           '%.DataSetBindSqlParam: Invalid type % on bound parameter #%',
           [self, ord(VType), aParamIndex + 1]);
       end;
@@ -944,7 +942,7 @@ procedure TSqlDBDatasetStatement.Prepare(
 begin
   inherited;
   if fPreparedParamsCount <> fQueryParams.Count then
-    raise ESqlDBDataset.CreateUtf8(
+    ESqlDBDataset.RaiseUtf8(
       '%.Prepare expected % parameters in request, found % - [%]',
       [self, fPreparedParamsCount, fQueryParams.Count, aSQL]);
 end;
