@@ -187,7 +187,7 @@ type
       const ColumnTypes: array of TSqlDBFieldType); reintroduce;
   end;
 
-/// convert a dynamic array of TDocVariant result into a LCL/VCL DataSet
+/// convert a dynamic array of TDocVariant result into a TDataSet
 // - this function is just a wrapper around TDocVariantArrayDataSet.Create()
 // - the TDataSet will be opened once created
 function VariantsToDataSet(aOwner: TComponent;
@@ -195,7 +195,7 @@ function VariantsToDataSet(aOwner: TComponent;
   const ColumnNames: array of RawUtf8;
   const ColumnTypes: array of TSqlDBFieldType): TDocVariantArrayDataSet; overload;
 
-/// convert a dynamic array of TDocVariant result into a LCL/VCL DataSet
+/// convert a dynamic array of TDocVariant result into a TDataSet
 function VariantsToDataSet(aOwner: TComponent;
   const Data: TVariantDynArray): TDocVariantArrayDataSet; overload;
 
@@ -369,8 +369,7 @@ begin
       end;
   // ftBlob,ftMemo,ftWideMemo should be retrieved by CreateBlobStream()
   else
-    raise EVirtualDataSet.CreateUtf8(
-      '%.GetFieldData unhandled DataType=% (%)',
+    EVirtualDataSet.RaiseUtf8('%.GetFieldData unhandled DataType=% (%)',
       [self, GetEnumName(TypeInfo(TFieldType), ord(Field.DataType))^,
        ord(Field.DataType)]);
   end;
@@ -409,7 +408,7 @@ function TVirtualDataSet.CreateBlobStream(Field: TField;
   Mode: TBlobStreamMode): TStream;
 begin
   if Mode <> bmRead then
-    raise EVirtualDataSet.CreateUtf8('% BLOB should be ReadOnly', [self]);
+    EVirtualDataSet.RaiseUtf8('% BLOB should be ReadOnly', [self]);
   result := GetBlobStream(Field, PRecInfo(ActiveBuffer).RowIndentifier);
   if result = nil then
     result := TSynMemoryStream.Create; // null BLOB returns a void TStream
@@ -539,7 +538,7 @@ begin
   begin
     dec(Value);
     if cardinal(Value) >= cardinal(GetRecordCount) then
-      raise EVirtualDataSet.CreateUtf8(
+      EVirtualDataSet.RaiseUtf8(
         '%.SetRecNo(%) with Count=%', [self, Value + 1, GetRecordCount]);
     DoBeforeScroll;
     fCurrentRow := Value;
@@ -642,9 +641,9 @@ begin
     for f := 0 to high(W.ColNames) do
       StringToUtf8(Data.FieldDefs[f].Name, W.ColNames[f]);
     W.AddColumns;
-    W.Add('[');
+    W.AddDirect('[');
     repeat
-      W.Add('{');
+      W.AddDirect('{');
       for f := 0 to Data.FieldCount - 1 do
       begin
         W.AddString(W.ColNames[f]);
@@ -674,28 +673,28 @@ begin
               ftTime,
               ftDateTime:
                 begin
-                  W.Add('"');
+                  W.AddDirect('"');
                   W.AddDateTime(AsDateTime);
-                  W.Add('"');
+                  W.AddDirect('"');
                 end;
               ftString,
               ftFixedChar,
               ftMemo,
               ftGuid:
                 begin
-                  W.Add('"');
+                  W.AddDirect('"');
                   {$ifdef UNICODE}
                   W.AddAnsiString(AsAnsiString, twJsonEscape);
                   {$else}
                   W.AddAnsiString(AsString, twJsonEscape);
                   {$endif UNICODE}
-                  W.Add('"');
+                  W.AddDirect('"');
                 end;
               ftWideString:
                 begin
-                  W.Add('"');
+                  W.AddDirect('"');
                   W.AddJsonEscapeW(pointer(TWideStringField(Data.Fields[f]).Value));
-                  W.Add('"');
+                  W.AddDirect('"');
                 end;
               ftVariant:
                 W.AddVariant(AsVariant);
@@ -719,9 +718,9 @@ begin
               ftWideMemo,
               ftFixedWideChar:
                 begin
-                  W.Add('"');
+                  W.AddDirect('"');
                   W.AddJsonEscapeW(pointer(AsWideString));
-                  W.Add('"');
+                  W.AddDirect('"');
                 end;
               {$endif HASDBFTWIDE}
               {$ifdef UNICODE}
@@ -738,14 +737,13 @@ begin
             else
               W.AddNull; // unhandled field type
             end;
-        W.Add(',');
+        W.AddComma;
       end;
       W.CancelLastComma;
-      W.Add('}', ',');
+      W.AddDirect('}', ',');
       Data.Next;
     until Data.Eof;
-    W.CancelLastComma;
-    W.Add(']');
+    W.CancelLastComma(']');
     W.SetText(RawUtf8(result));
   finally
     W.Free;
@@ -771,8 +769,7 @@ begin
   begin
     // some columns name/type information has been supplied
     if n <> length(ColumnTypes) then
-      raise EVirtualDataSet.CreateUtf8(
-        '%.Create(ColumnNames<>ColumnTypes)', [self]);
+      EVirtualDataSet.RaiseUtf8('%.Create(ColumnNames<>ColumnTypes)', [self]);
     SetLength(fColumns, n);
     col := pointer(fColumns);
     for ndx := 0 to n - 1 do

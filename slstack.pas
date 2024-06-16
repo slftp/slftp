@@ -310,30 +310,39 @@ end;
 
 function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
 var
-  fHost: String;
+  fHost, fHostName: String;
 begin
   Result := False;
 
-  TIdStack.IncUsage;
+  fHost := '';
+  fHostName := slGetHostName;
+
   try
-    fHost := GStack.ResolveHost(slGetHostName);
-  finally
-    TIdStack.DecUsage;
+    TIdStack.IncUsage;
+    try
+      fHost := GStack.ResolveHost(fHostName);
+    finally
+      TIdStack.DecUsage;
+    end;
+  except
+    on e: Exception do
+    begin
+      // the debug unit and the admin console are not yet available here, so just log this to the console
+      WriteLn(Format('Warning: unable to resolve host %s: %s', [fHostName, e.Message]));
+      // sleep so the user can actually read this message
+      Sleep(3000);
+    end;
   end;
 
   l.Clear;
 
-  if fHost = '' then
-  begin
-    error := 'Cant query local addresses';
-    exit;
-  end
-  else
+  if fHost <> '' then
   begin
     l.Add(fHost);
-    l.Add('127.0.0.1');
-    Result := True;
   end;
+
+  l.Add('127.0.0.1');
+  Result := True;
 end;
 
 

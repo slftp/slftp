@@ -44,7 +44,7 @@ type
     // - you can specify a prompt text, when asking for any missing switch
     function AsUtf8(const Switch, Default: RawUtf8;
       const Prompt: string): RawUtf8;
-    /// returns a command line switch value as VCL string text
+    /// returns a command line switch value as RTL string text
     // - you can specify a prompt text, when asking for any missing switch
     function AsString(const Switch: RawUtf8; const Default: string;
       const Prompt: string): string;
@@ -116,7 +116,7 @@ type
     // - you can specify a prompt text, when asking for any missing switch
     function AsUtf8(const Switch, Default: RawUtf8;
       const Prompt: string): RawUtf8;
-    /// returns a command line switch value as VCL string text
+    /// returns a command line switch value as RTL string text
     // - you can specify a prompt text, when asking for any missing switch
     function AsString(const Switch: RawUtf8; const Default: string;
       const Prompt: string): string;
@@ -274,20 +274,10 @@ var
   msg: RawUtf8;
 begin
   FormatUtf8(Fmt, Args, msg);
-  {$I-}
   if msg <> '' then
-  begin
-    TextColor(Color);
     AddRawUtf8(fLines, msg);
-    if not fNoConsole then
-      write(Utf8ToConsole(msg));
-  end;
   if not fNoConsole then
-  begin
-    writeln;
-    ioresult;
-  end;
-  {$I+}
+    ConsoleWrite(msg, Color);
 end;
 
 function TCommandLine.AsUtf8(const Switch, Default: RawUtf8;
@@ -304,7 +294,8 @@ begin
     exit;
   end;
   result := Default;
-  if fNoPrompt or (Prompt = '') then
+  if fNoPrompt or
+     (Prompt = '') then
     exit;
   TextColor(ccLightGray);
   {$I-}

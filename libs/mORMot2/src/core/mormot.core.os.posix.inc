@@ -10,7 +10,7 @@ uses
   unix,
   unixcp,
   unixtype,
-  unixutil, // for TZSeconds - used by sysutils anyway
+  unixutil, // for TZSeconds - as used by sysutils anyway
   {$ifdef OSBSDDARWIN}
   sysctl,
   {$else}
@@ -560,22 +560,51 @@ begin
   result := 0; // fixed result on a window-abstracted system
 end;
 
-const // Date Translation - see http://en.wikipedia.org/wiki/Julian_day
+
+{$ifdef NODIRECTTHREADMANAGER} // try to stabilize MacOS/BSD pthreads API calls
+
+function GetCurrentThreadId: TThreadID;
+begin
+  result := system.GetCurrentThreadID();
+end;
+
+function TryEnterCriticalSection(var cs: TRTLCriticalSection): integer;
+begin
+  result := system.TryEnterCriticalSection(cs);
+end;
+
+procedure EnterCriticalSection(var cs: TRTLCriticalSection);
+begin
+  system.EnterCriticalSection(cs);
+end;
+
+procedure LeaveCriticalSection(var cs: TRTLCriticalSection);
+begin
+  system.LeaveCriticalSection(cs);
+end;
+
+{$endif NODIRECTTHREADMANAGER}
+
+const
   HoursPerDay = 24;
   MinsPerHour = 60;
   SecsPerMin  = 60;
   MinsPerDay  = HoursPerDay * MinsPerHour;
-  SecsPerDay  = MinsPerDay * SecsPerMin;
+  SecsPerDay  = MinsPerDay  * SecsPerMin;
   SecsPerHour = MinsPerHour * SecsPerMin;
   MilliSecsPerSec = 1000;
   MicroSecsPerSec = 1000000;
   MicroSecsPerMilliSec = 1000;
-  NanoSecsPerMicroSec = 1000;
-  NanoSecsPerMilliSec = 1000000;
-  C1970       = 2440588;
-  D0          = 1461;
-  D1          = 146097;
-  D2          = 1721119;
+  NanoSecsPerMicroSec  = 1000;
+  NanoSecsPerMilliSec  = 1000000;
+  NanoSecsPerSec       = 1000000000;
+
+const
+  // Date Translation - see http://en.wikipedia.org/wiki/Julian_day
+  D0 = 1461;
+  D1 = 146097;
+  D2 = 1721119;
+  C1970 = 2440588;
 
 procedure JulianToGregorian(JulianDN: PtrUInt; out result: TSystemTime);
   {$ifdef HASINLINE}inline;{$endif}
@@ -598,7 +627,7 @@ begin
     inc(TempMonth, 3);
   result.Month := TempMonth;
   result.Year := YYear + (JulianDN * 100);
-  // initialize fake dayOfWeek - as used by FromGlobalTime Rcu128
+  // initialize fake dayOfWeek - as used by FromGlobalTime()
   result.DayOfWeek := 0;
 end;
 
@@ -628,6 +657,9 @@ type
 function mach_absolute_time: UInt64;
   cdecl external clib name 'mach_absolute_time';
 
+function mach_continuous_time: UInt64;
+  cdecl external clib name 'mach_continuous_time';
+
 function mach_timebase_info(var TimebaseInfoData: TTimebaseInfoData): integer;
   cdecl external clib name 'mach_timebase_info';
 
@@ -636,37 +668,38 @@ var
   mach_timecoeff: double;
   mach_timenanosecond: boolean; // very likely to be TRUE on Intel CPUs
 
-procedure QueryPerformanceNanosec(out Value: Int64);
+procedure machtimetonanosec(var Value: Int64); inline;
 begin
-  // Win32-API like function which returns time in nano second resolution
-  Value := mach_absolute_time;
-  if mach_timeinfo.Denom = 1 then
-    if mach_timeinfo.Numer = 1 then
-      // seems to be the case on Intel CPUs
-      exit
-    else
+  if not mach_timenanosecond then
+    if mach_timeinfo.Denom = 1 then
+      // integer resolution is enough
       Value := Value * mach_timeinfo.Numer
-  else
-    // use floating point to avoid potential overflow
-    Value := round(Value * mach_timecoeff);
+    else
+      // use floating point to avoid potential overflow
+      Value := round(Value * mach_timecoeff);
 end;
 
 procedure QueryPerformanceMicroSeconds(out Value: Int64);
 begin
-  if mach_timenanosecond then
-    Value := mach_absolute_time
-  else
-    QueryPerformanceNanosec(Value);
+  Value := mach_absolute_time;
+  machtimetonanosec(Value);
   Value := Value div NanoSecsPerMicroSec; // ns to us
 end;
 
 function GetTickCount64: Int64;
 begin
-  if mach_timenanosecond then
-    result := mach_absolute_time
-  else
-    QueryPerformanceNanosec(result);
+  result := mach_absolute_time;
+  machtimetonanosec(result);
   result := result div NanoSecsPerMilliSec; // ns to ms
+end;
+
+function GetUptimeSec: cardinal;
+var
+  v: Int64;
+begin
+  v := mach_continuous_time;
+  machtimetonanosec(v);
+  result := v div NanoSecsPerSec; // ns to s
 end;
 
 function UnixTimeUtc: TUnixTime;
@@ -695,26 +728,14 @@ begin
   result.MilliSecond := tz.tv_usec div MicroSecsPerMilliSec;
 end;
 
-// try to stabilize MacOS pthreads API calls
-
-function GetCurrentThreadId: TThreadID;
+procedure GetLocalTime(out result: TSystemTime);
+var
+  tz: timeval;
 begin
-  result := system.GetCurrentThreadID();
-end;
-
-function TryEnterCriticalSection(var cs: TRTLCriticalSection): integer;
-begin
-  result := system.TryEnterCriticalSection(cs);
-end;
-
-procedure EnterCriticalSection(var cs: TRTLCriticalSection);
-begin
-  system.EnterCriticalSection(cs);
-end;
-
-procedure LeaveCriticalSection(var cs: TRTLCriticalSection);
-begin
-  system.LeaveCriticalSection(cs);
+  fpgettimeofday(@tz, nil);
+  // + unixutil.TZSeconds = UTC to local time conversion
+  EpochToSystemTime(tz.tv_sec + TZSeconds, result);
+  result.MilliSecond := tz.tv_usec div MicroSecsPerMilliSec;
 end;
 
 {$else}
@@ -723,11 +744,21 @@ end;
 {$ifdef OSBSD}
 
 const
+  {$ifdef OSFREEBSD}
   // see https://github.com/freebsd/freebsd/blob/master/sys/sys/time.h
-  CLOCK_REALTIME = 0;
+  CLOCK_REALTIME  = 0;
   CLOCK_MONOTONIC = 4;
-  CLOCK_REALTIME_COARSE = 10; // named CLOCK_REALTIME_FAST in FreeBSD 8.1+
+  CLOCK_BOOTTIME  = 5;
+  CLOCK_REALTIME_COARSE  = 10; // named CLOCK_REALTIME_FAST in FreeBSD 8.1+
   CLOCK_MONOTONIC_COARSE = 12;
+  {$else}
+  // see https://github.com/openbsd/src/blob/master/sys/sys/_time.h#L63
+  CLOCK_REALTIME  = 0;
+  CLOCK_MONOTONIC = 3;
+  CLOCK_BOOTTIME  = 6;
+  CLOCK_REALTIME_COARSE  = CLOCK_REALTIME; // no FAST/COARSE version
+  CLOCK_MONOTONIC_COARSE = CLOCK_MONOTONIC;
+  {$endif OSFREEBSD}
 
 function clock_gettime(clk_id: cardinal; tp: ptimespec): integer;
   cdecl external clib name 'clock_gettime';
@@ -738,10 +769,11 @@ function clock_getres(clk_id: cardinal; tp: ptimespec): integer;
 {$else}
 
 const
-  CLOCK_REALTIME = 0;
-  CLOCK_MONOTONIC = 1;
-  CLOCK_REALTIME_COARSE = 5; // see http://lwn.net/Articles/347811
+  CLOCK_REALTIME         = 0;
+  CLOCK_MONOTONIC        = 1;
+  CLOCK_REALTIME_COARSE  = 5; // see http://lwn.net/Articles/347811
   CLOCK_MONOTONIC_COARSE = 6;
+  CLOCK_BOOTTIME         = 7; // includes asleep time (2.6.39+)
 
 // libc's clock_gettime function uses vDSO (avoid syscall) while FPC by default
 // is compiled without FPC_USE_LIBC defined and do a syscall each time
@@ -766,6 +798,8 @@ var
   // - so that QueryPerformanceMicroSeconds() is not subject to NTP adjustments
   CLOCK_MONOTONIC_HIRES: integer = CLOCK_MONOTONIC;
 
+  // contains CLOCK_BOOTTIME since kernel 2.6.39
+  CLOCK_UPTIME: integer = CLOCK_MONOTONIC;
 
 function UnixMSTimeUtc: TUnixMSTime;
 var
@@ -805,6 +839,19 @@ begin
   result.MilliSecond := PtrUInt(r.tv_nsec) div PtrUInt(NanoSecsPerMilliSec);
 end;
 
+// c_timezone: longint external 'c' name 'timezone'; is broken and returns 0
+
+procedure GetLocalTime(out result: TSystemTime);
+var
+  r: timespec;
+begin
+  // faster than fpgettimeofday() which makes a syscall and don't use vDSO
+  clock_gettime(CLOCK_REALTIME_FAST, @r);
+  // + unixutil.TZSeconds = UTC to local time conversion
+  EpochToSystemTime(r.tv_sec + TZSeconds, result);
+  result.MilliSecond := PtrUInt(r.tv_nsec) div PtrUInt(NanoSecsPerMilliSec);
+end;
+
 function GetTickCount64: Int64;
 var
   tp: timespec;
@@ -815,7 +862,26 @@ begin
             QWord(tp.tv_sec) * MilliSecsPerSec;
 end;
 
+function GetUptimeSec: cardinal;
+var
+  tp: timespec;
+begin
+  tp.tv_sec := 0;
+  clock_gettime(CLOCK_UPTIME, @tp);
+  // convert from nanoseconds into milliseconds
+  result := tp.tv_sec;
+end;
+
 {$endif OSDARWIN}
+
+function SetSystemTime(utctime: TUnixTime): boolean;
+var
+  u: timeval;
+begin
+  u.tv_sec := utctime;
+  u.tv_usec := 0;
+  result := fpsettimeofday(@u, nil) = 0;
+end;
 
 function UnixMSTimeUtcFast: TUnixMSTime;
 begin
@@ -844,20 +910,32 @@ var
 {$endif OSPTHREADSLIB}
 
 {$ifdef OSPTHREADSSTATIC}
+  // note: pthread_setname_np() has no consistent API across POSIX systems
   {$define OSPTHREADS}
-// note: pthread_setname_np() has no single API across POSIX systems
+
+{$ifdef OSDARWIN}
+// we specify link to clib='c' as in rtl/darwin/pthread.inc
 function pthread_cancel(thread: pointer): integer;
-  cdecl external clib name 'pthread_cancel';
+  cdecl; external clib name 'pthread_cancel';
 function pthread_mutex_init(mutex, attr: pointer): integer;
-  cdecl external clib name 'pthread_mutex_init';
+  cdecl; external clib name 'pthread_mutex_init';
 function pthread_mutex_destroy(mutex: pointer): integer;
-  cdecl external clib name 'pthread_mutex_destroy';
+  cdecl; external clib name 'pthread_mutex_destroy';
 function pthread_mutex_lock(mutex: pointer): integer;
-  cdecl external clib name 'pthread_mutex_lock';
+  cdecl; external clib name 'pthread_mutex_lock';
 function pthread_mutex_trylock(mutex: pointer): integer;
-  cdecl external clib name 'pthread_mutex_trylock';
+  cdecl; external clib name 'pthread_mutex_trylock';
 function pthread_mutex_unlock(mutex: pointer): integer;
-  cdecl external clib name 'pthread_mutex_unlock';
+  cdecl; external clib name 'pthread_mutex_unlock';
+{$else}
+// just "external" without clib='c' as in rtl/*bsd/pthread.inc
+function pthread_cancel(thread: pointer): integer;           cdecl; external;
+function pthread_mutex_init(mutex, attr: pointer): integer;  cdecl; external;
+function pthread_mutex_destroy(mutex: pointer): integer;     cdecl; external;
+function pthread_mutex_lock(mutex: pointer): integer;        cdecl; external;
+function pthread_mutex_trylock(mutex: pointer): integer;     cdecl; external;
+function pthread_mutex_unlock(mutex: pointer): integer;      cdecl; external;
+{$endif OSDARWIN}
 {$endif OSPTHREADSSTATIC}
 
 
@@ -876,10 +954,10 @@ end;
 
 procedure TOSLightLock.Init;
 begin
-  FillCharFast(fMutex, SizeOf(fMutex), 0); // may be bigger than pthread struct
+  FillCharFast(self, SizeOf(self), 0); // may be bigger than pthread struct
   {$ifdef OSPTHREADSLIB}
   if not Assigned(pthread_mutex_init) then
-    EOSException.Create('TOSLightLock.Init: no pthread_mutex_init')
+    raise EOSException.Create('TOSLightLock.Init: no pthread_mutex_init')
   else // no recursive attribute -> fast mutex
   {$endif OSPTHREADSLIB}
     pthread_mutex_init(@fMutex, nil);
@@ -1063,8 +1141,13 @@ var
 
 {$endif NOEXCEPTIONINTERCEPT}
 
+function GetFileNameFromUrl(const Uri: string): TFileName;
+begin
+  result := ''; // no such native API on POSIX
+end;
+
 const
-  faInvalidFile = faDirectory;
+  faInvalidFile   = faDirectory;
   faDirectoryMask = faDirectory;
 
 function FileDateToDateTime(const FileDate: TFileAge): TDateTime;
@@ -1086,27 +1169,56 @@ function FileAgeToUnixTimeUtc(const FileName: TFileName; AllowDir: boolean): TUn
 var
   st: TStat;
 begin
-  if (fpStat(pointer(FileName), st) = 0) and
+  result := 0;
+  if (FileName <> '') and
+     (fpStat(pointer(FileName), st) = 0) and
      (AllowDir or
       (not FpS_ISDIR(st.st_mode))) then
-    result := st.st_mtime // as TUnixTime seconds, with no local conversion
-  else
-    result := 0
+    result := st.st_mtime; // as TUnixTime seconds, with no local conversion
+end;
+
+function FileHandleToUnixTimeUtc(F: THandle): TUnixTime;
+var
+  st: TStat;
+begin
+  result := 0;
+  if ValidHandle(F) and
+     (FpFStat(F, st) = 0) then
+    result := st.st_mtime;
+end;
+
+function FileSetDateFromUnixUtc(const Dest: TFileName; Time: TUnixTime): boolean;
+var
+  t: TUtimBuf;
+begin
+  result := false;
+  if (Dest = '') or
+     (Time = 0) then
+    exit;
+  t.actime := Time;
+  t.modtime := Time;
+  result := FpUtime(pointer(Dest), @t) = 0; // direct syscall
 end;
 
 function FileSetDateFrom(const Dest: TFileName; SourceHandle: THandle): boolean;
 begin
-  result := FileSetDate(Dest, FileGetDate(SourceHandle)) = 0;
+  result := FileSetDateFromUnixUtc(Dest, FileHandleToUnixTimeUtc(SourceHandle));
+end;
+
+function FileSetDateFrom(const Dest, Source: TFileName): boolean;
+begin
+  result := FileSetDateFromUnixUtc(Dest, FileAgeToUnixTimeUtc(Source));
 end;
 
 function FileSetDateFromWindowsTime(const Dest: TFileName;
   WinTime: integer): boolean;
 var
-  datetime: TDateTime;
+  dt: TDateTime;
 begin
-  datetime := WindowsFileTimeToDateTime(WinTime);
-  result := (datetime <> 0) and
-            (FileSetDate(Dest, DateTimeToFileDate(datetime)) = 0); // with LocalToEpoch()
+  dt := WindowsFileTimeToDateTime(WinTime);
+  result := (Dest <> '') and
+            (dt <> 0) and
+            (FileSetDate(Dest, DateTimeToFileDate(dt)) = 0); // with LocalToEpoch()
 end;
 
 function SearchRecToWindowsTime(const F: TSearchRec): integer;
@@ -1124,12 +1236,19 @@ begin
   result := DateTimeToWindowsFileTime(FileAgeToDateTime(FileName));
 end;
 
+function FileIsWritable(const FileName: TFileName): boolean;
+begin
+  result := (FileName <> '') and
+            (fpaccess(pointer(FileName), W_OK) = 0);
+end;
+
 procedure FileSetHidden(const FileName: TFileName; ReadOnly: boolean);
 begin
-  if ReadOnly then
-    fpchmod(pointer(FileName), S_IRUSR)
-  else
-    fpchmod(pointer(FileName), S_IRUSR or S_IWUSR);
+  if FileName <> '' then
+    if ReadOnly then
+      fpchmod(pointer(FileName), S_IRUSR)
+    else
+      fpchmod(pointer(FileName), S_IRUSR or S_IWUSR);
 end;
 
 procedure FileSetSticky(const FileName: TFileName);
@@ -1141,10 +1260,36 @@ function FileSize(const FileName: TFileName): Int64;
 var
   st: TStat;
 begin
-  if fpStat(pointer(FileName), st) <> 0 then
+  if (FileName = '') or
+     (fpStat(pointer(FileName), st) <> 0) or
+     FpS_ISDIR(st.st_mode) then
     result := 0
   else
     result := st.st_size;
+end;
+
+function FileExists(const FileName: TFileName): boolean;
+var
+  st: TStat;
+begin
+  result := (FileName <> '') and
+            (fpStat(pointer(FileName), st) = 0) and
+            not FpS_ISDIR(st.st_mode);
+end;
+
+function FileCreate(const aFileName: TFileName; aMode, aRights: integer): THandle;
+begin
+  if aFileName = '' then
+    result := 0
+  else if (aMode = 0) and
+          (aRights = 0) then
+    result := sysutils.FileCreate(aFileName) // direct call of the FPC RTL
+  else
+  begin
+    if aRights = 0 then // use 644 / '-rw-r-r--' default POSIX file attributes
+      aRights := S_IRUSR or S_IWUSR or S_IRGRP or S_IROTH;
+    result := sysutils.FileCreate(aFileName, aMode, aRights);
+  end;
 end;
 
 procedure StatTimeMS(const st: TStat; out time: TUnixMSTime); inline;
@@ -1185,10 +1330,10 @@ begin
   result := FPLSeek(Handle, Offset, Origin);
 end;
 
-function FileInfoByHandle(aFileHandle: THandle; out FileId, FileSize: Int64;
-  out LastWriteAccess, FileCreateDateTime: TUnixMSTime): boolean;
+function FileInfoByHandle(aFileHandle: THandle; FileId, FileSize: PInt64;
+  LastWriteAccess, FileCreateDateTime: PUnixMSTime): boolean;
 var
-  lastreadaccess: Int64;
+  mtime, atime, ctime: Int64;
   lp: TStat;
   r: integer;
 begin
@@ -1196,25 +1341,36 @@ begin
   result := r >= 0;
   if not result then
     exit;
-  FileId := lp.st_ino;
-  FileSize := lp.st_size;
-  StatTimeMS(lp, LastWriteAccess);
+  if FileId <> nil then
+    FileId^ := lp.st_ino;
+  if FileSize <> nil then
+    FileSize^ := lp.st_size;
+  if (LastWriteAccess = nil) and
+     (FileCreateDateTime = nil) then
+    exit;
+  StatTimeMS(lp, mtime);
+  if LastWriteAccess <> nil then
+    LastWriteAccess^ := mtime;
+  if FileCreateDateTime = nil then
+    exit;
   // some FS don't populate all fields, so we use what we actually got
   {$ifdef OSOPENBSD}
   if (lp.st_birthtime <> 0) and
      (lp.st_birthtime < lp.st_ctime) then
     lp.st_ctime := lp.st_birthtime;
   {$endif OSOPENBSD}
-  FileCreateDateTime := Int64(lp.st_ctime) * MilliSecsPerSec;
-  if LastWriteAccess <> 0 then
-    if (FileCreateDateTime = 0) or
-       (FileCreateDateTime > LastWriteAccess) then
-      FileCreateDateTime := LastWriteAccess;
-  lastreadaccess := Int64(lp.st_atime) * MilliSecsPerSec;
-  if lastreadaccess <> 0 then
-    if (FileCreateDateTime = 0) or
-       (FileCreateDateTime > lastreadaccess) then
-      FileCreateDateTime := lastreadaccess;
+  // ignore nanoseconds/Milliseconds for FileCreateDateTime
+  ctime := Int64(lp.st_ctime) * MilliSecsPerSec;
+  atime := Int64(lp.st_atime) * MilliSecsPerSec;
+  if mtime <> 0 then
+    if (ctime = 0) or
+       (ctime > mtime) then
+      ctime := mtime;
+  if atime <> 0 then
+    if (ctime = 0) or
+       (ctime > atime) then
+      ctime := atime;
+  FileCreateDateTime^ := ctime;
 end;
 
 function FileIsExecutable(const FileName: TFileName): boolean;
@@ -1247,7 +1403,7 @@ begin
     else
       DeleteFile(Target);
   try
-    src := TFileStreamEx.Create(Source, fmOpenReadDenyNone);
+    src := TFileStreamEx.Create(Source, fmOpenReadShared);
     try
       dst := TFileStreamEx.Create(Target, fmCreate);
       try
@@ -1263,6 +1419,11 @@ begin
   except
     result := false;
   end;
+end;
+
+function ValidHandle(Handle: THandle): boolean;
+begin
+  result := PtrInt(Handle) >= 0; // 0=StdIn is a valid POSIX file descriptor
 end;
 
 function WaitReadPending(fd, timeout: integer): boolean;
@@ -1295,7 +1456,7 @@ begin
   result := fpOpen(pointer(FileName), O_RDONLY); // no fpFlock() call
 end;
 
-function IsFileReadable(const aFileName: TFileName): boolean;
+function FileIsReadable(const aFileName: TFileName): boolean;
 var
   fd: integer;
 begin
@@ -1320,6 +1481,13 @@ begin
   result := fpgeterrno;
 end;
 
+function IsSharedViolation(ErrorCode: integer): boolean;
+begin
+  if ErrorCode = 0 then
+    ErrorCode := fpgeterrno;
+  result := ErrorCode = ESysEACCES;
+end;
+
 procedure SetLastError(error: integer);
 begin
   fpseterrno(error);
@@ -1336,9 +1504,7 @@ begin
     if (aCustomOffset and (SystemInfo.dwPageSize - 1)) <> 0 then
       raise EOSException.CreateFmt(
         'DoMap(aCustomOffset=%d) incompatible with dwPageSize=%d',
-        [aCustomOffset, SystemInfo.dwPageSize])
-    else
-      aCustomOffset := aCustomOffset div SystemInfo.dwPageSize;
+        [aCustomOffset, SystemInfo.dwPageSize]);
   fBuf := fpmmap(nil, fBufSize, PROT_READ, MAP_SHARED, fFile, aCustomOffset);
   if fBuf = MAP_FAILED then
   begin
@@ -1428,7 +1594,7 @@ begin
   {$ifdef HASEVENTFD}
   if fFD <> 0 then
   begin
-    LinuxEventFDWrite(fFD, 1); // release the lock
+    LinuxEventFDWrite(fFD, 1); // release the lock or do nothing
     fpClose(fFD);
   end
   else
@@ -1711,7 +1877,7 @@ end;
 
 procedure TextBackground(Color: TConsoleColor);
 begin
-  // not implemented yet - but not needed either
+  // not implemented yet - but not much needed either
 end;
 
 var
@@ -1734,11 +1900,8 @@ begin
     TextColorAppend(ccLightGray, s);
   // display whole line in a single syscall
   ConsoleCriticalSection.Lock;
-  try
-    fpwrite(StdOutputHandle, pointer(s), length(s)); // UTF-8 console
-  finally
-    ConsoleCriticalSection.UnLock;
-  end;
+  FileWriteAll(StdOutputHandle, pointer(s), length(s)); // UTF-8 console
+  ConsoleCriticalSection.UnLock;
 end;
 
 function UnixKeyPending: boolean;
@@ -1873,58 +2036,70 @@ begin
     User := RawUtf8(GetEnvironmentVariable('USER'));
 end;
 
-var
-  _Path: array[TSystemPath] of TFileName;
-
-procedure SetSystemPath(kind: TSystemPath);
-var
-  s: TFileName;
+function GetEnvFolder(const name: string; var folder: TFileName;
+  writable: boolean): boolean;
 begin
-  case kind of
-    spLog:
-      if IsDirectoryWritable('/var/log') then
-         // may not be writable by not root on POSIX
-        s := '/var/log/'
-      else if IsDirectoryWritable(Executable.ProgramFilePath) then
-        s := Executable.ProgramFilePath
-      else
-        s := GetSystemPath(spUserData);
-    spUserData:
-      begin
-        //  ~/.cache/appname
-        s := GetEnvironmentVariable('XDG_CACHE_HOME');
-        if (s = '') or
-           not IsDirectoryWritable(s) then
-          s := EnsureDirectoryExists(GetSystemPath(spUserDocuments) + '.cache');
-        s := EnsureDirectoryExists(s + TFileName(Executable.ProgramName));
-      end;
-    spTempFolder:
-      begin
-        s := GetEnvironmentVariable('TMPDIR'); // POSIX
-        if s = '' then
-          s := GetEnvironmentVariable('TMP');
-        if (s = '') or
-           not IsDirectoryWritable(s) then
-          if IsDirectoryWritable('/tmp') then
-            s := '/tmp'
-          else
-            s := '/var/tmp';
-        s := IncludeTrailingPathDelimiter(s);
-      end;
-  else
-    // POSIX requires a value for $HOME
-    s := IncludeTrailingPathDelimiter(GetEnvironmentVariable('HOME'));
-  end;
-  _Path[kind] := s;
+  folder := GetEnvironmentVariable(name);
+  if folder <> '' then
+    if writable and
+       not IsDirectoryWritable(folder) then
+      folder := ''
+    else
+      folder := IncludeTrailingPathDelimiter(folder);
+  result := folder <> '';
 end;
 
-function GetSystemPath(kind: TSystemPath): TFileName;
+function WritableFolder(const parent, sub: TFileName; var folder: TFileName): boolean;
 begin
-  result := _Path[kind];
-  if result <> '' then
+  result := false;
+  if not IsDirectoryWritable(parent) then
     exit;
-  SetSystemPath(kind);
-  result := _Path[kind];
+  folder := EnsureDirectoryExists(parent + sub);
+  if folder = '' then
+    exit;
+  if IsDirectoryWritable(folder) then
+    result := true
+  else
+    folder := '';
+end;
+
+procedure _ComputeSystemPath(kind: TSystemPath; var result: TFileName);
+begin
+  result := ''; // "out result" param is not enough for FPC
+  case kind of
+    spLog:
+         // try '/var/log/<exename>'
+      if not WritableFolder('/var/log/', TFileName(Executable.ProgramName), result) and
+         // try '<exepath>/log'
+         not WritableFolder(Executable.ProgramFilePath, 'log', result) then
+        // fallback to '$TMP/<exename>-log' - spUserData/$HOME is no option
+        result := EnsureDirectoryExists(format('%s%s-log',
+          [GetSystemPath(spTemp), Executable.ProgramName]));
+    // warning: $HOME is reported wrong with sudo for spUserData/spUserDocuments
+    spUserData:
+         // try $XDG_CACHE_HOME
+      if not GetEnvFolder('XDG_CACHE_HOME', result, {writable=}true) and
+         // try '$HOME/.cache'
+         not WritableFolder(GetSystemPath(spUserDocuments), '.cache', result) then
+        // fallback to '$TMP/<user>'
+        WritableFolder(GetSystemPath(spTemp), TFileName(Executable.User), result);
+    spTemp:
+      begin
+        // try $TMPDIR (POSIX standard) and $TMP and $TEMP
+        if GetEnvFolder('TMPDIR', result, {writable=}true) or
+           GetEnvFolder('TMP',    result, {writable=}true) or
+           GetEnvFolder('TEMP',   result, {writable=}true) then
+          exit;
+        // try /tmp
+        result := '/tmp/';
+        if not IsDirectoryWritable(result) then
+          // fallback to /var/tmp
+          result := '/var/tmp/';
+      end;
+  else
+    // POSIX requires a value for the $HOME environment variable
+    GetEnvFolder('HOME', result, {writable=}false);
+  end;
 end;
 
 function _GetSystemStoreAsPem(CertStore: TSystemCertificateStore): RawUtf8;
@@ -2093,6 +2268,78 @@ begin
             (fpgeterrno <> ESysEFAULT);
 end;
 
+const
+  DT_UNKNOWN  = 0; // need to call fpstat() if this is returned (depends on FS)
+  DT_FIFO     = 1;
+  DT_CHR      = 2;
+  DT_DIR      = 4;
+  DT_BLK      = 6;
+  DT_REG      = 8;
+  DT_LNK      = 10;
+  DT_SOCK     = 12;
+  DT_WHT      = 14;
+
+function PosixFileNames(const Folder: TFileName; Recursive: boolean): TRawUtf8DynArray;
+var
+  n: PtrInt;
+  root: TFileName;
+
+  procedure DoFolder(const subpath: TFileName);
+  var
+    d: pDir;
+    e: pDirent;
+    pl, el: PtrInt;
+    fn: RawUtf8;
+  begin
+    d := FpOpendir(root + subpath); // (much) faster alternative to FindFirst()
+    if d = nil then
+      exit;
+    pl := length(subpath);
+    if pl <> 0 then
+      inc(pl);
+    repeat
+      e := FpReaddir(d^); // FPC RTL use getdents64 syscall on Linux and BSD :)
+      if e = nil then
+        break;
+      // fn := [subpath + '/'] + e^.d_name
+      el := StrLen(@e^.d_name);
+      FastSetString(fn, pl + el);
+      if pl <> 0 then
+      begin
+        MoveFast(pointer(subpath)^, pointer(fn)^, pl - 1);
+        PByteArray(fn)[pl - 1] := ord('/');
+      end;
+      MoveFast(e^.d_name, PByteArray(fn)[pl], el);
+      // handle this entry
+      case e.d_type of
+        DT_UNKNOWN, // assume modern FS over BSD or Linux Kernel >= 2.6.4
+        DT_REG:
+          begin
+            if n = 0 then // generous initial result capacity
+              SetLength(result, 128)
+            else if n = length(result) then
+              SetLength(result, NextGrow(n));
+            result[n] := fn;
+            inc(n);
+          end;
+        DT_DIR:
+          if Recursive and
+             (e^.d_name[0] <> '.')  then
+            DoFolder(fn);
+      end;
+    until false;
+    FpClosedir(d^);
+  end;
+
+begin
+  result := nil;
+  n := 0;
+  root := IncludeTrailingPathDelimiter(Folder);
+  DoFolder('');
+  if n <> 0 then
+    DynArrayFakeLength(result, n);
+end;
+
 {$ifdef OSBSDDARWIN}
 
 function IsValidPid(pid: cardinal): boolean;
@@ -2100,15 +2347,39 @@ begin
   result := pid <> 0;
 end;
 
-function EnumAllProcesses(out Count: cardinal): TCardinalDynArray;
+function EnumAllProcesses: TCardinalDynArray;
 begin
-  result := nil; // not implemented yet on BSD/Darwin
-  // https://kaashif.co.uk/2015/06/18/how-to-get-a-list-of-processes-on-openbsd-in-c/
+  result := nil;
+  // not implemented yet on BSD/Darwin
+  // - fpsysctl with CTL_KERN + KERN_PROC + KERN_PROC_ALL is highly OS dependent
+  // and headers are over-complicated so almost impossible to safely use in FPC:
+  // https://github.com/apple-opensource/xnu/blob/master/bsd/sys/sysctl.h#L975
+  // https://stackoverflow.com/a/6945542/458259
+  // - kvm_openfiles / kvm_getprocs may be a good option:
+  // https://kaashif.co.uk/2015/06/18/how-to-get-a-list-of-processes-on-openbsd-in-c
 end;
 
 function EnumProcessName(PID: cardinal): RawUtf8;
 begin
-  result := '';
+  result := ''; // not implemented yet on BSD/Darwin
+  // use fpsysctl with CTL_KERN + KERN_PROC + KERN_PROC_PID
+  //  https://man.openbsd.org/sysctl.2#KERN_PROC_PID
+  // another trouble is that the name is likely to be truncated to 16 chars
+  // because it is defined p_comm[MAXCOMLEN + 1] in the very complex headers
+end;
+
+function _IsDebuggerPresent: boolean;
+begin
+  // rough detection for FPC on BSD (not yet working because of EnumProcessName)
+  result := PosEx('lazarus', LowerCase(EnumProcessName(FpGetppid))) <> 0;
+end;
+
+function GetParentProcess(PID: cardinal): cardinal;
+begin
+  if PID = 0 then
+    result := FpGetppid // we have a system call for the currrent process :)
+  else
+    result := 0; // not implemented yet on BSD/Darwin
 end;
 
 function fpsysctlhwint(hwid: cint): Int64;
@@ -2123,7 +2394,7 @@ begin
   fpsysctl(pointer(@mib), 2, @result, @len, nil, 0);
 end;
 
-function fpsysctlhwstr(hwid: cint; var temp: ShortString): pointer;
+function fpsysctlhwstr(hwid: cint; var temp: ShortString): PUtf8Char;
 var
   mib: array[0..1] of cint;
   len: cint;
@@ -2133,6 +2404,19 @@ begin
   FillCharFast(temp, SizeOf(temp), 0); // ShortString as 0-terminated buffer
   len := SizeOf(temp);
   fpsysctl(pointer(@mib), 2, @temp, @len, nil, 0);
+  if temp[0] <> #0 then
+    result := @temp
+  else
+    result := nil;
+end;
+
+function fpsysctlbynamehwstr(name: PAnsiChar; var temp: ShortString): PUtf8Char;
+var
+  len: cint;
+begin
+  FillCharFast(temp, SizeOf(temp), 0); // ShortString as 0-terminated buffer
+  len := SizeOf(temp);
+  FPsysctlbyname(name, @temp, @len, nil, 0);
   if temp[0] <> #0 then
     result := @temp
   else
@@ -2236,8 +2520,7 @@ end;
 function GetMemoryInfo(out info: TMemoryInfo; withalloc: boolean): boolean;
 begin
   FillCharFast(info, SizeOf(info), 0);
-  info.memtotal := fpsysctlhwint(
-    {$ifdef OSDARWIN} HW_MEMSIZE {$else} HW_PHYSMEM {$endif});
+  info.memtotal := SystemMemorySize; // retrieved at startup
   info.memfree := info.memtotal - fpsysctlhwint(HW_USERMEM);
   result := info.memtotal <> 0;// avoid div per 0 exception
   if result then
@@ -2248,43 +2531,28 @@ procedure XorOSEntropy(var e: THash512Rec);
 var
   mem: TMemoryInfo;
   avg: TLoadAvg absolute mem;
-  us: Int64 absolute mem;
-  {$ifndef OSDARWIN}
-  guid: THash128Rec absolute mem;
-  {$endif OSDARWIN}
+  us: Int64 absolute mem.vmtotal; // =0 after above GetMemoryInfo()
+  guid: THash128Rec absolute mem.filetotal; // also = 0
 begin
-  // this is the very minimal OS entropy we could get for BSD/Darwin
+  //some minimal OS entropy we could get for BSD/Darwin
   QueryPerformanceMicroSeconds(us);
   e.i[0] := e.i[0] xor us;
+  e.i[1] := e.i[1] xor GetTickCount64;
   getloadavg(avg, 3);
   DefaultHasher128(@e.h1, @avg, SizeOf(avg)); // may be AesNiHash128
   GetMemoryInfo(mem, {withalloc=}false);
   DefaultHasher128(@e.h2, @mem, SizeOf(mem));
   {$ifdef OSDARWIN} // FPC CreateGuid calls /dev/urandom which is not advised
-  e.i[6] := e.i[6] xor mach_absolute_time; // monotonic clock in nanoseconds
+  guid.Lo := mach_absolute_time; // monotonic clock in nanoseconds
+  guid.Hi := mach_continuous_time;
   {$else}
   CreateGuid(guid.guid); // use e.g. FreeBSD syscall or /dev/urandom
-  e.r[3].L := e.r[3].L xor guid.L;
-  e.r[3].H := e.r[3].H xor guid.H;
   {$endif OSDARWIN}
   QueryPerformanceMicroSeconds(us); // should have changed in-between
-  e.i[7] := e.i[7] xor us;
+  crcblocks(@e.h3, @mem, SizeOf(mem) shr 4); // another algo
 end;
 
 {$else} // Linux-specific code
-
-const
-  // function DirectoryFileNames(const Folder: TFileName): TFileNameDynArray; ?
-  // function DirectoryFolderNames(const Folder: TFileName): TFileNameDynArray; ?
-  DT_UNKNOWN  = 0; // need to call fpstat() if returned this
-  DT_FIFO     = 1;
-  DT_CHR      = 2;
-  DT_DIR      = 4;
-  DT_BLK      = 6;
-  DT_REG      = 8;
-  DT_LNK      = 10;
-  DT_SOCK     = 12;
-  DT_WHT      = 14;
 
 function IsValidPid(pid: cardinal): boolean;
 var
@@ -2300,7 +2568,7 @@ begin
   result := GetCardinal(pointer(tgid)) = pid;
 end;
 
-function EnumAllProcesses(out Count: cardinal): TCardinalDynArray;
+function EnumAllProcesses: TCardinalDynArray;
 var
   d: pDir;
   e: pDirent;
@@ -2314,11 +2582,10 @@ begin
   n := 0;
   SetLength(result, 128);
   repeat
-    e := FpReaddir(d^); // FPC RTL use getdents64 syscall on Linux and BSD :)
+    e := FpReaddir(d^); // FPC RTL uses direct getdents syscall on Linux/BSD :)
     if e = nil then
       break;
-    if ((e.d_type = DT_UNKNOWN) or
-        (e.d_type = DT_DIR)) and
+    if (e.d_type in [DT_UNKNOWN, DT_DIR]) and
        (e.d_name[0] in ['1'..'9']) then
     begin
       pid := GetCardinal(@e.d_name[0]);
@@ -2357,10 +2624,36 @@ begin
     tryprocexe := false; // no need to try again next time
 end;
 
+function GetParentProcess(PID: cardinal): cardinal;
+var
+  status, ppid: RawUtf8;
+begin
+  if PID = 0 then
+    result := FpGetppid // we have a system call for the current process :)
+  else
+  begin
+    result := 0;
+    status := StringFromFile('/proc/' + IntToStr(PID) + '/status', {nosize=}true);
+    if status = '' then
+      exit; // no such process
+    FindNameValue(status, 'PPID:', ppid);
+    result := GetCardinal(pointer(ppid));
+  end;
+end;
+
+function _IsDebuggerPresent: boolean;
+var
+  status, tracerpid: RawUtf8;
+begin
+  status := StringFromFile('/proc/self/status', {nosize=}true);
+  FindNameValue(status, 'TRACERPID:', tracerpid);
+  result := (tracerpid <> '0');
+end;
+
 function RetrieveLoadAvg: RawUtf8;
 begin
   // the libc parses this file anyway :)
-  result := StringFromFile('/proc/loadavg', {nosize=}true);
+  result := TrimU(StringFromFile('/proc/loadavg', {nosize=}true));
 end;
 
 function FindMemInfo(const meminfo, up: RawUtf8): PtrUInt;
@@ -2368,7 +2661,7 @@ var
   v: RawUtf8;
 begin
   FindNameValue(meminfo, up, v);
-  result := GetCardinal(pointer(v)) shl 10;
+  result := GetCardinal(pointer(v)) shl 10; // from KB to bytes
 end;
 
 function GetMemoryInfo(out info: TMemoryInfo; withalloc: boolean): boolean;
@@ -2378,29 +2671,35 @@ var
 begin
   result := false;
   FillCharFast(info, SizeOf(info), 0);
+  // sysinfo() syscall has not enough information: use /proc sysfiles
   proc := StringFromFile('/proc/meminfo', {hasnosize=}true);
   if proc = '' then
     exit;
-  info.memtotal := FindMemInfo(proc, 'MEMTOTAL:');
-  info.memfree := FindMemInfo(proc, 'MEMAVAILABLE:'); // MemFree is too low
+  info.memtotal  := FindMemInfo(proc, 'MEMTOTAL:');
+  info.memfree   := FindMemInfo(proc, 'MEMAVAILABLE:'); // MemFree is too low
+  info.filetotal := FindMemInfo(proc, 'SWAPTOTAL:');
+  info.filefree  := FindMemInfo(proc, 'SWAPFREE:');
+  // note: Windows-like virtual memory information is not available under Linux
+  info.vmtotal   := FindMemInfo(proc, 'COMMITLIMIT:');
+  info.vmfree    := FindMemInfo(proc, 'MEMFREE:');
+  if info.memfree = 0 then // kernel < 3.14 may not have the MemAvailable field
+    info.memfree  := info.vmfree +
+                     FindMemInfo(proc, 'BUFFERS:') +
+                     FindMemInfo(proc, 'CACHED:')  +
+                     FindMemInfo(proc, 'SRECLAIMABLE:') -
+                     FindMemInfo(proc, 'SHMEM:');
   if info.memtotal <> 0 then
   begin
     info.percent := ((info.memtotal - info.memfree) * 100) div info.memtotal;
     result := true;
   end;
-  info.filetotal := FindMemInfo(proc, 'SWAPTOTAL:');
-  info.filefree := FindMemInfo(proc, 'SWAPFREE:');
-  info.vmtotal := FindMemInfo(proc, 'COMMITLIMIT:');
-  info.vmfree := FindMemInfo(proc, 'MEMFREE:');
+  if not withalloc then
+    exit;
   // GetHeapStatus is only about current thread -> use /proc/[pid]/statm
-  if withalloc then
-  begin
-    // virtual memory information is not available under Linux
-    proc := StringFromFile('/proc/self/statm', {hasnosize=}true);
-    P := pointer(proc);
-    info.allocreserved := GetNextCardinal(P) * SystemInfo.dwPageSize; // VmSize
-    info.allocused := GetNextCardinal(P) * SystemInfo.dwPageSize;     // VmRSS
-  end;
+  proc := StringFromFile('/proc/self/statm', {hasnosize=}true);
+  P := pointer(proc);
+  info.allocreserved := GetNextCardinal(P) * SystemInfo.dwPageSize; // VmSize
+  info.allocused     := GetNextCardinal(P) * SystemInfo.dwPageSize; // VmRSS
 end;
 
 procedure DoHash128File(var h: THash128; const filename: TFileName);
@@ -2424,6 +2723,8 @@ begin
   DoHash128File(e.h0, '/proc/self/statm');
   DoHash128File(e.h0, '/proc/self/stat');
   DoHash128File(e.h1, '/proc/stat');
+  clock_gettime(CLOCK_UPTIME, @rt);
+  DefaultHasher128(@e.h2, @rt, SizeOf(rt)); // maybe AesNiHash128
   // read-only 122-bit random UUID text '6fd5a44b-35f4-4ad4-a9b9-6b9be13e1fe9'
   DoHash128File(e.h2, '/proc/sys/kernel/random/uuid');
   DoHash128File(e.h3, '/proc/sys/kernel/random/boot_id');
@@ -2463,8 +2764,6 @@ const
     (id: sbiBoardAssetTag;     fn: 'board_asset_tag')
   );
 
-procedure ParseHex(p: PAnsiChar; b: PByte; n: integer); forward;
-
 procedure _DirectSmbiosInfo(out info: TSmbiosBasicInfos);
 var
   i: PtrInt;
@@ -2480,6 +2779,19 @@ end;
 {$endif OSANDROID}
 
 {$endif OSBSDDARWIN}
+
+var
+  __IsDebuggerPresent: (idpUntested, idpNone, idpPresent);
+
+function IsDebuggerPresent: boolean;
+begin
+  if __IsDebuggerPresent = idpUntested then
+    if _IsDebuggerPresent then
+      __IsDebuggerPresent := idpPresent
+    else
+      __IsDebuggerPresent := idpNone;
+  result := __IsDebuggerPresent = idpPresent;
+end;
 
 {$ifndef OSDARWIN}
 // on POSIX systems, /dev/mem may be available from root
@@ -2580,6 +2892,8 @@ var
   rd, dev: integer;
 begin
   result := false;
+  if Len <= 0 then
+    exit;
   dev := FileOpenSequentialRead('/dev/urandom');  // non blocking on Linux + BSD
   if (dev <= 0) and
      AllowBlocking then
@@ -2608,6 +2922,7 @@ var
 begin
   if aDriveFolderOrFile = '' then
     aDriveFolderOrFile := '.';
+  FillCharFast(fs, SizeOf(fs), 0);
   result := fpStatFS(aDriveFolderOrFile, @fs) = 0;
   aAvailableBytes := QWord(fs.bavail) * QWord(fs.bsize);
   aFreeBytes := aAvailableBytes; // no user Quota involved here
@@ -2623,6 +2938,7 @@ var
   av, fr, tot: QWord;
 begin
   // see https://github.com/gagern/gnulib/blob/master/lib/mountlist.c
+  result := nil;
   {$ifdef OSLINUXANDROID}
   mounts := StringFromFile('/proc/self/mounts', {hasnosize=}true);
   if mounts = '' then
@@ -2676,7 +2992,7 @@ end;
 {$endif OSBSDDARWIN}
 
 {$ifdef USEMPROTECT}
-function mprotect(Addr: Pointer; Len: size_t; Prot: integer): integer;
+function mprotect(Addr: pointer; Len: size_t; Prot: integer): integer;
   cdecl external clib name 'mprotect';
 {$endif USEMPROTECT}
 
@@ -2706,7 +3022,7 @@ begin
       PByteArray(Backup)^[i] := PByteArray(Old)^[i];
   PageSize := SystemInfo.dwPageSize;
   AlignedAddr :=
-    Pointer((PtrUInt(Old) div SystemInfo.dwPageSize) * SystemInfo.dwPageSize);
+    pointer((PtrUInt(Old) div SystemInfo.dwPageSize) * SystemInfo.dwPageSize);
   while PtrUInt(Old) + PtrUInt(Size) >= PtrUInt(AlignedAddr) + PageSize do
     inc(PageSize, SystemInfo.dwPageSize);
   ProtectedResult := SynMProtect(
@@ -2803,7 +3119,7 @@ var
 
 procedure DoShutDown(Sig: integer; Info: PSigInfo; Context: PSigContext); cdecl;
 var
-  level: TSynLogInfo;
+  level: TSynLogLevel;
   si_code: integer;
   text: string[4]; // code below has no memory allocation
 begin
@@ -2955,7 +3271,7 @@ begin
   end;
   if not IsDirectoryWritable(pidpath) then
     // if the executable folder is not writable, use the temporary folder
-    pidpath := GetSystemPath(spTempFolder);
+    pidpath := GetSystemPath(spTemp);
   result := Format('%s.%s.pid', [pidpath, Executable.ProgramName]);
 end;
 
@@ -3224,7 +3540,7 @@ var
   var
     u: RawUtf8;
   begin
-    result := false;
+    result := false; // return false on pipe closed
     if WaitReadPending(fd, wait) then
     begin
       n := fpread(fd, tmp, SizeOf(tmp));
@@ -3287,7 +3603,7 @@ begin
       if RunAbortTimeoutSecs > 0 then
       begin
         // try gracefull death
-        if (ramSIGTERM in RunAbortMethods) and
+        if (ramSigTerm in RunAbortMethods) and
            (fpkill(pid, SIGTERM) = 0) then
         begin
           endtix := GetTickCount64 + RunAbortTimeoutSecs * 1000;
@@ -3327,10 +3643,8 @@ begin
   result := '';
 end;
 
-function getpagesize: integer;
-begin
-  result := 4096;
-end;
+const
+  getpagesize = 4096;
 
 {$else}
 function getpagesize: integer;
@@ -3599,6 +3913,7 @@ end;
 {$L ..\..\static\aarch64-linux\armv8.o} // ARMv8 crc32c Linux code
 
 function crc32carm64(crc: cardinal; buf: PAnsiChar; len: cardinal): cardinal; external;
+function crc32arm64(crc: cardinal; buf: PAnsiChar; len: cardinal): cardinal; external;
 function crc32cby4arm64(crc, value: cardinal): cardinal; external;
 procedure crc32blockarm64(crc128, data128: PBlock128); external;
 procedure crc32blocksarm64(crc128, data128: PBlock128; count: integer); external;
@@ -3611,6 +3926,9 @@ var
   P: PAnsiChar;
   modname, beg: PUtf8Char;
   uts: UtsName;
+  {$ifndef NODIRECTTHREADMANAGER}
+  tm: TThreadManager;
+  {$endif NODIRECTTHREADMANAGER}
   {$ifndef OSDARWIN}
   {$ifdef CPUARM3264}
   act, aci: TIntegerDynArray;
@@ -3619,7 +3937,7 @@ var
   tp: timespec;
   {$endif OSDARWIN}
   {$ifdef OSBSDDARWIN}
-  temp: ShortString;
+  temp1, temp2: ShortString;
   {$else}
   hw, cache, cpuinfo: PUtf8Char;
   proccpuinfo, release, prod: RawUtf8;
@@ -3628,43 +3946,57 @@ var
   {$ifdef OSLINUX}
   prodver, dist: RawUtf8;
   SR: TSearchRec;
+  si: TSysInfo;  // Linuxism
+
+  function GetSysFile(const fn: TFileName): RawUtf8;
+  begin
+    result := TrimU(StringFromFile(fn, true));
+    if result = 'Default string' then // e.g. on ProxMox containers or VMs
+      result := '';
+  end;
   {$endif OSLINUX}
   {$endif OSBSDDARWIN}
-  {$ifndef OSDARWIN}
-  tm: TThreadManager;
-  {$endif OSDARWIN}
 begin
   // retrieve Kernel and Hardware information
-  StdOutIsTTY := (IsATTY(StdOutputHandle) = 1) and
+  StdOutIsTTY := not IsDebuggerPresent and
+                 (IsATTY(StdOutputHandle) = 1) and
                  IdemPChars(RawUtf8(GetEnvironmentVariable('TERM')), [
                    'XTERM', 'SCREEN', 'TMUX', 'RXVT', 'LINUX', 'CYGWIN']);
   modname := nil;
   fpuname(uts);
-  SystemInfo.dwPageSize := getpagesize; // call libc API
   {$ifdef OSBSDDARWIN}
   // pure FreeBSD NetBSD MacOS branch
   SystemInfo.dwNumberOfProcessors := fpsysctlhwint(HW_NCPU);
-  beg := fpsysctlhwstr(HW_MACHINE, temp);
-  FastSetString(BiosInfoText, beg, StrLen(beg));
+  beg := fpsysctlhwstr(HW_MACHINE, temp1);
   {$ifdef OSDARWIN}
-  if PosExChar(' ', BiosInfoText) = 0 then
-    BiosInfoText := 'Mac ' + BiosInfoText; // from a Parallels VM
+  if strscan(beg, ' ') = nil then // e.g. from a Parallels VM
+    beg := fpsysctlhwstr(HW_MODEL, temp1);
+  modname := fpsysctlbynamehwstr('machdep.cpu.brand_string', temp2);
   {$endif OSDARWIN}
-  modname := fpsysctlhwstr(HW_MODEL, temp);
+  FastSetString(BiosInfoText, beg, StrLen(beg));
+  if modname = nil then
+    modname := fpsysctlhwstr(HW_MODEL, temp2);
   with uts do
     OSVersionText := sysname + '-' + release + ' ' + version;
   {$ifdef OSDARWIN}
   // pure MACOS branch
   CpuCache[1].LineSize := fpsysctlhwint(HW_CACHELINE);
-  CpuCache[1].Size := fpsysctlhwint(HW_L1DCACHESIZE);
+  CpuCache[1].Size     := fpsysctlhwint(HW_L1DCACHESIZE);
   CpuCache[2].LineSize := fpsysctlhwint(HW_CACHELINE);
-  CpuCache[2].Size := fpsysctlhwint(HW_L2CACHESIZE);
-  CpuCacheSize := CpuCache[2].Size;
+  CpuCache[2].Size     := fpsysctlhwint(HW_L2CACHESIZE);
+  CpuCache[3].LineSize := fpsysctlhwint(HW_CACHELINE);
+  CpuCache[3].Size     := fpsysctlhwint(HW_L3CACHESIZE);
+  CpuCacheSize := CpuCache[3].Size;
+  if CpuCacheSize = 0 then
+    CpuCacheSize := CpuCache[2].Size;
   if CpuCacheSize = 0 then
     CpuCacheSize := CpuCache[1].Size;
   if CpuCacheSize <> 0 then
-    CpuCacheText := 'L1=' + _oskb(CpuCache[1].Size) +
-                   ' L2=' + _oskb(CpuCache[2].Size);
+    _fmt('L1=%s L2=%s L3=%s', [_oskb(CpuCache[1].Size),
+      _oskb(CpuCache[2].Size), _oskb(CpuCache[3].Size)], CpuCacheText);
+  SystemMemorySize := fpsysctlhwint(HW_MEMSIZE);
+  {$else}
+  SystemMemorySize := fpsysctlhwint(HW_PHYSMEM);
   {$endif OSDARWIN}
   {$else}
   {$ifdef OSANDROID}
@@ -3676,25 +4008,29 @@ begin
   {$else}
   // pure LINUX branch
   GetSystemMacAddress := _GetSystemMacAddress;
-  prod := TrimU(TrimU(StringFromFile('/sys/class/dmi/id/sys_vendor', true)) +
-    ' ' + StringFromFile('/sys/class/dmi/id/product_name', true));
+  if Sysinfo(@si) = 0 then
+    SystemMemorySize := si.totalram * si.mem_unit;
+  prod := TrimU(GetSysFile('/sys/class/dmi/id/sys_vendor') + ' ' +
+                GetSysFile('/sys/class/dmi/id/product_name'));
   if prod <> '' then
   begin // e.g. 'QEMU KVM Virtual Machine' or 'LENOVO 20HES23B0U'
-    prodver := TrimU(StringFromFile('/sys/class/dmi/id/product_version', true));
+    prodver := GetSysFile('/sys/class/dmi/id/product_version');
     if prodver <> '' then
       prod := prod + ' ' + prodver;
   end
   else
     // return e.g. 'Raspberry Pi 3 Model B Rev 1.2'
-    prod := TrimU(StringFromFile('/proc/device-tree/model', true));
-  FindNameValue(StringFromFile('/etc/os-release'), 'PRETTY_NAME=', release);
+    prod := GetSysFile('/proc/device-tree/model');
+  FindNameValue(StringFromFile('/etc/os-release', true),
+    'PRETTY_NAME=', release);
   if (release <> '') and
      (release[1] = '"') then
     release := copy(release, 2, length(release) - 2);
   TrimSelf(release);
   if release = '' then
   begin
-    FindNameValue(StringFromFile('/etc/lsb-release'), 'DISTRIB_DESCRIPTION=', release);
+    FindNameValue(StringFromFile('/etc/lsb-release', true),
+      'DISTRIB_DESCRIPTION=', release);
     if (release <> '') and
        (release[1] = '"') then
       release := copy(release, 2, length(release) - 2);
@@ -3707,7 +4043,7 @@ begin
        (FindNext(SR) = 0) then
       release := SR.Name;
     release := split(release, '-');
-    dist := split(TrimU(StringFromFile('/etc/' + SR.Name)), #10);
+    dist := split(StringFromFile('/etc/' + SR.Name, true), #10);
     if (dist <> '') and
        (PosExChar('=', dist) = 0) and
        (PosExChar(' ', dist) > 0) then
@@ -3755,13 +4091,15 @@ begin
         if procid >= integer(SystemInfo.dwNumberOfProcessors) then
           procid := -1; // paranoid
       end
-    else if IdemPChar(beg, 'MODEL NAME') then
+    else if IdemPChar(beg, 'MODEL') then
       modname := ParseLine(beg)
     else if IdemPChar(beg, 'FEATURES') or
             IdemPChar(beg, 'FLAGS') then
       CpuInfoFeatures := ParseLine(beg)
     else if IdemPChar(beg, 'HARDWARE') then
       hw := ParseLine(beg)
+    else if IdemPChar(beg, 'SERIAL') then
+      _Smbios[sbiSerial] := LowerCase(TrimU(ParseLine(beg)))
     else if IdemPChar(beg, 'CACHE SIZE') then
       cache := ParseLine(beg)
     {$ifdef CPUARM3264}
@@ -3808,7 +4146,8 @@ begin
       BiosInfoText := prod
     else
       BiosInfoText := BiosInfoText + ' (' + prod + ')';
-  end;
+  end else if BiosInfoText = '' then
+    BiosInfoText := 'Generic ' + CPU_ARCH_TEXT + ' system'; // noname computer
   if cache <> nil then
   begin
     CpuCacheText := TrimU(cache);
@@ -3826,8 +4165,9 @@ begin
   end;
   SystemInfo.release := release;
   {$endif OSBSDDARWIN}
+  SystemInfo.dwPageSize := getpagesize; // call libc API
   if CpuCacheSize <> 0 then
-    CpuInfoText := _oskb(CpuCacheSize) + ' cache';
+    _fmt('[%s]', [_oskb(CpuCacheSize)], CpuInfoText);
   if CpuSockets = 0 then
     CpuSockets := 1;
   SystemInfo.uts.release := uts.Release;
@@ -3861,18 +4201,21 @@ begin
       [SystemInfo.dwNumberOfProcessors, modname, CpuInfoText]);
   // intialize supported APIs
   TimeZoneLocalBias := -GetLocalTimeOffset;
-  {$ifdef OSDARWIN}
-  mach_timebase_info(mach_timeinfo);
-  mach_timecoeff := mach_timeinfo.Numer / mach_timeinfo.Denom;
-  mach_timenanosecond := (mach_timeinfo.Numer = 1) and
-                         (mach_timeinfo.Denom = 1);
-  {$else}
+  {$ifndef NODIRECTTHREADMANAGER}
   // for inlined RTL calls (avoid one level of redirection)
   GetThreadManager(tm);
   @GetCurrentThreadId      := @tm.GetCurrentThreadId;
   @TryEnterCriticalSection := @tm.TryEnterCriticalSection;
   @EnterCriticalSection    := @tm.EnterCriticalSection;
   @LeaveCriticalSection    := @tm.LeaveCriticalSection;
+  {$endif NODIRECTTHREADMANAGER}
+  {$ifdef OSDARWIN}
+  OSVersionText := ToText(OSVersion32) + ' (' + OSVersionText + ')';
+  mach_timebase_info(mach_timeinfo);
+  mach_timecoeff := mach_timeinfo.Numer / mach_timeinfo.Denom;
+  mach_timenanosecond := (mach_timeinfo.Numer = 1) and
+                         (mach_timeinfo.Denom = 1);
+  {$else}
   // try Linux kernel 2.6.32+ or FreeBSD 8.1+ fastest clocks
   if clock_gettime(CLOCK_REALTIME_COARSE, @tp) = 0 then
     CLOCK_REALTIME_FAST := CLOCK_REALTIME_COARSE;
@@ -3882,6 +4225,8 @@ begin
   if clock_gettime(CLOCK_MONOTONIC_RAW, @tp) = 0 then
     CLOCK_MONOTONIC_HIRES := CLOCK_MONOTONIC_RAW;
   {$endif OSLINUX}
+  if clock_gettime(CLOCK_BOOTTIME, @tp) = 0 then
+    CLOCK_UPTIME := CLOCK_BOOTTIME;
   if (clock_gettime(CLOCK_REALTIME_FAST, @tp) <> 0) or // paranoid check
      (clock_gettime(CLOCK_MONOTONIC_FAST, @tp) <> 0) or
      (clock_gettime(CLOCK_MONOTONIC_HIRES, @tp) <> 0) then
@@ -3920,7 +4265,7 @@ begin
     try
       if (crc32cby4arm64(0, 1) = 3712330424) and
          (crc32carm64(0, @SystemInfo, SizeOf(SystemInfo)) =
-          crc32cfast(0, @SystemInfo, SizeOf(SystemInfo))) then
+           crc32cfast(0, @SystemInfo, SizeOf(SystemInfo))) then
       begin
         crc32c := @crc32carm64;
         DefaultHasher := @crc32carm64;
@@ -3929,6 +4274,9 @@ begin
         crcblock := @crc32blockarm64;
         crcblocks := @crc32blocksarm64;
       end;
+      if crc32arm64(0, @SystemInfo, SizeOf(SystemInfo)) =
+          crc32fast(0, @SystemInfo, SizeOf(SystemInfo)) then
+        crc32 := @crc32arm64;
     except
       exclude(CpuFeatures, ahcCrc32); // crc32 was actually not supported
     end;

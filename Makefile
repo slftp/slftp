@@ -1,4 +1,4 @@
-SHELL = /bin/bash
+SHELL = bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
@@ -28,60 +28,60 @@ all_32: slftp_32 install
 
 all_64: slftp_64 install
 
-slftp:
-	make clean
-	$(call revpatch)
+slftp:	FORCE
+	gmake clean
+	gmake revpatch
 	$(CC) $(CFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_32:
-	make clean
-	$(call revpatch)
+slftp_32:	FORCE
+	gmake clean
+	gmake revpatch
 	$(CC) -Pi386 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_64:
-	make clean
-	$(call revpatch)
+slftp_64:	FORCE
+	gmake clean
+	gmake revpatch
 	$(CC) -Px86_64 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_debug:
-	$(call revpatch)
+slftp_debug:	FORCE
+	gmake revpatch
 	$(CC) $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_32_debug:
-	$(call revpatch)
+slftp_32_debug:	FORCE
+	gmake revpatch
 	$(CC) -Pi386 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_64_debug:
-	$(call revpatch)
+slftp_64_debug:	FORCE
+	gmake revpatch
 	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_debug_heaptrace:
-	$(call revpatch)
+slftp_debug_heaptrace:	FORCE
+	gmake revpatch
 	$(CC) $(CDBFLAGS) $(HEAPTRACE) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_debug_valgrind:
-	$(call revpatch)
+slftp_debug_valgrind:	FORCE
+	gmake revpatch
 	$(CC) $(CDBFLAGS) $(VALGRIND) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_debug_gprof:
-	$(call revpatch)
+slftp_debug_gprof:	FORCE
+	gmake revpatch
 	$(CC) $(CDBFLAGS) $(GPROF) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-slftp_debug_vtune:
-	$(call revpatch)
+slftp_debug_vtune:	FORCE
+	gmake revpatch
 	$(CC) $(VTUNE) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	gmake revpatchrevert
 
-test:
+test:	FORCE
 	@make cleanuptestdir
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
 	./tests/slftpUnitTests
@@ -102,18 +102,19 @@ cleanuptestdir:
 install:
 	@cp slftp $(SLFTPPATH)/slftp
 
+# empty target to force execution
+FORCE:
+
 # patch used HEAD git-hash into slftp.inc
-define revpatch
+revpatch: FORCE
 	@if [ -d ".git" ]; then \
         GIT_COMMIT=$(shell git rev-parse --short HEAD) ;\
 		echo "patching SL_REV entry to $$GIT_COMMIT" ;\
-		sed -i "s/SL_REV: string.*/SL_REV: string = '$$GIT_COMMIT';/g" slftp.inc ;\
+		perl replace_git_commit.pl $$GIT_COMMIT ;\
     fi
-endef
 
 # restore default blank value of slftp.inc
-define revpatchrevert
+revpatchrevert: FORCE
 	@if [ -d ".git" ]; then \
-        sed -i "s/SL_REV: string.*/SL_REV: string = '';/g" slftp.inc ;\
+        perl replace_git_commit.pl ;\
     fi
-endef

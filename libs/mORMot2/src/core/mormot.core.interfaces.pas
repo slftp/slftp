@@ -32,10 +32,10 @@ uses
   mormot.core.os,
   mormot.core.unicode,
   mormot.core.text,
+  mormot.core.rtti,
   mormot.core.buffers,
   mormot.core.variants,
   mormot.core.data,
-  mormot.core.rtti,
   mormot.core.json,
   mormot.core.threads,
   mormot.core.test, // for TInterfaceMock
@@ -114,10 +114,12 @@ type
   // (i.e. defined as var/out, or is a record or a reference-counted type result)
   // - vIsQword is set for ValueType=imvInt64 over a QWord unsigned 64-bit value
   // - vIsDynArrayString is set for ValueType=imvDynArray of string values
+  // - vIsInterfaceJson is set for an interface with custom JSON serializers
   TInterfaceMethodValueAsm = set of (
     vPassedByReference,
     vIsQword,
-    vIsDynArrayString);
+    vIsDynArrayString,
+    vIsInterfaceJson);
 
   /// a pointer to an interface-based service provider method description
   // - since TInterfaceFactory instances are shared in a global list, we
@@ -766,11 +768,14 @@ type
   // regular HTTP_* response code, in addition to the regular JSON answer - i.e.
   // there will be a "result" member in the transmitted JSON anyway
   // - the returned value should be in HTTP response code range, i.e. 200..599
+  // - by design, HTTP_NOCONTENT can/should not be used: return HTTP_SUCCESS and
+  // set rsoHttp200WithNoBodyReturns204 option to let TRestServer.Uri decide and
+  // return HTTP_SUCCESS if there is an output body, or HTTP_NOCONTENT if void
   TServiceCustomStatus = type cardinal;
 
 
 /// returns the interface name of a registered Guid, or its hexadecimal value
-function ToText({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF}
+function ToText({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
   aGuid: TGuid): ShortString; overload;
 
 /// low-level function to retrieve the class instance implementing a given interface
@@ -831,7 +836,7 @@ type
     // !   if ServiceContainer.Resolve(ICalculator,cal) then
     // !   ... use calc methods
     function Resolve(const aGuid: TGuid; out Obj;
-      aRaiseIfNotFound: EInterfaceResolver = nil): boolean; overload;
+      aRaiseIfNotFound: ESynExceptionClass = nil): boolean; overload;
     /// can be used to perform several DI/IoC for a given set of interfaces
     // - here interfaces and instances are provided as TypeInfo,@Instance pairs
     // - raise an EServiceException if any interface can't be resolved, unless
@@ -1181,7 +1186,7 @@ type
         dvoValueCopiedByReference]): variant;
     /// log the input or output parameters to a log instance
     procedure AddLog(aLog: TSynLogClass; aOutput: boolean;
-      aLevel: TSynLogInfo = sllTrace);
+      aLevel: TSynLogLevel = sllTrace);
     /// input parameters when calling the method
     // - order shall follow the method const and var parameters
     // ! Stub.Add(10,20) -> Input[0]=10, Input[1]=20
@@ -1604,7 +1609,7 @@ type
       const aEventParams: RawUtf8 = ''): TInterfaceStub; overload;
     /// will add execution rules for all methods to log the input parameters
     // - aKind will define how the input parameters are serialized in JSON
-    function Executes(aLog: TSynLogClass; aLogLevel: TSynLogInfo;
+    function Executes(aLog: TSynLogClass; aLogLevel: TSynLogLevel;
       aKind: TInterfaceMethodParamsDocVariantKind): TInterfaceStub; overload;
 
     /// add an exception rule for a given method
@@ -2244,7 +2249,7 @@ type
     procedure FakeCallInternalProcess(var ctxt: TFakeCallContext); override;
     // should be overriden to support interface parameters (i.e. callbacks)
     procedure InterfaceWrite(W: TJsonWriter; const aMethod: TInterfaceMethod;
-      const aParamInfo: TInterfaceMethodArgument; aParamValue: Pointer); virtual;
+      const aParamInfo: TInterfaceMethodArgument; aParamValue: pointer); virtual;
   public
     /// create an instance, using the specified interface and factory
     constructor Create(aFactory: TInterfaceFactory; aServiceFactory: TObject;
@@ -2299,7 +2304,8 @@ type
     optErrorOnMissingParam,
     optForceStandardJson,
     optDontStoreVoidJson,
-    optIgnoreException);
+    optIgnoreException,
+    optFreeTimeout);
 
   /// set of per-method execution options for an interface-based service provider
   // - by default, method executions are concurrent, for better server
@@ -2344,6 +2350,8 @@ type
   // - any exceptions will be propagated during execution, unless
   // optIgnoreException is set and the exception is trapped (not to be used
   // unless you know what you are doing)
+  // - optFreeTimeout will enable the time check of the _Release call using
+  // TRestServer.ServiceReleaseTimeoutMicrosec delay
   TInterfaceMethodOptions = set of TInterfaceMethodOption;
 
   /// available execution options for an interface-based service provider
@@ -2553,7 +2561,8 @@ procedure BackgroundExecuteInstanceRelease(instance: TObject;
 
 
 /// low-level internal function returning the TServiceRunningContext threadvar
-// - mormot.rest.server.pas' ServiceRunningContext function redirects to this
+// - mormot.rest.server.pas ServiceRunningContext function redirects to this
+// - not inlined to ensure the associated threadvar is always properly linked
 function PerThreadRunningContextAddress: pointer;
 
 const
@@ -2662,8 +2671,8 @@ begin
   WR.AddPropInt64('fpreg', FPRegisterIdent);
   WR.AddPropInt64('stacksize', SizeInStack);
   WR.AddPropName('asm');
-  WR.AddString(GetSetNameCsv(TypeInfo(TInterfaceMethodValueAsm), ValueKindAsm));
-  WR.Add('}', ',');
+  WR.AddString(GetSetNameJsonArray(TypeInfo(TInterfaceMethodValueAsm), ValueKindAsm));
+  WR.AddDirect('}', ',');
 {$else}
   WR.AddShorter('"},');
 {$endif SOA_DEBUG}
@@ -2690,7 +2699,7 @@ begin
     FormatShort('I% failed parsing %: % from input JSON',
       [Method^.InterfaceDotMethodName, ParamName^, ArgTypeName^], tmp);
     if Error = nil then
-      raise EInterfaceFactory.CreateUtf8('%', [tmp]);
+      EInterfaceFactory.RaiseUtf8('%', [tmp]);
     Error^ := tmp;
     result := false;
   end
@@ -2737,7 +2746,7 @@ begin
   begin
     WR.Add('"');
     WR.AddJsonEscape(pointer(Value));
-    WR.Add('"', ',');
+    WR.AddDirect('"', ',');
   end
   else
   begin
@@ -2755,7 +2764,10 @@ begin
     imvRawJson:
       WR.AddShorter('null,'); // may raise an error on client side for imvObject
     imvInterface:
-      WR.AddShorter('0,');
+      if vIsInterfaceJson in ValueKindAsm then // e.g. IDocList
+        WR.AddShorter('null,')
+      else
+        WR.AddShorter('0,');
     imvDynArray:
       WR.AddShorter('[],');
     imvRecord:
@@ -2917,7 +2929,7 @@ var
 begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
-    W.Add('{');
+    W.AddDirect('{');
     if (P = nil) or
        (P^ <> '[') then
       P := nil
@@ -2949,8 +2961,7 @@ begin
             inc(P); // include ending ','
           W.AddNoJsonEscape(Value, P - Value);
         end;
-    W.CancelLastComma;
-    W.Add('}');
+    W.CancelLastComma('}');
     W.SetText(result);
   finally
     W.Free;
@@ -2970,7 +2981,7 @@ var
 begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
-    W.Add('{');
+    W.AddDirect('{');
     while (P <> nil) and
           GetNextFieldProp(P, arg) and
           (P <> nil) and
@@ -2980,7 +2991,7 @@ begin
       i := ArgIndex(pointer(arg), length(arg), Input);
       if i < 0 then
         if RaiseExceptionOnUnknownParam then
-          raise EInterfaceFactory.CreateUtf8('Unexpected [%] parameter for %',
+          EInterfaceFactory.RaiseUtf8('Unexpected [%] parameter for %',
             [arg, InterfaceDotMethodName])
         else
           ok := false;
@@ -2988,7 +2999,7 @@ begin
       if ok then
         W.AddPropName(arginfo^.ParamName^);
       if not (P^ in [':', '=']) then
-        raise EInterfaceFactory.CreateUtf8('"%" parameter has no = for %',
+        EInterfaceFactory.RaiseUtf8('"%" parameter has no = for %',
           [arg, InterfaceDotMethodName]);
       P := GotoNextNotSpace(P + 1);
       if P^ in ['"', '[', '{'] then
@@ -2997,7 +3008,7 @@ begin
         B := P;
         P := GotoEndJsonItem(P);
         if P = nil then
-          raise EInterfaceFactory.CreateUtf8('%= parameter has invalid content for %',
+          EInterfaceFactory.RaiseUtf8('%= parameter has invalid content for %',
             [arg, InterfaceDotMethodName]);
         if not ok then
           continue;
@@ -3011,19 +3022,18 @@ begin
           continue;
         if arginfo^.ValueType = imvDynArray then
           // write [value] or ["value"]
-          W.Add('[');
+          W.AddDirect('[');
         if (rcfJsonString in arginfo^.ArgRtti.Flags) or
            (vIsDynArrayString in arginfo^.ValueKindAsm) then
           W.AddJsonString(value)
         else
-          W.AddNoJsonEscape(pointer(value), length(value));
+          W.AddShort(pointer(value), length(value));
         if arginfo^.ValueType = imvDynArray then
-          W.Add(']');
+          W.AddDirect(']');
       end;
       W.AddComma;
     end;
-    W.CancelLastComma;
-    W.Add('}');
+    W.CancelLastComma('}');
     W.SetText(result);
   finally
     W.Free;
@@ -3196,7 +3206,7 @@ var
   msg: RawUtf8;
 begin
   FormatUtf8(Format, Args, msg);
-  raise EInterfaceFactory.CreateUtf8('%.FakeCall(%.%) failed: %',
+  EInterfaceFactory.RaiseUtf8('%.FakeCall(%.%) failed: %',
     [self, fFactory.fInterfaceName, ctxt.method^.Uri, msg]);
 end;
 
@@ -3280,7 +3290,7 @@ begin
   // setup context
   ctxt.Stack := stack;
   if stack.MethodIndex >= PtrUInt(me.fFactory.MethodsCount) then
-    raise EInterfaceFactory.CreateUtf8('%.FakeCall(%) failed: out of range %',
+    EInterfaceFactory.RaiseUtf8('%.FakeCall(%) failed: out of range %',
       [me, me.fFactory.fInterfaceName, stack.MethodIndex]);
   ctxt.Method := @me.fFactory.fMethods[stack.MethodIndex];
   ctxt.ResultType := imvNone;
@@ -3423,7 +3433,8 @@ begin
       if a^.ValueDirection in [imdConst, imdVar] then
       begin
         V := ctxt.Value[arg];
-        if a^.ValueType = imvInterface then
+        if (a^.ValueType = imvInterface) and
+           not (vIsInterfaceJson in a^.ValueKindAsm) then // e.g. not IDocList
           InterfaceWrite(W, ctxt.Method^, a^, V^)
         else
         begin
@@ -3540,9 +3551,9 @@ end;
 
 procedure TInterfacedObjectFake.InterfaceWrite(W: TJsonWriter;
   const aMethod: TInterfaceMethod; const aParamInfo: TInterfaceMethodArgument;
-  aParamValue: Pointer);
+  aParamValue: pointer);
 begin
-  raise EInterfaceFactory.CreateUtf8('%: unhandled %.%(%: %) argument',
+  EInterfaceFactory.RaiseUtf8('%: unhandled %.%(%: %) argument',
     [self, fFactory.fInterfaceName, aMethod.Uri, aParamInfo.ParamName^,
      aParamInfo.ArgTypeName^]);
 end;
@@ -3630,7 +3641,7 @@ var
 begin
   if (aInterface = nil) or
      (aInterface^.Kind <> rkInterface) then
-    raise EInterfaceFactory.CreateUtf8('%.Get(invalid)', [self]);
+    EInterfaceFactory.RaiseUtf8('%.Get(invalid)', [self]);
   cache := InterfaceFactoryCache;
   cache.Safe.ReadLock; // multiple reads lock
   result := FactorySearch(pointer(cache.List), cache.Count, aInterface);
@@ -3648,7 +3659,7 @@ begin
     cache.Add(result);
     {$else}
     result := nil; // make compiler happy
-    raise EInterfaceFactory.CreateUtf8('No RTTI available for I%: please ' +
+    EInterfaceFactory.RaiseUtf8('No RTTI available for I%: please ' +
       'define the methods using a TInterfaceFactoryGenerated wrapper',
       [aInterface^.RawName]);
     {$endif HASINTERFACERTTI}
@@ -3754,7 +3765,7 @@ var
 begin
   fact := Get(aGuid);
   if fact = nil then
-    raise EInterfaceFactory.CreateUtf8('%.Guid2TypeInfo(%): Interface not ' +
+    EInterfaceFactory.RaiseUtf8('%.Guid2TypeInfo(%): Interface not ' +
       'registered - use %.RegisterInterfaces()', [self, GuidToShort(aGuid), self]);
   result := fact.fInterfaceTypeInfo;
 end;
@@ -3820,17 +3831,17 @@ var
 begin
   // validate supplied TypeInfo() RTTI input
   if aInterface = nil then
-    raise EInterfaceFactory.CreateUtf8('%.Create(nil)', [self]);
+    EInterfaceFactory.RaiseUtf8('%.Create(nil)', [self]);
   if aInterface^.Kind <> rkInterface then
-    raise EInterfaceFactory.CreateUtf8('%.Create: % is not an interface',
+    EInterfaceFactory.RaiseUtf8('%.Create: % is not an interface',
       [self, aInterface^.RawName]);
   fDocVariantOptions := JSON_FAST_FLOAT;
   fJsonParserOptions := JSONPARSER_SERVICE;
   fInterfaceTypeInfo := aInterface;
   fInterfaceIID := aInterface^.InterfaceGuid^;
   if IsNullGuid(fInterfaceIID) then
-    raise EInterfaceFactory.CreateUtf8(
-      '%.Create: % has no GUID', [self, aInterface^.RawName]);
+    EInterfaceFactory.RaiseUtf8('%.Create: % has no GUID',
+      [self, aInterface^.RawName]);
   fInterfaceRtti := Rtti.RegisterType(aInterface) as TRttiJson;
   fInterfaceName := fInterfaceRtti.Name;
   fInterfaceUri := fInterfaceName;
@@ -3842,11 +3853,11 @@ begin
     @fMethodsCount, {caseinsens=}true);
   AddMethodsFromTypeInfo(aInterface); // from RTTI or generated code
   if fMethodsCount = 0 then
-    raise EInterfaceFactory.CreateUtf8('%.Create(%): interface has ' +
+    EInterfaceFactory.RaiseUtf8('%.Create(%): interface has ' +
       'no RTTI - it should inherit from IInvokable or add some methods',
       [self, fInterfaceName]);
   if MethodsCount > MAX_METHOD_COUNT then
-    raise EInterfaceFactory.CreateUtf8(
+    EInterfaceFactory.RaiseUtf8(
       '%.Create(%): interface has too many methods (%), so breaks the ' +
       'Interface Segregation Principle and our internal buffers provision',
       [self, fInterfaceName, MethodsCount]);
@@ -3898,12 +3909,14 @@ begin
             ErrorMsg := ' - class not allowed as function result: ' +
               'use a var/out parameter';
         imvInterface:
-          if ValueDirection <> imdConst then
+          if Assigned(ArgRtti.JsonWriter.Code) then
+            include(ValueKindAsm, vIsInterfaceJson) // e.g. IDocList
+          else if ValueDirection <> imdConst then
             ErrorMsg := ' - interface not allowed as output: ' +
               'use a const parameter';
       end;
       if ErrorMsg <> '' then
-        raise EInterfaceFactory.CreateUtf8(
+        EInterfaceFactory.RaiseUtf8(
           '%.Create: %.% [%] parameter has unexpected type %%',
           [self, aInterface^.RawName, URI, ParamName^, ArgRtti.Name, ErrorMsg]);
       if ValueDirection = imdResult then
@@ -3958,8 +3971,7 @@ begin
         imvNone,
         imvObject,
         imvInterface:
-          raise EInterfaceFactory.CreateUtf8(
-            '%.Create: I% unexpected result type %',
+          EInterfaceFactory.RaiseUtf8('%.Create: I% unexpected result type %',
             [self, InterfaceDotMethodName, ArgTypeName^]);
         imvCardinal:
           if ArgRtti.Info = TypeInfo(TServiceCustomStatus) then
@@ -3969,7 +3981,7 @@ begin
           begin
             for a := ArgsOutFirst to ArgsOutLast do
               if Args[a].ValueDirection in [imdVar, imdOut] then
-                raise EInterfaceFactory.CreateUtf8('%.Create: I% var/out ' +
+                EInterfaceFactory.RaiseUtf8('%.Create: I% var/out ' +
                   'parameter [%] not allowed with TServiceCustomAnswer result',
                   [self, InterfaceDotMethodName, Args[a].ParamName^]);
             ArgsResultIsServiceCustomAnswer := true;
@@ -3979,7 +3991,7 @@ begin
         // which requires the result to be in X8 which is not handled yet
         // - see aarch64/cpupara.pas: tcpuparamanager.create_paraloc_info_intern
         else if not (rcfIsManaged in ArgRtti.Flags) then
-          raise EInterfaceFactory.CreateUtf8(
+          EInterfaceFactory.RaiseUtf8(
             '%.Create: I% record result type % is unsupported on aarch64:' +
             'use an OUT parameter instead, or include a managed field',
             [self, InterfaceDotMethodName, ArgTypeName^]);
@@ -4048,14 +4060,14 @@ begin
             include(ValueKindAsm, vIsDynArrayString);
         imvSet:
           if not (ArgRtti.Size in [1, 2, 4, 8]) then
-            raise EInterfaceFactory.CreateUtf8(
+            EInterfaceFactory.RaiseUtf8(
               '%.Create: unexpected RTTI size = % in %.% method % parameter ' +
               'for % set - should match byte/word/integer/Int64 (1,2,4,8) sizes',
               [self, ArgRtti.Size, fInterfaceName, URI, ParamName^, ArgTypeName^]);
         imvRecord:
           if ArgRtti.Size <= POINTERBYTES then
             // handle records only when passed by ref
-            raise EInterfaceFactory.CreateUtf8(
+            EInterfaceFactory.RaiseUtf8(
               '%.Create: % record too small in %.% method % parameter: it ' +
               'should be at least % bytes (i.e. bigger than a pointer) to be on stack',
               [self, ArgTypeName^, fInterfaceName, URI, ParamName^, POINTERBYTES + 1]);
@@ -4179,7 +4191,7 @@ begin
       inc(ArgsSizeInStack); // ensure pointer-aligned
     {$endif OSDARWINARM}
     if ArgsSizeInStack > MAX_EXECSTACK then
-      raise EInterfaceFactory.CreateUtf8(
+      EInterfaceFactory.RaiseUtf8(
         '%.Create: Stack size % > % for %.% method parameters',
         [self, ArgsSizeInStack, MAX_EXECSTACK, fInterfaceName, URI]);
     {$ifdef CPUX86}
@@ -4202,18 +4214,17 @@ begin
       with fMethods[m] do
       begin
         WR.CancelAll;
-        WR.Add('[');
+        WR.AddDirect('[');
         for a := ArgsOutFirst to ArgsOutLast do
           with Args[a] do
           if ValueDirection <> imdConst then
             AddDefaultJson(WR);
-        WR.CancelLastComma;
-        WR.Add(']');
+        WR.CancelLastComma(']');
         WR.SetText(DefaultResult);
       end;
     // compute the service contract as a JSON array
     WR.CancelAll;
-    WR.Add('[');
+    WR.AddDirect('[');
     for m := 0 to MethodsCount - 1 do
       with fMethods[m] do
       begin
@@ -4223,8 +4234,7 @@ begin
         WR.CancelLastComma;
         WR.AddShorter(']},');
       end;
-    WR.CancelLastComma;
-    WR.Add(']');
+    WR.CancelLastComma(']');
     WR.SetText(fContract);
     {$ifdef SOA_DEBUG}
     JsonReformatToFile(fContract,TFileName(fInterfaceName + '-' +
@@ -4287,7 +4297,7 @@ begin
     raise EInterfaceFactory.Create('TInterfaceFactory(nil).CheckMethodIndex');
   result := FindMethodIndex(aMethodName);
   if result < 0 then
-    raise EInterfaceFactory.CreateUtf8('%.CheckMethodIndex: %.% not found',
+    EInterfaceFactory.RaiseUtf8('%.CheckMethodIndex: %.% not found',
       [self, fInterfaceName, aMethodName]);
 end;
 
@@ -4741,7 +4751,7 @@ begin
       sa^.ParamName := a^.ParamName;
       sa^.ArgTypeName := a^.TypeName;
       if a^.TypeInfo = nil then // happens e.g. for enumerates with values
-        raise EInterfaceFactory.CreateUtf8(
+        EInterfaceFactory.RaiseUtf8(
           '%.AddMethodsFromTypeInfo: parameter %: % in method %.% has no RTTI',
           [self, a^.ParamName^, a^.TypeName^, info.Name, m^.Name]);
       sa^.ArgRtti := Rtti.RegisterType(a^.TypeInfo) as TRttiJson;
@@ -4771,7 +4781,7 @@ var
   u: RawUtf8;
 begin
   if Length(aParams) mod ARGPERARG <> 0 then
-    raise EInterfaceFactory.CreateUtf8(
+    EInterfaceFactory.RaiseUtf8(
       '%: invalid aParams count for %.AddMethod("%")', [fInterfaceName, self, aName]);
   meth := fMethod.AddUniqueName(aName, '%.% method: duplicated generated name for %',
     [fInterfaceName, aName, self]);
@@ -4787,21 +4797,21 @@ begin
   begin
     arg := @meth^.Args[a + 1];
     if aParams[a * ARGPERARG].VType <> vtInteger then
-      raise EInterfaceFactory.CreateUtf8(
+      EInterfaceFactory.RaiseUtf8(
         '%: invalid param type #% for %.AddMethod("%")',
         [fInterfaceName, a, self, aName]);
     arg^.ValueDirection :=
       TInterfaceMethodValueDirection(aParams[a * ARGPERARG].VInteger);
     VarRecToUtf8(aParams[a * ARGPERARG + 1], u);
     if u = '' then
-      raise EInterfaceFactory.CreateUtf8(
+      EInterfaceFactory.RaiseUtf8(
         '%: invalid param name #% for %.AddMethod("%")',
         [fInterfaceName, a, self, aName]);
     insert(AnsiChar(Length(u)), u, 1); // create fake PShortString
     arg^.ParamName := pointer(u);
     fTempStrings[ns + a] := u;
     if aParams[a * ARGPERARG + 2].VType <> vtPointer then
-      raise EInterfaceFactory.CreateUtf8(
+      EInterfaceFactory.RaiseUtf8(
         '%: expect TypeInfo() at #% for %.AddMethod("%")',
         [fInterfaceName, a, self, aName]);
     arg^.ArgRtti := Rtti.RegisterType(aParams[a * ARGPERARG + 2].VPointer) as TRttiJson;
@@ -4815,12 +4825,12 @@ var
 begin
   if (aInterface = nil) or
      (self = TInterfaceFactoryGenerated) then
-    raise EInterfaceFactory.CreateUtf8('%.RegisterInterface(nil)', [self]);
+    EInterfaceFactory.RaiseUtf8('%.RegisterInterface(nil)', [self]);
   cache := InterfaceFactoryCache;
   cache.Safe.WriteLock;
   try
     if FactorySearch(pointer(cache.List), cache.Count, aInterface) <> nil then
-      raise EInterfaceFactory.CreateUtf8('Duplicated %.RegisterInterface(%)',
+      EInterfaceFactory.RaiseUtf8('Duplicated %.RegisterInterface(%)',
         [self, aInterface^.RawName]);
     cache.Add(Create(aInterface));
   finally
@@ -4929,7 +4939,7 @@ begin
 end;
 
 function TInterfaceResolver.Resolve(const aGuid: TGuid; out Obj;
-  aRaiseIfNotFound: EInterfaceResolver): boolean;
+  aRaiseIfNotFound: ESynExceptionClass): boolean;
 var
   known: TInterfaceFactory;
 begin
@@ -4945,7 +4955,7 @@ begin
   end;
   if (aRaiseIfNotFound <> nil) and
      not result then
-    raise aRaiseIfNotFound.CreateUtf8('%.Resolve(%) unsatisfied',
+    aRaiseIfNotFound.RaiseUtf8('%.Resolve(%) unsatisfied',
       [self, GuidToShort(aGuid)]);
 end;
 
@@ -4958,11 +4968,11 @@ begin
   if (self = nil) or
      (n = 0) or
      (n and 1 = 1) then
-    raise EInterfaceResolver.CreateUtf8('%.Resolve([odd])', [self]);
+    EInterfaceResolver.RaiseUtf8('%.Resolve([odd])', [self]);
   for i := 0 to (n shr 1) - 1 do
     if not TryResolve(aInterfaceObjPairs[i * 2], aInterfaceObjPairs[i * 2 + 1]^) then
       if aRaiseExceptionIfNotFound then
-        raise EInterfaceResolver.CreateUtf8('%.ResolveByPair(%) unsatisfied',
+        EInterfaceResolver.RaiseUtf8('%.ResolveByPair(%) unsatisfied',
           [self, PRttiInfo(aInterfaceObjPairs[i * 2])^.RawName]);
 end;
 
@@ -4976,14 +4986,14 @@ begin
   if (self = nil) or
      (n = 0) or
      (n <> length(aObjs)) then
-    raise EInterfaceResolver.CreateUtf8('%.Resolve([?,?])', [self]);
+    EInterfaceResolver.RaiseUtf8('%.Resolve([?,?])', [self]);
   for i := 0 to n - 1 do
     if PPointer(aObjs[i])^ = nil then
     begin
       info := TInterfaceFactory.Guid2TypeInfo(aInterfaces[i]);
       if not TryResolve(info, aObjs[i]^) then
         if aRaiseExceptionIfNotFound then
-          raise EInterfaceResolver.CreateUtf8('%.Resolve(%) unsatisfied',
+          EInterfaceResolver.RaiseUtf8('%.Resolve(%) unsatisfied',
             [self, info^.RawName]);
     end;
 end;
@@ -4998,10 +5008,10 @@ begin
   fInterfaceTypeInfo := aInterface;
   guid := aInterface^.InterfaceGuid;
   if guid = nil then
-    raise EInterfaceResolver.CreateUtf8('%.Create expects an Interface', [self]);
+    EInterfaceResolver.RaiseUtf8('%.Create expects an Interface', [self]);
   fImplementationEntry := aImplementation.GetInterfaceEntry(guid^);
   if fImplementationEntry = nil then
-    raise EInterfaceResolver.CreateUtf8('%.Create: % does not implement %',
+    EInterfaceResolver.RaiseUtf8('%.Create: % does not implement %',
       [self, aImplementation, fInterfaceTypeInfo^.RawName]);
   aInterface^.InterfaceAncestors(fInterfaceAncestors, aImplementation,
     fInterfaceAncestorsImplementationEntry);
@@ -5088,20 +5098,20 @@ var
 begin
   if (aInterface = nil) or
      (aImplementationClass = nil) then
-    raise EInterfaceResolver.CreateUtf8('%.Add(nil)', [self]);
+    EInterfaceResolver.RaiseUtf8('%.Add(nil)', [self]);
   if aInterface^.Kind <> rkInterface then
-    raise EInterfaceResolver.CreateUtf8('%.Add(%): % is not an interface',
+    EInterfaceResolver.RaiseUtf8('%.Add(%): % is not an interface',
       [self, aInterface^.RawName]);
   result := aImplementationClass.GetInterfaceEntry(aInterface^.InterfaceGuid^);
   if result = nil then
-    raise EInterfaceResolver.CreateUtf8('%.Add(): % does not implement %',
+    EInterfaceResolver.RaiseUtf8('%.Add(): % does not implement %',
       [self, aImplementationClass, aInterface^.RawName]);
   fSafe.WriteLock;
   for i := 0 to length(fEntry) - 1 do
     if fEntry[i].TypeInfo = aInterface then
     begin
       fSafe.WriteUnLock;
-      raise EInterfaceResolver.CreateUtf8('%.Add(%): % already registered',
+      EInterfaceResolver.RaiseUtf8('%.Add(%): % already registered',
         [self, aImplementationClass, aInterface^.RawName]);
     end;
 end; // caller should explicitly call fSafe.WriteUnLock
@@ -5118,12 +5128,10 @@ begin
     // here we are protected within a fSafe.WriteLock
     n := length(fEntry);
     SetLength(fEntry, n + 1);
-    begin
-      en := @fEntry[n];
-      en^.TypeInfo := aInterface;
-      en^.ImplementationClass := Rtti.RegisterClass(aImplementationClass);
-      en^.InterfaceEntry := e;
-    end;
+    en := @fEntry[n];
+    en^.TypeInfo := aInterface;
+    en^.ImplementationClass := Rtti.RegisterClass(aImplementationClass);
+    en^.InterfaceEntry := e;
   finally
     fSafe.WriteUnLock;
   end;
@@ -5145,7 +5153,7 @@ begin
       en := @fEntry[n];
       en^.TypeInfo := aInterface;
       if not GetInterfaceFromEntry(aImplementation, e, en^.Instance) then
-        raise EInterfaceResolver.CreateUtf8('Unexcepted %.Add(%,%)',
+        EInterfaceResolver.RaiseUtf8('Unexcepted %.Add(%,%)',
           [self, aInterface^.RawName, aImplementation]);
       en^.InterfaceEntry := e;
     end;
@@ -5161,7 +5169,7 @@ var
 begin
   if (aInterface = nil) or
      (aInterface^.Kind <> rkInterface) then
-    raise EInterfaceResolver.CreateUtf8('%.Delete(?)', [self]);
+    EInterfaceResolver.RaiseUtf8('%.Delete(?)', [self]);
   fSafe.WriteLock;
   try
     last := length(fEntry) - 1;
@@ -5171,7 +5179,7 @@ begin
       if e^.TypeInfo = aInterface then
       begin
         if e^.Instance = nil then
-          raise EInterfaceResolver.CreateUtf8(
+          EInterfaceResolver.RaiseUtf8(
             '%.Delete(%) does not match an instance, but a class',
             [self, aInterface^.RawName]);
         e^.Instance := nil; // avoid GPF
@@ -5387,7 +5395,7 @@ end;
 procedure TInjectableObject.Resolve(aInterface: PRttiInfo; out Obj);
 begin
   if not TryResolve(aInterface, Obj) then
-    raise EInterfaceResolver.CreateUtf8('%.Resolve(%) unsatisfied', [self,
+    EInterfaceResolver.RaiseUtf8('%.Resolve(%) unsatisfied', [self,
       aInterface^.RawName]);
 end;
 
@@ -5397,7 +5405,7 @@ var
 begin
   info := TInterfaceFactory.Guid2TypeInfo(aGuid);
   if not TryResolve(info, Obj) then
-    raise EInterfaceResolver.CreateUtf8('%.Resolve(%): unsatisfied',
+    EInterfaceResolver.RaiseUtf8('%.Resolve(%): unsatisfied',
       [self, info^.RawName]);
 end;
 
@@ -5408,7 +5416,7 @@ begin
   else if high(aInterfaceObjPairs) = 1 then
     Resolve(aInterfaceObjPairs[0], aInterfaceObjPairs[1]^)
   else
-    raise EInterfaceResolver.CreateUtf8('%.ResolveByPair(?)', [self]);
+    EInterfaceResolver.RaiseUtf8('%.ResolveByPair(?)', [self]);
 end;
 
 procedure TInjectableObject.Resolve(const aInterfaces: array of TGuid;
@@ -5420,10 +5428,10 @@ begin
           (high(aObjs) = 0) then
     Resolve(aInterfaces[0], aObjs[0]^)
   else
-    raise EInterfaceResolver.CreateUtf8('%.Resolve(?,?)', [self]);
+    EInterfaceResolver.RaiseUtf8('%.Resolve(?,?)', [self]);
 end;
 
-type // to access fAutoCreateInterfaces protected field
+type // to access fAutoResolveInterfaces protected field
   TRttiCustomWrapper = class(TRttiJson);
 
 procedure TInjectableObject.AutoResolve(aRaiseEServiceExceptionIfNotFound: boolean);
@@ -5435,8 +5443,7 @@ var
 begin
   if (self = nil) or
      (fResolver = nil) then
-    raise EInterfaceResolver.CreateUtf8(
-      '%.AutoResolve with no prior registration', [self]);
+    EInterfaceResolver.RaiseUtf8('%.AutoResolve with no prior registration', [self]);
   // inlined Rtti.RegisterClass()
   {$ifdef NOPATCHVMT}
   r := pointer(Rtti.FindType(PPointer(PPAnsiChar(self)^ + vmtTypeInfo)^));
@@ -5447,7 +5454,7 @@ begin
      not (rcfAutoCreateFields in r.Flags) then
     r := DoRegisterAutoCreateFields(self);
   // resolve all published interface fields
-  p := pointer(TRttiCustomWrapper(r).fAutoCreateInterfaces);
+  p := pointer(TRttiCustomWrapper(r).fAutoResolveInterfaces);
   if p = nil then
     exit;
   n := PDALen(PAnsiChar(p) - _DALEN)^ + _DAOFF; // length(AutoCreateClasses)
@@ -5455,7 +5462,7 @@ begin
     addr := PAnsiChar(self) + p^^.OffsetGet;
     if not TryResolve(p^^.Value.Info, addr^) then
       if aRaiseEServiceExceptionIfNotFound then
-        raise EInterfaceResolver.CreateUtf8(
+        EInterfaceResolver.RaiseUtf8(
           '%.AutoResolve: impossible to resolve published property %: %',
           [self, p^^.Name, p^^.Value.Name]);
     inc(p);
@@ -5483,7 +5490,7 @@ begin
   if fResolver <> nil then
     exit; // inject once!
   if aResolver = nil then
-    raise EInterfaceResolver.CreateUtf8('%.CreateWithResolver(nil)', [self]);
+    EInterfaceResolver.RaiseUtf8('%.CreateWithResolver(nil)', [self]);
   fResolver := aResolver; // may be needed by overriden Create
   Create;
   AutoResolve(aRaiseEServiceExceptionIfNotFound);
@@ -5802,8 +5809,7 @@ begin
           break;
       end;
     end;
-    W.CancelLastComma;
-    W.Add(']');
+    W.CancelLastComma(']');
     W.SetText(fResult);
   finally
     W.Free;
@@ -5825,22 +5831,19 @@ begin
 end;
 
 procedure TOnInterfaceStubExecuteParamsVariant.AddLog(aLog: TSynLogClass;
-  aOutput: boolean; aLevel: TSynLogInfo);
+  aOutput: boolean; aLevel: TSynLogLevel);
 var
   val: variant;
 begin
-  if aLog = nil then
+  if (aLog = nil) or
+     not (aLevel in aLog.Family.Level) then
     exit;
-  with aLog.Family do
-    if aLevel in Level then
-    begin
-      if aOutput then
-        val := OutputAsDocVariant(pdvObjectFixed)
-      else
-        val := InputAsDocVariant(pdvObjectFixed);
-      SynLog.Log(aLevel, '%(%)', [fMethod^.InterfaceDotMethodName,
-         _Safe(val)^.ToTextPairs('=', ',', twJsonEscape)], self);
-    end;
+  if aOutput then
+    val := OutputAsDocVariant(pdvObjectFixed)
+  else
+    val := InputAsDocVariant(pdvObjectFixed);
+  aLog.Add.Log(aLevel, '%(%)', [fMethod^.InterfaceDotMethodName,
+     _Safe(val)^.ToTextPairs('=', ',', twJsonEscape)], self);
 end;
 
 
@@ -5852,9 +5855,8 @@ var
   i: PtrInt;
 begin
   if aFactory = nil then
-    raise EInterfaceStub.CreateUtf8(
-      '%.Create(%): Interface not registered - you could use ' +
-      'TInterfaceFactory.RegisterInterfaces()', [self, aInterfaceName]);
+    EInterfaceStub.RaiseUtf8('%.Create(%): Interface not registered - please' +
+      ' use TInterfaceFactory.RegisterInterfaces()', [self, aInterfaceName]);
   fInterface := aFactory;
   SetLength(fRules, fInterface.MethodsCount);
   for i := 0 to fInterface.MethodsCount - 1 do
@@ -5879,7 +5881,7 @@ begin
   result := aValid;
   if aExpectationFailed and
      not aValid then
-    raise EInterfaceStub.CreateUtf8('%.InternalCheck(%) failed: %', [self,
+    EInterfaceStub.RaiseUtf8('%.InternalCheck(%) failed: %', [self,
       fInterface.fInterfaceName, FormatUtf8(aErrorMsgFmt, aErrorMsgArgs)]);
 end;
 
@@ -6052,7 +6054,7 @@ end;
 type
   TInterfaceStubExecutesToLog = packed record
     Log: TSynLogClass;
-    LogLevel: TSynLogInfo;
+    LogLevel: TSynLogLevel;
     Kind: TInterfaceMethodParamsDocVariantKind;
   end;
   PInterfaceStubExecutesToLog = ^TInterfaceStubExecutesToLog;
@@ -6065,7 +6067,7 @@ begin
        Ctxt.InputAsDocVariant(Kind, JSON_FAST_EXTENDED)]);
 end;
 
-function TInterfaceStub.Executes(aLog: TSynLogClass; aLogLevel: TSynLogInfo;
+function TInterfaceStub.Executes(aLog: TSynLogClass; aLogLevel: TSynLogLevel;
   aKind: TInterfaceMethodParamsDocVariantKind): TInterfaceStub;
 var
   tmp: RawUtf8;
@@ -6375,7 +6377,7 @@ begin
   begin
     WR := TJsonWriter.CreateOwnedStream(temp);
     try
-      log := Pointer(fLogs);
+      log := pointer(fLogs);
       if asmndx < RESERVED_VTABLE_SLOTS then
         for i := 1 to fLogCount do
         begin
@@ -6590,7 +6592,7 @@ type
   end;
   PPerThreadRunningContext = ^TPerThreadRunningContext;
 
-threadvar
+threadvar // do not publish for compilation within Delphi packages
   PerThreadRunningContext: TPerThreadRunningContext;
 
 function PerThreadRunningContextAddress: pointer;
@@ -6609,7 +6611,6 @@ type
     doInstanceRelease,
     doThreadMethod);
 
-  PBackgroundLauncher = ^TBackgroundLauncher;
   TBackgroundLauncher = record
     Context: PPerThreadRunningContext;
     case Action: TBackgroundLauncherAction of
@@ -6620,6 +6621,7 @@ type
       doThreadMethod: (
         ThreadMethod: TThreadMethod)
   end;
+  PBackgroundLauncher = ^TBackgroundLauncher;
 
 procedure BackgroundExecuteProc(Call: pointer); forward;
 
@@ -6637,7 +6639,7 @@ begin
     else
     {$ifdef OSWINDOWS}
     if Assigned(ServiceSingle) then
-       raise ESynThread.CreateUtf8('BackgroundExecute(%,backgroundThread=nil)' +
+       ESynThread.RaiseUtf8('BackgroundExecute(%,backgroundThread=nil)' +
          'is not compatible with a Windows Service which has no main thread',
          [GetEnumName(TypeInfo(TBackgroundLauncherAction), ord(synch.Action))^])
     else
@@ -7176,7 +7178,7 @@ begin
         if arg^.RegisterIdent > 0 then
           call.ParamRegs[arg^.RegisterIdent] := PPtrInt(pv)^;
         if arg^.FPRegisterIdent > 0 then
-          raise EInterfaceFactory.CreateUtf8('Unexpected % FPReg=%',
+          EInterfaceFactory.RaiseUtf8('Unexpected % FPReg=%',
             [arg^.ParamName^, arg^.FPRegisterIdent]); // should never happen
       end;
     end
@@ -7203,7 +7205,7 @@ begin
           call.FPRegs[arg^.FPRegisterIdent] := unaligned(PDouble(pv^)^);
         if (arg^.RegisterIdent > 0) and
            (arg^.FPRegisterIdent > 0) then
-          raise EInterfaceFactory.CreateUtf8('Unexpected % reg=% FP=%',
+          EInterfaceFactory.RaiseUtf8('Unexpected % reg=% FP=%',
             [arg^.ParamName^, arg^.RegisterIdent, arg^.FPRegisterIdent]);
         {$endif HAS_FPREG}
       end;
@@ -7290,7 +7292,7 @@ begin
         // multiple Instances[] notifies with fExecutedInstancesFailed[]
         if fExecutedInstancesFailed = nil then
           SetLength(fExecutedInstancesFailed, InstancesLast + 1);
-        fExecutedInstancesFailed[i] := ObjectToJsonDebug(Exc);
+        ObjectToJson(Exc, fExecutedInstancesFailed[i], TEXTWRITEROPTIONS_DEBUG);
       end;
     end;
   end;
@@ -7555,13 +7557,14 @@ begin
               ctxt.{$ifdef USERECORDWITHMETHODS}Get.{$endif}Json := ParObjValues[a]
           else if ctxt.Json = nil then
             break; // premature end of ..] (ParObjValuesUsed=false)
-          if arg^.ValueType = imvInterface then
+          if (arg^.ValueType = imvInterface) and
+             not (vIsInterfaceJson in arg^.ValueKindAsm) then // e.g. not IDocList
             if Assigned(OnCallback) then
               // retrieve TRestServerUriContext.ExecuteCallback fake interface
               // via TServiceContainerServer.GetFakeCallback
               OnCallback(ctxt, arg^.ArgRtti, PInterface(fValues[a])^)
             else
-              raise EInterfaceFactory.CreateUtf8('OnCallback=nil for %(%: %)',
+              EInterfaceFactory.RaiseUtf8('OnCallback=nil for %(%: %)',
                 [fMethod^.InterfaceDotMethodName, arg^.ParamName^,
                  arg^.ArgTypeName^]) // paranoid (already checked before)
           else if not arg^.SetFromJson(ctxt, fMethod, fValues[a], Error) then
@@ -7697,7 +7700,7 @@ end;
 
 procedure SetWeak(aInterfaceField: PInterface; const aValue: IInterface);
 begin
-  PPointer(aInterfaceField)^ := Pointer(aValue);
+  PPointer(aInterfaceField)^ := pointer(aValue);
 end;
 
 

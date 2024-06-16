@@ -34,13 +34,15 @@ const
   NI_MAXHOST = 1025;
   NI_MAXSERV = 32;
 
-  WSATRY_AGAIN = ESysEAGAIN;
+  WSATRY_AGAIN     = ESysEAGAIN;
   WSAEADDRNOTAVAIL = ESysEADDRNOTAVAIL;
-  WSAECONNABORTED = ESysECONNABORTED;
-  WSAETIMEDOUT = ESysETIMEDOUT;
-  WSAEINVAL = ESysEINVAL;
-  WSAEMFILE = ESysEMFILE;
-  WSAECONNREFUSED = ESysECONNREFUSED;
+  WSAECONNABORTED  = ESysECONNABORTED;
+  WSAECONNRESET    = ESysECONNRESET;
+  WSAETIMEDOUT     = ESysETIMEDOUT;
+  WSAEINVAL        = ESysEINVAL;
+  WSAEMFILE        = ESysEMFILE;
+  WSAECONNREFUSED  = ESysECONNREFUSED;
+  WSAEINPROGRESS   = ESysEINPROGRESS;
 
   {$ifdef OSLINUX}
   SOCK_NONBLOCK = O_NONBLOCK; // see net.h
@@ -91,11 +93,15 @@ const
     SOCK_STREAM,
     SOCK_DGRAM,
     SOCK_STREAM);
-
   _IP: array[TNetLayer] of integer = (
     IPPROTO_TCP,
     IPPROTO_UDP,
     0);
+  _SF: array[TNetFamily] of integer = (
+    0,
+    AF_INET,
+    AF_INET6,
+    AF_UNIX);
 
 {$packrecords C}
 
@@ -123,27 +129,27 @@ type
 
 const
   // poll() flag when there is data to read
-  POLLIN       = $001;
+  POLLIN       = $0001;
   // poll() flag when there is urgent data to read
-  POLLPRI      = $002;
+  POLLPRI      = $0002;
   // poll() flag when writing now will not block
-  POLLOUT      = $004;
+  POLLOUT      = $0004;
   // poll() flag error condition (always implicitly polled for)
-  POLLERR      = $008;
+  POLLERR      = $0008;
   // poll() flag hung up (always implicitly polled for)
-  POLLHUP      = $010;
+  POLLHUP      = $0010;
   // poll() flag invalid polling request (always implicitly polled for)
-  POLLNVAL     = $020;
+  POLLNVAL     = $0020;
   // poll() flag when normal data may be read
-  POLLRDNORM   = $040;
+  POLLRDNORM   = $0040;
   // poll() flag when priority data may be read
-  POLLRDBAND   = $080;
+  POLLRDBAND   = $0080;
   // poll() flag when writing now will not block
-  POLLWRNORM   = $100;
+  POLLWRNORM   = $0100;
   // poll() flag when priority data may be written
-  POLLWRBAND   = $200;
+  POLLWRBAND   = $0200;
   // poll() flag extension for Linux
-  POLLMSG      = $400;
+  POLLMSG      = $0400;
 
 type
   /// polling request data structure for poll()
@@ -251,23 +257,23 @@ begin
   result := fpselect(nfds, readfds, writefds, exceptfds, timeout);
 end;
 
-function recv(s: integer; Buf: Pointer; len: size_t; flags: integer): ssize_t; inline;
+function recv(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; inline;
 begin
   result := fprecv(s, Buf, len, flags);
 end;
 
-function recvfrom(s: integer; Buf: Pointer; len: size_t; flags: integer;
+function recvfrom(s: integer; Buf: pointer; len: size_t; flags: integer;
    from: PSockAddr; fromlen: pSocklen): ssize_t; inline;
 begin
  result := fprecvfrom(s, Buf, len, flags, from, fromlen);
 end;
 
-function send(s: integer; Buf: Pointer; len: size_t; flags: integer): ssize_t; inline;
+function send(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; inline;
 begin
   result := fpsend(s, Buf, len, flags);
 end;
 
-function sendto(s: integer; Buf: Pointer; len: size_t; flags: integer;
+function sendto(s: integer; Buf: pointer; len: size_t; flags: integer;
    addrto: PSockAddr; tolen: integer): ssize_t; inline;
 begin
  result := fpsendto(s, Buf, len, flags, addrto, tolen);
@@ -340,17 +346,17 @@ function select(nfds: integer; readfds, writefds, exceptfds: PFDSet;
    timeout: PTimeVal): integer; cdecl;
   external clib name 'select' + LIBC_SUFFIX;
 
-function recv(s: integer; Buf: Pointer; len: size_t; flags: integer): ssize_t; cdecl;
+function recv(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; cdecl;
   external clib name 'recv' + LIBC_SUFFIX;
 
-function recvfrom(s: integer; Buf: Pointer; len: size_t; flags: integer;
+function recvfrom(s: integer; Buf: pointer; len: size_t; flags: integer;
    from: PSockAddr; fromlen: Pinteger): ssize_t; cdecl;
   external clib name 'recvfrom' + LIBC_SUFFIX;
 
-function send(s: integer; Buf: Pointer; len: size_t; flags: integer): ssize_t; cdecl;
+function send(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; cdecl;
   external clib name 'send' + LIBC_SUFFIX;
 
-function sendto(s: integer; Buf: Pointer; len: size_t; flags: integer;
+function sendto(s: integer; Buf: pointer; len: size_t; flags: integer;
    addrto: PSockAddr; tolen: integer): ssize_t; cdecl;
   external clib name 'sendto' + LIBC_SUFFIX;
 
@@ -359,7 +365,7 @@ function getpeername(s: integer; name: PSockAddr; var namelen: tsocklen): intege
 
 {$endif SOCKDIRECTSYSCALL}
 
-{$ifdef OSDARWIN}
+{$ifdef OSDARWIN2}
 // circumvent linking issue on Mac OSX
 function poll(fds: PPollFD; nfds, timeout: integer): integer; inline;
 begin
@@ -463,8 +469,8 @@ begin
            addr4.sin_addr := h^.h_addr^^;
         AF_INET6:
            psockaddr6(@Addr)^.sin6_addr := h^.h_addr6^^;
-        else
-          result := nrNotImplemented;
+      else
+        result := nrNotImplemented;
       end;
     end;
   finally
@@ -585,6 +591,8 @@ var
   p: TPollFD; // select() limits p.fd<FD_SETSIZE=1024 on POSIX -> use poll()
   // https://moythreads.com/wordpress/2009/12/22/select-system-call-limitation
 begin
+  if loerr <> nil then
+    loerr^ := 0;
   result := [neError];
   if @self = nil then
     exit;
@@ -594,6 +602,7 @@ begin
     p.events := POLLIN or POLLPRI;
   if neWrite in scope then
     p.events := p.events or POLLOUT;
+  // POLLERR and POLLHUP are ignored in p.events: implicit [neError]
   p.revents := 0;
   res := poll(@p, 1, ms);
   if res < 0 then
@@ -601,7 +610,7 @@ begin
     res := sockerrno;
     if loerr <> nil then
       loerr^ := res;
-    if res = WSATRY_AGAIN then
+    if res = ESysEAGAIN then
       // timeout, not a true error
       result := [];
     exit;
@@ -611,12 +620,37 @@ begin
     include(result, neRead);
   if p.revents and POLLOUT <> 0 then
     include(result, neWrite);
+  if p.revents and POLLERR <> 0 then
+    include(result, neError);
   if p.revents and POLLHUP <> 0 then
-    include(result, neClosed);
+    include(result, neClosed); // may return neClosed + neRead e.g. on HTTP/1.0
 end;
 
 
 { ******************** Mac and IP Addresses Support }
+
+const
+  IFF_UP        = $1;
+  IFF_BROADCAST = $2;
+  IFF_LOOPBACK  = $8;
+
+  {$ifdef OSBSDDARWIN}
+
+  // https://github.com/apple/darwin-xnu/blob/main/bsd/net/if_types.h
+  IFT_ETHER    = $06;
+  IFT_PPP      = $17;
+  IFT_CELLULAR = $ff;
+
+  {$else}
+
+  // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/if_arp.h
+  ARPHRD_ETHER     = 1;
+  ARPHRD_PPP       = 512;
+  ARPHRD_TUNNEL    = 768;
+  ARPHRD_TUNNEL6   = 769;
+  ARPHRD_IEEE80211 = 801;
+
+  {$endif OSBSDDARWIN}
 
 {$ifndef OSANDROID}
   // on POSIX, use getifaddrs/freeifaddrs from libc
@@ -629,30 +663,73 @@ end;
   // https://android.googlesource.com/platform/bionic/+/master/docs/status.md
 {$endif OSANDROID}
 
+{$ifdef OSLINUX}
+procedure RetrieveEnhancedInfo(var a: TMacAddress);
+var
+  sysfs: RawUtf8;
+  p: PUtf8Char;
+  l: PtrInt;
+  ip: cardinal;
+begin
+  // see https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-net
+  sysfs := NetConcat(['/sys/class/net/', a.Name, '/']);
+  a.FriendlyName := TrimU(StringFromFile(sysfs + 'ifalias', {nosize=}true));
+  a.Speed := GetCardinal(pointer(StringFromFile(sysfs + 'speed', true)));
+  a.Mtu := GetCardinal(pointer(StringFromFile(sysfs + 'mtu', true)));
+  // we retrieve the gateway from /proc/net/route
+  l := length(a.Name);
+  p := pointer(StringFromFile('/proc/net/route', true));
+  while p <> nil do
+  begin
+    if (MemCmp(pointer(p), pointer(a.Name), l) = 0) and
+       (p[l] in [#9, ' ']) then
+    begin
+      inc(p, l + 1);
+      if NetGetNextSpaced(p) = '00000000' then // destination=0.0.0.0
+      begin
+        ip := 0;
+        ParseHex(pointer(NetGetNextSpaced(p)), @ip, 4);
+        ip := bswap32(ip);
+        IP4Text(@ip, a.Gateway);
+        break;
+      end;
+    end;
+    p := GotoNextLine(p);
+  end;
+end;
+{$endif OSLINUX}
+
 {$ifdef USE_IFADDRS}
 
 type
   pifaddrs = ^ifaddrs;
   ifaddrs = record
+    // Next item in list
     ifa_next: pifaddrs;
+    // null-terminated interface name
     ifa_name: PAnsiChar;
+    // mainly IFF_UP, IFF_BROADCAST and IFF_LOOPBACK
     ifa_flags: cardinal;
+    // Address of interface
     ifa_addr: Psockaddr;
+    // netmask associated with ifa_addr (may be nil)
     ifa_netmask: Psockaddr;
-    ifa_dstaddr: Psockaddr;
-    ifa_data: Pointer;
+    // if IFF_BROADCAST is set, the broadcast address associated with ifa_addr
+    ifa_broadaddr: Psockaddr;
+    // address-family-specific data - e.g. statistics on AF_PACKET
+    ifa_data: pointer;
   end;
 
   {$ifdef OSBSDDARWIN} // from bsd/net/if_dl.h
   psockaddr_dl = ^sockaddr_dl;
   sockaddr_dl = record
-    sdl_len: byte;	 // Total length of sockaddr
-    sdl_family: byte;	 // AF_LINK
-    sdl_index: word;	 // if != 0, system given index for interface
-    sdl_type: byte;	 // interface type
-    sdl_nlen: byte;	 // interface name length, no trailing 0 reqd.
-    sdl_alen: byte;	 // link level address length
-    sdl_slen: byte;	 // link layer selector length
+    sdl_len: byte;       // Total length of sockaddr
+    sdl_family: byte;    // AF_LINK
+    sdl_index: word;     // if != 0, system given index for interface
+    sdl_type: byte;      // interface type
+    sdl_nlen: byte;      // interface name length, no trailing 0 required
+    sdl_alen: byte;      // link level address length
+    sdl_slen: byte;      // link layer selector length
     sdl_data: array[byte] of byte; // interface name + link level address
   end;
   {$else}
@@ -668,11 +745,7 @@ type
   end;
   {$endif OSBSDDARWIN}
 
-const
-  IFF_UP = $1;
-  IFF_LOOPBACK = $8;
-
-function getifaddrs(var ifap: pifaddrs): Integer; cdecl;
+function getifaddrs(var ifap: pifaddrs): integer; cdecl;
   external clib name 'getifaddrs';
 
 procedure freeifaddrs(ifap: pifaddrs); cdecl;
@@ -728,51 +801,145 @@ var
   i, n: PtrInt;
   mac: RawUtf8;
 begin
+  // https://github.com/zeromq/czmq/blob/899f81985961513c7f4e/src/ziflist.c#L210
   result := nil;
   if getifaddrs(list) = NO_ERROR then
   try
     n := 0;
     info := list;
     repeat
-      if (info^.ifa_addr <> nil) and
+      mac := '';
+      if (info^.ifa_name <> nil) and
          (info^.ifa_flags and IFF_LOOPBACK = 0) and
          (UpAndDown or
           (info^.ifa_flags and IFF_UP <> 0)) and
+         ((info^.ifa_addr = nil) or
       // see https://stackoverflow.com/a/51218583/458259
       {$ifdef OSBSDDARWIN}
-         (info^.ifa_addr^.sa_family = AF_LINK) then
+          (info^.ifa_addr^.sa_family = AF_LINK)) then
       begin
-        mac := '';
-        with psockaddr_dl(info^.ifa_addr)^ do
-          if sdl_alen = 6 then
-            // #define LLADDR(s) ((caddr_t)((s)->sdl_data + (s)->sdl_nlen))
-            if PCardinal(@sdl_data[sdl_nlen])^ <> 2 then
-              // iOS7+ return always 02:00:00:00:00:00 as MAC addresses :(
-              mac := MacToText(@sdl_data[sdl_nlen]);
-        if mac <> '' then
+        if info^.ifa_addr <> nil then
+          with psockaddr_dl(info^.ifa_addr)^ do
+            if sdl_alen = 6 then
+              // #define LLADDR(s) ((caddr_t)((s)->sdl_data + (s)->sdl_nlen))
+              {$ifdef OSDARWIN}
+              if PCardinal(@sdl_data[sdl_nlen])^ <> 2 then
+                // iOS7+ return always 02:00:00:00:00:00 as MAC addresses :(
+              {$endif OSDARWIN}
+                mac := MacToText(@sdl_data[sdl_nlen]);
       {$else}
-         (info^.ifa_addr^.sa_family = AF_PACKET) then
+          (info^.ifa_addr^.sa_family = AF_PACKET)) then
       begin
-        mac := MacToText(@psockaddr_ll(info^.ifa_addr)^.sll_addr);
+        if info^.ifa_addr <> nil then
+          mac := MacToText(@psockaddr_ll(info^.ifa_addr)^.sll_addr);
       {$endif OSBSDDARWIN}
-        for i := 0 to n - 1 do
-          if result[i].Address = mac then
-          begin
-            mac := ''; // may appear several times for each IP
-            break;
-          end;
+        if mac = '' then
+          mac := '00:00:00:00:00:00' // for makSoftware (e.g. tunnel)
+        else
+          for i := 0 to n - 1 do
+            if result[i].Address = mac then
+            begin
+              mac := ''; // avoid any duplicate (paranoid)
+              break;
+            end;
         if mac <> '' then
         begin
           if n = length(result) then
             SetLength(result, NextGrow(n));
-          result[n].Name := info^.ifa_name;
-          result[n].Address := mac;
+          with result[n] do
+          begin
+            Name := info^.ifa_name; // e.g. 'eth0' on Linux
+            Address := mac;
+            if info^.ifa_addr <> nil then
+            begin
+              {$ifdef OSBSDDARWIN}
+              // BSD/DARWIN do name the networks from their manufacturer
+              // -> parse net.wlan.devices ?
+              IfIndex := psockaddr_dl(info^.ifa_addr)^.sdl_index;
+              case psockaddr_dl(info^.ifa_addr)^.sdl_type of
+                IFT_ETHER:
+                  Kind := makEthernet;
+                IFT_PPP:
+                  Kind := makPpp;
+                IFT_CELLULAR:
+                  Kind := makCellular;
+              {$else}
+              IfIndex := psockaddr_ll(info^.ifa_addr)^.sll_ifindex;
+              case psockaddr_ll(info^.ifa_addr)^.sll_hatype of
+                ARPHRD_ETHER:
+                  begin
+                    Kind := makEthernet;
+                    if Name <> '' then
+                      // set also for some wifi adapters
+                      if PWord(Name)^ = ord('w') + ord('l') shl 8 then
+                        Kind := makWifi; // detect by convention
+                  end;
+                ARPHRD_IEEE80211:
+                  Kind := makWifi;
+                ARPHRD_TUNNEL,
+                ARPHRD_TUNNEL6:
+                  Kind := makTunnel;
+                ARPHRD_PPP:
+                  Kind := makPpp;
+            {$endif OSBSDDARWIN}
+              else
+                // https://systemd.io/PREDICTABLE_INTERFACE_NAMES
+                if Name <> '' then
+                  case PWord(Name)^ of
+                    ord('e') + ord('t') shl 8,  // 'ethX'
+                    ord('e') + ord('n') shl 8:  // systemd v197 'enpXsX'
+                      Kind := makEthernet;
+                    ord('w') + ord('l') shl 8:  // 'wlanX' and systemd v197 'wlX'
+                      Kind := makWifi;
+                  end;
+              end;
+            end
+            else
+            begin
+              IfIndex := -1; // non physical interface
+              Kind := makSoftware;
+            end
+          end;
+          {$ifdef OSLINUX}
+          if info^.ifa_flags and IFF_UP <> 0 then
+            RetrieveEnhancedInfo(result[n]);
+          {$endif OSLINUX}
+          // on POSIX, there is no such things as per-interface DNS, and
+          // no standard way of knowing the Gateway
           inc(n);
         end;
       end;
       info := info^.ifa_next;
     until info = nil;
     SetLength(result, n);
+    // retrieve the IP configuration from a second loop
+    info := list;
+    repeat
+      if (info^.ifa_addr <> nil) and
+         (info^.ifa_flags and IFF_LOOPBACK = 0) and
+         (info^.ifa_flags and IFF_UP <> 0) and
+         (info^.ifa_addr^.sa_family = AF_INET) then
+        for i := 0 to n - 1 do
+          with result[i] do
+            if StrComp(pointer(Name), info^.ifa_name) = 0 then
+            begin
+              if IP = '' then // only return the first IPv4 (paranoid)
+              begin
+                IP4Text(@info^.ifa_addr^.sin_addr, IP);
+                if (info^.ifa_netmask <> nil) and
+                   (info^.ifa_netmask^.sa_family = AF_INET) then
+                  IP4Text(@info^.ifa_netmask^.sin_addr, NetMask);
+                if (info^.ifa_flags and IFF_BROADCAST <> 0) and
+                   (info^.ifa_broadaddr <> nil) and
+                   (info^.ifa_broadaddr^.sa_family = AF_INET) then
+                  IP4Text(@info^.ifa_broadaddr^.sin_addr, Broadcast);
+                  // don't use IP4Broadcast() because if the OS says there is
+                  // no broadcast address, then there is no broadcasting enabled
+              end;
+              break;
+            end;
+      info := info^.ifa_next;
+    until info = nil;
   finally
     freeifaddrs(list);
   end;
@@ -814,6 +981,11 @@ begin
             SetLength(result, n + 1);
             result[n].Name := SR.Name;
             result[n].Address := f;
+            RetrieveEnhancedInfo(result[n]);
+            // sadly, retrieving IP and mask from /proc is very complex
+            // https://stackoverflow.com/a/14725655/458259
+            // a solution may be to use ioctl()
+            // https://github.com/zeromq/czmq/blob/899f81985961513c7f4e/src/ziflist.c#L277
             inc(n);
           end;
         end;
@@ -834,11 +1006,32 @@ end;
 
 {$endif USE_IFADDRS}
 
+function GetLocalMacAddress(const Remote: RawUtf8; var Mac: TMacAddress): boolean;
+var
+  local: RawUtf8;
+  all: TMacAddressDynArray;
+  i: PtrInt;
+begin
+  result := false;
+  local := GetLocalIpAddress(Remote);
+  if local = '' then
+    exit;
+  all := GetMacAddresses;
+  for i := 0 to high(all) do
+    if all[i].IP = local then
+    begin
+      mac := all[i];
+      result := true;
+      break;
+    end;
+end;
+
+procedure NetAddRawUtf8(var Values: TRawUtf8DynArray; const Value: RawUtf8); forward;
+
 function _GetDnsAddresses(usePosixEnv, getAD: boolean): TRawUtf8DynArray;
 var
   resolv, one: RawUtf8;
   p: PUtf8Char;
-  n: PtrInt;
   ok: boolean;
 begin
   result := nil;
@@ -846,9 +1039,8 @@ begin
     resolv := StringFromFile(GetEnvironmentVariable('ETC'), true);
   if resolv = '' then
     // all systems are likely to have or generate this file
-    // - the libc seems to read it for its gethostname()
+    // - even the libc seems to read it when implementing gethostname()
     resolv := StringFromFile('/etc/resolv.conf');
-  n := 0;
   p := pointer(resolv);
   while p <> nil do
   begin
@@ -870,9 +1062,7 @@ begin
         one := NetGetNextSpaced(p);
         if one = '' then
           break;
-        SetLength(result, n + 1);
-        result[n] := one;
-        inc(n);
+        NetAddRawUtf8(result, one);
       until false;
     end;
     p := GotoNextLine(p);
@@ -881,6 +1071,16 @@ end;
 
 
 { ******************** Efficient Multiple Sockets Polling }
+
+function PseToPollEvent(events: TPollSocketEvents): integer; inline;
+begin
+  if pseRead in events then
+    result := POLLIN or POLLPRI
+  else
+    result := 0;
+  if pseWrite in events then
+    result := result or POLLOUT;
+end;
 
 type
   /// socket polling via the POSIX poll API
@@ -920,12 +1120,7 @@ begin
      (byte(events) = 0) or
      (fCount = fMaxSockets) then
     exit;
-  if pseRead in events then
-    e := POLLIN or POLLPRI
-  else
-    e := 0;
-  if pseWrite in events then
-    e := e or POLLOUT;
+  e := PseToPollEvent(events);
   s := PtrUInt(socket);
   new := -1;
   p := pointer(fFD);
@@ -1018,9 +1213,26 @@ begin
   result := false;
 end;
 
+function PollEventToPse(r: integer): TPollSocketEvents; inline;
+begin
+  if r = POLLIN then
+    byte(result) := byte([pseRead]) // optimized for the most common case
+  else
+  begin
+    byte(result) := 0;
+    if r and (POLLIN or POLLPRI) <> 0 then
+      include(result, pseRead);
+    if r and POLLOUT <> 0 then
+      include(result, pseWrite);
+    if r and POLLERR <> 0 then
+      include(result, pseError);
+    if r and POLLHUP <> 0 then
+      include(result, pseClosed);
+  end;
+end;
+
 procedure PollConvert(p: PPollFD; d: PPollSocketResult; n: integer; t: PPollSocketTag);
 var
-  e: TPollSocketEvents;
   r: integer;
 begin
   repeat
@@ -1028,21 +1240,7 @@ begin
     if (r <> 0) and
        (p^.fd > 0) then
     begin
-      if r = POLLIN then
-        byte(e) := byte([pseRead]) // optimized for the most common case
-      else
-      begin
-        byte(e) := 0;
-        if r and (POLLIN or POLLPRI) <> 0 then
-          include(e, pseRead);
-        if r and POLLOUT <> 0 then
-          include(e, pseWrite);
-        if r and POLLERR <> 0 then
-          include(e, pseError);
-        if r and POLLHUP <> 0 then
-          include(e, pseClosed);
-      end;
-      SetRes(d^, t^, e);
+      SetRes(d^, t^, PollEventToPse(r));
       inc(d);
       p^.revents := 0; // reset result flags for reuse
     end;
@@ -1082,6 +1280,60 @@ begin
   result := TPollSocketPoll.Create(nil);
 end;
 
+function WaitForSeveral(const Sockets: TPollSocketsSubscribeDynArray;
+  var results: TPollSocketResults; timeoutMS: integer): boolean;
+var
+  n, res: integer;
+  fd: array of TPollFD;
+  s: PPollSocketsSubscribe;
+  p: PPollFD;
+  r: PPollSocketResult;
+begin
+  result := false;
+  results.Count := 0;
+  n := length(Sockets);
+  if n = 0 then
+    exit;
+  SetLength(fd, n);
+  res := 0;
+  s := pointer(Sockets);
+  p := pointer(fd);
+  repeat
+    if pseRead in s^.events then
+    begin
+      p^.fd := PtrUInt(s^.socket);
+      p^.events := POLLIN or POLLPRI;
+      inc(p);
+      inc(res);
+    end;
+    inc(s);
+    dec(n);
+  until n = 0;
+  if res = 0 then
+    exit; // no pseRead to check
+  n := poll(pointer(fd), res, timeoutMS);
+  if n <= 0 then
+    exit;
+  results.Count := n;
+  SetLength(results.Events, n);
+  r := pointer(results.Events);
+  s := pointer(Sockets);
+  p := pointer(fd);
+  repeat
+    res := p^.revents;
+    if res <> 0 then
+    begin
+      SetRes(r^, s^.tag, PollEventToPse(res));
+      inc(r);
+      dec(n);
+      if n = 0 then
+        break;
+    end;
+    inc(s);
+    inc(p);
+  until false;
+  result := true;
+end;
 
 {$ifdef USEPOLL}
 
@@ -1120,7 +1372,7 @@ type
       read fEPFD;
   end;
 
-{$define POLLSOCKETEPOLL}
+{$define POLLSOCKETEPOLL} // $ifdef in main mormot.net.sock.pas implementation
 // is defined for TPollSocketEpoll.FollowEpoll = true
 
 constructor TPollSocketEpoll.Create(aOwner: TPollSockets);
@@ -1217,7 +1469,7 @@ begin
       fMaxSockets := fCount;
     end;
     if (fOwner <> nil) and
-       fOwner.fUnsubscribeShouldShutdownSocket then
+       fOwner.fUnsubscribeShutdownSocket then
       socket.ShutdownAndClose({rdwr=}false);
   end;
 end;
