@@ -37,18 +37,19 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      reduced_speedstat_weight=0
-      kill_connection_on_stalled_transfer_seconds=0
+      settingname=defaultvalue
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
-    3. add language Basque=BASQUE to your slftp.languagebase file
-    4. enjoy!
+    3. enjoy!
 
 --==============================( KNOWN BUGS )====================================-
 
-    Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
+
+--=============================( SLFTP v1.5.11 )==================================-
+    {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
+    {#} Fix build on BSD
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
