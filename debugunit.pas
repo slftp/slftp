@@ -195,7 +195,7 @@ begin
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
-  logtext := Format('%s (%s) [%-25s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 4), section, msg]);
+  logtext := Format('%s (%s) [%-25s] %s', [nowstr, 'NA', section, msg]);
   debug_lock.Enter;
   try
     try

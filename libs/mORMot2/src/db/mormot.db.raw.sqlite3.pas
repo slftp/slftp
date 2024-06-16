@@ -31,7 +31,7 @@ uses
   mormot.core.perf,
   mormot.core.buffers,
   mormot.core.variants,
-  mormot.core.search,
+  mormot.core.search, // for soundex functions
   mormot.core.log,
   mormot.db.core,
   mormot.lib.static;
@@ -392,8 +392,8 @@ const
   SQLITE_IOERR_DIR_FSYNC = 1290;
   /// The SQLITE_CANTOPEN_DIRTYWAL result code is not used at this time.
   SQLITE_CANTOPEN_DIRTYWAL = 1294;
-  /// The SQLITE_CONSTRAINT_NOTNULL error code is an extended error code for SQLITE_CONSTRAINT indicating that
-  // a NOT NULL constraint failed.
+  /// The SQLITE_CONSTRAINT_NOTNULL error code is an extended error code for
+  // SQLITE_CONSTRAINT indicating that a NOT NULL constraint failed.
   SQLITE_CONSTRAINT_NOTNULL = 1299;
   /// The SQLITE_READONLY_DIRECTORY result code indicates that the database is read-only because process does
   // not have permission to create a journal file in the same directory as the database and the creation of a
@@ -689,10 +689,10 @@ const
   // SQLITE_CONFIG_SCRATCH and SQLITE_CONFIG_PAGECACHE
   // - There are three arguments: An 8-byte aligned pointer to the memory, the number
   // of bytes in the memory buffer, and the minimum allocation size.
-  // - If the first pointer (the memory pointer) is NULL, then SQLite reverts
+  // - If the first pointer (the memory pointer) is nil, then SQLite reverts
   // to using its default memory allocator (the system malloc() implementation),
   // undoing any prior invocation of SQLITE_CONFIG_MALLOC.
-  // - If the memory pointer is not NULL and either SQLITE_ENABLE_MEMSYS3 or
+  // - If the memory pointer is not nil and either SQLITE_ENABLE_MEMSYS3 or
   // SQLITE_ENABLE_MEMSYS5 are defined, then the alternative memory allocator is
   // engaged to handle all of SQLites memory allocation needs.
   // - The first pointer (the memory pointer) must be aligned to an 8-byte boundary
@@ -750,9 +750,9 @@ const
   SQLITE_CONFIG_GETPCACHE = 15;
   /// This option takes two arguments: a pointer to a function with a call
   // signature of void(*)(void*,int,const char*), and a pointer to void
-  // - If the function pointer is not NULL, it is invoked by sqlite3.log()
+  // - If the function pointer is not nil, it is invoked by sqlite3.log()
   // to process each logging event.
-  // - If the function pointer is NULL, the sqlite3.log() interface becomes a no-op.
+  // - If the function pointer is nil, the sqlite3.log() interface becomes a no-op.
   // - The void pointer that is the second argument to SQLITE_CONFIG_LOG is passed
   // through as the first parameter to the application-defined logger function whenever
   // that function is invoked.
@@ -803,8 +803,8 @@ const
   // - The SQLITE_CONFIG_LOG option takes two arguments: a pointer to a function
   // with a call signature of void(*)(void*,int,const char*), and a pointer
   // to void.
-  // - If the function pointer is not NULL, it is invoked by sqlite3_log()
-  // to process each logging event. If the function pointer is NULL, the
+  // - If the function pointer is not nil, it is invoked by sqlite3_log()
+  // to process each logging event. If the function pointer is nil, the
   // sqlite3_log() interface becomes a no-op.
   // - The void pointer that is the second argument to SQLITE_CONFIG_LOG is
   // passed through as the first parameter to the application-defined logger
@@ -893,7 +893,7 @@ const
   // memory allocator configuration for the database connection.
   // - The first argument (the third parameter to sqlite3_db_config() is a
   // pointer to a memory buffer to use for lookaside memory.
-  // - The first argument after the SQLITE_DBCONFIG_LOOKASIDE verb may be NULL
+  // - The first argument after the SQLITE_DBCONFIG_LOOKASIDE verb may be nil
   // in which case SQLite will allocate the lookaside buffer itself using
   // sqlite3_malloc().
   // - The second argument is the size of each lookaside buffer slot.
@@ -917,7 +917,7 @@ const
   // positive to enable FK enforcement or negative to leave FK enforcement unchanged.
   // - The second parameter is a pointer to an integer into which is written
   // 0 or 1 to indicate whether FK enforcement is off or on following this call.
-  // - The second parameter may be a NULL pointer, in which case the FK
+  // - The second parameter may be a nil pointer, in which case the FK
   // enforcement setting is not reported back.
   SQLITE_DBCONFIG_ENABLE_FKEY = 1002;
   /// This option is used to enable or disable triggers.
@@ -927,7 +927,7 @@ const
   // - The second parameter is a pointer to an integer into which is written
   // 0 or 1 to indicate whether triggers are disabled or enabled following
   // this call.
-  // - The second parameter may be a NULL pointer, in which case the trigger
+  // - The second parameter may be a nil pointer, in which case the trigger
   // setting is not reported back.
   // - Originally this option disabled all triggers. However, since SQLite
   // version 3.35.0, TEMP triggers are still allowed even if this option is off.
@@ -942,7 +942,7 @@ const
   // unchanged.
   // - The second parameter is a pointer to an integer into which is
   // written 0 or 1 to indicate whether fts3_tokenizer is disabled or enabled
-  // following this call. The second parameter may be a NULL pointer, in which
+  // following this call. The second parameter may be a nil pointer, in which
   // case the new setting is not reported back.
   SQLITE_DBCONFIG_ENABLE_FTS3_TOKENIZER = 1004;
   /// This option is used to enable or disable the sqlite3_load_extension()
@@ -959,7 +959,7 @@ const
   // - The second parameter is a pointer to an integer into which is written
   // 0 or 1 to indicate whether sqlite3_load_extension() interface is disabled
   // or enabled following this call.
-  // - The second parameter may be a NULL pointer, in which case the new
+  // - The second parameter may be a nil pointer, in which case the new
   // setting is not reported back.
   SQLITE_DBCONFIG_ENABLE_LOAD_EXTENSION = 1005;
 
@@ -1229,6 +1229,76 @@ const
   // - This mode works the same way as SQLITE_CHECKPOINT_RESTART with the addition that it also
   // truncates the log file to zero bytes just prior to a successful return.
   SQLITE_CHECKPOINT_TRUNCATE = 3;
+
+
+  /// preferred text encoding (eTextRep) bitmask to define a deterministic function
+  // - The SQLITE_DETERMINISTIC flag means that the new function always gives
+  // the same output when the input parameters are the same. The abs() function
+  // is deterministic, for example, but randomblob() is not. Functions must be
+  // deterministic in order to be used in certain contexts such as with the
+  // WHERE clause of partial indexes or in generated columns. SQLite might also
+  // optimize deterministic functions by factoring them out of inner loops.
+  SQLITE_DETERMINISTIC    = $000000800;
+  /// preferred text encoding (eTextRep) bitmask to define a top-level SQL function
+  // - The SQLITE_DIRECTONLY flag means that the function may only be invoked
+  // from top-level SQL, and cannot be used in VIEWs or TRIGGERs nor in schema
+  // structures such as CHECK constraints, DEFAULT clauses, expression indexes,
+  // partial indexes, or generated columns.
+  // - The SQLITE_DIRECTONLY flag is recommended for any application-defined
+  // SQL function that has side-effects or that could potentially leak sensitive
+  // information. This will prevent attacks in which an application is tricked
+  // into using a database file that has had its schema surreptitiously modified
+  // to invoke the application-defined function in ways that are harmful.
+  // - Some people say it is good practice to set SQLITE_DIRECTONLY on all
+  // application-defined SQL functions, regardless of whether or not they are
+  // security sensitive, as doing so prevents those functions from being used
+  // inside of the database schema, and thus ensures that the database can be
+  // inspected and modified using generic tools (such as the CLI) that do not
+  // have access to the application-defined functions.
+  SQLITE_DIRECTONLY       = $000080000;
+  /// preferred text encoding (eTextRep) bitmask if a SQL function may ask for
+  // a sub-types of its arguments
+  // - The SQLITE_SUBTYPE flag indicates to SQLite that a function might call
+  // sqlite3.value_subtype() to inspect the sub-types of its arguments. This
+  // flag instructs SQLite to omit some corner-case optimizations that might
+  // disrupt the operation of the sqlite3?value_subtype() function, causing
+  // it to return zero rather than the correct subtype(). SQL functions that
+  // invokes sqlite3.value_subtype() should have this property. If the
+  // SQLITE_SUBTYPE property is omitted, then the return value from
+  // sqlite3_value.subtype() might sometimes be zero even though a non-zero
+  // subtype was specified by the function argument expression.
+  SQLITE_SUBTYPE          = $000100000;
+  /// preferred text encoding (eTextRep) bitmask to define an innocuous function
+  // - The SQLITE_INNOCUOUS flag means that the function is unlikely to cause
+  // problems even if misused. An innocuous function should have no side effects
+  // and should not depend on any values other than its input parameters. The
+  // abs() function is an example of an innocuous function. The load_extension()
+  // SQL function is not innocuous because of its side effects.
+  // - SQLITE_INNOCUOUS is similar to SQLITE_DETERMINISTIC, but is not exactly
+  // the same. The random() function is an example of a function that is
+  // innocuous but not deterministic.
+  // - Some heightened security settings (SQLITE_DBCONFIG_TRUSTED_SCHEMA and
+  // PRAGMA trusted_schema=OFF) disable the use of SQL functions inside views
+  // and triggers and in schema structures such as CHECK constraints,
+  // DEFAULT clauses, expression indexes, partial indexes, and generated columns
+  // unless the function is tagged with SQLITE_INNOCUOUS. Most built-in functions
+  // are innocuous. Developers are advised to avoid using the SQLITE_INNOCUOUS
+  // flag for application-defined functions unless the function has been
+  // carefully audited and found to be free of potentially security-adverse
+  // side-effects and information-leaks.
+  SQLITE_INNOCUOUS        = $000200000;
+  /// preferred text encoding (eTextRep) bitmask if a SQL function may ask for
+  // a sub-types of its result argument
+  // - The SQLITE_RESULT_SUBTYPE flag indicates to SQLite that a function might
+  // call sqlite3.result_subtype() to cause a sub-type to be associated with its
+  // result. Every function that invokes sqlite3.result_subtype() should have
+  // this property. If it does not, then the call to sqlite3.result_subtype()
+  // might become a no-op if the function is used as term in an expression index.
+  // On the other hand, SQL functions that never invoke sqlite3.result_subtype()
+  // should avoid setting this property, as the purpose of this property is to
+  // disable certain optimizations that are incompatible with subtypes.
+  SQLITE_RESULT_SUBTYPE   = $001000000;
+
 
 type
   /// type for a custom destructor for the text or BLOB content
@@ -1524,7 +1594,7 @@ type
     // - As part of the task of creating a new PSqlite3VTab structure, this method
     // must invoke sqlite3.declare_vtab() to tell the SQLite core about the
     // columns and datatypes in the virtual table
-    xCreate: function(DB: TSqlite3DB; pAux: Pointer;
+    xCreate: function(DB: TSqlite3DB; pAux: pointer;
       argc: integer; const argv: PPUtf8CharArray;
       var ppVTab: PSqlite3VTab; var pzErr: PUtf8Char): integer; cdecl;
     /// xConnect is called to establish a new connection to an existing virtual table,
@@ -1534,7 +1604,7 @@ type
     // has some kind of backing store that must be initialized the first time the
     // virtual table is created. The xCreate method creates and initializes the
     // backing store. The xConnect method just connects to an existing backing store.
-    xConnect: function(DB: TSqlite3DB; pAux: Pointer;
+    xConnect: function(DB: TSqlite3DB; pAux: pointer;
       argc: integer; const argv: PPUtf8CharArray;
       var ppVTab: PSqlite3VTab; var pzErr: PUtf8Char): integer; cdecl;
     /// Used to determine the best way to access the virtual table
@@ -1666,17 +1736,17 @@ type
     // $ nArg = 1
     // The single row with rowid equal to ppArg[0] is deleted. No insert occurs.
     // $ nArg > 1
-    // $ ppArg[0] = NULL
+    // $ ppArg[0] = nil
     // A new row is inserted with a rowid ppArg[1] and column values in ppArg[2]
     // and following. If ppArg[1] is an SQL NULL, the a new unique rowid is
     // generated automatically.
     // $ nArg > 1
-    // $ ppArg[0] <> NULL
+    // $ ppArg[0] <> nil
     // $ ppArg[0] = ppArg[1]
     // The row with rowid ppArg[0] is updated with new values in ppArg[2] and
     // following parameters.
     // $ nArg > 1
-    // $ ppArg[0] <> NULL
+    // $ ppArg[0] <> nil
     // $ ppArg[0] <> ppArg[1]
     // The row with rowid ppArg[0] is updated with rowid ppArg[1] and new values
     // in ppArg[2] and following parameters. This will occur when an SQL statement
@@ -1737,7 +1807,7 @@ type
     // lifetime of the pVTab object given in the first parameter.
     xFindFunction: function(var pVTab: TSqlite3VTab; nArg: integer;
       const zName: PUtf8Char; var pxFunc: TSqlFunctionFunc;
-      var ppArg: Pointer): integer; cdecl;
+      var ppArg: pointer): integer; cdecl;
     /// Provides notification that the virtual table implementation that the
     // virtual table will be given a new name
     // - If this method returns SQLITE_OK then SQLite renames the table.
@@ -1843,7 +1913,7 @@ type
   // - The 6th parameter to the authorizer callback is the name of the inner-most
   // trigger or view that is responsible for the access attempt or nil if this
   // access attempt is directly from top-level SQL code.
-  TSqlAuthorizerCallback = function(pUserData: Pointer; code: integer;
+  TSqlAuthorizerCallback = function(pUserData: pointer; code: integer;
     const zTab, zCol, zDb, zAuthContext: PUtf8Char): integer; cdecl;
 
   /// Callback function invoked for each new database connection that is created
@@ -1881,12 +1951,12 @@ type
   // - Invoking any of these routines from outside of a preupdate callback or with a database
   // connection pointer that is different from the one supplied to the preupdate callback
   // results in undefined and probably undesirable behavior.
-  TSqlPreUpdateCallback = procedure(pArg: Pointer; DB: TSqlite3DB;
+  TSqlPreUpdateCallback = procedure(pArg: pointer; DB: TSqlite3DB;
     op: integer; zDb, zName: PUtf8Char; iKey1, iKey2: Int64); cdecl;
 
   /// Callback function invoked wen running in shared-cache mode, a database operation
   // may fail with an SQLITE_LOCKED error after sqlite3.unlock_notify() registration
-  // - When an unlock-notify callback is registered, the application provides a single Pointer
+  // - When an unlock-notify callback is registered, the application provides a single pointer
   // that is passed to the callback when it is invoked. However, the signature of the callback
   // function allows SQLite to pass it an array of context pointers.
   // The first argument passed to an unlock-notify callback is a pointer to an array of pointers,
@@ -1916,7 +1986,7 @@ type
   // sqlite3.step() call that triggered the update hook. Note that
   // sqlite3.prepare_v2() and sqlite3.step() both modify their database
   // connections for the meaning of "modify" in this paragraph.
-  TSqlUpdateCallback = procedure(pUpdateArg: Pointer; op: integer;
+  TSqlUpdateCallback = procedure(pUpdateArg: pointer; op: integer;
     const zDb, zTbl: PUtf8Char; iRowID: Int64); cdecl;
 
   /// Commit And Rollback Notification Callback function after
@@ -1937,7 +2007,7 @@ type
   // constraint causes an implicit rollback to occur. The rollback callback
   // is not invoked if a transaction is automatically rolled back because the
   // database connection is closed.
-  TSqlCommitCallback = function(pArg: Pointer): integer; cdecl;
+  TSqlCommitCallback = function(pArg: pointer): integer; cdecl;
 
   /// SQLite3 callback to handle sqlite3.progress_handler()
   // - UserData is a copy of the user pointer which is the forth argument to sqlite3.progress_handler().
@@ -2003,20 +2073,23 @@ type
   // - This procedure will be invoked as each SQL statement finishes
   // - warning: sqlite3.profile() function is considered experimental and is
   // subject to change in future versions of SQLite
-  TSqlProfileCallback = procedure(ProfileArg: Pointer; Profile: PUtf8Char;
+  TSqlProfileCallback = procedure(ProfileArg: pointer; Profile: PUtf8Char;
     ProfileNanoSeconds: Int64); cdecl;
 
   /// Callback function registered by sqlite3.exec()
-  // - This procedure will be invoked for each result row coming out of the evaluated SQL statements
-  // - If returns non-zero, the sqlite3.exec() routine returns SQLITE_ABORT without invoking
-  // the callback again and without running any subsequent SQL statements.
-  // - UserData argument is a copy of the context pointer, as provided at sqlite3.exec() call
+  // - This procedure will be invoked for each result row coming out of the
+  // evaluated SQL statements
+  // - If returns non-zero, the sqlite3.exec() routine returns SQLITE_ABORT
+  // without invoking the callback again and without running any subsequent
+  // SQL statements.
+  // - UserData argument is a copy of the context pointer, as provided at
+  // sqlite3.exec() call
   // - NumCols is the number of columns in the result
-  // - ColValues is an array of pointers to strings obtained as if from sqlite3.column_text(),
-  // one for each column. If an element of a result row is NULL then the corresponding string
-  // pointer is a NULL pointer.
-  // - ColNames is an array of pointers to strings where each entry represents the name of
-  // corresponding result column as obtained from sqlite3.column_name().
+  // - ColValues is an array of pointers to strings obtained as if from
+  // sqlite3.column_text(), one for each column. If an element of a result row
+  // is NULL then the corresponding string pointer is a nil pointer.
+  // - ColNames is an array of pointers to strings where each entry represents
+  // the name of corresponding result column as obtained from sqlite3.column_name().
   TSqlExecCallback = function(UserData: pointer; NumCols: integer; ColValues:
     PPUtf8CharArray; ColNames: PPUtf8CharArray): integer; cdecl;
 
@@ -2271,7 +2344,7 @@ type
     // If ErrorMsg is not nil and no errors occur, then sqlite3.exec() sets it to nil
     // before returning.
     exec: function(DB: TSqlite3DB; SQL: PUtf8Char; Callback: TSqlExecCallback;
-      UserData: Pointer; var ErrorMsg: PUtf8Char): integer; cdecl;
+      UserData: pointer; var ErrorMsg: PUtf8Char): integer; cdecl;
 
     /// This function causes any pending database operation to abort and return at its
     // earliest opportunity.
@@ -2329,7 +2402,7 @@ type
     // - The default busy callback is nil.
     // - See sqlite3.busy_timeout() for setting a simple time-specific callback
     busy_handler: function(DB: TSqlite3DB;
-      CallbackPtr: TSqlBusyHandler; user: Pointer): integer;  cdecl;
+      CallbackPtr: TSqlBusyHandler; user: pointer): integer;  cdecl;
 
     /// Causes the callback function X to be invoked periodically during long running calls to
     // sqlite3.exec() and sqlite3.step() for database connection DB.
@@ -2361,7 +2434,7 @@ type
     // - Disable the authorizer by installing a nil callback
     // - The authorizer is disabled by default
     set_authorizer: function(DB: TSqlite3DB; xAuth: TSqlAuthorizerCallback;
-      pUserData: Pointer): integer; cdecl;
+      pUserData: pointer): integer; cdecl;
 
     /// Registers a callback function that is invoked prior to each INSERT, UPDATE,
     // and DELETE operation on a database table.
@@ -2487,7 +2560,7 @@ type
     // - If there is a blocking connection, then the extended error code is set to SQLITE_LOCKED_SHAREDCACHE.
     // - Otherwise, in the special "DROP TABLE/INDEX" case, the extended error code is just SQLITE_LOCKED.
     unlock_notify: function(pBlocked: TSqlite3DB; xNotify: TSqlUnlockNotify;
-      pArg: Pointer): Pointer; cdecl;
+      pArg: pointer): pointer; cdecl;
 
     /// Register Data Change Notification Callbacks
     // - The sqlite3.update_hook() interface registers a callback function with
@@ -2521,7 +2594,7 @@ type
     // previous call of the same function on the same database connection DB, or nil
     // for the first call for each function on DB.
     commit_hook: function(DB: TSqlite3DB; xCallback: TSqlCommitCallback;
-      pArg: Pointer): Pointer; cdecl;
+      pArg: pointer): pointer; cdecl;
 
     // Register Rollback Notification Callbacks
     // - The sqlite3.rollback_hook() interface registers a callback function to be
@@ -2533,7 +2606,7 @@ type
     // previous call of the same function on the same database connection D, or nil
     // for the first call for each function on D.
     rollback_hook: function(DB: TSqlite3DB;  xCallback: TSqlCommitCallback;
-      pArg: Pointer): Pointer; cdecl;
+      pArg: pointer): pointer; cdecl;
 
     /// Count The Number Of Rows Modified
     // - This function returns the number of database rows that were changed or
@@ -2704,7 +2777,7 @@ type
 
     /// Returns a pointer to a UTF-8 string containing the SQL text of prepared statement P
     // with bound parameters expanded.
-    // - Returns NULL if insufficient memory is available to hold the result, or if the result
+    // - Returns nil if insufficient memory is available to hold the result, or if the result
     // would exceed the the maximum string length determined by the SQLITE_LIMIT_LENGTH.
     // - The result is obtained from sqlite3.malloc() and must be free by the application by
     // passing it to sqlite3.free_().
@@ -2747,7 +2820,7 @@ type
     // the table and returns SQLITE_OK if the table exists and SQLITE_ERROR if it does not.
     // - If zTableName is nil then the result is undefined behavior.
     // - zDbName is either the name of the database (i.e. "main", "temp", or an
-    // attached database) containing the specified table or NULL.
+    // attached database) containing the specified table or nil.
     // - If zDbName is nil, then all attached databases are searched for the table using the same
     // algorithm used by the database engine to resolve unqualified table references.
     // - The memory pointed to by the character pointers returned for the declaration type
@@ -2794,8 +2867,8 @@ type
     /// Returns the original un-aliased database name that is the origin of a particular
     // result column in SELECT statement as a zero-terminated UTF-8 string.
     // - If the column returned by the statement is an expression or subquery and is
-    // not a column value, then returns NULL.
-    // Might also returns NULL if a memory allocation error occurs.
+    // not a column value, then returns nil.
+    // Might also returns nil if a memory allocation error occurs.
     // - The returned string pointer is valid until either the prepared statement is
     // destroyed by sqlite3.finalize() or until the statement is automatically reprepared
     // by the first call to sqlite3.step() for a particular run or until the same information
@@ -2805,8 +2878,8 @@ type
     /// Returns the original un-aliased table name that is the origin of a particular
     // result column in SELECT statement as a zero-terminated UTF-8 string.
     // - If the column returned by the statement is an expression or subquery and is
-    // not a column value, then returns NULL.
-    // Might also returns NULL if a memory allocation error occurs.
+    // not a column value, then returns nil.
+    // Might also returns nil if a memory allocation error occurs.
     // - The returned string pointer is valid until either the prepared statement is
     // destroyed by sqlite3.finalize() or until the statement is automatically reprepared
     // by the first call to sqlite3.step() for a particular run or until the same information
@@ -2816,8 +2889,8 @@ type
     /// Returns the original un-aliased origin name that is the origin of a particular
     // result column in SELECT statement as a zero-terminated UTF-8 string.
     // - If the column returned by the statement is an expression or subquery and is
-    // not a column value, then returns NULL.
-    // Might also returns NULL if a memory allocation error occurs.
+    // not a column value, then returns nil.
+    // Might also returns nil if a memory allocation error occurs.
     // - The returned string pointer is valid until either the prepared statement is
     // destroyed by sqlite3.finalize() or until the statement is automatically reprepared
     // by the first call to sqlite3.step() for a particular run or until the same information
@@ -2897,6 +2970,11 @@ type
     // - The subtype information can be used to pass a limited amount of context from
     // one SQL function to another. Use the sqlite3.result_subtype() routine to set
     // the subtype for the return value of an SQL function.
+    // - Every application-defined SQL function that invoke this interface should
+    // include the SQLITE_SUBTYPE property in the text encoding argument when the
+    // function is registered. If the SQLITE_SUBTYPE property is omitted, then
+    // sqlite3.value_subtype() might return zero instead of the upstream subtype
+    // in some corner cases.
     value_subtype: function(Value: TSqlite3Value): cardinal; cdecl;
 
     /// Attempts to apply numeric affinity to the value
@@ -2933,17 +3011,17 @@ type
 
     /// Makes a copy of the sqlite3_value object D and returns a pointer to that copy.
     // - The result is a protected object even if the input is not.
-    // - Returns NULL if V is NULL or if a memory allocation fails.
+    // - Returns nil if V is NULL or if a memory allocation fails.
     value_dup: function(Value: TSqlite3Value): TSqlite3Value; cdecl;
 
     ///  Frees an sqlite3_value object previously obtained from sqlite3.value_dup().
-    // - If V is a NULL pointer then sqlite3_value_free(V) is a harmless no-op.
+    // - If Value is a nil pointer then sqlite3_value_free(Value) is a harmless no-op.
     value_free: procedure(Value: TSqlite3Value); cdecl;
 
     /// If Value object V was initialized using sqlite3.bind_pointer(S,I,P,X,D)
     // or sqlite3.result_pointer(C,P,X,D) and if X and Y are strings that compare equal
     // according to strcmp(X,Y), then sqlite3.value_pointer(V,Y) will return the pointer P.
-    // Otherwise, sqlite3.value_pointer(V,Y) returns a NULL.
+    // Otherwise, sqlite3.value_pointer(V,Y) returns a nil.
     value_pointer: function(Value: TSqlite3Value; Typ: PUtf8Char): pointer; cdecl;
 
     /// Converts a sqlite3.value object, specified by its handle,
@@ -2962,8 +3040,7 @@ type
     // into a blob memory, and returns a copy of that value
     value_blob: function(Value: TSqlite3Value): pointer; cdecl;
 
-    /// Add SQL functions or aggregates or to redefine the behavior of existing
-    // SQL functions or aggregates
+    /// Add or redefine SQL functions or aggregates
     // - The first parameter is the database connection to which the SQL function is
     // to be added. If an application uses more than one database connection then
     // application-defined SQL functions must be added to each database connection
@@ -2979,22 +3056,48 @@ type
     // SQLITE_LIMIT_FUNCTION_ARG current limit. If the third parameter is less
     // than -1 or greater than 127 then the behavior is undefined.
     // - The fourth parameter, eTextRep, specifies what text encoding this SQL
-    // function prefers for its parameters. Every SQL function implementation must
-    // be able to work with UTF-8, UTF-16le, or UTF-16be. But some implementations
-    // may be more efficient with one encoding than another. When multiple
-    // implementations of the same function are available, SQLite will pick the one
-    // that involves the least amount of data conversion. If there is only a single
-    // implementation which does not care what text encoding is used, then the
-    // fourth argument should be SQLITE_ANY.
+    // function prefers for its parameters, and some optional flags to describe
+    // the behavior of the function, like SQLITE_DETERMINISTIC or SQLITE_SUBTYPE.
+    // - About the text encoding preference, the application should set this
+    // parameter to SQLITE_UTF16LE if the function implementation invokes
+    // sqlite3.value_text16le() on an input, or SQLITE_UTF16BE if the
+    // implementation invokes sqlite3.value_text16be() on an input, or
+    // SQLITE_UTF16 if sqlite3.value_text16() is used, or SQLITE_UTF8 otherwise.
+    // The same SQL function may be registered multiple times using different
+    // preferred text encodings, with different implementations for each encoding.
+    // When multiple implementations of the same function are available, SQLite
+    // will pick the one that involves the least amount of data conversion.
+    // Use of SQLITE_ANY in the fourth argument is now seen as deprecated.
+    // - The fourth parameter may optionally be ORed with SQLITE_DETERMINISTIC
+    // to signal that the function will always return the same result given
+    // the same inputs within a single SQL statement. Most SQL functions are
+    // deterministic. The built-in random() SQL function is an example of a
+    // function that is not deterministic. The SQLite query planner is able
+    // to perform additional optimizations on deterministic functions, so use
+    // of the SQLITE_DETERMINISTIC flag is recommended where possible.
+    // - The fourth parameter may also optionally include the SQLITE_DIRECTONLY flag,
+    // which if present prevents the function from being invoked from within
+    // VIEWs, TRIGGERs, CHECK constraints, generated column expressions, index
+    // expressions, or the WHERE clause of partial indexes. For best security,
+    // the SQLITE_DIRECTONLY flag is recommended for all application-defined
+    // SQL functions that do not need to be used inside of triggers, view,
+    // CHECK constraints, or other elements of the database schema. This flags
+    // is especially recommended for SQL functions that have side effects or
+    // reveal internal application state. Without this flag, an attacker might
+    // be able to modify the schema of a database file to include invocations
+    // of the function with parameters chosen by the attacker, which the
+    // application will then execute when the database file is opened and read.
     // - The fifth parameter, pApp, is an arbitrary pointer. The implementation
     // of the function can gain access to this pointer using sqlite3.user_data().
-    // - The seventh, eighth and ninth parameters, xFunc, xStep and xFinal, are
-    // pointers to C-language functions that implement the SQL function or aggregate.
-    // A scalar SQL function requires an implementation of the xFunc callback only;
-    // nil pointers must be passed as the xStep and xFinal parameters. An aggregate
-    // SQL function requires an implementation of xStep and xFinal and nil pointer
-    // must be passed for xFunc. To delete an existing SQL function or aggregate,
-    // pass nil pointers for all three function callbacks.
+    // - The sixth, seventh and eighth parameters passed to the three
+    // "sqlite3.create_function*" functions, xFunc, xStep and xFinal, are
+    // pointers to C-language functions that implement the SQL function or
+    // aggregate. A scalar SQL function requires an implementation of the xFunc
+    // callback only; nil pointers must be passed as the xStep and xFinal
+    // parameters. An aggregate SQL function requires an implementation of
+    // xStep and xFinal and nil pointer must be passed for xFunc. To delete
+    // an existing SQL function or aggregate, pass nil pointers for all three
+    // function callbacks.
     // - It is permitted to register multiple implementations of the same functions
     // with the same name but with either differing numbers of arguments or
     // differing preferred text encodings. SQLite will use the implementation
@@ -3003,8 +3106,7 @@ type
       nArg, eTextRep: integer; pApp: pointer; xFunc, xStep: TSqlFunctionFunc;
       xFinal: TSqlFunctionFinal): integer; cdecl;
 
-    /// Add SQL functions or aggregates or to redefine the behavior of existing
-    // SQL functions or aggregates, including destruction
+    /// Add or redefine SQL functions or aggregates, including destruction
     // - if the additinal xDestroy parameter is not nil, then it is invoked when
     // the function is deleted, either by being overloaded or when the database
     // connection closes.
@@ -3016,17 +3118,16 @@ type
       nArg, eTextRep: integer; pApp: pointer; xFunc, xStep: TSqlFunctionFunc;
       xFinal: TSqlFunctionFinal; xDestroy: TSqlDestroyPtr): integer; cdecl;
 
-    /// Add SQL functions or aggregates or to redefine the behavior of existing
-    // SQL functions or aggregates, including  extra callback functions needed
-    // by aggregate window functions
+    /// Add or redefine SQL functions or aggregates, including extra callback
+    // functions needed by aggregate window functions
     // - see https://www.sqlite.org/windowfunctions.html#aggregate_window_functions
-    // - sixth, seventh, eighth and ninth parameters (xStep, xFinal, xValue
-    // and xInverse) passed to this function are pointers to callbacks that
-    // implement the new aggregate window function. xStep and xFinal must both
-    // be non-nil. xValue and xInverse may either both be nil, in which case a
-    // regular aggregate function is created, or must both be non-nil, in which
-    // case the new function may be used as either an aggregate or aggregate
-    // window function
+    // - The sixth, seventh, eighth and ninth parameters (xStep, xFinal,
+    // xValue and xInverse) passed to sqlite3.create_window_function are pointers
+    // to C-language callbacks that implement the new function. xStep and xFinal
+    // must both be non-nil. xValue and xInverse may either both be nil,
+    // in which case a regular aggregate function is created, or must both
+    // be non-nil, in which case the new function may be used as either
+    // an aggregate or aggregate window function.
     // - this function is not available in older revisions, i.e. before 3.25.2
     create_window_function: function(DB: TSqlite3DB; FunctionName: PUtf8Char;
       nArg, eTextRep: integer; pApp: pointer; xStep: TSqlFunctionFunc;
@@ -3106,7 +3207,7 @@ type
     // - set DestroyPtr to @sqlite3InternalFree if Value must be released via Freemem()
     // or to @sqlite3InternalFreeObject if Value must be released via a Free method
     result_blob: procedure(Context: TSqlite3FunctionContext;
-      Value: Pointer; Value_bytes: integer = 0;
+      Value: pointer; Value_bytes: integer = 0;
       DestroyPtr: TSqlDestroyPtr = SQLITE_TRANSIENT); cdecl;
 
     /// Set the result of the application-defined function to be a BLOB containing all
@@ -3138,8 +3239,18 @@ type
 
     /// Causes the subtype of the result from the application-defined SQL function with
     // Context to be the Value.
-    // - Only the lower 8 bits of the subtype T are preserved in current versions of SQLite;
-    // higher order bits are discarded.
+    // - Only the lower 8 bits of the subtype T are preserved in current versions
+    // of SQLite; higher order bits are discarded. The number of subtype bytes
+    // preserved by SQLite might increase in future releases of SQLite.
+    // - Every application-defined SQL function that invokes this interface should
+    // include the SQLITE_RESULT_SUBTYPE property in its text encoding argument
+    // when the SQL function is registered. If the SQLITE_RESULT_SUBTYPE property
+    // is omitted from the function that invokes sqlite3.result_subtype(), then
+    // in some cases the sqlite3.result_subtype() might fail to set the result subtype.
+    // - If SQLite is compiled with -DSQLITE_STRICT_SUBTYPE=1, then any SQL function
+    // that invokes the sqlite3.result_subtype() interface and that does not have
+    // the SQLITE_RESULT_SUBTYPE property will raise an error. Future versions
+    // of SQLite might enable -DSQLITE_STRICT_SUBTYPE=1 by default.
     result_subtype: procedure(Context: TSqlite3FunctionContext; Value: cardinal); cdecl;
 
     /// Cause the implemented SQL function to throw an exception
@@ -3196,12 +3307,12 @@ type
     // - set DestroyPtr to SQLITE_TRANSIENT (-1) for SQLite to make its own private
     // copy of the data (this is the prefered way in our Framework)
     // - set DestroyPtr to @sqlite3InternalFree if Value must be released via Freemem()
+    // - note that the official SQLite3 documentation could lead into misunderstanding:
+    // Text_bytes must EXCLUDE the null terminator, otherwise a #0 is appended to
+    // all column values
     bind_text: function(S: TSqlite3Statement;
       Param: integer; Text: PUtf8Char; Text_bytes: integer = -1;
       DestroyPtr: TSqlDestroyPtr = SQLITE_TRANSIENT): integer; cdecl;
-      // note that the official SQLite3 documentation could lead into misunderstanding:
-      // Text_bytes must EXCLUDE the null terminator, otherwise a #0 is appended to
-      // all column values
 
     /// Bind a Blob Value to a parameter of a prepared statement
     // - return SQLITE_OK on success or an error code - see SQLITE_* and sqlite3.errmsg()
@@ -3293,11 +3404,13 @@ type
     bind_parameter_index: function(S: TSqlite3Statement; ParamName: PUtf8Char): integer; cdecl;
 
     /// Returns the name of the N-th SQL parameter in the prepared statement S.
-    // - SQL parameters of the form "?NNN" or ":AAA" or "@AAA" or "$AAA" have a name which is
-    // the string "?NNN" or ":AAA" or "@AAA" or "$AAA" respectively. In other words, the initial
-    // ":" or "$" or "@" or "?" is included as part of the name. Parameters of the form "?" without
-    // a following integer have no name and are referred to as "nameless" or "anonymous parameters".
-    // If the value N is out of range or if the N-th parameter is nameless, then NULL is returned.
+    // - SQL parameters of the form "?NNN" or ":AAA" or "@AAA" or "$AAA" have a
+    // name which is the string "?NNN" or ":AAA" or "@AAA" or "$AAA" respectively.
+    // In other words, the initial ":" or "$" or "@" or "?" is included as part
+    // of the name. Parameters of the form "?" without a following integer have
+    // no name and are referred to as "nameless" or "anonymous parameters". If
+    // the value N is out of range or if the N-th parameter is nameless, then
+    // nil is returned.
     bind_parameter_name: function(S: TSqlite3Statement; Param: integer): PUtf8Char; cdecl;
 
     /// Open a BLOB For Incremental I/O
@@ -3377,7 +3490,7 @@ type
     // destructor will also be invoked if call to sqlite3.create_module_v2() fails.
     create_module_v2: function(DB: TSqlite3DB;
       const zName: PUtf8Char; var p: TSqlite3Module;
-      pClientData: Pointer; xDestroy: TSqlDestroyPtr): integer; cdecl;
+      pClientData: pointer; xDestroy: TSqlDestroyPtr): integer; cdecl;
 
     /// Removes all virtual table modules from database connection DB except those named
     // on list azKeep.
@@ -3509,16 +3622,16 @@ type
 
     /// Returns a pointer to a block of memory at least N bytes in length
     // - should call native malloc() function, i.e. GetMem() in this unit
-    malloc: function(N: integer): Pointer; cdecl;
+    malloc: function(N: integer): pointer; cdecl;
 
     /// Attempts to resize a prior memory allocation
     // - should call native realloc() function, i.e. ReallocMem() in this unit
-    realloc: function(pOld: Pointer; N: integer): Pointer; cdecl;
+    realloc: function(pOld: pointer; N: integer): pointer; cdecl;
 
     /// Releases memory previously returned by sqlite3.malloc() or sqlite3.realloc()
     // - should call native free() function, i.e. FreeMem() in this unit
     // - renamed free_ in order not to override TObject.Free method
-    free_: procedure(p: Pointer); cdecl;
+    free_: procedure(p: pointer); cdecl;
 
     /// Returns the size of a memory allocation in bytes.
     // - The returned value might be larger than the number of bytes requested when
@@ -3527,7 +3640,7 @@ type
     // - If P points to something that is not the beginning of memory allocation,
     // or if it points to a formerly valid memory allocation that has now been freed,
     // then the behavior is undefined and possibly harmful.
-    msize: function(p: Pointer): Int64; cdecl;
+    msize: function(p: pointer): Int64; cdecl;
 
     /// Attempts to free N bytes of heap memory by deallocating non-essential memory
     // allocations held by the database library.
@@ -3611,7 +3724,7 @@ type
     // For these latter parameters nothing is written into pCurrent.
     // - Returns SQLITE_OK if successful, or an sqlite error code if an error occurs.
     status64: function(Operation: integer; pCurrent, pHighwater: PInt64;
-      resetFlag: integer): Integer; cdecl;
+      resetFlag: integer): integer; cdecl;
 
     /// Retrieve runtime status information about a single database connection, and
     // optionally to reset various highwater marks.
@@ -3621,7 +3734,7 @@ type
     // - If the resetFlag is true, then the highest record value is reset after
     // pHighwater is written.
     db_status: function(DB: TSqlite3DB; Operation: integer; pCurrent, pHighwater: PInteger;
-      resetFlag: integer): Integer; cdecl;
+      resetFlag: integer): integer; cdecl;
 
     /// If a write-transaction is open on database connection D when the sqlite3.db_cacheflush(DB)
     // interface invoked, any dirty pages in the pager-cache that are not currently in use are
@@ -3646,9 +3759,9 @@ type
     db_cacheflush: function(DB: TSqlite3DB): integer; cdecl;
 
     /// Returns a pointer to the filename associated with database DBName of connection DB.
-    // - If there is no attached database N on the database connection DB, or if database DBName
-    // is a temporary or in-memory database, then this function will return either a NULL
-    // pointer or an empty string.
+    // - If there is no attached database N on the database connection DB, or
+    // if database DBName is a temporary or in-memory database, then this
+    // function will return either a nil pointer or an empty string.
     // - The string value returned by this routine is owned and managed by the database connection.
     // - The value will be valid until the database DBName is DETACH-ed or until the database connection closes.
     // - The filename returned by this function is the output of the xFullPathname method of the VFS.
@@ -3668,7 +3781,7 @@ type
     // then tracing is disabled
     // - parameters of the Callback functions depend of the TSqlTraceMask involved
     trace_v2: function(DB: TSqlite3DB; Mask: TSqlTraceMask;
-      Callback: TSqlTraceCallback; UserData: Pointer): Pointer; cdecl;
+      Callback: TSqlTraceCallback; UserData: pointer): pointer; cdecl;
 
     /// Allows the size of various constructs to be limited on a connection
     // by connection basis
@@ -3991,7 +4104,7 @@ type
   end;
   {$M-}
 
-  /// allow access to an exernal SQLite3 library engine
+  /// allow access to an external SQLite3 library engine
   // - you can e.g. replace the main sqlite3 engine with any external library:
   // ! FreeAndNil(sqlite3); // release any previous instance (e.g. static)
   // ! sqlite3 := TSqlite3LibraryDynamic.Create;
@@ -4454,7 +4567,8 @@ type
     /// Execute one SQL statement which return the results as a TDocVariant array
     // - if aSql is '', the statement should have been prepared, reset and bound
     // if necessary - if aSql <> '' then the statement would be closed internally
-    // - if any error occurs, ESqlite3Exception is catched and null is returned
+    // - if any error occurs, ESqlite3Exception is catched and a null variant
+    // is returned
     procedure ExecuteDocVariant(aDB: TSqlite3DB; const aSql: RawUtf8;
       out aResult: variant; aResultModel: TDocVariantModel = mFastFloat;
       aMaxRows: PtrInt = 1 shl 20; aBlobNoMagic: boolean = false);
@@ -4523,7 +4637,7 @@ type
     // SQLITE_STATIC) if you are sure Value will be valid until the query ends
     procedure BindU(Param: integer; Value: PUtf8Char; ValueLen: PtrInt;
       BindStatic: boolean = false);
-    /// bind a generic VCL string to a parameter
+    /// bind a RTL string to a parameter
     // - with versions prior to Delphi 2009, you may loose some content here:
     // Bind(Param: integer; Value: RawUtf8) is the prefered method
     // - the leftmost SQL parameter has an index of 1, but ?NNN may override it
@@ -4557,7 +4671,7 @@ type
     // - raise an ESqlite3Exception on any error
     procedure BindZero(Param: integer; Size: integer);
 
-  // 3. Field attributes after a sucessfull Step() (returned SQLITE_ROW)
+  // 3. Field attributes after a successful Step() (returned SQLITE_ROW)
   public
     /// the field name of the current ROW, first Col is 0
     function FieldName(Col: integer): RawUtf8;
@@ -4571,8 +4685,10 @@ type
     /// return a field floating point value, first Col is 0
     function FieldDouble(Col: integer): double;
     /// return a field UTF-8 encoded text value, first Col is 0
-    function FieldUtf8(Col: integer): RawUtf8;
-    /// return a text value value as generic VCL string, first Col is 0
+    procedure FieldUtf8(Col: integer; var Result: RawUtf8);
+    /// return a field UTF-8 buffer text value, first Col is 0
+    function FieldPUtf8(Col: integer): PUtf8Char;
+    /// return a text value value as RTL string, first Col is 0
     // - note that prior to Delphi 2009, you may loose content during conversion
     function FieldS(Col: integer): string;
     /// return a field as Win-Ansi (i.e. code page 1252) encoded text value, first Col is 0
@@ -4607,7 +4723,7 @@ type
     // - textual type used for CREATE TABLE of the corresponding column, as
     // returned by sqlite3.column_decltype()
     function FieldDeclaredType(Col: integer): RawUtf8;
-    /// return the generic VCL string type of this column, as declared at creation
+    /// return the RTL string type of this column, as declared at creation
     // - textual type used for CREATE TABLE of corresponding column, as
     // returned by sqlite3.column_decltype()
     // - note that prior to Delphi 2009, you may loose content during conversion
@@ -4921,7 +5037,7 @@ type
       aOpenV2Flags: integer = 0; aDefaultCacheSize: integer = 10000;
       aDefaultPageSize: integer = 4096); reintroduce;
     /// close a database and free its memory and context
-    //- if TransactionBegin was called but not commited, a RollBack is performed
+    //- if TransactionBegin was called but not committed, a RollBack is performed
     destructor Destroy; override;
     /// Execute all SQL statements in aSql UTF-8 encoded string
     // - can be prepared with TransactionBegin()
@@ -6122,7 +6238,7 @@ begin
      (Assigned(P^[High(SQLITE3_ENTRIES)]) and
       (LibraryResolve(fLoader.Handle, 'sqlite3_snapshot_free') <>
          P^[High(SQLITE3_ENTRIES)])) then
-    raise ESqlite3Exception.CreateUtf8( // paranoid check
+    ESqlite3Exception.RaiseUtf8( // paranoid check
       '%.Create: please check SQLITE3_ENTRIES[] order for %', [self, LibraryName]);
   if (not Assigned(initialize)) or
      (not Assigned(libversion)) or
@@ -6139,7 +6255,7 @@ begin
     else
       vers := 'unknown';
     FreeAndNil(fLoader);
-    raise ESqlite3Exception.CreateUtf8(
+    ESqlite3Exception.RaiseUtf8(
       '%.Create: TOO OLD % % - need 3.7 at least', [self, LibraryName, vers]);
   end;
   BeforeInitialization;
@@ -6331,7 +6447,8 @@ begin
   if argc >= 1 then
   begin
     MI := sqlite3.value_blob(argv[0]);
-    // rank(nil) for example select rank(matchinfo(tabName)) without corresponding MATCH clause
+    // rank(nil) for example select rank(matchinfo(tabName)) without
+    // corresponding MATCH clause
     if MI = nil then
     begin
       sqlite3.result_double(Context, 0);
@@ -6595,7 +6712,7 @@ begin
   len := StrLen(input);
   if len <> 0 then
   begin
-    FastSetString(tmp, nil, len * 2); // Unicode Upper may enhance input length
+    FastSetString(tmp, len * 2); // Unicode Upper may enhance input length
     len := Utf8UpperReference(input, pointer(tmp), len) - PUtf8Char(pointer(tmp));
   end;
   // don't call SetLength() but use forcedlen to truncate the value
@@ -6669,14 +6786,14 @@ var
 begin
   inherited Create; // initialize fSafe
   if sqlite3 = nil then
-    raise ESqlite3Exception.CreateUtf8('%.Create: No SQLite3 libray available' +
+    ESqlite3Exception.RaiseUtf8('%.Create: No SQLite3 libray available' +
       ' - you shall either add mormot.db.raw.sqlite3.static to your project uses clause, ' +
       'or run sqlite3 := TSqlite3LibraryDynamic.Create(..)', [self]);
   fLog := SQLite3Log; // leave fLog=nil if no Logging wanted
   fLogResultMaximumSize := 512;
   fStatementMaxMemory := 512 shl 20;
   if SysUtils.Trim(aFileName) = '' then
-    raise ESqlite3Exception.CreateUtf8('%.Create('''')', [self]);
+    ESqlite3Exception.RaiseUtf8('%.Create('''')', [self]);
   if aOpenV2Flags = 0 then
     fOpenV2Flags := SQLITE_OPEN_READWRITE or SQLITE_OPEN_CREATE
   else
@@ -6685,7 +6802,7 @@ begin
   fFileDefaultCacheSize := aDefaultCacheSize;
   if (fOpenV2Flags <> (SQLITE_OPEN_READWRITE or SQLITE_OPEN_CREATE)) and
      (not Assigned(sqlite3.open_v2)) then
-    raise ESqlite3Exception.CreateUtf8(
+    ESqlite3Exception.RaiseUtf8(
       'Your % version of SQLite3 does not support custom OpenV2Flags=%',
       [sqlite3.libversion, fOpenV2Flags]);
   fFileName := aFileName;
@@ -6772,17 +6889,18 @@ end;
 procedure TSqlDataBase.Execute(const aSql: RawUtf8);
 var
   R: TSqlRequest;
-  Timer: TPrecisionTimer;
+  start: Int64;
 begin
   if self = nil then
     exit; // avoid GPF in case of call from a static-only server
-  Timer.Start;
+  QueryPerformanceMicroSeconds(start);
   Lock(aSql); // run one statement -> we can trust IsSelect()
   try
     R.Execute(DB, aSql);
   finally
     UnLock;
-    fLog.Add.Log(sllSQL, '% % %', [Timer.Stop, FileNameWithoutPath, aSql], self);
+    fLog.Add.Log(sllSQL, '% % %',
+      [MicroSecFrom(start), FileNameWithoutPath, aSql], self);
   end;
 end;
 
@@ -6815,20 +6933,20 @@ procedure TSqlDataBase.Execute(const aSql: RawUtf8;
   out aValue: Int64; NoLog: boolean);
 var
   R: TSqlRequest;
-  Timer: TPrecisionTimer;
+  start: Int64;
 begin
   if self = nil then
     exit; // avoid GPF in case of call from a static-only server
   if not NoLog then
-    Timer.Start;
+    QueryPerformanceMicroSeconds(start);
   Lock(aSql);
   try
     R.Execute(DB, aSql, aValue);
   finally
     UnLock;
     if not NoLog then
-      fLog.Add.Log(sllSQL, '% % returned % for %', [Timer.Stop,
-        FileNameWithoutPath, aValue, aSql], self);
+      fLog.Add.Log(sllSQL, '% % returned % for %',
+        [MicroSecFrom(start), FileNameWithoutPath, aValue, aSql], self);
   end;
 end;
 
@@ -6836,12 +6954,12 @@ procedure TSqlDataBase.Execute(const aSql: RawUtf8;
   out aValue: RawUtf8; NoLog: boolean);
 var
   R: TSqlRequest;
-  Timer: TPrecisionTimer;
+  start: Int64;
 begin
   if self = nil then
     exit; // avoid GPF in case of call from a static-only server
   if not NoLog then
-    Timer.Start;
+    QueryPerformanceMicroSeconds(start);
   Lock(aSql);
   try
     R.Execute(DB, aSql, aValue);
@@ -6849,27 +6967,27 @@ begin
     UnLock;
     if not NoLog then
       fLog.Add.Log(sllSQL, '% % returned [%] for %',
-        [Timer.Stop, FileNameWithoutPath, aValue, aSql], self);
+        [MicroSecFrom(start), FileNameWithoutPath, aValue, aSql], self);
   end;
 end;
 
 function TSqlDataBase.ExecuteNoException(const aSql: RawUtf8): boolean;
 var
   R: TSqlRequest;
-  Timer: TPrecisionTimer;
+  start: Int64;
 begin
   result := false;
   if (self = nil) or
      (DB = 0) then
     exit; // avoid GPF in case of call from a static-only server
-  Timer.Start;
+  QueryPerformanceMicroSeconds(start);
   Lock(aSql); // run one statement -> we can trust IsCacheable()
   try
     result := R.ExecuteNoException(DB, aSql);
   finally
     UnLock;
     fLog.Add.Log(sllSQL, '% % % = %',
-      [Timer.Stop, FileNameWithoutPath, aSql, BOOL_STR[result]], self);
+      [MicroSecFrom(start), FileNameWithoutPath, aSql, BOOL_STR[result]], self);
   end;
 end;
 
@@ -6904,14 +7022,14 @@ function TSqlDataBase.ExecuteJson(const aSql: RawUtf8; Expand: boolean;
 var
   R: TSqlRequest;
   Count: PtrInt;
-  Timer: TPrecisionTimer;
+  start: Int64;
 begin
   if self = nil then
   begin
     result := '';
     exit; // avoid GPF in case of call from a static-only server
   end;
-  Timer.Start;
+  QueryPerformanceMicroSeconds(start);
   result := LockJson(aSql, aResultCount); // lock and try getting from cache
   if result = '' then
     // only Execute the DB request if not got from cache
@@ -6921,8 +7039,8 @@ begin
         aResultCount^ := Count;
     finally
       UnLockJson(aSql, result, Count);
-      fLog.Add.Log(sllSQL, '% % returned % bytes %', [Timer.Stop,
-        FileNameWithoutPath, length(result), aSql], self);
+      fLog.Add.Log(sllSQL, '% % returned % bytes %',
+        [MicroSecFrom(start), FileNameWithoutPath, length(result), aSql], self);
     end;
 end;
 
@@ -6959,19 +7077,19 @@ function TSqlDataBase.Execute(const aSql: RawUtf8;
   var aValues: TRawUtf8DynArray): integer;
 var
   R: TSqlRequest;
-  Timer: TPrecisionTimer;
+  start: Int64;
 begin
   result := 0;
   if self = nil then
     exit; // avoid GPF in case of call from a static-only server
-  Timer.Start;
+  QueryPerformanceMicroSeconds(start);
   Lock(aSql);
   try
     result := R.Execute(DB, aSql, aValues);
   finally
     UnLock;
-    fLog.Add.Log(sllSQL, '% % returned % rows %', [Timer.Stop,
-      FileNameWithoutPath, result, aSql], self);
+    fLog.Add.Log(sllSQL, '% % returned % rows %',
+      [MicroSecFrom(start), FileNameWithoutPath, result, aSql], self);
   end;
 end;
 
@@ -7376,7 +7494,7 @@ begin
     log.Log(sllDB,'closing [%] %', [FileName, KB(GetFileSize)], self);
   if (sqlite3 = nil) or
      (not Assigned(sqlite3.close)) then
-    raise ESqlite3Exception.CreateUtf8(
+    ESqlite3Exception.RaiseUtf8(
       '%.DBClose called with no sqlite3 global', [self]);
   if fBackupBackgroundInProcess <> nil then
     BackupBackgroundWaitUntilFinished;
@@ -7398,7 +7516,7 @@ begin
     log.Log(sllDB, 'Enable custom tokenizer for [%]', [FileName], self);
   if (sqlite3 = nil) or
      (not Assigned(sqlite3.db_config)) then
-    raise ESqlite3Exception.CreateUtf8(
+    ESqlite3Exception.RaiseUtf8(
       '%.EnableCustomTokenizer called with no sqlite3 engine', [self]);
   result := sqlite3.db_config(fDB, SQLITE_DBCONFIG_ENABLE_FTS3_TOKENIZER, 1);
 end;
@@ -7481,57 +7599,57 @@ begin
     Utf16_WIN32NOCASE);
   // note: standard SQLite3 NOCASE collation is used for AnsiString
   // register the MOD() user function, similar to the standard % operator
-  sqlite3.create_function(DB, 'MOD', 2, SQLITE_ANY, nil,
-    InternalMod, nil, nil);
+  sqlite3.create_function(DB, 'MOD', 2, SQLITE_DETERMINISTIC,
+    nil, InternalMod, nil, nil);
   // register TIMELOG(), returning a ISO-8601 date/time from TTimeLog value
-  sqlite3.create_function(DB, 'TIMELOG', 1, SQLITE_ANY, nil,
-    InternalTimeLog, nil, nil);
+  sqlite3.create_function(DB, 'TIMELOG', 1, SQLITE_DETERMINISTIC,
+    nil, InternalTimeLog, nil, nil);
   // register TIMELOGUNIX(), returning Unix Epoch seconds from TTimeLog value
-  sqlite3.create_function(DB, 'TIMELOGUNIX', 1, SQLITE_ANY, nil,
-    InternalTimeLogUnix, nil, nil);
+  sqlite3.create_function(DB, 'TIMELOGUNIX', 1, SQLITE_DETERMINISTIC,
+    nil, InternalTimeLogUnix, nil, nil);
   // register SOUNDEX() SOUNDEXFR() SOUNDEXES() functions
-  sqlite3.create_function(DB, 'SOUNDEX', 1, SQLITE_UTF8, nil,
-    InternalSoundex, nil, nil);
-  sqlite3.create_function(DB, 'SOUNDEXFR', 1, SQLITE_UTF8, nil,
-    InternalSoundexFr, nil, nil);
-  sqlite3.create_function(DB, 'SOUNDEXES', 1, SQLITE_UTF8, nil,
-    InternalSoundexEs, nil, nil);
+  sqlite3.create_function(DB, 'SOUNDEX', 1, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, InternalSoundex, nil, nil);
+  sqlite3.create_function(DB, 'SOUNDEXFR', 1, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, InternalSoundexFr, nil, nil);
+  sqlite3.create_function(DB, 'SOUNDEXES', 1, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, InternalSoundexEs, nil, nil);
   // rank() function as proposed in http://www.sqlite.org/fts3.html#appendix_a
-  sqlite3.create_function(DB, 'RANK', -1, SQLITE_ANY, nil,
-    InternalRank, nil, nil);
+  sqlite3.create_function(DB, 'RANK', -1, SQLITE_DETERMINISTIC,
+    nil, InternalRank, nil, nil);
   // register CONCAT() function to process fast string concatenation
-  sqlite3.create_function(DB, 'CONCAT', 2, SQLITE_UTF8, nil, nil,
-    InternalConcatStep, InternalConcatFinal);
+  sqlite3.create_function(DB, 'CONCAT', 2, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, nil, InternalConcatStep, InternalConcatFinal);
   // functions to handle some standard dynamic array BLOB content in SQL
   // IntegerDynArrayContains(BlobField,10) returning a boolean
-  sqlite3.create_function(DB, 'INTEGERDYNARRAYCONTAINS', 2, SQLITE_ANY, nil,
-    InternalIntegerDynArray, nil, nil);
+  sqlite3.create_function(DB, 'INTEGERDYNARRAYCONTAINS', 2, SQLITE_DETERMINISTIC,
+    nil, InternalIntegerDynArray, nil, nil);
   // Byte/Word/Cardinal/Int64/CurrencyDynArrayContains(BlobField,I64)
-  sqlite3.create_function(DB, 'BYTEDYNARRAYCONTAINS', 2, SQLITE_ANY,
+  sqlite3.create_function(DB, 'BYTEDYNARRAYCONTAINS', 2, SQLITE_DETERMINISTIC,
     TypeInfo(TByteDynArray), InternalSimpleInt64DynArray, nil, nil);
-  sqlite3.create_function(DB, 'WORDDYNARRAYCONTAINS', 2, SQLITE_ANY,
+  sqlite3.create_function(DB, 'WORDDYNARRAYCONTAINS', 2, SQLITE_DETERMINISTIC,
     TypeInfo(TWordDynArray), InternalSimpleInt64DynArray, nil, nil);
-  sqlite3.create_function(DB, 'CARDINALDYNARRAYCONTAINS', 2, SQLITE_ANY,
+  sqlite3.create_function(DB, 'CARDINALDYNARRAYCONTAINS', 2, SQLITE_DETERMINISTIC,
     TypeInfo(TCardinalDynArray), InternalSimpleInt64DynArray, nil, nil);
-  sqlite3.create_function(DB, 'INT64DYNARRAYCONTAINS', 2, SQLITE_ANY,
+  sqlite3.create_function(DB, 'INT64DYNARRAYCONTAINS', 2, SQLITE_DETERMINISTIC,
     TypeInfo(TInt64DynArray), InternalSimpleInt64DynArray, nil, nil);
-  sqlite3.create_function(DB, 'CURRENCYDYNARRAYCONTAINS', 2, SQLITE_ANY,
+  sqlite3.create_function(DB, 'CURRENCYDYNARRAYCONTAINS', 2, SQLITE_DETERMINISTIC,
     TypeInfo(TInt64DynArray), InternalSimpleInt64DynArray, nil, nil);
   // RawUtf8DynArrayContainsCase/NoCase(BlobField,'Text') returning a boolean
-  sqlite3.create_function(DB, 'RAWUTF8DYNARRAYCONTAINSCASE', 2, SQLITE_ANY,
-    nil, InternalRawUtf8DynArray, nil, nil);
-  sqlite3.create_function(DB, 'RAWUTF8DYNARRAYCONTAINSNOCASE', 2, SQLITE_ANY,
-    @Utf8ILComp, InternalRawUtf8DynArray, nil, nil);
+  sqlite3.create_function(DB, 'RAWUTF8DYNARRAYCONTAINSCASE', 2,
+    SQLITE_DETERMINISTIC, nil, InternalRawUtf8DynArray, nil, nil);
+  sqlite3.create_function(DB, 'RAWUTF8DYNARRAYCONTAINSNOCASE', 2,
+    SQLITE_DETERMINISTIC, @Utf8ILComp, InternalRawUtf8DynArray, nil, nil);
   // JSON related functions (e.g. for ORM storing variants as JSON UTF-8 text)
-  sqlite3.create_function(DB, 'JSONGET', 2, SQLITE_ANY, nil,
-    InternalJsonGet, nil, nil);
-  sqlite3.create_function(DB, 'JSONHAS', 2, SQLITE_ANY, nil,
-    InternalJsonHas, nil, nil);
-  sqlite3.create_function(DB, 'JSONSET', 3, SQLITE_ANY, nil,
-    InternalJsonSet, nil, nil);
+  sqlite3.create_function(DB, 'JSONGET', 2, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, InternalJsonGet, nil, nil);
+  sqlite3.create_function(DB, 'JSONHAS', 2, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, InternalJsonHas, nil, nil);
+  sqlite3.create_function(DB, 'JSONSET', 3, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, InternalJsonSet, nil, nil);
   // register UNICODEUPPER() function using Unicode 10.0 uppercase folding
-  sqlite3.create_function(DB, 'UNICODEUPPER', 1, SQLITE_UTF8, nil,
-    InternalUnicodeUpper, nil, nil);
+  sqlite3.create_function(DB, 'UNICODEUPPER', 1, SQLITE_UTF8 or SQLITE_DETERMINISTIC,
+    nil, InternalUnicodeUpper, nil, nil);
   // reallocate all TSqlDataBaseSQLFunction for re-Open (TRestServerDB.Backup)
   for i := 0 to fSqlFunctions.Count - 1 do
     TSqlDataBaseSQLFunction(fSqlFunctions.List[i]).CreateFunction(DB);
@@ -8108,7 +8226,7 @@ begin
             W.AddComma;
             inc(result);
             if W.WrittenBytes > MaxMemory then // TextLength is slower
-              raise ESqlite3Exception.CreateUTF8(
+              ESqlite3Exception.RaiseUtf8(
                 'TSqlRequest.Execute: output overflow after % for [%]',
                 [KB(MaxMemory), aSql]);
           end;
@@ -8154,7 +8272,7 @@ begin
           for i := 0 to n do
           begin
             write(OutFile,
-              {$ifdef OSWINDOWS} FieldA {$else} FieldUtf8 {$endif}(i));
+              {$ifdef OSWINDOWS} FieldA {$else} FieldPUtf8 {$endif}(i));
             if i < n then
               write(OutFile, '|');
           end;
@@ -8205,14 +8323,13 @@ begin
   W.Add('{');
   for f := 0 to FieldCount - 1 do
   begin
-    W.Add('"');
+    W.AddDirect('"');
     W.AddNoJsonEscape(sqlite3.column_name(fRequest, f));
-    W.Add('"', ':');
+    W.AddDirect('"', ':');
     FieldToJson(W, sqlite3.column_value(Request, f), {noblob=}false);
     W.AddComma;
   end;
-  W.CancelLastComma;
-  W.Add('}');
+  W.CancelLastComma('}');
 end;
 
 procedure TSqlRequest.ExecuteDocVariant(aDB: TSqlite3DB; const aSql: RawUtf8;
@@ -8437,14 +8554,21 @@ begin
   Utf8ToStringVar(FieldDeclaredType(Col), result);
 end;
 
-function TSqlRequest.FieldUtf8(Col: integer): RawUtf8;
+procedure TSqlRequest.FieldUtf8(Col: integer; var Result: RawUtf8);
 var
   P: PUtf8Char;
 begin
   if cardinal(Col) >= cardinal(FieldCount) then
-    sqlite3_failed(RequestDB, SQLITE_RANGE, 'FieldUTF8');
-  P := pointer(sqlite3.column_text(Request, Col));
-  FastSetString(result, P, StrLen(P));
+    sqlite3_failed(RequestDB, SQLITE_RANGE, 'FieldUtf8');
+  P := sqlite3.column_text(Request, Col);
+  FastSetString(Result, P, StrLen(P));
+end;
+
+function TSqlRequest.FieldPUtf8(Col: integer): PUtf8Char;
+begin
+  if cardinal(Col) >= cardinal(FieldCount) then
+    sqlite3_failed(RequestDB, SQLITE_RANGE, 'FieldPUtf8');
+  result := sqlite3.column_text(Request, Col);
 end;
 
 {$ifdef UNICODE}
@@ -8627,7 +8751,7 @@ begin
       begin
         WR.Add('"');
         WR.AddJsonEscape(sqlite3.value_text(Value), {len=}0); // len=0 : fastest
-        WR.Add('"');
+        WR.AddDirect('"');
       end;
   end;
 end;
@@ -8780,7 +8904,7 @@ function TSqlDataBaseSQLFunction.CreateFunction(DB: TSqlite3DB): integer;
 begin
   if self <> nil then
     result := sqlite3.create_function(DB, pointer(fSqlName),
-      FunctionParametersCount, SQLITE_ANY, self, fInternalFunction, nil, nil)
+      FunctionParametersCount, SQLITE_UTF8, self, fInternalFunction, nil, nil)
   else
     result := SQLITE_ERROR;
 end;
@@ -8875,7 +8999,7 @@ begin
   begin
     if c^.Timer = nil then
       // there was a Statement.Prepare exception on previous call
-      raise ESqlite3Exception.CreateUtf8(
+      ESqlite3Exception.RaiseUtf8(
         'TSqlStatementCached.Prepare failed [%]', [GenericSql]);
     if c^.Statement.Request <> 0 then
       c^.Statement.Reset;
@@ -8955,7 +9079,7 @@ var
       log.Log(sllTrace, '%', [self]);
     if Assigned(fOnProgress) then
       if not fOnProgress(self) then
-        raise ESqlite3Exception.CreateUtf8(
+        ESqlite3Exception.RaiseUtf8(
           '%.Execute aborted by OnProgress=false', [self]);
   end;
 
@@ -9013,10 +9137,10 @@ begin
               fn2 := ChangeFileExt(fn, '.db.tmp');
               DeleteFile(fn2);
               if not RenameFile(fn, fn2) then
-                raise ESqlite3Exception.CreateUtf8(
+                ESqlite3Exception.RaiseUtf8(
                   '%.Execute: RenameFile(%,%) failed', [self, fn, fn2]);
               if not TSqlDatabase.BackupSynLZ(fn2, fn, true) then
-                raise ESqlite3Exception.CreateUtf8(
+                ESqlite3Exception.RaiseUtf8(
                   '%.Execute: BackupSynLZ(%,%) failed', [self, fn, fn2]);
               if Assigned(log) then
                 log.Log(sllTrace, 'TSqlDatabase.BackupSynLZ into % %',

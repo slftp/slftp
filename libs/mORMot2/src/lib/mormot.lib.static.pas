@@ -66,24 +66,26 @@ const
   _CLIB = 'msvcrt.dll'; // redirect to the built-in Microsoft "libc"
 
 type
-  qsort_compare_func = function(P1, P2: Pointer): Integer; cdecl;
+  qsort_compare_func = function(P1, P2: pointer): integer; cdecl;
 
 procedure libc_qsort(baseP: PByte; NElem, Width: PtrInt; comparF: qsort_compare_func); cdecl;
 function libc_rename(oldname, newname: PUtf8Char): integer; cdecl;
-function libc_printf(format: PAnsiChar): Integer; cdecl; varargs;
-function libc_sprintf(buf: Pointer; format: PAnsiChar): Integer; cdecl; varargs;
-function libc_fprintf(fHandle: pointer; format: PAnsiChar): Integer; cdecl; varargs;
+function libc_printf(format: PAnsiChar): integer; cdecl; varargs;
+function libc_sprintf(buf: pointer; format: PAnsiChar): integer; cdecl; varargs;
+function libc_fprintf(fHandle: pointer; format: PAnsiChar): integer; cdecl; varargs;
 function libc_vsnprintf(buf: pointer; nzize: PtrInt; format: PAnsiChar;
   param: pointer): integer; cdecl;
 function libc_strcspn(str, reject: PUtf8Char): integer; cdecl;
 function libc_strcat(dest: PAnsiChar; src: PAnsiChar): PAnsiChar; cdecl;
 function libc_strcpy(dest, src: PAnsiChar): PAnsiChar; cdecl;
+function libc_strspn(p1, p2: PAnsiChar): PAnsiChar; cdecl;
 function libc_strncmp(p1, p2: PByte; Size: integer): integer; cdecl;
-function libc_memchr(s: Pointer; c: Integer; n: PtrInt): Pointer; cdecl;
+function libc_memchr(s: pointer; c: integer; n: PtrInt): pointer; cdecl;
 function libc_memcmp(p1, p2: PByte; Size: integer): integer; cdecl;
-function libc_strchr(s: Pointer; c: Integer): Pointer; cdecl;
+function libc_strchr(s: pointer; c: integer): pointer; cdecl;
 function libc_strtod(value: PAnsiChar; endPtr: PPAnsiChar): Double; cdecl;
-function libc_write(handle: Integer; buf: Pointer; len: LongWord): Integer; cdecl;
+function libc_fileno(f: pointer): integer; cdecl;
+function libc_write(handle: integer; buf: pointer; len: LongWord): integer; cdecl;
 function libc_log(d: double): double; cdecl;
 
 type
@@ -290,11 +292,11 @@ end;
 
 function libc_rename(oldname, newname: PUtf8Char): integer; cdecl;
   external _CLIB name 'rename';
-function libc_printf(format: PAnsiChar): Integer; cdecl; varargs;
+function libc_printf(format: PAnsiChar): integer; cdecl; varargs;
   external _CLIB name 'printf';
-function libc_sprintf(buf: Pointer; format: PAnsiChar): Integer; cdecl; varargs;
+function libc_sprintf(buf: pointer; format: PAnsiChar): integer; cdecl; varargs;
   external _CLIB name 'sprintf';
-function libc_fprintf(fHandle: pointer; format: PAnsiChar): Integer; cdecl; varargs;
+function libc_fprintf(fHandle: pointer; format: PAnsiChar): integer; cdecl; varargs;
   external _CLIB name 'fprintf';
 function libc_vsnprintf(buf: pointer; nzize: PtrInt; format: PAnsiChar;
    param: pointer): integer; cdecl;
@@ -305,17 +307,21 @@ function libc_strcat(dest, src: PAnsiChar): PAnsiChar; cdecl;
   external _CLIB name 'strcat';
 function libc_strcpy(dest, src: PAnsiChar): PAnsiChar; cdecl;
   external _CLIB name 'strcpy';
+function libc_strspn(p1, p2: PAnsiChar): PAnsiChar; cdecl;
+  external _CLIB name 'strspn';
 function libc_strncmp(p1, p2: PByte; Size: integer): integer; cdecl;
   external _CLIB name 'strncmp';
-function libc_memchr(s: Pointer; c: Integer; n: PtrInt): Pointer; cdecl;
+function libc_memchr(s: pointer; c: integer; n: PtrInt): pointer; cdecl;
   external _CLIB name 'memchr';
 function libc_memcmp(p1, p2: PByte; Size: integer): integer; cdecl;
   external _CLIB name 'memcmp';
-function libc_strchr(s: Pointer; c: Integer): Pointer; cdecl;
+function libc_strchr(s: pointer; c: integer): pointer; cdecl;
   external _CLIB name 'strchr';
 function libc_strtod(value: PAnsiChar; endPtr: PPAnsiChar): Double; cdecl;
   external _CLIB name 'strtod';
-function libc_write(handle: Integer; buf: Pointer; len: LongWord): Integer; cdecl;
+ function libc_fileno(f: pointer): integer; cdecl;
+   external _CLIB name '_fileno';
+ function libc_write(handle: integer; buf: pointer; len: LongWord): integer; cdecl;
   external _CLIB name '_write';
 procedure libc_qsort(baseP: PByte; NElem, Width: PtrInt; comparF: qsort_compare_func); cdecl;
   external _CLIB name 'qsort';
@@ -394,7 +400,7 @@ end;
 function fputc(c: integer; f: pointer): integer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'fputc'; {$endif}
 begin
-  if libc_write(PtrInt(f), @c, 1) = 1 then
+  if libc_write(libc_fileno(f), @c, 1) = 1 then
     result := c
   else
     result := 26;
@@ -417,7 +423,7 @@ end;
 function fwrite(buf: pointer; size, count: PtrInt; f: pointer): integer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'fwrite'; {$endif}
 begin
-  result := libc_write(PtrInt(f), buf, size * count) div size;
+  result := libc_write(libc_fileno(f), buf, size * count) div size;
 end;
 
 {$ifdef CPUX86}
@@ -510,21 +516,21 @@ begin
   {$endif FPC}
 end;
 
-function memcpy(dest, src: Pointer; count: PtrInt): Pointer; cdecl;
+function memcpy(dest, src: pointer; count: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'memcpy'; {$endif}
 begin
   MoveFast(src^, dest^, count);
   result := dest;
 end;
 
-function memset(dest: Pointer; val: Integer; count: PtrInt): Pointer; cdecl;
+function memset(dest: pointer; val: integer; count: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'memset'; {$endif}
 begin
   FillCharFast(dest^, count, val);
   result := dest;
 end;
 
-function memmove(dest, src: Pointer; count: PtrInt): Pointer; cdecl;
+function memmove(dest, src: pointer; count: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'memmove'; {$endif}
 begin
   MoveFast(src^, dest^, count);
@@ -614,6 +620,12 @@ begin
   result := libc_strcpy(dest, src);
 end;
 
+function strspn(p1, p2: PAnsiChar): PAnsiChar; cdecl;
+  {$ifdef FPC} public name _PREFIX + 'strspn'; {$else} export; {$endif}
+begin
+  result := libc_strspn(p1, p2);
+end;
+
 function strtod(value: PAnsiChar; endPtr: PPAnsiChar): Double; cdecl;
   {$ifdef FPC} public name _PREFIX + '__strtod'; {$else} export; {$endif}
 begin
@@ -632,7 +644,7 @@ begin
   result := GetInteger(str);
 end;
 
-function memchr(s: Pointer; c: Integer; n: PtrInt): Pointer; cdecl;
+function memchr(s: pointer; c: integer; n: PtrInt): pointer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'memchr'; {$else} export; {$endif}
 begin
   result := libc_memchr(s, c, n);
@@ -644,7 +656,7 @@ begin
  result := libc_memcmp(p1, p2, Size);
 end;
 
-function strchr(s: PAnsiChar; c: Integer): Pointer; cdecl;
+function strchr(s: PAnsiChar; c: integer): pointer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'strchr'; {$else} export; {$endif}
 begin
   result := libc_strchr(s, c);
@@ -659,7 +671,7 @@ end;
 {$ifdef CPUX86} // not a compiler intrinsic on x86
 
 function _InterlockedCompareExchange(
-  var Dest: integer; New, Comp: integer): longint; stdcall;
+  var Dest: integer; New, Comp: integer): integer; stdcall;
   public alias: '_InterlockedCompareExchange@12';
 begin
   result := InterlockedCompareExchange(Dest, New, Comp);

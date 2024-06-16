@@ -43,6 +43,9 @@ interface
 //    TDynArray and TSynDictionary, then specialization helps a little more
 {.$define NOSPECIALIZE}
 
+// you could try to define this conditional to generate even less code, which
+// may be slightly slower - perhaps not really noticeable on production
+{.$define SMALLGENERICS}
 
 uses
   classes,
@@ -591,6 +594,7 @@ type
     function GetValueTypeInfo: PRttiInfo;
     procedure AddOne(key, value: pointer);
     procedure GetDefault(value: pointer);
+    procedure GetDefaultAndUnlock(value: pointer);
     function GetCapacity: integer;
     procedure SetCapacity(value: integer);
     function GetTimeOutSeconds: cardinal;
@@ -654,6 +658,7 @@ type
     function TryAdd(const key: TKey; const value: TValue): boolean;
     /// IKeyValue<> method to search a key and return its associated value
     function TryGetValue(const key: TKey; var value: TValue): boolean;
+      {$ifndef SMALLGENERICS} inline; {$endif}
     /// IKeyValue<> method to search a key or a supplied default
     function GetValueOrDefault(const key: TKey;
       const defaultValue: TValue): TValue;
@@ -868,7 +873,7 @@ begin
   fOptions := aOptions;
   if (aDynArrayTypeInfo = nil) or
      (aDynArrayTypeInfo^.Kind <> rkDynArray) then
-     raise EIList.CreateUtf8('%.Create: % should be a dynamic array of T',
+     EIList.RaiseUtf8('%.Create: % should be a dynamic array of T',
        [self, aDynArrayTypeInfo^.Name^]);
   CreateRtti(Rtti.RegisterType(aDynArrayTypeInfo), aItemTypeInfo, aOptions, aSortAs);
 end;
@@ -881,7 +886,7 @@ begin
     loCaseInsensitive in fOptions);
   if (fDynArray.Info.ArrayRtti = nil) or
      (fDynArray.Info.ArrayRtti.Kind <> aItemTypeInfo^.Kind)  then
-    raise EIList.CreateUtf8('%.Create<%> (%) does not match % (%)',
+    EIList.RaiseUtf8('%.Create<%> (%) does not match % (%)',
       [self, aItemTypeInfo^.RawName, ToText(aItemTypeInfo^.Kind)^,
        aDynArray.Info^.RawName, ToText(fDynArray.Info.ArrayRtti.Kind)^]);
   if loNoFinalize in fOptions then
@@ -904,7 +909,7 @@ end;
 function TIListParent.Delete(ndx: PtrInt): boolean;
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8('%.Delete(%) is not allowed  with ' +
+    EIList.RaiseUtf8('%.Delete(%) is not allowed  with ' +
       'loCreateUniqueIndex: use Remove()', [self, ndx]);
   result := fDynArray.Delete(ndx);
 end;
@@ -912,7 +917,7 @@ end;
 function TIListParent.DoPop(var dest; opt: TListPop): boolean;
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8(
+    EIList.RaiseUtf8(
       '%.Pop() is not compatible with loCreateUniqueIndex', [self]);
   if popFromHead in opt then
     if popPeek in opt then
@@ -963,7 +968,7 @@ end;
 function TIListParent.DoAddSorted(const value; wasadded: PBoolean): integer;
 begin
   if fHasher = nil then
-    raise EIList.CreateUtf8('%.AddSorted() is not allowed  with ' +
+    EIList.RaiseUtf8('%.AddSorted() is not allowed  with ' +
       'loCreateUniqueIndex: use Add()', [self]);
   result := fDynArray.FastLocateOrAddSorted(value, wasadded);
 end;
@@ -1001,7 +1006,7 @@ end;
 procedure TIListParent.DoInsert(ndx: PtrInt; const value);
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8('%.Insert(%) is not allowed with ' +
+    EIList.RaiseUtf8('%.Insert(%) is not allowed with ' +
       'loCreateUniqueIndex: use Add()', [self, ndx]);
   fDynArray.Insert(ndx, value);
 end;
@@ -1021,17 +1026,17 @@ end;
 
 procedure TIListParent.RaiseGetItem(ndx: PtrInt);
 begin
-  raise EIList.CreateUtf8('%.GetItem(%): out of range (Count=%)',
+  EIList.RaiseUtf8('%.GetItem(%): out of range (Count=%)',
     [self, ndx, fCount]);
 end;
 
 procedure TIListParent.RaiseSetItem(ndx: PtrInt);
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8('%.SetItem(%) is not allowed with ' +
+    EIList.RaiseUtf8('%.SetItem(%) is not allowed with ' +
       'loCreateUniqueIndex: use Remove() then Add()', [self, ndx]);
   if PtrUInt(ndx) >= PtrUInt(fCount) then
-    raise EIList.CreateUtf8('%.SetItem(%): out of range (Count=%)',
+    EIList.RaiseUtf8('%.SetItem(%): out of range (Count=%)',
       [self, ndx, fCount]);
 end;
 
@@ -1159,7 +1164,7 @@ begin
   end;
   s := fDynArray.Info.Cache.ItemSize;
   state.After := state.Current + s * PtrUInt(fCount);
-  dec(state.Current, s);
+  dec(state.Current, s); // for the first MoveNext
 end;
 
 procedure TIListParent.NewEnumerator(var state: TIListEnumeratorState;
@@ -1311,11 +1316,11 @@ begin
   // validate or recognize most simple dynamic arrays from its TKey/TValue types
   if (aContext.KeyArrayTypeInfo = nil) or
      (aContext.KeyArrayTypeInfo ^.Kind <> rkDynArray) then
-     raise EIKeyValue.CreateUtf8('%.Create: % should be an array of TKey',
+     EIKeyValue.RaiseUtf8('%.Create: % should be an array of TKey',
        [self, aContext.KeyArrayTypeInfo^.Name^]);
   if (aContext.ValueArrayTypeInfo = nil) or
      (aContext.ValueArrayTypeInfo^.Kind <> rkDynArray) then
-     raise EIKeyValue.CreateUtf8('%.Create: % should be an array of TValue',
+     EIKeyValue.RaiseUtf8('%.Create: % should be an array of TValue',
        [self, aContext.ValueArrayTypeInfo^.Name^]);
   // initialize the associated dictionary
   fHasTimeout := aContext.Timeout <> 0;
@@ -1331,12 +1336,12 @@ begin
   if (fData.Keys.Info.ArrayRtti = nil) or
      ((aContext.KeyArrayTypeInfo <> nil) and
       (fData.Keys.Info.ArrayRtti.Info <> aContext.KeyItemTypeInfo)) then
-    raise EIKeyValue.CreateUtf8('%.Create: TKey does not match %',
+    EIKeyValue.RaiseUtf8('%.Create: TKey does not match %',
       [self, aContext.KeyArrayTypeInfo^.RawName]);
   if (fData.Values.Info.ArrayRtti = nil) or
      ((aContext.ValueArrayTypeInfo <> nil) and
       (fData.Values.Info.ArrayRtti.Info <> aContext.ValueItemTypeInfo)) then
-    raise EIKeyValue.CreateUtf8('%.Create: TValue does not match %',
+    EIKeyValue.RaiseUtf8('%.Create: TValue does not match %',
       [self, aContext.ValueArrayTypeInfo^.RawName]);
 end;
 
@@ -1365,7 +1370,7 @@ end;
 procedure TIKeyValueParent.AddOne(key, value: pointer);
 begin
   if fData.Add(key^, value^) < 0 then
-    raise EIKeyValue.CreateUtf8('%.Add: duplicated key', [self]);
+    EIKeyValue.RaiseUtf8('%.Add: duplicated key', [self]);
 end;
 
 procedure TIKeyValueParent.GetDefault(value: pointer);
@@ -1373,10 +1378,18 @@ begin
   if kvoDefaultIfNotFound in fOptions then
     fData.Values.ItemClear(value)
   else
+    EIKeyValue.RaiseUtf8('%.GetItem: key not found', [self]);
+end;
+
+procedure TIKeyValueParent.GetDefaultAndUnlock(value: pointer);
+begin
+  if kvoDefaultIfNotFound in fOptions then
+    fData.Values.ItemClear(value)
+  else
   begin
     if fHasLock then
       fData.Safe^.ReadUnLock; // as expected by TIKeyValue<TKey, TValue>.GetItem
-    raise EIKeyValue.CreateUtf8('%.GetItem: key not found', [self]);
+    EIKeyValue.RaiseUtf8('%.GetItem: key not found', [self]);
   end;
 end;
 
@@ -1437,19 +1450,26 @@ end;
 { TIKeyValue<TKey, TValue> }
 
 function TIKeyValue<TKey, TValue>.GetItem(const key: TKey): TValue;
+{$ifdef SMALLGENERICS}
+begin
+  if not fData.FindAndCopy(key, result, fHasTimeout) then
+    GetDefault(@result)
+end;
+{$else}
 var
-  ndx: PtrInt; // slightly more verbose but faster than FindAndCopy
+  ndx: PtrInt; // slightly more verbose but faster than plain FindAndCopy
 begin
   if fHasLock then
     fData.Safe^.ReadLock;
   ndx := fData.Find(key, fHasTimeout);
   if ndx < 0 then
-    GetDefault(@result) // may ReadUnLock and raise EIKeyValue
+    GetDefaultAndUnlock(@result) // may ReadUnLock and raise EIKeyValue
   else
     result := TArray<TValue>(fData.Values.Value^)[ndx]; // very efficient
   if fHasLock then
     fData.Safe^.ReadUnLock;
 end;
+{$endif SMALLGENERICS}
 
 function TIKeyValue<TKey, TValue>.GetKey(ndx: PtrInt): TKey;
 begin
@@ -1481,14 +1501,37 @@ end;
 
 function TIKeyValue<TKey, TValue>.TryGetValue(const key: TKey;
   var value: TValue): boolean;
+{$ifdef SMALLGENERICS}
 begin
   result := fData.FindAndCopy(key, value, fHasTimeout);
 end;
+{$else}
+var
+  ndx: PtrInt;
+begin
+  if fHasLock then
+    fData.Safe^.ReadLock;
+  ndx := fData.Find(key, fHasTimeout);
+  if ndx >= 0 then
+  begin
+    value := TArray<TValue>(fData.Values.Value^)[ndx];
+    result := true;
+  end
+  else
+    result := false;
+  if fHasLock then
+    fData.Safe^.ReadUnLock;
+end;
+{$endif SMALLGENERICS}
 
 function TIKeyValue<TKey, TValue>.GetValueOrDefault(const key: TKey;
   const defaultValue: TValue): TValue;
 begin
+  {$ifdef SMALLGENERICS}
   if not fData.FindAndCopy(key, result, fHasTimeout) then
+  {$else}
+  if not TryGetValue(key, result{%H-}) then
+  {$endif SMALLGENERICS}
     result := defaultValue;
 end;
 
@@ -1543,7 +1586,7 @@ end;
 class function Collections.{%H-}RaiseUseNewPlainKeyValue(
   const aContext: TNewKeyValueContext): pointer;
 begin
-  raise EIKeyValue.CreateUtf8('Collections.NewKeyValue<>: Types are too ' +
+  raise EIList.CreateUtf8('Collections.NewKeyValue<>: Types are too ' +
     'complex - use Collections.NewPlainKeyValue<%, %> instead',
     [aContext.KeyItemTypeInfo.Name^, aContext.ValueItemTypeInfo.Name^]);
 end;

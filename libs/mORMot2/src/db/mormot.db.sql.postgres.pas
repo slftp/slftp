@@ -183,7 +183,8 @@ type
     procedure BindParams;
     /// raise an exception if Col is out of range according to fColumnCount
     // or rowset is not initialized
-    procedure CheckColAndRowset(const Col: integer);
+    procedure CheckColAndRowset(Col: integer);
+      {$ifdef HASINLINE} inline; {$endif}
   public
     /// finalize the statement for a given connection
     destructor Destroy; override;
@@ -210,15 +211,15 @@ type
     procedure GetPipelineResult;
     /// bind an array of 64-bit integer values to a parameter
     // - the leftmost SQL parameter has an index of 1
-    // - overloaded for direct assignment to the PostgreSQL client as fake JSON
+    // - overriden for direct assignment to the PostgreSQL client as fake JSON
     procedure BindArray(Param: integer;
       const Values: array of Int64); overload; override;
     /// bind an array of 32-bit integer values to a parameter
     // - the leftmost SQL parameter has an index of 1
-    // - overloaded for direct assignment to the PostgreSQL client as fake JSON
+    // - for direct assignment to the PostgreSQL client as fake JSON
     procedure BindArrayInt32(Param: integer; const Values: TIntegerDynArray);
     /// bind an array of JSON values to a parameter
-    // - overloaded for direct assignment to the PostgreSQL client
+    // - overriden for direct assignment to the PostgreSQL client
     // - warning: input JSON should already be in the expected format (ftDate)
     procedure BindArrayJson(Param: integer; ParamType: TSqlDBFieldType;
       var JsonArray: RawUtf8; ValuesCount: integer); override;
@@ -250,6 +251,9 @@ type
     function ColumnCurrency(Col: integer): currency; override;
     /// return a Column UTF-8 encoded text value of the current Row, first Col is 0
     function ColumnUtf8(Col: integer): RawUtf8; override;
+    /// return a Column UTF-8 text buffer of the current Row, first Col is 0
+    // - returned pointer is likely to last only until next Reset call
+    function ColumnPUtf8(Col: integer): PUtf8Char; override;
     /// return a Column as a blob value of the current Row, first Col is 0
     function ColumnBlob(Col: integer): RawByteString; override;
     /// return one column value into JSON content
@@ -462,8 +466,7 @@ begin
   if (P = nil) or
      (PLen <= 0) then
     result := 0
-  else
-  if PWord(P)^ = ord('\') + ord('x') shl 8 then {ssByteAasHex in fServerSettings}
+  else if PWord(P)^ = ord('\') + ord('x') shl 8 then {ssByteAasHex in fServerSettings}
   begin
     result := (PLen - 2) shr 1; // skip trailing \x and compute number of bytes
     if result > 0 then
@@ -474,12 +477,12 @@ begin
     result := OctToBin(P, pointer(P)); // in-place conversion
 end;
 
-procedure SynLogNoticeProcessor({%H-}arg: Pointer; message: PUtf8Char); cdecl;
+procedure SynLogNoticeProcessor({%H-}arg: pointer; message: PUtf8Char); cdecl;
 begin
   SynDBLog.Add.Log(sllTrace, 'PGINFO: %', [message], TObject(arg));
 end;
 
-procedure DummyNoticeProcessor({%H-}arg: Pointer; message: PUtf8Char); cdecl;
+procedure DummyNoticeProcessor({%H-}arg: pointer; message: PUtf8Char); cdecl;
 begin
 end;
 
@@ -496,7 +499,7 @@ begin
       pointer(Properties.DatabaseName), pointer(Properties.UserID),
       pointer(Properties.PassWord));
     if PQ.Status(fPGConn) = CONNECTION_BAD then
-      raise ESqlDBPostgres.CreateUtf8('Connection to database % failed [%]',
+      ESqlDBPostgres.RaiseUtf8('Connection to database % failed [%]',
         [Properties.DatabaseNameSafe, PQ.ErrorMessage(fPGConn)]);
     // if GetServerSetting('bytea_output') = 'HEX' then
     //   include(fServerSettings, ssByteAasHex);
@@ -555,9 +558,8 @@ var
 begin
   log := SynDBLog.Enter(self, 'StartTransaction');
   if TransactionCount > 0 then
-    raise ESqlDBPostgres.CreateUtf8('Invalid %.StartTransaction: nested ' +
-      'transactions are not supported by the Postgres - use SAVEPOINT instead',
-      [self]);
+    ESqlDBPostgres.RaiseUtf8('Invalid %.StartTransaction: nested transactions' +
+      ' are not supported by Postgres - use SAVEPOINT instead', [self]);
   try
     inherited StartTransaction;
     DirectExecSql('START TRANSACTION');
@@ -594,8 +596,7 @@ end;
 procedure TSqlDBPostgresConnection.EnterPipelineMode;
 begin
   if not Assigned(PQ.enterPipelineMode) then
-    raise ESqlDBPostgres.CreateUtf8(
-      '%.EnterPipelineMonde: pipelining unsupported in % v%',
+    ESqlDBPostgres.RaiseUtf8('%.EnterPipelineMonde: pipelining unsupported in % v%',
       [self, PQ.LibraryPath, PQ.LibVersion]);
   if PQ.enterPipelineMode(fPGConn) <> PGRES_COMMAND_OK then
     PQ.RaiseError(fPGConn, 'EnterPipelineMonde');
@@ -646,7 +647,7 @@ begin
   PQ.Check(fPGConn, 'GetResult', res, @res, {andclear=}false);
   err := PQ.ResultStatus(res);
   if err <> PGRES_PIPELINE_SYNC then
-    raise ESqlDBPostgres.CreateUtf8(
+    ESqlDBPostgres.RaiseUtf8(
       '%.CheckPipelineSync returned % instead of PGRES_PIPELINE_SYNC [%] ',
       [self, err, PQ.ErrorMessage(fPGConn)])
   else
@@ -774,7 +775,7 @@ var
   i: PtrInt;
 begin
   if cOID > 65535 then
-    raise ESqlDBPostgres.CreateUtf8('Out of range %.MapOid(%)', [self, cOID]);
+    ESqlDBPostgres.RaiseUtf8('Out of range %.MapOid(%)', [self, cOID]);
   i := WordScanIndex(pointer(fOids), fOidsCount, cOID);
   if i < 0 then
   begin
@@ -856,7 +857,7 @@ begin
            ftCurrency,
            ftDate,
            ftUtf8]) then
-        raise ESqlDBPostgres.CreateUtf8('%.ExecutePrepared: Invalid array ' +
+        ESqlDBPostgres.RaiseUtf8('%.ExecutePrepared: Invalid array ' +
           'type % on bound parameter #%', [self, ToText(p^.VType)^, i]);
       if p^.VArray[0] <> _BindArrayJson[0] then
         // p^.VData is not the array encoded as PostgreSQL pseudo-JSON {....}
@@ -919,7 +920,7 @@ begin
             fPGParamLengths[i] := length(p^.VData);
           end;
       else
-        raise ESqlDBPostgres.CreateUtf8('%.ExecutePrepared: cannot bind ' +
+        ESqlDBPostgres.RaiseUtf8('%.ExecutePrepared: cannot bind ' +
           'parameter #% of type %', [self, i, ToText(p^.VType)^]);
       end;
     if fPGParams[i] = nil then
@@ -928,13 +929,12 @@ begin
   end;
 end;
 
-procedure TSqlDBPostgresStatement.CheckColAndRowset(const Col: integer);
+procedure TSqlDBPostgresStatement.CheckColAndRowset(Col: integer);
 begin
-  CheckCol(Col);
-  if (fRes = nil) or
+  if (cardinal(Col) >= cardinal(fColumnCount)) or
+     (fRes = nil) or
      (fResStatus <> PGRES_TUPLES_OK) then
-    raise ESqlDBPostgres.CreateUtf8(
-      '%.Execute not called before Column*', [self]);
+    CheckColInvalid(Col);
 end;
 
 destructor TSqlDBPostgresStatement.Destroy;
@@ -958,7 +958,7 @@ begin
   // it is called once: already cached in TSqlDBConnection.NewStatementPrepared
   SqlLogBegin(sllDB);
   if aSql = '' then
-    raise ESqlDBPostgres.CreateUtf8('%.Prepare: empty statement', [self]);
+    ESqlDBPostgres.RaiseUtf8('%.Prepare: empty statement', [self]);
   inherited Prepare(aSql, ExpectResults); // will strip last ;
   fPreparedParamsCount := ReplaceParamsByNumbers(fSql, fSqlPrepared, '$');
   if scPossible in fCache then
@@ -998,10 +998,9 @@ begin
     fRes := nil;
   end;
   if fSqlPrepared = '' then
-    raise ESqlDBPostgres.CreateUtf8(
-      '%.ExecutePrepared: Statement not prepared', [self]);
+    ESqlDBPostgres.RaiseUtf8('%.ExecutePrepared: Statement not prepared', [self]);
   if fParamCount <> fPreparedParamsCount then
-    raise ESqlDBPostgres.CreateUtf8('%.ExecutePrepared: Query expects % ' +
+    ESqlDBPostgres.RaiseUtf8('%.ExecutePrepared: Query expects % ' +
       'parameters but % bound', [self, fPreparedParamsCount, fParamCount]);
   inherited ExecutePrepared;
   BindParams;
@@ -1026,7 +1025,7 @@ begin
       // paranoid check
       PQ.Clear(fRes);
       fRes := nil;
-      raise ESqlDBPostgres.CreateUtf8('%.ExecutePrepared: result expected ' +
+      ESqlDBPostgres.RaiseUtf8('%.ExecutePrepared: result expected ' +
         'but statement did not return tuples', [self]);
     end;
     fTotalRowsRetrieved := PQ.ntuples(fRes);
@@ -1047,10 +1046,9 @@ var
 begin
   SqlLogBegin(sllSQL);
   if fSqlPrepared = '' then
-    raise ESqlDBPostgres.CreateUtf8(
-      '%.SendPipelinePrepared: Statement not prepared', [self]);
+    ESqlDBPostgres.RaiseUtf8('%.SendPipelinePrepared: Statement not prepared', [self]);
   if fParamCount <> fPreparedParamsCount then
-    raise ESqlDBPostgres.CreateUtf8('%.SendPipelinePrepared: Query expects % ' +
+    ESqlDBPostgres.RaiseUtf8('%.SendPipelinePrepared: Query expects % ' +
       'parameters but % bound', [self, fPreparedParamsCount, fParamCount]);
   inherited ExecutePrepared;
   BindParams;
@@ -1090,7 +1088,7 @@ begin
     begin
       PQ.Clear(fRes);
       fRes := nil;
-      raise ESqlDBPostgres.CreateUtf8('%.GetPipelineResult: result expected ' +
+      ESqlDBPostgres.RaiseUtf8('%.GetPipelineResult: result expected ' +
         'but statement did not return tuples (status=%)', [self, fResStatus]);
     end;
     fTotalRowsRetrieved := PQ.ntuples(fRes);
@@ -1105,8 +1103,7 @@ begin
   endRes := PQ.getResult(c.fPGConn);
   if endRes <> nil then
     // nil represents end of the result set
-    raise ESqlDBPostgres.CreateUtf8(
-      '%.GetPipelineResult: returned something extra', [self]);
+    ESqlDBPostgres.RaiseUtf8('%.GetPipelineResult: returned something extra', [self]);
 end;
 
 procedure TSqlDBPostgresStatement.BindArray(Param: integer;
@@ -1116,7 +1113,7 @@ var
 begin
   // PostgreSQL has its own JSON-like syntax, which is '{1,2,3}' for integers
   if high(Values) < 0 then
-    raise ESqlDBPostgres.CreateUtf8('%.BindArray([])', [self]);
+    ESqlDBPostgres.RaiseUtf8('%.BindArray([])', [self]);
   p := CheckParam(Param, ftInt64, paramIn, 0);
   fParamsArrayCount := length(Values);
   p^.VInt64 := fParamsArrayCount;
@@ -1140,7 +1137,7 @@ var
 begin
   // PostgreSQL has its own JSON-like syntax, which is '{1,2,3}' for integers
   if Values = nil then
-    raise ESqlDBPostgres.CreateUtf8('%.BindArrayInt32([])', [self]);
+    ESqlDBPostgres.RaiseUtf8('%.BindArrayInt32([])', [self]);
   p := CheckParam(Param, ftInt64, paramIn, 0);
   fParamsArrayCount := length(Values);
   p^.VInt64 := fParamsArrayCount;
@@ -1193,8 +1190,7 @@ function TSqlDBPostgresStatement.Step(SeekFirst: boolean): boolean;
 begin
   if (fRes = nil) or
      (fResStatus <> PGRES_TUPLES_OK) then
-    raise ESqlDBPostgres.CreateUtf8(
-      '%.Execute should be called before Step', [self]);
+    ESqlDBPostgres.RaiseUtf8('%.Execute should be called before Step', [self]);
   if SeekFirst then
     fCurrentRow := -1;
   result := fCurrentRow + 1 < fTotalRowsRetrieved;
@@ -1252,6 +1248,12 @@ begin
   PQ.GetRawUtf8(fRes, fCurrentRow, Col, result);
 end;
 
+function TSqlDBPostgresStatement.ColumnPUtf8(Col: integer): PUtf8Char;
+begin
+  CheckColAndRowset(Col);
+  result := PQ.GetValue(fRes, fCurrentRow, Col);
+end;
+
 function TSqlDBPostgresStatement.ColumnBlob(Col: integer): RawByteString;
 var
   P: pointer;
@@ -1270,7 +1272,7 @@ begin
   if (fRes = nil) or
      (fResStatus <> PGRES_TUPLES_OK) or
      (fCurrentRow < 0) then
-    raise ESqlDBPostgres.CreateUtf8('Unexpected %.ColumnToJson', [self]);
+    ESqlDBPostgres.RaiseUtf8('Unexpected %.ColumnToJson', [self]);
   with fColumns[Col] do
   begin
     P := PQ.GetValue(fRes, fCurrentRow, Col);
@@ -1288,17 +1290,17 @@ begin
           if ColumnAttr = BOOLOID then // = PQ.ftype(fRes, Col)
             W.Add((P <> nil) and (PUtf8Char(P)^ = 't'))
           else
-            // note: StrLen is slightly faster than PQ.GetLength for small content
-            W.AddNoJsonEscape(P, StrLen(P));
+            // note: StrLen slightly faster than PQ.GetLength for small content
+            W.AddShort(P, StrLen(P));
         ftUtf8:
           if (ColumnAttr = JSONOID) or
              (ColumnAttr = JSONBOID) then
-            W.AddNoJsonEscape(P, PQ.GetLength(fRes, fCurrentRow, Col))
+            W.AddShort(P, PQ.GetLength(fRes, fCurrentRow, Col))
           else
           begin
             W.Add('"');
             W.AddJsonEscape(P, 0); // Len=0 is faster than StrLen/GetLength
-            W.Add('"');
+            W.AddDirect('"');
           end;
         ftDate:
           begin
@@ -1307,7 +1309,7 @@ begin
                (PAnsiChar(P)[10] = ' ') then
               PAnsiChar(P)[10] := 'T'; // ensure strict ISO-8601 encoding
             W.AddJsonEscape(P);
-            W.Add('"');
+            W.AddDirect('"');
           end;
         ftBlob:
           if fForceBlobAsNull then
@@ -1316,7 +1318,7 @@ begin
             W.WrBase64(P, BlobInPlaceDecode(P,
               PQ.GetLength(fRes, fCurrentRow, Col)), {withmagic=}true);
       else
-        raise ESqlDBPostgres.CreateUtf8('%.ColumnToJson: ColumnType=%?',
+        ESqlDBPostgres.RaiseUtf8('%.ColumnToJson: ColumnType=%?',
           [self, ord(ColumnType)]);
       end;
     end;
@@ -1336,7 +1338,7 @@ var
 begin
   // caller did protect this method with Lock/UnLock
   if not Assigned(OnFinished) then
-    raise ESqlDBPostgresAsync.CreateUtf8(
+    ESqlDBPostgresAsync.RaiseUtf8(
       '%.ExecuteAsync with OnFinished=nil [%]', [self, fSql]);
   // create a new task
   task.Statement := self;
@@ -1387,7 +1389,7 @@ end;
 constructor TSqlDBPostgresAsyncThread.Create(aOwner: TSqlDBPostgresAsync);
 begin
   fOwner := aOwner;
-  FormatUtf8('db%', [CurrentThreadName], fName);
+  FormatUtf8('db%', [CurrentThreadNameShort^], fName);
   inherited Create({suspended=}false);
 end;
 
@@ -1413,20 +1415,18 @@ begin
       // wait to have some data pending on the input socket for a task
       repeat
         if fOwner.fConnection = nil then
-          res := []
+          res := [neClosed]
         else
-          res := fOwner.fConnection.Socket.WaitFor(-1, [neRead]);
-      until Terminated or
-            (res = [neRead]) or
-            ((res <> []) and
-             SleepOrTerminated(100)); // sleep(100) on broken connection
+          res := fOwner.fConnection.Socket.WaitFor(-1, [neRead, neError]);
+        if Terminated or
+           (neRead in res) then
+          break;
+        SleepHiRes(10); // loop on broken or not yet established connection
+      until Terminated;
       if Terminated then
         break;
       if not fOwner.fTasks.Pending then // happens e.g. during statement parsing
-        if SleepOrTerminated(10) then
-          break
-        else
-          continue;
+        continue; // no sleep(): just loop to WaitFor() syscall again
       // handle incoming responses from PostgreSQL
       task.OnFinished := nil;
       try
@@ -1557,7 +1557,7 @@ begin
     if endtix = 0 then
       endtix := tix + 5000 // never wait forever
     else if tix > endtix then
-      raise ESqlDBPostgresAsync.CreateUtf8('%.NewStatement timeout', [self]);
+      ESqlDBPostgresAsync.RaiseUtf8('%.NewStatement timeout', [self]);
   until false;
   // initialize the new statement within the acquired lock
   try

@@ -241,7 +241,7 @@ asm
         movups  xmm1, dqword ptr [eax]       // last 16
         push    ecx
         neg     ecx
-        and     edx,  -16                    // 16-byte align writes
+        and     edx, -16                     // 16-byte align writes
         lea     ecx, [ecx + edx + 16]
         pop     edx
         cmp     ecx, -NONTEMPORALSIZE        // assume > 512KB bypass the cache
@@ -328,7 +328,7 @@ end;
 
 {$endif FPC_X86}
 
-function CompareMem(P1, P2: Pointer; Length: PtrInt): boolean;
+function CompareMem(P1, P2: pointer; Length: PtrInt): boolean;
 {$ifdef FPC}nostackframe; assembler;{$endif}
 asm
         // eax=P1 edx=P2 ecx=Length
@@ -396,18 +396,18 @@ asm
 @setsml:setz    al
 end;
 
-function crc32cfast(crc: cardinal; buf: PAnsiChar; len: cardinal): cardinal;
-{$ifdef FPC}nostackframe; assembler;{$endif}
+function crc32fasttab(crc: cardinal; buf: PAnsiChar; len: cardinal;
+  tab: PCrc32tab): cardinal;
 asm
         // adapted from Aleksandr Sharahov code and Maxim Masiutin remarks
-        test    edx, edx
-        jz      @z
-        neg     ecx
-        jz      @z
-        not     eax
         push    ebx
         push    ebp
-        lea     ebp, [crc32ctab]
+        mov     ebp, tab
+        not     eax
+        neg     ecx       // eax=crc edx=buf ecx=-len ebp=tab
+        jz      @z
+        test    edx, edx
+        jz      @z
 @head:  test    dl, 3
         jz      @align
         movzx   ebx, byte ptr [edx]
@@ -417,16 +417,14 @@ asm
         xor     eax, dword ptr [ebx * 4 + ebp]
         inc     ecx
         jnz     @head
-        pop     ebp
-        pop     ebx
-        not     eax
-@z:     ret
+@z:     jmp     @e
 @align: sub     edx, ecx
         add     ecx, 8
         jg      @done
         push    esi
         push    edi
         mov     edi, edx
+        {$ifdef FPC} align   8 {$endif FPC}
 @by8:   mov     edx, eax
         mov     ebx, [edi + ecx - 4]
         xor     edx, [edi + ecx - 8]
@@ -2068,7 +2066,7 @@ asm
         fild    qword ptr [eax]
         push    edx
         neg     edx
-        and     esi,  -8
+        and     esi, -8
         lea     edx, [edx + esi + 8]
         pop     esi
 @lrgnxt:fild    qword ptr [eax + edx]
@@ -2102,7 +2100,7 @@ asm
         movups  xmm1, dqword ptr [eax]
         push    edx
         neg     edx
-        and     esi,  -16
+        and     esi, -16
         lea     edx, [edx + esi + 16]
         pop     esi
 @lrgnxt:movups  xmm0, dqword ptr [eax + edx]
