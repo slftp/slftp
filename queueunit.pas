@@ -1761,6 +1761,7 @@ begin
       begin
         try
           t.ready := True;
+          Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Name]));
         except
           on e: Exception do
           begin
@@ -1832,6 +1833,7 @@ begin
 
           try
             tasks.Remove(t);
+            Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
           except
             on e: Exception do
             begin
@@ -1853,6 +1855,7 @@ begin
 
           try
             tasks.Remove(t);
+            Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
           except
             on e: Exception do
             begin
@@ -1890,6 +1893,7 @@ begin
 
           try
             tasks.Remove(t);
+            Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
           except
             on e: Exception do
             begin
