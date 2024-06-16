@@ -286,7 +286,7 @@ function DnsParseRecord(const Answer: RawByteString; var Pos: PtrInt;
 // - use DnsLookup/DnsReverseLookup/DnsServices() for most simple requests
 function DnsQuery(const QName: RawUtf8; out Res: TDnsResult;
   RR: TDnsResourceRecord = drrA; const NameServers: RawUtf8 = '';
-  TimeOutMS: integer = 2000; QClass: cardinal = QC_INET): boolean;
+  TimeOutMS: integer = 200; QClass: cardinal = QC_INET): boolean;
 
 
 /// retrieve the IPv4 address of a DNS host name - using DnsQuery(drrA)
@@ -629,7 +629,6 @@ begin
        not addr.IPEqual(resp) or
        (hdr^.Xid <> PDnsHeader(Request)^.Xid) or
        not hdr^.IsResponse or
-       not hdr^.RecursionAvailable or
        (hdr^.ResponseCode <> DNS_RESP_SUCCESS) or
        (hdr^.AnswerCount = 0) then
        // hdr^.NameServerCount or hdr^.AdditionalCount wouldn't be enough
@@ -677,7 +676,7 @@ begin
       len := swap(lenw);
       if len <= length(Request) then
         exit;
-      FastSetRawByteString(answer, nil, len);
+      FastNewRawByteString(answer, len);
       hdr := pointer(answer);
       if (sock.RecvAll(TimeOutMS, pointer(answer), len) <> nrOk) or
          (hdr^.Xid <> PDnsHeader(Request)^.Xid) or

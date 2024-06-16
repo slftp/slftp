@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, RegExpr, sitesunit;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, pazo, taskidle, taskquit, tasklogin, RegExpr, sitesunit;
 
 type
   TQueueThread = class(TThread)
@@ -46,7 +46,6 @@ procedure QueueStat;
 procedure QueueSendCurrentTasksToConsole;
 
 var
-  queue_lock: TslCriticalSection;
   tasks:      TObjectList;
   queueth:    TQueueThread;
   queueevent: TEvent;
@@ -1685,7 +1684,6 @@ end;
 procedure QueueInit;
 begin
   tasks      := TObjectList.Create(True);
-  queue_lock := TslCriticalSection.Create('queue_lock');
   queueevent := TEvent.Create(nil, False, False, 'queue');
   queue_last_run := Now;
   queueclean_last_run := Now;
@@ -1719,7 +1717,6 @@ begin
   tasks.Free;
   kb_FreeList;
 
-  queue_lock.Free;
   queueevent.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;

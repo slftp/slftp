@@ -244,7 +244,7 @@ type
     procedure GetTableNames(out Tables: TRawUtf8DynArray); override;
     /// determine if the SQL statement can be cached
     // - always returns false, to force a new fake statement to be created
-    function IsCachable(P: PUtf8Char): boolean; override;
+    function IsCacheable(P: PUtf8Char): boolean; override;
   published
     /// Connect and Disconnect won't really connect nor disconnect the
     // remote connection
@@ -327,7 +327,7 @@ type
     function ColumnCurrency(Col: integer): currency; override;
     /// return a Column UTF-8 encoded text value of the current Row, first Col is 0
     function ColumnUtf8(Col: integer): RawUtf8; override;
-    /// return a Column text value as generic VCL string of the current Row, first Col is 0
+    /// return a Column text value as RTL string of the current Row, first Col is 0
     function ColumnString(Col: integer): string; override;
     /// return a Column as a blob value of the current Row, first Col is 0
     function ColumnBlob(Col: integer): RawByteString; override;
@@ -777,13 +777,13 @@ var
   tixend, tix: Int64;
 begin
   if sessionID = 0 then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       '%.TransactionStarted: Remote transaction expects authentication/session',
       [self]);
   if connection.Properties.InheritsFrom(TSqlDBConnectionPropertiesThreadSafe) and
      (TSqlDBConnectionPropertiesThreadSafe(connection.Properties).
        ThreadingMode = tmThreadPool) then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       '%.TransactionStarted: Remote transaction expects %.ThreadingMode<>tmThreadPool: ' +
       'commit/execute/rollback should be in the same thread/connection',
       [self, connection.Properties]);
@@ -821,12 +821,12 @@ end;
 procedure TSqlDBProxyConnectionProtocol.TransactionEnd(sessionID: integer);
 begin
   if sessionID = 0 then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       '%: Remote transaction expects authentication/session', [self]);
   fSafe.Lock;
   try
     if sessionID <> fTransactionSessionID then
-      raise ESqlDBRemote.CreateUtf8('Invalid %.TransactionEnd(%) - expected %',
+      ESqlDBRemote.RaiseUtf8('Invalid %.TransactionEnd(%) - expected %',
         [self, sessionID, fTransactionSessionID]);
     fTransactionSessionID := 0;
     fTransactionActiveAutoReleaseTicks := 0;
@@ -887,13 +887,13 @@ begin
   if self = nil then
     raise ESqlDBRemote.Create('RemoteProcessMessage: unexpected self=nil');
   if Connection = nil then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       '%.RemoteProcessMessage(connection=nil)', [self]);
   msgin := HandleInput(Input);
   header := pointer(msgin);
   if (header = nil) or
      (header.Magic <> REMOTE_MAGIC) then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       'Incorrect %.RemoteProcessMessage() input magic/version', [self]);
   if (Authenticate <> nil) and
      (Authenticate.UsersCount > 0) and
@@ -916,7 +916,7 @@ begin
             GetNextItem(PUtf8Char(P), #1, user);
             session := Authenticate.CreateSession(user, PCardinal(P)^);
             if session = 0 then
-              raise ESqlDBRemote.CreateUtf8('%.RemoteProcessMessage: ' +
+              ESqlDBRemote.RaiseUtf8('%.RemoteProcessMessage: ' +
                 'CreateSession failed - check connection and User/Password',
                 [self]);
           end;
@@ -997,7 +997,7 @@ begin
                   ftBlob:
                     stmt.BindBlob(i, VData, VInOut);
                 else
-                  raise ESqlDBRemote.CreateUtf8(
+                  ESqlDBRemote.RaiseUtf8(
                     'Invalid VType=% parameter #% in %.ProcessExec(%)',
                     [ord(VType), i, self, ToText(header.Command)^]);
                 end
@@ -1032,7 +1032,7 @@ begin
           Authenticate.RemoveSession(header.SessionID);
         end;
     else
-      raise ESqlDBRemote.CreateUtf8(
+      ESqlDBRemote.RaiseUtf8(
         'Unknown %.RemoteProcessMessage() command %',
         [self, ord(header.Command)]);
     end;
@@ -1040,7 +1040,7 @@ begin
     on E: Exception do
     begin
       PRemoteMessageHeader(msgout)^.Command := cExceptionRaised;
-      Append(msgout, StringToUtf8(E.ClassName + #0 + E.Message));
+      Append(msgout, Make([E, #0, E.Message]));
     end;
   end;
   Output := HandleOutput(msgout);
@@ -1065,7 +1065,7 @@ begin
   SetLength(credential, 4);
   PCardinal(credential)^ := fProtocol.Authenticate.ComputeHash(
     token, UserID, PassWord);
-  credential := UserID + #1 + credential;
+  Prepend(credential, [UserID, #1]);
   fCurrentSession := Process(cGetDbms, credential, fDbms);
 end;
 
@@ -1108,9 +1108,9 @@ begin
   Process(cGetTableNames, self, Tables);
 end;
 
-function TSqlDBProxyConnectionPropertiesAbstract.IsCachable(P: PUtf8Char): boolean;
+function TSqlDBProxyConnectionPropertiesAbstract.IsCacheable(P: PUtf8Char): boolean;
 begin
-  result := False;
+  result := false;
 end;
 
 
@@ -1162,7 +1162,7 @@ begin
       Append(msgin,
         RecordSave(inexec, TypeInfo(TSqlDBProxyConnectionCommandExecute)));
   else
-    raise ESqlDBRemote.CreateUtf8('Unknown %.Process() input command % (%)',
+    ESqlDBRemote.RaiseUtf8('Unknown %.Process() input command % (%)',
       [self, ToText(Command)^, ord(Command)]);
   end;
   ProcessMessage(fProtocol.HandleOutput(msgin), msgRaw);
@@ -1170,7 +1170,7 @@ begin
   outheader := pointer(msgout);
   if (outheader = nil) or
      (outheader.Magic <> REMOTE_MAGIC) then
-    raise ESqlDBRemote.CreateUtf8('Incorrect %.Process() magic/version', [self]);
+    ESqlDBRemote.RaiseUtf8('Incorrect %.Process() magic/version', [self]);
   msg := pointer(msgout);
   msgmax := msg + length(msgout);
   inc(msg, SizeOf(header));
@@ -1202,10 +1202,10 @@ begin
     cExecuteToExpandedJson:
       FastSetString(oututf8, msg, length(msgout) - SizeOf(header));
     cExceptionRaised: // msgout is ExceptionClassName+#0+ExceptionMessage
-      raise ESqlDBRemote.CreateUtf8('%.Process(%): server raised % with ''%''',
+      ESqlDBRemote.RaiseUtf8('%.Process(%): server raised % with ''%''',
         [self, ToText(Command)^, msg, msg + StrLen(msg) + 1]);
   else
-    raise ESqlDBRemote.CreateUtf8('Unknown %.Process() output command % (%)',
+    ESqlDBRemote.RaiseUtf8('Unknown %.Process() output command % (%)',
       [self, ToText(outheader.Command)^, ord(outheader.Command)]);
   end;
   result := outheader.SessionID;
@@ -1308,7 +1308,7 @@ begin
   if not started then
   begin
     inherited Rollback; // dec(fTransactionCount)
-    raise ESqlDBRemote.CreateUtf8('Reached %("%/%").StartTransactionTimeOut=% ms',
+    ESqlDBRemote.RaiseUtf8('Reached %("%/%").StartTransactionTimeOut=% ms',
       [self, fProxy.ServerName, fProxy.DatabaseName, fProxy.StartTransactionTimeOut]);
   end;
 end;
@@ -1360,7 +1360,7 @@ begin
   // raise ESqlDBRemote on invalid input
   fDataRowCount := 0;
   fColumnCount := 0;
-  raise ESqlDBRemote.CreateUtf8('Invalid %.InternalHeaderProcess', [self]);
+  ESqlDBRemote.RaiseUtf8('Invalid %.InternalHeaderProcess', [self]);
 end;
 
 procedure TSqlDBProxyStatementAbstract.InternalFillDataCurrent(
@@ -1374,7 +1374,7 @@ begin
     FillCharFast(fDataCurrentRowNull[0], fDataCurrentRowNullLen, 0);
   fDataCurrentRowNullLen := FromVarUInt32(Reader);
   if fDataCurrentRowNullLen > fDataRowNullSize then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       '%.InternalFillDataCurrent: Invalid rownull %>%',
       [self, fDataCurrentRowNullLen, fDataRowNullSize]);
   if fDataCurrentRowNullLen > 0 then
@@ -1415,7 +1415,7 @@ begin
             inc(Reader, len); // jump string/blob content
           end;
       else
-        raise ESqlDBRemote.CreateUtf8(
+        ESqlDBRemote.RaiseUtf8(
           '%.InternalFillDataCurrent: Invalid ColumnType(%)=%',
           [self, fColumns[F].ColumnName, ord(ft)]);
       end;
@@ -1444,7 +1444,7 @@ begin
         begin
           W.Add('"');
           W.AddDateTime(PDateTime(data)^);
-          W.Add('"');
+          W.AddDirect('"');
         end;
       ftUtf8:
         begin
@@ -1452,7 +1452,7 @@ begin
           len := FromVarUInt32(data);
           if len <> 0 then // otherwise W.AddJsonEscape() uses StrLen(data)
             W.AddJsonEscape(data, len);
-          W.Add('"');
+          W.AddDirect('"');
         end;
       ftBlob:
         if fForceBlobAsNull then
@@ -1463,7 +1463,7 @@ begin
           W.WrBase64(PAnsiChar(data), len, {withMagic=}true);
         end;
     else
-      raise ESqlDBException.CreateUtf8('%: Invalid ColumnType()=%',
+      ESqlDBException.RaiseUtf8('%: Invalid ColumnType()=%',
         [self, ord(fDataCurrentRowColTypes[Col])]);
     end;
 end;
@@ -1679,7 +1679,7 @@ procedure TSqlDBProxyStatement.ParamsToCommand(
 begin
   if (fColumnCount > 0) or
      (fDataInternalCopy <> '') then
-    raise ESqlDBRemote.CreateUtf8('Invalid %.ExecutePrepared* call', [self]);
+    ESqlDBRemote.RaiseUtf8('Invalid %.ExecutePrepared* call', [self]);
   Input.Sql := fSql;
   if length(fParams) <> fParamCount then // strip to only needed memory
     SetLength(fParams, fParamCount);
@@ -1731,7 +1731,7 @@ var
   exec: TSqlDBProxyConnectionCommandExecute;
 begin
   if ReturnedRowCount <> nil then
-    raise ESqlDBRemote.CreateUtf8('%.ExecutePreparedAndFetchAllAsJson() ' +
+    ESqlDBRemote.RaiseUtf8('%.ExecutePreparedAndFetchAllAsJson() ' +
       'does not support ReturnedRowCount', [self]);
   ParamsToCommand(exec);
   TSqlDBProxyConnectionPropertiesAbstract(fConnection.Properties).Process(
@@ -1826,7 +1826,7 @@ begin
             (fColumnCount > 0);
   if not result then
     if RaiseExceptionOnWrongIndex then
-      raise ESqlDBRemote.CreateUtf8('Invalid %.GotoRow(%)', [self, Index])
+      ESqlDBRemote.RaiseUtf8('Invalid %.GotoRow(%)', [self, Index])
     else
       exit;
   if fLastGotoRow <> Index then
@@ -1857,7 +1857,7 @@ end;
 
 procedure TSqlDBProxyStatementRandomAccess.ExecutePrepared;
 begin
-  raise ESqlDBRemote.CreateUtf8('Unexpected %.ExecutePrepared', [self]);
+  ESqlDBRemote.RaiseUtf8('Unexpected %.ExecutePrepared', [self]);
 end;
 
 function TSqlDBProxyStatementRandomAccess.{%H-}Step(SeekFirst: boolean): boolean;
@@ -1947,11 +1947,11 @@ begin
     fDatabaseName, fPort, fHttps, '+', true);
   if status <> NO_ERROR then
     if status = ERROR_ACCESS_DENIED then
-      raise ESqlDBRemote.CreateUtf8(
+      ESqlDBRemote.RaiseUtf8(
         '%.Create: administrator rights needed to register URI % on port %',
         [self, fDatabaseName, fPort])
     else
-      raise ESqlDBRemote.CreateUtf8(
+      ESqlDBRemote.RaiseUtf8(
         '%.Create: error registering URI % on port %: is not another server ' +
         'instance running on this port?', [self, fDatabaseName, fPort]);
   fServer.OnRequest := Process;
@@ -2001,7 +2001,7 @@ procedure TSqlDBHttpConnectionPropertiesAbstract.SetServerName(
 begin
   fKeepAliveMS := 60000;
   if not fUri.From(aServerName) then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       '%.Create: expect a valid URI in aServerName=[%]',
       [self, aServerName]);
   if fUri.Port = '' then
@@ -2018,10 +2018,10 @@ begin
   contenttype := BINARY_CONTENT_TYPE;
   status := InternalRequest(content, contenttype);
   if status <> HTTP_SUCCESS then
-    raise ESqlDBRemote.CreateUtf8('%.ProcessMessage: Error % from %',
+    ESqlDBRemote.RaiseUtf8('%.ProcessMessage: Error % from %',
       [self, status, fUri.Uri]);
   if contenttype <> BINARY_CONTENT_TYPE then
-    raise ESqlDBRemote.CreateUtf8(
+    ESqlDBRemote.RaiseUtf8(
       '%.ProcessMessage: Unsupported content type [%] from %',
       [self, contenttype, fUri.Uri]);
   Output := content;
@@ -2138,5 +2138,5 @@ initialization
   {$ifdef USELIBCURL}
   TSqlDBCurlConnectionProperties.RegisterClassNameForDefinition;
   {$endif USELIBCURL}
-  
+
 end.

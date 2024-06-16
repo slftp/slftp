@@ -2186,10 +2186,8 @@ const
   NID_private_key_usage_period = 84;
   SN_subject_alt_name = 'subjectAltName';
   LN_subject_alt_name = 'X509v3 Subject Alternative Name';
-  NID_subject_alt_name = 85;
   SN_issuer_alt_name = 'issuerAltName';
   LN_issuer_alt_name = 'X509v3 Issuer Alternative Name';
-  NID_issuer_alt_name = 86;
   SN_basic_constraints = 'basicConstraints';
   LN_basic_constraints = 'X509v3 Basic Constraints';
   NID_basic_constraints = 87;
@@ -11866,7 +11864,7 @@ function BIO_meth_new(typ: integer; name: PUtf8Char): PBIO_METHOD; cdecl;
 procedure BIO_meth_free(biom: PBIO_METHOD); cdecl;
   external LIB_CRYPTO name _PU + 'BIO_meth_free';
 
-//function BIO_meth_get_write(p1: PBIO; p2: PUTF8Char; p3: Integer; biom: PBIO_METHOD): integer;
+//function BIO_meth_get_write(p1: PBIO; p2: PUTF8Char; p3: integer; biom: PBIO_METHOD): integer;
 { TODO : Cannot convert original type "int (*)(BIO *, const char *, int)" }; cdecl;
 //  external LIB_CRYPTO name _PU + 'BIO_meth_get_write';
 
@@ -11880,7 +11878,7 @@ function BIO_meth_set_write(biom: PBIO_METHOD; write: BIO_meth_set_write_write):
 function BIO_meth_set_write_ex(biom: PBIO_METHOD; bwrite: BIO_meth_set_write_ex_bwrite): integer; cdecl;
   external LIB_CRYPTO name _PU + 'BIO_meth_set_write_ex';
 
-//function BIO_meth_get_read(p1: PBIO; p2: PUTF8Char; p3: Integer; biom: PBIO_METHOD): integer;
+//function BIO_meth_get_read(p1: PBIO; p2: PUTF8Char; p3: integer; biom: PBIO_METHOD): integer;
 { TODO : Cannot convert original type "int (*)(BIO *, char *, int)" }; cdecl;
 //  external LIB_CRYPTO name _PU + 'BIO_meth_get_read';
 
@@ -11901,14 +11899,14 @@ function BIO_meth_set_read_ex(biom: PBIO_METHOD; bread: BIO_meth_set_read_ex_bre
 function BIO_meth_set_puts(biom: PBIO_METHOD; puts: BIO_meth_set_puts_puts): integer; cdecl;
   external LIB_CRYPTO name _PU + 'BIO_meth_set_puts';
 
-//function BIO_meth_get_gets(p1: PBIO; p2: PUTF8Char; p3: Integer; biom: PBIO_METHOD): integer;
+//function BIO_meth_get_gets(p1: PBIO; p2: PUTF8Char; p3: integer; biom: PBIO_METHOD): integer;
 { TODO : Cannot convert original type "int (*)(BIO *, char *, int)" }; cdecl;
 //  external LIB_CRYPTO name _PU + 'BIO_meth_get_gets';
 
 function BIO_meth_set_gets(biom: PBIO_METHOD; gets: BIO_meth_set_gets_gets): integer; cdecl;
   external LIB_CRYPTO name _PU + 'BIO_meth_set_gets';
 
-//function BIO_meth_get_ctrl(p1: PBIOp2: Integer; p3, p4: Pointer; biom: PBIO_METHOD): integer;
+//function BIO_meth_get_ctrl(p1: PBIOp2: integer; p3, p4: pointer; biom: PBIO_METHOD): integer;
 { TODO : Cannot convert original type "long (*)(BIO *, int, long, void *)" }; cdecl;
 //  external LIB_CRYPTO name _PU + 'BIO_meth_get_ctrl';
 
@@ -11929,7 +11927,7 @@ function BIO_meth_set_create(biom: PBIO_METHOD; create: BIO_meth_set_create_crea
 function BIO_meth_set_destroy(biom: PBIO_METHOD; destroy: BIO_meth_set_destroy_destroy): integer; cdecl;
   external LIB_CRYPTO name _PU + 'BIO_meth_set_destroy';
 
-//function BIO_meth_get_callback_ctrl(p1: PBIO; p2: Integer; p3: PBIO_info_cb; biom: PBIO_METHOD): integer;
+//function BIO_meth_get_callback_ctrl(p1: PBIO; p2: integer; p3: PBIO_info_cb; biom: PBIO_METHOD): integer;
 { TODO : Cannot convert original type "long (*)(BIO *, int, BIO_info_cb *)" }; cdecl;
 //  external LIB_CRYPTO name _PU + 'BIO_meth_get_callback_ctrl';
 
@@ -17843,12 +17841,6 @@ function X509_get0_trust_objects(x: PX509): Pstack_st_ASN1_OBJECT; cdecl;
 
 function X509_get0_reject_objects(x: PX509): Pstack_st_ASN1_OBJECT; cdecl;
   external LIB_CRYPTO name _PU + 'X509_get0_reject_objects';
-
-function d2i_X509_REVOKED(a: PPX509_REVOKED; _in: PPByte; len: integer): PX509_REVOKED; cdecl;
-  external LIB_CRYPTO name _PU + 'd2i_X509_REVOKED';
-
-function i2d_X509_REVOKED(a: PX509_REVOKED; _out: PPByte): integer; cdecl;
-  external LIB_CRYPTO name _PU + 'i2d_X509_REVOKED';
 
 function X509_REVOKED_it(): PASN1_ITEM; cdecl;
   external LIB_CRYPTO name _PU + 'X509_REVOKED_it';

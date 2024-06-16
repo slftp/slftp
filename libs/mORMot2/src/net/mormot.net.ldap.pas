@@ -128,6 +128,12 @@ const
   LDAP_RES_ESYNC_REFRESH_REQUIRED         = 4096;
   LDAP_RES_NO_OPERATION                   = 16654;
 
+  LDAP_RES_NOERROR = [
+    LDAP_RES_SUCCESS,
+    LDAP_RES_COMPARE_FALSE,
+    LDAP_RES_COMPARE_TRUE,
+    LDAP_RES_SASL_BIND_IN_PROGRESS];
+
 const
   // LDAP ASN.1 types
   LDAP_ASN1_BIND_REQUEST      = $60;
@@ -200,7 +206,7 @@ type
     lsaAlways
   );
 
-/// translate a LDAP_RES_* result code into some human-readable text
+/// translate a LDAP_RES_* integer result code into some human-readable text
 function RawLdapErrorString(ErrorCode: integer): RawUtf8;
 
 /// encode a LDAP search filter text into an ASN.1 binary
@@ -241,8 +247,8 @@ const
 function LdapEscape(const Text: RawUtf8; KeepWildChar: boolean = false): RawUtf8;
   {$ifdef HASINLINE} inline; {$endif}
 
-/// returns true when no * \ character is part of a non-void name
-// - as called by LdapEscapeName() for sAMAccountName/distinguishedName
+/// returns true when no * \ character is part of a non-void UTF-8 name
+// - as called by LdapEscapeName() for sAMAccountName
 function LdapValidName(const Text: RawUtf8): boolean;
 
 /// calls LdapValidName() then LdapEscape() or return false
@@ -254,6 +260,13 @@ function LdapEscapeName(const Text: RawUtf8; var Safe: RawUtf8): boolean; overlo
 // - in the context of user or group distinguished name, i.e. will raise an
 // ELdap exception if Text is void or contains any unexpected * or \ character
 function LdapEscapeName(const Text: RawUtf8): RawUtf8; overload;
+
+/// returns true when no * character is part of a non-void UTF-8 name
+function LdapIsValidDistinguishedName(const Text: RawUtf8): boolean;
+
+/// returns Text when no * character is part of a non-void UTF-8 name
+// - used e.g. for distinguishedName values - with no escape
+function LdapValidDistinguishedName(const Text: RawUtf8): RawUtf8;
 
 /// decode \xx or \c from a LDAP string value
 // - following e.g. https://www.rfc-editor.org/rfc/rfc4514#section-2.4
@@ -350,7 +363,7 @@ type
   /// define one result for a server identified by CldapBroadcast()
   TCldapServer = record
     /// after how many microseconds this response has been received
-    TimeMicroSec: Integer;
+    TimeMicroSec: integer;
     /// the raw IP address where the UDP response came from
     IP: RawUtf8;
     /// the "dnsHostName" attribute returned by the server
@@ -846,7 +859,7 @@ type
     function BuildPacket(const Asn1Data: TAsnObject): TAsnObject;
     procedure SendPacket(const Asn1Data: TAsnObject);
     procedure ReceivePacket(Dest: pointer; DestLen: integer); overload;
-    function ReceivePacket(DestLen: integer): RawByteString; overload;
+    procedure ReceivePacket(var Append: RawByteString; Len: PtrInt); overload;
     procedure ReceivePacketFillSockBuffer;
     function ReceiveResponse: TAsnObject;
     function DecodeResponse(var Pos: integer; const Asn1Response: TAsnObject): TAsnObject;
@@ -1038,7 +1051,7 @@ type
       const GroupAN, GroupDN: array of RawUtf8; Nested: boolean = true;
       const BaseDN: RawUtf8 = ''; GroupsAN: PRawUtf8DynArray = nil): boolean; overload;
     /// test whether the client is connected to the server
-    // - if AndBound is set, it also checks that a successfull bind request has been made
+    // - if AndBound is set, it also checks that a successful bind request has been made
     function Connected(AndBound: boolean = true): boolean;
     /// test whether the client is connected with TLS or Kerberos Signing-Sealing
     // - it is unsafe to send e.g. a plain Password without lctEncrypted
@@ -1307,7 +1320,7 @@ implementation
 
 {****** Support procedures and functions }
 
-function SeparateLeft(const Value: RawUtf8; Delimiter: AnsiChar): RawUtf8;
+function SeparateRight(const Value: RawUtf8; Delimiter: AnsiChar): RawUtf8;
 var
   x: PtrInt;
 begin
@@ -1315,15 +1328,7 @@ begin
   if x = 0 then
     result := Value
   else
-    result := copy(Value, 1, x - 1);
-end;
-
-function SeparateRight(const Value: RawUtf8; Delimiter: AnsiChar): RawUtf8;
-var
-  x: PtrInt;
-begin
-  x := PosExChar(Delimiter, Value);
-  result := copy(Value, x + 1, length(Value) - x);
+    result := copy(Value, x + 1, length(Value) - x);
 end;
 
 function SeparateRightU(const Value, Delimiter: RawUtf8): RawUtf8;
@@ -1331,7 +1336,10 @@ var
   x: PtrInt;
 begin
   x := mormot.core.base.PosEx(Delimiter, Value);
-  result := copy(Value, x + length(Delimiter), MaxInt); // no TrimCopy()
+  if x = 0 then
+    result := Value
+  else
+    result := copy(Value, x + length(Delimiter), MaxInt); // no TrimCopy()
 end;
 
 function GetBetween(PairBegin, PairEnd: AnsiChar; const Value: RawUtf8): RawUtf8;
@@ -1360,7 +1368,7 @@ begin
   end;
   n := PosExChar(PairEnd, s);
   if n = 0 then
-    raise ELdap.CreateUtf8('Missing ending parenthesis in %', [Value]);
+    ELdap.RaiseUtf8('Missing ending parenthesis in %', [Value]);
   len := length(s);
   x := 1;
   for n := 1 to len do
@@ -1380,88 +1388,9 @@ begin
   result := copy(s, 1, len);
 end;
 
-function DecodeTriplet(const Value: RawUtf8; Delimiter: AnsiChar): RawUtf8;
-var
-  x, l, lv: integer;
-  c: AnsiChar;
-  b: byte;
-  bad: boolean;
-begin
-  lv := length(Value);
-  SetLength(result, lv);
-  x := 1;
-  l := 1;
-  while x <= lv do
-  begin
-    c := Value[x];
-    inc(x);
-    if c <> Delimiter then
-    begin
-      result[l] := c;
-      inc(l);
-    end
-    else
-      if x < lv then
-      begin
-        case Value[x] of
-          #13:
-            if Value[x + 1] = #10 then
-              inc(x, 2)
-            else
-              inc(x);
-          #10:
-            if Value[x + 1] = #13 then
-              inc(x, 2)
-            else
-              inc(x);
-        else
-          begin
-            bad := false;
-            case Value[x] of
-              '0'..'9':
-                b := (byte(Value[x]) - 48) shl 4;
-              'a'..'f',
-              'A'..'F':
-                b := ((byte(Value[x]) and 7) + 9) shl 4;
-            else
-              begin
-                b := 0;
-                bad := true;
-              end;
-            end;
-            case Value[x + 1] of
-              '0'..'9':
-                b := b or (byte(Value[x + 1]) - 48);
-              'a'..'f',
-              'A'..'F':
-                b := b or ((byte(Value[x + 1]) and 7) + 9);
-            else
-              bad := true;
-            end;
-            if bad then
-            begin
-              result[l] := c;
-              inc(l);
-            end
-            else
-            begin
-              inc(x, 2);
-              result[l] := AnsiChar(b);
-              inc(l);
-            end;
-          end;
-        end;
-      end
-      else
-        break;
-  end;
-  dec(l);
-  SetLength(result, l);
-end;
-
 function TrimSPLeft(const S: RawUtf8): RawUtf8;
 var
-  i, l: integer;
+  i, l: PtrInt;
 begin
   result := '';
   if S = '' then
@@ -1476,7 +1405,7 @@ end;
 
 function TrimSPRight(const S: RawUtf8): RawUtf8;
 var
-  i: integer;
+  i: PtrInt;
 begin
   result := '';
   if S = '' then
@@ -1497,7 +1426,7 @@ function FetchBin(var Value: RawUtf8; Delimiter: AnsiChar): RawUtf8;
 var
   s: RawUtf8;
 begin
-  result := SeparateLeft(Value, Delimiter);
+  result := GetFirstCsvItem(Value, Delimiter);
   s := SeparateRight(Value, Delimiter);
   if s = Value then
     Value := ''
@@ -1510,76 +1439,6 @@ begin
   result := TrimSP(FetchBin(Value, Delimiter));
   Value := TrimSP(Value);
 end;
-
-
-{$ifdef ASNUNTESTED} // untested code from Lukas Gebauer: use with caution
-
-// not used nor fully tested
-function IntMibToStr(const Value: RawByteString): RawUtf8;
-var
-  i, y: integer;
-begin
-  y := 0;
-  for i := 1 to length(Value) - 1 do
-    y := (y shl 8) + ord(Value[i]);
-  UInt32ToUtf8(y, result);
-end;
-
-function MibToId(Mib: RawUtf8): RawByteString;
-var
-  x: integer;
-
-  function WalkInt(var s: RawUtf8): integer;
-  var
-    x: integer;
-    t: RawByteString;
-  begin
-    x := PosExChar('.', s);
-    if x < 1 then
-    begin
-      t := s;
-      s := '';
-    end
-    else
-    begin
-      t := copy(s, 1, x - 1);
-      s := copy(s, x + 1, length(s) - x);
-    end;
-    result := Utf8ToInteger(t, 0);
-  end;
-
-begin
-  result := '';
-  x := WalkInt(Mib);
-  x := x * 40 + WalkInt(Mib);
-  result := AsnEncOidItem(x);
-  while Mib <> '' do
-  begin
-    x := WalkInt(Mib);
-    Append(result, AsnEncOidItem(x));
-  end;
-end;
-
-function AsnEncUInt(Value: integer): RawByteString;
-var
-  x, y: integer;
-  neg: boolean;
-begin
-  neg := Value < 0;
-  x := Value;
-  if neg then
-    x := x and $7FFFFFFF;
-  result := '';
-  repeat
-    y := x and $ff;
-    x := x shr 8;
-    Prepend(result, [AnsiChar(y)]);
-  until x = 0;
-  if neg then
-    result[1] := AnsiChar(ord(result[1]) or $80);
-end;
-
-{$endif ASNUNTESTED}
 
 
 { **************** LDAP Protocol Definitions }
@@ -1598,7 +1457,7 @@ begin
     GetNextItemTrimed(p, ',', value);
     if (kind = '') or
        (value = '') then
-      raise ELdap.CreateUtf8('DNToCN(%): invalid Distinguished Name', [DN]);
+      ELdap.RaiseUtf8('DNToCN(%): invalid Distinguished Name', [DN]);
     if not PropNameValid(pointer(value)) then // simple alphanum is just fine
       value := LdapEscapeCN(LdapUnescape(value)); // may need some (un)escape
     LowerCaseSelf(kind);
@@ -1762,7 +1621,7 @@ begin
       end;
     else
       begin
-        l := TrimU(SeparateLeft(s, '='));
+        l := TrimU(GetFirstCsvItem(s, '='));
         r := SeparateRight(s, '=');
         if l <> '' then
         begin
@@ -1780,7 +1639,7 @@ begin
                   dn := true;
                   l := StringReplaceAll(l, ':dn', '');
                 end;
-                attr := TrimU(SeparateLeft(l, ':'));
+                attr := TrimU(GetFirstCsvItem(l, ':'));
                 rule := TrimU(SeparateRight(l, ':'));
                 if rule = l then
                   rule := '';
@@ -1788,7 +1647,7 @@ begin
                   result := Asn(rule, ASN1_CTX1);
                 if attr <> '' then
                   AsnAdd(result, attr, ASN1_CTX2);
-                AsnAdd(result, DecodeTriplet(r, '\'), ASN1_CTX3);
+                AsnAdd(result, UnescapeHex(r), ASN1_CTX3);
                 if dn then // default is FALSE
                   AsnAdd(result, RawByteString(#$01#$ff), ASN1_CTX4);
                 result := Asn(result, ASN1_CTC9);
@@ -1796,26 +1655,26 @@ begin
             '~':
               // Approx match
               begin
-                System.Delete(l, length(l), 1);
+                SetLength(l, length(l) - 1);
                 result := Asn(ASN1_CTC8, [
                   Asn(l),
-                  Asn(DecodeTriplet(r, '\'))]);
+                  Asn(UnescapeHex(r))]);
               end;
             '>':
               // Greater or equal match
               begin
-                System.Delete(l, length(l), 1);
+                SetLength(l, length(l) - 1);
                 result := Asn(ASN1_CTC5, [
                    Asn(l),
-                   Asn(DecodeTriplet(r, '\'))]);
+                   Asn(UnescapeHex(r))]);
               end;
             '<':
               // Less or equal match
               begin
-                System.Delete(l, length(l), 1);
+                SetLength(l, length(l) - 1);
                 result := Asn(ASN1_CTC6, [
                    Asn(l),
-                   Asn(DecodeTriplet(r, '\'))]);
+                   Asn(UnescapeHex(r))]);
               end;
           else
             // present
@@ -1827,26 +1686,26 @@ begin
               begin
                 s := Fetch(r, '*');
                 if s <> '' then
-                  result := Asn(DecodeTriplet(s, '\'), ASN1_CTX0);
+                  result := Asn(UnescapeHex(s), ASN1_CTX0);
                 while r <> '' do
                 begin
                   if PosExChar('*', r) <= 0 then
                     break;
                   s := Fetch(r, '*');
-                  AsnAdd(result, DecodeTriplet(s, '\'), ASN1_CTX1);
+                  AsnAdd(result, UnescapeHex(s), ASN1_CTX1);
                 end;
                 if r <> '' then
-                  AsnAdd(result, DecodeTriplet(r, '\'), ASN1_CTX2);
+                  AsnAdd(result, UnescapeHex(r), ASN1_CTX2);
                 result := Asn(ASN1_CTC4, [
                    Asn(l),
-                   AsnSeq(result)]);
+                   Asn(ASN1_SEQ, [result])]);
               end
               else
               begin
                 // Equality match
                 result := Asn(ASN1_CTC3, [
                    Asn(l),
-                   Asn(DecodeTriplet(r, '\'))]);
+                   Asn(UnescapeHex(r))]);
               end;
           end;
         end;
@@ -1874,7 +1733,7 @@ begin
               Asn(TimeLimit),
               ASN1_BOOLEAN_VALUE[TypesOnly],
               filt,
-              AsnSeq(AsnArr(Attributes))]);
+              Asn(ASN1_SEQ, [AsnArr(Attributes)])]);
 end;
 
 function RawLdapSearchParse(const Response: TAsnObject; MessageId: integer;
@@ -1947,7 +1806,22 @@ end;
 function LdapEscapeName(const Text: RawUtf8): RawUtf8;
 begin
   if not LdapEscapeName(Text, result) then
-    raise ELdap.CreateUtf8('Invalid input name: %', [Text]);
+    ELdap.RaiseUtf8('Invalid input name: %', [Text]);
+end;
+
+function LdapIsValidDistinguishedName(const Text: RawUtf8): boolean;
+begin
+  result := (Text <> '') and
+            (PosExChar('*', Text) = 0) and // but allows \ within DN
+            IsValidUtf8(Text);
+end;
+
+function LdapValidDistinguishedName(const Text: RawUtf8): RawUtf8;
+begin
+  if LdapIsValidDistinguishedName(Text) then
+    result := Text // no escape of the DN value
+  else
+    ELdap.RaiseUtf8('Invalid distinguishedName: %', [Text]);
 end;
 
 function LdapUnescape(const Text: RawUtf8): RawUtf8;
@@ -1996,10 +1870,12 @@ begin
   if sock <> nil then
   try
     id := Random31;
-    FormatUtf8('(&(DnsDomain=%)(NtVer=%))', [LdapEscapeName(DomainName), NTVER], filter);
+    FormatUtf8('(&(DnsDomain=%)(NtVer=%))',
+      [LdapEscapeName(DomainName), NTVER], filter);
     req := Asn(ASN1_SEQ, [
              Asn(id),
-             RawLdapSearch('', false, filter, ['NetLogon'])]);
+             RawLdapSearch('', false, filter, ['NetLogon'])
+           ]);
     sock.SetReceiveTimeout(TimeOutMS);
     if sock.SendTo(pointer(req), length(req), addr) <> nrOK then
       exit;
@@ -2113,7 +1989,7 @@ var
   sock: TNetSocket;
   len: PtrInt;
   v: TCldapServer;
-  tmp: array[0..1999] of byte; // big enough for a UDP frame
+  tmp: array[0..1999] of byte; // big enough for any UDP frame
 begin
   result := 0;
   if addr.SetFrom(Address, Port, nlUdp) <> nrOk then
@@ -2127,7 +2003,8 @@ begin
              Asn(id),
              //Asn(''), // the RFC 1798 requires user, but MS AD does not :(
              RawLdapSearch('', false, '*', ['dnsHostName',
-               'defaultNamingContext', 'ldapServiceName', 'vendorName'])]);
+               'defaultNamingContext', 'ldapServiceName', 'vendorName'])
+           ]);
     sock.SetReceiveTimeout(TimeOutMS);
     QueryPerformanceMicroSeconds(start);
     if sock.SendTo(pointer(req), length(req), addr) <> nrOK then
@@ -2197,7 +2074,8 @@ begin
       sock[i].SetReceiveTimeout(1);
       req := Asn(ASN1_SEQ, [
                Asn(777 + i),
-               RawLdapSearch('', false, '*', ['dnsHostName'])]);
+               RawLdapSearch('', false, '*', ['dnsHostName'])
+             ]);
       if sock[i].SendTo(pointer(req), length(req), addr) = nrOk then
         poll.Subscribe(sock[i], [pseRead], i)
       else
@@ -2615,7 +2493,7 @@ begin
     w.AddShort('results: ');
     w.Add(count);
     w.AddShorter(' in ');
-    w.AddShorter(MicroSecToString(fSearchTimeMicroSec));
+    w.AddShort(MicroSecToString(fSearchTimeMicroSec));
     w.AddCR;
     for i := 0 to Count - 1 do
     begin
@@ -2728,17 +2606,18 @@ begin
     // there are some known LDAP server parameters
     trans := CheckTargetHost;
     if trans = lctNone then
-      raise ELdap.CreateUtf8('%: invalid %', [self, GetTargetUri]);
+      ELdap.RaiseUtf8('%: invalid %', [self, GetTargetUri]);
   end
-  else begin
+  else
+  begin
     // guess the LDAP server from system information and CLDAP
     trans := LoadDefaultFromSystem(TryKerberos);
     if trans = lctNone then
-      raise ELdap.CreateUtf8('%: no default LDAP server', [self]);
+      ELdap.RaiseUtf8('%: no default LDAP server', [self]);
   end;
   if EnsureEncrypted and
      (trans <> lctEncrypted) then
-    raise ELdap.CreateUtf8('%: no encryption on the wire', [self]);
+    ELdap.RaiseUtf8('%: no encryption on the wire', [self]);
 end;
 
 function TLdapClientSettings.GetTargetUri: RawUtf8;
@@ -2801,17 +2680,20 @@ function InfoFilter(AT: cardinal; const AN, DN, UPN, CustomFilter: RawUtf8): Raw
 begin
   result := '';
   if AN <> '' then
-    FormatUtf8('(sAMAccountName=%)', [LdapEscapeName(AN)], result);
+    FormatUtf8('(sAMAccountName=%)',
+      [LdapEscapeName(AN)], result);
   if DN <> '' then
-    result := FormatUtf8('%(distinguishedName=%)', [result, LdapEscapeName(DN)]);
+    result := FormatUtf8('%(distinguishedName=%)',
+      [result, LdapValidDistinguishedName(DN)]); // no escape
   if UPN <> '' then
-    result := FormatUtf8('%(userPrincipalName=%)', [result, LdapEscapeName(UPN)]);
+    result := FormatUtf8('%(userPrincipalName=%)',
+      [result, LdapEscapeName(UPN)]);
   if result = '' then
   begin
     result := '(cn=)'; // return no answer whatsoever
     exit;
   end;
-  if ord(AN <> '') + ord(DN <> '')+ ord(UPN <> '') > 1 then
+  if ord(AN <> '') + ord(DN <> '') + ord(UPN <> '') > 1 then
     result := FormatUtf8('(|%)', [result]);
   result := FormatUtf8('(&(sAMAccountType=%)%%)', [AT, result, CustomFilter]);
 end;
@@ -2957,6 +2839,7 @@ begin
   result := fSock <> nil;
   if result then
     exit; // socket was already connected
+  fResultString := '';
   if fSettings.TargetHost = '' then
   begin
     // try all LDAP servers from OS list
@@ -2980,6 +2863,11 @@ begin
   else
     // try the LDAP server as specified in TLdapClient settings
     AddRawUtf8(dc, NetConcat([fSettings.TargetHost, ':', fSettings.TargetPort]));
+  if dc = nil then
+  begin
+    fResultString := 'Connect: no TargetHost supplied';
+    exit;
+  end;
   fSeq := 0;
   for i := 0 to high(dc) do
     try
@@ -3017,17 +2905,23 @@ begin
         exit;
       end;
     except
-      on E: ENetSock do
+      on E: Exception do
+      begin
         FreeAndNil(fSock); // abort and try next dc[]
+        FormatUtf8('Connect %: %', [E, E.Message], fResultString);
+      end;
     end;
+  if fResultString = '' then
+    fResultString := 'Connect: failed';
 end;
 
 function TLdapClient.BuildPacket(const Asn1Data: TAsnObject): TAsnObject;
 begin
   inc(fSeq);
   result := Asn(ASN1_SEQ, [
-    Asn(fSeq),
-    Asn1Data]);
+              Asn(fSeq),
+              Asn1Data
+            ]);
   if not fSecContextEncrypt then
     exit;
   result := SecEncrypt(fSecContext, result);
@@ -3125,7 +3019,7 @@ begin
     // get as much as possible unciphered data from socket
     fSockBuffer := fSock.SockReceiveString;
     if fSockBuffer = '' then
-      raise ELdap.CreateUtf8('%.ReceivePacket: no response from %:%',
+      ELdap.RaiseUtf8('%.ReceivePacket: no response from %:%',
         [self, fSettings.TargetHost, fSettings.TargetPort]);
   end;
   {$ifdef ASNDEBUG}
@@ -3158,10 +3052,13 @@ begin
   // note: several SEQ messages may be returned
 end;
 
-function TLdapClient.ReceivePacket(DestLen: integer): RawByteString;
+procedure TLdapClient.ReceivePacket(var Append: RawByteString; Len: PtrInt);
+var
+  l: PtrInt;
 begin
-  FastSetRawByteString(result, nil, DestLen);
-  ReceivePacket(pointer(result), DestLen);
+  l := length(Append);
+  SetLength(Append, l + Len);
+  ReceivePacket(@PByteArray(Append)[l], Len);
 end;
 
 function TLdapClient.ReceiveResponse: TAsnObject;
@@ -3178,17 +3075,17 @@ begin
     ReceivePacket(@b, 1); // ASN type
     if b <> ASN1_SEQ then
       exit;
-    FastSetRawByteString(result, @b, 1);
+    FastSetRawByteString(result, @b, 2);
     ReceivePacket(@b, 1); // first byte of ASN length
-    Append(result, @b, 1);
-    if b > $7f then // $8x means x bytes of length
-      AsnAdd(result, ReceivePacket(b and $7f));
+    PByteArray(result)[1] := b;
+    if b > $7f then
+      ReceivePacket(result, b and $7f); // $8x means x bytes of length
     // decode length of LDAP packet
     pos := 2;
     len := AsnDecLen(pos, result);
     // retrieve body of LDAP packet
     if len > 0 then
-      AsnAdd(result, ReceivePacket(len));
+      ReceivePacket(result, len);
   except
     on Exception do
     begin
@@ -3211,28 +3108,34 @@ function TLdapClient.DecodeResponse(
 var
   x, asntype, seqend: integer;
   s, t: TAsnObject;
+  errmsg: RawUtf8;
 begin
   result := '';
   fResultCode := -1;
   fResultString := '';
   fResponseCode := LDAP_ASN1_ERROR;
   fResponseDN := '';
-  if (AsnNext(pos, Asn1Response) <> ASN1_SEQ) or
-     (AsnNextInteger(pos, Asn1Response, asntype) <> fSeq) or
+  if (AsnNext(Pos, Asn1Response) <> ASN1_SEQ) or
+     (AsnNextInteger(Pos, Asn1Response, asntype) <> fSeq) or
      (asntype <> ASN1_INT) then
     exit;
-  fResponseCode := AsnNext(pos, Asn1Response, nil, @seqend);
+  fResponseCode := AsnNext(Pos, Asn1Response, nil, @seqend);
   if fResponseCode in LDAP_ASN1_RESPONSES then
   begin
     // final response
-    fResultCode := AsnNextInteger(pos, Asn1Response, asntype);
-    AsnNext(pos, Asn1Response, @fResponseDN);   // matchedDN
-    AsnNext(pos, Asn1Response, @fResultString); // diagnosticMessage
-    if (fResultString = '') and
-       (fResultCode <> LDAP_RES_SUCCESS) then
-      fResultString := RawLdapErrorString(fResultCode);
+    fResultCode := AsnNextInteger(Pos, Asn1Response, asntype);
+    AsnNext(Pos, Asn1Response, @fResponseDN);   // matchedDN
+    AsnNext(Pos, Asn1Response, @fResultString); // diagnosticMessage
+    if not (fResultCode in LDAP_RES_NOERROR) then
+    begin
+      errmsg := RawLdapErrorString(fResultCode);
+      if fResultString = '' then
+        fResultString := errmsg
+      else
+        fResultString := FormatUtf8('% [%]', [errmsg, fResultString]);
+    end;
     if fResultCode = LDAP_RES_REFERRAL then
-      if AsnNext(pos, Asn1Response, @s) = ASN1_CTC3 then
+      if AsnNext(Pos, Asn1Response, @s) = ASN1_CTC3 then
       begin
         x := 1;
         while x < length(s) do
@@ -3241,14 +3144,14 @@ begin
           fReferals.Add(t);
         end;
     end;
-    result := copy(Asn1Response, pos, length(Asn1Response) - pos + 1); // body
-    pos := length(Asn1Response) + 1;
+    result := copy(Asn1Response, Pos, length(Asn1Response) - Pos + 1); // body
+    Pos := length(Asn1Response) + 1;
   end
   else
   begin
     // partial response (e.g. LDAP_ASN1_SEARCH_ENTRY)
-    result := copy(Asn1Response, pos, seqend - pos);
-    pos := seqend;
+    result := copy(Asn1Response, Pos, seqend - Pos);
+    Pos := seqend;
   end;
 end;
 
@@ -3274,8 +3177,7 @@ begin
   if (fSettings.Password <> '') and
      not fSettings.Tls and
      not fSettings.AllowUnsafePasswordBind then
-    raise ELdap.CreateUtf8(
-      '%.Bind with a password requires a TLS connection', [self]);
+    ELdap.RaiseUtf8('%.Bind with a password requires a TLS connection', [self]);
   SendAndReceive(Asn(LDAP_ASN1_BIND_REQUEST, [
                    Asn(fVersion),
                    Asn(fSettings.UserName),
@@ -3307,7 +3209,7 @@ begin
      not Connect then
     exit;
   if DIGEST_ALGONAME[Algo] = '' then
-    raise ESynCrypto.CreateUtf8('Unsupported %.BindSaslDigest(%) algorithm',
+    ELdap.RaiseUtf8('Unsupported %.BindSaslDigest(%) algorithm',
       [self, DIGEST_NAME[Algo]]);
   if fSettings.Password = '' then
     result := Bind
@@ -3382,9 +3284,13 @@ var
 begin
   result := false;
   if fBound or
-     not Connect or
-     not InitializeDomainAuth then
-     exit;
+     not Connect then
+    exit;
+  if not InitializeDomainAuth then
+  begin
+    fResultString := 'Kerberos: Error initializing the library';
+    exit;
+  end;
   needencrypt := false;
   fSecContextUser := '';
   if (fSettings.KerberosSpn = '') and
@@ -3413,7 +3319,12 @@ begin
         else
           ClientSspiAuth(fSecContext, datain, fSettings.KerberosSpn, dataout);
       except
-        exit; // catch SSPI/GSSAPI errors and return false
+        on E: Exception do
+        begin
+          FormatUtf8('Kerberos %: %', [E, E.Message], fResultString);
+          // keep ResultCode = LDAP_RES_SASL_BIND_IN_PROGRESS (14)
+          exit; // catch SSPI/GSSAPI errors and return false
+        end;
       end;
       if dataout = '' then
       begin
@@ -3422,18 +3333,29 @@ begin
           break; // perform if only needed (e.g. not on MS AD)
         t := SendAndReceive(req1);
         if fResultCode <> LDAP_RES_SASL_BIND_IN_PROGRESS then
+        begin
+          if fResultCode = LDAP_RES_SUCCESS then // paranoid
+            fResultString := 'Kerberos: aborted SASL handshake';
           exit;
+        end;
         ParseInput;
         datain := SecDecrypt(fSecContext, datain);
         if length(datain) <> 4 then
+        begin
+          fResultString := 'Kerberos: Unexpected SecLayer response';
           exit; // expected format is #0=SecLayer #1#2#3=MaxMsgSizeInNetOrder
+        end;
         seclayers := TKerbSecLayer(datain[1]);
         secmaxsize := bswap32(PCardinal(datain)^) and $00ffffff;
         if seclayers = [] then
           // the server requires no additional security layer
           if secmaxsize <> 0 then
+          begin
             // invalid answer (as stated by RFC 4752)
-            exit
+            FormatUtf8('Kerberos: Unexpected secmaxsize=%',
+              [secmaxsize], fResultString);
+            exit;
+          end
           else
           begin
             // #0: noseclayer, #1#2#3: maxmsgsize=0
@@ -3441,8 +3363,12 @@ begin
             needencrypt := false; // fSecContextEncrypt = false by default
           end
         else if seclayers * KLS_EXPECTED = [] then
+        begin
           // we only support signing+sealing
-          exit
+          FormatUtf8('Kerberos: Unsupported [%] method(s)',
+            [GetSetName(TypeInfo(TKerbSecLayer), seclayers)], fResultString);
+          exit;
+        end
         else
         // if we reached here, the server asked for signing+sealing
         if needencrypt or             // from MS AD
@@ -3528,7 +3454,11 @@ begin
                        Asn(ord(Op), ASN1_ENUM),
                        Asn(ASN1_SEQ, [
                          Asn(Value.AttributeName),
-                         Asn(query, ASN1_SETOF)])])])]));
+                         Asn(query, ASN1_SETOF)
+                       ])
+                     ])
+                   ])
+                 ]));
   result := fResultCode = LDAP_RES_SUCCESS;
 end;
 
@@ -3552,11 +3482,12 @@ begin
     Append(query,
       Asn(ASN1_SEQ, [
         Asn(attr.AttributeName),
-        Asn(ASN1_SETOF, [sub])]));
+        Asn(ASN1_SETOF, [sub])
+      ]));
   end;
   SendAndReceive(Asn(LDAP_ASN1_ADD_REQUEST, [
                    Asn(obj),
-                   AsnSeq(query)]));
+                   Asn(ASN1_SEQ, query)]));
   result := fResultCode = LDAP_RES_SUCCESS;
 end;
 
@@ -3688,12 +3619,17 @@ begin
   SendAndReceive(Asn(LDAP_ASN1_COMPARE_REQUEST, [
                    Asn(obj),
                    Asn(ASN1_SEQ, [
-                     Asn(TrimU(SeparateLeft(AttributeValue, '='))),
-                     Asn(TrimU(SeparateRight(AttributeValue, '=')))])]));
+                     Asn(TrimU(GetFirstCsvItem(AttributeValue, '='))),
+                     Asn(TrimU(SeparateRight(AttributeValue, '=')))
+                   ])
+                 ]));
   result := fResultCode = LDAP_RES_COMPARE_TRUE;
 end;
 
 // https://ldap.com/ldapv3-wire-protocol-reference-search
+
+const
+  ASN1_OID_PAGEDRESULTS = '1.2.840.113556.1.4.319';
 
 function TLdapClient.Search(const BaseDN: RawUtf8; TypesOnly: boolean;
   const Filter: RawUtf8; const Attributes: array of RawUtf8): boolean;
@@ -3708,20 +3644,21 @@ begin
   result := false;
   if not fSock.SockConnected then
     exit;
-  // see https://ldap.com/ldapv3-wire-protocol-reference-search
   QueryPerformanceMicroSeconds(start);
   fSearchResult.Clear;
   fReferals.Clear;
   s := RawLdapSearch(BaseDN, TypesOnly, Filter, Attributes, fSearchScope,
     fSearchAliases, fSearchSizeLimit, fSearchTimeLimit);
-  if fSearchPageSize > 0 then
+  if fSearchPageSize > 0 then // https://www.rfc-editor.org/rfc/rfc2696
     Append(s, Asn(
         Asn(ASN1_SEQ, [
-           Asn('1.2.840.113556.1.4.319'), // controlType: pagedresultsControl
-           ASN1_BOOLEAN_VALUE[false],     // criticality: false
+           Asn(ASN1_OID_PAGEDRESULTS), // controlType: pagedresultsControl
+           ASN1_BOOLEAN_VALUE[false],  // criticality: false
            Asn(Asn(ASN1_SEQ, [
-             Asn(fSearchPageSize),
-             Asn(fSearchCookie)]))]), LDAP_ASN1_CONTROLS));
+                 Asn(fSearchPageSize),
+                 Asn(fSearchCookie)
+               ]))
+        ]), LDAP_ASN1_CONTROLS));
   SendPacket(s);
   x := 1;
   repeat
@@ -3772,11 +3709,10 @@ begin
   until false;
   n := 1;
   if AsnNext(n, resp) = LDAP_ASN1_CONTROLS then
-  begin
     if AsnNext(n, resp) = ASN1_SEQ then
     begin
       AsnNext(n, resp, @s);
-      if s = '1.2.840.113556.1.4.319' then
+      if s = ASN1_OID_PAGEDRESULTS then
       begin
         AsnNext(n, resp, @s); // searchControlValue
         n := 1;
@@ -3789,7 +3725,6 @@ begin
         end;
       end;
     end;
-  end;
   fSearchResult.AfterAdd; // allow "for res in ldap.SearchResult.Items do"
   result := fResultCode = LDAP_RES_SUCCESS;
   QueryPerformanceMicroSeconds(stop);
@@ -3849,7 +3784,6 @@ begin
 end;
 
 // https://ldap.com/ldapv3-wire-protocol-reference-extended
-
 function TLdapClient.Extended(const Oid, Value: RawUtf8): boolean;
 var
   query, decoded: TAsnObject;
@@ -3887,7 +3821,7 @@ begin
     uacname := 'userAccountControl'
   else
     uacname := 'groupType';
-  unUac := unUac and (not Uac); // FilterUac has precedence over UnFilterUac
+  unUac := unUac and (not Uac); // FilterUac has precedence over FilterUnUac
   f := CustomFilter;
   if Uac <> 0 then
     f := FormatUtf8('(%%=%)%', [uacname, AND_FLAG, Uac, f]);
@@ -3973,7 +3907,7 @@ var
   attr: TRawUtf8DynArray;
 begin
   FastRecordClear(@Info, TypeInfo(TLdapUser));
-  attr := CsvToRawUtf8DynArray(LDAPOBJECT_ATTR + 'userPrincipalName,' +
+  attr := CsvToRawUtf8DynArray(LDAPOBJECT_ATTR + ',userPrincipalName,' +
     'displayName,mail,pwdLastSet,lastLogon,userAccountControl,primaryGroupID');
   if WithMemberOf then
     AddRawUtf8(attr, 'memberOf');
@@ -4033,10 +3967,10 @@ begin
         exit;
   for i := 0 to high(GroupDN) do
     if GroupDN[i] <> '' then
-      if LdapEscapeName(GroupDN[i], grp) then
+      if LdapIsValidDistinguishedName(GroupDN[i]) then
       begin
-        filter := FormatUtf8('%(distinguishedName=%)', [filter, grp]);
-        inc(n);
+        filter := FormatUtf8('%(distinguishedName=%)', [filter, GroupDN[i]]);
+        inc(n); // no escape of the DN content
       end
       else
         exit;
@@ -4424,7 +4358,7 @@ begin
     r := mormot.core.unicode.LowerCase(SplitRight(fKerberosSpn, '@'));
   inherited Create(r, daSHA3_256);
   if not InitializeDomainAuth then
-    raise ELdap.CreateUtf8('%.Create: no SSPI/GSSAPI available', [self]);
+    ELdap.RaiseUtf8('%.Create: no SSPI/GSSAPI available', [self]);
 end;
 
 function TBasicAuthServerKerberos.ExternalServerAsk(const aUser: RawUtf8;
@@ -4505,7 +4439,7 @@ begin
   if r = '' then
     r := fLdapSettings.KerberosDN; // e.g. 'ad.mycorp.com'
   if not fLdapSettings.Tls then
-    raise ELdap.CreateUtf8('%.Create(%): TLS is mandatory', [self, r]);
+    ELdap.RaiseUtf8('%.Create(%): TLS is mandatory', [self, r]);
   // setup the internal in-memory cache
   inherited Create(r, daSHA3_256);
   fUsers.TimeOutSeconds := aCacheTimeoutSec;

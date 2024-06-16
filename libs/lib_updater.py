@@ -101,7 +101,7 @@ def update_mORMot():
     shutil.rmtree(os.path.join(mainpath, "doc"))
     for dirpath in glob.glob(os.path.join(mainpath, "static", "*-android")):
         shutil.rmtree(dirpath)
-    shutil.rmtree(os.path.join(mainpath, "Packages"))
+    shutil.rmtree(os.path.join(mainpath, "packages"))
     shutil.rmtree(os.path.join(mainpath, "test"))
     shutil.rmtree(os.path.join(mainpath, "ex"))
 

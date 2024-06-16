@@ -552,7 +552,7 @@ type
   T7zProgressCallback = function(const sender: I7zArchive;
     current, total: Int64): HRESULT of object;
 
-  /// the parent interface of both I7zRead and I7zWriter
+  /// the parent interface of both I7zReader and I7zWriter
   I7zArchive = interface
     ['{9C0C0C8C-883A-49ED-B608-A6D66D36D530}']
     // -- some internal methods used as property getters
@@ -585,11 +585,12 @@ type
     /// supply a password
     procedure SetPassword(const password: RawUtf8);
     /// the number of files in this archive
-    // - used as index in Item*[0..Count-1] properties and
-    // I7zReader.Extract or I7zWriter.SaveToFile methods
+    // - can be used as 0..Count-1 index in
+    // ZipName/FullName/Size/PackSize/IsFolder/Method/Comment/ModDate[ndx]
+    // properties and I7zReader.Extract or I7zWriter.SaveToFile methods
     function Count: integer;
     /// search for a given file name in this archive
-    // - case-insensitive search within ItemZipName[] items
+    // - case-insensitive search within ZipName[] items
     // - returns -1 if not found, or the index in Item*[] properties
     function NameToIndex(const zipname: RawUtf8): integer;
     /// the kpidPath property value of an archived file
@@ -633,6 +634,7 @@ type
   end;
 
   /// reading acccess to an archive content using the 7z.dll
+  // - use inherited I7zArchive methods to access the archive information
   I7zReader = interface(I7zArchive)
     ['{9C0C0C8C-883A-49ED-B608-A6D66D36D53A}']
     // -- main high-level methods
@@ -1369,7 +1371,7 @@ begin
   // first try to identify from binary header
   if not OnlyFileName then
   begin
-    f := FileOpen(FileName, fmOpenReadDenyNone);
+    f := FileOpen(FileName, fmOpenReadShared);
     if not ValidHandle(f) then
       exit;
     l := FileRead(f, h, SizeOf(h));
@@ -1544,7 +1546,7 @@ begin
   if Assigned(fCreateObject) then
     exit;
   LastFoundDll := '';
-  raise E7Zip.CreateUtf8('% is not a Win' +
+  E7Zip.RaiseUtf8('% is not a Win' +
     {$ifdef CPU32} '32' {$else} '64'  {$endif CPU32} + ' 7-Zip library', [lib]);
 end;
 
@@ -1640,7 +1642,7 @@ begin
   fGetNumberOfMethods := LibraryResolve(lib.fHandle, 'GetNumberOfMethods');
   if not (Assigned(fGetMethodProperty) and
           Assigned(fGetNumberOfMethods)) then
-    raise E7Zip.CreateUtf8('% is not a codec library', [lib]);
+    E7Zip.RaiseUtf8('% is not a codec library', [lib]);
 end;
 
 function T7zCodec.GetDecoder(index: integer): ICompressCoder;
@@ -1692,12 +1694,12 @@ begin
     fLibOwned := lib; // to be released eventually
   inherited Create(lib);
   if fmt = fhUndefined then
-    raise E7Zip.CreateUtF8('%.Create(fhUndefined)', [self]);
+    E7Zip.RaiseUtf8('%.Create(fhUndefined)', [self]);
   fClassId := lib.FormatGuid(fmt);
   fFormat := fmt;
   fGetHandlerProperty := LibraryResolve(lib.fHandle, 'GetHandlerProperty');
   if not Assigned(fGetHandlerProperty) then
-    raise E7Zip.CreateUtf8('% is not an archive library', [lib]);
+    E7Zip.RaiseUtf8('% is not an archive library', [lib]);
 end;
 
 function T7zArchive.ClassId: TGuid;
@@ -1829,7 +1831,7 @@ end;
 procedure T7zReader.EnsureOpened;
 begin
   if fInArchive = nil then
-    raise E7Zip.CreateUtf8('% missing OpenFile/OpenStream', [self]);
+    E7Zip.RaiseUtf8('% missing OpenFile/OpenStream', [self]);
 end;
 
 const
@@ -1889,13 +1891,13 @@ begin
     fInArchive.GetProperty(Item, prop, result));
   with TVarData(result) do
     if VType = VT_FILETIME then
-      raise E7Zip.Create('GetProperty: VT_FILETIME is unsupported - ' +
-        'use GetPropDateTime instead')
+      E7Zip.RaiseUtf8('GetProperty(%): VT_FILETIME is unsupported - ' +
+        'use GetPropDateTime instead', [prop])
     else if (VType <> varEmpty) and
             (prop >= low(KPID_VTYPE)) and
             (prop <= high(KPID_VTYPE)) and
             (VType <> KPID_VTYPE[prop]) then
-      raise E7Zip.CreateUtf8('GetProperty(%): expected %, returned %',
+      E7Zip.RaiseUtf8('GetProperty(%): expected %, returned %',
         [prop, KPID_VTYPE[prop], VType])
 end;
 
@@ -1917,7 +1919,7 @@ begin
   E7Zip.CheckOK(self, 'GetPropDateTime',
     fInArchive.GetProperty(Item, prop, variant(v)));
   if not (v.VType in [varEmpty, VT_FILETIME]) then
-    raise E7Zip.CreateUtf8('T7zReader.GetPropDateTime=%', [v.VType]);
+    E7Zip.RaiseUtf8('T7zReader.GetPropDateTime=%', [v.VType]);
   VariantToDateTime(variant(v), result);
 end;
 
@@ -2013,7 +2015,7 @@ procedure T7zReader.OpenFile(const name: TFileName);
 var
   strm: IInStream;
 begin
-  strm := T7zStream.CreateFromFile(name, fmOpenReadDenyNone);
+  strm := T7zStream.CreateFromFile(name, fmOpenReadShared);
   E7Zip.CheckOk(self, 'OpenFile',
     InArchive.Open(strm, @MAXCHECK, self as IArchiveOpenCallBack));
   fFileName := name;
@@ -2042,7 +2044,7 @@ procedure T7zReader.Extract(item: cardinal; const path: TFileName;
   nosubfolder: boolean);
 begin
   EnsureOpened;
-  fExtractPath := EnsureDirectoryExists(path);
+  fExtractPath := EnsureDirectoryExists(path, E7Zip);
   fExtractPathNoSubFolder := nosubfolder;
   try
     E7Zip.CheckOk(self, 'Extract',
@@ -2136,9 +2138,9 @@ begin
           with fExtractCurrent do
           begin
             FileName := path;
-            Created := GetPropFileTime(index, kpidCreationTime);
+            Created  := GetPropFileTime(index, kpidCreationTime);
             Accessed := GetPropFileTime(index, kpidLastAccessTime);
-            Written := GetPropFileTime(index, kpidLastWriteTime);
+            Written  := GetPropFileTime(index, kpidLastWriteTime);
           end;
         end;
   end;
@@ -2231,7 +2233,7 @@ end;
 procedure T7zReader.ExtractAll(const path: TFileName; nosubfolder: boolean);
 begin
   EnsureOpened;
-  fExtractPath := EnsureDirectoryExists(path);
+  fExtractPath := EnsureDirectoryExists(path, E7Zip);
   fExtractPathNoSubFolder := nosubfolder;
   try
     E7Zip.CheckOk(self, 'ExtractAll', fInArchive.Extract(
@@ -2371,7 +2373,7 @@ var
   item: T7zItem;
   Handle: THandle;
 begin
-  Handle := FileOpen(Filename, fmOpenReadDenyNone);
+  Handle := FileOpen(Filename, fmOpenReadShared);
   result := ValidHandle(Handle);
   if not result then
     exit;
@@ -2421,7 +2423,7 @@ var
           if (f.Attr and (faDirectory + faVolumeID{%H-})) = 0 then
           begin
             fn := p + f.Name;
-            if IsFileReadable(fn) then
+            if FileIsReadable(fn) then
             begin
               item := T7zItem.Create;
               item.SourceMode := smFile;
@@ -2539,7 +2541,7 @@ begin
     if not Assigned(fUpdateReader) then
       fOwner.CreateObject(fClassID, IOutArchive, fOutArchive)
     else if not Supports(fUpdateReader.InArchive, IOutArchive, fOutArchive) then
-      raise E7Zip.CreateUtf8('%.OutArchive: % format can not be updated',
+      E7Zip.RaiseUtf8('%.OutArchive: % format can not be updated',
         [self, fUpdateReader.FormatExt]);
   result := fOutArchive;
 end;
@@ -2611,11 +2613,11 @@ begin
       smFile:
         if not fCurrentItem.IsFolder then
           inStream := T7zStream.CreateFromFile(
-            fCurrentItem.FileName, fmOpenReadDenyNone, index);
+            fCurrentItem.FileName, fmOpenReadShared, index);
       smStream:
         if not fCurrentItem.IsFolder then
         begin
-          fCurrentItem.Stream.Seek(0, soFromBeginning);
+          fCurrentItem.Stream.Seek(0, soBeginning);
           inStream := T7zStream.Create(
             fCurrentItem.Stream, {owned=}false, index);
         end;
@@ -2748,10 +2750,9 @@ end;
 
 function T7zWriter.Get(index: PtrUInt): T7zItem;
 begin
-  if index < PtrUInt(length(fEntries)) then
-    result := fEntries[index]
-  else
-    raise E7Zip.CreateUtf8('Out of range %.Get(%)', [self, index]);
+  if index >= PtrUInt(length(fEntries)) then
+    E7Zip.RaiseUtf8('Out of range %.Get(%)', [self, index]);
+  result := fEntries[index];
 end;
 
 function T7zWriter.GetZipName(index: integer): RawUtf8;

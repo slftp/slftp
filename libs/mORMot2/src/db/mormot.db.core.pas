@@ -262,7 +262,7 @@ function FieldBitsToIndex(const Fields: TFieldBits;
 
 /// add a field index to an array of field indexes
 // - returns the index in Indexes[] of the newly appended Field value
-function AddFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): integer;
+function AddFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): PtrInt;
 
 /// convert an array of field indexes into a TFieldBits set of bits
 procedure FieldIndexToBits(const Index: TFieldIndexDynArray;
@@ -270,7 +270,7 @@ procedure FieldIndexToBits(const Index: TFieldIndexDynArray;
 
 /// search a field index in an array of field indexes
 // - returns the index in Indexes[] of the given Field value, -1 if not found
-function SearchFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): integer;
+function SearchFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): PtrInt;
 
 /// convert an array of field indexes into a TFieldBits set of bits
 function FieldIndexToBits(const Index: TFieldIndexDynArray): TFieldBits; overload;
@@ -477,7 +477,7 @@ type
   // ! property Txt: TNullableUtf8Text index 32 read fTxt write fTxt;
   // - warning: prior to Delphi 2009, since the variant will be stored as
   // RawUtf8 internally, you should not use directly the field value as a
-  // VCL string=AnsiString like string(aField) but use VariantToString(aField)
+  // RTL string=AnsiString like string(aField) but use VariantToString(aField)
   TNullableUtf8Text = type variant;
 
   /// can identify the TNullable* supported variant types
@@ -772,7 +772,7 @@ type
     /// generic SQL statement with ? place holders for each inlined parameter
     GenericSql: RawUtf8;
     /// the number of parsed parameters, as filled in Values/Types
-    Count: integer;
+    Count: PtrInt;
     /// the SQL type associated with each Values[]
     // - recognized types are sptInteger, sptFloat, sptUtf8Text, sptDateTime
     // (marked with '\uFFF1...' trailer) and sptBlob (with '\uFFF0...' trailer)
@@ -799,6 +799,9 @@ type
     // - oftUnknown is set from a NULL value
     // - P=nil is returned on invalid content
     function ParseNext(P: PUtf8Char): PUtf8Char;
+    /// release all used memory by this instance, so that it could be re-used
+    procedure Reset;
+      {$ifdef HASINLINE} inline; {$endif}
   end;
 
 /// returns a 64-bit value as inlined ':(1234):' text
@@ -836,6 +839,7 @@ function SqlFromSelect(const TableName, Select, Where, SimpleFields: RawUtf8): R
 /// find out if the supplied WHERE clause starts with one of the
 // ORDER/GROUP/LIMIT/OFFSET/JOIN keywords
 function SqlWhereIsEndClause(const Where: RawUtf8): boolean;
+  {$ifdef FPC} inline; {$endif}
 
 /// get the order table name from a SQL statement
 // - return the word following any 'ORDER BY' statement
@@ -1326,7 +1330,7 @@ type
     procedure AddFieldValue(const FieldName, FieldValue: RawUtf8;
       FieldType: TJsonObjectDecoderFieldType);
     /// encode as a SQL-ready INSERT or UPDATE statement
-    // - after a successfull call to Decode()
+    // - after a successful call to Decode()
     // - escape SQL strings, according to the official SQLite3 documentation
     // (i.e. ' inside a string is stored as '')
     // - if InlinedParams was TRUE, it will create prepared parameters like
@@ -1337,10 +1341,10 @@ type
     /// encode the FieldNames/FieldValues[] as a JSON object
     procedure EncodeAsJson(out result: RawUtf8);
     /// set the specified array to the fields names
-    // - after a successfull call to Decode()
+    // - after a successful call to Decode()
     procedure AssignFieldNamesTo(var Fields: TRawUtf8DynArray);
     /// returns TRUE if the specified array match the decoded fields names
-    // - after a successfull call to Decode()
+    // - after a successful call to Decode()
     function SameFieldNames(const Fields: TRawUtf8DynArray): boolean;
     /// search for a field name in the current identified FieldNames[]
     function FindFieldName(const FieldName: RawUtf8): PtrInt;
@@ -1633,7 +1637,7 @@ begin
   else if IsZero(Fields) then
     exit;
   if MaxLength > MAX_SQLFIELDS then
-    raise ESynDBException.CreateUtf8('FieldBitsToIndex(MaxLength=%)', [MaxLength]);
+    ESynDBException.RaiseUtf8('FieldBitsToIndex(MaxLength=%)', [MaxLength]);
   n := FieldBitCount(Fields, MaxLength);
   if n = MaxLength then
   begin
@@ -1645,7 +1649,7 @@ begin
   for i := 0 to MaxLength - 1 do
     if FieldBitGet(Fields, i) then
     begin
-      p^ := i;
+      p^ := i; // add in array of ShortInt or SmallInt
       inc(p);
       dec(n);
       if n = 0 then
@@ -1663,14 +1667,14 @@ begin
     FieldBitsToIndex(Fields, result, MaxLength);
 end;
 
-function AddFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): integer;
+function AddFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): PtrInt;
 begin
   result := length(Indexes);
   SetLength(Indexes, result + 1);
-  Indexes[result] := Field;
+  Indexes[result] := Field; // add in array of ShortInt or SmallInt
 end;
 
-function SearchFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): integer;
+function SearchFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): PtrInt;
 begin
   for result := 0 to length(Indexes) - 1 do // never called, no need to optimize
     if Indexes[result] = Field then
@@ -1962,7 +1966,7 @@ end;
 var
   LastDbError: TLastError; // store last error texts
 
-threadvar
+threadvar // do not publish for compilation within Delphi packages
   LastDbErrorID: TLastErrorID; // 32-bit error text identifier for each thread
 
 procedure SetDbError(const text: RawUtf8);
@@ -2217,7 +2221,7 @@ begin
   result := '';
   if Date <= 0 then
     exit;
-  FastSetString(result, nil, 13);
+  FastSetString(result, 13);
   PCardinal(pointer(result))^ := JSON_SQLDATE_MAGIC_C;
   DateToIso8601PChar(Date, PUtf8Char(pointer(result)) + 3, True);
 end;
@@ -2229,7 +2233,7 @@ begin
      (Month - 1 > 11) or
      (Day - 1 > 30) then
     exit;
-  FastSetString(result, nil, 13);
+  FastSetString(result, 13);
   PCardinal(pointer(result))^ := JSON_SQLDATE_MAGIC_C;
   DateToIso8601PChar(PUtf8Char(pointer(result)) + 3, True, Year, Month, Day);
 end;
@@ -2460,22 +2464,24 @@ end;
 function SelectInClause(const PropName: RawUtf8; const Values: array of RawUtf8;
   const Suffix: RawUtf8; ValuesInlinedMax: integer): RawUtf8;
 var
-  n, i: integer;
+  n, i: PtrInt;
+  inlined: boolean;
   temp: TTextWriterStackBuffer;
 begin
   n := length(Values);
   if n > 0 then
-    with TJsonWriter.CreateOwnedStream(temp) do
+    with TTextWriter.CreateOwnedStream(temp) do
     try
+      inlined := ValuesInlinedMax > n;
       AddString(PropName);
       if n = 1 then
       begin
-        if ValuesInlinedMax > 1 then
+        if inlined then
           AddShorter('=:(')
         else
-          Add('=');
+          AddDirect('=');
         AddQuotedStr(pointer(Values[0]), length(Values[0]), '''');
-        if ValuesInlinedMax > 1 then
+        if inlined then
           AddShorter('):');
       end
       else
@@ -2483,16 +2489,15 @@ begin
         AddShorter(' in (');
         for i := 0 to n - 1 do
         begin
-          if ValuesInlinedMax > n then
-            Add(':', '(');
+          if inlined then
+            AddDirect(':', '(');
           AddQuotedStr(pointer(Values[i]), length(Values[i]), '''');
-          if ValuesInlinedMax > n then
+          if inlined then
             AddShorter('):,')
           else
             AddComma;
         end;
-        CancelLastComma;
-        Add(')');
+        CancelLastComma(')');
       end;
       AddString(Suffix);
       SetText(result);
@@ -2519,7 +2524,7 @@ begin
         if ValuesInlinedMax > 1 then
           AddShorter('=:(')
         else
-          Add('=');
+          AddDirect('=');
         Add(Values[0]);
         if ValuesInlinedMax > 1 then
           AddShorter('):');
@@ -2530,15 +2535,14 @@ begin
         for i := 0 to n - 1 do
         begin
           if ValuesInlinedMax > n then
-            Add(':', '(');
+            AddDirect(':', '(');
           Add(Values[i]);
           if ValuesInlinedMax > n then
             AddShorter('):,')
           else
             AddComma;
         end;
-        CancelLastComma;
-        Add(')');
+        CancelLastComma(')');
       end;
       AddString(Suffix);
       SetText(result);
@@ -2618,26 +2622,28 @@ end;
 
 procedure TExtractInlineParameters.Parse(const SQL: RawUtf8);
 var
-  ppBeg: integer;
+  i: PtrInt;
   P, Gen: PUtf8Char;
 begin
   Count := 0;
-  ppBeg := PosEx(RawUtf8(':('), SQL, 1);
-  if (ppBeg = 0) or
-     (PosEx(RawUtf8('):'), SQL, ppBeg + 2) = 0) then
+  i := PosEx(RawUtf8(':('), SQL, 1);
+  if (i = 0) or
+     (PosEx(RawUtf8('):'), SQL, i + 2) = 0) then
   begin
     // SQL code with no valid :(...): internal parameters -> leave Count=0
     GenericSQL := SQL;
     exit;
   end;
   // compute GenericSql from SQL, converting :(...): into ?
-  FastSetString(GenericSQL, pointer(SQL), length(SQL)); // private copy
+  FastSetString(GenericSQL, length(SQL)); // private copy
+  dec(i);
   P := pointer(GenericSQL); // in-place string unescape (keep SQL untouched)
-  Gen := P + ppBeg - 1; // Gen^ just before :(
-  inc(P, ppBeg + 1);    // P^ just after :(
+  MoveFast(pointer(SQL)^, P^, i);
+  Gen := P + i;   // Gen^ just before :(
+  P := @PUtf8Char(pointer(SQL))[i + 2];  // P^ just after :(
   repeat
     if Count = high(Types) then
-      raise ESynDBException.CreateUtf8('Too many parameters in %', [SQL]);
+      ESynDBException.RaiseUtf8('Too many parameters in %', [SQL]);
     Gen^ := '?'; // replace :(...): by ?
     inc(Gen);
     if length(Values) <= Count then
@@ -2671,6 +2677,7 @@ var
   PBeg: PAnsiChar;
   L: integer;
   c: cardinal;
+  v: pointer;
   spt: TSqlParamType;
 begin
   result := nil; // indicates parsing error
@@ -2688,10 +2695,11 @@ begin
           // not a valid quoted string (e.g. unexpected end in middle of it)
           exit;
         spt := sptText;
-        L := length(Values[Count]) - 3;
+        v := pointer(Values[Count]);
+        L := length(RawUtf8(v)) - 3;
         if L > 0 then
         begin
-          c := PInteger(Values[Count])^ and $00ffffff;
+          c := PInteger(v)^ and $00ffffff;
           if c = JSON_BASE64_MAGIC_C then
           begin
             // ':("\uFFF0base64encodedbinary"):' format -> decode
@@ -2699,7 +2707,7 @@ begin
             spt := sptBlob;
           end
           else if (c = JSON_SQLDATE_MAGIC_C) and
-                  IsIso8601(PUtf8Char(pointer(Values[Count])) + 3, L) then
+                  IsIso8601(PUtf8Char(v) + 3, L) then
           begin
             // handle ':("\uFFF112012-05-04"):' format
             Delete(Values[Count], 1, 3);   // return only ISO-8601 text
@@ -2766,6 +2774,17 @@ begin
   Types[Count] := spt;
 end;
 
+procedure TExtractInlineParameters.Reset;
+var
+  p: pointer;
+begin
+  Count := 0;
+  FastAssignNew(GenericSql);
+  p := pointer(Values);
+  if p <> nil then
+    StringClearSeveral(p, PDALen(PAnsiChar(p) - _DALEN)^ + _DAOFF);
+end;
+
 
 
 { ************ TResultsWriter Specialized for Database Export }
@@ -2773,17 +2792,16 @@ end;
 { TResultsWriter }
 
 const
-  VOID_ARRAY: PAnsiChar = '[]'#10;
-  VOID_FIELD: PAnsiChar = '{"FieldCount":0}';
+  VOID_ARRAYFIELD: array[boolean] of string[16] = (
+    '[]'#10, '{"FieldCount":0}'); // same as sqlite3_get_table()
 
 procedure TResultsWriter.CancelAllVoid;
+var
+  p: PShortString;
 begin
   CancelAll; // rewind JSON
-  if fExpand then
-    // same as sqlite3_get_table()
-    inc(fTotalFileSize, fStream.Write(VOID_ARRAY^, 3))
-  else
-    inc(fTotalFileSize, fStream.Write(VOID_FIELD^, 16));
+  p := @VOID_ARRAYFIELD[fExpand];
+  inc(fTotalFileSize, fStream.Write(p^[1], ord(p^[0])));
 end;
 
 constructor TResultsWriter.Create(aStream: TStream; Expand, withID: boolean;
@@ -2832,7 +2850,7 @@ begin
         new := FastNewString(len + 3, CP_UTF8);
         new[0] := '"';
         MoveFast(c^^, new[1], len);
-        PWord(new + len + 1)^ := ord('"') + ord(':') shl 8;
+        PCardinal(new + len + 1)^ := ord('"') + ord(':') shl 8;
         FastAssignNew(c^, new);
       end;
       inc(c);
@@ -2854,7 +2872,7 @@ begin
       AddString(ColNames[i]);
       AddShorter('","');
     end;
-    CancelLastChar('"');
+    CancelLastChar;
     fStartDataPosition := PtrInt(fStream.Position) + PtrInt(B - fTempBuf);
      // B := buf-1 at startup -> need ',val11' position in
      // "values":["col1","col2",val11,' i.e. current pos without the ','
@@ -2882,7 +2900,7 @@ begin
       new := FastNewString(len + 3, CP_UTF8);
       new[0] := '"';
       MoveFast(aColName^, new[1], len);
-      PWord(new + len + 1)^ := ord('"') + ord(':') shl 8;
+      PCardinal(new + len + 1)^ := ord('"') + ord(':') shl 8;
     end;
     FastAssignNew(ColNames[aColIndex], new);
   end
@@ -2895,11 +2913,11 @@ begin
       AddShort(',"values":["');
       // first row is FieldNames in non-expanded format
     end;
-    AddNoJsonEscape(aColName, len);
+    AddShort(aColName, len);
     if aColIndex = aColCount - 1 then
     begin
       // last AddColumn() call would finalize the non-expanded header
-      Add('"' , ',');
+      AddDirect('"' , ',');
       fStartDataPosition := PtrInt(fStream.Position) + PtrInt(B - fTempBuf);
     end
     else
@@ -2911,7 +2929,7 @@ procedure TResultsWriter.ChangeExpandedFields(aWithID: boolean;
   const aFields: TFieldIndexDynArray);
 begin
   if not Expand then
-    raise ESynDBException.CreateUtf8(
+    ESynDBException.RaiseUtf8(
       '%.ChangeExpandedFields() called with Expanded=false', [self]);
   fWithID := aWithID;
   fFields := aFields;
@@ -2920,8 +2938,7 @@ end;
 procedure TResultsWriter.EndJsonObject(aKnownRowsCount, aRowsCount: integer;
   aFlushFinal: boolean);
 begin
-  CancelLastComma; // cancel last ','
-  Add(']');
+  CancelLastComma(']');
   if not fExpand then
   begin
     if aKnownRowsCount = 0 then
@@ -2929,9 +2946,9 @@ begin
       AddShort(',"rowCount":');
       Add(aRowsCount);
     end;
-    Add('}');
+    AddDirect('}');
   end;
-  Add(#10);
+  AddDirect(#10);
   if aFlushFinal then
     FlushFinal;
 end;
@@ -3838,7 +3855,7 @@ function TJsonObjectDecoder.EncodeAsSql(const Prefix1, Prefix2: RawUtf8;
   Update: boolean; Prefix1Batch: PRestBatchOptions; DB: TSqlDBDefinition): RawUtf8;
 var
   f: PtrInt;
-  W: TJsonWriter;
+  W: TTextWriter;
   temp: TTextWriterStackBuffer;
 
   procedure AddValue;
@@ -3856,7 +3873,7 @@ begin
   result := '';
   if FieldCount = 0 then
     exit;
-  W := TJsonWriter.CreateOwnedStream(temp);
+  W := TTextWriter.CreateOwnedStream(temp);
   try
     if Prefix1Batch <> nil then
       EncodeInsertPrefix(W, Prefix1Batch^, DB)
@@ -3870,7 +3887,7 @@ begin
         if not IsRowID(DecodedFieldNames^[f]) then
         begin
           W.AddNoJsonEscape(DecodedFieldNames^[f]);
-          W.Add('=');
+          W.AddDirect('=');
           AddValue;
         end;
       W.CancelLastComma;
@@ -3878,7 +3895,7 @@ begin
     else
     begin
       // returns ' (COL1,COL2) values ('VAL1',VAL2)'
-      W.Add(' ', '(');
+      W.AddDirect(' ', '(');
       for f := 0 to FieldCount - 1 do
       begin
         // append 'COL1,COL2'
@@ -3889,8 +3906,7 @@ begin
       W.AddShort(') values (');
       for f := 0 to FieldCount - 1 do
         AddValue;
-      W.CancelLastComma;
-      W.Add(')');
+      W.CancelLastComma(')');
     end;
     W.SetText(result);
   finally
@@ -3908,7 +3924,7 @@ begin
     exit;
   W := TJsonWriter.CreateOwnedStream(temp);
   try
-    W.Add('{');
+    W.AddDirect('{');
     for f := 0 to FieldCount - 1 do
     begin
       W.AddProp(DecodedFieldNames^[f]);
@@ -3921,8 +3937,7 @@ begin
         W.AddString(FieldValues[f]);
       W.AddComma;
     end;
-    W.CancelLastComma;
-    W.Add('}');
+    W.CancelLastComma('}');
     W.SetText(result);
   finally
     W.Free;
@@ -3949,7 +3964,7 @@ begin
     try
       for i := 0 to FieldCount - 1 do
       begin
-        AddNoJsonEscape(FieldNames[i], FieldNamesL[i]);
+        AddShort(FieldNames[i], FieldNamesL[i]);
         AddComma;
       end;
       CancelLastComma;
@@ -4169,6 +4184,7 @@ begin
   // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert
 end;
 
+
 procedure InitializeUnit;
 var
   i, j: PtrInt;
@@ -4180,7 +4196,7 @@ begin
   begin
     SetLength(MAX_SQLFIELDS_INDEX[j], j);
     for i := 0 to j - 1 do
-      MAX_SQLFIELDS_INDEX[j, i] := i;
+      MAX_SQLFIELDS_INDEX[j, i] := i; // set array of ShortInt or SmallInt
   end;
 end;
 

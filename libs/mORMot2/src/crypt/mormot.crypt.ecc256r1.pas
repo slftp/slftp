@@ -37,7 +37,7 @@ uses
 { ***************** Low-Level ECC secp256r1 ECDSA and ECDH Functions }
 
 const
-  /// the size of the 256-bit memory structure used for secp256r1
+  /// the size of the 256-bit memory structure used for secp256r1 coordinates
   // - map 32 bytes of memory
   ECC_BYTES = SizeOf(THash256);
 
@@ -50,16 +50,16 @@ const
 type
   /// store a public key for ECC secp256r1 cryptography
   // - use Ecc256r1MakeKey() to generate such a key
-  // - stored in compressed form with its standard byte header, i.e. each
-  // public key consumes 33 bytes of memory
+  // - stored in single coordinate compressed form with its standard byte header,
+  // i.e. each public key consumes 33 bytes of memory
   TEccPublicKey = array[0..ECC_BYTES] of byte;
 
-  /// store a public key for ECC secp256r1 cryptography
-  // - use ecc_uncompress_key_pas() to compute such a key from a TEccPublicKey
+  /// store a public key for ECC secp256r1 cryptography as x,y coordinates
+  // - use Ecc256r1Uncompress() to compute such a key from a TEccPublicKey
   // - stored in uncompressed form, consuming 64 bytes of memory
   TEccPublicKeyUncompressed = array[0..(ECC_BYTES * 2) - 1] of byte;
 
-  /// store a private key for ECC secp256r1 cryptography
+  /// store a private key for ECC secp256r1 cryptography as a single coordinate
   // - use Ecc256r1MakeKey() to generate such a key
   // - stored in compressed form, i.e. each private key consumes 32 bytes of memory
   TEccPrivateKey = array[0..ECC_BYTES - 1] of byte;
@@ -161,17 +161,35 @@ var
 procedure Ecc256r1Compress(const Uncompressed: TEccPublicKeyUncompressed;
   out Compressed: TEccPublicKey);
 
-/// compress an ASN-1 public key for ECC secp256r1 cryptography
-// - input is likely to have a $04 initial byte for ASN-1 uncompressed key
+/// derivate an ECC secp256r1 cryptography public key from a private key
+procedure Ecc256r1PublicFromPrivate(const PrivateKey: TEccPrivateKey;
+  out PublicKey: TEccPublicKey);
+
+/// check if an ECC secp256r1 cryptography public key does match a private key
+function Ecc256r1MatchKeys(const PrivateKey: TEccPrivateKey;
+  const PublicKey: TEccPublicKey): boolean;
+
+/// decode an uncompressed ASN-1 public key for ECC secp256r1 cryptography
+// - input is likely to have a $04 initial byte for ASN-1 uncompressed key,
+// as stored in a X.509 Certificate SubjectPublicKey field
+function Ecc256r1ExtractAsn1(const Asn1: RawByteString;
+  out Uncompressed: TEccPublicKeyUncompressed): boolean;
+
+/// compress an uncompressed ASN-1 public key for ECC secp256r1 cryptography
+// - input is likely to have a $04 initial byte for ASN-1 uncompressed key,
+// as stored in a X.509 Certificate SubjectPublicKey field
 function Ecc256r1CompressAsn1(const Uncompressed: RawByteString;
   out Compressed: TEccPublicKey): boolean;
 
-/// compress an ECC secp256r1 cryptography public key as expected by ASN-1
+/// save an ECC secp256r1 cryptography public key as expected by ASN-1
 // - include a $04 initial byte as uncompressed key, and change endianness
+// - as stored in a X.509 Certificate SubjectPublicKey field
 function Ecc256r1UncompressAsn1(const Compressed: TEccPublicKey): RawByteString;
 
-/// just a wrapper around Ecc256r1Verify/Ecc256r1VerifyUncomp depending on pubunc
-function Ecc256r1DoVerify(const pub: TEccPublicKey; pubunc: PEccPublicKeyUncompressed;
+/// just a wrapper around Ecc256r1Verify/Ecc256r1VerifyUncomp depending on unc
+// - this unit is faster with uncompressed keys, whereas OpenSSL prefers to
+// work with compressed keys
+function Ecc256r1DoVerify(const pub: TEccPublicKey; unc: PEccPublicKeyUncompressed;
   const hash: TEccHash; const sign: TEccSignature): boolean;
 
 
@@ -220,12 +238,17 @@ type
   // the cryptographic library, which may be this unit pascal or OpenSSL
   // - it is therefore slightly faster than Ecc256r1Verify()
   TEcc256r1VerifyAbstract = class
+  protected
+    fPublicKey: TEccPublicKey;
   public
     /// initialize the verifier with a given ECC compressed public key
-    constructor Create(const pub: TEccPublicKey); virtual; abstract;
+    constructor Create(const pub: TEccPublicKey); virtual;
     /// validate a signature against a hash using ECC
     function Verify(const hash: TEccHash; const sign: TEccSignature): boolean;
       virtual; abstract;
+    /// the public key as specified to the class constructor
+    property PublicKey: TEccPublicKey
+      read fPublicKey;
   end;
 
   /// meta-clas of ECDSA signature verification class
@@ -251,7 +274,7 @@ var
   /// fastest available class to be used to verify a ECDSA signature
   // - using secp256r1 curve, i.e. NIST P-256, or OpenSSL prime256v1
   // - direct low-level access to our pascal/asm version, or OpenSSL wrappers
-  // - as used e.g. by TJwtES256 high-level JWT processing class
+  // - as used e.g. by TJwtEs256 high-level JWT processing class
   TEcc256r1Verify: TEcc256r1VerifyClass = TEcc256r1VerifyPas;
 
 
@@ -309,14 +332,14 @@ type
     ValidityStart: TEccDate;
     /// certificate valid not after
     ValidityEnd: TEccDate;
-    /// a genuine identifier for this certificate
+    /// a 128-bit genuine identifier for this certificate
     // - is used later on to validate other certificates in chain
     Serial: TEccCertificateID;
     /// identify the certificate issuer
     // - is either geniune random bytes, or some Baudot-encoded text
     // - blank in V2, contains the (may be truncated) "subject" in V1 format
     Issuer: TEccCertificateIssuer;
-    /// genuine identifier of the authority certificate used for signing
+    /// 128-bit genuine identifier of the authority certificate used for signing
     // - should be used to retrieve the associated PublicKey used to compute
     // the Signature field
     // - may equal Serial, if was self-signed
@@ -412,7 +435,7 @@ type
     // - as stored in Head.CRC
     function ComputeCrc32: cardinal;
     /// compute the SHA-256 digest of the whole signed content
-    procedure ComputeHash(out hash: TSha256Digest);
+    procedure ComputeHash(out hash: TSha256Digest; const salt: RawByteString = '');
     /// serialize this certificate content as binary stream
     function SaveToStream(s: TStream): boolean;
     /// unserialize this certificate content from a binary stream
@@ -1216,17 +1239,39 @@ begin
   _bswap256(@Compressed[1], @TEccPoint(Uncompressed).x);
 end;
 
-function Ecc256r1CompressAsn1(const Uncompressed: RawByteString;
-  out Compressed: TEccPublicKey): boolean;
+procedure Ecc256r1PublicFromPrivate(const PrivateKey: TEccPrivateKey;
+  out PublicKey: TEccPublicKey);
+var
+  priv: THash256Rec;
+  pub: TEccPoint;
+begin
+  _bswap256(@priv, @PrivateKey);
+  EccPointMult(pub, Curve_G_32, priv, nil); // see ecc_make_key_pas() above
+  Ecc256r1Compress(TEccPublicKeyUncompressed(pub), PublicKey);
+  FillZero(priv.b); // erase sensitive information from stack
+  FillZero(THash512(pub));
+end;
+
+function Ecc256r1MatchKeys(const PrivateKey: TEccPrivateKey;
+  const PublicKey: TEccPublicKey): boolean;
+var
+  pub: TEccPublicKey;
+begin
+  Ecc256r1PublicFromPrivate(PrivateKey, pub);
+  result := CompareMem(@pub, @PublicKey, SizeOf(pub));
+end;
+
+function Ecc256r1ExtractAsn1(const Asn1: RawByteString;
+  out Uncompressed: TEccPublicKeyUncompressed): boolean;
 var
   len: integer;
   p: PHash512Rec;
-  u: THash512Rec;
+  u: THash512Rec absolute Uncompressed;
 begin
   result := false;
-  FillCharFast(Compressed, SizeOf(Compressed), 0);
-  len := length(Uncompressed);
-  p := pointer(Uncompressed);
+  FillCharFast(Uncompressed, SizeOf(Uncompressed), 0);
+  len := length(Asn1);
+  p := pointer(Asn1);
   if (len = SizeOf(TEccPublicKeyUncompressed) + 1) and
      (p.b[0] = 4) then
   begin
@@ -1237,8 +1282,17 @@ begin
     exit;
   _bswap256(@u.l, @p.l); // change endianness
   _bswap256(@u.h, @p.h);
-  Ecc256r1Compress(TEccPublicKeyUncompressed(u), Compressed);
   result := true;
+end;
+
+function Ecc256r1CompressAsn1(const Uncompressed: RawByteString;
+  out Compressed: TEccPublicKey): boolean;
+var
+  u: TEccPublicKeyUncompressed;
+begin
+  result := Ecc256r1ExtractAsn1(Uncompressed, u);
+  if result then
+    Ecc256r1Compress(u, Compressed);
 end;
 
 function Ecc256r1UncompressAsn1(const Compressed: TEccPublicKey): RawByteString;
@@ -1465,10 +1519,19 @@ begin
 end;
 
 
+{ TEcc256r1VerifyAbstract }
+
+constructor TEcc256r1VerifyAbstract.Create(const pub: TEccPublicKey);
+begin
+  fPublicKey := pub;
+end;
+
+
 { TEcc256r1VerifyPas }
 
 constructor TEcc256r1VerifyPas.Create(const pub: TEccPublicKey);
 begin
+  inherited Create(pub);
   EccPointDecompress(TEccPoint(fPub), pub);
 end;
 
@@ -1726,7 +1789,7 @@ begin
   // EccID(128-bit hexa) can't be stored as V1 because EccText() is then wrong
   // try to store as Baudot - #13/#10 are Baudot-friendly so replace ','/'.'
   truncated := EccIssuer(StringReplaceChars(StringReplaceChars(TrimControlChars(
-    sub), ',', #13),  '.', #10), iss, @baudot);
+    sub), ',', #13), '.', #10), iss, @baudot);
   if Head.Version = 1 then
     if truncated and
        (maxversion >= 2) then
@@ -1821,11 +1884,13 @@ begin
     result := fnv32(result, @Info, Info.DataLen + 4);
 end;
 
-procedure TEccCertificateContent.ComputeHash(out hash: TSha256Digest);
+procedure TEccCertificateContent.ComputeHash(out hash: TSha256Digest;
+  const salt: RawByteString);
 var
   sha: TSha256;
 begin
   sha.Init;
+  sha.Update(salt);
   sha.Update(@Head.Signed, SizeOf(Head.Signed));
   if Head.Version > 1 then
     // include Info content to the SHA-2 digest
@@ -1882,13 +1947,13 @@ begin
     result := '';
 end;
 
-function Ecc256r1DoVerify(const pub: TEccPublicKey; pubunc: PEccPublicKeyUncompressed;
+function Ecc256r1DoVerify(const pub: TEccPublicKey; unc: PEccPublicKeyUncompressed;
   const hash: TEccHash; const sign: TEccSignature): boolean;
 begin
-  if pubunc = nil then
+  if unc = nil then
     result := Ecc256r1Verify(pub, hash, sign)
   else
-    result := Ecc256r1VerifyUncomp(pubunc^, hash, sign);
+    result := Ecc256r1VerifyUncomp(unc^, hash, sign);
 end;
 
 function TEccSignatureCertifiedContent.Verify(const hash: THash256;
