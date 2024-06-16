@@ -422,6 +422,8 @@ begin
     exit;
   end;
 
+  kb_lock.Enter;
+  try
     pazo_id := kb_list.IndexOf(section + '-' + dir);
     if pazo_id = -1 then // this shouldnt happen
     begin
@@ -514,6 +516,10 @@ begin
     if verbose then
       irc_addText(netname, channel, 'Changing working directory to the predir.');
     elozo := Now;
+
+  finally
+    kb_lock.Leave;
+  end;
 
     try
       QueueFire;
