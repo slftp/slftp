@@ -99,7 +99,7 @@ type
   TSynMonitorOneBytes = type QWord;
 
   /// would identify the process throughput, during monitoring
-  // - it indicates e.g. "immediate" bandwith usage
+  // - it indicates e.g. "immediate" bandwidth usage
   // - any property defined with this type would be identified by TSynMonitorUsage
   TSynMonitorBytesPerSec = type QWord;
 
@@ -352,7 +352,7 @@ type
       read GetAsText;
   end;
 
-  /// able to serialize any bandwith as bytes count per second
+  /// able to serialize any bandwidth as bytes count per second
   // - is usually associated with TSynMonitorOneSize properties,
   // e.g. to monitor IO activity
   TSynMonitorThroughput = class(TSynMonitorSizeParent)
@@ -534,7 +534,7 @@ type
     /// how many total data has been hanlded during all working process
     property Size: TSynMonitorSize
       read fSize;
-    /// data processing bandwith, returned as B/KB/MB per second
+    /// data processing bandwidth, returned as B/KB/MB per second
     property Throughput: TSynMonitorThroughput
       read fThroughput;
   end;
@@ -567,10 +567,10 @@ type
     /// how many data has been sent back
     property Output: TSynMonitorSize
       read fOutput;
-    /// incoming data processing bandwith, returned as B/KB/MB per second
+    /// incoming data processing bandwidth, returned as B/KB/MB per second
     property InputThroughput: TSynMonitorThroughput
       read fInputThroughput;
-    /// outgoing data processing bandwith, returned as B/KB/MB per second
+    /// outgoing data processing bandwidth, returned as B/KB/MB per second
     property OutputThroughput: TSynMonitorThroughput
       read fOutputThroughput;
   end;
@@ -837,8 +837,8 @@ function ToText(gran: TSynMonitorUsageGranularity): PShortString; overload;
 type
   /// event handler which may be executed by TSystemUse.BackgroundExecute
   // - called just after the measurement of each process CPU and RAM consumption
-  // - run from the background thread, so should not directly make VCL calls,
-  // unless BackgroundExecute is run from a VCL timer
+  // - run from the background thread, so should not directly make UI calls,
+  // unless BackgroundExecute is run from a UI TTimer
   TOnSystemUseMeasured = procedure(ProcessID: integer;
     const Data: TSystemUseData) of object;
 
@@ -870,7 +870,7 @@ type
     fUnsubscribeProcessOnAccessError: boolean;
     function LockedProcessIndex(aProcessID: integer): PtrInt;
   public
-    /// a VCL's TTimer.OnTimer compatible event
+    /// a TTimer.OnTimer compatible event
     // - to be run every few seconds and retrieve the CPU and RAM use:
     // ! tmrSystemUse.Interval := 10000; // every 10 seconds
     // ! tmrSystemUse.OnTimer := TSystemUse.Current.OnTimerExecute;
@@ -880,13 +880,13 @@ type
     // - any aProcessID[]=0 will be replaced by the current process ID
     // - you can specify the number of sample values for the History() method
     // - you should then execute the BackgroundExecute method of this instance
-    // in a VCL timer or from a TSynBackgroundTimer.Enable() registration
+    // in a UI timer or from a TSynBackgroundTimer.Enable() registration
     constructor Create(const aProcessID: array of integer;
       aHistoryDepth: integer = 60); reintroduce; overload; virtual;
     /// track the CPU and RAM usage of the current process
     // - you can specify the number of sample values for the History() method
     // - you should then execute the BackgroundExecute method of this instance
-    // in a VCL timer or from a TSynBackgroundTimer.Enable() registration
+    // in a UI timer or from a TSynBackgroundTimer.Enable() registration
     constructor Create(aHistoryDepth: integer = 60); reintroduce; overload; virtual;
     /// add a Process ID to the internal tracking list
     procedure Subscribe(aProcessID: integer);
@@ -1620,7 +1620,7 @@ type
     /// 2.0+/3.1+ Installed Size in bytes (s)
     // - e.g. '128 KB'
     Size: RawUtf8;
-    /// 2.0+/3.1+ Maxium Size in bytes (m)
+    /// 2.0+/3.1+ Maximum Size in bytes (m)
     // - e.g. '128 KB'
     MaxSize: RawUtf8;
     /// 2.0+ Current SRAM type (c)
@@ -2630,7 +2630,7 @@ end;
 procedure TSynMonitor.ProcessStart;
 begin
   if fProcessing then
-    raise ESynException.CreateUtf8('Unexpected %.ProcessStart', [self]);
+    ESynException.RaiseUtf8('Unexpected %.ProcessStart', [self]);
   InternalTimer.Resume;
   fTaskStatus := taskNotStarted;
   fProcessing := true;
@@ -2650,7 +2650,7 @@ end;
 procedure TSynMonitor.ProcessStartTask;
 begin
   if fProcessing then
-    raise ESynException.CreateUtf8('Reentrant %.ProcessStart', [self]);
+    ESynException.RaiseUtf8('Reentrant %.ProcessStart', [self]);
   InternalTimer.Resume;
   fProcessing := true;
   LockedProcessDoTask;
@@ -3107,7 +3107,7 @@ begin
       if fTracked[i].Instance = Instance then
         exit
       else if PropNameEquals(fTracked[i].Name, instanceName) then
-        raise ESynException.CreateUtf8('%.Track("%") name already exists',
+        ESynException.RaiseUtf8('%.Track("%") name already exists',
           [self, instanceName]);
     SetLength(fTracked, n + 1);
     fTracked[n].Instance := Instance;
@@ -3317,7 +3317,7 @@ var
   g: PDocVariantData;
 begin
   if Gran < low(fValues) then
-    raise ESynException.CreateUtf8('%.Save(%) unexpected', [self, ToText(Gran)^]);
+    ESynException.RaiseUtf8('%.Save(%) unexpected', [self, ToText(Gran)^]);
   TDocVariant.IsOfTypeOrNewFast(fValues[Gran]);
   g := _Safe(fValues[Gran]);
   for t := 0 to length(fTracked) - 1 do
@@ -3353,7 +3353,7 @@ begin
   g^.SortByName;
   ID.Truncate(Gran);
   if not SaveDB(ID.Value, fValues[Gran], Gran) then
-    fLog.SynLog.Log(sllWarning, 'Save(ID=%=%,%) failed',
+    fLog.Add.Log(sllWarning, 'Save(ID=%=%,%) failed',
       [ID.Value, ID.Text(true), ToText(Gran)^], self);
 end;
 
@@ -4113,21 +4113,20 @@ var
   info: TMemoryInfo;
 begin
   tix := GetTickCount64 shr 7; // allow 128 ms resolution for updates
-  if fLastMemoryInfoRetrievedTix <> tix then
-  begin
-    fLastMemoryInfoRetrievedTix := tix;
-    if not GetMemoryInfo(info, {withalloc=}true) then
-      exit;
-    FMemoryLoadPercent := info.percent;
-    FPhysicalMemoryTotal.Bytes := info.memtotal;
-    FPhysicalMemoryFree.Bytes := info.memfree;
-    FPagingFileTotal.Bytes := info.filetotal;
-    FPagingFileFree.Bytes := info.filefree;
-    FVirtualMemoryTotal.Bytes := info.vmtotal;
-    FVirtualMemoryFree.Bytes := info.vmfree;
-    FAllocatedReserved.Bytes := info.allocreserved;
-    FAllocatedUsed.Bytes := info.allocused;
-  end;
+  if fLastMemoryInfoRetrievedTix = tix then
+    exit;
+  fLastMemoryInfoRetrievedTix := tix;
+  if not GetMemoryInfo(info, {withalloc=}true) then
+    exit;
+  FMemoryLoadPercent         := info.percent;
+  FPhysicalMemoryTotal.Bytes := info.memtotal;
+  FPhysicalMemoryFree.Bytes  := info.memfree;
+  FPagingFileTotal.Bytes     := info.filetotal;
+  FPagingFileFree.Bytes      := info.filefree;
+  FVirtualMemoryTotal.Bytes  := info.vmtotal;
+  FVirtualMemoryFree.Bytes   := info.vmfree;
+  FAllocatedReserved.Bytes   := info.allocreserved;
+  FAllocatedUsed.Bytes       := info.allocused;
 end;
 
 
@@ -4782,7 +4781,7 @@ begin
   result := 1; // should never be 0 (mark release of TSynFpuException instance)
 end;
 
-threadvar
+threadvar // do not publish for compilation within Delphi packages
   GlobalSynFpuExceptionDelphi,
   GlobalSynFpuExceptionLibrary: TSynFpuException;
 

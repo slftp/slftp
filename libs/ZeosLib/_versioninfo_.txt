@@ -1,5 +1,7 @@
-641463c97405df0e6017fe93b8bc05664792aa0f
-By Scalmax: I believe those params should go in that order.
+9058ab400ee677eb9553974fe9cdc16d461f379e
+Revision(en) 8204 von trunk zusammengeführt:
+*8.0-patches: fix for SF-Ticket #600 (Sort Calculated Fields)
+........
 
 
 ## Original repository is located at https://sourceforge.net/projects/zeoslib/ ##

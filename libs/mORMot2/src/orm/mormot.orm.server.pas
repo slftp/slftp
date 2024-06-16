@@ -223,7 +223,7 @@ type
     // of the framework
     function InternalUpdateEvent(aEvent: TOrmEvent; aTableIndex: integer; aID: TID;
       const aSentData: RawUtf8; aIsBlobFields: PFieldBits; aRec: TOrm): boolean; virtual;
-    /// this method is called internally after any successfull deletion to
+    /// this method is called internally after any successful deletion to
     // ensure relational database coherency
     // - reset all matching TRecordReference properties in the database Model,
     // for database coherency, into 0
@@ -253,11 +253,11 @@ type
       aKind: TRestServerKind);
     /// fast get the associated static server or virtual table from its index, if any
     // - returns nil if aTableIndex is invalid or is not assigned to a TRestOrm
-    function GetStaticTableIndex(aTableIndex: integer): TRestOrm; overload;
+    function GetStaticTableIndex(aTableIndex: PtrInt): TRestOrm; overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// fast get the associated static server or virtual table from its index, if any
     // - returns nil if aTableIndex is invalid or is not assigned to a TRestOrm
-    function GetStaticTableIndex(aTableIndex: integer;
+    function GetStaticTableIndex(aTableIndex: PtrInt;
       out Kind: TRestServerKind): TRestOrm; overload;
        {$ifdef HASINLINE}inline;{$endif}
     /// create an external static redirection for a specific class
@@ -590,7 +590,7 @@ begin
     if fStaticVirtualTable[i] <> nil then
     begin
       if fStaticVirtualTable[i].RefCount <> 1 then
-        raise ERestStorage.CreateUtf8('%.Destroy: static virtual % refcnt=%',
+        ERestStorage.RaiseUtf8('%.Destroy: static virtual % refcnt=%',
           [self, fStaticVirtualTable[i], fStaticVirtualTable[i].RefCount]);
       IInterface(fStaticVirtualTable[i])._Release;
       if fStaticData <> nil then
@@ -604,7 +604,7 @@ begin
     if orm <> nil then
     begin
       if orm.RefCount <> 1 then
-        raise ERestStorage.CreateUtf8('%.Destroy: static % refcnt=%',
+        ERestStorage.RaiseUtf8('%.Destroy: static % refcnt=%',
           [self, orm, orm.RefCount]);
       IInterface(orm)._Release;
     end;
@@ -654,13 +654,13 @@ end;
 
 function TRestOrmServer.GetStaticStorage(aClass: TOrmClass): TRestOrmParent;
 var
-  i: cardinal;
+  i: PtrInt;
 begin
   if (self <> nil) and
      (fStaticData <> nil) then
   begin
     i := fModel.GetTableIndexExisting(aClass);
-    if i < cardinal(length(fStaticData)) then
+    if i < length(fStaticData) then
       result := fStaticData[i] // no IRestOrm refcnt involved here
     else
       result := nil;
@@ -693,56 +693,54 @@ begin
     result := GetStaticTableIndex(fModel.GetTableIndexExisting(aClass));
 end;
 
-function TRestOrmServer.GetStaticTableIndex(aTableIndex: integer): TRestOrm;
+function TRestOrmServer.GetStaticTableIndex(aTableIndex: PtrInt): TRestOrm;
 begin
   result := nil;
-  if aTableIndex >= 0 then
-  begin
-    if cardinal(aTableIndex) < cardinal(length(fStaticData)) then
-      result := fStaticData[aTableIndex]; // no IRestOrm refcnt here
-    if result = nil then
-      if fVirtualTableDirect and
-         (fStaticVirtualTable <> nil) then
-        result := fStaticVirtualTable[aTableIndex];
-  end;
+  if aTableIndex < 0 then
+    exit;
+  if aTableIndex < length(fStaticData) then
+    result := fStaticData[aTableIndex]; // no IRestOrm refcnt here
+  if result = nil then
+    if fVirtualTableDirect and
+       (fStaticVirtualTable <> nil) then
+      result := fStaticVirtualTable[aTableIndex];
 end;
 
-function TRestOrmServer.GetStaticTableIndex(aTableIndex: integer;
+function TRestOrmServer.GetStaticTableIndex(aTableIndex: PtrInt;
   out Kind: TRestServerKind): TRestOrm;
 begin
   result := nil;
   Kind := sMainEngine;
-  if aTableIndex >= 0 then
+  if aTableIndex < 0 then
+    exit;
+  if aTableIndex < length(fStaticData) then
   begin
-    if cardinal(aTableIndex) < cardinal(length(fStaticData)) then
+    result := fStaticData[aTableIndex]; // no IRestOrm refcnt here
+    if result <> nil then
     begin
-      result := fStaticData[aTableIndex]; // no IRestOrm refcnt here
-      if result <> nil then
-      begin
-        Kind := sStaticDataTable;
-        exit;
-      end;
+      Kind := sStaticDataTable;
+      exit;
     end;
-    if fVirtualTableDirect and
-       (fStaticVirtualTable <> nil) then
-    begin
-      result := fStaticVirtualTable[aTableIndex]; // no IRestOrm refcnt here
-      if result <> nil then
-        Kind := sVirtualTable;
-    end;
+  end;
+  if fVirtualTableDirect and
+     (fStaticVirtualTable <> nil) then
+  begin
+    result := fStaticVirtualTable[aTableIndex]; // no IRestOrm refcnt here
+    if result <> nil then
+      Kind := sVirtualTable;
   end;
 end;
 
 function TRestOrmServer.RemoteDataCreate(aClass: TOrmClass;
   aRemoteRest: TRestOrmParent): TRestOrmParent;
 var
-  t: integer;
+  t: PtrInt;
   existing: TRestOrm;
 begin
   t := Model.GetTableIndexExisting(aClass);
   existing := GetStaticTableIndex(t);
   if existing <> nil then
-    raise ERestStorage.CreateUtf8('Duplicated %.RemoteDataCreate(%) as %',
+    ERestStorage.RaiseUtf8('Duplicated %.RemoteDataCreate(%) as %',
       [self, aClass, existing]);
   result := TRestStorageRemote.Create(aClass, self, aRemoteRest as TRestOrm);
   StaticTableSetup(t, result as TRestOrm, sStaticDataTable);
@@ -750,11 +748,11 @@ end;
 
 function TRestOrmServer.MaxUncompressedBlobSize(Table: TOrmClass): integer;
 var
-  i: integer;
+  i: PtrInt;
 begin
   i := fModel.GetTableIndexExisting(Table);
   if (i >= 0) and
-     (cardinal(i) < cardinal(length(fTrackChangesHistory))) then
+     (i < length(fTrackChangesHistory)) then
     result := fTrackChangesHistory[i].MaxUncompressedBlobSize
   else
     result := 0;
@@ -764,7 +762,7 @@ procedure TRestOrmServer.SetRecordVersionMax(
   TableIndex: integer; Value: TRecordVersion);
 begin
   if cardinal(TableIndex) >= cardinal(Model.TablesMax) then
-    raise ERestStorage.CreateUtf8('%.SetRecordVersionMax(%)', [self, TableIndex]);
+    ERestStorage.RaiseUtf8('%.SetRecordVersionMax(%)', [self, TableIndex]);
   fRest.AcquireExecution[execOrmWrite].Safe.Lock;
   try
     if high(fRecordVersionMax) <> Model.TablesMax then
@@ -783,7 +781,7 @@ var
   max, mDeleted: Int64;
 begin
   if cardinal(TableIndex) > cardinal(fModel.TablesMax) then
-    raise ERestStorage.CreateUtf8('%.RecordVersionMaxFromExisting(%)', [self, TableIndex]);
+    ERestStorage.RaiseUtf8('%.RecordVersionMaxFromExisting(%)', [self, TableIndex]);
   fRest.AcquireExecution[execOrmWrite].Safe.Lock;
   try
     if high(fRecordVersionMax) <> fModel.TablesMax then // checked within lock
@@ -795,7 +793,7 @@ begin
       T := fModel.Tables[TableIndex];
       field := T.OrmProps.RecordVersionField;
       if field = nil then
-        raise ERestStorage.CreateUtf8('% has no RecordVersion', [T]);
+        ERestStorage.RaiseUtf8('% has no RecordVersion', [T]);
       if OneFieldValue(T, 'max(' + field.Name + ')', '', [], [], max) then
         if max > result then
           result := max;
@@ -864,7 +862,7 @@ function TRestOrmServer.RecordVersionCompute(aTableIndex: integer): TRecordVersi
 begin
   result := InternalRecordVersionComputeNext(aTableIndex);
   if result >= ORMVERSION_DELETEID_RANGE then
-    raise EOrmException.CreateUtf8(
+    EOrmException.RaiseUtf8(
      '%.InternalRecordVersionCompute=% overflow: %.ID should be < 2^%)',
      [self, result, fOrmVersionDeleteTable, ORMVERSION_DELETEID_SHIFT]);
 end;
@@ -892,7 +890,7 @@ function TRestOrmServer.RecordVersionSynchronizeSlave(
   Table: TOrmClass; const Master: IRestOrm; ChunkRowLimit: integer;
   const OnWrite: TOnBatchWrite): TRecordVersion;
 var
-  t: PtrInt;
+  t: PtrUInt;
   batch: TRestBatch;
   ids: TIDDynArray;
   status: integer;
@@ -901,7 +899,7 @@ begin
   log := fRest.LogClass.Enter('RecordVersionSynchronizeSlave %', [Table], self);
   t := fModel.GetTableIndexExisting(Table);
   result := -1; // error
-  if (PtrUInt(length(fRecordVersionMax)) <= PtrUInt(t)) or
+  if (t > PtrUInt(length(fRecordVersionMax))) or
      (fRecordVersionMax[t] = 0) then
     InternalRecordVersionMaxFromExisting(t, {next=}false);
   repeat
@@ -923,10 +921,11 @@ begin
       status := BatchSend(batch, ids);
       if status = HTTP_SUCCESS then
       begin
-        InternalLog(
-          'RecordVersionSynchronize(%) Added=% Updated=% Deleted=% on %',
-          [Table, batch.AddCount, batch.UpdateCount, batch.DeleteCount,
-           Master], sllDebug);
+        if sllDebug in fRest.LogLevel then
+          fRest.InternalLog(
+            'RecordVersionSynchronize(%) Added=% Updated=% Deleted=% on %',
+            [Table, batch.AddCount, batch.UpdateCount, batch.DeleteCount,
+             Master], sllDebug);
         if ChunkRowLimit = 0 then
         begin
           result := fRecordVersionMax[t];
@@ -935,7 +934,7 @@ begin
       end
       else
       begin
-        InternalLog('RecordVersionSynchronize(%) BatchSend=%',
+        fRest.InternalLog('RecordVersionSynchronize(%) BatchSend=%',
           [Table, status], sllError);
         fRecordVersionMax[t] := 0; // force recompute the maximum from DB
         break;
@@ -968,13 +967,13 @@ begin
     [Table, RecordVersion, MaxRowLimit], self);
   result := nil;
   if Master = nil then
-    raise EOrmException.CreateUtf8(
+    EOrmException.RaiseUtf8(
       '%.RecordVersionSynchronizeSlaveToBatch(Master=nil)', [self]);
   tableindex := Model.GetTableIndexExisting(Table);
   sourcetableindex := Master.Model.GetTableIndexExisting(Table); // <>tableindex?
   props := Model.TableProps[tableindex].props;
   if props.RecordVersionField = nil then
-    raise EOrmException.CreateUtf8(
+    EOrmException.RaiseUtf8(
       '%.RecordVersionSynchronizeSlaveToBatch(%) with no TRecordVersion field',
       [self, Table]);
   fRest.AcquireExecution[execOrmWrite].Safe.Lock;
@@ -1260,7 +1259,7 @@ begin
     exit;
   if (aTableHistory = nil) or
      not aTableHistory.InheritsFrom(TOrmHistory) then
-    raise EOrmException.CreateUtf8('%.TrackChanges: % is not a TOrmHistory',
+    EOrmException.RaiseUtf8('%.TrackChanges: % is not a TOrmHistory',
       [self, aTableHistory]);
   if aMaxHistoryRowBeforeBlob <= 0 then
     // disable change tracking
@@ -1275,7 +1274,7 @@ begin
   begin
     tableindex := fModel.GetTableIndexExisting(aTable[t]);
     if aTable[t].InheritsFrom(TOrmHistory) then
-      raise EOrmException.CreateUtf8(
+      EOrmException.RaiseUtf8(
         '%.TrackChanges([%]) not allowed', [self, aTable[t]]);
     if cardinal(tableindex) < cardinal(fTrackChangesHistoryTableIndexCount) then
     begin
@@ -1308,7 +1307,7 @@ begin
   log := fRest.LogClass.Enter('TrackChangesFlush(%)', [aTableHistory], self);
   if (aTableHistory = nil) or
      not aTableHistory.InheritsFrom(TOrmHistory) then
-    raise EOrmException.CreateUtf8('%.TrackChangesFlush: % is not a TOrmHistory',
+    EOrmException.RaiseUtf8('%.TrackChangesFlush: % is not a TOrmHistory',
       [self, aTableHistory]);
   fRest.AcquireExecution[execOrmWrite].Safe.Lock; // avoid race condition
   try
@@ -1336,7 +1335,7 @@ begin
     begin
       if (modifiedrec[i] = 0) or
          (histid[i] = 0) then
-        raise EOrmException.CreateUtf8('%.TrackChangesFlush: Invalid %.ID=%',
+        EOrmException.RaiseUtf8('%.TrackChangesFlush: Invalid %.ID=%',
           [self, aTableHistory, histid[i]]);
       if modifiedrec[i] <> modifrec then
       begin
@@ -1356,8 +1355,8 @@ begin
       histidcount := n;
     if histidcount = 0 then
       exit; // nothing to compress
-    QuickSortInt64(Pointer(histid), 0, histidcount - 1);
-    where := Int64DynArrayToCsv(Pointer(histid), histidcount, 'RowID in (', ')');
+    QuickSortInt64(pointer(histid), 0, histidcount - 1);
+    where := Int64DynArrayToCsv(pointer(histid), histidcount, 'RowID in (', ')');
     { following SQL can be very slow with external tables, and won't work
       with TRestStorageInMemory -> manual process instead
     where := FormatUtf8('ModifiedRecord in (select ModifiedRecord from ' +
@@ -1386,7 +1385,7 @@ begin
             RetrieveBlobFields(histblob);
           if not histblob.HistoryOpen(fModel) then
           begin
-            InternalLog('Invalid %.History BLOB content for ID=%: % ' +
+            fRest.InternalLog('Invalid %.History BLOB content for ID=%: % ' +
               'layout may have changed -> flush any previous content',
               [histblob.RecordClass, histblob.IDValue,
                histjson.ModifiedTable(fModel)], sllError);
@@ -1468,8 +1467,7 @@ begin
   if (aStatic <> nil) and
      (aStatics[aTableIndex] <> nil) and
      (aStatics[aTableIndex] <> aStatic) then
-    raise ERestException.CreateUtf8(
-      'SetStaticTable(%): existing % for %',
+    ERestException.RaiseUtf8('SetStaticTable(%): existing % for %',
       [aTableIndex, aStatics[aTableIndex], aStatic]);
   if aStatic <> nil then
     IInterface(aStatic)._AddRef // manual reference counting
@@ -1488,15 +1486,15 @@ var
 begin
   n := length(fModel.Tables);
   if cardinal(aTableIndex) >= n then
-    raise ERestException.CreateUtf8(
-      '%.StaticVirtualTableSetup(%?,%)', [self, aTableIndex, aStatic]);
+    ERestException.RaiseUtf8('%.StaticVirtualTableSetup(%?,%)',
+      [self, aTableIndex, aStatic]);
   case aKind of
     sStaticDataTable:
       SetStaticTable(aTableIndex, n, aStatic, fStaticData);
     sVirtualTable:
       SetStaticTable(aTableIndex, n, aStatic, fStaticVirtualTable);
   else
-    raise ERestException.CreateUtf8('%.StaticVirtualTableSetup(%,%?)',
+    ERestException.RaiseUtf8('%.StaticVirtualTableSetup(%,%?)',
       [self, aStatic, GetEnumName(TypeInfo(TRestServerKind), ord(aKind))^]);
   end;
 end;
@@ -1653,7 +1651,7 @@ function TRestOrmServer.AfterDeleteForceCoherency(aTableIndex: integer;
           Ref^.FieldType.Name, '0', Ref^.FieldType.Name, W);
     end;
     if not cascadeOK then
-      InternalLog('AfterDeleteForceCoherency() failed update %.%=%',
+      fRest.InternalLog('AfterDeleteForceCoherency() failed update %.%=%',
         [fModel.Tables[Ref^.TableIndex], Ref^.FieldType.Name, W], sllWarning);
   end;
 
@@ -1768,10 +1766,9 @@ begin
   end;
   props := fModel.TableProps[tableindex].props;
   for i := 0 to high(FieldNames) do
-    if not IsRowID(pointer(FieldNames[i])) then
-      if props.Fields.IndexByName(FieldNames[i]) < 0 then
-        // wrong field name
-        exit;
+    if not props.IsFieldName(pointer(FieldNames[i])) then
+      // wrong field name
+      exit;
   if Unique then
     sql := 'UNIQUE '
   else
@@ -1972,7 +1969,7 @@ begin
       break;
     end;
     if GetTickCount64 > timeouttix then
-      raise EOrmBatchException.CreateUtf8(
+      EOrmBatchException.RaiseUtf8(
         '%.EngineBatchSend: %.TransactionBegin timeout',
         [self, fRunningRest]);
     SleepHiRes(1); // retry in 1 ms
@@ -2047,7 +2044,7 @@ var
   P: PAnsiChar;
 begin
   if fParse.Json = nil then
-    raise EOrmBatchException.CreateUtf8(
+    EOrmBatchException.RaiseUtf8(
       '%.EngineBatchSend: unexpected end of input', [self]);
   fParse.Json := GotoNextNotSpace(fParse.Json);
   if fParse.Json^ = '"' then
@@ -2057,7 +2054,7 @@ begin
     fCommand := fParse.Value;
     if (fParse.Json = nil) or
        (fCommand = nil) then
-      raise EOrmBatchException.CreateUtf8(
+      EOrmBatchException.RaiseUtf8(
         '%.EngineBatchSend: Missing CMD', [self]);
     // retrieve associated (static) table
     if fMainTableIndex >= 0 then
@@ -2075,7 +2072,7 @@ begin
         cmdtable^ := #0; // isolate 'POST' or 'hex'/'ihex' prefix
         fRunTableIndex := fOrm.Model.GetTableIndexPtr(cmdtable + 1);
         if fRunTableIndex < 0 then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: Unknown %', [self, cmdtable]);
         fRunTable := fOrm.Model.Tables[fRunTableIndex];
       end;
@@ -2125,7 +2122,7 @@ begin
             end;
         end;
         if not HexDisplayToBin(P, @fValueDirectFields, StrLen(P) shr 1) then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: Unknown [%] cmd', [self, fCommand]);
       end;
     end;
@@ -2138,7 +2135,7 @@ begin
     if (fRunTableIndex < 0) or
        (fCommand = nil) then
       // plain "POST",{object} should reuse the previous table
-      raise EOrmBatchException.CreateUtf8(
+      EOrmBatchException.RaiseUtf8(
         '%.EngineBatchSend: "..@Table" expected', [self]);
 end;
 
@@ -2153,14 +2150,14 @@ begin
         JsonGetObject(fParse.Json, @fValueID, fParse.EndOfObject, true, fValue);
         if (fParse.Json = nil) or
            (fValue = '') then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: Wrong POST', [self]);
         if IsNotAllowed then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: POST/Add not allowed on %',
             [self, fRunTable]);
         if not fOrm.RecordCanBeUpdated(fRunTable, fValueID, oeAdd, @fErrorMessage) then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: POST impossible: %', [self, fErrorMessage]);
       end;
     encPut:
@@ -2170,10 +2167,10 @@ begin
         if (fParse.Json = nil) or
            (fValue = '') or
            (fValueID <= 0) then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: Wrong PUT', [self]);
         if IsNotAllowed then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: PUT/Update not allowed on %',
             [self, fRunTable]);
       end;
@@ -2183,14 +2180,14 @@ begin
         fValueID := fParse.GetJsonInt64;
         if (fValueID <= 0) or
            fParse.WasString then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: Wrong DELETE', [self]);
         if IsNotAllowed then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: DELETE not allowed on %',
             [self, fRunTable]);
         if not fOrm.RecordCanBeUpdated(fRunTable, fValueID, oeDelete, @fErrorMessage) then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: DELETE impossible [%]', [self, fErrorMessage]);
       end;
   else
@@ -2222,14 +2219,14 @@ begin
             @fValueID, @fParse.EndOfObject, fCommandDirectFormat, fValue);
         if (fParse.Json = nil) or
            (fValue = '') then
-          raise EOrmBatchException.CreateUtf8(
+          EOrmBatchException.RaiseUtf8(
             '%.EngineBatchSend: % incorrect format', [self, fCommand]);
       end;
       if IsNotAllowed then
-        raise EOrmBatchException.CreateUtf8(
+        EOrmBatchException.RaiseUtf8(
           '%.EngineBatchSend: % not allowed on %', [self, fCommand, fRunTable]);
       if not fOrm.RecordCanBeUpdated(fRunTable, 0, BATCH_EVENT[fEncoding], @fErrorMessage) then
-        raise EOrmBatchException.CreateUtf8(
+        EOrmBatchException.RaiseUtf8(
           '%.EngineBatchSend: % impossible: %', [self, fCommand, fErrorMessage]);
     end;
   end;
@@ -2238,12 +2235,12 @@ end;
 procedure TRestOrmServerBatchSend.ParseEnding;
 begin
   if fParse.Json = nil then
-    raise EOrmBatchException.CreateUtf8(
+    EOrmBatchException.RaiseUtf8(
       '%.EngineBatchSend: % Truncated', [self, fTable]);
   while not (fParse.Json^ in ['}', #0]) do
     inc(fParse.Json);
   if fParse.Json^ <> '}' then
-    raise EOrmBatchException.CreateUtf8(
+    EOrmBatchException.RaiseUtf8(
       '%.EngineBatchSend(%): Missing }', [self, fTable]);
 end;
 
@@ -2382,27 +2379,27 @@ var
 begin
   fParse.Json := pointer(fData); // will be parsed therefore in-place modified
   if fParse.Json = nil then
-    raise EOrmBatchException.CreateUtf8(
+    EOrmBatchException.RaiseUtf8(
       '%.EngineBatchSend(%,"")', [self, fTable]);
   if fTable <> nil then
   begin
     fMainTableIndex := fOrm.Model.GetTableIndexExisting(fTable);
     // unserialize expected sequence array as '{"Table":["cmd",values,...]}'
     if not NextNotSpaceCharIs(fParse.Json, '{') then
-      raise EOrmBatchException.CreateUtf8('%.EngineBatchSend: Missing {', [self]);
+      EOrmBatchException.RaiseUtf8('%.EngineBatchSend: Missing {', [self]);
     tablename := GetJsonPropName(fParse.Json);
     if (tablename = '') or
        (fParse.Json = nil) or
        not PropNameEquals(tablename,
          fOrm.Model.TableProps[fMainTableIndex].Props.SqlTableName) then
-      raise EOrmBatchException.CreateUtf8(
+      EOrmBatchException.RaiseUtf8(
         '%.EngineBatchSend(%): Wrong "Table":"%"', [self, fTable, tablename]);
   end
   else
     // or '["cmd@Table":values,...]'
     fMainTableIndex := -1;
   if not NextNotSpaceCharIs(fParse.Json, '[') then
-    raise EOrmBatchException.CreateUtf8(
+    EOrmBatchException.RaiseUtf8(
       '%.EngineBatchSend: Missing [', [self]);
   if IdemPChar(fParse.Json, '"AUTOMATICTRANSACTIONPERROW",') then
   begin
@@ -2443,7 +2440,7 @@ begin
         // execute the value (may be now or in next InternalBatchStop)
         if not ExecuteValue then
           if boRollbackOnError in fBatchOptions then
-            raise EOrmBatchException.CreateUtf8(
+            EOrmBatchException.RaiseUtf8(
               '%.EngineBatchSend: Results[%]=% on % %',
               [self, fCount, fResults[fCount], fCommand, fRunTable])
           else

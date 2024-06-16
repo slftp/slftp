@@ -218,7 +218,7 @@ type
     // - in aClient-Server environment with multiple Clients connected at the
     // same time, you should better use BATCH process, specifying a positive
     // AutomaticTransactionPerRow parameter to BatchStart()
-    // - this version retries a TranslationBegin() to be successfull within
+    // - this version retries a TranslationBegin() to be successful within
     // a supplied number of times
     // - will retry every 100 ms for "Retries" times (excluding the connection
     // time in this 100 ms time period
@@ -529,7 +529,7 @@ begin
   if ForUpdate then
   begin
     if not fModel.Lock(tableindex, aID) then
-      exit; // error marking as locked by the client
+      exit; // already locked on client side: no need to ask the server
   end
   else if fCache.Retrieve(aID, Value, tableindex) = ocrRetrievedFromCache then
   begin
@@ -554,7 +554,7 @@ begin
     end;
   finally
     if ForUpdate then
-      fModel.UnLock(tableindex, aID);
+      fModel.UnLock(tableindex, aID); // unlock on client side
   end;
 end;
 
@@ -716,7 +716,7 @@ function TRestOrmClientUri.EngineList(TableModelIndex: integer;
   const SQL: RawUtf8; ForceAjax: boolean; ReturnedRowCount: PPtrInt): RawUtf8;
 begin
   if ReturnedRowCount <> nil then
-    raise EOrmException.CreateUtf8(
+    EOrmException.RaiseUtf8(
       '%.EngineList does not support ReturnedRowCount (yet)', [self]);
   if (self = nil) or
      (SQL = '') or
@@ -889,7 +889,7 @@ begin
     SetLength(Results, ExpectedResultsCount);
     if IdemPChar(R, '["OK"]') then
     begin
-      // to save bandwith if no adding
+      // to save bandwidth if no adding
       for i := 0 to ExpectedResultsCount - 1 do
         Results[i] := HTTP_SUCCESS;
     end

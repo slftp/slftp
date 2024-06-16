@@ -3419,7 +3419,7 @@ var
   t: TAutoIndexTask;
 begin
   Result := nil;
-  queue_lock.Enter;
+  queueth.main_lock.Enter;
   try
     for i := 0 to tasks.Count - 1 do
       begin
@@ -3441,7 +3441,7 @@ begin
       end;
     end;
   finally
-    queue_lock.Leave;
+    queueth.main_lock.Leave;
   end;
 end;
 
@@ -3451,7 +3451,7 @@ var
   t: TAutoDirlistTask;
 begin
   Result := nil;
-  queue_lock.Enter;
+  queueth.main_lock.Enter;
   try
     for i := 0 to tasks.Count - 1 do
     begin
@@ -3473,7 +3473,7 @@ begin
       end;
     end;
   finally
-    queue_lock.Leave;
+    queueth.main_lock.Leave;
   end;
 end;
 
@@ -3483,7 +3483,7 @@ var
   t: TAutoNukeTask;
 begin
   Result := nil;
-  queue_lock.Enter;
+  queueth.main_lock.Enter;
   try
     for i := 0 to tasks.Count - 1 do
     begin
@@ -3505,7 +3505,7 @@ begin
       end;
     end;
   finally
-    queue_lock.Leave;
+    queueth.main_lock.Leave;
   end;
 end;
 
@@ -3515,7 +3515,7 @@ var
   t: TLoginTask;
 begin
   Result := nil;
-  queue_lock.Enter;
+  queueth.main_lock.Enter;
   try
     for i := 0 to tasks.Count - 1 do
     begin
@@ -3537,7 +3537,7 @@ begin
       end;
     end;
   finally
-    queue_lock.Leave;
+    queueth.main_lock.Leave;
   end;
 end;
 
@@ -3547,7 +3547,7 @@ var
   t: TRulesTask;
 begin
   Result := nil;
-  queue_lock.Enter;
+  queueth.main_lock.Enter;
   try
     for i := 0 to tasks.Count - 1 do
     begin
@@ -3569,7 +3569,7 @@ begin
       end;
     end;
   finally
-    queue_lock.Leave;
+    queueth.main_lock.Leave;
   end;
 end;
 

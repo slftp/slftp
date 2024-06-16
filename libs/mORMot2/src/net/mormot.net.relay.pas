@@ -442,7 +442,7 @@ begin
     case Frame.opcode of
       focContinuation:
         if fOwner.fServerConnected <> nil then
-          raise ERelayProtocol.CreateUtf8(
+          ERelayProtocol.RaiseUtf8(
             '%: Only a single server instance is allowed', [self])
         else
         begin
@@ -458,7 +458,7 @@ begin
       focBinary:
         begin
           if fOwner.fServerConnected <> Sender then
-            raise ERelayProtocol.CreateUtf8(
+            ERelayProtocol.RaiseUtf8(
               'Unexpected %.ProcessIncomingFrame Sender', [self]);
           connection := fOwner.Decapsulate(Sender.Protocol, Frame);
           if connection = 0 then
@@ -488,7 +488,7 @@ begin
                 else
                   inc(p);
             end;
-            raise ERelayProtocol.CreateUtf8(
+            ERelayProtocol.RaiseUtf8(
               'Unexpected #$.% focRestPayload in %.ProcessIncomingFrame',
               [connection, self]);
           end
@@ -517,7 +517,7 @@ begin
           end;
         end;
     else
-      raise ERelayProtocol.CreateUtf8(
+      ERelayProtocol.RaiseUtf8(
         'Unexpected % in %.ProcessIncomingFrame', [ToText(Frame.opcode)^, self]);
     end;
   finally
@@ -565,7 +565,7 @@ begin
     case Frame.opcode of
       focContinuation, focText, focBinary:
         if fOwner.fServerConnected = nil then
-          raise ERelayProtocol.CreateUtf8(
+          ERelayProtocol.RaiseUtf8(
             '%.ProcessIncomingFrame: No server to relay to', [self]);
       focConnectionClose:
         if fOwner.fServerConnected = nil then
@@ -575,11 +575,12 @@ begin
     end;
     ip := Sender.RemoteIP;
     if Frame.opcode = focContinuation then
-      Frame.payload := ip + #13 + Name + #13 + UpgradeUri; // propagate to Private Relay
+      // propagate to Private Relay
+      Frame.payload := Make([ip, #13, Name, #13, UpgradeUri]);
     if not fOwner.EncapsulateAndSend(
         fOwner.fServerConnected, ip, Frame, Sender.Protocol.ConnectionID) and
        (Frame.opcode <> focConnectionClose) then
-      raise ERelayProtocol.CreateUtf8(
+      ERelayProtocol.RaiseUtf8(
         '%.ProcessIncomingFrame: Error relaying % from #% % to server',
         [ToText(Frame.opcode)^, Sender.Protocol.ConnectionID, ip]);
   finally
@@ -632,7 +633,7 @@ begin
       end;
     focBinary:
       if not fOwner.Connected then
-        raise ERelayProtocol.CreateUtf8(
+        ERelayProtocol.RaiseUtf8(
           '%.ProcessIncomingFrame: not connected', [self]);
   else
     // relay meaningfull frames
@@ -645,7 +646,7 @@ begin
   begin
     if not RecordLoad(
         rest, Frame.payload, TypeInfo(TRelayFrameRestPayload)) then
-      raise ERelayProtocol.CreateUtf8(
+      ERelayProtocol.RaiseUtf8(
         '%.ProcessIncomingFrame: focRestPayload payload', [self]);
     log.Log(sllTrace, 'ProcessIncomingFrame: relay #$.% %',
       [connection, rest.method], self);
@@ -702,7 +703,7 @@ begin
             end;
           end
       else
-        raise ERelayProtocol.CreateUtf8('%.ProcessIncomingFrame #% %?',
+        ERelayProtocol.RaiseUtf8('%.ProcessIncomingFrame #% %?',
           [self, connection, ToText(Frame.opcode)^]);
       end;
     case Frame.opcode of
@@ -753,7 +754,7 @@ begin
   try
     if (fOwner.fRelayClient = nil) and
        (Frame.opcode <> focConnectionClose) then
-      raise ERelayProtocol.CreateUtf8(
+      ERelayProtocol.RaiseUtf8(
         '%.ProcessIncomingFrame: Public Relay down at %:%',
         [self, fOwner.fRelayHost, fOwner.fRelayPort]);
     server := fOwner.FindServerClientByProcess(Sender, serverindex);
@@ -763,14 +764,14 @@ begin
       if Frame.opcode = focConnectionClose then
         exit
       else
-        raise ERelayProtocol.CreateUtf8('%.ProcessIncomingFrame: Unexpected %',
+        ERelayProtocol.RaiseUtf8('%.ProcessIncomingFrame: Unexpected %',
           [self, ToText(Frame.opcode)^]);
     if Frame.opcode = focConnectionClose then
       tobedeleted := server;
     if not fOwner.EncapsulateAndSend(fOwner.fRelayClient.WebSockets,
          server.OriginIP, Frame, server.Connection) and
        (tobedeleted = nil) then
-      raise ERelayProtocol.CreateUtf8(
+      ERelayProtocol.RaiseUtf8(
         '%.ProcessIncomingFrame: Error sending to Public Relay %:%',
         [self, fOwner.fRelayHost, fOwner.fRelayPort]);
     if tobedeleted <> nil then
@@ -949,6 +950,8 @@ function TPublicRelay.OnServerBeforeBody(
 var
   res: TJwtResult;
 begin
+  // should return HTTP_SUCCESS=200 to continue the process, or an HTTP
+  // error code to reject the request immediately, and close the connection
   if IdemPChar(pointer(aUrl), '/STAT') then
   begin
     result := HTTP_SUCCESS;
@@ -1001,17 +1004,17 @@ begin
   log := fLog.Enter('OnClientsRequest #% % % %',  [Ctxt.ConnectionID,
     Ctxt.RemoteIP, Ctxt.Method, Ctxt.Url], self);
   if Ctxt.ConnectionID = 0 then
-    raise ERelayProtocol.CreateUtf8('%.OnClientsRequest: RequestID=0', [self]);
+    ERelayProtocol.RaiseUtf8('%.OnClientsRequest: RequestID=0', [self]);
   SetRestFrame(frame, 0,
     Ctxt.Url, Ctxt.Method, Ctxt.InHeaders, Ctxt.InContent, Ctxt.InContentType);
   Safe.Lock;
   try
     if fServerConnected = nil then
-      raise ERelayProtocol.CreateUtf8(
+      ERelayProtocol.RaiseUtf8(
         '%.OnClientsRequest: No server to relay to', [self]);
     if not EncapsulateAndSend(
         fServerConnected, Ctxt.RemoteIP, frame, Ctxt.ConnectionID) then
-      raise ERelayProtocol.CreateUtf8(
+      ERelayProtocol.RaiseUtf8(
         '%.OnClientsRequest: Error relaying from #% % to server',
         [Ctxt.ConnectionID, Ctxt.RemoteIP]);
     ObjArrayAddCount(fRestFrame, Ctxt, fRestFrameCount);

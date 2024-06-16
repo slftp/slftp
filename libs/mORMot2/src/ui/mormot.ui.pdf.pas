@@ -726,7 +726,7 @@ type
     // - if NextLine is true, the first written PDF Text command is not Tj but '
     // - during the text process, corresponding TPdfTrueTypeFont properties are
     // updated (Unicode version created if necessary, indicate used glyphs for
-    // further Font properties writting to the PDF file content...)
+    // further Font properties writing to the PDF file content...)
     // - if the current font is not true Type, all Unicode characters are
     // drawn as '?'
     function AddToUnicodeHexText(const Text: PdfString; NextLine: boolean;
@@ -737,7 +737,7 @@ type
     // - if NextLine is true, the first written PDF Text command is not Tj but '
     // - during the text process, corresponding TPdfTrueTypeFont properties are
     // updated (Unicode version created if necessary, indicate used glyphs for
-    // further Font properties writting to the PDF file content...)
+    // further Font properties writing to the PDF file content...)
     // - if the current font is not true Type, all Unicode characters are
     // drawn as '?'
     function AddUnicodeHexText(PW: PWideChar; PWLen: integer; NextLine: boolean;
@@ -910,7 +910,7 @@ type
   end;
 
   /// a PDF object, storing a textual value
-  // - the value is specified as a generic VCL string
+  // - the value is specified as a RTL string
   // - this object is stored as '(escapedValue)'
   // - in case characters with ANSI code higher than 8 Bits, conversion is made
   // into Unicode before writing, and '<FEFFHexUnicodeEncodedValue>'
@@ -1106,7 +1106,7 @@ type
     procedure AddItemTextUtf8(const AKey: PdfString; const AValue: RawUtf8); overload;
       {$ifdef HASINLINE} inline;{$endif}
     /// add a specified Key / Value pair (of type TPdfTextUtf8) to the dictionary
-    // - the value is a generic VCL string: it will be written as
+    // - the value is a RTL string: it will be written as
     // Unicode hexadecimal to the PDF stream, if necessary
     procedure AddItemTextString(const AKey: PdfString; const AValue: string); overload;
       {$ifdef HASINLINE} inline;{$endif}
@@ -1470,8 +1470,7 @@ type
     function GetXObjectIndex(const AName: PdfString): integer;
     /// retrieve a XObject TPdfImage index from its picture attributes
     // - returns '' if this image is not already there
-    // - uses 4 hash codes, created with 4 diverse seeds, in order to avoid
-    // false positives
+    // - uses 128-bit hashes of the TBitmap content to avoid false positives
     function GetXObjectImageName(
       const Hash: THash128Rec; Width, Height: integer): PdfString;
     /// wrapper to create an annotation
@@ -1494,7 +1493,7 @@ type
     /// create an Outline entry at a specified position of the current page
     // - the outline tree is created from the specified numerical level (0=root),
     // just after the item added via the previous CreateOutline call
-    // - the title is a generic VCL string, to handle fully Unicode support
+    // - the title is a RTL string, to handle fully Unicode support
     function CreateOutline(const Title: string; Level: integer;
       TopPosition: single): TPdfOutlineEntry;
     /// create a Destination
@@ -1708,7 +1707,7 @@ type
     function GetResources(const AName: PdfString): TPdfDictionary;
       {$ifdef HASINLINE}inline;{$endif}
   public
-    /// create the page with its internal VCL Canvas
+    /// create the page with its internal VCL/LCL Canvas
     constructor Create(ADoc: TPdfDocument); reintroduce; virtual;
     /// calculate width of specified text according to current attributes
     // - this function is compatible with MBCS strings
@@ -2194,7 +2193,7 @@ type
   end;
 
   /// a dictionary wrapper class for the PDF document information fields
-  // - all values use the generic VCL string type, and will be encoded
+  // - all values use the RTL string type, and will be encoded
   // as Unicode if necessary
   TPdfInfo = class(TPdfDictionaryWrapper)
   private
@@ -2395,7 +2394,7 @@ type
   // characters are written horizontally, that is, either left to right or
   // right to left
   TCmapHHEA = packed record
-    version: longint;
+    version: integer;
     ascent: word;
     descent: word;
     lineGap: word;
@@ -2413,8 +2412,8 @@ type
 
   /// The 'head' table contains global information about the font
   TCmapHEAD = packed record
-    version: longint;
-    fontRevision: longint;
+    version: integer;
+    fontRevision: integer;
     checkSumAdjustment: cardinal;
     magicNumber: cardinal;
     flags: word;
@@ -2677,7 +2676,7 @@ type
     property Dest: TPdfDestination
       read fDest write fDest;
     /// the associated title
-    // - is a generic VCL string, so is Unicode ready
+    // - is a RTL string, so is Unicode ready
     property Title: string
       read fTitle write fTitle;
     /// if the outline must be opened
@@ -2708,9 +2707,9 @@ type
   private
     fPixelHeight: integer;
     fPixelWidth: integer;
-    fHash: THash128Rec;
+    fHash: THash128Rec; // 128-bit hash of the TBitmap raw content
   public
-    /// create the image from a supplied VCL TGraphic instance
+    /// create the image from a supplied VCL/LCL TGraphic instance
     // - handle TBitmap and SynGdiPlus picture types, i.e. TJpegImage
     // (stored as jpeg), and TGifImage/TPngImage (stored as bitmap)
     // - use TPdfForm to handle TMetafile in vectorial format
@@ -2837,7 +2836,7 @@ type
   end;
 
   /// class handling PDF document creation using GDI commands
-  // - this class allows using a VCL standard Canvas class
+  // - this class allows using a VCL/LCL standard Canvas class
   // - handles also PDF creation directly from TMetaFile content
   TPdfDocumentGdi = class(TPdfDocument)
   private
@@ -2850,7 +2849,7 @@ type
     function GetVclCanvasSize: TSize;
       {$ifdef HASINLINE}inline;{$endif}
   public
-    /// create the PDF document instance, with a VCL Canvas property
+    /// create the PDF document instance, with a VCL/LCL Canvas property
     // - see TPdfDocument.Create connstructor for the arguments expectations
     constructor Create(AUseOutlines: boolean = false; ACodePage: integer = 0;
       APdfA: TPdfALevel = pdfaNone
@@ -2892,10 +2891,10 @@ type
     // !   end;
     procedure SaveToStreamDirectPageFlush(
       FlushCurrentPageNow: boolean = false); override;
-    /// the VCL Canvas of the current page
+    /// the VCL/LCL Canvas of the current page
     property VclCanvas: TCanvas
       read GetVclCanvas;
-    /// the VCL Canvas size of the current page
+    /// the VCL/LCL Canvas size of the current page
     // - useful to calculate coordinates for the current page
     // - filled with (0,0) before first call to VclCanvas property
     property VclCanvasSize: TSize
@@ -2957,7 +2956,7 @@ implementation
 
 {$ifdef FPC}
 
-{ some FPC/Delphi LCL/VCL compatibility definitions }
+{ some FPC/Delphi LCL/VCL/LCL compatibility definitions }
 
 type
   TEMRExtTextOut = TEMREXTTEXTOUTW;
@@ -4225,7 +4224,7 @@ constructor TPdfDictionaryElement.Create(const AKey: PdfString;
   AValue: TPdfObject; AInternal: boolean);
 begin
   if not (AValue is TPdfObject) then
-    raise EPdfInvalidValue.CreateUtf8('TPdfDictionaryElement(%,%)', [AKey, AValue]);
+    EPdfInvalidValue.RaiseUtf8('TPdfDictionaryElement(%,%)', [AKey, AValue]);
   fKey := TPdfName.Create(AKey);
   fValue := AValue;
   fIsInternal := AInternal;
@@ -6506,7 +6505,7 @@ begin
     if Value < 0 then
       raise EPdfInvalidValue.Create('Zoom<0')
     else if Value > PDF_MAX_ZOOMSIZE then
-      raise EPdfInvalidValue.CreateUtf8('Zoom>%', [PDF_MAX_ZOOMSIZE])
+      EPdfInvalidValue.RaiseUtf8('Zoom>%', [PDF_MAX_ZOOMSIZE])
     else
       fZoom := Value;
 end;
@@ -6794,7 +6793,7 @@ begin
   if AObject.Attributes.ValueByName('Name') = nil then
   begin
     if GetXObject(AName) <> nil then
-      raise EPdfInvalidValue.CreateUtf8('RegisterXObject: dup name %', [AName]);
+      EPdfInvalidValue.RaiseUtf8('RegisterXObject: dup name %', [AName]);
     result := fXObjectList.AddItem(AObject);
     AObject.Attributes.AddItem('Name', AName);
   end
@@ -6897,24 +6896,24 @@ var
   img: TPdfImage absolute obj;
   i: PtrInt;
 begin
-  for i := 0 to fXObjectList.ItemCount - 1 do
-  begin
-    obj := fXObjectList.fArray.List[i];
-    if obj.fObjectType = otVirtualObject then
-      obj := TPdfXObject(fXRef.GetObject(obj.fObjectNumber));
-    if (obj <> nil) and
-       obj.InheritsFrom(TPdfImage) and
-       (img.PixelWidth = Width) and
-       (img.PixelHeight = Height) and
-       not IsZero(img.fHash.b) and
-       IsEqual(img.fHash.b, Hash.b) and
-       (obj.Attributes <> nil) then
+  if not IsZero(Hash.b) then
+    for i := 0 to fXObjectList.ItemCount - 1 do
     begin
-      result := TPdfName(obj.Attributes.ValueByName('Name')).Value;
-      if result <> '' then
-        exit;
+      obj := fXObjectList.fArray.List[i];
+      if obj.fObjectType = otVirtualObject then
+        obj := TPdfXObject(fXRef.GetObject(obj.fObjectNumber));
+      if (obj <> nil) and
+         obj.InheritsFrom(TPdfImage) and
+         (img.PixelWidth = Width) and
+         (img.PixelHeight = Height) and
+         IsEqual(img.fHash.b, Hash.b) and
+         (obj.Attributes <> nil) then
+      begin
+        result := TPdfName(obj.Attributes.ValueByName('Name')).Value;
+        if result <> '' then
+          exit;
+      end;
     end;
-  end;
   result := '';
 end;
 
@@ -7006,7 +7005,7 @@ begin
     RaiseInvalidOperation; // we need a page to refer to
   if (aBookmarkName = '') or
      (fBookMarks.IndexOf(aBookmarkName) >= 0) then
-    raise EPdfInvalidValue.CreateUtf8(
+    EPdfInvalidValue.RaiseUtf8(
       'Duplicated or void bookmark name "%"', [aBookmarkName]);
   aDest := CreateDestination;
   aDest.DestinationType := dtXYZ;
@@ -7162,13 +7161,13 @@ function TPdfDocument.AddXObject(
   const AName: PdfString; AXObject: TPdfXObject): integer;
 begin
   if GetXObject(AName) <> nil then
-    raise EPdfInvalidValue.CreateUtf8('AddXObject: dup name %', [AName]);
+    EPdfInvalidValue.RaiseUtf8('AddXObject: dup name %', [AName]);
   // check whether AImage is valid PdfImage or not.
   if (AXObject = nil) or
      (AXObject.Attributes = nil) or
      (AXObject.Attributes.TypeOf <> 'XObject') or
      (AXObject.Attributes.PdfNameByName('Subtype') = nil) then
-    raise EPdfInvalidValue.CreateUtf8(
+    EPdfInvalidValue.RaiseUtf8(
       'AddXObject: invalid TPdfImage %', [AName]);
   fXRef.AddObject(AXObject);
   result := RegisterXObject(AXObject, AName);
@@ -7642,12 +7641,12 @@ begin
   fLastOutline := result;
 end;
 
-function TPdfDocument.CreateOrGetImage(B: TBitmap; DrawAt: PPdfBox;
-  ClipRc: PPdfBox): PdfString;
+function TPdfDocument.CreateOrGetImage(
+  B: TBitmap; DrawAt, ClipRc: PPdfBox): PdfString;
 var
   jpg: TJpegImage;
   img: TPdfImage;
-  hash: THash128Rec;
+  hash: THash128Rec; // no DefaultHasher128() because AesNiHash128() makes GPF
   y, w, h, row: integer;
   palcount: cardinal;
   pal: array of TPaletteEntry;
@@ -7660,20 +7659,15 @@ begin
     exit;
   w := B.Width;
   h := B.Height;
-  if ForceNoBitmapReuse then
-    FillCharFast(hash, sizeof(hash), 0)
-  else
+  FillZero(hash.b);
+  if not ForceNoBitmapReuse then
   begin
     row := PERROW[B.PixelFormat];
     if row = 0 then
     begin
-      B.PixelFormat := pf24bit;
+      B.PixelFormat := pf24bit; // convert any device or custom bitmap
       row := 24;
     end;
-    hash.c0 := 0;
-    hash.c1 := 1400305337; // 3 prime numbers
-    hash.c2 := 2468776129;
-    hash.c3 := 3121238909;
     if B.Palette <> 0 then
     begin
       palcount := 0;
@@ -7682,12 +7676,12 @@ begin
       begin
         SetLength(pal, palcount);
         if GetPaletteEntries(B.Palette, 0, palcount, pal[0]) = palcount then
-          DefaultHasher128(@hash, pointer(pal), palcount * sizeof(TPaletteEntry));
+          hash.c0 := crc32c(hash.c0, pointer(pal), palcount * sizeof(pal[0]));
       end;
     end;
     row := (((w * row) + 31) and (not 31)) shr 3; // inlined BytesPerScanLine
     for y := 0 to h - 1 do
-      DefaultHasher128(@hash, B.{%H-}ScanLine[y], row);
+      hash.c[y and 3] := crc32c(hash.c[y and 3], B.{%H-}ScanLine[y], row);
     result := GetXObjectImageName(hash, w, h); // search for matching image
   end;
   if result = '' then
@@ -7705,7 +7699,8 @@ begin
         jpg.Free;
       end;
     end;
-    img.fHash := hash;
+    if not ForceNoBitmapReuse then
+      img.fHash := hash;
     result := 'SynImg' + UInt32ToPdfString(fXObjectList.ItemCount);
     if ForceJPEGCompression = 0 then
       AddXObject(result, img)
@@ -8526,7 +8521,7 @@ begin
   // drawing object must be registered. check object name
   x := fDoc.GetXObject(AXObjectName);
   if x = nil then
-    raise EPdfInvalidValue.CreateUtf8('DrawXObject: unknown %', [AXObjectName]);
+    EPdfInvalidValue.RaiseUtf8('DrawXObject: unknown %', [AXObjectName]);
   o := fPage.GetResources('XObject');
   if o = nil then
     raise EPdfInvalidValue.Create('DrawXObject: no XObject');
@@ -10048,7 +10043,7 @@ var
 begin
   // write the file header
   SaveToStreamDirectBegin(AStream, ForceModDate);
-  // then draw the pages VCL Canvas content on the fly (miminal memory use)
+  // then draw the pages VCL/LCL Canvas content on the fly (miminal memory use)
   for i := 0 to fRawPages.Count - 1 do
   begin
     P := fRawPages.List[i];
@@ -10252,7 +10247,7 @@ type
     end;
   end;
 
-  /// internal data used during drawing
+  /// internal state machine used during EMF drawing
   // - contain the EMF enumeration engine state parameters
   TPdfEnum = class
   private
@@ -11242,8 +11237,8 @@ procedure TPdfEnum.GradientFill(data: PEMGradientFill);
 type
   PTriVertex = ^TTriVertex;
   TTriVertex = packed record // circumvent some bug in older Delphi
-    x: Longint;
-    Y: Longint;
+    x: integer;
+    Y: integer;
     Red: word; // COLOR16 wrongly defined in Delphi 6/7 e.g.
     Green: word;
     Blue: word;
@@ -11554,7 +11549,7 @@ begin
             ImgRect.Right - ImgRect.Left, ImgRect.Bottom - ImgRect.Top, ImgName);
         end;
       pgcBeginMarkContent:
-        if Len = SizeOf(Pointer) then
+        if Len = SizeOf(pointer) then
           Canvas.BeginMarkedContent(PPointer(P)^);
       pgcEndMarkContent:
         Canvas.EndMarkedContent;

@@ -101,6 +101,9 @@ function FileNames(const Path: array of const; const Mask: TFileName = FILES_ALL
 /// convert a result list, as returned by FindFiles(), into an array of Files[].Name
 function FindFilesDynArrayToFileNames(const Files: TFindFilesDynArray): TFileNameDynArray;
 
+/// sort a FindFiles() result list by its TFindFiles[].Timestamp field
+procedure FindFilesSortByTimestamp(var Files: TFindFilesDynArray);
+
 type
   /// one optional feature of SynchFolders()
   // - process recursively nested folders if sfoSubFolder is included
@@ -269,11 +272,45 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     /// search patterns in the supplied UTF-8 text buffer
     function Match(aText: PUtf8Char; aLen: integer): integer; overload;
-    /// search patterns in the supplied VCL/LCL text
+    /// search patterns in the supplied RTL string text
     // - could be used on a TFileName for instance
     // - will avoid any memory allocation if aText is small enough
     function MatchString(const aText: string): integer;
   end;
+
+  /// store a decoded URI as full path and file/resource name
+  {$ifdef USERECORDWITHMETHODS}
+  TUriMatchName = record
+  {$else}
+  TUriMatchName = object
+  {$endif USERECORDWITHMETHODS}
+  public
+    /// the full URI path
+    Path: TValuePUtf8Char;
+    /// its resource name, as decoded by ParsePath from the Path value
+    Name: TValuePUtf8Char;
+    /// to be called once Path has been populated to compute Name
+    procedure ParsePath;
+  end;
+
+  /// efficient GLOB path or resource name lockup for an URI
+  // - using mORMot fast TMatch engine
+  {$ifdef USERECORDWITHMETHODS}
+  TUriMatch = record
+  {$else}
+  TUriMatch = object
+  {$endif USERECORDWITHMETHODS}
+  private
+    Init: TLightLock;
+    Names, Paths: TMatchDynArray;
+    procedure DoInit(csv: PUtf8Char; caseinsensitive: boolean);
+  public
+    /// main entry point of the GLOB resource/path URI pattern matching
+    // - will thread-safe initialize the internal TMatch instances if necessary
+    function Check(const csv: RawUtf8; const uri: TUriMatchName;
+      caseinsensitive: boolean): boolean;
+  end;
+
 
 
 /// fill the Match[] dynamic array with all glob patterns supplied as CSV
@@ -299,8 +336,15 @@ function MatchExists(const One: TMatch; const Several: TMatchDynArray): boolean;
 /// add one TMach if not already registered in the Several[] dynamic array
 function MatchAdd(const One: TMatch; var Several: TMatchDynArray): boolean;
 
+/// allocate one TMach in the Several[] dynamic array
+function MatchNew(var Several: TMatchDynArray): PMatch;
+
 /// returns TRUE if Match=nil or if any Match[].Match(Text) is TRUE
-function MatchAny(const Match: TMatchDynArray; const Text: RawUtf8): boolean;
+function MatchAny(const Match: TMatchDynArray; const Text: RawUtf8): boolean; overload;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// returns TRUE if Match=nil or if any Match[].Match(Text, TextLen) is TRUE
+function MatchAny(Match: PMatch; Text: PUtf8Char; TextLen: PtrInt): boolean; overload;
 
 /// apply the CSV-supplied glob patterns to an array of RawUtf8
 // - any text not matching the pattern will be deleted from the array
@@ -329,7 +373,7 @@ procedure FilterMatchs(const CsvPattern: RawUtf8; CaseInsensitive: boolean;
 function IsMatch(const Pattern, Text: RawUtf8;
   CaseInsensitive: boolean = false): boolean;
 
-/// return TRUE if the supplied content matches a glob pattern, using VCL strings
+/// return TRUE if the supplied content matches a glob pattern, using RTL strings
 // - is a wrapper around IsMatch() with fast UTF-8 conversion
 function IsMatchString(const Pattern, Text: string;
   CaseInsensitive: boolean = false): boolean;
@@ -611,29 +655,37 @@ type
   // - SaveTo() and LoadFrom() methods allow transmission of the bits array,
   // for a disk/database storage or transmission over a network
   // - internally, several (hardware-accelerated) crc32c hash functions will be
-  // used, with some random seed values, to simulate several hashing functions
+  // used, with some random seed values, to simulate several hashing functions;
+  // you can customize the hash function if needed
   // - all methods are thread-safe, and MayExist can be concurrent (via a TRWLock)
   TSynBloomFilter = class(TSynPersistent)
   private
+    fSafe: TRWLock; // need an upgradable lock for TSynBloomFilterDiff
+    fHasher: THasher;
     fSize: cardinal;
-    fFalsePositivePercent: double;
     fBits: cardinal;
     fHashFunctions: cardinal;
     fInserted: cardinal;
+    fFalsePositivePercent: double;
     fStore: RawByteString;
-    fSafe: TRWLock; // need an upgradable lock for TSynBloomFilterDiff
   public
+    /// don't call this raw constructor, but its overloads
+    constructor Create; overload; override;
     /// initialize the internal bits storage for a given number of items
     // - by default, internal bits array size will be guess from a 1 % false
     // positive rate - but you may specify another value, to reduce memory use
     // - this constructor would compute and initialize Bits and HashFunctions
     // corresponding to the expected false positive ratio
-    constructor Create(aSize: integer;
-      aFalsePositivePercent: double = 1); reintroduce; overload;
+    // - you can specify a custom hash function if you find that the default
+    // crc32c() has too many collisions: but SaveTo/LoadFrom will be tied to it;
+    // see e.g. CryptCrc32(caMd5/caSha1) from mormot.crypt.secure
+    constructor Create(aSize: integer; aFalsePositivePercent: double = 1;
+      aHasher: THasher = nil); reintroduce; overload;
     /// initialize the internal bits storage from a SaveTo() binary buffer
     // - this constructor will initialize the internal bits array calling LoadFrom()
-    constructor Create(const aSaved: RawByteString;
-      aMagic: cardinal = $B1003F11); reintroduce; overload;
+    // - you can specify a custom hash function to match with the one used before
+    constructor Create(const aSaved: RawByteString; aMagic: cardinal = $B1003F11;
+      aHasher: THasher = nil); reintroduce; overload;
     /// add an item in the internal bits array storage
     // - this method is thread-safe
     procedure Insert(const aValue: RawByteString); overload;
@@ -1477,11 +1529,11 @@ type
     property Zones: TDynArrayHashed
       read fZones;
     /// returns a TStringList of all TzID values
-    // - could be used to fill any VCL component to select the time zone
+    // - could be used to fill any UI component to select the time zone
     // - order in Ids[] array follows the Zone[].id information
     function Ids: TStrings;
     /// returns a TStringList of all Display text values
-    // - could be used to fill any VCL component to select the time zone
+    // - could be used to fill any UI component to select the time zone
     // - order in Displays[] array follows the Zone[].display information
     function Displays: TStrings;
   end;
@@ -1516,7 +1568,6 @@ function LocalToUtc(const LocalDateTime: TDateTime; const TzID: TTimeZoneID): TD
 
 
 implementation
-
 
 
 { ****************** Files Search in Folders }
@@ -1651,12 +1702,23 @@ begin
     result[i] := Files[i].Name;
 end;
 
+function SortFindFileTimestamp(const A, B): integer;
+begin
+  result := CompareFloat(TFindFiles(A).Timestamp, TFindFiles(B).Timestamp);
+end;
+
+procedure FindFilesSortByTimestamp(var Files: TFindFilesDynArray);
+begin
+  DynArray(TypeInfo(TFindFilesDynArray), Files).Sort(SortFindFileTimestamp);
+end;
+
 function SynchFolders(const Reference, Dest: TFileName;
   Options: TSynchFoldersOptions): integer;
 var
   ref, dst, reffn, dstfn: TFileName;
-  fref, fdst: TSearchRec;
-  reftime: TDateTime;
+  fdst: TSearchRec;
+  refsize: Int64;
+  reftime: TUnixMSTime;
   s: RawByteString;
 begin
   result := 0;
@@ -1669,29 +1731,21 @@ begin
       if SearchRecValidFile(fdst) then
       begin
         reffn := ref + fdst.Name;
+        if not FileInfoByName(reffn, refsize, reftime) then
+          continue; // only update existing files
+        if not (sfoByContent in Options) then
+          if (refsize = fdst.Size) and
+             (reftime = SearchRecToUnixTimeUtc(fdst)) then
+            continue;
         dstfn := dst + fdst.Name;
-        if sfoByContent in Options then
-          reftime := FileAgeToDateTime(reffn)
-        else if FindFirst(reffn, faAnyFile, fref) = 0 then
-        begin
-          if (fdst.Size = fref.Size) and
-             (fdst.Time = fref.Time) then
-            reftime := 0
-          else
-            reftime := SearchRecToDateTime(fref);
-          FindClose(fref);
-        end
-        else
-          reftime := 0; // "continue" trigger unexpected warning on Delphi
-        if reftime = 0 then
-          continue; // skip if no reference file to copy from
         s := StringFromFile(reffn);
         if (s = '') or
            ((sfoByContent in Options) and
             (length(s) = fdst.Size) and
             (DefaultHasher(0, pointer(s), fdst.Size) = HashFile(dstfn))) then
           continue;
-        FileFromString(s, dstfn, false, reftime);
+        FileFromString(s, dstfn);
+        FileSetDateFromUnixUtc(dstfn, reftime div MSecsPerSec);
         inc(result);
         if sfoWriteFileNameToConsole in Options then
           ConsoleWrite('synched %', [dstfn]);
@@ -1718,43 +1772,43 @@ begin
   if not DirectoryExists(src) then
     exit;
   dst := EnsureDirectoryExists(Dest);
-  if FindFirst(src + FILES_ALL, faAnyFile, sr) = 0 then
-  begin
-    repeat
-      reffn := src + sr.Name;
-      dstfn := dst + sr.Name;
-      if SearchRecValidFile(sr) then
-      begin
-        if FileInfoByName(dstfn, dsize, dtime) and // fast single syscall
-           (sr.Size = dsize) then
-          if sfoByContent in Options then
-          begin
-            if SameFileContent(reffn, dstfn) then
-              continue;
-          end
-          else if abs(SearchRecToUnixTimeUtc(sr) * 1000 - dtime) < 1000 then
-            continue; // allow error of 1 second timestamp resolution
-        if not CopyFile(reffn, dstfn, {failsifexists=}false) then
-          result := -1;
-      end
-      else if not SearchRecValidFolder(sr) then
-        continue
-      else if sfoSubFolder in Options then
-      begin
-        nested := CopyFolder(reffn, dstfn, Options);
-        if nested < 0 then
-          result := nested
-        else
-          inc(result, nested);
-      end;
-      if result < 0 then
-        break;
-      inc(result);
-      if sfoWriteFileNameToConsole in Options then
-        ConsoleWrite('copied %', [reffn]);
-    until (FindNext(sr) <> 0);
-    FindClose(sr);
-  end;
+  if (dst = '') or
+     (FindFirst(src + FILES_ALL, faAnyFile, sr) <> 0) then
+    exit;
+  repeat
+    reffn := src + sr.Name;
+    dstfn := dst + sr.Name;
+    if SearchRecValidFile(sr) then
+    begin
+      if FileInfoByName(dstfn, dsize, dtime) and // fast single syscall
+         (sr.Size = dsize) then
+        if sfoByContent in Options then
+        begin
+          if SameFileContent(reffn, dstfn) then
+            continue;
+        end
+        else if abs(SearchRecToUnixTimeUtc(sr) * 1000 - dtime) < 1000 then
+          continue; // allow error of 1 second timestamp resolution
+      if not CopyFile(reffn, dstfn, {failsifexists=}false) then
+        result := -1;
+    end
+    else if not SearchRecValidFolder(sr) then
+      continue
+    else if sfoSubFolder in Options then
+    begin
+      nested := CopyFolder(reffn, dstfn, Options);
+      if nested < 0 then
+        result := nested
+      else
+        inc(result, nested);
+    end;
+    if result < 0 then
+      break;
+    inc(result);
+    if sfoWriteFileNameToConsole in Options then
+      ConsoleWrite('copied %', [reffn]);
+  until (FindNext(sr) <> 0);
+  FindClose(sr);
 end;
 
 
@@ -1853,7 +1907,7 @@ begin
           '%':
             goto next;
         else
-          raise ESynException.CreateUtf8(
+          ESynException.RaiseUtf8(
             'ScanUtf8: unknown ''%'' specifier [%]', [F^, fmt]);
         end;
         inc(result);
@@ -2454,7 +2508,7 @@ end;
 function SearchNoPattern(aMatch: PMatch; aText: PUtf8Char; aTextLen: PtrInt): boolean;
 begin
   result := (aMatch.PMax + 1 = aTextLen) and
-            CompareMem(aText, aMatch.Pattern, aTextLen);
+            mormot.core.base.CompareMem(aText, aMatch.Pattern, aTextLen);
 end;
 
 function SearchNoPatternU(aMatch: PMatch; aText: PUtf8Char; aTextLen: PtrInt): boolean;
@@ -2511,7 +2565,7 @@ end;
 function SearchStartWith(aMatch: PMatch; aText: PUtf8Char; aTextLen: PtrInt): boolean;
 begin
   result := (aMatch.PMax < aTextLen) and
-            CompareMem(aText, aMatch.Pattern, aMatch.PMax + 1);
+    mormot.core.base.CompareMem(aText, aMatch.Pattern, aMatch.PMax + 1);
 end;
 
 function SearchStartWithU(aMatch: PMatch; aText: PUtf8Char; aTextLen: PtrInt): boolean;
@@ -2524,7 +2578,7 @@ function SearchEndWith(aMatch: PMatch; aText: PUtf8Char; aTextLen: PtrInt): bool
 begin
   dec(aTextLen, aMatch.PMax);
   result := (aTextLen >= 0) and
-            CompareMem(aText + aTextLen, aMatch.Pattern, aMatch.PMax);
+    mormot.core.base.CompareMem(aText + aTextLen, aMatch.Pattern, aMatch.PMax);
 end;
 
 function SearchEndWithU(aMatch: PMatch; aText: PUtf8Char; aTextLen: PtrInt): boolean;
@@ -2648,7 +2702,7 @@ var
   m: PSBNDMQ2Mask absolute result;
   c: PCardinal;
 begin
-  FastSetRawByteString(result, nil, SizeOf(m^));
+  FastNewRawByteString(result, SizeOf(m^));
   FillCharFast(m^, SizeOf(m^), 0);
   for i := 0 to length(Pattern) - 1 do
   begin
@@ -2769,8 +2823,8 @@ begin
       {$endif CPU64}
   else if pmax >= 1 then
   begin
-    // PMax in [1..30] = len in [2..31]
-    aPattern := SearchSBNDMQ2ComputeMask(aPattern, Upper); // lookup table
+    // PMax=[1..30] -> len=[2..31] -> aPattern becomes a SBNDMQ2 lookup table
+    aPattern := SearchSBNDMQ2ComputeMask(aPattern, Upper);
     if aCaseInsensitive then
       Search := SearchSBNDMQ2U
     else
@@ -2793,8 +2847,9 @@ end;
 
 function TMatch.Match(const aText: RawUtf8): boolean;
 begin
-  if aText <> '' then
-    result := Search(@self, pointer(aText), length(aText))
+  if pointer(aText) <> nil then
+    result := Search(@self,
+                pointer(aText), PStrLen(PAnsiChar(pointer(aText)) - _STRLEN)^)
   else
     result := pmax < 0;
 end;
@@ -2846,7 +2901,7 @@ function TMatch.Equals(const aAnother: TMatch): boolean;
 begin
   result := (pmax = TMatch(aAnother).pmax) and
             (Upper = TMatch(aAnother).Upper) and
-            CompareMem(Pattern, TMatch(aAnother).Pattern, pmax + 1);
+    mormot.core.base.CompareMem(Pattern, TMatch(aAnother).Pattern, pmax + 1);
 end;
 
 function TMatch.PatternLength: integer;
@@ -2862,6 +2917,69 @@ end;
 function TMatch.CaseInsensitive: boolean;
 begin
   result := Upper = @NormToUpperAnsi7;
+end;
+
+
+{ TUriMatchName }
+
+procedure TUriMatchName.ParsePath;
+var
+  i: PtrInt;
+begin
+  Name := Path;
+  i := Name.Len;
+  while i > 0 do // retrieve last
+  begin
+    dec(i);
+    if Name.Text[i] <> '/' then
+      continue;
+    inc(i);
+    inc(Name.Text, i);
+    dec(Name.Len, i);
+    break;
+  end;
+end;
+
+
+{ TUriMatch }
+
+procedure TUriMatch.DoInit(csv: PUtf8Char; caseinsensitive: boolean);
+var
+  s: PUtf8Char;
+  m: ^TMatchDynArray;
+begin
+  if csv <> nil then
+    repeat
+      m := @Names; // default 'file.ext' pattern
+      csv := GotoNextNotSpace(csv);
+      s := csv;
+      repeat
+        case csv^ of
+          #0,
+          ',':
+            break;
+          '/':
+            m := @Paths; // is a 'path/to/file.ext' pattern
+        end;
+        inc(csv);
+      until false;
+      if csv <> s then
+        MatchNew(m^)^.Prepare(s, csv - s, caseinsensitive, true);
+      if csv^ = #0 then
+        break;
+      inc(csv);
+    until false;
+end;
+
+function TUriMatch.Check(const csv: RawUtf8;
+  const uri: TUriMatchName; caseinsensitive: boolean): boolean;
+begin
+  if Init.TryLock then // thread-safe init once from supplied csv
+    DoInit(pointer(csv), caseinsensitive);
+  result := ((Names <> nil) and
+             MatchAny(pointer(Names), uri.Name.Text, uri.Name.Len)) or
+            ((Paths <> nil) and
+             MatchAny(pointer(Paths), uri.Path.Text, uri.Path.Len));
 end;
 
 
@@ -2934,7 +3052,6 @@ function SetMatchs(const CsvPattern: RawUtf8; CaseInsensitive: boolean;
 var
   P, S: PUtf8Char;
 begin
-  result := 0;
   P := pointer(CsvPattern);
   if P <> nil then
     repeat
@@ -2942,15 +3059,12 @@ begin
       while not (P^ in [#0, CsvSep]) do
         inc(P);
       if P <> S then
-      begin
-        SetLength(Match, result + 1);
-        Match[result].Prepare(S, P - S, CaseInsensitive, {reuse=}true);
-        inc(result);
-      end;
+        MatchNew(Match)^.Prepare(S, P - S, CaseInsensitive, {reuse=}true);
       if P^ = #0 then
         break;
       inc(P);
     until false;
+  result := length(Match);
 end;
 
 function SetMatchs(CsvPattern: PUtf8Char; CaseInsensitive: boolean;
@@ -2984,39 +3098,55 @@ var
   i: PtrInt;
 begin
   result := true;
-  for i := 0 to high(Several) do
+  for i := 0 to length(Several) - 1 do
     if Several[i].Equals(One) then
       exit;
   result := false;
 end;
 
 function MatchAdd(const One: TMatch; var Several: TMatchDynArray): boolean;
-var
-  n: PtrInt;
 begin
   result := not MatchExists(One, Several);
   if result then
-  begin
-    n := length(Several);
-    SetLength(Several, n + 1);
-    Several[n] := One;
-  end;
+    MatchNew(Several)^ := One;
+end;
+
+function MatchNew(var Several: TMatchDynArray): PMatch;
+var
+  n: PtrInt;
+begin
+  n := length(Several);
+  SetLength(Several, n + 1);
+  result := @Several[n];
 end;
 
 function MatchAny(const Match: TMatchDynArray; const Text: RawUtf8): boolean;
+begin
+  result := MatchAny(pointer(Match), pointer(Text), length(Text));
+end;
+
+function MatchAny(Match: PMatch; Text: PUtf8Char; TextLen: PtrInt): boolean;
 var
-  m: PMatch;
-  i: integer;
+  n: integer;
 begin
   result := true;
   if Match = nil then
     exit;
-  m := pointer(Match);
-  for i := 1 to length(Match) do
-    if m^.Match(Text) then
-      exit
-    else
-      inc(m);
+  if TextLen <= 0 then
+    Text := nil;
+  n := PDALen(PAnsiChar(pointer(Match)) - _DALEN)^ + (_DAOFF - 1);
+  repeat
+    // inlined Match^.Match() to avoid internal error on Delphi
+    if Text <> nil then
+    begin
+      if Match^.Search(Match, Text, TextLen) then
+        exit;
+    end
+    else if Match^.pmax < 0 then
+      exit;
+    inc(Match);
+    dec(n);
+  until n = 0;
   result := false;
 end;
 
@@ -3115,7 +3245,7 @@ var
   len: integer;
 begin
   len := StringToUtf8(aText, temp);
-  result := match(temp.buf, len);
+  result := Match(temp.buf, len);
   temp.Done;
 end;
 
@@ -3440,10 +3570,11 @@ var
   pr: PRttiCustomProp;
   p, v: PUtf8Char;
   s: RawUtf8;
-  mapcount, mapped, m: PtrInt;
-  rec: pointer;
+  mapcount, mapped: PtrInt;
+  rec: PAnsiChar;
   map: PRttiCustomPropDynArray;
-  n: integer;
+  m: ^PRttiCustomProp;
+  extcount, mcount: integer;
   ext: PInteger;
 begin
   result := false;
@@ -3477,17 +3608,18 @@ begin
   if mapped = 0 then
     exit; // no field matching any header
   // parse the value rows
-  n := 0;
+  extcount := 0;
   ext := Value.CountExternal;
   if ext = nil then
-    Value.UseExternalCount(@n); // faster Value.NewPtr
+    Value.UseExternalCount(@extcount); // faster Value.NewPtr
   v := Csv;
   while v^ in [#10, #13] do
     inc(v);
   while v^ <> #0 do
   begin
     rec := Value.NewPtr;
-    m := 0;
+    m := pointer(map);
+    mcount := mapcount;
     repeat
       // parse next value
       Csv := v;
@@ -3496,20 +3628,23 @@ begin
       while (v^ <> ',') and
             (v^ > #13) do
         inc(v);
-      if (m < mapcount) and
-         (map[m] <> nil) then // not matching fields are just ignored
+      if mcount <> 0 then
       begin
-        if Csv^ = '"' then
+        if m^ <> nil then // not matching fields are just ignored
         begin
-          UnQuoteSqlStringVar(Csv, s);
-          if Intern <> nil then
-            Intern.UniqueText(s);
-        end
-        else
-          Intern.Unique(s, Csv, v - Csv);
-        map[m].SetValueText(rec, s);
+          if Csv^ = '"' then
+          begin
+            UnQuoteSqlStringVar(Csv, s);
+            if Intern <> nil then
+              Intern.UniqueText(s);
+          end
+          else
+            Intern.Unique(s, Csv, v - Csv);
+          m^.Value.ValueSetText(rec + m^.OffsetSet, s);
+        end;
+        inc(m);
+        dec(mcount);
       end;
-      inc(m);
       if v^ <> ',' then
         break;
       inc(v);
@@ -3889,7 +4024,7 @@ function TExprParserMatch.Search(aText: PUtf8Char; aTextLen: PtrInt): boolean;
 var
   P, PEnd: PUtf8Char;
   n: PtrInt;
-  tab: ^TAnsiCharToByte;
+  tab: PAnsiCharToByte;
 begin
   P := aText;
   if (P = nil) or
@@ -3954,11 +4089,17 @@ const
   BLOOM_VERSION = 0;
   BLOOM_MAXHASH = 32; // only 7 is needed for 1% false positive ratio
 
-constructor TSynBloomFilter.Create(aSize: integer; aFalsePositivePercent: double);
+constructor TSynBloomFilter.Create;
+begin
+  fHasher := @crc32c; // default/standard/mORMot1 hash function
+end;
+
+constructor TSynBloomFilter.Create(aSize: integer;
+  aFalsePositivePercent: double; aHasher: THasher);
 const
   LN2 = 0.69314718056;
 begin
-  inherited Create; // may have been overriden
+  Create; // set fHasher := crc32c + may have been overriden
   if aSize < 0 then
     fSize := 1000
   else
@@ -3969,6 +4110,8 @@ begin
     fFalsePositivePercent := 100
   else
     fFalsePositivePercent := aFalsePositivePercent;
+  if @aHasher <> nil then
+    fHasher := aHasher;
   // see http://stackoverflow.com/a/22467497
   fBits := Round(-ln(fFalsePositivePercent / 100) * aSize / (LN2 * LN2));
   fHashFunctions := Round(fBits / fSize * LN2);
@@ -3979,11 +4122,14 @@ begin
   Reset;
 end;
 
-constructor TSynBloomFilter.Create(const aSaved: RawByteString; aMagic: cardinal);
+constructor TSynBloomFilter.Create(const aSaved: RawByteString;
+  aMagic: cardinal; aHasher: THasher);
 begin
-  inherited Create; // may have been overriden
-  if not LoadFrom(aSaved, aMagic) then
-    raise ESynException.CreateUtf8('%.Create with invalid aSaved content', [self]);
+  Create; // set fHasher := crc32c + may have been overriden
+  if @aHasher <> nil then
+    fHasher := aHasher;
+  if not LoadFrom(aSaved, aMagic) then // will load fSize+fBits+fHashFunctions
+    ESynException.RaiseUtf8('%.Create with invalid aSaved content', [self]);
 end;
 
 procedure TSynBloomFilter.Insert(const aValue: RawByteString);
@@ -4000,11 +4146,11 @@ begin
      (aValueLen <= 0) or
      (fBits = 0) then
     exit;
-  h1 := crc32c(0, aValue, aValueLen);
+  h1 := fHasher(0, aValue, aValueLen);
   if fHashFunctions = 1 then
     h2 := 0
   else
-    h2 := crc32c(h1, aValue, aValueLen);
+    h2 := fHasher(h1, aValue, aValueLen);
   fSafe.WriteLock;
   try
     for h := 0 to fHashFunctions - 1 do
@@ -4033,11 +4179,11 @@ begin
      (aValueLen <= 0) or
      (fBits = 0) then
     exit;
-  h1 := crc32c(0, aValue, aValueLen);
+  h1 := fHasher(0, aValue, aValueLen);
   if fHashFunctions = 1 then
     h2 := 0
   else
-    h2 := crc32c(h1, aValue, aValueLen);
+    h2 := fHasher(h1, aValue, aValueLen);
   fSafe.ReadOnlyLock; // allow concurrent reads
   try
     for h := 0 to fHashFunctions - 1 do
@@ -4095,6 +4241,7 @@ begin
     aDest.Write4(fBits);
     aDest.Write1(fHashFunctions);
     aDest.Write4(fInserted);
+    // warning: fHasher is NOT persisted yet
     ZeroCompress(pointer(fStore), Length(fStore), aDest);
   finally
     fSafe.ReadOnlyUnLock;
@@ -4234,7 +4381,7 @@ begin
     head.size := length(fStore);
     head.inserted := fInserted;
     head.revision := fRevision;
-    head.crc := crc32c(0, @head, SizeOf(head) - SizeOf(head.crc));
+    head.crc := fHasher(0, @head, SizeOf(head) - SizeOf(head.crc));
     if head.kind = bdUpToDate then
     begin
       FastSetRawByteString(result, @head, SizeOf(head));
@@ -4252,8 +4399,7 @@ begin
         bdDiff:
           ZeroCompressXor(pointer(fStore), pointer(fKnownStore), head.size, W);
       end;
-      W.Flush;
-      result := TRawByteStringStream(W.Stream).DataString;
+      result := W.FlushTo;
     finally
       W.Free;
     end;
@@ -4269,7 +4415,7 @@ begin
   if (length(aDiff) < SizeOf(head^)) or
      (head.kind > high(TBloomDiffHeaderKind)) or
      (head.size <> cardinal(length(fStore))) or
-     (head.crc <> crc32c(0, pointer(head), SizeOf(head^) - SizeOf(head.crc))) then
+     (head.crc <> fHasher(0, pointer(head), SizeOf(head^) - SizeOf(head.crc))) then
     result := 0
   else
     result := head.Revision;
@@ -4286,7 +4432,7 @@ begin
   PLen := length(aDiff);
   if (PLen < SizeOf(head^)) or
      (head.kind > high(head.kind)) or
-     (head.crc <> crc32c(0, pointer(head), SizeOf(head^) - SizeOf(head.crc))) then
+     (head.crc <> fHasher(0, pointer(head), SizeOf(head^) - SizeOf(head.crc))) then
     exit;
   if (fStore <> '') and
      (head.size <> cardinal(length(fStore))) then
@@ -4300,7 +4446,7 @@ begin
         result := LoadFrom(P, PLen);
       bdDiff:
         if fStore <> '' then
-          result := ZeroDecompressOr(pointer(P), Pointer(fStore), PLen, head.size);
+          result := ZeroDecompressOr(pointer(P), pointer(fStore), PLen, head.size);
       bdUpToDate:
         result := true;
     end;
@@ -4398,7 +4544,7 @@ var
 begin
   PEnd := PAnsiChar(P) + Len - 4;
   DestLen := FromVarUInt32(P);
-  FastSetRawByteString(Dest, nil, DestLen); // FPC uses var
+  FastNewRawByteString(Dest, DestLen);
   D := pointer(Dest);
   DEnd := D + DestLen;
   crc := 0;
@@ -4541,7 +4687,7 @@ begin
   end
   else
   begin
-    sp := Pointer(ToVarUInt32(curlen, PByte(sp)));
+    sp := pointer(ToVarUInt32(curlen, PByte(sp)));
     PInteger(sp)^ := curofs;
     inc(sp, curofssize);
   end;
@@ -4834,7 +4980,7 @@ var
 begin
   // 1. special cases
   if (NewSize = OldSize) and
-     CompareMem(Old, New, NewSize) then
+     mormot.core.base.CompareMem(Old, New, NewSize) then
   begin
     Getmem(Delta, 1);
     Delta^ := '=';
@@ -5516,7 +5662,7 @@ begin
       if length(DOM) > 63 then
         break; // exceeded 63-character limit of a DNS name
       if (ForbiddenDomains <> '') and
-         (FindCsvIndex(pointer(ForbiddenDomains), DOM) >= 0) then
+         CsvContains(ForbiddenDomains, DOM) then
         break;
       i := length(value);
       while (i > 0) and
@@ -5524,10 +5670,10 @@ begin
         dec(i);
       TLD := lowercase(copy(value, i + 1, 100));
       if (AllowedTLD <> '') and
-         (FindCsvIndex(pointer(AllowedTLD), TLD) < 0) then
+         not CsvContains(AllowedTLD, TLD) then
         break;
       if (ForbiddenTLD <> '') and
-         (FindCsvIndex(pointer(ForbiddenTLD), TLD) >= 0) then
+         CsvContains(ForbiddenTLD, TLD) then
         break;
       if not fAnyTLD then
         if FastFindPUtf8CharSorted(@TopLevelTLD, high(TopLevelTLD), pointer(TLD)) < 0 then
@@ -5967,7 +6113,7 @@ begin
         begin
           // warning: never defined on XP/2003, and not for all entries
           first := reg.ReadDword('FirstEntry');
-          last := reg.ReadDword('LastEntry');
+          last  := reg.ReadDword('LastEntry');
           if (first > 0) and
              (last >= first) then
           begin

@@ -6,7 +6,7 @@ unit mormot.db.raw.sqlite3.static;
 {
   *****************************************************************************
 
-    Statically linked SQLite3 3.42.0 engine with optional AES encryption
+    Statically linked SQLite3 3.44.2 engine with optional AES encryption
     - TSqlite3LibraryStatic Implementation
     - Encryption-Related Functions
 
@@ -94,15 +94,15 @@ const
   /// the exact version expected by the current state of this unit
   // - an error message is generated via DisplayFatalError() if the statically
   // linked sqlite3.o(bj) does not match this expected value
-  EXPECTED_SQLITE3_VERSION = '3.42.0';
+  EXPECTED_SQLITE3_VERSION = '3.44.2';
 
   /// the github release tag associated with this EXPECTED_SQLITE3_VERSION
   // - to be used if you don't want the latest version of sqlite3, but the very
   // same binaries expected by this unit, in one of its previous version
   // - you could download the static for this exact mORMot source revision e.g. as
-  // https://github.com/synopse/mORMot2/releases/download/2.1.stable/mormot2static.7z
-  // https://github.com/synopse/mORMot2/releases/download/2.1.stable/mormot2static.tgz
-  EXPECTED_RELEASE_TAG = '2.1.stable';
+  // https://github.com/synopse/mORMot2/releases/download/2.2.stable/mormot2static.7z
+  // https://github.com/synopse/mORMot2/releases/download/2.2.stable/mormot2static.tgz
+  EXPECTED_RELEASE_TAG = '2.2.stable';
 
   /// where to download the latest available static binaries, including SQLite3
   {$ifdef OSWINDOWS}
@@ -272,17 +272,17 @@ uses
 // - FPC will use explicit public name exports from mormot.lib.static
 // but Delphi requires the exports to be defined in this very same unit
 
-function malloc(size: cardinal): Pointer; cdecl;
+function malloc(size: cardinal): pointer; cdecl;
 begin
   GetMem(result, size);
 end;
 
-procedure free(P: Pointer); cdecl;
+procedure free(P: pointer); cdecl;
 begin
   FreeMem(P);
 end;
 
-function realloc(P: Pointer; Size: integer): Pointer; cdecl;
+function realloc(P: pointer; Size: integer): pointer; cdecl;
 begin
   ReallocMem(P, Size);
   result := P;
@@ -376,11 +376,16 @@ asm
           fyl2x
 end;
 
+function fabs(x: double): double; cdecl; // needed since 3.44.2
+begin
+  result := abs(x);
+end;
+
 {$endif CPU32}
 
 {$endif OSWINDOWS}
 
-function memset(P: Pointer; B: integer; count: integer): pointer; cdecl;
+function memset(P: pointer; B: integer; count: integer): pointer; cdecl;
 // a fast full pascal version of the standard C library function
 begin
   FillCharFast(P^, count, B);
@@ -394,7 +399,7 @@ begin
   result := dest;
 end;
 
-function memcpy(dest, source: Pointer; count: integer): pointer; cdecl;
+function memcpy(dest, source: pointer; count: integer): pointer; cdecl;
 // a fast full pascal version of the standard C library function
 begin
   MoveFast(source^, dest^, count);
@@ -419,6 +424,12 @@ function strcspn(str, reject: PUtf8Char): integer; cdecl;
 begin
   // called e.g. during LIKE process
   result := mormot.core.unicode.strcspn(str, reject);
+end;
+
+function strspn(str, reject: PUtf8Char): integer; cdecl;
+begin
+  // appeared with SQlite 3.44.2
+  result := mormot.core.unicode.strspn(str, reject);
 end;
 
 function strrchr(s: PUtf8Char; c: AnsiChar): PUtf8Char; cdecl;
@@ -576,7 +587,7 @@ begin
   if (len and AesBlockMod <> 0) or
      (len <= 0) or
      (integer(page) <= 0) then
-    raise ESqlite3Exception.CreateUtf8(
+    ESqlite3Exception.RaiseUtf8(
       'Unexpected CodecAesProcess(page=%,len=%)', [page, len]);
   iv.c0 := page xor 668265263; // prime-based initialization
   iv.c1 := page * 2654435761;
@@ -690,8 +701,8 @@ begin
        (head.d0 <> SQLITE_FILE_HEADER128.Lo) or
        ((head.d1 = SQLITE_FILE_HEADER128.Hi) <> (OldPassWord = '')) then
       exit;
-    FileSeek64(F, 0, soFromBeginning);
-    SetLength(temp, bufsize);
+    FileSeek64(F, 0);
+    FastNewRawByteString(temp, bufsize);
     posi := 0;
     page := 1;
     while page <= pagecount do
@@ -717,8 +728,9 @@ begin
           CodecAesProcess(page + p, buf, pagesize, @new, true);
         inc(buf, pagesize);
       end;
-      FileSeek64(F, posi, soFromBeginning);
-      FileWrite(F, pointer(temp)^, pagesize * n); // update in-place
+      FileSeek64(F, posi); // update in-place where we just read
+      if not FileWriteAll(F, pointer(temp), pagesize * n) then
+        exit;
       inc(posi, pagesize * n);
       inc(page, n);
     end;
@@ -738,7 +750,7 @@ var
   hdr: array[0..2047] of byte;
 begin
   result := false;
-  F := FileOpen(FileName, fmOpenReadDenyNone);
+  F := FileOpen(FileName, fmOpenReadShared);
   if not ValidHandle(F) then
     exit;
   if (FileRead(F, hdr, SizeOf(hdr)) = SizeOf(hdr)) and
@@ -814,7 +826,7 @@ begin
   if OldPassWord <> '' then
     CreateSqlEncryptTableBytes(OldPassWord, @oldtable);
   posi := 1024; // don't change first page, which is uncrypted
-  FileSeek64(F, 1024, soFromBeginning);
+  FileSeek64(F, 1024);
   while posi < size do
   begin
     R := FileRead(F, buf, SizeOf(buf)); // read buffer
@@ -822,8 +834,9 @@ begin
       break; // stop on any read error
     if OldPassWord <> '' then
       XorOffset(@buf, posi, R, @oldtable); // uncrypt with oldtable key
-    FileSeek64(F, posi, soFromBeginning);
-    FileWrite(F, buf, R); // update buffer
+    FileSeek64(F, posi); // update in-place where we just read
+    if not FileWriteAll(F, @buf, R) then // update buffer
+      break;
     inc(posi, cardinal(R));
   end;
   FileClose(F);
@@ -877,14 +890,14 @@ function sqlite3_last_insert_rowid(DB: TSqlite3DB): Int64; cdecl; external;
 procedure sqlite3_set_last_insert_rowid(DB: TSqlite3DB; R: Int64); cdecl; external;
 function sqlite3_busy_timeout(DB: TSqlite3DB; Milliseconds: integer): integer; cdecl; external;
 function sqlite3_busy_handler(DB: TSqlite3DB;
-  CallbackPtr: TSqlBusyHandler; user: Pointer): integer;  cdecl; external;
+  CallbackPtr: TSqlBusyHandler; user: pointer): integer;  cdecl; external;
 function sqlite3_prepare_v2(DB: TSqlite3DB; SQL: PUtf8Char; SQL_bytes: integer;
   var S: TSqlite3Statement; var SQLtail: PUtf8Char): integer; cdecl; external;
 function sqlite3_prepare_v3(DB: TSqlite3DB; SQL: PUtf8Char; SQL_bytes: integer;
-  prepFlags: Cardinal; var S: TSqlite3Statement; var SQLtail: PUtf8Char): integer; cdecl; external;
+  prepFlags: cardinal; var S: TSqlite3Statement; var SQLtail: PUtf8Char): integer; cdecl; external;
 function sqlite3_finalize(S: TSqlite3Statement): integer; cdecl; external;
 function sqlite3_exec(DB: TSqlite3DB; SQL: PUtf8Char; Callback: TSqlExecCallback;
-  UserData: Pointer; var ErrorMsg: PUtf8Char): integer; cdecl; external;
+  UserData: pointer; var ErrorMsg: PUtf8Char): integer; cdecl; external;
 function sqlite3_next_stmt(DB: TSqlite3DB; S: TSqlite3Statement): TSqlite3Statement; cdecl; external;
 function sqlite3_reset(S: TSqlite3Statement): integer; cdecl; external;
 procedure sqlite3_interrupt(DB: TSqlite3DB); cdecl; external;
@@ -939,7 +952,7 @@ procedure sqlite3_result_pointer(Context: TSqlite3FunctionContext; Value: pointe
 procedure sqlite3_result_null(Context: TSqlite3FunctionContext); cdecl; external;
 procedure sqlite3_result_int64(Context: TSqlite3FunctionContext; Value: Int64); cdecl; external;
 procedure sqlite3_result_double(Context: TSqlite3FunctionContext; Value: double); cdecl; external;
-procedure sqlite3_result_blob(Context: TSqlite3FunctionContext; Value: Pointer;
+procedure sqlite3_result_blob(Context: TSqlite3FunctionContext; Value: pointer;
   Value_bytes: integer = 0; DestroyPtr: TSqlDestroyPtr = SQLITE_TRANSIENT); cdecl; external;
 procedure sqlite3_result_zeroblob(Context: TSqlite3FunctionContext; Value_bytes: integer); cdecl; external;
 procedure sqlite3_result_text(Context: TSqlite3FunctionContext; Value: PUtf8Char;
@@ -975,7 +988,7 @@ function sqlite3_blob_read(Blob: TSqlite3Blob; const Data; Count, Offset: intege
 function sqlite3_blob_write(Blob: TSqlite3Blob; const Data; Count, Offset: integer): integer; cdecl; external;
 function sqlite3_blob_bytes(Blob: TSqlite3Blob): integer; cdecl; external;
 function sqlite3_create_module_v2(DB: TSqlite3DB; const zName: PUtf8Char;
-  var p: TSqlite3Module; pClientData: Pointer; xDestroy: TSqlDestroyPtr): integer; cdecl; external;
+  var p: TSqlite3Module; pClientData: pointer; xDestroy: TSqlDestroyPtr): integer; cdecl; external;
 function sqlite3_drop_modules(DB: TSqlite3DB; azKeep: PUtf8Char): integer; cdecl; external;
 function sqlite3_declare_vtab(DB: TSqlite3DB; const zSQL: PUtf8Char): integer; cdecl; external;
 function sqlite3_vtab_collation(var IndexInfo: TSqlite3IndexInfo; Index: integer): PUtf8Char; cdecl; external;
@@ -990,7 +1003,7 @@ function sqlite3_load_extension(DB: TSqlite3DB; zFile, zProc: PUtf8Char;
   var pzErrMsg: PUtf8Char): integer; cdecl; external;
 function sqlite3_get_autocommit(DB: TSqlite3DB): integer; cdecl; external;
 function sqlite3_set_authorizer(DB: TSqlite3DB; xAuth: TSqlAuthorizerCallback;
-  pUserData: Pointer): integer; cdecl; external;
+  pUserData: pointer): integer; cdecl; external;
 function sqlite3_preupdate_hook(DB: TSqlite3DB; xCallback: TSqlPreUpdateCallback;
   pArg: pointer): pointer; cdecl; external;
 function sqlite3_preupdate_old(DB: TSqlite3DB; N: integer; var Value: TSqlite3Value): integer; cdecl; external;
@@ -998,19 +1011,19 @@ function sqlite3_preupdate_new(DB: TSqlite3DB; N: integer; var Value: TSqlite3Va
 function sqlite3_preupdate_count(DB: TSqlite3DB): integer; cdecl; external;
 function sqlite3_preupdate_depth(DB: TSqlite3DB): integer; cdecl; external;
 function sqlite3_unlock_notify(pBlocked: TSqlite3DB; xNotify: TSqlUnlockNotify;
-  pArg: Pointer): Pointer; cdecl; external;
+  pArg: pointer): pointer; cdecl; external;
 function sqlite3_update_hook(DB: TSqlite3DB; xCallback: TSqlUpdateCallback;
   pArg: pointer): pointer; cdecl; external;
 function sqlite3_commit_hook(DB: TSqlite3DB; xCallback: TSqlCommitCallback;
-  pArg: Pointer): Pointer; cdecl; external;
+  pArg: pointer): pointer; cdecl; external;
 function sqlite3_rollback_hook(DB: TSqlite3DB;  xCallback: TSqlCommitCallback;
-  pArg: Pointer): Pointer; cdecl; external;
+  pArg: pointer): pointer; cdecl; external;
 function sqlite3_changes(DB: TSqlite3DB): integer; cdecl; external;
 function sqlite3_total_changes(DB: TSqlite3DB): integer; cdecl; external;
-function sqlite3_malloc(n: integer): Pointer; cdecl; external;
-function sqlite3_realloc(pOld: Pointer; n: integer): Pointer; cdecl; external;
-procedure sqlite3_free(p: Pointer); cdecl; external;
-function sqlite3_msize(p: Pointer): Int64; cdecl; external;
+function sqlite3_malloc(n: integer): pointer; cdecl; external;
+function sqlite3_realloc(pOld: pointer; n: integer): pointer; cdecl; external;
+procedure sqlite3_free(p: pointer); cdecl; external;
+function sqlite3_msize(p: pointer): Int64; cdecl; external;
 function sqlite3_release_memory(N: integer): integer; cdecl; external;
 function sqlite3_db_release_memory(DB: TSqlite3DB): integer; cdecl; external;
 function sqlite3_memory_used: Int64; cdecl; external;
@@ -1048,7 +1061,7 @@ function sqlite3_soft_heap_limit64(N: Int64): Int64; cdecl; external;
 function sqlite3_config(operation: integer): integer; cdecl varargs; external;
 function sqlite3_db_config(DB: TSqlite3DB; operation: integer): integer; cdecl varargs; external;
 function sqlite3_trace_v2(DB: TSqlite3DB; Mask: integer; Callback: TSqlTraceCallback;
-  UserData: Pointer): Pointer; cdecl; external;
+  UserData: pointer): pointer; cdecl; external;
 function sqlite3_error_offset(DB: TSqlite3DB): integer; cdecl; external;
 
 

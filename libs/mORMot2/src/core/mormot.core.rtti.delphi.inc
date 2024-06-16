@@ -6,7 +6,7 @@
 }
 
 type
-  AlignToPtr = Pointer;
+  AlignToPtr = pointer;
 
 {$ifdef HASINLINE} // Delphi RTL TypInfo.GetTypeData() is awful on x86_64
 
@@ -207,7 +207,12 @@ end;
 
 function TRttiInterfaceTypeData.IntfParent: PRttiInfo;
 begin
-  result := Pointer(PTypeData(@self)^.IntfParent^);
+  result := pointer(PTypeData(@self)^.IntfParent^);
+end;
+
+function InterfaceEntryIsStandard(Entry: PInterfaceEntry): boolean;
+begin
+  result := Entry^.IOffset <> 0;
 end;
 
 function TRttiProp.TypeInfo: PRttiInfo;
@@ -376,11 +381,18 @@ begin
   end;
 end;
 
+const
+  // RawUtf8 is defined as weak system.UTF8String type in mormot.core.base
+  UTF8_NAME: string[7] = 'RawUtf8';
 
 function TRttiInfo.Name: PShortString;
 begin
-  if @self <> nil then
-    result := @RawName
+  result := pointer(@self);
+  if result <> nil then
+    if result <> TypeInfo(RawUtf8) then
+      result := @RawName   // as stored in RTTI
+    else
+      result := @UTF8_NAME // instead of 'UTF8String'
   else
     result := @NULCHAR;
 end;
@@ -550,7 +562,7 @@ function GetPublishedMethods(Instance: TObject;
   type
     TMethodInfo = packed record
       Len: Word;
-      Addr: Pointer;
+      Addr: pointer;
       Name: ShortString;
     end;
   var
@@ -761,7 +773,7 @@ const
     8,  // rkLString
     7,  // rkWString
     9,  // rkVariant
-    0,  // rkArray
+    2,  // rkArray
     10, // rkRecord
     9,  // rkInterface
     11, // rkInt64

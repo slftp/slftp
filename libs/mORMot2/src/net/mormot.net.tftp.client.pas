@@ -99,6 +99,10 @@ const
   // - but TFTP_BLKSIZE_MTU is recommended, to avoid IP fragmentation
   TFTP_BLKSIZE_MAX = 65464;
 
+  /// maximum allowed TTftpContext.TransferSize value, if 'tsize" option value
+  // - 1 GB of data seems fair enough over TFTP
+  TFTP_TSIZE_MAX = 1 shl 30;
+
   /// default TTftpContext.TransferSize value, if no "tsize" option was defined
   TFTP_TSIZE_UNKNOWN = cardinal(-1);
 
@@ -310,6 +314,20 @@ var
   c: TTftpOpcode;
   seq: integer;
 begin
+  if len <= 0 then
+  begin
+    if len < 0 then
+      result := 'error'     // -1
+    else
+      result := 'shutdown'; // 0
+    exit;
+  end;
+  dec(len, SizeOf(Frame.Opcode));
+  if len < 0 then
+  begin
+    result := 'no opcode';
+    exit;
+  end;
   c := ToOpcode(frame);
   result := TFTP_OPCODE[c];
   if c = toUndefined then
@@ -317,7 +335,6 @@ begin
     AppendShortCardinal(frame.Opcode, result);
     exit;
   end;
-  dec(len, SizeOf(Frame.Opcode));
   seq := swap(frame.Sequence);
   case c of
     toRrq,
@@ -336,7 +353,8 @@ begin
     toDat,
     toAck:
       begin
-        /// 'DAT 123,len' / 'ACK 123'
+        /// 'DAT #123,len' / 'ACK #123'
+        AppendShortChar('#', result);
         AppendShortCardinal(seq, result);
         dec(len, SizeOf(Frame.Sequence));
         if (len >= 0) and
@@ -487,7 +505,7 @@ begin
           if not GetNextCardinal(8, TFTP_BLKSIZE_MAX, BlockSize) then
             exit;
         tcoTsize:
-          if not GetNextCardinal(0, 1 shl 30, TransferSize) then // up to 1GB
+          if not GetNextCardinal(0, TFTP_TSIZE_MAX, TransferSize) then
             exit
           else if OpCode = toRrq then
           begin
@@ -549,8 +567,8 @@ begin
      (FileStream = nil) then
     exit;
   Frame^.Sequence := swap(Frame^.Sequence);
-  CurrentSize := (cardinal(Frame^.Sequence) * BlockSize) +
-                   LastReceivedSequenceHi; // allow retry from other side
+  CurrentSize := // compute position from seq to allow retry from other side
+    (LastReceivedSequenceHi + Frame^.Sequence) * BlockSize;
   case op of
     toDat: // during WRQ request
       begin
@@ -636,7 +654,7 @@ begin
   //     ----------------------------------
   inc(LastReceivedSequence);
   if LastReceivedSequence = 0 then
-    inc(LastReceivedSequenceHi, 1 shl 16);
+    inc(LastReceivedSequenceHi, 1 shl 16); // handle 16-bit sequence overflow
   Frame^.Opcode := swap(word(TFTP_DAT));
   Frame^.Sequence := swap(LastReceivedSequence);
   if CurrentSize <> FileStream.Position then

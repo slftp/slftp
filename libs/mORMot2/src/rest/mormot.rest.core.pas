@@ -448,13 +448,12 @@ type
     fRun: TRestRunThreads;
     fLogClass: TSynLogClass;
     fLogFamily: TSynLogFamily;
+    fLogLevel: TSynLogLevels;
+    fServerTimestampCacheTix: cardinal;
     fAcquireExecution: TRestAcquireExecutions;
     fPrivateGarbageCollector: TSynObjectList;
-    fServerTimestamp: record
-      Offset: TDateTime;
-      CacheTix: cardinal;
-      CacheValue: TTimeLogBits;
-    end;
+    fServerTimestampOffset: TDateTime;
+    fServerTimestampCacheValue: TTimeLogBits;
     function TryResolve(aInterface: PRttiInfo; out Obj): boolean; override;
     procedure SetLogClass(aClass: TSynLogClass); virtual;
     /// wrapper methods to access fAcquireExecution[]
@@ -538,10 +537,11 @@ type
     class function ClassFrom(aDefinition: TSynConnectionDefinition): TRestClass;
 
     /// ease logging of some text in the context of the current TRest
-    procedure InternalLog(const Text: RawUtf8; Level: TSynLogInfo); overload;
+    procedure InternalLog(const Text: RawUtf8; Level: TSynLogLevel); overload;
+      {$ifdef HASINLINE} inline; {$endif}
     /// ease logging of some text in the context of the current TRest
     procedure InternalLog(const Format: RawUtf8; const Args: array of const;
-      Level: TSynLogInfo = sllTrace); overload;
+      Level: TSynLogLevel = sllTrace); overload;
     /// ease logging of method enter/leave in the context of the current TRest
     function Enter(const TextFmt: RawUtf8; const TextArgs: array of const;
       aInstance: TObject = nil): ISynLog;
@@ -657,6 +657,9 @@ type
     /// access to the associate TSynLog class familly
     property LogFamily: TSynLogFamily
       read fLogFamily;
+    /// access to the associate TSynLog class events
+    property LogLevel: TSynLogLevels
+      read fLogLevel;
 
   {$ifndef PUREMORMOT2}
     // backward compatibility redirections to the homonymous IRestOrm methods
@@ -1121,6 +1124,7 @@ type
   // - llfInProcess when run from the same process, i.e. on server side
   // - llfConnectionUpgrade when "connection: upgrade" is within headers
   // - llfAuthorized when a valid "authorization:" header is set
+  // - llfHttp10 if the connection is of old HTTP/1.0 level
   // - should exactly match THttpServerRequestFlag from mormot.net.http.pas
   TRestUriParamsLowLevelFlag = (
     llfHttps,
@@ -1128,7 +1132,8 @@ type
     llfWebsockets,
     llfInProcess,
     llfConnectionUpgrade,
-    llfAuthorized);
+    llfAuthorized,
+    llfHttp10);
 
   /// some flags set by the caller to notify low-level context
   TRestUriParamsLowLevelFlags = set of TRestUriParamsLowLevelFlag;
@@ -1186,12 +1191,13 @@ type
     LowLevelConnectionFlags: TRestUriParamsLowLevelFlags;
     /// most HTTP servers support a per-connection pointer storage
     // - may be nil if unsupported, e.g. by the http.sys servers
-    // - map to THttpAsyncConnection or THttpServerSocket fConnectionOpaque field
+    // - map to THttpAsyncServerConnection or THttpServerSocket fConnectionOpaque
     // of type THttpServerConnectionOpaque as defined in mormot.net.http
     // - could be used to avoid a lookup to a ConnectionID-indexed dictionary
     // - warning: only ValueExternal is usable by end-user code
     LowLevelConnectionOpaque: PRestServerConnectionOpaque;
     /// pre-parsed Remote IP of the current connection
+    // - may equal '' if remote IP is the 127.0.0.1 loopback
     LowLevelRemoteIP: RawUtf8;
     /// pre-parsed "Bearer" HTTP header value
     LowLevelBearerToken: RawUtf8;
@@ -1203,8 +1209,9 @@ type
     procedure Init(const aUri, aMethod, aInHead, aInBody: RawUtf8); overload;
     /// retrieve the "Content-Type" value from InHead
     // - if GuessJsonIfNoneSet is TRUE, returns JSON if none was set in headers
-    procedure InBodyType(out ContentType: RawUtf8;
+    procedure InBodyType(var ContentType: RawUtf8;
       GuessJsonIfNoneSet: boolean = True);
+      {$ifdef HASINLINE}inline;{$endif}
     /// retrieve the "Content-Type" value from OutHead
     // - if GuessJsonIfNoneSet is TRUE, returns JSON if none was set in headers
     function OutBodyType(GuessJsonIfNoneSet: boolean = True): RawUtf8;
@@ -1257,7 +1264,7 @@ type
 type
   /// the available HTTP methods transmitted between client and server
   // - remote ORM supports non-standard mLOCK/mUNLOCK/mABORT/mSTATE verbs
-  // - not all iana verbs are available, because TRestRouter will only
+  // - not all IANA verbs are available, because TRestRouter will only
   // support mGET .. mOPTIONS verbs anyway
   // - for basic CRUD operations, we consider Create=mPOST, Read=mGET,
   // Update=mPUT and Delete=mDELETE - even if it is not fully RESTful
@@ -1274,6 +1281,7 @@ type
     mLOCK,
     mUNLOCK,
     mSTATE,
+    mPATCH,
     mOPTIONS);
 
   /// set of available HTTP methods transmitted between client and server
@@ -1310,14 +1318,6 @@ type
     procedure SetInCookie(CookieName, CookieValue: RawUtf8);
     procedure SetOutSetCookie(const aOutSetCookie: RawUtf8); virtual;
   public
-    /// initialize the execution context
-    // - this method could have been declared as protected, since it should
-    // never be called outside the TRestServer.Uri() method workflow
-    // - should set Call, and Method members
-    constructor Create(const aCall: TRestUriParams);
-    /// finalize the execution context
-    destructor Destroy; override;
-
     /// access to all input/output parameters at TRestServer.Uri() level
     // - process should better call Results() or Success() methods to set the
     // appropriate answer or Error() method in case of an error
@@ -1378,6 +1378,7 @@ type
     // - may avoid OS API calls on server side, during a request process
     // - warning: do not use within loops for timeout, because it won't change
     function TickCount64: Int64;
+      {$ifdef HASINLINE} inline; {$endif}
     /// retrieve the "Authorization: Bearer <token>" value from incoming HTTP headers
     // - typically returns a JWT for statelesss self-contained authentication,
     // as expected by TJwtAbstract.Verify method
@@ -1498,7 +1499,7 @@ type
     /// use this method if the caller expect no data, just a status
     // - just wrap the overloaded Returns() method with no result value
     // - if Status is an error code, it will call Error() method
-    // - by default, calling this method will mark process as successfull
+    // - by default, calling this method will mark process as successful
     procedure Success(Status: integer = HTTP_SUCCESS); virtual;
     /// use this method to send back an error to the caller
     // - expects Status to not be HTTP_SUCCESS neither HTTP_CREATED,
@@ -1528,8 +1529,7 @@ function ToMethod(const method: RawUtf8): TUriMethod;
   {$ifdef FPC}inline;{$endif}
 
 /// convert a TUriMethod enumerate to its #0 terminated uppercase text
-function MethodText(m: TUriMethod): RawUtf8;
-  {$ifdef FPC}inline;{$endif}
+function ToText(m: TUriMethod): PUtf8Char; overload;
 
 
 {$ifndef PUREMORMOT2}
@@ -1658,11 +1658,11 @@ type
     fHistoryModel: TOrmModel;
     fHistoryTable: TOrmClass;
     fHistoryTableIndex: integer;
-    fHistoryUncompressed: RawByteString;
     fHistoryUncompressedCount: integer;
+    fHistoryAddCount: integer;
+    fHistoryUncompressed: RawByteString;
     fHistoryUncompressedOffset: TIntegerDynArray;
     fHistoryAdd: TBufferWriter;
-    fHistoryAddCount: integer;
     fHistoryAddOffset: TIntegerDynArray;
   public
     /// load the change history of a given record
@@ -1906,9 +1906,9 @@ begin
      (fFakeCallback = nil) then
     exit;
   if aCallback = nil then
-    raise EServiceException.CreateUtf8('%.Redirect(nil)', [self]);
+    EServiceException.RaiseUtf8('%.Redirect(nil)', [self]);
   if not aCallback.GetInterface(fFakeCallback.Factory.InterfaceIID, dest) then
-    raise EServiceException.CreateUtf8('%.Redirect [%]: % is not a %',
+    EServiceException.RaiseUtf8('%.Redirect [%]: % is not a %',
       [self, fFakeCallback.fName, aCallback, fFakeCallback.Factory.InterfaceName]);
   Redirect(dest, aMethodsNames, aSubscribe);
 end;
@@ -1977,7 +1977,7 @@ constructor TInterfacedObjectMulti.Create(aRest: TRest;
   out aCallbackInterface);
 begin
   if aRest = nil then
-    raise EServiceException.CreateUtf8('%.Create(aRest=nil)', [self]);
+    EServiceException.RaiseUtf8('%.Create(aRest=nil)', [self]);
   fRest := aRest;
   fLogClass := fRest.fLogClass;
   fName := fRest.Model.Root; // some context about the TRest running it
@@ -2065,34 +2065,36 @@ procedure TRest.SetLogClass(aClass: TSynLogClass);
 begin
   fLogClass := aClass;
   fLogFamily := fLogClass.Family;
+  fLogLevel := [];
+  if fLogFamily <> nil then
+    fLogLevel := fLogFamily.Level;
 end;
 
-procedure TRest.InternalLog(const Text: RawUtf8; Level: TSynLogInfo);
+procedure TRest.InternalLog(const Text: RawUtf8; Level: TSynLogLevel);
 begin
   if (self <> nil) and
-     (fLogFamily <> nil) and
-     (Level in fLogFamily.Level) then
-    fLogFamily.SynLog.Log(Level, Text, self);
+     (Level in fLogLevel) then
+    fLogFamily.Add.Log(Level, Text, self);
 end;
 
 procedure TRest.InternalLog(const Format: RawUtf8; const Args: array of const;
-  Level: TSynLogInfo);
+  Level: TSynLogLevel);
 begin
   if (self <> nil) and
-     (fLogFamily <> nil) and
-     (Level in fLogFamily.Level) then
-    fLogFamily.SynLog.Log(Level, Format, Args, self);
+     (Level in fLogLevel) then
+    fLogFamily.Add.Log(Level, Format, Args, self);
 end;
 
 function TRest.Enter(const TextFmt: RawUtf8; const TextArgs: array of const;
   aInstance: TObject): ISynLog;
 begin
-  if aInstance = nil then
-    aInstance := self;
   if (self <> nil) and
-     (fLogFamily <> nil) and
-     (sllEnter in fLogFamily.Level) then
-    result := fLogClass.Enter(TextFmt, TextArgs, aInstance)
+     (sllEnter in fLogLevel) then
+  begin
+    if aInstance = nil then
+      aInstance := self;
+    result := fLogClass.Enter(TextFmt, TextArgs, aInstance);
+  end
   else
     result := nil;
 end;
@@ -2104,25 +2106,24 @@ begin
   if tix64 = 0 then
     tix64 := GetTickCount64;
   tix := tix64 shr 9; // resolution change from 1 ms to 512 ms
-  with fServerTimestamp do
-    if CacheTix = tix then
-      result := CacheValue.Value
-    else
-    begin
-      CacheTix := tix;
-      CacheValue.From(NowUtc + Offset);
-      result := CacheValue.Value;
-    end;
+  if fServerTimestampCacheTix = tix then
+    result := fServerTimestampCacheValue.Value
+  else
+  begin
+    fServerTimestampCacheTix := tix;
+    fServerTimestampCacheValue.From(NowUtc + fServerTimestampOffset);
+    result := fServerTimestampCacheValue.Value;
+  end;
 end;
 
 procedure TRest.SetServerTimestamp(const Value: TTimeLog);
 begin
   if Value = 0 then
-    fServerTimestamp.Offset := 0
+    fServerTimestampOffset := 0
   else
-    fServerTimestamp.Offset := PTimeLogBits(@Value)^.ToDateTime - NowUtc;
-  if fServerTimestamp.Offset = 0 then
-    fServerTimestamp.Offset := 0.000001; // retrieve server date/time only once
+    fServerTimestampOffset := PTimeLogBits(@Value)^.ToDateTime - NowUtc;
+  if fServerTimestampOffset = 0 then
+    fServerTimestampOffset := 0.000001; // retrieve server date/time only once
 end;
 
 function TRest.GetAcquireExecutionMode(
@@ -2137,7 +2138,7 @@ begin
   {$ifdef OSWINDOWS}
   if Assigned(ServiceSingle) and
      (Value = amMainThread) then
-     raise ERestException.CreateUtf8('%.SetAcquireExecutionMode(%, ' +
+     ERestException.RaiseUtf8('%.SetAcquireExecutionMode(%, ' +
        'amMainThread) is not compatible with a Windows Service which has ' +
        'no main thread', [self, ToText(Cmd)^]);
   {$endif OSWINDOWS}
@@ -2173,11 +2174,10 @@ end;
 procedure TRest.SetOrmInstance(aORM: TRestOrmParent);
 begin
   if fOrmInstance <> nil then
-    raise ERestException.CreateUtf8('%.SetOrmInstance twice', [self]);
+    ERestException.RaiseUtf8('%.SetOrmInstance twice', [self]);
   if (aORM = nil) or
      not aORM.GetInterface(IRestOrm, fOrm) then
-    raise ERestException.CreateUtf8(
-      '%.SetOrmInstance(%) is not an IRestOrm', [self, aORM]);
+    ERestException.RaiseUtf8('%.SetOrmInstance(%) is not an IRestOrm', [self, aORM]);
   fOrmInstance := aORM;
 end;
 
@@ -2197,7 +2197,7 @@ begin
   if fOrmInstance <> nil then
     if (fOrm = nil) or
        (fOrmInstance.RefCount <> 1) then
-      raise ERestException.CreateUtf8('%.Destroy: %.RefCount=%',
+      ERestException.RaiseUtf8('%.Destroy: %.RefCount=%',
         [self, fOrmInstance, fOrmInstance.RefCount])
     else
       // avoid dubious GPF
@@ -2294,7 +2294,7 @@ var
 begin
   C := ClassFrom(aDefinition);
   if C = nil then
-    raise ERestException.CreateUtf8('%.CreateFrom: unknown % class - please ' +
+    ERestException.RaiseUtf8('%.CreateFrom: unknown % class - please ' +
       'add a reference to its implementation unit', [self, aDefinition.Kind]);
   result := C.RegisteredClassCreateFrom(aModel, aDefinition, aServerHandleAuthentication);
 end;
@@ -3101,7 +3101,7 @@ var
   aName: RawUtf8;
 begin
   if aRest = nil then
-    raise ERestException.CreateUtf8('%.Create(aRest=nil,"%")', [self, aThreadName]);
+    ERestException.RaiseUtf8('%.Create(aRest=nil,"%")', [self, aThreadName]);
   fRest := aRest;
   if aThreadName <> '' then
     aName := aThreadName
@@ -3438,10 +3438,10 @@ var
 begin
   factory := TInterfaceFactory.Get(aGuid);
   if factory = nil then
-    raise EServiceException.CreateUtf8('%.AsyncRedirect: unknown %',
+    EServiceException.RaiseUtf8('%.AsyncRedirect: unknown %',
       [self, GuidToShort(aGuid)]);
   if aDestinationInterface = nil then
-    raise EServiceException.CreateUtf8('%.AsyncRedirect(nil)', [self]);
+    EServiceException.RaiseUtf8('%.AsyncRedirect(nil)', [self]);
   fRest.InternalLog('AsyncRedirect % to % using %',
     [factory.InterfaceName, ObjectFromInterface(aDestinationInterface), self]);
   Enable(AsyncBackgroundExecute, 3600);
@@ -3456,9 +3456,9 @@ var
   dest: IInvokable;
 begin
   if aDestinationInstance = nil then
-    raise EServiceException.CreateUtf8('%.AsyncRedirect(nil)', [self]);
+    EServiceException.RaiseUtf8('%.AsyncRedirect(nil)', [self]);
   if not aDestinationInstance.GetInterface(aGuid, dest) then
-    raise EServiceException.CreateUtf8('%.AsyncRedirect [%]: % is not a %',
+    EServiceException.RaiseUtf8('%.AsyncRedirect [%]: % is not a %',
       [self, fThreadName, aDestinationInstance, GuidToShort(aGuid)]);
   AsyncRedirect(aGuid, dest, aCallbackInterface, aOnResult);
 end;
@@ -3468,9 +3468,9 @@ procedure TRestBackgroundTimer.AsyncBackgroundInterning(
 var
   i: PtrInt;
   claimed, total: integer;
-  timer: TPrecisionTimer;
+  start: Int64;
 begin
-  timer.Start;
+  QueryPerformanceMicroSeconds(start);
   claimed := 0;
   fBackgroundInterningSafe.Lock;
   try
@@ -3487,7 +3487,7 @@ begin
   fRest.InternalLog(
     '%.AsyncInterning: Clean(%) claimed %/% strings from % pools in %',
     [ClassType, fBackgroundInterningMaxRefCount, claimed, total,
-     length(fBackgroundInterning), timer.Stop], sllDebug);
+     length(fBackgroundInterning), MicroSecFrom(start)], sllDebug);
 end;
 
 procedure TRestBackgroundTimer.AsyncInterning(Interning: TRawUtf8Interning;
@@ -3546,9 +3546,8 @@ begin
     AuthUserIndex := Server.Model.GetTableIndexInheritsFrom(TAuthUser);
     if (AuthGroupIndex < 0) or
        (AuthUserIndex < 0) then
-      raise EModelException.CreateUtf8(
-        '%.InitializeTable: Model has missing % or TAuthUser',
-        [self, self]);
+      EModelException.RaiseUtf8('%.InitializeTable: Model has missing % ' +
+        'or TAuthUser', [self, self]);
     UC := pointer(Server.Model.Tables[AuthUserIndex]);
     if not (itoNoAutoCreateGroups in Options) then
     begin
@@ -3683,7 +3682,7 @@ begin
   InBody := aInBody;
 end;
 
-procedure TRestUriParams.InBodyType(out ContentType: RawUtf8;
+procedure TRestUriParams.InBodyType(var ContentType: RawUtf8;
   GuessJsonIfNoneSet: boolean);
 begin
   FindNameValue(InHead, HEADER_CONTENT_TYPE_UPPER, ContentType);
@@ -3731,8 +3730,8 @@ end;
 { ************ TRestUriContext REST Parent Process on Server Side }
 
 const
-  // sorted by occurence for in-order O(n) search via IdemPPChar()
-  METHODNAME: array[TUriMethod] of RawUtf8 = (
+  // sorted by occurrence for in-order O(n) search via IntegerScanIndex()
+  METHODNAME: array[TUriMethod] of PUtf8Char = (
     'GET',
     'POST',
     'PUT',
@@ -3744,10 +3743,11 @@ const
     'LOCK',
     'UNLOCK',
     'STATE',
+    'PATCH',
     'OPTIONS',
     '');
 var
-  // quick O(n) search of the first 4 characters within L1 cache
+  // quick O(n) search of the first 4 characters within L1 cache (56 bytes)
   METHODNAME32: array[TUriMethod] of cardinal;
 
 function ToMethod(const method: RawUtf8): TUriMethod;
@@ -3759,32 +3759,17 @@ begin
       (PCardinal(method)^) and $dfdfdfdf) + 1);
 end;
 
-function MethodText(m: TUriMethod): RawUtf8;
+function ToText(m: TUriMethod): PUtf8Char;
 begin
   dec(m); // METHODNAME[] has no mNone entry
   if cardinal(m) < cardinal(ord(high(METHODNAME))) then
     result := METHODNAME[m]
   else
-    result := '';
+    result := nil;
 end;
 
 
 { TRestUriContext }
-
-constructor TRestUriContext.Create(const aCall: TRestUriParams);
-begin
-  fCall := @aCall;
-  fMethod := ToMethod(aCall.Method);
-  if aCall.InBody <> '' then
-    aCall.InBodyType(fInputContentType, {guessjsonifnone=}false);
-end;
-
-destructor TRestUriContext.Destroy;
-begin
-  inherited Destroy;
-  if fJwtContent <> nil then
-    Dispose(fJwtContent);
-end;
 
 function TRestUriContext.GetUserAgent: RawUtf8;
 begin
@@ -3896,8 +3881,8 @@ begin
     fInputCookies[n].Value := cv;
     inc(n);
     if n > COOKIE_MAXCOUNT_DOSATTACK then
-      raise ERestException.CreateUtf8(
-        '%.RetrieveCookies overflow (%): DOS attempt?', [self, KB(cookie)]);
+      ERestException.RaiseUtf8('%.RetrieveCookies overflow (%): DOS attempt?',
+        [self, KB(cookie)]);
   end;
   if n <> 0 then
     DynArrayFakeLength(fInputCookies, n);
@@ -3953,17 +3938,16 @@ begin
     exit;
   c := TrimU(aOutSetCookie);
   if not IsValidUtf8WithoutControlChars(c) then
-    raise ERestException.CreateUtf8('Unsafe %.SetOutSetCookie', [self]);
+    ERestException.RaiseUtf8('Unsafe %.SetOutSetCookie', [self]);
   if PosExChar('=', c) < 2 then
-    raise ERestException.CreateUtf8(
+    ERestException.RaiseUtf8(
       '"name=value" expected for %.SetOutSetCookie("%")', [self, c]);
   fOutSetCookie := c;
 end;
 
 procedure TRestUriContext.OutHeadFromCookie;
 begin
-  fCall.OutHead := TrimU(fCall.OutHead + #13#10 +
-                        'Set-Cookie: ' + fOutSetCookie);
+  AppendLine(fCall.OutHead, ['Set-Cookie: ', fOutSetCookie]);
 end;
 
 function TRestUriContext.ContentTypeIsJson: boolean;
@@ -3982,21 +3966,20 @@ end;
 
 function TRestUriContext.TickCount64: Int64;
 begin
-  if (self = nil) or
-     (fTix64 = 0) then
+  if self <> nil then
   begin
-    result := GetTickCount64;
-    if self <> nil then
-      fTix64 := result; // store in cache during the whole request flow
-  end
-  else
     result := fTix64;
+    if result <> 0 then
+      exit;
+  end;
+  result := mormot.core.os.GetTickCount64;
+  if self <> nil then
+    fTix64 := result; // store in cache during the whole request flow
 end;
 
 procedure SetCacheControl(var Head: RawUtf8; CacheControlMaxAge: integer);
 begin
-  Head := Head + #13#10 + 'Cache-Control: max-age=' +
-    UInt32ToUtf8(CacheControlMaxAge);
+  AppendLine(Head, ['Cache-Control: max-age=', CacheControlMaxAge]);
 end;
 
 procedure Process304NotModified(Call: PRestUriParams; const ServerHash: RawUtf8);
@@ -4009,7 +3992,7 @@ begin
     server := crc32cUtf8ToHex(Call^.OutBody);
   server := '"' + server + '"';
   if client <> server then
-    Call^.OutHead := Call^.OutHead + #13#10 + 'ETag: ' + server
+    AppendLine(Call^.OutHead, ['ETag: ', server])
   else
   begin
     // save bandwidth by returning "304 Not Modified"
@@ -4102,22 +4085,19 @@ begin
   begin
     if not ExistsIniName(pointer(fCall^.OutHead), HEADER_CONTENT_TYPE_UPPER) then
     begin
-      if fCall^.OutHead <> '' then
-        fCall^.OutHead := fCall^.OutHead + #13#10;
       if ContentType <> '' then
-        fCall^.OutHead := fCall^.OutHead + HEADER_CONTENT_TYPE + ContentType
+        AppendLine(fCall^.OutHead, [HEADER_CONTENT_TYPE + ContentType])
       else
-        fCall^.OutHead := fCall^.OutHead + GetMimeContentTypeHeader('', FileName);
+        AppendLine(fCall^.OutHead, [GetMimeContentTypeHeader('', FileName)]);
     end;
     if CacheControlMaxAge > 0 then
-      fCall^.OutHead := fCall^.OutHead +
-        #13#10'Cache-Control: max-age=' + UInt32ToUtf8(CacheControlMaxAge);
+      AppendLine(fCall^.OutHead, ['Cache-Control: max-age=', CacheControlMaxAge]);
     fCall^.OutStatus := HTTP_SUCCESS;
     if Handle304NotModified then
     begin
       FindNameValue(fCall^.InHead, 'IF-NONE-MATCH:', clienthash);
       UInt64ToUtf8(unixfiletime, serverhash);
-      fCall^.OutHead := fCall^.OutHead + #13#10'ETag: ' + serverhash;
+      AppendLine(fCall^.OutHead, ['ETag: ', serverhash]);
       if clienthash = serverhash then
       begin
         fCall^.OutStatus := HTTP_NOTMODIFIED;
@@ -4125,11 +4105,11 @@ begin
       end;
     end;
     // Content-Type: appears twice: 1st to notify static file, 2nd for mime type
-    fCall^.OutHead := STATICFILE_CONTENT_TYPE_HEADER + #13#10 + fCall^.OutHead;
+    Prepend(fCall^.OutHead, [STATICFILE_CONTENT_TYPE_HEADER + #13#10]);
     StringToUtf8(FileName, fCall^.OutBody); // body=filename for STATICFILE_CONTENT
     if AttachmentFileName <> '' then
-      fCall^.OutHead := fCall^.OutHead +
-        #13#10'Content-Disposition: attachment; filename="' + AttachmentFileName + '"';
+      AppendLine(fCall^.OutHead, ['Content-Disposition: attachment; filename="',
+        AttachmentFileName, '"']);
   end;
 end;
 
@@ -4184,7 +4164,7 @@ begin
       else
       begin
         // result is one array of values
-        Add('[');
+        AddDirect('[');
         i := 0;
         repeat
           AddJsonEscape(Values[i]);
@@ -4193,9 +4173,9 @@ begin
           AddComma;
           inc(i);
         until false;
-        Add(']');
+        AddDirect(']');
       end;
-      Add('}');
+      AddDirect('}');
       SetText(result);
     finally
       Free;
@@ -4294,7 +4274,7 @@ end;
 constructor TRestThread.Create(aRest: TRest; aOwnRest, aCreateSuspended: boolean);
 begin
   if aRest = nil then
-    raise EOrmException.CreateUtf8('%.Create(aRest=nil)', [self]);
+    EOrmException.RaiseUtf8('%.Create(aRest=nil)', [self]);
   fSafe.Init;
   fRest := aRest;
   fOwnRest := aOwnRest;
@@ -4565,7 +4545,7 @@ begin
   begin
     factory := TInterfaceFactory.Get(aGuid);
     if factory = nil then
-      raise EServiceException.CreateUtf8('%.MultiRedirect: unknown %',
+      EServiceException.RaiseUtf8('%.MultiRedirect: unknown %',
         [self, GuidToShort(aGuid)]);
      result := TInterfacedObjectMulti.Create(fOwner, factory,
        aCallBackUnRegisterNeeded, aCallbackInterface).fList;
@@ -4629,7 +4609,7 @@ var
 begin
   if (aClient = nil) or
      (aID <= 0) then
-    raise EOrmException.CreateUtf8('Invalid %.CreateHistory(%,%,%) call',
+    EOrmException.RaiseUtf8('Invalid %.CreateHistory(%,%,%) call',
       [self, aClient, aTable, aID]);
   // read BLOB changes
   ref.From(aClient.Model, aTable, aID);
@@ -4640,7 +4620,7 @@ begin
   if fID <> 0 then
     aClient.RetrieveBlobFields(self); // load former fHistory field
   if not HistoryOpen(aClient.Model) then
-    raise EOrmException.CreateUtf8('HistoryOpen in %.CreateHistory(%,%,%)',
+    EOrmException.RaiseUtf8('HistoryOpen in %.CreateHistory(%,%,%)',
       [self, aClient, aTable, aID]);
   // append JSON changes
   hist := RecordClass.CreateAndFillPrepare(aClient,
@@ -4657,7 +4637,7 @@ begin
         rec.FillFrom(pointer(hist.SentDataJson));
         HistoryAdd(rec, hist);
       end;
-      HistorySave(nil); // update internal fHistory field
+      HistorySave(nil); // update intern fHistory field
     finally
       rec.Free;
     end;

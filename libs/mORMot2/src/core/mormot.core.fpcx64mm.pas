@@ -328,20 +328,20 @@ type
     obBlockSize);
 
 /// retrieve the use counts of allocated small blocks
-// - returns maxcount biggest results, sorted by "orderby" field occurence
+// - returns maxcount biggest results, sorted by "orderby" field occurrence
 function GetSmallBlockStatus(maxcount: integer = 10;
   orderby: TSmallBlockOrderBy = obTotal; count: PPtrUInt = nil; bytes: PPtrUInt = nil;
   small: PCardinal = nil; tiny: PCardinal = nil): TSmallBlockStatusDynArray;
 
 /// retrieve all small blocks which suffered from blocking during multi-thread
-// - returns maxcount biggest results, sorted by SleepCount occurence
+// - returns maxcount biggest results, sorted by SleepCount Occurrence
 function GetSmallBlockContention(
   maxcount: integer = 10): TSmallBlockContentionDynArray;
 
 
 /// convenient debugging function into the console
 // - if smallblockcontentioncount > 0, includes GetSmallBlockContention() info
-// up to the smallblockcontentioncount biggest occurences
+// up to the smallblockcontentioncount biggest occurrences
 // - see also RetrieveMemoryManagerInfo from mormot.core.log for runtime call
 procedure WriteHeapStatus(const context: ShortString = '';
   smallblockstatuscount: integer = 8; smallblockcontentioncount: integer = 8;
@@ -349,7 +349,7 @@ procedure WriteHeapStatus(const context: ShortString = '';
 
 /// convenient debugging function into a string
 // - if smallblockcontentioncount > 0, includes GetSmallBlockContention() info
-// up to the smallblockcontentioncount biggest occurences
+// up to the smallblockcontentioncount biggest occurrences
 // - see also RetrieveMemoryManagerInfo from mormot.core.log for more details
 // - warning: this function is not thread-safe
 function GetHeapStatus(const context: ShortString; smallblockstatuscount,
@@ -528,7 +528,7 @@ begin
     if (VirtualQuery(next, @meminfo, SizeOf(meminfo)) = SizeOf(meminfo)) and
        (meminfo.State = MEM_FREE) and
        (meminfo.RegionSize >= nextsize) and // enough space?
-       // reserve the address space in two steps for thread safety
+       // set the address space in two reserve + commit steps for thread safety
        (VirtualAlloc(next, nextsize, MEM_RESERVE, PAGE_READWRITE) <> nil) and
        (VirtualAlloc(next, nextsize, MEM_COMMIT, PAGE_READWRITE) <> nil) then
       begin
@@ -616,9 +616,11 @@ var
 function AllocMedium(Size: PtrInt): pointer; 
 begin
   result := fpmmap(nil, Size, PROT_READ or PROT_WRITE, AllocMediumflags, -1, 0);
+  if result = MAP_FAILED then
+    result := nil; // as VirtualAlloc()
   {$ifdef FPCMM_MEDIUM32BIT}
   if (result <> nil) or
-     (AllocMediumflags and MAP_32BIT = 0) then
+     ((AllocMediumflags and MAP_32BIT) = 0) then
     exit;
   // try with no 2GB limit from now on
   AllocMediumflags := AllocMediumflags and not MAP_32BIT;
@@ -629,6 +631,8 @@ end;
 function AllocLarge(Size: PtrInt): pointer; inline;
 begin
   result := fpmmap(nil, Size, PROT_READ or PROT_WRITE, MAP_LARGE, -1, 0);
+  if result = MAP_FAILED then
+    result := nil; // as VirtualAlloc()
 end;
 
 procedure FreeMediumLarge(ptr: pointer; Size: PtrInt); inline;
@@ -644,11 +648,24 @@ const
   syscall_nr_mremap = 25; // valid on x86_64 Linux and Android
   MREMAP_MAYMOVE = 1;
 
-function RemapLarge(addr: pointer; old_len, new_len: size_t): pointer; inline;
+function RemapLarge(addr: pointer; old_len, new_len: size_t): pointer;
 begin
   // let the Linux Kernel mremap() the memory using its TLB magic
   result := pointer(do_syscall(syscall_nr_mremap, TSysParam(addr),
     TSysParam(old_len), TSysParam(new_len), TSysParam(MREMAP_MAYMOVE)));
+  if result <> MAP_FAILED then
+    exit;
+  // some OS (e.g. Alma Linux 9 with 5.x kernel) seems to fail sometimes :(
+  // https://github.com/ClickHouse/ClickHouse/issues/52955#issuecomment-1664710083
+  // -> it should not, because we use the MREMAP_MAYMOVE flag - but anyway...
+  // -> fallback to safe, simple (and slower) Alloc/Move/Free pattern
+  result := AllocLarge(new_len);
+  if result = nil then
+    exit; // out of memory
+  if new_len > old_len then
+    new_len := old_len; // resize down
+  Move(addr^, result^, new_len); // RTL non-volatile asm or our AVX MoveFast()
+  FreeMediumLarge(addr, old_len);
 end;
 
 {$endif FPCMM_NOMREMAP}
@@ -910,9 +927,6 @@ type
 
   TSmallBlockPoolHeader = record
     BlockType: PSmallBlockType;
-    {$ifdef CPU32}
-    Padding32Bits: cardinal; // for 8*4=32 bytes alignment
-    {$endif CPU32}
     NextPartiallyFreePool: PSmallBlockPoolHeader;
     PreviousPartiallyFreePool: PSmallBlockPoolHeader;
     FirstFreeBlock: pointer;
@@ -1538,7 +1552,7 @@ asm
         unsupported
         {$endif WINDOWS}
         {$endif LINUX}
-        mul     edx
+        mul     edx     // 1 cycle on modern CPUs
         shr     eax, 32 - NumTinyBlockArenasPO2 // high bits hash truncate
         jz      @Aren0  // Arena 0 = TSmallBlockInfo.Small[]
         shl     eax, NumTinyBlockTypesPO2 + SmallBlockTypePO2 // TTinyBlockTypes
