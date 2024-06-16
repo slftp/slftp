@@ -228,12 +228,12 @@ function TSqlDBNexusDBConnectionProperties.ColumnTypeNativeToDB(const aNativeTyp
   aScale: integer): TSqlDBFieldType;
 const
   CONV_TABLE: array[TnxFieldType] of TSqlDBFieldType  = (
-    mormot.db.core.ftInt64, mormot.db.core.ftUtf8,  mormot.db.core.ftUtf8,
+    mormot.db.core.ftInt64, mormot.db.core.ftUtf8, mormot.db.core.ftUtf8,
     mormot.db.core.ftInt64, mormot.db.core.ftInt64, mormot.db.core.ftInt64,
     mormot.db.core.ftInt64, mormot.db.core.ftInt64, mormot.db.core.ftInt64,
     mormot.db.core.ftInt64, mormot.db.core.ftInt64, mormot.db.core.ftDouble,
     mormot.db.core.ftDouble, mormot.db.core.ftDouble, mormot.db.core.ftCurrency,
-    mormot.db.core.ftDate,  mormot.db.core.ftDate, mormot.db.core.ftDate,
+    mormot.db.core.ftDate, mormot.db.core.ftDate, mormot.db.core.ftDate,
     mormot.db.core.ftInt64, mormot.db.core.ftBlob, mormot.db.core.ftUtf8,
     mormot.db.core.ftBlob, mormot.db.core.ftBlob, mormot.db.core.ftUtf8,
     mormot.db.core.ftUtf8, mormot.db.core.ftUtf8, mormot.db.core.ftInt64,
@@ -289,7 +289,7 @@ begin
      (fDatabaseName <> NEXUSDB_INMEMORY) then
     result := DirectoryExists(Utf8ToString(fDatabaseName))
   else
-    result := True; // if we cannot determine directly, assume it exists
+    result := true; // if we cannot determine directly, assume it exists
 end;
 
 function TSqlDBNexusDBConnectionProperties.CreateDatabase: boolean;
@@ -508,8 +508,8 @@ begin
     ((Length(Prot) = 1) and // check for drive letter
      (Prot[1] in ['a'..'z', 'A'..'Z']) and DirectoryExists(TFileName(Prot[1]) + ':\')) or
       // ensure explicit root folder for safety 
-      IdemPChar(Pointer(aConnectionString), '.\') or
-      IdemPChar(Pointer(aConnectionString), '..\');
+      IdemPChar(pointer(aConnectionString), '.\') or
+      IdemPChar(pointer(aConnectionString), '..\');
   if IsPath then
   begin
     result := nxpFOLDER;

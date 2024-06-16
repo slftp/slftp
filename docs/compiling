@@ -108,13 +108,13 @@ Extract the main folder and sub folders (Replace the slFtp file/folders with you
   # tar -xfvj slFtp.v1.*.Linux.Windows.incl.Sources-SLDev.tar.bz2
   # cd slFtp.v1.*.Linux.Windows.incl.Sources-SLDev.tar.bz2
 
-  Change to the source directtory
+  Change to the source directory
 
 	# cd src/slftp
 
 on UNIX:
     - Without editing makefile
-        1. # make
+        1. # make (use gmake on BSD)
         2. # cp slftp /My/slFtp/Path
 
     - With editing makefile (only if you know what you do!)

@@ -492,7 +492,7 @@ const
     wVariant,        // oftVariant
     wVariant,        // oftNullable
     wBlob,           // oftBlob
-    wBlob,           // oftBlobDynArray
+    wArray,          // oftBlobDynArray - with specific code below
     wRecord,         // oftBlobCustom
     wRecord,         // oftUtf8Custom
     wUnknown,        // oftMany
@@ -542,7 +542,7 @@ const
     wEnum,     //  ptEnumeration
     wSet,      //  ptSet
     wUnknown,  //  ptClass
-    wUnknown,  //  ptDynArray
+    wArray,    //  ptDynArray - with specific code below
     wUnknown,  //  ptInterface
     wRawUtf8,  //  ptPUtf8Char
     wUnknown); //  ptCustom
@@ -583,6 +583,7 @@ type
     fSOA: variant;
     fSourcePath: TFileNameDynArray;
     fHasAnyRecord: boolean;
+    fNestedId: integer; // for unique nested type names if no RTTI
     function ContextFromRtti(typ: TWrapperType; rtti: TRttiCustom = nil;
       typName: RawUtf8 = ''; const parentName: RawUtf8 = ''): variant;
     function ContextNestedProperties(rtti: TRttiCustom;
@@ -625,7 +626,7 @@ begin
   if {%H-}desc = '' then
     ResourceSynLZToRawByteString(WRAPPER_RESOURCENAME, desc);
   if desc <> '' then
-    fDescriptions.InitJsonInPlace(Pointer(desc), JSON_FAST);
+    fDescriptions.InitJsonInPlace(pointer(desc), JSON_FAST);
   if aSourcePath <> '' then
   begin
     src := pointer(aSourcePath);
@@ -649,13 +650,20 @@ var
   i: PtrInt;
 begin
   SetVariantNull(result);
-  if rtti.Parser in [ptRecord, ptArray, ptClass] then
-  begin
-    TDocVariant.NewFast(result);
-    for i := 0 to rtti.Props.Count - 1 do
-      TDocVariantData(result).AddItem(
-        ContextOneProperty(rtti.Props.List[i], parentName));
+  case rtti.Parser of
+    ptRecord,
+    ptClass:
+      ; // use rtti.Props
+    ptArray,
+    ptDynArray:
+      rtti := rtti.ArrayRtti; // use array item
+  else
+    exit; // no nested properties
   end;
+  TDocVariant.NewFast(result);
+  for i := 0 to rtti.Props.Count - 1 do
+    TDocVariantData(result).AddItem(
+      ContextOneProperty(rtti.Props.List[i], parentName));
 end;
 
 function ClassToWrapperType(c: TClass): TWrapperType;
@@ -699,8 +707,7 @@ var
       // already registered
       exit;
     if rtti = nil then
-      raise EWrapperContext.CreateUtf8(
-        '%.RegisterType(%): no RTTI', [typAsName^, typName]);
+      EWrapperContext.RaiseUtf8('%.RegisterType(%): no RTTI', [typAsName^, typName]);
     case typ of
       wEnum,
       wSet:
@@ -733,6 +740,10 @@ var
             else
               info := ContextFromRtti(wUnknown, rtti.ArrayRtti);
           end;
+          // can be used to create static array (dynamic arrays have ItemCount=0)
+          //  array{{#staticMaxIndex}}[0..{{staticMaxIndex}}]{{/staticMaxIndex}} of
+          if rtti.Cache.ItemCount > 0 then
+            _Safe(info)^.AddValue('staticMaxIndex', rtti.Cache.ItemCount-1);
           _Safe(info)^.AddValue('name', typName);
         end;
     end;
@@ -746,7 +757,7 @@ begin
   if typ = wUnknown then
   begin
     if rtti = nil then
-      raise EWrapperContext.CreateUtf8(
+      EWrapperContext.RaiseUtf8(
         '%.ContextFromRtti: No RTTI nor typ for [%]', [self, typName]);
     typ := TYPES_ORM[GetOrmFieldType(rtti.Info)];
     if typ = wUnknown then
@@ -760,7 +771,7 @@ begin
           rkInterface:
             typ := wInterface;
         else
-          raise EWrapperContext.CreateUtf8(
+          EWrapperContext.RaiseUtf8(
             '%.ContextFromRtti: Not enough RTTI for [%]', [self, rtti.Name]);
         end;
     end;
@@ -774,7 +785,10 @@ begin
   // set typName/typAsName
   if typName = '' then
     if rtti <> nil then
-      typName := rtti.Name
+      if rcfWithoutRtti in rtti.Flags then // undefined nested fields
+        FormatUtf8('T%%', [parentName, InterlockedIncrement(fNestedId)], typName)
+      else
+        typName := rtti.Name
     else
       typName := TYPES_LANG[lngDelphi, typ];
   typAsName := GetEnumName(TypeInfo(TWrapperType), ord(typ));
@@ -865,7 +879,7 @@ begin
       if (fServer <> nil) and
          (fServer.Model.GetTableIndexInheritsFrom(
            TOrmClass(rtti.ValueClass)) < 0) then
-        raise EWrapperContext.CreateUtf8(
+        EWrapperContext.RaiseUtf8(
           '%.ContextFromRtti: % should be part of the model', [self, typName])
       else
         _ObjAddProps(['isSQLRecord',  true,
@@ -895,7 +909,7 @@ begin
     wInterface:
       _ObjAddProp('isInterface', true, result);
   else
-    raise EWrapperContext.CreateUtf8(
+    EWrapperContext.RaiseUtf8(
       'Unexpected type % (%) for [%]', [typAsName^, ord(typ), typName]);
   end;
 end;
@@ -942,7 +956,7 @@ begin
           nfoOrmFieldRttiTypeName);
       end
       else
-        raise EWrapperContext.CreateUtf8('Unexpected type % for %.%',
+        EWrapperContext.RaiseUtf8('Unexpected type % for %.%',
           [nfo, fServer.Model.Tables[t], nfo.Name]);
       kind := CROSSPLATFORM_KIND[nfo.OrmFieldType];
       _ObjAddProps(['index',        f + 1,
@@ -1069,7 +1083,7 @@ begin
       _ObjAddProps([
         'argName',  ParamName^,
         'argType',  ArgTypeName^,
-        'arg.dir',  ord(ValueDirection),
+        'dir',      ord(ValueDirection),
         'dirName',  DIRTODELPHI[ValueDirection],
         'dirNoOut', DIRTOSMS[ValueDirection]], arg);
       if ValueDirection in [imdConst, imdVar] then
@@ -1181,6 +1195,7 @@ function TWrapperContext.ContextOneProperty(const prop: TRttiCustomProp;
 var
   l, level: PtrInt;
   fullName: RawUtf8;
+  isSimple: variant;
 begin
   level := 0;
   if parentName = '' then
@@ -1198,25 +1213,27 @@ begin
     'fullPropName', fullName], result);
   if level > 0 then
     _ObjAddPropU('nestedIdentation', RawUtf8OfChar(' ', level * 2), result);
-  case prop.Value.Parser of
-    ptRecord:
-      _ObjAddProps([
-        'isSimple',    null,
-        'nestedRecord', _ObjFast([
-          'nestedRecord', null,
-          'fields',  ContextNestedProperties(prop.Value, fullName)])], result);
-    ptArray:
-      _ObjAddProps([
-        'isSimple',          null,
-        'nestedRecordArray', _ObjFast([
-          'nestedRecordArray', null,
-          'fields', ContextNestedProperties(prop.Value, fullName)])], result);
-  else
-    if TDocVariantData(result).GetValueIndex('toVariant') < 0 then
-      _ObjAddProp('isSimple', true, result)
+  SetVariantNull(isSimple);
+  if rcfWithoutRtti in prop.Value.Flags then
+    case prop.Value.Parser of
+      ptRecord:
+        _ObjAddProps([
+          'nestedRecord', _ObjFast([
+            'nestedRecord', null,
+            'fields',  ContextNestedProperties(prop.Value, fullName)])], result);
+      ptArray,
+      ptDynArray:
+        _ObjAddProps([
+          'nestedRecordArray', _ObjFast([
+            'nestedRecordArray', null,
+            'fields', ContextNestedProperties(prop.Value, fullName)])], result);
     else
-      _ObjAddProp('isSimple', null, result);
-  end;
+      if not TDocVariantData(result).Exists('toVariant') then
+        isSimple := true;
+    end
+  else if not TDocVariantData(result).Exists('toVariant') then
+    isSimple := true;
+  _ObjAddProp('isSimple', isSimple, result);
 end;
 
 function TWrapperContext.Context: variant;
@@ -1825,7 +1842,7 @@ begin
             GetDocVariantByProp('interfaceName', intf, false, service) then
           service^.AddValue('query', ClassNameShort(queries[i])^)
         else
-          raise EWrapperContext.CreateUtf8('CustomDelays: unknown %', [intf]);
+          EWrapperContext.RaiseUtf8('CustomDelays: unknown %', [intf]);
       end;
     i := 0;
     while i + 2 <= high(CustomDelays) do
@@ -1839,8 +1856,7 @@ begin
              GetDocVariantByProp('methodName', meth, false, method) then
           method^.I['asynchdelay'] := delay
         else
-          raise EWrapperContext.CreateUtf8(
-            'CustomDelays: unknown %.%', [intf, meth]);
+          EWrapperContext.RaiseUtf8('CustomDelays: unknown %.%', [intf, meth]);
       inc(i, 3);
     end;
     pas := TSynMustache.Parse(Template).
@@ -2069,7 +2085,7 @@ begin
     ToConsole('%', [call.InBody], ccLightBlue);
   // execute the OnCall event handler to actually run the process
   if not Assigned(fOnCall) then
-    raise EServiceException.CreateUtf8(
+    EServiceException.RaiseUtf8(
       'No Client available to call %', [method.InterfaceDotMethodName]);
   fOnCall(fOptions, service, method, call); // will set URI + Bearer
   // send output to Console
@@ -2151,7 +2167,7 @@ begin
           inc(first);
         continue;
       end;
-      raise EServiceException.CreateUtf8(
+      EServiceException.RaiseUtf8(
         '%.Execute: unknown option [%]', [self, p[n]]);
     end;
     if n < high(p) then

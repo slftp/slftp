@@ -27,14 +27,17 @@ The Low-Level Sockets API is encapsultated into a single set of functions, and w
 
 HTTP/HTTPS Abstract Process Classes and Definitions
 - Shared HTTP Constants and Functions
+- Reusable HTTP State Machine
 - `THttpSocket` Implementing HTTP over plain sockets
 - Abstract Server-Side Types used e.g. for Client-Server Protocol
+- HTTP Server Logging/Monitoring Processors
 
 ### mormot.net.client
 
 HTTP Client Classes
 - `THttpMultiPartStream` for multipart/formdata HTTP POST
 - `THttpClientSocket` Implementing HTTP client over plain sockets
+- Additional Client Protocols Support (e.g. 'file://')
 - `THttpRequest` Abstract HTTP client class
 - `TWinHttp` `TWinINet` `TWinHttpWebSocketClient` `TCurlHTTP`
 - `TSimpleHttpClient` Wrapper Class
@@ -44,10 +47,12 @@ HTTP Client Classes
 
 ### mormot.net.server
 
-HTTP Server Classes
+HTTP/UDP Server Classes
+- Abstract UDP Server
 - Custom URI Routing using an efficient Radix Tree
 - Shared Server-Side HTTP Process
 - `THttpServerSocket`/`THttpServer` HTTP/1.1 Server
+- `THttpPeerCache` Local Peer-to-peer Cache
 - `THttpApiServer` HTTP/1.1 Server Over Windows `http.sys` Module
 - `THttpApiWebSocketServer` Over Windows `http.sys` Module
 
@@ -56,6 +61,7 @@ HTTP Server Classes
 Event-Driven Network Classes and Functions
 - Low-Level Non-blocking Connections
 - Client or Server Asynchronous Process
+- `THttpAsyncServer` Event-Driven HTTP Server
 
 Used e.g. by both `mormot.net.relay` and `mormot.net.rtsphttp` to handle thousands on concurrent streams, with minimal resources, in a cross-platform way.
 
@@ -64,6 +70,7 @@ Used e.g. by both `mormot.net.relay` and `mormot.net.rtsphttp` to handle thousan
 WebSockets Abstract Processing for Client and Server
 - WebSockets Frames Definitions
 - WebSockets Protocols Implementation
+- WebSockets Asynchronous Frames Parsing
 - WebSockets Client and Server Shared Process
 - `TWebSocketProtocolChat` Simple Protocol
 
@@ -92,6 +99,10 @@ Secured Tunneling over WebSockets
 - Low-level WebSockets Relaying Protocols
 - Public and Private relay process
 
+It will encapsulate any WebSockets duplex stream over a public server, allowing any remote client to connect to a local server behind a firewall, using a public server (e.g. a simple Linux box) as relay.
+
+A Private Relay client should connect to a Public Relay Server, probably behind a firewall. By definition, only a single Private Relay client instance could connect at the same time to the Public Relay server.
+
 ### mormot.net.rtsphttp
 
 RTSP Stream Tunnelling over HTTP as defined by Apple at https://goo.gl/CX6VA3
@@ -110,16 +121,21 @@ Current limitation: no Client code is defined yet - only the raw TFTP protocol.
 ### mormot.net.tftp.server
 
 TFTP Server Processing with RFC 1350/2347/2348/2349/7440 Support
-- Abstract UDP Server
 - TFTP Connection Thread and State Machine
 - `TTftpServerThread` Server Class
 
 Current limitation: only RRQ requests are supported/tested yet.
 
+### mormot.net.tunnel
+
+TCP/UDP Port Forwarding and Tunnelling
+- Abstract Definitions for Port Forwarding
+- Local NAT Client/Server to Tunnel TCP Streams
+- WebSockets stand-alone Relay Server
+
 ### mormot.net.acme
 
 Automatic Certificate Management Environment (ACME v2) Client
-- Low-Level Cryptographic Wrappers
 - JWS HTTP-client implementation
 - ACME client implementation
 - Let's Encrypt TLS / HTTPS Encryption Certificates Support
@@ -128,11 +144,11 @@ Automatic Certificate Management Environment (ACME v2) Client
 ### mormot.net.ldap
 
 Simple LDAP Protocol Client
-- Basic ASN.1 Support
 - LDAP Protocol Definitions
 - LDAP Response Storage
 - CLDAP Client Functions
 - LDAP Client Class
+- HTTP BASIC Authentication via LDAP or Kerberos
 
 ### mormot.net.dns
 

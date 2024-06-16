@@ -633,7 +633,7 @@ procedure TSqlDBUniDACStatement.DataSetBindSqlParam(const aArrayIndex,
   aParamIndex: integer; const aParam: TSqlDBParam);
 var
   P: TDAParam;
-  i: Integer;
+  i: PtrInt;
   tmp: RawUtf8;
   StoreVoidStringAsNull: boolean;
 begin
@@ -641,7 +641,7 @@ begin
   if not P.InheritsFrom(TDAParam) then 
   begin
     inherited DataSetBindSQLParam(aArrayIndex, aParamIndex, aParam);
-    Exit;
+    exit;
   end;
   if fDatasetSupportBatchBinding then
     fBatchExecute := (aArrayIndex < 0) and
@@ -788,7 +788,7 @@ begin
               begin
                 P.Values[i].AsBlobRef.Clear;
                 P.Values[i].AsBlobRef.Write(0, Length(VArray[aArrayIndex]),
-                  Pointer(VArray[aArrayIndex]));
+                  pointer(VArray[aArrayIndex]));
               end
               {$else}
               P.Values[i].AsString := VArray[aArrayIndex]
@@ -802,12 +802,12 @@ begin
             begin
               P.AsBlobRef.Clear;
               P.AsBlobRef.Write(0, Length(VArray[aArrayIndex]),
-                Pointer(VArray[aArrayIndex]));
+                pointer(VArray[aArrayIndex]));
             end
           else
           begin
             P.AsBlobRef.Clear;
-            P.AsBlobRef.Write(0, Length(VData), Pointer(VData));
+            P.AsBlobRef.Write(0, Length(VData), pointer(VData));
           end;
           {$else}
             P.AsString := VArray[aArrayIndex]

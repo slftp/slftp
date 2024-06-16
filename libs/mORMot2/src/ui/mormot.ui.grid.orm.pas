@@ -104,23 +104,23 @@ type
   TGridActions = set of TGridAction;
 
   /// kind of event used to change some text on the fly for grid display
-  // - expect generic string Text, i.e. UnicodeString for Delphi 2009/2010,
-  // ready to be used with the VCL for all Delphi compiler versions
+  // - expect RTL string Text, i.e. UnicodeString for Delphi 2009/2010,
+  // ready to be used with the UI for all compilers
   // - if the cell at FiieldIndex/RowIndex is to have a custom content,
   // shall set the Text variable content and return TRUE
   // - if returns FALSE, the default content will be displayed
-  TValueTextEvent = function(Sender: TOrmTable; FieldIndex, RowIndex: Integer;
+  TValueTextEvent = function(Sender: TOrmTable; FieldIndex, RowIndex: integer;
     var Text: string): boolean of object;
 
   /// kind of event used to change some text on the fly for popup hint
-  // - expect generic string Text, i.e. UnicodeString for Delphi 2009/2010,
-  // ready to be used with the VCL for all Delphi compiler versions
-  THintTextEvent = function(Sender: TOrmTable; FieldIndex, RowIndex: Integer;
+  // - expect RTL string Text, i.e. UnicodeString for Delphi 2009/2010,
+  // ready to be used with the UI for all compilers
+  THintTextEvent = function(Sender: TOrmTable; FieldIndex, RowIndex: integer;
     var Text: string): boolean of object;
 
   /// kind of event used to display a menu on a cell right click
   TRightClickCellEvent = procedure(Sender: TOrmTable;
-    ACol, ARow, MouseX, MouseY: Integer) of object;
+    ACol, ARow, MouseX, MouseY: integer) of object;
 
   /// the available alignments of a TOrmTableToGrid cell
   TOrmTableToGridAlign = (
@@ -204,22 +204,22 @@ type
     // - the cell is drawn using direct Win32 Unicode API
     // - the first row (fixed) is drawn as field name (centered bold text with
     //  sorting order displayed with a triangular arrow)
-    procedure DrawCell(Sender: TObject; ACol, ARow: Longint; Rect: TRect;
+    procedure DrawCell(Sender: TObject; ACol, ARow: integer; Rect: TRect;
       State: TGridDrawState);
     /// called by the owner TDrawGrid when a Cell is selected
-    procedure DrawGridSelectCell(Sender: TObject; ACol, ARow: Integer;
+    procedure DrawGridSelectCell(Sender: TObject; ACol, ARow: integer;
       var CanSelect: boolean);
     /// called by the owner TDrawGrid when a Cell is clicked by the mouse
     // - check if the first (fixed) row is clicked: then change sort order
     // - Ctrl + click to display its full unicode content (see HintText to customize it)
     procedure DrawGridMouseDown(Sender: TObject; Button: TMouseButton;
-      Shift: TShiftState; X, Y: Integer);
+      Shift: TShiftState; X, Y: integer);
     /// called by the owner TDrawGrid when the mouse is unclicked over a Cell
     procedure DrawGridMouseUp(Sender: TObject; Button: TMouseButton;
-      Shift: TShiftState; X, Y: Integer);
+      Shift: TShiftState; X, Y: integer);
     /// called by the owner TDrawGrid when the mouse is over a Cell
     procedure DrawGridMouseMove(Sender: TObject;
-      Shift: TShiftState; X, Y: Integer);
+      Shift: TShiftState; X, Y: integer);
     /// called by the owner TDrawGrid when the user presses a key
     // - used for incremental key lookup
     procedure DrawGridKeyPress(Sender: TObject; var Key: Char);
@@ -230,8 +230,8 @@ type
     // - can be used as TOrmTableToGrid.From(DrawGrid).Resize();
     procedure Resize(Sender: TObject);
     /// display a popup Hint window at a specified Cell position
-    // - expect generic string Text, i.e. UnicodeString for Delphi 2009/2010,
-    // ready to be used with the VCL for all Delphi compiler versions
+    // - expect RTL string Text, i.e. UnicodeString for Delphi 2009/2010,
+    // ready to be used with the UI for all compilers
     procedure ShowHintString(const Text: string; ACol, ARow, Time: integer;
       FontColor: TColor = clBlack);
     /// if the ID column is available, hides it from the grid
@@ -310,9 +310,9 @@ type
     procedure SetMark(aAction: TGridAction);
     /// retrieve the Marked[] bits array
     function GetMarkedBits: pointer;
-    /// read-only access to a particular row values, as VCL text
+    /// read-only access to a particular row values, as UI text
     // - Model is one TOrmModel instance (used to display TRecordReference)
-    // - returns the text as generic string, ready to be displayed via the VCL
+    // - returns the text as RTL string, ready to be displayed via the VCL/LCL
     // after translation, for oftEnumerate, oftTimeLog, oftRecord and all other
     // properties
     // - uses OnValueText property Event if defined by caller
@@ -506,7 +506,7 @@ begin
   result := nil;
 end;
 
-procedure TOrmTableToGrid.DrawCell(Sender: TObject; ACol, ARow: Integer;
+procedure TOrmTableToGrid.DrawCell(Sender: TObject; ACol, ARow: integer;
   Rect: TRect; State: TGridDrawState);
 var
   c: TCanvas;
@@ -667,10 +667,10 @@ begin
 end;
 
 procedure TOrmTableToGrid.DrawGridMouseDown(Sender: TObject;
-  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+  Button: TMouseButton; Shift: TShiftState; X, Y: integer);
 var
   c, r: integer;
-  s: string; // generic string type, for VCL
+  s: string; // RTL string type, for UI
 begin
   if NotDefined then // avoid any possible GPF
     exit;
@@ -740,7 +740,7 @@ begin
 end;
 
 procedure TOrmTableToGrid.DrawGridMouseMove(Sender: TObject; Shift: TShiftState;
-  X, Y: Integer);
+  X, Y: integer);
 var
   c, r: integer;
 begin
@@ -783,13 +783,13 @@ begin
 end;
 
 procedure TOrmTableToGrid.DrawGridMouseUp(Sender: TObject; Button: TMouseButton;
-  Shift: TShiftState; X, Y: Integer);
+  Shift: TShiftState; X, Y: integer);
 begin
   fMouseDownMarkedValue := markNone; // reset Marked[] checkbox state
 end;
 
 procedure TOrmTableToGrid.DrawGridSelectCell(Sender: TObject;
-  ACol, ARow: Integer; var CanSelect: boolean);
+  ACol, ARow: integer; var CanSelect: boolean);
 begin
   if NotDefined then // avoid any possible GPF
     exit;
@@ -960,7 +960,7 @@ end;
 
 procedure TOrmTableToGrid.IDColumnHide; { TODO: IDColumnHide }
 begin
-  raise EOrmTableToGrid.CreateUtf8('%.IDColumnHide is unimplemented', [self]);
+  EOrmTableToGrid.RaiseUtf8('%.IDColumnHide is unimplemented', [self]);
   if NotDefined {or not Table.IDColumnHide} then
     exit;
   TDrawGrid(Owner).ColCount := Table.FieldCount; // we loose one column
@@ -1142,7 +1142,7 @@ var
   means: array of cardinal;
 begin
   if self = nil then
-    Exit;
+    exit;
   fMarkAllowed := aMarkAllowed;
   l := length(Lengths);
   if l = 0 then
@@ -1359,7 +1359,7 @@ end;
 function TOrmTableToGrid.ExpandRowAsString(Row: PtrInt; Model: TOrmModel): string;
 var
   f, i: PtrInt;
-  s: string; // generic VCL-ready string
+  s: string; // UI-ready string
 begin
   result := '';
   if (self = nil) or

@@ -66,12 +66,16 @@
 {$DEFINE ZEOS_DISABLE_OLEDB}
 {$DEFINE ZEOS_DISABLE_ODBC}
 {$DEFINE ZEOS_DISABLE_PROXY}
-{.$DEFINE ZEOS_PROXY_USE_INTERNAL_PROXY}
+{$DEFINE ZEOS_PROXY_USE_INTERNAL_PROXY}
 
 {.$DEFINE USE_SYNCOMMONS} //enable JSON content support by using SynCommons.pas from Synopse project v1.18
 {.$DEFINE MORMOT2} //enable JSON content support by using mormot.db.core.pas from Synopse project v2+
 
 {.$DEFINE DO_NOT_DERIVE_FROM_EDATABASEERROR} //don't derive Zeos Exceptions from EDatabaseError
+
+// Enabling this directive will cause Zeos not to cache client connection libraries. This basically means
+// that all handles will be immediately released once the final connection is closed
+{$DEFINE ZEOS_DISABLE_DRIVER_CACHE}
 
 // In Version 6.1.5 there are several bugs with the TZSQLMetadata-Component
 // For Version 6.5.0 you should uncomment the following line
@@ -160,6 +164,7 @@
   {$IF CompilerVersion < 15}
      "Delphi versions below Delphi 7 aren't supported anymore"
   {$ELSE}
+    {$DEFINE NO_UINT64_MIN}                // The Math unit has no Min function for UINT64
     {$DEFINE WITH_FTWIDESTRING}                 //Have ftWideString
     {$DEFINE TWIDESTRINGFIELD_DATABUFFER_IS_PWIDESTRING}
     {$DEFINE WITH_UINT64_C1118_ERROR}       //D7-D2005 has proplems to assign code constants for UInt64
@@ -253,6 +258,7 @@
                 {$DEFINE DELPHI14_UP}                 // used in ZTestStoredProcedure.pas only
                 {$DEFINE WITH_FTTIMESTAMP_OFFSET}     // TSQLTimeStampOffset record and field exists
                 {$IF CompilerVersion >= 22} //Delphi XE+
+                  {$UNDEF NO_UINT64_MIN}              // I assume, from XE on Delphi has a Min function suitable for UINT64
                   {$DEFINE WITH_tagVARIANT_UINT64}          // ActivX.tagVariant supports UInt64 Values
                   {$DEFINE TENCODING_HAS_CODEPAGE}          //TEncoding has property CodePage
                   {$DEFINE WITH_FORMATSETTINGS}             //Unit SysUtils have global FormatSettings
@@ -385,10 +391,14 @@
                                           {$IFEND}
                                           {$UNDEF WITH_TWIDEMEMOFIELD_GETASVARIANT_varNULL_BUG} //The bug is resolved.
                                           {$UNDEF WITH_TMEMOFIELD_GETASVARIANT_varNULL_BUG} //The bug is resolved.
-										  {$DEFINE USE_SYNCOBJS_FOR_INLINING} //Add SyncObjs unit to the uses list to resolve a warning about inlining
-										  {$IF CompilerVersion >= 35} //Delphi 11 Alexandria
-										    {$DEFINE MEMORYSTREAM_REALLOC_NATIVEINT} // TMemoryStream.Realloc uses NativeInt instead of Longint
-										  {$IFEND CompilerVersion >= 35} // Delphi 11 Alexandria
+                                          {$DEFINE USE_SYNCOBJS_FOR_INLINING} //Add SyncObjs unit to the uses list to resolve a warning about inlining
+                                          {$IF CompilerVersion >= 35} //Delphi 11 Alexandria
+										    {$DEFINE TCERTIFICATE_HAS_PUBLICKEY}
+                                            {$DEFINE MEMORYSTREAM_REALLOC_NATIVEINT} // TMemoryStream.Realloc uses NativeInt instead of Longint
+                                            {$IF CompilerVersion >= 36} //Delphi 12 Athens
+                                              {$DEFINE NATIVEINT_WEAK_REFERENCE} // TMemoryStream.Realloc uses NativeInt instead of Longint
+                                            {$IFEND CompilerVersion >= 36} // Delphi 12 Athens
+                                          {$IFEND CompilerVersion >= 35} // Delphi 11 Alexandria
                                         {$IFEND CompilerVersion >= 34}
                                       {$IFEND CompilerVersion >= 33}
                                     {$ELSE !CompilerVersion >= 32} //Delphi Berlin+
@@ -429,6 +439,10 @@
       {$DEFINE FAST_MOVE}
     {$IFEND}
   {$IFEND CompilerVersion < 15}
+  {$IF DEFINED(VER360) OR DEFINED(VER370)}
+    // see https://zeoslib.sourceforge.io/viewtopic.php?p=261006#p261006
+	{$DEFINE ILINK_HAS_TBCD_IN_UNIONS_BUG}
+  {$IFEND VER360}
 {$ENDIF}
 
 {$IFDEF LINUX}

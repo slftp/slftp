@@ -491,10 +491,10 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     function LogFamily: TSynLogFamily;
       {$ifdef HASINLINE}inline;{$endif}
-    procedure InternalLog(const Text: RawUtf8; Level: TSynLogInfo); overload;
+    procedure InternalLog(const Text: RawUtf8; Level: TSynLogLevel); overload;
       {$ifdef HASINLINE}inline;{$endif}
     procedure InternalLog(const Format: RawUtf8; const Args: array of const;
-      Level: TSynLogInfo = sllTrace); overload;
+      Level: TSynLogLevel = sllTrace); overload;
     function GetServerTimestamp: TTimeLog;
       {$ifdef HASINLINE}inline;{$endif}
     function GetCurrentSessionUserID: TID; virtual;
@@ -795,7 +795,7 @@ begin
   result := fRest.LogFamily;
 end;
 
-procedure TRestOrm.InternalLog(const Text: RawUtf8; Level: TSynLogInfo);
+procedure TRestOrm.InternalLog(const Text: RawUtf8; Level: TSynLogLevel);
 begin
   fRest.InternalLog(Text, Level);
 end;
@@ -1562,8 +1562,7 @@ begin
       doc.InitFast(T.RowCount, dvArray);
       doc.SetCount(T.RowCount);
       for row := 1 to T.RowCount do
-        T.GetAsVariant(row, 0, doc.Values[row - 1], false, false, false,
-          JSON_FAST);
+        T.GetAsVariant(row, 0, doc.Values[row - 1], false, false, false, JSON_FAST);
     finally
       T.Free;
     end;
@@ -1657,7 +1656,7 @@ begin
   end;
 end;
 
-function TRestOrm.NewEngineRetrieveAsync(
+function TRestOrm.{%H-}NewEngineRetrieveAsync(
   Context: TObject; Table: TOrmClass): TRestOrmEngineRetrieveAsync;
 begin
   raise EOrmAsyncException.CreateUtf8(
@@ -2200,7 +2199,7 @@ end;
 
 procedure TRestOrm.InternalBatchStop;
 begin
-  raise EOrmBatchException.CreateUtf8('Unexpected %.InternalBatchStop', [self]);
+  EOrmBatchException.RaiseUtf8('Unexpected %.InternalBatchStop', [self]);
 end;
 
 function TRestOrm.InternalBatchDirectSupport(Encoding: TRestBatchEncoding;
@@ -2302,7 +2301,7 @@ begin
     exit;
   L := BlobData.Seek(0, soEnd);
   if L > maxInt then
-    raise EOrmException.CreateUtf8('%.UpdateBlob: %.Size=%', [self, BlobData, L]);
+    EOrmException.RaiseUtf8('%.UpdateBlob: %.Size=%', [self, BlobData, L]);
   SetLength(data, L);
   BlobData.Seek(0, soBeginning);
   if BlobData.Read(pointer(data)^, L) <> L then
@@ -2451,7 +2450,7 @@ begin
      (Batch = nil) then
     // no opened BATCH sequence
     exit;
-  InternalLog('BatchSend %', [Batch]);
+  fRest.InternalLog('BatchSend %', [Batch]);
   if Batch.PrepareForSending(json) then
     if json = '' then // i.e. Batch.Count=0
       result := HTTP_SUCCESS
@@ -2568,7 +2567,7 @@ begin
 end;
 
 procedure TRestOrm.InternalLog(const Format: RawUtf8; const Args: array of const;
-  Level: TSynLogInfo);
+  Level: TSynLogLevel);
 begin
   fRest.InternalLog(Format, Args, Level);
 end;
@@ -2642,7 +2641,7 @@ var
 begin
   if (FieldName = '') or
      (FieldIndex(FieldName) >= 0) then
-    raise EOrmTable.CreateUtf8('%.AddField(%) invalid fieldname', [self, FieldName]);
+    EOrmTable.RaiseUtf8('%.AddField(%) invalid fieldname', [self, FieldName]);
   // register the new field
   result := fFieldCount;
   inc(fFieldCount);
@@ -2871,7 +2870,7 @@ begin
     begin
       rec.FillContext.Fill(fUpdatedRows[r]);
       if rec.IDValue = 0 then
-        raise EOrmTable.CreateUtf8('%.UpdatesToBatch: no %.ID map', [self, c]);
+        EOrmTable.RaiseUtf8('%.UpdatesToBatch: no %.ID map', [self, c]);
       upd := fUpdatedRowsFields[r];
       if upd = 0 then // more than 32 fields -> include all fields to batch
         bits := def32
@@ -2886,7 +2885,7 @@ begin
           begin
             p := props[f];
             if p < 0 then
-              raise EOrmTable.CreateUtf8(
+              EOrmTable.RaiseUtf8(
                 '%.UpdatesToBatch: Unexpected %.%', [self, c, Results[f]]);
             FieldBitSet(bits, p);
           end;
@@ -2894,7 +2893,7 @@ begin
         end;
       end;
       if Batch.Update(rec, bits, {donotautocompute:}true) < 0 then
-        raise EOrmTable.CreateUtf8(
+        EOrmTable.RaiseUtf8(
           '%.UpdatesToBatch: Batch.Update % failed', [self, rec]);
       inc(result);
     end;
