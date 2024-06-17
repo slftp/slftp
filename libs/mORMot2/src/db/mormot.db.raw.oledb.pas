@@ -43,87 +43,87 @@ uses
 { ************ Native OleDB Constants }
 
 const
-  IID_IUnknown: TGUID = '{00000000-0000-0000-C000-000000000046}';
-  IID_IAccessor: TGUID = '{0C733A8C-2A1C-11CE-ADE5-00AA0044773D}';
-  IID_IRowset: TGUID = '{0C733A7C-2A1C-11CE-ADE5-00AA0044773D}';
-  IID_IMultipleResults: TGUID = '{0C733A90-2A1C-11CE-ADE5-00AA0044773D}';
-  IID_IOpenRowset: TGUID = '{0C733A69-2A1C-11CE-ADE5-00AA0044773D}';
-  IID_IDataInitialize: TGUID = '{2206CCB1-19C1-11D1-89E0-00C04FD7A829}';
-  IID_IDBInitialize: TGUID = '{0C733A8B-2A1C-11CE-ADE5-00AA0044773D}';
-  IID_ICommandText: TGUID = '{0C733A27-2A1C-11CE-ADE5-00AA0044773D}';
-  IID_ISSCommandWithParameters: TGUID = '{EEC30162-6087-467C-B995-7C523CE96561}';
-  IID_ITransactionLocal: TGUID = '{0C733A5F-2A1C-11CE-ADE5-00AA0044773D}';
-  IID_IDBPromptInitialize: TGUID = '{2206CCB0-19C1-11D1-89E0-00C04FD7A829}';
-  IID_ISQLServerErrorInfo: TGUID = '{5CF4CA12-EF21-11d0-97E7-00C04FC2AD98}';
-  IID__Catalog: TGUID = '{00000603-0000-0010-8000-00AA006D2EA4}';
-  CLASS_Catalog: TGUID = '{00000602-0000-0010-8000-00AA006D2EA4}';
-  CLSID_DATALINKS: TGUID = '{2206CDB2-19C1-11D1-89E0-00C04FD7A829}';
-  CLSID_MSDAINITIALIZE: TGUID = '{2206CDB0-19C1-11D1-89E0-00C04FD7A829}';
-  CLSID_ROWSET_TVP: TGUID = '{C7EF28D5-7BEE-443F-86DA-E3984FCD4DF9}';
-  DB_NULLGUID: TGuid = '{00000000-0000-0000-0000-000000000000}';
-  DBGUID_DEFAULT: TGUID = '{C8B521FB-5CF3-11CE-ADE5-00AA0044773D}';
-  DBSCHEMA_TABLES: TGUID = '{C8B52229-5CF3-11CE-ADE5-00AA0044773D}';
-  DBSCHEMA_COLUMNS: TGUID = '{C8B52214-5CF3-11CE-ADE5-00AA0044773D}';
-  DBSCHEMA_INDEXES: TGUID = '{C8B5221E-5CF3-11CE-ADE5-00AA0044773D}';
-  DBSCHEMA_FOREIGN_KEYS: TGUID = '{C8B522C4-5CF3-11CE-ADE5-00AA0044773D}';
-  DBPROPSET_SQLSERVERPARAMETER: TGUID = '{FEE09128-A67D-47EA-8D40-24A1D4737E8D}';
+  IID_IUnknown: TGuid                 = '{00000000-0000-0000-C000-000000000046}';
+  IID_IAccessor: TGuid                = '{0C733A8C-2A1C-11CE-ADE5-00AA0044773D}';
+  IID_IRowset: TGuid                  = '{0C733A7C-2A1C-11CE-ADE5-00AA0044773D}';
+  IID_IMultipleResults: TGuid         = '{0C733A90-2A1C-11CE-ADE5-00AA0044773D}';
+  IID_IOpenRowset: TGuid              = '{0C733A69-2A1C-11CE-ADE5-00AA0044773D}';
+  IID_IDataInitialize: TGuid          = '{2206CCB1-19C1-11D1-89E0-00C04FD7A829}';
+  IID_IDBInitialize: TGuid            = '{0C733A8B-2A1C-11CE-ADE5-00AA0044773D}';
+  IID_ICommandText: TGuid             = '{0C733A27-2A1C-11CE-ADE5-00AA0044773D}';
+  IID_ISSCommandWithParameters: TGuid = '{EEC30162-6087-467C-B995-7C523CE96561}';
+  IID_ITransactionLocal: TGuid        = '{0C733A5F-2A1C-11CE-ADE5-00AA0044773D}';
+  IID_IDBPromptInitialize: TGuid      = '{2206CCB0-19C1-11D1-89E0-00C04FD7A829}';
+  IID_ISQLServerErrorInfo: TGuid      = '{5CF4CA12-EF21-11d0-97E7-00C04FC2AD98}';
+  IID__Catalog: TGuid                 = '{00000603-0000-0010-8000-00AA006D2EA4}';
+  CLASS_Catalog: TGuid                = '{00000602-0000-0010-8000-00AA006D2EA4}';
+  CLSID_DATALINKS: TGuid              = '{2206CDB2-19C1-11D1-89E0-00C04FD7A829}';
+  CLSID_MSDAINITIALIZE: TGuid         = '{2206CDB0-19C1-11D1-89E0-00C04FD7A829}';
+  CLSID_ROWSET_TVP: TGuid             = '{C7EF28D5-7BEE-443F-86DA-E3984FCD4DF9}';
+  DB_NULLGUID: TGuid                  = '{00000000-0000-0000-0000-000000000000}';
+  DBGUID_DEFAULT: TGuid               = '{C8B521FB-5CF3-11CE-ADE5-00AA0044773D}';
+  DBSCHEMA_TABLES: TGuid              = '{C8B52229-5CF3-11CE-ADE5-00AA0044773D}';
+  DBSCHEMA_COLUMNS: TGuid             = '{C8B52214-5CF3-11CE-ADE5-00AA0044773D}';
+  DBSCHEMA_INDEXES: TGuid             = '{C8B5221E-5CF3-11CE-ADE5-00AA0044773D}';
+  DBSCHEMA_FOREIGN_KEYS: TGuid        = '{C8B522C4-5CF3-11CE-ADE5-00AA0044773D}';
+  DBPROPSET_SQLSERVERPARAMETER: TGuid = '{FEE09128-A67D-47EA-8D40-24A1D4737E8D}';
 
   // PropIds for DBPROPSET_SQLSERVERPARAMETER
   SSPROP_PARAM_XML_SCHEMACOLLECTION_CATALOGNAME = 24;
-  SSPROP_PARAM_XML_SCHEMACOLLECTION_SCHEMANAME = 25;
-  SSPROP_PARAM_XML_SCHEMACOLLECTIONNAME = 26;
-  SSPROP_PARAM_UDT_CATALOGNAME = 27;
-  SSPROP_PARAM_UDT_SCHEMANAME = 28;
-  SSPROP_PARAM_UDT_NAME = 29;
-  SSPROP_PARAM_TYPE_CATALOGNAME = 38;
-  SSPROP_PARAM_TYPE_SCHEMANAME = 39;
-  SSPROP_PARAM_TYPE_TYPENAME = 40;
-  SSPROP_PARAM_TABLE_DEFAULT_COLUMNS = 41;
-  SSPROP_PARAM_TABLE_COLUMN_SORT_ORDER = 42;
+  SSPROP_PARAM_XML_SCHEMACOLLECTION_SCHEMANAME  = 25;
+  SSPROP_PARAM_XML_SCHEMACOLLECTIONNAME         = 26;
+  SSPROP_PARAM_UDT_CATALOGNAME                  = 27;
+  SSPROP_PARAM_UDT_SCHEMANAME                   = 28;
+  SSPROP_PARAM_UDT_NAME                         = 29;
+  SSPROP_PARAM_TYPE_CATALOGNAME                 = 38;
+  SSPROP_PARAM_TYPE_SCHEMANAME                  = 39;
+  SSPROP_PARAM_TYPE_TYPENAME                    = 40;
+  SSPROP_PARAM_TABLE_DEFAULT_COLUMNS            = 41;
+  SSPROP_PARAM_TABLE_COLUMN_SORT_ORDER          = 42;
 
-  DBTYPE_EMPTY = $00000000;
-  DBTYPE_NULL = $00000001;
-  DBTYPE_I2 = $00000002;
-  DBTYPE_I4 = $00000003;
-  DBTYPE_R4 = $00000004;
-  DBTYPE_R8 = $00000005;
-  DBTYPE_CY = $00000006;
-  DBTYPE_DATE = $00000007;
-  DBTYPE_BSTR = $00000008;
-  DBTYPE_IDISPATCH = $00000009;
-  DBTYPE_ERROR = $0000000A;
-  DBTYPE_BOOL = $0000000B;
-  DBTYPE_VARIANT = $0000000C;
-  DBTYPE_IUNKNOWN = $0000000D;
-  DBTYPE_DECIMAL = $0000000E;
-  DBTYPE_UI1 = $00000011;
-  DBTYPE_ARRAY = $00002000;
-  DBTYPE_BYREF = $00004000;
-  DBTYPE_I1 = $00000010;
-  DBTYPE_UI2 = $00000012;
-  DBTYPE_UI4 = $00000013;
-  DBTYPE_I8 = $00000014;
-  DBTYPE_UI8 = $00000015;
-  DBTYPE_GUID = $00000048;
-  DBTYPE_VECTOR = $00001000;
-  DBTYPE_RESERVED = $00008000;
-  DBTYPE_BYTES = $00000080;
-  DBTYPE_STR = $00000081;
-  DBTYPE_WSTR = $00000082;
-  DBTYPE_NUMERIC = $00000083;
-  DBTYPE_UDT = $00000084;
-  DBTYPE_DBDATE = $00000085;
-  DBTYPE_DBTIME = $00000086;
+  DBTYPE_EMPTY       = $00000000;
+  DBTYPE_NULL        = $00000001;
+  DBTYPE_I2          = $00000002;
+  DBTYPE_I4          = $00000003;
+  DBTYPE_R4          = $00000004;
+  DBTYPE_R8          = $00000005;
+  DBTYPE_CY          = $00000006;
+  DBTYPE_DATE        = $00000007;
+  DBTYPE_BSTR        = $00000008;
+  DBTYPE_IDISPATCH   = $00000009;
+  DBTYPE_ERROR       = $0000000A;
+  DBTYPE_BOOL        = $0000000B;
+  DBTYPE_VARIANT     = $0000000C;
+  DBTYPE_IUNKNOWN    = $0000000D;
+  DBTYPE_DECIMAL     = $0000000E;
+  DBTYPE_UI1         = $00000011;
+  DBTYPE_ARRAY       = $00002000;
+  DBTYPE_BYREF       = $00004000;
+  DBTYPE_I1          = $00000010;
+  DBTYPE_UI2         = $00000012;
+  DBTYPE_UI4         = $00000013;
+  DBTYPE_I8          = $00000014;
+  DBTYPE_UI8         = $00000015;
+  DBTYPE_GUID        = $00000048;
+  DBTYPE_VECTOR      = $00001000;
+  DBTYPE_RESERVED    = $00008000;
+  DBTYPE_BYTES       = $00000080;
+  DBTYPE_STR         = $00000081;
+  DBTYPE_WSTR        = $00000082;
+  DBTYPE_NUMERIC     = $00000083;
+  DBTYPE_UDT         = $00000084;
+  DBTYPE_DBDATE      = $00000085;
+  DBTYPE_DBTIME      = $00000086;
   DBTYPE_DBTIMESTAMP = $00000087;
-  DBTYPE_FILETIME = $00000040;
-  DBTYPE_DBFILETIME = $00000089;
+  DBTYPE_FILETIME    = $00000040;
+  DBTYPE_DBFILETIME  = $00000089;
   DBTYPE_PROPVARIANT = $0000008A;
-  DBTYPE_VARNUMERIC = $0000008B;
-  DBTYPE_TABLE = $0000008F; // introduced in SQL 2008
+  DBTYPE_VARNUMERIC  = $0000008B;
+  DBTYPE_TABLE       = $0000008F; // introduced in SQL 2008
 
   DBPARAMIO_NOTPARAM = $00000000;
-  DBPARAMIO_INPUT = $00000001;
-  DBPARAMIO_OUTPUT = $00000002;
+  DBPARAMIO_INPUT    = $00000001;
+  DBPARAMIO_OUTPUT   = $00000002;
 
   DBPARAMFLAGS_ISINPUT    = $00000001;
   DBPARAMFLAGS_ISOUTPUT   = $00000002;
@@ -131,25 +131,27 @@ const
   DBPARAMFLAGS_ISNULLABLE = $00000040;
   DBPARAMFLAGS_ISLONG     = $00000080;
 
-  DBPART_VALUE = $00000001;
+  DBPART_VALUE  = $00000001;
   DBPART_LENGTH = $00000002;
   DBPART_STATUS = $00000004;
 
-  DBMEMOWNER_CLIENTOWNED = $00000000;
+  DBMEMOWNER_CLIENTOWNED   = $00000000;
   DBMEMOWNER_PROVIDEROWNED = $00000001;
 
-  DBACCESSOR_ROWDATA = $00000002;
+  DBACCESSOR_ROWDATA       = $00000002;
   DBACCESSOR_PARAMETERDATA = $00000004;
-  DBACCESSOR_OPTIMIZED = $00000008;
+  DBACCESSOR_OPTIMIZED     = $00000008;
 
-  DB_E_CANCELED = HRESULT($80040E4E);
+  DB_E_CANCELED     = HRESULT($80040E4E);
   DB_E_NOTSUPPORTED = HRESULT($80040E53);
-  DBCOLUMNFLAGS_MAYBENULL = $00000040;
-  ISOLATIONLEVEL_READCOMMITTED = $00001000;
-  DBPROMPTOPTIONS_PROPERTYSHEET = $2;
-  DB_NULL_HCHAPTER = $00;
-  DB_S_ENDOFROWSET = $00040EC6;
-  XACTTC_SYNC = $00000002;
+
+  DBCOLUMNFLAGS_MAYBENULL       = $00000040;
+  ISOLATIONLEVEL_READCOMMITTED  = $00001000;
+
+  DBPROMPTOPTIONS_PROPERTYSHEET = $02;
+  DB_NULL_HCHAPTER              = $00;
+  DB_S_ENDOFROWSET              = $00040EC6;
+  XACTTC_SYNC                   = $00000002;
 
   MAXBOUND = 65535; { High bound for arrays }
 
@@ -161,7 +163,7 @@ const
   DBKIND_PROPID        = DBKIND_PGUID_PROPID + 1;
   DBKIND_GUID          = DBKIND_PROPID + 1;
 
-  IDList_type: WideString = 'IDList';
+  IDList_type:  WideString = 'IDList';
   StrList_TYPE: WideString = 'StrList';
 
 type
@@ -274,7 +276,7 @@ type
 
   PDBParams = ^TDBParams;
   TDBParams = record
-    pData: Pointer;
+    pData: pointer;
     cParamSets: PtrUInt;
     HACCESSOR: HACCESSOR;
   end;
@@ -532,7 +534,7 @@ type
     function AddRefRows(cRows: PtrUInt; rghRows: PPtrUIntArray;
       rgRefCounts, rgRowStatus: PCardinalArray): HRESULT; stdcall;
     /// Retrieves data from the rowset's copy of the row
-    function GetData(HROW: HROW; HACCESSOR: HACCESSOR; pData: Pointer): HRESULT; stdcall;
+    function GetData(HROW: HROW; HACCESSOR: HACCESSOR; pData: pointer): HRESULT; stdcall;
     /// Fetches rows sequentially, remembering the previous position
     // - this method has been modified from original OleDB.pas to allow direct
     // typecast of prghRows parameter to pointer(fRowStepHandles)
@@ -688,7 +690,7 @@ type
     function AddRefRows(cRows: PtrUInt; rghRows: PPtrUIntArray;
       rgRefCounts, rgRowStatus: PCardinalArray): HRESULT; stdcall;
     /// Retrieves data from the rowset's copy of the row
-    function GetData(HROW: HROW; HACCESSOR: HACCESSOR; pData: Pointer): HRESULT; virtual; stdcall;
+    function GetData(HROW: HROW; HACCESSOR: HACCESSOR; pData: pointer): HRESULT; virtual; stdcall;
     /// Fetches rows sequentially, remembering the previous position
     // - this method has been modified from original OleDB.pas to allow direct
     // typecast of prghRows parameter to pointer(fRowStepHandles)
@@ -718,7 +720,7 @@ type
     constructor Create(arr: TRawUtf8DynArray; aType: TSqlDBFieldType);
 
     function Initialize(pIOpenRowset: IOpenRowset): HRESULT;
-    function GetData(HROW: HROW; HACCESSOR: HACCESSOR; pData: Pointer): HRESULT; override; stdcall;
+    function GetData(HROW: HROW; HACCESSOR: HACCESSOR; pData: pointer): HRESULT; override; stdcall;
     function SetupAccessors(pIAccessorIDList: IAccessor): HRESULT; override;
 
     procedure FillRowData(pCurrentRec:PIDListRec);
@@ -782,7 +784,7 @@ begin
 end;
 
 function TBaseAggregatingRowset.GetData(HROW: HROW; HACCESSOR: HACCESSOR; pData:
-  Pointer): HResult;
+  pointer): HResult;
 begin
   result := S_OK;
 end;
@@ -817,9 +819,9 @@ begin
   begin
     if not Assigned(fUnkInnerSQLNCLIRowset) then
     begin
-      Pointer(Obj) := nil;
+      pointer(Obj) := nil;
       result := E_NOINTERFACE;
-      Exit;
+      exit;
     end;
     if IsEqualGuid(@IID, @IID_IRowset) then
       IUnknown(Obj) := self
@@ -931,7 +933,7 @@ begin
         begin
           tmp := UnQuoteSqlString(farr[curInd]);
           pCurrentRec.IDLen := (Length(tmp) + 1) * SizeOf(WideChar);
-          pCurrentRec.StrVal := Pointer(Utf8ToWideString(tmp));
+          pCurrentRec.StrVal := pointer(Utf8ToWideString(tmp));
         end
     else
       raise EOleDBException.CreateUtf8('Unsupported array parameter type %',
@@ -941,7 +943,7 @@ begin
 end;
 
 function TIDListRowset.GetData(HROW: HROW; HACCESSOR: HACCESSOR;
-  pData: Pointer): HResult;
+  pData: pointer): HResult;
 var
   currentRec: PIDListRec;
 begin

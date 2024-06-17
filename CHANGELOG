@@ -37,7 +37,7 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      reduced_speedstat_weight=0
+      settingname=defaultvalue
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -45,17 +45,36 @@
 
 --==============================( KNOWN BUGS )====================================-
 
-    Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
+
+--=============================( SLFTP v1.5.11 )==================================-
+    {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
+    {#} Fix build on BSD
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
     {+} Made regex for http pretime configurable (see slftp.ini). It now expects only one row of text from the remote endpoint
+    {+} You can now print the version of a slftp executable by adding the parameter -v or --version
+    {+} The new setting kill_connection_on_stalled_transfer_seconds allows to set a timeout in seconds after which a transfer that is stalled at
+        0 bytes gets killed (by closing the connection). This option can be set per site as well using !killconnectiononstalledtransfer. Stalled
+        transfers will be posted into the channel with role ERROR.
     {#} Fix bugs which caused some mp3 genres not to be recognized and setting mp3genres be ignored (#322)
+    {#} Fix 'Site down' spam on Admin channel
+    {#} Fix TV lookup issues with case sensitivity and show names that include a '
+    {#} Fix CD number calculation error when the release name contains a very large number
+    {#} Fix showing a file in race stats even if the transfer failed
+    {#} Fix sometimes transfering files with size 0 even if it is not configured to do so (by setting skip_being_uploaded_files)
+    {#} Fix some memory leaks
+    {#} Fix race condition leading to subdirs (Sample) not being detected at batch/spread (#64)
     {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
     {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
     {^} Improve caching of skiplist values for dirlist
     {^} Write race stats to the DB asynchronously
+    {^} Adjust parsing of the IMDB website because it has a new layout
+    {^} Various improvements for the reqfiller, racing/spreading, performance, slot management
+    {^} Upgraded to mORMot2 and updated other 3rd party libraries
+    {^} Show some more details at startup to see what's taking long
+    {^} Consider 'file not allowed' and 'bad zip' responses from pzs zipscript
 
 --=============================( SLFTP v1.5.9 )===================================-
     {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site

@@ -41,7 +41,7 @@ uses
 
 type
   LONG_PTR = PtrInt;
-  
+
   TTimeStamp = record
     dwLowDateTime: cardinal;
     dwHighDateTime: cardinal;
@@ -302,7 +302,7 @@ const
   SEC_I_CONTEXT_EXPIRED	       = $00090317;
   SEC_I_INCOMPLETE_CREDENTIALS = $00090320;
   SEC_I_RENEGOTIATE            = $00090321;
-  
+
   SEC_E_UNSUPPORTED_FUNCTION   = $80090302;
   SEC_E_INVALID_TOKEN          = $80090308;
   SEC_E_MESSAGE_ALTERED        = $8009030F;
@@ -412,7 +412,7 @@ type
   /// store a memory buffer during SChannel encryption
   TCryptDataBlob = record
     cbData: cardinal;
-    pbData: Pointer;
+    pbData: pointer;
   end;
 
   CTL_USAGE = record
@@ -476,7 +476,7 @@ const
 
 // crypt32.dll API calls
 
-function CertOpenStoreW(lpszStoreProvider: PWideChar; dwEncodingType: cardinal;
+function CertOpenStore(lpszStoreProvider: PAnsiChar; dwEncodingType: cardinal;
   hCryptProv: HCRYPTPROV; dwFlags: cardinal; pvPara: pointer): HCERTSTORE; stdcall;
 
 function CertOpenSystemStoreW(hProv: HCRYPTPROV;
@@ -502,6 +502,10 @@ function CertGetEnhancedKeyUsage(pCertContext: PCCERT_CONTEXT; dwFlags: cardinal
 
 function CertGetCertificateContextProperty(pCertContext: PCCERT_CONTEXT;
   dwPropId: cardinal; pvData: pointer; var pcbData: cardinal): BOOL; stdcall;
+
+function CryptAcquireCertificatePrivateKey(pCert: PCCERT_CONTEXT; dwFlags: cardinal;
+  pvReserved: pointer; var phCryptProv: HCRYPTPROV; var pdwKeySpec: cardinal;
+  var pfCallerFreeProv: BOOL): BOOL; stdcall;
 
 function CertFreeCertificateContext(pCertContext: PCCERT_CONTEXT): BOOL; stdcall;
 
@@ -711,7 +715,7 @@ function ClientSspiAuthWithPassword(var aSecContext: TSecContext;
 
 /// server-side authentication procedure
 // - aSecContext holds information between function calls
-// - aInData contains data recieved from client
+// - aInData contains data received from client
 // - aOutData contains data that must be sent to client
 // - if this function returns True, server must send aOutData to client
 // and call function again with the data returned from client
@@ -1027,7 +1031,7 @@ function FreeCredentialsHandle;      external secur32;
 const
   crypt32 = 'crypt32.dll';
 
-function CertOpenStoreW;                    external crypt32;
+function CertOpenStore;                     external crypt32;
 function CertOpenSystemStoreW;              external crypt32;
 function CertCloseStore;                    external crypt32;
 function CertFindCertificateInStore;        external crypt32;
@@ -1036,6 +1040,7 @@ function CertCreateCertificateContext;      external crypt32;
 function CertGetIntendedKeyUsage;           external crypt32;
 function CertGetEnhancedKeyUsage;           external crypt32;
 function CertGetCertificateContextProperty; external crypt32;
+function CryptAcquireCertificatePrivateKey; external crypt32;
 function CertFreeCertificateContext;        external crypt32;
 function CertNameToStrW;                    external crypt32;
 function CryptFindOIDInfo;                  external crypt32;
@@ -1365,12 +1370,10 @@ procedure WinCertName(var Name: CERT_NAME_BLOB; out Text: RawUtf8;
   StrType: cardinal);
 var
   len: PtrInt;
-  tmp: TSynTempBuffer;
+  tmp: array[0..4095] of WideChar;
 begin
-  len := CertNameToStrW(X509_ASN_ENCODING, Name, StrType, nil, 0);
-  len := CertNameToStrW(X509_ASN_ENCODING, Name, StrType, tmp.Init(len), len);
-  Win32PWideCharToUtf8(tmp.buf, len - 1, Text);
-  tmp.Done;
+  len := CertNameToStrW(X509_ASN_ENCODING, Name, StrType, @tmp, SizeOf(tmp));
+  Win32PWideCharToUtf8(@tmp, len - 1, Text);
 end;
 
 function WinCertDecode(const Asn1: RawByteString; out Cert: TWinCertInfo;
@@ -1576,7 +1579,7 @@ var
   OutDesc: TSecBufferDesc;
   CtxReqAttr: cardinal;
   CtxAttr: cardinal;
-  Status: Integer;
+  Status: integer;
 begin
   InBuf.BufferType := SECBUFFER_TOKEN;
   InBuf.cbBuffer := Length(aInData);
@@ -1642,7 +1645,7 @@ function ClientSspiAuthWithPassword(var aSecContext: TSecContext;
   const aPassword: SpiUtf8;  const aSecKerberosSpn: RawUtf8;
   out aOutData: RawByteString): boolean;
 var
-  UserPos, TargetPos: Integer;
+  UserPos, TargetPos: integer;
   Domain, User, Password: SynUnicode;
   AuthIdentity: TSecWinntAuthIdentityW;
   TargetName: PWideChar;
@@ -1696,7 +1699,7 @@ var
   OutBuf: TSecBuffer;
   OutDesc: TSecBufferDesc;
   CtxAttr: cardinal;
-  Status: Integer;
+  Status: integer;
 begin
   InBuf.BufferType := SECBUFFER_TOKEN;
   InBuf.cbBuffer := Length(aInData);

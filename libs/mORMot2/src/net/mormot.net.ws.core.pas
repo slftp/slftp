@@ -174,7 +174,7 @@ type
     // - allow to gather output frames in ProcessLoopStepSend
     // - GetTickCount64 resolution is around 16ms on Windows and 4ms on Linux,
     // so default 10 ms value seems fine for a cross-platform similar behavior
-    // (resulting in a 16ms period on Windows, and a 12ms period on Linux)
+    // (resulting in a <16ms period on Windows, and <12ms period on Linux)
     SendDelay: cardinal;
     /// will close the connection after a given number of invalid Heartbeat sent
     // - when a Hearbeat is failed to be transmitted, the class will start
@@ -769,7 +769,7 @@ type
       out RequestProcess: TOnHttpServerRequest): THttpServerRequestAbstract;
         virtual; abstract;
     procedure Log(const frame: TWebSocketFrame; const aMethodName: ShortString;
-      aEvent: TSynLogInfo = sllTrace; DisableRemoteLog: boolean = false); virtual;
+      aEvent: TSynLogLevel = sllTrace; DisableRemoteLog: boolean = false); virtual;
     function SendPendingOutgoingFrames: integer;
     function HiResDelay(var start: Int64): Int64;
   public
@@ -1478,10 +1478,10 @@ begin
       // prepare the HTTP request from input frame
       if (Ctxt = nil) or
          (not Assigned(onRequest)) then
-        raise EWebSockets.CreateUtf8('%.ProcessOne: onRequest=nil', [self]);
+        EWebSockets.RaiseUtf8('%.ProcessOne: onRequest=nil', [self]);
       if (head = '') or
          not FrameToInput(request, noAnswer, Ctxt) then
-        raise EWebSockets.CreateUtf8('%.ProcessOne: invalid frame', [self]);
+        EWebSockets.RaiseUtf8('%.ProcessOne: invalid frame', [self]);
       request.payload := ''; // release memory ASAP
       if fUpgradeBearerToken <> '' then
         Ctxt.AuthBearer := fUpgradeBearerToken; // re-pass the HTTP bearer
@@ -1562,7 +1562,7 @@ begin
     if Method = '' then
       Method := 'POST';
     // return the decoded WebSockets frame as a regular HTTP request
-    Ctxt.Prepare(
+    Ctxt.PrepareDirect(
       URL, Method, InHeaders, InContent, InContentType, fRemoteIP);
     aNoAnswer := NoAnswer = '1';
   end;
@@ -1632,19 +1632,19 @@ begin
   frame.tix := 0;
   WR := TJsonWriter.CreateOwnedStream(tmp);
   try
-    WR.Add('{');
+    WR.AddDirect('{');
     WR.AddFieldName(Head);
-    WR.Add('[');
+    WR.AddDirect('[');
     for i := 0 to High(Values) do
     begin
       WR.AddJsonEscape(Values[i]);
       WR.AddComma;
     end;
-    WR.Add('"');
+    WR.AddDirect('"');
     WR.AddString(ContentType);
-    WR.Add('"', ',');
+    WR.AddDirect('"', ',');
     if Content = '' then
-      WR.Add('"', '"')
+      WR.AddDirect('"', '"')
     else if (ContentType = '') or
             PropNameEquals(ContentType, JSON_CONTENT_TYPE) then
       WR.AddNoJsonEscape(pointer(Content), length(Content))
@@ -1652,7 +1652,7 @@ begin
       WR.AddJsonString(Content)
     else
       WR.WrBase64(pointer(Content), length(Content), true);
-    WR.Add(']', '}');
+    WR.AddDirect(']', '}');
     WR.SetText(RawUtf8(frame.payload));
   finally
     WR.Free;
@@ -1787,7 +1787,7 @@ begin
   len := 0;
   for i := 0 to FramesCount - 1 do
     if Frames[i].opcode <> focText then
-      raise EWebSockets.CreateUtf8('%.SendFrames: unexpected %',
+      EWebSockets.RaiseUtf8('%.SendFrames: unexpected %',
         [self, ToText(Frames[i].opcode)])
     else
       inc(len, enc[i].Prepare(Frames[i], Owner.fMaskSentFrames));
@@ -1865,7 +1865,7 @@ begin
     inc(len, ToVarUInt32LengthWithData(it^.Len));
     inc(it);
   end;
-  FastSetRawByteString(frame.payload, nil, len);
+  FastNewRawByteString(frame.payload, len);
   P := AppendRawUtf8ToBuffer(pointer(frame.payload), Head);
   P^ := FRAME_HEAD_SEP;
   inc(P);
@@ -1966,7 +1966,7 @@ begin
     begin
       res := fEncryption.Decrypt(frame.payload, value);
       if res <> sprSuccess then
-        raise EWebSockets.CreateUtf8('%.AfterGetFrame: encryption error %',
+        EWebSockets.RaiseUtf8('%.AfterGetFrame: encryption error %',
           [self, ToText(res)^]);
     end
     else
@@ -2029,9 +2029,9 @@ begin
     if Frames[i].opcode = focBinary then
       inc(len, ToVarUInt32LengthWithData(length(Frames[i].payload)))
     else
-      raise EWebSockets.CreateUtf8('%.SendFrames[%]: Unexpected opcode=%',
+      EWebSockets.RaiseUtf8('%.SendFrames[%]: Unexpected opcode=%',
         [self, i, ord(Frames[i].opcode)]);
-  FastSetRawByteString(jumboFrame.payload, nil, len);
+  FastNewRawByteString(jumboFrame.payload, len);
   P := pointer(jumboFrame.payload);
   MoveFast(JUMBO_HEADER, P^, SizeOf(JUMBO_HEADER));
   inc(P, SizeOf(JUMBO_HEADER));
@@ -2148,7 +2148,7 @@ constructor TWebSocketProtocolUri.Create(const aName, aPublicUri: RawUtf8;
 begin
   // validate and compute the NewUri prefix
   if aPublicUri = '' then
-    raise EJwtException.CreateUtf8('%.Create uri=%', [self, aPublicUri]);
+    EJwtException.RaiseUtf8('%.Create uri=''''', [self]);
   fPublicUri := aPublicUri;
   AppendCharOnceToRawUtf8(fPublicUri, '/');
   // initialize the generator and associated record RTTI
@@ -2440,7 +2440,7 @@ begin
   // return the 101 header and switch protocols
   ComputeChallenge(key, Digest);
   if {%H-}extout <> '' then
-    extout := 'Sec-WebSocket-Extensions: ' + extout + #13#10;
+    extout := Make(['Sec-WebSocket-Extensions: ', extout, #13#10]);
   FormatUtf8('HTTP/1.1 101 Switching Protocols'#13#10 +
              'Upgrade: websocket'#13#10 +
              'Connection: Upgrade'#13#10 +
@@ -2641,7 +2641,7 @@ end;
 procedure TWebSocketProcess.SetLastPingTicks;
 begin
   if fNoLastSocketTicks then
-    raise EWebSockets.CreateUtf8('Unexpected %.LastPingDelay', [self]);
+    EWebSockets.RaiseUtf8('Unexpected %.LastPingDelay', [self]);
   fLastSocketTicks := GetTickCount64;
   fInvalidPingSendCount := 0;
 end;
@@ -2649,7 +2649,7 @@ end;
 function TWebSocketProcess.LastPingDelay: Int64;
 begin
   if fNoLastSocketTicks then
-    raise EWebSockets.CreateUtf8('Unexpected %.LastPingDelay', [self]);
+    EWebSockets.RaiseUtf8('Unexpected %.LastPingDelay', [self]);
   result := GetTickCount64 - fLastSocketTicks;
 end;
 
@@ -2934,7 +2934,7 @@ begin
 end;
 
 procedure TWebSocketProcess.Log(const frame: TWebSocketFrame;
-  const aMethodName: ShortString; aEvent: TSynLogInfo; DisableRemoteLog: boolean);
+  const aMethodName: ShortString; aEvent: TSynLogLevel; DisableRemoteLog: boolean);
 
   procedure DoLog(log: TSynLog);
   var
@@ -2968,7 +2968,7 @@ begin
       if aEvent in Level then
         if (logHeartbeat in fSettings.LogDetails) or
            not (frame.opcode in [focPing, focPong]) then
-          DoLog(SynLog);
+          DoLog(Add);
 end;
 
 function TWebSocketProcess.GetFrame(out Frame: TWebSocketFrame;
@@ -3055,7 +3055,7 @@ begin
       exit;
     end
     else
-      raise EWebSockets.CreateUtf8('SockInPending() Error % on %:% - from %',
+      EWebSockets.RaiseUtf8('SockInPending() Error % on %:% - from %',
         [fSocket.LastLowSocketError, fSocket.Server, fSocket.Port, fProtocol.fRemoteIP]);
   result := (pending > 0); // assume if we got 1 byte, we are likely to have two
 end;
@@ -3127,14 +3127,14 @@ begin
     else
       hdr.len32 := bswap32(hdr.len64);
     if hdr.len32 > WebSocketsMaxFrameMB shl 20 then
-      raise EWebSockets.CreateUtf8('%.GetFrame: length = % should be < % MB',
+      EWebSockets.RaiseUtf8('%.GetFrame: length = % should be < % MB',
         [process, KB(hdr.len32), WebSocketsMaxFrameMB]);
   end;
   if masked then
   begin
     len := 0; // not appended to hdr
     if not HasBytes(@hdr.mask, 4) then
-      raise EWebSockets.CreateUtf8('%.GetFrame: truncated mask', [process]);
+      EWebSockets.RaiseUtf8('%.GetFrame: truncated mask', [process]);
   end;
   len := 0; // prepare upcoming GetData
   result := true;
@@ -3143,7 +3143,7 @@ end;
 function TWebProcessInFrame.GetData: boolean;
 begin
   if length(data) <> integer(hdr.len32) then
-    FastSetRawByteString(data, nil, hdr.len32);
+    FastNewRawByteString(data, hdr.len32);
   result := HasBytes(pointer(data), hdr.len32);
   if result then
   begin
@@ -3192,7 +3192,7 @@ begin
               ErrorWithoutException^ := -1;
             end
             else
-              raise EWebSockets.CreateUtf8('%.GetFrame: received %, expected %',
+              EWebSockets.RaiseUtf8('%.GetFrame: received %, expected %',
                 [process, _TWebSocketFrameOpCode[opcode]^,
                  _TWebSocketFrameOpCode[outputframe.opcode]^]);
           end
@@ -3275,7 +3275,7 @@ begin
     exit;
   tmp.opcode := frame.opcode;
   tmp.content := frame.content;
-  FastSetRawByteString(tmp.payload, Pointer(frame.payload), length(frame.payload));
+  FastSetRawByteString(tmp.payload, pointer(frame.payload), length(frame.payload));
   result := Sender.SendFrame(tmp)
 end;
 

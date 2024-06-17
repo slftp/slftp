@@ -420,7 +420,7 @@ begin
       aDataSet.Post;
     end;
     aDataSet.First;
-    result := True;
+    result := true;
   finally
     if prev.Active then
     begin
@@ -488,7 +488,7 @@ begin
   if Assigned(fProvider) then
     SetProvider(fProvider);
   if fProvider.DataSet = self then
-    raise ESQLDBException.CreateUtf8('Circular %.OpenCursor', [self]);
+    ESqlDBException.RaiseUtf8('Circular %.OpenCursor', [self]);
   inherited OpenCursor(InfoQuery);
 end;
 

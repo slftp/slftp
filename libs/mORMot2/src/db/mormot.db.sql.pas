@@ -699,6 +699,7 @@ type
     // SQL statement will be part of the exception message
     // - will also call SetDbError() with the resulting message text
     constructor CreateUtf8(const Format: RawUtf8; const Args: array of const);
+      override;
   published
     /// associated TSqlDBStatement instance, if supplied as first parameter
     property Statement: TSqlDBStatement
@@ -778,7 +779,11 @@ type
     function ColumnCurrency(Col: integer): currency; overload;
     /// return a Column UTF-8 encoded text value of the current Row, first Col is 0
     function ColumnUtf8(Col: integer): RawUtf8; overload;
-    /// return a Column text value as generic VCL string of the current Row, first Col is 0
+    /// return a Column UTF-8 text buffer of the current Row, first Col is 0
+    // - low-level function: may return nil if not supported by the provider
+    // - returned pointer is likely to last only until next Step or Reset call
+    function ColumnPUtf8(Col: integer): PUtf8Char;
+    /// return a Column text value as RTL string of the current Row, first Col is 0
     function ColumnString(Col: integer): string; overload;
     /// return a Column as a blob value of the current Row, first Col is 0
     function ColumnBlob(Col: integer): RawByteString; overload;
@@ -828,7 +833,7 @@ type
     function ColumnCurrency(const ColName: RawUtf8): currency; overload;
     /// return a Column UTF-8 encoded text value of the current Row, from a supplied column name
     function ColumnUtf8(const ColName: RawUtf8): RawUtf8; overload;
-    /// return a Column text value as generic VCL string of the current Row, from a supplied column name
+    /// return a Column text value as RTL string of the current Row, from a supplied column name
     function ColumnString(const ColName: RawUtf8): string; overload;
     /// return a Column as a blob value of the current Row, from a supplied column name
     function ColumnBlob(const ColName: RawUtf8): RawByteString; overload;
@@ -1102,7 +1107,7 @@ type
     // - JSON data is retrieved with UTF-8 encoding
     // - if Expanded is true, JSON output is a standard array of objects, for
     // direct use with any Ajax or .NET client:
-    // & [{"f1":"1v1","f2":1v2},{"f2":"2v1","f2":2v2}...]
+    // & [{"f1":"1v1","f2":1v2},{"f1":"2v1","f2":2v2}...]
     // - if Expanded is false, JSON data is serialized in non-expanded format:
     // & {"fieldCount":2,"values":["f1","f2","1v1",1v2,"2v1",2v2...],"rowCount":20}
     // resulting in lower space use and faster process - it could be parsed by
@@ -1261,7 +1266,7 @@ type
     fUseCache, fStoreVoidStringAsNull, fLogSqlStatementOnException,
     fRollbackOnDisconnect, fReconnectAfterConnectionError,
     fEnsureColumnNameUnique, fFilterTableViewSchemaName,
-    fNoBlobBindArray: boolean;
+    fNoBlobBindArray, fIsThreadSafe: boolean;
     {$ifndef UNICODE}
     fVariantWideString: boolean;
     {$endif UNICODE}
@@ -1727,7 +1732,7 @@ type
       AStmt: TSelectStatement): TSqlDBDefinitionLimitClause; virtual;
     /// determine if the SQL statement can be cached
     // - used by TSqlDBConnection.NewStatementPrepared() for handling cache
-    function IsCachable(P: PUtf8Char): boolean; virtual;
+    function IsCacheable(P: PUtf8Char): boolean; virtual;
     /// check if a primary key has already an index
     // - can specify if it is ascending only, which is not the case for Firebird
     function IsPrimaryKeyIndexed(var AscendingOnly: boolean): boolean; virtual;
@@ -1941,7 +1946,6 @@ type
     fProperties: TSqlDBConnectionProperties;
     fErrorException: ExceptClass;
     fErrorMessage: RawUtf8;
-    fTransactionCount: integer;
     fServerTimestampOffset: TDateTime;
     fCacheSafe: TOSLightLock; // protect fCache - warning: not reentrant!
     fCache: TRawUtf8List; // statements cache
@@ -1949,9 +1953,11 @@ type
     fCacheLastIndex: integer;
     fTotalConnectionCount: integer;
     fInternalProcessActive: integer;
-    fRollbackOnDisconnect: boolean;
+    fTransactionCount: integer;
     fLastAccessTicks: Int64;
     fOnProcess: TOnSqlDBProcess;
+    fOwned: TObjectDynArray;
+    fRollbackOnDisconnect: boolean;
     function IsOutdated(tix: Int64): boolean; // do not make virtual nor inline
     function GetInTransaction: boolean; virtual;
     function GetServerTimestamp: TTimeLog;
@@ -1966,11 +1972,20 @@ type
     constructor Create(aProperties: TSqlDBConnectionProperties); reintroduce; virtual;
     /// release memory and connection
     destructor Destroy; override;
+    /// retrieve one object owned by a thread-safe connection instance
+    // - may be used e.g. to reuse some internal processing objects
+    // - returns nil if SetThreadOwned() was not previously called
+    function GetThreadOwned(aClass: TClass): pointer;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// register one object owned by a thread-safe connection instance
+    // - returns the supplied aObject instance as a fluid-interface mechanism
+    // - raise an ESqlDBException if not a TSqlDBConnectionPropertiesThreadSafe
+    function SetThreadOwned(aObject: TObject): pointer;
 
     /// connect to the specified database
     // - should raise an Exception on error
     // - this default implementation will notify OnProgress callback for
-    // sucessfull re-connection: it should be called in overridden methods
+    // successful re-connection: it should be called in overridden methods
     // AFTER actual connection process
     procedure Connect; virtual;
     /// stop connection to the specified database
@@ -2052,7 +2067,7 @@ type
     /// returns TRUE if the connection was set
     property Connected: boolean
       read IsConnected;
-    /// number of sucessfull connections for this instance
+    /// number of successful connections for this instance
     // - can be greater than 1 in case of re-connection via Disconnect/Connect
     property TotalConnectionCount: integer
       read fTotalConnectionCount;
@@ -2115,7 +2130,7 @@ type
     fForceBlobAsNull: boolean;
     fForceDateWithMS: boolean;
     fDbms: TSqlDBDefinition;
-    fSqlLogLevel: TSynLogInfo;
+    fSqlLogLevel: TSynLogLevel;
     fSql: RawUtf8;
     fCache: TSqlDBStatementCache;
     fSqlLogLog: TSynLog;
@@ -2148,13 +2163,13 @@ type
     /// return the associated statement instance for a ISqlDBRows interface
     function Instance: TSqlDBStatement;
     /// wrappers to compute sllSQL/sllDB/sllResult SQL context with a local timer
-    function SqlLogBegin(Level: TSynLogInfo): TSynLog;
+    function SqlLogBegin(Level: TSynLogLevel): TSynLog;
       {$ifdef HASINLINE} inline; {$endif}
     function SqlLogEnd(const Fmt: RawUtf8; const Args: array of const): Int64; overload;
     function SqlLogEnd(Msg: PShortString = nil): Int64; overload;
       {$ifdef HASINLINE} inline; {$endif}
     {$ifndef SYNDB_SILENCE}
-    function DoSqlLogBegin(Log: TSynLogFamily; Level: TSynLogInfo): TSynLog;
+    function DoSqlLogBegin(Log: TSynLogFamily; Level: TSynLogLevel): TSynLog;
     function DoSqlLogEnd(Msg: PShortString): Int64;
     {$endif SYNDB_SILENCE}
   public
@@ -2462,7 +2477,11 @@ type
     function ColumnCurrency(Col: integer): currency; overload; virtual; abstract;
     /// return a Column UTF-8 encoded text value of the current Row, first Col is 0
     function ColumnUtf8(Col: integer): RawUtf8; overload; virtual; abstract;
-    /// return a Column text value as generic VCL string of the current Row, first Col is 0
+    /// return a Column UTF-8 text buffer of the current Row, first Col is 0
+    // - default implementation returning nil, i.e. not supported by this provider
+    // - returned pointer is likely to last only until next Step or Reset call
+    function ColumnPUtf8(Col: integer): PUtf8Char; virtual;
+    /// return a Column text value as RTL string of the current Row, first Col is 0
     // - this default implementation will call ColumnUtf8
     function ColumnString(Col: integer): string; overload; virtual;
     /// return a Column as a blob value of the current Row, first Col is 0
@@ -2520,7 +2539,7 @@ type
     function ColumnCurrency(const ColName: RawUtf8): currency; overload;
     /// return a Column UTF-8 encoded text value of the current Row, from a supplied column name
     function ColumnUtf8(const ColName: RawUtf8): RawUtf8; overload;
-    /// return a Column text value as generic VCL string of the current Row, from a supplied column name
+    /// return a Column text value as RTL string of the current Row, from a supplied column name
     function ColumnString(const ColName: RawUtf8): string; overload;
     /// return a Column as a blob value of the current Row, from a supplied column name
     function ColumnBlob(const ColName: RawUtf8): RawByteString; overload;
@@ -2560,6 +2579,7 @@ type
     // - this default method will raise an exception about unexpected behavior
     function ColumnCursor(const ColName: RawUtf8): ISqlDBRows; overload;
     /// append a Column as a JSON value, first Col is 0
+    // - in practice, this method is always overriden, so never called as such
     procedure ColumnToJson(Col: integer; W: TJsonWriter); virtual;
     /// append all columns values of the current Row to a JSON stream
     // - will use WR.Expand to guess the expected output format
@@ -2862,7 +2882,7 @@ type
     // - the leftmost SQL parameter has an index of 1
     procedure BindTextP(Param: integer; Value: PUtf8Char;
       IO: TSqlDBParamInOutType = paramIn); overload; override;
-    /// bind a VCL string to a parameter
+    /// bind a RTL string to a parameter
     // - the leftmost SQL parameter has an index of 1
     // - raise an Exception on any error
     procedure BindTextS(Param: integer; const Value: string;
@@ -3174,7 +3194,7 @@ begin
     exit;
   result := ndx;
   // parse SQL and replace ? into $n $nn $nnn
-  FastSetString(aNewSql, nil, L);
+  FastSetString(aNewSql, L);
   s := pointer(aSql);
   d := pointer(aNewSql);
   ndx := 0;
@@ -3271,7 +3291,7 @@ begin
     dec(n);
   until n = 0;
   // generate the output JSON
-  FastSetString(Result, nil, L);
+  FastSetString(Result, L);
   d := pointer(Result);
   d^ := Open;
   inc(d);
@@ -3411,7 +3431,7 @@ var
 begin
   smt := TSqlDBStatement(Instance.VPointer);
   if smt = nil then
-    raise ESqlDBException.CreateUtf8('Invalid % call', [self]);
+    ESqlDBException.RaiseUtf8('Invalid % call', [self]);
   FastSetString(col, Name, NameLen);
   ndx := smt.ColumnIndex(col);
   result := ndx >= 0;
@@ -3628,7 +3648,7 @@ end;
 
 function TSqlDBConnectionProperties.{%H-}NewConnection: TSqlDBConnection;
 begin
-  raise ESqlDBException.CreateUtf8('%.NewConnection', [self]);
+  raise ESqlDBException.CreateUtf8('Unexpected %.NewConnection', [self]);
 end;
 
 function TSqlDBConnectionProperties.ThreadSafeConnection: TSqlDBConnection;
@@ -3682,7 +3702,7 @@ begin
         if t^.SessionID = SessionID then
         begin
           if result <> t^.Connection then
-            raise ESqlDBException.CreateUtf8(
+            ESqlDBException.RaiseUtf8(
               '%.SharedTransaction(sessionID=%) with mixed connections: % and %',
               [self, SessionID, result, t^.Connection]);
           if action = transBegin then
@@ -3713,7 +3733,7 @@ begin
           t := pointer(fSharedTransactions);
           for i := 1 to n do
             if t^.Connection = result then
-              raise ESqlDBException.CreateUtf8(
+              ESqlDBException.RaiseUtf8(
                 'Dup %.SharedTransaction(sessionID=%,transBegin) sessionID=%',
                 [self, SessionID, t^.SessionID])
             else
@@ -3725,7 +3745,7 @@ begin
           t^.Connection := result;
         end
         else
-          raise ESqlDBException.CreateUtf8('Unexpected %.SharedTransaction(%,%)',
+          ESqlDBException.RaiseUtf8('Unexpected %.SharedTransaction(%,%)',
             [self, SessionID, ord(action)]);
     finally
       fSharedTransactionsSafe.Unlock;
@@ -3796,7 +3816,7 @@ const
     nil);
   _LASTCACHEABLE = 0; // following items in _CACHEABLE[] should not be cached
 
-function TSqlDBConnectionProperties.IsCachable(P: PUtf8Char): boolean;
+function TSqlDBConnectionProperties.IsCacheable(P: PUtf8Char): boolean;
 var
   c: PtrInt;
   selectWithNoParamOrWhere: boolean;
@@ -4393,7 +4413,7 @@ begin
   begin
     ProcName := aProcName;
     SetSchemaNameToOwner(Owner);
-    Exit;
+    exit;
   end;
   case fDbms of
     dSQLite:
@@ -5172,7 +5192,7 @@ begin
   GetIndexes(aTableName, indexes);
   for i := 0 to high(indexes) do
   begin
-    colname := TrimU(GetCsvItem(pointer(indexes[i].KeyColumns), 0));
+    colname := TrimU(GetFirstCsvItem(indexes[i].KeyColumns));
     if colname <> '' then
       for j := 0 to high(Fields) do
         if PropNameEquals(Fields[j].ColumnName, colname) then
@@ -5240,14 +5260,14 @@ var
   procedure ComputeSql(rowcount, offset: integer);
   var
     f, r, p, len: PtrInt;
-    W: TJsonWriter;
+    W: TTextWriter;
     tmp: TTextWriterStackBuffer;
   begin
     if (fDbms <> dFireBird) and
        (rowcount = prevrowcount) then
       exit;
     prevrowcount := rowcount;
-    W := TJsonWriter.CreateOwnedStream(tmp);
+    W := TTextWriter.CreateOwnedStream(tmp);
     try
       case Props.fDbms of
         dFirebird:
@@ -5258,7 +5278,7 @@ var
             begin
               for f := 0 to maxf do
               begin
-                W.Add('i');
+                W.AddDirect('i');
                 inc(p);
                 W.AddU(p);
                 if FieldValues[f, r] = 'null' then
@@ -5282,7 +5302,7 @@ var
                 W.AddShorter('=?,');
               end;
               W.CancelLastComma;
-              W.Add(#10, ',');
+              W.AddDirect(#10, ',');
             end;
             W.CancelLastComma;
             W.AddShort(') as begin'#10);
@@ -5291,7 +5311,7 @@ var
             begin
               EncodeInsertPrefix(W, BatchOptions, dFirebird);
               W.AddString(TableName);
-              W.Add(' ', '(');
+              W.AddDirect(' ', '(');
               for f := 0 to maxf do
               begin
                 W.AddString(FieldNames[f]);
@@ -5302,7 +5322,7 @@ var
               for f := 0 to maxf do
               begin
                 inc(p);
-                W.Add(':', 'i');
+                W.AddDirect(':', 'i');
                 W.AddU(p);
                 W.AddComma;
               end;
@@ -5311,7 +5331,7 @@ var
             end;
             W.AddShorter('end');
             if W.TextLength > 32700 then
-              raise ESqlDBException.CreateUtf8(
+              ESqlDBException.RaiseUtf8(
                 '%.MultipleValuesInsert: Firebird Execute Block length=%',
                 [self, W.TextLength]);
             sqlcached := false; // ftUtf8 values will have varying field length
@@ -5324,7 +5344,7 @@ var
             begin
               W.AddShorter('into ');
               W.AddString(TableName);
-              W.Add(' ', '(');
+              W.AddDirect(' ', '(');
               for f := 0 to maxf do
               begin
                 W.AddString(FieldNames[f]);
@@ -5335,7 +5355,7 @@ var
               for f := 0 to maxf do
                 W.Add('?', ',');
               W.CancelLastComma;
-              W.Add(')', #10);
+              W.AddDirect(')', #10);
             end;
             W.AddShort('select 1 from dual');
             sqlcached := true;
@@ -5346,7 +5366,7 @@ var
           // INSERT .. VALUES (..),(..),(..),..
           EncodeInsertPrefix(W, BatchOptions, Props.fDbms);
           W.AddString(TableName);
-          W.Add(' ', '(');
+          W.AddDirect(' ', '(');
           for f := 0 to maxf do
           begin
             W.AddString(FieldNames[f]);
@@ -5356,11 +5376,11 @@ var
           W.AddShort(') values ');
           for r := 1 to rowcount do
           begin
-            W.Add('(');
+            W.AddDirect('(');
             for f := 0 to maxf do
               W.Add('?', ',');
             W.CancelLastComma;
-            W.Add(')', ',');
+            W.AddDirect(')', ',');
           end;
           W.CancelLastComma;
           sqlcached := true;
@@ -5383,7 +5403,7 @@ begin
      (FieldNames = nil) or
      (TableName = '') or
      (length(FieldValues) <> maxf) then
-    raise ESqlDBException.CreateUtf8('Invalid %.MultipleValuesInsert(%) call',
+    ESqlDBException.RaiseUtf8('Invalid %.MultipleValuesInsert(%) call',
       [self, TableName]);
   batchRowCount := 0;
   paramCountLimit := DB_PARAMSMAX[Props.fDbms];
@@ -5405,7 +5425,7 @@ begin
     else
       batchRowCount := RowCount;
   if batchRowCount = 0 then
-    raise ESqlDBException.CreateUtf8(
+    ESqlDBException.RaiseUtf8(
       '%.MultipleValuesInsert(%) with # params = %>%',
       [self, TableName, RowCount * maxf, paramCountLimit]);
   dec(maxf);
@@ -5436,7 +5456,7 @@ begin
       end;
     end;
     if query = nil then
-      raise ESqlDBException.CreateUtf8(
+      ESqlDBException.RaiseUtf8(
         '%.MultipleValuesInsert: query=nil for [%]', [self, sql]);
     try
       p := 1;
@@ -5462,7 +5482,7 @@ procedure TSqlDBConnectionProperties.MultipleValuesInsertFirebird(
   RowCount: integer; const FieldValues: TRawUtf8DynArrayDynArray;
   BatchOptions: TRestBatchOptions);
 var
-  W: TJsonWriter;
+  W: TTextWriter;
   maxf, sqllenwitoutvalues, sqllen, r, f, i: PtrInt;
   v: RawUtf8;
 begin
@@ -5472,7 +5492,7 @@ begin
      (TableName = '') or
      (length(FieldValues) <> maxf) or
      (Props.fDbms <> dFirebird) then
-    raise ESqlDBException.CreateUtf8(
+    ESqlDBException.RaiseUtf8(
       'Invalid %.MultipleValuesInsertFirebird(%,%)', [self, Props, TableName]);
   sqllenwitoutvalues := 3 * maxf + 24;
   dec(maxf);
@@ -5490,7 +5510,7 @@ begin
     else
       inc(sqllenwitoutvalues, Length(FieldNames[f]));
     end;
-  W := TJsonWriter.CreateOwnedStream(49152);
+  W := TTextWriter.CreateOwnedStream(49152);
   try
     r := 0;
     repeat
@@ -5503,7 +5523,7 @@ begin
           break;
         EncodeInsertPrefix(W, BatchOptions, dFirebird);
         W.AddString(TableName);
-        W.Add(' ', '(');
+        W.AddDirect(' ', '(');
         for f := 0 to maxf do
         begin
           W.AddString(FieldNames[f]);
@@ -5725,7 +5745,7 @@ var
 begin
   c := ClassFrom(aDefinition);
   if c = nil then
-    raise ESqlDBException.CreateUtf8('%.CreateFrom: unknown % class - please ' +
+    ESqlDBException.RaiseUtf8('%.CreateFrom: unknown % class - please ' +
       'add a reference to its implementation unit', [self, aDefinition.Kind]);
   result := c.Create(aDefinition.ServerName, aDefinition.DatabaseName,
     aDefinition.User, aDefinition.PassWordPlain);
@@ -5773,7 +5793,7 @@ begin
       ftBlob:
         BindBlob(Param, VBlob, VBlobLen, IO);
     else
-      raise ESqlDBException.CreateUtf8('%.Bind(Param=%,VType=%)',
+      ESqlDBException.RaiseUtf8('%.Bind(Param=%,VType=%)',
         [self, Param, ord(VType)]);
     end;
 end;
@@ -5823,7 +5843,7 @@ begin
           BindTextU(Param, tmp, IO);
         end;
     else
-      raise ESqlDBException.CreateUtf8(
+      ESqlDBException.RaiseUtf8(
         'Invalid %.Bind(%,TSqlDBFieldType(%),%)',
         [self, Param, ord(ParamType), Value]);
     end;
@@ -5909,12 +5929,12 @@ begin
           if VPointer = nil then
             BindNull(i, IO)
           else
-            raise ESqlDBException.CreateUtf8(
+            ESqlDBException.RaiseUtf8(
               'Unexpected %.Bind() pointer', [self]);
         vtVariant:
           BindVariant(i, VVariant^, VariantIsBlob(VVariant^), IO);
       else
-        raise ESqlDBException.CreateUtf8(
+        ESqlDBException.RaiseUtf8(
           '%.BindArrayOfConst(Param=%,Type=%)', [self, i, VType]);
       end;
 end;
@@ -5966,7 +5986,7 @@ begin
       {$ifdef HASVARUSTRING}
       varUString:
         if DataIsBlob then
-          raise ESqlDBException.CreateUtf8(
+          ESqlDBException.RaiseUtf8(
             '%.BindVariant: BLOB should not be UnicodeString', [self])
         else
           BindTextU(Param, UnicodeStringToUtf8(UnicodeString(VAny)), IO);
@@ -6009,7 +6029,7 @@ begin
      (fConnection = nil) or
      (fConnection.fProperties.BatchSendingAbilities *
       [cCreate, cUpdate, cDelete] = []) then
-    raise ESqlDBException.CreateUtf8(
+    ESqlDBException.RaiseUtf8(
       'Invalid call to %.BindArray(Param=%,Type=%)',
       [self, Param, ToText(ParamType)^]);
 end;
@@ -6056,7 +6076,7 @@ end;
 
 procedure TSqlDBStatement.CheckColInvalid(Col: integer);
 begin
-  raise ESqlDBException.CreateUtf8(
+  ESqlDBException.RaiseUtf8(
     'Invalid call to %.Column*(Col=%)', [self, Col]);
 end;
 
@@ -6097,6 +6117,11 @@ begin
     result := fColumnCount;
 end;
 
+function TSqlDBStatement.ColumnPUtf8(Col: integer): PUtf8Char;
+begin
+  result := nil; // not supported by this class yet
+end;
+
 function TSqlDBStatement.ColumnBlobBytes(Col: integer): TBytes;
 begin
   RawByteStringToBytes(ColumnBlob(Col), result);
@@ -6112,7 +6137,7 @@ end;
 
 procedure TSqlDBStatement.ColumnBlobFromStream(Col: integer; Stream: TStream);
 begin
-  raise ESqlDBException.CreateUtf8(
+  ESqlDBException.RaiseUtf8(
     '%.ColumnBlobFromStream not implemented', [self]);
 end;
 
@@ -6167,7 +6192,7 @@ begin
                not fConnection.Properties.VariantStringAsWideString then
             begin
               VType := varString;
-              if (CurrentAnsiConvert.CodePage = CP_UTF8) and
+              if (Unicode_CodePage = CP_UTF8) and
                  (V.VText = pointer(tmp)) then
                 RawByteString(VAny) := tmp
               else
@@ -6183,7 +6208,7 @@ begin
             VType := varString;
         end;
     else
-      raise ESqlDBException.CreateUtf8(
+      ESqlDBException.RaiseUtf8(
         '%.ColumnToVariant: Invalid ColumnType(%)=%', [self, Col, ord(result)]);
     end;
   end;
@@ -6223,7 +6248,7 @@ begin
   end;
   WR.CancelLastComma; // cancel last ','
   if WR.Expand then
-    WR.Add('}');
+    WR.AddDirect('}');
 end;
 
 procedure TSqlDBStatement.ColumnToSqlVar(Col: integer; var Value: TSqlVar;
@@ -6267,7 +6292,8 @@ end;
 procedure TSqlDBStatement.ColumnToJson(Col: integer; W: TJsonWriter);
 var
   blob: RawByteString;
-begin
+  p: pointer;
+begin // default implementation (never called in practice)
   if ColumnNull(col) then
     W.AddNull
   else
@@ -6289,7 +6315,10 @@ begin
       ftUtf8:
         begin
           W.Add('"');
-          W.AddJsonEscape(pointer(ColumnUtf8(col)));
+          p := ColumnPUtf8(col);
+          if p = nil then
+            p := pointer(ColumnUtf8(col));
+          W.AddJsonEscape(p);
           W.Add('"');
         end;
       ftBlob:
@@ -6301,7 +6330,7 @@ begin
           W.WrBase64(pointer(blob), length(blob), {withMagic=}true);
         end;
     else
-      raise ESqlDBException.CreateUtf8(
+      ESqlDBException.RaiseUtf8(
         '%.ColumnToJson: invalid ColumnType(%)=%',
         [self, col, ord(ColumnType(col))]);
     end;
@@ -6327,7 +6356,7 @@ begin
     ftBlob:
       VariantToRawByteString(Temp, RawByteString(Dest));
   else
-    raise ESqlDBException.CreateUtf8('%.ColumnToTypedValue: Invalid Type [%]',
+    ESqlDBException.RaiseUtf8('%.ColumnToTypedValue: Invalid Type [%]',
       [self, ToText(result)^]);
   end;
 end;
@@ -6338,7 +6367,7 @@ begin
   dec(Param); // start at #1
   if (self = nil) or
      (cardinal(Param) >= cardinal(fParamCount)) then
-    raise ESqlDBException.CreateUtf8('%.ParamToVariant(%)', [self, Param]);
+    ESqlDBException.RaiseUtf8('%.ParamToVariant(%)', [self, Param]);
   // overridden method should fill Value with proper data
   result := ftUnknown;
 end;
@@ -6371,8 +6400,7 @@ begin
     ColumnToJson(col, W);
     W.AddComma;
   end;
-  W.CancelLastComma; // cancel last ','
-  W.Add('}');
+  W.CancelLastComma('}');
 end;
 
 procedure TSqlDBStatement.Execute(const aSql: RawUtf8; ExpectResults: boolean);
@@ -6417,7 +6445,7 @@ begin
       inc(result);
       if (maxmem > 0) and
          (W.WrittenBytes > maxmem) then // TextLength is slower
-        raise ESQLDBException.CreateUTF8('%.FetchAllToJson: overflow %',
+        ESqlDBException.RaiseUtf8('%.FetchAllToJson: overflow %',
           [self, KB(maxmem)]);
     end;
     {$ifdef SYNDB_SILENCE}
@@ -6474,12 +6502,12 @@ begin
     for F := 0 to FMax do
     begin
       if not Tab then
-        W.Add('"');
+        W.AddDirect('"');
       W.AddString(ColumnName(F));
       if Tab then
-        W.Add(#9)
+        W.AddDirect(#9)
       else
-        W.Add('"', CommaSep);
+        W.AddDirect('"', CommaSep);
     end;
     W.CancelLastChar;
     W.AddCR;
@@ -6507,35 +6535,33 @@ begin
                 W.Add('"');
               W.AddDateTime(V.VDateTime, svoDateWithMS in V.Options);
               if not Tab then
-                W.Add('"');
+                W.AddDirect('"');
             end;
           ftUtf8:
+            if not Tab then
             begin
-              if not Tab then
-              begin
-                W.Add('"');
-                W.AddJsonEscape(V.VText);
-                W.Add('"');
-              end
-              else
-                W.AddNoJsonEscape(V.VText);
-            end;
+              W.Add('"');
+              W.AddJsonEscape(V.VText);
+              W.AddDirect('"');
+            end
+            else
+              W.AddNoJsonEscape(V.VText, StrLen(V.VText));
           ftBlob:
             W.AddShorter(BLOB[Tab]);  // ForceBlobAsNull should be true
         else
-          raise ESqlDBException.CreateUtf8(
+          ESqlDBException.RaiseUtf8(
             '%.FetchAllToCsvValues: Invalid ColumnType(%) %',
             [self, F, ToText(ColumnType(F))^]);
         end;
         if F = FMax then
           W.AddCR
         else
-          W.Add(CommaSep);
+          W.AddDirect(CommaSep);
       end;
       inc(result);
       if (maxmem > 0) and
          (W.WrittenBytes > maxmem) then // TextLength is slower
-        raise ESQLDBException.CreateUTF8('%.FetchAllToCsvValues: overflow %',
+        ESqlDBException.RaiseUtf8('%.FetchAllToCsvValues: overflow %',
           [self, KB(maxmem)]);
     end;
     {$ifdef SYNDB_SILENCE}
@@ -6608,7 +6634,7 @@ begin
         ftBlob:
           W.Write(ColumnBlob(f));
       else
-        raise ESqlDBException.CreateUtf8(
+        ESqlDBException.RaiseUtf8(
           '%.ColumnsToBinary: Invalid ColumnType(%)=%',
           [self, ColumnName(f), ord(ft)]);
       end;
@@ -6694,7 +6720,7 @@ begin
             break;
           if (maxmem > 0) and
              (W.TotalWritten > maxmem) then // Dest.Position is slower
-            raise ESQLDBException.CreateUTF8('%.FetchAllToBinary: overflow %',
+            ESqlDBException.RaiseUtf8('%.FetchAllToBinary: overflow %',
               [self, KB(maxmem)]);
         until not Step;
       ReleaseRows;
@@ -6811,7 +6837,7 @@ end;
 
 function TSqlDBStatement.{%H-}ColumnCursor(Col: integer): ISqlDBRows;
 begin
-  raise ESqlDBException.CreateUtf8('% does not support CURSOR columns', [self]);
+  ESqlDBException.RaiseUtf8('% does not support CURSOR columns', [self]);
 end;
 
 function TSqlDBStatement.Instance: TSqlDBStatement;
@@ -6821,7 +6847,7 @@ end;
 
 {$ifdef SYNDB_SILENCE}
 
-function TSqlDBStatement.SqlLogBegin(Level: TSynLogInfo): TSynLog;
+function TSqlDBStatement.SqlLogBegin(Level: TSynLogLevel): TSynLog;
 begin
   result := nil;
   if Level = sllDB then  // sllDB = prepare
@@ -6838,9 +6864,9 @@ end;
 
 {$else}
 
-function TSqlDBStatement.DoSqlLogBegin(Log: TSynLogFamily; Level: TSynLogInfo): TSynLog;
+function TSqlDBStatement.DoSqlLogBegin(Log: TSynLogFamily; Level: TSynLogLevel): TSynLog;
 begin
-  result := Log.SynLog;
+  result := Log.Add;
   fSqlLogLevel := Level;
   if Level = sllSQL then // sllSQL = executeprepared
     ComputeSqlWithInlinedParams;
@@ -6850,7 +6876,7 @@ begin
     fSqlLogTimer.Resume; // sllSQL or sllResult
 end;
 
-function TSqlDBStatement.SqlLogBegin(Level: TSynLogInfo): TSynLog;
+function TSqlDBStatement.SqlLogBegin(Level: TSynLogLevel): TSynLog;
 var
   fam: TSynLogFamily;
 begin
@@ -7209,12 +7235,12 @@ end;
 
 procedure TSqlDBStatement.BindCursor(Param: integer);
 begin
-  raise ESqlDBException.CreateUtf8('% does not support CURSOR parameter', [self]);
+  ESqlDBException.RaiseUtf8('% does not support CURSOR parameter', [self]);
 end;
 
 function TSqlDBStatement.{%H-}BoundCursor(Param: integer): ISqlDBRows;
 begin
-  raise ESqlDBException.CreateUtf8('% does not support CURSOR parameter', [self]);
+  ESqlDBException.RaiseUtf8('% does not support CURSOR parameter', [self]);
 end;
 
 
@@ -7231,7 +7257,7 @@ begin
   if self = nil then
     raise ESqlDBException.CreateU('TSqlDBConnection(nil).CheckConnection');
   if not Connected then
-    raise ESqlDBException.CreateUtf8('% on %/% should be connected',
+    ESqlDBException.RaiseUtf8('% on %/% should be connected',
       [self, Properties.ServerName, Properties.DataBaseName]);
 end;
 
@@ -7256,7 +7282,7 @@ procedure TSqlDBConnection.Commit;
 begin
   CheckConnection;
   if TransactionCount <= 0 then
-    raise ESqlDBException.CreateUtf8('Invalid %.Commit call', [self]);
+    ESqlDBException.RaiseUtf8('Invalid %.Commit call', [self]);
   dec(fTransactionCount);
   InternalProcess(speCommit);
 end;
@@ -7329,10 +7355,34 @@ begin
     Disconnect;
   except
     on E: Exception do
-      SynDBLog.Add.Log(sllError, 'e=%', [E]);
+      SynDBLog.Add.Log(sllError, 'Destroy: Disconnect raised %', [E], self);
   end;
+  ObjArrayClear(fOwned, {continueonexc=}true);
   inherited;
   fCacheSafe.Done;
+end;
+
+function TSqlDBConnection.GetThreadOwned(aClass: TClass): pointer;
+begin
+  if (self = nil) or
+     not fProperties.fIsThreadSafe then
+    result := nil
+  else
+  begin
+    result := pointer(fOwned);
+    if result <> nil then
+      result := FindPrivateSlot(aClass, result); // reuse logic from RTTI
+  end;
+end;
+
+function TSqlDBConnection.SetThreadOwned(aObject: TObject): pointer;
+begin
+  if (self = nil) or
+     not fProperties.fIsThreadSafe then
+    ESqlDBException.RaiseUtf8('Unsupported %.SetThreadOwned', [self]);
+  result := aObject;
+  if result <> nil then
+    PtrArrayAdd(fOwned, aObject);
 end;
 
 function TSqlDBConnection.IsOutdated(tix: Int64): boolean;
@@ -7471,36 +7521,39 @@ begin
     exit;
   // first check if could be retrieved from cache
   cachedsql := aSql;
+  stmt := nil;
   fCacheSafe.Lock; // protect fCache (never lock on per-thread connection)
   try
-    stmt := nil;
     if fCache <> nil then
-    begin
-      // fast lookup of the requested SQL in cache
-      if (fCacheLast = cachedsql) and
-         (fCache.Strings[fCacheLastIndex] = cachedsql) then
-        ndx := fCacheLastIndex // no need to use the hash lookup
-      else
-        ndx := fCache.IndexOf(cachedsql); // O(1) hash lookup from fNoDuplicate
-      if ndx >= 0 then
+      if not fProperties.ReconnectAfterConnectionError or
+         not AllowReconnect or
+         IsConnected then // don't reuse a statement on a broken connection
       begin
-        stmt := fCache.Objects[ndx];
-        if stmt.RefCount = 1 then
+        // fast lookup of the requested SQL in cache
+        if (fCacheLast = cachedsql) and
+           fCache.EqualValueAt(fCacheLastIndex, cachedsql) then
+          ndx := fCacheLastIndex // no need to use the hash lookup
+        else
+          ndx := fCache.IndexOf(cachedsql); // O(1) hash lookup from fNoDuplicate
+        if ndx >= 0 then
         begin
-          // this statement is not currently in use and can be returned
-          if ndx <> fCacheLastIndex then
+          stmt := fCache.ObjectPtr[ndx];
+          if stmt.RefCount = 1 then
           begin
-            fCacheLastIndex := ndx;
-            fCacheLast := cachedsql;
-          end;
-          result := stmt; // acquire the statement
-        end
+            // this statement is not currently in use and can be returned
+            if ndx <> fCacheLastIndex then
+            begin
+              fCacheLastIndex := ndx;
+              fCacheLast := cachedsql;
+            end;
+            result := stmt; // acquire the statement
+          end
+        end;
       end;
-    end;
     // full cache support
     if result = nil then
     begin
-      iscacheable := fProperties.IsCachable(Pointer(aSql));
+      iscacheable := fProperties.IsCacheable(pointer(aSql));
       if iscacheable and
          (stmt <> nil) then // RefCount > 1
       begin
@@ -7513,7 +7566,7 @@ begin
         else
           for altern := 1 to fProperties.StatementCacheReplicates do
           begin
-            cachedsql := aSql + #0 + UInt32ToUtf8(altern); // not valid SQL
+            cachedsql := Make([aSql, #0, altern]); // not valid SQL
             ndx := fCache.IndexOf(cachedsql);
             if ndx >= 0 then
             begin
@@ -7584,7 +7637,7 @@ procedure TSqlDBConnection.Rollback;
 begin
   CheckConnection;
   if TransactionCount <= 0 then
-    raise ESqlDBException.CreateUtf8('Invalid %.Rollback call', [self]);
+    ESqlDBException.RaiseUtf8('Invalid %.Rollback call', [self]);
   dec(fTransactionCount);
   InternalProcess(speRollback);
 end;
@@ -7762,11 +7815,12 @@ end;
 constructor TSqlDBConnectionPropertiesThreadSafe.Create(
   const aServerName, aDatabaseName, aUserID, aPassWord: RawUtf8);
 begin
+  fIsThreadSafe := true;
   fConnectionPool := TSynObjectListLightLocked.Create;
   inherited Create(aServerName, aDatabaseName, aUserID, aPassWord);
 end;
 
-threadvar
+threadvar // do not publish for compilation within Delphi packages
   PerThreadConnectionIndex: integer; // for GetLockedPerThreadIndex O(1) lookup
 
 function TSqlDBConnectionPropertiesThreadSafe.GetLockedPerThreadIndex: PtrInt;
@@ -7922,7 +7976,7 @@ begin
      (fConnection = nil) or
      (fConnection.fProperties.BatchSendingAbilities *
        [cCreate, cUpdate, cDelete] = []) then
-    raise ESqlDBException.CreateUtf8(
+    ESqlDBException.RaiseUtf8(
       'Invalid call to %.BindArray(Param=%,Type=%)',
       [self, Param, ToText(NewType)^]);
   SetLength(result^.VArray, ArrayCount);
@@ -8008,8 +8062,8 @@ begin
      fConnection.fProperties.StoreVoidStringAsNull then
     CheckParam(Param, ftNull, IO)
   else
-    FastSetString(
-      RawUtf8(CheckParam(Param, ftUtf8, IO)^.VData), Value, StrLen(Value));
+    FastSetString(RawUtf8(CheckParam(Param, ftUtf8, IO)^.VData),
+      Value, StrLen(Value));
 end;
 
 procedure TSqlDBStatementWithParams.BindTextW(Param: integer; const Value:
@@ -8031,7 +8085,7 @@ begin
   dec(Param); // start at #1
   if CheckIsOutParameter and
      (fParams[Param].VInOut = paramIn) then
-    raise ESqlDBException.CreateUtf8(
+    ESqlDBException.RaiseUtf8(
       '%.ParamToVariant expects an [In]Out parameter', [self]);
   // OleDB provider should have already modified the parameter in-place, i.e.
   // in our fParams[] buffer, especialy for TEXT parameters (OleStr/WideString)
@@ -8209,7 +8263,7 @@ var
   StoreVoidStringAsNull: boolean;
 begin
   if length(aValues) <> fParamCount then
-    raise ESqlDBException.CreateUtf8('Invalid %.BindArrayRow call', [self]);
+    ESqlDBException.RaiseUtf8('Invalid %.BindArrayRow call', [self]);
   StoreVoidStringAsNull := (fConnection <> nil) and
                            fConnection.Properties.StoreVoidStringAsNull;
   for i := 0 to high(aValues) do
@@ -8247,7 +8301,7 @@ var
 begin
   if Rows <> nil then
     if Rows.ColumnCount <> fParamCount then
-      raise ESqlDBException.CreateUtf8('Invalid %.BindFromRows call', [self])
+      ESqlDBException.RaiseUtf8('Invalid %.BindFromRows call', [self])
     else
       for F := 0 to fParamCount - 1 do
         with fParams[F] do
@@ -8342,8 +8396,7 @@ begin
     ColumnToJson(col, W);
     W.AddComma;
   end;
-  W.CancelLastComma; // cancel last ','
-  W.Add('}');
+  W.CancelLastComma('}');
 end;
 
 procedure TSqlDBStatementWithParamsAndColumns.ClearColumns;

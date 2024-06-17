@@ -115,7 +115,7 @@ type
     // - StartTransaction method must have been called before
     procedure Rollback; override;
     /// the associated SQLite3 DB instance
-    // - assigned to not nil after successfull connection
+    // - assigned to not nil after successful connection
     property DB: TSqlDataBase
       read fDB;
     /// query or change the SQlite3 file-based syncrhonization mode, i.e. the
@@ -265,6 +265,9 @@ type
     function ColumnCurrency(Col: integer): currency; override;
     /// return a Column UTF-8 encoded text value of the current Row, first Col is 0
     function ColumnUtf8(Col: integer): RawUtf8; override;
+    /// return a Column UTF-8 text buffer of the current Row, first Col is 0
+    // - returned pointer is likely to last only until next Step or Reset call
+    function ColumnPUtf8(Col: integer): PUtf8Char; override;
     /// return a Column as a blob value of the current Row, first Col is 0
     // - ColumnBlob() will return the binary content of the field is was not ftBlob,
     // e.g. a 8 bytes RawByteString for a vtInt64/vtDouble/vtDate/vtCurrency,
@@ -344,7 +347,7 @@ end;
 constructor TSqlDBSQLite3ConnectionProperties.Create(aDB: TSqlDatabase);
 begin
   if aDB = nil then
-    raise ESqlDBException.CreateUtf8('%.Create(DB=nil)', [self]);
+    ESqlDBException.RaiseUtf8('%.Create(DB=nil)', [self]);
   fExistingDB := aDB;
   Create('', StringToUtf8(aDB.FileName), '', aDB.Password);
 end;
@@ -631,13 +634,18 @@ end;
 
 function TSqlDBSQLite3Statement.ColumnUtf8(Col: integer): RawUtf8;
 begin
-  result := fStatement.FieldUtf8(Col);
+  fStatement.FieldUtf8(Col, result);
+end;
+
+function TSqlDBSQLite3Statement.ColumnPUtf8(Col: integer): PUtf8Char;
+begin
+  result := fStatement.FieldPUtf8(Col);
 end;
 
 constructor TSqlDBSQLite3Statement.Create(aConnection: TSqlDBConnection);
 begin
   if not aConnection.InheritsFrom(TSqlDBSQLite3Connection) then
-    raise ESqlDBException.CreateUtf8('%.Create(%)', [self, aConnection]);
+    ESqlDBException.RaiseUtf8('%.Create(%)', [self, aConnection]);
   inherited Create(aConnection);
   fShouldLogSQL := (SynDBLog <> nil) and (sllSQL in SynDBLog.Family.Level);
 end;
@@ -645,7 +653,7 @@ end;
 constructor TSqlDBSQLite3Statement.CreateFrom(aSQlite3DB: TSqlDataBase);
 begin
   if aSQlite3DB = nil then
-    raise ESqlDBException.CreateUtf8('%.CreateFrom(nil)', [self]);
+    ESqlDBException.RaiseUtf8('%.CreateFrom(nil)', [self]);
   fDB := aSQlite3DB;
   inherited Create(nil);
   fShouldLogSQL := (SynDBLog <> nil) and (sllSQL in SynDBLog.Family.Level);
@@ -755,7 +763,7 @@ begin
   if SeekFirst then
   begin
     if fCurrentRow > 0 then
-      raise ESqlDBException.CreateUtf8('%.Step(SeekFirst=true) not implemented', [self]);
+      ESqlDBException.RaiseUtf8('%.Step(SeekFirst=true) not implemented', [self]);
     fCurrentRow := 0;
     //fStatement.Reset;
   end;
@@ -799,8 +807,7 @@ begin
       sqlite3.column_value(fStatement.Request, col), fForceBlobAsNull);
     W.AddComma;
   end;
-  W.CancelLastComma; // cancel last ','
-  W.Add('}');
+  W.CancelLastComma('}');
 end;
 
 

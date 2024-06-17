@@ -49,7 +49,7 @@ type
     {$ifdef OSWINDOWS}
     fServiceDependencies: RawUtf8;
     {$endif OSWINDOWS}
-    fLog: TSynLogInfos;
+    fLog: TSynLogLevels;
     fLogRotateFileCount: integer;
     fLogPath: TFileName;
     fLogClass: TSynLogClass;
@@ -91,7 +91,7 @@ type
     property ServiceExecutable: TFileName
       read fServiceExecutable write fServiceExecutable;
     /// if not void, will enable the logs (default is LOG_STACKTRACE)
-    property Log: TSynLogInfos
+    property Log: TSynLogLevels
       read fLog write fLog;
     /// allow to customize where the logs should be written
     property LogPath: TFileName
@@ -117,11 +117,9 @@ type
     // - default is none '', so the executable name (with full path) will be used
     property ServiceExecutable;
     /// if not void, will enable the logs (default is LOG_STACKTRACE)
-    property Log: TSynLogInfos
-      read fLog write fLog;
+    property Log;
     /// allow to customize where the logs should be written
-    property LogPath: TFileName
-      read fLogPath write fLogPath;
+    property LogPath;
     /// how many files will be rotated (default is 2)
     property LogRotateFileCount;
   end;
@@ -158,13 +156,16 @@ type
   /// abstract parent to implements a POSIX Daemon / Windows Service
   // - inherit from this abstract class and override Start and Stop methods
   // - you may consider using TDDDAdministratedDaemon from dddInfraApps
+  // - note if upgrading from mORMot 1: SetLog() is now done in AfterCreate
   TSynDaemon = class(TSynPersistent)
   protected
     fConsoleMode: boolean;
-    fShowExceptionWaitEnter: boolean;
+    fShowExceptionWaitEnter: boolean; // ignored on POSIX
     fWorkFolderName: TFileName;
     fSettings: TSynDaemonAbstractSettings;
-    procedure AfterCreate; virtual; // call fSettings.SetLog() if not from tests
+    /// by default, calls fSettings.SetLog() if not running from tests
+    // - could be overriden to change this default behavior
+    procedure AfterCreate; virtual;
     {$ifdef OSWINDOWS}
     procedure DoStart(Sender: TService);
     procedure DoResume(Sender: TService);
@@ -178,6 +179,7 @@ type
     // - TSynDaemonSettings instance will be owned and freed by the daemon
     // - any non supplied folder name will be replaced by a default value
     // (executable folder under Windows, or /etc /var/log on Linux)
+    // - calls AfterCreate to call SetLog() by default
     constructor Create(aSettingsClass: TSynDaemonSettingsClass;
       const aWorkFolder, aSettingsFolder, aLogFolder: TFileName;
       const aSettingsExt: TFileName = '.settings';
@@ -298,7 +300,7 @@ begin
   if aWorkFolder = '' then
     fWorkFolderName := Executable.ProgramFilePath
   else
-    fWorkFolderName := NormalizeDirectoryExists(aWorkFolder, true);
+    fWorkFolderName := NormalizeDirectoryExists(aWorkFolder, EDaemon);
   if aSettingsClass = nil then
     aSettingsClass := TSynDaemonSettings;
   fSettings := aSettingsClass.Create;
@@ -318,8 +320,8 @@ begin
         {$ifdef OSWINDOWS}fWorkFolderName{$else}GetSystemPath(spLog){$endif}
     else
       fSettings.LogPath := NormalizeDirectoryExists(aLogFolder);
-  fShowExceptionWaitEnter := true; // default/legacy behavior
-  AfterCreate;
+  fShowExceptionWaitEnter := true; // default/legacy behavior - ignored on POSIX
+  AfterCreate; // call fSettings.SetLog(TSynLog) by default
 end;
 
 procedure TSynDaemon.AfterCreate;
@@ -629,7 +631,7 @@ begin
     begin
       if cmd <> cSilentKill then
         ConsoleShowFatalException(E, fShowExceptionWaitEnter);
-      ExitCode := 1; // indicates error
+      ExitCode := 1; // notify failure on executing process
     end;
   end;
   if cmd <> cSilentKill then

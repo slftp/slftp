@@ -40,6 +40,9 @@
 // if defined, SetThreadName() would not raise the exception used to set the
 // thread name: to be defined if you have issues when debugging your application
 
+{.$define NODIRECTTHREADMANAGER}
+// on POSIX, omit direct GetThreadManager() API calls and just use RTL functions
+
 {.$define NOEXCEPTIONINTERCEPT}
 // if defined, exceptions shall not be intercepted nor logged
 
@@ -154,6 +157,7 @@
   {$define NODELPHIASM}     // avoid e.g. low-level System.@LStrFromPCharLen
   {$define HASDYNARRAYTYPE} // eltype2 field, used e.g. for T*ObjArray
   {$define HASITERATORS}
+  {$define HASIMPLICITOPERATOR}
   {$define HASDBFTWIDE}
   {$define HASTTHREADSTART}
   {$define HASINTERFACEASTOBJECT}
@@ -403,9 +407,9 @@
 
   {$define OSWINDOWS}
 
-  {$IFNDEF CONDITIONALEXPRESSIONS}
+  {$ifndef CONDITIONALEXPRESSIONS}
   'Delphi 2-5 are not supported'
-  {$ENDIF CONDITIONALEXPRESSIONS}
+  {$endif CONDITIONALEXPRESSIONS}
   {$ifdef VER140}
   'Delphi 6 is not supported'
   {$endif VER140}
@@ -493,10 +497,11 @@
       {$define ISDELPHI20092010}  // to circumvent some specific bugs
     {$ifend}
     {$if CompilerVersion >= 21.0}
-      {$define HASSAFEINLINE}     // earliest Delphi have troubles inlining :(
+      {$define HASSAFEINLINE}     // Delphi 2007-2009 have troubles inlining :(
       {$define ISDELPHI2010}
       {$define HASDYNARRAYTYPE}   // eltype2 field, used e.g. for T*ObjArray
       {$define HASEXTRECORDRTTI}
+      {$define HASIMPLICITOPERATOR}  // Delphi 2010+ "implicit operator" is ok
       {$define ISDELPHI2010_OR_FPC_NEWRTTI}
       {$define HASTTHREADSTART}
       {$define HASINTERFACEASTOBJECT}
@@ -581,8 +586,11 @@
         {$define ASMX64AVXNOCONST} // supports AVX with no align32 constant load
       {$endif CPU64}
     {$ifend}
-    {$if CompilerVersion >= 36.0} // = Delphi 12
+    {$if CompilerVersion >= 36.0} // = Delphi 12 Athens
       {$define ISDELPHI12}
+    {$ifend}
+    {$if CompilerVersion >= 37.0} // = Delphi 13 Next
+      {$define ISDELPHI13}
     {$ifend}
   {$else}
      {$define ISDELPHI7}
@@ -620,6 +628,9 @@
   {$ifdef OSWINDOWS}
     {$ifdef CPUX64}
       {$define WIN64ABI}    // for asm on x86_64
+      {$define OSWINDOWS64} // Win64
+    {$else}
+      {$define OSWINDOWS32} // Win32
     {$endif CPUX64}
     {$define THREADID32}    // TThreadID = 32-bit DWORD on Win32 and Win64
   {$endif OSWINDOWS}
@@ -637,7 +648,7 @@
     {$define CPUINTELARM}
   {$endif CPUARM3264}
   {$ifdef CPU32}
-  {$define THREADID32}    // TThreadID = PtrUInt/pointer on pthread
+    {$define THREADID32}    // TThreadID = PtrUInt/pointer on pthread
   {$endif CPU32}
 {$endif CPUINTEL}
 
@@ -738,10 +749,12 @@
 
   {$ifndef ONLYUSEHTTPSOCKET}
     {$define USEWININET}      // publish TWinINet/TWinHttp/TWinHttpAPI classes
-    {$define USE_WINIOCP}     // I/O completion ports API fine under Windows
-    // (under Linux/POSIX, we fallback to a classical event-driven pool)
     {$define USEHTTPSYS}      // enable http.sys kernel-mode Web server
   {$endif ONLYUSEHTTPSOCKET}
+
+  {$define USE_WINIOCP}     // I/O completion ports API is fine under Windows
+  // (as used by mormot.core.threads and mormot.net.async)
+  // (under Linux/POSIX, we fallback to a classical event-driven pool)
 
   {$ifndef NOSSPIAUTH}        // from mormot.lib.sspi
     {$define DOMAINRESTAUTH}  // enable SSPI in mormot.rest.client/server
@@ -752,6 +765,7 @@
 {$ifdef OSPOSIX}
 
   {$define ONLYUSEHTTPSOCKET} // efficient cross-platform Socket + OpenSSL API
+  {$undef USE_WINIOCP}        // disable any Windows-specific code
 
   {$ifdef OSANDROID}
 

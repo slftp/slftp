@@ -93,7 +93,7 @@ uses
   ZDbcIntfs,
   ZDbcResultSet,
   ZDbcMetadata,
-  
+
   // mORMot units after ZDBC due to some name conflicts (e.g. Utf8ToString)
   mormot.core.base,
   mormot.core.os,
@@ -322,7 +322,7 @@ type
     /// the ColumnsToJson options provided by ZDBC
     // - jcoEndJsonObject:
     // cancels last comma, adds the close object bracket '}' and add's the next comma.
-    // If not set you can continue writting some custom data into your
+    // If not set you can continue writing some custom data into your
     // object json but you also have to finalize each row-object then.
     // - jcoMongoISODate:
     // formats the date,time,datetime values as mongo
@@ -392,7 +392,7 @@ begin
   if (fServerName <> '') and
      (PosExChar(':', fServerName) = 0) then
     fServerName := fServerName + ':';
-  if not IdemPChar(Pointer(aServerName), 'ZDBC:') then
+  if not IdemPChar(pointer(aServerName), 'ZDBC:') then
     fServerName := 'zdbc:' + fServerName;
   fUrl := TZURL.Create(Utf8ToString(fServerName));
   if fUrl.Database = '' then
@@ -860,7 +860,7 @@ var
   log: ISynLog;
 begin
   if fDatabase = nil then
-    raise ESqlDBZeos.CreateUtf8('%.Connect() on % failed: Database=nil', [self,
+    ESqlDBZeos.RaiseUtf8('%.Connect() on % failed: Database=nil', [self,
       fProperties.ServerName]);
   log := SynDBLog.Enter(self, 'Connect');
   if log <> nil then
@@ -950,7 +950,7 @@ begin
   SQLLogBegin(sllDB);
   if (fStatement <> nil) or
      (fResultSet <> nil) then
-    raise ESqlDBZeos.CreateUtf8('%.Prepare() shall be called once', [self]);
+    ESqlDBZeos.RaiseUtf8('%.Prepare() shall be called once', [self]);
   inherited Prepare(aSQL, ExpectResults); // connect if necessary
   fStatement := (fConnection as TSqlDBZeosConnection).fDatabase.
     PrepareStatementWithParams(
@@ -1001,7 +1001,7 @@ begin
     for p := 0 to fParamCount - 1 do
     begin
       if fParams[p].VInt64 <> fParamsArrayCount then
-        raise ESqlDBZeos.CreateUtf8(
+        ESqlDBZeos.RaiseUtf8(
           '%.ExecutePrepared: #% parameter expected array count %, got %',
           [aStatement, p, fParamsArrayCount, fParams[p].VInt64]);
       SetLength(fNullArray[p], fParamsArrayCount);
@@ -1009,8 +1009,7 @@ begin
       begin
         case VType of
           ftUnknown:
-            raise ESqlDBZeos.CreateUtf8(
-              '%.ExecutePrepared: Unknown type array parameter #%',
+            ESqlDBZeos.RaiseUtf8('%.ExecutePrepared: ftUnknown array param #%',
               [aStatement, p + FirstDbcIndex]);
           ftNull:
             begin
@@ -1074,7 +1073,7 @@ begin
                   for j := 0 to fParamsArrayCount - 1 do
                     if not fNullArray[p][j] then
                       fBlobDynArray[n][j] := TZAbstractBlob.CreateWithData(
-                        Pointer(VArray[j]), length(VArray[j]));
+                        pointer(VArray[j]), length(VArray[j]));
                   fStatement.SetDataArray(p + FirstDbcIndex, fBlobDynArray[n],
                     stBinaryStream);
                 end;
@@ -1104,11 +1103,11 @@ begin
   SQLLogBegin(sllSQL);
   inherited ExecutePrepared; // set fConnection.fLastAccessTicks
   if fStatement = nil then
-    raise ESqlDBZeos.CreateUtf8('%.ExecutePrepared() invalid call', [self]);
+    ESqlDBZeos.RaiseUtf8('%.ExecutePrepared() invalid call', [self]);
   {$ifndef ZEOS72UP}
   //commenting this makes it possible to seek cursor pos to 0 and use the interface again -> e.g. ReadOneByOneRate
   if fResultSet <> nil then
-    raise ESqlDBZeos.CreateUtf8('%.ExecutePrepared() miss a Reset', [self]);
+    ESqlDBZeos.RaiseUtf8('%.ExecutePrepared() miss a Reset', [self]);
   {$endif ZEOS72UP}
   // 1. bind parameters in fParams[] to fQuery.Params
   {$ifdef ZEOS72UP}
@@ -1118,14 +1117,14 @@ begin
       if fSupportsArrayBindings then
         arrayBinding := TZeosArrayBinding.Create(self)
       else if not fExpectResults then
-        raise ESqlDBZeos.CreateUtf8(
+        ESqlDBZeos.RaiseUtf8(
           '%.BindArray() not supported by % provider', [self, DbmsName]);
   try
     if arrayBinding=nil then
   {$else}
   if (fParamsArrayCount>0) and
      not fExpectResults then
-    raise ESqlDBZeos.CreateUtf8('%.BindArray() not supported', [self])
+    ESqlDBZeos.RaiseUtf8('%.BindArray() not supported', [self])
   else
   {$endif ZEOS72UP}
     for i := fParamCount-1 downto 0 do // EG: downto minimize memallocs
@@ -1137,7 +1136,7 @@ begin
         if VType in [ftInt64, ftCurrency, ftDouble, ftUtf8] then
           BoundArrayToJsonArray(VArray, RawUtf8(VData)) // e.g. '{1,2,3}'
         else
-          raise ESqlDBZeos.CreateUtf8('%.ExecutePrepared: Invalid array type % ' +
+          ESqlDBZeos.RaiseUtf8('%.ExecutePrepared: Invalid array type % ' +
             'on bound parameter #%', [self, ToText(VType)^, i]);
         VType := ftUtf8;
       end;
@@ -1168,10 +1167,10 @@ begin
           {$endif ZEOS72UP}
         ftBlob:
           fStatement.SetBlob(i + FirstDbcIndex,stBinaryStream,
-            TZAbstractBlob.CreateWithData(Pointer(VData), length(VData)
+            TZAbstractBlob.CreateWithData(pointer(VData), length(VData)
             {$ifndef ZEOS72UP} ,fStatement.GetConnection{$endif ZEOS72UP}));
       else
-        raise ESqlDBZeos.CreateUtf8(
+        ESqlDBZeos.RaiseUtf8(
           '%.ExecutePrepared: Invalid type parameter #%', [self, i]);
       end;
     end;
@@ -1270,7 +1269,7 @@ var
 begin
   if (fResultSet = nil) or
      (cardinal(Col) >= cardinal(fColumnCount)) then
-    raise ESqlDBZeos.CreateUtf8('%.ColumnBlob(%) ResultSet=%',
+    ESqlDBZeos.RaiseUtf8('%.ColumnBlob(%) ResultSet=%',
       [self, Col, fResultSet]);
   blob := fResultSet.GetBlob(Col + FirstDbcIndex);
   if (blob = nil) or
@@ -1284,7 +1283,7 @@ function TSqlDBZeosStatement.ColumnCurrency(Col: integer): currency;
 begin
   if (fResultSet = nil) or
      (cardinal(Col) >= cardinal(fColumnCount)) then
-    raise ESqlDBZeos.CreateUtf8('%.ColumnCurrency(%) ResultSet=%',
+    ESqlDBZeos.RaiseUtf8('%.ColumnCurrency(%) ResultSet=%',
       [self, Col, fResultSet]);
   {$ifdef ZEOS72UP}
   result := fResultSet.GetCurrency(Col + FirstDbcIndex);
@@ -1297,7 +1296,7 @@ function TSqlDBZeosStatement.ColumnDateTime(Col: integer): TDateTime;
 begin
   if (fResultSet = nil) or
      (cardinal(Col) >= cardinal(fColumnCount)) then
-    raise ESqlDBZeos.CreateUtf8('%.ColumnDateTime(%) ResultSet=%',
+    ESqlDBZeos.RaiseUtf8('%.ColumnDateTime(%) ResultSet=%',
       [self, Col, fResultSet]);
   result := fResultSet.GetTimestamp(Col + FirstDbcIndex);
 end;
@@ -1306,7 +1305,7 @@ function TSqlDBZeosStatement.ColumnDouble(Col: integer): double;
 begin
   if (fResultSet = nil) or
      (cardinal(Col) >= cardinal(fColumnCount)) then
-    raise ESqlDBZeos.CreateUtf8('%.ColumnDouble(%) ResultSet=%',
+    ESqlDBZeos.RaiseUtf8('%.ColumnDouble(%) ResultSet=%',
       [self, Col, fResultSet]);
   result := fResultSet.GetDouble(Col + FirstDbcIndex);
 end;
@@ -1315,7 +1314,7 @@ function TSqlDBZeosStatement.ColumnInt(Col: integer): Int64;
 begin
   if (fResultSet = nil) or
      (cardinal(Col) >= cardinal(fColumnCount)) then
-    raise ESqlDBZeos.CreateUtf8('%.ColumnInt(%) ResultSet=%',
+    ESqlDBZeos.RaiseUtf8('%.ColumnInt(%) ResultSet=%',
       [self, Col, fResultSet]);
   result := fResultSet.GetLong(Col + FirstDbcIndex);
 end;
@@ -1324,7 +1323,7 @@ function TSqlDBZeosStatement.ColumnNull(Col: integer): boolean;
 begin
   if (fResultSet = nil) or
      (cardinal(Col) >= cardinal(fColumnCount)) then
-    raise ESqlDBZeos.CreateUtf8('%.ColumnNull(%) ResultSet=%', [self, Col, fResultSet]);
+    ESqlDBZeos.RaiseUtf8('%.ColumnNull(%) ResultSet=%', [self, Col, fResultSet]);
   result := fResultSet.IsNull(Col + FirstDbcIndex);
 end;
 
@@ -1332,7 +1331,7 @@ function TSqlDBZeosStatement.ColumnUtf8(Col: integer): RawUtf8;
 begin
   if (fResultSet = nil) or
      (cardinal(Col) >= cardinal(fColumnCount)) then
-    raise ESqlDBZeos.CreateUtf8('%.ColumnUtf8(%) ResultSet=%',
+    ESqlDBZeos.RaiseUtf8('%.ColumnUtf8(%) ResultSet=%',
       [self, Col, fResultSet]);
   {$ifdef ZEOS72UP}
   result := fResultSet.GetUTF8String(Col + FirstDbcIndex);
@@ -1418,19 +1417,19 @@ begin
             WR.AddCurr(fResultSet.GetCurrency(col + FirstDbcIndex));
         ftDate:
           begin
-            WR.Add('"');
+            WR.AddDirect('"');
             WR.AddDateTime(fResultSet.GetTimestamp(col + FirstDbcIndex),
               fForceDateWithMS);
-            WR.Add('"');
+            WR.AddDirect('"');
           end;
         ftUtf8:
           begin
-            WR.Add('"');
+            WR.AddDirect('"');
             if fDbms = dMSSQL then
             begin
-              P := Pointer(fResultSet.GetPWideChar(col + FirstDbcIndex, Len));
+              P := pointer(fResultSet.GetPWideChar(col + FirstDbcIndex, Len));
               if Len > 0 then // ZDBC returns P<>nil but Len=0 for ""
-                WR.AddJsonEscapeW(Pointer(P), Len);
+                WR.AddJsonEscapeW(pointer(P), Len);
             end
             else
             begin
@@ -1438,7 +1437,7 @@ begin
               if Len > 0 then
                 WR.AddJsonEscape(P, Len);
             end;
-            WR.Add('"');
+            WR.AddDirect('"');
           end;
         ftBlob:
           if fForceBlobAsNull then
@@ -1451,7 +1450,7 @@ begin
           else
             WriteIZBlob;
       else
-        raise ESqlDBException.CreateUtf8(
+        ESqlDBException.RaiseUtf8(
           '%.ColumnsToJson: invalid ColumnType(#% "%")=%',
           [self, col, WR.ColNames[col], ord(fColumns[col].ColumnType)]);
       end;
@@ -1460,7 +1459,7 @@ begin
   end;
   WR.CancelLastComma; // cancel last ','
   if WR.Expand then
-    WR.Add('}');
+    WR.AddDirect('}');
 end;
 
 {$endif ZDBC_COLUMNSTOJSON}

@@ -104,22 +104,22 @@ type
     fOnWebSocketsClosed: TNotifyEvent;
     procedure SetReceiveTimeout(aReceiveTimeout: integer); override;
   public
-    /// low-level client WebSockets connection for host and port
+    /// low-level client WebSockets connection factory for host and port
     // - calls Open() then WebSocketsUpgrade() for a given protocol
     // - with proper error interception and optional logging, returning nil
     class function WebSocketsConnect(const aHost, aPort: RawUtf8;
       aProtocol: TWebSocketProtocol; aLog: TSynLogClass = nil;
       const aLogContext: RawUtf8 = ''; const aUri: RawUtf8 = '';
-      const aCustomHeaders: RawUtf8 = '';
-      aTls: boolean = false): THttpClientWebSockets; overload;
-    /// low-level client WebSockets connection for a given URI
-    // - would recognize ws://host:port/uri or wss://host:port/uri over TLS
+      const aCustomHeaders: RawUtf8 = ''; aTls: boolean = false;
+      aTLSContext: PNetTlsContext = nil): THttpClientWebSockets; overload;
+    /// low-level client WebSockets connection factory for a given URI
+    // - would recognize ws://host:port/uri or wss://host:port/uri (over TLS)
     // - calls Open() then WebSocketsUpgrade() for a given protocol
     // - with proper error interception and optional logging, returning nil
     class function WebSocketsConnect(const aUri: RawUtf8;
       aProtocol: TWebSocketProtocol; aLog: TSynLogClass = nil;
-      const aLogContext: RawUtf8 = '';
-      const aCustomHeaders: RawUtf8 = ''): THttpClientWebSockets; overload;
+      const aLogContext: RawUtf8 = ''; const aCustomHeaders: RawUtf8 = '';
+      aTLSContext: PNetTlsContext = nil): THttpClientWebSockets; overload;
     /// common initialization of all constructors
     // - this overridden method will set the UserAgent with some default value
     constructor Create(aTimeOut: PtrInt = 10000); override;
@@ -306,16 +306,17 @@ end;
 class function THttpClientWebSockets.WebSocketsConnect(
   const aHost, aPort: RawUtf8; aProtocol: TWebSocketProtocol; aLog: TSynLogClass;
   const aLogContext, aUri, aCustomHeaders: RawUtf8;
-  aTls: boolean): THttpClientWebSockets;
+  aTls: boolean; aTLSContext: PNetTlsContext): THttpClientWebSockets;
 var
   error: RawUtf8;
 begin
   result := nil;
   if (aProtocol = nil) or
      (aHost = '') then
-    raise EWebSockets.CreateUtf8('%.WebSocketsConnect(nil)', [self]);
+    EWebSockets.RaiseUtf8('%.WebSocketsConnect(nil)', [self]);
   try
-    result := Open(aHost, aPort, nlTcp, 10000, aTls); // constructor
+    // call socket constructor
+    result := Open(aHost, aPort, nlTcp, 10000, aTls, aTLSContext);
     error := result.WebSocketsUpgrade(
       aUri, '', false, [], aProtocol, aCustomHeaders);
     if error <> '' then
@@ -338,15 +339,17 @@ end;
 
 class function THttpClientWebSockets.WebSocketsConnect(const aUri: RawUtf8;
   aProtocol: TWebSocketProtocol; aLog: TSynLogClass;
-  const aLogContext, aCustomHeaders: RawUtf8): THttpClientWebSockets;
+  const aLogContext, aCustomHeaders: RawUtf8;
+  aTLSContext: PNetTlsContext): THttpClientWebSockets;
 var
   uri: TUri;
 begin
   if (aProtocol = nil) or
      not uri.From(aUri) then
-    raise EWebSockets.CreateUtf8('%.WebSocketsConnect(nil)', [self]);
-  result := WebSocketsConnect(uri.Server, uri.Port, aProtocol, aLog,
-    aLogContext, uri.Address, aCustomHeaders, IdemPropNameU(uri.Scheme, 'WSS'));
+    EWebSockets.RaiseUtf8('%.WebSocketsConnect(nil)', [self]);
+  result := WebSocketsConnect(uri.Server, uri.Port, aProtocol,
+    aLog, aLogContext, uri.Address, aCustomHeaders,
+    IdemPropNameU(uri.Scheme, 'WSS'), aTLSContext);
 end;
 
 destructor THttpClientWebSockets.Destroy;
@@ -380,7 +383,7 @@ begin
         body := Data;
         if InStream <> nil then
           body := body + StreamToRawByteString(InStream);
-        Ctxt.Prepare(url, method, header, body, DataType, '');
+        Ctxt.PrepareDirect(url, method, header, body, DataType, '');
         FindNameValue(header, 'SEC-WEBSOCKET-REST:', resthead);
         if resthead = 'NonBlocking' then
           block := wscNonBlockWithoutAnswer
@@ -458,7 +461,7 @@ begin
       aProtocol.OnBeforeIncomingFrame := fOnBeforeIncomingFrame;
       // send initial upgrade request
       RequestSendHeader(aWebSocketsURI, 'GET');
-      TAesPrng.Main.FillRandom(key);
+      RandomBytes(@key, SizeOf(key)); // Lecuyer is enough for public random
       bin1 := BinToBase64(@key, SizeOf(key));
       SockSend(['Content-Length: 0'#13#10 +
                 'Connection: Upgrade'#13#10 +

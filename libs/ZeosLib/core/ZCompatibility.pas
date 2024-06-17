@@ -354,6 +354,10 @@ type
     RawByteString = AnsiString;
     {$ENDIF}
   {$ENDIF}
+  {$IF not declared(PRawByteString)}
+    PRawByteString = ^RawByteString;
+  {$IFEND}
+
 
   {$If not declared(UnicodeString)}
   UnicodeString = WideString;
@@ -504,6 +508,10 @@ function ReturnAddress: Pointer;
 {$IF defined(CPUARM) and not defined(FPC)}
 function align(addr: NativeUInt; alignment: NativeUInt) : NativeUInt; inline;
 {$IFEND}
+
+{$IFDEF NO_UINT64_MIN}
+function Min(const Var1, Var2: UInt64): UInt64; overload;
+{$ENDIF}
 
 const
   PEmptyUnicodeString: PWideChar = '';
@@ -891,5 +899,16 @@ function ReturnAddress: Pointer;
   end;
 {$ENDIF}
 {$ENDIF ZReturnAddress}
+
+{$IFDEF NO_UINT64_MIN}
+function Min(const Var1, Var2: UInt64): UInt64;
+begin
+  if Var1 < Var2 then
+    Result := Var1
+  else
+    Result := Var2;
+end;
+{$ENDIF}
+
 
 end.

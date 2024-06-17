@@ -123,7 +123,7 @@ type
       WhereFieldName, WhereValue: RawUtf8): boolean; override;
     function EngineUpdateFieldIncrement(TableModelIndex: integer; ID: TID;
       const FieldName: RawUtf8; Increment: Int64): boolean; override;
-    function EngineDeleteWhere(TableModelIndex: Integer;
+    function EngineDeleteWhere(TableModelIndex: integer;
       const SqlWhere: RawUtf8; const IDs: TIDDynArray): boolean; override;
     // BLOBs should be accessed directly, not through slower JSON Base64 encoding
     function EngineRetrieveBlob(TableModelIndex: integer; aID: TID;
@@ -298,7 +298,7 @@ begin
   inherited Create(aClass, aServer);
   // ConnectionProperties should have been set in OrmMapMongoDB()
   fCollection := fStoredClassMapping^.ConnectionProperties as TMongoCollection;
-  InternalLog('will store % using %', [aClass, Collection], sllInfo);
+  fRest.InternalLog('will store % using %', [aClass, Collection], sllInfo);
   BsonProjectionSet(fBsonProjectionSimpleFields, true,
     fStoredClassRecordProps.SimpleFieldsBits[ooSelect], nil, nil);
   BsonProjectionSet(fBsonProjectionBlobFields, false,
@@ -400,7 +400,7 @@ begin
   inherited;
   FreeAndNilSafe(fBatchWriter);
   fEngineGenerator.Free;
-  InternalLog('Destroy for % using %', [fStoredClass, Collection], sllInfo);
+  fRest.InternalLog('Destroy for % using %', [fStoredClass, Collection], sllInfo);
 end;
 
 function TRestStorageMongoDB.TableHasRows(Table: TOrmClass): boolean;
@@ -442,9 +442,9 @@ function TRestStorageMongoDB.EngineNextID: TID;
   procedure ComputeMax_ID;
   var
     res: variant;
-    timer: TPrecisionTimer;
+    start: Int64;
   begin
-    timer.Start;
+    QueryPerformanceMicroSeconds(start);
     case fEngineAddCompute of
       eacLastIDOnce,
       eacLastIDEachTime:
@@ -463,11 +463,12 @@ function TRestStorageMongoDB.EngineNextID: TID;
             fEngineLastID := _Safe(res)^.I['max'];
         end;
     else
-      raise EOrmMongoDB.CreateUtf8(
+      EOrmMongoDB.RaiseUtf8(
         'Unexpected %.EngineNextID with %', [self, ToText(fEngineAddCompute)^]);
     end;
-    InternalLog('ComputeMax_ID=% in % using %',
-      [fEngineLastID, timer.Stop, ToText(fEngineAddCompute)^], sllInfo);
+    if sllInfo in fRest.LogLevel then
+      fRest.InternalLog('ComputeMax_ID=% in % using %',
+        [fEngineLastID, MicroSecFrom(start), ToText(fEngineAddCompute)^], sllInfo);
   end;
 
 begin
@@ -497,15 +498,15 @@ var
   rtti: TRttiJson;
   js, RecordVersionName: RawUtf8;
   MissingID: boolean;
-  V: PVarData;
+  V: PRttiVarData;
 begin
   // parse input JSON
   Doc.InitJson(Json, [dvoValueCopiedByReference, dvoAllowDoubleValue]);
   if (Doc.Kind <> dvObject) and
      (Occasion <> ooInsert) then
-    raise EOrmMongoDB.CreateUtf8('%.DocFromJson: invalid Json context', [self]);
+    EOrmMongoDB.RaiseUtf8('%.DocFromJson: invalid Json context', [self]);
   if not (Occasion in [ooInsert, ooUpdate]) then
-    raise EOrmMongoDB.CreateUtf8(
+    EOrmMongoDB.RaiseUtf8(
       'Unexpected %.DocFromJson(Occasion=%)', [self, ToText(Occasion)^]);
   // handle fields names and values
   MissingID := true;
@@ -526,9 +527,9 @@ begin
     else
     begin
       // change field name to the external mapped name
-      ndx := fStoredClassRecordProps.Fields.IndexByName(Doc.Names[i]);
+      ndx := fStoredClassRecordProps.Fields.IndexByNameU(pointer(Doc.Names[i]));
       if ndx < 0 then
-        raise EOrmMongoDB.CreateUtf8(
+        EOrmMongoDB.RaiseUtf8(
           '%.DocFromJson: unknown field name [%]', [self, Doc.Names[i]]);
       Doc.Names[i] := fStoredClassMapping^.ExtFieldNames[ndx];
       // normalize values from JSON high-level types into MongoDB native types
@@ -542,19 +543,19 @@ begin
             oftBoolean:
               begin
                 // normalize to boolean BSON
-                if V^.VInteger <> 0 then
-                  V^.VBoolean := true;
+                if V^.Data.VInteger <> 0 then
+                  V^.Data.VBoolean := true;
                 // doc.InitJson/GetVariantFromJson store 0,1 as varInteger
                 V^.VType := varBoolean;
               end;
             oftUnixTime:
               begin
-                V^.VDate := UnixTimeToDateTime(V^.VInteger);
+                V^.Data.VDate := UnixTimeToDateTime(V^.Data.VInteger);
                 V^.VType := varDate; // direct set to avoid unexpected EInvalidOp
               end;
             oftUnixMSTime: // (very unlikely for actual time)
               begin
-                V^.VDate := UnixMSTimeToDateTime(V^.VInteger);
+                V^.Data.VDate := UnixMSTimeToDateTime(V^.Data.VInteger);
                 V^.VType := varDate;
               end;
           end;
@@ -563,12 +564,12 @@ begin
           case info.OrmFieldType of
             oftUnixTime:
               begin
-                V^.VDate := UnixTimeToDateTime(V^.VInt64);
+                V^.Data.VDate := UnixTimeToDateTime(V^.Data.VInt64);
                 V^.VType := varDate; // direct set to avoid unexpected EInvalidOp
               end;
             oftUnixMSTime:
               begin
-                V^.VDate := UnixMSTimeToDateTime(V^.VInt64);
+                V^.Data.VDate := UnixMSTimeToDateTime(V^.Data.VInt64);
                 V^.VType := varDate;
               end;
           end;
@@ -580,22 +581,22 @@ begin
               begin
                 // ISO-8601 text as MongoDB date/time
                 Iso8601ToDateTimePUtf8CharVar(
-                  V^.VAny, length(RawByteString(V^.VAny)), dt);
-                RawByteString(V^.VAny) := '';
+                  V^.Data.VAny, length(RawByteString(V^.Data.VAny)), dt);
+                RawByteString(V^.Data.VAny) := '';
+                V^.Data.VDate := dt;
                 V^.VType := varDate; // direct set to avoid unexpected EInvalidOp
-                V^.VDate := dt;
               end;
             oftBlob,
             oftBlobCustom:
               begin
                 // store Base64-encoded BLOB as binary
-                blob := BlobToRawBlob(RawByteString(V^.VAny));
+                blob := BlobToRawBlob(RawByteString(V^.Data.VAny));
                 BsonVariantType.FromBinary(blob, bbtGeneric, Variant(V^));
               end;
             oftBlobDynArray:
               begin
                 // store dynamic array as object (if has any Json)
-                blob := BlobToRawBlob(RawByteString(V^.VAny));
+                blob := BlobToRawBlob(RawByteString(V^.Data.VAny));
                 if blob = '' then
                   SetVariantNull(Variant(V^))
                 else
@@ -627,7 +628,7 @@ begin
     else
     begin
       if fEngineAddCompute = eacSynUniqueIdentifier then
-        raise EOrmMongoDB.CreateUtf8('%.DocFromJson: unexpected set ' +
+        EOrmMongoDB.RaiseUtf8('%.DocFromJson: unexpected set ' +
           '%.ID=% with %', [self, fStoredClass, result, fEngineGenerator]);
       fStorageSafe.Lock;
       if result > fEngineLastID then
@@ -640,7 +641,7 @@ begin
       fStoredClassRecordProps.RecordVersionField.PropertyIndex];
     if Doc.GetValueIndex(RecordVersionName) < 0 then
       if Owner = nil then
-        raise EOrmMongoDB.CreateUtf8(
+        EOrmMongoDB.RaiseUtf8(
           '%.DocFromJson: unexpected Owner=nil with %.%: TRecordVersion',
           [self, fStoredClass, fStoredClassRecordProps.RecordVersionField.Name])
       else
@@ -654,7 +655,7 @@ begin
         RecordVersionNotifyAddUpdate(Occasion, fStoredClassProps.TableIndex, Doc);
   end;
   if Doc.Kind <> dvObject then
-    raise EOrmMongoDB.CreateUtf8(
+    EOrmMongoDB.RaiseUtf8(
       '%.DocFromJson: Invalid Json context', [self]);
 end;
 
@@ -904,7 +905,7 @@ begin
   end;
 end;
 
-function TRestStorageMongoDB.EngineDeleteWhere(TableModelIndex: Integer;
+function TRestStorageMongoDB.EngineDeleteWhere(TableModelIndex: integer;
   const SqlWhere: RawUtf8; const IDs: TIDDynArray): boolean;
 var
   i: PtrInt;
@@ -947,19 +948,18 @@ begin
   end;
   W := TJsonWriter.CreateOwnedStream(temp);
   try
-    W.Add('{');
+    W.AddDirect('{');
     for i := 0 to doc.Count - 1 do
     begin
       name := fStoredClassMapping^.ExternalToInternalOrNull(doc.Names[i]);
       if name = '' then
-        raise EOrmMongoDB.CreateUtf8('%.JsonFromDoc: Unknown field [%] for %',
+        EOrmMongoDB.RaiseUtf8('%.JsonFromDoc: Unknown field [%] for %',
           [self, doc.Names[i], fStoredClass]);
       W.AddProp(pointer(name), Length(name));
       W.AddVariant(doc.Values[i], twJsonEscape);
       W.AddComma;
     end;
-    W.CancelLastComma;
-    W.Add('}');
+    W.CancelLastComma('}');
     W.SetText(result);
   finally
     W.Free;
@@ -1008,7 +1008,7 @@ end;
 
 function TRestStorageMongoDB.RetrieveBlobFields(Value: TOrm): boolean;
 var
-  aID, f: Integer;
+  aID, f: integer;
   doc: variant;
   docv: PDocVariantData;
   blob: TVarData;
@@ -1036,7 +1036,7 @@ begin
       else if docv^.GetVarData(fBsonProjectionBlobFieldsNames[f], blob) then
         BsonVariantType.ToBlob(variant(blob), blobRaw)
       else
-        raise EOrmMongoDB.CreateUtf8(
+        EOrmMongoDB.RaiseUtf8(
           '%.RetrieveBlobFields(%): field [%] not found',
           [self, Value, fBsonProjectionBlobFieldsNames[f]]);
       (fStoredClassRecordProps.BlobFields[f] as TOrmPropInfoRttiRawBlob).
@@ -1129,7 +1129,7 @@ begin
   begin
     colCount := length(extFieldNames);
     if colCount <> length(W.ColNames) then
-      raise EOrmMongoDB.CreateUtf8(
+      EOrmMongoDB.RaiseUtf8(
         '%.GetJsonValues(%): column count concern %<>%',
         [self, StoredClass, colCount, length(W.ColNames)]);
     itemsize := colCount;
@@ -1139,7 +1139,7 @@ begin
       // retrieve all values of this BSON document into item[]
       if (row.Item.Kind <> betDoc) or
          (row.Item.Data.DocList = nil) then
-        raise EOrmMongoDB.CreateUtf8('%.GetJsonValues(%): invalid row kind=%',
+        EOrmMongoDB.RaiseUtf8('%.GetJsonValues(%): invalid row kind=%',
           [self, StoredClass, ord(row.Item.Kind)]);
       itemcount := 0;
       while row.Item.Data.DocList^ <> byte(betEOF) do
@@ -1155,7 +1155,7 @@ begin
       end;
       // convert this BSON document as JSON, following expected column order
       if W.Expand then
-        W.Add('{');
+        W.AddDirect('{');
       for col := 0 to colCount - 1 do
       begin
         if W.Expand then
@@ -1170,7 +1170,7 @@ begin
       end;
       W.CancelLastComma;
       if W.Expand then
-        W.Add('}', ',')
+        W.AddDirect('}', ',')
       else
         W.AddComma;
       inc(result);
@@ -1188,7 +1188,7 @@ begin
 end;
 
 const
-  ORDERBY_FIELD: array[boolean] of Integer = (1, -1);
+  ORDERBY_FIELD: array[boolean] of integer = (1, -1);
 
 function TRestStorageMongoDB.EngineList(TableModelIndex: integer;
   const SQL: RawUtf8; ForceAjax: boolean; ReturnedRowCount: PPtrInt): RawUtf8;
@@ -1211,7 +1211,7 @@ var
       for w := 2 to n - 1 do
         if not Stmt.Where[w].joinedOR then
         begin
-          InternalLog('%.EngineList: mixed AND/OR not supported for [%]',
+          fRest.InternalLog('%.EngineList: mixed AND/OR not supported for [%]',
             [ClassType, SQL], sllError);
           exit;
         end;
@@ -1231,7 +1231,7 @@ var
         if not B.BsonWriteQueryOperator(
             FieldName, NotClause, Operation, ValueVariant) then
         begin
-          InternalLog(
+          fRest.InternalLog(
             '%.EngineList: operator % not supported for field [%] in [%]',
             [ClassType, ToText(Operation)^, FieldName, SQL], sllError);
           exit;
@@ -1254,7 +1254,7 @@ var
     result := false;
     if Stmt.SqlStatement = '' then
     begin
-      InternalLog('%.EngineList: Invalid SQL statement [%]',
+      fRest.InternalLog('%.EngineList: Invalid SQL statement [%]',
         [ClassType, SQL], sllError);
       exit;
     end;
@@ -1268,7 +1268,7 @@ var
     end;
     if Stmt.WhereHasParenthesis then
     begin
-      InternalLog('%.EngineList: parenthesis not supported in [%]',
+      fRest.InternalLog('%.EngineList: parenthesis not supported in [%]',
         [ClassType, SQL], sllError);
       exit;
     end;
@@ -1289,7 +1289,7 @@ var
           with fStoredClassRecordProps.Fields.List[Stmt.OrderByField[0] - 1] do
             if (OrmFieldType in [oftAnsiText, oftUtf8Text]) and
                not (aBinaryCollation in Attributes) then
-          // $orderby is case sensitive with MongoDB -> client-side sort
+          // $orderby is case sensitive (binary) with MongoDB -> client-side sort
           TextOrderByFirstField := fStoredClassMapping^.FieldNameByIndex(
             Stmt.OrderByField[0] - 1);
         if (TextOrderByFirstField = '') and
@@ -1339,7 +1339,7 @@ var
       if PropNameEquals(Stmt.Select[i].FunctionName, 'distinct') then
         if distinct >= 0 then
         begin
-          InternalLog('%.EngineList: distinct() only allowed once in [%]',
+          fRest.InternalLog('%.EngineList: distinct() only allowed once in [%]',
             [ClassType, SQL], sllError);
           exit;
         end
@@ -1362,7 +1362,7 @@ var
         for i := 0 to high(Stmt.GroupByField) do
           if Stmt.GroupByField[i] <> distinct then
           begin
-            InternalLog('%.EngineList: Distinct(%) expected GROUP BY % in [%]',
+            fRest.InternalLog('%.EngineList: Distinct(%) expected GROUP BY % in [%]',
               [ClassType, distinctName, distinctName, SQL], sllError);
             exit;
           end;
@@ -1390,7 +1390,7 @@ var
             ['max', 'min', 'avg', 'sum', 'count'], FunctionName));
           if ord(func) < 0 then
           begin
-            InternalLog('%.EngineList: unexpected function %() in [%]',
+            fRest.InternalLog('%.EngineList: unexpected function %() in [%]',
               [ClassType, FunctionName, SQL], sllError);
             exit;
           end;
@@ -1408,7 +1408,7 @@ var
         if (length(Stmt.OrderByField) <> 1) or
            (Stmt.OrderByField[0] <> distinct) then
         begin
-          InternalLog('%.EngineList: ORDER BY should match Distinct(%) in [%]',
+          fRest.InternalLog('%.EngineList: ORDER BY should match Distinct(%) in [%]',
             [ClassType, distinctName, SQL], sllError);
           exit;
         end;
@@ -1477,7 +1477,7 @@ begin
   ResCount := 0;
   if self = nil then
     exit;
-  InternalLog(SQL, sllSQL);
+  fRest.InternalLog(SQL, sllSQL);
   StorageLock(false {$ifdef DEBUGSTORAGELOCK}, 'MongoList' {$endif});
   try
     if PropNameEquals(fBasicSqlCount, SQL) then
@@ -1591,7 +1591,7 @@ begin
     try
       if (fBatchMethod <> mNone) or
          (fBatchWriter <> nil) then
-        raise EOrmException.CreateUtf8(
+        EOrmException.RaiseUtf8(
           '%.InternalBatchStop should have been called', [self]);
       fBatchIDsCount := 0;
       fBatchMethod := BATCH_METHOD[Encoding];
@@ -1642,8 +1642,8 @@ begin
             BsonVariantFromInt64s(TInt64DynArray(fBatchIDs))])]));
         end;
     else
-      raise EOrmException.CreateUtf8('%.InternalBatchStop(%) with BatchMethod=%',
-        [self, StoredClass, MethodText(fBatchMethod)]);
+      EOrmException.RaiseUtf8('%.InternalBatchStop(%) with BatchMethod=%',
+        [self, StoredClass, ToText(fBatchMethod)]);
     end;
   finally
     FreeAndNilSafe(fBatchWriter);

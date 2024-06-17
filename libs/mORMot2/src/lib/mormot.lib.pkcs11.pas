@@ -35,8 +35,9 @@ uses
 {
   Notes:
   - we manually translated latest PKCS#11 v3.0 specs
+    https://docs.oasis-open.org/pkcs11/pkcs11-base/v3.0/pkcs11-base-v3.0.html
   - we wrote struct fields as CK_ULONG, but defined the proper enums/sets with
-    associated ToULONG/ENUMTYPE wrapper functions, to leverage types and RTTI
+    associated ToULONG/ToCK? wrapper functions, to leverage types and RTTI
   - POSIX OpenSC does not follow the OASIS definitions as implemented on Windows
     e.g. Visual C++ makes sizeof(unsigned long int) = 4 so maps cardinal/integer
      but x86_64 gcc makes sizeof(unsigned long int) = 8 so maps PtrInt/PtrUInt
@@ -321,13 +322,16 @@ type
   // convenience, CK_INVALID_HANDLE (=0) identifies a non-valid object handle
   CK_OBJECT_HANDLE = type CK_ULONG;
   CK_OBJECT_HANDLE_PTR = ^CK_OBJECT_HANDLE;
+  CK_OBJECT_HANDLE_DYNARRAY = array of CK_OBJECT_HANDLE;
+  PCK_OBJECT_HANDLE_DYNARRAY = ^CK_OBJECT_HANDLE_DYNARRAY;
+
 
   /// identifies the classes (or types) of objects that Cryptoki recognizes
   // - Object classes are defined with the objects that use them.
   // - The type is specified on an object through the CKA_CLASS attribute of
   // the object.
   // - stored as a CK_ULONG field - and CKO_VENDOR_DEFINED as $80000000 - use
-  // ToULONG/OBJECT_CLASS() function wrappers for any conversion
+  // ToULONG/ToCKO() function wrappers for any conversion
   // - CKO_DATA hold information defined by an application, with CKA_APPLICATION
   // CKA_OBJECT_ID and CKA_VALUE attributes
   // - CKO_CERTIFICATE hold public-key or attribute certificates, with
@@ -361,17 +365,17 @@ const
   /// the CKO_VENDOR_DEFINED value stored as CK_ULONG
   CKO_VENDOR_DEFINED_ULONG = $80000000;
 
-function ToULONG(oc: CK_OBJECT_CLASS): CK_ULONG; overload;
+function ToULONG(cko: CK_OBJECT_CLASS): CK_ULONG; overload;
   {$ifdef HASINLINE} inline; {$endif}
-function OBJECT_CLASS(uu: CK_ULONG): CK_OBJECT_CLASS;
+function ToCKO(uu: CK_ULONG): CK_OBJECT_CLASS;
   {$ifdef HASINLINE} inline; {$endif}
-function ToText(oc: CK_OBJECT_CLASS): PShortString; overload;
+function ToText(cko: CK_OBJECT_CLASS): PShortString; overload;
 
 type
   /// identifies the hardware feature type of an object with CK_OBJECT_CLASS equal
   // to CKO_HW_FEATURE
   // - stored as a CK_ULONG field - and CKH_VENDOR_DEFINED as $80000000 - use
-  // ToULONG/HW_FEATURE_TYPE() function wrappers for any conversion
+  // ToULONG/ToCKH() function wrappers for any conversion
   CK_HW_FEATURE_TYPE = (
     CKH_0,
     CKH_MONOTONIC_COUNTER,
@@ -383,17 +387,19 @@ const
   /// the CKH_VENDOR_DEFINED value stored as CK_ULONG
   CKH_VENDOR_DEFINED_ULONG = $80000000;
 
-function ToULONG(hw: CK_HW_FEATURE_TYPE): CK_ULONG; overload;
+function ToULONG(ckh: CK_HW_FEATURE_TYPE): CK_ULONG; overload;
   {$ifdef HASINLINE} inline; {$endif}
-function HW_FEATURE_TYPE(uu: CK_ULONG): CK_HW_FEATURE_TYPE;
+function ToCKH(uu: CK_ULONG): CK_HW_FEATURE_TYPE;
   {$ifdef HASINLINE} inline; {$endif}
-function ToText(hw: CK_HW_FEATURE_TYPE): PShortString; overload;
+function ToText(ckh: CK_HW_FEATURE_TYPE): PShortString; overload;
 
 type
   /// identifies a key type
   // - stored as a CK_ULONG field - and CKK_VENDOR_DEFINED as $80000000 - use
-  // ToULONG/KEY_TYPE() function wrappers for any conversion
+  // ToULONG/ToCKK() function wrappers for any conversion
+  // - first CKK_none is used internally if the key type is not specified
   CK_KEY_TYPE = (
+    CKK_none,
     CKK_RSA,
     CKK_DSA,
     CKK_DH,
@@ -461,16 +467,16 @@ const
   /// the CKH_VENDOR_DEFINED value stored as CK_ULONG
   CKK_VENDOR_DEFINED_ULONG = $80000000;
 
-function ToULONG(kt: CK_KEY_TYPE): CK_ULONG; overload;
+function ToULONG(ckk: CK_KEY_TYPE): CK_ULONG; overload;
   {$ifdef HASINLINE} inline; {$endif}
-function KEY_TYPE(uu: CK_ULONG): CK_KEY_TYPE;
+function ToCKK(uu: CK_ULONG): CK_KEY_TYPE;
   {$ifdef HASINLINE} inline; {$endif}
-function ToText(kt: CK_KEY_TYPE): PShortString; overload;
+function ToText(ckk: CK_KEY_TYPE): PShortString; overload;
 
 type
   ///  identifies a certificate type
-// - stored as a CK_ULONG field - and CKC_VENDOR_DEFINED as $80000000 - use
-// ToULONG/CERTIFICATE_TYPE() function wrappers for any conversion
+  // - stored as a CK_ULONG field - and CKC_VENDOR_DEFINED as $80000000 - use
+  // ToULONG/ToCKC() function wrappers for any conversion
   CK_CERTIFICATE_TYPE = (
     CKC_X_509,
     CKC_X_509_ATTR_CERT,
@@ -481,11 +487,11 @@ const
   /// the CKC_VENDOR_DEFINED value stored as CK_ULONG
   CKC_VENDOR_DEFINED_ULONG = $80000000;
 
-function ToULONG(ct: CK_CERTIFICATE_TYPE): CK_ULONG; overload;
+function ToULONG(ckc: CK_CERTIFICATE_TYPE): CK_ULONG; overload;
   {$ifdef HASINLINE} inline; {$endif}
-function CERTIFICATE_TYPE(uu: CK_ULONG): CK_CERTIFICATE_TYPE;
+function ToCKC(uu: CK_ULONG): CK_CERTIFICATE_TYPE;
   {$ifdef HASINLINE} inline; {$endif}
-function ToText(ct: CK_CERTIFICATE_TYPE): PShortString; overload;
+function ToText(ckc: CK_CERTIFICATE_TYPE): PShortString; overload;
 
 type
   /// identifies a certificate category
@@ -499,7 +505,7 @@ type
 type
   /// identifies an attribute type
   // - stored as a CK_ULONG field but NOT FOLLOWING ord(CK_ATTRIBUTE_TYPE) - use
-  // ToULONG/ATTRIBUTE_TYPE() function wrappers for any conversion
+  // ToULONG/ToCKA() function wrappers for any conversion
   CK_ATTRIBUTE_TYPE = (
     CKA_CLASS,
     CKA_TOKEN,
@@ -631,10 +637,10 @@ type
 const
   CKF_ARRAY_ATTRIBUTE = $40000000;
 
-function ToULONG(at: CK_ATTRIBUTE_TYPE): CK_ATTRIBUTE_TYPE_ULONG; overload;
+function ToULONG(cka: CK_ATTRIBUTE_TYPE): CK_ATTRIBUTE_TYPE_ULONG; overload;
   {$ifdef FPC} inline; {$endif}
-function ATTRIBUTE_TYPE(uu: CK_ATTRIBUTE_TYPE_ULONG): CK_ATTRIBUTE_TYPE;
-function ToText(at: CK_ATTRIBUTE_TYPE): PShortString; overload;
+function ToCKA(uu: CK_ATTRIBUTE_TYPE_ULONG): CK_ATTRIBUTE_TYPE;
+function ToText(cka: CK_ATTRIBUTE_TYPE): PShortString; overload;
 
 type
   /// structure that includes the type, value, and length of an attribute
@@ -673,8 +679,10 @@ type
 type
   /// identifies a mechanism type
   // - stored as a CK_ULONG field but NOT FOLLOWING ord(CK_MECHANISM_TYPE) - use
-  // ToULONG/MECHANISM_TYPE() function wrappers for any conversion
+  // ToULONG/ToCKM() function wrappers for any conversion
+// - first CKM_none is used internally if the key type is not specified
   CK_MECHANISM_TYPE = (
+    CKM_none,
     CKM_RSA_PKCS_KEY_PAIR_GEN,
     CKM_RSA_PKCS,
     CKM_RSA_9796,
@@ -1101,10 +1109,10 @@ type
 const
   CKM_VENDOR_DEFINED_ULONG = $80000000;
 
-function ToULONG(mt: CK_MECHANISM_TYPE): CK_MECHANISM_TYPE_ULONG; overload;
+function ToULONG(ckm: CK_MECHANISM_TYPE): CK_MECHANISM_TYPE_ULONG; overload;
   {$ifdef FPC} inline; {$endif}
-function MECHANISM_TYPE(uu: CK_MECHANISM_TYPE_ULONG): CK_MECHANISM_TYPE;
-function ToText(mt: CK_MECHANISM_TYPE): PShortString; overload;
+function ToCKM(uu: CK_MECHANISM_TYPE_ULONG): CK_MECHANISM_TYPE;
+function ToText(ckm: CK_MECHANISM_TYPE): PShortString; overload;
 
 /// the default CK_MECHANISM_TYPE used for most known key types generation
 // - returns false if not known enough, or true and set uu with the mechanism type
@@ -1202,6 +1210,7 @@ type
 
 type
   /// helper to manage a set of CK_ATTRIBUTE at runtime
+  // - warning: when allocated on stack, you should call New or Clear before Add
   {$ifdef USERECORDWITHMETHODS}
   CK_ATTRIBUTES = record
   {$else}
@@ -1248,6 +1257,7 @@ type
     procedure Add(const aType: array of CK_ATTRIBUTE_TYPE); overload;
 
     /// reset the CK_ATTRIBUTE list
+    // - mandatory when the instance is allocated on stack
     procedure Clear;
     /// reset the CK_ATTRIBUTE.pValue/ulValueLen fields, keeping Attr[]._type
     // - to be used e.g. before first GetAttributeValue() call
@@ -1289,8 +1299,8 @@ type
     fStoreBin: TRawByteStringDynArray;
     fStoreBinPos, fStoreUlongPos: PtrInt;
     fStoreULong: array[0..31] of CK_ULONG;
-    function InternalStore(const aValue: RawByteString): pointer; overload;
-    function InternalStore(aValue: CK_ULONG): CK_ULONG_PTR; overload;
+    function InternalStoreBin(const aValue: RawByteString): pointer;
+    function InternalStoreULong(aValue: CK_ULONG): CK_ULONG_PTR;
   end;
   PCK_ATTRIBUTES = ^CK_ATTRIBUTES;
 
@@ -1303,7 +1313,7 @@ type
 
   /// identifies the return value of a Cryptoki function
   // - returned as a CK_RVULONG value but NOT FOLLOWING ord(CK_RV) - use
-  // ToULONG/RV() function wrappers for any conversion
+  // ToULONG/ToCKR() function wrappers for any conversion
   CK_RV = (
     CKR_OK,
     CKR_CANCEL,
@@ -1414,10 +1424,10 @@ const
   CKR_BUFFER_TOOSMALL = $0150;      // = ToULONG(CKR_BUFFER_TOO_SMALL)
   CKR_VENDORDEFINED   = $80000000;  // = ToULONG(CKR_VENDOR_DEFINED)
 
-function ToULONG(rv: CK_RV): CK_RVULONG; overload;
+function ToULONG(ckr: CK_RV): CK_RVULONG; overload;
   {$ifdef FPC} inline; {$endif}
-function RV(uu: CK_RVULONG): CK_RV;
-function ToText(rv: CK_RV): PShortString; overload;
+function ToCKR(uu: CK_RVULONG): CK_RV;
+function ToText(ckr: CK_RV): PShortString; overload;
 
 type
   /// types of notifications that Cryptoki provides to an application
@@ -1603,7 +1613,7 @@ type
     DigestFinal: function(hSession: CK_SESSION_HANDLE;
       pDigest: PByte; var pulDigestLen: CK_ULONG): CK_RVULONG; cdecl;
     /// initializes a signature (private key encryption operation)
-    // -  where the signature is (will be) an appendix to the data;
+    // - where the signature is (will be) an appendix to the data;
     // - and plaintext cannot be recovered from the signature
     SignInit: function(hSession: CK_SESSION_HANDLE;
       var pMechanism: CK_MECHANISM;  hKey: CK_OBJECT_HANDLE): CK_RVULONG; cdecl;
@@ -1791,8 +1801,15 @@ type
   EPkcs11 = class(ESynException);
 
   /// map CK_SLOT_ID but with a fixed 32-bit size
-  // - 32-bit is enough, and raw CK_SLOT_ID may be 64-bit
+  // - 32-bit is enough, but raw/in-memory slots CK_SLOT_ID may be 64-bit
   TPkcs11SlotID = cardinal;
+
+  /// the identifier of a Storage Object (from CKA_ID), as hexadecimal
+  // - i.e. the known hexadecimal CKA_ID, matching a public key certificate
+  // and its associated (pin-protected) private key for a given token
+  TPkcs11ObjectID = RawUtf8;
+  /// several identifiers of a Storage Object (from CKA_ID), as hexadecimal
+  TPkcs11ObjectIDs = TRawUtf8DynArray;
 
   /// map several CK_SLOT_ID but with a fixed 32-bit size
   TPkcs11SlotIDDynArray = array of TPkcs11SlotID;
@@ -1822,11 +1839,13 @@ type
     Manufacturer: RawUtf8;
     /// Slot Information Flags
     Flags: CKSL_FLAGS;
-    /// the Mechanism supported by this Slot
+    /// the Mechanism(s) supported by this Slot
     Mechanism: TPkcs11Mechanisms;
     /// version number of the slot's hardware
+    // - may be 0.0 but then TPkcs11Token.Hardware is likely to be defined
     Hardware: CK_VERSION;
     /// version number of the slot's firmware
+    // - may be 0.0 but then TPkcs11Token.Firmware is likely to be defined
     Firmware: CK_VERSION;
   end;
   /// pointer to high-level information about a PKCS#11 Slot
@@ -1838,6 +1857,7 @@ type
 
   /// the flags of PKCS#11 one Storage Object
   // - posToken .. posTrusted map CKA_TOKEN ... CKA_TRUSTED boolean attributes
+  // - posLocal map CKA_LOCAL boolean attribute
   // - posX509 .. posWtls map CKA_CERTIFICATE_TYPE attribute value
   TPkcs11ObjectStorage = (
     posToken,
@@ -1857,6 +1877,7 @@ type
     posUnWrap,
     posDerive,
     posTrusted,
+    posLocal,
     posX509,
     posX509Attr,
     posWtls);
@@ -1871,7 +1892,7 @@ type
     /// the class of the object (from CKA_CLASS)
     ObjClass: CK_OBJECT_CLASS;
     /// the identifier of this Storage Object (from CKA_ID), as hexadecimal
-    StorageID: RawUtf8;
+    StorageID: TPkcs11ObjectID;
     /// the description of this Storage Object (from CKA_LABEL value)
     StorageLabel: RawUtf8;
     /// the flags of a Storage Object (from various CKA_* values)
@@ -1899,9 +1920,6 @@ type
     Issuer: RawByteString;
     /// the DER unique ID of this Certificate (from CKA_UNIQUE_ID)
     UniqueID: RawByteString;
-    /// the low-level CK_OBJECT_HANDLE, which lifetime would match the session
-    // - not defined as CK_OBJECT_HANDLE because this type is not cross-platform
-    SessionHandle: cardinal;
   end;
   /// high-level information about several PKCS#11 Objects
   // - can be (un) serialized as binary or JSON if needed
@@ -1933,6 +1951,10 @@ type
     MinPin: integer;
     /// maximum length of the PIN
     MaxPin: integer;
+    /// version number of the token's hardware
+    Hardware: CK_VERSION;
+    /// version number of the token's firmware
+    Firmware: CK_VERSION;
   end;
   PPkcs11Token = ^TPkcs11Token;
 
@@ -1969,10 +1991,11 @@ type
 
   /// a callback called during session long-process
   // - return false to continue, or true to abort the process
-  TOnPkcs11Notify = function(Sender: TPkcs11; Slot: TPkcs11SlotID): boolean;
+  TOnPkcs11Notify =
+    function(Sender: TPkcs11; Slot: TPkcs11SlotID): boolean of object;
 
   /// can load and use a PKCS#11 library
-  // - need to explicitely call Safe.Lock/UnLock if you need in a multi-thread usage
+  // - need to explicitely call Safe.Lock/UnLock in a multi-thread context
   TPkcs11 = class(TSynLocked)
   protected
     fC: CK_FUNCTION_LIST_PTR;
@@ -1986,6 +2009,7 @@ type
     fSession: CK_SESSION_HANDLE;
     fSessionSlot: TPkcs11SlotID;
     fSessionFlags: set of (sfRW, sfLogIn);
+    fRetrieveConfigIncludeMechanisms: boolean;
     fOnNotify: TOnPkcs11Notify;
     procedure EnsureLoaded(const ctxt: ShortString);
     procedure EnsureSession(const ctxt: ShortString);
@@ -1993,31 +2017,28 @@ type
       unlock: boolean = false);
     procedure CheckAttr(res: CK_RVULONG);
     function DoGetSlotList(Present: boolean): TPkcs11SlotIDDynArray;
-    // some actions within the current opened session
-    function SessionCreateObject(const a: CK_ATTRIBUTES): RawUtf8;
-    function SessionGetAttribute(obj: CK_OBJECT_HANDLE;
-      attr: CK_ATTRIBUTE_TYPE): RawUtf8;
   public
     /// try to load a PKCS#11 library, raising EPkcs11 on failure
     // - is just a wrapper around inherited Create and Load() + raise EPkcs11
-    // - note that Load() could wait several seconds  - use plain Create for
-    // a lazy/quick initialization, then make "if not Loaded then Load(...)"
     constructor Create(const aLibraryName: TFileName); reintroduce; overload;
     /// finalize this instance
     destructor Destroy; override;
     /// try to load a PKCS#11 library, returning true on success
-    // - this method takes several seconds, because it will connect to the
-    // actual peripheral, and communicate with it to retrieve its information
     function Load(const aLibraryName: TFileName): boolean;
     /// unload a PKCS#11 previously loaded library
     procedure UnLoad;
-    /// returns true if a previous Create(aFileName) or Load() was successfull
+    /// returns true if a previous Create(aFileName) or Load() was successful
     function Loaded: boolean;
       {$ifdef HASINLINE} inline; {$endif}
 
     /// get information about this instance in Slots[] and Tokens[] properties
-    procedure RetrieveConfig(IncludeVoidSlots: boolean = false);
+    // - this method could take several seconds, because it will connect to the
+    // actual peripheral, and communicate with it to retrieve its information
+    procedure RetrieveConfig(IncludeVoidSlots: boolean = false;
+      IncludeMechanisms: boolean = false);
     /// retrieve the list of Void slots
+    // - this method could take several seconds, because it will connect to the
+    // actual peripheral, and communicate with it to retrieve its information
     function RetrieveVoidSlots: TPkcs11SlotIDDynArray;
     /// update information in Slots[] and Tokens[] about a single slot
     // - as called e.g. by RetrieveConfig() and also function WaitForSlotEvent()
@@ -2051,11 +2072,14 @@ type
 
     /// enter public session by Slot ID, R/O by default
     // - only a single session can be opened at once in a TPkcs11 instance
+    // - session is read-only unless rw is set to true
     // - raise EPkcs11 on error, or set Safe.Lock on success: caller should
     // always use a "Open(...); try ... finally Close end" pattern
     procedure Open(slot: TPkcs11SlotID; rw: boolean = false); overload;
     /// enter user session by Slot ID, R/O and for a non-Supervisor user by default
     // - only a single session can be opened at once in a TPkcs11 instance
+    // - session is read-only unless rw is set to true
+    // - session is for a regular user, unless so is set to true for Supervisor
     // - raise EPkcs11 on error, or set Safe.Lock on success: caller should
     // always use a "Open(...); try ... finally Close end" pattern
     procedure Open(slot: TPkcs11SlotID; const pin: RawUtf8;
@@ -2078,6 +2102,7 @@ type
     // - should have called Open() then call Close() once done
     // - can optionally retrieve the whole object Value as RawByteString arrays
     function GetObjects(Filter: PCK_ATTRIBUTES = nil;
+      Handles: PCK_OBJECT_HANDLE_DYNARRAY = nil;
       Values: PRawByteStringDynArray = nil): TPkcs11ObjectDynArray;
     /// retrieve one object by class type and label/ID from current Session
     // - should have called Open() then call Close() once done
@@ -2100,6 +2125,17 @@ type
     // - return the matching CK_OBJECT_HANDLE, which lifetime is the Session
     function GetObject(ObjectClass: CK_OBJECT_CLASS; const StorageLabel: RawUtf8 = '';
       const StorageID: RawUtf8 = ''): CK_OBJECT_HANDLE; overload;
+    /// retrieve the value of a given object attribute within the current session
+    function SessionGetAttribute(obj: CK_OBJECT_HANDLE;
+      attr: CK_ATTRIBUTE_TYPE): RawUtf8;
+    /// create an object from the given attributes within the current session
+    function SessionCreateObject(const a: CK_ATTRIBUTES): CK_OBJECT_HANDLE;
+    /// destroy a given object within the current session
+    function SessionDestroyObject(obj: CK_OBJECT_HANDLE): boolean;
+    /// enumerate and erase all objects of the current SO session
+    // - warning: this operation is not recoverable
+    // - returns the number of deleted objects
+    function SessionDeleteAll: integer;
     /// retrieve some random bytes using the device opened in the current Session
     function GetRandom(Len: PtrInt): RawByteString;
     /// digitally sign a memory buffer using a supplied Private Key
@@ -2118,6 +2154,12 @@ type
     // - return the CKA_UNIQUE_ID generated by the token, or raise EPkcs11
     function AddSessionData(const Application, DataLabel: RawUtf8;
       const Data: RawByteString; const DerID: RawByteString = ''): RawUtf8;
+    /// store a CKO_CERTIFICATE object using the current R/W Session
+    // - return the CK_OBJECT_HANDLE returned by the token, or raise EPkcs11
+    function AddSessionCertificate(
+      const CertDer, CertDerSubject, CertID: RawByteString;
+      Flags: TPkcs11ObjectStorages; const CertLabel: RawUtf8): CK_OBJECT_HANDLE;
+
 
     /// release a session previously created with Open() overloads
     // - will release the lock with Safe.UnLock
@@ -2151,6 +2193,9 @@ type
     /// access to the internal Cryptoki API raw functions, once loaded
     property C: CK_FUNCTION_LIST_PTR
       read fC;
+    /// access to the internal Cryptoki API raw session handle, once logged
+    property RawSession: CK_SESSION_HANDLE
+      read fSession;
   published
     /// the library name after a successful Load() call
     property LibraryName: TFileName
@@ -2188,20 +2233,20 @@ begin
   GetSetNameShort(TypeInfo(CKT_FLAGS), f, result);
 end;
 
-function ToText(oc: CK_OBJECT_CLASS): PShortString;
+function ToText(cko: CK_OBJECT_CLASS): PShortString;
 begin
-  result := GetEnumName(TypeInfo(CK_OBJECT_CLASS), ord(oc));
+  result := GetEnumName(TypeInfo(CK_OBJECT_CLASS), ord(cko));
 end;
 
-function ToULONG(oc: CK_OBJECT_CLASS): CK_ULONG;
+function ToULONG(cko: CK_OBJECT_CLASS): CK_ULONG;
 begin
-  if oc = CKO_VENDOR_DEFINED then
+  if cko = CKO_VENDOR_DEFINED then
     result := CKO_VENDOR_DEFINED_ULONG
   else
-    result := ord(oc);
+    result := ord(cko);
 end;
 
-function OBJECT_CLASS(uu: CK_ULONG): CK_OBJECT_CLASS;
+function ToCKO(uu: CK_ULONG): CK_OBJECT_CLASS;
 begin
   if uu >= CK_ULONG(CKO_VENDOR_DEFINED) then
     result := CKO_VENDOR_DEFINED
@@ -2209,20 +2254,20 @@ begin
     result := CK_OBJECT_CLASS(uu);
 end;
 
-function ToText(hw: CK_HW_FEATURE_TYPE): PShortString;
+function ToText(ckh: CK_HW_FEATURE_TYPE): PShortString;
 begin
-  result := GetEnumName(TypeInfo(CK_HW_FEATURE_TYPE), ord(hw));
+  result := GetEnumName(TypeInfo(CK_HW_FEATURE_TYPE), ord(ckh));
 end;
 
-function ToULONG(hw: CK_HW_FEATURE_TYPE): CK_ULONG;
+function ToULONG(ckh: CK_HW_FEATURE_TYPE): CK_ULONG;
 begin
-  if hw = CKH_VENDOR_DEFINED then
+  if ckh = CKH_VENDOR_DEFINED then
     result := CKH_VENDOR_DEFINED_ULONG
   else
-    result := ord(hw);
+    result := ord(ckh);
 end;
 
-function HW_FEATURE_TYPE(uu: CK_ULONG): CK_HW_FEATURE_TYPE;
+function ToCKH(uu: CK_ULONG): CK_HW_FEATURE_TYPE;
 begin
   if uu >= CK_ULONG(CKH_VENDOR_DEFINED) then
     result := CKH_VENDOR_DEFINED
@@ -2230,41 +2275,43 @@ begin
     result := CK_HW_FEATURE_TYPE(uu);
 end;
 
-function ToText(kt: CK_KEY_TYPE): PShortString;
+function ToText(ckk: CK_KEY_TYPE): PShortString;
 begin
-  result := GetEnumName(TypeInfo(CK_KEY_TYPE), ord(kt));
+  result := GetEnumName(TypeInfo(CK_KEY_TYPE), ord(ckk));
 end;
 
-function ToULONG(kt: CK_KEY_TYPE): CK_ULONG;
+function ToULONG(ckk: CK_KEY_TYPE): CK_ULONG;
 begin
-  if kt = CKK_VENDOR_DEFINED then
+  if (ckk = CKK_none) or
+     (ckk = CKK_VENDOR_DEFINED) then
     result := CKK_VENDOR_DEFINED_ULONG
   else
-    result := ord(kt);
+    result := ord(ckk) - 1;
 end;
 
-function KEY_TYPE(uu: CK_ULONG): CK_KEY_TYPE;
+function ToCKK(uu: CK_ULONG): CK_KEY_TYPE;
 begin
+  inc(uu);
   if uu >= CK_ULONG(CKK_VENDOR_DEFINED) then
     result := CKK_VENDOR_DEFINED
   else
     result := CK_KEY_TYPE(uu);
 end;
 
-function ToText(ct: CK_CERTIFICATE_TYPE): PShortString;
+function ToText(ckc: CK_CERTIFICATE_TYPE): PShortString;
 begin
-  result := GetEnumName(TypeInfo(CK_CERTIFICATE_TYPE), ord(ct));
+  result := GetEnumName(TypeInfo(CK_CERTIFICATE_TYPE), ord(ckc));
 end;
 
-function ToULONG(ct: CK_CERTIFICATE_TYPE): CK_ULONG;
+function ToULONG(ckc: CK_CERTIFICATE_TYPE): CK_ULONG;
 begin
-  if ct = CKC_VENDOR_DEFINED then
+  if ckc = CKC_VENDOR_DEFINED then
     result := CKC_VENDOR_DEFINED_ULONG
   else
-    result := ord(ct);
+    result := ord(ckc);
 end;
 
-function CERTIFICATE_TYPE(uu: CK_ULONG): CK_CERTIFICATE_TYPE;
+function ToCKC(uu: CK_ULONG): CK_CERTIFICATE_TYPE;
 begin
   if uu >= CK_ULONG(CKC_VENDOR_DEFINED) then
     result := CKC_VENDOR_DEFINED
@@ -2272,9 +2319,9 @@ begin
     result := CK_CERTIFICATE_TYPE(uu);
 end;
 
-function ToText(at: CK_ATTRIBUTE_TYPE): PShortString;
+function ToText(cka: CK_ATTRIBUTE_TYPE): PShortString;
 begin
-  result := GetEnumName(TypeInfo(CK_ATTRIBUTE_TYPE), ord(at));
+  result := GetEnumName(TypeInfo(CK_ATTRIBUTE_TYPE), ord(cka));
 end;
 
 const
@@ -2403,12 +2450,12 @@ const
    $00000612,                         // CKA_X2RATCHET_RK
    $80000000);                        // CKA_VENDOR_DEFINED
 
-function ToULONG(at: CK_ATTRIBUTE_TYPE): CK_ATTRIBUTE_TYPE_ULONG;
+function ToULONG(cka: CK_ATTRIBUTE_TYPE): CK_ATTRIBUTE_TYPE_ULONG;
 begin
-  result := CKA_ULONG[at];
+  result := CKA_ULONG[cka];
 end;
 
-function ATTRIBUTE_TYPE(uu: CK_ATTRIBUTE_TYPE_ULONG): CK_ATTRIBUTE_TYPE;
+function ToCKA(uu: CK_ATTRIBUTE_TYPE_ULONG): CK_ATTRIBUTE_TYPE;
 var
   i: PtrInt;
 begin
@@ -2419,14 +2466,16 @@ begin
     result := CKA_VENDOR_DEFINED;
 end;
 
-function ToText(mt: CK_MECHANISM_TYPE): PShortString;
+function ToText(ckm: CK_MECHANISM_TYPE): PShortString;
 begin
-  result := GetEnumName(TypeInfo(CK_MECHANISM_TYPE), ord(mt));
+  result := GetEnumName(TypeInfo(CK_MECHANISM_TYPE), ord(ckm));
 end;
 
 const
   // warning: MECHANISM_TYPE() expects this array to be sorted
-  CKM_WORD: array[CK_MECHANISM_TYPE] of word = (
+  // - excude low(CK_MECHANISM_TYPE) = CKM_none and high() = CKM_VENDOR_DEFINED
+  CKM_WORD: array[succ(low(CK_MECHANISM_TYPE)) ..
+                  pred(high(CK_MECHANISM_TYPE))] of word = (
     $0000, // CKM_RSA_PKCS_KEY_PAIR_GEN
     $0001, // CKM_RSA_PKCS
     $0002, // CKM_RSA_9796
@@ -2843,32 +2892,33 @@ const
     $402A, // CKM_HKDF_DERIVE
     $402B, // CKM_HKDF_DATA
     $402C, // CKM_HKDF_KEY_GEN
-    $402D, // CKM_SALSA20_KEY_GEN
-    $FFFF);// CKM_VENDOR_DEFINED = $80000000 > 16-bit word
+    $402D); // CKM_SALSA20_KEY_GEN
+    // exclude CKM_VENDOR_DEFINED = $80000000 > 16-bit word
 
-function ToULONG(mt: CK_MECHANISM_TYPE): CK_MECHANISM_TYPE_ULONG;
+function ToULONG(ckm: CK_MECHANISM_TYPE): CK_MECHANISM_TYPE_ULONG;
 begin
-  if mt = CKM_VENDOR_DEFINED then
+  if (ckm = CKM_NONE) or
+     (ckm = CKM_VENDOR_DEFINED) then
     result := CKM_VENDOR_DEFINED_ULONG // = $80000000
   else
-    result := CKM_WORD[mt];
+    result := CKM_WORD[ckm];
 end;
 
-function MECHANISM_TYPE(uu: CK_MECHANISM_TYPE_ULONG): CK_MECHANISM_TYPE;
+function ToCKM(uu: CK_MECHANISM_TYPE_ULONG): CK_MECHANISM_TYPE;
 var
   i: PtrInt;
 begin
   result := CKM_VENDOR_DEFINED;
   if uu > $ffff then
     exit;
-  i := FastFindWordSorted(@CKM_WORD, length(CKM_WORD), uu); // O(log(n)) search
+  i := FastFindWordSorted(@CKM_WORD, length(CKM_WORD) - 1, uu); // O(log(n))
   if i >= 0 then
-    result := CK_MECHANISM_TYPE(i);
+    result := CK_MECHANISM_TYPE(i + 1); // + 1 for CKM_none
 end;
 
-function ToText(rv: CK_RV): PShortString;
+function ToText(ckr: CK_RV): PShortString;
 begin
-  result := GetEnumName(TypeInfo(CK_RV), ord(rv));
+  result := GetEnumName(TypeInfo(CK_RV), ord(ckr));
 end;
 
 function DefaultGenerateMechanism(kt: CK_KEY_TYPE;
@@ -3001,7 +3051,7 @@ end;
 
 const
   // warning: RV() expects this array to be sorted
-  CKR_WORD: array[CK_RV] of word = (
+  CKR_WORD: array[low(CK_RV) .. pred(high(CK_RV))] of word = (
     $0000, // CKR_OK
     $0001, // CKR_CANCEL
     $0002, // CKR_HOST_MEMORY
@@ -3098,26 +3148,26 @@ const
     $01B9, // CKR_PUBLIC_KEY_INVALID
     $0200, // CKR_FUNCTION_REJECTED
     $0201, // CKR_TOKEN_RESOURCE_EXCEEDED
-    $0202, // CKR_OPERATION_CANCEL_FAILED
-    $ffff);// CKR_VENDOR_DEFINED
+    $0202); // CKR_OPERATION_CANCEL_FAILED
+    // exclude CKR_VENDOR_DEFINED
 
 
-function ToULONG(rv: CK_RV): CK_RVULONG;
+function ToULONG(ckr: CK_RV): CK_RVULONG;
 begin
-  if rv = CKR_VENDOR_DEFINED then
+  if ckr = CKR_VENDOR_DEFINED then
     result := CKR_VENDORDEFINED // = $80000000
   else
-    result := CKR_WORD[rv];
+    result := CKR_WORD[ckr];
 end;
 
-function RV(uu: CK_RVULONG): CK_RV;
+function ToCKR(uu: CK_RVULONG): CK_RV;
 var
   i: PtrInt;
 begin
   result := CKR_VENDOR_DEFINED;
   if uu > $ffff then
     exit;
-  i := FastFindWordSorted(@CKR_WORD, length(CKR_WORD), uu); // O(log(n)) search
+  i := FastFindWordSorted(@CKR_WORD, length(CKR_WORD) - 1, uu); // O(log(n))
   if i >= 0 then
     result := CK_RV(i);
 end;
@@ -3126,10 +3176,8 @@ end;
 
 { CK_ATTRIBUTES }
 
-function CK_ATTRIBUTES.InternalStore(const aValue: RawByteString): pointer;
+function CK_ATTRIBUTES.InternalStoreBin(const aValue: RawByteString): pointer;
 begin
-  if Attrs = nil then
-    Clear; // initialize Count when needed (e.g. CK_ATTRIBUTES on stack)
   if fStoreBinPos = length(fStoreBin) then
     SetLength(fStoreBin, NextGrow(fStoreBinPos));
   fStoreBin[fStoreBinPos] := aValue; // fast ref-count copy for safety
@@ -3137,10 +3185,8 @@ begin
   inc(fStoreBinPos);
 end;
 
-function CK_ATTRIBUTES.InternalStore(aValue: CK_ULONG): CK_ULONG_PTR;
+function CK_ATTRIBUTES.InternalStoreULong(aValue: CK_ULONG): CK_ULONG_PTR;
 begin
-  if Attrs = nil then
-    Clear; // initialize Count when needed (e.g. CK_ATTRIBUTES on stack)
   if fStoreUlongPos = high(fStoreUlong) then
     raise EPkcs11.Create('CK_ATTRIBUTES: too many CK_ULONG attributes');
   result := @fStoreUlong[fStoreUlongPos];
@@ -3181,16 +3227,14 @@ begin
         if ulValueLen = CK_UNAVAILABLE_INFORMATION then
           ulValueLen := 0
         else if ulValueLen <= SizeOf(CK_ULONG) then
-          pValue := InternalStore(0) // from static fStoreULong[]
+          pValue := InternalStoreULong(0) // from static fStoreULong[]
         else
-          pValue := InternalStore(RawUtf8OfChar(' ', ulValueLen)); // alloc
+          pValue := InternalStoreBin(RawUtf8OfChar(' ', ulValueLen)); // alloc
 end;
 
 procedure CK_ATTRIBUTES.Add(aType: CK_ATTRIBUTE_TYPE; aValue: pointer;
   aLen: CK_ULONG);
 begin
-  if Attrs = nil then
-    Clear; // initialize Count when needed (e.g. CK_ATTRIBUTES on stack)
   if Count = length(Attrs) then
     SetLength(Attrs, NextGrow(Count)); // grow capacity by chunks
   with Attrs[Count] do
@@ -3217,12 +3261,12 @@ end;
 
 procedure CK_ATTRIBUTES.Add(aType: CK_ATTRIBUTE_TYPE; aValue: CK_ULONG);
 begin
-  Add(aType, InternalStore(aValue), SizeOf(aValue));
+  Add(aType, InternalStoreULong(aValue), SizeOf(aValue));
 end;
 
 procedure CK_ATTRIBUTES.Add(aType: CK_ATTRIBUTE_TYPE; aValue: boolean);
 begin
-  Add(aType, InternalStore(ord(aValue)), SizeOf(aValue));
+  Add(aType, InternalStoreULong(ord(aValue)), 1); // CK_BBOOL is an unsigned char
 end;
 
 procedure CK_ATTRIBUTES.AddDate(aType: CK_ATTRIBUTE_TYPE; aValue: TDateTime);
@@ -3238,7 +3282,7 @@ begin
   if aValue = '' then
     Add(aType, nil, 0)
   else
-    Add(aType, InternalStore(aValue), length(aValue));
+    Add(aType, InternalStoreBin(aValue), length(aValue));
 end;
 
 procedure CK_ATTRIBUTES.New(aClass: CK_OBJECT_CLASS);
@@ -3275,7 +3319,7 @@ end;
 
 procedure CK_ATTRIBUTES.Add(aMech: CK_MECHANISM_TYPE);
 begin
-  Add(CKA_CERTIFICATE_TYPE, ToULONG(aMech));
+  Add(CKA_MECHANISM_TYPE, ToULONG(aMech));
 end;
 
 procedure CK_ATTRIBUTES.Add(aType: CK_ATTRIBUTE_TYPE;
@@ -3421,7 +3465,7 @@ function Pad(const text: RawUtf8; max: integer): RawUtf8;
 var
   len: integer;
 begin
-  FastSetString(result, nil, max);
+  FastSetString(result, max);
   len := length(text);
   if len > max then
     len := max
@@ -3444,6 +3488,8 @@ begin
   Token.MaxSessions := Raw.ulMaxSessionCount;
   Token.MinPin := Raw.ulMinPinLen;
   Token.MaxPin := Raw.ulMaxPinLen;
+  Token.Hardware := Raw.hardwareVersion;
+  Token.Firmware := Raw.firmwareVersion;
 end;
 
 procedure FillSlot(ID: CK_SLOT_ID; const Raw: CK_SLOT_INFO;
@@ -3459,6 +3505,7 @@ begin
 end;
 
 const
+  // recognized boolean CKA_* attributes
   POS2CKA: array[low(TPkcs11ObjectStorage) .. pred(posX509)] of CK_ATTRIBUTE_TYPE = (
     CKA_TOKEN,           // posToken
     CKA_PRIVATE,         // posPrivate
@@ -3476,7 +3523,8 @@ const
     CKA_WRAP,            // posWrap
     CKA_UNWRAP,          // posUnWrap
     CKA_DERIVE,          // posDerive
-    CKA_TRUSTED);        // posTrusted
+    CKA_TRUSTED,         // posTrusted
+    CKA_LOCAL);          // posLocal
 
 procedure AddToAttributes(var Attr: CK_ATTRIBUTES; Flags: TPkcs11ObjectStorages);
 var
@@ -3536,7 +3584,7 @@ constructor TPkcs11.Create(const aLibraryName: TFileName);
 begin
   inherited Create;
   if not Load(aLibraryName) then
-    raise EPkcs11.CreateUtf8('%: error loading %', [self, aLibraryName]);
+    EPkcs11.RaiseUtf8('%: error loading %', [self, aLibraryName]);
 end;
 
 destructor TPkcs11.Destroy;
@@ -3554,14 +3602,14 @@ end;
 procedure TPkcs11.EnsureLoaded(const ctxt: ShortString);
 begin
   if not Loaded then
-    raise EPkcs11.CreateUtf8('%.%: no library loaded', [self, ctxt]);
+    EPkcs11.RaiseUtf8('%.%: no library loaded', [self, ctxt]);
 end;
 
 procedure TPkcs11.EnsureSession(const ctxt: ShortString);
 begin
   if (self = nil) or
      (fSession = 0) then
-    raise EPkcs11.CreateUtf8('%.% requires a session', [self, ctxt]);
+    EPkcs11.RaiseUtf8('%.% requires a session', [self, ctxt]);
 end;
 
 procedure TPkcs11.Check(res: CK_RVULONG; const ctxt: ShortString;
@@ -3571,8 +3619,7 @@ begin
     exit;
   if unlock then
     Safe.UnLock;
-  raise EPkcs11.CreateUtf8(
-    '%.%: failed as % (%)', [self, ctxt, ToText(RV(res))^, res]);
+  EPkcs11.RaiseUtf8('%.%: failed as % (%)', [self, ctxt, ToText(ToCKR(res))^, res]);
 end;
 
 procedure TPkcs11.CheckAttr(res: CK_RVULONG);
@@ -3604,7 +3651,7 @@ var
   notif: pointer;
 begin
   if fSession <> 0 then
-    raise EPkcs11.CreateUtf8('%: pending session', [self]);
+    EPkcs11.RaiseUtf8('%: pending session', [self]);
   Safe.Lock;
   try
     fSessionSlot := slot;
@@ -3624,8 +3671,7 @@ begin
   end;
 end;
 
-procedure TPkcs11.Open(slot: TPkcs11SlotID; const pin: RawUtf8;
-  rw: boolean; so: boolean);
+procedure TPkcs11.Open(slot: TPkcs11SlotID; const pin: RawUtf8; rw, so: boolean);
 const
   FLAGS: array[boolean] of CK_USER_TYPE = (CKU_USER, CKU_SO);
 begin
@@ -3745,13 +3791,14 @@ begin
     result[i] := s[i]; // from CK_SLOT_ID to TPkcs11SlotID
 end;
 
-procedure TPkcs11.RetrieveConfig(IncludeVoidSlots: boolean);
+procedure TPkcs11.RetrieveConfig(IncludeVoidSlots, IncludeMechanisms: boolean);
 var
   i: PtrInt;
 begin
   EnsureLoaded('RetrieveConfig');
   fSafe.Lock;
   try
+    fRetrieveConfigIncludeMechanisms := IncludeMechanisms;
     fSlots := nil;
     fTokens := nil;
     fSlotIDs := DoGetSlotList(not IncludeVoidSlots);
@@ -3818,23 +3865,28 @@ begin
         end;
       exit;
     end;
-    mn := 64;
-    repeat
-      if length(m) < CK_LONG(mn) then
-        SetLength(m, mn);
-      res := fC^.GetMechanismList(SlotID, pointer(m), mn);
-    until res <> CKR_BUFFER_TOOSMALL; // loop if 64 was not enough
-    Check(res, 'GetMechanismList');
-    SetLength(s^.Mechanism, mn);
-    for i := 0 to CK_LONG(mn) - 1 do
+    if fRetrieveConfigIncludeMechanisms then
     begin
-      Check(fC^.GetMechanismInfo(SlotID, m[i], mecnfo), 'GetMechanismInfo');
-      with s^.Mechanism[i] do
+      mn := 64;
+      repeat
+        if length(m) < CK_LONG(mn) then
+          SetLength(m, mn);
+        res := fC^.GetMechanismList(SlotID, pointer(m), mn);
+      until res <> CKR_BUFFER_TOOSMALL; // loop if 64 was not enough
+      if res = CKR_WORD[CKR_TOKEN_NOT_PRESENT] then
+        exit; // CKF_TOKEN_PRESENT may be set on a void or unsupported device
+      Check(res, 'GetMechanismList');
+      SetLength(s^.Mechanism, mn);
+      for i := 0 to CK_LONG(mn) - 1 do
       begin
-        Kind := MECHANISM_TYPE(m[i]);
-        MinKey := mecnfo.ulMinKeySize;
-        MaxKey := mecnfo.ulMaxKeySize;
-        Flags := CKM_FLAGS(cardinal(mecnfo.flags));
+        Check(fC^.GetMechanismInfo(SlotID, m[i], mecnfo), 'GetMechanismInfo');
+        with s^.Mechanism[i] do
+        begin
+          Kind := ToCKM(m[i]);
+          MinKey := mecnfo.ulMinKeySize;
+          MaxKey := mecnfo.ulMaxKeySize;
+          Flags := CKM_FLAGS(cardinal(mecnfo.flags));
+        end;
       end;
     end;
     Check(fC^.GetTokenInfo(SlotID, toknfo), 'GetTokenInfo');
@@ -3861,7 +3913,7 @@ begin
     if res = CKR_NOEVENT then
       exit;
     Check(res, 'WaitForSlotEvent');
-    UpdateConfig(slotid);
+    UpdateConfig(slotid); // reload
     result := slotid;
   finally
     fSafe.UnLock;
@@ -3953,6 +4005,7 @@ begin
 end;
 
 function TPkcs11.GetObjects(Filter: PCK_ATTRIBUTES;
+  Handles: PCK_OBJECT_HANDLE_DYNARRAY;
   Values: PRawByteStringDynArray): TPkcs11ObjectDynArray;
 var
   n, count, u: CK_ULONG;
@@ -3986,6 +4039,8 @@ begin
     if n = 0 then
       break;
     SetLength(result, n + count);
+    if Handles <> nil then
+      SetLength(Handles^, n + count);
     if Values <> nil then
       SetLength(Values^, n + count);
     for i := 0 to CK_LONG(n) - 1 do
@@ -3999,7 +4054,7 @@ begin
       if arr.Find(CKA_CLASS, u) then
         with result[count] do
         begin
-          ObjClass := OBJECT_CLASS(u);
+          ObjClass := ToCKO(u);
           for s := low(POS2CKA) to high(POS2CKA) do
             if arr.Find(POS2CKA[s], b) and b then
               include(StorageFlags, s);
@@ -4010,7 +4065,7 @@ begin
           arr.Find(CKA_SUBJECT, Subject);
           if arr.Find(CKA_CERTIFICATE_TYPE, u) then
           begin
-            case CERTIFICATE_TYPE(u) of
+            case ToCKC(u) of
               CKC_X_509:
                 include(StorageFlags, posX509);
               CKC_X_509_ATTR_CERT:
@@ -4029,16 +4084,17 @@ begin
           arr.Find(CKA_END_DATE, Stop);
           if arr.Find(CKA_KEY_TYPE, u) then
           begin
-            KeyType := KEY_TYPE(u);
+            KeyType := ToCKK(u);
             if arr.Find(CKA_KEY_GEN_MECHANISM, u) then
-              KeyGen := MECHANISM_TYPE(u);
+              KeyGen := ToCKM(u);
             if arr.Find(CKA_MODULUS_BITS, u) then // for RSA
               KeyBits := u
             else if not EccBitsFromPointLen(arr.FindLen(CKA_EC_POINT), KeyBits) then
               if arr.Find(CKA_VALUE_LEN, u) then // CKK_EC
                 KeyBits := u shl 3; // CKK_AES
           end;
-          SessionHandle := obj[i];
+          if Handles <> nil then
+            Handles^[count] := obj[i];
           if Values <> nil then
             arr.Find(CKA_VALUE, Values^[count]);
           inc(count);
@@ -4051,6 +4107,9 @@ begin
  if (Values <> nil) and
     (count <> CK_ULONG(length(Values^))) then
    SetLength(Values^, count);
+ if (Handles <> nil) and
+    (count <> CK_ULONG(length(Handles^))) then
+   SetLength(Handles^, count);
 end;
 
 function TPkcs11.GetObject(ObjectClass: CK_OBJECT_CLASS; out Info: TPkcs11Object;
@@ -4069,7 +4128,7 @@ begin
     valp := nil
   else
     valp := @val;
-  res := GetObjects(@attr, valp);
+  res := GetObjects(@attr, nil, valp);
   if res = nil then
     exit;
   if Value <> nil then
@@ -4084,13 +4143,15 @@ function TPkcs11.GetObject(ObjectClass: CK_OBJECT_CLASS;
   const StorageLabel, StorageID: RawUtf8): CK_OBJECT_HANDLE;
 var
   attr: CK_ATTRIBUTES;
+  hnd: CK_OBJECT_HANDLE_DYNARRAY;
   res: TPkcs11ObjectDynArray;
 begin
   EnsureSession('GetObject');
   attr.New(ObjectClass, StorageLabel, StorageID);
-  res := GetObjects(@attr);
-  if length(res) = 1 then
-    result := res[0].SessionHandle
+  res := GetObjects(@attr, @hnd, nil);
+  if (length(res) = 1) and
+     (length(hnd) = 1) then
+    result := hnd[0]
   else
     result := CK_INVALID_HANDLE; // return 0 on error
 end;
@@ -4099,7 +4160,7 @@ function TPkcs11.GetRandom(Len: PtrInt): RawByteString;
 begin
   EnsureSession('GetRandom');
   if Len > 0 then
-    FastSetRawByteString(result, nil, Len);
+    FastNewRawByteString(result, Len);
   if (Len <= 0) or
      (fC.GenerateRandom(fSession, pointer(result), Len) <> CKR_SUCCESS) then
     result := '';
@@ -4120,7 +4181,7 @@ begin
   Check(fC.Sign(fSession, nil, 0, nil, reslen), 'Sign');
   SetLength(result, reslen);
   Check(fC.Sign(fSession, Data, Len, pointer(result), reslen), 'Sign');
-  if len <> length(result) then
+  if reslen <> PtrUInt(length(result)) then
     SetLength(result, reslen);
 end;
 
@@ -4185,7 +4246,6 @@ begin
   end;
 end;
 
-
 function TPkcs11.SessionGetAttribute(
   obj: CK_OBJECT_HANDLE; attr: CK_ATTRIBUTE_TYPE): RawUtf8;
 var
@@ -4198,42 +4258,110 @@ begin
   if (fC.GetAttributeValue(fSession, obj, @a, 1) <> CKR_SUCCESS) or
      (a.ulValueLen = CK_UNAVAILABLE_INFORMATION) then
     exit; // impossible to retrieve the length
-  FastSetString(result, nil, a.ulValueLen);
+  FastSetString(result, a.ulValueLen);
   a.pValue := pointer(result); // copy the attribute value to result
   if fC.GetAttributeValue(fSession, obj, @a, 1) <> CKR_SUCCESS then
     result := '';
 end;
 
-function TPkcs11.SessionCreateObject(const a: CK_ATTRIBUTES): RawUtf8;
+function TPkcs11.SessionDestroyObject(obj: CK_OBJECT_HANDLE): boolean;
+begin
+  result := (fSession <> 0) and
+            (obj <> CK_INVALID_HANDLE) and
+            (fC.DestroyObject(fSession, obj) = CKR_SUCCESS);
+end;
+
+function TPkcs11.SessionDeleteAll: integer;
 var
-  obj: CK_OBJECT_HANDLE;
+  obj: array[byte] of CK_OBJECT_HANDLE;
+  i, n: CK_ULONG;
+begin
+  result := 0;
+  EnsureSession('SessionDeleteAll');
+  repeat
+    Check(fC.FindObjectsInit(fSession, nil, 0), 'FindObjectsInit');
+    n := 0;
+    Check(fC.FindObjects(fSession, @obj, length(obj), n), 'FindObjects');
+    Check(fc.FindObjectsFinal(fSession), 'FindObjectsFinal');
+    if n = 0 then
+      exit;
+    for i := 0 to n - 1 do
+      Check(fC.DestroyObject(fSession, obj[i]), 'DestroyObject');
+    inc(result, n);
+  until false;
+end;
+
+function TPkcs11.SessionCreateObject(const a: CK_ATTRIBUTES): CK_OBJECT_HANDLE;
 begin
   Check(fC.CreateObject(
-    fSession, pointer(a.Attrs), a.Count, obj), 'CreateObject');
-  result := SessionGetAttribute(obj, CKA_UNIQUE_ID); // just generated
+    fSession, pointer(a.Attrs), a.Count, result), 'CreateObject');
 end;
 
 function TPkcs11.AddSessionData(const Application, DataLabel: RawUtf8;
   const Data: RawByteString; const DerID: RawByteString): RawUtf8;
 var
   a: CK_ATTRIBUTES;
+  obj: CK_OBJECT_HANDLE;
 begin
   if not (sfRW in fSessionFlags) then
-    raise EPkcs11.CreateUtf8('%.AddSessionData requires a R/W session', [self]);
+    EPkcs11.RaiseUtf8('%.AddSessionData requires a R/W session', [self]);
   a.New(CKO_DATA, DataLabel);
   if Application <> '' then
     a.Add(CKA_APPLICATION, Application);
   if DerID <> '' then
     a.Add(CKA_OBJECT_ID, DerID);
   a.Add(CKA_VALUE, Data);
-  result := SessionCreateObject(a);
+  obj := SessionCreateObject(a);
+  result := SessionGetAttribute(obj, CKA_UNIQUE_ID); // just generated
 end;
+
+// https://github.com/OpenSC/OpenSC/blob/master/src/tools/pkcs11-tool.c#L3924C1
+
+function TPkcs11.AddSessionCertificate(
+  const CertDer, CertDerSubject, CertID: RawByteString;
+  Flags: TPkcs11ObjectStorages; const CertLabel: RawUtf8): CK_OBJECT_HANDLE;
+var
+  a: CK_ATTRIBUTES;
+  rv: CK_RVULONG;
+begin
+  result := CK_INVALID_HANDLE;
+  EnsureSession('AddSessionCertificate'); // may not be r/w for a temp object
+  include(Flags, posExtractable);
+  repeat
+    a.New(CKO_CERTIFICATE, CertLabel);
+    AddToAttributes(a, [posToken,
+                        posX509] + Flags);
+    if Flags <> [] then
+      a.Add(CKA_SUBJECT, CertDerSubject);
+    a.Add(CKA_VALUE, CertDer);
+    a.Add(CKA_PRIVATE, false); // mandatory!
+    a.Add(CKA_ID, CertID);     // as binary
+    rv := fC.CreateObject(fSession, pointer(a.Attrs), a.Count, result);
+    case ToCKR(rv) of
+      CKR_OK:
+        exit; // success
+      CKR_ARGUMENTS_BAD,
+      CKR_ATTRIBUTE_TYPE_INVALID,
+      CKR_ATTRIBUTE_VALUE_INVALID:
+        // if the PKCS#11 library does not support all attributes, fallback to
+        // a minimal set - actual usage would be retrieved from X.509 content
+        if Flags = [] then
+          break // no fallback possible
+        else
+          Flags := [] // retry once
+    else
+      break;
+    end;
+  until false;
+  Check(rv, 'AddSessionCertificate CreateObject'); // raise EPkcs11
+end;
+
 
 
 initialization
   // paranoid cross-platform validation
   assert(cardinal(1 shl ord(CKF_ERROR_STATE)) = $01000000);
-  assert(cardinal(CKK_SHA512_T_HMAC) = $00000045);
+  assert(cardinal(CKK_SHA512_T_HMAC) = $00000045 + 1);
   assert(cardinal(1 shl ord(CKF_EXTENSION)) = $80000000);
   assert(SizeOf(CK_DATE) = 8);
   // allow proper JSON serialization of TPkcs11Slot/TPkcs11Token/TPkcs11
@@ -4255,10 +4383,10 @@ initialization
     TypeInfo(TPkcs11ObjectDynArray),
       'class:CK_OBJECT_CLASS id,label:RawUtf8 flags:TPkcs11ObjectStorages' +
       ' keytype:CK_KEY_TYPE keygen:CK_MECHANISM_TYPE keybits:cardinal ' +
-      ' start,end:TDateTime app:RawUtf8 sub,sn,iss,uid:RawByteString hdl:cardinal',
+      ' start,end:TDateTime app:RawUtf8 sub,sn,iss,uid:RawByteString',
     TypeInfo(TPkcs11Token),
       'slot:cardinal name,manufacturer,model,serial,time:RawUtf8 flags:CKT_FLAGS' +
-      ' sessions,maxsessions,minpin,maxpin: integer'
+      ' sessions,maxsessions,minpin,maxpin:integer hwmaj,hwmin,fwmaj,fwmin:byte'
     ]);
 
 

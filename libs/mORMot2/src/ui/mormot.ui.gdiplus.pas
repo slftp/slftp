@@ -356,7 +356,7 @@ begin
     S := TMemoryStream.Create;
     try
       TGraphic(Source).SaveToStream(S);
-      S.Seek(0, soFromBeginning);
+      S.Seek(0, soBeginning);
       LoadFromStream(S);
     finally
       S.Free;
@@ -600,7 +600,7 @@ begin
   Clear;
   if not FileExists(FileName) then
     exit;
-  s := TFileStreamEx.Create(FileName, fmOpenReadDenyNone);
+  s := TFileStreamEx.Create(FileName, fmOpenReadShared);
   try
     LoadFromStream(s);
   finally
@@ -1004,7 +1004,7 @@ var
 begin
   result := nil;
   if Source = nil then // self=nil is OK below
-    Exit;
+    exit;
   R.Left := 0;
   R.Right := (Source.Width * ScaleX) div 100;
   R.Top := 0;
