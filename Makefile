@@ -28,70 +28,66 @@ all_32: slftp_32 install
 
 all_64: slftp_64 install
 
-slftp:	FORCE
-	gmake clean
-	gmake revpatch
+slftp:	FORCE clean revpatch slftp_build revpatchrevert
+
+slftp_build:
 	$(CC) $(CFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_32:	FORCE
-	gmake clean
-	gmake revpatch
+slftp_32:	FORCE clean revpatch slftp_32_build revpatchrevert
+
+slftp_32_build:
 	$(CC) -Pi386 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_64:	FORCE
-	gmake clean
-	gmake revpatch
+slftp_64:	FORCE clean revpatch slftp_64_build revpatchrevert
+
+slftp_64_build:
 	$(CC) -Px86_64 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_debug:	FORCE
-	gmake revpatch
+slftp_debug:	FORCE clean revpatch slftp_debug_build revpatchrevert
+
+slftp_debug_build:
 	$(CC) $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_32_debug:	FORCE
-	gmake revpatch
+slftp_32_debug:	FORCE clean revpatch slftp_32_debug_build revpatchrevert
+
+slftp_32_debug_build:
 	$(CC) -Pi386 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_64_debug:	FORCE
-	gmake revpatch
+slftp_64_debug:	FORCE clean revpatch slftp_64_debug_build revpatchrevert
+
+slftp_64_debug_build:
 	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_debug_heaptrace:	FORCE
-	gmake revpatch
+slftp_debug_heaptrace:	FORCE clean revpatch slftp_debug_heaptrace_build revpatchrevert
+
+slftp_debug_heaptrace_build:
 	$(CC) $(CDBFLAGS) $(HEAPTRACE) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_debug_valgrind:	FORCE
-	gmake revpatch
+slftp_debug_valgrind:	FORCE clean revpatch slftp_debug_valgrind_build revpatchrevert
+
+slftp_debug_valgrind_build:
 	$(CC) $(CDBFLAGS) $(VALGRIND) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_debug_gprof:	FORCE
-	gmake revpatch
+slftp_debug_gprof:	FORCE clean revpatch slftp_debug_gprof_build revpatchrevert
+
+slftp_debug_gprof_build:
 	$(CC) $(CDBFLAGS) $(GPROF) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-slftp_debug_vtune:	FORCE
-	gmake revpatch
+slftp_debug_vtune:	FORCE clean revpatch slftp_debug_vtune_build revpatchrevert
+
+slftp_debug_vtune_build:
 	$(CC) $(VTUNE) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
 
-test:	FORCE
-	@make cleanuptestdir
+test:	FORCE clean test_build_and_run cleanuptestdir
+
+test_build_and_run:
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
 	./tests/slftpUnitTests
-	@make cleanuptestdir
 
-clean:
+clean:	cleanuptestdir
 	@find . -name "*.ppu" -type f -delete
 	@find . \( -path "./libs/mORMot2/static" \) -prune -o -name "*.o" -type f -exec rm {} +
 	@rm -f slftp *.exe
-	@make cleanuptestdir
 
 cleanuptestdir:
 	@find tests -name "*.ppu" -type f -delete
