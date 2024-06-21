@@ -29,69 +29,69 @@ all_32: slftp_32 install
 all_64: slftp_64 install
 
 slftp:	FORCE
-	gmake clean
-	gmake revpatch
+	$(MAKE) clean
+	$(MAKE) revpatch
 	$(CC) $(CFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_32:	FORCE
-	gmake clean
-	gmake revpatch
+	$(MAKE) clean
+	$(MAKE) revpatch
 	$(CC) -Pi386 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_64:	FORCE
-	gmake clean
-	gmake revpatch
+	$(MAKE) clean
+	$(MAKE) revpatch
 	$(CC) -Px86_64 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_debug:	FORCE
-	gmake revpatch
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_32_debug:	FORCE
-	gmake revpatch
+	$(MAKE) revpatch
 	$(CC) -Pi386 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_64_debug:	FORCE
-	gmake revpatch
+	$(MAKE) revpatch
 	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_debug_heaptrace:	FORCE
-	gmake revpatch
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(HEAPTRACE) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_debug_valgrind:	FORCE
-	gmake revpatch
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(VALGRIND) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_debug_gprof:	FORCE
-	gmake revpatch
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(GPROF) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 slftp_debug_vtune:	FORCE
-	gmake revpatch
+	$(MAKE) revpatch
 	$(CC) $(VTUNE) $(CINCLUDES) slftp.lpr
-	gmake revpatchrevert
+	$(MAKE) revpatchrevert
 
 test:	FORCE
-	@make cleanuptestdir
+	$(MAKE) clean
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
 	./tests/slftpUnitTests
-	@make cleanuptestdir
+	$(MAKE) cleanuptestdir
 
 clean:
 	@find . -name "*.ppu" -type f -delete
 	@find . \( -path "./libs/mORMot2/static" \) -prune -o -name "*.o" -type f -exec rm {} +
 	@rm -f slftp *.exe
-	@make cleanuptestdir
+	$(MAKE) cleanuptestdir
 
 cleanuptestdir:
 	@find tests -name "*.ppu" -type f -delete
