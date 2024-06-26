@@ -107,6 +107,7 @@ type
     function GetCaseSensitive: Boolean;
     procedure LoadValues;
     procedure SetCaseSensitive(Value: Boolean);
+    procedure MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
   public
     AutoUpdate: Boolean;
     constructor Create(const FileName, Passphrase: String; autoupdate: Boolean = False; compression: Boolean = True); overload;
@@ -645,6 +646,21 @@ begin
   il.Leave;
 end;
 
+procedure TEncIniFile.MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
+begin
+  // Check if the destination file exists
+  if FileExists(aDestinationFileName) then
+  begin
+    // Delete the existing destination file
+    if not DeleteFile(aDestinationFileName) then
+      raise Exception.CreateFmt('Cannot delete existing destination file: %s', [aDestinationFileName]);
+  end;
+
+  // Rename (move) the source file to the destination
+  if not RenameFile(aSourceFileName, aDestinationFileName) then
+    raise Exception.CreateFmt('Cannot move file from %s to %s', [aSourceFileName, aDestinationFileName]);
+end;
+
 procedure TEncIniFile.GetStrings(List: TStrings);
 var
   I, J: Integer;
@@ -697,7 +713,10 @@ begin
             S := FSections[I];
             S := Copy(S, 6, Length(S) - 5);
             S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
-            ListSplitFile.SaveToFile(S);
+
+            // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
+            ListSplitFile.SaveToFile(S + '.sltmp');
+            MoveAndOverwriteFile(S + '.sltmp', S);
           finally
             ListSplitFile.Free;
           end;
@@ -915,13 +934,16 @@ begin
     if not fSima then
     begin
       List.SaveToStream(myS);
-      EncryptStreamToFile(myS, fFilename, fPassHash, fCompression);
+      EncryptStreamToFile(myS, fFilename + '.sltmp', fPassHash, fCompression);
     end else
-      list.SaveToFile(fFilename);
+      list.SaveToFile(fFilename + '.sltmp');
   finally
     List.Free;
     myS.Free;
   end;
+
+  // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
+  MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
 end;
 
 
