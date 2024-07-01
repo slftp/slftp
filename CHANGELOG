@@ -50,6 +50,7 @@
 --=============================( SLFTP v1.5.11 )==================================-
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
     {#} Fix build on BSD
+    {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
