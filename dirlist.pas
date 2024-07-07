@@ -124,6 +124,9 @@ type
     entries: THashedStringList; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
     dependency_mkdir: String;
+    FNumDirlistsWithoutNewFile: integer; //< Number of dirlists executed that did not find a new file
+    FNumDirlistsWithoutChange: integer; //< Number of dirlists executed that did not find any change (new file, file size changed, user changed, ...)
+    FNumDirlistsWithoutTaskCreation: integer; //< Number of dirlists executed that did not result in at least 1 new (race) task
 
     procedure Clear;
     constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
@@ -189,6 +192,10 @@ type
       @param(aDirName The dir name to match.)
       @returns(Result from MatchFile function of the skiplist.) }
     function MatchFileDirectoryCached(const aDirName: string): integer;
+    { Increments the field @link(FNumDirlistsWithoutTaskCreation) if there was no task created and sets the
+      field @link(FNumDirlistsWithoutTaskCreation) to 0 if there was a task created. Used for dynamic dirlist task start time calculation.
+      @param(aWasTaskCreated True, if a task was created.) }
+    procedure UpdateTaskCreationCounter(const aWasTaskCreated: boolean);
 
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
@@ -416,6 +423,10 @@ begin
   self.FIsFromIrc := FromIrc;
   self.FIsAutoIndex := aIsAutoIndex;
 
+  self.FNumDirlistsWithoutChange := 0;
+  self.FNumDirlistsWithoutNewFile := 0;
+  self.FNumDirlistsWithoutTaskCreation := 0;
+
   sfv_status := dlSFVUnknown;
   if skiplist <> nil then
   begin
@@ -605,21 +616,35 @@ begin
 
 end;
 
+procedure TDirlist.UpdateTaskCreationCounter(const aWasTaskCreated: boolean);
+begin
+  if aWasTaskCreated then
+    FNumDirlistsWithoutTaskCreation := 0
+  else
+    FNumDirlistsWithoutTaskCreation := FNumDirlistsWithoutTaskCreation + 1;
+end;
+
 procedure TDirList.ParseDirlist(s: String);
 var
   tmp: String;
   akttimestamp: TDateTime;
   de: TDirListEntry;
-  added: Boolean;
+  added, changed: Boolean;
   fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
   fFilesize: Int64;
   i: Integer;
   fTagCompleteType: TTagCompleteType;
 begin
   added := False;
+  changed := False;
 
   // No need to parse the dir again if it's complete
-  if FCachedCompleteResult then exit;
+  if FCachedCompleteResult then
+  begin
+    FNumDirlistsWithoutNewFile := FNumDirlistsWithoutNewFile + 1;
+    FNumDirlistsWithoutChange := FNumDirlistsWithoutChange + 1;
+    exit;
+  end;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 
@@ -780,6 +805,7 @@ begin
           if ((de.filesize <> fFilesize) or (de.FUsername <> fUsername)) then
           begin
             LastChanged := Now();
+            changed := True;
           end;
 
           de.filesize := fFilesize;
@@ -831,6 +857,7 @@ begin
   begin
     FCachedCompleteResult := False;
     allcdshere := False;
+    FNumDirlistsWithoutNewFile := 0;
 
     if skiplist <> nil then
     begin
@@ -853,7 +880,16 @@ begin
       end;
 
     end;
+  end
+  else
+  begin
+    FNumDirlistsWithoutNewFile := FNumDirlistsWithoutNewFile + 1;
   end;
+
+  if not changed and not added then
+    FNumDirlistsWithoutChange := FNumDirlistsWithoutChange + 1
+  else
+    FNumDirlistsWithoutChange := 0;
 
   debugunit.Debug(dpSpam, section, Format('<-- ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 end;

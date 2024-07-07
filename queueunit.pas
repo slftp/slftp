@@ -25,7 +25,10 @@ type
 
 procedure QueueFire;
 procedure QueueStart;
-procedure AddTask(t: TTask);
+{ Adds the given task to the queue.
+  @param(t The task to be added to the queue.)
+  @returns(True, if there was no same task already in the queue, False otherwise.) }
+function AddTask(t: TTask): boolean;
 procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
@@ -1062,7 +1065,7 @@ begin
   Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
-procedure AddTask(t: TTask);
+function AddTask(t: TTask): boolean;
 var
   tname: String;
   fCheckSiteSlotsSite: TSite;
@@ -1152,6 +1155,8 @@ begin
       CheckSiteSlots(fCheckSiteSlotsSite);
     end;
     AddTaskToConsole(t);
+
+    Result := not fIsAlreadyInQueue;
   end;
 end;
 

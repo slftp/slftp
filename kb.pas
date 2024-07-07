@@ -836,7 +836,11 @@ begin
           end;
 
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist (loop): %s', [e.Message]));
+            continue;
+           end;
         end;
       end;
     end;

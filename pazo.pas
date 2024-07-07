@@ -51,7 +51,11 @@ type
   private
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
-    procedure Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>);
+    { Creates race tasks (and dirlist / mkdir tasks if needed) for all destination sites for the files that are present in the given list.
+      @param(dir The name of the subdir or '' if it's the main dir.)
+      @param(aDirListEntries The files that should be handled.)
+      @returns(True, if there was at least 1 task created, False otherwise.) }
+    function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
 
@@ -250,7 +254,7 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, dirlist.helpers;
 
 const
   section = 'pazo';
@@ -508,7 +512,7 @@ begin
     dirlist.DirlistGaveUp := aGaveUp;
 end;
 
-procedure TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>);
+function TPazoSite.Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
 // de is TDirListEntry from sourcesite
 // dstdl is TDirList on destination site
 // dde is TDirListEntry on destination site
@@ -523,8 +527,9 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
-  fExtensionMatchSFV, fExtensionMatchNFO, fTaskAddedForDestination: boolean;
+  fExtensionMatchSFV, fExtensionMatchNFO, fTaskAddedForDestination, fTaskAddedForAnyDestination: boolean;
 begin
+  Result := False;
   dst := nil;
   dstdl := nil;
   dde := nil;
@@ -547,6 +552,7 @@ begin
     exit;
 
   pazo.lastTouch := Now();
+  fTaskAddedForAnyDestination := False;
 
   // enumerate possible destinations
   for fDestination in destinations do
@@ -632,8 +638,8 @@ begin
 
             // Finally add mkdir task
             try
-              AddTask(pm);
-              fTaskAddedForDestination := True;
+              if AddTask(pm) then
+                fTaskAddedForDestination := True;
             except
               on e: Exception do
               begin
@@ -649,12 +655,12 @@ begin
         if ((dst.status <> rssNotAllowed) and (not dstdl.dirlistadded) and (not dst.dirlistgaveup)) then
         begin
           try
-            pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
+            pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, dstdl, False);
             Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
-            AddTask(pd);
-            fTaskAddedForDestination := True;
+            if AddTask(pd) then
+              fTaskAddedForDestination := True;
           except
             on e: Exception do
             begin
@@ -724,8 +730,8 @@ begin
 
             // finally we can add the task
             try
-              AddTask(pr);
-              fTaskAddedForDestination := True;
+              if AddTask(pr) then
+                fTaskAddedForDestination := True;
             except
               on e: Exception do
               begin
@@ -746,8 +752,13 @@ begin
 
     // tasks were added for this destination, so fire the queue
     if fTaskAddedForDestination then
+    begin
       QueueFire;
+      fTaskAddedForAnyDestination := True;
+    end;
   end;
+
+  Result := fTaskAddedForAnyDestination;
 end;
 
 { TPazo }
@@ -1411,7 +1422,16 @@ var
   i: integer;
   de: TDirListEntry;
   fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
+
+  { Invokes the UpdateTaskCreationCounter for the current dirlist with the given value, if dynamic dirlist delay calculation is enabled.
+      @param(aTaskAdded True, if a task has been added.) }
+  procedure _updateTaskCreationCounter(const aTaskAdded: boolean);
+  begin
+    if GetNewdirDirlistReaddAuto then
+      d.UpdateTaskCreationCounter(aTaskAdded);
+  end;
 begin
+
   Result := False;
 
   // exit if no access to dirlist object
@@ -1445,10 +1465,16 @@ begin
   end;
 
   // exit if no entries added to the dirlist
-  if d.entries = nil then
+  if (d.entries = nil) then
+  begin
+    _updateTaskCreationCounter(False);
     exit;
+  end;
   if d.entries.Count = 0 then
+  begin
+    _updateTaskCreationCounter(False);
     exit;
+  end;
 
   // sort the dirlist
   try
@@ -1493,7 +1519,7 @@ begin
       end;
 
       //do this outside dirlist_lock to avoid deadlocks
-      Tuzelj(netname, channel, dir, fFoundDirListEntries);
+      _updateTaskCreationCounter(Tuzelj(netname, channel, dir, fFoundDirListEntries));
 
       for de in fRemovePazoRaceEntries do
       begin

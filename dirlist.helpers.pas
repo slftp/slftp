@@ -53,6 +53,10 @@ function GetNewdirMaxCreatedValue(): integer;
   @returns(@glNewdirDirlistReadd) }
 function GetNewdirDirlistReaddValue(): integer;
 
+{ returns the value for NewdirDirlistReaddAuto initially stored in config to have a better performance and don't load the value everytime from file)
+  @returns(@glNewdirDirlistReaddAuto) }
+function GetNewdirDirlistReaddAuto(): boolean;
+
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
 
@@ -72,6 +76,7 @@ var
   glNewdirMaxCompleted: Integer;
   glNewdirMaxCreated: Integer;
   glNewdirDirlistReadd: Integer;
+  glNewdirDirlistReaddAuto: boolean;
 
 
 {$I common.inc}
@@ -202,7 +207,15 @@ begin
   glNewdirMaxEmpty := config.ReadInteger('taskrace', 'newdir_max_empty', 300);
   glNewdirMaxCompleted := config.ReadInteger('taskrace', 'newdir_max_completed', 300);
   glNewdirMaxCreated := config.ReadInteger('taskrace', 'newdir_max_created', 600);
-  glNewdirDirlistReadd := config.ReadInteger('taskrace', 'newdir_dirlist_readd', 100);
+
+  glNewdirDirlistReaddAuto := False;
+  if CompareText('auto', config.ReadString('taskrace', 'newdir_dirlist_readd', 'nope')) = 0 then
+  begin
+    glNewdirDirlistReaddAuto := True;
+    glNewdirDirlistReadd := -1;
+  end
+  else
+    glNewdirDirlistReadd := config.ReadInteger('taskrace', 'newdir_dirlist_readd', 100);
 end;
 
 function GetNewdirMaxUnchangedValue(): integer;
@@ -228,6 +241,11 @@ end;
 function GetNewdirDirlistReaddValue(): integer;
 begin
   Result := glNewdirDirlistReadd;
+end;
+
+function GetNewdirDirlistReaddAuto(): boolean;
+begin
+  Result := glNewdirDirlistReaddAuto;
 end;
 
 end.

@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo;
+uses SyncObjs, tasksunit, pazo, dirlist;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -19,10 +19,16 @@ type
   end;
 
   TPazoDirlistTask = class(TPazoTask)
+  private
+    FDirlist: TDirlist;
+    { Calculates the start time of the next dirlist tasks if dynamic dirlist interval is enabled. }
+    procedure CalculateStartTime;
+  public
     dir: String;
     is_pre: boolean;
     FDoIncFilling: boolean; //< @true if created to do incomplete filling, @false otherwise
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False); overload;
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; const aDirlist: TDirlist; is_pre: boolean; aIsFromIncompleteFiller: boolean = False); overload;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -75,9 +81,9 @@ implementation
 
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
-  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist,
+  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
-  Generics.Collections;
+  Generics.Collections, globals, Math;
 
 const
   c_section = 'taskrace';
@@ -163,10 +169,57 @@ end;
 { TPazoDirlistTask }
 constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
 begin
+  Create(netname, channel, site, pazo, dir, nil, is_pre, aIsFromIncompleteFiller);
+end;
+
+constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; const aDirlist: TDirlist; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
+begin
   self.dir := dir;
+  self.FDirlist := aDirlist;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
   inherited Create(netname, channel, site, '', pazo);
+  if self.FDirlist = nil then
+    self.FDirlist := ps1.dirlist.FindDirlist(dir, True);
+end;
+
+procedure TPazoDirlistTask.CalculateStartTime;
+var
+  fDelayMs: integer;
+begin
+  if GetNewdirDirlistReaddAuto then
+  begin
+    if FDirlist.FNumDirlistsWithoutNewFile <= 1 then
+      fDelayMs := 0
+    else if FDirlist.FNumDirlistsWithoutNewFile < 10 then
+      fDelayMs := 20
+    else if (FDirlist.FNumDirlistsWithoutNewFile < 100) or (FDirlist.FNumDirlistsWithoutChange <= 1) then
+      fDelayMs := 50
+    else if FDirlist.FNumDirlistsWithoutChange < 100 then
+      fDelayMs := 100
+    else if not FDirlist.Complete then
+      fDelayMs := 200
+    else
+    begin
+      if FDirlist.Parent.DirType in [IsSample, IsProof, IsCovers, IsSubs] then
+        fDelayMs := 1500
+      else
+        fDelayMs := 500;
+    end;
+
+    if FDirlist.FNumDirlistsWithoutTaskCreation <= 1 then
+      fDelayMs := 0
+    else if FDirlist.FNumDirlistsWithoutTaskCreation <= 10 then
+      fDelayMs := Min(fDelayMs, 20);
+
+    //Debug(dpError, c_section, Format('Calculated dirlist delay of %d ms (%d times no new file / %d times no change / %d times no new task yield) for %s',
+    //  [fDelayMs, FDirlist.FNumDirlistsWithoutNewFile, FDirlist.FNumDirlistsWithoutChange, FDirlist.FNumDirlistsWithoutTaskCreation, Name]));
+  end
+  else
+    fDelayMs := GetNewdirDirlistReaddValue();
+
+  if fDelayMs > 0 then
+    self.startat := IncMilliSecond(Now(), fDelayMs);
 end;
 
 function TPazoDirlistTask.Execute(slot: Pointer): boolean;
@@ -328,14 +381,7 @@ begin
             OR s.lastResponse.Contains('No such file or directory') OR s.lastResponse.Contains('Directory not found')) then
           begin
             Debug(dpMessage, c_section, '<- ' + s.lastResponse + ' ' + tname);
-
-            try
-              d := ps1.dirlist.FindDirlist(dir);
-            except
-              on e: Exception do
-                Debug(dpError, c_section, '[EXCEPTION] (dirlist no such directory handling): %s', [e.Message]);
-            end;
-            if (d = nil) Or (d.need_mkdir and not d.error) then
+            if (FDirlist = nil) Or (FDirlist.need_mkdir and not FDirlist.error) then
             begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
@@ -381,8 +427,8 @@ begin
                 //avoid flood of "550 No such file or directory." for subdirs
                 irc_Adderror(Format('<c4>[DIRLIST SUBDIR]</c> [%s]: %s %s', [tname, dir, s.lastResponse]));
                 begin
-                  d.need_mkdir := True;
-                  d.error := True;
+                  FDirlist.need_mkdir := True;
+                  FDirlist.error := True;
                 end;
               end;
 
@@ -421,35 +467,27 @@ begin
     end;
   end;
 
-  d := nil;
   try
-    try
-      d := ps1.dirlist.FindDirlist(dir);
-    except
-      on e: Exception do
-        Debug(dpError, c_section, '[EXCEPTION] d := ps1.dirlist.FindDirlist(dir): %s', [e.Message]);
-    end;
-
     // set the dirlist full path. Used mainly for debug outputing.
-    if d <> nil then
-      d.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+    if FDirlist <> nil then
+      FDirlist.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
 
     // Search for sub directories
     fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
-    if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
+    if ((FDirlist <> nil) and (FDirlist.entries <> nil) and (FDirlist.entries.Count > 0)) then
     begin
-      d.dirlist_lock.Enter;
+      FDirlist.dirlist_lock.Enter;
       try
-        for i := 0 to d.entries.Count - 1 do
+        for i := 0 to FDirlist.entries.Count - 1 do
         begin
           try
-            if i > d.entries.Count then
+            if i > FDirlist.entries.Count then
               Break;
           except
             Break;
           end;
           try
-            de := TDirlistEntry(d.entries.Objects[i]);
+            de := TDirlistEntry(FDirlist.entries.Objects[i]);
 
             if ((de.directory) and (not de.skiplisted)) then
             begin
@@ -483,7 +521,7 @@ begin
             end;
         end;
       finally
-        d.dirlist_lock.Leave;
+        FDirlist.dirlist_lock.Leave;
       end;
 
       //add task outside the dirlist lock to avoid deadlocks with the queue lock
@@ -501,7 +539,7 @@ begin
 
   FreeAndNil(fSubDirlistTasks);
 
-  if ((not is_pre) and (d <> nil) and (d.Complete) and (ps1.status <> rssComplete)) then
+  if ((not is_pre) and (FDirlist <> nil) and (FDirlist.Complete) and (ps1.status <> rssComplete)) then
   begin
     if (dir <> '') then
     begin
@@ -518,65 +556,65 @@ begin
   begin
 
     //check if we should give up with empty/incomplete/long release
-    if ( (d <> nil) AND (not d.Complete) AND (d.entries <> nil) AND not d.DirlistGaveUp ) then
+    if ( (FDirlist <> nil) AND (not FDirlist.Complete) AND (FDirlist.entries <> nil) AND not FDirlist.DirlistGaveUp ) then
     begin
-      secondsWithNoChange := SecondsBetween(Now, d.LastChanged);
+      secondsWithNoChange := SecondsBetween(Now, FDirlist.LastChanged);
 
-      if ((d.entries.Count = 0) and (secondsWithNoChange > GetNewdirMaxEmptyValue())) then
+      if ((FDirlist.entries.Count = 0) and (secondsWithNoChange > GetNewdirMaxEmptyValue())) then
       begin
         if spamcfg.readbool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[EMPTY]</c> %s: %s %s %s is still empty after %d seconds, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        d.DirlistGaveUp := True;
+        FDirlist.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('EMPTY PS1 %s : LastChange(%d) > newdir_max_empty(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxEmptyValue()]));
       end;
 
-      if ((d.entries.Count > 0) and (secondsWithNoChange > GetNewdirMaxUnchangedValue())) then
+      if ((FDirlist.entries.Count > 0) and (secondsWithNoChange > GetNewdirMaxUnchangedValue())) then
       begin
         if spamcfg.readbool(c_section, 'incomplete', True) then
         begin
           irc_Addstats(Format('<c11>[iNCOMPLETE]</c> %s: %s %s %s is still incomplete after %d seconds with no change, giving up...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsWithNoChange]));
         end;
-        d.DirlistGaveUp := True;
+        FDirlist.DirlistGaveUp := True;
         Debug(dpSpam, c_section, Format('INCOMPLETE PS1 %s : LastChange(%d) > newdir_max_unchanged(%d)', [ps1.Name, secondsWithNoChange, GetNewdirMaxUnchangedValue()]));
       end;
 
-      secondsSinceCompleted := SecondsBetween(Now, d.CompletedTime);
+      secondsSinceCompleted := SecondsBetween(Now, FDirlist.CompletedTime);
 
       if (is_pre) then
       begin
-        if ( (d.CompletedTime <> 0) and (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
+        if ( (FDirlist.CompletedTime <> 0) and (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[PRE]</c> %s: %s %s %s, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          d.DirlistGaveUp := True;
+          FDirlist.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('PRE PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
         end;
       end
       else
       begin
-        secondsSinceStart := SecondsBetween(Now, d.StartedTime);
+        secondsSinceStart := SecondsBetween(Now, FDirlist.StartedTime);
 
-        if ( (d.StartedTime <> 0) AND (secondsSinceStart > GetNewdirMaxCreatedValue()) ) then
+        if ( (FDirlist.StartedTime <> 0) AND (secondsSinceStart > GetNewdirMaxCreatedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[LONG]</c> %s: %s %s %s, giving up %d seconds after it started...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceStart]));
           end;
-          d.DirlistGaveUp := True;
+          FDirlist.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('LONG PS1 %s : LastChange(%d) > newdir_max_created(%d)', [ps1.Name, secondsSinceStart, GetNewdirMaxCreatedValue()]));
         end;
 
-        if ( (d.CompletedTime <> 0) AND (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
+        if ( (FDirlist.CompletedTime <> 0) AND (secondsSinceCompleted > GetNewdirMaxCompletedValue()) ) then
         begin
           if spamcfg.readbool(c_section, 'incomplete', True) then
           begin
             irc_Addstats(Format('<c11>[FULL]</c> %s: %s %s %s is complete, giving up %d seconds after max. should be completed time...', [site1, mainpazo.rls.section, mainpazo.rls.rlsname, dir, secondsSinceCompleted]));
           end;
-          d.DirlistGaveUp := True;
+          FDirlist.DirlistGaveUp := True;
           Debug(dpSpam, c_section, Format('FULL PS1 %s : LastChange(%d) > newdir_max_completed(%d)', [ps1.Name, secondsSinceCompleted, GetNewdirMaxCompletedValue()]));
         end;
       end;
@@ -587,14 +625,14 @@ begin
 
   // check if need more dirlist
   itwasadded := False;
-  if (d <> nil) and not d.dirlistgaveup and not d.error then
+  if (FDirlist <> nil) and not FDirlist.dirlistgaveup and not FDirlist.error then
   begin
     // check if still incomplete
-    if ((d <> nil) and (not is_pre) and (not d.Complete)) then
+    if ((FDirlist <> nil) and (not is_pre) and (not FDirlist.Complete)) then
     begin
       // do more dirlist
-      r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+      r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, FDirlist, is_pre);
+      r.CalculateStartTime;
 
       try
         AddTask(r);
@@ -609,6 +647,7 @@ begin
     end;
 
     // check if one dst need more dirlist
+    d := nil;
     if (not itwasadded) then
     begin
       for fDestination in ps1.destinations do
@@ -642,10 +681,10 @@ begin
           if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, FDirlist, is_pre);
+            r.CalculateStartTime;
+            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, FDirlist, False);
+            r_dst.CalculateStartTime;
 
             try
               AddTask(r);
