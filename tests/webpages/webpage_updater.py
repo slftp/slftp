@@ -21,7 +21,7 @@ BOM_RELEASES = [{"ID": "tt0375568", "Country": "USA", "Link": "/release/rl394700
                 # special case with several re-releases
                 {"ID": "tt0087332", "Country": "Original Release",
                     "Link": "/releasegroup/gr2193641989"},
-                {"ID": "tt0087332", "Country": "USA", "Link": "/release/rl3696592385"},
+                {"ID": "tt0087332", "Country": "USA", "Link": "/release/rl3663037953"},
                 # special case with two original releases for different countries but none is useful
                 {"ID": "tt7167658", "Country": "Original Release",
                     "Link": "/releasegroup/gr1831424517"}]
