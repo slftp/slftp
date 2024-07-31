@@ -105,7 +105,7 @@ def findOriginalMovieTitle(content) -> str:
         raise Exception("Impossible to find title!")
 
     # just keep the old file names without the ratings in the webpage title
-    title = title.split("⭐")[0] + "- IMDb"
+    title = title.split("⭐")[0].split("|")[0] + "- IMDb"
     return title
 
 
