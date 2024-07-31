@@ -244,36 +244,40 @@ var
   fRegex: TRegExpr;
   fMatch: string;
 begin
+  aLanguageList := '';
   fRegex := TRegExpr.Create;
   try
-    fRegex.Expression := 'data-testid="title-details-languages">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
+    fRegex.Expression := 'data-testid="title-details-languages".*?<ul.*?>(.*?)<\/ul>';
     if fRegex.Exec(aPageSource) then
     begin
       fMatch := fRegex.Match[1];
-      fRegex.Expression := 'ref_=tt_dt_ln">(.*?)<\/a>';
+      fRegex.Expression := '<a class="ipc-metadata-list-item__list-content-item ipc-metadata-list-item__list-content-item--link"[^>]*>(.*?)<\/a>';
       if fRegex.Exec(fMatch) then
       begin
         repeat
           aLanguageList := aLanguageList + fRegex.Match[1] + ',';
         until not fRegex.ExecNext;
       end;
-    end
+    end;
   finally
     fRegex.Free;
   end;
 
-  // remove additional comma
-  SetLength(aLanguageList, Length(aLanguageList) - 1);
+  // remove additional comma if present (maybe only present on old imdb layout)
+  if (Length(aLanguageList) > 0) and (aLanguageList[Length(aLanguageList)] = ',') then
+    SetLength(aLanguageList, Length(aLanguageList) - 1);
 end;
+
 
 class procedure THtmlIMDbParser.ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
 var
   fRegex: TRegExpr;
   fMatch: string;
 begin
+  aCountriesList := '';
   fRegex := TRegExpr.Create;
   try
-    fRegex.Expression := 'data-testid="title-details-origin">.*?<div(.*?<\/a>)<\/li><\/ul><\/div><\/li>';
+    fRegex.Expression := 'data-testid="title-details-origin">.*?<div.*?>(.*?)<\/div>';
     if fRegex.Exec(aPageSource) then
     begin
       fMatch := fRegex.Match[1];
@@ -292,13 +296,14 @@ begin
           aCountriesList := aCountriesList + fMatch + ',';
         until not fRegex.ExecNext;
       end;
-    end
+    end;
   finally
     fRegex.Free;
   end;
 
-  // remove additional comma
-  SetLength(aCountriesList, Length(aCountriesList) - 1);
+  // remove additional comma if present (maybe only present on old imdb layout)
+  if (Length(aCountriesList) > 0) and (aCountriesList[Length(aCountriesList)] = ',') then
+    SetLength(aCountriesList, Length(aCountriesList) - 1);
 end;
 
 class procedure THtmlIMDbParser.ParseMovieGenres(const aJsonObject: Variant; out aGenresList: String);
