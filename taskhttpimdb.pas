@@ -33,14 +33,15 @@ type
     property Country: String read FCountry;
     property Title: String read FTitle;
   end;
-
+  
   { @abstract(Extracts IMDb information from HTML page source) }
   THtmlIMDbParser = class
   public
     { Parses the JSON from the page source and returns a JSON object variant
       @param(aPageSource Webpage HTML sourcecode)
+      @param(aIsReleaseInfo True, if the page source contains the main page. False if it is the release info page source.)
       @returns(a JSON object variant) }
-    class function GenerateJSONObject(const aPageSource, aImdbID: string): Variant;
+    class function GenerateJSONObject(const aPageSource, aImdbID: string; const aIsMainPage: boolean): Variant;
 
     { Parses title information from the meta property @italic(title) tag
       @param(aJsonObject The JSON from the page as Variant object)
@@ -71,14 +72,14 @@ type
     class procedure ParseMovieGenres(const aJsonObject: Variant; out aGenresList: String);
 
     { Parses Releasedates(s) for countries included in slftp.imdbcountries
-      @param(aPageSource Releasedate Webpage HTML sourcecode)
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aReleaseDateInfoList List of releasedate information) }
-    class procedure ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
+    class procedure ParseReleaseDateInfo(const aJsonObject: Variant; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
 
     { Parses 'Also Known As' (AKA) information for countries included in slftp.imdbcountries plus original title @br @note(Does not replace any special characters)
-      @param(aPageSource Releasedate Webpage HTML sourcecode)
+      @param(aJsonObject The JSON from the page as Variant object)
       @param(aAlsoKnownAsList List of AKA information) }
-    class procedure ParseAlsoKnownAsInfo(const aPageSource: String; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
+    class procedure ParseAlsoKnownAsInfo(const aJsonObject: Variant; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
   end;
 
   { @abstract(Extracts Box Office information from boxofficemojo.com HTML page source) }
@@ -158,7 +159,7 @@ end;
 
 { THtmlIMDbParser }
 
-class function THtmlImdbParser.GenerateJSONObject(const aPageSource, aImdbID: string): Variant;
+class function THtmlImdbParser.GenerateJSONObject(const aPageSource, aImdbID: string; const aIsMainPage: boolean): Variant;
 var
   fStartIndex, fEndIndex, fCount: integer;
   fJsonObject: variant;
@@ -166,7 +167,7 @@ var
   fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
   rr: TRegExpr;
   doc: TDocVariantData;
-  pdoc: PDocVariantData;
+  pdoc, pdoc2: PDocVariantData;
   fYearDoc: PDocVariantData;
 begin
   Result := Variants.Null;
@@ -179,20 +180,36 @@ begin
   fCount := fEndIndex - fStartIndex;
   fJsonString := Copy(aPageSource, fStartIndex + Length('type="application/json">'), fCount);
   fJsonObject := _JsonFast(fJsonString);
-
+  
 
   doc := TDocVariantData(fJsonObject);
-  doc.GetAsDocVariant('props', pdoc);
-  pdoc.GetAsDocVariant('pageProps', pdoc);
-  pdoc.GetAsRawUTF8('tconst', fJsonImdbID);
-  pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
-  pdoc.GetAsDocVariant('releaseYear', fYearDoc);
-  fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear);
-  pdoc.GetAsRawUTF8('titleType', fTitleType);
-  if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
+  if aIsMainPage then
   begin
-    Result := _JsonFast(pdoc.ToJSON());
-    exit;
+    doc.GetAsDocVariant('props', pdoc);
+    pdoc.GetAsDocVariant('pageProps', pdoc);
+    pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
+    pdoc.GetAsDocVariant('releaseYear', fYearDoc);
+    fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear);
+    pdoc.GetAsRawUTF8('titleType', fTitleType);
+    pdoc.GetAsRawUTF8('id', fJsonImdbID);
+    if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
+    begin
+      Result := _JsonFast(pdoc.ToJSON());
+      exit;
+    end;
+  end
+  else
+  begin
+    doc.GetAsDocVariant('props', pdoc);
+    pdoc.GetAsDocVariant('pageProps', pdoc);
+    pdoc.GetAsDocVariant('contentData', pdoc);
+    pdoc.GetAsDocVariant('entityMetaData', pdoc2);
+    pdoc2.GetAsRawUTF8('id', fJsonImdbID);
+    if fJsonImdbID = aImdbID then
+    begin
+      Result := _JsonFast(pdoc.ToJSON());
+      exit;
+    end;
   end;
 end;
 
@@ -325,66 +342,118 @@ begin
   SetLength(aGenresList, Length(aGenresList) - 1);
 end;
 
-class procedure THtmlIMDbParser.ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
+class procedure THtmlIMDbParser.ParseReleaseDateInfo(const aJsonObject: Variant; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
 var
-  rr: TRegExpr;
-  fCountryCode: String;
   fCountry: String;
   fReleaseDate: String;
   fExtraInfo: String;
+  fID: RawUTF8;
+  fDocVariant, fDocVariant3, fDocVariant5: PDocVariantData;
+  fDocVariant2, fDocVariant4: TDocVariantData;
+  fVariant, fVariant2, fVariant3: Variant;
 begin
-  rr := TRegExpr.Create;
-  try
-    rr.ModifierI := True;
-    rr.Expression := '<td class="release-date.*?><a href="\/calendar\/\?region\=(.*?)\&.*?>(.*?)<\/a><\/td>[\s\n]*?' +
-        '<td class="release-date.*?>(.*?)<\/td>[\s\n]*?<td class="release-date.*?>(.*?)<\/td>';
-
-    if rr.Exec(aPageSource) then
+  if not VarIsNull(aJsonObject) then
+  begin
+    TDocVariantData(aJsonObject).GetAsDocVariant('categories', fDocVariant);
+    for fVariant in fDocVariant.Values do
     begin
-      repeat
-        fCountryCode := Trim(rr.Match[1]);
-        fCountry := Trim(rr.Match[2]);
-        fReleaseDate := Trim(rr.Match[3]);
-        fExtraInfo := Trim(rr.Match[4]);
+      fDocVariant2 := TDocVariantData(_JsonFast(fVariant));
+      fDocVariant2.GetAsRawUTF8('id', fID);
+      if fID = 'releases' then
+      begin
+        fDocVariant2.GetAsDocVariant('section', fDocVariant3);
+        fDocVariant3.GetAsDocVariant('items', fDocVariant3);
+        for fVariant2 in fDocVariant3.Values do
+        begin
+          fCountry := fVariant2.rowTitle;
 
-        if ExcludeCountry(fCountry) then
-          Continue;
+          // rewrite to old format
+          if fCountry = 'United States' then
+            fCountry := 'USA'
+          else if fCountry = 'United Kingdom' then
+            fCountry := 'UK';
 
-        aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fReleaseDate, fExtraInfo));
-      until not rr.ExecNext;
+          if ExcludeCountry(fCountry) then
+            Continue;
+
+          fDocVariant4 := TDocVariantData(_JsonFast(fVariant2));
+          fDocVariant4.GetAsDocVariant('listContent', fDocVariant5);
+
+          for fVariant3 in fDocVariant5.Values do
+          begin
+            fReleaseDate := fVariant3.text;
+            try
+              fExtraInfo := fVariant3.subText;
+            except
+              fExtraInfo := '';
+            end;
+            break;
+          end;
+
+          aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fReleaseDate, fExtraInfo));
+        end;
+      end;
     end;
-  finally
-    rr.Free;
   end;
 end;
 
-class procedure THtmlIMDbParser.ParseAlsoKnownAsInfo(const aPageSource: String; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
+class procedure THtmlIMDbParser.ParseAlsoKnownAsInfo(const aJsonObject: Variant; var aAlsoKnownAsList: TObjectList<TIMDbAlsoKnownAsInfo>);
 var
   rr: TRegExpr;
   fCountry: String;
   fTitle: String;
+  fExtraInfo: String;
+  fID: RawUTF8;
+  fDocVariant, fDocVariant3, fDocVariant5: PDocVariantData;
+  fDocVariant2, fDocVariant4: TDocVariantData;
+  fVariant, fVariant2, fVariant3: Variant;
 begin
-  rr := TRegExpr.Create;
-  try
-    rr.ModifierI := True;
-    rr.Expression := '<tr class=.*?\saka-item">[\s\n]*?.*?"aka-item__name">(.*?)<\/td>'
-        + '[\s\n]*?<td class="aka-item__title">(.*?)<\/td>[\s\n]*?<\/tr>';
-
-    if rr.Exec(aPageSource) then
+  if not VarIsNull(aJsonObject) then
+  begin
+    TDocVariantData(aJsonObject).GetAsDocVariant('categories', fDocVariant);
+    for fVariant in fDocVariant.Values do
     begin
-      repeat
-        fCountry := Trim(rr.Match[1]);
-        fTitle := Trim(rr.Match[2]);
-        fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
+      fDocVariant2 := TDocVariantData(_JsonFast(fVariant));
+      fDocVariant2.GetAsRawUTF8('id', fID);
+      if fID = 'akas' then
+      begin
+        fDocVariant2.GetAsDocVariant('section', fDocVariant3);
+        fDocVariant3.GetAsDocVariant('items', fDocVariant3);
+        for fVariant2 in fDocVariant3.Values do
+        begin
+          try
+            fCountry := fVariant2.rowTitle;
+          except
+            // can happen, e.g. no country for currently second entry "Prison Break: Season 5" tt0455275
+            continue;
+          end;
 
-        if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
-          Continue;
 
-        aAlsoKnownAsList.Add(TIMDbAlsoKnownAsInfo.Create(fCountry, fTitle));
-      until not rr.ExecNext;
+          fDocVariant4 := TDocVariantData(_JsonFast(fVariant2));
+          fDocVariant4.GetAsDocVariant('listContent', fDocVariant5);
+
+          for fVariant3 in fDocVariant5.Values do
+          begin
+            fTitle := fVariant3.text;
+
+            // extra info is currently not used
+            try
+              fExtraInfo := fVariant3.subText;
+            except
+              fExtraInfo := '';
+            end;
+            break;
+          end;
+
+          fTitle := Trim(fTitle);
+          fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
+          if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
+            Continue;
+
+          aAlsoKnownAsList.Add(TIMDbAlsoKnownAsInfo.Create(fCountry, fTitle));
+        end;
+      end;
     end;
-  finally
-    rr.Free;
   end;
 end;
 
@@ -602,7 +671,7 @@ begin
     exit;
   end;
 
-  fJsonObject := THtmlImdbParser.GenerateJSONObject(fImdbMainPage, FImdbTitleID);
+  fJsonObject := THtmlImdbParser.GenerateJSONObject(fImdbMainPage, FImdbTitleID, True);
   if not VarIsNull(fJsonObject) then
   begin
     (* Fetch MovieTitle/Extra/Year *)
