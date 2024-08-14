@@ -58,7 +58,7 @@ function SkiplistCount: integer;
 implementation
 
 uses
-  Classes, mystrings, SysUtils, DebugUnit,
+  Classes, mystrings, SysUtils, DebugUnit, slconstants,
   irc {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -275,7 +275,7 @@ begin
   for j := 1 to fc + 1 do
   begin
     fm := SubString(fms, ',', j);
-    if fm = '_RAR_' then
+    if fm = CONST_RAR_FILES then
     begin
       filemask.Add(TslMask.Create('*.rar'));
       filemask.Add(TslMask.Create('*.r[0-9][0-9]'));
