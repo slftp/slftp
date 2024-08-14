@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, Generics.Collections, IniFiles;
+uses Classes, Contnrs, SyncObjs, skiplists, globals, Generics.Collections, IniFiles, sfv;
 
 type
   {
@@ -78,6 +78,7 @@ type
     FLastUpdated: TDateTime;
     allcdshere: Boolean;
     skiplist: TSkipList;
+    FPazoSFV: TPazoSFV;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
     FIsValidFileCache: TDictionary<string, boolean>; //< cache for results of IsValidFilename
@@ -126,8 +127,8 @@ type
     dependency_mkdir: String;
 
     procedure Clear;
-    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
-    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False; aIsAutoIndex: boolean = False); overload;
+    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False; aIsAutoIndex: boolean = False; const aPazoSFV: TPazoSFV = nil); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
@@ -367,12 +368,12 @@ begin
   FCachedCompleteResult := Result;
 end;
 
-constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
+constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: boolean = False; FromIrc: boolean = False);
 begin
-  Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc);
+  Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc, False, aPazoSFV);
 end;
 
-constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False);
+constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False; const aPazoSFV: TPazoSFV = nil);
 var
   sf: TSkipListFilter;
 begin
@@ -411,6 +412,7 @@ begin
   self.s := s;
   self.skiplist := skiplist;
   SetSkiplists;
+  self.FPazoSFV := aPazoSFV;
 
   self.FIsSpeedTest := SpeedTest;
   self.FIsFromIrc := FromIrc;
@@ -765,7 +767,7 @@ begin
 
           if (de.Directory) then
           begin
-            de.subdirlist := TDirlist.Create(site_name, de, skiplist, FIsSpeedTest, FIsFromIrc);
+            de.subdirlist := TDirlist.Create(site_name, de, skiplist, FPazoSFV, FIsSpeedTest, FIsFromIrc);
             if de.subdirlist <> nil then
               de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
           end;
@@ -1229,7 +1231,7 @@ begin
 
     if d.subdirlist = nil then
     begin
-      d.subdirlist := TDirlist.Create(site_name, d, skiplist);
+      d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
       if d.subdirlist <> nil then
         d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
     end;
@@ -1711,6 +1713,20 @@ begin
         skiplisted := True;
         dirlist.skipped.Add(filename);
         irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
+        exit;
+      end;
+
+      if dirlist.parent = nil then
+        s := ''
+      else
+        s := dirlist.parent.filename;
+
+      if (dirlist.FPazoSFV <> nil) and not dirlist.FPazoSFV.CheckSFV(s, FFilenameLowerCase, Extension) then
+      begin
+        skiplisted := True;
+        dirlist.skipped.Add(filename);
+        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not in SFV %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
+        exit;
       end
     end
     else

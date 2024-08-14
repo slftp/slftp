@@ -183,6 +183,9 @@ function ParsePathFromSiteSearchResult(const aSearchResult, aRlsToSearch: String
   @returns(Moviename in scene notation) }
 function InternationalCharsToAsciiSceneChars(const aInput: String): String;
 
+function ParseSFV(aSFV: string): TDictionary<string, integer>;
+function IsRarExtension(const aExtension: string): boolean;
+
 implementation
 
 uses
@@ -1070,6 +1073,46 @@ begin
   Result := Result.Replace('  ', ' ', [rfReplaceAll, rfIgnoreCase]);
 
   Debug(dpSpam, section, Format('Changed international %s to ascii scene %s', [aInput, Result]));
+end;
+
+function IsRarExtension(const aExtension: string): boolean;
+var
+  fRegex: TRegexpr;
+begin
+  if aExtension = '.rar' then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  fRegex := TRegExpr.Create;
+  try
+    fRegex.ModifierI := True;
+    fRegex.Expression := '\.[0-9rstuvwxyz][0-9][0-9]$';
+    Result := fRegex.Exec(aExtension);
+  finally
+    fRegex.Free;
+  end;
+end;
+
+function ParseSFV(aSFV: string): TDictionary<string, integer>;
+var
+  fLine: String;
+begin
+  Result := TDictionary<string, integer>.Create;
+
+  while True do
+  begin
+    fLine := LowerCase(Trim(GetFirstLineFromTextViaNewlineIndicators(aSFV)));
+
+    if fLine = '' then
+      break;
+
+    if fLine[1] = ';' then //skip comments
+      continue;
+
+    Result.AddOrSetValue(LeftStr(fLine, (fLine.IndexOf(' '))), 0);
+  end;
 end;
 
 end.
