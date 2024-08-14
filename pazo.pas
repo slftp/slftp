@@ -5,7 +5,7 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections;
+  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -164,18 +164,20 @@ type
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
     FUniqueFileListOfRelease_cs: TCriticalSection; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
+    FPazoSFV: TPazoSFV;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
       @param(aFilename Name of the file)
       @param(aFilesize Size of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
-    function PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64): Int64;
+    function PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
     { Returns the amount of files for the release, includes files in subdirs
       @returns(Total file count of @link(rls)) }
     function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
+
   public
     pazo_id: integer;
 
@@ -235,6 +237,7 @@ type
     function PFileSize(const aDir, aFilename: String): Int64;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
+    property PazoSFV: TPazoSFV read FPazoSFV;
   end;
 
 function FindPazoById(const id: integer): TPazo;
@@ -250,7 +253,7 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
 
 const
   section = 'pazo';
@@ -826,19 +829,22 @@ begin
   end;
 end;
 
-function TPazo.PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64): Int64;
+function TPazo.PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
 var
   fKey: String;
   fFilesize: Int64;
+  fWasAdded: boolean;
+  fPazoSite: TPazoSite;
 begin
   fKey := aDir + '/' + aFilename;
+  fWasAdded := False;
 
   FUniqueFileListOfRelease_cs.Enter;
   try
     if not FUniqueFileListOfRelease.ContainsKey(fKey) then
     begin
       FUniqueFileListOfRelease.Add(fKey, aFilesize);
-
+      fWasAdded := True;
       Result := aFilesize;
     end
     else
@@ -856,6 +862,25 @@ begin
     end;
   finally
     FUniqueFileListOfRelease_cs.Leave;
+  end;
+
+  if fWasAdded And aIsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  begin
+    if FPazoSFV.RegisterSFV(aDir) then
+    begin
+      // create the SFV task just for the sites that are in the pazo now. some sites might be added later
+      // due to delayed rules (imdb, tv, ...) but we don't care about those, the ones we have now should be
+      // enough to get the SFV
+
+      for fPazoSite in PazoSitesList do
+      begin
+        if FindSiteByName('', fPazoSite.Name).UseForNFOdownload = ufnEnabled then
+        begin
+          Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
+          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, aFilename, 1));
+        end;
+      end;
+    end;
   end;
 end;
 
@@ -898,6 +923,8 @@ begin
   self.cleared := False;
 
   FExcludeFromIncfiller := False;
+  if rls.IsSFVRelease then
+    FPazoSFV := TPazoSFV.Create;
 
   inherited Create;
 end;
@@ -914,6 +941,8 @@ begin
   FUniqueFileListOfRelease.Free;
   FUniqueFileListOfRelease_cs.Free;
   FreeAndNil(rls);
+  if FPazoSFV <> nil then FPazoSFV.Free;
+
   inherited;
 end;
 
@@ -1312,7 +1341,7 @@ begin
   FDestinations := TList<TDestinationRank>.Create(TComparer<TDestinationRank>.Construct(_CompareDestinationRanks));
   destinations_cs := TCriticalSection.Create;
 
-  dirlist := TDirlist.Create(Name, nil, pazo.sl);
+  dirlist := TDirlist.Create(Name, nil, pazo.sl, pazo.FPazoSFV);
   if dirlist <> nil then
   begin
     if pazo.rls <> nil then
@@ -1482,7 +1511,7 @@ begin
                 de.justadded := False;
                 fRemovePazoRaceEntries.Add(de);
               end;
-              pazo.PRegisterFile(dir, de.filename, de.filesize);
+              pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
             end;
 
             fFoundDirListEntries.Add(de);
