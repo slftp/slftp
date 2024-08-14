@@ -37,7 +37,7 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      settingname=defaultvalue
+      SFVRelease=
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -51,6 +51,7 @@
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
     {#} Fix build on BSD
     {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
+    {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
