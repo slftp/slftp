@@ -58,7 +58,7 @@ function SkiplistCount: integer;
 implementation
 
 uses
-  Classes, mystrings, SysUtils, DebugUnit, slconstants,
+  Classes, mystrings, SysUtils, DebugUnit, globals,
   irc {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
