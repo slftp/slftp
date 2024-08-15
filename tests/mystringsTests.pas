@@ -51,6 +51,8 @@ type
     procedure TestParseSiteSearchResult4;
     procedure TestParseSiteSearchResult5;
     procedure TestParseSiteSearchResult6;
+    procedure TestParseSFV1;
+    procedure TestParseSFV2;
   end;
 
 implementation
@@ -729,6 +731,41 @@ begin
     CheckEquals(0, fStringList.Count);
   finally
     fStringList.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSFV1;
+var
+  fSFV: TArray<String>;
+  fResult: TDictionary<String, integer>;
+begin
+  fSFV := TArray<String>.Create('01-gerald_vdh-creature_of_habit_(original_mix)-3b8d1b57.mp3 3b8d1b57',
+    '02-gerald_vdh-creature_of_habit_(matt_mor_remix)-0ac321f0.mp3 0ac321f0');
+
+  try
+    fResult := ParseSFV(String.Join(#13#10, fSFV));
+    CheckEquals(fResult.Count, 2);
+    CheckEquals('01-gerald_vdh-creature_of_habit_(original_mix)-3b8d1b57.mp3', fResult.Keys.ToArray[0]);
+    CheckEquals('02-gerald_vdh-creature_of_habit_(matt_mor_remix)-0ac321f0.mp3', fResult.Keys.ToArray[1]);
+  finally
+    fResult.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSFV2;
+var
+  fSFV: TArray<String>;
+  fResult: TDictionary<String, integer>;
+begin
+  fSFV := TArray<String>.Create(';       7959031   7/23/2023    9:23:38 PM   01-cool_band___-_track1.mp3',
+    '01-cool_band___-_track2.mp3 FDB6BAA4');
+
+  try
+    fResult := ParseSFV(String.Join(#13#10, fSFV));
+    CheckEquals(fResult.Count, 1);
+    CheckEquals('01-cool_band___-_track2.mp3', fResult.Keys.ToArray[0]);
+  finally
+    fResult.Free;
   end;
 end;
 

@@ -216,6 +216,7 @@ type
     fSlotsAssignmentOwningThreadID: TThreadID;
     fSlotsAssignmentLockCount: integer;
     fslotsAssignmentLockedName: string;
+    fFailedNfoCounter: integer;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -431,6 +432,7 @@ type
     procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
     procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
     procedure RemovePazoDirTasks(const aPazoID: integer);
+    procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
     function IrcKillAll(const netname, channel, params: String): boolean;
     procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
 
@@ -603,6 +605,7 @@ procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
 procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
 procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
+procedure RemovePazoSfv(const aPazoID: integer; const aDir: string);
 function IrcQueueShow(const netname, channel, params: String): boolean;
 procedure QueueEmpty(const sitename: String);
 procedure QueueStart;
@@ -705,7 +708,8 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
+  slconstants;
 
 const
   section = 'sites';
@@ -941,6 +945,11 @@ procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
     fQueue.RemovePazoDirTasks(aPazoID);
   end;
 
+procedure TSite.RemovePazoSfv(const aPazoID: integer; const aDir: string);
+  begin
+    fQueue.RemovePazoSfv(aPazoID, aDir);
+  end;
+
   procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
   var
   fSite: TSite;
@@ -998,6 +1007,15 @@ end;
 function TSite.RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 begin
   Result := fQueue.RemovePazo(aPazoID, aForce);
+end;
+
+procedure RemovePazoSfv(const aPazoID: integer; const aDir: string);
+var fSite: TSite;
+begin
+  for fSite in sites do
+  begin
+    fSite.RemovePazoSfv(aPazoID, aDir);
+  end;
 end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
@@ -2868,11 +2886,20 @@ begin
       if not idTCP.TurnToSSL(site.io_timeout * 1000) then
       begin
         irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: SSL negotiation with site %s while getting %s: %s', [site.name, filename, idTCP.error]);
-        site.UseForNFOdownload := ufnAutoDisabled;
+
+        site.fFailedNfoCounter := site.fFailedNfoCounter + 1;
+        if site.fFailedNfoCounter >= CONST_NFO_FAILED_THRESHOLD then
+        begin
+          site.UseForNFOdownload := ufnAutoDisabled;
+          irc_addadmin(Format('Disable NFO/SFV download for <b>%s</b> after %d consecutive failures.', [site.Name, site.fFailedNfoCounter]));
+        end;
+
         DestroySocket(False);
         Result := -1;
         exit;
-      end;
+      end
+      else
+        site.fFailedNfoCounter := 0; // reset the failed counter if this has worked
 
       if not Read('RETR') then
       begin
@@ -3005,6 +3032,7 @@ begin
   fMaxDn := RCInteger('max_dn', 2);
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
+  fFailedNfoCounter := 0;
 
   siteinvited := False;
   foutofannounce := 0;

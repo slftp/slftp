@@ -52,6 +52,7 @@ procedure QueueStart;
 procedure AddTask(t: TTask);
 procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
+procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 function IrcKillAll(const netname, channel, params: String): boolean;
 procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
@@ -87,7 +88,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
 
 const
   section = 'queue';
@@ -1430,6 +1431,37 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] RemovePazoMKDIR : %s', [e.Message]));
+    end;
+  end;
+end;
+
+procedure TQueueThread.RemovePazoSfv(const aPazoID: integer; const aDir: String);
+var
+  i: integer;
+  fTask: TPazoSiteSfvTask;
+  fAbstractTask: TTask;
+begin
+  try
+    try
+      for fAbstractTask in tasks.LockList() do
+      begin
+        if (fAbstractTask is TPazoSiteSfvTask) then
+        begin
+          fTask := TPazoSiteSfvTask(fAbstractTask);
+          if ((fTask.ready = False) and (fTask.readyerror = False) and (fTask.slot1 = nil) and (fTask.pazo_id = aPazoID) and (fTask.dir = aDir)) then
+          begin
+            fTask.ready := True;
+            Debug(dpSpam, 'sfv', Format('Remove SFV task : %s %s %s (%s)', [fTask.mainpazo.rls.rlsname, fTask.dir, fTask.SFVFilename, fTask.site1]));
+          end;
+        end;
+      end;
+    finally
+      tasks.UnlockList;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RemovePazoSfv : %s', [e.Message]));
     end;
   end;
 end;
