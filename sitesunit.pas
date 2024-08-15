@@ -669,8 +669,7 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, queueunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit,
-  slconstants;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskrace, pazo, globals, taskidle, taskquit;
 
 const
   section = 'sites';
