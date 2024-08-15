@@ -24,7 +24,7 @@ type
 
 implementation
 
-uses SysUtils, mystrings, slconstants, debugunit;
+uses SysUtils, mystrings, globals, debugunit;
 
 const
   section = 'sfv';
