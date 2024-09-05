@@ -480,8 +480,6 @@ begin
   dbaddurlStart;
   console_addline('Admin', 'Start Genre DB', True);
   dbaddgenreStart;
-  console_addline('Admin', 'Start IMDB DB', True);
-  dbaddimdbStart;
   console_addline('Admin', 'Start TV DB', True);
   dbtvinfoStart;
   console_addline('Admin', 'Start Ranks', True);
