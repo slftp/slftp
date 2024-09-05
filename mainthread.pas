@@ -57,7 +57,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto,
-  taskautodirlist;
+  taskautodirlist, slcriticalsection2;
 
 {$I slftp.inc}
 
@@ -87,6 +87,8 @@ var
   fError: String;
 begin
   Result := '';
+
+  SlCriticalSection2Init(True); // TODO: make it configurable
 
   if not sltcp_inited then
   begin
@@ -585,6 +587,7 @@ begin
   dbtvinfoUnInit;
   NewsUnInit;
   AutodirlistUninit;
+  SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then

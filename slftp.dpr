@@ -141,7 +141,8 @@ uses
   taskspeedtest in 'taskspeedtest.pas',
   tasksunit in 'tasksunit.pas',
   tasktvinfolookup in 'tasktvinfolookup.pas',
-  versioninfo in 'versioninfo.pas';
+  versioninfo in 'versioninfo.pas',
+  slcriticalsection2 in 'slcriticalsection2.pas';
 
 {$APPTYPE CONSOLE}
 

@@ -5,7 +5,7 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules, taskrace, queueunit, Generics.Collections, pazo;
+  taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -212,10 +212,7 @@ type
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
-    fSlotsAssignmentLock: TEvent;
-    fSlotsAssignmentOwningThreadID: TThreadID;
-    fSlotsAssignmentLockCount: integer;
-    fslotsAssignmentLockedName: string;
+    fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
@@ -3012,8 +3009,7 @@ begin
   slots := TObjectList.Create(False);
   self.Name := Name;
   features := [];
-  fSlotsAssignmentLock := TEvent.Create(nil, False, True, 'SLFTP_SlotsAssignmentMutex_' + Name + '_' + IntToStr(random(2000000000)));
-  fSlotsAssignmentLockCount := 0;
+  fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name);
   fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then
@@ -4266,54 +4262,17 @@ end;
 
 function TSite.AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean;
 begin
-  if fSlotsAssignmentOwningThreadID = IdGlobal.CurrentThreadId then
-  begin
-    fSlotsAssignmentLockCount := fSlotsAssignmentLockCount + 1;
-    Result := True;
-    fslotsAssignmentLockedName := aLockName;
-  end
-  else
-  begin
-    case self.fSlotsAssignmentLock.WaitFor(aTimeout) of
-      wrSignaled:
-      {$IFDEF WINDOWS}
-      wrIOCompletion:
-      {$ENDIF}
-      begin
-        fSlotsAssignmentOwningThreadID := IdGlobal.CurrentThreadId;
-        Result := True;
-        fslotsAssignmentLockedName := aLockName;
-      end;
-      wrTimeout:
-          Result := False;
-      wrAbandoned:
-          raise Exception.Create(Format('Mutex abandoned when trying to lock for slots assignment for site %s', [self.Name]));
-      wrError:
-          raise Exception.Create(Format('Error when trying to lock for slots assignment for site %s', [self.Name]));
-    else
-      raise Exception.Create(Format('Unknown wait result when trying to lock for slots assignment for site %s', [self.Name]));
-    end;
-  end;
+  Result := fSlotsAssignmentLock.Enter(aLockName, aTimeout, False);
 end;
 
 procedure TSite.AcquireSlotsAssignmentLock(const aLockName: string);
 begin
-  if not AcquireSlotsAssignmentLock(60000, aLockName) then
-    raise Exception.Create(Format('Unable to acquire slots assignment lock for site %s by thread %s is held by thread %s (%d) - %s', [self.Name, IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(fSlotsAssignmentOwningThreadID, 4), fSlotsAssignmentLockCount, fslotsAssignmentLockedName])); //this should not happen
+  fSlotsAssignmentLock.Enter(aLockName, 60000, True);
 end;
 
 procedure TSite.ReleaseSlotsAssignmentLock;
 begin
-  if fSlotsAssignmentLockCount > 0 then
-  begin
-    fSlotsAssignmentLockCount := fSlotsAssignmentLockCount - 1;
-  end
-  else
-  begin
-    fSlotsAssignmentOwningThreadID := 0;
-    fslotsAssignmentLockedName := '';
-    fSlotsAssignmentLock.SetEvent;
-  end;
+  fSlotsAssignmentLock.Leave;
 end;
 
 function TSite.GetSiteInfos: String;
