@@ -22,7 +22,7 @@ type
   public
     constructor Create(const aName: string);
     destructor Destroy;
-    function Enter(const aLockOwnerName: string; const aTimeout: Cardinal = 60000; const aRaiseExceptionOnFail: boolean = True): boolean;
+    function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
     procedure Leave;
   end;
 
@@ -96,7 +96,7 @@ implementation
     end;
   end;
 
-  function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeout: Cardinal = 60000; const aRaiseExceptionOnFail: boolean = True): boolean;
+  function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
   begin
     if glUseTimeoutLocking then
     begin
@@ -109,7 +109,7 @@ implementation
       end
       else
       begin
-        case fEvent.WaitFor(aTimeout) of
+        case fEvent.WaitFor(aTimeoutMs) of
           wrSignaled:
           {$IFDEF WINDOWS}
           wrIOCompletion:
@@ -143,16 +143,23 @@ implementation
   end;
 
   procedure TslCriticalSection2.Leave;
-begin
-  if fLockCount > 0 then
   begin
-    fLockCount := fLockCount - 1;
-  end
-  else
-  begin
-    fLockOwningThreadID := 0;
-    fCurrentLockOwnerName := '';
-    fEvent.SetEvent;
+    if glUseTimeoutLocking then
+    begin
+      if fLockCount > 0 then
+      begin
+        fLockCount := fLockCount - 1;
+      end
+      else
+      begin
+        fLockOwningThreadID := 0;
+        fCurrentLockOwnerName := '';
+        fEvent.SetEvent;
+      end;
+    end
+    else
+    begin
+      fInternalCriticalSection.Leave;
+    end;
   end;
-end;
 end.
