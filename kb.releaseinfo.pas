@@ -1498,32 +1498,10 @@ begin
     else
     begin
       try
-        dbaddimdb_cs.Enter;
-        try
-          imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
-        finally
-          dbaddimdb_cs.Leave;
-        end;
-
-        imdb_id := imdbdata.imdb_id;
-        imdb_year := imdbdata.imdb_year;
-        imdb_languages.DelimitedText := imdbdata.imdb_languages.DelimitedText;
-        imdb_countries.DelimitedText := imdbdata.imdb_countries.DelimitedText;
-        imdb_genres.DelimitedText := imdbdata.imdb_genres.DelimitedText;
-        imdb_screens := imdbdata.imdb_screens;
-        imdb_rating := imdbdata.imdb_rating;
-        imdb_votes := imdbdata.imdb_votes;
-        CineYear := imdbdata.imdb_cineyear;
-        imdb_ldt := imdbdata.imdb_ldt;
-        imdb_wide := imdbdata.imdb_wide;
-        imdb_festival := imdbdata.imdb_festival;
-        imdb_stvm := imdbdata.imdb_stvm;
-        imdb_stvs := imdbdata.imdb_stvs;
-        imdb_type := imdbdata.imdb_type;
-
-        FLookupDone := True;
-      except
-        on e: Exception do
+        // we already have imdb infos
+        irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!', [pazo.rls.rlsname]));
+        imdbdata.PostResults(pazo.rls.rlsname);
+        if pazo.rls is TIMDBRelease then
         begin
           ir := TIMDBRelease(pazo.rls);
           ir.imdb_id := imdbdata.imdb_id;

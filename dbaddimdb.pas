@@ -252,8 +252,8 @@ var
 
 implementation
 
-uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.releaseinfo,
-  sitesunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
+//uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.releaseinfo,
+//  sitesunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 uses
 
   debugunit, configunit, sitesunit, console, StrUtils, RegExpr,
@@ -1125,7 +1125,7 @@ procedure CreateHttpTask(const aReleaseName, aIMDbId: String);
 var fTask : TPazoHTTPImdbTask;
 begin
   try
-    AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls), true);
+    AddTask(TPazoHTTPImdbTask.Create(aIMDbId, aReleaseName), true);
   except
     on e: Exception do
     begin
