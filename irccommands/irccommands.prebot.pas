@@ -1247,7 +1247,7 @@ begin
           Continue;
 
         d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-        d.dirlist_lock.Enter;
+        d.dirlist_lock.Enter('IrcListPreContent');
         try
           if d <> nil then
           begin
@@ -1289,7 +1289,7 @@ begin
       irc_addtext(netname, channel, 'Read content for %s:', [s.Name]);
 
       d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-      d.dirlist_lock.Enter;
+      d.dirlist_lock.Enter('IrcListPreContent');
       try
         if d <> nil then
         begin

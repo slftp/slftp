@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, skiplists, globals, Generics.Collections, IniFiles, sfv;
+uses Classes, Contnrs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv;
 
 type
   {
@@ -114,7 +114,7 @@ type
     procedure SetFullPath(const aFullPath: string);
     class function Timestamp(ts: String): TDateTime;
   public
-    dirlist_lock: TCriticalSection;
+    dirlist_lock: TSlCriticalSection2;
     dirlistadded: Boolean;
     site_name: String; //< sitename
     error: Boolean;
@@ -319,7 +319,7 @@ begin
         Result := True;
 
         // check if all multi-cd subdirs are complete
-        dirlist_lock.Enter;
+        dirlist_lock.Enter('TDirList.Complete');
         try
           for i := entries.Count - 1 downto 0 do
           begin
@@ -377,7 +377,7 @@ constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; s
 var
   sf: TSkipListFilter;
 begin
-  dirlist_lock := TCriticalSection.Create;
+  dirlist_lock := TSlCriticalSection2.Create('dirlist_' + dirname + '_' + site_name);
 
   biggestcd:= 0;
   error := False;
@@ -438,7 +438,7 @@ end;
 destructor TDirList.Destroy;
 begin
   skipped.Free;
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Destroy');
   try
     entries.Free;
     FIsValidFileCache.Free;
@@ -500,7 +500,7 @@ begin
     Result := False;
     s := '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
-    dirlist_lock.Enter;
+    dirlist_lock.Enter('TDirList.MultiCD');
     try
       for i := entries.Count - 1 downto 0 do
       begin
@@ -625,7 +625,7 @@ begin
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.ParseDirlist');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -866,7 +866,7 @@ var i: Integer;
 begin
   if skiplist = nil then exit;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.RegenerateSkiplist');
   try
     for i:= entries.Count -1 downto 0 do
     begin
@@ -1036,7 +1036,7 @@ end;
 
 procedure TDirList.Sort;
 begin
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Sort');
   try
     try
       entries.CustomSort(@_DirListSorter);
@@ -1120,7 +1120,7 @@ begin
   files := 0;
   size := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Usefulfiles');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1162,7 +1162,7 @@ begin
   if entries.Count = 0 then
     exit;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Find');
   try
     i := entries.IndexOf(filename);
     if i <> -1 then
@@ -1208,7 +1208,7 @@ begin
       lastdir := '';
     end;
 
-    dirlist_lock.Enter;
+    dirlist_lock.Enter('TDirList.FindDirlist');
     try
       d := Find(firstdir);
       if d = nil then
@@ -1252,7 +1252,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Done');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1288,7 +1288,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.FilesRacedByMe');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1331,7 +1331,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.SizeRacedByMe');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1381,7 +1381,7 @@ begin
     exit;
   end;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.HasSFV');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1420,7 +1420,7 @@ begin
     exit;
   end;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.HasNFO');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1456,7 +1456,7 @@ begin
   FLastUpdated := 0;
   biggestcd := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Clear');
   try
 
     for i := entries.Count - 1 downto 0 do
@@ -1493,7 +1493,7 @@ end;
 
 procedure TDirList.SortByModify;
 begin
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.SortByModify');
   try
     try
       entries.CustomSort(@_DirListModSorter);
@@ -1514,7 +1514,7 @@ var de: TDirlistEntry;
 begin
   Result := nil;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.FindNfo');
   try
     for i := 0 to entries.Count - 1 do
     begin

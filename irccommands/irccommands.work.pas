@@ -1369,7 +1369,7 @@ begin
       Continue;
 
     d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-    d.dirlist_lock.Enter;
+    d.dirlist_lock.Enter('IrcCheckForExistsRip');
     try
       if d <> nil then
       begin
