@@ -209,7 +209,7 @@ ujra:
 
   d := TDirlist.Create(s.Name, nil, nil, s.lastResponse);
   try
-    d.dirlist_lock.Enter;
+    d.dirlist_lock.Enter('s.Dirlist');
     try
       for i := 0 to d.entries.Count - 1 do
       begin

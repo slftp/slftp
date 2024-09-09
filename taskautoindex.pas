@@ -67,7 +67,7 @@ var
   var
     i: Integer;
   begin
-    dl.dirlist_lock.Enter;
+    dl.dirlist_lock.Enter('TAutoIndexTask.DoIndexing');
     try
       for i := 0 to dl.entries.Count - 1 do
       begin

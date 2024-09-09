@@ -25,7 +25,7 @@ var
 begin
   fsfilename := '';
   fsfilesize := 0;
-  d.dirlist_lock.Enter;
+  d.dirlist_lock.Enter('_PickupSpeedtestFile');
   try
     for i := 0 to d.entries.Count - 1 do
     begin

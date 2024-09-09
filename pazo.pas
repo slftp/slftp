@@ -642,7 +642,7 @@ begin
         Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [fd, Name, dst.Name, dst.Name]);
         if ((dstdl.entries <> nil) and (dstdl.entries.Count = 0)) then
         begin
-          dstdl.dirlist_lock.Enter;
+          dstdl.dirlist_lock.Enter('TPazoSite.Tuzelj');
           try
             if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
             begin
@@ -1427,7 +1427,7 @@ begin
       Result := True;
     end;
     // dir exist, we can set need_mkdir to false
-    d.dirlist_lock.Enter;
+    d.dirlist_lock.Enter('TPazoSite.MkdirReady');
     try
       d.need_mkdir := False;
       d.dependency_mkdir := '';
@@ -1561,7 +1561,7 @@ begin
     fFoundDirListEntries := TObjectList<TDirListEntry>.Create(False);
     fRemovePazoRaceEntries := TObjectList<TDirListEntry>.Create(False);
     try
-      d.dirlist_lock.Enter;
+      d.dirlist_lock.Enter('TPazoSite.ParseDirlist');
       try
         for i := 0 to d.entries.Count - 1 do
         begin
@@ -1624,7 +1624,7 @@ begin
       exit;
     end;
 
-    dl.dirlist_lock.Enter;
+    dl.dirlist_lock.Enter('TPazoSite.SetFileError');
     try
       de := dl.Find(filename);
       if de <> nil then
@@ -1669,7 +1669,7 @@ begin
   fFilesToRace := TList<TDirListEntry>.Create;
   try
     try
-      aDirlist.dirlist_lock.Enter;
+      aDirlist.dirlist_lock.Enter('TPazoSite.ParseDupe');
       try
         for fFilename in aFilenames do
         begin
@@ -1844,7 +1844,7 @@ begin
 
         // get more infos about dirlist entries
         sum := 0;
-        dirlist.dirlist_lock.Enter;
+        dirlist.dirlist_lock.Enter('TPazoSite.Stats');
         try
           for i := dirlist.entries.Count - 1 downto 0 do
           begin

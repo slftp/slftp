@@ -445,7 +445,7 @@ begin
     fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
-      d.dirlist_lock.Enter;
+      d.dirlist_lock.Enter('TPazoDirlistTask.Execute');
       try
         for i := 0 to d.entries.Count - 1 do
         begin
@@ -2436,7 +2436,7 @@ begin
       if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
       begin
         fDirlist := ps2.dirlist.FindDirlist(dir);
-        fDirlist.dirlist_lock.Enter;
+        fDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
         try
           fDirlistEntry := fDirlist.Find(filename);
           fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
