@@ -67,6 +67,7 @@ implementation
         begin
           raise Exception.Create(Format('SL Critical section with name %s already exists.', [aName]));
         end;
+        glUsedCriticalSectionNames.Add(aName);
       finally
         glUsedCriticalSectionNamesLock.Leave;
       end;
