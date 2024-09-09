@@ -204,6 +204,9 @@ type
 { Just a helper function to initialize image_files_priority and video_files_priority }
 procedure DirlistInit;
 
+{ Just a helper function to deinitialize uid lock}
+procedure DirlistUnInit;
+
 var
 
   AsciiFiletypes: array [1..5] of String = ('.nfo', '.sfv', '.m3u', '.cue', '.diz'); //< ASCII files which may need special handling because they might differ in size due to different line endings etc
@@ -219,7 +222,8 @@ const
 var
   image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
   video_files_priority: Integer; //< value for priority in dirlist sorter for video files from slftp.ini
-
+  uid_lock: TSlCriticalSection2;
+  uidg: UInt64 = 1;
 {$I common.inc}
 
 { TDirList }
@@ -376,9 +380,23 @@ end;
 constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False; const aPazoSFV: TPazoSFV = nil);
 var
   sf: TSkipListFilter;
+  uid: uint64;
 begin
-  dirlist_lock := TSlCriticalSection2.Create('dirlist_' + dirname + '_' + site_name);
-
+  try
+    uid_lock.Enter('TDirList.Create');
+    try
+      uid := uidg;
+      inc(uidg);
+    finally
+      uid_lock.Leave;
+    end;
+    dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
+  except
+    on e: Exception do
+    begin
+      debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Create: %s', [e.Message]);
+    end;
+  end;
   biggestcd:= 0;
   error := False;
 
@@ -1814,6 +1832,7 @@ end;
 procedure DirlistInit;
 begin
   DirlistHelperInit;
+  uid_lock := TSlCriticalSection2.Create('DirlistInit');
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then
@@ -1822,6 +1841,11 @@ begin
   video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
   if not (video_files_priority in [0..2]) then
     video_files_priority := 2;
+end;
+
+procedure DirlistUnInit;
+begin
+  uid_lock.Free
 end;
 
 end.
