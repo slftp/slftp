@@ -3009,7 +3009,7 @@ begin
   slots := TObjectList.Create(False);
   self.Name := Name;
   features := [];
-  fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name);
+  fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
 
   if (Name = getAdminSiteName) then

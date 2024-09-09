@@ -67,7 +67,7 @@ implementation
 uses
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
-  console, mrdohutils, SyncObjs, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
@@ -80,8 +80,8 @@ var
   huntartunk: huntartunk_tipus;
 
   debug_f: TextFile;
-  precatcher_debug_lock: TCriticalSection;
-  precatcher_lock: TCriticalSection;
+  precatcher_debug_lock: TSlCriticalSection2;
+  precatcher_lock: TSlCriticalSection2;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
 
@@ -93,7 +93,7 @@ begin
   if precatcher_ircdebug then
   begin
     try
-      precatcher_debug_lock.Enter;
+      precatcher_debug_lock.Enter('mydebug');
       try
         DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
         WriteLn(debug_f, Format('%s %s', [nowstr, s]));
@@ -528,7 +528,7 @@ begin
               exit;
             end;
 
-            precatcher_lock.Enter;
+            precatcher_lock.Enter('PrecatcherProcessB');
             try
                ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
             finally
@@ -915,7 +915,7 @@ begin
   irclines_ignorewords.Sorted := True;
   irclines_ignorewords.Duplicates := dupIgnore;
 
-  precatcher_lock := TCriticalSection.Create;
+  precatcher_lock := TSlCriticalSection2.Create('precatcher_lock');
 
   tagline := TStringList.Create;
   tagline.Delimiter := ' ';
@@ -937,7 +937,7 @@ begin
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
 
-  precatcher_debug_lock := TCriticalSection.Create();
+  precatcher_debug_lock := TSlCriticalSection2.Create('precatcher_debug_lock');
   Assignfile(debug_f, precatcher_logfilename);
   try
     if FileExists(precatcher_logfilename) then

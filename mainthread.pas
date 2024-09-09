@@ -585,6 +585,7 @@ begin
   dbtvinfoUnInit;
   NewsUnInit;
   AutodirlistUninit;
+  DirlistUnInit;
   SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic

@@ -138,7 +138,7 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
 
-  kb_lock.Enter;
+  kb_lock.Enter('IrcCheck');
   try
 
     s := FindSiteByName(netname, sitename);
@@ -421,7 +421,7 @@ begin
     exit;
   end;
 
-  kb_lock.Enter;
+  kb_lock.Enter('IrcPre');
   try
     pazo_id := kb_list.IndexOf(section + '-' + dir);
     if pazo_id = -1 then // this shouldnt happen
@@ -766,7 +766,7 @@ var
         continue;
       end;
 
-      kb_lock.Enter;
+      kb_lock.Enter('IrcBatch');
       try
 
         p := TPazo(kb_list.Objects[i]);
@@ -1247,7 +1247,7 @@ begin
           Continue;
 
         d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-        d.dirlist_lock.Enter;
+        d.dirlist_lock.Enter('IrcListPreContent');
         try
           if d <> nil then
           begin
@@ -1289,7 +1289,7 @@ begin
       irc_addtext(netname, channel, 'Read content for %s:', [s.Name]);
 
       d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-      d.dirlist_lock.Enter;
+      d.dirlist_lock.Enter('IrcListPreContent');
       try
         if d <> nil then
         begin

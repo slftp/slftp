@@ -14,13 +14,14 @@ uses
 type
   TslCriticalSection2 = class
   private
-    fInternalCriticalSection: TCriticalSection;
-    fEvent: TEvent;
-    fLockCount: integer;
-    fLockOwningThreadID: TThreadID;
-    fCurrentLockOwnerName: string;
+    FInternalCriticalSection: TCriticalSection;
+    FEvent: TEvent;
+    FLockCount: integer;
+    FLockOwningThreadID: TThreadID;
+    FName, FCurrentLockOwnerName: string;
+    FUseTimeoutLocking: boolean;
   public
-    constructor Create(const aName: string);
+    constructor Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy;
     function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
     procedure Leave;
@@ -43,26 +44,22 @@ implementation
   procedure SlCriticalSection2Init(const aUseTimeoutLocking: boolean);
   begin
     glUseTimeoutLocking := aUseTimeoutLocking;
-    if glUseTimeoutLocking then
-    begin
-      glUsedCriticalSectionNames := TList<string>.Create;
-      glUsedCriticalSectionNamesLock := TCriticalSection.Create;
-    end;
+    glUsedCriticalSectionNames := TList<string>.Create;
+    glUsedCriticalSectionNamesLock := TCriticalSection.Create;
   end;
 
   procedure SlCriticalSection2Uninit;
   begin
-    if glUseTimeoutLocking then
-    begin
-      glUsedCriticalSectionNames.Free;
-      glUsedCriticalSectionNamesLock.Free;
-    end;
+    glUsedCriticalSectionNames.Free;
+    glUsedCriticalSectionNamesLock.Free;
   end;
 
-  constructor TslCriticalSection2.Create(const aName: string);
+  constructor TslCriticalSection2.Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
   begin
-    if glUseTimeoutLocking then
+    if glUseTimeoutLocking Or aAlwaysUseTimeoutLocking then
     begin
+      FUseTimeoutLocking := True;
+
       // make sure a TslCriticalSection2 only exists once with the same name, because of the named mutex
       glUsedCriticalSectionNamesLock.Enter;
       try
@@ -70,60 +67,80 @@ implementation
         begin
           raise Exception.Create(Format('SL Critical section with name %s already exists.', [aName]));
         end;
+        glUsedCriticalSectionNames.Add(aName);
       finally
         glUsedCriticalSectionNamesLock.Leave;
       end;
 
-      fEvent := TEvent.Create(nil, False, True, aName);
-      fLockCount := 0;
-      fLockOwningThreadID := 0;
+      FEvent := TEvent.Create(nil, False, True, aName);
+      FLockCount := 0;
+      FLockOwningThreadID := 0;
     end
     else
     begin
-      fInternalCriticalSection := TCriticalSection.Create;
+      FUseTimeoutLocking := False;
+      FInternalCriticalSection := TCriticalSection.Create;
     end;
   end;
 
   destructor TslCriticalSection2.Destroy;
+  var
+    i: integer;
   begin
-    if glUseTimeoutLocking then
+    if FUseTimeoutLocking then
     begin
-      fEvent.Free;
+      FEvent.Free;
+
+      glUsedCriticalSectionNamesLock.Enter;
+      if glUsedCriticalSectionNames.Count > 0 then
+      begin
+        try
+          for i := glUsedCriticalSectionNames.Count -1 to 0 do
+          begin
+            if glUsedCriticalSectionNames[i] = self.FName then
+            begin
+              glUsedCriticalSectionNames.Delete(i);
+            end;
+          end;
+        finally
+          glUsedCriticalSectionNamesLock.Leave;
+        end;
+      end;
     end
     else
     begin
-      fInternalCriticalSection.Free;
+      FInternalCriticalSection.Free;
     end;
   end;
 
   function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
   begin
-    if glUseTimeoutLocking then
+    if FUseTimeoutLocking then
     begin
       // allow for the same thread to enter multiple times
-      if fLockOwningThreadID = IdGlobal.CurrentThreadId then
+      if FLockOwningThreadID = IdGlobal.CurrentThreadId then
       begin
-        fLockCount := fLockCount + 1;
+        FLockCount := fLockCount + 1;
         Result := True;
-        fCurrentLockOwnerName := aLockOwnerName;
+        FCurrentLockOwnerName := aLockOwnerName;
       end
       else
       begin
-        case fEvent.WaitFor(aTimeoutMs) of
+        case FEvent.WaitFor(aTimeoutMs) of
           wrSignaled:
           {$IFDEF WINDOWS}
           wrIOCompletion:
           {$ENDIF}
           begin
-            fLockOwningThreadID := IdGlobal.CurrentThreadId;
+            FLockOwningThreadID := IdGlobal.CurrentThreadId;
             Result := True;
-            fCurrentLockOwnerName := aLockOwnerName;
+            FCurrentLockOwnerName := aLockOwnerName;
           end;
           wrTimeout:
           begin
             if aRaiseExceptionOnFail then
             begin
-              raise Exception.Create(Format('Unable to acquire lock by thread %s is held by thread %s (%d) - %s', [IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(fLockOwningThreadID, 4), fLockCount, fCurrentLockOwnerName]));
+              raise Exception.Create(Format('Unable to acquire lock ''%s'' by thread %s is held by thread %s (%d) - %s', [FName, IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, FCurrentLockOwnerName]));
             end;
             Result := False;
           end;
@@ -138,28 +155,28 @@ implementation
     end
     else
     begin
-      fInternalCriticalSection.Enter;
+      FInternalCriticalSection.Enter;
     end;
   end;
 
   procedure TslCriticalSection2.Leave;
   begin
-    if glUseTimeoutLocking then
+    if FUseTimeoutLocking then
     begin
-      if fLockCount > 0 then
+      if FLockCount > 0 then
       begin
-        fLockCount := fLockCount - 1;
+        FLockCount := FLockCount - 1;
       end
       else
       begin
-        fLockOwningThreadID := 0;
-        fCurrentLockOwnerName := '';
-        fEvent.SetEvent;
+        FLockOwningThreadID := 0;
+        FcurrentLockOwnerName := '';
+        FEvent.SetEvent;
       end;
     end
     else
     begin
-      fInternalCriticalSection.Leave;
+      FInternalCriticalSection.Leave;
     end;
   end;
 end.

@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, kb.releaseinfo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo;
 
 type
   TKBThread = class(TThread)
@@ -44,7 +44,7 @@ var
   kb_sections: TStringList;
   kb_list: TStringList;
   kb_thread: TKBThread;
-  kb_lock: TCriticalSection;
+  kb_lock: TSLCriticalSection2;
 
 implementation
 
@@ -63,7 +63,6 @@ const
 var
   addpreechocmd: String;
   kb_last_saved: TDateTime;
-  kbevent: TEvent;
 
   // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
   // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
@@ -243,7 +242,7 @@ begin
 
   Result := -1;
 
-  kb_lock.Enter;
+  kb_lock.Enter('kb_AddB_1');
   psource := nil;
   try
     // deny adding of a release twice with different section
@@ -378,7 +377,7 @@ begin
   //  i := -1;
   //  added := False;
 
-  kb_lock.Enter;
+  kb_lock.Enter('kb_AddB_2');
   try
     i := kb_list.IndexOf(section + '-' + rls);
     if i = -1 then
@@ -701,7 +700,7 @@ begin
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
   if (not (event in [kbeNUKE, kbeADDPRE])) then
   begin
-    kb_lock.Enter;
+    kb_lock.Enter('kb_AddB_3');
     try
       rule_result := raDrop;
       rule_result := FireRuleSet(p, psource);
@@ -736,7 +735,7 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter;
+      kb_lock.Enter('kb_AddB_4');
       try
         if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
         begin
@@ -760,7 +759,7 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter;
+      kb_lock.Enter('kb_AddB_5');
       try
         FireRules(p, ps);
       finally
@@ -914,7 +913,7 @@ var
   i: integer;
 begin
   Result := '';
-  kb_lock.Enter;
+  kb_lock.Enter('FindReleaseInLatestKBList ' + aRls);
   try
     i := kb_latest.IndexOfName(aRls);
     if i <> -1 then
@@ -975,7 +974,7 @@ begin
   kb_reloadsections;
 
   // itt kell betoltenunk az slftp.kb -t
-  kb_lock.Enter;
+  kb_lock.Enter('kb_start');
   try
     x := TEncStringlist.Create(passphrase);
     try
@@ -1141,17 +1140,14 @@ begin
 end;
 
 procedure kb_Init;
-//var
-  //  xin: Tinifile;
 begin
   kb_last_saved := Now();
-  //  kbevent:=TEvent.Create(nil,false,false,'PRETIME_WAIT_EVENT');
 
   KbReleaseInit;
 
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
-  kb_lock := TCriticalSection.Create;
+  kb_lock := TSLCriticalSection2.Create('kb_lock');
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1193,7 +1189,6 @@ end;
 procedure kb_Uninit;
 begin
   Debug(dpSpam, rsections, 'Uninit1');
-  kbevent.Free;
   kb_sections.Free;
   kb_latest.Free;
   kb_skip.Free;
@@ -1330,7 +1325,7 @@ begin
     end;
 
     // Found at least one site that has the release, issue dirlists for each one and create pazo to send it to destinations
-    kb_lock.Enter;
+    kb_lock.Enter('AddCompleteTransfers');
     try
       rc := FindSectionHandler(p.rls.section);
       rls := rc.Create(p.rls.rlsname, p.rls.section);
@@ -1432,7 +1427,7 @@ begin
     while (not slshutdown) do
     begin
       try
-        kb_lock.Enter;
+        kb_lock.Enter('Execute');
         p := nil;
         try
           for i := kb_list.Count - 1 downto 0 do
@@ -1531,7 +1526,7 @@ begin
       if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
       begin
         try
-          kb_lock.Enter;
+          kb_lock.Enter('kb_save');
           try
             kb_Save;
           finally

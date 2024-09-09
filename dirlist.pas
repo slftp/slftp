@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, skiplists, globals, Generics.Collections, IniFiles, sfv;
+uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv;
 
 type
   {
@@ -114,7 +114,7 @@ type
     procedure SetFullPath(const aFullPath: string);
     class function Timestamp(ts: String): TDateTime;
   public
-    dirlist_lock: TCriticalSection;
+    dirlist_lock: TSlCriticalSection2;
     dirlistadded: Boolean;
     site_name: String; //< sitename
     error: Boolean;
@@ -204,6 +204,9 @@ type
 { Just a helper function to initialize image_files_priority and video_files_priority }
 procedure DirlistInit;
 
+{ Just a helper function to deinitialize uid lock}
+procedure DirlistUnInit;
+
 var
 
   AsciiFiletypes: array [1..5] of String = ('.nfo', '.sfv', '.m3u', '.cue', '.diz'); //< ASCII files which may need special handling because they might differ in size due to different line endings etc
@@ -219,7 +222,8 @@ const
 var
   image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
   video_files_priority: Integer; //< value for priority in dirlist sorter for video files from slftp.ini
-
+  uid_lock: TCriticalSection;
+  uidg: UInt64 = 1;
 {$I common.inc}
 
 { TDirList }
@@ -319,7 +323,7 @@ begin
         Result := True;
 
         // check if all multi-cd subdirs are complete
-        dirlist_lock.Enter;
+        dirlist_lock.Enter('TDirList.Complete');
         try
           for i := entries.Count - 1 downto 0 do
           begin
@@ -376,9 +380,16 @@ end;
 constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False; const aPazoSFV: TPazoSFV = nil);
 var
   sf: TSkipListFilter;
+  uid: uint64;
 begin
-  dirlist_lock := TCriticalSection.Create;
-
+  uid_lock.Enter;
+  try
+    uid := uidg;
+    inc(uidg);
+  finally
+    uid_lock.Leave;
+  end;
+  dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
   biggestcd:= 0;
   error := False;
 
@@ -438,7 +449,7 @@ end;
 destructor TDirList.Destroy;
 begin
   skipped.Free;
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Destroy');
   try
     entries.Free;
     FIsValidFileCache.Free;
@@ -500,7 +511,7 @@ begin
     Result := False;
     s := '';
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
-    dirlist_lock.Enter;
+    dirlist_lock.Enter('TDirList.MultiCD');
     try
       for i := entries.Count - 1 downto 0 do
       begin
@@ -625,7 +636,7 @@ begin
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.ParseDirlist');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -866,7 +877,7 @@ var i: Integer;
 begin
   if skiplist = nil then exit;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.RegenerateSkiplist');
   try
     for i:= entries.Count -1 downto 0 do
     begin
@@ -1036,7 +1047,7 @@ end;
 
 procedure TDirList.Sort;
 begin
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Sort');
   try
     try
       entries.CustomSort(@_DirListSorter);
@@ -1120,7 +1131,7 @@ begin
   files := 0;
   size := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Usefulfiles');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1162,7 +1173,7 @@ begin
   if entries.Count = 0 then
     exit;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Find');
   try
     i := entries.IndexOf(filename);
     if i <> -1 then
@@ -1208,7 +1219,7 @@ begin
       lastdir := '';
     end;
 
-    dirlist_lock.Enter;
+    dirlist_lock.Enter('TDirList.FindDirlist');
     try
       d := Find(firstdir);
       if d = nil then
@@ -1252,7 +1263,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Done');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1288,7 +1299,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.FilesRacedByMe');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1331,7 +1342,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.SizeRacedByMe');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1381,7 +1392,7 @@ begin
     exit;
   end;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.HasSFV');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1420,7 +1431,7 @@ begin
     exit;
   end;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.HasNFO');
   try
     for i := entries.Count - 1 downto 0 do
     begin
@@ -1456,7 +1467,7 @@ begin
   FLastUpdated := 0;
   biggestcd := 0;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.Clear');
   try
 
     for i := entries.Count - 1 downto 0 do
@@ -1493,7 +1504,7 @@ end;
 
 procedure TDirList.SortByModify;
 begin
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.SortByModify');
   try
     try
       entries.CustomSort(@_DirListModSorter);
@@ -1514,7 +1525,7 @@ var de: TDirlistEntry;
 begin
   Result := nil;
 
-  dirlist_lock.Enter;
+  dirlist_lock.Enter('TDirList.FindNfo');
   try
     for i := 0 to entries.Count - 1 do
     begin
@@ -1814,6 +1825,7 @@ end;
 procedure DirlistInit;
 begin
   DirlistHelperInit;
+  uid_lock := TCriticalSection.Create;
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then
@@ -1822,6 +1834,11 @@ begin
   video_files_priority := config.ReadInteger('queue', 'video_files_priority', 2);
   if not (video_files_priority in [0..2]) then
     video_files_priority := 2;
+end;
+
+procedure DirlistUnInit;
+begin
+  uid_lock.Free
 end;
 
 end.
