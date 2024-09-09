@@ -434,7 +434,7 @@ var
   i: integer;
 begin
   Result := nil;
-  kb_lock.Enter;
+  kb_lock.Enter('FindPazoByName');
   try
     try
       i := kb_list.IndexOf(section + '-' + rlsname);
@@ -465,7 +465,7 @@ var
   p: TPazo;
 begin
   Result := nil;
-  kb_lock.Enter;
+  kb_lock.Enter('FindPazoByRls');
   try
     try
       for i := kb_list.Count - 1 downto 0 do
