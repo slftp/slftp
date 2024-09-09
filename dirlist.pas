@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv;
+uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv;
 
 type
   {
@@ -222,7 +222,7 @@ const
 var
   image_files_priority: Integer; //< value for priority in dirlist sorter for image files from slftp.ini
   video_files_priority: Integer; //< value for priority in dirlist sorter for video files from slftp.ini
-  uid_lock: TSlCriticalSection2;
+  uid_lock: TCriticalSection;
   uidg: UInt64 = 1;
 {$I common.inc}
 
@@ -382,21 +382,14 @@ var
   sf: TSkipListFilter;
   uid: uint64;
 begin
+  uid_lock.Enter;
   try
-    uid_lock.Enter('TDirList.Create');
-    try
-      uid := uidg;
-      inc(uidg);
-    finally
-      uid_lock.Leave;
-    end;
-    dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
-  except
-    on e: Exception do
-    begin
-      debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Create: %s', [e.Message]);
-    end;
+    uid := uidg;
+    inc(uidg);
+  finally
+    uid_lock.Leave;
   end;
+  dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
   biggestcd:= 0;
   error := False;
 
@@ -1832,7 +1825,7 @@ end;
 procedure DirlistInit;
 begin
   DirlistHelperInit;
-  uid_lock := TSlCriticalSection2.Create('DirlistInit');
+  uid_lock := TCriticalSection.Create;
 
   image_files_priority := config.ReadInteger('queue', 'image_files_priority', 2);
   if not (image_files_priority in [0..2]) then

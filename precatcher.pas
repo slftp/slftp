@@ -915,7 +915,7 @@ begin
   irclines_ignorewords.Sorted := True;
   irclines_ignorewords.Duplicates := dupIgnore;
 
-  precatcher_lock := TSlCriticalSection2.Create('Precatcher_Init');
+  precatcher_lock := TSlCriticalSection2.Create('precatcher_lock');
 
   tagline := TStringList.Create;
   tagline.Delimiter := ' ';
@@ -937,7 +937,7 @@ begin
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
 
-  precatcher_debug_lock := TSlCriticalSection2.Create('Precatcher_Init');
+  precatcher_debug_lock := TSlCriticalSection2.Create('precatcher_debug_lock');
   Assignfile(debug_f, precatcher_logfilename);
   try
     if FileExists(precatcher_logfilename) then
