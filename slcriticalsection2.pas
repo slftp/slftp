@@ -56,6 +56,7 @@ implementation
 
   constructor TslCriticalSection2.Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
   begin
+    FName := aName;
     if glUseTimeoutLocking Or aAlwaysUseTimeoutLocking then
     begin
       FUseTimeoutLocking := True;
