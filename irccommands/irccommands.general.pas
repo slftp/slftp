@@ -230,7 +230,7 @@ begin
 
   irc_addtext(Netname, Channel, SlftpNewsStatus);
 
-  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [kb_list.Count]);
+  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [GetKBCount]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
 
   if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE then

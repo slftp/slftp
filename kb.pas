@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo;
+  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
 
 type
   TKBThread = class(TThread)
@@ -28,8 +28,29 @@ function FindReleaseInKbList(const rls: String): String;
       @param(aRls The release name to be searched for)
       @returns(The section name if the release has been found, an empty string otherwise) }
 function FindReleaseInLatestKBList(const aRls: String): String;
+function FindPazoByRls(const rlsname: String): TPazo;
+function FindPazoById(const id: integer): TPazo;
+function FindPazoByName(const section, rlsname: String): TPazo;
+{ Finds a release/pazo in the KB list by the given key. The key must be in the format of the KB list keys which is 'section-releasename'
+      @param(aKey The KB key to be searched for)
+      @returns(The found TPazo object or nil if the key is not present in the KB list.) }
+function FindPazoByKey(const aKey: String): TPazo;
+
+{ Adds a release/pazo to the KB list with the given key. The key must be in the format of the KB list keys which is 'section-releasename'
+      @param(aKey The KB key to be used)
+      @param(aPazo The TPazo object to be added) }
+procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
 
 function FindSectionHandler(const section: String): TCRelease;
+
+{ Returns the number of items in the KB
+      @returns(The number of items in the KB) }
+function GetKBCount: integer;
+
+{ Lists all KB entries to IRC which match the given section
+      @param(section The section to show the KB entries of.)
+      @param(hits The limit of how many entries should be listed.) }
+procedure ListKBToIRC(const netname, channel, section: string; const hits: integer);
 
 procedure kb_FreeList;
 procedure kb_Save;
@@ -42,15 +63,13 @@ function kb_reloadsections: boolean;
 
 var
   kb_sections: TStringList;
-  kb_list: TStringList;
   kb_thread: TKBThread;
-  kb_lock: TSLCriticalSection2;
 
 implementation
 
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
-  taskrace, sitesunit, queueunit, pazo, irc, SysUtils, fake, mystrings,
+  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
@@ -63,6 +82,8 @@ const
 var
   addpreechocmd: String;
   kb_last_saved: TDateTime;
+  kb_list: TStringList;
+  kb_lock: TSLCriticalSection2;
 
   // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
   // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
@@ -83,6 +104,12 @@ var
 
   rename_patterns: integer;
   taskpretime_mode: integer;
+
+function GetKBCount: integer;
+begin
+  // access to Count is thread safe, so no lock required
+  Result := kb_list.Count;
+end;
 
 function FindSectionHandler(const section: String): TCRelease;
 var
@@ -898,14 +925,19 @@ var
   i: integer;
 begin
   Result := '';
-  for i := 0 to kb_list.Count - 1 do
-  begin
-    if AnsiContainsText(kb_list[i], rls) then
+  kb_lock.Enter('FindReleaseInKbList ' + rls);
+  try
+    for i := 0 to kb_list.Count - 1 do
     begin
-      Result := kb_list[i];
-      break;
+      if AnsiContainsText(kb_list[i], rls) then
+      begin
+        Result := kb_list[i];
+        break;
+      end;
     end;
-  end;
+    finally
+      kb_lock.Leave;
+    end;
 end;
 
 function FindReleaseInLatestKBList(const aRls: String): String;
@@ -919,6 +951,161 @@ begin
     if i <> -1 then
     begin
       Result := kb_latest.ValueFromIndex[i];
+    end;
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
+function FindPazoByRls(const rlsname: String): TPazo;
+var
+  i: integer;
+  p: TPazo;
+begin
+  Result := nil;
+  kb_lock.Enter('FindPazoByRls');
+  try
+    try
+      for i := kb_list.Count - 1 downto 0 do
+      begin
+        if i < 0 then
+          Break;
+
+        p := TPazo(kb_list.Objects[i]);
+
+        if p = nil then
+          Continue;
+
+        if p.rls = nil then
+          Continue;
+
+        if (p.rls.rlsname = rlsname) then
+        begin
+          Result := p;
+        end;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, 'kb', Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
+        Result := nil;
+      end;
+    end;
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
+function FindPazoById(const id: integer): TPazo;
+var
+  i: integer;
+  p: TPazo;
+begin
+  Result := nil;
+  kb_lock.Enter('FindPazoById');
+  try
+    try
+      for i := kb_list.Count - 1 downto 0 do
+      begin
+        if i < 0 then
+            Break;
+
+        p := TPazo(kb_list.Objects[i]);
+        if p = nil then
+          exit;
+        if p.pazo_id = id then
+        begin
+          Result := p;
+          p.lastTouch := Now();
+          exit;
+        end;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, 'kb', Format('[EXCEPTION] FindPazoById: %s', [e.Message]));
+        Result := nil;
+      end;
+    end;
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
+function FindPazoByKey(const aKey: String): TPazo;
+var
+  i: integer;
+begin
+  Result := nil;
+  kb_lock.Enter('FindPazoByKey');
+  try
+    try
+      i := kb_list.IndexOf(aKey);
+      if i <> -1 then
+      begin
+        Result := TPazo(kb_list.Objects[i]);
+
+        if Result <> nil then
+          Result.lastTouch := Now;
+
+        exit;
+      end;
+    except
+     on E: Exception do
+     begin
+       Debug(dpError, 'kb', Format('[EXCEPTION] FindPazoByKey: %s', [e.Message]));
+       Result := nil;
+     end;
+    end;
+  finally
+     kb_lock.Leave;
+  end;
+end;
+
+function FindPazoByName(const section, rlsname: String): TPazo;
+begin
+  Result := FindPazoByKey(section + '-' + rlsname);
+end;
+
+procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
+begin
+  kb_lock.Enter('AddPazoToKB');
+  try
+    kb_list.AddObject(aKey, aPazo);
+  finally
+    kb_lock.Leave;
+  end;
+end;
+
+procedure ListKBToIRC(const netname, channel, section: string; const hits: integer);
+var
+  db, i: integer;
+  p: TPazo;
+begin
+  kb_lock.Enter('ListKBToIRC');
+  try
+    db := 0;
+    for i := kb_list.Count - 1 downto 0 do
+    begin
+      if (db > hits) then
+        break;
+
+      p := TPazo(kb_list.Objects[i]);
+      if p <> nil then
+      begin
+        if ((section = '') or (p.rls.section = section)) then
+        begin
+          irc_addtext(Netname, Channel, '#%d %s %s [QueueNumber: %d (Race:%d Dirlist:%d Mkdir:%d)]',
+            [p.pazo_id, p.rls.section, p.rls.rlsname, p.queuenumber.Value, p.racetasks.Value,
+            p.dirlisttasks.Value, p.mkdirtasks.Value]);
+
+          Inc(db);
+        end;
+      end
+      else
+      begin
+        irc_addtext(Netname, Channel, 'Whops, Pazo is nil! Anything screwed up!');
+      end;
     end;
   finally
     kb_lock.Leave;

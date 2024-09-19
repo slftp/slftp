@@ -246,9 +246,6 @@ type
     property PazoSFV: TPazoSFV read FPazoSFV;
   end;
 
-function FindPazoById(const id: integer): TPazo;
-function FindPazoByName(const section, rlsname: String): TPazo;
-function FindPazoByRls(const rlsname: String): TPazo;
 function PazoAdd(const rls: TRelease): TPazo;
 procedure PazoInit;
 
@@ -393,109 +390,6 @@ function PazoAdd(const rls: TRelease): TPazo;
 begin
   Result := TPazo.Create(rls, local_pazo_id);
   Inc(local_pazo_id);
-end;
-
-function FindPazoById(const id: integer): TPazo;
-var
-  i: integer;
-  p: TPazo;
-begin
-  Result := nil;
-  try
-    for i := kb_list.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      p := TPazo(kb_list.Objects[i]);
-      if p = nil then
-        exit;
-      if p.pazo_id = id then
-      begin
-        Result := p;
-        p.lastTouch := Now();
-        exit;
-      end;
-    end;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] FindPazoById: %s', [e.Message]));
-      Result := nil;
-    end;
-  end;
-end;
-
-function FindPazoByName(const section, rlsname: String): TPazo;
-var
-  i: integer;
-begin
-  Result := nil;
-  kb_lock.Enter('FindPazoByName');
-  try
-    try
-      i := kb_list.IndexOf(section + '-' + rlsname);
-      if i <> -1 then
-      begin
-        Result := TPazo(kb_list.Objects[i]);
-
-        if Result <> nil then
-          Result.lastTouch := Now;
-
-        exit;
-      end;
-    except
-     on E: Exception do
-     begin
-       Debug(dpError, section, Format('[EXCEPTION] FindPazoByName: %s', [e.Message]));
-       Result := nil;
-     end;
-    end;
-  finally
-     kb_lock.Leave;
-  end;
-end;
-
-function FindPazoByRls(const rlsname: String): TPazo;
-var
-  i: integer;
-  p: TPazo;
-begin
-  Result := nil;
-  kb_lock.Enter('FindPazoByRls');
-  try
-    try
-      for i := kb_list.Count - 1 downto 0 do
-      begin
-        if i < 0 then
-          Break;
-
-        p := TPazo(kb_list.Objects[i]);
-
-        if p = nil then
-          Continue;
-
-        if p.rls = nil then
-          Continue;
-
-        if (p.rls.rlsname = rlsname) then
-        begin
-          Result := p;
-        end;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] FindPazoByRls: %s', [e.Message]));
-        Result := nil;
-      end;
-    end;
-  finally
-    kb_lock.Leave;
-  end;
 end;
 
 procedure PazoInit;

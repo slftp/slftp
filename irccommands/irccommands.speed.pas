@@ -230,7 +230,7 @@ begin
 
   p := PazoAdd(nil);
 
-  kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
+  AddPazoToKB('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
 
   while (True) do
   begin
@@ -439,7 +439,7 @@ begin
 
     p := PazoAdd(nil);
 
-    kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
+    AddPazoToKB('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
     while (True) do
     begin
       ss := Fetch(fParams, ' ', True, False);
