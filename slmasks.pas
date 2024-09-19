@@ -3,7 +3,7 @@ unit slmasks;
 interface
 
 uses
-  SlCriticalSection2, DelphiMasks, RegExpr;
+  SyncObjs, DelphiMasks, RegExpr;
 
 type
   {
@@ -11,7 +11,7 @@ type
   }
   TslMask = class
   private
-    FLock: TSlCriticalSection2; //< lock to avoid concurrent access
+    FLock: TCriticalSection; //< lock to avoid concurrent access
     FMask: String; //< actual mask used for @link(dm) or @link(rm)
     dm: TMask; //< simple mask
     rm: TRegExpr; //< regex mask
@@ -65,7 +65,7 @@ begin
   else
     dm := TMask.Create(aMask);
 
-  FLock := TSlCriticalSection2.Create(aMask);
+  FLock := TCriticalSection.Create;
 end;
 
 destructor TslMask.Destroy;
@@ -89,7 +89,7 @@ function TslMask.Matches(const aInput: String): Boolean;
 begin
   Result := False;
 
-  FLock.Enter('TslMask.Matches');
+  FLock.Enter;
   try
     if Assigned(dm) then
       Result := dm.Matches(aInput)

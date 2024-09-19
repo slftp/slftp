@@ -316,7 +316,7 @@ begin
     exit;
   end;
 
-  p := TPazo(kb_list.Objects[pazo_id]);
+  p := FindPazoByID(pazo_id);
   p.Clear;
 
   try
@@ -718,7 +718,7 @@ begin
   rls := rc.Create(rlsname, srcdir);
   p := PazoAdd(rls);
   //  pazo_id := p.pazo_id;
-  kb_list.AddObject('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
+  AddPazoToKB('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
 
   p.AddSite(srcsite.Name, ftpsrcdir, False);
   p.AddSite(dstsite.Name, ftpdstdir, False);
@@ -931,7 +931,7 @@ begin
 
   if i <> -1 then
   begin
-    p := TPazo(kb_list.Objects[i]);
+    p := FindPazoByID(i);
     p.AddSites;
     p.rls.aktualizalva := False;
     if sitename <> '' then

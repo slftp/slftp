@@ -138,9 +138,6 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
 
-  kb_lock.Enter('IrcCheck');
-  try
-
     s := FindSiteByName(netname, sitename);
     if s = nil then
     begin
@@ -164,14 +161,12 @@ begin
     end;
 
     kb_Add(netname, channel, sitename, section, '', kbeCOMPLETE, dir, '', True);
-    i := kb_list.IndexOf(section + '-' + dir);
-    if i = -1 then
+    p := FindPazoByKey(section + '-' + dir);
+    if p = nil then
     begin
       irc_addtext(netname, channel, 'No valid kbID found for %s-%s!', [section, dir]);
       exit; // this is not possible
     end;
-
-    p := TPazo(kb_list.Objects[i]);
 
     addednumber := 0;
     tn := AddNotify;
@@ -221,9 +216,6 @@ begin
       AddTask(r, True);
       Inc(addednumber);
     end;
-  finally
-    kb_lock.Leave;
-  end;
 
   if addednumber = 0 then
   begin
@@ -421,16 +413,12 @@ begin
     exit;
   end;
 
-  kb_lock.Enter('IrcPre');
-  try
-    pazo_id := kb_list.IndexOf(section + '-' + dir);
-    if pazo_id = -1 then // this shouldnt happen
+    p := FindPazoByKey(section + '-' + dir);
+    if p = nil then // this shouldnt happen
     begin
       irc_addtext(Netname, Channel, '<c4><b>ERROR</c> No pazo_id found for:</b> %s-%s', [section, dir]);
       exit;
     end;
-
-    p := TPazo(kb_list.Objects[pazo_id]);
 
     for ps in p.PazoSitesList do
     begin
@@ -515,10 +503,6 @@ begin
     if verbose then
       irc_addText(netname, channel, 'Changing working directory to the predir.');
     elozo := Now;
-
-  finally
-    kb_lock.Leave;
-  end;
 
     try
       tn1.event.WaitFor($FFFFFFFF);
@@ -766,10 +750,7 @@ var
         continue;
       end;
 
-      kb_lock.Enter('IrcBatch');
-      try
-
-        p := TPazo(kb_list.Objects[i]);
+        p := FindPazoByID(i);
 
         ss := '';
         for i := 0 to sites.Count - 1 do
@@ -800,9 +781,6 @@ var
             ss := ss + site.Name + ' ';
           end;
         end;
-      finally
-        kb_lock.Leave;
-      end;
 
       ss := Trim(ss);
       if verbose then
@@ -1157,7 +1135,7 @@ begin
   begin
     exit;
   end;
-  p := TPazo(kb_list.Objects[pazo_id]);
+  p := FindPazoById(pazo_id);
   p.Clear;
   p.AddSites;
 

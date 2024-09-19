@@ -1735,7 +1735,7 @@ begin
 
     l_infos.Caption := Format(
       'KB: %d / IRC: %d net, %d chan / Rules: %s / Stats: %d speed, %d ranks',
-      [kb_list.Count, myIrcThreads.Count, i_chans, s_rules, speedstats.Count,
+      [GetKBCount, myIrcThreads.Count, i_chans, s_rules, speedstats.Count,
       GetRanksCount()]);
   except
     // dont know

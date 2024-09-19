@@ -128,8 +128,8 @@ begin
     exit;
   end;
 
-  i := kb_list.IndexOf(fKbKey);
-  if i <> -1 then
+  p := FindPazoByKey(fKbKey);
+  if p <> nil then
   begin
     exit;
   end;
@@ -287,7 +287,7 @@ begin
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasenametofind, ss);
       p := PazoAdd(rls);
-      kb_list.AddObject(fKbKey, p);
+      AddPazoToKB(fKbKey, p);
       SetRequestFilled(fKbKey);
 
       ps := p.AddSite(site1, maindir);
