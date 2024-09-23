@@ -214,6 +214,7 @@ type
     fMaxPreDn: integer;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    FLastDestroySocketTime: TDateTime;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -1454,6 +1455,7 @@ begin
     prot := prNone;
     SSCNEnabled := False;
     aktdir := '';
+    site.FLastDestroySocketTime := Now;
   except
     on e: Exception do
     begin
@@ -2273,6 +2275,10 @@ begin
       begin
         if site.sw = sswGlftpd then
         begin
+          if MillisecondsBetween(site.FLastDestroySocketTime, Now) < 2000 then
+          begin
+            Sleep(500);
+          end;
           DestroySocket(False);
           Result := LoginBnc(i, True);
         end;
@@ -2288,7 +2294,10 @@ begin
 
       Inc(i);
     except
-      break;
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Login: %s', [e.Message]));
+      end;
     end;
   end;
 
@@ -3034,6 +3043,7 @@ begin
   // reset to explore it again on first login
   sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
   WorkingStatus := sstUnknown;
+  FLastDestroySocketTime := MinDateTime;
 
   for i := 1 to RCInteger('slots', 2) do
     slots.Add(TSiteSlot.Create(self, i - 1));
