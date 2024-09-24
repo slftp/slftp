@@ -33,7 +33,6 @@ type
 
 function precatcherauto: boolean;
 
-function Precatcher_Sitehasachan(const sitename: String): boolean;
 procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload: String;
 procedure PrecatcherRebuild();
@@ -857,23 +856,6 @@ begin
     replace: ProcessReplace(s);
     hunsections: ProcessSections(s);
     mappings: ProcessMappings(s);
-  end;
-end;
-
-function Precatcher_Sitehasachan(const sitename: String): boolean;
-var
-  i: integer;
-  sc: TSiteChan;
-begin
-  Result := False;
-  for i := 0 to cd.Count - 1 do
-  begin
-    sc := TSiteChan(cd.Objects[i]);
-    if sc.sitename = sitename then
-    begin
-      Result := True;
-      break;
-    end;
   end;
 end;
 
