@@ -7,7 +7,7 @@ uses
 
 {
   TslCriticalSection
-  Provices a possibility for a critical section to have a timeout when trying to enter.
+  Provides a possibility for a critical section to have a timeout when trying to enter.
 }
 
 
@@ -73,7 +73,7 @@ implementation
         glUsedCriticalSectionNamesLock.Leave;
       end;
 
-      FEvent := TEvent.Create(nil, False, True, aName);
+      FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + aName);
       FLockCount := 0;
       FLockOwningThreadID := 0;
     end
@@ -157,6 +157,7 @@ implementation
     else
     begin
       FInternalCriticalSection.Enter;
+      Result := True;
     end;
   end;
 
@@ -164,6 +165,12 @@ implementation
   begin
     if FUseTimeoutLocking then
     begin
+      if FLockOwningThreadID <> IdGlobal.CurrentThreadId then
+        raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, FCurrentLockOwnerName]));
+
+      if FLockOwningThreadID = 0 then
+        raise Exception.Create(Format('Trying to leave lock by thread %s but it has not been entered before', [IntToHex(IdGlobal.CurrentThreadId, 4)]));
+
       if FLockCount > 0 then
       begin
         FLockCount := FLockCount - 1;
