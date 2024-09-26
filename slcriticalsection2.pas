@@ -141,7 +141,7 @@ implementation
           begin
             if aRaiseExceptionOnFail then
             begin
-              raise Exception.Create(Format('Unable to acquire lock ''%s'' by thread %s is held by thread %s (%d) - %s', [FName, IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, FCurrentLockOwnerName]));
+              raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by thread %s is held by thread %s (%d) - %s', [FName, aLockOwnerName, IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, FCurrentLockOwnerName]));
             end;
             Result := False;
           end;
