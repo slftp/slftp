@@ -88,7 +88,10 @@ var
 begin
   Result := '';
 
-  SlCriticalSection2Init(True); // TODO: make it configurable
+  if config.ReadString('debug', 'event_based_locking', '0') = '1' then
+    SlCriticalSection2Init(True)
+  else
+    SlCriticalSection2Init(False);
 
   if not sltcp_inited then
   begin
