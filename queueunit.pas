@@ -973,7 +973,11 @@ begin
               end;
             end;
           except
-            Continue;
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
+              continue;
+            end;
           end;
         end;
       finally
@@ -982,7 +986,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -1011,7 +1015,11 @@ begin
               end;
             end;
           except
-            Continue;
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask (loop) : %s', [e.Message]));
+              continue;
+            end;
           end;
         end;
       finally
@@ -1020,7 +1028,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask : %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -1049,7 +1057,11 @@ begin
               end;
             end;
           except
-            Continue;
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask (loop) : %s', [e.Message]));
+              continue;
+            end;
           end;
         end;
       finally
@@ -1058,7 +1070,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask : %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -1092,7 +1104,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, 'kb', Format('[EXCEPTION] TaskAlreadyInQueue TLoginTask : %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TLoginTask : %s', [e.Message]));
         Result := False;
         exit;
       end;

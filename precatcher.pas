@@ -33,7 +33,6 @@ type
 
 function precatcherauto: boolean;
 
-function Precatcher_Sitehasachan(const sitename: String): boolean;
 procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload: String;
 procedure PrecatcherRebuild();
@@ -286,6 +285,8 @@ procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEve
 var
   genre, s, oldsection, event: String;
 begin
+  precatcher_lock.Enter('ProcessReleaseVege');
+  try
   event := KBEventTypeToString(kb_event);
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
@@ -358,6 +359,10 @@ begin
       MyDebug('Genre: %s', [genre]);
       Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
     end;
+  end;
+
+  finally
+    precatcher_lock.Leave;
   end;
 
   MyDebug('Event: %s', [event]);
@@ -528,12 +533,7 @@ begin
               exit;
             end;
 
-            precatcher_lock.Enter('PrecatcherProcessB');
-            try
-               ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
-            finally
-              precatcher_lock.Leave;
-            end;
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
 
           except
             on e: Exception do
@@ -857,23 +857,6 @@ begin
     replace: ProcessReplace(s);
     hunsections: ProcessSections(s);
     mappings: ProcessMappings(s);
-  end;
-end;
-
-function Precatcher_Sitehasachan(const sitename: String): boolean;
-var
-  i: integer;
-  sc: TSiteChan;
-begin
-  Result := False;
-  for i := 0 to cd.Count - 1 do
-  begin
-    sc := TSiteChan(cd.Objects[i]);
-    if sc.sitename = sitename then
-    begin
-      Result := True;
-      break;
-    end;
   end;
 end;
 
