@@ -895,19 +895,6 @@ begin
   if section = 'TRASH' then
     exit;
 
-  kb_lock.Enter('kb_Add_kb_skip_check');
-  try
-    if kb_skip.IndexOf(rls) <> -1 then
-    begin
-      if spamcfg.readbool(rsections, 'skipped_release', True) then
-        irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!',
-          [rls, sitename]));
-      exit;
-     end;
-  finally
-    kb_lock.Leave;
-  end;
-
   try
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
