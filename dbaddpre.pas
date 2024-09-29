@@ -73,14 +73,14 @@ implementation
 
 uses
   DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles, slcriticalsection2,
-  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
+  irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
 
 const
   section = 'dbaddpre';
 
 var
   addpreSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
-  SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
+  SQLite3Lock: TSLCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
 
   addprecmd: TStringList;
   kbadd_addpre: boolean;
@@ -215,7 +215,7 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('ReadPretimeOverSQLITE');
   try
     fQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
     try
@@ -481,7 +481,7 @@ begin
       end;
     apmSQLITE:
       begin
-        SQLite3Lock.Enter;
+        SQLite3Lock.Enter('dbaddpre_InsertRlz');
         try
           fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
@@ -563,7 +563,7 @@ begin
       end;
     apmSQLITE:
       begin
-        SQLite3Lock.Enter;
+        SQLite3Lock.Enter('dbaddpre_GetCount');
         try
           fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
@@ -691,7 +691,7 @@ begin
 
   if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
-    SQLite3Lock := TCriticalSection.Create;
+    SQLite3Lock := TSLCriticalSection2.Create('SQLite3Lock');
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
 
     try
