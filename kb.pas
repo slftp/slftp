@@ -895,19 +895,6 @@ begin
   if section = 'TRASH' then
     exit;
 
-  kb_lock.Enter('kb_Add_kb_skip_check');
-  try
-    if kb_skip.IndexOf(rls) <> -1 then
-    begin
-      if spamcfg.readbool(rsections, 'skipped_release', True) then
-        irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!',
-          [rls, sitename]));
-      exit;
-     end;
-  finally
-    kb_lock.Leave;
-  end;
-
   try
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
@@ -1606,7 +1593,7 @@ end;
 
 procedure TKBThread.Execute;
 var
-  i: integer;
+  i, j: integer;
   p: TPazo;
   fIncFillPazos, fFinishedPazos, fFinishedRankCalcPazos, fDeletedPazos: TList<TPazo>;
   fIsSpecialKB, fTryToCompleteTimeReached: boolean;
@@ -1653,6 +1640,11 @@ begin
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
+              j := kb_latest.IndexOf(p.rls.rlsname);
+              if j <> -1 then
+              begin
+                kb_latest.Delete(j);
+              end;
               fDeletedPazos.Add(p);
             end;
 
