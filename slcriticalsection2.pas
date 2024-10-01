@@ -22,7 +22,7 @@ type
     FUseTimeoutLocking: boolean;
   public
     constructor Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
-    destructor Destroy;
+    destructor Destroy; override;
     function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
     procedure Leave;
   end;
