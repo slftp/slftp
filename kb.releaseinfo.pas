@@ -1448,9 +1448,11 @@ var
   i, j: integer;
   imdbdata: TDbImdbData;
   ir: TIMDBRelease;
+  fErrorString: String;
 begin
   Result := False;
   aktualizalva := True;
+  fErrorString:= '';
 
   try
     pazo := FindPazoByName(section, rlsname);
@@ -1477,28 +1479,42 @@ begin
     end
     else
     begin
-      try
+    try
         // we already have imdb infos
         irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!', [pazo.rls.rlsname]));
-        imdbdata.PostResults(pazo.rls.rlsname);
         if pazo.rls is TIMDBRelease then
         begin
-          ir := TIMDBRelease(pazo.rls);
-          ir.imdb_id := imdbdata.imdb_id;
-          ir.imdb_year := imdbdata.imdb_year;
-          ir.imdb_languages.CommaText := imdbdata.imdb_languages.CommaText;
-          ir.imdb_countries.CommaText := imdbdata.imdb_countries.CommaText;
-          ir.imdb_genres.CommaText := imdbdata.imdb_genres.CommaText;
-          ir.imdb_screens := imdbdata.imdb_screens;
-          ir.imdb_rating := imdbdata.imdb_rating;
-          ir.imdb_votes := imdbdata.imdb_votes;
-          ir.CineYear := imdbdata.imdb_cineyear;
-          ir.imdb_ldt := imdbdata.imdb_ldt;
-          ir.imdb_wide := imdbdata.imdb_wide;
-          ir.imdb_festival := imdbdata.imdb_festival;
-          ir.imdb_stvm := imdbdata.imdb_stvm;
-          ir.imdb_stvs := imdbdata.imdb_stvs;
-          ir.FLookupDone := True;
+          fErrorString := 'imdb_id';
+          imdb_id := imdbdata.imdb_id;
+          fErrorString := 'imdb_year';
+          imdb_year := imdbdata.imdb_year;
+          fErrorString := 'imdb_languages';
+          imdb_languages.CommaText := imdbdata.imdb_languages.CommaText;
+          fErrorString := 'imdb_countries';
+          imdb_countries.CommaText := imdbdata.imdb_countries.CommaText;
+          fErrorString := 'imdb_genres';
+          imdb_genres.CommaText := imdbdata.imdb_genres.CommaText;
+          fErrorString := 'imdb_screens';
+          imdb_screens := imdbdata.imdb_screens;
+          fErrorString := 'imdb_rating';
+          imdb_rating := imdbdata.imdb_rating;
+          fErrorString := 'imdb_votes';
+          imdb_votes := imdbdata.imdb_votes;
+          fErrorString := 'CineYear';
+          CineYear := imdbdata.imdb_cineyear;
+          fErrorString := 'imdb_ldt';
+          imdb_ldt := imdbdata.imdb_ldt;
+          fErrorString := 'imdb_wide';
+          imdb_wide := imdbdata.imdb_wide;
+          fErrorString := 'imdb_festival';
+          imdb_festival := imdbdata.imdb_festival;
+          fErrorString := 'imdb_stvm';
+          imdb_stvm := imdbdata.imdb_stvm;
+          fErrorString := 'imdb_stvs';
+          fErrorString := fErrorString + ' - ' + imdbdata.imdb_stvs;
+          imdb_stvs := imdbdata.imdb_stvs;
+          fErrorString := 'FLookupDone';
+          FLookupDone := True;
         end;
         Result := True;
       finally
