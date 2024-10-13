@@ -2819,7 +2819,7 @@ var
   host: String;
   port: Integer;
 begin
-  Result := 0;
+  Result := -1;
 
   // stop using sites where you don't add some download slots
   (* TODO: Write a function which can be used before from every caller to this function + depend check if PRE or not *)
