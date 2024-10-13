@@ -269,9 +269,7 @@ ujra:
   end;
 
   // trying to get the SFV
-  s.downloadingfrom := True;
   i := s.LeechFile(ss, fSFVFile);
-  s.downloadingfrom := False;
   if (i < 0)  then
   begin
     readyerror := True;
@@ -283,9 +281,7 @@ ujra:
   ss.Clear;
 
   // trying to get the NFO
-  s.downloadingfrom := True;
   i := s.LeechFile(ss, fNFOFile);
-  s.downloadingfrom := False;
   if (i < 0)  then
   begin
     readyerror := true;
