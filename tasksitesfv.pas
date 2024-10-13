@@ -172,7 +172,7 @@ begin
       if i <> 1 then
       begin
         Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
-        CreateReattemptTask(True);
+        CreateReattemptTask(i <> 0);  // LeechFile return value 0 means, currently no slot available
         readyerror := True;
         exit;
       end;

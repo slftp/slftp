@@ -2820,11 +2820,26 @@ var
   port: Integer;
 begin
   Result := -1;
+  idTCP := nil;
 
   // stop using sites where you don't add some download slots
   (* TODO: Write a function which can be used before from every caller to this function + depend check if PRE or not *)
   if ( (site.max_pre_dn = 0) or (site.max_dn = 0) ) then
     exit;
+
+  site.AcquireSlotsAssignmentLock('Leechfile-Start');
+  try
+    if site.num_dn >= site.max_dn then
+    begin
+      Result := 0;
+      exit;
+    end;
+
+    // now reserve a download slot
+    self.DownloadingFrom := True;
+  finally
+    site.ReleaseSlotsAssignmentLock;
+  end;
 
   try
     idTCP := TslTCPSocket.Create;
@@ -2919,7 +2934,16 @@ begin
 
       Result := 1;
     finally
-      idTCP.Free;
+      if idTCP <> nil then
+        idTCP.Free;
+
+      site.AcquireSlotsAssignmentLock('Leechfile-Finished');
+      try
+        // release reserved download slot
+        self.DownloadingFrom := False;
+      finally
+        site.ReleaseSlotsAssignmentLock;
+      end;
     end;
 
   except
