@@ -228,7 +228,12 @@ begin
       begin
         Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
         try
-          r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+          // LeechFile return value 0 means, currently no slot available
+          if i = 0 then
+            r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt)
+          else
+            r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+
           r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
           AddTask(r);
         except
