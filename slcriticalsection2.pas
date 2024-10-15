@@ -38,7 +38,7 @@ implementation
 
   var
     glUseTimeoutLocking: boolean;
-    glUsedCriticalSectionNames: TList<string>;
+    glUsedCriticalSectionNames: TDictionary<string, integer>;
     glUsedCriticalSectionNamesLock: TCriticalSection;
     glDebugSection: string = 'slcriticalsection2';
 
@@ -46,7 +46,7 @@ implementation
   procedure SlCriticalSection2Init(const aUseTimeoutLocking: boolean);
   begin
     glUseTimeoutLocking := aUseTimeoutLocking;
-    glUsedCriticalSectionNames := TList<string>.Create;
+    glUsedCriticalSectionNames := TDictionary<string, integer>.Create;
     glUsedCriticalSectionNamesLock := TCriticalSection.Create;
   end;
 
@@ -66,11 +66,11 @@ implementation
       // make sure a TslCriticalSection2 only exists once with the same name, because of the named mutex
       glUsedCriticalSectionNamesLock.Enter;
       try
-        if glUsedCriticalSectionNames.Contains(aName) then
+        if glUsedCriticalSectionNames.ContainsKey(aName) then
         begin
           raise Exception.Create(Format('SL Critical section with name %s already exists.', [aName]));
         end;
-        glUsedCriticalSectionNames.Add(aName);
+        glUsedCriticalSectionNames.Add(aName, 0);
       finally
         glUsedCriticalSectionNamesLock.Leave;
       end;
@@ -96,19 +96,10 @@ implementation
       FEvent.Free;
 
       glUsedCriticalSectionNamesLock.Enter;
-      if glUsedCriticalSectionNames.Count > 0 then
-      begin
-        try
-          for i := glUsedCriticalSectionNames.Count -1 to 0 do
-          begin
-            if glUsedCriticalSectionNames[i] = self.FName then
-            begin
-              glUsedCriticalSectionNames.Delete(i);
-            end;
-          end;
-        finally
-          glUsedCriticalSectionNamesLock.Leave;
-        end;
+      try
+        glUsedCriticalSectionNames.Remove(self.FName);
+      finally
+        glUsedCriticalSectionNamesLock.Leave;
       end;
     end
     else
