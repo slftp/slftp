@@ -2937,13 +2937,8 @@ begin
       if idTCP <> nil then
         idTCP.Free;
 
-      site.AcquireSlotsAssignmentLock('Leechfile-Finished');
-      try
-        // release reserved download slot
-        self.DownloadingFrom := False;
-      finally
-        site.ReleaseSlotsAssignmentLock;
-      end;
+      // release reserved download slot
+      self.DownloadingFrom := False;
     end;
 
   except
