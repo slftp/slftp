@@ -2387,19 +2387,15 @@ begin
   if ( (site.max_pre_dn = 0) or (site.max_dn = 0) ) then
     exit;
 
-  site.AcquireSlotsAssignmentLock('Leechfile-Start');
-  try
-    if site.num_dn >= site.max_dn then
-    begin
-      Result := 0;
-      exit;
-    end;
-
-    // now reserve a download slot
-    self.DownloadingFrom := True;
-  finally
-    site.ReleaseSlotsAssignmentLock;
+  // actually this would require a queue lock to work 100% reliably, but there is a solution for this in per-site-queue branch
+  if site.num_dn >= site.max_dn then
+  begin
+    Result := 0;
+    exit;
   end;
+
+  // now reserve a download slot
+  self.DownloadingFrom := True;
 
   try
     idTCP := TslTCPSocket.Create;
@@ -2497,13 +2493,8 @@ begin
       if idTCP <> nil then
         idTCP.Free;
 
-      site.AcquireSlotsAssignmentLock('Leechfile-Finished');
-      try
-        // release reserved download slot
-        self.DownloadingFrom := False;
-      finally
-        site.ReleaseSlotsAssignmentLock;
-      end;
+      // release reserved download slot
+      self.DownloadingFrom := False;
     end;
 
   except
