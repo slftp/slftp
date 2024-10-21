@@ -30,6 +30,7 @@ type
 
   procedure SlCriticalSection2Init(const aUseTimeoutLocking: boolean);
   procedure SlCriticalSection2Uninit;
+  function GetUseTimeoutLocking: boolean;
 
 
 implementation
@@ -201,6 +202,11 @@ implementation
 
       FCurrentCodeSegmentName := aSegmentName;
     end;
+  end;
+
+  function GetUseTimeoutLocking: boolean;
+  begin
+    Result := glUseTimeoutLocking;
   end;
 end.
 

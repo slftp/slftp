@@ -382,14 +382,23 @@ var
   sf: TSkipListFilter;
   uid: uint64;
 begin
-  uid_lock.Enter;
-  try
-    uid := uidg;
-    inc(uidg);
-  finally
-    uid_lock.Leave;
+  if GetUseTimeoutLocking then
+  begin
+    uid_lock.Enter;
+    try
+      uid := uidg;
+      inc(uidg);
+    finally
+      uid_lock.Leave;
+    end;
+    dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
+  end
+  else
+  begin
+    // no need for a unique name if we do not use timeout locking
+    dirlist_lock := TSlCriticalSection2.Create('dirlist_create');
   end;
-  dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
+
   biggestcd:= 0;
   error := False;
 
