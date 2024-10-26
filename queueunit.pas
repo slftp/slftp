@@ -1567,30 +1567,32 @@ begin
         end;
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
-
-        for fTask in tasks do
-        begin
-          try
-            if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
-              (not fTask.readyerror)) then
-            begin
-              if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
+        try
+          for fTask in tasks do
+          begin
+            try
+              if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
+                (not fTask.readyerror)) then
               begin
-                if fTask.IsReadyToBeExecuted then
-                  TryToAssignSlots(fTask);
+                if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
+                begin
+                  if fTask.IsReadyToBeExecuted then
+                    TryToAssignSlots(fTask);
+                end;
+              end;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
+                Continue;
               end;
             end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
-              Continue;
-            end;
           end;
+        finally
+          ts.ReleaseSlotsAssignmentLock;
         end;
       finally
         main_lock.Leave;
-        ts.ReleaseSlotsAssignmentLock;
       end;
 
       QueueStat;
