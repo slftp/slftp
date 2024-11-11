@@ -212,8 +212,21 @@ type
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
+    fGetReducedSpeedstatWeight: boolean;
+    fGetPermDownStatus: boolean;
+    fGetSkipBeingUploadedFiles: TSkipBeingUploaded;
+    fGetUseForNFOdownload: TUseForNFODownload;
+    fGetNoannounce: boolean;
+    fGetlegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    fConnect_timeout: integer;
+    fIdleInterval: integer;
+    fIo_timeout: integer;
+    fMaxIdle: integer;
+    fKillConnectionOnStalledTransferSeconds: integer;
+    fSpeedFromCS: TCriticalSection;
+    fSpeedFromCache: TStringList;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -354,9 +367,6 @@ type
     { procedure for @link(SiteInfos) property to write siteinfos to inifile }
     procedure SetSiteInfos(const Value: String);
 
-    function GetLastKnownCredits: int64;
-    procedure SetLastKnownCredits(const Value: int64);
-
     function GetUseAutoInvite: Boolean;
     procedure SetUseAutoInvite(Value: Boolean);
 
@@ -394,6 +404,7 @@ type
     function GetKillConnectionOnStalledTransferSeconds: integer;
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
+    function GetSpeed_From: TStringList;
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -522,6 +533,9 @@ type
     procedure RebuildSlot(const aSlotNumber: integer);
     procedure PrintSiteStatusToIRC;
 
+    { Updates the speed-from cache of this site from the sites.dat. }
+    procedure UpdateSpeedFromCache;
+
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
@@ -576,7 +590,6 @@ type
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
     property SiteInfos: String read GetSiteInfos write SetSiteInfos; //< holds the siteinfos information text
-    property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits; //< value for last known credit amount (NOT IMPLEMENTED!)
     property UseAutoInvite: Boolean read GetUseAutoInvite write SetUseAutoInvite;
 
     property IsUp: Boolean read GetIsUp;
@@ -589,6 +602,7 @@ type
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
+    property Speed_From: TStringList read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
   end;
 
 function ReadSites(): boolean;
@@ -1292,6 +1306,7 @@ begin
 end;
 
 procedure SitesInit;
+var s: TSite;
 begin
   sitelaststart := Now();
   bnccsere := TCriticalSection.Create;
@@ -3030,6 +3045,8 @@ begin
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
+  self.fSpeedFromCS := TCriticalSection.Create;
+  self.fSpeedFromCache := nil;
 
   if (Name = getAdminSiteName) then
   begin
@@ -3047,6 +3064,18 @@ begin
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
+
+  fGetReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
+  fGetPermDownStatus := RCBool('permdown', False);
+  fGetSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  fGetUseForNFOdownload := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
+  fGetNoannounce := RCBool('noannounce', False);
+  fGetlegacydirlist := RCBool('legacycwd', False);
+  fConnect_timeout := RCInteger('connect_timeout', 15);
+  fIdleInterval := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
+  fIo_timeout := RCInteger('io_timeout', 15);
+  fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
+  fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
 
   siteinvited := False;
   foutofannounce := 0;
@@ -3194,6 +3223,8 @@ begin
     fSlot.Free;
   slots.Free;
   fSlotsAssignmentLock.Free;
+  fSpeedFromCS.Free;
+  FreeAndNil(fSpeedFromCache);
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
 end;
@@ -3316,22 +3347,22 @@ end;
 function TSite.Getconnect_timeout: integer;
 begin
   //TODO: Maybe use [timeout] from slftp.ini as default value
-  Result := RCInteger('connect_timeout', 15);
+  Result := fConnect_timeout ;
 end;
 
 function TSite.GetIdleInterval: integer;
 begin
-  Result := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
+  Result := fIdleInterval;
 end;
 
 function TSite.Getio_timeout: integer;
 begin
-  Result := RCInteger('io_timeout', 15);
+  Result := fIo_timeout;
 end;
 
 function TSite.GetMaxIdle: integer;
 begin
-  Result := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
+  Result := fMaxIdle;
 end;
 
 function TSite.GetMaxDn: integer;
@@ -3372,21 +3403,25 @@ end;
 
 procedure TSite.Setconnect_timeout(const Value: integer);
 begin
+  fConnect_timeout := Value;
   WCInteger('connect_timeout', Value);
 end;
 
 procedure TSite.SetIdleInterval(Value: integer);
 begin
+  fIdleInterval := Value;
   WCInteger('idleinterval', Value);
 end;
 
 procedure TSite.Setio_timeout(const Value: integer);
 begin
+  fIo_timeout := Value;
   WCInteger('io_timeout', Value);
 end;
 
 procedure TSite.SetMaxIdle(Value: integer);
 begin
+  fMaxIdle := Value;
   WCInteger('max_idle', Value);
 end;
 
@@ -3426,11 +3461,12 @@ end;
 
 function TSite.Getlegacydirlist: boolean;
 begin
-  Result := RCBool('legacycwd', False);
+  Result := fGetlegacydirlist;
 end;
 
 procedure TSite.Setlegacydirlist(const Value: boolean);
 begin
+  fGetlegacydirlist := Value;
   WCBool('legacycwd', Value);
 end;
 
@@ -4013,11 +4049,13 @@ end;
 
 function TSite.GetNoannounce: boolean;
 begin
-  Result := RCBool('noannounce', False);
+  //RCBool('noannounce', False);
+  Result := fGetNoannounce;
 end;
 
 procedure TSite.SetNoAnnounce(const Value: boolean);
 begin
+  fGetNoannounce := Value;
   WCBool('noannounce', Value);
 end;
 
@@ -4304,16 +4342,6 @@ begin
   WCString('siteinfos', Value);
 end;
 
-function TSite.GetLastKnownCredits: int64;
-begin
-  Result := -1;
-end;
-
-procedure TSite.SetLastKnownCredits(const Value: int64);
-begin
-  //
-end;
-
 function TSite.GetUseAutoInvite: boolean;
 begin
   Result := RCBool('useautoinvite', True);
@@ -4561,31 +4589,37 @@ end;
 
 function TSite.GetUseForNFOdownload: TUseForNfoDownload;
 begin
-  Result := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
+  //TUseForNfoDownload(RCInteger('usefornfodownload', 1));
+  Result := fGetUseForNFOdownload;
 end;
 
 procedure TSite.SetUseForNFOdownload(const Value: TUseForNfoDownload);
 begin
+  fGetUseForNFOdownload := Value;
   WCInteger('usefornfodownload', Ord(Value));
 end;
 
 function TSite.GetSkipBeingUploadedFiles: TSkipBeingUploaded;
 begin
-  Result := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  //TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  Result := fGetSkipBeingUploadedFiles;
 end;
 
 procedure TSite.SetSkipBeingUploadedFiles(const Value: TSkipBeingUploaded);
 begin
+  fGetSkipBeingUploadedFiles := Value;
   WCInteger('skip_being_uploaded_files', Ord(Value));
 end;
 
 function TSite.GetPermDownStatus: boolean;
 begin
-  Result := RCBool('permdown', False);
+  //RCBool('permdown', False);
+  Result := fGetPermDownStatus;
 end;
 
 procedure TSite.SetPermDownStatus(Value: boolean);
 begin
+  fGetPermDownStatus := Value;
   WCBool('permdown', Value);
 end;
 
@@ -4621,22 +4655,82 @@ end;
 
 function TSite.GetReducedSpeedstatWeight: boolean;
 begin
-  Result := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));
+  //RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));
+  Result := fGetReducedSpeedstatWeight;
 end;
 
 procedure TSite.SetReducedSpeedstatWeight(const Value: boolean);
 begin
+  fGetReducedSpeedstatWeight := Value;
   WCBool('reduced_speedstat_weight', Value);
 end;
 
 function TSite.GetKillConnectionOnStalledTransferSeconds: integer;
 begin
-  Result := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
+  Result := fKillConnectionOnStalledTransferSeconds;
 end;
 
 procedure TSite.SetKillConnectionOnStalledTransferSeconds(const Value: integer);
 begin
+  fKillConnectionOnStalledTransferSeconds := Value;
   WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
+end;
+
+function _mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
+begin
+  try
+    Result :=
+      CompareValue(StrToIntDef(list.ValueFromIndex[Index2], 0),
+      StrToIntDef(list.ValueFromIndex[Index1], 0));
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section,
+        Format('[EXCEPTION] _mySpeedComparer : %s',
+        [e.Message]));
+      Result := 0;
+    end;
+  end;
+end;
+
+function TSite.GetSpeed_From: TStringList;
+begin
+  if self.fSpeedFromCache = nil then
+  begin
+    try
+      self.fSpeedFromCS.Enter;
+      if self.fSpeedFromCache = nil then
+        self.UpdateSpeedFromCache;
+    finally
+      self.fSpeedFromCS.Leave;
+    end;
+  end;
+
+  Result := TStringList.Create;
+  self.fSpeedFromCS.Enter;
+  try
+    Result.Assign(self.fSpeedFromCache);
+  finally
+    self.fSpeedFromCS.Leave;
+  end;
+end;
+
+procedure TSite.UpdateSpeedFromCache;
+var
+  fNewValue, fOldValue: TStringList;
+begin
+  fNewValue := TStringList.Create;
+  sitesdat.ReadSectionValues('speed-from-' + Name, fNewValue);
+  fNewValue.CustomSort(_mySpeedComparer);
+  self.fSpeedFromCS.Enter;
+  try
+    fOldValue := self.fSpeedFromCache;
+    self.fSpeedFromCache := fNewValue;
+  finally
+    self.fSpeedFromCS.Leave;
+  end;
+
+  FreeAndNil(fOldValue);
 end;
 
 end.

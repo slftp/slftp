@@ -311,8 +311,10 @@ var
   d, diff: Double;
   minr: String;
   maxr: String;
+  fSite: TSite;
 begin
   speedstats_last_recalc := Now();
+  fSite := nil;
 
   Debug(dpMessage, r_section, 'Recalculating speed stats begin');
   //irc_Addconsole('--> SpeedStatsRecalc : '+FormatDateTime('hh:nn:ss', now));
@@ -393,6 +395,10 @@ begin
 
                 sitesdat.WriteInteger('speed-from-' + x[i], y[j], speed_new);
                 sitesdat.WriteInteger('speed-to-' + y[j], x[i], speed_new);
+
+                fSite := FindSiteByName('', x[i]);
+                if fSite <> nil then
+                  fSite.UpdateSpeedFromCache;
               end;
             end;
           end;
