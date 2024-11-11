@@ -120,7 +120,7 @@ type
       @param(aParentPazo pazo where this TPazoSite belongs to)
       @param(aName sitename)
       @param(aMaindir sectiondir? TODO: debug real value) }
-    constructor Create(const aParentPazo: TPazo; const aName, aMaindir: String);
+    constructor Create(const aParentPazo: TPazo; const aName, aMaindir: String; const aSite: TObject = nil);
     destructor Destroy; override;
 
     { Processes the X-DUPE response from FTPd which is send if file already exists when trying to transfer it.
@@ -1114,7 +1114,7 @@ begin
         end;
       end;
 
-      ps := TPazoSite.Create(self, s.Name, sectiondir);
+      ps := TPazoSite.Create(self, s.Name, sectiondir, s);
       ps.status := rssNotAllowed;
       if not aIsSpreadJob then
       begin
@@ -1224,26 +1224,22 @@ begin
   end;
 end;
 
-function _mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
-begin
-  try
-    Result :=
-      CompareValue(StrToIntDef(list.ValueFromIndex[Index2], 0),
-      StrToIntDef(list.ValueFromIndex[Index1], 0));
-  except
-    Result := 0;
-  end;
-end;
-
 //compare function to sort by rank
 function _CompareDestinationRanks({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TDestinationRank): Integer;
 begin
   Result := TComparer<Integer>.Default.Compare(Right.FRank, Left.FRank); //descending
 end;
 
-constructor TPazoSite.Create(const aParentPazo: TPazo; const aName, aMaindir: String);
+constructor TPazoSite.Create(const aParentPazo: TPazo; const aName, aMaindir: String; const aSite: TObject = nil);
+var
+  fSite: TSite;
 begin
   inherited Create;
+
+  if aSite = nil then
+    fSite := FindSiteByName('', aName)
+  else
+    fSite := TSite(aSite);
 
   maindir := aMaindir;
   pazo := aParentPazo;
@@ -1271,17 +1267,7 @@ begin
   s_racetasks := TIdThreadSafeInt32.Create;
   s_mkdirtasks := TIdThreadSafeInt32.Create;
 
-  speed_from := TStringList.Create;
-  try
-    sitesdat.ReadSectionValues('speed-from-' + Name, speed_from);
-    speed_from.CustomSort(_mySpeedComparer);
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Create speed(s): %s', [e.Message]));
-      speed_from.Clear;
-    end;
-  end;
+  speed_from := fSite.Speed_From;
 
   Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
 end;

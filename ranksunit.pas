@@ -76,7 +76,11 @@ begin
       rankslock.Leave;
     end;
   except
-    exit;
+    on e: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] RemoveRanks1: %s', [e.Message]));
+     exit;
+    end;
   end;
   Result := True;
 end;
@@ -100,7 +104,11 @@ begin
       rankslock.Leave;
     end;
   except
-    exit;
+    on e: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] RemoveRanks2: %s', [e.Message]));
+      exit;
+    end;
   end;
   Result := True;
 end;
@@ -161,7 +169,10 @@ begin
         try
           x.Add(TRankStat(glRanks[i]).ToString);
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, r_section, '[EXCEPTION] RanksSave add TRankStat: %s', [e.Message]);
+          end;
         end;
       end;
       x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.ranks');
@@ -242,7 +253,10 @@ begin
         inc(db);
       end;
     except
-      Continue;
+      on E: Exception do
+      begin
+        Debug(dpError, r_section, '[EXCEPTION] RanksProcess loop1: %s', [e.Message]);
+      end;
     end;
   end;
 
@@ -270,7 +284,10 @@ begin
         rankstatAdd(ps.name, p.rls.section, ranknew);
       end;
     except
-      Continue;
+      on E: Exception do
+      begin
+        Debug(dpError, r_section, '[EXCEPTION] RanksProcess loop2: %s', [e.Message]);
+      end;
     end;
   end;
 end;
@@ -289,14 +306,10 @@ begin
     for i := 0 to glRanks.Count - 1 do
     begin
       try if i > glRanks.Count then Break; except Break; end;
-      try
-        r := TRankStat(glRanks[i]);
-        fSitename := r.sitename;
-        s := findSiteByName(aNetname, fSitename);
-        fSection := r.section;
-      except
-        Break;
-      end;
+      r := TRankStat(glRanks[i]);
+      fSitename := r.sitename;
+      s := findSiteByName(aNetname, fSitename);
+      fSection := r.section;
 
       fRankLockValue := s.getRankLock(fSection);
       if fRankLockValue > 0 then
