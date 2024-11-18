@@ -1802,8 +1802,8 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean race');
             try
-              tasks.Remove(t);
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
+              tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
             end;
@@ -1830,8 +1830,8 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
-              tasks.Remove(t);
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
+              tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
             end;
@@ -1875,8 +1875,8 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean other');
             try
-              tasks.Remove(t);
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
+              tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
             end;
