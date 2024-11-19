@@ -1688,7 +1688,7 @@ var
   i, tkill_unassigne, tkill_race, tkill_other: integer;
   ss: String;
   t:  TTask;
-  ts: TSite;
+  ts, ts2: TSite;
 begin
 
   try
@@ -1763,56 +1763,59 @@ begin
       begin
         if (t.ClassType = TPazoRaceTask) then
         begin
-          if (t.slot1 <> nil) then
-          begin
-            try
-              TSiteSlot(t.slot1).todotask := nil;
-              TSiteSlot(t.slot1).downloadingfrom := False;
-              TSiteSlot(t.slot1).uploadingto := False;
-              t.slot1     := nil;
-              t.slot1name := '';
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section,
-                  Format('[EXCEPTION] slot1 QueueClean: Exception : %s', [e.Message]));
-              end;
-            end;
-          end;
-
-          if (t.slot2 <> nil) then
-          begin
-            try
-              TSiteSlot(t.slot2).todotask := nil;
-              TSiteSlot(t.slot2).downloadingfrom := False;
-              TSiteSlot(t.slot2).uploadingto := False;
-              t.slot2     := nil;
-              t.slot2name := '';
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section,
-                  Format('[EXCEPTION] slot2 QueueClean: Exception : %s', [e.Message]));
-              end;
-            end;
-          end;
-
+          ts2 := nil;
+          ts.AcquireSlotsAssignmentLock('QueueClean race');
           try
-            //t := NIL;
-            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
-            ts.AcquireSlotsAssignmentLock('QueueClean race');
+            if (t.slot1 <> nil) then
+            begin
+              try
+                TSiteSlot(t.slot1).todotask := nil;
+                TSiteSlot(t.slot1).downloadingfrom := False;
+                TSiteSlot(t.slot1).uploadingto := False;
+                t.slot1 := nil;
+                t.slot1name := '';
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] slot1 QueueClean: Exception : %s', [e.Message]));
+                end;
+              end;
+            end;
+
+            if (t.slot2 <> nil) then
+            begin
+              try
+                TSiteSlot(t.slot2).site.AcquireSlotsAssignmentLock('QueueClean race destination');
+                // we were able to get the slots assignment lock. set the site here to release the lock later.
+                ts2 := TSiteSlot(t.slot2).site;
+
+                TSiteSlot(t.slot2).todotask := nil;
+                TSiteSlot(t.slot2).downloadingfrom := False;
+                TSiteSlot(t.slot2).uploadingto := False;
+                t.slot2 := nil;
+                t.slot2name := '';
+              except
+                on e: Exception do
+                begin
+                  Debug(dpError, section, Format('[EXCEPTION] slot2 QueueClean: Exception : %s', [e.Message]));
+                end;
+              end;
+            end;
+
             try
+              Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.FullName]));
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
               tasks.Remove(t);
-            finally
-              ts.ReleaseSlotsAssignmentLock;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] QueueClean: Exception Remove : %s', [e.Message]));
+              end;
             end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section,
-                Format('[EXCEPTION] QueueClean: Exception Remove : %s', [e.Message]));
-            end;
+          finally
+            ts.ReleaseSlotsAssignmentLock;
+            if ts2 <> nil then
+              ts2.ReleaseSlotsAssignmentLock;
           end;
           Inc(tkill_race);
 
