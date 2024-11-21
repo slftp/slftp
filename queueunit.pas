@@ -474,13 +474,9 @@ begin
     ss1 := nil;
     for i := 0 to s1.slots.Count - 1 do
     begin
-      try
-        if i > s1.slots.Count then
-        begin
-          ss1 := nil;
-          Break;
-        end;
-      except
+      if i > s1.slots.Count then
+      begin
+        ss1 := nil;
         Break;
       end;
 
@@ -519,13 +515,9 @@ begin
     ss2 := nil;
     for i := 0 to s2.slots.Count - 1 do
     begin
-      try
-        if i > s2.slots.Count then
-        begin
-          ss2 := nil;
-          Break;
-        end;
-      except
+      if i > s2.slots.Count then
+      begin
+        ss2 := nil;
         Break;
       end;
 
