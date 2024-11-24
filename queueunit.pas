@@ -451,24 +451,36 @@ begin
       exit;
     end;
 
-    // first watch if it is not already in process to upload the same file to the same place
+	// first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
-      exit; // we are already sending this file to the same destination site
+    begin
+       Debug(dpSpam, section, 'Destination site %s has active Transfers, skip race task assign from %s', [s2.Name, s1.Name]);
+       exit; // we are already sending this file to the same destination site
+    end;
 
     if s2.num_up >= s2.max_up then
+    begin
+      Debug(dpSpam, section, 'Destination site %s num_up > Maxup, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
+    end;
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if s1.num_dn >= s1.max_pre_dn then
+      begin
+        Debug(dpSpam, section, 'Origin site %s num_dn >= max_pre_dn, skip race task assign to %s', [s1.Name, s2.Name]);
         exit;
+      end;
     end
     else
     begin
-      if s1.num_dn >= s1.max_dn then
+    if s1.num_dn >= s1.max_dn then
+      begin
+        Debug(dpSpam, section, 'Origin site %s num_dn >= max_dn, skip race task assign to %s', [s1.Name, s2.Name]);
         exit;
+      end;
     end;
 
     ss1 := nil;
@@ -476,6 +488,7 @@ begin
     begin
       if i > s1.slots.Count then
       begin
+		Debug(dpSpam, section, 'Origin site %s slots > slots.Count, skip race task assign to %s', [s1.Name, s2.Name]);
         ss1 := nil;
         Break;
       end;
@@ -490,6 +503,7 @@ begin
         end
         else
         begin
+		  Debug(dpSpam, section, 'Origin site %s not Online, skip slot task assign to %s', [s1.Name, s2.Name]);
           // siteslot is not online
           ss1 := nil;
         end;
@@ -497,16 +511,21 @@ begin
       else
       begin
         // siteslot is already busy
+		Debug(dpSpam, section, 'Origin siteslot %s busy, skip slot task assign to %s', [s1.Name, s2.Name]);
         ss1 := nil;
       end;
     end;
     if ss1 = nil then
+    begin
+      Debug(dpSpam, section, 'Origin site %s busy, skip slot task assign to %s', [s1.Name, s2.Name]);
       exit;
+    end;
 
 
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
+	  Debug(dpSpam, section, 'Destination site %s busy, skip race task assign from %s', [s2.Name, s1.Name]);
       exit;
     end;
 
@@ -531,6 +550,7 @@ begin
           // check if slot is online and available for a new task
           if ss2.status <> ssOnline then
           begin
+			Debug(dpSpam, section, 'Destination site %s slots > slots.Count, skip race task assign from %s', [s2.Name, s1.Name]);
             ss2 := nil;
             continue;
           end;
