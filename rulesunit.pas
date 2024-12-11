@@ -327,20 +327,16 @@ procedure RulesRemove(const sitename, section: String);
 procedure RulesSave;
 procedure RulesStart;
 procedure RulesReload;
-procedure RulesLoad(const action, filename: String);
-function AddRule(const rule: String; var error: String): TRule;
-procedure RulesOrder(p: TPazo);
+procedure AddRule(const rule: String; var error: String): TRule;
 function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 procedure RulesInit;
 procedure RulesUninit;
+function RuleMod(const aRule: string): string;
+function GetNumberOfRules: integer;
 
 function FindConditionClassByName(const Name: String): TConditionClass;
 
-var
-  rules: TObjectList;
-  rtpl: TObjectList;
-  conditions: TClassList;
 
 implementation
 
@@ -358,6 +354,10 @@ type
 var
   prefixops: TClassList;
   infixops: TClassList;
+  rules: TDictionary<string, TObjectList<TRule>>;
+  rtpl: TDictionary<string, TObjectList<TRule>>;
+  conditions: TClassList;
+  split_site_data: boolean;
 
 { TInfixOperator }
 
@@ -1442,42 +1442,40 @@ function FireRuleSetB(p: TPazo; ps: TPazoSite; const sitenametomatch, sectiontom
 var
   i: integer;
   ra: TRuleAction;
+  fRules: TList<TRule>;
+  fRule: TRule;
 begin
   Result := raDontmatch;
   ra := Result;
   try
-    for i := 0 to rtpl.Count - 1 do
+    if rtpl.TryGetValue(sitenametomatch + sectiontomatch, fRules) then
     begin
-      try
-        if ((TRule(rtpl[i]).sitename = sitenametomatch) and
-          (TRule(rtpl[i]).section = sectiontomatch)) then
-        begin
-          try
-            ra := TRule(rtpl[i]).Execute(p);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rtpl) r.Execute: %s, %s', [e.Message, TRule(rtpl[i]).AsText(True)]));
-              Result := raDontmatch;
-              exit;
-            end;
-          end;
-          if ra = raDrop then
+      for fRule in fRules do
+      begin
+        try
+          ra := fRule.Execute(p);
+        except
+          on e: Exception do
           begin
-            ps.reason := TRule(rtpl[i]).AsText(True);
-            Result := raDrop;
-            exit;
-          end;
-
-          if ra = raAllow then
-          begin
-            ps.reason := TRule(rtpl[i]).AsText(True);
-            Result := raAllow;
+            Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rtpl) r.Execute: %s, %s', [e.Message, fRule.AsText(True)]));
+            Result := raDontmatch;
             exit;
           end;
         end;
-      except
-        Break;
+
+        if ra = raDrop then
+        begin
+          ps.reason := fRule.AsText(True);
+          Result := raDrop;
+          exit;
+        end;
+
+        if ra = raAllow then
+        begin
+          ps.reason := fRule.AsText(True);
+          Result := raAllow;
+          exit;
+        end;
       end;
     end;
   except
@@ -1490,38 +1488,34 @@ begin
   end;
 
   try
-    for i := 0 to rules.Count - 1 do
+    if rules.TryGetValue(sitenametomatch + sectiontomatch, fRules) then
     begin
-      try
-        if ((TRule(rules[i]).sitename = sitenametomatch) and
-          (TRule(rules[i]).section = sectiontomatch)) then
-        begin
-          try
-            ra := TRule(rules[i]).Execute(p);
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rules) r.Execute: %s %s', [e.Message, TRule(rules[i]).AsText(True)]));
-              Result := raDontmatch;
-              exit;
-            end;
-          end;
-          if ra = raDrop then
+      for fRule in fRules do
+      begin
+        try
+          ra := fRule.Execute(p);
+        except
+          on e: Exception do
           begin
-            ps.reason := TRule(rules[i]).AsText(True);
-            Result := raDrop;
-            exit;
-          end;
-
-          if ra = raAllow then
-          begin
-            ps.reason := TRule(rules[i]).AsText(True);
-            Result := raAllow;
+            Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rtpl) r.Execute: %s, %s', [e.Message, fRule.AsText(True)]));
+            Result := raDontmatch;
             exit;
           end;
         end;
-      except
-        Break;
+
+        if ra = raDrop then
+        begin
+          ps.reason := fRule.AsText(True);
+          Result := raDrop;
+          exit;
+        end;
+
+        if ra = raAllow then
+        begin
+          ps.reason := fRule).AsText(True);
+          Result := raAllow;
+          exit;
+        end;
       end;
     end;
   except
@@ -1713,119 +1707,47 @@ begin
   end;
 end;
 
-procedure RulesOrder(p: TPazo);
-var
-  x: TStringList;
-  i, j: integer;
-  r: TRule;
-  s: String;
-  fositeIndex, aktsiteIndex: integer;
-  ps: TPazoSite;
-begin
-  x := TStringList.Create;
-  try
-    for ps in p.PazoSitesList do
-    begin
-      x.Add(ps.Name);
-    end;
-
-    for i := 0 to x.Count - 1 do
-    begin
-      fositeIndex := p.PazoSitesList.IndexOf(p.FindSite(x[i]));
-      for j := 0 to rtpl.Count - 1 do
-      begin
-        r := TRule(rtpl[j]);
-        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
-        begin
-          s := r.conditions.AtConditionName;
-          if s <> '' then
-          begin
-            aktsiteIndex := p.PazoSitesList.IndexOf(p.FindSite(s));
-            if (aktsiteIndex > fositeIndex) then
-            begin
-              p.PazoSitesList.Move(aktsiteIndex, fositeIndex);
-              fositeIndex := fositeIndex + 1;
-            end;
-          end;
-        end;
-      end;
-
-      for j := 0 to rules.Count - 1 do
-      begin
-        r := TRule(rules[j]);
-        if ((r.sitename = x[i]) and (r.section = p.rls.section)) then
-        begin
-          s := r.conditions.AtConditionName;
-          if s <> '' then
-          begin
-            aktsiteIndex := p.PazoSitesList.IndexOf(p.FindSite(s));
-            if (aktsiteIndex > fositeIndex) then
-            begin
-              p.PazoSitesList.Move(aktsiteIndex, fositeIndex);
-              fositeIndex := fositeIndex + 1;
-            end;
-          end;
-        end;
-      end;
-    end;
-  finally
-    x.Free;
-  end;
-end;
-
 procedure RulesSave;
 var
   i, j: integer;
   fEncStringlist: TEncStringlist;
   fSitename: String;
   fRulesPath: String;
-  fSitesDone: TStringList;
   fSiteRules: TStringList;
   fRule: TRule;
+  fRulesPerSiteKVP: TPair<String, List<TRule>>;
 begin
-  if (config.ReadBool('sites', 'split_site_data', False)) then
+  if split_site_data then
   begin
-    fSitesDone := TStringList.Create;
-    try
-      fRulesPath := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
-      for i := 0 to rules.Count - 1 do
-      begin
-        fRule := TRule(rules[i]);
-        fSitename := fRule.sitename;
-
-        if (fSitesDone.IndexOf(fSitename) <> -1) then
-          continue;
-
-        fSiteRules := TStringList.Create;
-        try
-          for j := i to rules.Count - 1 do
-          begin
-            fRule := TRule(rules[j]);
-            if fRule.sitename <> fSitename then
-              continue;
-            fSiteRules.Add(fRule.AsText(True));
-          end;
-
-          if fSitename = '*' then
-            fSiteRules.SaveToFile(fRulesPath + getAdminSiteName + '.rtpl')
-          else
-            fSiteRules.SaveToFile(fRulesPath + fSitename + '.rtpl');
-
-          fSitesDone.Add(fSitename);
-        finally
-          fSiteRules.Free;
+    fRulesPath := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
+    for fRulesPerSiteKVP in rules do
+    begin
+      fSiteRules := TStringList.Create;
+      try
+        for fRule in fRulesPerSiteKVP do
+        begin
+          fSitename := fRule.sitename;
+          fSiteRules.Add(fRule.AsText(True));
         end;
+
+        if fSitename = '*' then
+          fSiteRules.SaveToFile(fRulesPath + getAdminSiteName + '.rtpl')
+        else
+          fSiteRules.SaveToFile(fRulesPath + fSitename + '.rtpl');
+      finally
+        fSiteRules.Free;
       end;
-    finally
-      fSitesDone.Free;
     end;
   end
   else
   begin
     fEncStringlist := TEncStringlist.Create(passphrase);
     try
-      for i := 0 to rules.Count - 1 do
-        fEncStringlist.Add(TRule(rules[i]).AsText(True));
+      for fRulesPerSiteKVP in rules do
+      begin
+        for fRule in fRulesPerSiteKVP do
+          fEncStringlist.Add(fRule.AsText(True));
+      end;
       fEncStringlist.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.rules');
     finally
       fEncStringlist.Free;
@@ -1835,29 +1757,36 @@ end;
 
 procedure RulesRemove(const sitename, section: String);
 var
-  i: integer;
-  r: TRule;
+  fRulesPerSiteKVP: TPair<String, List<TRule>>;
+  fKeysToDelete: TList<String>;
+  fKey: String;
 begin
-  i := 0;
+  fKeysToDelete := TList<String>.Create;
 
-  while (i < rules.Count) do
+  for fRulesPerSiteKVP in rules do
   begin
-    r := TRule(rules[i]);
-    if ((r.sitename = sitename) and ((section = '') or (r.section = section))) then
-    begin
-      rules.Remove(r);
-      Dec(i);
-    end;
+    if (fRulesPerSiteKVP.Value.Count > 0) and (TRule(fRulesPerSiteKVP.Value[0]).sitename = sitename)
+      and ((section = '') or (TRule(fRulesPerSiteKVP.Value[0]).section = section))
+        fKeysToDelete.Add(fRulesPerSiteKVP.Key);
+  end;
 
-    Inc(i);
+  for fKey in fKeysToDelete do
+  begin
+    rules[fKey].Free;
+    rules.Remove(fKey);
   end;
 end;
 
-function AddRule(const rule: String; var error: String): TRule;
+procedure AddRule(const rule: String; var error: String): TRule;
+begin
+  AddRule(rule, error, False);
+end;
+
+procedure AddRule(const rule: String; var error: String; const aNotAddToRtpl);
 var
   r: TRule;
 begin
-  Result := nil;
+  error := '';
 
   r := TRule.Create(rule);
   if r.error <> '' then
@@ -1866,40 +1795,70 @@ begin
     r.Free;
   end
   else
-    Result := r;
-end;
-
-procedure RulesLoad(const action, filename: String);
-var
-  fst: TStringList;
-  i: integer;
-  r: TRule;
-  error: String;
-begin
-  if (UpperCase(action) = 'REPLACE') then
   begin
-    rules.Free;
-    rules := TObjectList.Create;
-  end;
-
-  fst := TStringList.Create;
-  try
-    fst.LoadFromFile(ExtractFilePath(ParamStr(0)) + filename);
-    for i := 0 to fst.Count - 1 do
+    if r <> nil then
     begin
-      r := AddRule(fst[i], error);
-      if r <> nil then
+      if not aNotAddToRtpl then
       begin
+        if not rules.ContainsKey(r.sitename + r.section) then
+          rules.add(r.sitename + r.section, TObjectList<TRule>.Create);
+
         rules.Add(r);
       end
       else
       begin
-        Debug(dpError, dsection, '[ERROR] ' + error + ' loading ' + fst[i]);
+        if not rtpl.ContainsKey(r.sitename + r.section) then
+          rtpl.add(r.sitename + r.section, TObjectList<TRule>.Create);
+
+        rtpl.Add(r);
       end;
-    end;
-  finally
-    fst.Free;
+    end
   end;
+end;
+
+function GetNumberOfRules: integer;
+var
+  fRulesPerSiteKVP: TPair<String, List<TRule>>;
+begin
+  Result := 0;
+  for fRulesPerSiteKVP in rules do
+    Result := Result + fRulesPerSiteKVP.Count;
+end;
+
+function RuleMod(const aID: integer; const aRule: string): string;
+var
+  fNewRule: TRule;
+begin
+  Result := '';
+  fRuleID := 0;
+
+  fNewRule := TRule.Create(rule);
+  if fNewRule.error <> '' then
+  begin
+    Result := fNewRule.error;
+    fNewRule.Free;
+    exit;
+  end;
+
+  if not rules.ContainsKey(r.sitename + r.section) then
+  begin
+    Result := 'Cannot change section or site via rulemod. Please use ruledel and ruleadd/ruleins';
+    exit;
+  end;
+
+  if (aID < 0) or (rules[r.sitename + r.section].Count < aID - 1) then
+  begin
+    Result := Format('Invalid rule ID for site %s, section %s', [r.sitename, r.section]);
+    exit;
+  end;
+
+  rules[r.sitename + r.section].Delete(aID);
+  rules[r.sitename + r.section].Insert(aID, fNewRule);
+  RulesSave;
+  exit;
+
+  // if we reach this, there was no rule with the given ID. Should not happen.
+  Result := 'No rule found with ID' + aID;
 end;
 
 procedure RulesReload;
@@ -1911,20 +1870,25 @@ var
   intFound: integer;
   SearchRec: TSearchRec;
   rule_line, rules_path: String;
-  split_site_data: boolean;
+  fRulesPerSiteKVP: TPair<String, List<TRule>>;
 begin
   rules_path := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim;
-  split_site_data := config.ReadBool('sites', 'split_site_data', False);
 
-  if (split_site_data) then
+  if split_site_data then
   begin
+    for fRulesPerSiteKVP in rules do
+      fRulesPerSiteKVP.Value.Free;
+
     FreeAndNil(rules);
-    rules := TObjectList.Create;
+    rules := TDictionary<string, TObjectList<TRule>>;
   end
   else
   begin
+    for fRulesPerSiteKVP in rtpl do
+      fRulesPerSiteKVP.Value.Free;
+
     FreeAndNil(rtpl);
-    rtpl := TObjectList.Create;
+    rtpl := TDictionary<string, TObjectList<TRule>>;
   end;
 
   intFound := FindFirst(rules_path + '*.rtpl', faAnyFile, SearchRec);
@@ -1939,19 +1903,8 @@ begin
         if ((rule_line = '') or (rule_line[1] = '#')) then
           Continue;
 
-        r := AddRule(rule_line, error);
-        if r <> nil then
-        begin
-          if split_site_data then
-          begin
-            rules.Add(r);
-          end
-          else
-          begin
-            rtpl.Add(r);
-          end;
-        end
-        else
+        AddRule(rule_line, error, split_site_data);
+        if error <> '' then
         begin
           Debug(dpError, dsection, '[ERROR] ' + error + ' loading ' + fst[i]);
         end;
@@ -1978,6 +1931,8 @@ var
   error: String;
   S: String;
 begin
+  split_site_data := config.ReadBool('sites', 'split_site_data', False);
+
   // load rules (rtpl)
   RulesReload;
 
@@ -1988,15 +1943,17 @@ begin
 
     for i := 0 to f.Count - 1 do
     begin
-      r := AddRule(f[i], error);
-      if r <> nil then
-        rules.Add(r);
+      AddRule(f[i], True);
+      if error <> '' then
+      begin
+        Debug(dpError, dsection, '[ERROR] ' + error + ' loading ' + fst[i]);
+      end;
     end;
   finally
     f.Free;
   end;
 
-  if (config.ReadBool('sites', 'split_site_data', False)) then
+  if split_site_data then
   begin
     // convert to split format
     S := ExtractFilePath(ParamStr(0)) + 'slftp.rules';

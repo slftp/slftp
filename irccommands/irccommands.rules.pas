@@ -54,14 +54,13 @@ begin
     exit;
   end;
 
-  r := AddRule(rule, error);
-  if ((r = nil) or (error <> '')) then
+  AddRule(rule, error);
+  if error <> '' then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
     exit;
   end;
 
-  rules.Add(r);
   RulesSave;
 
   irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [rules.Count - 1, r.AsText(True)]);
@@ -122,16 +121,11 @@ begin
     exit;
   end;
 
-  if ((id < 0) or (id >= rules.Count)) then
-  begin
-    irc_addtext(Netname, Channel, 'Incorrect rule id');
-    exit;
-  end;
+  error := RuleMod(id, rule);
 
-  r := AddRule(rule, error);
-  if ((r = nil) or (error <> '')) then
+  if error <> '' then
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
+    irc_addtext(Netname, Channel, '<c4><b>Error</b>.</c> %s', [error]);
     exit;
   end;
 
