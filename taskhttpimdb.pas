@@ -277,7 +277,7 @@ begin
     if fRegex.Exec(aPageSource) then
     begin
       fMatch := fRegex.Match[1];
-      fRegex.Expression := 'ref_=tt_dt_cn">(.*?)<\/a>';
+      fRegex.Expression := 'ref_=tt_dt_cnt">(.*?)<\/a>';
       if fRegex.Exec(fMatch) then
       begin
         repeat
