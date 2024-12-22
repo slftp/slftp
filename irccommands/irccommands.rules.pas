@@ -18,7 +18,7 @@ function IrcAutoRules(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings;
+  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings, System.Generics.Collections;
 
 const
   section = 'irccommands.rules';
@@ -28,6 +28,7 @@ var
   r: TRule;
   sitename, rule, section, error: String;
   s: TSite;
+  fAddedRuleID: integer;
 begin
   Result := False;
 
@@ -54,16 +55,14 @@ begin
     exit;
   end;
 
-  AddRule(rule, error);
+  fAddedRuleID := AddRule(rule, error);
   if error <> '' then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
     exit;
   end;
 
-  RulesSave;
-
-  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [rules.Count - 1, r.AsText(True)]);
+  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [fAddedRuleID, r.AsText(True)]);
 
   Result := True;
 end;
@@ -71,22 +70,23 @@ end;
 function IrcRuleDel(const netname, channel, params: String): boolean;
 var
   id: integer;
+  fSite: TSite;
+  fMessage, fSitename, fSection: string;
 begin
   Result := False;
   id := StrToIntDef(params, -1);
+  fSitename := UpperCase(SubString(params, ' ', 2));
+  fSection := UpperCase(SubString(params, ' ', 3));
 
-  if ((id < 0) or (id >= rules.Count)) then
+  if RuleDel(id, fSitename, fSection, fMessage) then
   begin
-    irc_addtext(Netname, Channel, 'Incorrect rule id (%s)', [params]);
-    exit;
+    Irc_AddText(netname, channel, fMessage);
+    Result := True;
+  end
+  else
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Error</b>.</c> %s', [fMessage]);
   end;
-
-  Irc_AddText(netname, channel, '<c4><b>Deleted</b></c>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
-
-  rules.Delete(id);
-  RulesSave;
-
-  Result := True;
 end;
 
 function IrcRuleMod(const netname, channel, params: String): boolean;
@@ -121,7 +121,7 @@ begin
     exit;
   end;
 
-  if RuleMod(id, rule, out fMessage) then
+  if RuleMod(id, rule, fMessage) then
   begin
     irc_addtext(Netname, Channel, fMessage);
     Result := True;
@@ -136,7 +136,7 @@ function IrcRuleIns(const netname, channel, params: String): boolean;
 var
   id: integer;
   r: TRule;
-  sitename, rule, section, error: String;
+  sitename, rule, section, fMessage: String;
   s: TSite;
 begin
   Result := False;
@@ -164,7 +164,7 @@ begin
     exit;
   end;
 
-  if RuleIns(id, rule, out fMessage) then
+  if RuleIns(id, rule, fMessage) then
   begin
     irc_addtext(Netname, Channel, fMessage);
     Result := True;
@@ -194,13 +194,12 @@ begin
   begin
     irc_addtext(Netname, Channel, 'You can not use the special sitename * as a wildcard for all sites to show all rules.', [sitename, sections]);
     exit;
-  end
+  end;
 
-  xs := TStringList.Create;
   try
     xs.Delimiter := ' ';
     xs.DelimitedText := sections;
-    fFoundRules := FindRules(sitename, sections);
+    fFoundRules := FindRules(sitename, xs);
 
     if fFoundRules.Count = 0 then
     begin
@@ -210,7 +209,7 @@ begin
 
     for fRuleIndexPair in fFoundRules do
     begin
-      irc_addtext(Netname, Channel, '%d %s', [fRuleIndexPair.Key, fRuleIndexPair.Value.AsText(True)]);
+      irc_addtext(Netname, Channel, '%d %s', [fRuleIndexPair.Value, fRuleIndexPair.Key.AsText(True)]);
     end;
   finally
     xs.Free;

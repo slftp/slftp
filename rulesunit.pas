@@ -327,19 +327,23 @@ procedure RulesRemove(const sitename, section: String);
 procedure RulesSave;
 procedure RulesStart;
 procedure RulesReload;
-procedure AddRule(const rule: String; var error: String);
+function AddRule(const rule: String; var error: String): integer;
 function FireRuleSet(p: TPazo; ps: TPazoSite): TRuleAction;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 procedure RulesInit;
 procedure RulesUninit;
 function RuleMod(const aID: integer; const aRule: string; out aMessage: string): boolean;
 function RuleIns(const aID: integer; const aRule: string; out aMessage: string): boolean;
+function RuleDel(const aID: integer; const aSitename, aSection: string; out aMessage: string): boolean;
 function FindRules(const aSitename: string; const aSections: TStringList): TList<TPair<TRule, integer>>;
 function FindIrcRules(const sitename, section: string): TList<String>;
 function RuleCopy(const aSrcSite, aDestSite, aSrcSection, aDestSection: string): string;
+function GetRuleCount(const aRtpl: boolean): integer;
 
 function FindConditionClassByName(const Name: String): TConditionClass;
 
+var
+  conditions: TClassList;
 
 implementation
 
@@ -359,7 +363,6 @@ var
   infixops: TClassList;
   rules: TDictionary<string, TObjectList<TRule>>;
   rtpl: TDictionary<string, TObjectList<TRule>>;
-  conditions: TClassList;
   split_site_data: boolean;
 
 { TInfixOperator }
@@ -1780,11 +1783,12 @@ begin
   end;
 end;
 
-procedure DoAddRule(const rule: String; var error: String; const aNotAddToRtpl: boolean);
+function DoAddRule(const rule: String; var error: String; const aNotAddToRtpl: boolean): integer;
 var
   r: TRule;
 begin
   error := '';
+  Result := 0;
 
   r := TRule.Create(rule);
   if r.error <> '' then
@@ -1802,6 +1806,7 @@ begin
           rules.add(r.sitename + r.section, TObjectList<TRule>.Create);
 
         rules[r.sitename + r.section].Add(r);
+        Result := rules[r.sitename + r.section].Count - 1;
       end
       else
       begin
@@ -1809,14 +1814,15 @@ begin
           rtpl.add(r.sitename + r.section, TObjectList<TRule>.Create);
 
         rtpl[r.sitename + r.section].Add(r);
+        Result := rtpl[r.sitename + r.section].Count - 1;
       end;
     end
   end;
 end;
 
-procedure AddRule(const rule: String; var error: String);
+function AddRule(const rule: String; var error: String): integer;
 begin
-  DoAddRule(rule, error, False);
+  Result := DoAddRule(rule, error, False);
 end;
 
 function RuleMod(const aID: integer; const aRule: string; out aMessage: string): boolean;
@@ -1869,6 +1875,19 @@ begin
     exit;
   end;
 
+  if not rules.ContainsKey(fNewRule.sitename + fNewRule.section) then
+  begin
+    if aID <> 0 then
+    begin
+      aMessage := Format('No rules yet exist for site %s, section %s', [fNewRule.sitename, fNewRule.section]);
+      exit;
+    end
+    else
+    begin
+      rules.add(fNewRule.sitename + fNewRule.section, TObjectList<TRule>.Create);
+    end;
+  end;
+
   if (aID < 0) or (aID > rules[fNewRule.sitename + fNewRule.section].Count - 1) then
   begin
     aMessage := Format('Invalid rule ID for site %s, section %s', [fNewRule.sitename, fNewRule.section]);
@@ -1879,6 +1898,23 @@ begin
   RulesSave;
 
   aMessage := Format('<b>Inserted<b>: %d %s', [aID, fNewRule.AsText(True)]);
+  Result := True;
+end;
+
+function RuleDel(const aID: integer; const aSitename, aSection: string; out aMessage: string): boolean;
+begin
+  Result := False;
+
+  if (aID < 0) or not rules.ContainsKey(aSitename + aSection) or (aID > rules[aSitename + aSection].Count - 1) then
+  begin
+    aMessage := Format('Invalid rule ID for site %s, section %s', [aSitename + aSection]);
+    exit;
+  end;
+
+  aMessage := Format('<c4><b>Deleted</b></c>: <b>%d</b> %s', [aID, rules[aSitename + aSection][aId].AsText(true)]);
+  rules[aSitename + aSection].Delete(aId);
+  RulesSave;
+
   Result := True;
 end;
 
@@ -2038,6 +2074,22 @@ begin
   end;
 
   RulesSave;
+end;
+
+function GetRuleCount(const aRtpl: boolean): integer;
+var
+  fDict: TDictionary<string, TObjectList<TRule>>;
+  fRulesPerSiteKVP: TPair<String, TObjectList<TRule>>;
+begin
+  Result := 0;
+
+  if aRtpl then
+    fDict := rtpl
+  else
+    fDict := rules;
+
+  for fRulesPerSiteKVP in fDict do
+    Result := Result + fRulesPerSiteKVP.Value.Count;
 end;
 
 procedure RulesReload;
