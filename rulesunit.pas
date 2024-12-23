@@ -1800,7 +1800,7 @@ begin
   begin
     if r <> nil then
     begin
-      if not aNotAddToRtpl then
+      if aNotAddToRtpl then
       begin
         if not rules.ContainsKey(r.sitename + r.section) then
           rules.add(r.sitename + r.section, TObjectList<TRule>.Create);
@@ -1822,7 +1822,7 @@ end;
 
 function AddRule(const rule: String; var error: String): integer;
 begin
-  Result := DoAddRule(rule, error, False);
+  Result := DoAddRule(rule, error, True);
 end;
 
 function RuleMod(const aID: integer; const aRule: string; out aMessage: string): boolean;
@@ -2174,7 +2174,7 @@ begin
 
     for i := 0 to f.Count - 1 do
     begin
-      DoAddRule(f[i], error, False);
+      DoAddRule(f[i], error, True);
       if error <> '' then
       begin
         Debug(dpError, dsection, '[ERROR] ' + error + ' loading ' + f[i]);
