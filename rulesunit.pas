@@ -2174,7 +2174,7 @@ begin
 
     for i := 0 to f.Count - 1 do
     begin
-      DoAddRule(f[i], error, True);
+      DoAddRule(f[i], error, False);
       if error <> '' then
       begin
         Debug(dpError, dsection, '[ERROR] ' + error + ' loading ' + f[i]);

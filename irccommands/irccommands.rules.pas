@@ -196,6 +196,7 @@ begin
     exit;
   end;
 
+  xs := TStringList.Create;
   try
     xs.Delimiter := ' ';
     xs.DelimitedText := sections;
