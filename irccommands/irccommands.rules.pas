@@ -28,7 +28,7 @@ var
   r: TRule;
   sitename, rule, section, error: String;
   s: TSite;
-  fAddedRuleID: integer;
+  fAddedRule: TPair<TRule, integer>;
 begin
   Result := False;
 
@@ -55,14 +55,14 @@ begin
     exit;
   end;
 
-  fAddedRuleID := AddRule(rule, error);
+  fAddedRule := AddRule(rule, error);
   if error <> '' then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
     exit;
   end;
 
-  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [fAddedRuleID, r.AsText(True)]);
+  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [fAddedRule.Value, fAddedRule.Key.AsText(True)]);
 
   Result := True;
 end;
@@ -74,9 +74,9 @@ var
   fMessage, fSitename, fSection: string;
 begin
   Result := False;
-  id := StrToIntDef(params, -1);
-  fSitename := UpperCase(SubString(params, ' ', 2));
-  fSection := UpperCase(SubString(params, ' ', 3));
+  fSitename := UpperCase(SubString(params, ' ', 1));
+  fSection := UpperCase(SubString(params, ' ', 2));
+  id := StrToIntDef(SubString(params, ' ', 3), -1);
 
   if RuleDel(id, fSitename, fSection, fMessage) then
   begin
