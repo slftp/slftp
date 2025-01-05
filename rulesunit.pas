@@ -3,7 +3,7 @@ unit rulesunit;
 interface
 
 uses
-  Classes, pazo, slmasks, Contnrs, System.Generics.Collections;
+  Classes, pazo, slmasks, Contnrs, Generics.Collections;
 
 type
   TRuleNode = class
@@ -1503,7 +1503,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rtpl) r.Execute: %s, %s', [e.Message, fRule.AsText(True)]));
+            Debug(dpError, dsection, Format('[EXCEPTION] FireRuleSetB(rules) r.Execute: %s, %s', [e.Message, fRule.AsText(True)]));
             Result := raDontmatch;
             exit;
           end;
