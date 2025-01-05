@@ -74,11 +74,9 @@ var
   fMessage, fSitename, fSection: string;
 begin
   Result := False;
-  fSitename := UpperCase(SubString(params, ' ', 1));
-  fSection := UpperCase(SubString(params, ' ', 2));
-  id := StrToIntDef(SubString(params, ' ', 3), -1);
+  id := StrToIntDef(SubString(params, ' ', 1), -1);
 
-  if RuleDel(id, fSitename, fSection, fMessage) then
+  if RuleDel(id, fMessage) then
   begin
     Irc_AddText(netname, channel, fMessage);
     Result := True;
