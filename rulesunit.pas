@@ -1834,6 +1834,7 @@ end;
 function DoAddRule(const rule: String; var error: String; const aNotAddToRtpl: boolean): TPair<TRule, integer>;
 var
   r: TRule;
+  fRulesPerSite: TDictionary<string, TObjectList<TRule>>;
 begin
   error := '';
   Result := TPair<TRule, integer>.Create(nil, -1);
@@ -1854,10 +1855,13 @@ begin
         if not rules.ContainsKey(r.sitename) then
           rules.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
 
-        if not rules[r.sitename].ContainsKey(r.section) then
-          rules[r.sitename].Add(r.section, TObjectList<TRule>.Create);
+        fRulesPerSite := rules[r.sitename];
+        if not fRulesPerSite.ContainsKey(r.section) then
+        begin
+          fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
+        end;
 
-        rules[r.sitename][r.section].Add(r);
+        fRulesPerSite[r.section].Add(r);
         Result.Value := GetGlobalIdForRule(r);
       end
       else
@@ -1865,10 +1869,13 @@ begin
         if not rtpl.ContainsKey(r.sitename) then
           rtpl.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
 
-        if not rtpl[r.sitename].ContainsKey(r.section) then
-          rtpl[r.sitename].Add(r.section, TObjectList<TRule>.Create);
+        fRulesPerSite := rtpl[r.sitename];
+        if not fRulesPerSite.ContainsKey(r.section) then
+        begin
+          fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
+        end;
 
-        rtpl[r.sitename][r.section].Add(r);
+        fRulesPerSite[r.section].Add(r);
         // I think we don't need the ID for the rtpl case
         Result.Value := -1;
       end;
@@ -1887,6 +1894,7 @@ var
   fNewRule, fOldRule: TRule;
   fOldRuleText: string;
   fLocalID: integer;
+  fRulesPerSite: TDictionary<string, TObjectList<TRule>>;
 begin
   Result := False;
 
@@ -1904,18 +1912,18 @@ begin
     exit;
   end;
 
-  if not rules.ContainsKey(fNewRule.sitename) or not rules[fNewRule.sitename].ContainsKey(fNewRule.section) then
+  if not rules.TryGetValue(fNewRule.sitename, fRulesPerSite) or not fRulesPerSite.ContainsKey(fNewRule.section) then
   begin
     aMessage := 'Cannot change section or site via rulemod. Please use ruledel and ruleadd/ruleins';
     exit;
   end;
 
   fLocalID := -1;
-  for fOldRule in rules[fNewRule.sitename][fNewRule.section] do
+  for fOldRule in fRulesPerSite[fNewRule.section] do
   begin
     if GetGlobalIdForRule(fOldRule) = aID then
     begin
-      fLocalID := rules[fNewRule.sitename][fNewRule.section].IndexOf(fOldRule);
+      fLocalID := fRulesPerSite[fNewRule.section].IndexOf(fOldRule);
       break;
     end;
   end;
@@ -1928,8 +1936,8 @@ begin
 
   // the old rule object will be freed when removing it from the list, so store its text here.
   fOldRuleText := fOldRule.AsText(True);
-  rules[fNewRule.sitename][fNewRule.section].Delete(fLocalID);
-  rules[fNewRule.sitename][fNewRule.section].Insert(fLocalID, fNewRule);
+  fRulesPerSite[fNewRule.section].Delete(fLocalID);
+  fRulesPerSite[fNewRule.section].Insert(fLocalID, fNewRule);
   RulesSave;
 
   aMessage := Format('<b>Modified<b>: %d %s <u><b>to</b></u> %s', [aID, fOldRuleText, fNewRule.AsText(True)]);
@@ -1940,6 +1948,7 @@ function RuleIns(const aID: integer; const aRule: string; out aMessage: string):
 var
   fNewRule, fOldRule: TRule;
   fLocalID: integer;
+  fRulesPerSite: TDictionary<string, TObjectList<TRule>>;
 begin
   Result := False;
 
@@ -1957,42 +1966,43 @@ begin
     exit;
   end;
 
-  if not rules.ContainsKey(fNewRule.sitename) then
+  if not rules.TryGetValue(fNewRule.sitename, fRulesPerSite) then
   begin
-    rules.add(fNewRule.sitename, TDictionary<string, TObjectList<TRule>>.Create);
+    fRulesPerSite := TDictionary<string, TObjectList<TRule>>.Create;
+    rules.add(fNewRule.sitename, fRulesPerSite);
   end;
 
-  if not rules[fNewRule.sitename].ContainsKey(fNewRule.section) then
+  if not fRulesPerSite.ContainsKey(fNewRule.section) then
   begin
-    rules[fNewRule.sitename].Add(fNewRule.section, TObjectList<TRule>.Create);
+    fRulesPerSite.Add(fNewRule.section, TObjectList<TRule>.Create);
   end;
 
   fLocalID := -1;
-  if (rules[fNewRule.sitename][fNewRule.section].Count = 0) or
-    (GetGlobalIdForRule(rules[fNewRule.sitename][fNewRule.section][0]) > aID) then
+  if (fRulesPerSite[fNewRule.section].Count = 0) or
+    (GetGlobalIdForRule(fRulesPerSite[fNewRule.section][0]) > aID) then
   begin
     // no rules yet for this site and section. Put at first position.
     fLocalID := 0;
   end
-  else if GetGlobalIdForRule(rules[fNewRule.sitename][fNewRule.section][rules[fNewRule.sitename][fNewRule.section].Count - 1]) < aID then
+  else if GetGlobalIdForRule(fRulesPerSite[fNewRule.section][fRulesPerSite[fNewRule.section].Count - 1]) < aID then
   begin
     // the highest rule of this site and section has a lower global ID as the one given. Put the new rule at the end.
-    fLocalID := rules[fNewRule.sitename][fNewRule.section].Count;
+    fLocalID := fRulesPerSite[fNewRule.section].Count;
   end
   else
   begin
     // find the ID within the site and section's list (local ID)
-    for fOldRule in rules[fNewRule.sitename][fNewRule.section] do
+    for fOldRule in fRulesPerSite[fNewRule.section] do
     begin
       if GetGlobalIdForRule(fOldRule) = aID then
       begin
-        fLocalID := rules[fNewRule.sitename][fNewRule.section].IndexOf(fOldRule);
+        fLocalID := fRulesPerSite[fNewRule.section].IndexOf(fOldRule);
         break;
       end;
     end;
   end;
 
-  rules[fNewRule.sitename][fNewRule.section].Insert(fLocalID, fNewRule);
+  fRulesPerSite[fNewRule.section].Insert(fLocalID, fNewRule);
   RulesSave;
 
   if aID <> GetGlobalIdForRule(fNewRule) then
@@ -2216,13 +2226,14 @@ function RuleCopy(const aSrcSite, aDestSite, aSrcSection, aDestSection: string):
 var
   fRule: TRule;
   fRuleString, fError: String;
+  fRulesPerSite: TDictionary<string, TObjectList<TRule>>;
 begin
   fError := '';
   Result := '';
 
-  if rules.ContainsKey(aSrcSite) and rules[aSrcSite].ContainsKey(aSrcSection) then
+  if rules.TryGetValue(aSrcSite, fRulesPerSite) and fRulesPerSite.ContainsKey(aSrcSection) then
   begin
-    for fRule in rules[aSrcSite][aSrcSection] do
+    for fRule in fRulesPerSite[aSrcSection] do
     begin
       fRuleString := aDestSite + ' ' + aDestSection + ' ' + fRule.AsText(False);
       DoAddRule(fRuleString, fError, True);
