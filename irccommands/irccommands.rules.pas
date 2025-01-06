@@ -179,8 +179,8 @@ var
   xs: TStringList;
   ii, i, count: Integer;
   r: TRule;
-  fFoundRules: TList<TPair<TRule, integer>>;
-  fRuleIndexPair: TPair<TRule, integer>;
+  fFoundRules: TObjectList<TRuleWithID>;
+  fRuleWithID: TRuleWithID;
 begin
   Result := False;
 
@@ -206,9 +206,9 @@ begin
       exit;
     end;
 
-    for fRuleIndexPair in fFoundRules do
+    for fRuleWithID in fFoundRules do
     begin
-      irc_addtext(Netname, Channel, '%d %s', [fRuleIndexPair.Value, fRuleIndexPair.Key.AsText(True)]);
+      irc_addtext(Netname, Channel, '%d %s', [fRuleWithID.ID, fRuleWithID.FRule.AsText(True)]);
     end;
   finally
     xs.Free;

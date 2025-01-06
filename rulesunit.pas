@@ -323,6 +323,13 @@ type
     destructor Destroy; override;
   end;
 
+  TRuleWithID = class
+    ID: integer;
+    FRule: TRule;
+
+    constructor Create(const aID: integer; const aRule: TRule);
+  end;
+
 procedure RulesRemove(const sitename, section: String);
 procedure RulesSave;
 procedure RulesStart;
@@ -335,7 +342,7 @@ procedure RulesUninit;
 function RuleMod(const aID: integer; const aRule: string; out aMessage: string): boolean;
 function RuleIns(const aID: integer; const aRule: string; out aMessage: string): boolean;
 function RuleDel(const aID: integer; out aMessage: string): boolean;
-function FindRules(const aSitename: string; const aSections: TStringList): TList<TPair<TRule, integer>>;
+function FindRules(const aSitename: string; const aSections: TStringList): TObjectList<TRuleWithID>;
 function FindIrcRules(const sitename, section: string): TList<String>;
 function RuleCopy(const aSrcSite, aDestSite, aSrcSection, aDestSection: string): string;
 function GetRuleCount(const aRtpl: boolean): integer;
@@ -2053,14 +2060,14 @@ begin
   aMessage := 'Invalid rule ID';
 end;
 
-function FindRules(const aSitename: string; const aSections: TStringList): TList<TPair<TRule, integer>>;
+function FindRules(const aSitename: string; const aSections: TStringList): TObjectList<TRuleWithID>;
 var
   fRulesPerSite: TPair<String, TDictionary<string, TObjectList<TRule>>>;
   fRulesPerSection: TPair<String, TObjectList<TRule>>;
   fRule: TRule;
   fGlobalIndex: integer;
 begin
-  Result := TList<TPair<TRule, integer>>.Create;
+  Result := TObjectList<TRuleWithID>.Create(true);
   fGlobalIndex := 0;
 
   for fRulesPerSite in rules do
@@ -2072,7 +2079,7 @@ begin
         if ((aSitename = '*') or (fRule.sitename = aSitename)) and
           ((aSections.Count = 0) or (aSections.IndexOf(fRule.section) <> -1)) then
         begin
-          Result.Add(TPair<TRule, integer>.Create(fRule, fGlobalIndex));
+          Result.Add(TRuleWithID.Create(fGlobalIndex, fRule));
         end;
 
         fGlobalIndex := fGlobalIndex + 1;
@@ -2818,6 +2825,12 @@ constructor TRule.Create(const rule: String);
 begin
   error := '';
   reparse(rule);
+end;
+
+constructor TRuleWithID.Create(const aID: integer; const aRule: TRule);
+begin
+  self.ID := aID;
+  self.FRule := aRule;
 end;
 
 destructor TRule.Destroy;
