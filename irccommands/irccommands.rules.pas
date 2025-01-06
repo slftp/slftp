@@ -18,7 +18,7 @@ function IrcAutoRules(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings, System.Generics.Collections;
+  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings, Generics.Collections;
 
 const
   section = 'irccommands.rules';

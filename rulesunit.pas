@@ -1895,6 +1895,7 @@ var
   fOldRuleText: string;
   fLocalID: integer;
   fRulesPerSite: TDictionary<string, TObjectList<TRule>>;
+  fRulesPerSection: TObjectList<TRule>;
 begin
   Result := False;
 
@@ -1912,18 +1913,18 @@ begin
     exit;
   end;
 
-  if not rules.TryGetValue(fNewRule.sitename, fRulesPerSite) or not fRulesPerSite.ContainsKey(fNewRule.section) then
+  if not rules.TryGetValue(fNewRule.sitename, fRulesPerSite) or not fRulesPerSite.TryGetValue(fNewRule.section, fRulesPerSection) then
   begin
     aMessage := 'Cannot change section or site via rulemod. Please use ruledel and ruleadd/ruleins';
     exit;
   end;
 
   fLocalID := -1;
-  for fOldRule in fRulesPerSite[fNewRule.section] do
+  for fOldRule in fRulesPerSection do
   begin
     if GetGlobalIdForRule(fOldRule) = aID then
     begin
-      fLocalID := fRulesPerSite[fNewRule.section].IndexOf(fOldRule);
+      fLocalID := fRulesPerSection.IndexOf(fOldRule);
       break;
     end;
   end;
@@ -1936,8 +1937,8 @@ begin
 
   // the old rule object will be freed when removing it from the list, so store its text here.
   fOldRuleText := fOldRule.AsText(True);
-  fRulesPerSite[fNewRule.section].Delete(fLocalID);
-  fRulesPerSite[fNewRule.section].Insert(fLocalID, fNewRule);
+  fRulesPerSection.Delete(fLocalID);
+  fRulesPerSection.Insert(fLocalID, fNewRule);
   RulesSave;
 
   aMessage := Format('<b>Modified<b>: %d %s <u><b>to</b></u> %s', [aID, fOldRuleText, fNewRule.AsText(True)]);
