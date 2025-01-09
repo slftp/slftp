@@ -193,6 +193,7 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
+  ts: TDateTime;
 begin
   numerrors := 0;
   Result := False;
@@ -445,6 +446,7 @@ begin
     fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
+      ts := now;
       d.dirlist_lock.Enter('TPazoDirlistTask.Execute');
       try
         for i := 0 to d.entries.Count - 1 do
@@ -490,6 +492,7 @@ begin
             end;
         end;
       finally
+        Debug(dpError, c_section, Format('[Info] TPazoDirlistTask.Execute: %d', [MilliSecondsBetween(now, ts)]));
         d.dirlist_lock.Leave;
       end;
 
@@ -1038,12 +1041,7 @@ begin
                 SlftpNewsAdd('FTP', Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 rule_err := '';
-                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
-                if ((r <> nil) and (rule_err = '')) then
-                begin
-                  rules.Insert(0, r);
-                  RulesSave;
-                end;
+                AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
               end;
             end;
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then

@@ -47,8 +47,8 @@ uses
   SysUtils,
   commandlineutil,
   console,
-  Clipbrd in 'Clipbrd.pas',
   backupunit in 'backupunit.pas',
+  Clipbrd in 'Clipbrd.pas',
   configunit in 'configunit.pas',
   dbaddgenre in 'dbaddgenre.pas',
   dbaddimdb in 'dbaddimdb.pas',
@@ -100,6 +100,7 @@ uses
   queueunit in 'queueunit.pas',
   ranksunit in 'ranksunit.pas',
   rulesunit in 'rulesunit.pas',
+  sfv in 'sfv.pas',
   sitesunit in 'sitesunit.pas',
   skiplists in 'skiplists.pas',
   slblowfish in 'slblowfish.pas',
@@ -127,7 +128,7 @@ uses
   taskgame in 'taskgame.pas',
   taskgenredirlist in 'taskgenredirlist.pas',
   taskgenrenfo in 'taskgenrenfo.pas',
-  taskhttpimdb in 'taskhttpimdb.pas',
+  taskhttpimdb,
   taskhttpnfo in 'taskhttpnfo.pas',
   taskidle in 'taskidle.pas',
   tasklogin in 'tasklogin.pas',
@@ -137,12 +138,13 @@ uses
   taskrace in 'taskrace.pas',
   taskraw in 'taskraw.pas',
   taskrules in 'taskrules.pas',
+  tasksearchrelease in 'tasksearchrelease.pas',
   tasksitenfo in 'tasksitenfo.pas',
+  tasksitesfv in 'tasksitesfv.pas',
   taskspeedtest in 'taskspeedtest.pas',
   tasksunit in 'tasksunit.pas',
   tasktvinfolookup in 'tasktvinfolookup.pas',
-  versioninfo in 'versioninfo.pas',
-  slcriticalsection2 in 'slcriticalsection2.pas';
+  versioninfo in 'versioninfo.pas';
 
 {$APPTYPE CONSOLE}
 

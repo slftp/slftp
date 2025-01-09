@@ -249,8 +249,11 @@ begin
       else
         airt := String(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
 
-      prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
-      hadPrev := True;
+      if ((json.Field['_embedded'].Field['previousepisode'].Field['airdate'] <> nil) AND (string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) <> '')) then
+      begin
+        prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
+        hadPrev := True;
+      end;
     end;
   except on e: Exception do
     begin

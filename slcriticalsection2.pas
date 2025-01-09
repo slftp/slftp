@@ -23,7 +23,7 @@ type
   public
     constructor Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy; override;
-    function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
+    function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 100; const aRaiseExceptionOnFail: boolean = True): boolean;
     procedure Leave;
     procedure SetCurrentCodeSegment(const aSegmentName: string);
   end;
@@ -109,7 +109,7 @@ implementation
     end;
   end;
 
-  function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
+  function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 100; const aRaiseExceptionOnFail: boolean = True): boolean;
   begin
     if FUseTimeoutLocking then
     begin

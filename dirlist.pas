@@ -71,6 +71,18 @@ type
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
   end;
 
+  { @abstract(Information for a specific file which is parsed from a TDirlist) }
+  {fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename}
+  TParsedDirListEntry = class
+  private
+    FFilename: String; //< lowercased filename
+    FUsername: String; //< name of user who sent this file
+    FGroupname: String; //< name of group the @link(FUsername) is associated with
+    fDirMask: String; //< Indicates what kind of Directory Mask the current dir is
+    fFilesize: int64; //Current size of the file
+    fDatum: String; //Current timestamp of the file
+  end;
+
   { @abstract(Information for a single release dirlist) }
   TDirList = class
   private
@@ -637,6 +649,9 @@ var
   fFilesize: Int64;
   i: Integer;
   fTagCompleteType: TTagCompleteType;
+  fParsedDirlistEntries: TList<TParsedDirlistEntry>;
+  fParsedDirlistEntry: TParsedDirlistEntry;
+  fFoundParsedDirlistEntry: TParsedDirlistEntry;
 begin
   added := False;
 
@@ -644,6 +659,36 @@ begin
   if FCachedCompleteResult then exit;
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
+
+  // hier müssten wir einmal die schleife machen wie unten. von while (True) do bis ParseStatResponseLine. das füllen wir in eine TList<ParseStatResponseLine>
+  // ParsedDirlistEntry muss felder enthalten, die im ParseStatResponseLine parsed werden. Evtl. ParseStatResponseLine umbauen, sodass es ein ParseStatResponseLine
+  // object zurückgibt. dann unten die schleife so umbauen, dass es direkt diese neue liste iteriert und von dort die felder nimmt, statt fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename
+
+  fParsedDirlistEntries := TList<TParsedDirlistEntry>.Create;
+
+  while (True) do
+    begin
+      tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
+      // tmp contains a single line:
+      // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+
+      if tmp = '' then break;
+      if (Length(tmp) > 11) then
+      begin
+        if ((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
+          continue;
+        ParseStatResponseLine(tmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+        fParsedDirlistEntry := TParsedDirlistEntry.Create;
+        fParsedDirlistEntry.fDirMask := fDirMask;
+        fParsedDirlistEntry.fUsername := fUsername;
+        fParsedDirlistEntry.fGroupname := fGroupname;
+        fParsedDirlistEntry.fFilesize := fFilesize;
+        fParsedDirlistEntry.fDatum := fDatum;
+        fParsedDirlistEntry.FFilename := fFilename;
+        fParsedDirlistEntries.add(fParsedDirlistEntry);
+      end;
+    end;
+
 
   dirlist_lock.Enter('TDirList.ParseDirlist');
   try
@@ -662,21 +707,22 @@ begin
   ...
   drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 }
-    while (True) do
-    begin
-      tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
-      // tmp contains a single line:
-      // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
-
-      if tmp = '' then break;
-      if (Length(tmp) > 11) then
+//    while (True) do
+//    begin
+//      tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
+//      // tmp contains a single line:
+//      // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+//
+//      if tmp = '' then break;
+//      if (Length(tmp) > 11) then
+//      begin
+//        if ((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
+//          continue;
+//
+//        ParseStatResponseLine(tmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+    for fFoundParsedDirlistEntry in fParsedDirlistEntries do
       begin
-        if ((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
-          continue;
-
-        ParseStatResponseLine(tmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
-
-        if fFilesize < 0 then
+        if fFoundParsedDirlistEntry.fFilesize < 0 then
           Continue;
 
         if not FIsFromIrc then
@@ -684,36 +730,36 @@ begin
           // Dont add complete tags to dirlist entries
 
           //if it's a dir and has already been checked to be valid, it can't be a complete tag
-          if (((fDirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(fFilename))
+          if (((fFoundParsedDirlistEntry.fDirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(fFoundParsedDirlistEntry.fFilename))
 
           //if it's a file and has a size > 0, it can't be a complete tag
-          or ((fFilesize < 1) and (fDirMask[1] <> 'd')
+          or ((fFoundParsedDirlistEntry.fFilesize < 1) and (fFoundParsedDirlistEntry.fDirMask[1] <> 'd')
 
           //if it's a file and has already been checked to be valid, it can't be a complete tag
-            and not FIsValidFileCache.ContainsKey(fFilename)))
+            and not FIsValidFileCache.ContainsKey(fFoundParsedDirlistEntry.fFilename)))
           then
           begin
-            if FCompleteDirTag = fFilename then //if this has already been identified as complete tag, no need for any further action
+            if FCompleteDirTag = fFoundParsedDirlistEntry.fFilename then //if this has already been identified as complete tag, no need for any further action
               continue;
 
-            fTagCompleteType := TagComplete(fFilename);
+            fTagCompleteType := TagComplete(fFoundParsedDirlistEntry.fFilename);
             if (fTagCompleteType <> tctUNMATCHED) then
             begin
-              FCompleteDirTag := fFilename;
+              FCompleteDirTag := fFoundParsedDirlistEntry.fFilename;
               Continue;
             end;
           end;
         end;
 
-        if (fDirMask[1] = 'd') then
+        if (fFoundParsedDirlistEntry.fDirMask[1] = 'd') then
         begin
           // directory: fDirMask[1] = 'd'
-          if not IsValidDirnameCached(fFilename) then Continue;
+          if not IsValidDirnameCached(fFoundParsedDirlistEntry.fFilename) then Continue;
         end
         else
         begin
           // no directory: fDirMask[1] <> 'd'
-          if not IsValidFilenameCached(fFilename) then Continue;
+          if not IsValidFilenameCached(fFoundParsedDirlistEntry.fFilename) then Continue;
         end;
 
         // Do not filter if we call the dirlist from irc
@@ -721,24 +767,24 @@ begin
         begin
 
           // file is flagged as skipped
-          if (skipped.IndexOf(fFilename) <> -1) then
+          if (skipped.IndexOf(fFoundParsedDirlistEntry.fFilename) <> -1) then
           begin
             Continue;
           end;
 
           // entry is a file and is not downlodable
-          if ((fDirMask[1] <> 'd') and ((fDirMask[5] <> 'r') and (fDirMask[8] <> 'r'))) then
+          if ((fFoundParsedDirlistEntry.fDirMask[1] <> 'd') and ((fFoundParsedDirlistEntry.fDirMask[5] <> 'r') and (fFoundParsedDirlistEntry.fDirMask[8] <> 'r'))) then
           begin
             Continue;
           end;
         end;
 
-        akttimestamp := Timestamp(fDatum);
+        akttimestamp := Timestamp(fFoundParsedDirlistEntry.fDatum);
 
-        de := Find(fFilename);
+        de := Find(fFoundParsedDirlistEntry.fFilename);
         if de = nil then
         begin
-          de := TDirListEntry.Create(fFilename, self, (fDirMask[1] = 'd'));
+          de := TDirListEntry.Create(fFoundParsedDirlistEntry.fFilename, self, (fFoundParsedDirlistEntry.fDirMask[1] = 'd'));
 
           if ((de.Extension = '.sfv') and (HasSFV)) then
           begin
@@ -751,13 +797,13 @@ begin
             Continue;
           end;
 
-          de.FUsername := fUsername;
-          de.FGroupname := fGroupname;
+          de.FUsername := fFoundParsedDirlistEntry.fUsername;
+          de.FGroupname := fFoundParsedDirlistEntry.fGroupname;
           de.timestamp := akttimestamp;
-          de.justadded := True;          
+          de.justadded := True;
 
           if not de.directory then
-            de.filesize := fFilesize;
+            de.filesize := fFoundParsedDirlistEntry.fFilesize;
 
           // Do not filter if we call the dirlist from irc
           if not FIsFromIrc then
@@ -797,25 +843,24 @@ begin
           LastChanged := Now();
           added := True;
         end
-        else if (de.filesize <> fFilesize) then
+        else if (de.filesize <> fFoundParsedDirlistEntry.fFilesize) then
         begin
-          if ((de.filesize <> fFilesize) or (de.FUsername <> fUsername)) then
+          if ((de.filesize <> fFoundParsedDirlistEntry.fFilesize) or (de.FUsername <> fFoundParsedDirlistEntry.fUsername)) then
           begin
             LastChanged := Now();
           end;
 
-          de.filesize := fFilesize;
+          de.filesize := fFoundParsedDirlistEntry.fFilesize;
           de.timestamp := akttimestamp;
-          de.FUsername := fUsername;
-          de.FGroupname := fGroupname;
+          de.FUsername := fFoundParsedDirlistEntry.fUsername;
+          de.FGroupname := fFoundParsedDirlistEntry.fGroupname;
         end;
 
         // entry is a file and is being uploaded (glftpd only?)
-        de.FIsBeingUploaded := (fDirMask[1] <> 'd') and ((fDirMask[7] = 'x') and (fDirMask[10] = 'x'));
+        de.FIsBeingUploaded := (fFoundParsedDirlistEntry.fDirMask[1] <> 'd') and ((fFoundParsedDirlistEntry.fDirMask[7] = 'x') and (fFoundParsedDirlistEntry.fDirMask[10] = 'x'));
 
         de.IsOnSite := True;
       end;
-    end;
 
     // entries found means the dir exists
     if ((need_mkdir)) then
@@ -832,6 +877,7 @@ begin
 
   finally
     dirlist_lock.Leave;
+    fParsedDirlistEntries.Free;
   end;
 
   FLastUpdated := Now();
@@ -1055,7 +1101,9 @@ begin
 end;
 
 procedure TDirList.Sort;
+var ts: TDateTime;
 begin
+  ts := now;
   dirlist_lock.Enter('TDirList.Sort');
   try
     try
@@ -1068,6 +1116,7 @@ begin
     end;
   finally
     dirlist_lock.Leave;
+    debugunit.Debug(dpError, section, '[DEBUG] TDirList.Sort (_DirListSorter): %d', [MilliSecondsbetween(now, ts)]);
   end;
 end;
 
@@ -1177,11 +1226,13 @@ function TDirList.Find(const filename: String): TDirListEntry;
 var
   i: Integer;
   de: TDirListEntry;
+  ts1: TDateTime;
 begin
   Result := nil;
   if entries.Count = 0 then
     exit;
 
+  ts1 := now;
   dirlist_lock.Enter('TDirList.Find');
   try
     i := entries.IndexOf(filename);
@@ -1191,6 +1242,7 @@ begin
     end;
   finally
     dirlist_lock.Leave;
+    //debugunit.Debug(dpError, section, '[Info] TDirList.Find: %d', [MilliSecondsBetween(now, ts1)]);
   end;
 end;
 

@@ -515,11 +515,16 @@ begin
 
         // find the dirlist entry
         try
-          dde := dstdl.Find(de.filename);
+          //dstdl.dirlist_lock.Enter('TDirList.Find');
+          try
+            dde := dstdl.Find(de.filename);
+          finally
+            //dstdl.dirlist_lock.Leave;
+          end;
         except
           on E: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
+            //Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
             Continue;
           end;
         end;

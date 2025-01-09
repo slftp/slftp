@@ -18,7 +18,7 @@ function IrcAutoRules(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings;
+  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings, System.Generics.Collections;
 
 const
   section = 'irccommands.rules';
@@ -28,6 +28,7 @@ var
   r: TRule;
   sitename, rule, section, error: String;
   s: TSite;
+  fAddedRule: TPair<TRule, integer>;
 begin
   Result := False;
 
@@ -54,17 +55,14 @@ begin
     exit;
   end;
 
-  r := AddRule(rule, error);
-  if ((r = nil) or (error <> '')) then
+  fAddedRule := AddRule(rule, error);
+  if error <> '' then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
     exit;
   end;
 
-  rules.Add(r);
-  RulesSave;
-
-  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [rules.Count - 1, r.AsText(True)]);
+  irc_addtext(Netname, Channel, '<b>Added<b>: %d %s', [fAddedRule.Value, fAddedRule.Key.AsText(True)]);
 
   Result := True;
 end;
@@ -72,29 +70,30 @@ end;
 function IrcRuleDel(const netname, channel, params: String): boolean;
 var
   id: integer;
+  fSite: TSite;
+  fMessage, fSitename, fSection: string;
 begin
   Result := False;
-  id := StrToIntDef(params, -1);
+  fSitename := UpperCase(SubString(params, ' ', 1));
+  fSection := UpperCase(SubString(params, ' ', 2));
+  id := StrToIntDef(SubString(params, ' ', 3), -1);
 
-  if ((id < 0) or (id >= rules.Count)) then
+  if RuleDel(id, fSitename, fSection, fMessage) then
   begin
-    irc_addtext(Netname, Channel, 'Incorrect rule id (%s)', [params]);
-    exit;
+    Irc_AddText(netname, channel, fMessage);
+    Result := True;
+  end
+  else
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>Error</b>.</c> %s', [fMessage]);
   end;
-
-  Irc_AddText(netname, channel, '<c4><b>Deleted</b></c>: <b>%s</b> %s', [params, TRule(rules.Items[id]).AsText(true)]);
-
-  rules.Delete(id);
-  RulesSave;
-
-  Result := True;
 end;
 
 function IrcRuleMod(const netname, channel, params: String): boolean;
 var
   id: integer;
   r: TRule;
-  sitename, rule, section, error: String;
+  sitename, rule, section, fMessage: String;
   s: TSite;
 begin
   Result := False;
@@ -122,34 +121,22 @@ begin
     exit;
   end;
 
-  if ((id < 0) or (id >= rules.Count)) then
+  if RuleMod(id, rule, fMessage) then
   begin
-    irc_addtext(Netname, Channel, 'Incorrect rule id');
-    exit;
-  end;
-
-  r := AddRule(rule, error);
-  if ((r = nil) or (error <> '')) then
+    irc_addtext(Netname, Channel, fMessage);
+    Result := True;
+  end
+  else
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
-    exit;
+    irc_addtext(Netname, Channel, '<c4><b>Error</b>.</c> %s', [fMessage]);
   end;
-
-  irc_addtext(Netname, Channel, '<b>Modified<b>: %d %s <u><b>to</b></u> %s', [id,
-    TRule(rules[id]).AsText(True), r.AsText(True)]);
-
-  rules.Delete(id);
-  rules.Insert(id, r);
-  RulesSave;
-
-  Result := True;
 end;
 
 function IrcRuleIns(const netname, channel, params: String): boolean;
 var
   id: integer;
   r: TRule;
-  sitename, rule, section, error: String;
+  sitename, rule, section, fMessage: String;
   s: TSite;
 begin
   Result := False;
@@ -177,25 +164,15 @@ begin
     exit;
   end;
 
-  if ((id < 0) or (id >= rules.Count)) then
+  if RuleIns(id, rule, fMessage) then
   begin
-    irc_addtext(Netname, Channel, 'Incorrect rule ID!');
-    exit;
-  end;
-
-  r := AddRule(rule, error);
-  if ((r = nil) or (error <> '')) then
+    irc_addtext(Netname, Channel, fMessage);
+    Result := True;
+  end
+  else
   begin
-    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
-    exit;
+    irc_addtext(Netname, Channel, '<c4><b>Error</b>.</c> %s', [fMessage]);
   end;
-
-  rules.Insert(id, r);
-  RulesSave;
-
-  irc_addtext(Netname, Channel, '<b>Inserted<b>: %d %s', [id, r.AsText(True)]);
-
-  Result := True;
 end;
 
 function IrcShowAllRules(const netname, channel, params: String): boolean;
@@ -204,6 +181,8 @@ var
   xs: TStringList;
   ii, i, count: Integer;
   r: TRule;
+  fFoundRules: TList<TPair<TRule, integer>>;
+  fRuleIndexPair: TPair<TRule, integer>;
 begin
   Result := False;
 
@@ -211,52 +190,32 @@ begin
   sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
   count := 0;
 
-  if sections <> '' then
+  if (sitename = '*') and (sections = '') then
   begin
-    xs := TStringList.Create;
-    try
-      xs.Delimiter := ' ';
-      xs.DelimitedText := sections;
-
-      for i := 0 to xs.Count - 1 do
-      begin
-        for ii := 0 to rules.Count - 1 do
-        begin
-          r := TRule(rules[ii]);
-          if ((r.sitename = sitename) and (r.section = xs.Strings[i])) then
-          begin
-            irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
-            Inc(count);
-          end;
-        end;
-      end;
-    finally
-      xs.Free;
-    end;
-  end
-  else
-  begin
-    if sitename = '*' then
-    begin
-      irc_addtext(Netname, Channel, 'You can not use the special sitename * as a wildcard for all sites to show all rules.', [sitename, sections]);
-      Inc(count);
-    end
-    else
-    begin
-      for ii := 0 to rules.Count - 1 do
-      begin
-        r := TRule(rules[ii]);
-        if r.sitename = sitename then
-        begin
-          irc_addtext(Netname, Channel, '%d %s', [ii, r.AsText(True)]);
-          Inc(count);
-        end;
-      end;
-    end;
+    irc_addtext(Netname, Channel, 'You can not use the special sitename * as a wildcard for all sites to show all rules.', [sitename, sections]);
+    exit;
   end;
 
-  if count = 0 then
-    irc_addtext(Netname, Channel, 'No matching rule for your input of %s %s found!', [sitename, sections]);
+  xs := TStringList.Create;
+  try
+    xs.Delimiter := ' ';
+    xs.DelimitedText := sections;
+    fFoundRules := FindRules(sitename, xs);
+
+    if fFoundRules.Count = 0 then
+    begin
+      irc_addtext(Netname, Channel, 'No matching rule for your input of %s %s found!', [sitename, sections]);
+      exit;
+    end;
+
+    for fRuleIndexPair in fFoundRules do
+    begin
+      irc_addtext(Netname, Channel, '%d %s', [fRuleIndexPair.Value, fRuleIndexPair.Key.AsText(True)]);
+    end;
+  finally
+    xs.Free;
+    FreeAndNil(fFoundRules);
+  end;
 
   Result := True;
 end;
@@ -333,7 +292,8 @@ var
   i: integer;
   r: TRule;
   s: TSite;
-  sitename, section: String;
+  sitename, section, fRuleInfo: String;
+  fFoundRulesInfoStrings: TList<String>;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
@@ -360,89 +320,12 @@ begin
 
   end;
 
-  // display global rules
-  if (((sitename <> '*') or (section <> '*')) or
-    ((sitename = '*') and (section = '*'))) then
-  begin
-    for i := 0 to rtpl.Count - 1 do
-    begin
-      r := TRule(rtpl[i]);
-      if ((r.sitename = '*') and (r.section = '*')) then
-      begin
-        irc_addtext(Netname, Channel, 'rtpl-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
-    for i := 0 to rules.Count - 1 do
-    begin
-      r := TRule(rules[i]);
-      if ((r.sitename = '*') and (r.section = '*')) then
-      begin
-        irc_addtext(Netname, Channel, 'rule-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
-  end;
-
-  // display global section rules
-  if ((sitename <> '*') or ((sitename = '*') and (section <> '*'))) then
-  begin
-    for i := 0 to rtpl.Count - 1 do
-    begin
-      r := TRule(rtpl[i]);
-      if ((r.sitename = '*') and (r.section = section)) then
-      begin
-        irc_addtext(Netname, Channel, 'rtpl-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
-    for i := 0 to rules.Count - 1 do
-    begin
-      r := TRule(rules[i]);
-      if ((r.sitename = '*') and (r.section = section)) then
-      begin
-        irc_addtext(Netname, Channel, 'rule-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
-  end;
-
-  // display global site rules
-  if ((section <> '*') or ((sitename <> '*') and (section = '*'))) then
-  begin
-    for i := 0 to rtpl.Count - 1 do
-    begin
-      r := TRule(rtpl[i]);
-      if ((r.sitename = sitename) and (r.section = '*')) then
-      begin
-        irc_addtext(Netname, Channel, 'rtpl-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
-    for i := 0 to rules.Count - 1 do
-    begin
-      r := TRule(rules[i]);
-      if ((r.sitename = sitename) and (r.section = '*')) then
-      begin
-        irc_addtext(Netname, Channel, 'rule-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
-  end;
-
-  // display site section rules
-  if ((sitename <> '*') and (section <> '*')) then
-  begin
-    for i := 0 to rtpl.Count - 1 do
-    begin
-      r := TRule(rtpl[i]);
-      if ((r.sitename = sitename) and (r.section = section)) then
-      begin
-        irc_addtext(Netname, Channel, 'rtpl-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
-    for i := 0 to rules.Count - 1 do
-    begin
-      r := TRule(rules[i]);
-      if ((r.sitename = sitename) and (r.section = section)) then
-      begin
-        irc_addtext(Netname, Channel, 'rule-%d %s', [i, r.AsText(True)]);
-      end;
-    end;
+  fFoundRulesInfoStrings := FindIrcRules(sitename, section);
+  try
+    for fRuleInfo in fFoundRulesInfoStrings do
+      irc_addtext(Netname, Channel, fRuleInfo);
+  finally
+    fFoundRulesInfoStrings.Free;
   end;
 
   Result := True;
@@ -554,24 +437,7 @@ begin
     exit;
   end;
 
-  for i := 0 to rules.Count - 1 do
-  begin
-    r := TRule(rules.Items[i]);
-    if ((r.sitename = src_s) and (r.section = src_section)) then
-    begin
-      rule := dst_s + ' ' + dst_section + ' ' + r.AsText(False);
-      rr := nil;
-      rr := AddRule(rule, error);
-      if ((rr = nil) or (error <> '')) then
-      begin
-        irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> %s', [error]);
-        Continue;
-      end;
-      rules.Add(rr);
-    end;
-  end;
-
-  RulesSave;
+  RuleCopy(src_s, dst_s, src_section, dst_section);
 
   Irc_AddText(netname, channel, '<b>Copied</b>: %s to %s for section %s', [src_s, dst_s, dst_section]);
   Result := True;
