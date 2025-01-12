@@ -55,6 +55,7 @@
     {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
     {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
         will raise an exception with some info about which thread and code is blocking a lock.
+    {^} Rewrite rules unit for faster race start
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype

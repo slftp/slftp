@@ -1720,17 +1720,17 @@ begin
     end;
 
     s_rules := '';
-    if rules.Count > 0 then
+    if GetRuleCount(False) > 0 then
     begin
       if s_rules <> '' then
         s_rules := s_rules + ', ';
-      s_rules := s_rules + Format('%d rules', [rules.Count]);
+      s_rules := s_rules + Format('%d rules', [GetRuleCount(False)]);
     end;
-    if rtpl.Count > 0 then
+    if GetRuleCount(True) > 0 then
     begin
       if s_rules <> '' then
         s_rules := s_rules + ', ';
-      s_rules := s_rules + Format('%d rtpl', [rtpl.Count]);
+      s_rules := s_rules + Format('%d rtpl', [GetRuleCount(True)]);
     end;
 
     l_infos.Caption := Format(
