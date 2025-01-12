@@ -1031,12 +1031,7 @@ begin
                 SlftpNewsAdd('FTP', Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 rule_err := '';
-                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
-                if ((r <> nil) and (rule_err = '')) then
-                begin
-                  rules.Insert(0, r);
-                  RulesSave;
-                end;
+                AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
               end;
             end;
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
