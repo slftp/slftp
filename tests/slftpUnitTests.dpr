@@ -81,7 +81,8 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
-  precatcherTests;
+  precatcherTests,
+  slcriticalsection2Tests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

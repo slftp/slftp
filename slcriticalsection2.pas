@@ -3,7 +3,7 @@ unit slcriticalsection2;
 interface
 
 uses
-  SyncObjs;
+  SyncObjs, Generics.Collections;
 
 {
   TslCriticalSection
@@ -18,14 +18,17 @@ type
     FEvent: TEvent;
     FLockCount: integer;
     FLockOwningThreadID: TThreadID;
-    FName, FCurrentLockOwnerName, FCurrentCodeSegmentName: string;
+    FName, FCurrentCodeSegmentName: string;
     FUseTimeoutLocking: boolean;
+    FLockOwnerNameStack: TStack<string>;
+    function GetCurrentLockOwnerName: string;
   public
     constructor Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy; override;
     function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
     procedure Leave;
     procedure SetCurrentCodeSegment(const aSegmentName: string);
+    property CurrentLockOwnerName: string read GetCurrentLockOwnerName;
   end;
 
   procedure SlCriticalSection2Init(const aUseTimeoutLocking: boolean);
@@ -35,7 +38,7 @@ type
 
 implementation
   uses
-    Generics.Collections, SysUtils, IdGlobal, debugunit;
+    SysUtils, IdGlobal, debugunit;
 
   var
     glUseTimeoutLocking: boolean;
@@ -80,6 +83,7 @@ implementation
       FLockCount := 0;
       FLockOwningThreadID := 0;
       FCurrentCodeSegmentName := '';
+      FLockOwnerNameStack := TStack<string>.Create;
     end
     else
     begin
@@ -95,6 +99,7 @@ implementation
     if FUseTimeoutLocking then
     begin
       FEvent.Free;
+      FLockOwnerNameStack.Free;
 
       glUsedCriticalSectionNamesLock.Enter;
       try
@@ -118,7 +123,7 @@ implementation
       begin
         FLockCount := fLockCount + 1;
         Result := True;
-        FCurrentLockOwnerName := aLockOwnerName;
+        FLockOwnerNameStack.Push(aLockOwnerName);
       end
       else
       begin
@@ -130,13 +135,13 @@ implementation
           begin
             FLockOwningThreadID := IdGlobal.CurrentThreadId;
             Result := True;
-            FCurrentLockOwnerName := aLockOwnerName;
+            FLockOwnerNameStack.Push(aLockOwnerName);
           end;
           wrTimeout:
           begin
             if aRaiseExceptionOnFail then
             begin
-              raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(IdGlobal.CurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, FCurrentLockOwnerName, FCurrentCodeSegmentName]));
+              raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(IdGlobal.CurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
             end;
             Result := False;
           end;
@@ -164,16 +169,17 @@ implementation
         raise Exception.Create(Format('Trying to leave lock by thread %s but it has not been entered before', [IntToHex(IdGlobal.CurrentThreadId, 4)]));
 
       if FLockOwningThreadID <> IdGlobal.CurrentThreadId then
-        raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, FCurrentLockOwnerName]));
+        raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
 
       if FLockCount > 0 then
       begin
         FLockCount := FLockCount - 1;
+        FLockOwnerNameStack.Pop;
       end
       else
       begin
         FLockOwningThreadID := 0;
-        FcurrentLockOwnerName := '';
+        FLockOwnerNameStack.Pop;
         FCurrentCodeSegmentName := '';
         FEvent.SetEvent;
       end;
@@ -196,7 +202,7 @@ implementation
 
       if FLockOwningThreadID <> IdGlobal.CurrentThreadId then
       begin
-        Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is by another thread %s (%d) - %s.', [IntToHex(FLockOwningThreadID, 4), FLockCount, FCurrentLockOwnerName]));
+        Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is by another thread %s (%d) - %s.', [IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
         exit;
       end;
 
@@ -207,6 +213,14 @@ implementation
   function GetUseTimeoutLocking: boolean;
   begin
     Result := glUseTimeoutLocking;
+  end;
+
+  function TSlCriticalSection2.GetCurrentLockOwnerName;
+  begin
+    if FUseTimeoutLocking and (FLockOwnerNameStack.Count > 0) then
+      Result := FLockOwnerNameStack.Peek
+    else
+      Result := '';
   end;
 end.
 
