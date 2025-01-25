@@ -53,6 +53,7 @@ type
     procedure TestParseSiteSearchResult6;
     procedure TestParseSFV1;
     procedure TestParseSFV2;
+    procedure TestHTMLDecode;
   end;
 
 implementation
@@ -546,7 +547,7 @@ begin
   fExpectedStr := 'Cinematic Venom Presents 1001 Movies You Must See Before You Die Whiplash';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEqualsString(fExpectedStr, fAsciiToScene, 'Check if file mystringsTests.pas and mystrings.pas have encoding UTF-8 and not UTF-8-BOM if this fails.');
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars5;
@@ -767,6 +768,13 @@ begin
   finally
     fResult.Free;
   end;
+end;
+
+// just some test to make sure the HTMLDecode even works
+procedure TTestMyStrings.TestHTMLDecode;
+begin
+  CheckEquals('&', HTMLDecode('&amp;'));
+  CheckEquals('L''Asile', HTMLDecode('L&#x27;Asile'));
 end;
 
 initialization
