@@ -116,7 +116,7 @@ type
     function IsPrimaryKeyIndexed(var AscendingOnly: boolean): boolean; override;
   published
     /// full file path name to the firebird client dll (fbclient.dll), default ''
-    property FirebirdLibraryPathName: RawUtf8
+    property FirebirdLibraryPathName: string
       read fFirebirdLibraryPathName write fFirebirdLibraryPathName;
     /// optional low-levl IBX DB Params, see documentation in IBX/FB Pascal API
     property IbxDBParams: TStringList
@@ -184,7 +184,7 @@ type
   end;
 
   TIBXColumnsMeta = record
-    SQLType: Cardinal;
+    SQLType: cardinal;
     CodePage: TSystemCodePage;
     Scale: integer;
     Subtype: integer;
@@ -1009,7 +1009,7 @@ begin
             s := fResults[Col].AsString;
             W.AddJsonEscape(pointer(s));
           end;
-          W.Add('"');
+          W.AddDirect('"');
         end;
       SQL_DOUBLE,
       SQL_D_FLOAT:
@@ -1026,7 +1026,7 @@ begin
         begin
           W.Add('"');
           W.AddDateTime(fResults[Col].GetAsDateTime, fForceDateWithMS);
-          W.Add('"');
+          W.AddDirect('"');
         end;
       SQL_BOOLEAN:
         W.Add(PByte(data)^ = 1);
@@ -1065,7 +1065,7 @@ begin
               s := fResults[Col].AsString;
               W.Add('"');
               W.AddJsonEscape(pointer(s));
-              W.Add('"');
+              W.AddDirect('"');
             end
             else
             begin
@@ -1077,7 +1077,7 @@ begin
     else
       // SQL_INT128, SQL_DEC_FIXED, SQL_DEC16, SQL_DEC34
       // SQL_NULL, SQL_ARRAY, SQL_QUAD
-      raise ESqlDBException.CreateUtf8(
+      ESqlDBException.RaiseUtf8(
         '%.ColumnToJson: unexpected ColumnType(#% "%")=%',
         [self, Col, fColumns[Col].ColumnName, ord(fColumns[Col].ColumnType)]);
     end;

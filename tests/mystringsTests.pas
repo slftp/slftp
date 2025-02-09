@@ -51,6 +51,9 @@ type
     procedure TestParseSiteSearchResult4;
     procedure TestParseSiteSearchResult5;
     procedure TestParseSiteSearchResult6;
+    procedure TestParseSFV1;
+    procedure TestParseSFV2;
+    procedure TestHTMLDecode;
   end;
 
 implementation
@@ -544,7 +547,7 @@ begin
   fExpectedStr := 'Cinematic Venom Presents 1001 Movies You Must See Before You Die Whiplash';
   fAsciiToScene := InternationalCharsToAsciiSceneChars(fMovieName);
 
-  CheckEqualsString(fExpectedStr, fAsciiToScene);
+  CheckEqualsString(fExpectedStr, fAsciiToScene, 'Check if file mystringsTests.pas and mystrings.pas have encoding UTF-8 and not UTF-8-BOM if this fails.');
 end;
 
 procedure TTestMyStrings.TestInternationalCharsToAsciiSceneChars5;
@@ -730,6 +733,48 @@ begin
   finally
     fStringList.Free;
   end;
+end;
+
+procedure TTestMyStrings.TestParseSFV1;
+var
+  fSFV: TArray<String>;
+  fResult: TDictionary<String, integer>;
+begin
+  fSFV := TArray<String>.Create('01-gerald_vdh-creature_of_habit_(original_mix)-3b8d1b57.mp3 3b8d1b57',
+    '02-gerald_vdh-creature_of_habit_(matt_mor_remix)-0ac321f0.mp3 0ac321f0');
+
+  try
+    fResult := ParseSFV(String.Join(#13#10, fSFV));
+    CheckEquals(fResult.Count, 2);
+    CheckEquals('01-gerald_vdh-creature_of_habit_(original_mix)-3b8d1b57.mp3', fResult.Keys.ToArray[0]);
+    CheckEquals('02-gerald_vdh-creature_of_habit_(matt_mor_remix)-0ac321f0.mp3', fResult.Keys.ToArray[1]);
+  finally
+    fResult.Free;
+  end;
+end;
+
+procedure TTestMyStrings.TestParseSFV2;
+var
+  fSFV: TArray<String>;
+  fResult: TDictionary<String, integer>;
+begin
+  fSFV := TArray<String>.Create(';       7959031   7/23/2023    9:23:38 PM   01-cool_band___-_track1.mp3',
+    '01-cool_band___-_track2.mp3 FDB6BAA4');
+
+  try
+    fResult := ParseSFV(String.Join(#13#10, fSFV));
+    CheckEquals(fResult.Count, 1);
+    CheckEquals('01-cool_band___-_track2.mp3', fResult.Keys.ToArray[0]);
+  finally
+    fResult.Free;
+  end;
+end;
+
+// just some test to make sure the HTMLDecode even works
+procedure TTestMyStrings.TestHTMLDecode;
+begin
+  CheckEquals('&', HTMLDecode('&amp;'));
+  CheckEquals('L''Asile', HTMLDecode('L&#x27;Asile'));
 end;
 
 initialization

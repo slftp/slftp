@@ -61,6 +61,23 @@ const
   IPPROTO_IPV6   =   41;
   IPPROTO_ICMPV6 =   58;
 
+const
+  SIO_GET_EXTENSION_FUNCTION_POINTER = $c8000006;
+  WSAID_ACCEPTEX: TGuid =
+    (D1: $b5367df1; D2: $cbac; D3: $11cf;
+     D4: ($95, $ca, $00, $80, $5f, $48, $a1, $92));
+  WSAID_GETACCEPTEXSOCKADDRS: TGuid =
+    (D1: $b5367df2; D2: $cbac; D3: $11cf;
+     D4: ($95, $ca, $00, $80, $5f, $48, $a1, $92));
+  WSAID_CONNECTEX: TGuid = (
+    D1: $25a207b9; D2:$ddf3; D3:$4660;
+    D4: ($8e, $e9, $76, $e5, $8c, $74, $06, $3e));
+  {
+  WSAID_TRANSMITFILE: TGuid =
+    (D1: $b5367df0; D2: $cbac; D3: $11cf;
+     D4: ($95, $ca, $00, $80, $5f, $48, $a1, $92));
+  }
+
 type
   PInAddr = ^in_addr;
   in_addr = packed record
@@ -173,8 +190,6 @@ const
   IPV6_JOIN_GROUP        = 12; // add an IP group membership
   IPV6_LEAVE_GROUP       = 13; // drop an IP group membership
 
-  MSG_NOSIGNAL  = 0;
-
   // getnameinfo constants
   NI_MAXHOST	   = 1025;
   NI_MAXSERV	   = 32;
@@ -239,6 +254,7 @@ type
   end;
 
 const
+  MSG_NOSIGNAL  = $00;  // do not generate SIGPIPE (not defined on Windows)
   MSG_OOB       = $01;  // Process out-of-band data
   MSG_PEEK      = $02;  // Peek at incoming messages
 
@@ -247,87 +263,95 @@ const
   WSABASEERR              = 10000;
 
   // Windows Sockets definitions of regular Microsoft C error constants
-  WSAEINTR                = (WSABASEERR + 4);  // legacy flag
-  WSAEBADF                = (WSABASEERR + 9);
-  WSAEACCES               = (WSABASEERR + 13);
-  WSAEFAULT               = (WSABASEERR + 14);
-  WSAEINVAL               = (WSABASEERR + 22);
-  WSAEMFILE               = (WSABASEERR + 24);
+  WSAEINTR                = WSABASEERR + 4;  // legacy flag
+  WSAEBADF                = WSABASEERR + 9;
+  WSAEACCES               = WSABASEERR + 13;
+  WSAEFAULT               = WSABASEERR + 14;
+  WSAEINVAL               = WSABASEERR + 22;
+  WSAEMFILE               = WSABASEERR + 24;
 
   // Windows Sockets definitions of regular Berkeley error constants
-  WSAEWOULDBLOCK          = (WSABASEERR + 35);
-  WSAEINPROGRESS          = (WSABASEERR + 36);
-  WSAEALREADY             = (WSABASEERR + 37);
-  WSAENOTSOCK             = (WSABASEERR + 38);
-  WSAEDESTADDRREQ         = (WSABASEERR + 39);
-  WSAEMSGSIZE             = (WSABASEERR + 40);
-  WSAEPROTOTYPE           = (WSABASEERR + 41);
-  WSAENOPROTOOPT          = (WSABASEERR + 42);
-  WSAEPROTONOSUPPORT      = (WSABASEERR + 43);
-  WSAESOCKTNOSUPPORT      = (WSABASEERR + 44);
-  WSAEOPNOTSUPP           = (WSABASEERR + 45);
-  WSAEPFNOSUPPORT         = (WSABASEERR + 46);
-  WSAEAFNOSUPPORT         = (WSABASEERR + 47);
-  WSAEADDRINUSE           = (WSABASEERR + 48);
-  WSAEADDRNOTAVAIL        = (WSABASEERR + 49);
-  WSAENETDOWN             = (WSABASEERR + 50);
-  WSAENETUNREACH          = (WSABASEERR + 51);
-  WSAENETRESET            = (WSABASEERR + 52);
-  WSAECONNABORTED         = (WSABASEERR + 53);
-  WSAECONNRESET           = (WSABASEERR + 54);
-  WSAENOBUFS              = (WSABASEERR + 55);
-  WSAEISCONN              = (WSABASEERR + 56);
-  WSAENOTCONN             = (WSABASEERR + 57);
-  WSAESHUTDOWN            = (WSABASEERR + 58);
-  WSAETOOMANYREFS         = (WSABASEERR + 59);
-  WSAETIMEDOUT            = (WSABASEERR + 60);
-  WSAECONNREFUSED         = (WSABASEERR + 61);
-  WSAELOOP                = (WSABASEERR + 62);
-  WSAENAMETOOLONG         = (WSABASEERR + 63);
-  WSAEHOSTDOWN            = (WSABASEERR + 64);
-  WSAEHOSTUNREACH         = (WSABASEERR + 65);
-  WSAENOTEMPTY            = (WSABASEERR + 66);
-  WSAEPROCLIM             = (WSABASEERR + 67);
-  WSAEUSERS               = (WSABASEERR + 68);
-  WSAEDQUOT               = (WSABASEERR + 69);
-  WSAESTALE               = (WSABASEERR + 70);
-  WSAEREMOTE              = (WSABASEERR + 71);
+  WSAEWOULDBLOCK          = WSABASEERR + 35;
+  WSAEINPROGRESS          = WSABASEERR + 36;
+  WSAEALREADY             = WSABASEERR + 37;
+  WSAENOTSOCK             = WSABASEERR + 38;
+  WSAEDESTADDRREQ         = WSABASEERR + 39;
+  WSAEMSGSIZE             = WSABASEERR + 40;
+  WSAEPROTOTYPE           = WSABASEERR + 41;
+  WSAENOPROTOOPT          = WSABASEERR + 42;
+  WSAEPROTONOSUPPORT      = WSABASEERR + 43;
+  WSAESOCKTNOSUPPORT      = WSABASEERR + 44;
+  WSAEOPNOTSUPP           = WSABASEERR + 45;
+  WSAEPFNOSUPPORT         = WSABASEERR + 46;
+  WSAEAFNOSUPPORT         = WSABASEERR + 47;
+  WSAEADDRINUSE           = WSABASEERR + 48;
+  WSAEADDRNOTAVAIL        = WSABASEERR + 49;
+  WSAENETDOWN             = WSABASEERR + 50;
+  WSAENETUNREACH          = WSABASEERR + 51;
+  WSAENETRESET            = WSABASEERR + 52;
+  WSAECONNABORTED         = WSABASEERR + 53;
+  WSAECONNRESET           = WSABASEERR + 54;
+  WSAENOBUFS              = WSABASEERR + 55;
+  WSAEISCONN              = WSABASEERR + 56;
+  WSAENOTCONN             = WSABASEERR + 57;
+  WSAESHUTDOWN            = WSABASEERR + 58;
+  WSAETOOMANYREFS         = WSABASEERR + 59;
+  WSAETIMEDOUT            = WSABASEERR + 60;
+  WSAECONNREFUSED         = WSABASEERR + 61;
+  WSAELOOP                = WSABASEERR + 62;
+  WSAENAMETOOLONG         = WSABASEERR + 63;
+  WSAEHOSTDOWN            = WSABASEERR + 64;
+  WSAEHOSTUNREACH         = WSABASEERR + 65;
+  WSAENOTEMPTY            = WSABASEERR + 66;
+  WSAEPROCLIM             = WSABASEERR + 67;
+  WSAEUSERS               = WSABASEERR + 68;
+  WSAEDQUOT               = WSABASEERR + 69;
+  WSAESTALE               = WSABASEERR + 70;
+  WSAEREMOTE              = WSABASEERR + 71;
 
   // Extended Windows Sockets error constant definitions
-  WSASYSNOTREADY          = (WSABASEERR+91);
-  WSAVERNOTSUPPORTED      = (WSABASEERR+92);
-  WSANOTINITIALISED       = (WSABASEERR+93);
-  WSAEDISCON              = (WSABASEERR+101);
-  WSAENOMORE              = (WSABASEERR+102);
-  WSAECANCELLED           = (WSABASEERR+103);
-  WSAEEINVALIDPROCTABLE   = (WSABASEERR+104);
-  WSAEINVALIDPROVIDER     = (WSABASEERR+105);
-  WSAEPROVIDERFAILEDINIT  = (WSABASEERR+106);
-  WSASYSCALLFAILURE       = (WSABASEERR+107);
-  WSASERVICE_NOT_FOUND    = (WSABASEERR+108);
-  WSATYPE_NOT_FOUND       = (WSABASEERR+109);
-  WSA_E_NO_MORE           = (WSABASEERR+110);
-  WSA_E_CANCELLED         = (WSABASEERR+111);
-  WSAEREFUSED             = (WSABASEERR+112);
+  WSASYSNOTREADY          = WSABASEERR + 91;
+  WSAVERNOTSUPPORTED      = WSABASEERR + 92;
+  WSANOTINITIALISED       = WSABASEERR + 93;
+  WSAEDISCON              = WSABASEERR + 101;
+  WSAENOMORE              = WSABASEERR + 102;
+  WSAECANCELLED           = WSABASEERR + 103;
+  WSAEEINVALIDPROCTABLE   = WSABASEERR + 104;
+  WSAEINVALIDPROVIDER     = WSABASEERR + 105;
+  WSAEPROVIDERFAILEDINIT  = WSABASEERR + 106;
+  WSASYSCALLFAILURE       = WSABASEERR + 107;
+  WSASERVICE_NOT_FOUND    = WSABASEERR + 108;
+  WSATYPE_NOT_FOUND       = WSABASEERR + 109;
+  WSA_E_NO_MORE           = WSABASEERR + 110;
+  WSA_E_CANCELLED         = WSABASEERR + 111;
+  WSAEREFUSED             = WSABASEERR + 112;
 
-  // Error return codes from gethostbyname() and gethostbyaddr()
+  // Error return codes from gethostbyname and gethostbyaddr
   // Authoritative Answer: Host not found
-  WSAHOST_NOT_FOUND       = (WSABASEERR+1001);
+  WSAHOST_NOT_FOUND       = WSABASEERR + 1001;
   // Non-Authoritative: Host not found, or SERVERFAIL
-  WSATRY_AGAIN            = (WSABASEERR+1002);
+  WSATRY_AGAIN            = WSABASEERR + 1002;
   // Non recoverable errors, FORMERR, REFUSED, NOTIMP
-  WSANO_RECOVERY          = (WSABASEERR+1003);
+  WSANO_RECOVERY          = WSABASEERR + 1003;
   // Valid name, no data record of requested type
-  WSANO_DATA              = (WSABASEERR+1004);
+  WSANO_DATA              = WSABASEERR + 1004;
   // no address, look for MX record
   WSANO_ADDRESS           = WSANO_DATA;
+
+  // WinSock 2 extension
+  WSAIOPENDING        = ERROR_IO_PENDING;
+  WSAIOINCOMPLETE     = ERROR_IO_INCOMPLETE;
+  WSAINVALIDHANDLE    = ERROR_INVALID_HANDLE;
+  WSAINVALIDPARAMETER = ERROR_INVALID_PARAMETER;
+  WSANOTENOUGHMEMORY  = ERROR_NOT_ENOUGH_MEMORY;
+  WSAOPERATIONABORTED = ERROR_OPERATION_ABORTED;
 
 const
   WSADESCRIPTION_LEN     =   256;
   WSASYS_STATUS_LEN      =   128;
 
-  SHUT_RD = 0;
-  SHUT_WR = 1;
+  SHUT_RD   = 0;
+  SHUT_WR   = 1;
   SHUT_RDWR = 2;
 
 type
@@ -351,15 +375,27 @@ type
   end;
   WSAData = TWSAData;
 
+  PTransmitFileBuffers = ^TTransmitFileBuffers;
+  TTransmitFileBuffers = record
+    Head: pointer;
+    HeadLength: cardinal;
+    Tail: pointer;
+    TailLength: cardinal;
+ end;
+
 const
   _ST: array[TNetLayer] of integer = (
     SOCK_STREAM,
     SOCK_DGRAM,
     0);
-
   _IP: array[TNetLayer] of integer = (
     IPPROTO_TCP,
     IPPROTO_UDP,
+    0);
+  _SF: array[TNetFamily] of integer = (
+    0,
+    AF_INET,
+    AF_INET6,
     0);
 
 function htons(port: cardinal): cardinal; {$ifdef HASINLINE} inline; {$endif}
@@ -426,17 +462,44 @@ function select(nfds: integer; readfds, writefds, exceptfds: PFDSet;
    timeout: PTimeVal): integer; stdcall;
   external ws2 name 'select';
 
-function recv(s: TSocket; Buf: Pointer; len, flags: integer): integer; stdcall;
+function recv(s: TSocket; Buf: pointer; len, flags: integer): integer; stdcall;
   external ws2 name 'recv';
 
-function recvfrom(s: TSocket; Buf: Pointer; len, flags: integer;
+type
+  TWsaBuf = record
+    cLength: cardinal;
+    pBuffer: pointer;
+  end;
+  PWsaBuf = ^TWsaBuf;
+
+function WSAConnect(s: TSocket; name: PSockAddr; namelen: integer;
+   caller, callee, sqos, gqos: pointer): integer; stdcall;
+  external ws2 name 'WSAConnect';
+
+function WSARecv(s: TSocket; var lpBuffers: TWsaBuf; dwBufferCount: cardinal;
+   var lpNumberOfBytesRecvd: cardinal; var lpFlags: cardinal;
+   lpOverlapped: POverlapped; lpCompletionRoutine: pointer = nil): integer; stdcall;
+  external ws2 name 'WSARecv';
+
+function WSASend(s: TSocket; var lpBuffers: TWsaBuf; dwBufferCount: cardinal;
+   var lpNumberOfBytesRecvd: cardinal; dwFlags: cardinal;
+   lpOverlapped: POverlapped; lpCompletionRoutine: pointer = nil): integer; stdcall;
+  external ws2 name 'WSASend';
+
+function WSAIoctl(s: TSocket; dwIoControlCode: cardinal; lpvInBuffer: pointer;
+   cbInBuffer: cardinal; lpvOutBuffer: pointer; cbOutBuffer: cardinal;
+   lpcbBytesReturned: PCardinal; lpOverlapped: POverlapped;
+   lpCompletionRoutine: pointer): integer; stdcall;
+  external ws2 name 'WSAIoctl';
+
+function recvfrom(s: TSocket; Buf: pointer; len, flags: integer;
    from: PSockAddr; fromlen: Pinteger): integer; stdcall;
   external ws2 name 'recvfrom';
 
-function send(s: TSocket; Buf: Pointer; len, flags: integer): integer; stdcall;
+function send(s: TSocket; Buf: pointer; len, flags: integer): integer; stdcall;
   external ws2 name 'send';
 
-function sendto(s: TSocket; Buf: Pointer; len, flags: integer;
+function sendto(s: TSocket; Buf: pointer; len, flags: integer;
    addrto: PSockAddr; tolen: integer): integer; stdcall;
   external ws2 name 'sendto';
 
@@ -445,9 +508,6 @@ function getsockname(s: TSocket; name: PSockAddr; var namelen: integer): integer
 
 function getpeername(s: TSocket; name: PSockAddr; var namelen: integer): integer; stdcall;
   external ws2 name 'getpeername';
-
-function inet_addr(cp: PAnsiChar): cardinal; stdcall;
-  external ws2 name 'inet_addr';
 
 function doaccept(s: TSocket; addr: PSockAddr; var async: boolean): TSocket;
 var
@@ -458,12 +518,29 @@ begin
   // no accept4() on Windows -> async will be done later
 end;
 
+var
+  // some extended WinSock functions resolved in InitializeUnit below
+  acceptex: function(ListenSocket, AcceptSocket: TSocket; pOutBuff: pointer;
+    ReceiveDataLen, LocalAddrLen, RemoteAddrLen: DWORD; var BytesReceived: DWORD;
+    pOverlapped: POverlapped): BOOL; stdcall;
+  getacceptexsockaddrs: procedure(lpOutputBuffer: pointer;
+    dwReceiveDataLength, dwLocalAddressLength, dwRemoteAddressLength: DWORD;
+    var LocalSockaddr: PSockAddr; var LocalSockaddrLength: integer;
+    var RemoteSockaddr: PSockAddr; var RemoteSockaddrLength: integer); stdcall;
+  connectex: function(Sock: TSocket; Name: PSockAddr; NameLen: integer;
+    SendBuf: pointer; SendLen: DWORD; var BytesSent: DWORD;
+    Overlapped: POverlapped): BOOL; stdcall;
+  {
+  transmitfile: function(s: TSocket; hFile: THandle;
+    NumberOfBytesToWrite, NumberOfBytesPerSend: DWORD; pOvp: POverlapped;
+    pTransmitBuffers: PTransmitFileBuffers; dwFlags: DWORD): BOOL; stdcall;
+  }
 
 { ******** TNetSocket Cross-Platform Wrapper }
 
 { TNetAddr }
 
-function SetWinAddr(const ip, port: RawUtf8; family: cardinal; layer: TNetLayer;
+function SetWinAddr(const host, port: RawUtf8; family: cardinal; layer: TNetLayer;
   out addr): boolean;
 var
   h: TAddrInfo;
@@ -475,7 +552,7 @@ begin
   h.ai_socktype := _ST[layer];
   h.ai_protocol := _IP[layer];
   res := nil;
-  result := getaddrinfo(pointer(ip), pointer(port), @h, res) = NO_ERROR;
+  result := getaddrinfo(pointer(host), pointer(port), @h, res) = NO_ERROR;
   if result then
     MoveFast(res^.ai_addr^, addr, res^.ai_addrlen); // return the first result
   if res <> nil then
@@ -487,29 +564,25 @@ function TNetAddr.SetFrom(const address, addrport: RawUtf8;
 var
   p: cardinal;
 begin
+  FillCharFast(Addr, SizeOf(Addr), 0);
+  result := nrNotImplemented;
   if layer = nlUnix then
-    result := nrNotImplemented
-  else
-  begin
-    FillCharFast(Addr, SizeOf(Addr), 0);
-    result := nrNotFound;
-    if address = '' then
-      exit;
-    // check supplied IP port
-    p := GetCardinal(pointer(addrport));
-    if (p = 0) and
-       (addrport <> '0') then // explicit '0' to get ephemeral port
-      exit;
-    PSockAddr(@Addr)^.sin_port := htons(p);
-    // check most simple IPv4 resolution (maybe using mormot.net.dns)
+    exit;
+  result := nrNotFound;
+  if address = '' then
+    exit;
+  // check supplied IP port
+  p := GetCardinal(pointer(addrport));
+  if (p = 0) and
+     (addrport <> '0') then // explicit '0' to get ephemeral port
+    exit;
+  PSockAddr(@Addr)^.sin_port := htons(p);
+  // first check most simple IPv4 resolution (maybe using mormot.net.dns)
+  if SetFromIP4(address, false) or
+     // fallback to OS getaddrinfo() resolution, first try as IP4, then IP6
+     SetWinAddr(address, addrport, AF_INET, layer, Addr) or
+     SetWinAddr(address, addrport, AF_INET6, layer, Addr) then
     result := nrOk;
-    if SetFromIP4(address, false) then
-      exit;
-    // use the OS resolution, first try as IP4, then IP6
-    if not SetWinAddr(address, addrport, AF_INET, layer, Addr) and
-       not SetWinAddr(address, addrport, AF_INET6, layer, Addr) then
-      result := nrNotFound;
-  end;
 end;
 
 
@@ -583,6 +656,7 @@ begin
 end;
 
 procedure SetTimeVal(ms: cardinal; out tv: TTimeVal);
+  {$ifdef HASINLINE} inline; {$endif}
 begin
   if ms = 0 then
   begin
@@ -600,11 +674,11 @@ function TNetSocketWrap.WaitFor(ms: integer; scope: TNetEvents;
   loerr: system.PInteger): TNetEvents;
 var
   sock: TSocket;
-  rd, wr: record
+  rd, wr, er: record
     fd_count: integer;
     fd_array: array[0..0] of TSocket; // no need of the 512 entries of TFDSet
   end;
-  rdp, wrp: PFDSet;
+  rdp, wrp, erp: PFDSet;
   tv: TTimeVal;
   ptv: pointer;
   res: integer;
@@ -617,6 +691,8 @@ begin
     exit;
   rdp := nil;
   wrp := nil;
+  erp := nil;
+  ptv := nil; // infinite timeout
   sock := TSocket(@self);
   if neWrite in scope then
   begin
@@ -624,8 +700,15 @@ begin
     wr.fd_count := 1;
     wrp := @wr;
   end;
+  if neError in scope then
+  begin
+    er.fd_array[0] := sock;
+    er.fd_count := 1;
+    erp := @er;
+  end;
   if (neRead in scope) or
-     not (neWrite in scope) then // a least one is needed
+     ((wrp = nil) and
+      (erp = nil)) then // select() needs at least one descriptor
   begin
     rd.fd_array[0] := sock;
     rd.fd_count := 1;
@@ -635,15 +718,13 @@ begin
   begin
     SetTimeVal(ms, tv);
     ptv := @tv;
-  end
-  else
-    ptv := nil; // infinite timeout
-  res := select(sock + 1, rdp, wrp, nil, ptv);
+  end;
+  res := select({ignored=}0, rdp, wrp, erp, ptv);
   if res < 0 then
   begin
     if loerr <> nil then
       loerr^ := sockerrno;
-    exit;
+    exit; // returning [neError]
   end;
   result := [];
   if res = 0 then
@@ -652,18 +733,21 @@ begin
   if (rdp <> nil) and
      ({%H-}rd.fd_count = 1) and
      (rd.fd_array[0] = sock) then
-  begin
     if ioctlsocket(sock, FIONREAD, @pending) <> NO_ERROR then
       include(result, neError)
     else 
+      // FIONREAD is not enough on Windows for graceful disconnection
+      // -> recv() should be called: https://stackoverflow.com/a/1586817/458259
+      // -> return neRead and not neClosed if pending=0
       include(result, neRead);
-    // FIONREAD is not enough on Windows for graceful disconnection
-    // -> return neRead and not neClosed if pending=0
-  end;
   if (wrp <> nil) and
      ({%H-}wr.fd_count = 1) and
      (wr.fd_array[0] = sock) then
     include(result, neWrite);
+  if (erp <> nil) and
+     ({%H-}er.fd_count = 1) and
+     (er.fd_array[0] = sock) then
+    include(result, neError);
 end;
 
 
@@ -686,6 +770,7 @@ type
 
 var
   iphlpapiDll: THandle;
+
   // some iphlpapi.dll late-binded API via DelayedProc()
   GetIpAddrTable: function (pIpAddrTable: PMIB_IPADDRTABLE;
     var pdwSize: DWORD; bOrder: BOOL): DWORD; stdcall;
@@ -723,46 +808,85 @@ end;
 { ******************** MAC and DNS Addresses Support }
 
 const
-  MAX_ADAPTER_ADDRESS_LENGTH = 8;
-  GAA_FLAG_SKIP_UNICAST = $1;
-  GAA_FLAG_SKIP_ANYCAST = $2;
-  GAA_FLAG_SKIP_MULTICAST = $4;
-  GAA_FLAG_SKIP_DNS_SERVER = $8;
+  GAA_FLAG_SKIP_UNICAST       = $1;
+  GAA_FLAG_SKIP_ANYCAST       = $2;
+  GAA_FLAG_SKIP_MULTICAST     = $4;
+  GAA_FLAG_SKIP_DNS_SERVER    = $8;
+  GAA_FLAG_INCLUDE_PREFIX     = $10;
   GAA_FLAG_SKIP_FRIENDLY_NAME = $20;
-  GAA_FLAG_INCLUDE_ALL_INTERFACES = $100; // Vista+
-  GAA_FLAGS = GAA_FLAG_SKIP_UNICAST or
-              GAA_FLAG_SKIP_ANYCAST or
-              GAA_FLAG_SKIP_MULTICAST or
-              GAA_FLAG_SKIP_DNS_SERVER or
-              GAA_FLAG_SKIP_FRIENDLY_NAME;
-              // or GAA_FLAG_INCLUDE_ALL_INTERFACES;
+  // below flags are only available on Windows Vista and later
+  GAA_FLAG_INCLUDE_WINS_INFO  = $40;
+  GAA_FLAG_INCLUDE_GATEWAYS   = $80;
+  GAA_FLAG_INCLUDE_ALL_INTERFACES = $100;
+
   IfOperStatusUp = 1;
+  IfOperStatusDown = 2;
+
+  IF_TYPE_ETHERNET_CSMACD   = 6;
+  IF_TYPE_PPP               = 23;
+  IF_TYPE_SOFTWARE_LOOPBACK = 24;
+  IF_TYPE_IEEE80211         = 71; // Vista+
+  IF_TYPE_TUNNEL            = 131;
 
   MAX_HOSTNAME_LEN = 128;
   MAX_DOMAIN_NAME_LEN = 128;
   MAX_SCOPE_ID_LEN = 256;
+  MAX_ADAPTER_ADDRESS_LEN = 8;
 
 type
   SOCKET_ADDRESS = record
     lpSockaddr: PSOCKADDR;
-    iSockaddrLength: Integer;
+    iSockaddrLength: integer;
   end;
 
-  PIP_ADAPTER_UNICAST_ADDRESS = pointer;
-  PIP_ADAPTER_ANYCAST_ADDRESS = pointer;
-  PIP_ADAPTER_DNS_SERVER_ADDRESS = pointer;
-  PIP_ADAPTER_MULTICAST_ADDRESS = pointer;
+  IP_PREFIX_ORIGIN = DWORD;
+  IP_SUFFIX_ORIGIN = DWORD;
+  IP_DAD_STATE = DWORD;
 
-  PIP_ADAPTER_ADDRESSES = ^_IP_ADAPTER_ADDRESSES;
-  _IP_ADAPTER_ADDRESSES = record
-    Union: record
-      case Integer of
-        0: (
-          Alignment: QWord);
-        1: (
-          Length: ULONG;
-          IfIndex: DWORD);
-    end;
+  IP_ADAPTER_UNION = record
+    case integer of
+      0: (
+        Alignment: QWord);
+      1: (
+        Length: ULONG;
+        FlagsOrIfIndex: DWORD);
+  end;
+
+  PIP_ADAPTER_UNICAST_ADDRESS = ^IP_ADAPTER_UNICAST_ADDRESS;
+  IP_ADAPTER_UNICAST_ADDRESS = record
+    Union: IP_ADAPTER_UNION;
+    Next: PIP_ADAPTER_UNICAST_ADDRESS;
+    Address: SOCKET_ADDRESS;
+    PrefixOrigin: IP_PREFIX_ORIGIN;
+    SuffixOrigin: IP_SUFFIX_ORIGIN;
+    DadState: IP_DAD_STATE;
+    ValidLifetime: ULONG;
+    PreferredLifetime: ULONG;
+    LeaseLifetime: ULONG;
+    // below fields are only available on Windows Vista and later
+    OnLinkPrefixLength: Byte;
+  end;
+
+  PIP_ADAPTER = ^IP_ADAPTER;
+  // used for IP_ADAPTER_PREFIX, IP_ADAPTER_DNS_SERVER_ADDRESS,
+  // IP_ADAPTER_GATEWAY_ADDRESS and IP_ADAPTER_WINS_SERVER_ADDRESS
+  IP_ADAPTER = record
+    Union: IP_ADAPTER_UNION;
+    Next: PIP_ADAPTER;
+    Address: SOCKET_ADDRESS;
+    PrefixLength: ULONG; // used for IP_ADAPTER_PREFIX only
+  end;
+
+  PIP_ADAPTER_PREFIX = PIP_ADAPTER;
+  PIP_ADAPTER_ANYCAST_ADDRESS = PIP_ADAPTER;
+  PIP_ADAPTER_DNS_SERVER_ADDRESS = PIP_ADAPTER;
+  PIP_ADAPTER_MULTICAST_ADDRESS = PIP_ADAPTER;
+  PIP_ADAPTER_WINS_SERVER_ADDRESS = PIP_ADAPTER;
+  PIP_ADAPTER_GATEWAY_ADDRESS = PIP_ADAPTER;
+
+  PIP_ADAPTER_ADDRESSES = ^IP_ADAPTER_ADDRESSES;
+  IP_ADAPTER_ADDRESSES = record
+    Union: IP_ADAPTER_UNION;
     Next: PIP_ADAPTER_ADDRESSES;
     AdapterName: PAnsiChar;
     FirstUnicastAddress: PIP_ADAPTER_UNICAST_ADDRESS;
@@ -772,21 +896,21 @@ type
     DnsSuffix: PWCHAR;
     Description: PWCHAR;
     FriendlyName: PWCHAR;
-    PhysicalAddress: array [0..MAX_ADAPTER_ADDRESS_LENGTH - 1] of BYTE;
+    PhysicalAddress: array [0 .. MAX_ADAPTER_ADDRESS_LEN - 1] of BYTE;
     PhysicalAddressLength: DWORD;
     Flags: DWORD;
     Mtu: DWORD;
     IfType: ULONG;
     OperStatus: DWORD;
     // below fields are only available on Windows XP with SP1 and later
-    Ipv6IfIndex: ULONG;
+    Ipv6IfIndex: DWORD;
     ZoneIndices: array [0..15] of DWORD;
-    FirstPrefix: pointer;
+    FirstPrefix: PIP_ADAPTER_PREFIX;
     // below fields are only available on Windows Vista and later
     TransmitLinkSpeed: Int64;
     ReceiveLinkSpeed: Int64;
-    FirstWinsServerAddress: pointer;
-    FirstGatewayAddress: pointer;
+    FirstWinsServerAddress: PIP_ADAPTER_WINS_SERVER_ADDRESS;
+    FirstGatewayAddress: PIP_ADAPTER_GATEWAY_ADDRESS;
     Ipv4Metric: ULONG;
     Ipv6Metric: ULONG;
     Luid: Int64;
@@ -827,17 +951,16 @@ type
   end;
   PFIXED_INFO = ^FIXED_INFO;
 
-
 var
-  // some iphlpapi.dll late-binded APIs via DelayedProc()
+  // some iphlpapi.dll late-binded API via DelayedProc()
   GetAdaptersAddresses: function(Family: ULONG; Flags: DWORD; Reserved: pointer;
-    pAdapterAddresses: PIP_ADAPTER_ADDRESSES; pOutBufLen: PULONG): DWORD; stdcall;
-
+      pAdapterAddresses: PIP_ADAPTER_ADDRESSES; pOutBufLen: PULONG): DWORD; stdcall;
   SendARP: function(DestIp: DWORD; srcIP: DWORD; pMacAddr: pointer;
-    PhyAddrLen: Pointer): DWORD; stdcall;
-
+    PhyAddrLen: pointer): DWORD; stdcall;
   GetNetworkParams: function(pFixedInfo: PFIXED_INFO;
     pOutBufLen: PULONG): DWORD; stdcall;
+  GetBestInterface: function(dwDestAddrIPv4: cardinal;
+    var pdwBestIfIndex: DWORD): DWORD; stdcall;
 
 function _GetDnsAddresses(usePosixEnv, getAD: boolean): TRawUtf8DynArray;
 var
@@ -882,35 +1005,151 @@ end;
 function RetrieveMacAddresses(UpAndDown: boolean): TMacAddressDynArray;
 var
   n: PtrInt;
-  siz: ULONG;
+  siz, b, flags: ULONG;
   p: PIP_ADAPTER_ADDRESSES;
+  a: PIP_ADAPTER_UNICAST_ADDRESS;
+  r: PIP_ADAPTER;
   tmp: RawByteString;
+  one: RawUtf8;
 begin
+  // see https://github.com/zeromq/czmq/blob/899f81985961513c/src/ziflist.c#L340
   result := nil;
   siz := 0;
+  flags := GAA_FLAG_SKIP_ANYCAST or
+           GAA_FLAG_SKIP_MULTICAST or
+           GAA_FLAG_INCLUDE_PREFIX;
+  if OsVersion >= wVista then
+    flags := flags or GAA_FLAG_INCLUDE_GATEWAYS;
   if not DelayedProc(GetAdaptersAddresses, iphlpapiDll, 'iphlpapi.dll',
            'GetAdaptersAddresses') or
-     (GetAdaptersAddresses(AF_UNSPEC, GAA_FLAGS, nil, nil, @siz) <>
-       ERROR_BUFFER_OVERFLOW) then
+     (GetAdaptersAddresses(AF_INET, flags, nil, nil, @siz) <> ERROR_BUFFER_OVERFLOW) or
+     (siz = 0) then
     exit;
   SetLength(tmp, siz); // around 600 bytes per interface
   p := pointer(tmp);
-  if GetAdaptersAddresses(AF_UNSPEC, GAA_FLAGS, nil, p, @siz) <> ERROR_SUCCESS then
+  if GetAdaptersAddresses(AF_INET, flags, nil, p, @siz) <> ERROR_SUCCESS then
     exit;
   n := 0;
   repeat
     if (p^.Flags <> 0) and
+       (p^.IfType <> IF_TYPE_SOFTWARE_LOOPBACK) and
+       (p^.OperStatus in [IfOperStatusUp, IfOperStatusDown]) and
        (UpAndDown or
         (p^.OperStatus = IfOperStatusUp)) and
        (p^.PhysicalAddressLength = 6) then
     begin
       SetLength(result, n + 1);
-      Win32PWideCharToUtf8(p^.Description, result[n].Name);
-      result[n].Address := MacToText(@p^.PhysicalAddress);
+      with result[n] do
+      begin
+        Win32PWideCharToUtf8(p^.Description, Name);
+        Win32PWideCharToUtf8(p^.FriendlyName, FriendlyName);
+        Win32PWideCharToUtf8(p^.DnsSuffix, DnsSuffix);
+        Address := MacToText(@p^.PhysicalAddress);
+        Mtu := p^.Mtu;
+        IfIndex := p^.Union.FlagsOrIfIndex;
+        case p^.IfType of
+          IF_TYPE_ETHERNET_CSMACD:
+            Kind := makEthernet;
+          IF_TYPE_IEEE80211:
+            Kind := makWifi;
+          IF_TYPE_TUNNEL:
+            Kind := makTunnel;
+          IF_TYPE_PPP:
+            Kind := makPpp;
+        end;
+        a := p^.FirstUnicastAddress;
+        while a <> nil do
+        begin
+          case a^.Address.lpSockaddr^.sa_family of
+            AF_INET: // retrieve first IPv4 address and masks
+              begin
+                IP4Text(@a^.Address.lpSockaddr^.sin_addr, IP);
+                if OsVersion >= wVista then
+                  b := a^.OnLinkPrefixLength
+                else if (p^.FirstPrefix <> nil) and
+                        (p^.FirstPrefix^.Address.lpSockaddr^.sin_family = AF_INET) and
+                        (p^.FirstPrefix^.PrefixLength <= 32) then
+                        b := p^.FirstPrefix^.PrefixLength
+                      else
+                        b := 255; // fallback to IP4Mask()
+                if b <= 32 then
+                  b := IP4Netmask(b)
+                else
+                  b := IP4Mask(a^.Address.lpSockaddr^.sin_addr.S_addr);
+                IP4Text(@b, NetMask);
+                b := a^.Address.lpSockaddr^.sin_addr.S_addr or (not b);
+                IP4Text(@b, Broadcast);
+                break; // we found the first IPv4 network information
+              end;
+            AF_INET6: // IPv6 address but no mask - happen
+              IP6Text(@PSockAddrIn6(a^.Address.lpSockaddr)^.sin6_addr, IP);
+          end;
+          a := a^.Next; // IPv4 may be the second
+        end;
+        r := p^.FirstDnsServerAddress;
+        while r <> nil do
+        begin
+          if r.Address.lpSockaddr^.sa_family = AF_INET then
+          begin // retrieve all IPv4 DNS addresses as CSV
+            IP4Text(@r^.Address.lpSockaddr^.sin_addr, one);
+            if Dns = '' then
+              Dns := one
+            else
+              Dns := NetConcat([Dns, ',', one]);
+          end;
+          r := r^.Next;
+        end;
+        if OsVersion >= wVista then
+        begin
+          // some fields are not available on XP
+          r := p^.FirstGatewayAddress;
+          while r <> nil do
+            if r.Address.lpSockaddr^.sa_family = AF_INET then
+            begin
+              IP4Text(@r^.Address.lpSockaddr^.sin_addr, Gateway);
+              break;
+            end
+            else
+              r := r^.Next;
+          Speed := p^.TransmitLinkSpeed div 1000; // stored as Mbits/s
+          if p^.ReceiveLinkSpeed < Speed then
+            Speed := p^.ReceiveLinkSpeed; // unlikely
+          if p^.Dhcpv4Server.lpSockaddr <> nil then
+            IP4Text(@p^.Dhcpv4Server.lpSockaddr^.sin_addr, Dhcp);
+        end;
+      end;
       inc(n);
     end;
     p := p^.Next;
   until p = nil;
+end;
+
+function GetLocalMacAddress(const Remote: RawUtf8;
+  var Mac: TMacAddress): boolean;
+var
+  addr: TNetAddr;
+  dwRemoteIP, ifIndex: DWORD;
+  all: TMacAddressDynArray;
+  i: PtrInt;
+begin
+  result := false;
+  if not addr.SetFromIP4(Remote, {nolookup=}false) then
+    exit;
+  dwRemoteIP := addr.IP4;
+  if (dwRemoteIP <> 0) and
+     DelayedProc(GetBestInterface, iphlpapiDll,
+       'iphlpapi.dll', 'GetBestInterface') and
+     (GetBestInterface(dwRemoteIP, ifIndex) = NO_ERROR) then
+  begin
+    all := GetMacAddresses;
+    for i := 0 to high(all) do
+      if DWORD(all[i].IfIndex) = ifIndex then
+      begin
+        Mac := all[i];
+        result := true;
+        exit;
+      end;
+  end;
 end;
 
 function GetRemoteMacAddress(const IP: RawUtf8): RawUtf8;
@@ -921,8 +1160,7 @@ var
   pMacAddr: array [0..7] of byte;
 begin
   result := '';
-  dwremoteIP := inet_addr(pointer(IP));
-  if (dwremoteIP <> 0) and
+  if NetIsIP4(pointer(IP), @dwRemoteIP) and
      DelayedProc(SendARP, iphlpapiDll, 'iphlpapi.dll', 'SendARP') then
   begin
     PhyAddrLen := 8;
@@ -944,14 +1182,15 @@ end;
 
 procedure FD_CLR(Socket: TNetSocket; var FDSet: TFDSet);
 var
-  i: PtrInt;
+  i, n: PtrInt;
 begin
   i := PtrUIntScanIndex(@FDSet.fd_array, FDSet.fd_count, PtrUInt(Socket));
   if i < 0 then
     exit;
   dec(FDSet.fd_count);
-  if i < FDSet.fd_count then
-    MoveFast(FDSet.fd_array[i + 1], FDSet.fd_array[i], (FDSet.fd_count - i) * SizeOf(TSocket));
+  n := FDSet.fd_count - i;
+  if n > 0 then
+    MoveFast(FDSet.fd_array[i + 1], FDSet.fd_array[i], n * SizeOf(TSocket));
 end;
 
 procedure FD_SET(Socket: TNetSocket; var FDSet: TFDSet);
@@ -971,7 +1210,6 @@ type
   // because the new WSAPoll API is just an emulator using select() internally
   TPollSocketSelect = class(TPollSocketAbstract)
   protected
-    fHighestSocket: TNetSocket;
     fTagSocket: array of TNetSocket;
     fTagTag: array of TPollSocketTag;
     // reference values prepared for Select() call
@@ -1011,8 +1249,6 @@ begin
   fTagSocket[fCount] := socket;
   fTagTag[fCount] := tag;
   inc(fCount);
-  if PtrUInt(socket) > PtrUInt(fHighestSocket) then
-    fHighestSocket := socket;
   result := true;
 end;
 
@@ -1036,8 +1272,6 @@ begin
       MoveFast(fTagSocket[i + 1], fTagSocket[i], n * SizeOf(fTagSocket[i]));
       MoveFast(fTagTag[i + 1], fTagTag[i], n * SizeOf(fTagTag[i]));
     end;
-    if fCount = 0 then
-      fHighestSocket := nil;
     result := true;
   end;
 end;
@@ -1076,7 +1310,7 @@ begin
   else
     wrp := nil;
   SetTimeVal(timeoutMS, tv);
-  if select(PtrUInt(fHighestSocket) + 1, rdp, wrp, nil, @tv) <= 0 then
+  if select({ignored=}0, rdp, wrp, nil, @tv) <= 0 then
     exit;
   if length(results.Events) < fCount then
     SetLength(results.Events, FD_SETSIZE);
@@ -1122,6 +1356,514 @@ begin
   result := TPollSocketSelect.Create(nil);
 end;
 
+function WaitForSeveral(const Sockets: TPollSocketsSubscribeDynArray;
+  var results: TPollSocketResults; timeoutMS: integer): boolean;
+var
+  n: integer;
+  s: PPollSocketsSubscribe;
+  p: ^TSocket;
+  r: PPollSocketResult;
+  tv: TTimeVal;
+  fd: TFDSet;
+begin
+  result := false;
+  results.Count := 0;
+  n := length(Sockets);
+  if n = 0 then
+    exit;
+  fd.fd_count := 0;
+  s := pointer(Sockets);
+  p := @fd.fd_array;
+  repeat
+    if pseRead in s^.events then
+    begin
+      p^ := TSocket(s^.socket);
+      inc(p);
+      inc(fd.fd_count);
+      if fd.fd_count = FD_SETSIZE then
+        break;
+    end;
+    inc(s);
+    dec(n);
+  until n = 0;
+  if fd.fd_count = 0 then
+    exit; // no pseRead to check
+  SetTimeVal(timeoutMS, tv);
+  n := select({ignored=}0, @fd, nil, nil, @tv);
+  if n <= 0 then
+    exit;
+  results.Count := n;
+  SetLength(results.Events, n);
+  r := pointer(results.Events);
+  s := pointer(Sockets);
+  repeat
+    if FD_ISSET(s^.socket, fd) then
+    begin
+      SetRes(r^, s^.tag, [pseRead]);
+      inc(r);
+      dec(n);
+      if n = 0 then
+        break;
+    end;
+    inc(s);
+  until false;
+  result := true;
+end;
+
+
+{ *************************** Windows IOCP sockets support }
+
+type
+  // one overlapped structure for each TWinIocpEvent
+  TOverlappedEvent = record // should NOT be packed
+    prepared: TLightLock;   // used if wioLockEvent is set in fOptions
+    overlapped: TOverlapped;
+    event: TWinIocpEvent;   // should appear just after the TOverlapped
+    buf: TWsaBuf;
+  end;
+  POverlappedEvent = ^TOverlappedEvent;
+
+  // data structure returned by TWinIocp.Subscribe as PWinIocpSubscription
+  PIocpSubscription = ^TIocpSubscription;
+  TIocpSubscription = packed record
+    head: TLockedListOne; // should be the first for TLockedList to work
+    over: array[TWinIocpEvent] of TOverlappedEvent;
+    tag: TPollSocketTag;
+    socket: TSocket;
+  end;
+
+
+{ TWinIocpSubscription }
+
+const
+  STATUS_REMOTE_DISCONNECT = $C000013C;
+
+function TWinIocpSubscription.Tag: TPollSocketTag;
+begin
+  if @self = nil then
+    result := 0
+  else
+    result := PIocpSubscription(@self)^.tag;
+end;
+
+function TWinIocpSubscription.Socket: TNetSocket;
+begin
+  if @self = nil then
+    result := nil
+  else
+    result := TNetSocket(PIocpSubscription(@self)^.socket);
+end;
+
+function TWinIocpSubscription.CurrentStatus: TPollSocketEvents;
+var
+  o: PIocpSubscription;
+begin
+  result := [];
+  o := @self;
+  if o = nil then
+    exit;
+  case cardinal(PtrUInt(o^.over[wieRecv].overlapped.Internal)) of
+    STATUS_WAIT_0:
+      ; // most common case
+    STATUS_PENDING:
+      include(result, pseRead);
+    STATUS_REMOTE_DISCONNECT:
+      include(result, pseClosed);
+  end;
+  case cardinal(PtrUInt(o^.over[wieSend].overlapped.Internal)) of
+    STATUS_WAIT_0:
+      ; // most common case
+    STATUS_PENDING:
+      include(result, pseWrite);
+    STATUS_REMOTE_DISCONNECT:
+      include(result, pseClosed);
+  end;
+  case cardinal(PtrUInt(o^.over[wieAccept].overlapped.Internal)) of
+    STATUS_WAIT_0:
+      ; // most common case
+    STATUS_PENDING:
+      include(result, pseRead); // as select/poll/epoll
+    STATUS_REMOTE_DISCONNECT:
+      include(result, pseClosed);
+  end;
+end;
+
+
+{ TWinIocp }
+
+constructor TWinIocp.Create(processing: integer; options: TWinIocpOptions);
+begin
+  if processing = 0 then
+    processing := SystemInfo.dwNumberOfProcessors;
+  fIocp := IocpCreate(INVALID_HANDLE_VALUE, 0, nil, processing);
+  if fIocp <= 0 then
+    RaiseLastError('TWinIocp: CreateIoCompletionPort', EWinIocp);
+  fMaxWait := processing;
+  fOptions := options;
+  fOne.Init(SizeOf(TIocpSubscription));
+  if Assigned(fOnLog) then
+    fOnLog(sllDebug, 'Create maxwait=%', [fMaxWait], self);
+end;
+
+procedure TWinIocp.Terminate;
+var
+  i: integer;
+begin
+  if self = nil then
+    exit;
+  fTerminated := true; // set the flag
+  for i := 1 to fMaxWait do
+    IocpPostQueuedStatus(fIocp, 0, nil, nil); // notify threads/queue
+end;
+
+destructor TWinIocp.Destroy;
+var
+  tix, endtix: cardinal;
+  sub: PIocpSubscription;
+  tmp: cardinal;
+  tmplen: integer;
+begin
+  if Assigned(fOnLog) then
+    fOnLog(sllDebug, 'Destroy count=%', [fOne.Count], self);
+  // notify the queue we are about to close
+  if not fTerminated then
+    Terminate;
+  // wait for all pending GetNext() termination
+  endtix := 0;
+  if fWaiting <> 0 then
+    repeat
+      if Assigned(fOnLog) then
+        fOnLog(sllDebug, 'Destroy waiting=%', [fWaiting], self);
+      IocpPostQueuedStatus(fIocp, 0, nil, nil); // notify again (paranoid)
+      SleepHiRes(10);
+      tix := mormot.core.os.GetTickCount64 shr 10;
+      if endtix = 0 then
+        endtix := tix + 5
+      else if tix > endtix then
+        break; // never wait forever
+    until fWaiting = 0;
+  // delete the queue
+  if fIocp <> 0 then
+    CloseHandle(fIocp);
+  // close and/or log remainining sockets
+  if Assigned(fOnLog) or
+     (wioUnsubscribeShutdownSocket in fOptions) then
+  begin
+    sub := fOne.Head;
+    while sub <> nil do
+    begin
+      if Assigned(fOnLog) then
+      begin
+        tmplen := 4; // is usually recv=-1 + WSAEWOULDBLOCK so not recoverable
+        tmplen := mormot.net.sock.recv(sub^.socket, @tmp, tmplen, 0);
+        fOnLog(sllWarning, 'leak sock=% over=% recv=% %',
+          [pointer(sub^.socket), PtrUInt(sub^.over[wieRecv].overlapped.Internal),
+           tmplen, sockerrno], self);
+      end;
+      if wioUnsubscribeShutdownSocket in fOptions then
+        TNetSocket(sub^.socket).ShutdownAndClose({rdwr=}false);
+      sub := sub.head.next;
+    end;
+  end;
+  if fAcceptSocket <> nil then
+    fAcceptSocket^.Close;
+  // release all memory slots
+  fOne.Done;
+  inherited Destroy;
+end;
+
+function TWinIocp.Subscribe(socket: TNetSocket;
+  tag: TPollSocketTag): PWinIocpSubscription;
+var
+  o: PIocpSubscription;
+  res: TNetResult;
+  e: TWinIocpEvent;
+  sll: TSynLogLevel;
+begin
+  result := nil;
+  if (self = nil) or
+     fTerminated then
+    exit;
+  if socket = nil then
+    raise EWinIocp.Create('Unexpected TWinIocp.Subscribe(nil)');
+  o := fOne.New;
+  o^.tag := tag;
+  o^.socket := TSocket(socket);
+  for e := low(e) to high(e) do
+    o^.over[e].event := e; // marker to convert POverlapped to PIocpSubscription
+  sll := sllTrace;
+  res := nrOk;
+  if IocpCreate(o^.socket, fIocp, pointer(o^.head.sequence), 0) = 0 then
+  begin
+    sll := sllLastError;
+    res := nrFatalError;
+    RaiseLastError('TWinIocp: iocpcreate', EWinIocp);
+  end;
+  if Assigned(fOnLog) then
+    fOnLog(sll, 'Subscribe(socket=% seq=%)=% cnt=%',
+      [socket, pointer(o^.head.sequence), ToText(res)^, Count], self);
+  if res = nrOk then
+    result := pointer(o)
+  else
+    fOne.Free(o);
+end;
+
+const
+  IOCP_EVENT: array[TWinIocpEvent] of AnsiChar = 'RWAC12345';
+  ACCEPTEX_SIZE = SOCKADDR_SIZE + 16;
+
+function TWinIocp.PrepareNext(one: PWinIocpSubscription;
+  event: TWinIocpEvent; buf: pointer; buflen: integer;
+  netsock: TNetSocket): boolean;
+var
+  bytes, flags, e: cardinal;
+  o: PIocpSubscription absolute one;
+  oe: POverlappedEvent;
+  err: PUtf8Char;
+begin
+  result := false;
+  if (self = nil) or
+     (one = nil) or
+     fTerminated then
+    exit;
+  oe := @o^.over[event]; // each event has its own TOverlappedEvent buffer
+  if (wioLockEvent in fOptions) and
+     not oe^.prepared.TryLock then
+    raise EWinIocp.CreateFmt('TWinIocp.PrepareGetNet: concurrent %s on %x',
+      [IOCP_EVENT[event], integer(o^.socket)]);
+  err := nil;
+  bytes := 0;
+  flags := 0;
+  if buflen <= 0 then
+  begin
+    buf := nil; // ensure consistent TWsaBuf
+    buflen := 0;
+  end;
+  oe^.buf.pBuffer := buf;
+  oe^.buf.cLength := buflen;
+  case event of
+    wieRecv:
+      // from mormot.net.async: overlapped read with buflen=0 to avoid WSAENOBUFS
+      // and work with regular sockets recv() calls like TPollSocketAbstract
+      result := // WSARecv=NO_ERROR if there is something to recv()
+        (WSARecv(o^.socket, oe^.buf, 1, bytes, flags, @oe^.overlapped) = NO_ERROR) or
+        (sockerrno = WSAIOPENDING); // WSAIOPENDING = wait for incoming data
+    wieSend:
+      // from mormot.net.async: overlapped write with buf/buflen = connection.fWr
+      // to avoid GetNext returning with no delay (and save a syscall)
+      result :=
+        (WSASend(o^.socket, oe^.buf, 1, bytes, 0, @oe^.overlapped) = NO_ERROR) or
+        (sockerrno = WSAIOPENDING);
+    wieAccept:
+      // overlapped AcceptEx() to be followed by GetNextAcceptAndPrepare()
+      // from mormot.net.async: not used, unless IOCP_ACCEPTEX is defined
+      if Assigned(acceptex) and
+         Assigned(getacceptexsockaddrs) then
+        if (fAcceptSocket = nil) and
+           fAcceptExUsed.TryLock then // a single AcceptEx() at a time
+        begin
+          if fAcceptExBuf = nil then
+            SetLength(fAcceptExBuf, ACCEPTEX_SIZE * 2);
+          if netsock = nil then
+            netsock := TNetSocket(socket(AF_INET, SOCK_STREAM, IPPROTO_IP));
+          fAcceptSocket := netsock;
+          result := acceptex(
+                     o^.Socket, TSocket(netsock), pointer(fAcceptExBuf), 0,
+                     ACCEPTEX_SIZE, ACCEPTEX_SIZE, bytes, @oe^.overlapped) or
+                    (sockerrno = WSAIOPENDING)
+        end
+        else
+          err := 'concurrent wieAccept'
+      else
+         err := 'no acceptex() API';
+    wieConnect:
+      // overlapped ConnextEx()
+      // from mormot.net.async: used by THttpAsyncClientConnections.StartRequest
+      if Assigned(connectex) then
+        if Assigned(buf) and
+           (PNetAddr(buf)^.Size = buflen) then
+          if Assigned(netsock) then
+            // connectex() requires an explicit bind (which is done by connect)
+            if bind(TSocket(netsock), PSockAddr(buf), buflen) = NO_ERROR then
+              result := connectex(TSocket(netsock), PSockAddr(buf), buflen,
+                          nil, 0, bytes, @oe^.overlapped) or
+                        (sockerrno = WSAIOPENDING)
+            else
+              err := 'bind error'
+          else
+            err := 'no supplied netsock'
+        else
+          err := 'no supplied netaddr/buf'
+      else
+         err := 'no connectex() API';
+    else
+       err := 'unexpected event';
+    end;
+  if err <> nil then // fatal error: need to fix the code -> raise EWinIocp
+  begin
+    if wioLockEvent in fOptions then
+      oe^.prepared.UnLock;
+    raise EWinIocp.CreateFmt('TWinIocp.PrepareNext(%s): %s on %x',
+      [IOCP_EVENT[event], err, integer(o^.socket)]);
+  end;
+  if result then
+    LockedInc32(@fPosted);
+  if Assigned(fOnLog) then
+    if result then
+      fOnLog(sllTrace, 'PrepareNext(%%,%)',
+        [IOCP_EVENT[event], pointer(o^.socket), buflen], self)
+    else
+    begin
+      e := GetLastError;
+      fOnLog(sllDebug, 'PrepareNext(%%) error % %',
+        [IOCP_EVENT[event], pointer(o^.socket), e, WinErrorConstant(e)], self);
+    end;
+end;
+
+function TWinIocp.Enqueue(one: PWinIocpSubscription; event: TWinIocpEvent;
+  bytes: cardinal): boolean;
+var
+  seq: pointer;
+begin
+  result := false;
+  if (self = nil) or
+     fTerminated then
+    exit;
+  // 65535 < seq < MaxInt from PrepareNext(), seq=nil from Terminate
+  seq := pointer(ord(event) + 1);
+  result := IocpPostQueuedStatus(fIocp, bytes, seq, {overlap=}pointer(one));
+  if result then
+    LockedInc32(@fPosted);
+  if Assigned(fOnLog) then
+    fOnLog(sllTrace, 'Enqueue(one=% % %)=%',
+      [one, IOCP_EVENT[event], bytes, result], self);
+end;
+
+function TWinIocp.GetNext(timeoutms: cardinal;
+  out event: TWinIocpEvent; out bytes: cardinal): PWinIocpSubscription;
+var
+  o, seq: pointer;
+  e: PtrUInt;
+  sll: TSynLogLevel;
+  one: PIocpSubscription absolute o;
+  oe: POverlappedEvent;
+begin
+  result := nil;
+  if (self = nil) or
+     fTerminated then
+    exit;
+  repeat
+    bytes := 0;
+    o := nil;
+    seq := nil;
+    sll := sllTrace;
+    // retrieve the next pending event from the IOCP queue
+    LockedInc32(@fWaiting);
+    IocpGetQueuedStatus(fIocp, bytes, seq, o, timeoutms);
+    LockedDec32(@fWaiting);
+    if fTerminated or
+       (seq = nil) then // seq=nil from Terminate
+      exit;
+    LockedDec32(@fPosted);
+    e := PtrUInt(seq) - 1;
+    if e <= PtrUInt(ord(high(event))) then
+    begin
+      // seq := pointer(ord(event) + 1) from Enqueue()
+      PByte(@event)^ := e;
+      if Assigned(fOnLog) then
+        fOnLog(sllTrace, 'GetNextEnqueue=%% %',
+          [IOCP_EVENT[event], pointer(one^.socket), bytes], self);
+      break;
+    end;
+    // O(1) decode overlapped socket notification from PrepareNext()
+    inc(POverlapped(o));
+    PByte(@event)^ := PByte(o)^; // TOverlappedEvent.event just after overlapped
+    if event > high(event) then
+      raise EWinIocp.Create('TWinIocp.GetNext: corrupted overlapped structure');
+    dec(PByte(o), PtrUInt(@PIocpSubscription(nil)^.over[event].event));
+    // now o/one points to PWinIocpSubscription/PIocpSubscription
+    if pointer(one^.head.sequence) <> seq then
+      sll := sllWarning // detect ABA race condition
+    else if wioLockEvent in fOptions then
+    begin
+      oe := @one^.over[event];
+      if oe^.prepared.IsLocked then
+        oe^.prepared.UnLock
+      else
+        sll := sllError; // this TOverlappedEvent should be locked/prepared
+    end;
+    if Assigned(fOnLog) then
+      if sll = sllTrace then
+        fOnLog(sll, 'GetNext=%% %',
+          [IOCP_EVENT[event], pointer(one^.socket), bytes], self)
+      else
+        fOnLog(sll, 'GetNext=%% %=%', [IOCP_EVENT[event],
+          pointer(one^.socket), pointer(one^.head.sequence), seq], self);
+  until sll = sllTrace;
+  result := o; // got valid event
+end;
+
+function TWinIocp.GetNextAccept(one: PWinIocpSubscription;
+  out Socket: TNetSocket; out Remote: TNetAddr): boolean;
+var
+  l, r: PSockAddr;
+  llen, rlen: integer;
+begin
+  result := false;
+  if (self = nil) or
+     (one = nil) or
+     fTerminated then
+    exit;
+  FillCharFast(Remote, SizeOf(Remote), 0);
+  if (fAcceptExBuf = nil) or
+     (fAcceptSocket = nil) or
+     not fAcceptExUsed.IsLocked or
+     not Assigned(getacceptexsockaddrs) then
+  begin
+    if Assigned(fOnLog) then
+      fOnLog(sllWarning, 'GetNextAccept(%)=false',
+        [pointer(one^.socket)], self);
+    exit;
+  end;
+  l := nil;
+  r := nil;
+  llen := 0;
+  rlen := 0;
+  getacceptexsockaddrs(pointer(fAcceptExBuf),
+    0, ACCEPTEX_SIZE, ACCEPTEX_SIZE, l, llen, r, rlen);
+  if (r = nil) or
+     (rlen = 0) or
+     (rlen > SizeOf(Remote)) then
+    exit;
+  MoveFast(r^, Remote, rlen);
+  Socket := fAcceptSocket;
+  fAcceptSocket := nil;
+  fAcceptExUsed.UnLock;
+  result := true;
+  if Assigned(fOnLog) then
+    fOnLog(sllTrace, 'GetNextAccept(%)=%',
+      [pointer(one^.socket), Remote.IPShort], self);
+end;
+
+function TWinIocp.Unsubscribe(one: PWinIocpSubscription): boolean;
+var
+  res: TNetResult;
+  o: PIocpSubscription absolute one;
+begin
+  result := false;
+  if (self = nil) or
+     (one = nil) or
+     fTerminated then
+    exit;
+  res := nrOK;
+  if wioUnsubscribeShutdownSocket in fOptions then
+    res := TNetSocket(o^.socket).ShutdownAndClose({rdwr=}false);
+  if Assigned(fOnLog) then
+    fOnLog(sllTrace, 'UnSubscribe(socket=% seq=%) cnt=% %',
+      [pointer(o^.socket), pointer(o^.head.sequence), Count - 1,
+       ToText(res)^], self);
+  result := fOne.Free(one); // one^.sequence will avoid ABA problem in GetNext()
+end;
 
 
 { ******************** TLS / HTTPS Encryption Abstract Layer }
@@ -1152,7 +1894,7 @@ type
   public
     destructor Destroy; override;
     // INetTls methods
-    procedure AfterConnection(Socket: TNetSocket;  var Context: TNetTlsContext;
+    procedure AfterConnection(Socket: TNetSocket; var Context: TNetTlsContext;
       const ServerAddress: RawUtf8);
     procedure AfterBind(var Context: TNetTlsContext);
     procedure AfterAccept(Socket: TNetSocket; const BoundContext: TNetTlsContext;
@@ -1323,6 +2065,9 @@ var
   blob: TCryptDataBlob;
   pass: SynUnicode;
   flags: integer;
+  keyspec: cardinal;
+  prov: HCRYPTPROV;
+  freeprov: BOOL;
 begin
   if Context.CertificateFile = '' then
     // Load certificate and private key from Windows certificate store
@@ -1350,11 +2095,18 @@ begin
       ESChannelRaiseLastError('PFXImportCertStoreSEC_E_CERT_UNKNOWN',
         SEC_E_CERT_UNKNOWN);
   end;
-  // find first certificate in store
-  fAcceptCert := mormot.lib.sspi.CertFindCertificateInStore(
-    fAcceptCertStore, 0, 0, CERT_FIND_ANY, nil, nil);
-  if fAcceptCert = nil then
-    raise ESChannel.Create('AfterBind: no Certificate available');
+  // find first certificate in store with private key
+  fAcceptCert := nil;
+  repeat
+    fAcceptCert := mormot.lib.sspi.CertFindCertificateInStore(
+      fAcceptCertStore, 0, 0, CERT_FIND_ANY, nil, fAcceptCert);
+    if fAcceptCert = nil then
+      raise ESChannel.Create('AfterBind: no Certificate available');
+  until CryptAcquireCertificatePrivateKey(
+         fAcceptCert, 0, nil, prov, keyspec, freeprov);
+  if freeprov and
+     CryptoApi.Available then
+    CryptoApi.ReleaseContext(prov, 0);
   // this global certificate will be used by AfterAccept()
   Context.AcceptCert := fAcceptCert;
 end;
@@ -1454,8 +2206,8 @@ var
 begin
   repeat
     inc(fDataCount, CheckSocket('recv',
-      Recv(fSocket.Socket, @PByteArray(fData)[fDataCount],
-        length(fData) - fDataCount, MSG_NOSIGNAL)));
+      recv(fSocket.Socket,
+        @PByteArray(fData)[fDataCount], length(fData) - fDataCount, 0)));
     res := ComputeAndSendAnswer;
     if res = SEC_I_INCOMPLETE_CREDENTIALS then
       // check https://stackoverflow.com/a/47479968/458259
@@ -1576,8 +2328,8 @@ begin
     desc.cBuffers := 4;
     desc.pBuffers := @buf[0];
     repeat
-      read := Recv(fSocket.Socket, @PByteArray(fInput)[fInputCount],
-        fInputSize - fInputCount, MSG_NOSIGNAL);
+      read := recv(fSocket.Socket,
+                @PByteArray(fInput)[fInputCount], fInputSize - fInputCount, 0);
       if read <= 0 then
       begin
         if read = 0 then
@@ -1705,6 +2457,16 @@ end;
 
 
 
+function GetExtensionFunc(sock: TSocket; const id: TGuid): pointer;
+var
+  ret: cardinal;
+begin
+  result := nil;
+  if WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, @id, sizeof(id),
+      @result, SizeOf(result), @ret, nil, nil) <> 0 then
+    result := nil;
+end;
+
 function NewSChannelNetTls: INetTls;
 begin
   result := TSChannelNetTls.Create;
@@ -1714,10 +2476,18 @@ var
   WsaDataOnce: TWSADATA;
 
 procedure InitializeUnit;
+var
+  sock: TSocket;
 begin
   WSAStartup($0202, WsaDataOnce);
   SocketAPIVersion := RawUtf8(Format('%s.%d',
     [WsaDataOnce.szDescription, WsaDataOnce.wVersion]));
+  sock := socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+  acceptex := GetExtensionFunc(sock, WSAID_ACCEPTEX);
+  getacceptexsockaddrs := GetExtensionFunc(sock, WSAID_GETACCEPTEXSOCKADDRS);
+  connectex := GetExtensionFunc(sock, WSAID_CONNECTEX);
+  //transmitfile := GetExtensionFunc(sock, WSAID_TRANSMITFILE);
+  closesocket(sock);
   NewNetTls := NewSChannelNetTls;
 end;
 

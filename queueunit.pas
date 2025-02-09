@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection, pazo, taskidle, taskquit, tasklogin, RegExpr, sitesunit;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, pazo, taskidle, taskquit, tasklogin, RegExpr, sitesunit;
 
 type
   TQueueThread = class(TThread)
@@ -28,6 +28,7 @@ procedure QueueStart;
 procedure AddTask(t: TTask);
 procedure QueueEmpty(const sitename: String);
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
+procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
 procedure RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 
 function RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
@@ -46,7 +47,6 @@ procedure QueueStat;
 procedure QueueSendCurrentTasksToConsole;
 
 var
-  queue_lock: TslCriticalSection;
   tasks:      TObjectList;
   queueth:    TQueueThread;
   queueevent: TEvent;
@@ -59,7 +59,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils, taskautonuke, taskautodirlist, taskautoindex,
-  tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo, Generics.Collections;
+  tasktvinfolookup, taskhttpnfo, taskrules, tasksitenfo, tasksitesfv, Generics.Collections;
 
 const
   section = 'queue';
@@ -1046,8 +1046,21 @@ begin
 end;
 
 procedure AddTaskToConsole(const aTask: TTask);
+var
+  fTaskUid, fTaskName: string;
 begin
-  Console_QueueAdd(aTask.UidText, Format('%s', [aTask.Name]));
+  try
+    fTaskUid := aTask.UidText;
+    fTaskName := aTask.Name;
+  except
+    on e: Exception do
+    begin
+      // it seems this could happen when the task has been freed already (because we are not inside queue lock here).
+      Debug(dpSpam, section, Format('[EXCEPTION] AddTaskToConsole task not available : %s', [e.Message]));
+      exit;
+    end;
+  end;
+  Console_QueueAdd(fTaskUid, Format('%s', [fTaskName]));
 end;
 
 procedure AddTask(t: TTask);
@@ -1112,6 +1125,29 @@ begin
 
   if not fIsAlreadyInQueue then
   begin
+
+    // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
+    // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
+    // dependencies of the race task never be resolved and it would remain and pollute the queue.
+    try
+      if t is TPazoRaceTask and (TPazoRaceTask(t).ps2.error or
+
+        // for subdirs that fail there might only be that dir marked as failed, so if a dir is given, check this as well
+        (TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
+      begin
+        t.readyerror := true;
+        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+        exit
+      end;
+    except
+      on e: Exception do
+      begin
+        // expect to get some exceptions because we are outside of the queue lock and accessing a task
+        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+        exit;
+      end;
+    end;
+
     if fCheckSiteSlotsSite <> nil then
     begin
       CheckSiteSlots(fCheckSiteSlotsSite);
@@ -1202,8 +1238,11 @@ function RemovePazo(const pazo_id: integer; const aForce: boolean = False): bool
 var
   i: integer;
   t: TPazoPlainTask;
+  fSlotsToRebuild: TList<TSiteSlot>;
+  fSlot: TSiteSlot;
 begin
   Result := False;
+  fSlotsToRebuild := TList<TSiteSlot>.Create;
   try
     queueth.main_lock.Enter();
     try
@@ -1226,13 +1265,11 @@ begin
               begin
                 Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
                 t.readyerror := True;
+
+                // if the site slot actually has this task assigned, we need to rebuild it
                 if TSiteSlot(t.slot1).todotask = t then
                 begin
-                  with TSiteSlot(t.slot1) do
-                  begin
-                    Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [Name]));
-                    site.RebuildSlot(SlotNumber);
-                  end;
+                  fSlotsToRebuild.Add(TSiteSlot(t.slot1));
                 end;
 
                 t.slot1 := nil;
@@ -1250,6 +1287,22 @@ begin
     finally
       queueth.main_lock.Leave;
     end;
+
+    // now rebuild the slot(s) outside of the queue lock
+    for fSlot in fSlotsToRebuild do
+    begin
+      Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [fSlot.Name]));
+      irc_Addadmin('[SITESLOT]: Rebuild slot with stuck task: %s', [fSlot.Name]);
+      try
+        fSlot.site.RebuildSlot(fSlot.SlotNumber);
+      except
+        on E: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] RemovePazo (RebuildSlot): %s', [e.Message]));
+        end;
+      end;
+    end;
+    fSlotsToRebuild.Free;
   except
     on E: Exception do
     begin
@@ -1299,6 +1352,40 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] RemovePazoMKDIR : %s', [e.Message]));
+    end;
+  end;
+end;
+
+
+procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
+var
+  i: integer;
+  fTask: TPazoSiteSfvTask;
+begin
+  try
+    queueth.main_lock.Enter();
+    try
+      for i := tasks.Count - 1 downto 0 do
+      begin
+        if i < 0 then
+          Break;
+        if (tasks[i] is TPazoSiteSfvTask) then
+        begin
+          fTask := TPazoSiteSfvTask(tasks[i]);
+          if ((fTask.ready = False) and (fTask.readyerror = False) and (fTask.slot1 = nil) and (fTask.pazo_id = aPazoID) and (fTask.dir = aDir)) then
+          begin
+            fTask.ready := True;
+            Debug(dpSpam, 'sfv', Format('Remove SFV task : %s %s %s (%s)', [fTask.mainpazo.rls.rlsname, fTask.dir, fTask.SFVFilename, fTask.site1]));
+          end;
+        end;
+      end;
+    finally
+      queueth.main_lock.Leave;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] RemovePazoSfv : %s', [e.Message]));
     end;
   end;
 end;
@@ -1632,7 +1719,6 @@ end;
 procedure QueueInit;
 begin
   tasks      := TObjectList.Create(True);
-  queue_lock := TslCriticalSection.Create('queue_lock');
   queueevent := TEvent.Create(nil, False, False, 'queue');
   queue_last_run := Now;
   queueclean_last_run := Now;
@@ -1666,7 +1752,6 @@ begin
   tasks.Free;
   kb_FreeList;
 
-  queue_lock.Free;
   queueevent.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
@@ -1708,6 +1793,7 @@ begin
       begin
         try
           t.ready := True;
+          Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Name]));
         except
           on e: Exception do
           begin
@@ -1779,6 +1865,7 @@ begin
 
           try
             tasks.Remove(t);
+            Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
           except
             on e: Exception do
             begin
@@ -1800,6 +1887,7 @@ begin
 
           try
             tasks.Remove(t);
+            Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
           except
             on e: Exception do
             begin
@@ -1837,6 +1925,7 @@ begin
 
           try
             tasks.Remove(t);
+            Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
           except
             on e: Exception do
             begin

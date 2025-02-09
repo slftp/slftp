@@ -40,6 +40,8 @@ interface
 uses
   SysUtils, Classes, Generics.Defaults, Generics.Collections;
 
+{$include htmlChars.inc}
+
 type
   {
     @abstract(generic TEnum helper class for typesafe usage of enumerations
@@ -182,6 +184,14 @@ function ParsePathFromSiteSearchResult(const aSearchResult, aRlsToSearch: String
   @param(aInput Name of the Movie)
   @returns(Moviename in scene notation) }
 function InternationalCharsToAsciiSceneChars(const aInput: String): String;
+
+function ParseSFV(aSFV: string): TDictionary<string, integer>;
+function IsRarExtension(const aExtension: string): boolean;
+
+{ Decodes HTML tags like &amp; to the actual chars
+  @param(aText HTML text to decode)
+  @returns(Decoded HTML text) }
+function HTMLDecode(const aText: string): string;
 
 implementation
 
@@ -1070,6 +1080,91 @@ begin
   Result := Result.Replace('  ', ' ', [rfReplaceAll, rfIgnoreCase]);
 
   Debug(dpSpam, section, Format('Changed international %s to ascii scene %s', [aInput, Result]));
+end;
+
+function IsRarExtension(const aExtension: string): boolean;
+var
+  fRegex: TRegexpr;
+begin
+  if aExtension = '.rar' then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  fRegex := TRegExpr.Create;
+  try
+    fRegex.ModifierI := True;
+    fRegex.Expression := '\.[0-9rstuvwxyz][0-9][0-9]$';
+    Result := fRegex.Exec(aExtension);
+  finally
+    fRegex.Free;
+  end;
+end;
+
+function ParseSFV(aSFV: string): TDictionary<string, integer>;
+var
+  fLine: String;
+begin
+  Result := TDictionary<string, integer>.Create;
+
+  while True do
+  begin
+    fLine := LowerCase(Trim(GetFirstLineFromTextViaNewlineIndicators(aSFV)));
+
+    if fLine = '' then
+      break;
+
+    if fLine[1] = ';' then //skip comments
+      continue;
+
+    Result.AddOrSetValue(LeftStr(fLine, (fLine.IndexOf(' '))), 0);
+  end;
+end;
+
+// Code taken from here: https://github.com/delphius/htmlparser/tree/main
+function HTMLDecode(const aText: string): string;
+var
+  MatchPos, SemicolonPos: Integer;
+  EntityCode, EntityName: string;
+  Dec, I: Integer;
+  FoundEntity: Boolean;
+begin
+  Result := aText;
+  MatchPos := Pos('&', Result);
+  while MatchPos > 0 do
+  begin
+    SemicolonPos := Pos(';', Result, MatchPos);
+    if SemicolonPos > 0 then
+    begin
+      EntityCode := Copy(Result, MatchPos + 1, SemicolonPos - MatchPos - 1);
+      if EntityCode[1] = '#' then
+      begin
+        EntityName := Copy(EntityCode, 2, Length(EntityCode));
+        Dec := StrToIntDef(EntityName, 0);
+        Result := StringReplace(Result, '&' + EntityCode + ';', UTF8Encode(WideChar(Dec)), []);
+      end
+      else
+      begin
+        FoundEntity := False;
+        for I := Low(HTMLChars) to High(HTMLChars) do
+        begin
+          if HTMLChars[I].Name = ('&' + EntityCode + ';') then
+          begin
+            Result := StringReplace(Result, ('&' + EntityCode + ';'), HTMLChars[I].Value, []);
+            FoundEntity := True;
+            Break;
+          end;
+        end;
+      end;
+
+      MatchPos := Pos('&', Result, SemicolonPos + 1);
+    end
+    else
+    begin
+      Break;
+    end;
+  end;
 end;
 
 end.

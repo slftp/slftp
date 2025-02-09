@@ -170,8 +170,6 @@ begin
   end;
 
   // no nfo file found. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if (nfofile = '') then
     begin
       if attempt < config.readInteger(section, 'readd_attempts', 5) then
@@ -198,9 +196,6 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // try to get the nfo file
   try
@@ -215,8 +210,6 @@ begin
   end;
 
   // nfo file could not be downloaded. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if i <> 1 then
     begin
       if attempt < config.readInteger(section, 'readd_attempts', 5) then
@@ -224,7 +217,12 @@ begin
         Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
 
         try
-          r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+          // LeechFile return value 0 means, currently no slot available
+          if i = 0 then
+            r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt)
+          else
+            r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+
           r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 3));
           AddTask(r);
         except
@@ -244,13 +242,8 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // nfo file was downloaded. Parsing it and adding it to dbaddnfo
-  queue_lock.Enter;
-  try
     try
       parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
       dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
@@ -263,9 +256,6 @@ begin
         exit;
       end;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   ready := True;
   Result := True;

@@ -2,6 +2,28 @@ unit dirlist.helpers;
 
 interface
 
+uses Generics.Collections;
+
+type
+  { @abstract(Information for a specific file which is parsed from a TDirlist) }
+  {fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename}
+  TParsedDirListEntry = class
+    private
+      fFilename: String; //< lowercased filename
+      fUsername: String; //< name of user who sent this file
+      fGroupname: String; //< name of group the @link(FUsername) is associated with
+      fDirMask: String; //< Indicates what kind of Directory Mask the current dir is
+      fFilesize: int64; //Current size of the file
+      fDate: String; //Current timestamp of the file
+    public
+      property Filename: string read fFilename;
+      property Username: string read fUsername;
+      property Groupname: string read fGroupname;
+      property DirMask: string read fDirMask;
+      property Date: string read fDate;
+      property Filesize: int64 read fFilesize;
+  end;
+
 { Check if given file is screwed up by FTPRush
   @param(aFilename Filename)
   @param(aFileExtension File extension of given filename)
@@ -53,13 +75,15 @@ function GetNewdirMaxCreatedValue(): integer;
   @returns(@glNewdirDirlistReadd) }
 function GetNewdirDirlistReaddValue(): integer;
 
+function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
+
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
 
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
 
 const
   section = 'dirlist.helpers';
@@ -193,6 +217,46 @@ begin
   Result := True;
 end;
 
+function ParseStatResponse(s: String): TObjectList<TParsedDirListEntry>;
+var
+  fLineToParse: string;
+  fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+  fParsedDirlistEntry: TParsedDirlistEntry;
+begin
+  fParsedDirlistEntries := TObjectList<TParsedDirListEntry>.Create(True);
+  try
+    while (True) do
+    begin
+      fLineToParse := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
+      // tmp contains a single line:
+      // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+
+      if fLineToParse = '' then break;
+      if (Length(fLineToParse) > 11) then
+      begin
+        if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') and (fLineToParse[11] = ' ')) then
+          continue;
+        ParseStatResponseLine(fLineToParse, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+        fParsedDirlistEntry := TParsedDirlistEntry.Create;
+        fParsedDirlistEntry.fDirMask := fDirMask;
+        fParsedDirlistEntry.fUsername := fUsername;
+        fParsedDirlistEntry.fGroupname := fGroupname;
+        fParsedDirlistEntry.fFilesize := fFilesize;
+        fParsedDirlistEntry.fDate := fDatum;
+        fParsedDirlistEntry.FFilename := fFilename;
+        fParsedDirlistEntries.Add(fParsedDirlistEntry);
+      end;
+    end;
+  except
+    fParsedDirlistEntries.Free;
+    raise;
+  end;
+
+  Result := fParsedDirlistEntries;
+end;
+
 procedure DirlistHelperInit;
 begin
   glSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
@@ -231,4 +295,3 @@ begin
 end;
 
 end.
-

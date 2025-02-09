@@ -1031,12 +1031,7 @@ begin
                 SlftpNewsAdd('FTP', Format('[RULES] Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 irc_Addadmin(Format('Adding rule to DROP group <b>%s</b> on <b>%s</b>', [mainpazo.rls.groupname, site1]));
                 rule_err := '';
-                r := AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
-                if ((r <> nil) and (rule_err = '')) then
-                begin
-                  rules.Insert(0, r);
-                  RulesSave;
-                end;
+                AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
               end;
             end;
             if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
@@ -1157,6 +1152,10 @@ var
   fsize, racebw: double;
   lastResponseCode: integer;
   lastResponse: String;
+  fDiffSec: integer;
+  fDiffMSec: Int64;
+  fDirlist: TDirlist;
+  fDirlistEntry: TDirlistEntry;
 
   procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
   begin
@@ -2418,6 +2417,36 @@ begin
 
     if ((rsd) and (rss)) then
       Break;
+
+    if sdst.site.KillConnectionOnStalledTransferSeconds > 0 then
+    begin
+      fDiffSec := SecondsBetween(Now, started);
+      if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
+      begin
+        fDirlist := ps2.dirlist.FindDirlist(dir);
+        fDirlist.dirlist_lock.Enter;
+        try
+          fDirlistEntry := fDirlist.Find(filename);
+          fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
+        finally
+          fDirlist.dirlist_lock.Leave;
+        end;
+
+        // if the dirlist is fairly up to date and shows a file size of 0 bytes,
+        // kill the connection to abort the transfer. the ABOR command does not
+        // work (at least on glftpd)
+        begin
+          if (fDiffMSec < 200) and (fDirlistEntry.filesize = 0) then
+          begin
+            irc_Adderror(Format('<c4>[STALLED]</c> [%s]: File size 0 for %d seconds - kill connection', [tname, fDiffSec]));
+            sdst.DestroySocketAndRelogin('TPazoRaceTask');
+            ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+            readyerror := True;
+            exit;
+          end;
+        end;
+      end;
+    end;
 
     if (SecondsBetween(Now, started) > 600) then
     begin

@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, sitesunit, skiplists, globals, Generics.Collections, IniFiles;
+uses Classes, Contnrs, SyncObjs, skiplists, globals, Generics.Collections, IniFiles, sfv;
 
 type
   {
@@ -75,8 +75,10 @@ type
   TDirList = class
   private
     FLastChanged: TDateTime;
+    FLastUpdated: TDateTime;
     allcdshere: Boolean;
     skiplist: TSkipList;
+    FPazoSFV: TPazoSFV;
     sf_d, sf_f: TSkiplistFilter;
     s: String;
     FIsValidFileCache: TDictionary<string, boolean>; //< cache for results of IsValidFilename
@@ -125,8 +127,8 @@ type
     dependency_mkdir: String;
 
     procedure Clear;
-    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
-    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False; aIsAutoIndex: boolean = False); overload;
+    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: Boolean = False; FromIrc: Boolean = False); overload;
+    constructor Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: Boolean = False; FromIrc: Boolean = False; aIsAutoIndex: boolean = False; const aPazoSFV: TPazoSFV = nil); overload;
     destructor Destroy; override;
     function Depth: Integer;
     function MultiCD: Boolean;
@@ -196,6 +198,7 @@ type
     property CompletedTime: TDateTime read FCompletedTime;
     property FullPath: String read FFullPath write SetFullPath;
     property DirlistGaveUp: boolean read FDirlistGaveUp write FDirlistGaveUp;
+    property LastUpdated: TDateTime read FLastUpdated write FLastUpdated;
   end;
 
 { Just a helper function to initialize image_files_priority and video_files_priority }
@@ -365,12 +368,12 @@ begin
   FCachedCompleteResult := Result;
 end;
 
-constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; SpeedTest: boolean = False; FromIrc: boolean = False);
+constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: boolean = False; FromIrc: boolean = False);
 begin
-  Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc);
+  Create(site_name, parentdir, skiplist, '', SpeedTest, FromIrc, False, aPazoSFV);
 end;
 
-constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False);
+constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const s: String; SpeedTest: boolean = False; FromIrc: boolean = False; aIsAutoIndex: boolean = False; const aPazoSFV: TPazoSFV = nil);
 var
   sf: TSkipListFilter;
 begin
@@ -392,6 +395,7 @@ begin
   FCompleteInfo := NotComplete;
 
   FLastChanged := Now();
+  FLastUpdated := Now();
   allcdshere := False;
   entries := THashedStringList.Create;
   entries.OwnsObjects := True;
@@ -408,6 +412,7 @@ begin
   self.s := s;
   self.skiplist := skiplist;
   SetSkiplists;
+  self.FPazoSFV := aPazoSFV;
 
   self.FIsSpeedTest := SpeedTest;
   self.FIsFromIrc := FromIrc;
@@ -604,14 +609,13 @@ end;
 
 procedure TDirList.ParseDirlist(s: String);
 var
-  tmp: String;
   akttimestamp: TDateTime;
   de: TDirListEntry;
   added: Boolean;
-  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
-  fFilesize: Int64;
   i: Integer;
   fTagCompleteType: TTagCompleteType;
+  fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
+  fParsedDirlistEntry: TParsedDirListEntry;
 begin
   added := False;
 
@@ -620,6 +624,7 @@ begin
 
   debugunit.Debug(dpSpam, section, Format('--> ParseDirlist %s (%s, %d entries)', [FFullPath, site_name, entries.Count]));
 
+  fParsedDirlistEntries := ParseStatResponse(s);
   dirlist_lock.Enter;
   try
     for i := entries.Count - 1 downto 0 do
@@ -637,159 +642,146 @@ begin
   ...
   drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 }
-    while (True) do
+    for fParsedDirlistEntry in fParsedDirlistEntries do
     begin
-      tmp := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
-      // tmp contains a single line:
-      // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+      if fParsedDirlistEntry.Filesize < 0 then
+        Continue;
 
-      if tmp = '' then break;
-      if (Length(tmp) > 11) then
+      if not FIsFromIrc then
       begin
-        if ((tmp[1] <> 'd') and (tmp[1] <> '-') and (tmp[11] = ' ')) then
-          continue;
+        // Dont add complete tags to dirlist entries
 
-        ParseStatResponseLine(tmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+        //if it's a dir and has already been checked to be valid, it can't be a complete tag
+        if (((fParsedDirlistEntry.DirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(fParsedDirlistEntry.Filename))
 
-        if fFilesize < 0 then
-          Continue;
+        //if it's a file and has a size > 0, it can't be a complete tag
+        or ((fParsedDirlistEntry.Filesize < 1) and (fParsedDirlistEntry.DirMask[1] <> 'd')
 
-        if not FIsFromIrc then
+        //if it's a file and has already been checked to be valid, it can't be a complete tag
+          and not FIsValidFileCache.ContainsKey(fParsedDirlistEntry.Filename)))
+        then
         begin
-          // Dont add complete tags to dirlist entries
+          if FCompleteDirTag = fParsedDirlistEntry.Filename then //if this has already been identified as complete tag, no need for any further action
+            continue;
 
-          //if it's a dir and has already been checked to be valid, it can't be a complete tag
-          if (((fDirMask[1] = 'd') and not FIsValidDirCache.ContainsKey(fFilename))
-
-          //if it's a file and has a size > 0, it can't be a complete tag
-          or ((fFilesize < 1) and (fDirMask[1] <> 'd')
-
-          //if it's a file and has already been checked to be valid, it can't be a complete tag
-            and not FIsValidFileCache.ContainsKey(fFilename)))
-          then
+          fTagCompleteType := TagComplete(fParsedDirlistEntry.Filename);
+          if (fTagCompleteType <> tctUNMATCHED) then
           begin
-            if FCompleteDirTag = fFilename then //if this has already been identified as complete tag, no need for any further action
-              continue;
-
-            fTagCompleteType := TagComplete(fFilename);
-            if (fTagCompleteType <> tctUNMATCHED) then
-            begin
-              FCompleteDirTag := fFilename;
-              Continue;
-            end;
+            FCompleteDirTag := fParsedDirlistEntry.Filename;
+            Continue;
           end;
         end;
+      end;
 
-        if (fDirMask[1] = 'd') then
+      if (fParsedDirlistEntry.DirMask[1] = 'd') then
+      begin
+        // directory: fDirMask[1] = 'd'
+        if not IsValidDirnameCached(fParsedDirlistEntry.Filename) then Continue;
+      end
+      else
+      begin
+        // no directory: fDirMask[1] <> 'd'
+        if not IsValidFilenameCached(fParsedDirlistEntry.Filename) then Continue;
+      end;
+
+      // Do not filter if we call the dirlist from irc
+      if not FIsFromIrc then
+      begin
+
+        // file is flagged as skipped
+        if (skipped.IndexOf(fParsedDirlistEntry.Filename) <> -1) then
         begin
-          // directory: fDirMask[1] = 'd'
-          if not IsValidDirnameCached(fFilename) then Continue;
-        end
-        else
-        begin
-          // no directory: fDirMask[1] <> 'd'
-          if not IsValidFilenameCached(fFilename) then Continue;
+          Continue;
         end;
+
+        // entry is a file and is not downlodable
+        if ((fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[5] <> 'r') and (fParsedDirlistEntry.DirMask[8] <> 'r'))) then
+        begin
+          Continue;
+        end;
+      end;
+
+      akttimestamp := Timestamp(fParsedDirlistEntry.Date);
+
+      de := Find(fParsedDirlistEntry.Filename);
+      if de = nil then
+      begin
+        de := TDirListEntry.Create(fParsedDirlistEntry.Filename, self, (fParsedDirlistEntry.DirMask[1] = 'd'));
+
+        if ((de.Extension = '.sfv') and (HasSFV)) then
+        begin
+          de.Free;
+          Continue;
+        end;
+        if ((de.Extension = '.nfo') and (HasNFO)) then
+        begin
+          de.Free;
+          Continue;
+        end;
+
+        de.FUsername := fParsedDirlistEntry.Username;
+        de.FGroupname := fParsedDirlistEntry.Groupname;
+        de.timestamp := akttimestamp;
+        de.justadded := True;
+
+        if not de.directory then
+          de.filesize := fParsedDirlistEntry.Filesize;
 
         // Do not filter if we call the dirlist from irc
         if not FIsFromIrc then
         begin
-
-          // file is flagged as skipped
-          if (skipped.IndexOf(fFilename) <> -1) then
-          begin
-            Continue;
-          end;
-
-          // entry is a file and is not downlodable
-          if ((fDirMask[1] <> 'd') and ((fDirMask[5] <> 'r') and (fDirMask[8] <> 'r'))) then
-          begin
-            Continue;
-          end;
-        end;
-
-        akttimestamp := Timestamp(fDatum);
-
-        de := Find(fFilename);
-        if de = nil then
-        begin
-          de := TDirListEntry.Create(fFilename, self, (fDirMask[1] = 'd'));
-
-          if ((de.Extension = '.sfv') and (HasSFV)) then
-          begin
-            de.Free;
-            Continue;
-          end;
-          if ((de.Extension = '.nfo') and (HasNFO)) then
+          if ((not de.Directory) and (de.Extension = '') and (not FIsSpeedTest)) then
           begin
             de.Free;
             Continue;
           end;
 
-          de.FUsername := fUsername;
-          de.FGroupname := fGroupname;
-          de.timestamp := akttimestamp;
-          de.justadded := True;          
-
-          if not de.directory then
-            de.filesize := fFilesize;
-
-          // Do not filter if we call the dirlist from irc
-          if not FIsFromIrc then
+          // Dont add skip files to dirlist
+          if ((not de.Directory) and (skiplist <> nil)) then
           begin
-            if ((not de.Directory) and (de.Extension = '') and (not FIsSpeedTest)) then
+            de.RegenerateSkiplist;
+            if (de.skiplisted) then
             begin
               de.Free;
               Continue;
             end;
-
-            // Dont add skip files to dirlist
-            if ((not de.Directory) and (skiplist <> nil)) then
-            begin
-              de.RegenerateSkiplist;
-              if (de.skiplisted) then
-              begin
-                de.Free;
-                Continue;
-              end;
-            end;
           end;
-
-          if ((not de.Directory) and (de.Extension = '.sfv') and (de.filesize > 0)) then
-          begin
-            sfv_status := dlSFVFound;
-          end;
-
-          if (de.Directory) then
-          begin
-            de.subdirlist := TDirlist.Create(site_name, de, skiplist, FIsSpeedTest, FIsFromIrc);
-            if de.subdirlist <> nil then
-              de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
-          end;
-
-          entries.AddObject(de.filename, de);
-
-          LastChanged := Now();
-          added := True;
-        end
-        else if (de.filesize <> fFilesize) then
-        begin
-          if ((de.filesize <> fFilesize) or (de.FUsername <> fUsername)) then
-          begin
-            LastChanged := Now();
-          end;
-
-          de.filesize := fFilesize;
-          de.timestamp := akttimestamp;
-          de.FUsername := fUsername;
-          de.FGroupname := fGroupname;
         end;
 
-        // entry is a file and is being uploaded (glftpd only?)
-        de.FIsBeingUploaded := (fDirMask[1] <> 'd') and ((fDirMask[7] = 'x') and (fDirMask[10] = 'x'));
+        if ((not de.Directory) and (de.Extension = '.sfv') and (de.filesize > 0)) then
+        begin
+          sfv_status := dlSFVFound;
+        end;
 
-        de.IsOnSite := True;
+        if (de.Directory) then
+        begin
+          de.subdirlist := TDirlist.Create(site_name, de, skiplist, FPazoSFV, FIsSpeedTest, FIsFromIrc);
+          if de.subdirlist <> nil then
+            de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
+        end;
+
+        entries.AddObject(de.filename, de);
+
+        LastChanged := Now();
+        added := True;
+      end
+      else if (de.filesize <> fParsedDirlistEntry.Filesize) then
+      begin
+        if ((de.filesize <> fParsedDirlistEntry.Filesize) or (de.FUsername <> fParsedDirlistEntry.Username)) then
+        begin
+          LastChanged := Now();
+        end;
+
+        de.filesize := fParsedDirlistEntry.Filesize;
+        de.timestamp := akttimestamp;
+        de.FUsername := fParsedDirlistEntry.Username;
+        de.FGroupname := fParsedDirlistEntry.Groupname;
       end;
+
+      // entry is a file and is being uploaded (glftpd only?)
+      de.FIsBeingUploaded := (fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[7] = 'x') and (fParsedDirlistEntry.DirMask[10] = 'x'));
+
+      de.IsOnSite := True;
     end;
 
     // entries found means the dir exists
@@ -807,7 +799,10 @@ begin
 
   finally
     dirlist_lock.Leave;
+    fParsedDirlistEntries.Free;
   end;
+
+  FLastUpdated := Now();
 
   if parent = nil then
   begin
@@ -1224,7 +1219,7 @@ begin
 
     if d.subdirlist = nil then
     begin
-      d.subdirlist := TDirlist.Create(site_name, d, skiplist);
+      d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
       if d.subdirlist <> nil then
         d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
     end;
@@ -1446,6 +1441,7 @@ var
 begin
   allcdshere := False;
   FLastChanged := 0;
+  FLastUpdated := 0;
   biggestcd := 0;
 
   dirlist_lock.Enter;
@@ -1705,6 +1701,20 @@ begin
         skiplisted := True;
         dirlist.skipped.Add(filename);
         irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not AllowedFile %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
+        exit;
+      end;
+
+      if dirlist.parent = nil then
+        s := ''
+      else
+        s := dirlist.parent.filename;
+
+      if (dirlist.FPazoSFV <> nil) and not dirlist.FPazoSFV.CheckSFV(s, FFilenameLowerCase, Extension) then
+      begin
+        skiplisted := True;
+        dirlist.skipped.Add(filename);
+        irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Not in SFV %s %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, s, fDirPathHelper, filename]));
+        exit;
       end
     end
     else

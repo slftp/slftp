@@ -1,2 +1,4 @@
-39a67a5bcc6d688e2170de48cf3ffe72602adbe3
-new TBigInt.Gcd method
+d6b92b1f6b678d50449f870cbbe8ef4e1613c6b1
+hardened TDynArrayHasher
+- against any potential buffer overflow
+- some were reported by ValGrid

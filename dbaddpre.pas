@@ -652,8 +652,6 @@ begin
       begin
         Debug(dpError, section, Format('[EXCEPTION] dbaddpre_Process: %s ',
           [e.Message]));
-        dbaddpreUninit;
-        dbaddpreinit;
       end;
     end;
   end;
