@@ -1511,7 +1511,6 @@ begin
                 de.justadded := False;
                 fRemovePazoRaceEntries.Add(de);
               end;
-              pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
             end;
 
             fFoundDirListEntries.Add(de);
@@ -1527,6 +1526,14 @@ begin
       for de in fRemovePazoRaceEntries do
       begin
         RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
+      end;
+
+      for de in fFoundDirListEntries do
+      begin
+        if not de.Directory then
+        begin
+          pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
+        end;
       end;
 
     finally
