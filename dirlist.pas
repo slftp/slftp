@@ -402,7 +402,7 @@ begin
   self.FMatchFileDirectoryCache := TDictionary<string, integer>.Create;
 
   self.s := s;
-  self.skiplist := skiplist;
+  self.skiplist := nil;
   self.FPazoSFV := aPazoSFV;
 
   self.FIsSpeedTest := SpeedTest;
@@ -412,6 +412,7 @@ begin
   sfv_status := dlSFVUnknown;
   if skiplist <> nil then
   begin
+    self.skiplist := TSkipList.CreateClone(skiplist);
     sf:= skiplist.AllowedDir('', 'testsfv.sfv');
     if sf = nil then
     begin
@@ -436,6 +437,7 @@ begin
     FIsValidDirCache.Free;
     FMatchFileCache.Free;
     FMatchFileDirectoryCache.Free;
+    skiplist.Free;
   finally
     dirlist_lock.Leave;
   end;
