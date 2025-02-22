@@ -22,11 +22,15 @@ type
     mask: TslMask;
     allowedfiles: TObjectList;
     alloweddirs: TObjectList;
+    fIsCloned: boolean;
     function FindDirFilterB(list: TObjectList; const dirname: String): TSkiplistFilter;
   public
     sectionname: String;
     dirdepth: integer;
     constructor Create(const sectionname: String);
+    { Creates a clone of the given TSkipList. The allowed files and allowed dirs lists are passed over to the clone by reference, just the mask is
+      actually copied because it has locked regexes in it. }
+    constructor CreateClone(const aOriginal: TSkipList);
     destructor Destroy; override;
 
     function FindFileFilter(const dirname: String): TSkiplistFilter;
@@ -127,9 +131,6 @@ begin
       end;
     end;
   end;
-
-  // with this there is a Access Violation - dunno why
-  // FreeAndNil(akt);
 
   CloseFile(f);
 
@@ -243,12 +244,26 @@ begin
   self.sectionname := UpperCase(sectionname);
   dirdepth := 1;
   mask := TslMask.Create(sectionname);
+  fIsCloned := False;
+end;
+
+constructor TSkipList.CreateClone(const aOriginal: TSkipList);
+begin
+  allowedfiles := aOriginal.allowedfiles;
+  alloweddirs := aOriginal.alloweddirs;
+  sectionname := aOriginal.sectionname;
+  dirdepth := aOriginal.dirdepth;
+  mask := TslMask.Create(sectionname);
+  fIsCloned := True;
 end;
 
 destructor TSkipList.Destroy;
 begin
-  allowedfiles.Free;
-  alloweddirs.Free;
+  if not fIsCloned then
+  begin
+    allowedfiles.Free;
+    alloweddirs.Free;
+  end;
   mask.Free;
   inherited;
 end;
