@@ -1730,7 +1730,12 @@ begin
           Debug(dpSpam, section, Format('[QUEUECLEAN] Clean unassigned task : %s', [t.Fullname]));
         end;
       except
+        on e: Exception do
+        begin
+          Debug(dpError, section,
+          Format('[EXCEPTION] QueueClean Clean unassigned: Exception : %s', [e.Message]));
         Break;
+        end;
       end;
     end;
   finally
