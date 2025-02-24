@@ -100,6 +100,8 @@ var
   proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
   subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
   cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
+  queueclean_unassigned: Integer;
+  queueclean_maxrunning: Integer;
 
   StatsList: TObjectList<TQueueStat>;
   QueueStatUpdateDateTime: TDateTime;
@@ -1667,6 +1669,9 @@ begin
   if not (cover_dirs_priority in [0..2]) then
     cover_dirs_priority := 2;
 
+  queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
+  queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
+
   StatsList := TObjectList<TQueueStat>.Create(True);
 end;
 
@@ -1710,8 +1715,7 @@ begin
       try
         ss := t.UidText;
         if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
-          (SecondsBetween(t.created, Now()) >= config.ReadInteger('queue',
-          'queueclean_unassigned', 600))) then
+          (SecondsBetween(t.created, Now()) >= queueclean_unassigned)) then
         begin
           try
             t.ready := True;
@@ -1734,7 +1738,7 @@ begin
         begin
           Debug(dpError, section,
           Format('[EXCEPTION] QueueClean Clean unassigned: Exception : %s', [e.Message]));
-        Break;
+          Break;
         end;
       end;
     end;
@@ -1755,8 +1759,7 @@ begin
       end;
       t := TTask(tasks[i]);
       if ((t.assigned <> 0) and ((t.startat = 0) or (t.startat <= queue_last_run)) and
-        (SecondsBetween(t.assigned, Now()) >= config.ReadInteger('queue',
-        'queueclean_maxrunning', 900))) then
+        (SecondsBetween(t.assigned, Now()) >= queueclean_maxrunning)) then
       begin
         if (t.ClassType = TPazoRaceTask) then
         begin
