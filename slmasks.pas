@@ -23,7 +23,7 @@ type
     destructor Destroy; override;
     { Tests if the Input matches the actual used mask
       @param(aInput String which should be tested against the used mask)
-      @returns(@true if maask matches input, @false otherwise) }
+      @returns(@true if mask matches input, @false otherwise) }
     function Matches(const aInput: String): Boolean;
 
     property mask: String read FMask;

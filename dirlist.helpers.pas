@@ -97,6 +97,9 @@ var
   glNewdirMaxCreated: Integer;
   glNewdirDirlistReadd: Integer;
 
+threadvar
+  glSkiplistFilesRegexInstance: TRegExpr;
+  glSkiplistDirsRegexInstance: TRegExpr;
 
 {$I common.inc}
 
@@ -160,9 +163,31 @@ begin
   aItem := aRespLine.Trim; // file or dirname
 end;
 
+function GetSkiplistDirsRegexInstance: TRegExpr;
+begin
+  if glSkiplistDirsRegexInstance = nil then
+  begin
+    glSkiplistDirsRegexInstance := TRegExpr.Create;
+    glSkiplistDirsRegexInstance.ModifierI := True;
+    glSkiplistDirsRegexInstance.Expression := glSkiplistDirsRegex;
+  end;
+
+  Result := glSkiplistDirsRegexInstance;
+end;
+
+function GetSkiplistFilesRegexInstance: TRegExpr;
+begin
+  if glSkiplistFilesRegexInstance = nil then
+  begin
+    glSkiplistFilesRegexInstance := TRegExpr.Create;
+    glSkiplistFilesRegexInstance.ModifierI := True;
+    glSkiplistFilesRegexInstance.Expression := glSkiplistFilesRegex;
+  end;
+
+  Result := glSkiplistFilesRegexInstance;
+end;
+
 function IsValidFilename(const aInput: String): Boolean;
-var
-  fRegExpr: TRegExpr;
 begin
   Result := False;
 
@@ -176,24 +201,14 @@ begin
 
   if glSkiplistFilesRegex <> '' then
   begin
-    fRegExpr := TRegExpr.Create;
-    try
-      fRegExpr.ModifierI := True;
-      fRegExpr.Expression := glSkiplistFilesRegex;
-
-      if fRegExpr.Exec(aInput) then
-        Exit(False);
-    finally
-      fRegExpr.Free;
-    end;
+    if GetSkiplistFilesRegexInstance.Exec(aInput) then
+      Exit(False);
   end;
 
   Result := True;
 end;
 
 function IsValidDirname(const aInput: String): Boolean;
-var
-  fRegExpr: TRegExpr;
 begin
   Result := False;
 
@@ -202,16 +217,8 @@ begin
 
   if glSkiplistDirsRegex <> '' then
   begin
-    fRegExpr := TRegExpr.Create;
-    try
-      fRegExpr.ModifierI := True;
-      fRegExpr.Expression := glSkiplistDirsRegex;
-
-      if fRegExpr.Exec(aInput) then
-        Exit(False);
-    finally
-      fRegExpr.Free;
-    end;
+    if GetSkiplistDirsRegexInstance.Exec(aInput) then
+      Exit(False);
   end;
 
   Result := True;

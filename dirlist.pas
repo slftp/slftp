@@ -35,6 +35,10 @@ type
     FIsOnSite: Boolean; //< @true if this entry is available on the site
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
     FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
+    { Contains the index of the file type in the skiplist. For files and directories. For example when you have this in
+      your skiplist: "alloweddirs=_ROOT_:Sample,Sub,Subs,Proof" then the entry for directory "Sample" will have a value 0 and the entry for "Subs" will have a value 2
+      in this field. This is only needed for sorting the dirlist. Not really important. }
+    FSkipListAllowedFileIndex: integer;
     { Tries to identify the dirtype from subdirectory name by different regexes
       @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
     function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
@@ -79,7 +83,6 @@ type
     allcdshere: Boolean;
     skiplist: TSkipList;
     FPazoSFV: TPazoSFV;
-    sf_d, sf_f: TSkiplistFilter;
     s: String;
     FIsValidFileCache: TDictionary<string, boolean>; //< cache for results of IsValidFilename
     FIsValidDirCache: TDictionary<string, boolean>; //< cache for results of IsValidDirname
@@ -107,8 +110,7 @@ type
     { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
       @returns(@true if determined as COMPLETE, @false otherwise) }
     function CompleteByTag: Boolean;
-    
-    procedure SetSkiplists;
+
     procedure SetLastChanged(const value: TDateTime);
     
     procedure SetFullPath(const aFullPath: string);
@@ -180,16 +182,6 @@ type
       the value is being calculated and then added to the cache
       @returns(@true if input is valid, @false otherwise.) }
     function IsValidDirnameCached(const aDirName: string): boolean;
-    { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for files and at which position.
-      If no cached value is available, the value is being calculated and then added to the cache
-      @param(aFileName The file name to match.)
-      @returns(Result from MatchFile function of the skiplist.) }
-    function MatchFileCached(const aFileName: string): integer;
-    { Tries to get a cached value indicating whether the given string matches an entry in the skiplist for directories and at which position.
-      If no cached value is available, the value is being calculated and then added to the cache
-      @param(aDirName The dir name to match.)
-      @returns(Result from MatchFile function of the skiplist.) }
-    function MatchFileDirectoryCached(const aDirName: string): integer;
 
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
@@ -289,9 +281,9 @@ begin
         Result := ((files <> 0) and (size <> 0));
       end;
     end;
-    
+
     // check if subdir has Useful files
-    if ((not Result) and (ResultType = 'Unknown') and (sf_f <> nil) and (MatchFileCached('.sfv') = -1)) then
+    if ((not Result) and (ResultType = 'Unknown') and (sfv_status <> dlSFVNoNeed)) then
     begin
       Usefulfiles(files, size);
       Result := ((files <> 0) and (size <> 0));
@@ -430,8 +422,7 @@ begin
   self.FMatchFileDirectoryCache := TDictionary<string, integer>.Create;
 
   self.s := s;
-  self.skiplist := skiplist;
-  SetSkiplists;
+  self.skiplist := nil;
   self.FPazoSFV := aPazoSFV;
 
   self.FIsSpeedTest := SpeedTest;
@@ -441,6 +432,7 @@ begin
   sfv_status := dlSFVUnknown;
   if skiplist <> nil then
   begin
+    self.skiplist := TSkipList.CreateClone(skiplist);
     sf:= skiplist.AllowedDir('', 'testsfv.sfv');
     if sf = nil then
     begin
@@ -465,26 +457,12 @@ begin
     FIsValidDirCache.Free;
     FMatchFileCache.Free;
     FMatchFileDirectoryCache.Free;
+    skiplist.Free;
   finally
     dirlist_lock.Leave;
   end;
   dirlist_lock.Free;
   inherited;
-end;
-
-procedure TDirList.SetSkiplists;
-var s: String;
-begin
-  s:= Dirname;
-  if skiplist <> nil then
-  begin
-    sf_f := skiplist.FindFileFilter(s);
-    sf_d := skiplist.FindDirFilter(s);
-  end else
-  begin
-    sf_f := nil;
-    sf_d := nil;
-  end;
 end;
 
 function TDirList.Depth: Integer;
@@ -824,18 +802,6 @@ begin
 
   FLastUpdated := Now();
 
-  if parent = nil then
-  begin
-    try
-      SetSkiplists;
-    except
-      on E: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirList (SetSkiplists): %s', [e.Message]);
-      end;
-    end;
-  end;
-
   // set defaults values if direcotry was just added
   if added then
   begin
@@ -991,10 +957,10 @@ begin
     begin
       if ((i1.directory) and (i2.directory)) then
       begin
-        if (i1.dirlist.sf_d <> nil) then
+        if (i1.FSkipListAllowedFileIndex <> -1) then
         begin
-          c1 := i1.dirlist.MatchFileDirectoryCached(i1.filename);
-          c2 := i2.dirlist.MatchFileDirectoryCached(i2.filename);
+          c1 := i1.FSkipListAllowedFileIndex;
+          c2 := i2.FSkipListAllowedFileIndex;
 
           if (c1 > c2) then
             Result := 1
@@ -1009,8 +975,8 @@ begin
       else
       if ((not i1.directory) and (not i2.directory)) then
       begin
-        c1 := i1.dirlist.MatchFileCached(i1.filename);
-        c2 := i2.dirlist.MatchFileCached(i2.filename);
+        c1 := i1.FSkipListAllowedFileIndex;
+        c2 := i2.FSkipListAllowedFileIndex;
 
         if (c1 > c2) then
           Result := 1
@@ -1618,6 +1584,7 @@ begin
   FFilenameLowerCase := LowerCase(filename);
   FExtension := ExtractFileExt(FFilenameLowerCase);
   cdno := 0;
+  FSkipListAllowedFileIndex := -1;
 
   if aIsDirectory then
     CalcCDNumber;
@@ -1714,7 +1681,7 @@ begin
         exit;
       end;
 
-      sf := dirlist.skiplist.AllowedFile(s, filename);
+      sf := dirlist.skiplist.AllowedFile(s, filename, FSkipListAllowedFileIndex);
 
       if sf = nil then
       begin
@@ -1757,7 +1724,7 @@ begin
 
         // you have to go through the alloweddirs and check if it's allowed
         s := dirlist.Dirname;
-        sf := dirlist.skiplist.AllowedDir(s, filename);
+        sf := dirlist.skiplist.AllowedDir(s, filename, FSkipListAllowedFileIndex);
         if sf = nil then
         begin
           skiplisted := True;
@@ -1790,24 +1757,6 @@ begin
 
   Result := IsValidDirname(aDirName);
   FIsValidDirCache.AddOrSetValue(aDirName, Result);
-end;
-
-function TDirlist.MatchFileCached(const aFileName: string): integer;
-begin
-  if FMatchFileCache.TryGetValue(aFileName, Result) then
-    exit;
-
-  Result := sf_f.MatchFile(aFileName);
-  FMatchFileCache.AddOrSetValue(aFileName, Result);
-end;
-
-function TDirlist.MatchFileDirectoryCached(const aDirName: string): integer;
-begin
-  if FMatchFileDirectoryCache.TryGetValue(aDirName, Result) then
-    exit;
-
-  Result := sf_d.MatchFile(aDirName);
-  FMatchFileDirectoryCache.AddOrSetValue(aDirName, Result);
 end;
 
 procedure TDirList.SetFullPath(const aFullPath: string);

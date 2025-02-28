@@ -2819,6 +2819,12 @@ begin
       exit;
     end;
 
+    if (lastResponseCode < 100) OR (lastResponseCode > 299) then
+    begin
+      // response code indicates an error
+      exit;
+    end;
+
     Result := True;
   except
     on e: Exception do
