@@ -61,21 +61,19 @@ var
   dl: TDirList;
   de: TDirListEntry;
   db: Integer;
-  j: Integer;
 
   procedure DoActualIndexing;
   var
-    i: Integer;
+    deInner: TDirListEntry;
   begin
     dl.dirlist_lock.Enter;
     try
-      for i := 0 to dl.entries.Count - 1 do
+      for deInner in dl.entries.Values do
       begin
         try
-          de := TDirlistEntry(dl.entries.Objects[i]);
-          if de.Directory then
+          if deInner.Directory then
           begin
-            indexerAddRelease(de.filename, site1, sectionname, path);
+            indexerAddRelease(deInner.filename, site1, sectionname, path);
             inc(Result);
           end;
         except
@@ -121,10 +119,9 @@ begin
       //Debug(dpError, rsections,'ERROR: No NFO Found');
       if (aktszint < config.ReadInteger(rsections, 'max_deep', 5)) then // wont go any deeper
       begin
-        for j := 0 to dl.entries.Count - 1 do
+        for de in dl.entries.Values do
         begin
           try
-            de := TDirlistEntry(dl.entries.Objects[j]);
             if de.Directory then
             begin
               db := doIndexing(slot, sectionname, MyIncludeTrailingSlash(path) + de.filename, aktszint + 1);
