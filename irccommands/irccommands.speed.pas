@@ -21,15 +21,13 @@ const
 procedure _PickupSpeedtestFile(d: TDirList; var fsfilename: String; var fsfilesize: Int64);
 var
   de: TDirListEntry;
-  i: integer;
 begin
   fsfilename := '';
   fsfilesize := 0;
   d.dirlist_lock.Enter;
   try
-    for i := 0 to d.entries.Count - 1 do
+    for de in d.entries.Values do
     begin
-      de := TDirListEntry(d.entries.Objects[i]);
       if ((de.filesize > fsfilesize) and (de.filesize >=
         config.ReadInteger('speedtest', 'min_filesize', 15) * 1024 * 1024) and
         (de.filesize <= config.ReadInteger('speedtest', 'max_filesize', 120) *
