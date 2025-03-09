@@ -211,10 +211,8 @@ ujra:
   try
     d.dirlist_lock.Enter('s.Dirlist');
     try
-      for i := 0 to d.entries.Count - 1 do
+      for de in d.entries.Values do
       begin
-        de := TDirlistEntry(d.entries.Objects[i]);
-
         if ((not de.Directory) and (de.Extension = '.sfv')) then
           fSFVFile := de.filename;
 

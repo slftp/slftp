@@ -124,7 +124,7 @@ type
     sfv_status: TdlSFV;
     biggestcd: Integer;
     parent: TDirListEntry;
-    entries: THashedStringList; //< contains the @link(TDirlistEntry) objects for the dirlist
+    entries: TObjectDictionary<string, TDirListEntry>; //< contains the @link(TDirlistEntry) objects for the dirlist
     skipped: TStringList;
     dependency_mkdir: String;
 
@@ -135,7 +135,6 @@ type
     function Depth: Integer;
     function MultiCD: Boolean;
     function Dirname: String;
-    procedure Sort;
     procedure RegenerateSkiplist;
     procedure ParseDirlist(s: String);
     { Does an investigation to determine if TDirlist is complete }
@@ -172,8 +171,6 @@ type
     { Checks if this TDirlist already has a SFV file
       @returns(@true if SFV is there, @false otherwise) }
     function HasSFV: Boolean;
-    { Sorts the @link(entries) by @link(TDirListEntry.timestamp) }
-    procedure SortByModify;
     { Tries to get a cached value indicating whether the given string is a valid file name. If no cached value is available,
       the value is being calculated and then added to the cache
       @returns(@true if input is valid, @false otherwise.) }
@@ -198,6 +195,10 @@ procedure DirlistInit;
 
 { Just a helper function to deinitialize uid lock}
 procedure DirlistUnInit;
+{ Sorts the @link(aEntries) by the default sorting method }
+procedure SortDirlistEntries(const aEntries: TList<TDirListEntry>);
+{ Sorts the @link(aEntries) by @link(TDirListEntry.timestamp) }
+procedure SortDirlistEntriesByModify(const aEntries: TList<TDirListEntry>);
 
 var
 
@@ -206,7 +207,7 @@ var
 implementation
 
 uses
-  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers;
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
 
 const
   section = 'dirlist';
@@ -222,7 +223,6 @@ var
 
 function TDirList.Complete: Boolean;
 var
-  i: Integer;
   d: TDirlistEntry;
   files: Integer;
   size: Int64;
@@ -317,16 +317,9 @@ begin
         // check if all multi-cd subdirs are complete
         dirlist_lock.Enter('TDirList.Complete');
         try
-          for i := entries.Count - 1 downto 0 do
+          for d in entries.Values do
           begin
-            if i < 0 then
-              Break;
             try
-              d := TDirlistEntry(entries.Objects[i]);
-
-              if d = nil then
-                Continue;
-
               if ((d.cdno > 0) and (not d.skiplisted) and ((d.subdirlist = nil) or (not d.subdirlist.Complete))) then
               begin
                 Result := False;
@@ -409,10 +402,7 @@ begin
   FLastChanged := Now();
   FLastUpdated := Now();
   allcdshere := False;
-  entries := THashedStringList.Create;
-  entries.OwnsObjects := True;
-  entries.CaseSensitive := False;
-  entries.Sorted := False;
+  entries := TObjectDictionary<string, TDirListEntry>.Create([doOwnsValues], GetCaseInsensitveStringComparer);
   skipped := TStringList.Create;
   skipped.CaseSensitive := False;
   self.parent := parentdir;
@@ -500,12 +490,9 @@ begin
     // megnezzuk van e CD1 CD2 stb jellegu direktorink
     dirlist_lock.Enter('TDirList.MultiCD');
     try
-      for i := entries.Count - 1 downto 0 do
+      for de in entries.Values do
       begin
-        if i < 0 then Break;
         try
-          de := TDirListEntry(entries.Objects[i]);
-
           if de.cdno <> 0 then
           begin
             Result := True;
@@ -625,9 +612,8 @@ begin
   fParsedDirlistEntries := ParseStatResponse(s);
   dirlist_lock.Enter('TDirList.ParseDirlist');
   try
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      de := TDirlistEntry(entries.Objects[i]);
       de.IsOnSite := False;
     end;
 
@@ -758,7 +744,7 @@ begin
             de.subdirlist.FullPath := MyIncludeTrailingSlash(FFullPath) + de.filename;
         end;
 
-        entries.AddObject(de.filename, de);
+        entries.Add(de.filename, de);
 
         LastChanged := Now();
         added := True;
@@ -785,9 +771,9 @@ begin
     // entries found means the dir exists
     if ((need_mkdir)) then
     begin
-      for i := entries.Count - 1 downto 0 do
+      for de in entries.Values do
       begin
-        if TDirlistEntry(entries.Objects[i]).IsOnSite then
+        if de.IsOnSite then
         begin
           need_mkdir := False;
           break;
@@ -818,16 +804,6 @@ begin
           debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirList(RegenerateSkiplist): %s', [e.Message]);
         end;
       end;
-
-      try
-        Sort;
-      except
-        on E: Exception do
-        begin
-          debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.ParseDirList(Sort): %s', [e.Message]);
-        end;
-      end;
-
     end;
   end;
 
@@ -835,18 +811,16 @@ begin
 end;
 
 procedure TDirList.RegenerateSkiplist;
-var i: Integer;
+var
     ld: TDirListEntry;
 begin
   if skiplist = nil then exit;
 
   dirlist_lock.Enter('TDirList.RegenerateSkiplist');
   try
-    for i:= entries.Count -1 downto 0 do
+    for ld in entries.Values do
     begin
-      if i < 0 then Break;
       try
-        ld:= TDirListEntry(entries.Objects[i]);
         ld.RegenerateSkiplist;
       except
         on E: Exception do
@@ -862,9 +836,8 @@ begin
 
 end;
 
-function _DirListSorter(aList: TStringList; aIndex1, aIndex2: Integer): Integer;
+function _DirListSorter({$IFDEF FPC}constref{$ELSE}const{$ENDIF} i1, i2: TDirListEntry): Integer;
 var
-  i1, i2: TDirlistEntry;
   c1, c2: Integer;
   i1IsImage, i1IsVideo: Boolean;
   i2IsImage, i2IsVideo: Boolean;
@@ -877,8 +850,6 @@ begin
   Result := 0;
 
   try
-    i1 := TDirlistEntry(aList.Objects[aIndex1]);
-    i2 := TDirlistEntry(aList.Objects[aIndex2]);
 
     // We don't care about skiplisted entries
     if ((i1.skiplisted) and (i2.skiplisted)) then exit;
@@ -1008,21 +979,9 @@ begin
   end;
 end;
 
-procedure TDirList.Sort;
+procedure SortDirlistEntries(const aEntries: TList<TDirListEntry>);
 begin
-  dirlist_lock.Enter('TDirList.Sort');
-  try
-    try
-      entries.CustomSort(@_DirListSorter);
-    except
-      on E: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.Sort (_DirListSorter): %s', [e.Message]);
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
+  aEntries.Sort(TComparer<TDirListEntry>.Construct(_DirListSorter));
 end;
 
 function TDirList.CompleteByTag: Boolean;
@@ -1084,7 +1043,6 @@ end;
 
 procedure TDirList.Usefulfiles(out files: Integer; out size: Int64);
 var
-  i: Integer;
   de: TDirlistEntry;
   afiles: Integer;
   asize: Int64;
@@ -1096,11 +1054,9 @@ begin
 
   dirlist_lock.Enter('TDirList.Usefulfiles');
   try
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      if i < 0 then Break;
       try
-        de := TDirlistEntry(entries.Objects[i]);
         if de.skiplisted then Continue;
 
         if not de.IsAsciiFiletype then
@@ -1129,7 +1085,6 @@ end;
 
 function TDirList.Find(const filename: String): TDirListEntry;
 var
-  i: Integer;
   de: TDirListEntry;
 begin
   Result := nil;
@@ -1138,11 +1093,7 @@ begin
 
   dirlist_lock.Enter('TDirList.Find');
   try
-    i := entries.IndexOf(filename);
-    if i <> -1 then
-    begin
-      Result := TDirListEntry(entries.Objects[i]);
-    end;
+    entries.TryGetValue(filename, Result);
   finally
     dirlist_lock.Leave;
   end;
@@ -1192,7 +1143,7 @@ begin
           exit;
         end;
         d := TDirListEntry.Create(firstdir, self, True);
-        entries.AddObject(d.filename, d);
+        entries.Add(d.filename, d);
       end;
     finally
       dirlist_lock.Leave;
@@ -1222,18 +1173,14 @@ end;
 function TDirList.Done: Integer;
 var
   de: TDirlistEntry;
-  i: Integer;
 begin
   Result := 0;
 
   dirlist_lock.Enter('TDirList.Done');
   try
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      if i < 0 then Break;
       try
-        de := TDirlistEntry(entries.Objects[i]);
-
         if de.skiplisted then
           Continue;
 
@@ -1264,12 +1211,9 @@ begin
 
   dirlist_lock.Enter('TDirList.FilesRacedByMe');
   try
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      if i < 0 then Break;
       try
-        de := TDirlistEntry(entries.Objects[i]);
-
         if aExcludeAsciiFiletypes then
         begin
           if (de.FRacedByMe and not de.IsAsciiFiletype) then
@@ -1301,18 +1245,14 @@ end;
 function TDirList.SizeRacedByMe(aExcludeAsciiFiletypes: boolean = False): Int64;
 var
   de: TDirlistEntry;
-  i: Integer;
 begin
   Result := 0;
 
   dirlist_lock.Enter('TDirList.SizeRacedByMe');
   try
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      if i < 0 then Break;
       try
-        de := TDirlistEntry(entries.Objects[i]);
-
         if aExcludeAsciiFiletypes then
         begin
           if (de.FRacedByMe and not de.IsAsciiFiletype) then
@@ -1344,7 +1284,6 @@ end;
 
 function TDirList.HasSFV: boolean;
 var
-  i: Integer;
   de: TDirlistEntry;
 begin
   Result := False;
@@ -1357,11 +1296,9 @@ begin
 
   dirlist_lock.Enter('TDirList.HasSFV');
   try
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      if i < 0 then Break;
       try
-        de := TDirlistEntry(entries.Objects[i]);
         if ((de.Extension = '.sfv') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
@@ -1383,7 +1320,6 @@ end;
 
 function TDirList.HasNFO: boolean;
 var
-  i: Integer;
   de: TDirlistEntry;
 begin
   Result := False;
@@ -1396,11 +1332,9 @@ begin
 
   dirlist_lock.Enter('TDirList.HasNFO');
   try
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      if i < 0 then Break;
       try
-        de := TDirlistEntry(entries.Objects[i]);
         if ((de.Extension = '.nfo') and (de.IsOnSite) and (de.filesize > 0)) then
         begin
           Result := True;
@@ -1423,7 +1357,7 @@ end;
 
 procedure TDirList.Clear;
 var
-  i: Integer;
+  de: TDirListEntry;
 begin
   allcdshere := False;
   FLastChanged := 0;
@@ -1433,12 +1367,11 @@ begin
   dirlist_lock.Enter('TDirList.Clear');
   try
 
-    for i := entries.Count - 1 downto 0 do
+    for de in entries.Values do
     begin
-      try if i < 0 then Break; except Break; end;
       try
-        TDirlistEntry(entries.Objects[i]).IsOnSite := False;
-        TDirlistEntry(entries.Objects[i]).error := False;
+        de.IsOnSite := False;
+        de.error := False;
       except
         on E: Exception do
         begin
@@ -1453,48 +1386,28 @@ begin
 
 end;
 
-function _DirListModSorter(aList: TStringList; aIndex1, aIndex2: Integer): Integer;
-var
-  i1, i2: TDirlistEntry;
+function _DirListModSorter({$IFDEF FPC}constref{$ELSE}const{$ENDIF} i1, i2: TDirListEntry): Integer;
 begin
   // compare: -1 -> good order
   // compare:  1 -> exchange
-  i1 := TDirlistEntry(aList.Objects[aIndex1]);
-  i2 := TDirlistEntry(aList.Objects[aIndex2]);
-
   Result := CompareValue(i2.timestamp, i1.timestamp);
 end;
 
-procedure TDirList.SortByModify;
+procedure SortDirlistEntriesByModify(const aEntries: TList<TDirListEntry>);
 begin
-  dirlist_lock.Enter('TDirList.SortByModify');
-  try
-    try
-      entries.CustomSort(@_DirListModSorter);
-    except
-      on E: Exception do
-      begin
-        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.SortByModify (_DirListModSorter): %s', [e.Message]);
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
+  aEntries.Sort(TComparer<TDirListEntry>.Construct(_DirListModSorter));
 end;
 
 function TDirList.FindNfo: TDirListEntry;
 var de: TDirlistEntry;
-    i: Integer;
 begin
   Result := nil;
 
   dirlist_lock.Enter('TDirList.FindNfo');
   try
-    for i := 0 to entries.Count - 1 do
+    for de in entries.Values do
     begin
-      if i < 0 then Break;
-      try de := TDirlistEntry(entries.Objects[i]);
-
+      try
         if ((de.Extension = '.nfo') and (de.filesize > 0) and (de.filesize < 32768)) then //nfo always smaller than 32kb
         begin
           Result := de;

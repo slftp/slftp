@@ -181,7 +181,6 @@ label
   TryAgain;
 var
   s: TSiteSlot;
-  i: integer;
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
   fSubDirlistTasks: TList<TPazoDirlistTask>;
@@ -447,17 +446,9 @@ begin
     begin
       d.dirlist_lock.Enter('TPazoDirlistTask.Execute');
       try
-        for i := 0 to d.entries.Count - 1 do
+        for de in d.entries.Values do
         begin
           try
-            if i > d.entries.Count then
-              Break;
-          except
-            Break;
-          end;
-          try
-            de := TDirlistEntry(d.entries.Objects[i]);
-
             if ((de.directory) and (not de.skiplisted)) then
             begin
               if ((de.subdirlist <> nil) and (de.subdirlist.dirlistadded)) then

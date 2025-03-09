@@ -873,9 +873,8 @@ begin
       try
         if fDirlist <> nil then
         begin
-          for i := 0 to fDirlist.entries.Count - 1 do
+          for fDirlistEntry in fDirlist.entries.Values do
           begin
-            fDirlistEntry := TDirListEntry(fDirlist.entries.Objects[i]);
             if verbose then
               irc_Addtext(netname, channel, 'Found %s in section %s', [fDirlistEntry.filename, section]);
 
@@ -1189,7 +1188,7 @@ end;
 function IrcListPreContent(const netname, channel, params: String): boolean;
 var
   s:        TSite;
-  ii, i:    integer;
+  i:        integer;
   sitename: String;
   section:  String;
   predir:   String;
@@ -1229,9 +1228,8 @@ begin
         try
           if d <> nil then
           begin
-            for ii := 0 to d.entries.Count - 1 do
+            for de in d.entries.Values do
             begin
-              de := TDirListEntry(d.entries.Objects[ii]);
               if de.directory then
               begin
                 plist.Values[de.filename] := plist.Values[de.filename] + ' ' + s.Name;
@@ -1271,9 +1269,8 @@ begin
       try
         if d <> nil then
         begin
-          for ii := 0 to d.entries.Count - 1 do
+          for de in d.entries.Values do
           begin
-            de := TDirListEntry(d.entries.Objects[ii]);
             if de.directory then
             begin
               irc_addtext(netname, channel, '%s', [de.filename]);
