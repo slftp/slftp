@@ -334,7 +334,7 @@ end;
 function TAutoDirlistTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
-  i, j: Integer;
+  i: Integer;
   l: TAutoDirlistTask;
   asection, ss, section, sectiondir: String;
   dl: TDirList;
@@ -433,9 +433,8 @@ begin
       dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
       dl.dirlist_lock.Enter;
       try
-        for j := 0 to dl.entries.Count - 1 do
+        for de in dl.entries.Values do
         begin
-          de := TDirlistEntry(dl.entries.Objects[j]);
           if ((de.Directory) and (0 = pos('nuked', de.FilenameLowerCased))) then
           begin
             if section = 'REQUEST' then
