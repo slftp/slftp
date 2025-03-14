@@ -1168,7 +1168,7 @@ begin
       try
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted) then
         begin
-          TSite(fSite).AcquireSlotsAssignmentLock('AddTask');
+          TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
           try
             if ((not t.ready) and t.IsReadyToBeExecuted) then
              begin
