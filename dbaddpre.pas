@@ -214,9 +214,7 @@ begin
   Result := 0;
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
-
-  SQLite3Lock.Enter;
-  try
+	
     fQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
     try
       fQuery.Prepare('SELECT ts FROM addpre WHERE rlz = ?');
@@ -235,9 +233,6 @@ begin
     finally
       fQuery.free;
     end;
-  finally
-    SQLite3Lock.Leave;
-  end;
 end;
 
 function ReadPretimeOverMYSQL(const rls: String): Int64;
