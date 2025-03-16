@@ -56,6 +56,7 @@ implementation
 
   procedure SlCriticalSection2Uninit;
   begin
+    glUseTimeoutLocking := False;
     glUsedCriticalSectionNames.Free;
     glUsedCriticalSectionNamesLock.Free;
   end;
