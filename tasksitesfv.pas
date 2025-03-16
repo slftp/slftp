@@ -138,7 +138,7 @@ begin
       end;
 
       // check if the SFV is available yet on this site, else wait a bit (rescedule task)
-      fDirlist := self.ps1.dirlist.FindDirlist(FDir);
+      fDirlist := self.ps1.dirlist.FindDirlist(FDir, True);
       fDirlistEntry := fDirlist.Find(FSFVFilename);
       if (fDirlistEntry = nil) or not fDirlistEntry.IsOnSite or fDirlistEntry.IsBeingUploaded then
       begin
