@@ -288,7 +288,7 @@ end;
 
 class procedure THtmlIMDbParser.ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
 var
-  rr: TRegExpr;
+  rr,rdate: TRegExpr;
   pos1, pos2: integer;
   fCountryCode: String;
   fCountry: String;
@@ -297,10 +297,19 @@ var
   fStringHelper: String;
   fReleaseDate: TDateTime;
   fReleaseDateSplit: TArray<String>;
+  fReleaseDateYear: integer;
   fReleaseDateMonth: integer;
+  fReleaseDateDay: integer;
   fExtractedPageSource: string;
+  Result, fFound: boolean;
+  fCnt: Integer;
 begin
 
+  FormatSettings := TFormatSettings.Create('us-us');
+  FormatSettings.ShortDateFormat := 'dd.mm.yyyy';
+  FormatSettings.LongDateFormat := 'dd.mm.yyyy';
+  FormatSettings.DateSeparator := '.';
+  
   // we need to copy this string to another variable because else we would alter the page source that we will still need for other stuff (only on FPC it seems)
   fExtractedPageSource := aPageSource;
 
@@ -318,7 +327,10 @@ begin
 
     if rr.Exec(fExtractedPageSource) then
     begin
+    try
       repeat
+
+        Result := False;
 
         fCountryCode := Trim(rr.Match[1]);
         fCountry := Trim(rr.Match[2]);
@@ -332,51 +344,99 @@ begin
 
         // try to get a TDateTime from the date string of the web page. Date from is coming like this: '30 September 2018'
         try
-          fReleaseDateSplit := fReleaseDateString.Split([' ']);
+          try
+            rdate:=TRegExpr.Create;
+            rdate.ModifierI:=True;
+            rdate.ModifierG:=True;
+            rdate.Expression:='(\D+)\s*(\d{1,2})\s*,\s*(\d{4})';
+            rdate.InputString:= fReleaseDateString;
+            fFound:=rdate.exec;
+            If fFound and not Result Then
+              Begin
+                //Index 0 is the Match itself. From Index 1 up are the capturing groups
+                //For i:=1 To r.SubExprMatchCount Do Writeln(r.Match[i]);
+                fStringHelper := TRIM(rdate.Match[1]);
+                fReleaseDateMonth := 0;
+                fReleaseDateDay := StrToIntDef(rdate.Match[2],1);
+                fReleaseDateYear := StrToIntDef(rdate.Match[3],1899);
+                for fCnt := Low(FormatSettings.LongMonthNames) to High(FormatSettings.LongMonthNames) do
+                begin
+                  if (fStringHelper = FormatSettings.LongMonthNames[fCnt]) then
+                  begin
+                    fReleaseDateMonth := fCnt;
+                    Result := True;
+                    break;
+                  end;
+                end;
+              end;
 
-          //ugly: try to parse the month part of the date, TODO: make the parse work with format string somehow?
-          fStringHelper := fReleaseDateSplit[1];
-          if (fStringHelper = 'January') then
-            fReleaseDateMonth := 1
-          else if (fStringHelper = 'February') then
-            fReleaseDateMonth := 2
-          else if (fStringHelper = 'March') then
-            fReleaseDateMonth := 3
-          else if (fStringHelper = 'April') then
-            fReleaseDateMonth := 4
-          else if (fStringHelper = 'May') then
-            fReleaseDateMonth := 5
-          else if (fStringHelper = 'June') then
-            fReleaseDateMonth := 6
-          else if (fStringHelper = 'July') then
-            fReleaseDateMonth := 7
-          else if (fStringHelper = 'August') then
-            fReleaseDateMonth := 8
-          else if (fStringHelper = 'September') then
-            fReleaseDateMonth := 9
-          else if (fStringHelper = 'October') then
-            fReleaseDateMonth := 10
-          else if (fStringHelper = 'November') then
-            fReleaseDateMonth := 11
-          else if (fStringHelper = 'December') then
-            fReleaseDateMonth := 12
-          else
-            raise Exception.Create('Unknown month: ' + fStringHelper);
+            rdate.Expression:='(\D+)\s* \s*(\d{4})';
+            rdate.InputString:= fReleaseDateString;
+            fFound:=rdate.exec;
+            If fFound and not Result Then
+              Begin
+                //Index 0 is the Match itself. From Index 1 up are the capturing groups
+                //For i:=1 To r.SubExprMatchCount Do Writeln(r.Match[i]);
+                fStringHelper := TRIM(rdate.Match[1]);
+                fReleaseDateMonth := 0;
+                fReleaseDateDay := 1;
+                fReleaseDateYear := StrToIntDef(rdate.Match[2],1899);
+                for fCnt := Low(FormatSettings.LongMonthNames) to High(FormatSettings.LongMonthNames) do
+                begin
+                  if (fStringHelper = FormatSettings.LongMonthNames[fCnt]) then
+                  begin
+                    fReleaseDateMonth := fCnt;
+                    Result := True;
+                    break;
+                  end;
+                end;
+              end;
 
-          fReleaseDate := EncodeDate(StrToInt(fReleaseDateSplit[2]), fReleaseDateMonth, StrToInt(fReleaseDateSplit[0]));
-        except
+
+            if not Result then
+            begin
+              rdate.Create('\((?P<year>\d\d\d\d)\)');
+              rdate.InputString:= fReleaseDateString;
+              fFound:=rdate.exec;
+              if fFound then
+               begin
+                //For i:=1 To r.SubExprMatchCount Do Writeln(r.Match[i]);
+                fReleaseDateMonth := 1;
+                fReleaseDateDay := 1;
+                fReleaseDateYear := StrToIntDef(TRIM(rdate.Match[1]),1899);
+               end;
+
+              if (fReleaseDateMonth = 0) then
+                  begin
+                    //Debug(dpMessage, section, 'IMDB release date info: unable to parse as DateTime: ' + fReleaseDateString + ' (' + e.Message + ')');
+                    raise Exception.Create('Unknown month: ' + fStringHelper);
+                  end;
+            end;
+
+            fReleaseDate := EncodeDate(fReleaseDateYear, fReleaseDateMonth, fReleaseDateDay);
+            Result := True;
+
+            aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fExtraInfo, fReleaseDate));
+          except
           on e: Exception do
           begin
-            Debug(dpMessage, section, 'IMDB release date info: unable to parse as DateTime: ' + fReleaseDateString + ' (' + e.Message + ')');
+            Debug(dpError, section, 'IMDB release date info: unable to parse as DateTime: ' + fReleaseDateString + ' (' + e.Message + ')');
             Continue;
           end;
         end;
+      finally
+        if assigned(rdate) then
+          rdate.Free;
+      end;
 
-        aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fExtraInfo, fReleaseDate));
       until not rr.ExecNext;
+
+    finally
+      rr.Free;
     end;
+  end;
   finally
-    rr.Free;
+
   end;
 end;
 
