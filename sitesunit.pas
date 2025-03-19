@@ -1562,7 +1562,7 @@ begin
                   try
                     TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
                   finally
-                    TSite(TPazoRaceTask(todotask).ssite2).ReleaseSlotsAssignmentLock;
+                    fSite.ReleaseSlotsAssignmentLock;
                   end;
                 end;
 
