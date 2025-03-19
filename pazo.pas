@@ -51,7 +51,7 @@ type
   private
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
-    FActiveTransfers: TStringList;
+    FActiveTransfers: TDictionary<string, integer>;
     FActiveTransfersCS: TCriticalSection;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
@@ -1245,7 +1245,7 @@ begin
   pazo := aParentPazo;
   Name := aName;
 
-  FActiveTransfers := TStringList.Create;
+  FActiveTransfers := TDictionary<string, integer>.Create(GetCaseInsensitveStringComparer);
   FActiveTransfersCS := TCriticalSection.Create;
   ts := 0;
   firesourcesinstead := False;
@@ -1965,15 +1965,11 @@ begin
 end;
 
 procedure TPazoSite.RemoveActiveTransfer(const aFilepath: String);
-var
-  i: Int32;
 begin
   FActiveTransfersCS.Enter;
   try
     try
-      i := FActiveTransfers.IndexOf(aFilepath);
-      if i <> -1 then
-        FActiveTransfers.Delete(i);
+      FActiveTransfers.Remove(aFilepath);
     except
       on E: Exception do
       begin
@@ -1989,7 +1985,7 @@ function TPazoSite.HasActiveTransfer(const aFilepath: String): boolean;
 begin
   FActiveTransfersCS.Enter;
   try
-    Result := FActiveTransfers.IndexOf(aFilepath) <> -1;
+    Result := FActiveTransfers.ContainsKey(aFilepath);
   finally
     FActiveTransfersCS.Leave;
   end;
@@ -1999,7 +1995,10 @@ procedure TPazoSite.AddActiveTransfer(const aFilepath: String);
 begin
   FActiveTransfersCS.Enter;
   try
-    FActiveTransfers.Add(aFilepath);
+    if not FActiveTransfers.TryAdd(aFilepath, 0) then
+    begin
+      Debug(dpError, section, Format('[WARN] TPazoSite.AddActiveTransfer: Tried to add active transfer, but it was already there %s', [aFilepath]));
+    end;
   finally
     FActiveTransfersCS.Leave;
   end;
