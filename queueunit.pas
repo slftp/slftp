@@ -514,6 +514,10 @@ begin
 
     try
 
+    // again check if this file is already being sent to the destination now that we have the slot assignment lock
+    if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+      exit; // we are already sending this file to the same destination site
+
     ss2 := nil;
     for i := 0 to s2.slots.Count - 1 do
     begin
