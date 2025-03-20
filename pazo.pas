@@ -1997,7 +1997,7 @@ begin
   try
     if not FActiveTransfers.TryAdd(aFilepath, 0) then
     begin
-      Debug(dpError, section, Format('[WARN] TPazoSite.AddActiveTransfer: Tried to add active transfer, but it was already there %s', [aFilepath]));
+      Debug(dpError, section, Format('[WARN] TPazoSite.AddActiveTransfer: Tried to add active transfer, but it was already there %s: %s', [Name, aFilepath]));
     end;
   finally
     FActiveTransfersCS.Leave;
