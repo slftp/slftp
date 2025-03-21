@@ -342,9 +342,13 @@ begin
         if ExcludeCountry(fCountry) then
           Continue;
 
+        //if TryEncodeDate(fReleaseDateString) then
+        //  fReleaseDate := parse
+
         // try to get a TDateTime from the date string of the web page. Date from is coming like this: '30 September 2018'
         try
           try
+            //// Match October 3, 2012
             rdate:=TRegExpr.Create;
             rdate.ModifierI:=True;
             rdate.ModifierG:=True;
@@ -370,6 +374,7 @@ begin
                 end;
               end;
 
+            //// Match October 2012
             rdate.Expression:='(\D+)\s* \s*(\d{4})';
             rdate.InputString:= fReleaseDateString;
             fFound:=rdate.exec;
@@ -392,10 +397,31 @@ begin
                 end;
               end;
 
-
+            //// Match (2014) with only year in brackets
             if not Result then
             begin
               rdate.Create('\((?P<year>\d\d\d\d)\)');
+              rdate.InputString:= fReleaseDateString;
+              fFound:=rdate.exec;
+              if fFound then
+               begin
+                //For i:=1 To r.SubExprMatchCount Do Writeln(r.Match[i]);
+                fReleaseDateMonth := 1;
+                fReleaseDateDay := 1;
+                fReleaseDateYear := StrToIntDef(TRIM(rdate.Match[1]),1899);
+               end;
+
+              if (fReleaseDateMonth = 0) then
+                  begin
+                    //Debug(dpMessage, section, 'IMDB release date info: unable to parse as DateTime: ' + fReleaseDateString + ' (' + e.Message + ')');
+                    raise Exception.Create('Unknown month: ' + fStringHelper);
+                  end;
+            end;
+
+            //// Match 2014 with only year without brackets
+            if not Result then
+            begin
+              rdate.Create('^\d{4}$');
               rdate.InputString:= fReleaseDateString;
               fFound:=rdate.exec;
               if fFound then
