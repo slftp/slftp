@@ -1188,8 +1188,6 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s', [e.Message]));
         end;
       end;
-
-      AddTaskToConsole(t);
     finally
       main_lock.Leave;
     end;
