@@ -1515,7 +1515,6 @@ begin
     ts := TSite(fSite);
     fBusyDestinationsTmp := fBusyDestinations;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
-    fBusyDestinationsTmp.Free;
     //Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
     try
       main_lock.Enter('Execute');
@@ -1589,6 +1588,7 @@ begin
         end;
       finally
         main_lock.Leave;
+        fBusyDestinationsTmp.Free;
       end;
 
       QueueStat;
