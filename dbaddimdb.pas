@@ -226,7 +226,7 @@ function dbaddimdb_Process(aNet, aChan, aNick, aMsg: String): Boolean;
 { Checks if the release is TV, creates the IMDBData Object and after that calls CreateHttpTask. }
 procedure dbaddimdb_SaveImdb(const aReleaseName, aIMDbId: String);
 { save the IMDB-Data into a DataObject. }
-procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData; aIMDbAlsoKnownAsInfoList: TObjectList<TIMDbAlsoKnownAsInfo>; aImdbReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>; aBOMCountryScreens: TDictionary<string, Integer>);
+procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData; aIMDbAlsoKnownAsInfoList: TObjectList<TIMDbAlsoKnownAsInfo>; aImdbReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>; aBOMCountryScreens: TDictionary<string, Integer>; const aPostInIrc: Boolean = True);
 { process found IMDB-Data. }
 procedure dbaddimdb_ProcessImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
 { Creates the httptask and checks for duplicates. }
@@ -240,7 +240,7 @@ function check_ImdbId(const aIMDbId: String): Boolean;
  { parses the Imdb-ID from a String }
 function parseImdbIDFromString(const aText: String; out aIMDbId: String): Boolean;
  { returns the Movie Data within a ImDB-Dataobject }
-function GetImdbMovieData(const aReleaseName: String): TDbImdbData;
+function GetImdbMovieData(const aReleaseName: String; const aPostInIrc: boolean = True): TDbImdbData;
  { creates all relevant objects }
 procedure dbaddimdbInit;
  { destroys all relevant objects }
@@ -861,7 +861,7 @@ begin
   end;
 end;
 
-procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData; aIMDbAlsoKnownAsInfoList: TObjectList<TIMDbAlsoKnownAsInfo>; aImdbReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>; aBOMCountryScreens: TDictionary<string, Integer>);
+procedure dbaddimdb_SaveImdbData(const aReleaseName: String; aImdbData: TDbImdbData; aIMDbAlsoKnownAsInfoList: TObjectList<TIMDbAlsoKnownAsInfo>; aImdbReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>; aBOMCountryScreens: TDictionary<string, Integer>; const aPostInIrc: Boolean = True);
 var
   fIMDbDataRec:   TIMDbDataRecord;
   fIMDbReleaseDatesRecordRec: TIMDbReleaseDatesRecord;
@@ -981,10 +981,11 @@ begin
     //fIMDbBomDataRecordRec.Free;
   end;
 
-  dbaddimdb_ProcessImdbData(aReleaseName, aImdbData);
+  if aPostInIrc then
+    dbaddimdb_ProcessImdbData(aReleaseName, aImdbData);
 End;
 
-function GetImdbMovieData(const aReleaseName: String): TDbImdbData;
+function GetImdbMovieData(const aReleaseName: String; const aPostInIrc: boolean = True): TDbImdbData;
 var
   fAlsoKnownDataRec: TIMDbAlsoKnownAsRecord;
   fMovieImdbDataRec: TIMDbDataRecord;
