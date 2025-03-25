@@ -49,15 +49,17 @@ program slftpUnitTests;
 uses
   FastMM5,
   {$IFDEF TESTINSIGHT}
-    TestInsight.DUnitX,
-  {$ENDIF}
+  TestInsight.DUnitX,
+  {$ENDIF }
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
   DUnitX.TestFramework,
-  Classes, SysUtils,
+  Classes,
+  SysUtils,
   mrdohutils,
+  mormot.db.raw.sqlite3.static,
+  mormot.db.sql.sqlite3,
   slftpUnitTestsSetup,
-  // add all test units below
   mystringsTests,
   mystringsTests.Base64,
   httpTests,
@@ -81,7 +83,8 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
-  precatcherTests;
+  precatcherTests,
+  imdbDatabaseTests in 'imdbDatabaseTests.pas';
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -113,6 +116,9 @@ begin
   InitialDirlistSetup;
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
+  InitialKnownGroupsSetup;
+  InitialSkiplistSetup;
+  InitialFakeSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

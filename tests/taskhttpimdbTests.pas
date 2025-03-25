@@ -726,12 +726,12 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('Italy', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('July 7, 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2017,7,7), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Cine&Comic Fest Genova)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[2];
     CheckEqualsString('UK', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('July 11, 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2017,7,11), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     // no longer getting all the items :(
@@ -872,12 +872,12 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('Thailand', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('August 29, 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2005,8,29), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[3];
     CheckEqualsString('Brazil', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('October 10, 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2005,10,10), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     // list from imdb is no longer complete ...
@@ -1007,24 +1007,24 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('Germany', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('February 22, 2018', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2018,2,22), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('Austria', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('February 23, 2018', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2018,2,23), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     // list is no longer complete
-    //fReleaseDateInfo := fReleaseDateInfoList[3];
-    //CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    //CheckEqualsString('February 12, 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    //CheckEqualsString('(DVD and Blu-ray and premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
-
-    //fReleaseDateInfo := fReleaseDateInfoList[5];
-    //CheckEqualsString('Netherlands', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    //CheckEqualsString('February 21, 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    //CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+//    fReleaseDateInfo := fReleaseDateInfoList[3];
+//    CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+//    CheckEquals(EncodeDate(2019,2,12), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+//    CheckEqualsString('(DVD and Blu-ray and premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+//
+//    fReleaseDateInfo := fReleaseDateInfoList[5];
+//    CheckEqualsString('Netherlands', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+//    CheckEquals(EncodeDate(2019,2,21), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+//    CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -1151,12 +1151,12 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('September 30, 2018', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2018,9,30), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('Spain', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('June 1, 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2019,6,1), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
@@ -1283,12 +1283,12 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('January 24, 2020', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2020,1,24), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Sundance Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('March 6, 2020', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2020,3,6), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(True/False Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     // list is no longer complete
@@ -1422,12 +1422,12 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('Japan', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('October 5, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Tokyo, premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    CheckEquals(EncodeDate(2009,10,5), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('(Tokyo) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[2];
     CheckEqualsString('Belgium', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEqualsString('October 17, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEquals(EncodeDate(2009,10,17), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Gent International Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     // there are only 5 items in the JSON
