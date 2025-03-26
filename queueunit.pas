@@ -813,6 +813,8 @@ begin
     ti := TIdleTask.Create('', '', s.site.Name);
     ti.slot1 := s;
     ti.slot1name := s.Name;
+    ti.assigned := Now;
+    ti.startat := Now;
     s.todotask := ti;
     AddTask(ti);
     s.Fire;
