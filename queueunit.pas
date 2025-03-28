@@ -555,7 +555,7 @@ begin
            except
             on e: Exception do
               begin
-                Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots Classtype Check: %s', [e.Message]);
+                Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots Classtype Check (should no longer happen due to locking at todotask := nil. Remove this if it does not happen): %s', [e.Message]);
                 exit;
               end;
             end;
@@ -756,7 +756,10 @@ begin
           Inc(actual_count);
         end;
         except
-          //ignore, this can happen if todotask is reset meanwhile
+        on e: Exception do
+          begin
+            Debug(dpError, section, '[EXCEPTION] This should not happen anymore due to locking at todotask := nil. Else I don''t know why (Remove this if the exception never happens) : %s', [e.Message]);
+          end;
         end;
       end;
       // only half of the slots for dirlist
