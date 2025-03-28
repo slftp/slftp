@@ -9,14 +9,14 @@ uses
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
   @param(aPassword password which is used for encryption/decryption of the database (FOR FUTURE USE! [TODO])
   @returns(Initialized TSQLDBSQLite3ConnectionProperties instance, returns exception and nil on failure) }
-function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
+function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLDBSQLite3ConnectionProperties;
 
 { Initialize an ORM instance of TSQLRestClientDB with default settings and create missing tables
   @param(aORMSQLModel SQL ORM model for database (object must remain for complete runtime))
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
   @param(aPassword password which is used for encryption/decryption of the database (FOR FUTURE USE! [TODO])
   @returns(Initialized TSQLRestClientDB instance, returns exception and nil on failure) }
-function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String): TSQLRestClientDB;
+function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLRestClientDB;
 
 var
   MySQLCon: TSQLDBZEOSConnectionProperties = nil; //< global connection to a MySQL/MariaDb server
@@ -40,18 +40,23 @@ begin
   Result := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim;
 end;
 
-function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
+function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLDBSQLite3ConnectionProperties;
 begin
   Result := nil;
 
   _CreateDatabaseFolder;
 
   try
-    Result := TSQLDBSQLite3ConnectionProperties.Create(StringToUTF8(_GetDatabasePath + aDatabaseName), '', '', '');
-    // locks the database file for exclusive use during the whole session, read/write will be much faster
-    Result.MainSQLite3DB.LockingMode := lmExclusive;
-    // enable Write-Ahead Logging mode a which is slightly faster
-    Result.MainSQLite3DB.WALMode := True;
+    if aIsInMemory then
+      Result := TSQLDBSQLite3ConnectionProperties.Create(':memory:', aDatabaseName, '', '')
+    else
+    begin
+      Result := TSQLDBSQLite3ConnectionProperties.Create(StringToUTF8(_GetDatabasePath + aDatabaseName), '', '', '');
+      // locks the database file for exclusive use during the whole session, read/write will be much faster
+      Result.MainSQLite3DB.LockingMode := lmExclusive;
+      // enable Write-Ahead Logging mode a which is slightly faster
+      Result.MainSQLite3DB.WALMode := True;
+    end;
   except
     on e: Exception do
     begin
@@ -61,20 +66,26 @@ begin
   end;
 end;
 
-function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String): TSQLRestClientDB;
+function CreateORMSQLite3DB(const aORMSQLModel: TSQLModel; const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLRestClientDB;
 begin
   Result := nil;
 
   _CreateDatabaseFolder;
 
   try
-    Result := TSQLRestClientDB.Create(aORMSQLModel, nil, _GetDatabasePath + aDatabaseName, TSQLRestServerDB, False, StringToUTF8(aPassword));
-    // locks the database file for exclusive use during the whole session, read/write will be much faster
-    Result.DB.LockingMode := lmExclusive;
-    // enable Write-Ahead Logging mode a which is slightly faster
-    Result.DB.WALMode := True;
-    Result.DB.Synchronous := smNormal;
-
+    if aIsInMemory then
+    begin
+      Result := TSQLRestClientDB.create(aORMSQLModel,nil,':memory:', TSQLRestServerDB, False, StringToUTF8(aPassword));
+    end
+    else
+    begin
+      Result := TSQLRestClientDB.Create(aORMSQLModel, nil, _GetDatabasePath + aDatabaseName, TSQLRestServerDB, False, StringToUTF8(aPassword));
+      // locks the database file for exclusive use during the whole session, read/write will be much faster
+      Result.DB.LockingMode := lmExclusive;
+      // enable Write-Ahead Logging mode a which is slightly faster
+      Result.DB.WALMode := True;
+      Result.DB.Synchronous := smNormal;
+    end;
     // create missing sql tables
     Result.Server.CreateMissingTables;
   except
