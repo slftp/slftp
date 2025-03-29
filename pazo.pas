@@ -1437,7 +1437,6 @@ end;
 function TPazoSite.ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
 var
   d: TDirList;
-  i: integer;
   de: TDirListEntry;
   fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
 begin
@@ -1479,17 +1478,6 @@ begin
   if d.entries.Count = 0 then
     exit;
 
-  // sort the dirlist
-  try
-    d.Sort;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] TPazoSite.ParseDirlist (d.Sort): %s', [e.Message]);
-      exit;
-    end;
-  end;
-
 
   // Do some stuff obviously
   if d.entries.Count > 0 then
@@ -1499,9 +1487,8 @@ begin
     try
       d.dirlist_lock.Enter;
       try
-        for i := 0 to d.entries.Count - 1 do
+        for de in d.entries.Values do
         begin
-          de := TDirListEntry(d.entries.Objects[i]);
           if ((not de.skiplisted) and (de.IsOnSite)) then
           begin
             if not de.Directory then
@@ -1511,7 +1498,6 @@ begin
                 de.justadded := False;
                 fRemovePazoRaceEntries.Add(de);
               end;
-              pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
             end;
 
             fFoundDirListEntries.Add(de);
@@ -1521,12 +1507,22 @@ begin
         d.dirlist_lock.Leave;
       end;
 
+      SortDirlistEntries(fFoundDirListEntries);
+
       //do this outside dirlist_lock to avoid deadlocks
       Tuzelj(netname, channel, dir, fFoundDirListEntries);
 
       for de in fRemovePazoRaceEntries do
       begin
         RemovePazoRace(pazo.pazo_id, Name, dir, de.filename);
+      end;
+
+      for de in fFoundDirListEntries do
+      begin
+        if not de.Directory then
+        begin
+          pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
+        end;
       end;
 
     finally
@@ -1568,7 +1564,7 @@ begin
       begin
         de := TDirListEntry.Create(filename, dl, False);
         de.error := True;
-        dl.entries.AddObject(de.filename, de);
+        dl.entries.Add(de.filename, de);
       end;
     finally
       dl.dirlist_lock.Leave;
@@ -1615,7 +1611,7 @@ begin
             de.filesize := -1;
 
             de.RegenerateSkiplist;
-            aDirlist.entries.AddObject(de.filename, de);
+            aDirlist.entries.Add(de.filename, de);
             aDirlist.LastChanged := Now();
           end;
 
@@ -1653,6 +1649,8 @@ begin
       finally
         aDirlist.dirlist_lock.Leave;
       end;
+
+      SortDirlistEntries(fFilesToRace);
 
       //do this outside dirlist_lock to avoid deadlocks
       Tuzelj(aNetname, aChannel, aDir, fFilesToRace);
@@ -1728,7 +1726,6 @@ function TPazoSite.Stats: String;
 var
   fsize: double;
   fsname, fsizetrigger: String;
-  i: integer;
   de: TDirlistEntry;
   sum: Int64;
 begin
@@ -1767,17 +1764,15 @@ begin
         sum := 0;
         dirlist.dirlist_lock.Enter;
         try
-          for i := dirlist.entries.Count - 1 downto 0 do
+          for de in dirlist.entries.Values do
           begin
-            if i < 0 then Break;
             try
-              de := TDirlistEntry(dirlist.entries.Objects[i]);
               if (de.RacedByMe and not de.IsAsciiFiletype) then
                 Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
 
-              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
-                [i, fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
+              Debug(dpError, section, Format('%s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
+                [fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
             except
               on E: Exception do
               begin

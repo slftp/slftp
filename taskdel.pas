@@ -45,7 +45,6 @@ function TDelReleaseTask.RemoveDir(slot: Pointer; const dir: String): Boolean;
 var
   s: TSiteSlot;
   d: TDirList;
-  i: Integer;
   de: TDirListEntry;
 begin
   Result := True;
@@ -60,9 +59,8 @@ begin
   d.dirlist_lock.Enter;
   try
     // use RemoveFile with CWD into dir to ensure glftpd/pzs-ng clears the complete dirs
-    for i := 0 to d.entries.Count - 1 do
+    for de in d.entries.Values do
     begin
-      de := TDirListEntry(d.entries.Objects[i]);
       if not de.directory then
         s.RemoveFile(dir, de.filename, True);
     end;
@@ -71,9 +69,8 @@ begin
     s.RemoveFile(dir, '.imdb', True);
     s.RemoveFile(dir, '.message', True);
 
-    for i := 0 to d.entries.Count - 1 do
+    for de in d.entries.Values do
     begin
-      de := TDirListEntry(d.entries.Objects[i]);
       if ((de.filename = '.') or (de.filename = '..')) then Continue;
       if de.directory then
         RemoveDir(slot, dir + de.filename);
