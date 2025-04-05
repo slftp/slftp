@@ -4,7 +4,7 @@
 Basic dependencies
 ------------------
 on debian:
-    apt install make binutils zlib1g-dev libncurses-dev libsqlite3-dev libssl-dev fpc-3.2.0
+    apt install make binutils zlib1g-dev libncurses-dev libsqlite3-dev libssl-dev fpc-3.2.2
 
 Requirements
 ------------
