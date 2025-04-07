@@ -51,7 +51,7 @@ type
   private
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
-    FActiveTransfers: TDictionary<string, integer>;
+    FActiveTransfers: TDictionary<string, string>;
     FActiveTransfersCS: TCriticalSection;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
@@ -157,8 +157,9 @@ type
     function StatusText: String;
     procedure Clear;
     procedure RemoveActiveTransfer(const aFilepath: String);
-    function HasActiveTransfer(const aFilepath: String): boolean;
-    procedure AddActiveTransfer(const aFilepath: String);
+    function HasActiveTransfer(const aFilepath: String): boolean; overload;
+    function HasActiveTransfer(const aFilepath, aSourceSite: String): boolean; overload;
+    procedure AddActiveTransfer(const aFilepath, aSourceSite: String);
 
   end;
 
@@ -1245,7 +1246,7 @@ begin
   pazo := aParentPazo;
   Name := aName;
 
-  FActiveTransfers := TDictionary<string, integer>.Create(GetCaseInsensitveStringComparer);
+  FActiveTransfers := TDictionary<string, string>.Create(GetCaseInsensitveStringComparer);
   FActiveTransfersCS := TCriticalSection.Create;
   ts := 0;
   firesourcesinstead := False;
@@ -1991,11 +1992,23 @@ begin
   end;
 end;
 
-procedure TPazoSite.AddActiveTransfer(const aFilepath: String);
+function TPazoSite.HasActiveTransfer(const aFilepath, aSourceSite: String): boolean;
+var
+  fSourceSiteName: string;
 begin
   FActiveTransfersCS.Enter;
   try
-    if not FActiveTransfers.TryAdd(aFilepath, 0) then
+    Result := FActiveTransfers.TryGetValue(aFilepath, fSourceSiteName) and (fSourceSiteName = aSourceSite);
+  finally
+    FActiveTransfersCS.Leave;
+  end;
+end;
+
+procedure TPazoSite.AddActiveTransfer(const aFilepath, aSourceSite: String);
+begin
+  FActiveTransfersCS.Enter;
+  try
+    if not FActiveTransfers.TryAdd(aFilepath, aSourceSite) then
     begin
       Debug(dpError, section, Format('[WARN] TPazoSite.AddActiveTransfer: Tried to add active transfer, but it was already there %s: %s', [Name, aFilepath]));
     end;
