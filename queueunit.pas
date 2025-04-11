@@ -1126,7 +1126,7 @@ begin
       tasks.Add(t);
 
       try
-        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted) then
+        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
           TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
           try
@@ -1522,6 +1522,12 @@ begin
           for fTask in tasks do
           begin
             try
+              if ts.freeslots = 0 then
+              begin
+                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+                break;
+              end;
+
               if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
                 (not fTask.readyerror)) then
               begin
