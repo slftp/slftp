@@ -39,6 +39,7 @@
     NEW slftp.ini parameter(s):
       SFVRelease=
       event_based_locking=0
+	  mode=0 in [dbaddpre] for in-memory pre DB
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -56,6 +57,7 @@
     {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
         will raise an exception with some info about which thread and code is blocking a lock.
     {^} Rewrite rules unit for faster race start
+    {^} Rewrite of in-memory pre DB which now uses in-memory SQLite. Enable by using mode=0 in [dbaddpre] section of slftp.ini
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
