@@ -22,7 +22,7 @@ type
 implementation
 
 uses
-  DateUtils, SysUtils, queueunit, debugunit, configunit,
+  DateUtils, SysUtils, debugunit, configunit,
   sltcp, http, RegExpr, irc, mrdohutils, kb.releaseinfo;
 
 const

@@ -38,6 +38,7 @@
 
     NEW slftp.ini parameter(s):
       SFVRelease=
+      event_based_locking=0
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -52,6 +53,8 @@
     {#} Fix build on BSD
     {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
     {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
+    {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
+        will raise an exception with some info about which thread and code is blocking a lock.
     {^} Rewrite rules unit for faster race start
 
 --=============================( SLFTP v1.5.10 )==================================-

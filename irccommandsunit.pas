@@ -327,7 +327,7 @@ procedure RawB(const netname, channel: String; sitename, dir, command: String; A
 implementation
 
 uses
-  SysUtils, Contnrs, debugunit, mystrings, notify, taskdirlist, queueunit, taskraw, sltcp;
+  SysUtils, Contnrs, debugunit, mystrings, notify, taskdirlist, sitesunit, taskraw, sltcp;
 
 const
   section = 'irccommandsunit';
@@ -445,8 +445,7 @@ begin
   r := TDirlistTask.Create(Netname, Channel, sitename, dir, true);
   tn := AddNotify;
   tn.tasks.Add(r);
-  AddTask(r);
-  QueueFire;
+  AddTask(r, true);
 
   tn.event.WaitFor($FFFFFFFF);
 
@@ -474,8 +473,7 @@ begin
   r := TRawTask.Create(Netname, Channel, sitename, dir, command);
   tn := AddNotify;
   tn.tasks.Add(r);
-  AddTask(r);
-  QueueFire;
+  AddTask(r, true);
 
   tn.event.WaitFor($FFFFFFFF);
 

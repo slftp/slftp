@@ -27,10 +27,9 @@ begin
   section := UpperCase(SubString(params, ' ', 1));
   rls := SubString(params, ' ', 2);
 
-  i := kb_list.IndexOf(section + '-' + rls);
-  if i <> -1 then
+  p := FindPazoByKey(section + '-' + rls);
+  if p <> nil then
   begin
-    p := TPazo(kb_list.Objects[i]);
     s := p.AsText;
     for i := 1 to 1000 do
     begin
@@ -55,7 +54,7 @@ var
 begin
   section := SubString(params, ' ', 1);
 
-  if kb_list.Count <= 0 then
+  if GetKBCount <= 0 then
   begin
     irc_addtext(Netname, Channel, 'No Infos in knowledge base!');
     Result := True;
@@ -76,29 +75,7 @@ begin
   else
     hits := StrToIntDef(SubString(params, ' ', 1), 10);
 
-  db := 0;
-  for i := kb_list.Count - 1 downto 0 do
-  begin
-    if (db > hits) then
-      break;
-
-    p := TPazo(kb_list.Objects[i]);
-    if p <> nil then
-    begin
-      if ((section = '') or (p.rls.section = section)) then
-      begin
-        irc_addtext(Netname, Channel, '#%d %s %s [QueueNumber: %d (Race:%d Dirlist:%d Mkdir:%d)]',
-          [p.pazo_id, p.rls.section, p.rls.rlsname, p.queuenumber.Value, p.racetasks.Value,
-          p.dirlisttasks.Value, p.mkdirtasks.Value]);
-
-        Inc(db);
-      end;
-    end
-    else
-    begin
-      irc_addtext(Netname, Channel, 'Whops, Pazo is nil! Anything screwed up!');
-    end;
-  end;
+    ListKBToIRC(netname, channel, section, hits);
 
   Result := True;
 end;

@@ -138,8 +138,6 @@ begin
   sitename := UpperCase(SubString(params, ' ', 1));
   section  := UpperCase(SubString(params, ' ', 2));
 
-  kb_lock.Enter;
-  try
     s := FindSiteByName(netname, sitename);
     if s = nil then
     begin
@@ -163,14 +161,12 @@ begin
     end;
 
     kb_Add(netname, channel, sitename, section, '', kbeCOMPLETE, dir, '', True);
-    i := kb_list.IndexOf(section + '-' + dir);
-    if i = -1 then
+    p := FindPazoByKey(section + '-' + dir);
+    if p = nil then
     begin
       irc_addtext(netname, channel, 'No valid kbID found for %s-%s!', [section, dir]);
       exit; // this is not possible
     end;
-
-    p := TPazo(kb_list.Objects[i]);
 
     addednumber := 0;
     tn := AddNotify;
@@ -217,14 +213,9 @@ begin
 
       r := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(ps.maindir) + dir);
       tn.tasks.Add(r);
-      AddTask(r);
+      AddTask(r, True);
       Inc(addednumber);
     end;
-
-    QueueFire;
-  finally
-    kb_lock.Leave;
-  end;
 
   if addednumber = 0 then
   begin
@@ -422,16 +413,12 @@ begin
     exit;
   end;
 
-  kb_lock.Enter;
-  try
-    pazo_id := kb_list.IndexOf(section + '-' + dir);
-    if pazo_id = -1 then // this shouldnt happen
+    p := FindPazoByKey(section + '-' + dir);
+    if p = nil then // this shouldnt happen
     begin
       irc_addtext(Netname, Channel, '<c4><b>ERROR</c> No pazo_id found for:</b> %s-%s', [section, dir]);
       exit;
     end;
-
-    p := TPazo(kb_list.Objects[pazo_id]);
 
     for ps in p.PazoSitesList do
     begin
@@ -504,7 +491,7 @@ begin
         try
           rc := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(s.sectiondir[section]), True);
           tn1.tasks.Add(rc);
-          AddTask(rc);
+          AddTask(rc, True);
           Inc(addednumber);
         except
           on E: Exception do
@@ -517,12 +504,7 @@ begin
       irc_addText(netname, channel, 'Changing working directory to the predir.');
     elozo := Now;
 
-  finally
-    kb_lock.Leave;
-  end;
-
     try
-      QueueFire;
       tn1.event.WaitFor($FFFFFFFF);
       if verbose then
         irc_addtext(netname, channel, 'Dir change to predirs done.');
@@ -576,13 +558,12 @@ begin
       rr := TRawTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]), precmd);
       rr.wantedslot := sr.slotname;
       tn2.tasks.Add(rr);
-      AddTask(rr);
+      AddTask(rr, True);
     end;
 
     RemoveTN(tn1);
     if verbose then
       irc_addtext(netname, channel, 'Sending site pre for %s', [dir]);
-    QueueFire;
 
   tn2.event.WaitFor($FFFFFFFF);
 
@@ -645,12 +626,11 @@ begin
       rl := TDirlistTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]));
       rl.wantedslot := sr.slotname;
       tn3.tasks.Add(rl);
-      AddTask(rl);
+      AddTask(rl, True);
     end;
     RemoveTN(tn2);
     if verbose then
       irc_addtext(netname, channel, 'Checking if %s is still in any of the predirs.', [dir]);
-    QueueFire;
 
   tn3.event.Waitfor($FFFFFFFF);
 
@@ -770,9 +750,7 @@ var
         continue;
       end;
 
-      kb_lock.Enter;
-      try
-        p := TPazo(kb_list.Objects[i]);
+        p := FindPazoByID(i);
 
         ss := '';
         for i := 0 to sites.Count - 1 do
@@ -803,9 +781,6 @@ var
             ss := ss + site.Name + ' ';
           end;
         end;
-      finally
-        kb_lock.Leave;
-      end;
 
       ss := Trim(ss);
       if verbose then
@@ -898,9 +873,8 @@ begin
       try
         if fDirlist <> nil then
         begin
-          for i := 0 to fDirlist.entries.Count - 1 do
+          for fDirlistEntry in fDirlist.entries.Values do
           begin
-            fDirlistEntry := TDirListEntry(fDirlist.entries.Objects[i]);
             if verbose then
               irc_Addtext(netname, channel, 'Found %s in section %s', [fDirlistEntry.filename, section]);
 
@@ -1045,8 +1019,7 @@ begin
         r := TDelreleaseTask.Create(Netname, Channel, s.Name, MyIncludeTrailingSlash(predir) + dir);
         tn := AddNotify;
         tn.tasks.Add(r);
-        AddTask(r);
-        QueueFire;
+        AddTask(r, True);
 
         irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
         tn.event.WaitFor($FFFFFFFF);
@@ -1090,8 +1063,7 @@ begin
       r := TDelreleaseTask.Create(Netname, Channel, sitename, MyIncludeTrailingSlash(predir) + dir);
       tn := AddNotify;
       tn.tasks.Add(r);
-      AddTask(r);
-      QueueFire;
+      AddTask(r, True);
       irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
       tn.event.WaitFor($FFFFFFFF);
 
@@ -1162,7 +1134,7 @@ begin
   begin
     exit;
   end;
-  p := TPazo(kb_list.Objects[pazo_id]);
+  p := FindPazoById(pazo_id);
   p.Clear;
   p.AddSites;
 
@@ -1197,13 +1169,11 @@ begin
         r := TDelreleaseTask.Create(Netname, Channel, ps.Name,
           MyIncludeTrailingSlash(ps.maindir) + dir);
         tn.tasks.Add(r);
-        AddTask(r);
+        AddTask(r, True);
         added := True;
       end;
     end;
   end;
-
-  QueueFire;
 
   if added then
     tn.event.WaitFor($FFFFFFFF)
@@ -1218,7 +1188,7 @@ end;
 function IrcListPreContent(const netname, channel, params: String): boolean;
 var
   s:        TSite;
-  ii, i:    integer;
+  i:        integer;
   sitename: String;
   section:  String;
   predir:   String;
@@ -1254,13 +1224,12 @@ begin
           Continue;
 
         d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-        d.dirlist_lock.Enter;
+        d.dirlist_lock.Enter('IrcListPreContent');
         try
           if d <> nil then
           begin
-            for ii := 0 to d.entries.Count - 1 do
+            for de in d.entries.Values do
             begin
-              de := TDirListEntry(d.entries.Objects[ii]);
               if de.directory then
               begin
                 plist.Values[de.filename] := plist.Values[de.filename] + ' ' + s.Name;
@@ -1296,13 +1265,12 @@ begin
       irc_addtext(netname, channel, 'Read content for %s:', [s.Name]);
 
       d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-      d.dirlist_lock.Enter;
+      d.dirlist_lock.Enter('IrcListPreContent');
       try
         if d <> nil then
         begin
-          for ii := 0 to d.entries.Count - 1 do
+          for de in d.entries.Values do
           begin
-            de := TDirListEntry(d.entries.Objects[ii]);
             if de.directory then
             begin
               irc_addtext(netname, channel, '%s', [de.filename]);

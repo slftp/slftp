@@ -57,7 +57,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto,
-  taskautodirlist;
+  taskautodirlist, slcriticalsection2;
 
 {$I slftp.inc}
 
@@ -87,6 +87,11 @@ var
   fError: String;
 begin
   Result := '';
+
+  if config.ReadString('debug', 'event_based_locking', '0') = '1' then
+    SlCriticalSection2Init(True)
+  else
+    SlCriticalSection2Init(False);
 
   if not sltcp_inited then
   begin
@@ -325,10 +330,10 @@ begin
   end;
 
   // fire queue scheduler
-  if ((queue_fire > 0) and (MilliSecondsBetween(Now, queue_last_run) >= queue_fire)) then
+  if ((queue_fire > 0)) then
   begin
     try
-      QueueFire;
+      QueueFireInverval(queue_fire);
     except
       on e: Exception do
       begin
@@ -338,15 +343,14 @@ begin
   end;
 
   // clean queue scheduler
-  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >= queueclean_interval)) then
+  if (queueclean_interval > 0) then
   begin
     try
-      QueueClean;
+      QueueCleanInverval(queueclean_interval);
     except
       on e: Exception do
       begin
         Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
-        queueclean_last_run := Now;
       end;
     end;
   end;
@@ -516,6 +520,8 @@ begin
 end;
 
 procedure Main_Stop;
+var
+fSite: TSite;
 begin
   // this is just a matter of putting the right shit on the kitty,
   // uninitialization will be in Main_Uninit
@@ -527,7 +533,9 @@ begin
   IrcStop();
   kb_Save();
   kb_Stop;
-  QueueFire();
+  kb_FreeList;
+  for fSite in sites do
+    fSite.QueueFire();
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 
@@ -580,6 +588,8 @@ begin
   dbtvinfoUnInit;
   NewsUnInit;
   AutodirlistUninit;
+  DirlistUnInit;
+  SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then

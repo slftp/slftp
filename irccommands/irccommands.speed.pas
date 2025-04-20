@@ -21,15 +21,13 @@ const
 procedure _PickupSpeedtestFile(d: TDirList; var fsfilename: String; var fsfilesize: Int64);
 var
   de: TDirListEntry;
-  i: integer;
 begin
   fsfilename := '';
   fsfilesize := 0;
-  d.dirlist_lock.Enter;
+  d.dirlist_lock.Enter('_PickupSpeedtestFile');
   try
-    for i := 0 to d.entries.Count - 1 do
+    for de in d.entries.Values do
     begin
-      de := TDirListEntry(d.entries.Objects[i]);
       if ((de.filesize > fsfilesize) and (de.filesize >=
         config.ReadInteger('speedtest', 'min_filesize', 15) * 1024 * 1024) and
         (de.filesize <= config.ReadInteger('speedtest', 'max_filesize', 120) *
@@ -230,7 +228,7 @@ begin
 
   p := PazoAdd(nil);
 
-  kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
+  AddPazoToKB('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
 
   while (True) do
   begin
@@ -257,7 +255,7 @@ begin
     ps := TPazoSite(p.PazoSitesList[i]);
     irc_addtext(Netname, Channel, 'Speedtesting %s -> %s ->> %s', [firstsite.Name, ps.Name, ps.maindir]);
     tn := AddNotify;
-    t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p, '', fsfilename, fsfilesize, 1);
+    t := TPazoRaceTask.Create(Netname, Channel, firstsite.Name, ps.Name, p, nil, '', fsfilename, fsfilesize, 1);
     t.FFilenameForSTORCommand := speedtestfilename;
 
     tn.tasks.Add(t);
@@ -439,7 +437,7 @@ begin
 
     p := PazoAdd(nil);
 
-    kb_list.AddObject('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
+    AddPazoToKB('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
     while (True) do
     begin
       ss := Fetch(fParams, ' ', True, False);
@@ -482,7 +480,7 @@ begin
 
       tn := AddNotify;
 
-      t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p, '', fsfilename, fsfilesize, 1);
+      t := TPazoRaceTask.Create(Netname, Channel, ps.Name, firstsite.Name, p, nil, '', fsfilename, fsfilesize, 1);
       t.FFilenameForSTORCommand := speedtestfilename;
       tn.tasks.Add(t);
       AddTask(t);

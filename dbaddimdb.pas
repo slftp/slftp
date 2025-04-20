@@ -253,7 +253,6 @@ var
 implementation
 
 uses
-
   debugunit, configunit, sitesunit, console, StrUtils, RegExpr,
   DateUtils, mystrings, FLRE, kb, kb.releaseinfo, sllanguagebase,
   queueunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
@@ -1124,9 +1123,7 @@ procedure CreateHttpTask(const aReleaseName, aIMDbId: String);
 var fTask : TPazoHTTPImdbTask;
 begin
   try
-    fTask := TPazoHTTPImdbTask.Create(aIMDbId, aReleaseName);
-    //if not TaskAlreadyInQueue(fTask) then
-      AddTask(fTask);
+    AddTask(TPazoHTTPImdbTask.Create(aIMDbId, aReleaseName), true);
   except
     on e: Exception do
     begin

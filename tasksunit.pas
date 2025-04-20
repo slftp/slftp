@@ -35,8 +35,6 @@ type
     uid: UInt64;
     time: TDateTime; //< some time value
 
-    dependencies: TStringList;
-
     wanted_up: Boolean;
     wanted_dn: Boolean;
 
@@ -44,7 +42,6 @@ type
 
     constructor Create(const netname, channel, site1: String); overload;
     constructor Create(const netname, channel, site1, site2: String); overload;
-    destructor Destroy; override;
 
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
@@ -53,12 +50,12 @@ type
     function Fullname: String; virtual;
     function UidText: String;
     function ScheduleText: String;
+    function IsReadyToBeExecuted: boolean; virtual;
     procedure DebugTask;
   end;
 
 procedure Tasks_Init;
 procedure Tasks_Uninit;
-function FindTaskByUidText(const uidtext: String): TTask;
 
 const
   MaxNumberErrors = 3;
@@ -102,7 +99,7 @@ begin
   announce := '';
   slot1name := '';
   slot2name := '';
-  dependencies := TStringList.Create;
+
 
   ssite1 := FindSiteByName('', site1);
   if ssite1 = nil then
@@ -124,12 +121,6 @@ begin
   end;
 end;
 
-destructor TTask.Destroy;
-begin
-  dependencies.Free;
-  inherited;
-end;
-
 procedure TTask.DebugTask;
 begin
   Debug(dpSpam, section, '%s', [Fullname]);
@@ -138,7 +129,7 @@ end;
 function TTask.Fullname: String;
 begin
   try
-    Result := Format('#%d (%s): %s [%d] [%s]', [uid, site1, name, TryToAssign, dependencies.DelimitedText]);
+    Result := Format('#%d (%s): %s [%d] [%d]', [uid, site1, name, TryToAssign, Ord(IsReadyToBeExecuted)]);
   except
     Result := 'TTask';
   end;
@@ -156,6 +147,12 @@ begin
   Result := '#' + IntToStr(uid);
 end;
 
+
+function TTask.IsReadyToBeExecuted: boolean;
+begin
+  Result := True;
+end;
+
 procedure Tasks_Init;
 begin
   uid_lock := TCriticalSection.Create;
@@ -166,30 +163,6 @@ begin
   Debug(dpSpam, section, 'Uninit1');
   uid_lock.Free;
   Debug(dpSpam, section, 'Uninit2');
-end;
-
-function FindTaskByUidText(const uidtext: String): TTask;
-var
-  i: Integer;
-begin
-  Result := nil;
-
-  for i := tasks.Count - 1 downto 0 do
-  begin
-    try
-      if ((TTask(tasks[i]).UidText = uidtext) and (not TTask(tasks[i]).ready) and (not TTask(tasks[i]).readyerror)) then
-      begin
-        Result := TTask(tasks[i]);
-        break;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] FindTaskByUidText: %s', [e.Message]));
-        Result := nil;
-      end;
-    end;
-  end;
 end;
 
 end.

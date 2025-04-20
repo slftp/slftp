@@ -1637,7 +1637,6 @@ end;
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 var
   dstps: TPazoSite;
-  y: TStringList;
   i: integer;
   ps_s, dstps_s: TSite;
 begin
@@ -1660,67 +1659,60 @@ begin
   p.srcsite := ps.Name;
   Debug(dpSpam, dsection, '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 
-  y := TStringList.Create;
-  try
-    y.Assign(ps.speed_from);
-
-    for i := 0 to y.Count - 1 do
-    begin
-      try
-        if i > y.Count then
-          Break;
-      except
+  for i := 0 to ps.speed_from.Count - 1 do
+  begin
+    try
+      if i > ps.speed_from.Count then
         Break;
-      end;
+    except
+      Break;
+    end;
 
-      try
-        dstps := p.FindSite(y.Names[i]);
-        if dstps = nil then
+    try
+      dstps := p.FindSite(ps.speed_from.Names[i]);
+      if dstps = nil then
+        Continue;
+
+      if (dstps.Name <> ps.Name) then
+      begin
+        if (dstps.StatusRealPreOrShouldPre) then
+        begin
+          if (dstps.reason = '') then
+            dstps.reason := 'Affil';
+          Continue;
+        end;
+
+        if dstps.error then
           Continue;
 
-        if (dstps.Name <> ps.Name) then
+        dstps_s := FindSiteByName('', dstps.Name);
+        if dstps_s = nil then
+          Continue;
+
+        if (not (dstps_s.WorkingStatus in [sstUnknown, sstUp])) or (dstps_s.PermDown) then
         begin
-          if (dstps.StatusRealPreOrShouldPre) then
-          begin
-            if (dstps.reason = '') then
-              dstps.reason := 'Affil';
-            Continue;
-          end;
-
-          if dstps.error then
-            Continue;
-
-          dstps_s := FindSiteByName('', dstps.Name);
-          if dstps_s = nil then
-            Continue;
-
-          if (not (dstps_s.WorkingStatus in [sstUnknown, sstUp])) or (dstps_s.PermDown) then
-          begin
-            if (dstps.reason = '') then
-              dstps.reason := 'Down';
-            Continue;
-          end;
-
-          p.dstsite := dstps.Name;
-          // i'm allowed to e ...
-          if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
-          begin
-            Result := ps.AddDestination(dstps, CalculateRank(dstps_s, StrToIntDef(y.ValueFromIndex[i], 1), p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
-          end;
+          if (dstps.reason = '') then
+            dstps.reason := 'Down';
+          Continue;
         end;
-      except
-        on e: Exception do
+
+        p.dstsite := dstps.Name;
+        // i'm allowed to e ...
+        if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
         begin
-          Debug(dpError, dsection, Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
-          Result := False;
-          Break;
+          Result := ps.AddDestination(dstps, CalculateRank(dstps_s, StrToIntDef(ps.speed_from.ValueFromIndex[i], 1), p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
         end;
       end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, dsection, Format('[EXCEPTION] FireRules loop: %s', [e.Message]));
+        Result := False;
+        Break;
+      end;
     end;
-    Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
-  finally
-    y.Free;
   end;
+  Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 end;
 
 procedure RulesSave;

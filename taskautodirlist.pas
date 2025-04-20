@@ -128,8 +128,8 @@ begin
     exit;
   end;
 
-  i := kb_list.IndexOf(fKbKey);
-  if i <> -1 then
+  p := FindPazoByKey(fKbKey);
+  if p <> nil then
   begin
     exit;
   end;
@@ -287,7 +287,7 @@ begin
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasenametofind, ss);
       p := PazoAdd(rls);
-      kb_list.AddObject(fKbKey, p);
+      AddPazoToKB(fKbKey, p);
       SetRequestFilled(fKbKey);
 
       ps := p.AddSite(site1, maindir);
@@ -334,7 +334,7 @@ end;
 function TAutoDirlistTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
-  i, j: Integer;
+  i: Integer;
   l: TAutoDirlistTask;
   asection, ss, section, sectiondir: String;
   dl: TDirList;
@@ -431,11 +431,10 @@ begin
 
       // dirlist successful, you must work with the elements
       dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
-      dl.dirlist_lock.Enter;
+      dl.dirlist_lock.Enter('TAutoDirlistTask.Execute');
       try
-        for j := 0 to dl.entries.Count - 1 do
+        for de in dl.entries.Values do
         begin
-          de := TDirlistEntry(dl.entries.Objects[j]);
           if ((de.Directory) and (0 = pos('nuked', de.FilenameLowerCased))) then
           begin
             if section = 'REQUEST' then

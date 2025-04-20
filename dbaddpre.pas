@@ -72,21 +72,21 @@ function AddPreDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles,
-  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
+  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles, slcriticalsection2,
+  irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
 
 const
   section = 'dbaddpre';
 
 var
   addpreSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
-  SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
+  SQLite3Lock: TSLCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
 
   addprecmd: TStringList;
   kbadd_addpre: boolean;
 
   last_addpre: THashedStringList;
-  last_addpre_lock: TCriticalSection;
+  last_addpre_lock: TSLCriticalSection2;
 
   dbaddpre_mode: TAddPreMode = TAddPreMode(3);
   dbaddpre_plm1: TPretimeLookupMode;
@@ -215,7 +215,7 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('ReadPretimeOverSQLITE');
   try
     fQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
     try
@@ -400,7 +400,7 @@ begin
     apmMemory:
       begin
         try
-          last_addpre_lock.Enter;
+          last_addpre_lock.Enter('dbaddpre_GetRlz');
           try
             i := last_addpre.IndexOf(rls);
             if i = -1 then
@@ -453,7 +453,7 @@ begin
     apmMemory:
       begin
         try
-          last_addpre_lock.Enter;
+          last_addpre_lock.Enter('dbaddpre_InsertRlz');
           try
             addpredata := TDbAddPre.Create(rls, DateTimeToUnix(Now(), False));
             last_addpre.AddObject(rls, addpredata);
@@ -481,7 +481,7 @@ begin
       end;
     apmSQLITE:
       begin
-        SQLite3Lock.Enter;
+        SQLite3Lock.Enter('dbaddpre_InsertRlz');
         try
           fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
@@ -563,7 +563,7 @@ begin
       end;
     apmSQLITE:
       begin
-        SQLite3Lock.Enter;
+        SQLite3Lock.Enter('dbaddpre_GetCount');
         try
           fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
           try
@@ -641,7 +641,7 @@ begin
     Result := True;
     msg := Copy(msg, length(addprecmd.Strings[ii] + ' ') + 1, 1000);
     try
-      last_addpre_lock.Enter;
+      last_addpre_lock.Enter('dbaddpre_Process');
       try
         dbaddpre_ADDPRE(net, chan, nick, msg, kbeADDPRE);
       finally
@@ -665,7 +665,7 @@ end;
 
 procedure dbaddpreInit;
 begin
-  last_addpre_lock := TCriticalSection.Create;
+  last_addpre_lock := TSLCriticalSection2.Create('last_addpre_lock');
   addprecmd := TStringList.Create;
   last_addpre := THashedStringList.Create;
   last_addpre.Duplicates := dupIgnore;
@@ -689,7 +689,7 @@ begin
 
   if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
-    SQLite3Lock := TCriticalSection.Create;
+    SQLite3Lock := TSLCriticalSection2.Create('SQLite3Lock');
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
 
     try

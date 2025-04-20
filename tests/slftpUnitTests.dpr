@@ -83,8 +83,8 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
-  precatcherTests,
-  imdbDatabaseTests in 'imdbDatabaseTests.pas';
+slcriticalsection2Tests;
+imdbDatabaseTests in 'imdbDatabaseTests.pas';
 
 // allow more user mode address space
 {$SetPEFlags $20}

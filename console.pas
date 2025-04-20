@@ -415,6 +415,8 @@ begin
 end;
 
 procedure ConsoleStart;
+var
+  fSite: TSite;
 begin
   slConsoleInit;
 
@@ -428,7 +430,10 @@ begin
         if inited then
         begin
           Debug(dpError, section, 'slFtp exiting');
-          QueueFire;
+          for fSite in sites do
+          begin
+            fSite.QueueFire;
+          end;
           SlotsFire;
         end;
         Free;
@@ -1145,6 +1150,7 @@ end;
 procedure TShowWindowTask.Execute;
 var
   w: TslCommandWindow;
+  fSite: TSite;
 begin
   try
     w := FindWindow;
@@ -1155,7 +1161,8 @@ begin
     if UpperCase(w.Title) = 'QUEUE' then
     begin
       app.queue.textbox.Text := '';
-      QueueSendCurrentTasksToConsole;
+      for fSite in sites do
+        fSite.QueueSendCurrentTasksToConsole;
     end;
   except
     on e: Exception do
