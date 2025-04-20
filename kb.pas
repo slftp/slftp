@@ -436,7 +436,7 @@ begin
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
           try
-            dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename);
+            dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename, True);
           except
             on e: Exception do
             begin
