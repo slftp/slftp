@@ -434,7 +434,7 @@ procedure TQueueThread.TryToAssignRaceSlots(t: TPazoRaceTask);
 var
   s1, s2: TSite;
   i: integer;
-  ss1, ss2: TSiteSlot;
+  ss1, ss2, fSiteSlotLoop: TSiteSlot;
   tt: TTask;
   tpr: TPazoRaceTask;
   fWaitResult: TWaitResult;
@@ -459,6 +459,9 @@ begin
 
     if s2.num_up >= s2.max_up then
       exit;
+
+    if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
+      exit; // we are already sending this file the opposite route
 
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
@@ -519,63 +522,13 @@ begin
       exit; // we are already sending this file to the same destination site
 
     ss2 := nil;
-    for i := 0 to s2.slots.Count - 1 do
+    for fSiteSlotLoop in s2.slots do
     begin
-      if i > s2.slots.Count then
-      begin
-        ss2 := nil;
-        Break;
-      end;
-
-      if TSiteSlot(s2.slots[i]).todotask = nil then
+      if (fSiteSlotLoop.todotask = nil) and (fSiteSlotLoop.status = ssOnline) then
       begin
         // available slot we might use
-        if ss2 = nil then
-        begin
-          ss2 := TSiteSlot(s2.slots[i]);
-
-          // check if slot is online and available for a new task
-          if ss2.status <> ssOnline then
-          begin
-            ss2 := nil;
-            continue;
-          end;
-        end;
-      end
-      else
-      begin
-        tt := TSiteSlot(s2.slots[i]).todotask;
-        if tt <> nil then
-        begin
-          try
-           if (tt.Name = '') then
-           begin
-            Debug(dpError, section, '[Info] TQueueThread.TryToAssignRaceSlots slot1Name Check: Slot1Name is empty');
-           end;
-           except
-            on e: Exception do
-              begin
-                Debug(dpError, section, '[EXCEPTION] TQueueThread.TryToAssignRaceSlots Classtype Check: %s', [e.Message]);
-                exit;
-              end;
-            end;
-          // check for already existing tasks to avoid duping ourself
-          if tt.ClassType = TPazoRaceTask then
-          begin
-            tpr := TPazoRaceTask(tt);
-            if ((tpr.site2 = t.site2) and (tpr.dir = t.dir) and (tpr.filename = t.filename)) then
-            begin
-              // already trading the file to that site
-              exit;
-            end;
-
-            if ((tpr.site2 = t.site1) and (tpr.site1 = t.site2) and (tpr.dir = t.dir) and (tpr.filename = t.filename)) then
-            begin
-              // already trading the opposite route
-              exit;
-            end;
-          end;
-        end;
+        ss2 := fSiteSlotLoop;
+        break;
       end;
     end;
     if ss2 = nil then
@@ -596,7 +549,7 @@ begin
     t.dst.wait_for := t.Name;
     t.dst.slot1 := ss2;
     AddTask(t.dst);
-    t.ps2.AddActiveTransfer(t.dir + t.filename);
+    t.ps2.AddActiveTransfer(t.dir + t.filename, s1.Name);
     t.slot1      := ss1;
     t.slot1name  := ss1.Name;
     t.slot2      := ss2;
@@ -756,7 +709,10 @@ begin
           Inc(actual_count);
         end;
         except
-          //ignore, this can happen if todotask is reset meanwhile
+        on e: Exception do
+          begin
+            Debug(dpError, section, '[EXCEPTION] This should not happen anymore due to locking at todotask := nil. Else I don''t know why (Remove this if the exception never happens) : %s', [e.Message]);
+          end;
         end;
       end;
       // only half of the slots for dirlist
@@ -1170,7 +1126,7 @@ begin
       tasks.Add(t);
 
       try
-        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted) then
+        if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
           TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
           try
@@ -1566,6 +1522,12 @@ begin
           for fTask in tasks do
           begin
             try
+              if ts.freeslots = 0 then
+              begin
+                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+                break;
+              end;
+
               if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
                 (not fTask.readyerror)) then
               begin

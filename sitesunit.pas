@@ -212,6 +212,7 @@ type
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
+    fMaxUpPerRip: integer;
     fGetReducedSpeedstatWeight: boolean;
     fGetPermDownStatus: boolean;
     fGetSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -1584,7 +1585,24 @@ begin
                 todotask.slot1 := nil;
               end;
             finally
-              todotask := nil;
+              try
+                self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
+                try
+                  todotask := nil;
+                finally
+                  self.site.ReleaseSlotsAssignmentLock;
+                end;
+              except
+                on E: Exception do
+                begin
+                  // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
+                  // This should not really ever happen, other than in a deadlock situation.
+                  todotask := nil;
+                  Debug(dpError, section,
+                    Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
+                    [e.Message]));
+                end;
+              end;
             end;
           except
             on e: Exception do
@@ -3082,6 +3100,7 @@ begin
   fIo_timeout := RCInteger('io_timeout', 15);
   fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
   fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
+  fMaxUpPerRip := RCInteger('maxupperrip', 0);
 
   siteinvited := False;
   foutofannounce := 0;
@@ -3380,6 +3399,8 @@ procedure TSite.SetMaxDn(Value: integer);
 begin
   WCInteger('max_dn', Value);
   fMaxDn := Value;
+  // also set max pre dn again as default max_dn in case max pre dn is not set
+  fMaxPreDn := RCInteger('max_pre_dn', max_dn);
 end;
 
 function TSite.GetMaxPreDn: integer;
@@ -4445,11 +4466,12 @@ end;
 
 function TSite.GetSiteMaxUpPerRip: integer;
 begin
-  Result := RCInteger('maxupperrip', 0);
+  Result := fMaxUpPerRip;
 end;
 
 procedure TSite.SetSiteMaxUpPerRip(const Value: integer);
 begin
+  fMaxUpPerRip := Value;
   WCInteger('maxupperrip', Value);
 end;
 

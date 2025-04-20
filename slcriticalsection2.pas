@@ -25,13 +25,14 @@ type
   public
     constructor Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy; override;
-    function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
+    function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal; const aRaiseExceptionOnFail: boolean = True): boolean; overload;
+    function Enter(const aLockOwnerName: string): boolean; overload;
     procedure Leave;
     procedure SetCurrentCodeSegment(const aSegmentName: string);
     property CurrentLockOwnerName: string read GetCurrentLockOwnerName;
   end;
 
-  procedure SlCriticalSection2Init(const aUseTimeoutLocking: boolean);
+  procedure SlCriticalSection2Init(const aLockingTimeout: integer);
   procedure SlCriticalSection2Uninit;
   function GetUseTimeoutLocking: boolean;
 
@@ -42,14 +43,22 @@ implementation
 
   var
     glUseTimeoutLocking: boolean;
+    glDefaultLockingTimeout: integer;
     glUsedCriticalSectionNames: TDictionary<string, integer>;
     glUsedCriticalSectionNamesLock: TCriticalSection;
     glDebugSection: string = 'slcriticalsection2';
 
 
-  procedure SlCriticalSection2Init(const aUseTimeoutLocking: boolean);
+  procedure SlCriticalSection2Init(const aLockingTimeout: integer);
   begin
-    glUseTimeoutLocking := aUseTimeoutLocking;
+    if aLockingTimeout > 0 then
+    begin
+      glUseTimeoutLocking := True;
+      glDefaultLockingTimeout := aLockingTimeout;
+    end
+    else
+      glUseTimeoutLocking := False;
+
     glUsedCriticalSectionNames := TDictionary<string, integer>.Create;
     glUsedCriticalSectionNamesLock := TCriticalSection.Create;
   end;
@@ -94,8 +103,6 @@ implementation
   end;
 
   destructor TslCriticalSection2.Destroy;
-  var
-    i: integer;
   begin
     if FUseTimeoutLocking then
     begin
@@ -115,7 +122,12 @@ implementation
     end;
   end;
 
-  function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal = 10000; const aRaiseExceptionOnFail: boolean = True): boolean;
+  function TslCriticalSection2.Enter(const aLockOwnerName: string): boolean;
+  begin
+    Result := self.Enter(aLockOwnerName, glDefaultLockingTimeout);
+  end;
+
+  function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal; const aRaiseExceptionOnFail: boolean = True): boolean;
   begin
     if FUseTimeoutLocking then
     begin
