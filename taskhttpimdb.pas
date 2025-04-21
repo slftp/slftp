@@ -303,13 +303,14 @@ var
   fExtractedPageSource: string;
   Result, fFound: boolean;
   fCnt: Integer;
+  FormatSettings: {$IFDEF FPC}TFormatSettings absolute DefaultFormatSettings{$ELSE}TFormatSettings{$ENDIF};
 begin
 
-  FormatSettings := TFormatSettings.Create('us-us');
-  FormatSettings.ShortDateFormat := 'dd.mm.yyyy';
-  FormatSettings.LongDateFormat := 'dd.mm.yyyy';
-  FormatSettings.DateSeparator := '.';
-  
+    FormatSettings := {$IFDEF FPC}DefaultFormatSettings{$ELSE}TFormatSettings.Create('us-us'){$ENDIF};
+    FormatSettings.ShortDateFormat := 'dd.mm.yyyy';
+    FormatSettings.LongDateFormat := 'dd.mm.yyyy';
+    FormatSettings.DateSeparator := '.';
+
   // we need to copy this string to another variable because else we would alter the page source that we will still need for other stuff (only on FPC it seems)
   fExtractedPageSource := aPageSource;
 
