@@ -306,7 +306,7 @@ begin
   if app = nil then
     exit;
 
-  slvision_lock.Enter();
+  slvision_lock.Enter('console_add_ircwindow');
   try
     if nil = MyFindWindow(windowtitle) then
       app.AddIrcWindow(windowtitle);
@@ -325,7 +325,7 @@ begin
   if (no_console_slot and (UpperCase(windowtitle) = 'SLOTS')) then
     exit;
 
-  slvision_lock.Enter();
+  slvision_lock.Enter('console_add_dummywindow');
   try
     if nil = MyFindWindow(windowtitle) then
       app.AddDummyWindow(windowtitle);
@@ -339,7 +339,7 @@ begin
   if (no_console_msg) then exit;
 
   if app = nil then exit;
-  slvision_lock.Enter();
+  slvision_lock.Enter('console_add_sitewindow');
   try
     if nil = MyFindWindow(windowtitle) then
       app.AddSiteWindow(windowtitle);
@@ -357,7 +357,7 @@ begin
     exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('console_windows');
     try
       for i:= 0 to app.m.children.Count-1 do
       begin
@@ -383,7 +383,7 @@ begin
   if app = nil then exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('console_delwindow');
     try
       t := MyFindWindow(windowtitle);
       if t <> nil then t.Free;
@@ -520,7 +520,7 @@ begin
   if (no_console_queue OR (app.queue.Visible <> slvVisible)) then exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('console_windows');
     try
       if app <> nil then
         app.AddConsoleTask(TQueueItemAddTask.Create(name, task));
@@ -540,7 +540,7 @@ begin
   if (no_console_queue OR (app.queue.Visible <> slvVisible)) then exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('Console_QueueDel');
     try
       if app <> nil then
         app.AddConsoleTask(TQueueItemDelTask.Create(name));

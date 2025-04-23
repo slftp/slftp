@@ -116,14 +116,14 @@ implementation
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, RegExpr,
   debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, mormot.db.sql.sqlite3,
-  Generics.Collections, news, kb;
+  Generics.Collections, news, kb, slcriticalsection2;
 
 const
   section = 'tasktvinfo';
 
 var
   tvinfoSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection for tv info
-  SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
+  SQLite3Lock: TSlCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
   addtinfodbcmd: String; //< irc command for addtvmaze channel, default: !addtvmaze
   LastAddtvmazeIDs: TList<String>; // ugly way to prevent looping of !addtvmaze announces when info is already stored with different ID
 
@@ -371,7 +371,7 @@ procedure TTVInfoDB.setTheTVDbID(const aID: integer);
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('setTheTVDbID');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -399,7 +399,7 @@ procedure TTVInfoDB.setTVRageID(const aID: integer);
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('setTVRageID');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -427,7 +427,7 @@ procedure TTVInfoDB.Save;
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('Save');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -666,7 +666,7 @@ var
 begin
   Result := False;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('executeUpdate');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -784,7 +784,7 @@ var
 begin
   Result := 0;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('getTVInfoCount');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -814,7 +814,7 @@ var
 begin
   Result := 0;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('getTVInfoSeriesCount');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -849,7 +849,7 @@ var
 begin
   Result := 1;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('deleteTVInfoByID');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -905,7 +905,7 @@ begin
   fCount := 0;
   Result := 1;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('deleteTVInfoByRipName');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -990,7 +990,7 @@ begin
     exit;
   end;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('getTVInfoByShowName');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -1078,7 +1078,7 @@ begin
     exit;
   end;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('getTVInfoByShowID');
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
@@ -1254,7 +1254,7 @@ var
   fQuery: TSqlDBSQLite3Statement;
 begin
   fUserVersion := -1;
-  SQLite3Lock := TCriticalSection.Create;
+  SQLite3Lock := TSlCriticalSection2.Create('tvdb');
 
   fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
   tvinfoSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');

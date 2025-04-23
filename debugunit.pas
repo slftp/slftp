@@ -39,14 +39,14 @@ function WriteDebugVerbosity(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, slcriticalsection2;
 
 const
   section = 'debug';
 
 var
   f: TextFile;
-  debug_lock: TCriticalSection;
+  debug_lock: TSlCriticalSection2;
   glCachedDebugPriority: TDebugPriority;
 
 function _GetDebugLogFileName: String;
@@ -170,7 +170,7 @@ end;
 
 procedure DebugInit;
 begin
-  debug_lock := TCriticalSection.Create;
+  debug_lock := TSlCriticalSection2.Create('debug_lock');
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
   _OpenLogFile;
 end;
@@ -196,7 +196,7 @@ begin
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
   logtext := Format('%s (%s) [%-25s] %s', [nowstr, 'NA', section, msg]);
-  debug_lock.Enter;
+  debug_lock.Enter('Debug');
   try
     try
       WriteLn(f, logtext);
@@ -229,7 +229,7 @@ function LogTail(const aMaxLinesToRead: Integer): String;
 begin
   Result := '';
 
-  debug_lock.Enter;
+  debug_lock.Enter('LogTail');
   try
     _CloseLogFile;
     try

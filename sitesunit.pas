@@ -226,7 +226,7 @@ type
     fIo_timeout: integer;
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
-    fSpeedFromCS: TCriticalSection;
+    fSpeedFromCS: TSlCriticalSection2;
     fSpeedFromCache: TStringList;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
@@ -726,7 +726,7 @@ const
   section = 'sites';
 
 var
-  bnccsere: TCriticalSection = nil;
+  bnccsere: TSlCriticalSection2 = nil;
   sitelaststart: TDateTime;
   // Config vars
   maxrelogins: integer = 3;
@@ -1310,7 +1310,7 @@ procedure SitesInit;
 var s: TSite;
 begin
   sitelaststart := Now();
-  bnccsere := TCriticalSection.Create;
+  bnccsere := TSlCriticalSection2.Create('bnccsere');
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1401,7 +1401,7 @@ end;
 
 function GiveSiteLastStart: TDateTime;
 begin
-  bnccsere.Enter;
+  bnccsere.Enter('GiveSiteLastStart');
   try
     if siteLastStart < Now then
       siteLastStart := Now;
@@ -2192,7 +2192,7 @@ begin
     bncList.CaseSensitive := False;
     bncList.Duplicates := dupIgnore;
     splitted := TStringList.Create;
-    bnccsere.Enter;
+    bnccsere.Enter('LoginBnc');
     try
       currentBnc := Host + ':' + IntToStr(Port);
       bncList.Add(currentBnc);
@@ -3000,7 +3000,7 @@ procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 begin
   if Value <> fDownloadingFrom then
   begin
-    bnccsere.Enter;
+    bnccsere.Enter('SetDownloadingFrom');
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
@@ -3020,7 +3020,7 @@ procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 begin
   if Value <> fUploadingTo then
   begin
-    bnccsere.Enter;
+    bnccsere.Enter('SetUploadingTo');
     fUploadingTo := Value;
     if fUploadingTo then
       begin
@@ -3040,7 +3040,7 @@ procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
   if fTodotask <> Value then
   begin
-    bnccsere.Enter;
+    bnccsere.Enter('SetTodotask');
     fTodotask := Value;
     if fTodoTask <> nil then
       begin
@@ -3069,7 +3069,7 @@ begin
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
-  self.fSpeedFromCS := TCriticalSection.Create;
+  self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
 
   if (Name = getAdminSiteName) then
@@ -4726,7 +4726,7 @@ begin
   if self.fSpeedFromCache = nil then
   begin
     try
-      self.fSpeedFromCS.Enter;
+      self.fSpeedFromCS.Enter('GetSpeed_From1');
       if self.fSpeedFromCache = nil then
         self.UpdateSpeedFromCache;
     finally
@@ -4735,7 +4735,7 @@ begin
   end;
 
   Result := TStringList.Create;
-  self.fSpeedFromCS.Enter;
+  self.fSpeedFromCS.Enter('GetSpeed_From2');
   try
     Result.Assign(self.fSpeedFromCache);
   finally
@@ -4750,7 +4750,7 @@ begin
   fNewValue := TStringList.Create;
   sitesdat.ReadSectionValues('speed-from-' + Name, fNewValue);
   fNewValue.CustomSort(_mySpeedComparer);
-  self.fSpeedFromCS.Enter;
+  self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
   try
     fOldValue := self.fSpeedFromCache;
     self.fSpeedFromCache := fNewValue;
