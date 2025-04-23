@@ -37,7 +37,7 @@ var
   @returns(tctUNMATCHED if '% complete' not found, tctCOMPLETE if it's done (100%), otherwise tctINCOMPLETE.) }
 function _CheckStandardPercentDir(const aFilename: String): TTagCompleteType;
 var
-  i, j, max: Integer;
+  i, j: Integer;
   fFoundNumber: Boolean;
 begin
   Result := tctUNMATCHED;

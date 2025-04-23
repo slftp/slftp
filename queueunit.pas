@@ -435,9 +435,6 @@ var
   s1, s2: TSite;
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
-  tt: TTask;
-  tpr: TPazoRaceTask;
-  fWaitResult: TWaitResult;
 begin
   try
     s1 := TSite(t.ssite1);
@@ -1187,7 +1184,6 @@ end;
 
 procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
 var
-  i:   integer;
   ttp: TPazoRaceTask;
   fTask: TTask;
 begin
@@ -1224,7 +1220,6 @@ end;
 
 procedure TQueueThread.RemovePazoDirTasks(const pazo_id: integer);
 var
-  i:   integer;
   ttp: TPazoTask;
   fTask: TTask;
 begin
@@ -1261,7 +1256,6 @@ end;
 
 function TQueueThread.RemovePazo(const pazo_id: integer; const aForce: boolean = False): boolean;
 var
-  i: integer;
   t: TPazoPlainTask;
   fTask: TTask;
   fSlotsToRebuild: TList<TSiteSlot>;
@@ -1339,7 +1333,6 @@ end;
 
 procedure TQueueThread.RemovePazoMKDIR(const pazo_id: integer; const dir: String);
 var
-  i:   integer;
   ttp: TPazoMkdirTask;
   fTask: TTask;
 begin
@@ -1374,7 +1367,6 @@ end;
 
 procedure TQueueThread.RemovePazoSfv(const aPazoID: integer; const aDir: String);
 var
-  i: integer;
   fTask: TPazoSiteSfvTask;
   fAbstractTask: TTask;
 begin
@@ -1406,7 +1398,6 @@ end;
 
 procedure TQueueThread.RemovePazoRace(const pazo_id: integer; const dstsite, dir, filename: String);
 var
-  i:   integer;
   ttp: TPazoRaceTask;
   fTask: TTask;
 begin
@@ -1447,7 +1438,7 @@ end;
 
 procedure TQueueThread.Execute;
 var
-  i, j: integer;
+  i: integer;
   fTask:    TTask;
   s:    TSiteSlot;
   ss:   String;
@@ -1986,7 +1977,6 @@ end;
 function TQueueThread.FetchAutoIndex: TAutoIndexTask;
 var
   fTask: TTask;
-  t: TAutoIndexTask;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoIndex');
@@ -2014,7 +2004,6 @@ end;
 function TQueueThread.FetchAutoDirlist: TAutoDirlistTask;
 var
   fTask: TTask;
-  t: TAutoDirlistTask;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoDirlist');
@@ -2042,7 +2031,6 @@ end;
 function TQueueThread.FetchAutoNuke: TAutoNukeTask;
 var
   fTask: TTask;
-  t: TAutoNukeTask;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoNuke');
@@ -2102,7 +2090,6 @@ end;
 function TQueueThread.FetchAutoRules: TRulesTask;
 var
   fTask: TTask;
-  t: TRulesTask;
 begin
   Result := nil;
   main_lock.Enter('FetchAutoRules');
