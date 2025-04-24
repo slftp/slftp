@@ -981,7 +981,6 @@ procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
 
   procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
   var
-    fSite: TSite;
     fPair: TDestinationRank;
     fPazoSite: TPazoSite;
   begin
@@ -1247,9 +1246,6 @@ begin
 end;
 
 function FindSiteByName(const aNetname, aSitename: String): TSite;
-var
-  i: integer;
-  s: TSite;
 begin
   sitesDict.TryGetValue(aSitename, Result);
 end;
@@ -1307,7 +1303,6 @@ begin
 end;
 
 procedure SitesInit;
-var s: TSite;
 begin
   sitelaststart := Now();
   bnccsere := TCriticalSection.Create;
@@ -3951,33 +3946,21 @@ begin
 end;
 
 function TSite.FetchAutoIndex: TAutoIndexTask;
-var
-  i: integer;
-  t: TAutoIndexTask;
 begin
   Result := fQueue.FetchAutoIndex;
 end;
 
 function TSite.FetchAutoDirlist: TAutoDirlistTask;
-var
-  i: integer;
-  t: TAutoDirlistTask;
 begin
   Result := fQueue.FetchAutoDirlist;
 end;
 
 function TSite.FetchAutoNuke: TAutoNukeTask;
-var
-  i: integer;
-  t: TAutoNukeTask;
 begin
   Result := fQueue.FetchAutoNuke;
 end;
 
 function TSite.FetchAutoBnctest: TLoginTask;
-var
-  i: integer;
-  t: TLoginTask;
 begin
   Result := fQueue.FetchAutoBnctest;
 end;
