@@ -226,7 +226,7 @@ type
     fIo_timeout: integer;
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
-    fSpeedFromCS: TCriticalSection;
+    fSpeedFromCS: TSlCriticalSection2;
     fSpeedFromCache: TStringList;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
@@ -726,7 +726,7 @@ const
   section = 'sites';
 
 var
-  bnccsere: TCriticalSection = nil;
+  bnccsere: TSlCriticalSection2 = nil;
   sitelaststart: TDateTime;
   // Config vars
   maxrelogins: integer = 3;
@@ -1305,7 +1305,7 @@ end;
 procedure SitesInit;
 begin
   sitelaststart := Now();
-  bnccsere := TCriticalSection.Create;
+  bnccsere := TSlCriticalSection2.Create('bnccsere');
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1396,7 +1396,7 @@ end;
 
 function GiveSiteLastStart: TDateTime;
 begin
-  bnccsere.Enter;
+  bnccsere.Enter('GiveSiteLastStart');
   try
     if siteLastStart < Now then
       siteLastStart := Now;
@@ -2187,7 +2187,7 @@ begin
     bncList.CaseSensitive := False;
     bncList.Duplicates := dupIgnore;
     splitted := TStringList.Create;
-    bnccsere.Enter;
+    bnccsere.Enter('LoginBnc');
     try
       currentBnc := Host + ':' + IntToStr(Port);
       bncList.Add(currentBnc);
@@ -2995,19 +2995,19 @@ procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 begin
   if Value <> fDownloadingFrom then
   begin
-    bnccsere.Enter;
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
-      site.num_dn := site.num_dn + 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.num_dn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end
     else
     begin
-      site.num_dn := site.num_dn - 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.num_dn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -3015,19 +3015,19 @@ procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 begin
   if Value <> fUploadingTo then
   begin
-    bnccsere.Enter;
     fUploadingTo := Value;
     if fUploadingTo then
       begin
-        site.num_up := site.num_up + 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.num_up);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end
     else
       begin
-        site.num_up := site.num_up - 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.num_up);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -3035,19 +3035,19 @@ procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
   if fTodotask <> Value then
   begin
-    bnccsere.Enter;
     fTodotask := Value;
     if fTodoTask <> nil then
       begin
-        site.freeslots := site.freeslots - 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.freeslots);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
         end
     else
       begin
-        site.freeslots := site.freeslots + 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.freeslots);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
       end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -3064,7 +3064,7 @@ begin
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
-  self.fSpeedFromCS := TCriticalSection.Create;
+  self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
 
   if (Name = getAdminSiteName) then
@@ -4709,7 +4709,7 @@ begin
   if self.fSpeedFromCache = nil then
   begin
     try
-      self.fSpeedFromCS.Enter;
+      self.fSpeedFromCS.Enter('GetSpeed_From1');
       if self.fSpeedFromCache = nil then
         self.UpdateSpeedFromCache;
     finally
@@ -4718,7 +4718,7 @@ begin
   end;
 
   Result := TStringList.Create;
-  self.fSpeedFromCS.Enter;
+  self.fSpeedFromCS.Enter('GetSpeed_From2');
   try
     Result.Assign(self.fSpeedFromCache);
   finally
@@ -4733,7 +4733,7 @@ begin
   fNewValue := TStringList.Create;
   sitesdat.ReadSectionValues('speed-from-' + Name, fNewValue);
   fNewValue.CustomSort(_mySpeedComparer);
-  self.fSpeedFromCS.Enter;
+  self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
   try
     fOldValue := self.fSpeedFromCache;
     self.fSpeedFromCache := fNewValue;

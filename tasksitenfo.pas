@@ -84,7 +84,7 @@ begin
   end;
 
   // exit if imdb info is already known in last_imdbdata
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('TPazoSiteNfoTask.Execute');
   try
     try
       i := last_imdbdata.IndexOf(mainpazo.rls.rlsname);

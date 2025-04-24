@@ -139,10 +139,10 @@ var
 
 implementation
 
-uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc;
+uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc, slcriticalsection2;
 
 
-var sltcp_lock: TCriticalSection;
+var sltcp_lock: TSlCriticalSection2;
 
 
 procedure sltcp_Init;
@@ -154,7 +154,7 @@ begin
   if not PopulateLocalAddresses(sltcp_LocalAddresses, sltcp_error) then
     exit;
 
-  sltcp_lock := TCriticalSection.Create;
+  sltcp_lock := TSlCriticalSection2.Create('sltcp_lock');
   sltcp_inited := True;
 
   slDefaultSocks5 := TslSocks5.Create;
@@ -339,7 +339,7 @@ end;
 function TslTCPSocket.GetSocket(udp: Boolean = False; lReuse: Boolean= False): Boolean;
 begin
   Result:= False;
-  sltcp_lock.Enter;
+  sltcp_lock.Enter('GetSocket');
   try
     // kell kerni egy uj socketet
     // Obtain a new socket
@@ -622,7 +622,7 @@ begin
     if not slSetNonblocking(slSocket, error) then exit;
 
 
-    sltcp_lock.Enter;
+    sltcp_lock.Enter('TurnToSSL');
     try
       fSSL:= nil;
       fssl:= SSL_new(sslctx);
@@ -734,7 +734,7 @@ begin
     if not slSetNonblocking(slSocket, error) then exit;
 
 
-    sltcp_lock.Enter;
+    sltcp_lock.Enter('AcceptSSL');
     try
       fssl:= SSL_new(sslctx);
     finally

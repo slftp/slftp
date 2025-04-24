@@ -1474,7 +1474,7 @@ begin
   try
     pazo := FindPazoByName(section, rlsname);
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal1');
     try
       i := last_imdbdata.IndexOf(rlsname);
     finally
@@ -1514,7 +1514,7 @@ begin
     begin
       // we already have imdb infos
       try
-        dbaddimdb_cs.Enter;
+        dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal2');
         try
           imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
         finally

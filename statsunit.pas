@@ -101,7 +101,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, SyncObjs, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3;
+  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, slcriticalsection2, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3;
 
 const
   section = 'stats';
@@ -110,7 +110,7 @@ var
   ORMStatsDB: TSQLRestClientDB; //< Rest Client for all database interactions
   ORMStatsModel: TSQLModel; //< SQL ORM model for stats database
   glStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
-  glStatRaceLock: TCriticalSection; //< Lock for the race stats queue
+  glStatRaceLock: TSlCriticalSection2; //< Lock for the race stats queue
   glLastStatsCleanTime: TDateTime;  //< When was the stats DB last cleaned from old entries
   glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
   glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
@@ -134,7 +134,7 @@ begin
   try
     ORMStatsDB := CreateORMSQLite3DB(ORMStatsModel, fDBName, '');
     glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
-    glStatRaceLock := TCriticalSection.Create;
+    glStatRaceLock := TSlCriticalSection2.Create('glStatRaceLock');
     TWriteStatsToDBThread.Create;
   except
     on e: Exception do
@@ -291,7 +291,7 @@ begin
   fStatRaceRecord.FFilesize := aFilesize;
 
   try
-    glStatRaceLock.Enter;
+    glStatRaceLock.Enter('statsProcessRace');
     try
       glStatRaceQueue.Enqueue(fStatRaceRecord);
     finally
@@ -672,7 +672,7 @@ begin
       fStatRaceQueue := glStatRaceQueue;
 
       // lock here to be sure the enqueuing threads don't use the old reference while we're iterating
-      glStatRaceLock.Enter;
+      glStatRaceLock.Enter('Execute');
       try
         glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
       finally
