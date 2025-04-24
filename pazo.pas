@@ -1536,7 +1536,6 @@ end;
 procedure TPazoSite.ParseDupe(const aNetname, aChannel: String; aDirlist: TDirList; const aDir: string; const aFilenames: TArray<String>; const aSentByMe, aIsComplete: boolean);
 var
   de: TDirListEntry;
-  rrgx: TRegExpr;
   fTasksAdded: boolean;
   fFilesToRace: TList<TDirListEntry>;
   fFilename: string;
@@ -1655,7 +1654,6 @@ procedure TPazoSite.ProcessXDupeResponse(const aNetname, aChannel, aDir, aFullRe
 var
   dl: TDirList;
   fFileList: TList<String>;
-  fFilename: String;
 begin
   try
     dl := dirlist.FindDirlist(aDir);

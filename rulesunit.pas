@@ -1717,7 +1717,6 @@ end;
 
 procedure RulesSave;
 var
-  i: integer;
   fEncStringlist: TEncStringlist;
   fRulesPath: String;
   fRulesBySite: TDictionary<string, TStringList>;
