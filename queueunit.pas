@@ -38,8 +38,6 @@ type
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
-    //procedure AddIdleTask(s: TSiteSlot);
-    //procedure AddQuitTask(s: TSiteSlot);
     function TaskAlreadyInQueue(t: TTask): boolean;
     procedure QueueStat;
 
@@ -834,31 +832,39 @@ var
   tt: TTask;
 begin
   try
-    aQueue.main_lock.Enter('AddIdleTask');
-    try
-      for tt in aQueue.tasks do
+    for tt in aQueue.tasks do
+    begin
+      if ((tt.ClassType = TIdleTask) and (tt.slot1name = s.Name)) then
       begin
-        if ((tt.ClassType = TIdleTask) and (tt.slot1name = s.Name)) then
-        begin
-          exit;
-        end;
-      end;
-
-      ti := TIdleTask.Create('', '', s.site.Name);
-      ti.slot1 := s;
-      ti.slot1name := s.Name;
-      s.todotask := ti;
-      AddTask(ti);
-      s.Fire;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, '[EXCEPTION] TQueueThread.AddIdleTask : %s', [e.Message]);
+        exit;
       end;
     end;
-  finally
-    aQueue.main_lock.Leave;
+
+    ti := TIdleTask.Create('', '', s.site.Name);
+    ti.slot1 := s;
+    ti.slot1name := s.Name;
+    s.todotask := ti;
+    AddTask(ti);
+    s.Fire;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TQueueThread.AddIdleTask : %s', [e.Message]);
+    end;
   end;
+end;
+
+function IsSlotReadyForQuitTask(const aSlot: TSiteSlot; const aQueueLastRun: TDateTime): boolean;
+begin
+  Result := (aSlot.status = ssOnline) and ((aSlot.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((aSlot.site.maxidle <> 0) and
+              (MilliSecondsBetween(aQueueLastRun, aSlot.LastNonIdleTaskExecution) >= aSlot.site.maxidle * 1000)));
+end;
+
+function IsSlotReadyForIdleTask(const aSlot: TSiteSlot; const aQueueLastRun: TDateTime): boolean;
+begin
+  Result := ((aSlot.status = ssOnline) or ((aSlot.site.WorkingStatus in [sstUp]) and
+              ((aSlot.site.maxidle = 0) or (MilliSecondsBetween(aQueueLastRun, aSlot.LastNonIdleTaskExecution) < aSlot.site.maxidle * 1000))))
+              and (MilliSecondsBetween(aQueueLastRun, aSlot.LastIO) > aSlot.site.idleinterval * 1000);
 end;
 
 // IT IS ONLY GIVEN TO CALL
@@ -1561,20 +1567,43 @@ begin
           try
             if ((s.todotask = nil) and (s.site.Name <> getAdminSiteName)) then
             begin
-              if ((s.status = ssOnline) and ((s.site.WorkingStatus in [sstMarkedAsDownByUser]) or ((s.site.maxidle <> 0) and
-                (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) >= s.site.maxidle * 1000)))) then
+              if IsSlotReadyForQuitTask(s, queue_last_run) then
               begin
-                AddQuitTask(s);
+                main_lock.Enter('QuitTask');
+                try
+                  // because we directly assign the task to the slot, we need the slot assignment lock
+                  ts.AcquireSlotsAssignmentLock('QuitTask');
+                  try
+                    // check again inside lock if it's still relevant
+                    if IsSlotReadyForQuitTask(s, queue_last_run) then
+                      AddQuitTask(s);
+                  finally
+                    ts.ReleaseSlotsAssignmentLock;
+                  end;
+                finally
+                  main_lock.Leave;
+                end;
               end
               //we also want idle tasks to relogin slots that are not ssOnline but the sites are in WorkingStatus sstUp
               //at startup only few slots are needed (e.g. autologin), but we want all the slots to be ready for action if
               //an idle interval is configured. also there are several occasions where DestroySocket or Quit are invoked
               //on a slot. the IdleTask will take care to relogin these slots as well.
-              else if (((s.status = ssOnline) or ((s.site.WorkingStatus in [sstUp]) and
-              ((s.site.maxidle = 0) or (MilliSecondsBetween(queue_last_run, s.LastNonIdleTaskExecution) < s.site.maxidle * 1000))))
-              and (MilliSecondsBetween(queue_last_run, s.LastIO) > s.site.idleinterval * 1000)) then
+              else if IsSlotReadyForIdleTask(s, queue_last_run) then
               begin
-                AddIdleTask(s, self);
+                main_lock.Enter('IdleTask');
+                try
+                  // because we directly assign the task to the slot, we need the slot assignment lock
+                  ts.AcquireSlotsAssignmentLock('IdleTask');
+                  try
+                    // check again inside lock if it's still relevant
+                    if IsSlotReadyForIdleTask(s, queue_last_run) then
+                      AddIdleTask(s, self);
+                  finally
+                    ts.ReleaseSlotsAssignmentLock;
+                  end;
+                finally
+                  main_lock.Leave;
+                end;
               end;
             end;
           except
@@ -1823,7 +1852,12 @@ begin
           if (t.slot1 <> nil) then
           begin
             try
-              TSiteSlot(t.slot1).todotask := nil;
+              ts.AcquireSlotsAssignmentLock('QueueClean login, quit, idle, mkdir');
+              try
+                TSiteSlot(t.slot1).todotask := nil;
+              finally
+                ts.ReleaseSlotsAssignmentLock;
+              end;
               TSiteSlot(t.slot1).downloadingfrom := False;
               TSiteSlot(t.slot1).uploadingto := False;
               t.slot1     := nil;
