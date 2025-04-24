@@ -35,6 +35,8 @@ function LogTail(const aMaxLinesToRead: Integer): String;
   @param(channel name for irc output)
   @param(new debug value) }
 function WriteDebugVerbosity(const netname, channel, params: String): boolean;
+{ Returns the currently used debug verbosity / priority }
+function GetDebugVerbosity: TDebugPriority;
 
 implementation
 
@@ -54,7 +56,7 @@ begin
   Result := config.ReadString(section, 'debugfile', ExtractFilePath(ParamStr(0)) + 'slftp.log');
 end;
 
-function _GetDebugVerbosity: TDebugPriority; inline;
+function GetDebugVerbosity: TDebugPriority;
 begin
   Result := glCachedDebugPriority;
 end;
@@ -185,10 +187,10 @@ procedure Debug(const priority: TDebugPriority; const section, msg: String); ove
 var
   nowstr, logtext: String;
 begin
-  if _GetDebugVerbosity = dpNone then
+  if glCachedDebugPriority = dpNone then
     exit;
 
-  if (_GetDebugVerbosity < priority) then
+  if (glCachedDebugPriority < priority) then
     exit;
 
   if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
