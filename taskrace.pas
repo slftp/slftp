@@ -705,7 +705,6 @@ var
   aktdir: String;
   failure: boolean;
   bIsMidnight: boolean;
-  r: TRule;
   rule_err: String;
   numerrors: integer;
   tname: String;
