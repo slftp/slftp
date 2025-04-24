@@ -386,7 +386,7 @@ var
   mins, maxs: String;
   p: TPazo;
   ps: TPazoSite;
-  sleep_value, pazo_id: integer;
+  sleep_value: integer;
 begin
   Result := False;
 
@@ -721,7 +721,6 @@ var
   fInputRlsMask: TslMask;
   fDirlist: TDirList;
   fDirlistEntry: TDirListEntry;
-  i: Integer;
   verbose: boolean;
 
   function _IrcBatch(const netname, channel: String): boolean;
@@ -1084,7 +1083,6 @@ var
   r: TDelreleaseTask;
   tn: TTaskNotify;
   added: boolean;
-  i: integer;
   pazo_id: integer;
   p: TPazo;
   ps: TPazoSite;

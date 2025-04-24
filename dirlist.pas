@@ -226,7 +226,6 @@ var
   d: TDirlistEntry;
   files: Integer;
   size: Int64;
-  tag: String;
   ResultType: String;
 begin
   Result := False;
@@ -597,7 +596,6 @@ var
   akttimestamp: TDateTime;
   de: TDirListEntry;
   added: Boolean;
-  i: Integer;
   fTagCompleteType: TTagCompleteType;
   fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
   fParsedDirlistEntry: TParsedDirListEntry;
@@ -1084,8 +1082,6 @@ begin
 end;
 
 function TDirList.Find(const filename: String): TDirListEntry;
-var
-  de: TDirListEntry;
 begin
   Result := nil;
   if entries.Count = 0 then
@@ -1205,7 +1201,6 @@ end;
 function TDirList.FilesRacedByMe(aExcludeAsciiFiletypes: boolean = False): Integer;
 var
   de: TDirlistEntry;
-  i: Integer;
 begin
   Result := 0;
 
@@ -1566,7 +1561,7 @@ end;
 
 procedure TDirListEntry.RegenerateSkiplist;
 var
-  l, ldepth: Integer;
+  ldepth: Integer;
   s, fDirPathHelper: String;
   sf: TSkipListFilter;
 begin

@@ -223,6 +223,8 @@ begin
   ep_nextnum := -1;
 
   date := UnixToDateTime(3817); //1.1.1990 031337
+  nextdt := UnixToDateTime(3817);
+  prevdt := UnixToDateTime(3817);
 
   {$IFDEF MSWINDOWS}
     formatSettings := TFormatSettings.Create('en-US');
