@@ -2995,19 +2995,19 @@ procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 begin
   if Value <> fDownloadingFrom then
   begin
-    bnccsere.Enter('SetDownloadingFrom');
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
-      site.num_dn := site.num_dn + 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.num_dn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end
     else
     begin
-      site.num_dn := site.num_dn - 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.num_dn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -3015,19 +3015,19 @@ procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 begin
   if Value <> fUploadingTo then
   begin
-    bnccsere.Enter('SetUploadingTo');
     fUploadingTo := Value;
     if fUploadingTo then
       begin
-        site.num_up := site.num_up + 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.num_up);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end
     else
       begin
-        site.num_up := site.num_up - 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.num_up);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -3035,19 +3035,19 @@ procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
   if fTodotask <> Value then
   begin
-    bnccsere.Enter('SetTodotask');
     fTodotask := Value;
     if fTodoTask <> nil then
       begin
-        site.freeslots := site.freeslots - 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.freeslots);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
         end
     else
       begin
-        site.freeslots := site.freeslots + 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.freeslots);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
       end;
-    bnccsere.Leave;
   end;
 end;
 
