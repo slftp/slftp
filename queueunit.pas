@@ -1703,7 +1703,7 @@ begin
         begin
           try
             t.ready := True;
-            Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Name]));
+            Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
           except
             on e: Exception do
             begin
@@ -1787,8 +1787,8 @@ begin
             end;
 
             try
-              Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.FullName]));
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
+              Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
+              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             except
               on e: Exception do
@@ -1817,7 +1817,7 @@ begin
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
+              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
@@ -1863,11 +1863,10 @@ begin
           end;
 
           try
-            //t := NIL;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean other task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean other');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Name]));
+              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
               tasks.Remove(t);
             finally
               ts.ReleaseSlotsAssignmentLock;
