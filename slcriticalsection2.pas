@@ -90,8 +90,8 @@ implementation
   procedure SlCriticalSection2Uninit;
   begin
     glUseTimeoutLocking := False;
-    glUsedCriticalSections.Free;
-    glUsedCriticalSectionsLock.Free;
+    FreeAndNil(glUsedCriticalSections);
+    FreeAndNil(glUsedCriticalSectionsLock);
     glIsInitialized := False;
   end;
 
@@ -146,11 +146,14 @@ implementation
       FEvent.Free;
       FLockOwnerNameStack.Free;
 
-      glUsedCriticalSectionsLock.Enter;
-      try
-        glUsedCriticalSections.Remove(self.FName);
-      finally
-        glUsedCriticalSectionsLock.Leave;
+      if glUsedCriticalSectionsLock <> nil then
+      begin
+        glUsedCriticalSectionsLock.Enter;
+        try
+          glUsedCriticalSections.Remove(self.FName);
+        finally
+          glUsedCriticalSectionsLock.Leave;
+        end;
       end;
     end
     else
