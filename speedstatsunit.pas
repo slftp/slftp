@@ -3,7 +3,7 @@ unit speedstatsunit;
 interface
 
 uses
-  Contnrs, SysUtils, Classes, SyncObjs;
+  Contnrs, SysUtils, Classes;
 
 type
   TSpeedStat = class
@@ -39,17 +39,17 @@ var
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2;
 
 const
   r_section = 'speedstats';
 
 var
-  speedstatlock: TCriticalSection;
+  speedstatlock: TSlCriticalSection2;
 
 procedure SpeedStatsInit;
 begin
-  speedstatlock := TCriticalSection.Create;
+  speedstatlock := TSlCriticalSection2.Create('SpeedStats');
   speedstats_last_save := Now;
   speedstats_last_recalc := Now;
   speedStats := TObjectList.Create;
@@ -71,7 +71,7 @@ begin
   debug(dpMessage, r_section, '--> Saving speedstats');
   //irc_Addconsole('--> SpeedStatsSave : '+FormatDateTime('hh:nn:ss', now));
 
-  speedstatlock.Enter;
+  speedstatlock.Enter('SpeedStatsSave');
   try
     try
       // Cleanup
@@ -576,7 +576,7 @@ var
 begin
   x := TEncStringlist.Create(passphrase);
   try
-    speedstatlock.Enter;
+    speedstatlock.Enter('SpeedStatsStart');
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
       for i := 0 to x.Count - 1 do
@@ -690,7 +690,7 @@ begin
   max_entries := config.readInteger(r_section, 'max_entries', 5000);
 
   try
-    speedstatlock.Enter;
+    speedstatlock.Enter('SpeedStatAdd');
     try
       speedstats.Add(s);
       while (speedstats.Count > max_entries) do
@@ -712,7 +712,7 @@ procedure RemoveSpeedStats(const sitename, section: String);
 var
   i: integer;
 begin
-  speedstatlock.Enter;
+  speedstatlock.Enter('RemoveSpeedStats');
   try
     for i := 0 to speedstats.Count - 1 do
     begin

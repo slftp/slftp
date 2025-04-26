@@ -3,7 +3,7 @@ unit irc;
 interface
 
 uses
-  Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp, Generics.Collections;
+  Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp, Generics.Collections, slcriticalsection2;
 
 type
   { @abstract(IRC message which still need to be send to an IRC network-channel) }
@@ -28,7 +28,7 @@ type
 
   TMyIrcThread = class(TslTCPThread)
   private
-    FSocketWriteLock: TCriticalSection; //< Lock to protected the underlying write function of the socket to disallow concurrent access
+    FSocketWriteLock: TSlCriticalSection2; //< Lock to protected the underlying write function of the socket to disallow concurrent access
     FPendingMessagesQueue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
 
     irc_last_read: TDateTime;
@@ -597,7 +597,7 @@ begin
   self.netname := aNetname;
   status := 'creating...';
 
-  FSocketWriteLock := TCriticalSection.Create;
+  FSocketWriteLock := TSlCriticalSection2.Create('IRC_' + aNetname);
   channels := TStringList.Create;
 
   FPendingMessagesQueue := TThreadList<TIrcEchoItem>.Create;
@@ -675,7 +675,7 @@ end;
 function TMyIrcThread.IrcWrite(const s: String): Boolean;
 begin
   Result := False;
-  FSocketWriteLock.Enter;
+  FSocketWriteLock.Enter('IrcWrite');
   try
     irc_last_read := Now();
     try

@@ -23,13 +23,13 @@ function TagComplete(const aFilename: String): TTagCompleteType;
 implementation
 
 uses
-  Classes, SysUtils, mystrings, configunit, debugunit, FLRE, SyncObjs;
+  Classes, SysUtils, mystrings, configunit, debugunit, FLRE, slcriticalsection2;
 
 const
   section = 'tags';
 
 var
-  cs: TCriticalSection; // lock to avoid concurrent access to regex objects
+  cs: TSlCriticalSection2; // lock to avoid concurrent access to regex objects
   crc, cri: TFLRE; //< complete and incomplete regex object
 
 { Fast search for '% complete' in given @link(aFilename) and determines the percentage if found
@@ -82,7 +82,7 @@ begin
     exit;
 
   // regex matching
-  cs.Enter;
+  cs.Enter('TagComplete');
   try
     // is the file/dir a complete tag
     try
@@ -131,7 +131,7 @@ begin
 
   dummy_string := '[xy] - ( 19M 4F - COMPLETE ) - [xy]';
 
-  cs := TCriticalSection.Create;
+  cs := TSlCriticalSection2.Create('Tags');
 
   // check custom slftp.ini complete_regex
   complete_regex := config.ReadString(section, 'complete_regex', complete_regex_default);
@@ -174,7 +174,7 @@ procedure TagsUninit;
 begin
   Debug(dpSpam, section, 'Uninit %s begins', [section]);
 
-  cs.Enter;
+  cs.Enter('TagsUninit');
   try
     FreeAndNil(crc);
     FreeAndNil(cri);

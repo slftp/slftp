@@ -35,18 +35,20 @@ function LogTail(const aMaxLinesToRead: Integer): String;
   @param(channel name for irc output)
   @param(new debug value) }
 function WriteDebugVerbosity(const netname, channel, params: String): boolean;
+{ Returns the currently used debug verbosity / priority }
+function GetDebugVerbosity: TDebugPriority;
 
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, slcriticalsection2;
 
 const
   section = 'debug';
 
 var
   f: TextFile;
-  debug_lock: TCriticalSection;
+  debug_lock: TSlCriticalSection2;
   glCachedDebugPriority: TDebugPriority;
 
 function _GetDebugLogFileName: String;
@@ -54,7 +56,7 @@ begin
   Result := config.ReadString(section, 'debugfile', ExtractFilePath(ParamStr(0)) + 'slftp.log');
 end;
 
-function _GetDebugVerbosity: TDebugPriority; inline;
+function GetDebugVerbosity: TDebugPriority;
 begin
   Result := glCachedDebugPriority;
 end;
@@ -170,7 +172,7 @@ end;
 
 procedure DebugInit;
 begin
-  debug_lock := TCriticalSection.Create;
+  debug_lock := TSlCriticalSection2.Create('debug_lock');
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
   _OpenLogFile;
 end;
@@ -185,10 +187,10 @@ procedure Debug(const priority: TDebugPriority; const section, msg: String); ove
 var
   nowstr, logtext: String;
 begin
-  if _GetDebugVerbosity = dpNone then
+  if glCachedDebugPriority = dpNone then
     exit;
 
-  if (_GetDebugVerbosity < priority) then
+  if (glCachedDebugPriority < priority) then
     exit;
 
   if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
@@ -196,7 +198,7 @@ begin
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
   logtext := Format('%s (%s) [%-25s] %s', [nowstr, 'NA', section, msg]);
-  debug_lock.Enter;
+  debug_lock.Enter('Debug');
   try
     try
       WriteLn(f, logtext);
@@ -229,7 +231,7 @@ function LogTail(const aMaxLinesToRead: Integer): String;
 begin
   Result := '';
 
-  debug_lock.Enter;
+  debug_lock.Enter('LogTail');
   try
     _CloseLogFile;
     try
