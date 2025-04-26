@@ -2301,7 +2301,7 @@ begin
         if site.sw = sswGlftpd then
         begin
           DestroySocket(False);
-          Result := LoginBnc(i, True);
+          Result := LoginBnc(i, False);
         end;
       end
       else
