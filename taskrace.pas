@@ -2570,12 +2570,16 @@ begin
         //COMPLETE MSG: 426 Socket closed
         //COMPLETE MSG: 426 Connection closed by remote host
         //COMPLETE MSG: 426 Data connection: Success.
+        //COMPLETE MSG: 426 Timeout while sending data
+        //COMPLETE MSG: 426 Sendfile error: Bad message
         if ((0 < Pos('Transfer failed', lastResponse)) OR
           (0 < Pos('Accept timed out', lastResponse)) OR
           (0 < Pos('fatal alert', lastResponse)) OR
           (0 < Pos('Socket closed', lastResponse)) OR
           (0 < Pos('Data connection', lastResponse)) OR
-          (0 < Pos('Connection closed', lastResponse))) then
+          (0 < Pos('Connection closed', lastResponse)) OR
+          (0 < Pos('Sendfile error: Bad message', lastResponse)) OR
+          (0 < Pos('Timeout while sending data', lastResponse))) then
         begin
           //try again
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2644,7 +2648,7 @@ begin
             goto TryAgain;
           end;
         end;
-      end;
+    end;
 
 
     Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
@@ -2807,6 +2811,14 @@ begin
           if (0 < Pos('Error writing file', lastResponse)) then
           begin
             _setOutOfSpace(sdst, 'No freespace or slave');
+            exit;
+          end;
+
+          //COMPLETE MSG: 452 Transfer terminated by external program
+          if (0 < Pos('Transfer terminated by external program', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[TRANSFER TERMINATED] slowkick?</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            readyerror := True;
             exit;
           end;
         end;
