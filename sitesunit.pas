@@ -719,7 +719,8 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
+  dirlist.helpers, tags;
 
 const
   section = 'sites';
@@ -1492,7 +1493,7 @@ begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
   console_add_sitewindow(Name);
-  while ((not slshutdown) and (not shouldquit)) do // and (not False)
+  while ((not slshutdown) and (not shouldquit)) do
   begin
     try
       if status = ssOnline then
@@ -1650,6 +1651,22 @@ begin
       end;
     end;
   end;
+
+  // when the thread terminates cleanup the thread vars that belong to it
+  try
+    CleanupDirlistThreadVars;
+    CleanupTagsThreadVars;
+  except
+    on e: Exception do
+    begin
+      try
+        Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.ClearnupThreadVars : %s', [e.Message]));
+      except
+        // ignore this in case the debug unit has already been uninitialized at shutdown or something like that
+      end;
+    end;
+  end;
+
   console_delwindow(Name);
   kilepve := True;
 end;
