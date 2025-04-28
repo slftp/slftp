@@ -1603,7 +1603,6 @@ begin
   Result := False;
   registered := False;
   status := 'registering...';
-  glIrcFlood := config.ReadInteger(section, 'flood', 10);
   glIrcRegisterTimeout := config.ReadInteger(section, 'register_timeout', 10);
 
   elotte := Now();
@@ -1810,7 +1809,6 @@ begin
   myIrcThreads := TObjectList.Create(True);
   glIrcTimeout := config.ReadInteger(section, 'timeout',120);
   glIrcDirectEcho := config.ReadBool(section, 'direct_echo', False);
-  glIrcFlood := config.ReadInteger(section, 'timeout', 333);
 end;
 
 procedure IrcUnInit;
