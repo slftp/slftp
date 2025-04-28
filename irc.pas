@@ -183,6 +183,7 @@ function irccmdprefix: String;
 var
   myIrcThreads: TObjectList = nil;
   gIrcTimeout: integer = 120;
+  gIrcDirectEcho: boolean = false;
 
 const
   irc_chanroleindex = 25;
@@ -277,7 +278,7 @@ begin
      end;
     if msg.Length < 250 then
     begin
-      if (config.ReadBool(section, 'direct_echo', False)) then
+      if gIrcDirectEcho then
       begin
         _WriteToIRC(channel, msg);
       end
@@ -291,7 +292,7 @@ begin
       // message needs to be splitted due to encryption and a given max length per messages (~280 chars)
       fStrArr := WrapText(msg, 250).Split([sLineBreak]);
 
-      if (config.ReadBool(section, 'direct_echo', False)) then
+      if gIrcDirectEcho then
       begin
         for fStr in fStrArr do
           _WriteToIRC(channel, fStr);
@@ -1561,7 +1562,7 @@ begin
     if ((error <> '') and (error <> 'timeout')) then
       exit;
 
-    if ((not config.ReadBool(section, 'direct_echo', False)) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
+    if (gIrcDirectEcho and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
       fEchoQueueList := PendingMessagesQueue.LockList;
       try
@@ -1804,6 +1805,7 @@ procedure IrcInit;
 begin
   myIrcThreads := TObjectList.Create(True);
   gIrcTimeout := config.ReadInteger(section, 'timeout',120);
+  gIrcDirectEcho := config.ReadBool(section, 'direct_echo', False);
 end;
 
 procedure IrcUnInit;
