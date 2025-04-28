@@ -35,7 +35,6 @@ type
     registered: Boolean;
     irc_last_written: tdatetime;
     lastservername: String;
-    fIrcFlood: integer;
 
     function GetIrcSSL: Boolean;
     procedure SetIrcSSL(value: Boolean);
@@ -184,6 +183,7 @@ function irccmdprefix: String;
 var
   myIrcThreads: TObjectList = nil;
   glIrcTimeout: integer = 120;
+  glIrcFlood: integer = 333;
   glIrcDirectEcho: boolean = false;
   glIrcRegisterTimeout: integer = 10;
 
@@ -1603,7 +1603,7 @@ begin
   Result := False;
   registered := False;
   status := 'registering...';
-  fIrcFlood := RCInt('flood', 333);
+  glIrcFlood := config.ReadInteger(section, 'flood', 10);
   glIrcRegisterTimeout := config.ReadInteger(section, 'register_timeout', 10);
 
   elotte := Now();
@@ -1810,6 +1810,7 @@ begin
   myIrcThreads := TObjectList.Create(True);
   glIrcTimeout := config.ReadInteger(section, 'timeout',120);
   glIrcDirectEcho := config.ReadBool(section, 'direct_echo', False);
+  glIrcFlood := config.ReadInteger(section, 'timeout', 333);
 end;
 
 procedure IrcUnInit;
@@ -1896,7 +1897,7 @@ end;
 
 function TMyIrcThread.GetIrcFlood: integer;
 begin
-  result := fIrcFlood;
+  result := glIrcFlood;
   //result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
 end;
 
