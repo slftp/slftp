@@ -182,6 +182,7 @@ function irccmdprefix: String;
 
 var
   myIrcThreads: TObjectList = nil;
+  gIrcTimeout: integer = 120;
 
 const
   irc_chanroleindex = 25;
@@ -1578,7 +1579,7 @@ begin
     if ((SecondsBetween(Now, irc_last_read) > 60) and (lastservername <> '')) then
       ircwrite('PING ' + lastservername);
 
-    if SecondsBetween(Now, irc_last_read) > config.ReadInteger(section, 'timeout', 120) then
+    if SecondsBetween(Now, irc_last_read) > gIrcTimeout then
     begin
       error := 'IRC Server didnt PING, it might be down';
       exit;
@@ -1802,6 +1803,7 @@ end;
 procedure IrcInit;
 begin
   myIrcThreads := TObjectList.Create(True);
+  gIrcTimeout := config.ReadInteger(section, 'timeout',120);
 end;
 
 procedure IrcUnInit;
