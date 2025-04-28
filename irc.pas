@@ -35,6 +35,7 @@ type
     registered: Boolean;
     irc_last_written: tdatetime;
     lastservername: String;
+    fIrcFlood: integer;
 
     function GetIrcSSL: Boolean;
     procedure SetIrcSSL(value: Boolean);
@@ -1601,6 +1602,7 @@ begin
   Result := False;
   registered := False;
   status := 'registering...';
+  fIrcFlood := RCInt('flood', 333);
 
   elotte := Now();
   while (SecondsBetween(Now, elotte) < config.ReadInteger(section, 'register_timeout', 10)) do
@@ -1892,7 +1894,8 @@ end;
 
 function TMyIrcThread.GetIrcFlood: integer;
 begin
-  result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
+  result := fIrcFlood;
+  //result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
 end;
 
 function TMyIrcThread.ChanNicks(const chan: String): String;
