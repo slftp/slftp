@@ -183,8 +183,9 @@ function irccmdprefix: String;
 
 var
   myIrcThreads: TObjectList = nil;
-  gIrcTimeout: integer = 120;
-  gIrcDirectEcho: boolean = false;
+  glIrcTimeout: integer = 120;
+  glIrcDirectEcho: boolean = false;
+  glIrcRegisterTimeout: integer = 10;
 
 const
   irc_chanroleindex = 25;
@@ -279,7 +280,7 @@ begin
      end;
     if msg.Length < 250 then
     begin
-      if gIrcDirectEcho then
+      if glIrcDirectEcho then
       begin
         _WriteToIRC(channel, msg);
       end
@@ -293,7 +294,7 @@ begin
       // message needs to be splitted due to encryption and a given max length per messages (~280 chars)
       fStrArr := WrapText(msg, 250).Split([sLineBreak]);
 
-      if gIrcDirectEcho then
+      if glIrcDirectEcho then
       begin
         for fStr in fStrArr do
           _WriteToIRC(channel, fStr);
@@ -1563,7 +1564,7 @@ begin
     if ((error <> '') and (error <> 'timeout')) then
       exit;
 
-    if (gIrcDirectEcho and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
+    if (glIrcDirectEcho and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
       fEchoQueueList := PendingMessagesQueue.LockList;
       try
@@ -1581,7 +1582,7 @@ begin
     if ((SecondsBetween(Now, irc_last_read) > 60) and (lastservername <> '')) then
       ircwrite('PING ' + lastservername);
 
-    if SecondsBetween(Now, irc_last_read) > gIrcTimeout then
+    if SecondsBetween(Now, irc_last_read) > glIrcTimeout then
     begin
       error := 'IRC Server didnt PING, it might be down';
       exit;
@@ -1603,9 +1604,10 @@ begin
   registered := False;
   status := 'registering...';
   fIrcFlood := RCInt('flood', 333);
+  glIrcRegisterTimeout := config.ReadInteger(section, 'register_timeout', 10);
 
   elotte := Now();
-  while (SecondsBetween(Now, elotte) < config.ReadInteger(section, 'register_timeout', 10)) do
+  while (SecondsBetween(Now, elotte) < glIrcRegisterTimeout) do
   begin
     while (ReadLn(s, osszes, 1000)) do
     begin
@@ -1806,8 +1808,8 @@ end;
 procedure IrcInit;
 begin
   myIrcThreads := TObjectList.Create(True);
-  gIrcTimeout := config.ReadInteger(section, 'timeout',120);
-  gIrcDirectEcho := config.ReadBool(section, 'direct_echo', False);
+  glIrcTimeout := config.ReadInteger(section, 'timeout',120);
+  glIrcDirectEcho := config.ReadBool(section, 'direct_echo', False);
 end;
 
 procedure IrcUnInit;
