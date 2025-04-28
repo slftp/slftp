@@ -703,7 +703,7 @@ begin
   Result := False;
 
     // exit if imdb info is already known in last_imdbdata
-  gDbAddimdb_cs.Enter;
+  gDbAddimdb_cs.Enter('taskhttpimdb');
   try
     fFound_LastImdb := last_addimdb.IndexOf(getMovieNameWithoutSceneTags(FReleaseName));
     if fFound_LastImdb = -1 then

@@ -52,13 +52,13 @@ var
 implementation
 
 uses
-  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, DateUtils, IdGlobal;
+  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, DateUtils, IdGlobal, slcriticalsection2;
 
 const
   r_section = 'ranks';
 
 var
-  rankslock: TCriticalSection;
+  rankslock: TSlCriticalSection2;
   glRanks: TObjectList; // TODO: use TObjectList<TRankStat>
 
 function RemoveRanks(const aSitename: String): boolean;
@@ -67,7 +67,7 @@ var
 begin
   Result := False;
   try
-    rankslock.Enter;
+    rankslock.Enter('RemoveRanks');
     try
       for i := glRanks.Count - 1 downto 0 do
         if TRankStat(glRanks.Items[i]).sitename = aSitename then
@@ -92,7 +92,7 @@ var
 begin
   Result := False;
   try
-    rankslock.Enter;
+    rankslock.Enter('RemoveRanks2');
     try
       for i := glRanks.Count - 1 downto 0 do
       begin
@@ -121,7 +121,7 @@ end;
 function RanksReload: boolean;
 begin
   try
-    rankslock.Enter;
+    rankslock.Enter('RanksReload');
     try
       glRanks.clear;
       RanksStart;
@@ -140,7 +140,7 @@ end;
 
 procedure RanksInit;
 begin
-  rankslock := TCriticalSection.Create;
+  rankslock := TSlCriticalSection2.Create('Ranks');
   ranks_last_save := Now;
   ranks_last_process := Now;
   glRanks := TObjectList.Create;
@@ -344,7 +344,7 @@ var
 begin
   x := TEncStringlist.Create(passphrase);
   try
-    rankslock.Enter;
+    rankslock.Enter('RanksStart');
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.ranks');
       for i := 0 to x.Count - 1 do
@@ -400,7 +400,7 @@ begin
   max_entries := config.readInteger(r_section, 'max_entries', 1000);
 
   try
-    rankslock.Enter;
+    rankslock.Enter('RankStatAdd');
     try
       glRanks.Add(s);
       while (glRanks.Count > max_entries) do

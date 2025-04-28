@@ -2,7 +2,7 @@ unit encinifile;
 
 interface
 
-uses Classes, slmd5, SyncObjs, StrUtils;
+uses Classes, slmd5, SyncObjs, StrUtils, slcriticalsection2;
 
 type
   TEncStringlist = class(TStringList)
@@ -97,7 +97,7 @@ type
   // threadsafe TIniFile with encryption support
   TEncIniFile = class(TMyCustomIniFile)
   private
-    il: TCriticalSection;
+    il: TSlCriticalSection2;
     fSima: Boolean;
     FFilename: String;
     FPassHash: TslMD5Data;
@@ -546,7 +546,7 @@ end;
 constructor TEncIniFile.Create(const FileName: String; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True);
 begin
   inherited Create(FileName);
-  il:= TCriticalSection.Create;
+  il:= TSlCriticalSection2.Create('encinifile_' + FileName);
   fPassHash:= Passphrase;
   self.AutoUpdate:= autoupdate;
   FFilename:= FileName;
@@ -593,7 +593,7 @@ procedure TEncIniFile.Clear;
 var
   I: Integer;
 begin
-  il.Enter;
+  il.Enter('Clear');
   for I := 0 to FSections.Count - 1 do
     TObject(FSections.Objects[I]).Free;
   FSections.Clear;
@@ -605,7 +605,7 @@ var
   I, J: Integer;
   Strings: TStrings;
 begin
-  il.Enter;
+  il.Enter('DeleteKey');
   I := FSections.IndexOf(Section);
   if I >= 0 then
   begin
@@ -625,7 +625,7 @@ procedure TEncIniFile.EraseSection(const Section: String);
 var
   I: Integer;
 begin
-  il.Enter;
+  il.Enter('EraseSection');
   I := FSections.IndexOf(Section);
   if I >= 0 then
   begin
@@ -641,7 +641,7 @@ end;
 
 function TEncIniFile.GetCaseSensitive: Boolean;
 begin
-  il.Enter;
+  il.Enter('GetCaseSensitive');
   Result := FSections.CaseSensitive;
   il.Leave;
 end;
@@ -776,7 +776,7 @@ var
   I, J: Integer;
   SectionStrings: TStrings;
 begin
-  il.Enter;
+  il.Enter('ReadSection');
   Strings.BeginUpdate;
   try
     Strings.Clear;
@@ -795,7 +795,7 @@ end;
 
 procedure TEncIniFile.ReadSections(Strings: TStrings);
 begin
-  il.Enter;
+  il.Enter('ReadSections');
   Strings.Assign(FSections);
   il.Leave;
 end;
@@ -805,7 +805,7 @@ procedure TEncIniFile.ReadSectionValues(const Section: String;
 var
   I: Integer;
 begin
-  il.Enter;
+  il.Enter('ReadSectionValues');
   Strings.BeginUpdate;
   try
     Strings.Clear;
@@ -825,7 +825,7 @@ var
   Strings: TStrings;
 begin
   Result := Default;
-  il.Enter;
+  il.Enter('ReadString');
   I := FSections.IndexOf(Section);
   if I >= 0 then
   begin
@@ -842,7 +842,7 @@ procedure TEncIniFile.SetCaseSensitive(Value: Boolean);
 var
   I: Integer;
 begin
-  il.Enter;
+  il.Enter('SetCaseSensitive');
   if Value <> FSections.CaseSensitive then
   begin
     FSections.CaseSensitive := Value;
@@ -866,7 +866,7 @@ var
   split_site_data: Boolean;
 begin
   Clear;
-  il.Enter;
+  il.Enter('SetStrings');
   Strings := nil;
 
   if config <> nil then begin
@@ -960,7 +960,7 @@ var
   S: String;
   Strings: TStrings;
 begin
-  il.Enter;
+  il.Enter('WriteString');
   I := FSections.IndexOf(Section);
   if I >= 0 then
     Strings := TStrings(FSections.Objects[I])
@@ -983,7 +983,7 @@ procedure TEncIniFile.SaveUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter;
+  il.Enter('SaveUnencrypted');
   List := TStringList.Create;
   try
     GetStrings(List);
@@ -1000,7 +1000,7 @@ procedure TEncIniFile.LoadUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter;
+  il.Enter('LoadUnencrypted');
   if (FileName <> '') and FileExists(FileName) then
   begin
     List := TStringList.Create;

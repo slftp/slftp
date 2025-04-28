@@ -22,8 +22,10 @@ type
     FUseTimeoutLocking: boolean;
     FLockOwnerNameStack: TStack<string>;
     function GetCurrentLockOwnerName: string;
+    procedure InitNoTimeoutLocking;
+    procedure FreeObjects;
   public
-    constructor Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
+    constructor Create(aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy; override;
     function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal; const aRaiseExceptionOnFail: boolean = True): boolean; overload;
     function Enter(const aLockOwnerName: string): boolean; overload;
@@ -42,14 +44,17 @@ implementation
     SysUtils, IdGlobal, debugunit;
 
   var
-    glUseTimeoutLocking: boolean;
+    glUseTimeoutLocking: boolean = True;
     glDefaultLockingTimeout: integer;
-    glUsedCriticalSectionNames: TDictionary<string, integer>;
-    glUsedCriticalSectionNamesLock: TCriticalSection;
+    glUsedCriticalSections: TDictionary<string, TslCriticalSection2>;
+    glUsedCriticalSectionsLock: TCriticalSection;
     glDebugSection: string = 'slcriticalsection2';
+    glIsInitialized: boolean = False;
 
 
   procedure SlCriticalSection2Init(const aLockingTimeout: integer);
+  var
+    fExistingCs: TSlCriticalSection2;
   begin
     if aLockingTimeout > 0 then
     begin
@@ -59,36 +64,69 @@ implementation
     else
       glUseTimeoutLocking := False;
 
-    glUsedCriticalSectionNames := TDictionary<string, integer>.Create;
-    glUsedCriticalSectionNamesLock := TCriticalSection.Create;
+    if not glIsInitialized then
+    begin
+      glUsedCriticalSections := TDictionary<string, TslCriticalSection2>.Create;
+      glUsedCriticalSectionsLock := TCriticalSection.Create;
+      glIsInitialized := True;
+    end
+    else if aLockingTimeout = 0 then
+    begin
+      // happens at startup when a TslCriticalSection2 is created before initialization then it will have called init already with timeout locking enabled
+      // So if timeout locking is being disabled now, we will change the existing locks to be non timeout locks as well.
+      glUsedCriticalSectionsLock.Enter;
+      try
+        for fExistingCs in glUsedCriticalSections.Values do
+        begin
+          fExistingCs.FreeObjects;
+          fExistingCs.InitNoTimeoutLocking;
+        end;
+      finally
+        glUsedCriticalSectionsLock.Leave;
+      end;
+    end;
   end;
 
   procedure SlCriticalSection2Uninit;
   begin
     glUseTimeoutLocking := False;
-    glUsedCriticalSectionNames.Free;
-    glUsedCriticalSectionNamesLock.Free;
+    FreeAndNil(glUsedCriticalSections);
+    FreeAndNil(glUsedCriticalSectionsLock);
+    glIsInitialized := False;
   end;
 
-  constructor TslCriticalSection2.Create(const aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
+  procedure TslCriticalSection2.InitNoTimeoutLocking;
   begin
+    FUseTimeoutLocking := False;
+    FInternalCriticalSection := TCriticalSection.Create;
+  end;
+
+  constructor TslCriticalSection2.Create(aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
+  begin
+    if not glIsInitialized then // happens at startup when a TslCriticalSection2 is created before initialization
+    begin
+      // init with timeout locking enabled and then if it will be initialized again with timeout locking disabled, change the existing instances
+      SlCriticalSection2Init(60000);
+    end;
+
+    aName := aName.Replace('\', '_'); // backslash not allowed on windows
+
     FName := aName;
     if glUseTimeoutLocking Or aAlwaysUseTimeoutLocking then
     begin
-      FUseTimeoutLocking := True;
-
       // make sure a TslCriticalSection2 only exists once with the same name, because of the named mutex
-      glUsedCriticalSectionNamesLock.Enter;
+      glUsedCriticalSectionsLock.Enter;
       try
-        if glUsedCriticalSectionNames.ContainsKey(aName) then
+        if glUsedCriticalSections.ContainsKey(aName) then
         begin
           raise Exception.Create(Format('SL Critical section with name %s already exists.', [aName]));
         end;
-        glUsedCriticalSectionNames.Add(aName, 0);
+        glUsedCriticalSections.Add(aName, self);
       finally
-        glUsedCriticalSectionNamesLock.Leave;
+        glUsedCriticalSectionsLock.Leave;
       end;
 
+      FUseTimeoutLocking := True;
       FEvent := TEvent.Create(nil, False, True, 'SLFTP_' + aName);
       FLockCount := 0;
       FLockOwningThreadID := 0;
@@ -97,29 +135,36 @@ implementation
     end
     else
     begin
-      FUseTimeoutLocking := False;
-      FInternalCriticalSection := TCriticalSection.Create;
+      self.InitNoTimeoutLocking;
     end;
   end;
 
-  destructor TslCriticalSection2.Destroy;
+  procedure TSlCriticalSection2.FreeObjects;
   begin
     if FUseTimeoutLocking then
     begin
       FEvent.Free;
       FLockOwnerNameStack.Free;
 
-      glUsedCriticalSectionNamesLock.Enter;
-      try
-        glUsedCriticalSectionNames.Remove(self.FName);
-      finally
-        glUsedCriticalSectionNamesLock.Leave;
+      if glUsedCriticalSectionsLock <> nil then
+      begin
+        glUsedCriticalSectionsLock.Enter;
+        try
+          glUsedCriticalSections.Remove(self.FName);
+        finally
+          glUsedCriticalSectionsLock.Leave;
+        end;
       end;
     end
     else
     begin
       FInternalCriticalSection.Free;
     end;
+  end;
+
+  destructor TslCriticalSection2.Destroy;
+  begin
+    self.FreeObjects;
   end;
 
   function TslCriticalSection2.Enter(const aLockOwnerName: string): boolean;

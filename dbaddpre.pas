@@ -28,7 +28,7 @@ type
 
 function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
 function dbaddpre_GetRlz(const rls: String): Int64;
-function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
+function dbaddpre_InsertRlz(const rls, rls_section, Source: String; const aSkipDbCleanup: boolean = False): boolean;
 function dbaddpre_GetCount: integer;
 function dbaddpre_GetPreduration(const rlz_pretime: Int64): String;
 function dbaddpre_Status: String;
@@ -66,10 +66,13 @@ implementation
 
 uses
   DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles, slcriticalsection2,
-  irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
+  irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos,
+  IdThreadSafe;
 
 const
   section = 'dbaddpre';
+  DBCLEANUP_INTERVAL = 50;
+  DBCLEANUP_NUM_ENTRIES_TO_KEEP = 300;
 
 var
   addpreSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
@@ -83,6 +86,7 @@ var
 
   config_taskpretime_url: String;
   config_taskpretime_regexp: String;
+  FDbCleanupCounter: TIdThreadSafeInt32;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
 begin
@@ -376,7 +380,7 @@ begin
   end;
 end;
 
-function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
+function dbaddpre_InsertRlz(const rls, rls_section, Source: String; const aSkipDbCleanup: boolean = False): boolean;
 var
   fMySQLQuery: TSqlDBZeosStatement;
   fSQLiteQuery: TSqlDBSQLite3Statement;
@@ -447,6 +451,44 @@ begin
           fMySQLQuery.free;
         end;
       end;
+  end;
+
+  // db cleanup currently only for in-memory DB
+  if Result and (dbaddpre_mode = apmMemory) then
+  begin
+    FDbCleanupCounter.Increment;
+
+    if (FDbCleanupCounter.Value >= DBCLEANUP_INTERVAL) and not aSkipDbCleanup then // we can skip the DB cleanup if we do not want to waste the time for it (e.g. sitepre)
+    begin
+      try
+        FDbCleanupCounter.Value := 0;
+        fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+        try
+          fSQLiteQuery.Prepare('DELETE FROM addpre WHERE ts < (SELECT MIN(ts) FROM (SELECT ts FROM addpre ORDER BY ts DESC LIMIT ?));');
+          fSQLiteQuery.Bind(1, DBCLEANUP_NUM_ENTRIES_TO_KEEP);
+          try
+            fSQLiteQuery.ExecutePrepared;
+            if fSQLiteQuery.UpdateCount > 0 then
+            begin
+              debug(dpSpam, section, Format('Addpre DB cleanup: Cleaned %d entries from the Pre DB, keeping only the latest %d', [fSQLiteQuery.UpdateCount, DBCLEANUP_NUM_ENTRIES_TO_KEEP]));
+            end;
+          except
+            on e: Exception do
+            begin
+              debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
+              exit;
+            end;
+          end;
+        finally
+          fSQLiteQuery.Free;
+        end;
+      except
+        on e: Exception do
+        begin
+          debug(dpError, section, Format('[EXCEPTION] DB Cleanup: %s ', [e.Message]));
+        end;
+      end;
+    end;
   end;
 end;
 
@@ -569,6 +611,8 @@ begin
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
   config_taskpretime_regexp := config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$');
 
+  FDbCleanupCounter := TIdThreadSafeInt32.Create;
+
   if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
@@ -611,6 +655,7 @@ procedure dbaddpreUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
   addprecmd.Free;
+  FDbCleanupCounter.Free;
 
   if Assigned(addpreSQLite3DBCon) then
   begin
@@ -620,4 +665,3 @@ begin
 end;
 
 end.
-

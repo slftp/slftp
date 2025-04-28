@@ -2,7 +2,7 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, SysUtils, Contnrs, Generics.Collections, IniFiles, irc, SyncObjs, dbhandler, mormot.orm.core, mormot.core.base, mormot.orm.base, mormot.rest.sqlite3, mormot.core.unicode;
+uses Classes, SysUtils, Contnrs, Generics.Collections, IniFiles, irc, SyncObjs, dbhandler, mormot.orm.core, mormot.core.base, mormot.orm.base, mormot.rest.sqlite3, mormot.core.unicode, slcriticalsection2;
 
 type
   { @abstract(Class for information from each single line of the slftp.imdbcountries file) }
@@ -248,7 +248,7 @@ procedure dbaddimdbUnInit;
 
 var
   last_addimdb: THashedStringList;
-  gDbAddimdb_cs: TCriticalSection;
+  gDbAddimdb_cs: TSlCriticalSection2;
 
 implementation
 
@@ -872,7 +872,7 @@ var
   fIMDbReleaseDateInfo: TIMDbReleaseDateInfo;
   fBOMCountryScreens: TPair<string, integer>;
 begin
-
+  gDbAddimdb_cs.Enter('SaveImdbData1');
   try
     fIMDbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [aImdbData.imdb_id]);
     fDoUpdate := fIMDbDataRec.FillOne;
@@ -1158,7 +1158,7 @@ begin
       end;
     end;
 
-    gDbAddimdb_cs.Enter;
+    gDbAddimdb_cs.Enter('SaveImdbData1');
     try
       last_addimdb_count := last_addimdb.Count;
       try
@@ -1190,6 +1190,8 @@ end;
 function check_ImdbId(const aIMDbId: String): Boolean;
 begin
   Result := False;
+  gDbAddimdb_cs.Enter('checkid');
+  try
     try
       if rx_imdbid.Find(aIMDbId) <> 0 then
       begin
@@ -1202,6 +1204,9 @@ begin
         exit;
       end;
     end;
+  finally
+    gDbAddimdb_cs.leave();
+  end;
 end;
 
 { Parseid }
@@ -1210,6 +1215,7 @@ begin
   aIMDbId := '';
   Result := False;
   try
+    gDbAddimdb_cs.Enter('parseid');
     try
       if rx_imdbid.MatchAll(aText, rx_captures, 1 ,1) then
       begin
@@ -1224,6 +1230,7 @@ begin
       end;
     end;
   finally
+    gDbAddimdb_cs.leave();
     SetLength(rx_captures, 0);
   end;
 end;
@@ -1257,7 +1264,7 @@ begin
   imdb_remove_words_list := TStringList.Create;
   imdb_remove_words_list.LoadFromFile(ExtractFilePath(ParamStr(0)) + IMDBREPLACEFILENAME);
 
-  gDbAddimdb_cs := TCriticalSection.Create;
+  gDbAddimdb_cs := TSlCriticalSection2.Create('dbaddimdb');
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
   last_addimdb.OwnsObjects:= true;
@@ -1321,6 +1328,8 @@ end;
 
 procedure dbaddimdbUninit;
 begin
+  glLanguageCountryMappingList.Free;
+  gDbAddimdb_cs.Enter('Uninit');
   try
     if Assigned(ImdbDatabase) then
     begin
@@ -1335,10 +1344,11 @@ begin
     FreeAndNil(imdbcountries);
     FreeAndNil(rx_imdbid);
     FreeAndNil(last_addimdb);
-    FreeAndNil(gDbAddimdb_cs);
     FreeAndNil(glLanguageCountryMappingList);
   finally
     Debug(dpSpam, section, 'Uninit ImdbDatabase');
+    gDbAddimdb_cs.Leave();
+    FreeAndNil(gDbAddimdb_cs);
   end;
 end;
 

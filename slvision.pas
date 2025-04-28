@@ -2,7 +2,7 @@
 
 interface
 
-uses Classes, types, SyncObjs, Contnrs;
+uses Classes, types, slcriticalsection2, Contnrs;
 
 type
   TslRect = class
@@ -460,7 +460,7 @@ var
   slVisionFrequency: integer = 50;
   slVisionThreadFrequency: integer = 4; // 4 * 50
   slApp: TslApplication = nil;
-  slvision_lock: TCriticalSection;
+  slvision_lock: TSlCriticalSection2;
 
 implementation
 
@@ -589,7 +589,7 @@ begin
   begin
     lvtf := 0;
     try
-      slvision_lock.Enter();
+      slvision_lock.Enter('ProcessMessages');
       try
         CopyConsoleTasks;
 
@@ -875,7 +875,7 @@ var
   i: integer;
 begin
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('AddConsoleTask');
     try
 
       try
@@ -3033,7 +3033,7 @@ begin
 end;
 
 initialization
-  slvision_lock := TCriticalSection.Create();
+  slvision_lock := TSlCriticalSection2.Create('slvision');
   slig := 0;
   lvtf := 0;
 

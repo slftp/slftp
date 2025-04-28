@@ -226,8 +226,9 @@ type
     fIo_timeout: integer;
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
-    fSpeedFromCS: TCriticalSection;
+    fSpeedFromCS: TSlCriticalSection2;
     fSpeedFromCache: TStringList;
+    fFreeSlotsCS: TSlCriticalSection2;
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -288,8 +289,6 @@ type
     function FetchAutoRules: TRulesTask;
     function FetchAutoDirlist: TAutoDirlistTask;
     function FetchAutoNuke: TAutoNukeTask;
-    procedure SetNumDn(const Value: integer);
-    procedure SetNumUp(const Value: integer);
     procedure SetFreeSlots(const Value: integer);
 
     { function for @link(ProxyName) property to read proxyname from inifile (default value: !!NOIN!!) }
@@ -542,8 +541,8 @@ type
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: String read GetAffils write SetAffils;
     property sectionpretime[const Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
-    property num_dn: integer read fNumDn write SetNumDn;
-    property num_up: integer read fNumUp write SetNumUp;
+    property num_dn: integer read fNumDn write fNumDn;
+    property num_up: integer read fNumUp write fNumUp;
     property delayleech[const aSection: String]: integer read GetDelayLeech; //< returns random value between min and max seconds for delaying leech
     property delayupload[const aSection: String]: integer read GetDelayUpload; //< returns random value between min and max seconds for delaying upload
     property freeslots: integer read fFreeslots write SetFreeSlots;
@@ -720,13 +719,14 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal;
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
+  dirlist.helpers, tags;
 
 const
   section = 'sites';
 
 var
-  bnccsere: TCriticalSection = nil;
+  bnccsere: TSlCriticalSection2 = nil;
   sitelaststart: TDateTime;
   // Config vars
   maxrelogins: integer = 3;
@@ -1305,7 +1305,7 @@ end;
 procedure SitesInit;
 begin
   sitelaststart := Now();
-  bnccsere := TCriticalSection.Create;
+  bnccsere := TSlCriticalSection2.Create('bnccsere');
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1396,7 +1396,7 @@ end;
 
 function GiveSiteLastStart: TDateTime;
 begin
-  bnccsere.Enter;
+  bnccsere.Enter('GiveSiteLastStart');
   try
     if siteLastStart < Now then
       siteLastStart := Now;
@@ -1493,7 +1493,7 @@ begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
   console_add_sitewindow(Name);
-  while ((not slshutdown) and (not shouldquit)) do // and (not False)
+  while ((not slshutdown) and (not shouldquit)) do
   begin
     try
       if status = ssOnline then
@@ -1651,6 +1651,22 @@ begin
       end;
     end;
   end;
+
+  // when the thread terminates cleanup the thread vars that belong to it
+  try
+    CleanupDirlistThreadVars;
+    CleanupTagsThreadVars;
+  except
+    on e: Exception do
+    begin
+      try
+        Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.ClearnupThreadVars : %s', [e.Message]));
+      except
+        // ignore this in case the debug unit has already been uninitialized at shutdown or something like that
+      end;
+    end;
+  end;
+
   console_delwindow(Name);
   kilepve := True;
 end;
@@ -2187,7 +2203,7 @@ begin
     bncList.CaseSensitive := False;
     bncList.Duplicates := dupIgnore;
     splitted := TStringList.Create;
-    bnccsere.Enter;
+    bnccsere.Enter('LoginBnc');
     try
       currentBnc := Host + ':' + IntToStr(Port);
       bncList.Add(currentBnc);
@@ -2302,7 +2318,7 @@ begin
         if site.sw = sswGlftpd then
         begin
           DestroySocket(False);
-          Result := LoginBnc(i, True);
+          Result := LoginBnc(i, False);
         end;
       end
       else
@@ -2995,19 +3011,19 @@ procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 begin
   if Value <> fDownloadingFrom then
   begin
-    bnccsere.Enter;
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
-      site.num_dn := site.num_dn + 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end
     else
     begin
-      site.num_dn := site.num_dn - 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -3015,19 +3031,19 @@ procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 begin
   if Value <> fUploadingTo then
   begin
-    bnccsere.Enter;
     fUploadingTo := Value;
     if fUploadingTo then
       begin
-        site.num_up := site.num_up + 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end
     else
       begin
-        site.num_up := site.num_up - 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -3035,19 +3051,23 @@ procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
   if fTodotask <> Value then
   begin
-    bnccsere.Enter;
-    fTodotask := Value;
-    if fTodoTask <> nil then
+    site.fFreeSlotsCS.Enter('SetTodotask');
+    try
+      fTodotask := Value;
+      if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
-        end
-    else
+      end
+      else
       begin
         site.freeslots := site.freeslots + 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
       end;
-    bnccsere.Leave;
+    finally
+      site.fFreeSlotsCS.Leave;
+    end;
+
+    if GetDebugVerbosity = dpSpam then
+      Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
   end;
 end;
 
@@ -3064,8 +3084,9 @@ begin
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
-  self.fSpeedFromCS := TCriticalSection.Create;
+  self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
+  self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
 
   if (Name = getAdminSiteName) then
   begin
@@ -3245,6 +3266,7 @@ begin
   fSlotsAssignmentLock.Free;
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
+  fFreeSlotsCS.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
 end;
@@ -4168,18 +4190,6 @@ begin
     Result := StrToIntDef(mdtmre.Match[6], 0);
 end;
 
-procedure TSite.SetNumDn(const Value: integer);
-begin
-  if Value >= 0 then
-    fNumDn := Value;
-end;
-
-procedure TSite.SetNumUp(const Value: integer);
-begin
-  if Value >= 0 then
-    fNumUp := Value;
-end;
-
 procedure TSite.SetFreeSlots(const Value: integer);
 begin
   if Value >= 0 then
@@ -4192,15 +4202,20 @@ var
   ss: TSiteSlot;
   fs: integer;
 begin
-  fs := 0;
-  for i := 0 to slots.Count - 1 do
-  begin
-    ss := TSiteSlot(slots[i]);
-    if ss.todotask = nil then
-      Inc(fs);
-  end;
+  fFreeSlotsCS.Enter('RecalcFreeslots');
+  try
+    fs := 0;
+    for i := 0 to slots.Count - 1 do
+    begin
+      ss := TSiteSlot(slots[i]);
+      if ss.todotask = nil then
+        Inc(fs);
+    end;
 
-  ffreeslots := fs;
+    ffreeslots := fs;
+  finally
+    fFreeSlotsCS.Leave;
+  end;
 end;
 
 procedure TSite.FullLogin;
@@ -4709,7 +4724,7 @@ begin
   if self.fSpeedFromCache = nil then
   begin
     try
-      self.fSpeedFromCS.Enter;
+      self.fSpeedFromCS.Enter('GetSpeed_From1');
       if self.fSpeedFromCache = nil then
         self.UpdateSpeedFromCache;
     finally
@@ -4718,7 +4733,7 @@ begin
   end;
 
   Result := TStringList.Create;
-  self.fSpeedFromCS.Enter;
+  self.fSpeedFromCS.Enter('GetSpeed_From2');
   try
     Result.Assign(self.fSpeedFromCache);
   finally
@@ -4733,7 +4748,7 @@ begin
   fNewValue := TStringList.Create;
   sitesdat.ReadSectionValues('speed-from-' + Name, fNewValue);
   fNewValue.CustomSort(_mySpeedComparer);
-  self.fSpeedFromCS.Enter;
+  self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
   try
     fOldValue := self.fSpeedFromCache;
     self.fSpeedFromCache := fNewValue;

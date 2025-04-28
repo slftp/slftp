@@ -20,17 +20,23 @@ procedure TagsUninit;
   @returns(@link(tctCOMPLETE) if complete, @link(tctINCOMPLETE) if incomplete, otherwise @link(tctUNMATCHED).) }
 function TagComplete(const aFilename: String): TTagCompleteType;
 
+{ Frees the thread vars of the current thread (call this when a thread terminates). }
+procedure CleanupTagsThreadVars;
+
 implementation
 
 uses
-  Classes, SysUtils, mystrings, configunit, debugunit, FLRE, SyncObjs;
+  Classes, SysUtils, mystrings, configunit, debugunit, FLRE;
 
 const
   section = 'tags';
 
 var
-  cs: TCriticalSection; // lock to avoid concurrent access to regex objects
-  crc, cri: TFLRE; //< complete and incomplete regex object
+  glCompleteRegex: string;
+  glIncompleteRegex: string;
+
+threadvar
+  glCompleteRegexInstance, glIncompleteRegexInstance: TFLRE; //< complete and incomplete regex object
 
 { Fast search for '% complete' in given @link(aFilename) and determines the percentage if found
   @param(aFilename complete dir/file)
@@ -74,6 +80,24 @@ begin
   end;
 end;
 
+function GetCompleteRegexInstance: TFLRE;
+begin
+  if glCompleteRegexInstance = nil then
+  begin
+    glCompleteRegexInstance := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
+  end;
+  Result := glCompleteRegexInstance;
+end;
+
+function GetIncompleteRegexInstance: TFLRE;
+begin
+  if glIncompleteRegexInstance = nil then
+  begin
+    glIncompleteRegexInstance := TFLRE.Create(glIncompleteRegex, [rfIGNORECASE]);
+  end;
+  Result := glIncompleteRegexInstance;
+end;
+
 function TagComplete(const aFilename: String): TTagCompleteType;
 begin
   // check if the dir is a percent dir
@@ -81,48 +105,42 @@ begin
   if Result <> tctUNMATCHED then
     exit;
 
-  // regex matching
-  cs.Enter;
+  // is the file/dir a complete tag
   try
-    // is the file/dir a complete tag
-    try
-      if crc.Find(aFilename) <> 0 then
-      begin
-        Debug(dpSpam, section, 'TagComplete By FLRE %s', [aFilename]);
-        Result := tctCOMPLETE;
-        exit;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TagComplete(crc): Exception : %s', [e.Message]));
-      end;
+    if GetCompleteRegexInstance.Find(aFilename) <> 0 then
+    begin
+      Debug(dpSpam, section, 'TagComplete By FLRE %s', [aFilename]);
+      Result := tctCOMPLETE;
+      exit;
     end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TagComplete(crc): Exception : %s', [e.Message]));
+    end;
+  end;
 
-    // is the file/dir an incomplete tag
-    try
-      if cri.Find(aFilename) <> 0 then
-      begin
-        Debug(dpSpam, section, 'TagIncomplete By FLRE %s', [aFilename]);
-        Result := tctINCOMPLETE;
-        exit;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TagComplete(cri): Exception : %s', [e.Message]));
-      end;
+  // is the file/dir an incomplete tag
+  try
+    if GetIncompleteRegexInstance.Find(aFilename) <> 0 then
+    begin
+      Debug(dpSpam, section, 'TagIncomplete By FLRE %s', [aFilename]);
+      Result := tctINCOMPLETE;
+      exit;
     end;
-  finally
-    cs.Leave;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TagComplete(cri): Exception : %s', [e.Message]));
+    end;
   end;
 end;
 
 procedure TagsInit;
 var
-  complete_regex, incomplete_regex: String;
   complete_regex_default, incomplete_regex_default: String;
   dummy_string: String;
+  fTestingRegexInstance: TFLRE;
 begin
   Debug(dpSpam, section, 'Init %s begins', [section]);
 
@@ -131,41 +149,39 @@ begin
 
   dummy_string := '[xy] - ( 19M 4F - COMPLETE ) - [xy]';
 
-  cs := TCriticalSection.Create;
-
   // check custom slftp.ini complete_regex
-  complete_regex := config.ReadString(section, 'complete_regex', complete_regex_default);
+  glCompleteRegex := config.ReadString(section, 'complete_regex', complete_regex_default);
 
-  crc := TFLRE.Create(complete_regex, [rfIGNORECASE]);
+  fTestingRegexInstance := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
   try
-    crc.Test(dummy_string);
+    fTestingRegexInstance.Test(dummy_string);
   except
     on e: Exception do
     begin
-      if Assigned(crc) then
-        crc.Free;
-
       Debug(dpError, section, Format('TagComplete: slftp.ini complete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      crc := TFLRE.Create(complete_regex_default, [rfIGNORECASE]);
+      glCompleteRegex := complete_regex_default;
     end;
   end;
+
+  if Assigned(fTestingRegexInstance) then
+    FreeAndNil(fTestingRegexInstance);
 
   // check custom slftp.ini incomplete_regex
-  incomplete_regex := config.ReadString(section, 'incomplete_regex', incomplete_regex_default);
+  glIncompleteRegex := config.ReadString(section, 'incomplete_regex', incomplete_regex_default);
 
-  cri := TFLRE.Create(incomplete_regex, [rfIGNORECASE]);
+  fTestingRegexInstance := TFLRE.Create(glIncompleteRegex, [rfIGNORECASE]);
   try
-    cri.Test(dummy_string);
+    fTestingRegexInstance.Test(dummy_string);
   except
     on e: Exception do
     begin
-      if Assigned(cri) then
-        cri.Free;
-
       Debug(dpError, section, Format('TagComplete: slftp.ini incomplete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      cri := TFLRE.Create(incomplete_regex_default, [rfIGNORECASE]);
+      glIncompleteRegex := incomplete_regex_default;
     end;
   end;
+
+  if Assigned(fTestingRegexInstance) then
+    FreeAndNil(fTestingRegexInstance);
 
   Debug(dpSpam, section, 'Init %s done', [section]);
 end;
@@ -174,16 +190,15 @@ procedure TagsUninit;
 begin
   Debug(dpSpam, section, 'Uninit %s begins', [section]);
 
-  cs.Enter;
-  try
-    FreeAndNil(crc);
-    FreeAndNil(cri);
-  finally
-    cs.Leave;
-  end;
-  cs.Free;
-
   Debug(dpSpam, section, 'Uninit %s done', [section]);
+end;
+
+procedure CleanupTagsThreadVars;
+begin
+  if glCompleteRegexInstance <> nil then
+    FreeAndNil(glCompleteRegexInstance);
+  if glIncompleteRegexInstance <> nil then
+    FreeAndNil(glIncompleteRegexInstance);
 end;
 
 end.

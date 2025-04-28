@@ -80,6 +80,9 @@ function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
 
+{ Frees the thread vars of the current thread (call this when a thread terminates). }
+procedure CleanupDirlistThreadVars;
+
 implementation
 
 uses
@@ -299,6 +302,14 @@ end;
 function GetNewdirDirlistReaddValue(): integer;
 begin
   Result := glNewdirDirlistReadd;
+end;
+
+procedure CleanupDirlistThreadVars;
+begin
+  if glSkiplistFilesRegexInstance <> nil then
+    FreeAndNil(glSkiplistFilesRegexInstance);
+  if glSkiplistDirsRegexInstance <> nil then
+    FreeAndNil(glSkiplistDirsRegexInstance);
 end;
 
 end.
