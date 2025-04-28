@@ -736,6 +736,7 @@ var
   autologin: boolean = False;
   killafter: integer = 0;
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
+  gAdminSiteName: String;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1125,7 +1126,7 @@ end;
 
 function getAdminSiteName: String;
 begin
-  Result := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  Result := gAdminSiteName;
 end;
 
 function SiteSoftWareToString(const aSitename: String): String;
@@ -1305,6 +1306,7 @@ end;
 procedure SitesInit;
 begin
   sitelaststart := Now();
+  gAdminSiteName := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
   bnccsere := TSlCriticalSection2.Create('bnccsere');
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;

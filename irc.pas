@@ -35,6 +35,7 @@ type
     registered: Boolean;
     irc_last_written: tdatetime;
     lastservername: String;
+    fIrcFlood: integer;
 
     function GetIrcSSL: Boolean;
     procedure SetIrcSSL(value: Boolean);
@@ -182,6 +183,8 @@ function irccmdprefix: String;
 
 var
   myIrcThreads: TObjectList = nil;
+  gIrcTimeout: integer = 120;
+  gIrcDirectEcho: boolean = false;
 
 const
   irc_chanroleindex = 25;
@@ -276,7 +279,7 @@ begin
      end;
     if msg.Length < 250 then
     begin
-      if (config.ReadBool(section, 'direct_echo', False)) then
+      if gIrcDirectEcho then
       begin
         _WriteToIRC(channel, msg);
       end
@@ -290,7 +293,7 @@ begin
       // message needs to be splitted due to encryption and a given max length per messages (~280 chars)
       fStrArr := WrapText(msg, 250).Split([sLineBreak]);
 
-      if (config.ReadBool(section, 'direct_echo', False)) then
+      if gIrcDirectEcho then
       begin
         for fStr in fStrArr do
           _WriteToIRC(channel, fStr);
@@ -1560,7 +1563,7 @@ begin
     if ((error <> '') and (error <> 'timeout')) then
       exit;
 
-    if ((not config.ReadBool(section, 'direct_echo', False)) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
+    if (gIrcDirectEcho and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
       fEchoQueueList := PendingMessagesQueue.LockList;
       try
@@ -1578,7 +1581,7 @@ begin
     if ((SecondsBetween(Now, irc_last_read) > 60) and (lastservername <> '')) then
       ircwrite('PING ' + lastservername);
 
-    if SecondsBetween(Now, irc_last_read) > config.ReadInteger(section, 'timeout', 120) then
+    if SecondsBetween(Now, irc_last_read) > gIrcTimeout then
     begin
       error := 'IRC Server didnt PING, it might be down';
       exit;
@@ -1599,6 +1602,7 @@ begin
   Result := False;
   registered := False;
   status := 'registering...';
+  fIrcFlood := RCInt('flood', 333);
 
   elotte := Now();
   while (SecondsBetween(Now, elotte) < config.ReadInteger(section, 'register_timeout', 10)) do
@@ -1802,6 +1806,8 @@ end;
 procedure IrcInit;
 begin
   myIrcThreads := TObjectList.Create(True);
+  gIrcTimeout := config.ReadInteger(section, 'timeout',120);
+  gIrcDirectEcho := config.ReadBool(section, 'direct_echo', False);
 end;
 
 procedure IrcUnInit;
@@ -1888,7 +1894,8 @@ end;
 
 function TMyIrcThread.GetIrcFlood: integer;
 begin
-  result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
+  result := fIrcFlood;
+  //result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
 end;
 
 function TMyIrcThread.ChanNicks(const chan: String): String;
