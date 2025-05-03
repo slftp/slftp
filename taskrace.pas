@@ -2350,7 +2350,7 @@ begin
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim down (confed max_dn/max_pre_dn: %d/%d)</c> %s (%s)', [ssrc.site.max_dn, ssrc.site.max_pre_dn, tname, lastResponse]);
               // on glftpd we could try to kill ghosts if it occurs over and over and on drftpd only setdown the site helps if it occurs over and over
 
-            sdst.DestroySocket(False);
+            ssrc.DestroySocket(False);
             mainpazo.errorreason := 'Maximum of simultaneous downloads reached';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
