@@ -2919,7 +2919,8 @@ begin
       (sdst.lastResponse.Contains('CRC-Check: BAD!')) or
       (sdst.lastResponse.Contains('CRC-Check: Not in sfv!')) or
       (sdst.lastResponse.Contains('-file: Not allowed')) or
-      (sdst.lastResponse.Contains('NFO-File: DUPE!')) ) ) then
+      (sdst.lastResponse.Contains('NFO-File: DUPE!')) or
+      (sdst.lastResponse.Contains('SFV-file: BAD!')) ) ) then
   begin
     Debug(dpSpam, c_section, 'Broken transfer event!');
 
@@ -2936,6 +2937,16 @@ begin
       end;
       Inc(ps2.badcrcevents);
     end
+
+    else if (sdst.lastResponse.Contains('SFV-file: BAD!')) then
+    begin
+      if spamcfg.readbool(c_section, 'crc_error', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+      end;
+      Inc(ps2.badcrcevents);
+    end
+
 
     else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
