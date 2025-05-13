@@ -1791,6 +1791,19 @@ begin
       end;
     end;
   end;
+
+  try
+    CleanupConsoleThreadVars;
+  except
+    on e: Exception do
+    begin
+      try
+        Debug(dpError, section, Format('[EXCEPTION] TMyIrcThread.ClearnupThreadVars : %s', [e.Message]));
+      except
+        // ignore this in case the debug unit has already been uninitialized at shutdown or something like that
+      end;
+    end;
+  end;
 end;
 
 function IrcRestart: boolean;

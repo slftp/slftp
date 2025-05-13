@@ -1658,6 +1658,7 @@ begin
   try
     CleanupDirlistThreadVars;
     CleanupTagsThreadVars;
+    CleanupConsoleThreadVars;
   except
     on e: Exception do
     begin
