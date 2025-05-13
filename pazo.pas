@@ -1385,7 +1385,6 @@ var
   fSite: TSite;
 begin
   Result := False;
-  fTasksAdded := False;
 
   // exit if no access to dirlist object
   if dirlist = nil then
@@ -1542,6 +1541,7 @@ var
   fSite: TSite;
 begin
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
+  fTasksAdded := False;
   fFilesToRace := TList<TDirListEntry>.Create;
   try
     try
