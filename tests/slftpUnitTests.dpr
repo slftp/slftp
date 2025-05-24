@@ -113,6 +113,9 @@ begin
   InitialDirlistSetup;
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
+  InitialKnownGroupsSetup;
+  InitialSkiplistSetup;
+  InitialFakeSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;
