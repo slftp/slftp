@@ -35,6 +35,9 @@ type
     registered: Boolean;
     irc_last_written: tdatetime;
     lastservername: String;
+    //Cache irc bnc and port
+    fCurrentIrcBncHost: String;
+    fCurrentIrcBncPort: Integer;
 
     function GetIrcSSL: Boolean;
     procedure SetIrcSSL(value: Boolean);
@@ -51,6 +54,11 @@ type
     procedure SetIrcIdent(value: String);
     function GetIrcPassword: String;
     procedure SetIrcPassword(value: String);
+
+    //returns current cached irc bnc hostname
+    function getCurrentIrcBncHost(): String;
+    //returns current cached irc bnc port
+    function getCurrentIrcBncPort(): Integer;
 
     procedure Setmanglehost(value: boolean);
     function Getmanglehost: boolean;
@@ -610,15 +618,8 @@ begin
   //flood := config.ReadInteger(section, 'flood', 333);
   console_add_ircwindow(aNetname);
 
-  // TODO: remove this as its not needed anymore
-  if sitesdat.ReadString('ircnet-' + aNetname, 'host', '') <> '' then
-  begin
-    // converting old entries to new
-    sitesdat.WriteString('ircnet-' + aNetname, 'bnc_host-0', sitesdat.ReadString('ircnet-' + aNetname, 'host', ''));
-    sitesdat.WriteInteger('ircnet-' + aNetname, 'bnc_port-0', sitesdat.ReadInteger('ircnet-' + aNetname, 'port', 0));
-    sitesdat.DeleteKey('ircnet-' + aNetname, 'host');
-    sitesdat.DeleteKey('ircnet-' + aNetname, 'port');
-  end;
+  fCurrentIrcBncHost := sitesdat.ReadString('ircnet-' + netname, 'bnc_host-0', '');
+  fCurrentIrcBncPort := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-0', 0);
 end;
 
 destructor TMyIrcThread.Destroy;
@@ -661,9 +662,8 @@ begin
   registered := False;
   Disconnect;
 
-  Host := sitesdat.ReadString('ircnet-' + netname, 'bnc_host-0', '');
-  Port := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-0', 0);
-  //    ssl:= sitesdat.ReadBool('ircnet-'+netname, 'ssl', False);
+  Host := getCurrentIrcBncHost();
+  Port := getCurrentIrcBncPort();
 
   if ((ProxyName = '!!NOIN!!') or (ProxyName = '0') or (ProxyName = '')) then
     SetupSocks5(self, config.ReadBool(section, 'socks5', False))
@@ -1980,6 +1980,17 @@ procedure TMyIrcThread.WCBool(name: String; val: boolean);
 begin
   sitesdat.WriteBool('ircnet-' + netname, name, val);
 end;
+
+function TMyIrcThread.getCurrentIrcBncHost(): String;
+begin
+  Result := fCurrentIrcBncHost;
+end;
+
+function TMyIrcThread.getCurrentIrcBncPort(): Integer;
+begin
+  Result := fCurrentIrcBncPort;
+end;
+
 
 (*
 procedure TMyIrcThread.WCInt(name: String; val: integer);
