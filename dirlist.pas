@@ -136,7 +136,11 @@ type
     function MultiCD: Boolean;
     function Dirname: String;
     procedure RegenerateSkiplist;
-    procedure ParseDirlist(s: String);
+    { Parses the given dirlist response string from the site and adds corresponding TDirListEntry items to the entries list.
+      @param(s The dirlist response from the site.)
+      @param(aParseTimestamp If set to true, the timestamp will be parsed as well and set to the dirlist entries. Disabled
+        by default for performance reasons.) }
+    procedure ParseDirlist(const s: String; const aParseTimestamp: Boolean = False);
     { Does an investigation to determine if TDirlist is complete }
     function Complete: Boolean;
     procedure Usefulfiles(out files: Integer; out size: Int64);
@@ -433,7 +437,7 @@ begin
   end;
 
   if s <> '' then
-    ParseDirlist(s);
+    ParseDirlist(s, True);
 end;
 
 destructor TDirList.Destroy;
@@ -591,7 +595,7 @@ begin
 
 end;
 
-procedure TDirList.ParseDirlist(s: String);
+procedure TDirList.ParseDirlist(const s: String; const aParseTimestamp: Boolean = False);
 var
   akttimestamp: TDateTime;
   de: TDirListEntry;
@@ -683,7 +687,10 @@ begin
         end;
       end;
 
-      akttimestamp := Timestamp(fParsedDirlistEntry.Date);
+      if aParseTimestamp then
+        akttimestamp := Timestamp(fParsedDirlistEntry.Date)
+      else
+        akttimestamp := MinDateTime;
 
       de := Find(fParsedDirlistEntry.Filename);
       if de = nil then
