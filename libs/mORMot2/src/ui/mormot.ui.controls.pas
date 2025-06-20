@@ -373,7 +373,7 @@ end;
 constructor TSynLabeledEdit.Create(AOwner: TComponent);
 begin
   inherited;
-  ShowHint := True;
+  ShowHint := true;
   MaxValue := 100;
   MinValue := 1;
   Text := '';
@@ -587,7 +587,7 @@ procedure TUIComponentsPersist.SaveToFile;
 var
   json: RawUtf8;
 begin
-  json := _Safe(SaveToVariant)^.ToJson('', '', jsonHumanReadable);
+  json := _Safe(SaveToVariant)^.ToHumanJson;
   if json <> fLoadedJson then
   begin
     FileFromString(json, FileName);
