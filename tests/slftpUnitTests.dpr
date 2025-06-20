@@ -82,7 +82,8 @@ uses
   slsslTests,
   sitesunitTests,
   precatcherTests,
-  slcriticalsection2Tests;
+  slcriticalsection2Tests,
+  variantCacheTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

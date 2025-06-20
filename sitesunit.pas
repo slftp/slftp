@@ -5,7 +5,8 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2;
+  taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
+  variantcache;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -229,6 +230,7 @@ type
     fSpeedFromCS: TSlCriticalSection2;
     fSpeedFromCache: TStringList;
     fFreeSlotsCS: TSlCriticalSection2;
+    FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -737,6 +739,7 @@ var
   killafter: integer = 0;
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
   gAdminSiteName: String;
+  glSpamLoginLogout: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1307,6 +1310,7 @@ procedure SitesInit;
 begin
   sitelaststart := Now();
   gAdminSiteName := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  glSpamLoginLogout := spamcfg.readbool(section, 'login_logout', False);
   bnccsere := TSlCriticalSection2.Create('bnccsere');
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
@@ -2244,8 +2248,8 @@ begin
         if RCString('bnc_host-' + IntToStr(j), '') = '' then
           break;
 
-        sitesdat.DeleteKey('site-' + site.Name, 'bnc_host-' + IntToStr(j));
-        sitesdat.DeleteKey('site-' + site.Name, 'bnc_port-' + IntToStr(j));
+        site.DeleteKey('bnc_host-' + IntToStr(j));
+        site.DeleteKey('bnc_port-' + IntToStr(j));
         Debug(dpSpam, section, '[bncsort] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
         inc(j)
       end;
@@ -2258,8 +2262,8 @@ begin
         tmpPort := StrToInt(splitted[1]);
         Debug(dpSpam, section, '[bncsort] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
 
-        sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(j), tmpHost);
-        sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(j), tmpPort);
+        self.site.WCString('bnc_host-' + IntToStr(j), tmpHost);
+        self.site.WCInteger('bnc_port-' + IntToStr(j), tmpPort);
       end;
     finally
       bnccsere.Leave;
@@ -2268,7 +2272,7 @@ begin
     end;
   end;
 
-  if spamcfg.readbool(section, 'login_logout', False) then
+  if glSpamLoginLogout then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
   //when there are some tasks running and the user sets the site down meanwhile, then there might be a login
@@ -3090,6 +3094,7 @@ begin
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
+  FSettingsCacheDict := TVariantCache.Create;
 
   if (Name = getAdminSiteName) then
   begin
@@ -3124,33 +3129,13 @@ begin
   siteinvited := False;
   foutofannounce := 0;
   // reset to explore it again on first login
-  sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
+  WCInteger('sw', integer(sswUnknown));
   WorkingStatus := sstUnknown;
 
   for i := 1 to RCInteger('slots', 2) do
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
-
-  // TODO: remove as its been here for a while now...
-  // convert section affils to new global affil format
-  for i := 1 to 1000 do
-  begin
-    ss := SubString(self.sections, ' ', i);
-    if ss = '' then
-      Break;
-    affils := RCString('affils-' + ss, '');
-    DeleteKey('affils-' + ss);
-    if affils = '' then
-      Continue;
-    for j := 1 to 1000 do
-    begin
-      ss := SubString(affils, ' ', j);
-      if ss = '' then
-        Break;
-      self.AddAffil(ss);
-    end;
-  end;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
@@ -3214,46 +3199,79 @@ end;
 procedure TSite.DeleteKey(const Name: String);
 begin
   sitesdat.DeleteKey('site-' + self.Name, Name);
+  FSettingsCacheDict.Delete(Name);
 end;
 
 function TSite.RCString(const Name: String; const def: String): String;
+var fValue: Variant;
 begin
-  Result := sitesdat.ReadString('site-' + self.Name, Name, def);
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := sitesdat.ReadString('site-' + self.Name, Name, def);
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCString(const Name: String; const val: String);
 begin
   sitesdat.WriteString('site-' + self.Name, Name, val);
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 function TSite.RCInteger(const Name: String; const def: integer): integer;
+var fValue: Variant;
 begin
-  Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCInteger(const Name: String; const val: integer);
 begin
   sitesdat.WriteInteger('site-' + self.Name, Name, val);
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 function TSite.RCBool(const Name: String; const def: boolean): boolean;
+var fValue: Variant;
 begin
-  Result := sitesdat.ReadBool('site-' + self.Name, Name, def);
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := sitesdat.ReadBool('site-' + self.Name, Name, def);
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCBool(const Name: String; const val: boolean);
 begin
   sitesdat.WriteBool('site-' + self.Name, Name, val);
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 function TSite.RCDateTime(const Name: String; const def: TDateTime): TDateTime;
+var fValue: Variant;
 begin
-  Result := MyStrToDate(sitesdat.ReadString('site-' + self.Name, Name, ''));
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := MyStrToDate(sitesdat.ReadString('site-' + self.Name, Name, ''));
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCDateTime(const Name: String; const val: TDateTime);
 begin
   sitesdat.WriteString('site-' + self.Name, Name, MyDateToStr(val));
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 destructor TSite.Destroy;
@@ -3270,6 +3288,7 @@ begin
   fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
   fFreeSlotsCS.Free;
+  FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
 end;

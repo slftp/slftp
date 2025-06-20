@@ -100,6 +100,7 @@ var
   cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
   queueclean_unassigned: Integer;
   queueclean_maxrunning: Integer;
+  enable_queueclean: boolean;
 
   StatsList: TObjectList<TQueueStat>;
   QueueStatUpdateDateTime: TDateTime;
@@ -1655,6 +1656,7 @@ begin
 
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
+  enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
 end;
@@ -1674,7 +1676,7 @@ begin
 
   try
 
-  if not config.ReadBool(section, 'enable_queueclean', False) then
+  if not enable_queueclean then
   begin
     queueclean_last_run := Now;
     exit;

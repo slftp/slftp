@@ -35,6 +35,7 @@ var
   speedstats_last_save: TDateTime;
   speedstats_last_recalc: TDateTime;
   speedstats: TObjectList;
+  GlSpeedStatsMinFileSize: integer;
 
 implementation
 
@@ -46,6 +47,7 @@ const
 
 var
   speedstatlock: TSlCriticalSection2;
+  max_entries: integer;
 
 procedure SpeedStatsInit;
 begin
@@ -53,6 +55,8 @@ begin
   speedstats_last_save := Now;
   speedstats_last_recalc := Now;
   speedStats := TObjectList.Create;
+  max_entries := config.readInteger(r_section, 'max_entries', 5000);
+  GlSpeedStatsMinFileSize := config.ReadInteger('speedstats', 'min_filesize', 5000000);
 end;
 
 procedure SpeedStatsUnInit;
@@ -681,13 +685,9 @@ begin
 end;
 
 procedure SpeedStatAdd(s: TSpeedStat; nolog : Boolean = False); overload;
-var
-  max_entries: Integer;
 begin
   if not nolog then
     debug(dpSpam, r_section, 'Speedstat %s -> %s %.1f', [s.src, s.dst, s.speed]);
-
-  max_entries := config.readInteger(r_section, 'max_entries', 5000);
 
   try
     speedstatlock.Enter('SpeedStatAdd');

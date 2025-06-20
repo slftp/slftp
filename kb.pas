@@ -69,7 +69,7 @@ implementation
 
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
-  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings,
+  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
@@ -104,6 +104,8 @@ var
 
   rename_patterns: integer;
   taskpretime_mode: integer;
+  glAutoAddAffils: boolean;
+  glOnlyUseRouteableSitesOnTryToComplete: boolean;
 
 function GetKBCount: integer;
 begin
@@ -510,10 +512,10 @@ begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
               irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
 
-            if config.readInteger('taskpretime', 'readd_attempts', 5) > 0 then
+            if GlTaskPretimeReaddAttempts > 0 then
             begin
               fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
-              fPreTimeLookupTask.startat := IncSecond(Now, config.ReadInteger('taskpretime', 'readd_interval', 3));
+              fPreTimeLookupTask.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
               AddTask(fPreTimeLookupTask);
             end;
           end;
@@ -667,7 +669,7 @@ begin
     begin
       if (s <> nil) then
       begin
-        if ((not s.IsAffil(r.groupname)) and (config.ReadBool(rsections, 'auto_add_affils', True))) then
+        if ((not s.IsAffil(r.groupname)) and (glAutoAddAffils)) then
           s.AddAffil(r.groupname);
       end;
       r.PredOnAnySite := True;
@@ -1343,6 +1345,8 @@ begin
   kb_keep_entries := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
+  glAutoAddAffils := config.ReadBool(rsections, 'auto_add_affils', True);
+  glOnlyUseRouteableSitesOnTryToComplete := config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', True);
 end;
 
 procedure kb_Stop;
@@ -1514,7 +1518,7 @@ begin
       begin
         // Check for every destination if its routable if we care about that
         rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ps.Name, 0);
-        if ((config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', True)) and (rank = 0)) then
+        if ((glOnlyUseRouteableSitesOnTryToComplete) and (rank = 0)) then
           Continue;
         ssites_info.Add(ps.Name);
       end;

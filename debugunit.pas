@@ -49,7 +49,8 @@ const
 var
   f: TextFile;
   debug_lock: TSlCriticalSection2;
-  glCachedDebugPriority: TDebugPriority;
+  glCachedDebugPriority: TDebugPriority = dpError;
+  glCachedDebugCategories: string = ',verbose,';
 
 function _GetDebugLogFileName: String;
 begin
@@ -103,7 +104,7 @@ end;
 
 function _GetDebugCategories: String; inline;
 begin
-  Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
+  Result := glCachedDebugCategories;
 end;
 
 procedure _OpenLogFile;
@@ -172,9 +173,10 @@ end;
 
 procedure DebugInit;
 begin
-  debug_lock := TSlCriticalSection2.Create('debug_lock');
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
+  glCachedDebugCategories := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
   _OpenLogFile;
+  debug_lock := TSlCriticalSection2.Create('debug_lock');
 end;
 
 procedure DebugUninit;
@@ -198,6 +200,10 @@ begin
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
   logtext := Format('%s (%s) [%-25s] %s', [nowstr, 'NA', section, msg]);
+
+  if debug_lock = nil then  // has not been initialized yet
+    exit;
+
   debug_lock.Enter('Debug');
   try
     try
