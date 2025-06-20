@@ -56,7 +56,7 @@ uses
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
-  StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto,
+  StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
   taskautodirlist;
 
 {$I slftp.inc}
@@ -81,12 +81,10 @@ end;
 
 function Main_Init: String;
 var
-  fSslLoader: IOpenSSLLoader;
-  fOpenSSLVersion, fSSLErrorMsg: String;
-  fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
-  fError: String;
+  fSSLErrorMsg, fError, fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
 begin
   Result := '';
+  fSSLErrorMsg := '';
 
   if not sltcp_inited then
   begin
@@ -96,36 +94,10 @@ begin
 
   console_addline('Admin', 'Load OpenSSL', True);
   { load OpenSSL }
-  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
-  fSslLoader.OpenSSLPath := '.';
-  try
-    if not fSslLoader.Load then
-    begin
-      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad.CommaText]);
-      exit;
-    end;
-  except
-    on e: Exception do
-    begin
-      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);
-      exit;
-    end;
-  end;
 
-  // check if we at least have OpenSSL 1.1.0
-  if not Assigned(OpenSSL_version) then
+  if not InitOpenSSL(fSSLErrorMsg) then
   begin
-    Result := Format('OpenSSL %s needed.', [lib_OpenSSL]);
-    exit;
-  end;
-
-  { verify that it loaded the correct OpenSSL version }
-  fOpenSSLVersion := GetOpenSSLShortVersion;
-  // remove letter from version
-  SetLength(fOpenSSLVersion, Length(fOpenSSLVersion) - 1);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
-  begin
-    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [GetOpenSSLVersion, lib_OpenSSL]);
+    Result := Format('OpenSSL Error: %s - please check your Openssl Installation!', [fSSLErrorMsg]);
     exit;
   end;
 
@@ -534,8 +506,6 @@ begin
 end;
 
 procedure Main_Uninit;
-var
-  fSslLoader: IOpenSSLLoader;
 begin
   Debug(dpSpam, section, 'Uninit1');
   (*
@@ -593,16 +563,6 @@ begin
 
   { unload OpenSSL }
   UninitOpenSSLConnectionContext;
-
-  try
-    fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
-    fSslLoader.Unload;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] Unexpected error while unloading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
-    end;
-  end;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');

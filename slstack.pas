@@ -4,8 +4,7 @@ interface
 
 
 uses
-  Classes, SysUtils,
-  slssl, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_ossl_typ, debugunit, mystrings,
+  Classes, SysUtils, slssl, mormot.lib.openssl11, mormot.core.os, debugunit, mystrings,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
