@@ -46,18 +46,21 @@ program slftpUnitTests;
   {$APPTYPE CONSOLE}
 {$ENDIF}
 
+{$R 'taskhttpimdbTests.res' 'taskhttpimdbTests.rc'}
+
 uses
   FastMM5,
   {$IFDEF TESTINSIGHT}
-    TestInsight.DUnitX,
-  {$ENDIF}
+  TestInsight.DUnitX,
+  {$ENDIF }
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
   DUnitX.TestFramework,
-  Classes, SysUtils,
+  Classes,
+  SysUtils,
   mrdohutils,
   slftpUnitTestsSetup,
-  // add all test units below
+  slsslTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,
@@ -79,7 +82,6 @@ uses
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
-  slsslTests,
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
@@ -115,6 +117,9 @@ begin
   InitialDirlistSetup;
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
+  InitialKnownGroupsSetup;
+  InitialSkiplistSetup;
+  InitialFakeSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

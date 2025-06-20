@@ -192,7 +192,7 @@ type
     fCaa: TCryptAsymAlgo;
     fSlot: TPkcs11Slot;
     fToken: TPkcs11Token;
-    procedure RaiseError(const Msg: shortstring); overload; override;
+    procedure RaiseError(const Msg: ShortString); overload; override;
     // if true then caller should make try ... finally fEngine.Close
     function OpenPrivateKey: CK_OBJECT_HANDLE;
   public
@@ -442,7 +442,7 @@ var
   seq: TAsnObject;
   log: ISynLog; // seldom called, and better be traced (and profiled)
 begin
-  log := fCert.Log.Enter('SignDigest % %', [ToText(DigAlgo)^, fCert], self);
+  fCert.Log.EnterLocal(log, 'SignDigest % %', [ToText(DigAlgo)^, fCert], self);
   result := '';
   hf := CAA_HF[DigAlgo];
   if HASH_SIZE[hf] <> DigLen then
@@ -574,7 +574,7 @@ procedure TCryptCertAlgoPkcs11.EnsureRetrieveConfig;
 var
   endtix: Int64;
 begin // caller did "if not fConfigRetrieved then EnsureRetrieveConfig"
-  endtix := GetTickCount64 + 60000; // never wait forever
+  endtix := GetTickCount64 + MilliSecsPerMin; // never wait forever
   repeat
     SleepHiRes(100);
     if fConfigRetrieved then
@@ -757,7 +757,7 @@ end;
 
 { TCryptCertPkcs11 }
 
-procedure TCryptCertPkcs11.RaiseError(const Msg: shortstring);
+procedure TCryptCertPkcs11.RaiseError(const Msg: ShortString);
 begin
   ECryptCertPkcs11.RaiseUtf8('% (slot=#%, CKA_ID=%) %',
     [self, fSlotID, fStorageID, Msg]);
@@ -878,11 +878,11 @@ begin
         fX509.Signed.SerialNumber := HexToBin(fX509.Signed.SerialNumberHex);
         fX509.Signed.CertUsages := Pkcs11FlagsToCertUsages(o^.StorageFlags);
         FormatUtf8('%-%', [aSlotID, o^.StorageID], fX509.Signed.Issuer.Name[xaDC]);
-        fX509.Signed.Issuer.Name[xaCN] := o^.StorageLabel;
+        fX509.Signed.Issuer.Name[xaCN]  := o^.StorageLabel;
         fX509.Signed.Issuer.Name[xaSER] := tok^.Serial;
-        fX509.Signed.Issuer.Name[xaO] := tok^.Manufacturer;
-        fX509.Signed.Issuer.Name[xaOU] := tok^.Model;
-        fX509.Signed.Issuer.Name[xaN] := tok^.Name;
+        fX509.Signed.Issuer.Name[xaO]   := tok^.Manufacturer;
+        fX509.Signed.Issuer.Name[xaOU]  := tok^.Model;
+        fX509.Signed.Issuer.Name[xaN]   := tok^.Name;
         fX509.Signed.Subject := fX509.Signed.Issuer; // emulate self-signed
       end
       else if fX509.Signed.SubjectPublicKey <> ValuePubToSub then

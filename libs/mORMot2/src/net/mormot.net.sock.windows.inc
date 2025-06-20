@@ -5,10 +5,12 @@
   Implements WinSock2 API calls, as used by mormot.net.sock.pas on Windows.
   Using our own unit makes code easier to maintain between Delphi/FPC versions,
   and allow to increase FD_SETSIZE for better TPollSocketSelect performance.
+  Oldest Delphis didn't even include WinSock2.pas, so we redefined everything.
 }
 
 uses
   Windows,
+  mormot.core.os.security,
   mormot.lib.sspi; // for Low-Level SSPI/SChannel Functions
 
 
@@ -29,10 +31,10 @@ const
 
 type
   /// a socket is always pointer-sized on Windows
-  // - and we also use PtrInt for our TNetSocketWrap cast
+  // - we also use PtrInt on POSIX to cast it as TNetSocket = ^PNetSocketWrap
   TSocket = PtrInt;
 
-  tsocklen = integer;
+  TSockLen = integer;
 
   PFDSet = ^TFDSet;
   TFDSet = record
@@ -41,9 +43,9 @@ type
   end;
 
 const
-  FIONREAD     = $4004667f;
-  FIONBIO      = $8004667e;
-  FIOASYNC     = $8004667d;
+  FIONREAD = $4004667f;
+  FIONBIO  = $8004667e;
+  FIOASYNC = $8004667d;
 
 type
   PTimeVal = ^TTimeVal;
@@ -100,7 +102,7 @@ type
   PInAddr6 = ^in6_addr;
   in6_addr = packed record
     case integer of
-      0: (S6_addr:   packed array [0..15] of byte);
+      0: (S6_addr:   THash128);
       1: (u6_addr8:  packed array [0..15] of byte);
       2: (u6_addr16: packed array [0..7]  of word);
       3: (u6_addr32: packed array [0..3]  of integer);
@@ -118,9 +120,9 @@ type
 
 const
   INADDR_ANY       = $00000000;
-  INADDR_LOOPBACK  = $7F000001;
-  INADDR_BROADCAST = $FFFFFFFF;
-  INADDR_NONE      = $FFFFFFFF;
+  INADDR_LOOPBACK  = $7f000001;
+  INADDR_BROADCAST = $ffffffff;
+  INADDR_NONE      = $ffffffff;
   ADDR_ANY	   = INADDR_ANY;
   INVALID_SOCKET   = TSocket(NOT(0));
   SOCKET_ERROR	   = -1;
@@ -177,9 +179,9 @@ const
   // Other NT-specific options
   SO_OPENTYPE              = $7008;
   SO_MAXDG                 = $7009;
-  SO_MAXPATHDG             = $700A;
-  SO_UPDATE_ACCEPT_CONTEXT = $700B;
-  SO_CONNECT_TIME          = $700C;
+  SO_MAXPATHDG             = $700a;
+  SO_UPDATE_ACCEPT_CONTEXT = $700b;
+  SO_CONNECT_TIME          = $700c;
 
   SOMAXCONN       = $7fffffff;
 
@@ -200,19 +202,19 @@ const
   NI_DGRAM         = $10;
 
 const
-  SOCK_STREAM     = 1;               // stream socket
-  SOCK_DGRAM      = 2;               // datagram socket
-  SOCK_RAW        = 3;               // raw-protocol interface
-  SOCK_RDM        = 4;               // reliably-delivered message
-  SOCK_SEQPACKET  = 5;               // sequenced packet stream
+  SOCK_STREAM     = 1;         // stream socket
+  SOCK_DGRAM      = 2;         // datagram socket
+  SOCK_RAW        = 3;         // raw-protocol interface
+  SOCK_RDM        = 4;         // reliably-delivered message
+  SOCK_SEQPACKET  = 5;         // sequenced packet stream
 
   // TCP options
   TCP_NODELAY     = $0001;
 
   // Address families
-  AF_UNSPEC       = 0;               // unspecified
-  AF_INET         = 2;               // internetwork: UDP, TCP, etc
-  AF_INET6        = 23;              // Internetwork Version 6
+  AF_UNSPEC       = 0;         // unspecified
+  AF_INET         = 2;         // internetwork: UDP, TCP, etc
+  AF_INET6        = 23;        // Internetwork Version 6
   AF_MAX          = 24;
 
   // Protocol families, same as address families for now
@@ -225,6 +227,7 @@ type
   // Structure used by kernel to store most addresses
   PSockAddr = ^TSockAddr;
   TSockAddr = sockaddr_in;
+  sockaddr = sockaddr_in; // as in POSIX
 
 type
   PAddrInfo = ^TAddrInfo;
@@ -328,17 +331,17 @@ const
 
   // Error return codes from gethostbyname and gethostbyaddr
   // Authoritative Answer: Host not found
-  WSAHOST_NOT_FOUND       = WSABASEERR + 1001;
+  WSAHOST_NOT_FOUND   = WSABASEERR + 1001;
   // Non-Authoritative: Host not found, or SERVERFAIL
-  WSATRY_AGAIN            = WSABASEERR + 1002;
+  WSATRY_AGAIN        = WSABASEERR + 1002;
   // Non recoverable errors, FORMERR, REFUSED, NOTIMP
-  WSANO_RECOVERY          = WSABASEERR + 1003;
+  WSANO_RECOVERY      = WSABASEERR + 1003;
   // Valid name, no data record of requested type
-  WSANO_DATA              = WSABASEERR + 1004;
+  WSANO_DATA          = WSABASEERR + 1004;
   // no address, look for MX record
-  WSANO_ADDRESS           = WSANO_DATA;
+  WSANO_ADDRESS       = WSANO_DATA;
 
-  // WinSock 2 extension
+  // regular error codes as returned by the WinSock 2 extension
   WSAIOPENDING        = ERROR_IO_PENDING;
   WSAIOINCOMPLETE     = ERROR_IO_INCOMPLETE;
   WSAINVALIDHANDLE    = ERROR_INVALID_HANDLE;
@@ -347,12 +350,12 @@ const
   WSAOPERATIONABORTED = ERROR_OPERATION_ABORTED;
 
 const
-  WSADESCRIPTION_LEN     =   256;
-  WSASYS_STATUS_LEN      =   128;
+  WSADESCRIPTION_LEN  =   256;
+  WSASYS_STATUS_LEN   =   128;
 
-  SHUT_RD   = 0;
-  SHUT_WR   = 1;
-  SHUT_RDWR = 2;
+  SHUT_RD   = 0;  // = SD_RECEIVE
+  SHUT_WR   = 1;  // = SD_SEND
+  SHUT_RDWR = 2;  // = SD_BOTH
 
 type
   PWSAData = ^TWSAData;
@@ -398,11 +401,6 @@ const
     AF_INET6,
     0);
 
-function htons(port: cardinal): cardinal; {$ifdef HASINLINE} inline; {$endif}
-begin
-  result := swap(word(port)); // port should be 16-bit word
-end;
-
 
 { ******** WinSock2 API calls }
 
@@ -412,7 +410,7 @@ function WSAStartup(wVersionRequired: word; var WSData: TWSAData): integer; stdc
 function WSACleanup: integer; stdcall;
   external ws2 name 'WSACleanup';
 
-function sockerrno: integer; stdcall;
+function RawSocketErrNo: integer; stdcall;
   external ws2 name 'WSAGetLastError';
 
 function getaddrinfo(NodeName, ServName: PAnsiChar; Hints: PAddrInfo;
@@ -492,6 +490,10 @@ function WSAIoctl(s: TSocket; dwIoControlCode: cardinal; lpvInBuffer: pointer;
    lpCompletionRoutine: pointer): integer; stdcall;
   external ws2 name 'WSAIoctl';
 
+function WSAGetOverlappedResult(s: TSocket; lpOverlapped: POverlapped;
+   var lpcbTransfer: cardinal; fWait: cardinal; var lpdwFlags: cardinal): cardinal;
+  stdcall; external ws2 name 'WSAGetOverlappedResult';
+
 function recvfrom(s: TSocket; Buf: pointer; len, flags: integer;
    from: PSockAddr; fromlen: Pinteger): integer; stdcall;
   external ws2 name 'recvfrom';
@@ -536,6 +538,7 @@ var
     pTransmitBuffers: PTransmitFileBuffers; dwFlags: DWORD): BOOL; stdcall;
   }
 
+
 { ******** TNetSocket Cross-Platform Wrapper }
 
 { TNetAddr }
@@ -559,12 +562,17 @@ begin
     freeaddrinfo(res);
 end;
 
+procedure TNetAddr.Clear;
+begin
+  FillCharFast(Addr, SizeOf(Addr), 0);
+end; // some obscure Windows docs seem to state that zeroing is expected
+
 function TNetAddr.SetFrom(const address, addrport: RawUtf8;
   layer: TNetLayer): TNetResult;
 var
   p: cardinal;
 begin
-  FillCharFast(Addr, SizeOf(Addr), 0);
+  Clear;
   result := nrNotImplemented;
   if layer = nlUnix then
     exit;
@@ -576,7 +584,7 @@ begin
   if (p = 0) and
      (addrport <> '0') then // explicit '0' to get ephemeral port
     exit;
-  PSockAddr(@Addr)^.sin_port := htons(p);
+  PSockAddr(@Addr)^.sin_port := bswap16(p);
   // first check most simple IPv4 resolution (maybe using mormot.net.dns)
   if SetFromIP4(address, false) or
      // fallback to OS getaddrinfo() resolution, first try as IP4, then IP6
@@ -723,7 +731,7 @@ begin
   if res < 0 then
   begin
     if loerr <> nil then
-      loerr^ := sockerrno;
+      loerr^ := RawSocketErrNo;
     exit; // returning [neError]
   end;
   result := [];
@@ -828,9 +836,9 @@ const
   IF_TYPE_IEEE80211         = 71; // Vista+
   IF_TYPE_TUNNEL            = 131;
 
-  MAX_HOSTNAME_LEN = 128;
-  MAX_DOMAIN_NAME_LEN = 128;
-  MAX_SCOPE_ID_LEN = 256;
+  MAX_HOSTNAME_LEN        = 128;
+  MAX_DOMAIN_NAME_LEN     = 128;
+  MAX_SCOPE_ID_LEN        = 256;
   MAX_ADAPTER_ADDRESS_LEN = 8;
 
 type
@@ -1043,6 +1051,7 @@ begin
       begin
         Win32PWideCharToUtf8(p^.Description, Name);
         Win32PWideCharToUtf8(p^.FriendlyName, FriendlyName);
+        FastSetString(AdapterName, p^.AdapterName, StrLen(p^.AdapterName));
         Win32PWideCharToUtf8(p^.DnsSuffix, DnsSuffix);
         Address := MacToText(@p^.PhysicalAddress);
         Mtu := p^.Mtu;
@@ -1095,7 +1104,7 @@ begin
             if Dns = '' then
               Dns := one
             else
-              Dns := NetConcat([Dns, ',', one]);
+              Dns := Join([Dns, ',', one]);
           end;
           r := r^.Next;
         end;
@@ -1111,7 +1120,7 @@ begin
             end
             else
               r := r^.Next;
-          Speed := p^.TransmitLinkSpeed div 1000; // stored as Mbits/s
+          Speed := p^.TransmitLinkSpeed shr 20; // stored as Mbits/s
           if p^.ReceiveLinkSpeed < Speed then
             Speed := p^.ReceiveLinkSpeed; // unlikely
           if p^.Dhcpv4Server.lpSockaddr <> nil then
@@ -1413,12 +1422,15 @@ end;
 
 { *************************** Windows IOCP sockets support }
 
+// good IOCP reference litterature and code is available at
+// https://www.winsocketdotnetworkprogramming.com/winsock2programming/winsock2advancedscalableapp6chap.html
+
 type
   // one overlapped structure for each TWinIocpEvent
   TOverlappedEvent = record // should NOT be packed
     prepared: TLightLock;   // used if wioLockEvent is set in fOptions
     overlapped: TOverlapped;
-    event: TWinIocpEvent;   // should appear just after the TOverlapped
+    event: TWinIocpEvent;   // should appear just after the TOverlapped struct
     buf: TWsaBuf;
   end;
   POverlappedEvent = ^TOverlappedEvent;
@@ -1427,15 +1439,17 @@ type
   PIocpSubscription = ^TIocpSubscription;
   TIocpSubscription = packed record
     head: TLockedListOne; // should be the first for TLockedList to work
-    over: array[TWinIocpEvent] of TOverlappedEvent;
+    over: array[wieRecv .. wieConnect] of TOverlappedEvent;
     tag: TPollSocketTag;
     socket: TSocket;
+    recvclosing: boolean;
   end;
 
 
 { TWinIocpSubscription }
 
 const
+  STATUS_LOCAL_DISCONNECT  = $C000013B;
   STATUS_REMOTE_DISCONNECT = $C000013C;
 
 function TWinIocpSubscription.Tag: TPollSocketTag;
@@ -1454,35 +1468,24 @@ begin
     result := TNetSocket(PIocpSubscription(@self)^.socket);
 end;
 
-function TWinIocpSubscription.CurrentStatus: TPollSocketEvents;
+function TWinIocpSubscription.CurrentStatus(event: TWinIocpEvent): TPollSocketEvents;
 var
   o: PIocpSubscription;
 begin
   result := [];
   o := @self;
-  if o = nil then
+  if (o = nil) or
+     (event > high(o^.over)) then
     exit;
-  case cardinal(PtrUInt(o^.over[wieRecv].overlapped.Internal)) of
+  case cardinal(PtrUInt(o^.over[event].overlapped.Internal)) of
     STATUS_WAIT_0:
       ; // most common case
     STATUS_PENDING:
-      include(result, pseRead);
-    STATUS_REMOTE_DISCONNECT:
-      include(result, pseClosed);
-  end;
-  case cardinal(PtrUInt(o^.over[wieSend].overlapped.Internal)) of
-    STATUS_WAIT_0:
-      ; // most common case
-    STATUS_PENDING:
-      include(result, pseWrite);
-    STATUS_REMOTE_DISCONNECT:
-      include(result, pseClosed);
-  end;
-  case cardinal(PtrUInt(o^.over[wieAccept].overlapped.Internal)) of
-    STATUS_WAIT_0:
-      ; // most common case
-    STATUS_PENDING:
-      include(result, pseRead); // as select/poll/epoll
+      if event in [wieRecv, wieAccept] then // as select() / poll()
+        include(result, pseRead)
+      else
+        include(result, pseWrite);
+    STATUS_LOCAL_DISCONNECT,
     STATUS_REMOTE_DISCONNECT:
       include(result, pseClosed);
   end;
@@ -1518,10 +1521,10 @@ end;
 
 destructor TWinIocp.Destroy;
 var
-  tix, endtix: cardinal;
-  sub: PIocpSubscription;
-  tmp: cardinal;
+  tix, endtix, tmp, err: cardinal;
   tmplen: integer;
+  txt: PAnsiChar;
+  sub: PIocpSubscription;
 begin
   if Assigned(fOnLog) then
     fOnLog(sllDebug, 'Destroy count=%', [fOne.Count], self);
@@ -1536,7 +1539,7 @@ begin
         fOnLog(sllDebug, 'Destroy waiting=%', [fWaiting], self);
       IocpPostQueuedStatus(fIocp, 0, nil, nil); // notify again (paranoid)
       SleepHiRes(10);
-      tix := mormot.core.os.GetTickCount64 shr 10;
+      tix := mormot.core.os.GetTickCount64 shr MilliSecsPerSecShl;
       if endtix = 0 then
         endtix := tix + 5
       else if tix > endtix then
@@ -1554,14 +1557,35 @@ begin
     begin
       if Assigned(fOnLog) then
       begin
-        tmplen := 4; // is usually recv=-1 + WSAEWOULDBLOCK so not recoverable
-        tmplen := mormot.net.sock.recv(sub^.socket, @tmp, tmplen, 0);
-        fOnLog(sllWarning, 'leak sock=% over=% recv=% %',
-          [pointer(sub^.socket), PtrUInt(sub^.over[wieRecv].overlapped.Internal),
-           tmplen, sockerrno], self);
+        tmplen := 0;
+        err := NO_ERROR;
+        if sub^.recvclosing then  // expected behavior - not a leak
+          txt := 'eventual close' // shutdown() was made: no recv()
+        else
+        begin
+          if wioUnsubscribeShutdownSocket in fOptions then
+            txt := 'close'
+          else
+            txt := 'leak';
+          // check the socket state
+          tmplen := mormot.net.sock.recv(sub^.socket, @tmp, tmplen, 0);
+          // return usually recv=-1 + WSAEWOULDBLOCK so not recoverable
+          if tmplen < 0 then
+            err := RawSocketErrNo;
+        end;
+        if (err = NO_ERROR) or
+           (err = WSAEWOULDBLOCK) then
+          fOnLog(sllTrace, 'Destroy: % sock=%', [txt, pointer(sub^.socket)], self)
+        else
+          fOnLog(sllWarning, 'Destroy: % sock=% unexpected recv=% %', [txt,
+            pointer(sub^.socket), tmplen, WinErrorShort(err)], self);
       end;
       if wioUnsubscribeShutdownSocket in fOptions then
-        TNetSocket(sub^.socket).ShutdownAndClose({rdwr=}false);
+      begin
+        if closesocket(sub^.socket) <> NO_ERROR then // brutal abort
+          fOnLog(sllWarning, 'Destroy: closesocket(%)=%', [
+            pointer(sub^.socket), WinErrorShort(RawSocketErrNo)], self);
+      end;
       sub := sub.head.next;
     end;
   end;
@@ -1586,14 +1610,15 @@ begin
     exit;
   if socket = nil then
     raise EWinIocp.Create('Unexpected TWinIocp.Subscribe(nil)');
-  o := fOne.New;
+  o := fOne.New; // returned o^ is filled with zeros
   o^.tag := tag;
   o^.socket := TSocket(socket);
-  for e := low(e) to high(e) do
+  for e := low(o^.over) to high(o^.over) do
     o^.over[e].event := e; // marker to convert POverlapped to PIocpSubscription
   sll := sllTrace;
   res := nrOk;
-  if IocpCreate(o^.socket, fIocp, pointer(o^.head.sequence), 0) = 0 then
+  if IocpCreate(
+    o^.socket, fIocp, {completionkey=}pointer(o^.head.sequence), 0) = 0 then
   begin
     sll := sllLastError;
     res := nrFatalError;
@@ -1609,29 +1634,45 @@ begin
 end;
 
 const
-  IOCP_EVENT: array[TWinIocpEvent] of AnsiChar = 'RWAC12345';
+  IOCP_EVENT: array[TWinIocpEvent] of AnsiChar = 'RWAC1234';
   ACCEPTEX_SIZE = SOCKADDR_SIZE + 16;
 
-function TWinIocp.PrepareNext(one: PWinIocpSubscription;
+function TWinIocp.PrepareNext(const ctxt: ShortString; one: PWinIocpSubscription;
   event: TWinIocpEvent; buf: pointer; buflen: integer;
   netsock: TNetSocket): boolean;
 var
-  bytes, flags, e: cardinal;
+  bytes, flags, err: cardinal;
   o: PIocpSubscription absolute one;
   oe: POverlappedEvent;
-  err: PUtf8Char;
+  fatal: PUtf8Char;
+
+  procedure DoCheck(noerror: boolean);
+  begin
+    if noerror then
+      result := true // the operation has completed immediately
+    else
+    begin
+      err := RawSocketErrNo;
+      result := err = WSAIOPENDING; // if operation was sucessfully initiated
+    end;
+  end;
+
 begin
   result := false;
   if (self = nil) or
      (one = nil) or
      fTerminated then
     exit;
+  if event > high(o^.over) then
+    raise EWinIocp.CreateFmt('TWinIocp.PrepareNext: unexpected %s on %x',
+      [IOCP_EVENT[event], integer(o^.socket)]); // fatal logic error
   oe := @o^.over[event]; // each event has its own TOverlappedEvent buffer
   if (wioLockEvent in fOptions) and
      not oe^.prepared.TryLock then
-    raise EWinIocp.CreateFmt('TWinIocp.PrepareGetNet: concurrent %s on %x',
+    raise EWinIocp.CreateFmt('TWinIocp.PrepareNext: concurrent %s on %x',
       [IOCP_EVENT[event], integer(o^.socket)]);
-  err := nil;
+  err := NO_ERROR;
+  fatal := nil;
   bytes := 0;
   flags := 0;
   if buflen <= 0 then
@@ -1645,15 +1686,11 @@ begin
     wieRecv:
       // from mormot.net.async: overlapped read with buflen=0 to avoid WSAENOBUFS
       // and work with regular sockets recv() calls like TPollSocketAbstract
-      result := // WSARecv=NO_ERROR if there is something to recv()
-        (WSARecv(o^.socket, oe^.buf, 1, bytes, flags, @oe^.overlapped) = NO_ERROR) or
-        (sockerrno = WSAIOPENDING); // WSAIOPENDING = wait for incoming data
+      DoCheck(WSARecv(o^.socket, oe^.buf, 1, bytes, flags, @oe^.overlapped) = NO_ERROR);
     wieSend:
       // from mormot.net.async: overlapped write with buf/buflen = connection.fWr
       // to avoid GetNext returning with no delay (and save a syscall)
-      result :=
-        (WSASend(o^.socket, oe^.buf, 1, bytes, 0, @oe^.overlapped) = NO_ERROR) or
-        (sockerrno = WSAIOPENDING);
+      DoCheck(WSASend(o^.socket, oe^.buf, 1, bytes, 0, @oe^.overlapped) = NO_ERROR);
     wieAccept:
       // overlapped AcceptEx() to be followed by GetNextAcceptAndPrepare()
       // from mormot.net.async: not used, unless IOCP_ACCEPTEX is defined
@@ -1667,15 +1704,15 @@ begin
           if netsock = nil then
             netsock := TNetSocket(socket(AF_INET, SOCK_STREAM, IPPROTO_IP));
           fAcceptSocket := netsock;
-          result := acceptex(
-                     o^.Socket, TSocket(netsock), pointer(fAcceptExBuf), 0,
-                     ACCEPTEX_SIZE, ACCEPTEX_SIZE, bytes, @oe^.overlapped) or
-                    (sockerrno = WSAIOPENDING)
+          DoCheck(acceptex(o^.Socket, TSocket(netsock), pointer(fAcceptExBuf),
+            0, ACCEPTEX_SIZE, ACCEPTEX_SIZE, bytes, @oe^.overlapped));
+          if not result then
+            fAcceptExUsed.UnLock; // release AcceptEx() lock on failure
         end
         else
-          err := 'concurrent wieAccept'
+          fatal := 'concurrent wieAccept'
       else
-         err := 'no acceptex() API';
+         fatal := 'no acceptex() API';
     wieConnect:
       // overlapped ConnextEx()
       // from mormot.net.async: used by THttpAsyncClientConnections.StartRequest
@@ -1683,41 +1720,33 @@ begin
         if Assigned(buf) and
            (PNetAddr(buf)^.Size = buflen) then
           if Assigned(netsock) then
-            // connectex() requires an explicit bind (which is done by connect)
-            if bind(TSocket(netsock), PSockAddr(buf), buflen) = NO_ERROR then
-              result := connectex(TSocket(netsock), PSockAddr(buf), buflen,
-                          nil, 0, bytes, @oe^.overlapped) or
-                        (sockerrno = WSAIOPENDING)
-            else
-              err := 'bind error'
+            // connectex() requires an explicit bind (implicit in plain connect)
+            DoCheck((bind(TSocket(netsock), PSockAddr(buf), buflen) = NO_ERROR) and
+                     connectex(TSocket(netsock), PSockAddr(buf), buflen,
+                       nil, 0, bytes, @oe^.overlapped))
           else
-            err := 'no supplied netsock'
+            fatal := 'no supplied netsock'
         else
-          err := 'no supplied netaddr/buf'
+          fatal := 'no supplied netaddr/buf'
       else
-         err := 'no connectex() API';
+         fatal := 'no connectex() API';
     else
-       err := 'unexpected event';
+       fatal := 'unexpected event';
     end;
-  if err <> nil then // fatal error: need to fix the code -> raise EWinIocp
-  begin
-    if wioLockEvent in fOptions then
-      oe^.prepared.UnLock;
-    raise EWinIocp.CreateFmt('TWinIocp.PrepareNext(%s): %s on %x',
-      [IOCP_EVENT[event], err, integer(o^.socket)]);
-  end;
   if result then
-    LockedInc32(@fPosted);
+    LockedInc32(@fPosted)
+  else if wioLockEvent in fOptions then // release lock on failure
+    oe^.prepared.UnLock;
+  if fatal <> nil then // logic error: need to fix the code -> raise EWinIocp
+    raise EWinIocp.CreateFmt('TWinIocp.PrepareNext(%s) %s: %s on %x',
+      [IOCP_EVENT[event], ctxt, fatal, integer(o^.socket)]);
   if Assigned(fOnLog) then
     if result then
-      fOnLog(sllTrace, 'PrepareNext(%%,%)',
-        [IOCP_EVENT[event], pointer(o^.socket), buflen], self)
+      fOnLog(sllTrace, 'PrepareNext(%%,%) %',
+        [IOCP_EVENT[event], pointer(o^.socket), buflen, ctxt], self)
     else
-    begin
-      e := GetLastError;
-      fOnLog(sllDebug, 'PrepareNext(%%) error % %',
-        [IOCP_EVENT[event], pointer(o^.socket), e, WinErrorConstant(e)], self);
-    end;
+      fOnLog(sllDebug, 'PrepareNext(%%) %: error % %', [IOCP_EVENT[event],
+        pointer(o^.socket), ctxt, err, WinErrorConstant(err)^], self);
 end;
 
 function TWinIocp.Enqueue(one: PWinIocpSubscription; event: TWinIocpEvent;
@@ -1742,10 +1771,12 @@ end;
 function TWinIocp.GetNext(timeoutms: cardinal;
   out event: TWinIocpEvent; out bytes: cardinal): PWinIocpSubscription;
 var
-  o, seq: pointer;
+  ov, completionkey, sock: pointer;
   e: PtrUInt;
   sll: TSynLogLevel;
-  one: PIocpSubscription absolute o;
+  res: TNetResult;
+  err, flags: cardinal;
+  one: PIocpSubscription;
   oe: POverlappedEvent;
 begin
   result := nil;
@@ -1754,53 +1785,105 @@ begin
     exit;
   repeat
     bytes := 0;
-    o := nil;
-    seq := nil;
+    ov := nil;
+    completionkey := nil;
     sll := sllTrace;
     // retrieve the next pending event from the IOCP queue
     LockedInc32(@fWaiting);
-    IocpGetQueuedStatus(fIocp, bytes, seq, o, timeoutms);
+    err := NO_ERROR;
+    if not IocpGetQueuedStatus(fIocp, bytes, completionkey, ov, timeoutms) then
+      if ov <> nil then
+        err := GetLastError; // decoded by WSAGetOverlappedResult() below
     LockedDec32(@fWaiting);
     if fTerminated or
-       (seq = nil) then // seq=nil from Terminate
+       (ov = nil) or // no overlapped: fIocp handle is likely to be closed
+       (completionkey = nil) then // nil from Terminate
       exit;
     LockedDec32(@fPosted);
-    e := PtrUInt(seq) - 1;
+    // check first if was not a direct event from Enqueue()
+    e := PtrUInt(completionkey) - 1;
     if e <= PtrUInt(ord(high(event))) then
     begin
-      // seq := pointer(ord(event) + 1) from Enqueue()
+      // completionkey was pointer(ord(event) + 1) from Enqueue()
       PByte(@event)^ := e;
-      if Assigned(fOnLog) then
-        fOnLog(sllTrace, 'GetNextEnqueue=%% %',
-          [IOCP_EVENT[event], pointer(one^.socket), bytes], self);
-      break;
+      result := ov; // Enqueue() used pointer(one) as overlapped parameter
+      if not Assigned(fOnLog) then
+        exit;
+      sock := pointer(PIocpSubscription(result)^.socket);
+      if bytes = 0 then
+        fOnLog(sllTrace, 'GetNext=Enqueue %%', [IOCP_EVENT[event], sock], self)
+      else
+        fOnLog(sllTrace, 'GetNext=Enqueue %% bytes=%',
+          [IOCP_EVENT[event], sock, bytes], self);
+      exit;
     end;
     // O(1) decode overlapped socket notification from PrepareNext()
-    inc(POverlapped(o));
-    PByte(@event)^ := PByte(o)^; // TOverlappedEvent.event just after overlapped
-    if event > high(event) then
+    one := ov;
+    inc(POverlapped(one));
+    PByte(@event)^ := PByte(one)^; // TOverlappedEvent.event just after overlapped
+    if event > high(one^.over) then
       raise EWinIocp.Create('TWinIocp.GetNext: corrupted overlapped structure');
-    dec(PByte(o), PtrUInt(@PIocpSubscription(nil)^.over[event].event));
-    // now o/one points to PWinIocpSubscription/PIocpSubscription
-    if pointer(one^.head.sequence) <> seq then
-      sll := sllWarning // detect ABA race condition
-    else if wioLockEvent in fOptions then
+    dec(PByte(one), PtrUInt(@PIocpSubscription(nil)^.over[event].event));
+    // now one^ points to PWinIocpSubscription/PIocpSubscription
+    sock := pointer(one^.socket);
+    if pointer(one^.head.sequence) <> completionkey then
+      sll := sllWarning // detect and ignore ABA race condition
+    else
     begin
-      oe := @one^.over[event];
-      if oe^.prepared.IsLocked then
-        oe^.prepared.UnLock
-      else
-        sll := sllError; // this TOverlappedEvent should be locked/prepared
+      if (err <> NO_ERROR) and
+         Assigned(fOnLog) then
+      begin
+        // try to translate the overlapped status to the Winsock error code
+        if WSAGetOverlappedResult(one^.socket, ov, bytes, {wait=}0, flags) = 0 then
+          err := RawSocketErrNo;
+        // log error for debugging, but let recv() or send() intercept the state
+        fOnLog(sllWarning, 'GetNext: %% returned % % bytes=%',
+          [IOCP_EVENT[event], sock, err, WinErrorConstant(err)^, bytes], self);
+      end;
+      if wioLockEvent in fOptions then
+      begin
+        oe := @one^.over[event];
+        if oe^.prepared.IsLocked then
+          oe^.prepared.UnLock
+        else
+          sll := sllError; // this TOverlappedEvent should be locked/prepared
+      end;
+      if one^.recvclosing then
+      begin
+        // delayed wioUnsubscribeShutdownSocket clean closing
+        // - documented pattern: shutdown(SD_SEND) + WSARecv()=0 + closesocket
+        res := nrOk;
+        if event = wieRecv then
+        begin
+          if closesocket(one^.socket) <> NOERROR then
+          begin
+            sll := sllError;
+            res := NetLastError;
+          end;
+          if not fOne.Free(one) then // eventually release this slot
+            sll := sllWarning;
+        end
+        else
+          sll := sllWarning; // continue: closesocket() on very last wieRecv
+        if Assigned(fOnLog) then
+          fOnLog(sll, 'GetNext=%% unsub closesocket=%',
+            [IOCP_EVENT[event], sock, ToText(res)^], self);
+        continue;
+      end;
+      if sll = sllTrace then
+        result := pointer(one); // notify caller of a valid event
     end;
     if Assigned(fOnLog) then
       if sll = sllTrace then
-        fOnLog(sll, 'GetNext=%% %',
-          [IOCP_EVENT[event], pointer(one^.socket), bytes], self)
+        if bytes = 0 then
+          fOnLog(sllTrace, 'GetNext=%%', [IOCP_EVENT[event], sock], self)
+        else
+          fOnLog(sllTrace, 'GetNext=%% bytes=%',
+            [IOCP_EVENT[event], sock, bytes], self)
       else
         fOnLog(sll, 'GetNext=%% %=%', [IOCP_EVENT[event],
-          pointer(one^.socket), pointer(one^.head.sequence), seq], self);
-  until sll = sllTrace;
-  result := o; // got valid event
+          sock, pointer(one^.head.sequence), completionkey], self);
+  until result <> nil;
 end;
 
 function TWinIocp.GetNextAccept(one: PWinIocpSubscription;
@@ -1814,7 +1897,7 @@ begin
      (one = nil) or
      fTerminated then
     exit;
-  FillCharFast(Remote, SizeOf(Remote), 0);
+  Remote.Clear;
   if (fAcceptExBuf = nil) or
      (fAcceptSocket = nil) or
      not fAcceptExUsed.IsLocked or
@@ -1845,7 +1928,7 @@ begin
       [pointer(one^.socket), Remote.IPShort], self);
 end;
 
-function TWinIocp.Unsubscribe(one: PWinIocpSubscription): boolean;
+function TWinIocp.Unsubscribe(var one: PWinIocpSubscription): boolean;
 var
   res: TNetResult;
   o: PIocpSubscription absolute one;
@@ -1856,13 +1939,33 @@ begin
      fTerminated then
     exit;
   res := nrOK;
-  if wioUnsubscribeShutdownSocket in fOptions then
-    res := TNetSocket(o^.socket).ShutdownAndClose({rdwr=}false);
   if Assigned(fOnLog) then
     fOnLog(sllTrace, 'UnSubscribe(socket=% seq=%) cnt=% %',
       [pointer(o^.socket), pointer(o^.head.sequence), Count - 1,
        ToText(res)^], self);
+  if wioUnsubscribeShutdownSocket in fOptions then
+  begin
+    // on Windows, ShutdownAndClose() would prematurely abort the socket
+    // because closesocket() is aborting any pending task
+    // https://lenholgate.com/blog/2008/04/socket-connection-termination.html
+    // https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-shutdown
+    // - user code may call send() directly without wieSend IOCP (e.g.
+    // mormot.net.async) so we need more than a flag
+    // - follow documented pattern: shutdown(SD_SEND) + recv()=0 + closesocket
+    shutdown(o^.socket, SHUT_WR); // = SD_SEND
+    o^.recvclosing := true; // flag for GetNext() to call closesocket()
+    if PrepareNext('unsub', one, wieRecv) then
+    begin
+      // started async WSARecv() until the function completes with success
+      result := true;
+      one := nil;
+      exit;
+    end
+    else // if failed, graceful disconnect is not possible (already closed)
+      closesocket(o^.socket);
+  end;
   result := fOne.Free(one); // one^.sequence will avoid ABA problem in GetNext()
+  one := nil;
 end;
 
 
@@ -1887,8 +1990,12 @@ type
     fAccept: boolean;
     fAcceptCert: mormot.core.os.PCCERT_CONTEXT;
     fAcceptCertStore: HCERTSTORE;
-    procedure ESChannelRaiseLastError(const ctx: shortstring; res: cardinal);
-    function CheckSEC_E_OK(const ctx: shortstring; res: integer): cardinal;
+    fPeerInfo: TWinCertInfo;
+    procedure ESChannelRaiseLastError(const ctx: ShortString; res: cardinal);
+    function CheckSEC_E_OK(const ctx: ShortString; res: integer): cardinal;
+    function FreeAndCheckSocket(const ctx: ShortString; res: integer;
+      tofree: pointer): cardinal;
+    function HandshakeStep(buf: PByteArray; var len: integer): cardinal;
     procedure HandshakeLoop;
     procedure FinalizeCredCtxt;
   public
@@ -1896,11 +2003,13 @@ type
     // INetTls methods
     procedure AfterConnection(Socket: TNetSocket; var Context: TNetTlsContext;
       const ServerAddress: RawUtf8);
-    procedure AfterBind(var Context: TNetTlsContext);
+    procedure AfterBind(Socket: TNetSocket; var Context: TNetTlsContext;
+      const ServerAddress: RawUtf8);
     procedure AfterAccept(Socket: TNetSocket; const BoundContext: TNetTlsContext;
       LastError, CipherName: PRawUtf8);
     function GetCipherName: RawUtf8;
     function GetRawTls: pointer;
+    function GetRawCert(SignHashName: PRawUtf8): RawByteString;
     function Receive(Buffer: pointer; var Length: integer): TNetResult;
     function ReceivePending: integer;
     function Send(Buffer: pointer; var Length: integer): TNetResult;
@@ -1910,18 +2019,20 @@ type
 { TSChannelNetTls }
 
 procedure TSChannelNetTls.ESChannelRaiseLastError(
-  const ctx: shortstring; res: cardinal);
+  const ctx: ShortString; res: cardinal);
 var
-  syserr: integer;
+  sys: integer;
+  msg: string;
 begin
-  syserr := GetLastError;
-  raise ESChannel.CreateFmt('<%s>: %s returned %x [%s], System Error %d [%s]',
-    [fServerAddressW, ctx, res, SspiResToText(res), syserr,
-     string(GetErrorText(syserr))]);
+  sys := GetLastError;
+  msg := format('<%s>: %s returned %x [%s], System Error %d [%s]',
+    [fServerAddressW, ctx, res, SspiResToText(res), sys, GetErrorText(sys)]);
+  //writeln(fSocket.Socket,' ',msg);
+  raise ESChannel.Create(msg);
 end;
 
 function TSChannelNetTls.CheckSEC_E_OK(
-  const ctx: shortstring; res: integer): cardinal;
+  const ctx: ShortString; res: integer): cardinal;
 begin
   fLastCheckSecError := res;
   if res <> SEC_E_OK then
@@ -1929,10 +2040,15 @@ begin
   result := res;
 end;
 
-function CheckSocket(const ctx: shortstring; res: integer): cardinal;
+function TSChannelNetTls.FreeAndCheckSocket(const ctx: ShortString;
+  res: integer; tofree: pointer): cardinal;
 begin
+  //writeln(fSocket.Socket,' ',ctx,'=',res);
+  if tofree <> nil then
+    CheckSEC_E_OK(ctx, FreeContextBuffer(tofree)); // avoid leak id raised
   if res = SOCKET_ERROR then
-    raise ESChannel.CreateFmt('%s: Socket Error %d', [ctx, sockerrno]);
+    raise ESChannel.CreateFmt('%s: Socket Error %s',
+      [ctx, WinErrorShort(RawSocketErrNo)]);
   if res = 0 then
     raise ESChannel.CreateFmt('%s: Handshake aborted', [ctx]);
   result := res;
@@ -1971,18 +2087,50 @@ begin
   buf.buf[4].BufferType := SECBUFFER_EMPTY;
 end;
 
-procedure CredInit(var cred: TSChannelCred; AllowDeprecatedTLS: boolean);
+procedure CredInit(var cred: TSChannelCred; AllowDeprecatedTLS: boolean;
+  dwFlags: cardinal; paServCred: PPCCERT_CONTEXT);
 begin
   FillCharFast(cred, SizeOf(cred), 0);
-  cred.dwVersion := SCHANNEL_CRED_VERSION;
-  cred.grbitEnabledProtocols :=
-      SP_PROT_TLS1_2_CLIENT or SP_PROT_TLS1_3_CLIENT or
-      SP_PROT_TLS1_2_SERVER or SP_PROT_TLS1_3_SERVER;
-  if (OSVersion < wSeven) or // XP and Vista only support TLS 1.0 anyway :(
-     AllowDeprecatedTls then
-    cred.grbitEnabledProtocols := cred.grbitEnabledProtocols or
-      SP_PROT_TLS1_CLIENT or SP_PROT_TLS1_1_CLIENT or
-      SP_PROT_TLS1_SERVER or SP_PROT_TLS1_1_SERVER;
+  if SChannelEnableTls13 and // should be explicitly enabled
+     ((OSVersion in [wEleven, wEleven_64]) or
+      (OSVersion >= wServer2022_64)) then
+  // TLS 1.3 is officially supported starting in Windows 11 and Server 2022.
+  // Enabling TLS 1.3 on earlier versions of Windows is possible through the
+  // registry, but is explictly documented as unsafe by Microsoft.
+  // https://learn.microsoft.com/en-us/windows/win32/secauthn/protocols-in-tls-ssl--schannel-ssp-
+  begin
+    // require new SCH_CREDENTIALS structure in order to enable TLS 1.3
+    cred.New.dwVersion := SCH_CREDENTIALS_VERSION;
+    if not AllowDeprecatedTLS then
+    begin
+      dwFlags := dwFlags or SCH_USE_STRONG_CRYPTO;
+      cred.New.cTlsParameters := 1;
+      cred.New.pTlsParameters := @cred.Tls;
+      cred.Tls.grbitDisabledProtocols := SP_PROT_TLS_UNSAFE;
+    end;
+    cred.New.dwFlags := dwFlags;
+    if paServCred <> nil then
+    begin
+      cred.New.cCreds := 1;
+      cred.New.paCred := paServCred;
+    end;
+  end
+  else
+  begin
+    // legacy SCHANNEL_CRED structure - deprecated since Windows 10, 1809
+    cred.Old.dwVersion := SCHANNEL_CRED_VERSION;
+    cred.Old.dwFlags := dwFlags;
+    cred.Old.grbitEnabledProtocols := SP_PROT_TLS_SAFE;
+    if (OSVersion < wSeven) or // XP and Vista only support TLS 1.0 anyway :(
+       AllowDeprecatedTls then
+      cred.Old.grbitEnabledProtocols := cred.Old.grbitEnabledProtocols or
+        SP_PROT_TLS1_0 or SP_PROT_TLS1_1;
+    if paServCred <> nil then
+    begin
+      cred.Old.cCreds := 1;
+      cred.Old.paCred := paServCred;
+    end;
+  end;
 end;
 
 procedure TSChannelNetTls.AfterConnection(Socket: TNetSocket;
@@ -1990,10 +2138,11 @@ procedure TSChannelNetTls.AfterConnection(Socket: TNetSocket;
 var
   cred: TSChannelCred;
   buf: THandshakeBuf;
-  nfo: TWinCertInfo;
   res, f, trial: cardinal;
 begin
-  // prepare execution context
+  // reset output information
+  ResetNetTlsContext(Context);
+  // method called once to attach the socket from the client side
   fSocket := Socket;
   fServerAddressW := SynUnicode(ServerAddress);
   SetLength(fData, TLSRECMAXSIZE);
@@ -2001,12 +2150,14 @@ begin
   trial := 0;
   while true do
     try
-      CredInit(cred, Context.AllowDeprecatedTLS);
+      // prepare execution context
       if Context.IgnoreCertificateErrors then
-        cred.dwFlags := SCH_CRED_MANUAL_CRED_VALIDATION
+        f := SCH_CRED_MANUAL_CRED_VALIDATION or
+             SCH_CRED_NO_DEFAULT_CREDS
       else
-        cred.dwFlags := SCH_CRED_REVOCATION_CHECK_CHAIN or
-                        SCH_CRED_IGNORE_REVOCATION_OFFLINE;
+        f := SCH_CRED_REVOCATION_CHECK_CHAIN or
+             SCH_CRED_IGNORE_REVOCATION_OFFLINE;
+      CredInit(cred, Context.AllowDeprecatedTLS, f, nil);
       CheckSEC_E_OK('AcquireCredentialsHandleW', AcquireCredentialsHandleW(
         nil, UNISP_NAME, SECPKG_CRED_OUTBOUND, nil, @cred, nil, nil, @fCred, nil));
       fDataPos := 0;
@@ -2014,7 +2165,9 @@ begin
       fFlags := ISC_REQ_FLAGS;
       if Context.IgnoreCertificateErrors then
         // prevent SEC_E_UNTRUSTED_ROOT result in HandshakeLoop
-        fFlags := fFlags or ISC_REQ_MANUAL_CRED_VALIDATION;
+        fFlags := fFlags or
+          ISC_REQ_MANUAL_CRED_VALIDATION or // no WinVerifyTrust() call
+          ISC_REQ_USE_SUPPLIED_CREDS; // send no client certificate to the server
       // initiate a ClientHello TLS message and a new fCtxt
       HandshakeBufInit(buf);
       res := InitializeSecurityContextW(
@@ -2025,10 +2178,9 @@ begin
       if (buf.buf[2].cbBuffer = 0) or // SECBUFFER_TOKEN
          (buf.buf[2].pvBuffer = nil) then
         raise ESChannel.CreateFmt('Void Hello answer to %s', [ServerAddress]);
-      CheckSocket('send', mormot.net.sock.Send(
-        fSocket.Socket, buf.buf[2].pvBuffer, buf.buf[2].cbBuffer, 0));
-      CheckSEC_E_OK('FreeContextBuffer',
-        FreeContextBuffer(buf.buf[2].pvBuffer));
+      FreeAndCheckSocket('send', mormot.net.sock.Send(
+        fSocket.Socket, buf.buf[2].pvBuffer, buf.buf[2].cbBuffer, 0),
+        buf.buf[2].pvBuffer);
       // make TLS handshake and prepare for process
       HandshakeLoop;
       break; // we are connected
@@ -2049,19 +2201,21 @@ begin
           raise;
     end;
   Context.CipherName := GetCipherName;
-  if TlsCertInfo(fCtxt, nfo) then
+  if TlsCertInfo(fCtxt, fPeerInfo) then
   begin
-    Context.PeerIssuer := nfo.IssuerName;
-    Context.PeerSubject := nfo.SubjectName;
+    Context.PeerIssuer := fPeerInfo.IssuerName;
+    Context.PeerSubject := fPeerInfo.SubjectName;
+    Context.PeerCert := @fPeerInfo;
     if Context.WithPeerInfo and
        Assigned(WinCertInfoToText) then
-      Context.PeerInfo := WinCertInfoToText(nfo);
+      Context.PeerInfo := WinCertInfoToText(fPeerInfo);
   end;
 end;
 
-procedure TSChannelNetTls.AfterBind(var Context: TNetTlsContext);
+procedure TSChannelNetTls.AfterBind(Socket: TNetSocket;
+  var Context: TNetTlsContext; const ServerAddress: RawUtf8);
 var
-  certblob: RawByteString;
+  pfx: RawByteString;
   blob: TCryptDataBlob;
   pass: SynUnicode;
   flags: integer;
@@ -2069,21 +2223,27 @@ var
   prov: HCRYPTPROV;
   freeprov: BOOL;
 begin
-  if Context.CertificateFile = '' then
-    // Load certificate and private key from Windows certificate store
+  // method called once the socket has been bound on server side
+  if ServerAddress <> '' then
+    fServerAddressW := SynUnicode(ServerAddress); // for exceptions
+  pfx := Context.CertificateBin;
+  if (pfx = '') and
+     (Context.CertificateFile <> '') then
+    // try to load from .PFX file
+    pfx := StringFromFile(TFileName(Context.CertificateFile));
+  if pfx = '' then
+    // fallback to first certificate and private key from personal Windows store
     fAcceptCertStore := CertOpenSystemStoreW(nil, 'MY')
   else
   begin
-    certblob := StringFromFile(TFileName(Context.CertificateFile));
-    blob.cbData := Length(certblob);
-    blob.pbData := pointer(certblob);
-    // Load certificate from file. You can use Let's Encrypt certificate,
-    // converted to PFX:
+    // expecting e.g. a Let's Encrypt certificate, converted to PFX:
     //   openssl pkcs12 -inkey privkey.pem -in cert.pem -export -out mycert.pfx
-    // or using mormot.core.secure on OpenSSL:
+    // or using mormot.crypt.openssl:
     //   c := Cert('x509-rs256');
-    //   c.Generate([cuTlsServer], '127.0.0.1', nil, 3650);
-    //   FileFromString(c.Save('pass', ccfBinary), WorkDir + 'privkeycert.pfx');
+    //   c.Generate([cuTlsServer], 'toto.com', nil, 3650);
+    //   FileFromString(c.Save('3des=pass', ccfBinary), WorkDir + 'privkeycert.pfx');
+    blob.cbData := Length(pfx);
+    blob.pbData := pointer(pfx);
     pass := SynUnicode(Context.PrivatePassword);
     flags := PKCS12_INCLUDE_EXTENDED_PROPERTIES;
     if OSVersion < wVista then
@@ -2092,11 +2252,9 @@ begin
     if pass <> '' then
       FillCharFast(pointer(pass)^, length(pass) * 2, 0); // anti forensic
     if fAcceptCertStore = nil then
-      ESChannelRaiseLastError('PFXImportCertStoreSEC_E_CERT_UNKNOWN',
-        SEC_E_CERT_UNKNOWN);
+      ESChannelRaiseLastError('AfterBind: PFXImportCertStore', SEC_E_CERT_UNKNOWN);
   end;
   // find first certificate in store with private key
-  fAcceptCert := nil;
   repeat
     fAcceptCert := mormot.lib.sspi.CertFindCertificateInStore(
       fAcceptCertStore, 0, 0, CERT_FIND_ANY, nil, fAcceptCert);
@@ -2107,7 +2265,7 @@ begin
   if freeprov and
      CryptoApi.Available then
     CryptoApi.ReleaseContext(prov, 0);
-  // this global certificate will be used by AfterAccept()
+  // this global certificate and its private key will be used by AfterAccept()
   Context.AcceptCert := fAcceptCert;
 end;
 
@@ -2122,9 +2280,7 @@ begin
   // prepare TLS connection properties from AfterBind() global certificate
   if BoundContext.AcceptCert = nil then
     raise ESChannel.Create('AfterAccept: missing AfterBind');
-  CredInit(cred, BoundContext.AllowDeprecatedTls);
-  cred.cCreds := 1;
-  cred.paCred := @BoundContext.AcceptCert;
+  CredInit(cred, BoundContext.AllowDeprecatedTls, 0, @BoundContext.AcceptCert);
   CheckSEC_E_OK('AcquireCredentialsHandleW',
     AcquireCredentialsHandleW(nil, UNISP_NAME, SECPKG_CRED_INBOUND,
       nil, @cred, nil, nil, @fCred, nil));
@@ -2150,73 +2306,81 @@ begin
   result := @fCtxt; // return as PCtxtHandle
 end;
 
-procedure TSChannelNetTls.HandshakeLoop;
+function TSChannelNetTls.GetRawCert(SignHashName: PRawUtf8): RawByteString;
+var
+  oid: RawUtf8;
+begin
+  result := TlsCertRaw(fCtxt, @oid);
+  if SignHashName <> nil then
+    SignHashName^ := CertAlgoHash(oid);
+end;
 
-  function ComputeAndSendAnswer: cardinal;
-  var
-    f: cardinal;
-    buf: THandshakeBuf;
-    LInCtxPtr: PSecHandle;
+function TSChannelNetTls.HandshakeStep(buf: PByteArray; var len: integer): cardinal;
+var
+  f: cardinal;
+  b: THandshakeBuf;
+  LInCtxPtr: PSecHandle;
+begin
+  //writeln(fSocket.Socket,' Handshake STEP ', len);
+  HandshakeBufInit(b);
+  b.buf[0].pvBuffer := buf; // SECBUFFER_TOKEN
+  b.buf[0].cbBuffer := len;
+  f := 0;
+  if fAccept then // server side
   begin
-    HandshakeBufInit(buf);
-    buf.buf[0].cbBuffer := fDataCount; // SECBUFFER_TOKEN
-    buf.buf[0].pvBuffer := pointer(fData);
-    f := 0;
-    if fAccept then
-    begin
-      if (fCtxt.dwLower = 0) and (fCtxt.dwUpper = 0) then
-        LInCtxPtr := nil
-      else
-        LInCtxPtr := @fCtxt;
-      result := AcceptSecurityContext(
-        @fCred, LInCtxPtr, @buf.input, fFlags, 0, @fCtxt, @buf.output, f, nil);
-    end
+    if (fCtxt.dwLower = 0) and
+       (fCtxt.dwUpper = 0) then
+      LInCtxPtr := nil
     else
-      result := InitializeSecurityContextW(
-        @fCred, @fCtxt, pointer(fServerAddressW), fFlags, 0, 0,
-        @buf.input, 0, nil, @buf.output, f, nil);
-    //writeln(IntToHex(result, 8),' [',SspiResToText(result),'] tosend=',buf.buf[2].cbBuffer);
-    if (result = SEC_E_OK) or
-       (result = SEC_I_CONTINUE_NEEDED) or
-       ((f and ISC_REQ_EXTENDED_ERROR) <> 0) then
-      if (buf.buf[2].cbBuffer <> 0) and
-         (buf.buf[2].pvBuffer <> nil) then
-      begin
-        // need to send back something to the server
-        CheckSocket('send', mormot.net.sock.Send(
-          fSocket.Socket, buf.buf[2].pvBuffer, buf.buf[2].cbBuffer, 0));
-        CheckSEC_E_OK('FreeContextBuffer',
-          FreeContextBuffer(buf.buf[2].pvBuffer));
-      end;
-    if (buf.buf[1].BufferType = SECBUFFER_EXTRA) and
-       (buf.buf[1].cbBuffer <> 0) then
-    begin
-      // reuse pending bytes - avoid unexpected SEC_E_INVALID_TOKEN
-      //writeln('SECBUFFER_EXTRA=',buf.buf[1].cbBuffer,' / ',fDataCount);
-      MoveFast(PByteArray(fData)[cardinal(fDataCount) - buf.buf[1].cbBuffer],
-               PByteArray(fData)[0], buf.buf[1].cbBuffer);
-      fDataCount := buf.buf[1].cbBuffer;
-    end
-    else if result <> SEC_E_INCOMPLETE_MESSAGE then
-      fDataCount := 0;
-  end;
+      LInCtxPtr := @fCtxt;
+    result := AcceptSecurityContext(
+      @fCred, LInCtxPtr, @b.input, fFlags, 0, @fCtxt, @b.output, f, nil);
+  end
+  else // client side
+    result := InitializeSecurityContextW(
+      @fCred, @fCtxt, pointer(fServerAddressW), fFlags, 0, 0,
+      @b.input, 0, nil, @b.output, f, nil);
+  //writeln(fSocket.Socket,' ',SspiResToText(result),' tosend=',b.buf[2].cbBuffer);
+  if (result = SEC_E_OK) or
+     (result = SEC_I_CONTINUE_NEEDED) or
+     ((f and ISC_REQ_EXTENDED_ERROR) <> 0) then
+    if (b.buf[2].cbBuffer <> 0) and
+       (b.buf[2].pvBuffer <> nil) then
+      // need to send back something to the server
+      FreeAndCheckSocket('send', mormot.net.sock.Send(
+        fSocket.Socket, b.buf[2].pvBuffer, b.buf[2].cbBuffer, 0),
+        b.buf[2].pvBuffer);
+  if (b.buf[1].BufferType = SECBUFFER_EXTRA) and
+     (b.buf[1].cbBuffer <> 0) then
+  begin
+    // reuse pending bytes - avoid unexpected SEC_E_INVALID_TOKEN
+    //writeln(fSocket.Socket,' SECBUFFER_EXTRA=',b.buf[1].cbBuffer,'/',len);
+    MoveFast(buf[cardinal(len) - b.buf[1].cbBuffer], buf[0], b.buf[1].cbBuffer);
+    len := b.buf[1].cbBuffer;
+  end
+  else if result <> SEC_E_INCOMPLETE_MESSAGE then
+    len := 0;
+end;
 
+procedure TSChannelNetTls.HandshakeLoop;
 var
   res: cardinal;
 begin
+  //writeln(fSocket.Socket,' Handshake IN');
   repeat
-    inc(fDataCount, CheckSocket('recv',
+    inc(fDataCount, FreeAndCheckSocket('recv',
       recv(fSocket.Socket,
-        @PByteArray(fData)[fDataCount], length(fData) - fDataCount, 0)));
-    res := ComputeAndSendAnswer;
+        @PByteArray(fData)[fDataCount], length(fData) - fDataCount, 0), nil));
+    res := HandshakeStep(pointer(fData), fDataCount);
     if res = SEC_I_INCOMPLETE_CREDENTIALS then
       // check https://stackoverflow.com/a/47479968/458259
-      res := ComputeAndSendAnswer; // run twice to let the handshake pass
+      // run twice to let the handshake pass
+      res := HandshakeStep(pointer(fData), fDataCount);
   until (res <> SEC_I_CONTINUE_NEEDED) and
         (res <> SEC_E_INCOMPLETE_MESSAGE);
-  CheckSEC_E_OK('ComputeAndSendAnswer', res);
+  CheckSEC_E_OK('HandshakeStep', res);
   // note: fDataCount trailing content may come from SECBUFFER_EXTRA bytes
-  fCipherName := ''; // will be retrieved if needed 
+  fCipherName := ''; // will be retrieved if needed
   if fInputSize = 0 then
   begin
     // retrieve the TLS field sizes during first handshake
@@ -2229,6 +2393,7 @@ begin
     SetLength(fInput, fInputSize);
     fInputCount := 0;
   end;
+  //writeln(fSocket.Socket,' Handshake OUT inputsize=',fInputSize);
 end;
 
 destructor TSChannelNetTls.Destroy;
@@ -2293,7 +2458,6 @@ var
   buf: array[0..3] of TSecBuffer;
   res: cardinal;
   read, i, newlen: integer;
-  needsRenegotiate: boolean;
 
   function DecryptInput: cardinal;
   var
@@ -2345,11 +2509,11 @@ begin
       inc(fInputCount, read);
       res := DecryptInput;
     until res <> SEC_E_INCOMPLETE_MESSAGE;
-    needsRenegotiate := false;
     repeat
+//if res <> SEC_E_OK then writeln(fSocket.Socket,' res=',SspiResToText(res));
       case res of
         SEC_I_RENEGOTIATE:
-          needsRenegotiate := true;
+          ; // appears with TLS 1.3
         SEC_I_CONTEXT_EXPIRED:
           fSessionClosed := true;
         SEC_E_INCOMPLETE_MESSAGE:
@@ -2358,7 +2522,7 @@ begin
           CheckSEC_E_OK('DecryptInput', res);
       end;
       fInputCount := 0;
-      for i := 1 to 3 do
+      for i := 1 to 3 do // i=0 for SECBUFFER_DATA input
         case buf[i].BufferType of
           SECBUFFER_DATA:
             begin
@@ -2374,15 +2538,17 @@ begin
               fInputCount := buf[i].cbBuffer;
             end;
         end;
+      if res = SEC_I_RENEGOTIATE then
+// https://learn.microsoft.com/en-us/windows/win32/secauthn/decryptmessage--schannel#remarks
+        HandshakeStep(pointer(fInput), fInputCount);
       if fInputCount = 0 then
         break;
       res := DecryptInput;
     until false;
-    if needsRenegotiate then
-      HandshakeLoop;
   except
+    // catch any socket/SChannel exception for the caller to shutdown the socket
     result := nrFatalError;
-    exit; // shutdown the connection on ESChannel fatal error
+    exit;
   end;
   read := fDataCount;
   if Length < read then
@@ -2428,7 +2594,7 @@ begin
     buf[3].BufferType := SECBUFFER_EMPTY;
     buf[3].pvBuffer := nil;
     if EncryptMessage(@fCtxt, 0, @desc, 0) <> SEC_E_OK then
-      exit; // shutdown the connection on SChannel error
+      exit; // caller would shutdown the connection on SChannel error
     len := buf[0].cbBuffer + buf[1].cbBuffer + buf[2].cbBuffer;
     sent := 0;
     repeat
@@ -2456,7 +2622,6 @@ begin
 end;
 
 
-
 function GetExtensionFunc(sock: TSocket; const id: TGuid): pointer;
 var
   ret: cardinal;
@@ -2479,20 +2644,24 @@ procedure InitializeUnit;
 var
   sock: TSocket;
 begin
+  // the Windows Sockets API (WSA) needs explicit initialization
   WSAStartup($0202, WsaDataOnce);
   SocketAPIVersion := RawUtf8(Format('%s.%d',
     [WsaDataOnce.szDescription, WsaDataOnce.wVersion]));
+  // get some low-level extended functions for IOCP
   sock := socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
   acceptex := GetExtensionFunc(sock, WSAID_ACCEPTEX);
   getacceptexsockaddrs := GetExtensionFunc(sock, WSAID_GETACCEPTEXSOCKADDRS);
   connectex := GetExtensionFunc(sock, WSAID_CONNECTEX);
   //transmitfile := GetExtensionFunc(sock, WSAID_TRANSMITFILE);
   closesocket(sock);
+  // we can use SChannel for TLS support (including TLS 1.3 on Windows 11)
   NewNetTls := NewSChannelNetTls;
 end;
 
 procedure FinalizeUnit;
 begin
+  // the Windows Sockets API (WSA) needs explicit finalization
   WSACleanup;
 end;
 
