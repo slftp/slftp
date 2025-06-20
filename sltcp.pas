@@ -9,7 +9,7 @@ uses
       baseunix,
     {$ENDIF}
   {$ENDIF}
-  mslproxys, slstack, debugunit, slssl, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_err;
+  mslproxys, slstack, debugunit, slssl, mormot.lib.openssl11, mormot.core.os;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -632,7 +632,8 @@ begin
 
     if (fSSL = nil) then
     begin
-      ERR_error_string(ERR_get_error(), @er[1]);
+      ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
+
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
@@ -652,7 +653,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -685,7 +686,7 @@ begin
       end
       else
       begin
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -743,7 +744,7 @@ begin
 
     if (fSSL = nil) then
     begin
-      ERR_error_string(ERR_get_error(), @er[1]);
+      ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
@@ -763,7 +764,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -796,7 +797,7 @@ begin
       end
       else
       begin
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1], SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;

@@ -6,7 +6,7 @@ unit mormot.db.sql.odbc;
 {
   *****************************************************************************
 
-   Efficient SQL Database Connection via ODBC 
+   Efficient SQL Database Connection via ODBC
     -  TSqlDBOdbcConnection* and TSqlDBOdbcStatement Classes
 
   *****************************************************************************
@@ -26,6 +26,7 @@ uses
   mormot.core.text,
   mormot.core.datetime,
   mormot.core.data,
+  mormot.core.rtti,
   mormot.core.json,
   mormot.core.perf,
   mormot.core.log,
@@ -366,7 +367,7 @@ var
   Log: ISynLog;
   Len: SqlSmallint;
 begin
-  Log := SynDBLog.Enter(self, 'Connect');
+  SynDBLog.EnterLocal(Log, self, 'Connect');
   Disconnect; // force fDbc=nil
   if fEnv = nil then
     if (ODBC = nil) or
@@ -392,7 +393,7 @@ begin
           'Missing ServerName=DataSourceName or DataBaseName=FullConnectString')
       else
       begin
-        FastSetString(fSqlDriverFullString, nil, 1024);
+        FastSetString(fSqlDriverFullString, 1024);
         fSqlDriverFullString[1] := #0;
         Len := 0;
         Check(self, nil,
@@ -437,7 +438,7 @@ constructor TSqlDBOdbcConnection.Create(aProperties: TSqlDBConnectionProperties)
 var
   {%H-}Log: ISynLog;
 begin
-  Log := SynDBLog.Enter(self, 'Create');
+  SynDBLog.EnterLocal(Log, self, 'Create');
   if not aProperties.InheritsFrom(TSqlDBOdbcConnectionProperties) then
     EOdbcException.RaiseUtf8('Invalid %.Create(%)', [self, aProperties]);
   fOdbcProperties := TSqlDBOdbcConnectionProperties(aProperties);
@@ -463,7 +464,7 @@ begin
        (fDbc <> nil) then
       with ODBC do
       begin
-        log := SynDBLog.Enter(self, 'Disconnect');
+        SynDBLog.EnterLocal(log, self, 'Disconnect');
         Disconnect(fDbc);
         FreeHandle(SQL_HANDLE_DBC, fDbc);
         fDbc := nil;
@@ -516,7 +517,7 @@ procedure TSqlDBOdbcConnection.StartTransaction;
 var
   {%H-}log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'StartTransaction');
+  SynDBLog.EnterLocal(log, self, 'StartTransaction');
   if TransactionCount > 0 then
     EOdbcException.RaiseUtf8('% do not support nested transactions', [self]);
   inherited StartTransaction;
@@ -624,7 +625,7 @@ var
   nCols, NameLength, DataType, DecimalDigits, Nullable: SqlSmallint;
   ColumnSize: SqlULen;
   c, siz: integer;
-  Name: array[byte] of WideChar;
+  Name: TByteToWideChar;
 begin
   ReleaseRows;
   with ODBC do
@@ -1357,7 +1358,7 @@ begin
   // stored UserID is used by SqlSplitProcedureName
   if aUserID = '' then
     FUserID := FindIniNameValue(pointer(UpperCase(StringReplaceAll(
-      aDatabaseName, ';', sLineBreak))), 'UID=');
+      aDatabaseName, ';', CRLF))), 'UID=');
 end;
 
 function TSqlDBOdbcConnectionProperties.NewConnection: TSqlDBConnection;
@@ -1677,7 +1678,7 @@ var
   pwd: RawUtf8;
 begin
   pwd := FindIniNameValue(pointer(StringReplaceAll(
-    fDatabaseName, ';', sLineBreak)), 'PWD=');
+    fDatabaseName, ';', CRLF)), 'PWD=');
   result := StringReplaceAll(fDatabaseName, pwd, '***');
 end;
 
