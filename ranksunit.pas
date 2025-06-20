@@ -319,10 +319,10 @@ begin
       if fNewAvg = 0 then
         fNewAvg := 1;
 
-      fOldAvg := sitesdat.ReadInteger('site-' + fSitename, 'rank-' + fSection, 1);
+      fOldAvg := s.RCInteger('rank-' + fSection, 1);
       if fNewAvg <> fOldAvg then
       begin
-        sitesdat.WriteInteger('site-' + fSitename, 'rank-' + fSection, fNewAvg);
+        s.WCInteger('rank-' + fSection, fNewAvg);
         irc_SendRANKSTATS(Format('Changing rank of %s %s from %d to %d', [fSitename, fSection, fOldAvg, fNewAvg]));
       end;
     end;

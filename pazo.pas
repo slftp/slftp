@@ -265,6 +265,7 @@ const
 var
   local_pazo_id: integer;
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
+  glPazoPreTimeLookupMode: TPretimeLookupMode;
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -397,6 +398,7 @@ procedure PazoInit;
 begin
   local_pazo_id := 0;
   glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
+  glPazoPreTimeLookupMode := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
 end;
 
 function TPazoSite.GetDirlistGaveUp: boolean;
@@ -1105,7 +1107,7 @@ begin
 
       if not aIsSpreadJob then
       begin
-        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
+        if glPazoPreTimeLookupMode <> plmNone then
         begin
           if not (rls.pretime <> 0) then
             Continue;

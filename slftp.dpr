@@ -46,7 +46,7 @@ uses
   FastMM5,
   SysUtils,
   commandlineutil,
-  console,
+  console in 'console.pas',
   Clipbrd in 'Clipbrd.pas',
   backupunit in 'backupunit.pas',
   configunit in 'configunit.pas',

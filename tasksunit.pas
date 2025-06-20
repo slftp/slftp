@@ -60,9 +60,18 @@ procedure Tasks_Uninit;
 const
   MaxNumberErrors = 3;
 
+var
+  GlConvertFilenamesToLowercase: boolean;
+  GlTaskSiteNfoReaddAttempts: integer;
+  GlTaskSiteNfoReaddInterval: integer;
+  GlTaskPretimeReaddAttempts: integer;
+  GlTaskPretimeReaddInterval: integer;
+  GlTaskRaceAutoRuleAdd: boolean;
+  GlTaskRaceBadCrcEvents: integer;
+
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit;
 
 const
   section = 'tasks';
@@ -156,6 +165,13 @@ end;
 procedure Tasks_Init;
 begin
   uid_lock := TCriticalSection.Create;
+  GlConvertFilenamesToLowercase := config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True);
+  GlTaskSiteNfoReaddAttempts := config.ReadInteger('tasksitenfo', 'readd_attempts', 5);
+  GlTaskSiteNfoReaddInterval := config.ReadInteger('tasksitenfo', 'readd_interval', 3);
+  GlTaskPretimeReaddAttempts := config.ReadInteger('taskpretime', 'readd_attempts', 5);
+  GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
+  GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
+  GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
 end;
 
 procedure Tasks_Uninit;

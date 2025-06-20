@@ -243,7 +243,11 @@ begin
   else
   begin
     try
-      sitesdat.WriteString(s1, s2, s3);
+      // because the sites do cache the settings, we need to set it on the site object
+      if CompareText(ss1, 'site') = 0 then
+        FindSiteByName(netname, UpperCase(ss2)).WCString(s2, s3)
+      else
+        sitesdat.WriteString(s1, s2, s3);
     except
       on E: Exception do
       begin

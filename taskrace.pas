@@ -1021,7 +1021,7 @@ begin
 
           else if (0 <> Pos('Denying creation of', s.lastResponse)) or (0 <> Pos('BLOCKED:', s.lastResponse)) or (0 <> Pos('Denied by dirscript', s.lastResponse)) then
           begin
-            if config.ReadBool(c_section, 'autoruleadd', True) then
+            if GlTaskRaceAutoRuleAdd then
             begin
               if (0 <> Pos('releases are not accepted here', s.lastResponse)) or (0 <> Pos('This group is BANNED', s.lastResponse)) or (0 <> Pos('This group is not wanted', s.lastResponse)) then
               begin
@@ -1122,7 +1122,7 @@ begin
   self.dir := dir;
   self.rank := rank;
   self.filename := filename;
-  if config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True) then
+  if GlConvertFilenamesToLowercase then
     self.FFilenameForSTORCommand := lowercase(filename)
   else
     self.FFilenameForSTORCommand := filename;
@@ -1202,7 +1202,7 @@ begin
     exit;
   end;
 
-  if (ps2.badcrcevents >= config.ReadInteger('taskrace', 'badcrcevents', 15)) then
+  if (ps2.badcrcevents >= GlTaskRaceBadCrcEvents) then
   begin
     mainpazo.errorreason := 'Too many CRC errors!';
     readyerror := True;
@@ -2939,7 +2939,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
@@ -2948,7 +2948,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
@@ -2958,7 +2958,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
@@ -3015,7 +3015,7 @@ begin
     if (time_race > 0) then
     begin
       try
-        if (filesize > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
+        if (filesize > GlSpeedStatsMinFileSize) then
         begin
           SpeedStatAdd(site1, site2, filesize * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
         end;
