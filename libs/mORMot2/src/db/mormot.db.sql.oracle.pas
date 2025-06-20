@@ -215,7 +215,7 @@ type
     fRowFetchedCurrent: cardinal;
     fRowFetchedEnded: boolean;
     fRowBuffer: TByteDynArray;
-    fBoundCursor: array of pointer;
+    fBoundCursor: TPointerDynArray;
     fInternalBufferSize: cardinal;
     // warning: shall be 32 bits aligned!
     fTimeElapsed: TPrecisionTimer;
@@ -248,10 +248,10 @@ type
     // to retrieve the data rows
     // - raise an ESqlDBOracle on any error
     // - if aSql requires a trailing ';', you should end it with ';;' e.g. for
-    // $ DB.ExecuteNoResult(
-    // $  'CREATE OR REPLACE FUNCTION ORA_POC(MAIN_TABLE IN VARCHAR2, REC_COUNT IN NUMBER, BATCH_SIZE IN NUMBER) RETURN VARCHAR2' +
-    // $  ' AS LANGUAGE JAVA' +
-    // $  ' NAME ''OraMain.selectTable(java.lang.String, int, int) return java.lang.String'';;', []);
+    // ! DB.ExecuteNoResult(
+    // !  'CREATE OR REPLACE FUNCTION ORA_POC(MAIN_TABLE IN VARCHAR2, REC_COUNT IN NUMBER, BATCH_SIZE IN NUMBER) RETURN VARCHAR2' +
+    // !  ' AS LANGUAGE JAVA' +
+    // !  ' NAME ''OraMain.selectTable(java.lang.String, int, int) return java.lang.String'';;', []);
     procedure Prepare(const aSql: RawUtf8; ExpectResults: boolean = false); overload; override;
     /// Execute a prepared SQL statement
     // - parameters marked as ? should have been already bound with Bind*() functions
@@ -309,8 +309,10 @@ type
     // - a ftUtf8 content will be mapped into a generic WideString variant
     // for pre-Unicode version of Delphi, and a generic UnicodeString (=string)
     // since Delphi 2009: you may not loose any data during charset conversion
-    // - a ftBlob content will be mapped into a TBlobData AnsiString variant
-    function ColumnToVariant(Col: integer; var Value: Variant): TSqlDBFieldType; override;
+    // set ForceUtf8 = true to generate a RawUtf8 as varString
+    // - a ftBlob BLOB content will be mapped into a TBlobData AnsiString variant
+    function ColumnToVariant(Col: integer; var Value: Variant;
+      ForceUtf8: boolean = false): TSqlDBFieldType; override;
     /// return a Column as a TSqlVar value, first Col is 0
     // - the specified Temp variable will be used for temporary storage of
     // ftUtf8/ftBlob values
@@ -472,7 +474,7 @@ const
   type_Credential: array[boolean] of integer = (
     OCI_CRED_RDBMS, OCI_CRED_EXT);
 begin
-  log := SynDBLog.Enter(self, 'Connect');
+  SynDBLog.EnterLocal(log, self, 'Connect');
   Disconnect; // force fTrans=fError=fServer=fContext=nil
   Props := Properties as TSqlDBOracleConnectionProperties;
   with OCI do
@@ -590,7 +592,7 @@ constructor TSqlDBOracleConnection.Create(aProperties: TSqlDBConnectionPropertie
 var
   {%H-}log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'Create');
+  SynDBLog.EnterLocal(log, self, 'Create');
   if not aProperties.InheritsFrom(TSqlDBOracleConnectionProperties) then
     ESqlDBOracle.RaiseUtf8('Invalid %.Create(%)', [self, aProperties]);
   inherited Create(aProperties);
@@ -686,7 +688,7 @@ procedure TSqlDBOracleConnection.StartTransaction;
 var
   log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'StartTransaction');
+  SynDBLog.EnterLocal(log, self, 'StartTransaction');
   if TransactionCount > 0 then
     ESqlDBOracle.RaiseUtf8('Invalid %.StartTransaction: nested ' +
       'transactions are not supported by the Oracle driver', [self]);
@@ -1064,7 +1066,7 @@ begin
 end;
 
 function TSqlDBOracleStatement.ColumnToVariant(Col: integer;
-  var Value: Variant): TSqlDBFieldType;
+  var Value: Variant; ForceUtf8: boolean): TSqlDBFieldType;
 var
   C: PSqlDBColumnProperty;
   V: pointer;
@@ -1105,14 +1107,15 @@ begin
           VDate := POracleDate(V)^.ToDateTime
         else // direct retrieval
           IntervalTextToDateTimeVar(V, VDate); // from SQLT_INTERVAL_* text
-      ftUtf8: // as varSynUnicode
+      ftUtf8: // VType is varSynUnicode unless ForceUtf8 is true
         begin
           // see TSqlDBStatement.ColumnToVariant() for reference
           VAny := nil;
           with TSqlDBOracleConnection(Connection) do
             if C^.ColumnValueInlined then
               {$ifndef UNICODE}
-              if not Connection.Properties.VariantStringAsWideString then
+              if (not ForceUtf8) and
+                 (not Connection.Properties.VariantStringAsWideString) then
               begin
                 VType := varString;
                 OCISTRToAnsiString(V, AnsiString(VAny),
@@ -1125,14 +1128,21 @@ begin
             else
               OCI.ClobFromDescriptor(self, fContext, fError,
                 PPOCIDescriptor(V)^, C^.ColumnValueDBForm, tmp);
-        {$ifndef UNICODE}
+          // here tmp contains the UTF-8 encoded text
+          if ForceUtf8 then
+          begin
+            VType := varString;
+            RawUtf8(VAny) := tmp;
+          end
+          else
+          {$ifndef UNICODE}
           if not Connection.Properties.VariantStringAsWideString then
           begin
             VType := varString;
             AnsiString(VAny) := CurrentAnsiConvert.Utf8ToAnsi(tmp);
           end
           else
-        {$endif UNICODE}
+          {$endif UNICODE}
             Utf8ToSynUnicode(tmp, SynUnicode(VAny));
         end;
       ftBlob: // as varString
@@ -1268,7 +1278,7 @@ begin
       on E: Exception do
       begin
         fStatement := nil; // do not release the statement in constructor
-        FreeHandles(True);
+        FreeHandles(true);
         raise;
       end;
     end;
@@ -1319,7 +1329,7 @@ begin
       inc(S);
       inc(D);
     until S^ = #0;
-    D^ := #0; // include trailing #0
+    D^ := #0; // include #0 terminator
   end;
 end;
 
@@ -1397,8 +1407,8 @@ begin
                 ftDate:
                   begin
                     VDBType := SQLT_DAT;
-                    FastNewRawByteString(VData, fParamsArrayCount * SizeOf(TOracleDate));
-                    oData := pointer(VData);
+                    oData := FastNewRawByteString(
+                      VData, fParamsArrayCount * SizeOf(TOracleDate));
                     oLength := SizeOf(TOracleDate);
                   end;
                 ftInt64:
@@ -1406,8 +1416,8 @@ begin
                   begin
                     // starting with 11.2, OCI supports NUMBER conversion to/from Int64
                     VDBType := SQLT_INT;
-                    FastNewRawByteString(VData, fParamsArrayCount * SizeOf(Int64));
-                    oData := pointer(VData);
+                    oData := FastNewRawByteString(
+                      VData, fParamsArrayCount * SizeOf(Int64));
                     oLength := SizeOf(Int64);
                   end;
                   // prior to 11.2, we will stay with the default SQLT_STR type
@@ -1460,9 +1470,8 @@ begin
               case VDBType of
                 SQLT_STR:
                   begin
-                    inc(oLength); // space for trailing #0
-                    FastNewRawByteString(VData, oLength * fParamsArrayCount);
-                    oData := pointer(VData); // in-place quote removal in text
+                    inc(oLength); // space for #0 terminator
+                    oData := FastNewRawByteString(VData, oLength * fParamsArrayCount);
                     oDataSTR := oData;
                     for j := 0 to fParamsArrayCount - 1 do
                     begin
@@ -1472,8 +1481,7 @@ begin
                   end;
                 SQLT_LVB:
                   begin
-                    FastNewRawByteString(VData, oLength * fParamsArrayCount);
-                    oData := pointer(VData);
+                    oData := FastNewRawByteString(VData, oLength * fParamsArrayCount);
                     oDataSTR := oData;
                     for j := 0 to fParamsArrayCount - 1 do
                     begin
@@ -1523,12 +1531,12 @@ begin
               ociArrays[ociArraysCount] := nil;
               OCI.Check(nil, self,
                 OCI.ObjectNew(Env, fError, Context, OCI_TYPECODE_VARRAY,
-                  Type_List, nil, OCI_DURATION_SESSION, True,
+                  Type_List, nil, OCI_DURATION_SESSION, true,
                   ociArrays[ociArraysCount]),
                 fError);
               inc(ociArraysCount);
-              FastNewRawByteString(param.VData, Length(param.VArray) * SizeOf(Int64));
-              oData := pointer(param.VData);
+              oData := FastNewRawByteString(
+                param.VData, Length(param.VArray) * SizeOf(Int64));
               for j := 0 to Length(param.VArray) - 1 do
                 case param.VType of
                   ftInt64:
@@ -1675,7 +1683,7 @@ txt:                    VDBType := SQLT_STR; // use STR external data type (SQLT
                           {$ifdef FPC_64}
                           // in case of FPC+CPU64 TSqlDBParam.VData is a RawByteString and
                           // length is stored as SizeInt = Int64 (not int32) -> patch
-                          // (no patch needed for Delphi, in which len is always longint)
+                          // (no patch needed for Delphi, in which len is always 32-bit)
                           if Length(VData) > MaxInt then
                             ESqlDBOracle.RaiseUtf8('%.ExecutePrepared: % ' +
                               'blob length exceeds max size for parameter #%',
@@ -2348,7 +2356,7 @@ begin
     except
       on E: Exception do
       begin
-        FreeHandles(True);
+        FreeHandles(true);
         raise;
       end;
     end;
