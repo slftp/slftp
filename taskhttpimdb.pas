@@ -187,7 +187,8 @@ begin
   pdoc.GetAsRawUTF8('tconst', fJsonImdbID);
   pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
   pdoc.GetAsDocVariant('releaseYear', fYearDoc);
-  fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear);
+  if not (fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear)) then
+    fYearDoc.GetAsRawUTF8('year', fJsonReleaseYear);
   pdoc.GetAsRawUTF8('titleType', fTitleType);
   if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
   begin
