@@ -52,6 +52,7 @@ type
     skiplisted: Boolean; //< @true if the this entity is skiplisted. It will not be transferred.
     cdno: Integer;
     timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
+    FSizeChanged: boolean; //< Set to true once ParseDirlist finds a changed file size, set to false once the changed file size has been registered at the release wide store.
 
     procedure CalcCDNumber;
     constructor Create(const filename: String; dirlist: TDirList; const aIsDirectory: boolean); overload;
@@ -765,6 +766,7 @@ begin
         de.timestamp := akttimestamp;
         de.FUsername := fParsedDirlistEntry.Username;
         de.FGroupname := fParsedDirlistEntry.Groupname;
+        de.FSizeChanged := True;
       end;
 
       // entry is a file and is being uploaded (glftpd only?)
@@ -1495,6 +1497,7 @@ begin
   self.FIsBeingUploaded := False;
   self.error := False;
   subdirlist := nil;
+  self.FSizeChanged := True;
 
   FFilenameLowerCase := LowerCase(filename);
   FExtension := ExtractFileExt(FFilenameLowerCase);
