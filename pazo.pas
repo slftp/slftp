@@ -175,10 +175,9 @@ type
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
-      @param(aFilename Name of the file)
-      @param(aFilesize Size of the file)
+      @param(de The TDirListEntry of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
-    function PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
+    function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
     { Returns the amount of files for the release, includes files in subdirs
       @returns(Total file count of @link(rls)) }
     function GetCountOfCachedFiles: integer;
@@ -748,31 +747,30 @@ begin
   end;
 end;
 
-function TPazo.PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
+function TPazo.PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
 var
   fKey: String;
   fFilesize: Int64;
   fWasAdded: boolean;
   fPazoSite: TPazoSite;
 begin
-  fKey := aDir + '/' + aFilename;
+  fKey := aDir + '/' + de.FilenameLowerCased;
   fWasAdded := False;
 
   FUniqueFileListOfRelease_cs.Enter('PRegisterFile');
   try
-    if not FUniqueFileListOfRelease.ContainsKey(fKey) then
+    if not FUniqueFileListOfRelease.TryGetValue(fKey, fFilesize) then
     begin
-      FUniqueFileListOfRelease.Add(fKey, aFilesize);
+      FUniqueFileListOfRelease.Add(fKey, de.filesize);
       fWasAdded := True;
-      Result := aFilesize;
+      Result := de.filesize;
     end
     else
     begin
-      fFilesize := FUniqueFileListOfRelease[fKey];
-      if fFilesize < aFilesize then
+      if fFilesize < de.filesize then
       begin
-        FUniqueFileListOfRelease[fKey] := aFilesize;
-        Result := aFilesize;
+        FUniqueFileListOfRelease[fKey] := de.filesize;
+        Result := de.filesize;
       end
       else
       begin
@@ -783,7 +781,7 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And aIsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  if fWasAdded And (de.Extension = '.sfv') and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -796,7 +794,7 @@ begin
         if FindSiteByName('', fPazoSite.Name).UseForNFOdownload = ufnEnabled then
         begin
           Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
-          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, aFilename, 1));
+          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, de.filename, 1));
         end;
       end;
     end;
@@ -836,7 +834,7 @@ begin
   ready := False;
   lastTouch := Now();
   FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
-  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create(GetCaseInsensitveStringComparer);
+  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
   self.cleared := False;
@@ -1147,7 +1145,7 @@ function TPazo.PFileSize(const aDir, aFilename: String): Int64;
 var
   fKey: String;
 begin
-  fKey := aDir + '/' + aFilename;
+  fKey := aDir + '/' + LowerCase(aFilename);
 
   if not FUniqueFileListOfRelease.TryGetValue(fKey, Result) then
     Result := -1;
@@ -1472,9 +1470,10 @@ begin
 
       for de in fFoundDirListEntries do
       begin
-        if not de.Directory then
+        if not de.Directory and de.FSizeChanged then
         begin
-          pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
+          pazo.PRegisterFile(dir, de);
+          de.FSizeChanged := False;
         end;
       end;
 
