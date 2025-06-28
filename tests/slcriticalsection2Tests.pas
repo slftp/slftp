@@ -32,7 +32,7 @@ uses
 
 procedure TTestSLCriticalSection2.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
 begin
-  SlCriticalSection2Init(100);
+  SlCriticalSection2Init(100, True);
 end;
 
 procedure TTestSLCriticalSection2.{$IFDEF FPC}TeardownOnce{$ELSE}Teardown{$ENDIF};

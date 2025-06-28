@@ -86,7 +86,7 @@ begin
   Result := '';
   fSSLErrorMsg := '';
 
-  SlCriticalSection2Init(config.ReadInteger('debug', 'event_based_locking_timeout', 0));
+  SlCriticalSection2Init(config.ReadInteger('debug', 'event_based_locking_timeout', 0), config.ReadBool('debug', 'monitor_lock_times', False));
 
   if not sltcp_inited then
   begin

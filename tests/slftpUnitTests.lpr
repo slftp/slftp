@@ -66,7 +66,8 @@ uses
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
-  variantCacheTests;
+  variantCacheTests,
+  sltimerTests;
 
 var
   filecheck: String;
