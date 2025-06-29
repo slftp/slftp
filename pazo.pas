@@ -428,7 +428,6 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
-  fExtensionMatchSFV, fExtensionMatchNFO: boolean;
 begin
   Result := False;
   dst := nil;
@@ -599,12 +598,10 @@ begin
           // destination dir is not complete
           if not dstdl.complete then
           begin
-            fExtensionMatchSFV := de.Extension = '.sfv';
-            fExtensionMatchNFO := de.Extension = '.nfo';
             // skip nfo and sfv if already there
-            if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
+            if ((dstdl.HasSFV) and (de.IsSFV)) then
               Continue;
-            if ((dstdl.HasNFO) and (fExtensionMatchNFO)) then
+            if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
 
             // Create the race task
@@ -621,9 +618,9 @@ begin
               end;
 
             // Set file type
-            if (fExtensionMatchSFV) then
+            if (de.IsSFV) then
               pr.IsSfv := True;
-            if (fExtensionMatchNFO) then
+            if (de.IsNFO) then
               pr.IsNfo := True;
 
             // sfv not found so we won't race this file yet
@@ -781,7 +778,7 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And (de.Extension = '.sfv') and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -1581,7 +1578,7 @@ begin
             de.IsBeingUploaded := False;
           end;
 
-          if (de.Extension = '.sfv') then
+          if (de.IsSFV) then
           begin
             aDirlist.sfv_status := dlSFVFound;
           end;

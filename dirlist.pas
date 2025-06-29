@@ -41,6 +41,8 @@ type
     FSkipListAllowedFileIndex: integer;
     { Tries to identify the dirtype from subdirectory name by different regexes
       @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
+    FIsNFO: Boolean; //< True when this is a NFO file.
+    FIsSFV: Boolean; //< True when this is a SFV file.
     function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
   public
     dirlist: TDirList;
@@ -74,6 +76,8 @@ type
     property DirType: TDirType read FDirType;
     property IsOnSite: Boolean read FIsOnSite write FIsOnSite;
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
+    property IsNFO: Boolean read FIsNFO;
+    property IsSFV: Boolean read FIsSFV;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -94,8 +98,6 @@ type
 
     FCompleteInfo: TCompleteInfo; //< value of @link(TCompleteInfo) status and where we got it
     FCachedCompleteResult: Boolean; //< @true if @link(Complete) has been called and determined the TDirlist as complete, @false otherwise.
-    FCachedHasNFOResult: Boolean; //< @true if @link(HasNFO) has been called and already found a NFO file, @false otherwise.
-    FCachedHasSFVResult: Boolean; //< @true if @link(HasSFV) has been called and already found a SFV file, @false otherwise.
 
     // TODO: sometimes its without a '/' at the end, check if this is correct and what happens if we add it by default (could remove extra code in RegenerateSkiplist then)
     FCompleteDirTag: String; //< complete dir found on ftpd while dirlisting
@@ -107,6 +109,8 @@ type
     FIsAutoIndex: Boolean; //< @true if task was created by autoindexer, @false otherwise
     FIsFromIrc: Boolean; //< @true if task was created by an IRC command (e.g. !dirlist), @false otherwise
     FDirlistGaveUp: Boolean; //< @true if dirlisting has been given up for this dir
+    FHasNFO: Boolean; //< True when dirlist has found a valid NFO file
+    FHasSFV: Boolean; //< True when dirlist has found a valid SFV file
 
     { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
       @returns(@true if determined as COMPLETE, @false otherwise) }
@@ -170,12 +174,6 @@ type
     { Sets the @link(FCompleteInfo) value to given @link()
       @param(aCompleteInfo value from @link(TCompleteInfo) to set the info where we seen it complete) }
     procedure SetCompleteInfo(const aCompleteInfo: TCompleteInfo);
-    { Checks if this TDirlist already has a NFO file
-      @returns(@true if NFO is there, @false otherwise) }
-    function HasNFO: Boolean;
-    { Checks if this TDirlist already has a SFV file
-      @returns(@true if SFV is there, @false otherwise) }
-    function HasSFV: Boolean;
     { Tries to get a cached value indicating whether the given string is a valid file name. If no cached value is available,
       the value is being calculated and then added to the cache
       @returns(@true if input is valid, @false otherwise.) }
@@ -193,6 +191,12 @@ type
     property FullPath: String read FFullPath write SetFullPath;
     property DirlistGaveUp: boolean read FDirlistGaveUp write FDirlistGaveUp;
     property LastUpdated: TDateTime read FLastUpdated write FLastUpdated;
+    { True if this TDirlist already has a NFO file
+      @returns(@true if NFO is there, @false otherwise) }
+    property HasNFO: Boolean read FHasNFO;
+    { True if this TDirlist already has a SFV file
+      @returns(@true if SFV is there, @false otherwise) }
+    property HasSFV: Boolean read FHasSFV;
   end;
 
 { Just a helper function to initialize image_files_priority and video_files_priority }
@@ -393,8 +397,8 @@ begin
 
   need_mkdir := True;
   FCachedCompleteResult := False;
-  FCachedHasNFOResult := False;
-  FCachedHasSFVResult := False;
+  FHasNFO := False;
+  FHasSFV := False;
 
   self.FStartedTime := 0;
   self.FCompletedTime := 0;
@@ -698,12 +702,12 @@ begin
       begin
         de := TDirListEntry.Create(fParsedDirlistEntry.Filename, self, (fParsedDirlistEntry.DirMask[1] = 'd'));
 
-        if ((de.Extension = '.sfv') and (HasSFV)) then
+        if ((de.IsSFV) and (HasSFV)) then
         begin
           de.Free;
           Continue;
         end;
-        if ((de.Extension = '.nfo') and (HasNFO)) then
+        if ((de.IsNFO) and (HasNFO)) then
         begin
           de.Free;
           Continue;
@@ -738,7 +742,7 @@ begin
           end;
         end;
 
-        if ((not de.Directory) and (de.Extension = '.sfv') and (de.filesize > 0)) then
+        if ((not de.Directory) and (de.IsSFV) and (de.filesize > 0)) then
         begin
           sfv_status := dlSFVFound;
         end;
@@ -751,6 +755,12 @@ begin
         end;
 
         entries.Add(de.filename, de);
+
+        // the entry is valid and added, if it's a NFO or SFV file, set the field, then no more NFO or SFV files will be added
+        if de.IsNFO and (de.filesize > 0) then
+          FHasNFO := True;
+        if de.IsSFV and (de.filesize > 0) then
+          FHasSFV := True;
 
         LastChanged := Now();
         added := True;
@@ -767,6 +777,12 @@ begin
         de.FUsername := fParsedDirlistEntry.Username;
         de.FGroupname := fParsedDirlistEntry.Groupname;
         de.FSizeChanged := True;
+
+        // the file had size of 0 when first seen, then IsNFO / IsSFV was not set. Set it now when the file size is greater than 0.
+        if de.IsNFO and not FHasNFO and (de.filesize > 0) then
+          FHasNFO := True;
+        if de.IsSFV and not FHasSFV and (de.filesize > 0) then
+          FHasSFV := True;
       end;
 
       // entry is a file and is being uploaded (glftpd only?)
@@ -865,24 +881,24 @@ begin
     if (i1.Extension <> '') or (i2.Extension <> '') then
     begin
       // sfv priority
-      if ((i1.Extension = '.sfv') and (i2.Extension <> '.sfv')) then
+      if ((i1.IsSFV) and (not i2.IsSFV)) then
       begin
         Result := -1;
         exit;
       end;
-      if ((i1.Extension <> '.sfv') and (i2.Extension = '.sfv')) then
+      if ((not i1.IsSFV) and (i2.IsSFV)) then
       begin
         Result := 1;
         exit;
       end;
 
       // nfo priority
-      if ((i1.Extension = '.nfo') and (i2.Extension <> '.nfo')) then
+      if ((i1.IsNFO) and (not i2.IsNFO)) then
       begin
         Result := -1;
         exit;
       end;
-      if ((i1.Extension <> '.nfo') and (i2.Extension = '.nfo')) then
+      if ((not i1.IsNFO) and (i2.IsNFO)) then
       begin
         Result := 1;
         exit;
@@ -1286,79 +1302,6 @@ begin
 end;
 
 
-function TDirList.HasSFV: boolean;
-var
-  de: TDirlistEntry;
-begin
-  Result := False;
-
-  if (self.FCachedHasSFVResult) then
-  begin
-    Result := True;
-    exit;
-  end;
-
-  dirlist_lock.Enter('TDirList.HasSFV');
-  try
-    for de in entries.Values do
-    begin
-      try
-        if ((de.Extension = '.sfv') and (de.IsOnSite) and (de.filesize > 0)) then
-        begin
-          Result := True;
-          Self.FCachedHasSFVResult := True;
-          exit;
-        end;
-      except
-        on E: Exception do
-        begin
-          debugunit.Debug(dpError, section, 'TDirList.HasSFV: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-end;
-
-function TDirList.HasNFO: boolean;
-var
-  de: TDirlistEntry;
-begin
-  Result := False;
-
-  if (self.FCachedHasNFOResult) then
-  begin
-    Result := True;
-    exit;
-  end;
-
-  dirlist_lock.Enter('TDirList.HasNFO');
-  try
-    for de in entries.Values do
-    begin
-      try
-        if ((de.Extension = '.nfo') and (de.IsOnSite) and (de.filesize > 0)) then
-        begin
-          Result := True;
-          Self.FCachedHasNFOResult := True;
-          exit;
-        end;
-      except
-        on E: Exception do
-        begin
-          debugunit.Debug(dpError, section, 'TDirList.HasNFO: %s', [e.Message]);
-          Continue;
-        end;
-      end;
-    end;
-  finally
-    dirlist_lock.Leave;
-  end;
-end;
-
-
 procedure TDirList.Clear;
 var
   de: TDirListEntry;
@@ -1503,6 +1446,8 @@ begin
   FExtension := ExtractFileExt(FFilenameLowerCase);
   cdno := 0;
   FSkipListAllowedFileIndex := -1;
+  FIsNFO := FExtension = '.nfo';
+  FIsSFV := FExtension = '.sfv';
 
   if aIsDirectory then
     CalcCDNumber;
