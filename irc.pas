@@ -35,6 +35,7 @@ type
     registered: Boolean;
     irc_last_written: tdatetime;
     lastservername: String;
+    FCurrentIrcNick: String;
 
     function GetIrcSSL: Boolean;
     procedure SetIrcSSL(value: Boolean);
@@ -79,8 +80,7 @@ type
     procedure WCBool(name: String; val: boolean);
 
     //BotNick Stuff
-    function GetBotIRCNick: String;
-    procedure SetBotIRCNick(value: String);
+    function SetIRCNickOnNet(const aNickname: String): Boolean;
     //Proxy Stuff
     function GetProxyName: String;
     procedure SetProxyName(value: String);
@@ -102,7 +102,8 @@ type
     procedure IrcSendPrivMessage(const channel, plainmsgformat: String; const args: array of const); overload;
     procedure IrcSendPrivMessage(const channel, plainmsg: String); overload;
     procedure IrcSetupSocket;
-    procedure chanpart(const chan, nick: String);
+    procedure chanpart(const chan: String); overload;
+    procedure chanpart(const chan, nick: String); overload;
     function IrcConnect: Boolean;
     procedure IrcQuit;
     function ChanNicks(const chan: String): String;
@@ -120,8 +121,6 @@ type
     property irc_username: String read GetIrcUsername write SetIrcUsername;
     property irc_ident: String read GetIrcIdent write SetIrcIdent;
     property ircpassword: String read GetIrcPassword write SetIrcPassword;
-
-    property BotNick: String read GetBotIRCNick write SetBotIRCNick;
     property ProxyName: String read GetProxyName write SetProxyName;
 
     property MangleHost: boolean read Getmanglehost write Setmanglehost;
@@ -177,11 +176,9 @@ procedure ircStop;
 
 function IrcRestart: boolean;
 
-function mynickname: String;
-function irccmdprefix: String;
-
 var
   myIrcThreads: TObjectList = nil;
+  mynickname, myanickname, irccmdprefix: String;
 
 const
   irc_chanroleindex = 25;
@@ -202,15 +199,9 @@ uses
 const
   section = 'irc';
 
-function mynickname: String;
-begin
-  result := config.ReadString(section, 'nickname', 'sl');
-end;
-
-function irccmdprefix: String;
-begin
-  result := config.ReadString(section, 'cmdprefix', '!');
-end;
+var
+  direct_echo, admin_forward_msgs, echo_kick_events, echo_join_part_events, echo_topic_change_events, echo_nick_change_events: boolean;
+  irc_timeout, register_timeout, sleep_on_error: Integer;
 
 function FindIrcnetwork(const netname: String): TMyIrcThread;
 var
@@ -276,7 +267,7 @@ begin
      end;
     if msg.Length < 250 then
     begin
-      if (config.ReadBool(section, 'direct_echo', False)) then
+      if (direct_echo) then
       begin
         _WriteToIRC(channel, msg);
       end
@@ -290,7 +281,7 @@ begin
       // message needs to be splitted due to encryption and a given max length per messages (~280 chars)
       fStrArr := WrapText(msg, 250).Split([sLineBreak]);
 
-      if (config.ReadBool(section, 'direct_echo', False)) then
+      if (direct_echo) then
       begin
         for fStr in fStrArr do
           _WriteToIRC(channel, fStr);
@@ -541,6 +532,21 @@ var
   fNetname, fChannel, fChanroles, fBlowkey, fChankey: String;
   fInviteonly, fCbc: boolean;
 begin
+
+  direct_echo := config.ReadBool(section, 'direct_echo', False);
+  mynickname := config.ReadString(section, 'nickname', 'sl');
+  myanickname := config.ReadString(section, 'anickname', 'sl_');
+  irccmdprefix := config.ReadString(section, 'cmdprefix', '!');
+  admin_forward_msgs := config.ReadBool(section, 'admin_forward_msgs', True);
+  echo_kick_events := config.ReadBool(section, 'echo_kick_events', False);
+  echo_kick_events := config.ReadBool(section, 'echo_kick_events', False);
+  echo_join_part_events := config.ReadBool(section, 'echo_join_part_events', False);
+  echo_topic_change_events := config.ReadBool(section, 'echo_topic_change_events', False);
+  echo_nick_change_events := config.ReadBool(section, 'echo_nick_change_events', False);
+  irc_timeout := config.ReadInteger(section, 'timeout', 120);
+  register_timeout := config.ReadInteger(section, 'register_timeout', 10);
+  sleep_on_error := config.ReadInteger(section, 'sleep_on_error', 60);
+
   // register other sitechan keys
   x := TStringList.Create;
   try
@@ -633,18 +639,6 @@ begin
   inherited;
 end;
 
-function TMyIrcThread.GetBotIRCNick: String;
-begin
-  //result:=irc_nick ;
-  result := sitesdat.ReadString('ircnet-' + netname, 'nick', irc_nick);
-end;
-
-procedure TMyIrcThread.SetBotIRCNick(value: String);
-begin
-  sitesdat.WriteString('ircnet-' + netname, 'nick', value);
-  irc_nick := value;
-end;
-
 procedure TMyIrcThread.SetProxyName(value: String);
 begin
   sitesdat.WriteString('ircnet-' + netname, 'proxyname', Value);
@@ -695,9 +689,27 @@ begin
 
 end;
 
-function TMyIrcThread.IrcConnect: Boolean;
+function TMyIrcThread.SetIRCNickOnNet(const aNickname: String): Boolean;
 var
   LOurAddr: String;
+begin
+  Result := False;
+
+  if (Length(slSocket.localip) > 0) then
+    LOurAddr := slSocket.localip
+  else
+    LOurAddr := sltcp_localaddresses[0];
+
+  if not IrcWrite('NICK ' + aNickname) then
+    exit;
+  if not IrcWrite(Format('USER %s %s %s :%s', [irc_username, LOurAddr, Host, irc_ident])) then
+    exit;
+
+  FCurrentIrcNick := aNickname;
+  Result := True;
+end;
+
+function TMyIrcThread.IrcConnect: Boolean;
 begin
   Result := False;
   status := 'connecting...';
@@ -714,11 +726,6 @@ begin
 
   status := 'connected...';
 
-  if (Length(slSocket.localip) > 0) then
-    LOurAddr := slSocket.localip
-  else
-    LOurAddr := sltcp_localaddresses[0];
-
   (*
   NICK rsc
   USER rsc 127.0.0.1 irc.link-net.hu :Realname
@@ -728,10 +735,7 @@ begin
     if not IrcWrite('PASS ' + ircpassword) then
       exit;
 
-  if not IrcWrite('NICK ' + irc_nick) then
-    exit;
-  if not IrcWrite(
-    Format('USER %s %s %s :%s', [irc_username, LOurAddr, Host, irc_ident])) then
+  if not SetIRCNickOnNet(irc_nick) then
     exit;
 
   Result := True;
@@ -877,7 +881,7 @@ begin
 
   // find username who wrote the message
   nick := Copy(s, 2, Pos('!', s) - 2);
-  if nick = irc_nick then
+  if nick = FCurrentIrcNick then
   begin
     exit;
   end;
@@ -902,7 +906,7 @@ begin
     exit;
 
   // check if PRIVMSG #CHANNEL argument is my irc nick
-  if channel = irc_nick then
+  if channel = FCurrentIrcNick then
   begin
     {
     :eN!TESTBOX@97X0H6.6H99FD.5C4LD7.2G2AXF PRIVMSG SL :stupid idiot
@@ -939,17 +943,17 @@ begin
       end
       else if ctcp_event = 'FINGER' then
       begin
-        IrcWrite(Format('PRIVMSG %s :%sFINGER :%s (anonymous@ftp.net) Idle %d seconds%s', [nick, #1, config.ReadString(section, 'nickname', 'slftp'), DateTimeToUnix(now), #1]));
+        IrcWrite(Format('PRIVMSG %s :%sFINGER :%s (anonymous@ftp.net) Idle %d seconds%s', [nick, #1, FCurrentIrcNick, DateTimeToUnix(now), #1]));
       end;
 
       exit;
     end;
 
     // we received a private message
-    if (config.ReadBool(section, 'admin_forward_msgs', True)) then
+    if (admin_forward_msgs) then
     begin
       irc_Addadmin(Format('[PRIVMSG] <b>%s</b>@%s : %s', [nick, netname, msg]));
-      if ((nick <> config.ReadString(section, 'nickname', 'slftp'))) then
+      if ((nick <> FCurrentIrcNick)) then
       begin
         // seems not to work...
         if AnsiMatchText(msg, NewsSystemSpamMessages) then
@@ -1188,12 +1192,17 @@ begin
   end;
 end;
 
+procedure TMyIrcThread.chanpart(const chan: String);
+begin
+  chanpart(chan, FCurrentIrcNick);
+end;
+
 procedure TMyIrcThread.chanpart(const chan, nick: String);
 var
   x: TStringList;
   i: Integer;
 begin
-  if nick = irc_nick then
+  if nick = FCurrentIrcNick then
   begin
     i := channels.IndexOfName(chan);
     if i = -1 then
@@ -1267,6 +1276,20 @@ begin
 
   irc_last_read := Now();
 
+  // if we didn't try the alternative nick name yet, try it with the alternative nick name
+  if not registered and s.Contains('Nickname is already in use.') then
+  begin
+    if FCurrentIrcNick <> irc_anick then
+    begin
+      Result := SetIRCNickOnNet(irc_anick);
+    end
+    else
+    begin
+      Debug(dpError, section, Format('Unable to connect to IRC because both nickname and alternative nickname are in use: %s - %s', [irc_nick, irc_anick]));
+    end;
+    exit;
+  end;
+
   if 1 = Pos('PING :', s) then
     IrcPing(Copy(s, 6, 1000))
   else {// MODES=} if ((registered = False) and ((0 <> Pos(' 266 ', s)) or (0 <> Pos(' 376 ', s)) or (0 <> Pos(' 422 ', s)))) then
@@ -1285,7 +1308,7 @@ begin
 
     // TODO: Add a case for requesting fishkey - if we want to support this!
 
-    if (0 = Pos(':' + irc_nick + '!', s)) then
+    if (0 = Pos(':' + FCurrentIrcNick + '!', s)) then
     begin
       if (s2 = 'PRIVMSG') then
       begin
@@ -1322,9 +1345,9 @@ begin
     if (s2 = 'KICK') then
     begin
       parseIrcKICK(s, chan, nick);
-      if (nick <> irc_nick) then
+      if (nick <> FCurrentIrcNick) then
       begin
-        if config.ReadBool(section, 'echo_kick_events', False) then
+        if echo_kick_events then
         begin
           irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>KICK</b> %s/%s %s by %s', [netname, chan, nick, snick]));
           console_addline(netname + ' ' + chan, Format('--> KICK %s by %s <--', [nick, snick]));
@@ -1336,9 +1359,9 @@ begin
     begin
       parseIrcJOIN(s, chan, snick);
       console_add_ircwindow(netname + ' ' + chan);
-      if (snick <> irc_nick) then
+      if (snick <> FCurrentIrcNick) then
       begin
-        if config.ReadBool(section, 'echo_join_part_events', False) then
+        if echo_join_part_events then
         begin
           irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>JOIN</b> %s/%s %s', [netname, chan, snick]));
           console_addline(netname + ' ' + chan, Format('--> JOIN %s <--', [snick]));
@@ -1349,10 +1372,10 @@ begin
     else if (s2 = 'PART') then
     begin
       parseIrcPART(s, chan, snick);
-      if (snick <> irc_nick) then
+      if (snick <> FCurrentIrcNick) then
       begin
         console_addline(netname + ' ' + chan, Format('--> PART %s <--', [snick]));
-        if config.ReadBool(section, 'echo_join_part_events', False) then
+        if echo_join_part_events then
           irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>PART</b> %s/%s %s', [netname, chan, snick]));
       end;
       chanpart(chan, snick);
@@ -1382,7 +1405,7 @@ begin
         begin
           crypted := True;
           try
-            if config.ReadBool(section, 'echo_topic_change_events', False) then
+            if echo_topic_change_events then
               irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 6, MaxInt))]));
           except
             on e: Exception do
@@ -1395,7 +1418,7 @@ begin
         begin
           crypted := True;
           try
-            if config.ReadBool(section, 'echo_topic_change_events', False) then
+            if echo_topic_change_events then
               irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 5, MaxInt))]));
           except
             on e: Exception do
@@ -1408,7 +1431,7 @@ begin
         begin
           crypted := True;
           try
-            if config.ReadBool(section, 'echo_topic_change_events', False) then
+            if echo_topic_change_events then
               irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, fChanSettings.DecryptMessage(Copy(msg, 6, MaxInt))]));
           except
             on e: Exception do
@@ -1421,20 +1444,20 @@ begin
 
       if not crypted then
       begin
-        if config.ReadBool(section, 'echo_topic_change_events', False) then
+        if echo_topic_change_events then
           irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>TOPIC</b> %s/%s %s', [netname, chan, msg]));
       end;
     end
     else if (s2 = 'NICK') then
     begin
       parseIrcNICK(s, snick);
-      if (snick <> irc_nick) then
+      if (snick <> FCurrentIrcNick) then
       begin
-        if config.ReadBool(section, 'echo_nick_change_events', False) then
+        if echo_nick_change_events then
           irc_SendIRCEvent(Format('<c5>[IRC]</c> <b>NICK</b> %s %s -> %s', [netname, snick, Copy(s, RPos(':', s) + 1, MaxInt)]));
       end;
     end
-    else if ((s2 = 'QUIT') and (snick <> irc_nick)) then
+    else if ((s2 = 'QUIT') and (snick <> FCurrentIrcNick)) then
     begin
       parseIrcQUIT(s, s1);
       for i := 0 to channels.Count - 1 do
@@ -1464,7 +1487,7 @@ begin
   begin
     fChanSettingsObj := FindIrcChannelSettings(netname, channel);
     IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
-    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), irc_nick, plainmsg]));
+    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), FCurrentIrcNick, plainmsg]));
   end
   else
   begin
@@ -1521,9 +1544,9 @@ begin
     s := sites[i] as TSite;
     if ((s.RCString('ircnet', '') = netname) and (not s.siteinvited) and (not s.PermDown) and (s.UseAutoInvite)) then
     begin
-      debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, irc_nick]);
+      debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, FCurrentIrcNick]);
       s.siteinvited := True;
-      r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + irc_nick);
+      r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
       AddTask(r);
       added := True;
     end;
@@ -1565,7 +1588,7 @@ begin
     if ((error <> '') and (error <> 'timeout')) then
       exit;
 
-    if ((not config.ReadBool(section, 'direct_echo', False)) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
+    if ((not direct_echo) and (MilliSecondsBetween(Now, irc_last_written) > flood)) then
     begin
       fEchoQueueList := PendingMessagesQueue.LockList;
       try
@@ -1583,7 +1606,7 @@ begin
     if ((SecondsBetween(Now, irc_last_read) > 60) and (lastservername <> '')) then
       ircwrite('PING ' + lastservername);
 
-    if SecondsBetween(Now, irc_last_read) > config.ReadInteger(section, 'timeout', 120) then
+    if SecondsBetween(Now, irc_last_read) > irc_timeout then
     begin
       error := 'IRC Server didnt PING, it might be down';
       exit;
@@ -1606,7 +1629,7 @@ begin
   status := 'registering...';
 
   elotte := Now();
-  while (SecondsBetween(Now, elotte) < config.ReadInteger(section, 'register_timeout', 10)) do
+  while (SecondsBetween(Now, elotte) < register_timeout) do
   begin
     while (ReadLn(s, osszes, 1000)) do
     begin
@@ -1631,7 +1654,7 @@ begin
 
   if (config.ReadBool(section, 'manglehost', True) and (MangleHost)) then
   begin
-    if not IrcWrite('MODE ' + irc_nick + ' +h') then
+    if not IrcWrite('MODE ' + FCurrentIrcNick + ' +h') then
     begin
       MangleHost := False;
       exit;
@@ -1640,7 +1663,7 @@ begin
 
   if (Invisible) then
   begin
-    if not IrcWrite('MODE ' + irc_nick + ' +i') then
+    if not IrcWrite('MODE ' + FCurrentIrcNick + ' +i') then
     begin
       Invisible := False;
       exit;
@@ -1768,7 +1791,7 @@ begin
       end;
       status := 'offline';
 
-      m := config.ReadInteger(section, 'sleep_on_error', 60);
+      m := sleep_on_error;
       for i := 1 to m do
       begin
         if (not shouldquit) then
@@ -1833,7 +1856,7 @@ end;
 
 function TMyIrcThread.GetIrcANick: String;
 begin
-  result := RCString('anick', mynickname);
+  result := RCString('anick', myanickname);
 end;
 
 function TMyIrcThread.GetIrcUsername: String;
