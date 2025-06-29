@@ -769,7 +769,7 @@ begin
   fChanSettings := FindIrcChannelSettings(nn, blowchannel);
   if fChanSettings <> nil then
   begin
-    ircth.chanpart(blowchannel, ircth.BotNick);
+    ircth.chanpart(blowchannel);
     IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
     sitesdat.EraseSection('channel-' + nn + '-' + blowchannel);
     ircth.shouldjoin := True;
@@ -974,7 +974,7 @@ begin
   fChanSettings := FindIrcChannelSettings(nn, blowchannel);
   if fChanSettings <> nil then
   begin
-    ircth.chanpart(blowchannel, ircth.BotNick);
+    ircth.chanpart(blowchannel);
     IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
     ircth.shouldjoin := True;
   end
