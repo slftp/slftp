@@ -111,6 +111,7 @@ type
     FDirlistGaveUp: Boolean; //< @true if dirlisting has been given up for this dir
     FHasNFO: Boolean; //< True when dirlist has found a valid NFO file
     FHasSFV: Boolean; //< True when dirlist has found a valid SFV file
+    FMultiCD: Boolean; //< True when this dirlist contains multiple disks (e.g. CD1, CD2, Disk1, Disk2, ...)
 
     { Checks if there is a @link(CompleteDirTag) and then calls @link(tags.TagComplete) to check if it results in COMPLETE
       @returns(@true if determined as COMPLETE, @false otherwise) }
@@ -119,6 +120,8 @@ type
     procedure SetLastChanged(const value: TDateTime);
     
     procedure SetFullPath(const aFullPath: string);
+    { Calculates the FMultiCD field based on the contained dirlist entries. }
+    procedure CalculateMultiCD;
     class function Timestamp(ts: String): TDateTime;
   public
     dirlist_lock: TSlCriticalSection2;
@@ -399,6 +402,7 @@ begin
   FCachedCompleteResult := False;
   FHasNFO := False;
   FHasSFV := False;
+  FMultiCD := False;
 
   self.FStartedTime := 0;
   self.FCompletedTime := 0;
@@ -492,45 +496,7 @@ var
 begin
   if parent = nil then
   begin
-    biggestcd := 0;
-    Result := False;
-    s := '';
-    // megnezzuk van e CD1 CD2 stb jellegu direktorink
-    dirlist_lock.Enter('TDirList.MultiCD');
-    try
-      for de in entries.Values do
-      begin
-        try
-          if de.cdno <> 0 then
-          begin
-            Result := True;
-            s := s + IntToStr(de.cdno);
-
-            if de.cdno > biggestcd then
-              biggestcd := de.cdno;
-          end;
-        except
-          on e: Exception do
-          begin
-            debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.MultiCD: %s', [e.Message]);
-            Continue;
-          end;
-        end;
-      end;
-    finally
-      dirlist_lock.Leave;
-    end;
-
-    if biggestcd > 1 then
-    begin
-      allcdshere := True;
-      for i := 1 to biggestcd do
-        if (0 = Pos(IntToStr(i), s)) then
-        begin
-          allcdshere := False;
-          Break;
-        end;
-    end;
+    Result := FMultiCD;
   end
   else
   begin
@@ -762,6 +728,10 @@ begin
         if de.IsSFV and (de.filesize > 0) then
           FHasSFV := True;
 
+        // if this newly created entry is a dir with a cdno, recalculate MultiCD info
+        if de.cdno > 0 then
+          CalculateMultiCD;
+
         LastChanged := Now();
         added := True;
       end
@@ -815,7 +785,6 @@ begin
   if added then
   begin
     FCachedCompleteResult := False;
-    allcdshere := False;
 
     if skiplist <> nil then
     begin
@@ -1310,6 +1279,8 @@ begin
   FLastChanged := 0;
   FLastUpdated := 0;
   biggestcd := 0;
+  FHasNFO := False;
+  FHasSFV := False;
 
   dirlist_lock.Enter('TDirList.Clear');
   try
@@ -1628,6 +1599,51 @@ begin
   begin
     FFullPath := aFullPath;
     FContainsNFOOnlyDirTag := ReleaseOnlyConsistsOfNFO(aFullPath);
+  end;
+end;
+
+procedure TDirList.CalculateMultiCD;
+var
+  allCdNumbers: String;
+  i: Integer;
+  de: TDirListEntry;
+begin
+  allCdNumbers := '';
+  biggestcd := 0;
+
+  // find the biggest CD
+  for de in entries.Values do
+  begin
+    try
+      if de.cdno > 0 then
+      begin
+        FMultiCD := True;
+        allCdNumbers := allCdNumbers + IntToStr(de.cdno);
+
+        if de.cdno > biggestcd then
+          biggestcd := de.cdno;
+      end;
+    except
+      on e: Exception do
+      begin
+        debugunit.Debug(dpError, section, '[EXCEPTION] TDirList.CalculateMultiCD: %s', [e.Message]);
+        Continue;
+      end;
+    end;
+  end;
+
+  // find out if any CD number below the biggest one is still missing and set allcdshere accordingly
+  if biggestcd > 1 then
+  begin
+    allcdshere := True;
+    for i := 1 to biggestcd do
+    begin
+      if (0 = Pos(IntToStr(i), allCdNumbers)) then
+      begin
+        allcdshere := False;
+        Break;
+      end;
+    end;
   end;
 end;
 
