@@ -96,12 +96,11 @@ implementation
       try
         for fExistingCs in glUsedCriticalSections.Values do
         begin
-          fExistingCs.Enter('ChangeToSimpleLocking');
-          try
+          if fExistingCs.FUseTimeoutLocking then
+          begin
+            fExistingCs.Enter('ChangeToSimpleLocking'); // no need to leave because we change to normal critical section
             fExistingCs.FreeObjects;
             fExistingCs.InitNoTimeoutLocking;
-          finally
-            fExistingCs.Leave;
           end;
         end;
       finally
