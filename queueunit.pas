@@ -1122,7 +1122,9 @@ begin
     try
       if TaskAlreadyInQueue(t) then
       begin
-        TaskReady(t);
+        if t.IsNotifyTask then
+          TaskReady(t);
+
         t.Free;
         exit;
       end;
@@ -1487,7 +1489,8 @@ begin
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin
               ss := fTask.uidtext;
-              TaskReady(fTask);
+              if fTask.IsNotifyTask then
+                TaskReady(fTask);
 
               if (fTask.ClassType = TPazoRaceTask) then
               begin

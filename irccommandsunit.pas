@@ -445,7 +445,7 @@ begin
 
   r := TDirlistTask.Create(Netname, Channel, sitename, dir, true);
   tn := AddNotify;
-  tn.tasks.Add(r);
+  tn.AddTask(r);
   AddTask(r, true);
 
   tn.event.WaitFor($FFFFFFFF);
@@ -473,7 +473,7 @@ var
 begin
   r := TRawTask.Create(Netname, Channel, sitename, dir, command);
   tn := AddNotify;
-  tn.tasks.Add(r);
+  tn.AddTask(r);
   AddTask(r, true);
 
   tn.event.WaitFor($FFFFFFFF);

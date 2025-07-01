@@ -1182,7 +1182,7 @@ var
   begin
     r := TRawTask.Create(Netname, Channel, sitename, dir, command);
     tn := AddNotify;
-    tn.tasks.Add(r);
+    tn.AddTask(r);
     AddTask(r, True);
 
     tn.event.WaitFor($FFFFFFFF);

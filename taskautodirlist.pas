@@ -159,7 +159,7 @@ begin
         if IsSourceSiteValid(site) then
         begin
           fCwdTask := TCWDTask.Create('', '', site.Name, MyIncludeTrailingSlash(x.Values[x.Names[i]]) + MyIncludeTrailingSlash(releasenametofind));
-          fTaskNotify.tasks.Add(fCwdTask);
+          fTaskNotify.AddTask(fCwdTask);
           AddTask(fCwdTask);
         end;
       end;
@@ -217,7 +217,7 @@ begin
         if site.UseSiteSearchOnReqFill and (IsSourceSiteValid(site)) then
         begin
           fSiteSearchTask := TSearchReleaseTask.Create('', '', site.Name, releasenametofind, False);
-          fTaskNotify.tasks.Add(fSiteSearchTask);
+          fTaskNotify.AddTask(fSiteSearchTask);
           AddTask(fSiteSearchTask);
         end;
       end;

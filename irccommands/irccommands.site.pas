@@ -65,7 +65,7 @@ begin
 
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
-    tn.tasks.Add(l);
+    tn.AddTask(l);
 
   l.startat := GiveSiteLastStart;
   AddTask(l);
@@ -1548,7 +1548,7 @@ begin
   tn := AddNotify;
   try
     r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE USER ' + username);
-    tn.tasks.Add(r);
+    tn.AddTask(r);
     AddTask(r, True);
     tn.event.WaitFor($FFFFFFFF);
   except
@@ -1950,7 +1950,7 @@ var
     try
       try
         r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-        tn.tasks.Add(r);
+        tn.AddTask(r);
         AddTask(r, True);
         tn.event.WaitFor($FFFFFFFF);
       except on E: Exception do

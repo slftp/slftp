@@ -7,6 +7,8 @@ uses Classes;
 type
   // this is all or part of the job
   TTask = class
+  private
+    FIsNotifyTask: Boolean;
   public
     site1: String;
     ssite1: Pointer;
@@ -52,6 +54,8 @@ type
     function ScheduleText: String;
     function IsReadyToBeExecuted: boolean; virtual;
     procedure DebugTask;
+    procedure EnableNotify;
+    property IsNotifyTask: Boolean read FIsNotifyTask;
   end;
 
 procedure Tasks_Init;
@@ -71,7 +75,7 @@ var
 
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify;
 
 const
   section = 'tasks';
@@ -108,7 +112,7 @@ begin
   announce := '';
   slot1name := '';
   slot2name := '';
-
+  FIsNotifyTask := False;
 
   ssite1 := FindSiteByName('', site1);
   if ssite1 = nil then
@@ -160,6 +164,11 @@ end;
 function TTask.IsReadyToBeExecuted: boolean;
 begin
   Result := True;
+end;
+
+procedure TTask.EnableNotify;
+begin
+  FIsNotifyTask := True;
 end;
 
 procedure Tasks_Init;

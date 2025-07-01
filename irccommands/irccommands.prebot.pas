@@ -212,7 +212,7 @@ begin
       end;
 
       r := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(ps.maindir) + dir);
-      tn.tasks.Add(r);
+      tn.AddTask(r);
       AddTask(r, True);
       Inc(addednumber);
     end;
@@ -490,7 +490,7 @@ begin
       begin
         try
           rc := TDirlistTask.Create(netname, channel, ps.Name, MyIncludeTrailingSlash(s.sectiondir[section]), True);
-          tn1.tasks.Add(rc);
+          tn1.AddTask(rc);
           AddTask(rc, True);
           Inc(addednumber);
         except
@@ -557,7 +557,7 @@ begin
 
       rr := TRawTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]), precmd);
       rr.wantedslot := sr.slotname;
-      tn2.tasks.Add(rr);
+      tn2.AddTask(rr);
       AddTask(rr, True);
     end;
 
@@ -625,7 +625,7 @@ begin
 
       rl := TDirlistTask.Create(netname, channel, sr.sitename, MyIncludeTrailingSlash(s.sectiondir[section]));
       rl.wantedslot := sr.slotname;
-      tn3.tasks.Add(rl);
+      tn3.AddTask(rl);
       AddTask(rl, True);
     end;
     RemoveTN(tn2);
@@ -1017,7 +1017,7 @@ begin
 
         r := TDelreleaseTask.Create(Netname, Channel, s.Name, MyIncludeTrailingSlash(predir) + dir);
         tn := AddNotify;
-        tn.tasks.Add(r);
+        tn.AddTask(r);
         AddTask(r, True);
 
         irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
@@ -1061,7 +1061,7 @@ begin
     try
       r := TDelreleaseTask.Create(Netname, Channel, sitename, MyIncludeTrailingSlash(predir) + dir);
       tn := AddNotify;
-      tn.tasks.Add(r);
+      tn.AddTask(r);
       AddTask(r, True);
       irc_addtext(Netname, Channel, 'Firing %s @ %s ... hang on a sec bro!', [dir, s.Name]);
       tn.event.WaitFor($FFFFFFFF);
@@ -1166,7 +1166,7 @@ begin
 
         r := TDelreleaseTask.Create(Netname, Channel, ps.Name,
           MyIncludeTrailingSlash(ps.maindir) + dir);
-        tn.tasks.Add(r);
+        tn.AddTask(r);
         AddTask(r, True);
         added := True;
       end;
