@@ -109,6 +109,7 @@ var
 procedure TQueueThread.QueueFire;
 begin
   try
+    //Debug(dpSpam, section, Format('QueueFire: %s', [(TSite(fSite).Name)]));
     queueevent.SetEvent;
   except
     on e: Exception do
@@ -649,7 +650,7 @@ var
   sst: TSiteSlot;
   actual_count: integer;
 begin
-  // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
+   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
   s := TSite(self.fSite);
@@ -1125,7 +1126,7 @@ begin
       begin
         if t.IsNotifyTask then
           TaskReady(t);
-
+          
         t.Free;
         exit;
       end;
@@ -1467,6 +1468,7 @@ begin
     if fSite = nil then
     begin
       //happens on startup
+      Debug(dpSpam, section, 'Queue Iteration: Wait for site]');
       Sleep(1000);
       continue;
     end;
@@ -1474,7 +1476,7 @@ begin
     ts := TSite(fSite);
     fBusyDestinationsTmp := fBusyDestinations;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
-    //Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
+    //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
     try
       main_lock.Enter('Execute');
       try
@@ -1529,6 +1531,7 @@ begin
             try
               if ts.freeslots = 0 then
               begin
+                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
 
                 // no need to iterate the queue early if there are no free slots.
                 // when a slot becomes free, a queue fire is issued.
@@ -1621,7 +1624,7 @@ begin
           end;
         end;
 
-      //Debug(dpSpam, section, 'Queue Iteration end [%d tasks]', [tasks.Count]);
+      //Debug(dpSpam, section, 'Queue Iteration end (%s) [%d tasks]', [ts.Name, tasks.Count]);
     except
       on e: Exception do
       begin
@@ -1660,16 +1663,16 @@ begin
     case queueevent.WaitFor(fWaitTimerTimeout) of
       wrSignaled: { Event fired. Normal exit. }
       begin
-
+        //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
       end;
       else { Timeout reach }
       begin
         if fWaitTimerTimeout = GlDefaultIterationWaitTimeout then
-      begin
-        if spamcfg.readbool(section, 'queue_recycle', True) then
-          irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
-        Debug(dpMessage, section,
-          Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
+        begin
+          if spamcfg.readbool(section, 'queue_recycle', True) then
+            irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
+          Debug(dpMessage, section,
+            Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
         end;
       end;
     end;
