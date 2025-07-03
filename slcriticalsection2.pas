@@ -21,9 +21,10 @@ type
     FName, FCurrentCodeSegmentName: string;
     FUseTimeoutLocking: boolean;
     FLockOwnerNameStack: TStack<string>;
-    FHoldTimer: TSLTimer;
+    FHoldTimerStack: TStack<TSLTimer>;
     FWaitTimesDict: TDictionary<string, Double>;
     FHoldTimesDict: TDictionary<string, Double>;
+    FLockCountDict: TDictionary<string, Integer>;
     function GetCurrentLockOwnerName: string;
     procedure InitNoTimeoutLocking;
     procedure FreeObjects;
@@ -156,9 +157,10 @@ implementation
       FLockOwnerNameStack := TStack<string>.Create;
       if glUseTimer then
       begin
-        FHoldTimer := TSLTimer.Create;
+        FHoldTimerStack := TStack<TSLTimer>.Create;
         FWaitTimesDict := TDictionary<string, Double>.Create;
         FHoldTimesDict := TDictionary<string, Double>.Create;
+        FLockCountDict := TDictionary<string, Integer>.Create;
       end;
     end
     else
@@ -177,7 +179,8 @@ implementation
       begin
         FreeAndNil(FWaitTimesDict);
         FreeAndNil(FHoldTimesDict);
-        FreeAndNil(FHoldTimer);
+        FreeAndNil(FLockCountDict);
+        FreeAndNil(FHoldTimerStack);
       end;
 
       if glUsedCriticalSectionsLock <> nil then
@@ -208,7 +211,7 @@ implementation
 
   function TslCriticalSection2.Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal; const aRaiseExceptionOnFail: boolean = True): boolean;
   var
-    fTimer: TSLTimer;
+    fTimer, fHoldTimer: TSLTimer;
   begin
 
     if FUseTimeoutLocking then
@@ -265,11 +268,16 @@ implementation
               FWaitTimesDict.Add(aLockOwnerName, fTimer.ElapsedMilliseconds)
             else
               FWaitTimesDict[aLockOwnerName] := FWaitTimesDict[aLockOwnerName] + fTimer.ElapsedMilliseconds;
+
+            if not FLockCountDict.ContainsKey(aLockOwnerName) then
+              FLockCountDict.Add(aLockOwnerName, 1)
+            else
+              FLockCountDict[aLockOwnerName] := FLockCountDict[aLockOwnerName] + 1;
           end;
 
-          if FLockCount < 1 then // don't reset the timer in case of multiple locks by the same thread
-            FHoldTimer.Start;
-
+          fHoldTimer := TSlTimer.Create;
+          fHoldTimer.Start;
+          FHoldTimerStack.Push(fHoldTimer);
         end;
       finally
         if glUseTimer then
@@ -286,6 +294,7 @@ implementation
   procedure TslCriticalSection2.Leave;
   var
     fLockOwnerName: String;
+    fTimer: TSLTimer;
   begin
     if FUseTimeoutLocking then
     begin
@@ -298,22 +307,28 @@ implementation
       if FLockCount > 0 then
       begin
         FLockCount := FLockCount - 1;
-        FLockOwnerNameStack.Pop;
+        fLockOwnerName := FLockOwnerNameStack.Pop;
       end
       else
       begin
         FLockOwningThreadID := 0;
         fLockOwnerName := FLockOwnerNameStack.Pop;
         FCurrentCodeSegmentName := '';
-        if glUseTimer then
-        begin
-          FHoldTimer.Stop;
-          if not FHoldTimesDict.ContainsKey(fLockOwnerName) then
-            FHoldTimesDict.Add(fLockOwnerName, FHoldTimer.ElapsedMilliseconds)
-          else
-            FHoldTimesDict[fLockOwnerName] := FHoldTimesDict[fLockOwnerName] + FHoldTimer.ElapsedMilliseconds;
-        end;
         FEvent.SetEvent;
+      end;
+
+      if glUseTimer then
+      begin
+        fTimer := FHoldTimerStack.Pop;
+        try
+          fTimer.Stop;
+          if not FHoldTimesDict.ContainsKey(fLockOwnerName) then
+            FHoldTimesDict.Add(fLockOwnerName, fTimer.ElapsedMilliseconds)
+          else
+            FHoldTimesDict[fLockOwnerName] := FHoldTimesDict[fLockOwnerName] + fTimer.ElapsedMilliseconds;
+        finally
+          fTimer.Free;
+        end;
       end;
     end
     else
@@ -380,10 +395,13 @@ implementation
     fFilename, fNowstr: String;
 
   procedure SortAndWriteDict(const aHeader: string;
-    const aDict: TDictionary<string, Double>);
+    const aDict: TDictionary<string, Double>;
+    const aCountsDict: TDictionary<string, Integer>);
   var
     fSortedSub: TStrDoublePairList;
     fSubPair: TStrDoublePair;
+    fCount: Integer;
+    fAvg: Double;
   begin
     fOutput.Add('  ' + aHeader + ':');
     fSortedSub := TStrDoublePairList.Create;
@@ -394,7 +412,14 @@ implementation
       fSortedSub.Sort(TComparer<TStrDoublePair>.Construct(_StrDoublePairSorter));
 
       for fSubPair in fSortedSub do
-        fOutput.Add(Format('    %s: %.3f', [fSubPair.Key, fSubPair.Value]));
+      begin
+        if aCountsDict.TryGetValue(fSubPair.Key, fCount) and (fCount > 0) then
+          fAvg := fSubPair.Value / fCount
+        else
+          fAvg := 0;
+
+        fOutput.Add(Format('    %s: total=%.3f, count=%d, avg=%.3f', [fSubPair.Key, fSubPair.Value, fCount, fAvg]));
+      end;
     finally
       fSortedSub.Free;
     end;
@@ -430,8 +455,8 @@ begin
       fOutput.Add(Format('Critical Section: %s', [fEntry.Name]));
       fOutput.Add(Format('  Total Wait Time: %.3f', [fEntry.WaitSum]));
 
-      SortAndWriteDict('Wait Times', fEntry.CriticalSection.FWaitTimesDict);
-      SortAndWriteDict('Hold Times', fEntry.CriticalSection.FHoldTimesDict);
+      SortAndWriteDict('Wait Times', fEntry.CriticalSection.FWaitTimesDict, fEntry.CriticalSection.FLockCountDict);
+      SortAndWriteDict('Hold Times', fEntry.CriticalSection.FHoldTimesDict, fEntry.CriticalSection.FLockCountDict);
 
       fOutput.Add(''); // Empty line between entries
     end;
