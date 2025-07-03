@@ -104,6 +104,7 @@ var
 
   StatsList: TObjectList<TQueueStat>;
   QueueStatUpdateDateTime: TDateTime;
+  GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
 
 procedure TQueueThread.QueueFire;
 begin
@@ -1453,6 +1454,8 @@ var
   ss:   String;
   ts:   TSite;
   fBusyDestinationsTmp: TDictionary<TObject, integer>;
+  fNextTaskStartAt: TDateTime;
+  fWaitTimerTimeout: Cardinal;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1518,6 +1521,7 @@ begin
           end;
         end;
 
+        fNextTaskStartAt := MaxDateTime;
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
           for fTask in tasks do
@@ -1525,7 +1529,10 @@ begin
             try
               if ts.freeslots = 0 then
               begin
-                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+
+                // no need to iterate the queue early if there are no free slots.
+                // when a slot becomes free, a queue fire is issued.
+                fNextTaskStartAt := MaxDateTime;
                 break;
               end;
 
@@ -1536,6 +1543,10 @@ begin
                 begin
                   if fTask.IsReadyToBeExecuted then
                     TryToAssignSlots(fTask);
+                end
+                else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
+                begin
+                  fNextTaskStartAt := fTask.startat;
                 end;
               end;
             except
@@ -1618,18 +1629,48 @@ begin
       end;
     end;
 
+    // if there is a task with a delayed start time, we will wait exactly that long
+    if fNextTaskStartAt = MaxDateTime then
+      fWaitTimerTimeout := GlDefaultIterationWaitTimeout
+    else
+    begin
+      if fNextTaskStartAt <= Now then  // can happen ...
+      begin
+        if ts.freeslots = 0 then
+        begin
+          // no free slots, so we have to wait for a slot to become free and trigger a queue fire
+          fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
+        end
+        else
+        begin
+          // don't wait at all if the next task should already be assigned now
+          Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
+          continue;
+        end;
+      end;
+
+      fWaitTimerTimeout := MilliSecondsBetween(Now, fNextTaskStartAt);
+
+      // don't wait longer than the default wait time if that task is supposed to start later than that
+      if fWaitTimerTimeout > GlDefaultIterationWaitTimeout then
+        fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
+    end;
+
     //queueevent.WaitFor($FFFFFFFF);
-    case queueevent.WaitFor(15 * 1000) of
+    case queueevent.WaitFor(fWaitTimerTimeout) of
       wrSignaled: { Event fired. Normal exit. }
       begin
 
       end;
       else { Timeout reach }
       begin
+        if fWaitTimerTimeout = GlDefaultIterationWaitTimeout then
+      begin
         if spamcfg.readbool(section, 'queue_recycle', True) then
           irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
         Debug(dpMessage, section,
           Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
+        end;
       end;
     end;
   end;
