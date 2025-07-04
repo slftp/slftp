@@ -273,11 +273,11 @@ implementation
               FLockCountDict.Add(aLockOwnerName, 1)
             else
               FLockCountDict[aLockOwnerName] := FLockCountDict[aLockOwnerName] + 1;
-          end;
 
-          fHoldTimer := TSlTimer.Create;
-          fHoldTimer.Start;
-          FHoldTimerStack.Push(fHoldTimer);
+            fHoldTimer := TSlTimer.Create;
+            fHoldTimer.Start;
+            FHoldTimerStack.Push(fHoldTimer);
+          end;
         end;
       finally
         if glUseTimer then
@@ -295,6 +295,24 @@ implementation
   var
     fLockOwnerName: String;
     fTimer: TSLTimer;
+
+    procedure _handleTimer;
+    begin
+      if glUseTimer then
+      begin
+        fTimer := FHoldTimerStack.Pop;
+        try
+          fTimer.Stop;
+          if not FHoldTimesDict.ContainsKey(fLockOwnerName) then
+             FHoldTimesDict.Add(fLockOwnerName, fTimer.ElapsedMilliseconds)
+          else
+            FHoldTimesDict[fLockOwnerName] := FHoldTimesDict[fLockOwnerName] + fTimer.ElapsedMilliseconds;
+        finally
+          fTimer.Free;
+        end;
+      end;
+    end;
+
   begin
     if FUseTimeoutLocking then
     begin
@@ -308,28 +326,19 @@ implementation
       begin
         FLockCount := FLockCount - 1;
         fLockOwnerName := FLockOwnerNameStack.Pop;
+        _handleTimer;
       end
       else
       begin
         FLockOwningThreadID := 0;
         fLockOwnerName := FLockOwnerNameStack.Pop;
         FCurrentCodeSegmentName := '';
+        _handleTimer;
+
+        // SetEvent must be the last thing we do because after that the next thread will start working
         FEvent.SetEvent;
       end;
 
-      if glUseTimer then
-      begin
-        fTimer := FHoldTimerStack.Pop;
-        try
-          fTimer.Stop;
-          if not FHoldTimesDict.ContainsKey(fLockOwnerName) then
-            FHoldTimesDict.Add(fLockOwnerName, fTimer.ElapsedMilliseconds)
-          else
-            FHoldTimesDict[fLockOwnerName] := FHoldTimesDict[fLockOwnerName] + fTimer.ElapsedMilliseconds;
-        finally
-          fTimer.Free;
-        end;
-      end;
     end
     else
     begin
