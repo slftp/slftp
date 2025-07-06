@@ -100,13 +100,16 @@ var
   cover_dirs_priority: Integer; //< value for priority in queue sorter for cover dirs from slftp.ini
   queueclean_unassigned: Integer;
   queueclean_maxrunning: Integer;
+  enable_queueclean: boolean;
 
   StatsList: TObjectList<TQueueStat>;
   QueueStatUpdateDateTime: TDateTime;
+  GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
 
 procedure TQueueThread.QueueFire;
 begin
   try
+    //Debug(dpSpam, section, Format('QueueFire: %s', [(TSite(fSite).Name)]));
     queueevent.SetEvent;
   except
     on e: Exception do
@@ -410,7 +413,7 @@ begin
 
   main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
   tasks      := TObjectList.Create(True);
-  queueevent := TEvent.Create(nil, False, False, 'queue');
+  queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
   queue_last_run := Now;
   queueclean_last_run := Now;
   FreeOnTerminate := True;
@@ -647,7 +650,7 @@ var
   sst: TSiteSlot;
   actual_count: integer;
 begin
-  // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
+   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
   s := TSite(self.fSite);
@@ -1121,7 +1124,9 @@ begin
     try
       if TaskAlreadyInQueue(t) then
       begin
-        TaskReady(t);
+        if t.IsNotifyTask then
+          TaskReady(t);
+          
         t.Free;
         exit;
       end;
@@ -1450,6 +1455,8 @@ var
   ss:   String;
   ts:   TSite;
   fBusyDestinationsTmp: TDictionary<TObject, integer>;
+  fNextTaskStartAt: TDateTime;
+  fWaitTimerTimeout: Cardinal;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1461,6 +1468,7 @@ begin
     if fSite = nil then
     begin
       //happens on startup
+      Debug(dpSpam, section, 'Queue Iteration: Wait for site]');
       Sleep(1000);
       continue;
     end;
@@ -1468,7 +1476,7 @@ begin
     ts := TSite(fSite);
     fBusyDestinationsTmp := fBusyDestinations;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
-    //Debug(dpSpam, section, 'Queue Iteration begin [%d tasks]', [tasks.Count]);
+    //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
     try
       main_lock.Enter('Execute');
       try
@@ -1486,7 +1494,8 @@ begin
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin
               ss := fTask.uidtext;
-              TaskReady(fTask);
+              if fTask.IsNotifyTask then
+                TaskReady(fTask);
 
               if (fTask.ClassType = TPazoRaceTask) then
               begin
@@ -1514,6 +1523,7 @@ begin
           end;
         end;
 
+        fNextTaskStartAt := MaxDateTime;
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
           for fTask in tasks do
@@ -1522,6 +1532,10 @@ begin
               if ts.freeslots = 0 then
               begin
                 //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+
+                // no need to iterate the queue early if there are no free slots.
+                // when a slot becomes free, a queue fire is issued.
+                fNextTaskStartAt := MaxDateTime;
                 break;
               end;
 
@@ -1532,6 +1546,10 @@ begin
                 begin
                   if fTask.IsReadyToBeExecuted then
                     TryToAssignSlots(fTask);
+                end
+                else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
+                begin
+                  fNextTaskStartAt := fTask.startat;
                 end;
               end;
             except
@@ -1606,7 +1624,7 @@ begin
           end;
         end;
 
-      //Debug(dpSpam, section, 'Queue Iteration end [%d tasks]', [tasks.Count]);
+      //Debug(dpSpam, section, 'Queue Iteration end (%s) [%d tasks]', [ts.Name, tasks.Count]);
     except
       on e: Exception do
       begin
@@ -1614,18 +1632,48 @@ begin
       end;
     end;
 
+    // if there is a task with a delayed start time, we will wait exactly that long
+    if fNextTaskStartAt = MaxDateTime then
+      fWaitTimerTimeout := GlDefaultIterationWaitTimeout
+    else
+    begin
+      if fNextTaskStartAt <= Now then  // can happen ...
+      begin
+        if ts.freeslots = 0 then
+        begin
+          // no free slots, so we have to wait for a slot to become free and trigger a queue fire
+          fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
+        end
+        else
+        begin
+          // don't wait at all if the next task should already be assigned now
+          Debug(dpSpam, section, Format('TQueueThread.Execute: skip sleep %s', [ts.Name]));
+          continue;
+        end;
+      end;
+
+      fWaitTimerTimeout := MilliSecondsBetween(Now, fNextTaskStartAt);
+
+      // don't wait longer than the default wait time if that task is supposed to start later than that
+      if fWaitTimerTimeout > GlDefaultIterationWaitTimeout then
+        fWaitTimerTimeout := GlDefaultIterationWaitTimeout;
+    end;
+
     //queueevent.WaitFor($FFFFFFFF);
-    case queueevent.WaitFor(15 * 1000) of
+    case queueevent.WaitFor(fWaitTimerTimeout) of
       wrSignaled: { Event fired. Normal exit. }
       begin
-
+        //Debug(dpSpam, section, Format('[QUEUEFIRE received : %s', [ts.Name]));
       end;
       else { Timeout reach }
       begin
-        if spamcfg.readbool(section, 'queue_recycle', True) then
-          irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
-        Debug(dpMessage, section,
-          Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
+        if fWaitTimerTimeout = GlDefaultIterationWaitTimeout then
+        begin
+          if spamcfg.readbool(section, 'queue_recycle', True) then
+            irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
+          Debug(dpMessage, section,
+            Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
+        end;
       end;
     end;
   end;
@@ -1655,6 +1703,7 @@ begin
 
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
+  enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
 end;
@@ -1674,7 +1723,7 @@ begin
 
   try
 
-  if not config.ReadBool(section, 'enable_queueclean', False) then
+  if not enable_queueclean then
   begin
     queueclean_last_run := Now;
     exit;

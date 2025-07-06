@@ -3574,7 +3574,7 @@ begin
   PFDot := nil;
   while (PF < FEnd) and (Value < VEnd) do begin
     if PWord(Value)^ > High(Byte) then Exit;
-    B := Byte(PWord(Value)^);
+    B := Byte(PWord(Value)^ or $0020);
     F := {$IFDEF UNICODE}PWord(PF)^ or $0020{$ELSE}PByte(PF)^ or $20{$ENDIF};
     case B of
       Byte('0')..Byte('9'): begin
@@ -3630,7 +3630,7 @@ jmpFrac:        Time.Fractions := Time.Fractions * 10 + B;
                 else if F = Byte('.')
                   then goto next
                   else goto zFlush;
-      else if (B = F) or ((B or $20 = Byte('t')) and (F = Byte(' '))) or
+      else if (B = F) or ((B = Byte('t')) and (F = Byte(' '))) or
             ((B = Byte(' ')) and (F = Byte('t'))) then begin //delimiter?
 Next:   Inc(Value);
         Inc(PF);
@@ -3665,7 +3665,7 @@ begin
   Len := 0;
   PFDot := nil;
   while (PF < FEnd) and (Value < VEnd) do begin
-    B := PByte(Value)^;
+    B := PByte(Value)^ or $20;
     F := {$IFDEF UNICODE}PWord(PF)^ or $0020{$ELSE}PByte(PF)^ or $20{$ENDIF};
     case B of
       Byte('0')..Byte('9'): begin
@@ -3751,7 +3751,7 @@ TimeZ:          PTZ := Value;
                 else if F = Byte('.')
                   then goto next
                   else goto zFlush;
-      else if (B = F) or ((B or $20 = Byte('t')) and (F = Byte(' '))) or
+      else if (B = F) or ((B = Byte('t')) and (F = Byte(' '))) or
             ((B = Byte(' ')) and (F = Byte('t'))) then begin //delimiter?
 Next:   Inc(Value);
         Inc(PF);
@@ -4722,6 +4722,7 @@ var PStart, ZStart: PAnsiChar;
   C1: {$IFDEF UNICODE}Word{$ELSE}Byte{$ENDIF};
   EQ2: Boolean;
   B: Byte absolute EQ2;
+  TempStr: AnsiString;
 label inc_dbl; //keep code tiny
 begin
   PStart := Buf;
@@ -4734,7 +4735,13 @@ begin
     C1 := {$IFDEF UNICODE}PWord{$ELSE}PByte{$ENDIF}(PFormat)^ or $20;
     EQ2 := {$IFDEF UNICODE}PWord{$ELSE}PByte{$ENDIF}(PFormat+1)^ or $20 = C1;
     case C1 of
-      Ord('h'): if EQ2 or (Hour >= 10) then begin
+      Ord('h'): if Hour > 99 then begin
+                  TempStr := AnsiString(IntToStr(Hour));
+                  Move(PAnsiChar(TempStr)^, Buf^, Length(TempStr));
+                  Inc(Buf, Length(TempStr));
+                  Inc(PFormat, 1+Ord(EQ2));
+                  Continue;
+                end else if EQ2 or (Hour >= 10) then begin
                   PWord(Buf)^ := TwoDigitLookupW[Hour];
 Inc_dbl:          Inc(Buf, 2);
                   Inc(PFormat, 1+Ord(EQ2));

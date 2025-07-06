@@ -65,7 +65,10 @@ uses
   slsslTests,
   sitesunitTests,
   precatcherTests,
-  slcriticalsection2Tests;
+  imdbDatabaseTests,
+  slcriticalsection2Tests,
+  variantCacheTests,
+  sltimerTests;
 
 var
   filecheck: String;

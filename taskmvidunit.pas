@@ -213,10 +213,10 @@ ujra:
     try
       for de in d.entries.Values do
       begin
-        if ((not de.Directory) and (de.Extension = '.sfv')) then
+        if ((not de.Directory) and (de.IsSFV)) then
           fSFVFile := de.filename;
 
-        if ((not de.Directory) and (de.Extension = '.nfo')) then
+        if ((not de.Directory) and (de.IsNFO)) then
           fNFOFile := de.filename;
       end;
     finally

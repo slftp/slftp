@@ -3,11 +3,15 @@ unit slssl;
 interface
 
 uses
-  IdOpenSSLHeaders_ossl_typ;
+mormot.lib.openssl11, mormot.core.os, mormot.crypt.openssl;
 
 { Get the full OpenSSL version string including version, compiler flags, built date and platform info
   @returns(OpenSSL version string + additional info) }
 function GetOpenSSLVersion: String;
+
+{ Get the Information if openssl is available
+  @returns(OpenSSL version string + additional info) }
+function GetOpenSSLAvailable: boolean;
 
 { Get the full OpenSSL version
   @returns(OpenSSL version string) }
@@ -32,10 +36,15 @@ function GetOpenSSLConnectionContext: PSSL_CTX;
   @returns(String that indicates the error) }
 function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
 
+{ Loads OpenSSL.
+  @param(aError In case an error occurs, this out parameter will contains some info.)
+  @returns(True, in case of success. False otherwise.) }
+function InitOpenSSL(out aError: String): boolean;
+
 implementation
 
 uses
-  SysUtils, IdOpenSSLHeaders_err, IdOpenSSLHeaders_crypto, IdOpenSSLHeaders_ssl;
+  SysUtils;
 
 //const
 //  gSSL_Default_Cipher_List = 'ALL:!EXP';
@@ -75,35 +84,99 @@ end;
 
 function GetOpenSSLVersion: String;
 begin
-  Result := Format('%s %s %s %s',[
-    OpenSSL_version(OPENSSL_VERSION_CONST),
-    OpenSSL_version(OPENSSL_CFLAGS),
-    OpenSSL_version(OPENSSL_BUILT_ON),
-    OpenSSL_version(OPENSSL_PLATFORM)]);
+  if OpenSslIsLoaded then
+  begin
+    // Get and display the OpenSSL version
+    Result := OpenSslVersionText;
+  end;
+
+end;
+
+function GetOpenSSLAvailable: boolean;
+begin
+  Result := OpenSslIsLoaded;
+end;
+
+function initOpenSsl(out aError: String): boolean;
+var
+  fLoadedProvider: POSSL_PROVIDER;
+begin
+  Result := false;
+  aError := '';
+
+  if not OpenSslIsLoaded then
+  begin
+    Result := OpenSslInitialize('','');
+    if Result then
+      RegisterOpenSsl
+    else
+    begin
+      aError := 'OpenSslInitialize failed! can not load openssl!';
+      exit;
+    end;
+
+    if OpenSslVersion >= OPENSSL3_VERNUM then
+    begin
+      // on windows to be able to load the legacy.dll we need to OSSL_PROVIDER_set_default_search_path
+      {$IFDEF MSWINDOWS}
+        {$IFDEF UNICODE}
+          OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(Pointer(AnsiString(ExtractFilePath(ParamStr(0))))));
+        {$ELSE}
+          OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(ExtractFilePath(ParamStr(0))));
+        {$ENDIF}
+      {$ENDIF}
+
+      fLoadedProvider := OSSL_PROVIDER_load(NIL, 'default');
+      if fLoadedProvider = NIL THEN
+      begin
+        aError := 'default ssl provider not loaded!';
+        Result := False;
+        exit;
+      end;
+      fLoadedProvider := OSSL_PROVIDER_load(NIL, 'legacy');
+      if fLoadedProvider = NIL THEN
+      begin
+        aError := 'legacy ssl provider not loaded!';
+        Result := False;
+        exit;
+      end;
+
+      Result := True;
+      Exit;
+    end;
+    if OpenSslVersion < OPENSSL1_VERNUM then
+    begin
+      aError := 'Openssl-Version is too old! Please Update!';
+      Result := False;
+      exit;
+    end;
+  end
+  else
+  begin
+    Result := true;
+  end;
 end;
 
 function GetOpenSSLShortVersion: String;
 begin
-  Result := Copy(OpenSSL_version(OPENSSL_VERSION_CONST), 9, 6);
+    Result := Int64(High(OpenSSL_version_num)).ToString();
 end;
 
 function InitOpenSSLConnectionContext(out aError: String): Boolean;
 begin
   Result := False;
 
-  gSSLContextSettings := SSL_CTX_new(TLS_client_method());
-  if (gSSLContextSettings = nil) then
+  if OpenSslIsAvailable then
   begin
-    aError := _GetEarliestOpenSSLErrorCode;
-    exit;
-  end;
+  gSSLContextSettings := SSL_CTX_new(TLS_client_method());
+    if (gSSLContextSettings = nil) then
+    begin
+      aError := _GetEarliestOpenSSLErrorCode;
+      exit;
+    end;
 
-  SSL_CTX_set_default_verify_paths(gSSLContextSettings);
-  //SSL_CTX_set_options(gSSLContextSettings, SSL_OP_ALL);
-  SSL_CTX_set_mode(gSSLContextSettings, SSL_MODE_AUTO_RETRY);
-  //SSL_CTX_set_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF);
-  //SSL_CTX_set_session_cache_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF); // probably better for 1.1.1 if needed at all
-  //SSL_CTX_set_cipher_list(gSSLContextSettings, gSSL_Default_Cipher_List);
+    SSL_CTX_set_default_verify_paths(gSSLContextSettings);
+  end;
 
   Result := True;
 end;

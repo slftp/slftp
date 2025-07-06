@@ -46,6 +46,8 @@ program slftpUnitTests;
   {$APPTYPE CONSOLE}
 {$ENDIF}
 
+{$R 'taskhttpimdbTests.res' 'taskhttpimdbTests.rc'}
+
 uses
   FastMM5,
   {$IFDEF TESTINSIGHT}
@@ -60,6 +62,7 @@ uses
   mormot.db.raw.sqlite3.static,
   mormot.db.sql.sqlite3,
   slftpUnitTestsSetup,
+  slsslTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,
@@ -81,10 +84,12 @@ uses
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
-  slsslTests,
   sitesunitTests,
-slcriticalsection2Tests;
-imdbDatabaseTests in 'imdbDatabaseTests.pas';
+  slcriticalsection2Tests,
+  imdbDatabaseTests,
+  precatcherTests,
+  variantCacheTests,
+  sltimerTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

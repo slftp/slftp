@@ -1021,7 +1021,7 @@ begin
 
           else if (0 <> Pos('Denying creation of', s.lastResponse)) or (0 <> Pos('BLOCKED:', s.lastResponse)) or (0 <> Pos('Denied by dirscript', s.lastResponse)) then
           begin
-            if config.ReadBool(c_section, 'autoruleadd', True) then
+            if GlTaskRaceAutoRuleAdd then
             begin
               if (0 <> Pos('releases are not accepted here', s.lastResponse)) or (0 <> Pos('This group is BANNED', s.lastResponse)) or (0 <> Pos('This group is not wanted', s.lastResponse)) then
               begin
@@ -1122,7 +1122,7 @@ begin
   self.dir := dir;
   self.rank := rank;
   self.filename := filename;
-  if config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True) then
+  if GlConvertFilenamesToLowercase then
     self.FFilenameForSTORCommand := lowercase(filename)
   else
     self.FFilenameForSTORCommand := filename;
@@ -1202,7 +1202,7 @@ begin
     exit;
   end;
 
-  if (ps2.badcrcevents >= config.ReadInteger('taskrace', 'badcrcevents', 15)) then
+  if (ps2.badcrcevents >= GlTaskRaceBadCrcEvents) then
   begin
     mainpazo.errorreason := 'Too many CRC errors!';
     readyerror := True;
@@ -2576,12 +2576,16 @@ begin
         //COMPLETE MSG: 426 Socket closed
         //COMPLETE MSG: 426 Connection closed by remote host
         //COMPLETE MSG: 426 Data connection: Success.
+        //COMPLETE MSG: 426 Timeout while sending data
+        //COMPLETE MSG: 426 Sendfile error: Bad message
         if ((0 < Pos('Transfer failed', lastResponse)) OR
           (0 < Pos('Accept timed out', lastResponse)) OR
           (0 < Pos('fatal alert', lastResponse)) OR
           (0 < Pos('Socket closed', lastResponse)) OR
           (0 < Pos('Data connection', lastResponse)) OR
-          (0 < Pos('Connection closed', lastResponse))) then
+          (0 < Pos('Connection closed', lastResponse)) OR
+          (0 < Pos('Sendfile error: Bad message', lastResponse)) OR
+          (0 < Pos('Timeout while sending data', lastResponse))) then
         begin
           //try again
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
@@ -2650,7 +2654,7 @@ begin
             goto TryAgain;
           end;
         end;
-      end;
+    end;
 
 
     Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
@@ -2815,6 +2819,14 @@ begin
             _setOutOfSpace(sdst, 'No freespace or slave');
             exit;
           end;
+
+          //COMPLETE MSG: 452 Transfer terminated by external program
+          if (0 < Pos('Transfer terminated by external program', lastResponse)) then
+          begin
+            irc_Adderror(sdst.todotask, '<c4>[TRANSFER TERMINATED] slowkick?</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, AnsiLeftStr(lastResponse, 90)]);
+            readyerror := True;
+            exit;
+          end;
         end;
 
 
@@ -2913,7 +2925,8 @@ begin
       (sdst.lastResponse.Contains('CRC-Check: BAD!')) or
       (sdst.lastResponse.Contains('CRC-Check: Not in sfv!')) or
       (sdst.lastResponse.Contains('-file: Not allowed')) or
-      (sdst.lastResponse.Contains('NFO-File: DUPE!')) ) ) then
+      (sdst.lastResponse.Contains('NFO-File: DUPE!')) or
+      (sdst.lastResponse.Contains('SFV-file: BAD!')) ) ) then
   begin
     Debug(dpSpam, c_section, 'Broken transfer event!');
 
@@ -2926,16 +2939,26 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
+
+    else if (sdst.lastResponse.Contains('SFV-file: BAD!')) then
+    begin
+      if spamcfg.readbool(c_section, 'crc_error', True) then
+      begin
+        irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
+      end;
+      Inc(ps2.badcrcevents);
+    end
+
 
     else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
@@ -2992,7 +3015,7 @@ begin
     if (time_race > 0) then
     begin
       try
-        if (filesize > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
+        if (filesize > GlSpeedStatsMinFileSize) then
         begin
           SpeedStatAdd(site1, site2, filesize * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
         end;
