@@ -67,6 +67,7 @@ const
 var
   queue_fire: integer;
   queueclean_interval: integer;
+  queue_stat_interval: integer;
   ranks_save_interval: integer;
   recalc_ranks_interval: integer;
   speedstats_save_interval: integer;
@@ -282,6 +283,7 @@ begin
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
+  queue_stat_interval := 500;
   ranks_save_interval := config.readInteger('ranks', 'save_interval', 900);
   recalc_ranks_interval := config.readInteger('ranks', 'recalc_ranks_interval', 1800);
   speedstats_save_interval := config.readInteger('speedstats', 'save_interval', 900);
@@ -316,6 +318,19 @@ begin
   begin
     try
       QueueCleanInverval(queueclean_interval);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
+      end;
+    end;
+  end;
+
+  // number of tasks in queue shown in console
+  if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > queue_stat_interval then
+  begin
+    try
+      QueueStatAll;
     except
       on e: Exception do
       begin
