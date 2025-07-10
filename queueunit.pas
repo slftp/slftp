@@ -35,6 +35,7 @@ type
 
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
+  queue_last_stat_update: TDateTime;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -81,6 +82,9 @@ procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
 
+var
+  QueueStatUpdateDateTime: TDateTime;
+
 implementation
 
 uses
@@ -103,7 +107,6 @@ var
   enable_queueclean: boolean;
 
   StatsList: TObjectList<TQueueStat>;
-  QueueStatUpdateDateTime: TDateTime;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
 
 procedure TQueueThread.QueueFire;
@@ -416,6 +419,7 @@ begin
   queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
   queue_last_run := Now;
   queueclean_last_run := Now;
+  queue_last_stat_update := Now;
   FreeOnTerminate := True;
   fQueueStat := TQueueStat.Create();
   StatsList.Add(fQueueStat);
@@ -1968,7 +1972,8 @@ begin
     queueclean_last_run := Now;
   end;
 
-  QueueStat;
+  if (tkill_unassigne > 0) or (tkill_race > 0) or (tkill_other > 0) then
+    QueueStat;
 
   //Debug(dpMessage, section, 'QueueClean end %d', [tasks.Count]);
 end;
@@ -1978,6 +1983,10 @@ var
   t_race, t_dir, t_auto, t_other: integer;
   fTask: TTask;
 begin
+  if MilliSecondsBetween(queue_last_stat_update, Now) < 1000 then
+    exit;
+
+  queue_last_stat_update := Now;
   t_race  := 0;
   t_dir   := 0;
   t_auto  := 0;
@@ -2014,7 +2023,6 @@ begin
   fQueueStat.FDirlistTaskCount := t_dir;
   fQueueStat.FAutoTaskCount := t_auto;
   fQueueStat.FOtherTaskCount := t_other;
-  QueueStatAll;
 end;
 
 procedure QueueStatAll;
@@ -2035,12 +2043,8 @@ begin
     t_other := t_other + queueStat.FOtherTaskCount;
   end;
 
-  if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > 500 then
-  begin
-    QueueStatUpdateDateTime := Now;
-    Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
-  end;
-
+  QueueStatUpdateDateTime := Now;
+  Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
 end;
 
 procedure TQueueThread.QueueSendCurrentTasksToConsole;
