@@ -243,12 +243,7 @@ begin
 
   fImdbRelease := TIMDBRelease(fPazo.rls);
 
-  kb_list.BeginUpdate;
-  try
-    kb_list.AddObject(fSection + '-' + fRlsName, fPazo);
-  finally
-    kb_list.EndUpdate;
-  end;
+  AddPazoToKB(fSection + '-' + fRlsName, fPazo);
 
   // insert IMDB the item into the DB
   fImdbData := TDbImdbData.Create(fImdbID);
