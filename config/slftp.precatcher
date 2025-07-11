@@ -18,7 +18,7 @@ replacefrom=0-DAY-MKD
 replaceto=0DAY
 replacefrom=(;);';[;];Tansistor Bass;.
 replaceto=
-replacefrom=|;-;.
+replacefrom=|;.
 replaceto=[:space:]
 
 [sections]

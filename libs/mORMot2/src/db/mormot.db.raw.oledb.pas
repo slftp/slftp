@@ -827,7 +827,7 @@ begin
       IUnknown(Obj) := self
     else
     begin
-      result := fUnkInnerSQLNCLIRowset.QueryInterface(IID, Obj);
+      result := fUnkInnerSQLNCLIRowset.QueryInterface(IID, Obj); // delegate
       exit;
     end;
   end;
@@ -936,7 +936,7 @@ begin
           pCurrentRec.StrVal := pointer(Utf8ToWideString(tmp));
         end
     else
-      raise EOleDBException.CreateUtf8('Unsupported array parameter type %',
+      EOleDBException.RaiseUtf8('Unsupported array parameter type %',
         [TSqlDBFieldTypeToString(fType)]);
     end;
   end;

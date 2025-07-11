@@ -101,7 +101,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, SyncObjs, DateUtils, mormot.rest.sqlite3, mormot.core.unicode;
+  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, slcriticalsection2, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3;
 
 const
   section = 'stats';
@@ -110,10 +110,11 @@ var
   ORMStatsDB: TSQLRestClientDB; //< Rest Client for all database interactions
   ORMStatsModel: TSQLModel; //< SQL ORM model for stats database
   glStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
-  glStatRaceLock: TCriticalSection; //< Lock for the race stats queue
+  glStatRaceLock: TSlCriticalSection2; //< Lock for the race stats queue
   glLastStatsCleanTime: TDateTime;  //< When was the stats DB last cleaned from old entries
   glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
   glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
+  glDeleteAfterDays: integer;
 
 function _GetMinFilesize: Int64; inline;
 begin
@@ -129,12 +130,13 @@ begin
 
   glLastStatsCleanTime := MinDateTime;
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
+  glDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
 
   ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
     ORMStatsDB := CreateORMSQLite3DB(ORMStatsModel, fDBName, '');
     glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
-    glStatRaceLock := TCriticalSection.Create;
+    glStatRaceLock := TSlCriticalSection2.Create('glStatRaceLock');
     TWriteStatsToDBThread.Create;
   except
     on e: Exception do
@@ -291,7 +293,7 @@ begin
   fStatRaceRecord.FFilesize := aFilesize;
 
   try
-    glStatRaceLock.Enter;
+    glStatRaceLock.Enter('statsProcessRace');
     try
       glStatRaceQueue.Enqueue(fStatRaceRecord);
     finally
@@ -672,7 +674,7 @@ begin
       fStatRaceQueue := glStatRaceQueue;
 
       // lock here to be sure the enqueuing threads don't use the old reference while we're iterating
-      glStatRaceLock.Enter;
+      glStatRaceLock.Enter('Execute');
       try
         glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
       finally
@@ -712,14 +714,14 @@ begin
     end;
 
     try
-      if (config.ReadInteger(Section, 'delete_after_days', 0) > 0) and not glWriteStatsThreadShouldStop then
+      if (glDeleteAfterDays > 0) and not glWriteStatsThreadShouldStop then
       begin
 
         // clean the stats DB of old entries once each day
         if (DaysBetween(glLastStatsCleanTime, Today()) > 0) then
         begin
           i := 0;
-          fCleanDate := IncDay(Today(), config.ReadInteger(Section, 'delete_after_days', 0) * -1);
+          fCleanDate := IncDay(Today(), glDeleteAfterDays * -1);
 
           // only delete 1000 at a time
           fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
@@ -752,7 +754,7 @@ begin
             ORMStatsDB.Execute('pragma optimize;');
           end
           else
-            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, config.ReadInteger(Section, 'delete_after_days', 0)]));
+            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, glDeleteAfterDays]));
 
         end;
       end;

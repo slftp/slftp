@@ -120,7 +120,6 @@ var
   fJsonObject: variant;
   fJsonString: string;
   fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
-  rr: TRegExpr;
   doc: TDocVariantData;
   pdoc: PDocVariantData;
   fYearDoc: PDocVariantData;
@@ -142,7 +141,8 @@ begin
   pdoc.GetAsRawUTF8('tconst', fJsonImdbID);
   pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
   pdoc.GetAsDocVariant('releaseYear', fYearDoc);
-  fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear);
+  if not (fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear)) then
+    fYearDoc.GetAsRawUTF8('year', fJsonReleaseYear);
   pdoc.GetAsRawUTF8('titleType', fTitleType);
   if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
   begin
@@ -303,13 +303,14 @@ var
   fExtractedPageSource: string;
   Result, fFound: boolean;
   fCnt: Integer;
+  FormatSettings: {$IFDEF FPC}TFormatSettings absolute DefaultFormatSettings{$ELSE}TFormatSettings{$ENDIF};
 begin
 
-  FormatSettings := TFormatSettings.Create('us-us');
-  FormatSettings.ShortDateFormat := 'dd.mm.yyyy';
-  FormatSettings.LongDateFormat := 'dd.mm.yyyy';
-  FormatSettings.DateSeparator := '.';
-  
+    FormatSettings := {$IFDEF FPC}DefaultFormatSettings{$ELSE}TFormatSettings.Create('us-us'){$ENDIF};
+    FormatSettings.ShortDateFormat := 'dd.mm.yyyy';
+    FormatSettings.LongDateFormat := 'dd.mm.yyyy';
+    FormatSettings.DateSeparator := '.';
+
   // we need to copy this string to another variable because else we would alter the page source that we will still need for other stuff (only on FPC it seems)
   fExtractedPageSource := aPageSource;
 
@@ -703,7 +704,7 @@ begin
   Result := False;
 
     // exit if imdb info is already known in last_imdbdata
-  gDbAddimdb_cs.Enter;
+  gDbAddimdb_cs.Enter('taskhttpimdb');
   try
     fFound_LastImdb := last_addimdb.IndexOf(getMovieNameWithoutSceneTags(FReleaseName));
     if fFound_LastImdb = -1 then

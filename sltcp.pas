@@ -9,7 +9,7 @@ uses
       baseunix,
     {$ENDIF}
   {$ENDIF}
-  mslproxys, slstack, debugunit, slssl, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_err;
+  mslproxys, slstack, debugunit, slssl, mormot.lib.openssl11, mormot.core.os;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -139,10 +139,7 @@ var
 
 implementation
 
-uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc;
-
-
-var sltcp_lock: TCriticalSection;
+uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc, slcriticalsection2;
 
 
 procedure sltcp_Init;
@@ -154,7 +151,6 @@ begin
   if not PopulateLocalAddresses(sltcp_LocalAddresses, sltcp_error) then
     exit;
 
-  sltcp_lock := TCriticalSection.Create;
   sltcp_inited := True;
 
   slDefaultSocks5 := TslSocks5.Create;
@@ -171,7 +167,6 @@ begin
     slStackUninit;
 
   sltcp_LocalAddresses.Free;
-  sltcp_lock.Free;
   slDefaultSocks5.Free;
 
   sltcp_inited := False;
@@ -339,35 +334,30 @@ end;
 function TslTCPSocket.GetSocket(udp: Boolean = False; lReuse: Boolean= False): Boolean;
 begin
   Result:= False;
-  sltcp_lock.Enter;
-  try
-    // kell kerni egy uj socketet
-    // Obtain a new socket
-    if not slGetSocket(slSocket, udp, error) then
+
+  // kell kerni egy uj socketet
+  // Obtain a new socket
+  if not slGetSocket(slSocket, udp, error) then
+  begin
+    Disconnect;
+    exit;
+  end;
+
+  if(lReuse)then
+    reuse(1);
+
+
+  // kell bindelni
+  //be ?bindelni?
+  if ((fBindIp <> '') or (fBindPort <> 0)) then
+  begin
+    if not slBind(slSocket, fBindIp, fBindPort, error) then
     begin
       Disconnect;
       exit;
     end;
-
-    if(lReuse)then
-      reuse(1);
-
-
-    // kell bindelni
-    //be ?bindelni?
-    if ((fBindIp <> '') or (fBindPort <> 0)) then
-    begin
-      if not slBind(slSocket, fBindIp, fBindPort, error) then
-      begin
-        Disconnect;
-        exit;
-      end;
-    end;
-    Result:= True;
-  finally
-    sltcp_lock.Leave;
-
   end;
+  Result:= True;
 end;
 
 function TslTCPSocket.ConnectB(host: String; port: Integer; timeout: Integer; udp: Boolean): Boolean;
@@ -622,17 +612,13 @@ begin
     if not slSetNonblocking(slSocket, error) then exit;
 
 
-    sltcp_lock.Enter;
-    try
-      fSSL:= nil;
-      fssl:= SSL_new(sslctx);
-    finally
-      sltcp_lock.Leave;
-    end;
+    fSSL:= nil;
+    fssl:= SSL_new(sslctx);
 
     if (fSSL = nil) then
     begin
-      ERR_error_string(ERR_get_error(), @er[1]);
+      ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
+
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
@@ -652,7 +638,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -685,7 +671,7 @@ begin
       end
       else
       begin
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -734,16 +720,11 @@ begin
     if not slSetNonblocking(slSocket, error) then exit;
 
 
-    sltcp_lock.Enter;
-    try
-      fssl:= SSL_new(sslctx);
-    finally
-      sltcp_lock.Leave;
-    end;
+    fssl:= SSL_new(sslctx);
 
     if (fSSL = nil) then
     begin
-      ERR_error_string(ERR_get_error(), @er[1]);
+      ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
       er:= AnsiString(PAnsiChar(er));
       error:= 'Cant create new ssl: '+er;
       exit;
@@ -763,7 +744,7 @@ begin
       if i* 100 > timeout then
       begin
         error:= 'timeout';
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;
@@ -796,7 +777,7 @@ begin
       end
       else
       begin
-        ERR_error_string(ERR_get_error(), @er[1]);
+        ERR_error_string_n(ERR_get_error(), @er[1], SizeOf(@er[1]));
         er:= AnsiString(PAnsiChar(er));
         error:= 'ssl failed '+er;
         DisconnectSSL;

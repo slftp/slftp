@@ -33,7 +33,6 @@ type
 
 function precatcherauto: boolean;
 
-function Precatcher_Sitehasachan(const sitename: String): boolean;
 procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload: String;
 procedure PrecatcherRebuild();
@@ -67,7 +66,7 @@ implementation
 uses
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
-  console, mrdohutils, SyncObjs, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
@@ -80,8 +79,8 @@ var
   huntartunk: huntartunk_tipus;
 
   debug_f: TextFile;
-  precatcher_debug_lock: TCriticalSection;
-  precatcher_lock: TCriticalSection;
+  precatcher_debug_lock: TSlCriticalSection2;
+  precatcher_lock: TSlCriticalSection2;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
 
@@ -93,7 +92,7 @@ begin
   if precatcher_ircdebug then
   begin
     try
-      precatcher_debug_lock.Enter;
+      precatcher_debug_lock.Enter('mydebug');
       try
         DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
         WriteLn(debug_f, Format('%s %s', [nowstr, s]));
@@ -286,6 +285,8 @@ procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEve
 var
   genre, s, oldsection, event: String;
 begin
+  precatcher_lock.Enter('ProcessReleaseVege');
+  try
   event := KBEventTypeToString(kb_event);
   MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
   Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
@@ -358,6 +359,10 @@ begin
       MyDebug('Genre: %s', [genre]);
       Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
     end;
+  end;
+
+  finally
+    precatcher_lock.Leave;
   end;
 
   MyDebug('Event: %s', [event]);
@@ -528,12 +533,7 @@ begin
               exit;
             end;
 
-            precatcher_lock.Enter;
-            try
-               ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
-            finally
-              precatcher_lock.Leave;
-            end;
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
 
           except
             on e: Exception do
@@ -860,23 +860,6 @@ begin
   end;
 end;
 
-function Precatcher_Sitehasachan(const sitename: String): boolean;
-var
-  i: integer;
-  sc: TSiteChan;
-begin
-  Result := False;
-  for i := 0 to cd.Count - 1 do
-  begin
-    sc := TSiteChan(cd.Objects[i]);
-    if sc.sitename = sitename then
-    begin
-      Result := True;
-      break;
-    end;
-  end;
-end;
-
 procedure Precatcher_DelSiteChans(const sitename: String);
 var
   i: integer;
@@ -915,7 +898,7 @@ begin
   irclines_ignorewords.Sorted := True;
   irclines_ignorewords.Duplicates := dupIgnore;
 
-  precatcher_lock := TCriticalSection.Create;
+  precatcher_lock := TSlCriticalSection2.Create('precatcher_lock');
 
   tagline := TStringList.Create;
   tagline.Delimiter := ' ';
@@ -937,7 +920,7 @@ begin
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
 
-  precatcher_debug_lock := TCriticalSection.Create();
+  precatcher_debug_lock := TSlCriticalSection2.Create('precatcher_debug_lock');
   Assignfile(debug_f, precatcher_logfilename);
   try
     if FileExists(precatcher_logfilename) then

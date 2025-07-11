@@ -223,6 +223,8 @@ begin
   ep_nextnum := -1;
 
   date := UnixToDateTime(3817); //1.1.1990 031337
+  nextdt := UnixToDateTime(3817);
+  prevdt := UnixToDateTime(3817);
 
   {$IFDEF MSWINDOWS}
     formatSettings := TFormatSettings.Create('en-US');
@@ -240,8 +242,15 @@ begin
   try
     if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['previousepisode'] <> nil)) then
     begin
-      ep_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1);
-      se_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1);
+      if (json.Field['_embedded'].Field['previousepisode'].Field['number'] <> NIL) then
+        ep_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1)
+      else
+        ep_prevnum := -1;
+
+      if (json.Field['_embedded'].Field['previousepisode'].Field['season'] <> NIL) then
+        se_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1)
+      else
+        se_prevnum := -1;
       prevdt := UnixToDateTime(0);
 
       if String(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value) = '' then
