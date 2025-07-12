@@ -872,7 +872,7 @@ var
   fIMDbReleaseDateInfo: TIMDbReleaseDateInfo;
   fBOMCountryScreens: TPair<string, integer>;
 begin
-  gDbAddimdb_cs.Enter('SaveImdbData1');
+  //gDbAddimdb_cs.Enter('SaveImdbData1');
   try
     fIMDbDataRec := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [aImdbData.imdb_id]);
     fDoUpdate := fIMDbDataRec.FillOne;
@@ -1158,7 +1158,7 @@ begin
       end;
     end;
 
-    gDbAddimdb_cs.Enter('SaveImdbData1');
+    gDbAddimdb_cs.Enter('SaveImdbData_last_addimdb');
     try
       last_addimdb_count := last_addimdb.Count;
       try
