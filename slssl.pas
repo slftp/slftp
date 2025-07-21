@@ -106,6 +106,7 @@ begin
 
   if not OpenSslIsLoaded then
   begin
+    OpenSslDefaultPath := ExtractFilePath(ParamStr(0));
     Result := OpenSslInitialize('','');
     if Result then
       RegisterOpenSsl
