@@ -107,6 +107,9 @@ begin
   if not OpenSslIsLoaded then
   begin
     OpenSslDefaultPath := ExtractFilePath(ParamStr(0));
+    OpenSslDefaultCrypto := ExtractFilePath(ParamStr(0));
+    OpenSslDefaultSsl :=  ExtractFilePath(ParamStr(0));
+
     Result := OpenSslInitialize('','');
     if Result then
       RegisterOpenSsl
@@ -119,13 +122,13 @@ begin
     if OpenSslVersion >= OPENSSL3_VERNUM then
     begin
       // on windows to be able to load the legacy.dll we need to OSSL_PROVIDER_set_default_search_path
-      {$IFDEF MSWINDOWS}
+      //{$IFDEF MSWINDOWS}
         {$IFDEF UNICODE}
           OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(Pointer(AnsiString(ExtractFilePath(ParamStr(0))))));
         {$ELSE}
           OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(ExtractFilePath(ParamStr(0))));
         {$ENDIF}
-      {$ENDIF}
+      //{$ENDIF}
 
       fLoadedProvider := OSSL_PROVIDER_load(NIL, 'default');
       if fLoadedProvider = NIL THEN
