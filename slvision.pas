@@ -3172,28 +3172,20 @@ end;
 
 procedure TConsoleAddTaskCollection.GetAddedTasks(const aTasksOut: TList<TslConsoleTask>; const aOverloadWindowsOut: TDictionary<string, integer>);
 var
-  fTmpList: TList<TslConsoleTask>;
-  fTmpOverloadMessageDict: TDictionary<string, integer>;
   fOverloadMessageWindowsKVP: TPair<string, integer>;
 begin
-  // replace the list by a new one and then add the tasks to the out list of the parameter
-  fTmpList := self.fTasks;
-  fTmpOverloadMessageDict := self.fOverloadMessageWindows;
   self.fTasksCS.Enter('GetAddedTasks');
   try
-    self.fTasks := TList<TslConsoleTask>.Create;
-    self.fOverloadMessageWindows := TDictionary<string, integer>.Create;
+    aTasksOut.AddRange(self.fTasks);
+    self.fTasks.Clear;
+
+    // combine the dictionary of all TConsoleAddTaskCollection instances, so we can then create the info message for all concerned windows
+    for fOverloadMessageWindowsKVP in self.fOverloadMessageWindows do
+      aOverloadWindowsOut.TryAdd(fOverloadMessageWindowsKVP.Key, fOverloadMessageWindowsKVP.Value);
+    self.fOverloadMessageWindows.Clear;
   finally
     self.fTasksCS.Leave;
   end;
-  aTasksOut.AddRange(fTmpList);
-
-  // combine the dictionary of all TConsoleAddTaskCollection instances, so we can then create the info message for all concerned windows
-  for fOverloadMessageWindowsKVP in fTmpOverloadMessageDict do
-    aOverloadWindowsOut.TryAdd(fOverloadMessageWindowsKVP.Key, fOverloadMessageWindowsKVP.Value);
-
-  fTmpList.Free;
-  fTmpOverloadMessageDict.Free;
 end;
 
 procedure TConsoleAddTaskCollection.AddTask(const aTask: TslConsoleTask);
