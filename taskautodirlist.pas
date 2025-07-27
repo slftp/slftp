@@ -298,7 +298,11 @@ begin
         sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
         ps.status := rssRealPre;
-        ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
+        // Check if this is an affil PRE (rssRealPre/rssShouldPre) to use affil routes
+        if ps.status in [rssRealPre, rssShouldPre] then
+          ps.AddDestination(site1, sitesdat.ReadInteger('affilspeed-from-' + sitename, site1, 0))
+        else
+          ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
       end;
 
       for ps in p.PazoSitesList do

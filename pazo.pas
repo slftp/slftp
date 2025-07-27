@@ -1857,18 +1857,38 @@ end;
 function TPazoSite.RoutesText: String;
 var
   fDestination: TDestinationRank;
+  fAffilRoutes, fNormalRoutes: TStringList;
+  i, j: integer;
+  fDestinationName: String;
+  fFoundInNormalRoutes: Boolean;
 begin
   Result := '<u>' + Name + '</u> -> ';
 
+  // Show active destinations
   for fDestination in destinations do
   begin
-    Result := Result + Format('%s(%d) ', [fDestination.FPazoSite.Name, fDestination.FRank]);
+    fDestinationName := fDestination.FPazoSite.Name;
+    
+    // For PRE events, check if this destination is affil-only
+    if StatusRealPreOrShouldPre then
+    begin
+      fFoundInNormalRoutes := (sitesdat.ReadInteger('speed-from-' + Name, fDestinationName, 0) > 0);
+      if not fFoundInNormalRoutes then
+        Result := Result + Format('%s(%d)(A) ', [fDestinationName, fDestination.FRank])
+      else
+        Result := Result + Format('%s(%d) ', [fDestinationName, fDestination.FRank]);
+    end
+    else
+    begin
+      Result := Result + Format('%s(%d) ', [fDestinationName, fDestination.FRank]);
+    end;
 
     if (fDestination.FPazoSite.delay_upload > 0) then
       Result := Result + Format('[delayed upload for %ds] ', [fDestination.FPazoSite.delay_upload])
     else if (fDestination.FPazoSite.delay_leech > 0) then
       Result := Result + Format('[delayed leech for %ds] ', [fDestination.FPazoSite.delay_leech]);
   end;
+
 
   // remove superfluous whitespace
   Result.TrimRight;
