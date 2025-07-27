@@ -79,12 +79,14 @@ procedure dbaddimdbUnInit;
 var
   last_addimdb: THashedStringList;
   last_imdbdata: THashedStringList;
+  running_imdb_tasks: THashedStringList; // Track currently running IMDB tasks
+  pending_imdb_tasks: THashedStringList; // Track tasks that are about to be created
   dbaddimdb_cs: TSlCriticalSection2;
 
 implementation
 
 uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.releaseinfo,
-  sitesunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
+  sitesunit, RegExpr, debugunit, taskhttpimdb, taskhttpimdbapi, pazo, mrdohutils, dbtvinfo;
 
 const
   section = 'dbaddimdb';
@@ -148,6 +150,7 @@ end;
 procedure TDbImdbData.PostResults(rls : String = '');
 var status:String;
 begin
+  Debug(dpSpam, section, Format('[POSTRESULTS-AUTO] Called for rls: %s, imdb_id: %s', [rls, imdb_id]));
 
   if imdb_stvm then status := 'STV'
   else if imdb_festival then status := 'Festival'
@@ -155,6 +158,7 @@ begin
   else if imdb_wide then status := 'Wide'
   else status :='Cine';
 
+  Debug(dpSpam, section, Format('[POSTRESULTS-AUTO] About to send irc_Addstats messages for: %s', [rls]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/',[rls, imdb_id]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)',[imdb_origtitle, imdb_year]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s',[imdb_countries.DelimitedText,imdb_languages.DelimitedText]));
@@ -165,6 +169,7 @@ end;
 procedure TDbImdbData.PostResults(const netname, channel: String; rls : String = '');
 var status:String;
 begin
+  Debug(dpError, section, Format('[POSTRESULTS] Called for release: %s, imdb_id: %s', [rls, imdb_id]));
   if imdb_stvm then status := 'STV'
   else if imdb_festival then status := 'Festival'
   else if imdb_ldt then status := 'Limited'
@@ -350,7 +355,9 @@ begin
     dbaddimdb_cs.Enter('SaveImdbData2');
     try
       try
+        Debug(dpSpam, section, Format('[SAVEIMDB] About to store data for %s - imdb_id: "%s", origtitle: "%s", year: %d', [rls, imdbdata.imdb_id, imdbdata.imdb_origtitle, imdbdata.imdb_year]));
         last_imdbdata.AddObject(rls, imdbdata);
+        Debug(dpSpam, section, Format('[SAVEIMDB] Successfully added to last_imdbdata: %s (total count: %d)', [rls, last_imdbdata.Count]));
       except
         on e: Exception do
         begin
@@ -362,10 +369,16 @@ begin
       dbaddimdb_cs.Leave;
     end;
 
-    if config.ReadBool(section, 'post_lookup_infos', false) then
+    if config.ReadBool(section, 'post_lookup_infos', true) then
     begin
+      Debug(dpSpam, section, Format('[AUTO ANNOUNCE] About to call PostResults for: %s', [rls]));
       irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [rls, imdbdata.imdb_id]));
       imdbdata.PostResults(rls);
+      Debug(dpSpam, section, Format('[AUTO ANNOUNCE] PostResults completed for: %s', [rls]));
+    end
+    else
+    begin
+      Debug(dpError, section, '[AUTO ANNOUNCE] post_lookup_infos is disabled - no automatic announcement');
     end;
 
     try
@@ -401,13 +414,73 @@ begin
 end;
 
 procedure dbaddimdb_ParseImdb(rls, imdb_id: String);
+var
+  i: Integer;
 begin
   try
-    AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls), true);
+    // Comprehensive check for existing data and running/pending tasks
+    dbaddimdb_cs.Enter('ParseImdb-comprehensive-check');
+    try
+      
+      // Check if we already have IMDB data for this release
+      i := last_imdbdata.IndexOf(rls);
+      if i <> -1 then
+      begin
+        Debug(dpError, section, Format('[PARSEIMDB] Already have IMDB data for: %s', [rls]));
+        Exit;
+      end;
+      
+      // Check if there's already a running task for this release
+      i := running_imdb_tasks.IndexOf(rls);
+      if i <> -1 then
+      begin
+        Debug(dpError, section, Format('[PARSEIMDB] Task already running for: %s', [rls]));
+        Exit;
+      end;
+      
+      // Check if there's already a pending task for this release
+      i := pending_imdb_tasks.IndexOf(rls);
+      if i <> -1 then
+      begin
+        Debug(dpError, section, Format('[PARSEIMDB] Task already pending for: %s', [rls]));
+        Exit;
+      end;
+      
+      // Mark this release as having a pending task (before actual creation)
+      pending_imdb_tasks.Add(rls);
+      Debug(dpSpam, section, Format('[PARSEIMDB] Added to pending tasks: %s', [rls]));
+      
+    finally
+      dbaddimdb_cs.Leave;
+    end;
+    
+    // Use new API task with fallback to old method
+    try
+      Debug(dpSpam, section, Format('[PARSEIMDB] Creating API task for: %s', [rls]));
+      AddTask(TPazoHTTPImdbApiTask.Create(imdb_id, rls, config.ReadBool(section, 'use_api_first', True)), true);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[PARSEIMDB] *** TASK CREATION FAILED *** Exception in dbaddimdb_SaveImdbRls AddTask: %s', [e.Message]));
+        // Remove from pending tasks if we failed to add the task
+        dbaddimdb_cs.Enter('ParseImdb-cleanup-pending');
+        try
+          i := pending_imdb_tasks.IndexOf(rls);
+          if i <> -1 then
+          begin
+            pending_imdb_tasks.Delete(i);
+          end;
+        finally
+          dbaddimdb_cs.Leave;
+        end;
+        exit;
+      end;
+    end;
+    
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('Exception in dbaddimdb_SaveImdbRls AddTask: %s', [e.Message]));
+      Debug(dpError, section, Format('[PARSEIMDB] *** MAIN EXCEPTION *** in dbaddimdb_ParseImdb for %s: %s', [rls, e.Message]));
       exit;
     end;
   end;
@@ -418,11 +491,14 @@ var p : TPazo;
     ps: TPazoSite;
 begin
   try
+    Debug(dpSpam, section, Format('FireKbAdd called for release: %s', [rls]));
     p:= FindPazoByRls(rls);
     if (p <> nil) then
     begin
+      Debug(dpSpam, section, Format('Found pazo for release: %s, type: %s', [rls, p.rls.ClassName]));
       if p.rls is TIMDBRelease then
       begin
+        Debug(dpSpam, section, Format('Release is TIMDBRelease: %s', [rls]));
         p.rls.Aktualizal(p);
         ps := FindMostCompleteSite(p);
         if ((ps = nil) and (p.PazoSitesList.Count > 0)) then
@@ -430,12 +506,22 @@ begin
 
         if (ps <> nil) then
         begin
+          Debug(dpSpam, section, Format('Found site for release: %s -> %s', [rls, ps.name]));
           if spamcfg.ReadBool('addinfo','imdbupdate',True) then
+          begin
+            Debug(dpSpam, section, Format('Sending IRC announcement for: %s', [rls]));
             irc_SendUPDATE(Format('<c3>[ADDIMDB]</c> %s %s now has iMDB infos (%s)', [p.rls.section, p.rls.rlsname, ps.name]));
+          end
+          else
+            Debug(dpSpam, section, 'IRC announcement disabled in spamcfg');
           kb_Add('', '', ps.name, p.rls.section, '', kbeUPDATE, p.rls.rlsname, '');
         end;
-      end;
-    end;
+      end
+      else
+        Debug(dpSpam, section, Format('Release is not TIMDBRelease: %s', [rls]));
+    end
+    else
+      Debug(dpSpam, section, Format('No pazo found for release: %s', [rls]));
   except
     on e: Exception do
     begin
@@ -515,6 +601,10 @@ begin
   last_imdbdata:= THashedStringList.Create;
   last_imdbdata.CaseSensitive:= False;
   last_imdbdata.OwnsObjects := True;
+  running_imdb_tasks := THashedStringList.Create;
+  running_imdb_tasks.CaseSensitive := False;
+  pending_imdb_tasks := THashedStringList.Create;
+  pending_imdb_tasks.CaseSensitive := False;
   rx_imdbid := TFLRE.Create('tt(\d{6,8})', [rfIGNORECASE]);
   glLanguageCountryMappingList := TObjectList<TMapLanguageCountry>.Create(True);
   fStrList := TStringList.Create;
@@ -570,6 +660,8 @@ begin
   try
     FreeAndNil(last_addimdb);
     FreeAndNil(last_imdbdata);
+    FreeAndNil(running_imdb_tasks);
+    FreeAndNil(pending_imdb_tasks);
     FreeAndNil(rx_imdbid);
   finally
     dbaddimdb_cs.Leave;
