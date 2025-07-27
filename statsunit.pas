@@ -609,8 +609,8 @@ begin
       GetTransferStats(s.Name, fSQLPeriod, fFileSizeStats);
 
       // in and out values will have the same total amount
-      Inc(fAllFilesTransfered, fFileSizeStats.FilesCountIn);
-      fAllSizeTransfered := fAllSizeTransfered + fFileSizeStats.SizeIn;
+      Inc(fAllFilesTransfered, fFileSizeStats.FilesCountIn + fFileSizeStats.FilesCountOut);
+      fAllSizeTransfered := fAllSizeTransfered + fFileSizeStats.SizeIn + fFileSizeStats.SizeOut;
 
       PrintStatsToIRC(s.Name, fSQLPeriod, fFileSizeStats);
     end;
