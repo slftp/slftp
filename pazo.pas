@@ -1857,38 +1857,25 @@ end;
 function TPazoSite.RoutesText: String;
 var
   fDestination: TDestinationRank;
-  fAffilRoutes, fNormalRoutes: TStringList;
-  i, j: integer;
-  fDestinationName: String;
-  fFoundInNormalRoutes: Boolean;
+  fAffilMarker: String;
 begin
   Result := '<u>' + Name + '</u> -> ';
 
-  // Show active destinations
   for fDestination in destinations do
   begin
-    fDestinationName := fDestination.FPazoSite.Name;
-    
-    // For PRE events, check if this destination is affil-only
-    if StatusRealPreOrShouldPre then
-    begin
-      fFoundInNormalRoutes := (sitesdat.ReadInteger('speed-from-' + Name, fDestinationName, 0) > 0);
-      if not fFoundInNormalRoutes then
-        Result := Result + Format('%s(%d)(A) ', [fDestinationName, fDestination.FRank])
-      else
-        Result := Result + Format('%s(%d) ', [fDestinationName, fDestination.FRank]);
-    end
+    // Add (A) marker if this is a PRE site using affilroutes
+    if status in [rssShouldPre, rssRealPre] then
+      fAffilMarker := '(A)'
     else
-    begin
-      Result := Result + Format('%s(%d) ', [fDestinationName, fDestination.FRank]);
-    end;
+      fAffilMarker := '';
+      
+    Result := Result + Format('%s(%d)%s ', [fDestination.FPazoSite.Name, fDestination.FRank, fAffilMarker]);
 
     if (fDestination.FPazoSite.delay_upload > 0) then
       Result := Result + Format('[delayed upload for %ds] ', [fDestination.FPazoSite.delay_upload])
     else if (fDestination.FPazoSite.delay_leech > 0) then
       Result := Result + Format('[delayed leech for %ds] ', [fDestination.FPazoSite.delay_leech]);
   end;
-
 
   // remove superfluous whitespace
   Result.TrimRight;

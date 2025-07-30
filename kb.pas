@@ -6,7 +6,7 @@ unit kb;
 interface
 
 uses
-  Classes, SyncObjs, slcriticalsection2, kb.releaseinfo, pazo;
+  Classes, SyncObjs, TypInfo, slcriticalsection2, kb.releaseinfo, pazo;
 
 type
   TKBThread = class(TThread)
@@ -667,6 +667,7 @@ begin
 
     if (event = kbePRE) then
     begin
+      Debug(dpSpam, 'kb', '[AFFILROUTES DEBUG] kbePRE event for %s on %s, setting status to rssRealPre', [rls, sitename]);
       if (s <> nil) then
       begin
         if ((not s.IsAffil(r.groupname)) and (glAutoAddAffils)) then
@@ -677,6 +678,7 @@ begin
     end
     else if (event = kbeSPREAD) then
     begin
+      Debug(dpSpam, 'kb', '[AFFILROUTES DEBUG] kbeSPREAD event for %s on %s, setting status to rssRealPre', [rls, sitename]);
       r.PredOnAnySite := True;
       psource.Status := rssRealPre;
     end
@@ -713,6 +715,12 @@ begin
   end;
 
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
+  if psource <> nil then
+    Debug(dpSpam, 'kb', '[AFFILROUTES DEBUG] Event %s for %s on %s, current psource.status: %s', 
+      [KBEventTypeToString(event), rls, sitename, GetEnumName(TypeInfo(TRlsSiteStatus), Ord(psource.status))])
+  else
+    Debug(dpSpam, 'kb', '[AFFILROUTES DEBUG] Event %s for %s on %s, current psource.status: NIL', 
+      [KBEventTypeToString(event), rls, sitename]);
   if (not (event in [kbeNUKE, kbeADDPRE])) then
   begin
     kb_lock.Enter('kb_AddB_3');
@@ -737,6 +745,10 @@ begin
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end;
     end;
+  end
+  else if (event = kbeADDPRE) then
+  begin
+    Debug(dpSpam, 'kb', '[AFFILROUTES DEBUG] kbeADDPRE event - SKIPPING rule processing and status change for %s on %s', [rls, sitename]);
   end;
 
   try

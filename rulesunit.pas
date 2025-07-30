@@ -3,7 +3,7 @@ unit rulesunit;
 interface
 
 uses
-  Classes, pazo, slmasks, Contnrs, Generics.Collections;
+  Classes, TypInfo, pazo, slmasks, Contnrs, Generics.Collections;
 
 type
   TRuleNode = class
@@ -1639,6 +1639,7 @@ var
   dstps: TPazoSite;
   i: integer;
   ps_s, dstps_s: TSite;
+  fRoutesList: TStringList;
 begin
   Result := False;
 
@@ -1659,17 +1660,30 @@ begin
   p.srcsite := ps.Name;
   Debug(dpSpam, dsection, '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 
-  for i := 0 to ps.speed_from.Count - 1 do
+  fRoutesList := TStringList.Create;
+  try
+    if ps.status in [rssShouldPre, rssRealPre] then
+    begin
+      Debug(dpSpam, dsection, '[AFFILROUTES DEBUG] Using affilspeed-from-%s for PRE event', [ps.Name]);
+      sitesdat.ReadSectionValues('affilspeed-from-' + ps.Name, fRoutesList);
+    end
+    else
+    begin
+      Debug(dpSpam, dsection, '[AFFILROUTES DEBUG] Using speed-from-%s for normal event', [ps.Name]);
+      sitesdat.ReadSectionValues('speed-from-' + ps.Name, fRoutesList);
+    end;
+
+  for i := 0 to fRoutesList.Count - 1 do
   begin
     try
-      if i > ps.speed_from.Count then
+      if i > fRoutesList.Count then
         Break;
     except
       Break;
     end;
 
     try
-      dstps := p.FindSite(ps.speed_from.Names[i]);
+      dstps := p.FindSite(fRoutesList.Names[i]);
       if dstps = nil then
         Continue;
 
@@ -1700,7 +1714,13 @@ begin
         // i'm allowed to e ...
         if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
         begin
-          Result := ps.AddDestination(dstps, CalculateRank(dstps_s, StrToIntDef(ps.speed_from.ValueFromIndex[i], 1), p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
+          if ps.status in [rssShouldPre, rssRealPre] then
+            Debug(dpSpam, 'rulesunit', '[AFFILROUTES DEBUG] AddRoute from %s (status:%s) to %s, is_pre=TRUE, rank calculation uses pre=TRUE', 
+              [ps.Name, GetEnumName(TypeInfo(TRlsSiteStatus), Ord(ps.status)), dstps.Name])
+          else
+            Debug(dpSpam, 'rulesunit', '[AFFILROUTES DEBUG] AddRoute from %s (status:%s) to %s, is_pre=FALSE, rank calculation uses pre=FALSE', 
+              [ps.Name, GetEnumName(TypeInfo(TRlsSiteStatus), Ord(ps.status)), dstps.Name]);
+          Result := ps.AddDestination(dstps, CalculateRank(dstps_s, StrToIntDef(fRoutesList.ValueFromIndex[i], 1), p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
         end;
       end;
     except
@@ -1711,6 +1731,9 @@ begin
         Break;
       end;
     end;
+  end;
+  finally
+    fRoutesList.Free;
   end;
   Debug(dpSpam, dsection, '<- ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 end;
