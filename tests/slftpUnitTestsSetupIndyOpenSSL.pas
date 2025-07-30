@@ -28,10 +28,13 @@ uses
 { TTestIndyOpenSSL }
 
 procedure TTestIndyOpenSSL.{$IFDEF FPC}SetUpOnce{$ELSE}SetUp{$ENDIF};
-var fError: String;
+var 
+  fError: String;
+  fInitResult: Boolean;
 begin
   fError := '';
-  CheckTrue(InitOpenSSL(fError), 'Mormotssl initOpenSsl returned false: ' + fError);
+  fInitResult := InitOpenSSL(fError);
+  CheckTrue(fInitResult, 'Mormotssl initOpenSsl returned false: ' + fError);
 
   try
     CheckTrue(OpenSslIsAvailable, 'Mormotssl failed: ');
