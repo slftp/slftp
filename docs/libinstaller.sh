@@ -160,7 +160,33 @@ function func_openssl_dlinst {
     [ -e libcrypto.so ] && rm libcrypto.so
     ln -s libssl_"$OPENSSL_LIBNAME" libssl.so
     ln -s libcrypto_"$OPENSSL_LIBNAME" libcrypto.so
-    OPENSSL_INSTALLED=1
+
+    # Extract major version (1 or 3) from e.g., openssl-3.2.0
+    if [[ "$OPENSSL_LIBNAME" =~ ([0-9]+)\.[0-9] ]]; then
+      OPENSSL_MAJOR="${BASH_REMATCH[1]}"
+      ln -sf "libssl_$OPENSSL_LIBNAME" "libssl.so.$OPENSSL_MAJOR"
+      ln -sf "libcrypto_$OPENSSL_LIBNAME" "libcrypto.so.$OPENSSL_MAJOR"
+    else
+      echo "[-] WARNING: Could not determine major version from $OPENSSL_LIBNAME"
+    fi
+
+    # Handle legacy.so if version is NOT 1.1.1*
+    if ! [[ "$OPENSSL_LIBNAME" =~ 1\.1\.1 ]]; then
+      LEGACY_SO_SRC="$DEVDIR/${OPENSSL_LIBNAME}/providers/legacy.so"
+      LEGACY_SO_DST="$SL_DIR/legacy_$OPENSSL_LIBNAME.so"
+      if [ -e "$LEGACY_SO_SRC" ]; then
+        cp -f "$LEGACY_SO_SRC" "$LEGACY_SO_DST"
+        [ -e "$SL_DIR/legacy.so" ] && rm "$SL_DIR/legacy.so"
+        ln -s "legacy_$OPENSSL_LIBNAME.so" "$SL_DIR/legacy.so"
+        OPENSSL_INSTALLED=1
+      else
+        echo "[-] ERROR: legacy.so required but not found."
+        OPENSSL_INSTALLED=0
+        return
+      fi
+    else
+      OPENSSL_INSTALLED=1
+    fi
   else
     echo "[-] ERROR: Could _NOT_ find compiled libaries."
     OPENSSL_INSTALLED=0
