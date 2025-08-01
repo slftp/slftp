@@ -65,8 +65,8 @@ begin
   end
   else
   begin
-    Debug(dpError, section, Format('Too many errors while getting website content. URL: %s', [aUrl]));
-    aErrMsg := 'Too many errors while getting website content.';
+    Debug(dpError, section, Format('Too many errors while getting website content. URL: %s Error: %s', [aUrl, aErrMsg]));
+    aErrMsg := Format('Too many errors while getting website content. (%s)', [aErrMsg]);
     exit;
   end;
 
