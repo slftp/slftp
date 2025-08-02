@@ -28,8 +28,21 @@ uses
 procedure TTestHTTP.TestIMDBHTTPS;
 var
   Result: Boolean;
-  fURL, fHTML, fErrMsg: String;
+  fURL, fHTML, fErrMsg, fTest: String;
 begin
+
+
+  fTest := '';
+  {$ifdef USEWININET}
+  fTest := 'USEWININET';
+  {$endif}
+  {$ifdef USELIBCURL}
+  fTest := fTest + 'USELIBCURL';
+  {$endif}
+
+  CheckEqualsString('not', fTest);
+
+
   fURL := 'https://www.imdb.com/title/tt6966692/';
   Result := HttpGetUrl(fURL, fHTML, fErrMsg);
 
