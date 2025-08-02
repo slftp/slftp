@@ -406,6 +406,10 @@ type
     function GetKillConnectionOnStalledTransferSeconds: integer;
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
+    { function for @link(NewdirDirlistReadd) property to read newdir_dirlist_readd from inifile }
+    function GetNewdirDirlistReadd: integer;
+    { procedure for @link(NewdirDirlistReadd) property to write newdir_dirlist_readd to inifile }
+    procedure SetNewdirDirlistReadd(const Value: integer);
     function GetSpeed_From: TStringList;
   public
     emptyQueue: boolean;
@@ -604,6 +608,7 @@ type
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
+    property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd; //< Interval in milliseconds for dirlist readd, zero means use global default
     property Speed_From: TStringList read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
   end;
 
@@ -4722,6 +4727,16 @@ procedure TSite.SetKillConnectionOnStalledTransferSeconds(const Value: integer);
 begin
   fKillConnectionOnStalledTransferSeconds := Value;
   WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
+end;
+
+function TSite.GetNewdirDirlistReadd: integer;
+begin
+  Result := RCInteger('newdir_dirlist_readd', 0);
+end;
+
+procedure TSite.SetNewdirDirlistReadd(const Value: integer);
+begin
+  WCInteger('newdir_dirlist_readd', Value);
 end;
 
 function _mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;

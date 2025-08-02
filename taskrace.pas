@@ -592,7 +592,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue(ps1.Name));
 
       try
         AddTask(r);
@@ -641,9 +641,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue(ps1.Name));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue(ps.Name));
 
             try
               AddTask(r);

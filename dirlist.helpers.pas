@@ -73,7 +73,12 @@ function GetNewdirMaxCreatedValue(): integer;
 
 { returns the value for NewdirDirlistReadd initially stored in config to have a better performance and don't load the value everytime from file)
   @returns(@glNewdirDirlistReadd) }
-function GetNewdirDirlistReaddValue(): integer;
+function GetNewdirDirlistReaddValue(): integer; overload;
+
+{ returns the value for NewdirDirlistReadd for a specific site or global default if site doesn't have a specific setting
+  @param(sitename sitename to get the setting for)
+  @returns(site-specific value or global default) }
+function GetNewdirDirlistReaddValue(const sitename: String): integer; overload;
 
 function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 
@@ -86,7 +91,7 @@ procedure CleanupDirlistThreadVars;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings, sitesunit;
 
 const
   section = 'dirlist.helpers';
@@ -302,6 +307,17 @@ end;
 function GetNewdirDirlistReaddValue(): integer;
 begin
   Result := glNewdirDirlistReadd;
+end;
+
+function GetNewdirDirlistReaddValue(const sitename: String): integer;
+var
+  s: TSite;
+begin
+  s := FindSiteByName('', sitename);
+  if (s <> nil) and (s.NewdirDirlistReadd > 0) then
+    Result := s.NewdirDirlistReadd
+  else
+    Result := glNewdirDirlistReadd;
 end;
 
 procedure CleanupDirlistThreadVars;

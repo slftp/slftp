@@ -57,7 +57,8 @@
     {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
     {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
         will raise an exception with some info about which thread and code is blocking a lock.
-	{+} Allow to add a Rls to the KB / start race when it's being added to the predb. Enable by setting add_to_kb_on_dbaddpre_insert=1
+	  {+} Allow to add a Rls to the KB / start race when it's being added to the predb. Enable by setting add_to_kb_on_dbaddpre_insert=1
+ 	  {+} !newdirlistreadd, Now adjustable per site, allowing for better management of CPU resources
     {^} Rewrite rules unit for faster race start
     {^} Rewrite of in-memory pre DB which now uses in-memory SQLite. Enable by using mode=0 in [dbaddpre] section of slftp.ini
     {^} Added support for OpenSSL 3

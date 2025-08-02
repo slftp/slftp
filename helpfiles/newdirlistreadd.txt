@@ -1,0 +1,13 @@
+Controls the interval for directory listing readd during racing.
+Usage: <cmd> sitename [interval_in_milliseconds]
+If interval is zero or omitted, site uses global default.
+Lower values = faster racing but more server load.
+Higher values = slower racing but less server load.
+
+Examples:
+<cmdprefix>newdirlistreadd SITE1          - show current setting
+<cmdprefix>newdirlistreadd SITE1 10       - set to 10ms (very fast)
+<cmdprefix>newdirlistreadd SITE1 100      - set to 100ms (moderate)  
+<cmdprefix>newdirlistreadd SITE1 0        - reset to global default
+
+Note: Global default is configured in slftp.ini [taskrace] section as 'newdir_dirlist_readd'
