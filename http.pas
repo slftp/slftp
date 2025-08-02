@@ -30,11 +30,13 @@ label
   TryAgain;
 var
   fNumErrors: Integer;
-  fOutHeaders: PRawUtf8;
+  fOutHeaders: RawUtf8;
+  fOutStatus: integer;
 begin
   Result := False;
   fNumErrors := 0;
-  fOutHeaders := NIL;
+  fOutHeaders := '';
+  fOutStatus := 0;
 
   TryAgain:
   Inc(fNumErrors);
@@ -44,20 +46,20 @@ begin
     aErrMsg := '';
     // load website
     try
-      aRecvStr := HttpGet(aUrl, fOutHeaders);
+      aRecvStr := HttpGet(aUrl, @fOutHeaders, {forceNotSocket:}False, @fOutStatus, {timeout:}0, {forcesocket:}False, {ignoreTlsCertError:}True);
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('HTTP GET for %s failed due to error <--> %s.', [aUrl, fOutHeaders]));
+        Debug(dpError, section, Format('HTTP GET for %s failed due to error <--> %s.', [aUrl, Utf8ToString(fOutHeaders)]));
         Debug(dpError, section, Format('ClassName: %s <--> Exception: %s', [e.ClassName, e.Message]));
         aErrMsg := Format('HTTP GET failed with error <--> %s.', [e.Message]);
       end;
     end;
 
-    if (Length(aRecvStr) = 0) then
+    if (Length(aRecvStr) = 0) and (aErrMsg = '') then
     begin
-      Debug(dpError, section, Format('HTTP GET reply for %s is empty.', [aUrl]));
-      aErrMsg := 'HTTP GET reply is empty.';
+      Debug(dpError, section, Format('HTTP GET reply for %s is empty (%s / %d).', [aUrl, Utf8ToString(fOutHeaders), fOutStatus]));
+      aErrMsg := Format('HTTP GET reply is empty. (%s / %d)', [Utf8ToString(fOutHeaders), fOutStatus]);
     end;
 
     if aErrMsg <> '' then
