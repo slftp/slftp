@@ -44,7 +44,7 @@ function InitOpenSSL(out aError: String): boolean;
 implementation
 
 uses
-  SysUtils;
+  SysUtils, mormot.core.base;
 
 //const
 //  gSSL_Default_Cipher_List = 'ALL:!EXP';
@@ -57,25 +57,24 @@ var
 // can be called repeatedly until there are no more error codes to return.
 function _GetEarliestOpenSSLErrorCode: String;
 var
-  fErrStr: String;
+  fErrStr: RawUtf8;
   fErrors: Integer;
-  fErrCode: Cardinal;
+  fErrCode: integer;
 begin
   Result := '';
-  SetLength(fErrStr, 255);
   fErrors := 0;
   while (true) do
   begin
     fErrCode := ERR_get_error();
     if fErrCode = 0 then
       Break;
-    ERR_error_string_n(fErrCode, @fErrStr[1], Length(fErrStr));
+    OpenSSL_error(fErrCode, fErrStr);
     Inc(fErrors);
 
     if Result <> '' then
       Result := Result + ' / ';
 
-    Result := Result + fErrStr;
+    Result := Result + UTF8ToString(fErrStr);
   end;
 
   if fErrors = 0 then
@@ -87,7 +86,7 @@ begin
   if OpenSslIsLoaded then
   begin
     // Get and display the OpenSSL version
-    Result := OpenSslVersionText;
+    Result := UTF8Decode(OpenSslVersionText);
   end;
 
 end;
@@ -100,49 +99,61 @@ end;
 function initOpenSsl(out aError: String): boolean;
 var
   fLoadedProvider: POSSL_PROVIDER;
+  i: integer;
 begin
-  Result := false;
+  Result := True;
   aError := '';
 
   if not OpenSslIsLoaded then
   begin
-    Result := OpenSslInitialize('','');
+    {$IFNDEF WINDOWS}
+    // the libinstaller used to install the files named libcrypto.so and libssl.so which the mormot loader does not
+    // find, because it expects libcrypto.so.3 / libcrypto.so.1. Therefore tell mormot to load those files explicitly
+    // if they exist.
+    if FileExists(ExtractFilePath(ParamStr(0)) + 'libcrypto.so') and FileExists(ExtractFilePath(ParamStr(0)) + 'libssl.so') then
+      Result := OpenSslInitialize(ExtractFilePath(ParamStr(0)) + 'libcrypto.so', ExtractFilePath(ParamStr(0)) + 'libssl.so')
+    else
+    {$ENDIF}
+    Result := OpenSslInitialize;
+
     if Result then
       RegisterOpenSsl
     else
     begin
-      aError := 'OpenSslInitialize failed! can not load openssl!';
+      aError := 'OpenSslInitialize failed! can not load openssl! ' + _GetEarliestOpenSSLErrorCode;
       exit;
     end;
 
     if OpenSslVersion >= OPENSSL3_VERNUM then
     begin
-      // on windows to be able to load the legacy.dll we need to OSSL_PROVIDER_set_default_search_path
-      {$IFDEF MSWINDOWS}
-        {$IFDEF UNICODE}
-          OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(Pointer(AnsiString(ExtractFilePath(ParamStr(0))))));
-        {$ELSE}
-          OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(ExtractFilePath(ParamStr(0))));
-        {$ENDIF}
+      {$IFDEF UNICODE}
+        i := OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(Pointer(AnsiString(ExtractFilePath(ParamStr(0))))));
+      {$ELSE}
+        i := OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(ExtractFilePath(ParamStr(0))));
       {$ENDIF}
+
+      if i <> 1 then
+      begin
+        aError := 'OSSL_PROVIDER_set_default_search_path error ' + _GetEarliestOpenSSLErrorCode;
+        Result := False;
+        exit;
+      end;
 
       fLoadedProvider := OSSL_PROVIDER_load(NIL, 'default');
       if fLoadedProvider = NIL THEN
       begin
-        aError := 'default ssl provider not loaded!';
-        Result := False;
-        exit;
-      end;
-      fLoadedProvider := OSSL_PROVIDER_load(NIL, 'legacy');
-      if fLoadedProvider = NIL THEN
-      begin
-        aError := 'legacy ssl provider not loaded!';
+        aError := 'default ssl provider not loaded! ' + _GetEarliestOpenSSLErrorCode;
         Result := False;
         exit;
       end;
 
-      Result := True;
-      Exit;
+      fLoadedProvider := OSSL_PROVIDER_load(NIL, 'legacy');
+      if fLoadedProvider = NIL THEN
+      begin
+        aError := 'legacy ssl provider not loaded! ' + _GetEarliestOpenSSLErrorCode;
+        Result := False;
+        exit;
+      end;
     end;
     if OpenSslVersion < OPENSSL1_VERNUM then
     begin
@@ -150,10 +161,6 @@ begin
       Result := False;
       exit;
     end;
-  end
-  else
-  begin
-    Result := true;
   end;
 end;
 
@@ -198,6 +205,18 @@ function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
 var
   fErrorCode: Integer;
 begin
+  // first try to get the error via mormot
+  try
+    EOpenSsl.Check(aErrCode, '', aSSL);
+  except
+    on e: Exception do
+    begin
+      Result := e.Message;
+      exit;
+    end;
+  end;
+
+  // if mormot does not extract the error, use the old way
   fErrorCode := SSL_get_error(aSSL, aErrCode);
   case fErrorCode of
     SSL_ERROR_NONE: Result := 'no error';
