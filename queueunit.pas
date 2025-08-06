@@ -1517,13 +1517,13 @@ begin
                 ts.ReleaseSlotsAssignmentLock;
                end;
                Console_QueueDel(ss);
-               end;
-              except
-                on e: Exception do
-                begin
-                  Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute: %s', [e.Message]));
-                  Continue;
-                end;
+            end;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+              Continue;
+            end;
           end;
         end;
 

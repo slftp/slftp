@@ -139,7 +139,7 @@ var
 
 implementation
 
-uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc, slcriticalsection2;
+uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc, mormot.core.base, slcriticalsection2;
 
 
 procedure sltcp_Init;
@@ -591,6 +591,7 @@ function TslTCPSocket.TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTi
 var er: String;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
+    fErrorMessage: RawUtf8;
 begin
   shouldquit:= False;
   Result:= False;
@@ -617,9 +618,9 @@ begin
 
     if (fSSL = nil) then
     begin
-      ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
-
-      er:= AnsiString(PAnsiChar(er));
+      err := ERR_get_error();
+      OpenSSL_error(err, fErrorMessage);
+      er := UTF8ToString(fErrorMessage);
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
@@ -637,10 +638,8 @@ begin
     begin
       if i* 100 > timeout then
       begin
-        error:= 'timeout';
-        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
-        er:= AnsiString(PAnsiChar(er));
-        error:= 'ssl failed '+er;
+        er:= GetLastSSLError(fSSL, sslerr);
+        error:= 'timeout, ssl failed '+ er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
         exit;
@@ -671,8 +670,7 @@ begin
       end
       else
       begin
-        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
-        er:= AnsiString(PAnsiChar(er));
+        er:= GetLastSSLError(fSSL, sslerr);
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
@@ -699,6 +697,7 @@ function TslTCPSocket.AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTi
 var er: String;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
+    fErrorMessage: RawUtf8;
 begin
   shouldquit:= False;
   Result:= False;
@@ -724,8 +723,9 @@ begin
 
     if (fSSL = nil) then
     begin
-      ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
-      er:= AnsiString(PAnsiChar(er));
+      err := ERR_get_error();
+      OpenSSL_error(err, fErrorMessage);
+      er := UTF8ToString(fErrorMessage);
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
@@ -743,10 +743,8 @@ begin
     begin
       if i* 100 > timeout then
       begin
-        error:= 'timeout';
-        ERR_error_string_n(ERR_get_error(), @er[1],SizeOf(@er[1]));
-        er:= AnsiString(PAnsiChar(er));
-        error:= 'ssl failed '+er;
+        er:= GetLastSSLError(fSSL, sslerr);
+        error:= 'timeout, ssl failed '+ er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
         exit;
@@ -777,8 +775,7 @@ begin
       end
       else
       begin
-        ERR_error_string_n(ERR_get_error(), @er[1], SizeOf(@er[1]));
-        er:= AnsiString(PAnsiChar(er));
+        er:= GetLastSSLError(fSSL, sslerr);
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);

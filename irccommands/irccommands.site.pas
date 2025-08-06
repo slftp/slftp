@@ -307,8 +307,9 @@ begin
     if ((bnchost = '') or (bncport = 0)) then
       break;
 
-    s.WCString('bnc_host-' + IntToStr(i - 4), bnchost);
-    s.WCInteger('bnc_port-' + IntToStr(i - 4), bncport);
+    // doing this before actually creating the TSite object, so write those into the sites.dat directly and don't use s.WCString
+    sitesdat.WriteString('site-' + sitename, 'bnc_host-' + IntToStr(i - 4), bnchost);
+    sitesdat.WriteInteger('site-' + sitename, 'bnc_port-' + IntToStr(i - 4), bncport);
 
     Inc(i);
   end;
