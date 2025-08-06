@@ -796,8 +796,12 @@ my $default_depflags = " -DOPENSSL_NO_CAMELLIA -DOPENSSL_NO_CAPIENG -DOPENSSL_NO
 // compiling in C++ without having to re-define
 // OpenSSL data types and without having to
 // include the OpenSSL header files
+{$IFDEF HAS_DIRECTIVE_HPPEMIT_NAMESPACE}
+{$HPPEMIT OPENNAMESPACE}
+{$ELSE}
 (*$HPPEMIT 'namespace Idsslopensslheaders'*)
 (*$HPPEMIT '{'*)
+{$ENDIF}
 (*$HPPEMIT '	struct SSL;'*)
 (*$HPPEMIT '	typedef SSL* PSSL;'*)
 (*$HPPEMIT '	struct SSL_CTX;'*)
@@ -808,7 +812,12 @@ my $default_depflags = " -DOPENSSL_NO_CAMELLIA -DOPENSSL_NO_CAPIENG -DOPENSSL_NO
 (*$HPPEMIT '	typedef X509* PX509;'*)
 (*$HPPEMIT '	struct X509_NAME;'*)
 (*$HPPEMIT '	typedef X509_NAME* PX509_NAME;'*)
+{$IFDEF HAS_DIRECTIVE_HPPEMIT_NAMESPACE}
+{$HPPEMIT CLOSENAMESPACE}
+{$ELSE}
 (*$HPPEMIT '}'*)
+{$ENDIF}
+
 // RLebeau: why are the following types not being placed in
 // the Idsslopensslheaders namespace with the types above?
 (*$HPPEMIT 'struct RSA;'*)
@@ -18929,6 +18938,7 @@ uses
   Classes,
   IdFIPS,
   IdGlobalProtocols,
+  IdHashMessageDigest,
   IdResourceStringsProtocols,
   IdResourceStringsOpenSSL,
   IdStack
@@ -19419,6 +19429,149 @@ begin
   FreeMem(ACtx,SizeOf(HMAC_CTX));
 end;
 
+function LoadOpenSSL: Boolean;
+begin
+  Result := Load;
+end;
+
+function OpenSSLIsNTLMFuncsAvail: Boolean;
+begin
+  Result := Assigned(DES_set_odd_parity) and
+    Assigned(DES_set_key) and
+    Assigned(DES_ecb_encrypt);
+end;
+
+type
+  Pdes_key_schedule = ^des_key_schedule;
+
+{/*
+ * turns a 56 bit key into the 64 bit, odd parity key and sets the key.
+ * The key schedule ks is also set.
+ */}
+procedure ntlm_setup_des_key(key_56: des_cblock; Var ks: des_key_schedule);
+Var
+  key: des_cblock;
+begin
+  key[0] := key_56[0];
+
+  key[1] := ((key_56[0] SHL 7) and $FF) or (key_56[1] SHR 1);
+  key[2] := ((key_56[1] SHL 6) and $FF) or (key_56[2] SHR 2);
+  key[3] := ((key_56[2] SHL 5) and $FF) or (key_56[3] SHR 3);
+  key[4] := ((key_56[3] SHL 4) and $FF) or (key_56[4] SHR 4);
+  key[5] := ((key_56[4] SHL 3) and $FF) or (key_56[5] SHR 5);
+  key[6] := ((key_56[5] SHL 2) and $FF) or (key_56[6] SHR 6);
+  key[7] :=  (key_56[6] SHL 1) and $FF;
+
+  DES_set_odd_parity(@key);
+  DES_set_key(@key, ks);
+end;
+
+{/*
+ * takes a 21 byte array and treats it as 3 56-bit DES keys. The
+ * 8 byte plaintext is encrypted with each key and the resulting 24
+ * bytes are stored in the results array.
+ */}
+procedure ntlm_calc_resp(keys: PDES_cblock; const ANonce: TIdBytes; results: Pdes_key_schedule);
+Var
+  ks: des_key_schedule;
+  nonce: des_cblock;
+begin
+  ntlm_setup_des_key(keys^, ks);
+  Move(ANonce[0], nonce, 8);
+  des_ecb_encrypt(@nonce, Pconst_DES_cblock(results), ks, DES_ENCRYPT);
+
+  ntlm_setup_des_key(PDES_cblock(PtrUInt(keys) + 7)^, ks);
+  des_ecb_encrypt(@nonce, Pconst_DES_cblock(PtrUInt(results) + 8), ks, DES_ENCRYPT);
+
+  ntlm_setup_des_key(PDES_cblock(PtrUInt(keys) + 14)^, ks);
+  des_ecb_encrypt(@nonce, Pconst_DES_cblock(PtrUInt(results) + 16), ks, DES_ENCRYPT);
+end;
+
+Const
+  Magic: des_cblock = ($4B, $47, $53, $21, $40, $23, $24, $25 );
+
+//* setup LanManager password */
+function OpenSSLSetupLanManagerPassword(const APassword: String; const ANonce: TIdBytes): TIdBytes;
+var
+  lm_hpw: array[0..20] of Byte;
+  lm_pw: array[0..13] of Byte;
+  idx, len: Integer;
+  ks: des_key_schedule;
+  lm_resp: array [0..23] of Byte;
+  lPassword: {$IFDEF STRING_IS_UNICODE}TIdBytes{$ELSE}AnsiString{$ENDIF};
+begin
+  {$IFDEF STRING_IS_UNICODE}
+  lPassword := IndyTextEncoding_OSDefault.GetBytes(UpperCase(APassword));
+  {$ELSE}
+  lPassword := UpperCase(APassword);
+  {$ENDIF}
+
+  len := IndyMin(Length(lPassword), 14);
+  if len > 0 then begin
+    Move(lPassword[{$IFDEF STRING_IS_UNICODE}0{$ELSE}1{$ENDIF}], lm_pw[0], len);
+  end;
+  if len < 14 then begin
+    for idx := len to 13 do begin
+      lm_pw[idx] := $0;
+    end;
+  end;
+
+  //* create LanManager hashed password */
+
+  ntlm_setup_des_key(pdes_cblock(@lm_pw[0])^, ks);
+  des_ecb_encrypt(@magic, Pconst_DES_cblock(@lm_hpw[0]), ks, DES_ENCRYPT);
+
+  ntlm_setup_des_key(pdes_cblock(PtrUInt(@lm_pw[0]) + 7)^, ks);
+  des_ecb_encrypt(@magic, Pconst_DES_cblock(PtrUInt(@lm_hpw[0]) + 8), ks, DES_ENCRYPT);
+
+  FillChar(lm_hpw[16], 5, 0);
+
+  ntlm_calc_resp(PDes_cblock(@lm_hpw[0]), ANonce, Pdes_key_schedule(@lm_resp[0]));
+
+  SetLength(Result, SizeOf(lm_resp));
+  Move(lm_resp[0], Result[0], SizeOf(lm_resp));
+end;
+
+//* create NT hashed password */
+function OpenSSLCreateNTPassword(const APassword: String; const ANonce: TIdBytes): TIdBytes;
+var
+  nt_hpw: array [1..21] of Byte;
+  nt_hpw128: TIdBytes;
+  nt_resp: array [1..24] of Byte;
+  LMD4: TIdHashMessageDigest4;
+  {$IFNDEF STRING_IS_UNICODE}
+  i: integer;
+  lPwUnicode: TIdBytes;
+  {$ENDIF}
+begin
+  CheckMD4Permitted;
+  LMD4 := TIdHashMessageDigest4.Create;
+  try
+    {$IFDEF STRING_IS_UNICODE}
+    nt_hpw128 := LMD4.HashString(APassword, IndyTextEncoding_UTF16LE);
+    {$ELSE}
+    // RLebeau: TODO - should this use UTF-16 as well?  This logic will
+    // not produce a valid Unicode string if non-ASCII characters are present!
+    SetLength(lPwUnicode, Length(APassword) * SizeOf(WideChar));
+    for i := 0 to Length(APassword)-1 do begin
+      lPwUnicode[i*2] := Byte(APassword[i+1]);
+      lPwUnicode[(i*2)+1] := Byte(#0);
+    end;
+    nt_hpw128 := LMD4.HashBytes(lPwUnicode);
+    {$ENDIF}
+  finally
+    LMD4.Free;
+  end;
+
+  Move(nt_hpw128[0], nt_hpw[1], 16);
+  FillChar(nt_hpw[17], 5, 0);
+
+  ntlm_calc_resp(pdes_cblock(@nt_hpw[1]), ANonce, Pdes_key_schedule(@nt_resp[1]));
+
+  SetLength(Result, SizeOf(nt_resp));
+  Move(nt_resp[1], Result[0], SizeOf(nt_resp));
+end;
+
 //****************************************************
 function FIPS_mode_set(onoff : TIdC_INT) : TIdC_INT;  {$IFDEF INLINE}inline;{$ENDIF}
 begin
@@ -19674,10 +19827,10 @@ them in case we use them later.}
 {$IFNDEF OPENSSL_NO_FP_API}
   {CH fn_NCONF_load_fp = 'NCONF_load_fp'; }{Do not localize}
 {$ENDIF}
-  {CH fn_NCONF_load_bio = 'NCONF_load_bio'; {Do not localize}
-  {CH fn_NCONF_get_section = 'NCONF_get_section'; {Do not localize}
-  {CH fn_NCONF_get_string = 'NCONF_get_string'; {Do not localize}
-  {CH fn_NCONF_get_number_e = 'NCONF_get_number_e'; {Do not localize}
+  {CH fn_NCONF_load_bio = 'NCONF_load_bio'; } {Do not localize}
+  {CH fn_NCONF_get_section = 'NCONF_get_section'; } {Do not localize}
+  {CH fn_NCONF_get_string = 'NCONF_get_string'; } {Do not localize}
+  {CH fn_NCONF_get_number_e = 'NCONF_get_number_e'; } {Do not localize}
   {CH fn_NCONF_dump_fp = 'NCONF_dump_fp'; } {Do not localize}
   {CH fn_NCONF_dump_bio = 'NCONF_dump_bio'; }{Do not localize}
   {CH fn_CONF_modules_load = 'CONF_modules_load'; } {Do not localize}
@@ -19730,7 +19883,7 @@ them in case we use them later.}
   {CH fn_CRYPTO_pop_info = 'CRYPTO_pop_info'; } {Do not localize}
   {CH fn_CRYPTO_remove_all_info = 'CRYPTO_remove_all_info'; } {Do not localize}
   {CH fn_OpenSSLDie = 'OpenSSLDie'; } {Do not localize}
-  {CH fn_OPENSSL_ia32cap_loc = 'OPENSSL_ia32cap_loc'; { {Do not localize}
+  {CH fn_OPENSSL_ia32cap_loc = 'OPENSSL_ia32cap_loc'; } {Do not localize}
   {CH fn_CRYPTO_get_new_lockid = 'CRYPTO_get_new_lockid'; }  {Do not localize}
   fn_CRYPTO_num_locks = 'CRYPTO_num_locks';  {Do not localize}
   fn_CRYPTO_lock = 'CRYPTO_lock';   {Do not localize}
@@ -20033,49 +20186,49 @@ them in case we use them later.}
   {CH fn_des_read_pw = 'DES_read_pw'; }  {Do not localize}
   {CH fn_des_cblock_print_file = 'DES_cblock_print_file'; }  {Do not localize}
    //des_old.h
-  {CH fn__ossl_old_des_options = '_ossl_old_des_options'; {Do not localize}
-  {CH fn__ossl_old_des_ecb3_encrypt = '_ossl_old_des_ecb3_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_cbc_cksum = '_ossl_old_des_cbc_cksum'; {Do not localize}
-  {CH fn__ossl_old_des_cbc_encrypt = '_ossl_old_des_cbc_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_ncbc_encrypt = '_ossl_old_des_ncbc_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_xcbc_encrypt = '_ossl_old_des_xcbc_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_cfb_encrypt = '_ossl_old_des_cfb_encrypt'; {Do not localize}
+  {CH fn__ossl_old_des_options = '_ossl_old_des_options'; } {Do not localize}
+  {CH fn__ossl_old_des_ecb3_encrypt = '_ossl_old_des_ecb3_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_cbc_cksum = '_ossl_old_des_cbc_cksum'; } {Do not localize}
+  {CH fn__ossl_old_des_cbc_encrypt = '_ossl_old_des_cbc_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_ncbc_encrypt = '_ossl_old_des_ncbc_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_xcbc_encrypt = '_ossl_old_des_xcbc_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_cfb_encrypt = '_ossl_old_des_cfb_encrypt'; } {Do not localize}
   fn__ossl_old_des_ecb_encrypt = '_ossl_old_des_ecb_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_encrypt = '_ossl_old_des_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_encrypt2 = '_ossl_old_des_encrypt2'; {Do not localize}
-  {CH fn__ossl_old_des_encrypt3 = '_ossl_old_des_encrypt3'; {Do not localize}
-  {CH fn__ossl_old_des_decrypt3 = '_ossl_old_des_decrypt3'; {Do not localize}
-  {CH fn__ossl_old_des_ede3_cbc_encrypt = '_ossl_old_des_ede3_cbc_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_ede3_cfb64_encrypt = '_ossl_old_des_ede3_cfb64_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_ede3_ofb64_encrypt = '_ossl_old_des_ede3_ofb64_encrypt'; {Do not localize}
+  {CH fn__ossl_old_des_encrypt = '_ossl_old_des_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_encrypt2 = '_ossl_old_des_encrypt2'; } {Do not localize}
+  {CH fn__ossl_old_des_encrypt3 = '_ossl_old_des_encrypt3'; } {Do not localize}
+  {CH fn__ossl_old_des_decrypt3 = '_ossl_old_des_decrypt3'; } {Do not localize}
+  {CH fn__ossl_old_des_ede3_cbc_encrypt = '_ossl_old_des_ede3_cbc_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_ede3_cfb64_encrypt = '_ossl_old_des_ede3_cfb64_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_ede3_ofb64_encrypt = '_ossl_old_des_ede3_ofb64_encrypt'; } {Do not localize}
     {$IFDEF USE_THIS}
-  {CH fn__ossl_old_des_xwhite_in2out = '_ossl_old_des_xwhite_in2out'; {Do not localize}
+  {CH fn__ossl_old_des_xwhite_in2out = '_ossl_old_des_xwhite_in2out'; } {Do not localize}
     {$ENDIF}
-  {CH fn__ossl_old_des_enc_read = '_ossl_old_des_enc_read'; {Do not localize}
-  {CH fn__ossl_old_des_enc_write = '_ossl_old_des_enc_write'; {Do not localize}
-  {CH fn__ossl_old_des_fcrypt = '_ossl_old_des_fcrypt'; {Do not localize}
-  {CH fn__ossl_old_des_crypt = '_ossl_old_des_crypt'; {Do not localize}
+  {CH fn__ossl_old_des_enc_read = '_ossl_old_des_enc_read'; } {Do not localize}
+  {CH fn__ossl_old_des_enc_write = '_ossl_old_des_enc_write'; } {Do not localize}
+  {CH fn__ossl_old_des_fcrypt = '_ossl_old_des_fcrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_crypt = '_ossl_old_des_crypt'; } {Do not localize}
     {$IFNDEF PERL5}
       {$IFNDEF NeXT}
-  {CH fn__ossl_old_crypt = '_ossl_old_crypt'; {Do not localize}
+  {CH fn__ossl_old_crypt = '_ossl_old_crypt'; } {Do not localize}
       {$ENDIF}
     {$ENDIF}
-  {CH fn__ossl_old_des_ofb_encrypt = '_ossl_old_des_ofb_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_pcbc_encrypt = '_ossl_old_des_pcbc_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_quad_cksum = '_ossl_old_des_quad_cksum'; {Do not localize}
-  {CH fn__ossl_old_des_random_seed = '_ossl_old_des_random_seed'; {Do not localize}
-  {CH fn__ossl_old_des_random_key = '_ossl_old_des_random_key'; {Do not localize}
-  {CH fn__ossl_old_des_read_password = '_ossl_old_des_read_password'; {Do not localize}
-  {CH fn__ossl_old_des_read_2passwords = '_ossl_old_des_read_2passwords'; {Do not localize}
+  {CH fn__ossl_old_des_ofb_encrypt = '_ossl_old_des_ofb_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_pcbc_encrypt = '_ossl_old_des_pcbc_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_quad_cksum = '_ossl_old_des_quad_cksum'; } {Do not localize}
+  {CH fn__ossl_old_des_random_seed = '_ossl_old_des_random_seed'; } {Do not localize}
+  {CH fn__ossl_old_des_random_key = '_ossl_old_des_random_key'; } {Do not localize}
+  {CH fn__ossl_old_des_read_password = '_ossl_old_des_read_password'; } {Do not localize}
+  {CH fn__ossl_old_des_read_2passwords = '_ossl_old_des_read_2passwords'; } {Do not localize}
   fn__ossl_old_des_set_odd_parity = '_ossl_old_des_set_odd_parity'; {Do not localize}
-  {CH fn__ossl_old_des_is_weak_key = '_ossl_old_des_is_weak_key'; {Do not localize}
+  {CH fn__ossl_old_des_is_weak_key = '_ossl_old_des_is_weak_key'; } {Do not localize}
   fn__ossl_old_des_set_key = '_ossl_old_des_set_key'; {Do not localize}
-  {CH fn__ossl_old_des_key_sched = '_ossl_old_des_key_sched'; {Do not localize}
-  {CH fn__ossl_old_des_string_to_key = '_ossl_old_des_string_to_key'; {Do not localize}
-  {CH fn__ossl_old_des_string_to_2keys = '_ossl_old_des_string_to_2keys'; {Do not localize}
-  {CH fn__ossl_old_des_cfb64_encrypt = '_ossl_old_des_cfb64_encrypt'; {Do not localize}
-  {CH fn__ossl_old_des_ofb64_encrypt = '_ossl_old_des_ofb64_encrypt'; {Do not localize}
-  {CH fn__ossl_096_des_random_seed = '_ossl_096_des_random_seed'; {Do not localize}
+  {CH fn__ossl_old_des_key_sched = '_ossl_old_des_key_sched'; } {Do not localize}
+  {CH fn__ossl_old_des_string_to_key = '_ossl_old_des_string_to_key'; } {Do not localize}
+  {CH fn__ossl_old_des_string_to_2keys = '_ossl_old_des_string_to_2keys'; } {Do not localize}
+  {CH fn__ossl_old_des_cfb64_encrypt = '_ossl_old_des_cfb64_encrypt'; } {Do not localize}
+  {CH fn__ossl_old_des_ofb64_encrypt = '_ossl_old_des_ofb64_encrypt'; } {Do not localize}
+  {CH fn__ossl_096_des_random_seed = '_ossl_096_des_random_seed'; } {Do not localize}
   {$ENDIF}
   {$IFNDEF OPENSSL_NO_RC4}
   {CH fn_RC4_options = 'RC4_options'; } {Do not localize}
@@ -20764,7 +20917,7 @@ them in case we use them later.}
   {CH fn_ASN1_mbstring_copy = 'ASN1_mbstring_copy'; } {Do not localize}
   {CH fn_ASN1_mbstring_ncopy = 'ASN1_mbstring_ncopy'; } {Do not localize}
   {CH fn_ASN1_STRING_set_by_NID = 'ASN1_STRING_set_by_NID'; } {Do not localize}
-  {CH fn_ASN1_STRING_TABLE_get = 'ASN1_STRING_TABLE_get'; {Do not localize}
+  {CH fn_ASN1_STRING_TABLE_get = 'ASN1_STRING_TABLE_get'; } {Do not localize}
   {CH fn_ASN1_STRING_TABLE_add = 'ASN1_STRING_TABLE_add'; } {Do not localize}
   {CH fn_ASN1_STRING_TABLE_cleanup = 'ASN1_STRING_TABLE_cleanup'; } {Do not localize}
   {CH fn_ASN1_item_new = 'ASN1_item_new'; } {Do not localize}
@@ -22082,7 +22235,7 @@ them in case we use them later.}
   {CH fn_SSL_use_RSAPrivateKey_ASN1 = 'SSL_use_RSAPrivateKey_ASN1'; }  {Do not localize}
   {$ENDIF}
   {CH fn_SSL_use_PrivateKey = 'SSL_use_PrivateKey'; }  {Do not localize}
-  {CH fn_SSL_use_PrivateKey_ASN1 = 'SSL_use_PrivateKey_ASN1'; {Do not localize}
+  {CH fn_SSL_use_PrivateKey_ASN1 = 'SSL_use_PrivateKey_ASN1'; } {Do not localize}
   {CH fn_SSL_use_certificate = 'SSL_use_certificate'; }  {Do not localize}
   {CH fn_SSL_use_certificate_ASN1 = 'SSL_use_certificate_ASN1'; }  {Do not localize}
   {CH fn_SSL_use_RSAPrivateKey_file = 'SSL_use_RSAPrivateKey_file'; }  {Do not localize}
@@ -22437,7 +22590,7 @@ them in case we use them later.}
   {CH fn_ENGINE_register_RAND = 'ENGINE_register_RAND'; } {Do not localize}
   {CH fn_ENGINE_unregister_RAND = 'ENGINE_unregister_RAND'; } {Do not localize}
   {CH fn_ENGINE_register_all_RAND = 'ENGINE_register_all_RAND'; } {Do not localize}
-  {CH fn_ENGINE_register_STORE = 'ENGINE_register_STORE'; { {Do not localize}
+  {CH fn_ENGINE_register_STORE = 'ENGINE_register_STORE'; } {Do not localize}
   {CH fn_ENGINE_unregister_STORE = 'ENGINE_unregister_STORE'; } {Do not localize}
   {CH fn_ENGINE_register_all_STORE = 'ENGINE_register_all_STORE'; } {Do not localize}
   {CH fn_ENGINE_register_ciphers = 'ENGINE_register_ciphers'; } {Do not localize}
@@ -22451,7 +22604,7 @@ them in case we use them later.}
   {CH fn_ENGINE_ctrl = 'ENGINE_ctrl'; } {Do not localize}
   {CH fn_ENGINE_cmd_is_executable = 'ENGINE_cmd_is_executable'; } {Do not localize}
   {CH fn_ENGINE_ctrl_cmd = 'ENGINE_ctrl_cmd'; } {Do not localize}
-  {CH fn_ENGINE_ctrl_cmd_string = 'ENGINE_ctrl_cmd_string'; }  {Do not localize}
+  {CH fn_ENGINE_ctrl_cmd_string = 'ENGINE_ctrl_cmd_string'; } {Do not localize}
   {CH fn_ENGINE_new = 'ENGINE_new'; } {Do not localize}
   {CH fn_ENGINE_free = 'ENGINE_free'; } {Do not localize}
   {CH fn_ENGINE_up_ref = 'ENGINE_up_ref'; } {Do not localize}
@@ -22555,19 +22708,47 @@ them in case we use them later.}
 
 
 function LoadFunction(const FceName: TIdLibFuncName; const ACritical : Boolean = True): Pointer;
+{$IFDEF WINDOWS}
+var
+  Err: DWORD;
+{$ENDIF}
 begin
   Result := LoadLibFunction(hIdSSL, FceName);
-  if (Result = nil) and ACritical then begin
-    FFailedLoadList.Add(FceName);
+  if (Result <> nil) or (not ACritical) then begin
+    Exit;
   end;
+  {$IFDEF WINDOWS}
+  Err := GetLastError();
+  if Err <> ERROR_PROC_NOT_FOUND then begin
+    FFailedLoadList.Add(IndyFormat(RSOSSMissingExport_WithErrCode, [FceName, Err]));
+    Exit;
+  end;
+  {$ELSE}
+  // TODO: add error code to message...
+  {$ENDIF}
+  FFailedLoadList.Add(FceName);
 end;
 
 function LoadFunctionCLib(const FceName: TIdLibFuncName; const ACritical : Boolean = True): Pointer;
+{$IFDEF WINDOWS}
+var
+  Err: DWORD;
+{$ENDIF}
 begin
   Result := LoadLibFunction(hIdCrypto, FceName);
-  if (Result = nil) and ACritical then begin
-    FFailedLoadList.Add(FceName);
+  if (Result <> nil) or (not ACritical) then begin
+    Exit;
   end;
+  {$IFDEF WINDOWS}
+  Err := GetLastError();
+  if Err <> ERROR_PROC_NOT_FOUND then begin
+    FFailedLoadList.Add(IndyFormat(RSOSSMissingExport_WithErrCode, [FceName, Err]));
+    Exit;
+  end;
+  {$ELSE}
+  // TODO: add error code to message...
+  {$ENDIF}
+  FFailedLoadList.Add(FceName);
 end;
 
 // Id_ossl_old_des_set_odd_parity
@@ -22580,14 +22761,38 @@ The OpenSSL developers changed that interface to a new "des_*" API.  They have s
  which are defined in des_old.h. 
 }
 function LoadOldCLib(const AOldName, ANewName : TIdLibFuncName; const ACritical : Boolean = True): Pointer;
+{$IFDEF WINDOWS}
+var
+  Err: DWORD;
+{$ENDIF}
 begin
   Result := LoadLibFunction(hIdCrypto, AOldName);
-  if Result = nil then begin
-    Result := LoadLibFunction(hIdCrypto, ANewName);
-    if (Result = nil) and ACritical then begin
-      FFailedLoadList.Add(AOldName);
+  if Result <> nil then begin
+    Exit;
+  end;
+  {$IFDEF WINDOWS}
+  if ACritical then begin
+    Err := GetLastError();
+    if Err <> ERROR_PROC_NOT_FOUND then begin
+      FFailedLoadList.Add(IndyFormat(RSOSSMissingExport_WithErrCode, [AOldName, Err]));
+      Exit;
     end;
   end;
+  {$ENDIF}
+  Result := LoadLibFunction(hIdCrypto, ANewName);
+  if (Result <> nil) or (not ACritical) then begin
+    Exit;
+  end;
+  {$IFDEF WINDOWS}
+  Err := GetLastError();
+  if Err <> ERROR_PROC_NOT_FOUND then begin
+    FFailedLoadList.Add(IndyFormat(RSOSSMissingExport_WithErrCode, [ANewName, Err]));
+    Exit;
+  end;
+  {$ELSE}
+  // TODO: add error code to message...
+  {$ENDIF}
+  FFailedLoadList.Add(AOldName);
 end;
 
 {$ENDIF} // STATICLOAD_OPENSSL
@@ -22620,6 +22825,7 @@ begin
 end;
 
 {$IFNDEF STATICLOAD_OPENSSL}
+
 {$UNDEF USE_BASEUNIX_OR_VCL_POSIX}
 {$IFDEF USE_BASEUNIX}
   {$DEFINE USE_BASEUNIX_OR_VCL_POSIX}
@@ -22650,6 +22856,9 @@ end;
 
   {$IFDEF UNIX}
 var
+  // TODO: default these to False instead, as modern systems now
+  // use symlinks that point to OpenSSL 1.1.x+, which is not
+  // compatible with this unit...
   GIdCanLoadSymLinks: Boolean = True;
   GIdLoadSymLinksFirst: Boolean = True;
 
@@ -22665,7 +22874,10 @@ end;
   {$ENDIF}
 
 function LoadSSLCryptoLibrary: TIdLibHandle;
-{$IFNDEF WINDOWS}
+{$IFDEF WINDOWS}
+var
+  Err: DWORD;
+{$ELSE}
   {$IFDEF USE_BASEUNIX_OR_VCL_POSIX_OR_KYLIXCOMPAT} // TODO: use {$IF DEFINED(UNIX)} instead?
 var
   i, j: Integer;
@@ -22678,6 +22890,9 @@ begin
   //On Windows, you should use SafeLoadLibrary because
   //the LoadLibrary API call messes with the FPU control word.
   Result := SafeLoadLibrary(GIdOpenSSLPath + SSLCLIB_DLL_name);
+  if Result <> IdNilHandle then begin
+    Exit;
+  end;
   {$ELSE}
     {$IFDEF USE_BASEUNIX_OR_VCL_POSIX_OR_KYLIXCOMPAT} // TODO: use {$IF DEFINED(UNIX)} instead?
   // Workaround that is required under Linux (changed RTLD_GLOBAL with RTLD_LAZY Note: also work with LoadLibrary())
@@ -22689,6 +22904,7 @@ begin
     if Result <> IdNilHandle then begin
       Exit;
     end;
+    // TODO: exit here if the error is anything other than the file not being found...
   end;
   for i := Low(SSLDLLVers) to High(SSLDLLVers) do begin
     for j := Low(SSLDLLVersChar) to High(SSLDLLVersChar) do begin
@@ -22698,18 +22914,33 @@ begin
     if Result <> IdNilHandle then begin
       Exit;
     end;
+    // TODO: exit here if the error is anything other than the file not being found...
   end;
   if LCanLoadSymLinks and (not LLoadSymLinksFirst) then begin
     Result := HackLoad(GIdOpenSSLPath + SSLCLIB_DLL_name, []);
+    if Result <> IdNilHandle then begin
+      Exit;
+    end;
+    // TODO: exit here if the error is anything other than the file not being found...
   end;
     {$ELSE}
   Result := IdNilHandle;
     {$ENDIF}
   {$ENDIF}
+  {$IFDEF WINDOWS}
+  Err := GetLastError;
+  FFailedLoadList.Add(IndyFormat(RSOSSFailedToLoad_WithErrCode, [GIdOpenSSLPath + SSLCLIB_DLL_name, Err]));
+  {$ELSE}
+  // TODO: add error code to message...
+  FFailedLoadList.Add(IndyFormat(RSOSSFailedToLoad, [GIdOpenSSLPath + SSLCLIB_DLL_name {$IFDEF UNIX}+ LIBEXT{$ENDIF}]));
+  {$ENDIF}
 end;
 
 function LoadSSLLibrary: TIdLibHandle;
-{$IFNDEF WINDOWS}
+{$IFDEF WINDOWS}
+var
+  Err: DWORD;
+{$ELSE}
   {$IFDEF USE_BASEUNIX_OR_VCL_POSIX_OR_KYLIXCOMPAT} // TODO: use {$IF DEFINED(UNIX)} instead?
 var
   i, j: Integer;
@@ -22722,10 +22953,15 @@ begin
   //On Windows, you should use SafeLoadLibrary because
   //the LoadLibrary API call messes with the FPU control word.
   Result := SafeLoadLibrary(GIdOpenSSLPath + SSL_DLL_name);
+  if Result <> IdNilHandle then begin
+    Exit;
+  end;
+  // TODO: exit here if the error is anything other than the file not being found...
   //This is a workaround for mingw32-compiled SSL .DLL which
   //might be named 'libssl32.dll'.
-  if Result = IdNilHandle then begin
-    Result := SafeLoadLibrary(GIdOpenSSLPath + SSL_DLL_name_alt);
+  Result := SafeLoadLibrary(GIdOpenSSLPath + SSL_DLL_name_alt);
+  if Result <> IdNilHandle then begin
+    Exit;
   end;
   {$ELSE}
     {$IFDEF USE_BASEUNIX_OR_VCL_POSIX_OR_KYLIXCOMPAT} // TODO: use {$IF DEFINED(UNIX)} instead?
@@ -22738,6 +22974,7 @@ begin
     if Result <> IdNilHandle then begin
       Exit;
     end;
+    // TODO: exit here if the error is anything other than the file not being found...
   end;
   for i := Low(SSLDLLVers) to High(SSLDLLVers) do begin
     for j := Low(SSLDLLVersChar) to High(SSLDLLVersChar) do begin
@@ -22747,13 +22984,25 @@ begin
     if Result <> IdNilHandle then begin
       Exit;
     end;
+    // TODO: exit here if the error is anything other than the file not being found...
   end;
   if LCanLoadSymLinks and (not LLoadSymLinksFirst) then begin
     Result := HackLoad(GIdOpenSSLPath + SSL_DLL_name, []);
+    if Result <> IdNilHandle then begin
+      Exit;
+    end;
+    // TODO: exit here if the error is anything other than the file not being found...
   end;
     {$ELSE}
   Result := IdNilHandle;
     {$ENDIF}
+  {$ENDIF}
+  {$IFDEF WINDOWS}
+  Err := GetLastError;
+  FFailedLoadList.Add(IndyFormat(RSOSSFailedToLoad_WithErrCode, [GIdOpenSSLPath + SSL_DLL_name, Err]));
+  {$ELSE}
+  // TODO: add error code to message...
+  FFailedLoadList.Add(IndyFormat(RSOSSFailedToLoad, [GIdOpenSSLPath + SSL_DLL_name {$IFDEF UNIX}+ LIBEXT{$ENDIF}]));
   {$ENDIF}
 end;
 
@@ -22797,15 +23046,21 @@ begin
 end;
 {$ENDIF}
 
-function Load: Boolean;
-begin
 {$IFDEF STATICLOAD_OPENSSL}
 
+function Load: Boolean;
+begin
   bIsLoaded := True;
   Result := True;
+end;
 
 {$ELSE}
 
+function Load: Boolean;
+var
+  LVersion, LMajor, LMinor: TIdC_ULONG;
+  LVersionStr: string;
+begin
   Result := False;
   Assert(FFailedLoadList<>nil);
 
@@ -22819,7 +23074,6 @@ begin
   if hIdCrypto = IdNilHandle then begin
     hIdCrypto := LoadSSLCryptoLibrary;
     if hIdCrypto = IdNilHandle then begin
-      FFailedLoadList.Add(IndyFormat(RSOSSFailedToLoad, [GIdOpenSSLPath + SSLCLIB_DLL_name {$IFDEF UNIX}+ LIBEXT{$ENDIF}]));
       Exit;
     end;
   end;
@@ -22827,9 +23081,56 @@ begin
   if hIdSSL = IdNilHandle then begin
     hIdSSL := LoadSSLLibrary;
     if hIdSSL = IdNilHandle then begin
-      FFailedLoadList.Add(IndyFormat(RSOSSFailedToLoad, [GIdOpenSSLPath + SSL_DLL_name {$IFDEF UNIX}+ LIBEXT{$ENDIF}]));
       Exit;
     end;
+  end;
+
+  // RLebeau 6/8/2021: verify the type of library is supported...
+
+  @_SSLeay_version := LoadOldCLib(fn_SSLeay_version, 'OpenSSL_version'); {Do not localize} //Used by Indy 
+  @SSLeay := LoadOldCLib(fn_SSLeay, 'OpenSSL_version_num'); {Do not localize} //Used by Indy 
+
+  if Assigned(_SSLeay_version) then begin
+    LVersionStr := String(_SSLeay_version(SSLEAY_VERSION));
+  end;
+
+  if TextStartsWith(LVersionStr, 'LibreSSL') then {do not localize}
+  begin
+    {
+    According to the LibreSSL Portable GitHub repo:
+    https://github.com/libressl-portable/portable
+
+    LibreSSL is API compatible with OpenSSL 1.0.1, but does not yet include all new APIs from OpenSSL 1.0.2 and later.
+    LibreSSL also includes APIs not yet present in OpenSSL. The current common API subset is OpenSSL 1.0.1.
+
+    LibreSSL is not ABI compatible with any release of OpenSSL, or necessarily earlier releases of LibreSSL.
+    You will need to relink your programs to LibreSSL in order to use it, just as in moving between major versions
+    of OpenSSL. LibreSSL's installed library version numbers are incremented to account for ABI and API changes.
+    }
+    // TODO: add version checking?
+  end
+  else if TextStartsWith(LVersionStr, 'OpenSSL') or (LVersionStr = '') then {do not localize}
+  begin
+    // RLebeau 2/2/2021: verify the version is OpenSSL 1.0.2 or earlier, as OpenSSL 1.1.0 made MAJOR changes that we do not support yet...
+    if Assigned(SSLeay) then
+    begin
+      LVersion := SSLeay;
+      LMajor := (LVersion and $F0000000) shr 28;
+      LMinor := (LVersion and $0FF00000) shr 20;
+      if (LMajor = 0) and (LMinor = 0) then begin // < 0.9.3
+        LMajor := (LVersion and $F000) shr 12;
+        LMinor := (LVersion and $0F00) shr 8;
+      end;
+      if (LMajor > 1) or ((LMajor = 1) and (LMinor > 0)) then // OpenSSL 1.1.0 or higher
+      begin
+        FFailedLoadList.Add(IndyFormat(RSOSSUnsupportedVersion, [LVersion]));
+        Exit;
+      end;
+    end;
+  end else 
+  begin
+    FFailedLoadList.Add(IndyFormat(RSOSSUnsupportedLibrary, [LVersionStr]));
+    Exit;
   end;
 
   // TODO: stop loading non-critical functions here.  We should use per-function
@@ -22926,8 +23227,6 @@ begin
   end;
   {$ENDIF}
    // CRYPTO LIB
-  @_SSLeay_version := LoadFunctionCLib(fn_SSLeay_version); //Used by Indy
-  @SSLeay := LoadFunctionCLib(fn_SSLeay);    //Used by Indy
   @d2i_X509_NAME := LoadFunctionCLib(fn_d2i_X509_NAME);
   @i2d_X509_NAME := LoadFunctionCLib(fn_i2d_X509_NAME);
   @X509_NAME_oneline := LoadFunctionCLib(fn_X509_NAME_oneline);//Used by Indy
@@ -23646,9 +23945,9 @@ we have to handle both cases.
   }
 
   Result := (FFailedLoadList.Count = 0);
-
-{$ENDIF}
 end;
+
+{$ENDIF} // STATICLOAD_OPENSSL
 
 procedure InitializeFuncPointers;
 begin
@@ -24476,12 +24775,13 @@ end;
 // Author : Gregor Ibich (gregor.ibic@intelicom.si)
 // Pascal translation: Doychin Bondzhev (doichin@5group.com)
 
-// Converts the following string representation into corresponding parts
-// YYMMDDHHMMSS(+|-)HH( )MM
+// Converts the following string representations into corresponding parts
+// YYYYMMDDHHMMSS(+|-)HH( )MM (GeneralizedTime, for dates 2050 and later)
+// YYMMDDHHMMSS(+|-)HH( )MM   (UTCTime, for dates up to 2049)
 function UTC_Time_Decode(UCTtime : PASN1_UTCTIME; var year, month, day, hour, min, sec: Word;
   var tz_hour, tz_min: Integer): Integer;
 var
-  i, tz_dir: Integer;
+  i, tz_dir, index: Integer;
   time_str: string;
   {$IFNDEF USE_MARSHALLED_PTRS}
     {$IFNDEF STRING_IS_ANSI}
@@ -24489,7 +24789,7 @@ var
     {$ENDIF}
   {$ENDIF}
 begin
-  Result := 1;
+  Result := 0;
   if UCTtime^.length < 12 then begin
     Exit;
   end;
@@ -24504,37 +24804,51 @@ begin
   time_str := String(LTemp); // explicit convert to Unicode
     {$ENDIF}
   {$ENDIF}
-  // Check if first 12 chars are numbers
-  if not IsNumeric(time_str, 12) then begin
+  // Check if first 14 chars (4-digit year) are numbers
+  if (Length(time_str) >= 14) and IsNumeric(time_str, 14) then begin
+    // Convert time from string to number
+    year := IndyStrToInt(Copy(time_str, 1, 4));
+    month := IndyStrToInt(Copy(time_str, 5, 2));
+    day := IndyStrToInt(Copy(time_str, 7, 2));
+    hour := IndyStrToInt(Copy(time_str, 9, 2));
+    min := IndyStrToInt(Copy(time_str, 11, 2));
+    sec := IndyStrToInt(Copy(time_str, 13, 2));
+    index := 15;
+  end
+  // Check if first 12 chars (2-digit year) are numbers
+  else if (Length(time_str) >= 12) and IsNumeric(time_str, 12) then begin
+    // Convert time from string to number
+    year := IndyStrToInt(Copy(time_str, 1, 2)) + 1900;
+    month := IndyStrToInt(Copy(time_str, 3, 2));
+    day := IndyStrToInt(Copy(time_str, 5, 2));
+    hour := IndyStrToInt(Copy(time_str, 7, 2));
+    min := IndyStrToInt(Copy(time_str, 9, 2));
+    sec := IndyStrToInt(Copy(time_str, 11, 2));
+    // Fix year. This function is Y2k but isn't compatible with Y2k5 :-(    {Do not Localize}
+    if year < 1950 then begin
+      Inc(year, 100);
+    end;
+    index := 13;
+  end else begin
     Exit;
-  end;
-  // Convert time from string to number
-  year := IndyStrToInt(Copy(time_str, 1, 2)) + 1900;
-  month := IndyStrToInt(Copy(time_str, 3, 2));
-  day := IndyStrToInt(Copy(time_str, 5, 2));
-  hour := IndyStrToInt(Copy(time_str, 7, 2));
-  min := IndyStrToInt(Copy(time_str, 9, 2));
-  sec := IndyStrToInt(Copy(time_str, 11, 2));
-  // Fix year. This function is Y2k but isn't compatible with Y2k5 :-(    {Do not Localize}
-  if year < 1950 then begin
-    Inc(year, 100);
   end;
   // Check TZ
   tz_hour := 0;
   tz_min := 0;
-  if CharIsInSet(time_str, 13, '-+') then begin    {Do not Localize}
-    tz_dir := iif(CharEquals(time_str, 13, '-'), -1, 1);    {Do not Localize}
-    for i := 14 to 18 do begin  // Check if numbers are numbers
-      if i = 16 then begin
+  if CharIsInSet(time_str, index, '-+') then begin    {Do not Localize}
+    tz_dir := iif(CharEquals(time_str, index, '-'), -1, 1);    {Do not Localize}
+    for i := index+1 to index+5 do begin  // Check if numbers are numbers
+      if i = index+3 then begin
         Continue;
       end;
       if not IsNumeric(time_str[i]) then begin
         Exit;
       end;
     end;
-    tz_hour := IndyStrToInt(Copy(time_str, 14, 15)) * tz_dir;
-    tz_min  := IndyStrToInt(Copy(time_str, 17, 18)) * tz_dir;
+    tz_hour := IndyStrToInt(Copy(time_str, index+1, 2)) * tz_dir;
+    tz_min  := IndyStrToInt(Copy(time_str, index+4, 2)) * tz_dir;
   end;
+  Result := 1;
 end;
 
 function SSL_set_app_data(s: PSSL; arg: Pointer): TIdC_INT;
@@ -25326,9 +25640,13 @@ end;
 //* #define BIO_set_nbio(b,n)	BIO_ctrl(b,BIO_C_SET_NBIO,(n),NULL) */
 function BIO_set_nbio_accept(b : PBIO; n : TIdC_INT) : TIdC_LONG;
 {$IFDEF USE_INLINE} inline; {$ENDIF}
+var
+  a: array[0..1] of TIdAnsiChar;
 begin
   if n <> 0 then begin
-    Result := BIO_ctrl(b, BIO_C_SET_ACCEPT, 1, PIdAnsiChar('a'));
+    a[0] := TIdAnsiChar('a');
+    a[1] := TIdAnsiChar(#0);
+    Result := BIO_ctrl(b, BIO_C_SET_ACCEPT, 1, @a[0]);
   end else begin
     Result := BIO_ctrl(b, BIO_C_SET_ACCEPT, 1, nil);
   end;
@@ -25337,7 +25655,7 @@ end;
 function BIO_set_accept_bios(b : PBIO; bio : PBIO) : TIdC_LONG;
 {$IFDEF USE_INLINE} inline; {$ENDIF}
 begin
-  Result := BIO_ctrl(b,BIO_C_SET_ACCEPT, 2, PIdAnsiChar(bio));
+  Result := BIO_ctrl(b,BIO_C_SET_ACCEPT, 2, bio);
 end;
 
 function BIO_set_bind_mode(b : PBIO; mode : TIdC_LONG) : TIdC_LONG;
@@ -26827,6 +27145,14 @@ initialization
   GetHMACSHA512HashInst:= OpenSSLGetHMACSHA512Inst;
   UpdateHMACInst := OpenSSLUpdateHMACInst;
   FinalHMACInst := OpenSSLFinalHMACInst;
+
+  LoadHashLibrary := LoadOpenSSL;
+
+  LoadNTLMLibrary := LoadOpenSSL;
+  IsNTLMFuncsAvail := OpenSSLIsNTLMFuncsAvail;
+  NTLMGetLmChallengeResponse := OpenSSLSetupLanManagerPassword;
+  NTLMGetNtChallengeResponse := OpenSSLCreateNTPassword;
+
 {$IFNDEF STATICLOAD_OPENSSL}
 finalization
   FreeAndNil(FFailedLoadList);
