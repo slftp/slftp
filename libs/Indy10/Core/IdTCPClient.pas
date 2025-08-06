@@ -149,6 +149,8 @@ uses
 (*$HPPEMIT '#pragma alias "@Idtcpclient@TIdTCPClientCustom@SetPortW$qqrxus"="@Idtcpclient@TIdTCPClientCustom@SetPort$qqrxus"' *)
 (*$HPPEMIT '#endif' *)
 (*$HPPEMIT '#endif' *)
+// TODO: when compiling with bcc64x, use this pragma instead:
+// #pragma comment(linker, "/alternatename:<name1>=<name2>")
 
 type
 
@@ -288,7 +290,7 @@ begin
     ManagedIOHandler := True;
 
     // TODO: always assign the OnStatus event even if the IOHandler is not implicit?
-    IOHandler.OnStatus := OnStatus;
+    IOHandler.OnStatus := OnStatus; // TODO: assign DoStatus() instead of the handler directly...
   end;
 
   try
