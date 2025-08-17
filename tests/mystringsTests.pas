@@ -1,4 +1,4 @@
-unit mystringsTests;
+﻿unit mystringsTests;
 
 interface
 
@@ -746,8 +746,8 @@ begin
   try
     fResult := ParseSFV(String.Join(#13#10, fSFV));
     CheckEquals(fResult.Count, 2);
-    CheckEquals('01-gerald_vdh-creature_of_habit_(original_mix)-3b8d1b57.mp3', fResult.Keys.ToArray[0]);
-    CheckEquals('02-gerald_vdh-creature_of_habit_(matt_mor_remix)-0ac321f0.mp3', fResult.Keys.ToArray[1]);
+    CheckTrue(fResult.ContainsKey('01-gerald_vdh-creature_of_habit_(original_mix)-3b8d1b57.mp3'));
+    CheckTrue(fResult.ContainsKey('02-gerald_vdh-creature_of_habit_(matt_mor_remix)-0ac321f0.mp3'));
   finally
     fResult.Free;
   end;
