@@ -1,4 +1,4 @@
-﻿unit mystringsTests;
+unit mystringsTests;
 
 interface
 
