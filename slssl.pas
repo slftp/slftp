@@ -113,7 +113,7 @@ begin
 
   if not OpenSslIsLoaded then
   begin
-    {$IFNDEF WINDOWS}
+    {$IFNDEF MSWINDOWS}
     // the libinstaller used to install the files named libcrypto.so and libssl.so which the mormot loader does not
     // find, because it expects libcrypto.so.3 / libcrypto.so.1. Therefore tell mormot to load those files explicitly
     // if they exist.
