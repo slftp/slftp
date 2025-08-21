@@ -62,23 +62,30 @@ var
   fErrCode: integer;
 begin
   Result := '';
-  fErrors := 0;
-  while (true) do
-  begin
-    fErrCode := ERR_get_error();
-    if fErrCode = 0 then
-      Break;
-    OpenSSL_error(fErrCode, fErrStr);
-    Inc(fErrors);
+  try
+    fErrors := 0;
+    while (true) do
+    begin
+      fErrCode := ERR_get_error();
+      if fErrCode = 0 then
+        Break;
+      OpenSSL_error(fErrCode, fErrStr);
+      Inc(fErrors);
 
-    if Result <> '' then
-      Result := Result + ' / ';
+      if Result <> '' then
+        Result := Result + ' / ';
 
-    Result := Result + UTF8ToString(fErrStr);
+      Result := Result + UTF8ToString(fErrStr);
+    end;
+
+    if fErrors = 0 then
+      Result := 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
+  except
+    on e: Exception do
+    begin
+      Result := 'Error while getting OpenSSL error: ' + e.Message;
+    end;
   end;
-
-  if fErrors = 0 then
-    Result := 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
 end;
 
 function GetOpenSSLVersion: String;
