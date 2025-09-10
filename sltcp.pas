@@ -212,8 +212,8 @@ end;
   fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
-  socks5.username:= sok5.username;
-  socks5.password:= sok5.password;
+  socks5.username:= RawByteString(sok5.username);
+  socks5.password:= RawByteString(sok5.password);
   socks5.host:= sok5.host;
   socks5.port:= sok5.port;
   socks5.enabled:= ((sok5.enabled) and (sok5.host <> ''));
@@ -499,7 +499,7 @@ begin
                          //               IP V6 address: X'04'    {Do not Localize}
   // host name
   if 0 = System.Pos('.', Host) then begin
-    Host := slConvertIp(Host);
+    Host := RawByteString(slConvertIp(string(Host)));
   end;
 
   tempBuffer[4] := AnsiChar(Chr(Length(Host)));
@@ -533,7 +533,7 @@ begin
 
   if error <> '' then exit;
 
-  socksextra:= Copy(s, 11, Length(s)-11);
+  socksextra:= RawByteString(Copy(string(s), 11, Length(s)-11));
 
   Result:= True;
 end;
@@ -595,6 +595,7 @@ var er: String;
 begin
   shouldquit:= False;
   Result:= False;
+  sslerr := 0; // Initialize to prevent uninitialized variable warning
   try
     setlength(er, 512);
 
@@ -701,6 +702,7 @@ var er: String;
 begin
   shouldquit:= False;
   Result:= False;
+  sslerr := 0; // Initialize to prevent uninitialized variable warning
   try
     setlength(er, 512);
 
@@ -940,7 +942,7 @@ end;
 function TslTCPSocket.WriteLn(s: String; timeout: Integer = slDefaultTimeout): Boolean;
 begin
   try
-    Result:= Write(s+slEOL, timeout);
+    Result:= Write(RawByteString(s+slEOL), timeout);
   except
     on e: Exception do
     begin
@@ -1221,11 +1223,7 @@ end;
 
 procedure TslTCPThread.Start;
 begin
-  {$IFDEF MSWINDOWS}
-    connectionThread.Resume;
-  {$ELSE}
     connectionThread.Start;
-  {$ENDIF}
 end;
 
 procedure TslTCPThread.Stop;

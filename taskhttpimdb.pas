@@ -177,7 +177,7 @@ begin
   fEndIndex := Pos('</script>', aPageSource, fStartIndex);
   fCount := fEndIndex - fStartIndex;
   fJsonString := Copy(aPageSource, fStartIndex + Length('type="application/json">'), fCount);
-  fJsonObject := _JsonFast(fJsonString);
+  fJsonObject := _JsonFast(UTF8String(fJsonString));
 
 
   doc := TDocVariantData(fJsonObject);
@@ -191,7 +191,7 @@ begin
   pdoc.GetAsRawUTF8('titleType', fTitleType);
   if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
   begin
-    Result := _JsonFast(pdoc.ToJSON());
+    Result := _JsonFast(UTF8String(pdoc.ToJSON()));
     exit;
   end;
 end;
@@ -317,6 +317,7 @@ var
   fDocVariant: PDocVariantData;
   fVariant: Variant;
 begin
+  aGenresList := '';
   if not VarIsNull(aJsonObject) then
   begin
     TDocVariantData(aJsonObject).GetAsDocVariant('genres', fDocVariant);
@@ -360,10 +361,10 @@ begin
     if rr.Exec(fExtractedPageSource) then
     begin
       repeat
-        fCountryCode := Trim(rr.Match[1]);
-        fCountry := Trim(rr.Match[2]);
-        fReleaseDate := Trim(rr.Match[3]);
-        fExtraInfo := Trim(rr.Match[4]);
+        fCountryCode := Trim(String(rr.Match[1]));
+        fCountry := Trim(String(rr.Match[2]));
+        fReleaseDate := Trim(String(rr.Match[3]));
+        fExtraInfo := Trim(String(rr.Match[4]));
 
         fCountry := RewriteUSAandUK(fCountry);
 
@@ -392,8 +393,8 @@ begin
     if rr.Exec(aPageSource) then
     begin
       repeat
-        fCountry := Trim(rr.Match[1]);
-        fTitle := Trim(rr.Match[2]);
+        fCountry := Trim(String(rr.Match[1]));
+        fTitle := Trim(String(rr.Match[2]));
         fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
 
         if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
@@ -429,8 +430,8 @@ begin
     if rr.Exec(aPageSource) then
     begin
       repeat
-        fLink := Trim(rr.Match[1]);
-        fReleaseGroup := Trim(rr.Match[2]);
+        fLink := Trim(String(rr.Match[1]));
+        fReleaseGroup := Trim(String(rr.Match[2]));
 
         // some pages list the same release group more than once therefore check if that group already exists
         if not aReleaseGroupLinks.ContainsKey(fReleaseGroup) then
@@ -456,8 +457,8 @@ begin
     if rr.Exec(aPageSource) then
     begin
       repeat
-        fLink := Trim(rr.Match[1]);
-        fCountry := Trim(rr.Match[2]);
+        fLink := Trim(String(rr.Match[1]));
+        fCountry := Trim(String(rr.Match[2]));
 
         fCountry := RewriteUSAandUK(fCountry);
 
@@ -610,6 +611,7 @@ var
   fBomScreensCount: Integer;
 begin
   Result := False;
+  fImdbCineYear := 0; // Initialize to prevent uninitialized variable warning
 
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then

@@ -1629,7 +1629,7 @@ begin
     fCalculatedRank := aSpeedFrom * aDestSite.GetRank(aSection); //normal calculation
 
   if (aIsPre) then
-    fCalculatedRank := Result + 100;
+    fCalculatedRank := fCalculatedRank + 100;
 
   Result := fCalculatedRank;
 end;
@@ -1905,6 +1905,7 @@ var
   fRulesPerSection: TObjectList<TRule>;
 begin
   Result := False;
+  fOldRule := nil; // Initialize to prevent uninitialized variable warning
 
   fNewRule := TRule.Create(aRule);
   if fNewRule.error <> '' then

@@ -418,6 +418,7 @@ begin
       Pos := Stream.Position;
       Stream.SetSize(Stream.Size + Length(Text) div 2);
       HexToBin(PAnsiChar(Text), PAnsiChar(Integer(Stream.Memory) + Stream.Position), Length(Text) div 2);
+      //HexToBin(PAnsiChar(AnsiString(Text)), PAnsiChar(PtrUInt(Stream.Memory) + Stream.Position), Length(Text) div 2);
       Stream.Position := Pos;
       if Value <> Stream then
         Value.CopyFrom(Stream, Length(Text) div 2);
@@ -452,6 +453,7 @@ begin
         Stream.Position := 0;
       end;
       BinToHex(PAnsiChar(Integer(Stream.Memory) + Stream.Position), PAnsiChar(Text),
+      //BinToHex(PAnsiChar(PtrUInt(Stream.Memory) + Stream.Position), PAnsiChar(AnsiString(Text)),
         Stream.Size - Stream.Position);
     finally
       if Value <> Stream then

@@ -74,7 +74,7 @@ begin
     if Result <> '' then
       Result := Result + ' / ';
 
-    Result := Result + UTF8ToString(fErrStr);
+    Result := Result + String(UTF8ToString(fErrStr));
   end;
 
   if fErrors = 0 then
@@ -83,12 +83,12 @@ end;
 
 function GetOpenSSLVersion: String;
 begin
+  Result := ''; // Initialize to prevent uninitialized variable warning
   if OpenSslIsLoaded then
   begin
     // Get and display the OpenSSL version
-    Result := UTF8Decode(OpenSslVersionText);
+    Result := String(UTF8ToString(OpenSslVersionText));
   end;
-
 end;
 
 function GetOpenSSLAvailable: boolean;

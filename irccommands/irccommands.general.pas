@@ -216,7 +216,7 @@ begin
     {$ENDIF}
   {$ENDIF}
 
-  irc_addtext(Netname, Channel, '<b>%s</b> [%s] (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [GetFullVersionString, GetDelphiCompilerVersion, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, GetOpenSSLVersion, DateTimeAsString(started), DatetimetoStr(started)]);
+  irc_addtext(Netname, Channel, '<b>%s</b> [%s] (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [GetFullVersionString, {$IFDEF VER300}'Delphi 10.3 Rio'{$ELSE}{$IFDEF VER310}'Delphi 10.4 Sydney'{$ELSE}{$IFDEF VER320}'Delphi 11 Alexandria'{$ELSE}{$IFDEF VER340}'Delphi 12 Athens'{$ELSE}'Unknown Compiler'{$ENDIF}{$ENDIF}{$ENDIF}{$ENDIF}, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, GetOpenSSLVersion, DateTimeAsString(started), DatetimetoStr(started)]);
 
   Result := True;
 end;

@@ -294,7 +294,7 @@ end;
 function DoBase64DecodeToString(const aInput: String): String;
 begin
   {$IFDEF UNICODE}
-    Result := TNetEncoding.Base64.Decode(UTF8Encode(aInput));
+    Result := string(TNetEncoding.Base64.Decode(UTF8Encode(aInput)));
   {$ELSE}
     Result := DecodeStringBase64(aInput);
   {$ENDIF}
@@ -307,7 +307,7 @@ function DoBase64DecodeToBytes(const aInput: String): TBytes;
 {$ENDIF}
 begin
   {$IFDEF UNICODE}
-    Result := TNetEncoding.Base64.DecodeStringToBytes(UTF8Encode(aInput));
+    Result := TNetEncoding.Base64.DecodeStringToBytes(string(UTF8Encode(aInput)));
   {$ELSE}
     fStrHelper := DecodeStringBase64(aInput);
     SetLength(Result, fStrHelper.Length);
@@ -451,7 +451,7 @@ begin
   db := 0;
   for i := j downto 1 do
   begin
-    if not (s[i] in [#13, #10]) then
+    if not CharInSet(s[i], [#13, #10]) then
       break;
     Inc(db);
   end;
@@ -469,7 +469,7 @@ begin
   if (p <= l - 3) then
   begin
     Inc(p);
-    if (s[p] in [#13, #10]) then
+    if CharInSet(s[p], [#13, #10]) then
       Inc(p);
 
     Result := StrToIntDef(Copy(s, p, 3), 0);
@@ -931,29 +931,29 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)(\.\d+)?');
-    if x.Exec(aStatLine) then
+    x.Expression := AnsiString(config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)(\.\d+)?'));
+    if x.Exec(String(aStatLine)) then
     begin
-      if (AnsiContainsText(x.Match[2], 'Unlimited') or (x.Match[2] = '1:0')) then
+      if (AnsiContainsText(String(x.Match[2]), 'Unlimited') or (x.Match[2] = '1:0')) then
         ratio := 'Unlimited'
       else
-        ratio := x.Match[2];
+        ratio := String(x.Match[2]);
     end;
 
     // ratio(UL: 1:3 | DL: 1:1)
     if ratio = '' then
     begin
       x.Expression := '(Ratio\(\w*:\s*(\d+:\d+).*?\))';
-      if x.Exec(aStatLine) then
+      if x.Exec(String(aStatLine)) then
       begin
-        ratio := x.Match[2];
+        ratio := String(x.Match[2]);
       end;
     end;
 
-    x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?');
-    if x.Exec(aStatLine) then
+    x.Expression := AnsiString(config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?'));
+    if x.Exec(String(aStatLine)) then
     begin
-      ss := x.Match[2];
+      ss := String(x.Match[2]);
 
       {$IFDEF FPC}
         ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
@@ -962,7 +962,7 @@ begin
       {$ENDIF}
 
       c := strtofloat(ss);
-      ss := UpperCase(x.Match[3]);
+      ss := UpperCase(String(x.Match[3]));
 
       if (ss = 'MB') or (ss = 'MIB') then
       begin
@@ -998,10 +998,10 @@ begin
   fRegex := TRegExpr.Create;
   try
     fRegex.Expression := '200- (/[a-zA-Z0-9\._\-()/]*)'; //200- /SECTION/Test.Release-ASDF
-    if fRegex.Exec(aSearchResult) then
+    if fRegex.Exec(String(aSearchResult)) then
     begin
       repeat
-        fPath := fRegex.Match[1];
+        fPath := String(fRegex.Match[1]);
 
         //index might contain stuff like /FILLED-Test.Release-ASDF/Test.Release-ASDF and also /FILLED-Test.Release-ASDF
         if not fPath.Contains('/' + aRlsToSearch) then
@@ -1096,7 +1096,7 @@ begin
   try
     fRegex.ModifierI := True;
     fRegex.Expression := '\.[0-9rstuvwxyz][0-9][0-9]$';
-    Result := fRegex.Exec(aExtension);
+    Result := fRegex.Exec(String(aExtension));
   finally
     fRegex.Free;
   end;

@@ -68,7 +68,7 @@ begin
   try
     r.ModifierI := True;
     r.Expression := '[\-\_]int$';
-    Result := r.Replace(aGroupname, '', False);
+    Result := String(r.Replace(aGroupname, '', False));
   finally
     r.free;
   end;
@@ -83,7 +83,7 @@ begin
   try
     r.ModifierI := True;
     r.Expression := '[\-\_]web$';
-    Result := r.Replace(aGroupname, '', False);
+    Result := String(r.Replace(aGroupname, '', False));
   finally
     r.free;
   end;

@@ -887,14 +887,14 @@ end;
 
       show_tasks := 10;
       rr.Expression := '-c\:([\d]+)';
-      if rr.Exec(params) then
+      if rr.Exec(String(params)) then
       begin
-        show_tasks := StrToIntDef(rr.Match[1], 10);
+        show_tasks := StrToIntDef(String(rr.Match[1]), 10);
       end;
 
       show_all := False;
       rr.Expression := '--all';
-      if rr.Exec(params) then
+      if rr.Exec(String(params)) then
       begin
         show_tasks := fTasksList.Count;
         show_all := True;
@@ -918,7 +918,7 @@ end;
               break;
 
             rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
-            if ((not rr.Exec(TQueueTask(fTasksList[i]).FFullname))) then
+            if ((not rr.Exec(String(TQueueTask(fTasksList[i]).FFullname)))) then
             begin
               irc_addtext(netname, channel, TQueueTask(fTasksList[i]).FFullname);
               Inc(ii);
@@ -1956,7 +1956,7 @@ begin
       begin
         //glFTPd 2.11a
         fTRegExpr.Expression := '(glFTPd) ([0-9]\.[0-9][0-9][a-z]?)';
-        if fTRegExpr.Exec(aText) then
+        if fTRegExpr.Exec(String(aText)) then
           Result := fTRegExpr.Match[2];
       end;
       sswDrftpd:
@@ -1964,14 +1964,14 @@ begin
         //DrFTPD 3.2.0
         //DrFTPD 4.0.1-SNAPSHOT
         fTRegExpr.Expression := '(DrFTPD) ([0-9]\.[0-9]\.[0-9][\-a-zA-Z]*)';
-        if fTRegExpr.Exec(aText) then
+        if fTRegExpr.Exec(String(aText)) then
           Result := fTRegExpr.Match[2];
       end;
       sswIoftpd:
       begin
         //ioFTPD version: 7-7-3r
         fTRegExpr.Expression := '(ioFTPD version: )([0-9]\-[0-9]\-[0-9][a-z]?)';
-        if fTRegExpr.Exec(aText) then
+        if fTRegExpr.Exec(String(aText)) then
           Result := fTRegExpr.Match[2];
         end;
       sswRaidenftpd, sswPureFTPd:
@@ -2031,7 +2031,7 @@ begin
     mSLSetupSocks5(site.proxyname, self, True);
 
   //First step to connect
-  Host := RCString('bnc_host-' + IntToStr(i), '');
+  Host := RawByteString(RCString('bnc_host-' + IntToStr(i), ''));
   Port := RCInteger('bnc_port-' + IntToStr(i), 0);
   Connect(site.connect_timeout * 1000);
 
@@ -2932,7 +2932,7 @@ begin
         exit;
       end;
 
-      idTCP.Host := host;
+      idTCP.Host := RawByteString(host);
       idTCP.Port := port;
 
       if not Send('REST %d', [restFrom]) then

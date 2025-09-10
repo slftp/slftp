@@ -145,7 +145,7 @@ begin
   end;
 
   try
-    rx_pretime := TFLRE.Create(config_taskpretime_regexp, []);
+    rx_pretime := TFLRE.Create(RawByteString(config_taskpretime_regexp), []);
 
     if not HttpGetUrl(Format(url, [rls]), response, fHttpGetErrMsg) then
     begin
@@ -155,7 +155,7 @@ begin
     end;
 
     Debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response]);
-    if rx_pretime.MatchAll(response, rx_captures, 1, 1) then
+    if rx_pretime.MatchAll(RawByteString(response), rx_captures, 1, 1) then
     begin
       Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response]);
       aPretimePos := rx_pretime.NamedGroupIndices['pretime'];

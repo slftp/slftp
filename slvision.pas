@@ -385,8 +385,8 @@ type
     procedure AddTask(const aTask: TslConsoleTask);
     { Add a task with a hint that other tasks have been removed due to a critical console overload. Does nothing if such a task is already there for the given window name. }
     procedure AddOverloadMessageForWindow(const aWindowName: string);
-    constructor Create;
   public
+    constructor Create;
     destructor Destroy; override;
   end;
 
