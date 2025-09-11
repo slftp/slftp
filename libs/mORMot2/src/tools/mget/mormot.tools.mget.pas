@@ -205,16 +205,17 @@ begin
   if not Peer then
     exit;
   // first check if the network interface changed
-  if fPeerCache <> nil then
-    if TrackNetwork and
-       fPeerCache.NetworkInterfaceChanged then
-    begin
-      Log.EnterLocal(l, self, 'StartPeerCache: NetworkInterfaceChanged');
-      PeerCacheStopping;
-      fPeerCache := nil; // force re-create just below
-      fPeerCacheInterface := '';
-      l := nil;
-    end;
+  if fPeerCache = nil then
+    MacIPAddressFlush // force reload network interfaces from OS API at startup
+  else if TrackNetwork and
+          fPeerCache.NetworkInterfaceChanged then
+  begin
+    Log.EnterLocal(l, self, 'StartPeerCache: NetworkInterfaceChanged');
+    PeerCacheStopping;
+    fPeerCache := nil; // force re-create just below
+    fPeerCacheInterface := '';
+    l := nil;
+  end;
   // (re)create the peer-cache background process if necessary
   if fPeerCache <> nil then
     exit;
@@ -233,9 +234,8 @@ begin
   except
     // don't disable Peer: we would try on next Execute()
     on E: Exception do
-      if Assigned(l) then
-        l.Log(sllTrace,
-          'StartPeerCache raised %: will retry next time', [E.ClassType]);
+      Log.Add.Log(sllDebug,
+        'StartPeerCache raised %: will retry next time', [PClass(E)^]);
   end;
 end;
 

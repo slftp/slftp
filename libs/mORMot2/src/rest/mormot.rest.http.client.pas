@@ -516,16 +516,16 @@ var
 {$ifndef PUREMORMOT2}
 
 type
-  TSqlRestHttpClientWinSock = TRestHttpClientSocket;
+  TSqlRestHttpClientWinSock    = TRestHttpClientSocket;
   {$ifndef NOHTTPCLIENTWEBSOCKETS}
   TSqlRestHttpClientWebsockets = TRestHttpClientWebsockets;
   {$endif NOHTTPCLIENTWEBSOCKETS}
   {$ifdef USEWININET}
-  TSqlRestHttpClientWinINet = TRestHttpClientWinINet;
-  TSqlRestHttpClientWinHttp = TRestHttpClientWinHttp;
+  TSqlRestHttpClientWinINet    = TRestHttpClientWinINet;
+  TSqlRestHttpClientWinHttp    = TRestHttpClientWinHttp;
   {$endif USEWININET}
   {$ifdef USELIBCURL}
-  TSqlRestHttpClientCurl = TRestHttpClientCurl;
+  TSqlRestHttpClientCurl       = TRestHttpClientCurl;
   {$endif USELIBCURL}
 
 {$endif PUREMORMOT2}
@@ -1031,7 +1031,7 @@ begin
         fOnWebSocketsUpgraded(self); // e.g. to register some callbacks
       if sockets.Settings^.ClientRestoreCallbacks and
          (prevconn <> 0) then
-        // call TServiceContainerServer.FakeCallbackReplaceConnectionID
+        // call TServiceContainerServer.ClientFakeCallbackReplaceConnectionID
         if CallBack(mPOST, 'CacheFlush/_replaceconn_',
             Int64ToUtf8(prevconn), result) = HTTP_SUCCESS then
           result := ''; // on error, log result = server response

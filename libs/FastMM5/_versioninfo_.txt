@@ -1,2 +1,2 @@
-4ec5b305f000a3b60357732a10f59c0321cae0ed
-Rebuild the precompiled BorlndMM.dll libraries from the latest source using Delphi 11.3.
+2ad18c6fb0cef5fe2d0acf7b4371ed3a6954407f
+#58 Invalidate the stack trace memory map whenever a DLL is loaded or unloaded. This will reduce the number of (handled) exceptions when performing stack traces.

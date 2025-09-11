@@ -1,2 +1,4 @@
-9f99b38beac50b425f46420aec27a93f5d109f42
-orm: fixed SQL generation
+fd630a533c69318013fe362a64dda9463d670962
+rest: fixed TRestServerAuthenticationSspi
+- avoid exception on missing 'data=...' parameter in URI
+- parse the "Authorization" protocol and catch only "Negotiate", allowing e.g. fallback to the "Basic" auth on the same URI

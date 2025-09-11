@@ -1,2 +1,2 @@
-b574d688d28751b76387e82b319fb1f4bd08108a
-micro fix from https://gitlab.com/freepascal.org/fpc/source/-/commit/ae74e9f8cd6a28e24be7e4d47b00039bfbfe8a57
+b5ced3c7db39496c6d9da50787cb01f7f7cbf600
+fixing https://github.com/andgineer/TRegExpr/issues/395

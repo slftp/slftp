@@ -25,7 +25,7 @@ High-Performance Cryptographic features shared by all framework units
 - AES Encoding/Decoding with optimized asm and AES-NI/CLMUL support
 - AES-256 Cryptographic Pseudorandom Number Generator (CSPRNG)
 - SHA-2 SHA-3 Secure Hashing
-- HMAC Authentication over SHA and CRC32C
+- HMAC Authentication over SHA-256
 - PBKDF2 Safe Key Derivation over SHA-2 and SHA-3
 - Digest/Hash to Hexadecimal Text Conversion
 - Deprecated MD5 RC4 SHA-1 Algorithms
@@ -47,7 +47,6 @@ Authentication and Security types shared by all framework units.
 - `TBinaryCookieGenerator` Simple Cookie Generator
 - `Rnd`/`Hash`/`Sign`/`Cipher`/`Asym`/`Cert`/`Store` High-Level Algorithms Factories
 - Minimal `PEM`/`DER` Encoding/Decoding
-- Basic ASN.1 Support
 
 ### mormot.crypt.ecc256r1
 
@@ -61,6 +60,7 @@ If `mormot.crypt.openssl.RegisterOpenSsl` is called, faster *OpenSSL* library wi
 
 Certificate-based Public Key Cryptography Classes
 - High-Level Certificate-based *secp256r1* Public Key Cryptography
+- HMAC-CRC32C and HMAC-CRC256C Message Integrity Algorithms
 - `IProtocol` Implemented using Public Key Cryptography
 - Registration of our ECC Engine to the `TCryptAsym`/`TCryptCert` Factories
 

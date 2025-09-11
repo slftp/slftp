@@ -1287,7 +1287,7 @@ type
     fVariantWideString: boolean;
     {$endif UNICODE}
     fDateTimeFirstChar: AnsiChar;
-    fStatementMaxMemory: Int64;
+    fStatementMaxMemory: PtrInt;
     fSqlGetServerTimestamp: RawUtf8;
     fEngineName: RawUtf8;
     fOnProcess: TOnSqlDBProcess;
@@ -1301,7 +1301,7 @@ type
     fOnTableCreate: TOnTableCreate;
     fOnTableAddColumn: TOnTableAddColumn;
     fOnTableCreateMultiIndex: TOnTableCreateMultiIndex;
-    fMainConnectionLock: TOSLightLock;
+    fMainConnectionLock: TOSLightLock; // = SRW lock or direct pthread mutex
     procedure SetConnectionTimeOutMinutes(minutes: cardinal);
     function GetConnectionTimeOutMinutes: cardinal;
     // this default implementation just returns the fDbms value or dDefault
@@ -1876,7 +1876,7 @@ type
     // - if a result set exceeds this limit, an ESQLDBException is raised
     // - default is 512 shl 20, i.e. 512MB which is very high
     // - avoid unexpected OutOfMemory errors when incorrect statement is run
-    property StatementMaxMemory: Int64
+    property StatementMaxMemory: PtrInt
       read fStatementMaxMemory write fStatementMaxMemory;
     /// if UseCache is true, how many statement replicates can be generated
     // if the cached ISqlDBStatement is already used
@@ -3089,9 +3089,6 @@ begin
     result := copy(TableName, j, maxInt);
 end;
 
-const
-  SQL_KEYWORDS_BY2: array[0..19] of AnsiChar = 'ASATBYIFINISOFONORTO';
-
 function ReplaceParamsByNames(const aSql: RawUtf8; var aNewSql: RawUtf8;
   aStripSemicolon: boolean): integer;
 var
@@ -3148,15 +3145,14 @@ begin
           if c[1] = 'Z' then
           begin
             if c[2] = 'Z' then
-              raise ESqlDBException.CreateU(
+              ESqlDBException.RaiseU(
                 'Only up to 656 parameters are possible in :AA to :ZZ range');
             c[1] := 'A';
             inc(c[2]);
           end
           else
             inc(c[1]);
-        until WordScanIndex(@SQL_KEYWORDS_BY2, length(SQL_KEYWORDS_BY2) shr 1,
-                PWord(@c[1])^) < 0;
+        until not IsSqlReservedByTwo(@c[1]);
         inc(result);
         inc(i); // jump '?'
       until i = L;
@@ -3966,6 +3962,7 @@ const
     'sql_small_result,sqlexception,ssl,starting,straight_join,terminated,text,tinyblob,' +
     'tinyint,tinytext,trigger,undo,unlock,unsigned,use,utc_date,utc_time,utc_timestamp,' +
     'varbinary,varcharacter,while,x509,xor,year_month,zerofillaccessible';
+
   /// CSV of the known reserved keywords per database engine, in alphabetic order
   DB_KEYWORDS_CSV: array[TSqlDBDefinition] of PUtf8Char = (
     // dUnknown
@@ -3992,11 +3989,11 @@ const
     'timestamp,timezone_hour,timezone_minute,to,trailing,transaction,translate,' +
     'translation,trim,true,union,unique,unknown,update,upper,usage,user,using,value,values,' +
     'varchar,varying,view,when,whenever,where,with,work,write,year,zone',
-  // dOracle specific keywords (in addition to dDefault)
+    // dOracle specific keywords (in addition to dDefault)
     'access,audit,cluster,comment,compress,exclusive,file,identified,increment,initial,' +
     'lock,long,maxextents,minus,mode,noaudit,nocompress,nowait,number,offline,online,' +
     'pctfree',
-  // dMSSQL specific keywords (in addition to dDefault)
+    // dMSSQL specific keywords (in addition to dDefault)
     'admin,after,aggregate,alias,array,asensitive,asymmetric,atomic,backup,before,binary,' +
     'blob,boolean,breadth,break,browse,bulk,call,called,cardinality,checkpoint,class,clob,' +
     'clustered,collect,completion,compute,condition,constructor,contains,containstable,' +
@@ -4026,17 +4023,15 @@ const
     'xmlattributes,xmlbinary,xmlcast,xmlcomment,xmlconcat,xmldocument,xmlelement,' +
     'xmlexists,xmlforest,xmliterate,xmlnamespaces,xmlparse,xmlpi,xmlquery,xmlserialize,' +
     'xmltable,xmltext,xmlvalidate',
-  // dJet specific keywords (in addition to dDefault)
+    // dJet specific keywords (in addition to dDefault)
     'longtext,memo,money,note,number,oleobject,owneraccess,parameters,percent,pivot,short,' +
     'single,singlefloat,stdev,stdevp,string,tableid,text,top,transform,unsignedbyte,var,' +
     'varbinary,varp,yesno',
-  // dMySQL specific keywords (in addition to dDefault)
+    // dMySQL specific keywords (in addition to dDefault)
      MYSQL_KEYWORDS_CSV,
-  // dSQLite keywords (dDefault is not added to this list)
-    'abort,after,and,attach,before,cluster,conflict,copy,database,delete,delimiters,detach,' +
-    'each,explain,fail,from,glob,ignore,insert,instead,isnull,limit,not,notnull,offset,or,' +
-    'pragma,raise,replace,row,select,statement,temp,trigger,vacuum,where',
-  // dFirebird specific keywords (in addition to dDefault)
+    // dSQLite keywords will use IsSqliteReserved() from mormot.db.core
+    '',
+    // dFirebird specific keywords (in addition to dDefault)
     'active,after,ascending,base_name,before,blob,cache,check_point_length,computed,' +
     'conditional,containing,cstring,currency,database,debug,descending,deterministic,do,' +
     'entry_point,exit,file,filter,function,gdscode,gen_id,generator,' +
@@ -4046,7 +4041,7 @@ const
     'raw_partitions,rdb$db_key,record_version,reserv,reserving,retain,return,' +
     'returning_values,returns,segment,shadow,shared,singular,snapshot,sort,stability,' +
     'start,starting,starts,statistics,sub_type,suspend,trigger,type,variable,wait,while',
-  // dNexusDB specific keywords (in addition to dDefault)
+    // dNexusDB specific keywords (in addition to dDefault)
     'abs,achar,assert,astring,autoinc,blob,block,blocksize,bool,boolean,byte,bytearray,' +
     'ceiling,chr,datetime,dword,empty,exp,floor,grow,growsize,ignore,image,initial,' +
     'initialsize,kana,largeint,locale,log,money,nullstring,nvarchar,percent,power,rand,' +
@@ -4072,7 +4067,7 @@ const
     'unencrypted,unlisten,until,vacuum,valid,validator,verbose,version,volatile,' +
     'whitespace,without,xml,xmlattributes,xmlconcat,xmlelement,xmlforest,xmlparse,xmlpi,' +
     'xmlroot,xmlserialize,yes',
-  // dDB2 specific keywords (in addition to dDefault)
+    // dDB2 specific keywords (in addition to dDefault)
     'activate,document,dssize,dynamic,each,editproc,elseif,enable,encoding,encryption,' +
     'ending,erase,every,excluding,exclusive,exit,explain,fenced,fieldproc,file,final,free,' +
     'function,general,generated,graphic,handler,hash,hashed_value,hint,hold,hours,if,' +
@@ -4117,14 +4112,19 @@ class function TSqlDBConnectionProperties.IsSqlKeyword(aDB: TSqlDBDefinition;
 var
   db: TSqlDBDefinition;
 begin
+  // use SQLite3 function using https://sqlite.org/lang_keywords.html
+  if aDB = dSQLite then
+  begin
+    result := IsSqliteReserved(aWord);
+    exit;
+  end;
   // prepare the keywords arrays from the per-DB CSV references
   if DB_KEYWORDS[dDefault] = nil then
     for db := low(DB_KEYWORDS) to high(DB_KEYWORDS) do
       CsvToRawUtf8DynArray(DB_KEYWORDS_CSV[db], DB_KEYWORDS[db]);
   // search using fast binary lookup in the alphabetic ordered arrays
   aWord := TrimU(LowerCase(aWord));
-  if (aDB = dSQLite) or
-     (FastFindPUtf8CharSorted(pointer(DB_KEYWORDS[dDefault]),
+  if (FastFindPUtf8CharSorted(pointer(DB_KEYWORDS[dDefault]),
        high(DB_KEYWORDS[dDefault]), pointer(aWord)) < 0) then
     if aDB <= dDefault then
       result := false
@@ -5280,7 +5280,7 @@ var
   var
     f, r, p, len: PtrInt;
     W: TTextWriter;
-    tmp: TTextWriterStackBuffer;
+    tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
   begin
     if (fDbms <> dFireBird) and
        (rowcount = prevrowcount) then
@@ -5635,7 +5635,7 @@ begin
     result := ''
   else
     Join(['select ', FieldsFromList(aFields, aExcludeTypes),
-      ' from ', SqlTableName(aTableName)], result);
+          ' from ', SqlTableName(aTableName)], result);
 end;
 
 {$ifdef ISDELPHI20062007}
@@ -5867,12 +5867,13 @@ begin
 end;
 
 function VariantIsBlob(const V: variant): boolean;
+var
+  vd: TVarData absolute V;
 begin
-  with TVarData(V) do
-    result := (VType = varNull) or
-              ((VType = varString) and
-               (VString <> nil) and
-               (PCardinal(VString)^ and $ffffff = JSON_BASE64_MAGIC_C));
+  result := (cardinal(vd.VType) = varNull) or
+            ((cardinal(vd.VType) = varString) and
+             (vd.VString <> nil) and
+             (PCardinal(vd.VString)^ and $ffffff = JSON_BASE64_MAGIC_C));
 end;
 
 procedure TSqlDBStatement.Bind(const Params: array of const;
@@ -5894,13 +5895,13 @@ var
           c := PInteger(p^.VAnsiString)^ and $00ffffff;
           if c = JSON_BASE64_MAGIC_C then
           begin
-            Base64ToBin(p^.VPChar + 3, length(RawUtf8(p^.VAnsiString)) - 3,
+            Base64ToBin(p^.VPChar + 3, PStrLen(p^.VPChar - _STRLEN)^ - 3,
               RawByteString(tmp));
             BindBlob(arg, tmp, IO);
           end
           else if c = JSON_SQLDATE_MAGIC_C then
             BindDateTime(arg, Iso8601ToDateTimePUtf8Char(
-              PUtf8Char(p^.VAnsiString) + 3, length(RawUtf8(p^.VAnsiString)) - 3))
+              PUtf8Char(p^.VAnsiString) + 3, PStrLen(p^.VPChar - _STRLEN)^ - 3))
           else
           begin
             AnyAnsiToUtf8Var(RawByteString(p^.VAnsiString), tmp);
@@ -5948,77 +5949,77 @@ procedure TSqlDBStatement.BindVariant(Param: integer; const Data: Variant;
   DataIsBlob: boolean; IO: TSqlDBParamInOutType);
 var
   I64: Int64Rec;
+  vd: TVarData absolute Data;
 begin
-  with TVarData(Data) do
-    case VType of
-      varEmpty,
-      varNull:
-        BindNull(Param, IO);
-      varBoolean:
-        if VBoolean then
-          Bind(Param, 1, IO)
-        else
-          Bind(Param, 0, IO);
-      varByte:
-        Bind(Param, VInteger, IO);
-      varSmallint:
-        Bind(Param, VSmallInt, IO);
-      varShortInt:
-        Bind(Param, VShortInt, IO);
-      varWord:
-        Bind(Param, VWord, IO);
-      varLongWord:
-        begin
-          I64.Lo := VLongWord;
-          I64.Hi := 0;
-          Bind(Param, Int64(I64), IO);
-        end;
-      varInteger:
-        Bind(Param, VInteger, IO);
-      varInt64,
-      varWord64:
-        Bind(Param, VInt64, IO);
-      varSingle:
-        Bind(Param, VSingle, IO);
-      varDouble:
-        Bind(Param, VDouble, IO);
-      varDate:
-        BindDateTime(Param, VDate, IO);
-      varCurrency:
-        BindCurrency(Param, VCurrency, IO);
-      varOleStr:
-        // handle special case if was bound explicitly as WideString
-        BindTextW(Param, WideString(VAny), IO);
-      {$ifdef HASVARUSTRING}
-      varUString:
-        if DataIsBlob then
-          ESqlDBException.RaiseUtf8(
-            '%.BindVariant: BLOB should not be UnicodeString', [self])
-        else
-          BindTextU(Param, UnicodeStringToUtf8(UnicodeString(VAny)), IO);
-      {$endif HASVARUSTRING}
-      varString:
-        if DataIsBlob then
-          if (VAny <> nil) and
-             (PInteger(VAny)^ and $00ffffff = JSON_BASE64_MAGIC_C) then
-            // recognized as Base64 encoded text
-            BindBlob(Param, Base64ToBin(PAnsiChar(VAny) + 3,
-              length(RawByteString(VAny)) - 3))
-          else
-            // no conversion if was set via TQuery.AsBlob property e.g.
-            BindBlob(Param, RawByteString(VAny), IO)
-        else
-          // direct bind of AnsiString as UTF-8 value
-          BindTextU(Param, AnyAnsiToUtf8(RawByteString(VAny)), IO);
-    else
-      if VType = varVariantByRef then
-        BindVariant(Param, PVariant(VPointer)^, DataIsBlob, IO)
-      else if VType = varOleStrByRef then
-        BindTextW(Param, PWideString(VAny)^, IO)
+  case cardinal(vd.VType) of
+    varEmpty,
+    varNull:
+      BindNull(Param, IO);
+    varBoolean:
+      if vd.VBoolean then
+        Bind(Param, 1, IO)
       else
-        // also use TEXT for any non native VType parameter
-        BindTextU(Param, VariantToUtf8(Data), IO);
-    end;
+        Bind(Param, 0, IO);
+    varByte:
+      Bind(Param, vd.VInteger, IO);
+    varSmallint:
+      Bind(Param, vd.VSmallInt, IO);
+    varShortInt:
+      Bind(Param, vd.VShortInt, IO);
+    varWord:
+      Bind(Param, vd.VWord, IO);
+    varLongWord:
+      begin
+        I64.Lo := vd.VLongWord;
+        I64.Hi := 0;
+        Bind(Param, Int64(I64), IO);
+      end;
+    varInteger:
+      Bind(Param, vd.VInteger, IO);
+    varInt64,
+    varWord64:
+      Bind(Param, vd.VInt64, IO);
+    varSingle:
+      Bind(Param, vd.VSingle, IO);
+    varDouble:
+      Bind(Param, vd.VDouble, IO);
+    varDate:
+      BindDateTime(Param, vd.VDate, IO);
+    varCurrency:
+      BindCurrency(Param, vd.VCurrency, IO);
+    varOleStr:
+      // handle special case if was bound explicitly as WideString
+      BindTextW(Param, WideString(vd.VAny), IO);
+    {$ifdef HASVARUSTRING}
+    varUString:
+      if DataIsBlob then
+        ESqlDBException.RaiseUtf8(
+          '%.BindVariant: BLOB should not be UnicodeString', [self])
+      else
+        BindTextU(Param, UnicodeStringToUtf8(UnicodeString(vd.VAny)), IO);
+    {$endif HASVARUSTRING}
+    varString:
+      if DataIsBlob then
+        if (vd.VAny <> nil) and
+           (PInteger(vd.VAny)^ and $00ffffff = JSON_BASE64_MAGIC_C) then
+          // recognized as Base64 encoded text
+          BindBlob(Param, Base64ToBin(PAnsiChar(vd.VAny) + 3,
+                                      PStrLen(PAnsiChar(vd.VAny) - _STRLEN)^ - 3))
+        else
+          // no conversion if was set via TQuery.AsBlob property e.g.
+          BindBlob(Param, RawByteString(vd.VAny), IO)
+      else
+        // direct bind of AnsiString as UTF-8 value
+        BindTextU(Param, AnyAnsiToUtf8(RawByteString(vd.VAny)), IO);
+  else
+    if cardinal(vd.VType) = varVariantByRef then
+      BindVariant(Param, PVariant(vd.VPointer)^, DataIsBlob, IO)
+    else if cardinal(vd.VType) = varOleStrByRef then
+      BindTextW(Param, PWideString(vd.VAny)^, IO)
+    else
+      // also use TEXT for any non native VType parameter
+      BindTextU(Param, VariantToUtf8(Data), IO);
+  end;
 end;
 
 procedure TSqlDBStatement.BindArray(Param: integer; ParamType: TSqlDBFieldType;
@@ -6386,7 +6387,7 @@ end;
 function TSqlDBStatement.StepAsJson(SeekFirst: boolean): RawUtf8;
 var
   w: TJsonWriter;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   w := TJsonWriter.CreateOwnedStream(tmp);
   try
@@ -6430,8 +6431,8 @@ function TSqlDBStatement.FetchAllToJson(Json: TStream; Expanded: boolean): PtrIn
 var
   W: TResultsWriter;
   col: integer;
-  maxmem: PtrUInt;
-  tmp: TTextWriterStackBuffer;
+  maxmem: PtrInt;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   result := 0;
   W := TResultsWriter.Create(Json, Expanded, false, nil, 0, @tmp);
@@ -6489,7 +6490,7 @@ const
     '"blob"', 'blob');
 var
   F, FMax: integer;
-  maxmem: PtrUInt;
+  maxmem: PtrInt;
   W: TJsonWriter;
   tmp: RawByteString;
   V: TSqlVar;
@@ -6656,12 +6657,12 @@ function TSqlDBStatement.FetchAllToBinary(Dest: TStream; MaxRowCount: cardinal;
 var
   f, fmax, fieldsize, nullrowlast: integer;
   startpos: Int64;
-  maxmem: PtrUInt;
+  maxmem: PtrInt;
   W: TBufferWriter;
   ft: TSqlDBFieldType;
   coltypes: TSqlDBFieldTypeDynArray;
   nullbits: TByteDynArray;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   result := 0;
   maxmem := Connection.Properties.StatementMaxMemory;
@@ -7100,32 +7101,32 @@ procedure TSqlDBStatement.AddParamValueAsText(Param: integer; Dest: TJsonWriter;
   MaxCharCount: integer);
 var
   v: variant;
+  vd: TVarData absolute v;
   ft: TSqlDBFieldType;
 begin
   ft := ParamToVariant(Param, v, false);
-  with TVarData(v) do
-    case cardinal(VType) of
-      varString:
-        if ft = ftBlob then
-          Dest.AddU(length(RawByteString(VString)))
-        else
-          Dest.AddQuotedStr(
-            VString, length(RawByteString(VString)), '''', MaxCharCount);
-      varOleStr:
-        Dest.AddQuotedStrW(
-          VString, length(WideString(VString)), '''', MaxCharCount);
-      {$ifdef HASVARUSTRING}
-      varUString:
-        Dest.AddQuotedStrW(
-          VString, length(UnicodeString(VString)), '''', MaxCharCount);
-      {$endif HASVARUSTRING}
-    else
-      if (ft = ftDate) and
-         (cardinal(VType) in [varDouble, varDate]) then
-        Dest.AddDateTime(vdate)
+  case cardinal(vd.VType) of
+    varString:
+      if ft = ftBlob then
+        Dest.AddU(length(RawByteString(vd.VPointer))) // only add binary length
       else
-        Dest.AddVariant(v);
-    end;
+        Dest.AddQuotedStr(
+          vd.VString, length(RawByteString(vd.VPointer)), '''', MaxCharCount);
+    varOleStr:
+      Dest.AddQuotedStrW(
+        vd.VString, length(WideString(vd.VPointer)), '''', MaxCharCount);
+    {$ifdef HASVARUSTRING}
+    varUString:
+      Dest.AddQuotedStrW(
+        vd.VString, length(UnicodeString(vd.VPointer)), '''', MaxCharCount);
+    {$endif HASVARUSTRING}
+  else
+    if (ft = ftDate) and
+       (cardinal(vd.VType) in [varDouble, varDate]) then
+      Dest.AddDateTime(vd.VDate)
+    else
+      Dest.AddVariant(v);
+  end;
 end;
 
 var
@@ -7136,11 +7137,8 @@ begin
   if SqlDBRowVariantType = nil then
     SqlDBRowVariantType := SynRegisterCustomVariantType(TSqlDBRowVariantType);
   VarClear(result);
-  with TVarData(result) do
-  begin
-    VType := SqlDBRowVariantType.VarType;
-    VPointer := self;
-  end;
+  TSynVarData(result).VType := SqlDBRowVariantType.VarType;
+  TSynVarData(result).VAny  := self;
 end;
 
 procedure TSqlDBStatement.RowDocVariant(out aDocument: variant;
@@ -7296,7 +7294,7 @@ end;
 procedure TSqlDBConnection.CheckConnection;
 begin
   if self = nil then
-    raise ESqlDBException.CreateU('TSqlDBConnection(nil).CheckConnection');
+    ESqlDBException.RaiseU('TSqlDBConnection(nil).CheckConnection');
   if not Connected then
     ESqlDBException.RaiseUtf8('% on %/% should be connected',
       [self, Properties.ServerName, Properties.DataBaseName]);
@@ -7663,7 +7661,7 @@ begin
             (fErrorException <> nil) then
       // propagate error not related to connection (e.g. SQL syntax error)
       if fErrorException.InheritsFrom(ESynException) then
-        raise ECoreDBException.CreateU(fErrorMessage)
+        ECoreDBException.RaiseU(fErrorMessage)
       else
         raise fErrorException.Create(Utf8ToString(fErrorMessage));
   end
@@ -7998,7 +7996,7 @@ function TSqlDBStatementWithParams.CheckParam(Param: integer;
   NewType: TSqlDBFieldType; IO: TSqlDBParamInOutType): PSqlDBParam;
 begin
   if self = nil then
-    raise ESqlDBException.CreateU('TSqlDBStatementWithParams(nil).Bind');
+    ESqlDBException.RaiseU('TSqlDBStatementWithParams(nil).Bind');
   if Param > fParamCount then
     fParam.Count := Param; // resize fParams[] dynamic array if necessary
   result := @fParams[Param - 1];

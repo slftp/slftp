@@ -150,20 +150,24 @@ function KnownHttpHeader(P: PUtf8Char): THttpHeader;
 function AuthorizationBearer(const AuthToken: RawUtf8): RawUtf8;
 
 /// will remove most usual HTTP headers which are to be recomputed on sending
+// - trim=true would remove any space or CR/LF at the end of the result
 // - as used e.g. during TPublicRelay process from mormot.net.relay
 function PurgeHeaders(const headers: RawUtf8; trim: boolean = false;
   upIgnore: PPAnsiChar = nil): RawUtf8;
 
-/// search, copy and remove a given HTTP header
+/// search, copy and remove a given HTTP header as text or Int64
 // - FindNameValue() makes search + copy, but this function also REMOVES the header
 procedure ExtractHeader(var headers: RawUtf8; const upname: RawUtf8;
-  out res: RawUtf8);
+  extractText: PRawUtf8; extractInt: PInt64 = nil);
 
 /// retrieve a HTTP header text value from its case-insensitive name
 function GetHeader(const Headers, Name: RawUtf8; out Value: RawUtf8): boolean; overload;
 
 /// retrieve a HTTP header 64-bit integer value from its case-insensitive name
 function GetHeader(const Headers, Name: RawUtf8; out Value: Int64): boolean; overload;
+
+/// remove an HTTP header entry as specified by its name (e.g. 'Authorization')
+function DeleteHeader(const Headers, Name: RawUtf8): RawUtf8;
 
 /// 'HEAD' and 'OPTIONS' methods would be detected and return true
 // - will check only the first four chars for efficiency
@@ -448,7 +452,7 @@ type
     // - equals 0 if disabled or aborted
     // - several THttpRequestContext could share the same ID
     ProgressiveID: THttpPartialID;
-    /// internal per-second ticks set by THttpServerSocketGeneric.DoProgressive
+    /// internal GetTickSec set by THttpServerSocketGeneric.DoProgressive
     ProgressiveTix: cardinal;
     /// reset this request context to be used prior to any ProcessInit/Read/Write
     procedure Reset;
@@ -746,18 +750,18 @@ type
   // the need to add mormot.net.server.pas dependency
   THttpServerRequestAbstract = class
   protected
-    fRemoteIP,
-    fUrl,
-    fMethod,
-    fInHeaders,
-    fInContentType,
-    fAuthenticatedUser,
-    fHost,
-    fAuthBearer,
-    fUserAgent,
-    fOutContentType,
+    fRemoteIP: RawUtf8;
+    fUrl: RawUtf8;
+    fMethod: RawUtf8;
+    fInHeaders: RawUtf8;
+    fInContentType: RawUtf8;
+    fAuthenticatedUser: RawUtf8;
+    fHost: RawUtf8;
+    fAuthBearer: RawUtf8;
+    fUserAgent: RawUtf8;
+    fOutContentType: RawUtf8;
     fOutCustomHeaders: RawUtf8;
-    fInContent,
+    fInContent: RawByteString;
     fOutContent: RawByteString;
     fConnectionID: THttpServerConnectionID;
     fConnectionFlags: THttpServerRequestFlags;
@@ -939,6 +943,9 @@ type
   end;
   {$M-}
 
+function ToText(a: THttpServerRequestAuthentication): PShortString; overload;
+
+type
   THttpAcceptBan = class;
 
   /// callback event when THttpAcceptBan BanIP() or IsBanned() methods are called
@@ -949,11 +956,13 @@ type
   // - used e.g. to implement hsoBan40xIP or THttpPeerCache instable
   // peers list (with a per-minute resolution)
   // - the DoRotate method should be called every second
+  // - can optionally maintain one TIp4SubNets blacklist of IPv4 from Internet
   THttpAcceptBan = class(TObjectOSLightLock)
   protected
     fCount, fLastSec: integer;
     fIP: array of TCardinalDynArray; // one [0..fMax] IP array per second
     fSeconds, fMax, fWhiteIP: cardinal;
+    fBlackList: TIp4SubNets;
     fRejected, fTotal: Int64;
     fOnBanIp, fOnBanned: TOnHttpAcceptBan;
     function IsBannedRaw(ip4: cardinal): boolean;
@@ -967,21 +976,23 @@ type
     // - maxpersecond is the maximum number of banned IPs remembered per second
     constructor Create(banseconds: cardinal = 4; maxpersecond: cardinal = 1024;
       banwhiteip: cardinal = cLocalhost32); reintroduce;
-    /// register an IP4 to be rejected
+    /// finalize this process
+    destructor Destroy; override;
+    /// register a 32-bit IPv4 to be rejected
     function BanIP(ip4: cardinal): boolean; overload;
-    /// register an IP4 to be rejected
+    /// register a IPv4 text to be rejected
     function BanIP(const ip4: RawUtf8): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// fast check if this IP4 is to be rejected
+    /// fast check if this IPv4 is to be rejected
     function IsBanned(const addr: TNetAddr): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// fast check if this IP4 is to be rejected
+    /// fast check if this 32-bit IPv4 is to be rejected
     function IsBanned(ip4: cardinal): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// register an IP4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
+    /// register an IPv4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
     function ShouldBan(status, ip4: cardinal): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// register an IP4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
+    /// register an IPv4 if status in >= 400 (but not 401 HTTP_UNAUTHORIZED)
     function ShouldBan(status: cardinal; const ip4: RawUtf8): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
     /// to be called every second to remove deprecated bans from the list
@@ -991,11 +1002,11 @@ type
     // - returns the number of freed bans
     function DoRotate: integer;
       {$ifdef HASINLINE} inline; {$endif}
-    /// a 32-bit IP4 which should never be banned
+    /// a 32-bit IPv4 which should never be banned
     // - is set to cLocalhost32, i.e. 127.0.0.1, by default
     property WhiteIP: cardinal
       read fWhiteIP write fWhiteIP;
-    /// how many seconds a banned IP4 should be rejected
+    /// how many seconds a banned IPv4 should be rejected
     // - will set the closest power of two <= 128, with a default of 4
     // - when set, any previous banned IP will be flushed
     property Seconds: cardinal
@@ -1013,14 +1024,23 @@ type
     /// event called when IsBanned() method returns true
     property OnBanned: TOnHttpAcceptBan
       read fOnBanned write fOnBanned;
+    /// raw access to an associated IPv4/CIDR blacklist storage
+    // - could be populated from fixed reference material, in addition to the
+    // transient banishment process set by ShouldBan() method on unexpected errors
+    // - typically filled from https://www.spamhaus.org/drop/drop.txt or
+    // https://github.com/firehol/blocklist-ipsets/blob/master/firehol_level1.netset
+    // - use Safe.Lock when accessing this instance, e.g. when initializing from
+    // text or binary once at startup, before IsBanned() is actually called
+    property BlackList: TIp4SubNets
+      read fBlackList;
   published
     /// total number of accept() rejected by IsBanned()
     property Rejected: Int64
       read fRejected;
-    /// total number of banned IP4 since the beginning
+    /// total number of banned IPv4 since the beginning
     property Total: Int64
       read fTotal;
-    /// current number of banned IP4
+    /// current number of banned IPv4
     property Count: integer
       read fCount;
   end;
@@ -1704,11 +1724,11 @@ type
     FileName: TFileName;
     Trigger: THttpRotaterTrigger;
     Files: integer;
-    NextTix10: cardinal;
+    NextTix32: cardinal;  // = GetTickSec
     TriggerDate: integer; // = next Trunc(NowUtc)
     OnRotate: procedure(Event: THttpRotaterEvent) of object; // owner access
     procedure Setup(aTrigger: THttpRotaterTrigger; aFiles: integer);
-    procedure TryRotate(Tix10: cardinal; Size: QWord);
+    procedure TryRotate(Tix32: cardinal; Size: QWord);
     procedure PrepareNextRotateDate(dt: TDateTime);
     procedure DoRotate;
   end;
@@ -1719,8 +1739,8 @@ type
     fHost: RawUtf8;
     fOwner: THttpLogger;
     fRotate: THttpRotater;
-    fLastWriteToStreamTix10: cardinal;
-    procedure TryRotate(Tix10: cardinal);
+    fLastWriteToStreamTix32: cardinal; // = GetTickSec
+    procedure TryRotate(Tix32: cardinal);
       {$ifdef HASINLINE} inline; {$endif}
     procedure OnRotate(Event: THttpRotaterEvent);
     procedure WriteToStream(data: pointer; len: PtrUInt); override;
@@ -1823,13 +1843,13 @@ type
     fUnknownPosLen: TIntegerDynArray; // matching hlvUnknown occurrence
     fFlags: set of (ffHadDefineHost, ffOwnWriterSingle);
     fVariables: THttpLogVariables;
-    fTimeTix10: cardinal;
+    fTimeTix32: cardinal; // = GetTickSec
     fTimeText: array[hlvTime_Iso8601 .. hlvTime_Http] of THttpDateNowUtc;
-    procedure SetTimeText(Tix64: Int64);
+    procedure SetTimeText(Tix32: cardinal; Tix64: Int64);
     procedure SetSettings(aSettings: THttpLoggerSettings);
     function GetWriterFileName(const aHost: RawUtf8; aError: boolean): TFileName; virtual;
     procedure CreateMainWriters;
-    function GetWriter(Tix10: cardinal; const Host: RawUtf8;
+    function GetWriter(Tix32: cardinal; const Host: RawUtf8;
       Error: boolean): TTextDateWriter;
   public
     /// initialize this multi-host logging instance
@@ -2422,8 +2442,8 @@ var // filled from RTTI enum trimmed text during unit initialization
   HTTP_SCOPE:  array[THttpAnalyzerScope]  of RawUtf8;
   HTTP_PERIOD: array[THttpAnalyzerPeriod] of RawUtf8;
 
-function ToText(s: THttpAnalyzerScope): PShortString; overload;  // HTTP_SCOPE[]
-function ToText(p: THttpAnalyzerPeriod): PShortString; overload; // HTTP_PERIOD[]
+function ToText(s: THttpAnalyzerScope): PShortString; overload;  // see also HTTP_SCOPE[]
+function ToText(p: THttpAnalyzerPeriod): PShortString; overload; // see also HTTP_PERIOD[]
 function ToText(v: THttpLogVariable): PShortString; overload;
 function ToText(r: THttpRotaterTrigger): PShortString; overload;
 
@@ -2456,11 +2476,11 @@ begin
 {$endif CPUINTEL}
   result := hhUnknown;
   // standard headers are expected to be pure A-Z chars: fast lowercase search
-  // - or $20 makes conversion to a-z lowercase, and won't affect - / : chars
+  // - "or $20" makes conversion to a-z lowercase, and won't affect - / : chars
   // - the worse case may be some false positive, which won't hurt unless
   // your network architecture suffers from HTTP request smuggling
   // - much less readable than cascaded IdemPPChar(), but O(1) efficiency for
-  // this very sensitive parsing function
+  // this very performance sensitive process
   case PCardinal(P)^ or mask_lower of
     // 'CONTENT-'
     ord('c') + ord('o') shl 8 + ord('n') shl 16 + ord('t') shl 24:
@@ -2617,58 +2637,64 @@ const
 
 function PurgeHeaders(const headers: RawUtf8; trim: boolean; upIgnore: PPAnsiChar): RawUtf8;
 var
-  pos, len: array[byte] of word;
+  pos, len: array[byte] of word; // delete up to 255 entries
   n, purged, i, l, tot: PtrInt;
-  P, next: PUtf8Char;
+  P, next, last: PUtf8Char;
+  h: PUtf8Char absolute headers;
 begin
   n := 0;
   tot := 0;
   purged := 0;
-  if upIgnore = nil then
-    upIgnore := @TOBEPURGED;
   // put all allowed headers in pos[]/len[]
-  P := pointer(headers);
-  if length(headers) shr 16 = 0 then // defined as word
-    while P <> nil do
-    begin
-      if P^ = #0 then
-        break;
-      next := GotoNextLine(P);
-      if IdemPPChar(P, upIgnore) < 0 then
-      begin
-        if n = high(len) then
-          break;
-        pos[n] := P - pointer(headers);
-        l := next - P;
-        if next = nil then
-          if (purged = 0) and
-             not trim then
-            break
-          else
-            l := StrLen(P);
-        inc(tot, l);
-        len[n] := l;
-        inc(n);
-      end
-      else
-        inc(purged);
-      P := next;
-    end;
-  // recreate an expurgated headers set
-  if (purged = 0) and
-     not trim then
-    // nothing to purge
-    result := headers
-  else if tot = 0 then
-    // genocide
-    result := ''
-  else
+  P := h;
+  if P <> nil then
   begin
-    // allocate at once and append all non-purged headers
+    last := nil;
+    if upIgnore = nil then
+      upIgnore := @TOBEPURGED;
+    if PStrLen(h - _STRLEN)^ <= high(pos[0]) then // void pos[]/len[] overflow
+      while (P <> nil) and
+            (P^ <> #0) do
+      begin
+        next := GotoNextLine(P);
+        if IdemPPChar(P, upIgnore) < 0 then // append this entry
+        begin
+          l := next - P;
+          if next = nil then
+            l := (h + PStrLen(h - _STRLEN)^) - P;
+          inc(tot, l);
+          if P = last then
+            inc(len[n - 1], l) // merge with previous block
+          else
+          begin
+            if n = high(len) then
+              break;
+            pos[n] := P - h;
+            len[n] := l;
+            inc(n);
+          end;
+          last := next;
+        end
+        else
+          inc(purged);
+        P := next;
+      end;
+  end;
+  // recreate an expurgated headers set
+  if tot = 0 then // genocide
+    result := ''
+  else if purged = 0 then
+    if (not trim) or
+       (headers[PStrLen(h - _STRLEN)^] > ' ') then
+      result := headers // nothing to purge
+    else
+      result := TrimRight(headers)
+  else
+  begin // allocate at once and append all non-purged headers
     dec(n);
     if trim then
     begin
-      P := PUtf8Char(pointer(headers)) + {%H-}pos[n];
+      P := h + {%H-}pos[n];
       l := {%H-}len[n];
       dec(tot, l);
       while (l > 0) and
@@ -2680,7 +2706,7 @@ begin
     P := FastSetString(result, tot);
     for i := 0 to n do
     begin
-      MoveFast(PByteArray(headers)[pos[i]], P^, len[i]);
+      MoveFast(h[pos[i]], P^, len[i]);
       inc(P, len[i]);
     end;
     assert(P - pointer(result) = tot);
@@ -2707,10 +2733,14 @@ begin
 end;
 
 procedure ExtractHeader(var headers: RawUtf8; const upname: RawUtf8;
-  out res: RawUtf8);
+  extractText: PRawUtf8; extractInt: PInt64);
 var
   i, j, k: PtrInt;
 begin
+  if extractText <> nil then
+    FastAssignNew(extractText^);
+  if extractInt <> nil then
+    extractInt^ := 0;
   if (headers = '') or
       (upname = '') then
     exit;
@@ -2729,7 +2759,10 @@ begin
     begin
       j := i;
       inc(i, length(upname));
-      TrimCopy(headers, i, k - i, res);
+      if extractText <> nil then
+        TrimCopy(headers, i, k - i, extractText^);
+      if extractInt <> nil then
+        SetInt64(@PByteArray(headers)[i - 1], extractInt^);
       while headers[k] in [#1 .. #31] do // delete also ending #13#10
         inc(k);
       delete(headers, j, k - j); // and remove
@@ -2767,6 +2800,23 @@ begin
     exit;
   Value := GetInt64(pointer(v), err);
   result := err = 0;
+end;
+
+function DeleteHeader(const Headers, Name: RawUtf8): RawUtf8;
+var
+  up: TByteToAnsiChar;
+  u: array[0..1] of PAnsiChar; // IdemPPChar() format
+begin
+  if (Headers = '') or
+     (length(Name) < 2) then
+  begin
+    result := Headers;
+    exit;
+  end;
+  PWord(UpperCopy255Buf(@up, pointer(Name), length(Name)))^ := ord(':');
+  u[0] := @up;
+  u[1] := nil;
+  result := PurgeHeaders(Headers, false, @u);
 end;
 
 function MimeHeaderEncode(const header: RawUtf8): RawUtf8;
@@ -2899,6 +2949,7 @@ begin
     if i < 0 then
       exit;
     p := @p[i + 3]; // p^ = bot.html in http://www.google.com/bot.html
+    dec(l, i + 3);
     case PCardinal(p)^ and $00ffffff of
       // Googlebot/2.1 (+http://www.google.com/bot.html)
       ord('b') + ord('o') shl 8 + ord('t') shl 16,
@@ -2926,6 +2977,18 @@ begin
       // Mozilla/5.0 (compatible; AhrefsBot/6.1; +http://ahrefs.com/robot/)
       ord('r') + ord('o') shl 8 + ord('b') shl 16:
         result := true;
+    else // +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045
+      begin
+        i := ByteScanIndex(pointer(p), l, ord(')'));
+        if i < 0 then
+          exit;
+        inc(p, i);
+        if p[-1] = '/' then
+          dec(p);
+        if PCardinal(p - 3)^ and $00ffffff =
+             ord('b') + ord('o') shl 8 + ord('t') shl 16 then
+          result := true; // http*://*bot)
+      end;
     end;
   end;
 end;
@@ -2982,14 +3045,15 @@ var
 begin
   result := '';
   u.From(Uri);
-  if (u.Server = '') or
-     PropNameEquals(u.Server, 'localhost') or
-     IsLocalHost(pointer(u.Server)) then // supports only local files
+  if (u.UriScheme = usFile) and
+     ((u.Server = '') or
+      PropNameEquals(u.Server, 'localhost') or
+      IsLocalHost(pointer(u.Server))) then // supports only local files
   begin
     Utf8ToFileName(UrlDecodeName(u.Address), result);
     if (result <> '') and
        (result[1] <> '/') then
-      insert('/', result, 1);
+      insert('/', result, 1); // 'path/to' -> '/path/to'
   end;
 end;
 {$endif OSPOSIX}
@@ -3470,7 +3534,7 @@ begin
   if nfHeadersParsed in HeaderFlags then
     exit;
   include(HeaderFlags, nfHeadersParsed);
-  Head.AsText(Headers, {overheadForRemoteIP=}40, {usemain=}false); // keep 2KB main buffer
+  Head.AsText(Headers, {overheadForRemoteIP=}40); // keep 2KB main buffer
   Head.Reset; // set Len := 0
   if (CompressList <> nil) and
      (AcceptEncoding <> '') then
@@ -3610,28 +3674,28 @@ procedure THttpRequestContext.HeadAddCustom(P, PEnd: PUtf8Char);
 var
   len: PtrInt;
   hh: THttpHeader;
-begin
+begin // caller ensured P <> nil
   repeat
-    len := BufferLineLength(P, PEnd); // use fast SSE2 assembly on x86-64 CPU
-    if len > 0 then // no void line (means headers ending)
-    begin
-      hh := KnownHttpHeader(P);
-      include(HeadCustom, hh); // used e.g. by CompressContentAndFinalizeHead()
-      case hh of
-        hhContentEncoding:
-          // custom CONTENT-ENCODING: disable any late compression
-          integer(CompressAcceptHeader) := 0;
-      end;
-      if not (hh in [hhConnection, hhTransferEncoding]) then
-      begin
-        Head.Append(P, len);
-        Head.AppendCRLF; // normalize CR/LF endings
-      end;
-      inc(P, len);
+    while P^ <= ' ' do
+      if P^ <> #0 then
+        inc(P) // trim spaces, and ignore any kind of line feed or void line
+      else
+        exit;  // end of input
+    len := BufferLineLength(P, PEnd); // SSE2 on x86-64 CPU - we know len <> 0
+    hh := KnownHttpHeader(P);
+    include(HeadCustom, hh); // used e.g. by CompressContentAndFinalizeHead()
+    case hh of
+      hhContentEncoding:
+        // custom CONTENT-ENCODING: disable any late compression
+        integer(CompressAcceptHeader) := 0;
     end;
-    while P^ in [#10, #13] do
-      inc(P);
-  until P^ = #0;
+    if not (hh in [hhConnection, hhTransferEncoding]) then
+    begin
+      Head.Append(P, len);
+      Head.AppendCRLF; // normalize CR/LF endings
+    end;
+    inc(P, len);
+  until false;
 end;
 
 procedure THttpRequestContext.UncompressData;
@@ -4066,8 +4130,8 @@ begin
   exclude(ResponseFlags, rfContentStreamNeedFree);
 end;
 
-function THttpRequestContext.ContentFromFile(
-  const FileName: TFileName; CompressGz: integer): integer;
+function THttpRequestContext.ContentFromFile(const FileName: TFileName;
+  CompressGz: integer): integer;
 var
   gz: TFileName;
   h: THandle;
@@ -4420,6 +4484,12 @@ end;
 
 { ******************** Abstract Server-Side Types e.g. for Client-Server Protocol }
 
+function ToText(a: THttpServerRequestAuthentication): PShortString;
+begin
+  result := GetEnumName(TypeInfo(THttpServerRequestAuthentication), ord(a));
+end;
+
+
 { THttpServerRequestAbstract }
 
 procedure THttpServerRequestAbstract.Prepare(var aHttp: THttpRequestContext;
@@ -4473,7 +4543,7 @@ end;
 
 procedure THttpServerRequestAbstract.ExtractOutContentType;
 begin
-  ExtractHeader(fOutCustomHeaders, 'CONTENT-TYPE:', fOutContentType);
+  ExtractHeader(fOutCustomHeaders, 'CONTENT-TYPE:', @fOutContentType);
 end;
 
 function THttpServerRequestAbstract.GetRouteValuePosLen(const Name: RawUtf8;
@@ -4679,6 +4749,13 @@ begin
   fMax := maxpersecond;
   SetSeconds(banseconds);
   fWhiteIP := banwhiteip;
+  fBlackList := TIp4SubNets.Create;
+end;
+
+destructor THttpAcceptBan.Destroy;
+begin
+  inherited Destroy;
+  fBlackList.Free;
 end;
 
 procedure THttpAcceptBan.SetMax(Value: cardinal);
@@ -4771,7 +4848,8 @@ var
 begin
   result := false;
   if (self = nil) or
-     (fCount = 0) then
+     ((fCount = 0) and
+      (fBlackList.SubNet = nil)) then
     exit;
   ip4 := addr.IP4;
   if (ip4 = 0) or
@@ -4783,7 +4861,8 @@ end;
 function THttpAcceptBan.IsBanned(ip4: cardinal): boolean;
 begin
   result := (self <> nil) and
-            (fCount <> 0) and
+            ((fCount <> 0) or
+             (fBlackList.SubNet = nil)) and
             (ip4 <> 0) and
             (ip4 <> fWhiteIP) and
             IsBannedRaw(ip4);
@@ -4803,7 +4882,8 @@ begin
   {$else}
   begin
   {$endif HASFASTTRYFINALLY}
-    s := pointer(fIP); // fIP[secs,0]=count fIP[secs,1..fMax]=ips
+    // search the transient list of fIP[secs,0]=count fIP[secs,1..fMax]=ips
+    s := pointer(fIP);
     n := fSeconds;
     if n <> 0 then
       repeat
@@ -4813,19 +4893,24 @@ begin
         if (cnt <> 0) and
            IntegerScanExists(@P[1], cnt, ip4) then // O(n) SSE2 asm on Intel
         begin
-          inc(fRejected);
           result := true;
           break;
         end;
         dec(n);
       until n = 0;
+    // also try the public blacklist of IPv4 (if any)
+    if not result and
+       (fBlackList.SubNet <> nil) then
+      result := fBlackList.Match(ip4); // - done within the main TOSLightLock
   {$ifdef HASFASTTRYFINALLY}
   finally
   {$endif HASFASTTRYFINALLY}
     fSafe.UnLock;
   end;
-  if result and
-     Assigned(fOnBanned) then
+  if not result then
+    exit;
+  inc(fRejected);
+  if Assigned(fOnBanned) then
     fOnBanned(self, ip4);
 end;
 
@@ -4864,15 +4949,14 @@ begin
   result := 0;
   fSafe.Lock; // very quick O(1) process
   try
-    if fCount <> 0 then
-    begin
-      n := (fLastSec + 1) and (fSeconds - 1); // per-second round robin
-      fLastSec := n; // the oldest slot becomes the current (no memory move)
-      p := @fIP[n][0]; // fIP[secs,0]=count fIP[secs,1..fMax]=ips
-      result := p^;
-      p^ := 0; // void the current slot
-      dec(fCount, result);
-    end;
+    if fCount = 0 then
+      exit;
+    n := (fLastSec + 1) and (fSeconds - 1); // per-second round robin
+    fLastSec := n; // the oldest slot becomes the current (no memory move)
+    p := @fIP[n][0]; // fIP[secs,0]=count fIP[secs,1..fMax]=ips
+    result := p^;
+    p^ := 0; // void the current slot
+    dec(fCount, result);
   finally
     fSafe.UnLock;
   end;
@@ -4945,7 +5029,7 @@ begin
   end;
 end;
 
-procedure THttpRotater.TryRotate(Tix10: cardinal; Size: QWord);
+procedure THttpRotater.TryRotate(Tix32: cardinal; Size: QWord);
 var
   needrotate: boolean;
   dt: TDateTime;
@@ -4960,9 +5044,9 @@ begin
     hrtWeekly:
       begin
         needrotate := Size >= 100 shl 20; // always rotate above 100MB
-        if NextTix10 >= Tix10 then
+        if NextTix32 >= Tix32 then
         begin
-          NextTix10 := Tix10 + 60 * 60; // check TriggerDate every hour
+          NextTix32 := Tix32 + 60 * 60; // check TriggerDate every hour
           dt := NowUtc;
           if Trunc(dt) >= TriggerDate then
           begin
@@ -5055,17 +5139,17 @@ end;
 
 { THttpLoggerWriter }
 
-procedure THttpLoggerWriter.TryRotate(Tix10: cardinal);
+procedure THttpLoggerWriter.TryRotate(Tix32: cardinal);
 begin
   if (fStream <> nil) and
      (fRotate.Trigger > hrtDisabled) then
-    fRotate.TryRotate(Tix10, fTotalFileSize + PendingBytes);
+    fRotate.TryRotate(Tix32, WrittenBytes + Int64(PendingBytes));
 end;
 
 procedure THttpLoggerWriter.WriteToStream(data: pointer; len: PtrUInt);
 begin
   // no need of THttpLogger.OnIdle to flush this log file within this second
-  fLastWriteToStreamTix10 := GetTickCount64 shr MilliSecsPerSecShl;
+  fLastWriteToStreamTix32 := GetTickSec;
   // perform the actual flush to disk
   inherited WriteToStream(data, len);
 end;
@@ -5104,9 +5188,9 @@ begin
   s := TFileStreamNoWriteError.CreateAndRenameIfLocked(fRotate.FileName);
   s.Seek(0, soEnd); // append
   inherited Create(s, 65536);
-  fCustomOptions := [twoNoWriteToStreamException,
-                     twoFlushToStreamNoAutoResize,
-                     twoStreamIsOwned];
+  fFlags := [twfStreamIsOwned,
+             twfFlushToStreamNoAutoResize,
+             twfNoWriteToStreamException];
 end;
 
 destructor THttpLoggerWriter.Destroy;
@@ -5174,7 +5258,7 @@ end;
 procedure THttpLogger.OnIdle(tix64: Int64);
 var
   i: PtrInt;
-  tix10: cardinal;
+  tix32: cardinal;
 begin
   // optionally merge calls
   if Assigned(fOnContinue) then
@@ -5187,15 +5271,15 @@ begin
   try
     // force write to disk at least every second
     if fWriterSingle <> nil then
-      fWriterSingle.FlushFinal // plain TTextDateWriter with no tix10
+      fWriterSingle.FlushFinal // plain TTextDateWriter with no tix32
     else if (fWriterHost <> nil) and
             fWriterHostSafe.TryLock then
       try
-        tix10 := tix64 shr MilliSecsPerSecShl;
+        tix32 := tix64 div MilliSecsPerSec;
         for i := 0 to length(fWriterHost) - 1 do
           with fWriterHost[i] do
-            if fLastWriteToStreamTix10 <> tix10 then
-              FlushFinal; // no TryRotate(tix10) since may be slow
+            if fLastWriteToStreamTix32 <> tix32 then
+              FlushFinal; // no TryRotate(tix32) since may be slow
       finally
         fWriterHostSafe.UnLock;
       end;
@@ -5230,7 +5314,7 @@ begin
   ObjArrayAdd(fWriterHost, fWriterHostError);
 end;
 
-function THttpLogger.GetWriter(Tix10: cardinal;
+function THttpLogger.GetWriter(Tix32: cardinal;
   const Host: RawUtf8; Error: boolean): TTextDateWriter;
 var
   n: integer;
@@ -5246,7 +5330,7 @@ begin
     result := fWriterHostMain; // very common case of loopback or no Host
     if (Host <> '') and
        (ffHadDefineHost in fFlags) and
-       not IsLocalHost(pointer(Host)) then
+       (PCardinal(Host)^ <> HOST_127) then
     // 127.0.0.0/8 (e.g. from THttpClientSocket.RequestSendHeader) is no host
     begin
       result := fWriterHostLast; // pointer-sized variables are atomic
@@ -5270,7 +5354,7 @@ begin
         result := p^; // p^ = WriterHost[0] = access.log as default
         if (Host <> '') and
            (ffHadDefineHost in fFlags) and
-           not IsLocalHost(pointer(Host)) then
+           (PCardinal(Host)^ <> HOST_127) then
         begin
           n := PDALen(PAnsiChar(p) - _DALEN)^ + (_DAOFF - 1);
           inc(p); // ignore both WriterHost[0/1]
@@ -5305,7 +5389,7 @@ begin
       end;
   end;
   // try rotation before appending any new information - and outside of the lock
-  THttpLoggerWriter(result).TryRotate(Tix10);
+  THttpLoggerWriter(result).TryRotate(Tix32);
 end;
 
 procedure THttpLogger.DefineHost(const aHost: RawUtf8;
@@ -5442,11 +5526,11 @@ begin
     DynArrayFakeLength(fUnknownPosLen, un);
 end;
 
-procedure THttpLogger.SetTimeText(Tix64: Int64);
+procedure THttpLogger.SetTimeText(Tix32: cardinal; Tix64: Int64);
 var
   now: TSynSystemTime;
 begin
-  fTimeTix10 := Tix64 shr MilliSecsPerSecShl; // acquire it asap
+  fTimeTix32 := Tix32; // acquire it asap
   // dates are all in UTC/GMT as it should on any serious server design
   FromGlobalTime(now, {local=}false, Tix64); // call OS outside of the lock
   fSafe.Lock; // update all cached text in an atomic way
@@ -5460,13 +5544,13 @@ end;
 procedure THttpLogger.Append(var Context: TOnHttpServerAfterResponseContext);
 var
   n, urllen: integer;
-  tix10, crc, reqcrc, uricrc: cardinal;
+  tix32, crc, reqcrc, uricrc: cardinal;
   v: ^THttpLogVariable;
   poslen: PWordArray; // pos1,len1, pos2,len2, ... 16-bit pairs
   wr: TTextDateWriter;
 const
-  SCHEME: array[boolean] of string[7]  = ('http', 'https');
-  HTTP:   array[boolean] of string[15] = ('HTTP/1.1', 'HTTP/1.0');
+  _SCHEME: array[boolean] of string[7]  = ('http', 'https');
+  _HTTP:   array[boolean] of string[15] = ('HTTP/1.1', 'HTTP/1.0');
 begin
   // optionally merge calls
   if Assigned(fOnContinue) then
@@ -5475,9 +5559,9 @@ begin
     exit;
   // retrieve the output stream for the expected .log file
   if Context.Tix64 = 0 then
-    Context.Tix64 := GetTickCount64;
-  tix10 := Context.Tix64 shr MilliSecsPerSecShl;
-  wr := GetWriter(tix10, RawUtf8(Context.Host), Context.State <> hrsResponseDone);
+    Context.Tix64 := GetTickCount64; // retrieve from OS and cache for below
+  tix32 := Context.Tix64 div MilliSecsPerSec;
+  wr := GetWriter(tix32, RawUtf8(Context.Host), Context.State <> hrsResponseDone);
   if (wr = nil) or
      (wr.Stream = nil) then
     exit;
@@ -5490,8 +5574,8 @@ begin
     if urllen < 0 then
       urllen := length(RawUtf8(Context.Url));
   end;
-  if fTimeTix10 <> tix10 then
-    SetTimeText(Context.Tix64); // update cached time texts every second
+  if fTimeTix32 <> tix32 then
+    SetTimeText(tix32, Context.Tix64); // update cached time texts every second
   reqcrc := 0;
   uricrc := 0;
   if (hlvRequest_Hash in fVariables) or
@@ -5509,7 +5593,7 @@ begin
   v := pointer(fVariable);
   n := length(fVariable);
   poslen := pointer(fUnknownPosLen); // 32-bit array into 16-bit pos,len pairs
-  fSafe.Lock;
+  fSafe.Lock; // fast non-reentrant TOSLightLock
   {$ifdef HASFASTTRYFINALLY}
   try
   {$else}
@@ -5602,7 +5686,7 @@ begin
               wr.AddDirect('/'); // TRestHttpServer may have trimmed it
             wr.AddString(RawUtf8(Context.Url)); // full request = raw Url
             wr.AddDirect(' ');
-            wr.AddShorter(HTTP[hsrHttp10 in Context.Flags]);
+            wr.AddShorter(_HTTP[hsrHttp10 in Context.Flags]);
           end;
         hlvRequest_Hash:
           wr.AddUHex(reqcrc, #0);
@@ -5613,11 +5697,11 @@ begin
         hlvRequest_Uri:
           wr.AddString(RawUtf8(Context.Url)); // include arguments
         hlvScheme:
-          wr.AddShorter(SCHEME[hsrHttps in Context.Flags]);
+          wr.AddShorter(_SCHEME[hsrHttps in Context.Flags]);
         hlvSent:
           wr.AddShort(KBNoSpace(Context.Sent));
         hlvServer_Protocol:
-           wr.AddShorter(HTTP[hsrHttp10 in Context.Flags]);
+           wr.AddShorter(_HTTP[hsrHttp10 in Context.Flags]);
         hlvStatus:
           wr.AddU(Context.StatusCode);
         hlvStatus_Text:
@@ -5638,7 +5722,7 @@ begin
     until n = 0;
     wr.AddShorter(LINE_FEED[fSettings.LineFeed]);
     if (fWriterSingle = nil) and
-       (THttpLoggerWriter(wr).fLastWriteToStreamTix10 <> tix10) then
+       (THttpLoggerWriter(wr).fLastWriteToStreamTix32 <> tix32) then
       wr.FlushFinal; // force write to disk at least every second
   {$ifdef HASFASTTRYFINALLY}
   finally
@@ -5755,7 +5839,7 @@ begin
     else
       FillcharFast(fState, SizeOf(fState), 0);
   ComputeConsolidateTime(hapAll, fromgz);
-  tix := GetTickCount64 div 1000;
+  tix := GetTickSec;
   if fromgz <> 0 then
     Consolidate(tix); // consolidate old data
   if fSuspendFileAutoSaveMinutes <> 0 then
@@ -6261,7 +6345,7 @@ var
   s: THttpAnalyzerScope;
   d: THttpAnalyzerStatePerScope;
   w: TTextWriter;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   Get(Period, d);
   w := TTextWriter.CreateOwnedStream(tmp);
@@ -6367,7 +6451,7 @@ begin
   try
     // try rotation before appending any new information - and outside Safe.lock
     if fRotate.Trigger > hrtDisabled then
-      fRotate.TryRotate(GetTickCount64 shr 10, FileSize(FileName));
+      fRotate.TryRotate(GetTickSec, FileSize(FileName));
     // append the new information using DoSave() overriden method
     fSafe.Lock;
     try
@@ -6586,7 +6670,8 @@ begin
       hapCurrent,
       hapYear,
       hapAll: // paranoid
-        raise EHttpMetrics.Create('Unexpected period');
+        EHttpMetrics.RaiseUtf8('Unexpected %.CreatePeriodIndex(%)',
+          [self, ToText(p^.Period)^]);
     else // hapHour .. hapMonth
       with fPeriod[p^.Period] do
       begin
@@ -6736,7 +6821,7 @@ end;
 procedure THttpMetrics.SaveToFile(const Dest: TFileName; Algo: TAlgoCompress);
 var
   w: TBufferWriter;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   if Algo = nil then
     w := TBufferWriter.Create(Dest) // direct-to-fly persistence
@@ -6935,7 +7020,7 @@ var
   last, first: cardinal;
   p: THttpAnalyzerPeriod;
   rd: TFastReader;
-  tmp: array[0..4095] of AnsiChar; // first 4KB should be enough (with metadata)
+  tmp: TBuffer4K; // first 4KB should be enough (with metadata)
   unc: array[0..6143] of AnsiChar; // partially decompressed content
 begin
   RecordZero(@Info, TypeInfo(THttpMetricsHeader));
@@ -7219,7 +7304,7 @@ var
   d: PHttpAnalyzerToSave;
   w: TTextWriter;
   date: TShort16;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   if Metrics = nil then
     exit;

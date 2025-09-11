@@ -1,2 +1,2 @@
-4fe2b918643ebee44d0b107a185986630f9d86d2
-Fixed Sleep
+3a56dc032fa74eedadca5b6ecc821b0fb783afc7
+Added RespectJobAvoidAreaMasks property

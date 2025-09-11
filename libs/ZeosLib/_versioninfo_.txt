@@ -1,11 +1,5 @@
-f9315bde7dc89d5bb4c8469c13712a5fecb2a4a4
-merged revisions 8306, 8321 from trunk:
-A possible fix for the bug in the forum:
-https://zeoslib.sourceforge.io/viewtopic.php?t=236422
-
-........
-Add a second column to the TZOracleDatabaseMetadata.UncachedGetSchemas query so CopyToVirtualResultSet works again.
-........
+03af9f77ea80297bf82be8c80e436fba8a71ec3c
+A possible fix for [#635] - again a fix for MariaDB returning strange version numbers...
 
 
 ## Original repository is located at https://sourceforge.net/projects/zeoslib/ ##
