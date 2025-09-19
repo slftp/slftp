@@ -23,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, queueunit, dirlist, sitesunit, irc, mystrings;
+  SysUtils, SyncObjs, StrUtils, debugunit, dateutils, dirlist, sitesunit, irc, mystrings;
 
 const
   section = 'sfv';

@@ -3,7 +3,7 @@ unit irc;
 interface
 
 uses
-  Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp, Generics.Collections;
+  Classes, SyncObjs, Contnrs, SysUtils, tasksunit, sltcp, Generics.Collections, slcriticalsection2;
 
 type
   { @abstract(IRC message which still need to be send to an IRC network-channel) }
@@ -28,7 +28,7 @@ type
 
   TMyIrcThread = class(TslTCPThread)
   private
-    FSocketWriteLock: TCriticalSection; //< Lock to protected the underlying write function of the socket to disallow concurrent access
+    FSocketWriteLock: TSlCriticalSection2; //< Lock to protected the underlying write function of the socket to disallow concurrent access
     FPendingMessagesQueue: TThreadList<TIrcEchoItem>; //< Queue of messages which still need to be send to IRC channels
 
     irc_last_read: TDateTime;
@@ -36,12 +36,10 @@ type
     irc_last_written: tdatetime;
     lastservername: String;
     FCurrentIrcNick: String;
+    flood: integer;
 
     function GetIrcSSL: Boolean;
-    procedure SetIrcSSL(value: Boolean);
 
-    function GetIrcFlood: Integer;
-    procedure SetIrcFlood(value: Integer);
     function GetIrcNick: String;
     procedure SetIrcNick(value: String);
     function GetIrcANick: String;
@@ -113,8 +111,7 @@ type
 
     function IrcWrite(const s: String): Boolean;
 
-    property flood: Integer read GetIrcFlood write SetIrcFlood;
-    property ssl: Boolean read GetIrcSSL write SetIrcSSL;
+    property ssl: Boolean read GetIrcSSL;
 
     property irc_nick: String read GetIrcNick write SetIrcNick; //< your nickname on this network
     property irc_anick: String read GetIrcANick write SetIrcANick;
@@ -533,20 +530,6 @@ var
   fInviteonly, fCbc: boolean;
 begin
 
-  direct_echo := config.ReadBool(section, 'direct_echo', False);
-  mynickname := config.ReadString(section, 'nickname', 'sl');
-  myanickname := config.ReadString(section, 'anickname', 'sl_');
-  irccmdprefix := config.ReadString(section, 'cmdprefix', '!');
-  admin_forward_msgs := config.ReadBool(section, 'admin_forward_msgs', True);
-  echo_kick_events := config.ReadBool(section, 'echo_kick_events', False);
-  echo_kick_events := config.ReadBool(section, 'echo_kick_events', False);
-  echo_join_part_events := config.ReadBool(section, 'echo_join_part_events', False);
-  echo_topic_change_events := config.ReadBool(section, 'echo_topic_change_events', False);
-  echo_nick_change_events := config.ReadBool(section, 'echo_nick_change_events', False);
-  irc_timeout := config.ReadInteger(section, 'timeout', 120);
-  register_timeout := config.ReadInteger(section, 'register_timeout', 10);
-  sleep_on_error := config.ReadInteger(section, 'sleep_on_error', 60);
-
   // register other sitechan keys
   x := TStringList.Create;
   try
@@ -603,7 +586,7 @@ begin
   self.netname := aNetname;
   status := 'creating...';
 
-  FSocketWriteLock := TCriticalSection.Create;
+  FSocketWriteLock := TSlCriticalSection2.Create('IRC_' + aNetname);
   channels := TStringList.Create;
 
   FPendingMessagesQueue := TThreadList<TIrcEchoItem>.Create;
@@ -613,7 +596,7 @@ begin
   irc_last_written := Now;
   shouldquit := False;
   shouldrestart := False;
-  //flood := config.ReadInteger(section, 'flood', 333);
+  flood := RCInt('flood', 333);
   console_add_ircwindow(aNetname);
 
   // TODO: remove this as its not needed anymore
@@ -669,7 +652,7 @@ end;
 function TMyIrcThread.IrcWrite(const s: String): Boolean;
 begin
   Result := False;
-  FSocketWriteLock.Enter;
+  FSocketWriteLock.Enter('IrcWrite');
   try
     irc_last_read := Now();
     try
@@ -1504,7 +1487,6 @@ var
   fChanSettingsObj: TIrcChannelSettings;
   s: TSite;
   r: TRawTask;
-  added: Boolean;
 begin
   debug(dpSpam, section, netname + ': ShouldJoinGame');
   Result := False;
@@ -1538,7 +1520,6 @@ begin
     end;
   end;
 
-  added := False;
   for i := 0 to sites.Count - 1 do
   begin
     s := sites[i] as TSite;
@@ -1547,12 +1528,9 @@ begin
       debug(dpSpam, section, '%s: Trying to issue SITE INVITE to join chans as %s', [netname, FCurrentIrcNick]);
       s.siteinvited := True;
       r := TRawTask.Create('', '', s.name, '', 'SITE INVITE ' + FCurrentIrcNick);
-      AddTask(r);
-      added := True;
+      AddTask(r, true);
     end;
   end;
-  if added then
-    QueueFire;
 
   Result := True;
 end;
@@ -1814,6 +1792,19 @@ begin
       end;
     end;
   end;
+
+  try
+    CleanupConsoleThreadVars;
+  except
+    on e: Exception do
+    begin
+      try
+        Debug(dpError, section, Format('[EXCEPTION] TMyIrcThread.ClearnupThreadVars : %s', [e.Message]));
+      except
+        // ignore this in case the debug unit has already been uninitialized at shutdown or something like that
+      end;
+    end;
+  end;
 end;
 
 function IrcRestart: boolean;
@@ -1829,6 +1820,20 @@ end;
 
 procedure IrcInit;
 begin
+  direct_echo := config.ReadBool(section, 'direct_echo', False);
+  mynickname := config.ReadString(section, 'nickname', 'sl');
+  myanickname := config.ReadString(section, 'anickname', 'sl_');
+  irccmdprefix := config.ReadString(section, 'cmdprefix', '!');
+  admin_forward_msgs := config.ReadBool(section, 'admin_forward_msgs', True);
+  echo_kick_events := config.ReadBool(section, 'echo_kick_events', False);
+  echo_kick_events := config.ReadBool(section, 'echo_kick_events', False);
+  echo_join_part_events := config.ReadBool(section, 'echo_join_part_events', False);
+  echo_topic_change_events := config.ReadBool(section, 'echo_topic_change_events', False);
+  echo_nick_change_events := config.ReadBool(section, 'echo_nick_change_events', False);
+  irc_timeout := config.ReadInteger(section, 'timeout', 120);
+  register_timeout := config.ReadInteger(section, 'register_timeout', 10);
+  sleep_on_error := config.ReadInteger(section, 'sleep_on_error', 60);
+
   myIrcThreads := TObjectList.Create(True);
 end;
 
@@ -1899,24 +1904,9 @@ begin
   WCString('password', value);
 end;
 
-procedure TMyIrcThread.SetIrcSSL(value: Boolean);
-begin
-  //
-end;
-
-procedure TMyIrcThread.SetIrcFlood(value: Integer);
-begin
-  //
-end;
-
 function TMyIrcThread.GetIrcSSL: boolean;
 begin
   result := RCBool('ssl', false);
-end;
-
-function TMyIrcThread.GetIrcFlood: integer;
-begin
-  result := RCInt('flood', 333); //config.ReadInteger('irc', 'flood', 333);
 end;
 
 function TMyIrcThread.ChanNicks(const chan: String): String;

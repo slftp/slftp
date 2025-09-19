@@ -22,7 +22,7 @@ type
 implementation
 
 uses
-  DateUtils, SysUtils, queueunit, debugunit, configunit,
+  DateUtils, SysUtils, debugunit, configunit,
   sltcp, http, RegExpr, irc, mrdohutils, kb.releaseinfo;
 
 const
@@ -56,11 +56,11 @@ begin
   fPreTime := getPretime(mainpazo.rls.rlsname).pretime;
   if fPreTime = 0 then
   begin
-    if attempt < config.readInteger(section, 'readd_attempts', 5) then
+    if attempt < GlTaskPretimeReaddAttempts then
     begin
       debug(dpSpam, section, 'READD: retrying pretime lookup for %s later', [mainpazo.rls.rlsname]);
       r := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, mainpazo, attempt + 1);
-      r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 3));
+      r.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
       AddTask(r);
     end
     else
