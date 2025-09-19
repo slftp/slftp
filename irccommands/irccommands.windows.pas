@@ -27,6 +27,14 @@ var
   Windows, s: String;
 begin
   Windows := console_windows;
+
+  if no_console_msg then
+    Windows := Windows + 'No site slot and irc windows due to setting no_console_msg=1' + #13#10;
+  if no_console_slot then
+    Windows := Windows + 'No slot overview window due to setting no_console_slot=1' + #13#10;
+  if no_console_queue then
+    Windows := Windows + 'No queue window due to setting no_console_queue=1' + #13#10;
+
   while (True) do
   begin
     s := GetFirstLineFromTextViaNewlineIndicators(Windows);

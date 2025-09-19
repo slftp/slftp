@@ -65,8 +65,8 @@ function AddPreDbAlive: boolean;
 implementation
 
 uses
-  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles,
-  irc, debugunit, precatcher, SyncObjs, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos,
+  DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles, slcriticalsection2,
+  irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos,
   IdThreadSafe;
 
 const

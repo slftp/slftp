@@ -66,7 +66,7 @@ var
   var
     deInner: TDirListEntry;
   begin
-    dl.dirlist_lock.Enter;
+    dl.dirlist_lock.Enter('TAutoIndexTask.DoIndexing');
     try
       for deInner in dl.entries.Values do
       begin
