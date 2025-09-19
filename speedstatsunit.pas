@@ -3,7 +3,7 @@ unit speedstatsunit;
 interface
 
 uses
-  Contnrs, SysUtils, Classes, SyncObjs;
+  Contnrs, SysUtils, Classes;
 
 type
   TSpeedStat = class
@@ -35,24 +35,28 @@ var
   speedstats_last_save: TDateTime;
   speedstats_last_recalc: TDateTime;
   speedstats: TObjectList;
+  GlSpeedStatsMinFileSize: integer;
 
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2;
 
 const
   r_section = 'speedstats';
 
 var
-  speedstatlock: TCriticalSection;
+  speedstatlock: TSlCriticalSection2;
+  max_entries: integer;
 
 procedure SpeedStatsInit;
 begin
-  speedstatlock := TCriticalSection.Create;
+  speedstatlock := TSlCriticalSection2.Create('SpeedStats');
   speedstats_last_save := Now;
   speedstats_last_recalc := Now;
   speedStats := TObjectList.Create;
+  max_entries := config.readInteger(r_section, 'max_entries', 5000);
+  GlSpeedStatsMinFileSize := config.ReadInteger('speedstats', 'min_filesize', 5000000);
 end;
 
 procedure SpeedStatsUnInit;
@@ -71,7 +75,7 @@ begin
   debug(dpMessage, r_section, '--> Saving speedstats');
   //irc_Addconsole('--> SpeedStatsSave : '+FormatDateTime('hh:nn:ss', now));
 
-  speedstatlock.Enter;
+  speedstatlock.Enter('SpeedStatsSave');
   try
     try
       // Cleanup
@@ -311,8 +315,10 @@ var
   d, diff: Double;
   minr: String;
   maxr: String;
+  fSite: TSite;
 begin
   speedstats_last_recalc := Now();
+  fSite := nil;
 
   Debug(dpMessage, r_section, 'Recalculating speed stats begin');
   //irc_Addconsole('--> SpeedStatsRecalc : '+FormatDateTime('hh:nn:ss', now));
@@ -393,6 +399,10 @@ begin
 
                 sitesdat.WriteInteger('speed-from-' + x[i], y[j], speed_new);
                 sitesdat.WriteInteger('speed-to-' + y[j], x[i], speed_new);
+
+                fSite := FindSiteByName('', x[i]);
+                if fSite <> nil then
+                  fSite.UpdateSpeedFromCache;
               end;
             end;
           end;
@@ -570,7 +580,7 @@ var
 begin
   x := TEncStringlist.Create(passphrase);
   try
-    speedstatlock.Enter;
+    speedstatlock.Enter('SpeedStatsStart');
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
       for i := 0 to x.Count - 1 do
@@ -675,16 +685,12 @@ begin
 end;
 
 procedure SpeedStatAdd(s: TSpeedStat; nolog : Boolean = False); overload;
-var
-  max_entries: Integer;
 begin
   if not nolog then
     debug(dpSpam, r_section, 'Speedstat %s -> %s %.1f', [s.src, s.dst, s.speed]);
 
-  max_entries := config.readInteger(r_section, 'max_entries', 5000);
-
   try
-    speedstatlock.Enter;
+    speedstatlock.Enter('SpeedStatAdd');
     try
       speedstats.Add(s);
       while (speedstats.Count > max_entries) do
@@ -706,7 +712,7 @@ procedure RemoveSpeedStats(const sitename, section: String);
 var
   i: integer;
 begin
-  speedstatlock.Enter;
+  speedstatlock.Enter('RemoveSpeedStats');
   try
     for i := 0 to speedstats.Count - 1 do
     begin

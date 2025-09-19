@@ -164,7 +164,6 @@ var
   fJsonObject: variant;
   fJsonString: string;
   fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
-  rr: TRegExpr;
   doc: TDocVariantData;
   pdoc: PDocVariantData;
   fYearDoc: PDocVariantData;

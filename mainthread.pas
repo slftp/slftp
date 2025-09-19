@@ -57,7 +57,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist;
+  taskautodirlist, slcriticalsection2;
 
 {$I slftp.inc}
 
@@ -67,6 +67,7 @@ const
 var
   queue_fire: integer;
   queueclean_interval: integer;
+  queue_stat_interval: integer;
   ranks_save_interval: integer;
   recalc_ranks_interval: integer;
   speedstats_save_interval: integer;
@@ -85,6 +86,8 @@ var
 begin
   Result := '';
   fSSLErrorMsg := '';
+
+  SlCriticalSection2Init(config.ReadInteger('debug', 'event_based_locking_timeout', 0), config.ReadBool('debug', 'monitor_lock_times', False));
 
   if not sltcp_inited then
   begin
@@ -280,6 +283,7 @@ begin
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
+  queue_stat_interval := 500;
   ranks_save_interval := config.readInteger('ranks', 'save_interval', 900);
   recalc_ranks_interval := config.readInteger('ranks', 'recalc_ranks_interval', 1800);
   speedstats_save_interval := config.readInteger('speedstats', 'save_interval', 900);
@@ -297,10 +301,10 @@ begin
   end;
 
   // fire queue scheduler
-  if ((queue_fire > 0) and (MilliSecondsBetween(Now, queue_last_run) >= queue_fire)) then
+  if ((queue_fire > 0)) then
   begin
     try
-      QueueFire;
+      QueueFireInverval(queue_fire);
     except
       on e: Exception do
       begin
@@ -310,15 +314,27 @@ begin
   end;
 
   // clean queue scheduler
-  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >= queueclean_interval)) then
+  if (queueclean_interval > 0) then
   begin
     try
-      QueueClean;
+      QueueCleanInverval(queueclean_interval);
     except
       on e: Exception do
       begin
         Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
-        queueclean_last_run := Now;
+      end;
+    end;
+  end;
+
+  // number of tasks in queue shown in console
+  if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > queue_stat_interval then
+  begin
+    try
+      QueueStatAll;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
       end;
     end;
   end;
@@ -490,6 +506,8 @@ begin
 end;
 
 procedure Main_Stop;
+var
+fSite: TSite;
 begin
   // this is just a matter of putting the right shit on the kitty,
   // uninitialization will be in Main_Uninit
@@ -501,7 +519,9 @@ begin
   IrcStop();
   kb_Save();
   kb_Stop;
-  QueueFire();
+  kb_FreeList;
+  for fSite in sites do
+    fSite.QueueFire();
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 
@@ -552,6 +572,8 @@ begin
   dbtvinfoUnInit;
   NewsUnInit;
   AutodirlistUninit;
+  DirlistUnInit;
+  SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then
