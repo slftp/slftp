@@ -64,7 +64,10 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
-  precatcherTests;
+  precatcherTests,
+  slcriticalsection2Tests,
+  variantCacheTests,
+  sltimerTests;
 
 var
   filecheck: String;

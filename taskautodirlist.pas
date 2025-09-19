@@ -128,8 +128,8 @@ begin
     exit;
   end;
 
-  i := kb_list.IndexOf(fKbKey);
-  if i <> -1 then
+  p := FindPazoByKey(fKbKey);
+  if p <> nil then
   begin
     exit;
   end;
@@ -159,7 +159,7 @@ begin
         if IsSourceSiteValid(site) then
         begin
           fCwdTask := TCWDTask.Create('', '', site.Name, MyIncludeTrailingSlash(x.Values[x.Names[i]]) + MyIncludeTrailingSlash(releasenametofind));
-          fTaskNotify.tasks.Add(fCwdTask);
+          fTaskNotify.AddTask(fCwdTask);
           AddTask(fCwdTask);
         end;
       end;
@@ -217,7 +217,7 @@ begin
         if site.UseSiteSearchOnReqFill and (IsSourceSiteValid(site)) then
         begin
           fSiteSearchTask := TSearchReleaseTask.Create('', '', site.Name, releasenametofind, False);
-          fTaskNotify.tasks.Add(fSiteSearchTask);
+          fTaskNotify.AddTask(fSiteSearchTask);
           AddTask(fSiteSearchTask);
         end;
       end;
@@ -287,7 +287,7 @@ begin
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasenametofind, ss);
       p := PazoAdd(rls);
-      kb_list.AddObject(fKbKey, p);
+      AddPazoToKB(fKbKey, p);
       SetRequestFilled(fKbKey);
 
       ps := p.AddSite(site1, maindir);
@@ -431,7 +431,7 @@ begin
 
       // dirlist successful, you must work with the elements
       dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
-      dl.dirlist_lock.Enter;
+      dl.dirlist_lock.Enter('TAutoDirlistTask.Execute');
       try
         for de in dl.entries.Values do
         begin
