@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo;
+uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -14,8 +14,10 @@ type
   end;
 
   TPazoTask = class(TPazoPlainTask) // announce
-    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo);
+    FDependingOnDirlist: TDirList;
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList);
     destructor Destroy; override;
+    function IsReadyToBeExecuted: boolean; override;
   end;
 
   TPazoDirlistTask = class(TPazoTask)
@@ -29,7 +31,7 @@ type
 
   TPazoMkdirTask = class(TPazoTask)
     dir: String;
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -66,7 +68,7 @@ type
     isSfv, IsNfo: Boolean;
     isSample, isProof, isCovers, isSubs: Boolean;
     dst: TWaitTask;
-    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
+    constructor Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir, filename: String; const filesize: Int64; const rank: integer);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -75,9 +77,8 @@ implementation
 
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
-  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc, dirlist,
-  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
-  Generics.Collections;
+  SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers;
 
 const
   c_section = 'taskrace';
@@ -113,11 +114,12 @@ begin
   inherited;
 end;
 
-constructor TPazoTask.Create(const netname, channel, site1, site2: String; pazo: TPazo);
+constructor TPazoTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList);
 begin
   inherited Create(netname, channel, site1, site2, pazo);
 
   mainpazo.queuenumber.Increase;
+  self.FDependingOnDirlist := aDependingOnDirlist;
 
   if ClassType = TPazoRaceTask then
   begin
@@ -159,6 +161,11 @@ begin
   inherited;
 end;
 
+function TPazoTask.IsReadyToBeExecuted: boolean;
+begin
+  Result := (self.FDependingOnDirlist = nil) or (not self.FDependingOnDirlist.need_mkdir) or self.FDependingOnDirlist.error;
+end;
+
 
 { TPazoDirlistTask }
 constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
@@ -166,7 +173,7 @@ begin
   self.dir := dir;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
-  inherited Create(netname, channel, site, '', pazo);
+  inherited Create(netname, channel, site, '', pazo, nil);
 end;
 
 function TPazoDirlistTask.Execute(slot: Pointer): boolean;
@@ -437,7 +444,7 @@ begin
     fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
     if ((d <> nil) and (d.entries <> nil) and (d.entries.Count > 0)) then
     begin
-      d.dirlist_lock.Enter;
+      d.dirlist_lock.Enter('TPazoDirlistTask.Execute');
       try
         for de in d.entries.Values do
         begin
@@ -684,10 +691,10 @@ end;
 
 
 { TPazoMkdirTask }
-constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String);
+constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
 begin
   self.dir := dir;
-  inherited Create(netname, channel, site, '', pazo);
+  inherited Create(netname, channel, site, '', pazo, aDependingOnDirlist);
 end;
 
 function TPazoMkdirTask.Execute(slot: Pointer): boolean;
@@ -698,7 +705,6 @@ var
   aktdir: String;
   failure: boolean;
   bIsMidnight: boolean;
-  r: TRule;
   rule_err: String;
   numerrors: integer;
   tname: String;
@@ -1015,7 +1021,7 @@ begin
 
           else if (0 <> Pos('Denying creation of', s.lastResponse)) or (0 <> Pos('BLOCKED:', s.lastResponse)) or (0 <> Pos('Denied by dirscript', s.lastResponse)) then
           begin
-            if config.ReadBool(c_section, 'autoruleadd', True) then
+            if GlTaskRaceAutoRuleAdd then
             begin
               if (0 <> Pos('releases are not accepted here', s.lastResponse)) or (0 <> Pos('This group is BANNED', s.lastResponse)) or (0 <> Pos('This group is not wanted', s.lastResponse)) then
               begin
@@ -1110,13 +1116,13 @@ begin
 end;
 
 { TPazoRaceTask }
-constructor TPazoRaceTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const dir, filename: String; const filesize: Int64; const rank: integer);
+constructor TPazoRaceTask.Create(const netname, channel, site1, site2: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir, filename: String; const filesize: Int64; const rank: integer);
 begin
-  inherited Create(netname, channel, site1, site2, pazo);
+  inherited Create(netname, channel, site1, site2, pazo, aDependingOnDirlist);
   self.dir := dir;
   self.rank := rank;
   self.filename := filename;
-  if config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True) then
+  if GlConvertFilenamesToLowercase then
     self.FFilenameForSTORCommand := lowercase(filename)
   else
     self.FFilenameForSTORCommand := filename;
@@ -1196,7 +1202,7 @@ begin
     exit;
   end;
 
-  if (ps2.badcrcevents >= config.ReadInteger('taskrace', 'badcrcevents', 15)) then
+  if (ps2.badcrcevents >= GlTaskRaceBadCrcEvents) then
   begin
     mainpazo.errorreason := 'Too many CRC errors!';
     readyerror := True;
@@ -2415,7 +2421,7 @@ begin
       if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
       begin
         fDirlist := ps2.dirlist.FindDirlist(dir);
-        fDirlist.dirlist_lock.Enter;
+        fDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
         try
           fDirlistEntry := fDirlist.Find(filename);
           fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
@@ -2933,7 +2939,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
@@ -2942,7 +2948,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
@@ -2952,7 +2958,7 @@ begin
     begin
       if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
-        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, config.ReadInteger(c_section, 'badcrcevents', 15)]);
+        irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
       Inc(ps2.badcrcevents);
     end
@@ -3009,7 +3015,7 @@ begin
     if (time_race > 0) then
     begin
       try
-        if (filesize > config.ReadInteger('speedstats', 'min_filesize', 5000000)) then
+        if (filesize > GlSpeedStatsMinFileSize) then
         begin
           SpeedStatAdd(site1, site2, filesize * 1000 / time_race, mainpazo.rls.section, mainpazo.rls.rlsname);
         end;
