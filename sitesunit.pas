@@ -2999,6 +2999,7 @@ begin
       if not Read() then
         exit;
 
+      irc_SendRACESTATS(Format('LEECH : %s %s', [site.Name, filename]));
       Result := 1;
     finally
       if idTCP <> nil then
