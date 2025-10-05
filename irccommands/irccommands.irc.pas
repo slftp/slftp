@@ -854,6 +854,12 @@ begin
   fChanSettings := FindIrcChannelSettings(nn, blowchannel);
   if fChanSettings <> nil then
   begin
+    if blowchannel <> fChanSettings.Channel then
+    begin
+      sitesdat.EraseSection('channel-' + nn + '-' + blowchannel);
+    end;
+
+    blowchannel := fChanSettings.Channel;
     fChanSettings.ChanKey := key;
     sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'chankey', key);
     ircth.shouldjoin := True;
@@ -904,6 +910,17 @@ begin
     irc_addtext_b(Netname, Channel, format('Channel %s@%s not found.', [blowchannel, nn]));
     exit;
   end;
+
+  // delete the old entry if user typed channel name with different case
+  // this prevents duplicate entries in sites.dat with different case
+  if blowchannel <> fChanSettings.Channel then
+  begin
+    sitesdat.EraseSection('channel-' + nn + '-' + blowchannel);
+  end;
+
+  // use the actual channel name from the object, not the user input
+  // this ensures case sensitivity matches what the IRC server sent
+  blowchannel := fChanSettings.Channel;
 
   if Names = '' then
   begin
