@@ -242,6 +242,7 @@ var
   added: boolean;
   addednumber: integer;
   dd: double;
+  i: Integer;
 
   // y-ba belepakolja az osszes olyan siteot amibe el lehet jutni honnanbol...   -- y into it packs all of the site into which you can reach honnanbol ...
   procedure Routeable(source: String; y: TStringList);
@@ -269,28 +270,36 @@ var
   end;
 
 begin
+try
   Result := False;
+  i := 0;
   sitename := UpperCase(SubString(params, ' ', 1));
   ssite := sitename;
   section := UpperCase(SubString(params, ' ', 2));
+  i := 1;
 
   s := FindSiteByName(Netname, sitename);
+  i := 2;
 
   if s = nil then
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
     exit;
   end;
+  i := 3;
 
   predir := s.sectiondir[section];
+  i := 4;
 
   dir := mystrings.RightStr(params, length(sitename) + length(section) + 2);
+  i := 5;
   if ((dir = '') and (predir = '')) then
   begin
     section := 'PRE';
     predir := s.sectiondir[section];
     dir := mystrings.RightStr(params, length(sitename) + 1);
   end;
+  i := 6;
 
   if (predir = '') then
   begin
@@ -298,12 +307,14 @@ begin
       'Site <b>%s</b> has no dir set for section %s.', [sitename, section]);
     exit;
   end;
+  i := 7;
 
   if ((0 < Pos('../', dir)) or (0 < Pos('/..', dir))) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c>');
     exit;
   end;
+  i := 8;
 
   (* Now we check the routing *)
   added := True;
@@ -317,9 +328,12 @@ begin
     Irc_AddText(Netname, Channel, 'Pazoid = %d', [pazo_id]);
     exit;
   end;
+  i := 10;
 
   p := FindPazoByID(pazo_id);
+  i := 11;
   p.Clear;
+  i := 12;
 
   try
     p.AddSites(True);
@@ -334,6 +348,7 @@ begin
         [e.Message]));
     end;
   end;
+  i := 13;
 
   try
     FireRules(p, p.FindSite(sitename));
@@ -347,6 +362,7 @@ begin
         [e.Message]));
     end;
   end;
+  i := 14;
 
   y := TStringList.Create;
   try
@@ -361,15 +377,18 @@ begin
         Debug(dpError, section, Format('[EXCEPTION] IrcSpread.Routeable: %s', [e.Message]));
       end;
     end;
+  i := 15;
 
     if y.Text = '' then
     begin
       irc_addtext(Netname, Channel, 'No Routeable sites found!');
       exit;
     end;
+  i := 16;
 
     for ps in p.PazoSitesList do
     begin
+  i := 17;
       sp := FindSiteByName('', ps.Name);
 
       if sp.SkipPre then
@@ -378,6 +397,7 @@ begin
           irc_addtext(Netname, Channel, '<c8><b>INFO</c></b> we skip %s for spread, skip pre is set', [sp.Name]);
         Continue;
       end;
+  i := 18;
 
       try
         if FireRuleSet(p, ps) = raAllow then
@@ -389,6 +409,7 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRuleSet: %s', [e.Message]));
         end;
       end;
+  i := 19;
 
       try
         FireRules(p, ps);
@@ -399,6 +420,7 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FireRules: %s', [e.Message]));
         end;
       end;
+  i := 20;
 
       if ps.status = rssNotAllowed then
       begin
@@ -406,6 +428,7 @@ begin
           irc_addtext(netname, channel, '<c8><b>INFO</c></b> %s is not allowed on %s, skipping spread', [dir, ps.Name]);
         Continue;
       end;
+  i := 21;
 
       try
         s := FindSiteByName(Netname, ps.Name);
@@ -416,6 +439,7 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] IrcSpread.FindSiteByName: %s', [e.Message]));
         end;
       end;
+  i := 22;
 
       if s.WorkingStatus <> sstUp then
       begin
@@ -430,6 +454,7 @@ begin
 
         irc_addtext(Netname, Channel, 'Status of site <b>%s</b> is %s.', [s.Name, sss]);
       end;
+  i := 23;
 
       if s.WorkingStatus = sstUnknown then
       begin
@@ -437,6 +462,7 @@ begin
         added := False;
         break;
       end;
+  i := 24;
 
       if ((ps.Name <> sitename) and (s.WorkingStatus = sstUp)) then
       begin
@@ -449,11 +475,13 @@ begin
         end;
       end;
     end;
+  i := 25;
 
     if (addednumber = 0) then
     begin
       irc_addtext(Netname, Channel, 'There are no sites to spread to...');
     end;
+  i := 26;
 
     if not added then
     begin
@@ -465,6 +493,7 @@ begin
     else
       pazo_id := kb_Add(Netname, Channel, sitename, section, '', kbeNEWDIR, dir, '', False, True);
 
+  i := 27;
     if pazo_id = -1 then
     begin
       irc_addtext(Netname, Channel, 'Is it allowed anywhere at all?');
@@ -476,6 +505,7 @@ begin
     si := '-1';
     sj := '-1';
     sdone := '-1';
+  i := 28;
 
     ann := config.ReadInteger('spread', 'announcetime', 40);
     lastAnn := now();
@@ -485,12 +515,14 @@ begin
         exit;
       Sleep(500);
 
+  i := 29;
       p := FindPazoById(pazo_id);
       if p = nil then
       begin
         irc_addtext(Netname, Channel, 'No valid Pazo found for %s', [dir]);
         exit;
       end;
+  i := 30;
 
       if p.stopped then
       begin
@@ -503,6 +535,7 @@ begin
         Result := True;
         exit;
       end;
+  i := 31;
 
       if ((p.ready) or (p.readyerror)) then
       begin
@@ -516,7 +549,9 @@ begin
             irc_addtext(Netname, Channel, '<b>%s</b> ERROR: <c4>%s</c>',
               [dir, p.errorreason]);
           ssss := 'stopped!';
+  i := 33;
           RemovePazo(p.pazo_id);
+  i := 34;
           Result := True;
         end
         else
@@ -525,12 +560,15 @@ begin
         break;
 
       end;
+  i := 35;
 
       if ((ann <> 0) and (SecondsBetween(now, lastAnn) > ann)) then
       begin
 
+  i := 36;
         ps := p.FindSite(sitename);
 
+  i := 37;
         if ps = nil then
           irc_addtext(Netname, Channel,
             '<c4>DEBUG<b></c></b>: %s is not a valid pazo site.', [sitename]);
@@ -543,28 +581,34 @@ begin
           si := '?';
 
         sss := '';
+  i := 38;
 
         for ps in p.PazoSitesList do
         begin
           sj := '?';
+  i := 39;
 
           if ps.Name = ssite then
             Continue;
           if ps.Name = getAdminSiteName then
             Continue;
 
+  i := 40;
           if ps.dirlist = nil then
             irc_addtext(Netname, Channel,
               '<c7>DEBUG<b></c></b>: %s have no dirlist.', [ps.Name]);
 
           if ((ps <> nil) and (ps.dirlist <> nil)) then
           begin
+  i := 41;
             sj := IntToStr(ps.dirlist.FilesRacedByMe);
             sdone := IntToStr(ps.dirlist.Done);
+  i := 42;
 
             dd := ps.dirlist.SizeRacedByMe;
 
             RecalcSizeValueAndUnit(dd, ssss, 0);
+  i := 43;
 
             if sdone = si then
             begin
@@ -575,6 +619,7 @@ begin
                 sss := sss + ', ' + ss;
               Continue;
             end;
+  i := 44;
 
             if si = sj then
             begin
@@ -608,6 +653,12 @@ begin
   finally
     y.Free;
   end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] IrcSpread exception after: %d: %s', [i, e.Message]));
+      end;
+    end;
 end;
 
 function IrcTransfer(const netname, channel, params: String): boolean;
