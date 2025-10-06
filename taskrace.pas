@@ -77,6 +77,7 @@ implementation
 
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
+  Math,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
   midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers;
 
@@ -1153,6 +1154,21 @@ var
   fDiffMSec: Int64;
   fDirlist: TDirlist;
   fDirlistEntry: TDirlistEntry;
+  fSrcDirlist: TDirlist;
+  fSrcDirlistEntry: TDirlistEntry;
+  fSrcDiffMSec: Int64;
+  fLastSrcFileSize: Int64;
+  fLastDstFileSize: Int64;
+  fSrcRegressionPending: Boolean;
+  fDstRegressionPending: Boolean;
+  fSrcRegressionTimestamp: TDateTime;
+  fDstRegressionTimestamp: TDateTime;
+  fSrcRegressionLowestSize: Int64;
+  fDstRegressionLowestSize: Int64;
+  fSrcRegressionEntryTimestamp: TDateTime;
+  fDstRegressionEntryTimestamp: TDateTime;
+  fLastSrcUploader: String;
+  fLastDstUploader: String;
 
   procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
   begin
@@ -1185,6 +1201,351 @@ var
     else
     begin
       irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
+    end;
+  end;
+
+  function CheckDirlistRegression(const aKillOnFreshZero: Boolean): boolean;
+  const
+    cPreStallConfirmMs = 2000;
+    cStallConfirmMs = 800;
+    cGrowthThresholdBytes = 1024 * 1024; // treat +1 MB growth as restart
+  var
+    lDstFileSize: Int64;
+    lSrcFileSize: Int64;
+    lNow: TDateTime;
+    lElapsedSec: integer;
+    lConfirmMs: Int64;
+    lPendingMs: Int64;
+    lSrcUser: String;
+    lDstUser: String;
+    lSrcTimestamp: TDateTime;
+    lDstTimestamp: TDateTime;
+
+    procedure ResetSourceRegression(const aReason: String);
+    var
+      lDuration: Int64;
+    begin
+      if fSrcRegressionPending then
+      begin
+        if fSrcRegressionTimestamp > 0 then
+          lDuration := MillisecondsBetween(lNow, fSrcRegressionTimestamp)
+        else
+          lDuration := 0;
+        Debug(dpError, c_section,
+          '[SRC-REGRESSION-%s] %s: size recovered %d->%d after %dms',
+          [aReason, tname, fSrcRegressionLowestSize, lSrcFileSize, lDuration]);
+      end;
+      fSrcRegressionPending := False;
+      if (lSrcFileSize >= 0) then
+        fLastSrcFileSize := lSrcFileSize;
+      fSrcRegressionLowestSize := -1;
+      fSrcRegressionEntryTimestamp := 0;
+    end;
+
+    procedure ResetDestRegression(const aReason: String);
+    var
+      lDuration: Int64;
+    begin
+      if fDstRegressionPending then
+      begin
+        if fDstRegressionTimestamp > 0 then
+          lDuration := MillisecondsBetween(lNow, fDstRegressionTimestamp)
+        else
+          lDuration := 0;
+        Debug(dpError, c_section,
+          '[DST-REGRESSION-%s] %s: size recovered %d->%d after %dms',
+          [aReason, tname, fDstRegressionLowestSize, lDstFileSize, lDuration]);
+      end;
+      fDstRegressionPending := False;
+      if (lDstFileSize >= 0) then
+        fLastDstFileSize := lDstFileSize;
+      fDstRegressionLowestSize := -1;
+      fDstRegressionEntryTimestamp := 0;
+    end;
+
+  begin
+    Result := False;
+    lDstFileSize := -1;
+    lSrcFileSize := -1;
+    fDiffMSec := MaxInt;
+    fSrcDiffMSec := MaxInt;
+    lSrcTimestamp := 0;
+    lDstTimestamp := 0;
+    lNow := Now;
+    lElapsedSec := SecondsBetween(lNow, started);
+
+    if aKillOnFreshZero then
+      lConfirmMs := cStallConfirmMs
+    else
+      lConfirmMs := cPreStallConfirmMs;
+
+    lSrcUser := '';
+    lDstUser := '';
+    fDirlistEntry := nil;
+    fSrcDirlistEntry := nil;
+
+    fDirlist := ps2.dirlist.FindDirlist(dir);
+    if fDirlist <> nil then
+    begin
+      fDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
+      try
+        fDirlistEntry := fDirlist.Find(filename);
+        if fDirlistEntry <> nil then
+        begin
+          lDstFileSize := fDirlistEntry.filesize;
+          lDstUser := fDirlistEntry.Username;
+          lDstTimestamp := fDirlistEntry.timestamp;
+        end;
+        fDiffMSec := MillisecondsBetween(lNow, fDirlist.LastUpdated);
+      finally
+        fDirlist.dirlist_lock.Leave;
+      end;
+    end;
+
+    fSrcDirlist := ps1.dirlist.FindDirlist(dir);
+    if fSrcDirlist <> nil then
+    begin
+      fSrcDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Source');
+      try
+        fSrcDirlistEntry := fSrcDirlist.Find(filename);
+        if fSrcDirlistEntry <> nil then
+        begin
+          lSrcFileSize := fSrcDirlistEntry.filesize;
+          lSrcUser := fSrcDirlistEntry.Username;
+          lSrcTimestamp := fSrcDirlistEntry.timestamp;
+        end;
+        fSrcDiffMSec := MillisecondsBetween(lNow, fSrcDirlist.LastUpdated);
+      finally
+        fSrcDirlist.dirlist_lock.Leave;
+      end;
+    end;
+
+    if (lSrcUser <> '') then
+    begin
+      if (fLastSrcUploader <> '') and (not AnsiSameText(lSrcUser, fLastSrcUploader)) then
+      begin
+        Debug(dpError, c_section,
+          '[SRC-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
+          [tname, fLastSrcUploader, lSrcUser, lSrcFileSize, fLastSrcFileSize, fSrcDiffMSec]);
+        irc_Adderror(Format('<c7>[SRC-UPLOADER-SWITCH]</c> %s: %s -> %s (size=%d)',
+          [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
+        mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
+          [fLastSrcUploader, lSrcUser]);
+        sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
+        readyerror := True;
+        Result := True;
+        exit;
+      end;
+      fLastSrcUploader := lSrcUser;
+    end;
+
+    if (lDstUser <> '') then
+    begin
+      if (fLastDstUploader <> '') and (not AnsiSameText(lDstUser, fLastDstUploader)) then
+      begin
+        if AnsiSameText(lDstUser, sdst.site.UserName) then
+        begin
+          Debug(dpError, c_section,
+            '[DST-UPLOADER-SWITCH-SELF] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
+            [tname, fLastDstUploader, lDstUser, lDstFileSize, fLastDstFileSize, fDiffMSec]);
+          ResetDestRegression('SELF');
+        end
+        else
+        begin
+          Debug(dpError, c_section,
+            '[DST-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
+            [tname, fLastDstUploader, lDstUser, lDstFileSize, fLastDstFileSize, fDiffMSec]);
+          irc_Adderror(Format('<c7>[DST-UPLOADER-SWITCH]</c> %s: %s -> %s (size=%d)',
+            [tname, fLastDstUploader, lDstUser, lDstFileSize]));
+          mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
+            [fLastDstUploader, lDstUser]);
+          sdst.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
+          readyerror := True;
+          Result := True;
+          exit;
+        end;
+      end;
+      fLastDstUploader := lDstUser;
+    end;
+
+    // --- Source side ---
+    if (fSrcDiffMSec < 200) and (lSrcFileSize >= 0) then
+    begin
+      if fLastSrcFileSize < 0 then
+        fLastSrcFileSize := lSrcFileSize
+      else if (not fSrcRegressionPending) and (lSrcFileSize > fLastSrcFileSize) then
+        fLastSrcFileSize := lSrcFileSize;
+
+      if (lSrcFileSize = 0) and (fLastSrcFileSize > 0) then
+      begin
+        if aKillOnFreshZero then
+        begin
+          irc_Adderror(Format('<c7>[SRC-REGRESSION]</c> %s: SRC %d->0 after %ds - killing slots',
+            [tname, fLastSrcFileSize, lElapsedSec]));
+          Debug(dpError, c_section, '[SRC-REGRESSION] %s: SRC[Age=%dms Size=%d->0] DST[Age=%dms Size=%d]',
+            [tname, fSrcDiffMSec, fLastSrcFileSize, fDiffMSec, lDstFileSize]);
+          mainpazo.errorreason := 'Source stalled (0 bytes)';
+          sdst.DestroySocketAndRelogin('TPazoRaceTask - source stalled zero');
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask - source stalled zero');
+          readyerror := True;
+          Result := True;
+          exit;
+        end
+        else
+        begin
+          Debug(dpError, c_section,
+            '[SRC-REGRESSION-ZERO] %s: size dropped to 0 from %d',
+            [tname, fLastSrcFileSize]);
+          ResetSourceRegression('ZERO');
+          fLastSrcFileSize := 0;
+        end;
+      end
+      else if (lSrcFileSize > 0) and (fLastSrcFileSize > 0) and (lSrcFileSize < fLastSrcFileSize) then
+      begin
+        if not fSrcRegressionPending then
+        begin
+          fSrcRegressionPending := True;
+          fSrcRegressionLowestSize := lSrcFileSize;
+          fSrcRegressionTimestamp := lNow;
+          fSrcRegressionEntryTimestamp := lSrcTimestamp;
+          Debug(dpError, c_section,
+            '[SRC-REGRESSION-PENDING] %s: %d->%d age=%dms confirm=%dms',
+            [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec, lConfirmMs]);
+        end
+        else if lSrcFileSize < fSrcRegressionLowestSize then
+        begin
+          Debug(dpError, c_section,
+            '[SRC-REGRESSION-LOWER] %s: %d->%d age=%dms',
+            [tname, fSrcRegressionLowestSize, lSrcFileSize, fSrcDiffMSec]);
+          fSrcRegressionLowestSize := lSrcFileSize;
+          fSrcRegressionTimestamp := lNow;
+        end
+        else if (lSrcFileSize - fSrcRegressionLowestSize) >= cGrowthThresholdBytes then
+        begin
+          Debug(dpError, c_section,
+            '[SRC-REGRESSION-RESUME] %s: growth %d->%d (Δ=%d)',
+            [tname, fSrcRegressionLowestSize, lSrcFileSize, lSrcFileSize - fSrcRegressionLowestSize]);
+          ResetSourceRegression('RESUME');
+        end;
+
+        if fSrcRegressionPending then
+        begin
+          lPendingMs := MillisecondsBetween(lNow, fSrcRegressionTimestamp);
+          if (fSrcRegressionLowestSize > 0) and (lSrcFileSize <= fSrcRegressionLowestSize) and (lPendingMs >= lConfirmMs) then
+          begin
+            irc_Adderror(Format('<c7>[SRC-REGRESSION]</c> %s: SRC %d->%d after %ds - killing slots',
+              [tname, fLastSrcFileSize, lSrcFileSize, lElapsedSec]));
+            Debug(dpError, c_section, '[SRC-REGRESSION] %s: SRC[Age=%dms Size=%d->%d] DST[Age=%dms Size=%d]',
+              [tname, fSrcDiffMSec, fLastSrcFileSize, lSrcFileSize, fDiffMSec, lDstFileSize]);
+            mainpazo.errorreason := 'Source regression';
+            sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
+            ssrc.DestroySocketAndRelogin('TPazoRaceTask - source regression');
+            readyerror := True;
+            Result := True;
+            exit;
+          end;
+        end;
+      end
+      else if fSrcRegressionPending then
+      begin
+        if (lSrcFileSize >= fLastSrcFileSize) or
+           ((lSrcFileSize - fSrcRegressionLowestSize) >= cGrowthThresholdBytes) then
+          ResetSourceRegression('RESUME')
+        else if (lSrcTimestamp <> 0) and (fSrcRegressionEntryTimestamp <> 0) and
+                (Abs(MilliSecondsBetween(lSrcTimestamp, fSrcRegressionEntryTimestamp)) > 0) then
+          ResetSourceRegression('TIMESTAMP');
+      end;
+    end;
+
+    // --- Destination side ---
+    if (fDiffMSec < 200) and (lDstFileSize >= 0) then
+    begin
+      if fLastDstFileSize < 0 then
+        fLastDstFileSize := lDstFileSize
+      else if (not fDstRegressionPending) and (lDstFileSize > fLastDstFileSize) then
+        fLastDstFileSize := lDstFileSize;
+
+      if (lDstFileSize = 0) and (fLastDstFileSize > 0) then
+      begin
+        if aKillOnFreshZero then
+        begin
+          irc_Adderror(Format('<c7>[DST-REGRESSION]</c> %s: DST %d->0 after %ds - killing slots',
+            [tname, fLastDstFileSize, lElapsedSec]));
+          Debug(dpError, c_section, '[DST-REGRESSION] %s: SRC[Age=%dms Size=%d] DST[Age=%dms Size=%d->0]',
+            [tname, fSrcDiffMSec, lSrcFileSize, fDiffMSec, fLastDstFileSize]);
+          mainpazo.errorreason := 'Destination stalled (0 bytes)';
+          sdst.DestroySocketAndRelogin('TPazoRaceTask - destination stalled zero');
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination stalled zero');
+          readyerror := True;
+          Result := True;
+          exit;
+        end
+        else
+        begin
+          Debug(dpError, c_section,
+            '[DST-REGRESSION-ZERO] %s: size dropped to 0 from %d',
+            [tname, fLastDstFileSize]);
+          ResetDestRegression('ZERO');
+          fLastDstFileSize := 0;
+        end;
+      end
+      else if (fLastDstFileSize > 0) and (lDstFileSize > 0) and (lDstFileSize < fLastDstFileSize) then
+      begin
+        if not fDstRegressionPending then
+        begin
+          fDstRegressionPending := True;
+          fDstRegressionLowestSize := lDstFileSize;
+          fDstRegressionTimestamp := lNow;
+          fDstRegressionEntryTimestamp := lDstTimestamp;
+          Debug(dpError, c_section,
+            '[DST-REGRESSION-PENDING] %s: %d->%d age=%dms confirm=%dms',
+            [tname, fLastDstFileSize, lDstFileSize, fDiffMSec, lConfirmMs]);
+        end
+        else if lDstFileSize < fDstRegressionLowestSize then
+        begin
+          Debug(dpError, c_section,
+            '[DST-REGRESSION-LOWER] %s: %d->%d age=%dms',
+            [tname, fDstRegressionLowestSize, lDstFileSize, fDiffMSec]);
+          fDstRegressionLowestSize := lDstFileSize;
+          fDstRegressionTimestamp := lNow;
+        end
+        else if (lDstFileSize - fDstRegressionLowestSize) >= cGrowthThresholdBytes then
+        begin
+          Debug(dpError, c_section,
+            '[DST-REGRESSION-RESUME] %s: growth %d->%d (Δ=%d)',
+            [tname, fDstRegressionLowestSize, lDstFileSize, lDstFileSize - fDstRegressionLowestSize]);
+          ResetDestRegression('RESUME');
+        end;
+
+        if fDstRegressionPending then
+        begin
+          lPendingMs := MillisecondsBetween(lNow, fDstRegressionTimestamp);
+          if (fDstRegressionLowestSize > 0) and (lDstFileSize <= fDstRegressionLowestSize) and (lPendingMs >= lConfirmMs) then
+          begin
+            irc_Adderror(Format('<c7>[DST-REGRESSION]</c> %s: DST %d->%d after %ds - killing slots',
+              [tname, fLastDstFileSize, lDstFileSize, lElapsedSec]));
+            Debug(dpError, c_section, '[DST-REGRESSION] %s: SRC[Age=%dms Size=%d] DST[Age=%dms Size=%d->%d]',
+              [tname, fSrcDiffMSec, lSrcFileSize, fDiffMSec, fLastDstFileSize, lDstFileSize]);
+            mainpazo.errorreason := 'Destination regression';
+            sdst.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
+            ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
+            readyerror := True;
+            Result := True;
+            exit;
+          end;
+        end;
+      end
+      else if fDstRegressionPending then
+      begin
+        if (lDstFileSize >= fLastDstFileSize) or
+           ((lDstFileSize - fDstRegressionLowestSize) >= cGrowthThresholdBytes) then
+          ResetDestRegression('RESUME')
+        else if (lDstTimestamp <> 0) and (fDstRegressionEntryTimestamp <> 0) and
+                (Abs(MilliSecondsBetween(lDstTimestamp, fDstRegressionEntryTimestamp)) > 0) then
+          ResetDestRegression('TIMESTAMP');
+      end;
     end;
   end;
 
@@ -2184,6 +2545,18 @@ begin
   Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
 
   started := Now;
+  fLastSrcFileSize := -1;
+  fLastDstFileSize := -1;
+  fSrcRegressionPending := False;
+  fDstRegressionPending := False;
+  fSrcRegressionTimestamp := 0;
+  fDstRegressionTimestamp := 0;
+  fSrcRegressionLowestSize := -1;
+  fDstRegressionLowestSize := -1;
+  fSrcRegressionEntryTimestamp := 0;
+  fDstRegressionEntryTimestamp := 0;
+  fLastSrcUploader := '';
+  fLastDstUploader := '';
 
   // 150 File status okay; about to open data connection.
   // 1xx Positive Preliminary reply
@@ -2415,33 +2788,16 @@ begin
     if ((rsd) and (rss)) then
       Break;
 
+    if CheckDirlistRegression(False) then
+      exit;
+
     if sdst.site.KillConnectionOnStalledTransferSeconds > 0 then
     begin
       fDiffSec := SecondsBetween(Now, started);
-      if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
+      if fDiffSec >= sdst.site.KillConnectionOnStalledTransferSeconds then
       begin
-        fDirlist := ps2.dirlist.FindDirlist(dir);
-        fDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
-        try
-          fDirlistEntry := fDirlist.Find(filename);
-          fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
-        finally
-          fDirlist.dirlist_lock.Leave;
-        end;
-
-        // if the dirlist is fairly up to date and shows a file size of 0 bytes,
-        // kill the connection to abort the transfer. the ABOR command does not
-        // work (at least on glftpd)
-        begin
-          if (fDiffMSec < 200) and (fDirlistEntry.filesize = 0) then
-          begin
-            irc_Adderror(Format('<c4>[STALLED]</c> [%s]: File size 0 for %d seconds - kill connection', [tname, fDiffSec]));
-            sdst.DestroySocketAndRelogin('TPazoRaceTask');
-            ssrc.DestroySocketAndRelogin('TPazoRaceTask');
-            readyerror := True;
-            exit;
-          end;
-        end;
+        if CheckDirlistRegression(True) then
+          exit;
       end;
     end;
 
@@ -2510,6 +2866,8 @@ begin
         //COMPLETE MSG: 426 Data connection: Broken pipe.
         if ((0 < Pos('Sendfile error', lastResponse)) OR (0 < Pos('Broken pipe', lastResponse))) then
         begin
+          Debug(dpError, c_section, '[426-ERROR] %s: TransferTime=%ds, Response="%s"',
+                [tname, SecondsBetween(Now, started), lastResponse]);
           //try again
           irc_Adderror(ssrc.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [ssrc.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
           goto TryAgain;

@@ -71,6 +71,8 @@ type
 
     property FilenameLowerCased: String read FFilenameLowerCase;
     property Extension: String read FExtension;
+    property Username: String read FUsername;
+    property Groupname: String read FGroupname;
     property RacedByMe: Boolean read FRacedByMe write FRacedByMe;
     property Directory: Boolean read FDirectory;
     property DirType: TDirType read FDirType;
