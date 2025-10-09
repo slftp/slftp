@@ -1140,7 +1140,7 @@ var
   port: integer;
   FileSendByMe: boolean;
   numerrors: integer;
-  started, ended: TDateTime;
+  started, TransferCheck, ended: TDateTime;
   time_race: integer;
   todir1, todir2: String;
   rss, rsd: boolean;
@@ -2184,6 +2184,7 @@ begin
   Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
 
   started := Now;
+  TransferCheck := Now;
 
   // 150 File status okay; about to open data connection.
   // 1xx Positive Preliminary reply
@@ -2415,8 +2416,27 @@ begin
     if ((rsd) and (rss)) then
       Break;
 
-    if sdst.site.KillConnectionOnStalledTransferSeconds > 0 then
-    begin
+    //if (SecondsBetween(Now, started) > 2) then
+    //begin
+      fDirlist := ps1.dirlist.FindDirlist(dir);
+      fDirlist.dirlist_lock.Enter('TPazoRaceTask.ExecuteShrinked');
+      try
+        fDirlistEntry := fDirlist.Find(filename);
+        //fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
+      finally
+        fDirlist.dirlist_lock.Leave;
+      end;
+      if fDirlistEntry.FSizeShrinked then
+        begin
+          irc_Adderror(Format('<c4>[STALLED]</c> [%s]: File size getting smaller: old: %d new: %d - kill connection', [tname, fDirlistEntry.prevFilesize, fDirlistEntry.filesize]));
+          sdst.DestroySocketAndRelogin('TPazoRaceTaskShrinked');
+          ssrc.DestroySocketAndRelogin('TPazoRaceTaskShrinked');
+          readyerror := True;
+          exit;
+        end;
+    //end;
+
+    if (sdst.site.KillConnectionOnStalledTransferSeconds > 0) then
       fDiffSec := SecondsBetween(Now, started);
       if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
       begin
@@ -2443,7 +2463,6 @@ begin
           end;
         end;
       end;
-    end;
 
     if (SecondsBetween(Now, started) > 600) then
     begin

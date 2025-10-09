@@ -50,11 +50,13 @@ type
     error: Boolean; //< @true if file cannot be send, will be skipped then, @false otherwise.
     subdirlist: TDirList;
     filename: String; //< filename
+    prevFilesize: Int64; //< filesize
     filesize: Int64; //< filesize
     skiplisted: Boolean; //< @true if the this entity is skiplisted. It will not be transferred.
     cdno: Integer;
     timestamp: TDateTime; //< parsed value of date and time from dirlisting string (via @link(TDirlist.Timestamp) function)
     FSizeChanged: boolean; //< Set to true once ParseDirlist finds a changed file size, set to false once the changed file size has been registered at the release wide store.
+    FSizeShrinked: boolean;
 
     procedure CalcCDNumber;
     constructor Create(const filename: String; dirlist: TDirList; const aIsDirectory: boolean); overload;
@@ -685,7 +687,10 @@ begin
         de.justadded := True;
 
         if not de.directory then
+        begin
           de.filesize := fParsedDirlistEntry.Filesize;
+          de.prevFilesize := fParsedDirlistEntry.Filesize;
+        end;
 
         // Do not filter if we call the dirlist from irc
         if not FIsFromIrc then
@@ -740,6 +745,16 @@ begin
         if ((de.filesize <> fParsedDirlistEntry.Filesize) or (de.FUsername <> fParsedDirlistEntry.Username)) then
         begin
           LastChanged := Now();
+          if (de.filesize > fParsedDirlistEntry.Filesize) then
+          begin
+           de.FSizeShrinked := True;
+           de.prevFilesize := de.filesize;
+          end;
+        end;
+
+        if ((de.filesize > de.prevFilesize) AND (de.filesize < fParsedDirlistEntry.Filesize) AND (de.FUsername = fParsedDirlistEntry.Username)) then
+        begin
+           de.FSizeShrinked := False;
         end;
 
         de.filesize := fParsedDirlistEntry.Filesize;
@@ -1608,8 +1623,10 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-  allCdNumbers := '';
-  biggestcd := 0;
+
+  allCdNumbers := '';
+
+  biggestcd := 0;
 
   // find the biggest CD
   for de in entries.Values do
