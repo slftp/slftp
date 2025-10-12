@@ -1,4 +1,4 @@
-Usage: <cmd> <srcsite> <dstsite> <rank> [--c1] [--c2] [--sw1] [--sw2] [-b/--back] [-a/--apply]
+Usage: <cmd> <srcsite> <dstsite> <rank> [--c1] [--c2] [--sw1] [--sw2] [-b/--back] [-a/--apply] [-f/--affil] [-l/--lock]
 Description: Sets routes between src and dst sites. Rank is an integer, higher value means higher priority.
 
 Normal positional parameters (mandatory):
@@ -34,6 +34,10 @@ XX for ftpd softwares can be GLFTPD, IOFTPD or DRFTPD
   it just displays what changes would be done.
 -b/--back
    Add back route from dest to source aswell
+-f/--affil
+   This route is only enabled when the source has the release group in its affils list.
+-l/--lock
+   Lock the given speed rank, so that a new speed will not be calculated.
 
 Examples:
 Add routes from all french sites to all swiss sites (with back routes) and apply changes.
