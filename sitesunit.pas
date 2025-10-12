@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache;
+  variantcache, routeconfig;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -228,7 +228,7 @@ type
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
     fSpeedFromCS: TSlCriticalSection2;
-    fSpeedFromCache: TStringList;
+    fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
@@ -406,7 +406,7 @@ type
     function GetKillConnectionOnStalledTransferSeconds: integer;
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
-    function GetSpeed_From: TStringList;
+    function GetSpeed_From: TList<TSpeedFromRouteInfo>;
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -547,6 +547,9 @@ type
     { Updates the speed-from cache of this site from the sites.dat. }
     procedure UpdateSpeedFromCache;
 
+    { Migrates old speedlock config values to the new speed-from config. }
+    procedure MigrateSpeedLockConfig;
+
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
@@ -613,7 +616,7 @@ type
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
-    property Speed_From: TStringList read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
   end;
 
 function ReadSites(): boolean;
@@ -731,7 +734,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags;
+  dirlist.helpers, tags, Generics.Defaults;
 
 const
   section = 'sites';
@@ -949,20 +952,20 @@ end;
     Result := True;
   end;
 
-  function TSite.IrcKillAll(const netname, channel, params: String): boolean;
-  begin
-    Result := fQueue.IrcKillAll(netname, channel, params);
-  end;
+function TSite.IrcKillAll(const netname, channel, params: String): boolean;
+begin
+  Result := fQueue.IrcKillAll(netname, channel, params);
+end;
 
-  procedure TSite.QueueSort;
-  begin
-    fQueue.QueueSort;
-  end;
+procedure TSite.QueueSort;
+begin
+  fQueue.QueueSort;
+end;
 
-  procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
-  begin
-    fQueue.RemoveRaceTasks(aPazoID, aSiteName);
-  end;
+procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+begin
+  fQueue.RemoveRaceTasks(aPazoID, aSiteName);
+end;
 
 procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
   begin
@@ -3146,6 +3149,7 @@ begin
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
+  MigrateSpeedLockConfig;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
@@ -4729,12 +4733,21 @@ begin
   WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
 end;
 
-function _mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
+function _mySpeedComparer({$IFDEF FPC}constref{$ELSE}const{$ENDIF} info1, info2: TSpeedFromRouteInfo): Integer;
 begin
   try
-    Result :=
-      CompareValue(StrToIntDef(list.ValueFromIndex[Index2], 0),
-      StrToIntDef(list.ValueFromIndex[Index1], 0));
+    // give affil routes more priority
+    if info1.AffilOnly <> info2.AffilOnly then
+    begin
+      if info1.AffilOnly then
+        Result := -1
+      else
+        Result := 1;
+
+      exit;
+    end;
+
+    Result := CompareValue(info2.Speed, info1.Speed);
   except
     on e: Exception do
     begin
@@ -4746,7 +4759,7 @@ begin
   end;
 end;
 
-function TSite.GetSpeed_From: TStringList;
+function TSite.GetSpeed_From: TList<TSpeedFromRouteInfo>;
 begin
   if self.fSpeedFromCache = nil then
   begin
@@ -4759,10 +4772,9 @@ begin
     end;
   end;
 
-  Result := TStringList.Create;
   self.fSpeedFromCS.Enter('GetSpeed_From2');
   try
-    Result.Assign(self.fSpeedFromCache);
+    Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
   finally
     self.fSpeedFromCS.Leave;
   end;
@@ -4770,11 +4782,26 @@ end;
 
 procedure TSite.UpdateSpeedFromCache;
 var
-  fNewValue, fOldValue: TStringList;
+  fNewValue, fOldValue: TList<TSpeedFromRouteInfo>;
+  fSpeedInfo: TSpeedFromRouteInfo;
+  fStringList: TStringList;
+  i: Integer;
 begin
-  fNewValue := TStringList.Create;
-  sitesdat.ReadSectionValues('speed-from-' + Name, fNewValue);
-  fNewValue.CustomSort(_mySpeedComparer);
+  fNewValue := TList<TSpeedFromRouteInfo>.Create;
+  fStringList := TStringList.Create;
+  sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+
+  if fStringList.Count > 0 then
+  begin
+    for i := 0 to fStringList.Count - 1 do
+    begin
+      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
+      fSpeedInfo.Sitename := fStringList.Names[i];
+      fNewValue.Add(fSpeedInfo);
+    end;
+  end;
+
+  fNewValue.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
   self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
   try
     fOldValue := self.fSpeedFromCache;
@@ -4784,6 +4811,46 @@ begin
   end;
 
   FreeAndNil(fOldValue);
+  FreeAndNil(fStringList);
+end;
+
+procedure TSite.MigrateSpeedLockConfig;
+var
+  fStringList: TStringList;
+  i: Integer;
+  fSpeedInfo: TSpeedFromRouteInfo;
+begin
+
+  fStringList := TStringList.Create;
+
+  sitesdat.ReadSectionValues('speedlock-from-' + Name, fStringList);
+
+  if fStringList.Count > 0 then
+  begin
+    irc_Addadmin('<c14><b>Info</c></b>: Migrating speedlock routes on %s into the new combined route config. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+
+    for i := 0 to fStringList.Count - 1 do
+    begin
+      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + self.Name, fStringList.Names[i], '0'));
+      if (fSpeedInfo.Speed = 0) then
+      begin
+        irc_Addadmin('No existing speed-from entry found for destination %s. Dropping this speedlock entry.', [fStringList.Names[i]]);
+        Continue;
+      end;
+
+      fSpeedInfo.Locked := True;
+      sitesdat.WriteString('speed-from-' + self.Name, fStringList.Names[i], fSpeedInfo.ToConfigString);
+      irc_Addadmin('Migrated speedlock route to destination %s.', [fStringList.Names[i]]);
+    end;
+
+    sitesdat.EraseSection('speedlock-from-' + Name);
+
+    // also delete speedlock-to which apparantly has not been used before anyway.
+    sitesdat.EraseSection('speedlock-to-' + Name);
+
+    UpdateSpeedFromCache;
+  end;
+
 end;
 
 end.

@@ -65,7 +65,9 @@
 		the CPU load gets too high, increate the value of newdir_dirlist_readd as it's not closer to actually reaching this value
 		of dirlist interval
     {^} Various other performance improvements
-	
+    {-} The routelock command has been removed. Use routeset with option -l instead.
+        Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
+
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype

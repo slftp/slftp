@@ -40,7 +40,7 @@ var
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig;
 
 const
   r_section = 'speedstats';
@@ -309,12 +309,14 @@ end;
 
 procedure SpeedStatsRecalc(const netname, channel: String);
 var
-  i, j, speed_old, speed_new: Integer;
+  i, j, speed_new: Integer;
   min_speed, max_speed: Double;
   x, y: TStringList;
   d, diff: Double;
   minr: String;
   maxr: String;
+  fSpeedFromStrOld: String;
+  fSpeedFromInfoOld: TSpeedFromRouteInfo;
   fSite: TSite;
 begin
   speedstats_last_recalc := Now();
@@ -373,31 +375,32 @@ begin
         begin
           if not FindSite(y[j]) then Continue;
 
-          if (sitesdat.ValueExists('speedlock-from-' + x[i], y[j])) then
+          fSpeedFromStrOld := sitesdat.ReadString('speed-from-' + x[i], y[j], '0');
+          fSpeedFromInfoOld := TSpeedFromRouteInfo.CreateFromConfigString(fSpeedFromStrOld);
+          if (fSpeedFromInfoOld.Locked) then
           begin
-            irc_SendSPEEDSTATS(Format('Route locked %s -> %s %d', [x[i], y[j], sitesdat.ReadInteger('speed-from-' + x[i], y[j], 0)]));
+            irc_SendSPEEDSTATS(Format('Route locked %s -> %s %d', [x[i], y[j], fSpeedFromInfoOld.Speed]));
             Continue;
           end;
 
           d := AvgSpeed(x[i], y[j]);
           if d <> 0 then
           begin
-
-            speed_old := sitesdat.ReadInteger('speed-from-' + x[i], y[j], 0);
-            if speed_old <> 0 then
+            if fSpeedFromInfoOld.Speed <> 0 then
             begin
               speed_new := Round((d - min_speed) / diff * 8) + 1;
-              if ((speed_new >= 1) and (speed_new <= 9) and (speed_new <> speed_old)) then
+              if ((speed_new >= 1) and (speed_new <= 9) and (speed_new <> fSpeedFromInfoOld.Speed)) then
               begin
                 if ((netname = 'CONSOLE') and (channel = 'SPEEDSTATS')) then
                 begin
-                  irc_SendSPEEDSTATS(Format('Changing route %s -> %s from %d to %d', [x[i], y[j], speed_old, speed_new]));
+                  irc_SendSPEEDSTATS(Format('Changing route %s -> %s from %d to %d', [x[i], y[j], fSpeedFromInfoOld.Speed, speed_new]));
                 end else
                 begin
-                  irc_addtext(netname, channel, 'Changing route %s -> %s from %d to %d', [x[i], y[j], speed_old, speed_new]);
+                  irc_addtext(netname, channel, 'Changing route %s -> %s from %d to %d', [x[i], y[j], fSpeedFromInfoOld.Speed, speed_new]);
                 end;
 
-                sitesdat.WriteInteger('speed-from-' + x[i], y[j], speed_new);
+                fSpeedFromInfoOld.Speed := speed_new;
+                sitesdat.WriteString('speed-from-' + x[i], y[j], fSpeedFromInfoOld.ToConfigString);
                 sitesdat.WriteInteger('speed-to-' + y[j], x[i], speed_new);
 
                 fSite := FindSiteByName('', x[i]);

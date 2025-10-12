@@ -5,7 +5,6 @@ interface
 { slftp route commands functions }
 function IrcSpeeds(const netname, channel, params: String): boolean;
 function IrcSetSpeed(const netname, channel, params: String): boolean;
-function IrcLockSpeed(const netname, channel, params: String): boolean;
 function IrcInroutes(const netname, channel, params: String): boolean;
 function IrcOutroutes(const netname, channel, params: String): boolean;
 function IrcSpeedStats(const netname, channel, params: String): boolean;
@@ -15,7 +14,7 @@ implementation
 
 uses
   SysUtils, Classes, StrUtils, Contnrs, irc, debugunit, speedstatsunit, sitesunit,
-  rcmdline, mystrings, irccommandsunit;
+  rcmdline, mystrings, irccommandsunit, routeconfig;
 
 const
   section = 'irccommands.route';
@@ -29,7 +28,7 @@ type
 
 {$I common.inc}
 
-function _IrcSetRoute(const netname, channel, params: String; lock: boolean = False): boolean;
+function _IrcSetRoute(const netname, channel, params: String): boolean;
 var
   source, dest, admin_site: String;
   rcmd: TCommandLineReader;
@@ -37,10 +36,11 @@ var
   i,j: integer;
   DoIt: Boolean;
   backtext: String;
-  apply, back: Boolean;
+  apply, back, fAffilOnly, lock: Boolean;
   source_sites, dest_sites: TStringList;
   site: TSite;
   speed: integer;
+  fSpeedInfo: TSpeedFromRouteInfo;
 begin
   Result := False;
 
@@ -57,8 +57,11 @@ begin
       rcmd.declareFlag('apply','Apply changes');
       rcmd.addAbbreviation('a', 'apply');
       rcmd.declareFlag('back','Also add back route');
-
       rcmd.addAbbreviation('b', 'back');
+      rcmd.declareFlag('affil','Only use pres from affils');
+      rcmd.addAbbreviation('f', 'affil');
+      rcmd.declareFlag('lock','Lock the given speed rank');
+      rcmd.addAbbreviation('l', 'lock');
       rcmd.parse(params);
     except
       on e: Exception do
@@ -78,6 +81,12 @@ begin
     sw2 := rcmd.readString('sw2');
     apply := rcmd.readFlag('apply');
     back := rcmd.readFlag('back');
+    fAffilOnly := rcmd.readFlag('affil');
+    lock := rcmd.readFlag('lock');
+
+    fSpeedInfo.Speed := speed;
+    fSpeedInfo.Locked := lock;
+    fSpeedInfo.AffilOnly := fAffilOnly;
   finally
     rcmd.Free;
   end;
@@ -225,19 +234,17 @@ begin
         backtext := '';
         if back then
           backtext := ' (and backroute)';
+        if fAffilOnly then
+          backtext := backtext + ' (affil only)';
+        if lock then
+          backtext := backtext + ' (locked)';
         if speed > 0 then
         begin
-          if lock then
-            irc_addtext(Netname, Channel, 'Routelock from <b>%s</b> to <b>%s</b> set to %d%s', [source_sites[i], dest_sites[j], speed, backtext])
-          else
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d%s', [source_sites[i], dest_sites[j], speed, backtext]);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> set to %d%s', [source_sites[i], dest_sites[j], speed, backtext]);
         end
         else
         begin
-          if lock then
-            irc_addtext(Netname, Channel, 'Routelock from <b>%s</b> to <b>%s</b> removed%s', [source_sites[i], dest_sites[j], backtext])
-          else
-            irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> removed%s', [source_sites[i], dest_sites[j], backtext]);
+          irc_addtext(Netname, Channel, 'Route from <b>%s</b> to <b>%s</b> removed', [source_sites[i], dest_sites[j]]);
         end;
 
         // When using wildcards apply changes only if --apply has been specified (to avoid unwanted changes)
@@ -245,51 +252,22 @@ begin
         begin
           if speed > 0 then
           begin
-            // normal route
-            sitesdat.WriteInteger('speed-from-' + source_sites[i], dest_sites[j], speed);
+            sitesdat.WriteString('speed-from-' + source_sites[i], dest_sites[j], fSpeedInfo.ToConfigString);
             sitesdat.WriteInteger('speed-to-' + dest_sites[j], source_sites[i], speed);
             if back then
             begin
-              sitesdat.WriteInteger('speed-from-' + dest_sites[j], source_sites[i], speed);
+              sitesdat.WriteString('speed-from-' + dest_sites[j], source_sites[i], fSpeedInfo.ToConfigString);
               sitesdat.WriteInteger('speed-to-' + source_sites[i], dest_sites[j], speed);
-            end;
-
-            // locked route
-            if lock then
-            begin
-              sitesdat.WriteInteger('speedlock-from-' + source_sites[i], dest_sites[j], speed);
-              sitesdat.WriteInteger('speedlock-to-' + dest_sites[j], source_sites[i], speed);
-              if back then
-              begin
-                sitesdat.WriteInteger('speedlock-from-' + dest_sites[j], source_sites[i], speed);
-                sitesdat.WriteInteger('speedlock-to-' + source_sites[i], dest_sites[j], speed);
-              end;
             end;
           end
           else
           begin
-            if not lock then
+            sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
+            sitesdat.DeleteKey('speed-to-' + dest_sites[j], source_sites[i]);
+            if back then
             begin
-              // normal route
-              sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
-              sitesdat.DeleteKey('speed-to-' + dest_sites[j], source_sites[i]);
-              if back then
-              begin
-                sitesdat.DeleteKey('speed-from-' + dest_sites[j], source_sites[i]);
-                sitesdat.DeleteKey('speed-to-' + source_sites[i], dest_sites[j]);
-              end;
-            end;
-
-            // locked route
-            if lock then
-            begin
-              sitesdat.DeleteKey('speedlock-from-' + source_sites[i], dest_sites[j]);
-              sitesdat.DeleteKey('speedlock-to-' + dest_sites[j], source_sites[i]);
-              if back then
-              begin
-                sitesdat.DeleteKey('speedlock-from-' + dest_sites[j], source_sites[i]);
-                sitesdat.DeleteKey('speedlock-to-' + source_sites[i], dest_sites[j]);
-              end;
+              sitesdat.DeleteKey('speed-from-' + dest_sites[j], source_sites[i]);
+              sitesdat.DeleteKey('speed-to-' + source_sites[i], dest_sites[j]);
             end;
           end;
         end;
@@ -321,6 +299,7 @@ var
   x: TStringList;
   ii, i: integer;
   ss, fIdentifier, fArrowDirection: String;
+  fSpeedFromInfo: TSpeedFromRouteInfo;
 begin
   case aRoutesToShow of
     dRoutesIn:
@@ -345,14 +324,9 @@ begin
     begin
       if ss <> '' then
         ss := ss + ', ';
-      if (sitesdat.ReadString('speedlock-' + fIdentifier + '-' + sitename, x[i], '') <> '') then
-      begin
-        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speedlock-' + fIdentifier + '-' + sitename, x[i], '') + '(L)' + '"';
-      end
-      else
-      begin
-        ss := ss + '"' + x[i] + ' ' + sitesdat.ReadString('speed-' + fIdentifier + '-' + sitename, x[i], '') + '"';
-      end;
+
+      fSpeedFromInfo := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-' + fIdentifier + '-' + sitename, x[i], ''));
+      ss := ss + '"' + x[i] + ' ' + fSpeedFromInfo.ToString + '"';
     end;
   finally
     x.Free;
@@ -386,15 +360,7 @@ function IrcSetSpeed(const netname, channel, params: String): boolean;
 begin
   Result := False;
 
-  if (_IrcSetRoute(Netname, Channel, params, False)) then
-    Result := True;
-end;
-
-function IrcLockSpeed(const netname, channel, params: String): boolean;
-begin
-  Result := False;
-
-  if (_IrcSetRoute(Netname, Channel, params, True)) then
+  if (_IrcSetRoute(Netname, Channel, params)) then
     Result := True;
 end;
 

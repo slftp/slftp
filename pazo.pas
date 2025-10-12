@@ -5,7 +5,8 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2;
+  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
+  routeconfig;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -88,7 +89,7 @@ type
     // will be true when autofollow rule is used, otherwise default false
     firesourcesinstead: boolean;
 
-    speed_from: TStringList;
+    speed_from: TList<TSpeedFromRouteInfo>;
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
