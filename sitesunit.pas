@@ -490,7 +490,6 @@ type
     function GetPretime(const section: String): String;
 
     function isRouteableTo(const sitename: String): boolean;
-    function isRouteableFrom(const sitename: String): boolean;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -547,8 +546,8 @@ type
     { Updates the speed-from cache of this site from the sites.dat. }
     procedure UpdateSpeedFromCache;
 
-    { Migrates old speedlock config values to the new speed-from config. }
-    procedure MigrateSpeedLockConfig;
+    { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
+    procedure MigrateSpeedLockAndSpeedToConfig;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -3149,42 +3148,29 @@ begin
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
-  MigrateSpeedLockConfig;
+  MigrateSpeedLockAndSpeedToConfig;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
 
 function TSite.isRouteableTo(const sitename: String): boolean;
 var
-  y: TStringList;
+  fSpeedFromList: TList<TSpeedFromRouteInfo>;
+  fSpeedFromItem: TSpeedFromRouteInfo;
 begin
-  y := TStringList.Create;
-  y.Sorted := True;
+  Result := False;
+  fSpeedFromList := GetSpeed_From;
   try
-    sitesdat.ReadSection('speed-to-' + sitename, y);
-    if y.IndexOf(self.Name) = -1 then
-      Result := False
-    else
-      Result := True;
+    for fSpeedFromItem in fSpeedFromList do
+    begin
+      if fSpeedFromItem.sitename = sitename then
+      begin
+        Result := True;
+        break;
+      end;
+    end;
   finally
-    y.Free;
-  end;
-end;
-
-function TSite.isRouteableFrom(const sitename: String): boolean;
-var
-  y: TStringList;
-begin
-  y := TStringList.Create;
-  y.Sorted := True;
-  try
-    sitesdat.ReadSection('speed-from-' + self.Name, y);
-    if y.IndexOf(sitename) = -1 then
-      Result := False
-    else
-      Result := True;
-  finally
-    y.Free;
+    fSpeedFromList.Free;
   end;
 end;
 
@@ -4814,7 +4800,7 @@ begin
   FreeAndNil(fStringList);
 end;
 
-procedure TSite.MigrateSpeedLockConfig;
+procedure TSite.MigrateSpeedLockAndSpeedToConfig;
 var
   fStringList: TStringList;
   i: Integer;
@@ -4824,31 +4810,44 @@ begin
   fStringList := TStringList.Create;
 
   sitesdat.ReadSectionValues('speedlock-from-' + Name, fStringList);
-
-  if fStringList.Count > 0 then
-  begin
-    irc_Addadmin('<c14><b>Info</c></b>: Migrating speedlock routes on %s into the new combined route config. If you revert to the old version, you will need to set those routes again.', [self.Name]);
-
-    for i := 0 to fStringList.Count - 1 do
+  try
+    if fStringList.Count > 0 then
     begin
-      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + self.Name, fStringList.Names[i], '0'));
-      if (fSpeedInfo.Speed = 0) then
+      irc_addadmin('<c14><b>Info</c></b>: Migrating speedlock routes on %s into the new combined route config. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+
+      for i := 0 to fStringList.Count - 1 do
       begin
-        irc_Addadmin('No existing speed-from entry found for destination %s. Dropping this speedlock entry.', [fStringList.Names[i]]);
-        Continue;
+        fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + self.Name, fStringList.Names[i], '0'));
+        if (fSpeedInfo.Speed = 0) then
+        begin
+          irc_addadmin('No existing speed-from entry found for destination %s. Dropping this speedlock entry.', [fStringList.Names[i]]);
+          Continue;
+        end;
+
+        fSpeedInfo.Locked := True;
+        sitesdat.WriteString('speed-from-' + self.Name, fStringList.Names[i], fSpeedInfo.ToConfigString);
+        irc_addadmin('Migrated speedlock route to destination %s.', [fStringList.Names[i]]);
       end;
 
-      fSpeedInfo.Locked := True;
-      sitesdat.WriteString('speed-from-' + self.Name, fStringList.Names[i], fSpeedInfo.ToConfigString);
-      irc_Addadmin('Migrated speedlock route to destination %s.', [fStringList.Names[i]]);
+      sitesdat.EraseSection('speedlock-from-' + Name);
+
+      // also delete speedlock-to which apparantly has not been used before anyway.
+      sitesdat.EraseSection('speedlock-to-' + Name);
+
+      UpdateSpeedFromCache;
     end;
 
-    sitesdat.EraseSection('speedlock-from-' + Name);
+    fStringList.Clear;
 
-    // also delete speedlock-to which apparantly has not been used before anyway.
-    sitesdat.EraseSection('speedlock-to-' + Name);
-
-    UpdateSpeedFromCache;
+    // delete all speed-to settings since we do not need them anymore (and never really did).
+    sitesdat.ReadSectionValues('speed-to-' + Name, fStringList);
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Deleting speed-to settings on %s. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+      sitesdat.EraseSection('speed-to-' + Name);
+    end;
+  finally
+    fStringList.Free;
   end;
 
 end;

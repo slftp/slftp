@@ -4,6 +4,7 @@ interface
 
 type
 
+  { Holds information about a configured route between two sites. }
   TSpeedFromRouteInfo = record
     Sitename: String;
     Speed: Integer;
@@ -20,6 +21,15 @@ type
     constructor CreateFromConfigString(const aStrValue: string);
   end;
 
+  { If you need to store a TSpeedFromRouteInfo record as an object (e.g. in a TStringList). }
+  TSpeedFromRouteInfoObjectWrapper = class
+    private
+      FSpeedInfo: TSpeedFromRouteInfo;
+    public
+      property SpeedInfo: TSpeedFromRouteInfo read FSpeedInfo;
+      constructor Create(const aSpeedInfo: TSpeedFromRouteInfo);
+  end;
+
 implementation
 
 uses SysUtils;
@@ -27,6 +37,8 @@ uses SysUtils;
 const
   CONST_AFFIL_ROUTE_FLAG = 'A';
   CONST_SPEED_LOCK_FLAG = 'F';
+
+{ TSpeedFromRouteInfo }
 
 constructor TSpeedFromRouteInfo.CreateFromConfigString(const aStrValue: string);
 begin
@@ -71,6 +83,13 @@ begin
     fRouteOptionInfo := '(' + fRouteOptionInfo + ')';
 
   Result := IntToStr(Speed) + fRouteOptionInfo;
+end;
+
+{ TSpeedFromRouteInfoObjectWrapper }
+
+constructor TSpeedFromRouteInfoObjectWrapper.Create(const aSpeedInfo: TSpeedFromRouteInfo);
+begin
+  FSpeedInfo := aSpeedInfo;
 end;
 
 end.

@@ -401,7 +401,6 @@ begin
 
                 fSpeedFromInfoOld.Speed := speed_new;
                 sitesdat.WriteString('speed-from-' + x[i], y[j], fSpeedFromInfoOld.ToConfigString);
-                sitesdat.WriteInteger('speed-to-' + y[j], x[i], speed_new);
 
                 fSite := FindSiteByName('', x[i]);
                 if fSite <> nil then
