@@ -370,7 +370,7 @@ begin
       if ss <> '' then
         ss := ss + ', ';
 
-      ss := ss + '"' + fSitesAndRouteInfo.KeyNames[i] + ' ' + TSpeedFromRouteInfoObjectWrapper(fSitesAndRouteInfo.Objects[i]).SpeedInfo.ToString + '"';
+      ss := ss + '"' + fSitesAndRouteInfo[i] + ' ' + TSpeedFromRouteInfoObjectWrapper(fSitesAndRouteInfo.Objects[i]).SpeedInfo.ToString + '"';
     end;
     if ss <> '' then
       IrcLineBreak(Netname, Channel, ss, AnsiChar('"'), Format('<b>%s (%d)</b> %s ', [sitename, fSitesAndRouteInfo.Count, fArrowDirection]));
