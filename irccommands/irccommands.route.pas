@@ -36,7 +36,7 @@ var
   i,j: integer;
   DoIt: Boolean;
   backtext: String;
-  apply, back, fAffilOnly, lock: Boolean;
+  apply, back, fAffilOnly, fNoAffil, lock: Boolean;
   source_sites, dest_sites: TStringList;
   site: TSite;
   speed: integer;
@@ -60,6 +60,8 @@ begin
       rcmd.addAbbreviation('b', 'back');
       rcmd.declareFlag('affil','Only use pres from affils');
       rcmd.addAbbreviation('f', 'affil');
+      rcmd.declareFlag('noaffil','Only use when not from affil');
+      rcmd.addAbbreviation('n', 'noaffil');
       rcmd.declareFlag('lock','Lock the given speed rank');
       rcmd.addAbbreviation('l', 'lock');
       rcmd.parse(params);
@@ -82,11 +84,13 @@ begin
     apply := rcmd.readFlag('apply');
     back := rcmd.readFlag('back');
     fAffilOnly := rcmd.readFlag('affil');
+    fNoAffil := rcmd.readFlag('noaffil');
     lock := rcmd.readFlag('lock');
 
     fSpeedInfo.Speed := speed;
     fSpeedInfo.Locked := lock;
     fSpeedInfo.AffilOnly := fAffilOnly;
+    fSpeedInfo.NoAffil := fNoAffil;
   finally
     rcmd.Free;
   end;
@@ -124,6 +128,12 @@ begin
   if (sw2 <> '') and (StringToSiteSoftWare(sw2) = sswUnknown) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Hey dude, %s is not a valid ftp server software.</b>. Must be one of GLFTPD, IOFTPD, DRFTPD.</c>', [sw2]);
+    exit;
+  end;
+
+  if fAffilOnly and fNoAffil then
+  begin
+    irc_addtext(Netname, Channel, '<c4><b>You can''t use the affil only and the no affil options at the same time</b>.</c>');
     exit;
   end;
 
@@ -236,6 +246,8 @@ begin
           backtext := ' (and backroute)';
         if fAffilOnly then
           backtext := backtext + ' (affil only)';
+        if fNoAffil then
+          backtext := backtext + ' (no affil)';
         if lock then
           backtext := backtext + ' (locked)';
         if speed > 0 then

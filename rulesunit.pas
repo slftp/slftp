@@ -1679,6 +1679,13 @@ begin
           Continue;
         end;
 
+        if fSpeedInfo.NoAffil and ps.StatusRealPreOrShouldPre then
+        begin
+          if (dstps.reason = '') then
+            dstps.reason := 'No-Affil route';
+          Continue;
+        end;
+
         if dstps.error then
           Continue;
 

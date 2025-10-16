@@ -4729,7 +4729,16 @@ begin
         Result := -1
       else
         Result := 1;
+      exit;
+    end;
 
+    // give no-affil routes less priority
+    if info1.NoAffil <> info2.NoAffil then
+    begin
+      if info1.NoAffil then
+        Result := 1
+      else
+        Result := -1;
       exit;
     end;
 

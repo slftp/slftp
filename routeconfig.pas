@@ -9,6 +9,7 @@ type
     Sitename: String;
     Speed: Integer;
     AffilOnly: Boolean;
+    NoAffil: Boolean;
     Locked: Boolean;
 
     { Returs a string representation of this route. }
@@ -36,6 +37,7 @@ uses SysUtils;
 
 const
   CONST_AFFIL_ROUTE_FLAG = 'A';
+  CONST_NO_AFFIL_ROUTE_FLAG = 'N';
   CONST_SPEED_LOCK_FLAG = 'F';
 
 { TSpeedFromRouteInfo }
@@ -51,6 +53,7 @@ begin
       raise Exception.Create(Format('Unable to parse ''%s'' as speed value', [aStrValue]));
     end;
     AffilOnly := aStrValue.Contains(CONST_AFFIL_ROUTE_FLAG);
+    NoAffil := aStrValue.Contains(CONST_NO_AFFIL_ROUTE_FLAG);
     Locked := aStrValue.Contains(CONST_SPEED_LOCK_FLAG);
   end;
 end;
@@ -62,6 +65,8 @@ begin
   fFlags := '';
   if AffilOnly then
     fFlags := fFlags + CONST_AFFIL_ROUTE_FLAG;
+  if NoAffil then
+    fFlags := fFlags + CONST_NO_AFFIL_ROUTE_FLAG;
   if Locked then
     fFlags := fFlags + CONST_SPEED_LOCK_FLAG;
 
@@ -78,6 +83,8 @@ begin
     fRouteOptionInfo := fRouteOptionInfo + 'L';
   if AffilOnly then
     fRouteOptionInfo := fRouteOptionInfo + 'A';
+  if NoAffil then
+    fRouteOptionInfo := fRouteOptionInfo + 'N';
 
   if fRouteOptionInfo <> '' then
     fRouteOptionInfo := '(' + fRouteOptionInfo + ')';

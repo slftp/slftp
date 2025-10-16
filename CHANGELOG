@@ -66,7 +66,7 @@
         of dirlist interval
     {^} Various other performance improvements
     {^} The routeset command now features the option -f to enable the given route only for races where the group is added
-        as affil on the source site
+        as affil on the source site. Also the option -n was added to race only when the group is no affil.
     {-} The routelock command has been removed. Use routeset with option -l instead.
         Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
 
