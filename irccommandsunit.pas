@@ -51,7 +51,7 @@ const
     'section' {, 'preurl', 'mysql'});
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..225] of TIrcCommand = (
+  ircCommandsArray: array[1..224] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -105,7 +105,6 @@ const
     (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$route'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routeset'; hnd: IrcSetSpeed; minparams: 3; maxparams: -1 ; hlpgrp: 'route'),
-    (cmd: 'routelock'; hnd: IrcLockSpeed; minparams: 3; maxparams: -1; hlpgrp: 'route'),
     (cmd: 'routesin'; hnd: IrcInroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routesout'; hnd: IrcOutroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'speedstats'; hnd: IrcSpeedStats; minparams: 1; maxparams: 4; hlpgrp: 'route'),
