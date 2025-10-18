@@ -23,7 +23,8 @@ implementation
 uses
   SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
-  kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, Generics.Collections, taskcwd;
+  kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, Generics.Collections, taskcwd,
+  routeconfig;
 
 const
   rsections = 'autodirlist';
@@ -298,7 +299,7 @@ begin
         sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
         ps.status := rssRealPre;
-        ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
+        ps.AddDestination(site1, TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sitename, site1, '0')).Speed);
       end;
 
       for ps in p.PazoSitesList do
