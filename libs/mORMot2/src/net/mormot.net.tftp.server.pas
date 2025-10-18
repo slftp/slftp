@@ -216,8 +216,7 @@ destructor TTftpConnectionThread.Destroy;
 begin
   Terminate;
   fContext.Shutdown;
-  if Assigned(fOwner.fConnection) then // may be nil from fOwner.Destroy
-    fOwner.fConnection.Remove(self); // ownobject=false: just decrease Count
+  fOwner.fConnection.Remove(self); // ownobject=false: just decrease Count
   inherited Destroy;
   Freemem(fLastSent);
   FreeMem(fContext.Frame);
@@ -336,9 +335,7 @@ begin
   fMaxConnections := 100; // = 100 threads, good enough for regular TFTP server
   fMaxRetry := 2;
   fOptions := Options;
-  // bind and launch the thread to start serving content
-  inherited Create(LogClass, BindAddress, BindPort, ProcessName, 5000);
-  // setup the execution parameters
+  inherited Create(LogClass, BindAddress, BindPort, ProcessName, 5000); // bind
   {$ifdef OSPOSIX}
   if ttoDropPriviledges in fOptions then
   begin
@@ -372,10 +369,6 @@ destructor TTftpServerThread.Destroy;
 begin
   inherited Destroy;
   fFileCache.Free;
-  FreeAndNil(fConnection); // paranoid (usually done in OnShutdown)
-  {$ifdef OSPOSIX}
-  FreeAndNil(fPosixFileNames);
-  {$endif OSPOSIX}
 end;
 
 procedure TTftpServerThread.OnShutdown;
@@ -384,7 +377,10 @@ begin
   if fConnection = nil then
     exit;
   NotifyShutdown;
-  FreeAndNil(fConnection); // nil for TTftpConnectionThread.Destroy
+  FreeAndNil(fConnection);
+  {$ifdef OSPOSIX}
+  FreeAndNil(fPosixFileNames);
+  {$endif OSPOSIX}
 end;
 
 procedure TTftpServerThread.NotifyShutdown;

@@ -1951,7 +1951,7 @@ begin
   fOrm := aRest;
   fTable := aTable;
   fData := aData;
-  fUriContext := ServiceRunningRequest; // access the threadvar once
+  fUriContext := ServiceRunningRequest;
   fRunningBatchEncoding := encPost;
   fRunTableIndex := -1;
 end;

@@ -29,7 +29,6 @@ uses
   sysutils,
   mormot.core.base,
   mormot.core.os,
-  mormot.core.os.security, // for TTimeZoneInformation on Windows
   mormot.core.rtti,
   mormot.core.unicode,
   mormot.core.text,
@@ -342,12 +341,9 @@ type
   {$endif USERECORDWITHMETHODS}
   private
     Init: TLightLock;
-  public
     Names, Paths: TMatchDynArray;
-    /// low-level method, to be called once to initialize the search
-    // - see proper Check() usage as:
-    // ! if Init.TryLock then DoInit(...);
     procedure DoInit(csv: PUtf8Char; caseinsensitive: boolean);
+  public
     /// main entry point of the GLOB resource/path URI pattern matching
     // - will thread-safe initialize the internal TMatch instances if necessary
     function Check(const csv: RawUtf8; const uri: TUriMatchName;
@@ -801,7 +797,7 @@ type
     fRevision: Int64;
     fSnapShotAfterMinutes: cardinal;
     fSnapshotAfterInsertCount: cardinal;
-    fSnapshotTimestamp: cardinal; // GetTickSec
+    fSnapshotTimestamp: Int64;
     fSnapshotInsertCount: cardinal;
     fKnownRevision: Int64;
     fKnownStore: RawByteString;
@@ -2144,7 +2140,7 @@ const
   _DIR: array[boolean] of string[7] = ('[dir]', '&nbsp;');
 var
   w: TTextDateWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
   files: TFindFilesDynArray;
   f: PFindFiles;
   i: PtrInt;
@@ -4073,8 +4069,7 @@ end;
 
 function ToUtf8(r: TExprParserResult): RawUtf8;
 begin
-  result := TrimLeftLowerCaseShort(ToText(r));
-  UnCamelCaseSelf(result);
+  result := UnCamelCase(TrimLeftLowerCaseShort(ToText(r)));
 end;
 
 
@@ -4613,7 +4608,7 @@ function TSynBloomFilter.SaveTo(aMagic: cardinal): RawByteString;
 var
   W: TBufferWriter;
   BufLen: integer;
-  temp: TBuffer64K;
+  temp: array[word] of byte;
 begin
   BufLen := length(fStore) + 100;
   if BufLen <= SizeOf(temp) then
@@ -4747,7 +4742,7 @@ begin
     if fSnapShotAfterMinutes = 0 then
       fSnapshotTimestamp := 0
     else
-      fSnapshotTimestamp := GetTickSec + fSnapShotAfterMinutes * SecsPerMin;
+      fSnapshotTimestamp := GetTickCount64 + fSnapShotAfterMinutes * MilliSecsPerMin;
   finally
     fSafe.WriteUnLock;
   end;
@@ -4757,7 +4752,7 @@ function TSynBloomFilterDiff.SaveToDiff(const aKnownRevision: Int64): RawByteStr
 var
   head: TBloomDiffHeader;
   W: TBufferWriter;
-  temp: TBuffer64K;
+  temp: array[word] of byte;
 begin
   fSafe.ReadWriteLock; // DiffSnapshot makes a WriteLock
   try
@@ -4767,7 +4762,7 @@ begin
             (fSnapshotInsertCount > fSnapshotAfterInsertCount) or
             ((fSnapshotInsertCount > 0) and
              (fSnapshotTimestamp <> 0) and
-             (GetTickSec > fSnapshotTimestamp)) then
+             (GetTickCount64 > fSnapshotTimestamp)) then
     begin
       DiffSnapshot;
       head.kind := bdFull;
@@ -5003,6 +4998,22 @@ end;
 
 { ****************** Binary Buffers Delta Compression }
 
+function Max(a, b: PtrInt): PtrInt; {$ifdef HASINLINE}inline;{$endif}
+begin
+  if a > b then
+    result := a
+  else
+    result := b;
+end;
+
+function Min(a, b: PtrInt): PtrInt; {$ifdef HASINLINE}inline;{$endif}
+begin
+  if a < b then
+    result := a
+  else
+    result := b;
+end;
+
 {$ifdef HASINLINE}
 function Comp(a, b: PAnsiChar; len: PtrInt): PtrInt; inline;
 var
@@ -5164,7 +5175,7 @@ begin
   pOut := OutBuf + 7;
   sp := WorkBuf;
   // 3. handle identical leading bytes
-  match := Comp(OldBuf, NewBuf, MinPtrInt(OldBufSize, NewBufSize));
+  match := Comp(OldBuf, NewBuf, Min(OldBufSize, NewBufSize));
   if match > 2 then
   begin
     sp := WriteCurOfs(0, match, curofssize, sp);
@@ -5195,7 +5206,7 @@ begin
             begin
               // test remaining bytes
               match := Comp(@PHash128Rec(NewBuf)^.c2, @c2,
-                         MinPtrInt(PtrUInt(OldBufSize) - ofs, NewBufSize) - 8);
+                         Min(PtrUInt(OldBufSize) - ofs, NewBufSize) - 8);
               if match > curlen then
               begin
                 // found a longer sequence
@@ -5386,7 +5397,7 @@ begin
   Getmem(workbuf, BufSize); // compression temporary buffers
   Getmem(HList, BufSize * SizeOf({%H-}HList[0]));
   Getmem(HTab, SizeOf({%H-}HTab^));
-  Getmem(Delta, MaxPtrInt(NewSize, OldSize) + 4096); // Delta size max evalulation
+  Getmem(Delta, Max(NewSize, OldSize) + 4096); // Delta size max evalulation
   try
     d := Delta;
     db := ToVarUInt32(NewSize, db); // Destination Size
@@ -5394,7 +5405,7 @@ begin
     if bigfile then
     begin
       // test initial same chars
-      BufRead := Comp(New, Old, MinPtrInt(NewSize, OldSize));
+      BufRead := Comp(New, Old, Min(NewSize, OldSize));
       if BufRead > 9 then
       begin
         // it happens very often: modification is usually in the middle/end
@@ -5408,7 +5419,7 @@ begin
       end;
       // test trailing same chars
       BufRead := CompReverse(New + NewSize - 1, Old + OldSize - 1,
-        MinPtrInt(NewSize, OldSize));
+        Min(NewSize, OldSize));
       if BufRead > 5 then
       begin
         if NewSize = BufRead then
@@ -5420,7 +5431,7 @@ begin
     end;
     // 4. main loop
     repeat
-      BufRead := MinPtrInt(BufSize, NewSize);
+      BufRead := Min(BufSize, NewSize);
       dec(NewSize, BufRead);
       if (BufRead = 0) and
          (Trailing > 0) then
@@ -5430,7 +5441,7 @@ begin
         WriteInt(d, crc32c(0, New, Trailing));
         break;
       end;
-      OldRead := MinPtrInt(BufSize, OldSize);
+      OldRead := Min(BufSize, OldSize);
       dec(OldSize, OldRead);
       db := ToVarUInt32(OldRead, db);
       if (BufRead < 4) or

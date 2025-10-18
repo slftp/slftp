@@ -172,7 +172,7 @@ begin
   fRd.AsText(b64);
   decoded := Base64ToBinSafe(TrimControlChars(b64));
   if decoded = '' then
-    exit; // maybe some pending command chars - retry later
+    exit; // maybe some pending command chars
   fRd.Reset;
   rtsp := fOwner.ConnectionFindAndLock(fRtspTag, cReadOnly);
   if rtsp <> nil then
@@ -227,7 +227,7 @@ end;
 type
   TProxySocket = class(THttpServerSocket)
   protected
-    fExpires: cardinal; // GetTickSec
+    fExpires: cardinal; // shr MilliSecsPerSecShl
   published
     property Method;
     property URL;
@@ -280,10 +280,10 @@ begin
         cookie := sock.HeaderGetValue('X-SESSIONCOOKIE');
         if cookie = '' then
           exit;
-        now := GetTickSec;
         fPendingGet.Safe.WriteLock;
         try
           found := -1;
+          now := GetTickCount64 shr MilliSecsPerSecShl;
           for i := fPendingGet.Count - 1 downto 0 do
           begin
             old := fPendingGet.ObjectPtr[i];

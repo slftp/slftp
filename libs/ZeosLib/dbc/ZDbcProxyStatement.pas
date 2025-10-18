@@ -135,7 +135,7 @@ uses
   ZSysUtils, ZFastCode, ZMessages, ZDbcProxy, ZDbcProxyResultSet, ZDbcProxyUtils,
   ZEncoding, ZTokenizer, ZClasses,
   // For the resolvers:
-  ZDbcFirebirdInterbase, ZDbcASA,ZDbcDbLibResultSet, ZDbcOracle, ZDbcPostgreSqlResultSet,
+  ZDbcInterbase6, ZDbcASA,ZDbcDbLibResultSet, ZDbcOracle, ZdbcPostgreSqlStatement,
   TypInfo, Variants, ZBase64, ZExceptions{$IFDEF ZEOS73UP}, FmtBcd{$ENDIF}
   {$IF defined(NO_INLINE_SIZE_CHECK) and not defined(UNICODE) and defined(MSWINDOWS)},Windows{$IFEND}
   {$IFDEF NO_INLINE_SIZE_CHECK}, Math{$ENDIF};
@@ -171,9 +171,13 @@ begin
       // from their databases: ADO, MySQL, SQLite
       spASA: CachedResolver := TZASACachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
       spMSSQL, spASE: CachedResolver := TZDBLibCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
-      spIB_FB: CachedResolver := TZInterbaseFirebirdCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$IFNDEF ZEOS73UP}
+      spIB_FB: CachedResolver := TZInterbase6CachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$ENDIF}
       spOracle: CachedResolver := TZOracleCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$IFNDEF ZEOS73UP}
       spPostgreSQL: CachedResolver := TZPostgreSQLCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
+      {$ENDIF}
       else CachedResolver := TZGenericCachedResolver.Create(self as IZStatement, NativeResultSet.GetMetaData) as IZCachedResolver;
     end;
 

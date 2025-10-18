@@ -45,12 +45,11 @@ type
   // - mtText for all text that appears outside a symbol
   // - mtVariable if the tag is a variable - e.g. {{myValue}} - or an Expression
   // Helper - e.g. {{helperName valueName}}
-  // - mtVariableUnescape, mtVariableUnescapeAmp to unescape the variable HTML -
-  // e.g. {{{myRawValue}}} or {{& name}}
+  // - mtVariableUnescape, mtVariableUnescapeAmp to unescape the variable HTML - e.g.
+  // {{{myRawValue}}} or {{& name}}
   // - mtSection and mtInvertedSection for sections beginning - e.g.
   // {{#person}} or {{^person}}
-  // - mtSectionEnd for sections ending - e.g. {{/person}} - note that
-  // TSynMustache accepts non-standard empty closing tag like {{/}}
+  // - mtSectionEnd for sections ending - e.g. {{/person}}
   // - mtComment for comments - e.g. {{! ignore me}}
   // - mtPartial for partials - e.g. {{> next_more}}
   // - mtSetPartial for setting an internal partial - e.g.
@@ -150,7 +149,6 @@ type
     fPartials: TSynMustachePartials;
     fTempProcessHelper: TVariantDynArray;
     fOnStringTranslate: TOnStringTranslate;
-    fOnUtf8Translate: TOnUtf8Translate;
     fOwner: TSynMustache;
     // some variant support is needed for the helpers
     function ProcessHelper(const ValueName: RawUtf8; space, helper: PtrInt;
@@ -185,12 +183,9 @@ type
     /// access to the custom Partials associated with this execution context
     property Partials: TSynMustachePartials
       read fPartials write fPartials;
-    /// access to the {{"English text}} translation string callback
+    /// access to the {{"English text}} translation callback
     property OnStringTranslate: TOnStringTranslate
       read fOnStringTranslate write fOnStringTranslate;
-    /// access to the {{"English text}} translation RawUtf8 callback
-    property OnUtf8Translate: TOnUtf8Translate
-      read fOnUtf8Translate write fOnUtf8Translate;
     /// read-only access to the associated text writer instance
     property Writer: TJsonWriter
       read fWriter;
@@ -327,13 +322,13 @@ type
       const Partials: variant): TSynMustachePartials; overload;
     /// register a {{>partialName}} template
     // - returns the parsed template
-    function Add(const aName, aTemplate: RawUtf8): TSynMustache; overload;
+    function Add(const aName,aTemplate: RawUtf8): TSynMustache; overload;
     /// register a {{>partialName}} template
     // - returns the parsed template
     function Add(const aName: RawUtf8;
       aTemplateStart, aTemplateEnd: PUtf8Char): TSynMustache; overload;
-    /// search some text within the {{>partialName}} template text
-    function FoundInTemplate(const aName, aSearchText: RawUtf8): boolean;
+    /// search some text withing the {{mustache}} partial
+    function FoundInTemplate(const text: RawUtf8): PtrInt;
     /// delete the partials
     destructor Destroy; override;
     /// low-level access to the internal partials list
@@ -362,7 +357,6 @@ type
   // - handles -first -last and -odd  pseudo-section keys, e.g.
   // "{{#things}}{{^-first}}, {{/-first}}{{.}}{{/things}}"
   // over {things:["one", "two", "three"]} renders as 'one, two, three'
-  // - allows non-standard empty closing tag like {{/}}
   // - allows inlined partial templates , to be defined e.g. as
   // {{<foo}}This is the foo partial {{myValue}} template{{/foo}}
   // - features {{"English text}} translation, via a custom callback
@@ -444,9 +438,8 @@ type
     // - to call e.g. result.RenderArray() or result.RenderRtti() several times
     function NewMustacheContextData(
       aBufSize: integer = 16384): TSynMustacheContextData;
-    /// search some text within the {{mustache}} template text and its partials
-    function FoundInTemplate(const aSearchText: RawUtf8;
-      aPartials: TSynMustachePartials): boolean;
+    /// search some text within the {{mustache}} template text
+    function FoundInTemplate(const text: RawUtf8): boolean;
     /// register one Expression Helper callback for a given list of helpers
     // - i.e. to let aEvent process {{aName value}} tags
     // - the supplied name will be checked against the current list, and replace
@@ -608,7 +601,7 @@ type
 
 const
   /// Mustache-friendly JSON Serialization Options
-  // - as used e.g. from mormot.core.mvc Data Context from Cookies
+  // - as used e.g. from mormot.rest.mvc Data Context from Cookies
   TEXTWRITEROPTIONS_MUSTACHE =
      [twoForceJsonExtended,
       twoEnumSetsAsBooleanInRecord,
@@ -655,25 +648,15 @@ end;
 procedure TSynMustacheContext.TranslateBlock(Text: PUtf8Char; TextLen: integer);
 var
   s: string;
-  u: RawUtf8;
 begin
-  if Assigned(OnUtf8Translate) then
-  begin
-    OnUtf8Translate(Text, TextLen, u);
-    if u <> '' then
-    begin
-      fWriter.AddString(u);
-      exit;
-    end;
-  end
-  else if Assigned(OnStringTranslate) then
+  if Assigned(OnStringTranslate) then
   begin
     Utf8DecodeToString(Text, TextLen, s);
     OnStringTranslate(s);
     fWriter.AddNoJsonEscapeString(s);
-    exit;
-  end;
-  fWriter.AddNoJsonEscape(Text, TextLen);
+  end
+  else
+    fWriter.AddNoJsonEscape(Text, TextLen);
 end;
 
 function TSynMustacheContext.GetVariantFromContext(
@@ -689,7 +672,7 @@ begin
     VariantLoadJson(result, ValueName, @JSON_[mFast])
   else if fGetVarDataFromContextNeedsFree then
   begin
-    if TSynVarData(result).VType <> varEmpty then
+    if TVarData(result).VType <> varEmpty then
       VarClearProc(TVarData(result));
     GetVarDataFromContext(-1, ValueName, TVarData(result)); // set directly
   end
@@ -854,9 +837,10 @@ begin
   begin
     Document := aDoc;
     DocumentType := DocVariantType.FindSynVariantType(aDoc.VType);
-    ListCount := -1;
     ListCurrent := -1;
-    if DocumentType <> nil then
+    if DocumentType = nil then
+      ListCount := -1
+    else
     begin
       ListCount := DocumentType.IterateCount(aDoc, {GetObjectAsValues=}false);
       if fContextCount = 0 then
@@ -957,19 +941,6 @@ begin
              (ListCurrent and 1 = 0));
 end;
 
-function IsFalseySimpleVariant(VType: cardinal; const Value: TVarData): boolean;
-  {$ifdef HASINLINE} inline; {$endif}
-var
-  vt: cardinal;
-begin
-  vt := VType;
-  result := (vt <= varNull) or
-            ((vt = varBoolean) and
-             (not Value.VBoolean)); // empty/null or false are falsey values
-  // note: '' or 0 are NOT falsey - https://github.com/mustache/spec/issues/28
-  // TL&WR: "official" solution is to use an explicit boolean value in the data
-end;
-
 function TSynMustacheContextVariant.AppendSection(ValueSpace: integer;
   const ValueName: RawUtf8): TSynMustacheSectionType;
 var
@@ -990,7 +961,9 @@ begin
       end;
   result := GetVarDataFromContext(ValueSpace, ValueName, Value);
   c := Value.VType;
-  void := IsFalseySimpleVariant(c, Value); // empty/null or false
+  void := (c <= varNull) or
+          ((c = varBoolean) and
+           (Value.VWord = 0));
   if (result <> msNothing) and // helper?
      (c < varFirstCustom) then // simple helper values are not pushed
   begin
@@ -1061,10 +1034,9 @@ begin
   begin
     Data := Value;
     Info := Rtti;
-    ListCount := -1;
-    ListCurrent := -1;
     if Rtti <> nil then
       ListCount := Rtti.ValueIterateCount(Value);
+    ListCurrent := -1;
   end;
   inc(fContextCount);
 end;
@@ -1081,7 +1053,7 @@ begin
       begin
         inc(ListCurrent);
         if ListCurrent >= ListCount then
-          ListCount := -1 // reached last item
+          ListCount := -1
         else
           result := true;
       end;
@@ -1120,9 +1092,9 @@ begin
           rc := PT_RTTI[ptInteger];
           exit;
         end
-        else // the current context is the current list item
-          d := rc.ValueIterate(d, ListCurrent, Temp.Data, rc);
-          // note: rkClass is de-referenced by ValueIterate
+        else
+          // the current context is the current list item
+          d := rc.ValueIterate(d, ListCurrent, rc); // rkClass is dereferenced
       if d <> nil then
       begin
         // we found a value in this context
@@ -1190,24 +1162,29 @@ begin
   end;
 end;
 
-function IsFalseyRtti(d: pointer; rc: TRttiCustom): boolean;
+function IsVoidContext(d: pointer; rc: TRttiCustom): boolean;
+var
+  c: cardinal;
 begin
-  result := true; // empty/null or false are falsey values
+  result := true;
   if d = nil then
     exit;
-  case rc.Parser of
-    ptClass,
-    ptInterface,
-    ptPUtf8Char:
-      if PPointer(d)^ = nil then
-        exit; // a nil pointer is null
-    ptVariant:
-      if IsFalseySimpleVariant(PVarData(d)^.VType, PVarData(d)^) then
-        exit; // empty/null or false variants
-    ptBoolean:
-      if PByte(d)^ = 0 then
-        exit; // false value
-  end;
+  if rc.Kind = rkClass then
+  begin
+    if PPointer(d)^ = nil then
+      exit;
+  end
+  else if rc.Kind = rkVariant then
+  begin
+    c := PVarData(d)^.VType;
+    if (c <= varNull) or
+       ((c = varBoolean) and
+        (PVarData(d)^.VWord = 0)) then
+      exit;
+  end
+  else if rcfBoolean in rc.Cache.Flags then
+    if PByte(d)^ = 0 then
+      exit;
   result := false; // not void context, in the Mustache terms
 end;
 
@@ -1238,7 +1215,7 @@ begin
     else
       rc := PT_RTTI[ptVariant]; // use temp variant value from helper
   end;
-  void := IsFalseyRtti(d, rc);
+  void := IsVoidContext(d, rc);
   if (result <> msNothing) and // helper?
      (tmp.VType < varFirstCustom) then // simple helper values are not pushed
   begin
@@ -1301,10 +1278,12 @@ begin
   result := Add(aName, aTemplate);
 end;
 
-function TSynMustachePartials.FoundInTemplate(
-  const aName, aSearchText: RawUtf8): boolean;
-begin // allow recursive search within nested partials
-  result := GetPartial(aName).FoundInTemplate(aSearchText, self);
+function TSynMustachePartials.FoundInTemplate(const text: RawUtf8): PtrInt;
+begin
+  if self <> nil then
+    result := fList.Contains(text)
+  else
+    result := -1;
 end;
 
 class function TSynMustachePartials.CreateOwned(
@@ -1359,10 +1338,10 @@ end;
 type
   TSynMustacheParser = class
   protected
-    fTemplate: TSynMustache;
     fTagStartChars, fTagStopChars: word;
-    fTagCount: integer;
     fPos, fPosMin, fPosMax, fPosTagStart: PUtf8Char;
+    fTagCount: PtrInt;
+    fTemplate: TSynMustache;
     fScanStart, fScanEnd: PUtf8Char;
     function Scan(ExpectedTag: cardinal): boolean;
     procedure AddTag(aKind: TSynMustacheTagKind;
@@ -1389,7 +1368,6 @@ procedure TSynMustacheParser.AddTag(aKind: TSynMustacheTagKind;
   aStart, aEnd: PUtf8Char);
 var
   P: PUtf8Char;
-  t: PSynMustacheTag;
 begin
   if (aStart = nil) or
      (aEnd = nil) then
@@ -1415,12 +1393,12 @@ begin
             // tag starts on a new line -> check if ends on the same line
             if (fPos > fPosMax) or
                (fPos^ = #$0A) or
-               (PWord(fPos)^ = EOLW) then
+               (PWord(fPos)^ = CRLFW) then
             begin
               if fPos <= fPosMax then
                 if fPos^ = #$0A then
                   inc(fPos)
-                else if PWord(fPos)^ = EOLW then
+                else if PWord(fPos)^ = CRLFW then
                   inc(fPos, 2);
               if fTagCount > 0 then
                 // remove any indentation chars from previous text
@@ -1463,43 +1441,40 @@ begin
     end;
   end;
   if aEnd <= aStart then
-    if (aEnd <> aStart) or
-       (aKind <> mtSectionEnd) then // allow {{/}} empty closing tag
-      exit;
+    exit;
   if fTagCount >= length(fTemplate.fTags) then
     SetLength(fTemplate.fTags, NextGrow(fTagCount));
-  t := @fTemplate.fTags[fTagCount];
-  inc(fTagCount);
-  t^.Kind := aKind;
-  t^.SectionOppositeIndex := -1;
-  case aKind of
-    mtText,
-    mtComment,
-    mtTranslate:
+  with fTemplate.fTags[fTagCount] do
+  begin
+    Kind := aKind;
+    SectionOppositeIndex := -1;
+    case aKind of
+      mtText,
+      mtComment,
+      mtTranslate:
+        begin
+          TextStart := aStart;
+          TextLen := aEnd - aStart;
+        end;
+    else
       begin
-        t^.TextStart := aStart;
-        t^.TextLen := aEnd - aStart;
+        TextStart := fPosTagStart;
+        TextLen := aEnd - fPosTagStart;
+        // superfluous in-tag whitespace should be ignored
+        while (aStart < aEnd) and
+              (aStart^ <= ' ') do
+          inc(aStart);
+        while (aEnd > aStart) and
+              (aEnd[-1] <= ' ') do
+          dec(aEnd);
+        if aEnd = aStart then
+          ESynMustache.RaiseUtf8('Void % identifier', [KindToText(aKind)^]);
+        FastSetString(Value, aStart, aEnd - aStart);
+        ValueSpace := PosExChar(' ', Value);
       end;
-  else
-    begin
-      t^.TextStart := fPosTagStart;
-      t^.TextLen := aEnd - fPosTagStart;
-      // superfluous in-tag whitespace should be ignored
-      while (aStart < aEnd) and
-            (aStart^ <= ' ') do
-        inc(aStart);
-      while (aEnd > aStart) and
-            (aEnd[-1] <= ' ') do
-        dec(aEnd);
-      if aEnd <> aStart then
-      begin
-        FastSetString(t^.Value, aStart, aEnd - aStart);
-        t^.ValueSpace := PosExChar(' ', t^.Value);
-      end
-      else if aKind <> mtSectionEnd then // allow {{/}}
-        ESynMustache.RaiseUtf8('Void % identifier', [KindToText(aKind)^]);
     end;
   end;
+  inc(fTagCount);
 end;
 
 constructor TSynMustacheParser.Create(Template: TSynMustache;
@@ -1563,10 +1538,9 @@ end;
 
 procedure TSynMustacheParser.Parse(P, PEnd: PUtf8Char);
 var
-  k: TSynMustacheTagKind;
+  Kind: TSynMustacheTagKind;
   Symbol: AnsiChar;
   i, j, secCount, secLevel: PtrInt;
-  ti, tj: PSynMustacheTag;
 begin
   secCount := 0;
   if P = nil then
@@ -1584,41 +1558,41 @@ begin
     Symbol := fPos^;
     case Symbol of
       '=':
-        k := mtSetDelimiter;
+        Kind := mtSetDelimiter;
       '{':
-        k := mtVariableUnescape;
+        Kind := mtVariableUnescape;
       '&':
-        k := mtVariableUnescapeAmp;
+        Kind := mtVariableUnescapeAmp;
       '#':
-        k := mtSection;
+        Kind := mtSection;
       '^':
-        k := mtInvertedSection;
+        Kind := mtInvertedSection;
       '/':
-        k := mtSectionEnd;
+        Kind := mtSectionEnd;
       '!':
-        k := mtComment;
+        Kind := mtComment;
       '>':
-        k := mtPartial;
+        Kind := mtPartial;
       '<':
-        k := mtSetPartial;
+        Kind := mtSetPartial;
       '"':
-        k := mtTranslate;
+        Kind := mtTranslate;
     else
-      k := mtVariable;
+      Kind := mtVariable;
     end;
-    if k <> mtVariable then
+    if Kind <> mtVariable then
       inc(fPos);
     if not Scan(fTagStopChars) then
       ESynMustache.RaiseUtf8('Unfinished {{tag [%]', [fPos]);
-    case k of
+    case Kind of
       mtSetDelimiter:
         begin
           if (fScanEnd - fScanStart <> 6) or
              (fScanEnd[-1] <> '=') then
-            ESynMustache.RaiseU('mtSetDelimiter syntax is e.g. {{=<% %>=}}');
+            raise ESynMustache.Create('mtSetDelimiter syntax is e.g. {{=<% %>=}}');
           fTagStartChars := PWord(fScanStart)^;
           fTagStopChars := PWord(fScanStart + 3)^;
-          continue; // do not call AddTag(k=mtSetDelimiter)
+          continue; // do not call AddTag(Kind=mtSetDelimiter)
         end;
       mtVariableUnescape:
         if (Symbol = '{') and
@@ -1627,70 +1601,60 @@ begin
           // {{{name}}} -> point after }}}
           inc(fPos);
     end;
-    AddTag(k);
+    AddTag(Kind);
   until false;
   AddTag(mtText, fPos, fPosMax + 1);
-  ti := pointer(fTemplate.fTags);
   for i := 0 to fTagCount - 1 do
-  begin
-    case ti^.Kind of
-      mtSection,
-      mtInvertedSection,
-      mtSetPartial:
-        begin
-          inc(secCount);
-          if secCount > fTemplate.fSectionMaxCount then
-            fTemplate.fSectionMaxCount := secCount;
-          secLevel := 1;
-          tj := ti;
-          for j := i + 1 to fTagCount - 1 do // search the closing tag
+    with fTemplate.fTags[i] do
+      case Kind of
+        mtSection,
+        mtInvertedSection,
+        mtSetPartial:
           begin
-            inc(tj);
-            case tj^.Kind of
-              mtSection,
-              mtInvertedSection,
-              mtSetPartial:
-                inc(secLevel);
-              mtSectionEnd:
-                begin
-                  dec(secLevel);
-                  if secLevel = 0 then // we reached the matching closing tag
-                    if (tj^.Value = '') or
-                       SectionNameMatch(ti^.Value, tj^.Value) then
-                    begin
-                      if (ti^.SectionOppositeIndex >= 0) or
-                         (tj^.SectionOppositeIndex >= 0) then
-                         ESynMustache.RaiseUtf8('Invalid nested {{/%}}', [ti^.Value]);
-                      tj^.SectionOppositeIndex := i;
-                      ti^.SectionOppositeIndex := j;
-                      if ti^.Kind = mtSetPartial then
+            inc(secCount);
+            if secCount > fTemplate.fSectionMaxCount then
+              fTemplate.fSectionMaxCount := secCount;
+            secLevel := 1;
+            for j := i + 1 to fTagCount - 1 do
+              case fTemplate.fTags[j].Kind of
+                mtSection,
+                mtInvertedSection,
+                mtSetPartial:
+                  inc(secLevel);
+                mtSectionEnd:
+                  begin
+                    dec(secLevel);
+                    if secLevel = 0 then
+                      if SectionNameMatch(Value, fTemplate.fTags[j].Value) then
                       begin
-                        if fTemplate.fInternalPartials = nil then
-                          fTemplate.fInternalPartials :=
-                            TSynMustachePartials.Create;
-                        fTemplate.fInternalPartials.Add(ti^.Value,
-                          ti^.TextStart + ti^.TextLen + 2, tj^.TextStart);
-                      end;
-                      break;
-                    end
-                    else
-                      ESynMustache.RaiseUtf8('Got {{/%}}, expected {{/%}}',
-                        [ti^.Value, tj^.Value]);
-                end;
-            end;
+                        fTemplate.fTags[j].SectionOppositeIndex := i;
+                        SectionOppositeIndex := j;
+                        if Kind = mtSetPartial then
+                        begin
+                          if fTemplate.fInternalPartials = nil then
+                            fTemplate.fInternalPartials :=
+                              TSynMustachePartials.Create;
+                          fTemplate.fInternalPartials.Add(Value,
+                            TextStart + TextLen + 2,
+                            fTemplate.fTags[j].TextStart);
+                        end;
+                        break;
+                      end
+                      else
+                        ESynMustache.RaiseUtf8('Got {{/%}}, expected {{/%}}',
+                          [Value, fTemplate.fTags[j].Value]);
+                  end;
+              end;
+            if SectionOppositeIndex < 0 then
+              ESynMustache.RaiseUtf8('Missing section end {{/%}}', [Value]);
           end;
-          if ti^.SectionOppositeIndex < 0 then
-            ESynMustache.RaiseUtf8('Missing section end {{/%}}', [ti^.Value]);
-        end;
-      mtSectionEnd:
-        begin
-          dec(secCount);
-          if ti^.SectionOppositeIndex < 0 then
-            ESynMustache.RaiseUtf8('Unexpected section end {{/%}}', [ti^.Value]);
-        end;
-    end;
-    inc(ti);
-  end;
+        mtSectionEnd:
+          begin
+            dec(secCount);
+            if SectionOppositeIndex < 0 then
+              ESynMustache.RaiseUtf8('Unexpected section end {{/%}}', [Value]);
+          end;
+      end;
   SetLength(fTemplate.fTags, fTagCount);
 end;
 
@@ -1700,10 +1664,11 @@ end;
 function TSynMustacheCache.Parse(const aTemplate: RawUtf8): TSynMustache;
 begin
   result := GetObjectFrom(aTemplate);
-  if result <> nil then
-    exit;
-  result := TSynMustache.Create(aTemplate);
-  AddObjectUnique(aTemplate, @result);
+  if result = nil then
+  begin
+    result := TSynMustache.Create(aTemplate);
+    AddObjectUnique(aTemplate, @result);
+  end;
 end;
 
 function TSynMustacheCache.UnParse(const aTemplate: RawUtf8): boolean;
@@ -1835,8 +1800,7 @@ begin
           continue; // ignore whole section
         end;
       mtSectionEnd:
-        if (t^.Value = '') or
-           (t^.Value[1] <> '-') then
+        if t^.Value[1] <> '-' then
           with fTags[t^.SectionOppositeIndex] do
             if (Kind in [mtSection, mtInvertedSection]) and
                (ValueSpace = 0) then
@@ -1872,7 +1836,7 @@ function TSynMustache.Render(const Context: variant;
   const OnTranslate: TOnStringTranslate; EscapeInvert: boolean): RawUtf8;
 var
   ctx: TSynMustacheContextVariant;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   ctx := fCachedContextVariant; // thread-safe reuse of shared rendering context
   if ctx.fReuse.TryLock then
@@ -1948,7 +1912,7 @@ function TSynMustache.RenderDataRtti(Value: pointer; ValueRtti: TRttiCustom;
   EscapeInvert: boolean): RawUtf8;
 var
   ctx: TSynMustacheContextData;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   if ValueRtti = nil then
     ESynMustache.RaiseUtf8('%.RenderData: invalid TypeInfo', [self]);
@@ -1986,28 +1950,12 @@ begin
   fCachedContextData.Free;
 end;
 
-function TSynMustache.FoundInTemplate(const aSearchText: RawUtf8;
-  aPartials: TSynMustachePartials): boolean;
-var
-  i: integer;
-  t: PSynMustacheTag;
+function TSynMustache.FoundInTemplate(const text: RawUtf8): boolean;
 begin
-  result := false;
-  if (self = nil) or
-     (aSearchText = '') then
-    exit;
-  result := true;
-  if PosEx(aSearchText, fTemplate) > 0 then
-    exit; // found in main template text
-  t := pointer(fTags);
-  if aPartials <> nil then
-    for i := 1 to length(fTags) do
-      if (t^.Kind = mtPartial) and
-         aPartials.FoundInTemplate(t^.Value, aSearchText) then
-        exit // found in (nested) partials
-      else
-        inc(t);
-  result := false;
+  // internal partials are part of fTemplate
+  result := (self <> nil) and
+            (text <> '') and
+            (PosEx(text, fTemplate) > 0);
 end;
 
 class procedure TSynMustache.HelperAdd(var Helpers: TSynMustacheHelpers;
@@ -2365,10 +2313,10 @@ var
 begin
   // {{#Equals .,12}}
   if _SafeArray(Value, 2, dv) and
-     (FastVarDataComp(@dv^.Values[0], @dv^.Values[1], false) = 0) then
-    Result := VarTrue
-  else
-    SetVariantNull(Result{%H-});
+       (FastVarDataComp(@dv^.Values[0], @dv^.Values[1], false) = 0) then
+      Result := VarTrue
+    else
+      SetVariantNull(Result{%H-});
 end;
 
 class procedure TSynMustache.If_(const Value: variant; out Result: variant);

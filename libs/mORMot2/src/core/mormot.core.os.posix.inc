@@ -5,8 +5,6 @@
    POSIX API calls for FPC, as used by mormot.core.os.pas
 }
 
-{$ifdef FPC}
-
 uses
   baseunix,
   unix,
@@ -33,17 +31,9 @@ uses
   initc; // we statically link the libc for some raw calls
 
 {$ifdef UNICODE}
-  'mORMot assumes no UNICODE on POSIX FPC, i.e. as TFileName = PChar = PUtf8Char'
+  'mORMot assumes no UNICODE on POSIX, i.e. as TFileName = PChar = PUtf8Char'
 {$endif UNICODE}
 
-{$else}
-
-// rough preparation for Delphi compatibility - not finished at all
-uses
-  System.IOUtils,
-  System.SyncObjs;
-
-{$endif FPC}
 
 // define some raw text functions, to avoid linking mormot.core.text
 
@@ -54,7 +44,7 @@ procedure _fmt(const Fmt: string; const Args: array of const;
 procedure _AddRawUtf8(var Values: TRawUtf8DynArray; const Value: RawUtf8); forward;
 function _GetNextSpaced(var P: PAnsiChar): RawUtf8; forward;
 function _GetNextCardinal(var P: PAnsiChar): PtrUInt; forward;
-function PosExtString(Str: PChar): PChar; forward; // to extract extension
+function PosExtString(Str: PChar): PChar; forward;
 
 procedure WrDeb(const t: ShortString; const p; l: PtrInt); // internal use below
 var
@@ -101,27 +91,14 @@ end;
 
 { ****************** Unicode, Time, File process }
 
-var // two flag sets of 8 items = 8-bit byte efficient storage and access
-  _F0: set of (fIsDebuggerTested, fIsDebuggerPresent, fStdOutIsTTY,
-    fNoURandom, fNoRandom, fProcFileSystemsTested,
-    fLinuxEventFdFailed, fLinuxGetRandomFailed);
-  _F1: set of (fMachTimeNanoSec, fNoTryProcExe, fStubMemoryExecXorWrite,
-    fSynDaemonIntercepted, fSigPipeDisabled);
-
 function SortDynArrayFileName(const A, B): integer;
-begin // file extension, then file name case-sensitive comparison on POSIX
+begin // case-sensitive extension, then filename comparison on POSIX
   result := 0;
-  if pointer(A) = pointer(B) then
+  if @A = @B then
     exit;
-  result := {$ifdef UNICODE}StrCompW{$else}StrComp{$endif}(
-              PosExtString(pointer(A)), PosExtString(pointer(B)));
+  result := StrComp(PosExtString(pointer(A)), PosExtString(pointer(B)));
   if result = 0 then
-    result := {$ifdef UNICODE}StrCompW{$else}StrComp{$endif}(pointer(A), pointer(B));
-end;
-
-function TDirectoryBrowser.Make(const fn: TFileName): TFileName;
-begin
-  result := fCurrentDir + fn; // MAX_PATH is usually not a concern on POSIX
+    result := StrComp(pointer(A), pointer(B)); // fast case-sensitive order
 end;
 
 function LibraryOpen(const LibraryName: TFileName): TLibHandle;
@@ -430,7 +407,7 @@ begin
 end;
 
 const
-  // for CompareStringW() Windows-like call in Unicode_CompareString()
+  // for CompareStringW()
   LOCALE_USER_DEFAULT = $400; // ignored in practice
   NORM_IGNORECASE = 1 shl ord(coIgnoreCase); // [widestringmanager.coIgnoreCase]
   U_FOLD_CASE_DEFAULT = 0;
@@ -724,13 +701,14 @@ function mach_host_self: cint;
 var
   mach_timeinfo: TTimebaseInfoData;
   mach_timecoeff: double;
+  mach_timenanosecond: boolean; // very likely to be TRUE on Intel CPUs
 
 const
   PROCESSOR_CPU_LOAD_INFO = 2;
 
 procedure machtimetonanosec(var Value: Int64); inline;
 begin
-  if not (fMachTimeNanoSec in _F1) then // very likely to be set in practice
+  if not mach_timenanosecond then
     if mach_timeinfo.Denom = 1 then
       // integer resolution is enough
       Value := Value * mach_timeinfo.Numer
@@ -751,15 +729,6 @@ begin
   result := mach_absolute_time;
   machtimetonanosec(result);
   result := result div NanoSecsPerMilliSec; // ns to ms
-end;
-
-function GetTickSec: cardinal;
-var
-  v: Int64;
-begin
-  v := mach_absolute_time;
-  machtimetonanosec(v);
-  result := v div NanoSecsPerSec; // ns to s
 end;
 
 function GetUptimeSec: cardinal;
@@ -934,20 +903,13 @@ begin
             QWord(tp.tv_sec) * MilliSecsPerSec;
 end;
 
-function GetTickSec: cardinal;
-var
-  tp: timespec;
-begin
-  clock_gettime(CLOCK_MONOTONIC_FAST, @tp); // likely = CLOCK_MONOTONIC_COARSE
-  result := tp.tv_sec; // no division needed
-end;
-
 function GetUptimeSec: cardinal;
 var
   tp: timespec;
 begin
   tp.tv_sec := 0;
   clock_gettime(CLOCK_UPTIME, @tp);
+  // convert from nanoseconds into milliseconds
   result := tp.tv_sec;
 end;
 
@@ -967,10 +929,12 @@ begin
   result := UnixMSTimeUtc;
 end;
 
+{$undef OSPTHREADS}
 {$undef HAS_PTHREADSETNAMENP}
 {$undef HAS_PTHREADSETAFFINITY}
 
 {$ifdef OSPTHREADSLIB}
+  {$define OSPTHREADS}
 var
   {$ifdef OSLINUX}
   // pthread_setname_np for Linux https://stackoverflow.com/a/7989973/458259
@@ -988,6 +952,7 @@ var
 
 {$ifdef OSPTHREADSSTATIC}
   // note: pthread_setname_np() has no consistent API across POSIX systems
+  {$define OSPTHREADS}
 
 {$ifdef OSDARWIN}
 // we specify link to clib='c' as in rtl/darwin/pthread.inc
@@ -1024,7 +989,7 @@ begin
   {$endif OSLINUX}
 end;
 
-{$ifdef HAS_OSPTHREADS}
+{$ifdef OSPTHREADS}
 
 { TOSLightLock }
 
@@ -1089,12 +1054,13 @@ begin
   LeaveCriticalSection(fMutex);
 end;
 
-{$endif HAS_OSPTHREADS}
+{$endif OSPTHREADS}
 
 
-procedure PosixSetThreadName(ThreadID: TThreadID; const Name: RawByteString);
+procedure SetUnixThreadName(ThreadID: TThreadID; const Name: RawByteString);
 var
-  {%H-}trunc: array[0..15] of AnsiChar; // trunc to 16 non space chars (including #0)
+  // truncated to 16 non space chars (including #0)
+  {%H-}trunc: array[0..15] of AnsiChar;
   i, L, c4: integer;
 begin
   if Name = '' then
@@ -1140,7 +1106,7 @@ end;
 procedure RawSetThreadName(ThreadID: TThreadID; const Name: RawUtf8);
 begin
   if ThreadID <> MainThreadID then // don't change the main process name
-    PosixSetThreadName(ThreadID, Name); // call pthread_setname_np()
+    SetUnixThreadName(ThreadID, Name); // call pthread_setname_np()
 end;
 
 function RawKillThread(Thread: TThread): boolean;
@@ -1200,6 +1166,12 @@ end;
 
 
 {$ifndef NOEXCEPTIONINTERCEPT}
+
+function TSynLogExceptionContext.AdditionalInfo(
+  out ExceptionNames: TPShortStringDynArray): cardinal;
+begin
+  result := 0; // Windows/CLR specific by now
+end;
 
 var
   _RawLogException: TOnRawLogException;
@@ -1319,12 +1291,6 @@ function DeleteFile(const aFileName: TFileName): boolean;
 begin
   result := (aFileName <> '') and
             (FpUnlink(pointer(aFileName)) >= 0);
-end;
-
-function RemoveDir(const aDirName: TFileName): boolean;
-begin
-  result := (aDirName <> '') and
-            (FpRmdir(pointer(aDirName)) >= 0);
 end;
 
 procedure FileSetHidden(const FileName: TFileName; ReadOnly: boolean);
@@ -1598,19 +1564,17 @@ end;
 function FileOpenSequentialRead(const FileName: TFileName): integer;
 begin
   // SysUtils.FileOpen = fpOpen + fpFlock
-  repeat
-    result := fpOpen(pointer(FileName), O_RDONLY);  // no fpFlock() call
-  until (result >= 0) or (fpgeterrno <> ESysEINTR); // see FPC FileOpen()
+  result := fpOpen(pointer(FileName), O_RDONLY); // no fpFlock() call
 end;
 
 function FileIsReadable(const aFileName: TFileName): boolean;
 var
   fd: integer;
 begin
-  fd := FileOpenSequentialRead(aFileName); // no fpFlock() call
+  fd := fpOpen(pointer(aFileName), O_RDONLY); // no fpFlock() call
   result := ValidHandle(fd);
   if result then
-    FileClose(fd);
+    FpClose(fd);
 end;
 
 procedure SetEndOfFile(F: THandle);
@@ -1640,17 +1604,9 @@ begin
   fpseterrno(error);
 end;
 
-procedure GetErrorShortVar(error: integer; var dest: ShortString);
+function GetErrorText(error: integer): RawUtf8;
 begin
-  OsErrorShort(error, @dest, {noint=}true); // known 'E###' on Linux + BSD
-  if dest[0] = #0 then
-    dest := StrError(error) // FPC RTL returns its plain text as shortstring
-  else
-  begin
-    AppendShortTwoChars(ord(' ') + ord('(') shl 8, @dest);
-    AppendShort(StrError(error), dest); // e.g. 'ECHILD (No child processes)'
-    AppendShortChar(')', @dest);
-  end;
+  result := StrError(error); // from FPC RTL: using a OS-specific array of const
 end;
 
 function TMemoryMap.DoMap(aCustomOffset: Int64): boolean;
@@ -1720,9 +1676,9 @@ begin
 end;
 
 
+// eventfd + getrandom syscalls are validated on Linux i386, x86_64 and aarch64
 {$undef HASEVENTFD}
 {$undef HASGETRANDOM}
-// eventfd + getrandom syscalls are validated on Linux i386, x86_64 and aarch64
 {$ifdef OSLINUX}
   {$ifdef CPUX64}
     {$define HASEVENTFD}
@@ -1756,7 +1712,7 @@ begin
   if fFD <> 0 then
   begin
     LinuxEventFDWrite(fFD, 1); // release the lock or do nothing
-    FileClose(fFD);
+    fpClose(fFD);
   end
   else
   {$endif HASEVENTFD}
@@ -1868,6 +1824,7 @@ end;
 
 var
   _ProcFileSystems: TRawUtf8DynArray; // from /proc/filesystems without "nodev"
+  __ProcFileSystemsTested: boolean;
 
 function IsProcFileSystem(const typ: RawUtf8): boolean; inline;
 begin
@@ -1880,7 +1837,7 @@ var
   fs, s: RawUtf8;
   p: PUtf8Char;
 begin
-  include(_F0, fProcFileSystemsTested);
+  __ProcFileSystemsTested := true;
   result := false;
   fs := StringFromFileNoSize('/proc/filesystems');
   p := pointer(fs);
@@ -1908,7 +1865,7 @@ end;
 
 {$endif OSLINUXANDROID}
 
-{$ifdef OSLINUX} { the systemd, eventfd or getrandom APIs are Linux-specific }
+{$ifdef OSLINUX} { the systemd API is Linux-specific }
 
 const
   SD_NAMES: array[0..5] of PAnsiChar = (
@@ -1929,6 +1886,10 @@ const
   syscall_nr_getrandom = 355;
   {$endif CPUX86}
   // other archs (like aarch64) are properly defined - see https://syscall.sh
+
+var
+  __LinuxGetRandomFailed, __LinuxEventFdFailed: boolean;
+
 
 { TSystemD }
 
@@ -1988,30 +1949,17 @@ begin
   end;
 end;
 
-const
-  PR_SET_NAME = 15; // see prctl.h
-
-function LinuxSetProcessName(const NewName: RawUtf8): boolean;
-var
-  L: PtrInt;
-  {%H-}trunc: array[0..15] of AnsiChar; // truncate to 16 chars (including #0)
-begin
-  L := MinPtrInt(15, length(NewName));
-  MoveFast(NewName[1], trunc[0], L);
-  trunc[L] := #0; // ending #0
-  result := (KernelRevision >= $020609) and // since Kernel 2.6.9
-            (do_syscall(syscall_nr_prctl, PR_SET_NAME, TSysParam(@trunc)) = 0);
-end;
-
 {$ifdef HASGETRANDOM} // validated on Linux i386, x86_64 and aarch64
 function LinuxGetRandom(buf: pointer; len: PtrInt): boolean;
 begin
   result := false;
-  if not (fLinuxGetRandomFailed in _F0) then // KernelRevision checked at startup
-    if do_syscall(syscall_nr_getrandom, TSysParam(buf), len, 0) = len then
-      result := true // "man getrandom" states to read up to 256 bytes per call
-    else
-      include(_F0, fLinuxGetRandomFailed); // won't retry on syscall failure
+  if (KernelRevision < $031100) or // introduced in Kernel 3.17
+     __LinuxGetRandomFailed then
+    exit;
+  if do_syscall(syscall_nr_getrandom, TSysParam(buf), len, 0) = len then
+    result := true // "man getrandom" states to read up to 256 bytes in one call
+  else
+    __LinuxGetRandomFailed := true; // won't retry on syscall failure
 end;
 {$else}
 function LinuxGetRandom(buf: pointer; len: PtrInt): boolean;
@@ -2028,22 +1976,31 @@ const
 
 function LinuxEventFD(nonblocking, semaphore: boolean): integer;
 var
-  f: cardinal;
+  flags: cardinal;
 begin
-  if not (fLinuxEventFdFailed in _F0) then // KernelRevision checked at startup
+  result := 0;
+  if __LinuxEventFdFailed then
+    exit;
+  if KernelRevision >= $02061b then // not available prior to Kernel 2.6.27
   begin
-    f := 0;
+    flags := 0;
     if nonblocking then
-      f := EFD_NONBLOCK;
+      flags := EFD_NONBLOCK;
     if semaphore then
-      f := f or EFD_SEMAPHORE;
-    result := do_syscall(syscall_nr_eventfd2, 0, f);
+      flags := flags or EFD_SEMAPHORE;
+    result := do_syscall(syscall_nr_eventfd2, 0, flags);
     if ValidHandle(result) then
       exit;
-    include(_F0, fLinuxEventFdFailed); // don't retry next time
   end;
+  __LinuxEventFdFailed := true; // don't retry next type
   result := 0;
 end;
+{$else}
+function LinuxEventFD(nonblocking, semaphore: boolean): integer;
+begin
+  result := 0; // non implemented (not validated by our tests) on this arch
+end;
+{$endif HASEVENTFD}
 
 function LinuxEventFDRead(fd: integer): Int64;
 var
@@ -2069,26 +2026,6 @@ function LinuxEventFDWait(fd: integer; ms: integer): boolean;
 begin
   result := WaitReadPending(fd, ms);
 end;
-{$else}
-function LinuxEventFD(nonblocking, semaphore: boolean): integer;
-begin
-  result := 0; // non implemented (not validated by our tests) on this arch
-end;
-
-function LinuxEventFDRead(fd: integer): Int64;
-begin
-  result := -1;
-end;
-
-procedure LinuxEventFDWrite(fd: integer; count: QWord);
-begin
-end;
-
-function LinuxEventFDWait(fd: integer; ms: integer): boolean;
-begin
-  result := false;
-end;
-{$endif HASEVENTFD}
 
 {$endif OSLINUX}
 
@@ -2102,17 +2039,18 @@ end;
 var
   ConsoleCriticalSection: TOSLock; // too early to use TOSLightLock
   TextAttr: integer = -1; // always change the color at startup
+  __IsDebuggerTested, __IsDebuggerPresent, __StdOutIsTTY: boolean;
 
 procedure TestOnceDebuggerTty; forward;
 
 function StdOutIsTTY: boolean;
 begin
-  if not (fIsDebuggerTested in _F0) then
+  if not __IsDebuggerTested then
     TestOnceDebuggerTty;
-  result :=  (fStdOutIsTTY in _F0);
+  result :=  __StdOutIsTTY;
 end;
 
-procedure TextColorCmd(Color: TConsoleColor; var s: TShort7);
+procedure TextColorCmd(Color: TConsoleColor; var s: TShort8);
 const
   TERM_CTRL: PUtf8Char = '04261537';
 begin
@@ -2130,7 +2068,7 @@ end;
 procedure TextColorAppend(Color: TConsoleColor; var s: RawUtf8);
   {$ifdef HASINLINE} inline; {$endif}
 var
-  c: TShort7;
+  c: TShort8;
 begin
   TextColorCmd(Color, c);
   AppendShortToUtf8(c, s);
@@ -2138,7 +2076,7 @@ end;
 
 procedure TextColor(Color: TConsoleColor);
 var
-  c: TShort7;
+  c: TShort8;
 begin
   TextColorCmd(Color, c);
   if c[0] = #0 then
@@ -2355,13 +2293,6 @@ begin
     folder := '';
 end;
 
-function IsExpandedPath(const FileName: TFileName): boolean;
-begin
-  result := (FileName = '') or
-            ((FileName[1] = '/') and
-             (Pos('..', FileName) = 0)); // seems already expanded
-end;
-
 procedure _ComputeSystemPath(kind: TSystemPath; var result: TFileName);
 begin
   result := ''; // "out result" param is not enough for FPC
@@ -2515,7 +2446,7 @@ begin
   PCardinal(@info)^ := SMB_FLAGS; // mark as retrieved from cache
   info.Data := StringFromFile(SMB_CACHE); // cache is better than PosixInject
   if (info.Data <> '') and
-     (CompressSynLZ(info.Data, {compress=}false) = '') then
+     (CompressSynLZ(info.Data, false) = '') then
     info.Data := ''; // tampered file
   if info.Data = '' then
     if Assigned(PosixInject.GetSmbiosData) then
@@ -2688,36 +2619,7 @@ begin
     DynArrayFakeLength(result, n);
 end;
 
-var
-  argv0len: PtrInt;
-
-function PosixSetProcessName(const Name: RawUtf8): boolean;
-begin
-  result := false;
-  if (Name = '') or
-     not IsAnsiCompatible(Name) then
-    exit;
-  if argv0len = 0 then
-    argv0len := StrLen(argv[0]); // retrieve once to keep the max possible size
-  {$ifdef OSLINUX} // untested (probably unsafe?) on Android
-  if LinuxSetProcessName(Name) then // first try with the prctl syscall
-    result := true
-  else
-  {$endif OSLINUX}
-  try
-    MoveFast(pointer(Name)^, argv[0]^, MinPtrInt(argv0len, length(Name)) + 1);
-    result := true;
-  except
-    result := false; // catch any GPF
-  end;
-end;
-
 {$ifdef OSBSDDARWIN}
-
-procedure OsErrorShort(Code: cardinal; Dest: PShortString; NoInt: boolean);
-begin
-  BsdErrorShort(Code, Dest, NoInt);
-end;
 
 function IsValidPid(pid: cardinal): boolean;
 begin
@@ -2966,6 +2868,7 @@ begin
   if (host_processor_info(mach_host_self, PROCESSOR_CPU_LOAD_INFO,
        proccount, info, infocount) <> 0) or
      (proccount = 0) or
+     //(proccount <> SystemInfo.dwNumberOfProcessors) or
      (infocount <> proccount * 4) or
      (info = nil) then
     exit;
@@ -2974,7 +2877,7 @@ begin
     inc(UserTime,   info[0] + info[3]);  // CPU_STATE_USER + CPU_STATE_NICE
     inc(KernelTime, info[1]);            // CPU_STATE_SYSTEM
     inc(IdleTime,   info[2]);            // CPU_STATE_IDLE
-    info := @info[4];                    // next cpu
+    info := @info[4];
     dec(proccount);
   until proccount = 0;
   inc(KernelTime, IdleTime); // as with GetSystemTimes() WinAPI
@@ -2982,40 +2885,14 @@ begin
   //writeln('I:',IdleTime,',K:',KernelTime,',U:',UserTime,'  result=',result);
 end;
 
-procedure XorOSEntropy(var e: THash512Rec);
-var
-  mem: TMemoryInfo;
-  tix1: UInt64         absolute mem.memtotal; // in ticks (ns) resolution
-  tix2: UInt64         absolute mem.memfree;
-  avg: TLoadAvg        absolute mem.memfree;  // array[0..2] of double
-  proccount: cardinal  absolute mem.vmfree;
-  infocount: cardinal  absolute mem.percent;
-  info: PCardinalArray absolute mem.allocused;
-begin
-  // some minimal OS entropy we could get on Darwin
-  tix1 := tix1 xor mach_absolute_time;        // monotonic hi-res clock
-  getloadavg(avg, 3);                         // system stats
-  DefaultHasher128(@e.h0, @mem, SizeOf(mem)); // include values on stack
-  GetMemoryInfo(mem, {withalloc=}false);      // also fill mem with zeros
-  DefaultHasher128(@e.h1, @mem, SizeOf(mem));
-  infocount := 0;
-  host_processor_info(mach_host_self,         // detailed per-cpu times
-    PROCESSOR_CPU_LOAD_INFO, proccount, info, infocount);
-  DefaultHasher128(@e.h2, pointer(info), infocount * SizeOf(info^[0]));
-  tix1 := mach_continuous_time;               // wall clock time since boot
-  tix2 := mach_absolute_time;                 // should have changed in-between
-  crcblock(@e.h3, @mem);                      // another algo
-end;
-
 {$else}
-
 function RetrieveSystemTimes(out IdleTime, KernelTime, UserTime: Int64): boolean;
 var
   times: TBsdProcTimes;
 begin
   // on BSD, use kern.cp_time 0=user/1=nice/2=system/3=interrupt/4=idle values
   // see https://man.openbsd.org/sysctl.2#KERN_CPTIME~2
-  // - note: this does not work on MacOS - we use host_processorinfo() instead
+  // - note: this does not work on MacOS - we will use host_processorinfo() instead
   // https://freebsd-hackers.freebsd.narkive.com/DBF0kxOC/cpu-utilization-break-down-via-sysctl#post3
   FillCharFast(times, SizeOf(times), 0);
   BsdProcTimes(times);
@@ -3024,34 +2901,46 @@ begin
   IdleTime   := times[4];
   result := (UserTime + KernelTime) <> 0;
 end;
+{$endif OSDARWIN}
 
 procedure XorOSEntropy(var e: THash512Rec);
 var
   mem: TMemoryInfo;
-  tp: timespec         absolute mem;          // in nanoseconds resolution
-  avg: TLoadAvg        absolute mem.memtotal; // array[0..2] of double
-  times: TBsdProcTimes absolute mem.vmtotal;  // array[0..4] of clong
+  us: Int64            absolute mem.memtotal;
+  avg: TLoadAvg        absolute mem.memfree; // just after us value
+  guid: THash128Rec    absolute mem.memfree; // fill up to mem.vmfree
+  {$ifdef OSDARWIN}
+  proccount: cardinal  absolute mem.vmfree;
+  infocount: cardinal  absolute mem.percent;
+  info: PCardinalArray absolute mem.allocused;
+  {$else}
+  times: TBsdProcTimes absolute mem.filefree;
+  {$endif OSDARWIN}
 begin
-  // some minimal high-res OS entropy we could get on BSD
-  clock_gettime(CLOCK_MONOTONIC_HIRES, @tp);  // fast VDSO call
-  DefaultHasher128(@e.h0, @tp, SizeOf(tp));   // may be AesNiHash128
-  GetMemoryInfo(mem, {withalloc=}false);      // also fill mem with zeros
+  // some minimal OS entropy we could get for BSD/Darwin
+  QueryPerformanceMicroSeconds(us);
+  getloadavg(avg, 3); // cpu stats and random stack data in mem
+  DefaultHasher128(@e.h0, @mem, SizeOf(mem)); // may be AesNiHash128
+  GetMemoryInfo(mem, {withalloc=}false); // also fill mem with zeros
+  mem.vmtotal := GetTickCount64; // not retrieved by GetMemoryInfo()
   DefaultHasher128(@e.h1, @mem, SizeOf(mem));
-  getloadavg(avg, 3);                         // system stats
-  BsdProcTimes(times);                        // cpu stats
-  DefaultHasher128(@e.h2, @mem, SizeOf(mem));
-  clock_gettime(CLOCK_MONOTONIC_HIRES, @tp);  // should have changed in-between
-  crcblock(@e.h3, @tp);                       // another algo
+  {$ifdef OSDARWIN}
+  infocount := 0;
+  host_processor_info(mach_host_self, PROCESSOR_CPU_LOAD_INFO,
+    proccount, info, infocount); // detailed per-cpu times
+  DefaultHasher128(@e.h2, pointer(info), infocount * SizeOf(cardinal));
+  guid.Lo := mach_absolute_time; // monotonic clocks in nanoseconds resolution
+  guid.Hi := mach_continuous_time;
+  {$else}
+  CreateGuid(guid.guid); // use e.g. FreeBSD syscall or /dev/urandom
+  XorMemory(e.r[2], guid);
+  BsdProcTimes(times);
+  {$endif OSDARWIN}
+  QueryPerformanceMicroSeconds(us); // should have changed in-between
+  crcblocks(@e.h3, @mem, SizeOf(mem) shr 4); // another algo
 end;
-
-{$endif OSDARWIN}
 
 {$else} // Linux (and Android) specific code
-
-procedure OsErrorShort(Code: cardinal; Dest: PShortString; NoInt: boolean);
-begin
-  LinuxErrorShort(Code, Dest, NoInt);
-end;
 
 procedure FindNameValue(p: PUtf8Char; const up: ShortString; var res: RawUtf8);
 var
@@ -3142,7 +3031,7 @@ begin
   result := '';
   if FileName = '' then
     exit;
-  h := FileOpenSequentialRead(FileName); // no fpFlock() call
+  h := FpOpen(pointer(FileName), O_RDONLY); // no fpFlock() call
   if PtrInt(h) <= 0 then
     exit;
   pos := 0;
@@ -3166,16 +3055,12 @@ var
   h: THandle;
 begin
   result := 0;
-  repeat
-    h := FpOpen(fn, O_RDONLY); // no fpFlock() call
-  until (PtrInt(h) >= 0) or (fpgeterrno <> ESysEINTR); // as FileOpen()
+  h := FpOpen(fn, O_RDONLY); // no fpFlock() call
   if PtrInt(h) <= 0 then
     exit;
   result := FileRead(h, dest, SizeOf(dest) - 1); // read up to 4KB
   if result >= 0 then
-    PAnsiChar(@dest)[result] := #0
-  else
-    result := 0; // don't return length = -1 on reading error
+    PAnsiChar(@dest)[result] := #0;
   FileClose(h);
 end;
 
@@ -3272,6 +3157,9 @@ begin
     DynArrayFakeLength(result, n);
 end;
 
+var
+  tryprocexe: boolean = true;
+
 function EnumProcessName(PID: cardinal): RawUtf8;
 var
   fn: ShortString;
@@ -3284,7 +3172,7 @@ begin
   fn := '/proc/';
   AppendShortCardinal(PID, fn);
   n := fn[0];
-  if not (fNoTryProcExe in _F1) then
+  if tryprocexe then
   begin
     // may need to be root to follow /fn/[pid]/exe
     AppendShort('/exe'#0, fn);
@@ -3298,7 +3186,7 @@ begin
   // set of strings separated by null bytes -> exe is the first argument
   FastSetString(result, pointer(@tmp), StrLen(pointer(@tmp)));
   if result <> '' then
-    include(_F1, fNoTryProcExe); // no need to try again next time
+    tryprocexe := false; // no need to try again next time
 end;
 
 function IsNotCurrentExeDaemonized(PID: cardinal): boolean;
@@ -3409,7 +3297,7 @@ begin
   DefaultHasher128(@e.h0, @tmp, LoadProcFile('/proc/self/stat', tmp));
   DefaultHasher128(@e.h1, @tmp, LoadProcFile('/proc/stat', tmp));
   clock_gettime(CLOCK_UPTIME, @rt);
-  DefaultHasher128(@e.h2, @rt, SizeOf(rt));
+  DefaultHasher128(@e.h2, @rt, SizeOf(rt)); // maybe AesNiHash128
   // read-only 122-bit random UUID text '6fd5a44b-35f4-4ad4-a9b9-6b9be13e1fe9'
   DefaultHasher128(@e.h2, @tmp, LoadProcFile('/proc/sys/kernel/random/uuid', tmp));
   clock_gettime(CLOCK_MONOTONIC_HIRES, @rt); // should have changed in-between
@@ -3480,21 +3368,19 @@ procedure TestOnceDebuggerTty;
 var
   term: RawUtf8;
 begin
-  include(_F0, fIsDebuggerTested);
-  if _IsDebuggerPresent then // actual syscall
-    include(_F0, fIsDebuggerPresent);
-  if (not (fIsDebuggerPresent in _F0)) and
-     (IsATTY(StdOut) = 1) and
-     GetEnv('TERM', term) and
-     IdemPChars(term, ['XTERM', 'SCREEN', 'TMUX', 'RXVT', 'LINUX', 'CYGWIN']) then
-    include(_F0, fStdOutIsTTY);
+  __IsDebuggerTested := true;
+  __IsDebuggerPresent := _IsDebuggerPresent; // syscall
+  __StdOutIsTTY := (not __IsDebuggerPresent) and
+                   (IsATTY(StdOut) = 1) and
+                   GetEnv('TERM', term) and
+       IdemPChars(term, ['XTERM', 'SCREEN', 'TMUX', 'RXVT', 'LINUX', 'CYGWIN']);
 end;
 
 function IsDebuggerPresent: boolean;
 begin
-  if not (fIsDebuggerTested in _F0) then
+  if not __IsDebuggerTested then
     TestOnceDebuggerTty;
-  result := fIsDebuggerPresent in _F0;
+  result := __IsDebuggerPresent;
 end;
 
 {$ifdef OSDARWIN}
@@ -3534,7 +3420,7 @@ begin
   result := '';
   if size > 4 shl 20 then
     exit; // read up to 4MB
-  mem := FileOpenSequentialRead('/dev/mem');
+  mem := FpOpen(PAnsiChar('/dev/mem'), O_RDONLY, 0);
   if mem <= 0 then
     exit;
   // Fpmmap() is more complex but works around problems using plain read() calls
@@ -3545,7 +3431,7 @@ begin
     FastSetRawByteString(result, map + off, size);
     Fpmunmap(map, off + size);
   end;
-  FileClose(mem);
+  FpClose(mem);
 end;
 {$endif OSDARWIN}
 
@@ -3602,34 +3488,15 @@ begin
   result := true;
 end; { TODO : use a diff approach for TProcessInfo.PerSystem on Linux? }
 
-procedure __Fill256FromOs(out e: THash256Rec);
-var
-  si: TSysInfo;  // Linuxism, but properly emulated by thit unit on Mac/BSD
+procedure _XorEntropyGetOsRandom256(var e: THash256Rec);
 begin
-  // no FillSystemRandom() to avoid endless recursive calls in XorEntropy()
-  {$ifdef OSDARWIN} // OSX has no clock_gettime() API
-  e.d0 := mach_absolute_time   * 2654435761;
-  e.d1 := mach_continuous_time * 3266489917;
-  crcblock(@e.l, @StartupEntropy);
-  inc(StartupEntropy.Lo, e.d1); // StartupEntropy is a bit weak on startup
-  dec(StartupEntropy.Hi, e.d0);
-  {$else}
-  if SizeOf(timespec) <= SizeOf(e) then // paranoid (max 128-bit) -> no-op
-    clock_gettime(CLOCK_MONOTONIC_FAST, @e); // fast VDSO call
-  crcblock(@e.l, @StartupEntropy); // 128-bit entropy over nanosecond timestamp
-  {$endif OSDARWIN}
-  {$ifdef OSLINUX}
-  if LinuxGetRandom(@e.h, SizeOf(e.h)) then // 128-bit crypto-PRNG in 1 syscall
-    exit;
-  {$endif OSLINUX}
-  RetrieveSysInfo(si); // at least uptime + cpu load + free mem on all OS
-  DefaultHasher128(@e.h, @si, SizeOf(si)); // maybe AesNiHash128
+  FillSystemRandom(@e, SizeOf(e), {allowblocking=}false);
 end;
 
 const
   // FillSystemRandom() retrieves 256 bytes max (2048-bit) from the OS API
   // - "man urandom" Usage states that 256-bit makes sense for /dev/urandom - as
-  // it is usually called in our framework, e.g. from TAesPrng.GetEntropy
+  // it is usually called in our framework, e.g. from _XorEntropyGetOsRandom256
   // - but we pushed the limit up since it may be called by TBigInt.FillPrime to
   // generate e.g. 4096-bit RSA keys which requires one 2048-bit random number
   // - "man getrandom" states that the Linux syscall can always return 256 bytes
@@ -3638,38 +3505,37 @@ const
 function FillSystemRandom(Buffer: PByteArray; Len: integer;
   AllowBlocking: boolean): boolean;
 var
-  rd, dev: integer;
+  rd, dev, i: integer;
+  tmp: TGuid;
 begin
   result := false;
   if Len <= 0 then
     exit;
   // retrieve up to MAXFROMOS bytes max from OS
-  rd := MinPtrInt(Len, MAXFROMOS);
+  rd := MAXFROMOS;
+  if Len < MAXFROMOS then
+    rd := Len;
   {$ifdef OSLINUX} // a single syscall to rule them all on Linux
   result := LinuxGetRandom(Buffer, rd);
-  if not result then
+  if result then
+  begin
+    if rd = Len then // most obvious case (e.g. from _XorEntropyGetOsRandom256)
+      exit;
+  end
+  else
   {$endif OSLINUX}
   begin
-    dev := 0;
-    if not (fNoURandom in _F0) then
-      // /dev/urandom non blocking on Linux, but may block at boot time on BSD
-      dev := FileOpenSequentialRead('/dev/urandom');
-    if dev <= 0 then
+    dev := FpOpen('/dev/urandom', O_RDONLY);  // non blocking on Linux + BSD
+    if (dev <= 0) and
+       AllowBlocking then // paranoid: any decent POSIX system has /dev/urandom
     begin
-      include(_F0, fNoURandom); // don't try any more (may be a chroot system)
-      if AllowBlocking and // paranoid: any decent POSIX system has /dev/urandom
-         not (fNoRandom in _F0) then
-      begin
-        if rd > 16 then
-          rd := 16; // better to get only 128-bit from raw blocking /dev/random
-        dev := fpOpen('/dev/random', O_RDONLY);
-        if dev <= 0 then
-          include(_F0, fNoRandom); // not worth trying any more
-      end;
+      if rd > 16 then
+        rd := 16; // better to get only 128-bit from old blocking /dev/random
+      dev := FpOpen('/dev/random', O_RDONLY); // may block until got entropy
     end;
-    if dev > 0 then // we can read some bytes from /dev/urandom or /dev/random
+    if dev > 0 then
     begin
-      result := (fpRead(dev, Buffer^, rd) = rd); // may block until entropy
+      result := (FileRead(dev, Buffer[0], rd) = rd);
       FileClose(dev);
     end;
   end;
@@ -3679,10 +3545,22 @@ begin
     if Len = 0 then
       exit;
     Buffer := @Buffer[rd];
-  end; // on OS API call failure (paranoid): fallback to Lecuyer (if allowed)
+  end
+  else // OS API call failure (paranoid)
+    for i := 1 to MAXFROMOS div SizeOf(tmp) do // 128-bit per loop
+    begin
+      sysutils.CreateGUID(tmp); // use FPC RTL as fallback
+      rd := SizeOf(tmp);
+      if Len < SizeOf(tmp) then
+        rd := Len;
+      MoveFast(tmp, Buffer[0], rd);
+      dec(Len, rd);
+      if Len = 0 then
+        exit;
+      Buffer := @Buffer[rd];
+    end;
+  // use Lecuyer's gsl_rng_taus2 for the remaining bytes > MAXFROMOS (unlikely)
   if Len > 0 then
-    // use Lecuyer's gsl_rng_taus2 for the remaining bytes > MAXFROMOS (unlikely)
-    // - but keep result=false if the Buffer^ was not really filled from OS
     SharedRandom.Fill(Buffer, Len);
 end;
 
@@ -3814,7 +3692,7 @@ begin
   if p = nil then // e.g. Darwin has no /etc/mtab :(
     exit;
   {$ifdef OSLINUXANDROID}
-  if not (fProcFileSystemsTested in _F0) then
+  if not __ProcFileSystemsTested then
     LoadProcFileSystems; // read once from /proc/filesystems
   {$endif OSLINUXANDROID}
   n := 0;
@@ -3982,17 +3860,20 @@ end;
 
 {$endif CPUARM}
 
+var
+  StubMemoryExecXorWrite: boolean = false; // W and X are exclusive on some OS
+
 function StubMemoryAlloc: pointer;
 begin
   result := MAP_FAILED;
-  if not (fStubMemoryExecXorWrite in _F1) then // W and X are exclusive on some OS
+  if not StubMemoryExecXorWrite then
     result := StubCallAllocMem(STUB_SIZE, PROT_READ or PROT_WRITE or PROT_EXEC);
   if result = MAP_FAILED then
   begin
     // i.e. on OpenBSD or OSX aarch64, we can not have W and X protection
     result := StubCallAllocMem(STUB_SIZE, PROT_READ OR PROT_WRITE);
     if result <> MAP_FAILED then
-      include(_F1, fStubMemoryExecXorWrite);
+      StubMemoryExecXorWrite := true;
   end;
   if result = MAP_FAILED then
     result := nil;
@@ -4008,7 +3889,7 @@ var
   aligned, pagesize: PtrUInt;
   flags: cardinal;
 begin
-  if not (fStubMemoryExecXorWrite in _F1) then
+  if not StubMemoryExecXorWrite then
     // nothing to be done on this platform
     exit;
   // toggle execution permission of memory to be able to write into memory
@@ -4028,6 +3909,7 @@ end;
 // Linux/POSIX signal interception
 
 var
+  SynDaemonIntercepted: boolean;
   SynDaemonInterceptLog: TSynLogProc;
 
 procedure DoShutDown(Sig: integer; Info: PSigInfo; Context: PSigContext); cdecl;
@@ -4072,11 +3954,11 @@ var
   sa: SigactionRec;
 begin
   // note: SIGFPE/SIGSEGV/SIGBUS/SIGILL are handled by the RTL
-  if fSynDaemonIntercepted in _F1 then
+  if SynDaemonIntercepted then
     exit;
   GlobalLock;
   try
-    if fSynDaemonIntercepted in _F1 then
+    if SynDaemonIntercepted then
       exit;
     SynDaemonInterceptLog := onlog;
     FillCharFast(sa, SizeOf(sa), 0);
@@ -4086,11 +3968,14 @@ begin
     fpSigaction(SIGTERM, @sa, nil);
     fpSigaction(SIGINT,  @sa, nil);
     fpSigaction(SIGABRT, @sa, nil);
-    include(_F1, fSynDaemonIntercepted); // set AFTER interception
+    SynDaemonIntercepted := true; // flag set AFTER interception
   finally
     GlobalUnLock;
   end;
 end;
+
+var
+  SigPipeDisabled: boolean; // process-wide thread-safe flag
 
 // TO INVESTIGATE: we may use per-thread signal masking instead
 // http://www.microhowto.info/howto/ignore_sigpipe_without_affecting_other_threads_in_a_process.html
@@ -4103,16 +3988,16 @@ procedure SigPipeIntercept;
 var
   sa: SigactionRec;
 begin
-  if fSigPipeDisabled in _F1 then
+  if SigPipeDisabled then
     exit; // quickly return if already done
   GlobalLock;
   try
-    if fSigPipeDisabled in _F1 then
+    if SigPipeDisabled then
       exit;
     FillCharFast(sa, SizeOf(sa), 0);
     sa.sa_handler := @DoNothing;
     fpSigaction(SIGPIPE, @sa, nil);
-    include(_F1, fSigPipeDisabled); // set AFTER disabling it
+    SigPipeDisabled := true; // flag set AFTER disabling it
   finally
     GlobalUnLock;
   end;
@@ -4233,7 +4118,7 @@ begin
     result := true // TERM sent and no wait needed
   else
   begin
-    tix := GetTickCount64 + waitseconds * MilliSecsPerSec; // need ms resolution
+    tix := GetTickCount64 + waitseconds * MilliSecsPerSec;
     repeat
       // RunUntilSigTerminated() below should eventually delete the .pid file
       SleepHiRes(10);
@@ -4465,7 +4350,7 @@ var
   n, l: TSsize;
   wait: cardinal;
   endtix: Int64;
-  tmp: TBuffer64K;
+  tmp: array[word] of byte; // 64KB stack buffer
 
   function RedirectOutput(flush: boolean; var redir: RawByteString): boolean;
   var
@@ -4476,7 +4361,7 @@ var
     begin
       n := fpread(fd, tmp, SizeOf(tmp));
       if n < 0 then
-        exit; // pipe closed or EINTR = execution finished
+        exit; // pipe closed = execution finished
       if setresult and
          (n <> 0) then
       begin
@@ -4550,7 +4435,7 @@ begin
             break; // gracefully ended
         end;
       end;
-      // force process termination alla Roberspierre
+      // force process termination
       fpkill(pid, SIGKILL);
       pid := 0;
       break;
@@ -4697,8 +4582,8 @@ var
 {$endif OSLINUX}
 begin
   {$ifdef OSLINUX}
-  txt := TrimU(Join([LoadProcFileTrim('/sys/class/dmi/id/sys_vendor'), ' ',
-                     LoadProcFileTrim('/sys/class/dmi/id/product_name')]));
+  txt := TrimU(Join([LoadProcFileTrim('/sys/class/dmi/id/sys_vendor'),
+                  ' ', LoadProcFileTrim('/sys/class/dmi/id/product_name')]));
   if txt <> '' then
   begin // e.g. 'QEMU KVM Virtual Machine' or 'LENOVO 20HES23B0U'
     LoadProcFileTrimed('/sys/class/dmi/id/product_version', prod);
@@ -4708,10 +4593,10 @@ begin
   else
     // return e.g. 'Raspberry Pi 3 Model B Rev 1.2'
     LoadProcFileTrimed('/proc/device-tree/model', txt);
-  {$else} // get this information the Android way
+  {$else}
   txt := TrimU(Join([GetSystemProperty('ro.product.brand'), ' ',
-                     GetSystemProperty('ro.product.name'), ' ',
-                     GetSystemProperty('ro.product.device')]));
+                       GetSystemProperty('ro.product.name'), ' ',
+                       GetSystemProperty('ro.product.device')]));
   {$endif OSLINUX}
   if __BiosInfoHardwareFromCpuInfo <> '' then // e.g. 'Hardware : BCM2709' on RPi3
     if txt = '' then
@@ -4794,7 +4679,6 @@ end;
 
 {$endif CPUARM3264}
 
-{$undef ARMV8STATIC}
 {$ifdef CPUAARCH64}
 {$ifdef OSLINUXANDROID}
 // AARCH64 armv8.o is only validated on Linux
@@ -4835,7 +4719,6 @@ var
   release: RawUtf8;
   procid, phyid, phyndx: integer;
   phy: TIntegerDynArray;
-  auxv: PPtrUInt;
   {$ifdef OSLINUX}
   dist: RawUtf8;
   SR: TSearchRec;
@@ -4843,31 +4726,6 @@ var
   {$endif OSLINUX}
   {$endif OSBSDDARWIN}
 begin
-  // some ARM/AARCH64 specific initialization
-  {$ifdef CPUARM3264}
-  StrLen := @StrLenLibc; // libc version is faster than plain pascal or RTL code
-  MoveFast := @MoveFastLibC;
-  FillCharFast := @FillCharLibC;
-  {$ifdef ARMV8STATIC}
-  if ahcCrc32 in CpuFeatures then
-    try
-      if (crc32cby4arm64(0, 1) = 3712330424) and
-         (crc32carm64(0, @tp, SizeOf(tp)) = crc32cfast(0, @tp, SizeOf(tp))) then
-      begin
-        crc32c          := @crc32carm64;
-        DefaultHasher   := @crc32carm64;
-        InterningHasher := @crc32carm64;
-        crc32cby4       := @crc32cby4arm64;
-        crcblock        := @crc32blockarm64;
-        crcblocks       := @crc32blocksarm64;
-      end;
-      if crc32arm64(0, @tp, SizeOf(tp)) = crc32fast(0, @tp, SizeOf(tp)) then
-        crc32 := @crc32arm64;
-    except
-      exclude(CpuFeatures, ahcCrc32); // crc32 was actually not supported
-    end;
-  {$endif ARMV8STATIC}
-  {$endif CPUARM3264}
   // retrieve Kernel and Hardware information
   StdOut := StdOutputHandle;
   modname := nil;
@@ -4891,6 +4749,7 @@ begin
   CpuCache[2].Size     := fpsysctlhwint(HW_L2CACHESIZE);
   CpuCache[3].LineSize := fpsysctlhwint(HW_CACHELINE);
   CpuCache[3].Size     := fpsysctlhwint(HW_L3CACHESIZE);
+  crc32c128(@StartupRandom, @CpuCache, SizeOf(CpuCache));
   CpuCacheSize := CpuCache[3].Size;
   if CpuCacheSize = 0 then
     CpuCacheSize := CpuCache[2].Size;
@@ -4910,9 +4769,9 @@ begin
   {$else}
   // pure LINUX branch
   GetSystemMacAddress := _GetSystemMacAddress;
-  if Sysinfo(@si) = 0 then // uptime + loadavg + meminfo + numprocess
+  if Sysinfo(@si) = 0 then
     SystemMemorySize := si.totalram * si.mem_unit;
-  crc32c128(@StartupEntropy, @si, SizeOf(si));
+  crc32c128(@StartupRandom, @si, SizeOf(si));
   // https://www.freedesktop.org/software/systemd/man/latest/os-release.html
   FindFileValue('/etc/os-release', 'PRETTY_NAME=', release); // new "standard"
   if release = '' then // oldest Linux Standard Base location
@@ -4949,22 +4808,16 @@ begin
       SetLinuxDistrib(dist);
       release := dist;
     end;
-    if OS_KIND = osLinux then
-      if (PosEx('RH', release) > 0) or
-         (PosEx('Red Hat', release) > 0) then
-        OS_KIND := osRedHat
-      else if (FpAccess('/usr/bin/apt', F_OK) = 0) or
-              (FpAccess('/usr/bin/apt-get', F_OK) = 0) then
-        OS_KIND := osApt  // seems Debian-based
-      else if FpAccess('/usr/bin/rpm', F_OK) = 0 then
-        OS_KIND := osRpm; // seems RPM-based
+    if (OS_KIND = osLinux) and
+       ((PosEx('RH', release) > 0) or
+        (PosEx('Red Hat', release) > 0)) then
+      OS_KIND := osRedHat;
   end;
   {$endif OSANDROID}
-  OS_DISTRI := LinuxDistribution(OS_KIND);
   cache := nil;
   SystemInfo.dwNumberOfProcessors := 0;
   CpuInfoLinux := StringFromFileNoSize('/proc/cpuinfo'); // too big for LoadProcFile
-  crc32c128(@StartupEntropy, pointer(CpuInfoLinux), length(CpuInfoLinux));
+  crc32c128(@StartupRandom, pointer(CpuInfoLinux), length(CpuInfoLinux));
   procid := -1;
   cpuinfo := pointer(CpuInfoLinux);
   while cpuinfo <> nil do
@@ -5054,10 +4907,10 @@ begin
     CpuSockets := 1;
   if fpuname(uts) < 0 then
     FillChar(uts, SizeOf(uts), 0);
-  crc32c128(@StartupEntropy, @uts, SizeOf(uts));
-  SystemInfo.uts.release  := uts.Release;
-  SystemInfo.uts.sysname  := uts.SysName;
-  SystemInfo.uts.version  := uts.Version;
+  crc32c128(@StartupRandom, @uts, SizeOf(uts));
+  SystemInfo.uts.release := uts.Release;
+  SystemInfo.uts.sysname := uts.SysName;
+  SystemInfo.uts.version := uts.Version;
   SystemInfo.uts.nodename := uts.NodeName;
   OSVersionText := Join([SystemInfo.uts.sysname, ' ', SystemInfo.uts.release]);
   if SystemInfo.release <> '' then
@@ -5065,7 +4918,7 @@ begin
   P := @uts.release[0];
   KernelRevision := _GetNextCardinal(P) shl 16 +
                     _GetNextCardinal(P) shl 8 +
-                    _GetNextCardinal(P); // 24-bit big endian for easy compare
+                    _GetNextCardinal(P); // stored in big endian for easy compare
   OSVersion32.os := OS_KIND;
   MoveByOne(@KernelRevision, @OSVersion32.utsrelease, 3); // 24-bit
   {$ifdef OSANDROID}
@@ -5086,17 +4939,9 @@ begin
       [SystemInfo.dwNumberOfProcessors, modname, CpuInfoText]);
   // intialize supported APIs
   TimeZoneLocalBias := -GetLocalTimeOffset;
-  _Fill256FromOs    := @__Fill256FromOs;
-  {$ifdef HASGETRANDOM}
-  if KernelRevision < $031100 then // since Kernel 3.17
-    include(_F0, fLinuxGetRandomFailed);
-  {$endif HASGETRANDOM}
-  {$ifdef HASEVENTFD}
-  if KernelRevision < $02061b then // since Kernel 2.6.27
-    include(_F0, fLinuxEventFdFailed);
-  {$endif HASEVENTFD}
-  // for inlined RTL calls (avoid one level of redirection)
+  XorEntropyGetOsRandom256 := @_XorEntropyGetOsRandom256;
   {$ifndef NODIRECTTHREADMANAGER}
+  // for inlined RTL calls (avoid one level of redirection)
   GetThreadManager(tm);
   @GetCurrentThreadId      := @tm.GetCurrentThreadId;
   @TryEnterCriticalSection := @tm.TryEnterCriticalSection;
@@ -5104,15 +4949,11 @@ begin
   @LeaveCriticalSection    := @tm.LeaveCriticalSection;
   {$endif NODIRECTTHREADMANAGER}
   {$ifdef OSDARWIN}
-  OSVersionText := Join([ToTextU(OSVersion32), ' (', OSVersionText, ')']);
+  OSVersionText := Join([ToText(OSVersion32), ' (', OSVersionText, ')']);
   mach_timebase_info(mach_timeinfo);
   mach_timecoeff := mach_timeinfo.Numer / mach_timeinfo.Denom;
-  if (mach_timeinfo.Numer = 1) and
-     (mach_timeinfo.Denom = 1) then
-    include(_F1, fMachTimeNanoSec);
-  PInt64Array(@uts)[0] := mach_absolute_time;
-  PInt64Array(@uts)[1] := PInt64(@mach_timecoeff)^;
-  crcblock(@StartupEntropy, @uts); // nanoseconds timestamp + coeff
+  mach_timenanosecond := (mach_timeinfo.Numer = 1) and
+                         (mach_timeinfo.Denom = 1);
   {$else}
   // try Linux kernel 2.6.32+ or FreeBSD 8.1+ fastest clocks
   tpfail := 0;
@@ -5123,18 +4964,17 @@ begin
   if clock_gettime(CLOCK_MONOTONIC_COARSE, @tp[1]) = 0 then
     CLOCK_MONOTONIC_FAST := CLOCK_MONOTONIC_COARSE
   else if clock_gettime(CLOCK_MONOTONIC_FAST,  @tp[1]) <> 0 then
-    tpfail := tpfail or 2;
+    tpfail := 2;
   {$ifdef OSLINUX}
   if clock_gettime(CLOCK_MONOTONIC_RAW, @tp[2]) = 0 then
     CLOCK_MONOTONIC_HIRES := CLOCK_MONOTONIC_RAW
   else if clock_gettime(CLOCK_MONOTONIC_HIRES, @tp[2]) <> 0 then
-    tpfail := tpfail or 4;
+    tpfail := 3;
   {$endif OSLINUX}
-  crc32c128(@StartupEntropy, @tp, SizeOf(tp)); // tp[0..2] in nanoseconds
-  // CpuCache, Executable.Hash, CpuFeatures will be added in main mormot.core.os
   if tpfail <> 0 then
-    ConsoleErrorWrite(_fmt('clock_gettime(%d) failed on %s - errno=%d',
-      [tpfail, OSVersionText, fpgeterrno])); // process is likely to fail anyway
+    raise EOSException.CreateFmt('clock_gettime(%d) failed on %s - errno=%d',
+      [tpfail, OSVersionText, fpgeterrno]);
+  crc32c128(@StartupRandom, @tp, SizeOf(tp)); // 3 nanoseconds timestamps
   // direct access to the pthread library if possible (Linux only)
   {$ifdef OSPTHREADSLIB}
   // mutex_lock() is blocking when dlopen run from a .so: cthreads uses both
@@ -5157,6 +4997,33 @@ begin
     @pthread_mutex_unlock  := dlsym(pthread, 'pthread_mutex_unlock');
   end;
   {$endif OSPTHREADSLIB}
+  // some ARM/AARCH64 specific initialization
+  {$ifdef CPUARM3264}
+  StrLen := @StrLenLibc; // libc version is faster than plain pascal or RTL code
+  MoveFast := @MoveFastLibC;
+  FillCharFast := @FillCharLibC;
+  {$ifdef ARMV8STATIC}
+  if ahcCrc32 in CpuFeatures then
+    try
+      if (crc32cby4arm64(0, 1) = 3712330424) and
+         (crc32carm64(0, @SystemInfo, SizeOf(SystemInfo)) =
+           crc32cfast(0, @SystemInfo, SizeOf(SystemInfo))) then
+      begin
+        crc32c          := @crc32carm64;
+        DefaultHasher   := @crc32carm64;
+        InterningHasher := @crc32carm64;
+        crc32cby4       := @crc32cby4arm64;
+        crcblock        := @crc32blockarm64;
+        crcblocks       := @crc32blocksarm64;
+      end;
+      if crc32arm64(0, @SystemInfo, SizeOf(SystemInfo)) =
+          crc32fast(0, @SystemInfo, SizeOf(SystemInfo)) then
+        crc32 := @crc32arm64;
+    except
+      exclude(CpuFeatures, ahcCrc32); // crc32 was actually not supported
+    end;
+  {$endif ARMV8STATIC}
+  {$endif CPUARM3264}
   {$ifdef CPUX64}
   {$ifdef OSLINUX}
   {$ifndef NOPATCHRTL}
@@ -5170,21 +5037,6 @@ begin
   {$endif OSLINUX}
   {$endif CPUX64}
   {$endif OSDARWIN}
-  {$ifdef OSLINUXANDROID}
-  // add entropy from auxiliary vectors - https://lwn.net/Articles/519085/
-  auxv := pointer(system.envp);
-  while auxv^ <> 0 do
-    inc(auxv);
-  inc(auxv); // set by kernel's ELF binary loader after all env PPAnsiChar
-  P := pointer(auxv);
-  while auxv[0] <> 0 do
-  begin
-    if auxv[0] = 25 then // AT_RANDOM: 16 random bytes (used for stacks canary)
-      XorMemory(StartupEntropy, PHash128Rec(auxv[1])^);
-    auxv := @auxv[2];
-  end;
-  crc32c128(@StartupEntropy, P, PAnsiChar(auxv) - P); // include all auxv info
-  {$endif OSLINUXANDROID}
 end;
 
 procedure FinalizeSpecificUnit;

@@ -1535,7 +1535,7 @@ var
   sqladd: RawUtf8;
 begin
   if DB.TransactionActive then
-    ERestStorage.RaiseU('CreateMissingTables in transaction');
+    raise ERestStorage.Create('CreateMissingTables in transaction');
   fDB.GetTableNames(tablesatcreation);
   nt := length(tablesatcreation);
   QuickSortRawUtf8(tablesatcreation, nt, nil, @StrIComp);
@@ -1945,7 +1945,7 @@ function TRestOrmServerDB.MainEngineRetrieve(TableModelIndex: integer;
   ID: TID): RawUtf8;
 var
   WR: TJsonWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
   msg: ShortString absolute tmp;
 begin
   // faster direct access with no ID inlining

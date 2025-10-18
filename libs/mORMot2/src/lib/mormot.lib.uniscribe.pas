@@ -30,8 +30,7 @@ implementation
 
 uses
   windows,
-  sysutils,
-  mormot.core.os;
+  sysutils;
 
 
 { ****************** UniScribe Shared Types }
@@ -359,7 +358,7 @@ begin
   begin
     FontSub := SafeLoadLibrary('FontSub.dll');
     if FontSub <> 0 then
-      CreateFontPackage := LibraryResolve(FontSub, 'CreateFontPackage');
+      CreateFontPackage := GetProcAddress(FontSub, 'CreateFontPackage');
   end;
   result := Assigned(@CreateFontPackage);
 end;

@@ -156,7 +156,7 @@ end;
 
 {$ifndef FPC_X86} // FPC RTL has fastmove.inc -> our SSE2/ERMS asm is slower
 
-// fast SSE2 version - force define HASNOSSE2 when run any very old CPU via FPUS
+// fast SSE2 version - force define HASNOSSE2 when run any very old CPU
 procedure MoveFast(const src; var dst; cnt: PtrInt);
 {$ifdef FPC}nostackframe; assembler;{$endif}
 asm
@@ -930,21 +930,39 @@ asm
         and     eax, $3f
 end;
 
-{$ifdef HASNOSSE2} // fallback to simple pascal/i386 code if no SSE2 available
+{$ifdef HASNOSSE2} // fallback to simple pascal code if no SSE2 available
 
 function ByteScanIndex(P: PByteArray; Count: PtrInt; Value: byte): PtrInt;
 begin
-  result := ByteScanIndexPas(P, Count, Value); // may be the FPC RTL
+  result := 0;
+  if P <> nil then
+    repeat
+      if result >= Count then
+        break;
+      if P^[result] = Value then
+        exit;
+      inc(result);
+    until false;
+  result := -1;
 end;
 
 function WordScanIndex(P: PWordArray; Count: PtrInt; Value: word): PtrInt;
 begin
-  result := WordScanIndexPas(P, Count, Value);
+  result := 0;
+  if P <> nil then
+    repeat
+      if result >= Count then
+        break;
+      if P^[result] = Value then
+        exit;
+      inc(result);
+    until false;
+  result := -1;
 end;
 
 function IntegerScanIndex(P: PCardinalArray; Count: PtrInt; Value: cardinal): PtrInt;
 begin
-  result := PtrUInt(IntegerScan(P, Count, Value)); // call pure i386 asm below
+  result := PtrUInt(IntegerScan(P, Count, Value));
   if result = 0 then
     dec(result)
   else
@@ -2181,12 +2199,26 @@ asm
         sub     eax, 11
         mov     [esp+4], eax
         xor     eax, eax
+        lea     ebx, [esp+24H] // reset offsets lookup table
+        {$ifdef HASNOSSE2}
+        mov     ecx, 1024
+@@089I: mov     [ebx], eax
+        mov     [ebx + 4], eax
+        mov     [ebx + 8], eax
+        mov     [ebx + 12], eax
+        add     ebx, 16
+        {$else}
+        pxor    xmm0, xmm0
+        mov     ecx, 256
+@@089I: movups  dqword ptr [ebx], xmm0
+        movups  dqword ptr [ebx + 16], xmm0
+        movups  dqword ptr [ebx + 32], xmm0
+        movups  dqword ptr [ebx + 48], xmm0
+        add     ebx, 64
+        {$endif HASNOSSE2}
+        dec     ecx
+        jnz     @@089I
         mov     [edi], eax
-        lea     edi, [esp+24H] // reset 16KB offsets lookup table using ERMS
-        mov     ecx, 4096
-        cld
-        rep stosd
-        mov     edi, [esp+18H]
         add     edi, 4
         mov     ebx, 1 // ebx=1 shl CWbit
         // main loop:
@@ -2411,7 +2443,7 @@ asm
         pop     esi
 end;
 
-{$ifdef WIN32DELPHI}
+{$ifdef CPU32DELPHI}
 
 // inspired by ValExt_JOH_PAS_8_a by John O'Harrow - calls Delphi System.@Pow10
 function GetExtended(P: PUtf8Char; out err: integer): TSynExtended;
@@ -2594,16 +2626,17 @@ asm
 end;
 
 function BSRqword(const q: qword): cardinal;
-var
-  c: cardinal; // CPU32 and inlining friendly
-begin
-  c := q shr 32;
-  if c = 0  then
-    result := BsrDword(cardinal(q)) // search in lowest 32-bit
-  else
-    result := BsrDword(c) or 32;   // search in highest 32-bit
+asm
+        bsr     eax, [esp + 8]
+        jz      @1
+        add     eax, 32
+        ret
+@1:     bsr     eax, [esp + 4]
+        jnz     @2
+        mov     eax, 255
+@2:
 end;
 
-{$endif WIN32DELPHI}
+{$endif CPU32DELPHI}
 
 

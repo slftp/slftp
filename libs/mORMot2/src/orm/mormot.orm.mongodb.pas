@@ -536,7 +536,7 @@ begin
       // using the ORM/pascal declared types
       info := fStoredClassRecordProps.Fields.List[ndx];
       V := @Doc.Values[i];
-      case cardinal(V^.Data.VType) of // 32-bit V^.VType is not correct here
+      case V^.Data.VType of // 32-bit overlapped V^.VType is not correct here
         varInteger:
           // normalize 32-bit integer values into MongoDB boolean or date/time
           case info.OrmFieldType of
@@ -939,7 +939,7 @@ var
   W: TJsonWriter;
   temp: TTextWriterStackBuffer; // shared fTempBuffer is not protected now
 begin
-  if (cardinal(doc.VarType) <> DocVariantVType) or
+  if (doc.VarType <> DocVariantType.VarType) or
      (doc.Kind <> dvObject) or
      (doc.Count = 0) then
   begin

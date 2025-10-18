@@ -597,7 +597,7 @@ const
 
   /// DestroyPtr set to SQLITE_TRANSIENT_VIRTUALTABLE for setting results to
   // SQLite3 virtual tables columns
-  // - due to a bug (?) of the SQLite3 engine under Win64
+  // - due to a bug of the SQLite3 engine under Win64
   SQLITE_TRANSIENT_VIRTUALTABLE = pointer(integer(-1));
 
   /// pseudo database file name used to create an in-memory database
@@ -4542,7 +4542,7 @@ type
     // - by default, won't write more than 512MB of JSON, to avoid OutOfMemory
     // - returns the number of data rows added to JSON (excluding the headers)
     function Execute(aDB: TSqlite3DB; const aSql: RawUtf8; Json: TStream;
-      Expand: boolean = false; MaxMemory: PtrInt = 512 shl 20;
+      Expand: boolean = false; MaxMemory: PtrUInt = 512 shl 20;
       Options: TTextWriterOptions = []): PtrInt; overload;
     /// Execute one SQL statement which return the results in JSON format
     // - use internally Execute() above with a TRawByteStringStream, and return
@@ -4555,7 +4555,7 @@ type
     // - if any error occurs, ESqlite3Exception is catched and '' is returned
     function ExecuteJson(aDB: TSqlite3DB; const aSql: RawUtf8;
       Expand: boolean = false; aResultCount: PPtrInt = nil;
-      MaxMemory: PtrInt = 512 shl 20; Options: TTextWriterOptions = []): RawUtf8;
+      MaxMemory: PtrUInt = 512 shl 20; Options: TTextWriterOptions = []): RawUtf8;
     /// Execute one SQL statement step into a JSON object
     // - has less overhead than ExecuteJson() for a single row of data
     function ExecuteStepJson(aDB: TSqlite3DB; W: TJsonWriter): boolean;
@@ -4907,7 +4907,7 @@ type
   // TSqlite3Library.AfterInitialization did set SQLITE_CONFIG_MULTITHREAD flag
   // - can cache last results for SELECT statements, if property UseCache is true:
   //  this can speed up most read queries, for web server or client UI e.g.
-  TSqlDataBase = class(TObjectOSLock)
+  TSqlDataBase = class(TSynLocked)
   protected
     fDB: TSqlite3DB;
     fFileName: TFileName;
@@ -5023,8 +5023,6 @@ type
     // Operating System (Win32 API or ICU) - so may not be consistent when you
     // move the SQLite3 database file: consider SYSTEMNOCASE or UNICODENOCASE
     // - ISO8601 collation is added (TDateTime stored as ISO-8601 encoded TEXT)
-    // - those collations are available stand-alone as an extension, for third-party
-    // programs like SQliteStudio, via https://github.com/zedxxx/sqlite3-mormot-collate
     // - some additional SQL functions are registered: MOD, SOUNDEX/SOUNDEXFR/SOUNDEXES,
     // RANK, CONCAT, TIMELOG, TIMELOGUNIX, JSONGET/JSONHAS/JSONSET and TDynArray-Blob
     // Byte/Word/Integer/Cardinal/Int64/Currency/RawUtf8DynArrayContains
@@ -5229,9 +5227,8 @@ type
     // - warning: this method won't call the Windows message loop, so should not
     // be called from main thread, unless the UI may become unresponsive: you
     // should better rely on OnProgress() callback for any GUI application
-    // - by default, it will wait forever (up to 5 minutes to be precise), so
-    // that process is finished, but you can set a time out (in seconds) after
-    // which the process will be aborted
+    // - by default, it will wait forever so that process is finished, but you
+    // can set a time out (in seconds) after which the process will be aborted
     // - could be used with BackupBackground() and StepPageNumber=-1 to perform
     // a whole copy of a database in one shot:
     // ! if aDB.BackupBackground('backup.db3',-1,0,nil) then
@@ -6013,7 +6010,7 @@ end;
 
 function TSqlite3Library.GetVersion: RawUtf8;
 const
-  mm: array[boolean] of TShort3 = ('ex', 'in');
+  mm: array[boolean] of string[2] = ('ex', 'in');
 begin
   if self = nil then
     result := 'No TSqlite3Library available'
@@ -6282,9 +6279,8 @@ end;
 
   2. Some collations (WIN32CASE/WIN32NOCASE) may not be consistent depenging
      on the system/libray they run on: if you expect to move the SQLite3 file,
-     consider SYSTEMNOCASE or UNICODENOCASE safer (and faster) functions,
-     os use an extension e.g. https://github.com/zedxxx/sqlite3-mormot-collate
-}
+     consider SYSTEMNOCASE or UNICODENOCASE safer (and faster) functions.
+  }
 
 function Utf16_WIN32CASE(CollateParam: pointer; s1Len: integer; S1: pointer;
   s2Len: integer; S2: pointer): integer; cdecl;
@@ -7407,22 +7403,22 @@ procedure TSqlDataBase.BackupBackgroundWaitUntilFinished(
   end;
 
 var
-  endtix: cardinal;
+  endtix: Int64;
 begin
   if fBackupBackgroundInProcess = nil then
     exit;
   if TimeOutSeconds < 0 then
-    // TimeOutSeconds=-1 for infinite wait (unsafe!) -> 5 minutes seems enough
-    TimeOutSeconds := 5 * SecsPerMin;
+    // TimeOutSeconds=-1 for infinite wait (unsafe!) -> 1 minute seems enough
+    TimeOutSeconds := 60;
   fLog.Add.Log(sllDB,'BackupBackgroundWaitUntilFinished(%) wait on % - %',
     [TimeOutSeconds, FileNameWithoutPath, StepAsText], self);
-  endtix := GetTickSec + cardinal(TimeOutSeconds);
+  endtix := GetTickCount64 + TimeOutSeconds shl MilliSecsPerSecShl;
   repeat
     // wait for "natural" process ending
     SleepHiRes(10);
     if fBackupBackgroundInProcess = nil then
       exit;
-  until GetTickSec > endtix;
+  until GetTickCount64 > endtix;
   fLog.Add.Log(sllDB,'BackupBackgroundWaitUntilFinished force abort on % - %',
     [FileNameWithoutPath, StepAsText], self);
   Lock;
@@ -7430,12 +7426,12 @@ begin
     // notify Execute to force loop abortion
     fBackupBackgroundInProcess.Terminate;
   UnLock;
-  endtix := GetTickSec + cardinal(TimeOutSeconds);
+  endtix := GetTickCount64 + TimeOutSeconds shl MilliSecsPerSecShl;
   repeat
     // wait for the background process to be actually aborted
     SleepHiRes(10);
   until (fBackupBackgroundInProcess = nil) or
-        (GetTickSec > endtix);
+        (GetTickCount64 > endtix);
   fLog.Add.Log(sllError,'BackupBackgroundWaitUntilFinished(%) ended on % - %',
     [TimeOutSeconds, FileNameWithoutPath, StepAsText],self);
 end;
@@ -7884,13 +7880,13 @@ begin
           c := PInteger(p^.VAnsiString)^ and $00ffffff;
           if c = JSON_BASE64_MAGIC_C then
           begin
-            Base64ToBin(p^.VPChar + 3, PStrLen(p^.VPChar - _STRLEN)^ - 3,
+            Base64ToBin(p^.VPChar + 3, length(RawUtf8(p^.VAnsiString)) - 3,
               RawByteString(tmp));
             BindBlob(arg, tmp);
           end
           else if c = JSON_SQLDATE_MAGIC_C then // store as ISO-8601 text
             BindU(arg, PUtf8Char(p^.VAnsiString) + 3,
-                       PStrLen(p^.VPChar - _STRLEN)^ - 3)
+                     length(RawUtf8(p^.VAnsiString)) - 3)
           else
             Bind(arg, RawUtf8(p^.VAnsiString)); // assume CP_UTF8
         end;
@@ -7955,23 +7951,22 @@ end;
 
 procedure TSqlRequest.BindS(Param: integer; const Value: string);
 var
-  V, P: PUtf8Char;
+  P: PUtf8Char;
   len: integer;
 begin
-  V := pointer(Value);
-  if V = nil then
+  if pointer(Value) = nil then
   begin
     // avoid to bind '' as null
     sqlite3_check(RequestDB,
       sqlite3.bind_text(Request, Param, @NULCHAR, 0, SQLITE_STATIC));
     exit;
   end;
-  len := PStrLen(V - _STRLEN)^;
+  len := length(Value);
   GetMem(P, len * 3 + 1);
   {$ifdef UNICODE}
-  len := RawUnicodeToUtf8(P, len * 3, pointer(V), len, []);
+  len := RawUnicodeToUtf8(P, len * 3, pointer(Value), len, []);
   {$else}
-  len := CurrentAnsiConvert.AnsiBufferToUtf8(P, pointer(V), len) - P;
+  len := CurrentAnsiConvert.AnsiBufferToUtf8(P, pointer(Value), len) - P;
   {$endif UNICODE}
   sqlite3_check(RequestDB,
     sqlite3.bind_text(Request, Param, P, len, @sqlite3InternalFree), 'BindS');
@@ -8197,19 +8192,19 @@ begin
 end;
 
 function TSqlRequest.Execute(aDB: TSqlite3DB; const aSql: RawUtf8;
-  Json: TStream; Expand: boolean; MaxMemory: PtrInt;
+  Json: TStream; Expand: boolean; MaxMemory: PtrUInt;
   Options: TTextWriterOptions): PtrInt;
 // expand=true: [ {"col1":val11,"col2":"val12"},{"col1":val21,... ]
 // expand=false: { "FieldCount":2,"Values":["col1","col2",val11,"val12",val21,..] }
 var
   i: PtrInt;
   W: TResultsWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   result := 0;
   W := TResultsWriter.Create(Json, Expand, false, nil, 0, @tmp);
   try
-    W.CustomOptions := Options;
+    W.CustomOptions := W.CustomOptions + Options;
     // prepare the SQL request
     if aSql <> '' then // if not already prepared, reset and bound by caller
       Prepare(aDB, aSql); // will raise an ESqlite3Exception on error
@@ -8295,7 +8290,7 @@ end;
 {$I+}
 
 function TSqlRequest.ExecuteJson(aDB: TSqlite3DB; const aSql: RawUtf8;
-  Expand: boolean; aResultCount: PPtrInt; MaxMemory: PtrInt;
+  Expand: boolean; aResultCount: PPtrInt; MaxMemory: PtrUInt;
   Options: TTextWriterOptions): RawUtf8;
 var
   Stream: TRawByteStringStream;
@@ -9024,7 +9019,8 @@ end;
 
 procedure TSqlStatementCached.SortCacheByTotalTime(var aIndex: TIntegerDynArray);
 begin
-  PDynArray(@Caches)^.CreateOrderedIndex(aIndex, StatementCacheTotalTimeCompare);
+  Caches.{$ifdef UNDIRECTDYNARRAY}InternalDynArray.{$endif}
+    CreateOrderedIndex(aIndex, StatementCacheTotalTimeCompare);
 end;
 
 
@@ -9163,7 +9159,7 @@ begin
     end;
   except
   end;
-  SQLite3Log.NotifyThreadEnded;
+  SQLite3Log.Add.NotifyThreadEnded;
 end;
 
 function IsSQLite3File(const FileName: TFileName; PageSize: PInteger): boolean;
@@ -9201,7 +9197,7 @@ begin
   result := (FileRead(F, Header, SizeOf(Header)) = SizeOf(Header)) and
             // header bytes 8..15 are encrypted bytes 16..23
             // header bytes 16..23 are stored unencrypted
-            (Header.d0 =  SQLITE_FILE_HEADER128.Lo) and
+            (Header.d0 = SQLITE_FILE_HEADER128.Lo) and
             (Header.d1 <> SQLITE_FILE_HEADER128.Hi) and
             (Header.b[21] = 64) and
             (Header.b[22] = 32) and

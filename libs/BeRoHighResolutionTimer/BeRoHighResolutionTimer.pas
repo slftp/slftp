@@ -617,4 +617,3 @@ finalization
  timeEndPeriod(1);
 {$endif}
 end.
- 

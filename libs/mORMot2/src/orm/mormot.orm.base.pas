@@ -61,11 +61,11 @@ const
   /// after how many parameters inlining is not worth it
   INLINED_MAX = 10;
 
-  /// the used TAuthSession.ID value if the session not started yet
+  /// the used TAuthSession.IDCardinal value if the session not started yet
   // - i.e. if the session handling is still in its handshaking phase
   CONST_AUTHENTICATION_SESSION_NOT_STARTED = 0;
 
-  /// the used TAuthSession.ID value if authentication mode is not set
+  /// the used TAuthSession.IDCardinal value if authentication mode is not set
   // - i.e. if TRest.HandleAuthentication equals FALSE
   CONST_AUTHENTICATION_NOT_USED = 1;
 
@@ -421,6 +421,7 @@ const
     ooUpdate,    // oeUpdate
     ooDelete,    // oeDelete
     ooUpdate);   // oeUpdateBlob
+
 
 // backward compatibility types redirections
 {$ifndef PUREMORMOT2}
@@ -1084,7 +1085,6 @@ type
     // - this default implementation will call GetValueVar() for slow comparison
     function CompareValue(Item1, Item2: TObject; CaseInsensitive: boolean): integer; virtual;
     /// retrieve an unsigned 32-bit hash of the corresponding property
-    // - as used by TRestStorageInMemoryUnique when indexing this property
     // - not all kind of properties are handled: only main types
     // - if CaseInsensitive is TRUE, will apply NormToUpper[] 8-bit uppercase,
     // handling RawUtf8 properties just like the SYSTEMNOCASE collation
@@ -2183,6 +2183,8 @@ type
     function GetU(Row: PtrInt; const FieldName: RawUtf8): RawUtf8; overload;
     /// read-only access to a particular field value, as Win Ansi text
     function GetA(Row, Field: PtrInt): WinAnsiString;
+    /// read-only access to a particular field value, as Win Ansi text ShortString
+    function GetS(Row, Field: PtrInt): ShortString;
     /// read-only access to a particular field value, as boolean
     function GetB(Row, Field: PtrInt): boolean;
     /// read-only access to a particular field value, as a Variant
@@ -2786,8 +2788,8 @@ type
   {$endif USERECORDWITHMETHODS}
   private
     fSafe: TRWLock; // thread-safe and not blocking concurrent IsLocked()
-    fID: TIDDynArray;        // array [0..Count-1] of locked TID
-    fTix: TCardinalDynArray; // GetTickSec values at the Lock() time
+    fID: TIDDynArray;       // array [0..Count-1] of locked TID
+    fTix: TIntegerDynArray; // GetTickCount64 shr 10 values at the Lock() time
     fCount: PtrInt;
     fLastPurge: integer;
   public
@@ -2940,7 +2942,7 @@ type
     fBlobFields: TOrmPropInfoRttiRawBlobDynArray;
     fSqlTableName: RawUtf8;
     fLastFieldsSafe: TLightLock; // topmost to ensure proper aarch64 alignment
-    fSafe: TOSLightLock; // = TOSLightMutex = SRW lock or direct pthread mutex
+    fSafe: TOSLightLock;
     fHasNotSimpleFields: boolean;
     fDynArrayFieldsHasObjArray: boolean;
     fHasTypeFields: TOrmFieldTypes;
@@ -3443,7 +3445,7 @@ function EncodeAsSqlPrepared(const Decoder: TJsonObjectDecoder;
 var
   f: PtrInt;
   W: TJsonWriter;
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
@@ -3451,7 +3453,7 @@ begin
       ooUpdate:
         begin
           if Decoder.FieldCount = 0 then
-            EJsonObjectDecoder.RaiseU('Invalid EncodeAsSqlPrepared(0)');
+            raise EJsonObjectDecoder.Create('Invalid EncodeAsSqlPrepared(0)');
           W.AddShorter('update ');
           W.AddString(TableName);
           if Decoder.DecodedFieldTypesToUnnest <> nil then
@@ -4787,8 +4789,6 @@ begin
   IntValue := GetInteger(pointer(Value));
   if Value = '' then
     result := ''
-  else if fOrmFieldType = oftBoolean then // FPC has weird text RTTI for booleans
-    result := Ansi7ToString(BOOL_UTF8[IntValue <> 0])
   else
     result := EnumType^.GetCaption(IntValue);
 end;
@@ -6171,7 +6171,7 @@ begin
   W.Add('"');
   fPropInfo.GetWideStrProp(Instance, Value);
   if pointer(Value) <> nil then
-    W.AddJsonEscapeW(pointer(Value));
+    W.AddJsonEscapeW(pointer(Value), 0);
   W.AddDirect('"');
 end;
 
@@ -6287,7 +6287,7 @@ begin
   W.Add('"');
   fPropInfo.GetUnicodeStrProp(Instance, tmp);
   if tmp <> '' then
-    W.AddJsonEscapeW(pointer(tmp));
+    W.AddJsonEscapeW(pointer(tmp), 0);
   W.AddDirect('"');
 end;
 
@@ -6400,7 +6400,7 @@ procedure TOrmPropInfoRttiDynArray.Serialize(Instance: TObject;
   var data: RawByteString; ExtendedJson: boolean);
 var
   da: TDynArray;
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 begin
   GetDynArray(Instance, da);
   if da.Count = 0 then
@@ -6410,7 +6410,7 @@ begin
     with TJsonWriter.CreateOwnedStream(temp) do
     try
       if ExtendedJson then // smaller content
-        CustomOptions := [twoForceJsonExtended];
+        CustomOptions := CustomOptions + [twoForceJsonExtended];
       AddDynArrayJson(da);
       SetText(RawUtf8(data));
     finally
@@ -6663,11 +6663,9 @@ function TOrmPropInfoRttiVariant.GetHash(Instance: TObject;
   CaseInsensitive: boolean): cardinal;
 var
   value: Variant;
-  max: integer;
 begin
   fPropInfo.GetVariantProp(Instance, value, {byref=}true);
-  max := 255; // inlined HashVariant/HashVariantI
-  result := VariantHash(OrmHashSeed, value, max, CaseInsensitive, nil);
+  result := VariantHash(value, CaseInsensitive);
 end;
 
 procedure TOrmPropInfoRttiVariant.GetJsonValues(Instance: TObject; W: TJsonWriter);
@@ -7214,7 +7212,7 @@ procedure TOrmPropInfoCustomJson.GetValueVar(Instance: TObject; ToSql: boolean;
   var result: RawUtf8; wasSqlString: PBoolean);
 var
   W: TJsonWriter;
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
@@ -7781,7 +7779,7 @@ procedure TOrmPropInfoList.ToCsvText(const Prefix: array of const;
 var
   f: PtrInt;
   W: TJsonWriter; // TJsonWriter.Add(Prefix) so TTextWriter is not enough
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
@@ -8772,7 +8770,7 @@ begin
         result := UnixTimeToDateTime(GetInt64(P));
       oftUnixMSTime:
         result := UnixMSTimeToDateTime(GetInt64(P));
-    else // oftDateTime and any other kind will try f²rom ISO-8601 text
+    else // oftDateTime and any other kind will try from ISO-8601 text
       result := Iso8601ToDateTimePUtf8Char(P);
     end;
 end;
@@ -8780,6 +8778,11 @@ end;
 function TOrmTableAbstract.GetAsDateTime(Row: PtrInt; const FieldName: RawUtf8): TDateTime;
 begin
   result := GetAsDateTime(Row, FieldIndex(FieldName));
+end;
+
+function TOrmTableAbstract.GetS(Row, Field: PtrInt): ShortString;
+begin
+  Utf8ToShortString(result, Get(Row, Field));
 end;
 
 function TOrmTableAbstract.GetB(Row, Field: PtrInt): boolean;
@@ -9018,7 +9021,7 @@ begin
     begin
       U := GetResults(o);
       if W.Expand then
-        W.AddString(W.ColNames[f]); // '"' + ColNames[] + '":'
+        W.AddString(W.ColNames[f]); // '"'+ColNames[]+'":'
       if Assigned(OnExportValue) then
         W.AddString(OnExportValue(self, r, f, false))
       else if (IDBinarySize > 0) and
@@ -9069,7 +9072,7 @@ procedure TOrmTableAbstract.GetJsonValues(Json: TStream; Expand: boolean;
   RowFirst, RowLast: PtrInt; IDBinarySize: integer);
 var
   W: TResultsWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   W := TResultsWriter.Create(Json, Expand, false, nil, 0, @tmp);
   try
@@ -9417,7 +9420,7 @@ end;
 function TOrmTableAbstract.GetHtmlTable(const Header: RawUtf8): RawUtf8;
 var
   W: TJsonWriter;
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 begin
   W := TJsonWriter.CreateOwnedStream(temp);
   try
@@ -10480,7 +10483,7 @@ begin
   end
   else
   begin
-    if cardinal(Source.VType) <> cardinal(VarType) then
+    if Source.VType <> VarType then
       RaiseCastError;
     r := TOrmTableRowVariantData(Source).VRow;
     if r < 0 then
@@ -10519,7 +10522,7 @@ procedure TOrmTableRowVariant.Iterate(var Dest: TVarData;
   const V: TVarData; Index: integer);
 begin
   if cardinal(Index) < cardinal(TOrmTableRowVariantData(V).VTable.fRowCount) then
-    TOrmTableRowVariantData(V).VTable.ToDocVariant(Index, PVariant(@Dest)^)
+    Dest := V
   else
     TSynVarData(Dest).VType := varEmpty;
 end;
@@ -10565,7 +10568,7 @@ begin
         n := fCount;
       end;
       fID[n] := aID;
-      fTix[n] := GetTickSec;
+      fTix[n] := GetTickCount64 shr MilliSecsPerSecShl;
       inc(fCount);
     finally
       fSafe.WriteUnLock;
@@ -10650,22 +10653,22 @@ begin
      (fCount = 0) or
      (MinutesFromNow = 0) then
     exit; // nothing to purge
-  old := GetTickSec;
+  old := GetTickCount64 shr MilliSecsPerSecShl; // as seconds
   if old - fLastPurge < 60 then
     exit; // no need to purge more than once per minute
   fLastPurge := old;
-  dec(old, cardinal(MinutesFromNow) * 60);
+  dec(old, MinutesFromNow * 60);
   if old <= 0 then
     exit; // this computer just started
   fSafe.WriteLock;
   try
     n := 0;
     for i := 0 to fCount - 1 do // brute force is fast enough every minute
-      if fTix[i] >= cardinal(old) then
+      if fTix[i] >= old then
       begin
         if n <> i then
         begin
-          fID[n]  := fID[i]; // in-place purge
+          fID[n] := fID[i];
           fTix[n] := fTix[i];
         end;
         inc(n);
@@ -11215,7 +11218,7 @@ var
   W: TTextWriter;
   Start: PUtf8Char;
   info: TGetJsonField;
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 begin
   info.Json := P;
   if info.Json = nil then
@@ -11238,7 +11241,7 @@ begin
   W := TTextWriter.CreateOwnedStream(temp);
   try
     if sfoExtendedJson in Format then
-      W.CustomOptions := [twoForceJsonExtended];
+      W.CustomOptions := W.CustomOptions + [twoForceJsonExtended];
     W.AddDirect('{');
     if (decoded <> 0) and
        (sfoPutIDFirst in Format) then
@@ -11680,8 +11683,7 @@ procedure InitializeUnit;
 var
   ptc: TRttiParserComplexType;
 begin
-  // in-memory hashing are seeded from random to avoid hash flooding
-  OrmHashSeed := SharedRandom.Generator.Next xor StartupEntropy.c1;
+  OrmHashSeed := Random32Not0; // avoid hash flooding
   // manual set of OrmFieldTypeComp[] which are not exact TUtf8Compare match
   pointer(@OrmFieldTypeComp[oftAnsiText])   := @AnsiIComp;
   pointer(@OrmFieldTypeComp[oftUtf8Custom]) := @AnsiIComp;

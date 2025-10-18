@@ -276,38 +276,6 @@ function SearchFieldIndex(var Indexes: TFieldIndexDynArray; Field: integer): Ptr
 function FieldIndexToBits(const Index: TFieldIndexDynArray): TFieldBits; overload;
   {$ifdef HASINLINE}inline;{$endif}
 
-const { published only for regression tests - do not use! }
-  // "as at by do if in is no of on or to" char pairs
-  SQL_KEYWORDS_BY2: array[0 .. 12 * 2 - 1] of AnsiChar =
-    'ASATBYDOIFINISNOOFONORTO';
-
-  // minimal list - https://sqlite.org/lang_createtable.html + SQL_KEYWORDS_BY2
-  SQL_KEYWORDS: array[0 .. 16] of PUtf8Char = (
-    'AND', 'CHECK', 'COLLATE', 'CONSTRAINT', 'DEFAULT', 'FOREIGN', 'FROM',
-    'GROUP', 'JOIN', 'LIKE', 'LIMIT', 'NOT', 'NULL', 'ORDER', 'PRIMARY',
-    'UNIQUE', 'WHERE');
-
-  // see https://sqlite.org/lang_keywords.html + SQL_KEYWORDS_BY2
-  SQLITE_KEYWORDS: array[0 ..  135] of PUtf8Char = (
-    'ABORT', 'ACTION', 'ADD', 'AFTER', 'ALL', 'ALTER', 'ALWAYS', 'ANALYZE',
-    'AND', 'ASC', 'ATTACH', 'AUTOINCREMENT', 'BEFORE', 'BEGIN', 'BETWEEN',
-    'CASCADE', 'CASE', 'CAST', 'CHECK', 'COLLATE', 'COLUMN', 'COMMIT',
-    'CONFLICT', 'CONSTRAINT', 'CREATE', 'CROSS', 'CURRENT', 'CURRENT_DATE',
-    'CURRENT_TIME', 'CURRENT_TIMESTAMP', 'DATABASE', 'DEFAULT', 'DEFERRABLE',
-    'DEFERRED', 'DELETE', 'DESC', 'DETACH', 'DISTINCT', 'DROP', 'EACH', 'ELSE',
-    'END', 'ESCAPE', 'EXCEPT', 'EXCLUDE', 'EXCLUSIVE', 'EXISTS', 'EXPLAIN',
-    'FAIL', 'FILTER', 'FIRST', 'FOLLOWING', 'FOR', 'FOREIGN', 'FROM', 'FULL',
-    'GENERATED', 'GLOB', 'GROUP', 'GROUPS', 'HAVING', 'IGNORE', 'IMMEDIATE',
-    'INDEX', 'INDEXED', 'INITIALLY', 'INNER', 'INSERT', 'INSTEAD', 'INTERSECT',
-    'INTO', 'ISNULL', 'JOIN', 'KEY', 'LAST', 'LEFT', 'LIKE', 'LIMIT', 'MATCH',
-    'MATERIALIZED', 'NATURAL', 'NOT', 'NOTHING', 'NOTNULL', 'NULL', 'NULLS',
-    'OFFSET', 'ORDER', 'OTHERS', 'OUTER', 'OVER', 'PARTITION', 'PLAN', 'PRAGMA',
-    'PRECEDING', 'PRIMARY', 'QUERY', 'RAISE', 'RANGE', 'RECURSIVE', 'REFERENCES',
-    'REGEXP', 'REINDEX', 'RELEASE', 'RENAME', 'REPLACE', 'RESTRICT', 'RETURNING',
-    'RIGHT', 'ROLLBACK', 'ROW', 'ROWS', 'SAVEPOINT', 'SELECT', 'SET', 'TABLE',
-    'TEMP', 'TEMPORARY', 'THEN', 'TIES', 'TRANSACTION', 'TRIGGER', 'UNBOUNDED',
-    'UNION', 'UNIQUE', 'UPDATE', 'USING', 'VACUUM', 'VALUES', 'VIEW', 'VIRTUAL',
-    'WHEN', 'WHERE', 'WINDOW', 'WITH', 'WITHOUT');
 
 /// returns TRUE if the specified field name is either 'ID', either 'ROWID'
 function IsRowID(FieldName: PUtf8Char): boolean;
@@ -320,17 +288,6 @@ function IsRowID(FieldName: PUtf8Char; FieldLen: integer): boolean;
 /// returns TRUE if the specified field name is either 'ID', either 'ROWID'
 function IsRowIDShort(const FieldName: ShortString): boolean;
   {$ifdef HASINLINE}inline;{$endif} overload;
-
-/// quickly recognize AS AT BY DO IF IN IS NO OF ON OR TO char pairs
-// - used e.g. by ReplaceParamsByNames() to generate valid :XX parameters
-function IsSqlReservedByTwo(TwoChars: PUtf8Char): boolean;
-
-/// recognize most basic SQL keywords - rough estimate for table/field names
-function IsSqlReserved(const Text: RawUtf8): boolean;
-
-/// recognize all SQLite3 keywords - from https://sqlite.org/lang_keywords.html
-// - consider using TSqlDBConnectionProperties.IsSqlKeyword() for complete check
-function IsSqliteReserved(const Text: RawUtf8): boolean;
 
 /// returns the stored size of a TSqlVar database value
 // - only returns VBlobLen / StrLen(VText) size, 0 otherwise
@@ -471,9 +428,9 @@ type
 {$ifndef PUREMORMOT2}
 
 type
-  TSqlFieldBits          = TFieldBits;
-  PSqlFieldBits          = PFieldBits;
-  TSqlFieldIndex         = TFieldIndex;
+  TSqlFieldBits = TFieldBits;
+  PSqlFieldBits = PFieldBits;
+  TSqlFieldIndex = TFieldIndex;
   TSqlFieldIndexDynArray = TFieldIndexDynArray;
 
 {$endif PUREMORMOT2}
@@ -1798,7 +1755,7 @@ end;
 function IsRowID(FieldName: PUtf8Char; FieldLen: integer): boolean;
 begin
   if FieldLen = 2 then
-    result := PInteger(FieldName)^ and $dfdf = ord('I') + ord('D') shl 8
+    result := PWord(FieldName)^ and $dfdf = ord('I') + ord('D') shl 8
   else if FieldLen = 5 then
     result := (PInteger(FieldName)^ and $dfdfdfdf =
                ord('R') + ord('O') shl 8 + ord('W') shl 16 + ord('I') shl 24) and
@@ -1816,109 +1773,79 @@ begin
              (PIntegerArray(@FieldName)^[1] and $dfdf = ord('I') + ord('D') shl 8)));
 end;
 
-function IsSqlReservedByTwo(TwoChars: PUtf8Char): boolean;
-begin
-  result := WordScanIndex(@SQL_KEYWORDS_BY2, length(SQL_KEYWORDS_BY2) shr 1,
-                          PWord(TwoChars)^ and $dfdf) >= 0;
-end;
-
-function IsSqlRaw(const Text: RawUtf8; K: pointer; R: PtrInt): boolean;
-var
-  L: PtrInt;
-begin
-  L := length(Text);
-  case L of
-    2:
-      result := IsSqlReservedByTwo(pointer(Text));
-    3 .. 17:
-      result := FastFindUpperPUtf8CharSorted(K, R, pointer(Text), L) >= 0;
-  else
-    result := false;
-  end;
-end;
-
-function IsSqlReserved(const Text: RawUtf8): boolean;
-begin
-  result := IsSqlRaw(Text, @SQL_KEYWORDS, high(SQL_KEYWORDS));
-end;
-
-function IsSqliteReserved(const Text: RawUtf8): boolean;
-begin
-  result := IsSqlRaw(Text, @SQLITE_KEYWORDS, high(SQLITE_KEYWORDS));
-end;
-
 procedure VariantToSqlVar(const Input: variant; var temp: RawByteString;
   var Output: TSqlVar);
 var
   wasString: boolean;
-  inp: TVarData absolute Input;
 begin
   Output.Options := [];
-  case cardinal(inp.VType) of
-    varEmpty,
-    varNull:
-      Output.VType := ftNull;
-    varByte:
-      begin
-        Output.VType := ftInt64;
-        Output.VInt64 := inp.VByte;
-      end;
-    varInteger:
-      begin
-        Output.VType := ftInt64;
-        Output.VInt64 := inp.VInteger;
-      end;
-    varLongWord:
-      begin
-        Output.VType := ftInt64;
-        Output.VInt64 := inp.VLongWord;
-      end;
-    varWord64,
-    varInt64:
-      begin
-        Output.VType := ftInt64;
-        Output.VInt64 := inp.VInt64;
-      end;
-    varSingle:
-      begin
-        Output.VType := ftDouble;
-        Output.VDouble := inp.VSingle;
-      end;
-    varDouble:
-      begin
-        // varDate would be converted into ISO-8601 by VariantToUtf8()
-        Output.VType := ftDouble;
-        Output.VDouble := inp.VDouble;
-      end;
-    varCurrency:
-      begin
-        Output.VType := ftCurrency;
-        Output.VInt64 := inp.VInt64;
-      end;
-    varString:
-      begin
-        // assume RawUtf8
-        Output.VType := ftUtf8;
-        Output.VText := inp.VPointer;
-      end;
-  else
-    // handle less current cases
-    if cardinal(inp.VType) = varVariantByRef then
-      VariantToSqlVar(PVariant(inp.VPointer)^, temp, Output)
-    else if VariantToInt64(Input, Output.VInt64) then
-      Output.VType := ftInt64
+  with TVarData(Input) do
+    if VType = varVariantByRef then
+      VariantToSqlVar(PVariant(VPointer)^, temp, Output)
     else
-    begin
-      VariantToUtf8(Input, RawUtf8(temp), wasString);
-      if wasString then
-      begin
-        Output.VType := ftUtf8;
-        Output.VText := pointer(temp);
-      end
+      case VType of
+        varEmpty,
+        varNull:
+          Output.VType := ftNull;
+        varByte:
+          begin
+            Output.VType := ftInt64;
+            Output.VInt64 := VByte;
+          end;
+        varInteger:
+          begin
+            Output.VType := ftInt64;
+            Output.VInt64 := VInteger;
+          end;
+        varLongWord:
+          begin
+            Output.VType := ftInt64;
+            Output.VInt64 := VLongWord;
+          end;
+        varWord64,
+        varInt64:
+          begin
+            Output.VType := ftInt64;
+            Output.VInt64 := VInt64;
+          end;
+        varSingle:
+          begin
+            Output.VType := ftDouble;
+            Output.VDouble := VSingle;
+          end;
+        varDouble:
+          begin
+            // varDate would be converted into ISO-8601 by VariantToUtf8()
+            Output.VType := ftDouble;
+            Output.VDouble := VDouble;
+          end;
+        varCurrency:
+          begin
+            Output.VType := ftCurrency;
+            Output.VInt64 := VInt64;
+          end;
+        varString:
+          begin
+            // assume RawUtf8
+            Output.VType := ftUtf8;
+            Output.VText := VPointer;
+          end;
       else
-        Output.VType := ftNull;
-    end;
-  end;
+        // handle less current cases
+        if VariantToInt64(Input, Output.VInt64) then
+          Output.VType := ftInt64
+        else
+        begin
+          VariantToUtf8(Input, RawUtf8(temp), wasString);
+          if wasString then
+          begin
+            Output.VType := ftUtf8;
+            Output.VText := pointer(temp);
+          end
+          else
+            Output.VType := ftNull;
+        end;
+      end;
 end;
 
 procedure VariantToInlineValue(const V: Variant; var result: RawUtf8);
@@ -1935,7 +1862,7 @@ end;
 
 function VariantVTypeToSqlDBFieldType(VType: cardinal): TSqlDBFieldType;
 begin
-  case cardinal(VType) of
+  case VType of
     varNull:
       result := ftNull;
     varShortInt,
@@ -1970,7 +1897,7 @@ begin
   result := VariantVTypeToSqlDBFieldType(VD.VType);
   case result of
     ftUnknown:
-      if cardinal(VD.VType) = varEmpty then
+      if VD.VType = varEmpty then
         result := ftUnknown
       else if SetVariantUnRefSimpleValue(V, tmp{%H-}) then
         result := VariantTypeToSqlDBFieldType(variant(tmp))
@@ -2899,7 +2826,7 @@ var
 begin
   CancelAll; // rewind JSON
   p := @VOID_ARRAYFIELD[fExpand];
-  inc(fWrittenBytes, fStream.Write(p^[1], ord(p^[0])));
+  inc(fTotalFileSize, fStream.Write(p^[1], ord(p^[0])));
 end;
 
 constructor TResultsWriter.Create(aStream: TStream; Expand, withID: boolean;
@@ -3877,7 +3804,7 @@ begin
         end;
       F := FieldCount;
       if F = MAX_SQLFIELDS then
-        EJsonObjectDecoder.RaiseU('Too many inlines in TJsonObjectDecoder');
+        raise EJsonObjectDecoder.Create('Too many inlines in TJsonObjectDecoder');
       FieldNames[F]  := info.Value;
       FieldNamesL[F] := info.Valuelen;
       ParseSqlValue(info, Params, FieldTypeApproximation[F], FieldValues[F]);
@@ -3892,9 +3819,9 @@ begin
     if info.Json = nil then
       exit;
     if RowID > 0 then
-      EJsonObjectDecoder.RaiseU('TJsonObjectDecoder(expanded) won''t handle RowID');
+      raise EJsonObjectDecoder.Create('TJsonObjectDecoder(expanded) won''t handle RowID');
     if length(Fields) > MAX_SQLFIELDS then
-      EJsonObjectDecoder.RaiseU('Too many inlines in TJsonObjectDecoder');
+      raise EJsonObjectDecoder.Create('Too many inlines in TJsonObjectDecoder');
     DecodedFieldNames := pointer(Fields);
     FieldCount := length(Fields);
     for F := 0 to FieldCount - 1 do
@@ -3944,7 +3871,7 @@ function TJsonObjectDecoder.EncodeAsSql(const Prefix1, Prefix2: RawUtf8;
 var
   f: PtrInt;
   W: TTextWriter;
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 
   procedure AddValue;
   begin
@@ -4006,7 +3933,7 @@ procedure TJsonObjectDecoder.EncodeAsJson(out result: RawUtf8);
 var
   f: PtrInt;
   W: TJsonWriter;
-  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  temp: TTextWriterStackBuffer;
 begin
   if FieldCount = 0 then
     exit;

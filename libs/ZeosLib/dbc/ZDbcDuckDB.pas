@@ -63,7 +63,7 @@ uses
 
 type
 
-  {** Implements DBC DuckDb Driver. }
+  {** Implements DBC Proxy Driver. }
   TZDbcDuckDBDriver = class(TZAbstractDriver)
   public
     constructor Create; override;
@@ -75,15 +75,15 @@ type
     function GetStatementAnalyser: IZStatementAnalyser; override;
   end;
 
-  {** Represents a DBC DuckDb specific connection interface. }
+  {** Represents a DBC Proxy specific connection interface. }
   IZDbcDuckDBConnection = interface (IZConnection)
-    ['{ABA70EDA-E0E4-4886-8FA5-53D3A8D4607B}']
+    ['{C6ACB283-1126-426B-9637-B4CFD430BB33}']
     function GetPlainDriver: TZDuckDBPlainDriver;
     function GetConnectionHandle: TDuckDB_Connection;
     procedure CheckDuckDbError(AResult: PDuckDB_Result);
   end;
 
-  {** Implements DBC DuckDb Database Connection. }
+  {** Implements DBC Proxy Database Connection. }
 
   { TZDuckDBConnection }
 
@@ -93,7 +93,6 @@ type
     FPlainDriver: TZDuckDBPlainDriver;
     FDatabase: TDuckDB_Database;
     FConnection: TDuckDB_Connection;
-    FSchema: string;
   protected
     procedure CheckDuckDBError(Res: TDuckDB_State; AMessage: String); overload;
     procedure CheckDuckDbError(AResult: PDuckDB_Result); overload;
@@ -308,7 +307,7 @@ begin
   Result := TZGenericStatementAnalyser.Create; { thread save! Allways return a new Analyser! }
 end;
 
-{ TZDbcDuckDbConnection }
+{ TZDbcProxyConnection }
 
 procedure TZDbcDuckDBConnection.CheckDuckDBError(Res: TDuckDB_State; AMessage: String);
 begin
@@ -360,11 +359,6 @@ begin
   ConSettings.ClientCodePage.Encoding := ceUTF8;
   ConSettings.ClientCodePage.CharWidth := 4;
   ConSettings.ClientCodePage.CP := zCP_UTF8;
-
-  if FSchema <> '' then begin
-    LogMessage := FSchema;
-    SetCatalog(LogMessage);
-  end;
 end;
 
 function TZDbcDuckDBConnection.CreateStatementWithParams(Info: TStrings): IZStatement;
@@ -541,23 +535,16 @@ end;
 
 procedure TZDbcDuckDBConnection.SetCatalog(const Catalog: string);
 begin
-  if Catalog <> FSchema then begin
-    FSchema := Catalog;
-    if not Closed and (FSchema <> '') then
-      ExecuteImmediat('SET SCHEMA = ''' + FSchema + '''', lcOther);
-  end;
+  if Closed then
+    Open;
+
+  if (Catalog <> 'main') and (Catalog <> '') then
+    raise Exception.Create('Changing the schema is not supported yet');
 end;
 
 function TZDbcDuckDBConnection.GetCatalog: string;
 begin
-  if not Closed and (FSchema = '') then
-    with CreateStatementWithParams(nil).ExecuteQuery('select current_schema()') do
-    begin
-      if Next then
-        FSchema := GetString(FirstDBCIndex);
-      Close;
-    end;
-  Result := FSchema;
+  Result := 'main';
 end;
 
 procedure TZDbcDuckDBConnection.SetTransactionIsolation(Level: TZTransactIsolationLevel);

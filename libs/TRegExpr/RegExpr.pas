@@ -952,7 +952,7 @@ uses
 const
   // TRegExpr.VersionMajor/Minor return values of these constants:
   REVersionMajor = 1;
-  REVersionMinor = 192;
+  REVersionMinor = 191;
 
   OpKind_End = REChar(1);
   OpKind_MetaClass = REChar(2);
@@ -6945,19 +6945,10 @@ begin
     Exit;
   end;
 
-  if ABackward then
-    Offset := PtrEnd - fInputStart - 1
-  else
-    Offset := PtrEnd - fInputStart + 1;
-
+  Offset := PtrEnd - fInputStart + 1;
   // prevent infinite looping if empty string matches r.e.
   if PtrBegin = PtrEnd then
-  begin
-    if ABackward then
-      Dec(Offset)
-    else
-      Inc(Offset);
-  end;
+    Inc(Offset);
 
   Result := ExecPrim(Offset, False, ABackward, 0);
 end; { of function TRegExpr.ExecNext

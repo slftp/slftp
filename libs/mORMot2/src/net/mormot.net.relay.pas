@@ -228,7 +228,7 @@ type
 
 { ******************** Public and Private relay process }
 
-  TAbstractRelay = class(TObjectOSLock)
+  TAbstractRelay = class(TSynLocked)
   protected
     fLog: TSynLogClass;
     fStarted: RawUtf8;

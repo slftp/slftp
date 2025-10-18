@@ -40,7 +40,6 @@ uses
   mormot.core.rtti,
   mormot.lib.z,
   mormot.crypt.core,
-  mormot.crypt.secure, // for PKBDF2-HMAC-SHA1
   mormot.db.core,
   mormot.db.nosql.bson,
   mormot.net.sock;
@@ -2035,7 +2034,7 @@ end;
 function TMongoRequest.ToJson(Mode: TMongoJsonMode): RawUtf8;
 var
   W: TJsonWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   W := TJsonWriter.CreateOwnedStream(tmp);
   try
@@ -2637,7 +2636,7 @@ begin
     inc(result);
   end;
   if result <> length(Dest) then
-    EMongoException.RaiseU('Invalid opReply Documents');
+    raise EMongoException.CreateU('Invalid opReply Documents');
 end;
 
 procedure TMongoReplyCursor.AppendAllToBson(Dest: TBsonWriter);
@@ -2659,7 +2658,7 @@ function TMongoReplyCursor.AppendAllToDocVariant(var Dest: TDocVariantData): int
 var
   item: variant;
 begin
-  if cardinal(Dest.VarType) <> DocVariantVType then
+  if Dest.VarType <> DocVariantType.VarType then
     // may be called from getMore
     TDocVariant.NewFast(Variant(Dest), dvArray);
   result := Dest.Count;
@@ -2672,7 +2671,7 @@ begin
   while Next(item) do
     Dest.AddItem(item{%H-});
   if Dest.Count <> result then
-    EMongoException.RaiseU('Invalid opReply Documents');
+    raise EMongoException.CreateU('Invalid opReply Documents');
 end;
 
 procedure TMongoReplyCursor.AppendAllAsDocVariant(var Dest: variant);
@@ -2742,7 +2741,7 @@ function TMongoReplyCursor.ToJson(Mode: TMongoJsonMode; WithHeader: boolean;
   MaxSize: PtrUInt): RawUtf8;
 var
   W: TJsonWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   if (fReply = '') or
      (fDocumentCount <= 0) then
@@ -2796,7 +2795,7 @@ end;
 procedure TMongoConnection.Open;
 begin
   if self = nil then
-    EMongoException.RaiseU('TMongoConnection(nil).Open');
+    raise EMongoException.CreateU('TMongoConnection(nil).Open');
   if fSocket <> nil then
     raise EMongoConnectionException.Create('Duplicate Open', self);
   try
@@ -2869,7 +2868,7 @@ end;
 function TMongoConnection.GetBsonAndFree(Query: TMongoRequest): TBsonDocument;
 var
   W: TBsonWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   W := TBsonWriter.Create(tmp{%H-});
   try
@@ -2887,7 +2886,7 @@ function TMongoConnection.GetJsonAndFree(Query: TMongoRequest;
 var
   W: TJsonWriter;
   ReturnAsJsonArray: boolean;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   ReturnAsJsonArray := Query.NumberToReturn > 1; // set 1 to return an object
   W := TJsonWriter.CreateOwnedStream(tmp);
@@ -3373,7 +3372,7 @@ constructor EMongoRequestOSException.Create(const aMsg: RawUtf8;
   aConnection: TMongoConnection; aRequest: TMongoRequest);
 begin
   fSystemLastError := GetLastError;
-  CreateUtf8('%: % (%)', [aMsg, GetErrorShort(fSystemLastError),
+  CreateUtf8('%: % (%)', [aMsg, GetErrorText(fSystemLastError),
     fSystemLastError], aConnection, aRequest);
 end;
 
@@ -3701,7 +3700,7 @@ begin
     // SCRAM-SHA-1
     // https://tools.ietf.org/html/rfc5802#section-5
     user := StringReplaceAll(UserName, ['=', '=3D', ',', '=2C']);
-    SharedRandom.Fill(@rnd, SizeOf(rnd)); // public and unique: use Lecuyer
+    SharedRandom.Fill(@rnd, SizeOf(rnd)); // Lecuyer is enough for public random
     nonce := BinToBase64(@rnd, SizeOf(rnd));
     FormatUtf8('n=%,r=%', [user, nonce], first);
     BsonVariantType.FromBinary('n,,' + first, bbtGeneric, bson);
@@ -4091,7 +4090,7 @@ var
 begin
   // see http://docs.mongodb.org/manual/reference/command/aggregate
   if fDatabase.Client.ServerBuildInfoNumber < 2020000 then
-    EMongoException.RaiseU('Aggregation needs MongoDB 2.2 or later');
+    raise EMongoException.CreateU('Aggregation needs MongoDB 2.2 or later');
   if fDatabase.Client.ServerBuildInfoNumber >= 3060000 then
   begin
     // since 3.6, the cursor:{} parameter is mandatory, even if void
@@ -4284,7 +4283,7 @@ var
   cmd, query: RawUtf8;
   res: variant;
 begin
-  FormatParams(Criteria, @Args[0], @Params[0], high(Args), high(Params), {json=}true, query);
+  FormatParams(Criteria, Args, Params, {json=}true, query);
   FormatUtf8('{count:"%",query:%', [fName, query], cmd);
   if MaxNumberToReturn > 0 then
     cmd := FormatUtf8('%,limit:%', [cmd, MaxNumberToReturn]);

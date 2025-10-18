@@ -1073,31 +1073,30 @@ end;
 procedure _ansistr_concat_multi_convert(var dest: RawByteString;
   const s: array of RawByteString; cp: cardinal);
 var
-  w: TTextWriter;
+  t: TTextWriter;
   i: PtrInt;
   p: pointer;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  u: RawUtf8;
+  tmp: TTextWriterStackBuffer;
 begin
-  w := TTextWriter.CreateOwnedStream(tmp);
+  t := TTextWriter.CreateOwnedStream(tmp);
   try
     for i := 0 to high(s) do
     begin
       p := pointer(s[i]);
       if p <> nil then
         // use mormot.core.unicode efficient conversion
-        w.AddNoJsonEscapeCP(p, _lstrlen(RawByteString(p)), _lstrcp(RawByteString(p), cp));
+        t.AddNoJsonEscapeCP(p, _lstrlen(RawByteString(p)), _lstrcp(RawByteString(p), cp));
     end;
-    if (cp = CP_UTF8) or
-       (cp >= CP_RAWBLOB) then
-      // we can return directly the raw concatenation with no encoding
-      w.SetText(RawUtf8(dest))
-    else
-      // directly convert from the TTextWriter internal buffer
-      TSynAnsiConvert.Engine(cp).Utf8BufferToAnsi(
-        w.GetTextAsBuffer, w.TextLength, dest);
+    t.SetText(u);
   finally
-    w.Free;
+    t.Free;
   end;
+  if (cp = CP_UTF8) or
+     (cp >= CP_RAWBLOB) then
+    dest := u
+  else
+    TSynAnsiConvert.Engine(cp).Utf8BufferToAnsi(pointer(u), length(u), dest);
 end;
 
 procedure _ansistr_concat_multi_utf8(var dest: RawByteString;

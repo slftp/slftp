@@ -44,14 +44,13 @@ uses
 { ******************** Socket Process High-Level Encapsulation }
 
 const
-  cLocalhost  = '127.0.0.1';
-  cAnyHost    = '0.0.0.0';
-  cBroadcast  = '255.255.255.255';
+  cLocalhost = '127.0.0.1';
+  cAnyHost = '0.0.0.0';
+  cBroadcast = '255.255.255.255';
   c6Localhost = '::1';
-  c6AnyHost   = '::';
+  c6AnyHost = '::';
   c6Broadcast = 'ffff::1';
-  cAnyPort    = '0';
-
+  cAnyPort = '0';
   cLocalhost32 = $0100007f;
 
   {$ifdef OSWINDOWS}
@@ -333,7 +332,6 @@ type
     // RecvPending() to check for the actual state of the connection
     function HasData: integer;
     /// wrapper around WaitFor / RecvPending / Recv methods for a given time
-    // - will return up to 64KB of pending data in the socket receiving queue
     function RecvWait(ms: integer; out data: RawByteString;
       terminated: PTerminated = nil): TNetResult;
     /// low-level receiving of some data of known length from this socket
@@ -381,8 +379,6 @@ type
     /// you can call this method to change the default timeout of 10 minutes
     // - is likely to flush the cache
     procedure SetTimeOut(aSeconds: integer);
-    /// you can force a customized IP resolution for this host name
-    procedure Force(const Host, IP: RawUtf8);
   end;
 
 
@@ -416,10 +412,6 @@ function NewRawSockets(family: TNetFamily; layer: TNetLayer;
 
 /// delete a hostname from TNetAddr.SetFrom internal short-living cache
 procedure NetAddrFlush(const hostname: RawUtf8);
-
-/// return the IP (v4 or v6) address of a given hostname
-// - just a wrapper around TNetAddr.SetFrom and TNetAddr.IP
-function NetAddrResolve(const hostname: RawUtf8): RawUtf8;
 
 /// resolve the TNetAddr of the address:port layer - maybe from NewSocketAddressCache
 function GetSocketAddressFromCache(const address, port: RawUtf8;
@@ -548,15 +540,15 @@ function IP4Netmask(prefix: integer): cardinal; overload;
 function IP4Netmask(prefix: integer; out mask: cardinal): boolean; overload;
   {$ifdef HASINLINE} inline; {$endif}
 
-/// compute a subnet/CIDR value from a 32-bit IPv4 and its associated NetMask
+/// compute a subnet value from a 32-bit IP4 and its associated NetMask
 // - e.g. ip4=192.168.0.16 and mask4=255.255.255.0 returns '192.168.0.0/24'
-function IP4Subnet(ip4, netmask4: cardinal): TShort23; overload;
+function IP4Subnet(ip4, netmask4: cardinal): ShortString; overload;
 
-/// compute a subnet/CIDR value from an IPv4 and its associated NetMask
+/// compute a subnet value from an IP4 and its associated NetMask
 // - e.g. ip4='192.168.0.16' and mask4='255.255.255.0' returns '192.168.0.0/24'
 function IP4Subnet(const ip4, netmask4: RawUtf8): RawUtf8; overload;
 
-/// check if an IPv4 text match a CIDR sub-network
+/// check if an IP4 match a sub-network
 // - e.g. IP4Match('192.168.1.1', '192.168.1.0/24') = true
 function IP4Match(const ip4, subnet: RawUtf8): boolean;
 
@@ -568,7 +560,7 @@ function IP4Filter(ip4: cardinal; filter: TIPAddress): boolean;
 /// convert an IPv4 raw value into a ShortString text
 // - won't use the Operating System network layer API so works on XP too
 // - zero is returned as '0.0.0.0' and loopback as '127.0.0.1'
-procedure IP4Short(ip4addr: PByteArray; var s: TShort16);
+procedure IP4Short(ip4addr: PByteArray; var s: ShortString); 
 
 /// convert an IPv4 raw value into a ShortString text
 function IP4ToShort(ip4addr: PByteArray): TShort16;
@@ -621,6 +613,10 @@ function GetIPAddresses(Kind: TIPAddress = tiaIPv4): TRawUtf8DynArray;
 // - an internal cache of the result is refreshed every 32 seconds
 function GetIPAddressesText(const Sep: RawUtf8 = ' ';
   Kind: TIPAddress = tiaIPv4): RawUtf8;
+
+/// check if Host is in 127.0.0.0/8 range - warning: Host should be not nil
+function IsLocalHost(Host: PUtf8Char): boolean;
+  {$ifdef HASINLINE} inline; {$endif}
 
 type
   /// the network interface type, as stored in TMacAddress.Kind
@@ -696,7 +692,6 @@ type
     // - not available on BSD
     Kind: TMacAddressKind;
   end;
-  PMacAddress = ^TMacAddress;
   TMacAddressDynArray = array of TMacAddress;
 
 const
@@ -715,7 +710,6 @@ function GetMacAddressesText(WithoutName: boolean = true;
 /// flush the GetIPAddressesText/GetMacAddresses internal caches
 // - may be called to force detection after HW configuration change (e.g. when
 // wifi has been turned on)
-// - this method is thread-safe about its internal caches
 procedure MacIPAddressFlush;
 
 {$ifdef OSWINDOWS}
@@ -729,7 +723,7 @@ function GetRemoteMacAddress(const IP: RawUtf8): RawUtf8;
 /// get the local MAC address used to reach a computer, from its IP or Host name
 // - return the local interface as a TMacAddress, with all its available info
 // - under Windows, will call the GetBestInterface() API to retrieve a IfIndex
-// - on POSIX, will call GetLocalIpAddress() to retrieve a local IP
+// - on POSIX, will call GetLocalIpAddress() to retrive a local IP
 // - always eventually makes a lookup to the GetMacAddresses() list per IfIndex
 // (Windows) or IP (POSIX)
 function GetLocalMacAddress(const Remote: RawUtf8; var Mac: TMacAddress): boolean;
@@ -878,7 +872,7 @@ type
     // openssl pkcs12 -inkey privkey.pem -in cert.pem -export -out mycert.pfx
     CertificateFile: RawUtf8;
     /// input: PEM/PFX content of a certificate to be loaded
-    // - on OpenSSL client or server, calls SSL_CTX_use_certificate() API
+    // - on OpenSSL client or server, calls SSL_CTX_use_certificat() API
     // - not used on SChannel client
     // - on SChannel server, expects a .pfx / PKCS#12 binary content
     CertificateBin: RawByteString;
@@ -960,23 +954,23 @@ type
     // - typically one X509_V_ERR_* integer constant
     LastError: RawUtf8;
     /// called by INetTls.AfterConnection to fully customize peer validation
-    // - not implemented on SChannel
+    // - not used on SChannel
     OnPeerValidate: TOnNetTlsPeerValidate;
     /// called by INetTls.AfterConnection for each peer validation
     // - allow e.g. to verify CN or DNSName fields of each peer certificate
     // - see also ClientCertificateAuthentication and ClientVerifyOnce options
-    // - not implemented on SChannel
+    // - not used on SChannel
     OnEachPeerVerify: TOnNetTlsEachPeerVerify;
     /// called by INetTls.AfterConnection after standard peer validation
     // - allow e.g. to verify CN or DNSName fields of the peer certificate
-    // - not implemented on SChannel
+    // - not used on SChannel
     OnAfterPeerValidate: TOnNetTlsAfterPeerValidate;
     /// called by INetTls.AfterConnection to retrieve a private password
-    // - not implemented on SChannel
+    // - not used on SChannel
     OnPrivatePassword: TOnNetTlsGetPassword;
     /// called by INetTls.AfterAccept to set a server/host-specific certificate
     // - used e.g. by TAcmeLetsEncryptServer to allow SNI per-host certificate
-    // - not implemented on SChannel
+    // - not used on SChannel
     OnAcceptServerName: TOnNetTlsAcceptServerName;
     /// opaque pointer used by INetTls.AfterBind/AfterAccept to propagate the
     // bound server certificate context into each accepted connection
@@ -1041,10 +1035,6 @@ procedure InitNetTlsContext(var TLS: TNetTlsContext; Server: boolean;
 /// purge all output fields for a TNetTlsContext instance for proper reuse
 procedure ResetNetTlsContext(var TLS: TNetTlsContext);
 
-/// setup and return a PNetTlsContext parameter from the specified parameters
-function GetTlsContext(TlsEnabled, IgnoreTlsCertError: boolean;
-  var Context: TNetTlsContext; Forced: PNetTlsContext = nil): PNetTlsContext;
-
 /// compare the main fields of twoTNetTlsContext instances
 // - won't compare the callbacks
 function SameNetTlsContext(const tls1, tls2: TNetTlsContext): boolean;
@@ -1060,6 +1050,7 @@ var
   // - is set e.g. by mormot.net.acme.pas initialization section
   // - not used on SChannel yet
   EnableOnNetTlsAcceptServerName: boolean;
+
 
 {$ifdef OSWINDOWS}
 var
@@ -1566,16 +1557,11 @@ type
 { *************************** TUri parsing/generating URL wrapper }
 
 type
-  /// the main URI schemes recognized by TUri.UriScheme
-  TUriScheme = (usUndefined, usCustom,
-    usHttp, usWs, usHttps, usWss, usUdp, usFile, usFtp, usFtps);
-
   /// structure used to parse an URI into its components
   // - ready to be supplied e.g. to a THttpRequest sub-class
   // - used e.g. by class function THttpRequest.Get()
-  // - will decode standard HTTP/HTTPS urls or our custom Unix sockets URI like
+  // - will decode standard HTTP/HTTPS urls or Unix sockets URI like
   // 'http://unix:/path/to/socket.sock:/url/path'
-  // - could also be used to generate an URI e.g. from Server/Address info
   {$ifdef USERECORDWITHMETHODS}
   TUri = record
   {$else}
@@ -1586,9 +1572,7 @@ type
     Https: boolean;
     /// either nlTcp for HTTP/HTTPS or nlUnix for Unix socket URI
     Layer: TNetLayer;
-    /// used to identify most known schemes
-    UriScheme: TUriScheme;
-    /// the protocol as specified for this URI
+    /// the protocol defined for this URI
     // - e.g. 'http'/'https' for http:// https:// or 'ws'/'wss' for ws:// wss://
     Scheme: RawUtf8;
     /// the server name
@@ -1609,11 +1593,10 @@ type
     /// reset all stored information
     procedure Clear;
     /// fill the members from a supplied URI
-    // - recognize e.g. 'http://server:port/address', 'https://server/address',
-    // 'server/address' (as http), 'http://unix:/server:/address' (as nlUnix),
-    // 'https://user:password@server:port/address' (authenticated),
-    // 'wss://Server/Address' (as https) or 'file://server/folder/data.xml'
-    // - returns TRUE if the Server has been extracted and is not ''
+    // - recognize e.g. 'http://Server:Port/Address', 'https://Server/Address',
+    // 'Server/Address' (as http), or 'http://unix:/Server:/Address' (as nlUnix)
+    // - recognize 'https://user:password@server:port/address' authentication
+    // - returns TRUE is at least the Server has been extracted, FALSE on error
     function From(aUri: RawUtf8; const DefaultPort: RawUtf8 = ''): boolean;
     /// check if a connection need to be re-established to follow this URI
     function Same(const aServer, aPort: RawUtf8; aHttps: boolean): boolean;
@@ -1621,7 +1604,6 @@ type
     function SameUri(const aUri: RawUtf8): boolean;
     /// compute the whole normalized URI
     // - e.g. 'https://Server:Port/Address' or 'http://unix:/Server:/Address'
-    // - User/Password property values won't be included
     function URI: RawUtf8;
     /// compute the normalized URI of the server and port
     // - e.g. 'https://Server:Port/' or 'http://unix:/Server:/'
@@ -1643,7 +1625,7 @@ type
   end;
   PUri = ^TUri;
 
-  /// 32-bit binary storage of a IPv4 CIDR sub-network for fast comparison
+  /// 32-bit binary storage of a IPv4 sub-network for fast comparison
   {$ifdef USERECORDWITHMETHODS}
   TIp4SubNet = record
   {$else}
@@ -1653,88 +1635,15 @@ type
     ip: cardinal;
     /// 32-bit IP mask, e.g. 255.255.255.0 for '1.2.3.4/24'
     mask: cardinal;
-    /// check and decode the supplied CIDR address text from its format '1.2.3.4/24'
+    /// check and decode the supplied address text from its format '1.2.3.4/24'
     // - e.g. as 32-bit 1.2.3.0 into ip and 255.255.255.0 into mask
-    // - plain IP address like '1.2.3.4' will be decoded with mask=255.255.255.255
     function From(const subnet: RawUtf8): boolean;
-    /// check if an 32-bit IPv4 matches a decoded CIDR sub-network
+    /// check if an 32-bit IP4 matches a decoded sub-network
     function Match(ip4: cardinal): boolean; overload;
       {$ifdef HASINLINE} inline; {$endif}
-    /// check if a textual IPv4 matches a decoded CIDR sub-network
+    /// check if a textual IPv4 matches a decoded sub-network
     function Match(const ip4: RawUtf8): boolean; overload;
   end;
-
-  /// store one TIp4SubNets CIDR mask definition
-  TIp4SubNetMask = record
-    /// 32-bit IP mask, e.g. 255.255.255.0 for '1.2.3.4/24'
-    Mask: cardinal;
-    /// how many 32-bit masked IP are actually stored in IP[]
-    IPCount: integer;
-    /// list of 32-bit masked IPs, e.g. 1.2.3.0 for '1.2.3.4/24'
-    // - sorted to allow efficient O(log(n)) binary search in TIp4SubNets.Match
-    IP: TIntegerDynArray;
-  end;
-  PIp4SubNetMask = ^TIp4SubNetMask;
-  TIp4SubNetMasks = array of TIp4SubNetMask;
-
-  /// store several CIDR sub-network mask definitions for efficient search
-  // - to handle typically a blacklist of IP ranges e.g. from spamhaus.org
-  TIp4SubNets = class(TSynPersistent)
-  protected
-    fSubNet: TIp4SubNetMasks;
-  public
-    /// decode and register the supplied CIDR address text e.g. as '1.2.3.4/24'
-    function Add(const subnet: RawUtf8): boolean; overload;
-    /// decode and register the supplied CIDR address as TIp4SubNet ip/mask
-    // - by definition, private IP like 192.168.x.x are not added
-    function Add(ip, mask: cardinal): boolean; overload;
-    /// decode and add all IP and CIDR listed in a text content
-    // - i.e. netsets as IP or CIDR with # or ; comments e.g. as in
-    // https://www.spamhaus.org/drop/drop.txt or
-    // https://github.com/firehol/blocklist-ipsets/blob/master/firehol_level1.netset
-    // - by definition, private IP like 192.168.x.x are not included
-    // - returns the number of added IP or CIDR, merging with existing content
-    function AddFromText(const text: RawUtf8): integer;
-    /// ensure all length(SubNet[].IP) = IPCount after Add/AddFromText usage
-    // - returns the current total number of stored IP or CIDR
-    // - not needed at runtime - just here e.g. for testing or specific usecases
-    function AfterAdd: integer;
-    /// check if a 32-bit IPv4 matches a registered CIDR sub-network
-    // - reach 16M/s per core with spamhaus or firehol databases
-    function Match(ip4: cardinal): boolean; overload;
-    /// check if a textual IPv4 matches a registered CIDR sub-network
-    function Match(const ip4: RawUtf8): boolean; overload;
-    // remove all registered CIDR sub-networks
-    procedure Clear;
-    /// persist this list as optimized binary
-    function SaveToBinary: RawByteString;
-    /// clear, decode and add all IP and CIDR listed in a text or binary buffer
-    // - is a wrapper around Clear + AddFromText/LoadFromBinary + AfterAdd
-    // - returns the number of stored IP or CIDR, clearing any existing content
-    // - if buffer is in fact a SaveToBinary content, will detect and load it
-    function LoadFrom(const buffer: RawByteString): integer;
-    /// clear and retrieve from a binary buffer persisted via SaveToBinary
-    // - returns the number of stored IP or CIDR, clearing any existing content
-    function LoadFromBinary(const bin: RawByteString): integer;
-    /// low-level access to the internal storage
-    // - warning: length(IP) may be > IPCount - do not use "for in SubNet[].IP"
-    // pattern unless you called AfterAdd or LoadFromBinary
-    property SubNet: TIp4SubNetMasks
-      read fSubNet;
-  end;
-
-const
-  /// 'MEL1' 32-bit magic marker used for TIp4SubNets.SaveToBinary format
-  IP4SUBNET_MAGIC: cardinal = $314c454d;
-
-/// check if a 32-bit IPv4 matches a registered CIDR sub-network binary buffer
-// - directly parse TIp4SubNets.SaveToBinary output for conveniency
-// - performance is in pair with TIp4SubNets.Match - so could be an option
-// if you do not need to Add() items at runtime, but only check a fixed list
-function IP4SubNetMatch(P: PCardinalArray; ip4: cardinal): boolean; overload;
-
-/// check if a textual IPv4 matches a registered CIDR sub-network binary buffer
-function IP4SubNetMatch(const bin: RawByteString; const ip4: RawUtf8): boolean; overload;
 
 
 const
@@ -1750,12 +1659,10 @@ const
   /// quick access to http:// or https:// constants
   HTTPS_TEXT: array[boolean] of RawUtf8 = (
     'http://', 'https://');
-  /// the HTTP-based URI schemes recognized by TUri.UriScheme
-  HTTP_SCHEME = [usHttp, usWs, usHttps, usWss];
 
 /// check is the supplied address text is on format '1.2.3.4'
 // - will optionally fill a 32-bit binary buffer with the decoded IPv4 address
-// - end text input parsing at final #0 '/' or any char <= ' '
+// - end text input parsing at final #0 or any char <= ' '
 function NetIsIP4(text: PUtf8Char; value: PByte = nil): boolean;
 
 /// parse a text input buffer until the end space or EOL
@@ -1792,14 +1699,6 @@ type
     cstaBind,
     cstaAccept);
 
-  TCrtSocketFlags = set of (
-    fAborted,
-    fWasBind,
-    fBodyRetrieved,
-    fServerTlsEnabled,
-    fProxyConnect,
-    fProxyHttp);
-
   {$M+}
   /// Fast low-level Socket implementation
   // - direct access to the OS (Windows, Linux) network layer API
@@ -1821,7 +1720,7 @@ type
     fSock: TNetSocket; // wrapper to raw socket, stored as a pointer
     fServer: RawUtf8;
     fPort: RawUtf8;
-    fFlags: TCrtSocketFlags;
+    fFlags: set of (fAborted, fWasBind, fBodyRetrieved);
     fSocketLayer: TNetLayer;
     fSocketFamily: TNetFamily;
     fProxyUrl: RawUtf8;
@@ -1847,14 +1746,13 @@ type
       {$ifdef HASINLINE}inline;{$endif}
   public
     /// direct access to the optional low-level HTTP proxy tunnelling information
+    // - could have been assigned by a Tunnel.From() call
     // - User/Password would be taken into consideration for authentication
     // - could be populated by mormot.net.client Tunnel.From(GetSystemProxy())
     Tunnel: TUri;
     /// direct access to the optional low-level TLS Options and Information
     // - depending on the actual INetTls implementation, some fields may not
     // be used nor populated - currently only supported by mormot.lib.openssl11
-    // - reflect the raw socket layer, so TLS.Enabled may apply to the proxy
-    // connection, to the actual destination: see ServerTls method instead
     TLS: TNetTlsContext;
     /// can be assigned to TSynLog.DoLog class method for low-level logging
     OnLog: TSynLogProc;
@@ -1873,11 +1771,7 @@ type
     // - returns TUri.Address as parsed from aUri
     constructor OpenUri(const aUri: RawUtf8; out aAddress: RawUtf8;
       const aTunnel: RawUtf8 = ''; aTimeOut: cardinal = 10000;
-      aTLSContext: PNetTlsContext = nil); overload;
-    /// constructor to create a client connection to a given URI
-    // - returns TUri.Address as parsed from aUri
-    constructor OpenUri(const aUri: TUri; const aUriFull, aTunnel: RawUtf8;
-      aTimeOut: cardinal; aTLSContext: PNetTlsContext); overload; virtual;
+      aTLSContext: PNetTlsContext = nil); virtual;
     /// constructor to bind to an address
     // - just a wrapper around Create(aTimeOut) and BindPort()
     constructor Bind(const aAddress: RawUtf8; aLayer: TNetLayer = nlTcp;
@@ -1905,7 +1799,7 @@ type
     // mormot.lib.openssl11 unit) - with custom input options in the TLS fields
     procedure OpenBind(const aServer, aPort: RawUtf8; doBind: boolean;
       aTLS: boolean = false; aLayer: TNetLayer = nlTcp;
-      aSock: TNetSocket = TNetSocket(-1); aReusePort: boolean = false); virtual;
+      aSock: TNetSocket = TNetSocket(-1); aReusePort: boolean = false);
     /// a wrapper around Close + OpenBind() with the current settings
     // - could be used to reestablish a broken or closed connection
     // - return '' on success, or an error message on failure
@@ -1916,11 +1810,6 @@ type
     procedure AcceptRequest(aClientSock: TNetSocket; aClientAddr: PNetAddr);
     /// low-level TLS support method
     procedure DoTlsAfter(caller: TCrtSocketTlsAfter);
-    /// check if the Server is accessed using TLS
-    // - TLS.Enabled flag is about the raw socket, probably over a Tunnel/Proxy
-    // - this function reflects the actual aTLS parameter supplied to OpenBind()
-    function ServerTls: boolean;
-      {$ifdef HASINLINE} inline; {$endif}
     /// initialize SockIn for receiving with read[ln](SockIn^,...)
     // - data is buffered, filled as the data is available
     // - read(char) or readln() is indeed very fast
@@ -1982,7 +1871,7 @@ type
     // - call SockSendFlush to send it through the network via SndLow()
     procedure SockSend(P: pointer; Len: integer); overload;
     /// append headers content, normalizing #13#10 in the content and at ending
-    procedure SockSendHeaders(const headers: RawUtf8);
+    procedure SockSendHeaders(P: PUtf8Char);
     /// append #13#10 characters on all platforms, never #10 even on POSIX
     procedure SockSendCRLF;
     /// flush all pending data to be sent, optionally with some body content
@@ -2082,7 +1971,6 @@ type
     // THttpServerGeneric.RemoteIPHeader (e.g. 'X-Real-IP' for nginx)
     // - with SocketLayer = nlUdp, InputSock will put here the 'ip:port' of the
     // received packet during SocketIn^ process
-    // - equals '' for localhost/127.0.0.1
     property RemoteIP: RawUtf8
       read fRemoteIP write fRemoteIP;
     /// the full requested URI, as specified to OpenUri() constructor
@@ -2293,8 +2181,8 @@ begin
     {$ifdef OSWINDOWS}
     WSAETIMEDOUT,
     WSAEWOULDBLOCK,
-    {$endif OSWINDOWS}
     WSAIOPENDING,
+    {$endif OSWINDOWS}
     WSAEINPROGRESS,
     WSATRY_AGAIN:
       result := nrRetry;
@@ -2334,9 +2222,8 @@ var
   err: integer;
 begin
   nr := NetLastError(AnotherNonFatal, @err);
-  result := _NR[nr];
-  if err <> 0 then
-    OsErrorAppend(err, result, ' ');
+  str(err, result);
+  result := _NR[nr] + ' ' + result;
 end;
 
 function NetCheck(res: integer): TNetResult;
@@ -2378,7 +2265,7 @@ begin
     if (errnumber <> nil) and
        (error <> nrTimeout) and
        (errnumber^ <> NO_ERROR) then
-      msg := format('%s sys=%d (%s)', [msg, errnumber^, GetErrorShort(errnumber^)]);
+      msg := format('%s sys=%d (%s)', [msg, errnumber^, GetErrorText(errnumber^)]);
   end
   else
     fLastError := nrUnknownError;
@@ -2564,15 +2451,6 @@ var
 procedure NetAddrFlush(const hostname: RawUtf8);
 begin
   NetAddrCache.SafeFlush(hostname);
-end;
-
-function NetAddrResolve(const hostname: RawUtf8): RawUtf8;
-var
-  addr: TNetAddr;
-begin
-  result := '';
-  if addr.SetFrom(hostname, '80', nlTcp) = nrOK then
-    addr.IP(result);
 end;
 
 function TNetAddr.SetFromIP4(const address: RawUtf8;
@@ -2812,32 +2690,23 @@ function TNetAddr.SocketConnect(socket: TNetSocket; ms: integer): TNetResult;
 var
   tix: Int64;
 begin
+  if ms < 20 then
+    tix := 0
+  else
+    tix := mormot.core.os.GetTickCount64 + ms;
   result := socket.MakeAsync;
   if result <> nrOK then
     exit;
-  if connect(socket.Socket, @Addr, Size) = 0 then // non-blocking connect() once
-    exit; // immediate success (unlikely)
+  connect(socket.Socket, @Addr, Size); // non-blocking connect() once
   if ms < 0 then
     exit; // don't wait now
-  result := NetLastError;
-  if result <> nrRetry then
-    exit; // abort on fatal error (e.g. invalid address)
-  result := socket.MakeBlocking;
-  if result <> nrOK then
-    exit;
-  if ms < 50 then
-    tix := 0
-  else
-  begin
-    tix := mormot.core.os.GetTickCount64 + ms;
-    ms := 50;
-  end;
+  socket.MakeBlocking;
   repeat
-    result := NetEventsToNetResult(socket.WaitFor(ms, [neWrite, neError]));
+    result := NetEventsToNetResult(socket.WaitFor(20, [neWrite, neError]));
     if result <> nrRetry then
       exit;
     // typically, status = [] for TRY_AGAIN result
-    SleepHiRes(1); // paranoid to avoid buring CPU if WaitFor() doesn't wait
+    SleepHiRes(1);
   until (tix = 0) or
         (mormot.core.os.GetTickCount64 > tix);
   result := nrTimeout;
@@ -2865,27 +2734,26 @@ begin
     result := addr.SetFrom(address, '', nlUnix)
   else if not ToCardinal(port, p, {minimal=}1) or
           ({%H-}p > 65535) then
-    result := nrNotFound // port should be valid
+    result := nrNotFound
   else if (address = '') or
-          (address = cLocalhost) or
-          (address = c6Localhost) or
+          IsLocalHost(pointer(address)) or
           PropNameEquals(address, 'localhost') or
           (address = cAnyHost) then // for client: '0.0.0.0' -> '127.0.0.1'
     result := addr.SetIP4Port(cLocalhost32, p)
   else if NetIsIP4(pointer(address), @ip4) then
-    result := addr.SetIP4Port(ip4, p) // from IPv4 '1.2.3.4"
+    result := addr.SetIP4Port(ip4, p)
   else
   begin
     if Assigned(NewSocketAddressCache) then
       if NewSocketAddressCache.Search(address, addr) then
       begin
         fromcache := true;
-        result := addr.SetPort(p); // from cache
+        result := addr.SetPort(p);
         exit;
       end
       else
         tobecached := true;
-    result := addr.SetFrom(address, port, layer); // actual DNS resolution
+    result := addr.SetFrom(address, port, layer);
   end;
 end;
 
@@ -2991,7 +2859,6 @@ begin
   // resolve the TNetAddr of the address:port layer - maybe from cache
   fromcache := false;
   tobecached := false;
-  PInteger(@addr)^ := 0; // rough init - enough for addr.IP() = ''
   if dobind then
     result := addr.SetFrom(address, port, layer)
   else
@@ -3356,7 +3223,7 @@ function TNetSocketWrap.RecvWait(ms: integer;
   out data: RawByteString; terminated: PTerminated): TNetResult;
 var
   read: integer;
-  tmp: TBuffer64K; // use stack buffer to avoid RecvPending() syscall
+  tmp: array[word] of byte; // use a buffer to avoid RecvPending() syscall
 begin
   result := NetEventsToNetResult(WaitFor(ms, [neRead, neError]));
   if Assigned(terminated) and
@@ -3510,7 +3377,7 @@ const // should be local for better code generation
 function IsPublicIP(ip4: cardinal): boolean;
 begin
   result := false;
-  case ToByte(ip4) of // ignore IANA private IPv4 address spaces
+  case ToByte(ip4) of // ignore IANA private IP4 address spaces
     10:
       exit;
     172:
@@ -3532,7 +3399,7 @@ end;
 function IP4Mask(ip4: cardinal): cardinal;
 begin
   result := $ffffffff;
-  case ToByte(ip4) of // detect IANA private IPv4 address spaces
+  case ToByte(ip4) of // detect IANA private IP4 address spaces
     10:
       result := $000000ff;
     172:
@@ -3564,7 +3431,7 @@ begin
   result := (mask <> 0);
 end;
 
-function TIp4SubNet.Match(ip4: cardinal): boolean; // defined here for inlining
+function TIp4SubNet.Match(ip4: cardinal): boolean;
 begin
   // e.g. ip4=172.16.144.160 subip=172.16.144.0 submask=255.255.255.0
   result := (ip4 and mask) = ip;
@@ -3595,7 +3462,7 @@ begin
     result := 0;
 end;
 
-function IP4Subnet(ip4, netmask4: cardinal): TShort23;
+function IP4Subnet(ip4, netmask4: cardinal): ShortString;
 var
   w: integer;
 begin
@@ -3644,7 +3511,7 @@ begin
     end;
 end;
 
-procedure IP4Short(ip4addr: PByteArray; var s: TShort16);
+procedure IP4Short(ip4addr: PByteArray; var s: ShortString);
 begin
   s[0] := #0;
   AppendShortCardinal(ip4addr[0], s);
@@ -3869,6 +3736,12 @@ begin
   until false;
 end;
 
+function IsLocalHost(Host: PUtf8Char): boolean;
+begin
+  result := (PCardinal(Host)^ =
+     ord('1') + ord('2') shl 8 + ord('7') shl 16 + ord('.') shl 24);
+end;
+
 procedure NetAddRawUtf8(var Values: TRawUtf8DynArray; const Value: RawUtf8);
 var
   n: PtrInt;
@@ -3886,7 +3759,7 @@ var
     Tix: integer;
   end;
 
-  // GetMacAddresses / GetMacAddressesText cache - refreshed every 65 seconds
+  // GetMacAddresses / GetMacAddressesText cache
   MacAddresses: array[{UpAndDown=}boolean] of record
     Safe: TLightLock;
     Tix: integer;
@@ -3895,34 +3768,11 @@ var
   end;
 
 procedure MacIPAddressFlush;
-var
-  ip: TIPAddress;
-  ud: boolean;
 begin
-  for ip := low(ip) to high(ip) do
-    with IPAddresses[ip] do
-    begin
-      Safe.Lock;
-      try
-        Text := '';
-        Tix := 0;
-      finally
-        Safe.UnLock;
-      end;
-    end;
-  for ud := low(ud) to high(ud) do
-    with MacAddresses[ud] do
-    begin
-      Safe.Lock;
-      try
-        Addresses := nil;
-        Tix := 0;
-        Text[false] := '';
-        Text[true] := '';
-      finally
-        Safe.UnLock;
-      end;
-    end;
+  Finalize(IPAddresses);
+  FillCharFast(IPAddresses, SizeOf(IPAddresses), 0);
+  Finalize(MacAddresses);
+  FillCharFast(MacAddresses, SizeOf(MacAddresses), 0);
 end;
 
 procedure GetIPCSV(const Sep: RawUtf8; Kind: TIPAddress; out Text: RawUtf8);
@@ -4234,20 +4084,6 @@ begin
   FastAssignNew(TLS.LastError);
 end;
 
-function GetTlsContext(TlsEnabled, IgnoreTlsCertError: boolean;
-  var Context: TNetTlsContext; Forced: PNetTlsContext): PNetTlsContext;
-begin
-  result := nil;
-  if not TlsEnabled then
-    exit;
-  result := Forced;
-  if result <> nil then
-    exit;
-  InitNetTlsContext(Context);
-  Context.IgnoreCertificateErrors := IgnoreTlsCertError;
-  result := @Context;
-end;
-
 function SameNetTlsContext(const tls1, tls2: TNetTlsContext): boolean;
 begin
   result := (tls1.Enabled = tls2.Enabled) and
@@ -4439,16 +4275,16 @@ end;
 destructor TPollSockets.Destroy;
 var
   i: PtrInt;
-  endtix: cardinal; // never wait forever
+  endtix: Int64; // never wait forever
 begin
   Terminate;
   if fGettingOne > 0 then
   begin
     if Assigned(fOnLog) then
       fOnLog(sllTrace, 'Destroy: wait for fGettingOne=%', [fGettingOne], self);
-    endtix := GetTickSec + 5;
+    endtix := mormot.core.os.GetTickCount64 + 5000;
     while (fGettingOne > 0) and
-          (GetTickSec < endtix) do
+          (mormot.core.os.GetTickCount64 < endtix) do
       SleepHiRes(1);
     if Assigned(fOnLog) then
       fOnLog(sllTrace, 'Destroy: ended as fGettingOne=%', [fGettingOne], self);
@@ -5127,8 +4963,7 @@ begin
   n := 0;
   while true do
     case text^ of
-      #0 .. ' ',
-      '/': // allow CIDR '1.2.3.4/20' decoding
+      #0 .. ' ':
         if (b < 0) or
            (n <> 3) then
           exit
@@ -5229,7 +5064,7 @@ const
 var
   len: cardinal;
 begin
-  result := '';
+  result:='';
   len := length(s);
   if len = 0 then
     exit;
@@ -5276,21 +5111,14 @@ end;
 function TIp4SubNet.From(const subnet: RawUtf8): boolean;
 var
   ip4, sub4: RawUtf8;
-  ip32, prefix: cardinal; // local temporary ip32 is needed on Delphi XE4 :(
+  ip32, prefix: cardinal; // local temporary ip32 is needed on Delphi XE4
 begin
-  if SplitFromRight(subnet, '/', ip4, sub4) then // regular '1.2.3.4/sub' mask
-  begin
-    ip32 := 0;
-    mask := 0;
-    result := NetIsIP4(pointer(ip4), @ip32) and
-              ToCardinal(sub4, prefix, 1) and
-              IP4Netmask(prefix{%H-}, mask);
-  end
-  else
-  begin
-    mask := cardinal(-1); // 255.255.255.255
-    result := NetIsIP4(pointer(subnet), @ip32); // plain '1.2.3.4' IPv4 address
-  end;
+  mask := 0;
+  ip32 := 0;
+  result := SplitFromRight(subnet, '/', ip4, sub4) and
+            NetIsIP4(pointer(ip4), @ip32) and
+            ToCardinal(sub4, prefix, 1) and
+            IP4Netmask(prefix{%H-}, mask);
   ip := ip32 and mask; // normalize
 end;
 
@@ -5303,253 +5131,14 @@ begin
 end;
 
 
-{ TIp4SubNets }
-
-function FindIp4SubNetsMask(m: PIp4SubNetMask; mask4: cardinal): PIp4SubNetMask;
-var
-  n: integer;
-begin
-  result := m;
-  if result = nil then
-    exit;
-  n := PDALen(PAnsiChar(m) - _DALEN)^ + _DAOFF;
-  repeat
-    if result^.Mask = mask4 then // less than 20 masks in practice: O(n) is fine
-      exit;
-    inc(result);
-    dec(n);
-  until n = 0;
-  result := nil;
-end;
-
-function TIp4SubNets.Add(ip, mask: cardinal): boolean;
-var
-  p: PIp4SubNetMask;
-  n: PtrInt;
-begin
-  result := false;
-  if (ip = cardinal(-1)) or  // 255.255.255.255
-     not IsPublicIP(ip) then // e.g. 192.168.1.1
-    exit;
-  p := FindIp4SubNetsMask(pointer(fSubNet), mask);
-  if p = nil then
-  begin
-    n := length(fSubNet);
-    SetLength(fSubNet, n + 1);
-    p := @fSubNet[n];
-    p^.Mask := mask;
-  end;
-  result := AddSortedInteger(p^.IP, p^.IPCount, ip) >= 0;
-end;
-
-function TIp4SubNets.Add(const subnet: RawUtf8): boolean;
-var
-  sub: TIp4SubNet;
-begin
-  result := sub.From(subnet) and
-            Add(sub.ip, sub.mask);
-end;
-
-function TIp4SubNets.Match(ip4: cardinal): boolean;
-var
-  p: PIp4SubNetMask;
-  n: integer;
-begin
-  p := pointer(fSubNet);
-  if p <> nil then
-  begin
-    result := true;
-    n := PDALen(PAnsiChar(p) - _DALEN)^ + _DAOFF; // try all masks
-    repeat
-      // O(log(n)) binary search (branchless asm on x86_64)
-      if FastFindIntegerSorted(pointer(p^.IP), p^.IPCount - 1, ip4 and P^.Mask) >= 0 then
-        exit; // not faster to use IntegerScanIndex() for small IPCount
-      inc(p);
-      dec(n);
-    until n = 0;
-  end;
-  result := false;
-end;
-
-function TIp4SubNets.Match(const ip4: RawUtf8): boolean;
-var
-  ip32: cardinal;
-begin
-  result := NetIsIP4(pointer(ip4), @ip32) and
-            Match(ip32{%H-});
-end;
-
-procedure TIp4SubNets.Clear;
-begin
-  fSubNet := nil;
-end;
-
-function TIp4SubNets.SaveToBinary: RawByteString;
-var
-  i, n, L: PtrInt;
-  p: PCardinalArray;
-begin
-  n := length(fSubNet);
-  L := n * 8 + 8;
-  for i := 0 to n - 1 do
-    inc(L, fSubNet[i].IPCount * 4);
-  p := FastNewRawByteString(result, L);
-  p^[0] := IP4SUBNET_MAGIC;
-  p^[1] := n;
-  p := @p^[2];
-  for i := 0 to n - 1 do
-    with fSubNet[i] do
-    begin
-      p^[0] := Mask;
-      p^[1] := IPCount;
-      MoveFast(pointer(IP)^, p^[2], p^[1] * 4);
-      p := @p^[p^[1] + 2];
-    end;
-end;
-
-function TIp4SubNets.LoadFromBinary(const bin: RawByteString): integer;
-var
-  i, n: PtrInt;
-  p: PCardinalArray;
-  d: PIp4SubNetMask;
-begin
-  result := 0;
-  Clear;
-  n := length(bin);
-  if (n <= 8) or
-     (PCardinal(bin)^ <> IP4SUBNET_MAGIC) or
-     ((n and 3) <> 0) then // should be an exact array of 32-bit integers
-    exit;
-  p := @PCardinalArray(bin)[1];
-  n := (n shr 2) - 1;
-  for i := 0 to p^[0] - 1 do
-  begin
-    if n < 2 then
-      exit; // avoid buffer overflow
-    dec(n, p^[2] + 2);
-    p := @p^[p^[2] + 2];
-  end;
-  if n <> 1 then
-    exit; // decoded size should be an exact match with supplied bin
-  p := @PCardinalArray(bin)[1];
-  SetLength(fSubNet, p^[0]);
-  d := pointer(fSubNet);
-  for i := 0 to p^[0] - 1 do
-  begin
-    d^.Mask := p^[1];
-    d^.IPCount := p^[2];
-    SetLength(d^.IP, p^[2]);
-    MoveFast(p^[3], pointer(d^.IP)^, p^[2] * 4);
-    inc(result, p^[2]);
-    p := @p^[p^[2] + 2];
-    inc(d);
-  end;
-end;
-
-function TIp4SubNets.AddFromText(const text: RawUtf8): integer;
-var
-  p: PUtf8Char;
-  ip, mask: cardinal;
-begin
-  result := 0;
-  p := pointer(text);
-  while p <> nil do
-  begin
-    while p^ in [#1 .. ' ' ] do
-      inc(p);
-    if NetIsIP4(p, @ip) then // ignore any line starting e.g. with # or ;
-    begin
-      while p^ in ['0' .. '9', '.', ' '] do
-        inc(p);
-      if p^ <> '/' then
-        mask := cardinal(-1) // single IP has 255.255.255.255 mask
-      else
-        mask := IP4Netmask(GetCardinal(p + 1)); // CIDR
-      if (mask <> 0) and
-         Add(ip, mask) then
-        inc(result); // first time seen
-    end;
-    p := GotoNextLine(p);
-  end;
-end;
-
-function TIp4SubNets.AfterAdd: integer;
-var
-  n: integer;
-  p: PIp4SubNetMask;
-begin
-  result := 0;
-  p := pointer(fSubNet);
-  if p = nil then
-    exit;
-  n := PDALen(PAnsiChar(p) - _DALEN)^ + _DAOFF; // process all masks
-  repeat // SetLength(SubNet[].IP, SubNet[].IPCount) without any realloc
-    PDALen(PAnsiChar(pointer(p^.IP)) - _DALEN)^ := p^.IPCount - _DAOFF;
-    inc(result, p^.IPCount);
-    inc(p);
-    dec(n);
-  until n = 0;
-end;
-
-function TIp4SubNets.LoadFrom(const buffer: RawBytestring): integer;
-begin
-  Clear;
-  if (buffer <> '') and
-     (PCardinal(buffer)^ = IP4SUBNET_MAGIC) then
-    result := LoadFromBinary(buffer)
-  else
-    result := AddFromText(buffer);
-  if AfterAdd = result then
-    exit;
-  Clear; // paranoid
-  result := -1;
-end;
-
-function IP4SubNetMatch(P: PCardinalArray; ip4: cardinal): boolean;
-var
-  n: integer;
-begin
-  if (P <> nil) and
-     (P^[0] = IP4SUBNET_MAGIC) then
-  begin
-    result := true;
-    n := P^[1]; // try all masks - warning: won't check for buffer overflow
-    repeat
-      if FastFindIntegerSorted(@P^[4], P^[3] - 1, ip4 and P^[2]) >= 0 then
-        exit;
-      P := @P^[P^[3] + 2]; // O(log(n)) search the binary buffer in-place
-      dec(n);
-    until n = 0;
-  end;
-  result := false;
-end;
-
-function IP4SubNetMatch(const bin: RawByteString; const ip4: RawUtf8): boolean;
-var
-  ip32: cardinal;
-begin
-  result := (bin <> '') and
-            (PCardinal(bin)^ = IP4SUBNET_MAGIC) and
-            NetIsIP4(pointer(ip4), @ip32) and
-            IP4SubNetMatch(pointer(bin), ip32{%H-});
-end;
-
-
 { TUri }
 
 procedure TUri.Clear;
 begin
   Https := false;
   Layer := nlTcp;
-  UriScheme := usUndefined;
   Finalize(self); // reset all RawUtf8 fields
 end;
-
-const
-  _US: array[usHttp .. high(TUriScheme)] of RawUtf8 = (
-    'http', 'ws', 'https', 'wss', 'udp', 'file', 'ftp', 'ftps');
-  _US_PORT: array[TUriScheme] of RawUtf8 = (
-    '', '', '80', '80', '443', '443', '', '', '20', '989');
 
 function TUri.From(aUri: RawUtf8; const DefaultPort: RawUtf8): boolean;
 var
@@ -5566,21 +5155,14 @@ begin
   s := p;
   while s^ in ['a'..'z', 'A'..'Z', '+', '-', '.', '0'..'9'] do
     inc(s);
-  UriScheme := usHttp; // fallback to http:// if no scheme specified
   if PInteger(s)^ and $ffffff = ord(':') + ord('/') shl 8 + ord('/') shl 16 then
   begin
     FastSetString(Scheme, p, s - p);
-    UriScheme := TUriScheme(FindPropName(@_US, Scheme, length(_US)) + ord(low(_US)));
-    case UriScheme of
-      usHttps,
-      usWss:  // wss:// is just an upgraded https:
-        Https := true;
-      usUdp:  // 'udp://server:port'
-        Layer := nlUdp;
-      usFile: // https://en.wikipedia.org/wiki/File_URI_scheme#Number_of_slash_characters
-        if PWord(s + 3)^ = ord('/') + ord('/') shl 8 then
-          inc(s, 2); // support 'file:////server/folder/data.xml' form
-    end;
+    if NetStartWith(pointer(p), 'HTTPS') or
+       NetStartWith(pointer(p), 'WSS') then // wss: is just an upgraded https:
+      Https := true
+    else if NetStartWith(pointer(p), 'UDP') then
+      Layer := nlUdp; // 'udp://server:port';
     p := s + 3;
   end;
   // parse Server
@@ -5590,7 +5172,7 @@ begin
     Layer := nlUnix;
     s := p;
     while not (s^ in [#0, ':']) do
-      inc(s); // Server='/path/to/socket.sock'
+      inc(s); // Server='path/to/socket.sock'
   end
   else
   begin
@@ -5613,29 +5195,27 @@ begin
       end;
     end;
     s := p;
-    while not (s^ in [#0, ':', '/', '?']) do
+    while not (s^ in [#0, ':', '/']) do
       inc(s); // 'server:port/address' or 'server/address'
   end;
   FastSetString(Server, p, s - p);
   // optional Port
-  if Server <> '' then // we need a server to have a port
-    if s^ = ':' then
-    begin
-      inc(s);
-      p := s;
-      while not (s^ in [#0, '/']) do
-        inc(s);
-      FastSetString(Port, p, s - p); // Port='' for nlUnix
-    end
-    else if DefaultPort <> '' then
-      Port := DefaultPort
-    else
-      Port := _US_PORT[UriScheme];
-  // all the remaining text is the Address
-  if s^ <> #0 then // ':' or '/' or '?'
+  if s^ = ':' then
   begin
-    if s^ <> '?' then
+    inc(s);
+    p := s;
+    while not (s^ in [#0, '/']) do
       inc(s);
+    FastSetString(Port, p, s - p); // Port='' for nlUnix
+  end
+  else if DefaultPort <> '' then
+    Port := DefaultPort
+  else
+    Port := DEFAULT_PORT[Https];
+  // all the remaining text is the Address
+  if s^ <> #0 then // ':' or '/'
+  begin
+    inc(s);
     FastSetString(Address, s, StrLen(s));
   end;
   if Server <> '' then
@@ -5665,32 +5245,14 @@ end;
 
 function TUri.ServerPort: RawUtf8;
 begin
-  result := '';
   if layer = nlUnix then
-  begin
-    Join(['http://unix:', Server, ':/'], result); // our own layout
-    exit;
-  end;
-  if UriScheme = usUndefined then // fields directly set, without any From()
-    if Layer = nlUdp then
-      UriScheme := usUdp
-    else if Server = '' then
-      exit // void e.g. just after Clear - http/https requires a server anyway
-    else if Https then
-      UriScheme := usHttps
-    else
-      UriScheme := usHttp;
-  if UriScheme = usCustom then
-    result := Scheme // as specified
+    Join(['http://unix:', Server, ':/'], result)
+  else if (Port = '') or
+          (Port = '0') or
+          (Port = DEFAULT_PORT[Https]) then
+    Join([HTTPS_TEXT[Https], Server, '/'], result)
   else
-    result := _US[UriScheme]; // normalized or default 'http://'
-  if result <> '' then
-    if (Port = '') or
-       (Port = '0') or
-       (Port = _US_PORT[UriScheme]) then
-      result := Join([result, '://', Server, '/'])
-    else
-      result := Join([result, '://', Server, ':', Port, '/']);
+    Join([HTTPS_TEXT[Https], Server, ':', Port, '/'], result);
 end;
 
 function TUri.PortInt: TNetPort;
@@ -5787,27 +5349,18 @@ begin
     aTLSContext^ := TLS; // copy back information to the caller TNetTlsContext
 end;
 
-constructor TCrtSocket.OpenUri(const aUri: TUri; const aUriFull, aTunnel: RawUtf8;
-  aTimeOut: cardinal; aTLSContext: PNetTlsContext);
-var
-  t: TUri;
-begin
-  if aUri.Server = '' then
-    raise ENetSock.Create('%s.OpenUri(%s): invalid URI',
-                          [ClassNameShort(self)^, aUriFull]);
-  fOpenUriFull := aUriFull;
-  t.From(aTunnel);
-  Open(aUri.Server, aUri.Port, nlTcp, aTimeOut, aUri.Https, aTLSContext, @t);
-end;
-
 constructor TCrtSocket.OpenUri(const aUri: RawUtf8; out aAddress: RawUtf8;
   const aTunnel: RawUtf8; aTimeOut: cardinal; aTLSContext: PNetTlsContext);
 var
-  u: TUri;
+  u, t: TUri;
 begin
-  u.From(aUri); // e.g. 'file:///path/to' = false (since Server='') but is valid
-  OpenUri(u, aUri, aTunnel, aTimeOut, aTLSContext);
+  if not u.From(aUri) then
+    raise ENetSock.Create('%s.OpenUri(%s): invalid URI',
+            [ClassNameShort(self)^, aUri]);
+  fOpenUriFull := aUri;
   aAddress := u.Address;
+  t.From(aTunnel);
+  Open(u.Server, u.Port, nlTcp, aTimeOut, u.Https, aTLSContext, @t);
 end;
 
 constructor TCrtSocket.Bind(const aAddress: RawUtf8; aLayer: TNetLayer;
@@ -5818,7 +5371,7 @@ begin
 end;
 
 const
-  BINDTXT: array[boolean] of string[7] = (
+  BINDTXT: array[boolean] of string[4] = (
     'open', 'bind');
   BINDMSG: array[boolean] of string = (
     'Is a server available on this address:port?',
@@ -5875,11 +5428,6 @@ begin
   {$endif OSLINUX}
 end;
 
-function TCrtSocket.ServerTls: boolean;
-begin
-  result := (fServerTlsEnabled in fFlags); // properly set by OpenBind()
-end;
-
 const
   CSTA_TXT: array[TCrtSocketTlsAfter] of AnsiChar = 'CBA';
 
@@ -5930,11 +5478,11 @@ begin
     aAddress^ := u.Address;
 end;
 
-procedure TCrtSocket.OpenBind(const aServer, aPort: RawUtf8; doBind,
+procedure TCrtSocket.OpenBind(const aServer, aPort: RawUtf8; doBind: boolean;
   aTLS: boolean; aLayer: TNetLayer; aSock: TNetSocket; aReusePort: boolean);
 var
   retry: integer;
-  s: RawUtf8;
+  head: RawUtf8;
   res: TNetResult;
   addr: TNetAddr;
 begin
@@ -5944,8 +5492,6 @@ begin
   fFlags := [];
   if doBind then
     include(fFlags, fWasBind);
-  if aTLS then
-    include(fFlags, fServerTlsEnabled); // for proper reconnection
   if {%H-}PtrInt(aSock) <= 0 then
   begin
     // OPEN or BIND mode -> create the socket
@@ -5962,10 +5508,9 @@ begin
             (Tunnel.Server <> fServer) and
             (aLayer = nlTcp) then
     begin
-      // HTTP(S) tunnelling via CONNECT - see also THttpClientSocket.OpenBind
+      // handle client tunnelling via an HTTP(s) proxy
       fProxyUrl := Tunnel.URI;
       if Tunnel.Https and aTLS then
-        // single TLS parameter for either the Tunnel or the destination
         raise ENetSock.Create(
           '%s.Open(%s:%s): %s proxy - unsupported dual TLS layers',
           [ClassNameShort(self)^, fServer, fPort, fProxyUrl]);
@@ -5976,21 +5521,18 @@ begin
         begin
           addr.IP(fRemoteIP, true);
           fSocketFamily := addr.Family;
-          include(fFlags, fProxyConnect);
           res := nrRefused;
-          if Tunnel.Https then
-            DoTlsAfter(cstaConnect); // the proxy requires a TLS connection
           SockSendLine(['CONNECT ', fServer, ':', fPort, ' HTTP/1.0']);
           if Tunnel.User <> '' then
             SockSendLine(['Proxy-Authorization: Basic ', Tunnel.UserPasswordBase64]);
           SockSendFlush(#13#10);
           repeat
-            SockRecvLn(s);
-            if NetStartWith(pointer(s), 'HTTP/') and
-               (length(s) > 11) and
-               (s[10] = '2') then // 'HTTP/1.1 2xx xxxx' success
+            SockRecvLn(head);
+            if NetStartWith(pointer(head), 'HTTP/') and
+               (length(head) > 11) and
+               (head[10] = '2') then // 'HTTP/1.1 2xx xxxx' success
               res := nrOK;
-          until s = ''; // end of response headers
+          until head = '';
         end;
       except
         on E: Exception do
@@ -6001,36 +5543,38 @@ begin
         raise ENetSock.Create('%s.Open(%s:%s): %s proxy error',
           [ClassNameShort(self)^, fServer, fPort, fProxyUrl], res);
       if Assigned(OnLog) then
-        OnLog(sllTrace, 'Open(%:%) via proxy CONNECT %',
-          [fServer, fPort, fProxyUrl], self);
+        OnLog(sllTrace, 'Open(%:%) via proxy %', [fServer, fPort, fProxyUrl], self);
       if aTLS then
-        DoTlsAfter(cstaConnect); // raw TLS negotation after CONNECT
+        DoTlsAfter(cstaConnect);
       exit;
     end
     else
       // direct client connection
       retry := {$ifdef OSBSD} 10 {$else} 2 {$endif};
-    s := fServer;
     {$ifdef OSPOSIX}
     // check if aServer is 'unix:/path/to/myapp.socket' with default nlTcp
     if (aLayer = nlTcp) and
-       NetStartWith(pointer(s), 'UNIX:') then
+       NetStartWith(pointer(fServer), 'UNIX:') then
     begin
       aLayer := nlUnix;
-      delete(s, 1, 5);
+      delete(fServer, 1, 5);
     end;
     {$endif OSPOSIX}
     //if Assigned(OnLog) then
     //  OnLog(sllTrace, 'Before NewSocket', [], self);
-    res := NewSocket(s, fPort, aLayer, doBind, fTimeout, fTimeout, fTimeout,
-                     retry, fSock, @addr, aReusePort);
+    res := NewSocket(fServer, fPort, aLayer, doBind,
+      fTimeout, fTimeout, fTimeout, retry, fSock, @addr, aReusePort);
     //if Assigned(OnLog) then
     //  OnLog(sllTrace, 'After NewSocket=%', [ToText(res)^], self);
+    {$ifdef OSPOSIX}
+    if aLayer = nlUnix then
+      fServer := aServer; // keep the full server name if reused after Close
+    {$endif OSPOSIX}
     addr.IP(fRemoteIP, true);
+    fSocketFamily := addr.Family;
     if res <> nrOK then
       raise ENetSock.Create('%s %s.OpenBind(%s:%s) [remoteip=%s]',
         [BINDMSG[doBind], ClassNameShort(self)^, fServer, fPort, fRemoteIP], res);
-    fSocketFamily := addr.Family;
   end
   else
   begin
@@ -6058,7 +5602,7 @@ function TCrtSocket.ReOpen(aTimeout: cardinal): string;
 begin
   try
     Close;
-    OpenBind(fServer, fPort, fWasBind in fFlags, ServerTls);
+    OpenBind(fServer, fPort, fWasBind in fFlags, TLS.Enabled);
     if SockConnected then
       result := '' // success
     else
@@ -6436,71 +5980,55 @@ end;
 
 procedure TCrtSocket.SockSendCRLF;
 begin
-  PWord(EnsureSockSend(2))^ := EOLW;
+  PWord(EnsureSockSend(2))^ := CRLFW;
 end;
 
 procedure TCrtSocket.SockSend(const Values: array of const);
 var
-  v: PVarRec;
   i: PtrInt;
+  {$ifdef HASVARUSTRING}
   j, l: PtrInt;
-  w: PWordArray;
   p: PByteArray;
-  t: PAnsiChar;
-  tmp: TTemp24;
+  {$endif HASVARUSTRING}
+  tmp: ShortString;
 begin
-  v := @Values[0];
   for i := 0 to high(Values) do
-  begin
-    case v^.VType of // only most common arguments are supported
-      vtString:
-        SockSend(@v^.VString^[1], PByte(v^.VString)^);
-      vtAnsiString:
-        if v^.VAnsiString <> nil then
-          SockSend(v^.VAnsiString, PStrLen(v^.VPChar - _STRLEN)^);
-      vtPWideChar,
-      {$ifdef HASVARUSTRING}
-      vtUnicodeString,
-      {$endif HASVARUSTRING}
-      vtWideString:
-        begin // constant text is expected to be pure ASCII-7
-          w := v^.VWideString;
-          if w <> nil then
-          begin
-            {$ifdef HASVARUSTRING}
-            if v^.VType = vtUnicodeString then
-              l := PStrLen(v^.VPChar - _STRLEN)^
-            else
-            {$endif HASVARUSTRING}
-              l := StrLenW(pointer(w));
+    with Values[i] do // only most common arguments are supported
+      case VType of
+        vtString:
+          SockSend(@VString^[1], PByte(VString)^);
+        vtAnsiString:
+          SockSend(VAnsiString, Length(RawByteString(VAnsiString)));
+        {$ifdef HASVARUSTRING}
+        vtUnicodeString:
+          begin // constant text is expected to be pure ASCII-7
+            l := length(UnicodeString(VUnicodeString));
             p := EnsureSockSend(l);
             for j := 0 to l - 1 do
-              p[j] := w[j];
+              p[j] := PWordArray(VUnicodeString)[j];
           end;
-        end;
-      vtPChar:
-        SockSend(v^.VPChar, StrLen(v^.VPChar));
-      vtChar:
-        SockSend(@v^.VChar, 1);
-      vtWideChar:
-        SockSend(@v^.VWideChar, 1); // expects a 7-bit ASCII character
-      vtInteger:
-        begin
-          t := StrInt32(@tmp[23], v^.VInteger);
-          SockSend(t, @tmp[23] - t);
-        end;
-      {$ifdef FPC} vtQWord, {$endif}
-      vtInt64: // e.g. for "Content-Length:" or  "Range:" sizes
-        begin
-          t := StrInt64(@tmp[23], v^.VInt64^);
-          SockSend(t, @tmp[23] - t);
-        end;
-    else
-      raise ENetSock.CreateFmt('%s.SockSend: unsupported VType=%d',
-        [ClassNameShort(self)^, v^.VType]); // paranoid
-    end;
-    inc(v);
-  end;
+        {$endif HASVARUSTRING}
+        vtPChar:
+          SockSend(VPChar, StrLen(VPChar));
+        vtChar:
+          SockSend(@VChar, 1);
+        vtWideChar:
+          SockSend(@VWideChar, 1); // only ansi part of the character
+        vtInteger:
+          begin
+            Str(VInteger, tmp);
+            SockSend(@tmp[1], ord(tmp[0]));
+          end;
+        {$ifdef FPC} vtQWord, {$endif}
+        vtInt64: // e.g. for "Content-Length:" or  "Range:" sizes
+          begin
+            Str(VInt64^, tmp);
+            SockSend(@tmp[1], ord(tmp[0]));
+          end;
+      else
+        raise ENetSock.CreateFmt('%s.SockSend: unsupported VType=%d',
+          [ClassNameShort(self)^, VType]); // paranoid
+      end;
   SockSendCRLF;
 end;
 
@@ -6509,7 +6037,7 @@ var
   i, len: PtrInt;
   p: PUtf8Char;
 begin
-  len := 2; // for trailing CRLF
+  len := 2; // for trailing CRLFW
   for i := 0 to high(Values) do
     inc(len, length(Values[i]));
   p := EnsureSockSend(len); // reserve all needed memory at once
@@ -6519,7 +6047,7 @@ begin
     MoveFast(pointer(Values[i])^, p^, len);
     inc(p, len);
   end;
-  PWord(p)^ := EOLW;
+  PWord(p)^ := CRLFW;
 end;
 
 procedure TCrtSocket.SockSend(const Line: RawByteString; NoCrLf: boolean);
@@ -6531,30 +6059,29 @@ begin
   p := EnsureSockSend(len + 2);
   MoveFast(pointer(Line)^, p^, len);
   if not NoCrLf then
-    PWord(p + len)^ := EOLW;
+    PWord(p + len)^ := CRLFW;
 end;
 
-procedure TCrtSocket.SockSendHeaders(const headers: RawUtf8);
+procedure TCrtSocket.SockSendHeaders(P: PUtf8Char);
 var
-  p, pend, d: PUtf8Char;
+  s, d: PUtf8Char;
   len: PtrInt;
 begin
-  p := pointer(headers);
-  if p = nil then
-    exit;
-  pend := p + PStrLen(p - _STRLEN)^;
-  repeat
-    while p^ <= ' ' do
-      if p^ <> #0 then
-        inc(p) // trim spaces, and ignore any kind of line feed or void line
-      else
-        exit;  // end of input
-    len := BufferLineLength(p, pend); // use SSE2 on x86-64 - we know len <> 0
-    d := EnsureSockSend(len + 2);     // reserve enough space at once
-    MoveFast(p^, d^, len);            // append line content
-    PWord(d + len)^ := EOLW;          // normalize line end
-    inc(p, len);
-  until false;
+  if P <> nil then
+    repeat
+      s := P;
+      while P^ >= ' ' do  // quickly go to end of header line
+        inc(P);
+      len := P - s;
+      d := EnsureSockSend(len + 2); // reserve enough space at once
+      MoveFast(s^, d^, len);        // append line content
+      PWord(d + len)^ := CRLFW;     // normalize line end
+      while P^ < ' ' do
+        if P^ = #0 then
+          exit    // end of input
+        else
+          inc(P); // ignore any control char, e.g. #10 or #13
+    until false;
 end;
 
 function TCrtSocket.SockSendRemainingSize: integer;
@@ -6704,7 +6231,7 @@ function TCrtSocket.SockReceiveString(
   NetResult: PNetResult; RawError: system.PInteger): RawByteString;
 var
   read: integer;
-  tmp: TBuffer64K; // big enough for INetTls or the socket API
+  tmp: array[word] of byte; // 64KB is big enough for INetTls or the socket API
 begin
   read := SizeOf(tmp);
   if TrySockRecv(@tmp, read, {StopBeforeLength=}true, NetResult, RawError) and
@@ -7039,11 +6566,19 @@ function SocketOpen(const aServer, aPort: RawUtf8; aTLS: boolean;
   aTLSContext: PNetTlsContext; aTunnel: PUri;
   aTLSIgnoreCertError: boolean): TCrtSocket;
 var
-  tmp: TNetTlsContext;
+  c: TNetTlsContext;
 begin
+  if aTls and
+     (aTLSContext = nil) and
+     aTLSIgnoreCertError then
+  begin
+    InitNetTlsContext(c);
+    c.IgnoreCertificateErrors := true;
+    aTLSContext := @c;
+  end;
   try
-    result := TCrtSocket.Open(aServer, aPort, nlTcp, 10000, aTLS,
-      GetTlsContext(aTLS, aTLSIgnoreCertError, tmp, aTLSContext) , aTunnel);
+    result := TCrtSocket.Open(
+      aServer, aPort, nlTcp, 10000, aTLS, aTLSContext, aTunnel);
   except
     result := nil;
   end;

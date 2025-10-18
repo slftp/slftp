@@ -100,7 +100,7 @@ type
     fCache: TOrmCache;
     fTransactionActiveSession: cardinal;
     fTransactionTable: TOrmClass;
-    fTempJsonWriter: TJsonWriter; // shared with a 64KB internal buffer
+    fTempJsonWriter: TJsonWriter;
     /// compute SELECT ... FROM TABLE WHERE ...
     function SqlComputeForSelect(TableModelIndex: integer; Table: TOrmClass;
       const FieldNames, WhereClause: RawUtf8): RawUtf8;
@@ -259,16 +259,13 @@ type
     /// internal TOrm value serialization to a JSON object
     // - will use shared AcquireJsonWriter instance if available
     procedure GetJsonValue(Value: TOrm; withID: boolean;
-      const Fields: TFieldBits; var Json: RawUtf8); overload;
+      const Fields: TFieldBits; out Json: RawUtf8); overload;
     /// internal TOrm value serialization to a JSON object
     // - will use shared AcquireJsonWriter instance if available
     procedure GetJsonValue(Value: TOrm; withID: boolean; Occasion: TOrmOccasion;
       var Json: RawUtf8); overload;
       {$ifdef FPC_OR_DELPHIXE} inline; {$endif} // avoid URW1111 on Delphi 2010
     /// access to a thread-safe internal cached TJsonWriter instance
-    // - with a TRawByteStringStream and 128KB of non-resizable working buffer
-    // - sharing an instance make sense because it is likely to be needed
-    // within a TSqlDatabase global Lock on SQLite3
     function AcquireJsonWriter(var tmp: TTextWriterStackBuffer): TJsonWriter;
       {$ifdef HASINLINE} inline; {$endif}
     /// release the thread-safe cached TJsonWriter returned by AcquireJsonWriter
@@ -605,9 +602,7 @@ implementation
 constructor TRestOrm.Create(aRest: TRest);
 begin
   inherited Create;
-  fTempJsonWriter := // generous 128KB buffer with no resize
-    TJsonWriter.CreateOwnedStream(128 shl 10, {nosharedstream=}true);
-  fTempJsonWriter.FlushToStreamNoAutoResize := true; // stick to BufferSize
+  fTempJsonWriter := TJsonWriter.CreateOwnedStream(16384, {nosharedstream=}true);
   if aRest = nil then
     exit;
   fRest := aRest;
@@ -683,10 +678,10 @@ begin
 end;
 
 procedure TRestOrm.GetJsonValue(Value: TOrm; withID: boolean;
-  const Fields: TFieldBits; var Json: RawUtf8);
+  const Fields: TFieldBits; out Json: RawUtf8);
 var
   WR: TJsonWriter;
-  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
+  tmp: TTextWriterStackBuffer;
 begin
   // faster than Json := Value.GetJsonValues(true, withID, Fields);
   WR := AcquireJsonWriter(tmp);

@@ -443,7 +443,7 @@ begin
     if ValidateItems <> nil then
     begin
       result := '';
-      EEccException.RaiseU('Some of the certificates are invalid');
+      raise EEccException.Create('Some of the certificates are invalid');
     end;
     SaveToFile(result);
   finally
@@ -473,7 +473,7 @@ var
 begin
   if FileExists(CHEAT_FILEMASTER + ECCCERTIFICATEPUBLIC_FILEEXT) or
      FileExists(CHEAT_FILEMASTER + ECCCERTIFICATESECRET_FILEEXT) then
-    EEccException.RaiseU(CHEAT_FILEMASTER + ' file already exist');
+    raise EEccException.Create(CHEAT_FILEMASTER + ' file already exist');
   // generate pair
   new := TEccCertificateSecret.CreateNew(nil, Issuer);
   try
@@ -641,7 +641,7 @@ var
 begin
   result := eccSuccess;
   if sw = nil then
-    EEccException.RaiseU('EccCommand(nil)');
+    raise EEccException.Create('EccCommand(nil)');
   try
     try
       case cmd of

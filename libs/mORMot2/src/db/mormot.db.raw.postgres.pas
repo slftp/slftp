@@ -328,7 +328,7 @@ begin
       dec(ValueCount)
     until ValueCount = 0;
   //if PAnsiChar(p) - pointer(Bin) <> length(Bin) then
-  //  ESqlDBPostgres.RaiseU('ToIntArrayOid');
+  //  raise ESqlDBPostgres.CreateU('ToIntArrayOid');
   result := true;
 end;
 
@@ -441,7 +441,7 @@ begin
   FormatUtf8('% % failed: % [%]', [self, ctxt, errCode, errMsg], msg);
   if res <> nil then
     Clear(res);
-  ESqlDBPostgres.RaiseU(msg); // will properly call SetDbError()
+  raise ESqlDBPostgres.CreateU(msg); // will properly call SetDbError()
 end;
 
 procedure TSqlDBPostgresLib.Check(conn: PPGconn; const ctxt: ShortString;

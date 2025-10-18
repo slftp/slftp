@@ -41,12 +41,10 @@ uses
   sysutils,
   mormot.core.base,
   mormot.core.os,
-  mormot.core.os.security,
   mormot.core.rtti,
   mormot.core.unicode,
   mormot.core.text,
   mormot.core.buffers,
-  mormot.core.datetime,
   mormot.lib.openssl11,
   mormot.crypt.core,
   mormot.crypt.ecc256r1,
@@ -277,19 +275,14 @@ type
   private
     fCtx: PEVP_MD_CTX;
     fXof: boolean;
-    procedure Init(MD: PEVP_MD; HashSize: cardinal);
   public
     /// initialize the internal hashing structure for a specific algorithm
-    // - for XOF hash functions such as 'shake256', the hashSize option
-    // can be used to specify the desired output length in bytes
-    constructor Create(Algorithm: THashAlgo; HashSize: cardinal = 0); overload;
-    /// initialize the internal hashing structure for a specific algorithm
-    // - Algorithm is one of "openssl list -digest-algorithms"
-    // - if Algorithm is not specified, EVP_sha256 (aka 'sha256') will be used
+    // - Algorithm is one of `openssl list -digest-algorithms`
+    // - if Algorithm is not specified, EVP_sha256 will be used
     // - for XOF hash functions such as 'shake256', the hashSize option
     // can be used to specify the desired output length in bytes
     // - raise an EOpenSslHash exception on unknown/unsupported algorithm
-    constructor Create(const Algorithm: RawUtf8; HashSize: cardinal = 0); overload;
+    constructor Create(const Algorithm: RawUtf8; HashSize: cardinal = 0);
     /// call this method for each continuous message block
     // - iterate over all message blocks, then call Digest to retrieve the Hash
     procedure Update(Data: pointer; DataLength: integer); override;
@@ -298,12 +291,9 @@ type
     // which is typically a THash256 or THash512 variable
     // - returns actual DigestValue/Dest buffer length, i.e. DigestSize
     function Digest(Dest: pointer = nil): cardinal; override;
-    /// compute the message authentication code using the supplied hash function
-    class function Hash(Algorithm: THashAlgo; const Data: RawByteString;
-      HashSize: cardinal = 0): RawUtf8; overload;
-    /// compute the message authentication code using "Algorithm" OpenSSL digest
+    /// compute the message authentication code using `Algorithm` as hash function
     class function Hash(const Algorithm: RawUtf8; const Data: RawByteString;
-      HashSize: cardinal = 0): RawUtf8; overload;
+      HashSize: cardinal = 0): RawUtf8;
     /// release the digest context
     destructor Destroy; override;
   end;
@@ -312,14 +302,10 @@ type
   TOpenSslHmac = class(TOpenSslDigestAbstract)
   private
     fCtx: PHMAC_CTX;
-    procedure Init(md: PEVP_MD; Key: pointer; KeyLength: cardinal);
   public
     /// initialize the internal HMAC structure for a specific Algorithm and Key
-    // - Key/KeyLen define the HMAC associated salt
-    constructor Create(Algorithm: THashAlgo; Key: pointer; KeyLength: cardinal); overload;
-    /// initialize the internal HMAC structure for a specific Algorithm and Key
-    // - Algorithm is one of "openssl list -digest-algorithms"
-    // - if Algorithm is not specified, EVP_sha256 (aka 'sha256') will be used
+    // - Algorithm is one of `openssl list -digest-algorithms`
+    // - if Algorithm is not specified, EVP_sha256 will be used
     // - Key/KeyLen define the HMAC associated salt
     // - raise an EOpenSslHash exception on unknown/unsupported algorithm
     constructor Create(const Algorithm: RawUtf8;
@@ -335,17 +321,11 @@ type
     // which is typically a THash256 or THash512 variable
     // - returns actual DigestValue/Dest buffer length, i.e. DigestSize
     function Digest(Dest: pointer = nil): cardinal; override;
-    /// compute the HMAC using "Algorithm" OpenSSL digest (e.g. 'sha256')
+    /// compute the HMAC using `algorithm` as hash function
     class function Hmac(const Algorithm: RawUtf8; const Data: RawByteString;
       Key: pointer; KeyLength: cardinal): RawUtf8; overload;
-    /// compute the HMAC using "Algorithm" OpenSSL digest (e.g. 'sha256')
+    /// compute the HMAC using `algorithm` as hash function
     class function Hmac(const Algorithm: RawUtf8;
-      const Data, Key: RawByteString): RawUtf8; overload;
-    /// compute the HMAC using the supplied hash function
-    class function Hmac(Algorithm: THashAlgo;
-      const Data: RawByteString; Key: pointer; KeyLength: cardinal): RawUtf8; overload;
-    /// compute the HMAC using the supplied hash function
-    class function Hmac(Algorithm: THashAlgo;
       const Data, Key: RawByteString): RawUtf8; overload;
     /// release the digest context
     destructor Destroy; override;
@@ -521,8 +501,8 @@ type
     fPrivKey, fPubKey: PEVP_PKEY;
     fAsymAlgo: TCryptAsymAlgo;
     function ComputeSignature(const headpayload: RawUtf8): RawUtf8; override;
-    function CheckSignature(headpayload: PValuePUtf8Char;
-      const signature: RawByteString): TJwtResult; override;
+    procedure CheckSignature(const headpayload: RawUtf8; const signature: RawByteString;
+      var jwt: TJwtContent); override;
   public
     /// initialize the JWT processing instance using any supported OpenSSL algorithm
     constructor Create(const aJwtAlgorithm, aHashAlgorithm: RawUtf8;
@@ -1076,8 +1056,18 @@ end;
 
 { TOpenSslHash }
 
-procedure TOpenSslHash.Init(MD: PEVP_MD; HashSize: cardinal);
+constructor TOpenSslHash.Create(const Algorithm: RawUtf8; HashSize: cardinal);
+var
+  md: PEVP_MD;
 begin
+  EOpenSslHash.CheckAvailable(PClass(self)^, 'Create');
+  if Algorithm = '' then
+    md := EVP_sha256
+  else
+    md := EVP_get_digestbyname(pointer(Algorithm));
+  if md = nil then
+    raise EOpenSslHash.CreateFmt(
+      'TOpenSslHash.Create(''%s''): Unknown algorithm', [Algorithm]);
   fCtx := EVP_MD_CTX_new;
   EOpenSslHash.Check(self, 'Create',
     EVP_DigestInit_ex(fCtx, md, nil));
@@ -1086,20 +1076,11 @@ begin
   if (hashSize <> 0)  and
      (fDigestSize <> HashSize) then
     if fXof then
-      fDigestSize := hashSize // custom size in XOF mode
+      // custom size in XOF mode
+      fDigestSize := hashSize
     else
-      raise EOpenSslHash.CreateFmt('TOpenSslHash.Create: Unexpected HashSize=' +
-        '%d to a non-XOF hash function', [HashSize]);
-end;
-
-constructor TOpenSslHash.Create(const Algorithm: RawUtf8; HashSize: cardinal);
-begin
-  Init(OpenSslGetMdByName(Algorithm, 'TOpenSslHash.Create'), HashSize);
-end;
-
-constructor TOpenSslHash.Create(Algorithm: THashAlgo; HashSize: cardinal);
-begin
-  Init(OpenSslGetMd(Algorithm), HashSize);
+      raise EOpenSslHash.CreateFmt('TOpenSslHash.Create: Incorrect HashSize=' +
+        '%d to a non-XOF hash function ''%s''', [HashSize, Algorithm]);
 end;
 
 procedure TOpenSslHash.Update(Data: pointer; DataLength: integer);
@@ -1153,44 +1134,26 @@ begin
     end;
 end;
 
-class function TOpenSslHash.Hash(Algorithm: THashAlgo;
-  const Data: RawByteString; HashSize: cardinal): RawUtf8;
-begin
-  with Create(Algorithm, HashSize) do
-    try
-      Update(Data);
-      result := DigestHex;
-    finally
-      Free;
-    end;
-end;
-
 
 { TOpenSslHmac }
 
-procedure TOpenSslHmac.Init(md: PEVP_MD; Key: pointer; KeyLength: cardinal);
-begin
-  EOpenSslHash.CheckAvailable(PClass(self)^, 'Create');
-  if md = nil then
-    raise EOpenSslHash.Create('TOpenSslHmac.Create: Unknown algorithm');
-  fDigestSize := EVP_MD_size(md);
-  fCtx := HMAC_CTX_new;
-  if Key = nil then // Key=null for OpenSSL means "reuse previous"
-    Key := self;    // Key<>nul but keep KeyLength=0 so that it uses Key=''
-  EOpenSslHash.Check(self, 'Create',
-    HMAC_Init_ex(fCtx, Key, KeyLength, md, nil));
-end;
-
-constructor TOpenSslHmac.Create(Algorithm: THashAlgo;
-  Key: pointer; KeyLength: cardinal);
-begin
-  Init(OpenSslGetMd(Algorithm), Key, KeyLength);
-end;
-
 constructor TOpenSslHmac.Create(const Algorithm: RawUtf8;
   Key: pointer; KeyLength: cardinal);
+var
+  md: PEVP_MD;
 begin
-  Init(OpenSslGetMdByName(Algorithm, 'TOpenSslHmac.Create'), Key, KeyLength);
+  EOpenSslHash.CheckAvailable(PClass(self)^, 'Create');
+   if Algorithm = '' then
+     md := EVP_sha256
+   else
+     md := EVP_get_digestbyname(pointer(Algorithm));
+  if md = nil then
+    raise EOpenSslHash.CreateFmt(
+      'TOpenSslHmac.Create(''%s''): Unknown algorithm', [Algorithm]);
+  fDigestSize := EVP_MD_size(md);
+  fCtx := HMAC_CTX_new;
+  EOpenSslHash.Check(self, 'Create',
+    HMAC_Init_ex(fCtx, Key, KeyLength, md, nil));
 end;
 
 constructor TOpenSslHmac.Create(const Algorithm: RawUtf8;
@@ -1227,24 +1190,6 @@ begin
 end;
 
 class function TOpenSslHmac.Hmac(const Algorithm: RawUtf8;
-  const Data, Key: RawByteString): RawUtf8;
-begin
-  result := HMac(Algorithm, Data, pointer(Key), length(Key));
-end;
-
-class function TOpenSslHmac.Hmac(Algorithm: THashAlgo;
-  const Data: RawByteString; Key: pointer; KeyLength: cardinal): RawUtf8;
-begin
-  with Create(Algorithm, Key, KeyLength) do
-    try
-      Update(Data);
-      result := DigestHex;
-    finally
-      Free;
-    end;
-end;
-
-class function TOpenSslHmac.Hmac(Algorithm: THashAlgo;
   const Data, Key: RawByteString): RawUtf8;
 begin
   result := HMac(Algorithm, Data, pointer(Key), length(Key));
@@ -1290,11 +1235,7 @@ const
     'sha512-256', // hfSHA512_256
     'sha3-256',   // hfSHA3_256
     'sha3-512',   // hfSHA3_512
-    'sha224',     // hfSHA224
-    'sha3-224',   // hfSHA3_224
-    'sha3-384',   // hfSHA3_384
-    'shake128',   // hfShake128
-    'shake256');  // hfShake256
+    'sha224');    // hfSHA224
 
   CAA_MD: array[TCryptAsymAlgo] of RawUtf8 = (
     'SHA256', // caaES256
@@ -1789,19 +1730,19 @@ begin
   result := GetSignatureSecurityRaw(fAsymAlgo, sig); // into base-64 encoded raw
 end;
 
-function TJwtOpenSsl.CheckSignature(headpayload: PValuePUtf8Char;
-  const signature: RawByteString): TJwtResult;
+procedure TJwtOpenSsl.CheckSignature(const headpayload: RawUtf8;
+  const signature: RawByteString; var jwt: TJwtContent);
 var
   der: RawByteString;
 begin
   if fPubKey = nil then
     fPubKey := LoadPublicKey(fPublicKey, fPublicKeyPassword);
   der := SetSignatureSecurityRaw(fAsymAlgo, signature);
-  if fPubKey^.Verify(fAlgoMd, pointer(der), headpayload^.Text,
-      length(der), headpayload^.Len) then
-    result := jwtValid
+  if fPubKey^.Verify(fAlgoMd, pointer(der), pointer(headpayload),
+      length(der), length(headpayload)) then
+    jwt.result := jwtValid
   else
-    result := jwtInvalidSignature;
+    jwt.result := jwtInvalidSignature;
 end;
 
 
@@ -3027,7 +2968,7 @@ begin
   // since DER has no simple binary array format, use PEM serialization
   with TTextWriter.CreateOwnedStream(tmp) do
   try
-    // first write any X.509 certificates as PEM text
+    // first write any X.509 certificates
     x := fStore.CertificatesLocked;
     for i := 0 to length(x) - 1 do
     begin
@@ -3035,7 +2976,7 @@ begin
       AddDirectNewLine; // = #13#10 on Windows, #10 on POSIX
     end;
     fStore.UnLock;
-    // followed by X.509 CRLs as PEM text
+    // followed by X.509 CRLs
     c := fStore.CrlsLocked;
     for i := 0 to length(c) - 1 do
     begin

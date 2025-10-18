@@ -195,8 +195,8 @@ function Ecc256r1DoVerify(const pub: TEccPublicKey; unc: PEccPublicKeyUncompress
 
 /// pascal function to create a secp256r1 public/private key pair
 // - is not optimized for performance, but for secrecy: the private key is
-// generated with a very safe HMAC-SHA-256 diffusion of 256-bit entropy from the
-// Operating System and 256-bit from our TAesPrng with proper
+// generated with a very safe SHA-256 diffusion of 1024-bit of randomness from
+// the Operating System and our TAesPrng
 // - our idea was to minimize the chances that two consecutive key generations
 // have any similarity, even if performance is not the ultimate goal
 // - ephemeral keys (e.g. in ECDHE) could use faster OpenSSL instead
@@ -748,7 +748,9 @@ const
         QWord($FFFFFFFF00000000)));
 
   _1: THash256Rec = (q: (1, 0, 0, 0));
+
   _3: THash256Rec = (q: (3, 0, 0, 0));
+
   _11: THash256Rec = (q: (QWord($0101010101010101),
                           QWord($0101010101010101),
                           QWord($0101010101010101),
@@ -1104,7 +1106,6 @@ begin
   _modMultP(Y2, Y2, X2);       // t4 = (y2 - y1)*(B - x3)
   _modSubP(Y2, Y2, Y1);        // t4 = y3
   _mv(X2, t5);
-  // now (X2, Y2) is P + Q
 end;
 
 // Input P = (x1, y1, Z), Q = (x2, y2, Z)
@@ -1204,16 +1205,13 @@ end;
 const
   MAX_TRIES = 16; // work almost always on the first trial with TAesPrng
 
-var
-  EccMakeEntropy: THash128Rec; // ensure perfect forward security
-
 function ecc_make_key_pas(out PublicKey: TEccPublicKey;
   out PrivateKey: TEccPrivateKey): boolean;
 var
   priv: THash256Rec;
   pub: TEccPoint;
   tries: integer;
-  kdf: THmacSha256;
+  sha: TSha256;
 begin
   result := false;
   tries := MAX_TRIES;
@@ -1221,16 +1219,14 @@ begin
     dec(tries);
     if tries = 0 then
       exit;
-    // generate a 256-bit secret key with HMAC-SHA-256 over random sources
-    // - keys may be ephemeral so entropy sources were chosen to be fast
-    kdf.Init(@EccMakeEntropy, SizeOf(EccMakeEntropy));
-    kdf.Update(@tries, SizeOf(tries));
-    TAesPrng.Main.Fill(priv.b); // 256-bit from our AES-PRNG (max key size)
-    XorMemory(EccMakeEntropy, priv.l);
-    kdf.Update(@priv, SizeOf(priv));
-    _Fill256FromOs(priv);       // 256-bit padding from fast OS entropy sources
-    kdf.Update(@priv, SizeOf(priv));
-    kdf.Done(priv.b);           // apply the HMAC key derivation function
+    // generate a 256-bit secret key using TAesPrng + OS and SHA-256 diffusion
+    sha.Init;
+    sha.Update(@tries, SizeOf(tries));
+    TAesPrng.Fill(@pub, SizeOf(pub));  // 512-bit from our AES-PRNG
+    sha.Update(@pub, SizeOf(pub));
+    XorOSEntropy(THash512Rec(pub));    // 512-bit from OS entropy sources
+    sha.Update(@pub, SizeOf(pub));
+    sha.Final(priv.b);                 // diffused with three SHA-256 rounds
     if _isZero(priv) or
        _equals(priv, _1) or
        _equals(priv, _11) then
@@ -1337,18 +1333,8 @@ var
   priv: THash256Rec;
   product: TEccPoint;
   rnd: THash256Rec;
-  n: integer;
 begin
-  result := false;
-  n := 10;
-  repeat
-    TAesPrng.Main.Fill(rnd.b); // no SHA-256 diffusion needed if ephemeral
-    dec(n);
-    if n = 0 then
-      exit; // never try forever if our CSPRNG is compromised
-  until not (_isZero(rnd) or
-             _equals(rnd, _1) or
-             _equals(rnd, _11));
+  TAesPrng.Fill(rnd.b); // no SHA-256 diffusion needed if ephemeral
   _bswap256(@priv, @PrivateKey);
   EccPointMult(product, TEccPoint(PublicPoint), priv, @rnd);
   _bswap256(@Secret, @product.x);
@@ -1440,7 +1426,7 @@ begin
   tries := 0;
   repeat
     inc(tries);
-    TAesPrng.Main.Fill(k.b);
+    TAesPrng.Fill(k.b);
     if tries >= MAX_TRIES then
       exit; // the random generator seems broken
     if _isZero(k) or
@@ -2099,14 +2085,12 @@ initialization
   assert(SizeOf(TEccCertificateContentV1) = 173); // on all platforms/compilers
   assert(SizeOf(TEccSignatureCertifiedContent) = 100);
   // register our branchless pascal code by default
-  @Ecc256r1MakeKey      := @ecc_make_key_pas;
+  @Ecc256r1MakeKey := @ecc_make_key_pas;
   @Ecc256r1SharedSecret := @ecdh_shared_secret_pas;
-  @Ecc256r1Sign         := @ecdsa_sign_pas;
-  @Ecc256r1Verify       := @ecdsa_verify_pas;
-  @Ecc256r1Uncompress   := @ecc_uncompress_key_pas;
+  @Ecc256r1Sign := @ecdsa_sign_pas;
+  @Ecc256r1Verify := @ecdsa_verify_pas;
+  @Ecc256r1Uncompress := @ecc_uncompress_key_pas;
   @Ecc256r1VerifyUncomp := @ecdsa_verify_uncompressed_pas;
-  // setup ecc_make_key_pas() entropy source
-  EccMakeEntropy := StartupEntropy;
 
 end.
 
