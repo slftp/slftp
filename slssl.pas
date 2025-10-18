@@ -32,9 +32,22 @@ function GetOpenSSLConnectionContext: PSSL_CTX;
 { Return string representing error result code of TLS/SSL I/O operation @br
   @note(also checks the current thread's OpenSSL error queue)
   @param(aSSL SSL which did the call)
-  @param(aErrCode Error code of previous OpenSSL API call)
+  @param(aSslReturnCode Return code of previous OpenSSL API call)
   @returns(String that indicates the error) }
-function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
+function GetLastSSLError(const aSSL: PSSL; const aSslReturnCode: Integer): String;
+
+{ Get the error code of the latest error from OpenSSL.
+  @param(aSSL SSL which did the call)
+  @param(aSslReturnCode Return code of previous OpenSSL API call)
+  @returns(The OpenSSL error code) }
+function GetLastSSLErrorCode(const aSSL: PSSL; const aSslReturnCode: Integer): Integer;
+
+{ Get the corresponding error message to the given OpenSSL error code.
+  @param(aSSL SSL which did the call)
+  @param(aSslErrorCode The error code to get the message for)
+  @returns(String that indicates the error) }
+function GetSSLErrorMessageFromErrorCode(const aSSL: PSSL; const aSslErrorCode: Integer): String;
+
 
 { Loads OpenSSL.
   @param(aError In case an error occurs, this out parameter will contains some info.)
@@ -45,10 +58,6 @@ implementation
 
 uses
   SysUtils, mormot.core.base;
-
-//const
-//  gSSL_Default_Cipher_List = 'ALL:!EXP';
-//  gSSL_Default_Cipher_List = 'HIGH'; // probably more secure
 
 var
   gSSLContextSettings: PSSL_CTX = nil; // default SSL/TLS context used for all connections
@@ -208,13 +217,13 @@ begin
   Result := gSSLContextSettings;
 end;
 
-function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
+function GetLastSSLError(const aSSL: PSSL; const aSslReturnCode: Integer): String;
 var
   fErrorCode: Integer;
 begin
   // first try to get the error via mormot
   try
-    EOpenSsl.Check(aErrCode, '', aSSL);
+    EOpenSsl.Check(aSslReturnCode, '', aSSL);
   except
     on e: Exception do
     begin
@@ -224,7 +233,7 @@ begin
   end;
 
   // if mormot does not extract the error, use the old way
-  fErrorCode := SSL_get_error(aSSL, aErrCode);
+  fErrorCode := SSL_get_error(aSSL, aSslReturnCode);
   case fErrorCode of
     SSL_ERROR_NONE: Result := 'no error';
     SSL_ERROR_ZERO_RETURN: Result := 'zero return';
@@ -241,6 +250,21 @@ begin
   else
     Result := 'unknown error';
   end;
+end;
+
+function GetLastSSLErrorCode(const aSSL: PSSL; const aSslReturnCode: Integer): Integer;
+var
+  fErrorMessage: RawUTF8;
+begin
+  Result := SSL_get_error(aSSL, aSslReturnCode);
+end;
+
+function GetSSLErrorMessageFromErrorCode(const aSSL: PSSL; const aSslErrorCode: Integer): String;
+var
+  fErrorMessage: RawUTF8;
+begin
+  SSL_get_error_text(aSslErrorCode, fErrorMessage);
+  Result := UTF8ToString(fErrorMessage);
 end;
 
 end.

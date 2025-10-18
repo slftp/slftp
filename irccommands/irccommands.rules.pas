@@ -180,7 +180,6 @@ begin
 
   sitename := UpperCase(SubString(params, ' ', 1));
   sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
-  //count := 0;
 
   if (sitename = '*') and (sections = '') then
   begin

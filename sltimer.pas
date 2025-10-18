@@ -10,6 +10,11 @@ uses
   {$endif}
   Classes;
 
+{
+  TSLtimer
+  Provides exact time measurement.
+}
+
 type
   TSLtimer = class
   private

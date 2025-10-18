@@ -8,6 +8,8 @@ uses
 {
   TslCriticalSection
   Provides a possibility for a critical section to have a timeout when trying to enter.
+  Supports multiple nested enter calls from the same thread.
+  Allows to enable detailed monitoring of wait and hold times.
 }
 
 
@@ -29,19 +31,48 @@ type
     procedure InitNoTimeoutLocking;
     procedure FreeObjects;
   public
+    { Constuctor.
+      @param(aName A unique name for this critical section. If another instance with the same name already exists, an exception will be raised.)
+      @param(aAlwaysUseTimeoutLocking Set to true, if this instance should always use the timeout locking feature, even if it's not enabled globally.) }
     constructor Create(aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy; override;
+
+    { Acquire lock.
+      @param(aLockOwnerName A unique name for the code which invokes this function. This is for debugging and performance monitoring purposes.)
+      @param(aTimeoutMs The timeout for how long should be waited to acquire the lock.)
+      @param(aRaiseExceptionOnFail Raise an exception if the lock could not be acuired within the timeout limit rather than just returning false.)
+      @returns(True, if the lock has been acquired, false otherwise. }
     function Enter(const aLockOwnerName: string; const aTimeoutMs: Cardinal; const aRaiseExceptionOnFail: boolean = True): boolean; overload;
+
+    { Acquire lock.
+      @param(aLockOwnerName A unique name for the code which invokes this function. This is for debugging and performance monitoring purposes.)
+      @returns(True, if the lock has been acquired, false otherwise. }
     function Enter(const aLockOwnerName: string): boolean; overload;
+
+    { Leaves the previously acquired lock }
     procedure Leave;
+
+    { Set an information about which code is currently being executed while holding this lock. This is for (performance) debugging purposes. }
     procedure SetCurrentCodeSegment(const aSegmentName: string);
+
+    { Returns the name of the code part that is currently executing while holding this lock. }
     property CurrentLockOwnerName: string read GetCurrentLockOwnerName;
   end;
 
+  { Initalize this unit.
+    @param(aLockingTimeout Set the default locking timout.)
+    @param(aUseTimer Set to true, if hold and wait times should be recorded. This might add some performance penalty.) }
   procedure SlCriticalSection2Init(const aLockingTimeout: integer; const aUseTimer: Boolean);
+
+  { Unnitalize this unit - free all resources. }
   procedure SlCriticalSection2Uninit;
+
+  { Returns true, if timeout locking is enabled globally, false otherwise. }
   function GetUseTimeoutLocking: boolean;
+
+  { Returns true, if wait times are being recorded, false otherwise. }
   function GetUseTimer: boolean;
+
   { Writes all wait and hold times of locks into a log file at the path of slftp executable and returns that path. }
   function WriteCriticalSection2StatsToFile: String;
 

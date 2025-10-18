@@ -385,8 +385,8 @@ type
     procedure AddTask(const aTask: TslConsoleTask);
     { Add a task with a hint that other tasks have been removed due to a critical console overload. Does nothing if such a task is already there for the given window name. }
     procedure AddOverloadMessageForWindow(const aWindowName: string);
-  public
     constructor Create;
+  public
     destructor Destroy; override;
   end;
 
@@ -479,7 +479,12 @@ procedure ShowMessage(const s: String);
 function InputQuery(const title, Caption: String; var reply: String;
   password: boolean = False; replyfile: String = ''): boolean;
 procedure SetFocus(control: TslControl);
+
+{ Returns true, if the console is currently overloaded and messages to the given console window will be discarded. Some console windows
+  will always accept messages, even if the console is overloaded (e.g. Admin). This will also add a message to the given console that
+  some message have been discarded because of a current overload situation if there is one. }
 function CheckConsoleCriticalOverload(const aWindowName: string): boolean;
+
 { Cleans the threadvars of the current thread }
 procedure CleanupSlVisionThreadVars;
 

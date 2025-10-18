@@ -84,7 +84,7 @@ function GetCompleteRegexInstance: TFLRE;
 begin
   if glCompleteRegexInstance = nil then
   begin
-    glCompleteRegexInstance := TFLRE.Create(RawByteString(glCompleteRegex), [rfIGNORECASE]);
+    glCompleteRegexInstance := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
   end;
   Result := glCompleteRegexInstance;
 end;
@@ -93,7 +93,7 @@ function GetIncompleteRegexInstance: TFLRE;
 begin
   if glIncompleteRegexInstance = nil then
   begin
-    glIncompleteRegexInstance := TFLRE.Create(RawByteString(glIncompleteRegex), [rfIGNORECASE]);
+    glIncompleteRegexInstance := TFLRE.Create(glIncompleteRegex, [rfIGNORECASE]);
   end;
   Result := glIncompleteRegexInstance;
 end;
@@ -152,7 +152,7 @@ begin
   // check custom slftp.ini complete_regex
   glCompleteRegex := config.ReadString(section, 'complete_regex', complete_regex_default);
 
-  fTestingRegexInstance := TFLRE.Create(RawByteString(glCompleteRegex), [rfIGNORECASE]);
+  fTestingRegexInstance := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
   try
     fTestingRegexInstance.Test(dummy_string);
   except

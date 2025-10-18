@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache;
+  variantcache, routeconfig;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -214,12 +214,12 @@ type
     fMaxDn: integer;
     fMaxPreDn: integer;
     fMaxUpPerRip: integer;
-    fGetReducedSpeedstatWeight: boolean;
-    fGetPermDownStatus: boolean;
-    fGetSkipBeingUploadedFiles: TSkipBeingUploaded;
-    fGetUseForNFOdownload: TUseForNFODownload;
-    fGetNoannounce: boolean;
-    fGetlegacydirlist: boolean;
+    fReducedSpeedstatWeight: boolean;
+    fPermDownStatus: boolean;
+    fSkipBeingUploadedFiles: TSkipBeingUploaded;
+    fUseForNFOdownload: TUseForNFODownload;
+    fNoannounce: boolean;
+    flegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
     fConnect_timeout: integer;
@@ -228,7 +228,7 @@ type
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
     fSpeedFromCS: TSlCriticalSection2;
-    fSpeedFromCache: TStringList;
+    fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
@@ -406,7 +406,7 @@ type
     function GetKillConnectionOnStalledTransferSeconds: integer;
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
-    function GetSpeed_From: TStringList;
+    function GetSpeed_From: TList<TSpeedFromRouteInfo>;
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -490,7 +490,6 @@ type
     function GetPretime(const section: String): String;
 
     function isRouteableTo(const sitename: String): boolean;
-    function isRouteableFrom(const sitename: String): boolean;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -528,8 +527,17 @@ type
     { Send the current tasks to the queue console window. }
     procedure QueueSendCurrentTasksToConsole;
 
+    { Lock this site for any operation that will assign / unassign tasks to the slots.
+      @param(aLockName This should be a unique name of the code section which calls this procedure for debugging and performance measusing purposes.) }
     procedure AcquireSlotsAssignmentLock(const aLockName: string); overload;
+
+    { Lock this site for any operation that will assign / unassign tasks to the slots. If the lock could not be acquired within the given timeout,
+      this function returns false.
+      @param(aTimeout Maximum wait time to acquire the lock)
+      @param(aLockName This should be a unique name of the code section which calls this procedure for debugging and performance measusing purposes.) }
     function AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean; overload;
+
+    { Release the previously acquired lock for slots assignment. }
     procedure ReleaseSlotsAssignmentLock;
 
     procedure RebuildSlot(const aSlotNumber: integer);
@@ -537,6 +545,9 @@ type
 
     { Updates the speed-from cache of this site from the sites.dat. }
     procedure UpdateSpeedFromCache;
+
+    { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
+    procedure MigrateSpeedLockAndSpeedToConfig;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -604,7 +615,7 @@ type
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
-    property Speed_From: TStringList read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
   end;
 
 function ReadSites(): boolean;
@@ -722,7 +733,7 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags;
+  dirlist.helpers, tags, Generics.Defaults;
 
 const
   section = 'sites';
@@ -887,14 +898,14 @@ end;
 
       show_tasks := 10;
       rr.Expression := '-c\:([\d]+)';
-      if rr.Exec(String(params)) then
+      if rr.Exec(params) then
       begin
-        show_tasks := StrToIntDef(String(rr.Match[1]), 10);
+        show_tasks := StrToIntDef(rr.Match[1], 10);
       end;
 
       show_all := False;
       rr.Expression := '--all';
-      if rr.Exec(String(params)) then
+      if rr.Exec(params) then
       begin
         show_tasks := fTasksList.Count;
         show_all := True;
@@ -918,7 +929,7 @@ end;
               break;
 
             rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
-            if ((not rr.Exec(String(TQueueTask(fTasksList[i]).FFullname)))) then
+            if ((not rr.Exec(TQueueTask(fTasksList[i]).FFullname))) then
             begin
               irc_addtext(netname, channel, TQueueTask(fTasksList[i]).FFullname);
               Inc(ii);
@@ -940,20 +951,20 @@ end;
     Result := True;
   end;
 
-  function TSite.IrcKillAll(const netname, channel, params: String): boolean;
-  begin
-    Result := fQueue.IrcKillAll(netname, channel, params);
-  end;
+function TSite.IrcKillAll(const netname, channel, params: String): boolean;
+begin
+  Result := fQueue.IrcKillAll(netname, channel, params);
+end;
 
-  procedure TSite.QueueSort;
-  begin
-    fQueue.QueueSort;
-  end;
+procedure TSite.QueueSort;
+begin
+  fQueue.QueueSort;
+end;
 
-  procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
-  begin
-    fQueue.RemoveRaceTasks(aPazoID, aSiteName);
-  end;
+procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+begin
+  fQueue.RemoveRaceTasks(aPazoID, aSiteName);
+end;
 
 procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
   begin
@@ -1568,6 +1579,7 @@ begin
                   end;
                 end;
 
+                // prepare all possible destination sites for a possible new transfer by firing their queue
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
                   for fPazoSite in TPazoRaceTask(todotask).mainpazo.PazoSitesList do
@@ -1658,7 +1670,7 @@ begin
     end;
   end;
 
-  // when the thread terminates cleanup the thread vars that belong to it
+  // when the thread terminates, cleanup the thread vars that belong to it
   try
     CleanupDirlistThreadVars;
     CleanupTagsThreadVars;
@@ -3113,12 +3125,12 @@ begin
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
 
-  fGetReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
-  fGetPermDownStatus := RCBool('permdown', False);
-  fGetSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
-  fGetUseForNFOdownload := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
-  fGetNoannounce := RCBool('noannounce', False);
-  fGetlegacydirlist := RCBool('legacycwd', False);
+  fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
+  fPermDownStatus := RCBool('permdown', False);
+  fSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  fUseForNFOdownload := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
+  fNoannounce := RCBool('noannounce', False);
+  flegacydirlist := RCBool('legacycwd', False);
   fConnect_timeout := RCInteger('connect_timeout', 15);
   fIdleInterval := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
   fIo_timeout := RCInteger('io_timeout', 15);
@@ -3136,41 +3148,29 @@ begin
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
+  MigrateSpeedLockAndSpeedToConfig;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
 
 function TSite.isRouteableTo(const sitename: String): boolean;
 var
-  y: TStringList;
+  fSpeedFromList: TList<TSpeedFromRouteInfo>;
+  fSpeedFromItem: TSpeedFromRouteInfo;
 begin
-  y := TStringList.Create;
-  y.Sorted := True;
+  Result := False;
+  fSpeedFromList := GetSpeed_From;
   try
-    sitesdat.ReadSection('speed-to-' + sitename, y);
-    if y.IndexOf(self.Name) = -1 then
-      Result := False
-    else
-      Result := True;
+    for fSpeedFromItem in fSpeedFromList do
+    begin
+      if fSpeedFromItem.sitename = sitename then
+      begin
+        Result := True;
+        break;
+      end;
+    end;
   finally
-    y.Free;
-  end;
-end;
-
-function TSite.isRouteableFrom(const sitename: String): boolean;
-var
-  y: TStringList;
-begin
-  y := TStringList.Create;
-  y.Sorted := True;
-  try
-    sitesdat.ReadSection('speed-from-' + self.Name, y);
-    if y.IndexOf(sitename) = -1 then
-      Result := False
-    else
-      Result := True;
-  finally
-    y.Free;
+    fSpeedFromList.Free;
   end;
 end;
 
@@ -3527,12 +3527,12 @@ end;
 
 function TSite.Getlegacydirlist: boolean;
 begin
-  Result := fGetlegacydirlist;
+  Result := flegacydirlist;
 end;
 
 procedure TSite.Setlegacydirlist(const Value: boolean);
 begin
-  fGetlegacydirlist := Value;
+  flegacydirlist := Value;
   WCBool('legacycwd', Value);
 end;
 
@@ -4103,13 +4103,12 @@ end;
 
 function TSite.GetNoannounce: boolean;
 begin
-  //RCBool('noannounce', False);
-  Result := fGetNoannounce;
+  Result := fNoannounce;
 end;
 
 procedure TSite.SetNoAnnounce(const Value: boolean);
 begin
-  fGetNoannounce := Value;
+  fNoannounce := Value;
   WCBool('noannounce', Value);
 end;
 
@@ -4637,37 +4636,34 @@ end;
 
 function TSite.GetUseForNFOdownload: TUseForNfoDownload;
 begin
-  //TUseForNfoDownload(RCInteger('usefornfodownload', 1));
-  Result := fGetUseForNFOdownload;
+  Result := fUseForNFOdownload;
 end;
 
 procedure TSite.SetUseForNFOdownload(const Value: TUseForNfoDownload);
 begin
-  fGetUseForNFOdownload := Value;
+  fUseForNFOdownload := Value;
   WCInteger('usefornfodownload', Ord(Value));
 end;
 
 function TSite.GetSkipBeingUploadedFiles: TSkipBeingUploaded;
 begin
-  //TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
-  Result := fGetSkipBeingUploadedFiles;
+  Result := fSkipBeingUploadedFiles;
 end;
 
 procedure TSite.SetSkipBeingUploadedFiles(const Value: TSkipBeingUploaded);
 begin
-  fGetSkipBeingUploadedFiles := Value;
+  fSkipBeingUploadedFiles := Value;
   WCInteger('skip_being_uploaded_files', Ord(Value));
 end;
 
 function TSite.GetPermDownStatus: boolean;
 begin
-  //RCBool('permdown', False);
-  Result := fGetPermDownStatus;
+  Result := fPermDownStatus;
 end;
 
 procedure TSite.SetPermDownStatus(Value: boolean);
 begin
-  fGetPermDownStatus := Value;
+  fPermDownStatus := Value;
   WCBool('permdown', Value);
 end;
 
@@ -4703,13 +4699,12 @@ end;
 
 function TSite.GetReducedSpeedstatWeight: boolean;
 begin
-  //RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));
-  Result := fGetReducedSpeedstatWeight;
+  Result := fReducedSpeedstatWeight;
 end;
 
 procedure TSite.SetReducedSpeedstatWeight(const Value: boolean);
 begin
-  fGetReducedSpeedstatWeight := Value;
+  fReducedSpeedstatWeight := Value;
   WCBool('reduced_speedstat_weight', Value);
 end;
 
@@ -4724,12 +4719,30 @@ begin
   WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
 end;
 
-function _mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
+function _mySpeedComparer({$IFDEF FPC}constref{$ELSE}const{$ENDIF} info1, info2: TSpeedFromRouteInfo): Integer;
 begin
   try
-    Result :=
-      CompareValue(StrToIntDef(list.ValueFromIndex[Index2], 0),
-      StrToIntDef(list.ValueFromIndex[Index1], 0));
+    // give affil routes more priority
+    if info1.AffilOnly <> info2.AffilOnly then
+    begin
+      if info1.AffilOnly then
+        Result := -1
+      else
+        Result := 1;
+      exit;
+    end;
+
+    // give no-affil routes less priority
+    if info1.NoAffil <> info2.NoAffil then
+    begin
+      if info1.NoAffil then
+        Result := 1
+      else
+        Result := -1;
+      exit;
+    end;
+
+    Result := CompareValue(info2.Speed, info1.Speed);
   except
     on e: Exception do
     begin
@@ -4741,7 +4754,7 @@ begin
   end;
 end;
 
-function TSite.GetSpeed_From: TStringList;
+function TSite.GetSpeed_From: TList<TSpeedFromRouteInfo>;
 begin
   if self.fSpeedFromCache = nil then
   begin
@@ -4754,10 +4767,9 @@ begin
     end;
   end;
 
-  Result := TStringList.Create;
   self.fSpeedFromCS.Enter('GetSpeed_From2');
   try
-    Result.Assign(self.fSpeedFromCache);
+    Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
   finally
     self.fSpeedFromCS.Leave;
   end;
@@ -4765,11 +4777,26 @@ end;
 
 procedure TSite.UpdateSpeedFromCache;
 var
-  fNewValue, fOldValue: TStringList;
+  fNewValue, fOldValue: TList<TSpeedFromRouteInfo>;
+  fSpeedInfo: TSpeedFromRouteInfo;
+  fStringList: TStringList;
+  i: Integer;
 begin
-  fNewValue := TStringList.Create;
-  sitesdat.ReadSectionValues('speed-from-' + Name, fNewValue);
-  fNewValue.CustomSort(_mySpeedComparer);
+  fNewValue := TList<TSpeedFromRouteInfo>.Create;
+  fStringList := TStringList.Create;
+  sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+
+  if fStringList.Count > 0 then
+  begin
+    for i := 0 to fStringList.Count - 1 do
+    begin
+      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
+      fSpeedInfo.Sitename := fStringList.Names[i];
+      fNewValue.Add(fSpeedInfo);
+    end;
+  end;
+
+  fNewValue.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
   self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
   try
     fOldValue := self.fSpeedFromCache;
@@ -4779,6 +4806,59 @@ begin
   end;
 
   FreeAndNil(fOldValue);
+  FreeAndNil(fStringList);
+end;
+
+procedure TSite.MigrateSpeedLockAndSpeedToConfig;
+var
+  fStringList: TStringList;
+  i: Integer;
+  fSpeedInfo: TSpeedFromRouteInfo;
+begin
+
+  fStringList := TStringList.Create;
+
+  sitesdat.ReadSectionValues('speedlock-from-' + Name, fStringList);
+  try
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Migrating speedlock routes on %s into the new combined route config. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+
+      for i := 0 to fStringList.Count - 1 do
+      begin
+        fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + self.Name, fStringList.Names[i], '0'));
+        if (fSpeedInfo.Speed = 0) then
+        begin
+          irc_addadmin('No existing speed-from entry found for destination %s. Dropping this speedlock entry.', [fStringList.Names[i]]);
+          Continue;
+        end;
+
+        fSpeedInfo.Locked := True;
+        sitesdat.WriteString('speed-from-' + self.Name, fStringList.Names[i], fSpeedInfo.ToConfigString);
+        irc_addadmin('Migrated speedlock route to destination %s.', [fStringList.Names[i]]);
+      end;
+
+      sitesdat.EraseSection('speedlock-from-' + Name);
+
+      // also delete speedlock-to which apparantly has not been used before anyway.
+      sitesdat.EraseSection('speedlock-to-' + Name);
+
+      UpdateSpeedFromCache;
+    end;
+
+    fStringList.Clear;
+
+    // delete all speed-to settings since we do not need them anymore (and never really did).
+    sitesdat.ReadSectionValues('speed-to-' + Name, fStringList);
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Deleting speed-to settings on %s. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+      sitesdat.EraseSection('speed-to-' + Name);
+    end;
+  finally
+    fStringList.Free;
+  end;
+
 end;
 
 end.
