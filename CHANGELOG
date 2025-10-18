@@ -62,10 +62,14 @@
     {^} Rewrite of in-memory pre DB which now uses in-memory SQLite. Enable by using mode=0 in [dbaddpre] section of slftp.ini
     {^} Added support for OpenSSL 3
     {^} Improve parallelization of the queue which results in higher task throughput especially when you have many routes. If
-		the CPU load gets too high, increate the value of newdir_dirlist_readd as it's not closer to actually reaching this value
-		of dirlist interval
+        the CPU load gets too high, increate the value of newdir_dirlist_readd as it's not closer to actually reaching this value
+        of dirlist interval
     {^} Various other performance improvements
-	
+    {^} The routeset command now features the option -f to enable the given route only for races where the group is added
+        as affil on the source site. Also the option -n was added to race only when the group is no affil.
+    {-} The routelock command has been removed. Use routeset with option -l instead.
+        Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
+
 
 --=============================( SLFTP v1.5.10 )==================================-
     {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
