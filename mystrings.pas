@@ -293,7 +293,7 @@ function DoBase64DecodeToBytes(const aInput: String): TBytes;
 {$ENDIF}
 begin
   {$IFDEF UNICODE}
-    Result := TNetEncoding.Base64.DecodeStringToBytes(string(UTF8Encode(aInput)));
+    Result := TNetEncoding.Base64.DecodeStringToBytes(aInput);
   {$ELSE}
     fStrHelper := DecodeStringBase64(aInput);
     SetLength(Result, fStrHelper.Length);
