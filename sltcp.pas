@@ -53,7 +53,7 @@ type
     procedure SetSSLContext();
   public
     slSocket: TslSocket;
-    Host: {$IFDEF UNICODE}RawByteString{$ELSE}AnsiString{$ENDIF};
+    Host: string;
     Port: Integer;
     error: String;
 
@@ -499,7 +499,7 @@ begin
                          //               IP V6 address: X'04'    {Do not Localize}
   // host name
   if 0 = System.Pos('.', Host) then begin
-    Host := RawByteString(slConvertIp(string(Host)));
+    Host := slConvertIp(string(Host));
   end;
 
   tempBuffer[4] := AnsiChar(Chr(Length(Host)));

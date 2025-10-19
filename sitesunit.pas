@@ -2043,7 +2043,7 @@ begin
     mSLSetupSocks5(site.proxyname, self, True);
 
   //First step to connect
-  Host := RawByteString(RCString('bnc_host-' + IntToStr(i), ''));
+  Host := RCString('bnc_host-' + IntToStr(i), '');
   Port := RCInteger('bnc_port-' + IntToStr(i), 0);
   Connect(site.connect_timeout * 1000);
 
@@ -2944,7 +2944,7 @@ begin
         exit;
       end;
 
-      idTCP.Host := RawByteString(host);
+      idTCP.Host := host;
       idTCP.Port := port;
 
       if not Send('REST %d', [restFrom]) then

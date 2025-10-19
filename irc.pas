@@ -638,7 +638,7 @@ begin
   registered := False;
   Disconnect;
 
-  Host := RawByteString(sitesdat.ReadString('ircnet-' + netname, 'bnc_host-0', ''));
+  Host := sitesdat.ReadString('ircnet-' + netname, 'bnc_host-0', '');
   Port := sitesdat.ReadInteger('ircnet-' + netname, 'bnc_port-0', 0);
   //    ssl:= sitesdat.ReadBool('ircnet-'+netname, 'ssl', False);
 
