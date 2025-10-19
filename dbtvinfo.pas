@@ -82,7 +82,7 @@ function getTVInfoByShowID(const aTVMazeID: String): TTVInfoDB;
 
 procedure saveTVInfos(const TVMazeID: String; tvrage: TTVInfoDB; rls: String = ''; fireKb: boolean = True);
 
-function deleteTVInfoByID(const aID: String): Integer;
+function deleteTVInfoByID(const aID: UTF8String): Integer;
 function deleteTVInfoByRipName(const aName: String): Integer;
 
 procedure addTVInfos(const aParams: String);
@@ -843,7 +843,7 @@ begin
   Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]);
 end;
 
-function deleteTVInfoByID(const aID: String): Integer;
+function deleteTVInfoByID(const aID: UTF8String): Integer;
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
@@ -957,7 +957,7 @@ begin
             try
               fQuery.ExecutePrepared;
               if fQuery.Step then
-                result := deleteTVInfoByID(String(fQuery.ColumnUtf8('id')))
+                result := deleteTVInfoByID(fQuery.ColumnUtf8('id'))
               else
                 result := 13;
             except
