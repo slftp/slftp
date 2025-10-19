@@ -492,17 +492,9 @@ begin
       // Find the dirlist for destination site
       dstdl := dst.dirlist.FindDirlist(dir, True);
 
-      try
       // Dirlist for destination site not available
-        if dstdl = nil then Continue;
-        if dstdl.error then Continue;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj Dirlist for destination site not available: %s', [e.Message]));
-          Break;
-        end;
-      end;
+      if dstdl = nil then Continue;
+      if dstdl.error then Continue;
 
       for de in aDirListEntries do
       begin
@@ -519,7 +511,7 @@ begin
         try
           dde := dstdl.Find(de.filename);
         except
-          on E: Exception do
+          on e: Exception do
           begin
             Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
             Continue;
