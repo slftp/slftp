@@ -57,7 +57,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist, slcriticalsection2;
+  taskautodirlist, slcriticalsection2, mormot.core.unicode;
 
 {$I slftp.inc}
 
@@ -123,9 +123,9 @@ begin
     end;
   end;
 
-  if String(sqlite3.VersionText) < lib_SQLite3 then
+  if UTF8ToString(sqlite3.VersionText) < lib_SQLite3 then
   begin
-    result := Format('SQLite3 version %s is too old! %sVersion %s or newer needed.', [String(sqlite3.VersionText), sLineBreak, lib_SQLite3]);
+    result := Format('SQLite3 version %s is too old! %sVersion %s or newer needed.', [UTF8ToString(sqlite3.VersionText), sLineBreak, lib_SQLite3]);
     exit;
   end;
 
@@ -158,7 +158,7 @@ begin
       end;
 
       // create connection
-      MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, UTF8String(fHost + ':' + fPort), UTF8String(fLibName)), UTF8String(fDbName), UTF8String(fUser), UTF8String(fPass));
+      MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, StringToUTF8(fHost + ':' + fPort), StringToUTF8(fLibName)), StringToUTF8(fDbName), StringToUTF8(fUser), StringToUTF8(fPass));
     except
       on e: Exception do
       begin
