@@ -1347,6 +1347,7 @@ var
   i: integer;
   x: TStringList;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   method := SubString(params, ' ', 2);
   i := StrToIntDef(method, -1);
@@ -1354,7 +1355,6 @@ begin
   if ((method <> '') and ((i < 0) or (i > Integer(High(TSSLMethods))))) then
   begin
     irc_addtext(Netname, Channel, '<c4><b>Syntax error</c></b>: %s is not valid SSL method.', [method]);
-    Result := False;
     Exit;
   end;
 
