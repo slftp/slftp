@@ -172,7 +172,7 @@ begin
   begin
     glSkiplistDirsRegexInstance := TRegExpr.Create;
     glSkiplistDirsRegexInstance.ModifierI := True;
-    glSkiplistDirsRegexInstance.Expression := AnsiString(glSkiplistDirsRegex);
+    glSkiplistDirsRegexInstance.Expression := glSkiplistDirsRegex;
   end;
 
   Result := glSkiplistDirsRegexInstance;
@@ -184,7 +184,7 @@ begin
   begin
     glSkiplistFilesRegexInstance := TRegExpr.Create;
     glSkiplistFilesRegexInstance.ModifierI := True;
-    glSkiplistFilesRegexInstance.Expression := AnsiString(glSkiplistFilesRegex);
+    glSkiplistFilesRegexInstance.Expression := glSkiplistFilesRegex;
   end;
 
   Result := glSkiplistFilesRegexInstance;
