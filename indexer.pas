@@ -200,8 +200,8 @@ begin
         fQuery.ExecutePrepared;
         while fQuery.Step do
         begin
-          Result := Result + String(fQuery.ColumnUtf8('sitename')) + '-' + String(fQuery.ColumnUtf8('section')) + '=' + String(fQuery.ColumnUtf8('path')) + #13#10;
-          aRls := String(fQuery.ColumnUtf8('rls'));
+          Result := Result + UTF8ToString(fQuery.ColumnUtf8('sitename')) + '-' + UTF8ToString(fQuery.ColumnUtf8('section')) + '=' + UTF8ToString(fQuery.ColumnUtf8('path')) + #13#10;
+          aRls := UTF8ToString(fQuery.ColumnUtf8('rls'));
         end;
       except
         on e: Exception do
@@ -239,7 +239,7 @@ begin
         fQuery.ExecutePrepared;
         while fQuery.Step do
         begin
-          Result := Result + String(fQuery.ColumnUtf8('sitename')) + '-' + String(fQuery.ColumnUtf8('section')) + '=' + String(fQuery.ColumnUtf8('path')) + '/' + String(fQuery.ColumnUtf8('rls')) + #13#10;
+          Result := Result + UTF8ToString(fQuery.ColumnUtf8('sitename')) + '-' + UTF8ToString(fQuery.ColumnUtf8('section')) + '=' + UTF8ToString(fQuery.ColumnUtf8('path')) + '/' + UTF8ToString(fQuery.ColumnUtf8('rls')) + #13#10;
         end;
       except
         on e: Exception do
