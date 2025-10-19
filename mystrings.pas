@@ -1,4 +1,4 @@
-{*****************************************************************************
+﻿{*****************************************************************************
 
  - Soulless robotic engine aka SLFTP
  - Version 1.3
@@ -74,11 +74,6 @@ function DoBase64Encode(const aInput: String): String; overload; inline;
   @param(aInput Bytearray which should be encoded)
   @returns(Base64 encoded String (does an automatic UTF8 1-byte string conversion)) }
 function DoBase64Encode(const aInput: TBytes): String; overload; inline;
-
-{ Creates a base64 decoded string from @link(aInput)
-  @param(aInput String which should be decoded)
-  @returns(Base64 decoded String (does an automatic UTF8 1-byte string conversion)) }
-function DoBase64DecodeToString(const aInput: String): String; inline;
 
 { Creates a base64 decoded Bytearray from @link(aInput)
   @param(aInput String which should be decoded (does an automatic UTF8 1-byte string conversion))
@@ -288,15 +283,6 @@ begin
     move(aInput[0], Result[1], Length(aInput));
 
     Result := DoBase64Encode(Result);
-  {$ENDIF}
-end;
-
-function DoBase64DecodeToString(const aInput: String): String;
-begin
-  {$IFDEF UNICODE}
-    Result := string(TNetEncoding.Base64.Decode(UTF8Encode(aInput)));
-  {$ELSE}
-    Result := DecodeStringBase64(aInput);
   {$ENDIF}
 end;
 
