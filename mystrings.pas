@@ -917,26 +917,26 @@ begin
   try
     x.ModifierI := True;
 
-    x.Expression := AnsiString(config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)(\.\d+)?'));
-    if x.Exec(String(aStatLine)) then
+    x.Expression := config.ReadString('sites', 'ratio_regex', '(Ratio|R|Shield|Health\s?):.+?(\d+\:\d+|Unlimited|Leech)(\.\d+)?');
+    if x.Exec(aStatLine) then
     begin
-      if (AnsiContainsText(String(x.Match[2]), 'Unlimited') or (x.Match[2] = '1:0')) then
+      if (AnsiContainsText(x.Match[2], 'Unlimited') or (x.Match[2] = '1:0')) then
         ratio := 'Unlimited'
       else
-        ratio := String(x.Match[2]);
+        ratio := x.Match[2];
     end;
 
     // ratio(UL: 1:3 | DL: 1:1)
     if ratio = '' then
     begin
       x.Expression := '(Ratio\(\w*:\s*(\d+:\d+).*?\))';
-      if x.Exec(String(aStatLine)) then
+      if x.Exec(aStatLine) then
       begin
-        ratio := String(x.Match[2]);
+        ratio := x.Match[2];
       end;
     end;
 
-    x.Expression := AnsiString(config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?'));
+    x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?');
     if x.Exec(String(aStatLine)) then
     begin
       ss := String(x.Match[2]);
@@ -948,7 +948,7 @@ begin
       {$ENDIF}
 
       c := strtofloat(ss);
-      ss := UpperCase(String(x.Match[3]));
+      ss := UpperCase(x.Match[3]);
 
       if (ss = 'MB') or (ss = 'MIB') then
       begin
@@ -984,10 +984,10 @@ begin
   fRegex := TRegExpr.Create;
   try
     fRegex.Expression := '200- (/[a-zA-Z0-9\._\-()/]*)'; //200- /SECTION/Test.Release-ASDF
-    if fRegex.Exec(String(aSearchResult)) then
+    if fRegex.Exec(aSearchResult) then
     begin
       repeat
-        fPath := String(fRegex.Match[1]);
+        fPath := fRegex.Match[1];
 
         //index might contain stuff like /FILLED-Test.Release-ASDF/Test.Release-ASDF and also /FILLED-Test.Release-ASDF
         if not fPath.Contains('/' + aRlsToSearch) then
