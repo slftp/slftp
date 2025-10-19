@@ -1968,7 +1968,7 @@ begin
       begin
         //glFTPd 2.11a
         fTRegExpr.Expression := '(glFTPd) ([0-9]\.[0-9][0-9][a-z]?)';
-        if fTRegExpr.Exec(String(aText)) then
+        if fTRegExpr.Exec(aText) then
           Result := fTRegExpr.Match[2];
       end;
       sswDrftpd:
@@ -1976,14 +1976,14 @@ begin
         //DrFTPD 3.2.0
         //DrFTPD 4.0.1-SNAPSHOT
         fTRegExpr.Expression := '(DrFTPD) ([0-9]\.[0-9]\.[0-9][\-a-zA-Z]*)';
-        if fTRegExpr.Exec(String(aText)) then
+        if fTRegExpr.Exec(aText) then
           Result := fTRegExpr.Match[2];
       end;
       sswIoftpd:
       begin
         //ioFTPD version: 7-7-3r
         fTRegExpr.Expression := '(ioFTPD version: )([0-9]\-[0-9]\-[0-9][a-z]?)';
-        if fTRegExpr.Exec(String(aText)) then
+        if fTRegExpr.Exec(aText) then
           Result := fTRegExpr.Match[2];
         end;
       sswRaidenftpd, sswPureFTPd:
