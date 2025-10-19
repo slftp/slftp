@@ -116,7 +116,7 @@ implementation
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, RegExpr,
   debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, mormot.db.sql.sqlite3,
-  Generics.Collections, news, kb, slcriticalsection2;
+  Generics.Collections, news, kb, slcriticalsection2, mormot.core.unicode;
 
 const
   section = 'tasktvinfo';
@@ -1281,7 +1281,7 @@ begin
           end;
         0:
           begin
-            fQuery.Prepare(UTF8Encode(Format('PRAGMA user_version = %d', [CurrentDbVersion])));
+            fQuery.Prepare(StringToUTF8(Format('PRAGMA user_version = %d', [CurrentDbVersion])));
             fQuery.ExecutePrepared;
           end;
         2:
