@@ -134,7 +134,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.base, mormot.core.variants;
+  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.variants;
 
 const
   section = 'taskhttpimdb';
@@ -163,7 +163,7 @@ var
   fStartIndex, fEndIndex, fCount: integer;
   fJsonObject: variant;
   fJsonString: string;
-  fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
+  fJsonImdbID, fJsonReleaseYear, fTitleType: UTF8String;
   doc: TDocVariantData;
   pdoc: PDocVariantData;
   fYearDoc: PDocVariantData;
@@ -189,9 +189,9 @@ begin
   if not (fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear)) then
     fYearDoc.GetAsRawUTF8('year', fJsonReleaseYear);
   pdoc.GetAsRawUTF8('titleType', fTitleType);
-  if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
+  if (UTF8ToString(fJsonImdbID) = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', UTF8ToString(fTitleType))) then
   begin
-    Result := _JsonFast(UTF8String(pdoc.ToJSON()));
+    Result := _JsonFast(pdoc.ToJSON());
     exit;
   end;
 end;
@@ -361,10 +361,10 @@ begin
     if rr.Exec(fExtractedPageSource) then
     begin
       repeat
-        fCountryCode := Trim(String(rr.Match[1]));
-        fCountry := Trim(String(rr.Match[2]));
-        fReleaseDate := Trim(String(rr.Match[3]));
-        fExtraInfo := Trim(String(rr.Match[4]));
+        fCountryCode := Trim(rr.Match[1]);
+        fCountry := Trim(rr.Match[2]);
+        fReleaseDate := Trim(rr.Match[3]);
+        fExtraInfo := Trim(rr.Match[4]);
 
         fCountry := RewriteUSAandUK(fCountry);
 
@@ -393,8 +393,8 @@ begin
     if rr.Exec(aPageSource) then
     begin
       repeat
-        fCountry := Trim(String(rr.Match[1]));
-        fTitle := Trim(String(rr.Match[2]));
+        fCountry := Trim(rr.Match[1]);
+        fTitle := Trim(rr.Match[2]);
         fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
 
         if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
@@ -430,8 +430,8 @@ begin
     if rr.Exec(aPageSource) then
     begin
       repeat
-        fLink := Trim(String(rr.Match[1]));
-        fReleaseGroup := Trim(String(rr.Match[2]));
+        fLink := Trim(rr.Match[1]);
+        fReleaseGroup := Trim(rr.Match[2]);
 
         // some pages list the same release group more than once therefore check if that group already exists
         if not aReleaseGroupLinks.ContainsKey(fReleaseGroup) then
@@ -457,8 +457,8 @@ begin
     if rr.Exec(aPageSource) then
     begin
       repeat
-        fLink := Trim(String(rr.Match[1]));
-        fCountry := Trim(String(rr.Match[2]));
+        fLink := Trim(rr.Match[1]);
+        fCountry := Trim(rr.Match[2]);
 
         fCountry := RewriteUSAandUK(fCountry);
 
