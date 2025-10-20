@@ -84,7 +84,7 @@ begin
       if Result <> '' then
         Result := Result + ' / ';
 
-    Result := Result + String(UTF8ToString(fErrStr));
+    Result := Result + UTF8ToString(fErrStr);
     end;
 
     if fErrors = 0 then
@@ -103,7 +103,7 @@ begin
   if OpenSslIsLoaded then
   begin
     // Get and display the OpenSSL version
-    Result := String(UTF8ToString(OpenSslVersionText));
+    Result := UTF8ToString(OpenSslVersionText);
   end;
 end;
 
@@ -253,8 +253,6 @@ begin
 end;
 
 function GetLastSSLErrorCode(const aSSL: PSSL; const aSslReturnCode: Integer): Integer;
-var
-  fErrorMessage: RawUTF8;
 begin
   Result := SSL_get_error(aSSL, aSslReturnCode);
 end;
