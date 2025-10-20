@@ -82,7 +82,8 @@ function getTVInfoByShowID(const aTVMazeID: String): TTVInfoDB;
 
 procedure saveTVInfos(const TVMazeID: String; tvrage: TTVInfoDB; rls: String = ''; fireKb: boolean = True);
 
-function deleteTVInfoByID(const aID: UTF8String): Integer;
+function deleteTVInfoByID(const aID: String): Integer; overload;
+function deleteTVInfoByID(const aID: UTF8String): Integer; overload;
 function deleteTVInfoByRipName(const aName: String): Integer;
 
 procedure addTVInfos(const aParams: String);
@@ -843,7 +844,12 @@ begin
   Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]);
 end;
 
-function deleteTVInfoByID(const aID: UTF8String): Integer;
+function deleteTVInfoByID(const aID: String): Integer; overload;
+begin
+  Result := deleteTVInfoByID(StringToUTF8(aID));
+end;
+
+function deleteTVInfoByID(const aID: UTF8String): Integer; overload;
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
