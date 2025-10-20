@@ -53,14 +53,14 @@ begin
   begin
     rm := TRegExpr.Create;
     rm.ModifierI := False;
-    rm.Expression := AnsiString(Copy(aMask, 2, fLen-2));
+    rm.Expression := Copy(aMask, 2, fLen-2);
   end
   else
   if ((aMask[1] = '/') and (aMask[fLen-1] = '/') and (aMask[fLen] = 'i')) then
   begin
     rm := TRegExpr.Create;
     rm.ModifierI := True;
-    rm.Expression := AnsiString(Copy(aMask, 2, fLen-3));
+    rm.Expression := Copy(aMask, 2, fLen-3);
   end
   else
     dm := TMask.Create(aMask);
@@ -96,7 +96,7 @@ begin
     else if Assigned(rm) then
     begin
       try
-        Result := rm.Exec(String(aInput))
+        Result := rm.Exec(aInput)
       except
         on e: Exception do
           Debug(dpError, ssection, 'RegExpr Exception in TslMask.Matches: %s %s', [mask, e.Message]);
