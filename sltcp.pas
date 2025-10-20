@@ -499,7 +499,7 @@ begin
                          //               IP V6 address: X'04'    {Do not Localize}
   // host name
   if 0 = System.Pos('.', Host) then begin
-    Host := slConvertIp(string(Host));
+    Host := slConvertIp(Host);
   end;
 
   tempBuffer[4] := AnsiChar(Chr(Length(Host)));
@@ -533,7 +533,7 @@ begin
 
   if error <> '' then exit;
 
-  socksextra:= RawByteString(Copy(string(s), 11, Length(s)-11));
+  socksextra:= RawByteString(Copy(s, 11, Length(s)-11));
 
   Result:= True;
 end;
