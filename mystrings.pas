@@ -952,9 +952,9 @@ begin
     end;
 
     x.Expression := config.ReadString('sites', 'credits_regex', '(Credits|Creds|C|Damage|Ha\-ooh\!)\:?\(?\s?([\-\d\.\,]+)\s?([MGT][iB]{1,2}|[EZ]P)\]?');
-    if x.Exec(String(aStatLine)) then
+    if x.Exec(aStatLine) then
     begin
-      ss := String(x.Match[2]);
+      ss := x.Match[2];
 
       {$IFDEF FPC}
         ss := StringReplace(ss, '.', DefaultFormatSettings.DecimalSeparator, [rfReplaceAll, rfIgnoreCase]);
@@ -1097,7 +1097,7 @@ begin
   try
     fRegex.ModifierI := True;
     fRegex.Expression := '\.[0-9rstuvwxyz][0-9][0-9]$';
-    Result := fRegex.Exec(String(aExtension));
+    Result := fRegex.Exec(aExtension);
   finally
     fRegex.Free;
   end;
