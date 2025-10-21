@@ -85,7 +85,7 @@ var
   dbaddpre_plm2: TPretimeLookupMode;
 
   config_taskpretime_url: String;
-  config_taskpretime_regexp: String;
+  config_taskpretime_regexp: RawByteString;
   FDbCleanupCounter: TIdThreadSafeInt32;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
@@ -145,7 +145,7 @@ begin
   end;
 
   try
-    rx_pretime := TFLRE.Create(RawByteString(config_taskpretime_regexp), []);
+    rx_pretime := TFLRE.Create(config_taskpretime_regexp, []);
 
     if not HttpGetUrl(Format(url, [rls]), response, fHttpGetErrMsg) then
     begin
@@ -609,7 +609,7 @@ begin
   dbaddpre_plm2 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode_2', 0));
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
-  config_taskpretime_regexp := config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$');
+  config_taskpretime_regexp := RawByteString(config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$'));
 
   FDbCleanupCounter := TIdThreadSafeInt32.Create;
 
