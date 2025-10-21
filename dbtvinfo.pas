@@ -82,8 +82,7 @@ function getTVInfoByShowID(const aTVMazeID: String): TTVInfoDB;
 
 procedure saveTVInfos(const TVMazeID: String; tvrage: TTVInfoDB; rls: String = ''; fireKb: boolean = True);
 
-function deleteTVInfoByID(const aID: String): Integer; overload;
-function deleteTVInfoByID(const aID: UTF8String): Integer; overload;
+function deleteTVInfoByID(const aID: String): Integer;
 function deleteTVInfoByRipName(const aName: String): Integer;
 
 procedure addTVInfos(const aParams: String);
@@ -844,12 +843,7 @@ begin
   Result := Format('<b>TVInfo.db</b>: %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]);
 end;
 
-function deleteTVInfoByID(const aID: String): Integer; overload;
-begin
-  Result := deleteTVInfoByID(StringToUTF8(aID));
-end;
-
-function deleteTVInfoByID(const aID: UTF8String): Integer; overload;
+function deleteTVInfoByID(const aID: String): Integer;
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
@@ -963,7 +957,7 @@ begin
             try
               fQuery.ExecutePrepared;
               if fQuery.Step then
-                result := deleteTVInfoByID(fQuery.ColumnUtf8('id'))
+                result := deleteTVInfoByID(UTF8ToString(fQuery.ColumnUtf8('id')))
               else
                 result := 13;
             except
@@ -1007,36 +1001,36 @@ begin
         fQuery.ExecutePrepared;
         if fQuery.Step then
         begin
-          if (LowerCase(aRls_Showname) <> LowerCase(String(fQuery.ColumnUtf8('rip')))) then
+          if (SysUtils.LowerCase(aRls_Showname) <> SysUtils.LowerCase(fQuery.ColumnString('rip'))) then
           begin
-            Debug(dpError, section, 'getTVInfoByShowName LowerCase(%s) <> LowerCase(%s)', [aRls_Showname, String(fQuery.ColumnUtf8('rip'))]);
+            Debug(dpError, section, 'getTVInfoByShowName LowerCase(%s) <> LowerCase(%s)', [aRls_Showname, fQuery.ColumnString('rip')]);
             exit;
           end;
 
           tvi := TTVInfoDB.Create(aRls_Showname);
 
-          tvi.tv_showname := UTF8ToString(fQuery.ColumnUtf8('showname'));
-          tvi.tv_url := UTF8ToString(fQuery.ColumnUtf8('tvmaze_url'));
-          tvi.tvmaze_id := UTF8ToString(fQuery.ColumnUtf8('id'));
-          tvi.thetvdb_id := UTF8ToString(fQuery.ColumnUtf8('tvdb_id'));
-          tvi.tvrage_id := UTF8ToString(fQuery.ColumnUtf8('tvrage_id'));
-          tvi.tv_premiered_year := StrToIntDef(UTF8ToString(fQuery.ColumnUtf8('premiered_year')), -1);
-          tvi.tv_country := UTF8ToString(fQuery.ColumnUtf8('country'));
-          tvi.tv_status := UTF8ToString(fQuery.ColumnUtf8('status'));
-          tvi.tv_classification := UTF8ToString(fQuery.ColumnUtf8('classification'));
-          tvi.tv_network := UTF8ToString(fQuery.ColumnUtf8('network'));
-          tvi.tv_genres.CommaText := UTF8ToString(fQuery.ColumnUtf8('genre'));
-          tvi.tv_endedyear := StrToIntDef(UTF8ToString(fQuery.ColumnUtf8('ended_year')), -1);
-          tvi.last_updated := StrToIntDef(UTF8ToString(fQuery.ColumnUtf8('last_updated')), -1);
-          tvi.tv_next_date := StrToIntDef(fQuery.ColumnUtf8('next_date'), -1);
-          tvi.tv_next_season := StrToIntDef(fQuery.ColumnUtf8('next_season'), -1);
-          tvi.tv_next_ep := StrToIntDef(fQuery.ColumnUtf8('next_episode'), -1);
-          tvi.tv_days.CommaText := fQuery.ColumnUtf8('airdays');
-          tvi.tv_rating := StrToIntDef(fQuery.ColumnUtf8('rating'), 0);
-          tvi.tv_language:= fQuery.ColumnUtf8('tv_language');
+          tvi.tv_showname := fQuery.ColumnString('showname');
+          tvi.tv_url := fQuery.ColumnString('tvmaze_url');
+          tvi.tvmaze_id := fQuery.ColumnString('id');
+          tvi.thetvdb_id := fQuery.ColumnString('tvdb_id');
+          tvi.tvrage_id := fQuery.ColumnString('tvrage_id');
+          tvi.tv_premiered_year := StrToIntDef(fQuery.ColumnString('premiered_year'), -1);
+          tvi.tv_country := fQuery.ColumnString('country');
+          tvi.tv_status := fQuery.ColumnString('status');
+          tvi.tv_classification := fQuery.ColumnString('classification');
+          tvi.tv_network := fQuery.ColumnString('network');
+          tvi.tv_genres.CommaText := fQuery.ColumnString('genre');
+          tvi.tv_endedyear := StrToIntDef(fQuery.ColumnString('ended_year'), -1);
+          tvi.last_updated := StrToIntDef(fQuery.ColumnString('last_updated'), -1);
+          tvi.tv_next_date := StrToIntDef(fQuery.ColumnString('next_date'), -1);
+          tvi.tv_next_season := StrToIntDef(fQuery.ColumnString('next_season'), -1);
+          tvi.tv_next_ep := StrToIntDef(fQuery.ColumnString('next_episode'), -1);
+          tvi.tv_days.CommaText := fQuery.ColumnString('airdays');
+          tvi.tv_rating := StrToIntDef(fQuery.ColumnString('rating'), 0);
+          tvi.tv_language:= fQuery.ColumnString('tv_language');
 
-          tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
-          tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
+          tvi.tv_running := Boolean( (SysUtils.LowerCase(tvi.tv_status) = 'running') or (SysUtils.LowerCase(tvi.tv_status) = 'in development') );
+          tvi.tv_scripted := Boolean(SysUtils.LowerCase(tvi.tv_classification) = 'scripted');
 
           Result := tvi;
         end;
@@ -1094,30 +1088,30 @@ begin
         fQuery.ExecutePrepared;
         if fQuery.Step then
         begin
-          tvi := TTVInfoDB.Create(fQuery.ColumnUtf8('rip'));
+          tvi := TTVInfoDB.Create(fQuery.ColumnString('rip'));
 
-          tvi.tv_showname := fQuery.ColumnUtf8('showname');
-          tvi.tv_url := fQuery.ColumnUtf8('tvmaze_url');
-          tvi.tvmaze_id := fQuery.ColumnUtf8('id');
-          tvi.thetvdb_id := fQuery.ColumnUtf8('tvdb_id');
-          tvi.tvrage_id := fQuery.ColumnUtf8('tvrage_id');
-          tvi.tv_premiered_year := StrToIntDef(String(fQuery.ColumnUtf8('premiered_year')), -1);
-          tvi.tv_country := UTF8ToString(fQuery.ColumnUtf8('country'));
-          tvi.tv_status := UTF8ToString(fQuery.ColumnUtf8('status'));
-          tvi.tv_classification := UTF8ToString(fQuery.ColumnUtf8('classification'));
-          tvi.tv_network := UTF8ToString(fQuery.ColumnUtf8('network'));
-          tvi.tv_genres.CommaText := UTF8ToString(fQuery.ColumnUtf8('genre'));
-          tvi.tv_endedyear := StrToIntDef(UTF8ToString(fQuery.ColumnUtf8('ended_year')), -1);
-          tvi.last_updated := StrToIntDef(UTF8ToString(fQuery.ColumnUtf8('last_updated')), -1);
-          tvi.tv_next_date := StrToIntDef(fQuery.ColumnUtf8('next_date'), 0); // why 0, -1 in getTVInfoByShowName?
-          tvi.tv_next_season := StrToIntDef(fQuery.ColumnUtf8('next_season'), 0); // why 0, -1 in getTVInfoByShowName?
-          tvi.tv_next_ep := StrToIntDef(fQuery.ColumnUtf8('next_episode'), 0); // why 0, -1 in getTVInfoByShowName?
-          tvi.tv_days.CommaText := fQuery.ColumnUtf8('airdays');
-          tvi.tv_rating := StrToIntDef(fQuery.ColumnUtf8('rating'), 0);
-          tvi.tv_language:= fQuery.ColumnUtf8('tv_language');
+          tvi.tv_showname := fQuery.ColumnString('showname');
+          tvi.tv_url := fQuery.ColumnString('tvmaze_url');
+          tvi.tvmaze_id := fQuery.ColumnString('id');
+          tvi.thetvdb_id := fQuery.ColumnString('tvdb_id');
+          tvi.tvrage_id := fQuery.ColumnString('tvrage_id');
+          tvi.tv_premiered_year := StrToIntDef(fQuery.ColumnString('premiered_year'), -1);
+          tvi.tv_country := fQuery.ColumnString('country');
+          tvi.tv_status := fQuery.ColumnString('status');
+          tvi.tv_classification := fQuery.ColumnString('classification');
+          tvi.tv_network := fQuery.ColumnString('network');
+          tvi.tv_genres.CommaText := fQuery.ColumnString('genre');
+          tvi.tv_endedyear := StrToIntDef(fQuery.ColumnString('ended_year'), -1);
+          tvi.last_updated := StrToIntDef(fQuery.ColumnString('last_updated'), -1);
+          tvi.tv_next_date := StrToIntDef(fQuery.ColumnString('next_date'), 0); // why 0, -1 in getTVInfoByShowName?
+          tvi.tv_next_season := StrToIntDef(fQuery.ColumnString('next_season'), 0); // why 0, -1 in getTVInfoByShowName?
+          tvi.tv_next_ep := StrToIntDef(fQuery.ColumnString('next_episode'), 0); // why 0, -1 in getTVInfoByShowName?
+          tvi.tv_days.CommaText := fQuery.ColumnString('airdays');
+          tvi.tv_rating := StrToIntDef(fQuery.ColumnString('rating'), 0);
+          tvi.tv_language:= fQuery.ColumnString('tv_language');
 
-          tvi.tv_running := Boolean( (lowercase(tvi.tv_status) = 'running') or (lowercase(tvi.tv_status) = 'in development') );
-          tvi.tv_scripted := Boolean(lowercase(tvi.tv_classification) = 'scripted');
+          tvi.tv_running := Boolean( (SysUtils.LowerCase(tvi.tv_status) = 'running') or (SysUtils.LowerCase(tvi.tv_status) = 'in development') );
+          tvi.tv_scripted := Boolean(SysUtils.LowerCase(tvi.tv_classification) = 'scripted');
 
           Result := tvi;
         end;
