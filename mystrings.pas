@@ -75,6 +75,11 @@ function DoBase64Encode(const aInput: String): String; overload; inline;
   @returns(Base64 encoded String (does an automatic UTF8 1-byte string conversion)) }
 function DoBase64Encode(const aInput: TBytes): String; overload; inline;
 
+{ Creates a base64 decoded string from @link(aInput)
+  @param(aInput String which should be decoded)
+  @returns(Base64 decoded String (does an automatic UTF8 1-byte string conversion)) }
+function DoBase64DecodeToString(const aInput: String): String; inline;
+
 { Creates a base64 decoded Bytearray from @link(aInput)
   @param(aInput String which should be decoded (does an automatic UTF8 1-byte string conversion))
   @returns(Base64 decoded Bytearray) }
@@ -285,6 +290,16 @@ begin
     Result := DoBase64Encode(Result);
   {$ENDIF}
 end;
+
+function DoBase64DecodeToString(const aInput: String): String;
+begin
+  {$IFDEF UNICODE}
+    Result := TNetEncoding.Base64.Decode(UTF8ToString(UTF8Encode(aInput)));
+  {$ELSE}
+    Result := DecodeStringBase64(aInput);
+  {$ENDIF}
+end;
+
 
 function DoBase64DecodeToBytes(const aInput: String): TBytes;
 {$IFNDEF UNICODE}
@@ -1128,7 +1143,7 @@ begin
       begin
         EntityName := Copy(EntityCode, 2, Length(EntityCode));
         Dec := StrToIntDef(EntityName, 0);
-        Result := StringReplace(Result, '&' + EntityCode + ';', UTF8Encode(WideChar(Dec)), []);
+        Result := StringReplace(Result, '&' + EntityCode + ';', UTF8ToString(UTF8Encode(WideChar(Dec))), []);
       end
       else
       begin
