@@ -294,11 +294,12 @@ end;
 function DoBase64DecodeToString(const aInput: String): String;
 begin
   {$IFDEF UNICODE}
-    Result := TNetEncoding.Base64.Decode(UTF8Encode(aInput));
+    Result := TNetEncoding.Base64.Decode(UTF8ToString(UTF8Encode(aInput)));
   {$ELSE}
     Result := DecodeStringBase64(aInput);
   {$ENDIF}
 end;
+
 
 function DoBase64DecodeToBytes(const aInput: String): TBytes;
 {$IFNDEF UNICODE}
@@ -307,7 +308,7 @@ function DoBase64DecodeToBytes(const aInput: String): TBytes;
 {$ENDIF}
 begin
   {$IFDEF UNICODE}
-    Result := TNetEncoding.Base64.DecodeStringToBytes(UTF8Encode(aInput));
+    Result := TNetEncoding.Base64.DecodeStringToBytes(aInput);
   {$ELSE}
     fStrHelper := DecodeStringBase64(aInput);
     SetLength(Result, fStrHelper.Length);
@@ -451,7 +452,7 @@ begin
   db := 0;
   for i := j downto 1 do
   begin
-    if not (s[i] in [#13, #10]) then
+    if not CharInSet(s[i], [#13, #10]) then
       break;
     Inc(db);
   end;
@@ -469,7 +470,7 @@ begin
   if (p <= l - 3) then
   begin
     Inc(p);
-    if (s[p] in [#13, #10]) then
+    if CharInSet(s[p], [#13, #10]) then
       Inc(p);
 
     Result := StrToIntDef(Copy(s, p, 3), 0);
@@ -1142,7 +1143,7 @@ begin
       begin
         EntityName := Copy(EntityCode, 2, Length(EntityCode));
         Dec := StrToIntDef(EntityName, 0);
-        Result := StringReplace(Result, '&' + EntityCode + ';', UTF8Encode(WideChar(Dec)), []);
+        Result := StringReplace(Result, '&' + EntityCode + ';', UTF8ToString(UTF8Encode(WideChar(Dec))), []);
       end
       else
       begin

@@ -32,8 +32,8 @@ const
   section = 'tags';
 
 var
-  glCompleteRegex: string;
-  glIncompleteRegex: string;
+  glCompleteRegex: RawByteString;
+  glIncompleteRegex: RawByteString;
 
 threadvar
   glCompleteRegexInstance, glIncompleteRegexInstance: TFLRE; //< complete and incomplete regex object
@@ -107,7 +107,7 @@ begin
 
   // is the file/dir a complete tag
   try
-    if GetCompleteRegexInstance.Find(aFilename) <> 0 then
+    if GetCompleteRegexInstance.Find(RawByteString(aFilename)) <> 0 then
     begin
       Debug(dpSpam, section, 'TagComplete By FLRE %s', [aFilename]);
       Result := tctCOMPLETE;
@@ -122,7 +122,7 @@ begin
 
   // is the file/dir an incomplete tag
   try
-    if GetIncompleteRegexInstance.Find(aFilename) <> 0 then
+    if GetIncompleteRegexInstance.Find(RawByteString(aFilename)) <> 0 then
     begin
       Debug(dpSpam, section, 'TagIncomplete By FLRE %s', [aFilename]);
       Result := tctINCOMPLETE;
@@ -139,7 +139,7 @@ end;
 procedure TagsInit;
 var
   complete_regex_default, incomplete_regex_default: String;
-  dummy_string: String;
+  dummy_string: RawByteString;
   fTestingRegexInstance: TFLRE;
 begin
   Debug(dpSpam, section, 'Init %s begins', [section]);
@@ -150,7 +150,7 @@ begin
   dummy_string := '[xy] - ( 19M 4F - COMPLETE ) - [xy]';
 
   // check custom slftp.ini complete_regex
-  glCompleteRegex := config.ReadString(section, 'complete_regex', complete_regex_default);
+  glCompleteRegex := RawByteString(config.ReadString(section, 'complete_regex', complete_regex_default));
 
   fTestingRegexInstance := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
   try
@@ -159,7 +159,7 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, Format('TagComplete: slftp.ini complete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      glCompleteRegex := complete_regex_default;
+      glCompleteRegex := RawByteString(complete_regex_default);
     end;
   end;
 
@@ -167,7 +167,7 @@ begin
     FreeAndNil(fTestingRegexInstance);
 
   // check custom slftp.ini incomplete_regex
-  glIncompleteRegex := config.ReadString(section, 'incomplete_regex', incomplete_regex_default);
+  glIncompleteRegex := RawByteString(config.ReadString(section, 'incomplete_regex', incomplete_regex_default));
 
   fTestingRegexInstance := TFLRE.Create(glIncompleteRegex, [rfIGNORECASE]);
   try
@@ -176,7 +176,7 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, Format('TagComplete: slftp.ini incomplete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      glIncompleteRegex := incomplete_regex_default;
+      glIncompleteRegex := RawByteString(incomplete_regex_default);
     end;
   end;
 

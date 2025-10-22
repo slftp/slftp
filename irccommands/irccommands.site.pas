@@ -1347,6 +1347,7 @@ var
   i: integer;
   x: TStringList;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   method := SubString(params, ' ', 2);
   i := StrToIntDef(method, -1);
