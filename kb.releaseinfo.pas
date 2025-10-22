@@ -705,7 +705,7 @@ begin
       end;
       if rlsname[i] = '.' then
         Inc(FNumberOfDots);
-      if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
+      if CharInSet(rlsname[i], ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
         Inc(FNumberOfVowels);
     end;
 
@@ -747,7 +747,7 @@ begin
         j := 1;
         while (j <= length(words[i])) do
         begin
-          if words[i][j] in ['0'..'9'] then
+          if CharInSet(words[i][j], ['0'..'9']) then
             disks := disks * 10 + Ord(words[i][j]) - 48
           else
             Break;
@@ -1034,6 +1034,7 @@ begin
 
   aSourceType := '';
   aNumberOfDisks := 0;
+  i := 1; // Initialize to prevent uninitialized variable warning
 
   for i := 1 to fWordLen do
   begin
