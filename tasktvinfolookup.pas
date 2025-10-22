@@ -104,7 +104,7 @@ begin
   jl := TlkJSONlist.Create;
   try
     try
-      jl := TlkJSON.ParseText(resp) as TlkJSONlist;
+      jl := TlkJSON.ParseText(AnsiString(resp)) as TlkJSONlist;
     except
       on e: Exception do
       begin
@@ -384,7 +384,7 @@ begin
   js := TlkJSONObject.Create();
   try
     try
-      js := TlkJSON.ParseText(jsonStr) as TlkJSONObject;
+      js := TlkJSON.ParseText(AnsiString(jsonStr)) as TlkJSONObject;
     except
       on e: Exception do
       begin

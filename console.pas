@@ -207,7 +207,7 @@ begin
   for i:= 1 to length(s) do
     if (skip = 0) then
     begin
-      if ((ord(s[i]) >= 32) or (s[i] in [#13,#10])) then
+      if ((ord(s[i]) >= 32) or CharInSet(s[i], [#13,#10])) then
       begin
         if (ord(s[i]) <> 255) then
         begin

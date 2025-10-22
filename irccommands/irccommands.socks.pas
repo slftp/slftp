@@ -175,6 +175,7 @@ var
 begin
   Result := False;
   vsocks := nil;
+  vname := ''; // Initialize to prevent uninitialized variable warning
 
   vtrigger := UpperCase(SubString(params, ' ', 1));
   if vtrigger = 'HTTP' then

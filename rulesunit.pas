@@ -1909,6 +1909,7 @@ var
   fRulesPerSection: TObjectList<TRule>;
 begin
   Result := False;
+  fOldRule := nil; // Initialize to prevent uninitialized variable warning
 
   fNewRule := TRule.Create(aRule);
   if fNewRule.error <> '' then

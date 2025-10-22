@@ -26,8 +26,8 @@ uses
 
 const
   rsections = 'precatcher.helpers';
-  ValidChars: set of Char = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\', '/', ':', ';', ' '];
-  StrippingChars: set of Char = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
+  ValidChars: TSysCharSet = ['0'..'9', 'A'..'Z', 'a'..'z', '?', '.', '>', '<', '+', '-', '~', '!', '@', '#', '$', '%', '&', '*', '(', ')', '_', '=', '{', '}', '[', ']', '|', '\', '/', ':', ';', ' '];
+  StrippingChars: TSysCharSet = ['(', ')', '_', '-', '.', '&', '*', '<', '>'];
 
 
 function RemoveSpecialCharsAndBareIt(const s: String): String;
@@ -44,7 +44,7 @@ begin
       begin
         if (Ord(s[i]) <> 255) then
         begin
-          if (IsALetter(s[i]) or IsANumber(s[i]) or (s[i] in StrippingChars)) then
+          if (IsALetter(s[i]) or IsANumber(s[i]) or CharInSet(s[i], StrippingChars)) then
             Result := Result + s[i]
           else
             Result := Result + ' ';
@@ -77,7 +77,7 @@ begin
   Result := aInput;
   for I := 1 to Length(Result) do
   begin
-    if not (Result[I] in ValidChars) then
+    if not CharInSet(Result[I], ValidChars) then
       Result[I] := ' ';
   end;
 end;

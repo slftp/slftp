@@ -85,7 +85,7 @@ var
   dbaddpre_plm2: TPretimeLookupMode;
 
   config_taskpretime_url: String;
-  config_taskpretime_regexp: String;
+  config_taskpretime_regexp: RawByteString;
   FDbCleanupCounter: TIdThreadSafeInt32;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
@@ -155,7 +155,7 @@ begin
     end;
 
     Debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response]);
-    if rx_pretime.MatchAll(response, rx_captures, 1, 1) then
+    if rx_pretime.MatchAll(RawByteString(response), rx_captures, 1, 1) then
     begin
       Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response]);
       aPretimePos := rx_pretime.NamedGroupIndices['pretime'];
@@ -609,7 +609,7 @@ begin
   dbaddpre_plm2 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode_2', 0));
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
-  config_taskpretime_regexp := config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$');
+  config_taskpretime_regexp := RawByteString(config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$'));
 
   FDbCleanupCounter := TIdThreadSafeInt32.Create;
 
