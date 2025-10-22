@@ -94,7 +94,7 @@ var
 
     for i := 1 to Length(Result) do
     begin
-      if Result[i] in [#13, #10] then
+      if CharInSet(Result[i], [#13, #10]) then
       begin
         Result := Copy(Result, 1, i - 1);
         Break;
@@ -109,6 +109,7 @@ var
   end;
 
 begin
+  Result := nil;
   { search for Genre }
   fPos := Pos('genre', LowerCase(aNFO));
   if fPos = 0 then
