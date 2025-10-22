@@ -180,7 +180,7 @@ ujra:
     exit;
   end;
 
-  idTCP.Host:= host;
+  idTCP.Host:= RawByteString(host);
   idTCP.Port:= port;
   idtcp.Disconnect;
 
