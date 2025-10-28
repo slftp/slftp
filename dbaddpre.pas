@@ -230,7 +230,7 @@ begin
 
   fQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
   try
-    fQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?');
+    fQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?', True);
     fQuery.BindTextS(1, rls);
     try
       fQuery.ExecutePrepared;
