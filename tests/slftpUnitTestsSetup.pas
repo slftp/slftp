@@ -15,11 +15,13 @@ procedure InitialPrecatcherSetup;
 procedure InitialKnownGroupsSetup;
 procedure InitialSkiplistSetup;
 procedure InitialFakeSetup;
+procedure InitialDbAddpreSetup;
 
 implementation
 
 uses
-  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher, knowngroups, skiplists, fake;
+  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher, knowngroups, skiplists, fake,
+  dbaddpre, dbhandler, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core;
 
 procedure InitialConfigSetup;
 var
@@ -86,6 +88,13 @@ procedure InitialFakeSetup;
 begin
   FakesInit;
   FakeStart;
+end;
+
+procedure InitialDbAddpreSetup;
+begin
+  MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMariaDB, 'localhost:3306', MARIADB_LOCATION), 'predb', 'root', 'asdf');
+  dbaddpreInit;
+  dbaddpreStart;
 end;
 
 end.
