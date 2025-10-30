@@ -724,7 +724,7 @@ begin
     end;
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
-    if (psource.status <> rssRealPre) then
+    if (psource <> nil) and (psource.status <> rssRealPre) then
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
