@@ -50,7 +50,7 @@ function ExtractReleasename(ts_data: TStringList): String;
   @param(aCleanSitebotAnnounce Sitebot announce with additional characters removed and section enclosed by whitespaces)
   @returns(First occurring section name of the mapping if section is listed, otherwise empty string) }
 function FindSection(const aCleanSitebotAnnounce: String): String;
-function ProcessDoReplace(const s: String): String;
+function ProcessDoReplace(const s: String; const rls: String = ''): String;
 
 var
   precatcher_debug: boolean = False;
@@ -71,6 +71,7 @@ uses
 
 const
   rsections = 'precatcher';
+  glReleaseNamePlaceHolder: String = '${RELEASENAMEPLACEHOLDER}$';
 
 var
   catcherFilename, replacefromline: String;
@@ -260,12 +261,15 @@ begin
   end;
 end;
 
-function ProcessDoReplace(const s: String): String;
+function ProcessDoReplace(const s: String; const rls: String = ''): String;
 var
   i: integer;
   rep_s: String;
 begin
   rep_s := s;
+
+  if rls <> '' then
+    rep_s := ReplaceText(rep_s, rls, glReleaseNamePlaceHolder);
 
   if replacefrom.Count = replaceto.Count then
   begin
@@ -277,6 +281,9 @@ begin
   end
   else
     Debug(dpError, rsections, 'replacefrom count is <> replaceto count!');
+
+  if rls <> '' then
+    rep_s := ReplaceText(rep_s, glReleaseNamePlaceHolder, rls);
 
   Result := rep_s;
 end;
@@ -409,7 +416,11 @@ begin
     try
       sc := TSiteChan(cd.Objects[i]);
     except
-      exit;
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] TSiteChan() : %s', [e.Message]));
+        exit;
+      end;
     end;
 
     ts_data := TStringList.Create;
@@ -485,11 +496,7 @@ begin
 
 
       // do the [replace] from slftp.precatcher
-      s := ReplaceText(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
-      s := ProcessDoReplace(s);
-      s := ReplaceText(s, '${RELEASENAMEPLACEHOLDER}$', rls);
-      ts_data.DelimitedText := s;
-
+      ts_data.DelimitedText := ProcessDoReplace(ts_data.DelimitedText, rls);
       MyDebug('After replace line is: %s', [ts_data.DelimitedText]);
 
 
@@ -527,7 +534,7 @@ begin
               MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
               if not precatcher_debug then
               begin
-                dbaddpre_ADDPRE(net, chan, nick, rls, kbeADDPRE);
+                dbaddpre_ADDPRE(net, chan, nick, rls, ss.section, ts_data.DelimitedText, kbeADDPRE);
               end;
               exit;
             end;
