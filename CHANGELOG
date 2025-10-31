@@ -69,6 +69,8 @@
     {^} Various other performance improvements
     {^} The routeset command now features the option -f to enable the given route only for races where the group is added
         as affil on the source site. Also the option -n was added to race only when the group is no affil.
+    {^} Changed the look of the raced file announce which now shows the slot name and the % complete state of the race
+        on the sites.
     {-} The routelock command has been removed. Use routeset with option -l instead.
         Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
 
