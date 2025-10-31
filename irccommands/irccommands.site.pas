@@ -275,7 +275,13 @@ begin
 
   if (0 < Pos('-', sitename)) then
   begin
-    irc_addtext(Netname, Channel, 'Sitename cant contain -.');
+    irc_addtext(Netname, Channel, 'Sitename can''t contain -.');
+    exit;
+  end;
+
+  if (0 < Pos('%', sitename)) then
+  begin
+    irc_addtext(Netname, Channel, 'Sitename can''t contain %.');
     exit;
   end;
 
