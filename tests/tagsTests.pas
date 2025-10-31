@@ -28,6 +28,20 @@ type
     procedure TestTagComplete14;
     procedure TestTagComplete15;
     procedure TestTagComplete16;
+    procedure TestTagExtractPercentReturnsValue;
+    procedure TestTagExtractPercentMissingReturnsFalse;
+    procedure TestTagExtractPercentMultipleValues;
+    procedure TestTagExtractPercent100WithSpaces;
+    procedure TestTagExtractPercent100WithFiles;
+    procedure TestTagExtractPercent18WithSpaces;
+    procedure TestTagExtractPercent80WithFiles;
+    procedure TestTagExtractPercent0WithSpaces;
+    procedure TestTagExtractPercent73InBrackets;
+    procedure TestTagExtractPercent100InParens;
+    procedure TestTagExtractPercent100Simple;
+    procedure TestTagExtractPercentEmptyString;
+    procedure TestTagExtractPercentInvalidOver100;
+    procedure TestTagExtractPercentWithLeadingSpaces;
   end;
 
 implementation
@@ -179,6 +193,132 @@ begin
   fExpected := Ord(tctCOMPLETE);
   fResult := Ord(TagComplete('[ 132M 8F - COMPLETE ]'));
   CheckEquals(fExpected, fResult);
+end;
+
+procedure TTestTags.TestTagExtractPercentReturnsValue;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[##::::::::::::] -  73% Complete - [xxx]', percent));
+  CheckEquals(73, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentMissingReturnsFalse;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckFalse(TagExtractPercent('NO PERCENT HERE', percent));
+  CheckEquals(-1, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentMultipleValues;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[SRC 45%][DST 12% complete]', percent));
+  CheckEquals(45, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100WithSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[##############] -  100% Complete - [xxx]', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100WithFiles;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[ 23 of 23 files = 100% complete of 335.1MB]', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent18WithSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[##::::::::::::] -  18% Complete - [xxx]', percent));
+  CheckEquals(18, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent80WithFiles;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[8 of 10 files = 80% complete at 366.8MB]', percent));
+  CheckEquals(80, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent0WithSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[::::::::::::::] -   0% Complete - [x]', percent));
+  CheckEquals(0, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent73InBrackets;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[ 73%]-[##########::::]-[729mb]', percent));
+  CheckEquals(73, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100InParens;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[SITE] - ( 2F 12MB 100% COMPLETE ) - ( Reggae from 1970 @ 251kbits VBR-NEW Joint Stereo ) - [SITE]', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercent100Simple;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('100% complete', percent));
+  CheckEquals(100, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentEmptyString;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckFalse(TagExtractPercent('', percent));
+  CheckEquals(-1, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentInvalidOver100;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckFalse(TagExtractPercent('150% complete', percent));
+  CheckEquals(-1, percent);
+end;
+
+procedure TTestTags.TestTagExtractPercentWithLeadingSpaces;
+var
+  percent: Integer;
+begin
+  percent := -1;
+  CheckTrue(TagExtractPercent('[  50% ]', percent));
+  CheckEquals(50, percent);
 end;
 
 initialization
