@@ -1907,54 +1907,44 @@ begin
   Result := False;
   dir := MyIncludeTrailingSlash(dir);
 
-  if ((dir <> aktdir) or (force)) then
+  if ((site.legacydirlist) or (force)) then
   begin
-    if ((site.legacydirlist) or (force)) then
+    if (not force) and (dir = aktdir) then
     begin
-      if not Send('CWD %s', [dir]) then
-        exit;
-      if not Read('CWD') then
-        exit;
+      Result := True;
+      exit;
+    end;
 
-      if (lastResponseCode = 250) then
+    if not Send('CWD %s', [dir]) then
+      exit;
+    if not Read('CWD') then
+      exit;
+
+    if (lastResponseCode = 250) then
+    begin
+      if (0 <> Pos('250- Matched ', lastresponse)) then
       begin
-        if (0 <> Pos('250- Matched ', lastresponse)) then
-        begin
-          Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
-
-          if dir[1] <> '/' then
-            aktdir := aktdir + dir
-          else
-            aktdir := dir;
-
-          Result := True;
-          exit;
-        end;
-        (*
-                if (0 <> Pos('Looks like this is a pre', lastresponse)) then
-                  pre:= True;
-        *)
-        if dir[1] <> '/' then
-          aktdir := aktdir + dir
-        else
-          aktdir := dir;
-      end
-      else
-      begin
-        //irc_addtext(todotask, '%s: %s', [name, trim(lastResponse)]);
-        Result := False;
+        Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
+        aktdir := dir;
+        Result := True;
         exit;
       end;
+			
+      aktdir := dir;
+      Result := True;
     end
     else
     begin
-      if dir[1] <> '/' then
-        aktdir := aktdir + dir
-      else
-        aktdir := dir;
+      Debug(dpMessage, section, 'CWD failed for %s: %d %s', [dir, lastResponseCode, Trim(lastResponse)]);
+      Result := False;
+      exit;
     end;
+  end
+  else
+  begin
+    aktdir := dir;
+    Result := True;
   end;
-  Result := True;
 end;
 
 function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
