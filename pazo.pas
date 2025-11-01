@@ -173,6 +173,11 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    FUDPEnabled: Boolean;
+    FUDPIp: String;
+    FUDPPort: Integer;
+    FUDPPassword: String;
+    FUDPConfigLoaded: Boolean;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -184,6 +189,7 @@ type
     function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
+    procedure LoadUDPConfig;
 
   public
     pazo_id: integer;
@@ -257,7 +263,8 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  blcksock;
 
 const
   section = 'pazo';
@@ -386,6 +393,46 @@ begin
   except
     Result := nil;
   end;
+end;
+
+procedure TPazo.LoadUDPConfig;
+var
+  rawEnable: String;
+begin
+  FUDPEnabled := False;
+  FUDPConfigLoaded := False;
+  FUDPIp := '';
+  FUDPPort := 0;
+  FUDPPassword := '';
+
+  if not Assigned(config) then
+  begin
+    Debug(dpMessage, section, 'TPazo.LoadUDPConfig: config not initialised, retrying later');
+    Exit;
+  end;
+
+  rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+  FUDPIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+  FUDPPort := config.ReadInteger('UDPConfig', 'Port', 0);
+  FUDPPassword := config.ReadString('UDPConfig', 'Password', '');
+  FUDPEnabled := SameText(rawEnable, 'True') or SameText(rawEnable, '1');
+
+  if FUDPEnabled then
+  begin
+    if (FUDPPort < 1) or (FUDPPort > 65535) then
+    begin
+      Debug(dpError, section, Format('TPazo.LoadUDPConfig: invalid UDP port %d - disabling UDP', [FUDPPort]));
+      FUDPEnabled := False;
+    end;
+
+    if FUDPIp = '' then
+    begin
+      Debug(dpError, section, 'TPazo.LoadUDPConfig: UDP IP is empty - disabling UDP');
+      FUDPEnabled := False;
+    end;
+  end;
+
+  FUDPConfigLoaded := True;
 end;
 
 function PazoAdd(const rls: TRelease): TPazo;
@@ -718,13 +765,51 @@ end;
 function TPazo.RoutesText: String;
 var
   ps: TPazoSite;
+  cbftpLine: String;
+  sitelist: String;
+  shouldSendUDP: Boolean;
+  udpSocket: TUDPBlockSocket;
+  udpMessage: String;
 begin
+  if rls = nil then
+  begin
+    Result := '';
+    Exit;
+  end;
+
   Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count]);
   Result := Result + #13#10;
 
   for ps in PazoSitesList do
   begin
     Result := Result + ps.RoutesText;
+  end;
+
+  cbftpLine := '';
+  sitelist := '';
+  shouldSendUDP := False;
+
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+
+  if FUDPEnabled then
+  begin
+    for ps in PazoSitesList do
+    begin
+      if ps.status in [rssAllowed, rssShouldPre, rssRealPre] then
+        sitelist := sitelist + ps.Name + ',';
+    end;
+
+    if sitelist <> '' then
+    begin
+      SetLength(sitelist, Length(sitelist) - 1);
+      cbftpLine := Format('<c3>[CBFTP]</c> : <b>%s %s</b> %s', [rls.section, rls.rlsname, sitelist]);
+      cbftpLine := cbftpLine + #13#10;
+      Result := Result + cbftpLine;
+      shouldSendUDP := True;
+    end
+    else
+      Debug(dpMessage, section, 'TPazo.RoutesText: no eligible sites for UDP, skipping send');
   end;
 
   if (Result <> lastannounceroutes) then
@@ -734,6 +819,44 @@ begin
   else
   begin
     Result := '';
+    shouldSendUDP := False;
+  end;
+
+  if shouldSendUDP then
+  begin
+    udpMessage := FUDPPassword + ' race ' + rls.section + ' ' + rls.rlsname + ' ' + sitelist;
+    try
+      udpSocket := TUDPBlockSocket.Create;
+      try
+        udpSocket.CreateSocket;
+        udpSocket.SetTimeout(2000);
+        udpSocket.Connect(FUDPIp, IntToStr(FUDPPort));
+        if udpSocket.LastError <> 0 then
+        begin
+          Debug(dpError, section, 'UDP connection failed: %s', [udpSocket.LastErrorDesc]);
+          lastannounceroutes := '';
+          Exit;
+        end;
+
+        udpSocket.SendString(udpMessage);
+        if udpSocket.LastError <> 0 then
+        begin
+          Debug(dpError, section, 'UDP send failed: %s', [udpSocket.LastErrorDesc]);
+          lastannounceroutes := '';
+        end
+        else
+          Debug(dpMessage, section, 'UDP notification sent for %s', [rls.rlsname]);
+      finally
+        udpSocket.CloseSocket;
+        udpSocket.Free;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText: UDP operation failed: %s', [E.Message]));
+        lastannounceroutes := '';
+      end;
+    end;
   end;
 end;
 
@@ -832,6 +955,12 @@ begin
   FExcludeFromIncfiller := False;
   if rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
+
+  FUDPConfigLoaded := False;
+  FUDPEnabled := False;
+  FUDPIp := '';
+  FUDPPort := 0;
+  FUDPPassword := '';
 
   inherited Create;
 end;
