@@ -264,7 +264,7 @@ uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
   mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
-  mormot.net.sock;
+  mormot.core.base, mormot.core.unicode, mormot.net.sock;
 
 const
   section = 'pazo';
