@@ -264,7 +264,7 @@ uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
   mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
-  blcksock;
+  mormot.net.sock;
 
 const
   section = 'pazo';
@@ -768,8 +768,10 @@ var
   cbftpLine: String;
   sitelist: String;
   shouldSendUDP: Boolean;
-  udpSocket: TUDPBlockSocket;
-  udpMessage: String;
+  udpSocket: TNetSocket;
+  udpMessage: RawUtf8;
+  destAddr: TNetAddr;
+  res: TNetResult;
 begin
   if rls = nil then
   begin
@@ -824,32 +826,39 @@ begin
 
   if shouldSendUDP then
   begin
-    udpMessage := FUDPPassword + ' race ' + rls.section + ' ' + rls.rlsname + ' ' + sitelist;
+    udpMessage := StringToUtf8(FUDPPassword + ' race ' + rls.section + ' ' + rls.rlsname + ' ' + sitelist);
+    udpSocket := nil;
     try
-      udpSocket := TUDPBlockSocket.Create;
-      try
-        udpSocket.CreateSocket;
-        udpSocket.SetTimeout(2000);
-        udpSocket.Connect(FUDPIp, IntToStr(FUDPPort));
-        if udpSocket.LastError <> 0 then
-        begin
-          Debug(dpError, section, 'UDP connection failed: %s', [udpSocket.LastErrorDesc]);
-          lastannounceroutes := '';
-          Exit;
-        end;
-
-        udpSocket.SendString(udpMessage);
-        if udpSocket.LastError <> 0 then
-        begin
-          Debug(dpError, section, 'UDP send failed: %s', [udpSocket.LastErrorDesc]);
-          lastannounceroutes := '';
-        end
-        else
-          Debug(dpMessage, section, 'UDP notification sent for %s', [rls.rlsname]);
-      finally
-        udpSocket.CloseSocket;
-        udpSocket.Free;
+      // Create UDP socket
+      udpSocket := NewRawSocket(nfIP4, nlUdp);
+      if udpSocket = nil then
+      begin
+        Debug(dpError, section, 'UDP socket creation failed');
+        lastannounceroutes := '';
+        Exit;
       end;
+
+      // Set send timeout
+      udpSocket.SetSendTimeout(2000);
+
+      // Set destination address
+      res := destAddr.SetFrom(StringToUtf8(FUDPIp), StringToUtf8(IntToStr(FUDPPort)), nlUdp);
+      if res <> nrOK then
+      begin
+        Debug(dpError, section, 'UDP address resolution failed: %s', [ToText(res)^]);
+        lastannounceroutes := '';
+        Exit;
+      end;
+
+      // Send UDP datagram
+      res := udpSocket.SendTo(pointer(udpMessage), length(udpMessage), destAddr);
+      if res <> nrOK then
+      begin
+        Debug(dpError, section, 'UDP send failed: %s', [ToText(res)^]);
+        lastannounceroutes := '';
+      end
+      else
+        Debug(dpMessage, section, 'UDP notification sent for %s', [rls.rlsname]);
     except
       on E: Exception do
       begin
@@ -857,6 +866,10 @@ begin
         lastannounceroutes := '';
       end;
     end;
+
+    // Cleanup
+    if udpSocket <> nil then
+      udpSocket.Close;
   end;
 end;
 
