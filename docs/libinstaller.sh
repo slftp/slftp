@@ -34,8 +34,6 @@ LOGFILE="/tmp/debug.log"
 DEVDIR="$(pwd)/_dev"
 
 MIRROR_OPENSSL="https://openssl-library.org/source/"
-MIRROR_OPENSSL_LEGACY="http://artfiles.org/openssl.org/source/"
-# Using both mirrors to support old and new versions
 
 MIRROR_SQLITE="https://www.sqlite.org/download.html"
 
@@ -94,18 +92,8 @@ function func_maxnum {
 }
 
 function func_openssl {
-  OPENSSL_FILES_LEGACY=$(wget -O- -q "$MIRROR_OPENSSL_LEGACY" 2>/dev/null | grep -v "fips" | grep -E "([0-9]{6,} bytes|[0-9]+\.?[0-9]*M)" | grep -o -E "[^\"]*openssl.+" | sed 's/".*//' | sed "s|^\([^fF][^tT][^pP][^:]\)|$MIRROR_OPENSSL_LEGACY\1|g" || echo "")
 
-  OPENSSL_FILES_NEW=$(wget -O- -q "$MIRROR_OPENSSL" 2>/dev/null | grep -o -E "https://github.com/openssl/openssl/releases/download/[^\"]+openssl-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz" | grep -v "fips" || echo "")
-
-  OPENSSL_FILES=$(echo -e "$OPENSSL_FILES_LEGACY\n$OPENSSL_FILES_NEW" | grep -v "^$" | sort -u -t- -k2 -V)
-
-  if [ -z "$OPENSSL_FILES" ]; then
-    echo "[-] ERROR: Could not fetch OpenSSL versions from any mirror."
-    echo "    Tried: $MIRROR_OPENSSL"
-    echo "           $MIRROR_OPENSSL_LEGACY"
-    exit 1
-  fi
+  OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" 2>/dev/null | grep -o -E "https://github.com/openssl/openssl/releases/download/[^\"]+openssl-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz" | grep -v "fips" | sort -u -t- -k2 -V || echo "")
 
   i=0
   echo "Available OpenSSL versions:"
