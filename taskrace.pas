@@ -24,9 +24,11 @@ type
     dir: String;
     is_pre: boolean;
     FDoIncFilling: boolean; //< @true if created to do incomplete filling, @false otherwise
+    FSiteName: String; //< Name of the site for site-specific configuration
     constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
+    function GetDirlistReaddValue: integer; //< Returns site-specific or global dirlist readd value
   end;
 
   TPazoMkdirTask = class(TPazoTask)
@@ -187,6 +189,7 @@ begin
   self.dir := dir;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
+  self.FSiteName := site;
   inherited Create(netname, channel, site, '', pazo, nil);
 end;
 
@@ -606,7 +609,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+      r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue());
 
       try
         AddTask(r);
@@ -655,9 +658,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue());
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue());
 
             try
               AddTask(r);
@@ -701,6 +704,11 @@ begin
   except
     Result := 'DIRLIST';
   end;
+end;
+
+function TPazoDirlistTask.GetDirlistReaddValue: integer;
+begin
+  Result := GetPerformanceAdjustedDirlistReaddValue(FSiteName);
 end;
 
 

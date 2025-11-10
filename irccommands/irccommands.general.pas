@@ -12,6 +12,7 @@ function IrcLastLog(const netname, channel, params: String): boolean;
 function IrcSetDebugverbosity(const netname, channel, params: String): boolean;
 function IrcCreateBackup(const netname, channel, params: String): boolean;
 function IrcAuto(const netname, channel, params: String): boolean;
+function IrcPerformance(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -19,6 +20,7 @@ uses
   SysUtils, Classes, StrUtils, Math, Contnrs, irccommandsunit, irc, RegExpr, statsunit, mainthread,
   debugunit, tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
   console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
+  loadmonitorunit, dirlist.helpers,
   mormot.core.os, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
 
 const
@@ -345,6 +347,204 @@ begin
     else
       irc_addtext(Netname, Channel, Format('Precatcher auto is: Disabled [%s]', [IntToStr(integer(precatcher.precatcherauto))]));
   end;
+
+  Result := True;
+end;
+
+function IrcPerformance(const netname, channel, params: String): boolean;
+var
+  monitor: TLoadMonitor;
+  level, cpuTotal, cpuWorker, queueSize: Integer;
+  monitorStatus: String;
+  monitorCfgEnabled, perfEnabled: Boolean;
+  filter, adminSite: String;
+  site: TSite;
+  entry: String;
+  i: Integer;
+  hasEntries: Boolean;
+
+  function PriorityLabel(const value: Integer): String;
+  begin
+    case value of
+      0: Result := 'VeryLow';
+      1: Result := 'Low';
+      2: Result := 'Normal';
+      3: Result := 'High';
+      4: Result := 'VeryHigh';
+    else
+      Result := 'Normal';
+    end;
+  end;
+
+  function PriorityColor(priority: TSiteDirlistPriority): String;
+  begin
+    case priority of
+      spVeryLow:  Result := 'c4';   // red
+      spLow:      Result := 'c8';   // orange/yellow
+      spNormal:   Result := 'c7';   // neutral
+      spHigh:     Result := 'c3';   // green
+      spVeryHigh: Result := 'c9';   // bright green
+    else
+      Result := 'c7';
+    end;
+  end;
+
+  function ModeColor(const modeLabel: String): String;
+  begin
+    if modeLabel = 'dyn' then
+      Result := 'c3'
+    else if modeLabel = 'site-off' then
+      Result := 'c8'
+    else
+      Result := 'c4';
+  end;
+
+  function IntervalColor(const value: Integer): String;
+  begin
+    if value <= 25 then
+      Result := 'c3'
+    else if value <= 60 then
+      Result := 'c8'
+    else
+      Result := 'c4';
+  end;
+
+  function Colored(const color, text: String): String;
+  begin
+    Result := Format('<%s>%s</c>', [color, text]);
+  end;
+
+  function BuildEntry(const aSite: TSite): String;
+  var
+    baseValue, adjustedValue: Integer;
+    modeLabel: String;
+    sitePriority: TSiteDirlistPriority;
+    priorityText, intervalText, baseText: String;
+  begin
+    baseValue := aSite.NewdirDirlistReadd;
+    if baseValue <= 0 then
+      baseValue := GetNewdirDirlistReaddValue();
+
+    if perfEnabled and aSite.PerformanceAdjustedDirlist then
+      adjustedValue := GetPerformanceAdjustedDirlistReaddValue(aSite.Name)
+    else
+      adjustedValue := baseValue;
+
+    if not perfEnabled then
+      modeLabel := 'global-off'
+    else if not aSite.PerformanceAdjustedDirlist then
+      modeLabel := 'site-off'
+    else
+      modeLabel := 'dyn';
+
+    sitePriority := IntToDirlistPriority(aSite.DirlistPriority);
+
+    priorityText := Colored(PriorityColor(sitePriority), PriorityLabel(aSite.DirlistPriority));
+    intervalText := Colored(IntervalColor(adjustedValue), Format('%dms', [adjustedValue]));
+    baseText := Colored('c14', Format('%dms', [baseValue]));
+
+    Result := Format('%s | interval %s | base %s | prio %s | mode %s',
+      [Colored('c7', Format('<b>%s</b>', [aSite.Name])), intervalText, baseText,
+       priorityText, Colored(ModeColor(modeLabel), modeLabel)]);
+  end;
+
+begin
+  Result := False;
+
+  monitor := GlLoadMonitor;
+  monitorCfgEnabled := config.ReadBool('performance_monitor', 'enabled', True);
+  perfEnabled := config.ReadBool('dirlist_performance', 'enabled', True);
+
+  if monitor.Enabled then
+    monitorStatus := 'running'
+  else
+    monitorStatus := 'stopped';
+
+  if not monitorCfgEnabled then
+    monitorStatus := monitorStatus + '/cfg-off';
+
+  level := monitor.CurrentPerformanceLevel;
+  cpuTotal := monitor.CurrentCPUUsageTotal;
+  cpuWorker := monitor.CurrentCPUUsageWorker;
+  queueSize := monitor.CurrentWorkerQueueSize;
+
+  // Handle initial measurement phase where CPU might be -1 (not ready yet)
+  if cpuTotal < 0 then
+    irc_addtext(Netname, Channel,
+      'Performance monitor: <b>%s</b> | level <b>%d</b> | cpu <c8>initializing</c> | queue %d',
+      [monitorStatus, level, queueSize])
+  else
+    irc_addtext(Netname, Channel,
+      'Performance monitor: <b>%s</b> | level <b>%d</b> | cpu %d%% | worker %d%% | queue %d',
+      [monitorStatus, level, cpuTotal, cpuWorker, queueSize]);
+
+  irc_addtext(Netname, Channel, 'Dirlist performance adjustment: <b>%s</b>',
+    [IfThen(perfEnabled, 'enabled', 'disabled')]);
+
+  filter := UpperCase(Trim(params));
+  adminSite := UpperCase(getAdminSiteName);
+
+  if filter <> '' then
+  begin
+    if (filter = 'ALL') then
+      filter := ''
+    else
+    begin
+      site := FindSiteByName(Netname, filter);
+      if site = nil then
+      begin
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [filter]);
+        Exit;
+      end;
+
+      entry := BuildEntry(site);
+      irc_addtext(Netname, Channel, entry);
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  if (sites = nil) or (sites.Count = 0) then
+  begin
+    irc_addtext(Netname, Channel, 'No site objects loaded.');
+    Result := True;
+    Exit;
+  end;
+
+  hasEntries := False;
+  try
+    // Iterate with bounds checking to handle concurrent modifications
+    for i := 0 to sites.Count - 1 do
+    begin
+      // Double-check bounds in case list was modified during iteration
+      if i >= sites.Count then
+        Break;
+
+      site := TSite(sites[i]);
+      if site = nil then
+        Continue;
+
+      if SameText(site.Name, adminSite) then
+        Continue;
+
+      entry := BuildEntry(site);
+      if entry = '' then
+        Continue;
+
+      hasEntries := True;
+      irc_addtext(Netname, Channel, entry);
+    end;
+  except
+    on E: Exception do
+    begin
+      irc_addtext(Netname, Channel, 'Error iterating sites: %s', [E.Message]);
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  if not hasEntries then
+    irc_addtext(Netname, Channel, 'No eligible sites for dirlist reporting.');
 
   Result := True;
 end;

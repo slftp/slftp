@@ -57,7 +57,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist, slcriticalsection2, mormot.core.unicode;
+  taskautodirlist, slcriticalsection2, mormot.core.unicode, loadmonitorunit;
 
 {$I slftp.inc}
 
@@ -503,6 +503,19 @@ begin
   slshutdown := False;
   console_addline('Admin', 'Start Queue', True);
   QueueStart();
+
+  // Start LoadMonitor for performance monitoring
+  if config.ReadBool('performance_monitor', 'enabled', True) then
+  begin
+    console_addline('Admin', 'Start Performance Monitor', True);
+    try
+      GlLoadMonitor.StartMonitoring;
+      Debug(dpMessage, section, 'Performance Monitor started successfully');
+    except
+      on E: Exception do
+        Debug(dpError, section, 'Failed to start Performance Monitor: %s', [E.Message]);
+    end;
+  end;
 end;
 
 procedure Main_Stop;
@@ -573,6 +586,16 @@ begin
   NewsUnInit;
   AutodirlistUninit;
   DirlistUnInit;
+
+  // Stop LoadMonitor
+  try
+    Debug(dpMessage, section, 'Stopping Performance Monitor');
+    // LoadMonitor will be automatically freed in unit finalization
+  except
+    on E: Exception do
+      Debug(dpError, section, 'Error stopping Performance Monitor: %s', [E.Message]);
+  end;
+
   SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic

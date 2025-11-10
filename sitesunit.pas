@@ -334,6 +334,12 @@ type
     procedure SetNextAutoDirlistDateTime(const Value: TDateTime);
     function GetAutoDirlistSections: String;
     procedure SetAutoDirlistSections(const Value: String);
+    function GetNewdirDirlistReadd: integer;
+    procedure SetNewdirDirlistReadd(const Value: integer);
+    function GetDirlistPriority: integer;
+    procedure SetDirlistPriority(const Value: integer);
+    function GetPerformanceAdjustedDirlist: Boolean;
+    procedure SetPerformanceAdjustedDirlist(const Value: Boolean);
 
     { function for @link(SiteFullName) property to read full sitename from inifile }
     function GetSiteFullName: String;
@@ -588,6 +594,9 @@ type
     property AutoDirlistInterval: integer read GetAutoDirlistInterval write SetAutoDirlistInterval; //< Interval in seconds for autodirlist, zero means turned off
     property NextAutoDirlistDateTime: TDateTime read GetNextAutoDirlistDateTime write SetNextAutoDirlistDateTime; //< timestamp of next autodirlist run
     property AutoDirlistSections: String read GetAutoDirlistSections write SetAutoDirlistSections; //< section(s) for autodirlist
+    property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd; //< Interval in milliseconds for dirlist readd, zero means use global default
+    property DirlistPriority: integer read GetDirlistPriority write SetDirlistPriority; //< Site priority for dynamic dirlist performance (0=VeryLow, 1=Low, 2=Normal, 3=High, 4=VeryHigh)
+    property PerformanceAdjustedDirlist: Boolean read GetPerformanceAdjustedDirlist write SetPerformanceAdjustedDirlist; //< Enable/disable performance-based dirlist interval adjustment
     property SiteFullName: String read GetSiteFullName write SetSiteFullName; //< full name of site
     property SiteLinkSpeed: String read GetSiteLinkSpeed write SetSiteLinkSpeed; //< link speed of site
     property SiteSize: String read GetSiteSize write SetSiteSize; //< size of site
@@ -4732,6 +4741,36 @@ end;
 procedure TSite.SetAutoDirlistSections(const Value: String);
 begin
   WCString('autodirlistsections', Value);
+end;
+
+function TSite.GetNewdirDirlistReadd: integer;
+begin
+  Result := RCInteger('newdir_dirlist_readd', 0);
+end;
+
+procedure TSite.SetNewdirDirlistReadd(const Value: integer);
+begin
+  WCInteger('newdir_dirlist_readd', Value);
+end;
+
+function TSite.GetDirlistPriority: integer;
+begin
+  Result := RCInteger('dirlist_priority', 2); // Default to Normal (spNormal = 2)
+end;
+
+procedure TSite.SetDirlistPriority(const Value: integer);
+begin
+  WCInteger('dirlist_priority', Value);
+end;
+
+function TSite.GetPerformanceAdjustedDirlist: Boolean;
+begin
+  Result := RCBool('performance_adjusted_dirlist', True); // Default to enabled
+end;
+
+procedure TSite.SetPerformanceAdjustedDirlist(const Value: Boolean);
+begin
+  WCBool('performance_adjusted_dirlist', Value);
 end;
 
 function TSite.GetSiteFullName;
