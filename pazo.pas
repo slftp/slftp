@@ -444,10 +444,20 @@ begin
   // something's fucked
   if error then exit;
 
-  if (dir <> '') then
-    fd := pazo.rls.rlsname + '/' + dir
+  if pazo.rls <> nil then
+  begin
+    if (dir <> '') then
+      fd := pazo.rls.rlsname + '/' + dir
+    else
+      fd := pazo.rls.rlsname;
+  end
   else
-    fd := pazo.rls.rlsname;
+  begin
+    if (dir <> '') then
+      fd := 'SPEEDTEST/' + dir
+    else
+      fd := 'SPEEDTEST';
+  end;
 
   // ignore this site if you don't have setup download slots for it
   s := FindSiteByName('', Name);
@@ -577,7 +587,8 @@ begin
           try
             pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
             Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
+            if pazo.rls <> nil then
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
             AddTask(pd, true);
           except
@@ -701,7 +712,10 @@ function TPazo.AsText: String;
 var
   ps: TPazoSite;
 begin
-  Result := rls.AsText(pazo_id);
+  if rls <> nil then
+    Result := rls.AsText(pazo_id)
+  else
+    Result := Format('Speedtest (pazo %d)%s', [pazo_id, #13#10]);
 
   Result := Result + Format('Age: %ds %s', [age, #13#10]);
 
@@ -723,7 +737,10 @@ function TPazo.RoutesText: String;
 var
   ps: TPazoSite;
 begin
-  Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count]);
+  if rls <> nil then
+    Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count])
+  else
+    Result := Format('<c3>[ROUTES]</c> : <b>SPEEDTEST</b> (%d sites)', [PazoSitesList.Count]);
   Result := Result + #13#10;
 
   for ps in PazoSitesList do
@@ -775,7 +792,8 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  if fWasAdded and aIsSFV and (self.rls <> nil) and (FPazoSFV <> nil) and
+     self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -834,15 +852,20 @@ begin
   self.cleared := False;
 
   FExcludeFromIncfiller := False;
-  if rls.IsSFVRelease then
-    FPazoSFV := TPazoSFV.Create;
+  if (rls <> nil) and rls.IsSFVRelease then
+    FPazoSFV := TPazoSFV.Create
+  else
+    FPazoSFV := nil;
 
   inherited Create;
 end;
 
 destructor TPazo.Destroy;
 begin
-  Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  if rls <> nil then
+    Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname])
+  else
+    Debug(dpSpam, section, 'TPazo.Destroy: SPEEDTEST');
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
@@ -1461,7 +1484,10 @@ begin
   if d <> nil then
   begin
     debug(dpSpam, section, 'MkdirError ' + Name + ' ' + dir);
-    irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
+    if pazo.rls <> nil then
+      irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]))
+    else
+      irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : SPEEDTEST %s @ <b>%s</b>', [dir, Name]));
     d.need_mkdir := True;
     d.error := True;
   end;
@@ -2021,7 +2047,12 @@ begin
     RemovePazoDirTasks(pazo.pazo_id, Name);
 
     if not aMessage.IsEmpty then
-      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, aMessage]));
+    begin
+      if pazo.rls <> nil then
+        irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, aMessage]))
+      else
+        irc_Addstats(Format('<c7>[SITE FAILED]</c> : SPEEDTEST @ <b>%s</b> <b>%s</b>', [Name, aMessage]));
+    end;
 
   except
     on e: Exception do
