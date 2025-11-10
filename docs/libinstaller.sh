@@ -33,8 +33,7 @@ LOGFILE="/tmp/debug.log"
 #here we will download/compile
 DEVDIR="$(pwd)/_dev"
 
-MIRROR_OPENSSL="http://artfiles.org/openssl.org/source/"
-# https://www.openssl.org/source/mirror.html
+MIRROR_OPENSSL="https://openssl-library.org/source/"
 
 MIRROR_SQLITE="https://www.sqlite.org/download.html"
 
@@ -93,7 +92,9 @@ function func_maxnum {
 }
 
 function func_openssl {
-  OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" | grep -v "fips" | grep -E "([0-9]{6,} bytes|[0-9]+\.?(0-9)*M)" | grep -o -E "[^\"]*openssl.+" | sed 's/".*//' | sed "s|^\([^fF][^tT][^pP][^:]\)|$MIRROR_OPENSSL\1|g")
+
+  OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" 2>/dev/null | grep -o -E "https://github.com/openssl/openssl/releases/download/[^\"]+openssl-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz" | grep -v "fips" | sort -u -t- -k2 -V || echo "")
+
   i=0
   echo "Available OpenSSL versions:"
   for FILE in $OPENSSL_FILES; do
@@ -123,10 +124,19 @@ function func_openssl {
 
 function func_openssl_dlinst {
   wget "$OPENSSL_FILE" -O "$DEVDIR/$OPENSSL_FILENAME"
-  wget "${OPENSSL_FILE}.sha256" -O "$DEVDIR/${OPENSSL_FILENAME}.sha256"
-  if ! [[ "$(sha256sum "$DEVDIR/${OPENSSL_FILENAME}" | cut -d' ' -f1)" == "$(cat "$DEVDIR/${OPENSSL_FILENAME}.sha256" | tr -d "[:blank:]")" ]]; then
-    echo "[-] ERROR: Checksum does _NOT_ match."
-    read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue."
+
+  if wget -q "${OPENSSL_FILE}.sha256" -O "$DEVDIR/${OPENSSL_FILENAME}.sha256" 2>/dev/null; then
+    if ! [[ "$(sha256sum "$DEVDIR/${OPENSSL_FILENAME}" | cut -d' ' -f1)" == "$(awk '{print $1}' "$DEVDIR/${OPENSSL_FILENAME}.sha256")" ]]; then
+      echo "[-] ERROR: Checksum does _NOT_ match."
+      read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue."
+      echo -ne "\033[0K\r"
+    else
+      echo "[+] Checksum verification passed."
+    fi
+  else
+    echo "[-] WARNING: Could not download SHA256 checksum file for verification."
+    echo "    File: ${OPENSSL_FILE}.sha256"
+    read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue anyway."
     echo -ne "\033[0K\r"
   fi
   case "${OPENSSL_FILENAME##*.}" in
