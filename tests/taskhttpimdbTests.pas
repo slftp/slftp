@@ -364,7 +364,7 @@ uses
   SysUtils, taskhttpimdb, dbaddimdb, Generics.Collections, {$IFNDEF FPC}Types,{$ENDIF} Classes;
 
 {$IFDEF FPC}
-  {$R taskhttpimdbTests.rc}
+  // {$R taskhttpimdbTests.rc} // Disabled for Linux compilation
 {$ELSE}
   {$R taskhttpimdbTests.res}
 {$ENDIF}
