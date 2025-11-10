@@ -24,7 +24,7 @@ uses
   SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
   kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, Generics.Collections, taskcwd,
-  routeconfig;
+  routeconfig, TypInfo;
 
 const
   rsections = 'autodirlist';
@@ -299,7 +299,25 @@ begin
         sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
         ps.status := rssRealPre;
-        ps.AddDestination(site1, TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sitename, site1, '0')).Speed);
+        // Check if this is an affil PRE (rssRealPre/rssShouldPre) to use affil routes
+        if ps.status in [rssRealPre, rssShouldPre] then
+          Debug(dpSpam, 'taskautodirlist', '[AFFILROUTES DEBUG] Site: %s, Status: %s, Will use: AFFIL routes',
+            [ps.Name, GetEnumName(TypeInfo(TRlsSiteStatus), Ord(ps.status))])
+        else
+          Debug(dpSpam, 'taskautodirlist', '[AFFILROUTES DEBUG] Site: %s, Status: %s, Will use: NORMAL routes',
+            [ps.Name, GetEnumName(TypeInfo(TRlsSiteStatus), Ord(ps.status))]);
+        if ps.status in [rssRealPre, rssShouldPre] then
+        begin
+          Debug(dpSpam, 'taskautodirlist', '[AFFILROUTES DEBUG] Using affilspeed-from-%s to %s: %d',
+            [sitename, site1, sitesdat.ReadInteger('affilspeed-from-' + sitename, site1, 0)]);
+          ps.AddDestination(site1, sitesdat.ReadInteger('affilspeed-from-' + sitename, site1, 0))
+        end
+        else
+        begin
+          Debug(dpSpam, 'taskautodirlist', '[AFFILROUTES DEBUG] Using speed-from-%s to %s: %d',
+            [sitename, site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0)]);
+          ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
+        end;
       end;
 
       for ps in p.PazoSitesList do
