@@ -100,6 +100,30 @@ const
 
 var
   GlLoadMonitorInstance: TLoadMonitor = nil;
+{$IFDEF MSWINDOWS}
+type
+  TGetSystemTimesFunc = function(lpIdleTime, lpKernelTime, lpUserTime: PFileTime): BOOL; stdcall;
+
+var
+  GetSystemTimesFunc: TGetSystemTimesFunc = nil;
+
+function EnsureGetSystemTimesLoaded: Boolean;
+var
+  Kernel: HMODULE;
+begin
+  if Assigned(GetSystemTimesFunc) then
+    Exit(True);
+
+  Kernel := GetModuleHandle('kernel32.dll');
+  if Kernel = 0 then
+    Kernel := LoadLibrary('kernel32.dll');
+
+  if Kernel <> 0 then
+    GetSystemTimesFunc := TGetSystemTimesFunc(GetProcAddress(Kernel, 'GetSystemTimes'));
+
+  Result := Assigned(GetSystemTimesFunc);
+end;
+{$ENDIF}
 
 // Helper function to get current queue size
 function GetCurrentQueueSize: Integer;
@@ -261,7 +285,7 @@ begin
 
   try
     {$IFDEF MSWINDOWS}
-    if GetSystemTimes(@idleTime, @kernelTime, @userTime) then
+    if EnsureGetSystemTimesLoaded and GetSystemTimesFunc(@idleTime, @kernelTime, @userTime) then
     begin
       idle := (Int64(idleTime.dwHighDateTime) shl 32) or idleTime.dwLowDateTime;
       kernel := (Int64(kernelTime.dwHighDateTime) shl 32) or kernelTime.dwLowDateTime;
@@ -290,7 +314,9 @@ begin
         FLastTotalTime := total;
         FLastIdleTime := idle;
       end;
-    end;
+    end
+    else
+      Exit;
     {$ELSE}
     AssignFile(statFile, '/proc/stat');
     try
@@ -594,6 +620,9 @@ begin
     end;
   end;
 end;
+
+initialization
+  // nothing to initialize explicitly
 
 // Cleanup when unit is finalized
 finalization
