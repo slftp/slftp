@@ -1,5 +1,6 @@
 unit taskhttpimdb;
 
+
 interface
 
 uses
@@ -134,7 +135,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.variants;
+  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.base, mormot.core.variants;
 
 const
   section = 'taskhttpimdb';
@@ -163,7 +164,7 @@ var
   fStartIndex, fEndIndex, fCount: integer;
   fJsonObject: variant;
   fJsonString: string;
-  fJsonImdbID, fJsonReleaseYear, fTitleType: UTF8String;
+  fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
   doc: TDocVariantData;
   pdoc: PDocVariantData;
   fYearDoc: PDocVariantData;
@@ -177,7 +178,7 @@ begin
   fEndIndex := Pos('</script>', aPageSource, fStartIndex);
   fCount := fEndIndex - fStartIndex;
   fJsonString := Copy(aPageSource, fStartIndex + Length('type="application/json">'), fCount);
-  fJsonObject := _JsonFast(UTF8String(fJsonString));
+  fJsonObject := _JsonFast(fJsonString);
 
 
   doc := TDocVariantData(fJsonObject);
@@ -189,7 +190,7 @@ begin
   if not (fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear)) then
     fYearDoc.GetAsRawUTF8('year', fJsonReleaseYear);
   pdoc.GetAsRawUTF8('titleType', fTitleType);
-  if (UTF8ToString(fJsonImdbID) = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', UTF8ToString(fTitleType))) then
+  if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
   begin
     Result := _JsonFast(pdoc.ToJSON());
     exit;
@@ -329,7 +330,8 @@ begin
   end;
 
   // remove additional comma
-  SetLength(aGenresList, Length(aGenresList) - 1);
+  if Length(aGenresList) > 0 then
+    SetLength(aGenresList, Length(aGenresList) - 1);
 end;
 
 class procedure THtmlIMDbParser.ParseReleaseDateInfo(const aPageSource: String; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
@@ -611,7 +613,6 @@ var
   fBomScreensCount: Integer;
 begin
   Result := False;
-  fImdbCineYear := 0; // Initialize to prevent uninitialized variable warning
 
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then
@@ -932,7 +933,16 @@ begin
   imdbdata.imdb_id := FImdbTitleID;
   imdbdata.imdb_year := FImdbYear;
   imdbdata.imdb_languages.CommaText := fImdbLanguage;
-  imdbdata.imdb_countries.CommaText := fImdbCountry;
+  // Apply USA default for empty countries (Netflix/streaming movies often have no countries)
+  if fImdbCountry = '' then
+  begin
+    Debug(dpSpam, section, '[SCRAPING] Countries is empty, defaulting to USA for streaming/Netflix content');
+    imdbdata.imdb_countries.Add('USA');
+  end
+  else
+  begin
+    imdbdata.imdb_countries.CommaText := fImdbCountry;
+  end;
   imdbdata.imdb_genres.CommaText := fImdbGenre;
   imdbdata.imdb_screens := fBomScreensCount;
   imdbdata.imdb_rating := fImdbRating;

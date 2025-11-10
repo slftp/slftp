@@ -260,6 +260,9 @@ type
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
 
+    { Sets the FLookupDone flag to indicate IMDB lookup completion }
+    procedure SetLookupDone;
+
     property IsLookupDone: Boolean read FLookupDone;
   end;
 
@@ -1603,6 +1606,12 @@ end;
 class function TIMDBRelease.DefaultSections: String;
 begin
   Result := '/(GER720P|GER1080P|ENG720P|ENG1080P)/,*X264SD,BLURAY*';
+end;
+
+procedure TIMDBRelease.SetLookupDone;
+begin
+  FLookupDone := True;
+  Debug(dpSpam, 'kb.releaseinfo', Format('[IMDBLOOKUPDONE] TIMDBRelease.SetLookupDone: Set FLookupDone=True for release %s', [rlsname]));
 end;
 
 destructor TIMDBRelease.Destroy;
