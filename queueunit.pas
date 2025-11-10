@@ -83,6 +83,7 @@ property QueueCleanLastRun: TDateTime read queueclean_last_run;
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
+function QueueTotalTaskCount: Integer;
 
 var
   QueueStatUpdateDateTime: TDateTime;
@@ -2085,6 +2086,20 @@ begin
 
   QueueStatUpdateDateTime := Now;
   Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
+end;
+
+function QueueTotalTaskCount: Integer;
+var
+  queueStat: TQueueStat;
+begin
+  Result := 0;
+
+  if StatsList = nil then
+    Exit;
+
+  for queueStat in StatsList do
+    Inc(Result, queueStat.FRaceTaskCount + queueStat.FDirlistTaskCount +
+      queueStat.FAutoTaskCount + queueStat.FOtherTaskCount);
 end;
 
 procedure TQueueThread.QueueSendCurrentTasksToConsole;
