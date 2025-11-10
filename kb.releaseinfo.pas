@@ -35,7 +35,6 @@ type
     FIsInternal: Boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     FPretimeUTC: Int64; //< UTC pretime for release
     FPretimeSource: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
-    FIsSFVRelease: boolean; //< True if this release will have it's files checked to be in a SFV file before being transfered (if there is a SFV file)
   public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
@@ -93,7 +92,6 @@ type
     property IsInternal: Boolean read FIsInternal;
     property Pretime: Int64 read FPretimeUTC;
     property PretimeSource: String read FPretimeSource;
-    property IsSFVRelease: Boolean read FIsSFVRelease;
   end;
 
   { @abstract(Class with support for 0-DAY release information) }
@@ -154,7 +152,7 @@ type
       @returns(@true if release is of that type, otherwise @false) }
     function HasThisMP3Type(const aType: String): boolean;
 
-    { Sets @link(FMP3Source) to given source if not already set. Will be set to value from first call if more than one source was detected (multiple calls to function). 
+    { Sets @link(FMP3Source) to given source if not already set. Will be set to value from first call if more than one source was detected (multiple calls to function).
       @param(aSource Detected source type) }
     procedure TrySetSource(const aSource: String);
   public
@@ -239,7 +237,6 @@ type
     imdb_festival: boolean;
     imdb_stvm: boolean; // TODO: rename this to make it more clear; stvm and stvs aren't clear yet
     imdb_stvs: String;
-    imdb_type: String;
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
@@ -259,9 +256,6 @@ type
     { Get default section(s) this class is used for as comma separated list
       @returns(comma separated default section(s)) }
     class function DefaultSections: String; override;
-
-    { Sets the FLookupDone flag to indicate IMDB lookup completion }
-    procedure SetLookupDone;
 
     property IsLookupDone: Boolean read FLookupDone;
   end;
@@ -406,7 +400,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, SyncObjs,
-  globalskipunit, irccommandsunit, kb {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   configsection = 'kb';
@@ -419,7 +413,6 @@ var
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
   glMP3Types: TStringList; //< List of MP3 types
-  glSFVReleaseSectionMask: TslMask;
 
 procedure KbReleaseInit;
 var
@@ -525,13 +518,6 @@ begin
   GlTvTags := TStringList.Create;
   GlTvTags.CaseSensitive := False;
   GlTvTags.DelimitedText := config.ReadString(configsection, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
-
-
-  ss := config.ReadString('taskrace', 'SFVRelease', '');
-  if ss <> '' then
-  begin
-    glSFVReleaseSectionMask := TslMask.Create(ss);
-  end;
 end;
 
 procedure KbReleaseUninit;
@@ -552,11 +538,6 @@ begin
     end;
   end;
   kb_sectionhandlers.Free;
-
-  if glSFVReleaseSectionMask <> nil then
-  begin
-    glSFVReleaseSectionMask.Free;
-  end;
 end;
 
 function EventStringToTKBEventType(const aEvent: string): TKBEventType;
@@ -708,7 +689,7 @@ begin
       end;
       if rlsname[i] = '.' then
         Inc(FNumberOfDots);
-      if CharInSet(rlsname[i], ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
+      if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
         Inc(FNumberOfVowels);
     end;
 
@@ -750,7 +731,7 @@ begin
         j := 1;
         while (j <= length(words[i])) do
         begin
-          if CharInSet(words[i][j], ['0'..'9']) then
+          if words[i][j] in ['0'..'9'] then
             disks := disks * 10 + Ord(words[i][j]) - 48
           else
             Break;
@@ -769,11 +750,6 @@ begin
 
   if FakeChecking then
     FakeCheck(self);
-
-  if glSFVReleaseSectionMask <> nil then
-  begin
-    FIsSFVRelease := glSFVReleaseSectionMask.Matches(self.section);
-  end;
 end;
 
 destructor TRelease.Destroy;
@@ -1037,7 +1013,6 @@ begin
 
   aSourceType := '';
   aNumberOfDisks := 0;
-  i := 1; // Initialize to prevent uninitialized variable warning
 
   for i := 1 to fWordLen do
   begin
@@ -1466,187 +1441,74 @@ end;
 { TIMDBRelease }
 
 function TIMDBRelease.Aktualizal(p: TObject): boolean;
-const
-  cImdbCacheSection = 'dbaddimdb';
 var
   pazo: TPazo;
   ps: TPazoSite;
   i, j: integer;
   imdbdata: TDbImdbData;
-  fErrorString: String;
+  ir: TIMDBRelease;
 begin
   Result := False;
   aktualizalva := True;
-  fErrorString := '';
 
   try
-    if FLookupDone then
-    begin
-      Debug(dpSpam, rsections, Format('[IMDB-FLOW26] Aktualizal: Lookup already done for %s, skipping duplicate call', [rlsname]));
-      Result := True;
-      Exit;
-    end;
-
     pazo := FindPazoByName(section, rlsname);
 
-    dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal1');
-    try
-      i := last_imdbdata.IndexOf(rlsname);
-    finally
-      dbaddimdb_cs.Leave;
-    end;
-
-    if i <> -1 then
-    begin
-      // we already have imdb infos in memory cache
-      try
-        dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal2');
-        try
-          imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
-        finally
-          dbaddimdb_cs.Leave;
-        end;
-
-        fErrorString := 'imdb_id';
-        imdb_id := imdbdata.imdb_id;
-        fErrorString := 'imdb_year';
-        imdb_year := imdbdata.imdb_year;
-        fErrorString := 'imdb_languages';
-        imdb_languages.DelimitedText := imdbdata.imdb_languages.DelimitedText;
-        fErrorString := 'imdb_countries';
-        imdb_countries.DelimitedText := imdbdata.imdb_countries.DelimitedText;
-        fErrorString := 'imdb_genres';
-        imdb_genres.DelimitedText := imdbdata.imdb_genres.DelimitedText;
-        fErrorString := 'imdb_screens';
-        imdb_screens := imdbdata.imdb_screens;
-        fErrorString := 'imdb_rating';
-        imdb_rating := imdbdata.imdb_rating;
-        fErrorString := 'imdb_votes';
-        imdb_votes := imdbdata.imdb_votes;
-        fErrorString := 'CineYear';
-        CineYear := imdbdata.imdb_cineyear;
-        fErrorString := 'imdb_ldt';
-        imdb_ldt := imdbdata.imdb_ldt;
-        fErrorString := 'imdb_wide';
-        imdb_wide := imdbdata.imdb_wide;
-        fErrorString := 'imdb_festival';
-        imdb_festival := imdbdata.imdb_festival;
-        fErrorString := 'imdb_stvm';
-        imdb_stvm := imdbdata.imdb_stvm;
-        fErrorString := 'imdb_stvs';
-        imdb_stvs := imdbdata.imdb_stvs;
-        fErrorString := 'imdb_type';
-        imdb_type := imdbdata.imdb_type;
-        fErrorString := 'FLookupDone';
-        FLookupDone := True;
-        Debug(dpSpam, rsections, Format('[IMDB-FLOW30] Aktualizal: All fields populated from cache, FLookupDone=True for %s', [rlsname]));
-        Result := True;
-        Exit;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s (%s)', [e.Message, fErrorString]));
-        end;
-      end;
-    end;
-
-    Debug(dpSpam, rsections, Format('[IMDB-FLOW27] Aktualizal: Checking persistent DB for %s', [rlsname]));
     imdbdata := GetImdbMovieData(pazo.rls.rlsname);
-    try
-      if (imdbdata = nil) or UpdateMovieInDbWithImdbDataNeeded(imdbdata) then
+    if (imdbdata = nil) or UpdateMovieInDbWithImdbDataNeeded(imdbdata) then
+    begin
+    // we have the nfo but update needed
+      Debug(dpError, rsections, Format('[Info] [Kb.ReleaseInfo] Get or Update IMDB-Infos for ReleaseName: %s', [rlsname]));
+      for j := pazo.PazoSitesList.Count - 1 downto 0 do
       begin
-        Debug(dpSpam, rsections, Format('[IMDB-FLOW28] Aktualizal: No IMDB data found, starting NFO search for %s', [rlsname]));
-
-        // Check if NFO lookup already queued
-        i := last_addnfo.IndexOf(rlsname);
-        if i <> -1 then
-        begin
-          Result := True;
-          Exit;
-        end;
-
-        // start searching nfo
-        for j := pazo.PazoSitesList.Count - 1 downto 0 do
-        begin
-          ps := TPazoSite(pazo.PazoSitesList[j]);
-          try
-            AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
-          except
-            on e: Exception do
-              Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
-          end;
-        end;
-
-        Result := True;
-        Exit;
-      end
-      else
-      begin
-        Debug(dpSpam, rsections, Format('[IMDB-FLOW29] Aktualizal: Found IMDB data in DB, populating fields for %s', [rlsname]));
+        ps := TPazoSite(pazo.PazoSitesList[j]);
         try
-          fErrorString := 'imdb_id';
-          imdb_id := imdbdata.imdb_id;
-          fErrorString := 'imdb_year';
-          imdb_year := imdbdata.imdb_year;
-          fErrorString := 'imdb_languages';
-          imdb_languages.DelimitedText := imdbdata.imdb_languages.DelimitedText;
-          fErrorString := 'imdb_countries';
-          imdb_countries.DelimitedText := imdbdata.imdb_countries.DelimitedText;
-          fErrorString := 'imdb_genres';
-          imdb_genres.DelimitedText := imdbdata.imdb_genres.DelimitedText;
-          fErrorString := 'imdb_screens';
-          imdb_screens := imdbdata.imdb_screens;
-          fErrorString := 'imdb_rating';
-          imdb_rating := imdbdata.imdb_rating;
-          fErrorString := 'imdb_votes';
-          imdb_votes := imdbdata.imdb_votes;
-          fErrorString := 'CineYear';
-          CineYear := imdbdata.imdb_cineyear;
-          fErrorString := 'imdb_ldt';
-          imdb_ldt := imdbdata.imdb_ldt;
-          fErrorString := 'imdb_wide';
-          imdb_wide := imdbdata.imdb_wide;
-          fErrorString := 'imdb_festival';
-          imdb_festival := imdbdata.imdb_festival;
-          fErrorString := 'imdb_stvm';
-          imdb_stvm := imdbdata.imdb_stvm;
-          fErrorString := 'imdb_stvs';
-          imdb_stvs := imdbdata.imdb_stvs;
-          fErrorString := 'imdb_type';
-          imdb_type := imdbdata.imdb_type;
-          fErrorString := 'FLookupDone';
-          FLookupDone := True;
-          Debug(dpSpam, rsections, Format('[IMDB-FLOW30] Aktualizal: All fields populated, FLookupDone=True for %s', [rlsname]));
+          AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
         except
-          on e: Exception do
+        on e: Exception do
           begin
-            Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s (%s)', [e.Message, fErrorString]));
+            Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
           end;
         end;
-
-        // keep recently used IMDB data available in in-memory cache
-        dbaddimdb_cs.Enter('TIMDBRelease.AktualizalCacheAdd');
-        try
-          if last_imdbdata.IndexOf(rlsname) = -1 then
-          begin
-            last_imdbdata.AddObject(rlsname, imdbdata);
-            imdbdata := nil; // transfer ownership to cache
-            while last_imdbdata.Count > config.ReadInteger(cImdbCacheSection, 'max_results', 100) do
-              last_imdbdata.Delete(0);
-          end;
-        finally
-          dbaddimdb_cs.Leave;
-        end;
-
-        Result := True;
       end;
-    finally
-      if Assigned(imdbdata) then
+      Result := True;
+      exit;
+    end
+    else
+    begin
+      try
+        // we already have imdb infos
+        irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!', [pazo.rls.rlsname]));
+        imdbdata.PostResults(pazo.rls.rlsname);
+        if pazo.rls is TIMDBRelease then
+        begin
+          ir := TIMDBRelease(pazo.rls);
+          ir.imdb_id := imdbdata.imdb_id;
+          ir.imdb_year := imdbdata.imdb_year;
+          ir.imdb_languages.CommaText := imdbdata.imdb_languages.CommaText;
+          ir.imdb_countries.CommaText := imdbdata.imdb_countries.CommaText;
+          ir.imdb_genres.CommaText := imdbdata.imdb_genres.CommaText;
+          ir.imdb_screens := imdbdata.imdb_screens;
+          ir.imdb_rating := imdbdata.imdb_rating;
+          ir.imdb_votes := imdbdata.imdb_votes;
+          ir.CineYear := imdbdata.imdb_cineyear;
+          ir.imdb_ldt := imdbdata.imdb_ldt;
+          ir.imdb_wide := imdbdata.imdb_wide;
+          ir.imdb_festival := imdbdata.imdb_festival;
+          ir.imdb_stvm := imdbdata.imdb_stvm;
+          ir.imdb_stvs := imdbdata.imdb_stvs;
+          ir.FLookupDone := True;
+        end;
+        Result := True;
+      finally
         imdbdata.Free;
+      end;
     end;
   except
     on e: Exception do
-      Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal: %s', [e.Message]));
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal Set: %s', [e.Message]));
+    end;
   end;
 end;
 
@@ -1674,7 +1536,6 @@ begin
     Result := Result + Format('IMDB Natowide: %s', [BoolToStr(imdb_wide, True)]) + #13#10;
     Result := Result + Format('IMDB STV: %s', [BoolToStr(imdb_stvm, True)]) + #13#10;
     Result := Result + Format('IMDB STVS: %s', [imdb_stvs]);
-    Result := Result + Format('IMDB Type: %s', [imdb_type]);
   except
     on e: Exception do
     begin
@@ -1697,12 +1558,6 @@ end;
 class function TIMDBRelease.DefaultSections: String;
 begin
   Result := '/(GER720P|GER1080P|ENG720P|ENG1080P)/,*X264SD,BLURAY*';
-end;
-
-procedure TIMDBRelease.SetLookupDone;
-begin
-  FLookupDone := True;
-  Debug(dpSpam, 'kb.releaseinfo', Format('[IMDBLOOKUPDONE] TIMDBRelease.SetLookupDone: Set FLookupDone=True for release %s', [rlsname]));
 end;
 
 destructor TIMDBRelease.Destroy;
