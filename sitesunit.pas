@@ -104,7 +104,6 @@ type
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
     event: TEvent;
-    function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure SetOnline(Value: TSlotStatus);
 
     { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
@@ -136,6 +135,7 @@ type
     function Name: String;
     procedure Fire;
     function Login(kill: boolean = False): boolean;
+    function LoginBnc(const i: integer; kill: boolean = False; skipReorder: boolean = False): boolean;
     procedure Execute; override;
     constructor Create(const aSite: TSite; const aSlotNumber: integer);
     destructor Destroy; override;
@@ -143,6 +143,7 @@ type
     function RCInteger(const Name: String; const def: integer): integer;
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     function RCString(const Name, def: String): String;
+    procedure ReorderBncList(aBncList: TStringList);
 
     procedure Stop; override;
     { Reads the last-modified time (cmd: MDTM = MODIFICATION TIME) of the specified file @link(aFilename)
@@ -2014,7 +2015,7 @@ begin
 
 end;
 
-function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False): boolean;
+function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False; skipReorder: boolean = False): boolean;
 var
   sslm: TSSLMethods;
   un, upw, tmp: String;
@@ -2058,8 +2059,24 @@ begin
     mSLSetupSocks5(site.proxyname, self, True);
 
   //First step to connect
-  Host := RCString('bnc_host-' + IntToStr(i), '');
-  Port := RCInteger('bnc_port-' + IntToStr(i), 0);
+  // Protect BNC configuration read with critical section to prevent race conditions
+  bnccsere.Enter('LoginBnc-Read');
+  try
+    Host := RawByteString(RCString('bnc_host-' + IntToStr(i), ''));
+    Port := RCInteger('bnc_port-' + IntToStr(i), 0);
+  finally
+    bnccsere.Leave;
+  end;
+
+  if (Host = '') or (Port = 0) then
+  begin
+    Debug(dpError, section, '[LoginBnc] Invalid BNC config for [%s] index %d: Host="%s" Port=%d', [site.Name, i, Host, Port]);
+    Debug(dpError, section, '[LoginBnc] Check sites.dat section [%s] for bnc_host-%d / bnc_port-%d', [site.Name, i, i]);
+    error := Format('Invalid BNC config at index %d', [i]);
+    exit;
+  end;
+
+  Debug(dpSpam, section, '[LoginBnc] %s BNC %d: %s:%d', [site.Name, i, Host, Port]);
   Connect(site.connect_timeout * 1000);
 
   peerport := slSocket.PeerPort;
@@ -2231,7 +2248,8 @@ begin
   Result := True;
 
   // change order of bnc if the current successful bnc is not the first
-  if i <> 0 then
+  // skip reordering if this is called during BNC testing
+  if (i <> 0) and (not skipReorder) then
   begin
     bncList := TStringList.Create;
     bncList.CaseSensitive := False;
@@ -2387,6 +2405,59 @@ begin
           irc_addtext(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
+end;
+
+procedure TSiteSlot.ReorderBncList(aBncList: TStringList);
+var
+  j: Integer;
+  tmpHost: String;
+  tmpPort: Integer;
+  splitted: TStringList;
+begin
+  if aBncList.Count < 1 then
+  begin
+    Debug(dpError, section, '[ReorderBncList] Empty BNC list provided for %s', [site.Name]);
+    exit;
+  end;
+
+  splitted := TStringList.Create;
+  bnccsere.Enter('ReorderBncList');
+  try
+    // Clear current BNC list
+    j := 0;
+    while (True) do
+    begin
+      if RCString('bnc_host-' + IntToStr(j), '') = '' then
+        break;
+
+      site.DeleteKey('bnc_host-' + IntToStr(j));
+      site.DeleteKey('bnc_port-' + IntToStr(j));
+      Debug(dpSpam, section, '[ReorderBncList] Removed BNC from %s: index %d', [site.Name, j]);
+      inc(j)
+    end;
+
+    // Re-add BNCs in new order
+    for j := 0 to aBncList.Count - 1 do
+    begin
+      splitString(aBncList[j], ':', splitted);
+      if splitted.Count >= 2 then
+      begin
+        tmpHost := splitted[0];
+        tmpPort := StrToIntDef(splitted[1], 0);
+        Debug(dpSpam, section, '[ReorderBncList] %s[%d]: %s:%d', [site.Name, j, tmpHost, tmpPort]);
+
+        self.site.WCString('bnc_host-' + IntToStr(j), tmpHost);
+        self.site.WCInteger('bnc_port-' + IntToStr(j), tmpPort);
+      end
+      else
+        Debug(dpError, section, '[ReorderBncList] Invalid BNC format: %s', [aBncList[j]]);
+    end;
+  finally
+    bnccsere.Leave;
+    FreeAndNil(splitted);
+  end;
+
+  Debug(dpMessage, section, '[ReorderBncList] Reordered %d BNCs for %s', [aBncList.Count, site.Name]);
 end;
 
 function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
