@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist;
+uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 type
   TPazoPlainTask = class(TTask) // no announce
