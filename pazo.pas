@@ -792,8 +792,8 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded and aIsSFV and (self.rls <> nil) and (FPazoSFV <> nil) and
-     self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+ if fWasAdded and aIsSFV and (self.rls <> nil) and (FPazoSFV <> nil) and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
