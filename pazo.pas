@@ -605,6 +605,32 @@ begin
             if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
 
+            // Check if site-specific skiplist is found and applied
+            try
+              siteSkipList := FindSiteSkipList(dst.Name, pazo.sl.sectionname);
+              if siteSkipList <> nil then
+              begin
+                if siteSkipList.ShouldSkipDirUp('_ROOT_', dir) then
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped directory %s', [fd, Name, dst.Name, de.filename, dir]);
+                  Continue;
+                end;
+              end;
+
+              siteSkipList := FindSiteSkipList(Name, pazo.sl.sectionname);
+              if siteSkipList <> nil then
+              begin
+                if siteSkipList.ShouldSkipDirDn('_ROOT_', dir) then
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped source directory %s', [fd, Name, dst.Name, de.filename, dir]);
+                  Continue;
+                end;
+              end;
+            except
+              on e: Exception do
+                Debug(dpError, section, '%s :: ERROR during site skiplist lookup: %s', [fd, e.Message]);
+            end;
+
             // Create the race task
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
             pr := TPazoRaceTask.Create(netname, channel, Name, dst.Name, pazo, dstdl, dir, de.filename, de.filesize, dstrank);
