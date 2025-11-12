@@ -59,7 +59,12 @@ begin
 
   if self.wantedslot = '' then
   begin
-    if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
+    if kill then
+    begin
+      s.Quit;
+      Result := s.ReLogin(1, True, section, readd);
+    end
+    else if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
     begin
       if (s.Status <> ssOnline) then
       begin
@@ -92,7 +97,7 @@ begin
   end
   else
   begin
-    if (s.Status <> ssOnline) or not(s.site.WorkingStatus in [sstUp, sstMarkedAsDownByUser]) then
+    if kill or (s.Status <> ssOnline) or not(s.site.WorkingStatus in [sstUp, sstMarkedAsDownByUser]) then
     begin
       s.Quit;
       Result := s.ReLogin(1, kill, section);
