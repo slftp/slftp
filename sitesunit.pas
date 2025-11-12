@@ -128,7 +128,7 @@ type
     procedure DestroySocket(down: boolean);
     { Invokes Relogin after invoking DestroySocket.
       @param(aMessage Info which task is issuing this command.) }
-    procedure DestroySocketAndRelogin(const aMessage: string);
+    procedure DestroySocketAndRelogin(const aMessage: string; kill: boolean = False);
     procedure Quit;
     { Invokes Relogin after invoking Quit.
       @param(aMessage Info which task is issuing this command.) }
@@ -1494,10 +1494,10 @@ begin
     status := ssOffline;
 end;
 
-procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
+procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string; kill: boolean = False);
 begin
   DestroySocket(False);
-  Relogin(0, False, aMessage);
+  Relogin(0, kill, aMessage);
 end;
 
 procedure TSiteSlot.Execute;

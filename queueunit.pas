@@ -595,10 +595,9 @@ begin
     begin
       ss := FindSlotByName(t.wantedslot);
       if (ss = nil) then
-        //invalid slot name, should not happen, just exit here
         exit;
       if (ss.todotask <> nil) then
-        exit;  //the slot is already in use, cannot assign the login task
+        exit;
     end
     else
     begin
@@ -613,7 +612,17 @@ begin
         ss := TSiteSlot(s.slots[i]);
         if ss.Status = ssOnline then
           bnc := ss.bnc;
-        if ((ss.todotask = nil) and (ss.Status <> ssOnline)) then
+
+        if ss.todotask <> nil then
+        begin
+          ss := nil;
+          Continue;
+        end;
+
+        if t.kill then
+          Break;
+
+        if ss.Status <> ssOnline then
           Break
         else
           ss := nil;
@@ -622,16 +631,23 @@ begin
 
     if ss = nil then
     begin
-      // all slots are busy, which means they are already logged in, we can stop here
-      if not t.noannounce then
+      if t.kill then
+      begin
+        if not t.noannounce then
+          irc_Addtext(t, '<c4>Unable to kill ghosts on <b>%s</b>: all slots busy</c>', [t.site1]);
+      end
+      else if not t.noannounce then
       begin
         if bnc = '' then
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
         else
           irc_Addtext(t, '<b>%s</b> IS ALREADY UP: %s', [t.site1, bnc]);
       end;
-      s.WorkingStatus := sstUp;
-      debug(dpMessage, section, '%s IS UP', [t.site1]);
+      if not t.kill then
+      begin
+        s.WorkingStatus := sstUp;
+        debug(dpMessage, section, '%s IS UP', [t.site1]);
+      end;
       t.ready := True;
       exit;
     end;
