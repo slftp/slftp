@@ -176,3 +176,21 @@ alloweddirs=_ROOT_:Sample,Covers
 allowedfiles=Sample*:*.jpg,*.jpeg
 allowedfiles=Covers*:*.jpg,*.jpeg
 dirdepth=2
+
+[skiplist-SITE1-APPS]
+# Skip for downloads FROM SITE1 (SITE1 = Source)
+skipfiles_dn=_ROOT_:*.sfv
+# Skip for uploads TO SITE1 (SITE1 = Destination)
+skipfiles_up=_ROOT_:*.sfv
+dirdepth=2
+
+[skiplist-SITE2-*]
+# Skip for downloads FROM SITE2 (SITE2 = Source)
+skipfiles_dn=_ROOT_:*.sfv
+# Skip for uploads TO SITE2 (SITE2 = Destination)
+skipfiles_up=_ROOT_:*.sfv
+dirdepth=2
+
+[skiplist-SITE3-*]
+skipdirs_up=_ROOT_:Sample,Subs,Proof
+dirdepth=2

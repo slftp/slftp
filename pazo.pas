@@ -434,6 +434,7 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
+  siteSkipList: TSkipList;
 begin
   Result := False;
   dst := nil;
@@ -549,19 +550,26 @@ begin
           try
             if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
             begin
-              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
-
-            // Create the mkdir task
-              if (dstdl.parent <> nil) then
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+              siteSkipList := FindSiteSkipList(dst.Name, pazo.sl.sectionname);
+              if (siteSkipList <> nil) and siteSkipList.ShouldSkipDirUp('_ROOT_', dir) then
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping MKDIR for skipped directory %s on %s', [fd, Name, dst.Name, dir, dst.Name]);
+                dstdl.need_mkdir := False;
+              end
               else
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
-              // add delay to mkdir if delay_upload enabled
-              if dst.delay_upload > 0 then
-                pm.startat := IncSecond(Now, dst.delay_upload);
+                if (dstdl.parent <> nil) then
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                else
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
 
-              dstdl.dependency_mkdir := pm.UidText;
+                if dst.delay_upload > 0 then
+                  pm.startat := IncSecond(Now, dst.delay_upload);
+
+                dstdl.dependency_mkdir := pm.UidText;
+              end;
             end;
           finally
             dstdl.dirlist_lock.Leave;
@@ -612,6 +620,32 @@ begin
               Continue;
             if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
+
+            // Check if site-specific skiplist is found and applied
+            try
+              siteSkipList := FindSiteSkipList(dst.Name, pazo.sl.sectionname);
+              if siteSkipList <> nil then
+              begin
+                if siteSkipList.ShouldSkipDirUp('_ROOT_', dir) then
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped directory %s', [fd, Name, dst.Name, de.filename, dir]);
+                  Continue;
+                end;
+              end;
+
+              siteSkipList := FindSiteSkipList(Name, pazo.sl.sectionname);
+              if siteSkipList <> nil then
+              begin
+                if siteSkipList.ShouldSkipDirDn('_ROOT_', dir) then
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped source directory %s', [fd, Name, dst.Name, de.filename, dir]);
+                  Continue;
+                end;
+              end;
+            except
+              on e: Exception do
+                Debug(dpError, section, '%s :: ERROR during site skiplist lookup: %s', [fd, e.Message]);
+            end;
 
             // Create the race task
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
