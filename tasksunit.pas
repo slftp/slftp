@@ -72,6 +72,7 @@ var
   GlTaskPretimeReaddInterval: integer;
   GlTaskRaceAutoRuleAdd: boolean;
   GlTaskRaceBadCrcEvents: integer;
+  GlTaskRaceAutoRemoveDeniedRoutes: boolean;
 
 implementation
 
@@ -181,6 +182,7 @@ begin
   GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
   GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
   GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
+  GlTaskRaceAutoRemoveDeniedRoutes := config.ReadBool('taskrace', 'auto_remove_denied_routes', False);
 end;
 
 procedure Tasks_Uninit;

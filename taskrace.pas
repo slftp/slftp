@@ -83,6 +83,150 @@ uses
 const
   c_section = 'taskrace';
 
+function IsThirdPartyTransferDenied(const aResponse: String): boolean;
+begin
+  Result := AnsiContainsText(aResponse, 'Transfers from 3rd par') or
+    (AnsiContainsText(aResponse, 'fxp from') and AnsiContainsText(aResponse, 'slow file kicks'));
+end;
+
+function AutoRemoveDeniedRoute(const SourceSite, DestSite: String; out Status: String): Boolean;
+var
+  normalizedSource, normalizedDest: String;
+  sourceSiteObj, destSiteObj: TSite;
+  removed: Boolean;
+  removalDesc: String;
+begin
+  Status := '';
+
+  if sitesdat = nil then
+  begin
+    Status := 'sites.dat not initialised';
+    Exit(False);
+  end;
+
+  normalizedSource := AnsiUpperCase(SourceSite);
+  normalizedDest := AnsiUpperCase(DestSite);
+  removed := False;
+  removalDesc := '';
+
+  if sitesdat.ValueExists('speed-from-' + normalizedSource, normalizedDest) then
+  begin
+    sitesdat.DeleteKey('speed-from-' + normalizedSource, normalizedDest);
+    removed := True;
+    removalDesc := 'speed-from';
+  end;
+
+  if sitesdat.ValueExists('speed-to-' + normalizedDest, normalizedSource) then
+  begin
+    sitesdat.DeleteKey('speed-to-' + normalizedDest, normalizedSource);
+    removed := True;
+    if removalDesc <> '' then
+      removalDesc := removalDesc + ', ';
+    removalDesc := removalDesc + 'speed-to';
+  end;
+
+  if sitesdat.ValueExists('speedlock-from-' + normalizedSource, normalizedDest) then
+  begin
+    sitesdat.DeleteKey('speedlock-from-' + normalizedSource, normalizedDest);
+    removed := True;
+    if removalDesc <> '' then
+      removalDesc := removalDesc + ', ';
+    removalDesc := removalDesc + 'speedlock-from';
+  end;
+
+  if sitesdat.ValueExists('speedlock-to-' + normalizedDest, normalizedSource) then
+  begin
+    sitesdat.DeleteKey('speedlock-to-' + normalizedDest, normalizedSource);
+    removed := True;
+    if removalDesc <> '' then
+      removalDesc := removalDesc + ', ';
+    removalDesc := removalDesc + 'speedlock-to';
+  end;
+
+  if removed then
+  begin
+    sitesdat.UpdateFile;
+
+    sourceSiteObj := FindSiteByName('', normalizedSource);
+    if sourceSiteObj <> nil then
+      sourceSiteObj.UpdateSpeedFromCache;
+
+    destSiteObj := FindSiteByName('', normalizedDest);
+    if destSiteObj <> nil then
+      destSiteObj.UpdateSpeedFromCache;
+
+    if removalDesc = '' then
+      removalDesc := 'route entries'
+    else
+      removalDesc := removalDesc + ' entries';
+
+    Status := Format('Auto-removed %s via !routeset %s %s 0 (auto_remove_denied_routes=1)',
+      [removalDesc, normalizedSource, normalizedDest]);
+    Exit(True);
+  end;
+
+  Status := Format('No stored route found for %s -> %s (nothing to remove)',
+    [normalizedSource, normalizedDest]);
+  Result := True;
+end;
+
+procedure HandleThirdPartyRouteDenial(const SourceSite, DestSite, Response: String;
+  ssrc, sdst: TSiteSlot; var readyerror: Boolean; mainpazo: TPazo);
+var
+  routeMsg: String;
+  autoSuccess: Boolean;
+  sourcePazoSite: TPazoSite;
+begin
+  irc_Adderror(Format('<c4>[FXP DENIED]</c> %s is blocked on %s - Response: %s',
+    [SourceSite, DestSite, LeftStr(Response, 120)]));
+
+  routeMsg := '';
+  autoSuccess := False;
+
+  if GlTaskRaceAutoRemoveDeniedRoutes then
+  begin
+    autoSuccess := AutoRemoveDeniedRoute(SourceSite, DestSite, routeMsg);
+    if mainpazo <> nil then
+    begin
+      sourcePazoSite := mainpazo.FindSite(SourceSite);
+      if sourcePazoSite <> nil then
+        sourcePazoSite.RemoveDestination(DestSite);
+    end;
+    if autoSuccess then
+      irc_Adderror(Format('<c14>[ROUTE FIX]</c> %s', [routeMsg]))
+    else
+      irc_Adderror(Format('<c14>[ROUTE FIX]</c> Auto-remove failed (%s). Run: <b>!routeset %s %s 0</b>',
+        [routeMsg, SourceSite, DestSite]));
+  end
+  else
+  begin
+    irc_Adderror(Format('<c14>[ROUTE FIX]</c> Suggestion: Remove route with command: <b>!routeset %s %s 0</b>',
+      [SourceSite, DestSite]));
+  end;
+
+  Debug(dpError, c_section,
+    '[FXP-DENIED] Source %s is denied/blocked on target %s - killing transfer | Response: %s',
+    [SourceSite, DestSite, Response]);
+
+  if GlTaskRaceAutoRemoveDeniedRoutes then
+  begin
+    if autoSuccess then
+      Debug(dpError, c_section, '[ROUTE-AUTO] Auto-removed blocked route %s -> %s (%s)',
+        [SourceSite, DestSite, routeMsg])
+    else
+      Debug(dpError, c_section, '[ROUTE-AUTO] Failed to auto-remove blocked route %s -> %s (%s)',
+        [SourceSite, DestSite, routeMsg]);
+  end;
+
+  if ssrc <> nil then
+    ssrc.DestroySocketAndRelogin('FXP from source denied on target');
+  if sdst <> nil then
+    sdst.DestroySocketAndRelogin('FXP from source denied on target');
+
+  mainpazo.errorreason := Format('FXP from %s denied on %s', [SourceSite, DestSite]);
+  readyerror := True;
+end;
+
 
 constructor TPazoPlainTask.Create(const netname, channel, site1, site2: String; pazo: TPazo);
 begin
@@ -2078,6 +2222,12 @@ begin
               exit;
             end;
 
+            if IsThirdPartyTransferDenied(lastResponse) then
+            begin
+              HandleThirdPartyRouteDenial(site1, site2, lastResponse, ssrc, sdst, readyerror, mainpazo);
+              exit;
+            end;
+
             //553 means: Requested action not taken. File name not allowed.
             //therefore don't try to send that file again
             if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
@@ -2092,6 +2242,12 @@ begin
 
       500, 550:
         begin
+          if IsThirdPartyTransferDenied(lastResponse) then
+          begin
+            HandleThirdPartyRouteDenial(site1, site2, lastResponse, ssrc, sdst, readyerror, mainpazo);
+            exit;
+          end;
+
           if (0 < Pos('No such directory', lastResponse)) then
           begin   //550 .. No such directory
             irc_Adderror(Format('<c4>[ERROR]</c> %s %s', [tname, lastResponse]));
