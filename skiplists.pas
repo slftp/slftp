@@ -22,6 +22,12 @@ type
     mask: TslMask;
     allowedfiles: TObjectList;
     alloweddirs: TObjectList;
+    skipfiles: TObjectList;
+    skipdirs: TObjectList;
+    skipfiles_up: TObjectList;
+    skipdirs_up: TObjectList;
+    skipfiles_dn: TObjectList;
+    skipdirs_dn: TObjectList;
     fIsCloned: boolean;
     function FindDirFilterB(list: TObjectList; const dirname: String): TSkiplistFilter;
   public
@@ -46,6 +52,13 @@ type
       For example when you have this in your skiplist: "alloweddirs=_ROOT_:Sample,Sub,Subs,Proof" then the file "Sample" will return value 0 and
       the file "Subs" will return value 2. -1 if it's not allowed. }
     function AllowedDir(const dirname, filename: String; out fileGroupIndex: integer): TSkipListFilter; overload;
+
+    function ShouldSkipFile(const dirname, filename: String): boolean;
+    function ShouldSkipDir(const dirname, filename: String): boolean;
+    function ShouldSkipFileUp(const dirname, filename: String): boolean;
+    function ShouldSkipDirUp(const dirname, filename: String): boolean;
+    function ShouldSkipFileDn(const dirname, filename: String): boolean;
+    function ShouldSkipDirDn(const dirname, filename: String): boolean;
   end;
 
 { Find skiplist for specified section.
@@ -60,6 +73,8 @@ function FindSkipList(const section: String): TSkipList; overload;
     if @link(section) skiplist can't be found.)
   @returns(@link(TSkipList) object if matching skiplist is found or nil otherwise) }
 function FindSkipList(const section: String; const fallback: boolean): TSkipList; overload;
+
+function FindSiteSkipList(const sitename, section: String): TSkipList;
 procedure SkiplistStart;
 procedure SkiplistsInit;
 procedure SkiplistsUninit;
@@ -118,12 +133,27 @@ begin
       s2 := SubString(s, '=', 2);
       if s1 = 'dirdepth' then
         akt.dirdepth := StrToIntDef(s2, 1)
-      else if ((s1 = 'allowedfiles') or (s1 = 'alloweddirs')) then
+      else if ((s1 = 'allowedfiles') or (s1 = 'alloweddirs') or
+               (s1 = 'skipfiles') or (s1 = 'skipdirs') or
+               (s1 = 'skipfiles_up') or (s1 = 'skipdirs_up') or
+               (s1 = 'skipfiles_dn') or (s1 = 'skipdirs_dn')) then
       begin
         if (s1 = 'allowedfiles') then
           addhere := akt.allowedfiles
         else if (s1 = 'alloweddirs') then
-          addhere := akt.alloweddirs;
+          addhere := akt.alloweddirs
+        else if (s1 = 'skipfiles') then
+          addhere := akt.skipfiles
+        else if (s1 = 'skipdirs') then
+          addhere := akt.skipdirs
+        else if (s1 = 'skipfiles_up') then
+          addhere := akt.skipfiles_up
+        else if (s1 = 'skipdirs_up') then
+          addhere := akt.skipdirs_up
+        else if (s1 = 'skipfiles_dn') then
+          addhere := akt.skipfiles_dn
+        else if (s1 = 'skipdirs_dn') then
+          addhere := akt.skipdirs_dn;
         s1 := SubString(s2, ':', 1);
         s2 := SubString(s2, ':', 2);
 
@@ -241,6 +271,12 @@ constructor TSkipList.Create(const sectionname: String);
 begin
   allowedfiles := TObjectList.Create;
   alloweddirs := TObjectList.Create;
+  skipfiles := TObjectList.Create;
+  skipdirs := TObjectList.Create;
+  skipfiles_up := TObjectList.Create;
+  skipdirs_up := TObjectList.Create;
+  skipfiles_dn := TObjectList.Create;
+  skipdirs_dn := TObjectList.Create;
   self.sectionname := UpperCase(sectionname);
   dirdepth := 1;
   mask := TslMask.Create(sectionname);
@@ -251,6 +287,12 @@ constructor TSkipList.CreateClone(const aOriginal: TSkipList);
 begin
   allowedfiles := aOriginal.allowedfiles;
   alloweddirs := aOriginal.alloweddirs;
+  skipfiles := aOriginal.skipfiles;
+  skipdirs := aOriginal.skipdirs;
+  skipfiles_up := aOriginal.skipfiles_up;
+  skipdirs_up := aOriginal.skipdirs_up;
+  skipfiles_dn := aOriginal.skipfiles_dn;
+  skipdirs_dn := aOriginal.skipdirs_dn;
   sectionname := aOriginal.sectionname;
   dirdepth := aOriginal.dirdepth;
   mask := TslMask.Create(sectionname);
@@ -263,6 +305,12 @@ begin
   begin
     allowedfiles.Free;
     alloweddirs.Free;
+    skipfiles.Free;
+    skipdirs.Free;
+    skipfiles_up.Free;
+    skipdirs_up.Free;
+    skipfiles_dn.Free;
+    skipdirs_dn.Free;
   end;
   mask.Free;
   inherited;
@@ -303,6 +351,162 @@ begin
   Result := FindDirFilterB(allowedfiles, dirname);
 end;
 
+function TSkipList.ShouldSkipFile(const dirname, filename: String): boolean;
+var
+  j: integer;
+  sf: TSkipListFilter;
+  fileGroupIndex: integer;
+begin
+  Result := False;
+  try
+    for j := 0 to skipfiles.Count - 1 do
+    begin
+      sf := TSkipListFilter(skipfiles[j]);
+      if sf.Match(dirname, filename, fileGroupIndex) then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.ShouldSkipFile : %s', [e.Message]);
+      Result := False;
+    end;
+  end;
+end;
+
+function TSkipList.ShouldSkipDir(const dirname, filename: String): boolean;
+var
+  j: integer;
+  sf: TSkipListFilter;
+  fileGroupIndex: integer;
+begin
+  Result := False;
+  try
+    for j := 0 to skipdirs.Count - 1 do
+    begin
+      sf := TSkipListFilter(skipdirs[j]);
+      if sf.Match(dirname, filename, fileGroupIndex) then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.ShouldSkipDir : %s', [e.Message]);
+      Result := False;
+    end;
+  end;
+end;
+
+function TSkipList.ShouldSkipFileUp(const dirname, filename: String): boolean;
+var
+  j: integer;
+  sf: TSkipListFilter;
+  fileGroupIndex: integer;
+begin
+  Result := False;
+  try
+    for j := 0 to skipfiles_up.Count - 1 do
+    begin
+      sf := TSkipListFilter(skipfiles_up[j]);
+      if sf.Match(dirname, filename, fileGroupIndex) then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.ShouldSkipFileUp : %s', [e.Message]);
+      Result := False;
+    end;
+  end;
+end;
+
+function TSkipList.ShouldSkipDirUp(const dirname, filename: String): boolean;
+var
+  j: integer;
+  sf: TSkipListFilter;
+  fileGroupIndex: integer;
+begin
+  Result := False;
+  try
+    for j := 0 to skipdirs_up.Count - 1 do
+    begin
+      sf := TSkipListFilter(skipdirs_up[j]);
+      if sf.Match(dirname, filename, fileGroupIndex) then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.ShouldSkipDirUp : %s', [e.Message]);
+      Result := False;
+    end;
+  end;
+end;
+
+function TSkipList.ShouldSkipFileDn(const dirname, filename: String): boolean;
+var
+  j: integer;
+  sf: TSkipListFilter;
+  fileGroupIndex: integer;
+begin
+  Result := False;
+  try
+    for j := 0 to skipfiles_dn.Count - 1 do
+    begin
+      sf := TSkipListFilter(skipfiles_dn[j]);
+      if sf.Match(dirname, filename, fileGroupIndex) then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.ShouldSkipFileDn : %s', [e.Message]);
+      Result := False;
+    end;
+  end;
+end;
+
+function TSkipList.ShouldSkipDirDn(const dirname, filename: String): boolean;
+var
+  j: integer;
+  sf: TSkipListFilter;
+  fileGroupIndex: integer;
+begin
+  Result := False;
+  try
+    for j := 0 to skipdirs_dn.Count - 1 do
+    begin
+      sf := TSkipListFilter(skipdirs_dn[j]);
+      if sf.Match(dirname, filename, fileGroupIndex) then
+      begin
+        Result := True;
+        exit;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.ShouldSkipDirDn : %s', [e.Message]);
+      Result := False;
+    end;
+  end;
+end;
+
 { TSkipListFilter }
 
 constructor TSkipListFilter.Create(const dms, fms: String);
@@ -323,7 +527,7 @@ begin
   for j := 1 to fc + 1 do
   begin
     fm := SubString(fms, ',', j);
-    if fm = CONST_RAR_FILES then
+    if SameText(fm, CONST_RAR_FILES) then
     begin
       filemask.Add(TslMask.Create('*.rar'));
       filemask.Add(TslMask.Create('*.r[0-9][0-9]'));
@@ -441,6 +645,49 @@ begin
   end;
 end;
 
+function FindSiteSkipList(const sitename, section: String): TSkipList;
+var
+  i: integer;
+  s: TSkipList;
+  searchPattern: String;
+begin
+  Result := nil;
+
+  try
+    if section <> '' then
+    begin
+      searchPattern := sitename + '-' + section;
+      for i := 1 to skiplist.Count - 1 do
+      begin
+        s := TSkipList(skiplist[i]);
+        if s.mask.Matches(searchPattern) then
+        begin
+          Result := s;
+          exit;
+        end;
+      end;
+    end;
+
+    searchPattern := sitename;
+    for i := 1 to skiplist.Count - 1 do
+    begin
+      s := TSkipList(skiplist[i]);
+      if s.mask.Matches(searchPattern) then
+      begin
+        Result := s;
+        exit;
+      end;
+    end;
+
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] FindSiteSkipList : %s', [e.Message]);
+      Result := nil;
+    end;
+  end;
+end;
+
 function TSkipListFilter.MatchFile(const filename: String): integer;
 var
   i: integer;
@@ -463,4 +710,3 @@ begin
 end;
 
 end.
-
