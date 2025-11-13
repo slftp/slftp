@@ -116,6 +116,7 @@ type
     function MkdirError(const dir: String): boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
     function AddDestination(const ps: TPazoSite; const rank: integer): boolean; overload;
+    procedure RemoveDestination(const sitename: String);
 
     { Add the raced file and appropiate infos into database
       @param(aParentPazo pazo where this TPazoSite belongs to)
@@ -1337,6 +1338,42 @@ begin
     begin
       Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
       Result := False;
+    end;
+  end;
+end;
+
+procedure TPazoSite.RemoveDestination(const sitename: String);
+var
+  i: Integer;
+  removed: Boolean;
+  speedInfo: TSpeedFromRouteInfo;
+begin
+  removed := False;
+
+  destinations_cs.Enter;
+  try
+    for i := FDestinations.Count - 1 downto 0 do
+    begin
+      if SameText(FDestinations.Items[i].PazoSite.Name, sitename) then
+      begin
+        FDestinations.Delete(i);
+        removed := True;
+      end;
+    end;
+  finally
+    destinations_cs.Leave;
+  end;
+
+  if removed and (speed_from <> nil) then
+  begin
+    for i := speed_from.Count - 1 downto 0 do
+    begin
+      speedInfo := speed_from[i];
+      if SameText(speedInfo.Sitename, sitename) then
+      begin
+        speed_from.Delete(i);
+        Break;
+      end;
     end;
   end;
 end;
