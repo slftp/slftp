@@ -1398,25 +1398,27 @@ begin
             if fImdbData <> nil then
             begin
               try
-                Debug(dpSpam, section, Format('[IMDB-FLOW8b] Calling SetIMDBRelease for pazo: %s', [fRls]));
+                Debug(dpSpam, section, Format('[IMDB-FLOW8b] Posting cached IMDB data to IRC for: %s', [fRls]));
+                fImdbData.PostResults(fRls);
+                Debug(dpSpam, section, Format('[IMDB-FLOW8c] Calling SetIMDBRelease for pazo: %s', [fRls]));
                 fImdbData.SetIMDBRelease(TIMDBRelease(fPazo.rls));
-                Debug(dpSpam, section, Format('[IMDB-FLOW8c] SetIMDBRelease completed for: %s', [fRls]));
+                Debug(dpSpam, section, Format('[IMDB-FLOW8d] SetIMDBRelease completed for: %s', [fRls]));
               finally
                 fImdbData.Free;
               end;
             end
             else
             begin
-              Debug(dpSpam, section, Format('[IMDB-FLOW8d] Failed to retrieve IMDB data for ID: %s', [fImdbId]));
+              Debug(dpSpam, section, Format('[IMDB-FLOW8e] Failed to retrieve IMDB data for ID: %s', [fImdbId]));
             end;
           end
           else
           begin
-            Debug(dpSpam, section, Format('[IMDB-FLOW8e] No pazo found or not TIMDBRelease for: %s', [fRls]));
+            Debug(dpSpam, section, Format('[IMDB-FLOW8f] No pazo found or not TIMDBRelease for: %s', [fRls]));
           end;
         except
           on e: Exception do
-            Debug(dpSpam, section, Format('[IMDB-FLOW8f] Exception populating IMDB data for %s: %s', [fRls, e.Message]));
+            Debug(dpSpam, section, Format('[IMDB-FLOW8g] Exception populating IMDB data for %s: %s', [fRls, e.Message]));
         end;
         exit;
       end;
