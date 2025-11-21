@@ -1305,15 +1305,27 @@ begin
 end;
 
 function check_ImdbId(const aIMDbId: String): Boolean;
+var
+  fNumericPart: String;
+  fValue: Integer;
 begin
   Result := False;
   Debug(dpSpam, section, Format('[CHECK_IMDBID] Validating IMDB ID: %s', [aIMDbId]));
-  
+
   dbaddimdb_cs.Enter('checkid');
   try
     try
       if rx_imdbid.Find(aIMDbId) <> 0 then
       begin
+        fNumericPart := Copy(aIMDbId, 3, Length(aIMDbId) - 2);
+        fValue := StrToIntDef(fNumericPart, 0);
+
+        if fValue = 0 then
+        begin
+          Debug(dpSpam, section, Format('[CHECK_IMDBID] Invalid IMDB ID (all zeros): %s', [aIMDbId]));
+          Exit;
+        end;
+
         Result := True;
         Debug(dpSpam, section, Format('[CHECK_IMDBID] Valid IMDB ID: %s', [aIMDbId]));
       end
