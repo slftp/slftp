@@ -615,6 +615,18 @@ begin
                   Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped directory %s', [fd, Name, dst.Name, de.filename, dir]);
                   Continue;
                 end;
+
+                if siteSkipList.ShouldSkipFileUp(dir, de.filename) then
+                begin
+                  Continue;
+                end
+                else
+                begin
+                  if siteSkipList.ShouldSkipFileUp('_ROOT_', de.filename) then
+                  begin
+                    Continue;
+                  end;
+                end;
               end;
 
               siteSkipList := FindSiteSkipList(Name, pazo.sl.sectionname);
@@ -624,6 +636,18 @@ begin
                 begin
                   Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped source directory %s', [fd, Name, dst.Name, de.filename, dir]);
                   Continue;
+                end;
+
+                if siteSkipList.ShouldSkipFileDn(dir, de.filename) then
+                begin
+                  Continue;
+                end
+                else
+                begin
+                  if siteSkipList.ShouldSkipFileDn('_ROOT_', de.filename) then
+                  begin
+                    Continue;
+                  end;
                 end;
               end;
             except
