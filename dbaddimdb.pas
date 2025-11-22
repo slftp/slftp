@@ -1305,15 +1305,27 @@ begin
 end;
 
 function check_ImdbId(const aIMDbId: String): Boolean;
+var
+  fNumericPart: String;
+  fValue: Integer;
 begin
   Result := False;
   Debug(dpSpam, section, Format('[CHECK_IMDBID] Validating IMDB ID: %s', [aIMDbId]));
-  
+
   dbaddimdb_cs.Enter('checkid');
   try
     try
       if rx_imdbid.Find(aIMDbId) <> 0 then
       begin
+        fNumericPart := Copy(aIMDbId, 3, Length(aIMDbId) - 2);
+        fValue := StrToIntDef(fNumericPart, 0);
+
+        if fValue = 0 then
+        begin
+          Debug(dpSpam, section, Format('[CHECK_IMDBID] Invalid IMDB ID (all zeros): %s', [aIMDbId]));
+          Exit;
+        end;
+
         Result := True;
         Debug(dpSpam, section, Format('[CHECK_IMDBID] Valid IMDB ID: %s', [aIMDbId]));
       end
@@ -1390,33 +1402,36 @@ begin
 
         // Populate IMDB data from database using the IMDB ID (not release name)
         try
-          fPazo := FindPazoByRls(fRls);
-          if (fPazo <> nil) and (fPazo.rls is TIMDBRelease) then
+          Debug(dpSpam, section, Format('[IMDB-FLOW8a] Retrieving IMDB data for ID: %s', [fImdbId]));
+          fImdbData := getImdbReleaseFromDatabase(fImdbId);
+          if fImdbData <> nil then
           begin
-            Debug(dpSpam, section, Format('[IMDB-FLOW8a] Retrieving IMDB data for ID: %s', [fImdbId]));
-            fImdbData := getImdbReleaseFromDatabase(fImdbId);
-            if fImdbData <> nil then
-            begin
-              try
-                Debug(dpSpam, section, Format('[IMDB-FLOW8b] Calling SetIMDBRelease for pazo: %s', [fRls]));
+            try
+              Debug(dpSpam, section, Format('[IMDB-FLOW8b] Posting cached IMDB data to IRC for: %s', [fRls]));
+              fImdbData.PostResults(fRls);
+
+              fPazo := FindPazoByRls(fRls);
+              if (fPazo <> nil) and (fPazo.rls is TIMDBRelease) then
+              begin
+                Debug(dpSpam, section, Format('[IMDB-FLOW8c] Calling SetIMDBRelease for pazo: %s', [fRls]));
                 fImdbData.SetIMDBRelease(TIMDBRelease(fPazo.rls));
-                Debug(dpSpam, section, Format('[IMDB-FLOW8c] SetIMDBRelease completed for: %s', [fRls]));
-              finally
-                fImdbData.Free;
+                Debug(dpSpam, section, Format('[IMDB-FLOW8d] SetIMDBRelease completed for: %s', [fRls]));
+              end
+              else
+              begin
+                Debug(dpSpam, section, Format('[IMDB-FLOW8e] No pazo found or not TIMDBRelease for: %s', [fRls]));
               end;
-            end
-            else
-            begin
-              Debug(dpSpam, section, Format('[IMDB-FLOW8d] Failed to retrieve IMDB data for ID: %s', [fImdbId]));
+            finally
+              fImdbData.Free;
             end;
           end
           else
           begin
-            Debug(dpSpam, section, Format('[IMDB-FLOW8e] No pazo found or not TIMDBRelease for: %s', [fRls]));
+            Debug(dpSpam, section, Format('[IMDB-FLOW8f] Failed to retrieve IMDB data for ID: %s', [fImdbId]));
           end;
         except
           on e: Exception do
-            Debug(dpSpam, section, Format('[IMDB-FLOW8f] Exception populating IMDB data for %s: %s', [fRls, e.Message]));
+            Debug(dpSpam, section, Format('[IMDB-FLOW8g] Exception populating IMDB data for %s: %s', [fRls, e.Message]));
         end;
         exit;
       end;
