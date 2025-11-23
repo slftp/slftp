@@ -51,6 +51,7 @@ var
   debug_lock: TSlCriticalSection2;
   glCachedDebugPriority: TDebugPriority = dpError;
   glCachedDebugCategories: string = ',verbose,';
+  glFlushLines: boolean = False;
 
 function _GetDebugLogFileName: String;
 begin
@@ -175,6 +176,7 @@ procedure DebugInit;
 begin
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
   glCachedDebugCategories := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
+  glFlushLines := config.ReadInteger(section, 'flushlines', 0) <> 0;
   _OpenLogFile;
   debug_lock := TSlCriticalSection2.Create('debug_lock');
 end;
@@ -208,6 +210,11 @@ begin
   try
     try
       WriteLn(f, logtext);
+      if glFlushLines then
+      begin
+        Flush(f); // flush TextFile buffer
+        FileFlush(TTextRec(f).Handle); // ensure kernel flush to avoid truncated lines
+      end;
     except
       on e: Exception do
       begin
