@@ -8,7 +8,7 @@ uses
   irccommands.reload, irccommands.section, irccommands.imdb, irccommands.pretime, irccommands.socks,
   irccommands.rules, irccommands.info, irccommands.precatcher, irccommands.irc, irccommands.misc,
   irccommands.stats, irccommands.prebot, irccommands.route, irccommands.site, irccommands.test,
-  irccommands.general{, irccommands.preurl, irccommands.mysql};
+  irccommands.general, irccommands.simulator{, irccommands.preurl, irccommands.mysql};
 
 type
   { Function prototype for all IRC commands }
@@ -45,13 +45,13 @@ function IrcHelpHeader(const netname, channel, params: String): boolean;
 
 const
   { Names of IRC command groups for @link(hlpgrp) }
-  helpCommands: array[0..22] of String = ('general', 'site', 'auto', 'route',
+  helpCommands: array[0..23] of String = ('general', 'site', 'auto', 'route',
     'rank', 'speed', 'work', 'prebot', 'stats', 'slots', 'misc', 'news', 'irc',
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
-    'section' {, 'preurl', 'mysql'});
+    'section', 'simulator' {, 'preurl', 'mysql'});
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..224] of TIrcCommand = (
+  ircCommandsArray: array[1..226] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -316,7 +316,9 @@ const
     *)
 
     (cmd: 'TESTING'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$test'),
-    (cmd: 'irccolors'; hnd: IrcTestColors; minparams: 0; maxparams: 0; hlpgrp: 'test')
+    (cmd: 'irccolors'; hnd: IrcTestColors; minparams: 0; maxparams: 0; hlpgrp: 'test'),
+    (cmd: 'SIMULATOR'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$simulator'),
+    (cmd: 'simulate'; hnd: IrcSimulate; minparams: 2; maxparams: 3; hlpgrp: 'simulator')
   );
 
 { shared functions for IRC commands }
