@@ -1,0 +1,26 @@
+Simulates how a release would be processed by slftp without actually adding it to the KB or triggering any transfers.
+
+Usage: <cmd> <section> <releasename> [pre]
+
+Parameters:
+  section      - The section name (e.g., MP3, TV, XXX, 0DAY)
+  releasename  - The full release name to simulate
+  pre          - Optional: Simulate as PRE instead of NEWDIR
+
+The simulator will:
+- Show which sites would ALLOW or DROP the release and why
+- Display the rule actions for each site
+- Show which routes would be built between allowed sites
+- Indicate affil sites
+- Show sites that are down or don't have the section
+
+Examples:
+  <cmd> MP3 Artist-Album-2024-GROUP
+  <cmd> TV Some.Show.S01E01.720p.WEB-GROUP
+  <cmd> XXX Some.Release.XXX.DVDRip.XviD-GROUP PRE
+
+This is useful for:
+- Testing your rules before adding a real release
+- Debugging why a release was allowed/dropped on specific sites
+- Verifying route configuration
+- Understanding how releases would be distributed
