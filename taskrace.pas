@@ -1150,6 +1150,34 @@ begin
   FTargetCompleted := False;
 end;
 
+function GetSitePercent(const aSite: TPazoSite; const aDir: String): Integer;
+var
+  dirList: TDirList;
+begin
+  Result := -1;
+  if aSite = nil then
+  begin
+    Debug(dpSpam, c_section, 'GetSitePercent: Site object is NIL for dir %s', [aDir]);
+    exit;
+  end;
+  if aSite.dirlist = nil then
+  begin
+    Debug(dpSpam, c_section, 'GetSitePercent: Site %s has NIL dirlist for dir %s', [aSite.Name, aDir]);
+    exit;
+  end;
+  dirList := aSite.dirlist.FindDirlist(aDir, False);
+  if dirList = nil then
+  begin
+    Debug(dpSpam, c_section, 'GetSitePercent: dirlist not found for %s on site %s', [aDir, aSite.Name]);
+    exit;
+  end;
+
+  Result := dirList.PercentComplete;
+
+  if GetDebugVerbosity = dpSpam then
+    Debug(dpSpam, c_section, 'GetSitePercent: dir %s on site %s -> %d%%', [aDir, aSite.Name, Result]);
+end;
+
 function TPazoRaceTask.Execute(slot: Pointer): boolean;
 label
   TryAgain;
@@ -1174,6 +1202,9 @@ var
   fElapsedMs: Int64;
   fDirlist: TDirlist;
   fDirlistEntry: TDirlistEntry;
+  percentInfo: String;
+  srcPercent, dstPercent: Integer;
+  srcPercentStr, dstPercentStr: String;
 
   procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
   begin
@@ -3340,6 +3371,39 @@ begin
               speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
           end;
         end;
+
+        percentInfo := '';
+        try
+          srcPercent := GetSitePercent(ps1, dir);
+          dstPercent := GetSitePercent(ps2, dir);
+
+          if (srcPercent >= 0) or (dstPercent >= 0) then
+          begin
+            if srcPercent >= 100 then
+              srcPercentStr := Format('<c9><b>%d%%</b></c>', [srcPercent])
+            else if srcPercent >= 0 then
+              srcPercentStr := Format('<c8>%d%%</c>', [srcPercent])
+            else
+              srcPercentStr := '<c8>--</c>';
+            if dstPercent >= 100 then
+              dstPercentStr := Format('<c9><b>%d%%</b></c>', [dstPercent])
+            else if dstPercent >= 0 then
+              dstPercentStr := Format('<c8>%d%%</c>', [dstPercent])
+            else
+              dstPercentStr := '<c8>--</c>';
+            percentInfo := Format(' [SRC:%s-DST:%s] ',
+              [srcPercentStr, dstPercentStr]);
+          end;
+        except
+          on e: Exception do
+          begin
+            percentInfo := '';
+            Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask PercentInfo: %s', [e.Message]));
+          end;
+        end;
+
+        if percentInfo <> '' then
+          speed_stat := percentInfo + speed_stat;
         irc_SendRACESTATS(tname + ' ' + speed_stat);
 
         // add stats to database
@@ -3360,16 +3424,35 @@ begin
 end;
 
 function TPazoRaceTask.Name: String;
+var
+  slotInfo, siteInfo: String;
 begin
   try
+    slotInfo := '';
+
+    // Always show site1 -> site2
+    siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
+
+    // Additionally show slot names if available
+    if (slot1name <> '') and (slot2name <> '') then
+      slotInfo := Format(' <c9>[%s -> %s]</c>', [slot1name, slot2name])
+    else if slot1name <> '' then
+      slotInfo := Format(' <c9>[%s]</c>', [slot1name])
+    else if slot2name <> '' then
+      slotInfo := Format(' <c9>[%s]</c>', [slot2name]);
+
     if mainpazo.rls = nil then
-      Result := Format('RACE : %d <b>%s</b>-><b>%s</b>: %s (%d)',
-        [pazo_id, site1, site2, filename, rank])
+      Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
+        [pazo_id, siteInfo, slotInfo, filename, rank])
     else
-      Result := Format('RACE : %d <b>%s</b>-><b>%s</b>: %s %s (%d)',
-        [pazo_id, site1, site2, mainpazo.rls.rlsname, filename, rank]);
+      Result := Format('<c7>[RACE]</c> #%d%s%s : <c10><b>%s</b></c> <c7>%s</c> <c7>(%d)</c>',
+        [pazo_id, siteInfo, slotInfo, mainpazo.rls.rlsname, filename, rank]);
   except
-    Result := 'RACE';
+    on e: Exception do
+    begin
+      Result := 'RACE';
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s', [e.Message]));
+    end;
   end;
 end;
 

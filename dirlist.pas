@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv;
+uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv, tags;
 
 type
   {
@@ -102,6 +102,8 @@ type
 
     // TODO: sometimes its without a '/' at the end, check if this is correct and what happens if we add it by default (could remove extra code in RegenerateSkiplist then)
     FCompleteDirTag: String; //< complete dir found on ftpd while dirlisting
+    FCompleteDirTagLastChecked: String; //< contains the last complete tag that was checked  (cache)
+    FCompleteDirTagLastResult: TTagCompleteType; // contains the result of the last complete tag that was checked (cache)
 
     FStartedTime: TDateTime; //< time when the first @link(TDirlistEntry) was created
     FCompletedTime: TDateTime; //< time when the TDirlit was recognized as complete
@@ -190,6 +192,11 @@ type
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
     property CompleteDirTag: String read FCompleteDirTag;
+
+    { Returns the % completion status of this dir based on the zipscript tag. If the % cannot be determined, because either
+      there is no zipscript tag or we can't parse the % from it, -1 is returned.
+      @returns(The completion status of this dir in %.) }
+    function PercentComplete: Integer;
     property StartedTime: TDateTime read FStartedTime;
     property CompletedTime: TDateTime read FCompletedTime;
     property FullPath: String read FFullPath write SetFullPath;
@@ -220,7 +227,7 @@ var
 implementation
 
 uses
-  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
 
 const
   section = 'dirlist';
@@ -233,6 +240,32 @@ var
 {$I common.inc}
 
 { TDirList }
+
+function TDirList.PercentComplete: Integer;
+begin
+  Result := -1;
+  if FCompleteDirTag = '' then
+  begin
+    if GetDebugVerbosity = dpSpam then
+      Debug(dpSpam, section, 'PercentComplete: No CompleteDirTag for %s', [FFullPath]);
+    exit;
+  end;
+
+  // if we already determined this dirlist to be complete, just return the 100%
+  if FCachedCompleteResult then
+  begin
+    Result := 100;
+    exit;
+  end;
+
+  if not TagExtractPercent(FCompleteDirTag, Result) then
+  begin
+    Debug(dpSpam, section, 'PercentComplete: Failed to extract percent from tag "%s" (%s)', [FCompleteDirTag, FFullPath]);
+    Result := -1;
+  end
+  else if GetDebugVerbosity = dpSpam then
+    Debug(dpSpam, section, 'PercentComplete: Extracted %d%% from tag "%s" (%s)', [Result, FCompleteDirTag, FFullPath]);
+end;
 
 function TDirList.Complete: Boolean;
 var
@@ -615,7 +648,10 @@ begin
         //if it's a file and has a size > 0, it can't be a complete tag
         or ((fParsedDirlistEntry.Filesize < 1) and (fParsedDirlistEntry.DirMask[1] <> 'd')
 
-        //if it's a file and has already been checked to be valid, it can't be a complete tag
+          // skip .missing files which are created by the zipscript for files that have not yet been sent
+          and not fParsedDirlistEntry.Filename.EndsWith('-missing')
+
+          //if it's a file and has already been checked to be valid, it can't be a complete tag
           and not FIsValidFileCache.ContainsKey(fParsedDirlistEntry.Filename)))
         then
         begin
@@ -985,11 +1021,22 @@ begin
   if (FCompleteDirTag = '') then
     exit;
 
-  i := TagComplete(FCompleteDirTag);
-  if (i = tctCOMPLETE) then
+  // check if the previous check was against the same tag, then we don't need to calculate the result again
+  if FCompleteDirTagLastChecked = FCompleteDirTag then
+    i := FCompleteDirTagLastResult
+  else
   begin
-    Result := True;
-    exit;
+    i := TagComplete(FCompleteDirTag);
+
+    // cache the result
+    FCompleteDirTagLastResult := i;
+    FCompleteDirTagLastChecked := FCompleteDirTag;
+
+    if (i = tctCOMPLETE) then
+    begin
+      Result := True;
+      exit;
+    end;
   end;
 end;
 

@@ -1513,6 +1513,7 @@ begin
       continue;
     end;
 
+    ss := '';
     ts := TSite(fSite);
     fBusyDestinationsTmp := fBusyDestinations;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
@@ -1772,6 +1773,7 @@ begin
     exit;
 
   ts := TSite(fSite);
+  ss := '';
 
   //irc_Addconsole('QueueClean: process begin');
   //Debug(dpMessage, section, 'QueueClean begin %d', [tasks.Count]);
@@ -1835,6 +1837,7 @@ begin
       begin
         if (t.ClassType = TPazoRaceTask) then
         begin
+          ss := t.UidText;
           ts2 := nil;
           ts.AcquireSlotsAssignmentLock('QueueClean race');
           try
@@ -1902,6 +1905,7 @@ begin
 
           try
             //t := NIL;
+            ss := t.UidText;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
@@ -1931,6 +1935,7 @@ begin
           if (t.slot1 <> nil) then
           begin
             try
+              ss := t.UidText;
               ts.AcquireSlotsAssignmentLock('QueueClean login, quit, idle, mkdir');
               try
                 TSiteSlot(t.slot1).todotask := nil;
