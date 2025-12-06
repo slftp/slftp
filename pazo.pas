@@ -272,57 +272,6 @@ var
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
 
-{ Helper function to get rank for a site and section
-  @param(aSiteName Name of the site)
-  @param(aSection Section name)
-  @returns(Rank value, 0 if site not found or no rank set) }
-function GetSiteRankForSection(const aSiteName, aSection: String): Integer;
-var
-  fSite: TSite;
-begin
-  Result := 0;
-  fSite := FindSiteByName('', aSiteName);
-  if fSite <> nil then
-    Result := fSite.GetRank(aSection);
-end;
-
-{ Creates a comparer function for sorting TPazoSite by rank (descending)
-  @param(aSection Section name for rank lookup)
-  @returns(Comparison function suitable for TComparer.Construct)
-
-  Sorts by:
-  1. Site rank (descending - higher rank first)
-  2. If ranks equal: First speed_from entry as tiebreaker }
-function _ComparePazoSitesByRank(const aSection: String): TFunc<TPazoSite, TPazoSite, Integer>;
-begin
-  Result := function(const ps1, ps2: TPazoSite): Integer
-    var
-      rank1, rank2: Integer;
-      speed1, speed2: Integer;
-    begin
-      // Get ranks for both sites
-      rank1 := GetSiteRankForSection(ps1.Name, aSection);
-      rank2 := GetSiteRankForSection(ps2.Name, aSection);
-
-      // Sort by rank descending (higher rank first)
-      Result := TComparer<Integer>.Default.Compare(rank2, rank1);
-
-      // If ranks are equal, use speed as tiebreaker
-      if (Result = 0) and (ps1.speed_from <> nil) and (ps2.speed_from <> nil) then
-      begin
-        speed1 := 0;
-        speed2 := 0;
-
-        // Use first route speed as heuristic
-        if ps1.speed_from.Count > 0 then
-          speed1 := ps1.speed_from[0].Speed;
-        if ps2.speed_from.Count > 0 then
-          speed2 := ps2.speed_from[0].Speed;
-
-        Result := TComparer<Integer>.Default.Compare(speed2, speed1);
-      end;
-    end;
-end;
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
 begin

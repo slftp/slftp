@@ -187,7 +187,6 @@ var
   ss: String;
   p: TPazo;
   ps, psource: TPazoSite;
-  pazoSitesSorted: TObjectList<TPazoSite>;
   rule_result: TRuleAction;
   rlz, grp: String;
   dlt: TPazoDirlistTask;
@@ -718,13 +717,6 @@ begin
   begin
     kb_lock.Enter('kb_AddB_3');
     try
-      // Set source site for rule evaluation (source/destination conditions)
-      if psource <> nil then
-      begin
-        p.srcsite := psource.Name;
-        p.dstsite := psource.Name; // In this context, destination is same as source (initial check)
-      end;
-
       rule_result := raDrop;
       rule_result := FireRuleSet(p, psource);
     finally
@@ -747,45 +739,47 @@ begin
     end;
   end;
 
-  // Sort sites by rank (descending) for optimal task creation
-  // Highest ranked (fastest) sources are processed first
-  pazoSitesSorted := TObjectList<TPazoSite>.Create(False); // Don't own objects
   try
-    pazoSitesSorted.AddRange(p.PazoSitesList);
-
-    // Sort by section-specific rank
-    if p.rls <> nil then
-      pazoSitesSorted.Sort(TComparer<TPazoSite>.Construct(_ComparePazoSitesByRank(p.rls.section)))
-    else
-      pazoSitesSorted.Sort(TComparer<TPazoSite>.Construct(_ComparePazoSitesByRank('')));
-
-    // Check rules for NotAllowed sites (highest rank first)
-    kb_lock.Enter('kb_AddB_4');
-    try
-      for ps in pazoSitesSorted do
-      begin
+    // check rules for site only if needed
+    for i := p.PazoSitesList.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
+      ps := TPazoSite(p.PazoSitesList[i]);
+      kb_lock.Enter('kb_AddB_4');
+      try
         if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
         begin
-          // Set source/destination for rule evaluation
-          p.srcsite := ps.Name;
-          p.dstsite := ps.Name;
-
           if FireRuleSet(p, ps) = raAllow then
+          begin
             ps.status := rssAllowed;
+          end;
         end;
+      finally
+        kb_lock.Leave;
       end;
-    finally
-      kb_lock.Leave;
     end;
 
-    // Add all destinations (highest rank sources first)
-    // This ensures fastest routes are evaluated and created first
-    kb_lock.Enter('kb_AddB_5');
-    try
-      for ps in pazoSitesSorted do
+    // now add all dst
+    for i := p.PazoSitesList.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
+      ps := TPazoSite(p.PazoSitesList[i]);
+      kb_lock.Enter('kb_AddB_5');
+      try
         FireRules(p, ps);
-    finally
-      kb_lock.Leave;
+      finally
+        kb_lock.Leave;
+      end;
     end;
   except
     on e: Exception do
@@ -793,8 +787,6 @@ begin
       Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s',
         [e.Message]));
     end;
-  finally
-    pazoSitesSorted.Free;
   end;
 
   if dontFire then
