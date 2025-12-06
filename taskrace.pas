@@ -2664,8 +2664,8 @@ begin
     begin
       fSourceCompleted := True;
       fSourceCompleteTimestamp := Now;
-      Debug(dpSpam, c_section, '[FXP TIMEOUT] Source completed (226) at %d ms, waiting max 60s for target | Task: %s',
-        [fSourceCompleteTimestamp.ToMilliseconds, tname]);
+      Debug(dpSpam, c_section, '[FXP TIMEOUT] Source completed (226) at %s, waiting max 60s for target | Task: %s',
+        [FormatDateTime('mm-dd hh:nn:ss.zzz', fSourceCompleteTimestamp), tname]);
     end;
 
     // Detect when target reports transfer complete (226)
@@ -2673,8 +2673,8 @@ begin
     begin
       fTargetCompleted := True;
       fTargetCompleteTimestamp := Now;
-      Debug(dpSpam, c_section, '[FXP TIMEOUT] Target completed (226) at %d ms, waiting max 60s for source | Task: %s',
-        [fTargetCompleteTimestamp.ToMilliseconds, tname]);
+      Debug(dpSpam, c_section, '[FXP TIMEOUT] Target completed (226) at %s, waiting max 60s for source | Task: %s',
+        [FormatDateTime('mm-dd hh:nn:ss.zzz', fTargetCompleteTimestamp), tname]);
     end;
 
     // Source is done, target still waiting
