@@ -993,7 +993,7 @@ end;
 class function TRuleNode.TakeThis(var s: String): boolean;
 begin
   Result := False;
-  if s = Name then
+  if AnsiSameText(s, Name) then
   begin
     Result := True;
     s := '';
