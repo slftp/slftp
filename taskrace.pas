@@ -48,20 +48,6 @@ type
 
   TPazoRaceTask = class(TPazoTask)
   private
-    { FXP partial completion timeout tracking }
-    FSourceCompleteTimestamp: Int64; //< Timestamp when source sent 226 (GetTickCount64)
-    FTargetCompleteTimestamp: Int64; //< Timestamp when target sent 226 (GetTickCount64)
-    FSourceCompleted: Boolean;       //< True if source reported completion
-    FTargetCompleted: Boolean;       //< True if target reported completion
-    { Source regression tracking fields }
-    fSrcDirlist: TDirlist;
-    fSrcDirlistEntry: TDirlistEntry;
-    fSrcDiffMSec: Int64;
-    fLastSrcFileSize: Int64;
-    fLastSrcUploader: String;
-    { Destination regression tracking fields }
-    fLastDstFileSize: Int64;
-    fLastDstUploader: String;
     { Finds out if the given response contains phrases that indicate the file is a dupe.
        @param(aResponse the response message)
        @returns(@true if the response means the file is a dupe, @false otherwise.)
@@ -1142,12 +1128,6 @@ begin
     self.FFilenameForSTORCommand := filename;
 
   self.filesize := filesize;
-
-  // Reset FXP timeout state for new task
-  FSourceCompleteTimestamp := 0;
-  FTargetCompleteTimestamp := 0;
-  FSourceCompleted := False;
-  FTargetCompleted := False;
 end;
 
 function GetSitePercent(const aSite: TPazoSite; const aDir: String): Integer;
@@ -1200,11 +1180,24 @@ var
   fDiffSec: integer;
   fDiffMSec: Int64;
   fElapsedMs: Int64;
-  fDirlist: TDirlist;
   fDirlistEntry: TDirlistEntry;
   percentInfo: String;
   srcPercent, dstPercent: Integer;
   srcPercentStr, dstPercentStr: String;
+  fSrcDirlist: TDirlist;
+  fDstDirlist: TDirlist;
+
+  { FXP partial completion timeout tracking }
+  fSourceCompleteTimestamp: TDateTime; //< Timestamp when source sent 226 (GetTickCount64)
+  fTargetCompleteTimestamp: TDateTime; //< Timestamp when target sent 226 (GetTickCount64)
+  fSourceCompleted: Boolean;       //< True if source reported completion
+  fTargetCompleted: Boolean;       //< True if target reported completion
+
+  { Regression tracking fields }
+  fLastSrcFileSize: Int64;
+  fLastSrcUploader: String;
+  fLastDstFileSize: Int64;
+  fLastDstUploader: String;
 
   procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
   begin
@@ -1245,6 +1238,8 @@ var
     lSrcFileSize: Int64;
     lNow: TDateTime;
     lSrcUser: String;
+    fSrcDirlistEntry: TDirlistEntry;
+    fSrcDiffMSec: Int64;
   begin
     Result := False;
     lSrcFileSize := -1;
@@ -1253,7 +1248,8 @@ var
     lSrcUser := '';
     fSrcDirlistEntry := nil;
 
-    fSrcDirlist := ps1.dirlist.FindDirlist(dir);
+    if fSrcDirlist = nil then
+      fSrcDirlist := ps1.dirlist.FindDirlist(dir);
     if fSrcDirlist <> nil then
     begin
       fSrcDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Source');
@@ -1323,7 +1319,6 @@ var
     lDstFileSize: Int64;
     lNow: TDateTime;
     lDstUser: String;
-    fDstDirlist: TDirlist;
     fDstDirlistEntry: TDirlistEntry;
     fDstDiffMSec: Int64;
   begin
@@ -1334,7 +1329,8 @@ var
     lDstUser := '';
     fDstDirlistEntry := nil;
 
-    fDstDirlist := ps2.dirlist.FindDirlist(dir);
+    if fDstDirlist = nil then
+      fDstDirlist := ps2.dirlist.FindDirlist(dir);
     if fDstDirlist <> nil then
     begin
       fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Destination');
@@ -1409,6 +1405,9 @@ begin
   sdst := slot2;
   numerrors := 0;
   tname := Name;
+  fSrcDirlist := nil;
+  fDstDirlist := nil;
+
 
   if mainpazo.stopped then
   begin
@@ -2629,10 +2628,10 @@ begin
   Debug(dpSpam, 'taskrace', '--> WAIT');
 
   // Ensure timeout tracking is clean before monitoring the data connection
-  FSourceCompleted := False;
-  FTargetCompleted := False;
-  FSourceCompleteTimestamp := 0;
-  FTargetCompleteTimestamp := 0;
+  fSourceCompleted := False;
+  fTargetCompleted := False;
+  fSourceCompleteTimestamp := 0;
+  fTargetCompleteTimestamp := 0;
 
   rss := False;
   rsd := False;
@@ -2663,27 +2662,27 @@ begin
     // Detect when source reports transfer complete (226)
     if rss and (not FSourceCompleted) and (ssrc.lastResponseCode = 226) then
     begin
-      FSourceCompleted := True;
-      FSourceCompleteTimestamp := GetTickCount64;
+      fSourceCompleted := True;
+      fSourceCompleteTimestamp := Now;
       Debug(dpSpam, c_section, '[FXP TIMEOUT] Source completed (226) at %d ms, waiting max 60s for target | Task: %s',
-        [FSourceCompleteTimestamp, tname]);
+        [fSourceCompleteTimestamp.ToMilliseconds, tname]);
     end;
 
     // Detect when target reports transfer complete (226)
     if rsd and (not FTargetCompleted) and (sdst.lastResponseCode = 226) then
     begin
-      FTargetCompleted := True;
-      FTargetCompleteTimestamp := GetTickCount64;
+      fTargetCompleted := True;
+      fTargetCompleteTimestamp := Now;
       Debug(dpSpam, c_section, '[FXP TIMEOUT] Target completed (226) at %d ms, waiting max 60s for source | Task: %s',
-        [FTargetCompleteTimestamp, tname]);
+        [fTargetCompleteTimestamp.ToMilliseconds, tname]);
     end;
 
     // Source is done, target still waiting
-    if FSourceCompleted and (not FTargetCompleted) then
+    if fSourceCompleted and (not fTargetCompleted) then
     begin
-      fElapsedMs := GetTickCount64 - FSourceCompleteTimestamp;
+      fElapsedMs := MilliSecondsBetween(Now, fSourceCompleteTimestamp);
 
-      if (fElapsedMs mod 1000 < 150) then
+      if (GetDebugVerbosity = dpSpam) and (fElapsedMs mod 1000 < 150) then
       begin
         Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for target response: %d/%d ms elapsed (%.1f%%) | Target code=%d | %s',
           [fElapsedMs, 60000, (fElapsedMs / 60000.0) * 100, sdst.lastResponseCode, tname]);
@@ -2702,11 +2701,11 @@ begin
     end;
 
     // Target is done, source still waiting
-    if FTargetCompleted and (not FSourceCompleted) then
+    if fTargetCompleted and (not fSourceCompleted) then
     begin
-      fElapsedMs := GetTickCount64 - FTargetCompleteTimestamp;
+      fElapsedMs := MilliSecondsBetween(Now, fTargetCompleteTimestamp);
 
-      if (fElapsedMs mod 1000 < 150) then
+      if (GetDebugVerbosity = dpSpam) and (fElapsedMs mod 1000 < 150) then
       begin
         Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for source response: %d/%d ms elapsed (%.1f%%) | Source code=%d | %s',
           [fElapsedMs, 60000, (fElapsedMs / 60000.0) * 100, ssrc.lastResponseCode, tname]);
@@ -2738,13 +2737,14 @@ begin
       fDiffSec := SecondsBetween(Now, started);
       if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
       begin
-        fDirlist := ps2.dirlist.FindDirlist(dir);
-        fDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
+        if fDstDirlist = nil then
+          fDstDirlist := ps2.dirlist.FindDirlist(dir);
+        fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
         try
-          fDirlistEntry := fDirlist.Find(filename);
-          fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
+          fDirlistEntry := fDstDirlist.Find(filename);
+          fDiffMSec := MillisecondsBetween(Now, fDstDirlist.LastUpdated);
         finally
-          fDirlist.dirlist_lock.Leave;
+          fDstDirlist.dirlist_lock.Leave;
         end;
 
         // if the dirlist is fairly up to date and shows a file size of 0 bytes,
