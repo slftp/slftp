@@ -495,12 +495,12 @@ type
 
     function isRouteableTo(const sitename: String): boolean;
 
-    procedure RegisterMaxSimUpHit(const aSlotName: String = '');
+    procedure RegisterMaxSimUpHit(const aSlotName: String);
     procedure ResetMaxSimUpCooldown;
     function MaxSimUpCooldownActive: boolean;
     function MaxSimUpCooldownRemainingSeconds: integer;
 
-    procedure RegisterMaxSimDownHit(const aSlotName: String = '');
+    procedure RegisterMaxSimDownHit(const aSlotName: String);
     procedure ResetMaxSimDownCooldown;
     function MaxSimDownCooldownActive: boolean;
     function MaxSimDownCooldownRemainingSeconds: integer;
@@ -3643,30 +3643,44 @@ begin
   end;
 end;
 
-procedure TSite.RegisterMaxSimUpHit(const aSlotName: String = '');
+procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
 var
-  lNewCooldown: integer;
-  lSlotInfo: String;
+  fNewCooldown: integer;
 begin
   if fMaxSimUpCooldownSeconds = 0 then
-    lNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
   else
   begin
-    lNewCooldown := fMaxSimUpCooldownSeconds * 2;
-    if lNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
-      lNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+    fNewCooldown := fMaxSimUpCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
   end;
 
-  fMaxSimUpCooldownSeconds := lNewCooldown;
+  fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
-  if aSlotName <> '' then
-    lSlotInfo := Format(' (slot: %s)', [aSlotName])
-  else
-    lSlotInfo := '';
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
+end;
 
-  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s)%s',
-    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), lSlotInfo]);
+procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fMaxSimDownCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimDownCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+
+  fMaxSimDownCooldownSeconds := fNewCooldown;
+  fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
+
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
 end;
 
 procedure TSite.ResetMaxSimUpCooldown;
@@ -3676,6 +3690,16 @@ begin
     fMaxSimUpCooldownSeconds := 0;
     fMaxSimUpCooldownUntil := 0;
     Debug(dpSpam, section, 'MaxSim UP cooldown for %s cleared', [Name]);
+  end;
+end;
+
+procedure TSite.ResetMaxSimDownCooldown;
+begin
+  if (fMaxSimDownCooldownSeconds <> 0) or (fMaxSimDownCooldownUntil <> 0) then
+  begin
+    fMaxSimDownCooldownSeconds := 0;
+    fMaxSimDownCooldownUntil := 0;
+    Debug(dpSpam, section, 'MaxSim DOWN cooldown for %s cleared', [Name]);
   end;
 end;
 
@@ -3703,52 +3727,6 @@ begin
   Result := True;
 end;
 
-function TSite.MaxSimUpCooldownRemainingSeconds: integer;
-begin
-  if not MaxSimUpCooldownActive then
-    Exit(0);
-
-  Result := SecondsBetween(Now, fMaxSimUpCooldownUntil);
-  if Result < 0 then
-    Result := 0;
-end;
-
-procedure TSite.RegisterMaxSimDownHit(const aSlotName: String = '');
-var
-  lNewCooldown: integer;
-  lSlotInfo: String;
-begin
-  if fMaxSimDownCooldownSeconds = 0 then
-    lNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
-  else
-  begin
-    lNewCooldown := fMaxSimDownCooldownSeconds * 2;
-    if lNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
-      lNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
-  end;
-
-  fMaxSimDownCooldownSeconds := lNewCooldown;
-  fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
-
-  if aSlotName <> '' then
-    lSlotInfo := Format(' (slot: %s)', [aSlotName])
-  else
-    lSlotInfo := '';
-
-  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s)%s',
-    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), lSlotInfo]);
-end;
-
-procedure TSite.ResetMaxSimDownCooldown;
-begin
-  if (fMaxSimDownCooldownSeconds <> 0) or (fMaxSimDownCooldownUntil <> 0) then
-  begin
-    fMaxSimDownCooldownSeconds := 0;
-    fMaxSimDownCooldownUntil := 0;
-    Debug(dpSpam, section, 'MaxSim DOWN cooldown for %s cleared', [Name]);
-  end;
-end;
-
 function TSite.MaxSimDownCooldownActive: boolean;
 begin
   if fMaxSimDownCooldownUntil = 0 then
@@ -3773,14 +3751,20 @@ begin
   Result := True;
 end;
 
+function TSite.MaxSimUpCooldownRemainingSeconds: integer;
+begin
+  if not MaxSimUpCooldownActive then
+    Exit(0);
+
+  Result := SecondsBetween(Now, fMaxSimUpCooldownUntil);
+end;
+
 function TSite.MaxSimDownCooldownRemainingSeconds: integer;
 begin
   if not MaxSimDownCooldownActive then
     Exit(0);
 
   Result := SecondsBetween(Now, fMaxSimDownCooldownUntil);
-  if Result < 0 then
-    Result := 0;
 end;
 
 function TSite.GetDelayLeechMin(const aSection: String): integer;
