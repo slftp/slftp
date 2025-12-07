@@ -59,6 +59,8 @@ uses
   Classes,
   SysUtils,
   mrdohutils,
+  mormot.db.raw.sqlite3.static,
+  mormot.db.sql.sqlite3,
   slftpUnitTestsSetup,
   slsslTests,
   mystringsTests,
@@ -85,8 +87,10 @@ uses
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
+  imdbDatabaseTests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  SynSQLite3Static;
 
 // allow more user mode address space
 {$SetPEFlags $20}
