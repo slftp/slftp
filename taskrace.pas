@@ -924,7 +924,7 @@ begin
           end;
           if (0 <> Pos('File name not allowed', s.lastResponse)) then
           begin
-            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            if glTaskraceFilenameNotAllowed then
             begin
               irc_Adderror(s.todotask, '<c4>[NOT ALLOWED]</c> %s', [tname]);
             end;
@@ -989,7 +989,7 @@ begin
 
           else if (0 <> Pos('Not allowed to make directories here', s.lastResponse)) then
           begin
-            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            if glTaskraceCantCreateDir then
             begin
               irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, Trim(aktdir)]);
             end;
@@ -1002,7 +1002,7 @@ begin
           // 550 System Error- /GAMES/Mass.Effect.Andromeda.Updat: No space left on device.
           else if ( (0 <> Pos('System Error', s.lastResponse)) and ( (0 <> Pos('Read-only file system', s.lastResponse)) OR (0 <> Pos('Permission denied', s.lastResponse)) OR (0 <> Pos('Input/output error', s.lastResponse)) OR (0 <> Pos('No space left', s.lastResponse)) )  ) then
           begin
-            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            if glTaskraceCantCreateDir then
             begin
               irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, Trim(aktdir)]);
             end;
@@ -1031,7 +1031,7 @@ begin
                 AddRule(Format('%s %s if group = %s then DROP',[site1, mainpazo.rls.section, mainpazo.rls.groupname]), rule_err);
               end;
             end;
-            if spamcfg.ReadBool('taskrace', 'cant_create_dir', True) then
+            if glTaskraceCantCreateDir then
             begin
               irc_Adderror(s.todotask, '<c4>[MKDIR Denied]</c> TPazoMkdirTask %s: %s for %s',[s.Name, s.lastResponse, Trim(aktdir)]);
             end;
@@ -1056,7 +1056,7 @@ begin
 
       else
         begin
-          if spamcfg.ReadBool('taskrace', 'denying_creation_of', True) then
+          if glTaskraceDenyingCreationOf then
           begin
             irc_Adderror(s.todotask, '<c4>[ERROR MKDIR]</c> TPazoMkdirTask %s: %s',[tname, s.lastResponse]);
           end;
@@ -1515,7 +1515,7 @@ begin
 
           //553 means: Requested action not taken. File name not allowed.
           //therefore don't try to send that file again
-          if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+          if glTaskraceFilenameNotAllowed then
           begin
             irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
           end;
@@ -1963,7 +1963,7 @@ begin
 
           if (0 < Pos('not allowed in this file name', lastResponse)) then
           begin   //530 .. not allowed in this file name
-            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            if glTaskraceFilenameNotAllowed then
             begin
               irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             end;
@@ -2080,7 +2080,7 @@ begin
 
             //553 means: Requested action not taken. File name not allowed.
             //therefore don't try to send that file again
-            if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+            if glTaskraceFilenameNotAllowed then
             begin
               irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
             end;
@@ -2913,7 +2913,7 @@ begin
           //553 means: Requested action not taken. File name not allowed.
           //therefore don't try to send that file again
 
-          if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+          if glTaskraceFilenameNotAllowed then
           begin
             irc_Adderror(Format('<c4>[NOT ALLOWED]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
           end;
@@ -3014,7 +3014,7 @@ begin
 
     else if sdst.lastResponse.Contains('-file: Not allowed') then
     begin
-      if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
+      if glTaskraceFilenameNotAllowed then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NOT ALLOWED]</c> %s', [Name]);
       end;

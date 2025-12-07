@@ -72,6 +72,9 @@ var
   GlTaskPretimeReaddInterval: integer;
   GlTaskRaceAutoRuleAdd: boolean;
   GlTaskRaceBadCrcEvents: integer;
+  glTaskraceFilenameNotAllowed: Boolean; //< Cache for spamcfg 'taskrace'/'filename_not_allowed'
+  glTaskraceCantCreateDir: Boolean;      //< Cache for spamcfg 'taskrace'/'cant_create_dir'
+  glTaskraceDenyingCreationOf: Boolean;  //< Cache for spamcfg 'taskrace'/'denying_creation_of'
 
 implementation
 
@@ -181,6 +184,9 @@ begin
   GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
   GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
   GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
+  glTaskraceFilenameNotAllowed := spamcfg.ReadBool('taskrace', 'filename_not_allowed', True);
+  glTaskraceCantCreateDir := spamcfg.ReadBool('taskrace', 'cant_create_dir', True);
+  glTaskraceDenyingCreationOf := spamcfg.ReadBool('taskrace', 'denying_creation_of', True);
 end;
 
 procedure Tasks_Uninit;
