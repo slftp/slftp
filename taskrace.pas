@@ -2,7 +2,7 @@ unit taskrace;
 
 interface
 
-uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+uses SyncObjs, tasksunit, pazo, Generics.Collections, dirlist;
 
 type
   TPazoPlainTask = class(TTask) // no announce
@@ -51,8 +51,8 @@ type
   TPazoRaceTask = class(TPazoTask)
   private
     { FXP partial completion timeout tracking }
-    FSourceCompleteTimestamp: Int64; //< Timestamp when source sent 226 (GetTickCount64)
-    FTargetCompleteTimestamp: Int64; //< Timestamp when target sent 226 (GetTickCount64)
+    FSourceCompleteTimestamp: TDateTime; //< Timestamp when source sent 226 (Now)
+    FTargetCompleteTimestamp: TDateTime; //< Timestamp when target sent 226 (Now)
     FSourceCompleted: Boolean;       //< True if source reported completion
     FTargetCompleted: Boolean;       //< True if target reported completion
     { Source regression tracking fields }
@@ -1351,7 +1351,7 @@ var
   lastResponse: String;
   fDiffSec: integer;
   fDiffMSec: Int64;
-  fElapsedMs: Int64;
+  fElapsedSec: Int64;
   fDirlist: TDirlist;
   fDirlistEntry: TDirlistEntry;
   percentInfo: String;
@@ -2828,36 +2828,36 @@ begin
     if rss and (not FSourceCompleted) and (ssrc.lastResponseCode = 226) then
     begin
       FSourceCompleted := True;
-      FSourceCompleteTimestamp := GetTickCount64;
-      Debug(dpSpam, c_section, '[FXP TIMEOUT] Source completed (226) at %d ms, waiting max 60s for target | Task: %s',
-        [FSourceCompleteTimestamp, tname]);
+      FSourceCompleteTimestamp := Now;
+      Debug(dpSpam, c_section, '[FXP TIMEOUT] Source completed (226), waiting max 60s for target | Task: %s',
+        [tname]);
     end;
 
     // Detect when target reports transfer complete (226)
     if rsd and (not FTargetCompleted) and (sdst.lastResponseCode = 226) then
     begin
       FTargetCompleted := True;
-      FTargetCompleteTimestamp := GetTickCount64;
-      Debug(dpSpam, c_section, '[FXP TIMEOUT] Target completed (226) at %d ms, waiting max 60s for source | Task: %s',
-        [FTargetCompleteTimestamp, tname]);
+      FTargetCompleteTimestamp := Now;
+      Debug(dpSpam, c_section, '[FXP TIMEOUT] Target completed (226), waiting max 60s for source | Task: %s',
+        [tname]);
     end;
 
     // Source is done, target still waiting
     if FSourceCompleted and (not FTargetCompleted) then
     begin
-      fElapsedMs := GetTickCount64 - FSourceCompleteTimestamp;
+      fElapsedSec := SecondsBetween(Now, FSourceCompleteTimestamp);
 
-      if (fElapsedMs mod 1000 < 150) then
+      if (fElapsedSec mod 5 < 1) then
       begin
-        Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for target response: %d/%d ms elapsed (%.1f%%) | Target code=%d | %s',
-          [fElapsedMs, 60000, (fElapsedMs / 60000.0) * 100, sdst.lastResponseCode, tname]);
+        Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for target response: %d/%d s elapsed (%.1f%%) | Target code=%d | %s',
+          [fElapsedSec, 60, (fElapsedSec / 60.0) * 100, sdst.lastResponseCode, tname]);
       end;
 
-      if fElapsedMs > 60000 then
+      if fElapsedSec > 60 then
       begin
         irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Source complete, target no response after 60s: %s', [tname]));
-        Debug(dpError, c_section, '[FXP TIMEOUT] *** TARGET TIMEOUT *** after source 226 (%d ms / %d s) - disconnecting target | Source code=%d Target code=%d | Task: %s',
-          [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
+        Debug(dpError, c_section, '[FXP TIMEOUT] *** TARGET TIMEOUT *** after source 226 (%d s) - disconnecting target | Source code=%d Target code=%d | Task: %s',
+          [fElapsedSec, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
         sdst.DestroySocketAndRelogin('TPazoRaceTask');
         mainpazo.errorreason := 'Target timeout after source 226';
         readyerror := True;
@@ -2868,19 +2868,19 @@ begin
     // Target is done, source still waiting
     if FTargetCompleted and (not FSourceCompleted) then
     begin
-      fElapsedMs := GetTickCount64 - FTargetCompleteTimestamp;
+      fElapsedSec := SecondsBetween(Now, FTargetCompleteTimestamp);
 
-      if (fElapsedMs mod 1000 < 150) then
+      if (fElapsedSec mod 5 < 1) then
       begin
-        Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for source response: %d/%d ms elapsed (%.1f%%) | Source code=%d | %s',
-          [fElapsedMs, 60000, (fElapsedMs / 60000.0) * 100, ssrc.lastResponseCode, tname]);
+        Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for source response: %d/%d s elapsed (%.1f%%) | Source code=%d | %s',
+          [fElapsedSec, 60, (fElapsedSec / 60.0) * 100, ssrc.lastResponseCode, tname]);
       end;
 
-      if fElapsedMs > 60000 then
+      if fElapsedSec > 60 then
       begin
         irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Target complete, source no response after 60s: %s', [tname]));
-        Debug(dpError, c_section, '[FXP TIMEOUT] *** SOURCE TIMEOUT *** after target 226 (%d ms / %d s) - disconnecting source | Source code=%d Target code=%d | Task: %s',
-          [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
+        Debug(dpError, c_section, '[FXP TIMEOUT] *** SOURCE TIMEOUT *** after target 226 (%d s) - disconnecting source | Source code=%d Target code=%d | Task: %s',
+          [fElapsedSec, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
         ssrc.DestroySocketAndRelogin('TPazoRaceTask');
         mainpazo.errorreason := 'Source timeout after target 226';
         readyerror := True;
