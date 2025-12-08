@@ -89,8 +89,7 @@ uses
   slcriticalsection2Tests,
   imdbDatabaseTests,
   variantCacheTests,
-  sltimerTests,
-  SynSQLite3Static;
+  sltimerTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}

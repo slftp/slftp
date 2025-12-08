@@ -140,7 +140,7 @@ TIMDbBomDataRecord = class(TOrmNoCase)
     UpdatedTime: TDateTime;
     constructor Create(const aIMDbId:String);
     destructor Destroy; override;
-    procedure PostResults(const aRls : String = '');
+    procedure PostResults(const aRls: String; const aPostInIrc: boolean = True);
     procedure SetIMDBRelease(ir: TIMDBRelease);
 end;
 
@@ -188,7 +188,7 @@ function getImdbReleaseFromDatabase(const aIMDbId: String): TDbImdbData;
 { Saves IMDB data to database and announces to channels
   @param(rls Release name)
   @param(imdbdata IMDB data to save) }
-procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
+procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData; const aPostInIrc: boolean = True);
 { Parses IMDB ID from text using regex
   @param(text Text to parse)
   @param(imdbid Output IMDB ID)
@@ -830,7 +830,7 @@ begin
   inherited;
 end;
 
-procedure TDbImdbData.PostResults(const aRls: String);
+procedure TDbImdbData.PostResults(const aRls: String; const aPostInIrc: boolean = True);
 var
   dbRecord: TIMDbDataRecord;
   akaRecord: TIMDbAlsoKnownAsRecord;
@@ -960,21 +960,24 @@ begin
     end;
   end;
 
-  // IRC output like in mORMot2 reference
-  Debug(dpSpam, section, '[POSTRESULTS] Starting IRC output');
-  if imdb_stvm then status := 'STV'
-  else if imdb_festival then status := 'Festival'
-  else if imdb_ldt then status := 'Limited'
-  else if imdb_wide then status := 'Wide'
-  else status := 'Cine';
+  if aPostInIrc then
+  begin
+    // IRC output like in mORMot2 reference
+    Debug(dpSpam, section, '[POSTRESULTS] Starting IRC output');
+    if imdb_stvm then status := 'STV'
+    else if imdb_festival then status := 'Festival'
+    else if imdb_ldt then status := 'Limited'
+    else if imdb_wide then status := 'Wide'
+    else status := 'Cine';
 
-  Debug(dpSpam, section, Format('[POSTRESULTS] About to call irc_Addstats for: %s', [aRls]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/', [aRls, imdb_id]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)', [imdb_origtitle, imdb_year]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s', [ProcessCountriesForDisplay(imdb_countries), imdb_languages.DelimitedText]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s', [imdb_rating,imdb_votes,imdb_screens,status,imdb_type]));
-  Debug(dpSpam, section, '[POSTRESULTS] IRC output completed');
+    Debug(dpSpam, section, Format('[POSTRESULTS] About to call irc_Addstats for: %s', [aRls]));
+    irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/', [aRls, imdb_id]));
+    irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)', [imdb_origtitle, imdb_year]));
+    irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s', [ProcessCountriesForDisplay(imdb_countries), imdb_languages.DelimitedText]));
+    irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
+    irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s', [imdb_rating,imdb_votes,imdb_screens,status,imdb_type]));
+    Debug(dpSpam, section, '[POSTRESULTS] IRC output completed');
+  end;
 end;
 
 procedure TDbImdbData.SetIMDBRelease(ir: TIMDBRelease);
@@ -1025,7 +1028,7 @@ begin
   end;
 end;
 
-procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
+procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData; const aPostInIrc: boolean = True);
 var
   fPazo: TPazo;
 begin
@@ -1064,13 +1067,13 @@ begin
 
   // Save to persistent database using PostResults method
   try
-    imdbdata.PostResults(rls);
+    imdbdata.PostResults(rls, aPostInIrc);
     Debug(dpSpam, section, Format('[IMDB-FLOW21] Data saved to persistent database: %s', [imdbdata.imdb_id]));
 
     // Populate IMDB fields in knowledge base using SetIMDBRelease (like TV does with SetTVDbRelease)
     try
       fPazo := FindPazoByRls(rls);
-      if (fPazo <> nil) and (fPazo.rls is TIMDBRelease) then
+      if ((fPazo <> nil) and (fPazo.rls is TIMDBRelease)) then
       begin
         Debug(dpSpam, section, Format('[IMDB-FLOW24] Calling SetIMDBRelease for pazo: %s', [rls]));
         imdbdata.SetIMDBRelease(TIMDBRelease(fPazo.rls));
@@ -1110,7 +1113,7 @@ begin
   end;
 
   // Announce to channels if enabled
-  if config.ReadBool(section, 'post_lookup_infos', true) then
+  if config.ReadBool(section, 'post_lookup_infos', true) AND aPostInIrc then
   begin
     Debug(dpSpam, section, Format('[AUTO ANNOUNCE] About to announce IMDB data for: %s', [rls]));
     irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [rls, imdbdata.imdb_id]));
