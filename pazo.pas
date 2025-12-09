@@ -180,9 +180,6 @@ type
       @param(de The TDirListEntry of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
     function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
-    { Returns the amount of files for the release, includes files in subdirs
-      @returns(Total file count of @link(rls)) }
-    function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
 
@@ -247,6 +244,9 @@ type
       @param(aFilename Name of the file)
       @returns(filesize in bytes, -1 if not found or unknown file) }
     function PFileSize(const aDir, aFilename: String): Int64;
+    { Returns the amount of files for the release, includes files in subdirs
+      @returns(Total file count of @link(rls)) }
+    function GetCountOfCachedFiles: integer;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -256,22 +256,6 @@ function PazoAdd(const rls: TRelease): TPazo;
 procedure PazoInit;
 
 function FindMostCompleteSite(pazo: TPazo): TPazoSite;
-
-{ Helper function to get rank for a site and section
-  @param(aSiteName Name of the site)
-  @param(aSection Section name)
-  @returns(Rank value, 0 if site not found or no rank set) }
-function GetSiteRankForSection(const aSiteName, aSection: String): Integer;
-
-{ Compares two TPazoSite by rank for sorting (descending order)
-  Uses glPazoSortSection global variable for section name
-  @param(Left First TPazoSite to compare)
-  @param(Right Second TPazoSite to compare)
-  @returns(Negative if Left > Right, 0 if equal, Positive if Left < Right) }
-function ComparePazoSitesByRank({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TPazoSite): Integer;
-
-var
-  glPazoSortSection: String; //< Temporary section name used during TPazoSite sorting (not thread-safe, use with care)
 
 implementation
 
@@ -288,52 +272,6 @@ var
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
 
-{ Helper function to get rank for a site and section
-  @param(aSiteName Name of the site)
-  @param(aSection Section name)
-  @returns(Rank value, 0 if site not found or no rank set) }
-function GetSiteRankForSection(const aSiteName, aSection: String): Integer;
-var
-  fSite: TSite;
-begin
-  Result := 0;
-  fSite := FindSiteByName('', aSiteName);
-  if fSite <> nil then
-    Result := fSite.GetRank(aSection);
-end;
-
-{ Compares two TPazoSite by rank for sorting (descending order)
-  Uses glPazoSortSection for section name lookup
-  Sorts by:
-  1. Site rank (descending - higher rank first)
-  2. If ranks equal: First speed_from entry as tiebreaker }
-function ComparePazoSitesByRank({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TPazoSite): Integer;
-var
-  rank1, rank2: Integer;
-  speed1, speed2: Integer;
-begin
-  // Get ranks for both sites using global section variable
-  rank1 := GetSiteRankForSection(Left.Name, glPazoSortSection);
-  rank2 := GetSiteRankForSection(Right.Name, glPazoSortSection);
-
-  // Sort by rank descending (higher rank first)
-  Result := TComparer<Integer>.Default.Compare(rank2, rank1);
-
-  // If ranks are equal, use speed as tiebreaker
-  if (Result = 0) and (Left.speed_from <> nil) and (Right.speed_from <> nil) then
-  begin
-    speed1 := 0;
-    speed2 := 0;
-
-    // Use first route speed as heuristic
-    if Left.speed_from.Count > 0 then
-      speed1 := Left.speed_from[0].Speed;
-    if Right.speed_from.Count > 0 then
-      speed2 := Right.speed_from[0].Speed;
-
-    Result := TComparer<Integer>.Default.Compare(speed2, speed1);
-  end;
-end;
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
 begin

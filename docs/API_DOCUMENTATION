@@ -1,0 +1,86 @@
+slftp REST API Documentation (Beta)
+Status: Early beta; Windows untested. Only the endpoints below are functional; all others are currently stubbed and are not documented.
+
+Base URL
+- http://<host>:<port>/api (default http://127.0.0.1:8089/api)
+- Calls are POST to /api/<Interface>/<Method> with JSON bodies; responses often wrap data in result: [ ... ].
+
+Authentication
+- If apikey is set in config/slftp.ini, send Authorization: Bearer <key>.
+- If apikey is empty, no auth required (not recommended on exposed hosts).
+- API key protection only applies to /api/* paths; web UI is served without auth.
+
+Implemented Endpoints
+
+System
+- ApiSystemService.GetStatus
+  POST /api/ApiSystemService/GetStatus
+  Returns Version, Uptime, SitesCount/Up/Down, QueueSize, ActiveTasks.
+  Example: curl -X POST -H "Authorization: Bearer <key>" http://127.0.0.1:8089/api/ApiSystemService/GetStatus
+
+- ApiSystemService.GetUptime
+  POST /api/ApiSystemService/GetUptime
+  Returns uptime in seconds.
+
+- ApiSystemService.GetVersion
+  POST /api/ApiSystemService/GetVersion
+  Returns version string.
+
+- ApiSystemService.Shutdown
+  POST /api/ApiSystemService/Shutdown
+  Initiates graceful shutdown of slftp. Use with caution!
+
+- ApiSystemService.GetRecentReleases
+  POST /api/ApiSystemService/GetRecentReleases
+  Body: {"Limit": 20}
+  Returns recent releases with basic info (name, section, sites, queue number, status).
+  Response includes: ReleaseName, Section, Added (Unix timestamp), PazoId, Ready, Stopped, QueueNumber, Sites (array).
+
+- ApiSystemService.GetReleaseDetails
+  POST /api/ApiSystemService/GetReleaseDetails
+  Body: {"PazoId": <id>}
+  Returns detailed information for a specific release including per-site progress.
+  Response includes: ReleaseName, Section, TotalFiles, Ready, Stopped, QueueNumber, ErrorReason,
+  and SiteDetails (array with: SiteName, Complete, FileCount, TotalFiles, FilesRacedByMe, Percent, Status).
+
+Sites
+- ApiSitesService.GetSites
+  POST /api/ApiSitesService/GetSites
+  Body: {"Filter":""} to list all sites. Returns counts and a Sites field (JSON array or JSON string).
+  Example: curl -X POST -H "Authorization: Bearer <key>" -H "Content-Type: application/json" -d '{"Filter":""}' http://127.0.0.1:8089/api/ApiSitesService/GetSites
+
+- ApiSitesService.GetSite
+  POST /api/ApiSitesService/GetSite
+  Body: {"SiteName":"<name>"}
+  Returns details for a specific site.
+
+- Mutating endpoints (live changes):
+  - Set max up/down: POST /api/ApiSitesService/SetSiteMaxUpDn with {"SiteName":"<name>","MaxUp":<int>,"MaxDn":<int>}
+  - Set slots: POST /api/ApiSitesService/SetSiteSlots with {"SiteName":"<name>","Slots":<int>}
+  - Set max pre-queue: POST /api/ApiSitesService/SetSiteMaxPreDn with {"SiteName":"<name>","MaxPreDn":<int>}
+  - Set status (UP/DOWN): POST /api/ApiSitesService/SetSiteStatus with {"SiteName":"<name>","Status":"UP|DOWN"}
+  - Set perm down: POST /api/ApiSitesService/SetSitePermDown with {"SiteName":"<name>","PermDown":true|false}
+  - Set autologin: POST /api/ApiSitesService/SetSiteAutoLogin with {"SiteName":"<name>","Enabled":true|false}
+  - Set autorules interval: POST /api/ApiSitesService/SetSiteAutoRules with {"SiteName":"<name>","IntervalSeconds":<int>}
+  - Run autorules now: POST /api/ApiSitesService/RunSiteAutoRules with {"SiteName":"<name>"}
+  - Test site (enqueue login): POST /api/ApiSitesService/TestSite with {"SiteName":"<name>"}
+  - Ghost kill: POST /api/ApiSitesService/GhostSite with {"SiteName":"<name>"}
+  - Recalc freeslots: POST /api/ApiSitesService/RecalcFreeSlots with {"SiteName":"<name>"}
+  - Rebuild slots: POST /api/ApiSitesService.RebuildSlots with {"SiteName":"<name>"}
+  These calls modify runtime state; use with caution.
+
+Queue
+- ApiQueueService.GetQueueStats
+  POST /api/ApiQueueService/GetQueueStats
+  Body: {"SiteName":""}
+  Returns TotalTasks, RaceTasks, DirlistTasks, AutoTasks, OtherTasks.
+
+Web UI
+- The Web UI is served at http://<host>:<port>/ (default http://127.0.0.1:8089/)
+- Built with React + Mantine UI v8
+- Features: Dashboard with recent releases, Site manager, Release details modal
+- No authentication required for web UI (only for /api/* endpoints)
+- TODO: Authentication for Web UI is not yet implemented
+
+Everything else
+- Stats, IRC, Rules, Speed, KnowledgeBase, Precatcher, Task creation endpoints are currently stubbed (empty placeholders) and are intentionally not documented here until implemented.

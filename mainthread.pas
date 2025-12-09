@@ -48,6 +48,7 @@ function Main_Restart: boolean;
 var
   slshutdown: boolean;
   started: TDateTime;
+  mainthread_started: TDateTime;
 
 implementation
 
@@ -57,7 +58,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist, slcriticalsection2, mormot.core.unicode, loadmonitorunit;
+  taskautodirlist, slcriticalsection2, mormot.core.unicode, loadmonitorunit, slapi;
 
 {$I slftp.inc}
 
@@ -280,6 +281,8 @@ begin
   Initglobalskiplist;
   console_addline('Admin', 'Init Autodirlist', True);
   AutoDirlistInit;
+  console_addline('Admin', 'Init REST API', True);
+  ApiInit;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
@@ -437,6 +440,7 @@ begin
   {$ENDIF}
 
   started := Now();
+  mainthread_started := Now();
 
   // Decrypt sites.dat
   console_addline('Admin', 'Decrypt sites.dat', True);
@@ -586,6 +590,7 @@ begin
   NewsUnInit;
   AutodirlistUninit;
   DirlistUnInit;
+  ApiUninit;
 
   // Stop LoadMonitor
   try

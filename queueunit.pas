@@ -11,6 +11,7 @@ type TQueueStat = class
     FDirlistTaskCount: integer;
     FAutoTaskCount: integer;
     FOtherTaskCount: integer;
+    FActiveTaskCount: integer; // tasks currently running (status=Running)
 end;
 
 type TQueueTask = class
@@ -83,7 +84,7 @@ property QueueCleanLastRun: TDateTime read queueclean_last_run;
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
-function QueueTotalTaskCount: Integer;
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 
 var
   QueueStatUpdateDateTime: TDateTime;
@@ -612,9 +613,10 @@ begin
     begin
       ss := FindSlotByName(t.wantedslot);
       if (ss = nil) then
+        //invalid slot name, should not happen, just exit here
         exit;
       if (ss.todotask <> nil) then
-        exit;
+        exit;  //the slot is already in use, cannot assign the login task
     end
     else
     begin
@@ -629,17 +631,7 @@ begin
         ss := TSiteSlot(s.slots[i]);
         if ss.Status = ssOnline then
           bnc := ss.bnc;
-
-        if ss.todotask <> nil then
-        begin
-          ss := nil;
-          Continue;
-        end;
-
-        if t.kill then
-          Break;
-
-        if ss.Status <> ssOnline then
+        if ((ss.todotask = nil) and (ss.Status <> ssOnline)) then
           Break
         else
           ss := nil;
@@ -715,11 +707,11 @@ begin
       exit;
     end;
 
-      Inc(t.TryToAssign);
-      if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
-      begin
-        t.TryToAssign := 0;
-        if (maxassign_delay = 0) then
+    Inc(t.TryToAssign);
+    if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
+    begin
+      t.TryToAssign := 0;
+      if (maxassign_delay = 0) then
         begin
           t.ready := True;
         end
@@ -2104,18 +2096,24 @@ begin
   Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
 end;
 
-function QueueTotalTaskCount: Integer;
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 var
   queueStat: TQueueStat;
 begin
-  Result := 0;
-
-  if StatsList = nil then
-    Exit;
+  race := 0;
+  dirlist := 0;
+  autotasks := 0;
+  other := 0;
 
   for queueStat in StatsList do
-    Inc(Result, queueStat.FRaceTaskCount + queueStat.FDirlistTaskCount +
-      queueStat.FAutoTaskCount + queueStat.FOtherTaskCount);
+  begin
+    race := race + queueStat.FRaceTaskCount;
+    dirlist := dirlist + queueStat.FDirlistTaskCount;
+    autotasks := autotasks + queueStat.FAutoTaskCount;
+    other := other + queueStat.FOtherTaskCount;
+  end;
+
+  total := race + dirlist + autotasks + other;
 end;
 
 procedure TQueueThread.QueueSendCurrentTasksToConsole;

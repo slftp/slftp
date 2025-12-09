@@ -127,9 +127,12 @@ end;
 
 // Helper function to get current queue size
 function GetCurrentQueueSize: Integer;
+var
+  total, r, d, a, o: integer;
 begin
   try
-    Result := QueueTotalTaskCount;
+    GetQueueTotals(total, r, d, a, o);
+    Result := total;
   except
     on E: Exception do
     begin
