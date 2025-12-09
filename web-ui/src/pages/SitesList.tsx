@@ -129,8 +129,8 @@ export function SitesList() {
     },
     onSuccess: () => {
       notifications.show({
-        title: 'Gespeichert',
-        message: 'Site-Einstellungen wurden aktualisiert.',
+        title: 'Saved',
+        message: 'Site settings updated.',
         color: 'green',
       });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
@@ -138,7 +138,7 @@ export function SitesList() {
     },
     onError: (err) => {
       notifications.show({
-        title: 'Fehler',
+        title: 'Error',
         message: err.message,
         color: 'red',
       });
@@ -150,11 +150,11 @@ export function SitesList() {
       await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: payload.site.name, Status: payload.status });
     },
     onSuccess: () => {
-      notifications.show({ title: 'Status geändert', message: 'Site-Status aktualisiert.', color: 'green' });
+      notifications.show({ title: 'Status changed', message: 'Site status updated.', color: 'green' });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
     },
     onError: (err) => {
-      notifications.show({ title: 'Fehler', message: err.message, color: 'red' });
+      notifications.show({ title: 'Error', message: err.message, color: 'red' });
     }
   });
 
@@ -163,9 +163,9 @@ export function SitesList() {
       await apiClient.post('/ApiSitesService/GhostSite', { SiteName: siteName });
     },
     onSuccess: (_, siteName) => {
-      notifications.show({ title: 'Ghost-Kill', message: `Ghost-Sessions auf ${siteName} beendet.`, color: 'blue' });
+      notifications.show({ title: 'Ghost kill', message: `Ghost sessions on ${siteName} terminated.`, color: 'blue' });
     },
-    onError: (err) => notifications.show({ title: 'Fehler', message: err.message, color: 'red' })
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
   const clearQueueMutation = useMutation({
@@ -173,10 +173,10 @@ export function SitesList() {
       await apiClient.post('/ApiQueueService/EmptyQueue', { SiteName: siteName });
     },
     onSuccess: (_, siteName) => {
-      notifications.show({ title: 'Queue geleert', message: `Queue für ${siteName} geleert.`, color: 'blue' });
+      notifications.show({ title: 'Queue cleared', message: `Queue for ${siteName} cleared.`, color: 'blue' });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
     },
-    onError: (err) => notifications.show({ title: 'Fehler', message: err.message, color: 'red' })
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
   const recalcMutation = useMutation({
@@ -184,10 +184,10 @@ export function SitesList() {
       await apiClient.post('/ApiSitesService/RecalcFreeSlots', { SiteName: siteName });
     },
     onSuccess: (_, siteName) => {
-      notifications.show({ title: 'Freeslots aktualisiert', message: `Freeslots für ${siteName} neu berechnet.`, color: 'green' });
+      notifications.show({ title: 'Freeslots recalculated', message: `Freeslots for ${siteName} recalculated.`, color: 'green' });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
     },
-    onError: (err) => notifications.show({ title: 'Fehler', message: err.message, color: 'red' })
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
   const rebuildMutation = useMutation({
@@ -195,18 +195,18 @@ export function SitesList() {
       await apiClient.post('/ApiSitesService/RebuildSlots', { SiteName: siteName });
     },
     onSuccess: (_, siteName) => {
-      notifications.show({ title: 'Slots neu aufgebaut', message: `Slots für ${siteName} wurden resettet.`, color: 'green' });
+      notifications.show({ title: 'Slots rebuilt', message: `Slots for ${siteName} were reset.`, color: 'green' });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
     },
-    onError: (err) => notifications.show({ title: 'Fehler', message: err.message, color: 'red' })
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
   const runAutorulesMutation = useMutation({
     mutationFn: async (siteName: string) => {
       await apiClient.post('/ApiSitesService/RunSiteAutoRules', { SiteName: siteName });
     },
-    onSuccess: (_, siteName) => notifications.show({ title: 'Autorules gestartet', message: `Autorules läuft für ${siteName}.`, color: 'blue' }),
-    onError: (err) => notifications.show({ title: 'Fehler', message: err.message, color: 'red' })
+    onSuccess: (_, siteName) => notifications.show({ title: 'Autorules started', message: `Autorules running for ${siteName}.`, color: 'blue' }),
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
   const openEditor = (site: Site) => {
@@ -268,7 +268,7 @@ export function SitesList() {
               <IconBolt size="1rem" />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Ghost connections killen">
+          <Tooltip label="Kill ghost connections">
             <ActionIcon variant="light" color="orange" onClick={() => ghostMutation.mutate(site.name)}>
               <IconTrash size="1rem" />
             </ActionIcon>
@@ -316,11 +316,11 @@ export function SitesList() {
     <Modal
       opened={!!selected}
       onClose={() => setSelected(null)}
-      title={selected ? `Einstellungen: ${selected.name}` : 'Einstellungen'}
+      title={selected ? `Settings: ${selected.name}` : 'Settings'}
       centered
       size="xl"
     >
-      <Tabs defaultValue="basics" keepMounted={false}>
+      <Tabs defaultValue="basics" keepMounted={false} style={{ minHeight: '380px' }}>
         <Tabs.List grow>
           <Tabs.Tab value="basics" leftSection={<IconToolsKitchen3 size="1rem" />}>Basis</Tabs.Tab>
           <Tabs.Tab value="automation" leftSection={<IconRobot size="1rem" />}>Automation</Tabs.Tab>
@@ -376,14 +376,14 @@ export function SitesList() {
         <Tabs.Panel value="automation" pt="md">
           <Stack gap="sm">
             <NumberInput
-              label="Autorules Intervall (Sekunden, 0 = aus)"
+              label="Autorules interval (seconds, 0 = off)"
               value={autoRulesInterval}
               min={0}
               onChange={(val) => setAutoRulesInterval(val === '' ? '' : Number(val))}
             />
             <Group justify="space-between">
               <Button variant="outline" color="blue" loading={runAutorulesMutation.isPending} onClick={() => selected && runAutorulesMutation.mutate(selected.name)} leftSection={<IconRepeat size="1rem" />}>
-                Autorules jetzt
+                Run autorules now
               </Button>
               <Button variant="outline" disabled>
                 Autodirlist (coming soon)
@@ -409,7 +409,7 @@ export function SitesList() {
               </Button>
             </Group>
             <Divider label="Live" />
-            <Text size="sm" c="dimmed">Aktive DN/UP werden live angezeigt; weitere Health-Actions folgen.</Text>
+            <Text size="sm" c="dimmed">Active down/up are shown live; more health actions coming soon.</Text>
           </Stack>
         </Tabs.Panel>
 
@@ -417,13 +417,13 @@ export function SitesList() {
           <Stack gap="sm">
             <Group justify="space-between">
               <Button variant="light" color="orange" loading={clearQueueMutation.isPending} onClick={() => selected && clearQueueMutation.mutate(selected.name)}>
-                Queue leeren
+                Clear queue
               </Button>
               <Button variant="light" color="red" loading={ghostMutation.isPending} onClick={() => selected && ghostMutation.mutate(selected.name)}>
-                Ghost kill
+                Kill ghosts
               </Button>
               <Button variant="outline" color="gray" loading={statusMutation.isPending} onClick={() => selected && statusValue && statusMutation.mutate({ site: selected, status: statusValue })}>
-                Status speichern
+                Save status
               </Button>
             </Group>
             <Group justify="space-between">
@@ -471,7 +471,7 @@ export function SitesList() {
                   ))}
                   {(!routes || routes.length === 0) && (
                     <Table.Tr>
-                      <Table.Td colSpan={3}><Text c="dimmed">Keine Routes gefunden.</Text></Table.Td>
+                      <Table.Td colSpan={3}><Text c="dimmed">No routes found.</Text></Table.Td>
                     </Table.Tr>
                   )}
                 </Table.Tbody>
@@ -483,9 +483,9 @@ export function SitesList() {
 
       <Divider my="md" />
       <Group justify="flex-end" mt="sm">
-        <Button variant="default" onClick={() => setSelected(null)}>Abbrechen</Button>
+        <Button variant="default" onClick={() => setSelected(null)}>Cancel</Button>
         <Button loading={saveSettingsMutation.isPending} onClick={handleSave}>
-          Speichern
+          Save
         </Button>
       </Group>
     </Modal>
