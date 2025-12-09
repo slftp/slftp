@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Configurable base URL + token via Vite env (falls Proxy/Extern genutzt)
+// Configurable base URL + token via Vite env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const API_TOKEN = import.meta.env.VITE_API_TOKEN;
 
@@ -15,7 +15,7 @@ if (API_TOKEN) {
   apiClient.defaults.headers.common.Authorization = `Bearer ${API_TOKEN}`;
 }
 
-// Typen für die API Antworten
+// Types for API responses
 
 export interface SystemStatus {
   Version: string;
