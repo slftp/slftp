@@ -47,6 +47,14 @@ function FindSectionHandler(const section: String): TCRelease;
       @returns(The number of items in the KB) }
 function GetKBCount: integer;
 
+{ Returns a reference to the KB list (read-only access)
+      @returns(The KB list stringlist) }
+function GetKBList: TStringList;
+
+{ Returns a reference to the KB lock for thread-safe access
+      @returns(The KB critical section) }
+function GetKBLock: TSlCriticalSection2;
+
 { Lists all KB entries to IRC which match the given section
       @param(section The section to show the KB entries of.)
       @param(hits The limit of how many entries should be listed.) }
@@ -74,7 +82,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, Generics.Collections, Generics.Defaults {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -107,18 +115,20 @@ var
   glAutoAddAffils: boolean;
   glOnlyUseRouteableSitesOnTryToComplete: boolean;
 
-  // Config vars - spam output control (cached for performance)
-  glKbNewRls: boolean;       //< Cache for spamcfg 'kb'/'new_rls'
-  glKbPreRls: boolean;       //< Cache for spamcfg 'kb'/'pre_rls'
-  glKbSpreadRls: boolean;    //< Cache for spamcfg 'kb'/'spread_rls'
-  glKbUpdatedRls: boolean;   //< Cache for spamcfg 'kb'/'updated_rls'
-  glKbSkipRls: boolean;      //< Cache for spamcfg 'kb'/'skip_rls'
-  glKbDontMatchRls: boolean; //< Cache for spamcfg 'kb'/'dont_match_rls'
-
 function GetKBCount: integer;
 begin
   // access to Count is thread safe, so no lock required
   Result := kb_list.Count;
+end;
+
+function GetKBList: TStringList;
+begin
+  Result := kb_list;
+end;
+
+function GetKBLock: TSlCriticalSection2;
+begin
+  Result := kb_lock;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
@@ -195,7 +205,6 @@ var
   ss: String;
   p: TPazo;
   ps, psource: TPazoSite;
-  pazoSitesSorted: TObjectList<TPazoSite>;
   rule_result: TRuleAction;
   rlz, grp: String;
   dlt: TPazoDirlistTask;
@@ -494,17 +503,17 @@ begin
       // announce event on admin chan
       if (event = kbeADDPRE) then
       begin
-        if glKbNewRls then
+        if spamcfg.ReadBool('kb', 'new_rls', True) then
           irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s', [section, rls]));
       end
       else if (event = kbePRE) then
       begin
-        if glKbPreRls then
+        if spamcfg.ReadBool('kb', 'pre_rls', True) then
           irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end
       else if (event = kbeSPREAD) then
       begin
-        if glKbSpreadRls then
+        if spamcfg.ReadBool('kb', 'spread_rls', True) then
           irc_Addstats(Format('<c9>[<b>SPREAD</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end
       else
@@ -513,12 +522,12 @@ begin
         begin
           if TPretimeLookupMOde(taskpretime_mode) = plmNone then
           begin
-            if glKbNewRls then
+            if spamcfg.ReadBool('kb', 'new_rls', True) then
               irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b>', [section, rls, sitename]));
           end
           else
           begin
-            if glKbNewRls then
+            if spamcfg.ReadBool('kb', 'new_rls', True) then
               irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
 
             if GlTaskPretimeReaddAttempts > 0 then
@@ -531,7 +540,7 @@ begin
         end
         else
         begin
-          if glKbNewRls then
+          if spamcfg.ReadBool('kb', 'new_rls', True) then
             irc_Addstats(Format('<c3>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<b>%s</b>) (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, p.sl.sectionname, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
         end;
       end;
@@ -540,7 +549,7 @@ begin
     begin
       if (event = kbePRE) then
       begin
-        if glKbPreRls then
+        if spamcfg.ReadBool('kb', 'pre_rls', True) then
           irc_Addstats(Format('<c9>[<b>PRE</b>]</c> <b>%s</b> <b>%s</b> @ <b>%s</b>', [section, rls, sitename]));
       end;
 
@@ -579,7 +588,7 @@ begin
           r.SetPretime;
           if (r.pretime <> 0) then
           begin
-            if glKbUpdatedRls then
+            if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
             p.AddSites;
           end;
@@ -609,7 +618,7 @@ begin
       s := FindSiteByName(netname, sitename);
 
       // site not found in pazo but we got an event ...
-      if glKbDontMatchRls then
+      if spamcfg.ReadBool('kb', 'dont_match_rls', True) then
       begin
         if (event = kbeNUKE) then
           exit;
@@ -726,13 +735,6 @@ begin
   begin
     kb_lock.Enter('kb_AddB_3');
     try
-      // Set source site for rule evaluation (source/destination conditions)
-      if psource <> nil then
-      begin
-        p.srcsite := psource.Name;
-        p.dstsite := psource.Name; // In this context, destination is same as source (initial check)
-      end;
-
       rule_result := raDrop;
       rule_result := FireRuleSet(p, psource);
     finally
@@ -742,12 +744,12 @@ begin
     // announce SKIP and DONT MATCH only if the site is not a PRE site
     if (psource <> nil) and (psource.status <> rssRealPre) then
     begin
-      if (rule_result = raDrop) and glKbSkipRls then
+      if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end
-      else if (rule_result = raDontmatch) and glKbDontMatchRls then
+      else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
       begin
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
@@ -755,59 +757,54 @@ begin
     end;
   end;
 
-  // Sort sites by rank (descending) for optimal task creation
-  // Highest ranked (fastest) sources are processed first
-  pazoSitesSorted := TObjectList<TPazoSite>.Create(False); // Don't own objects
   try
-    try
-      pazoSitesSorted.AddRange(p.PazoSitesList);
-
-      // Sort by section-specific rank (highest rank first)
-      // Set global section variable for comparer function
-      if p.rls <> nil then
-        glPazoSortSection := p.rls.section
-      else
-        glPazoSortSection := '';
-
-      pazoSitesSorted.Sort(TComparer<TPazoSite>.Construct(ComparePazoSitesByRank));
-
-      // Check rules for NotAllowed sites (highest rank first)
+    // check rules for site only if needed
+    for i := p.PazoSitesList.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
+      ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter('kb_AddB_4');
       try
-        for ps in pazoSitesSorted do
+        if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
         begin
-          if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+          if FireRuleSet(p, ps) = raAllow then
           begin
-            // Set source/destination for rule evaluation
-            p.srcsite := ps.Name;
-            p.dstsite := ps.Name;
-
-            if FireRuleSet(p, ps) = raAllow then
-              ps.status := rssAllowed;
+            ps.status := rssAllowed;
           end;
         end;
       finally
         kb_lock.Leave;
       end;
+    end;
 
-      // Add all destinations (highest rank sources first)
-      // This ensures fastest routes are evaluated and created first
+    // now add all dst
+    for i := p.PazoSitesList.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
+      ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter('kb_AddB_5');
       try
-        for ps in pazoSitesSorted do
-          FireRules(p, ps);
+        FireRules(p, ps);
       finally
         kb_lock.Leave;
       end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s',
-          [e.Message]));
-      end;
     end;
-  finally
-    pazoSitesSorted.Free;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] KBAdd FireRules : %s',
+        [e.Message]));
+    end;
   end;
 
   if dontFire then
@@ -1368,14 +1365,6 @@ begin
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
   glAutoAddAffils := config.ReadBool(rsections, 'auto_add_affils', True);
   glOnlyUseRouteableSitesOnTryToComplete := config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', True);
-
-  // Initialize spam output control config vars (cache for performance)
-  glKbNewRls := spamcfg.ReadBool('kb', 'new_rls', True);
-  glKbPreRls := spamcfg.ReadBool('kb', 'pre_rls', True);
-  glKbSpreadRls := spamcfg.ReadBool('kb', 'spread_rls', True);
-  glKbUpdatedRls := spamcfg.ReadBool('kb', 'updated_rls', True);
-  glKbSkipRls := spamcfg.ReadBool('kb', 'skip_rls', True);
-  glKbDontMatchRls := spamcfg.ReadBool('kb', 'dont_match_rls', True);
 end;
 
 procedure kb_Stop;
