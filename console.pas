@@ -168,6 +168,7 @@ type
 var
   app: TMySlApp;
   add_time_stamp: Boolean;
+  glConsoleMaxLines: Integer; //< Cache for config 'console'/'maxlines'
 
 { @returns(A TslConsoleTask with a hint that other console tasks have been removed due to console overload.) }
 function GetConsoleOverloadReplacementTask(const aWindowName: string): TslConsoleTask;
@@ -181,6 +182,7 @@ begin
   no_console_msg := config.ReadBool('console','no_console_msg', False);
   no_console_queue := config.ReadBool('console','no_console_queue', False);
   no_console_slot := config.ReadBool('console','no_console_slot', False);
+  glConsoleMaxLines := config.ReadInteger(section, 'maxlines', 1000);
   glGetOverloadReplacementTaskFunction := GetConsoleOverloadReplacementTask;
 end;
 
@@ -718,7 +720,7 @@ ujra:
     queue := AddDummyWindow(GlConsoleWindowNameQueue);
   end;
 
-  cw.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
+  cw.textbox.maxlines := glConsoleMaxLines;
   cw.commandedit.maxcommands := config.ReadInteger(section, 'history_maxlines', 100);
 
   irc_Addtext('', '', '%s started', [GetFullVersionString]);
@@ -752,7 +754,7 @@ end;
 function TMySlApp.AddIrcWindow(const netname: String): TslCommandWindow;
 begin
   Result := TslCommandWindow.Create(0,0,netname, 'Text:', nil);
-  Result.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
+  Result.textbox.maxlines := glConsoleMaxLines;
   Result.Visible := slvHidden;
   Result.commandedit.OnCommand := OnIrcCommand;
   Result.SetParent(m);
@@ -819,7 +821,7 @@ begin
   if (no_console_slot and (CompareText(netname, GlConsoleWindowNameSlots) = 0)) then exit;
 
   Result := TslCommandWindow.Create(0,0,netname, 'This is a dummy edit control, dont type anything.', nil);
-  Result.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
+  Result.textbox.maxlines := glConsoleMaxLines;
   Result.Visible := slvHidden;
   Result.SetParent(m);
 end;
