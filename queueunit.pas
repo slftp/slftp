@@ -442,6 +442,7 @@ var
   s1, s2: TSite;
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
+  fLockUpgraded: Boolean;
 begin
   try
     s1 := TSite(t.ssite1);
@@ -513,13 +514,14 @@ begin
       exit;
 
 
-    if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
-    begin
-      fBusyDestinations.Add(s2, 0);
-      exit;
-    end;
-
+    // Phase 1: Acquire read lock for checking slot availability
+    // Multiple threads can check the same destination site in parallel
+    s2.AcquireSlotsAssignmentReadLock;
+    fLockUpgraded := False;
     try
+      // === READ-ONLY CHECKS ===
+      // These checks can be performed by multiple threads simultaneously
+
       // check again now that we have the lock at the destination
       if s2.num_up >= s2.max_up then
         exit;
@@ -528,6 +530,7 @@ begin
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
         exit; // we are already sending this file to the same destination site
 
+      // Find an available slot (read-only iteration)
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
       begin
@@ -549,6 +552,30 @@ begin
         exit;
       end;
 
+      // Phase 2: All checks passed - upgrade to write lock for slot assignment
+      // This is the critical section where we actually assign the slot
+      s2.UpgradeSlotsAssignmentReadLockToWriteLock;
+      fLockUpgraded := True; // Track that we upgraded to write lock
+
+      // === RECHECK after upgrade (critical for race condition safety!) ===
+      // Between releasing read lock and acquiring write lock, another thread might have changed state
+
+      if s2.num_up >= s2.max_up then
+        exit; // Another thread might have assigned a slot
+
+      if ss2.todotask <> nil then
+        exit; // The slot we found might have been assigned by another thread
+
+      if ss2.status <> ssOnline then
+        exit; // Slot might have gone offline
+
+      // Double-check the file transfer status
+      if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+        exit;
+
+      // === WRITE OPERATIONS ===
+      // Only one thread can be here at a time (write lock is exclusive)
+
       Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
       t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
       t.assigned := Now;
@@ -568,7 +595,11 @@ begin
       ss2.Fire;
       ss1.Fire;
     finally
-      s2.ReleaseSlotsAssignmentLock;
+      // Release the appropriate lock based on whether we upgraded
+      if fLockUpgraded then
+        s2.ReleaseSlotsAssignmentWriteLock // We upgraded to write lock
+      else
+        s2.ReleaseSlotsAssignmentReadLock; // Still holding read lock
     end;
   except
   on e: Exception do
@@ -1144,16 +1175,12 @@ begin
       tasks.Add(t);
 
       try
+        // Refactored to avoid recursive locking: TryToAssignSlots will acquire its own lock
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
-          TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
-          try
-            if ((not t.ready) and t.IsReadyToBeExecuted) then
-            begin
-              self.TryToAssignSlots(t);
-            end;
-          finally
-            TSite(fSite).ReleaseSlotsAssignmentLock;
+          if ((not t.ready) and t.IsReadyToBeExecuted) then
+          begin
+            self.TryToAssignSlots(t);
           end;
         end;
       except
@@ -1534,44 +1561,41 @@ begin
         end;
 
         fNextTaskStartAt := MaxDateTime;
-        ts.AcquireSlotsAssignmentLock('Queue iterate');
-        try
-          for fTask in tasks do
-          begin
-            try
-              if ts.freeslots = 0 then
-              begin
-                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+        // Refactored to avoid recursive locking: TryToAssignSlots will acquire its own lock
+        for fTask in tasks do
+        begin
+          try
+            // Quick check for free slots without holding lock (will be rechecked inside TryToAssignSlots)
+            if ts.freeslots = 0 then
+            begin
+              //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
 
-                // no need to iterate the queue early if there are no free slots.
-                // when a slot becomes free, a queue fire is issued.
-                fNextTaskStartAt := MaxDateTime;
-                break;
-              end;
+              // no need to iterate the queue early if there are no free slots.
+              // when a slot becomes free, a queue fire is issued.
+              fNextTaskStartAt := MaxDateTime;
+              break;
+            end;
 
-              if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
-                (not fTask.readyerror)) then
+            if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
+              (not fTask.readyerror)) then
+            begin
+              if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
               begin
-                if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
-                begin
-                  if fTask.IsReadyToBeExecuted then
-                    TryToAssignSlots(fTask);
-                end
-                else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
-                begin
-                  fNextTaskStartAt := fTask.startat;
-                end;
-              end;
-            except
-              on e: Exception do
+                if fTask.IsReadyToBeExecuted then
+                  TryToAssignSlots(fTask);
+              end
+              else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
-                Continue;
+                fNextTaskStartAt := fTask.startat;
               end;
             end;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
+              Continue;
+            end;
           end;
-        finally
-          ts.ReleaseSlotsAssignmentLock;
         end;
       finally
         main_lock.Leave;

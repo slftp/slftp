@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig;
+  variantcache, routeconfig, PasMP;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -220,7 +220,7 @@ type
     fUseForNFOdownload: TUseForNFODownload;
     fNoannounce: boolean;
     flegacydirlist: boolean;
-    fSlotsAssignmentLock: TSlCriticalSection2;
+    fSlotsAssignmentLock: TPasMPMultipleReaderSingleWriterSpinLock;
     fFailedNfoCounter: integer;
     fConnect_timeout: integer;
     fIdleInterval: integer;
@@ -537,7 +537,22 @@ type
       @param(aLockName This should be a unique name of the code section which calls this procedure for debugging and performance measusing purposes.) }
     function AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean; overload;
 
-    { Release the previously acquired lock for slots assignment. }
+    { Acquire a read lock for reading slot information (freeslots, num_up, num_dn, etc.). Multiple readers can hold this lock simultaneously. }
+    procedure AcquireSlotsAssignmentReadLock;
+
+    { Release a read lock previously acquired with AcquireSlotsAssignmentReadLock. }
+    procedure ReleaseSlotsAssignmentReadLock;
+
+    { Acquire a write lock for modifying slot assignments. This is exclusive - no other readers or writers can hold the lock. }
+    procedure AcquireSlotsAssignmentWriteLock;
+
+    { Upgrade a read lock to a write lock. Must be called while holding a read lock. }
+    procedure UpgradeSlotsAssignmentReadLockToWriteLock;
+
+    { Release a write lock previously acquired with AcquireSlotsAssignmentWriteLock. }
+    procedure ReleaseSlotsAssignmentWriteLock;
+
+    { Release the previously acquired lock for slots assignment. @deprecated Use ReleaseSlotsAssignmentReadLock or ReleaseSlotsAssignmentWriteLock instead. }
     procedure ReleaseSlotsAssignmentLock;
 
     procedure RebuildSlot(const aSlotNumber: integer);
@@ -3101,7 +3116,7 @@ begin
   slots := TObjectList.Create(False);
   self.Name := Name;
   features := [];
-  fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
+  fSlotsAssignmentLock := TPasMPMultipleReaderSingleWriterSpinLock.Create;
   fQueue := TQueueThread.Create(Name);
   self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
@@ -4365,17 +4380,46 @@ end;
 
 function TSite.AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean;
 begin
-  Result := fSlotsAssignmentLock.Enter(aLockName, aTimeout, False);
+  // Legacy method - use write lock for backwards compatibility
+  fSlotsAssignmentLock.AcquireWrite;
+  Result := True;
 end;
 
 procedure TSite.AcquireSlotsAssignmentLock(const aLockName: string);
 begin
-  fSlotsAssignmentLock.Enter(aLockName, 60000, True);
+  // Legacy method - use write lock for backwards compatibility
+  fSlotsAssignmentLock.AcquireWrite;
+end;
+
+procedure TSite.AcquireSlotsAssignmentReadLock;
+begin
+  fSlotsAssignmentLock.AcquireRead;
+end;
+
+procedure TSite.ReleaseSlotsAssignmentReadLock;
+begin
+  fSlotsAssignmentLock.ReleaseRead;
+end;
+
+procedure TSite.AcquireSlotsAssignmentWriteLock;
+begin
+  fSlotsAssignmentLock.AcquireWrite;
+end;
+
+procedure TSite.UpgradeSlotsAssignmentReadLockToWriteLock;
+begin
+  fSlotsAssignmentLock.ReadToWrite;
+end;
+
+procedure TSite.ReleaseSlotsAssignmentWriteLock;
+begin
+  fSlotsAssignmentLock.ReleaseWrite;
 end;
 
 procedure TSite.ReleaseSlotsAssignmentLock;
 begin
-  fSlotsAssignmentLock.Leave;
+  // Legacy method - release write lock for backwards compatibility
+  fSlotsAssignmentLock.ReleaseWrite;
 end;
 
 function TSite.GetSiteInfos: String;
