@@ -1144,16 +1144,12 @@ begin
       tasks.Add(t);
 
       try
+        // Refactored to avoid recursive locking: TryToAssignSlots will acquire its own lock
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
-          TSite(fSite).AcquireSlotsAssignmentLock('AddTask-Slot');
-          try
-            if ((not t.ready) and t.IsReadyToBeExecuted) then
-            begin
-              self.TryToAssignSlots(t);
-            end;
-          finally
-            TSite(fSite).ReleaseSlotsAssignmentLock;
+          if ((not t.ready) and t.IsReadyToBeExecuted) then
+          begin
+            self.TryToAssignSlots(t);
           end;
         end;
       except
@@ -1534,44 +1530,41 @@ begin
         end;
 
         fNextTaskStartAt := MaxDateTime;
-        ts.AcquireSlotsAssignmentLock('Queue iterate');
-        try
-          for fTask in tasks do
-          begin
-            try
-              if ts.freeslots = 0 then
-              begin
-                //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
+        // Refactored to avoid recursive locking: TryToAssignSlots will acquire its own lock
+        for fTask in tasks do
+        begin
+          try
+            // Quick check for free slots without holding lock (will be rechecked inside TryToAssignSlots)
+            if ts.freeslots = 0 then
+            begin
+              //Debug(dpSpam, section, Format('No free slots on %s', [ts.Name]));
 
-                // no need to iterate the queue early if there are no free slots.
-                // when a slot becomes free, a queue fire is issued.
-                fNextTaskStartAt := MaxDateTime;
-                break;
-              end;
+              // no need to iterate the queue early if there are no free slots.
+              // when a slot becomes free, a queue fire is issued.
+              fNextTaskStartAt := MaxDateTime;
+              break;
+            end;
 
-              if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
-                (not fTask.readyerror)) then
+            if ((fTask.slot1 = nil) and (fTask.slot2 = nil) and (not fTask.ready) and
+              (not fTask.readyerror)) then
+            begin
+              if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
               begin
-                if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
-                begin
-                  if fTask.IsReadyToBeExecuted then
-                    TryToAssignSlots(fTask);
-                end
-                else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
-                begin
-                  fNextTaskStartAt := fTask.startat;
-                end;
-              end;
-            except
-              on e: Exception do
+                if fTask.IsReadyToBeExecuted then
+                  TryToAssignSlots(fTask);
+              end
+              else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
-                Continue;
+                fNextTaskStartAt := fTask.startat;
               end;
             end;
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (TryToASsignSlots) : %s', [e.Message]));
+              Continue;
+            end;
           end;
-        finally
-          ts.ReleaseSlotsAssignmentLock;
         end;
       finally
         main_lock.Leave;
