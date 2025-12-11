@@ -259,7 +259,7 @@ export function Dashboard() {
                     <Table.Td>
                       <Group gap="xs">
                         {release.Sites && release.Sites.length > 0 ? (
-                          release.Sites.slice(0, 3).map((site, i) => (
+                          release.Sites.filter(s => s.toLowerCase() !== 'slftp').slice(0, 3).map((site, i) => (
                             <Badge key={i} size="sm" variant="light" color="blue">
                               {site}
                             </Badge>
@@ -267,9 +267,9 @@ export function Dashboard() {
                         ) : (
                           <Text size="xs" c="dimmed">No sites</Text>
                         )}
-                        {release.Sites && release.Sites.length > 3 && (
+                        {release.Sites && release.Sites.filter(s => s.toLowerCase() !== 'slftp').length > 3 && (
                           <Badge size="sm" variant="light" color="gray">
-                            +{release.Sites.length - 3}
+                            +{release.Sites.filter(s => s.toLowerCase() !== 'slftp').length - 3}
                           </Badge>
                         )}
                       </Group>
@@ -358,7 +358,7 @@ export function Dashboard() {
               </Stack>
             </Card>
 
-            <Title order={4}>Sites ({releaseDetails.SiteDetails.length})</Title>
+            <Title order={4}>Sites ({releaseDetails.SiteDetails.filter(s => s.SiteName.toLowerCase() !== 'slftp').length})</Title>
 
             <Table striped highlightOnHover>
               <Table.Thead>
@@ -371,10 +371,12 @@ export function Dashboard() {
               </Table.Thead>
               <Table.Tbody>
                 {(() => {
-                  // Calculate max files across all sites for relative progress
-                  const maxFiles = Math.max(...releaseDetails.SiteDetails.map(s => s.FileCount));
+                  // Filter out slftp site
+                  const visibleSites = releaseDetails.SiteDetails.filter(s => s.SiteName.toLowerCase() !== 'slftp');
+                  // Calculate max files across all visible sites for relative progress
+                  const maxFiles = Math.max(...visibleSites.map(s => s.FileCount));
 
-                  return releaseDetails.SiteDetails.map((site, idx) => {
+                  return visibleSites.map((site, idx) => {
                     // Use Complete flag for 100%, otherwise relative to max
                     const progress = site.Complete ? 100 : maxFiles > 0 ? (site.FileCount / maxFiles) * 100 : 0;
 

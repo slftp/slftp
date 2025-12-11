@@ -107,6 +107,9 @@ type
     /// Returns speed routes for a site
     function GetSiteRoutes(const SiteName: RawUTF8; out Routes: TApiSiteRoutes): boolean;
 
+    function SetSiteRoute(const SourceSite, DestSite: RawUTF8; Speed: integer;
+                          Locked, AffilOnly, NoAffil: boolean): boolean;
+
     /// POST /api/sites/{name}/test
     /// Tests site connection
     function TestSite(const SiteName: RawUTF8): boolean;
@@ -122,6 +125,22 @@ type
     /// POST /api/sites/{name}/rebuildslots
     /// Rebuilds all slots (reset slot objects)
     function RebuildSlots(const SiteName: RawUTF8): boolean;
+
+    /// POST /api/ExecuteIrcCommand
+    /// Executes an IRC command via console
+    function ExecuteIrcCommand(const Command: RawUTF8): boolean;
+
+    function GetSiteInfo(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
+
+    function SetSiteCredentials(const SiteName: RawUTF8;
+                                const Username, Password: RawUTF8;
+                                const BncsJson: RawUTF8;
+                                MaxIdle, IdleInterval: integer;
+                                LegacyCwd: boolean): boolean;
+
+    function GetAvailableSections: RawJSON;
+    function GetSiteSections(const SiteName: RawUTF8): RawJSON;
+    function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
   end;
 
   { Queue & Tasks API }
