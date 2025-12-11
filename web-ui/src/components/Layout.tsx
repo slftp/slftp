@@ -1,6 +1,6 @@
 import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconServer, IconMoon, IconSun } from '@tabler/icons-react';
+import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 
 export function Layout() {
@@ -11,6 +11,8 @@ export function Layout() {
 
   const links = [
     { icon: IconDashboard, label: 'Dashboard', to: '/' },
+    { icon: IconRoute, label: 'Routes', to: '/routes' },
+    { icon: IconFolders, label: 'Sections', to: '/sections' },
     { icon: IconServer, label: 'Sites Manager', to: '/sites' },
   ];
 

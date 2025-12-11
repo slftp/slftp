@@ -71,24 +71,28 @@ type
   TApiSiteInfo = class(TOrm)
   private
     FName: RawUTF8;
-    FHost: RawUTF8;
-    FPort: integer;
     FUsername: RawUTF8;
     FStatus: RawUTF8;
     FSlots: integer;
     FFreeSlots: integer;
     FSslEnabled: boolean;
     FFeatures: RawUTF8;
+    FBncs: RawUTF8;
+    FMaxIdle: integer;
+    FIdleInterval: integer;
+    FLegacyCwd: boolean;
   published
     property Name: RawUTF8 read FName write FName;
-    property Host: RawUTF8 read FHost write FHost;
-    property Port: integer read FPort write FPort;
     property Username: RawUTF8 read FUsername write FUsername;
     property Status: RawUTF8 read FStatus write FStatus;
     property Slots: integer read FSlots write FSlots;
     property FreeSlots: integer read FFreeSlots write FFreeSlots;
     property SslEnabled: boolean read FSslEnabled write FSslEnabled;
     property Features: RawUTF8 read FFeatures write FFeatures;
+    property Bncs: RawUTF8 read FBncs write FBncs;
+    property MaxIdle: integer read FMaxIdle write FMaxIdle;
+    property IdleInterval: integer read FIdleInterval write FIdleInterval;
+    property LegacyCwd: boolean read FLegacyCwd write FLegacyCwd;
   end;
 
   { Sites List Response }

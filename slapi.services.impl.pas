@@ -25,6 +25,7 @@ uses
   statsunit,
   ranksunit,
   rulesunit,
+  speedstatsunit,
   irc,
   kb,
   pazo,
@@ -66,10 +67,22 @@ type
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
     function RunSiteAutoRules(const SiteName: RawUTF8): boolean;
     function GetSiteRoutes(const SiteName: RawUTF8; out Routes: TApiSiteRoutes): boolean;
+    function SetSiteRoute(const SourceSite, DestSite: RawUTF8; Speed: integer;
+                          Locked, AffilOnly, NoAffil: boolean): boolean;
     function TestSite(const SiteName: RawUTF8): boolean;
     function GhostSite(const SiteName: RawUTF8): boolean;
     function RecalcFreeSlots(const SiteName: RawUTF8): boolean;
     function RebuildSlots(const SiteName: RawUTF8): boolean;
+    function ExecuteIrcCommand(const Command: RawUTF8): boolean;
+    function GetSiteInfo(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
+    function SetSiteCredentials(const SiteName: RawUTF8;
+                                const Username, Password: RawUTF8;
+                                const BncsJson: RawUTF8;
+                                MaxIdle, IdleInterval: integer;
+                                LegacyCwd: boolean): boolean;
+    function GetAvailableSections: RawJSON;
+    function GetSiteSections(const SiteName: RawUTF8): RawJSON;
+    function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
   end;
 
   { Queue Service Implementation }
@@ -651,8 +664,6 @@ begin
     end;
 
     Info.Name := UTF8Encode(s.Name);
-    Info.Host := UTF8Encode(s.RCString('host', ''));
-    Info.Port := s.RCInteger('port', 21);
     Info.Username := UTF8Encode(s.RCString('username', ''));
 
     case s.WorkingStatus of
@@ -989,6 +1000,63 @@ begin
   end;
 end;
 
+function TApiSitesServiceImpl.SetSiteRoute(const SourceSite, DestSite: RawUTF8;
+  Speed: integer; Locked, AffilOnly, NoAffil: boolean): boolean;
+var
+  srcSite, dstSite: TSite;
+  fSpeedInfo: TSpeedFromRouteInfo;
+  srcName, dstName, adminSite: String;
+begin
+  Result := False;
+  try
+    srcName := UTF8ToString(SourceSite);
+    dstName := UTF8ToString(DestSite);
+    adminSite := getAdminSiteName;
+
+    if (srcName = adminSite) or (dstName = adminSite) then
+      Exit;
+
+    if (Speed > 9) or (Speed < 0) then
+      Exit;
+
+    srcSite := FindSiteByName('', srcName);
+    if srcSite = nil then
+      Exit;
+
+    dstSite := FindSiteByName('', dstName);
+    if dstSite = nil then
+      Exit;
+
+    if srcName = dstName then
+      Exit;
+
+    if AffilOnly and NoAffil then
+      Exit;
+
+    if Speed > 0 then
+    begin
+      fSpeedInfo.Speed := Speed;
+      fSpeedInfo.Locked := Locked;
+      fSpeedInfo.AffilOnly := AffilOnly;
+      fSpeedInfo.NoAffil := NoAffil;
+      sitesdat.WriteString('speed-from-' + srcName, dstName, fSpeedInfo.ToConfigString);
+    end
+    else
+    begin
+      sitesdat.DeleteKey('speed-from-' + srcName, dstName);
+    end;
+
+    srcSite.UpdateSpeedFromCache;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteRoute: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
 function TApiSitesServiceImpl.TestSite(const SiteName: RawUTF8): boolean;
 var
   s: TSite;
@@ -1006,9 +1074,15 @@ begin
       Exit;
     end;
 
+    // Reset status if marked down by user (same as !bnctest)
+    if (s.WorkingStatus = sstMarkedAsDownByUser) then
+      s.WorkingStatus := sstUnknown;
+
     t := TLoginTask.Create('API', '', s.Name, False, False);
     t.noannounce := True; // keep IRC quiet
+    t.startat := GiveSiteLastStart; // Fair scheduling
     AddTask(t);
+    s.QueueFire; // Trigger queue processing
 
     Debug(dpMessage, section, Format('TestSite API: %s -> login task queued', [UTF8ToString(SiteName)]));
     Result := True;
@@ -1079,6 +1153,265 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] RebuildSlots: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.ExecuteIrcCommand(const Command: RawUTF8): boolean;
+begin
+  Result := False;
+  try
+    IrcProcessCommand('CONSOLE', 'Admin', UTF8ToString(Command));
+    Debug(dpMessage, section, Format('ExecuteIrcCommand API: %s', [UTF8ToString(Command)]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] ExecuteIrcCommand: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetSiteInfo(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
+var
+  s: TSite;
+  bncsArray: TDocVariantData;
+  bncDoc: variant;
+  i: integer;
+  bncHost: string;
+  bncPort: integer;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    Info := TApiSiteInfo.Create;
+    Info.Name := SiteName;
+    Info.Username := UTF8Encode(s.RCString('username', ''));
+
+    case s.WorkingStatus of
+      sstUp: Info.Status := 'UP';
+      sstDown: Info.Status := 'DOWN';
+      sstTempDown: Info.Status := 'DOWN';
+      sstMarkedAsDownByUser: Info.Status := 'DOWN_BY_USER';
+      sstUnknown: Info.Status := 'UNKNOWN';
+      else Info.Status := 'UNKNOWN';
+    end;
+
+    Info.Slots := s.slots.Count;
+    Info.FreeSlots := s.freeslots;
+    Info.SslEnabled := (s.RCInteger('sslfxp', 0) > 0);
+
+    bncsArray.InitFast(dvArray);
+    i := 0;
+    while i < 20 do
+    begin
+      bncHost := s.RCString('bnc_host-' + IntToStr(i), '');
+      if bncHost = '' then
+        Break;
+      bncPort := s.RCInteger('bnc_port-' + IntToStr(i), 21);
+
+      TDocVariant.New(bncDoc);
+      TDocVariantData(bncDoc).AddValue('host', UTF8Encode(bncHost));
+      TDocVariantData(bncDoc).AddValue('port', bncPort);
+      bncsArray.AddItem(bncDoc);
+
+      Inc(i);
+    end;
+
+    Info.Bncs := TDocVariantData(bncsArray).ToJSON;
+    Info.MaxIdle := s.RCInteger('max_idle', 0);
+    Info.IdleInterval := s.RCInteger('idleinterval', 30);
+    Info.LegacyCwd := s.RCBool('legacycwd', False);
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSiteInfo: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.SetSiteCredentials(const SiteName: RawUTF8;
+                                                  const Username, Password: RawUTF8;
+                                                  const BncsJson: RawUTF8;
+                                                  MaxIdle, IdleInterval: integer;
+                                                  LegacyCwd: boolean): boolean;
+var
+  s: TSite;
+  bncsArray: variant;
+  i: integer;
+  bncHost: string;
+  bncPort: integer;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    s.WCString('username', UTF8ToString(Username));
+    if Password <> '' then
+      s.WCString('password', UTF8ToString(Password));
+
+    i := 0;
+    while i < 20 do
+    begin
+      if s.RCString('bnc_host-' + IntToStr(i), '') = '' then
+        Break;
+      s.DeleteKey('bnc_host-' + IntToStr(i));
+      s.DeleteKey('bnc_port-' + IntToStr(i));
+      Inc(i);
+    end;
+
+    if BncsJson <> '' then
+    begin
+      bncsArray := _JsonFast(BncsJson);
+      for i := 0 to TDocVariantData(bncsArray).Count - 1 do
+      begin
+        bncHost := VariantToUTF8(TDocVariantData(bncsArray).Values[i].host);
+        bncPort := TDocVariantData(bncsArray).Values[i].port;
+        if bncHost <> '' then
+        begin
+          s.WCString('bnc_host-' + IntToStr(i), bncHost);
+          s.WCInteger('bnc_port-' + IntToStr(i), bncPort);
+        end;
+      end;
+    end;
+
+    s.WCInteger('max_idle', MaxIdle);
+    s.WCInteger('idleinterval', IdleInterval);
+    s.WCBool('legacycwd', LegacyCwd);
+
+    Debug(dpMessage, section, Format('SetSiteCredentials API: %s (BNCs=%d)', [UTF8ToString(SiteName), TDocVariantData(bncsArray).Count]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteCredentials: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetAvailableSections: RawJSON;
+var
+  sectionsArray: TDocVariantData;
+  i: integer;
+begin
+  Result := '';
+  try
+    sectionsArray.InitFast(dvArray);
+
+    if kb_sections <> nil then
+    begin
+      for i := 0 to kb_sections.Count - 1 do
+      begin
+        sectionsArray.AddItem(UTF8Encode(kb_sections[i]));
+      end;
+    end;
+
+    Result := sectionsArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetAvailableSections: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetSiteSections(const SiteName: RawUTF8): RawJSON;
+var
+  s: TSite;
+  sectionsArray: TDocVariantData;
+  sectionDoc: variant;
+  i: integer;
+  sectionName: string;
+  sectionDir: string;
+begin
+  Result := '';
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+    begin
+      Debug(dpError, section, Format('Site not found: %s', [UTF8ToString(SiteName)]));
+      Result := '[]';
+      Exit;
+    end;
+
+    sectionsArray.InitFast(dvArray);
+
+    if kb_sections <> nil then
+    begin
+      for i := 0 to kb_sections.Count - 1 do
+      begin
+        sectionName := kb_sections[i];
+        sectionDir := s.sectiondir[sectionName];
+
+        TDocVariant.New(sectionDoc);
+        TDocVariantData(sectionDoc).AddValue('section', UTF8Encode(sectionName));
+        TDocVariantData(sectionDoc).AddValue('dir', UTF8Encode(sectionDir));
+        sectionsArray.AddItem(sectionDoc);
+      end;
+    end;
+
+    Result := sectionsArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSiteSections: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
+var
+  s: TSite;
+  sectionStr, dirStr: string;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+    begin
+      Debug(dpError, section, Format('Site not found: %s', [UTF8ToString(SiteName)]));
+      Exit;
+    end;
+
+    sectionStr := UTF8ToString(Section);
+    dirStr := UTF8ToString(Dir);
+
+    if dirStr = '' then
+    begin
+      s.SetSections(sectionStr, True);
+      s.sectiondir[sectionStr] := '';
+      s.sectionpretime[sectionStr] := -10;
+      s.SetRankLock(sectionStr, 0);
+      RulesRemove(UTF8ToString(SiteName), sectionStr);
+      RemoveRanks(UTF8ToString(SiteName), sectionStr);
+      RemoveSpeedStats(UTF8ToString(SiteName), sectionStr);
+      Debug(dpMessage, section, Format('SetSiteSection API: Section %s removed from site %s', [sectionStr, UTF8ToString(SiteName)]));
+    end
+    else
+    begin
+      s.sectiondir[sectionStr] := dirStr;
+      s.SetSections(sectionStr, False);
+      Debug(dpMessage, section, Format('SetSiteSection API: Section %s dir on site %s set to %s', [sectionStr, UTF8ToString(SiteName), dirStr]));
+    end;
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteSection: %s', [E.Message]));
       Result := False;
     end;
   end;

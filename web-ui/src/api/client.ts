@@ -27,6 +27,11 @@ export interface SystemStatus {
   ActiveTasks: number;
 }
 
+export interface Bnc {
+  host: string;
+  port: number;
+}
+
 export interface Site {
   name: string;
   status: 'UP' | 'DOWN' | 'DOWN_BY_USER' | 'UNKNOWN';

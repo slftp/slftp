@@ -1,9 +1,9 @@
-import { Table, Badge, Title, Card, Alert, Loader, Center, Group, ActionIcon, Tooltip, Text, TextInput, Modal, NumberInput, Button, Stack, Select, Switch, Tabs, Divider, ScrollArea } from '@mantine/core';
-import { IconSearch, IconRefresh, IconBolt, IconSettings, IconTrash, IconRepeat, IconToolsKitchen3, IconRobot, IconHeartbeat, IconShieldOff, IconRoute } from '@tabler/icons-react';
+import { Table, Badge, Title, Card, Alert, Loader, Center, Group, ActionIcon, Tooltip, Text, TextInput, Modal, NumberInput, Button, Stack, Select, Switch, Tabs, Divider, Box } from '@mantine/core';
+import { IconSearch, IconRefresh, IconBolt, IconSettings, IconTrash, IconToolsKitchen3, IconShieldOff, IconPlus, IconX } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient } from '../api/client';
-import type { Site, RouteEntry } from '../api/client';
+import type { Site, Bnc } from '../api/client';
 import { notifications } from '@mantine/notifications';
 
 export function SitesList() {
@@ -18,6 +18,12 @@ export function SitesList() {
   const [permDown, setPermDown] = useState(false);
   const [autoLogin, setAutoLogin] = useState(false);
   const [autoRulesInterval, setAutoRulesInterval] = useState<number | ''>('');
+  const [usernameValue, setUsernameValue] = useState('');
+  const [passwordValue, setPasswordValue] = useState('');
+  const [bncs, setBncs] = useState<Bnc[]>([]);
+  const [maxIdle, setMaxIdle] = useState<number | ''>(0);
+  const [idleInterval, setIdleInterval] = useState<number | ''>(30);
+  const [legacyCwd, setLegacyCwd] = useState(false);
 
   // Fetch Sites
   const { data, isLoading, error } = useQuery({
@@ -63,42 +69,17 @@ export function SitesList() {
     return `${dn}/${up}`;
   };
 
-  const { data: routes, isFetching: routesLoading, refetch: refetchRoutes } = useQuery({
-    queryKey: ['routes', selected?.name],
-    enabled: !!selected,
-    queryFn: async (): Promise<RouteEntry[]> => {
-      if (!selected) return [];
-      const res = await apiClient.post('/ApiSitesService/GetSiteRoutes', { SiteName: selected.name });
-      let responseData = res.data;
-      if (res.data.result && Array.isArray(res.data.result)) {
-        responseData = res.data.result[0];
-      }
-      const rawRoutes = responseData.Routes;
-      if (!rawRoutes) return [];
-      try {
-        if (typeof rawRoutes === 'string') {
-          return JSON.parse(rawRoutes);
-        }
-        if (Array.isArray(rawRoutes)) {
-          return rawRoutes;
-        }
-      } catch (e) {
-        console.error('Failed to parse routes JSON', e);
-      }
-      return [];
-    },
-  });
-
-  // Mutation for Test Site
+  // Mutation for BNC Test (executes !bnctest command)
   const testSiteMutation = useMutation({
     mutationFn: async (siteName: string) => {
-      await apiClient.post('/ApiSitesService/TestSite', { SiteName: siteName });
+      await apiClient.post('/ApiSitesService/ExecuteIrcCommand', { Command: `bnctest ${siteName}` });
     },
     onSuccess: (_, siteName) => {
       notifications.show({
-        title: 'Test initiated',
-        message: `Connection test started for ${siteName} (refreshing soon…)`,
+        title: 'BNC Test Started',
+        message: `Running !bnctest ${siteName} - Check IRC for detailed results (IP, ping times)`,
         color: 'blue',
+        autoClose: 8000,
       });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
       // fire a couple of delayed refreshes to surface status changes
@@ -118,14 +99,15 @@ export function SitesList() {
   });
 
   const saveSettingsMutation = useMutation({
-    mutationFn: async (payload: { site: Site; slots: number; maxDn: number; maxUp: number; maxPreDn: number; permDown: boolean; autoLogin: boolean; autoRulesInterval: number }) => {
-      // Apply slots first, then max up/dn
+    mutationFn: async (payload: { site: Site; slots: number; maxDn: number; maxUp: number; maxPreDn: number; permDown: boolean; autoLogin: boolean; autoRulesInterval: number; username: string; password: string; bncs: Bnc[]; maxIdle: number; idleInterval: number; legacyCwd: boolean; status: 'UP' | 'DOWN' }) => {
       await apiClient.post('/ApiSitesService/SetSiteSlots', { SiteName: payload.site.name, Slots: payload.slots });
       await apiClient.post('/ApiSitesService/SetSiteMaxUpDn', { SiteName: payload.site.name, MaxUp: payload.maxUp, MaxDn: payload.maxDn });
       await apiClient.post('/ApiSitesService/SetSiteMaxPreDn', { SiteName: payload.site.name, MaxPreDn: payload.maxPreDn });
       await apiClient.post('/ApiSitesService/SetSitePermDown', { SiteName: payload.site.name, PermDown: payload.permDown });
       await apiClient.post('/ApiSitesService/SetSiteAutoLogin', { SiteName: payload.site.name, Enabled: payload.autoLogin });
       await apiClient.post('/ApiSitesService/SetSiteAutoRules', { SiteName: payload.site.name, IntervalSeconds: payload.autoRulesInterval });
+      await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: payload.site.name, Username: payload.username, Password: payload.password, BncsJson: JSON.stringify(payload.bncs), MaxIdle: payload.maxIdle, IdleInterval: payload.idleInterval, LegacyCwd: payload.legacyCwd });
+      await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: payload.site.name, Status: payload.status });
     },
     onSuccess: () => {
       notifications.show({
@@ -201,15 +183,7 @@ export function SitesList() {
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
-  const runAutorulesMutation = useMutation({
-    mutationFn: async (siteName: string) => {
-      await apiClient.post('/ApiSitesService/RunSiteAutoRules', { SiteName: siteName });
-    },
-    onSuccess: (_, siteName) => notifications.show({ title: 'Autorules started', message: `Autorules running for ${siteName}.`, color: 'blue' }),
-    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
-  });
-
-  const openEditor = (site: Site) => {
+  const openEditor = async (site: Site) => {
     setSelected(site);
     setSlotsValue(site.slots ?? 0);
     setMaxDnValue(site.max_dn ?? site.slots ?? 0);
@@ -219,12 +193,33 @@ export function SitesList() {
     setPermDown(Boolean(site.permdown));
     setAutoLogin(Boolean(site.autologin));
     setAutoRulesInterval(site.autorules_interval ?? 0);
+
+    try {
+      const res = await apiClient.post('/ApiSitesService/GetSiteInfo', { SiteName: site.name });
+      const info = res.data.result?.[0] || res.data;
+
+      setUsernameValue(info.Username || '');
+      setPasswordValue('');
+      setMaxIdle(info.MaxIdle ?? 0);
+      setIdleInterval(info.IdleInterval ?? 30);
+      setLegacyCwd(Boolean(info.LegacyCwd));
+
+      if (info.Bncs) {
+        const parsedBncs = typeof info.Bncs === 'string' ? JSON.parse(info.Bncs) : info.Bncs;
+        setBncs(parsedBncs || []);
+      } else {
+        setBncs([]);
+      }
+    } catch (e) {
+      console.error('Failed to load site info:', e);
+      setBncs([]);
+    }
   };
 
   const handleSave = () => {
-    if (!selected) return;
-    if (slotsValue === '' || maxDnValue === '' || maxUpValue === '' || maxPreDnValue === '' || autoRulesInterval === '') return;
-    saveSettingsMutation.mutate({ site: selected, slots: slotsValue, maxDn: maxDnValue, maxUp: maxUpValue, maxPreDn: maxPreDnValue, permDown, autoLogin, autoRulesInterval });
+    if (!selected || !statusValue) return;
+    if (slotsValue === '' || maxDnValue === '' || maxUpValue === '' || maxPreDnValue === '' || autoRulesInterval === '' || maxIdle === '' || idleInterval === '') return;
+    saveSettingsMutation.mutate({ site: selected, slots: slotsValue, maxDn: maxDnValue, maxUp: maxUpValue, maxPreDn: maxPreDnValue, permDown, autoLogin, autoRulesInterval, username: usernameValue, password: passwordValue, bncs, maxIdle, idleInterval, legacyCwd, status: statusValue });
   };
 
   // Helper for Status Badge
@@ -240,8 +235,9 @@ export function SitesList() {
   if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">Could not load sites</Alert>;
 
-  // Filter client-side for search
-  const filteredSites = data?.filter(site => 
+  // Filter client-side for search and exclude slftp management site
+  const filteredSites = data?.filter(site =>
+    site.name.toLowerCase() !== 'slftp' &&
     site.name.toLowerCase().includes(search.toLowerCase())
   ) || [];
 
@@ -263,7 +259,7 @@ export function SitesList() {
       <Table.Td>{formatActive(site)}</Table.Td>
       <Table.Td>
         <Group gap="xs">
-          <Tooltip label="Test Connection">
+          <Tooltip label="Run BNC Test (!bnctest)">
             <ActionIcon variant="light" color="blue" onClick={() => testSiteMutation.mutate(site.name)}>
               <IconBolt size="1rem" />
             </ActionIcon>
@@ -322,17 +318,70 @@ export function SitesList() {
     >
       <Tabs defaultValue="basics" keepMounted={false} style={{ minHeight: '380px' }}>
         <Tabs.List grow>
-          <Tabs.Tab value="basics" leftSection={<IconToolsKitchen3 size="1rem" />}>Basis</Tabs.Tab>
-          <Tabs.Tab value="automation" leftSection={<IconRobot size="1rem" />}>Automation</Tabs.Tab>
-          <Tabs.Tab value="health" leftSection={<IconHeartbeat size="1rem" />}>Speed & Health</Tabs.Tab>
+          <Tabs.Tab value="basics" leftSection={<IconToolsKitchen3 size="1rem" />}>Basics</Tabs.Tab>
           <Tabs.Tab value="maintenance" leftSection={<IconShieldOff size="1rem" />}>Maintenance</Tabs.Tab>
-          <Tabs.Tab value="routes" leftSection={<IconRoute size="1rem" />}>Routes</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="basics" pt="md">
           <Stack gap="sm">
+            <Divider label="FTP Credentials" />
+            <Group grow>
+              <TextInput
+                label="Username"
+                value={usernameValue}
+                onChange={(e) => setUsernameValue(e.currentTarget.value)}
+              />
+              <TextInput
+                label="Password"
+                type="password"
+                value={passwordValue}
+                onChange={(e) => setPasswordValue(e.currentTarget.value)}
+                placeholder="Leave empty to keep current"
+              />
+            </Group>
+
+            <Divider label="BNC List" />
+            {bncs.map((bnc, index) => (
+              <Group key={index} grow>
+                <TextInput
+                  label={index === 0 ? 'Host' : undefined}
+                  value={bnc.host}
+                  onChange={(e) => {
+                    const newBncs = [...bncs];
+                    newBncs[index].host = e.currentTarget.value;
+                    setBncs(newBncs);
+                  }}
+                  placeholder="ftp.example.com"
+                />
+                <NumberInput
+                  label={index === 0 ? 'Port' : undefined}
+                  value={bnc.port}
+                  min={1}
+                  max={65535}
+                  onChange={(val) => {
+                    const newBncs = [...bncs];
+                    newBncs[index].port = val === '' ? 21 : Number(val);
+                    setBncs(newBncs);
+                  }}
+                />
+                <Box style={{ alignSelf: index === 0 ? 'flex-end' : 'center' }}>
+                  <ActionIcon color="red" onClick={() => setBncs(bncs.filter((_, i) => i !== index))}>
+                    <IconX size="1rem" />
+                  </ActionIcon>
+                </Box>
+              </Group>
+            ))}
+            <Button
+              leftSection={<IconPlus size="1rem" />}
+              variant="light"
+              onClick={() => setBncs([...bncs, { host: '', port: 21 }])}
+            >
+              Add BNC
+            </Button>
+
+            <Divider label="Slots Configuration" />
             <NumberInput
-              label="Slots (gesamt)"
+              label="Slots (total)"
               value={slotsValue}
               min={0}
               onChange={(val) => setSlotsValue(val === '' ? '' : Number(val))}
@@ -352,7 +401,7 @@ export function SitesList() {
               />
             </Group>
             <NumberInput
-              label="Max Pre-Queue (max_pre_dn)"
+              label="max_pre_dn"
               value={maxPreDnValue}
               min={0}
               onChange={(val) => setMaxPreDnValue(val === '' ? '' : Number(val))}
@@ -361,6 +410,22 @@ export function SitesList() {
               <Switch label="PermDown" checked={permDown} onChange={(e) => setPermDown(e.currentTarget.checked)} />
               <Switch label="Autologin" checked={autoLogin} onChange={(e) => setAutoLogin(e.currentTarget.checked)} />
             </Group>
+            <Divider label="Connection Settings" />
+            <Group grow>
+              <NumberInput
+                label="max_idle"
+                value={maxIdle}
+                min={0}
+                onChange={(val) => setMaxIdle(val === '' ? '' : Number(val))}
+              />
+              <NumberInput
+                label="idleinterval"
+                value={idleInterval}
+                min={0}
+                onChange={(val) => setIdleInterval(val === '' ? '' : Number(val))}
+              />
+            </Group>
+            <Switch label="legacycwd (glftpd only!)" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
             <Select
               label="Status"
               data={[
@@ -370,46 +435,6 @@ export function SitesList() {
               value={statusValue}
               onChange={(val) => setStatusValue(val as 'UP' | 'DOWN' | '')}
             />
-          </Stack>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="automation" pt="md">
-          <Stack gap="sm">
-            <NumberInput
-              label="Autorules interval (seconds, 0 = off)"
-              value={autoRulesInterval}
-              min={0}
-              onChange={(val) => setAutoRulesInterval(val === '' ? '' : Number(val))}
-            />
-            <Group justify="space-between">
-              <Button variant="outline" color="blue" loading={runAutorulesMutation.isPending} onClick={() => selected && runAutorulesMutation.mutate(selected.name)} leftSection={<IconRepeat size="1rem" />}>
-                Run autorules now
-              </Button>
-              <Button variant="outline" disabled>
-                Autodirlist (coming soon)
-              </Button>
-              <Button variant="outline" disabled>
-                Autoindex (coming soon)
-              </Button>
-            </Group>
-          </Stack>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="health" pt="md">
-          <Stack gap="sm">
-            <Group justify="space-between">
-              <Button variant="light" color="blue" leftSection={<IconBolt size="1rem" />} disabled>
-                Speedtest local
-              </Button>
-              <Button variant="light" color="blue" disabled>
-                Speedtest in/out
-              </Button>
-              <Button variant="light" color="gray" disabled>
-                Speedtest cleanup
-              </Button>
-            </Group>
-            <Divider label="Live" />
-            <Text size="sm" c="dimmed">Active down/up are shown live; more health actions coming soon.</Text>
           </Stack>
         </Tabs.Panel>
 
@@ -434,49 +459,6 @@ export function SitesList() {
                 Rebuild slots
               </Button>
             </Group>
-          </Stack>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="routes" pt="md">
-          <Stack gap="sm">
-            <Group justify="space-between">
-              <Text fw={600}>Route-Liste (speed-from)</Text>
-              <Button variant="light" onClick={() => refetchRoutes()} loading={routesLoading}>
-                Refresh
-              </Button>
-            </Group>
-            <ScrollArea h={260}>
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Dest</Table.Th>
-                    <Table.Th>Speed</Table.Th>
-                    <Table.Th>Flags</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {(routes || []).map((r) => (
-                    <Table.Tr key={r.dest}>
-                      <Table.Td>{r.dest}</Table.Td>
-                      <Table.Td>{r.speed}</Table.Td>
-                      <Table.Td>
-                        <Group gap="xs">
-                          {r.locked && <Badge color="red" variant="light">locked</Badge>}
-                          {r.affil_only && <Badge color="blue" variant="light">affil</Badge>}
-                          {r.no_affil && <Badge color="gray" variant="light">no-affil</Badge>}
-                          {!r.locked && !r.affil_only && !r.no_affil && <Text size="sm" c="dimmed">-</Text>}
-                        </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                  {(!routes || routes.length === 0) && (
-                    <Table.Tr>
-                      <Table.Td colSpan={3}><Text c="dimmed">No routes found.</Text></Table.Td>
-                    </Table.Tr>
-                  )}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
           </Stack>
         </Tabs.Panel>
       </Tabs>
