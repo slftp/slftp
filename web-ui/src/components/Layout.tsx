@@ -1,7 +1,8 @@
 import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat } from '@tabler/icons-react';
+import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { clearApiToken } from '../api/client';
 
 export function Layout() {
   const [opened, { toggle }] = useDisclosure();
@@ -29,6 +30,11 @@ export function Layout() {
       }}
     />
   ));
+
+  const handleLogout = () => {
+    clearApiToken();
+    navigate('/login');
+  };
 
   return (
     <AppShell
@@ -59,6 +65,13 @@ export function Layout() {
 
       <AppShell.Navbar p="md">
         {items}
+        <NavLink
+          label="Logout"
+          leftSection={<IconLogout size="1rem" stroke={1.5} />}
+          onClick={handleLogout}
+          style={{ marginTop: 'auto' }}
+          c="red"
+        />
       </AppShell.Navbar>
 
       <AppShell.Main>
