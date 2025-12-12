@@ -1,0 +1,110 @@
+# slftp Web UI
+
+React + TypeScript web interface for slftp.
+
+## Quick Start
+
+### For End Users (just use the Web UI)
+
+The Web UI is served by slftp itself. Just build and deploy:
+
+```bash
+npm install
+npm run build
+# Then copy dist/* to your slftp web/ folder
+```
+
+Access it via slftp: http://localhost:8089/ (or your configured host:port)
+
+### For Developers (working on the Web UI code)
+
+Run the development server with hot-reload:
+
+```bash
+npm install
+npm run dev
+```
+
+Opens at http://localhost:5173 (connects to your running slftp backend)
+
+### Production Build
+
+```bash
+npm install
+npm run build
+```
+
+Built files are in `dist/` and ready to be served by the slftp backend.
+
+### Deploy
+
+**Linux/Mac with Makefile (from slftp root directory):**
+```bash
+# Build and deploy to ./web/
+make web-ui-prod
+
+# Build and deploy to custom path
+make web-ui-deploy WEB_DEPLOY_DIR=/path/to/your/slftp/web
+```
+
+**Manual deployment (Linux/Mac/Windows):**
+
+Linux/Mac:
+```bash
+cp -r dist/* /path/to/your/slftp/web/
+```
+
+Windows (PowerShell):
+```powershell
+Copy-Item -Recurse -Force .\dist\* C:\path\to\your\slftp\web\
+```
+
+## Authentication
+
+The Web UI has a login screen that requires the API key from your `slftp.ini`:
+
+1. Find your API key in `slftp.ini` under `[api]` section: `apikey=...`
+2. Open the Web UI in your browser
+3. Enter the API key on the login screen
+4. The key is stored in browser localStorage
+
+**Logout:** Click the red "Logout" button in the sidebar to clear the stored key.
+
+## Configuration
+
+### Environment Variables (for developers only)
+
+**End users don't need to set these!** The built Web UI works out of the box.
+
+For developers running `npm run dev`:
+- `VITE_API_BASE_URL` - API base URL (default: `/api` for same-origin)
+  - Example: `VITE_API_BASE_URL=http://192.168.1.100:8089/api npm run dev`
+  - Use this when your dev server (port 5173) needs to connect to a remote slftp instance
+
+**Note:** `VITE_API_TOKEN` is no longer used. Authentication is via login screen.
+
+## Features
+
+- Dashboard with system status and recent releases
+- Sites manager (view/filter sites, change status)
+- Routes overview
+- Sections overview
+- IRC status
+- Dark/light mode toggle
+- Protected routes (requires login)
+
+## Tech Stack
+
+- React 18
+- TypeScript
+- Vite
+- Mantine UI
+- React Router
+- Axios
+
+## Development Notes
+
+The Web UI communicates with the slftp backend via REST API at `/api/*`.
+All API requests include an `Authorization: Bearer <token>` header with the user's API key.
+
+See `../docs/API_DOCUMENTATION` and `../docs/API_HOWTO` for API details.
