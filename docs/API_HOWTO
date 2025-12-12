@@ -38,19 +38,35 @@ $env:VITE_API_TOKEN="<your_apikey_here>"; npm run build
 Copy-Item -Recurse -Force .\dist\* ..\web\
 
 Deploy & Run
-If you build in a different directory (e.g., /mnt/slftp/) and deploy to production (e.g., /home/sldev/bin/):
+
+Linux/Mac (building and deploying to separate directory):
 # Stop running slftp
 killall slftp  # or Ctrl+C
 
 # Deploy backend binary
-cp slftp /home/sldev/bin/
+cp slftp /your/slftp/path/
 
-# Deploy Web UI assets
-cp -r web/* /home/sldev/bin/web/
+# Deploy Web UI assets (clean old files first to avoid browser cache issues!)
+rm -rf /your/slftp/path/web/*
+cp -r web-ui/dist/* /your/slftp/path/web/
 
 # Start slftp in production directory
-cd /home/sldev/bin
+cd /your/slftp/path
 ./slftp
+
+Windows (PowerShell):
+# Stop slftp (Ctrl+C)
+
+# Deploy backend binary
+Copy-Item slftp.exe C:\your\slftp\path\
+
+# Deploy Web UI assets (clean old files first!)
+Remove-Item -Recurse -Force C:\your\slftp\path\web\*
+Copy-Item -Recurse -Force web-ui\dist\* C:\your\slftp\path\web\
+
+# Start slftp
+cd C:\your\slftp\path
+.\slftp.exe
 
 If building and running in same directory:
 ./slftp
@@ -84,21 +100,34 @@ Web UI configuration
   Set VITE_API_BASE_URL and VITE_API_TOKEN env vars if connecting to remote API
 
 Updating after code changes
+
 If you changed backend code (Pascal files):
-1. Rebuild backend: make clean && make slftp
-2. Stop slftp: killall slftp
-3. Deploy binary: cp slftp /home/sldev/bin/
-4. Restart: cd /home/sldev/bin && ./slftp
+Linux/Mac:
+1. Rebuild: make clean && make slftp
+2. Stop slftp: killall slftp (or Ctrl+C)
+3. Deploy (if different dir): cp slftp /your/slftp/path/
+4. Restart: cd /your/slftp/path && ./slftp
+
+Windows:
+1. Rebuild: fpc -MDelphi -O3 -Xs slftp.lpr
+2. Stop slftp (Ctrl+C)
+3. Deploy (if different dir): Copy-Item slftp.exe C:\your\slftp\path\
+4. Restart: cd C:\your\slftp\path; .\slftp.exe
 
 If you changed frontend code (TypeScript/React files):
-1. Rebuild Web UI: cd web-ui && VITE_API_TOKEN=<apikey> npm run build
-2. Deploy assets: cp -r dist/* /home/sldev/bin/web/
-3. No restart needed (hard-refresh browser: Ctrl+Shift+R)
+Linux/Mac:
+1. Rebuild: cd web-ui && npm run build
+2. Deploy: rm -rf /your/slftp/path/web/* && cp -r dist/* /your/slftp/path/web/
+3. Hard-refresh browser: Ctrl+Shift+R (no slftp restart needed)
+
+Windows:
+1. Rebuild: cd web-ui; npm run build
+2. Deploy: Remove-Item -Recurse -Force C:\your\slftp\path\web\*; Copy-Item -Recurse -Force dist\* C:\your\slftp\path\web\
+3. Hard-refresh browser: Ctrl+Shift+R
 
 If you changed API key in config:
-1. Rebuild Web UI with new token: VITE_API_TOKEN=<new_apikey> npm run build
-2. Deploy Web UI: cp -r web-ui/dist/* /home/sldev/bin/web/
-3. Restart slftp to load new config: killall slftp && cd /home/sldev/bin && ./slftp
+1. Restart slftp to load new config
+2. Login again in Web UI with new apikey (old token will be invalid)
 
 Security notes
 - Keep apikey secret and prefer binding to localhost unless fronted by TLS/proxy.

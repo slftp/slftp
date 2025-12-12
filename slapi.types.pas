@@ -76,6 +76,7 @@ type
     FSlots: integer;
     FFreeSlots: integer;
     FSslEnabled: boolean;
+    FSslFxp: integer;
     FFeatures: RawUTF8;
     FBncs: RawUTF8;
     FMaxIdle: integer;
@@ -88,6 +89,7 @@ type
     property Slots: integer read FSlots write FSlots;
     property FreeSlots: integer read FFreeSlots write FFreeSlots;
     property SslEnabled: boolean read FSslEnabled write FSslEnabled;
+    property SslFxp: integer read FSslFxp write FSslFxp;
     property Features: RawUTF8 read FFeatures write FFeatures;
     property Bncs: RawUTF8 read FBncs write FBncs;
     property MaxIdle: integer read FMaxIdle write FMaxIdle;
