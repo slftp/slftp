@@ -2,7 +2,11 @@ import axios from 'axios';
 
 // Configurable base URL + token via Vite env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-const API_TOKEN = import.meta.env.VITE_API_TOKEN;
+
+// Get token from localStorage only
+const getApiToken = (): string | null => {
+  return localStorage.getItem('apiToken');
+};
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -11,9 +15,28 @@ export const apiClient = axios.create({
   },
 });
 
-if (API_TOKEN) {
-  apiClient.defaults.headers.common.Authorization = `Bearer ${API_TOKEN}`;
+// Set initial token
+const token = getApiToken();
+if (token) {
+  apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
 }
+
+// Helper function to update token (called after login)
+export const setApiToken = (token: string) => {
+  localStorage.setItem('apiToken', token);
+  apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
+};
+
+// Helper function to clear token (called on logout)
+export const clearApiToken = () => {
+  localStorage.removeItem('apiToken');
+  delete apiClient.defaults.headers.common.Authorization;
+};
+
+// Helper function to check if user is authenticated
+export const isAuthenticated = (): boolean => {
+  return localStorage.getItem('apiToken') !== null;
+};
 
 // Types for API responses
 

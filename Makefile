@@ -28,6 +28,8 @@ all_32: slftp_32 install
 
 all_64: slftp_64 install
 
+all-with-ui: slftp web-ui-prod
+
 slftp:	FORCE
 	$(MAKE) clean
 	$(MAKE) revpatch
@@ -100,7 +102,13 @@ cleanuptestdir:
 	@rm -f tests/*.res tests/*.or
 
 install:
-	@cp slftp $(SLFTPPATH)/slftp
+	@if [ -d "$(SLFTPPATH)" ]; then \
+		cp slftp $(SLFTPPATH)/slftp; \
+		echo "Installed slftp to $(SLFTPPATH)/slftp"; \
+	else \
+		echo "Warning: $(SLFTPPATH) does not exist. Skipping install."; \
+		echo "Copy manually: cp slftp /your/path/"; \
+	fi
 
 # empty target to force execution
 FORCE:
@@ -118,3 +126,26 @@ revpatchrevert: FORCE
 	@if [ -d ".git" ]; then \
         perl replace_git_commit.pl ;\
     fi
+
+.PHONY: web-ui-build web-ui-deploy web-ui-prod
+
+WEB_UI_DIR = web-ui
+# WEB_DEPLOY_DIR can be overridden: make web-ui-deploy WEB_DEPLOY_DIR=/custom/path
+WEB_DEPLOY_DIR ?= ./web
+
+web-ui-build:
+	@echo "Building Web UI..."
+	@cd $(WEB_UI_DIR) && npm install && npm run build
+	@echo "Web UI built successfully in $(WEB_UI_DIR)/dist/"
+	@echo ""
+	@echo "To deploy manually:"
+	@echo "  cp -r $(WEB_UI_DIR)/dist/* /your/slftp/web/"
+
+web-ui-deploy: web-ui-build
+	@echo "Deploying Web UI to $(WEB_DEPLOY_DIR)..."
+	@mkdir -p $(WEB_DEPLOY_DIR)
+	@cp -r $(WEB_UI_DIR)/dist/* $(WEB_DEPLOY_DIR)/
+	@echo "Web UI deployed to $(WEB_DEPLOY_DIR)"
+	@echo "Note: Login with API key from slftp.ini [api] section"
+
+web-ui-prod: web-ui-deploy
