@@ -184,11 +184,19 @@ type
     FConnected: boolean;
     FChannels: integer;
     FCurrentServer: RawUTF8;
+    FHost: RawUTF8;
+    FPort: integer;
+    FStatus: RawUTF8;
+    FNickname: RawUTF8;
   published
     property Name: RawUTF8 read FName write FName;
     property Connected: boolean read FConnected write FConnected;
     property Channels: integer read FChannels write FChannels;
     property CurrentServer: RawUTF8 read FCurrentServer write FCurrentServer;
+    property Host: RawUTF8 read FHost write FHost;
+    property Port: integer read FPort write FPort;
+    property Status: RawUTF8 read FStatus write FStatus;
+    property Nickname: RawUTF8 read FNickname write FNickname;
   end;
 
   { Speed Test Result }

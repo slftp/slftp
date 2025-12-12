@@ -163,8 +163,10 @@ begin
   begin
     ORMStatsModel.Free;
   end;
-  glStatRaceLock.Free;
-  glStatRaceQueue.Free;
+  if glStatRaceLock <> nil then
+    glStatRaceLock.Free;
+  if glStatRaceQueue <> nil then
+    glStatRaceQueue.Free;
   Debug(dpSpam, section, 'Uninit2');
 end;
 
@@ -271,20 +273,19 @@ procedure statsProcessRace(const aSrcSite, aDstSite, aSection, aRls, aFilename: 
 var
   fStatRaceRecord: TStatRaceRecord;
 begin
-
   if not IsStatsDatabaseActive then
   begin
     Debug(dpSpam, section, '[statsProcessRace] stats disabled.');
-    exit;
+    Exit;
   end;
 
   if (aFilesize < _GetMinFilesize) then
   begin
     Debug(dpSpam, section, Format('[statsProcessRace] Filesize %d for %s is too small', [aFilesize, aFilename]));
-    exit;
+    Exit;
   end;
 
-  //add the race stats to the queue
+  // fill record
   fStatRaceRecord.FSrcSite := aSrcSite;
   fStatRaceRecord.FDstSite := aDstSite;
   fStatRaceRecord.FSection := aSection;

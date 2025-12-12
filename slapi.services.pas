@@ -227,6 +227,26 @@ type
     /// POST /api/irc/jump
     /// Jumps to different server
     function JumpServer(const NetName: RawUTF8): boolean;
+
+    /// POST /api/irc/channel/blowkey
+    /// Sets blowfish key for channel
+    function SetChannelBlowkey(const NetName, Channel, Blowkey: RawUTF8): boolean;
+
+    /// POST /api/irc/channel/chankey
+    /// Sets channel key
+    function SetChannelKey(const NetName, Channel, ChanKey: RawUTF8): boolean;
+
+    /// POST /api/irc/channel/roles
+    /// Sets channel roles
+    function SetChannelRoles(const NetName, Channel, Roles: RawUTF8): boolean;
+
+    /// POST /api/irc/channel/add
+    /// Adds new channel
+    function AddChannel(const NetName, Channel, ChanKey, Blowkey, Roles: RawUTF8): boolean;
+
+    /// DELETE /api/irc/channel
+    /// Deletes channel
+    function DeleteChannel(const NetName, Channel: RawUTF8): boolean;
   end;
 
   { Rules Engine API }
