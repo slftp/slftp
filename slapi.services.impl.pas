@@ -7,6 +7,7 @@ uses
   Classes,
   Generics.Collections,
   DateUtils,
+  Variants,
   mormot.core.base,
   mormot.core.data,
   mormot.core.text,
@@ -27,6 +28,7 @@ uses
   rulesunit,
   speedstatsunit,
   irc,
+  ircchansettings,
   kb,
   pazo,
   precatcher,
@@ -118,6 +120,11 @@ type
     function GetChannels(const NetName: RawUTF8): RawJSON;
     function SendMessage(const NetName, Channel, Message: RawUTF8): boolean;
     function JumpServer(const NetName: RawUTF8): boolean;
+    function SetChannelBlowkey(const NetName, Channel, Blowkey: RawUTF8): boolean;
+    function SetChannelKey(const NetName, Channel, ChanKey: RawUTF8): boolean;
+    function SetChannelRoles(const NetName, Channel, Roles: RawUTF8): boolean;
+    function AddChannel(const NetName, Channel, ChanKey, Blowkey, Roles: RawUTF8): boolean;
+    function DeleteChannel(const NetName, Channel: RawUTF8): boolean;
   end;
 
   { Rules Service Implementation }
@@ -167,7 +174,9 @@ type
 implementation
 
 uses
-  Contnrs;
+  Contnrs,
+  kb.releaseinfo,
+  mystrings;
 
 {$I slftp.inc}
 
@@ -1577,8 +1586,57 @@ begin
 end;
 
 function TApiIrcServiceImpl.GetNetworks: RawJSON;
+var
+  i: integer;
+  th: TMyIrcThread;
+  networksArray: TDocVariantData;
+  netDoc: variant;
 begin
-  Result := '[]';
+  Result := '';
+  try
+    networksArray.InitFast(dvArray);
+
+    if myIrcThreads <> nil then
+    begin
+      for i := 0 to myIrcThreads.Count - 1 do
+      begin
+        try
+          th := TMyIrcThread(myIrcThreads[i]);
+          if th = nil then
+            Continue;
+
+          TDocVariant.New(netDoc);
+          TDocVariantData(netDoc).AddValue('name', UTF8Encode(th.Netname));
+          TDocVariantData(netDoc).AddValue('host', UTF8Encode(th.host));
+          TDocVariantData(netDoc).AddValue('port', th.port);
+          TDocVariantData(netDoc).AddValue('status', UTF8Encode(th.status));
+          TDocVariantData(netDoc).AddValue('nickname', UTF8Encode(th.irc_nick));
+          TDocVariantData(netDoc).AddValue('connected', Pos('online', LowerCase(th.status)) > 0);
+
+          if th.channels <> nil then
+            TDocVariantData(netDoc).AddValue('channels_count', th.channels.Count)
+          else
+            TDocVariantData(netDoc).AddValue('channels_count', 0);
+
+          networksArray.AddItem(netDoc);
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, 'slapi', Format('[EXCEPTION] GetNetworks loop: %s', [E.Message]));
+            Continue;
+          end;
+        end;
+      end;
+    end;
+
+    Result := networksArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetNetworks: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
 end;
 
 function TApiIrcServiceImpl.GetNetworkStatus(const NetName: RawUTF8; out Info: TApiIrcNetwork): boolean;
@@ -1588,18 +1646,276 @@ begin
 end;
 
 function TApiIrcServiceImpl.GetChannels(const NetName: RawUTF8): RawJSON;
+var
+  channelsArray: TDocVariantData;
+  chanDoc: variant;
+  chanSettings: TIrcChannelSettings;
+  key: string;
+  netNameStr: string;
 begin
-  Result := '[]';
+  Result := '';
+  try
+    channelsArray.InitFast(dvArray);
+    netNameStr := UTF8ToString(NetName);
+
+    if IrcChanSettingsList <> nil then
+    begin
+      for key in IrcChanSettingsList.Keys do
+      begin
+        try
+          chanSettings := IrcChanSettingsList[key];
+          if chanSettings = nil then
+            Continue;
+
+          if not SameText(chanSettings.Netname, netNameStr) then
+            Continue;
+
+          TDocVariant.New(chanDoc);
+          TDocVariantData(chanDoc).AddValue('channel', UTF8Encode(chanSettings.Channel));
+          TDocVariantData(chanDoc).AddValue('chankey', UTF8Encode(chanSettings.ChanKey));
+          TDocVariantData(chanDoc).AddValue('chanroles', UTF8Encode(chanSettings.ChanRoles));
+
+          // Get blowkey - need to check class type for access
+          if chanSettings.ClassName = 'TIrcBlowkeyECB' then
+            TDocVariantData(chanDoc).AddValue('blowkey', '[ECB encrypted]')
+          else if chanSettings.ClassName = 'TIrcBlowkeyCBC' then
+            TDocVariantData(chanDoc).AddValue('blowkey', '[CBC encrypted]')
+          else
+            TDocVariantData(chanDoc).AddValue('blowkey', '');
+
+          channelsArray.AddItem(chanDoc);
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, 'slapi', Format('[EXCEPTION] GetChannels loop: %s', [E.Message]));
+            Continue;
+          end;
+        end;
+      end;
+    end;
+
+    Result := channelsArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetChannels: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
 end;
 
 function TApiIrcServiceImpl.SendMessage(const NetName, Channel, Message: RawUTF8): boolean;
+var
+  netNameStr, channelStr, messageStr: string;
 begin
-  Result := True;
+  Result := False;
+  try
+    netNameStr := UTF8ToString(NetName);
+    channelStr := UTF8ToString(Channel);
+    messageStr := UTF8ToString(Message);
+
+    if FindIrcChannelSettings(netNameStr, channelStr) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('SendMessage: Channel %s@%s not found', [channelStr, netNameStr]));
+      Exit;
+    end;
+
+    irc_addtext(netNameStr, channelStr, messageStr);
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] SendMessage: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TApiIrcServiceImpl.JumpServer(const NetName: RawUTF8): boolean;
+var
+  ircth: TMyIrcThread;
+  netNameStr: string;
 begin
-  Result := True;
+  Result := False;
+  try
+    netNameStr := UpperCase(UTF8ToString(NetName));
+    ircth := FindIrcnetwork(netNameStr);
+
+    if ircth <> nil then
+    begin
+      ircth.shouldrestart := True;
+      myIrcThreads.Remove(ircth);
+      myIrcThreads.Add(TMyIrcThread.Create(netNameStr));
+      Debug(dpMessage, 'slapi', Format('JumpServer: Restarting IRC network %s', [netNameStr]));
+      Result := True;
+    end
+    else
+    begin
+      Debug(dpError, 'slapi', Format('JumpServer: Network %s not found', [netNameStr]));
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] JumpServer: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.SetChannelBlowkey(const NetName, Channel, Blowkey: RawUTF8): boolean;
+var
+  chanSettings: TIrcChannelSettings;
+  netNameStr, channelStr, blowkeyStr: string;
+begin
+  Result := False;
+  try
+    netNameStr := UTF8ToString(NetName);
+    channelStr := UTF8ToString(Channel);
+    blowkeyStr := UTF8ToString(Blowkey);
+
+    chanSettings := FindIrcChannelSettings(netNameStr, channelStr);
+    if chanSettings = nil then
+    begin
+      Debug(dpError, 'slapi', Format('SetChannelBlowkey: Channel %s@%s not found', [channelStr, netNameStr]));
+      Exit;
+    end;
+
+    chanSettings.UpdateKey(blowkeyStr);
+    Debug(dpMessage, 'slapi', Format('SetChannelBlowkey: Updated blowkey for %s@%s', [channelStr, netNameStr]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] SetChannelBlowkey: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.SetChannelKey(const NetName, Channel, ChanKey: RawUTF8): boolean;
+var
+  chanSettings: TIrcChannelSettings;
+  netNameStr, channelStr, chankeyStr: string;
+begin
+  Result := False;
+  try
+    netNameStr := UTF8ToString(NetName);
+    channelStr := UTF8ToString(Channel);
+    chankeyStr := UTF8ToString(ChanKey);
+
+    chanSettings := FindIrcChannelSettings(netNameStr, channelStr);
+    if chanSettings = nil then
+    begin
+      Debug(dpError, 'slapi', Format('SetChannelKey: Channel %s@%s not found', [channelStr, netNameStr]));
+      Exit;
+    end;
+
+    chanSettings.ChanKey := chankeyStr;
+    Debug(dpMessage, 'slapi', Format('SetChannelKey: Updated chankey for %s@%s', [channelStr, netNameStr]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] SetChannelKey: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.SetChannelRoles(const NetName, Channel, Roles: RawUTF8): boolean;
+var
+  chanSettings: TIrcChannelSettings;
+  netNameStr, channelStr, rolesStr: string;
+begin
+  Result := False;
+  try
+    netNameStr := UTF8ToString(NetName);
+    channelStr := UTF8ToString(Channel);
+    rolesStr := UTF8ToString(Roles);
+
+    chanSettings := FindIrcChannelSettings(netNameStr, channelStr);
+    if chanSettings = nil then
+    begin
+      Debug(dpError, 'slapi', Format('SetChannelRoles: Channel %s@%s not found', [channelStr, netNameStr]));
+      Exit;
+    end;
+
+    chanSettings.ChanRoles := rolesStr;
+    Debug(dpMessage, 'slapi', Format('SetChannelRoles: Updated roles for %s@%s', [channelStr, netNameStr]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] SetChannelRoles: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.AddChannel(const NetName, Channel, ChanKey, Blowkey, Roles: RawUTF8): boolean;
+var
+  netNameStr, channelStr, chankeyStr, blowkeyStr, rolesStr: string;
+begin
+  Result := False;
+  try
+    netNameStr := UTF8ToString(NetName);
+    channelStr := UTF8ToString(Channel);
+    chankeyStr := UTF8ToString(ChanKey);
+    blowkeyStr := UTF8ToString(Blowkey);
+    rolesStr := UTF8ToString(Roles);
+
+    // Check if channel already exists
+    if FindIrcChannelSettings(netNameStr, channelStr) <> nil then
+    begin
+      Debug(dpError, 'slapi', Format('AddChannel: Channel %s@%s already exists', [channelStr, netNameStr]));
+      Exit;
+    end;
+
+    // Use RegisterChannelSettings to add the channel
+    RegisterChannelSettings(netNameStr, channelStr, rolesStr, blowkeyStr, chankeyStr, False, True);
+
+    Debug(dpMessage, 'slapi', Format('AddChannel: Added channel %s@%s', [channelStr, netNameStr]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] AddChannel: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.DeleteChannel(const NetName, Channel: RawUTF8): boolean;
+var
+  netNameStr, channelStr, dictKey: string;
+begin
+  Result := False;
+  try
+    netNameStr := UTF8ToString(NetName);
+    channelStr := UTF8ToString(Channel);
+
+    // Check if channel exists
+    if FindIrcChannelSettings(netNameStr, channelStr) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('DeleteChannel: Channel %s@%s not found', [channelStr, netNameStr]));
+      Exit;
+    end;
+
+    // Create key for dictionary (same format as in IrcChanSettingsList)
+    dictKey := netNameStr + channelStr;
+
+    // Remove from global list
+    IrcChanSettingsList.Remove(dictKey);
+
+    Debug(dpMessage, 'slapi', Format('DeleteChannel: Removed channel %s@%s', [channelStr, netNameStr]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] DeleteChannel: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TApiRulesServiceImpl.GetRules(const SiteName, Section: RawUTF8): RawJSON;
@@ -1683,33 +1999,293 @@ begin
 end;
 
 function TApiPrecatcherServiceImpl.GetPrecatcherRules: RawJSON;
+var
+  i: integer;
+  rulesArray: TDocVariantData;
+  ruleDoc: variant;
+  netname, channel, botnicks, sitename, event, words, section: string;
 begin
   Result := '[]';
+  try
+    rulesArray.InitFast(dvArray);
+
+    if catcherFile <> nil then
+    begin
+      for i := 0 to catcherFile.Count - 1 do
+      begin
+        netname := SubString(catcherFile[i], ';', 1);
+        channel := SubString(catcherFile[i], ';', 2);
+        botnicks := SubString(catcherFile[i], ';', 3);
+        sitename := SubString(catcherFile[i], ';', 4);
+        event := SubString(catcherFile[i], ';', 5);
+        words := SubString(catcherFile[i], ';', 6);
+        section := SubString(catcherFile[i], ';', 7);
+
+        TDocVariant.New(ruleDoc);
+        TDocVariantData(ruleDoc).AddValue('id', i);
+        TDocVariantData(ruleDoc).AddValue('netname', UTF8Encode(netname));
+        TDocVariantData(ruleDoc).AddValue('channel', UTF8Encode(channel));
+        TDocVariantData(ruleDoc).AddValue('botnicks', UTF8Encode(botnicks));
+        TDocVariantData(ruleDoc).AddValue('sitename', UTF8Encode(sitename));
+        TDocVariantData(ruleDoc).AddValue('event', UTF8Encode(event));
+        TDocVariantData(ruleDoc).AddValue('words', UTF8Encode(words));
+        TDocVariantData(ruleDoc).AddValue('section', UTF8Encode(section));
+
+        rulesArray.AddItem(ruleDoc);
+      end;
+    end;
+
+    Result := rulesArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetPrecatcherRules: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
 end;
 
 function TApiPrecatcherServiceImpl.AddPrecatcherRule(const RuleData: RawJSON): integer;
+var
+  ruleDoc: variant;
+  netname, channel, botnicks, sitename, event, words, section: string;
+  kb_event: TKBEventType;
 begin
-  Result := 0;
+  Result := -1;
+  try
+    ruleDoc := _JsonFast(RuleData);
+
+    netname := UpperCase(UTF8ToString(VariantToUTF8(ruleDoc.netname)));
+    channel := UTF8ToString(VariantToUTF8(ruleDoc.channel));
+    botnicks := UTF8ToString(VariantToUTF8(ruleDoc.botnicks));
+    sitename := UpperCase(UTF8ToString(VariantToUTF8(ruleDoc.sitename)));
+    event := UpperCase(UTF8ToString(VariantToUTF8(ruleDoc.event)));
+    words := UTF8ToString(VariantToUTF8(ruleDoc.words));
+    section := UTF8ToString(VariantToUTF8(ruleDoc.section));
+
+    // Validate event type
+    kb_event := EventStringToTKBEventType(event);
+    if not (kb_event in [kbePRE, kbeADDPRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST]) then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Invalid event type: %s', [event]));
+      Exit;
+    end;
+
+    // Validate site exists
+    if FindSiteByName('', sitename) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Site %s not found', [sitename]));
+      Exit;
+    end;
+
+    // Validate channel exists
+    if FindIrcChannelSettings(netname, channel) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Channel %s@%s not found', [channel, netname]));
+      Exit;
+    end;
+
+    // Add rule to catcherFile
+    catcherFile.Add(Format('%s;%s;%s;%s;%s;%s;%s',
+      [netname, channel, botnicks, sitename, event, words, section]));
+
+    // Rebuild precatcher
+    PrecatcherRebuild;
+
+    Result := catcherFile.Count - 1; // Return ID of newly added rule
+
+    Debug(dpMessage, 'slapi', Format('AddPrecatcherRule: Added rule for %s@%s -> %s', [channel, netname, sitename]));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] AddPrecatcherRule: %s', [E.Message]));
+      Result := -1;
+    end;
+  end;
 end;
 
 function TApiPrecatcherServiceImpl.DeletePrecatcherRule(RuleId: integer): boolean;
 begin
-  Result := True;
+  Result := False;
+  try
+    if (RuleId < 0) or (RuleId >= catcherFile.Count) then
+    begin
+      Debug(dpError, 'slapi', Format('DeletePrecatcherRule: Invalid rule ID: %d', [RuleId]));
+      Exit;
+    end;
+
+    catcherFile.Delete(RuleId);
+    PrecatcherRebuild;
+
+    Debug(dpMessage, 'slapi', Format('DeletePrecatcherRule: Deleted rule #%d', [RuleId]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] DeletePrecatcherRule: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TApiPrecatcherServiceImpl.TestPrecatcher(const Announce: RawUTF8): RawJSON;
+var
+  announceDoc, resultDoc: variant;
+  netname, channel, nick, text: string;
+  debugLines: TStringList;
 begin
   Result := '{}';
+  debugLines := nil;
+  try
+    if Announce = '' then
+    begin
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode('Missing announce payload'));
+      Result := VariantSaveJSON(resultDoc);
+      Exit;
+    end;
+
+    announceDoc := _JsonFast(Announce);
+
+    if VarIsEmpty(announceDoc) or VarIsNull(announceDoc) then
+    begin
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode('Invalid announce JSON'));
+      Result := VariantSaveJSON(resultDoc);
+      Exit;
+    end;
+
+    // Accept both direct payload and wrapper { "Announce": { ... } }
+    try
+      if not VarIsEmpty(announceDoc.Announce) and not VarIsNull(announceDoc.Announce) then
+        announceDoc := announceDoc.Announce;
+    except
+      // ignore if no Announce field
+    end;
+
+    netname := UpperCase(UTF8ToString(VariantToUTF8(announceDoc.netname)));
+    channel := UTF8ToString(VariantToUTF8(announceDoc.channel));
+    nick := UTF8ToString(VariantToUTF8(announceDoc.nick));
+    text := UTF8ToString(VariantToUTF8(announceDoc.text));
+
+    if (netname = '') or (channel = '') or (nick = '') or (text = '') then
+    begin
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode('Missing required fields (netname, channel, nick, text)'));
+      Result := VariantSaveJSON(resultDoc);
+      Exit;
+    end;
+
+    if FindIrcChannelSettings(netname, channel) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('TestPrecatcher: Channel %s@%s not found', [channel, netname]));
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(Format('Channel %s@%s not found', [channel, netname])));
+      Result := VariantSaveJSON(resultDoc);
+      Exit;
+    end;
+
+    // Enable debug capture temporarily
+    Precatcher_BeginDebugCapture(debugLines);
+
+    // Process the announce
+    PrecatcherProcessB(netname, channel, nick, text);
+
+    // Disable debug capture
+    Precatcher_EndDebugCapture(debugLines);
+
+    // Return success
+    TDocVariant.New(resultDoc);
+    TDocVariantData(resultDoc).AddValue('success', True);
+    TDocVariantData(resultDoc).AddValue('message', UTF8Encode('Precatcher test completed successfully'));
+    if (debugLines <> nil) and (debugLines.Count > 0) then
+      TDocVariantData(resultDoc).AddValue('output', UTF8Encode(debugLines.Text))
+    else
+      TDocVariantData(resultDoc).AddValue('output', UTF8Encode(''));
+    Result := VariantSaveJSON(resultDoc);
+
+    Debug(dpMessage, 'slapi', Format('TestPrecatcher: Tested announce from %s on %s@%s', [nick, channel, netname]));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] TestPrecatcher: %s', [E.Message]));
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(E.Message));
+      Result := VariantSaveJSON(resultDoc);
+    end;
+  end;
+  if debugLines <> nil then
+    debugLines.Free;
 end;
 
 function TApiPrecatcherServiceImpl.ReloadPrecatcher: boolean;
+var
+  error_msg: string;
 begin
-  Result := True;
+  Result := False;
+  try
+    error_msg := PrecatcherReload;
+    if error_msg = '' then
+    begin
+      Debug(dpMessage, 'slapi', 'ReloadPrecatcher: Precatcher reloaded successfully');
+      Result := True;
+    end
+    else
+    begin
+      Debug(dpError, 'slapi', Format('ReloadPrecatcher: %s', [error_msg]));
+      Result := False;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] ReloadPrecatcher: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TApiPrecatcherServiceImpl.GetMappings: RawJSON;
+var
+  i: integer;
+  mappingsArray: TDocVariantData;
+  mappingDoc: variant;
+  mapping: TMap;
 begin
   Result := '[]';
+  try
+    mappingsArray.InitFast(dvArray);
+
+    if mappingslist <> nil then
+    begin
+      for i := 0 to mappingslist.Count - 1 do
+      begin
+        mapping := TMap(mappingslist.Items[i]);
+        if mapping <> nil then
+        begin
+          TDocVariant.New(mappingDoc);
+          TDocVariantData(mappingDoc).AddValue('id', i);
+          TDocVariantData(mappingDoc).AddValue('origsection', UTF8Encode(mapping.origsection));
+          TDocVariantData(mappingDoc).AddValue('newsection', UTF8Encode(mapping.newsection));
+          TDocVariantData(mappingDoc).AddValue('mask', UTF8Encode(mapping.mask.mask));
+
+          mappingsArray.AddItem(mappingDoc);
+        end;
+      end;
+    end;
+
+    Result := mappingsArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetMappings: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
 end;
 
 end.

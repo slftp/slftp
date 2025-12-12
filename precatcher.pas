@@ -44,6 +44,11 @@ procedure Precatcher_Init;
 procedure Precatcher_Uninit;
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 
+// Captures precatcher debug output into a string list for APIs/tests.
+// Caller must call Precatcher_EndDebugCapture and then free the list.
+procedure Precatcher_BeginDebugCapture(out aCapture: TStringList);
+procedure Precatcher_EndDebugCapture(const aCapture: TStringList);
+
 function ExtractReleasename(ts_data: TStringList): String;
 
 { Tries to extract the section from the given sitebot announce by iterating through the [sections] items
@@ -56,6 +61,8 @@ var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
   precatcher_debug_netname, precatcher_debug_channel: String;
+  precatcher_debug_capture: TStringList = nil;
+  precatcher_debug_capture_only: boolean = False;
   //  precatcher_auto: Boolean;
   catcherFile: TEncStringlist;
   mappingslist: TObjectList;
@@ -89,6 +96,22 @@ procedure mydebug(const s: String); overload;
 var
   nowstr: String;
 begin
+  if (precatcher_debug_capture <> nil) then
+  begin
+    try
+      precatcher_debug_lock.Enter('mydebug_capture');
+      try
+        precatcher_debug_capture.Add(s);
+      finally
+        precatcher_debug_lock.Leave;
+      end;
+    except
+      on e: Exception do
+        Debug(dpError, rsections, Format('[EXCEPTION] mydebug_capture: %s', [e.Message]));
+    end;
+    if precatcher_debug_capture_only then
+      Exit;
+  end;
   Debug(dpSpam, rsections, s);
   if precatcher_ircdebug then
   begin
@@ -112,6 +135,36 @@ begin
   if (precatcher_debug) then
   begin
     irc_Addtext(precatcher_debug_netname, precatcher_debug_channel, s);
+  end;
+end;
+
+procedure Precatcher_BeginDebugCapture(out aCapture: TStringList);
+begin
+  aCapture := TStringList.Create;
+  precatcher_debug_lock.Enter('BeginDebugCapture');
+  try
+    precatcher_debug_capture := aCapture;
+    precatcher_debug_capture_only := True;
+    precatcher_debug := True;
+    precatcher_debug_netname := '';
+    precatcher_debug_channel := '';
+  finally
+    precatcher_debug_lock.Leave;
+  end;
+end;
+
+procedure Precatcher_EndDebugCapture(const aCapture: TStringList);
+begin
+  precatcher_debug_lock.Enter('EndDebugCapture');
+  try
+    if precatcher_debug_capture = aCapture then
+      precatcher_debug_capture := nil;
+    precatcher_debug_capture_only := False;
+    precatcher_debug := False;
+    precatcher_debug_netname := '';
+    precatcher_debug_channel := '';
+  finally
+    precatcher_debug_lock.Leave;
   end;
 end;
 
@@ -1101,4 +1154,3 @@ begin
 end;
 
 end.
-
