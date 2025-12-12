@@ -81,7 +81,8 @@ type
                                 const Username, Password: RawUTF8;
                                 const BncsJson: RawUTF8;
                                 MaxIdle, IdleInterval: integer;
-                                LegacyCwd: boolean): boolean;
+                                LegacyCwd: boolean;
+                                SslFxp: integer): boolean;
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
@@ -700,10 +701,34 @@ end;
 function TApiSitesServiceImpl.AddSite(const Name, Host: RawUTF8; Port: integer;
                                       const Username, Password: RawUTF8;
                                       SslEnabled: boolean): boolean;
+var
+  s: TSite;
+  siteNameStr: string;
 begin
   Result := False;
   try
-    Debug(dpMessage, section, Format('AddSite API: %s@%s:%d', [UTF8ToString(Name), UTF8ToString(Host), Port]));
+    siteNameStr := UTF8ToString(Name);
+    Debug(dpMessage, section, Format('AddSite API: %s@%s:%d', [siteNameStr, UTF8ToString(Host), Port]));
+
+    if FindSiteByName('', siteNameStr) <> nil then
+    begin
+      Debug(dpError, section, Format('AddSite: Site %s already exists', [siteNameStr]));
+      Exit;
+    end;
+
+    s := TSite.Create(siteNameStr);
+    s.WCString('username', UTF8ToString(Username));
+    s.WCString('password', UTF8ToString(Password));
+    s.WCString('bnc_host-0', UTF8ToString(Host));
+    s.WCInteger('bnc_port-0', Port);
+
+    if SslEnabled then
+      s.sslmethod := sslAuthTLS
+    else
+      s.sslmethod := sslNone;
+
+    sitesunit.AddSite(s);
+
     Result := True;
   except
     on E: Exception do
@@ -725,6 +750,10 @@ begin
       Exit;
 
     Debug(dpMessage, section, Format('DeleteSite API: %s', [UTF8ToString(SiteName)]));
+
+    s.Stop;
+    sitesunit.DeleteSite(s);
+
     Result := True;
   except
     on E: Exception do
@@ -1214,6 +1243,7 @@ begin
     Info.Slots := s.slots.Count;
     Info.FreeSlots := s.freeslots;
     Info.SslEnabled := (s.RCInteger('sslfxp', 0) > 0);
+    Info.SslFxp := s.RCInteger('sslfxp', 0);
 
     bncsArray.InitFast(dvArray);
     i := 0;
@@ -1251,7 +1281,8 @@ function TApiSitesServiceImpl.SetSiteCredentials(const SiteName: RawUTF8;
                                                   const Username, Password: RawUTF8;
                                                   const BncsJson: RawUTF8;
                                                   MaxIdle, IdleInterval: integer;
-                                                  LegacyCwd: boolean): boolean;
+                                                  LegacyCwd: boolean;
+                                                  SslFxp: integer): boolean;
 var
   s: TSite;
   bncsArray: variant;
@@ -1297,8 +1328,9 @@ begin
     s.WCInteger('max_idle', MaxIdle);
     s.WCInteger('idleinterval', IdleInterval);
     s.WCBool('legacycwd', LegacyCwd);
+    s.WCInteger('sslfxp', SslFxp);
 
-    Debug(dpMessage, section, Format('SetSiteCredentials API: %s (BNCs=%d)', [UTF8ToString(SiteName), TDocVariantData(bncsArray).Count]));
+    Debug(dpMessage, section, Format('SetSiteCredentials API: %s (BNCs=%d, SSLFXP=%d)', [UTF8ToString(SiteName), TDocVariantData(bncsArray).Count, SslFxp]));
     Result := True;
   except
     on E: Exception do

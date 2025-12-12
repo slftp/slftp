@@ -136,7 +136,8 @@ type
                                 const Username, Password: RawUTF8;
                                 const BncsJson: RawUTF8;
                                 MaxIdle, IdleInterval: integer;
-                                LegacyCwd: boolean): boolean;
+                                LegacyCwd: boolean;
+                                SslFxp: integer): boolean;
 
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;

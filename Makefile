@@ -144,6 +144,8 @@ web-ui-build:
 web-ui-deploy: web-ui-build
 	@echo "Deploying Web UI to $(WEB_DEPLOY_DIR)..."
 	@mkdir -p $(WEB_DEPLOY_DIR)
+	@echo "Cleaning old files..."
+	@rm -rf $(WEB_DEPLOY_DIR)/*
 	@cp -r $(WEB_UI_DIR)/dist/* $(WEB_DEPLOY_DIR)/
 	@echo "Web UI deployed to $(WEB_DEPLOY_DIR)"
 	@echo "Note: Login with API key from slftp.ini [api] section"
