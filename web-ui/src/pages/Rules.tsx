@@ -45,7 +45,8 @@ export function Rules() {
       if (Array.isArray(rawSites)) parsedSites = rawSites;
       return parsedSites;
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const siteOptions = useMemo(() => {
@@ -63,7 +64,8 @@ export function Rules() {
       const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
       return Array.isArray(arr) ? (arr as RuleCondition[]) : [];
     },
-    refetchInterval: 60000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
   useEffect(() => {
