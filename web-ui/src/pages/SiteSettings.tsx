@@ -1,0 +1,461 @@
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Center,
+  Container,
+  Group,
+  Loader,
+  NumberInput,
+  Select,
+  Stack,
+  Switch,
+  Textarea,
+  TextInput,
+  Title,
+  Paper,
+  SimpleGrid,
+  Divider,
+  Badge,
+  Text
+} from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconArrowLeft, IconPlus, IconX, IconDeviceFloppy, IconWorld } from '@tabler/icons-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { apiClient } from '../api/client';
+import type { Bnc } from '../api/client';
+
+export function SiteSettings() {
+  const { siteName } = useParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [bncs, setBncs] = useState<Bnc[]>([]);
+
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [affils, setAffils] = useState('');
+  const [slots, setSlots] = useState<number | ''>('');
+  const [maxDn, setMaxDn] = useState<number | ''>('');
+  const [maxUp, setMaxUp] = useState<number | ''>('');
+  const [maxPreDn, setMaxPreDn] = useState<number | ''>('');
+  const [status, setStatus] = useState<'UP' | 'DOWN' | ''>('');
+  const [permDown, setPermDown] = useState(false);
+  const [autoLogin, setAutoLogin] = useState(false);
+  const [autoRulesInterval, setAutoRulesInterval] = useState<number | ''>('');
+  const [maxIdle, setMaxIdle] = useState<number | ''>(0);
+  const [idleInterval, setIdleInterval] = useState<number | ''>(30);
+  const [legacyCwd, setLegacyCwd] = useState(false);
+
+  // New fields
+  const [autoBncTest, setAutoBncTest] = useState<number | ''>('');
+  const [autoDirlist, setAutoDirlist] = useState<number | ''>('');
+  const [autoIndex, setAutoIndex] = useState<number | ''>('');
+  const [autoNuke, setAutoNuke] = useState<number | ''>('');
+  const [country, setCountry] = useState('');
+  const [skipUploaded, setSkipUploaded] = useState<string>('0');
+  const [killOnStalled, setKillOnStalled] = useState<number | ''>('');
+
+  const resolveDnsMutation = useMutation({
+    mutationFn: async (host: string) => {
+        const res = await apiClient.post('/ApiSitesService/ResolveHostname', { Hostname: host });
+        // Depending on mORMot return wrapper
+        return typeof res.data === 'string' ? res.data : (res.data.result?.[0] || res.data);
+    }
+  });
+
+  // Fetch Site Details
+  const { data: siteInfo, isLoading, error } = useQuery({
+    queryKey: ['site', siteName],
+    queryFn: async () => {
+      if (!siteName) throw new Error('No site name');
+      
+      const res = await apiClient.post('/ApiSitesService/GetSiteInfo', { SiteName: siteName });
+      const info = res.data.result?.[0] || res.data;
+      
+      // Parse BNCs
+      let parsedBncs: Bnc[] = [];
+      if (info.Bncs) {
+        try {
+          parsedBncs = typeof info.Bncs === 'string' ? JSON.parse(info.Bncs) : info.Bncs;
+        } catch {}
+      }
+      return { ...info, bncs: parsedBncs };
+    },
+    enabled: !!siteName,
+  });
+
+  // Effect to populate state
+  useEffect(() => {
+    if (siteInfo) {
+      setUsername(siteInfo.Username || '');
+      setAffils(siteInfo.Affils || '');
+      setSlots(siteInfo.Slots ?? 0);
+      setBncs(siteInfo.bncs || []);
+      setMaxIdle(siteInfo.MaxIdle ?? 0);
+      setIdleInterval(siteInfo.IdleInterval ?? 30);
+      setLegacyCwd(Boolean(siteInfo.LegacyCwd));
+      
+      setAutoBncTest(siteInfo.AutoBncTestInterval ?? 0);
+      setAutoDirlist(siteInfo.AutoDirlistInterval ?? 0);
+      setAutoIndex(siteInfo.AutoIndexInterval ?? 0);
+      setAutoNuke(siteInfo.AutoNukeInterval ?? 0);
+      setCountry(siteInfo.Country || '');
+      setSkipUploaded(String(siteInfo.SkipBeingUploadedFiles ?? 0));
+      setKillOnStalled(siteInfo.KillConnectionOnStalledTransferSeconds ?? 0);
+    }
+  }, [siteInfo]);
+
+  // We need the runtime stats/config that GetSites returns (max_dn, max_up etc).
+  const { data: siteRuntime } = useQuery({
+    queryKey: ['siteRuntime', siteName],
+    queryFn: async () => {
+      const res = await apiClient.post('/ApiSitesService/GetSites', { Filter: siteName });
+      let responseData = res.data;
+      if (res.data.result && Array.isArray(res.data.result)) {
+        responseData = res.data.result[0];
+      }
+      const rawSites = responseData.Sites;
+      let parsedSites: any[] = [];
+        if (typeof rawSites === 'string') {
+            parsedSites = JSON.parse(rawSites);
+        } else if (Array.isArray(rawSites)) {
+            parsedSites = rawSites;
+        }
+      return parsedSites.find((s: any) => s.name === siteName);
+    },
+    enabled: !!siteName
+  });
+
+  useEffect(() => {
+    if (siteRuntime) {
+      setSlots(siteRuntime.slots ?? 0);
+      setMaxDn(siteRuntime.max_dn ?? siteRuntime.slots ?? 0);
+      setMaxUp(siteRuntime.max_up ?? 0);
+      setMaxPreDn(siteRuntime.max_pre_dn ?? siteRuntime.max_dn ?? siteRuntime.slots ?? 0);
+      setStatus(siteRuntime.status === 'DOWN' || siteRuntime.status === 'DOWN_BY_USER' ? 'DOWN' : 'UP');
+      setPermDown(Boolean(siteRuntime.permdown));
+      setAutoLogin(Boolean(siteRuntime.autologin));
+      setAutoRulesInterval(siteRuntime.autorules_interval ?? 0);
+    }
+  }, [siteRuntime]);
+
+  const saveSettingsMutation = useMutation({
+    mutationFn: async () => {
+      if (!siteName) return;
+      await apiClient.post('/ApiSitesService/SetSiteSlots', { SiteName: siteName, Slots: Number(slots) });
+      await apiClient.post('/ApiSitesService/SetSiteMaxUpDn', { SiteName: siteName, MaxUp: Number(maxUp), MaxDn: Number(maxDn) });
+      await apiClient.post('/ApiSitesService/SetSiteMaxPreDn', { SiteName: siteName, MaxPreDn: Number(maxPreDn) });
+      await apiClient.post('/ApiSitesService/SetSitePermDown', { SiteName: siteName, PermDown: permDown });
+      await apiClient.post('/ApiSitesService/SetSiteAutoLogin', { SiteName: siteName, Enabled: autoLogin });
+      await apiClient.post('/ApiSitesService/SetSiteAutoRules', { SiteName: siteName, IntervalSeconds: Number(autoRulesInterval) });
+      await apiClient.post('/ApiSitesService/SetSiteAffils', { SiteName: siteName, Affils: affils });
+      await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: siteName, Username: username, Password: password, BncsJson: JSON.stringify(bncs), MaxIdle: Number(maxIdle), IdleInterval: Number(idleInterval), LegacyCwd: legacyCwd });
+      await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: siteName, Status: status });
+      
+      // New Config endpoint
+      await apiClient.post('/ApiSitesService/SetSiteConfig', { 
+          SiteName: siteName, 
+          Config: {
+              autobnctest: Number(autoBncTest),
+              autodirlist: Number(autoDirlist),
+              autoindex: Number(autoIndex),
+              autonuke: Number(autoNuke),
+              country: country,
+              skip_being_uploaded_files: Number(skipUploaded),
+              kill_connection_on_stalled_transfer: Number(killOnStalled)
+          }
+      });
+    },
+    onSuccess: () => {
+      notifications.show({ title: 'Saved', message: 'Site settings updated.', color: 'green' });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      queryClient.invalidateQueries({ queryKey: ['site', siteName] });
+      queryClient.invalidateQueries({ queryKey: ['siteRuntime', siteName] });
+    },
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
+  });
+
+  // Actions
+  const ghostMutation = useMutation({
+    mutationFn: async () => apiClient.post('/ApiSitesService/GhostSite', { SiteName: siteName }),
+    onSuccess: () => notifications.show({ title: 'Success', message: 'Ghosts killed', color: 'green' })
+  });
+  
+  const clearQueueMutation = useMutation({
+    mutationFn: async () => apiClient.post('/ApiQueueService/EmptyQueue', { SiteName: siteName }),
+    onSuccess: () => notifications.show({ title: 'Success', message: 'Queue cleared', color: 'green' })
+  });
+
+  const recalcMutation = useMutation({
+    mutationFn: async () => apiClient.post('/ApiSitesService/RecalcFreeSlots', { SiteName: siteName }),
+    onSuccess: () => notifications.show({ title: 'Success', message: 'Freeslots recalculated', color: 'green' })
+  });
+
+  const rebuildMutation = useMutation({
+    mutationFn: async () => apiClient.post('/ApiSitesService/RebuildSlots', { SiteName: siteName }),
+    onSuccess: () => notifications.show({ title: 'Success', message: 'Slots rebuilt', color: 'green' })
+  });
+
+  if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (error || !siteName) return <Alert color="red">Error loading site</Alert>;
+
+  return (
+    <Container size="xl">
+      <Group mb="md">
+        <Button variant="subtle" leftSection={<IconArrowLeft size="1rem" />} onClick={() => navigate('/sites')}>
+          Back to Sites
+        </Button>
+        <Title order={2}>{siteName}</Title>
+      </Group>
+
+      <Stack gap="xl">
+        <Paper withBorder p="md" radius="md">
+            <Group justify="space-between" mb="md">
+                <Title order={4}>General Settings</Title>
+                <Badge size="lg" color={status === 'UP' ? 'green' : (status === 'DOWN' ? 'red' : 'gray')}>
+                    {status || 'UNKNOWN'}
+                </Badge>
+            </Group>
+            
+            <Stack gap="lg">
+                <div>
+                    <Text size="sm" fw={500} c="dimmed" mb={8}>Credentials & Status</Text>
+                    <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+                        <TextInput
+                            label="Username"
+                            value={username}
+                            onChange={(e) => setUsername(e.currentTarget.value)}
+                        />
+                        <TextInput
+                            label="Password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.currentTarget.value)}
+                            placeholder="Leave empty to keep current"
+                        />
+                        <TextInput
+                            label="Country"
+                            value={country}
+                            onChange={(e) => setCountry(e.currentTarget.value)}
+                            placeholder=".DE"
+                        />
+                        <Select
+                            label="Status"
+                            data={[
+                                { value: 'UP', label: 'UP' },
+                                { value: 'DOWN', label: 'DOWN (disable)' },
+                            ]}
+                            value={status}
+                            onChange={(val) => setStatus(val as any)}
+                        />
+                    </SimpleGrid>
+                </div>
+
+                <Divider />
+
+                <div>
+                    <Text size="sm" fw={500} c="dimmed" mb={8}>Limits</Text>
+                    <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+                        <NumberInput
+                            label="Slots (total)"
+                            value={slots}
+                            min={0}
+                            onChange={(val) => setSlots(val === '' ? '' : Number(val))}
+                        />
+                        <NumberInput
+                            label="Max Pre-DN"
+                            value={maxPreDn}
+                            min={0}
+                            onChange={(val) => setMaxPreDn(val === '' ? '' : Number(val))}
+                        />
+                        <NumberInput
+                            label="Max Downloads"
+                            value={maxDn}
+                            min={0}
+                            onChange={(val) => setMaxDn(val === '' ? '' : Number(val))}
+                        />
+                        <NumberInput
+                            label="Max Uploads"
+                            value={maxUp}
+                            min={0}
+                            onChange={(val) => setMaxUp(val === '' ? '' : Number(val))}
+                        />
+                    </SimpleGrid>
+                </div>
+
+                <Divider />
+
+                <div>
+                    <Text size="sm" fw={500} c="dimmed" mb={8}>Connection & Options</Text>
+                    <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }} spacing="lg">
+                        <NumberInput
+                            label="Max Idle"
+                            value={maxIdle}
+                            min={0}
+                            onChange={(val) => setMaxIdle(val === '' ? '' : Number(val))}
+                        />
+                        <NumberInput
+                            label="Idle Interval"
+                            value={idleInterval}
+                            min={0}
+                            onChange={(val) => setIdleInterval(val === '' ? '' : Number(val))}
+                        />
+                        <Select 
+                            label="Skip Uploaded Files"
+                            data={[
+                                { value: '0', label: 'Skip 0-byte only' },
+                                { value: '1', label: 'Skip being uploaded + 0-byte' },
+                                { value: '2', label: 'Don\'t skip' }
+                            ]}
+                            value={skipUploaded}
+                            onChange={(v) => setSkipUploaded(v || '0')}
+                        />
+                        <NumberInput
+                            label="Kill Stalled (sec, 0=off)"
+                            value={killOnStalled}
+                            min={0}
+                            onChange={(val) => setKillOnStalled(val === '' ? '' : Number(val))}
+                        />
+                    </SimpleGrid>
+                    <Group mt="md">
+                        <Switch label="Auto-Login" checked={autoLogin} onChange={(e) => setAutoLogin(e.currentTarget.checked)} />
+                        <Switch label="Legacy CWD (glftpd v2)" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
+                        <Switch label="Permanent Down" checked={permDown} color="red" onChange={(e) => setPermDown(e.currentTarget.checked)} />
+                    </Group>
+                </div>
+
+                <Divider />
+                
+                <Textarea
+                    label="Affils"
+                    description="Whitespace separated"
+                    value={affils}
+                    onChange={(e) => setAffils(e.currentTarget.value)}
+                    placeholder="GRP1 GRP2"
+                    minRows={3}
+                />
+            </Stack>
+        </Paper>
+
+        <Paper withBorder p="md" radius="md">
+            <Title order={4} mb="md">Automation (Intervals in seconds)</Title>            <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
+                <NumberInput 
+                    label="Auto BNC Test" 
+                    value={autoBncTest} 
+                    min={0} 
+                    onChange={(v) => setAutoBncTest(v === '' ? '' : Number(v))}
+                />
+                <NumberInput 
+                    label="Auto Dirlist" 
+                    value={autoDirlist} 
+                    min={0} 
+                    onChange={(v) => setAutoDirlist(v === '' ? '' : Number(v))}
+                />
+                <NumberInput 
+                    label="Auto Index" 
+                    value={autoIndex} 
+                    min={0} 
+                    onChange={(v) => setAutoIndex(v === '' ? '' : Number(v))}
+                />
+                <NumberInput 
+                    label="Auto Nuke" 
+                    value={autoNuke} 
+                    min={0} 
+                    onChange={(v) => setAutoNuke(v === '' ? '' : Number(v))}
+                />
+                <NumberInput 
+                    label="Auto Rules" 
+                    value={autoRulesInterval} 
+                    min={0} 
+                    onChange={(v) => setAutoRulesInterval(v === '' ? '' : Number(v))}
+                />
+            </SimpleGrid>
+        </Paper>
+
+        <Paper withBorder p="md" radius="md">
+            <Title order={4} mb="md">BNC Configuration</Title>
+            <Stack>
+                {bncs.map((bnc, index) => (
+                  <Group key={index} align="flex-end">
+                    <TextInput
+                      label={index === 0 ? 'Host' : undefined}
+                      value={bnc.host}
+                      onChange={(e) => {
+                        const newBncs = [...bncs];
+                        newBncs[index].host = e.currentTarget.value;
+                        setBncs(newBncs);
+                      }}
+                      placeholder="ftp.example.com"
+                      style={{ flex: 1 }}
+                    />
+                    <ActionIcon 
+                        variant="light" 
+                        color="blue" 
+                        title="Resolve DNS to IP"
+                        onClick={() => {
+                            if (!bnc.host) return;
+                            resolveDnsMutation.mutateAsync(bnc.host).then((ip) => {
+                                if (ip && ip !== bnc.host) {
+                                    const newBncs = [...bncs];
+                                    newBncs[index].host = ip;
+                                    setBncs(newBncs);
+                                    notifications.show({ title: 'Resolved', message: `${bnc.host} -> ${ip}`, color: 'green' });
+                                } else if (ip === bnc.host) {
+                                    notifications.show({ title: 'Info', message: 'Already resolved or same', color: 'blue' });
+                                } else {
+                                    notifications.show({ title: 'Error', message: 'Could not resolve', color: 'red' });
+                                }
+                            });
+                        }}
+                    >
+                        <IconWorld size="1rem" />
+                    </ActionIcon>
+                    <NumberInput
+                      label={index === 0 ? 'Port' : undefined}
+                      value={bnc.port}
+                      min={1}
+                      max={65535}
+                      onChange={(val) => {
+                        const newBncs = [...bncs];
+                        newBncs[index].port = val === '' ? 21 : Number(val);
+                        setBncs(newBncs);
+                      }}
+                      w={100}
+                    />
+                    <ActionIcon color="red" onClick={() => setBncs(bncs.filter((_, i) => i !== index))} mb={4}>
+                        <IconX size="1rem" />
+                    </ActionIcon>
+                  </Group>
+                ))}
+                <Button
+                  leftSection={<IconPlus size="1rem" />}
+                  variant="light"
+                  onClick={() => setBncs([...bncs, { host: '', port: 21 }])}
+                  w="fit-content"
+                >
+                  Add BNC
+                </Button>
+            </Stack>
+        </Paper>
+
+        <Paper withBorder p="md" radius="md">
+            <Title order={4} mb="md">Maintenance</Title>
+            <Group>
+              <Button variant="outline" color="orange" onClick={() => clearQueueMutation.mutate()}>Clear Queue</Button>
+              <Button variant="outline" color="red" onClick={() => ghostMutation.mutate()}>Kill Ghosts</Button>
+              <Button variant="outline" onClick={() => recalcMutation.mutate()}>Recalc Freeslots</Button>
+              <Button variant="outline" onClick={() => rebuildMutation.mutate()}>Rebuild Slots</Button>
+            </Group>
+        </Paper>
+
+        <Group justify="flex-end">
+            <Button size="lg" leftSection={<IconDeviceFloppy size="1.2rem"/>} loading={saveSettingsMutation.isPending} onClick={() => saveSettingsMutation.mutate()}>
+                Save Settings
+            </Button>
+        </Group>
+      </Stack>
+    </Container>
+  );
+}

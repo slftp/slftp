@@ -75,6 +75,7 @@ type
     function SetSiteRoute(const SourceSite, DestSite: RawUTF8; Speed: integer;
                           Locked, AffilOnly, NoAffil: boolean): boolean;
     function TestSite(const SiteName: RawUTF8): boolean;
+    function ResolveHostname(const Hostname: RawUTF8): RawUTF8;
     function GhostSite(const SiteName: RawUTF8): boolean;
     function RecalcFreeSlots(const SiteName: RawUTF8): boolean;
     function RebuildSlots(const SiteName: RawUTF8): boolean;
@@ -86,6 +87,7 @@ type
                                 MaxIdle, IdleInterval: integer;
                                 LegacyCwd: boolean;
                                 SslFxp: integer): boolean;
+    function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
@@ -182,17 +184,67 @@ type
     function GetMappings: RawJSON;
   end;
 
+  { Log Service Implementation }
+  TApiLogServiceImpl = class(TInjectableObjectRest, IApiLogService)
+  public
+    function GetLogs(const Lines: integer): RawJSON;
+    function ClearLogs: boolean;
+  end;
+
 implementation
 
 uses
   Contnrs,
   kb.releaseinfo,
-  mystrings;
+  mystrings,
+  IdStack;
 
 {$I slftp.inc}
 
 const
   section = 'slapi.services';
+
+{ TApiLogServiceImpl }
+
+function TApiLogServiceImpl.GetLogs(const Lines: integer): RawJSON;
+var
+  logContent: string;
+  linesToRead: integer;
+  jsonArr: TDocVariantData;
+  sl: TStringList;
+  i: integer;
+begin
+  Result := '[]';
+  linesToRead := Lines;
+  if linesToRead <= 0 then linesToRead := 100;
+  if linesToRead > 50000 then linesToRead := 50000;
+
+  try
+    logContent := debugunit.LogTail(linesToRead);
+
+    sl := TStringList.Create;
+    try
+      sl.Text := logContent;
+      jsonArr.InitFast(dvArray);
+      for i := 0 to sl.Count - 1 do
+      begin
+        if Trim(sl[i]) <> '' then
+          jsonArr.AddItem(UTF8Encode(sl[i]));
+      end;
+      Result := jsonArr.ToJSON;
+    finally
+      sl.Free;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] GetLogs: %s', [E.Message]));
+  end;
+end;
+
+function TApiLogServiceImpl.ClearLogs: boolean;
+begin
+  Result := False; // Not implemented safely yet
+end;
 
 { TApiSystemServiceImpl }
 
@@ -1170,6 +1222,24 @@ begin
   end;
 end;
 
+function TApiSitesServiceImpl.ResolveHostname(const Hostname: RawUTF8): RawUTF8;
+begin
+  Result := '';
+  try
+    TIdStack.IncUsage;
+    try
+      Result := UTF8Encode(GStack.ResolveHost(UTF8ToString(Hostname)));
+    finally
+      TIdStack.DecUsage;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] ResolveHostname (%s): %s', [UTF8ToString(Hostname), E.Message]));
+    end;
+  end;
+end;
+
 function TApiSitesServiceImpl.GhostSite(const SiteName: RawUTF8): boolean;
 begin
   Result := False;
@@ -1304,12 +1374,51 @@ begin
     Info.MaxIdle := s.RCInteger('max_idle', 0);
     Info.IdleInterval := s.RCInteger('idleinterval', 30);
     Info.LegacyCwd := s.RCBool('legacycwd', False);
+    Info.AutoBncTestInterval := s.AutoBncTestInterval;
+    Info.AutoDirlistInterval := s.AutoDirlistInterval;
+    Info.AutoIndexInterval := s.AutoIndexInterval;
+    Info.AutoNukeInterval := s.AutoNukeInterval;
+    Info.Country := UTF8Encode(s.Country);
+    Info.SkipBeingUploadedFiles := Integer(s.SkipBeingUploadedFiles);
+    Info.KillConnectionOnStalledTransferSeconds := s.KillConnectionOnStalledTransferSeconds;
 
     Result := True;
   except
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] GetSiteInfo: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
+var
+  s: TSite;
+  data: TDocVariantData;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    if not data.InitJson(Config) then Exit;
+
+    if data.GetValueIndex('autobnctest') >= 0 then s.AutoBncTestInterval := data.GetValueOrNull('autobnctest');
+    if data.GetValueIndex('autodirlist') >= 0 then s.AutoDirlistInterval := data.GetValueOrNull('autodirlist');
+    if data.GetValueIndex('autoindex') >= 0 then s.AutoIndexInterval := data.GetValueOrNull('autoindex');
+    if data.GetValueIndex('autonuke') >= 0 then s.AutoNukeInterval := data.GetValueOrNull('autonuke');
+    if data.GetValueIndex('country') >= 0 then s.Country := string(data.GetValueOrNull('country'));
+    if data.GetValueIndex('skip_being_uploaded_files') >= 0 then s.SkipBeingUploadedFiles := TSkipBeingUploaded(Integer(data.GetValueOrNull('skip_being_uploaded_files')));
+    if data.GetValueIndex('kill_connection_on_stalled_transfer') >= 0 then s.KillConnectionOnStalledTransferSeconds := data.GetValueOrNull('kill_connection_on_stalled_transfer');
+
+    Debug(dpMessage, section, Format('SetSiteConfig API: %s updated', [UTF8ToString(SiteName)]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteConfig: %s', [E.Message]));
       Result := False;
     end;
   end;

@@ -1,5 +1,5 @@
-import { ActionIcon, Alert, Badge, Card, Center, Group, Loader, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, Title, Tooltip } from '@mantine/core';
-import { IconAlertCircle, IconRefresh } from '@tabler/icons-react';
+import { ActionIcon, Alert, Badge, Card, Center, Group, Loader, SegmentedControl, Select, SimpleGrid, Stack, Switch, Table, Text, Title, Tooltip, ThemeIcon } from '@mantine/core';
+import { IconAlertCircle, IconRefresh, IconArrowDownRight, IconArrowUpRight } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
@@ -47,6 +47,19 @@ const formatBytes = (value: number) => {
   const sign = value < 0 ? '-' : '';
   const digits = unitIndex === 0 ? 0 : 2;
   return `${sign}${n.toFixed(digits)} ${units[unitIndex]}`;
+};
+
+const getRatioColor = (inBytes: number, outBytes: number) => {
+  // User request: More Down (Out) than Up (In) is Green.
+  // Less Down (Out) than Up (In) is Red.
+  // Note: InBytes = Upload to Site, OutBytes = Download from Site.
+  if (outBytes > inBytes) return 'teal';
+  return 'red';
+};
+
+const formatRatio = (inBytes: number, outBytes: number) => {
+  if (outBytes === 0) return inBytes > 0 ? '0.00' : '-'; // Avoid infinity if possible, or handle gracefully
+  return (inBytes / outBytes).toFixed(2);
 };
 
 export function Stats() {
@@ -208,24 +221,39 @@ export function Stats() {
         )}
       </Card>
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
         <Card withBorder radius="md" padding="lg">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">Total In</Text>
-          <Text fw={700} size="xl">{formatBytes(totals.totalInBytes)}</Text>
-          <Text size="sm" c="dimmed">{totals.totalInFiles} files</Text>
+          <Group justify="space-between">
+            <div>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">Total In (Upload)</Text>
+              <Text fw={700} size="xl" c="red">{formatBytes(totals.totalInBytes)}</Text>
+              <Text size="sm" c="dimmed">{totals.totalInFiles} files</Text>
+            </div>
+            <ThemeIcon color="red" variant="light" size={38} radius="md">
+              <IconArrowDownRight size="1.8rem" />
+            </ThemeIcon>
+          </Group>
         </Card>
+
         <Card withBorder radius="md" padding="lg">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">Total Out</Text>
-          <Text fw={700} size="xl">{formatBytes(totals.totalOutBytes)}</Text>
-          <Text size="sm" c="dimmed">{totals.totalOutFiles} files</Text>
+          <Group justify="space-between">
+            <div>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">Total Out (Download)</Text>
+              <Text fw={700} size="xl" c="teal">{formatBytes(totals.totalOutBytes)}</Text>
+              <Text size="sm" c="dimmed">{totals.totalOutFiles} files</Text>
+            </div>
+            <ThemeIcon color="teal" variant="light" size={38} radius="md">
+               <IconArrowUpRight size="1.8rem" />
+            </ThemeIcon>
+          </Group>
         </Card>
+
         <Card withBorder radius="md" padding="lg">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase">Total In + Out</Text>
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">Total Traffic</Text>
           <Text fw={700} size="xl">{formatBytes(totals.totalBytes)}</Text>
           <Group gap="xs">
             <Text size="sm" c="dimmed">{totals.totalFiles} files</Text>
             <Badge variant="light">{statsSites.length} sites</Badge>
-            {data?.sqlPeriod && <Badge variant="light">{data.sqlPeriod}</Badge>}
           </Group>
         </Card>
       </SimpleGrid>
@@ -242,20 +270,27 @@ export function Stats() {
               <Table.Tr>
                 <Table.Th>Site</Table.Th>
                 <Table.Th style={{ textAlign: 'right' }}>Total</Table.Th>
-                <Table.Th style={{ textAlign: 'right' }}>In</Table.Th>
-                <Table.Th style={{ textAlign: 'right' }}>Out</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>Ratio (Up/Down)</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>In (Up)</Table.Th>
+                <Table.Th style={{ textAlign: 'right' }}>Out (Down)</Table.Th>
                 <Table.Th style={{ textAlign: 'right' }}>Files (in/out)</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {sortedSites.map((s) => {
                 const totalBytes = s.inBytes + s.outBytes;
+                const ratioColor = getRatioColor(s.inBytes, s.outBytes);
                 return (
                   <Table.Tr key={s.name}>
-                    <Table.Td>{s.name}</Table.Td>
+                    <Table.Td fw={500}>{s.name}</Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>{formatBytes(totalBytes)}</Table.Td>
-                    <Table.Td style={{ textAlign: 'right' }}>{formatBytes(s.inBytes)}</Table.Td>
-                    <Table.Td style={{ textAlign: 'right' }}>{formatBytes(s.outBytes)}</Table.Td>
+                    <Table.Td style={{ textAlign: 'right' }}>
+                       <Badge variant="light" color={ratioColor}>
+                         {formatRatio(s.inBytes, s.outBytes)}
+                       </Badge>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: 'right' }} c="red">{formatBytes(s.inBytes)}</Table.Td>
+                    <Table.Td style={{ textAlign: 'right' }} c="teal">{formatBytes(s.outBytes)}</Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>{s.inFiles}/{s.outFiles}</Table.Td>
                   </Table.Tr>
                 );
@@ -269,18 +304,37 @@ export function Stats() {
         <Card withBorder radius="md" padding="lg">
           <Group justify="space-between" mb="sm">
             <Title order={4}>Site Details: {selectedSite.name}</Title>
-            <Badge variant="light">{period}</Badge>
+            <Group>
+              <Badge size="lg" variant="filled" color={getRatioColor(selectedSite.inBytes, selectedSite.outBytes)}>
+                Ratio: {formatRatio(selectedSite.inBytes, selectedSite.outBytes)}
+              </Badge>
+              <Badge variant="light">{period}</Badge>
+            </Group>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <Card withBorder radius="md" padding="md">
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase">In</Text>
-              <Text fw={700} size="lg">{formatBytes(selectedSite.inBytes)}</Text>
-              <Text size="sm" c="dimmed">{selectedSite.inFiles} files</Text>
+              <Group justify="space-between">
+                 <div>
+                    <Text size="xs" c="dimmed" fw={700} tt="uppercase">In (Upload)</Text>
+                    <Text fw={700} size="lg" c="red">{formatBytes(selectedSite.inBytes)}</Text>
+                    <Text size="sm" c="dimmed">{selectedSite.inFiles} files</Text>
+                 </div>
+                 <ThemeIcon color="red" variant="light">
+                    <IconArrowDownRight />
+                 </ThemeIcon>
+              </Group>
             </Card>
             <Card withBorder radius="md" padding="md">
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase">Out</Text>
-              <Text fw={700} size="lg">{formatBytes(selectedSite.outBytes)}</Text>
-              <Text size="sm" c="dimmed">{selectedSite.outFiles} files</Text>
+              <Group justify="space-between">
+                 <div>
+                    <Text size="xs" c="dimmed" fw={700} tt="uppercase">Out (Download)</Text>
+                    <Text fw={700} size="lg" c="teal">{formatBytes(selectedSite.outBytes)}</Text>
+                    <Text size="sm" c="dimmed">{selectedSite.outFiles} files</Text>
+                 </div>
+                 <ThemeIcon color="teal" variant="light">
+                    <IconArrowUpRight />
+                 </ThemeIcon>
+              </Group>
             </Card>
           </SimpleGrid>
         </Card>
@@ -289,7 +343,7 @@ export function Stats() {
       {selectedSite && detailed && (
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <Card withBorder radius="md" padding="lg">
-            <Title order={5} mb="sm">Inbound (from)</Title>
+            <Title order={5} mb="sm" c="red">Inbound (from)</Title>
             <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
@@ -316,7 +370,7 @@ export function Stats() {
           </Card>
 
           <Card withBorder radius="md" padding="lg">
-            <Title order={5} mb="sm">Outbound (to)</Title>
+            <Title order={5} mb="sm" c="teal">Outbound (to)</Title>
             <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
