@@ -63,7 +63,8 @@ export function SitesList() {
       
       return parsedSites;
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const formatSlots = (site: Site) => {
@@ -509,7 +510,7 @@ export function SitesList() {
                 onChange={(val) => setIdleInterval(val === '' ? '' : Number(val))}
               />
             </Group>
-            <Switch label="legacycwd (glftpd only!)" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
+            <Switch label="legacycwd (recommended for glftpd v2)" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
             <Select
               label="Status"
               data={[

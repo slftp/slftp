@@ -99,7 +99,7 @@ export function IRC() {
 
       return networks;
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 

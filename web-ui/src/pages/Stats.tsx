@@ -102,7 +102,7 @@ export function Stats() {
       }
       return payload as RaceStatsResponse;
     },
-    refetchInterval: 15000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 
