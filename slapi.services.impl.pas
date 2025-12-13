@@ -2016,8 +2016,38 @@ end;
 { Stub implementations for other services }
 
 function TApiStatsServiceImpl.GetRaceStats(const SiteName, Period: RawUTF8; Detailed: boolean): RawJSON;
+var
+  fSiteName: String;
+  fPeriod: String;
+  temp: TTextWriterStackBuffer;
 begin
-  Result := '{}';
+  fSiteName := UpperCase(Trim(UTF8ToString(SiteName)));
+  if fSiteName = '' then
+    fSiteName := '*';
+
+  fPeriod := UpperCase(Trim(UTF8ToString(Period)));
+  if (fPeriod <> 'YEAR') and (fPeriod <> 'MONTH') then
+    fPeriod := 'DAY';
+
+  if (fSiteName <> '*') and (FindSiteByName('', fSiteName) = nil) then
+  begin
+    with TJsonWriter.CreateOwnedStream(temp) do
+    try
+      AddShort('{"enabled":');
+      Add(IsStatsDatabaseActive);
+      AddShort(',"error":"Site not found","site":');
+      AddJsonString(UTF8Encode(fSiteName));
+      AddShort(',"period":');
+      AddJsonString(UTF8Encode(fPeriod));
+      AddDirect('}');
+      SetText(Result);
+    finally
+      Free;
+    end;
+    Exit;
+  end;
+
+  Result := StatsGetRaceStatsJson(fSiteName, fPeriod, Detailed);
 end;
 
 function TApiStatsServiceImpl.GetRanks(const SiteName: RawUTF8): RawJSON;
