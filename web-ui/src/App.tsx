@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { SitesList } from './pages/SitesList';
 import { Routes as RoutesPage } from './pages/Routes';
+import { Rules } from './pages/Rules';
 import { Sections } from './pages/Sections';
 import { IRC } from './pages/IRC';
 import Login from './pages/Login';
@@ -29,6 +30,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="sites" element={<SitesList />} />
           <Route path="routes" element={<RoutesPage />} />
+          <Route path="rules" element={<Rules />} />
           <Route path="sections" element={<Sections />} />
           <Route path="irc" element={<IRC />} />
         </Route>

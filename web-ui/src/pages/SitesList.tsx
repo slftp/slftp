@@ -1,4 +1,4 @@
-import { Table, Badge, Title, Card, Alert, Loader, Center, Group, ActionIcon, Tooltip, Text, TextInput, Modal, NumberInput, Button, Stack, Select, Switch, Tabs, Divider, Box } from '@mantine/core';
+import { Table, Badge, Title, Card, Alert, Loader, Center, Group, ActionIcon, Tooltip, Text, TextInput, Modal, NumberInput, Button, Stack, Select, Switch, Tabs, Divider, Box, Textarea } from '@mantine/core';
 import { IconSearch, IconRefresh, IconBolt, IconSettings, IconTrash, IconToolsKitchen3, IconShieldOff, IconPlus, IconX } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -20,10 +20,20 @@ export function SitesList() {
   const [autoRulesInterval, setAutoRulesInterval] = useState<number | ''>('');
   const [usernameValue, setUsernameValue] = useState('');
   const [passwordValue, setPasswordValue] = useState('');
+  const [affilsValue, setAffilsValue] = useState('');
   const [bncs, setBncs] = useState<Bnc[]>([]);
   const [maxIdle, setMaxIdle] = useState<number | ''>(0);
   const [idleInterval, setIdleInterval] = useState<number | ''>(30);
   const [legacyCwd, setLegacyCwd] = useState(false);
+
+  // Add Site Modal
+  const [addSiteModalOpened, setAddSiteModalOpened] = useState(false);
+  const [newSiteName, setNewSiteName] = useState('');
+  const [newSiteHost, setNewSiteHost] = useState('');
+  const [newSitePort, setNewSitePort] = useState<number | ''>(21);
+  const [newSiteUsername, setNewSiteUsername] = useState('');
+  const [newSitePassword, setNewSitePassword] = useState('');
+  const [newSiteSsl, setNewSiteSsl] = useState(false);
 
   // Fetch Sites
   const { data, isLoading, error } = useQuery({
@@ -99,13 +109,14 @@ export function SitesList() {
   });
 
   const saveSettingsMutation = useMutation({
-    mutationFn: async (payload: { site: Site; slots: number; maxDn: number; maxUp: number; maxPreDn: number; permDown: boolean; autoLogin: boolean; autoRulesInterval: number; username: string; password: string; bncs: Bnc[]; maxIdle: number; idleInterval: number; legacyCwd: boolean; status: 'UP' | 'DOWN' }) => {
+    mutationFn: async (payload: { site: Site; slots: number; maxDn: number; maxUp: number; maxPreDn: number; permDown: boolean; autoLogin: boolean; autoRulesInterval: number; username: string; password: string; affils: string; bncs: Bnc[]; maxIdle: number; idleInterval: number; legacyCwd: boolean; status: 'UP' | 'DOWN' }) => {
       await apiClient.post('/ApiSitesService/SetSiteSlots', { SiteName: payload.site.name, Slots: payload.slots });
       await apiClient.post('/ApiSitesService/SetSiteMaxUpDn', { SiteName: payload.site.name, MaxUp: payload.maxUp, MaxDn: payload.maxDn });
       await apiClient.post('/ApiSitesService/SetSiteMaxPreDn', { SiteName: payload.site.name, MaxPreDn: payload.maxPreDn });
       await apiClient.post('/ApiSitesService/SetSitePermDown', { SiteName: payload.site.name, PermDown: payload.permDown });
       await apiClient.post('/ApiSitesService/SetSiteAutoLogin', { SiteName: payload.site.name, Enabled: payload.autoLogin });
       await apiClient.post('/ApiSitesService/SetSiteAutoRules', { SiteName: payload.site.name, IntervalSeconds: payload.autoRulesInterval });
+      await apiClient.post('/ApiSitesService/SetSiteAffils', { SiteName: payload.site.name, Affils: payload.affils });
       await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: payload.site.name, Username: payload.username, Password: payload.password, BncsJson: JSON.stringify(payload.bncs), MaxIdle: payload.maxIdle, IdleInterval: payload.idleInterval, LegacyCwd: payload.legacyCwd });
       await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: payload.site.name, Status: payload.status });
     },
@@ -183,6 +194,54 @@ export function SitesList() {
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
+  const addSiteMutation = useMutation({
+    mutationFn: async (payload: { name: string; host: string; port: number; username: string; password: string; sslEnabled: boolean }) => {
+      await apiClient.post('/ApiSitesService/AddSite', {
+        Name: payload.name,
+        Host: payload.host,
+        Port: payload.port,
+        Username: payload.username,
+        Password: payload.password,
+        SslEnabled: payload.sslEnabled
+      });
+    },
+    onSuccess: () => {
+      notifications.show({ title: 'Site added', message: 'New site created successfully.', color: 'green' });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      setAddSiteModalOpened(false);
+      setNewSiteName('');
+      setNewSiteHost('');
+      setNewSitePort(21);
+      setNewSiteUsername('');
+      setNewSitePassword('');
+      setNewSiteSsl(false);
+    },
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
+  });
+
+  const deleteSiteMutation = useMutation({
+    mutationFn: async (siteName: string) => {
+      await apiClient.post('/ApiSitesService/DeleteSite', { SiteName: siteName });
+    },
+    onSuccess: (_, siteName) => {
+      notifications.show({ title: 'Site deleted', message: `Site ${siteName} removed.`, color: 'green' });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+    },
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
+  });
+
+  const handleAddSite = () => {
+    if (!newSiteName.trim() || !newSiteHost.trim() || newSitePort === '') return;
+    addSiteMutation.mutate({
+      name: newSiteName,
+      host: newSiteHost,
+      port: newSitePort,
+      username: newSiteUsername,
+      password: newSitePassword,
+      sslEnabled: newSiteSsl
+    });
+  };
+
   const openEditor = async (site: Site) => {
     setSelected(site);
     setSlotsValue(site.slots ?? 0);
@@ -198,11 +257,12 @@ export function SitesList() {
       const res = await apiClient.post('/ApiSitesService/GetSiteInfo', { SiteName: site.name });
       const info = res.data.result?.[0] || res.data;
 
-      setUsernameValue(info.Username || '');
-      setPasswordValue('');
-      setMaxIdle(info.MaxIdle ?? 0);
-      setIdleInterval(info.IdleInterval ?? 30);
-      setLegacyCwd(Boolean(info.LegacyCwd));
+	      setUsernameValue(info.Username || '');
+	      setPasswordValue('');
+	      setAffilsValue(info.Affils || '');
+	      setMaxIdle(info.MaxIdle ?? 0);
+	      setIdleInterval(info.IdleInterval ?? 30);
+	      setLegacyCwd(Boolean(info.LegacyCwd));
 
       if (info.Bncs) {
         const parsedBncs = typeof info.Bncs === 'string' ? JSON.parse(info.Bncs) : info.Bncs;
@@ -210,8 +270,10 @@ export function SitesList() {
       } else {
         setBncs([]);
       }
+
     } catch (e) {
       console.error('Failed to load site info:', e);
+      setAffilsValue('');
       setBncs([]);
     }
   };
@@ -219,7 +281,7 @@ export function SitesList() {
   const handleSave = () => {
     if (!selected || !statusValue) return;
     if (slotsValue === '' || maxDnValue === '' || maxUpValue === '' || maxPreDnValue === '' || autoRulesInterval === '' || maxIdle === '' || idleInterval === '') return;
-    saveSettingsMutation.mutate({ site: selected, slots: slotsValue, maxDn: maxDnValue, maxUp: maxUpValue, maxPreDn: maxPreDnValue, permDown, autoLogin, autoRulesInterval, username: usernameValue, password: passwordValue, bncs, maxIdle, idleInterval, legacyCwd, status: statusValue });
+    saveSettingsMutation.mutate({ site: selected, slots: slotsValue, maxDn: maxDnValue, maxUp: maxUpValue, maxPreDn: maxPreDnValue, permDown, autoLogin, autoRulesInterval, username: usernameValue, password: passwordValue, affils: affilsValue, bncs, maxIdle, idleInterval, legacyCwd, status: statusValue });
   };
 
   // Helper for Status Badge
@@ -269,6 +331,15 @@ export function SitesList() {
               <IconTrash size="1rem" />
             </ActionIcon>
           </Tooltip>
+          <Tooltip label="Delete site">
+            <ActionIcon variant="light" color="red" onClick={() => {
+              if (confirm(`Delete site ${site.name}?`)) {
+                deleteSiteMutation.mutate(site.name);
+              }
+            }}>
+              <IconX size="1rem" />
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </Table.Td>
     </Table.Tr>
@@ -279,8 +350,11 @@ export function SitesList() {
       <Group justify="space-between" mb="md">
         <Title order={3}>Sites Manager</Title>
         <Group>
-           <TextInput 
-             placeholder="Search site..." 
+           <Button leftSection={<IconPlus size="1rem" />} onClick={() => setAddSiteModalOpened(true)}>
+             Add Site
+           </Button>
+           <TextInput
+             placeholder="Search site..."
              leftSection={<IconSearch size="0.9rem"/>}
              value={search}
              onChange={(e) => setSearch(e.currentTarget.value)}
@@ -309,41 +383,51 @@ export function SitesList() {
       <Text c="dimmed" ta="center" py="xl">No sites found</Text>
     )}
 
-    <Modal
-      opened={!!selected}
-      onClose={() => setSelected(null)}
-      title={selected ? `Settings: ${selected.name}` : 'Settings'}
-      centered
-      size="xl"
-    >
-      <Tabs defaultValue="basics" keepMounted={false} style={{ minHeight: '380px' }}>
-        <Tabs.List grow>
-          <Tabs.Tab value="basics" leftSection={<IconToolsKitchen3 size="1rem" />}>Basics</Tabs.Tab>
-          <Tabs.Tab value="maintenance" leftSection={<IconShieldOff size="1rem" />}>Maintenance</Tabs.Tab>
-        </Tabs.List>
+	    <Modal
+	      opened={!!selected}
+	      onClose={() => setSelected(null)}
+	      title={selected ? `Settings: ${selected.name}` : 'Settings'}
+	      centered
+	      size="xl"
+	    >
+	      <Tabs defaultValue="basics" keepMounted={false} style={{ minHeight: '380px' }}>
+	        <Tabs.List grow>
+	          <Tabs.Tab value="basics" leftSection={<IconToolsKitchen3 size="1rem" />}>Basics</Tabs.Tab>
+	          <Tabs.Tab value="maintenance" leftSection={<IconShieldOff size="1rem" />}>Maintenance</Tabs.Tab>
+	        </Tabs.List>
 
-        <Tabs.Panel value="basics" pt="md">
-          <Stack gap="sm">
-            <Divider label="FTP Credentials" />
-            <Group grow>
-              <TextInput
-                label="Username"
-                value={usernameValue}
-                onChange={(e) => setUsernameValue(e.currentTarget.value)}
-              />
-              <TextInput
-                label="Password"
-                type="password"
-                value={passwordValue}
-                onChange={(e) => setPasswordValue(e.currentTarget.value)}
-                placeholder="Leave empty to keep current"
-              />
-            </Group>
+	        <Tabs.Panel value="basics" pt="md">
+	          <Stack gap="sm">
+	            <Divider label="FTP Credentials" />
+	            <Group grow>
+	              <TextInput
+	                label="Username"
+	                value={usernameValue}
+	                onChange={(e) => setUsernameValue(e.currentTarget.value)}
+	              />
+	              <TextInput
+	                label="Password"
+	                type="password"
+	                value={passwordValue}
+	                onChange={(e) => setPasswordValue(e.currentTarget.value)}
+	                placeholder="Leave empty to keep current"
+	              />
+	            </Group>
 
-            <Divider label="BNC List" />
-            {bncs.map((bnc, index) => (
-              <Group key={index} grow>
-                <TextInput
+	            <Divider label="Affils" />
+	            <Textarea
+	              label="Affils (whitespace separated)"
+	              value={affilsValue}
+	              onChange={(e) => setAffilsValue(e.currentTarget.value)}
+	              placeholder="GRP1 GRP2 GRP3"
+	              autosize
+	              minRows={2}
+	            />
+
+	            <Divider label="BNC List" />
+	            {bncs.map((bnc, index) => (
+	              <Group key={index} grow>
+	                <TextInput
                   label={index === 0 ? 'Host' : undefined}
                   value={bnc.host}
                   onChange={(e) => {
@@ -435,11 +519,11 @@ export function SitesList() {
               value={statusValue}
               onChange={(val) => setStatusValue(val as 'UP' | 'DOWN' | '')}
             />
-          </Stack>
-        </Tabs.Panel>
+	          </Stack>
+	        </Tabs.Panel>
 
-        <Tabs.Panel value="maintenance" pt="md">
-          <Stack gap="sm">
+	        <Tabs.Panel value="maintenance" pt="md">
+	          <Stack gap="sm">
             <Group justify="space-between">
               <Button variant="light" color="orange" loading={clearQueueMutation.isPending} onClick={() => selected && clearQueueMutation.mutate(selected.name)}>
                 Clear queue
@@ -468,6 +552,68 @@ export function SitesList() {
         <Button variant="default" onClick={() => setSelected(null)}>Cancel</Button>
         <Button loading={saveSettingsMutation.isPending} onClick={handleSave}>
           Save
+        </Button>
+      </Group>
+    </Modal>
+
+    <Modal
+      opened={addSiteModalOpened}
+      onClose={() => setAddSiteModalOpened(false)}
+      title="Add New Site"
+      centered
+      size="md"
+    >
+      <Stack gap="sm">
+        <TextInput
+          label="Site Name"
+          placeholder="MYSITE"
+          value={newSiteName}
+          onChange={(e) => setNewSiteName(e.currentTarget.value)}
+          required
+        />
+        <TextInput
+          label="Host"
+          placeholder="ftp.example.com"
+          value={newSiteHost}
+          onChange={(e) => setNewSiteHost(e.currentTarget.value)}
+          required
+        />
+        <NumberInput
+          label="Port"
+          value={newSitePort}
+          min={1}
+          max={65535}
+          onChange={(val) => setNewSitePort(val === '' ? '' : Number(val))}
+          required
+        />
+        <TextInput
+          label="Username"
+          placeholder="username"
+          value={newSiteUsername}
+          onChange={(e) => setNewSiteUsername(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Password"
+          type="password"
+          placeholder="password"
+          value={newSitePassword}
+          onChange={(e) => setNewSitePassword(e.currentTarget.value)}
+        />
+        <Switch
+          label="Enable SSL/TLS"
+          checked={newSiteSsl}
+          onChange={(e) => setNewSiteSsl(e.currentTarget.checked)}
+        />
+      </Stack>
+
+      <Group justify="flex-end" mt="md">
+        <Button variant="default" onClick={() => setAddSiteModalOpened(false)}>Cancel</Button>
+        <Button
+          loading={addSiteMutation.isPending}
+          onClick={handleAddSite}
+          disabled={!newSiteName.trim() || !newSiteHost.trim() || newSitePort === ''}
+        >
+          Add Site
         </Button>
       </Group>
     </Modal>
