@@ -1,4 +1,4 @@
-import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon } from '@mantine/core';
+import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
@@ -52,6 +52,7 @@ export function Layout() {
         <Group h="100%" px="md" justify="space-between">
           <Group>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+            <Avatar src="/slftp.png" alt="Soulless FTP" size={28} radius="sm" />
             <Title order={3}>Soulless FTP</Title>
           </Group>
           <ActionIcon
