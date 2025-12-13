@@ -79,6 +79,7 @@ type
     FSslFxp: integer;
     FFeatures: RawUTF8;
     FBncs: RawUTF8;
+    FAffils: RawUTF8;
     FMaxIdle: integer;
     FIdleInterval: integer;
     FLegacyCwd: boolean;
@@ -92,9 +93,52 @@ type
     property SslFxp: integer read FSslFxp write FSslFxp;
     property Features: RawUTF8 read FFeatures write FFeatures;
     property Bncs: RawUTF8 read FBncs write FBncs;
+    property Affils: RawUTF8 read FAffils write FAffils;
     property MaxIdle: integer read FMaxIdle write FMaxIdle;
     property IdleInterval: integer read FIdleInterval write FIdleInterval;
     property LegacyCwd: boolean read FLegacyCwd write FLegacyCwd;
+  end;
+
+  { Text File Response (e.g. rules files) }
+  TApiTextFile = class(TOrm)
+  private
+    FSiteName: RawUTF8;
+    FPath: RawUTF8;
+    FExists: boolean;
+    FMd5: RawUTF8;
+    FContent: RawUTF8;
+  published
+    property SiteName: RawUTF8 read FSiteName write FSiteName;
+    property Path: RawUTF8 read FPath write FPath;
+    property Exists: boolean read FExists write FExists;
+    property Md5: RawUTF8 read FMd5 write FMd5;
+    property Content: RawUTF8 read FContent write FContent;
+  end;
+
+  { Rules validation response }
+  TApiRulesValidation = class(TOrm)
+  private
+    FOk: boolean;
+    FErrors: RawJSON;
+  published
+    property Ok: boolean read FOk write FOk;
+    property Errors: RawJSON read FErrors write FErrors;
+  end;
+
+  { Rules save response }
+  TApiRulesSaveResult = class(TOrm)
+  private
+    FOk: boolean;
+    FMessage: RawUTF8;
+    FPath: RawUTF8;
+    FMd5: RawUTF8;
+    FErrors: RawJSON;
+  published
+    property Ok: boolean read FOk write FOk;
+    property Message: RawUTF8 read FMessage write FMessage;
+    property Path: RawUTF8 read FPath write FPath;
+    property Md5: RawUTF8 read FMd5 write FMd5;
+    property Errors: RawJSON read FErrors write FErrors;
   end;
 
   { Sites List Response }

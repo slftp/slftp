@@ -33,10 +33,12 @@ uses
   pazo,
   precatcher,
   mainthread,
-  debugunit,
-  configunit,
-  routeconfig,
-  slcriticalsection2;
+	  debugunit,
+	  configunit,
+	  routeconfig,
+	  delphimd5,
+	  RegExpr,
+	  slcriticalsection2;
 
 type
   { System Service Implementation }
@@ -67,6 +69,7 @@ type
     function SetSitePermDown(const SiteName: RawUTF8; PermDown: boolean): boolean;
     function SetSiteAutoLogin(const SiteName: RawUTF8; Enabled: boolean): boolean;
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
+    function SetSiteAffils(const SiteName, Affils: RawUTF8): boolean;
     function RunSiteAutoRules(const SiteName: RawUTF8): boolean;
     function GetSiteRoutes(const SiteName: RawUTF8; out Routes: TApiSiteRoutes): boolean;
     function SetSiteRoute(const SourceSite, DestSite: RawUTF8; Speed: integer;
@@ -86,6 +89,13 @@ type
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
+    function GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+    function GetSiteRulesSnapshot(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+    function ValidateRtpl(const Content: RawUTF8; out Validation: TApiRulesValidation): boolean;
+    function SaveSiteRtpl(const SiteName: RawUTF8; const Content: RawUTF8; const ExpectedMd5: RawUTF8;
+      Reload: boolean; out SaveResult: TApiRulesSaveResult): boolean;
+    function ReloadRules: boolean;
+    function GetRuleConditions: RawJSON;
   end;
 
   { Queue Service Implementation }
@@ -972,6 +982,33 @@ begin
   end;
 end;
 
+function TApiSitesServiceImpl.SetSiteAffils(const SiteName, Affils: RawUTF8): boolean;
+var
+  s: TSite;
+  affilsStr: string;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    affilsStr := UTF8ToString(Affils);
+    if Pos(',', affilsStr) <> 0 then
+      Exit;
+
+    s.siteaffils := Trim(affilsStr);
+    Debug(dpMessage, section, Format('SetSiteAffils API: %s -> %s', [UTF8ToString(SiteName), s.siteaffils]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteAffils: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
 function TApiSitesServiceImpl.RunSiteAutoRules(const SiteName: RawUTF8): boolean;
 var
   s: TSite;
@@ -1263,6 +1300,7 @@ begin
     end;
 
     Info.Bncs := TDocVariantData(bncsArray).ToJSON;
+    Info.Affils := UTF8Encode(s.siteaffils);
     Info.MaxIdle := s.RCInteger('max_idle', 0);
     Info.IdleInterval := s.RCInteger('idleinterval', 30);
     Info.LegacyCwd := s.RCBool('legacycwd', False);
@@ -1454,6 +1492,386 @@ begin
     begin
       Debug(dpError, section, Format('[EXCEPTION] SetSiteSection: %s', [E.Message]));
       Result := False;
+    end;
+  end;
+end;
+
+function _Md5OfUtf8String(const aText: RawUTF8): RawUTF8;
+begin
+  Result := MD5DigestToStr(MD5String(aText));
+end;
+
+function _Md5OfFile(const aFileName: string): RawUTF8;
+begin
+  Result := MD5DigestToStr(MD5File(aFileName));
+end;
+
+procedure _WriteUtf8TextFileAtomic(const aFileName: string; const aContent: RawUTF8);
+var
+  tmpFile: string;
+  fs: TFileStream;
+begin
+  tmpFile := aFileName + '.sltmp';
+  fs := TFileStream.Create(tmpFile, fmCreate);
+  try
+    if aContent <> '' then
+      fs.WriteBuffer(Pointer(aContent)^, Length(aContent));
+  finally
+    fs.Free;
+  end;
+
+  if FileExists(aFileName) then
+  begin
+    if not DeleteFile(aFileName) then
+      raise Exception.CreateFmt('Cannot delete existing file: %s', [aFileName]);
+  end;
+
+  if not RenameFile(tmpFile, aFileName) then
+    raise Exception.CreateFmt('Cannot move file from %s to %s', [tmpFile, aFileName]);
+end;
+
+function _ResolveRtplFileName(const aSiteName: string): string;
+var
+  resolved: string;
+begin
+  resolved := UpperCase(aSiteName);
+  if (resolved = '*') then
+    resolved := getAdminSiteName;
+  Result := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + resolved + '.rtpl';
+end;
+
+function _ResolveSiteRulesSnapshotFileName(const aSiteName: string): string;
+var
+  resolved: string;
+  splitSiteData: boolean;
+begin
+  resolved := UpperCase(aSiteName);
+  splitSiteData := config.ReadBool('sites', 'split_site_data', False);
+  if splitSiteData then
+    Result := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + resolved + '.siterules'
+  else
+    Result := ExtractFilePath(ParamStr(0)) + 'rules' + PathDelim + resolved + '.rules';
+end;
+
+function TApiSitesServiceImpl.GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+var
+  fileName: string;
+  s: RawUTF8;
+  sl: TStringList;
+begin
+  Result := False;
+  FileInfo := nil;
+  try
+    fileName := _ResolveRtplFileName(UTF8ToString(SiteName));
+    ForceDirectories(ExtractFilePath(fileName));
+
+    FileInfo := TApiTextFile.Create;
+    FileInfo.SiteName := SiteName;
+    FileInfo.Path := UTF8Encode(fileName);
+    FileInfo.Exists := FileExists(fileName);
+    if FileInfo.Exists then
+      FileInfo.Md5 := _Md5OfFile(fileName)
+    else
+      FileInfo.Md5 := '';
+
+    if FileInfo.Exists then
+    begin
+      sl := TStringList.Create;
+      try
+        sl.LoadFromFile(fileName);
+        s := UTF8Encode(sl.Text);
+        FileInfo.Content := s;
+      finally
+        sl.Free;
+      end;
+    end
+    else
+      FileInfo.Content := '';
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSiteRtpl: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetSiteRulesSnapshot(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+var
+  fileName: string;
+  s: RawUTF8;
+  sl: TStringList;
+begin
+  Result := False;
+  FileInfo := nil;
+  try
+    fileName := _ResolveSiteRulesSnapshotFileName(UTF8ToString(SiteName));
+    ForceDirectories(ExtractFilePath(fileName));
+
+    FileInfo := TApiTextFile.Create;
+    FileInfo.SiteName := SiteName;
+    FileInfo.Path := UTF8Encode(fileName);
+    FileInfo.Exists := FileExists(fileName);
+    if FileInfo.Exists then
+      FileInfo.Md5 := _Md5OfFile(fileName)
+    else
+      FileInfo.Md5 := '';
+
+    if FileInfo.Exists then
+    begin
+      sl := TStringList.Create;
+      try
+        sl.LoadFromFile(fileName);
+        s := UTF8Encode(sl.Text);
+        FileInfo.Content := s;
+      finally
+        sl.Free;
+      end;
+    end
+    else
+      FileInfo.Content := '';
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSiteRulesSnapshot: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.ValidateRtpl(const Content: RawUTF8; out Validation: TApiRulesValidation): boolean;
+var
+  lines: TStringList;
+  errors: TDocVariantData;
+  errObj: variant;
+  i: integer;
+  line: string;
+  rule: TRule;
+  tokens: TStringList;
+  token: string;
+  re: TRegExpr;
+  reExpr: string;
+  reCaseInsensitive: boolean;
+
+  procedure _AddError(const aLine: integer; const aMessage: string);
+  begin
+    TDocVariant.New(errObj);
+    TDocVariantData(errObj).AddValue('line', aLine);
+    TDocVariantData(errObj).AddValue('message', UTF8Encode(aMessage));
+    errors.AddItem(errObj);
+  end;
+
+  procedure _ValidateRegexToken(const aLine: integer; const aToken: string);
+  var
+    fLen: integer;
+  begin
+    fLen := Length(aToken);
+    if fLen < 2 then
+      Exit;
+    if aToken[1] <> '/' then
+      Exit;
+
+    reCaseInsensitive := False;
+    if aToken[fLen] = '/' then
+    begin
+      reExpr := Copy(aToken, 2, fLen - 2);
+    end
+    else if (fLen >= 3) and (aToken[fLen] = 'i') and (aToken[fLen - 1] = '/') then
+    begin
+      reCaseInsensitive := True;
+      reExpr := Copy(aToken, 2, fLen - 3);
+    end
+    else
+      Exit; // not a regex token in slmasks terms
+
+    re := TRegExpr.Create;
+    try
+      re.ModifierI := reCaseInsensitive;
+      re.Expression := reExpr;
+      re.Compile; // enforce compilation to catch syntax errors early
+    except
+      on E: Exception do
+        _AddError(aLine, Format('Invalid regex %s: %s', [aToken, E.Message]));
+    end;
+    re.Free;
+  end;
+begin
+  Result := False;
+  try
+    Validation := TApiRulesValidation.Create;
+    errors.InitFast(dvArray);
+
+    lines := TStringList.Create;
+    try
+      lines.Text := UTF8ToString(Content);
+      for i := 0 to lines.Count - 1 do
+      begin
+        line := Trim(lines[i]);
+        if (line = '') or (line[1] = '#') then
+          Continue;
+
+        rule := nil;
+        try
+          rule := TRule.Create(line);
+        except
+          on E: Exception do
+          begin
+            _AddError(i + 1, E.Message);
+            Continue;
+          end;
+        end;
+
+        try
+          if rule.error <> '' then
+          begin
+            _AddError(i + 1, rule.error);
+            Continue;
+          end;
+
+          // Additional validation: ensure regex tokens compile (TRegExpr compiles lazily at Exec time)
+          tokens := TStringList.Create;
+          try
+            ExtractStrings([' '], [], PChar(line), tokens);
+            for token in tokens do
+              _ValidateRegexToken(i + 1, token);
+          finally
+            tokens.Free;
+          end;
+        finally
+          rule.Free;
+        end;
+      end;
+    finally
+      lines.Free;
+    end;
+
+    Validation.Ok := TDocVariantData(errors).Count = 0;
+    Validation.Errors := errors.ToJSON;
+    Exit(True);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] ValidateRtpl: %s', [E.Message]));
+      Exit(False);
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.SaveSiteRtpl(const SiteName: RawUTF8; const Content: RawUTF8; const ExpectedMd5: RawUTF8;
+  Reload: boolean; out SaveResult: TApiRulesSaveResult): boolean;
+var
+  fileName: string;
+  currentMd5: RawUTF8;
+  validation: TApiRulesValidation;
+  msg: RawUTF8;
+begin
+  Result := False;
+  try
+    SaveResult := TApiRulesSaveResult.Create;
+    SaveResult.Ok := False;
+
+    fileName := _ResolveRtplFileName(UTF8ToString(SiteName));
+    ForceDirectories(ExtractFilePath(fileName));
+
+    currentMd5 := '';
+    if FileExists(fileName) then
+      currentMd5 := _Md5OfFile(fileName);
+
+    if (ExpectedMd5 <> '') and (currentMd5 <> '') and (UpperCase(UTF8ToString(ExpectedMd5)) <> UpperCase(UTF8ToString(currentMd5))) then
+    begin
+      msg := 'Conflict: file changed on disk since last load';
+      SaveResult.Message := msg;
+      SaveResult.Path := UTF8Encode(fileName);
+      SaveResult.Md5 := currentMd5;
+      SaveResult.Errors := '[]';
+      Exit(True);
+    end;
+
+    if not ValidateRtpl(Content, validation) then
+      Exit(False);
+    try
+      if not validation.Ok then
+      begin
+        SaveResult.Message := 'Validation failed';
+        SaveResult.Path := UTF8Encode(fileName);
+        SaveResult.Md5 := currentMd5;
+        SaveResult.Errors := validation.Errors;
+        Exit(True);
+      end;
+    finally
+      validation.Free;
+    end;
+
+    _WriteUtf8TextFileAtomic(fileName, Content);
+    SaveResult.Path := UTF8Encode(fileName);
+    SaveResult.Md5 := _Md5OfFile(fileName);
+
+    if Reload then
+      RulesReload;
+
+    SaveResult.Ok := True;
+    SaveResult.Message := 'Saved';
+    SaveResult.Errors := '[]';
+    Exit(True);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SaveSiteRtpl: %s', [E.Message]));
+      Exit(False);
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.ReloadRules: boolean;
+begin
+  Result := False;
+  try
+    RulesReload;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] ReloadRules: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetRuleConditions: RawJSON;
+var
+  arr: TDocVariantData;
+  item: variant;
+  i: integer;
+  condClass: TConditionClass;
+begin
+  Result := '[]';
+  try
+    arr.InitFast(dvArray);
+    if rulesunit.conditions <> nil then
+    begin
+      for i := 0 to rulesunit.conditions.Count - 1 do
+      begin
+        condClass := TConditionClass(rulesunit.conditions[i]);
+        TDocVariant.New(item);
+        TDocVariantData(item).AddValue('name', UTF8Encode(condClass.Name));
+        if condClass <> TBooleanCondition then
+          TDocVariantData(item).AddValue('ops', UTF8Encode(condClass.AcceptedOperatorsAsText))
+        else
+          TDocVariantData(item).AddValue('ops', '');
+        TDocVariantData(item).AddValue('description', UTF8Encode(condClass.Description));
+        arr.AddItem(item);
+      end;
+    end;
+    Result := arr.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetRuleConditions: %s', [E.Message]));
+      Result := '[]';
     end;
   end;
 end;

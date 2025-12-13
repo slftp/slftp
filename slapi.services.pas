@@ -99,6 +99,10 @@ type
     /// Enable/disable autorules interval (seconds, 0 = off)
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
 
+    /// PATCH /api/sites/{name}/affils
+    /// Replace site affils list (whitespace delimited)
+    function SetSiteAffils(const SiteName, Affils: RawUTF8): boolean;
+
     /// POST /api/sites/{name}/autorules/run
     /// Run autorules once now
     function RunSiteAutoRules(const SiteName: RawUTF8): boolean;
@@ -142,6 +146,25 @@ type
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
+
+    /// Loads incoming rules file for a site from rtpl/<site>.rtpl (or admin file for '*')
+    function GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+
+    /// Loads the cached SITE RULES snapshot (rtpl/<site>.siterules or rules/<site>.rules)
+    function GetSiteRulesSnapshot(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+
+    /// Validates rtpl file content (line-by-line parser errors)
+    function ValidateRtpl(const Content: RawUTF8; out Validation: TApiRulesValidation): boolean;
+
+    /// Saves incoming rules file and optionally reloads rules in memory
+    function SaveSiteRtpl(const SiteName: RawUTF8; const Content: RawUTF8; const ExpectedMd5: RawUTF8;
+      Reload: boolean; out SaveResult: TApiRulesSaveResult): boolean;
+
+    /// Reload rules from disk (rtpl/*.rtpl and slftp.rules)
+    function ReloadRules: boolean;
+
+    /// Returns list of rule condition handlers with operators and descriptions
+    function GetRuleConditions: RawJSON;
   end;
 
   { Queue & Tasks API }
