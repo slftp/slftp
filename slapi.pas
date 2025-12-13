@@ -161,7 +161,8 @@ begin
     TypeInfo(IApiRulesService),
     TypeInfo(IApiSpeedService),
     TypeInfo(IApiKnowledgeBaseService),
-    TypeInfo(IApiPrecatcherService)
+    TypeInfo(IApiPrecatcherService),
+    TypeInfo(IApiLogService)
   ]);
 
   // Register all service interfaces with their implementations
@@ -174,6 +175,7 @@ begin
   FRestServer.ServiceDefine(TApiSpeedServiceImpl, [IApiSpeedService], sicShared);
   FRestServer.ServiceDefine(TApiKnowledgeBaseServiceImpl, [IApiKnowledgeBaseService], sicShared);
   FRestServer.ServiceDefine(TApiPrecatcherServiceImpl, [IApiPrecatcherService], sicShared);
+  FRestServer.ServiceDefine(TApiLogServiceImpl, [IApiLogService], sicShared);
 
   Debug(dpMessage, rsection, 'API Services registered');
 end;

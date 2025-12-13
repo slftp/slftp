@@ -2,11 +2,13 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { SitesList } from './pages/SitesList';
+import { SiteSettings } from './pages/SiteSettings';
 import { Routes as RoutesPage } from './pages/Routes';
 import { Rules } from './pages/Rules';
 import { Sections } from './pages/Sections';
 import { IRC } from './pages/IRC';
 import { Stats } from './pages/Stats';
+import { Logs } from './pages/Logs';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -30,6 +32,8 @@ function App() {
         }>
           <Route index element={<Dashboard />} />
           <Route path="sites" element={<SitesList />} />
+          <Route path="sites/:siteName" element={<SiteSettings />} />
+          <Route path="logs" element={<Logs />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="rules" element={<Rules />} />
           <Route path="sections" element={<Sections />} />

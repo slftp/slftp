@@ -118,6 +118,10 @@ type
     /// Tests site connection
     function TestSite(const SiteName: RawUTF8): boolean;
 
+    /// POST /api/sites/resolve
+    /// Resolves a hostname to an IP address
+    function ResolveHostname(const Hostname: RawUTF8): RawUTF8;
+
     /// POST /api/sites/{name}/ghost
     /// Kills ghost connections
     function GhostSite(const SiteName: RawUTF8): boolean;
@@ -142,6 +146,10 @@ type
                                 MaxIdle, IdleInterval: integer;
                                 LegacyCwd: boolean;
                                 SslFxp: integer): boolean;
+
+    /// POST /api/sites/{name}/config
+    /// Sets various site configuration options (autobnctest, autodirlist, country, etc.)
+    function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
 
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
@@ -381,6 +389,19 @@ type
     /// GET /api/precatcher/mappings
     /// Returns section mappings
     function GetMappings: RawJSON;
+  end;
+
+  { Log Service API }
+  IApiLogService = interface(IInvokable)
+    ['{8C3D0E1F-2A4B-3C5D-6E7F-0A1B2C3D4E5F}']
+
+    /// GET /api/logs
+    /// Returns recent log lines
+    function GetLogs(const Lines: integer): RawJSON;
+
+    /// DELETE /api/logs
+    /// Clears logs (if supported) or returns error
+    function ClearLogs: boolean;
   end;
 
 implementation

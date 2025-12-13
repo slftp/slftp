@@ -83,6 +83,13 @@ type
     FMaxIdle: integer;
     FIdleInterval: integer;
     FLegacyCwd: boolean;
+    FAutoBncTestInterval: integer;
+    FAutoDirlistInterval: integer;
+    FAutoIndexInterval: integer;
+    FAutoNukeInterval: integer;
+    FCountry: RawUTF8;
+    FSkipBeingUploadedFiles: integer;
+    FKillConnectionOnStalledTransferSeconds: integer;
   published
     property Name: RawUTF8 read FName write FName;
     property Username: RawUTF8 read FUsername write FUsername;
@@ -97,6 +104,13 @@ type
     property MaxIdle: integer read FMaxIdle write FMaxIdle;
     property IdleInterval: integer read FIdleInterval write FIdleInterval;
     property LegacyCwd: boolean read FLegacyCwd write FLegacyCwd;
+    property AutoBncTestInterval: integer read FAutoBncTestInterval write FAutoBncTestInterval;
+    property AutoDirlistInterval: integer read FAutoDirlistInterval write FAutoDirlistInterval;
+    property AutoIndexInterval: integer read FAutoIndexInterval write FAutoIndexInterval;
+    property AutoNukeInterval: integer read FAutoNukeInterval write FAutoNukeInterval;
+    property Country: RawUTF8 read FCountry write FCountry;
+    property SkipBeingUploadedFiles: integer read FSkipBeingUploadedFiles write FSkipBeingUploadedFiles;
+    property KillConnectionOnStalledTransferSeconds: integer read FKillConnectionOnStalledTransferSeconds write FKillConnectionOnStalledTransferSeconds;
   end;
 
   { Text File Response (e.g. rules files) }
