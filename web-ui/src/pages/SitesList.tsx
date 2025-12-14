@@ -156,9 +156,9 @@ export function SitesList() {
     site.name.toLowerCase().includes(search.toLowerCase())
   ) || [];
 
-  const rows = filteredSites.map((site) => (
-    <Table.Tr key={site.name}>
-      <Table.Td fw={500}>
+	  const rows = filteredSites.map((site) => (
+	    <Table.Tr key={site.name}>
+	      <Table.Td fw={500}>
         <Text 
             fw={600} 
             onClick={() => navigate(`/sites/${site.name}`)} 
@@ -167,13 +167,14 @@ export function SitesList() {
         >
             {site.name}
         </Text>
-      </Table.Td>
-      <Table.Td>{getStatusBadge(site.status)}</Table.Td>
-      <Table.Td>{formatSlots(site)}</Table.Td>
-      <Table.Td>{site.freeslots}</Table.Td>
-      <Table.Td>{formatActive(site)}</Table.Td>
-      <Table.Td>
-        <Group gap="xs">
+	      </Table.Td>
+	      <Table.Td>{getStatusBadge(site.status)}</Table.Td>
+	      <Table.Td>{site.slots ?? '-'}</Table.Td>
+	      <Table.Td>{formatSlots(site)}</Table.Td>
+	      <Table.Td>{site.freeslots}</Table.Td>
+	      <Table.Td>{formatActive(site)}</Table.Td>
+	      <Table.Td>
+	        <Group gap="xs">
           <Tooltip label="Run BNC Test (!bnctest)">
             <ActionIcon variant="light" color="blue" onClick={() => testSiteMutation.mutate(site.name)}>
               <IconBolt size="1rem" />
@@ -219,16 +220,17 @@ export function SitesList() {
       </Group>
 
       <Table highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Max DN/UP</Table.Th>
-            <Table.Th>Free Slots</Table.Th>
-            <Table.Th>Active DN/UP</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
+	      <Table.Thead>
+	        <Table.Tr>
+	          <Table.Th>Name</Table.Th>
+	          <Table.Th>Status</Table.Th>
+	          <Table.Th>Slots</Table.Th>
+	          <Table.Th>Max DN/UP</Table.Th>
+	          <Table.Th>Free Slots</Table.Th>
+	          <Table.Th>Active DN/UP</Table.Th>
+	          <Table.Th>Actions</Table.Th>
+	        </Table.Tr>
+	      </Table.Thead>
       <Table.Tbody>{rows}</Table.Tbody>
     </Table>
     
