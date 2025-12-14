@@ -1,7 +1,7 @@
-import { Card, Title, Table, Alert, Loader, Center, TextInput, Button, Stack, Group, Text, ScrollArea, Badge } from '@mantine/core';
-import { IconChevronRight, IconSearch, IconDeviceFloppy } from '@tabler/icons-react';
+import { Card, Title, Table, Alert, Loader, Center, TextInput, Button, Stack, Group, Text, ScrollArea, Badge, Switch, Tooltip } from '@mantine/core';
+import { IconChevronRight, IconSearch, IconDeviceFloppy, IconPin } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { apiClient } from '../api/client';
 import { notifications } from '@mantine/notifications';
 
@@ -16,6 +16,10 @@ export function Sections() {
   const [sectionDirs, setSectionDirs] = useState<Record<string, string>>({});
   const [originalDirs, setOriginalDirs] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [showOnlySet, setShowOnlySet] = useState(true);
+  const [preserveSection, setPreserveSection] = useState<string | null>(null);
+  const [markedSection, setMarkedSection] = useState<string | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   const { data: sitesData, isLoading: sitesLoading } = useQuery({
     queryKey: ['sites'],
@@ -120,11 +124,21 @@ export function Sections() {
 
   const filteredSections = useMemo(() => {
     if (!sectionsData) return [];
-    if (!searchQuery) return sectionsData;
+    
+    let data = sectionsData;
+
+    if (showOnlySet) {
+      data = data.filter(s => {
+        const dir = sectionDirs[s.section];
+        return dir && dir.trim().length > 0;
+      });
+    }
+
+    if (!searchQuery) return data;
 
     const query = searchQuery.toLowerCase();
-    return sectionsData.filter(s => s.section.toLowerCase().includes(query));
-  }, [sectionsData, searchQuery]);
+    return data.filter(s => s.section.toLowerCase().includes(query));
+  }, [sectionsData, searchQuery, showOnlySet, sectionDirs]);
 
   const hasChanges = useMemo(() => {
     return Object.keys(sectionDirs).some(
@@ -137,6 +151,52 @@ export function Sections() {
       section => sectionDirs[section] !== originalDirs[section]
     ).length;
   }, [sectionDirs, originalDirs]);
+
+  const handleToggleShowOnlySet = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const isChecked = event.currentTarget.checked;
+    
+    if (markedSection) {
+       setPreserveSection(markedSection);
+    } else if (viewportRef.current) {
+      const viewport = viewportRef.current;
+      const scrollTop = viewport.scrollTop;
+      
+      let candidate = null;
+      let minDiff = Infinity;
+      
+      // Find the section closest to the top of the viewport
+      for (const s of filteredSections) {
+        const el = document.getElementById(`section-row-${s.section}`);
+        if (el) {
+          const diff = Math.abs(el.offsetTop - scrollTop);
+          if (diff < minDiff) {
+            minDiff = diff;
+            candidate = s.section;
+          }
+        }
+      }
+
+      if (candidate) {
+        setPreserveSection(candidate);
+      }
+    }
+
+    setShowOnlySet(isChecked);
+  };
+
+  useEffect(() => {
+    if (preserveSection) {
+      // Small delay to ensure the DOM has updated with the new filter state
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`section-row-${preserveSection}`);
+        if (el) {
+          el.scrollIntoView({ block: 'center' });
+        }
+        setPreserveSection(null);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [filteredSections, preserveSection]);
 
   if (sitesLoading) return <Center h={400}><Loader size="xl" /></Center>;
 
@@ -184,13 +244,24 @@ export function Sections() {
           <Center h={300}><Loader size="lg" /></Center>
         ) : (
           <>
-            <TextInput
-              placeholder="Search sections..."
-              leftSection={<IconSearch size="1rem" />}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.currentTarget.value)}
-              style={{ flex: 1, maxWidth: 400 }}
-            />
+            <Group>
+              <TextInput
+                placeholder="Search sections..."
+                leftSection={<IconSearch size="1rem" />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.currentTarget.value)}
+                style={{ flex: 1, maxWidth: 400 }}
+              />
+              <Switch
+                label="Show configured only"
+                checked={showOnlySet}
+                onChange={handleToggleShowOnlySet}
+              />
+            </Group>
+
+            <Text size="xs" c="dimmed">
+              Click on a row to mark it. The view will try to keep the marked row visible when toggling filters.
+            </Text>
 
             {filteredSections.length === 0 && searchQuery && (
               <Alert color="yellow" title="No results">
@@ -198,46 +269,73 @@ export function Sections() {
               </Alert>
             )}
 
-            {filteredSections.length === 0 && !searchQuery && (
+            {filteredSections.length === 0 && !searchQuery && showOnlySet && (
+              <Alert color="blue" title="No configured sections">
+                No sections have a directory path configured. Uncheck "Show configured only" to see all available sections.
+              </Alert>
+            )}
+
+            {filteredSections.length === 0 && !searchQuery && !showOnlySet && (
               <Alert color="yellow" title="No sections">
                 No sections found in slftp.precatcher configuration.
               </Alert>
             )}
 
             {filteredSections.length > 0 && (
-              <ScrollArea h={600}>
-                <Table striped highlightOnHover withTableBorder withColumnBorders>
-                  <Table.Thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--mantine-color-body)' }}>
+              <>
+                <Table withTableBorder withColumnBorders style={{ tableLayout: 'fixed', borderBottom: 'none' }}>
+                  <Table.Thead>
                     <Table.Tr>
                       <Table.Th style={{ width: 200 }}>Section</Table.Th>
                       <Table.Th>Directory Path</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
-                  <Table.Tbody>
-                    {filteredSections.map((sectionData: SectionData) => {
-                      const isModified = sectionDirs[sectionData.section] !== originalDirs[sectionData.section];
-                      return (
-                        <Table.Tr key={sectionData.section}>
-                          <Table.Td>
-                            <Group gap="xs">
-                              <Text fw={600}>{sectionData.section}</Text>
-                              {isModified && <Badge size="xs" color="yellow">modified</Badge>}
-                            </Group>
-                          </Table.Td>
-                          <Table.Td>
-                            <TextInput
-                              value={sectionDirs[sectionData.section] || ''}
-                              onChange={(e) => setSectionDirs({ ...sectionDirs, [sectionData.section]: e.currentTarget.value })}
-                              placeholder="/path/to/section/"
-                              size="xs"
-                            />
-                          </Table.Td>
-                        </Table.Tr>
-                      );
-                    })}
-                  </Table.Tbody>
                 </Table>
-              </ScrollArea>
+                <ScrollArea h={600} viewportRef={viewportRef} type="always">
+                  <Table striped highlightOnHover withTableBorder withColumnBorders style={{ tableLayout: 'fixed', borderTop: 'none' }}>
+                    <Table.Tbody>
+                      {filteredSections.map((sectionData: SectionData) => {
+                        const isModified = sectionDirs[sectionData.section] !== originalDirs[sectionData.section];
+                        const isMarked = markedSection === sectionData.section;
+                        return (
+                          <Table.Tr 
+                            key={sectionData.section} 
+                            id={`section-row-${sectionData.section}`}
+                            onClick={() => setMarkedSection(isMarked ? null : sectionData.section)}
+                            style={{ 
+                              cursor: 'pointer', 
+                              backgroundColor: isMarked ? 'var(--mantine-color-blue-light)' : undefined,
+                              scrollMarginTop: '45px'
+                            }}
+                          >
+                            <Table.Td style={{ width: 200 }}>
+                              <Group gap="xs" justify="space-between">
+                                <Group gap="xs">
+                                  <Text fw={600}>{sectionData.section}</Text>
+                                  {isModified && <Badge size="xs" color="yellow">modified</Badge>}
+                                </Group>
+                                {isMarked && (
+                                  <Tooltip label="Marked for scroll preservation">
+                                    <IconPin size="1rem" color="var(--mantine-color-blue-6)" />
+                                  </Tooltip>
+                                )}
+                              </Group>
+                            </Table.Td>
+                            <Table.Td onClick={(e) => e.stopPropagation()}>
+                              <TextInput
+                                value={sectionDirs[sectionData.section] || ''}
+                                onChange={(e) => setSectionDirs({ ...sectionDirs, [sectionData.section]: e.currentTarget.value })}
+                                placeholder="/path/to/section/"
+                                size="xs"
+                              />
+                            </Table.Td>
+                          </Table.Tr>
+                        );
+                      })}
+                    </Table.Tbody>
+                  </Table>
+                </ScrollArea>
+              </>
             )}
 
             <Group justify="space-between" align="center">
