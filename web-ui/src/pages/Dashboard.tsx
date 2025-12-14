@@ -52,7 +52,8 @@ export function Dashboard() {
       }
       return res.data as SystemStatus;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: releasesData, isLoading: releasesLoading } = useQuery({
@@ -79,7 +80,8 @@ export function Dashboard() {
       }
       return { releases: [], total: 0 };
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const { data: releaseDetails, isLoading: detailsLoading } = useQuery({

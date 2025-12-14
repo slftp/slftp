@@ -93,6 +93,13 @@ function RemoveStats(const aSitename: String): Boolean; overload;
   @param(aDetailed if @true it shows detailed traffic info, if @false it shows only total in/out) }
 procedure StatRaces(const aNetname, aChannel, aSitename, aPeriod: String; const aDetailed: Boolean);
 
+{ Returns race statistics (same data as @link(StatRaces)) as JSON for the Web API
+  @param(aSitename sitename or '*' for all)
+  @param(aPeriod period: YEAR, MONTH, DAY; anything else defaults to DAY)
+  @param(aDetailed if @true it includes per-site breakdown)
+  @returns(JSON object with sites and totals; or an error if stats are disabled) }
+function StatsGetRaceStatsJson(const aSitename, aPeriod: String; const aDetailed: Boolean): RawJSON;
+
 { Creates a backup of stats-database - this is needed because the file is in use and can't be copied
   @param(aPath path where the backup should be stored in the filesystem with last slash, e.g. /path/to/file/)
   @param(aFileName filename including fileextension) }
@@ -101,7 +108,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, slcriticalsection2, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3;
+  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, slcriticalsection2, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3, mormot.core.text, mormot.core.json;
 
 const
   section = 'stats';
@@ -176,6 +183,385 @@ begin
     Result := False
   else
     Result := True;
+end;
+
+function StatsGetRaceStatsJson(const aSitename, aPeriod: String; const aDetailed: Boolean): RawJSON;
+type
+  TDirectionStats = record
+    Bytes: Int64;
+    Files: Int64;
+  end;
+  TFileSizeStats = record
+    InBytes: Int64;
+    OutBytes: Int64;
+    InFiles: Int64;
+    OutFiles: Int64;
+  end;
+  TStatsDirection = (stFrom, stTo);
+  TDirEntry = record
+    Site: String;
+    Bytes: Int64;
+    Files: Int64;
+  end;
+var
+  fPeriod, fSQLPeriod, fSiteFilter: String;
+  fAllBytes: Int64;
+  fAllFiles: Int64;
+
+  function _SQLPeriodFromPeriod(const aPeriod: String): String;
+  begin
+    if (aPeriod = 'MONTH') then
+      Result := 'start of month'
+    else if (aPeriod = 'YEAR') then
+      Result := 'start of year'
+    else
+      Result := 'start of day';
+  end;
+
+  procedure _InitTotals(out aTotals: TFileSizeStats);
+  begin
+    aTotals.InBytes := 0;
+    aTotals.OutBytes := 0;
+    aTotals.InFiles := 0;
+    aTotals.OutFiles := 0;
+  end;
+
+  procedure _GetTransferStats(const aSitename, aSQLPeriod: String; out aTotals: TFileSizeStats);
+  var
+    fStatsRec: TSQLStatsRecord;
+  begin
+    _InitTotals(aTotals);
+
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client,
+      '(DstSiteRec.Name = ? OR SrcSiteRec.Name = ?) AND timestamp > date(?, ?)',
+      [], [aSitename, aSitename, 'now', aSQLPeriod]);
+    try
+      while fStatsRec.FillOne do
+      begin
+        if aSitename = UTF8ToString(fStatsRec.DstSiteRec.Name) then
+        begin
+          aTotals.InBytes := aTotals.InBytes + fStatsRec.FileInfoRec.FileSize;
+          Inc(aTotals.InFiles);
+        end
+        else if aSitename = UTF8ToString(fStatsRec.SrcSiteRec.Name) then
+        begin
+          aTotals.OutBytes := aTotals.OutBytes + fStatsRec.FileInfoRec.FileSize;
+          Inc(aTotals.OutFiles);
+        end;
+      end;
+    finally
+      fStatsRec.Free;
+    end;
+  end;
+
+  procedure _GetDetailedTransferStats(const aSitename, aSQLPeriod: String; const aDirection: TStatsDirection;
+    out aEntries: TArray<TDirEntry>);
+  var
+    fStatsRec: TSQLStatsRecord;
+    fSiteStats: TDictionary<String, TDirectionStats>;
+    fPair: TPair<String, TDirectionStats>;
+    fStats: TDirectionStats;
+    fOtherSite: String;
+    fEntry: TDirEntry;
+
+    procedure _SortEntries(var a: TArray<TDirEntry>);
+      procedure QuickSort(L, R: Integer);
+      var
+        I, J: Integer;
+        Pivot: TDirEntry;
+        Tmp: TDirEntry;
+      begin
+        I := L;
+        J := R;
+        Pivot := a[(L + R) div 2];
+        repeat
+          while (a[I].Bytes > Pivot.Bytes) or
+                ((a[I].Bytes = Pivot.Bytes) and (CompareText(a[I].Site, Pivot.Site) < 0)) do
+            Inc(I);
+          while (a[J].Bytes < Pivot.Bytes) or
+                ((a[J].Bytes = Pivot.Bytes) and (CompareText(a[J].Site, Pivot.Site) > 0)) do
+            Dec(J);
+          if I <= J then
+          begin
+            Tmp := a[I];
+            a[I] := a[J];
+            a[J] := Tmp;
+            Inc(I);
+            Dec(J);
+          end;
+        until I > J;
+        if L < J then
+          QuickSort(L, J);
+        if I < R then
+          QuickSort(I, R);
+      end;
+    begin
+      if Length(a) > 1 then
+        QuickSort(0, High(a));
+    end;
+
+  var
+    i: integer;
+  begin
+    SetLength(aEntries, 0);
+    fSiteStats := TDictionary<String, TDirectionStats>.Create;
+    try
+      case aDirection of
+        stFrom:
+          begin
+            fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client,
+              'SrcSiteRec.Name = ? AND timestamp > date(?, ?)',
+              [], [aSitename, 'now', aSQLPeriod]);
+            try
+              while fStatsRec.FillOne do
+              begin
+                if aSitename <> UTF8ToString(fStatsRec.SrcSiteRec.Name) then
+                  Continue;
+                fOtherSite := UTF8ToString(fStatsRec.DstSiteRec.Name);
+                if not fSiteStats.TryGetValue(fOtherSite, fStats) then
+                begin
+                  fStats.Bytes := 0;
+                  fStats.Files := 0;
+                end;
+                fStats.Bytes := fStats.Bytes + fStatsRec.FileInfoRec.FileSize;
+                Inc(fStats.Files);
+                fSiteStats.AddOrSetValue(fOtherSite, fStats);
+              end;
+            finally
+              fStatsRec.Free;
+            end;
+          end;
+
+        stTo:
+          begin
+            fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client,
+              'DstSiteRec.Name = ? AND timestamp > date(?, ?)',
+              [], [aSitename, 'now', aSQLPeriod]);
+            try
+              while fStatsRec.FillOne do
+              begin
+                if aSitename <> UTF8ToString(fStatsRec.DstSiteRec.Name) then
+                  Continue;
+                fOtherSite := UTF8ToString(fStatsRec.SrcSiteRec.Name);
+                if not fSiteStats.TryGetValue(fOtherSite, fStats) then
+                begin
+                  fStats.Bytes := 0;
+                  fStats.Files := 0;
+                end;
+                fStats.Bytes := fStats.Bytes + fStatsRec.FileInfoRec.FileSize;
+                Inc(fStats.Files);
+                fSiteStats.AddOrSetValue(fOtherSite, fStats);
+              end;
+            finally
+              fStatsRec.Free;
+            end;
+          end;
+      end;
+
+      SetLength(aEntries, fSiteStats.Count);
+      i := 0;
+      for fPair in fSiteStats do
+      begin
+        fEntry.Site := fPair.Key;
+        fEntry.Bytes := fPair.Value.Bytes;
+        fEntry.Files := fPair.Value.Files;
+        aEntries[i] := fEntry;
+        Inc(i);
+      end;
+      _SortEntries(aEntries);
+    finally
+      fSiteStats.Free;
+    end;
+  end;
+
+  procedure _WriteDirArray(const aFieldName: RawUTF8; const aEntries: TArray<TDirEntry>; var aFirstField: Boolean;
+    const aWriter: TJsonWriter);
+  var
+    i: integer;
+  begin
+    if not aFirstField then
+      aWriter.AddComma;
+    aFirstField := False;
+    aWriter.AddFieldName(aFieldName);
+    aWriter.AddDirect('[');
+    for i := 0 to High(aEntries) do
+    begin
+      if i > 0 then
+        aWriter.AddComma;
+      aWriter.AddDirect('{');
+      aWriter.AddFieldName('site');
+      aWriter.AddJsonString(UTF8Encode(aEntries[i].Site));
+      aWriter.AddComma;
+      aWriter.AddFieldName('bytes');
+      aWriter.Add(aEntries[i].Bytes);
+      aWriter.AddComma;
+      aWriter.AddFieldName('files');
+      aWriter.Add(aEntries[i].Files);
+      aWriter.AddDirect('}');
+    end;
+    aWriter.AddDirect(']');
+  end;
+
+  function _NormalizePeriod(const aPeriod: String): String;
+  var
+    p: String;
+  begin
+    p := UpperCase(Trim(aPeriod));
+    if (p <> 'YEAR') and (p <> 'MONTH') then
+      p := 'DAY';
+    Result := p;
+  end;
+
+var
+  temp: TTextWriterStackBuffer;
+  w: TJsonWriter;
+  i: integer;
+  s: TSite;
+  fTotals: TFileSizeStats;
+  fInBySite, fOutBySite: TArray<TDirEntry>;
+  fFirstSite, fFirstField: Boolean;
+begin
+  fPeriod := _NormalizePeriod(aPeriod);
+  fSQLPeriod := _SQLPeriodFromPeriod(fPeriod);
+  fSiteFilter := Trim(aSitename);
+  if fSiteFilter = '' then
+    fSiteFilter := '*';
+
+  w := TJsonWriter.CreateOwnedStream(temp);
+  try
+    w.AddDirect('{');
+    w.AddFieldName('enabled');
+    w.Add(IsStatsDatabaseActive);
+    w.AddComma;
+    w.AddFieldName('site');
+    w.AddJsonString(UTF8Encode(fSiteFilter));
+    w.AddComma;
+    w.AddFieldName('period');
+    w.AddJsonString(UTF8Encode(fPeriod));
+    w.AddComma;
+    w.AddFieldName('sqlPeriod');
+    w.AddJsonString(UTF8Encode(fSQLPeriod));
+    w.AddComma;
+    w.AddFieldName('detailed');
+    w.Add(aDetailed);
+
+    if not IsStatsDatabaseActive then
+    begin
+      w.AddComma;
+      w.AddFieldName('error');
+      w.AddJsonString(UTF8Encode('Stats are disabled.'));
+      w.AddDirect('}');
+      w.SetText(Result);
+      Exit;
+    end;
+
+    w.AddComma;
+    w.AddFieldName('sites');
+    w.AddDirect('[');
+
+    fAllBytes := 0;
+    fAllFiles := 0;
+    fFirstSite := True;
+
+    if fSiteFilter = '*' then
+    begin
+      if sites <> nil then
+      begin
+        for i := 0 to sites.Count - 1 do
+        begin
+          s := TSite(sites.Items[i]);
+          if s = nil then
+            Continue;
+          if (s.Name = getAdminSiteName) then
+            Continue;
+
+          _GetTransferStats(s.Name, fSQLPeriod, fTotals);
+          Inc(fAllBytes, fTotals.InBytes + fTotals.OutBytes);
+          Inc(fAllFiles, fTotals.InFiles + fTotals.OutFiles);
+
+          if not fFirstSite then
+            w.AddComma;
+          fFirstSite := False;
+
+          w.AddDirect('{');
+          fFirstField := True;
+
+          w.AddFieldName('name');
+          w.AddJsonString(UTF8Encode(s.Name));
+          fFirstField := False;
+
+          w.AddComma;
+          w.AddFieldName('inBytes');
+          w.Add(fTotals.InBytes);
+          w.AddComma;
+          w.AddFieldName('outBytes');
+          w.Add(fTotals.OutBytes);
+          w.AddComma;
+          w.AddFieldName('inFiles');
+          w.Add(fTotals.InFiles);
+          w.AddComma;
+          w.AddFieldName('outFiles');
+          w.Add(fTotals.OutFiles);
+
+          if aDetailed then
+          begin
+            _GetDetailedTransferStats(s.Name, fSQLPeriod, stTo, fInBySite);
+            _GetDetailedTransferStats(s.Name, fSQLPeriod, stFrom, fOutBySite);
+            fFirstField := False;
+            _WriteDirArray('inBySite', fInBySite, fFirstField, w);
+            _WriteDirArray('outBySite', fOutBySite, fFirstField, w);
+          end;
+
+          w.AddDirect('}');
+        end;
+      end;
+    end
+    else
+    begin
+      _GetTransferStats(fSiteFilter, fSQLPeriod, fTotals);
+      Inc(fAllBytes, fTotals.InBytes + fTotals.OutBytes);
+      Inc(fAllFiles, fTotals.InFiles + fTotals.OutFiles);
+
+      w.AddDirect('{');
+      fFirstField := True;
+      w.AddFieldName('name');
+      w.AddJsonString(UTF8Encode(fSiteFilter));
+      fFirstField := False;
+      w.AddComma;
+      w.AddFieldName('inBytes');
+      w.Add(fTotals.InBytes);
+      w.AddComma;
+      w.AddFieldName('outBytes');
+      w.Add(fTotals.OutBytes);
+      w.AddComma;
+      w.AddFieldName('inFiles');
+      w.Add(fTotals.InFiles);
+      w.AddComma;
+      w.AddFieldName('outFiles');
+      w.Add(fTotals.OutFiles);
+      if aDetailed then
+      begin
+        _GetDetailedTransferStats(fSiteFilter, fSQLPeriod, stTo, fInBySite);
+        _GetDetailedTransferStats(fSiteFilter, fSQLPeriod, stFrom, fOutBySite);
+        fFirstField := False;
+        _WriteDirArray('inBySite', fInBySite, fFirstField, w);
+        _WriteDirArray('outBySite', fOutBySite, fFirstField, w);
+      end;
+      w.AddDirect('}');
+    end;
+
+    w.AddDirect(']');
+    w.AddComma;
+    w.AddFieldName('totalBytes');
+    w.Add(fAllBytes);
+    w.AddComma;
+    w.AddFieldName('totalFiles');
+    w.Add(fAllFiles);
+    w.AddDirect('}');
+    w.SetText(Result);
+  finally
+    w.Free;
+  end;
 end;
 
 procedure writeStatsToDB(const aStatRaceRecord: TStatRaceRecord);

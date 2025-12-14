@@ -1,5 +1,5 @@
 slftp REST API Documentation (Beta)
-Status: Early beta; Windows untested. Only the endpoints below are functional; all others are currently stubbed and are not documented.
+Status: Early beta; Windows untested.
 
 Base URL
 - http://<host>:<port>/api (default http://127.0.0.1:8089/api)
@@ -12,75 +12,106 @@ Authentication
 
 Implemented Endpoints
 
-System
-- ApiSystemService.GetStatus
-  POST /api/ApiSystemService/GetStatus
-  Returns Version, Uptime, SitesCount/Up/Down, QueueSize, ActiveTasks.
-  Example: curl -X POST -H "Authorization: Bearer <key>" http://127.0.0.1:8089/api/ApiSystemService/GetStatus
+System (ApiSystemService)
+- GetStatus: Returns Version, Uptime, SitesCount/Up/Down, QueueSize, ActiveTasks.
+- GetUptime: Returns uptime in seconds.
+- GetVersion: Returns version string.
+- Shutdown: Initiates graceful shutdown.
+- CreateBackup: Creates configuration backup.
+- GetRecentReleases: Body {"Limit": 20}. Returns recent releases.
+- GetReleaseDetails: Body {"PazoId": <id>}. Returns release details.
 
-- ApiSystemService.GetUptime
-  POST /api/ApiSystemService/GetUptime
-  Returns uptime in seconds.
+Sites (ApiSitesService)
+- GetSites: Body {"Filter":""}. Returns list of sites.
+- GetSite: Body {"SiteName":"<name>"}. Returns basic site details.
+- GetSiteInfo: Body {"SiteName":"<name>"}. Returns full site details including BNCs, automation settings, country, etc.
+- AddSite: Body {"Name":"...", "Host":"...", "Port":21, "Username":"...", "Password":"...", "SslEnabled":true|false}
+- DeleteSite: Body {"SiteName":"<name>"}
+- SetSiteStatus: Body {"SiteName":"<name>","Status":"UP|DOWN"}
+- SetSiteSlots: Body {"SiteName":"<name>","Slots":<int>}
+- SetSiteMaxUpDn: Body {"SiteName":"<name>","MaxUp":<int>,"MaxDn":<int>}
+- SetSiteMaxPreDn: Body {"SiteName":"<name>","MaxPreDn":<int>}
+- SetSitePermDown: Body {"SiteName":"<name>","PermDown":true|false}
+- SetSiteAutoLogin: Body {"SiteName":"<name>","Enabled":true|false}
+- SetSiteAutoRules: Body {"SiteName":"<name>","IntervalSeconds":<int>}
+- SetSiteAffils: Body {"SiteName":"<name>","Affils":"GRP1 GRP2"}
+- SetSiteCredentials: Sets detailed credentials/BNCs.
+- SetSiteConfig: Body {"SiteName":"<name>", "Config":{...}}. Sets misc options (autobnctest, country, etc).
+- RunSiteAutoRules: Body {"SiteName":"<name>"}
+- GetSiteRoutes: Body {"SiteName":"<name>"}
+- SetSiteRoute: Body {"SourceSite":"...", "DestSite":"...", "Speed":<int>, "Locked":bool, "AffilOnly":bool, "NoAffil":bool}
+- TestSite: Body {"SiteName":"<name>"}
+- GhostSite: Body {"SiteName":"<name>"}
+- RecalcFreeSlots: Body {"SiteName":"<name>"}
+- RebuildSlots: Body {"SiteName":"<name>"}
+- ExecuteIrcCommand: Body {"Command":"..."}
+- GetAvailableSections: Returns list of known sections.
+- GetSiteSections: Body {"SiteName":"<name>"}
+- SetSiteSection: Body {"SiteName":"...", "Section":"...", "Dir":"..."}
+- GetSiteRtpl: Body {"SiteName":"<name>"}. Returns raw RTPL file content.
+- SaveSiteRtpl: Body {"SiteName":"...", "Content":"...", "ExpectedMd5":"...", "Reload":bool}
+- ValidateRtpl: Body {"Content":"..."}
+- ReloadRules: Reloads all rules.
+- GetRuleConditions: Returns available rule conditions.
 
-- ApiSystemService.GetVersion
-  POST /api/ApiSystemService/GetVersion
-  Returns version string.
+Queue (ApiQueueService)
+- GetQueueStats: Returns stats.
+- GetQueue: Body {"SiteName":"<name>"}. Returns queue items.
+- GetTask: Body {"TaskUid":<int>}.
+- CreateDirlistTask: Body {"SiteName":"...", "Section":"...", "Dir":"..."}
+- CreateSpreadTask: Body {"SourceSite":"...", "Section":"...", "Release":"..."}
+- CreateTransferTask: Body {"SourceSite":"...", "DestSite":"...", "Section":"...", "Dir":"...", "FileName":"..."}
+- StopTask: Body {"TaskUid":<int>}
+- EmptyQueue: Body {"SiteName":"..."}
 
-- ApiSystemService.Shutdown
-  POST /api/ApiSystemService/Shutdown
-  Initiates graceful shutdown of slftp. Use with caution!
+Stats (ApiStatsService)
+- GetRaceStats: Body {"SiteName":"...", "Period":"DAY|MONTH|YEAR", "Detailed":bool}
+- GetRanks: Body {"SiteName":"..."}
+- SetRank: Body {"SiteName":"...", "Section":"...", "Score":<int>}
+- RecalculateRanks: Recalculates all ranks.
 
-- ApiSystemService.GetRecentReleases
-  POST /api/ApiSystemService/GetRecentReleases
-  Body: {"Limit": 20}
-  Returns recent releases with basic info (name, section, sites, queue number, status).
-  Response includes: ReleaseName, Section, Added (Unix timestamp), PazoId, Ready, Stopped, QueueNumber, Sites (array).
+IRC (ApiIrcService)
+- GetNetworks: Returns networks.
+- GetNetworkStatus: Body {"NetName":"..."}
+- GetChannels: Body {"NetName":"..."}
+- SendMessage: Body {"NetName":"...", "Channel":"...", "Message":"..."}
+- JumpServer: Body {"NetName":"..."}
+- SetChannelBlowkey: Body {"NetName":"...", "Channel":"...", "Blowkey":"..."}
+- SetChannelKey: Body {"NetName":"...", "Channel":"...", "ChanKey":"..."}
+- SetChannelRoles: Body {"NetName":"...", "Channel":"...", "Roles":"..."}
+- AddChannel: Body {"NetName":"...", "Channel":"...", "ChanKey":"...", "Blowkey":"...", "Roles":"..."}
+- DeleteChannel: Body {"NetName":"...", "Channel":"..."}
 
-- ApiSystemService.GetReleaseDetails
-  POST /api/ApiSystemService/GetReleaseDetails
-  Body: {"PazoId": <id>}
-  Returns detailed information for a specific release including per-site progress.
-  Response includes: ReleaseName, Section, TotalFiles, Ready, Stopped, QueueNumber, ErrorReason,
-  and SiteDetails (array with: SiteName, Complete, FileCount, TotalFiles, FilesRacedByMe, Percent, Status).
+Rules (ApiRulesService)
+- GetRules: Body {"SiteName":"...", "Section":"..."}
+- GetRule: Body {"RuleId":<int>}
+- AddRule: Body {"RuleData":{...}}
+- ModifyRule: Body {"RuleId":<int>, "RuleData":{...}}
+- DeleteRule: Body {"RuleId":<int>}
+- TestRule: Body {"RuleData":{...}, "ReleaseName":"..."}
+- ReloadRules: Reloads rules.
 
-Sites
-- ApiSitesService.GetSites
-  POST /api/ApiSitesService/GetSites
-  Body: {"Filter":""} to list all sites. Returns counts and a Sites field (JSON array or JSON string).
-  Example: curl -X POST -H "Authorization: Bearer <key>" -H "Content-Type: application/json" -d '{"Filter":""}' http://127.0.0.1:8089/api/ApiSitesService/GetSites
+Speed (ApiSpeedService)
+- GetRoutes: Body {"SiteName":"..."}
+- TestSpeedLocal: Body {"SiteName":"..."}
+- TestSpeedOut: Body {"SourceSite":"...", "DestSites":"..."}
+- TestSpeedIn: Body {"DestSite":"...", "SourceSites":"..."}
+- GetSpeedResults: Body {"SiteName":"..."}
+- RecalculateRoutes: Recalculates routes.
 
-- ApiSitesService.GetSite
-  POST /api/ApiSitesService/GetSite
-  Body: {"SiteName":"<name>"}
-  Returns details for a specific site.
+KnowledgeBase (ApiKnowledgeBaseService)
+- GetKBEntries: Body {"Section":"...", "Limit":<int>}
+- SearchKB: Body {"Query":"..."}
+- AddKBEntry: Body {"Section":"...", "Release":"..."}
 
-- Mutating endpoints (live changes):
-  - Set max up/down: POST /api/ApiSitesService/SetSiteMaxUpDn with {"SiteName":"<name>","MaxUp":<int>,"MaxDn":<int>}
-  - Set slots: POST /api/ApiSitesService/SetSiteSlots with {"SiteName":"<name>","Slots":<int>}
-  - Set max pre-queue: POST /api/ApiSitesService/SetSiteMaxPreDn with {"SiteName":"<name>","MaxPreDn":<int>}
-  - Set status (UP/DOWN): POST /api/ApiSitesService/SetSiteStatus with {"SiteName":"<name>","Status":"UP|DOWN"}
-  - Set perm down: POST /api/ApiSitesService/SetSitePermDown with {"SiteName":"<name>","PermDown":true|false}
-  - Set autologin: POST /api/ApiSitesService/SetSiteAutoLogin with {"SiteName":"<name>","Enabled":true|false}
-  - Set autorules interval: POST /api/ApiSitesService/SetSiteAutoRules with {"SiteName":"<name>","IntervalSeconds":<int>}
-  - Run autorules now: POST /api/ApiSitesService/RunSiteAutoRules with {"SiteName":"<name>"}
-  - Test site (enqueue login): POST /api/ApiSitesService/TestSite with {"SiteName":"<name>"}
-  - Ghost kill: POST /api/ApiSitesService/GhostSite with {"SiteName":"<name>"}
-  - Recalc freeslots: POST /api/ApiSitesService/RecalcFreeSlots with {"SiteName":"<name>"}
-  - Rebuild slots: POST /api/ApiSitesService.RebuildSlots with {"SiteName":"<name>"}
-  These calls modify runtime state; use with caution.
+Precatcher (ApiPrecatcherService)
+- GetPrecatcherRules: Returns rules.
+- AddPrecatcherRule: Body {"RuleData":{...}}
+- DeletePrecatcherRule: Body {"RuleId":<int>}
+- TestPrecatcher: Body {"Announce":"..."}
+- ReloadPrecatcher: Reloads config.
+- GetMappings: Returns section mappings.
 
-Queue
-- ApiQueueService.GetQueueStats
-  POST /api/ApiQueueService/GetQueueStats
-  Body: {"SiteName":""}
-  Returns TotalTasks, RaceTasks, DirlistTasks, AutoTasks, OtherTasks.
-
-Web UI
-- The Web UI is served at http://<host>:<port>/ (default http://127.0.0.1:8089/)
-- Built with React + Mantine UI v8
-- Features: Dashboard with recent releases, Site manager, Release details modal
-- No authentication required for web UI (only for /api/* endpoints)
-- TODO: Authentication for Web UI is not yet implemented
-
-Everything else
-- Stats, IRC, Rules, Speed, KnowledgeBase, Precatcher, Task creation endpoints are currently stubbed (empty placeholders) and are intentionally not documented here until implemented.
+Logs (ApiLogService)
+- GetLogs: Body {"Lines":<int>}. Returns array of log lines.
+- ClearLogs: Clears log file (not implemented safely yet).

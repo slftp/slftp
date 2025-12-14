@@ -1,36 +1,30 @@
-import { Table, Badge, Title, Card, Alert, Loader, Center, Group, ActionIcon, Tooltip, Text, TextInput, Modal, NumberInput, Button, Stack, Select, Switch, Tabs, Divider, Box } from '@mantine/core';
-import { IconSearch, IconRefresh, IconBolt, IconSettings, IconTrash, IconToolsKitchen3, IconShieldOff, IconPlus, IconX } from '@tabler/icons-react';
+import { Table, Badge, Title, Card, Alert, Loader, Center, Group, ActionIcon, Tooltip, Text, TextInput, Modal, NumberInput, Button, Stack, Switch } from '@mantine/core';
+import { IconSearch, IconRefresh, IconBolt, IconTrash, IconPlus, IconX } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
-import type { Site, Bnc } from '../api/client';
+import type { Site } from '../api/client';
 import { notifications } from '@mantine/notifications';
 
 export function SitesList() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<Site | null>(null);
-  const [slotsValue, setSlotsValue] = useState<number | ''>('');
-  const [maxDnValue, setMaxDnValue] = useState<number | ''>('');
-  const [maxUpValue, setMaxUpValue] = useState<number | ''>('');
-  const [maxPreDnValue, setMaxPreDnValue] = useState<number | ''>('');
-  const [statusValue, setStatusValue] = useState<'UP' | 'DOWN' | ''>('');
-  const [permDown, setPermDown] = useState(false);
-  const [autoLogin, setAutoLogin] = useState(false);
-  const [autoRulesInterval, setAutoRulesInterval] = useState<number | ''>('');
-  const [usernameValue, setUsernameValue] = useState('');
-  const [passwordValue, setPasswordValue] = useState('');
-  const [bncs, setBncs] = useState<Bnc[]>([]);
-  const [maxIdle, setMaxIdle] = useState<number | ''>(0);
-  const [idleInterval, setIdleInterval] = useState<number | ''>(30);
-  const [legacyCwd, setLegacyCwd] = useState(false);
+
+  // Add Site Modal States
+  const [addSiteModalOpened, setAddSiteModalOpened] = useState(false);
+  const [newSiteName, setNewSiteName] = useState('');
+  const [newSiteHost, setNewSiteHost] = useState('');
+  const [newSitePort, setNewSitePort] = useState<number | ''>(21);
+  const [newSiteUsername, setNewSiteUsername] = useState('');
+  const [newSitePassword, setNewSitePassword] = useState('');
+  const [newSiteSsl, setNewSiteSsl] = useState(false);
 
   // Fetch Sites
   const { data, isLoading, error } = useQuery({
     queryKey: ['sites'],
     queryFn: async () => {
-      // GetSites takes a "Filter" argument.
-      // API call: POST /ApiSitesService/GetSites with body { Filter: "" }
       const res = await apiClient.post('/ApiSitesService/GetSites', { Filter: '' });
       
       let responseData = res.data;
@@ -38,7 +32,6 @@ export function SitesList() {
         responseData = res.data.result[0];
       }
 
-      // The 'Sites' field is a JSON string, we need to parse it
       const rawSites = responseData.Sites;
       let parsedSites: Site[] = [];
       try {
@@ -53,7 +46,8 @@ export function SitesList() {
       
       return parsedSites;
     },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
   });
 
   const formatSlots = (site: Site) => {
@@ -69,7 +63,6 @@ export function SitesList() {
     return `${dn}/${up}`;
   };
 
-  // Mutation for BNC Test (executes !bnctest command)
   const testSiteMutation = useMutation({
     mutationFn: async (siteName: string) => {
       await apiClient.post('/ApiSitesService/ExecuteIrcCommand', { Command: `bnctest ${siteName}` });
@@ -81,58 +74,6 @@ export function SitesList() {
         color: 'blue',
         autoClose: 8000,
       });
-      queryClient.invalidateQueries({ queryKey: ['sites'] });
-      // fire a couple of delayed refreshes to surface status changes
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: ['sites'] }), 3000);
-      setTimeout(() => queryClient.invalidateQueries({ queryKey: ['sites'] }), 8000);
-    },
-    onError: (err) => {
-      notifications.show({
-        title: 'Error',
-        message: err.message,
-        color: 'red',
-      });
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['sites'] });
-    }
-  });
-
-  const saveSettingsMutation = useMutation({
-    mutationFn: async (payload: { site: Site; slots: number; maxDn: number; maxUp: number; maxPreDn: number; permDown: boolean; autoLogin: boolean; autoRulesInterval: number; username: string; password: string; bncs: Bnc[]; maxIdle: number; idleInterval: number; legacyCwd: boolean; status: 'UP' | 'DOWN' }) => {
-      await apiClient.post('/ApiSitesService/SetSiteSlots', { SiteName: payload.site.name, Slots: payload.slots });
-      await apiClient.post('/ApiSitesService/SetSiteMaxUpDn', { SiteName: payload.site.name, MaxUp: payload.maxUp, MaxDn: payload.maxDn });
-      await apiClient.post('/ApiSitesService/SetSiteMaxPreDn', { SiteName: payload.site.name, MaxPreDn: payload.maxPreDn });
-      await apiClient.post('/ApiSitesService/SetSitePermDown', { SiteName: payload.site.name, PermDown: payload.permDown });
-      await apiClient.post('/ApiSitesService/SetSiteAutoLogin', { SiteName: payload.site.name, Enabled: payload.autoLogin });
-      await apiClient.post('/ApiSitesService/SetSiteAutoRules', { SiteName: payload.site.name, IntervalSeconds: payload.autoRulesInterval });
-      await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: payload.site.name, Username: payload.username, Password: payload.password, BncsJson: JSON.stringify(payload.bncs), MaxIdle: payload.maxIdle, IdleInterval: payload.idleInterval, LegacyCwd: payload.legacyCwd });
-      await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: payload.site.name, Status: payload.status });
-    },
-    onSuccess: () => {
-      notifications.show({
-        title: 'Saved',
-        message: 'Site settings updated.',
-        color: 'green',
-      });
-      queryClient.invalidateQueries({ queryKey: ['sites'] });
-      setSelected(null);
-    },
-    onError: (err) => {
-      notifications.show({
-        title: 'Error',
-        message: err.message,
-        color: 'red',
-      });
-    }
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: async (payload: { site: Site; status: 'UP' | 'DOWN' }) => {
-      await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: payload.site.name, Status: payload.status });
-    },
-    onSuccess: () => {
-      notifications.show({ title: 'Status changed', message: 'Site status updated.', color: 'green' });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
     },
     onError: (err) => {
@@ -150,79 +91,54 @@ export function SitesList() {
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
-  const clearQueueMutation = useMutation({
+  const addSiteMutation = useMutation({
+    mutationFn: async (payload: { name: string; host: string; port: number; username: string; password: string; sslEnabled: boolean }) => {
+      await apiClient.post('/ApiSitesService/AddSite', {
+        Name: payload.name,
+        Host: payload.host,
+        Port: payload.port,
+        Username: payload.username,
+        Password: payload.password,
+        SslEnabled: payload.sslEnabled
+      });
+    },
+    onSuccess: () => {
+      notifications.show({ title: 'Site added', message: 'New site created successfully.', color: 'green' });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      setAddSiteModalOpened(false);
+      setNewSiteName('');
+      setNewSiteHost('');
+      setNewSitePort(21);
+      setNewSiteUsername('');
+      setNewSitePassword('');
+      setNewSiteSsl(false);
+    },
+    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
+  });
+
+  const deleteSiteMutation = useMutation({
     mutationFn: async (siteName: string) => {
-      await apiClient.post('/ApiQueueService/EmptyQueue', { SiteName: siteName });
+      await apiClient.post('/ApiSitesService/DeleteSite', { SiteName: siteName });
     },
     onSuccess: (_, siteName) => {
-      notifications.show({ title: 'Queue cleared', message: `Queue for ${siteName} cleared.`, color: 'blue' });
+      notifications.show({ title: 'Site deleted', message: `Site ${siteName} removed.`, color: 'green' });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
     },
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
-  const recalcMutation = useMutation({
-    mutationFn: async (siteName: string) => {
-      await apiClient.post('/ApiSitesService/RecalcFreeSlots', { SiteName: siteName });
-    },
-    onSuccess: (_, siteName) => {
-      notifications.show({ title: 'Freeslots recalculated', message: `Freeslots for ${siteName} recalculated.`, color: 'green' });
-      queryClient.invalidateQueries({ queryKey: ['sites'] });
-    },
-    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
-  });
-
-  const rebuildMutation = useMutation({
-    mutationFn: async (siteName: string) => {
-      await apiClient.post('/ApiSitesService/RebuildSlots', { SiteName: siteName });
-    },
-    onSuccess: (_, siteName) => {
-      notifications.show({ title: 'Slots rebuilt', message: `Slots for ${siteName} were reset.`, color: 'green' });
-      queryClient.invalidateQueries({ queryKey: ['sites'] });
-    },
-    onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
-  });
-
-  const openEditor = async (site: Site) => {
-    setSelected(site);
-    setSlotsValue(site.slots ?? 0);
-    setMaxDnValue(site.max_dn ?? site.slots ?? 0);
-    setMaxUpValue(site.max_up ?? 0);
-    setMaxPreDnValue(site.max_pre_dn ?? site.max_dn ?? site.slots ?? 0);
-    setStatusValue(site.status === 'DOWN' || site.status === 'DOWN_BY_USER' ? 'DOWN' : 'UP');
-    setPermDown(Boolean(site.permdown));
-    setAutoLogin(Boolean(site.autologin));
-    setAutoRulesInterval(site.autorules_interval ?? 0);
-
-    try {
-      const res = await apiClient.post('/ApiSitesService/GetSiteInfo', { SiteName: site.name });
-      const info = res.data.result?.[0] || res.data;
-
-      setUsernameValue(info.Username || '');
-      setPasswordValue('');
-      setMaxIdle(info.MaxIdle ?? 0);
-      setIdleInterval(info.IdleInterval ?? 30);
-      setLegacyCwd(Boolean(info.LegacyCwd));
-
-      if (info.Bncs) {
-        const parsedBncs = typeof info.Bncs === 'string' ? JSON.parse(info.Bncs) : info.Bncs;
-        setBncs(parsedBncs || []);
-      } else {
-        setBncs([]);
-      }
-    } catch (e) {
-      console.error('Failed to load site info:', e);
-      setBncs([]);
-    }
+  const handleAddSite = () => {
+    if (!newSiteName.trim() || !newSiteHost.trim() || newSitePort === '') return;
+    addSiteMutation.mutate({
+      name: newSiteName,
+      host: newSiteHost,
+      port: newSitePort,
+      username: newSiteUsername,
+      password: newSitePassword,
+      sslEnabled: newSiteSsl
+    });
   };
 
-  const handleSave = () => {
-    if (!selected || !statusValue) return;
-    if (slotsValue === '' || maxDnValue === '' || maxUpValue === '' || maxPreDnValue === '' || autoRulesInterval === '' || maxIdle === '' || idleInterval === '') return;
-    saveSettingsMutation.mutate({ site: selected, slots: slotsValue, maxDn: maxDnValue, maxUp: maxUpValue, maxPreDn: maxPreDnValue, permDown, autoLogin, autoRulesInterval, username: usernameValue, password: passwordValue, bncs, maxIdle, idleInterval, legacyCwd, status: statusValue });
-  };
-
-  // Helper for Status Badge
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'UP': return <Badge color="green">UP</Badge>;
@@ -235,7 +151,6 @@ export function SitesList() {
   if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">Could not load sites</Alert>;
 
-  // Filter client-side for search and exclude slftp management site
   const filteredSites = data?.filter(site =>
     site.name.toLowerCase() !== 'slftp' &&
     site.name.toLowerCase().includes(search.toLowerCase())
@@ -244,14 +159,14 @@ export function SitesList() {
   const rows = filteredSites.map((site) => (
     <Table.Tr key={site.name}>
       <Table.Td fw={500}>
-        <Group gap="xs">
-          <ActionIcon variant="subtle" color="gray" onClick={() => openEditor(site)} aria-label="Edit site">
-            <IconSettings size="1rem" />
-          </ActionIcon>
-          <Text fw={600} onClick={() => openEditor(site)} style={{ cursor: 'pointer' }}>
+        <Text 
+            fw={600} 
+            onClick={() => navigate(`/sites/${site.name}`)} 
+            style={{ cursor: 'pointer' }}
+            c="blue"
+        >
             {site.name}
-          </Text>
-        </Group>
+        </Text>
       </Table.Td>
       <Table.Td>{getStatusBadge(site.status)}</Table.Td>
       <Table.Td>{formatSlots(site)}</Table.Td>
@@ -269,6 +184,15 @@ export function SitesList() {
               <IconTrash size="1rem" />
             </ActionIcon>
           </Tooltip>
+          <Tooltip label="Delete site">
+            <ActionIcon variant="light" color="red" onClick={() => {
+              if (confirm(`Delete site ${site.name}?`)) {
+                deleteSiteMutation.mutate(site.name);
+              }
+            }}>
+              <IconX size="1rem" />
+            </ActionIcon>
+          </Tooltip>
         </Group>
       </Table.Td>
     </Table.Tr>
@@ -279,8 +203,11 @@ export function SitesList() {
       <Group justify="space-between" mb="md">
         <Title order={3}>Sites Manager</Title>
         <Group>
-           <TextInput 
-             placeholder="Search site..." 
+           <Button leftSection={<IconPlus size="1rem" />} onClick={() => setAddSiteModalOpened(true)}>
+             Add Site
+           </Button>
+           <TextInput
+             placeholder="Search site..."
              leftSection={<IconSearch size="0.9rem"/>}
              value={search}
              onChange={(e) => setSearch(e.currentTarget.value)}
@@ -310,164 +237,63 @@ export function SitesList() {
     )}
 
     <Modal
-      opened={!!selected}
-      onClose={() => setSelected(null)}
-      title={selected ? `Settings: ${selected.name}` : 'Settings'}
+      opened={addSiteModalOpened}
+      onClose={() => setAddSiteModalOpened(false)}
+      title="Add New Site"
       centered
-      size="xl"
+      size="md"
     >
-      <Tabs defaultValue="basics" keepMounted={false} style={{ minHeight: '380px' }}>
-        <Tabs.List grow>
-          <Tabs.Tab value="basics" leftSection={<IconToolsKitchen3 size="1rem" />}>Basics</Tabs.Tab>
-          <Tabs.Tab value="maintenance" leftSection={<IconShieldOff size="1rem" />}>Maintenance</Tabs.Tab>
-        </Tabs.List>
+      <Stack gap="sm">
+        <TextInput
+          label="Site Name"
+          placeholder="MYSITE"
+          value={newSiteName}
+          onChange={(e) => setNewSiteName(e.currentTarget.value)}
+          required
+        />
+        <TextInput
+          label="Host"
+          placeholder="ftp.example.com"
+          value={newSiteHost}
+          onChange={(e) => setNewSiteHost(e.currentTarget.value)}
+          required
+        />
+        <NumberInput
+          label="Port"
+          value={newSitePort}
+          min={1}
+          max={65535}
+          onChange={(val) => setNewSitePort(val === '' ? '' : Number(val))}
+          required
+        />
+        <TextInput
+          label="Username"
+          placeholder="username"
+          value={newSiteUsername}
+          onChange={(e) => setNewSiteUsername(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Password"
+          type="password"
+          placeholder="password"
+          value={newSitePassword}
+          onChange={(e) => setNewSitePassword(e.currentTarget.value)}
+        />
+        <Switch
+          label="Enable SSL/TLS"
+          checked={newSiteSsl}
+          onChange={(e) => setNewSiteSsl(e.currentTarget.checked)}
+        />
+      </Stack>
 
-        <Tabs.Panel value="basics" pt="md">
-          <Stack gap="sm">
-            <Divider label="FTP Credentials" />
-            <Group grow>
-              <TextInput
-                label="Username"
-                value={usernameValue}
-                onChange={(e) => setUsernameValue(e.currentTarget.value)}
-              />
-              <TextInput
-                label="Password"
-                type="password"
-                value={passwordValue}
-                onChange={(e) => setPasswordValue(e.currentTarget.value)}
-                placeholder="Leave empty to keep current"
-              />
-            </Group>
-
-            <Divider label="BNC List" />
-            {bncs.map((bnc, index) => (
-              <Group key={index} grow>
-                <TextInput
-                  label={index === 0 ? 'Host' : undefined}
-                  value={bnc.host}
-                  onChange={(e) => {
-                    const newBncs = [...bncs];
-                    newBncs[index].host = e.currentTarget.value;
-                    setBncs(newBncs);
-                  }}
-                  placeholder="ftp.example.com"
-                />
-                <NumberInput
-                  label={index === 0 ? 'Port' : undefined}
-                  value={bnc.port}
-                  min={1}
-                  max={65535}
-                  onChange={(val) => {
-                    const newBncs = [...bncs];
-                    newBncs[index].port = val === '' ? 21 : Number(val);
-                    setBncs(newBncs);
-                  }}
-                />
-                <Box style={{ alignSelf: index === 0 ? 'flex-end' : 'center' }}>
-                  <ActionIcon color="red" onClick={() => setBncs(bncs.filter((_, i) => i !== index))}>
-                    <IconX size="1rem" />
-                  </ActionIcon>
-                </Box>
-              </Group>
-            ))}
-            <Button
-              leftSection={<IconPlus size="1rem" />}
-              variant="light"
-              onClick={() => setBncs([...bncs, { host: '', port: 21 }])}
-            >
-              Add BNC
-            </Button>
-
-            <Divider label="Slots Configuration" />
-            <NumberInput
-              label="Slots (total)"
-              value={slotsValue}
-              min={0}
-              onChange={(val) => setSlotsValue(val === '' ? '' : Number(val))}
-            />
-            <Group grow>
-              <NumberInput
-                label="Max Downloads"
-                value={maxDnValue}
-                min={0}
-                onChange={(val) => setMaxDnValue(val === '' ? '' : Number(val))}
-              />
-              <NumberInput
-                label="Max Uploads"
-                value={maxUpValue}
-                min={0}
-                onChange={(val) => setMaxUpValue(val === '' ? '' : Number(val))}
-              />
-            </Group>
-            <NumberInput
-              label="max_pre_dn"
-              value={maxPreDnValue}
-              min={0}
-              onChange={(val) => setMaxPreDnValue(val === '' ? '' : Number(val))}
-            />
-            <Group grow>
-              <Switch label="PermDown" checked={permDown} onChange={(e) => setPermDown(e.currentTarget.checked)} />
-              <Switch label="Autologin" checked={autoLogin} onChange={(e) => setAutoLogin(e.currentTarget.checked)} />
-            </Group>
-            <Divider label="Connection Settings" />
-            <Group grow>
-              <NumberInput
-                label="max_idle"
-                value={maxIdle}
-                min={0}
-                onChange={(val) => setMaxIdle(val === '' ? '' : Number(val))}
-              />
-              <NumberInput
-                label="idleinterval"
-                value={idleInterval}
-                min={0}
-                onChange={(val) => setIdleInterval(val === '' ? '' : Number(val))}
-              />
-            </Group>
-            <Switch label="legacycwd (glftpd only!)" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
-            <Select
-              label="Status"
-              data={[
-                { value: 'UP', label: 'UP' },
-                { value: 'DOWN', label: 'DOWN (disable)' },
-              ]}
-              value={statusValue}
-              onChange={(val) => setStatusValue(val as 'UP' | 'DOWN' | '')}
-            />
-          </Stack>
-        </Tabs.Panel>
-
-        <Tabs.Panel value="maintenance" pt="md">
-          <Stack gap="sm">
-            <Group justify="space-between">
-              <Button variant="light" color="orange" loading={clearQueueMutation.isPending} onClick={() => selected && clearQueueMutation.mutate(selected.name)}>
-                Clear queue
-              </Button>
-              <Button variant="light" color="red" loading={ghostMutation.isPending} onClick={() => selected && ghostMutation.mutate(selected.name)}>
-                Kill ghosts
-              </Button>
-              <Button variant="outline" color="gray" loading={statusMutation.isPending} onClick={() => selected && statusValue && statusMutation.mutate({ site: selected, status: statusValue })}>
-                Save status
-              </Button>
-            </Group>
-            <Group justify="space-between">
-              <Button variant="outline" loading={recalcMutation.isPending} onClick={() => selected && recalcMutation.mutate(selected.name)}>
-                Recalc freeslots
-              </Button>
-              <Button variant="outline" loading={rebuildMutation.isPending} onClick={() => selected && rebuildMutation.mutate(selected.name)}>
-                Rebuild slots
-              </Button>
-            </Group>
-          </Stack>
-        </Tabs.Panel>
-      </Tabs>
-
-      <Divider my="md" />
-      <Group justify="flex-end" mt="sm">
-        <Button variant="default" onClick={() => setSelected(null)}>Cancel</Button>
-        <Button loading={saveSettingsMutation.isPending} onClick={handleSave}>
-          Save
+      <Group justify="flex-end" mt="md">
+        <Button variant="default" onClick={() => setAddSiteModalOpened(false)}>Cancel</Button>
+        <Button
+          loading={addSiteMutation.isPending}
+          onClick={handleAddSite}
+          disabled={!newSiteName.trim() || !newSiteHost.trim() || newSitePort === ''}
+        >
+          Add Site
         </Button>
       </Group>
     </Modal>

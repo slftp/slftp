@@ -99,6 +99,10 @@ type
     /// Enable/disable autorules interval (seconds, 0 = off)
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
 
+    /// PATCH /api/sites/{name}/affils
+    /// Replace site affils list (whitespace delimited)
+    function SetSiteAffils(const SiteName, Affils: RawUTF8): boolean;
+
     /// POST /api/sites/{name}/autorules/run
     /// Run autorules once now
     function RunSiteAutoRules(const SiteName: RawUTF8): boolean;
@@ -113,6 +117,10 @@ type
     /// POST /api/sites/{name}/test
     /// Tests site connection
     function TestSite(const SiteName: RawUTF8): boolean;
+
+    /// POST /api/sites/resolve
+    /// Resolves a hostname to an IP address
+    function ResolveHostname(const Hostname: RawUTF8): RawUTF8;
 
     /// POST /api/sites/{name}/ghost
     /// Kills ghost connections
@@ -139,9 +147,32 @@ type
                                 LegacyCwd: boolean;
                                 SslFxp: integer): boolean;
 
+    /// POST /api/sites/{name}/config
+    /// Sets various site configuration options (autobnctest, autodirlist, country, etc.)
+    function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
+
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
+
+    /// Loads incoming rules file for a site from rtpl/<site>.rtpl (or admin file for '*')
+    function GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+
+    /// Loads the cached SITE RULES snapshot (rtpl/<site>.siterules or rules/<site>.rules)
+    function GetSiteRulesSnapshot(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
+
+    /// Validates rtpl file content (line-by-line parser errors)
+    function ValidateRtpl(const Content: RawUTF8; out Validation: TApiRulesValidation): boolean;
+
+    /// Saves incoming rules file and optionally reloads rules in memory
+    function SaveSiteRtpl(const SiteName: RawUTF8; const Content: RawUTF8; const ExpectedMd5: RawUTF8;
+      Reload: boolean; out SaveResult: TApiRulesSaveResult): boolean;
+
+    /// Reload rules from disk (rtpl/*.rtpl and slftp.rules)
+    function ReloadRules: boolean;
+
+    /// Returns list of rule condition handlers with operators and descriptions
+    function GetRuleConditions: RawJSON;
   end;
 
   { Queue & Tasks API }
@@ -358,6 +389,19 @@ type
     /// GET /api/precatcher/mappings
     /// Returns section mappings
     function GetMappings: RawJSON;
+  end;
+
+  { Log Service API }
+  IApiLogService = interface(IInvokable)
+    ['{8C3D0E1F-2A4B-3C5D-6E7F-0A1B2C3D4E5F}']
+
+    /// GET /api/logs
+    /// Returns recent log lines
+    function GetLogs(const Lines: integer): RawJSON;
+
+    /// DELETE /api/logs
+    /// Clears logs (if supported) or returns error
+    function ClearLogs: boolean;
   end;
 
 implementation
