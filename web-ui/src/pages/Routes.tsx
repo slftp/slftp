@@ -1,10 +1,69 @@
-import { Card, Title, Stack, Group, Text, NumberInput, Button, Checkbox, ScrollArea, Badge, Table, Loader, Center, MultiSelect, SegmentedControl, Tooltip, Modal, ActionIcon } from '@mantine/core';
-import { IconRoute, IconRefresh, IconGridDots, IconBolt, IconEdit } from '@tabler/icons-react';
+import { Card, Title, Stack, Group, Text, NumberInput, Button, Checkbox, ScrollArea, Badge, Table, Loader, Center, MultiSelect, SegmentedControl, Tooltip, Modal, ActionIcon, TextInput, CloseButton, Paper } from '@mantine/core';
+import { IconRoute, IconRefresh, IconGridDots, IconBolt, IconEdit, IconSearch } from '@tabler/icons-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { Site, RouteEntry } from '../api/client';
 import { notifications } from '@mantine/notifications';
+
+function RouteChip({
+  label,
+  speed,
+  locked,
+  affilOnly,
+  noAffil,
+  speedColor,
+  onEdit,
+  onDelete,
+}: {
+  label: string;
+  speed: number;
+  locked?: boolean;
+  affilOnly?: boolean;
+  noAffil?: boolean;
+  speedColor: string;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const hasFlags = !!locked || !!affilOnly || !!noAffil;
+  const borderColor = `var(--mantine-color-${speedColor}-6)`;
+
+  return (
+    <Paper
+      withBorder
+      p={6}
+      radius="sm"
+      style={{ minWidth: 150, borderColor, borderWidth: 1 }}
+    >
+      <Stack gap={4}>
+        <Group justify="space-between" gap={8} wrap="nowrap">
+          <Text size="xs" fw={600} truncate>
+            {label}
+          </Text>
+          <Badge size="xs" color={speedColor} variant="filled">
+            {speed}
+          </Badge>
+        </Group>
+
+        <Group gap={3} wrap="wrap">
+          {locked && <Badge size="xs" color="gray" variant="light">🔒 Locked</Badge>}
+          {affilOnly && <Badge size="xs" color="blue" variant="light">👥 Affil</Badge>}
+          {noAffil && <Badge size="xs" color="red" variant="light">🚫 NoAffil</Badge>}
+          {!hasFlags && <Text size="xs" c="dimmed">No flags</Text>}
+        </Group>
+
+        <Group justify="flex-end" gap={4}>
+          <ActionIcon size="xs" variant="subtle" color="blue" onClick={onEdit}>
+            <IconEdit size="0.65rem" />
+          </ActionIcon>
+          <ActionIcon size="xs" variant="subtle" color="red" onClick={onDelete}>
+            ×
+          </ActionIcon>
+        </Group>
+      </Stack>
+    </Paper>
+  );
+}
 
 function IncomingRoutesList({ destSite, quickSpeed, onRouteDeleted, allRoutes }: { destSite: string; quickSpeed: number; onRouteDeleted: () => void; allRoutes: Map<string, RouteEntry[]> }) {
   const [editingRoute, setEditingRoute] = useState<RouteEntry & { source: string } | null>(null);
@@ -106,59 +165,47 @@ function IncomingRoutesList({ destSite, quickSpeed, onRouteDeleted, allRoutes }:
     return 'red';
   };
 
-  return (
-    <>
-      <Group
-        gap="xs"
-        style={{ minHeight: 40 }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => handleDrop(e, destSite)}
-      >
-        {incomingRoutes && incomingRoutes.length > 0 ? (
-          incomingRoutes.map((route) => (
-            <Group key={route.source} gap={4}>
-              <Badge
-                size="lg"
-                color={getSpeedColor(route.speed)}
-                variant="filled"
-                style={{ cursor: 'pointer' }}
-              >
-                <Tooltip
-                  label={
-                    <Stack gap={4}>
-                      <Text size="xs">{route.source} → {destSite}</Text>
-                      <Text size="xs">Speed: {route.speed}</Text>
-                      {route.locked && <Text size="xs" c="red">🔒 Locked</Text>}
-                      {route.affil_only && <Text size="xs" c="blue">👥 Affil Only</Text>}
-                      {route.no_affil && <Text size="xs" c="gray">🚫 No Affil</Text>}
-                    </Stack>
-                  }
-                >
-                  <span>{route.source} [{route.speed}]</span>
-                </Tooltip>
-              </Badge>
-              <ActionIcon
-                size="xs"
-                variant="subtle"
-                color="blue"
-                onClick={() => openEditModal(route)}
-              >
-                <IconEdit size="0.7rem" />
-              </ActionIcon>
-              <ActionIcon
-                size="xs"
-                variant="subtle"
-                color="red"
-                onClick={() => handleDeleteRoute(route.source)}
-              >
-                ×
-              </ActionIcon>
-            </Group>
-          ))
-        ) : (
-          <Text size="sm" c="dimmed">Drop sites here to create incoming routes</Text>
-        )}
-      </Group>
+	  return (
+	    <>
+	      <Group
+	        gap="xs"
+	        style={{ minHeight: 40 }}
+	        onDragOver={(e) => e.preventDefault()}
+	        onDrop={(e) => handleDrop(e, destSite)}
+	        wrap="wrap"
+	      >
+	        {incomingRoutes && incomingRoutes.length > 0 ? (
+	          incomingRoutes.map((route) => (
+	            <Tooltip
+	              key={route.source}
+	              label={
+	                <Stack gap={4}>
+	                  <Text size="xs">{route.source} → {destSite}</Text>
+	                  <Text size="xs">Speed: {route.speed}</Text>
+	                  {route.locked && <Text size="xs" c="red">🔒 Locked</Text>}
+	                  {route.affil_only && <Text size="xs" c="blue">👥 Affil Only</Text>}
+	                  {route.no_affil && <Text size="xs" c="gray">🚫 No Affil</Text>}
+	                </Stack>
+	              }
+	            >
+	              <div>
+	                <RouteChip
+	                  label={route.source}
+	                  speed={route.speed}
+	                  locked={route.locked || false}
+	                  affilOnly={route.affil_only || false}
+	                  noAffil={route.no_affil || false}
+	                  speedColor={getSpeedColor(route.speed)}
+	                  onEdit={() => openEditModal(route)}
+	                  onDelete={() => handleDeleteRoute(route.source)}
+	                />
+	              </div>
+	            </Tooltip>
+	          ))
+	        ) : (
+	          <Text size="sm" c="dimmed">Drop sites here to create incoming routes</Text>
+	        )}
+	      </Group>
 
       <Modal
         opened={!!editingRoute}
@@ -235,7 +282,7 @@ function RoutesList({ sourceSite, quickSpeed, onRouteDeleted }: { sourceSite: st
         if (Array.isArray(rawRoutes)) {
           return rawRoutes;
         }
-      } catch (e) {
+      } catch {
         return [];
       }
       return [];
@@ -336,59 +383,47 @@ function RoutesList({ sourceSite, quickSpeed, onRouteDeleted }: { sourceSite: st
 
   if (isLoading) return <Loader size="xs" />;
 
-  return (
-    <>
-      <Group
-        gap="xs"
-        style={{ minHeight: 40 }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => handleDrop(e, sourceSite)}
-      >
-        {routes && routes.length > 0 ? (
-          routes.map((route) => (
-            <Group key={route.dest} gap={4}>
-              <Badge
-                size="lg"
-                color={getSpeedColor(route.speed)}
-                variant="filled"
-                style={{ cursor: 'pointer' }}
-              >
-                <Tooltip
-                  label={
-                    <Stack gap={4}>
-                      <Text size="xs">{sourceSite} → {route.dest}</Text>
-                      <Text size="xs">Speed: {route.speed}</Text>
-                      {route.locked && <Text size="xs" c="red">🔒 Locked</Text>}
-                      {route.affil_only && <Text size="xs" c="blue">👥 Affil Only</Text>}
-                      {route.no_affil && <Text size="xs" c="gray">🚫 No Affil</Text>}
-                    </Stack>
-                  }
-                >
-                  <span>{route.dest} [{route.speed}]</span>
-                </Tooltip>
-              </Badge>
-              <ActionIcon
-                size="xs"
-                variant="subtle"
-                color="blue"
-                onClick={() => openEditModal(route)}
-              >
-                <IconEdit size="0.7rem" />
-              </ActionIcon>
-              <ActionIcon
-                size="xs"
-                variant="subtle"
-                color="red"
-                onClick={() => handleDeleteRoute(route.dest)}
-              >
-                ×
-              </ActionIcon>
-            </Group>
-          ))
-        ) : (
-          <Text size="sm" c="dimmed">Drop sites here to create routes</Text>
-        )}
-      </Group>
+	  return (
+	    <>
+	      <Group
+	        gap="xs"
+	        style={{ minHeight: 40 }}
+	        onDragOver={(e) => e.preventDefault()}
+	        onDrop={(e) => handleDrop(e, sourceSite)}
+	        wrap="wrap"
+	      >
+	        {routes && routes.length > 0 ? (
+	        routes.map((route) => (
+	          <Tooltip
+	            key={route.dest}
+	            label={
+	              <Stack gap={4}>
+	                <Text size="xs">{sourceSite} → {route.dest}</Text>
+	                <Text size="xs">Speed: {route.speed}</Text>
+	                {route.locked && <Text size="xs" c="red">🔒 Locked</Text>}
+	                {route.affil_only && <Text size="xs" c="blue">👥 Affil Only</Text>}
+	                {route.no_affil && <Text size="xs" c="gray">🚫 No Affil</Text>}
+	              </Stack>
+	            }
+	          >
+	            <div>
+	              <RouteChip
+	                label={route.dest}
+	                speed={route.speed}
+	                locked={route.locked || false}
+	                affilOnly={route.affil_only || false}
+	                noAffil={route.no_affil || false}
+	                speedColor={getSpeedColor(route.speed)}
+	                onEdit={() => openEditModal(route)}
+	                onDelete={() => handleDeleteRoute(route.dest)}
+	              />
+	            </div>
+	          </Tooltip>
+	        ))
+	        ) : (
+	          <Text size="sm" c="dimmed">Drop sites here to create routes</Text>
+	        )}
+	      </Group>
 
       <Modal
         opened={!!editingRoute}
@@ -452,7 +487,10 @@ export function Routes() {
   const [viewMode, setViewMode] = useState<string>('bulk');
   const quickSpeed = 7;
   const [refreshKey, setRefreshKey] = useState(0);
-  const [routeDirection, setRouteDirection] = useState<'outgoing' | 'incoming'>('outgoing');
+  const [routeDirection, setRouteDirection] = useState<'outgoing' | 'incoming'>('incoming');
+  const [paletteFilter, setPaletteFilter] = useState('');
+  const matrixViewportRef = useRef<HTMLDivElement>(null);
+  const isDraggingSiteRef = useRef(false);
 
   const { data: sites, isLoading: sitesLoading } = useQuery({
     queryKey: ['sites'],
@@ -471,8 +509,8 @@ export function Routes() {
         if (Array.isArray(rawSites)) {
           return rawSites as Site[];
         }
-      } catch (e) {
-        console.error('Failed to parse sites:', e);
+      } catch (err) {
+        console.error('Failed to parse sites:', err);
         return [];
       }
       return [];
@@ -576,11 +614,33 @@ export function Routes() {
     setSelectedDests([]);
   };
 
+  const visibleSites = useMemo(() => {
+    return (sites || []).filter((s) => s.name.toLowerCase() !== 'slftp');
+  }, [sites]);
+  const siteOptions = useMemo(() => visibleSites.map((s) => s.name), [visibleSites]);
+  const paletteSites = useMemo(() => {
+    const q = paletteFilter.trim().toLowerCase();
+    if (!q) return visibleSites;
+    return visibleSites.filter((s) => s.name.toLowerCase().includes(q));
+  }, [paletteFilter, visibleSites]);
+
   if (sitesLoading) return <Center h={400}><Loader size="xl" /></Center>;
 
-  // Filter out slftp management site
-  const visibleSites = sites?.filter(s => s.name.toLowerCase() !== 'slftp') || [];
-  const siteOptions = visibleSites.map(s => s.name);
+  const matrixHeight = 'calc(100vh - 220px)';
+
+  const handleMatrixDragOver = (e: React.DragEvent) => {
+    if (!isDraggingSiteRef.current) return;
+    const viewport = matrixViewportRef.current;
+    if (!viewport) return;
+
+    const rect = viewport.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const edge = 60;
+    const step = 18;
+
+    if (y < edge) viewport.scrollTop -= step;
+    else if (y > rect.height - edge) viewport.scrollTop += step;
+  };
 
   return (
     <Stack gap="md">
@@ -703,22 +763,41 @@ export function Routes() {
 
       {viewMode === 'matrix' && (
         <Group align="flex-start" gap="md">
-          <Card shadow="sm" padding="md" radius="md" withBorder style={{ width: 200 }}>
+          <Card shadow="sm" padding="md" radius="md" withBorder style={{ width: 200, position: 'sticky', top: 'var(--mantine-spacing-md)' }}>
             <Stack gap="md">
               <Group gap="xs">
                 <Text fw={600}>Sites Palette</Text>
               </Group>
+              <TextInput
+                placeholder="Filter sites..."
+                value={paletteFilter}
+                onChange={(e) => setPaletteFilter(e.currentTarget.value)}
+                leftSection={<IconSearch size="1rem" />}
+                rightSection={
+                  paletteFilter ? (
+                    <CloseButton aria-label="Clear filter" onClick={() => setPaletteFilter('')} />
+                  ) : null
+                }
+                size="xs"
+              />
               <Text size="xs" c="gray.6">Drag sites to rows →</Text>
-              <ScrollArea h={500}>
+              <ScrollArea h={matrixHeight}>
                 <Stack gap="xs">
-                  {visibleSites.map((site) => (
+                  {paletteSites.map((site) => (
                     <Badge
                       key={site.name}
                       size="lg"
                       variant="light"
                       color="cyan"
                       draggable
-                      onDragStart={(e) => e.dataTransfer.setData('text/plain', site.name)}
+                      onDragStart={(e) => {
+                        isDraggingSiteRef.current = true;
+                        e.dataTransfer.setData('text/plain', site.name);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      onDragEnd={() => {
+                        isDraggingSiteRef.current = false;
+                      }}
                       style={{ cursor: 'grab', width: '100%', justifyContent: 'center' }}
                     >
                       {site.name}
@@ -763,24 +842,25 @@ export function Routes() {
                 🎯 Drag sites from palette to rows to create routes • {routeDirection === 'outgoing' ? 'Click pencil to edit speed/locked/affil flags' : 'Click pencil to edit incoming route flags'} • Click × to delete
               </Text>
 
-              <ScrollArea>
-                <Table striped highlightOnHover withTableBorder withColumnBorders>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th style={{ position: 'sticky', left: 0, background: 'var(--mantine-color-body)', zIndex: 1, minWidth: 120 }}>
-                        <Text fw={700}>{routeDirection === 'outgoing' ? 'Source' : 'Destination'}</Text>
-                      </Table.Th>
-                      <Table.Th>
-                        <Text fw={700}>
-                          {routeDirection === 'outgoing'
-                            ? 'Destinations → Routes (drop here to create)'
-                            : '← Sources / Incoming Routes (drop here to create)'}
-                        </Text>
-                      </Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {visibleSites.map((site) => (
+              <ScrollArea h={matrixHeight} viewportRef={matrixViewportRef}>
+                <div onDragOver={handleMatrixDragOver}>
+                  <Table striped highlightOnHover withTableBorder withColumnBorders>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th style={{ position: 'sticky', left: 0, background: 'var(--mantine-color-body)', zIndex: 1, minWidth: 120 }}>
+                          <Text fw={700}>{routeDirection === 'outgoing' ? 'Source' : 'Destination'}</Text>
+                        </Table.Th>
+                        <Table.Th>
+                          <Text fw={700}>
+                            {routeDirection === 'outgoing'
+                              ? 'Destinations → Routes (drop here to create)'
+                              : '← Sources / Incoming Routes (drop here to create)'}
+                          </Text>
+                        </Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {visibleSites.map((site) => (
                         <Table.Tr key={`${site.name}-${refreshKey}-${routeDirection}`}>
                           <Table.Td style={{ position: 'sticky', left: 0, background: 'var(--mantine-color-body)', zIndex: 1, fontWeight: 600 }}>
                             <Badge size="lg" variant="dot" color="blue">{site.name}</Badge>
@@ -804,9 +884,10 @@ export function Routes() {
                             )}
                           </Table.Td>
                         </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </div>
               </ScrollArea>
             </Stack>
           </Card>
