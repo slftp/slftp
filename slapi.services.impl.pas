@@ -2759,6 +2759,9 @@ begin
     nick := UTF8ToString(VariantToUTF8(announceDoc.nick));
     text := UTF8ToString(VariantToUTF8(announceDoc.text));
 
+    if Pos('@', channel) > 0 then
+      channel := Copy(channel, 1, Pos('@', channel) - 1);
+
     if (netname = '') or (channel = '') or (nick = '') or (text = '') then
     begin
       TDocVariant.New(resultDoc);
