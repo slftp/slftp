@@ -2224,7 +2224,7 @@ begin
       AddShort(',"period":');
       AddJsonString(UTF8Encode(fPeriod));
       AddDirect('}');
-      SetText(Result);
+      SetText(RawUtf8(Result));
     finally
       Free;
     end;

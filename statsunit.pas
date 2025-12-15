@@ -451,7 +451,7 @@ begin
       w.AddFieldName('error');
       w.AddJsonString(UTF8Encode('Stats are disabled.'));
       w.AddDirect('}');
-      w.SetText(Result);
+      w.SetText(RawUtf8(Result));
       Exit;
     end;
 
@@ -558,7 +558,7 @@ begin
     w.AddFieldName('totalFiles');
     w.Add(fAllFiles);
     w.AddDirect('}');
-    w.SetText(Result);
+    w.SetText(RawUtf8(Result));
   finally
     w.Free;
   end;
