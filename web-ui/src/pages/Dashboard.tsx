@@ -1,4 +1,4 @@
-import { SimpleGrid, Card, Text, Title, Group, ThemeIcon, RingProgress, Center, Stack, Loader, Alert, Badge, Table, ScrollArea, Modal, Progress } from '@mantine/core';
+import { SimpleGrid, Card, Text, Title, Group, ThemeIcon, RingProgress, Center, Stack, Loader, Alert, Badge, Table, ScrollArea, Modal, Progress, Tooltip } from '@mantine/core';
 import { IconClock, IconListCheck, IconAlertCircle, IconRocket, IconInfoCircle } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
@@ -224,47 +224,52 @@ export function Dashboard() {
           )}
         </Group>
 
-        {releasesLoading ? (
-          <Center h={200}><Loader size="md" /></Center>
-        ) : releasesData && releasesData.releases.length > 0 ? (
-          <ScrollArea>
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Release</Table.Th>
-                  <Table.Th>Section</Table.Th>
-                  <Table.Th>Sites</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Queue #</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {releasesData.releases.map((release: ReleaseInfo, idx: number) => (
+	        {releasesLoading ? (
+	          <Center h={200}><Loader size="md" /></Center>
+	        ) : releasesData && releasesData.releases.length > 0 ? (
+	          <ScrollArea type="always" offsetScrollbars>
+	            <div style={{ minWidth: 900 }}>
+	            <Table striped highlightOnHover style={{ tableLayout: 'fixed' }}>
+	              <Table.Thead>
+	                <Table.Tr>
+	                  <Table.Th style={{ width: '42%' }}>Release</Table.Th>
+	                  <Table.Th style={{ width: '14%' }}>Section</Table.Th>
+	                  <Table.Th style={{ width: '24%' }}>Sites</Table.Th>
+	                  <Table.Th style={{ width: '10%' }}>Status</Table.Th>
+	                  <Table.Th style={{ width: '10%' }}>Queue #</Table.Th>
+	                </Table.Tr>
+	              </Table.Thead>
+	              <Table.Tbody>
+	                {releasesData.releases.map((release: ReleaseInfo, idx: number) => (
                   <Table.Tr
                     key={release.PazoId || idx}
                     style={{ cursor: 'pointer' }}
                     onClick={() => {
                       setSelectedPazoId(release.PazoId);
                       setModalOpened(true);
-                    }}
-                  >
-                    <Table.Td>
-                      <Text size="sm" fw={500} style={{ fontFamily: 'monospace' }}>
-                        {release.ReleaseName}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge size="sm" variant="dot">
-                        {release.Section}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs">
-                        {release.Sites && release.Sites.length > 0 ? (
-                          release.Sites.filter(s => s.toLowerCase() !== 'slftp').slice(0, 3).map((site, i) => (
-                            <Badge key={i} size="sm" variant="light" color="blue">
-                              {site}
-                            </Badge>
+	                    }}
+	                  >
+	                    <Table.Td>
+	                      <Tooltip label={release.ReleaseName} position="top-start" withArrow>
+	                        <Text size="sm" fw={500} style={{ fontFamily: 'monospace' }} truncate>
+	                          {release.ReleaseName}
+	                        </Text>
+	                      </Tooltip>
+	                    </Table.Td>
+	                    <Table.Td>
+	                      <Badge size="sm" variant="dot">
+	                        <Text span size="xs" truncate style={{ maxWidth: 140 }}>
+	                          {release.Section}
+	                        </Text>
+	                      </Badge>
+	                    </Table.Td>
+	                    <Table.Td>
+	                      <Group gap="xs" wrap="wrap">
+	                        {release.Sites && release.Sites.length > 0 ? (
+	                          release.Sites.filter(s => s.toLowerCase() !== 'slftp').slice(0, 3).map((site, i) => (
+	                            <Badge key={i} size="sm" variant="light" color="blue">
+	                              {site}
+	                            </Badge>
                           ))
                         ) : (
                           <Text size="xs" c="dimmed">No sites</Text>
@@ -287,15 +292,16 @@ export function Dashboard() {
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm" c="dimmed">#{release.QueueNumber}</Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
-        ) : (
-          <Center h={150}>
-            <Text c="dimmed">No recent releases</Text>
+	                    </Table.Td>
+	                  </Table.Tr>
+	                ))}
+	              </Table.Tbody>
+	            </Table>
+	            </div>
+	          </ScrollArea>
+	        ) : (
+	          <Center h={150}>
+	            <Text c="dimmed">No recent releases</Text>
           </Center>
         )}
       </Card>
@@ -319,46 +325,40 @@ export function Dashboard() {
       >
         {detailsLoading ? (
           <Center h={300}><Loader size="lg" /></Center>
-        ) : releaseDetails ? (
-          <Stack gap="md">
-            <Card withBorder padding="md">
-              <Stack gap="xs">
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Release</Text>
-                  <Text size="sm" fw={600} style={{ fontFamily: 'monospace' }}>
-                    {releaseDetails.ReleaseName}
-                  </Text>
-                </Group>
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Section</Text>
-                  <Badge>{releaseDetails.Section}</Badge>
-                </Group>
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Total Files</Text>
-                  <Badge variant="light">{releaseDetails.TotalFiles} files</Badge>
-                </Group>
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Status</Text>
-                  {releaseDetails.Ready ? (
-                    <Badge color="green">Ready</Badge>
-                  ) : releaseDetails.Stopped ? (
-                    <Badge color="red">Stopped</Badge>
-                  ) : (
-                    <Badge color="yellow">Racing</Badge>
-                  )}
-                </Group>
-                <Group justify="space-between">
-                  <Text size="sm" c="dimmed">Queue #</Text>
-                  <Text size="sm">#{releaseDetails.QueueNumber}</Text>
-                </Group>
-                {releaseDetails.ErrorReason && (
-                  <Group justify="space-between">
-                    <Text size="sm" c="dimmed">Error</Text>
-                    <Text size="sm" c="red">{releaseDetails.ErrorReason}</Text>
-                  </Group>
-                )}
-              </Stack>
-            </Card>
+	        ) : releaseDetails ? (
+	          <Stack gap="md">
+	            <Card withBorder padding="md">
+	              <Stack gap="xs">
+	                <Group gap="sm" align="flex-start" wrap="nowrap">
+	                  <Text size="sm" c="dimmed" w={90}>Release</Text>
+	                  <Text size="sm" fw={600} style={{ fontFamily: 'monospace', flex: 1, wordBreak: 'break-word' }}>
+	                    {releaseDetails.ReleaseName}
+	                  </Text>
+	                </Group>
+	                <Group gap="sm" align="center" wrap="nowrap">
+	                  <Text size="sm" c="dimmed" w={90}>Section</Text>
+	                  <Badge>{releaseDetails.Section}</Badge>
+	                </Group>
+	                <Group gap="sm" align="center" wrap="nowrap">
+	                  <Text size="sm" c="dimmed" w={90}>Total Files</Text>
+	                  <Badge variant="light">{releaseDetails.TotalFiles} files</Badge>
+	                </Group>
+	                <Group gap="sm" align="center" wrap="nowrap">
+	                  <Text size="sm" c="dimmed" w={90}>Status</Text>
+	                  {releaseDetails.Ready ? (
+	                    <Badge color="green">Ready</Badge>
+	                  ) : releaseDetails.Stopped ? (
+	                    <Badge color="red">Stopped</Badge>
+	                  ) : (
+	                    <Badge color="yellow">Racing</Badge>
+	                  )}
+	                </Group>
+	                <Group gap="sm" align="center" wrap="nowrap">
+	                  <Text size="sm" c="dimmed" w={90}>Queue #</Text>
+	                  <Text size="sm">#{releaseDetails.QueueNumber}</Text>
+	                </Group>
+	              </Stack>
+	            </Card>
 
             <Title order={4}>Sites ({releaseDetails.SiteDetails.filter(s => s.SiteName.toLowerCase() !== 'slftp').length})</Title>
 

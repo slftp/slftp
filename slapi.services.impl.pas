@@ -602,31 +602,106 @@ begin
     try
       for i := 0 to sitesunit.sites.Count - 1 do
       begin
-        try
-          s := TSite(sitesunit.sites[i]);
-          if s = nil then
-            Continue;
+        s := TSite(sitesunit.sites[i]);
+        if s = nil then
+          Continue;
 
-          // Copy data immediately while we have the reference
+        // Copy data immediately while we have the reference.
+        // Never skip a site just because a single field fails to read.
+        snapshots[snapshotCount].Name := '';
+        try
           snapshots[snapshotCount].Name := s.Name;
+        except
+          // ignore
+        end;
+        if snapshots[snapshotCount].Name = '' then
+          Continue;
+
+        snapshots[snapshotCount].Status := sstUnknown;
+        try
           snapshots[snapshotCount].Status := s.WorkingStatus;
+        except
+          // ignore
+        end;
+        try
           if s.PermDown then
             snapshots[snapshotCount].Status := sstDown; // treat permdown as down in snapshots
-          snapshots[snapshotCount].Slots := s.slots.Count;
-          snapshots[snapshotCount].FreeSlots := s.freeslots;
-          snapshots[snapshotCount].MaxUp := s.RCInteger('max_up', s.max_up);
-          snapshots[snapshotCount].MaxPreDn := s.RCInteger('max_pre_dn', s.max_pre_dn);
-          snapshots[snapshotCount].MaxDn := s.RCInteger('max_dn', s.slots.Count);
-          snapshots[snapshotCount].NumDn := s.num_dn;
-          snapshots[snapshotCount].NumUp := s.num_up;
-          snapshots[snapshotCount].PermDown := s.PermDown;
-          snapshots[snapshotCount].AutoLogin := s.RCBool('autologin', False);
-          snapshots[snapshotCount].AutoRulesInterval := s.AutoRulesStatus;
-          Inc(snapshotCount);
         except
-          // Skip this site if we can't read it
-          Continue;
+          // ignore
         end;
+
+        snapshots[snapshotCount].Slots := 0;
+        try
+          if s.slots <> nil then
+            snapshots[snapshotCount].Slots := s.slots.Count;
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].FreeSlots := 0;
+        try
+          snapshots[snapshotCount].FreeSlots := s.freeslots;
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].MaxUp := 0;
+        try
+          snapshots[snapshotCount].MaxUp := s.RCInteger('max_up', s.max_up);
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].MaxPreDn := 0;
+        try
+          snapshots[snapshotCount].MaxPreDn := s.RCInteger('max_pre_dn', s.max_pre_dn);
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].MaxDn := snapshots[snapshotCount].Slots;
+        try
+          snapshots[snapshotCount].MaxDn := s.RCInteger('max_dn', snapshots[snapshotCount].Slots);
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].NumDn := 0;
+        try
+          snapshots[snapshotCount].NumDn := s.num_dn;
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].NumUp := 0;
+        try
+          snapshots[snapshotCount].NumUp := s.num_up;
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].PermDown := False;
+        try
+          snapshots[snapshotCount].PermDown := s.PermDown;
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].AutoLogin := False;
+        try
+          snapshots[snapshotCount].AutoLogin := s.RCBool('autologin', False);
+        except
+          // ignore
+        end;
+
+        snapshots[snapshotCount].AutoRulesInterval := 0;
+        try
+          snapshots[snapshotCount].AutoRulesInterval := s.AutoRulesStatus;
+        except
+          // ignore
+        end;
+
+        Inc(snapshotCount);
       end;
     except
       on E: Exception do
@@ -2758,6 +2833,9 @@ begin
     channel := UTF8ToString(VariantToUTF8(announceDoc.channel));
     nick := UTF8ToString(VariantToUTF8(announceDoc.nick));
     text := UTF8ToString(VariantToUTF8(announceDoc.text));
+
+    if Pos('@', channel) > 0 then
+      channel := Copy(channel, 1, Pos('@', channel) - 1);
 
     if (netname = '') or (channel = '') or (nick = '') or (text = '') then
     begin
