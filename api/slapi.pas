@@ -27,7 +27,7 @@ uses
   slapi.services,
   slapi.services.impl,
   slapi.issues,
-  issueshook,
+  slapi.issueshook,
   configunit,
   debugunit;
 
