@@ -705,7 +705,7 @@ export function Routes() {
                   min={1}
                   max={9}
                   w={120}
-                  size="lg"
+                  size="sm"
                 />
                 <Checkbox
                   label="Add back routes (bidirectional)"

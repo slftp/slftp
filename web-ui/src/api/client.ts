@@ -60,6 +60,7 @@ export interface Site {
   status: 'UP' | 'DOWN' | 'DOWN_BY_USER' | 'UNKNOWN';
   slots: number;
   freeslots: number;
+  ircnick?: string;
   max_dn?: number;
   max_up?: number;
   max_pre_dn?: number;
@@ -83,4 +84,24 @@ export interface RouteEntry {
   affil_only?: boolean;
   no_affil?: boolean;
   locked?: boolean;
+}
+
+export interface IssuesSummary {
+  WindowSeconds: number;
+  Total: number;
+  Skip: number;
+  DontMatch: number;
+  MissingSection: number;
+  Nuke: number;
+}
+
+export interface Issue {
+  Id: number;
+  TsUnix: number;
+  IssueType: string;
+  Section: string;
+  ReleaseName: string;
+  SiteName: string;
+  Reason: string;
+  KbEvent: string;
 }

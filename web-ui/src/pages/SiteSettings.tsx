@@ -36,6 +36,7 @@ export function SiteSettings() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [affils, setAffils] = useState('');
+  const [ircnick, setIrcNick] = useState('');
   const [slots, setSlots] = useState<number | ''>('');
   const [maxDn, setMaxDn] = useState<number | ''>('');
   const [maxUp, setMaxUp] = useState<number | ''>('');
@@ -138,6 +139,7 @@ export function SiteSettings() {
       setPermDown(Boolean(siteRuntime.permdown));
       setAutoLogin(Boolean(siteRuntime.autologin));
       setAutoRulesInterval(siteRuntime.autorules_interval ?? 0);
+      setIrcNick(siteRuntime.ircnick ?? '');
     }
   }, [siteRuntime]);
 
@@ -151,6 +153,7 @@ export function SiteSettings() {
       await apiClient.post('/ApiSitesService/SetSiteAutoLogin', { SiteName: siteName, Enabled: autoLogin });
       await apiClient.post('/ApiSitesService/SetSiteAutoRules', { SiteName: siteName, IntervalSeconds: Number(autoRulesInterval) });
       await apiClient.post('/ApiSitesService/SetSiteAffils', { SiteName: siteName, Affils: affils });
+      await apiClient.post('/ApiSitesService/SetSiteIrcNick', { SiteName: siteName, IrcNick: ircnick });
       await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: siteName, Username: username, Password: password, BncsJson: JSON.stringify(bncs), MaxIdle: Number(maxIdle), IdleInterval: Number(idleInterval), LegacyCwd: legacyCwd });
       await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: siteName, Status: status });
       
@@ -234,6 +237,12 @@ export function SiteSettings() {
                             value={password}
                             onChange={(e) => setPassword(e.currentTarget.value)}
                             placeholder="Leave empty to keep current"
+                        />
+                        <TextInput
+                            label="IRC Nick"
+                            value={ircnick}
+                            onChange={(e) => setIrcNick(e.currentTarget.value)}
+                            placeholder="YourNick"
                         />
                         <TextInput
                             label="Country"
