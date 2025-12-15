@@ -1,5 +1,5 @@
 import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea } from '@mantine/core';
-import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask } from '@tabler/icons-react';
+import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient } from '../api/client';
@@ -74,6 +74,9 @@ export function IRC() {
   const [testNick, setTestNick] = useState('');
   const [testText, setTestText] = useState('');
   const [testOutput, setTestOutput] = useState('');
+
+  // Catchlist filter state
+  const [catchlistFilter, setCatchlistFilter] = useState('');
 
   const { data: networks, isLoading: networksLoading } = useQuery({
     queryKey: ['irc-networks'],
@@ -561,6 +564,13 @@ export function IRC() {
             <Group justify="space-between">
               <Title order={3}>Complete Catchlist</Title>
               <Group gap="xs">
+                <TextInput 
+                  placeholder="Filter... (e.g. site:name chan:#pre)" 
+                  leftSection={<IconSearch size="1rem" />}
+                  value={catchlistFilter}
+                  onChange={(event) => setCatchlistFilter(event.currentTarget.value)}
+                  style={{ width: 300 }}
+                />
                 <Button variant="filled" size="xs" leftSection={<IconPlus size="1rem" />} onClick={() => setAddingRule(true)}>
                   Add Entry
                 </Button>
@@ -588,7 +598,41 @@ export function IRC() {
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {rules?.map((rule) => (
+                  {rules
+                    ?.filter((rule) => {
+                      if (!catchlistFilter) return true;
+                      
+                      const terms = catchlistFilter.toLowerCase().split(' ');
+                      return terms.every(term => {
+                        if (term.includes(':')) {
+                          const [key, value] = term.split(':');
+                          if (!value) return true;
+                          
+                          switch (key) {
+                            case 'id': return rule.id.toString().includes(value);
+                            case 'site': return rule.sitename.toLowerCase().includes(value);
+                            case 'net': return rule.netname.toLowerCase().includes(value);
+                            case 'chan': return rule.channel.toLowerCase().includes(value);
+                            case 'nick': return rule.botnicks.toLowerCase().includes(value);
+                            case 'event': return rule.event.toLowerCase().includes(value);
+                            case 'words': return rule.words.toLowerCase().includes(value);
+                            case 'sec': return rule.section.toLowerCase().includes(value);
+                            default: return false;
+                          }
+                        }
+                        
+                        return (
+                          rule.sitename.toLowerCase().includes(term) ||
+                          rule.netname.toLowerCase().includes(term) ||
+                          rule.channel.toLowerCase().includes(term) ||
+                          rule.botnicks.toLowerCase().includes(term) ||
+                          rule.event.toLowerCase().includes(term) ||
+                          rule.words.toLowerCase().includes(term) ||
+                          rule.section.toLowerCase().includes(term)
+                        );
+                      });
+                    })
+                    .map((rule) => (
                     <Table.Tr key={rule.id}>
                       <Table.Td>{rule.id}</Table.Td>
                       <Table.Td fw={600}>{rule.sitename}</Table.Td>
