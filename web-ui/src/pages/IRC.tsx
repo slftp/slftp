@@ -1,4 +1,4 @@
-import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea } from '@mantine/core';
+import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch } from '@mantine/core';
 import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -387,6 +387,79 @@ export function IRC() {
     },
   });
 
+  // Network state
+  const [addingNetwork, setAddingNetwork] = useState(false);
+  const [newNetworkName, setNewNetworkName] = useState('');
+  const [newNetworkHost, setNewNetworkHost] = useState('');
+  const [newNetworkPort, setNewNetworkPort] = useState('6697');
+  const [newNetworkSsl, setNewNetworkSsl] = useState(true);
+  const [newNetworkPassword, setNewNetworkPassword] = useState('');
+  const [newNetworkNick, setNewNetworkNick] = useState('');
+  const [newNetworkIdent, setNewNetworkIdent] = useState('');
+  const [newNetworkUser, setNewNetworkUser] = useState('');
+
+  const addNetworkMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post('/ApiIrcService/AddNetwork', {
+        NetName: newNetworkName,
+        Host: newNetworkHost,
+        Port: parseInt(newNetworkPort, 10),
+        Ssl: newNetworkSsl,
+        Password: newNetworkPassword,
+        Nick: newNetworkNick,
+        Ident: newNetworkIdent,
+        User: newNetworkUser,
+      });
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Added',
+        message: 'Network added successfully',
+        color: 'green',
+      });
+      setAddingNetwork(false);
+      setNewNetworkName('');
+      setNewNetworkHost('');
+      setNewNetworkPort('6697');
+      setNewNetworkSsl(true);
+      setNewNetworkPassword('');
+      setNewNetworkNick('');
+      setNewNetworkIdent('');
+      setNewNetworkUser('');
+      queryClient.invalidateQueries({ queryKey: ['irc-networks'] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message,
+        color: 'red',
+      });
+    },
+  });
+
+  const deleteNetworkMutation = useMutation({
+    mutationFn: async (networkName: string) => {
+      await apiClient.post('/ApiIrcService/DeleteNetwork', {
+        NetName: networkName,
+      });
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Deleted',
+        message: 'Network deleted successfully',
+        color: 'green',
+      });
+      queryClient.invalidateQueries({ queryKey: ['irc-networks'] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message,
+        color: 'red',
+      });
+    },
+  });
+
   return (
     <Card shadow="sm" padding="lg" radius="md" withBorder>
       <Tabs value={activeTab} onChange={(value) => setActiveTab(value || 'networks')}>
@@ -409,9 +482,14 @@ export function IRC() {
           <Stack gap="md">
             <Group justify="space-between">
               <Title order={3}>IRC Networks</Title>
-              <ActionIcon variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['irc-networks'] })}>
-                <IconRefresh size="1.1rem" />
-              </ActionIcon>
+              <Group>
+                <Button variant="filled" size="xs" leftSection={<IconPlus size="1rem" />} onClick={() => setAddingNetwork(true)}>
+                    Add Network
+                </Button>
+                <ActionIcon variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['irc-networks'] })}>
+                    <IconRefresh size="1.1rem" />
+                </ActionIcon>
+              </Group>
             </Group>
 
             {networksLoading ? (
@@ -437,15 +515,26 @@ export function IRC() {
                       <Table.Td>{getStatusBadge(network)}</Table.Td>
                       <Table.Td>{network.channels_count}</Table.Td>
                       <Table.Td>
-                        <Tooltip label="View channels">
-                          <ActionIcon
-                            variant="light"
-                            color="blue"
-                            onClick={() => handleViewChannels(network.name)}
-                          >
-                            <IconHash size="1rem" />
-                          </ActionIcon>
-                        </Tooltip>
+                        <Group gap="xs">
+                            <Tooltip label="View channels">
+                            <ActionIcon
+                                variant="light"
+                                color="blue"
+                                onClick={() => handleViewChannels(network.name)}
+                            >
+                                <IconHash size="1rem" />
+                            </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="Delete network">
+                            <ActionIcon
+                                variant="light"
+                                color="red"
+                                onClick={() => deleteNetworkMutation.mutate(network.name)}
+                            >
+                                <IconTrash size="1rem" />
+                            </ActionIcon>
+                            </Tooltip>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -880,6 +969,73 @@ export function IRC() {
               Cancel
             </Button>
             <Button onClick={() => addRuleMutation.mutate()} loading={addRuleMutation.isPending} leftSection={<IconPlus size="1rem" />}>
+              Add
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={addingNetwork}
+        onClose={() => setAddingNetwork(false)}
+        title="Add IRC Network"
+        centered
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Network Name"
+            value={newNetworkName}
+            onChange={(e) => setNewNetworkName(e.currentTarget.value)}
+            placeholder="MyNetwork"
+            required
+          />
+          <TextInput
+            label="Host"
+            value={newNetworkHost}
+            onChange={(e) => setNewNetworkHost(e.currentTarget.value)}
+            placeholder="irc.network.org"
+            required
+          />
+          <TextInput
+            label="Port"
+            value={newNetworkPort}
+            onChange={(e) => setNewNetworkPort(e.currentTarget.value)}
+            required
+          />
+          <Switch
+            label="Use SSL"
+            checked={newNetworkSsl}
+            onChange={(event) => setNewNetworkSsl(event.currentTarget.checked)}
+          />
+          <TextInput
+            label="Password"
+            value={newNetworkPassword}
+            onChange={(e) => setNewNetworkPassword(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <TextInput
+            label="Nick"
+            value={newNetworkNick}
+            onChange={(e) => setNewNetworkNick(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <TextInput
+            label="Ident"
+            value={newNetworkIdent}
+            onChange={(e) => setNewNetworkIdent(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <TextInput
+            label="User"
+            value={newNetworkUser}
+            onChange={(e) => setNewNetworkUser(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setAddingNetwork(false)} leftSection={<IconX size="1rem" />}>
+              Cancel
+            </Button>
+            <Button onClick={() => addNetworkMutation.mutate()} loading={addNetworkMutation.isPending} leftSection={<IconCheck size="1rem" />}>
               Add
             </Button>
           </Group>

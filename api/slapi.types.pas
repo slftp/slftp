@@ -343,13 +343,41 @@ type
     property Total: integer read FTotal write FTotal;
   end;
 
+  { Issues Summary }
+  TApiIssuesSummary = class(TOrm)
+  private
+    FWindowSeconds: integer;
+    FTotal: integer;
+    FSkip: integer;
+    FDontMatch: integer;
+    FMissingSection: integer;
+    FNuke: integer;
+  published
+    property WindowSeconds: integer read FWindowSeconds write FWindowSeconds;
+    property Total: integer read FTotal write FTotal;
+    property Skip: integer read FSkip write FSkip;
+    property DontMatch: integer read FDontMatch write FDontMatch;
+    property MissingSection: integer read FMissingSection write FMissingSection;
+    property Nuke: integer read FNuke write FNuke;
+  end;
+
+  { List of Issues }
+  TApiIssuesList = class(TOrm)
+  private
+    FTotal: integer;
+    FIssues: RawJSON;
+  published
+    property Total: integer read FTotal write FTotal;
+    property Issues: RawJSON read FIssues write FIssues;
+  end;
+
 implementation
 
 uses
   SysUtils,
   DateUtils;
 
-{$I slftp.inc}
+{$I ../slftp.inc}
 
 { TApiResponse }
 

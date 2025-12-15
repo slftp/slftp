@@ -47,6 +47,14 @@ type
     /// GET /api/system/release/{id}
     /// Returns detailed info for specific release
     function GetReleaseDetails(const PazoId: integer; out Response: TApiReleaseInfo): boolean;
+
+    /// GET /api/system/auto
+    /// Returns global precatcher auto status
+    function GetAutoStatus: boolean;
+
+    /// POST /api/system/auto
+    /// Sets global precatcher auto status
+    function SetAutoStatus(Enabled: boolean): boolean;
   end;
 
   { Sites Management API }
@@ -102,6 +110,10 @@ type
     /// PATCH /api/sites/{name}/affils
     /// Replace site affils list (whitespace delimited)
     function SetSiteAffils(const SiteName, Affils: RawUTF8): boolean;
+
+    /// PATCH /api/sites/{name}/ircnick
+    /// Sets IRC nickname for site
+    function SetSiteIrcNick(const SiteName, IrcNick: RawUTF8): boolean;
 
     /// POST /api/sites/{name}/autorules/run
     /// Run autorules once now
@@ -279,6 +291,14 @@ type
     /// DELETE /api/irc/channel
     /// Deletes channel
     function DeleteChannel(const NetName, Channel: RawUTF8): boolean;
+
+    /// POST /api/irc/networks
+    /// Adds a new IRC network
+    function AddNetwork(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
+
+    /// DELETE /api/irc/networks/{name}
+    /// Deletes an IRC network
+    function DeleteNetwork(const NetName: RawUTF8): boolean;
   end;
 
   { Rules Engine API }
@@ -391,6 +411,23 @@ type
     function GetMappings: RawJSON;
   end;
 
+  { Issues / Alerts API }
+  IApiIssuesService = interface(IInvokable)
+    ['{1B2C3D4E-5F6A-7B8C-9D0E-1F2A3B4C5D6E}']
+
+    /// GET /api/issues/summary
+    /// Returns counts within a time window
+    function GetSummary(const WindowSeconds: integer; out Response: TApiIssuesSummary): boolean;
+
+    /// GET /api/issues
+    /// Returns recent issues/events (TypesCsv e.g. "SKIP,DONT_MATCH,MISSING_SECTION")
+    function GetIssues(const Limit: integer; const SinceUnix: Int64; const TypesCsv: RawUTF8; out Response: TApiIssuesList): boolean;
+
+    /// DELETE /api/issues
+    /// Clears the in-memory issues buffer
+    function ClearIssues: boolean;
+  end;
+
   { Log Service API }
   IApiLogService = interface(IInvokable)
     ['{8C3D0E1F-2A4B-3C5D-6E7F-0A1B2C3D4E5F}']
@@ -406,6 +443,6 @@ type
 
 implementation
 
-{$I slftp.inc}
+{$I ../slftp.inc}
 
 end.

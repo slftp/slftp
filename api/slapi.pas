@@ -26,6 +26,8 @@ uses
   slapi.types,
   slapi.services,
   slapi.services.impl,
+  slapi.issues,
+  issueshook,
   configunit,
   debugunit;
 
@@ -74,7 +76,7 @@ procedure ApiUninit;
 
 implementation
 
-{$I slftp.inc}
+{$I ../slftp.inc}
 
 const
   rsection = 'slapi';
@@ -162,6 +164,7 @@ begin
     TypeInfo(IApiSpeedService),
     TypeInfo(IApiKnowledgeBaseService),
     TypeInfo(IApiPrecatcherService),
+    TypeInfo(IApiIssuesService),
     TypeInfo(IApiLogService)
   ]);
 
@@ -175,6 +178,7 @@ begin
   FRestServer.ServiceDefine(TApiSpeedServiceImpl, [IApiSpeedService], sicShared);
   FRestServer.ServiceDefine(TApiKnowledgeBaseServiceImpl, [IApiKnowledgeBaseService], sicShared);
   FRestServer.ServiceDefine(TApiPrecatcherServiceImpl, [IApiPrecatcherService], sicShared);
+  FRestServer.ServiceDefine(TApiIssuesServiceImpl, [IApiIssuesService], sicShared);
   FRestServer.ServiceDefine(TApiLogServiceImpl, [IApiLogService], sicShared);
 
   Debug(dpMessage, rsection, 'API Services registered');
@@ -449,6 +453,9 @@ begin
 
     ApiServer := TSlftpApiServer.Create;
 
+    // Connect core issues hook -> API issues store
+    GlIssueLogProc := @SlapiIssues_LogIssue;
+
     // Load config
     ApiServer.Enabled := config.ReadBool('api', 'enabled', False);
     ApiServer.Port := config.ReadInteger('api', 'port', 8089);
@@ -491,6 +498,7 @@ begin
       FreeAndNil(ApiServer);
       Debug(dpMessage, rsection, 'API Server uninitialized');
     end;
+    GlIssueLogProc := nil;
   except
     on E: Exception do
     begin

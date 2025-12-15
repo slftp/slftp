@@ -9,6 +9,7 @@ import { Sections } from './pages/Sections';
 import { IRC } from './pages/IRC';
 import { Stats } from './pages/Stats';
 import { Logs } from './pages/Logs';
+import { Issues } from './pages/Issues';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -34,6 +35,7 @@ function App() {
           <Route path="sites" element={<SitesList />} />
           <Route path="sites/:siteName" element={<SiteSettings />} />
           <Route path="logs" element={<Logs />} />
+          <Route path="issues" element={<Issues />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="rules" element={<Rules />} />
           <Route path="sections" element={<Sections />} />
