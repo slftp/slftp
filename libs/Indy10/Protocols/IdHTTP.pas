@@ -340,7 +340,7 @@ uses
   Classes,
   IdException, IdExceptionCore, IdAssignedNumbers, IdHeaderList, IdHTTPHeaderInfo, IdReplyRFC,
   IdSSL, IdZLibCompressorBase,
-  IdTCPClient, IdURI, IdCookie, IdCookieManager, IdAuthentication, IdAuthenticationManager,
+  IdTCPClient, IdURI, IdCookieManager, IdAuthentication, IdAuthenticationManager,
   IdMultipartFormData, IdGlobal, IdBaseComponent, IdUriUtils;
 
 type
@@ -370,7 +370,8 @@ type
   TIdHTTPOption = (hoInProcessAuth, hoKeepOrigProtocol, hoForceEncodeParams,
     hoNonSSLProxyUseConnectVerb, hoNoParseMetaHTTPEquiv, hoWaitForUnexpectedData,
     hoTreat302Like303, hoNoProtocolErrorException, hoNoReadMultipartMIME,
-    hoNoParseXmlCharset, hoWantProtocolErrorContent, hoNoReadChunked
+    hoNoParseXmlCharset, hoWantProtocolErrorContent, hoNoReadChunked,
+    hoNoParseJsonCharset
     );
 
   TIdHTTPOptions = set of TIdHTTPOption;
@@ -719,6 +720,20 @@ begin
   end;
 end;
 
+function IsContentTypeAppJson(AInfo: TIdEntityHeaderInfo) : Boolean;
+begin
+  Result := IsHeaderMediaTypes(AInfo.ContentType,
+    ['application/json', 'application/javascript', 'application/x-javascript'] {do not localize}
+    );
+  if not Result then
+  begin
+    Result := not IsHeaderMediaType(AInfo.ContentType, 'text'); {do not localize}
+    if Result then begin
+      Result := TextEndsWith(ExtractHeaderMediaSubType(AInfo.ContentType), '+json'); {do not localize}
+    end;
+  end;
+end;
+
 destructor TIdCustomHTTP.Destroy;
 begin
   FreeAndNil(FHTTPProto);
@@ -865,7 +880,7 @@ var
   LChar: WideChar;
   Encoded: Boolean;
 begin
-  Result := '';    {Do not Localize}
+  Result := '';
 
   // keep the compiler happy
   Buf := nil;
@@ -880,7 +895,18 @@ begin
   EnsureEncoding(AByteEncoding, encUTF8);
   {$IFDEF STRING_IS_ANSI}
   EnsureEncoding(ASrcEncoding, encOSDefault);
-  LChars := ASrcEncoding.GetChars(RawToBytes(ASrc[1], Length(ASrc)));
+  LChars := ASrcEncoding.GetChars(
+    {$IFNDEF VCL_6_OR_ABOVE}
+    // RLebeau: for some reason, Delphi 5 causes a "There is no overloaded
+    // version of 'GetChars' that can be called with these arguments" compiler
+    // error if the PByte type-cast is used, even though GetChars() actually
+    // expects a PByte as input.  Must be a compiler bug, as it compiles fine
+    // in Delphi 6.  So, converting to TIdBytes until I find a better solution...
+    RawToBytes(PAnsiChar(ASrc)^, Length(ASrc))
+    {$ELSE}
+    PByte(PAnsiChar(ASrc)), Length(ASrc)
+    {$ENDIF}
+  );
   {$ENDIF}
 
   // 2 Chars to handle UTF-16 surrogates
@@ -896,7 +922,7 @@ begin
     // their true Unicode codepoint value, depending on the codepage used for
     // the source code. For instance, #128 may become #$20AC...
 
-    if Ord(LChar) = 32 then {do not localize}
+    if Ord(LChar) = 32 then
     begin
       Result := Result + '+'; {do not localize}
       Inc(I);
@@ -965,7 +991,9 @@ var
   begin
     if AStrings.Count > 1 then begin
       // break trailing CR&LF
-      Result := ReplaceAll(Trim(AStrings.Text), sLineBreak, '&'); {do not localize}
+      Result := ReplaceAll(Trim(AStrings.Text),
+        {$IFDEF HAS_TStrings_LineBreak}AStrings.LineBreak{$ELSE}sLineBreak{$ENDIF},
+        '&'); {do not localize}
     end else begin
       Result := Trim(AStrings.Text);
     end;
@@ -986,7 +1014,7 @@ begin
           // bottleneck for code that makes a lot of calls to Pos() in a loop, so we
           // will scan through the string looking for the character without a conversion...
           //
-          // LPos := IndyPos(LTemp.NameValueSeparator, LStr); {do not localize}
+          // LPos := IndyPos(LTemp.NameValueSeparator, LStr);
           //
           LChar := LTemp.NameValueSeparator;
           LPos := 0;
@@ -1314,7 +1342,7 @@ var
     Result := (UInt32(Buffer[0]) shl 24) or
               (UInt32(Buffer[1]) shl 16) or
               (UInt32(Buffer[2]) shl 8) or
-              UInt32(Buffer[3]);
+               UInt32(Buffer[3]);
   end;
 
 begin
@@ -1464,6 +1492,91 @@ begin
   end;
 end;
 
+// TODO: move the JSON charset detector below to the IdGlobalProtocols unit so
+// it can be used in other components, like TIdMessageClient and TIdIMAP4...
+
+{
+Per RFC 4627 Section 3:
+   
+JSON text SHALL be encoded in Unicode.  The default encoding is UTF-8.
+
+Since the first two characters of a JSON text will always be ASCII
+characters [RFC0020], it is possible to determine whether an octet
+stream is UTF-8, UTF-16 (BE or LE), or UTF-32 (BE or LE) by looking
+at the pattern of nulls in the first four octets.
+
+    00 00 00 xx  UTF-32BE
+    00 xx 00 xx  UTF-16BE
+    xx 00 00 00  UTF-32LE
+    xx 00 xx 00  UTF-16LE
+    xx xx xx xx  UTF-8
+}
+
+type
+  JsonMaskInfo = record
+    Charset: String;
+    NullMask,
+	NonNullMask: UInt32;
+  end;
+
+const
+  JsonMasks: array[0..4] of JsonMaskInfo = (
+    (Charset: 'UTF-32BE'; NullMask: $FFFFFF00; NonNullMask: $000000FF), {do not localize}
+    (Charset: 'UTF-16BE'; NullMask: $FF00FF00; NonNullMask: $00FF00FF), {do not localize}
+    (Charset: 'UTF-32LE'; NullMask: $00FFFFFF; NonNullMask: $FF000000), {do not localize}
+    (Charset: 'UTF-16LE'; NullMask: $00FF00FF; NonNullMask: $FF00FF00), {do not localize}
+    (Charset: 'UTF-8';    NullMask: $00000000; NonNullMask: $FFFFFFFF)  {do not localize}
+  );
+
+function DetectJsonCharset(AStream: TStream): String;
+var
+  Buffer: TIdBytes;
+  InBuf, StreamPos: TIdStreamSize;
+  Signature: UInt32;
+  I: Integer;
+
+  function BufferToUInt32: UInt32;
+  begin
+    Result := (UInt32(Buffer[0]) shl 24) or
+              (UInt32(Buffer[1]) shl 16) or
+              (UInt32(Buffer[2]) shl 8) or
+               UInt32(Buffer[3]);
+  end;
+
+begin
+  // JSON's default encoding is UTF-8 unless determined otherwise...
+
+  Result := 'UTF-8'; {do not localize}
+
+  if AStream = nil then begin
+    Exit;
+  end;
+
+  StreamPos := AStream.Position;
+  try
+    AStream.Position := 0;
+
+    SetLength(Buffer, 4);
+
+    InBuf := ReadTIdBytesFromStream(AStream, Buffer, 4);
+    if InBuf < 4 then begin
+      Exit;
+    end;
+
+    Signature := BufferToUInt32;
+
+    for I := Low(JsonMasks) to High(JsonMasks) do begin
+      if ((Signature and JsonMasks[I].NullMask) = 0) and ((Signature and JsonMasks[I].NonNullMask) <> 0) then begin
+        Result := JsonMasks[I].Charset;
+        Exit;
+      end;
+    end;
+
+  finally
+    AStream.Position := StreamPos;
+  end;
+end;
+
 procedure TIdCustomHTTP.ReadResult(ARequest: TIdHTTPRequest; AResponse: TIdHTTPResponse);
 var
   LS: TStream;
@@ -1472,6 +1585,7 @@ var
   //0 - no parsing
   //1 - html
   //2 - xml
+  //3 - json
   LCreateTmpContent : Boolean;
   LDecMeth : Integer;
   //0 - no compression was used or we can't support that feature
@@ -1674,6 +1788,11 @@ begin
       if not (hoNoParseXmlCharset in FOptions) then begin
         LParseMeth := 2;
       end;
+    end
+    else if IsContentTypeAppJson(Response) then begin
+      if not (hoNoParseJsonCharset in FOptions) then begin
+        LParseMeth := 3;
+      end;
     end;
   end;
 
@@ -1761,6 +1880,11 @@ begin
         // the media type is not a 'text/...' based XML type, so ignore the
         // charset from the headers, if present, and parse the XML itself...
         AResponse.CharSet := DetectXmlCharset(AResponse.ContentStream);
+      end;
+      3: begin
+        // the media type is not a 'text/...' based JSON type, so ignore the
+        // charset from the headers, if present, and parse the JSON itself...
+        AResponse.CharSet := DetectJsonCharset(AResponse.ContentStream);
       end;
     else
       // TODO: if a Charset is not specified, return an appropriate value
@@ -1850,7 +1974,7 @@ begin
       (PosInStrArray(ARequest.MethodOverride, Requires_HTTP_1_1, False) > -1) then
     begin
       if ProtocolVersion <> pv1_1 then  begin
-        raise EIdException.Create(RSHTTPMethodRequiresVersion);
+        raise EIdException.Create(RSHTTPMethodRequiresVersion); // TODO: create a new Exception class for this
       end;
     end;
 
@@ -1870,8 +1994,13 @@ begin
       LHost := FURI.Host;
     end;
 
-    if (TextIsSame(FURI.Protocol, 'http') and (FURI.Port = IntToStr(IdPORT_HTTP))) or  {do not localize}
-      (TextIsSame(FURI.Protocol, 'https') and (FURI.Port = IntToStr(IdPORT_https))) then  {do not localize}
+    // RLebeau: when connecting through a proxy, include the port even if it is a default.
+    // But, can't use ARequest.UseProxy here as it isn't updated until after this function
+    // exits, so check the ProxyParams directly...
+    if (Length(ProxyParams.ProxyServer) = 0) and (
+       (TextIsSame(FURI.Protocol, 'http') and (FURI.Port = IntToStr(IdPORT_HTTP))) or  {do not localize}
+       (TextIsSame(FURI.Protocol, 'https') and (FURI.Port = IntToStr(IdPORT_https)))   {do not localize}
+       ) then
     begin
       ARequest.Host := LHost;
     end else begin
@@ -1919,7 +2048,7 @@ begin
             raise EIdIOHandlerPropInvalid.Create(RSIOHandlerPropInvalid);
           end;
           ManagedIOHandler := True;
-          IOHandler.OnStatus := OnStatus;
+          IOHandler.OnStatus := OnStatus; // TODO: assign DoStatus() instead of the handler directly...
         end
         else if not (IOHandler is TIdSSLIOHandlerSocketBase) then begin
           raise EIdIOHandlerPropInvalid.Create(RSIOHandlerPropInvalid);
@@ -2001,6 +2130,8 @@ begin
         ARequest.URL := FURI.URI;
         if (ProtocolVersion = pv1_0) and (Length(ARequest.Connection) = 0) then
         begin
+          // TODO: per RFC 7230:
+          // "clients are encouraged not to send the Proxy-Connection header field in any requests."
           ARequest.ProxyConnection := 'keep-alive'; {do not localize}
         end;
         if hoNonSSLProxyUseConnectVerb in FOptions then begin
@@ -2061,6 +2192,8 @@ begin
       LLocalHTTP.Request.Pragma := 'no-cache';                       {do not localize}
       LLocalHTTP.Request.URL := ARequest.Destination;
       LLocalHTTP.Request.Method := Id_HTTPMethodConnect;
+      // TODO: per RFC 7230:
+      // "clients are encouraged not to send the Proxy-Connection header field in any requests."
       LLocalHTTP.Request.ProxyConnection := 'keep-alive';            {do not localize}
       LLocalHTTP.Request.FUseProxy := ARequest.UseProxy;
 
@@ -2110,7 +2243,7 @@ begin
               end;
             wnDontKnow:
               begin
-                raise EIdException.Create(RSHTTPNotAcceptable);
+                raise EIdException.Create(RSHTTPNotAcceptable); // TODO: create a new Exception class for this
               end;
           end;
         until False;
@@ -2564,6 +2697,7 @@ end;
 procedure TIdHTTPResponse.Clear;
 begin
   inherited Clear;
+  ResponseText := '';
   FMetaHTTPEquiv.Clear;
 end;
 
@@ -2671,11 +2805,11 @@ var
 begin
   FResponseText := AValue;
   FResponseCode := -1; // re-parse the next time it is accessed
-  ResponseVersion := pv1_0; // default until determined otherwise...
+  FResponseVersion := pv1_0; // default until determined otherwise...
   S := Copy(FResponseText, 6, 3);
   for i := Low(TIdHTTPProtocolVersion) to High(TIdHTTPProtocolVersion) do begin
     if TextIsSame(ProtocolVersionString[i], S) then begin
-      ResponseVersion := i;
+      FResponseVersion := i;
       Exit;
     end;
   end;
@@ -2714,6 +2848,8 @@ var
   i: Integer;
   LBufferingStarted: Boolean;
 begin
+  Response.Clear;
+
   // needed for Digest authentication, but maybe others as well...
   if Assigned(Request.Authentication) then begin
     // TODO: include entity body for Digest "auth-int" qop...
@@ -2759,10 +2895,8 @@ var
   LHeaderCount: Integer;
 begin
   // Set the response headers
-  // Clear headers
   // Don't use Capture.
   // S.G. 6/4/2004: Added AmaxHeaderCount parameter to prevent the "header bombing" of the server
-  Response.Clear;
   s := FHTTP.InternalReadLn;
   try
     LHeaderCount := 0;
@@ -3181,7 +3315,11 @@ begin
         Response.ResponseText := InternalReadLn;
         FHTTPProto.RetrieveHeaders(MaxHeaderLines);
         ProcessCookies(Request, Response);
-      until ((Response.ResponseCode div 100) <> 1) or (Response.ResponseCode = 101);
+        if ((Response.ResponseCode div 100) <> 1) or (Response.ResponseCode = 101) then begin
+          Break;
+        end;
+        Response.Clear;
+      until False;
 
       case FHTTPProto.ProcessResponse(AIgnoreReplies) of
         wnAuthRequest:
@@ -3213,14 +3351,17 @@ begin
           end;
         wnDontKnow:
           begin
-            raise EIdException.Create(RSHTTPNotAcceptable);
+            raise EIdException.Create(RSHTTPNotAcceptable); // TODO: create a new Exception class for this
           end;
       end;
     until False;
   finally
-    if not Response.KeepAlive then begin
-      // TODO: do not disconnect if hoNoReadMultipartMIME is in effect
-      // TODO: do not disconnect if hoNoReadChunked is in effect
+    if not (
+      Response.KeepAlive or
+      ((hoNoReadMultipartMIME in FOptions) and IsHeaderMediaType(Response.ContentType, 'multipart')) or   {do not localize}
+      ((hoNoReadChunked in FOptions) and (IndyPos('chunked', LowerCase(Response.TransferEncoding)) > 0))  {do not localize}
+    ) then
+    begin
       Disconnect;
     end;
   end;

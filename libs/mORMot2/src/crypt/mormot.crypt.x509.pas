@@ -117,12 +117,13 @@ type
   /// X.509 Certificate Extended Key Usage - see RFC 5280 Section 4.2.1.12
   TXExtendedKeyUsage = (
     xkuNone,
-    xkuServerAuth,         // 1
-    xkuClientAuth,         // 2
-    xkuCodeSigning,        // 3
-    xkuEmailProtection,    // 4
-    xkuTimeStamping,       // 8
-    xkuOcspSigning);       // 9
+    xkuServerAuth,         // 1.3.6.1.5.5.7.3.1
+    xkuClientAuth,         // 1.3.6.1.5.5.7.3.2
+    xkuCodeSigning,        // 1.3.6.1.5.5.7.3.3
+    xkuEmailProtection,    // 1.3.6.1.5.5.7.3.4
+    xkuTimeStamping,       // 1.3.6.1.5.5.7.3.8
+    xkuOcspSigning,        // 1.3.6.1.5.5.7.3.9
+    xkuMsPublisher);       // 1.3.6.1.4.1.311.76.8.1
 
   /// set of X.509 Certificate Extended Key Usage - see RFC 5280 Section 4.2.1.12
   TXExtendedKeyUsages = set of TXExtendedKeyUsage;
@@ -318,7 +319,6 @@ const
     'SHA512 with secp521r1 ECDSA' ,   // xsaSha512Ecc512
     'SHA512 with Ed25519 ECDSA');     // xsaSha512EdDSA
 
-
   /// internal lookup table from X.509 Public Key Algorithm as text
   XKA_TXT: array[TXPublicKeyAlgorithm] of RawUtf8 = (
     '',                    // xkaNone
@@ -409,13 +409,14 @@ const
 
   /// the OID of all known X.509 Certificate Extended Key Usage
   XKU_OID: array[TXExtendedKeyUsage] of PUtf8Char = (
-    '',                    // xkuNone
-    '1.3.6.1.5.5.7.3.1',   // xkuServerAuth
-    '1.3.6.1.5.5.7.3.2',   // xkuClientAuth
-    '1.3.6.1.5.5.7.3.3',   // xkuCodeSigning
-    '1.3.6.1.5.5.7.3.4',   // xkuEmailProtection
-    '1.3.6.1.5.5.7.3.8',   // xkuTimeStamping
-    '1.3.6.1.5.5.7.3.9');  // xkuOcspSigning
+    '',                        // xkuNone
+    '1.3.6.1.5.5.7.3.1',       // xkuServerAuth
+    '1.3.6.1.5.5.7.3.2',       // xkuClientAuth
+    '1.3.6.1.5.5.7.3.3',       // xkuCodeSigning
+    '1.3.6.1.5.5.7.3.4',       // xkuEmailProtection
+    '1.3.6.1.5.5.7.3.8',       // xkuTimeStamping
+    '1.3.6.1.5.5.7.3.9',       // xkuOcspSigning
+    '1.3.6.1.4.1.311.76.8.1'); // xkuMsPublisher
 
   /// the OID of all known X.509 Signature Algorithms
   // - RSA-PSS store CKA_OID[ckaRsaPss] with the THashAlgo as parameters
@@ -524,8 +525,8 @@ type
     /// convert Extension[x] from CSV to an array of RawUtf8
     function ExtensionArray(x: TXExtension): TRawUtf8DynArray;
     /// check a date/time coherency with NotBefore/NotAfter
+    // - a grace period of CERT_DEPRECATION_THRESHOLD (half a day) is applied
     function IsValidDate(timeutc: TDateTime = 0): boolean;
-      {$ifdef HASINLINE} inline; {$endif}
     /// reset all internal context
     procedure Clear;
     /// serialize those fields into ASN.1 DER binary
@@ -997,6 +998,7 @@ type
   TCryptStoreAlgoX509 = class(TCryptStoreAlgo)
   public
     function New: ICryptStore; override; // = TCryptStoreX509.Create(self)
+    function DefaultCertAlgo: TCryptCertAlgo; override;
   end;
 
   /// 'x509-pki' ICryptStore using TX509 and TX509Crl as a full featured PKI
@@ -1044,7 +1046,6 @@ type
       IgnoreError: TCryptCertValidities; TimeUtc: TDateTime): TCryptCertValidity; override;
     function Count: integer; override;
     function CrlCount: integer; override;
-    function DefaultCertAlgo: TCryptCertAlgo; override;
   public
     /// how many levels IsValid() should iterate over the trusted certificates
     // before finding a self-signed "root anchor"
@@ -1422,7 +1423,7 @@ begin
   result := '';
   for xku := succ(low(xku)) to high(xku) do
     if xku in usages then
-      Append(result, Asn(ASN1_OBJID, [XKU_OID_ASN[xku]]));
+      Append(result, AsnObjId(XKU_OID_ASN[xku]));
 end;
 
 function KuToBitStr(usages: TXKeyUsages): RawByteString;
@@ -1463,7 +1464,7 @@ begin
                           AsnText(v)
                         ]));
           until p = nil;
-          Append(tmp, Asn(ASN1_SETOF, [one]));
+          Append(tmp, AsnSetOf(one));
         end;
       end;
       for o := 0 to high(Other) do
@@ -1474,7 +1475,7 @@ begin
                           AsnText(Value)
                         ])
                       ]));
-      fCachedAsn := Asn(ASN1_SEQ, [tmp]);
+      fCachedAsn := AsnSeq(tmp);
     end;
   finally
     fSafe.UnLock;
@@ -1494,7 +1495,7 @@ var
   a: TXAttr;
   first: boolean;
   p: PUtf8Char;
-  n, v: shortstring;
+  n, v: ShortString;
 begin
   fSafe.Lock;
   try
@@ -1580,7 +1581,7 @@ begin
       if (AsnNextRaw(posone, one, oid) <> ASN1_OBJID) or
          (oid = '') or
          not (AsnNext(posone, one, @v) in ASN1_TEXT) or
-         not IsValidUtf8(v) then
+         not IsValidUtf8Small(v) then
         exit
       else
       begin
@@ -1606,15 +1607,16 @@ end;
 
 procedure TXName.FromFields(const fields: TCryptCertFields);
 begin
-  Name[xaC]  := TrimU(fields.Country);
-  Name[xaST] := TrimU(fields.State);
-  Name[xaL]  := TrimU(fields.Locality);
-  Name[xaO]  := TrimU(fields.Organization);
-  Name[xaOU] := TrimU(fields.OrgUnit);
-  Name[xaCN] := TrimU(fields.CommonName);
-  Name[xaE]  := TrimU(fields.EmailAddress);
-  Name[xaSN] := TrimU(fields.SurName);
-  Name[xaGN] := TrimU(fields.GivenName);
+  Name[xaC]   := TrimU(fields.Country);
+  Name[xaST]  := TrimU(fields.State);
+  Name[xaL]   := TrimU(fields.Locality);
+  Name[xaO]   := TrimU(fields.Organization);
+  Name[xaOU]  := TrimU(fields.OrgUnit);
+  Name[xaCN]  := TrimU(fields.CommonName);
+  Name[xaE]   := TrimU(fields.EmailAddress);
+  Name[xaSN]  := TrimU(fields.SurName);
+  Name[xaGN]  := TrimU(fields.GivenName);
+  Name[xaSER] := TrimU(fields.SerialNumber);
 end;
 
 function TXName.Get(const Rdn: RawUtf8): RawUtf8;
@@ -1695,7 +1697,7 @@ function HumanRandomID: RawUtf8;
 var
   rnd: THash256;
 begin
-  RandomBytes(@rnd, SizeOf(rnd)); // Lecuyer is enough for public random
+  SharedRandom.Fill(@rnd, SizeOf(rnd)); // Lecuyer is enough for public random
   rnd[0] := rnd[0] and $7f;     // ensure > 0
   ToHumanHex(result, @rnd, 20); // 20 bytes = 160-bit as a common size
 end;
@@ -1704,7 +1706,7 @@ function CsvToDns(p: PUtf8Char): RawByteString;
 begin
   result := '';
   while p <> nil do
-    Append(result, Asn(ASN1_CTX2, [TrimU(GetNextItem(p))]));
+    Append(result, AsnTyped(TrimU(GetNextItem(p)), ASN1_CTX2));
 end;
 
 procedure AddExt(var result: TAsnObject; xe: TXExtension;
@@ -1758,36 +1760,33 @@ begin
   // RFC 5280 #4.2.1.3
   if xku <> [] then
     AddExt(result, xeKeyUsage,
-      Asn(ASN1_BITSTR, [KuToBitStr(xku)]), {critical=}true);
+      AsnBitStr(KuToBitStr(xku)), {critical=}true);
   // RFC 5280 #4.2.1.12
   if xeku <> [] then
     AddExt(result, xeExtendedKeyUsage,
-      Asn(ASN1_SEQ, [XkuToOids(xeku)]));
+      AsnSeq(XkuToOids(xeku)));
   // ext[] RawUtf8 are used as source
   // - ExtensionOther[] and ExtensionRaw[] are ignored
   // RFC 5280 #4.2.1.2
   if ext[xeSubjectKeyIdentifier] <> '' then
     AddExt(result, xeSubjectKeyIdentifier,
-      Asn(ASN1_OCTSTR, [HumanHexToBin(ext[xeSubjectKeyIdentifier])]));
+      AsnOctStr(HumanHexToBin(ext[xeSubjectKeyIdentifier])));
   // RFC 5280 #4.2.1.1
   if ext[xeAuthorityKeyIdentifier] <> '' then
     AddExt(result, xeAuthorityKeyIdentifier,
-      Asn(ASN1_SEQ, [
-        Asn(ASN1_CTX0, [HumanHexToBin(ext[xeAuthorityKeyIdentifier])])]));
+      AsnSeq(AsnTyped(HumanHexToBin(ext[xeAuthorityKeyIdentifier]), ASN1_CTX0)));
   // RFC 5280 #4.2.1.6
   if ext[xeSubjectAlternativeName] <> '' then
     AddExt(result, xeSubjectAlternativeName,
-      Asn(ASN1_SEQ, [
-        CsvToDns(pointer(ext[xeSubjectAlternativeName]))]));
+      AsnSeq(CsvToDns(pointer(ext[xeSubjectAlternativeName]))));
   // RFC 5280 #4.2.1.7
   if ext[xeIssuerAlternativeName] <> '' then
     AddExt(result, xeIssuerAlternativeName,
-      Asn(ASN1_SEQ, [
-        CsvToDns(pointer(ext[xeIssuerAlternativeName]))]));
+      AsnSeq(CsvToDns(pointer(ext[xeIssuerAlternativeName]))));
   // non-standard ext - but defined as TCryptCertFields.Comment
   if ext[xeNetscapeComment] <> '' then
     AddExt(result, xeNetscapeComment,
-      Asn(ASN1_IA5STRING, [ext[xeNetscapeComment]]));
+      AsnTyped(ext[xeNetscapeComment], ASN1_IA5STRING));
   // xeAuthorityInformationAccess and xeCertificatePolicies not yet persisted
 end;
 
@@ -1812,11 +1811,11 @@ begin
       if Version >= 3 then
         // compute the X.509 v3 extensions block
         ext := Asn(ASN1_CTC3, [
-                 Asn(ASN1_SEQ, [ComputeExtensions])
+                 AsnSeq(ComputeExtensions)
                ]);
       fCachedDer := Asn(ASN1_SEQ, [
-                      Asn(ASN1_CTC0, [{%H-}Asn(Version - 1)]),
-                      Asn(ASN1_INT, [SerialNumber]),
+                      AsnTyped(Asn(Int64(Version) - 1), ASN1_CTC0),
+                      AsnTyped(SerialNumber, ASN1_INT),
                       XsaToSeq(Signature),
                       Issuer.ToBinary,
                       Asn(ASN1_SEQ, [
@@ -2298,7 +2297,7 @@ begin
       fCachedDer := Asn(ASN1_SEQ, [
                       Signed.ToDer,
                       XsaToSeq(SignatureAlgorithm),
-                      Asn(ASN1_BITSTR, [SignatureValue])
+                      AsnBitStr(SignatureValue)
                     ]);
     end;
     AfterLoaded;
@@ -2579,20 +2578,20 @@ begin
   if not (ReasonCode in [crrUnspecified, crrNotRevoked]) then
     ext := Asn(ASN1_SEQ, [
              AsnOid(ASN1_OID_X509_CRL_REASON),
-             Asn(ASN1_OCTSTR, [Asn(ord(ReasonCode), ASN1_ENUM)])
+             AsnOctStr(AsnEnum(ord(ReasonCode)))
            ]);
   if InvalidityDate <> 0 then
     Append(ext, Asn(ASN1_SEQ, [
                   AsnOid(ASN1_OID_X509_CRL_INVDATE),
-                  Asn(ASN1_OCTSTR, [AsnTime(InvalidityDate)])
+                  AsnOctStr(AsnTime(InvalidityDate))
                 ]));
   if CertificateIssuerDN <> '' then
     Append(ext, Asn(ASN1_SEQ, [
                   AsnOid(ASN1_OID_X509_CRL_ISSUER),
-                  Asn(ASN1_OCTSTR, [Asn(ASN1_CTX2, [CertificateIssuerDN])])
+                  AsnOctStr(AsnTyped(CertificateIssuerDN, ASN1_CTX2))
                 ]));
   if ext <> '' then
-    ext := Asn(ASN1_SEQ, [ext]);
+    ext := AsnSeq(ext);
   result := Asn(ASN1_SEQ, [
               Asn(ASN1_INT, [SerialNumber]),
               AsnTime(RevocationDate),
@@ -2672,8 +2671,8 @@ procedure AddCrlExt(var result: TAsnObject; xce: TXCrlExtension;
   const value: RawByteString);
 begin
   Append(result, Asn(ASN1_SEQ, [
-                   Asn(ASN1_OBJID, [XCE_OID_ASN[xce]]),
-                   Asn(ASN1_OCTSTR, [value])
+                   AsnObjId(XCE_OID_ASN[xce]),
+                   AsnOctStr(value)
                  ]));
 end;
 
@@ -2691,18 +2690,18 @@ begin
   // export known extensions - no ExtensionRaw[] support yet
   if Extension[xceAuthorityKeyIdentifier] <> '' then
     AddCrlExt(ext, xceAuthorityKeyIdentifier,
-      Asn(ASN1_SEQ, [
-        Asn(ASN1_CTX0, [HumanHexToBin(Extension[xceAuthorityKeyIdentifier])
-      ])]));
+      AsnSeq(
+        AsnTyped(HumanHexToBin(Extension[xceAuthorityKeyIdentifier]), ASN1_CTX0)
+        ));
   if Extension[xceIssuerAlternativeName] <> '' then
     AddCrlExt(ext, xceIssuerAlternativeName,
-      Asn(ASN1_SEQ, [
-        CsvToDns(pointer(Extension[xceIssuerAlternativeName]))]));
+      AsnSeq(
+        CsvToDns(pointer(Extension[xceIssuerAlternativeName]))));
   if Extension[xceCrlNumber] <> '' then
     AddCrlExt(ext, xceCrlNumber,
       Asn(GetInt64(pointer(Extension[xceCrlNumber])))); // 63-bit resolution
   if ext <> '' then
-    ext := Asn(ASN1_CTC0, [Asn(ASN1_SEQ, [ext])]);
+    ext := AsnTyped(AsnSeq(ext), ASN1_CTC0);
   // generate the whole CRL DER content
   result := Asn(ASN1_SEQ, [
               Asn(1),  // write X.509 CRL version 2, including extensions
@@ -2710,9 +2709,7 @@ begin
               Issuer.ToBinary,
               AsnTime(ThisUpdate),
               nextup,
-              Asn(ASN1_SEQ, [
-                rev
-              ]),
+              AsnSeq(rev),
               ext
             ]);
 end;
@@ -2888,7 +2885,7 @@ begin
     fCachedDer := Asn(ASN1_SEQ, [
                     Signed.ToDer,
                     XsaToSeq(SignatureAlgorithm),
-                    Asn(ASN1_BITSTR, [SignatureValue])
+                    AsnBitStr(SignatureValue)
                   ]);
   result := fCachedDer;
 end;
@@ -3319,7 +3316,7 @@ begin
                 Asn(ASN1_SEQ, [
                   AsnOid(ASN1_OID_PKCS9_EXTREQ),
                   Asn(ASN1_SETOF, [
-                    Asn(ASN1_SEQ, [extreq])
+                    AsnSeq(extreq)
                   ])
                 ])
               ]);
@@ -3334,7 +3331,7 @@ begin
   result := DerToPem(Asn(ASN1_SEQ, [
                       der,
                       XsaToSeq(Algorithm),
-                      Asn(ASN1_BITSTR, [PrivateKey.Sign(caa, der)])
+                      AsnBitStr(PrivateKey.Sign(caa, der))
                     ]), pemCertificateRequest);
 end;
 
@@ -3772,7 +3769,7 @@ function TCryptCertAlgoX509.CreateSelfSignedCsr(const Subjects: RawUtf8;
   const PrivateKeyPassword: SpiUtf8; var PrivateKeyPem: RawUtf8;
   Usages: TCryptCertUsages; Fields: PCryptCertFields): RawUtf8;
 
-  procedure RaiseError(const msg: shortstring);
+  procedure RaiseError(const msg: ShortString);
   begin
     raise ECryptCertX509.CreateUtf8(
       '%.CreateSelfSignedCsr %: % error', [self, JwtName, msg]);
@@ -3831,7 +3828,7 @@ begin
   fPrivateKey := CryptPrivateKey[XKA_TO_CKA[AlgoXka]].Create;
   fX509.Signed.SubjectPublicKey := fPrivateKey.Generate(XKA_TO_CAA[AlgoXka]);
   if fX509.Signed.SubjectPublicKey = '' then
-    RaiseErrorGenerate('GeneratePrivateKey failed');
+    RaiseError('GeneratePrivateKey(%) failed', [ToText(AlgoXka)^]);
   fX509.Signed.SubjectPublicKeyAlgorithm := AlgoXka;
   fX509.Signed.SubjectPublicKeyBits :=
     X509PubKeyBits(fX509.Signed.SubjectPublicKey);
@@ -3928,7 +3925,7 @@ begin
             FreeAndNil(fX509);
         end;
       cccCertWithPrivateKey:
-        // unconcatenate certificate PEM and private key PEM - no PKCS#12 yet
+        // unconcatenate cert PEM and private key PEM - no PKCS#12/.PFX yet
         result := PemToCertAndPrivKey(Saved, der, bin) and
                   Load(der, cccCertOnly, '') and
                   Load(bin, cccPrivateKeyOnly, PrivatePassword)
@@ -3963,7 +3960,7 @@ begin
           if HasPrivateSecret then
           try
             // save as concatenated PEM, even if ccfBinary was requested
-            // (no PKCS#12 support yet)
+            // (no PKCS#12/.PFX support yet)
             pem := Save(cccPrivateKeyOnly, PrivatePassword, ccfPem);
             result := Save(cccCertOnly, '', ccfPem) + RawUtf8(#13#10) + pem;
           finally
@@ -4145,6 +4142,11 @@ begin
   result := TCryptStoreX509.Create(self);
 end;
 
+function TCryptStoreAlgoX509.DefaultCertAlgo: TCryptCertAlgo;
+begin
+  result := CryptCertX509[CryptAlgoDefault];
+end;
+
 
 { TCryptStoreX509 }
 
@@ -4206,11 +4208,11 @@ begin
   w := TTextWriter.CreateOwnedStream(tmp);
   try
     fTrust.SaveToPem(W, {WithExplanatoryText=}true);
-    W.AddCR;
+    w.AddCR;
     fSignedCrl.SaveToPem(W, {WithExplanatoryText=}true);
-    W.AddCR;
+    w.AddCR;
     fUnsignedCrl.SaveToPem(W, {WithExplanatoryText=}true);
-    W.SetText(RawUtf8(result));
+    w.SetText(RawUtf8(result));
   finally
     w.Free;
   end;
@@ -4440,7 +4442,8 @@ begin
       if not cert.IsSelfSigned then
         result := cvValidSigned;
       exit;
-    end else if result <> cvValidSigned then
+    end
+    else if result <> cvValidSigned then
       exit;
     // continue to the next level
     skid := akid;
@@ -4472,12 +4475,6 @@ function TCryptStoreX509.CrlCount: integer;
 begin
   result := fSignedCrl.Count + fUnsignedCrl.Count;
 end;
-
-function TCryptStoreX509.DefaultCertAlgo: TCryptCertAlgo;
-begin
-  result := CryptCertX509[CryptAlgoDefault];
-end;
-
 
 
 { **************** Registration of our X.509 Engine to the TCryptCert Factory }

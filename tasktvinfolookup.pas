@@ -104,7 +104,7 @@ begin
   jl := TlkJSONlist.Create;
   try
     try
-      jl := TlkJSON.ParseText(resp) as TlkJSONlist;
+      jl := TlkJSON.ParseText(AnsiString(resp)) as TlkJSONlist;
     except
       on e: Exception do
       begin
@@ -223,6 +223,8 @@ begin
   ep_nextnum := -1;
 
   date := UnixToDateTime(3817); //1.1.1990 031337
+  nextdt := UnixToDateTime(3817);
+  prevdt := UnixToDateTime(3817);
 
   {$IFDEF MSWINDOWS}
     formatSettings := TFormatSettings.Create('en-US');
@@ -382,7 +384,7 @@ begin
   js := TlkJSONObject.Create();
   try
     try
-      js := TlkJSON.ParseText(jsonStr) as TlkJSONObject;
+      js := TlkJSON.ParseText(AnsiString(jsonStr)) as TlkJSONObject;
     except
       on e: Exception do
       begin

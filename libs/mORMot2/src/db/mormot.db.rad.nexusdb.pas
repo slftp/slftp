@@ -334,8 +334,8 @@ var
 begin
   Log := SynDBLog.Enter;
   try
-    ServerEngine.Active := True;
-    ServerEngine.Connected := True;
+    ServerEngine.Active := true;
+    ServerEngine.Connected := true;
     fDatabase.Name := ClassName;
     fDatabase.Connect;
     inherited Connect; // notify any re-connection
@@ -358,7 +358,7 @@ begin
   inherited Create(aProperties);
   lProp := aProperties as TSqlDBNexusDBConnectionProperties; // type check to make sure
   if lProp.Protocol = nxpUnknown then
-    raise ESqlDBNexusDB.CreateUtf8('%.Create: Unknown NexusDB protocol in Servername=[%]',
+    ESqlDBNexusDB.RaiseUtf8('%.Create: Unknown NexusDB protocol in Servername=[%]',
       [self, lProp.ServerName]);
   fDatabase := TnxDatabase.Create(nil);
   fSession := TnxSession.Create(nil);

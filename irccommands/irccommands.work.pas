@@ -318,7 +318,7 @@ begin
     exit;
   end;
 
-  p := TPazo(kb_list.Objects[pazo_id]);
+  p := FindPazoByID(pazo_id);
   p.Clear;
 
   try
@@ -720,7 +720,7 @@ begin
   rls := rc.Create(rlsname, srcdir);
   p := PazoAdd(rls);
   //  pazo_id := p.pazo_id;
-  kb_list.AddObject('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
+  AddPazoToKB('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
 
   p.AddSite(srcsite.Name, ftpsrcdir, False);
   p.AddSite(dstsite.Name, ftpdstdir, False);
@@ -735,8 +735,7 @@ begin
   ps_src.dirlist.dirlistadded := True;
 
   pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False, False);
-  AddTask(pd);
-  QueueFire;
+  AddTask(pd, True);
 
   irc_addtext(Netname, Channel,
     'File Transfer has started. Type <c4>%sstop <b>%d</b></c> if you need.', [irccmdprefix,
@@ -934,7 +933,7 @@ begin
 
   if i <> -1 then
   begin
-    p := TPazo(kb_list.Objects[i]);
+    p := FindPazoByID(i);
     p.AddSites;
     p.rls.aktualizalva := False;
     if sitename <> '' then
@@ -964,6 +963,9 @@ begin
   Result := False;
   i := 0; //< position of date value in string
   h := 0; //< position of first reason character
+  yyyy := ''; // Initialize to prevent uninitialized variable warning
+  yy := ''; // Initialize to prevent uninitialized variable warning
+  mm := ''; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
 
   if nil <> FindSiteByName(Netname, sitename) then
@@ -1080,6 +1082,9 @@ var
 begin
   Result := False;
   h := 0;
+  yyyy := ''; // Initialize to prevent uninitialized variable warning
+  yy := ''; // Initialize to prevent uninitialized variable warning
+  mm := ''; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
   if nil <> FindSiteByName(Netname, sitename) then
   begin
@@ -1183,9 +1188,8 @@ var
   begin
     r := TRawTask.Create(Netname, Channel, sitename, dir, command);
     tn := AddNotify;
-    tn.tasks.Add(r);
-    AddTask(r);
-    QueueFire;
+    tn.AddTask(r);
+    AddTask(r, True);
 
     tn.event.WaitFor($FFFFFFFF);
 
@@ -1373,7 +1377,7 @@ begin
       Continue;
 
     d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-    d.dirlist_lock.Enter;
+    d.dirlist_lock.Enter('IrcCheckForExistsRip');
     try
       if d <> nil then
       begin

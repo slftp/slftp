@@ -56,7 +56,7 @@ begin
   end;
 
   d := TDirList.Create(s.site.Name, nil, nil, s.lastResponse);
-  d.dirlist_lock.Enter;
+  d.dirlist_lock.Enter('TDelReleaseTask.RemoveDir');
   try
     // use RemoveFile with CWD into dir to ensure glftpd/pzs-ng clears the complete dirs
     for de in d.entries.Values do
