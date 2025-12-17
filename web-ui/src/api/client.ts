@@ -105,3 +105,32 @@ export interface Issue {
   Reason: string;
   KbEvent: string;
 }
+
+export interface SimulatorSiteResult {
+  Sitename: string;
+  Section: string;
+  Allowed: boolean;
+  Reason: string;
+  RuleAction: string;
+  IsAffil: boolean;
+  HasSection: boolean;
+  SiteDown: boolean;
+  PretimeOk: boolean;
+}
+
+export interface SimulatorRouteResult {
+  SourceSite: string;
+  DestinationSite: string;
+  Rank: number;
+  RouteWeight: number;
+}
+
+export interface SimulatorResult {
+  Releasename: string;
+  Section: string;
+  TotalSites: number;
+  AllowedSites: number;
+  ErrorMessage: string;
+  Sites: SimulatorSiteResult[] | string;
+  Routes: SimulatorRouteResult[] | string;
+}
