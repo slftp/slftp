@@ -1,8 +1,9 @@
-import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar } from '@mantine/core';
+import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar, IconFileText } from '@tabler/icons-react';
+import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
+import { AutoSwitch } from './AutoSwitch';
 
 export function Layout() {
   const [opened, { toggle }] = useDisclosure();
@@ -13,6 +14,7 @@ export function Layout() {
   const links = [
     { icon: IconDashboard, label: 'Dashboard', to: '/' },
     { icon: IconBrandHipchat, label: 'IRC', to: '/irc' },
+    { icon: IconAlertTriangle, label: 'Issues', to: '/issues' },
     { icon: IconFileText, label: 'Logs', to: '/logs' },
     { icon: IconRoute, label: 'Routes', to: '/routes' },
     { icon: IconFilter, label: 'Rules', to: '/rules' },
@@ -43,7 +45,7 @@ export function Layout() {
       <AppShell
         header={{ height: 60 }}
         navbar={{
-        width: 240,
+        width: 210,
           breakpoint: 'sm',
           collapsed: { mobile: !opened },
         }}
@@ -56,18 +58,23 @@ export function Layout() {
             <Avatar src="/slftp.png" alt="Soulless FTP" size={28} radius="sm" />
             <Title order={3}>Soulless FTP</Title>
           </Group>
-          <ActionIcon
-            onClick={() => toggleColorScheme()}
-            variant="default"
-            size="lg"
-            aria-label="Toggle color scheme"
-          >
-            {colorScheme === 'dark' ? <IconSun size="1.2rem" /> : <IconMoon size="1.2rem" />}
-          </ActionIcon>
+          <Group>
+            <AutoSwitch />
+            <Tooltip label="Toggle color scheme" withArrow withinPortal zIndex={999}>
+              <ActionIcon
+                onClick={() => toggleColorScheme()}
+                variant="default"
+                size="lg"
+                aria-label="Toggle color scheme"
+              >
+                {colorScheme === 'dark' ? <IconSun size="1.2rem" /> : <IconMoon size="1.2rem" />}
+              </ActionIcon>
+            </Tooltip>
+          </Group>
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
+      <AppShell.Navbar p="sm">
         {items}
         <NavLink
           label="Logout"

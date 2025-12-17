@@ -20,6 +20,8 @@ System (ApiSystemService)
 - CreateBackup: Creates configuration backup.
 - GetRecentReleases: Body {"Limit": 20}. Returns recent releases.
 - GetReleaseDetails: Body {"PazoId": <id>}. Returns release details.
+- GetAutoStatus: Body {}. Returns global auto status.
+- SetAutoStatus: Body {"Enabled":true|false}. Sets global auto status.
 
 Sites (ApiSitesService)
 - GetSites: Body {"Filter":""}. Returns list of sites.
@@ -35,12 +37,14 @@ Sites (ApiSitesService)
 - SetSiteAutoLogin: Body {"SiteName":"<name>","Enabled":true|false}
 - SetSiteAutoRules: Body {"SiteName":"<name>","IntervalSeconds":<int>}
 - SetSiteAffils: Body {"SiteName":"<name>","Affils":"GRP1 GRP2"}
+- SetSiteIrcNick: Body {"SiteName":"<name>","IrcNick":"..."}
 - SetSiteCredentials: Sets detailed credentials/BNCs.
 - SetSiteConfig: Body {"SiteName":"<name>", "Config":{...}}. Sets misc options (autobnctest, country, etc).
 - RunSiteAutoRules: Body {"SiteName":"<name>"}
 - GetSiteRoutes: Body {"SiteName":"<name>"}
 - SetSiteRoute: Body {"SourceSite":"...", "DestSite":"...", "Speed":<int>, "Locked":bool, "AffilOnly":bool, "NoAffil":bool}
 - TestSite: Body {"SiteName":"<name>"}
+- ResolveHostname: Body {"Hostname":"..."}
 - GhostSite: Body {"SiteName":"<name>"}
 - RecalcFreeSlots: Body {"SiteName":"<name>"}
 - RebuildSlots: Body {"SiteName":"<name>"}
@@ -49,6 +53,7 @@ Sites (ApiSitesService)
 - GetSiteSections: Body {"SiteName":"<name>"}
 - SetSiteSection: Body {"SiteName":"...", "Section":"...", "Dir":"..."}
 - GetSiteRtpl: Body {"SiteName":"<name>"}. Returns raw RTPL file content.
+- GetSiteRulesSnapshot: Body {"SiteName":"<name>"}. Returns the cached SITE RULES snapshot.
 - SaveSiteRtpl: Body {"SiteName":"...", "Content":"...", "ExpectedMd5":"...", "Reload":bool}
 - ValidateRtpl: Body {"Content":"..."}
 - ReloadRules: Reloads all rules.
@@ -81,6 +86,8 @@ IRC (ApiIrcService)
 - SetChannelRoles: Body {"NetName":"...", "Channel":"...", "Roles":"..."}
 - AddChannel: Body {"NetName":"...", "Channel":"...", "ChanKey":"...", "Blowkey":"...", "Roles":"..."}
 - DeleteChannel: Body {"NetName":"...", "Channel":"..."}
+- AddNetwork: Body {"NetName":"...", "Host":"...", "Port":6697, "Ssl":true, "Password":"...", "Nick":"...", "Ident":"...", "User":"..."}
+- DeleteNetwork: Body {"NetName":"..."}
 
 Rules (ApiRulesService)
 - GetRules: Body {"SiteName":"...", "Section":"..."}
@@ -111,6 +118,11 @@ Precatcher (ApiPrecatcherService)
 - TestPrecatcher: Body {"Announce":"..."}
 - ReloadPrecatcher: Reloads config.
 - GetMappings: Returns section mappings.
+
+Issues (ApiIssuesService)
+- GetSummary: Body {"WindowSeconds":<int>}. Returns counts within a time window.
+- GetIssues: Body {"Limit":<int>, "SinceUnix":<int>, "TypesCsv":"..."}. Returns recent issues/events.
+- ClearIssues: Clears the in-memory issues buffer.
 
 Logs (ApiLogService)
 - GetLogs: Body {"Lines":<int>}. Returns array of log lines.

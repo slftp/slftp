@@ -73,7 +73,7 @@ implementation
 uses
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
-  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal, slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
@@ -91,6 +91,23 @@ var
   precatcher_lock: TSlCriticalSection2;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
+
+procedure _LogMissingSectionIfNeeded(const aNetname, aSitename, aSection, aReleaseName, aReason, aKbEvent: String);
+var
+  siteObj: TSite;
+begin
+  if (aSitename = '') or (aSection = '') then
+    Exit;
+
+  siteObj := FindSiteByName(aNetname, aSitename);
+  if (siteObj <> nil) and (siteObj.sectiondir[aSection] = '') then
+  begin
+    IssueLog('MISSING_SECTION', aSection, aReleaseName, aSitename, aReason, aKbEvent,
+      'MISSING_SECTION|' + aSitename + '|' + aSection, 300);
+    irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)',
+      [aSection, aReleaseName, aSitename, aKbEvent]));
+  end;
+end;
 
 procedure mydebug(const s: String); overload;
 var
@@ -454,7 +471,9 @@ var
   ss: TSection;
   mind: boolean;
   ts_data: TStringList;
-  rls, s: String;
+  rls: String;
+  rls_section: String;
+  siteObj: TSite;
   fRequestDirlistTask: TAutoDirlistTask;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
@@ -570,6 +589,13 @@ begin
         if (mind) then
         begin
           try
+            rls_section := ss.section;
+            if rls_section = '' then
+            begin
+              rls_section := ProcessDoReplace(ts_data.DelimitedText, rls);
+              rls_section := FindSection(' ' + rls_section + ' ');
+            end;
+            rls_section := PrecatcherSectionMapping(rls, rls_section);
 
             if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
             begin
@@ -587,10 +613,14 @@ begin
               MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
               if not precatcher_debug then
               begin
+                _LogMissingSectionIfNeeded(net, sc.sitename, rls_section, rls, 'ADDPRE', KBEventTypeToString(kbeADDPRE));
                 dbaddpre_ADDPRE(net, chan, nick, rls, ss.section, ts_data.DelimitedText, kbeADDPRE);
               end;
               exit;
             end;
+
+            if not precatcher_debug then
+              _LogMissingSectionIfNeeded(net, sc.sitename, rls_section, rls, 'PRECATCHER', KBEventTypeToString(ss.eventtype));
 
             ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
 

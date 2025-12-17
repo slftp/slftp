@@ -18,10 +18,11 @@ uses
   mormot.soa.core,
   mormot.soa.server,
   slapi.types,
-  slapi.services,
-  sitesunit,
-  queueunit,
-  tasksunit,
+	  slapi.services,
+	  slapi.issues,
+	  sitesunit,
+	  queueunit,
+	  tasksunit,
   tasklogin,
   statsunit,
   ranksunit,
@@ -51,6 +52,8 @@ type
     function CreateBackup: boolean;
     function GetRecentReleases(const Limit: integer; out Response: TApiReleasesList): boolean;
     function GetReleaseDetails(const PazoId: integer; out Response: TApiReleaseInfo): boolean;
+    function GetAutoStatus: boolean;
+    function SetAutoStatus(Enabled: boolean): boolean;
   end;
 
   { Sites Service Implementation }
@@ -70,6 +73,7 @@ type
     function SetSiteAutoLogin(const SiteName: RawUTF8; Enabled: boolean): boolean;
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
     function SetSiteAffils(const SiteName, Affils: RawUTF8): boolean;
+    function SetSiteIrcNick(const SiteName, IrcNick: RawUTF8): boolean;
     function RunSiteAutoRules(const SiteName: RawUTF8): boolean;
     function GetSiteRoutes(const SiteName: RawUTF8; out Routes: TApiSiteRoutes): boolean;
     function SetSiteRoute(const SourceSite, DestSite: RawUTF8; Speed: integer;
@@ -138,6 +142,8 @@ type
     function SetChannelRoles(const NetName, Channel, Roles: RawUTF8): boolean;
     function AddChannel(const NetName, Channel, ChanKey, Blowkey, Roles: RawUTF8): boolean;
     function DeleteChannel(const NetName, Channel: RawUTF8): boolean;
+    function AddNetwork(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
+    function DeleteNetwork(const NetName: RawUTF8): boolean;
   end;
 
   { Rules Service Implementation }
@@ -173,23 +179,31 @@ type
     function AddKBEntry(const Section, Release: RawUTF8): boolean;
   end;
 
-  { Precatcher Service Implementation }
-  TApiPrecatcherServiceImpl = class(TInjectableObjectRest, IApiPrecatcherService)
-  public
-    function GetPrecatcherRules: RawJSON;
-    function AddPrecatcherRule(const RuleData: RawJSON): integer;
-    function DeletePrecatcherRule(RuleId: integer): boolean;
-    function TestPrecatcher(const Announce: RawUTF8): RawJSON;
-    function ReloadPrecatcher: boolean;
-    function GetMappings: RawJSON;
-  end;
+	  { Precatcher Service Implementation }
+	  TApiPrecatcherServiceImpl = class(TInjectableObjectRest, IApiPrecatcherService)
+	  public
+	    function GetPrecatcherRules: RawJSON;
+	    function AddPrecatcherRule(const RuleData: RawJSON): integer;
+	    function DeletePrecatcherRule(RuleId: integer): boolean;
+	    function TestPrecatcher(const Announce: RawUTF8): RawJSON;
+	    function ReloadPrecatcher: boolean;
+	    function GetMappings: RawJSON;
+	  end;
 
-  { Log Service Implementation }
-  TApiLogServiceImpl = class(TInjectableObjectRest, IApiLogService)
-  public
-    function GetLogs(const Lines: integer): RawJSON;
-    function ClearLogs: boolean;
-  end;
+	  { Issues Service Implementation }
+	  TApiIssuesServiceImpl = class(TInjectableObjectRest, IApiIssuesService)
+	  public
+	    function GetSummary(const WindowSeconds: integer; out Response: TApiIssuesSummary): boolean;
+	    function GetIssues(const Limit: integer; const SinceUnix: Int64; const TypesCsv: RawUTF8; out Response: TApiIssuesList): boolean;
+	    function ClearIssues: boolean;
+	  end;
+
+	  { Log Service Implementation }
+	  TApiLogServiceImpl = class(TInjectableObjectRest, IApiLogService)
+	  public
+	    function GetLogs(const Lines: integer): RawJSON;
+	    function ClearLogs: boolean;
+	  end;
 
 implementation
 
@@ -197,9 +211,10 @@ uses
   Contnrs,
   kb.releaseinfo,
   mystrings,
-  IdStack;
+  IdStack,
+  irccommands.irc;
 
-{$I slftp.inc}
+{$I ../slftp.inc}
 
 const
   section = 'slapi.services';
@@ -244,6 +259,83 @@ end;
 function TApiLogServiceImpl.ClearLogs: boolean;
 begin
   Result := False; // Not implemented safely yet
+end;
+
+{ TApiIssuesServiceImpl }
+
+function TApiIssuesServiceImpl.GetSummary(const WindowSeconds: integer; out Response: TApiIssuesSummary): boolean;
+var
+  total, skip, dontMatch, missingSection, nuke: integer;
+  window: integer;
+begin
+  Result := False;
+  Response := TApiIssuesSummary.Create;
+  try
+    window := WindowSeconds;
+    if window <= 0 then
+      window := 24 * 3600;
+
+    IssuesStore.GetCounts(window, total, skip, dontMatch, missingSection, nuke);
+    Response.WindowSeconds := window;
+    Response.Total := total;
+    Response.Skip := skip;
+    Response.DontMatch := dontMatch;
+    Response.MissingSection := missingSection;
+    Response.Nuke := nuke;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSummary: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIssuesServiceImpl.GetIssues(const Limit: integer; const SinceUnix: Int64; const TypesCsv: RawUTF8;
+  out Response: TApiIssuesList): boolean;
+var
+  events: TIssueEvents;
+  issuesArray: TDocVariantData;
+  issueJson: variant;
+  i: integer;
+begin
+  Result := False;
+  Response := TApiIssuesList.Create;
+  try
+    events := IssuesStore.GetSnapshot(Limit, SinceUnix, UTF8ToString(TypesCsv));
+    issuesArray.Init(JSON_FAST, dvArray);
+
+    for i := 0 to High(events) do
+    begin
+      TDocVariant.New(issueJson);
+      issueJson.Id := events[i].Id;
+      issueJson.TsUnix := events[i].TsUnix;
+      issueJson.IssueType := UTF8Encode(events[i].IssueType);
+      issueJson.Section := UTF8Encode(events[i].Section);
+      issueJson.ReleaseName := UTF8Encode(events[i].ReleaseName);
+      issueJson.SiteName := UTF8Encode(events[i].SiteName);
+      issueJson.Reason := UTF8Encode(events[i].Reason);
+      issueJson.KbEvent := UTF8Encode(events[i].KbEvent);
+      issuesArray.AddItem(issueJson);
+    end;
+
+    Response.Total := Length(events);
+    Response.Issues := TDocVariantData(issuesArray).ToJSON;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetIssues: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIssuesServiceImpl.ClearIssues: boolean;
+begin
+  IssuesStore.Clear;
+  Result := True;
 end;
 
 { TApiSystemServiceImpl }
@@ -538,6 +630,17 @@ begin
   end;
 end;
 
+function TApiSystemServiceImpl.GetAutoStatus: boolean;
+begin
+  Result := precatcher.precatcherauto;
+end;
+
+function TApiSystemServiceImpl.SetAutoStatus(Enabled: boolean): boolean;
+begin
+  sitesdat.WriteBool('precatcher', 'auto', Enabled);
+  Result := True;
+end;
+
 { TApiSitesServiceImpl }
 
 function TApiSitesServiceImpl.GetSites(const Filter: RawUTF8; out Sites: TApiSitesList): boolean;
@@ -555,6 +658,7 @@ type
     PermDown: boolean;
     AutoLogin: boolean;
     AutoRulesInterval: integer;
+    IrcNick: string;
   end;
 var
   i: integer;
@@ -701,6 +805,13 @@ begin
           // ignore
         end;
 
+        snapshots[snapshotCount].IrcNick := '';
+        try
+          snapshots[snapshotCount].IrcNick := s.ircnick;
+        except
+          // ignore
+        end;
+
         Inc(snapshotCount);
       end;
     except
@@ -765,6 +876,7 @@ begin
         TDocVariantData(siteDoc).AddValue('permdown', snapshot.PermDown);
         TDocVariantData(siteDoc).AddValue('autologin', snapshot.AutoLogin);
         TDocVariantData(siteDoc).AddValue('autorules_interval', snapshot.AutoRulesInterval);
+        TDocVariantData(siteDoc).AddValue('ircnick', UTF8Encode(snapshot.IrcNick));
       except
         // ignore add failures
       end;
@@ -1131,6 +1243,30 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] SetSiteAffils: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.SetSiteIrcNick(const SiteName, IrcNick: RawUTF8): boolean;
+var
+  s: TSite;
+  ircnickStr: string;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    ircnickStr := UTF8ToString(IrcNick);
+    s.ircnick := Trim(ircnickStr);
+    Debug(dpMessage, section, Format('SetSiteIrcNick API: %s -> %s', [UTF8ToString(SiteName), s.ircnick]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteIrcNick: %s', [E.Message]));
       Result := False;
     end;
   end;
@@ -2314,38 +2450,89 @@ var
   channelsArray: TDocVariantData;
   chanDoc: variant;
   chanSettings: TIrcChannelSettings;
-  key: string;
+  key, settingsKey: string;
   netNameStr: string;
+  i, j: integer;
+  th: TMyIrcThread;
+  channelName: string;
 begin
   Result := '';
   try
     channelsArray.InitFast(dvArray);
     netNameStr := UTF8ToString(NetName);
 
-    if IrcChanSettingsList <> nil then
+    // Find the IRC thread for this network
+    th := nil;
+    if myIrcThreads <> nil then
     begin
-      for key in IrcChanSettingsList.Keys do
+      for i := 0 to myIrcThreads.Count - 1 do
       begin
         try
-          chanSettings := IrcChanSettingsList[key];
-          if chanSettings = nil then
-            Continue;
+          th := TMyIrcThread(myIrcThreads[i]);
+          if (th <> nil) and SameText(th.netname, netNameStr) then
+            Break
+          else
+            th := nil;
+        except
+          th := nil;
+        end;
+      end;
+    end;
 
-          if not SameText(chanSettings.Netname, netNameStr) then
+    // If thread found, iterate through actual connected channels
+    if (th <> nil) and (th.channels <> nil) then
+    begin
+      for j := 0 to th.channels.Count - 1 do
+      begin
+        try
+          // Extract channel name (key) from TStringList Name=Value pair
+          channelName := th.channels.Names[j];
+          if channelName = '' then
             Continue;
 
           TDocVariant.New(chanDoc);
-          TDocVariantData(chanDoc).AddValue('channel', UTF8Encode(chanSettings.Channel));
-          TDocVariantData(chanDoc).AddValue('chankey', UTF8Encode(chanSettings.ChanKey));
-          TDocVariantData(chanDoc).AddValue('chanroles', UTF8Encode(chanSettings.ChanRoles));
+          TDocVariantData(chanDoc).AddValue('channel', UTF8Encode(channelName));
 
-          // Get blowkey - need to check class type for access
-          if chanSettings.ClassName = 'TIrcBlowkeyECB' then
-            TDocVariantData(chanDoc).AddValue('blowkey', '[ECB encrypted]')
-          else if chanSettings.ClassName = 'TIrcBlowkeyCBC' then
-            TDocVariantData(chanDoc).AddValue('blowkey', '[CBC encrypted]')
+          // Try to find settings for this channel
+          chanSettings := nil;
+          if IrcChanSettingsList <> nil then
+          begin
+            for settingsKey in IrcChanSettingsList.Keys do
+            begin
+              try
+                chanSettings := IrcChanSettingsList[settingsKey];
+                if (chanSettings <> nil) and
+                   SameText(chanSettings.Netname, netNameStr) and
+                   SameText(chanSettings.Channel, channelName) then
+                  Break
+                else
+                  chanSettings := nil;
+              except
+                chanSettings := nil;
+              end;
+            end;
+          end;
+
+          // Add settings if found, otherwise use empty values
+          if chanSettings <> nil then
+          begin
+            TDocVariantData(chanDoc).AddValue('chankey', UTF8Encode(chanSettings.ChanKey));
+            TDocVariantData(chanDoc).AddValue('chanroles', UTF8Encode(chanSettings.ChanRoles));
+
+            // Get blowkey - need to check class type for access
+            if chanSettings.ClassName = 'TIrcBlowkeyECB' then
+              TDocVariantData(chanDoc).AddValue('blowkey', '[ECB encrypted]')
+            else if chanSettings.ClassName = 'TIrcBlowkeyCBC' then
+              TDocVariantData(chanDoc).AddValue('blowkey', '[CBC encrypted]')
+            else
+              TDocVariantData(chanDoc).AddValue('blowkey', '');
+          end
           else
+          begin
+            TDocVariantData(chanDoc).AddValue('chankey', '');
+            TDocVariantData(chanDoc).AddValue('chanroles', '');
             TDocVariantData(chanDoc).AddValue('blowkey', '');
+          end;
 
           channelsArray.AddItem(chanDoc);
         except
@@ -2577,6 +2764,53 @@ begin
     on E: Exception do
     begin
       Debug(dpError, 'slapi', Format('[EXCEPTION] DeleteChannel: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.AddNetwork(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
+var
+  params: string;
+  sslStr: string;
+begin
+  Result := False;
+  try
+    if Ssl then
+      sslStr := '1'
+    else
+      sslStr := '0';
+    params := UTF8ToString(NetName) + ' ' + UTF8ToString(Host) + ':' + IntToStr(Port) + ' ' + sslStr + ' ' + UTF8ToString(Password) + ' ' + UTF8ToString(Nick) + ' ' + UTF8ToString(Ident) + ' ' + UTF8ToString(User);
+    Result := IrcAddnet('', '', params);
+    if Result then
+      Debug(dpMessage, 'slapi', Format('AddNetwork: Added IRC network %s', [UTF8ToString(NetName)]))
+    else
+      Debug(dpError, 'slapi', Format('AddNetwork: Failed to add IRC network %s', [UTF8ToString(NetName)]));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] AddNetwork: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.DeleteNetwork(const NetName: RawUTF8): boolean;
+var
+  params: string;
+begin
+  Result := False;
+  try
+    params := UTF8ToString(NetName);
+    Result := IrcDelnet('', '', params);
+    if Result then
+      Debug(dpMessage, 'slapi', Format('DeleteNetwork: Deleted IRC network %s', [UTF8ToString(NetName)]))
+    else
+      Debug(dpError, 'slapi', Format('DeleteNetwork: Failed to delete IRC network %s', [UTF8ToString(NetName)]));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] DeleteNetwork: %s', [E.Message]));
       Result := False;
     end;
   end;

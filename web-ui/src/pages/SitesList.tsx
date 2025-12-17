@@ -151,7 +151,7 @@ export function SitesList() {
   if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">Could not load sites</Alert>;
 
-  const filteredSites = data?.filter(site =>
+      const filteredSites = data?.filter(site =>
     site.name.toLowerCase() !== 'slftp' &&
     site.name.toLowerCase().includes(search.toLowerCase())
   ) || [];
@@ -168,6 +168,7 @@ export function SitesList() {
             {site.name}
         </Text>
 	      </Table.Td>
+        <Table.Td>{site.ircnick?.trim() || '-'}</Table.Td>
 	      <Table.Td>{getStatusBadge(site.status)}</Table.Td>
 	      <Table.Td>{site.slots ?? '-'}</Table.Td>
 	      <Table.Td>{formatSlots(site)}</Table.Td>
@@ -223,6 +224,7 @@ export function SitesList() {
 	      <Table.Thead>
 	        <Table.Tr>
 	          <Table.Th>Name</Table.Th>
+            <Table.Th>IRC Nick</Table.Th>
 	          <Table.Th>Status</Table.Th>
 	          <Table.Th>Slots</Table.Th>
 	          <Table.Th>Max DN/UP</Table.Th>

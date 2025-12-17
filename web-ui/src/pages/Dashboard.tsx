@@ -1,8 +1,8 @@
 import { SimpleGrid, Card, Text, Title, Group, ThemeIcon, RingProgress, Center, Stack, Loader, Alert, Badge, Table, ScrollArea, Modal, Progress, Tooltip } from '@mantine/core';
-import { IconClock, IconListCheck, IconAlertCircle, IconRocket, IconInfoCircle } from '@tabler/icons-react';
+import { IconClock, IconListCheck, IconAlertCircle, IconRocket, IconInfoCircle, IconAlertTriangle } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import type { SystemStatus } from '../api/client';
+import type { SystemStatus, IssuesSummary } from '../api/client';
 import { useState } from 'react';
 
 interface ReleaseInfo {
@@ -84,6 +84,19 @@ export function Dashboard() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: issuesSummary } = useQuery({
+    queryKey: ['issuesSummary'],
+    queryFn: async () => {
+      const res = await apiClient.post('/ApiIssuesService/GetSummary', { WindowSeconds: 24 * 3600 });
+      if (res.data && res.data.result && Array.isArray(res.data.result)) {
+        return res.data.result[0] as IssuesSummary;
+      }
+      return res.data as IssuesSummary;
+    },
+    refetchInterval: 30000,
+    refetchOnWindowFocus: false,
+  });
+
   const { data: releaseDetails, isLoading: detailsLoading } = useQuery({
     queryKey: ['releaseDetails', selectedPazoId],
     queryFn: async () => {
@@ -141,7 +154,7 @@ export function Dashboard() {
     <Stack>
       <Title order={2}>System Status</Title>
       
-      <SimpleGrid cols={{ base: 1, sm: 3 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         
         {/* Uptime Card */}
         <Card withBorder padding="lg" radius="md">
@@ -206,6 +219,26 @@ export function Dashboard() {
           </Group>
         </Card>
 
+        {/* Issues Card */}
+        <Card withBorder padding="lg" radius="md">
+          <Group justify="space-between">
+            <div>
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+                Issues (24h)
+              </Text>
+              <Text fw={700} size="xl">
+                {issuesSummary?.Total ?? 0}
+              </Text>
+              <Text size="xs" c="dimmed">
+                Skip: {issuesSummary?.Skip ?? 0} · DontMatch: {issuesSummary?.DontMatch ?? 0} · Missing: {issuesSummary?.MissingSection ?? 0} · Nuke: {issuesSummary?.Nuke ?? 0}
+              </Text>
+            </div>
+            <ThemeIcon color="yellow" variant="light" size={48} radius="md">
+              <IconAlertTriangle size="1.8rem" stroke={1.5} />
+            </ThemeIcon>
+          </Group>
+        </Card>
+
       </SimpleGrid>
 
       {/* Recent Releases */}
@@ -257,11 +290,17 @@ export function Dashboard() {
 	                      </Tooltip>
 	                    </Table.Td>
 	                    <Table.Td>
-	                      <Badge size="sm" variant="dot">
-	                        <Text span size="xs" truncate style={{ maxWidth: 140 }}>
-	                          {release.Section}
-	                        </Text>
-	                      </Badge>
+                        {!release.Section || release.Section === '' ? (
+                          <Badge color="red" variant="filled" size="xs">
+                            SECTION NOT SET
+                          </Badge>
+                        ) : (
+                          <Badge size="sm" variant="dot">
+                            <Text span size="xs" truncate style={{ maxWidth: 140 }}>
+                              {release.Section}
+                            </Text>
+                          </Badge>
+                        )}
 	                    </Table.Td>
 	                    <Table.Td>
 	                      <Group gap="xs" wrap="wrap">
