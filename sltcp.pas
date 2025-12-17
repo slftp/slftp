@@ -666,8 +666,31 @@ begin
           exit;
         end;
 
-        Sleep(100);
-        inc(i);
+        // Wait for socket readiness instead of sleeping
+        // Use select() to efficiently wait for read or write readiness
+        if sslerr = SSL_ERROR_WANT_READ then
+        begin
+          if not slSelect(slSocket, 100, True, False, er) then
+          begin
+            // Timeout or error, continue to retry
+            inc(i);
+            Continue;
+          end;
+        end
+        else if sslerr = SSL_ERROR_WANT_WRITE then
+        begin
+          if not slSelect(slSocket, 100, False, True, er) then
+          begin
+            inc(i);
+            Continue;
+          end;
+        end
+        else
+        begin
+          // SSL_ERROR_WANT_X509_LOOKUP - rare, just wait a bit
+          Sleep(10);
+          inc(i);
+        end;
       end
       else
       begin
@@ -772,8 +795,31 @@ begin
           exit;
         end;
 
-        Sleep(100);
-        inc(i);
+        // Wait for socket readiness instead of sleeping
+        // Use select() to efficiently wait for read or write readiness
+        if sslerr = SSL_ERROR_WANT_READ then
+        begin
+          if not slSelect(slSocket, 100, True, False, er) then
+          begin
+            // Timeout or error, continue to retry
+            inc(i);
+            Continue;
+          end;
+        end
+        else if sslerr = SSL_ERROR_WANT_WRITE then
+        begin
+          if not slSelect(slSocket, 100, False, True, er) then
+          begin
+            inc(i);
+            Continue;
+          end;
+        end
+        else
+        begin
+          // SSL_ERROR_WANT_X509_LOOKUP - rare, just wait a bit
+          Sleep(10);
+          inc(i);
+        end;
       end
       else
       begin
@@ -1022,7 +1068,9 @@ begin
     error:= '';
     osszesolvasva:= 0;
   //debug(dpSpam, 'isreadable elott');
-    while (IsReadAble(timeout)) do
+    // Check SSL_pending() first to avoid unnecessary select() syscalls
+    // OpenSSL may have buffered data that's already decrypted and ready
+    while ((fSSL <> nil) and (SSL_pending(fSSL) > 0)) or (IsReadAble(timeout)) do
     begin
       aktolvasas:= slBufferSize;
       if ((maxolvasas > 0) and (osszesolvasva + aktolvasas > maxolvasas)) then
