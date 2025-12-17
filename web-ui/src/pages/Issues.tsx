@@ -1,9 +1,10 @@
-import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
+import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon } from '@mantine/core';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus } from '@tabler/icons-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
 import type { Issue, IssuesSummary } from '../api/client';
+import { notifications } from '@mantine/notifications';
 
 function parseMaybeJsonArray(value: unknown): any[] {
   if (Array.isArray(value)) return value;
@@ -28,8 +29,11 @@ function formatWindowSeconds(seconds: number): string {
 
 export function Issues() {
   const [filter, setFilter] = useState('');
+  const [addSectionModalOpened, setAddSectionModalOpened] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [sectionPath, setSectionPath] = useState('');
 
-  const { data: summary, isLoading: summaryLoading } = useQuery({
+  const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
     queryKey: ['issuesSummary'],
     queryFn: async () => {
       const res = await apiClient.post('/ApiIssuesService/GetSummary', { WindowSeconds: 24 * 3600 });
@@ -56,6 +60,53 @@ export function Issues() {
   });
 
   const issues = Array.isArray(data) ? data : [];
+
+  const addSectionMutation = useMutation({
+    mutationFn: async ({ siteName, section, path, issueId }: { siteName: string; section: string; path: string; issueId: number }) => {
+      await apiClient.post('/ApiSitesService/SetSiteSection', {
+        SiteName: siteName,
+        Section: section,
+        Dir: path
+      });
+      // Delete the issue after successfully adding the section
+      await apiClient.post('/ApiIssuesService/DeleteIssue', { IssueId: issueId });
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Success',
+        message: 'Section added successfully',
+        color: 'green'
+      });
+      setAddSectionModalOpened(false);
+      setSectionPath('');
+      setSelectedIssue(null);
+      refetch();
+      refetchSummary();
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message || 'Failed to add section',
+        color: 'red'
+      });
+    },
+  });
+
+  const handleOpenAddSection = (issue: Issue) => {
+    setSelectedIssue(issue);
+    setSectionPath('');
+    setAddSectionModalOpened(true);
+  };
+
+  const handleAddSection = () => {
+    if (!selectedIssue || !sectionPath.trim()) return;
+    addSectionMutation.mutate({
+      siteName: selectedIssue.SiteName,
+      section: selectedIssue.Section,
+      path: sectionPath.trim(),
+      issueId: selectedIssue.Id,
+    });
+  };
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -91,11 +142,11 @@ export function Issues() {
           ) : (
             <Group justify="space-between">
               <Group gap="xs">
-                <Badge color="gray" variant="light">Total: {summary.Total}</Badge>
-                <Badge color="orange" variant="light">Skip: {summary.Skip}</Badge>
-                <Badge color="red" variant="light">DontMatch: {summary.DontMatch}</Badge>
-                <Badge color="yellow" variant="light">MissingSection: {summary.MissingSection}</Badge>
-                <Badge color="grape" variant="light">Nuke: {summary.Nuke}</Badge>
+                <Badge color="gray" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('')}>Total: {summary.Total}</Badge>
+                <Badge color="orange" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('SKIP')}>Skip: {summary.Skip}</Badge>
+                <Badge color="red" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('DONT_MATCH')}>DontMatch: {summary.DontMatch}</Badge>
+                <Badge color="yellow" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('MISSING_SECTION')}>MissingSection: {summary.MissingSection}</Badge>
+                <Badge color="grape" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('NUKE')}>Nuke: {summary.Nuke}</Badge>
               </Group>
               <Text size="xs" c="dimmed">Window: {formatWindowSeconds(summary.WindowSeconds)}</Text>
             </Group>
@@ -141,6 +192,7 @@ export function Issues() {
                   <Table.Th>Site</Table.Th>
                   <Table.Th>Event</Table.Th>
                   <Table.Th>Reason</Table.Th>
+                  <Table.Th style={{ width: 80 }}>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -161,11 +213,25 @@ export function Issues() {
                     <Table.Td><Text size="xs">{i.SiteName}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{i.KbEvent}</Text></Table.Td>
                     <Table.Td><Text size="xs">{i.Reason}</Text></Table.Td>
+                    <Table.Td>
+                      {i.IssueType?.toUpperCase() === 'MISSING_SECTION' && (
+                        <Tooltip label="Add missing section">
+                          <ActionIcon
+                            variant="light"
+                            color="green"
+                            size="sm"
+                            onClick={() => handleOpenAddSection(i)}
+                          >
+                            <IconPlus size="1rem" />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                    </Table.Td>
                   </Table.Tr>
                 ))}
                 {filtered.length === 0 && (
                   <Table.Tr>
-                    <Table.Td colSpan={7}>
+                    <Table.Td colSpan={8}>
                       <Text size="sm" c="dimmed" ta="center" p="md">
                         No issues found.
                       </Text>
@@ -177,6 +243,59 @@ export function Issues() {
           </ScrollArea>
         )}
       </Card>
+
+      <Modal
+        opened={addSectionModalOpened}
+        onClose={() => {
+          setAddSectionModalOpened(false);
+          setSectionPath('');
+          setSelectedIssue(null);
+        }}
+        title="Add Missing Section"
+        size="md"
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Site"
+            value={selectedIssue?.SiteName || ''}
+            disabled
+          />
+          <TextInput
+            label="Section"
+            value={selectedIssue?.Section || ''}
+            disabled
+          />
+          <TextInput
+            label="Release"
+            value={selectedIssue?.ReleaseName || ''}
+            disabled
+          />
+          <TextInput
+            label="Section Path"
+            placeholder="e.g. /TV-720P-BLURAY-DE/"
+            value={sectionPath}
+            onChange={(e) => setSectionPath(e.currentTarget.value)}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && sectionPath.trim()) {
+                handleAddSection();
+              }
+            }}
+          />
+          <Group justify="flex-end" mt="md">
+            <Button variant="light" onClick={() => setAddSectionModalOpened(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddSection}
+              loading={addSectionMutation.isPending}
+              disabled={!sectionPath.trim()}
+            >
+              Add Section
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

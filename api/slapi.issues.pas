@@ -44,6 +44,7 @@ type
     procedure Clear;
     procedure AddIssue(const aIssueType, aSection, aReleaseName, aSiteName, aReason, aKbEvent: string;
       const aDedupKey: string = ''; const aDedupTtlSeconds: integer = 0);
+    procedure DeleteIssue(const aIssueId: Int64);
     function GetSnapshot(const aLimit: integer; const aSinceUnix: Int64; const aTypesCsv: string): TIssueEvents;
     procedure GetCounts(const aWindowSeconds: integer; out aTotal, aSkip, aDontMatch, aMissingSection, aNuke: integer);
   end;
@@ -197,6 +198,27 @@ begin
   end;
 end;
 
+procedure TIssuesStore.DeleteIssue(const aIssueId: Int64);
+var
+  i: integer;
+  idx: integer;
+begin
+  FLock.Enter('issues_delete');
+  try
+    for i := 0 to FCount - 1 do
+    begin
+      idx := (FHead + i) mod FCapacity;
+      if FEvents[idx].Id = aIssueId then
+      begin
+        FEvents[idx].Id := 0; // Mark as deleted
+        Exit;
+      end;
+    end;
+  finally
+    FLock.Leave;
+  end;
+end;
+
 function TIssuesStore.GetSnapshot(const aLimit: integer; const aSinceUnix: Int64; const aTypesCsv: string): TIssueEvents;
 var
   limit: integer;
@@ -229,6 +251,10 @@ begin
     begin
       idx := (FHead + FCount - 1 - i) mod FCapacity;
       ev := FEvents[idx];
+
+      // Skip deleted issues
+      if ev.Id = 0 then
+        Continue;
 
       if (aSinceUnix > 0) and (ev.TsUnix < aSinceUnix) then
         Break;
@@ -276,6 +302,11 @@ begin
     begin
       idx := (FHead + i) mod FCapacity;
       ev := FEvents[idx];
+
+      // Skip deleted issues
+      if ev.Id = 0 then
+        Continue;
+
       if ev.TsUnix < minUnix then
         Continue;
 

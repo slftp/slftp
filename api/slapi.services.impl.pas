@@ -203,6 +203,7 @@ type
 	  public
 	    function GetSummary(const WindowSeconds: integer; out Response: TApiIssuesSummary): boolean;
 	    function GetIssues(const Limit: integer; const SinceUnix: Int64; const TypesCsv: RawUTF8; out Response: TApiIssuesList): boolean;
+	    function DeleteIssue(const IssueId: Int64): boolean;
 	    function ClearIssues: boolean;
 	  end;
 
@@ -357,6 +358,18 @@ begin
       Debug(dpError, section, Format('[EXCEPTION] GetIssues: %s', [E.Message]));
       Result := False;
     end;
+  end;
+end;
+
+function TApiIssuesServiceImpl.DeleteIssue(const IssueId: Int64): boolean;
+begin
+  Result := False;
+  try
+    IssuesStore.DeleteIssue(IssueId);
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] DeleteIssue: %s', [E.Message]));
   end;
 end;
 
