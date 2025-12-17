@@ -657,6 +657,16 @@ begin
     s := FindSiteByName(netname, psource.Name);
     if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
+	
+	// Check if section is configured for this site
+    if (s <> nil) and (sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp]) then
+    begin
+	  if (s.sectiondir[p.rls.section] = '') then
+      begin
+        irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+         IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event));
+       end;
+    end;
 
     psource.ircevent := True;
 
