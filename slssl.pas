@@ -62,6 +62,31 @@ uses
 var
   gSSLContextSettings: PSSL_CTX = nil; // default SSL/TLS context used for all connections
 
+const
+  // SSL session cache mode constants (not defined in mormot.lib.openssl11)
+  SSL_SESS_CACHE_OFF    = $0000;
+  SSL_SESS_CACHE_CLIENT = $0001;
+  SSL_SESS_CACHE_SERVER = $0002;
+  SSL_SESS_CACHE_BOTH   = SSL_SESS_CACHE_CLIENT or SSL_SESS_CACHE_SERVER;
+
+  // SSL mode constants for SSL_CTX_set_mode (not defined in mormot.lib.openssl11)
+  SSL_MODE_ENABLE_PARTIAL_WRITE         = $00000001;  // Allow partial writes
+  SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER   = $00000002;  // Avoid unnecessary buffer copying
+  SSL_MODE_AUTO_RETRY                   = $00000004;  // Auto-retry on non-fatal errors
+  SSL_MODE_RELEASE_BUFFERS              = $00000010;  // Free read/write buffers when idle
+
+{ Helper function to set SSL session cache size via SSL_CTX_ctrl }
+function SSL_CTX_sess_set_cache_size(ctx: PSSL_CTX; size: integer): integer; inline;
+begin
+  Result := SSL_CTX_ctrl(ctx, 42 {SSL_CTRL_SET_SESS_CACHE_SIZE}, size, nil);
+end;
+
+{ Helper function to set SSL modes via SSL_CTX_ctrl }
+function SSL_CTX_set_mode(ctx: PSSL_CTX; mode: cardinal): cardinal; inline;
+begin
+  Result := SSL_CTX_ctrl(ctx, 33 {SSL_CTRL_MODE}, mode, nil);
+end;
+
 // returns the earliest error code from the thread's error queue and removes the entry
 // can be called repeatedly until there are no more error codes to return.
 function _GetEarliestOpenSSLErrorCode: String;
@@ -198,7 +223,39 @@ begin
       exit;
     end;
 
-    SSL_CTX_set_default_verify_paths(gSSLContextSettings);
+    // Enable client-side SSL session caching for faster reconnects
+    // This eliminates full handshake (3-5 RTTs) on repeated connections
+    // Cache size: 2048 sessions (enough for 100 sites × 10 slots × 2 for overhead)
+    SSL_CTX_set_session_cache_mode(gSSLContextSettings, SSL_SESS_CACHE_CLIENT);
+    SSL_CTX_sess_set_cache_size(gSSLContextSettings, 2048);
+    SSL_CTX_set_timeout(gSSLContextSettings, 300); // 5 minutes session lifetime
+
+    // Performance optimizations
+    SSL_CTX_set_options(gSSLContextSettings,
+      SSL_OP_NO_COMPRESSION or                                // Disable TLS compression (CRIME attack + performance)
+      SSL_OP_NO_TICKET or                                     // Disable session tickets (use session IDs instead)
+      SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);        // Security: don't resume on renegotiation
+
+    // SSL modes for better performance
+    SSL_CTX_set_mode(gSSLContextSettings,
+      SSL_MODE_ENABLE_PARTIAL_WRITE or                       // Allow partial writes (don't require full buffer)
+      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER or                 // Avoid unnecessary buffer copying
+      SSL_MODE_RELEASE_BUFFERS);                             // Free buffers when idle (memory optimization)
+
+    // Prioritize fast cipher suites (AES-NI hardware acceleration)
+    // Modern scene FTP servers support these ciphers
+    // AES-GCM provides best performance on CPUs with AES-NI instructions
+    SSL_CTX_set_cipher_list(gSSLContextSettings,
+      'ECDHE-RSA-AES128-GCM-SHA256:' +                       // TLS 1.2+, ECDHE, AES-GCM (fastest)
+      'ECDHE-RSA-AES256-GCM-SHA384:' +                       // TLS 1.2+, stronger variant
+      'ECDHE-RSA-AES128-SHA256:' +                           // TLS 1.2+, fallback without GCM
+      'ECDHE-RSA-AES256-SHA384:' +                           // TLS 1.2+, fallback
+      'AES128-GCM-SHA256:' +                                 // TLS 1.2+, no perfect forward secrecy
+      'AES256-GCM-SHA384');                                  // TLS 1.2+, fallback
+
+    // Certificate verification - scene FTP sites typically use self-signed certs
+    // Explicit SSL_VERIFY_NONE (no verification) - don't load CA paths
+    SSL_CTX_set_verify(gSSLContextSettings, SSL_VERIFY_NONE, nil);
   end;
 
   Result := True;
