@@ -3594,15 +3594,16 @@ begin
   try
     slotInfo := '';
 
-    siteInfo := '';
+    // Always show site1 -> site2
+    siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
+
+    // Additionally show slot names if available
     if (slot1name <> '') and (slot2name <> '') then
       slotInfo := Format(' <c9>[%s -> %s]</c>', [slot1name, slot2name])
     else if slot1name <> '' then
       slotInfo := Format(' <c9>[%s]</c>', [slot1name])
     else if slot2name <> '' then
       slotInfo := Format(' <c9>[%s]</c>', [slot2name]);
-    if slotInfo = '' then
-      siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
 
     if mainpazo.rls = nil then
       Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
