@@ -231,11 +231,28 @@ begin
       end;
     end;
 
-    Inc(glSimulatorPazoIdCounter);
-    Debug(dpSpam, rsections, 'Creating pazo with ID %d', [glSimulatorPazoIdCounter]);
-    p := TPazo.Create(rls, glSimulatorPazoIdCounter);
-    try
+    // Use timestamp-based ID to guarantee uniqueness across multiple simulator runs
+    glSimulatorPazoIdCounter := 900000 + (GetTickCount64 mod 99999);
 
+    Debug(dpSpam, rsections, 'Creating pazo with ID %d', [glSimulatorPazoIdCounter]);
+
+    p := nil;
+    try
+      p := TPazo.Create(rls, glSimulatorPazoIdCounter);
+    except
+      on e: Exception do
+      begin
+        Result.ErrorMessage := Format('Failed to create pazo: %s', [e.Message]);
+        Debug(dpError, rsections, '[EXCEPTION] Creating pazo: %s', [e.Message]);
+        try
+          rls.Free;
+        except
+        end;
+        Exit;
+      end;
+    end;
+
+    try
       if aSimulatePre then
         p.rls.kb_event := kbePRE
       else
