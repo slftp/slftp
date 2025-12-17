@@ -663,8 +663,7 @@ begin
     begin
 	  if (s.sectiondir[p.rls.section] = '') then
       begin
-        irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
-         IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event));
+         irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
        end;
     end;
 
