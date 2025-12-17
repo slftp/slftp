@@ -45,7 +45,7 @@ export function Layout() {
       <AppShell
         header={{ height: 60 }}
         navbar={{
-        width: 240,
+        width: 210,
           breakpoint: 'sm',
           collapsed: { mobile: !opened },
         }}
@@ -74,7 +74,7 @@ export function Layout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="md">
+      <AppShell.Navbar p="sm">
         {items}
         <NavLink
           label="Logout"

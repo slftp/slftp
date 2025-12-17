@@ -24,7 +24,7 @@ uses
   SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
   kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, Generics.Collections, taskcwd,
-  routeconfig, TypInfo;
+  routeconfig, TypInfo, slapi.issueshook;
 
 const
   rsections = 'autodirlist';
@@ -417,6 +417,8 @@ begin
     ss := 'REQUEST';
     if s.site.sectiondir[ss] = '' then
     begin
+      IssueLog('MISSING_SECTION', 'REQUEST', FSpecificRlsName, s.site.Name, '', KBEventTypeToString(kbeRequest),
+        'MISSING_SECTION|' + s.site.Name + '|REQUEST', 300);
       irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', ['REQUEST', FSpecificRlsName, s.site.Name, KBEventTypeToString(kbeRequest)]));
       readyerror := True;
       exit;
