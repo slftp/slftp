@@ -106,7 +106,6 @@ const
   DBCLEANUP_NUM_ENTRIES_TO_KEEP = 300;
 
 var
-  //addpreSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
   ORMAddPreDBSqLite: TRestClientDb; //< Rest Client for all database interactions
   ORMAddPreModel: TSQLModel; //< SQL ORM model for stats database
   ORMAddPreDBMysql: TRestClientDb;
