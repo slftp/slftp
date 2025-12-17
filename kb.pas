@@ -682,6 +682,15 @@ begin
     s := FindSiteByName(netname, psource.Name);
     if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
+	
+	// Check if section is configured for this site
+    if (s <> nil) and (sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp]) then
+    begin
+	  if (s.sectiondir[p.rls.section] = '') then
+      begin
+         irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+       end;
+    end;
 
     // PRE-events usually already have psource assigned, so we must check missing section here too.
     if (s <> nil) and (sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp]) then
