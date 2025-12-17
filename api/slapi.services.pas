@@ -440,6 +440,10 @@ type
     /// Returns recent issues/events (TypesCsv e.g. "SKIP,DONT_MATCH,MISSING_SECTION")
     function GetIssues(const Limit: integer; const SinceUnix: Int64; const TypesCsv: RawUTF8; out Response: TApiIssuesList): boolean;
 
+    /// DELETE /api/issues/{id}
+    /// Deletes a specific issue by ID
+    function DeleteIssue(const IssueId: Int64): boolean;
+
     /// DELETE /api/issues
     /// Clears the in-memory issues buffer
     function ClearIssues: boolean;

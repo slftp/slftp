@@ -44,6 +44,12 @@ Built files are in `dist/` and ready to be served by the slftp backend.
 make web-ui-prod
 
 # Build and deploy to custom path
+# IMPORTANT:
+# - The deploy target wipes the target directory (`rm -rf WEB_DEPLOY_DIR/*`) before copying.
+# - WEB_DEPLOY_DIR must point to the *web folder*, not your slftp install dir.
+# - You MUST create the marker file once per deploy directory, otherwise deploy aborts.
+mkdir -p /path/to/your/slftp/web
+touch /path/to/your/slftp/web/.slftp-webui-deploy
 make web-ui-deploy WEB_DEPLOY_DIR=/path/to/your/slftp/web
 ```
 
