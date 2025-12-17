@@ -1,16 +1,34 @@
 import { Table, Badge, Title, Card, Alert, Loader, Center, Group, ActionIcon, Tooltip, Text, TextInput, Modal, NumberInput, Button, Stack, Switch } from '@mantine/core';
-import { IconSearch, IconRefresh, IconBolt, IconTrash, IconPlus, IconX } from '@tabler/icons-react';
+import { IconSearch, IconRefresh, IconBolt, IconTrash, IconPlus, IconX, IconCoins } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { Site } from '../api/client';
 import { notifications } from '@mantine/notifications';
 
+type SiteCreditsResponse = {
+  SiteName?: string;
+  Ok?: boolean;
+  Message?: string;
+  Credits?: string;
+  Ratio?: string;
+  StatLine?: string;
+};
+
 export function SitesList() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [siteCredits, setSiteCredits] = useState<Record<string, SiteCreditsResponse & { fetchedAtMs: number }>>({});
+  const [creditsLoadingSite, setCreditsLoadingSite] = useState<string | null>(null);
+  const creditsInFlightRef = useRef<Set<string>>(new Set());
+  const autoCreditsRunRef = useRef(false);
+  const siteCreditsRef = useRef(siteCredits);
+
+  useEffect(() => {
+    siteCreditsRef.current = siteCredits;
+  }, [siteCredits]);
 
   // Add Site Modal States
   const [addSiteModalOpened, setAddSiteModalOpened] = useState(false);
@@ -91,6 +109,39 @@ export function SitesList() {
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
+  const fetchCredits = async (siteName: string, forceRefresh: boolean, silent: boolean): Promise<SiteCreditsResponse> => {
+    const res = await apiClient.post('/ApiSitesService/GetSiteCredits', { SiteName: siteName, ForceRefresh: forceRefresh });
+    const data: SiteCreditsResponse = res.data.result?.[0] || res.data;
+    setSiteCredits((prev) => ({ ...prev, [siteName]: { ...data, fetchedAtMs: Date.now() } }));
+    if (!silent && data?.Ok === false) {
+      notifications.show({
+        title: 'SITE STAT',
+        message: data.Message || `Failed to fetch credits/ratio for ${siteName}`,
+        color: 'red',
+      });
+    }
+    return data;
+  };
+
+  const fetchCreditsMutation = useMutation({
+    mutationFn: async (siteName: string) => fetchCredits(siteName, true, false),
+    onMutate: (siteName) => setCreditsLoadingSite(siteName),
+    onError: (err: any, siteName) => {
+      notifications.show({ title: 'Error', message: err.message || `Failed to fetch credits/ratio for ${siteName}`, color: 'red' });
+    },
+    onSettled: () => setCreditsLoadingSite(null),
+  });
+
+  // Auto-refresh credits/ratio at most once per hour per site (independent of the 30s sites refresh)
+  const CREDITS_REFRESH_MS = 60 * 60 * 1000;
+  const [autoCreditsTick, setAutoCreditsTick] = useState(0);
+
+  // Tick every minute to pick up stale sites even without navigation/reload
+  useEffect(() => {
+    const id = window.setInterval(() => setAutoCreditsTick((t) => t + 1), 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const addSiteMutation = useMutation({
     mutationFn: async (payload: { name: string; host: string; port: number; username: string; password: string; sslEnabled: boolean }) => {
       await apiClient.post('/ApiSitesService/AddSite', {
@@ -148,13 +199,53 @@ export function SitesList() {
     }
   };
 
+  const sitesWithoutSlftp = useMemo(() => (
+    data?.filter(site => site.name.toLowerCase() !== 'slftp') || []
+  ), [data]);
+
+  const filteredSites = useMemo(() => (
+    sitesWithoutSlftp.filter(site => site.name.toLowerCase().includes(search.toLowerCase()))
+  ), [sitesWithoutSlftp, search]);
+
+  const creditsSitesKey = useMemo(() => sitesWithoutSlftp.map(s => s.name).join('|'), [sitesWithoutSlftp]);
+
+  // Background fetch: only for sites missing/stale credits, sequentially to avoid bursts
+  useEffect(() => {
+    if (autoCreditsRunRef.current) return;
+    autoCreditsRunRef.current = true;
+
+    let cancelled = false;
+    const run = async () => {
+      const now = Date.now();
+      for (const s of sitesWithoutSlftp) {
+        if (cancelled) return;
+        const existing = siteCreditsRef.current[s.name];
+        if (!existing || (now - existing.fetchedAtMs) > CREDITS_REFRESH_MS) {
+          if (creditsInFlightRef.current.has(s.name)) continue;
+          creditsInFlightRef.current.add(s.name);
+          try {
+            await fetchCredits(s.name, false, true);
+          } catch {
+            // silent in background
+          } finally {
+            creditsInFlightRef.current.delete(s.name);
+          }
+        }
+      }
+    };
+    run()
+      .catch(() => {})
+      .finally(() => {
+        autoCreditsRunRef.current = false;
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [autoCreditsTick, creditsSitesKey, sitesWithoutSlftp]);
+
   if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">Could not load sites</Alert>;
-
-      const filteredSites = data?.filter(site =>
-    site.name.toLowerCase() !== 'slftp' &&
-    site.name.toLowerCase().includes(search.toLowerCase())
-  ) || [];
 
 	  const rows = filteredSites.map((site) => (
 	    <Table.Tr key={site.name}>
@@ -174,11 +265,30 @@ export function SitesList() {
 	      <Table.Td>{formatSlots(site)}</Table.Td>
 	      <Table.Td>{site.freeslots}</Table.Td>
 	      <Table.Td>{formatActive(site)}</Table.Td>
+        <Table.Td>
+          {siteCredits[site.name]?.Ok ? (
+            <Text size="sm">
+              {(siteCredits[site.name].Credits || '-')} ({(siteCredits[site.name].Ratio || '-')})
+            </Text>
+          ) : (
+            <Text size="sm" c="dimmed">-</Text>
+          )}
+        </Table.Td>
 	      <Table.Td>
 	        <Group gap="xs">
           <Tooltip label="Run BNC Test (!bnctest)">
             <ActionIcon variant="light" color="blue" onClick={() => testSiteMutation.mutate(site.name)}>
               <IconBolt size="1rem" />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Fetch credits/ratio (SITE STAT)">
+            <ActionIcon
+              variant="light"
+              color="grape"
+              loading={creditsLoadingSite === site.name}
+              onClick={() => fetchCreditsMutation.mutate(site.name)}
+            >
+              <IconCoins size="1rem" />
             </ActionIcon>
           </Tooltip>
           <Tooltip label="Kill ghost connections">
@@ -230,6 +340,7 @@ export function SitesList() {
 	          <Table.Th>Max DN/UP</Table.Th>
 	          <Table.Th>Free Slots</Table.Th>
 	          <Table.Th>Active DN/UP</Table.Th>
+            <Table.Th>Credits (Ratio)</Table.Th>
 	          <Table.Th>Actions</Table.Th>
 	        </Table.Tr>
 	      </Table.Thead>
