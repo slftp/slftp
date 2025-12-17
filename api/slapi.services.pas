@@ -69,6 +69,10 @@ type
     /// Returns detailed info for specific site
     function GetSite(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
 
+    /// POST /api/sites/{name}/credits
+    /// Executes SITE STAT and returns parsed credits/ratio (cached for ~1h unless ForceRefresh is true)
+    function GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;
+
     /// POST /api/sites
     /// Adds new site
     function AddSite(const Name, Host: RawUTF8; Port: integer;
@@ -409,6 +413,19 @@ type
     /// GET /api/precatcher/mappings
     /// Returns section mappings
     function GetMappings: RawJSON;
+  end;
+
+  { Simulator API }
+  IApiSimulatorService = interface(IInvokable)
+    ['{2C3D4E5F-6A7B-8C9D-0E1F-2A3B4C5D6E7F}']
+
+    /// POST /api/simulate
+    /// Simulates routing and rule evaluation for a release
+    function Simulate(const Section, ReleaseName: RawUTF8; const SimulatePre: boolean): RawJSON;
+
+    /// POST /api/simulate/detect-section
+    /// Detects section from release name using precatcher logic
+    function DetectSection(const ReleaseName: RawUTF8): RawJSON;
   end;
 
   { Issues / Alerts API }

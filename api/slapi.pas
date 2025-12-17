@@ -164,6 +164,7 @@ begin
     TypeInfo(IApiSpeedService),
     TypeInfo(IApiKnowledgeBaseService),
     TypeInfo(IApiPrecatcherService),
+    TypeInfo(IApiSimulatorService),
     TypeInfo(IApiIssuesService),
     TypeInfo(IApiLogService)
   ]);
@@ -178,6 +179,7 @@ begin
   FRestServer.ServiceDefine(TApiSpeedServiceImpl, [IApiSpeedService], sicShared);
   FRestServer.ServiceDefine(TApiKnowledgeBaseServiceImpl, [IApiKnowledgeBaseService], sicShared);
   FRestServer.ServiceDefine(TApiPrecatcherServiceImpl, [IApiPrecatcherService], sicShared);
+  FRestServer.ServiceDefine(TApiSimulatorServiceImpl, [IApiSimulatorService], sicShared);
   FRestServer.ServiceDefine(TApiIssuesServiceImpl, [IApiIssuesService], sicShared);
   FRestServer.ServiceDefine(TApiLogServiceImpl, [IApiLogService], sicShared);
 
