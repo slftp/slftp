@@ -1,6 +1,6 @@
 import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle } from '@tabler/icons-react';
+import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
 import { AutoSwitch } from './AutoSwitch';
@@ -18,6 +18,7 @@ export function Layout() {
     { icon: IconFileText, label: 'Logs', to: '/logs' },
     { icon: IconRoute, label: 'Routes', to: '/routes' },
     { icon: IconFilter, label: 'Rules', to: '/rules' },
+    { icon: IconFlask, label: 'Simulator', to: '/simulator' },
     { icon: IconFolders, label: 'Sections', to: '/sections' },
     { icon: IconServer, label: 'Sites Manager', to: '/sites' },
     { icon: IconChartBar, label: 'Stats', to: '/stats' },

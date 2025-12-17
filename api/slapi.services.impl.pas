@@ -61,6 +61,7 @@ type
   public
     function GetSites(const Filter: RawUTF8; out Sites: TApiSitesList): boolean;
     function GetSite(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
+    function GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;
     function AddSite(const Name, Host: RawUTF8; Port: integer;
                      const Username, Password: RawUTF8;
                      SslEnabled: boolean): boolean;
@@ -190,6 +191,13 @@ type
 	    function GetMappings: RawJSON;
 	  end;
 
+	  { Simulator Service Implementation }
+	  TApiSimulatorServiceImpl = class(TInjectableObjectRest, IApiSimulatorService)
+	  public
+	    function Simulate(const Section, ReleaseName: RawUTF8; const SimulatePre: boolean): RawJSON;
+	    function DetectSection(const ReleaseName: RawUTF8): RawJSON;
+	  end;
+
 	  { Issues Service Implementation }
 	  TApiIssuesServiceImpl = class(TInjectableObjectRest, IApiIssuesService)
 	  public
@@ -210,7 +218,11 @@ implementation
 uses
   Contnrs,
   kb.releaseinfo,
+  simulator,
   mystrings,
+  notify,
+  taskraw,
+  SyncObjs,
   IdStack,
   irccommands.irc;
 
@@ -218,6 +230,22 @@ uses
 
 const
   section = 'slapi.services';
+  CGetSiteCreditsTimeoutMs = 30000;
+  CGetSiteCreditsCacheSeconds = 3600;
+
+type
+  TSiteCreditsCacheEntry = record
+    FetchedAt: TDateTime;
+    Ok: boolean;
+    Message: RawUTF8;
+    Credits: RawUTF8;
+    Ratio: RawUTF8;
+    StatLine: RawUTF8;
+  end;
+
+var
+  glSiteCreditsCacheLock: TSlCriticalSection2;
+  glSiteCreditsCache: TDictionary<string, TSiteCreditsCacheEntry>;
 
 { TApiLogServiceImpl }
 
@@ -942,6 +970,135 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] GetSite: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;
+var
+  s: TSite;
+  tn: TTaskNotify;
+  r: TRawTask;
+  waitRes: TWaitResult;
+  fCredits, fRatio: String;
+  statLine: String;
+  cacheKey: string;
+  cacheEntry: TSiteCreditsCacheEntry;
+begin
+  Result := False;
+  Credits := TApiSiteCredits.Create;
+  Credits.SiteName := SiteName;
+  Credits.Ok := False;
+  Credits.Message := '';
+  Credits.Credits := '';
+  Credits.Ratio := '';
+  Credits.StatLine := '';
+
+  try
+    cacheKey := UpperCase(UTF8ToString(SiteName));
+    if (not ForceRefresh) and (glSiteCreditsCache <> nil) then
+    begin
+      glSiteCreditsCacheLock.Enter('GetSiteCredits(cache)');
+      try
+        if glSiteCreditsCache.TryGetValue(cacheKey, cacheEntry) then
+        begin
+          if (cacheEntry.FetchedAt > 0) and (SecondsBetween(Now, cacheEntry.FetchedAt) < CGetSiteCreditsCacheSeconds) then
+          begin
+            Credits.Ok := cacheEntry.Ok;
+            Credits.Message := cacheEntry.Message;
+            Credits.Credits := cacheEntry.Credits;
+            Credits.Ratio := cacheEntry.Ratio;
+            Credits.StatLine := cacheEntry.StatLine;
+            Result := True;
+            Exit;
+          end;
+        end;
+      finally
+        glSiteCreditsCacheLock.Leave;
+      end;
+    end;
+
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+    begin
+      Credits.Message := 'Site not found';
+      Result := True;
+      Exit;
+    end;
+
+    if s.PermDown then
+    begin
+      Credits.Message := 'Site is permdown';
+      Result := True;
+      Exit;
+    end;
+
+    if not s.IsUp then
+    begin
+      Credits.Message := 'Site is offline';
+      Result := True;
+      Exit;
+    end;
+
+    tn := AddNotify;
+    try
+      r := TRawTask.Create('API', '', s.Name, '', 'SITE STAT');
+      tn.AddTask(r);
+      AddTask(r, True);
+
+      waitRes := tn.event.WaitFor(CGetSiteCreditsTimeoutMs);
+      if waitRes <> wrSignaled then
+      begin
+        Credits.Message := 'Timed out waiting for SITE STAT';
+        Result := True;
+        Exit;
+      end;
+
+      if (tn.responses = nil) or (tn.responses.Count = 0) then
+      begin
+        Credits.Message := 'No SITE STAT response received';
+        Result := True;
+        Exit;
+      end;
+
+      statLine := TSiteResponse(tn.responses[0]).response;
+      Credits.StatLine := UTF8Encode(statLine);
+
+      fCredits := '';
+      fRatio := '';
+      ParseSTATLine(statLine, fCredits, fRatio);
+
+      Credits.Credits := UTF8Encode(fCredits);
+      Credits.Ratio := UTF8Encode(fRatio);
+      Credits.Ok := (Trim(fCredits) <> '') or (Trim(fRatio) <> '');
+      if not Credits.Ok then
+        Credits.Message := 'Failed to parse credits/ratio from SITE STAT';
+
+      if glSiteCreditsCache <> nil then
+      begin
+        cacheEntry.FetchedAt := Now;
+        cacheEntry.Ok := Credits.Ok;
+        cacheEntry.Message := Credits.Message;
+        cacheEntry.Credits := Credits.Credits;
+        cacheEntry.Ratio := Credits.Ratio;
+        cacheEntry.StatLine := Credits.StatLine;
+        glSiteCreditsCacheLock.Enter('GetSiteCredits(store)');
+        try
+          glSiteCreditsCache.AddOrSetValue(cacheKey, cacheEntry);
+        finally
+          glSiteCreditsCacheLock.Leave;
+        end;
+      end;
+
+      Result := True;
+    finally
+      RemoveTN(tn);
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSiteCredits: %s', [E.Message]));
       Result := False;
     end;
   end;
@@ -3188,5 +3345,146 @@ begin
     end;
   end;
 end;
+
+{ TApiSimulatorServiceImpl }
+
+function TApiSimulatorServiceImpl.Simulate(const Section, ReleaseName: RawUTF8; const SimulatePre: boolean): RawJSON;
+var
+  resultDoc: variant;
+  simDoc: variant;
+  sitesArr: TDocVariantData;
+  routesArr: TDocVariantData;
+  siteDoc: variant;
+  routeDoc: variant;
+  res: TSimulationResult;
+  i: integer;
+  sec: string;
+  rls: string;
+begin
+  Result := '{}';
+  try
+    sec := Trim(UTF8ToString(Section));
+    rls := Trim(UTF8ToString(ReleaseName));
+
+    if (sec = '') or (rls = '') then
+    begin
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode('Missing required fields (Section, ReleaseName)'));
+      Result := VariantSaveJSON(resultDoc);
+      Exit;
+    end;
+
+    res := SimulateRelease(sec, rls, SimulatePre);
+    try
+      TDocVariant.New(simDoc);
+      TDocVariantData(simDoc).AddValue('Releasename', UTF8Encode(res.Releasename));
+      TDocVariantData(simDoc).AddValue('Section', UTF8Encode(res.Section));
+      TDocVariantData(simDoc).AddValue('TotalSites', res.TotalSites);
+      TDocVariantData(simDoc).AddValue('AllowedSites', res.AllowedSites);
+      TDocVariantData(simDoc).AddValue('ErrorMessage', UTF8Encode(res.ErrorMessage));
+
+      sitesArr.InitFast(dvArray);
+      for i := 0 to res.SiteResults.Count - 1 do
+      begin
+        TDocVariant.New(siteDoc);
+        TDocVariantData(siteDoc).AddValue('Sitename', UTF8Encode(res.SiteResults[i].Sitename));
+        TDocVariantData(siteDoc).AddValue('Section', UTF8Encode(res.SiteResults[i].Section));
+        TDocVariantData(siteDoc).AddValue('Allowed', res.SiteResults[i].Allowed);
+        TDocVariantData(siteDoc).AddValue('Reason', UTF8Encode(res.SiteResults[i].Reason));
+        TDocVariantData(siteDoc).AddValue('RuleAction', UTF8Encode(res.SiteResults[i].RuleAction));
+        TDocVariantData(siteDoc).AddValue('IsAffil', res.SiteResults[i].IsAffil);
+        TDocVariantData(siteDoc).AddValue('HasSection', res.SiteResults[i].HasSection);
+        TDocVariantData(siteDoc).AddValue('SiteDown', res.SiteResults[i].SiteDown);
+        TDocVariantData(siteDoc).AddValue('PretimeOk', res.SiteResults[i].PretimeOk);
+        sitesArr.AddItem(siteDoc);
+      end;
+      TDocVariantData(simDoc).AddValue('Sites', _Json(sitesArr.ToJSON));
+
+      routesArr.InitFast(dvArray);
+      for i := 0 to res.RouteResults.Count - 1 do
+      begin
+        TDocVariant.New(routeDoc);
+        TDocVariantData(routeDoc).AddValue('SourceSite', UTF8Encode(res.RouteResults[i].SourceSite));
+        TDocVariantData(routeDoc).AddValue('DestinationSite', UTF8Encode(res.RouteResults[i].DestinationSite));
+        TDocVariantData(routeDoc).AddValue('Rank', res.RouteResults[i].Rank);
+        TDocVariantData(routeDoc).AddValue('RouteWeight', res.RouteResults[i].RouteWeight);
+        routesArr.AddItem(routeDoc);
+      end;
+      TDocVariantData(simDoc).AddValue('Routes', _Json(routesArr.ToJSON));
+
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', res.ErrorMessage = '');
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(res.ErrorMessage));
+      TDocVariantData(resultDoc).AddValue('simulation', simDoc);
+      Result := VariantSaveJSON(resultDoc);
+    finally
+      res.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] Simulate: %s', [E.Message]));
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(E.Message));
+      Result := VariantSaveJSON(resultDoc);
+    end;
+  end;
+end;
+
+function TApiSimulatorServiceImpl.DetectSection(const ReleaseName: RawUTF8): RawJSON;
+var
+  resultDoc: variant;
+  rls: string;
+  detectedSection: string;
+begin
+  Result := '{}';
+  try
+    rls := Trim(UTF8ToString(ReleaseName));
+
+    if rls = '' then
+    begin
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode('ReleaseName is required'));
+      TDocVariantData(resultDoc).AddValue('section', '');
+      Result := VariantSaveJSON(resultDoc);
+      Exit;
+    end;
+
+    // Use precatcher logic to detect section
+    detectedSection := FindSection(' ' + rls + ' ');
+    if detectedSection = '' then
+      detectedSection := FindSection(' ' + ProcessDoReplace(' ' + rls + ' ', rls) + ' ');
+
+    // Apply section mapping
+    detectedSection := PrecatcherSectionMapping(rls, detectedSection);
+
+    TDocVariant.New(resultDoc);
+    TDocVariantData(resultDoc).AddValue('success', True);
+    TDocVariantData(resultDoc).AddValue('error', '');
+    TDocVariantData(resultDoc).AddValue('section', UTF8Encode(detectedSection));
+    Result := VariantSaveJSON(resultDoc);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] DetectSection: %s', [E.Message]));
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(E.Message));
+      TDocVariantData(resultDoc).AddValue('section', '');
+      Result := VariantSaveJSON(resultDoc);
+    end;
+  end;
+end;
+
+initialization
+  glSiteCreditsCacheLock := TSlCriticalSection2.Create('ApiSiteCreditsCache');
+  glSiteCreditsCache := TDictionary<string, TSiteCreditsCacheEntry>.Create;
+
+finalization
+  glSiteCreditsCache.Free;
+  glSiteCreditsCacheLock.Free;
 
 end.

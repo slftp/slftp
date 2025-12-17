@@ -169,6 +169,24 @@ type
     property Sites: RawJSON read FSites write FSites;
   end;
 
+  { Site credits/ratio as returned by SITE STAT }
+  TApiSiteCredits = class(TOrm)
+  private
+    FSiteName: RawUTF8;
+    FOk: boolean;
+    FMessage: RawUTF8;
+    FCredits: RawUTF8;
+    FRatio: RawUTF8;
+    FStatLine: RawUTF8;
+  published
+    property SiteName: RawUTF8 read FSiteName write FSiteName;
+    property Ok: boolean read FOk write FOk;
+    property Message: RawUTF8 read FMessage write FMessage;
+    property Credits: RawUTF8 read FCredits write FCredits;
+    property Ratio: RawUTF8 read FRatio write FRatio;
+    property StatLine: RawUTF8 read FStatLine write FStatLine;
+  end;
+
   { Task Status }
   TApiTaskStatus = (
     atsPending,
