@@ -130,53 +130,6 @@ begin
     exit;
   end;
 
-
-  // initialize global MySQL/MariaD object
-  fHost := config.ReadString('mysql', 'host', '0');
-  if fHost <> '0' then
-  begin
-    console_addline('Admin', 'Load MYSQL/MariaDB', True);
-    fPort := IntToStr(config.ReadInteger('mysql', 'port', 3306));
-    fUser := config.ReadString('mysql', 'user', 'dbuser');
-    fPass := config.ReadString('mysql', 'pass', 'dbpass');
-    fDbName := config.ReadString('mysql', 'dbname', 'slftp-addpre');
-    fDBMS := UpperCase(config.ReadString('mysql', 'dbms', ''));
-
-    try
-      // differentiate between db software, maybe not compatible in future
-      if fDBMS = 'MYSQL' then
-      begin
-        fLibName := {$IFDEF MSWINDOWS}WINDOWS_DLL_LOCATION{$ELSE}LINUX_DLL_LOCATION{$ENDIF};
-      end
-      else if fDBMS = 'MARIADB' then
-      begin
-        fLibName := MARIADB_LOCATION;
-      end
-      else
-      begin
-        Result := 'Please set DBMS entry for MySQL/MariaDB in config.';
-        exit;
-      end;
-
-      // create connection
-      MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, StringToUTF8(fHost + ':' + fPort), StringToUTF8(fLibName)), StringToUTF8(fDbName), StringToUTF8(fUser), StringToUTF8(fPass));
-    except
-      on e: Exception do
-      begin
-        Result := Format('Failed to load MySQL/MariaDB: %s%s', [sLineBreak, e.Message]);
-        exit;
-      end;
-    end;
-
-    if not Assigned(MySQLCon) then
-    begin
-      Result := Format('Failed to load MySQL/MariaDB: %s%s', [sLineBreak, fLibName]);
-      exit;
-    end;
-
-    Debug(dpSpam, section, 'MySQL/MariaDB library initialised.');
-  end;
-
   console_addline('Admin', 'Check Ncurses version', True);
   {$IFNDEF MSWINDOWS}
     if Ncurses_Version < lib_Ncurses then
@@ -215,7 +168,7 @@ begin
   console_addline('Admin', 'Init RdOHConfig', True);
   InitmRdOHConfigFiles;
   console_addline('Admin', 'Init Addpre DB', True);
-  dbaddpreInit;
+  //dbaddpreInit;
   console_addline('Admin', 'Init NFO DB', True);
   dbaddnfoInit;
   console_addline('Admin', 'Init URL DB', True);
