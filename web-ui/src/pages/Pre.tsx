@@ -140,7 +140,8 @@ export function Pre() {
 
   const releaseOptions = useMemo(() => {
     const recentReleases = recentReleasesData || [];
-    return recentReleases.map(r => r.ReleaseName);
+    const names = recentReleases.map(r => r.ReleaseName);
+    return [...new Set(names)];
   }, [recentReleasesData]);
 
   const siteOptions = useMemo(() => {

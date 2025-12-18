@@ -28,6 +28,81 @@ function formatWindowSeconds(seconds: number): string {
   return `${seconds}s`;
 }
 
+type IssueFilterField = 'type' | 'section' | 'release' | 'site' | 'reason' | 'event';
+
+function tokenizeFilterQuery(query: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < query.length; i++) {
+    const ch = query[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (!inQuotes && /\s/.test(ch)) {
+      if (current) tokens.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current) tokens.push(current);
+
+  return tokens.map((t) => t.trim()).filter(Boolean);
+}
+
+function parseIssueFilter(query: string): { free: string[]; fields: Partial<Record<IssueFilterField, string>> } {
+  const tokens = tokenizeFilterQuery(query);
+  const fields: Partial<Record<IssueFilterField, string>> = {};
+  const free: string[] = [];
+
+  const normalizeKey = (key: string): IssueFilterField | null => {
+    const k = key.trim().toLowerCase();
+    if (k === 'type' || k === 'issuetype' || k === 'issue') return 'type';
+    if (k === 'section') return 'section';
+    if (k === 'release' || k === 'releasename') return 'release';
+    if (k === 'site' || k === 'sitename') return 'site';
+    if (k === 'reason') return 'reason';
+    if (k === 'event' || k === 'kbevent') return 'event';
+    return null;
+  };
+
+  for (const token of tokens) {
+    const idx = token.indexOf(':');
+    if (idx > 0) {
+      const key = normalizeKey(token.slice(0, idx));
+      const value = token.slice(idx + 1).trim();
+      if (key && value) {
+        fields[key] = value;
+        continue;
+      }
+    }
+    free.push(token);
+  }
+
+  return { free, fields };
+}
+
+function upsertFilterField(prev: string, field: IssueFilterField, value: string): string {
+  const tokens = tokenizeFilterQuery(prev).filter((t) => {
+    const idx = t.indexOf(':');
+    if (idx <= 0) return true;
+    const key = t.slice(0, idx).trim().toLowerCase();
+    if (field === 'type' && (key === 'type' || key === 'issuetype' || key === 'issue')) return false;
+    if (field === 'section' && key === 'section') return false;
+    if (field === 'release' && (key === 'release' || key === 'releasename')) return false;
+    if (field === 'site' && (key === 'site' || key === 'sitename')) return false;
+    if (field === 'reason' && key === 'reason') return false;
+    if (field === 'event' && (key === 'event' || key === 'kbevent')) return false;
+    return true;
+  });
+
+  tokens.push(`${field}:${value}`);
+  return tokens.join(' ').trim();
+}
+
 export function Issues() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('');
@@ -123,11 +198,33 @@ export function Issues() {
   };
 
   const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
+    const q = filter.trim();
     if (!q) return issues;
+
+    const parsed = parseIssueFilter(q);
+    const freeTokens = parsed.free.map((t) => t.toLowerCase());
+    const fields = Object.fromEntries(
+      Object.entries(parsed.fields).map(([k, v]) => [k, (v || '').toLowerCase()])
+    ) as Partial<Record<IssueFilterField, string>>;
+
     return issues.filter((i) => {
-      const hay = `${i.IssueType} ${i.Section} ${i.ReleaseName} ${i.SiteName} ${i.Reason} ${i.KbEvent}`.toLowerCase();
-      return hay.includes(q);
+      const issueFields: Record<IssueFilterField, string> = {
+        type: (i.IssueType || '').toLowerCase(),
+        section: (i.Section || '').toLowerCase(),
+        release: (i.ReleaseName || '').toLowerCase(),
+        site: (i.SiteName || '').toLowerCase(),
+        reason: (i.Reason || '').toLowerCase(),
+        event: (i.KbEvent || '').toLowerCase(),
+      };
+
+      for (const [k, v] of Object.entries(fields) as Array<[IssueFilterField, string]>) {
+        if (!v) continue;
+        if (!issueFields[k].includes(v)) return false;
+      }
+
+      if (freeTokens.length === 0) return true;
+      const hay = `${issueFields.type} ${issueFields.section} ${issueFields.release} ${issueFields.site} ${issueFields.reason} ${issueFields.event}`;
+      return freeTokens.every((t) => hay.includes(t));
     });
   }, [issues, filter]);
 
@@ -157,10 +254,38 @@ export function Issues() {
             <Group justify="space-between">
               <Group gap="xs">
                 <Badge color="gray" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('')}>Total: {summary.Total}</Badge>
-                <Badge color="orange" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('SKIP')}>Skip: {summary.Skip}</Badge>
-                <Badge color="red" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('DONT_MATCH')}>DontMatch: {summary.DontMatch}</Badge>
-                <Badge color="yellow" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('MISSING_SECTION')}>MissingSection: {summary.MissingSection}</Badge>
-                <Badge color="grape" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('NUKE')}>Nuke: {summary.Nuke}</Badge>
+                <Badge
+                  color="orange"
+                  variant="light"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'SKIP'))}
+                >
+                  Skip: {summary.Skip}
+                </Badge>
+                <Badge
+                  color="red"
+                  variant="light"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'DONT_MATCH'))}
+                >
+                  DontMatch: {summary.DontMatch}
+                </Badge>
+                <Badge
+                  color="yellow"
+                  variant="light"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'MISSING_SECTION'))}
+                >
+                  MissingSection: {summary.MissingSection}
+                </Badge>
+                <Badge
+                  color="grape"
+                  variant="light"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'NUKE'))}
+                >
+                  Nuke: {summary.Nuke}
+                </Badge>
               </Group>
               <Text size="xs" c="dimmed">Window: {formatWindowSeconds(summary.WindowSeconds)}</Text>
             </Group>
@@ -168,11 +293,11 @@ export function Issues() {
         </Card>
 
         <TextInput
-          placeholder="Search (type/section/release/site/reason/event)..."
+          placeholder='Filter: free text tokens, or e.g. type:MISSING_SECTION site:SomeSite'
           leftSection={<IconSearch size="1rem" />}
           rightSection={
             <Tooltip
-              label="Search matches Type, Section, ReleaseName, SiteName, Reason, and KbEvent (case-insensitive substring)."
+              label={'Filter syntax: use `field:value` (e.g. `type:MISSING_SECTION site:MySite`).\nMultiple tokens are combined with AND.\nFields: type:, site:, section:, release:, reason:, event:.\nValues with spaces: wrap in "quotes".'}
               withArrow
               withinPortal
             >
