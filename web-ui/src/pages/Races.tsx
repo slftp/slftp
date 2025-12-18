@@ -218,7 +218,7 @@ export function Races() {
         opened={!!selectedRelease}
         onClose={() => setSelectedRelease(null)}
         title={`Transfers for: ${selectedRelease || ''}`}
-        size="xl"
+        size="90%"
       >
         <Stack>
           <Group justify="space-between" align="center">
@@ -245,7 +245,7 @@ export function Races() {
             {releaseLoading && !releaseData ? (
               <Group justify="center" p="md"><Loader size="md" /></Group>
             ) : (
-              <ScrollArea h={520}>
+              <ScrollArea h="calc(100vh - 300px)">
                 <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
                   <Table.Thead>
                     <Table.Tr>
@@ -264,12 +264,26 @@ export function Races() {
                         </Table.Td>
                         <Table.Td>
                           <Group gap={6} wrap="nowrap">
-                            <Badge variant="light" color="indigo" style={{ maxWidth: 'none', whiteSpace: 'nowrap' }}>
-                              {t.SrcSite || '—'}
+                            <Badge
+                              variant="light"
+                              color="indigo"
+                              styles={{
+                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center' },
+                                label: { overflow: 'visible', textOverflow: 'clip' }
+                              }}
+                            >
+                              {(t.SrcSite && t.SrcSite.trim()) ? t.SrcSite.trim() : 'unknown'}
                             </Badge>
                             <Text size="xs" c="dimmed">→</Text>
-                            <Badge variant="light" color="grape" style={{ maxWidth: 'none', whiteSpace: 'nowrap' }}>
-                              {t.DstSite || '—'}
+                            <Badge
+                              variant="light"
+                              color="grape"
+                              styles={{
+                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center' },
+                                label: { overflow: 'visible', textOverflow: 'clip' }
+                              }}
+                            >
+                              {(t.DstSite && t.DstSite.trim()) ? t.DstSite.trim() : 'unknown'}
                             </Badge>
                           </Group>
                         </Table.Td>
