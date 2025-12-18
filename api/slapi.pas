@@ -166,7 +166,8 @@ begin
     TypeInfo(IApiPrecatcherService),
     TypeInfo(IApiSimulatorService),
     TypeInfo(IApiIssuesService),
-    TypeInfo(IApiLogService)
+    TypeInfo(IApiLogService),
+    TypeInfo(IApiBrowserService)
   ]);
 
   // Register all service interfaces with their implementations
@@ -182,6 +183,7 @@ begin
   FRestServer.ServiceDefine(TApiSimulatorServiceImpl, [IApiSimulatorService], sicShared);
   FRestServer.ServiceDefine(TApiIssuesServiceImpl, [IApiIssuesService], sicShared);
   FRestServer.ServiceDefine(TApiLogServiceImpl, [IApiLogService], sicShared);
+  FRestServer.ServiceDefine(TApiBrowserServiceImpl, [IApiBrowserService], sicShared);
 
   Debug(dpMessage, rsection, 'API Services registered');
 end;

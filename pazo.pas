@@ -878,6 +878,8 @@ begin
 end;
 
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
+var
+  fLockName: String;
 begin
   if rls <> nil then
   begin
@@ -904,7 +906,11 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+  if rls <> nil then
+    fLockName := rls.Name
+  else
+    fLockName := 'SPEEDTEST';
+  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + fLockName + '_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;

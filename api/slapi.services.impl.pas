@@ -23,6 +23,7 @@ uses
 	  sitesunit,
 	  queueunit,
 	  tasksunit,
+  taskrace,
   tasklogin,
   statsunit,
   ranksunit,
@@ -55,7 +56,6 @@ type
     function GetAutoStatus: boolean;
     function SetAutoStatus(Enabled: boolean): boolean;
   end;
-
   { Sites Service Implementation }
   TApiSitesServiceImpl = class(TInjectableObjectRest, IApiSitesService)
   public
@@ -214,6 +214,12 @@ type
 	    function ClearLogs: boolean;
 	  end;
 
+  { Browser Service Implementation }
+  TApiBrowserServiceImpl = class(TInjectableObjectRest, IApiBrowserService)
+  public
+    function GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
+  end;
+
 implementation
 
 uses
@@ -225,7 +231,8 @@ uses
   taskraw,
   SyncObjs,
   IdStack,
-  irccommands.irc;
+  irccommands.irc,
+  dirlist.helpers;
 
 {$I ../slftp.inc}
 
@@ -233,6 +240,11 @@ const
   section = 'slapi.services';
   CGetSiteCreditsTimeoutMs = 30000;
   CGetSiteCreditsCacheSeconds = 3600;
+  CBrowserCacheSeconds = 60; // Cache duration for browser listings
+
+var
+  GlApiTaskToPazoId: TDictionary<Int64, Integer>;
+  GlApiTaskToPazoIdLock: TSLCriticalSection2;
 
 type
   TSiteCreditsCacheEntry = record
@@ -244,9 +256,314 @@ type
     StatLine: RawUTF8;
   end;
 
+  TBrowserCacheStatus = (bcsPending, bcsReady, bcsError);
+
+  TBrowserCacheEntry = class
+  public
+    Status: TBrowserCacheStatus;
+    Timestamp: TDateTime;
+    Data: RawUTF8; // JSON string of file list
+    Error: string;
+  end;
+
+  TBrowserDirlistTask = class(TTask)
+  private
+    FDir: string;
+    FCacheKey: string;
+  public
+    constructor Create(const aSite, aDir, aCacheKey: string);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
+  end;
+
 var
   glSiteCreditsCacheLock: TSlCriticalSection2;
   glSiteCreditsCache: TDictionary<string, TSiteCreditsCacheEntry>;
+  
+  glBrowserCacheLock: TSlCriticalSection2;
+  glBrowserCache: TObjectDictionary<string, TBrowserCacheEntry>;
+
+{ TBrowserDirlistTask }
+
+constructor TBrowserDirlistTask.Create(const aSite, aDir, aCacheKey: string);
+begin
+  inherited Create('', '', aSite);
+  FDir := aDir;
+  FCacheKey := aCacheKey;
+end;
+
+function TBrowserDirlistTask.Execute(slot: Pointer): Boolean;
+var
+  s: TSiteSlot;
+  entry: TBrowserCacheEntry;
+  parsedList: TObjectList<TParsedDirListEntry>;
+  parsedEntry: TParsedDirlistEntry;
+  jsonArr: TDocVariantData;
+  fileObj: variant;
+  i: integer;
+begin
+  Result := False;
+  s := TSiteSlot(slot);
+  
+  // Try to login if needed
+  if s.status <> ssOnline then
+    if not s.ReLogin then
+    begin
+      glBrowserCacheLock.Enter('BrowserTask_LoginFail');
+      try
+        if glBrowserCache.TryGetValue(FCacheKey, entry) then
+        begin
+          entry.Status := bcsError;
+          entry.Error := 'Login failed';
+          entry.Timestamp := Now;
+        end;
+      finally
+        glBrowserCacheLock.Leave;
+      end;
+      readyerror := True;
+      Exit;
+    end;
+
+  // Execute Dirlist
+  // We force CWD to ensure we are in the right directory and get a clean listing
+  if not s.Dirlist(FDir, True) then
+  begin
+    glBrowserCacheLock.Enter('BrowserTask_DirlistFail');
+    try
+      if glBrowserCache.TryGetValue(FCacheKey, entry) then
+      begin
+        entry.Status := bcsError;
+        entry.Error := Format('Failed to list directory: %s', [s.lastResponse]);
+        entry.Timestamp := Now;
+      end;
+    finally
+      glBrowserCacheLock.Leave;
+    end;
+    readyerror := True;
+    Exit;
+  end;
+
+  // Parse result
+  try
+    parsedList := ParseStatResponse(s.lastResponse);
+    try
+      jsonArr.InitFast(dvArray);
+      
+      for i := 0 to parsedList.Count - 1 do
+      begin
+        parsedEntry := parsedList[i];
+        
+        // Skip current/parent dir dots if they appear (usually filtered but just in case)
+        if (parsedEntry.Filename = '.') or (parsedEntry.Filename = '..') then
+          Continue;
+
+        TDocVariant.New(fileObj);
+        TDocVariantData(fileObj).AddValue('name', UTF8Encode(parsedEntry.Filename));
+        TDocVariantData(fileObj).AddValue('size', parsedEntry.Filesize);
+        TDocVariantData(fileObj).AddValue('date', UTF8Encode(parsedEntry.Date));
+        TDocVariantData(fileObj).AddValue('user', UTF8Encode(parsedEntry.Username));
+        TDocVariantData(fileObj).AddValue('group', UTF8Encode(parsedEntry.Groupname));
+        TDocVariantData(fileObj).AddValue('perm', UTF8Encode(parsedEntry.DirMask));
+        
+        // IsDirectory check: usually starts with 'd'
+        if (Length(parsedEntry.DirMask) > 0) and (parsedEntry.DirMask[1] = 'd') then
+          TDocVariantData(fileObj).AddValue('is_dir', True)
+        else
+          TDocVariantData(fileObj).AddValue('is_dir', False);
+          
+        jsonArr.AddItem(fileObj);
+      end;
+      
+      // Update Cache
+      glBrowserCacheLock.Enter('BrowserTask_Success');
+      try
+        if glBrowserCache.TryGetValue(FCacheKey, entry) then
+        begin
+          entry.Status := bcsReady;
+          entry.Data := jsonArr.ToJSON;
+          entry.Error := '';
+          entry.Timestamp := Now;
+        end;
+      finally
+        glBrowserCacheLock.Leave;
+      end;
+      
+      Result := True;
+      ready := True;
+      
+    finally
+      parsedList.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      glBrowserCacheLock.Enter('BrowserTask_Exception');
+      try
+        if glBrowserCache.TryGetValue(FCacheKey, entry) then
+        begin
+          entry.Status := bcsError;
+          entry.Error := Format('Exception parsing dirlist: %s', [E.Message]);
+          entry.Timestamp := Now;
+        end;
+      finally
+        glBrowserCacheLock.Leave;
+      end;
+      readyerror := True;
+    end;
+  end;
+end;
+
+function TBrowserDirlistTask.Name: String;
+begin
+  Result := Format('BROWSER: %s @ %s', [FDir, site1]);
+end;
+
+{ TApiBrowserServiceImpl }
+
+function TApiBrowserServiceImpl.GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
+var
+  s: TSite;
+  fPath: string;
+  fSiteName: string;
+  cacheKey: string;
+  entry: TBrowserCacheEntry;
+  needsFetch: boolean;
+  resultDoc: variant;
+  task: TBrowserDirlistTask;
+begin
+  Result := '{}';
+  try
+    fSiteName := UTF8ToString(SiteName);
+    fPath := UTF8ToString(Path);
+    
+    // Normalize path
+    if fPath = '' then fPath := '/';
+    // ensure leading slash
+    if fPath[1] <> '/' then fPath := '/' + fPath;
+    // remove trailing slash if not root
+    if (Length(fPath) > 1) and (fPath[Length(fPath)] = '/') then
+      Delete(fPath, Length(fPath), 1);
+      
+    cacheKey := UpperCase(fSiteName) + '|' + fPath;
+    needsFetch := False;
+    
+    // Check Cache
+    glBrowserCacheLock.Enter('GetPath_CheckCache');
+    try
+      if glBrowserCache.TryGetValue(cacheKey, entry) then
+      begin
+        if ForceRefresh then
+          needsFetch := True
+        else if (entry.Status = bcsReady) and (SecondsBetween(Now, entry.Timestamp) > CBrowserCacheSeconds) then
+          needsFetch := True
+        else if (entry.Status = bcsError) and (SecondsBetween(Now, entry.Timestamp) > 10) then // Retry errors after 10s
+          needsFetch := True;
+      end
+      else
+      begin
+        // New entry
+        entry := TBrowserCacheEntry.Create;
+        entry.Status := bcsPending;
+        entry.Timestamp := Now;
+        glBrowserCache.Add(cacheKey, entry);
+        needsFetch := True;
+      end;
+      
+      // If we are pending but not needsFetch (meaning it's already pending from a recent request), just return pending
+      if (entry.Status = bcsPending) and (not needsFetch) then
+      begin
+        // If it's been pending for too long (> 30s), treat as timeout/needs refetch
+        if SecondsBetween(Now, entry.Timestamp) > 30 then
+          needsFetch := True;
+      end;
+      
+      // Update entry if we are fetching
+      if needsFetch then
+      begin
+        entry.Status := bcsPending;
+        entry.Timestamp := Now;
+        entry.Error := '';
+      end;
+      
+    finally
+      glBrowserCacheLock.Leave;
+    end;
+
+    // Trigger Task if needed
+    if needsFetch then
+    begin
+      s := FindSiteByName('', fSiteName);
+      if s = nil then
+      begin
+        TDocVariant.New(resultDoc);
+        TDocVariantData(resultDoc).AddValue('status', 'error');
+        TDocVariantData(resultDoc).AddValue('message', UTF8Encode('Site not found'));
+        Result := VariantSaveJSON(resultDoc);
+        
+        // Update cache to error
+        glBrowserCacheLock.Enter('GetPath_SiteError');
+        try
+          if glBrowserCache.TryGetValue(cacheKey, entry) then
+          begin
+            entry.Status := bcsError;
+            entry.Error := 'Site not found';
+          end;
+        finally
+          glBrowserCacheLock.Leave;
+        end;
+        Exit;
+      end;
+      
+      task := TBrowserDirlistTask.Create(fSiteName, fPath, cacheKey);
+      // Give it high priority? TBrowserDirlistTask inherits from TTask. 
+      // AddTask puts it in the queue.
+      // We rely on queue order.
+      s.AddTask(task, True); // True = Fire queue immediately
+    end;
+
+    // Build Response based on current state (even if we just queued it)
+    glBrowserCacheLock.Enter('GetPath_BuildResponse');
+    try
+      if glBrowserCache.TryGetValue(cacheKey, entry) then
+      begin
+        TDocVariant.New(resultDoc);
+        
+        case entry.Status of
+          bcsPending:
+          begin
+            TDocVariantData(resultDoc).AddValue('status', 'pending');
+          end;
+          bcsReady:
+          begin
+            TDocVariantData(resultDoc).AddValue('status', 'ready');
+            TDocVariantData(resultDoc).AddValue('files', _JsonFast(entry.Data));
+            TDocVariantData(resultDoc).AddValue('path', UTF8Encode(fPath));
+            TDocVariantData(resultDoc).AddValue('timestamp', DateTimeToUnix(entry.Timestamp));
+          end;
+          bcsError:
+          begin
+            TDocVariantData(resultDoc).AddValue('status', 'error');
+            TDocVariantData(resultDoc).AddValue('message', UTF8Encode(entry.Error));
+          end;
+        end;
+        
+        Result := VariantSaveJSON(resultDoc);
+      end;
+    finally
+      glBrowserCacheLock.Leave;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetPath: %s', [E.Message]));
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('status', 'error');
+      TDocVariantData(resultDoc).AddValue('message', UTF8Encode(E.Message));
+      Result := VariantSaveJSON(resultDoc);
+    end;
+  end;
+end;
 
 { TApiLogServiceImpl }
 
@@ -2414,16 +2731,69 @@ begin
 end;
 
 function TApiQueueServiceImpl.GetTask(TaskUid: Int64; out Info: TApiTaskInfo): boolean;
+var
+  fPazoId: Integer;
+  fPazo: TPazo;
 begin
   Result := False;
+  Info := nil;
   try
     Info := TApiTaskInfo.Create;
     Info.Uid := TaskUid;
+    Info.TaskType := 'Transfer';
+
+    fPazoId := -1;
+    if (GlApiTaskToPazoId <> nil) then
+    begin
+      GlApiTaskToPazoIdLock.Enter('ApiTaskMap.GetTask');
+      try
+        if not GlApiTaskToPazoId.TryGetValue(TaskUid, fPazoId) then
+          fPazoId := -1;
+      finally
+        GlApiTaskToPazoIdLock.Leave;
+      end;
+    end;
+
+    if fPazoId = -1 then
+    begin
+      Info.Status := 'unknown';
+      Exit(True);
+    end;
+
+    fPazo := FindPazoById(fPazoId);
+    if fPazo = nil then
+    begin
+      Info.Status := 'completed';
+      Info.Completed := Now;
+      Exit(True);
+    end;
+
+    Info.Created := fPazo.added;
+    if fPazo.readyerror or fPazo.stopped then
+    begin
+      Info.Status := 'failed';
+      Info.Completed := Now;
+    end
+    else if fPazo.ready then
+    begin
+      Info.Status := 'completed';
+      Info.Completed := Now;
+    end
+    else
+    begin
+      if fPazo.queuenumber.Value > 0 then
+        Info.Status := 'in_progress'
+      else
+        Info.Status := 'pending';
+    end;
+
     Result := True;
   except
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] GetTask: %s', [E.Message]));
+      if Info <> nil then
+        FreeAndNil(Info);
       Result := False;
     end;
   end;
@@ -2459,23 +2829,106 @@ end;
 
 function TApiQueueServiceImpl.CreateTransferTask(const SourceSite, DestSite, Section,
                                                 Dir, FileName: RawUTF8): Int64;
+var
+  fSourceSite: String;
+  fDestSite: String;
+  fDestDir: String;
+  fFullSourcePath: String;
+  fSourceDir: String;
+  fBaseName: String;
+  fLastSlash: Integer;
+  fPazo: TPazo;
+  fSrcPs, fDstPs: TPazoSite;
+  fTask: TPazoRaceTask;
 begin
   Result := 0;
   try
-    Debug(dpMessage, section, Format('CreateTransferTask API: %s -> %s',
-          [UTF8ToString(SourceSite), UTF8ToString(DestSite)]));
+    fSourceSite := UpperCase(Trim(UTF8ToString(SourceSite)));
+    fDestSite := UpperCase(Trim(UTF8ToString(DestSite)));
+    fDestDir := Trim(UTF8ToString(Dir));
+    fFullSourcePath := Trim(UTF8ToString(FileName));
+
+    Debug(dpMessage, section, Format('CreateTransferTask API: %s -> %s (%s) %s -> %s',
+          [fSourceSite, fDestSite, UTF8ToString(Section), fFullSourcePath, fDestDir]));
+
+    if (fSourceSite = '') or (fDestSite = '') then
+      raise Exception.Create('SourceSite/DestSite is required');
+    if FindSiteByName('', fSourceSite) = nil then
+      raise Exception.CreateFmt('Unknown SourceSite: %s', [fSourceSite]);
+    if FindSiteByName('', fDestSite) = nil then
+      raise Exception.CreateFmt('Unknown DestSite: %s', [fDestSite]);
+    if fFullSourcePath = '' then
+      raise Exception.Create('FileName is required');
+
+    // Normalize FTP paths (always '/')
+    if fDestDir = '' then
+      fDestDir := '/';
+    if fDestDir[1] <> '/' then
+      fDestDir := '/' + fDestDir;
+
+    if fFullSourcePath[1] <> '/' then
+      fFullSourcePath := '/' + fFullSourcePath;
+
+    // Split FTP path into dir + basename (don't use ExtractFileName/Dir; those are OS dependent)
+    fLastSlash := LastDelimiter('/', fFullSourcePath);
+    if fLastSlash <= 0 then
+    begin
+      fSourceDir := '/';
+      fBaseName := fFullSourcePath;
+    end
+    else if fLastSlash = 1 then
+    begin
+      fSourceDir := '/';
+      fBaseName := Copy(fFullSourcePath, 2, MaxInt);
+    end
+    else
+    begin
+      fSourceDir := Copy(fFullSourcePath, 1, fLastSlash - 1);
+      fBaseName := Copy(fFullSourcePath, fLastSlash + 1, MaxInt);
+    end;
+
+    if fBaseName = '' then
+      raise Exception.CreateFmt('Invalid FileName (no basename): %s', [fFullSourcePath]);
+
+    fPazo := PazoAdd(nil);
+    AddPazoToKB(Format('TRANSFER-API-%d', [fPazo.pazo_id]), fPazo);
+
+    fSrcPs := fPazo.AddSite(fSourceSite, fSourceDir, False);
+    fDstPs := fPazo.AddSite(fDestSite, fDestDir, False);
+    fSrcPs.AddDestination(fDstPs, 1);
+
+    // Align with IRC transfer behavior: mark destination allowed + source dirlist "present"
+    fDstPs.status := rssAllowed;
+    if (fSrcPs.dirlist <> nil) then
+      fSrcPs.dirlist.dirlistadded := True;
+
+    fTask := TPazoRaceTask.Create('CONSOLE', 'Browser', fSourceSite, fDestSite, fPazo, nil, '', fBaseName, 0, 1);
+    AddTask(fTask, True);
+
+    if GlApiTaskToPazoId <> nil then
+    begin
+      GlApiTaskToPazoIdLock.Enter('ApiTaskMap.Add');
+      try
+        GlApiTaskToPazoId.AddOrSetValue(fTask.uid, fPazo.pazo_id);
+      finally
+        GlApiTaskToPazoIdLock.Leave;
+      end;
+    end;
+
+    Result := fTask.uid;
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] CreateTransferTask: %s', [E.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] CreateTransferTask: %s %s', [E.ClassName, E.Message]));
+      Result := 0;
     end;
   end;
 end;
 
-function TApiQueueServiceImpl.StopTask(TaskUid: Int64): boolean;
-begin
-  Result := False;
-  try
+	function TApiQueueServiceImpl.StopTask(TaskUid: Int64): boolean;
+	begin
+	  Result := False;
+	  try
     Debug(dpMessage, section, Format('StopTask API: %d', [TaskUid]));
     Result := True;
   except
@@ -3495,9 +3948,17 @@ end;
 initialization
   glSiteCreditsCacheLock := TSlCriticalSection2.Create('ApiSiteCreditsCache');
   glSiteCreditsCache := TDictionary<string, TSiteCreditsCacheEntry>.Create;
+  glBrowserCacheLock := TSlCriticalSection2.Create('ApiBrowserCache');
+  glBrowserCache := TObjectDictionary<string, TBrowserCacheEntry>.Create([doOwnsValues]);
+  GlApiTaskToPazoIdLock := TSLCriticalSection2.Create('ApiTaskMap');
+  GlApiTaskToPazoId := TDictionary<Int64, Integer>.Create;
 
 finalization
   glSiteCreditsCache.Free;
   glSiteCreditsCacheLock.Free;
+  glBrowserCache.Free;
+  glBrowserCacheLock.Free;
+  GlApiTaskToPazoId.Free;
+  GlApiTaskToPazoIdLock.Free;
 
 end.

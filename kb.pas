@@ -1672,10 +1672,13 @@ begin
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
-              j := kb_latest.IndexOf(p.rls.rlsname);
-              if j <> -1 then
+              if p.rls <> nil then
               begin
-                kb_latest.Delete(j);
+                j := kb_latest.IndexOf(p.rls.rlsname);
+                if j <> -1 then
+                begin
+                  kb_latest.Delete(j);
+                end;
               end;
               fDeletedPazos.Add(p);
             end;

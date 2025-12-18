@@ -49,7 +49,6 @@ make web-ui-prod
 # - WEB_DEPLOY_DIR must point to the *web folder*, not your slftp install dir.
 # - You MUST create the marker file once per deploy directory, otherwise deploy aborts.
 mkdir -p /path/to/your/slftp/web
-touch /path/to/your/slftp/web/.slftp-webui-deploy
 make web-ui-deploy WEB_DEPLOY_DIR=/path/to/your/slftp/web
 ```
 

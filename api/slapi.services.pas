@@ -462,6 +462,16 @@ type
     function ClearLogs: boolean;
   end;
 
+  { File Browser API }
+  IApiBrowserService = interface(IInvokable)
+    ['{9A0B1C2D-3E4F-5A6B-7C8D-9E0F1A2B3C4D}']
+
+    /// GET /api/browser/{site}
+    /// Returns directory listing for a specific path
+    /// Query params: path (default /), refresh (bool)
+    function GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
+  end;
+
 implementation
 
 {$I ../slftp.inc}
