@@ -223,7 +223,24 @@ export function Issues() {
                       </Badge>
                     </Table.Td>
                     <Table.Td><Text size="xs">{i.Section}</Text></Table.Td>
-                    <Table.Td><Text size="xs">{i.ReleaseName}</Text></Table.Td>
+                    <Table.Td>
+                      <Tooltip label={i.ReleaseName} withArrow withinPortal disabled={!i.ReleaseName || i.ReleaseName.length <= 60}>
+                        <Text
+                          size="xs"
+                          style={{
+                            maxWidth: '600px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            direction: 'rtl',
+                            textAlign: 'left',
+                            unicodeBidi: 'plaintext'
+                          }}
+                        >
+                          {i.ReleaseName}
+                        </Text>
+                      </Tooltip>
+                    </Table.Td>
                     <Table.Td><Text size="xs">{i.SiteName}</Text></Table.Td>
                     <Table.Td><Text size="xs" c="dimmed">{i.KbEvent}</Text></Table.Td>
                     <Table.Td><Text size="xs">{i.Reason}</Text></Table.Td>
