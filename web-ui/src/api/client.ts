@@ -15,6 +15,24 @@ export const apiClient = axios.create({
   },
 });
 
+// Request Interceptor: Log outgoing requests
+apiClient.interceptors.request.use(request => {
+  console.log(`[API Request] ${request.method?.toUpperCase()} ${request.url}`, request.params || request.data || '');
+  return request;
+});
+
+// Response Interceptor: Log incoming responses
+apiClient.interceptors.response.use(
+  response => {
+    console.log(`[API Response] ${response.status} ${response.config.url}`, response.data);
+    return response;
+  },
+  error => {
+    console.error(`[API Error] ${error.response?.status} ${error.config?.url}`, error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
+
 // Set initial token
 const token = getApiToken();
 if (token) {
@@ -134,3 +152,34 @@ export interface SimulatorResult {
   Sites: SimulatorSiteResult[] | string;
   Routes: SimulatorRouteResult[] | string;
 }
+
+export interface FileEntry {
+  name: string;
+  size: number;
+  date: string;
+  user: string;
+  group: string;
+  perm: string;
+  is_dir: boolean;
+}
+
+export interface BrowserResponse {
+  status: 'pending' | 'ready' | 'error';
+  files?: FileEntry[];
+  message?: string;
+  path?: string;
+  timestamp?: number;
+}
+
+export const fetchBrowserPath = async (site: string, path: string, refresh: boolean = false): Promise<BrowserResponse> => {
+  const response = await apiClient.post<any>('/ApiBrowserService/GetPath', {
+    SiteName: site,
+    Path: path,
+    ForceRefresh: refresh
+  });
+  
+  if (response.data && response.data.result && Array.isArray(response.data.result)) {
+    return response.data.result[0];
+  }
+  return response.data;
+};

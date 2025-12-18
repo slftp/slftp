@@ -132,17 +132,14 @@ Build backend + Web UI and deploy the UI to `./web/`:
 
 IMPORTANT / READ THIS
 ---------------------
-The deploy target wipes the target directory before copying (`rm -rf WEB_DEPLOY_DIR/*`).
-To prevent accidents, you MUST create a marker file once per deploy directory, otherwise deploy aborts.
-Also: WEB_DEPLOY_DIR must point to the *web folder*, not your slftp install dir.
+	The deploy target wipes the target directory before copying (`rm -rf WEB_DEPLOY_DIR/*`).
+	Also: WEB_DEPLOY_DIR must point to the *web folder*, not your slftp install dir (deploy aborts if it detects `slftp.ini`, `sites.dat`, `slftp`, etc in the target directory).
 
-    # mkdir -p ./web && touch ./web/.slftp-webui-deploy
-    # make all-with-ui
+	    # make all-with-ui
 
 Deploy to a custom directory:
 
-    # mkdir -p /path/to/your/slftp/web && touch /path/to/your/slftp/web/.slftp-webui-deploy
-    # make web-ui-deploy WEB_DEPLOY_DIR=/path/to/your/slftp/web
+	    # make web-ui-deploy WEB_DEPLOY_DIR=/path/to/your/slftp/web
 
 on WINDOWS:
     Open cmd.exe and switch into slFtp dir 

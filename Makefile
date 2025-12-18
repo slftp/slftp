@@ -132,7 +132,6 @@ revpatchrevert: FORCE
 WEB_UI_DIR = web-ui
 # WEB_DEPLOY_DIR can be overridden: make web-ui-deploy WEB_DEPLOY_DIR=/custom/path
 WEB_DEPLOY_DIR ?= ./web
-WEB_DEPLOY_MARKER ?= .slftp-webui-deploy
 
 web-ui-build:
 	@echo "Building Web UI..."
@@ -162,22 +161,10 @@ web-ui-deploy: web-ui-build
 	fi; \
 	if [[ -e "$$deploy_real/slftp.ini" || -e "$$deploy_real/sites.dat" || -e "$$deploy_real/slftp" || -e "$$deploy_real/slftp_x86" || -e "$$deploy_real/slftp_x64" || -e "$$deploy_real/slftp_x86.exe" || -e "$$deploy_real/slftp_x64.exe" ]]; then \
 		echo "ERROR: WEB_DEPLOY_DIR=$$deploy_real looks like a slftp install dir; refusing to clean it."; \
-		echo "Hint: deploy into a dedicated web folder, e.g. $$deploy_real/web"; \
-		exit 2; \
-	fi; \
-	marker="$$deploy_real/$(WEB_DEPLOY_MARKER)"; \
-	if [[ ! -e "$$marker" ]]; then \
-		echo "ERROR: Refusing to deploy because the required marker file is missing:"; \
-		echo "  $$marker"; \
-		echo ""; \
-		echo "ACTION REQUIRED (run this command exactly once for this deploy directory):"; \
-		echo "  mkdir -p \"$$deploy_real\" && touch \"$$marker\""; \
-		echo ""; \
-		echo "This is a safety check because the deploy step does: rm -rf \"$$deploy_real\"/*"; \
-		echo "Make sure WEB_DEPLOY_DIR points to a dedicated web folder (e.g. /home/sldev/bin/web), NOT your slftp install dir."; \
-		exit 2; \
-	fi; \
-	mkdir -p "$$deploy_real"
+			echo "Hint: deploy into a dedicated web folder, e.g. $$deploy_real/web"; \
+			exit 2; \
+		fi; \
+		mkdir -p "$$deploy_real"
 	@echo "Cleaning old files..."
 	@set -euo pipefail; \
 	deploy_real="$$(realpath -m "$(WEB_DEPLOY_DIR)")"; \

@@ -11,6 +11,7 @@ import { Stats } from './pages/Stats';
 import { Logs } from './pages/Logs';
 import { Issues } from './pages/Issues';
 import { Simulator } from './pages/Simulator';
+import { FileBrowser } from './pages/FileBrowser';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -35,6 +36,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="sites" element={<SitesList />} />
           <Route path="sites/:siteName" element={<SiteSettings />} />
+          <Route path="browser" element={<FileBrowser />} />
           <Route path="logs" element={<Logs />} />
           <Route path="issues" element={<Issues />} />
           <Route path="routes" element={<RoutesPage />} />
