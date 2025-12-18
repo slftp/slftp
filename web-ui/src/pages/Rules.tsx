@@ -1,6 +1,7 @@
 import { Alert, Badge, Button, Card, Center, Divider, Group, Loader, ScrollArea, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { apiClient } from '../api/client';
 import type { Site } from '../api/client';
@@ -12,6 +13,7 @@ export function Rules() {
   const CONDITIONS_VISIBLE = 3;
   const CONDITION_ROW_HEIGHT = 68;
   const CONDITION_ROW_GAP = 6;
+  const [searchParams, setSearchParams] = useSearchParams();
   const [siteName, setSiteName] = useState<string>('');
   const [rtplContent, setRtplContent] = useState('');
   const [rtplMd5, setRtplMd5] = useState('');
@@ -71,6 +73,21 @@ export function Rules() {
   useEffect(() => {
     if (!siteName && siteOptions.length > 0) setSiteName(siteOptions[0].value);
   }, [siteName, siteOptions]);
+
+  // Read site from URL parameter and auto-load
+  useEffect(() => {
+    const siteParam = searchParams.get('site');
+    if (siteParam && siteOptions.length > 0) {
+      const siteExists = siteOptions.some(opt => opt.value === siteParam);
+      if (siteExists && siteParam !== siteName) {
+        setSiteName(siteParam);
+        // Auto-load the rules for this site
+        setTimeout(() => loadMutation.mutate(siteParam), 100);
+        // Clear the URL parameter after loading
+        setSearchParams({});
+      }
+    }
+  }, [searchParams, siteOptions]);
 
   const insertAtCursorOrReplaceSelection = (insertText: string) => {
     const el = rtplTextareaRef.current;

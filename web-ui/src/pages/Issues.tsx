@@ -1,7 +1,8 @@
 import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook } from '@tabler/icons-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { Issue, IssuesSummary } from '../api/client';
 import { notifications } from '@mantine/notifications';
@@ -28,6 +29,7 @@ function formatWindowSeconds(seconds: number): string {
 }
 
 export function Issues() {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState('');
   const [addSectionModalOpened, setAddSectionModalOpened] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
@@ -62,19 +64,22 @@ export function Issues() {
   const issues = Array.isArray(data) ? data : [];
 
   const addSectionMutation = useMutation({
-    mutationFn: async ({ siteName, section, path, issueId }: { siteName: string; section: string; path: string; issueId: number }) => {
+    mutationFn: async ({ siteName, section, path, issueIds }: { siteName: string; section: string; path: string; issueIds: number[] }) => {
       await apiClient.post('/ApiSitesService/SetSiteSection', {
         SiteName: siteName,
         Section: section,
         Dir: path
       });
-      // Delete the issue after successfully adding the section
-      await apiClient.post('/ApiIssuesService/DeleteIssue', { IssueId: issueId });
+      // Delete all issues for this site + section combination
+      for (const issueId of issueIds) {
+        await apiClient.post('/ApiIssuesService/DeleteIssue', { IssueId: issueId });
+      }
+      return issueIds.length;
     },
-    onSuccess: () => {
+    onSuccess: (deletedCount) => {
       notifications.show({
         title: 'Success',
-        message: 'Section added successfully',
+        message: `Section added successfully. ${deletedCount} issue${deletedCount !== 1 ? 's' : ''} removed.`,
         color: 'green'
       });
       setAddSectionModalOpened(false);
@@ -100,11 +105,20 @@ export function Issues() {
 
   const handleAddSection = () => {
     if (!selectedIssue || !sectionPath.trim()) return;
+
+    // Find all issues with the same site + section combination
+    const matchingIssueIds = issues
+      .filter(issue =>
+        issue.SiteName === selectedIssue.SiteName &&
+        issue.Section === selectedIssue.Section
+      )
+      .map(issue => issue.Id);
+
     addSectionMutation.mutate({
       siteName: selectedIssue.SiteName,
       section: selectedIssue.Section,
       path: sectionPath.trim(),
-      issueId: selectedIssue.Id,
+      issueIds: matchingIssueIds,
     });
   };
 
@@ -214,18 +228,32 @@ export function Issues() {
                     <Table.Td><Text size="xs" c="dimmed">{i.KbEvent}</Text></Table.Td>
                     <Table.Td><Text size="xs">{i.Reason}</Text></Table.Td>
                     <Table.Td>
-                      {i.IssueType?.toUpperCase() === 'MISSING_SECTION' && (
-                        <Tooltip label="Add missing section">
-                          <ActionIcon
-                            variant="light"
-                            color="green"
-                            size="sm"
-                            onClick={() => handleOpenAddSection(i)}
-                          >
-                            <IconPlus size="1rem" />
-                          </ActionIcon>
-                        </Tooltip>
-                      )}
+                      <Group gap="xs">
+                        {i.IssueType?.toUpperCase() === 'MISSING_SECTION' && (
+                          <Tooltip label="Add missing section">
+                            <ActionIcon
+                              variant="light"
+                              color="green"
+                              size="sm"
+                              onClick={() => handleOpenAddSection(i)}
+                            >
+                              <IconPlus size="1rem" />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
+                        {(i.IssueType?.toUpperCase() === 'SKIP' || i.IssueType?.toUpperCase() === 'DONT_MATCH' || i.IssueType?.toUpperCase() === 'DONTMATCH') && i.SiteName && (
+                          <Tooltip label="Go to rules for this site">
+                            <ActionIcon
+                              variant="light"
+                              color="blue"
+                              size="sm"
+                              onClick={() => navigate(`/rules?site=${encodeURIComponent(i.SiteName)}`)}
+                            >
+                              <IconBook size="1rem" />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
+                      </Group>
                     </Table.Td>
                   </Table.Tr>
                 ))}
