@@ -251,6 +251,18 @@ type
     function RecalculateRanks: boolean;
   end;
 
+  { Live Races API }
+  IApiRacesService = interface(IInvokable)
+    ['{A4A0E0F5-2D0D-4C6F-AE9C-8A62A5B736C8}']
+
+    /// GET /api/races
+    /// Returns recent raced file entries from stats DB (paged)
+    function GetRaces(const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+
+    /// Returns raced file entries for a given release (paged)
+    function GetReleaseTransfers(const Release: RawUTF8; const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+  end;
+
   { IRC Management API }
   IApiIrcService = interface(IInvokable)
     ['{3D8E5F6A-7B9C-8D0E-1F2A-5B6C7D8E9F0A}']

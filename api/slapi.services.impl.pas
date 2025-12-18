@@ -129,6 +129,13 @@ type
     function RecalculateRanks: boolean;
   end;
 
+  { Live Races Service Implementation }
+  TApiRacesServiceImpl = class(TInjectableObjectRest, IApiRacesService)
+  public
+    function GetRaces(const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+    function GetReleaseTransfers(const Release: RawUTF8; const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+  end;
+
   { IRC Service Implementation }
   TApiIrcServiceImpl = class(TInjectableObjectRest, IApiIrcService)
   public
@@ -3006,6 +3013,17 @@ end;
 function TApiStatsServiceImpl.RecalculateRanks: boolean;
 begin
   Result := True;
+end;
+
+function TApiRacesServiceImpl.GetRaces(const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+begin
+  Result := StatsGetRecentRacesJson(Page, PageSize, SinceUnix);
+end;
+
+function TApiRacesServiceImpl.GetReleaseTransfers(const Release: RawUTF8; const Page: integer; const PageSize: integer;
+  const SinceUnix: Int64): RawJSON;
+begin
+  Result := StatsGetReleaseRacesJson(UTF8ToString(Release), Page, PageSize, SinceUnix);
 end;
 
 function TApiIrcServiceImpl.GetNetworks: RawJSON;

@@ -12,6 +12,8 @@ import { Logs } from './pages/Logs';
 import { Issues } from './pages/Issues';
 import { Simulator } from './pages/Simulator';
 import { FileBrowser } from './pages/FileBrowser';
+import { Pre } from './pages/Pre';
+import { Races } from './pages/Races';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -37,7 +39,9 @@ function App() {
           <Route path="sites" element={<SitesList />} />
           <Route path="sites/:siteName" element={<SiteSettings />} />
           <Route path="browser" element={<FileBrowser />} />
+          <Route path="pre" element={<Pre />} />
           <Route path="logs" element={<Logs />} />
+          <Route path="races" element={<Races />} />
           <Route path="issues" element={<Issues />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="rules" element={<Rules />} />

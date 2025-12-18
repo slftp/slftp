@@ -159,6 +159,7 @@ begin
     TypeInfo(IApiSitesService),
     TypeInfo(IApiQueueService),
     TypeInfo(IApiStatsService),
+    TypeInfo(IApiRacesService),
     TypeInfo(IApiIrcService),
     TypeInfo(IApiRulesService),
     TypeInfo(IApiSpeedService),
@@ -175,6 +176,7 @@ begin
   FRestServer.ServiceDefine(TApiSitesServiceImpl, [IApiSitesService], sicShared);
   FRestServer.ServiceDefine(TApiQueueServiceImpl, [IApiQueueService], sicShared);
   FRestServer.ServiceDefine(TApiStatsServiceImpl, [IApiStatsService], sicShared);
+  FRestServer.ServiceDefine(TApiRacesServiceImpl, [IApiRacesService], sicShared);
   FRestServer.ServiceDefine(TApiIrcServiceImpl, [IApiIrcService], sicShared);
   FRestServer.ServiceDefine(TApiRulesServiceImpl, [IApiRulesService], sicShared);
   FRestServer.ServiceDefine(TApiSpeedServiceImpl, [IApiSpeedService], sicShared);

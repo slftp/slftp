@@ -1,6 +1,6 @@
 import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask, IconFolder } from '@tabler/icons-react';
+import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask, IconFolder, IconBolt, IconTrophy } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
 import { AutoSwitch } from './AutoSwitch';
@@ -14,9 +14,11 @@ export function Layout() {
   const links = [
     { icon: IconDashboard, label: 'Dashboard', to: '/' },
     { icon: IconFolder, label: 'Browser', to: '/browser' },
+    { icon: IconBolt, label: 'PRE', to: '/pre' },
     { icon: IconBrandHipchat, label: 'IRC', to: '/irc' },
     { icon: IconAlertTriangle, label: 'Issues', to: '/issues' },
     { icon: IconFileText, label: 'Logs', to: '/logs' },
+    { icon: IconTrophy, label: 'Races', to: '/races' },
     { icon: IconRoute, label: 'Routes', to: '/routes' },
     { icon: IconFilter, label: 'Rules', to: '/rules' },
     { icon: IconFlask, label: 'Simulator', to: '/simulator' },
