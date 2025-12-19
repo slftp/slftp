@@ -196,6 +196,8 @@ type
 	    function TestPrecatcher(const Announce: RawUTF8): RawJSON;
 	    function ReloadPrecatcher: boolean;
 	    function GetMappings: RawJSON;
+	    function GetHits(const Limit: integer; const SinceUnix: Int64;
+	      const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
 	  end;
 
 	  { Simulator Service Implementation }
@@ -821,6 +823,9 @@ var
   sitesArray: TDocVariantData;
   kbList: TStringList;
   kbLock: TSlCriticalSection2;
+  totalSites, allowedSites, presentSites, expectedSites, notAllowedSites: Integer;
+  isNotAllowed: Boolean;
+  isPresent: Boolean;
 begin
   Result := False;
   Response := TApiReleasesList.Create;
@@ -885,7 +890,13 @@ begin
 
         releaseJson.QueueNumber := p.queuenumber.Value;
 
-        // Collect site names
+        // Collect site names and compute basic status counts
+        totalSites := 0;
+        allowedSites := 0;
+        presentSites := 0;
+        expectedSites := 0;
+        notAllowedSites := 0;
+
         sitesArray.Init(JSON_FAST, dvArray);
         for ps in p.PazoSitesList do
         begin
@@ -893,8 +904,37 @@ begin
           begin
             sitesArray.AddItem(UTF8Encode(ps.Name));
           end;
+
+          Inc(totalSites);
+
+          isNotAllowed := ps.status in [rssNotAllowed, rssNotAllowedButItsThere];
+          if isNotAllowed then
+            Inc(notAllowedSites)
+          else
+            Inc(allowedSites);
+
+          isPresent := False;
+          try
+            if (ps.dirlist <> nil) then
+              isPresent := (ps.dirlist.entries.Count > 0) or ps.dirlist.Complete;
+          except
+            isPresent := False;
+          end;
+          if not isPresent then
+            isPresent := ps.status in [rssRealPre, rssComplete, rssNotAllowedButItsThere];
+
+          if isPresent then
+            Inc(presentSites);
+
+          if isPresent and (not isNotAllowed) then
+            Inc(expectedSites);
         end;
         releaseJson.Sites := variant(sitesArray);
+        releaseJson.TotalSites := totalSites;
+        releaseJson.AllowedSites := allowedSites;
+        releaseJson.PresentSites := presentSites;
+        releaseJson.ExpectedSites := expectedSites;
+        releaseJson.NotAllowedSites := notAllowedSites;
 
         releasesArray.AddItem(releaseJson);
         Inc(count);
@@ -3825,6 +3865,51 @@ begin
     on E: Exception do
     begin
       Debug(dpError, 'slapi', Format('[EXCEPTION] GetMappings: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
+end;
+
+function TApiPrecatcherServiceImpl.GetHits(const Limit: integer; const SinceUnix: Int64;
+  const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
+var
+  hits: TPrecatcherHits;
+  hitsArray: TDocVariantData;
+  hitDoc: variant;
+  i: Integer;
+  releaseFilter: String;
+  siteFilter: String;
+begin
+  Result := '[]';
+  try
+    releaseFilter := UTF8ToString(ReleaseName);
+    siteFilter := UTF8ToString(SiteName);
+    Precatcher_GetHits(Limit, SinceUnix, releaseFilter, siteFilter, hits);
+
+    hitsArray.InitFast(dvArray);
+    for i := 0 to Length(hits) - 1 do
+    begin
+      TDocVariant.New(hitDoc);
+      TDocVariantData(hitDoc).AddValue('id', hits[i].Id);
+      TDocVariantData(hitDoc).AddValue('atUnix', DateTimeToUnix(hits[i].At));
+      TDocVariantData(hitDoc).AddValue('netname', UTF8Encode(hits[i].Netname));
+      TDocVariantData(hitDoc).AddValue('channel', UTF8Encode(hits[i].Channel));
+      TDocVariantData(hitDoc).AddValue('nick', UTF8Encode(hits[i].Nick));
+      TDocVariantData(hitDoc).AddValue('sitename', UTF8Encode(hits[i].Sitename));
+      TDocVariantData(hitDoc).AddValue('event', UTF8Encode(KBEventTypeToString(hits[i].EventType)));
+      TDocVariantData(hitDoc).AddValue('section', UTF8Encode(hits[i].Section));
+      TDocVariantData(hitDoc).AddValue('releaseName', UTF8Encode(hits[i].ReleaseName));
+      TDocVariantData(hitDoc).AddValue('ruleId', hits[i].RuleId);
+      TDocVariantData(hitDoc).AddValue('ruleLine', UTF8Encode(hits[i].RuleLine));
+      TDocVariantData(hitDoc).AddValue('text', UTF8Encode(hits[i].Text));
+      hitsArray.AddItem(hitDoc);
+    end;
+
+    Result := hitsArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetHits: %s', [E.Message]));
       Result := '[]';
     end;
   end;
