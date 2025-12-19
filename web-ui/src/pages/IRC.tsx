@@ -3,7 +3,10 @@ import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlu
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient } from '../api/client';
+import type { Site } from '../api/client';
 import { notifications } from '@mantine/notifications';
+import { parseIrcAnnounce, parsedAnnounceToWords } from '../utils/ircAnnounceParser';
+import type { ParsedAnnounce } from '../utils/ircAnnounceParser';
 
 interface IrcNetwork {
   name: string;
@@ -46,6 +49,7 @@ interface RecentRelease {
   AllowedSites?: number;
   PresentSites?: number;
   ExpectedSites?: number;
+  ExpectedSitesList?: string[];
   NotAllowedSites?: number;
 }
 
@@ -128,6 +132,7 @@ export function IRC() {
 
   // Rules state
   const [addingRule, setAddingRule] = useState(false);
+  const [ircAnnounce, setIrcAnnounce] = useState('');
   const [newNetname, setNewNetname] = useState('');
   const [newChannel, setNewChannel] = useState('');
   const [newBotnicks, setNewBotnicks] = useState('');
@@ -202,6 +207,63 @@ export function IRC() {
       return channels;
     },
     enabled: !!selectedNetwork,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: addRuleChannels } = useQuery({
+    queryKey: ['irc-channels', 'rule', newNetname],
+    queryFn: async (): Promise<IrcChannel[]> => {
+      if (!newNetname) return [];
+      const res = await apiClient.post('/ApiIrcService/GetChannels', { NetName: newNetname });
+
+      let channels: IrcChannel[] = [];
+      try {
+        if (res.data.result && Array.isArray(res.data.result)) {
+          const resultData = res.data.result[0];
+          if (typeof resultData === 'string') {
+            channels = JSON.parse(resultData);
+          } else if (Array.isArray(resultData)) {
+            channels = resultData;
+          }
+        } else if (typeof res.data === 'string') {
+          channels = JSON.parse(res.data);
+        } else if (Array.isArray(res.data)) {
+          channels = res.data;
+        }
+      } catch (e) {
+        console.error('Failed to parse IRC channels:', e);
+        return [];
+      }
+
+      return channels;
+    },
+    enabled: !!newNetname,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: sites } = useQuery({
+    queryKey: ['sites'],
+    queryFn: async (): Promise<Site[]> => {
+      const res = await apiClient.post('/ApiSitesService/GetSites', { Filter: '' });
+      let responseData = res.data;
+      if (res.data.result && Array.isArray(res.data.result)) {
+        responseData = res.data.result[0];
+      }
+
+      const rawSites = responseData.Sites;
+      let parsedSites: Site[] = [];
+      try {
+        if (typeof rawSites === 'string') {
+          parsedSites = JSON.parse(rawSites);
+        } else if (Array.isArray(rawSites)) {
+          parsedSites = rawSites;
+        }
+      } catch (e) {
+        console.error('Failed to parse sites JSON', e);
+      }
+
+      return parsedSites;
+    },
     refetchOnWindowFocus: false,
   });
 
@@ -519,6 +581,7 @@ export function IRC() {
         color: 'green',
       });
       setAddingRule(false);
+      setIrcAnnounce('');
       setNewNetname('');
       setNewChannel('');
       setNewBotnicks('');
@@ -536,6 +599,84 @@ export function IRC() {
       });
     },
   });
+
+  const pickWordsFromRules = (parsed: ParsedAnnounce, rulesList: PrecatcherRule[]) => {
+    if (!rulesList || rulesList.length === 0) return '';
+
+    const botNick = parsed.botNick.trim().toLowerCase();
+    if (!botNick) return '';
+
+    const eventType = parsed.eventType.trim().toUpperCase();
+    if (!eventType) return '';
+
+    const matchesBotnick = (value: string) => {
+      if (!value) return false;
+      const tokens = value
+        .split(/[,\s]+/)
+        .map((token) => token.trim().toLowerCase())
+        .filter(Boolean);
+      return tokens.includes(botNick);
+    };
+
+    const matchesEvent = (value: string) => value.trim().toUpperCase() === eventType;
+    const baseMatches = rulesList.filter((rule) => matchesEvent(rule.event) && matchesBotnick(rule.botnicks) && rule.words);
+    if (baseMatches.length === 0) return '';
+
+    const counts = new Map<string, { count: number; firstIndex: number }>();
+    baseMatches.forEach((rule, index) => {
+      const key = rule.words;
+      const entry = counts.get(key);
+      if (entry) {
+        entry.count += 1;
+      } else {
+        counts.set(key, { count: 1, firstIndex: index });
+      }
+    });
+
+    let best = '';
+    let bestCount = 0;
+    let bestIndex = Number.POSITIVE_INFINITY;
+    counts.forEach((entry, key) => {
+      if (entry.count > bestCount || (entry.count === bestCount && entry.firstIndex < bestIndex)) {
+        best = key;
+        bestCount = entry.count;
+        bestIndex = entry.firstIndex;
+      }
+    });
+
+    return best;
+  };
+
+  const handleAnnounceChange = (value: string) => {
+    setIrcAnnounce(value);
+
+    if (!value.trim()) {
+      setNewBotnicks('');
+      setNewEvent('PRE');
+      setNewWords('');
+      return;
+    }
+
+    const parsed = parseIrcAnnounce(value);
+    if (!parsed) {
+      setNewBotnicks('');
+      setNewEvent('PRE');
+      setNewWords('');
+      return;
+    }
+
+    setNewBotnicks(parsed.botNick);
+    setNewEvent(parsed.eventType);
+    const wordsFromRules = pickWordsFromRules(parsed, rules || []);
+    setNewWords(wordsFromRules || parsedAnnounceToWords(parsed));
+
+    notifications.show({
+      title: 'Auto-filled',
+      message: `Parsed announce from bot ${parsed.botNick}`,
+      color: 'blue',
+      autoClose: 2000,
+    });
+  };
 
   const deleteRuleMutation = useMutation({
     mutationFn: async (ruleId: number) => {
@@ -1027,15 +1168,23 @@ export function IRC() {
                 <Table.Tbody>
                   {filteredReleases.map((r) => {
                       const m = matchesByRelease.get(r.ReleaseName);
-                      const matchedSites = m ? m.sites.size : 0;
+                      const expectedSitesList = (r.ExpectedSitesList || r.Sites || [])
+                        .map((s) => normalize(s))
+                        .filter(Boolean);
+                      const expectedSitesNormalized = new Set(expectedSitesList);
+                      const matchedSites = m
+                        ? Array.from(m.sites).filter((s) => expectedSitesNormalized.has(normalize(s))).length
+                        : 0;
                       const hitsCount = m ? m.hits.length : 0;
                       const lastAt = m ? m.lastAt : 0;
                       const sitesList = (r.Sites || []).join(', ');
-                      const matchedSitesList = m ? Array.from(m.sites).join(', ') : '';
+                      const matchedSitesList = m
+                        ? Array.from(m.sites).filter((s) => expectedSitesNormalized.has(normalize(s))).join(', ')
+                        : '';
                       const totalSites = r.TotalSites ?? (r.Sites || []).length;
                       const allowedSites = r.AllowedSites ?? totalSites;
                       const presentSites = r.PresentSites ?? 0;
-                      const expectedSites = r.ExpectedSites ?? allowedSites;
+                      const expectedSites = r.ExpectedSites ?? expectedSitesNormalized.size ?? allowedSites;
                       const rowFilter = matchesFilter.toLowerCase();
                       if (rowFilter && m) {
                         const anyHitMatches = m.hits.some((h) =>
@@ -1420,35 +1569,86 @@ export function IRC() {
 
       <Modal
         opened={addingRule}
-        onClose={() => setAddingRule(false)}
+        onClose={() => {
+          setAddingRule(false);
+          setIrcAnnounce('');
+        }}
         title="Add Catchlist Entry"
         centered
         size="lg"
       >
         <Stack gap="md">
-          <TextInput
-            label="Site Name"
-            value={newSitename}
-            onChange={(e) => setNewSitename(e.currentTarget.value)}
-            placeholder="SITEONE"
-            required
+          <Textarea
+            label="IRC Announce (Optional)"
+            value={ircAnnounce}
+            onChange={(e) => handleAnnounceChange(e.currentTarget.value)}
+            placeholder="Paste IRC announce here to auto-fill fields"
+            minRows={2}
+            description="Paste an IRC announce to automatically extract bot nick, event type, and release pattern"
           />
 
-          <TextInput
-            label="Network Name"
-            value={newNetname}
-            onChange={(e) => setNewNetname(e.currentTarget.value)}
-            placeholder="IRCNET"
-            required
-          />
+          {(sites && sites.length > 0) ? (
+            <Select
+              label="Site Name"
+              value={newSitename}
+              onChange={(value) => setNewSitename(value || '')}
+              data={sites.map((site) => ({ value: site.name, label: site.name }))}
+              placeholder="Select a site"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Site Name"
+              value={newSitename}
+              onChange={(e) => setNewSitename(e.currentTarget.value)}
+              placeholder="SITEONE"
+              required
+            />
+          )}
 
-          <TextInput
-            label="Channel"
-            value={newChannel}
-            onChange={(e) => setNewChannel(e.currentTarget.value)}
-            placeholder="#pre"
-            required
-          />
+          {(networks && networks.length > 0) ? (
+            <Select
+              label="Network Name"
+              value={newNetname}
+              onChange={(value) => {
+                setNewNetname(value || '');
+                setNewChannel('');
+              }}
+              data={networks.map((net) => ({ value: net.name, label: net.name }))}
+              placeholder="Select a network"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Network Name"
+              value={newNetname}
+              onChange={(e) => setNewNetname(e.currentTarget.value)}
+              placeholder="IRCNET"
+              required
+            />
+          )}
+
+          {(addRuleChannels && addRuleChannels.length > 0) ? (
+            <Select
+              label="Channel"
+              value={newChannel}
+              onChange={(value) => setNewChannel(value || '')}
+              data={addRuleChannels.map((chan) => ({ value: chan.channel, label: chan.channel }))}
+              placeholder="Select a channel"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Channel"
+              value={newChannel}
+              onChange={(e) => setNewChannel(e.currentTarget.value)}
+              placeholder="#pre"
+              required
+            />
+          )}
 
           <TextInput
             label="Bot Nicks"
@@ -1471,8 +1671,8 @@ export function IRC() {
             label="Words"
             value={newWords}
             onChange={(e) => setNewWords(e.currentTarget.value)}
-            placeholder="*release*"
-            description="Keywords to match in the announce"
+            placeholder="NEW,RACE,join"
+            description="Comma-separated keywords (substring match, no wildcards)"
             required
           />
 
