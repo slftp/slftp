@@ -821,6 +821,7 @@ var
   releaseJson: variant;
   releasesArray: TDocVariantData;
   sitesArray: TDocVariantData;
+  expectedSitesArray: TDocVariantData;
   kbList: TStringList;
   kbLock: TSlCriticalSection2;
   totalSites, allowedSites, presentSites, expectedSites, notAllowedSites: Integer;
@@ -898,6 +899,7 @@ begin
         notAllowedSites := 0;
 
         sitesArray.Init(JSON_FAST, dvArray);
+        expectedSitesArray.Init(JSON_FAST, dvArray);
         for ps in p.PazoSitesList do
         begin
           if ps.Name <> '' then
@@ -927,13 +929,18 @@ begin
             Inc(presentSites);
 
           if isPresent and (not isNotAllowed) then
+          begin
             Inc(expectedSites);
+            if ps.Name <> '' then
+              expectedSitesArray.AddItem(UTF8Encode(ps.Name));
+          end;
         end;
         releaseJson.Sites := variant(sitesArray);
         releaseJson.TotalSites := totalSites;
         releaseJson.AllowedSites := allowedSites;
         releaseJson.PresentSites := presentSites;
         releaseJson.ExpectedSites := expectedSites;
+        releaseJson.ExpectedSitesList := variant(expectedSitesArray);
         releaseJson.NotAllowedSites := notAllowedSites;
 
         releasesArray.AddItem(releaseJson);
