@@ -110,15 +110,20 @@ export function Precatcher() {
 
   const addRuleMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post('/ApiPrecatcherService/AddPrecatcherRule', {
-        netname: newNetname,
-        channel: newChannel,
-        botnicks: newBotnicks,
-        sitename: newSitename,
-        event: newEvent,
-        words: newWords,
-        section: newSection,
-      });
+      const payload = {
+        RuleData: {
+          netname: newNetname,
+          channel: newChannel,
+          botnicks: newBotnicks,
+          sitename: newSitename,
+          event: newEvent,
+          words: newWords,
+          section: newSection,
+        },
+      };
+      console.debug('[precatcher] add rule payload', payload);
+      const res = await apiClient.post('/ApiPrecatcherService/AddPrecatcherRule', payload);
+      console.debug('[precatcher] add rule response', res.data);
     },
     onSuccess: () => {
       notifications.show({
