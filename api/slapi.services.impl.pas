@@ -254,6 +254,10 @@ const
 var
   GlApiTaskToPazoId: TDictionary<Int64, Integer>;
   GlApiTaskToPazoIdLock: TSLCriticalSection2;
+  glLastDirlistCount: integer = 0;
+  glLastDirlistTime: TDateTime = 0;
+  glDirlistRate: Double = 0;
+  glDirlistRateMax: Double = 0;
 
 type
   TSiteCreditsCacheEntry = record
@@ -761,6 +765,27 @@ begin
     Response.QueueSize := qTotal;
     // Treat all queued tasks as active for dashboard purposes; transfers also counted via activeSum
     Response.ActiveTasks := qTotal;
+
+    // Calculate DirlistPerSecond (rate since last call, at least 1s interval)
+    if glLastDirlistTime = 0 then
+    begin
+      glLastDirlistCount := GlDirlistCompletedCounter.Value;
+      glLastDirlistTime := Now;
+      glDirlistRate := 0;
+    end
+    else
+    begin
+      if SecondsBetween(Now, glLastDirlistTime) >= 1 then
+      begin
+        glDirlistRate := (GlDirlistCompletedCounter.Value - glLastDirlistCount) / SecondsBetween(Now, glLastDirlistTime);
+        if glDirlistRate > glDirlistRateMax then
+          glDirlistRateMax := glDirlistRate;
+        glLastDirlistCount := GlDirlistCompletedCounter.Value;
+        glLastDirlistTime := Now;
+      end;
+    end;
+    Response.DirlistPerSecond := glDirlistRate;
+    Response.DirlistPerSecondMax := glDirlistRateMax;
 
     Result := True;
   except

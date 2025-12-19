@@ -818,6 +818,7 @@ begin
 
   Debug(dpSpam, c_section, '<-- ' + tname);
 
+  GlDirlistCompletedCounter.Increment;
   Result := True;
   ready := True;
 end;

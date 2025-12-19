@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
 
 
 type TQueueStat = class
@@ -88,6 +88,7 @@ procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 
 var
   QueueStatUpdateDateTime: TDateTime;
+  GlDirlistCompletedCounter: TIdThreadSafeInt32;
 
 implementation
 
@@ -1755,10 +1756,12 @@ begin
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
+  GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
 end;
 
 procedure QueueUninit;
 begin
+  GlDirlistCompletedCounter.Free;
   StatsList.Free;
 end;
 

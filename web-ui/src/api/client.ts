@@ -66,6 +66,8 @@ export interface SystemStatus {
   SitesDown: number;
   QueueSize: number;
   ActiveTasks: number;
+  DirlistPerSecond: number;
+  DirlistPerSecondMax: number;
 }
 
 export interface Bnc {

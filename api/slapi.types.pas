@@ -48,6 +48,8 @@ type
     FSitesDown: integer;
     FQueueSize: integer;
     FActiveTasks: integer;
+    FDirlistPerSecond: Double;
+    FDirlistPerSecondMax: Double;
   published
     property Version: RawUTF8 read FVersion write FVersion;
     property Uptime: Int64 read FUptime write FUptime;
@@ -56,6 +58,8 @@ type
     property SitesDown: integer read FSitesDown write FSitesDown;
     property QueueSize: integer read FQueueSize write FQueueSize;
     property ActiveTasks: integer read FActiveTasks write FActiveTasks;
+    property DirlistPerSecond: Double read FDirlistPerSecond write FDirlistPerSecond;
+    property DirlistPerSecondMax: Double read FDirlistPerSecondMax write FDirlistPerSecondMax;
   end;
 
   { Site Status Enum }
