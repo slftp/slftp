@@ -18,7 +18,7 @@ System (ApiSystemService)
 - GetVersion: Returns version string.
 - Shutdown: Initiates graceful shutdown.
 - CreateBackup: Creates configuration backup.
-- GetRecentReleases: Body {"Limit": 20}. Returns recent releases.
+- GetRecentReleases: Body {"Limit": 20}. Returns recent releases with site counts (TotalSites, AllowedSites, PresentSites, ExpectedSites, NotAllowedSites).
 - GetReleaseDetails: Body {"PazoId": <id>}. Returns release details.
 - GetAutoStatus: Body {}. Returns global auto status.
 - SetAutoStatus: Body {"Enabled":true|false}. Sets global auto status.
@@ -75,6 +75,10 @@ Stats (ApiStatsService)
 - SetRank: Body {"SiteName":"...", "Section":"...", "Score":<int>}
 - RecalculateRanks: Recalculates all ranks.
 
+Races (ApiRacesService)
+- GetRaces: Body {"Page":<int>, "PageSize":<int>, "SinceUnix":<int>}
+- GetReleaseTransfers: Body {"Release":"...", "Page":<int>, "PageSize":<int>, "SinceUnix":<int>}
+
 IRC (ApiIrcService)
 - GetNetworks: Returns networks.
 - GetNetworkStatus: Body {"NetName":"..."}
@@ -118,12 +122,21 @@ Precatcher (ApiPrecatcherService)
 - TestPrecatcher: Body {"Announce":"..."}
 - ReloadPrecatcher: Reloads config.
 - GetMappings: Returns section mappings.
+- GetHits: Body {"Limit":<int>, "SinceUnix":<int>, "ReleaseName":"", "SiteName":""}. Returns recent precatcher hits.
+
+Simulator (ApiSimulatorService)
+- Simulate: Body {"Section":"...", "ReleaseName":"...", "SimulatePre":true|false}
+- DetectSection: Body {"ReleaseName":"..."}
 
 Issues (ApiIssuesService)
 - GetSummary: Body {"WindowSeconds":<int>}. Returns counts within a time window.
 - GetIssues: Body {"Limit":<int>, "SinceUnix":<int>, "TypesCsv":"..."}. Returns recent issues/events.
+- DeleteIssue: Body {"IssueId":<int>}. Deletes a specific issue by ID.
 - ClearIssues: Clears the in-memory issues buffer.
 
 Logs (ApiLogService)
 - GetLogs: Body {"Lines":<int>}. Returns array of log lines.
 - ClearLogs: Clears log file (not implemented safely yet).
+
+Browser (ApiBrowserService)
+- GetPath: Body {"SiteName":"...", "Path":"/", "ForceRefresh":true|false}

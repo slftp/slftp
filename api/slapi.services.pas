@@ -425,6 +425,11 @@ type
     /// GET /api/precatcher/mappings
     /// Returns section mappings
     function GetMappings: RawJSON;
+
+    /// GET /api/precatcher/hits
+    /// Returns recent precatcher matches (reverse chronological)
+    function GetHits(const Limit: integer; const SinceUnix: Int64;
+      const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
   end;
 
   { Simulator API }
