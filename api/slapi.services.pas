@@ -410,6 +410,10 @@ type
     /// Adds precatcher rule
     function AddPrecatcherRule(const RuleData: RawJSON): integer;
 
+    /// PUT /api/precatcher/{id}
+    /// Updates precatcher rule
+    function UpdatePrecatcherRule(RuleId: integer; const RuleData: RawJSON): boolean;
+
     /// DELETE /api/precatcher/{id}
     /// Deletes precatcher rule
     function DeletePrecatcherRule(RuleId: integer): boolean;

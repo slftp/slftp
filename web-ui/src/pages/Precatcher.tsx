@@ -1,5 +1,5 @@
 import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea } from '@mantine/core';
-import { IconFilter, IconMapPin, IconFlask, IconRefresh, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconFilter, IconMapPin, IconFlask, IconRefresh, IconPlus, IconTrash, IconEdit } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient } from '../api/client';
@@ -56,6 +56,7 @@ export function Precatcher() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string>('rules');
   const [addingRule, setAddingRule] = useState(false);
+  const [editingRule, setEditingRule] = useState<PrecatcherRule | null>(null);
 
   // Add Rule form state
   const [ircAnnounce, setIrcAnnounce] = useState('');
@@ -237,6 +238,53 @@ export function Precatcher() {
         color: 'green',
       });
       setAddingRule(false);
+      setEditingRule(null);
+      setIrcAnnounce('');
+      setNewNetname('');
+      setNewChannel('');
+      setNewBotnicks('');
+      setNewSitename('');
+      setNewEvent('PRE');
+      setNewWords('');
+      setNewSection('');
+      queryClient.invalidateQueries({ queryKey: ['precatcher-rules'] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message,
+        color: 'red',
+      });
+    },
+  });
+
+  const updateRuleMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingRule) return;
+      const payload = {
+        RuleId: editingRule.id,
+        RuleData: {
+          netname: newNetname,
+          channel: newChannel,
+          botnicks: newBotnicks,
+          sitename: newSitename,
+          event: newEvent,
+          words: newWords,
+          section: newSection,
+        },
+      };
+      console.debug('[precatcher] update rule payload', payload);
+      const res = await apiClient.post('/ApiPrecatcherService/UpdatePrecatcherRule', payload);
+      console.debug('[precatcher] update rule response', res.data);
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Updated',
+        message: 'Precatcher rule updated successfully',
+        color: 'green',
+      });
+      setAddingRule(false);
+      setEditingRule(null);
       setIrcAnnounce('');
       setNewNetname('');
       setNewChannel('');
@@ -278,6 +326,18 @@ export function Precatcher() {
       });
     },
   });
+
+  const handleEditRule = (rule: PrecatcherRule) => {
+    setEditingRule(rule);
+    setNewNetname(rule.netname);
+    setNewChannel(rule.channel);
+    setNewBotnicks(rule.botnicks);
+    setNewSitename(rule.sitename);
+    setNewEvent(rule.event);
+    setNewWords(rule.words);
+    setNewSection(rule.section);
+    setAddingRule(true);
+  };
 
   const pickWordsFromRules = (parsed: ParsedAnnounce, rulesList: PrecatcherRule[]) => {
     if (!rulesList || rulesList.length === 0) return '';
@@ -458,13 +518,22 @@ export function Precatcher() {
                       </Table.Td>
                       <Table.Td>{rule.section}</Table.Td>
                       <Table.Td>
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          onClick={() => deleteRuleMutation.mutate(rule.id)}
-                        >
-                          <IconTrash size="1rem" />
-                        </ActionIcon>
+                        <Group gap={4}>
+                          <ActionIcon
+                            variant="light"
+                            color="blue"
+                            onClick={() => handleEditRule(rule)}
+                          >
+                            <IconEdit size="1rem" />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="light"
+                            color="red"
+                            onClick={() => deleteRuleMutation.mutate(rule.id)}
+                          >
+                            <IconTrash size="1rem" />
+                          </ActionIcon>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -579,21 +648,31 @@ export function Precatcher() {
         opened={addingRule}
         onClose={() => {
           setAddingRule(false);
+          setEditingRule(null);
           setIrcAnnounce('');
+          setNewNetname('');
+          setNewChannel('');
+          setNewBotnicks('');
+          setNewSitename('');
+          setNewEvent('PRE');
+          setNewWords('');
+          setNewSection('');
         }}
-        title="Add Catchlist Entry"
+        title={editingRule ? "Edit Catchlist Entry" : "Add Catchlist Entry"}
         centered
         size="lg"
       >
         <Stack gap="md">
-          <Textarea
-            label="IRC Announce (Optional)"
-            value={ircAnnounce}
-            onChange={(e) => handleAnnounceChange(e.currentTarget.value)}
-            placeholder="Paste IRC announce here to auto-fill fields"
-            minRows={2}
-            description="Paste an IRC announce to automatically extract bot nick, event type, and release pattern"
-          />
+          {!editingRule && (
+            <Textarea
+              label="IRC Announce (Optional)"
+              value={ircAnnounce}
+              onChange={(e) => handleAnnounceChange(e.currentTarget.value)}
+              placeholder="Paste IRC announce here to auto-fill fields"
+              minRows={2}
+              description="Paste an IRC announce to automatically extract bot nick, event type, and release pattern"
+            />
+          )}
 
           {(sites && sites.length > 0) ? (
             <Select
@@ -693,11 +772,18 @@ export function Precatcher() {
           />
 
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setAddingRule(false)}>
+            <Button variant="default" onClick={() => {
+              setAddingRule(false);
+              setEditingRule(null);
+            }}>
               Cancel
             </Button>
-            <Button onClick={() => addRuleMutation.mutate()} loading={addRuleMutation.isPending} leftSection={<IconPlus size="1rem" />}>
-              Add
+            <Button 
+              onClick={() => editingRule ? updateRuleMutation.mutate() : addRuleMutation.mutate()} 
+              loading={editingRule ? updateRuleMutation.isPending : addRuleMutation.isPending} 
+              leftSection={editingRule ? <IconEdit size="1rem" /> : <IconPlus size="1rem" />}
+            >
+              {editingRule ? "Update" : "Add"}
             </Button>
           </Group>
         </Stack>

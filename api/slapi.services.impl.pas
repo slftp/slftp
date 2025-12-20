@@ -192,6 +192,7 @@ type
 	  public
 	    function GetPrecatcherRules: RawJSON;
 	    function AddPrecatcherRule(const RuleData: RawJSON): integer;
+	    function UpdatePrecatcherRule(RuleId: integer; const RuleData: RawJSON): boolean;
 	    function DeletePrecatcherRule(RuleId: integer): boolean;
 	    function TestPrecatcher(const Announce: RawUTF8): RawJSON;
 	    function ReloadPrecatcher: boolean;
@@ -3813,6 +3814,163 @@ begin
     begin
       Debug(dpError, 'slapi', Format('[EXCEPTION] AddPrecatcherRule: %s (payload=%s)', [E.Message, RuleData]));
       Result := -1;
+    end;
+  end;
+end;
+
+function TApiPrecatcherServiceImpl.UpdatePrecatcherRule(RuleId: integer; const RuleData: RawJSON): boolean;
+var
+  ruleDoc: variant;
+  netname, channel, botnicks, sitename, event, words, section: string;
+  kb_event: TKBEventType;
+  missingFields: string;
+
+  function GetRuleField(const FieldName: RawUTF8; out FieldValue: string): boolean;
+  var
+    rawValue: variant;
+  begin
+    Result := False;
+    try
+      if FieldName = 'netname' then
+        rawValue := ruleDoc.netname
+      else if FieldName = 'channel' then
+        rawValue := ruleDoc.channel
+      else if FieldName = 'botnicks' then
+        rawValue := ruleDoc.botnicks
+      else if FieldName = 'sitename' then
+        rawValue := ruleDoc.sitename
+      else if FieldName = 'event' then
+        rawValue := ruleDoc.event
+      else if FieldName = 'words' then
+        rawValue := ruleDoc.words
+      else if FieldName = 'section' then
+        rawValue := ruleDoc.section
+      else
+      begin
+        Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Unknown field %s', [UTF8ToString(FieldName)]));
+        Exit;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Missing or invalid field %s (%s)', [UTF8ToString(FieldName), E.Message]));
+        Exit;
+      end;
+    end;
+
+    if VarIsNull(rawValue) or VarIsEmpty(rawValue) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Field %s is null/empty (type=%d)', [UTF8ToString(FieldName), VarType(rawValue)]));
+      Exit;
+    end;
+
+    FieldValue := UTF8ToString(VariantToUTF8(rawValue));
+    Result := True;
+  end;
+begin
+  Result := False;
+  try
+    if (RuleId < 0) or (RuleId >= catcherFile.Count) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid rule ID: %d', [RuleId]));
+      Exit;
+    end;
+
+    Debug(dpSpam, 'slapi', Format('UpdatePrecatcherRule: Incoming payload len=%d', [Length(RuleData)]));
+    if RuleData = '' then
+    begin
+      Debug(dpError, 'slapi', 'UpdatePrecatcherRule: Empty RuleData payload (expected JSON in RuleData param)');
+      Exit;
+    end;
+
+    Debug(dpSpam, 'slapi', Format('UpdatePrecatcherRule: Raw payload=%s', [RuleData]));
+    ruleDoc := _JsonFast(RuleData);
+
+    if VarIsEmpty(ruleDoc) or VarIsNull(ruleDoc) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid JSON payload: %s', [RuleData]));
+      Exit;
+    end;
+
+    // Accept wrapper payload: { "RuleData": { ... } }
+    try
+      if not VarIsEmpty(ruleDoc.RuleData) and not VarIsNull(ruleDoc.RuleData) then
+      begin
+        Debug(dpSpam, 'slapi', 'UpdatePrecatcherRule: Using RuleData wrapper payload');
+        ruleDoc := ruleDoc.RuleData;
+      end
+      else
+        Debug(dpSpam, 'slapi', 'UpdatePrecatcherRule: Using direct payload');
+    except
+      // ignore if no RuleData field
+      Debug(dpSpam, 'slapi', 'UpdatePrecatcherRule: No RuleData wrapper present');
+    end;
+
+    missingFields := '';
+    if not GetRuleField('netname', netname) then
+      missingFields := missingFields + ' netname';
+    if not GetRuleField('channel', channel) then
+      missingFields := missingFields + ' channel';
+    if not GetRuleField('botnicks', botnicks) then
+      missingFields := missingFields + ' botnicks';
+    if not GetRuleField('sitename', sitename) then
+      missingFields := missingFields + ' sitename';
+    if not GetRuleField('event', event) then
+      missingFields := missingFields + ' event';
+    if not GetRuleField('words', words) then
+      missingFields := missingFields + ' words';
+    if not GetRuleField('section', section) then
+      missingFields := missingFields + ' section';
+
+    if missingFields <> '' then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Missing required fields:%s (payload=%s)', [missingFields, RuleData]));
+      Exit;
+    end;
+
+    netname := UpperCase(netname);
+    sitename := UpperCase(sitename);
+    event := UpperCase(event);
+
+    Debug(dpSpam, 'slapi', Format('UpdatePrecatcherRule: Parsed netname=%s channel=%s botnicks=%s sitename=%s event=%s words=%s section=%s',
+      [netname, channel, botnicks, sitename, event, words, section]));
+
+    // Validate event type
+    kb_event := EventStringToTKBEventType(event);
+    if not (kb_event in [kbePRE, kbeADDPRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST]) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid event type: %s (payload=%s)', [event, RuleData]));
+      Exit;
+    end;
+
+    // Validate site exists
+    if FindSiteByName('', sitename) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Site %s not found (payload=%s)', [sitename, RuleData]));
+      Exit;
+    end;
+
+    // Validate channel exists
+    if FindIrcChannelSettings(netname, channel) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Channel %s@%s not found (payload=%s)', [channel, netname, RuleData]));
+      Exit;
+    end;
+
+    // Update rule in catcherFile
+    catcherFile[RuleId] := Format('%s;%s;%s;%s;%s;%s;%s',
+      [netname, channel, botnicks, sitename, event, words, section]);
+
+    // Rebuild precatcher
+    PrecatcherRebuild;
+
+    Debug(dpMessage, 'slapi', Format('UpdatePrecatcherRule: Updated rule #%d for %s@%s -> %s', [RuleId, channel, netname, sitename]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] UpdatePrecatcherRule: %s (payload=%s)', [E.Message, RuleData]));
+      Result := False;
     end;
   end;
 end;

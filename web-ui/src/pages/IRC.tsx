@@ -132,6 +132,7 @@ export function IRC() {
 
   // Rules state
   const [addingRule, setAddingRule] = useState(false);
+  const [editingRule, setEditingRule] = useState<PrecatcherRule | null>(null);
   const [ircAnnounce, setIrcAnnounce] = useState('');
   const [newNetname, setNewNetname] = useState('');
   const [newChannel, setNewChannel] = useState('');
@@ -581,6 +582,53 @@ export function IRC() {
         color: 'green',
       });
       setAddingRule(false);
+      setEditingRule(null);
+      setIrcAnnounce('');
+      setNewNetname('');
+      setNewChannel('');
+      setNewBotnicks('');
+      setNewSitename('');
+      setNewEvent('PRE');
+      setNewWords('');
+      setNewSection('');
+      queryClient.invalidateQueries({ queryKey: ['precatcher-rules'] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message,
+        color: 'red',
+      });
+    },
+  });
+
+  const updateRuleMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingRule) return;
+      const payload = {
+        RuleId: editingRule.id,
+        RuleData: {
+          netname: newNetname,
+          channel: newChannel,
+          botnicks: newBotnicks,
+          sitename: newSitename,
+          event: newEvent,
+          words: newWords,
+          section: newSection,
+        },
+      };
+      console.debug('[precatcher] update rule payload', payload);
+      const res = await apiClient.post('/ApiPrecatcherService/UpdatePrecatcherRule', payload);
+      console.debug('[precatcher] update rule response', res.data);
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Updated',
+        message: 'Precatcher rule updated successfully',
+        color: 'green',
+      });
+      setAddingRule(false);
+      setEditingRule(null);
       setIrcAnnounce('');
       setNewNetname('');
       setNewChannel('');
@@ -676,6 +724,18 @@ export function IRC() {
       color: 'blue',
       autoClose: 2000,
     });
+  };
+
+  const handleEditRule = (rule: PrecatcherRule) => {
+    setEditingRule(rule);
+    setNewNetname(rule.netname);
+    setNewChannel(rule.channel);
+    setNewBotnicks(rule.botnicks);
+    setNewSitename(rule.sitename);
+    setNewEvent(rule.event);
+    setNewWords(rule.words);
+    setNewSection(rule.section);
+    setAddingRule(true);
   };
 
   const deleteRuleMutation = useMutation({
@@ -1090,13 +1150,22 @@ export function IRC() {
                       </Table.Td>
                       <Table.Td>{rule.section}</Table.Td>
                       <Table.Td>
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          onClick={() => deleteRuleMutation.mutate(rule.id)}
-                        >
-                          <IconTrash size="1rem" />
-                        </ActionIcon>
+                        <Group gap={4}>
+                          <ActionIcon
+                            variant="light"
+                            color="blue"
+                            onClick={() => handleEditRule(rule)}
+                          >
+                            <IconEdit size="1rem" />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="light"
+                            color="red"
+                            onClick={() => deleteRuleMutation.mutate(rule.id)}
+                          >
+                            <IconTrash size="1rem" />
+                          </ActionIcon>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -1571,21 +1640,31 @@ export function IRC() {
         opened={addingRule}
         onClose={() => {
           setAddingRule(false);
+          setEditingRule(null);
           setIrcAnnounce('');
+          setNewNetname('');
+          setNewChannel('');
+          setNewBotnicks('');
+          setNewSitename('');
+          setNewEvent('PRE');
+          setNewWords('');
+          setNewSection('');
         }}
-        title="Add Catchlist Entry"
+        title={editingRule ? "Edit Catchlist Entry" : "Add Catchlist Entry"}
         centered
         size="lg"
       >
         <Stack gap="md">
-          <Textarea
-            label="IRC Announce (Optional)"
-            value={ircAnnounce}
-            onChange={(e) => handleAnnounceChange(e.currentTarget.value)}
-            placeholder="Paste IRC announce here to auto-fill fields"
-            minRows={2}
-            description="Paste an IRC announce to automatically extract bot nick, event type, and release pattern"
-          />
+          {!editingRule && (
+            <Textarea
+              label="IRC Announce (Optional)"
+              value={ircAnnounce}
+              onChange={(e) => handleAnnounceChange(e.currentTarget.value)}
+              placeholder="Paste IRC announce here to auto-fill fields"
+              minRows={2}
+              description="Paste an IRC announce to automatically extract bot nick, event type, and release pattern"
+            />
+          )}
 
           {(sites && sites.length > 0) ? (
             <Select
@@ -1685,11 +1764,18 @@ export function IRC() {
           />
 
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setAddingRule(false)}>
+            <Button variant="default" onClick={() => {
+              setAddingRule(false);
+              setEditingRule(null);
+            }}>
               Cancel
             </Button>
-            <Button onClick={() => addRuleMutation.mutate()} loading={addRuleMutation.isPending} leftSection={<IconPlus size="1rem" />}>
-              Add
+            <Button 
+              onClick={() => editingRule ? updateRuleMutation.mutate() : addRuleMutation.mutate()} 
+              loading={editingRule ? updateRuleMutation.isPending : addRuleMutation.isPending} 
+              leftSection={editingRule ? <IconEdit size="1rem" /> : <IconPlus size="1rem" />}
+            >
+              {editingRule ? "Update" : "Add"}
             </Button>
           </Group>
         </Stack>
