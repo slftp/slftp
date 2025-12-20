@@ -37,6 +37,10 @@ type
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  
+  // Rate tracking
+  fLastDirlistCheckTime: TDateTime;
+  fLastDirlistCount: Integer;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -89,6 +93,8 @@ procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 var
   QueueStatUpdateDateTime: TDateTime;
   GlDirlistCompletedCounter: TIdThreadSafeInt32;
+  GlDirlistRate: Double;
+  GlDirlistRateMax: Double;
 
 implementation
 
@@ -1511,6 +1517,21 @@ begin
   while ((not slshutdown) and (not Terminated)) do
   begin
     queue_last_run := Now();
+
+    // Calculate dirlist rate
+    if fLastDirlistCheckTime = 0 then
+    begin
+      fLastDirlistCheckTime := queue_last_run;
+      fLastDirlistCount := GlDirlistCompletedCounter.Value;
+    end
+    else if SecondsBetween(queue_last_run, fLastDirlistCheckTime) >= 1 then
+    begin
+      GlDirlistRate := (GlDirlistCompletedCounter.Value - fLastDirlistCount) / SecondsBetween(queue_last_run, fLastDirlistCheckTime);
+      if GlDirlistRate > GlDirlistRateMax then
+        GlDirlistRateMax := GlDirlistRate;
+      fLastDirlistCount := GlDirlistCompletedCounter.Value;
+      fLastDirlistCheckTime := queue_last_run;
+    end;
 
     if fSite = nil then
       fSite := FindSiteByName('', fSiteName);
