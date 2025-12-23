@@ -2,8 +2,13 @@ slftp Web UI Quickstart
 Note: Web UI is early beta.
 
 Prerequisites
-- Node.js and npm installed (for building static assets).
+- Node.js 14+ (18+ recommended) and npm installed (for building static assets).
 - A running slftp instance with API enabled (see API_HOWTO).
+
+Update Node.js (quick)
+- Check version: node -v
+- If you use nvm (Linux/Mac): nvm install 18 && nvm use 18
+- Otherwise, install a newer Node.js from your package manager or https://nodejs.org
 
 Build Web UI
 cd web-ui
