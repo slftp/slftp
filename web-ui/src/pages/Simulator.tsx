@@ -117,10 +117,10 @@ export function Simulator() {
   const routes = useMemo(() => parseMaybeJsonArray<SimulatorRouteResult>(sim?.Routes), [sim?.Routes]);
 
   const recentReleases = recentReleasesData || [];
-  const releaseOptions = useMemo(() =>
-    recentReleases.map(r => r.ReleaseName),
-    [recentReleases]
-  );
+  const releaseOptions = useMemo(() => {
+    const names = recentReleases.map(r => r.ReleaseName);
+    return [...new Set(names)];
+  }, [recentReleases]);
 
   const handleReleaseSelect = (value: string) => {
     const release = recentReleases.find(r => r.ReleaseName === value);
