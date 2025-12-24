@@ -100,6 +100,18 @@ begin
         // !bnctest on already online site - test ALL BNCs sequentially
         Debug(dpMessage, section, '[BNCTEST] Testing all BNCs for site: %s', [s.site.Name]);
 
+        if s.site.PermDown then
+        begin
+          Debug(dpMessage, section, '[BNCTEST] Skipping permdown site: %s', [s.site.Name]);
+          if netname <> '' then
+            irc_addtext(self, '<b>%s</b>: Site is set to permdown, skipping BNC test', [s.site.Name]);
+          Result := s.Login(False);
+          if Result then
+            s.Status := ssOnline;
+          ready := True;
+          exit;
+        end;
+
         // Send initial progress message (only for manual !bnctest, not for autobnctest)
         if netname <> '' then
           irc_addtext(self, '<b>%s</b>: Testing BNCs, this may take a moment...', [s.site.Name]);
@@ -152,6 +164,7 @@ begin
             end;
 
             Inc(j);
+            Sleep(500);
           end;
 
           // Sort by response time (fastest first)
