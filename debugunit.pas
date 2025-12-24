@@ -213,7 +213,9 @@ begin
       if glFlushLines then
       begin
         Flush(f); // flush TextFile buffer
+        {$IFNDEF MSWINDOWS}
         FileFlush(TTextRec(f).Handle); // ensure kernel flush to avoid truncated lines
+        {$ENDIF}
       end;
     except
       on e: Exception do

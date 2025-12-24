@@ -194,7 +194,7 @@ function TSlftpApiServer.ServeIndexHtml(Ctxt: THttpServerRequestAbstract): cardi
 var
   FileName: TFileName;
 begin
-  FileName := ExtractFilePath(ParamStr(0)) + 'web' + DirectorySeparator + 'index.html';
+  FileName := ExtractFilePath(ParamStr(0)) + 'web' + PathDelim + 'index.html';
   if FileExists(FileName) then
   begin
     Ctxt.OutContent := StringFromFile(FileName);
@@ -326,7 +326,7 @@ begin
   FileName := normalizedPath;
   
   if DirectoryExists(FileName) then
-    FileName := FileName + DirectorySeparator + 'index.html';
+    FileName := FileName + PathDelim + 'index.html';
 
   if FileExists(FileName) then
   begin
@@ -340,7 +340,7 @@ begin
   begin
       // Fallback for SPA (Single Page Application) routing:
       // If file not found and it's not an API call, serve index.html
-      FileName := ExtractFilePath(ParamStr(0)) + 'web' + DirectorySeparator + 'index.html';
+      FileName := ExtractFilePath(ParamStr(0)) + 'web' + PathDelim + 'index.html';
       if FileExists(FileName) then
       begin
         Call.OutBody := StringFromFile(FileName);
