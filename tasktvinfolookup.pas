@@ -34,7 +34,7 @@ implementation
 
 uses
   DateUtils, Contnrs, SysUtils, queueunit, debugunit, configunit, mystrings, kb.releaseinfo,
-  kb, http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
+  kb, http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit, mormot.core.base, mormot.core.unicode;
 
 const
   section = 'tasktvinfo';
@@ -635,7 +635,7 @@ begin
 
   try
     irc_Addtext_by_key('ADDTVMAZEECHO', Format('%s %s %s', [config.ReadString(section, 'addcmd', '!addtvmaze'), mainpazo.rls.rlsname, db_tvinfo.tvmaze_id]));
-    db_tvinfo.Save;
+    dbtvinfo_AddOrUpdate(mainpazo.rls.rlsname, StringToUTF8(tvmaz));
     db_tvinfo.SetTVDbRelease(tr);
   except
     on e: Exception do
@@ -731,7 +731,10 @@ begin
   tvdb := parseTVMazeInfos(response, sname, url);
   try
     if tvdb <> nil then
-      saveTVInfos(tvmaze_id, tvdb, rls, False);
+    begin
+      irc_Addtext_by_key('ADDTVMAZEECHO', Format('%s %s %s', [config.ReadString(section, 'addcmd', '!addtvmaze'), rls, tvmaze_id]));
+      dbtvinfo_AddOrUpdate(rls, StringToUTF8(response));
+    end;
   finally
     tvdb.free;
   end;
