@@ -37,6 +37,7 @@ uses
   {$ELSE}
     GUITestRunner,
   {$ENDIF}
+  mormot.db.raw.sqlite3.static,
   Classes, SysUtils,
   mrdohutils,
   slftpUnitTestsSetup,
@@ -67,7 +68,8 @@ uses
   precatcherTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  statsunitTests;
 
 var
   filecheck: String;

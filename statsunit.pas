@@ -1,9 +1,10 @@
 unit statsunit;
 
 interface
-
+ 
 uses
-  Classes, mormot.orm.core, mormot.core.base, mormot.orm.base;
+  Classes, mormot.orm.core, mormot.core.base, mormot.orm.base, mormot.rest.sqlite3,
+  Generics.Collections, slcriticalsection2;
 
 type
   TSQLSitesRecord = class(TOrmNoCase)
@@ -98,23 +99,26 @@ procedure StatRaces(const aNetname, aChannel, aSitename, aPeriod: String; const 
   @param(aFileName filename including fileextension) }
 procedure doStatsBackup(const aPath, aFileName: String);
 
+var
+  glStatsDb: TSQLRestClientDB; //< Rest Client for all database interactions
+  glStatsModel: TSQLModel; //< SQL ORM model for stats database
+  glStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
+  glStatRaceLock: TSlCriticalSection2; //< Lock for the race stats queue
+  glDeleteAfterDays: integer;
+
 implementation
 
 uses
-  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, slcriticalsection2, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3;
+  SysUtils, Contnrs, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, DateUtils, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3,
+  mormot.core.data, mormot.core.json, mormot.core.variants;
 
 const
   section = 'stats';
 
 var
-  ORMStatsDB: TSQLRestClientDB; //< Rest Client for all database interactions
-  ORMStatsModel: TSQLModel; //< SQL ORM model for stats database
-  glStatRaceQueue: TQueue<TStatRaceRecord>; //< StatRace records to be written into the DB
-  glStatRaceLock: TSlCriticalSection2; //< Lock for the race stats queue
   glLastStatsCleanTime: TDateTime;  //< When was the stats DB last cleaned from old entries
   glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
   glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
-  glDeleteAfterDays: integer;
 
 function _GetMinFilesize: Int64; inline;
 begin
@@ -132,9 +136,9 @@ begin
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
   glDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
 
-  ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
+  glStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
-    ORMStatsDB := CreateORMSQLite3DB(ORMStatsModel, fDBName, '');
+    glStatsDb := CreateORMSQLite3DB(glStatsModel, fDBName, '');
     glStatRaceQueue := TQueue<TStatRaceRecord>.Create;
     glStatRaceLock := TSlCriticalSection2.Create('glStatRaceLock');
     TWriteStatsToDBThread.Create;
@@ -150,18 +154,18 @@ end;
 procedure statsUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  if Assigned(ORMStatsDB) then
+  if Assigned(glStatsDb) then
   begin
     glWriteStatsThreadShouldStop := True;
 
     while glTWriteStatsThreadRunning do
       Sleep(100);
 
-    FreeAndNil(ORMStatsDB);
+    FreeAndNil(glStatsDb);
   end;
-  if Assigned(ORMStatsModel) then
+  if Assigned(glStatsModel) then
   begin
-    ORMStatsModel.Free;
+    FreeAndNil(glStatsModel);
   end;
   glStatRaceLock.Free;
   glStatRaceQueue.Free;
@@ -170,7 +174,7 @@ end;
 
 function IsStatsDatabaseActive: Boolean;
 begin
-  if (ORMStatsDB = nil) then
+  if (glStatsDb = nil) then
     Result := False
   else
     Result := True;
@@ -182,17 +186,26 @@ var
   fSectionRec: TSQLSectionRecord;
   fFileInfoRec: TSQLFileInfoRecord;
   fStatsRec: TSQLStatsRecord;
+  fSrc, fDst, fSection, fRls, fFile: RawUTF8;
 begin
+  if glStatsDb = nil then exit;
+
+  fSrc := StringToUTF8(aStatRaceRecord.FSrcSite);
+  fDst := StringToUTF8(aStatRaceRecord.FDstSite);
+  fSection := StringToUTF8(aStatRaceRecord.FSection);
+  fRls := StringToUTF8(aStatRaceRecord.FRls);
+  fFile := StringToUTF8(aStatRaceRecord.FFilename);
+
   // we only need the ID
-  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aStatRaceRecord.FSrcSite], 'ID');
-  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Name = ?', [aStatRaceRecord.FDstSite], 'ID');
-  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'Section = ?', [aStatRaceRecord.FSection], 'ID');
+  fSrcSiteRec := TSQLSitesRecord.CreateAndFillPrepare(glStatsDb.Client, 'Name = ?', [fSrc]);
+  fDstSiteRec := TSQLSitesRecord.CreateAndFillPrepare(glStatsDb.Client, 'Name = ?', [fDst]);
+  fSectionRec := TSQLSectionRecord.CreateAndFillPrepare(glStatsDb.Client, 'Section = ?', [fSection]);
   try
     if not fSrcSiteRec.FillOne then
     begin
-      fSrcSiteRec.Name := StringToUTF8(aStatRaceRecord.FSrcSite);
+      fSrcSiteRec.Name := fSrc;
 
-      if ORMStatsDB.Add(fSrcSiteRec, True, False) = 0 then
+      if glStatsDb.Add(fSrcSiteRec, True, False) = 0 then
       begin
         Debug(dpError, section, '[statsProcessRace] Could not add srcsite %s to database!', [aStatRaceRecord.FSrcSite]);
         exit;
@@ -201,9 +214,9 @@ begin
 
     if not fDstSiteRec.FillOne then
     begin
-      fDstSiteRec.Name := StringToUTF8(aStatRaceRecord.FDstSite);
+      fDstSiteRec.Name := fDst;
 
-      if ORMStatsDB.Add(fDstSiteRec, True, False) = 0 then
+      if glStatsDb.Add(fDstSiteRec, True, False) = 0 then
       begin
         Debug(dpError, section, '[statsProcessRace] Could not add dstsite %s to database!', [aStatRaceRecord.FDstSite]);
         exit;
@@ -212,9 +225,9 @@ begin
 
     if not fSectionRec.FillOne then
     begin
-      fSectionRec.Section := StringToUTF8(aStatRaceRecord.FSection);
+      fSectionRec.Section := fSection;
 
-      if ORMStatsDB.Add(fSectionRec, True, False) = 0 then
+      if glStatsDb.Add(fSectionRec, True, False) = 0 then
       begin
         Debug(dpError, section, '[statsProcessRace] Could not add section %s to database!', [aStatRaceRecord.FSection]);
         exit;
@@ -222,16 +235,16 @@ begin
     end;
 
     // we only need the ID
-    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'ReleaseName = ? AND FileName = ?', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename], 'ID');
+    fFileInfoRec := TSQLFileInfoRecord.CreateAndFillPrepare(glStatsDb.Client, 'ReleaseName = ? AND FileName = ?', [fRls, fFile]);
     try
       if not fFileInfoRec.FillOne then
       begin
-        fFileInfoRec.ReleaseName := StringToUTF8(aStatRaceRecord.FRls);
-        fFileInfoRec.FileName := StringToUTF8(aStatRaceRecord.FFilename);
+        fFileInfoRec.ReleaseName := fRls;
+        fFileInfoRec.FileName := fFile;
         fFileInfoRec.FileSize := aStatRaceRecord.FFilesize;
         fFileInfoRec.TimeStamp := Now;
 
-        if ORMStatsDB.Add(fFileInfoRec, True, False) = 0 then
+        if glStatsDb.Add(fFileInfoRec, True, False) = 0 then
         begin
           Debug(dpError, section, '[statsProcessRace] Could not add %s file info for %s (%d) to database!', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename, aStatRaceRecord.FFilesize]);
           exit;
@@ -239,7 +252,7 @@ begin
       end;
 
       // prevent duplicate entries
-      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.ID, fDstSiteRec.ID, fSectionRec.ID, fFileInfoRec.ID], 'ID');
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(glStatsDb.Client, 'SrcSiteRec = ? AND DstSiteRec = ? AND SectionRec = ? AND FileInfoRec = ?', [fSrcSiteRec.ID, fDstSiteRec.ID, fSectionRec.ID, fFileInfoRec.ID]);
       try
         if not fStatsRec.FillOne then
         begin
@@ -248,7 +261,7 @@ begin
           fStatsRec.SectionRec := fSectionRec.AsTOrm;
           fStatsRec.FileInfoRec := fFileInfoRec.AsTOrm;
 
-          if ORMStatsDB.Add(fStatsRec, True, False) = 0 then
+          if glStatsDb.Add(fStatsRec, True, False) = 0 then
           begin
             Debug(dpError, section, '[statsProcessRace] Could not add stats record for %s %s (%d) to database!', [aStatRaceRecord.FRls, aStatRaceRecord.FFilename, aStatRaceRecord.FFilesize]);
             exit;
@@ -313,6 +326,7 @@ var
   fFileInfoIDs: TList<Integer>;
   fItem, fID: Integer;
   fOnlyUsedForDeletedSites: Boolean;
+  fSite: RawUTF8;
 begin
   Result := False;
 
@@ -322,9 +336,11 @@ begin
     exit;
   end;
 
+  fSite := StringToUTF8(aSitename);
+
   { delete sitename from site table }
   try
-    if not ORMStatsDB.Delete(TSQLSitesRecord, 'Name = ?', [aSitename]) then
+    if not glStatsDb.Delete(TSQLSitesRecord, 'Name = ?', [fSite]) then
     begin
       Debug(dpError, section, '[RemoveStats] Could not remove %s!', [aSitename]);
       exit;
@@ -341,7 +357,7 @@ begin
   fFileInfoIDs := TList<Integer>.Create;
   try
     // get all file IDs where src and dst are already deleted
-    fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'SrcSiteRec = ? AND DstSiteRec = ?', [], [0, 0]);
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(glStatsDb.Client, 'SrcSiteRec = ? AND DstSiteRec = ?', [0, 0]);
     try
       while fStatsRec.FillOne do
       begin
@@ -358,7 +374,7 @@ begin
       fOnlyUsedForDeletedSites := True;
 
       // try to get entry which use the same FileInfo Record but at least one site is still there
-      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(ORMStatsDB.Client, '(SrcSiteRec <> ? OR DstSiteRec <> ?) AND FileInfoRec = ?', [], [0, 0, fItem]);
+      fStatsRec := TSQLStatsRecord.CreateAndFillPrepare(glStatsDb.Client, '(SrcSiteRec <> ? OR DstSiteRec <> ?) AND FileInfoRec = ?', [0, 0, fItem]);
       try
         if fStatsRec.FillOne then
         begin
@@ -371,7 +387,7 @@ begin
       // remove items from db which are used only for deleted sites
       if fOnlyUsedForDeletedSites then
       begin
-        if not ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fItem]) then
+        if not glStatsDb.Delete(TSQLFileInfoRecord, fItem) then
         begin
           Debug(dpError, Section, '[RemoveStats] Could not delete fileinfo ID %d!', [fItem]);
           Exit;
@@ -382,7 +398,7 @@ begin
     fFileInfoIDs.Free;
   end;
 
-  if not ORMStatsDB.Delete(TSQLStatsRecord, 'SrcSiteRec = ? AND DstSiteRec = ? AND FileInfoRec = ?', [0, 0, 0]) then
+  if not glStatsDb.Delete(TSQLStatsRecord, 'SrcSiteRec = ? AND DstSiteRec = ? AND FileInfoRec = ?', [0, 0, 0]) then
   begin
     Debug(dpError, section, '[RemoveStats] Could not delete stats record!');
     exit;
@@ -436,12 +452,14 @@ var
   procedure GetTransferStats(const aSitename, aSQLPeriod: String; out aFileSizeStats: TFileSizeStats);
   var
     fStatsRec: TSQLStatsRecord;
+    fSite: RawUTF8;
   begin
     InitValues(aFileSizeStats);
+    fSite := StringToUTF8(aSitename);
 
-    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client, 
-      '(DstSiteRec.Name = ? OR SrcSiteRec.Name = ?) AND timestamp > date(?, ?)',
-      [], [aSitename, aSitename, 'now', aSQLPeriod]);
+    fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(glStatsDb.Client, 
+      '(DstSiteRec.Name = ? OR SrcSiteRec.Name = ?) AND FileInfoRec.TimeStamp > date(?, ?)',
+      [fSite, fSite, 'now', StringToUTF8(aSQLPeriod)], []);
     try
       while fStatsRec.FillOne do
       begin
@@ -464,105 +482,77 @@ var
   procedure GetDetailedTransferStats(const aNetname, aChannel, aSitename, aSQLPeriod: String; const aDirection: TStatsDirection);
   var
     fStatsRec: TSQLStatsRecord;
-    fSiteInfosList: TDictionary<String, TFileSizeStats>;
-    fFileSizeStats: TFileSizeStats;
-    fListItem: TPair<String, TFileSizeStats>;
-    fSitename, fSizeUnit: String;
+    fSite: RawUTF8;
+    fDoc: variant;
+    fGroupKey: RawUTF8;
+    fSizeUnit: string;
     fSize: Double;
+    fCount: integer;
+    fLoopIdx: integer;
   begin
-    fSiteInfosList := TDictionary<String, TFileSizeStats>.Create;
-    try
-      case aDirection of
-        stFrom:
-          begin
-            // input site is source
-            fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client,
-              'SrcSiteRec.Name = ? AND timestamp > date(?, ?)',
-              [], [aSitename, 'now', aSQLPeriod]);
-            try
-              while fStatsRec.FillOne do
-              begin
-                if aSitename = UTF8ToString(fStatsRec.SrcSiteRec.Name) then
-                begin
-                  fSitename := UTF8ToString(fStatsRec.DstSiteRec.Name);
-                  if not fSiteInfosList.ContainsKey(fSitename) then
-                  begin
-                    InitValues(fFileSizeStats);
+    fSite := StringToUTF8(aSitename);
+    TDocVariant.New(fDoc);
 
-                    fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
-                    Inc(fFileSizeStats.FilesCountOut);
-
-                    fSiteInfosList.Add(fSitename, fFileSizeStats);
-                  end
-                  else
-                  begin
-                    fFileSizeStats := fSiteInfosList.Items[fSitename];
-
-                    fFileSizeStats.SizeOut := fFileSizeStats.SizeOut + fStatsRec.FileInfoRec.FileSize;
-                    Inc(fFileSizeStats.FilesCountOut);
-
-                    fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
-                  end;
-                end;
-              end;
-            finally
-              fStatsRec.Free;
-            end;
-
-            for fListItem in fSiteInfosList do
+    case aDirection of
+      stFrom:
+        begin
+          // input site is source
+          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(glStatsDb.Client,
+            'SrcSiteRec.Name = ? AND FileInfoRec.TimeStamp > date(?, ?)',
+            [fSite, 'now', StringToUTF8(aSQLPeriod)], []);
+          try
+            while fStatsRec.FillOne do
             begin
-              fSize := fListItem.Value.SizeOut;
-              RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
-              irc_addtext(aNetname, aChannel, Format('  <b>to</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountOut]));
+              fGroupKey := fStatsRec.DstSiteRec.Name;
+              if not fDoc.Exists(fGroupKey) then
+                fDoc.AddValue(fGroupKey, _Obj(['size', 0, 'count', 0]));
+              
+              fDoc.Value(fGroupKey).size := fDoc.Value(fGroupKey).size + fStatsRec.FileInfoRec.FileSize;
+              fDoc.Value(fGroupKey).count := fDoc.Value(fGroupKey).count + 1;
             end;
+          finally
+            fStatsRec.Free;
           end;
 
-        stTo:
+          for fLoopIdx := 0 to DocVariantData(fDoc)^.Count - 1 do
           begin
-            // input site is destination
-            fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client,
-              'DstSiteRec.Name = ? AND timestamp > date(?, ?)',
-              [], [aSitename, 'now', aSQLPeriod]);
-            try
-              while fStatsRec.FillOne do
-              begin
-                if aSitename = UTF8ToString(fStatsRec.DstSiteRec.Name) then
-                begin
-                  fSitename := UTF8ToString(fStatsRec.SrcSiteRec.Name);
-                  if not fSiteInfosList.ContainsKey(fSitename) then
-                  begin
-                    InitValues(fFileSizeStats);
-
-                    fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
-                    Inc(fFileSizeStats.FilesCountIn);
-
-                    fSiteInfosList.Add(fSitename, fFileSizeStats);
-                  end
-                  else
-                  begin
-                    fFileSizeStats := fSiteInfosList.Items[fSitename];
-
-                    fFileSizeStats.SizeIn := fFileSizeStats.SizeIn + fStatsRec.FileInfoRec.FileSize;
-                    Inc(fFileSizeStats.FilesCountIn);
-
-                    fSiteInfosList.AddOrSetValue(fSitename, fFileSizeStats);
-                  end;
-                end;
-              end;
-            finally
-              fStatsRec.Free;
-            end;
-
-            for fListItem in fSiteInfosList do
-            begin
-              fSize := fListItem.Value.SizeIn;
-              RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
-              irc_addtext(aNetname, aChannel, Format('  <b>from</b> %s: %.2f %s (%d files)', [fListItem.Key, fSize, fSizeUnit, fListItem.Value.FilesCountIn]));
-            end;
+            fGroupKey := DocVariantData(fDoc)^.Names[fLoopIdx];
+            fSize := fDoc.Value(fGroupKey).size;
+            fCount := fDoc.Value(fGroupKey).count;
+            RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
+            irc_addtext(aNetname, aChannel, Format('  <b>to</b> %s: %.2f %s (%d files)', [UTF8ToString(fGroupKey), fSize, fSizeUnit, fCount]));
           end;
-      end;
-    finally
-      fSiteInfosList.Free;
+        end;
+
+      stTo:
+        begin
+          // input site is destination
+          fStatsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(glStatsDb.Client,
+            'DstSiteRec.Name = ? AND FileInfoRec.TimeStamp > date(?, ?)',
+            [fSite, 'now', StringToUTF8(aSQLPeriod)], []);
+          try
+            while fStatsRec.FillOne do
+            begin
+              fGroupKey := fStatsRec.SrcSiteRec.Name;
+              if not fDoc.Exists(fGroupKey) then
+                fDoc.AddValue(fGroupKey, _Obj(['size', 0, 'count', 0]));
+              
+              fDoc.Value(fGroupKey).size := fDoc.Value(fGroupKey).size + fStatsRec.FileInfoRec.FileSize;
+              fDoc.Value(fGroupKey).count := fDoc.Value(fGroupKey).count + 1;
+            end;
+          finally
+            fStatsRec.Free;
+          end;
+
+          for fLoopIdx := 0 to DocVariantData(fDoc)^.Count - 1 do
+          begin
+            fGroupKey := DocVariantData(fDoc)^.Names[fLoopIdx];
+            fSize := fDoc.Value(fGroupKey).size;
+            fCount := fDoc.Value(fGroupKey).count;
+            RecalcSizeValueAndUnit(fSize, fSizeUnit, 0);
+            irc_addtext(aNetname, aChannel, Format('  <b>from</b> %s: %.2f %s (%d files)', [UTF8ToString(fGroupKey), fSize, fSizeUnit, fCount]));
+          end;
+        end;
     end;
   end;
 
@@ -636,8 +626,8 @@ begin
     exit;
   end;
 
-  if ORMStatsDB.DB.BackupBackground(aPath + aFileName, -1, 0, nil) then
-    ORMStatsDB.DB.BackupBackgroundWaitUntilFinished(5);
+  if glStatsDb.DB.BackupBackground(aPath + aFileName, -1, 0, nil) then
+    glStatsDb.DB.BackupBackgroundWaitUntilFinished(5);
 end;
 
 constructor TWriteStatsToDBThread.Create;
@@ -689,18 +679,18 @@ begin
         Debug(dpSpam, Section, Format('Write %d stats entries to the DB', [fStatRaceQueue.Count]));
 
       try
-        ORMStatsDB.DB.TransactionBegin;
+        glStatsDb.DB.TransactionBegin;
         try
           while fStatRaceQueue.Count > 0 do
           begin
             writeStatsToDB(fStatRaceQueue.Dequeue);
           end;
-          ORMStatsDB.DB.Commit;
+          glStatsDb.DB.Commit;
         except
           on e: Exception do
           begin
             Debug(dpError, Section, Format('[EXCEPTION] WriteRaceStats DB: %s', [e.Message]));
-            ORMStatsDB.DB.Rollback;
+            glStatsDb.DB.Rollback;
           end;
         end;
       finally
@@ -724,22 +714,23 @@ begin
           fCleanDate := IncDay(Today(), glDeleteAfterDays * -1);
 
           // only delete 1000 at a time
-          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
+          fRec := TSQLFileInfoRecord.CreateAndFillPrepare(glStatsDb.Client, 'TimeStamp < ?', [DateToIso8601(fCleanDate, False)]);
           try
-            ORMStatsDB.DB.TransactionBegin;
+            glStatsDb.DB.TransactionBegin;
             try
               while not glWriteStatsThreadShouldStop and fRec.FillOne do
               begin
-                ORMStatsDB.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
-                ORMStatsDB.Delete(TSQLFileInfoRecord, 'ID = ?', [fRec.ID]);
+                glStatsDb.Delete(TSQLStatsRecord, 'FileInfoRec = ?', [fRec.ID]);
+                glStatsDb.Delete(TSQLFileInfoRecord, fRec.ID);
                 i := i + 1;
+                if i >= 1000 then break;
               end;
-              ORMStatsDB.DB.Commit;
+              glStatsDb.DB.Commit;
             except
               on e: Exception do
               begin
                 Debug(dpError, Section, Format('[EXCEPTION] Clean Stats DB (rollback): %s', [e.Message]));
-                ORMStatsDB.DB.Rollback;
+                glStatsDb.DB.Rollback;
               end
             end;
           finally
@@ -751,7 +742,7 @@ begin
           begin
             glLastStatsCleanTime := Today();
             Debug(dpSpam, Section, 'Finished cleaning old stats for today, now do "pragma optimize"');
-            ORMStatsDB.Execute('pragma optimize;');
+            glStatsDb.Execute('pragma optimize;');
           end
           else
             Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, glDeleteAfterDays]));
