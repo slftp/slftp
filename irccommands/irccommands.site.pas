@@ -63,7 +63,7 @@ begin
   if (s.WorkingStatus = sstMarkedAsDownByUser) then
     s.WorkingStatus := sstUnknown;
 
-  l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
+  l := TLoginTask.Create(Netname, Channel, s.Name, kill, False, True);
   if tn <> nil then
     tn.AddTask(l);
 
