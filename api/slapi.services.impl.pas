@@ -37,10 +37,11 @@ uses
   mainthread,
 	  debugunit,
 	  configunit,
-	  routeconfig,
-	  delphimd5,
-	  RegExpr,
-	  slcriticalsection2;
+  routeconfig,
+  delphimd5,
+  RegExpr,
+  slcriticalsection2,
+  globals;
 
 type
   { System Service Implementation }
@@ -230,6 +231,32 @@ type
     function GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
   end;
 
+  { IMDB Service Implementation }
+  TApiImdbServiceImpl = class(TInjectableObjectRest, IApiImdbService)
+  public
+    function GetAllImdbRecords(out Response: TApiImdbRecordList): boolean;
+    function GetImdbRecordById(const ImdbId: RawUTF8; out Response: TApiImdbRecord): boolean;
+    function CreateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8;
+                              out NewId: RawUTF8): boolean;
+    function UpdateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8): boolean;
+    function DeleteImdbRecord(const ImdbId: RawUTF8): boolean;
+  end;
+
+  { TV Service Implementation }
+  TApiTVServiceImpl = class(TInjectableObjectRest, IApiTVService)
+  public
+    function GetAllTVRecords(out Response: TApiTVRecordList): boolean;
+    function GetTVRecordById(const TVMazeId: RawUTF8; out Response: TApiTVRecord): boolean;
+    function CreateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer;
+                            out NewId: RawUTF8): boolean;
+    function UpdateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer): boolean;
+    function DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
+  end;
+
 implementation
 
 uses
@@ -242,7 +269,14 @@ uses
   SyncObjs,
   IdStack,
   irccommands.irc,
-  dirlist.helpers;
+  dirlist.helpers,
+  dbaddimdb,
+  dbtvinfo,
+  dbhandler,
+  mormot.orm.core,
+  mormot.orm.base,
+  mormot.db.raw.sqlite3,
+  mormot.rest.sqlite3;
 
 {$I ../slftp.inc}
 
@@ -255,6 +289,9 @@ const
 var
   GlApiTaskToPazoId: TDictionary<Int64, Integer>;
   GlApiTaskToPazoIdLock: TSLCriticalSection2;
+
+  TVDatabase: TSQLRestClientDB;
+  TVDBModel: TSQLModel;
 
 type
   TSiteCreditsCacheEntry = record
@@ -4319,6 +4356,419 @@ begin
   end;
 end;
 
+{ TApiImdbServiceImpl }
+
+function TApiImdbServiceImpl.GetAllImdbRecords(out Response: TApiImdbRecordList): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+  recordsArray: TDocVariantData;
+  recordItem: variant;
+begin
+  Result := False;
+  Response := TApiImdbRecordList.Create;
+
+  try
+    recordsArray.InitFast(dvArray);
+
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Response.Total := 0;
+      Response.Records := '[]';
+      Result := True;
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, '1=1 ORDER BY UpdatedTime DESC', [], []);
+    try
+      while dbRecord.FillOne do
+      begin
+        TDocVariant.New(recordItem);
+        TDocVariantData(recordItem).AddValue('ImdbId', dbRecord.IMDbID);
+        TDocVariantData(recordItem).AddValue('Title', dbRecord.IMDbTitle);
+        TDocVariantData(recordItem).AddValue('Year', dbRecord.IMDbYear);
+        TDocVariantData(recordItem).AddValue('Rating', dbRecord.IMDbRating);
+        TDocVariantData(recordItem).AddValue('Votes', dbRecord.IMDbVotes);
+        TDocVariantData(recordItem).AddValue('Genres', dbRecord.IMDbGenres);
+        TDocVariantData(recordItem).AddValue('Countries', dbRecord.IMDbCountries);
+        TDocVariantData(recordItem).AddValue('Languages', dbRecord.IMDbLanguages);
+        TDocVariantData(recordItem).AddValue('ImdbType', dbRecord.IMDbType);
+        TDocVariantData(recordItem).AddValue('CreationTime', DateTimeToUnix(dbRecord.CreationTime, False));
+        TDocVariantData(recordItem).AddValue('UpdatedTime', DateTimeToUnix(dbRecord.UpdatedTime, False));
+        recordsArray.AddItem(recordItem);
+      end;
+    finally
+      dbRecord.Free;
+    end;
+
+    Response.Total := recordsArray.Count;
+    Response.Records := recordsArray.ToJSON;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetAllImdbRecords: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.GetImdbRecordById(const ImdbId: RawUTF8; out Response: TApiImdbRecord): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+begin
+  Result := False;
+  Response := TApiImdbRecord.Create;
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    try
+      if dbRecord.FillOne then
+      begin
+        Response.ImdbId := dbRecord.IMDbID;
+        Response.Title := dbRecord.IMDbTitle;
+        Response.Year := dbRecord.IMDbYear;
+        Response.Rating := dbRecord.IMDbRating;
+        Response.Votes := dbRecord.IMDbVotes;
+        Response.Genres := dbRecord.IMDbGenres;
+        Response.Countries := dbRecord.IMDbCountries;
+        Response.Languages := dbRecord.IMDbLanguages;
+        Response.ImdbType := dbRecord.IMDbType;
+        Response.CreationTime := dbRecord.CreationTime;
+        Response.UpdatedTime := dbRecord.UpdatedTime;
+        Result := True;
+      end;
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetImdbRecordById: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.CreateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                                              const Genres, Countries, Languages, ImdbType: RawUTF8;
+                                              out NewId: RawUTF8): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+  currentTime: TDateTime;
+  titleCleaned: string;
+begin
+  Result := False;
+  NewId := '';
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    // Check if record with this IMDB ID already exists
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    if dbRecord.FillOne then
+    begin
+      dbRecord.Free;
+      Debug(dpError, section, Format('[IMDB API] Record with IMDB ID %s already exists', [UTF8ToString(ImdbId)]));
+      Exit;
+    end;
+    dbRecord.Free;
+
+    currentTime := Now;
+    titleCleaned := getMovieNameWithoutSceneTags(UTF8ToString(Title));
+
+    dbRecord := TIMDbDataRecord.Create;
+    try
+      dbRecord.IMDbID := ImdbId;
+      dbRecord.IMDbTitle := Title;
+      dbRecord.IMDbTitleCleaned := UTF8Encode(titleCleaned);
+      dbRecord.IMDbYear := Year;
+      dbRecord.IMDbRating := Rating;
+      dbRecord.IMDbVotes := Votes;
+      dbRecord.IMDbGenres := Genres;
+      dbRecord.IMDbCountries := Countries;
+      dbRecord.IMDbLanguages := Languages;
+      dbRecord.IMDbType := ImdbType;
+      dbRecord.CreationTime := currentTime;
+      dbRecord.UpdatedTime := currentTime;
+
+      ImdbDatabase.Add(dbRecord, True);
+      NewId := ImdbId;
+      Result := True;
+      Debug(dpSpam, section, Format('[IMDB API] Created new record: %s', [UTF8ToString(ImdbId)]));
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] CreateImdbRecord: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.UpdateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                                              const Genres, Countries, Languages, ImdbType: RawUTF8): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+  titleCleaned: string;
+begin
+  Result := False;
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    try
+      if dbRecord.FillOne then
+      begin
+        titleCleaned := getMovieNameWithoutSceneTags(UTF8ToString(Title));
+
+        dbRecord.IMDbTitle := Title;
+        dbRecord.IMDbTitleCleaned := UTF8Encode(titleCleaned);
+        dbRecord.IMDbYear := Year;
+        dbRecord.IMDbRating := Rating;
+        dbRecord.IMDbVotes := Votes;
+        dbRecord.IMDbGenres := Genres;
+        dbRecord.IMDbCountries := Countries;
+        dbRecord.IMDbLanguages := Languages;
+        dbRecord.IMDbType := ImdbType;
+        dbRecord.UpdatedTime := Now;
+
+        ImdbDatabase.Update(dbRecord);
+        Result := True;
+        Debug(dpSpam, section, Format('[IMDB API] Updated record: %s', [UTF8ToString(ImdbId)]));
+      end
+      else
+      begin
+        Debug(dpError, section, Format('[IMDB API] Record with IMDB ID %s not found', [UTF8ToString(ImdbId)]));
+      end;
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] UpdateImdbRecord: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.DeleteImdbRecord(const ImdbId: RawUTF8): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+begin
+  Result := False;
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    try
+      if dbRecord.FillOne then
+      begin
+        Result := ImdbDatabase.Delete(TIMDbDataRecord, dbRecord.IDValue);
+        Debug(dpSpam, section, Format('[IMDB API] Deleted record: %s', [UTF8ToString(ImdbId)]));
+      end
+      else
+      begin
+        Debug(dpError, section, Format('[IMDB API] Record with IMDB ID %s not found', [UTF8ToString(ImdbId)]));
+      end;
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] DeleteImdbRecord: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+{ TV Database Initialization }
+procedure InitTVDatabase;
+var
+  dbPath: String;
+begin
+  if TVDatabase <> nil then
+    Exit;
+
+  dbPath := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
+  if dbPath = '' then
+    dbPath := 'tvinfos.db';
+  if ExtractFilePath(dbPath) = '' then
+    dbPath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim + dbPath;
+  TVDBModel := TSQLModel.Create([TInfos, TSeries]);
+  TVDatabase := TSQLRestClientDB.Create(TVDBModel, nil, dbPath, TSQLRestServerDB, False, '');
+  // Don't create missing tables - use existing database as-is
+  TVDatabase.DB.LockingMode := lmNormal;
+  TVDatabase.DB.Synchronous := smNormal;
+end;
+
+{ TV Service Implementation }
+
+function TApiTVServiceImpl.GetAllTVRecords(out Response: TApiTVRecordList): boolean;
+var
+  recordsJson: RawJSON;
+  totalCount: Integer;
+begin
+  Result := False;
+  Response := TApiTVRecordList.Create;
+
+  try
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+
+    if not TVInfoDbAlive then
+    begin
+      Debug(dpError, section, '[TV API] TV info database is not available');
+      Response.Total := 0;
+      Response.Records := '[]';
+      Result := True;
+      Exit;
+    end;
+
+    getTVInfoRecords(recordsJson, totalCount);
+    Response.Total := totalCount;
+    Response.Records := recordsJson;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, '[GetAllTVRecords] Exception: ' + E.Message);
+      Response.Free;
+      Response := nil;
+    end;
+  end;
+end;
+
+function TApiTVServiceImpl.GetTVRecordById(const TVMazeId: RawUTF8; out Response: TApiTVRecord): boolean;
+var
+  tvInfo: TTVInfoDB;
+begin
+  Result := False;
+  Response := TApiTVRecord.Create;
+  try
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+
+    tvInfo := getTVInfoByShowID(UTF8ToString(TVMazeId));
+    if tvInfo = nil then
+      Exit;
+    try
+      Response.TVMazeId := UTF8Encode(tvInfo.tvmaze_id);
+      Response.Showname := UTF8Encode(tvInfo.tv_showname);
+      Response.Country := UTF8Encode(tvInfo.tv_country);
+      Response.Status := UTF8Encode(tvInfo.tv_status);
+      Response.Classification := UTF8Encode(tvInfo.tv_classification);
+      Response.Network := UTF8Encode(tvInfo.tv_network);
+      Response.Genre := UTF8Encode(tvInfo.tv_genres.CommaText);
+      Response.Language := UTF8Encode(tvInfo.tv_language);
+      Response.PremieredYear := tvInfo.tv_premiered_year;
+      Response.Rating := tvInfo.tv_rating;
+    finally
+      tvInfo.Free;
+    end;
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, '[GetTVRecordById] Exception: ' + E.Message);
+      Response.Free;
+      Response := nil;
+    end;
+  end;
+end;
+
+function TApiTVServiceImpl.CreateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                                          Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer;
+                                          out NewId: RawUTF8): boolean;
+var
+  tvmazeIdInt: Integer;
+begin
+  Result := False;
+  try
+    if not TryStrToInt(TVMazeId, tvmazeIdInt) then
+      Exit;
+
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+    upsertTVInfoRecord(UTF8ToString(TVMazeId), UTF8ToString(Country), UTF8ToString(Status),
+      UTF8ToString(Classification), UTF8ToString(Network), UTF8ToString(Genre), UTF8ToString(Language),
+      PremieredYear, Rating);
+    upsertTVInfoSeries(UTF8ToString(TVMazeId), UTF8ToString(Showname));
+
+    NewId := TVMazeId;
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[CreateTVRecord] Exception: ' + E.Message);
+  end;
+end;
+
+function TApiTVServiceImpl.UpdateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                                          Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer): boolean;
+var
+  tvmazeIdInt: Integer;
+begin
+  Result := False;
+  try
+    if not TryStrToInt(TVMazeId, tvmazeIdInt) then
+      Exit;
+
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+    upsertTVInfoRecord(UTF8ToString(TVMazeId), UTF8ToString(Country), UTF8ToString(Status),
+      UTF8ToString(Classification), UTF8ToString(Network), UTF8ToString(Genre), UTF8ToString(Language),
+      PremieredYear, Rating);
+    upsertTVInfoSeries(UTF8ToString(TVMazeId), UTF8ToString(Showname));
+
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[UpdateTVRecord] Exception: ' + E.Message);
+  end;
+end;
+
+function TApiTVServiceImpl.DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
+var
+  deleteResult: Integer;
+begin
+  Result := False;
+  try
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+
+    deleteResult := deleteTVInfoByID(UTF8ToString(TVMazeId));
+    Result := deleteResult = 1;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[DeleteTVRecord] Exception: ' + E.Message);
+  end;
+end;
+
 initialization
   glSiteCreditsCacheLock := TSlCriticalSection2.Create('ApiSiteCreditsCache');
   glSiteCreditsCache := TDictionary<string, TSiteCreditsCacheEntry>.Create;
@@ -4334,5 +4784,11 @@ finalization
   glBrowserCacheLock.Free;
   GlApiTaskToPazoId.Free;
   GlApiTaskToPazoIdLock.Free;
+
+  if TVDatabase <> nil then
+  begin
+    TVDatabase.Free;
+    TVDBModel.Free;
+  end;
 
 end.

@@ -26,6 +26,7 @@ System (ApiSystemService)
 Sites (ApiSitesService)
 - GetSites: Body {"Filter":""}. Returns list of sites.
 - GetSite: Body {"SiteName":"<name>"}. Returns basic site details.
+- GetSiteCredits: Body {"SiteName":"<name>", "ForceRefresh":true|false}. Returns credits/ratio data.
 - GetSiteInfo: Body {"SiteName":"<name>"}. Returns full site details including BNCs, automation settings, country, etc.
 - AddSite: Body {"Name":"...", "Host":"...", "Port":21, "Username":"...", "Password":"...", "SslEnabled":true|false}
 - DeleteSite: Body {"SiteName":"<name>"}
@@ -118,6 +119,7 @@ KnowledgeBase (ApiKnowledgeBaseService)
 Precatcher (ApiPrecatcherService)
 - GetPrecatcherRules: Returns rules.
 - AddPrecatcherRule: Body {"RuleData":{...}}
+- UpdatePrecatcherRule: Body {"RuleId":<int>, "RuleData":{...}}
 - DeletePrecatcherRule: Body {"RuleId":<int>}
 - TestPrecatcher: Body {"Announce":"..."}
 - ReloadPrecatcher: Reloads config.
@@ -140,3 +142,17 @@ Logs (ApiLogService)
 
 Browser (ApiBrowserService)
 - GetPath: Body {"SiteName":"...", "Path":"/", "ForceRefresh":true|false}
+
+IMDB (ApiImdbService)
+- GetAllImdbRecords: Body {}. Returns list of IMDB records.
+- GetImdbRecordById: Body {"ImdbId":"tt1234567"}.
+- CreateImdbRecord: Body {"ImdbId":"tt1234567","Title":"...","Year":2024,"Rating":75,"Votes":1234,"Genres":"...","Countries":"...","Languages":"...","ImdbType":"movie"}
+- UpdateImdbRecord: Body {"ImdbId":"tt1234567","Title":"...","Year":2024,"Rating":75,"Votes":1234,"Genres":"...","Countries":"...","Languages":"...","ImdbType":"movie"}
+- DeleteImdbRecord: Body {"ImdbId":"tt1234567"}
+
+TV Database (ApiTVService)
+- GetAllTVRecords: Body {}. Returns list of TV show records.
+- GetTVRecordById: Body {"TVMazeId":"1234"}.
+- CreateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
+- UpdateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
+- DeleteTVRecord: Body {"TVMazeId":"1234"}
