@@ -493,6 +493,57 @@ type
     function GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
   end;
 
+  { IMDB Database API }
+  IApiImdbService = interface(IInvokable)
+    ['{A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D}']
+
+    /// GET /api/imdb
+    /// Returns all IMDB records
+    function GetAllImdbRecords(out Response: TApiImdbRecordList): boolean;
+
+    /// GET /api/imdb/{id}
+    /// Returns IMDB record by ID
+    function GetImdbRecordById(const ImdbId: RawUTF8; out Response: TApiImdbRecord): boolean;
+
+    /// POST /api/imdb
+    /// Creates new IMDB record
+    function CreateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8;
+                              out NewId: RawUTF8): boolean;
+
+    /// PUT /api/imdb/{id}
+    /// Updates existing IMDB record
+    function UpdateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8): boolean;
+
+    /// DELETE /api/imdb/{id}
+    /// Deletes IMDB record
+    function DeleteImdbRecord(const ImdbId: RawUTF8): boolean;
+  end;
+
+  { TV Database API }
+  IApiTVService = interface(IInvokable)
+    ['{B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E}']
+
+    /// Returns all TV show records
+    function GetAllTVRecords(out Response: TApiTVRecordList): boolean;
+
+    /// Returns TV show record by TVMaze ID
+    function GetTVRecordById(const TVMazeId: RawUTF8; out Response: TApiTVRecord): boolean;
+
+    /// Creates new TV show record
+    function CreateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer;
+                            out NewId: RawUTF8): boolean;
+
+    /// Updates existing TV show record
+    function UpdateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer): boolean;
+
+    /// Deletes TV show record
+    function DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
+  end;
+
 implementation
 
 {$I ../slftp.inc}

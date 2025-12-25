@@ -14,6 +14,7 @@ import { Simulator } from './pages/Simulator';
 import { FileBrowser } from './pages/FileBrowser';
 import { Pre } from './pages/Pre';
 import { Races } from './pages/Races';
+import { Databases } from './pages/Databases';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -43,6 +44,7 @@ function App() {
           <Route path="logs" element={<Logs />} />
           <Route path="races" element={<Races />} />
           <Route path="issues" element={<Issues />} />
+          <Route path="databases" element={<Databases />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="rules" element={<Rules />} />
           <Route path="simulator" element={<Simulator />} />
