@@ -10,7 +10,8 @@ type
     noannounce: Boolean;
     readd: Boolean; //< @true if called from autobnctest, @false otherwise
     kill: Boolean;
-    constructor Create(const netname, channel, site: String; kill: Boolean; readd: Boolean);
+    isBnctest: Boolean; //< @true if this task should run the full BNC benchmark
+    constructor Create(const netname, channel, site: String; kill: Boolean; readd: Boolean; bnctest: Boolean = False);
     function Execute(slot: Pointer): Boolean; override;
     function Name: String; override;
   end;
@@ -18,33 +19,34 @@ type
 implementation
 
 uses
-  sitesunit, queueunit, dateutils, SysUtils, irc, debugunit, Classes, mystrings;
+  sitesunit, queueunit, dateutils, SysUtils, irc, debugunit;
 
 const
   section = 'login';
 
 { TLoginTask }
 
-constructor TLoginTask.Create(const netname, channel, site: String; kill: Boolean; readd: Boolean);
+constructor TLoginTask.Create(const netname, channel, site: String; kill: Boolean; readd: Boolean; bnctest: Boolean = False);
 begin
   inherited Create(netname, channel, site);
   self.kill := kill;
   self.readd := readd;
+  self.isBnctest := bnctest;
 end;
 
 function TLoginTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
-  i, j, k: Integer;
+  i, j: Integer;
   l: TLoginTask;
   fOriginalSlotName: string;
   fLoginStartTime: TDateTime;
   fLoginDurationMs: Int64;
   fBncHost: String;
   fBncPort: Integer;
-  fBncTestResults: TStringList;
-  fBestBnc: String;
-  fBncList, fSplitted: TStringList;
+  fReachableBnc: String;
+  fBestBncIndex: Integer;
+  fBestBncMs: Int64;
 begin
   Result := False;
   Debug(dpSpam, section, '-->' + Name);
@@ -66,6 +68,7 @@ begin
 
   if self.wantedslot = '' then
   begin
+    // Priority 1: Kill/Force Login
     if kill then
     begin
       s.Quit;
@@ -76,223 +79,141 @@ begin
       if s.Status = ssOnline then
         announce := Format('<b>%s</b>: %s (%dms)', [s.site.Name, s.bnc, fLoginDurationMs]);
     end
-    else if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
+    // Priority 2: Explicit BNC Test (Manual or Auto)
+    // Runs the benchmark loop.
+    else if isBnctest then
     begin
-      if (s.Status <> ssOnline) then
+      // !bnctest should only check reachability, not benchmark or reorder
+      Debug(dpMessage, section, '[BNCTEST] Checking BNC reachability for site: %s', [s.site.Name]);
+
+      if s.site.PermDown then
       begin
-        // site is not up, we have to try to login
-        s.Quit;
-        fLoginStartTime := Now;
-        Result := s.ReLogin(1, kill, section, readd);
-        fLoginDurationMs := MilliSecondsBetween(Now, fLoginStartTime);
-
-        if s.Status = ssOnline then
-        begin
-          // slot is online - show BNC and response time
-          if readd then
-            announce := Format('<b>%s</b>: %s (%dms)', [s.site.Name, s.bnc, fLoginDurationMs])
-          else
-            announce := Format('<b>%s</b>: %s (%dms)', [s.site.Name, s.bnc, fLoginDurationMs]);
-        end;
-      end
-      else if not readd then
-      begin
-        // !bnctest on already online site - test ALL BNCs sequentially
-        Debug(dpMessage, section, '[BNCTEST] Testing all BNCs for site: %s', [s.site.Name]);
-
-        if s.site.PermDown then
-        begin
-          Debug(dpMessage, section, '[BNCTEST] Skipping permdown site: %s', [s.site.Name]);
-          if netname <> '' then
-            irc_addtext(self, '<b>%s</b>: Site is set to permdown, skipping BNC test', [s.site.Name]);
-          Result := s.Login(False);
-          if Result then
-            s.Status := ssOnline;
-          ready := True;
-          exit;
-        end;
-
-        // Send initial progress message (only for manual !bnctest, not for autobnctest)
+        Debug(dpMessage, section, '[BNCTEST] Skipping permdown site: %s', [s.site.Name]);
         if netname <> '' then
-          irc_addtext(self, '<b>%s</b>: Testing BNCs, this may take a moment...', [s.site.Name]);
-
-        fBncTestResults := TStringList.Create;
-        try
-          // Disconnect current slot for testing
-          s.Quit;
-          s.DestroySocket(False);
-
-          // Test all configured BNCs
-          j := 0;
-          while True do
-          begin
-            fBncHost := s.RCString('bnc_host-' + IntToStr(j), '');
-            if fBncHost = '' then
-              break;
-
-            fBncPort := s.RCInteger('bnc_port-' + IntToStr(j), 0);
-            fBestBnc := fBncHost + ':' + IntToStr(fBncPort);
-
-            Debug(dpSpam, section, '[BNCTEST] Testing BNC #%d: %s', [j, fBestBnc]);
-
-            // Try to login to this BNC and test with NOOP
-            // Use skipReorder=True to prevent BNC list reordering during testing
-            fLoginStartTime := Now;
-            if s.LoginBnc(j, False, True) then
-            begin
-              // Successfully connected, now test with NOOP
-              if s.Send('NOOP') and s.Read('NOOP', False, False, 5000) then
-              begin
-                fLoginDurationMs := MilliSecondsBetween(Now, fLoginStartTime);
-                Debug(dpSpam, section, '[BNCTEST] %s: %dms', [fBestBnc, fLoginDurationMs]);
-                fBncTestResults.Add(Format('%.6d|%s', [fLoginDurationMs, fBestBnc]));
-              end
-              else
-              begin
-                Debug(dpError, section, '[BNCTEST] %s: NOOP failed', [fBestBnc]);
-                fBncTestResults.Add(Format('999998|%s (noop failed)', [fBestBnc]));
-              end;
-
-              // Disconnect after test
-              s.Quit;
-              s.DestroySocket(False);
-            end
-            else
-            begin
-              Debug(dpError, section, '[BNCTEST] %s: Login failed', [fBestBnc]);
-              fBncTestResults.Add(Format('999999|%s (login failed)', [fBestBnc]));
-            end;
-
-            Inc(j);
-            Sleep(500);
-          end;
-
-          // Sort by response time (fastest first)
-          fBncTestResults.Sort;
-
-          // Find the original BNC index of the fastest BNC for reconnect
-          i := -1;
-          if fBncTestResults.Count > 0 then
-          begin
-            fBestBnc := Copy(fBncTestResults[0], Pos('|', fBncTestResults[0]) + 1, Length(fBncTestResults[0]));
-            // Remove "(login failed)" or "(noop failed)" suffixes if present
-            if Pos('(', fBestBnc) > 0 then
-              fBestBnc := Trim(Copy(fBestBnc, 1, Pos('(', fBestBnc) - 1));
-
-            // Find which index this BNC was
-            j := 0;
-            while True do
-            begin
-              fBncHost := s.RCString('bnc_host-' + IntToStr(j), '');
-              if fBncHost = '' then
-                break;
-              fBncPort := s.RCInteger('bnc_port-' + IntToStr(j), 0);
-              if (fBncHost + ':' + IntToStr(fBncPort)) = fBestBnc then
-              begin
-                i := j;
-                Debug(dpMessage, section, '[BNCTEST] Fastest BNC at index %d: %s', [i, fBestBnc]);
-                break;
-              end;
-              Inc(j);
-            end;
-          end;
-
-          // Reconnect with the fastest BNC using its original index
-          if i >= 0 then
-          begin
-            Result := s.LoginBnc(i, False);
-            if Result then
-            begin
-              s.Status := ssOnline;
-
-              // Only reorder BNC list AFTER successful reconnect
-              // This prevents deadlocks from blocking other slots during reorder
-              if i <> 0 then
-              begin
-                fBncList := TStringList.Create;
-                try
-                  // Extract BNC addresses from sorted results (format: "time|bnc")
-                  for k := 0 to fBncTestResults.Count - 1 do
-                  begin
-                    fBestBnc := Copy(fBncTestResults[k], Pos('|', fBncTestResults[k]) + 1, Length(fBncTestResults[k]));
-                    // Remove "(login failed)" or "(noop failed)" suffixes if present
-                    if Pos('(', fBestBnc) > 0 then
-                      fBestBnc := Trim(Copy(fBestBnc, 1, Pos('(', fBestBnc) - 1));
-                    fBncList.Add(fBestBnc);
-                    Debug(dpSpam, section, '[BNCTEST] Reorder position %d: %s', [k, fBestBnc]);
-                  end;
-
-                  // Reorder the BNC configuration (now after successful connect)
-                  s.ReorderBncList(fBncList);
-                finally
-                  FreeAndNil(fBncList);
-                end;
-              end;
-            end;
-          end
-          else
-          begin
-            Debug(dpError, section, '[BNCTEST] Could not find fastest BNC index for %s', [s.site.Name]);
-            Result := s.Login(False);  // fallback to normal login
-            if Result then
-              s.Status := ssOnline;
-          end;
-
-          // Send results as separate IRC messages (one per BNC) - only for manual !bnctest
-          if netname <> '' then
-          begin
-            for j := 0 to fBncTestResults.Count - 1 do
-            begin
-              // Extract time and BNC from "time|bnc" format
-              fBestBnc := Copy(fBncTestResults[j], Pos('|', fBncTestResults[j]) + 1, Length(fBncTestResults[j]));
-              fLoginDurationMs := StrToIntDef(Copy(fBncTestResults[j], 1, Pos('|', fBncTestResults[j]) - 1), 999999);
-
-              // Check if this BNC is currently in use (with proper parentheses and nil check)
-              if (s.Status = ssOnline) and ((fBestBnc = s.bnc) or ((s.bnc <> '') and (Pos(s.bnc, fBestBnc) > 0))) then
-              begin
-                // This is the active BNC
-                if fLoginDurationMs < 999998 then
-                  irc_addtext(self, '<b>%s</b>: %d. %s (%dms) <c3>(in use)</c>', [s.site.Name, j + 1, fBestBnc, fLoginDurationMs])
-                else
-                  irc_addtext(self, '<b>%s</b>: %d. %s <c3>(in use)</c>', [s.site.Name, j + 1, fBestBnc]);
-              end
-              else
-              begin
-                // Not the active BNC
-                if fLoginDurationMs < 999998 then
-                  irc_addtext(self, '<b>%s</b>: %d. %s (%dms)', [s.site.Name, j + 1, fBestBnc, fLoginDurationMs])
-                else
-                  irc_addtext(self, '<b>%s</b>: %d. %s', [s.site.Name, j + 1, fBestBnc]);
-              end;
-            end;
-
-            // Set announce to empty since we already sent all messages
-            announce := '';
-          end
-          else
-          begin
-            // For autobnctest: silent mode, just set a simple announce
-            Debug(dpMessage, section, '[BNCTEST] Autobnctest completed for %s', [s.site.Name]);
-          end;
-
-        finally
-          fBncTestResults.Free;
-        end;
+          irc_addtext(self, '<b>%s</b>: Site is set to permdown, skipping BNC test', [s.site.Name]);
+        Result := s.Login(False);
+        if Result then
+          s.Status := ssOnline;
+        ready := True;
+        exit;
       end;
 
-      //check all slots if this is not the bnc check. if it's the bnc check and the site might also have an idle
-      //timeout set, we don't want to login all the slots
-      // Also ensure Result is true (successful login) before triggering other slots
-      if not readd and (s.Status = ssOnline) and Result then
+      // Send initial progress message (only for manual !bnctest, not for autobnctest)
+      if netname <> '' then
+        irc_addtext(self, '<b>%s</b>: Testing BNC reachability...', [s.site.Name]);
+
+      Debug(dpMessage, section, '[BNCTEST] Disconnecting current slot for testing: %s', [s.Name]);
+      // Disconnect current slot for testing
+      s.Quit;
+      s.DestroySocket(False);
+
+      Result := False;
+      fReachableBnc := '';
+      fBestBncIndex := -1;
+      fBestBncMs := High(Int64);
+      j := 0;
+      while True do
       begin
-        for s in s.site.slots do
+        fBncHost := s.RCString('bnc_host-' + IntToStr(j), '');
+        if fBncHost = '' then
+          break;
+
+        fBncPort := s.RCInteger('bnc_port-' + IntToStr(j), 0);
+        if fBncPort = 0 then
         begin
-          if (s.Status <> ssOnline) and (s.Name <> fOriginalSlotName) then
+          Debug(dpError, section, '[BNCTEST] Skipping invalid BNC port for %s (index %d)', [s.site.Name, j]);
+          Inc(j);
+          continue;
+        end;
+
+        Debug(dpMessage, section, '[BNCTEST] Testing BNC index %d: %s:%d', [j, fBncHost, fBncPort]);
+        fLoginStartTime := Now;
+        if s.LoginBnc(j, False, True) then
+        begin
+          Debug(dpMessage, section, '[BNCTEST] Login ok for %s:%d', [fBncHost, fBncPort]);
+          if s.Send('NOOP') and s.Read('NOOP', False, False, 5000) then
           begin
-            l := TLoginTask.Create(netname, channel, site1, False, False);
-            l.wantedslot := s.Name;
-            AddTask(l);
+            fLoginDurationMs := MilliSecondsBetween(Now, fLoginStartTime);
+            if fLoginDurationMs < fBestBncMs then
+            begin
+              fBestBncMs := fLoginDurationMs;
+              fBestBncIndex := j;
+              fReachableBnc := fBncHost + ':' + IntToStr(fBncPort);
+            end;
+            Debug(dpMessage, section, '[BNCTEST] Reachable BNC: %s (%dms)', [fBncHost + ':' + IntToStr(fBncPort), fLoginDurationMs]);
           end;
+
+          Debug(dpError, section, '[BNCTEST] NOOP failed for %s:%d', [fBncHost, fBncPort]);
+          Debug(dpMessage, section, '[BNCTEST] Disconnecting after test: %s:%d', [fBncHost, fBncPort]);
+          s.Quit;
+          s.DestroySocket(False);
+        end
+        else
+        begin
+          Debug(dpError, section, '[BNCTEST] Login failed for %s:%d', [fBncHost, fBncPort]);
+        end;
+
+        Inc(j);
+        Sleep(250);
+      end;
+
+      Debug(dpMessage, section, '[BNCTEST] Test loop complete. Best index=%d BNC=%s time=%dms', [fBestBncIndex, fReachableBnc, fBestBncMs]);
+      if fBestBncIndex >= 0 then
+      begin
+        Debug(dpMessage, section, '[BNCTEST] Reconnecting to fastest BNC index %d', [fBestBncIndex]);
+        Result := s.LoginBnc(fBestBncIndex, False);
+        if Result then
+          s.Status := ssOnline;
+      end;
+
+      if netname <> '' then
+      begin
+        if Result then
+          irc_addtext(self, '<b>%s</b>: Fastest BNC: %s (%dms)', [s.site.Name, fReachableBnc, fBestBncMs])
+        else
+          irc_addtext(self, '<b>%s</b>: No BNC reachable', [s.site.Name]);
+
+        announce := '';
+      end
+      else
+      begin
+        Debug(dpMessage, section, '[BNCTEST] Autobnctest completed for %s (reachable=%s)', [s.site.Name, BoolToStr(Result, True)]);
+      end;
+    end
+    // Priority 3: Generic Login / Wakeup (Site Down or Slot Offline)
+    else if (s.Status <> ssOnline) or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
+    begin
+      // site is not up, we have to try to login
+      s.Quit;
+      fLoginStartTime := Now;
+      Result := s.ReLogin(1, kill, section, readd);
+      fLoginDurationMs := MilliSecondsBetween(Now, fLoginStartTime);
+
+      if s.Status = ssOnline then
+      begin
+        // slot is online - show BNC and response time
+        if readd then
+          announce := Format('<b>%s</b>: %s (%dms)', [s.site.Name, s.bnc, fLoginDurationMs])
+        else
+          announce := Format('<b>%s</b>: %s (%dms)', [s.site.Name, s.bnc, fLoginDurationMs]);
+      end;
+    end
+    else
+    begin
+    end;
+
+    //check all slots if this is not the bnc check. if it's the bnc check and the site might also have an idle
+    //timeout set, we don't want to login all the slots
+    // Also ensure Result is true (successful login) before triggering other slots
+    if not readd and not isBnctest and (s.Status = ssOnline) and Result then
+    begin
+      for s in s.site.slots do
+      begin
+        if (s.Status <> ssOnline) and (s.Name <> fOriginalSlotName) then
+        begin
+          l := TLoginTask.Create(netname, channel, site1, False, False, False);
+          l.wantedslot := s.Name;
+          AddTask(l);
         end;
       end;
     end;
@@ -310,13 +231,16 @@ begin
       begin
         announce := Format('<b>%s</b>: %s (%dms)', [s.site.Name, s.bnc, fLoginDurationMs]);
       end;
+    end
+    else
+    begin
     end;
   end;
 
   if readd then
   begin
     try
-      l := TLoginTask.Create(netname, channel, site1, kill, readd);
+      l := TLoginTask.Create(netname, channel, site1, kill, readd, isBnctest);
       l.startat := IncSecond(Now, i);
       l.dontremove := True;
       AddTask(l);
