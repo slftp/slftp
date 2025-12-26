@@ -134,7 +134,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.variants;
+  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, tvinfo.types, sllanguagebase, mormot.core.variants;
 
 const
   section = 'taskhttpimdb';

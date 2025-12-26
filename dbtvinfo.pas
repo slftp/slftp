@@ -3,27 +3,9 @@ unit dbtvinfo;
 interface
 
 uses
-  Classes, IniFiles, irc, kb.releaseinfo, Contnrs;
+  Classes, IniFiles, irc, kb.releaseinfo, Contnrs, dbhandler, tvinfo.types;
 
 type
-  { @abstract(Possible return values for special cases in getShowValues procedure)
-    @value(tvInitialValue Initial value which is set as default value)
-    @value(tvNotMatched For cases where main regex matched but single matches don't contain useful values)
-    @value(tvConversionError Value if StrToIntDef failed to convert input)
-    @value(tvDatedShow Season value for dated shows)
-    @value(tvRegularSerieWithoutSeason Season value for shows which only have an episode tag)
-    @value(tvNoExplicitShowTag Shows without season/episode/dated tag (mostly tv movies or sports))
-    @value(tvNoEpisodeTag Shows without episode tag (mostly full season releases)) }
-  TTVGetShowValuesIdentifier = (tvInitialValue = -50, tvNotMatched = -60, tvConversionError = -70,
-    tvDatedShow = -80, tvRegularSerieWithoutSeason = -90, tvNoExplicitShowTag = -100, tvNoEpisodeTag = -110);
-
-  { @abstract(Possible 'error' values for season and episode info lookups on the web)
-    @value(tvSeEpInitialValue Initial value which is set as default value)
-    @value(tvSeEpAirdatePrevAndNextOnSameDay Airdate of previous and next episode are on the same day)
-    @value(tvSeEpShowEnded Show ended)
-    @value(tvSeEpNoNextOrPrev No information about the next episode and next season) }
-  TTVSeasonEpisodeWebInfo = (tvSeEpInitialValue = -3, tvSeEpAirdatePrevAndNextOnSameDay = -4, tvSeEpShowEnded = -5, tvSeEpNoNextOrPrev = -6);
-
   TTVInfoDB = class
   public
     ripname: String;
@@ -85,6 +67,8 @@ procedure saveTVInfos(const TVMazeID: String; tvrage: TTVInfoDB; rls: String = '
 function deleteTVInfoByID(const aID: String): Integer;
 function deleteTVInfoByRipName(const aName: String): Integer;
 
+procedure dbtvinfo_AddOrUpdate(const aShowName: string; const aJsonData: String);
+
 procedure addTVInfos(const aParams: String);
 
 procedure TVInfoFireKbAdd(const aRls: String; msg: String = '<c3>[TVInfo]</c> %s %s now has TV infos (%s)');
@@ -115,13 +99,71 @@ implementation
 
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, RegExpr,
-  debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, mormot.db.sql.sqlite3,
-  Generics.Collections, news, kb, slcriticalsection2, mormot.core.unicode;
+  debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, SyncObjs, sllanguagebase, mormot.db.sql.sqlite3,
+  Generics.Collections, news, kb, slcriticalsection2, mormot.core.unicode, mormot.orm.core, mormot.core.base,
+  mormot.orm.base, mormot.rest.sqlite3, mormot.core.os, mormot.core.data, mormot.core.json, mormot.core.variants;
 
 const
   section = 'tasktvinfo';
 
+type
+  { NOTE: everything which starts with TVMaze is data from TVMaze }
+
+  TSQLTVInfo = class(TOrm)
+  private
+    Ftvmaze_id: Integer;
+    Fthetvdb_id: Integer;
+    Ftvrage_id: Integer;
+    Fpremiered_year: Integer;
+    Fcountry: RawUTF8;
+    Fstatus: RawUTF8;
+    Fclassification: RawUTF8;
+    Fnetwork: RawUTF8;
+    Fgenre: RawUTF8;
+    Fended_year: Integer;
+    Flast_updated: TDateTime;
+    Fnext_date: TDateTime;
+    Fnext_season: Integer;
+    Fnext_episode: Integer;
+    Frating: Integer;
+    Fairdays: RawUTF8;
+    Ftv_language: RawUTF8;
+  published
+    property tvmaze_id: Integer read Ftvmaze_id write Ftvmaze_id stored AS_UNIQUE;
+    property thetvdb_id: Integer read Fthetvdb_id write Fthetvdb_id;
+    property tvrage_id: Integer read Ftvrage_id write Ftvrage_id;
+    property premiered_year: Integer read Fpremiered_year write Fpremiered_year;
+    property country: RawUTF8 read Fcountry write Fcountry;
+    property status: RawUTF8 read Fstatus write Fstatus;
+    property classification: RawUTF8 read Fclassification write Fclassification;
+    property network: RawUTF8 read Fnetwork write Fnetwork;
+    property genre: RawUTF8 read Fgenre write Fgenre;
+    property ended_year: Integer read Fended_year write Fended_year;
+    property last_updated: TDateTime read Flast_updated write Flast_updated;
+    property next_date: TDateTime read Fnext_date write Fnext_date;
+    property next_season: Integer read Fnext_season write Fnext_season;
+    property next_episode: Integer read Fnext_episode write Fnext_episode;
+    property rating: Integer read Frating write Frating;
+    property airdays: RawUTF8 read Fairdays write Fairdays;
+    property tv_language: RawUTF8 read Ftv_language write Ftv_language;
+  end;
+
+  TSQLTVSeries = class(TOrm)
+  private
+    Frip: RawUTF8;
+    Fshowname: RawUTF8;
+    Ftvmaze_url: RawUTF8;
+    Ftvmaze_id: Integer;
+  published
+    property rip: RawUTF8 read Frip write Frip stored AS_UNIQUE;
+    property showname: RawUTF8 read Fshowname write Fshowname;
+    property tvmaze_url: RawUTF8 read Ftvmaze_url write Ftvmaze_url;
+    property tvmaze_id: Integer read Ftvmaze_id write Ftvmaze_id;
+  end;
+
 var
+  glTVInfoDb: TSQLRestClientDB;
+  glTVInfoModel: TSQLModel;
   tvinfoSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection for tv info
   SQLite3Lock: TSlCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
   addtinfodbcmd: String; //< irc command for addtvmaze channel, default: !addtvmaze
@@ -708,6 +750,86 @@ begin
     end;
   finally
     SQLite3Lock.Leave;
+  end;
+end;
+
+procedure dbtvinfo_AddOrUpdate(const aShowName: string; const aJsonData: String);
+var
+  TV: TSQLTVInfo;
+  Series: TSQLTVSeries;
+  Doc: TDocVariantData;
+  fDoUpdate: boolean;
+  fID: Integer;
+begin
+  if glTVInfoDb = nil then Exit;
+
+  if not Doc.InitJson(StringToUTF8(aJsonData)) then Exit;
+
+  fID := Doc.I['id'];
+  if fID = 0 then Exit;
+
+  TV := TSQLTVInfo.CreateAndFillPrepare(glTVInfoDb.Orm, 'tvmaze_id = ?', [], [fID]);
+  try
+    fDoUpdate := TV.FillOne;
+    if not fDoUpdate then
+    begin
+      TV.Free;
+      TV := TSQLTVInfo.Create;
+      TV.tvmaze_id := fID;
+    end;
+
+    TV.premiered_year := StrToIntDef(Copy(UTF8ToString(Doc.U['premiered']), 1, 4), -1);
+    TV.status := Doc.U['status'];
+    TV.classification := Doc.U['type'];
+    TV.genre := Doc.U['genres'];
+    TV.tv_language := Doc.U['language'];
+
+    if Doc.Exists('network') then
+    begin
+      TV.network := Doc.U['network.name'];
+      TV.country := Doc.U['network.country.code'];
+    end
+    else if Doc.Exists('webChannel') then
+    begin
+      TV.network := Doc.U['webChannel.name'];
+      TV.country := Doc.U['webChannel.country.code'];
+    end;
+
+    if TV.country = 'US' then TV.country := 'USA';
+    if TV.country = 'GB' then TV.country := 'UK';
+
+    TV.last_updated := now();
+
+    if fDoUpdate then
+      glTVInfoDb.Update(TV)
+    else
+      glTVInfoDb.Add(TV, True);
+  finally
+    TV.Free;
+  end;
+
+  if aShowName <> '' then
+  begin
+    Series := TSQLTVSeries.CreateAndFillPrepare(glTVInfoDb.Orm, 'rip = ?', [], [StringToUTF8(aShowName)]);
+    try
+      fDoUpdate := Series.FillOne;
+      if not fDoUpdate then
+      begin
+        Series.Free;
+        Series := TSQLTVSeries.Create;
+        Series.rip := StringToUTF8(aShowName);
+      end;
+      Series.showname := Doc.U['name'];
+      Series.tvmaze_id := fID;
+      Series.tvmaze_url := Doc.U['url'];
+
+      if fDoUpdate then
+        glTVInfoDb.Update(Series)
+      else
+        glTVInfoDb.Add(Series, True);
+    finally
+      Series.Free;
+    end;
   end;
 end;
 

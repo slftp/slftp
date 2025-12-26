@@ -67,7 +67,7 @@ type
 implementation
 
 uses
-  SysUtils, dbtvinfo;
+  SysUtils, dbtvinfo, tvinfo.types;
 
 { TTestShowFunctions }
 

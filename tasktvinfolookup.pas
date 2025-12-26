@@ -34,7 +34,7 @@ implementation
 
 uses
   DateUtils, Contnrs, SysUtils, queueunit, debugunit, configunit, mystrings, kb.releaseinfo,
-  kb, http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit;
+  kb, http, RegExpr, irc, mrdohutils, uLkJSON, news, sitesunit, tvinfo.types, mormot.core.base, mormot.core.unicode;
 
 const
   section = 'tasktvinfo';
