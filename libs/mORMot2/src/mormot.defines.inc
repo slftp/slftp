@@ -40,6 +40,9 @@
 // if defined, SetThreadName() would not raise the exception used to set the
 // thread name: to be defined if you have issues when debugging your application
 
+{.$define NODIRECTTHREADMANAGER}
+// on POSIX, omit direct GetThreadManager() API calls and just use RTL functions
+
 {.$define NOEXCEPTIONINTERCEPT}
 // if defined, exceptions shall not be intercepted nor logged
 
@@ -77,7 +80,7 @@
 // disable Windows mormot.lib.sspi support in mormot.rest.client/server units
 
 {.$define NOGSSAPIAUTH}
-// disable Posix mormot.lib.gsssapi support in mormot.rest.client/server units
+// disable POSIX mormot.lib.gsssapi support in mormot.rest.client/server units
 
 {.$define NOPOINTEROFFSET}
 // disable TOrmTable offsets on 64-bit if your memory is huge or fragmented
@@ -87,16 +90,16 @@
 // disable TOrmTable internal fLen[] pre-computed table - slower but less memory
 
 {.$define NOSQLITE3STATIC}
-// disable static SQlite3 linking - to force use external dll/so library
+// disable static SQLite3 linking - to force use external dll/so library
 
 {.$define NOSQLITE3FPUSAVE}
-// disable SetFpuFlags() calls during SQlite3 engine - may enhance performance
+// disable SetFpuFlags() calls during SQLite3 engine - may enhance performance
 
 {.$define DEBUGSTORAGELOCK}
 // could be defined to force verbose log of StorageLock/StorageUnLock
 
 {.$define DEBUGSQLVIRTUALTABLE}
-// could be defined to force verbose log of SQlite3 virtual table query planner costs
+// could be defined to force verbose log of SQLite3 virtual table query planner costs
 
 {.$define ONLYUSEHTTPSOCKET}
 // is defined on POSIX but may be enabled on Windows if socket+SChannel is enough
@@ -107,7 +110,7 @@
 {.$define OLDLINUXKERNEL}
 // use only oldest Linux syscalls - as in FPC RTL
 
-{.$define USE_OPENSSL}
+{$define FORCE_OPENSSL}
 // is defined on POSIX (with late binding) but may be enabled on Windows too
 
 {.$define USELIBCURL}
@@ -126,16 +129,6 @@
   // -----------
   // -- global code generation conditionals
 
-  // note: you may remove all unexpexted hints by setting in your project options
-  // -vm11047,6058,5092,5091,5060,5058,5057,5028,5024,5023,4081,4079,4055,3187,3124,3123
-
-  // disable some no-brainer warnings - let FPC align with Delphi in that matter
-  {$WARN 5089 off} // uninitialized managed variables 1
-  {$WARN 5091 off} // uninitialized managed variables 2
-  {$WARN 5093 off} // function result variable of a managed uninitialized 1
-  {$WARN 5094 off} // function result variable of a managed uninitialized 2
-  {$WARN 6058 off} // call to subroutine marked as inline is not inlined
-
   {$ifndef FPC_DELPHI}
     {$MODE DELPHI} // e.g. for asm syntax - disabled for FPC 2.6 compatibility
   {$endif FPC_DELPHI}
@@ -149,11 +142,13 @@
   {$OBJECTCHECKS OFF} // as expected e.g. when hooking classes
 
   {$define HASINLINE}
-  {$define HASINLINEWINAPI} // Delphi has troubles inlining Windows API calls
-  {$define HASSAFEINLINE}   // Delphi 2007-2009 have troubles inlining
-  {$define NODELPHIASM}     // avoid e.g. low-level System.@LStrFromPCharLen
-  {$define HASDYNARRAYTYPE} // eltype2 field, used e.g. for T*ObjArray
+  {$define HASINLINEWINAPI}   // Delphi has troubles inlining Windows API calls
+  {$define HASSAFEINLINE}     // Delphi 2007-2009 have troubles inlining
+  {$define HASSAFEFPCINLINE}  // FPC 3.2.0 specific inlining troubles
+  {$define NODELPHIASM}       // avoid e.g. low-level System.@LStrFromPCharLen
+  {$define HASDYNARRAYTYPE}   // eltype2 field, used e.g. for T*ObjArray
   {$define HASITERATORS}
+  {$define HASIMPLICITOPERATOR}
   {$define HASDBFTWIDE}
   {$define HASTTHREADSTART}
   {$define HASINTERFACEASTOBJECT}
@@ -164,6 +159,7 @@
   {$define FPC_OR_DELPHIXE}        // to circumvent Delphi internal errors
   {$define FPC_OR_DELPHIXE4}
 
+  { warnings are defined below, after FPC versions identification }
 
   // -----------
   // -- identify FPC versions
@@ -194,35 +190,58 @@
     {$define ISFPC30}
     {$define ISFPC32}
     {$define HASGETTYPEKIND}
+    {$ifdef VER3_2_0}
+      {$undef HASSAFEFPCINLINE} // synopse.info/forum/viewtopic.php?id=7259
+    {$endif VER3_2_0}
     {$ifdef VER3_2_2}
       {$define HASTTHREADTERMINATESET} // introduced TThread.TerminateSet
     {$endif VER3_2_2}
     {$ifdef VER3_2_3}
       {$define HASTTHREADTERMINATESET}
+      {$define HASDBFNEW} // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
+      // https://gitlab.com/freepascal.org/fpc/source/-/commit/254c175b9f7627c92
     {$endif VER3_2_3}
   {$endif VER3_2}
-  {$ifdef VER3_3} // trunk before 3.2
+  {$ifdef VER3_3} // trunk before 3.4
     {$define ISFPC27}
     {$define ISFPC30}
     {$define ISFPC32}
+    {$define ISFPC33}
     {$define HASTTHREADTERMINATESET} // introduced TThread.TerminateSet
+    {$define HASEXTRECORDRTTI}       // latest trunk has extended record RTTI
+    {$define HASDBFNEW} // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
+    // https://gitlab.com/freepascal.org/fpc/source/-/commit/d68ce429ab6d94c8ffb
   {$endif VER3_3}
   {$ifdef VER3_4}
     {$define ISFPC27}
     {$define ISFPC30}
     {$define ISFPC32}
+    {$define ISFPC33}
     {$define ISFPC34}
     {$define FPC_PROVIDE_ATTR_TABLE} // introducing TTypeData.AttributeTable
     {$define STRCNT32}               // 32-bit TAnsiRec.Ref even on 64-bit CPU
     // see https://gitlab.com/freepascal.org/fpc/source/-/issues/38018
     {$define HASTTHREADTERMINATESET} // introduced TThread.TerminateSet
+    {$define HASEXTRECORDRTTI}       // extended record RTTI
+    {$define HASDBFNEW} // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
+    {$define HASDBFSINGLE}  // ftSingle
+    // https://gitlab.com/freepascal.org/fpc/source/-/commit/b907920ef392d6b3a2a
   {$endif VER3_4}
   {$if not defined(VER3_0) and not defined(VER3_2) and not defined(VER2)}
-    {.$define FPC_PROVIDE_ATTR_TABLE} // to be defined since SVN 42356-42411
-    // on compilation error in mormot.core.Rtti, undefine the above conditional
+    {$define FPC_PROVIDE_ATTR_TABLE} // to be defined since SVN 42356-42411
+    // on GetEnumNameRtti() error in mormot.core.os, undefine the above conditional
     // see https://lists.freepascal.org/pipermail/fpc-announce/2019-July/000612.html
     {$define STRCNT32} // new trunk feature: 32-bit TAnsiRec.Ref even on 64-bit CPU
   {$ifend}
+
+  {$ifdef NEWRTTINOTUSED}
+    {$undef HASEXTRECORDRTTI}  // explictly disabled
+  {$else}
+    {$ifdef HASEXTRECORDRTTI}
+      //{$modeswitch advancedrecords} // not needed
+      {$define FPC_EXTRECORDRTTI}
+    {$endif HASEXTRECORDRTTI}
+  {$endif NEWRTTINOTUSED}
 
 
   // -----------
@@ -310,16 +329,20 @@
       {$define FPC_CPUX64}
       {$ifndef OSDARWIN}       // MachOS has troubles with our asm
         {$define FPC_ASMX64}
-        {$define ASMX64}       // supports asm with globals
-        {$define ASMINTEL}     // either ASMX86 or ASMX64
-        {$define ASMX64AVX}    // supports AVX/AVX2/AVX512
+        {$define ASMX64}     // supports asm with globals
+        {$define ASMINTEL}   // either ASMX86 or ASMX64
+        {$define ASMX64AVX}  // supports AVX/AVX2/AVX512
         {$define ASMX64AVXNOCONST} // supports AVX with no align32 constant load
-        {$define CPUX64ASM}    // FPC has no problem (not Delphi prior XE7)
-        {$define HASAESNI}     // mormot.crypt.core rejected by Darwin asm
+        {$define CPUX64ASM}  // FPC has no problem (not Delphi prior XE7)
+        {$define HASAESNI}   // mormot.crypt.core AES-NI rejected by Darwin asm
+        {.$define FPC_PICX64}
+        // FPC_PIC seems always defined on Linux x86_64: define this to use GOT
+        // in our custom asm when generating a .so library on such platform
       {$endif OSDARWIN}
     {$endif CPUX64}
     {$ifdef CPUAARCH64}
       {$define CPUARM3264}
+      {$define FPC_CPUARM}     // circumvent bug e.g. about sets in registers
     {$endif CPUAARCH64}
   {$else}
     // 32-bit Architecture
@@ -335,11 +358,16 @@
         {$define CPUX86NOTPIC} // use "absolute" instead of local register
         {$define HASAESNI}
       {$endif FPC_PIC}
-      {$define TSYNEXTENDED80} // only 32-bit has a true x87 extended type
+      {$ifdef FPUSSE2}
+        {$undef TSYNEXTENDED80}  // no "extended" if -dFPC_SSE2 was defined
+      {$else}
+        {$define TSYNEXTENDED80} // only 32-bit has a true x87 extended type
+      {$endif FPUSSE2}
       {$undef FPC_SINGLEABI}   // on i386, cdecl <> register convention
     {$endif CPUX86}
     {$ifdef CPUARM}
       {$define CPUARM3264}
+      {$define FPC_CPUARM}
     {$endif CPUARM}
     {$define STRCNT32}         // 32-bit TAnsiRec.Ref
     {$define DACNT32}          // 32-bit TDynArrayRec.refCnt
@@ -392,6 +420,26 @@
     // FPC SEH is not fully efficient and generate some additional code/calls
   {$ifend}
 
+  // note: you may remove all unexpexted hints by setting in your project options
+  // -vm11047,3187,3123,3124,4055,4079,4081,5023,5024,5027,5028,5036,5037,5058,5059,5060,5089,5090,5091,5092,5093,5094,6018,6058
+
+  // disable some no-brainer warnings - let FPC align with Delphi in that matter
+  {$WARN 5027 off} // local assigned variable never used
+  {$WARN 5036 off} // uninitialized local variable 1
+  {$WARN 5037 off} // uninitialized local variable 2
+  {$WARN 5059 off} // function result variable does not seem to be initialized
+  {$WARN 5089 off} // uninitialized managed variables 1
+  {$WARN 5090 off} // uninitialized managed variables 2
+  {$WARN 5091 off} // uninitialized managed variables 3
+  {$WARN 5093 off} // function result variable of a managed uninitialized 1
+  {$WARN 5094 off} // function result variable of a managed uninitialized 2
+  {$WARN 6018 off} // unreachable code
+  {$WARN 6058 off} // call to subroutine marked as inline is not inlined
+  {$ifdef ISFPC33} // this warning appeared in FPC 3.3.1
+    {$WARN 6060 off} // case statement does not handle all possible cases
+  {$endif ISFPC33}
+
+
 {$else FPC}
 
 (********************** Delphi Conditionals **********************)
@@ -403,9 +451,9 @@
 
   {$define OSWINDOWS}
 
-  {$IFNDEF CONDITIONALEXPRESSIONS}
+  {$ifndef CONDITIONALEXPRESSIONS}
   'Delphi 2-5 are not supported'
-  {$ENDIF CONDITIONALEXPRESSIONS}
+  {$endif CONDITIONALEXPRESSIONS}
   {$ifdef VER140}
   'Delphi 6 is not supported'
   {$endif VER140}
@@ -482,7 +530,7 @@
     {$if CompilerVersion > 18}
       {$define ISDELPHI2007ANDUP} // = Delphi 2007 or newer
       {$define HASITERATORS}
-      {$define HASDBFTWIDE}
+      {$define HASDBFTWIDE}       // ftWideMemo,ftFixedWideChar
     {$ifend}
     {$if CompilerVersion = 20}    // = Delphi 2009
       {$define ISDELPHI2009}      // to circumvent some specific bugs
@@ -493,14 +541,18 @@
       {$define ISDELPHI20092010}  // to circumvent some specific bugs
     {$ifend}
     {$if CompilerVersion >= 21.0}
-      {$define HASSAFEINLINE}     // earliest Delphi have troubles inlining :(
+      {$define HASSAFEINLINE}     // Delphi 2007-2009 have troubles inlining :(
+      {$define HASSAFEFPCINLINE}  // FPC specific inlining troubles
       {$define ISDELPHI2010}
       {$define HASDYNARRAYTYPE}   // eltype2 field, used e.g. for T*ObjArray
-      {$define HASEXTRECORDRTTI}
+      {$define HASEXTRECORDRTTI}     // Delphi 2010 extended RTTI for records
+      {$define HASIMPLICITOPERATOR}  // Delphi 2010+ "implicit operator" is ok
       {$define ISDELPHI2010_OR_FPC_NEWRTTI}
       {$define HASTTHREADSTART}
       {$define HASINTERFACEASTOBJECT}
-      {$ifdef NEWRTTINOTUSED}     // to reduce EXE size by disabling some RTTI
+      {$define HASDBFNEW}     // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
+      {$define HASDBFSINGLE}  // ftSingle
+      {$ifdef NEWRTTINOTUSED} // to reduce EXE size by disabling some RTTI
         {$WEAKLINKRTTI ON}
         {$RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])}
       {$endif NEWRTTINOTUSED}
@@ -581,8 +633,11 @@
         {$define ASMX64AVXNOCONST} // supports AVX with no align32 constant load
       {$endif CPU64}
     {$ifend}
-    {$if CompilerVersion >= 36.0} // = Delphi 12
+    {$if CompilerVersion >= 36.0} // = Delphi 12 Athens
       {$define ISDELPHI12}
+    {$ifend}
+    {$if CompilerVersion >= 37.0} // = Delphi 13 Next
+      {$define ISDELPHI13}
     {$ifend}
   {$else}
      {$define ISDELPHI7}
@@ -594,7 +649,16 @@
 (********************** Shared Conditionals **********************)
 
 // -----------
+// -- mORMot specific conditionals
+
+  {$define MORMOT_TRUNK} // this is not a "stable" release point
+
+  {$define MORMOT22}  // defined since mORMot 2.2 trunk
+  {.$define MORMOT23} // defined since mORMot 2.3 stable
+
+// -----------
 // -- about pascal code expectations
+// DO NOT CHANGE ANYTHING BELOW: our code REQUIRES those values to work properly
 
   {$H+} // we use long strings
   {$R-} // disable Range checking in our code
@@ -618,8 +682,12 @@
 
 {$ifdef CPUINTEL}
   {$ifdef OSWINDOWS}
+    {$define OSWINTEL}
     {$ifdef CPUX64}
       {$define WIN64ABI}    // for asm on x86_64
+      {$define OSWINDOWS64} // Win64
+    {$else}
+      {$define OSWINDOWS32} // Win32
     {$endif CPUX64}
     {$define THREADID32}    // TThreadID = 32-bit DWORD on Win32 and Win64
   {$endif OSWINDOWS}
@@ -632,12 +700,18 @@
   {$endif OSPOSIX}
   {$define CPUINTELARM}
 {$else}
+  {$ifdef OSWINDOWS}
+    {$ifdef CPUAARCH64}
+      {$define OSWINARM}    // Windows for ARM 64
+    {$endif CPUAARCH64}
+    {$define THREADID32}    // TThreadID = 32-bit DWORD on win64-aarch64
+  {$endif OSWINDOWS}
   {$undef HASAESNI}         // AES-NI is an Intel-specific feature
   {$ifdef CPUARM3264}
     {$define CPUINTELARM}
   {$endif CPUARM3264}
   {$ifdef CPU32}
-  {$define THREADID32}    // TThreadID = PtrUInt/pointer on pthread
+    {$define THREADID32}    // TThreadID = PtrUInt/pointer on pthread
   {$endif CPU32}
 {$endif CPUINTEL}
 
@@ -676,15 +750,22 @@
     {$endif CPUAARCH64}
   {$endif OSLINUX}
   {$ifdef OSWINDOWS}
-    {$undef LIZARD_EXTERNALONLY}    // static liblizard.a
-    {$ifdef CPUX86}
-      {$define LIBDEFLATESTATIC}
-      {$define LIBQUICKJSSTATIC}
-    {$endif CPUX86}
-    {$ifdef CPUX64}
-      {.$define LIBDEFLATESTATIC}   // Win64 + FPC 3.2 = internal error 200603061
-      {$define LIBQUICKJSSTATIC}
-    {$endif CPUX64}
+    {$ifdef CPUINTEL}
+      {$undef LIZARD_EXTERNALONLY}    // static liblizard.a
+      {$ifdef CPUX86}
+        {$define LIBDEFLATESTATIC}
+        {$define LIBQUICKJSSTATIC}
+      {$endif CPUX86}
+      {$ifdef CPUX64}
+        {.$define LIBDEFLATESTATIC}   // Win64 + FPC 3.2 = internal error 200603061
+        {$define LIBQUICKJSSTATIC}
+      {$endif CPUX64}
+    {$else}
+      {$define NOSQLITE3STATIC} // no static SQLite3 yet on aarch64-win64
+      {$undef LIBDEFLATESTATIC}
+      {$define NOLIBDEFLATESTATIC}
+      {$undef LIBQUICKJSSTATIC}
+    {$endif CPUINTEL}
   {$endif OSWINDOWS}
   {$ifdef CPUARM3264}
     {$ifdef OSDARWIN}               // unsupported arch (e.g. Aarch64-Darwin)
@@ -700,9 +781,10 @@
   {$endif CPUX86}
   // there is a linking bug with Delphi XE4 on Win64
   {$ifdef CPUX64}
-    {$if (CompilerVersion = 25.0) or
-         (CompilerVersion = 28.0) or 
-         (CompilerVersion = 29.0)}  // exactly XE4, XE7 or XE8 are known to GPF
+    {$if (CompilerVersion = 23.0) or
+         (CompilerVersion = 25.0) or
+         (CompilerVersion = 28.0) or
+         (CompilerVersion = 29.0)}  // exactly XE2/XE4/XE7/XE8 are known to GPF
       // other Win32/Win64 Delphi platforms "should work" (tm) as expected
       {$define NOSQLITE3STATIC}
     {$ifend}
@@ -718,8 +800,8 @@
   // - even if those AES engines are slower and closed source (so should better
   // be avoided), we use it for TAesPrng.GetEntropy, as it can't hurt
   {$define USE_PROV_RSA_AES}
-  // define at your own risk, if you have the good libraries ;)
-  {.$define USE_OPENSSL}
+  // define at your own risk, praying you have the good libraries ;)
+  {$define USE_OPENSSL}
 {$else}
   {$ifndef OSANDROID}
     // try OpenSSL on POSIX systems where likely to be unique and maintained
@@ -729,6 +811,10 @@
 {$ifdef FORCE_OPENSSL}
   {$define USE_OPENSSL} // if you think you are a lucky enough guy
 {$endif FORCE_OPENSSL}
+{$ifdef DISABLE_OPENSSL} // global conditional
+  {$undef USE_OPENSSL}
+  {$undef FORCE_OPENSSL}
+{$endif DISABLE_OPENSSL}
 
 
 // -----------
@@ -738,10 +824,12 @@
 
   {$ifndef ONLYUSEHTTPSOCKET}
     {$define USEWININET}      // publish TWinINet/TWinHttp/TWinHttpAPI classes
-    {$define USE_WINIOCP}     // I/O completion ports API fine under Windows
-    // (under Linux/POSIX, we fallback to a classical event-driven pool)
     {$define USEHTTPSYS}      // enable http.sys kernel-mode Web server
   {$endif ONLYUSEHTTPSOCKET}
+
+  {$define USE_WINIOCP}     // I/O completion ports API is fine under Windows
+  // (as used by mormot.core.threads and mormot.net.async)
+  // (under Linux/POSIX, we fallback to a classical event-driven pool)
 
   {$ifndef NOSSPIAUTH}        // from mormot.lib.sspi
     {$define DOMAINRESTAUTH}  // enable SSPI in mormot.rest.client/server
@@ -752,6 +840,7 @@
 {$ifdef OSPOSIX}
 
   {$define ONLYUSEHTTPSOCKET} // efficient cross-platform Socket + OpenSSL API
+  {$undef USE_WINIOCP}        // disable any Windows-specific code
 
   {$ifdef OSANDROID}
 
@@ -773,4 +862,7 @@
 
 {$endif OSPOSIX}
 
+{$if defined(USEWININET) or defined(USELIBCURL)}
+  {$define USEHTTPREQUEST}
+{$ifend}
 

@@ -10,6 +10,8 @@ Those units implement hashing, message digests, encryption, and asymmetric crypt
 
 They are written in a cross-platform way in mind, with a very efficient stand-alone version (using optimized pascal code and assembly), or via an external OpenSSL library.
 
+Hint: If you are not familiar with the algorithms themselves and their details, consider using [mormot.crypt.secure](./mormot.crypt.secure.pas) and its `Rnd`/`Hash`/`Sign`/`Cipher`/`Asym`/`Cert`/`Store` high-level factories.
+
 Legal Notice: as stated by [our licensing terms](../../LICENCE.md), make sure that you comply to any restriction about the use of cryptographic software in your country.
 
 
@@ -43,10 +45,9 @@ Authentication and Security types shared by all framework units.
 - 64-bit `TSynUniqueIdentifier` and its efficient Generator
 - `IProtocol` Safe Communication with Unilateral or Mutual Authentication
 - `TBinaryCookieGenerator` Simple Cookie Generator
-- `Rnd`/`Hash`/`Sign`/`Cipher`/`Asym` High-Level Algorithms Factories
+- `Rnd`/`Hash`/`Sign`/`Cipher`/`Asym`/`Cert`/`Store` High-Level Algorithms Factories
 - Minimal `PEM`/`DER` Encoding/Decoding
 - Basic ASN.1 Support
-- Windows Executable Digital Signature Stuffing
 
 ### mormot.crypt.ecc256r1
 
@@ -63,12 +64,30 @@ Certificate-based Public Key Cryptography Classes
 - `IProtocol` Implemented using Public Key Cryptography
 - Registration of our ECC Engine to the `TCryptAsym`/`TCryptCert` Factories
 
+### mormot.crypt.rsa
+
+Rivest-Shamir-Adleman (RSA) Public-Key Cryptography
+- RSA Oriented Big-Integer Computation
+- RSA Low-Level Cryptography Functions
+- Registration of our RSA Engine to the `TCryptAsym` Factory
+
+### mormot.crypt.x509
+
+X.509 Certificates Implementation - see RFC 5280
+- X.509 Fields Logic
+- X.509 Certificates and Certificate Signing Request (CSR)
+- X.509 Certificate Revocation List (CRL)
+- X.509 Private Key Infrastructure (PKI)
+- Registration of our X.509 Engine to the `TCryptCert`/`TCryptStore` Factories
+
 ### mormot.crypt.jwt
 
 JSON Web Tokens (JWT) Implementation - see RFC 7797
 - Abstract JWT Parsing and Computation
 - JWT Implementation of `HS*` and `S3*` Symmetric Algorithms
 - JWT Implementation of `ES256` Asymmetric Algorithm
+- JWT Implementation of `RS256`/`RS384`/`RS512` Asymmetric Algorithms
+- `TJwtCrypt` Implementation via `ICryptPublicKey`/`ICryptPrivateKey` Factories
 
 ### mormot.crypt.openssl
 
@@ -80,12 +99,13 @@ High-Performance Cryptographic Features using *OpenSSL* 1.1 / 3.x
 - JWT Implementation using any OpenSSL Algorithm
 - Register *OpenSSL* to our General Cryptography Catalog
 
+**Warning**: on Windows, you need to define the `USE_OPENSSL` conditional in YOUR project options to have this code actually link to the OpenSSL library.
+
 TL;DR: On x86_64, our `mormot.crypt.pas` asm is stand-alone and faster than *OpenSSL* for most algorithms, and only 20% slower for `AES-GCM` (but faster for *OpenSSL* 3.0).
-For `ECC`, our `mormot.crypt.ecc256r1` unit is noticeably slower than *OpenSSL*.
+For `ECC` or `RSA`, our `mormot.crypt.ecc256r1` or `mormot.crypt.rsa` units are noticeably slower than *OpenSSL*, but fully stand-alone.
 
 ### mormot.crypt.pkcs11
 
 Access Hardware Security Modules (HSM) via PKCS#11
 - High-Level *PKCS#11* Integration with the Framework Types
 - Registration of the *PKCS#11* Engine to the `TCryptAsym`/`TCryptCert` Factories
-

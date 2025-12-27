@@ -1,2 +1,2 @@
-39a67a5bcc6d688e2170de48cf3ffe72602adbe3
-new TBigInt.Gcd method
+9f99b38beac50b425f46420aec27a93f5d109f42
+orm: fixed SQL generation

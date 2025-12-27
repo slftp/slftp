@@ -20,7 +20,7 @@ unit mormot.lib.z;
 
 interface
 
-{$I ..\mormot.defines.inc}
+{$I ..\mormot.defines.inc} // define LIBDEFLATESTATIC on supported targets
 
 {$if not defined(ZLIBSTATIC) and
      not defined(ZLIBPAS) and
@@ -30,7 +30,11 @@ interface
   // select best known choice if not overriden for the whole project
   {$ifdef FPC}
     {$ifdef OSWINDOWS}
-      {$define ZLIBSTATIC} // FPC Win32 Win64: we supply our static .o
+      {$ifdef CPUINTEL}
+        {$define ZLIBSTATIC} // FPC Win32 Win64: we supply our static .o
+      {$else}
+        {$define ZLIBPAS}    // aarch64-win64: no static yet
+      {$endif CPUINTEL}
     {$else}
       {$ifdef OSANDROID}
         {$define ZLIBPAS}  // FPC Android: paszlib (Alf reported problems)
@@ -53,7 +57,7 @@ interface
 {.$define LIBDEFLATESTATIC}
 // you may try to enable it e.g. for arm/aarch64-linux (not tested yet)
 
-{$ifdef NOLIBDEFLATESTATIC}
+{$ifdef NOLIBDEFLATESTATIC} // override mormot.defines.inc default support
   {$undef LIBDEFLATESTATIC}
 {$endif NOLIBDEFLATESTATIC}
 
@@ -102,22 +106,22 @@ type
   {$define ZLIBC}
   {$endif ZLIBSTATIC}
 
-  /// raw structure used by external/static zlib during its stream process
+  /// raw c structure used by external/static zlib during its stream process
   TZStream =  record
-    next_in: PAnsiChar;
-    avail_in: cardinal;
-    total_in: TZLong;
-    next_out: PAnsiChar;
+    next_in:   PAnsiChar;
+    avail_in:  cardinal;
+    total_in:  TZLong;
+    next_out:  PAnsiChar;
     avail_out: cardinal;
     total_out: TZLong;
-    msg: PAnsiChar;
-    state: pointer;
-    zalloc: pointer;
-    zfree: pointer;
-    opaque: pointer;
+    msg:       PAnsiChar;
+    state:     pointer;
+    zalloc:    pointer;
+    zfree:     pointer;
+    opaque:    pointer;
     data_type: integer;
-    adler: TZLong;
-    reserved: TZLong;
+    adler:     TZLong;
+    reserved:  TZLong;
   end;
 
   {$endif ZLIBRTL}
@@ -145,7 +149,7 @@ type
   public
     /// raw zlib Stream information
     Stream: TZStream;
-    /// 64-bit number of bytes written to the output
+    /// 64-bit number of bytes written to the output by DoFlush()
     // - Stream.total_out may be 32-bit on some platforms
     Written: Int64;
     /// reset and prepare the internal Stream structure for two memory buffers
@@ -199,44 +203,62 @@ function zlibCompressMax(input: PtrUInt): PtrUInt;
 const
   ZLIB_VERSION = '1.2.3';
 
-  Z_NO_FLUSH = 0;
+  // block methods results
+  Z_NO_FLUSH      = 0;
   Z_PARTIAL_FLUSH = 1;
-  Z_SYNC_FLUSH = 2;
-  Z_FULL_FLUSH = 3;
-  Z_FINISH = 4;
-  Z_BLOCK = 5;
+  Z_SYNC_FLUSH    = 2;
+  Z_FULL_FLUSH    = 3;
+  Z_FINISH        = 4;
+  Z_BLOCK         = 5;
 
-  Z_OK = 0;
-  Z_STREAM_END = 1;
-  Z_NEED_DICT = 2;
-  Z_ERRNO = -1;
-  Z_STREAM_ERROR = -2;
-  Z_DATA_ERROR = -3;
-  Z_MEM_ERROR = -4;
-  Z_BUF_ERROR = -5;
+  // stream methods results
+  Z_OK            = 0;
+  Z_STREAM_END    = 1;
+  Z_NEED_DICT     = 2;
+
+  // API error numbers (all negative)
+  Z_ERRNO         = -1;
+  Z_STREAM_ERROR  = -2;
+  Z_DATA_ERROR    = -3;
+  Z_MEM_ERROR     = -4;
+  Z_BUF_ERROR     = -5;
   Z_VERSION_ERROR = -6;
 
-  Z_NO_COMPRESSION = 0;
-  Z_BEST_SPEED = 1;
-  Z_BEST_COMPRESSION = 9;
-  Z_DEFAULT_COMPRESSION = -1;
+  // compression levels
+  Z_DEFAULT_COMPRESSION = -1; // documented to match Z_USUAL_COMPRESSION (6)
+  Z_NO_COMPRESSION      = 0;
+  Z_BEST_SPEED          = 1;
+  Z_USUAL_COMPRESSION   = 6;
+  Z_BEST_COMPRESSION    = {$ifdef LIBDEFLATESTATIC} 12 {$else} 9 {$endif};
 
-  Z_FILTERED = 1;
-  Z_HUFFMAN_ONLY = 2;
-  Z_RLE = 3;
-  Z_FIXED = 4;
+  // compression strategies/algorithms
   Z_DEFAULT_STRATEGY = 0;
+  Z_FILTERED         = 1;
+  Z_HUFFMAN_ONLY     = 2;
+  Z_RLE              = 3;
+  Z_FIXED            = 4;
 
-  Z_BINARY = 0;
-  Z_ASCII = 1;
+  // compression encoding
+  Z_BINARY  = 0;
+  Z_ASCII   = 1;
   Z_UNKNOWN = 2;
 
-  Z_STORED = 0;
-  Z_DEFLATED = 8;
-  MAX_WBITS = 15; // 32K LZ77 window
+  // memory level parameter
   DEF_MEM_LEVEL = 8;
 
-  Z_NULL = 0;
+  // default 15-bit / 32KB size for the LZ77 window
+  MAX_WBITS = 15;
+  // the LZ77 window parameter value
+  Z_MAX_BITS: array[{ZlibFormat:}boolean] of integer = (
+    -MAX_WBITS,   // raw output with no header or trailing checksum
+     MAX_WBITS);  // include zlib-specific header
+
+  // 24-bit header magic number of a .gz file
+  GZ_MAGIC = $088B1F;
+
+  // main .zip methods
+  Z_STORED   = 0;
+  Z_DEFLATED = 8;
 
 
 { *******************   Low-Level libdeflate in-memory Compression Library }
@@ -403,7 +425,7 @@ type
 // or equal to 'out_nbytes_avail' bytes, then libdeflate_deflate_decompress()
 // will write the actual uncompressed size to actual_out_nbytes_ret and
 // return 0 (LIBDEFLATE_SUCCESS).  Otherwise, it will return
-// LIBDEFLATE_INSUFFICIENT_SPACE if  the provided buffer was
+// LIBDEFLATE_INSUFFICIENT_SPACE if the provided buffer was
 // not large enough but no other problems were encountered, or another
 // nonzero result code if decompression failed for another reason.
 function libdeflate_deflate_decompress(
@@ -491,7 +513,8 @@ procedure libdeflate_set_memory_allocator(
 // ZlibFormat=true to add an header, as expected by zlib (and pdf)
 // - use faster libdeflate instead of plain zlib if available
 function CompressMem(src, dst: pointer; srcLen, dstLen: PtrInt;
-  CompressionLevel: integer = 6; ZlibFormat: boolean = false) : PtrInt;
+  CompressionLevel: integer = Z_USUAL_COMPRESSION;
+  ZlibFormat: boolean = false) : PtrInt;
 
 /// in-memory ZLib uncompression
 // - ZLibFormat defines the expected layout, and should match CompressMem()
@@ -503,8 +526,8 @@ function UncompressMem(src, dst: pointer; srcLen, dstLen: PtrInt;
 // - by default, will use the deflate/.zip header-less format, but you may set
 // ZlibFormat=true to add an header, as expected by zlib (and pdf)
 function CompressStream(src: pointer; srcLen: integer;
-  tmp: TStream; CompressionLevel: integer = 6; ZlibFormat: boolean = false;
-  TempBufSize: integer = 0): cardinal;
+  tmp: TStream; CompressionLevel: integer = Z_USUAL_COMPRESSION;
+  ZlibFormat: boolean = false; TempBufSize: integer = 0): cardinal;
 
 /// ZLib decompression from memory into a stream
 // - return the number of bytes written into the stream
@@ -519,15 +542,15 @@ function UncompressStream(src: pointer; srcLen: integer; tmp: TStream;
 // - by default, will use the deflate/.zip header-less format, but you may set
 // ZlibFormat=true to add an header, as expected by zlib (and pdf)
 function CompressZipString(src: pointer; srcLen: integer;
-  CompressionLevel: integer = 6; ZlibFormat: boolean = false;
-  TempBufSize: integer = 0): RawByteString; overload;
+  CompressionLevel: integer = Z_USUAL_COMPRESSION;
+  ZlibFormat: boolean = false; TempBufSize: integer = 0): RawByteString; overload;
 
 /// ZLib compression to and from RawByteString variables
 // - by default, will use the deflate/.zip header-less format, but you may set
 // ZlibFormat=true to add an header, as expected by zlib (and pdf)
 function CompressZipString(const src: RawByteString;
-  CompressionLevel: integer = 6; ZlibFormat: boolean = false;
-  TempBufSize: integer = 0): RawByteString; overload;
+  CompressionLevel: integer = Z_USUAL_COMPRESSION;
+  ZlibFormat: boolean = false; TempBufSize: integer = 0): RawByteString; overload;
 
 /// ZLib decompression from memory into a RawByteString variable
 // - if checkCRC if not nil, it will contain the crc32; if aStream is nil, it
@@ -614,24 +637,24 @@ end;
 
 // inlined zutil.obj for Delphi Win32
 
-function zcalloc(AppData: Pointer; Items, Size: cardinal): Pointer; cdecl;
+function zcalloc(AppData: pointer; Items, Size: cardinal): pointer; cdecl;
 begin
   // direct use of the (FastMM4) delphi heap for all zip memory allocation
   Getmem(result, Items * Size);
 end;
 
-procedure zcfree(AppData, Block: Pointer); cdecl;
+procedure zcfree(AppData, Block: pointer); cdecl;
 begin
   // direct use of the (FastMM4) delphi heap for all zip memory allocation
   FreeMem(Block);
 end;
 
-procedure memset(P: Pointer; B: integer; count: integer); cdecl;
+procedure memset(P: pointer; B: integer; count: integer); cdecl;
 begin
   FillCharFast(P^, count, B);
 end;
 
-procedure memcpy(dest, source: Pointer; count: integer); cdecl;
+procedure memcpy(dest, source: pointer; count: integer); cdecl;
 begin
   MoveFast(source^, dest^, count);
 end;
@@ -734,12 +757,12 @@ end;
 
 {$ifndef ZLIBPAS}
 
-function zlibAllocMem(AppData: Pointer; Items, Size: cardinal): Pointer; cdecl;
+function zlibAllocMem(AppData: pointer; Items, Size: cardinal): pointer; cdecl;
 begin
   Getmem(result, Items * Size);
 end;
 
-procedure zlibFreeMem(AppData, Block: Pointer); cdecl;
+procedure zlibFreeMem(AppData, Block: pointer); cdecl;
 begin
   FreeMem(Block);
 end;
@@ -785,16 +808,11 @@ begin
 end;
 
 function TZLib.CompressInit(CompressionLevel: integer; ZlibFormat: boolean): boolean;
-var
-  bits: integer;
 begin
-  if ZlibFormat then
-    bits := MAX_WBITS
-  else
-    bits := -MAX_WBITS;
-  if CompressionLevel > 9 then
-    CompressionLevel := 9; // libdeflate allows additional 10,11,12 level
-  result := deflateInit2_(Stream, CompressionLevel, Z_DEFLATED, bits,
+  if CompressionLevel > Z_BEST_COMPRESSION then
+    CompressionLevel := Z_BEST_COMPRESSION; // libdeflate is up to 12
+  result := deflateInit2_(
+    Stream, CompressionLevel, Z_DEFLATED, Z_MAX_BITS[ZLibFormat],
     DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, ZLIB_VERSION, SizeOf(Stream)) >= 0;
   if FlushBufferOwned and
      not result then
@@ -820,14 +838,9 @@ begin
 end;
 
 function TZLib.UncompressInit(ZlibFormat: boolean): boolean;
-var
-  bits: integer;
 begin
-  if ZlibFormat then
-    bits := MAX_WBITS
-  else
-    bits := -MAX_WBITS;
-  result := inflateInit2_(Stream, bits, ZLIB_VERSION, SizeOf(Stream)) >= 0;
+  result := inflateInit2_(
+    Stream, Z_MAX_BITS[ZLibFormat], ZLIB_VERSION, SizeOf(Stream)) >= 0;
   if FlushBufferOwned and
      not result then
   begin
@@ -886,7 +899,7 @@ end;
 
 function zlibCompressMax(input: PtrUInt): PtrUInt;
 begin
-  // zlib compresBound = len + (len >> 12) + (len >> 14) +  (len >> 25) + 13
+  // zlib compressBound = len + (len >> 12) + (len >> 14) +  (len >> 25) + 13
   result := input + input shr 12 + input shr 14 + input shr 25 + 256;
 end;
 
@@ -895,22 +908,22 @@ end;
 
 {$ifdef LIBDEFLATESTATIC}
 
-function libdeflate_alloc_compressor; external;
-function libdeflate_deflate_compress; external;
+function libdeflate_alloc_compressor;       external;
+function libdeflate_deflate_compress;       external;
 function libdeflate_deflate_compress_bound; external;
-function libdeflate_zlib_compress; external;
-function libdeflate_zlib_compress_bound; external;
-procedure libdeflate_free_compressor; external;
+function libdeflate_zlib_compress;          external;
+function libdeflate_zlib_compress_bound;    external;
+procedure libdeflate_free_compressor;       external;
 
-function libdeflate_alloc_decompressor; external;
-function libdeflate_deflate_decompress; external;
-function libdeflate_deflate_decompress_ex; external;
-function libdeflate_zlib_decompress; external;
-function libdeflate_zlib_decompress_ex; external;
-procedure libdeflate_free_decompressor; external;
+function libdeflate_alloc_decompressor;     external;
+function libdeflate_deflate_decompress;     external;
+function libdeflate_deflate_decompress_ex;  external;
+function libdeflate_zlib_decompress;        external;
+function libdeflate_zlib_decompress_ex;     external;
+procedure libdeflate_free_decompressor;     external;
 
-function libdeflate_adler32; external;
-function libdeflate_crc32; external;
+function libdeflate_adler32;                external;
+function libdeflate_crc32;                  external;
 
 // original code is patched for proper linking and cdecl use
 // - see res/static/libdeflate for patched source and build instructions
@@ -970,13 +983,13 @@ function libdeflate_crc32; external;
 
 // utils.c source is patched to directly use those functions
 
-function libdeflate_malloc(size: cardinal): Pointer;
+function libdeflate_malloc(size: cardinal): pointer;
   public name _PU + 'libdeflate_malloc'; cdecl;
 begin
   result := GetMem(size); // use Delphi/FPC RTL heap
 end;
 
-procedure libdeflate_free(P: Pointer);
+procedure libdeflate_free(P: pointer);
   public name _PU + 'libdeflate_free'; cdecl;
 begin
   FreeMem(P);
@@ -1045,7 +1058,7 @@ var
 begin
   z.Init(src, dst, srcLen, dstLen);
   if CompressionLevel > 9 then
-    CompressionLevel := 9; // levels 10,11,12 are implemented by libdeflate
+    CompressionLevel := 9;
   if z.CompressInit(CompressionLevel, ZlibFormat) then
     try
       z.Check(z.Compress(Z_FINISH), [Z_STREAM_END, Z_OK], 'CompressMem');
@@ -1161,6 +1174,7 @@ begin
   finally
     s.Free;
   end;
+  FakeCodePage(result, CP_UTF8); // won't hurt on blobs, but FPC needed on text
 end;
 
 function UncompressZipString(const src: RawByteString; ZlibFormat: boolean;

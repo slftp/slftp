@@ -44,7 +44,7 @@ type
     // - you can specify a prompt text, when asking for any missing switch
     function AsUtf8(const Switch, Default: RawUtf8;
       const Prompt: string): RawUtf8;
-    /// returns a command line switch value as VCL string text
+    /// returns a command line switch value as RTL string text
     // - you can specify a prompt text, when asking for any missing switch
     function AsString(const Switch: RawUtf8; const Default: string;
       const Prompt: string): string;
@@ -86,7 +86,7 @@ type
   // - is able to redirect all Text() output to an internal UTF-8 storage,
   // in addition or instead of the console (to be used e.g. from a GUI)
   // - implements ICommandLine interface
-  TCommandLine = class(TInterfacedObjectWithCustomCreate, ICommandLine)
+  TCommandLine = class(TInterfacedPersistent, ICommandLine)
   private
     fValues: TDocVariantData;
     fNoPrompt: boolean;
@@ -116,7 +116,7 @@ type
     // - you can specify a prompt text, when asking for any missing switch
     function AsUtf8(const Switch, Default: RawUtf8;
       const Prompt: string): RawUtf8;
-    /// returns a command line switch value as VCL string text
+    /// returns a command line switch value as RTL string text
     // - you can specify a prompt text, when asking for any missing switch
     function AsString(const Switch: RawUtf8; const Default: string;
       const Prompt: string): string;
@@ -155,9 +155,10 @@ type
       Color: TConsoleColor = ccLightGray);
     /// returns the UTF-8 text as inserted by Text() calls
     // - line feeds will be included to the ConsoleLines[] values
-    function ConsoleText(const LineFeed: RawUtf8 = sLineBreak): RawUtf8;
+    function ConsoleText(const LineFeed: RawUtf8 = CRLF): RawUtf8;
     /// low-level access to the internal switches storage
-    property Values: TDocVariantData read fValues;
+    property Values: TDocVariantData
+      read fValues;
     /// if Text() should be redirected to ConsoleText internal storage
     // - and don't write anything to the console
     // - should be associated with NoProperty = TRUE property
@@ -189,7 +190,7 @@ begin
   fValues.InitFast(n shr 1, dvObject);
   for i := 1 to n do
   begin
-    p := StringToUtf8(ParamStr(i));
+    StringToUtf8(ParamStr(i), p);
     if p <> '' then
       if p[1] in ['-', '/'] then
       begin
@@ -274,20 +275,10 @@ var
   msg: RawUtf8;
 begin
   FormatUtf8(Fmt, Args, msg);
-  {$I-}
   if msg <> '' then
-  begin
-    TextColor(Color);
     AddRawUtf8(fLines, msg);
-    if not fNoConsole then
-      write(Utf8ToConsole(msg));
-  end;
   if not fNoConsole then
-  begin
-    writeln;
-    ioresult;
-  end;
-  {$I+}
+    ConsoleWrite(msg, Color);
 end;
 
 function TCommandLine.AsUtf8(const Switch, Default: RawUtf8;
@@ -304,7 +295,9 @@ begin
     exit;
   end;
   result := Default;
-  if fNoPrompt or (Prompt = '') then
+  if fNoPrompt or
+     (Prompt = '') or
+     not HasConsole then
     exit;
   TextColor(ccLightGray);
   {$I-}

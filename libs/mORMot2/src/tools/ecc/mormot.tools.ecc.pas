@@ -25,9 +25,9 @@ uses
   mormot.core.text,
   mormot.core.datetime,
   mormot.core.variants,
+  mormot.core.search, // EccCommandChainCertificates files search
   mormot.core.rtti,
   mormot.core.json,
-  mormot.core.search,
   mormot.crypt.secure,
   mormot.crypt.ecc,
   mormot.crypt.ecc256r1,
@@ -308,7 +308,7 @@ var
 begin
   content := StringFromFile(FileToVerify);
   if content = '' then
-    raise EEccException.CreateUtf8('File not found: %', [FileToVerify]);
+    EEccException.RaiseUtf8('File not found: %', [FileToVerify]);
   cert := TEccSignatureCertified.CreateFromFile(FileToVerify);
   try
     if not cert.Check then
@@ -339,7 +339,7 @@ var
 begin
   content := StringFromFile(FileToVerify);
   if content = '' then
-    raise EEccException.CreateUtf8('File not found: %', [FileToVerify]);
+    EEccException.RaiseUtf8('File not found: %', [FileToVerify]);
   cert := TEccSignatureCertified.CreateFrom(Signature);
   try
     auth := TEccCertificate.Create;
@@ -365,14 +365,14 @@ var
 begin
   content := StringFromFile(FileToCrypt);
   if content = '' then
-    raise EEccException.CreateUtf8('File not found: %', [FileToCrypt]);
+    EEccException.RaiseUtf8('File not found: %', [FileToCrypt]);
   auth := TEccCertificate.Create;
   try
     if not auth.FromAuth(AuthPubKey, AuthBase64, AuthSerial) then
-      raise EEccException.Create('No public key');
+      EEccException.RaiseUtf8('No public key for %', [FileToCrypt]);
     if not auth.EncryptFile(
        FileToCrypt, DestFile, Password, PasswordRounds, Algo, true) then
-      raise EEccException.CreateUtf8('EncryptFile failed for %', [FileToCrypt]);
+      EEccException.RaiseUtf8('EncryptFile failed for %', [FileToCrypt]);
   finally
     auth.Free;
     FillZero(content);
@@ -502,22 +502,22 @@ begin
   fn := ChangeFileExt(PrivateFile, CHEAT_FILEEXT);
   bin := StringFromFile(fn);
   if bin = '' then
-    raise EEccException.CreateUtf8('Unknown file %', [fn]);
+    EEccException.RaiseUtf8('Unknown file %', [fn]);
   master := TEccCertificateSecret.CreateFromSecureFile(
     CHEAT_FILEMASTER, CheatPassword, CheatRounds);
   try
     res := master.Decrypt(bin, split);
     if res <> ecdDecrypted then
-      raise EEccException.CreateUtf8('% on %', [ToText(res)^, fn]);
+      EEccException.RaiseUtf8('% on %', [ToText(res)^, fn]);
     json := TAesPrng.AFUnsplit(split, CHEAT_SPLIT);
     if json = '' then
-      raise EEccException.CreateUtf8('Incorrect file %', [fn]);
+      EEccException.RaiseUtf8('Incorrect file %', [fn]);
     if not doc.InitJson(json) then
       doc.InitObject(['pass',   json,
                       'rounds', DEFAULT_ECCROUNDS], JSON_FAST);
     authpass  := doc.U['pass'];
     authround := doc.I['rounds'];
-    result := doc.ToJson('', '', jsonHumanReadable);
+    result := doc.ToHumanJson;
   finally
     master.Free;
     FillZero(json);
@@ -538,11 +538,9 @@ begin
       dst := TAesCfc.MacEncrypt(Source, aeskey, Encrypt);
       try
         if dst = '' then
-          raise EEccException.CreateUtf8(
-            'MacEncrypt failed for %', [DestFileName]);
+          EEccException.RaiseUtf8('MacEncrypt failed for %', [DestFileName]);
         if not FileFromString(dst, DestFileName) then
-          raise EEccException.CreateUtf8(
-            'FileFromString failed for %', [DestFileName]);
+          EEccException.RaiseUtf8('FileFromString failed for %', [DestFileName]);
       finally
         FillZero(dst);
       end;
@@ -562,7 +560,7 @@ var
 begin
   plain := StringFromFile(FileToCrypt);
   if plain = '' then
-    raise EEccException.CreateUtf8('File not found: %', [FileToCrypt]);
+    EEccException.RaiseUtf8('File not found: %', [FileToCrypt]);
   if DestFile = '' then
     dest := FileToCrypt + AEAD_FILEEXT
   else
@@ -579,7 +577,7 @@ var
 begin
   encrypted := StringFromFile(FileToDecrypt);
   if encrypted = '' then
-    raise EEccException.CreateUtf8('File not found: %', [FileToDecrypt]);
+    EEccException.RaiseUtf8('File not found: %', [FileToDecrypt]);
   if DestFile = '' then
     dest := GetFileNameWithoutExt(FileToDecrypt)
   else
@@ -619,10 +617,10 @@ function EccCommand(cmd: TEccCommand; const sw: ICommandLine): TEccCommandError;
   begin
     if privfile = '' then
       exit;
-    sw.Text('Corresponding TSynPersistentWithPassword.ComputePassword:', []);
+    sw.Text('Corresponding TObjectWithPassword.ComputePassword:', []);
     sw.Text(' encryption %',
-      [TSynPersistentWithPassword.ComputePassword(pass)], ccLightBlue);
-    privkey := StringToUtf8(copy(GetFileNameWithoutExt(privfile), 1, 8));
+      [TObjectWithPassword.ComputePassword(pass)], ccLightBlue);
+    StringToUtf8(copy(GetFileNameWithoutExt(privfile), 1, 8), privkey);
     for a := low(a) to high(a) do
       sw.Text(' % %', [ToText(a)^,
         TEcdheProtocol.FromKeyCompute(privkey, pass, rounds, '', a)],

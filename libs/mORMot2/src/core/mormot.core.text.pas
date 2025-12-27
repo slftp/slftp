@@ -13,6 +13,7 @@ unit mormot.core.text;
     - Text Formatting functions
     - Resource and Time Functions
     - ESynException class
+    - HTTP/REST Common Headers Parsing (e.g. cookies)
     - Hexadecimal Text And Binary Conversion
 
   *****************************************************************************
@@ -30,7 +31,6 @@ uses
   mormot.core.base,
   mormot.core.os,
   mormot.core.unicode;
-
 
 
 { ************ CSV-like Iterations over Text Buffers }
@@ -68,15 +68,25 @@ function GetNextItemMultiple(var P: PUtf8Char; const Sep: RawUtf8;
 procedure GetNextItemTrimed(var P: PUtf8Char; Sep: AnsiChar;
   var result: RawUtf8);
 
+/// return trimmed next CSV string from P, ending value at #0 .. #13
+// - P=nil after call when P^ = #0 end of text is reached, or return P^ = #10
+procedure GetNextItemTrimedLine(var P: PUtf8Char; Sep: AnsiChar;
+  var result: RawUtf8);
+
+/// return trimmed next CSV string from P, ignoring any Escaped char
+// - P=nil after call when end of text is reached
+procedure GetNextItemTrimedEscaped(var P: PUtf8Char; Sep, Esc: AnsiChar;
+  var result: RawUtf8);
+
 /// return next CRLF separated value string from P, ending #10 or #13#10 trimmed
 // - any kind of line feed (CRLF or LF) will be handled, on all operating systems
-// - as used e.g. by TSynNameValue.InitFromCsv and TDocVariantData.InitCsv
+// - as used e.g. by TSynNameValue.InitFromCsv and TDocVariantData.InitFromPairs
 // - P=nil after call when end of text is reached
 procedure GetNextItemTrimedCRLF(var P: PUtf8Char; var result: RawUtf8);
 
 /// return next CSV string from P, nil if no more
-// - this function returns the generic string type of the compiler, and
-// therefore can be used with ready to be displayed text (e.g. for the VCL)
+// - this function returns the RTL string type of the compiler, and
+// therefore can be used with ready to be displayed text (e.g. for the UI)
 function GetNextItemString(var P: PChar; Sep: Char = ','): string;
 
 /// extract a file extension from a file name, then compare with a comma
@@ -89,7 +99,7 @@ function GetFileNameExtIndex(const FileName, CsvExt: TFileName): integer;
 
 /// return next CSV string from P, nil if no more
 // - output text would be trimmed from any left or right space
-// - will always append a trailing #0 - excluded from Dest length (0..254)
+// - will always append a #0 terminator - excluded from Dest length (0..254)
 procedure GetNextItemShortString(var P: PUtf8Char; Dest: PShortString;
   Sep: AnsiChar = ',');
 
@@ -185,13 +195,21 @@ function GetUnQuoteCsvItem(P: PUtf8Char; Index: PtrUInt; Sep: AnsiChar = ',';
   Quote: AnsiChar = ''''): RawUtf8; overload;
 
 /// return n-th indexed CSV string in P, starting at Index=0 for first one
-// - this function return the generic string type of the compiler, and
-// therefore can be used with ready to be displayed text (i.e. the VCL)
+// - this function return the RTL string type of the compiler, and
+// therefore can be used with ready to be displayed text
 function GetCsvItemString(P: PChar; Index: PtrUInt; Sep: Char = ','): string;
+
+/// return first CSV string in the supplied UTF-8 content
+function GetFirstCsvItem(const Csv: RawUtf8; Sep: AnsiChar = ','): RawUtf8;
+  {$ifdef HASINLINE} inline; {$endif}
 
 /// return last CSV string in the supplied UTF-8 content
 function GetLastCsvItem(const Csv: RawUtf8; Sep: AnsiChar = ','): RawUtf8;
   {$ifdef HASINLINE} inline; {$endif}
+
+/// quickly check if Value is in Csv with no temporary memory allocation
+function CsvContains(const Csv, Value: RawUtf8; Sep: AnsiChar = ',';
+  CaseSensitive: boolean = true): boolean;
 
 /// return the index of a Value in a CSV string
 // - start at Index=0 for first one
@@ -202,7 +220,8 @@ function FindCsvIndex(Csv: PUtf8Char; const Value: RawUtf8; Sep: AnsiChar = ',';
 /// add the strings in the specified CSV text into a dynamic array of UTF-8 strings
 // - warning: will add the strings, so List := nil may be needed before call
 procedure CsvToRawUtf8DynArray(Csv: PUtf8Char; var List: TRawUtf8DynArray;
-  Sep: AnsiChar = ','; TrimItems: boolean = false; AddVoidItems: boolean = false); overload;
+  Sep: AnsiChar = ','; TrimItems: boolean = false; AddVoidItems: boolean = false;
+  Quote: AnsiChar = #0); overload;
 
 /// add the strings in the specified CSV text into a dynamic array of UTF-8 strings
 // - warning: will add the strings, so List := nil may be needed before call
@@ -212,10 +231,22 @@ procedure CsvToRawUtf8DynArray(const Csv, Sep, SepEnd: RawUtf8;
 /// convert the strings in the specified CSV text into a dynamic array of UTF-8 strings
 function CsvToRawUtf8DynArray(const Csv: RawUtf8; const Sep: RawUtf8 = ',';
   const SepEnd: RawUtf8 = ''): TRawUtf8DynArray; overload;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// return the corresponding CSV text from a dynamic array of UTF-8 strings
-function RawUtf8ArrayToCsv(const Values: array of RawUtf8;
-  const Sep: RawUtf8 = ','; HighValues: integer = -1): RawUtf8;
+function RawUtf8ArrayToCsv(const Values: TRawUtf8DynArray;
+  const Sep: RawUtf8 = ','; Reverse: boolean = false): RawUtf8;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// return the corresponding CSV text from an array of UTF-8 strings
+// - using a Python-like friendly syntax
+// - we could not use plain Join() overload due to a Delphi compiler limitation
+function JoinCsv(const Sep: RawUtf8; const Values: array of RawUtf8;
+  Reverse: boolean = false): RawUtf8;
+
+/// low-level CSV generator e.g. for Join(), RawUtf8ArrayToCsv() and TRawUtf8List.GetText
+procedure PRawUtf8ToCsv(v: PPUtf8Char; n: integer; const sep: RawUtf8;
+  Reverse: boolean; var result: RawUtf8);
 
 /// return the corresponding CSV quoted text from a dynamic array of UTF-8 strings
 // - apply QuoteStr() function to each Values[] item
@@ -234,6 +265,10 @@ procedure AddToCsv(const Value: RawUtf8; var Csv: RawUtf8; const Sep: RawUtf8 = 
 /// change a Value within a CSV string
 function RenameInCsv(const OldValue, NewValue: RawUtf8; var Csv: RawUtf8;
   const Sep: RawUtf8 = ','): boolean;
+
+/// recognize #9 ';' or ',' as separator in a CSV text
+// - to implement a separator-tolerant CSV parser
+function CsvGuessSeparator(const Csv: RawUtf8): AnsiChar;
 
 /// append the strings in the specified CSV text into a dynamic array of integer
 procedure CsvToIntegerDynArray(Csv: PUtf8Char; var List: TIntegerDynArray;
@@ -291,8 +326,8 @@ type
   /// available global options for a TTextWriter / TTextWriter instance
   // - TTextWriter.WriteObject() method behavior would be set via their own
   // TTextWriterWriteObjectOptions, and work in conjunction with those settings
-  // - twoStreamIsOwned would be set if the associated TStream is owned by
-  // the TTextWriter instance
+  // - twoStreamIsOwned would be set if the associated TStream is owned by the
+  // TTextWriter instance  - as a TRawByteStringStream if twoStreamIsRawByteString
   // - twoFlushToStreamNoAutoResize would forbid FlushToStream to resize the
   // internal memory buffer when it appears undersized - FlushFinal will set it
   // before calling a last FlushToStream
@@ -308,7 +343,7 @@ type
   // - when enumerates and sets are serialized as text into JSON, you may force
   // the identifiers to be left-trimed for all their lowercase characters
   // (e.g. sllError -> 'Error') by setting twoTrimLeftEnumSets: this option
-  // would default to the global TTextWriter.SetDefaultEnumTrim setting
+  // may default to the deprecated global TTextWriter.SetDefaultEnumTrim setting
   // - twoEndOfLineCRLF would reflect the TEchoWriter.EndOfLineCRLF property
   // - twoBufferIsExternal would be set if the temporary buffer is not handled
   // by the instance, but specified at constructor, maybe from the stack
@@ -320,8 +355,10 @@ type
   // for array of records or classes, ignoring other formatting options:
   // $ {"fieldCount":2,"values":["f1","f2","1v1",1v2,"2v1",2v2...],"rowCount":20}
   // - twoNoSharedStream will force to create a new stream for each instance
+  // - twoNoWriteToStreamException let TTextWriter.WriteToStream silently fail
   TTextWriterOption = (
     twoStreamIsOwned,
+    twoStreamIsRawByteString,
     twoFlushToStreamNoAutoResize,
     twoEnumSetsAsTextInRecord,
     twoEnumSetsAsBooleanInRecord,
@@ -334,8 +371,9 @@ type
     twoIgnoreDefaultInRecord,
     twoDateTimeWithZ,
     twoNonExpandedArrays,
-    twoNoSharedStream);
-    
+    twoNoSharedStream,
+    twoNoWriteToStreamException);
+
   /// options set for a TTextWriter / TTextWriter instance
   // - allows to override e.g. AddRecordJson() and AddDynArrayJson() behavior;
   // or set global process customization for a TTextWriter
@@ -377,9 +415,10 @@ type
   // on client side, e.g. to 53-bit range in JavaScript: you could define
   // woIDAsIDstr to append an additional "ID_str":"##########" field
   // - by default, RawBlob properties are serialized as null, unless
-  // woRawBlobAsBase64 is defined or a custom serialization is used (e.g. TOrm)
+  // woRawBlobAsBase64/woRawByteStringAsBase64Magic are defined or a custom
+  // serialization is used (e.g. TOrm)
   // - if woHideSensitivePersonalInformation is set, rcfSpi types (e.g. the
-  // TSynPersistentWithPassword.Password field) will be serialized as "***"
+  // TObjectWithPassword.Password field) will be serialized as "***"
   // to prevent security issues (e.g. in log)
   // - by default, TObjectList will set the woStoreClassName for its nested
   // objects, unless woObjectListWontStoreClassName is defined
@@ -390,8 +429,8 @@ type
   // - woDontStoreVoid will avoid serializing numeric properties equal to 0 and
   // string properties equal to '' (replace both deprecated woDontStore0 and
   // woDontStoreEmptyString flags)
-  // - woPersistentLock paranoid setting will call TSynPersistentLock.Lock/Unlock
-  // during serialization
+  // - woRttiMethodsLock paranoid setting will call TSynLockedWithRttiMethods
+  // Lock/Unlock during serialization
   TTextWriterWriteObjectOption = (
     woHumanReadable,
     woDontStoreDefault,
@@ -407,12 +446,13 @@ type
     woTimeLogAsText,
     woIDAsIDstr,
     woRawBlobAsBase64,
+    woRawByteStringAsBase64Magic,
     woHideSensitivePersonalInformation,
     woObjectListWontStoreClassName,
     woDontStoreInherited,
     woInt64AsHex,
     woDontStoreVoid,
-    woPersistentLock);
+    woRttiMethodsLock);
 
   /// options set for TTextWriter.WriteObject() method
   TTextWriterWriteObjectOptions = set of TTextWriterWriteObjectOption;
@@ -431,8 +471,8 @@ type
     hfOutsideAttributes,
     hfWithinAttributes);
 
-  /// the available JSON format, for TTextWriter.AddJsonReformat() and its
-  // JsonBufferReformat() and JsonReformat() wrappers
+  /// the available JSON/JSON-like formats, for TTextWriter.AddJsonReformat()
+  // and its JsonBufferReformat() and JsonReformat() wrappers
   // - jsonCompact is the default machine-friendly single-line layout
   // - jsonHumanReadable will add line feeds and indentation, for a more
   // human-friendly result
@@ -443,12 +483,12 @@ type
   // use it e.g. with AJAX clients, but is would be handled as expected by all
   // our units as valid JSON input, without previous correction
   // - jsonUnquotedPropNameCompact will emit single-line layout with unquoted
-  // property names
+  // property names, which is the smallest data output within mORMot instances
   // - by default we rely on UTF-8 encoding (which is mandatory in the RFC 8259)
-  // but you can use jsonEscapeUnicode to produce compact 7-bit ASCII output,
-  // with \u#### escape of all accents, e.g. as default python json.dumps
-  // - jsonNoEscapeUnicode will process any \u#### pattern and ensure proper
-  // UTF-8 is generated instead
+  // but you can use jsonEscapeUnicode to produce pure 7-bit ASCII output,
+  // with \u#### escape of non-ASCII chars, e.g. as default python json.dumps
+  // - jsonNoEscapeUnicode will search for any \u#### pattern and generate pure
+  // UTF-8 output instead
   // - those features are not implemented in this unit, but in mormot.core.json
   TTextWriterJsonFormat = (
     jsonCompact,
@@ -457,7 +497,7 @@ type
     jsonUnquotedPropNameCompact,
     jsonEscapeUnicode,
     jsonNoEscapeUnicode);
-    
+
   /// parent to T*Writer text processing classes, with the minimum set of methods
   // - use an internal buffer, so much faster than naive string+string
   // - see TTextDateWriter in mormot.core.datetime for date/time methods
@@ -472,17 +512,17 @@ type
     fInitialStreamPosition: PtrUInt;
     fTotalFileSize: PtrUInt;
     fHumanReadableLevel: integer;
-    // internal temporary buffer
-    fTempBufSize: integer;
+    fTempBufSize: integer; // internal temporary buffer
     fTempBuf: PUtf8Char;
     fOnFlushToStream: TOnTextWriterFlush;
     fCustomOptions: TTextWriterOptions;
-    procedure WriteToStream(data: pointer; len: PtrUInt); virtual;
     function GetTextLength: PtrUInt;
     procedure SetStream(aStream: TStream);
     procedure SetBuffer(aBuf: pointer; aBufSize: integer);
-    procedure InternalSetBuffer(aBuf: PUtf8Char; aBufSize: integer);
+    procedure WriteToStream(data: pointer; len: PtrUInt); virtual;
+    procedure InternalSetBuffer(aBuf: PUtf8Char; const aBufSize: PtrUInt);
       {$ifdef FPC} inline; {$endif}
+    procedure RaiseUnimplemented(const Method: ShortString);
   public
     /// direct access to the low-level current position in the buffer
     // - you should not use this field directly
@@ -522,10 +562,11 @@ type
     // - you should call explicitly FlushFinal or FlushToStream to write
     // any pending data to the file
     constructor CreateOwnedFileStream(const aFileName: TFileName;
-      aBufSize: integer = 8192);
+      aBufSize: integer = 16384);
     /// release all internal structures
     // - e.g. free fStream if the instance was owned by this class
     destructor Destroy; override;
+    {$ifndef PUREMORMOT2}
     /// allow to override the default (JSON) serialization of enumerations and
     // sets as text, which would write the whole identifier (e.g. 'sllError')
     // - calling SetDefaultEnumTrim(true) would force the enumerations to
@@ -536,11 +577,14 @@ type
     // in the TTextWriter.CustomOptions property of a given serializer
     // - note that unserialization process would recognize both formats
     class procedure SetDefaultEnumTrim(aShouldTrimEnumsAsText: boolean);
+    {$endif PUREMORMOT2}
 
     /// write pending data, then retrieve the whole text as a UTF-8 string
+    // - call CancelAll to reuse this instance after this method (or FlushFinal)
     function Text: RawUtf8;
       {$ifdef HASINLINE}inline;{$endif}
     /// write pending data, then retrieve the whole text as a UTF-8 string
+    // - call CancelAll to reuse this instance after this method (or FlushFinal)
     procedure SetText(var result: RawUtf8; reformat: TTextWriterJsonFormat = jsonCompact);
     /// set the internal stream content with the supplied UTF-8 text
     procedure ForceContent(const text: RawUtf8);
@@ -558,27 +602,51 @@ type
     // FlushFinal at the end of the process, just before using the resulting Stream
     // - if you don't call FlushToStream or FlushFinal, some pending characters
     // may not be copied to the Stream: you should call it before using the Stream
+    // - call CancelAll to reuse this instance after this method - or SetText()
     procedure FlushFinal;
       {$ifdef HASINLINE}inline;{$endif}
 
     /// append one ASCII char to the buffer
-    procedure Add(c: AnsiChar); overload;
+    procedure Add(const c: AnsiChar); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// append one ASCII char to the buffer with no buffer check
+    // - to be called after a regular Add(), within the 16 bytes buffer overhead
+    procedure AddDirect(const c: AnsiChar); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// append two ASCII chars to the buffer with no buffer check
+    // - to be called after a regular Add(), within the 16 bytes buffer overhead
+    procedure AddDirect(const c1, c2: AnsiChar); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// append three ASCII chars to the buffer with no buffer check
+    // - to be called after a regular Add(), within the 16 bytes buffer overhead
+    procedure AddDirect(const c1, c2, c3: AnsiChar); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// append four ASCII chars to the buffer with no buffer check
+    // - to be called after a regular Add(), within the 16 bytes buffer overhead
+    procedure AddDirect(const c1, c2, c3, c4: AnsiChar); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// append the CRLF constant, i.e. #13#10 on Windows and #10 on POSIX
+    // - to be called after a regular Add(), within the 16 bytes buffer overhead
+    procedure AddDirectNewLine;
       {$ifdef HASINLINE}inline;{$endif}
     /// append one comma (',') character
+    // - to be called after a regular Add(), within the 16 bytes buffer overhead
     procedure AddComma;
       {$ifdef HASINLINE}inline;{$endif}
     /// append one ASCII char to the buffer, if not already there as LastChar
-    procedure AddOnce(c: AnsiChar); overload;
+    procedure AddOnce(const c: AnsiChar); overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// append two chars to the buffer
-    procedure Add(c1, c2: AnsiChar); overload;
+    procedure Add(const c1, c2: AnsiChar); overload;
       {$ifdef HASINLINE}inline;{$endif}
-    {$ifdef CPU32} // already implemented by Add(Value: PtrInt) method on CPU64
+    {$ifdef CPU32}
     /// append a 64-bit signed integer Value as text
+    // - already implemented by Add(Value: PtrInt) method on CPU64
     procedure Add(Value: Int64); overload;
     {$endif CPU32}
-    /// append a 32-bit signed integer Value as text
+    /// append a PtrInt signed integer Value as text
     procedure Add(Value: PtrInt); overload;
+      {$ifdef FPC_OR_DELPHIXE4}{$ifdef ASMINTEL}inline;{$endif}{$endif} // URW1111
     /// append a boolean Value as text
     // - write either 'true' or 'false'
     procedure Add(Value: boolean); overload;
@@ -590,15 +658,24 @@ type
     procedure AddCurr(const Value: currency); 
       {$ifdef HASINLINE}inline;{$endif}
     /// append an Unsigned 32-bit integer Value as a String
-    procedure AddU(Value: cardinal);
+    procedure AddU(Value: PtrUInt);
+      {$ifdef FPC_OR_DELPHIXE4}{$ifdef ASMINTEL}inline;{$endif}{$endif} // URW1111
+    /// append an Unsigned integer <= 255 < 999 Value as a String
+    procedure AddB(Value: PtrUInt);
+      {$ifdef HASINLINE}inline;{$endif}
+    /// append an Unsigned 32-bit integer Value as a quoted hexadecimal String
+    procedure AddUHex(Value: cardinal; QuotedChar: AnsiChar = '"');
+      {$ifdef HASINLINE}inline;{$endif}
     /// append an Unsigned 64-bit integer Value as a String
     procedure AddQ(Value: QWord);
+      {$ifdef FPC_CPUX64}inline;{$endif} // URW1147 on Delphi XE2
     /// append an Unsigned 64-bit integer Value as a quoted hexadecimal String
-    procedure AddQHex(Value: Qword);
+    procedure AddQHex(Value: Qword; QuotedChar: AnsiChar = '"');
       {$ifdef HASINLINE}inline;{$endif}
     /// append a GUID value, encoded as text without any {}
     // - will store e.g. '3F2504E0-4F89-11D3-9A0C-0305E82C3301'
-    procedure Add(Value: PGuid; QuotedChar: AnsiChar = #0); overload;
+    // - you can set tab = @TwoDigitsHexLower to force a lowercase output
+    procedure Add(Value: PGuid; QuotedChar: AnsiChar = #0; tab: PWordArray = nil); overload;
     /// append a floating-point Value as a String
     // - write "Infinity", "-Infinity", and "NaN" for corresponding IEEE values
     // - noexp=true will call ExtendedToShortNoExp() to avoid any scientific
@@ -631,43 +708,51 @@ type
     procedure AddCRAndIndent; virtual;
     /// write the same character multiple times
     procedure AddChars(aChar: AnsiChar; aCount: PtrInt);
-    /// append an integer Value as a 2 digits text with comma
+    /// append an integer Value as fixed-length 2 digits text with comma
     procedure Add2(Value: PtrUInt);
-    /// append an integer Value as a 3 digits text without any comma
+    /// append an integer Value as fixed-length 3 digits text without any comma
     procedure Add3(Value: cardinal);
-    /// append an integer Value as a 4 digits text with comma
+    /// append an integer Value as fixed-length 4 digits text with comma
     procedure Add4(Value: PtrUInt);
     /// append a time period, specified in micro seconds, in 00.000.000 TSynLog format
-    procedure AddMicroSec(MS: cardinal);
+    procedure AddMicroSec(MicroSec: cardinal);
+    /// append an array of RawUtf8 as CSV
+    procedure AddCsvStrings(const Values: array of RawUtf8;
+      const Sep: RawUtf8 = ','; HighValues: PtrInt = -1; Reverse: boolean = false);
     /// append an array of integers as CSV
     procedure AddCsvInteger(const Integers: array of integer);
     /// append an array of doubles as CSV
     procedure AddCsvDouble(const Doubles: array of double);
     /// append some UTF-8 chars to the buffer
     // - input length is calculated from zero-ended char
-    // - don't escapes chars according to the JSON RFC
-    procedure AddNoJsonEscape(P: Pointer); overload;
+    // - does not escape chars according to the JSON RFC
+    procedure AddNoJsonEscape(P: pointer); overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// append some UTF-8 chars to the buffer
-    // - don't escapes chars according to the JSON RFC
-    procedure AddNoJsonEscape(P: Pointer; Len: PtrInt); overload;
+    // - does not escape chars according to the JSON RFC
+    // - called by inlined AddNoJsonEscape() if Len >= fTempBufSize
+    procedure AddNoJsonEscapeBig(P: pointer; Len: PtrInt);
+    /// append some UTF-8 chars to the buffer - inlined for small content
+    // - does not escape chars according to the JSON RFC
+    procedure AddNoJsonEscape(P: pointer; Len: PtrInt); overload;
+      {$ifdef HASINLINE}inline;{$endif}
     /// append some UTF-8 chars to the buffer
-    // - don't escapes chars according to the JSON RFC
+    // - does not escape chars according to the JSON RFC
     procedure AddNoJsonEscapeUtf8(const text: RawByteString);
       {$ifdef HASINLINE}inline;{$endif}
-    /// append some UTF-8 encoded chars to the buffer, from a generic string type
-    // - don't escapes chars according to the JSON RFC
+    /// append some UTF-8 encoded chars to the buffer, from a RTL string type
+    // - does not escape chars according to the JSON RFC
     // - if s is a UnicodeString, will convert UTF-16 into UTF-8
     procedure AddNoJsonEscapeString(const s: string);
     /// append some unicode chars to the buffer
-    // - WideCharCount is the unicode chars count, not the byte size; if it is
+    // - WideCharCount is the UTF-16 chars count, not the byte size; if it is
     // 0, then it will convert until an ending #0 (fastest way)
-    // - don't escapes chars according to the JSON RFC
+    // - does not escape chars according to the JSON RFC
     // - will convert the Unicode chars into UTF-8
     procedure AddNoJsonEscapeW(WideChar: PWord; WideCharCount: integer);
-    /// append some Ansi text as UTF-8 chars to the buffer
-    // - don't escapes chars according to the JSON RFC
-    procedure AddNoJsonEscape(P: PAnsiChar; Len: PtrInt; CodePage: cardinal); overload;
+    /// append some Ansi text of a specific CodePage as UTF-8 chars to the buffer
+    // - does not escape chars according to the JSON RFC
+    procedure AddNoJsonEscapeCP(P: PAnsiChar; Len: PtrInt; CodePage: cardinal);
     /// append some UTF-8 content to the buffer, with no JSON escape
     // - if supplied json is '', will write 'null' so that valid JSON is written
     // - redirect to AddNoJsonEscape() otherwise
@@ -677,6 +762,7 @@ type
     /// append some chars to the buffer in one line
     // - P should be ended with a #0
     // - will write #1..#31 chars as spaces (so content will stay on the same line)
+    // - this method is slightly faster than its overload with explicit Len param
     procedure AddOnSameLine(P: PUtf8Char); overload;
     /// append some chars to the buffer in one line
     // - will write #0..#31 chars as spaces (so content will stay on the same line)
@@ -684,21 +770,24 @@ type
     /// append some wide chars to the buffer in one line
     // - will write #0..#31 chars as spaces (so content will stay on the same line)
     procedure AddOnSameLineW(P: PWord; Len: PtrInt);
-    /// append some VCL/LCL string to the buffer in one line
+    /// append some RTL string to the buffer in one line
     // - will write #0..#31 chars as spaces (so content will stay on the same line)
     procedure AddOnSameLineString(const Text: string);
     /// append an UTF-8 String, with no JSON escaping
     procedure AddString(const Text: RawUtf8);
     /// append several UTF-8 strings
-    procedure AddStrings(const Text: array of RawUtf8); overload;
+    procedure AddStrings(const Values: array of RawUtf8); overload;
     /// append an UTF-8 string several times
     procedure AddStrings(const Text: RawUtf8; count: PtrInt); overload;
     /// append a ShortString
-    procedure AddShort(const Text: ShortString);
+    procedure AddShort(const Text: ShortString); overload;
+    /// append a ShortString - or at least a small buffer < 256 chars
+    procedure AddShort(Text: PUtf8Char; TextLen: PtrInt); overload;
+      {$ifdef HASINLINE}inline;{$endif}
     /// append a TShort8 - Text should be not '', and up to 8 chars long
     // - this method is aggressively inlined, so may be preferred to AddShort()
     // for appending simple UTF-8 constant text
-    procedure AddShorter(const Text: TShort8);
+    procedure AddShorter(const Short8: TShort8);
       {$ifdef HASINLINE}inline;{$endif}
     /// append 'null' as text
     procedure AddNull;
@@ -715,6 +804,16 @@ type
     /// append a #0-terminated UTF-8 buffer excluding any space or control char
     // - this won't escape the text as expected by JSON
     procedure AddTrimSpaces(P: PUtf8Char); overload;
+    /// append some text with left-filled spaces up to Width characters count
+    procedure AddSpaced(const Text: RawUtf8; Width: PtrInt;
+      SepChar: AnsiChar = #0); overload;
+    /// append some text with left-filled spaces up to Width characters count
+    // - if the value too big to fit, will truncate up to the first Width chars
+    procedure AddSpaced(Text: PUtf8Char; TextLen, Width: PtrInt); overload;
+    /// append some number with left-filled spaces up to Width characters count
+    // - if the value too big to fit in Width, will append K(Value) abbreviation
+    procedure AddSpaced(Value: QWord; Width: PtrInt;
+      SepChar: AnsiChar = #0); overload;
     /// append some UTF-8 chars, replacing a given character with another
     procedure AddReplace(Text: PUtf8Char; Orig, Replaced: AnsiChar);
     /// append some UTF-8 chars, quoting all " chars
@@ -726,6 +825,13 @@ type
     // putting two single quotes in a row - as in Pascal."
     procedure AddQuotedStr(Text: PUtf8Char; TextLen: PtrUInt; Quote: AnsiChar;
       TextMaxLen: PtrInt = 0);
+    /// append some UTF-16 chars, quoting all " chars
+    procedure AddQuotedStrW(Text: PWideChar; TextLen: PtrUInt; Quote: AnsiChar;
+      TextMaxLen: PtrInt = 0);
+    /// append an URI-decoded domain name, also normalizing dual // into /
+    // - only parameters - i.e. after '?' - may have ' ' replaced by '+'
+    // - will also ensure start with a '/' as requested in HTTP common log format
+    procedure AddUrlNameNormalize(U: PUtf8Char; L: PtrInt);
     /// append some UTF-8 chars, escaping all HTML special chars as expected
     procedure AddHtmlEscape(Text: PUtf8Char; Fmt: TTextWriterHtmlFormat = hfAnyWhere); overload;
     /// append some UTF-8 chars, escaping all HTML special chars as expected
@@ -734,7 +840,7 @@ type
     /// append some UTF-16 chars, escaping all HTML special chars as expected
     procedure AddHtmlEscapeW(Text: PWideChar;
       Fmt: TTextWriterHtmlFormat = hfAnyWhere); overload;
-    /// append some VCL/LCL chars, escaping all HTML special chars as expected
+    /// append some RTL string chars, escaping all HTML special chars as expected
     procedure AddHtmlEscapeString(const Text: string;
       Fmt: TTextWriterHtmlFormat = hfAnyWhere);
     /// append some UTF-8 chars, escaping all HTML special chars as expected
@@ -746,7 +852,7 @@ type
     // - see @http://www.w3.org/TR/xml/#syntax
     procedure AddXmlEscape(Text: PUtf8Char);
     /// append a property name, as '"PropName":'
-    // - PropName content should not need to be JSON escaped (e.g. no " within,
+    // - PropName content should not need any JSON escape (e.g. no " within,
     // and only ASCII 7-bit characters)
     // - if twoForceJsonExtended is defined in CustomOptions, it would append
     // 'PropName:' without the double quotes
@@ -756,7 +862,7 @@ type
     procedure AddProp(PropName: PUtf8Char); overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// append a ShortString property name, as '"PropName":'
-    // - PropName content should not need to be JSON escaped (e.g. no " within,
+    // - PropName content should not need any JSON escape (e.g. no " within,
     // and only ASCII 7-bit characters)
     // - if twoForceJsonExtended is defined in CustomOptions, it would append
     // 'PropName:' without the double quotes
@@ -767,22 +873,38 @@ type
     procedure AddPropInt64(const PropName: ShortString; Value: Int64;
       WithQuote: AnsiChar = #0);
     /// append a RawUtf8 property name, as '"FieldName":'
-    // - FieldName content should not need to be JSON escaped (e.g. no " within)
+    // - FieldName content should not need any JSON escape (e.g. no " within)
     // - if twoForceJsonExtended is defined in CustomOptions, it would append
     // 'PropName:' without the double quotes
     // - is a wrapper around AddProp()
     procedure AddFieldName(const FieldName: RawUtf8);
       {$ifdef HASINLINE}inline;{$endif}
+    /// append a RawUtf8 property name, as '"FieldName"
+    // - FieldName content should not need any JSON escape (e.g. no " within)
+    procedure AddQuotedFieldName(const FieldName: RawUtf8;
+      const VoidPlaceHolder: RawUtf8 = ''); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// append a RawUtf8 property name, as '"FieldName"
+    // - FieldName content should not need any JSON escape (e.g. no " within)
+    procedure AddQuotedFieldName(FieldName: PUtf8Char; FieldNameLen: PtrInt;
+      const VoidPlaceHolder: RawUtf8 = ''); overload;
     /// append the class name of an Object instance as text
     procedure AddClassName(aClass: TClass);
-    /// append an Instance name and pointer, as '"TObjectList(00425E68)"'+SepChar
+    /// append a quoted Instance name and pointer, as "TObjectList(00425E68)"
     // - append "void" if Instance = nil
-    procedure AddInstanceName(Instance: TObject; SepChar: AnsiChar);
+    // - could be used to append an instance reference as JSON object property
+    procedure AddInstanceName(Instance: TObject; SepChar: AnsiChar = ':');
     /// append an Instance name and pointer, as 'TObjectList(00425E68)'+SepChar
+    // - caller should have ensure that Instance <> nil
     procedure AddInstancePointer(Instance: TObject; SepChar: AnsiChar;
       IncludeUnitName, IncludePointer: boolean);
     /// append some binary data as hexadecimal text conversion
-    procedure AddBinToHex(Bin: Pointer; BinBytes: PtrInt; LowerHex: boolean = false);
+    procedure AddBinToHex(Bin: pointer; BinBytes: PtrInt; LowerHex: boolean = false;
+      QuotedChar: AnsiChar = #0);
+    /// append some binary data as hexadecimal text conversion
+    // - append its minimal chars, i.e. excluding last bytes containing 0
+    procedure AddBinToHexMinChars(Bin: pointer; BinBytes: PtrInt;
+      LowerHex: boolean = false; QuotedChar: AnsiChar = #0);
     /// fast conversion from binary data into hexa chars, ready to be displayed
     // - using this function with Bin^ as an integer value will serialize it
     // in big-endian order (most-significant byte first), as used by humans
@@ -807,10 +929,10 @@ type
     procedure AddPointer(P: PtrUInt; QuotedChar: AnsiChar = #0);
     /// write a byte as two hexa chars
     procedure AddByteToHex(Value: PtrUInt);
-    /// write a Int18 value (0..262143) as 3 chars
-    // - this encoding is faster than Base64, and has spaces on the left side
-    // - use function Chars3ToInt18() to decode the textual content
-    procedure AddInt18ToChars3(Value: cardinal);
+      {$ifdef HASINLINE}inline;{$endif}
+    /// write a byte as two hexa chars
+    procedure AddByteToHexLower(Value: PtrUInt);
+      {$ifdef HASINLINE}inline;{$endif}
 
     /// append strings or integers with a specified format
     // - this class implementation will raise an exception for twJsonEscape,
@@ -827,6 +949,9 @@ type
     // - use overriden TJsonWriter version instead!
     procedure AddVariant(const Value: variant; Escape: TTextWriterKind = twJsonEscape;
       WriteOptions: TTextWriterWriteObjectOptions = []); virtual;
+    /// append a variant content as UTF-8 text
+    // - with optional HTML escape (via a TTempUtf8) but no JSON serialization
+    procedure AddVarData(Value: PVarData; HtmlEscape: boolean);
     /// this class implementation will raise an exception
     // - use overriden TJsonWriter version instead!
     // - TypeInfo is a PRttiInfo instance - but not available in this early unit
@@ -838,10 +963,18 @@ type
     /// write some #0 ended UTF-8 text, according to the specified format
     // - use overriden TJsonWriter version instead!
     procedure Add(P: PUtf8Char; Len: PtrInt; Escape: TTextWriterKind); overload; virtual;
+    /// append an open array constant value to the buffer
+    // - use overriden TJsonWriter version instead!
+    procedure AddVarRec(V: PVarRec; Escape: TTextWriterKind = twNone;
+      WriteObjectOptions: TTextWriterWriteObjectOptions = [woFullExpand]); virtual;
+    /// prepare direct access to the internal output buffer
+    // - return nil if Len is too big to fit in the current buffer size
+    // - return the position to write text
+    // - but WON'T increase the instance position: caller should do inc(B, ...)
+    function AddPrepare(Len: PtrInt): pointer;
     /// write some data Base64 encoded
     // - use overriden TJsonWriter version instead!
     procedure WrBase64(P: PAnsiChar; Len: PtrUInt; withMagic: boolean); virtual;
-
     /// serialize as JSON the given object
     // - use overriden TJsonWriter version instead!
     procedure WriteObject(Value: TObject;
@@ -857,6 +990,9 @@ type
     /// how many bytes are currently in the internal buffer and not on disk/stream
     // - see TextLength for the total number of bytes, on both stream and memory
     function PendingBytes: PtrUInt;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// how many bytes are currently available in the internal memory buffer
+    function AvailableBytes: PtrUInt;
       {$ifdef HASINLINE}inline;{$endif}
     /// how many bytes were currently written on disk/stream
     // - excluding the bytes in the internal buffer (see PendingBytes)
@@ -879,14 +1015,23 @@ type
     /// the last char appended is canceled if it was a ','
     // - only one char cancelation is allowed at the same position: don't call
     // CancelLastChar/CancelLastComma more than once without appending text inbetween
-    procedure CancelLastComma;
+    procedure CancelLastComma; overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// the last char appended is canceled if it was a ',' and replaced
+    // - only one char cancelation is allowed at the same position: don't call
+    // CancelLastChar/CancelLastComma more than once without appending text inbetween
+    procedure CancelLastComma(aReplaceChar: AnsiChar); overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// rewind the Stream to the position when Create() was called
     // - note that this does not clear the Stream content itself, just
     // move back its writing position to its initial place
+    // - mandatory call after FlushFinal or Text/SetText() to reuse this instance
     procedure CancelAll;
     /// same as CancelAll, and also reset the CustomOptions
     procedure CancelAllAsNew;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// same as CancelAll, and also use a new local TTextWriterStackBuffer
+    procedure CancelAllWith(var temp: TTextWriterStackBuffer);
 
     /// count of added bytes to the stream
     // - see PendingBytes for the number of bytes currently in the memory buffer
@@ -898,7 +1043,7 @@ type
     // this TStream content, to flush all pending characters
     // - if the TStream instance has not been specified when calling the
     // TTextWriter constructor, it can be forced via this property, before
-    // any writting
+    // any writing
     property Stream: TStream
       read fStream write SetStream;
     /// global options to customize this TTextWriter instance process
@@ -942,14 +1087,12 @@ procedure ObjectToJson(Value: TObject; var result: RawUtf8;
   Options: TTextWriterWriteObjectOptions = [woDontStoreDefault]); overload;
 
 /// will serialize any TObject into its expanded UTF-8 JSON representation
-// - includes debugger-friendly information, similar to TSynLog, i.e.
-// class name and sets/enumerates as text
+// - includes TEXTWRITEROPTIONS_DEBUG debugger-friendly information, similar to
+// TSynLog, i.e. class name and sets/enumerates as text
 // - redirect to ObjectToJson() with the proper TTextWriterWriteObjectOptions,
 // since our JSON serialization detects and serialize Exception.Message
-function ObjectToJsonDebug(Value: TObject;
-  Options: TTextWriterWriteObjectOptions = [woDontStoreDefault,
-    woHumanReadable, woStoreClassName, woStorePointer,
-    woHideSensitivePersonalInformation]): RawUtf8;
+function ObjectToJsonDebug(Value: TObject): RawUtf8;
+  {$ifdef HASINLINE} inline; {$endif}
 
 /// a wrapper around ConsoleWrite(ObjectToJson(Value))
 procedure ConsoleObject(Value: TObject;
@@ -964,27 +1107,55 @@ function NeedsHtmlEscape(text: PUtf8Char; fmt: TTextWriterHtmlFormat): boolean;
 function HtmlEscape(const text: RawUtf8;
   fmt: TTextWriterHtmlFormat = hfAnyWhere): RawUtf8;
 
-/// escape some VCL/LCL text into UTF-8 HTML
+/// escape some RTL string text into UTF-8 HTML
 // - just a wrapper around TTextWriter.AddHtmlEscapeString() process,
 // replacing < > & " chars depending on the HTML layer
 function HtmlEscapeString(const text: string;
-  fmt: TTextWriterHtmlFormat = hfAnyWhere): RawUtf8;
+  fmt: TTextWriterHtmlFormat = hfAnyWhere): RawUtf8; overload;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// escape some RTL string text into UTF-8 HTML
+// - just a wrapper around TTextWriter.AddHtmlEscapeString() process,
+// replacing < > & " chars depending on the HTML layer
+procedure HtmlEscapeString(const text: string; var result: RawUtf8;
+  fmt: TTextWriterHtmlFormat); overload;
+
+/// check if some UTF-8 text would need XML escaping
+function NeedsXmlEscape(text: PUtf8Char): boolean;
+
+/// escape some UTF-8 text into XML
+// - just a wrapper around TTextWriter.AddXmlEscape() process
+function XmlEscape(const text: RawUtf8): RawUtf8;
+
+/// quickly identify if any character appears in an UTF-8 string
+function NeedsEscape(text: PUtf8Char; const toescape: TSynAnsicharSet): boolean;
 
 /// escape as \xx hexadecimal some chars from a set into a pre-allocated buffer
 // - dest^ should have at least srclen * 3 bytes, for \## trios
 function EscapeHexBuffer(src, dest: PUtf8Char; srclen: integer;
-  const toescape: TSynAnsicharSet; escape: AnsiChar = '\'): PUtf8Char;
+  const toescape: TSynAnsicharSet; escape: AnsiChar = '\'): PUtf8Char; overload;
+
+/// escape as \xx hexadecimal one char into a pre-allocated buffer
+// - dest^ should have at least srclen * 3 bytes, for \## trios
+function EscapeHexBuffer(src, dest: PUtf8Char; srclen: integer;
+  toescape, escape: AnsiChar): PUtf8Char; overload;
 
 /// escape as \xx hexadecimal some chars from a set into a new RawUtf8 string
 // - as used e.g. by LdapEscape()
 function EscapeHex(const src: RawUtf8;
-  const toescape: TSynAnsicharSet; escape: AnsiChar = '\'): RawUtf8;
+  const toescape: TSynAnsicharSet; escape: AnsiChar = '\'): RawUtf8; overload;
+
+/// escape as \xx hexadecimal one char into a new RawUtf8 string
+function EscapeHex(const src: RawUtf8;
+  toescape: AnsiChar; escape: AnsiChar = '\'): RawUtf8; overload;
 
 /// un-escape \xx or \c encoded chars from a pre-allocated buffer
+// - any CR/LF after \ will also be ignored
 // - dest^ should have at least the same length than src^
 function UnescapeHexBuffer(src, dest: PUtf8Char; escape: AnsiChar = '\'): PUtf8Char;
 
 /// un-escape \xx or \c encoded chars into a new RawUtf8 string
+// - any CR/LF after \ will also be ignored
 function UnescapeHex(const src: RawUtf8; escape: AnsiChar = '\'): RawUtf8;
 
 /// escape as \char pair some chars from a set into a pre-allocated buffer
@@ -1019,7 +1190,13 @@ const
 
   /// TTextWriter JSON serialization options which should be preserved
   // - used e.g. by TTextWriter.CancelAllAsNew to reset its CustomOptions
-  TEXTWRITEROPTIONS_RESET = [twoStreamIsOwned, twoBufferIsExternal];
+  TEXTWRITEROPTIONS_RESET =
+    [twoStreamIsOwned, twoStreamIsRawByteString, twoBufferIsExternal];
+
+  /// TTextWriter JSON serialization options with debugging/logging information
+  TEXTWRITEROPTIONS_DEBUG =
+    [woDontStoreDefault, woHumanReadable, woStoreClassName, woStorePointer,
+     woHideSensitivePersonalInformation];
 
 type
   TEchoWriter = class;
@@ -1027,11 +1204,11 @@ type
   /// callback used to echo each line of TEchoWriter class
   // - should return TRUE on success, FALSE if the log was not echoed: but
   // TSynLog will continue logging, even if this event returned FALSE
-  TOnTextWriterEcho = function(Sender: TEchoWriter; Level: TSynLogInfo;
+  TOnTextWriterEcho = function(Sender: TEchoWriter; Level: TSynLogLevel;
     const Text: RawUtf8): boolean of object;
 
   TEchoWriterBack = record
-    Level: TSynLogInfoDynArray;
+    Level: TSynLogLevelDynArray;
     Text: TRawUtf8DynArray;
     Count: PtrInt;
   end;
@@ -1042,14 +1219,16 @@ type
   // better follow the SOLID principles
   TEchoWriter = class
   protected
+    fBackSafe: TLightLock; // protect fBack.Level/Text
     fWriter: TTextWriter;
     fEchoStart: PtrInt;
     fEchoBuf: RawUtf8;
     fEchos: array of TOnTextWriterEcho;
+    fWriteCRLF, fEchoPendingExecuteBackground: boolean;
     fBack: TEchoWriterBack;
-    fBackSafe: TLightLock; // protect fBack.Level/Text
-    fEchoPendingExecuteBackground: boolean;
     function EchoFlush: PtrInt;
+    procedure EchoPendingToBackground(aLevel: TSynLogLevel);
+    procedure EchoAddEndOfLine(aLevel: TSynLogLevel);
     function GetEndOfLineCRLF: boolean;
       {$ifdef HASINLINE}inline;{$endif}
     procedure SetEndOfLineCRLF(aEndOfLineCRLF: boolean);
@@ -1068,7 +1247,8 @@ type
     // - any callback registered via EchoAdd() will monitor this line in the
     // current thread, or calling EchoPendingExecute from a background thread
     // - used e.g. by TSynLog for console output, as stated by Level parameter
-    procedure AddEndOfLine(aLevel: TSynLogInfo = sllNone);
+    procedure AddEndOfLine(aLevel: TSynLogLevel = sllNone);
+      {$ifdef HASINLINE}inline;{$endif}
     /// add a callback to echo each line written by this class
     // - this class expects AddEndOfLine to mark the end of each line
     procedure EchoAdd(const aEcho: TOnTextWriterEcho);
@@ -1105,8 +1285,9 @@ var
   // - use around 16KB of heap (since each item consumes 16 bytes), but increase
   // overall performance and reduce memory allocation (and fragmentation),
   // especially during multi-threaded execution
-  // - noticeable when strings are used as array indexes (e.g.
+  // - noticeable when RawUtf8 strings are used as array indexes (e.g.
   // in mormot.db.nosql.bson)
+  // - less noticeable without any allocation: StrInt32() is faster on a buffer
   // - is defined globally, since may be used from an inlined function
   SmallUInt32Utf8: array[0..999] of RawUtf8;
 
@@ -1183,14 +1364,6 @@ procedure Curr64ToStr(const Value: Int64; var result: RawUtf8); overload;
 // - return the number of chars written to Dest^
 function Curr64ToPChar(const Value: Int64; Dest: PUtf8Char): PtrInt;
 
-/// internal fast INTEGER Curr64 (value*10000) value to text conversion
-// - expect the last available temporary char position in P
-// - return the last written char position (write in reverse order in P^)
-// - will return 0 for Value=0, or a string representation with always 4 decimals
-//   (e.g. 1->'0.0001' 500->'0.0500' 25000->'2.5000' 30000->'3.0000')
-// - is called by Curr64ToPChar() and Curr64ToStr() functions
-function StrCurr64(P: PAnsiChar; const Value: Int64): PAnsiChar;
-
 /// faster than default SysUtils.IntToStr implementation
 function IntToString(Value: integer): string; overload;
 
@@ -1224,17 +1397,19 @@ function ExtendedToShort(S: PShortString;
 function ExtendedToShortNoExp(S: PShortString; Value: TSynExtended;
   Precision: integer): integer;
 
+/// raw check if the supplied text buffer is NAN/INF/+INF/-INF, i.e. not a number
+function Utf8ToFloatNan(s: PUtf8Char; len: PtrInt): TFloatNan;
+
 /// check if the supplied text is NAN/INF/+INF/-INF, i.e. not a number
 // - as returned by ExtendedToShort/DoubleToShort textual conversion
 // - such values do appear as IEEE floating points, but are not defined in JSON
-function FloatToShortNan(const s: ShortString): TFloatNan;
+function ShortToFloatNan(const s: ShortString): TFloatNan;
   {$ifdef HASINLINE}inline;{$endif}
 
 /// check if the supplied text is NAN/INF/+INF/-INF, i.e. not a number
 // - as returned e.g. by ExtendedToStr/DoubleToStr textual conversion
 // - such values do appear as IEEE floating points, but are not defined in JSON
-function FloatToStrNan(const s: RawUtf8): TFloatNan;
-  {$ifdef HASINLINE}inline;{$endif}
+function RawUtf8ToFloatNan(const s: RawUtf8): TFloatNan;
 
 /// convert a floating-point value to its numerical text equivalency
 function ExtendedToStr(Value: TSynExtended; Precision: integer): RawUtf8; overload;
@@ -1278,7 +1453,7 @@ function DoubleToShortNoExp(S: PShortString; const Value: double): integer;
 {$ifdef DOUBLETOSHORT_USEGRISU}
 const
   // special text returned if the double is not a number
-  C_STR_INF: string[3] = 'Inf';
+  C_STR_INF:  string[3] = 'Inf';
   C_STR_QNAN: string[3] = 'Nan';
 
   // min_width parameter special value, as used internally by FPC for str(d,s)
@@ -1367,7 +1542,7 @@ function ToUtf8(const V: TVarData): RawUtf8; overload;
 // - empty and null variants will be stored as 'null' text - as expected by JSON
 // - custom variant types (e.g. TDocVariant) will be stored as JSON
 procedure VariantToUtf8(const V: Variant; var result: RawUtf8;
-   var wasString: boolean); overload;
+  var wasString: boolean); overload;
 
 /// convert any Variant into UTF-8 encoded String
 // - use VariantSaveJson() instead if you need a conversion to JSON with
@@ -1379,9 +1554,8 @@ function VariantToUtf8(const V: Variant; var Text: RawUtf8): boolean; overload;
   {$ifdef HASINLINE}inline;{$endif}
 
 /// convert any non-null Variant into UTF-8 encoded String
-// - empty and null variants will return false
+// - empty and null variants will return false (usable e.g. for mustache data)
 function VariantToText(const V: Variant; var Text: RawUtf8): boolean; overload;
-  {$ifdef HASINLINE}inline;{$endif}
 
 /// save a variant value into a JSON content
 // - just a wrapper around the _VariantSaveJson procedure redirection
@@ -1395,8 +1569,12 @@ procedure VariantSaveJson(const Value: variant; Escape: TTextWriterKind;
   var result: RawUtf8); overload;
   {$ifdef HASINLINE}inline;{$endif}
 
+/// internal low-level function to compare two variants with RawUt8 conversion
+// - as used e.g. by FastVarDataComp() for complex or diverse VType
+function VariantCompAsText(A, B: PVarData; caseInsensitive: boolean): integer;
+
 var
-  /// save a variant value into a JSON content
+  /// serialize a variant value into a JSON content
   // - is implemented by mormot.core.json.pas and mormot.core.variants.pas:
   // will raise an exception if none of these units is included in the project
   // - follows the TTextWriter.AddVariant() and VariantLoadJson() format
@@ -1413,10 +1591,10 @@ var
     var result: RawUtf8);
 
   /// unserialize a JSON content into a variant
-  // - is properly implemented by mormot.core.json.pas: if this unit is not
-  // included in the project, this function is nil
+  // - properly implemented by JsonToAnyVariant() in mormot.core.variants.pas :
+  // if this unit is not included in the project, this function is nil
   // - used by mormot.core.data.pas RTTI_BINARYLOAD[tkVariant]() for complex types
-  BinaryVariantLoadAsJson: procedure(var Value: variant; Json: PUtf8Char;
+  _VariantLoadJson: procedure(var Value: variant; Json: PUtf8Char;
     TryCustomVariant: pointer);
 
   /// write a TDateTime into strict ISO-8601 date and/or time text
@@ -1432,22 +1610,31 @@ var
   // - used by TRttiProp.SetValue() for TDateTime properties with a getter
   _Iso8601ToDateTime: function(const iso: RawByteString): TDateTime;
 
+/// wrap ToDouble(Text, V) and _Iso8601ToDateTime(Text)
+function AnyTextToDouble(const Text: RawUtf8; out V: double): boolean;
 
-type
-  /// used e.g. by UInt4DigitsToShort/UInt3DigitsToShort/UInt2DigitsToShort
-  // - such result type would avoid a string allocation on heap
-  TShort4 = string[4];
+/// wrap VariantToDouble(Value, V) and _Iso8601ToDateTime(VariantToText(Value))
+function AnyVariantToDouble(const Value: Variant; out V: double): boolean;
 
-/// revert the value as encoded by TTextWriter.AddInt18ToChars3() or Int18ToChars3()
+
+/// fill a text buffer from a 18-bit integer value (0..262143) as 3 chars
+// - this encoding is faster than Base64, and has spaces on the left side
+// - use function Chars3ToInt18() to decode the textual content
+// - used e.g. to efficiently encode the TSynLog ThreadNumber as text
+procedure Int18ToText(Value: cardinal; Text: PUtf8Char);
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// decode the 18-bit integer value as encoded by Int18ToChars3()
 // - no range check is performed: you should ensure that the incoming text
 // follows the expected 3-chars layout
+// - used e.g. to efficiently decode the TSynLog ThreadNumber text
 function Chars3ToInt18(P: pointer): cardinal;
   {$ifdef HASINLINE}inline;{$endif}
 
-/// compute the value as encoded by TTextWriter.AddInt18ToChars3() method
+/// encode a 18-bit integer following Int18ToText/Chars3ToInt18 3 chars format
 function Int18ToChars3(Value: cardinal): RawUtf8; overload;
 
-/// compute the value as encoded by TTextWriter.AddInt18ToChars3() method
+/// encode a 18-bit integer following Int18ToText/Chars3ToInt18 3 chars format
 procedure Int18ToChars3(Value: cardinal; var result: RawUtf8); overload;
 
 /// creates a 3 digits string from a 0..999 value as '000'..'999'
@@ -1482,12 +1669,14 @@ function UInt2DigitsToShortFast(Value: byte): TShort4;
   {$ifdef HASINLINE}inline;{$endif}
 
 /// convert an IPv4 'x.x.x.x' text into its 32-bit value
+// - result is in little endian order, not network order: 1.2.3.4 becomes $04030201
 // - returns TRUE if the text was a valid IPv4 text, unserialized as 32-bit aValue
 // - returns FALSE on parsing error, also setting aValue=0
 // - '' or '127.0.0.1' will also return false
 function IPToCardinal(aIP: PUtf8Char; out aValue: cardinal): boolean; overload;
 
 /// convert an IPv4 'x.x.x.x' text into its 32-bit value
+// - result is in little endian order, not network order: 1.2.3.4 becomes $04030201
 // - returns TRUE if the text was a valid IPv4 text, unserialized as 32-bit aValue
 // - returns FALSE on parsing error, also setting aValue=0
 // - '' or '127.0.0.1' will also return false
@@ -1495,6 +1684,7 @@ function IPToCardinal(const aIP: RawUtf8; out aValue: cardinal): boolean; overlo
   {$ifdef HASINLINE}inline;{$endif}
 
 /// convert an IPv4 'x.x.x.x' text into its 32-bit value, 0 or localhost
+// - result is in little endian order, not network order: 1.2.3.4 becomes $04030201
 // - returns <> 0 value if the text was a valid IPv4 text, 0 on parsing error
 // - '' or '127.0.0.1' will also return 0
 function IPToCardinal(const aIP: RawUtf8): cardinal; overload;
@@ -1526,17 +1716,17 @@ procedure VariantToTempUtf8(const V: variant; var Res: TTempUtf8;
   var wasString: boolean);
 
 const
-  /// which TVarRec.VType are numbers, i.e. don't need to be quoted
-  // - vtVariant is a number by default, unless detected e.g. by VariantToUtf8()
+  /// which TVarRec.VType are numbers, e.g. don't need to be quoted as JSON
+  // - vtVariant may be a string or a complex type
   vtNotString = [vtBoolean, vtInteger, vtInt64, {$ifdef FPC} vtQWord, {$endif}
-                 vtCurrency, vtExtended, vtVariant];
+                 vtCurrency, vtExtended];
 
 /// convert an open array (const Args: array of const) argument to an UTF-8
 // encoded text
 // - note that, due to a Delphi compiler limitation, cardinal values should be
 // type-casted to Int64() (otherwise the integer mapped value will be converted)
 // - any supplied TObject instance will be written as their class name
-procedure VarRecToUtf8(const V: TVarRec; var result: RawUtf8;
+procedure VarRecToUtf8(V: PVarRec; var result: RawUtf8;
   wasString: PBoolean = nil);
 
 /// convert an open array (const Args: array of const) argument to an UTF-8
@@ -1548,7 +1738,7 @@ procedure VarRecToUtf8(const V: TVarRec; var result: RawUtf8;
 // - note that, due to a Delphi compiler limitation, cardinal values should be
 // type-casted to Int64() (otherwise the integer mapped value will be converted)
 // - any supplied TObject instance will be written as their class name
-function VarRecToTempUtf8(const V: TVarRec; var Res: TTempUtf8;
+function VarRecToTempUtf8(V: PVarRec; var Res: TTempUtf8;
   wasString: PBoolean = nil): PtrInt;
 
 /// convert an open array (const Args: array of const) argument to an UTF-8
@@ -1562,7 +1752,7 @@ function VarRecToUtf8IsString(const V: TVarRec; var value: RawUtf8): boolean;
 // - returns FALSE if the argument is not an integer
 // - note that, due to a Delphi compiler limitation, cardinal values should be
 // type-casted to Int64() (otherwise the integer mapped value will be converted)
-function VarRecToInt64(const V: TVarRec; out value: Int64): boolean;
+function VarRecToInt64(V: PVarRec; out value: Int64): boolean;
 
 /// convert an open array (const Args: array of const) argument to a floating
 // point value
@@ -1571,7 +1761,7 @@ function VarRecToInt64(const V: TVarRec; out value: Int64): boolean;
 // - returns FALSE if the argument is not a number
 // - note that, due to a Delphi compiler limitation, cardinal values should be
 // type-casted to Int64() (otherwise the integer mapped value will be converted)
-function VarRecToDouble(const V: TVarRec; out value: double): boolean;
+function VarRecToDouble(V: PVarRec; out value: double): boolean;
 
 /// convert an open array (const Args: array of const) argument to a value
 // encoded as with :(...): inlined parameters in FormatUtf8(Format,Args,Params)
@@ -1582,11 +1772,20 @@ procedure VarRecToInlineValue(const V: TVarRec; var result: RawUtf8);
 
 /// get an open array (const Args: array of const) character argument
 // - only handle varChar and varWideChar kind of arguments
-function VarRecAsChar(const V: TVarRec): integer;
+function VarRecAsChar(V: PVarRec): integer;
   {$ifdef HASINLINE}inline;{$endif}
 
 /// check if a supplied "array of const" argument is an instance of a given class
-function VarRecAs(const aArg: TVarRec; aClass: TClass): pointer;
+function VarRecAs(V: PVarRec; aClass: TClass): pointer;
+
+/// check if a supplied "array of const" argument is a default value
+// - e.g. '', 0, nil or false
+function VarRecIsDefault(V: PVarRec): boolean;
+
+/// check if a supplied "array of const" argument is a void value
+// - same as VarRecIsDefault() but vtBoolean always returns false
+function VarRecIsVoid(V: PVarRec): boolean;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// fast Format() function replacement, optimized for RawUtf8
 // - only supported token is %, which will be written in the resulting string
@@ -1612,6 +1811,10 @@ procedure FormatUtf8(const Format: RawUtf8; const Args: array of const;
 function FormatBuffer(const Format: RawUtf8; const Args: array of const;
   Dest: pointer; DestLen: PtrInt): PtrInt;
 
+/// raw Format() function replacement, tuned for direct memory buffer write
+function FormatBufferRaw(const Format: RawUtf8; Args: PVarRec; ArgsCount: PtrInt;
+  Dest: pointer; DestLen: PtrInt): PUtf8Char;
+
 /// fast Format() function replacement, for UTF-8 content stored in ShortString
 // - use the same single token % (and implementation) than FormatUtf8()
 // - ShortString allows fast stack allocation, so is perfect for small content
@@ -1621,6 +1824,7 @@ procedure FormatShort(const Format: RawUtf8; const Args: array of const;
 
 /// fast Format() function replacement, for UTF-8 content stored in ShortString
 function FormatToShort(const Format: RawUtf8; const Args: array of const): ShortString;
+  {$ifdef FPC}inline;{$endif} // Delphi has trouble with this
 
 /// fast Format() function replacement, tuned for small content
 // - use the same single token % (and implementation) than FormatUtf8()
@@ -1640,34 +1844,52 @@ procedure FormatShort16(const Format: RawUtf8; const Args: array of const;
 /// fast Format() function replacement, for UTF-8 content stored in variant
 function FormatVariant(const Format: RawUtf8; const Args: array of const): variant;
 
+/// concatenate several arguments into an UTF-8 string
+function Make(const Args: array of const): RawUtf8; overload;
+
+/// concatenate several arguments into an UTF-8 string
+procedure Make(const Args: array of const; var Result: RawUtf8;
+  const IncludeLast: RawUtf8 = ''); overload;
+
+/// concatenate several arguments into a RTL string
+function MakeString(const Args: array of const): string;
+
 /// append some text items to a RawUtf8 variable
 // - see also AppendLine() below if you need a separator
 procedure Append(var Text: RawUtf8; const Args: array of const); overload;
 
 /// append one text item to a RawUtf8 variable with no code page conversion
 procedure Append(var Text: RawUtf8; const Added: RawByteString); overload;
-  {$ifdef HASINLINE} inline; {$endif}
 
 /// append two text items to a RawUtf8 variable with no code page conversion
 procedure Append(var Text: RawUtf8; const Added1, Added2: RawByteString); overload;
 
 /// append one char to a RawUtf8 variable with no code page conversion
 procedure Append(var Text: RawUtf8; Added: AnsiChar); overload;
-  {$ifdef HASINLINE} inline; {$endif}
 
 /// append one text buffer to a RawUtf8 variable with no code page conversion
 procedure Append(var Text: RawUtf8; Added: pointer; AddedLen: PtrInt); overload;
-  {$ifdef HASINLINE} inline; {$endif}
+
+/// append one short string to a RawUtf8 variable with no code page conversion
+procedure AppendStr(var Text: RawUtf8; const Added: ShortString);
 
 /// append some text items to a RawByteString variable
 procedure Append(var Text: RawByteString; const Args: array of const); overload;
 
 /// append one text item to a RawByteString variable with no code page conversion
 procedure Append(var Text: RawByteString; const Added: RawByteString); overload;
-  {$ifdef HASINLINE} inline; {$endif}
 
 /// append one text buffer to a RawByteString variable with no code page conversion
 procedure Append(var Text: RawByteString; Added: pointer; AddedLen: PtrInt); overload;
+
+/// append two text buffers to a RawByteString variable with no code page conversion
+procedure Append(var Text: RawByteString; const Added1, Added2: RawByteString); overload;
+
+/// prepend some text to a RawByteString variable with no code page conversion
+procedure Prepend(var Text: RawByteString; const Added: RawByteString); overload;
+
+/// prepend one char to a RawByteString variable with no code page conversion
+procedure Prepend(var Text: RawByteString; Added: AnsiChar); overload;
 
 /// prepend some text items at the beginning of a RawUtf8 variable
 procedure Prepend(var Text: RawUtf8; const Args: array of const); overload;
@@ -1678,14 +1900,37 @@ procedure Prepend(var Text: RawByteString; const Args: array of const); overload
 /// append some text to a RawUtf8, ensuring previous text is separated with CRLF
 // - could be used e.g. to update HTTP headers
 procedure AppendLine(var Text: RawUtf8; const Args: array of const;
-  const Separator: shortstring = #13#10);
+  const Separator: ShortString = #13#10);
 
 /// append some path parts into a single file name with proper path delimiters
-// - set EndWithDelim=true if you want to create e.g. full a folder name
+// - set EndWithDelim=true if you want to create e.g. a full folder name
 // - similar to os.path.join() in the Python RTL
 // - e.g. on Windows: MakePath(['abc', 1, 'toto.json']) = 'abc\1\toto.json'
 function MakePath(const Part: array of const; EndWithDelim: boolean = false;
   Delim: AnsiChar = PathDelim): TFileName;
+
+/// a wrapper around ExpandFileName(MakePath(Part))
+function MakeExpandedPath(const Part: array of const;
+  EndWithDelim: boolean = false): TFileName;
+
+/// a wrapper around EnsureDirectoryExists(MakePath(Part))
+function EnsureDirectoryExists(const Part: array of const;
+  RaiseExceptionOnCreationFailure: ExceptionClass = nil;
+  NoExpand: boolean = false): TFileName; overload;
+
+/// a wrapper around EnsureDirectoryExists(NormalizeFileName(MakePath(Part)))
+function NormalizeDirectoryExists(const Part: array of const;
+  RaiseExceptionOnCreationFailure: ExceptionClass = nil): TFileName; overload;
+
+/// a wrapper around FileExists(MakePath(Part))
+// - can optionally set the file name into a variable if it did exist
+function FileExistsMake(const Part: array of const;
+  SetIfFound: PFileName = nil): boolean;
+
+/// a wrapper around DirectoryExists(MakePath(Part))
+// - can optionally set the file name into a variable if it did exist
+function DirectoryExistsMake(const Part: array of const;
+  SetIfFound: PFileName = nil): boolean;
 
 /// MakePath() variant which can handle the file extension specifically
 function MakeFileName(const Part: array of const; LastIsExt: boolean = true): TFileName;
@@ -1694,18 +1939,24 @@ function MakeFileName(const Part: array of const; LastIsExt: boolean = true): TF
 function MakeCsv(const Value: array of const; EndWithComma: boolean = false;
   Comma: AnsiChar = ','): RawUtf8;
 
-/// direct conversion of a VCL string into a console OEM-encoded String
-// - under Windows, will use the CP_OEMCP encoding
+/// direct conversion of a RTL string into a console OEM-encoded String
+// - under Windows, will use GetConsoleOutputCP() codepage, following CP_OEM
 // - under Linux, will expect the console to be defined with UTF-8 encoding
 function StringToConsole(const S: string): RawByteString;
 
 /// write some text to the console using a given color
+// - redirect to mormot.core.os ConsoleWrite() with proper thread safety
 procedure ConsoleWrite(const Fmt: RawUtf8; const Args: array of const;
   Color: TConsoleColor = ccLightGray; NoLineFeed: boolean = false); overload;
 
 /// write some text to the console using a given color
+// - redirect to mormot.core.os ConsoleWrite() with proper thread safety
 procedure ConsoleWrite(const Args: array of const;
   Color: TConsoleColor = ccLightGray; NoLineFeed: boolean = false); overload;
+
+/// write some text to the console using the current color
+// - similar to writeln() but redirect to ConsoleWrite() with proper thread safety
+procedure ConsoleWriteRaw(const Args: array of const; NoLineFeed: boolean = false); overload;
 
 /// could be used in the main program block of a console application to
 // handle unexpected fatal exceptions
@@ -1723,23 +1974,6 @@ procedure ConsoleShowFatalException(E: Exception; WaitForEnterKey: boolean = tru
 
 
 { ************ Resource and Time Functions }
-
-/// convert a size to a human readable value power-of-two metric value
-// - append EB, PB, TB, GB, MB, KB or B symbol with or without preceding space
-// - for EB, PB, TB, GB, MB and KB, add one fractional digit
-procedure KB(bytes: Int64; out result: TShort16; nospace: boolean); overload;
-
-/// convert a size to a human readable value
-// - append EB, PB, TB, GB, MB, KB or B symbol with preceding space
-// - for EB, PB, TB, GB, MB and KB, add one fractional digit
-function KB(bytes: Int64): TShort16; overload;
-  {$ifdef FPC_OR_UNICODE}inline;{$endif} // Delphi 2007 is buggy as hell
-
-/// convert a size to a human readable value
-// - append EB, PB, TB, GB, MB, KB or B symbol without preceding space
-// - for EB, PB, TB, GB, MB and KB, add one fractional digit
-function KBNoSpace(bytes: Int64): TShort16;
-  {$ifdef FPC_OR_UNICODE}inline;{$endif} // Delphi 2007 is buggy as hell
 
 /// convert a size to a human readable value
 // - append EB, PB, TB, GB, MB, KB or B symbol with or without preceding space
@@ -1762,8 +1996,8 @@ procedure KBU(bytes: Int64; var result: RawUtf8);
 // - append E, P, T, G, M, K symbol, with one fractional digit
 procedure K(value: Int64; out result: TShort16); overload;
 
-  /// convert a count to a human readable value power-of-two metric value
-  // - append E, P, T, G, M, K symbol, with one fractional digit
+/// convert a count to a human readable value power-of-two metric value
+// - append E, P, T, G, M, K symbol, with one fractional digit
 function K(value: Int64): TShort16; overload;
   {$ifdef FPC_OR_UNICODE}inline;{$endif} // Delphi 2007 is buggy as hell
 
@@ -1804,8 +2038,8 @@ procedure NanoSecToString(Nano: QWord; out result: TShort16);
 
 /// convert "valueunit" values into x or x.xx text with up to 2 digits
 // - supplied value should be the actual unit value * 100
-procedure By100ToTwoDigitString(value: cardinal; const valueunit: ShortString;
-  var result: TShort16);
+procedure AppendShortBy100(value: cardinal; const valueunit: ShortString;
+  var result: ShortString);
 
 /// convert an integer value into its textual representation with thousands marked
 // - ThousandSep is the character used to separate thousands in numbers with
@@ -1839,15 +2073,16 @@ function DefaultSynLogExceptionToStr(WR: TTextWriter;
 
 
 type
-  {$M+}
   /// generic parent class of all custom Exception types of this unit
   // - all our classes inheriting from ESynException are serializable,
-  // so you could use ObjectToJsonDebug(anyESynException) to retrieve some
+  // so you could use ObjectToJsonDebug(any ESynException) to retrieve some
   // extended information
-  ESynException = class(Exception)
+  ESynException = class(ExceptionWithProps)
   protected
     fRaisedAt: pointer;
     fMessageUtf8: RawUtf8;
+    // internal method called by the constructor when fMessageUtf8 was just set
+    // - this virtual method will redirect to Create(Utf8ToString(fMessageUtf8))
     procedure CreateAfterSetMessageUtf8; virtual;
   public
     /// constructor which will use FormatUtf8() instead of Format()
@@ -1855,7 +2090,7 @@ type
     // - will handle vtPointer/vtClass/vtObject/vtVariant kind of arguments,
     // appending class name for any class or object, the hexa value for a
     // pointer, or the JSON representation of any supplied TDocVariant
-    constructor CreateUtf8(const Format: RawUtf8; const Args: array of const);
+    constructor CreateUtf8(const Format: RawUtf8; const Args: array of const); virtual;
     /// constructor will accept RawUtf8 instead of string as message text
     constructor CreateU(const Msg: RawUtf8);
     /// constructor appending some FormatUtf8() content to the GetLastError
@@ -1864,8 +2099,11 @@ type
     // - will handle vtPointer/vtClass/vtObject/vtVariant kind of arguments,
     // appending class name for any class or object, the hexa value for a
     // pointer, or the JSON representation of any supplied TDocVariant
-    constructor CreateLastOSError(const Format: RawUtf8; const Args: array of const;
-      const Trailer: ShortString = 'OSError');
+    class procedure RaiseLastOSError(const Format: RawUtf8;
+      const Args: array of const; const Trailer: ShortString = 'OSError');
+    /// a wrapper function around raise CreateUtf8()
+    // - generated executable code could be slightly shorter
+    class procedure RaiseUtf8(const Format: RawUtf8; const Args: array of const); overload;
     {$ifndef NOEXCEPTIONINTERCEPT}
     /// can be used to customize how the exception is logged
     // - this default implementation will call the TSynLogExceptionToStrCustom
@@ -1892,45 +2130,166 @@ type
     /// the Exception Message string, as defined in parent Exception class
     property Message;
   end;
-  {$M-}
 
   /// meta-class of the ESynException hierarchy
   ESynExceptionClass = class of ESynException;
 
+
+{ **************** HTTP/REST Common Headers Parsing (e.g. cookies) }
+
+type
+  /// the available HTTP methods transmitted between client and server
+  // - remote ORM supports non-standard mLOCK/mUNLOCK/mABORT/mSTATE verbs
+  // - not all IANA verbs are available, because our TRestRouter will only
+  // support mGET .. mOPTIONS verbs anyway
+  // - for basic CRUD operations, we consider Create=mPOST, Read=mGET,
+  // Update=mPUT and Delete=mDELETE - even if it is not fully RESTful
+  TUriMethod = (
+    mNone,
+    mGET,
+    mPOST,
+    mPUT,
+    mDELETE,
+    mHEAD,
+    mBEGIN,
+    mEND,
+    mABORT,
+    mLOCK,
+    mUNLOCK,
+    mSTATE,
+    mPATCH,
+    mOPTIONS);
+
+  /// set of available HTTP methods transmitted between client and server
+  TUriMethods = set of TUriMethod;
+
+/// convert a string HTTP verb into its TUriMethod enumerate
+// - conversion is case-insensitive
+function ToMethod(const method: RawUtf8): TUriMethod;
+
+/// convert a TUriMethod enumerate to its #0 terminated uppercase text
+function ToText(m: TUriMethod): PUtf8Char; overload;
+
+type
+  /// store one HTTP input cookie name/value pair
+  THttpCookie = record
+    /// the cookie name
+    // - e.g. 'sessionId' for
+    // $ Set-Cookie: sessionId=e8bb43229de9; Domain=foo.example.com
+    Name: RawUtf8;
+    /// the actual cookie value, excluding its attributes
+    // - e.g. 'e8bb43229de9' for
+    // $ Set-Cookie: sessionId=e8bb43229de9; Domain=foo.example.com
+    Value: RawUtf8;
+  end;
+  /// referes to one HTTP input cookie
+  PHttpCookie = ^THttpCookie;
+  /// a dynamic array of THttpCookie name/value pairs
+  THttpCookieDynArray = array of THttpCookie;
+
+  /// parse and store HTTP cookies received on server side
+  // - shared by framework server classes, both at HTTP or REST levels
+  {$ifdef USERECORDWITHMETHODS}
+  THttpCookies = record
+  {$else}
+  THttpCookies = object
+  {$endif USERECORDWITHMETHODS}
+  private
+    fCookies: THttpCookieDynArray; // only if InCookie[] is used
+  public
+    /// reset the internal list
+    procedure Clear;
+    /// parse the cookies from request HTTP headers on server side
+    // - e.g. 'Cookie: name=value; name2=value2; name3=value3'
+    // - will first clear all existing cookies, then decode from headers
+    procedure ParseServer(Head: PUtf8Char);
+    /// retrieve a cookie name/value pair in the internal storage
+    function FindCookie(const CookieName: RawUtf8): PHttpCookie;
+    /// retrieve a cookie value from its name
+    // - should always previously check "if not ###Parsed then Parse()"
+    function GetCookie(const CookieName: RawUtf8): RawUtf8;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// retrieve a cookie value from its name
+    // - should always previously check "if not ###Parsed then Parse()"
+    procedure RetrieveCookie(const CookieName: RawUtf8; out Value: RawUtf8);
+      {$ifdef HASINLINE} inline; {$endif}
+    /// set or change a cookie value from its name
+    // - should always previously check "if not ###Parsed then Parse()"
+    procedure SetCookie(const CookieName, CookieValue: RawUtf8);
+    /// retrieve an incoming HTTP cookie value
+    // - cookie name are case-sensitive
+    // - should always previously check "if not ###Parsed then Parse()"
+    property Cookie[const CookieName: RawUtf8]: RawUtf8
+      read GetCookie write SetCookie; default;
+    /// direct access to the internal name/value pairs list
+    property Cookies: THttpCookieDynArray
+      read fCookies;
+  end;
+  PHttpCookies = ^THttpCookies;
+
+const
+  /// server can use this cookie value to delete a cookie on the browser side
+  COOKIE_EXPIRED = '; Expires=Sat, 01 Jan 2010 00:00:01 GMT';
+var
+  /// maximum number of cookies allowed by THttpCookies.ParseServer
+  // - used as Deny-Of-Service (DOS) Attack detection threshold
+  // - typically no more than 50 cookies per domain
+  COOKIE_MAXCOUNT_DOSATTACK: integer = 128;
+  /// maximum total size of cookies allowed by THttpCookies.ParseServer
+  // - used asDeny-Of-Service (DOS) Attack detection threshold
+  // - usually no more than 4KB per cookie, but seems to be 4KB in total for IE
+  COOKIE_MAXSIZE_DOSATTACK: integer = 4096;
+
+/// retrieve the HTTP reason text from its integer code as PRawUtf8
+// - e.g. StatusCodeToText(200)^='OK'
+// - as defined in http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
+// - returns the generic 'Invalid Request' for any unknown Code
+function StatusCodeToText(Code: cardinal): PRawUtf8;
+
+/// retrieve the HTTP reason text from its integer code
+// - as defined in http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
+procedure StatusCodeToReason(Code: cardinal; var Reason: RawUtf8);
+
+/// convert any HTTP_* constant to an integer status code and its English text
+// - returns e.g. '200 OK' or '404 Not Found', calling StatusCodeToText()
+function StatusCodeToShort(Code: cardinal): TShort47;
+
 /// convert any HTTP_* constant to an integer error code and its English text
-// - see @http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
-// - calls StatusCodeToReason() to retrieve the text message
-function StatusCodeToErrorMsg(Code: integer): ShortString;
+// - returns e.g. 'HTTP Error 404 - Not Found', calling StatusCodeToText()
+function StatusCodeToErrorMsg(Code: integer): RawUtf8;
+
+/// returns true for successful HTTP status codes, i.e. in 200..399 range
+// - will map mainly SUCCESS (200), CREATED (201), NOCONTENT (204),
+// PARTIALCONTENT (206), NOTMODIFIED (304) or TEMPORARYREDIRECT (307) codes
+// - any HTTP status not part of this range will be identified as erronous
+// request e.g. in the web server statistics
+function StatusCodeIsSuccess(Code: integer): boolean;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// check the supplied HTTP header to not contain more than one EOL
+// - to avoid unexpected HTTP body injection, e.g. from unsafe business code
+function IsInvalidHttpHeader(head: PUtf8Char; headlen: PtrInt): boolean;
 
 
 { **************** Hexadecimal Text And Binary Conversion }
 
-type
-  /// lookup table used for fast hexadecimal conversion
-  THexToDualByte = packed array[0..511] of byte;
-  TAnsiCharToByte = array[AnsiChar] of byte;
-  TAnsiCharToWord = array[AnsiChar] of word;
-  TByteToWord = array[byte] of word;
-  PByteToWord = ^TByteToWord;
-
 var
-  /// a conversion table from hexa chars into binary data
-  // - [0..255] range maps the 0..15 binary, [256..511] maps 0..15 binary shl 4
+  /// conversion table from hexa chars into 0..15 binary data
   // - returns 255 for any character out of 0..9,A..Z,a..z range
   // - used e.g. by HexToBin() function
   // - is defined globally, since may be used from an inlined function
-  ConvertHexToBin: THexToDualByte;
+  ConvertHexToBin: TAnsiCharToByte;
+  /// conversion table from hexa chars into "shl 4" binary data
+  ConvertHexToShl: TAnsiCharToByte;
 
   /// fast lookup table for converting hexadecimal numbers from 0 to 15
   // into their ASCII equivalence
   // - is local for better code generation
-  TwoDigitsHex: array[byte] of array[1..2] of AnsiChar;
+  TwoDigitsHex: TByteToWord;
   TwoDigitsHexW: TAnsiCharToWord absolute TwoDigitsHex;
-  TwoDigitsHexWB: TByteToWord absolute TwoDigitsHex;
   /// lowercase hexadecimal lookup table
-  TwoDigitsHexLower: array[byte] of array[1..2] of AnsiChar;
+  TwoDigitsHexLower: TByteToWord;
   TwoDigitsHexWLower: TAnsiCharToWord absolute TwoDigitsHexLower;
-  TwoDigitsHexWBLower: TByteToWord absolute TwoDigitsHexLower;
 
 /// fast conversion from hexa chars into binary data
 // - BinBytes contain the bytes count to be converted: Hex^ must contain
@@ -1991,6 +2350,20 @@ function HexToBin(const Hex: RawUtf8): RawByteString; overload;
 function HexToBin(Hex: PAnsiChar; HexLen: PtrInt;
   var Bin: RawByteString): boolean; overload;
 
+/// fast conversion from ToHumanHex() hexa chars into binary data
+function HumanHexToBin(const hex: RawUtf8; var Bin: RawByteString): boolean; overload;
+
+/// fast conversion from ToHumanHex() hexa chars into binary data
+function HumanHexToBin(const hex: RawUtf8): RawByteString; overload;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// fast comparison between two ToHumanHex() hexa values
+function HumanHexCompare(const a, b: RawUtf8): integer; overload;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// fast comparison between two ToHumanHex() hexa values
+function HumanHexCompare(a, b: PUtf8Char): integer; overload;
+
 /// fast conversion from binary data into hexa chars
 function BinToHex(const Bin: RawByteString): RawUtf8; overload;
 
@@ -2003,6 +2376,7 @@ function BinToHex(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8; overload;
 // - using this function with Bin^ as an integer value will encode it
 // in big-endian order (most-signignifican byte first): use it for display
 procedure BinToHexDisplay(Bin, Hex: PAnsiChar; BinBytes: PtrInt); overload;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// fast conversion from binary data into hexa chars, ready to be displayed
 function BinToHexDisplay(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8; overload;
@@ -2013,6 +2387,7 @@ function BinToHexDisplay(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8; overload;
 // - using this function with BinBytes^ as an integer value will encode it
 // in low-endian order (less-signignifican byte first): don't use it for display
 procedure BinToHexLower(Bin, Hex: PAnsiChar; BinBytes: PtrInt); overload;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// fast conversion from binary data into lowercase hexa chars
 function BinToHexLower(const Bin: RawByteString): RawUtf8; overload;
@@ -2025,12 +2400,17 @@ function BinToHexLower(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8; overload;
 /// fast conversion from binary data into lowercase hexa chars
 procedure BinToHexLower(Bin: PAnsiChar; BinBytes: PtrInt; var result: RawUtf8); overload;
 
+/// fast in-place conversion from binary data into lowercase hexa chars
+// - a dedicated procedure avoid any temporary stack RawUtf8 string allocation
+procedure BinToHexLowerSelf(var Bin: RawByteString);
+
 /// fast conversion from binary data into lowercase hexa chars
 // - BinBytes contain the bytes count to be converted: Hex^ must contain
 // enough space for at least BinBytes*2 chars
 // - using this function with Bin^ as an integer value will encode it
 // in big-endian order (most-signignifican byte first): use it for display
 procedure BinToHexDisplayLower(Bin, Hex: PAnsiChar; BinBytes: PtrInt); overload;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// fast conversion from binary data into lowercase hexa chars
 function BinToHexDisplayLower(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8; overload;
@@ -2039,12 +2419,16 @@ function BinToHexDisplayLower(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8; overlo
 function BinToHexDisplayLowerShort(Bin: PAnsiChar; BinBytes: PtrInt): ShortString;
 
 /// fast conversion from up to 64-bit of binary data into lowercase hexa chars
-function BinToHexDisplayLowerShort16(Bin: Int64; BinBytes: PtrInt): TShort16; overload;
+function BinToHexDisplayLowerShort16(Bin: Int64; BinBytes: PtrInt): TShort16;
 
 /// fast conversion from up to 64-bit of binary data into lowercase hexa chars
 // - warning: here binary size is in bits (typically 1..64), not bytes
-procedure BinToHexDisplayLowerShort16(Bin: Int64; BinBits: PtrInt;
-  var Result: TShort16); overload;
+procedure BinBitsToHexDisplayLowerShort16(Bin: Int64; BinBits: PtrInt;
+  var Result: TShort16);
+
+/// trim right '0' chars in a text buffer - e.g. from BinToHexLower()
+function TrimMinDisplayHex(Text: PUtf8Char; TextLen: PtrInt): PtrInt;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// fast conversion from binary data into hexa lowercase chars, ready to be
 // used as a convenient TFileName prefix
@@ -2056,17 +2440,22 @@ function ByteToHex(P: PAnsiChar; Value: byte): PAnsiChar;
 
 /// fast conversion from a pointer data into hexa chars, ready to be displayed
 // - use internally BinToHexDisplay()
-function PointerToHex(aPointer: Pointer): RawUtf8; overload;
+function PointerToHex(aPointer: pointer): RawUtf8; overload;
   {$ifdef HASINLINE}inline;{$endif}
 
 /// fast conversion from a pointer data into hexa chars, ready to be displayed
 // - use internally BinToHexDisplay()
-procedure PointerToHex(aPointer: Pointer; var result: RawUtf8); overload;
+procedure PointerToHex(aPointer: pointer; var result: RawUtf8); overload;
 
 /// fast conversion from a pointer data into hexa chars, ready to be displayed
 // - use internally DisplayMinChars() and BinToHexDisplay()
 // - such result type would avoid a string allocation on heap
-function PointerToHexShort(aPointer: Pointer): TShort16; overload;
+function PointerToHexShort(aPointer: pointer): TShort16; overload;
+
+/// append an Instance name and pointer, as 'unit.name.TObjectList(00425E68)'
+// - used e.g. by TTextWriter.AddInstancePointer
+function PointerToText(Instance: TObject; Dest: PUtf8Char;
+  IncludeUnitName, IncludePointer: boolean): PUtf8Char;
 
 /// fast conversion from a cardinal value into hexa chars, ready to be displayed
 // - use internally BinToHexDisplay()
@@ -2106,6 +2495,7 @@ procedure Int64ToHexShort(aInt64: Int64; out result: TShort16); overload;
 // - use internally BinToHexDisplay()
 // - such result type would avoid a string allocation on heap
 function Int64ToHexShort(aInt64: Int64): TShort16; overload;
+  {$ifdef HASINLINE} inline; {$endif}
 
 /// fast conversion for up to 256-bit of little-endian input into non-zero hexa
 // - Len should be <= 32 bytes, to fit in a TShort64 result
@@ -2113,7 +2503,7 @@ function Int64ToHexShort(aInt64: Int64): TShort16; overload;
 function ToHexShort(P: pointer; Len: PtrInt): TShort64;
 
 /// fast conversion from a pointer data into hexa chars, ready to be displayed
-// - use internally DisplayMinChars() and BinToHexDisplay()
+// - use internally DisplayMinChars() and BinToHexDisplayLower()
 function Int64ToHexLower(aInt64: Int64): RawUtf8; overload;
 
 /// fast conversion from a Int64 value into hexa chars, ready to be displayed
@@ -2159,56 +2549,85 @@ function OctToBin(Oct: PAnsiChar; Bin: PByte): PtrInt; overload;
 // - \xxx is converted into a single xxx byte from octal, and \\ into \
 function OctToBin(const Oct: RawUtf8): RawByteString; overload;
 
-/// append a TGuid binary content as text
+/// append a TGuid binary content as 36 chars text
 // - will store e.g. '3F2504E0-4F89-11D3-9A0C-0305E82C3301' (without any {})
 // - this will be the format used for JSON encoding, e.g.
 // $ { "UID": "C9A646D3-9C61-4CB7-BFCD-EE2522C8F633" }
-function GuidToText(P: PUtf8Char; guid: PByteArray): PUtf8Char;
+// - you can set tab = @TwoDigitsHexLower to force a lowercase output
+function GuidToText(P: PUtf8Char; guid: PByteArray; tab: PWordArray = nil): PUtf8Char;
 
-/// convert a TGuid into UTF-8 encoded { text }
+/// convert a TGuid into 38 chars encoded { text } as RawUtf8
 // - will return e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}' (with the {})
 // - if you do not need the embracing { }, use ToUtf8() overloaded function
-function GuidToRawUtf8(const guid: TGuid): RawUtf8;
+function GuidToRawUtf8(
+  {$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif} guid: TGuid): RawUtf8;
 
-/// convert a TGuid into UTF-8 encoded text
+/// convert a TGuid into 36 chars encoded text as RawUtf8
 // - will return e.g. '3F2504E0-4F89-11D3-9A0C-0305E82C3301' (without the {})
 // - if you need the embracing { }, use GuidToRawUtf8() function instead
-function ToUtf8(const guid: TGuid): RawUtf8; overload;
+function ToUtf8(
+  {$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}guid: TGuid): RawUtf8; overload;
+  {$ifdef HASINLINE}inline;{$endif}
 
-/// convert a TGuid into text
+/// convert a TGuid into 36 chars encoded text as RawUtf8, unless it is GUID_NULL
+function NotNullGuidToUtf8(
+  {$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif} guid: TGuid): RawUtf8;
+
+/// convert a TGuid into 36 chars encoded text as RawUtf8
+// - will return e.g. '3F2504E0-4F89-11D3-9A0C-0305E82C3301' (without the {})
+// - you can set tab = @TwoDigitsHexLower to force a lowercase output
+procedure ToUtf8({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif} guid: TGuid;
+  var text: RawUtf8; tab: PWordArray = nil); overload;
+
+/// convert one or several TGuid into 36 chars encoded CSV text
+// - will return e.g.
+// ! '3F2504E0-4F89-11D3-9A0C-0305E82C3301,C595476E-73D1-4B9C-9725-308C4A72DEC8'
+// - you can set tab = @TwoDigitsHexLower to force a lowercase output
+function GuidArrayToCsv(const guid: array of TGuid; SepChar: AnsiChar = ',';
+  tab: PWordArray = nil): RawUtf8;
+
+/// convert a TGuid into into 38 chars encoded { text } as RTL string
 // - will return e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}' (with the {})
 // - this version is faster than the one supplied by SysUtils
-function GuidToString(const guid: TGuid): string;
+function GuidToString(
+  {$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif} guid: TGuid): string;
 
 type
   /// stack-allocated ASCII string, used by GuidToShort() function
   TGuidShortString = string[38];
   PGuidShortString = ^TGuidShortString;
 
-/// convert a TGuid into text
-// - will return e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}' (with the {})
+  /// convert a TGuid into its standard uppercase text representation with the {}
+  // - will return e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}'
 // - using a ShortString will allow fast allocation on the stack, so is
 // preferred e.g. when providing a Guid to a ESynException.CreateUtf8()
-function GuidToShort(const guid: TGuid): TGuidShortString; overload;
+function GuidToShort({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): TGuidShortString; overload;
   {$ifdef HASINLINE}inline;{$endif}
 
-/// convert a TGuid into text
-// - will return e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}' (with the {})
+/// convert a TGuid into its standard uppercase text representation with the {}
+// - will return e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}'
 // - using a ShortString will allow fast allocation on the stack, so is
 // preferred e.g. when providing a Guid to a ESynException.CreateUtf8()
-procedure GuidToShort(const
+procedure GuidToShort({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
   guid: TGuid; out dest: TGuidShortString); overload;
+
+/// convert a TGuid into lowercase '3f2504e0-4f89-11d3-9a0c-0305e82c3301' text
+function UuidToShort({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): TGuidShortString;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// convert some text into its TGuid binary value
 // - expect e.g. '3F2504E0-4F89-11D3-9A0C-0305E82C3301' (without any {}) but
 // will ignore internal '-' so '3F2504E04F8911D39A0C0305E82C3301' is also fine
 // - note: TGuid binary order does not follow plain HexToBin or HexDisplayToBin
+// - warning: P should be not nil, and point to the first hexadecimal character
 // - return nil if the supplied text buffer is not a valid TGuid
 // - this will be the format used for JSON encoding, e.g.
 // $ { "Uid": "C9A646D3-9C61-4CB7-BFCD-EE2522C8F633" }
 function TextToGuid(P: PUtf8Char; Guid: PByteArray): PUtf8Char;
 
-/// convert some VCL text into a TGuid
+/// convert some RTL string text into a TGuid
 // - expect e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}' (with the {})
 // - return {00000000-0000-0000-0000-000000000000} if the supplied text buffer
 // is not a valid TGuid
@@ -2228,6 +2647,12 @@ function RawUtf8ToGuid(const text: RawByteString): TGuid; overload;
 // '3F2504E04F8911D39A0C0305E82C3301' following TGuid order (not HexToBin)
 function RawUtf8ToGuid(const text: RawByteString; out guid: TGuid): boolean; overload;
 
+/// convert some UTF-8 encoded text into a TGuid
+// - expect e.g. '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}' (with the {})
+// or '3F2504E0-4F89-11D3-9A0C-0305E82C3301' (without the {}) or even
+// '3F2504E04F8911D39A0C0305E82C3301' following TGuid order (not HexToBin)
+function RawUtf8ToGuid(text: PUtf8Char; textlen: PtrInt; out guid: TGuid): boolean; overload;
+
 /// trim any space and '{' '-' '}' chars from input to get a 32-char TGuid hexa
 // - change in-place the text into lowercase hexadecimal
 // - returns true if resulting text is a 128-bit cleaned hexa, false otherwise
@@ -2237,7 +2662,8 @@ function TrimGuid(var text: RawUtf8): boolean;
 // - it will read binary or text content from the current position until the
 // end (using TStream.Size)
 // - uses RawByteString for byte storage, whatever the codepage is
-function StreamToRawByteString(aStream: TStream): RawByteString;
+function StreamToRawByteString(aStream: TStream; aSize: Int64 = -1;
+  aCodePage: integer = CP_RAWBYTESTRING): RawByteString;
 
 /// iterative function to retrieve the new content appended to a stream
 // - aPosition should be set to 0 before the initial call
@@ -2275,14 +2701,14 @@ implementation
   {$WARN 4056 off : Conversion between ordinals and pointers is not portable }
 {$endif FPC}
 
- 
+
 { ************ CSV-like Iterations over Text Buffers }
 
 function IdemPCharAndGetNextItem(var source: PUtf8Char; const searchUp: RawUtf8;
   var Item: RawUtf8; Sep: AnsiChar): boolean;
 begin
   if source <> nil then
-    if IdemPChar(source, Pointer(searchUp)) then
+    if IdemPChar(source, pointer(searchUp)) then
     begin
       inc(source, Length(searchUp));
       GetNextItem(source, Sep, Item);
@@ -2309,7 +2735,7 @@ begin
     {$ifdef CPUINTEL}
     S := PosChar(S, Sep); // SSE2 asm on i386 and x86_64
     if S = nil then
-      S := P + StrLen(P);
+      S := P + mormot.core.base.StrLen(P);
     {$else}
     while (S^ <> #0) and
           (S^ <> Sep) do
@@ -2379,6 +2805,69 @@ begin
     S := P;
     while (S^ <> #0) and
           (S^ <> Sep) do
+      inc(S); // go to end of value
+    E := S;
+    while (E > P) and
+          (E[-1] in [#1..' ']) do
+      dec(E); // trim right
+    FastSetString(result, P, E - P);
+    if S^ <> #0 then
+      P := S + 1
+    else
+      P := nil;
+  end;
+end;
+
+procedure GetNextItemTrimedLine(var P: PUtf8Char; Sep: AnsiChar;
+  var result: RawUtf8);
+var
+  S, E: PUtf8Char;
+begin
+  if (P = nil) or
+     (Sep <= ' ') then
+    result := ''
+  else
+  begin
+    while P^ in [#14 .. ' '] do
+      inc(P); // trim left
+    S := P;
+    while (S^ > #13) and
+          (S^ <> Sep) do
+      inc(S); // go to end of value
+    E := S;
+    while (E > P) and
+          (E[-1] in [#14 .. ' ']) do
+      dec(E); // trim right
+    FastSetString(result, P, E - P);
+    if (PWord(S)^ = CRLFW) or
+       (S^ = Sep) then
+      P := S + 1
+    else if S^ = #10 then
+      P := S
+    else
+      P := nil; // end of text or malformatted
+  end;
+end;
+
+procedure GetNextItemTrimedEscaped(var P: PUtf8Char; Sep, Esc: AnsiChar;
+  var result: RawUtf8);
+var
+  S, E: PUtf8Char;
+begin
+  if (P = nil) or
+     (Sep <= ' ') or
+     (Esc = #0) then
+    result := ''
+  else
+  begin
+    while (P^ <= ' ') and
+          (P^ <> #0) do
+      inc(P); // trim left
+    S := P;
+    while (S^ <> #0) and
+          ((S^ <> Sep) or
+           ((S > P) and
+            (S[-1] = Esc))) do // ignore e.g. \. if Sep='.' and Esc='\'
       inc(S);
     E := S;
     while (E > P) and
@@ -2468,7 +2957,7 @@ begin
   P := pointer(Csv);
   if P = nil then
     exit;
-  first := True;
+  first := true;
   for i := 0 to high(Values) do
   begin
     s := GetNextItemString(P);
@@ -2499,38 +2988,42 @@ var
 begin
   S := P;
   D := pointer(Dest); // better FPC codegen with a dedicated variable
-  if S = nil then
-    PCardinal(D)^ := 0 // Dest='' with trailing #0
-  else
+  if S <> nil then
   begin
-    while (S^ <= ' ') and
-          (S^ <> #0) do
-      inc(S);
     len := 0;
+    if S^ <= ' ' then
+      while (S^ <= ' ') and
+            (S^ <> #0) do
+        inc(S); // trim left space
     repeat
       c := S^;
       inc(S);
       if c = Sep then
         break;
       if c <> #0 then
-      begin
-        if len < 254 then
+        if len < 254 then // avoid shortstring buffer overflow
         begin
           inc(len);
           D[len] := c;
-        end;
-        continue;
-      end;
-      S := nil; // end of input
+          continue;
+        end
+        else
+          len := 0;
+      S := nil; // reached #0: end of input
       break;
     until false;
-    while (len <> 0) and
-          (D[len] < ' ') do
-      dec(len); // trim right space
+    if len <> 0 then
+      repeat
+        if D[len] >= ' ' then
+          break;
+        dec(len); // trim right space
+      until len = 0;
     D[0] := AnsiChar(len);
-    D[len + 1] := #0; // trailing #0
+    D[len + 1] := #0; // #0 terminator
     P := S;
-  end;
+  end
+  else
+    PCardinal(D)^ := 0 // Dest='' with #0 terminator
 end;
 
 function GetNextItemHexDisplayToBin(var P: PUtf8Char;
@@ -2654,7 +3147,7 @@ begin
     exit;
   ValueLen := length(Value);
   SepLen := Length(Sep);
-  FastSetString(result, nil, ValueLen * Count + SepLen * pred(Count));
+  FastSetString(result, ValueLen * Count + SepLen * pred(Count));
   P := pointer(result);
   i := 1;
   repeat
@@ -2665,7 +3158,7 @@ begin
     end
     else
     begin
-      MoveFast(Pointer(Value)^, P^, ValueLen);
+      MoveFast(pointer(Value)^, P^, ValueLen);
       inc(P, ValueLen);
     end;
     if i = Count then
@@ -2678,7 +3171,7 @@ begin
     end
     else if SepLen > 0 then
     begin
-      MoveFast(Pointer(Sep)^, P^, SepLen);
+      MoveFast(pointer(Sep)^, P^, SepLen);
       inc(P, SepLen);
       inc(i);
     end;
@@ -2732,18 +3225,18 @@ begin
       while (j + 1 < BitsCount) and
             GetBitPtr(@Bits, j + 1) do
         inc(j);
-      result := result + UInt32ToUtf8(i + 1);
+      Append(result, UInt32ToUtf8(i + 1));
       if j = i then
-        result := result + ','
+        AppendShortToUtf8(',', result)
       else if j = i + 1 then
-        result := result + ',' + UInt32ToUtf8(j + 1) + ','
+        Append(result, [',', j + 1, ','])
       else
-        result := result + '-' + UInt32ToUtf8(j + 1) + ',';
+        Append(result, ['-', j + 1, ',']);
       i := j + 1;
     end
     else
       inc(i);
-  result := result + '0'; // '0' marks end of list
+  AppendShortToUtf8('0', result); // '0' marks end of list
 end;
 
 function GetNextItemCardinalW(var P: PWideChar; Sep: WideChar): PtrUInt;
@@ -2946,6 +3439,17 @@ begin
       GetNextItem(P, Sep, Quote, result);
 end;
 
+function GetFirstCsvItem(const Csv: RawUtf8; Sep: AnsiChar): RawUtf8;
+var
+  i: PtrInt;
+begin
+  i := PosExChar(Sep, Csv);
+  if i = 0 then
+    result := Csv
+  else
+    FastSetString(result, pointer(Csv), i - 1);
+end;
+
 function GetLastCsvItem(const Csv: RawUtf8; Sep: AnsiChar): RawUtf8;
 begin
   result := SplitRight(Csv, Sep, nil);
@@ -2962,6 +3466,51 @@ begin
       result := GetNextItemString(P, Sep);
 end;
 
+function CsvContains(const Csv, Value: RawUtf8; Sep: AnsiChar;
+  CaseSensitive: boolean): boolean;
+var
+  i, l: PtrInt;
+  p, s: PUtf8Char;
+  match: TIdemPropNameUSameLen;
+begin
+  if (Csv = '') or
+     (Value = '') then
+  begin
+    result := false;
+    exit;
+  end;
+  // note: all search sub-functions do use fast SSE2 asm on i386 and x86_64
+  match := IdemPropNameUSameLen[CaseSensitive];
+  p := pointer(Csv);
+  l := PStrLen(PAnsiChar(pointer(Value)) - _STRLEN)^;
+  if l >= PStrLen(p - _STRLEN)^ then
+    result := (l = PStrLen(p - _STRLEN)^) and
+              match(p, pointer(Value), l)
+  else
+  begin
+    i := PosExChar(Sep, Csv);
+    if i <> 0 then
+    begin
+      result := true;
+      s := p + i - 1;
+      repeat
+        if (s - p = l) and
+           match(p, pointer(Value), l) then
+          exit;
+        p := s + 1;
+        s := PosChar(p, Sep);
+        if s <> nil then
+          continue;
+        if (PStrLen(PAnsiChar(pointer(Csv)) - _STRLEN)^ - (p - pointer(Csv)) = l) and
+           match(p, pointer(Value), l) then
+          exit;
+        break;
+      until false;
+    end;
+    result := false;
+  end;
+end;
+
 function FindCsvIndex(Csv: PUtf8Char; const Value: RawUtf8; Sep: AnsiChar;
   CaseSensitive, TrimValue: boolean): integer;
 var
@@ -2975,7 +3524,7 @@ begin
       TrimSelf(s);
     if CaseSensitive then
     begin
-      if s = Value then
+      if SortDynArrayRawByteString(s, Value) = 0 then
         exit;
     end
     else if SameTextU(s, Value) then
@@ -2986,7 +3535,7 @@ begin
 end;
 
 procedure CsvToRawUtf8DynArray(Csv: PUtf8Char; var List: TRawUtf8DynArray;
-  Sep: AnsiChar; TrimItems, AddVoidItems: boolean);
+  Sep: AnsiChar; TrimItems, AddVoidItems: boolean; Quote: AnsiChar);
 var
   s: RawUtf8;
   n: integer;
@@ -2995,7 +3544,13 @@ begin
   while (Csv <> nil) and
         (Csv^ <> #0) do
   begin
-    if TrimItems then
+    if Quote <> #0 then
+    begin
+      GetNextItem(Csv, Sep, Quote, s);
+      if TrimItems then
+        TrimSelf(s);
+    end
+    else if TrimItems then
       GetNextItemTrimed(Csv, Sep, s)
     else
       GetNextItem(Csv, Sep, s);
@@ -3053,7 +3608,7 @@ begin
   begin
     GetNextItem(Csv, Sep, s);
     if s <> '' then
-      result := result + ',' + Prefix + s;
+      Append(result, [',', Prefix, s]);
   end;
 end;
 
@@ -3062,7 +3617,7 @@ begin
   if Csv = '' then
     Csv := Value
   else
-    Csv := Csv + Sep + Value;
+    Append(Csv, Sep, Value);
 end;
 
 function RenameInCsv(const OldValue, NewValue: RawUtf8; var Csv: RawUtf8;
@@ -3101,40 +3656,71 @@ begin
   result := true;
 end;
 
-function RawUtf8ArrayToCsv(const Values: array of RawUtf8; const Sep: RawUtf8;
-  HighValues: integer): RawUtf8;
+function CsvGuessSeparator(const Csv: RawUtf8): AnsiChar;
+begin
+  if PosExChar(#9, Csv) <> 0 then
+    result := #9
+  else if PosExChar(';', Csv) <> 0 then
+    result := ';'
+  else if PosExChar(',', Csv) <> 0 then
+    result := ','
+  else
+    result := #0;
+end;
+
+procedure PRawUtf8ToCsv(v: PPUtf8Char; n: integer; const sep: RawUtf8;
+  Reverse: boolean; var result: RawUtf8);
 var
-  i, len, seplen, L: integer;
-  P: PAnsiChar;
+  len, seplen: PtrInt;
+  p: PAnsiChar;
+  s: PUtf8Char;
 begin
   result := '';
-  if HighValues < 0 then
-    HighValues := high(Values);
-  if HighValues < 0 then
+  if (v = nil) or
+     (n <= 0) then
     exit;
-  seplen := length(Sep);
-  len := seplen * HighValues;
-  for i := 0 to HighValues do
-    inc(len, length(Values[i]));
-  FastSetString(result, nil, len); // allocate the result buffer as once
-  P := pointer(result);
-  i := 0;
+  if n = 1 then
+  begin
+    result := PRawUtf8(v)^;
+    exit;
+  end;
+  seplen := length(sep);
+  p := FastNewString(seplen * (n - 1) + SumRawUtf8Length(pointer(v), n), CP_UTF8);
+  pointer(result) := p;
+  if Reverse then
+    v := @PPointerArray(v)[n - 1];
   repeat
-    L := length(Values[i]);
-    if L > 0 then
+    s := v^;
+    if s <> nil then
     begin
-      MoveFast(pointer(Values[i])^, P^, L);
-      inc(P, L);
+      len := PStrLen(s - _STRLEN)^;
+      MoveFast(s^, p^, len);
+      inc(p, len);
     end;
-    if i = HighValues then
+    dec(n);
+    if n = 0 then
       break;
-    if seplen > 0 then
-    begin
-      MoveFast(pointer(Sep)^, P^, seplen);
-      inc(P, seplen);
-    end;
-    inc(i);
+    if Reverse then
+      dec(v)
+    else
+      inc(v);
+    if seplen = 0 then
+      continue;
+    MoveFast(pointer(sep)^, p^, seplen);
+    inc(p, seplen);
   until false;
+end;
+
+function RawUtf8ArrayToCsv(const Values: TRawUtf8DynArray; const Sep: RawUtf8;
+  Reverse: boolean): RawUtf8;
+begin
+  PRawUtf8ToCsv(pointer(Values), length(Values), Sep, Reverse, result);
+end;
+
+function JoinCsv(const Sep: RawUtf8; const Values: array of RawUtf8;
+  Reverse: boolean): RawUtf8;
+begin
+  PRawUtf8ToCsv(@Values[0], length(Values), Sep, Reverse, result);
 end;
 
 function RawUtf8ArrayToQuotedCsv(const Values: array of RawUtf8;
@@ -3179,6 +3765,7 @@ function CsvToInt64DynArray(Csv: PUtf8Char; Sep: AnsiChar): TInt64DynArray;
 var
   n: integer;
 begin
+  result := nil;
   n := 0;
   while (Csv <> nil) and
         (Csv^ <> #0) do
@@ -3199,8 +3786,7 @@ begin
   inc(len, (n - 1) + length(pref) + length(suf));
   if inlin then
     inc(len, n * 4); // :( ): markers
-  FastSetString(result, nil, len);
-  P := pointer(result);
+  P := FastSetString(result, len);
   if pref <> '' then
   begin
     L := length(pref);
@@ -3209,11 +3795,11 @@ begin
   end;
   if inlin then
     repeat
-      PWord(P)^ := ord(':') + ord('(') shl 8;
+      PCardinal(P)^ := ord(':') + ord('(') shl 8;
       inc(P, 2);
       MoveFast(int[I2T_SIZE - ord(int^)], P^, ord(int^));
       inc(P, ord(int^));
-      PWord(P)^ := ord(')') + ord(':') shl 8;
+      PCardinal(P)^ := ord(')') + ord(':') shl 8;
       inc(P, 2);
       dec(n);
       if n = 0 then
@@ -3309,19 +3895,104 @@ end;
 
 { ************ TTextWriter parent class for Text Generation }
 
+function HexToChar(Hex: PAnsiChar; Bin: PUtf8Char): boolean; // for inlining
+var
+  b, c: byte;
+begin
+  if Hex <> nil then
+  begin
+    b := ConvertHexToShl[Hex[0]];
+    c := ConvertHexToBin[Hex[1]];
+    if (b <> 255) and
+       (c <> 255) then
+    begin
+      if Bin <> nil then
+      begin
+        inc(c, b);
+        Bin^ := AnsiChar(c);
+      end;
+      result := true;
+      exit;
+    end;
+  end;
+  result := false; // return false if any invalid char
+end;
+
+procedure BinToHexDisplay(Bin, Hex: PAnsiChar; BinBytes: PtrInt); // for inlining
+var
+  {$ifdef CPUX86NOTPIC}
+  tab: TAnsiCharToWord absolute TwoDigitsHexW;
+  {$else}
+  tab: PAnsiCharToWord; // faster on PIC, ARM and x86_64
+  {$endif CPUX86NOTPIC}
+begin
+  if BinBytes <= 0 then
+    exit;
+  {$ifndef CPUX86NOTPIC}
+  tab := @TwoDigitsHexW;
+  {$endif CPUX86NOTPIC}
+  inc(Hex, BinBytes * 2);
+  repeat
+    dec(Hex, 2);
+    PWord(Hex)^ := tab[Bin^];
+    inc(Bin);
+    dec(BinBytes);
+  until BinBytes = 0;
+end;
+
+procedure BinToHexDisplayLower(Bin, Hex: PAnsiChar; BinBytes: PtrInt);
+var
+  {$ifdef CPUX86NOTPIC}
+  tab: TAnsiCharToWord absolute TwoDigitsHexWLower;
+  {$else}
+  tab: PAnsiCharToWord; // faster on PIC, ARM and x86_64
+  {$endif CPUX86NOTPIC}
+begin
+  if BinBytes <= 0 then
+    exit;
+  {$ifndef CPUX86NOTPIC}
+  tab := @TwoDigitsHexWLower;
+  {$endif CPUX86NOTPIC}
+  inc(Hex, BinBytes * 2);
+  repeat
+    dec(Hex, 2);
+    PWord(Hex)^ := tab[Bin^];
+    inc(Bin);
+    dec(BinBytes);
+  until BinBytes = 0;
+end;
+
+procedure Int18ToText(Value: cardinal; Text: PUtf8Char);
+begin
+  PCardinal(Text)^ := PtrUInt(((Value shr 12) and $3f) or
+                              (((Value shr 6) and $3f) shl 8) or
+                              ((Value and $3f) shl 16)) + $202020;
+end;
+
+
 { TTextWriter }
 
+{$ifndef PUREMORMOT2}
 var
   DefaultTextWriterTrimEnum: boolean; // see TTextWriter.SetDefaultEnumTrim()
 
-procedure TTextWriter.InternalSetBuffer(aBuf: PUtf8Char; aBufSize: integer);
+class procedure TTextWriter.SetDefaultEnumTrim(aShouldTrimEnumsAsText: boolean);
 begin
-  fTempBuf := aBuf;
+  DefaultTextWriterTrimEnum := aShouldTrimEnumsAsText;
+end;
+{$endif PUREMORMOT2}
+
+procedure TTextWriter.InternalSetBuffer(aBuf: PUtf8Char; const aBufSize: PtrUInt);
+begin
   fTempBufSize := aBufSize;
-  B := aBuf - 1; // Add() methods will append at B+1
-  BEnd := aBuf + (aBufSize - 16); // -16 to avoid buffer overwrite/overread
+  fTempBuf := aBuf;
+  dec(aBuf);
+  B := aBuf;   // Add() methods will append at B+1
+  BEnd := @aBuf[aBufSize - 15]; // BEnd := B+size-16 to avoid overwrite/overread
+  {$ifndef PUREMORMOT2}
   if DefaultTextWriterTrimEnum then
     Include(fCustomOptions, twoTrimLeftEnumSets);
+  {$endif PUREMORMOT2}
 end;
 
 constructor TTextWriter.Create(aStream: TStream; aBufSize: integer);
@@ -3349,7 +4020,7 @@ begin
     fStream := TextWriterSharedStream
   else
     fStream := TRawByteStringStream.Create; // inlined SetStream()
-  fCustomOptions := [twoStreamIsOwned];
+  fCustomOptions := [twoStreamIsOwned, twoStreamIsRawByteString];
   SetBuffer(aBuf, aBufSize); // aBuf may be nil
 end;
 
@@ -3374,7 +4045,7 @@ begin
     fStream := TextWriterSharedStream
   else
     fStream := TRawByteStringStream.Create; // inlined SetStream()
-  fCustomOptions := [twoStreamIsOwned, twoBufferIsExternal]; // SetBuffer()
+  fCustomOptions := [twoStreamIsOwned, twoStreamIsRawByteString, twoBufferIsExternal];
   InternalSetBuffer(@aStackBuf, SizeOf(aStackBuf));
 end;
 
@@ -3382,7 +4053,7 @@ constructor TTextWriter.CreateOwnedFileStream(
   const aFileName: TFileName; aBufSize: integer);
 begin
   DeleteFile(aFileName);
-  fStream := TFileStreamEx.Create(aFileName, fmCreate or fmShareDenyWrite);
+  fStream := TFileStreamEx.Create(aFileName, fmCreate or fmShareRead);
   fCustomOptions := [twoStreamIsOwned];
   SetBuffer(nil, aBufSize);
 end;
@@ -3399,7 +4070,7 @@ begin
       fStream.Free;
   if not (twoBufferIsExternal in fCustomOptions) then
     FreeMem(fTempBuf);
-  inherited;
+  inherited Destroy;
 end;
 
 function TTextWriter.PendingBytes: PtrUInt;
@@ -3407,7 +4078,14 @@ begin
   result := B - fTempBuf + 1;
 end;
 
-procedure TTextWriter.Add(c: AnsiChar);
+function TTextWriter.AvailableBytes: PtrUInt;
+begin
+  result := BEnd - B;
+  if PtrInt(result) < 0 then
+    result := 0; // may happen with AddDirect/AddComma
+end;
+
+procedure TTextWriter.Add(const c: AnsiChar);
 begin
   if B >= BEnd then
     FlushToStream; // may rewind B -> not worth any local PUtf8Char variable
@@ -3415,21 +4093,60 @@ begin
   inc(B);
 end;
 
+procedure TTextWriter.AddDirect(const c: AnsiChar);
+begin
+  B[1] := c;
+  inc(B);
+end;
+
+procedure TTextWriter.AddDirect(const c1, c2: AnsiChar);
+begin
+  PCardinal(B + 1)^ := byte(c1) + PtrUInt(byte(c2)) shl 8;
+  inc(B, 2); // with proper constant propagation above when inlined
+end;
+
+procedure TTextWriter.AddDirect(const c1, c2, c3: AnsiChar);
+begin
+  PCardinal(B + 1)^ := byte(c1) + PtrUInt(byte(c2)) shl 8 + PtrUInt(byte(c3)) shl 16;
+  inc(B, 3); // with proper constant propagation above when inlined
+end;
+
+procedure TTextWriter.AddDirect(const c1, c2, c3, c4: AnsiChar);
+begin
+  PCardinal(B + 1)^ := byte(c1) + PtrUInt(byte(c2)) shl 8 +
+                       PtrUInt(byte(c3)) shl 16 + PtrUInt(byte(c4)) shl 24;
+  inc(B, 4); // with proper constant propagation above when inlined
+end;
+
+procedure TTextWriter.AddDirectNewLine;
+begin
+  {$ifdef OSPOSIX} // mimics CRLF = #10 on POSIX
+  B[1] := #10;
+  inc(B);
+  {$else}          // mimics CRLF = #13#10 on Windows
+  PWord(B + 1)^ := $0a0d;
+  inc(B, 2);
+  {$endif OSPOSIX}
+end;
+
 procedure TTextWriter.AddComma;
 begin
-  if B >= BEnd then
-    FlushToStream;
   B[1] := ',';
   inc(B);
 end;
 
-procedure TTextWriter.Add(c1, c2: AnsiChar);
+procedure TTextWriter.Add(const c1, c2: AnsiChar);
 begin
   if B >= BEnd then
     FlushToStream;
-  B[1] := c1;
-  B[2] := c2;
-  inc(B, 2);
+  PCardinal(B + 1)^ := byte(c1) + PtrUInt(byte(c2)) shl 8;
+  inc(B, 2); // with proper constant propagation above when inlined
+end;
+
+procedure TTextWriter.RaiseUnimplemented(const Method: ShortString);
+begin
+  raise ESynException.CreateUtf8(
+    '%.% unimplemented: use TJsonWriter', [self, Method]);
 end;
 
 procedure TTextWriter.Add(const Format: RawUtf8; const Values: array of const;
@@ -3445,63 +4162,75 @@ begin
     twOnSameLine:
       AddOnSameLine(pointer(tmp)); // minimalistic version for TSynLog
     twJsonEscape:
-      raise ESynException.CreateUtf8(
-        '%.Add(twJsonEscape) unimplemented: use TJsonWriter', [self]);
+      RaiseUnimplemented('Add(twJsonEscape)');
   end;
 end;
 
 procedure TTextWriter.AddVariant(const Value: variant; Escape: TTextWriterKind;
   WriteOptions: TTextWriterWriteObjectOptions);
 begin
-  raise ESynException.CreateUtf8(
-    '%.AddVariant unimplemented: use TJsonWriter', [self]);
+  RaiseUnimplemented('AddVariant');
+end;
+
+procedure TTextWriter.AddVarData(Value: PVarData; HtmlEscape: boolean);
+var
+  tmp: TTempUtf8;
+  wasString: boolean;
+begin
+  if cardinal(Value^.VType) = varVariantByRef then
+    Value := Value^.VPointer;
+  if HtmlEscape and
+     not (cardinal(Value^.VType) in VTYPE_NUMERIC) then
+  begin // avoid UTF-8 conversion for plain numbers or if no HTML escaping
+    VariantToTempUtf8(PVariant(Value)^, tmp, wasString);
+    AddHtmlEscape(tmp.Text, tmp.Len);
+    if tmp.TempRawUtf8 <> nil then
+      FastAssignNew(tmp.TempRawUtf8);
+  end
+  else
+    AddVariant(PVariant(Value)^, twNone); // fast TJsonWriter.AddVariant
 end;
 
 procedure TTextWriter.AddTypedJson(Value, TypeInfo: pointer;
   WriteOptions: TTextWriterWriteObjectOptions);
 begin
-  raise ESynException.CreateUtf8(
-    '%.AddTypedJson unimplemented: use TJsonWriter', [self]);
+  RaiseUnimplemented('AddTypedJson');
 end;
 
 function TTextWriter.{%H-}AddJsonReformat(Json: PUtf8Char;
   Format: TTextWriterJsonFormat; EndOfObject: PUtf8Char): PUtf8Char;
 begin
-  raise ESynException.CreateUtf8(
-    '%.AddJsonReformat unimplemented: use TJsonWriter', [self]);
+  RaiseUnimplemented('AddJsonReformat');
+  result := nil; // make compiler happy
 end;
 
 procedure TTextWriter.Add(P: PUtf8Char; Escape: TTextWriterKind);
 begin
-  raise ESynException.CreateUtf8(
-    '%.Add(..,Escape: TTextWriterKind) unimplemented: use TJsonWriter', [self]);
+  RaiseUnimplemented('Add(Escape)');
 end;
 
 procedure TTextWriter.Add(P: PUtf8Char; Len: PtrInt; Escape: TTextWriterKind);
 begin
-  raise ESynException.CreateUtf8(
-    '%.Add(..,Escape: TTextWriterKind) unimplemented: use TJsonWriter', [self]);
+  RaiseUnimplemented('Add(Escape)');
+end;
+
+procedure TTextWriter.AddVarRec(V: PVarRec; Escape: TTextWriterKind;
+  WriteObjectOptions: TTextWriterWriteObjectOptions);
+begin
+  RaiseUnimplemented('AddVarRec');
 end;
 
 procedure TTextWriter.WrBase64(P: PAnsiChar; Len: PtrUInt; withMagic: boolean);
 begin
-  raise ESynException.CreateUtf8(
-    '%.WrBase64() unimplemented: use TJsonWriter', [self]);
+  RaiseUnimplemented('WrBase64');
 end;
 
-procedure TTextWriter.AddShorter(const Text: TShort8);
-var
-  L: PtrInt;
+procedure TTextWriter.AddShorter(const Short8: TShort8);
 begin
-  L := ord(Text[0]);
-  if L > 0 then
-  begin
-    {$ifdef DEBUG} assert(L <= 8); {$endif}
-    if B >= BEnd then
-      FlushToStream;
-    PInt64(B + 1)^ := PInt64(@Text[1])^;
-    inc(B, L);
-  end;
+  if B >= BEnd then
+    FlushToStream;
+  PInt64(B + 1)^ := PInt64(@Short8[1])^;
+  inc(B, ord(Short8[0]));
 end;
 
 procedure TTextWriter.AddNull;
@@ -3512,11 +4241,20 @@ begin
   inc(B, 4);
 end;
 
+function TTextWriter.AddPrepare(Len: PtrInt): pointer;
+begin
+  result := nil;
+  if Len >= fTempBufSize - 16 then
+    exit;
+  if BEnd - B <= Len then // note: PtrInt(BEnd - B) could be < 0
+    FlushToStream;
+  result := B + 1;
+end;
+
 procedure TTextWriter.WriteObject(Value: TObject;
   WriteOptions: TTextWriterWriteObjectOptions);
 begin
-  raise ESynException.CreateUtf8(
-    '%.WriteObject unimplemented: use TJsonWriter', [self]);
+  RaiseUnimplemented('WriteObject');
 end;
 
 procedure TTextWriter.AddObjArrayJson(const aObjArray;
@@ -3531,35 +4269,43 @@ begin
     WriteObject(a[i], aOptions);
     AddComma;
   end;
-  CancelLastComma;
-  Add(']');
+  CancelLastComma(']');
 end;
 
 procedure TTextWriter.WriteToStream(data: pointer; len: PtrUInt);
+var
+  written: PtrUInt;
 begin
   if Assigned(fOnFlushToStream) then
     fOnFlushToStream(data, len);
-  fStream.WriteBuffer(data^, len);
-  inc(fTotalFileSize, len);
+  if (len <> 0) and
+     Assigned(fStream) then
+    repeat
+      written := fStream.Write(data^, len);
+      if PtrInt(written) <= 0 then
+        if twoNoWriteToStreamException in fCustomOptions then
+          break // silent failure
+        else
+          ESynException.RaiseUtf8('%.WriteToStream failed on %', [self, fStream]);
+      inc(fTotalFileSize, written);
+      dec(len, written);
+      if len = 0 then
+        break;
+      inc(PByte(data), written); // several calls to Write() may be needed
+    until false;
 end;
 
 function TTextWriter.GetTextLength: PtrUInt;
 begin
-  if self = nil then
-    result := 0
-  else
+  result := PtrUInt(self);
+  if self <> nil then
     result := PtrUInt(B - fTempBuf + 1) + fTotalFileSize - fInitialStreamPosition;
-end;
-
-class procedure TTextWriter.SetDefaultEnumTrim(aShouldTrimEnumsAsText: boolean);
-begin
-  DefaultTextWriterTrimEnum := aShouldTrimEnumsAsText;
 end;
 
 procedure TTextWriter.SetBuffer(aBuf: pointer; aBufSize: integer);
 begin
   if aBufSize <= 16 then
-    raise ESynException.CreateUtf8('%.SetBuffer(size=%)', [self, aBufSize]);
+    ESynException.RaiseUtf8('%.SetBuffer(size=%)', [self, aBufSize]);
   if aBuf = nil then
     GetMem(aBuf, aBufSize)
   else
@@ -3569,6 +4315,7 @@ end;
 
 procedure TTextWriter.SetStream(aStream: TStream);
 begin
+  exclude(fCustomOptions, twoStreamIsRawByteString);
   if fStream <> nil then
     if twoStreamIsOwned in fCustomOptions then
     begin
@@ -3580,14 +4327,15 @@ begin
       end
       else
         FreeAndNilSafe(fStream);
-      Exclude(fCustomOptions, twoStreamIsOwned);
+      exclude(fCustomOptions, twoStreamIsOwned);
     end;
-  if aStream <> nil then
-  begin
-    fStream := aStream;
-    fInitialStreamPosition := fStream.Position;
-    fTotalFileSize := fInitialStreamPosition;
-  end;
+  if aStream = nil then
+    exit;
+  fStream := aStream;
+  fInitialStreamPosition := fStream.Position;
+  fTotalFileSize := fInitialStreamPosition;
+  if aStream.InheritsFrom(TRawByteStringStream) then
+    include(fCustomOptions, twoStreamIsRawByteString);
 end;
 
 procedure TTextWriter.FlushFinal;
@@ -3598,6 +4346,10 @@ begin // don't mess with twoFlushToStreamNoAutoResize: it may not be final
   if len > 0 then
     WriteToStream(fTempBuf, len);
   B := fTempBuf - 1;
+  {$ifdef HASCODEPAGE}
+  if twoStreamIsRawByteString in fCustomOptions then
+    TRawByteStringStream(fStream).EnsureDataStringIsUtf8;
+  {$endif HASCODEPAGE}
 end;
 
 procedure TTextWriter.FlushToStream;
@@ -3635,7 +4387,7 @@ procedure TTextWriter.ForceContent(const text: RawUtf8);
 begin
   CancelAll;
   if (fInitialStreamPosition = 0) and
-     fStream.InheritsFrom(TRawByteStringStream) then
+     (twoStreamIsRawByteString in fCustomOptions) then
     TRawByteStringStream(fStream).DataString := text
   else
     fStream.WriteBuffer(pointer(text)^, length(text));
@@ -3644,7 +4396,7 @@ end;
 
 procedure TTextWriter.SetText(var result: RawUtf8; reformat: TTextWriterJsonFormat);
 var
-  Len: cardinal;
+  Len: PtrUInt;
   temp: TTextWriter;
 begin
   FlushFinal;
@@ -3654,16 +4406,17 @@ begin
     result := '';
     exit;
   end;
-  if fStream.InheritsFrom(TRawByteStringStream) then
+  if twoStreamIsRawByteString in fCustomOptions then
     TRawByteStringStream(fStream).GetAsText(fInitialStreamPosition, Len, result)
   else if fStream.InheritsFrom(TCustomMemoryStream) then
-    with TCustomMemoryStream(fStream) do
-      FastSetString(result, PAnsiChar(Memory) + fInitialStreamPosition, Len)
+    FastSetString(result, PAnsiChar(TCustomMemoryStream(fStream).Memory) +
+                            fInitialStreamPosition, Len)
   else
   begin
-    FastSetString(result, nil, Len);
+    FastSetString(result, Len);
     fStream.Seek(fInitialStreamPosition, soBeginning);
-    fStream.Read(pointer(result)^, Len);
+    if not StreamReadAll(fStream, pointer(result), Len) then
+      result := '';
   end;
   if reformat <> jsonCompact then
   begin
@@ -3698,6 +4451,13 @@ begin
   fCustomOptions := fCustomOptions * TEXTWRITEROPTIONS_RESET;
 end;
 
+procedure TTextWriter.CancelAllWith(var temp: TTextWriterStackBuffer);
+begin
+  if fTotalFileSize <> 0 then
+    fTotalFileSize := fStream.Seek(fInitialStreamPosition, soBeginning);
+  InternalSetBuffer(@temp, SizeOf(temp));
+end;
+
 procedure TTextWriter.CancelLastChar(aCharToCancel: AnsiChar);
 var
   P: PUtf8Char;
@@ -3724,6 +4484,20 @@ begin
     dec(B);
 end;
 
+procedure TTextWriter.CancelLastComma(aReplaceChar: AnsiChar);
+var
+  P: PUtf8Char;
+begin
+  P := B;
+  if (P < fTempBuf) or
+     (P^ <> ',') then
+  begin
+    inc(P);
+    B := P;
+  end;
+  P^ := aReplaceChar;
+end;
+
 function TTextWriter.LastChar: AnsiChar;
 begin
   if B >= fTempBuf then
@@ -3732,7 +4506,7 @@ begin
     result := #0;
 end;
 
-procedure TTextWriter.AddOnce(c: AnsiChar);
+procedure TTextWriter.AddOnce(const c: AnsiChar);
 begin
   if (B >= fTempBuf) and
      (B^ = c) then
@@ -3749,25 +4523,26 @@ var
   P: PAnsiChar;
   Len: PtrInt;
 begin
-  if BEnd - B <= 23 then
+  if BEnd - B <= 24 then
     FlushToStream;
   {$ifndef ASMINTEL} // our StrInt32 asm has less CPU cache pollution
   if PtrUInt(Value) <= high(SmallUInt32Utf8) then
   begin
     P := pointer(SmallUInt32Utf8[Value]);
-    Len := PStrLen(P - _STRLEN)^;
+    PCardinal(B + 1)^ := PCardinal(P)^;
+    inc(B, PStrLen(P - _STRLEN)^);
   end
   else
   {$endif ASMINTEL}
   begin
     P := StrInt32(@tmp[23], Value);
     Len := @tmp[23] - P;
+    MoveFast(P^, B[1], Len);
+    inc(B, Len);
   end;
-  MoveFast(P^, B[1], Len);
-  inc(B, Len);
 end;
 
-{$ifdef CPU32} // Add(Value: PtrInt) already implemented it for CPU64
+{$ifdef CPU32} // Add(Value: PtrInt) already implements it for CPU64
 procedure TTextWriter.Add(Value: Int64);
 var
   tmp: array[0..23] of AnsiChar;
@@ -3786,7 +4561,9 @@ begin
   else if Value <= high(SmallUInt32Utf8) then
   begin
     P := pointer(SmallUInt32Utf8[Value]);
-    Len := PStrLen(P - _STRLEN)^;
+    PCardinal(B + 1)^ := PCardinal(P)^;
+    inc(B, PStrLen(P - _STRLEN)^);
+    exit;
   end
   {$endif ASMINTEL} // our StrInt32 asm has less CPU cache pollution
   else
@@ -3830,7 +4607,7 @@ begin
   AddCurr64(PInt64(@Value));
 end;
 
-procedure TTextWriter.AddU(Value: cardinal);
+procedure TTextWriter.AddU(Value: PtrUInt);
 var
   tmp: array[0..23] of AnsiChar;
   P: PAnsiChar;
@@ -3842,16 +4619,33 @@ begin
   if Value <= high(SmallUInt32Utf8) then
   begin
     P := pointer(SmallUInt32Utf8[Value]);
-    Len := PStrLen(P - _STRLEN)^;
+    PCardinal(B + 1)^ := PCardinal(P)^;
+    inc(B, PStrLen(P - _STRLEN)^);
   end
   else
   {$endif ASMINTEL}
   begin
     P := StrUInt32(@tmp[23], Value);
     Len := @tmp[23] - P;
+    MoveFast(P^, B[1], Len);
+    inc(B, Len);
   end;
-  MoveFast(P^, B[1], Len);
-  inc(B, Len);
+end;
+
+procedure TTextWriter.AddB(Value: PtrUInt);
+var
+  P: PAnsiChar;
+begin
+  if B >= BEnd then
+    FlushToStream;
+  P := pointer(SmallUInt32Utf8[Value]); // caller ensured Value <= 255 < 999
+  PCardinal(B + 1)^ := PCardinal(P)^;
+  inc(B, PStrLen(P - _STRLEN)^);
+end;
+
+procedure TTextWriter.AddUHex(Value: cardinal; QuotedChar: AnsiChar);
+begin
+  AddBinToHexDisplayLower(@Value, SizeOf(Value), QuotedChar);
 end;
 
 procedure TTextWriter.AddQ(Value: QWord);
@@ -3866,21 +4660,40 @@ begin
   if Value <= high(SmallUInt32Utf8) then
   begin
     P := pointer(SmallUInt32Utf8[Value]);
-    Len := PStrLen(P - _STRLEN)^;
+    PCardinal(B + 1)^ := PCardinal(P)^;
+    inc(B, PStrLen(P - _STRLEN)^);
   end
   else
   {$endif ASMINTEL}
   begin
     P := StrUInt64(@tmp[23], Value);
     Len := @tmp[23] - P;
+    MoveFast(P^, B[1], Len);
+    inc(B, Len);
   end;
-  MoveFast(P^, B[1], Len);
-  inc(B, Len);
 end;
 
-procedure TTextWriter.AddQHex(Value: Qword);
+procedure TTextWriter.AddQHex(Value: Qword; QuotedChar: AnsiChar);
 begin
-  AddBinToHexDisplayLower(@Value, SizeOf(Value), '"');
+  AddBinToHexDisplayLower(@Value, SizeOf(Value), QuotedChar);
+end;
+
+procedure TTextWriter.AddShort(Text: PUtf8Char; TextLen: PtrInt);
+begin
+  if TextLen <= 0 then
+    exit;
+  if BEnd - B <= TextLen then // note: PtrInt(BEnd - B) could be < 0
+    FlushToStream;
+  MoveFast(Text^, B[1], TextLen);
+  inc(B, TextLen);
+end;
+
+procedure TTextWriter.AddShort(const Text: ShortString);
+begin
+  if BEnd - B <= 255 then
+    FlushToStream;
+  MoveFast(Text[1], B[1], ord(Text[0]));
+  inc(B, ord(Text[0]));
 end;
 
 procedure TTextWriter.Add(Value: Extended; precision: integer; noexp: boolean);
@@ -3917,7 +4730,7 @@ end;
 
 procedure TTextWriter.AddFloatStr(P: PUtf8Char);
 begin
-  if StrLen(P) > 127 then
+  if mormot.core.base.StrLen(P) > 127 then
     exit; // clearly invalid input
   if BEnd - B <= 127 then
     FlushToStream;
@@ -3928,7 +4741,7 @@ begin
     B^ := '0';
 end;
 
-procedure TTextWriter.Add(Value: PGuid; QuotedChar: AnsiChar);
+procedure TTextWriter.Add(Value: PGuid; QuotedChar: AnsiChar; tab: PWordArray);
 begin
   if BEnd - B <= 38 then
     FlushToStream;
@@ -3938,8 +4751,7 @@ begin
     B^ := QuotedChar;
     inc(B);
   end;
-  GuidToText(B, pointer(Value));
-  inc(B, 36);
+  B := GuidToText(B, pointer(Value), tab);
   if QuotedChar <> #0 then
     B^ := QuotedChar
   else
@@ -3950,7 +4762,7 @@ procedure TTextWriter.AddCR;
 begin
   if B >= BEnd then
     FlushToStream;
-  PWord(B + 1)^ := 13 + 10 shl 8; // CR + LF
+  PCardinal(B + 1)^ := 13 + 10 shl 8; // CR + LF
   inc(B, 2);
 end;
 
@@ -3958,15 +4770,15 @@ procedure TTextWriter.AddCRAndIndent;
 var
   ntabs: cardinal;
 begin
-  if B^ = #9 then
-    // we just already added an indentation level - do it once
-    exit;
+  if (B >= fTempBuf) and
+     (B^ = #9) then
+    exit; // we just already added an indentation level - do it once
   ntabs := fHumanReadableLevel;
   if ntabs >= cardinal(fTempBufSize) then
     ntabs := 0; // fHumanReadableLevel=-1 after the last level of a document
-  if BEnd - B <= PtrInt(ntabs) then
+  if BEnd - B <= PtrInt(ntabs) then // note: PtrInt(BEnd - B) could be < 0
     FlushToStream;
-  PWord(B + 1)^ := 13 + 10 shl 8; // CR + LF
+  PCardinal(B + 1)^ := 13 + 10 shl 8; // CR + LF
   if ntabs > 0 then
     FillCharFast(B[3], ntabs, 9); // #9=tab
   inc(B, ntabs + 2);
@@ -3976,20 +4788,20 @@ procedure TTextWriter.AddChars(aChar: AnsiChar; aCount: PtrInt);
 var
   n: PtrInt;
 begin
-  while aCount > 0 do
-  begin
-    n := BEnd - B;
-    if n <= aCount then
-    begin
-      FlushToStream;
-      n := BEnd - B;
-    end;
-    if aCount < n then
-      n := aCount;
-    FillCharFast(B[1], n, ord(aChar));
-    inc(B, n);
-    dec(aCount, n);
-  end;
+  if aCount > 0 then
+    repeat
+      n := BEnd - B; // note: PtrInt(BEnd - B) could be < 0
+      if n <= aCount then
+      begin
+        FlushToStream;
+        n := BEnd - B;
+      end;
+      if aCount < n then
+        n := aCount;
+      FillCharFast(B[1], n, ord(aChar));
+      inc(B, n);
+      dec(aCount, n);
+    until aCount = 0;
 end;
 
 procedure TTextWriter.Add2(Value: PtrUInt);
@@ -4042,24 +4854,63 @@ begin
   P^ := AnsiChar(V - result * 10 + 48);
 end;
 
-procedure TTextWriter.AddMicroSec(MS: cardinal);
+procedure TTextWriter.AddMicroSec(MicroSec: cardinal);
 var
   W: PWordArray;
-begin
-  // in 00.000.000 TSynLog format
+  P: PUtf8Char;
+begin // append in 00.000.000 TSynLog format
   if B >= BEnd then
     FlushToStream;
-  B[3] := '.';
-  B[7] := '.';
-  inc(B);
+  P := B + 1;
   W := @TwoDigitLookupW;
-  MS := Value3Digits(Value3Digits(MS, B + 7, W), B + 3, W);
-  if MS > 99 then
-    MS := $3939
+  MicroSec := Value3Digits(MicroSec, P + 7, W);
+  if MicroSec = 0 then // most common case < 1ms
+  begin
+    PCardinal(P)^ := ord('0') + ord('0') shl 8 + ord('.') shl 16;
+    PCardinal(P + 3)^ := ord('0') + ord('0') shl 8 + ord('0') shl 16 + ord('.') shl 24;
+  end
   else
-    MS := W[MS];
-  PWord(B)^ := MS;
-  inc(B, 9);
+  begin
+    MicroSec := Value3Digits(MicroSec, P + 3, W);
+    if MicroSec = 0 then
+      MicroSec := $3030
+    else if MicroSec > 99 then
+      MicroSec := $3939
+    else
+      MicroSec := W[MicroSec];
+    PWord(P)^ := MicroSec;
+    P[2] := '.';
+    P[6] := '.';
+  end;
+  B := P + 9;
+end;
+
+procedure TTextWriter.AddCsvStrings(const Values: array of RawUtf8;
+  const Sep: RawUtf8; HighValues: PtrInt; Reverse: boolean);
+var
+  i: PtrInt;
+begin
+  if HighValues < 0 then
+    HighValues := high(Values);
+  if HighValues < 0 then
+    exit;
+  i := 0;
+  if Reverse then
+  begin
+    i := HighValues;
+    HighValues := 0;
+  end;
+  repeat
+    AddString(Values[i]); // fast enough
+    if i = HighValues then
+      break;
+    if Sep <> '' then
+      AddShort(pointer(Sep), PStrLen(PtrInt(Sep) - _STRLEN)^);
+    if Reverse then
+      dec(i)
+    else
+      inc(i);
+  until false;
 end;
 
 procedure TTextWriter.AddCsvInteger(const Integers: array of integer);
@@ -4090,12 +4941,7 @@ begin
   CancelLastComma;
 end;
 
-procedure TTextWriter.AddNoJsonEscape(P: Pointer);
-begin
-  AddNoJsonEscape(P, StrLen(PUtf8Char(P)));
-end;
-
-procedure TTextWriter.AddNoJsonEscape(P: Pointer; Len: PtrInt);
+procedure TTextWriter.AddNoJsonEscapeBig(P: pointer; Len: PtrInt);
 var
   direct: PtrInt;
   D: PUtf8Char;
@@ -4104,7 +4950,6 @@ begin
   if (P <> nil) and
      (Len > 0) then
     if Len < fTempBufSize * 2 then
-    begin
       repeat
         D := B + 1;
         direct := BEnd - D; // guess biggest size available in fTempBuf at once
@@ -4124,8 +4969,7 @@ begin
           inc(PByte(P), direct);
         end;
         FlushToStream;
-      until false;
-    end
+      until false
     else
     begin
       FlushFinal; // no auto-resize if content is really huge
@@ -4134,56 +4978,66 @@ begin
         dec(Len);
       WriteToStream(P, Len); // no need to transit huge content into fTempBuf
       if comma then
-        Add(','); // but we need the last comma to be cancelable
+        AddDirect(','); // but we need the last comma to be cancelable
     end;
 end;
 
-procedure EngineAppendUtf8(W: TTextWriter; Engine: TSynAnsiConvert;
-  P: PAnsiChar; Len: PtrInt);
-var
-  tmp: TSynTempBuffer;
+procedure TTextWriter.AddNoJsonEscape(P: pointer; Len: PtrInt);
 begin
-  // explicit conversion using a temporary buffer on stack
-  Len := Engine.AnsiBufferToUtf8(tmp.Init(Len * 3), P, Len) - PUtf8Char({%H-}tmp.buf);
-  W.AddNoJsonEscape(tmp.buf, Len);
-  tmp.Done;
-end;{%H-}
-
-procedure TTextWriter.AddNoJsonEscape(P: PAnsiChar; Len: PtrInt; CodePage: cardinal);
-var
-  B: PAnsiChar;
-begin
-  if Len > 0 then
-    case CodePage of
-      CP_UTF8, CP_RAWBYTESTRING, CP_RAWBLOB:
-        AddNoJsonEscape(P, Len);
-      CP_UTF16:
-        AddNoJsonEscapeW(PWord(P), 0);
+  if (P <> nil) and
+     (Len > 0) then
+    if Len < fTempBufSize then // can be inlined for small chunk
+    begin
+      if BEnd - B <= Len then  // note: PtrInt(BEnd - B) could be < 0
+        FlushToStream;
+      MoveFast(P^, B[1], Len);
+      inc(B, Len);
+    end
     else
+      AddNoJsonEscapeBig(P, Len); // big chunks (hardly the case)
+end;
+
+procedure TTextWriter.AddNoJsonEscape(P: pointer);
+begin
+  if P <> nil then
+    AddNoJsonEscape(P, mormot.core.base.StrLen(PUtf8Char(P)));
+end;
+
+procedure TTextWriter.AddNoJsonEscapeCP(P: PAnsiChar; Len: PtrInt; CodePage: cardinal);
+var
+  engine: TSynAnsiConvert;
+  max: PtrInt;
+  tmp: pointer; // temporary RawUtf8 buffer
+begin
+  if (P = nil) or
+     (Len <= 0) then
+    exit;
+  if CodePage = CP_ACP then // CP_UTF8 is very likely on POSIX or LCL
+    CodePage := Unicode_CodePage; // = CurrentAnsiConvert.CodePage
+  case CodePage of
+    CP_UTF8, CP_RAWBYTESTRING, CP_RAWBLOB:
+      AddNoJsonEscape(P, Len);
+    CP_UTF16:
+      AddNoJsonEscapeW(PWord(P), 0);
+  else
+    begin
+      engine := TSynAnsiConvert.Engine(CodePage);
+      max := Len * 3;
+      if max < fTempBufSize then // write directly into the output buffer
       begin
-        // first handle trailing 7-bit ASCII chars, by quad
-        B := P;
-        if Len >= 4 then
-          repeat
-            if PCardinal(P)^ and $80808080 <> 0 then
-              break; // break on first non ASCII quad
-            inc(P, 4);
-            dec(Len, 4);
-          until Len < 4;
-        if (Len > 0) and
-           (P^ <= #127) then
-          repeat
-            inc(P);
-            dec(Len);
-          until (Len = 0) or
-                (P^ > #127);
-        if P <> B then
-          AddNoJsonEscape(B, P - B);
-        if Len > 0 then
-          // rely on explicit conversion for all remaining ASCII characters
-          EngineAppendUtf8(self, TSynAnsiConvert.Engine(CodePage), P, Len);
+        if BEnd - B <= max then  // note: PtrInt(BEnd - B) could be < 0
+          FlushToStream;
+        B := engine.AnsiBufferToUtf8(B + 1, P, Len, {notrail0=}true) - 1;
+      end
+      else
+      begin
+        tmp := FastNewString(max); // allocate temporary (big) buffer
+        P := pointer(engine.AnsiBufferToUtf8(tmp, P, Len, {notrail0=}true));
+        AddNoJsonEscape(tmp, P - tmp);
+        FastAssignNew(tmp);
       end;
     end;
+  end;
 end;
 
 procedure TTextWriter.AddNoJsonEscapeUtf8(const text: RawByteString);
@@ -4201,11 +5055,12 @@ end;
 
 procedure TTextWriter.AddNoJsonEscapeString(const s: string);
 begin
-  if s <> '' then
+  if pointer(s) <> nil then
     {$ifdef UNICODE}
     AddNoJsonEscapeW(pointer(s), 0);
     {$else}
-    AddNoJsonEscape(pointer(s), length(s), CurrentAnsiConvert.CodePage);
+    AddNoJsonEscapeCP(pointer(s), PStrLen(PAnsiChar(pointer(s)) - _STRLEN)^,
+      Unicode_CodePage);
     {$endif UNICODE}
 end;
 
@@ -4251,7 +5106,7 @@ begin
         else
           break;
       end;
-      inc(B, Utf16CharToUtf8(B + 1, WideChar));
+      inc(B, Utf16CharToUtf8(B + 1, WideChar)); // handle UTF-16 surrogates
       if PtrUInt(WideChar) < PEnd then
         continue
       else
@@ -4262,11 +5117,11 @@ end;
 
 procedure TTextWriter.AddProp(PropName: PUtf8Char);
 begin
-  AddProp(PropName, StrLen(PropName));
+  AddProp(PropName, mormot.core.base.StrLen(PropName));
 end;
 
 procedure TTextWriter.AddProp(PropName: PUtf8Char; PropNameLen: PtrInt);
-begin
+begin // not faster with a local P: PUtf8Char temp pointer instead of B
   if PropNameLen <= 0 then
     exit; // paranoid check
   if BEnd - B <= PropNameLen then
@@ -4282,7 +5137,7 @@ begin
     B[1] := '"';
     MoveFast(PropName^, B[2], PropNameLen);
     inc(B, PropNameLen + 2);
-    PWord(B)^ := ord('"') + ord(':') shl 8;
+    PCardinal(B)^ := ord('"') + ord(':') shl 8;
     inc(B);
   end;
 end;
@@ -4297,16 +5152,44 @@ procedure TTextWriter.AddPropInt64(const PropName: ShortString;
 begin
   AddProp(@PropName[1], ord(PropName[0]));
   if WithQuote <> #0 then
-    Add(WithQuote);
+  begin
+    B[1] := WithQuote;
+    inc(B);
+  end;
   Add(Value);
+  inc(B);
   if WithQuote <> #0 then
-    Add(WithQuote);
-  AddComma;
+  begin
+    B^ := WithQuote;
+    inc(B);
+  end;
+  B^ := ',';
 end;
 
 procedure TTextWriter.AddFieldName(const FieldName: RawUtf8);
 begin
-  AddProp(Pointer(FieldName), length(FieldName));
+  AddProp(pointer(FieldName), length(FieldName));
+end;
+
+procedure TTextWriter.AddQuotedFieldName(const FieldName, VoidPlaceHolder: RawUtf8);
+begin
+  AddQuotedFieldName(pointer(FieldName), length(FieldName), VoidPlaceHolder);
+end;
+
+procedure TTextWriter.AddQuotedFieldName(
+  FieldName: PUtf8Char; FieldNameLen: PtrInt; const VoidPlaceHolder: RawUtf8);
+begin
+  if FieldNameLen = 0 then
+  begin
+    FieldName := pointer(VoidPlaceHolder);
+    FieldNameLen := length(VoidPlaceHolder);
+  end;
+  if BEnd - B <= FieldNameLen then
+    FlushToStream;
+  B[1] := '"';
+  MoveFast(FieldName^, B[2], FieldNameLen);
+  inc(B, FieldNameLen + 2);
+  B^ := '"';
 end;
 
 procedure TTextWriter.AddClassName(aClass: TClass);
@@ -4319,53 +5202,70 @@ procedure TTextWriter.AddInstanceName(Instance: TObject; SepChar: AnsiChar);
 begin
   Add('"');
   if Instance = nil then
-    AddShorter('void')
+    AddDirect('v', 'o', 'i', 'd')
   else
-    AddShort(ClassNameShort(Instance)^);
-  Add('(');
-  AddPointer(PtrUInt(Instance));
-  Add(')', '"');
+    AddInstancePointer(Instance, #0, {unitname=}false, {pointer=}true);
+  AddDirect('"');
   if SepChar <> #0 then
-    Add(SepChar);
+    AddDirect(SepChar);
+end;
+
+function DisplayMinChars(Bin: PByteArray; BinBytes: PtrInt): PtrInt;
+  {$ifdef HASINLINE}inline;{$endif}
+begin
+  result := BinBytes;
+  repeat // append hexa chars up to the last non zero byte
+    dec(result);
+  until (result = 0) or
+        (Bin[result] <> 0);
+  inc(result);
+end;
+
+function PointerToText(Instance: TObject; Dest: PUtf8Char;
+  IncludeUnitName, IncludePointer: boolean): PUtf8Char;
+var
+  s: PShortString;
+  l: PtrInt;
+begin
+  if IncludeUnitName then
+  begin
+    s := ClassUnit(PClass(Instance)^); // we know Instance <> nil
+    if s^[0] <> #0 then
+    begin
+      MoveFast(s^[1], Dest^, ord(s^[0]));
+      inc(Dest, ord(s^[0]));
+      Dest^ := '.';
+      inc(Dest);
+    end;
+  end;
+  s := PPShortString(PPAnsiChar(Instance)^ + vmtClassName)^;
+  MoveFast(s^[1], Dest^, ord(s^[0]));
+  inc(Dest, ord(s^[0]));
+  if IncludePointer then
+  begin
+    Dest^ := '(';
+    inc(Dest);
+    l := DisplayMinChars(@Instance, SizeOf(Instance));
+    BinToHexDisplayLower(@Instance, pointer(Dest), l);
+    inc(Dest, l * 2);
+    Dest^ := ')';
+    inc(Dest);
+  end;
+  result := Dest;
 end;
 
 procedure TTextWriter.AddInstancePointer(Instance: TObject; SepChar: AnsiChar;
   IncludeUnitName, IncludePointer: boolean);
 var
-  u: PShortString;
+  P: PUtf8Char;
 begin
-  if IncludeUnitName and
-     Assigned(ClassUnit) then
-  begin
-    u := ClassUnit(PClass(Instance)^);
-    if u^[0] <> #0 then
-    begin
-      AddShort(u^);
-      Add('.');
-    end;
-  end;
-  AddShort(PPShortString(PPAnsiChar(Instance)^ + vmtClassName)^^);
-  if IncludePointer then
-  begin
-    Add('(');
-    AddPointer(PtrUInt(Instance));
-    Add(')');
-  end;
-  if SepChar<>#0 then
-    Add(SepChar);
-end;
-
-procedure TTextWriter.AddShort(const Text: ShortString);
-var
-  L: PtrInt;
-begin
-  L := ord(Text[0]);
-  if L = 0 then
-    exit;
-  if BEnd - B <= L then
+  if BEnd - B <= 255 then
     FlushToStream;
-  MoveFast(Text[1], B[1], L);
-  inc(B, L);
+  P := PointerToText(Instance, B + 1, IncludeUnitName, IncludePointer);
+  P^ := SepChar;
+  if SepChar = #0 then
+    dec(P);
+  B := P;
 end;
 
 procedure TTextWriter.AddLine(const Text: ShortString);
@@ -4373,7 +5273,7 @@ var
   L: PtrInt;
 begin
   L := ord(Text[0]);
-  if BEnd - B <= L then
+  if BEnd - B <= L then // note: PtrInt(BEnd - B) could be < 0
     FlushToStream;
   inc(B);
   if L > 0 then
@@ -4381,66 +5281,55 @@ begin
     MoveFast(Text[1], B^, L);
     inc(B, L);
   end;
-  PWord(B)^ := 13 + 10 shl 8; // CR + LF
+  PCardinal(B)^ := 13 + 10 shl 8; // CR + LF
   inc(B);
 end;
 
 procedure TTextWriter.AddOnSameLine(P: PUtf8Char);
 var
-  D: PUtf8Char;
-  c: AnsiChar;
-begin
-  if P <> nil then
-  begin
-    D := B + 1;
-    if P^ <> #0 then
-      repeat
-        if D >= BEnd then
-        begin
-          B := D - 1;
-          FlushToStream;
-          D := B + 1;
-        end;
-        c := P^;
-        if c < ' ' then
-          if c = #0 then
-            break
-          else
-            c := ' ';
-        D^ := c;
-        inc(P);
-        inc(D);
-      until false;
-    B := D - 1;
-  end;
+  l: PtrInt;
+begin // mostly used for TSynLog RawUtf8 append
+  if (P <> nil) and
+     (P^ <> #0) then
+    repeat
+      if P^ >= ' ' then
+      begin
+        l := 0;
+        repeat
+          inc(l);
+        until P[l] < ' ';
+        AddNoJsonEscape(P, l); // efficient MoveFast()
+        inc(P, l);
+        if P^ = #0 then
+          exit; // most common case
+      end;
+      Add(' '); // properly inlined
+      inc(P);
+    until P^ = #0;
 end;
 
 procedure TTextWriter.AddOnSameLine(P: PUtf8Char; Len: PtrInt);
 var
-  D: PUtf8Char;
-  c: AnsiChar;
-begin
+  i, s: PtrInt;
+begin // mostly used for TSynLog shortstring append
+  i := 0;
   if (P <> nil) and
-     (Len > 0) then
-  begin
-    D := B + 1;
+     (i < Len) then
     repeat
-      if D >= BEnd then
+      if P[i] >= ' ' then
       begin
-        B := D - 1;
-        FlushToStream;
-        D := B + 1;
+        s := i;
+        repeat
+          inc(i);
+        until (i = Len) or
+              (P[i] < ' ');
+        AddNoJsonEscape(P + s, i - s); // efficient MoveFast()
+        if i = Len then
+          exit; // most common case
       end;
-      c := P^;
-      if c < ' ' then
-        c := ' ';
-      D^ := c;
-      inc(D);
-      inc(P);
-      dec(Len);
-    until Len = 0;
-    B := D - 1;
-  end;
+      Add(' ');
+      inc(i);
+    until i = Len;
 end;
 
 procedure TTextWriter.AddOnSameLineW(P: PWord; Len: PtrInt);
@@ -4456,7 +5345,7 @@ begin
     PEnd := PtrUInt(P) + PtrUInt(Len) * SizeOf(WideChar);
   while (Len = 0) or
         (PtrUInt(P) < PEnd) do
-  begin
+  begin // AddNoJsonEscapeW() is actually not faster than this loop
     if B >= BEnd then
       FlushToStream;
     // escape chars, so that all content will stay on the same text line
@@ -4487,16 +5376,16 @@ begin
   {$ifdef UNICODE}
   AddOnSameLineW(pointer(Text), length(Text));
   {$else}
-  AddOnSameLine(pointer(Text), length(Text));
+  AddOnSameLine(pointer(Text)); // faster with no Len
   {$endif UNICODE}
 end;
 
 procedure TTextWriter.AddTrimLeftLowerCase(Text: PShortString);
 var
-  P: PAnsiChar;
-  L: integer;
+  P: PUtf8Char;
+  L: PtrInt;
 begin
-  L := length(Text^);
+  L := ord(Text^[0]);
   P := @Text^[1];
   while (L > 0) and
         (P^ in ['a'..'z']) do
@@ -4505,9 +5394,11 @@ begin
     dec(L);
   end;
   if L = 0 then
-    AddShort(Text^)
-  else
-    AddNoJsonEscape(P, L);
+  begin
+    L := ord(Text^[0]);
+    P := @Text^[1];
+  end;
+  AddShort(P, L);
 end;
 
 procedure TTextWriter.AddTrimSpaces(const Text: RawUtf8);
@@ -4545,37 +5436,59 @@ procedure TTextWriter.AddByteToHex(Value: PtrUInt);
 begin
   if B >= BEnd then
     FlushToStream;
-  PWord(B + 1)^ := TwoDigitsHexWB[Value];
+  PCardinal(B + 1)^ := TwoDigitsHex[Value];
   inc(B, 2);
 end;
 
-procedure TTextWriter.AddInt18ToChars3(Value: cardinal);
+procedure TTextWriter.AddByteToHexLower(Value: PtrUInt);
 begin
   if B >= BEnd then
     FlushToStream;
-  PCardinal(B + 1)^ := ((Value shr 12) and $3f) or
-                       ((Value shr 6) and $3f) shl 8 or
-                       (Value and $3f) shl 16 + $202020;
-  inc(B, 3);
+  PCardinal(B + 1)^ := TwoDigitsHexLower[Value];
+  inc(B, 2);
 end;
 
 procedure TTextWriter.AddString(const Text: RawUtf8);
-var
-  L: PtrInt;
 begin
-  L := PtrInt(Text);
-  if L = 0 then
-    exit;
-  L := PStrLen(L - _STRLEN)^;
-  if L < fTempBufSize then
-  begin
-    if BEnd - B <= L then
-      FlushToStream;
-    MoveFast(pointer(Text)^, B[1], L);
-    inc(B, L);
-  end
+  if Text <> '' then
+    AddNoJsonEscape(pointer(Text), PStrLen(PtrInt(Text) - _STRLEN)^);
+end;
+
+procedure TTextWriter.AddSpaced(Text: PUtf8Char; TextLen, Width: PtrInt);
+begin
+  if Width <= TextLen then
+    TextLen := Width // truncate text right
   else
-    AddNoJsonEscape(pointer(Text), L);
+    AddChars(' ', Width - TextLen);
+  AddNoJsonEscape(Text, TextLen);
+end;
+
+procedure TTextWriter.AddSpaced(const Text: RawUtf8; Width: PtrInt;
+  SepChar: AnsiChar);
+begin
+  AddSpaced(pointer(Text), length(Text), Width);
+  if SepChar <> #0 then
+    Add(SepChar);
+end;
+
+procedure TTextWriter.AddSpaced(Value: QWord; Width: PtrInt; SepChar: AnsiChar);
+var
+  tmp: array[0..23] of AnsiChar;
+  alt: TShort16;
+  p: PAnsiChar;
+  len: PtrInt;
+begin
+  p := StrUInt64(@tmp[23], Value);
+  len := @tmp[23] - p;
+  if len > Width then
+  begin
+    K(Value, alt); // truncate to xxxK or xxxM
+    p := @alt[1];
+    len := ord(alt[0]);
+  end;
+  AddSpaced(p, len);
+  if SepChar <> #0 then
+    Add(SepChar);
 end;
 
 procedure TTextWriter.AddStringCopy(const Text: RawUtf8; start, len: PtrInt);
@@ -4600,12 +5513,18 @@ begin
   end;
 end;
 
-procedure TTextWriter.AddStrings(const Text: array of RawUtf8);
+procedure TTextWriter.AddStrings(const Values: array of RawUtf8);
 var
   i: PtrInt;
+  p: PPUtf8Char;
 begin
-  for i := 0 to high(Text) do
-    AddString(Text[i]);
+  p := @Values[0];
+  for i := 0 to high(Values) do
+  begin
+    if p^ <> nil then
+      AddNoJsonEscape(p^, PStrLen(p^ - _STRLEN)^);
+    inc(p);
+  end;
 end;
 
 procedure TTextWriter.AddStrings(const Text: RawUtf8; count: PtrInt);
@@ -4620,7 +5539,7 @@ begin
         AddString(Text) // would overfill our buffer -> manual append
     else
     begin
-      if BEnd - B <= siz then
+      if BEnd - B <= siz then // note: PtrInt(BEnd - B) could be < 0
         FlushToStream;
       for i := 1 to count do
       begin
@@ -4631,34 +5550,45 @@ begin
 end;
 
 procedure TTextWriter.AddBinToHexDisplay(Bin: pointer; BinBytes: PtrInt);
+var
+  max: PtrInt;
 begin
-  if cardinal(BinBytes * 2 - 1) >= cardinal(fTempBufSize) then
-    exit;
-  if BEnd - B <= BinBytes * 2 then
-    FlushToStream;
+  max := BinBytes * 2 + 1;
+  if BEnd - B <= max then // note: PtrInt(BEnd - B) could be < 0
+    if PtrUInt(max) >= PtrUInt(fTempBufSize) then
+      exit // too big for a single call
+    else
+      FlushToStream;
   BinToHexDisplay(Bin, PAnsiChar(B + 1), BinBytes);
   inc(B, BinBytes * 2);
 end;
 
 procedure TTextWriter.AddBinToHexDisplayLower(Bin: pointer; BinBytes: PtrInt;
   QuotedChar: AnsiChar);
+var
+  max: PtrInt;
+  P: PUtf8Char;
 begin
-  if cardinal(BinBytes * 2 + 1) >= cardinal(fTempBufSize) then
+  if Bin = nil then
     exit;
-  if BEnd - B <= BinBytes * 2 then
-    FlushToStream;
-  inc(B);
+  max := BinBytes * 2 + 1;
+  if BEnd - B <= max then // note: PtrInt(BEnd - B) could be < 0
+    if PtrUInt(max) >= PtrUInt(fTempBufSize) then
+      exit // too big for a single call
+    else
+      FlushToStream;
+  P := B + 1;
   if QuotedChar <> #0 then
   begin
-    B^ := QuotedChar;
-    inc(B);
+    P^ := QuotedChar;
+    inc(P);
   end;
-  BinToHexDisplayLower(Bin, pointer(B), BinBytes);
-  inc(B, BinBytes * 2);
-  if QuotedChar <> #0 then
-    B^ := QuotedChar
-  else
-    dec(B);
+  BinToHexDisplayLower(Bin, pointer(P), BinBytes);
+  inc(P, BinBytes * 2);
+  P^ := QuotedChar;
+  if QuotedChar = #0 then
+    dec(P);
+  B := P;
 end;
 
 procedure TTextWriter.AddBinToHexDisplayQuoted(Bin: pointer; BinBytes: PtrInt);
@@ -4666,21 +5596,11 @@ begin
   AddBinToHexDisplayLower(Bin, BinBytes, '"');
 end;
 
-function DisplayMinChars(Bin: PByteArray; BinBytes: PtrInt): PtrInt;
-  {$ifdef HASINLINE}inline;{$endif}
-begin
-  result := BinBytes;
-  repeat // append hexa chars up to the last non zero byte
-    dec(result);
-  until (result = 0) or
-        (Bin[result] <> 0);
-  inc(result);
-end;
-
 procedure TTextWriter.AddBinToHexDisplayMinChars(Bin: pointer; BinBytes: PtrInt;
   QuotedChar: AnsiChar);
 begin
-  AddBinToHexDisplayLower(Bin, DisplayMinChars(Bin, BinBytes), QuotedChar);
+  if BinBytes > 0 then
+    AddBinToHexDisplayLower(Bin, DisplayMinChars(Bin, BinBytes), QuotedChar);
 end;
 
 procedure TTextWriter.AddPointer(P: PtrUInt; QuotedChar: AnsiChar);
@@ -4688,7 +5608,8 @@ begin
   AddBinToHexDisplayLower(@P, DisplayMinChars(@P, SizeOf(P)), QuotedChar);
 end;
 
-procedure TTextWriter.AddBinToHex(Bin: Pointer; BinBytes: PtrInt; LowerHex: boolean);
+procedure TTextWriter.AddBinToHex(Bin: pointer; BinBytes: PtrInt;
+  LowerHex: boolean; QuotedChar: AnsiChar);
 var
   chunk: PtrInt;
 begin
@@ -4697,6 +5618,11 @@ begin
   if B >= BEnd then
     FlushToStream;
   inc(B);
+  if QuotedChar <> #0 then
+  begin
+    B^ := QuotedChar;
+    inc(B);
+  end;
   repeat
     // guess biggest size to be added into buf^ at once
     chunk := (BEnd - B) shr 1; // div 2 -> two hexa chars per byte
@@ -4708,15 +5634,25 @@ begin
     else
       mormot.core.text.BinToHex(PAnsiChar(Bin), PAnsiChar(B), chunk);
     inc(B, chunk * 2);
-    inc(PByte(Bin), chunk);
     dec(BinBytes, chunk);
     if BinBytes = 0 then
       break;
-    // FlushToStream writes B-fTempBuf+1 -> special one below:
+    inc(PByte(Bin), chunk);
+    // FlushToStream writes B-fTempBuf+1 -> need custom code here
     WriteToStream(fTempBuf, B - fTempBuf);
     B := fTempBuf;
   until false;
-  dec(B); // allow CancelLastChar
+  if QuotedChar <> #0 then
+    B^ := QuotedChar
+  else
+    dec(B); // allow CancelLastChar
+end;
+
+procedure TTextWriter.AddBinToHexMinChars(Bin: pointer; BinBytes: PtrInt;
+  LowerHex: boolean; QuotedChar: AnsiChar);
+begin
+  if BinBytes > 0 then
+    AddBinToHex(Bin, DisplayMinChars(Bin, BinBytes), LowerHex, QuotedChar);
 end;
 
 procedure TTextWriter.AddQuotedStr(Text: PUtf8Char; TextLen: PtrUInt;
@@ -4730,25 +5666,100 @@ begin
     TextLen := TextMaxLen - 5
   else
     TextMaxLen := 0;
-  inc(TextLen, PtrUInt(Text)); // PUtf8Char(TextLen)=TextEnd
   if Text <> nil then
   begin
     repeat
-      q := ByteScanIndex(pointer(Text), PUtf8Char(TextLen) - Text, byte(Quote));
+      q := ByteScanIndex(pointer(Text), TextLen, byte(Quote));
       if q < 0 then
       begin
-        AddNoJsonEscape(Text, PUtf8Char(TextLen) - Text); // no double quote
+        AddNoJsonEscape(Text, TextLen); // no double quote
         break;
       end;
       inc(q); // include first Quote
       AddNoJsonEscape(Text, q);
-      Add(Quote); // double Quote
+      AddDirect(Quote); // double Quote
       inc(Text, q); // continue
-    until false;
+      dec(TextLen, q);
+    until TextLen = 0;
     if TextMaxLen <> 0 then
-      AddShorter('...');
+      AddDirect('.', '.', '.');
   end;
+  AddDirect(Quote);
+end;
+
+procedure TTextWriter.AddQuotedStrW(Text: PWideChar; TextLen: PtrUInt;
+  Quote: AnsiChar; TextMaxLen: PtrInt);
+var
+  q: PtrInt;
+begin
   Add(Quote);
+  if (TextMaxLen > 5) and
+     (TextLen > PtrUInt(TextMaxLen)) then
+    TextLen := TextMaxLen - 5
+  else
+    TextMaxLen := 0;
+  if Text <> nil then
+  begin
+    repeat
+      q := WordScanIndex(pointer(Text), TextLen, byte(Quote));
+      if q < 0 then
+      begin
+        AddNoJsonEscapeW(pointer(Text), TextLen); // no quote
+        break;
+      end;
+      inc(q); // include first Quote
+      AddNoJsonEscapeW(pointer(Text), q);
+      AddDirect(Quote); // double Quote
+      inc(Text, q);
+      dec(TextLen, q);
+    until TextLen = 0;
+    if TextMaxLen <> 0 then
+      AddDirect('.', '.', '.');
+  end;
+  AddDirect(Quote);
+end;
+
+procedure TTextWriter.AddUrlNameNormalize(U: PUtf8Char; L: PtrInt);
+begin
+  if (L <= 0) or
+     (U^ <> '/') then
+  begin
+    inc(B);
+    B^ := '/'; // a normalized URI should start with '/'
+    if L <= 0 then
+      exit;
+  end;
+  repeat
+    if B >= BEnd then
+      FlushToStream; // inlined Add() in the loop
+    inc(B);
+    case U^ of
+      #0:
+        begin
+          dec(B); // reached end of URI (should not happen if L is accurate)
+          break;
+        end;
+      '%':
+        if (L <= 2) or
+           not HexToChar(PAnsiChar(U + 1), B) then
+          B^ := '%'  // browsers may not follow the RFC (e.g. encode % as % !)
+        else
+        begin
+          inc(U, 2); // jump %xx
+          dec(L, 2);
+        end;
+      '/':
+         if (L = 1) or
+            (U[1] <> '/') then
+           B^ := '/'
+         else
+           dec(B); // normalize URI by ignoring this first /
+    else
+      B^ := U^;
+    end;
+    inc(U);
+    dec(L);
+  until L = 0;
 end;
 
 var
@@ -4759,97 +5770,37 @@ var
 procedure TTextWriter.AddHtmlEscape(Text: PUtf8Char; Fmt: TTextWriterHtmlFormat);
 var
   beg: PUtf8Char;
-  esc: ^TAnsiCharToByte;
+  esc: PAnsiCharToByte;
 begin
-  if Text = nil then
-    exit;
-  if Fmt = hfNone then
-  begin
-    AddNoJsonEscape(Text);
-    exit;
-  end;
-  esc := @HTML_ESC[Fmt];
-  repeat
-    beg := Text;
-    while esc[Text^] = 0 do
-      inc(Text);
-    AddNoJsonEscape(beg, Text - beg);
-    if Text^ = #0 then
-      exit
-    else
-      AddShorter(HTML_ESCAPED[esc[Text^]]);
-    inc(Text);
-  until Text^ = #0;
-end;
-
-function HtmlEscape(const text: RawUtf8; fmt: TTextWriterHtmlFormat): RawUtf8;
-var
-  temp: TTextWriterStackBuffer;
-  W: TTextWriter;
-begin
-  if NeedsHtmlEscape(pointer(text), fmt) then
-  begin
-    W := TTextWriter.CreateOwnedStream(temp);
-    try
-      W.AddHtmlEscape(pointer(text), length(text), fmt);
-      W.SetText(result);
-    finally
-      W.Free;
-    end;
-  end
-  else
-    result := text;
-end;
-
-function HtmlEscapeString(const text: string; fmt: TTextWriterHtmlFormat): RawUtf8;
-var
-  temp: TTextWriterStackBuffer;
-  W: TTextWriter;
-begin
-  {$ifndef UNICODE}
-  if not NeedsHtmlEscape(pointer(text), fmt) then // work for any AnsiString
-  {$else}
-  if fmt = hfNone then
-  {$endif UNICODE}
-  begin
-    StringToUtf8(text, result);
-    exit;
-  end;
-  W := TTextWriter.CreateOwnedStream(temp);
-  try
-    W.AddHtmlEscapeString(text, fmt);
-    W.SetText(result);
-  finally
-    W.Free;
-  end;
-end;
-
-function NeedsHtmlEscape(Text: PUtf8Char; Fmt: TTextWriterHtmlFormat): boolean;
-var
-  esc: ^TAnsiCharToByte;
-begin
-  if (Text <> nil) and
-     (Fmt <> hfNone) then
-  begin
-    result := true;
-    esc := @HTML_ESC[Fmt];
-    repeat
-      if esc[Text^] <> 0 then
+  if Text <> nil then
+    if Fmt <> hfNone then
+    begin
+      esc := @HTML_ESC[Fmt];
+      beg := Text;
+      repeat
+        while true do
+          if esc[Text^] = 0 then
+            inc(Text)
+          else
+            break;
+        AddNoJsonEscape(beg, Text - beg);
         if Text^ = #0 then
-          break
+          exit
         else
-          exit;
-      inc(Text);
-    until false;
-  end;
-  result := false;
+          AddShorter(HTML_ESCAPED[esc[Text^]]);
+        inc(Text);
+        beg := Text;
+      until Text^ = #0;
+    end
+    else
+      AddNoJsonEscape(Text, mormot.core.base.StrLen(Text)); // hfNone
 end;
 
 procedure TTextWriter.AddHtmlEscape(Text: PUtf8Char; TextLen: PtrInt;
   Fmt: TTextWriterHtmlFormat);
 var
   beg: PUtf8Char;
-  esc: ^TAnsiCharToByte;
+  esc: PAnsiCharToByte;
 begin
   if (Text = nil) or
      (TextLen <= 0) then
@@ -4909,192 +5860,29 @@ end;
 
 var
   XML_ESC: TAnsiCharToByte;
+const
+  XML_ESCAPED: array[1..9] of string[7] = (
+    '&#x09;', '&#x0a;', '&#x0d;', '&lt;', '&gt;', '&amp;', '&quot;', '&apos;', '');
 
 procedure TTextWriter.AddXmlEscape(Text: PUtf8Char);
 var
-  i, beg: PtrInt;
-  esc: ^TAnsiCharToByte;
+  beg: PUtf8Char;
+  esc: PAnsiCharToByte;
 begin
-  if Text = nil then
+  if (Text = nil) or
+     (Text^ = #0) then
     exit;
   esc := @XML_ESC;
-  i := 0;
   repeat
-    if esc[Text[i]] = 0 then
-    begin
-      beg := i;
-      repeat // it is faster to handle all not-escaped chars at once
-        inc(i);
-      until esc[Text[i]] <> 0;
-      AddNoJsonEscape(Text + beg, i - beg);
-    end;
-    repeat
-      case Text[i] of
-        #0:
-          exit;
-        #1..#8, #11, #12, #14..#31:
-          ; // ignore invalid character - see http://www.w3.org/TR/xml/#NT-Char
-        #9, #10, #13:
-          begin
-            // characters below ' ', #9 e.g. -> // '&#x09;'
-            AddShorter('&#x');
-            AddByteToHex(ord(Text[i]));
-            Add(';');
-          end;
-        '<':
-          AddShorter('&lt;');
-        '>':
-          AddShorter('&gt;');
-        '&':
-          AddShorter('&amp;');
-        '"':
-          AddShorter('&quot;');
-        '''':
-          AddShorter('&apos;');
-      else
-        break; // should match XML_ESC[] lookup table
-      end;
-      inc(i);
-    until false;
-  until false;
-end;
-
-
-{ TEchoWriter }
-
-constructor TEchoWriter.Create(Owner: TTextWriter);
-begin
-  fWriter := Owner;
-  if Assigned(fWriter.OnFlushToStream) then
-    raise ESynException.CreateUtf8('Unexpected %.Create', [self]);
-  fWriter.OnFlushToStream := FlushToStream;
-end;
-
-destructor TEchoWriter.Destroy;
-begin
-  if (fWriter <> nil) and
-     (TMethod(fWriter.OnFlushToStream).Data = self) then
-    fWriter.OnFlushToStream := nil;
-  inherited Destroy;
-end;
-
-procedure TEchoWriter.AddEndOfLine(aLevel: TSynLogInfo);
-var
-  e, n: PtrInt;
-begin
-  if twoEndOfLineCRLF in fWriter.CustomOptions then
-    fWriter.AddCR
-  else
-    fWriter.Add(#10);
-  if fEchos <> nil then
-  begin
-    fEchoStart := EchoFlush;
-    if fEchoPendingExecuteBackground then
-    begin
-      fBackSafe.Lock;
-      n := fBack.Count;
-      if length(fBack.Level) = n then
-      begin
-        n := NextGrow(fBack.Count);
-        SetLength(fBack.Level, n);
-        SetLength(fBack.Text, n);
-        n := fBack.Count;
-      end;
-      fBack.Level[n] := aLevel;
-      fBack.Text[n] := fEchoBuf;
-      fBackSafe.UnLock;
-    end
-    else
-      for e := length(fEchos) - 1 downto 0 do // for MultiEventRemove() below
-        try
-          fEchos[e](self, aLevel, fEchoBuf);
-        except // remove callback in case of exception during echoing
-          MultiEventRemove(fEchos, e);
-        end;
-    fEchoBuf := '';
-  end;
-end;
-
-procedure TEchoWriter.EchoPendingExecute;
-var
-  todo: TEchoWriterBack; // thread-safe per reference copy
-  i, e: PtrInt;
-begin
-  if fBack.Count = 0 then
-    exit;
-  fBackSafe.Lock;
-  MoveFast(fBack, todo, SizeOf(fBack)); // copy without refcount
-  FillCharFast(fBack, SizeOf(fBack), 0);
-  fBackSafe.UnLock;
-  for i := 0 to todo.Count - 1 do
-    for e := length(fEchos) - 1 downto 0 do // for MultiEventRemove() below
-      try
-        fEchos[e](self, todo.Level[i], todo.Text[i]);
-      except // remove callback in case of exception during echoing in user code
-        MultiEventRemove(fEchos, e);
-        if fEchos = nil then
-          break;
-      end;
-end;
-
-procedure TEchoWriter.FlushToStream(Text: PUtf8Char; Len: PtrInt);
-begin
-  if fEchos <> nil then
-  begin
-    EchoFlush;
-    fEchoStart := 0;
-  end;
-end;
-
-procedure TEchoWriter.EchoAdd(const aEcho: TOnTextWriterEcho);
-begin
-  if self <> nil then
-    if MultiEventAdd(fEchos, TMethod(aEcho)) then
-      if fEchos <> nil then
-        fEchoStart := fWriter.B - fWriter.fTempBuf + 1; // ignore any previous buffer
-end;
-
-procedure TEchoWriter.EchoRemove(const aEcho: TOnTextWriterEcho);
-begin
-  if self <> nil then
-    MultiEventRemove(fEchos, TMethod(aEcho));
-end;
-
-function TEchoWriter.EchoFlush: PtrInt;
-var
-  L, LI: PtrInt;
-  P: PUtf8Char;
-begin
-  P := fWriter.fTempBuf;
-  result := fWriter.B - P + 1;
-  L := result - fEchoStart;
-  inc(P, fEchoStart);
-  while (L > 0) and
-        (P[L - 1] in [#10, #13]) do // trim right CR/LF chars
-    dec(L);
-  if L = 0 then
-    exit;
-  LI := length(fEchoBuf); // fast append to fEchoBuf
-  SetLength(fEchoBuf, LI + L);
-  MoveFast(P^, PByteArray(fEchoBuf)[LI], L);
-end;
-
-procedure TEchoWriter.EchoReset;
-begin
-  fEchoBuf := '';
-end;
-
-function TEchoWriter.GetEndOfLineCRLF: boolean;
-begin
-  result := twoEndOfLineCRLF in fWriter.CustomOptions;
-end;
-
-procedure TEchoWriter.SetEndOfLineCRLF(aEndOfLineCRLF: boolean);
-begin
-  if aEndOfLineCRLF then
-    fWriter.CustomOptions := fWriter.CustomOptions + [twoEndOfLineCRLF]
-  else
-    fWriter.CustomOptions := fWriter.CustomOptions - [twoEndOfLineCRLF];
+    beg := Text;
+    while esc[Text^] = 0 do
+      inc(Text);
+    AddNoJsonEscape(beg, Text - beg);
+    if Text^ = #0 then
+      exit;
+    AddShorter(XML_ESCAPED[esc[Text^]]);
+    inc(Text);
+  until Text^ = #0;
 end;
 
 
@@ -5121,11 +5909,10 @@ begin
     end;
 end;
 
-function ObjectToJsonDebug(Value: TObject;
-  Options: TTextWriterWriteObjectOptions): RawUtf8;
+function ObjectToJsonDebug(Value: TObject): RawUtf8;
 begin
-  // our JSON serialization detects and serialize Exception.Message
-  result := ObjectToJson(Value, Options);
+  // our JSON serialization properly detects and serializes Exception.Message
+  ObjectToJson(Value, result, TEXTWRITEROPTIONS_DEBUG);
 end;
 
 procedure ConsoleObject(Value: TObject; Options: TTextWriterWriteObjectOptions);
@@ -5133,20 +5920,154 @@ begin
   ConsoleWrite(ObjectToJson(Value, Options));
 end;
 
+function HtmlEscape(const text: RawUtf8; fmt: TTextWriterHtmlFormat): RawUtf8;
+var
+  temp: TTextWriterStackBuffer;
+  W: TTextWriter;
+begin
+  if NeedsHtmlEscape(pointer(text), fmt) then
+  begin
+    W := TTextWriter.CreateOwnedStream(temp);
+    try
+      W.AddHtmlEscape(pointer(text), fmt);
+      W.SetText(result);
+    finally
+      W.Free;
+    end;
+  end
+  else
+    result := text;
+end;
+
+function HtmlEscapeString(const text: string; fmt: TTextWriterHtmlFormat): RawUtf8;
+begin
+  HtmlEscapeString(text, result, fmt);
+end;
+
+procedure HtmlEscapeString(const text: string; var result: RawUtf8; fmt: TTextWriterHtmlFormat);
+var
+  temp: TTextWriterStackBuffer;
+  W: TTextWriter;
+begin
+  {$ifdef UNICODE}
+  if fmt = hfNone then
+  begin
+    StringToUtf8(text, result);
+    exit;
+  end;
+  {$else}
+  if not NeedsHtmlEscape(pointer(text), fmt) then // work for any AnsiString
+  begin
+    if IsAnsiCompatible(text) then
+      result := text
+    else
+      StringToUtf8(text, result);
+    exit;
+  end;
+  {$endif UNICODE}
+  W := TTextWriter.CreateOwnedStream(temp);
+  try
+    W.AddHtmlEscapeString(text, fmt);
+    W.SetText(result);
+  finally
+    W.Free;
+  end;
+end;
+
+function NeedsHtmlEscape(Text: PUtf8Char; Fmt: TTextWriterHtmlFormat): boolean;
+var
+  esc: PAnsiCharToByte;
+begin
+  if (Text <> nil) and
+     (Fmt <> hfNone) then
+  begin
+    result := true;
+    esc := @HTML_ESC[Fmt];
+    while true do
+      if esc[Text^] = 0 then
+        inc(Text) // fast process of unescaped plain text
+      else if Text^ = #0 then
+        break     // no escape needed
+      else
+        exit;     // needs XML escape
+  end;
+  result := false;
+end;
+
+function XmlEscape(const text: RawUtf8): RawUtf8;
+var
+  temp: TTextWriterStackBuffer;
+  W: TTextWriter;
+begin
+  if NeedsXmlEscape(pointer(text)) then
+  begin
+    W := TTextWriter.CreateOwnedStream(temp);
+    try
+      W.AddXmlEscape(pointer(text));
+      W.SetText(result);
+    finally
+      W.Free;
+    end;
+  end
+  else
+    result := text;
+end;
+
+function NeedsXmlEscape(text: PUtf8Char): boolean;
+var
+  esc: PAnsiCharToByte;
+begin
+  result := true;
+  esc := @XML_ESC;
+  if Text <> nil then
+    while true do
+      if esc[Text^] = 0 then
+        inc(Text) // fast process of unescaped plain text
+      else if Text^ = #0 then
+        break     // no escape needed
+      else
+        exit;     // needs XML escape
+  result := false;
+end;
+
+function NeedsEscape(text: PUtf8Char; const toescape: TSynAnsicharSet): boolean;
+var
+  c: AnsiChar;
+begin
+  result := true;
+  if text <> nil then
+    repeat
+      c := text^;
+      if c = #0 then
+        break
+      else if c in toescape then
+        exit
+      else
+        inc(text);
+    until false;
+  result := false;
+end;
+
 function EscapeHexBuffer(src, dest: PUtf8Char; srclen: integer;
   const toescape: TSynAnsicharSet; escape: AnsiChar): PUtf8Char;
+var
+  c: AnsiChar;
+  hex: PByteToWord; // better code generation on x86_64 and arm
 begin
+  hex := @TwoDigitsHex;
   result := dest;
   if srclen > 0 then
     repeat
-      if src^ in toescape then
+      c := src^;
+      if c in toescape then
       begin
         result^ := escape;
-        result := pointer(ByteToHex(pointer(result + 1), ord(src^)));
+        PWord(result + 1)^ := hex[ord(c)];
+        inc(result, 3);
       end
       else
       begin
-        result^ := src^;
+        result^ := c;
         inc(result);
       end;
       inc(src);
@@ -5159,14 +6080,61 @@ function EscapeHex(const src: RawUtf8;
 var
   l: PtrInt;
 begin
+  if not NeedsEscape(pointer(src), toescape) then
+  begin
+    result := src; // obvious
+    exit;
+  end;
   l := length(src);
   if l <> 0 then
   begin
-    FastSetString(result, nil, l * 3); // allocate maximum size
+    FastSetString(result, l * 3); // allocate maximum size
     l := EscapeHexBuffer(pointer(src), pointer(result), l,
       toescape, escape) - pointer(result);
   end;
   FakeSetLength(result, l); // return in-place with no realloc
+end;
+
+function EscapeHexBuffer(src, dest: PUtf8Char; srclen: integer;
+  toescape, escape: AnsiChar): PUtf8Char;
+var
+  c: AnsiChar;
+  hex: PByteToWord; // better code generation on x86_64 and arm
+begin
+  hex := @TwoDigitsHex;
+  result := dest;
+  if srclen > 0 then
+    repeat
+      c := src^;
+      if c = toescape then
+      begin
+        result^ := escape;
+        PWord(result + 1)^ := hex[ord(c)];
+        inc(result, 3);
+      end
+      else
+      begin
+        result^ := c;
+        inc(result);
+      end;
+      inc(src);
+      dec(srclen);
+    until srclen = 0;
+end;
+
+function EscapeHex(const src: RawUtf8; toescape, escape: AnsiChar): RawUtf8;
+var
+  l: PtrInt;
+begin
+  if PosExChar(toescape, src) = 0 then
+  begin
+    result := src; // obvious
+    exit;
+  end;
+  l := length(src);
+  FastSetString(result, l * 3); // allocate maximum size
+  FakeSetLength(result, EscapeHexBuffer(pointer(src), pointer(result), l,
+    toescape, escape) - pointer(result));
 end;
 
 function UnescapeHexBuffer(src, dest: PUtf8Char; escape: AnsiChar): PUtf8Char;
@@ -5180,14 +6148,21 @@ begin
       if src^ = escape then
       begin
         inc(src);
-        if HexToChar(PAnsiChar(src), @c) then // \xx
+        if src^ in [#10, #13] then // \CRLF or \LF
+        begin
+          repeat
+            inc(src);
+          until not (src^ in [#10, #13]);
+          continue;
+        end
+        else if HexToChar(PAnsiChar(src), @c) then // \xx
         begin
           result^ := c;
           inc(src, 2);
           inc(result);
           continue;
         end;
-        if src^ = #0 then // expect valid \c
+        if src^ = #0 then // unexpected \c into c (drop the escape)
           break;
       end;
       result^ := src^;
@@ -5202,7 +6177,7 @@ begin
     result := src // no unescape needed
   else
   begin
-    FastSetString(result, nil, length(src)); // allocate maximum size
+    FastSetString(result, length(src)); // allocate maximum size
     FakeSetLength(result, UnescapeHexBuffer(
       pointer(src), pointer(result), escape) - pointer(result));
   end;
@@ -5234,11 +6209,160 @@ begin
   l := length(src);
   if l <> 0 then
   begin
-    FastSetString(result, nil, l * 2); // allocate maximum size
+    FastSetString(result, l * 2); // allocate maximum size
     l := EscapeCharBuffer(pointer(src), pointer(result), l,
       toescape, escape) - pointer(result);
   end;
   FakeSetLength(result, l); // return in-place with no realloc
+end;
+
+
+{ TEchoWriter }
+
+constructor TEchoWriter.Create(Owner: TTextWriter);
+begin
+  fWriter := Owner;
+  if Assigned(fWriter.OnFlushToStream) then
+    ESynException.RaiseUtf8('Unexpected %.Create', [self]);
+  fWriter.OnFlushToStream := FlushToStream; // register
+  fWriteCRLF := twoEndOfLineCRLF in fWriter.CustomOptions;
+end;
+
+destructor TEchoWriter.Destroy;
+begin
+  if (fWriter <> nil) and
+     (TMethod(fWriter.OnFlushToStream).Data = self) then
+    fWriter.OnFlushToStream := nil; // unregister
+  inherited Destroy;
+end;
+
+procedure TEchoWriter.EchoPendingToBackground(aLevel: TSynLogLevel);
+var
+  n, cap: PtrInt;
+begin
+  fBackSafe.Lock;
+  {$ifdef HASFASTTRYFINALLY}
+  try
+  {$else}
+  begin
+  {$endif HASFASTTRYFINALLY}
+    n := fBack.Count;
+    if length(fBack.Level) = n then
+    begin
+      cap := NextGrow(n);
+      SetLength(fBack.Level, cap);
+      SetLength(fBack.Text, cap);
+    end;
+    fBack.Level[n] := aLevel;
+    fBack.Text[n] := fEchoBuf;
+  {$ifdef HASFASTTRYFINALLY}
+  finally
+  {$endif HASFASTTRYFINALLY}
+    fBackSafe.UnLock;
+  end;
+end;
+
+procedure TEchoWriter.EchoAddEndOfLine(aLevel: TSynLogLevel);
+var
+  e: PtrInt;
+begin
+  fEchoStart := EchoFlush;
+  if fEchoPendingExecuteBackground then
+    EchoPendingToBackground(aLevel)
+  else
+    for e := length(fEchos) - 1 downto 0 do // for MultiEventRemove() below
+      try
+        fEchos[e](self, aLevel, fEchoBuf);
+      except // remove callback in case of exception during echoing
+        MultiEventRemove(fEchos, e);
+      end;
+  fEchoBuf := '';
+end;
+
+procedure TEchoWriter.AddEndOfLine(aLevel: TSynLogLevel);
+begin
+  if fWriteCRLF then
+    fWriter.AddDirect(#13);
+  fWriter.AddDirect(#10);
+  if fEchos <> nil then
+    EchoAddEndOfLine(aLevel); // redirection
+end;
+
+procedure TEchoWriter.EchoPendingExecute;
+var
+  todo: TEchoWriterBack; // thread-safe per reference copy
+  i, e: PtrInt;
+begin
+  if fBack.Count = 0 then
+    exit;
+  fBackSafe.Lock;
+  MoveFast(fBack, todo, SizeOf(fBack)); // fast copy without refcount
+  FillCharFast(fBack, SizeOf(fBack), 0);
+  fBackSafe.UnLock;
+  for i := 0 to todo.Count - 1 do
+    for e := length(fEchos) - 1 downto 0 do // for MultiEventRemove() below
+      try
+        fEchos[e](self, todo.Level[i], todo.Text[i]);
+      except // remove callback in case of exception during echoing in user code
+        MultiEventRemove(fEchos, e);
+        if fEchos = nil then
+          break;
+      end;
+end;
+
+procedure TEchoWriter.FlushToStream(Text: PUtf8Char; Len: PtrInt);
+begin
+  if fEchos = nil then
+    exit;
+  EchoFlush;
+  fEchoStart := 0;
+end;
+
+procedure TEchoWriter.EchoAdd(const aEcho: TOnTextWriterEcho);
+begin
+  if self <> nil then
+    if MultiEventAdd(fEchos, TMethod(aEcho)) then
+      if fEchos <> nil then
+        fEchoStart := fWriter.B - fWriter.fTempBuf + 1; // ignore any previous buffer
+end;
+
+procedure TEchoWriter.EchoRemove(const aEcho: TOnTextWriterEcho);
+begin
+  if self <> nil then
+    MultiEventRemove(fEchos, TMethod(aEcho));
+end;
+
+function TEchoWriter.EchoFlush: PtrInt;
+var
+  L: PtrInt;
+  P: PUtf8Char;
+begin
+  P := fWriter.fTempBuf;
+  result := fWriter.B - P + 1;
+  L := result - fEchoStart;
+  inc(P, fEchoStart);
+  while (L > 0) and
+        (P[L - 1] in [#10, #13]) do // trim right CR/LF chars
+    dec(L);
+  Append(fEchoBuf, P, L); // very efficient
+end;
+
+procedure TEchoWriter.EchoReset;
+begin
+  fEchoBuf := '';
+end;
+
+function TEchoWriter.GetEndOfLineCRLF: boolean;
+begin
+  result := twoEndOfLineCRLF in fWriter.CustomOptions;
+end;
+
+procedure TEchoWriter.SetEndOfLineCRLF(aEndOfLineCRLF: boolean);
+begin
+  if aEndOfLineCRLF then
+    fWriter.CustomOptions := fWriter.CustomOptions + [twoEndOfLineCRLF]
+  else
+    fWriter.CustomOptions := fWriter.CustomOptions - [twoEndOfLineCRLF];
 end;
 
 
@@ -5345,41 +6469,6 @@ begin
   UInt32ToUtf8(Value, result);
 end;
 
-function StrCurr64(P: PAnsiChar; const Value: Int64): PAnsiChar;
-var
-  c: QWord;
-  d: cardinal;
-begin
-  if Value = 0 then
-  begin
-    result := P - 1;
-    result^ := '0';
-    exit;
-  end;
-  if Value < 0 then
-    c := -Value
-  else
-    c := Value;
-  if c < 10000 then
-  begin
-    result := P - 6; // only decimals -> append '0.xxxx'
-    PWord(result)^ := ord('0') + ord('.') shl 8;
-    YearToPChar(c, PUtf8Char(P) - 4);
-  end
-  else
-  begin
-    result := StrUInt64(P - 1, c);
-    d := PCardinal(P - 5)^; // in two explit steps for CPUARM (alf)
-    PCardinal(P - 4)^ := d;
-    P[-5] := '.'; // insert '.' just before last 4 decimals
-  end;
-  if Value < 0 then
-  begin
-    dec(result);
-    result^ := '-';
-  end;
-end;
-
 procedure Curr64ToStr(const Value: Int64; var result: RawUtf8);
 var
   tmp: array[0..31] of AnsiChar;
@@ -5395,10 +6484,10 @@ begin
     if L > 4 then
     begin
       Decim := PCardinal(P + L - SizeOf(cardinal))^; // 4 last digits = 4 decimals
-      if Decim = ord('0') + ord('0') shl 8 + ord('0') shl 16 + ord('0') shl 24 then
+      if Decim = $30303030 then
         dec(L, 5)
       else // no decimal
-      if Decim and $ffff0000 = ord('0') shl 16 + ord('0') shl 24 then
+      if Decim and $ffff0000 = $30300000 then
         dec(L, 2); // 2 decimals
     end;
     FastSetString(result, P, L);
@@ -5427,11 +6516,9 @@ begin
   begin
     // Decim = 4 last digits = 4 decimals
     Decim := PCardinal(P + result - SizeOf(cardinal))^;
-    if Decim = ord('0') + ord('0') shl 8 + ord('0') shl 16 + ord('0') shl 24 then
-      // no decimal -> trunc trailing *.0000 chars
+    if Decim = $30303030 then // no decimal -> trunc trailing *.0000 chars
       dec(result, 5)
-    else if Decim and $ffff0000 = ord('0') shl 16 + ord('0') shl 24 then
-      // 2 decimals -> trunc trailing *.??00 chars
+    else if Decim and $ffff0000 = $30300000 then // 2 decimals -> trunc *.??00
       dec(result, 2);
   end;
   MoveFast(P^, Dest^, result);
@@ -5578,7 +6665,7 @@ function DoubleToString(Value: Double): string;
 var
   tmp: ShortString;
 begin
-  if Value = 0 then
+  if PInt64(@Value)^ = 0 then
     result := '0'
   else
     Ansi7ToString(PWinAnsiChar(@tmp[1]), DoubleToShort(@tmp, Value), result);
@@ -5640,7 +6727,7 @@ function DoubleToString(Value: Double): string;
 var
   tmp: ShortString;
 begin
-  if Value = 0 then
+  if PInt64(@Value)^ = 0 then
     result := '0'
   else
     SetString(result, PAnsiChar(@tmp[1]), DoubleToShort(@tmp, Value));
@@ -5652,11 +6739,6 @@ begin
 end;
 
 {$endif UNICODE}
-
-{$ifndef EXTENDEDTOSHORT_USESTR}
-var // standard FormatSettings (US)
-  SettingsUS: TFormatSettings;
-{$endif EXTENDEDTOSHORT_USESTR}
 
 // used ExtendedToShortNoExp / DoubleToShortNoExp from str/DoubleToAscii output
 function FloatStringNoExp(S: PAnsiChar; Precision: PtrInt): PtrInt;
@@ -5789,7 +6871,7 @@ begin
   {$endif DOUBLETOSHORT_USEGRISU}
   if Value = 0 then
   begin
-    PWord(S)^ := 1 + ord('0') shl 8;
+    PCardinal(S)^ := 1 + ord('0') shl 8;
     result := 1;
     exit;
   end;
@@ -5834,6 +6916,14 @@ end;
 
 {$else not EXTENDEDTOSHORT_USESTR}
 
+const
+  /// RTL TFormatSettings closest to the JSON expectations
+  // - used only as fallback for ExtendedToShort() without EXTENDEDTOSHORT_USESTR
+  JsonFormatSettings: TFormatSettings = (
+    ThousandSeparator: #0;
+    DecimalSeparator: '.';
+  {%H-});
+
 function ExtendedToShort(S: PShortString; Value: TSynExtended; Precision: integer): integer;
 {$ifdef UNICODE}
 var
@@ -5841,7 +6931,7 @@ var
 {$endif UNICODE}
 begin
   // use ffGeneral: see https://synopse.info/forum/viewtopic.php?pid=442#p442
-  result := FloatToText(PChar(@S^[1]), Value, fvExtended, ffGeneral, Precision, 0, SettingsUS);
+  result := FloatToText(PChar(@S^[1]), Value, fvExtended, ffGeneral, Precision, 0, JsonFormatSettings);
   {$ifdef UNICODE} // FloatToText(PWideChar) is faster than FloatToText(PAnsiChar)
   for i := 1 to result do
     PByteArray(S)[i] := PWordArray(PtrInt(S) - 1)[i];
@@ -5851,24 +6941,9 @@ end;
 
 {$endif EXTENDEDTOSHORT_USESTR}
 
-function FloatToShortNan(const s: ShortString): TFloatNan;
+function Utf8ToFloatNan(s: PUtf8Char; len: PtrInt): TFloatNan;
 begin
-  case PInteger(@s)^ and $ffdfdfdf of
-    3 + ord('N') shl 8 + ord('A') shl 16 + ord('N') shl 24:
-      result := fnNan;
-    3 + ord('I') shl 8 + ord('N') shl 16 + ord('F') shl 24,
-    4 + ord('+') shl 8 + ord('I') shl 16 + ord('N') shl 24:
-      result := fnInf;
-    4 + ord('-') shl 8 + ord('I') shl 16 + ord('N') shl 24:
-      result := fnNegInf;
-  else
-    result := fnNumber;
-  end;
-end;
-
-function FloatToStrNan(const s: RawUtf8): TFloatNan;
-begin
-  case length(s) of
+  case len of
     3:
       case PInteger(s)^ and $dfdfdf of
         ord('N') + ord('A') shl 8 + ord('N') shl 16:
@@ -5879,7 +6954,7 @@ begin
         result := fnNumber;
       end;
     4:
-      case PInteger(s)^ and $dfdfdfdf of
+      case PInteger(s)^ and $dfdfdfff of
         ord('+') + ord('I') shl 8 + ord('N') shl 16 + ord('F') shl 24:
           result := fnInf;
         ord('-') + ord('I') shl 8 + ord('N') shl 16 + ord('F') shl 24:
@@ -5890,6 +6965,16 @@ begin
   else
     result := fnNumber;
   end;
+end;
+
+function ShortToFloatNan(const s: ShortString): TFloatNan;
+begin
+  result := Utf8ToFloatNan(@s[1], ord(s[0]));
+end;
+
+function RawUtf8ToFloatNan(const s: RawUtf8): TFloatNan;
+begin
+  result := Utf8ToFloatNan(pointer(s), length(s));
 end;
 
 function ExtendedToStr(Value: TSynExtended; Precision: integer): RawUtf8;
@@ -6204,8 +7289,6 @@ begin
     factor.c := B^.c;
 end;
 
-procedure d2a_unpack_float(const f: double; out minus: boolean;
-  out result: TDIY_FP);   {$ifdef HASINLINE}inline;{$endif}
 type
   TSplitFloat = packed record
     case byte of
@@ -6215,6 +7298,9 @@ type
       3: (d: array[0..1] of cardinal);
       4: (l: qword);
   end;
+
+procedure d2a_unpack_float(const f: double; out minus: boolean;
+  out result: TDIY_FP);   {$ifdef HASINLINE}inline;{$endif}
 var
   doublebits: TSplitFloat;
 begin
@@ -6242,8 +7328,15 @@ const
   C_GRISU_ALPHA = -61;
   C_GRISU_GAMMA = 0;
 
-  C_EXP2_SPECIAL = C_EXP2_BIAS * 2 + 1;
+  C_EXP2_SPECIAL = C_EXP2_BIAS * 2 + 1; // $7ff
   C_MANT2_INTEGER = qword(1) shl C_FRAC2_BITS;
+  C_EXP_POS = {$ifdef FPC_DOUBLE_HILO_SWAPPED} 0 {$else} 1 {$endif};
+
+function doubleIsSpecial(const f: double): boolean;
+  {$ifdef HASINLINE}inline;{$endif}
+begin
+  result := ((TSplitFloat(f).d[C_EXP_POS] shr 20) and C_EXP2_SPECIAL) = C_EXP2_SPECIAL;
+end;
 
 type
   TAsciiDigits = array[0..39] of byte;
@@ -6639,7 +7732,6 @@ begin
   PCardinal(str)^ := PCardinal(@spec[1])^;
 end;
 
-
 // Calculates the exp10 of a factor required to bring the binary exponent
 // of the original number into selected [ alpha .. gamma ] range:
 // result := ceiling[ ( alpha - e ) * log10(2) ]
@@ -6707,7 +7799,7 @@ begin
      (w.f = 0) then
   begin
     {$ifdef GRISU1_F2A_ZERONOFRACT}
-    PWord(str)^ := 1 + ord('0') shl 8; // just return '0'
+    PCardinal(str)^ := 1 + ord('0') shl 8; // just return '0'
     {$else}
     if frac_digits >= 0 then
       d2a_return_fixed(str, minus, buf, 0, 1, frac_digits)
@@ -6862,7 +7954,8 @@ var
   valueabs: double;
 begin
   valueabs := abs(Value);
-  if (valueabs > {$ifdef FPC}double{$endif}(DOUBLE_HI)) or
+  if doubleIsSpecial(valueabs) or
+     (valueabs > {$ifdef FPC}double{$endif}(DOUBLE_HI)) or
      (valueabs < {$ifdef FPC}double{$endif}(DOUBLE_LO)) then
     // = str(Value,S) for scientific notation outside of 1E-9<Value<1E9 range
     DoubleToAscii(C_NO_MIN_WIDTH, -1, Value, pointer(S))
@@ -6899,7 +7992,7 @@ end;
 function DoubleToJson(tmp: PShortString; Value: double;
   NoExp: boolean): PShortString;
 begin
-  if Value = 0 then
+  if PInt64(@Value)^ = 0 then
     result := @JSON_NAN[fnNumber]
   else
   begin
@@ -6920,7 +8013,7 @@ procedure DoubleToStr(Value: Double; var result: RawUtf8);
 var
   tmp: ShortString;
 begin
-  if Value = 0 then
+  if PInt64(@Value)^ = 0 then
     result := SmallUInt32Utf8[0]
   else
     FastSetString(result, @tmp[1], DoubleToShort(@tmp, Value));
@@ -7071,7 +8164,8 @@ begin
   vt := TVarData(V).VType;
   with TVarData(V) do
     case vt of
-      varEmpty, varNull:
+      varEmpty,
+      varNull:
         result := NULL_STR_VAR;
       varSmallint:
         Int32ToUtf8(VSmallInt, result);
@@ -7109,7 +8203,7 @@ begin
         begin
           wasString := true;
           {$ifdef HASCODEPAGE}
-          AnyAnsiToUtf8(RawByteString(VString), result);
+          AnyAnsiToUtf8Var(RawByteString(VString), result);
           {$else}
           result := RawUtf8(VString);
           {$endif HASCODEPAGE}
@@ -7119,6 +8213,11 @@ begin
         begin
           wasString := true;
           RawUnicodeToUtf8(VAny, length(UnicodeString(VAny)), result);
+        end;
+      varUStringByRef:
+        begin
+          wasString := true;
+          RawUnicodeToUtf8(PPointer(VAny)^, length(PUnicodeString(VAny)^), result);
         end;
       {$endif HASVARUSTRING}
       varOleStr:
@@ -7147,7 +8246,7 @@ begin
       begin
         wasString := true;
         {$ifdef HASCODEPAGE}
-        AnyAnsiToUtf8(PRawByteString(VString)^, result);
+        AnyAnsiToUtf8Var(PRawByteString(VString)^, result);
         {$else}
         result := PRawUtf8(VString)^;
         {$endif HASCODEPAGE}
@@ -7187,7 +8286,7 @@ begin
   VariantToUtf8(V, result, wasString);
 end;
 
-function ToUtf8(const V: TVarData): RawUtf8; overload;
+function ToUtf8(const V: TVarData): RawUtf8;
 var
   wasString: boolean;
 begin
@@ -7201,8 +8300,14 @@ end;
 
 function VariantToText(const V: Variant; var Text: RawUtf8): boolean;
 begin
-  result := not VarIsEmptyOrNull(V) and
-            VariantToUtf8(V, Text);
+  result := false;
+  if VarIsEmptyOrNull(V) then
+  begin
+    FastAssignNew(Text);
+    exit;
+  end;
+  VariantToUtf8(V, Text);
+  result := Text <> '';
 end;
 
 function VariantSaveJson(const Value: variant; Escape: TTextWriterKind): RawUtf8;
@@ -7230,20 +8335,66 @@ begin
     ' please include mormot.core.datetime to your uses clause');
 end;
 
+function VariantCompAsText(A, B: PVarData; caseInsensitive: boolean): integer;
+var
+  au, bu: pointer;
+  wasString: boolean;
+begin
+  au := nil; // no try..finally for local RawUtf8 variables
+  bu := nil;
+  VariantToUtf8(PVariant(A)^, RawUtf8(au), wasString);
+  VariantToUtf8(PVariant(B)^, RawUtf8(bu), wasString);
+  result := SortDynArrayAnsiStringByCase[caseInsensitive](au, bu);
+  FastAssignNew(au);
+  FastAssignNew(bu);
+end;
+
+function AnyTextToDouble(const Text: RawUtf8; out V: double): boolean;
+begin
+  result := true;
+  if Text = '' then
+    PInt64(@V)^ := 0
+  else if not ToDouble(Text, V) then
+    if Assigned(_Iso8601ToDateTime) then
+    begin
+      V := _Iso8601ToDateTime(Text);
+      result := V <> 0;
+    end
+    else
+      result := false;
+end;
+
+function AnyVariantToDouble(const Value: Variant; out V: double): boolean;
+var
+  u: pointer;
+begin
+  u := nil;
+  result := VariantToDouble(Value, V);
+  if not result then
+    if Assigned(_Iso8601ToDateTime) and // may be a TDateTime
+       VarIsString(Value) and
+       VariantToText(Value, RawUtf8(u)) then
+    begin
+      V := 0;
+      if u <> nil then
+      begin
+        V := _Iso8601ToDateTime(RawUtf8(u));
+        FastAssignNew(u);
+        if V = 0 then
+          exit; // not a date
+      end;
+      result := true;
+    end;
+end;
+
 function Int18ToChars3(Value: cardinal): RawUtf8;
 begin
-  FastSetString(result, nil, 3);
-  PCardinal(result)^ := ((Value shr 12) and $3f) or
-                        ((Value shr 6) and $3f) shl 8 or
-                        (Value and $3f) shl 16 + $202020;
+  Int18ToText(Value, FastSetString(result, 3));
 end;
 
 procedure Int18ToChars3(Value: cardinal; var result: RawUtf8);
 begin
-  FastSetString(result, nil, 3);
-  PCardinal(result)^ := ((Value shr 12) and $3f) or
-                        ((Value shr 6) and $3f) shl 8 or
-                        (Value and $3f) shl 16 + $202020;
+  Int18ToText(Value, FastSetString(result, 3));
 end;
 
 function Chars3ToInt18(P: pointer): cardinal;
@@ -7256,17 +8407,15 @@ end;
 
 function UInt3DigitsToUtf8(Value: cardinal): RawUtf8;
 begin
-  FastSetString(result, nil, 3);
-  PWordArray(result)[0] := TwoDigitLookupW[Value div 10];
+  PWord(FastSetString(result, 3))^ := TwoDigitLookupW[Value div 10];
   PByteArray(result)[2] := (Value mod 10) + 48;
 end;
 
 function UInt4DigitsToUtf8(Value: cardinal): RawUtf8;
 begin
-  FastSetString(result, nil, 4);
   if Value > 9999 then
     Value := 9999;
-  YearToPChar(Value, pointer(result));
+  YearToPChar(Value, FastSetString(result, 4));
 end;
 
 function UInt4DigitsToShort(Value: cardinal): TShort4;
@@ -7290,13 +8439,13 @@ begin
   result[0] := #2;
   if Value > 99 then
     Value := 99;
-  PWord(@result[1])^ := TwoDigitLookupW[Value];
+  PCardinal(@result[1])^ := TwoDigitLookupW[Value];
 end;
 
 function UInt2DigitsToShortFast(Value: byte): TShort4;
 begin
   result[0] := #2;
-  PWord(@result[1])^ := TwoDigitLookupW[Value];
+  PCardinal(@result[1])^ := TwoDigitLookupW[Value];
 end;
 
 function IPToCardinal(aIP: PUtf8Char; out aValue: cardinal): boolean;
@@ -7339,43 +8488,88 @@ end;
 
 { ************ Text Formatting functions }
 
-function VarRecAsChar(const V: TVarRec): integer;
+function VarRecAsChar(V: PVarRec): integer;
 begin
-  case V.VType of
+  case V^.VType of
     vtChar:
-      result := ord(V.VChar);
+      result := ord(V^.VChar);
     vtWideChar:
-      result := ord(V.VWideChar);
+      result := ord(V^.VWideChar);
   else
     result := 0;
   end;
 end;
 
-function VarRecAs(const aArg: TVarRec; aClass: TClass): pointer;
+function VarRecAs(V: PVarRec; aClass: TClass): pointer;
 begin
-  if (aArg.VType = vtObject) and
-     (aArg.VObject <> nil) and
-     aArg.VObject.InheritsFrom(aClass) then
-    result := aArg.VObject
+  if (V^.VType = vtObject) and
+     (V^.VObject <> nil) and
+     V^.VObject.InheritsFrom(aClass) then
+    result := V^.VObject
   else
     result := nil;
 end;
 
-function VarRecToInt64(const V: TVarRec; out value: Int64): boolean;
+function VarRecIsVoid(V: PVarRec): boolean;
+begin // we consider a boolean to be never void by design
+  result := (V^.VType <> vtBoolean) and VarRecIsDefault(V);
+end;
+
+function VarRecIsDefault(V: PVarRec): boolean;
 begin
-  case V.VType of
+  case V^.VType of
+    vtString:
+      result := V^.VString^[0] = #0;
+    vtAnsiString,
+    {$ifdef HASVARUSTRING}
+    vtUnicodeString,
+    {$endif HASVARUSTRING}
+    vtWideString,
+    vtPChar,
+    vtPWideChar,
+    vtPointer,
+    vtObject,
+    vtClass,
+    vtInterface:
+      result := V^.VPointer = nil; // void pointer value
+    vtChar:
+      result := V^.VChar = #0;
+    vtWideChar:
+      result := V^.VWideChar = #0;
+    vtBoolean:
+      result := not V^.VBoolean; // false means default
     vtInteger:
-      value := V.VInteger;
+      result := V^.VInteger = 0;
+    {$ifdef FPC}
+    vtQWord,
+    {$endif FPC}
+    vtCurrency,
+    vtInt64:
+      result := V^.VInt64^ = 0;
+    vtExtended:
+      result := V^.VExtended^ = 0;
+    vtVariant:
+      result := VarIsEmptyOrNull(V^.VVariant^);
+  else
+    result := false;
+  end;
+end;
+
+function VarRecToInt64(V: PVarRec; out value: Int64): boolean;
+begin
+  case V^.VType of
+    vtInteger:
+      value := V^.VInteger;
     {$ifdef FPC} vtQWord, {$endif}
     vtInt64:
-      value := V.VInt64^;
+      value := V^.VInt64^;
     vtBoolean:
-      if V.VBoolean then
+      if V^.VBoolean then
         value := 1
       else
         value := 0; // normalize
     vtVariant:
-      value := V.VVariant^;
+      value := V^.VVariant^;
   else
     begin
       result := false;
@@ -7385,28 +8579,28 @@ begin
   result := true;
 end;
 
-function VarRecToDouble(const V: TVarRec; out value: double): boolean;
+function VarRecToDouble(V: PVarRec; out value: double): boolean;
 begin
-  case V.VType of
+  case V^.VType of
     vtInteger:
-      value := V.VInteger;
+      value := V^.VInteger;
     vtInt64:
-      value := V.VInt64^;
+      value := V^.VInt64^;
     {$ifdef FPC}
     vtQWord:
-      value := V.VQWord^;
+      value := V^.VQWord^;
     {$endif FPC}
     vtBoolean:
-      if V.VBoolean then
+      if V^.VBoolean then
         value := 1
       else
         value := 0; // normalize
     vtExtended:
-      value := V.VExtended^;
+      value := V^.VExtended^;
     vtCurrency:
-      value := V.VCurrency^;
+      value := V^.VCurrency^;
     vtVariant:
-      value := V.VVariant^;
+      value := V^.VVariant^;
   else
     begin
       result := false;
@@ -7416,32 +8610,29 @@ begin
   result := true;
 end;
 
-procedure BufToTempUtf8(Buf: PUtf8Char; var Res: TTempUtf8);
-begin // Res.Len has been set by caller
-  if Res.Len > SizeOf(Res.Temp) then
+procedure PrepareTempUtf8(var Res: TTempUtf8; Len: PtrInt);
+  {$ifdef FPC} inline; {$endif} // Delphi XE8 fails to inline this anyway :(
+begin
+  if Len > SizeOf(Res.Temp) then // memory allocation needed
   begin
-    FastSetString(RawUtf8(Res.TempRawUtf8), Buf, Res.Len); // new RawUtf8
+    Res.TempRawUtf8 := FastNewString(Len, CP_UTF8); // new RawUtf8
     Res.Text := Res.TempRawUtf8;
   end
   else
-  begin
-    THash192(Res.Temp) := PHash192(Buf)^; // faster than MoveByOne()
-    Res.Text := @Res.Temp; // no RawUtf8 memory allocation
-  end;
+    Res.Text := @Res.Temp; // use stack buffer
+  Res.Len := Len;
 end;
 
 procedure DoubleToTempUtf8(V: double; var Res: TTempUtf8);
 var
-  tmp: shortstring;
+  tmp: ShortString;
 begin
-  Res.Len := DoubleToShort(@tmp, V);
-  BufToTempUtf8(@tmp[1], Res);
+  PrepareTempUtf8(Res, DoubleToShort(@tmp, V));
+  MoveFast(tmp[1], Res.Text^, ord(tmp[0]));
 end;
 
-procedure WideToTempUtf8(WideChar: PWideChar; WideCharCount: integer;
+procedure WideToTempUtf8(WideChar: PWideChar; WideCharCount: PtrUInt;
   var Res: TTempUtf8);
-var
-  tmp: TSynTempBuffer;
 begin
   if (WideChar = nil) or
      (WideCharCount = 0) then
@@ -7449,13 +8640,19 @@ begin
     Res.Text := nil;
     Res.Len := 0;
   end
+  else if IsAnsiCompatibleW(WideChar, WideCharCount) then // most common case
+  begin
+    PrepareTempUtf8(Res, WideCharCount);
+    repeat
+      dec(WideCharCount);
+      Res.Text[WideCharCount] := AnsiChar(ord(WideChar[WideCharCount]));
+    until WideCharCount = 0;
+  end
   else
   begin
-    tmp.Init(WideCharCount * 3);
-    Res.Len := RawUnicodeToUtf8(tmp.buf, tmp.len + 1,
+    PrepareTempUtf8(Res, WideCharCount * 3); // use temporarly worst case
+    Res.Len := RawUnicodeToUtf8(Res.Text, Res.Len + 1,
       WideChar, WideCharCount, [ccfNoTrailingZero]);
-    BufToTempUtf8(tmp.buf, Res);
-    tmp.Done;
   end;
 end;
 
@@ -7527,7 +8724,7 @@ begin
       varEmpty,
       varNull:
         begin
-          Res.Text := pointer(NULL_STR_VAR);
+          Res.Text := pointer(NULL_STR_VAR); // 'null' + wasString=false
           Res.Len := 4;
         end;
       varSmallint:
@@ -7551,12 +8748,12 @@ begin
       varBoolean:
         if VBoolean then
         begin
-          Res.Text := @BOOL_STR[true][1];
+          Res.Text := @BOOL_STR[true][1]; // 'false' + wasString=false
           Res.Len := 4;
         end
         else
         begin
-          Res.Text := @BOOL_STR[false][1];
+          Res.Text := @BOOL_STR[false][1]; // 'true' + wasString=false
           Res.Len := 5;
         end;
       varInteger:
@@ -7627,7 +8824,7 @@ begin
       else
       {$endif HASVARUSTRING}
       begin
-        // not recognizable vt -> seralize as JSON to handle also custom types
+        // not recognizable vt -> serialize as JSON to handle also custom types
         wasString := true;
         _VariantSaveJson(V, twJsonEscape, RawUtf8(Res.TempRawUtf8));
         Res.Text := pointer(Res.TempRawUtf8);
@@ -7636,54 +8833,52 @@ begin
    end;
 end;
 
-function VarRecToTempUtf8(const V: TVarRec; var Res: TTempUtf8;
+function VarRecToTempUtf8(V: PVarRec; var Res: TTempUtf8;
   wasString: PBoolean): PtrInt;
 var
   isString: boolean;
 begin
   isString := true;
   Res.TempRawUtf8 := nil; // no allocation by default - and avoid GPF
-  case V.VType of
+  case V^.VType of
     vtString:
-      if V.VString = nil then
+      if V^.VString = nil then
         Res.Len := 0
       else
       begin
-        Res.Text := @V.VString^[1];
-        Res.Len := ord(V.VString^[0]);
+        Res.Text := @V^.VString^[1];
+        Res.Len := ord(V^.VString^[0]);
       end;
-    vtAnsiString:
+    vtAnsiString: // expect UTF-8 content
       begin
-        // expect UTF-8 content
-        Res.Text := pointer(V.VAnsiString);
-        Res.Len := length(RawUtf8(V.VAnsiString));
+        Res.Text := pointer(V^.VAnsiString);
+        Res.Len := length(RawUtf8(V^.VAnsiString));
       end;
     {$ifdef HASVARUSTRING}
     vtUnicodeString:
-      WideToTempUtf8(V.VPWideChar, length(UnicodeString(V.VUnicodeString)), Res);
+      WideToTempUtf8(V^.VPWideChar, length(UnicodeString(V^.VUnicodeString)), Res);
     {$endif HASVARUSTRING}
     vtWideString:
-      WideToTempUtf8(V.VPWideChar, length(WideString(V.VWideString)), Res);
-    vtPChar:
+      WideToTempUtf8(V^.VPWideChar, length(WideString(V^.VWideString)), Res);
+    vtPChar: // expect UTF-8 content
       begin
-        // expect UTF-8 content
-        Res.Text := V.VPointer;
-        Res.Len := StrLen(V.VPointer);
+        Res.Text := V^.VPointer;
+        Res.Len := mormot.core.base.StrLen(V^.VPointer);
       end;
     vtChar:
       begin
-        Res.Temp[0] := V.VChar; // V may be on transient stack (alf: FPC)
+        Res.Temp[0] := V^.VChar; // V may be on transient stack (alf: FPC)
         Res.Text := @Res.Temp;
         Res.Len := 1;
       end;
     vtPWideChar:
-      WideToTempUtf8(V.VPWideChar, StrLenW(V.VPWideChar), Res);
+      WideToTempUtf8(V^.VPWideChar, StrLenW(V^.VPWideChar), Res);
     vtWideChar:
-      WideToTempUtf8(@V.VWideChar, 1, Res);
+      WideToTempUtf8(@V^.VWideChar, 1, Res);
     vtBoolean:
       begin
         isString := false;
-        if V.VBoolean then // normalize
+        if V^.VBoolean then // normalize
           Res.Text := pointer(SmallUInt32Utf8[1])
         else
           Res.Text := pointer(SmallUInt32Utf8[0]);
@@ -7692,55 +8887,51 @@ begin
     vtInteger:
       begin
         isString := false;
-        PtrIntToTempUtf8(V.VInteger, Res);
+        PtrIntToTempUtf8(V^.VInteger, Res);
       end;
     vtInt64:
       begin
         isString := false;
-        Int64ToTempUtf8(V.VInt64, Res);
+        Int64ToTempUtf8(V^.VInt64, Res);
       end;
     {$ifdef FPC}
     vtQWord:
       begin
         isString := false;
-        QwordToTempUtf8(V.VQWord, Res);
+        QwordToTempUtf8(V^.VQWord, Res);
       end;
-      {$endif FPC}
+    {$endif FPC}
     vtCurrency:
       begin
         isString := false;
         Res.Text := @Res.Temp;
-        Res.Len := Curr64ToPChar(V.VInt64^, Res.Temp);
+        Res.Len := Curr64ToPChar(V^.VInt64^, Res.Temp);
       end;
     vtExtended:
       begin
         isString := false;
-        DoubleToTempUtf8(V.VExtended^, Res);
+        DoubleToTempUtf8(V^.VExtended^, Res);
       end;
     vtPointer, vtInterface:
-      begin
-        Res.Text := @Res.Temp;
-        Res.Len := DisplayMinChars(@V.VPointer, SizeOf(pointer)) * 2;
-        BinToHexDisplayLower(@V.VPointer, @Res.Temp, Res.Len shr 1);
-      end;
+      PtrIntToTempUtf8(PtrInt(V^.VPointer), Res);
     vtClass:
-      if V.VClass = nil then
+      if V^.VClass = nil then
         Res.Len := 0
       else
       begin
-        Res.Text := PPUtf8Char(PtrInt(PtrUInt(V.VClass)) + vmtClassName)^ + 1;
+        Res.Text := PPUtf8Char(PtrInt(PtrUInt(V^.VClass)) + vmtClassName)^ + 1;
         Res.Len := ord(Res.Text[-1]);
       end;
     vtObject:
-      if V.VObject = nil then
+      if V^.VObject = nil then
         Res.Len := 0
       else
       begin
-        Res.Text := PPUtf8Char(PPtrInt(V.VObject)^ + vmtClassName)^ + 1;
+        Res.Text := PPUtf8Char(PPtrInt(V^.VObject)^ + vmtClassName)^ + 1;
         Res.Len := ord(Res.Text[-1]);
       end;
     vtVariant:
-      VariantToTempUtf8(V.VVariant^, Res, isString);
+      VariantToTempUtf8(V^.VVariant^, Res, isString);
   else
     Res.Len := 0;
   end;
@@ -7749,116 +8940,112 @@ begin
     wasString^ := isString;
 end;
 
-procedure VarRecToUtf8(const V: TVarRec; var result: RawUtf8; wasString: PBoolean);
+procedure VarRecToUtf8(V: PVarRec; var result: RawUtf8; wasString: PBoolean);
 var
   isString: boolean;
 label
   none;
 begin
   isString := false;
-  with V do
-    case V.VType of
-      vtString:
-        begin
-          isString := true;
-          if VString = nil then
-            goto none;
-          FastSetString(result, @VString^[1], ord(VString^[0]));
-        end;
-      vtAnsiString:
-        begin
-          isString := true;
-          result := RawUtf8(VAnsiString); // expect UTF-8 content
-        end;
-      {$ifdef HASVARUSTRING}
-      vtUnicodeString:
-        begin
-          isString := true;
-          RawUnicodeToUtf8(VUnicodeString,
-            length(UnicodeString(VUnicodeString)), result);
-        end;
-      {$endif HASVARUSTRING}
-      vtWideString:
-        begin
-          isString := true;
-          RawUnicodeToUtf8(VWideString, length(WideString(VWideString)), result);
-        end;
-      vtPChar:
-        begin
-          isString := true;
-          FastSetString(result, VPChar, StrLen(VPChar));
-        end;
-      vtChar:
-        begin
-          isString := true;
-          FastSetString(result, PAnsiChar(@VChar), 1);
-        end;
-      vtPWideChar:
-        begin
-          isString := true;
-          RawUnicodeToUtf8(VPWideChar, StrLenW(VPWideChar), result);
-        end;
-      vtWideChar:
-        begin
-          isString := true;
-          RawUnicodeToUtf8(@VWideChar, 1, result);
-        end;
-      vtBoolean:
-        if VBoolean then // normalize
-          result := SmallUInt32Utf8[1]
-        else
-          result := SmallUInt32Utf8[0];
-      vtInteger:
-        Int32ToUtf8(VInteger, result);
-      vtInt64:
-        Int64ToUtf8(VInt64^, result);
-      {$ifdef FPC}
-      vtQWord:
-        UInt64ToUtf8(VQWord^, result);
-      {$endif FPC}
-      vtCurrency:
-        Curr64ToStr(VInt64^, result);
-      vtExtended:
-        DoubleToStr(VExtended^,result);
-      vtPointer:
-        begin
-          isString := true;
-          PointerToHex(VPointer, result);
-        end;
-      vtClass:
-        begin
-          isString := true;
-          if VClass <> nil then
-            ClassToText(VClass, result)
-          else
-none:       result := '';
-        end;
-      vtObject:
-        if VObject <> nil then
-          ClassToText(PClass(VObject)^, result)
-        else
+  case V^.VType of
+    vtString: // assume UTF-8
+      begin
+        isString := true;
+        if V^.VString = nil then
           goto none;
-      vtInterface:
-      {$ifdef HASINTERFACEASTOBJECT}
-        if VInterface <> nil then
-          ClassToText((IInterface(VInterface) as TObject).ClassType, result)
+        FastSetString(result, @V^.VString^[1], ord(V^.VString^[0]));
+      end;
+    vtAnsiString:
+      begin
+        isString := true;
+        AnyAnsiToUtf8Var(RawByteString(V^.VAnsiString), result); // use codepage
+      end;
+    {$ifdef HASVARUSTRING}
+    vtUnicodeString:
+      begin
+        isString := true;
+        RawUnicodeToUtf8(V^.VUnicodeString,
+          length(UnicodeString(V^.VUnicodeString)), result);
+      end;
+    {$endif HASVARUSTRING}
+    vtWideString:
+      begin
+        isString := true;
+        RawUnicodeToUtf8(V^.VWideString, length(WideString(V^.VWideString)), result);
+      end;
+    vtPChar:
+      begin
+        isString := true;
+        FastSetString(result, V^.VPChar, mormot.core.base.StrLen(V^.VPChar));
+      end;
+    vtChar:
+      begin
+        isString := true;
+        FastSetString(result, PAnsiChar(@V^.VChar), 1);
+      end;
+    vtPWideChar:
+      begin
+        isString := true;
+        RawUnicodeToUtf8(V^.VPWideChar, StrLenW(V^.VPWideChar), result);
+      end;
+    vtWideChar:
+      begin
+        isString := true;
+        RawUnicodeToUtf8(@V^.VWideChar, 1, result);
+      end;
+    vtBoolean:
+      if V^.VBoolean then // normalize
+        result := SmallUInt32Utf8[1]
+      else
+        result := SmallUInt32Utf8[0];
+    vtInteger:
+      Int32ToUtf8(V^.VInteger, result);
+    vtInt64:
+      Int64ToUtf8(V^.VInt64^, result);
+    {$ifdef FPC}
+    vtQWord:
+      UInt64ToUtf8(V^.VQWord^, result);
+    {$endif FPC}
+    vtCurrency:
+      Curr64ToStr(V^.VInt64^, result);
+    vtExtended:
+      DoubleToStr(V^.VExtended^,result);
+    vtPointer:
+      Int32ToUtf8(PtrInt(V^.VPointer), result);
+    vtClass:
+      begin
+        isString := true;
+        if V^.VClass <> nil then
+          ClassToText(V^.VClass, result)
         else
-          goto none;
-      {$else}
-        PointerToHex(VInterface,result);
-      {$endif HASINTERFACEASTOBJECT}
-      vtVariant:
-        VariantToUtf8(VVariant^, result, isString);
-    else
-      goto none;
-    end;
+none:     FastAssignNew(result);
+      end;
+    vtObject:
+      if V^.VObject <> nil then
+        ClassToText(PClass(V^.VObject)^, result)
+      else
+        goto none;
+    vtInterface:
+    {$ifdef HASINTERFACEASTOBJECT}
+      if V^.VInterface <> nil then
+        ClassToText((IInterface(V^.VInterface) as TObject).ClassType, result)
+      else
+        goto none;
+    {$else}
+      PointerToHex(V^.VInterface, result);
+    {$endif HASINTERFACEASTOBJECT}
+    vtVariant:
+      VariantToUtf8(V^.VVariant^, result, isString);
+  else
+    goto none;
+  end;
   if wasString <> nil then
     wasString^ := isString;
 end;
 
 function VarRecToUtf8IsString(const V: TVarRec; var value: RawUtf8): boolean;
 begin
-  VarRecToUtf8(V, value, @result);
+  VarRecToUtf8(@V, value, @result);
 end;
 
 procedure VarRecToInlineValue(const V: TVarRec; var result: RawUtf8);
@@ -7866,7 +9053,7 @@ var
   wasString: boolean;
   tmp: RawUtf8;
 begin
-  VarRecToUtf8(V, tmp, @wasString);
+  VarRecToUtf8(@V, tmp, @wasString);
   if wasString then
     QuotedStr(tmp, '"', result)
   else
@@ -7893,36 +9080,43 @@ type
   {$endif USERECORDWITHMETHODS}
   public
     last: PTempUtf8;
-    L, argN: PtrInt;
+    L: PtrInt;
     blocks: array[0..63] of TTempUtf8; // to avoid most heap allocations
-    procedure Parse(const Format: RawUtf8; const Args: array of const);
+    procedure TooManyArgs;
+    procedure Parse(const Format: RawUtf8; Arg: PVarRec; ArgCount: PtrInt);
     procedure Add(const SomeText: RawUtf8);
-    procedure DoDelim(const Part: array of const; EndWithDelim: boolean;
-      Delim: AnsiChar; HiPart: integer);
-    procedure DoAppendLine(var Text: RawUtf8; Arg: PVarRec; ArgCount: integer;
-      const Separator: shortstring);
-    procedure DoPrepend(var Text: RawUtf8; Arg: PVarRec; ArgCount: integer);
+    procedure DoDelim(Arg: PVarRec; ArgCount: integer; EndWithDelim: boolean;
+      Delim: AnsiChar);
+    procedure DoAdd(Arg: PVarRec; ArgCount: integer);
+      {$ifdef HASINLINE} inline; {$endif}
+    procedure DoAppendLine(var Text: RawUtf8; Arg: PVarRec; ArgCount: PtrInt;
+      const Separator: ShortString);
+    procedure DoPrepend(var Text: RawUtf8; Arg: PVarRec;
+      ArgCount, CodePage: PtrInt);
     procedure Write(Dest: PUtf8Char);
-    procedure WriteUtf8(var result: RawUtf8);
     procedure WriteString(var result: string);
     function WriteMax(Dest: PUtf8Char; Max: PtrUInt): PUtf8Char;
   end;
 
-procedure TFormatUtf8.Parse(const Format: RawUtf8; const Args: array of const);
+procedure TFormatUtf8.TooManyArgs;
+begin
+  raise ESynException.Create('TFormatUtf8: too many arguments');
+end;
+
+procedure TFormatUtf8.Parse(const Format: RawUtf8; Arg: PVarRec; ArgCount: PtrInt);
 var
   F, FDeb: PUtf8Char;
   c: PTempUtf8;
 begin
-  if length(Args) * 2 >= high(blocks) then
-    raise ESynException.Create('FormatUtf8: too many args (max=32)');
+  if ArgCount >= length(blocks) div 2 then
+    TooManyArgs;
   L := 0;
-  argN := 0;
   c := @blocks;
   F := pointer(Format);
   repeat
     if F^ = #0 then
-      break;
-    if F^ <> '%' then
+      break
+    else if F^ <> '%' then
     begin
       FDeb := F;
       repeat
@@ -7938,19 +9132,20 @@ begin
         break;
     end;
     inc(F); // jump '%'
-    if argN <= high(Args) then
+    if ArgCount <> 0 then
     begin
-      inc(L, VarRecToTempUtf8(Args[argN], c^));
+      inc(L, VarRecToTempUtf8(Arg, c^));
       if c^.Len > 0 then
         inc(c);
-      inc(argN);
+      inc(Arg);
+      dec(ArgCount);
       if F^ = #0 then
         break;
     end
-    else // no more available Args -> add all remaining text
+    else
     if F^ = #0 then
       break
-    else
+    else // no more available Args -> add all remaining text
     begin
       c^.Text := F;
       c^.Len := length(Format) - (F - pointer(Format));
@@ -7963,43 +9158,44 @@ begin
   last := c;
 end;
 
-procedure TFormatUtf8.DoDelim(const Part: array of const; EndWithDelim: boolean;
-  Delim: AnsiChar; HiPart: integer);
+procedure TFormatUtf8.DoDelim(Arg: PVarRec; ArgCount: integer;
+  EndWithDelim: boolean; Delim: AnsiChar);
 var
   c: PTempUtf8;
-  p: PtrInt;
 begin
   L := 0;
-  c := @blocks;
-  for p := 0 to HiPart do
-  begin
-    if PtrUInt(c) > PtrUInt(@blocks[high(blocks)]) then
-      raise ESynException.Create('Too many args');
-    inc(L, VarRecToTempUtf8(Part[p], c^));
-    if (EndWithDelim and
-        (p = HiPart)) or
-       ((p <> HiPart) and
-        (c^.Len <> 0) and
-        (c^.Text[c^.Len - 1] <> Delim)) then
+  if ArgCount > 0 then
+    if ArgCount >= length(blocks) div 2 then
+      TooManyArgs
+    else
     begin
-      if c = @blocks[high(blocks)] then
-        raise ESynException.Create('Too many args');
-      inc(c);
-      c^.Len := 1;
-      c^.Text := @c^.Temp;
-      c^.Temp[0] := Delim;
-      c^.TempRawUtf8 := nil;
-      inc(L);
+      c := @blocks;
+      repeat
+        inc(L, VarRecToTempUtf8(Arg, c^)); // add param
+        inc(Arg);
+        if (c^.Len <> 0) and
+           (c^.Text[c^.Len - 1] <> Delim) and
+           (EndWithDelim or
+            (ArgCount <> 1)) then // append delimiter
+        begin
+          inc(c);
+          c^.Len := 1;
+          c^.Text := @c^.Temp;
+          c^.Temp[0] := Delim;
+          c^.TempRawUtf8 := nil;
+          inc(L);
+        end;
+        inc(c);
+        dec(ArgCount);
+      until ArgCount = 0;
+      last := c;
     end;
-    inc(c);
-  end;
-  last := c;
 end;
 
 procedure TFormatUtf8.Add(const SomeText: RawUtf8);
 begin
   if PtrUInt(last) > PtrUInt(@blocks[high(blocks)]) then
-    raise ESynException.Create('Too many args');
+    TooManyArgs;
   with last^ do
   begin
     Len := length(SomeText);
@@ -8010,18 +9206,38 @@ begin
   inc(last);
 end;
 
+procedure TFormatUtf8.DoAdd(Arg: PVarRec; ArgCount: integer);
+begin
+  L := 0;
+  last := @blocks;
+  if ArgCount <= 0 then
+    exit;
+  if ArgCount > length(blocks) then
+    TooManyArgs;
+  repeat
+    inc(L, VarRecToTempUtf8(Arg, last^));
+    inc(Arg);
+    inc(last);
+    dec(ArgCount)
+  until ArgCount = 0;
+end;
+
 procedure TFormatUtf8.DoAppendLine(var Text: RawUtf8;
-  Arg: PVarRec; ArgCount: integer; const Separator: shortstring);
+  Arg: PVarRec; ArgCount: PtrInt; const Separator: ShortString);
 var
   c: PTempUtf8;
 begin
   if ArgCount <= 0 then
-    exit;
-  argN := length(Text);
-  L := argN;
+    exit
+  else if ArgCount >= length(blocks) then
+    TooManyArgs;
+  L := length(Text);
   c := @blocks;
   if (Text <> '') and
-     (Separator[0] <> #0) then
+     (Separator[0] <> #0) and
+     (ord(Separator[0]) <= L) and // not already terminated by the Separator
+     not CompareMemSmall(@PByteArray(Text)[L - ord(Separator[0])],
+       @Separator[1], ord(Separator[0])) then
   begin
     c^.Len := ord(Separator[0]);
     inc(L, c^.Len);
@@ -8030,43 +9246,49 @@ begin
     inc(c);
   end;
   repeat
-    inc(L, VarRecToTempUtf8(Arg^, c^));
+    inc(L, VarRecToTempUtf8(Arg, c^));
     inc(Arg);
     inc(c);
     dec(ArgCount)
   until ArgCount = 0;
   last := c;
-  SetLength(Text, L); // realloc in-place and append the new text
-  Write(PUtf8Char(@PByteArray(Text)[argN]));
+  ArgCount := length(Text);
+  if ArgCount = L then // nothing to append
+    exit;
+  SetLength(Text, L); // realloc in-place
+  Write(PUtf8Char(@PByteArray(Text)[ArgCount])); // append Arg[] text
 end;
 
-procedure TFormatUtf8.DoPrepend(var Text: RawUtf8; Arg: PVarRec; ArgCount: integer);
+procedure TFormatUtf8.DoPrepend(var Text: RawUtf8; Arg: PVarRec;
+  ArgCount, CodePage: PtrInt);
 var
   c: PTempUtf8;
-  tmp: RawUtf8;
+  new: PUtf8Char;
 begin
   if ArgCount <= 0 then
     exit;
-  argN := length(Text);
-  L := argN;
+  L := length(Text);
   c := @blocks;
   repeat
-    inc(L, VarRecToTempUtf8(Arg^, c^));
+    inc(L, VarRecToTempUtf8(Arg, c^));
     inc(Arg);
     inc(c);
     dec(ArgCount)
   until ArgCount = 0;
   last := c;
-  tmp := Text;
-  FastSetString(Text, nil, L);
-  MoveFast(pointer(tmp)^, PByteArray(Text)[L - argN], argN);
-  Write(PUtf8Char(pointer(Text)));
+  ArgCount := length(Text);
+  new := pointer(FastNewString(L, CodePage));
+  MoveFast(pointer(Text)^, new[L - ArgCount], ArgCount);
+  FastAssignNew(Text, new);
+  Write(new);
 end;
 
 procedure TFormatUtf8.Write(Dest: PUtf8Char);
 var
   d: PTempUtf8;
 begin
+  if L = 0 then
+    exit;
   d := @blocks;
   repeat
     MoveFast(d^.Text^, Dest^, d^.Len); // no MoveByOne() - may be huge result
@@ -8081,50 +9303,43 @@ begin
   until d = last;
 end;
 
-procedure TFormatUtf8.WriteUtf8(var result: RawUtf8);
-begin
-  if L = 0 then
-    exit; // caller ensured that result=''
-  FastSetString(RawUtf8(result), nil, L);
-  Write(pointer(result));
-end;
-
 function TFormatUtf8.WriteMax(Dest: PUtf8Char; Max: PtrUInt): PUtf8Char;
 var
   d: PTempUtf8;
 begin
-  if Max > 0 then
+  if (Max > 0) and
+     (L <> 0) and
+     (Dest <> nil) then
   begin
     inc(Max, PtrUInt(Dest));
     d := @blocks;
-    if Dest <> nil then
-      repeat
-        if PtrUInt(Dest) + PtrUInt(d^.Len) > Max then
-        begin
-          // avoid buffer overflow
-          MoveFast(d^.Text^, Dest^, Max - PtrUInt(Dest));
-          repeat
-            if d^.TempRawUtf8 <> nil then
-              {$ifdef FPC}
-              FastAssignNew(d^.TempRawUtf8); // release temp RawUtf8
-              {$else}
-              RawUtf8(d^.TempRawUtf8) := '';
-              {$endif FPC}
-            inc(d);
-          until d = last; // avoid memory leak
-          result := PUtf8Char(Max);
-          exit;
-        end;
-        MoveFast(d^.Text^, Dest^, d^.Len);
-        inc(Dest, d^.Len);
-        if d^.TempRawUtf8 <> nil then
-          {$ifdef FPC}
-          FastAssignNew(d^.TempRawUtf8);
-          {$else}
-          RawUtf8(d^.TempRawUtf8) := '';
-          {$endif FPC}
-        inc(d);
-      until d = last;
+    repeat
+      if PtrUInt(Dest) + PtrUInt(d^.Len) > Max then
+      begin
+        // avoid buffer overflow
+        MoveFast(d^.Text^, Dest^, Max - PtrUInt(Dest));
+        repeat
+          if d^.TempRawUtf8 <> nil then
+            {$ifdef FPC}
+            FastAssignNew(d^.TempRawUtf8); // release temp RawUtf8
+            {$else}
+            RawUtf8(d^.TempRawUtf8) := '';
+            {$endif FPC}
+          inc(d);
+        until d = last; // avoid memory leak
+        result := PUtf8Char(Max);
+        exit;
+      end;
+      MoveFast(d^.Text^, Dest^, d^.Len);
+      inc(Dest, d^.Len);
+      if d^.TempRawUtf8 <> nil then
+        {$ifdef FPC}
+        FastAssignNew(d^.TempRawUtf8);
+        {$else}
+        RawUtf8(d^.TempRawUtf8) := '';
+        {$endif FPC}
+      inc(d);
+    until d = last;
   end;
   result := Dest;
 end;
@@ -8133,15 +9348,13 @@ procedure TFormatUtf8.WriteString(var result: string);
 var
   temp: TSynTempBuffer; // will avoid most memory allocations
 begin
+  result := '';
   if L = 0 then
-  begin
-    result := '';
     exit;
-  end;
   {$ifndef UNICODE}
   if Unicode_CodePage = CP_UTF8 then // e.g. on POSIX or Windows + Lazarus
   begin
-    WriteUtf8(RawUtf8(result)); // here string=UTF8String=RawUtf8
+    Write(FastSetString(RawUtf8(result), L)); // here string=UTF8String=RawUtf8
     exit;
   end;
   {$endif UNICODE}
@@ -8154,78 +9367,81 @@ end;
 procedure FormatUtf8(const Format: RawUtf8; const Args: array of const;
   out result: RawUtf8);
 var
-  process: TFormatUtf8;
+  f: TFormatUtf8;
 begin
   if (Format = '') or
      (high(Args) < 0) then // no formatting needed
     result := Format
-  else if PWord(Format)^ = ord('%') then    // optimize raw conversion
-    VarRecToUtf8(Args[0], result)
+  else if PWord(Format)^ = ord('%') then // optimize raw conversion
+    VarRecToUtf8(@Args[0], result)
   else
   begin
-    process.Parse(Format, Args);
-    process.WriteUtf8(result);
+    f.Parse(Format, @Args[0], length(Args)); // handle all supplied Args[]
+    f.Write(FastSetString(result, f.L));
   end;
 end;
 
 procedure FormatShort(const Format: RawUtf8; const Args: array of const;
   var result: ShortString);
 var
-  process: TFormatUtf8;
+  f: TFormatUtf8;
 begin
   if (Format = '') or
      (high(Args) < 0) then // no formatting needed
     SetString(result, PAnsiChar(pointer(Format)), length(Format))
   else
   begin
-    process.Parse(Format, Args);
-    result[0] := AnsiChar(process.WriteMax(@result[1], 255) - @result[1]);
+    f.Parse(Format, @Args[0], length(Args));
+    result[0] := AnsiChar(f.WriteMax(@result[1], 255) - @result[1]);
   end;
 end;
 
 function FormatBuffer(const Format: RawUtf8; const Args: array of const;
   Dest: pointer; DestLen: PtrInt): PtrInt;
-var
-  process: TFormatUtf8;
 begin
   if (Dest = nil) or
      (DestLen <= 0) then
-  begin
-    result := 0;
-    exit; // avoid buffer overflow
-  end;
-  process.Parse(Format, Args);
-  result := PtrUInt(process.WriteMax(Dest, DestLen)) - PtrUInt(Dest);
+    result := 0 // avoid buffer overflow
+  else
+    result := FormatBufferRaw(Format, @Args[0], length(Args),
+                Dest, DestLen) - PUtf8Char(Dest);
+end;
+
+function FormatBufferRaw(const Format: RawUtf8; Args: PVarRec; ArgsCount: PtrInt;
+  Dest: pointer; DestLen: PtrInt): PUtf8Char;
+var
+  f: TFormatUtf8;
+begin
+  f.Parse(Format, Args, ArgsCount);
+  result := f.WriteMax(Dest, DestLen);
 end;
 
 function FormatToShort(const Format: RawUtf8;
   const Args: array of const): ShortString;
-var
-  process: TFormatUtf8;
 begin
-  process.Parse(Format, Args);
-  result[0] := AnsiChar(process.WriteMax(@result[1], 255) - @result[1]);
+  result[0] := AnsiChar(FormatBufferRaw(
+    Format, @Args[0], length(Args), @result[1], 255) - @result[1]);
 end;
 
 procedure FormatShort16(const Format: RawUtf8; const Args: array of const;
   var result: TShort16);
 var
-  process: TFormatUtf8;
+  f: TFormatUtf8;
 begin
   if (Format = '') or
      (high(Args) < 0) then // no formatting needed
     SetString(result, PAnsiChar(pointer(Format)), length(Format))
   else
   begin
-    process.Parse(Format, Args);
-    result[0] := AnsiChar(process.WriteMax(@result[1], 16) - @result[1]);
+    f.Parse(Format, @Args[0], length(Args));
+    result[0] := AnsiChar(f.WriteMax(@result[1], 16) - @result[1]);
   end;
 end;
 
 procedure FormatString(const Format: RawUtf8; const Args: array of const;
   out result: string);
 var
-  process: TFormatUtf8;
+  f: TFormatUtf8;
 begin
   if (Format = '') or
      (high(Args) < 0) then
@@ -8233,8 +9449,8 @@ begin
     Utf8ToStringVar(Format, result)
   else
   begin
-    process.Parse(Format, Args);
-    process.WriteString(result);
+    f.Parse(Format, @Args[0], length(Args));
+    f.WriteString(result);
   end;
 end;
 
@@ -8244,7 +9460,7 @@ begin
 end;
 
 procedure AppendLine(var Text: RawUtf8; const Args: array of const;
-  const Separator: shortstring);
+  const Separator: ShortString);
 var
   f: TFormatUtf8;
 begin
@@ -8267,88 +9483,228 @@ begin
     FakeCodePage(Text, CP_RAWBYTESTRING);
 end;
 
+procedure _App1(res: PPtrUInt; add: pointer; len: PtrUInt; const cp: integer);
+  {$ifdef HASINLINE} inline; {$endif}
+var
+  t, r: PtrUInt;
+begin
+  t := res^;
+  if t = 0 then
+  begin
+    t := PtrUInt(FastNewString(len, cp)); // first time
+    res^ := t;
+  end
+  else
+  begin
+    t := PStrLen(t - _STRLEN)^;
+    SetLength(PRawUtf8(res)^, t + len); // realloc
+    r := res^;
+    inc(t, r);
+    {$ifdef HASCODEPAGE}
+    PStrRec(r - _STRRECSIZE)^.CodePage := cp;
+    {$endif HASCODEPAGE}
+  end;
+  MoveFast(add^, pointer(t)^, len);
+end;
+
+procedure _App2(var res: RawUtf8; const add1, add2: RawByteString; const cp: integer);
+  {$ifdef HASINLINE} inline; {$endif}
+var
+  l, a, a1, a2: PtrInt;
+begin
+  a1 := length(add1); // no automatic UTF-8 conversion involved
+  a2 := length(add2);
+  a := a1 + a2;
+  if a = 0 then
+    exit;
+  l := length(res);
+  SetLength(res, l + a);
+  {$ifdef HASCODEPAGE}
+  PStrRec(PAnsiChar(PtrUInt(res)) - _STRRECSIZE)^.CodePage := cp;
+  {$endif HASCODEPAGE}
+  MoveFast(pointer(add1)^, PByteArray(res)[l], a1);
+  MoveFast(pointer(add2)^, PByteArray(res)[l + a1], a2);
+end;
+
 procedure Append(var Text: RawUtf8; const Added: RawByteString);
 begin
   if Added <> '' then
-    Append(Text, pointer(Added), PStrLen(PtrUInt(Added) - _STRLEN)^);
+    _App1(@Text, pointer(Added), PStrLen(PtrUInt(Added) - _STRLEN)^, CP_UTF8);
 end;
 
 procedure Append(var Text: RawUtf8; const Added1, Added2: RawByteString);
-var
-  l, a1, a2: PtrInt;
 begin
-  l := length(Text);
-  a1 := length(Added1);
-  a2 := length(Added2);
-  SetLength(Text, l + a1 + a2);
-  MoveFast(pointer(Added1)^, PByteArray(Text)[l], a1);
-  MoveFast(pointer(Added2)^, PByteArray(Text)[l + a1], a2);
+  _App2(Text, Added1, Added2, CP_UTF8);
 end;
 
 procedure Append(var Text: RawUtf8; Added: AnsiChar);
-begin
-  Append(Text, @Added, 1);
-end;
-
-procedure Append(var Text: RawUtf8; Added: pointer; AddedLen: PtrInt);
 var
   t: PtrInt;
 begin
-  if (Added = nil) or (AddedLen <= 0) then
-    exit;
   t := length(Text);
-  SetLength(Text, t + AddedLen);
-  MoveFast(pointer(Added)^, PByteArray(Text)[t], AddedLen);
+  SetLength(Text, t + 1);
+  PByteArray(Text)[t] := ord(Added);
+end;
+
+procedure Append(var Text: RawUtf8; Added: pointer; AddedLen: PtrInt);
+begin
+  if (Added <> nil) and (AddedLen > 0) then
+    _App1(@Text, Added, AddedLen, CP_UTF8);
+end;
+
+procedure AppendStr(var Text: RawUtf8; const Added: ShortString);
+begin
+  if Added[0] <> #0 then
+    _App1(@Text, @Added[1], ord(Added[0]), CP_UTF8);
 end;
 
 procedure Append(var Text: RawByteString; const Added: RawByteString);
 begin
   if Added <> '' then
-    Append(Text, pointer(Added), PStrLen(PtrUInt(Added) - _STRLEN)^);
+    _App1(@Text, pointer(Added), PStrLen(PtrUInt(Added) - _STRLEN)^, CP_RAWBYTESTRING);
+end;
+
+procedure Append(var Text: RawByteString; const Added1, Added2: RawByteString);
+begin
+  _App2(RawUtf8(Text), Added1, Added2, CP_RAWBYTESTRING);
 end;
 
 procedure Append(var Text: RawByteString; Added: pointer; AddedLen: PtrInt);
-var
-  t: PtrInt;
 begin
-  if (Added = nil) or
-     (AddedLen <= 0) then
-    exit;
-  t := length(Text);
-  SetLength(Text, t + AddedLen);
-  MoveFast(Added^, PByteArray(Text)^[t], AddedLen);
-  if Text <> '' then
-    FakeCodePage(Text, CP_RAWBYTESTRING);
+  if (Added <> nil) and (AddedLen > 0) then
+    _App1(@Text, Added, AddedLen, CP_RAWBYTESTRING);
 end;
 
 procedure Prepend(var Text: RawUtf8; const Args: array of const);
 var
   f: TFormatUtf8;
 begin
-  {%H-}f.DoPrepend(Text, @Args[0], length(Args));
+  {%H-}f.DoPrepend(Text, @Args[0], length(Args), CP_UTF8);
+end;
+
+procedure Prepend(var Text: RawByteString; const Added: RawByteString);
+var
+  t, a: PtrInt;
+  new: PAnsiChar;
+begin
+  t := length(Text);
+  a := length(Added);
+  if a <> 0 then
+    if t = 0 then
+      Text := Added
+    else
+    begin
+      new := FastNewString(t + a);
+      MoveFast(PByteArray(Text)[0], new[a], t);
+      MoveFast(PByteArray(Added)[0], new[0], a);
+      FastAssignNew(Text, new);
+    end;
+end;
+
+procedure Prepend(var Text: RawByteString; Added: AnsiChar);
+var
+  t: PtrInt;
+begin
+  t := length(Text);
+  SetLength(Text, t + 1); // is likely to avoid any reallocmem
+  MoveFast(PByteArray(Text)[0], PByteArray(Text)[1], t);
+  PByteArray(Text)[0] := ord(Added);
 end;
 
 procedure Prepend(var Text: RawByteString; const Args: array of const);
 var
   f: TFormatUtf8;
 begin
-  {%H-}f.DoPrepend(RawUtf8(Text), @Args[0], length(Args));
-  if Text <> '' then
-    FakeCodePage(Text, CP_RAWBYTESTRING);
+  {%H-}f.DoPrepend(RawUtf8(Text), @Args[0], length(Args), CP_RAWBYTESTRING);
+end;
+
+function Make(const Args: array of const): RawUtf8;
+var
+  f: TFormatUtf8;
+begin
+  if high(Args) = 0 then
+  begin
+    VarRecToUtf8(@Args[0], result); // can be returned e.g. by reference
+    exit;
+  end;
+  {%H-}f.DoAdd(@Args[0], length(Args));
+  f.Write(FastSetString(result, f.L));
+end;
+
+procedure Make(const Args: array of const; var Result: RawUtf8;
+  const IncludeLast: RawUtf8);
+var
+  f: TFormatUtf8;
+begin
+  {%H-}f.DoAdd(@Args[0], length(Args));
+  if IncludeLast <> '' then
+    f.Add(IncludeLast);
+  f.Write(FastSetString(result, f.L));
+end;
+
+function MakeString(const Args: array of const): string;
+var
+  f: TFormatUtf8;
+begin
+  {%H-}f.DoAdd(@Args[0], length(Args));
+  f.WriteString(result);
 end;
 
 function MakePath(const Part: array of const; EndWithDelim: boolean;
   Delim: AnsiChar): TFileName;
 var
-  process: TFormatUtf8;
+  f: TFormatUtf8;
 begin
-  process.DoDelim(Part, EndWithDelim, Delim, high(Part));
-  process.WriteString(string(result));
+  {%H-}f.DoDelim(@Part[0], length(Part), EndWithDelim, Delim);
+  f.WriteString(string(result));
+end;
+
+function MakeExpandedPath(const Part: array of const; EndWithDelim: boolean): TFileName;
+begin
+  result := ExpandFileName(MakePath(Part, EndWithDelim));
+end;
+
+function EnsureDirectoryExists(const Part: array of const;
+  RaiseExceptionOnCreationFailure: ExceptionClass; NoExpand: boolean): TFileName;
+begin
+  result := EnsureDirectoryExists(MakePath(Part),
+    RaiseExceptionOnCreationFailure, NoExpand);
+end;
+
+function NormalizeDirectoryExists(const Part: array of const;
+  RaiseExceptionOnCreationFailure: ExceptionClass): TFileName;
+begin
+  result := EnsureDirectoryExists(NormalizeFileName(MakePath(Part)),
+    RaiseExceptionOnCreationFailure);
+end;
+
+function FileExistsMake(const Part: array of const;
+  SetIfFound: PFileName): boolean;
+var
+  filename: TFileName;
+begin
+  filename := MakePath(Part);
+  result := FileExists(filename);
+  if result and
+     (SetIfFound <> nil) then
+    SetIfFound^ := filename;
+end;
+
+function DirectoryExistsMake(const Part: array of const;
+  SetIfFound: PFileName): boolean;
+var
+  folder: TFileName;
+begin
+  folder := MakePath(Part);
+  result := DirectoryExists(folder);
+  if result and
+     (SetIfFound <> nil) then
+    SetIfFound^ := folder;
 end;
 
 function MakeFileName(const Part: array of const; LastIsExt: boolean): TFileName;
 var
-  process: TFormatUtf8;
+  f: TFormatUtf8;
   ext: RawUtf8;
   hipart: integer;
 begin
@@ -8358,26 +9714,24 @@ begin
        VarRecToUtf8IsString(Part[hipart], ext) then
       dec(hipart)
     else
-      LastIsExt := false;
-  process.DoDelim(Part, false, PathDelim, hipart);
-  if LastIsExt and
-     (ext <> '') then
+      ext := '';
+  f.DoDelim(@Part[0], hipart + 1, false, PathDelim);
+  if ext <> '' then
   begin
     if ext[1] <> '.' then
-      process.Add('.');
-    process.Add(ext);
+      f.Add('.');
+    f.Add(ext);
   end;
-  process.WriteString(string(result));
+  f.WriteString(string(result));
 end;
 
 function MakeCsv(const Value: array of const; EndWithComma: boolean;
   Comma: AnsiChar): RawUtf8;
 var
-  process: TFormatUtf8;
+  f: TFormatUtf8;
 begin
-  result := '';
-  process.DoDelim(Value, EndWithComma, Comma, high(Value));
-  process.WriteUtf8(result);
+  f.DoDelim(@Value[0], length(Value), EndWithComma, Comma);
+  f.Write(FastSetString(result, f.L));
 end;
 
 function StringToConsole(const S: string): RawByteString;
@@ -8390,6 +9744,8 @@ procedure ConsoleWrite(const Fmt: RawUtf8; const Args: array of const;
 var
   tmp: RawUtf8;
 begin
+  if not HasConsole then
+    exit;
   FormatUtf8(Fmt, Args, tmp);
   ConsoleWrite(tmp, Color, NoLineFeed);
 end;
@@ -8399,132 +9755,67 @@ procedure ConsoleWrite(const Args: array of const;
 var
   tmp: RawUtf8;
 begin
-  Append(tmp, Args);
+  if not HasConsole then
+    exit;
+  Make(Args, tmp);
   ConsoleWrite(tmp, Color, NoLineFeed);
 end;
 
-{$I-}
+procedure ConsoleWriteRaw(const Args: array of const; NoLineFeed: boolean);
+var
+  tmp: RawUtf8;
+begin
+  if not HasConsole then
+    exit;
+  Make(Args, tmp);
+  ConsoleWrite(tmp, ccLightGray, NoLineFeed, {nocolor=}true);
+end;
 
 procedure ConsoleShowFatalException(E: Exception; WaitForEnterKey: boolean);
 begin
-  ConsoleWrite(#13#10'Fatal exception ', cclightRed, true);
-  ConsoleWrite('%', [E.ClassType], ccWhite, true);
+  if not HasConsole then
+    exit;
+  ConsoleWrite(CRLF + 'Fatal exception ', ccLightRed, {nolinefeed=}true);
+  ConsoleWrite('%', [E], ccWhite, true);
   ConsoleWrite(' raised with message ', ccLightRed);
   ConsoleWrite('  %', [E.Message], ccLightMagenta);
-  TextColor(ccLightGray);
-  if WaitForEnterKey then
-  begin
-    writeln(#13#10'Program will now abort');
-    {$ifndef OSPOSIX}
-    writeln('Press [Enter] to quit');
-    ConsoleWaitForEnterKey;
-    {$endif OSPOSIX}
-  end;
-  ioresult;
+  if not WaitForEnterKey then
+    exit;
+  ConsoleWriteRaw(CRLF + 'Program will now abort');
+  {$ifndef OSPOSIX}
+  ConsoleWriteRaw('Press [Enter] to quit');
+  ConsoleWaitForEnterKey;
+  {$endif OSPOSIX}
 end;
-
-{$I+}
 
 
 { ************ Resource and Time Functions }
 
-procedure KB(bytes: Int64; out result: TShort16; nospace: boolean);
-type
-  TUnits = (kb, mb, gb, tb, pb, eb, b);
-const
-  TXT: array[{nospace:}boolean, TUnits] of RawUtf8 = (
-    (' KB', ' MB', ' GB', ' TB', ' PB', ' EB', '% B'),
-    ( 'KB',  'MB',  'GB',  'TB',  'PB',  'EB', '%B'));
-var
-  hi, rem: cardinal;
-  u: TUnits;
-begin
-  if bytes < 1 shl 10 - (1 shl 10) div 10 then
-  begin
-    FormatShort16(TXT[nospace, b], [integer(bytes)], result);
-    exit;
-  end;
-  if bytes < 1 shl 20 - (1 shl 20) div 10 then
-  begin
-    u := kb;
-    rem := bytes;
-    hi := bytes shr 10;
-  end
-  else if bytes < 1 shl 30 - (1 shl 30) div 10 then
-  begin
-    u := mb;
-    rem := bytes shr 10;
-    hi := bytes shr 20;
-  end
-  else if bytes < Int64(1) shl 40 - (Int64(1) shl 40) div 10 then
-  begin
-    u := gb;
-    rem := bytes shr 20;
-    hi := bytes shr 30;
-  end
-  else if bytes < Int64(1) shl 50 - (Int64(1) shl 50) div 10 then
-  begin
-    u := tb;
-    rem := bytes shr 30;
-    hi := bytes shr 40;
-  end
-  else if bytes < Int64(1) shl 60 - (Int64(1) shl 60) div 10 then
-  begin
-    u := pb;
-    rem := bytes shr 40;
-    hi := bytes shr 50;
-  end
-  else
-  begin
-    u := eb;
-    rem := bytes shr 50;
-    hi := bytes shr 60;
-  end;
-  rem := rem and 1023;
-  if rem <> 0 then
-    rem := rem div 102;
-  if rem = 10 then
-  begin
-    rem := 0;
-    inc(hi); // round up as expected by (most) human beings
-  end;
-  if rem <> 0 then
-    FormatShort16('%.%%', [hi, rem, TXT[nospace, u]], result)
-  else
-    FormatShort16('%%', [hi, TXT[nospace, u]], result);
-end;
-
-function KB(bytes: Int64): TShort16;
-begin
-  KB(bytes, result, {nospace=}false);
-end;
-
-function KBNoSpace(bytes: Int64): TShort16;
-begin
-  KB(bytes, result, {nospace=}true);
-end;
-
 function KB(bytes: Int64; nospace: boolean): TShort16;
 begin
-  KB(bytes, result, nospace);
+  result[0] := #0;
+  AppendKb(bytes, result, not nospace);
 end;
 
 function KB(const buffer: RawByteString): TShort16;
 begin
-  KB(length(buffer), result, {nospace=}false);
+  result[0] := #0;
+  AppendKb(length(buffer), result, {withspace=}true);
 end;
 
 procedure KBU(bytes: Int64; var result: RawUtf8);
 var
   tmp: TShort16;
 begin
-  KB(bytes, tmp, {nospace=}false);
+  tmp[0] := #0;
+  AppendKb(bytes, tmp, {withspace=}true);
   FastSetString(result, @tmp[1], ord(tmp[0]));
 end;
 
 procedure K(value: Int64; out result: TShort16);
 begin
-  KB(Value, result, {nospace=}true);
+  result[0] := #0;
+  AppendKb(value, result, {withspace=}false);
   if result[0] <> #0 then
     dec(result[0]); // just trim last 'B' ;)
 end;
@@ -8553,12 +9844,12 @@ end;
 
 function SecToString(S: QWord): TShort16;
 begin
-  MicroSecToString(S * 1000000, result);
+  MicroSecToString(S * MicroSecsPerSec, result);
 end;
 
 function MilliSecToString(MS: QWord): TShort16;
 begin
-  MicroSecToString(MS * 1000, result);
+  MicroSecToString(MS * MicroSecsPerMilliSec, result);
 end;
 
 function MicroSecToString(Micro: QWord): TShort16;
@@ -8574,66 +9865,84 @@ begin
   MicroSecToString(stop - Int64(Start), result);
 end;
 
-procedure By100ToTwoDigitString(value: cardinal; const valueunit: ShortString;
-  var result: TShort16);
+procedure AppendShortBy100(value: cardinal; const valueunit: ShortString;
+  var result: ShortString);
 var
   d100: TDiv100Rec;
 begin
   if value < 100 then
-    FormatShort16('0.%%', [UInt2DigitsToShortFast(value), valueunit], result)
+  begin
+    PCardinal(PAnsiChar(@result) + ord(result[0]) + 1)^ := ord('0') + ord('.') shl 8 +
+      cardinal(TwoDigitLookupW[value]) shl 16;
+    inc(result[0], 4);
+  end
   else
   begin
     Div100(value, d100{%H-});
-    if d100.m = 0 then
-      FormatShort16('%%', [d100.d, valueunit], result)
-    else
-      FormatShort16('%.%%', [d100.d, UInt2DigitsToShortFast(d100.m), valueunit], result);
+    AppendShortCardinal(d100.d, result);
+    if d100.m <> 0 then
+    begin
+      AppendShortChar('.', @result);
+      AppendShortTwoChars(TwoDigitLookupW[d100.m], @result);
+    end;
   end;
+  AppendShort(valueunit, result)
 end;
 
-procedure _TimeToString(value: cardinal; const u: ShortString;
-  var result: TShort16);
+procedure AppendShortTime(value: cardinal; const u: ShortString;
+  var result: ShortString);
 var
   d: cardinal;
 begin
   d := value div 60;
-  FormatShort16('%%%',
-    [d, u, UInt2DigitsToShortFast(value - (d * 60))], result);
+  AppendShortCardinal(d, result);
+  AppendShort(u, result);
+  AppendShortTwoChars(TwoDigitLookupW[value - (d * 60)], @result);
 end;
 
 procedure MicroSecToString(Micro: QWord; out result: TShort16);
 begin
-  if Int64(Micro) <= 0 then
+  result[0] := #0;
+  if Int64(Micro) <= 0 then // warning: QWord=Int64 on pre-Unicode Delphi
     PCardinal(@result)^ := 3 + ord('0') shl 8 + ord('u') shl 16 + ord('s') shl 24
-  else if Micro < 1000 then
-    FormatShort16('%us', [Micro], result)
+  else if Int64(Micro) < 1000 then
+  begin
+    AppendShortCardinal(Micro, result);
+    AppendShortTwoChars(ord('u') + ord('s') shl 8, @result);
+  end
   else if Micro < 1000000 then
-    By100ToTwoDigitString(
+    AppendShortBy100(
       {$ifdef CPU32} PCardinal(@Micro)^ {$else} Micro {$endif} div 10, 'ms', result)
   else if Micro < 60000000 then
-    By100ToTwoDigitString(
+    AppendShortBy100(
       {$ifdef CPU32} PCardinal(@Micro)^ {$else} Micro {$endif} div 10000, 's', result)
   else if Micro < QWord(3600000000) then
-    _TimeToString(
+    AppendShortTime(
       {$ifdef CPU32} PCardinal(@Micro)^ {$else} Micro {$endif} div 1000000, 'm', result)
   else if Micro < QWord(86400000000 * 2) then
-    _TimeToString(Micro div 60000000, 'h', result)
+    AppendShortTime(Micro div 60000000, 'h', result)
   else
-    FormatShort16('%d', [Micro div QWord(86400000000)], result)
+  begin
+    AppendShortCardinal(Micro div QWord(86400000000), result);
+    AppendShortChar('d', @result);
+  end;
 end;
 
 procedure NanoSecToString(Nano: QWord; out result: TShort16);
 begin
-  if Int64(Nano) <= 0 then
+  result[0] := #0;
+  if Int64(Nano) <= 0 then // warning: QWord=Int64 on pre-Unicode Delphi
     PCardinal(@result)^ := 3 + ord('0') shl 8 + ord('n') shl 16 + ord('s') shl 24
-  else if Nano > 9900 then
-    MicroSecToString(Nano div 1000, result)
-  else if Nano >= 1000 then
-    By100ToTwoDigitString(
+  else if Nano < 1000 then
+  begin
+    AppendShortCardinal(Nano, result);
+    AppendShortTwoChars(ord('n') + ord('s') shl 8, @result);
+  end
+  else if Nano < 1000000 then
+    AppendShortBy100(
       {$ifdef CPU32} PCardinal(@Nano)^ {$else} Nano {$endif} div 10, 'us', result)
   else
-    By100ToTwoDigitString(
-      {$ifdef CPU32} PCardinal(@Nano)^ {$else} Nano {$endif} * 100, 'ns', result);
+    MicroSecToString(Nano div NanoSecsPerMicroSec, result);
 end;
 
 
@@ -8659,7 +9968,7 @@ begin
   CreateAfterSetMessageUtf8;
 end;
 
-constructor ESynException.CreateLastOSError(const Format: RawUtf8;
+class procedure ESynException.RaiseLastOSError(const Format: RawUtf8;
   const Args: array of const; const Trailer: ShortString);
 var
   error: integer;
@@ -8668,7 +9977,13 @@ begin
   error := GetLastError;
   FormatUtf8('% 0x% [%] %', [Trailer, CardinalToHexShort(error),
     StringReplaceAll(GetErrorText(error), '%', '#'), Format], fmt);
-  CreateUtf8(fmt, Args);
+  raise CreateUtf8(fmt, Args);
+end;
+
+class procedure ESynException.RaiseUtf8(const Format: RawUtf8;
+  const Args: array of const);
+begin
+  raise CreateUtf8(Format, Args);
 end;
 
 {$ifndef NOEXCEPTIONINTERCEPT}
@@ -8677,7 +9992,8 @@ function DefaultSynLogExceptionToStr(WR: TTextWriter;
   const Context: TSynLogExceptionContext): boolean;
 var
   extcode: cardinal;
-  extnames: TPUtf8CharDynArray;
+  extnames: TPShortStringDynArray;
+  extname: PShortString;
   i: PtrInt;
 begin
   WR.AddClassName(Context.EClass);
@@ -8688,7 +10004,7 @@ begin
     extcode := Context.AdditionalInfo(extnames);
     if extcode <> 0 then
     begin
-      WR.AddShorter(' 0x');
+      WR.AddDirect(' ', '0', 'x');
       WR.AddBinToHexDisplayLower(@extcode, SizeOf(extcode));
       for i := 0 to high(extnames) do
       begin
@@ -8697,12 +10013,17 @@ begin
         {$else}
         WR.AddShort(' [unhandled ');
         {$endif OSWINDOWS}
-        WR.AddNoJSONEScape(extnames[i]);
+        extname := extnames[i];
+        if extname^[0] <> #0 then
+          if extname^[1] = '_' then // trim e.g. TDotNetException initial _ char
+            WR.AddNoJsonEscape(@extname^[2], ord(extname^[0]) - 1)
+          else
+            WR.AddShort(extname^);
         WR.AddShort('Exception]');
       end;
     end;
-    WR.Add(' ');
-    if WR.ClassType = TTextWriter then
+    WR.AddDirect(' ');
+    if PClass(WR)^ = TTextWriter then
       {$ifdef UNICODE}
       WR.AddOnSameLineW(pointer(Context.EInstance.Message), 0)
       {$else}
@@ -8713,9 +10034,9 @@ begin
   end
   else if Context.ECode <> 0 then
   begin
-    WR.Add(' ', '(');
+    WR.AddDirect(' ', '(');
     WR.AddPointer(Context.ECode);
-    WR.Add(')');
+    WR.AddDirect(')');
   end;
   result := false; // caller should append "at EAddr" and the stack trace
 end;
@@ -8732,12 +10053,317 @@ end;
 {$endif NOEXCEPTIONINTERCEPT}
 
 
-function StatusCodeToErrorMsg(Code: integer): ShortString;
+{ **************** HTTP/REST Common Headers Parsing (e.g. cookies) }
+
+const
+  // sorted by occurrence for in-order O(n) search via IntegerScanIndex()
+  METHODNAME: array[TUriMethod] of PUtf8Char = (
+    'GET',     // no mNone entry for efficient IntegerScanIndex()
+    'POST',
+    'PUT',
+    'DELETE',
+    'HEAD',
+    'BEGIN',
+    'END',
+    'ABORT',
+    'LOCK',
+    'UNLOCK',
+    'STATE',
+    'PATCH',
+    'OPTIONS',
+    '');
 var
-  msg: RawUtf8;
+  // quick O(n) search of the first 4 characters within L1 cache (56 bytes)
+  METHODNAME32: array[TUriMethod] of cardinal;
+
+function ToMethod(const method: RawUtf8): TUriMethod;
 begin
-  StatusCodeToReason(Code, msg);
-  FormatShort('HTTP Error % - %', [Code, msg], result);
+  case length(method) of
+    3 .. 7:
+      result := TUriMethod(IntegerScanIndex(@METHODNAME32, // may use SSE2
+        length(METHODNAME32) - 1, (PCardinal(method)^) and $dfdfdfdf) + 1);
+  else
+    result := mNone;
+  end;
+end;
+
+function ToText(m: TUriMethod): PUtf8Char;
+begin
+  dec(m); // METHODNAME[] has no mNone entry
+  if cardinal(m) < cardinal(ord(high(METHODNAME))) then
+    result := METHODNAME[m]
+  else
+    result := nil;
+end;
+
+const
+  // sorted by actual usage order for WordScanIndex() in matching HTTP_CODE[]
+  HTTP_REASON: array[0 .. 46] of RawUtf8 = (
+   'OK',                                // HTTP_SUCCESS - should be first
+   'No Content',                        // HTTP_NOCONTENT
+   'Temporary Redirect',                // HTTP_TEMPORARYREDIRECT
+   'Permanent Redirect',                // HTTP_PERMANENTREDIRECT
+   'Moved Permanently',                 // HTTP_MOVEDPERMANENTLY
+   'Bad Request',                       // HTTP_BADREQUEST
+   'Unauthorized',                      // HTTP_UNAUTHORIZED
+   'Forbidden',                         // HTTP_FORBIDDEN
+   'Not Found',                         // HTTP_NOTFOUND
+   'Method Not Allowed',                // HTTP_NOTALLOWED
+   'Not Modified',                      // HTTP_NOTMODIFIED
+   'Not Acceptable',                    // HTTP_NOTACCEPTABLE
+   'Partial Content',                   // HTTP_PARTIALCONTENT
+   'Payload Too Large',                 // HTTP_PAYLOADTOOLARGE
+   'Created',                           // HTTP_CREATED
+   'See Other',                         // HTTP_SEEOTHER
+   'Continue',                          // HTTP_CONTINUE
+   'Switching Protocols',               // HTTP_SWITCHINGPROTOCOLS
+   'Accepted',                          // HTTP_ACCEPTED
+   'Non-Authoritative Information',     // HTTP_NONAUTHORIZEDINFO
+   'Reset Content',                     // HTTP_RESETCONTENT
+   'Multi-Status',                      // 207
+   'Multiple Choices',                  // HTTP_MULTIPLECHOICES
+   'Found',                             // HTTP_FOUND
+   'Use Proxy',                         // HTTP_USEPROXY
+   'Proxy Authentication Required',     // HTTP_PROXYAUTHREQUIRED
+   'Request Timeout',                   // HTTP_TIMEOUT
+   'Conflict',                          // HTTP_CONFLICT
+   'Gone',                              // HTTP_GONE
+   'Length Required',                   // HTTP_LENGTHREQUIRED
+   'Precondition Failed',               // 412
+   'URI Too Long',                      // 414
+   'Unsupported Media Type',            // 415
+   'Requested Range Not Satisfiable',   // HTTP_RANGENOTSATISFIABLE
+   'I''m a teapot',                     // HTTP_TEAPOT
+   'Unprocessable Content',             // HTTP_UNPROCESSABLE_CONTENT
+   'Upgrade Required',                  // HTTP_UPGRADE_REQUIRED
+   'Too Many Requests',                 // HTTP_TOO_MANY_REQUESTS
+   'Internal Server Error',             // HTTP_SERVERERROR
+   'Not Implemented',                   // HTTP_NOTIMPLEMENTED
+   'Bad Gateway',                       // HTTP_BADGATEWAY
+   'Service Unavailable',               // HTTP_UNAVAILABLE
+   'Gateway Timeout',                   // HTTP_GATEWAYTIMEOUT
+   'HTTP Version Not Supported',        // HTTP_HTTPVERSIONNONSUPPORTED
+   'Network Authentication Required',   // 511
+   'Client Side Connection Error',      // HTTP_CLIENTERROR = 666
+   'Invalid Request');                  // 513 should be last INDEX_HTTP_INVALID
+  INDEX_HTTP_INVALID = high(HTTP_REASON);
+  HTTP_CODE: array[0 .. INDEX_HTTP_INVALID] of word = ( // match HTTP_REASON[]
+    HTTP_SUCCESS,
+    HTTP_NOCONTENT,
+    HTTP_TEMPORARYREDIRECT,
+    HTTP_PERMANENTREDIRECT,
+    HTTP_MOVEDPERMANENTLY,
+    HTTP_BADREQUEST,
+    HTTP_UNAUTHORIZED,
+    HTTP_FORBIDDEN,
+    HTTP_NOTFOUND,
+    HTTP_NOTALLOWED,
+    HTTP_NOTMODIFIED,
+    HTTP_NOTACCEPTABLE,
+    HTTP_PARTIALCONTENT,
+    HTTP_PAYLOADTOOLARGE,
+    HTTP_CREATED,
+    HTTP_SEEOTHER,
+    HTTP_CONTINUE,
+    HTTP_SWITCHINGPROTOCOLS,
+    HTTP_ACCEPTED,
+    HTTP_NONAUTHORIZEDINFO,
+    HTTP_RESETCONTENT,
+    207,
+    HTTP_MULTIPLECHOICES,
+    HTTP_FOUND,
+    HTTP_USEPROXY,
+    HTTP_PROXYAUTHREQUIRED,
+    HTTP_TIMEOUT,
+    HTTP_CONFLICT,
+    HTTP_GONE,
+    HTTP_LENGTHREQUIRED,
+    412,
+    414,
+    415,
+    HTTP_RANGENOTSATISFIABLE,
+    HTTP_TEAPOT,
+    HTTP_UNPROCESSABLE_CONTENT,
+    HTTP_UPGRADE_REQUIRED,
+    HTTP_TOO_MANY_REQUESTS,
+    HTTP_SERVERERROR,
+    HTTP_NOTIMPLEMENTED,
+    HTTP_BADGATEWAY,
+    HTTP_UNAVAILABLE,
+    HTTP_GATEWAYTIMEOUT,
+    HTTP_HTTPVERSIONNONSUPPORTED,
+    511,
+    HTTP_CLIENTERROR,
+    513); // INDEX_HTTP_INVALID = 'Invalid Request' - should be last
+
+function StatusCodeToText(Code: cardinal): PRawUtf8;
+var
+  i: PtrInt;
+begin
+  if Code <> 200 then // optimistic approach :)
+    if (Code <= HTTP_CLIENTERROR) and  // 100..666
+       (Code >= 100) then
+    begin
+      i := WordScanIndex(@HTTP_CODE, length(HTTP_CODE), Code); // may use SSE2
+      if i < 0 then
+        i := INDEX_HTTP_INVALID; // returns cached 513 'Invalid Request'
+    end
+    else
+      i := INDEX_HTTP_INVALID
+  else
+    i := 0;
+  result := @HTTP_REASON[i];
+end;
+
+procedure StatusCodeToReason(Code: cardinal; var Reason: RawUtf8);
+begin
+  Reason := StatusCodeToText(Code)^;
+end;
+
+function StatusCodeToShort(Code: cardinal): TShort47;
+begin
+  result[0] := #0;
+  if Code <> HTTP_CLIENTERROR then // hide the number of the beast
+  begin
+    if Code > 999 then
+      Code := 999; // ensure stay in TShort47 within standard HTTP 3-digits range
+    AppendShortCardinal(Code, result);
+    AppendShortChar(' ', @result);
+  end;
+  AppendShortAnsi7String(StatusCodeToText(Code)^, result);
+end;
+
+function StatusCodeToErrorMsg(Code: integer): RawUtf8;
+begin
+  FormatUtf8('HTTP Error % - %', [Code, StatusCodeToText(Code)^], result);
+end;
+
+function StatusCodeIsSuccess(Code: integer): boolean;
+begin
+  result := (Code >= HTTP_SUCCESS) and
+            (Code < HTTP_BADREQUEST); // 200..399
+end;
+
+function IsInvalidHttpHeader(head: PUtf8Char; headlen: PtrInt): boolean;
+var
+  i: PtrInt;
+  c: cardinal;
+begin
+  result := true;
+  for i := 0 to headlen - 3 do
+  begin
+    c := PCardinal(head + i)^;
+    if (c = $0a0d0a0d) or
+       (Word(c) = $0d0d) or
+       (Word(c) = $0a0a) then
+      exit;
+  end;
+  result := false;
+end;
+
+
+{ THttpCookies }
+
+procedure THttpCookies.Clear;
+begin
+  fCookies := nil;
+end;
+
+procedure THttpCookies.ParseServer(Head: PUtf8Char);
+var
+  count, plen, total: PtrInt;
+  p: PUtf8Char;
+  name, value: RawUtf8;
+  new: PHttpCookie;
+begin
+  fCookies := nil; // first Clear any previous cookie
+  count := 0;
+  total := 0;
+  while Head <> nil do
+  begin
+    // find all 'Cookie: name=value; name2=value2; name3=value3' lines
+    p := FindNameValuePointer(Head, 'COOKIE:', plen);
+    if p = nil then
+      break;
+    inc(total, plen);
+    if total > COOKIE_MAXSIZE_DOSATTACK then
+      ESynException.RaiseUtf8('RetrieveCookies got % cookies (>%)',
+        [KB(total), KB(COOKIE_MAXSIZE_DOSATTACK)]);
+    Head := GotoNextLine(p + plen);
+    // parse each line pairs
+    repeat
+      if IdemPChar(p, '__SECURE-') then
+        inc(p, 9); // e.g. if rsoCookieSecure is in Server.Options
+      GetNextItemTrimedLine(p, '=', name);
+      GetNextItemTrimedLine(p, ';', value);
+      if (name = '') and
+         (value = '') then
+        break;
+      if count >= COOKIE_MAXCOUNT_DOSATTACK then
+        raise ESynException.CreateU('RetrieveCookies overflow: DOS attempt?');
+      if count = length(fCookies) then
+        SetLength(fCookies, NextGrow(count));
+      new := @fCookies[count];
+      new^.Name := name;
+      new^.Value := value;
+      inc(count);
+    until p = nil; // next 'name2=value2; ...' pair
+  end;
+  if count <> 0 then
+    DynArrayFakeLength(fCookies, count);
+end;
+
+function THttpCookies.FindCookie(const CookieName: RawUtf8): PHttpCookie;
+var
+  i: integer;
+begin
+  result := nil;
+  if CookieName = '' then
+    exit;
+  result := pointer(fCookies);
+  if result = nil then
+    exit;
+  for i := 1 to length(fCookies) do
+    if result^.Name = CookieName then // cookies are case-sensitive
+      exit
+    else
+      inc(result);
+  result := nil;
+end;
+
+procedure THttpCookies.SetCookie(const CookieName, CookieValue: RawUtf8);
+var
+  n: PtrInt;
+  c: PHttpCookie;
+begin
+  c := FindCookie(CookieName);
+  if CookieName = '' then
+    exit;
+  if c = nil then // add a new cookie
+  begin
+    n := length(fCookies);
+    SetLength(fCookies, n + 1);
+    c := @fCookies[n];
+    c^.Name := CookieName;
+  end;
+  c^.Value := CookieValue; // may just replace an existing value
+end;
+
+function THttpCookies.GetCookie(const CookieName: RawUtf8): RawUtf8;
+begin
+  RetrieveCookie(CookieName, result);
+end;
+
+procedure THttpCookies.RetrieveCookie(const CookieName: RawUtf8;
+  out Value: RawUtf8);
+var
+  c: PHttpCookie;
+begin
+  if @self = nil then
+    exit;
+  c := FindCookie(CookieName);
+  if c <> nil then
+    Value := c^.Value;
 end;
 
 
@@ -8748,7 +10374,7 @@ var
   {$ifdef CPUX86NOTPIC}
   tab: TAnsiCharToWord absolute TwoDigitsHexW;
   {$else}
-  tab: ^TAnsiCharToWord; // faster on PIC, ARM and x86_64
+  tab: PAnsiCharToWord; // faster on PIC, ARM and x86_64
   {$endif CPUX86NOTPIC}
 begin
   {$ifndef CPUX86NOTPIC}
@@ -8768,27 +10394,26 @@ var
   L: integer;
 begin
   L := length(Bin);
-  FastSetString(result, nil, L * 2);
-  mormot.core.text.BinToHex(pointer(Bin), pointer(result), L);
+  mormot.core.text.BinToHex(pointer(Bin), FastSetString(result, L * 2), L);
 end;
 
 function BinToHex(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8;
 begin
-  FastSetString(result, nil, BinBytes * 2);
-  mormot.core.text.BinToHex(Bin, pointer(result), BinBytes);
+  mormot.core.text.BinToHex(Bin, FastSetString(result, BinBytes * 2), BinBytes);
 end;
 
 function HexToBin(Hex: PAnsiChar; HexLen: PtrInt;
   var Bin: RawByteString): boolean;
 begin
   Bin := '';
-  if HexLen and 1 <> 0 then
+  if (Hex = nil) or
+     (HexLen and 1 <> 0) then
   begin
     result := false;
-    exit; // hexadecimal should be in char pairs
+    exit; // hexadecimal should be not void, and in char pairs
   end;
   HexLen := HexLen shr 1;
-  pointer(Bin) := FastNewString(HexLen, CP_RAWBYTESTRING);
+  pointer(Bin) := FastNewString(HexLen);
   result := mormot.core.text.HexToBin(Hex, pointer(Bin), HexLen);
   if not result then
     Bin := '';
@@ -8799,37 +10424,142 @@ begin
   HexToBin(pointer(Hex), length(Hex), result);
 end;
 
-function ByteToHex(P: PAnsiChar; Value: byte): PAnsiChar;
+function HexaToByte(P: PUtf8Char; var Dest: byte): boolean;
+  {$ifdef HASINLINE}inline;{$endif}
+var
+  b, c: byte;
 begin
-  PWord(P)^ := TwoDigitsHexWB[Value];
-  result := P + 2;
+  b := ConvertHexToShl[P[0]];
+  if b <> 255 then
+  begin
+    c := ConvertHexToBin[P[1]];
+    if c <> 255 then
+    begin
+      inc(b, c);
+      Dest := b;
+      result := true;
+      exit;
+    end;
+  end;
+  result := false; // mark error
 end;
 
-procedure BinToHexDisplay(Bin, Hex: PAnsiChar; BinBytes: PtrInt);
+function HumanHexToBin(const hex: RawUtf8; var Bin: RawByteString): boolean;
 var
-  {$ifdef CPUX86NOTPIC}
-  tab: TAnsiCharToWord absolute TwoDigitsHexW;
-  {$else}
-  tab: ^TAnsiCharToWord; // faster on PIC, ARM and x86_64
-  {$endif CPUX86NOTPIC}
+  len: PtrInt;
+  h, p: PAnsiChar;
 begin
-  {$ifndef CPUX86NOTPIC}
-  tab := @TwoDigitsHexW;
-  {$endif CPUX86NOTPIC}
-  inc(Hex, BinBytes * 2);
-  if BinBytes > 0 then
-    repeat
-      dec(Hex, 2);
-      PWord(Hex)^ := tab[Bin^];
-      inc(Bin);
-      dec(BinBytes);
-    until BinBytes = 0;
+  Bin := '';
+  result := false;
+  len := length(hex);
+  if len = 0 then
+    exit;
+  p := FastNewString(len shr 1); // shr 1 = maximum length
+  pointer(Bin) := p;
+  h := pointer(hex);
+  repeat
+    while h^ = ' ' do
+      inc(h);
+    if not HexaToByte(pointer(h), PByte(p)^) then
+      break; // invalid 'xx' pair - may be len < 2
+    inc(p);
+    inc(h, 2);
+    dec(len, 2);
+    if len = 0 then
+    begin
+      result := true; // properly ended with 'xx' last hexa byte
+      break;
+    end;
+    while h^ = ' ' do
+      inc(h);
+    if h^ <> ':' then
+      continue;
+    dec(len);
+    if len = 0 then
+      break; // should not end with ':'
+    inc(h);
+  until false;
+  if result then
+    FakeLength(Bin, p - pointer(Bin))
+  else
+    Bin := '';
+end;
+
+function HumanHexCompare(a, b: PUtf8Char): integer;
+var
+  ca, cb: byte;
+begin
+  result := 0;
+  if a <> b then
+    if a <> nil then
+      if b <> nil then
+      begin
+        repeat
+          while a^ = ' ' do
+            inc(a);
+          while b^ = ' ' do
+            inc(b);
+          if not HexaToByte(pointer(a), ca{%H-}) or
+             not HexaToByte(pointer(b), cb{%H-}) then
+          begin
+            result := ComparePointer(a, b); // consistent but not zero
+            break;
+          end;
+          result := ca - cb;
+          if result <> 0 then
+            break;
+          inc(a, 2);
+          inc(b, 2);
+          while a^ = ' ' do
+            inc(a);
+          while b^ = ' ' do
+            inc(b);
+          case a^ of
+            #0:
+              begin
+                if b^ <> #0 then
+                  dec(result);
+                break;
+              end;
+            ':':
+              inc(a);
+          end;
+          case b^ of
+            #0:
+              begin
+                inc(result); // we know a^<>#0
+                break;
+              end;
+            ':':
+              inc(b);
+          end;
+        until false;
+      end
+      else
+        inc(result)
+    else
+      dec(result);
+end;
+
+function HumanHexCompare(const a, b: RawUtf8): integer;
+begin
+  result := HumanHexCompare(pointer(a), pointer(b));
+end;
+
+function HumanHexToBin(const hex: RawUtf8): RawByteString;
+begin
+  HumanHexToBin(hex, result);
+end;
+
+function ByteToHex(P: PAnsiChar; Value: byte): PAnsiChar;
+begin
+  PWord(P)^ := TwoDigitsHex[Value];
+  result := P + 2;
 end;
 
 function BinToHexDisplay(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8;
 begin
-  FastSetString(result, nil, BinBytes * 2);
-  BinToHexDisplay(Bin, pointer(result), BinBytes);
+  BinToHexDisplay(Bin, FastSetString(result, BinBytes * 2), BinBytes);
 end;
 
 procedure BinToHexLower(Bin, Hex: PAnsiChar; BinBytes: PtrInt);
@@ -8837,7 +10567,7 @@ var
   {$ifdef CPUX86NOTPIC}
   tab: TAnsiCharToWord absolute TwoDigitsHexWLower;
   {$else}
-  tab: ^TAnsiCharToWord; // faster on PIC, ARM and x86_64
+  tab: PAnsiCharToWord; // faster on PIC, ARM and x86_64
   {$endif CPUX86NOTPIC}
 begin
   {$ifndef CPUX86NOTPIC}
@@ -8859,8 +10589,7 @@ end;
 
 procedure BinToHexLower(Bin: PAnsiChar; BinBytes: PtrInt; var result: RawUtf8);
 begin
-  FastSetString(result, nil, BinBytes * 2);
-  BinToHexLower(Bin, pointer(result), BinBytes);
+  BinToHexLower(Bin, FastSetString(result, BinBytes * 2), BinBytes);
 end;
 
 function BinToHexLower(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8;
@@ -8868,34 +10597,18 @@ begin
   BinToHexLower(Bin, BinBytes, result);
 end;
 
-procedure BinToHexDisplayLower(Bin, Hex: PAnsiChar; BinBytes: PtrInt);
+procedure BinToHexLowerSelf(var Bin: RawByteString);
 var
-  {$ifdef CPUX86NOTPIC}
-  tab: TAnsiCharToWord absolute TwoDigitsHexWLower;
-  {$else}
-  tab: ^TAnsiCharToWord; // faster on PIC, ARM and x86_64
-  {$endif CPUX86NOTPIC}
+  hexa: RawUtf8;
 begin
-  if (Bin = nil) or
-     (Hex = nil) or
-     (BinBytes <= 0) then
-    exit;
-  {$ifndef CPUX86NOTPIC}
-  tab := @TwoDigitsHexWLower;
-  {$endif CPUX86NOTPIC}
-  inc(Hex, BinBytes * 2);
-  repeat
-    dec(Hex, 2);
-    PWord(Hex)^ := tab[Bin^];
-    inc(Bin);
-    dec(BinBytes);
-  until BinBytes = 0;
+  FastSetString(hexa, length(Bin) * 2);
+  BinToHexLower(pointer(Bin), length(Bin), hexa);
+  Bin := hexa;
 end;
 
 function BinToHexDisplayLower(Bin: PAnsiChar; BinBytes: PtrInt): RawUtf8;
 begin
-  FastSetString(result, nil, BinBytes * 2);
-  BinToHexDisplayLower(Bin, pointer(result), BinBytes);
+  BinToHexDisplayLower(Bin, FastSetString(result, BinBytes * 2), BinBytes);
 end;
 
 function BinToHexDisplayLowerShort(Bin: PAnsiChar; BinBytes: PtrInt): ShortString;
@@ -8914,10 +10627,12 @@ begin
   BinToHexDisplayLower(@Bin, @result[1], BinBytes);
 end;
 
-procedure BinToHexDisplayLowerShort16(Bin: Int64; BinBits: PtrInt;
+procedure BinBitsToHexDisplayLowerShort16(Bin: Int64; BinBits: PtrInt;
   var Result: TShort16);
 begin
   Result[0] := AnsiChar(BitsToBytes(BinBits) * 2);
+  if Result[0] > #16 then
+    Result[0] := #16;
   BinToHexDisplayLower(@Bin, @Result[1], ord(Result[0]) shr 1);
 end;
 
@@ -8939,42 +10654,50 @@ begin
 end;
 {$endif UNICODE}
 
-procedure PointerToHex(aPointer: Pointer; var result: RawUtf8);
+function TrimMinDisplayHex(Text: PUtf8Char; TextLen: PtrInt): PtrInt;
 begin
-  FastSetString(result, nil, SizeOf(Pointer) * 2);
-  BinToHexDisplay(@aPointer, pointer(result), SizeOf(Pointer));
+  while (TextLen <> 0) and
+        (Text[TextLen - 1] = '0') do
+    dec(TextLen);
+  result := TextLen;
 end;
 
-function PointerToHex(aPointer: Pointer): RawUtf8;
+procedure PointerToHex(aPointer: pointer; var result: RawUtf8);
+begin
+  BinToHexDisplay(@aPointer,
+    FastSetString(result, SizeOf(pointer) * 2), SizeOf(pointer));
+end;
+
+function PointerToHex(aPointer: pointer): RawUtf8;
 begin
   PointerToHex(aPointer, result);
 end;
 
 function CardinalToHex(aCardinal: cardinal): RawUtf8;
 begin
-  FastSetString(result, nil, SizeOf(aCardinal) * 2);
-  BinToHexDisplay(@aCardinal, pointer(result), SizeOf(aCardinal));
+  BinToHexDisplay(@aCardinal,
+    FastSetString(result, SizeOf(aCardinal) * 2), SizeOf(aCardinal));
 end;
 
 function CardinalToHexLower(aCardinal: cardinal): RawUtf8;
 begin
-  FastSetString(result, nil, SizeOf(aCardinal) * 2);
-  BinToHexDisplayLower(@aCardinal, pointer(result), SizeOf(aCardinal));
+  BinToHexDisplayLower(@aCardinal,
+    FastSetString(result, SizeOf(aCardinal) * 2), SizeOf(aCardinal));
 end;
 
 function Int64ToHex(aInt64: Int64): RawUtf8;
 begin
-  FastSetString(result, nil, SizeOf(Int64) * 2);
-  BinToHexDisplay(@aInt64, pointer(result), SizeOf(Int64));
+  BinToHexDisplay(@aInt64,
+    FastSetString(result, SizeOf(Int64) * 2), SizeOf(Int64));
 end;
 
 procedure Int64ToHex(aInt64: Int64; var result: RawUtf8);
 begin
-  FastSetString(result, nil, SizeOf(Int64) * 2);
-  BinToHexDisplay(@aInt64, pointer(result), SizeOf(Int64));
+  BinToHexDisplay(@aInt64,
+    FastSetString(result, SizeOf(Int64) * 2), SizeOf(Int64));
 end;
 
-function PointerToHexShort(aPointer: Pointer): TShort16;
+function PointerToHexShort(aPointer: pointer): TShort16;
 begin
   result[0] := AnsiChar(DisplayMinChars(@aPointer, SizeOf(aPointer)) * 2);
   BinToHexDisplayLower(@aPointer, @result[1], ord(result[0]) shr 1);
@@ -8991,18 +10714,17 @@ begin
   result := CardinalToHex(crc32c(0, pointer(str), length(str)));
 end;
 
-function Int64ToHexShort(aInt64: Int64): TShort16;
-begin
-  result[0] := AnsiChar(SizeOf(aInt64) * 2);
-  BinToHexDisplay(@aInt64, @result[1], SizeOf(aInt64));
-end;
-
 function ToHexShort(P: pointer; Len: PtrInt): TShort64;
 begin
+  if Len = 0 then
+  begin
+    result[0] := AnsiChar(Len);
+    exit;
+  end;
   if Len > 32 then
     Len := 32;
-  Len := DisplayMinChars(p, Len);
-  result[0] := AnsiChar(Len);
+  Len := DisplayMinChars(P, Len);
+  result[0] := AnsiChar(Len * 2);
   BinToHexDisplay(P, @result[1], Len);
 end;
 
@@ -9011,14 +10733,18 @@ var
   L: PtrInt;
 begin
   L := DisplayMinChars(@aInt64, SizeOf(Int64));
-  FastSetString(result, nil, L * 2);
-  BinToHexDisplay(@aInt64, pointer(result), L);
+  BinToHexDisplayLower(@aInt64, FastSetString(result, L * 2), L);
 end;
 
 procedure Int64ToHexShort(aInt64: Int64; out result: TShort16);
 begin
   result[0] := AnsiChar(SizeOf(aInt64) * 2);
   BinToHexDisplay(@aInt64, @result[1], SizeOf(aInt64));
+end;
+
+function Int64ToHexShort(aInt64: Int64): TShort16;
+begin
+  Int64ToHexShort(aInt64, result);
 end;
 
 function Int64ToHexString(aInt64: Int64): string;
@@ -9032,27 +10758,19 @@ end;
 function HexDisplayToBin(Hex: PAnsiChar; Bin: PByte; BinBytes: PtrInt): boolean;
 var
   b, c: byte;
-  {$ifdef CPUX86NOTPIC}
-  tab: THexToDualByte absolute ConvertHexToBin;
-  {$else}
-  tab: PByteArray; // faster on PIC, ARM and x86_64
-  {$endif CPUX86NOTPIC}
 begin
   result := false; // return false if any invalid char
   if (Hex = nil) or
      (Bin = nil) then
     exit;
-  {$ifndef CPUX86NOTPIC}
-  tab := @ConvertHexToBin;
-  {$endif CPUX86NOTPIC}
   if BinBytes > 0 then
   begin
     inc(Bin, BinBytes - 1); // display = reverse order
     repeat
-      b := tab[Ord(Hex[0]) + 256]; // + 256 for shl 4
+      b := ConvertHexToShl[Hex[0]];
       if b = 255 then
         exit;
-      c := tab[Ord(Hex[1])];
+      c := ConvertHexToBin[Hex[1]];
       if c = 255 then
         exit;
       Bin^ := b or c;
@@ -9087,25 +10805,18 @@ end;
 function HexToBin(Hex: PAnsiChar; Bin: PByte; BinBytes: PtrInt): boolean;
 var
   b, c: byte;
-  {$ifdef CPUX86NOTPIC}
-  tab: THexToDualByte absolute ConvertHexToBin;
-  {$else}
-  tab: PByteArray; // faster on PIC, ARM and x86_64
-  {$endif CPUX86NOTPIC}
+  tab: PByteArray;
 begin
   result := false; // return false if any invalid char
   if Hex = nil then
     exit;
-  {$ifndef CPUX86NOTPIC}
-  tab := @ConvertHexToBin;
-  {$endif CPUX86NOTPIC}
   if BinBytes > 0 then
     if Bin <> nil then
       repeat
-        b := tab[Ord(Hex[0]) + 256]; // + 256 for shl 4
+        b := ConvertHexToShl[Hex[0]];
         if b = 255 then
           exit;
-        c := tab[Ord(Hex[1])];
+        c := ConvertHexToBin[Hex[1]];
         if c = 255 then
           exit;
         inc(Hex, 2);
@@ -9114,6 +10825,8 @@ begin
         dec(BinBytes);
       until BinBytes = 0
     else
+    begin
+      tab := @ConvertHexToBin;
       repeat // Bin=nil -> validate Hex^ input
         if (tab[Ord(Hex[0])] > 15) or
            (tab[Ord(Hex[1])] > 15) then
@@ -9121,25 +10834,18 @@ begin
         inc(Hex, 2);
         dec(BinBytes);
       until BinBytes = 0;
+    end;
   result := true; // conversion OK
 end;
 
 procedure HexToBinFast(Hex: PAnsiChar; Bin: PByte; BinBytes: PtrInt);
 var
-  {$ifdef CPUX86NOTPIC}
-  tab: THexToDualByte absolute ConvertHexToBin;
-  {$else}
-  tab: PByteArray; // faster on PIC, ARM and x86_64
-  {$endif CPUX86NOTPIC}
   c: byte;
 begin
-  {$ifndef CPUX86NOTPIC}
-  tab := @ConvertHexToBin;
-  {$endif CPUX86NOTPIC}
   if BinBytes > 0 then
     repeat
-      c := tab[ord(Hex[0]) + 256]; // + 256 for shl 4
-      c := tab[ord(Hex[1])] or c;
+      c := ConvertHexToShl[Hex[0]];
+      c := ConvertHexToBin[Hex[1]] or c;
       Bin^ := c;
       inc(Hex, 2);
       inc(Bin);
@@ -9155,45 +10861,14 @@ end;
 
 function HexToCharValid(Hex: PAnsiChar): boolean;
 begin
-  result := (ConvertHexToBin[Ord(Hex[0])] <= 15) and
-            (ConvertHexToBin[Ord(Hex[1])] <= 15);
+  result := (ConvertHexToBin[Hex[0]] <= 15) and
+            (ConvertHexToBin[Hex[1]] <= 15);
 end;
 
 function HexToCharValid(Hex: PAnsiChar; HexToBin: PByteArray): boolean;
 begin
   result := (HexToBin[Ord(Hex[0])] <= 15) and
             (HexToBin[Ord(Hex[1])] <= 15);
-end;
-
-function HexToChar(Hex: PAnsiChar; Bin: PUtf8Char): boolean;
-var
-  b, c: byte;
-  {$ifdef CPUX86NOTPIC}
-  tab: THexToDualByte absolute ConvertHexToBin;
-  {$else}
-  tab: PByteArray; // faster on PIC, ARM and x86_64
-  {$endif CPUX86NOTPIC}
-begin
-  if Hex <> nil then
-  begin
-    {$ifndef CPUX86NOTPIC}
-    tab := @ConvertHexToBin;
-    {$endif CPUX86NOTPIC}
-    b := tab[ord(Hex[0]) + 256]; // + 256 for shl 4
-    c := tab[ord(Hex[1])];
-    if (b <> 255) and
-       (c <> 255) then
-    begin
-      if Bin <> nil then
-      begin
-        inc(c, b);
-        Bin^ := AnsiChar(c);
-      end;
-      result := true;
-      exit;
-    end;
-  end;
-  result := false; // return false if any invalid char
 end;
 
 function HexToChar(Hex: PAnsiChar; Bin: PUtf8Char; HexToBin: PByteArray): boolean;
@@ -9222,30 +10897,24 @@ end;
 function HexToWideChar(Hex: PUtf8Char): cardinal;
 var
   B: cardinal;
-  {$ifdef CPUX86NOTPIC}
-  tab: THexToDualByte absolute ConvertHexToBin;
-  {$else}
-  tab: PByteArray; // faster on PIC, ARM and x86_64
-  {$endif CPUX86NOTPIC}
+  tab: PAnsiCharToByte;
 begin
-  {$ifndef CPUX86NOTPIC}
   tab := @ConvertHexToBin;
-  {$endif CPUX86NOTPIC}
-  result := tab[ord(Hex[0])];
+  result := tab[Hex[0]];
   if result <= 15 then
   begin
     result := result shl 12;
-    B := tab[ord(Hex[1])];
+    B := tab[Hex[1]];
     if B <= 15 then
     begin
       B := B shl 8;
       inc(result, B);
-      B := tab[ord(Hex[2])];
+      B := tab[Hex[2]];
       if B <= 15 then
       begin
         B := B shl 4;
         inc(result, B);
-        B := tab[ord(Hex[3])];
+        B := tab[Hex[3]];
         if B <= 15 then
         begin
           inc(result, B);
@@ -9307,7 +10976,7 @@ end;
 function OctToBin(const Oct: RawUtf8): RawByteString;
 var
   tmp: TSynTempBuffer;
-  L: integer;
+  L: PtrInt;
 begin
   tmp.Init(length(Oct));
   try
@@ -9318,13 +10987,13 @@ begin
   end;
 end;
 
-function GuidToText(P: PUtf8Char; guid: PByteArray): PUtf8Char;
+function GuidToText(P: PUtf8Char; guid: PByteArray; tab: PWordArray): PUtf8Char;
 var
   i: PtrInt;
-  tab: PWordArray;
 begin
   // encode as '3F2504E0-4F89-11D3-9A0C-0305E82C3301'
-  tab := @TwoDigitsHexWB;
+  if tab = nil then
+    tab := @TwoDigitsHex; // uppercased hexa by default (as for GUID)
   for i := 3 downto 0 do
   begin
     PWord(P)^ := tab[guid[i]];
@@ -9353,86 +11022,108 @@ begin
   result := P;
 end;
 
-function GuidToRawUtf8(const guid: TGuid): RawUtf8;
+function GuidToRawUtf8({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): RawUtf8;
 var
   P: PUtf8Char;
 begin
-  FastSetString(result, nil, 38);
-  P := pointer(result);
+  P := FastSetString(result, 38);
   P^ := '{';
   GuidToText(P + 1, @guid)^ := '}';
 end;
 
-function ToUtf8(const guid: TGuid): RawUtf8;
+function ToUtf8({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): RawUtf8;
 begin
-  FastSetString(result, nil, 36);
-  GuidToText(pointer(result), @Guid);
+  ToUtf8(guid, result);
 end;
 
-function GuidToShort(const guid: TGuid): TGuidShortString;
+function NotNullGuidToUtf8({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): RawUtf8;
+begin
+  result := '';
+  if not IsNullGuid(guid) then
+    ToUtf8(guid, result);
+end;
+
+procedure ToUtf8({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif} guid: TGuid;
+  var text: RawUtf8; tab: PWordArray);
+begin
+  GuidToText(FastSetString(text, 36), @guid, tab);
+end;
+
+function GuidArrayToCsv(const guid: array of TGuid; SepChar: AnsiChar;
+  tab: PWordArray): RawUtf8;
+var
+  n: integer;
+  g: PGuid;
+  P: PUtf8Char;
+begin
+  result := '';
+  n := length(guid);
+  if n = 0 then
+    exit;
+  p := FastSetString(result, (37 * n) - 1);
+  g := @guid[0];
+  repeat
+    GuidToText(p, pointer(g), tab);
+    dec(n);
+    if n = 0 then
+      exit;
+    inc(p, 36);
+    p^ := SepChar;
+    inc(p);
+    inc(g);
+  until false;
+end;
+
+function GuidToShort({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): TGuidShortString;
 begin
   GuidToShort(Guid, result);
 end;
 
-procedure GuidToShort(const guid: TGuid; out dest: TGuidShortString);
+procedure GuidToShort({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid; out dest: TGuidShortString);
 begin
   dest[0] := #38;
   dest[1] := '{';
-  dest[38] := '}';
-  GuidToText(@dest[2], @guid);
+  GuidToText(@dest[2], @guid)^ := '}';
+end;
+
+function UuidToShort({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): TGuidShortString;
+begin
+  result[0] := #36;
+  GuidToText(@result[1], @guid, @TwoDigitsHexLower);
 end;
 
 {$ifdef UNICODE}
-function GuidToString(const guid: TGuid): string;
+function GuidToString({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  guid: TGuid): string;
 var
-  tmp: array[0..35] of AnsiChar;
-  i: integer;
+  tmp: TGuidShortString;
 begin
-  GuidToText(tmp, @guid);
-  SetString(result, nil, 38);
-  PWordArray(result)[0] := ord('{');
-  for i := 1 to 36 do
-    PWordArray(result)[i] := ord(tmp[i - 1]); // no conversion for 7-bit Ansi
-  PWordArray(result)[37] := ord('}');
+  GuidToShort(guid, tmp);
+  Ansi7ToString(@tmp[1], 38, result);
 end;
 {$else}
-function GuidToString(const guid: TGuid): string;
+function GuidToString(
+  {$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif} guid: TGuid): string;
 begin
   result := GuidToRawUtf8(guid);
 end;
 {$endif UNICODE}
 
-function HexaToByte(P: PUtf8Char; var Dest: byte; tab: PByteArray): boolean;
-  {$ifdef HASINLINE}inline;{$endif}
-var
-  b, c: byte;
-begin
-  b := tab[Ord(P[0]) + 256]; // + 256 for shl 4
-  if b <> 255 then
-  begin
-    c := tab[Ord(P[1])];
-    if c <> 255 then
-    begin
-      inc(b, c);
-      Dest := b;
-      result := true;
-      exit;
-    end;
-  end;
-  result := false; // mark error
-end;
-
 function TextToGuid(P: PUtf8Char; guid: PByteArray): PUtf8Char;
 var
   i: PtrInt;
-  tab: PByteArray;
 begin
   // decode from '3F2504E0-4F89-11D3-9A0C-0305E82C3301'
   result := nil;
-  tab := @ConvertHexToBin;
   for i := 3 downto 0 do
   begin
-    if not HexaToByte(P, guid[i], tab) then
+    if not HexaToByte(P, guid[i]) then
       exit;
     inc(P, 2);
   end;
@@ -9441,23 +11132,23 @@ begin
   begin
     if P^ = '-' then // '-' separators are optional
       inc(P);
-    if not HexaToByte(P, guid[1], tab) or
-       not HexaToByte(P + 2, guid[0], tab) then
+    if not HexaToByte(P, guid[1]) or
+       not HexaToByte(P + 2, guid[0]) then
       exit;
     inc(P, 4);
     inc(PByte(guid), 2);
   end;
   if P^ = '-' then
     inc(P);
-  if not HexaToByte(P, guid[0], tab) or // in reverse order than the previous loop
-     not HexaToByte(P + 2, guid[1], tab) then
+  if not HexaToByte(P, guid[0]) or // in reverse order than the previous loop
+     not HexaToByte(P + 2, guid[1]) then
     exit;
   inc(P, 4);
   inc(PByte(guid), 2);
   if P^ = '-' then
     inc(P);
   for i := 0 to 5 do
-    if HexaToByte(P, guid[i], tab) then
+    if HexaToByte(P, guid[i]) then
       inc(P, 2)
     else
       exit;
@@ -9495,16 +11186,21 @@ end;
 
 function RawUtf8ToGuid(const text: RawByteString; out guid: TGuid): boolean;
 begin
+  result := RawUtf8ToGuid(pointer(text), length(text), guid);
+end;
+
+function RawUtf8ToGuid(text: PUtf8Char; textlen: PtrInt; out guid: TGuid): boolean;
+begin
   result := true;
-  case length(text) of
+  case textlen of
     32, // '3F2504E04F8911D39A0C0305E82C3301' TextToGuid() order, not HexToBin()
     36: // '3F2504E0-4F89-11D3-9A0C-0305E82C3301' JSON compatible layout
-      if TextToGuid(pointer(text), @guid) <> nil then
+      if TextToGuid(text, @guid) <> nil then
         exit;
     38: // '{3F2504E0-4F89-11D3-9A0C-0305E82C3301}' regular layout
-      if (text[1] <> '{') or
-         (text[38] <> '}') or
-         (TextToGuid(@text[2], @guid) <> nil) then
+      if (text[0] = '{') and
+         (text[37] = '}') and
+         (TextToGuid(@text[1], @guid) <> nil) then
         exit;
   end;
   result := false;
@@ -9555,27 +11251,52 @@ begin
   end;
 end;
 
-function StreamToRawByteString(aStream: TStream): RawByteString;
+function _ShortToUuid(const text: ShortString; out uuid: TGuid): boolean;
+begin // much more efficient than default TryStringToGUID() in mormot.core.os
+  result := (text[0] = #36) and
+            (TextToGuid(@text[1], @uuid) <> nil);
+end;
+
+procedure _AppendShortUuid(const u: TGuid; var s: ShortString);
+begin // much more efficient than default GUIDToString() in mormot.core.os
+  if ord(s[0]) > 255 - 36 then
+    exit;
+  GuidToText(@s[ord(s[0]) + 1], @u, @TwoDigitsHexLower);
+  inc(s[0], 36);
+end;
+
+function StreamToRawByteString(aStream: TStream; aSize: Int64;
+  aCodePage: integer): RawByteString;
 var
-  current, size: Int64;
+  current: Int64;
 begin
   result := '';
   if aStream = nil then
     exit;
   current := aStream.Position;
   if (current = 0) and
-     aStream.InheritsFrom(TRawByteStringStream) then
+     aStream.InheritsFrom(TRawByteStringStream) and
+     ((aSize < 0) or
+      (aSize = length(TRawByteStringStream(aStream).DataString))) then
   begin
     result := TRawByteStringStream(aStream).DataString; // fast COW
     exit;
   end;
-  size := aStream.Size - current;
-  if (size = 0) or
-     (size > maxInt) then
+  if aSize < 0 then
+    aSize := aStream.Size - current;
+  if (aSize = 0) or
+     (aSize > maxInt) then // Delphi uses 32-bit length() even on Win64
     exit;
-  pointer(result) := FastNewString(size, CP_RAWBYTESTRING);
-  aStream.Read(pointer(result)^, size);
-  aStream.Position := current;
+  if aStream.InheritsFrom(TCustomMemoryStream) then
+  begin
+    FastSetStringCP(result, PAnsiChar(TCustomMemoryStream(aStream).
+      Memory) + current, aSize, aCodePage);
+    exit;
+  end;
+  pointer(result) := FastNewString(aSize, aCodePage);
+  if not StreamReadAll(aStream, pointer(result), aSize) then
+    result := '';
+  aStream.Position := current; // always restore position
 end;
 
 function StreamChangeToRawByteString(aStream: TStream; var aPosition: Int64): RawByteString;
@@ -9588,12 +11309,15 @@ begin
   size := aStream.Size - aPosition;
   if size <= 0 then
     exit; // nothing new
-  pointer(result) := FastNewString(size, CP_RAWBYTESTRING);
+  pointer(result) := FastNewString(size);
   current := aStream.Position;
-  aStream.Position := aPosition;
-  aStream.Read(pointer(result)^, size);
-  aStream.Position := current;
-  aPosition := current;
+  if aPosition <> current then
+    aStream.Position := aPosition;
+  if StreamReadAll(aStream, pointer(result), size) then
+    aPosition := current
+  else
+    result := '';
+  aStream.Position := current; // always restore position
 end;
 
 function RawByteStringToStream(const aString: RawByteString): TStream;
@@ -9605,14 +11329,11 @@ function ReadStringFromStream(S: TStream; MaxAllowedSize: integer): RawUtf8;
 var
   L: integer;
 begin
-  result := '';
   L := 0;
   if (S.Read(L, 4) <> 4) or
      (L <= 0) or
-     (L > MaxAllowedSize) then
-    exit;
-  FastSetString(result, nil, L);
-  if S.Read(pointer(result)^, L) <> L then
+     (L > MaxAllowedSize) or
+     not StreamReadAll(S, FastSetString(result, L), L) then
     result := '';
 end;
 
@@ -9632,9 +11353,18 @@ begin
     {$endif FPC}
 end;
 
-const // should be local for better code generation
-  HexChars:      array[0..15] of AnsiChar = '0123456789ABCDEF';
-  HexCharsLower: array[0..15] of AnsiChar = '0123456789abcdef';
+procedure HexLookup(lookup, hex: PAnsiChar);
+var
+  h, l: PtrInt;
+begin
+  for h := 0 to 15 do
+    for l := 0 to 15 do
+    begin
+      lookup[0] := hex[h];
+      lookup[1] := hex[l];
+      inc(lookup, 2);
+    end;
+end;
 
 procedure InitializeUnit;
 var
@@ -9642,45 +11372,35 @@ var
   v: byte;
   c: AnsiChar;
   P: PAnsiChar;
-  B: PByteArray;
+  B, B4: PByteArray;
+  m: TUriMethod;
   tmp: array[0..15] of AnsiChar;
 begin
   // initialize internal lookup tables for various text conversions
-  for i := 0 to 255 do
-  begin
-    TwoDigitsHex[i][1]      := HexChars[i shr 4];
-    TwoDigitsHex[i][2]      := HexChars[i and $f];
-    TwoDigitsHexLower[i][1] := HexCharsLower[i shr 4];
-    TwoDigitsHexLower[i][2] := HexCharsLower[i and $f];
-  end;
-  {$ifndef EXTENDEDTOSHORT_USESTR}
-  {$ifdef ISDELPHIXE}
-  SettingsUS := TFormatSettings.Create(ENGLISH_LANGID);
-  {$else}
-  GetLocaleFormatSettings(ENGLISH_LANGID, SettingsUS);
-  {$endif ISDELPHIXE}
-  SettingsUS.DecimalSeparator := '.'; // value may have been overriden :(
-  {$endif EXTENDEDTOSHORT_USESTR}
+  HexLookup(@TwoDigitsHex, '0123456789ABCDEF');
+  HexLookup(@TwoDigitsHexLower, '0123456789abcdef');
   {$ifdef DOUBLETOSHORT_USEGRISU}
   MoveFast(TwoDigitLookup[0], TwoDigitByteLookupW[0], SizeOf(TwoDigitLookup));
   for i := 0 to 199 do
     dec(PByteArray(@TwoDigitByteLookupW)[i], ord('0')); // '0'..'9' -> 0..9
   {$endif DOUBLETOSHORT_USEGRISU}
-  FillcharFast(ConvertHexToBin[0], SizeOf(ConvertHexToBin), 255); // all to 255
-  B := @ConvertHexToBin;
+  FillcharFast(ConvertHexToBin, SizeOf(ConvertHexToBin), 255); // all to 255
+  FillcharFast(ConvertHexToShl, SizeOf(ConvertHexToShl), 255);
+  B  := @ConvertHexToBin;
+  B4 := @ConvertHexToShl;
   v := 0;
   for i := ord('0') to ord('9') do
   begin
     B[i] := v;
-    B[i + 256] := v shl 4;
+    B4[i] := v shl 4;
     inc(v);
   end;
   for i := ord('A') to ord('F') do
   begin
     B[i] := v;
-    B[i + 256] := v shl 4;
+    B4[i] := v shl 4;
     B[i + (ord('a') - ord('A'))] := v;
-    B[i + (ord('a') - ord('A') + 256)] := v shl 4;
+    B4[i + (ord('a') - ord('A'))] := v shl 4;
     inc(v);
   end;
   for i := 0 to high(SmallUInt32Utf8) do
@@ -9690,7 +11410,29 @@ begin
   end;
   for c := #0 to #127 do
   begin
-    XML_ESC[c] := ord(c in [#0..#31, '<', '>', '&', '"', '''']);
+    case c of // follow XML_ESCAPED[] content
+      #0, #9:
+        v := 1;
+      #10:
+        v := 2;
+      #13:
+        v := 3;
+      '<':
+        v := 4;
+      '>':
+        v := 5;
+      '&':
+        v := 6;
+      '"':
+        v := 7;
+      '''':
+        v := 8;
+      #1..#8, #11, #12, #14..#31:
+        v := 9; // ignore invalid character - see http://www.w3.org/TR/xml/#NT-Char
+    else
+      v := 0;
+    end;
+    XML_ESC[c] := v;
     case c of // HTML_ESCAPED: array[1..4] = '&lt;', '&gt;', '&amp;', '&quot;'
       #0,
       '<':
@@ -9710,6 +11452,10 @@ begin
     if c in [#0, '&', '"'] then
       HTML_ESC[hfWithinAttributes, c] := v;
   end;
+  for m := low(METHODNAME32) to pred(high(METHODNAME32)) do
+    METHODNAME32[m] := PCardinal(METHODNAME[m])^;
+  ShortToUuid := _ShortToUuid;
+  AppendShortUuid := _AppendShortUuid;
   _VariantToUtf8DateTimeToIso8601 := __VariantToUtf8DateTimeToIso8601;
   _VariantSaveJson := __VariantSaveJson;
   TextWriterSharedStream := TRawByteStringStream.Create;

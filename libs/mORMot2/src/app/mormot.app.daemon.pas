@@ -49,7 +49,7 @@ type
     {$ifdef OSWINDOWS}
     fServiceDependencies: RawUtf8;
     {$endif OSWINDOWS}
-    fLog: TSynLogInfos;
+    fLog: TSynLogLevels;
     fLogRotateFileCount: integer;
     fLogPath: TFileName;
     fLogClass: TSynLogClass;
@@ -91,7 +91,7 @@ type
     property ServiceExecutable: TFileName
       read fServiceExecutable write fServiceExecutable;
     /// if not void, will enable the logs (default is LOG_STACKTRACE)
-    property Log: TSynLogInfos
+    property Log: TSynLogLevels
       read fLog write fLog;
     /// allow to customize where the logs should be written
     property LogPath: TFileName
@@ -117,11 +117,9 @@ type
     // - default is none '', so the executable name (with full path) will be used
     property ServiceExecutable;
     /// if not void, will enable the logs (default is LOG_STACKTRACE)
-    property Log: TSynLogInfos
-      read fLog write fLog;
+    property Log;
     /// allow to customize where the logs should be written
-    property LogPath: TFileName
-      read fLogPath write fLogPath;
+    property LogPath;
     /// how many files will be rotated (default is 2)
     property LogRotateFileCount;
   end;
@@ -158,13 +156,16 @@ type
   /// abstract parent to implements a POSIX Daemon / Windows Service
   // - inherit from this abstract class and override Start and Stop methods
   // - you may consider using TDDDAdministratedDaemon from dddInfraApps
+  // - note if upgrading from mORMot 1: SetLog() is now done in AfterCreate
   TSynDaemon = class(TSynPersistent)
   protected
     fConsoleMode: boolean;
-    fShowExceptionWaitEnter: boolean;
     fWorkFolderName: TFileName;
     fSettings: TSynDaemonAbstractSettings;
-    procedure AfterCreate; virtual; // call fSettings.SetLog() if not from tests
+    procedure BeforeCreate(const aWorkFolder: TFileName); virtual;
+    /// by default, calls fSettings.SetLog() if not running from tests
+    // - could be overriden to change this default behavior
+    procedure AfterCreate; virtual;
     {$ifdef OSWINDOWS}
     procedure DoStart(Sender: TService);
     procedure DoResume(Sender: TService);
@@ -178,12 +179,19 @@ type
     // - TSynDaemonSettings instance will be owned and freed by the daemon
     // - any non supplied folder name will be replaced by a default value
     // (executable folder under Windows, or /etc /var/log on Linux)
+    // - calls AfterCreate to call SetLog() by default
     constructor Create(aSettingsClass: TSynDaemonSettingsClass;
       const aWorkFolder, aSettingsFolder, aLogFolder: TFileName;
       const aSettingsExt: TFileName = '.settings';
       const aSettingsName: TFileName = '';
       aSettingsOptions: TSynJsonFileSettingsOptions = [];
-      const aSectionName: RawUtf8 = 'Main'); reintroduce;
+      const aSectionName: RawUtf8 = 'Main'); reintroduce; overload;
+    /// initialize the daemon, with an existing settings instance
+    // - the supplied aSettings will be owned by this main TSynDaemon
+    // - useful if you don't need to use our JSON settings persistence
+    // - calls AfterCreate to call SetLog() by default
+    constructor Create(aSettings: TSynDaemonSettings;
+      const aWorkFolder: TFileName = ''); reintroduce; overload;
     /// main entry point of the daemon, to process the command line switches
     // - aAutoStart is used only under Windows
     procedure CommandLine(aAutoStart: boolean = true);
@@ -197,7 +205,7 @@ type
     /// inherited class should override this abstract method with proper process
     procedure Start; virtual; abstract;
     /// inherited class should override this abstract method with proper process
-    // - should do nothing if the daemon was already stopped
+    // - should do nothing if the daemon was not running (e.g. already stopped)
     procedure Stop; virtual; abstract;
     /// inherited class should override this abstract method with proper process
     // - do nothing by default, but could handle SERVICE_CONTROL_CONTINUE signal
@@ -277,7 +285,7 @@ begin
   end
   else
     f.HighResolutionTimestamp := true;
-  f.Level := fLog;
+  f.Level := fLog; // should be set last if exception interception is needed
 end;
 
 
@@ -294,11 +302,7 @@ constructor TSynDaemon.Create(aSettingsClass: TSynDaemonSettingsClass;
 var
   fn: TFileName;
 begin
-  inherited Create; // may have been overriden
-  if aWorkFolder = '' then
-    fWorkFolderName := Executable.ProgramFilePath
-  else
-    fWorkFolderName := NormalizeDirectoryExists(aWorkFolder, true);
+  BeforeCreate(aWorkFolder);
   if aSettingsClass = nil then
     aSettingsClass := TSynDaemonSettings;
   fSettings := aSettingsClass.Create;
@@ -318,8 +322,24 @@ begin
         {$ifdef OSWINDOWS}fWorkFolderName{$else}GetSystemPath(spLog){$endif}
     else
       fSettings.LogPath := NormalizeDirectoryExists(aLogFolder);
-  fShowExceptionWaitEnter := true; // default/legacy behavior
-  AfterCreate;
+  AfterCreate; // call fSettings.SetLog(TSynLog) by default
+end;
+
+constructor TSynDaemon.Create(aSettings: TSynDaemonSettings;
+  const aWorkFolder: TFileName);
+begin
+  BeforeCreate(aWorkFolder);
+  fSettings := aSettings;
+  AfterCreate; // call fSettings.SetLog(TSynLog) by default
+end;
+
+procedure TSynDaemon.BeforeCreate(const aWorkFolder: TFileName);
+begin
+  inherited Create; // may have been overriden
+  if aWorkFolder = '' then
+    fWorkFolderName := Executable.ProgramFilePath
+  else
+    fWorkFolderName := NormalizeDirectoryExists(aWorkFolder, EDaemon);
 end;
 
 procedure TSynDaemon.AfterCreate;
@@ -384,8 +404,6 @@ begin
   result := '';
 end;
 
-{$I-} // no error raised during write/writeln
-
 procedure TSynDaemon.WriteCopyright;
 var
   msg, name, copyright: string;
@@ -400,14 +418,10 @@ begin
     name := copy(msg, 1, i - 1);
     copyright := copy(msg, i + 3, 1000);
   end;
-  TextColor(ccLightGreen);
-  writeln(' ', name);
-  writeln(StringOfChar('-', length(name) + 2));
-  TextColor(ccGreen);
+  ConsoleWrite([' ', name, CRLF, RawUtf8OfChar('-', length(name) + 2)], ccLightGreen);
   if {%H-}copyright <> '' then
-    writeln(' ', copyright);
-  writeln;
-  TextColor(ccLightGray);
+    ConsoleWrite([' ', copyright], ccGreen);
+  ConsoleWriteLn;
 end;
 
 procedure TSynDaemon.Command(cmd: TExecuteCommandLineCmd; aAutoStart: boolean;
@@ -422,29 +436,30 @@ var
 
   procedure ShowState(state: TServiceState);
   begin
-    writeln(Utf8ToConsole(fSettings.ServiceName), ' State=', ToText(state)^);
+    ConsoleWriteRaw([fSettings.ServiceName, ' State=', ToText(state)^]);
     ExitCode := ord(state); // transmit result to caller e.g. from a batch
   end;
 
   procedure Syntax;
   var
-    spaces, custom: string;
+    spaces: RawUtf8;
+    custom: string;
   begin
     WriteCopyright;
-    writeln('Try with one of the switches:');
-    spaces := StringOfChar(' ', length(Executable.ProgramName) + 4);
+    ConsoleWriteRaw('Try with one of the switches:');
+    spaces := RawUtf8OfChar(' ', length(Executable.ProgramName) + 4);
     {$ifdef OSWINDOWS}
-    writeln('   ', Executable.ProgramName,
-            ' /console -c /verbose /help -h /version');
-    writeln(spaces, '/install /uninstall /start /stop /state');
+    ConsoleWriteRaw(['   ', Executable.ProgramName,
+      ' /console -c /verbose /help -h /version', CRLF,
+      spaces, '/install /uninstall /start /stop /state']);
     {$else}
-    writeln(' ./', Executable.ProgramName,
-            ' --console -c --verbose --help -h --version');
-    writeln(spaces, '--run -r --fork -f --kill -k --silentkill --state');
+    ConsoleWriteRaw([' ./', Executable.ProgramName,
+      ' --console -c --verbose --help -h --version', CRLF,
+      spaces, '--run -r --fork -f --kill -k --silentkill --state']);
     {$endif OSWINDOWS}
     custom := CustomCommandLineSyntax;
     if custom <> '' then
-      writeln(spaces, custom);
+      ConsoleWriteRaw([spaces, custom]);
   end;
 
   function cmdText: RawUtf8;
@@ -456,18 +471,19 @@ var
   var
     msg: RawUtf8;
     error: integer;
+    cc: TConsoleColor;
   begin
     WriteCopyright;
     if Success then
     begin
       msg := 'Successfully executed';
-      TextColor(ccWhite);
+      cc := ccWhite;
     end
     else
     begin
       error := GetLastError;
       FormatUtf8('Error % [%] occurred with', [error, GetErrorText(error)], msg);
-      TextColor(ccLightRed);
+      cc := ccLightRed;
       ExitCode := 1; // notify error to caller batch
     end;
     if param = '' then
@@ -476,8 +492,7 @@ var
     else
       msg := FormatUtf8('% [%] (%) on Service ''%''',
         [msg, param, cmdText, fSettings.ServiceName]);
-    writeln(Utf8ToConsole(msg));
-    TextColor(ccLightGray);
+    ConsoleWrite(msg, cc);
     log.Log(sllDebug, 'CommandLine: %', [msg], self);
   end;
 
@@ -494,21 +509,21 @@ begin
       begin
         WriteCopyright;
         exe := StringFromFile(Executable.ProgramFileName);
-        writeln(' ', Utf8ToConsole(fSettings.ServiceName),
-          #13#10' Size:       ', length(exe), ' bytes (', KB(exe), ')' +
-          #13#10' Build date: ', Executable.Version.BuildDateTimeString,
-          #13#10' MD5:        ', Md5(exe),
-          #13#10' SHA256:     ', Sha256(exe));
-        writeln(' Running OS: ', OSVersionText);
+        ConsoleWriteRaw([' ', fSettings.ServiceName, CRLF +
+             ' Size:       ', length(exe), ' bytes (', KB(exe), ')' + CRLF +
+             ' Build date: ', Executable.Version.BuildDateTimeString, CRLF +
+             ' MD5:        ', Md5(exe), CRLF +
+             ' SHA256:     ', Sha256(exe), CRLF +
+             ' Running OS: ', OSVersionText]);
         if Executable.Version.Version32 <> 0 then
-          writeln(' Version:    ', Executable.Version.Detailed);
+          ConsoleWriteRaw([
+             ' Version:    ', Executable.Version.Detailed]);
       end;
     cConsole,
     cVerbose:
       begin
         WriteCopyright;
-        writeln('Launched in ', cmdText, ' mode'#10);
-        TextColor(ccLightGray);
+        ConsoleWriteRaw(['Launched in ', cmdText, ' mode'#10]);
         log := fSettings.fLogClass.Add;
         if (cmd = cVerbose) and
            (log <> nil) then
@@ -521,12 +536,10 @@ begin
             Executable.Version.DetailedOrVoid], self);
           fConsoleMode := true;
           Start;
-          writeln('Press [Enter] or Ctrl+C to quit');
-          ioresult;
+          ConsoleWriteRaw('Press [Enter] or Ctrl+C to quit');
           ConsoleWaitForEnterKey;
-          writeln('Shutting down server');
+          ConsoleWriteRaw('Shutting down server');
         finally
-          ioresult;
           log.Log(sllNewRun, 'Stop /%', [cmdText], self);
           Stop;
         end;
@@ -537,10 +550,7 @@ begin
       if cmd = cNone then
         Syntax
       else
-      begin
-        TextColor(ccLightRed);
-        writeln('No ServiceName specified - please fix the settings');
-      end
+        ConsoleWrite('No ServiceName specified - please fix the settings', ccLightRed)
     else
     case cmd of
       cNone:
@@ -613,8 +623,8 @@ begin
       if RunUntilSigTerminatedForKill then
       begin
         if cmd <> cSilentKill then
-          writeln('Forked process ',
-            Executable.ProgramName, ' killed successfully');
+          ConsoleWriteRaw(['Forked process ',
+            Executable.ProgramName, ' killed successfully']);
       end
       else
         raise EDaemon.Create('No forked process found to be killed');
@@ -628,13 +638,10 @@ begin
     on E: Exception do
     begin
       if cmd <> cSilentKill then
-        ConsoleShowFatalException(E, fShowExceptionWaitEnter);
-      ExitCode := 1; // indicates error
+        ConsoleShowFatalException(E, {waitforenterkey=} false);
+      ExitCode := 1; // notify failure on executing process
     end;
   end;
-  if cmd <> cSilentKill then
-    TextColor(ccLightGray);
-  ioresult;
 end;
 
 function TSynDaemon.CurrentState: TServiceState;
@@ -699,10 +706,7 @@ begin
       // allow e.g. --fork switch (idem to /f -f /fork -fork)
       inc(p);
     if CustomParseCmd(p) then
-    begin
-      TextColor(ccLightGray); // like Command()
       exit; // command has been identified and processed in overriden method
-    end;
     cmd := ParseCmd(p);
   end;
   Command(cmd, aAutoStart, param);

@@ -6,7 +6,7 @@
 }
 
 type
-  AlignToPtr = Pointer;
+  AlignToPtr = pointer;
 
 {$ifdef HASINLINE} // Delphi RTL TypInfo.GetTypeData() is awful on x86_64
 
@@ -156,7 +156,7 @@ asm     // eax=aTypeInfo edx=aIndex
         test    edx, edx
         jz      @z
         push    edx
-        shr     edx, 2 // fast by-four scanning
+        shr     edx, 2 // fast by-four scanning in L1 CPU cache
         jz      @1
 @4:     movzx   ecx, byte ptr [eax]
         lea     eax, [eax + ecx + 1]
@@ -207,7 +207,12 @@ end;
 
 function TRttiInterfaceTypeData.IntfParent: PRttiInfo;
 begin
-  result := Pointer(PTypeData(@self)^.IntfParent^);
+  result := pointer(PTypeData(@self)^.IntfParent^);
+end;
+
+function InterfaceEntryIsStandard(Entry: PInterfaceEntry): boolean;
+begin
+  result := Entry^.IOffset <> 0;
 end;
 
 function TRttiProp.TypeInfo: PRttiInfo;
@@ -376,13 +381,20 @@ begin
   end;
 end;
 
+const
+  // RawUtf8 is defined as weak system.UTF8String type in mormot.core.base
+  UTF8_NAME: string[7] = 'RawUtf8';
 
 function TRttiInfo.Name: PShortString;
 begin
-  if @self <> nil then
-    result := @RawName
+  result := pointer(@self);
+  if result <> nil then
+    if result <> TypeInfo(RawUtf8) then
+      result := @RawName   // as stored in RTTI
+    else
+      result := @UTF8_NAME // instead of 'UTF8String'
   else
-    result := @NULCHAR;
+    result := @NULCHAR;    // instead of a GPF
 end;
 
 function TRttiInfo.RecordSize: PtrInt;
@@ -422,8 +434,9 @@ type
 function TRttiInfo.RecordAllFields(out RecSize: PtrInt): TRttiRecordAllFields;
 var
   info: ^TRecordEnhancedTypeData;
+  r: PRttiRecordAllField;
   p: PRecordTypeField;
-  f: PtrInt;
+  f: integer;
 begin
   result := nil; // don't reallocate previous answer
   info := pointer(GetTypeData(@self));
@@ -432,24 +445,18 @@ begin
   inc(PByte(info), info^.NumOps * SizeOf(pointer));
   SetLength(result, info^.AllCount);
   p := @info^.AllFields[0];
-  for f := 0 to info^.AllCount - 1 do
-    begin
-      with result[f] do
-      begin
-        TypeInfo := pointer(p^.Field.TypeRef);
-        if TypeInfo = nil then
-        begin
-          // this field has no RTTI -> we can't trust it for serialization
-          result := nil;
-          exit;
-        end;
-        TypeInfo := PPointer(TypeInfo)^;
-        Offset := p^.Field.FldOffset;
-        Name := @p^.Name;
-      end;
-      p := pointer(PtrInt(@p^.Name[1]) + ord(p^.Name[0]));
-      inc(PByte(p), PWord(p)^); // jump attributes
-    end;
+  r := pointer(result);
+  for f := 1 to info^.AllCount do
+  begin
+    r^.TypeInfo := pointer(p^.Field.TypeRef);
+    if r^.TypeInfo <> nil then // may be nil e.g. for static arrays
+      r^.TypeInfo := PPointer(r^.TypeInfo)^;
+    r^.Offset := p^.Field.FldOffset;
+    r^.Name := @p^.Name;
+    inc(r);
+    p := pointer(PtrInt(@p^.Name[1]) + ord(p^.Name[0]));
+    inc(PByte(p), PWord(p)^); // jump attributes
+  end;
 end;
 
 {$else}
@@ -525,14 +532,15 @@ begin
   end;
 end;
 
-function TRttiInfo.ArrayItemType(out aDataCount, aDataSize: PtrInt): PRttiInfo;
+function TRttiInfo.ArrayItemTypeExtended(
+  out aDataCount, aDataSize: PtrInt): PRttiInfo;
 var
   nfo: PArrayInfo;
 begin
   // nfo^.DimCount=1 is not tested explicitly -> assume single dimension array
   nfo := pointer(GetTypeData(@self));
   aDataCount := nfo^.ElCount;
-  aDataSize := nfo^.ArraySize;
+  aDataSize := nfo^.Size;
   result := pointer(nfo^.ArrayType);
   if result <> nil then
     result := PPointer(result)^;
@@ -540,7 +548,7 @@ end;
 
 function TRttiInfo.ArraySize: PtrInt;
 begin
-  result := PArrayInfo(GetTypeData(@self))^.ArraySize;
+  result := PArrayInfo(GetTypeData(@self))^.Size;
 end;
 
 function GetPublishedMethods(Instance: TObject;
@@ -550,7 +558,7 @@ function GetPublishedMethods(Instance: TObject;
   type
     TMethodInfo = packed record
       Len: Word;
-      Addr: Pointer;
+      Addr: pointer;
       Name: ShortString;
     end;
   var
@@ -592,56 +600,36 @@ type
 
 /// fake TTypeInfo RTTI used for TGuid/THash128... on Delphi 7/2007
 {$ifdef HASNOSTATICRTTI}
-                       
-type
-  // enough Delphi RTTI for TRttiInfo.RecordManagedFields
-  TFakeTypeInfo = packed record
-    Kind: TTypeKind;
-    case integer of
-      5: (
-        Name5: string[5];
-        RecSize5: cardinal;
-        ManagedCount5: integer);
-      8: (
-        Name8: string[8];
-        RecSize8: cardinal;
-        ManagedCount8: integer);
-      9: (
-        Name9: string[9];
-        RecSize9: cardinal;
-        ManagedCount9: integer);
-  end;
 const
   _TGUID: TFakeTypeInfo = (    // stored in PT_INFO[ptGuid]
-    Kind: tkRecord;
+    Kind: rkRecord;
     Name5: 'TGUID';
     RecSize5: SizeOf(TGUID);
     ManagedCount5: 0);
 
   _THASH128: TFakeTypeInfo = ( // stored in PT_INFO[ptHash128]
-    Kind: tkRecord; // note: is a tkArray when HASNOSTATICRTTI
+    Kind: rkRecord; // note: is a tkArray when HASNOSTATICRTTI
     Name8: 'THash128';
     RecSize8: SizeOf(THash128);
     ManagedCount8: 0);
 
   _THASH256: TFakeTypeInfo = ( // stored in PT_INFO[ptHash256]
-    Kind: tkRecord;
+    Kind: rkRecord;
     Name8: 'THash256';
     RecSize8: SizeOf(THash256);
     ManagedCount8: 0);
 
   _THASH512: TFakeTypeInfo = ( // stored in PT_INFO[ptHash512]
-    Kind: tkRecord;
+    Kind: rkRecord;
     Name8: 'THash512';
     RecSize8: SizeOf(THash512);
     ManagedCount8: 0);
 
   _PUTF8CHAR: TFakeTypeInfo = ( // stored in PT_INFO[ptPUtf8Char]
-    Kind: tkRecord;  // don't mess with ordinals - just a record with a pointer
+    Kind: rkRecord;  // don't mess with ordinals - just a record with a pointer
     Name9: 'PUtf8Char';
     RecSize9: SizeOf(pointer);
     ManagedCount9: 0);
-
 {$endif HASNOSTATICRTTI}
 
 
@@ -746,7 +734,7 @@ end;
 
 const
   // gather rk* to reduce number of TRttiCustomListPairs hash slots in memory
-  RK_TOSLOT_MAX = 12;
+  RK_TOSLOT_MAX = {$ifdef NOPATCHVMT} 11 {$else} 10 {$endif NOPATCHVMT};
   RK_TOSLOT: array[TRttiKind] of byte = (
     0,  // rkUnknown
     1,  // rkInteger
@@ -755,17 +743,21 @@ const
     4,  // rkFloat
     0,  // rkSString
     5,  // rkSet
-    6,  // rkClass
+    {$ifdef NOPATCHVMT}
+    11, // rkClass
+    {$else}
+    4,  // vmtAutoTable is used instead of rkClass slot
+    {$endif NOPATCHVMT}
     0,  // rkMethod
-    7,  // rkWChar
-    8,  // rkLString
+    2,  // rkWChar
+    6,  // rkLString
     7,  // rkWString
-    9,  // rkVariant
-    0,  // rkArray
-    10, // rkRecord
-    9,  // rkInterface
-    11, // rkInt64
-    12  // rkDynArray
+    7,  // rkVariant
+    2,  // rkArray
+    8,  // rkRecord
+    7,  // rkInterface
+    9,  // rkInt64
+    10  // rkDynArray
     {$ifdef UNICODE} ,
     7,  // rkUString
     0,  // rkClassRef

@@ -94,13 +94,13 @@ type
   /// implements TRest.ORM process for abstract REST client/server
   TRestOrm = class(TRestOrmParent, IRestOrm)
   protected
+    fTempJsonWriterLock: TLightLock; // topmost to ensure proper aarch64 align
     fRest: TRest;
     fModel: TOrmModel; // owned by the TRest associated instance
     fCache: TOrmCache;
     fTransactionActiveSession: cardinal;
     fTransactionTable: TOrmClass;
     fTempJsonWriter: TJsonWriter;
-    fTempJsonWriterLock: TLightLock;
     /// compute SELECT ... FROM TABLE WHERE ...
     function SqlComputeForSelect(TableModelIndex: integer; Table: TOrmClass;
       const FieldNames, WhereClause: RawUtf8): RawUtf8;
@@ -264,7 +264,7 @@ type
     // - will use shared AcquireJsonWriter instance if available
     procedure GetJsonValue(Value: TOrm; withID: boolean; Occasion: TOrmOccasion;
       var Json: RawUtf8); overload;
-      {$ifdef FPC} inline; {$endif} // avoid URW1111 on Delphi 2010
+      {$ifdef FPC_OR_DELPHIXE} inline; {$endif} // avoid URW1111 on Delphi 2010
     /// access to a thread-safe internal cached TJsonWriter instance
     function AcquireJsonWriter(var tmp: TTextWriterStackBuffer): TJsonWriter;
       {$ifdef HASINLINE} inline; {$endif}
@@ -363,7 +363,6 @@ type
     procedure RetrieveAsyncListObjArray(Context: TObject; Table: TOrmClass;
       const FormatSqlWhere: RawUtf8; const BoundsSqlWhere: array of const;
       const OnResult: TOnRestOrmRetrieveArray; const FieldsCsv: RawUtf8 = '');
-
     function RetrieveList(Table: TOrmClass;
       const FormatSqlWhere: RawUtf8; const BoundsSqlWhere: array of const;
       const FieldsCsv: RawUtf8 = ''): TObjectList; overload;
@@ -491,10 +490,10 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     function LogFamily: TSynLogFamily;
       {$ifdef HASINLINE}inline;{$endif}
-    procedure InternalLog(const Text: RawUtf8; Level: TSynLogInfo); overload;
+    procedure InternalLog(const Text: RawUtf8; Level: TSynLogLevel); overload;
       {$ifdef HASINLINE}inline;{$endif}
-    procedure InternalLog(const Format: RawUtf8; const Args: array of const;
-      Level: TSynLogInfo = sllTrace); overload;
+    procedure InternalLog(Format: PUtf8Char; const Args: array of const;
+      Level: TSynLogLevel = sllTrace); overload;
     function GetServerTimestamp: TTimeLog;
       {$ifdef HASINLINE}inline;{$endif}
     function GetCurrentSessionUserID: TID; virtual;
@@ -795,7 +794,7 @@ begin
   result := fRest.LogFamily;
 end;
 
-procedure TRestOrm.InternalLog(const Text: RawUtf8; Level: TSynLogInfo);
+procedure TRestOrm.InternalLog(const Text: RawUtf8; Level: TSynLogLevel);
 begin
   fRest.InternalLog(Text, Level);
 end;
@@ -1075,7 +1074,7 @@ var
   T: TOrmTable;
   V: Int64;
   P: PUtf8Char;
-  field: shortstring;
+  field: ShortString;
 begin
   Data := nil;
   // handle naive expressions like SELECT ID from Table where ID=10
@@ -1244,7 +1243,7 @@ begin
   json := EngineList(t, sql, false, nil);
   if json <> '' then
     result := TOrmTableJson.CreateFromTables([Table], sql, json,
-      {ownjson=}PStrCnt(PAnsiChar(pointer(json)) - _STRCNT)^ = 1)
+      {ownjson=}(GetRefCount(json) = 1))
 end;
 
 function TRestOrm.MultiFieldValues(Table: TOrmClass;
@@ -1522,7 +1521,7 @@ var
   T: TOrmTable;
   v: variant;
 begin
-  TVarData(v).VType := varNull;
+  TSynVarData(v).VType := varNull;
   if (self <> nil) and
      (Table <> nil) then
   begin
@@ -1562,8 +1561,7 @@ begin
       doc.InitFast(T.RowCount, dvArray);
       doc.SetCount(T.RowCount);
       for row := 1 to T.RowCount do
-        T.GetAsVariant(row, 0, doc.Values[row - 1], false, false, false,
-          JSON_FAST);
+        T.GetAsVariant(row, 0, doc.Values[row - 1], false, false, false, JSON_FAST);
     finally
       T.Free;
     end;
@@ -1587,7 +1585,7 @@ begin
       // handle optimized primary key direct access
       if fCache.IsCached(Table) and
          (length(BoundsSqlWhere) = 1) and
-         VarRecToInt64(BoundsSqlWhere[0], Int64(ID)) and
+         VarRecToInt64(@BoundsSqlWhere[0], Int64(ID)) and
          FieldBitsFromCsv(FieldsCsv, bits) and
          (PropNameEquals('RowID=?', FormatSqlWhere) or
           PropNameEquals('ID=?', FormatSqlWhere)) then
@@ -1657,7 +1655,7 @@ begin
   end;
 end;
 
-function TRestOrm.NewEngineRetrieveAsync(
+function TRestOrm.{%H-}NewEngineRetrieveAsync(
   Context: TObject; Table: TOrmClass): TRestOrmEngineRetrieveAsync;
 begin
   raise EOrmAsyncException.CreateUtf8(
@@ -1796,7 +1794,7 @@ begin
   json := ExecuteJson(Tables, SQL, false, nil);
   if json <> '' then
     result := TOrmTableJson.CreateFromTables(Tables, SQL, json,
-      {ownjson=}PStrCnt(PAnsiChar(pointer(json)) - _STRCNT)^ = 1)
+      {ownjson=}(GetRefCount(json) = 1))
   else
     result := nil;
 end;
@@ -2200,7 +2198,7 @@ end;
 
 procedure TRestOrm.InternalBatchStop;
 begin
-  raise EOrmBatchException.CreateUtf8('Unexpected %.InternalBatchStop', [self]);
+  EOrmBatchException.RaiseUtf8('Unexpected %.InternalBatchStop', [self]);
 end;
 
 function TRestOrm.InternalBatchDirectSupport(Encoding: TRestBatchEncoding;
@@ -2252,10 +2250,9 @@ begin
      (aID <= 0) then
     exit;
   blob := Table.OrmProps.BlobFieldPropFromRawUtf8(BlobFieldName);
-  if blob = nil then
-    exit;
-  result := EngineRetrieveBlob(
-    fModel.GetTableIndexExisting(Table), aID, blob, BlobData);
+  if blob <> nil then
+    result := EngineRetrieveBlob(
+      fModel.GetTableIndexExisting(Table), aID, blob, BlobData);
 end;
 
 function TRestOrm.RetrieveBlob(Table: TOrmClass; aID: TID;
@@ -2292,22 +2289,12 @@ end;
 
 function TRestOrm.UpdateBlob(Table: TOrmClass; aID: TID;
   const BlobFieldName: RawUtf8; BlobData: TStream): boolean;
-var
-  data: RawBlob;
-  L: Int64;
 begin
-  result := false;
-  if (self = nil) or
-     (BlobData = nil) then
-    exit;
-  L := BlobData.Seek(0, soEnd);
-  if L > maxInt then
-    raise EOrmException.CreateUtf8('%.UpdateBlob: %.Size=%', [self, BlobData, L]);
-  SetLength(data, L);
-  BlobData.Seek(0, soBeginning);
-  if BlobData.Read(pointer(data)^, L) <> L then
-    exit;
-  result := UpdateBlob(Table, aID, BlobFieldName, data);
+  result := (self <> nil) and
+            (aID > 0) or
+            (BlobData <> nil) and
+            UpdateBlob(Table, aID, BlobFieldName,
+              StreamToRawByteString(BlobData, -1, CP_RAWBLOB));
 end;
 
 function TRestOrm.UpdateBlob(Table: TOrmClass; aID: TID;
@@ -2316,6 +2303,7 @@ var
   tmp: RawByteString;
 begin
   if (self = nil) or
+     (aID <= 0) or
      (BlobData = nil) or
      (BlobSize < 0) then
     result := false
@@ -2451,7 +2439,7 @@ begin
      (Batch = nil) then
     // no opened BATCH sequence
     exit;
-  InternalLog('BatchSend %', [Batch]);
+  fRest.InternalLog('BatchSend %', [Batch]);
   if Batch.PrepareForSending(json) then
     if json = '' then // i.e. Batch.Count=0
       result := HTTP_SUCCESS
@@ -2461,7 +2449,7 @@ begin
     except
       on Exception do
         // e.g. error during TRestServer.BatchSend()
-        result := HTTP_SERVERERROR;
+        result := HTTP_CLIENTERROR;
     end;
 end;
 
@@ -2567,8 +2555,8 @@ begin
   result := true; // always worth caching by default
 end;
 
-procedure TRestOrm.InternalLog(const Format: RawUtf8; const Args: array of const;
-  Level: TSynLogInfo);
+procedure TRestOrm.InternalLog(Format: PUtf8Char; const Args: array of const;
+  Level: TSynLogLevel);
 begin
   fRest.InternalLog(Format, Args, Level);
 end;
@@ -2610,7 +2598,7 @@ begin
       else
       try
         t := TOrmTableJson.CreateFromTables([Table], Sql, Json,
-          {ownjson=}PStrCnt(PAnsiChar(pointer(json)) - _STRCNT)^ = 1);
+          {ownjson=}(GetRefCount(Json) = 1));
         try
           t.ToObjArray(t, Table);
         finally
@@ -2642,7 +2630,7 @@ var
 begin
   if (FieldName = '') or
      (FieldIndex(FieldName) >= 0) then
-    raise EOrmTable.CreateUtf8('%.AddField(%) invalid fieldname', [self, FieldName]);
+    EOrmTable.RaiseUtf8('%.AddField(%) invalid fieldname', [self, FieldName]);
   // register the new field
   result := fFieldCount;
   inc(fFieldCount);
@@ -2654,7 +2642,7 @@ begin
   fJsonData := nil;
   {$ifndef NOTORMTABLELEN}
   prevlen := fLen;
-  fLen := nil; // SetResultsSafe() won't try to set fLen[]
+  fLen := nil; // now to ensure SetResultsSafe() won't try to set fLen[]
   {$endif NOTORMTABLELEN}
   n := (fRowCount + 1) * fFieldCount;
   // adjust data rows
@@ -2797,7 +2785,7 @@ begin
       if FieldIndex(fn) >= 0 then // ensure unique name
         for i := 2 to 100 do
         begin
-          fn := n + SmallUInt32Utf8[i];
+          mormot.core.base.Join([n, SmallUInt32Utf8[i]], fn);
           if FieldIndex(fn) < 0 then
             break;
         end;
@@ -2871,7 +2859,7 @@ begin
     begin
       rec.FillContext.Fill(fUpdatedRows[r]);
       if rec.IDValue = 0 then
-        raise EOrmTable.CreateUtf8('%.UpdatesToBatch: no %.ID map', [self, c]);
+        EOrmTable.RaiseUtf8('%.UpdatesToBatch: no %.ID map', [self, c]);
       upd := fUpdatedRowsFields[r];
       if upd = 0 then // more than 32 fields -> include all fields to batch
         bits := def32
@@ -2886,7 +2874,7 @@ begin
           begin
             p := props[f];
             if p < 0 then
-              raise EOrmTable.CreateUtf8(
+              EOrmTable.RaiseUtf8(
                 '%.UpdatesToBatch: Unexpected %.%', [self, c, Results[f]]);
             FieldBitSet(bits, p);
           end;
@@ -2894,7 +2882,7 @@ begin
         end;
       end;
       if Batch.Update(rec, bits, {donotautocompute:}true) < 0 then
-        raise EOrmTable.CreateUtf8(
+        EOrmTable.RaiseUtf8(
           '%.UpdatesToBatch: Batch.Update % failed', [self, rec]);
       inc(result);
     end;

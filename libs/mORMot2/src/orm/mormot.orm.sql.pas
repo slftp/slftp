@@ -99,7 +99,7 @@ type
     fBatchValues: TRawUtf8DynArray;
     // some sub-functions used by Create() during DB initialization
     procedure InitializeExternalDB(const log: ISynLog);
-    procedure LogFields(const log: ISynLog);
+    procedure RetrieveFieldsExternal(const log: ISynLog);
     procedure FieldsInternalInit;
     function FieldsExternalIndexOf(
       const ColName: RawUtf8; CaseSensitive: boolean): PtrInt;
@@ -586,11 +586,12 @@ begin
   result := true;
 end;
 
-procedure TRestStorageExternal.LogFields(const log: ISynLog);
+procedure TRestStorageExternal.RetrieveFieldsExternal(const log: ISynLog);
 begin
   fProperties.GetFields(UnQuotedSQLSymbolName(fTableName), fFieldsExternal);
-  log.Log(sllDebug, 'GetFields', TypeInfo(TSqlDBColumnDefineDynArray),
-    fFieldsExternal, self);
+  if Assigned(log) then
+    log.Log(sllDebug, 'GetFields', TypeInfo(TSqlDBColumnDefineDynArray),
+      fFieldsExternal, self);
 end;
 
 function TRestStorageExternal.FieldsExternalIndexOf(
@@ -624,10 +625,11 @@ begin
   fTableName := fStoredClassMapping^.TableName;
   fProperties :=
     fStoredClassMapping^.ConnectionProperties as TSqlDBConnectionProperties;
-  log.Log(sllInfo, '% as % % Server=%',
-    [StoredClass, fTableName, fProperties, Owner], self);
+  if Assigned(log) then
+    log.Log(sllInfo, '% as % % Server=%',
+      [StoredClass, fTableName, fProperties, Owner], self);
   if fProperties = nil then
-    raise ERestStorage.CreateUtf8('%.Create: no external DB defined for %',
+    ERestStorage.RaiseUtf8('%.Create: no external DB defined for %',
       [self, StoredClass]);
   // ensure external field names are compatible with the external DB keywords
   for f := 0 to StoredClassRecordProps.Fields.Count - 1 do
@@ -640,22 +642,24 @@ begin
         fStoredClassMapping^.MapField(nfo.Name, '"' + s + '"')
       else if fProperties.IsSqlKeyword(s) then
       begin
-        log.Log(sllWarning, '%.%: Field name % is not compatible with %',
-          [fStoredClass, nfo.Name, s, fProperties.DbmsEngineName], self);
+        if Assigned(log) then
+          log.Log(sllWarning, '%.%: Field name % is not compatible with %',
+            [fStoredClass, nfo.Name, s, fProperties.DbmsEngineName], self);
         if rpmAutoMapKeywordFields in options then
         begin
-          log.Log(sllWarning, '-> %.% mapped to %_',
-            [fStoredClass, nfo.Name, s], self);
+          if Assigned(log) then
+            log.Log(sllWarning, '-> %.% mapped to %_',
+              [fStoredClass, nfo.Name, s], self);
           fStoredClassMapping^.MapField(nfo.Name, s + '_');
         end
-        else
+        else if Assigned(log) then
           log.Log(sllWarning, '-> you should better use MapAutoKeywordFields', self);
       end;
     end;
   end;
   // create corresponding external table if necessary, and retrieve its fields info
   TableCreated := false;
-  LogFields(log);
+  RetrieveFieldsExternal(log);
   if not (rpmNoCreateMissingTable in options) then
     if fFieldsExternal = nil then
     begin
@@ -684,9 +688,9 @@ begin
         TableCreated := ExecuteDirect(s, [], [], false) <> nil;
       if TableCreated then
       begin
-        LogFields(log);
+        RetrieveFieldsExternal(log);
         if fFieldsExternal = nil then
-          raise ERestStorage.CreateUtf8(
+          ERestStorage.RaiseUtf8(
             '%.Create: external table creation % failed: GetFields() ' +
             'returned nil - sql=[%]', [self, StoredClass, fTableName, s]);
       end;
@@ -721,7 +725,7 @@ begin
                   if ExecuteDirect(s, [], [], false) <> nil then
                     TableModified := true
                   else
-                    raise ERestStorage.CreateUtf8('%.Create: %: ' +
+                    ERestStorage.RaiseUtf8('%.Create: %: ' +
                       'unable to create external missing field %.% - sql=[%]',
                       [self, StoredClass, fTableName, Fields.List[f].Name, s]);
               end;
@@ -729,7 +733,7 @@ begin
       if TableModified then
       begin
         // retrieve raw field information from DB after ALTER TABLE
-        LogFields(log);
+        RetrieveFieldsExternal(log);
         FieldsInternalInit;
       end;
     end;
@@ -758,8 +762,8 @@ var
   log: ISynLog;
 begin
   if aServer = nil then
-    raise ERestStorage.CreateUtf8('%.Create(%): aServer=%', [self, aClass, aServer]);
-  log := aServer.LogClass.Enter('Create %', [aClass], self);
+    ERestStorage.RaiseUtf8('%.Create(%): aServer=%', [self, aClass, aServer]);
+  aServer.LogClass.EnterLocal(log, 'Create %', [aClass], self);
   inherited Create(aClass, aServer);
   // initialize external DB process: setup ORM mapping, and create table/columns
   InitializeExternalDB(log);
@@ -805,7 +809,7 @@ begin
     end;
     if stmt.Offset <> 0 then
     begin
-      InternalLog('AdaptSqlForEngineList: unsupported OFFSET for [%]',
+      fRest.InternalLog('AdaptSqlForEngineList: unsupported OFFSET for [%]',
         [SQL], sllWarning);
       exit;
     end;
@@ -816,7 +820,7 @@ begin
       limit := fProperties.SqlLimitClause(stmt);
       if limit.Position = posNone then
       begin
-        InternalLog('AdaptSqlForEngineList: unknown % LIMIT syntax for [%]',
+        fRest.InternalLog('AdaptSqlForEngineList: unknown % LIMIT syntax for [%]',
           [ToText(fProperties.Dbms)^, SQL], sllWarning);
         exit;
       end;
@@ -837,26 +841,26 @@ begin
           if FunctionName <> '' then
           begin
             W.AddString(FunctionName);
-            W.Add('(');
+            W.AddDirect('(');
           end;
           if FunctionKnown = funcCountStar then
-            W.Add('*')
+            W.AddDirect('*')
           else
           begin
             W.AddString(fStoredClassMapping^.FieldNameByIndex(Field - 1));
             W.AddString(SubField);
           end;
           if FunctionName <> '' then
-            W.Add(')');
+            W.AddDirect(')');
           if ToBeAdded <> 0 then
           begin
             if ToBeAdded > 0 then
-              W.Add('+');
+              W.AddDirect('+');
             W.Add(ToBeAdded);
           end;
           if Alias <> '' then
           begin
-            W.AddShorter(' as ');
+            W.AddDirect(' ', 'a', 's', ' ');
             W.AddString(Alias);
           end
           else if not (Field in fStoredClassMapping^.FieldNamesMatchInternal) then
@@ -866,17 +870,17 @@ begin
             else
               // RowID may be reserved (e.g. for Oracle)
               name := fStoredClassRecordProps.Fields.List[Field - 1].name;
-            W.AddShorter(' as ');
+            W.AddDirect(' ', 'a', 's', ' ');
             if (FunctionName = '') or
                (FunctionKnown in [funcDistinct, funcMax]) then
               W.AddString(name)
             else
             begin
-              W.Add('"');
+              W.AddDirect('"');
               W.AddString(FunctionName);
-              W.Add('(');
+              W.AddDirect('(');
               W.AddString(name);
-              W.Add(')', '"');
+              W.AddDirect(')', '"');
             end;
           end;
           W.AddComma;
@@ -908,17 +912,18 @@ begin
             if (FunctionName <> '') or
                (Operation > high(DB_SQLOPERATOR)) then
             begin
-              InternalLog('AdaptSqlForEngineList: unsupported function %() for [%]',
+              fRest.InternalLog(
+                'AdaptSqlForEngineList: unsupported function %() for [%]',
                 [FunctionName, SQL], sllWarning);
               exit;
             end;
             if f > 0 then
               if JoinedOR then
-                W.AddShorter(' or ')
+                W.AddDirect(' ', 'o', 'r', ' ')
               else
                 W.AddShorter(' and ');
             if NotClause then
-              W.AddShorter('not ');
+              W.AddDirect('n', 'o', 't', ' ');
             if ParenthesisBefore <> '' then
               W.AddString(ParenthesisBefore);
             W.AddString(fStoredClassMapping^.FieldNameByIndex(Field - 1));
@@ -1027,7 +1032,7 @@ begin
     // lock protected by try..finally in TRestServer.RunBatch caller
     try
       if fBatchMethod <> mNone then
-        raise ERestStorage.CreateUtf8('Missing previous %.InternalBatchStop(%)',
+        ERestStorage.RaiseUtf8('Missing previous %.InternalBatchStop(%)',
           [self, StoredClass]);
       fBatchMethod := Method;
       fBatchOptions := BatchOptions;
@@ -1055,7 +1060,7 @@ var
   tmp: TSynTempBuffer;
 begin
   if fBatchMethod = mNone then
-    raise ERestStorage.CreateUtf8('%.InternalBatchStop(%).BatchMethod=mNone',
+    ERestStorage.RaiseUtf8('%.InternalBatchStop(%).BatchMethod=mNone',
       [self, StoredClass]);
   try
     if fBatchCount = 0 then
@@ -1395,7 +1400,7 @@ var
 begin
   result := '';
   if ReturnedRowCount <> nil then
-    raise ERestStorage.CreateUtf8('%.EngineList(ReturnedRowCount<>nil) for %',
+    ERestStorage.RaiseUtf8('%.EngineList(ReturnedRowCount<>nil) for %',
       [self, StoredClass]);
   stmt := PrepareInlinedForRows(SQL);
   if stmt <> nil then
@@ -1865,7 +1870,7 @@ begin
     ParamsCount := length(Params);
     if ParamsMatchCopiableFields and
        (ParamsCount <> Length(fStoredClassRecordProps.CopiableFields)) then
-      raise ERestStorage.CreateUtf8(
+      ERestStorage.RaiseUtf8(
         '%.ExecuteDirectSqlVar(ParamsMatchCopiableFields) for %',
         [self, StoredClass]);
     for f := 0 to ParamsCount - 1 do
@@ -2064,7 +2069,7 @@ begin
     conn := fProperties.ThreadSafeConnection;
     if conn.LastErrorWasAboutConnection then
     begin
-      InternalLog(
+      fRest.InternalLog(
         'HandleClearPoolOnConnectionIssue: ClearConnectionPool after %',
         [conn.LastErrorException], sllDB);
       fProperties.ClearConnectionPool;
@@ -2100,11 +2105,10 @@ begin
         if UpdatedID <> 0 then
           InsertedID := 0
         else
-          raise ERestStorage.CreateUtf8(
-            '%.ExecuteFromJson(%,soUpdate,UpdatedID=%)',
+          ERestStorage.RaiseUtf8('%.ExecuteFromJson(%,soUpdate,UpdatedID=%)',
             [self, StoredClass, UpdatedID]);
     else
-      raise ERestStorage.CreateUtf8('%.ExecuteFromJson(%,Occasion=%)?',
+      ERestStorage.RaiseUtf8('%.ExecuteFromJson(%,Occasion=%)?',
         [self, StoredClass, ToText(Occasion)^]);
     end;
     // decode fields
@@ -2187,7 +2191,7 @@ begin
       k := VIRTUAL_TABLE_ROWID_COLUMN
     else
     begin
-      k := fStoredClassRecordProps.Fields.IndexByName(Decoder.FieldNames[f]);
+      k := fStoredClassRecordProps.Fields.IndexByNameU(Decoder.FieldNames[f]);
       if k < 0 then
         k := -2;
     end;
@@ -2197,7 +2201,7 @@ begin
       k := fFieldsInternalToExternal[k + 1];
     end;
     if k < 0 then
-      raise ERestStorage.CreateUtf8(
+      ERestStorage.RaiseUtf8(
         '%.JsonDecodedPrepareToSql(%): No column for [%] field in table %',
         [self, StoredClass, Decoder.FieldNames[f], fTableName]);
     Types[f] := fFieldsExternal[k].ColumnType;
@@ -2213,12 +2217,13 @@ begin
     fStoredClassMapping^.RowIDFieldName, BatchOptions, fProperties.Dbms);
   if Occasion = ooUpdate then
     if Decoder.FieldCount = MAX_SQLFIELDS then
-      raise ERestStorage.CreateUtf8(
+      ERestStorage.RaiseUtf8(
         'Too many fields for %.JsonDecodedPrepareToSql', [self])
     else
     begin
       // add "where ID=?" parameter
       Types[Decoder.FieldCount] := ftInt64;
+      Decoder.FieldTypeApproximation[Decoder.FieldCount] := ftaNumber;
       inc(Decoder.FieldCount);
     end;
 end;
@@ -2242,7 +2247,7 @@ const
 function TRestStorageExternal.ComputeSql(
   var Prepared: TOrmVirtualTablePrepared): RawUtf8;
 var
-  WR: TJsonWriter;
+  WR: TTextWriter;
   i: PtrInt;
   where: POrmVirtualTablePreparedConstraint;
   order: ^TOrmVirtualTablePreparedOrderBy;
@@ -2258,7 +2263,7 @@ begin
     exit;
   end;
   result := '';
-  WR := TJsonWriter.CreateOwnedStream(temp);
+  WR := TTextWriter.CreateOwnedStream(temp);
   try
     WR.AddString(fSelectAllDirectSQL);
     where := @Prepared.Where;
@@ -2306,7 +2311,7 @@ begin
       if fStoredClassMapping^.AppendFieldName(order^.Column, WR) then
       begin
         // invalid "order" column index -> abort search and return ''
-        fRest.InternalLog('ComputeSql: unknown order % collumn',
+        fRest.InternalLog('ComputeSql: unknown order % column',
           [order^.Column], sllWarning);
         exit;
       end;
@@ -2436,7 +2441,7 @@ begin
         fStatement.ExecutePrepared;
         result := Next; // on execution success, go to the first row
       end;
-      storage.LogFamily.SynLog.Log(sllSQL, 'Search %', [fSql], self);
+      storage.LogFamily.Add.Log(sllSQL, 'Search %', [fSql], self);
     except
       self.HandleClearPoolOnConnectionIssue;
     end;

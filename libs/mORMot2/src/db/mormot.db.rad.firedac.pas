@@ -253,7 +253,7 @@ begin
     begin
       for p := Low(FIREDAC_PROVIDER) to high(FIREDAC_PROVIDER) do
         namevalue := ' ' + namevalue + FIREDAC_PROVIDER[p];
-      raise ESqlDBFireDac.CreateUtf8('%.Create: unknown provider - available:%',
+      ESqlDBFireDac.RaiseUtf8('%.Create: unknown provider - available:%',
         [self, namevalue]);
     end;
   if server = '' then
@@ -450,7 +450,7 @@ constructor TSqlDBFireDacConnection.Create(aProperties: TSqlDBConnectionProperti
 begin
   inherited Create(aProperties);
   fDatabase := TADConnection.Create(nil);
-  fDatabase.ResourceOptions.SilentMode := True; // no need for wait cursor
+  fDatabase.ResourceOptions.SilentMode := true; // no need for wait cursor
   fDatabase.LoginPrompt := false;
   fDatabase.Params.Text := (fProperties as TSqlDBFireDacConnectionProperties).
     fFireDacOptions.Text;
@@ -461,9 +461,9 @@ var
   Log: ISynLog;
 begin
   if fDatabase = nil then
-    raise ESqlDBFireDac.CreateUtf8('%.Connect(%): Database=nil',
+    ESqlDBFireDac.RaiseUtf8('%.Connect(%): Database=nil',
       [self, fProperties.ServerName]);
-  Log := SynDBLog.Enter('Connect to DriverID=% Database=%',
+  SynDBLog.EnterLocal(Log, 'Connect to DriverID=% Database=%',
     [FIREDAC_PROVIDER[fProperties.Dbms], fProperties.DatabaseName], self);
   try
     fDatabase.Open;
@@ -546,7 +546,7 @@ procedure TSqlDBFireDacStatement.Prepare(const aSQL: RawUtf8; ExpectResults: boo
 begin
   inherited;
   if fPreparedParamsCount <> fQueryParams.Count then
-    raise ESqlDBFireDac.CreateUtf8(
+    ESqlDBFireDac.RaiseUtf8(
       '%.Prepare() expected % parameters in request, found % - [%]',
       [self, fPreparedParamsCount, fQueryParams.Count, aSQL]);
 end;
@@ -715,7 +715,7 @@ begin
           else
             P.AsBlob := VData;
         else
-          raise ESqlDBFireDac.CreateUtf8(
+          ESqlDBFireDac.RaiseUtf8(
             '%.DataSetBindSqlParam: invalid type % on bound parameter #%',
             [Self,ord(VType),aParamIndex + 1]);
         end;   

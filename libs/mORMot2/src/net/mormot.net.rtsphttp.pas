@@ -6,7 +6,7 @@ unit mormot.net.rtsphttp;
 {
   *****************************************************************************
 
-   RTSP Stream Tunnelling over HTTP as defined by Apple at https://goo.gl/CX6VA3
+   RTSP Stream Tunnelling over HTTP as defined by Apple
    - Low-level HTTP and RTSP Connections
    - RTSP over HTTP Tunnelling 
 
@@ -14,6 +14,7 @@ unit mormot.net.rtsphttp;
 
   Encapsulate a RTSP TCP/IP duplex video stream into two HTTP links,
   one POST for upgoing commands, and one GET for downloaded video.
+  https://web.archive.org/web/20090706123224/developer.apple.com/quicktime/icefloe/dispatch028.html
 
   Thanks to TAsyncServer, it can handle thousands on concurrent streams,
   with minimal resources, in a cross-platform way.
@@ -80,8 +81,9 @@ type
   /// implements RTSP over HTTP asynchronous proxy
   // - the HTTP transport is built from two separate HTTP GET and POST requests
   // initiated by the client; the server then binds the connections to form a
-  // virtual full-duplex connection - see https://goo.gl/CX6VA3 for reference
-  // material about this horrible, but widely accepted, Apple hack
+  // virtual full-duplex connection - see for reference material about this
+  // horrible, but widely accepted, Apple hack:
+  // https://web.archive.org/web/20090706123224/developer.apple.com/quicktime/icefloe/dispatch028.html
   TRtspOverHttpServer = class(TAsyncServer)
   protected
     fRtspServer, fRtspPort: RawUtf8;
@@ -137,13 +139,13 @@ begin
     fOwner.LogVerbose(self, 'Frame forwarded', [], fRd);
   if fGetBlocking.TrySndLow(fRd.Buffer, fRd.Len) then
   begin
-    fOwner.Log.Add.Log(sllDebug, 'OnRead % RTSP forwarded % bytes to GET',
+    fOwner.LogClass.Add.Log(sllDebug, 'OnRead % RTSP forwarded % bytes to GET',
       [Handle, fRd.Len], self);
     result := soContinue;
   end
   else
   begin
-    fOwner.Log.Add.Log(sllDebug,
+    fOwner.LogClass.Add.Log(sllDebug,
       'OnRead % RTSP failed send to GET -> close % connection',
       [Handle, RemoteIP], self);
     result := soClose;
@@ -176,14 +178,14 @@ begin
   if rtsp <> nil then
   try
     fOwner.WriteString(rtsp, decoded); // async sending to RTSP server
-    fOwner.Log.Add.Log(sllDebug, 'OnRead % POST forwarded RTSP command [%]',
+    fOwner.LogClass.Add.Log(sllDebug, 'OnRead % POST forwarded RTSP command [%]',
       [Handle, decoded], self);
   finally
     fOwner.ConnectionLock.ReadOnlyUnLock;
   end
   else
   begin
-    fOwner.Log.Add.Log(sllDebug, 'OnRead % POST found no rtsp=%',
+    fOwner.LogClass.Add.Log(sllDebug, 'OnRead % POST found no rtsp=%',
       [Handle, fRtspTag], self);
     result := soClose;
   end;
@@ -206,7 +208,6 @@ constructor TRtspOverHttpServer.Create(
   const aOnStart, aOnStop: TOnNotifyThread; aOptions: TAsyncConnectionsOptions;
   aThreadPoolCount: integer);
 begin
-  fLog := aLog;
   fRtspServer := aRtspServer;
   fRtspPort := aRtspPort;
   fPendingGet := TRawUtf8List.CreateEx([fObjectsOwned, fCaseSensitive, fThreadSafe]);
@@ -218,7 +219,7 @@ destructor TRtspOverHttpServer.Destroy;
 var
   {%H-}log: ISynLog;
 begin
-  log := fLog.Enter(self, 'Destroy');
+  fLogClass.EnterLocal(log, self, 'Destroy');
   inherited Destroy;
   fPendingGet.Free;
 end;
@@ -226,7 +227,7 @@ end;
 type
   TProxySocket = class(THttpServerSocket)
   protected
-    fExpires: cardinal;
+    fExpires: cardinal; // shr MilliSecsPerSecShl
   published
     property Method;
     property URL;
@@ -258,7 +259,7 @@ begin
   aConnection := nil;
   get := nil;
   result := false;
-  log := fLog.Enter('ConnectionCreate(%)', [pointer(aSocket)], self);
+  fLogClass.EnterLocal(log, 'ConnectionCreate(%)', [pointer(aSocket)], self);
   try
     res := aSocket.MakeBlocking; // otherwise sock.GetRequest() fails
     if (res <> nrOK) and
@@ -268,7 +269,7 @@ begin
     try
       sock.AcceptRequest(aSocket, nil);
       aRemoteIp.IP(sock.fRemoteIP);
-      sock.CreateSockIn; // faster header process (released below once not needed)
+      sock.CreateSockIn; // faster header process (CloseSockIn below once done)
       parse := sock.GetRequest({withBody=}false, {headertix=}0);
       if (parse = grHeaderReceived) and
          (sock.URL <> '') then
@@ -282,18 +283,19 @@ begin
         fPendingGet.Safe.WriteLock;
         try
           found := -1;
-          now := GetTickCount64 shr 10;
+          now := GetTickCount64 shr MilliSecsPerSecShl;
           for i := fPendingGet.Count - 1 downto 0 do
           begin
             old := fPendingGet.ObjectPtr[i];
             if now > old.fExpires then
             begin
               if log <> nil then
-                log.Log(sllTrace, 'ConnectionCreate deletes deprecated %',
-                  [old], self);
+                log.Log(sllTrace,
+                  'ConnectionCreate deletes deprecated %', [old], self);
               fPendingGet.Delete(i);
             end
-            else if fPendingGet[i] = cookie then
+            else if (found < 0) and
+                    (fPendingGet[i] = cookie) then
               found := i;
           end;
           if IsGet(sock.Method) then
@@ -353,23 +355,17 @@ begin
     end;
     if get = nil then
       exit;
-    if not get.SockConnected then
-    begin
-      if log <> nil then
-        log.Log(sllDebug, 'ConnectionCreate: GET disconnected %', [get], self);
-      exit;
-    end;
     res := NewSocket(
       fRtspServer, fRtspPort, nlTcp, {bind=}false, 1000, 1000, 1000, 0, rtsp);
     if res <> nrOK then
-      raise ERtspOverHttp.CreateUtf8('No RTSP server on %:% (%)',
+      ERtspOverHttp.RaiseUtf8('No RTSP server on %:% (%)',
         [fRtspServer, fRtspPort, ToText(res)^]);
     // create the main POST connection and its associated RTSP connection
     postconn := TPostConnection.Create(self, aRemoteIp);
     rtspconn := TRtspConnection.Create(self, aRemoteIp);
     if not inherited ConnectionNew(aSocket, postconn) or
        not inherited ConnectionNew(rtsp, rtspconn) then
-      raise ERtspOverHttp.CreateUtf8('inherited %.ConnectionNew(%) % failed',
+      ERtspOverHttp.RaiseUtf8('inherited %.ConnectionNew(%) % failed',
         [self, aSocket, cookie]);
     aConnection := postconn;
     postconn.fRtspTag := rtspconn.Handle;
@@ -378,11 +374,11 @@ begin
     if (res <> nrOK) and
        (log <> nil) then
       log.Log(sllTrace, 'ConnectionCreate rtspconn.MakeAsync=%', [ToText(res)^], self);
-    if not fClients.Start(rtspconn) then
+    if not Sockets.Start(rtspconn) then
     begin
     if log <> nil then
       log.Log(sllWarning,
-        'ConnectionCreate fClients.Start failed for %', [rtspconn], self);
+        'ConnectionCreate Sockets.Start failed for %', [rtspconn], self);
       exit;
     end;
     get := nil;

@@ -33,8 +33,7 @@ LOGFILE="/tmp/debug.log"
 #here we will download/compile
 DEVDIR="$(pwd)/_dev"
 
-MIRROR_OPENSSL="http://artfiles.org/openssl.org/source/"
-# https://www.openssl.org/source/mirror.html
+MIRROR_OPENSSL="https://openssl-library.org/source/"
 
 MIRROR_SQLITE="https://www.sqlite.org/download.html"
 
@@ -93,7 +92,9 @@ function func_maxnum {
 }
 
 function func_openssl {
-  OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" | grep -v "fips" | grep -E "([0-9]{6,} bytes|[0-9]+\.?(0-9)*M)" | grep -o -E "[^\"]*openssl.+" | sed 's/".*//' | sed "s|^\([^fF][^tT][^pP][^:]\)|$MIRROR_OPENSSL\1|g")
+
+  OPENSSL_FILES=$(wget -O- -q "$MIRROR_OPENSSL" 2>/dev/null | grep -o -E "https://github.com/openssl/openssl/releases/download/[^\"]+openssl-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz" | grep -v "fips" | sort -u -t- -k2 -V || echo "")
+
   i=0
   echo "Available OpenSSL versions:"
   for FILE in $OPENSSL_FILES; do
@@ -123,10 +124,19 @@ function func_openssl {
 
 function func_openssl_dlinst {
   wget "$OPENSSL_FILE" -O "$DEVDIR/$OPENSSL_FILENAME"
-  wget "${OPENSSL_FILE}.sha256" -O "$DEVDIR/${OPENSSL_FILENAME}.sha256"
-  if ! [[ "$(sha256sum "$DEVDIR/${OPENSSL_FILENAME}" | cut -d' ' -f1)" == "$(cat "$DEVDIR/${OPENSSL_FILENAME}.sha256")" ]]; then
-    echo "[-] ERROR: Checksum does _NOT_ match."
-    read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue."
+
+  if wget -q "${OPENSSL_FILE}.sha256" -O "$DEVDIR/${OPENSSL_FILENAME}.sha256" 2>/dev/null; then
+    if ! [[ "$(sha256sum "$DEVDIR/${OPENSSL_FILENAME}" | cut -d' ' -f1)" == "$(awk '{print $1}' "$DEVDIR/${OPENSSL_FILENAME}.sha256")" ]]; then
+      echo "[-] ERROR: Checksum does _NOT_ match."
+      read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue."
+      echo -ne "\033[0K\r"
+    else
+      echo "[+] Checksum verification passed."
+    fi
+  else
+    echo "[-] WARNING: Could not download SHA256 checksum file for verification."
+    echo "    File: ${OPENSSL_FILE}.sha256"
+    read -n 1 -s -r -p "Press CTRL+C to abort  OR  any key to continue anyway."
     echo -ne "\033[0K\r"
   fi
   case "${OPENSSL_FILENAME##*.}" in
@@ -160,7 +170,33 @@ function func_openssl_dlinst {
     [ -e libcrypto.so ] && rm libcrypto.so
     ln -s libssl_"$OPENSSL_LIBNAME" libssl.so
     ln -s libcrypto_"$OPENSSL_LIBNAME" libcrypto.so
-    OPENSSL_INSTALLED=1
+
+    # Extract major version (1 or 3) from e.g., openssl-3.2.0
+    if [[ "$OPENSSL_LIBNAME" =~ ([0-9]+)\.[0-9] ]]; then
+      OPENSSL_MAJOR="${BASH_REMATCH[1]}"
+      ln -sf "libssl_$OPENSSL_LIBNAME" "libssl.so.$OPENSSL_MAJOR"
+      ln -sf "libcrypto_$OPENSSL_LIBNAME" "libcrypto.so.$OPENSSL_MAJOR"
+    else
+      echo "[-] WARNING: Could not determine major version from $OPENSSL_LIBNAME"
+    fi
+
+    # Handle legacy.so if version is NOT 1.1.1*
+    if ! [[ "$OPENSSL_LIBNAME" =~ 1\.1\.1 ]]; then
+      LEGACY_SO_SRC="$DEVDIR/${OPENSSL_LIBNAME}/providers/legacy.so"
+      LEGACY_SO_DST="$SL_DIR/legacy_$OPENSSL_LIBNAME.so"
+      if [ -e "$LEGACY_SO_SRC" ]; then
+        cp -f "$LEGACY_SO_SRC" "$LEGACY_SO_DST"
+        [ -e "$SL_DIR/legacy.so" ] && rm "$SL_DIR/legacy.so"
+        ln -s "legacy_$OPENSSL_LIBNAME.so" "$SL_DIR/legacy.so"
+        OPENSSL_INSTALLED=1
+      else
+        echo "[-] ERROR: legacy.so required but not found."
+        OPENSSL_INSTALLED=0
+        return
+      fi
+    else
+      OPENSSL_INSTALLED=1
+    fi
   else
     echo "[-] ERROR: Could _NOT_ find compiled libaries."
     OPENSSL_INSTALLED=0

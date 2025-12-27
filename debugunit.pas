@@ -35,26 +35,29 @@ function LogTail(const aMaxLinesToRead: Integer): String;
   @param(channel name for irc output)
   @param(new debug value) }
 function WriteDebugVerbosity(const netname, channel, params: String): boolean;
+{ Returns the currently used debug verbosity / priority }
+function GetDebugVerbosity: TDebugPriority;
 
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, slcriticalsection2;
 
 const
   section = 'debug';
 
 var
   f: TextFile;
-  debug_lock: TCriticalSection;
-  glCachedDebugPriority: TDebugPriority;
+  debug_lock: TSlCriticalSection2;
+  glCachedDebugPriority: TDebugPriority = dpError;
+  glCachedDebugCategories: string = ',verbose,';
 
 function _GetDebugLogFileName: String;
 begin
   Result := config.ReadString(section, 'debugfile', ExtractFilePath(ParamStr(0)) + 'slftp.log');
 end;
 
-function _GetDebugVerbosity: TDebugPriority; inline;
+function GetDebugVerbosity: TDebugPriority;
 begin
   Result := glCachedDebugPriority;
 end;
@@ -101,7 +104,7 @@ end;
 
 function _GetDebugCategories: String; inline;
 begin
-  Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
+  Result := glCachedDebugCategories;
 end;
 
 procedure _OpenLogFile;
@@ -170,9 +173,10 @@ end;
 
 procedure DebugInit;
 begin
-  debug_lock := TCriticalSection.Create;
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
+  glCachedDebugCategories := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
   _OpenLogFile;
+  debug_lock := TSlCriticalSection2.Create('debug_lock');
 end;
 
 procedure DebugUninit;
@@ -185,18 +189,22 @@ procedure Debug(const priority: TDebugPriority; const section, msg: String); ove
 var
   nowstr, logtext: String;
 begin
-  if _GetDebugVerbosity = dpNone then
+  if glCachedDebugPriority = dpNone then
     exit;
 
-  if (_GetDebugVerbosity < priority) then
+  if (glCachedDebugPriority < priority) then
     exit;
 
   if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
-  logtext := Format('%s (%s) [%-25s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 4), section, msg]);
-  debug_lock.Enter;
+  logtext := Format('%s (%s) [%-25s] %s', [nowstr, 'NA', section, msg]);
+
+  if debug_lock = nil then  // has not been initialized yet
+    exit;
+
+  debug_lock.Enter('Debug');
   try
     try
       WriteLn(f, logtext);
@@ -229,7 +237,7 @@ function LogTail(const aMaxLinesToRead: Integer): String;
 begin
   Result := '';
 
-  debug_lock.Enter;
+  debug_lock.Enter('LogTail');
   try
     _CloseLogFile;
     try

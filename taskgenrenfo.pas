@@ -54,12 +54,12 @@ begin
   Result := Copy(text, i + 5, 100);
   for i := 1 to length(Result) do
   begin
-    if Result[i] in [#13,#10] then
+    if CharInSet(Result[i], [#13,#10]) then
     begin
       Result := Copy(Result, 1, i-1);
       Break;
     end;
-    if (not (Result[i] in ['a'..'z','A'..'Z'])) then
+    if (not CharInSet(Result[i], ['a'..'z','A'..'Z'])) then
       Result[i] := ' ';
   end;
 
@@ -138,8 +138,6 @@ begin
   end;
 
   // no idea what it really does
-  queue_lock.Enter;
-  try
     if (mainpazo.rls is TNFORelease) then
     begin
       if (TNFORelease(mainpazo.rls).nfogenre <> '') then
@@ -149,9 +147,6 @@ begin
         exit;
       end;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // Check if slot is online. If not try to relogin once.
   if s.status <> ssOnline then
@@ -195,8 +190,6 @@ begin
   end;
 
   // no nfo file found. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if (nfofile = '') then
     begin
       if attempt < config.readInteger(section, 'readd_attempts', 5) then
@@ -224,23 +217,23 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // try to get the nfo file
   i := s.LeechFile(ss, nfofile);
 
   // nfo file could not be downloaded. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if i <> 1 then
     begin
       if attempt < config.readInteger(section, 'readd_attempts', 5) then
       begin
         Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
         try
-          r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+          // LeechFile return value 0 means, currently no slot available
+          if i = 0 then
+            r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt)
+          else
+            r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+
           r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
           AddTask(r);
         except
@@ -261,15 +254,10 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // nfo file was downloaded. Parsing it and adding it to dbaddnfo
   genre := FetchGenre(ss.DataString);
 
-  queue_lock.Enter;
-  try
     try
       kb_add(netname, channel, ps1.name, mainpazo.rls.section, genre, kbeUPDATE, mainpazo.rls.rlsname, '');
       dbaddnfo_SaveNfo(mainpazo.rls.rlsname, mainpazo.rls.section, nfofile, ss.DataString);
@@ -282,9 +270,6 @@ begin
         exit;
       end;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   Result := True;
   ready := True;

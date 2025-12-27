@@ -154,7 +154,7 @@ type
   end;
 
 
-/// fetch a mORMot's TSqlDBStatement result into a VCL DataSet
+/// fetch a mORMot's TSqlDBStatement result into a TDataSet
 // - just a wrapper around TSynSqlStatementDataSet.Create + Open
 // - if aMaxRowCount>0, will return up to the specified number of rows
 // - current implementation will return a TSynSqlStatementDataSet instance, using
@@ -164,14 +164,14 @@ type
 function ToDataSet(aOwner: TComponent; aStatement: TSqlDBStatement;
   aMaxRowCount: integer = 0): TBinaryDataSet; overload;
 
-/// fetch a mORMot ISqlDBRows result set into a VCL DataSet
+/// fetch a mORMot ISqlDBRows result set into a TDataSet
 // - this overloaded function can use directly a result of the
 // TSqlDBConnectionProperties.Execute() method, as such:
 // ! ds1.DataSet := ToDataSet(self,props.Execute('select * from table',[]));
 function ToDataSet(aOwner: TComponent; const aStatement: ISqlDBRows;
   aMaxRowCount: integer = 0): TBinaryDataSet; overload;
 
-/// fetch a mORMot's TSqlDBStatement.FetchAllToBinary buffer into a VCL DataSet
+/// fetch a mORMot's TSqlDBStatement.FetchAllToBinary buffer into a TDataSet
 // - just a wrapper around TBinaryDataSet.Create + Open
 // - if you need a writable TDataSet, you can use the slower ToClientDataSet()
 // function as defined in mormot.db.rad.ui.cds
@@ -381,7 +381,7 @@ var
 begin // only execute writes in current implementation
   StringToUtf8(ASQL, sql);
   if fConnection = nil then
-    raise ESqlDataSet.CreateUtf8(
+    ESqlDataSet.RaiseUtf8(
       '%.PSExecuteStatement with Connection=nil [%]', [self, sql]);
   stmt := fConnection.NewThreadSafeStatementPrepared(sql, false);
   if stmt <> nil then
@@ -394,7 +394,7 @@ begin // only execute writes in current implementation
           stmt.BindBlob(p + 1, pointer(blob), length(blob));
         end
         else
-          stmt.BindVariant(p + 1, AParams[p].Value, False);
+          stmt.BindVariant(p + 1, AParams[p].Value, false);
     stmt.ExecutePrepared;
     result := stmt.UpdateCount;
     if result = 0 then

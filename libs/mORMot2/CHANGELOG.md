@@ -3,8 +3,31 @@
 All notable changes to the *mORMot Open Source Framework* project will be documented in this file.
 Details are available [on out GitHub repository](https://github.com/synopse/mORMot2/commits/master)
 
+## [2.3.stable] - 2024-10-16
+This is the latest stable release of *mORMot* v2.
+### Added
+- [Swagger/OpenAPI Client Generator](https://blog.synopse.info/?post/2024/09/06/Swagger/OpenAPI-Client-Generator-for-Delphi-and-FPC)
+- [IDocList/IDocDict Containers](https://blog.synopse.info/?post/2024/02/01/Easy-JSON-with-Delphi-and-FPC)
+- [SID/DACL/SACL/SDDL/ACE Security Objects](https://github.com/synopse/mORMot2/blob/master/src/core/mormot.core.os.security.pas)
+- async web server: IOCP support on Windows, metrics gathering and standard logging
+- `TSynMustache` can work on plain data via RTTI, in addition to `TDocVariant`
+- introducing `TRttiMap` for DTO process.
+### Changed
+- Upgraded SQLite3 to 3.46.1
+- Enhancements to the LDAP client, HTTP/HTTPS client, Kerberos auth, Peer Cache, ORM.
+- Lots other bug fixes, optimisations and enhancements.
+
+## [2.2.stable] - 2024-01-02
+### Added
+- [OpenSSL 3.0/3.1 direct support in addition to 1.1](https://blog.synopse.info/?post/2023/09/08/End-Of-Live-OpenSSL-1.1-vs-Slow-OpenSSL-3.0)
+- [Native X.509, RSA and HSM support](https://blog.synopse.info/?post/2023/12/09/Native-X.509-and-RSA-Support)
+- [`mget` utility with `THttpPeerCache` peer-to-peer caching](https://blog.synopse.info/?post/2024/01/01/Happy-New-Year-2024-and-Welcome-MGET)
+### Changed
+- Upgraded SQLite3 to 3.44.2
+- Lots of bug fixes and enhancements (especially about cryptography and networking)
+- A lot of optimizations, so that we eventually reached [in top 12 ranking of all frameworks tested by TFB](https://blog.synopse.info/?post/2023/10/31/Pascal-in-the-race%3A-TFB-Challenge-Benchmarks)
+
 ## [2.1.stable] - 2023-08-24
-This is the last stable release of *mORMot* v2.
 ### Added
 - (C)LDAP, DNS, (S)NTP clients
 - Command Line Parser

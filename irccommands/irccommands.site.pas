@@ -39,11 +39,12 @@ function IrcSetDownOnOutOfSpace(const netname, channel, params: String): boolean
 function IrcSetReverseFxp(const netname, channel, params: String): boolean;
 function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
 function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
+function IrcKillConnectionOnStalledTransfer(const netname, channel, params: String): boolean;
 
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, queueunit, mystrings, notify, taskraw, RegExpr,
+  SysUtils, Classes, StrUtils, Contnrs, irc, sitesunit, mystrings, notify, taskraw, RegExpr,
   globals, indexer, ranksunit, kb, configunit, precatcher, speedstatsunit, statsunit, rulesunit,
   mainthread, tasklogin, irccommandsunit;
 
@@ -64,7 +65,7 @@ begin
 
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
-    tn.tasks.Add(l);
+    tn.AddTask(l);
 
   l.startat := GiveSiteLastStart;
   AddTask(l);
@@ -274,7 +275,13 @@ begin
 
   if (0 < Pos('-', sitename)) then
   begin
-    irc_addtext(Netname, Channel, 'Sitename cant contain -.');
+    irc_addtext(Netname, Channel, 'Sitename can''t contain -.');
+    exit;
+  end;
+
+  if (0 < Pos('%', sitename)) then
+  begin
+    irc_addtext(Netname, Channel, 'Sitename can''t contain %.');
     exit;
   end;
 
@@ -306,6 +313,7 @@ begin
     if ((bnchost = '') or (bncport = 0)) then
       break;
 
+    // doing this before actually creating the TSite object, so write those into the sites.dat directly and don't use s.WCString
     sitesdat.WriteString('site-' + sitename, 'bnc_host-' + IntToStr(i - 4), bnchost);
     sitesdat.WriteInteger('site-' + sitename, 'bnc_port-' + IntToStr(i - 4), bncport);
 
@@ -555,14 +563,14 @@ begin
       if (aktbnchost = bnchost) and (aktbncport = bncport) then
       begin
         megvan := True;
-        sitesdat.DeleteKey('site-' + sitename, 'bnc_host-' + IntToStr(i));
-        sitesdat.DeleteKey('site-' + sitename, 'bnc_port-' + IntToStr(i));
+        s.DeleteKey('bnc_host-' + IntToStr(i));
+        s.DeleteKey('bnc_port-' + IntToStr(i));
       end;
     end
     else
     begin
-      sitesdat.DeleteKey('site-' + sitename, 'bnc_host-' + IntToStr(i));
-      sitesdat.DeleteKey('site-' + sitename, 'bnc_port-' + IntToStr(i));
+      s.DeleteKey('bnc_host-' + IntToStr(i));
+      s.DeleteKey('bnc_port-' + IntToStr(i));
       s.WCString('bnc_host-' + IntToStr(i - 1), aktbnchost);
       s.WCInteger('bnc_port-' + IntToStr(i - 1), aktbncport);
     end;
@@ -681,6 +689,7 @@ begin
 
         s := TSite(sites[i]);
         s.WorkingStatus := sstMarkedAsDownByUser;
+        s.QueueFire; //to remove entries from queue
       end;
     end
     else
@@ -701,13 +710,12 @@ begin
           Continue;
 
         s.WorkingStatus := sstMarkedAsDownByUser;
+        s.QueueFire; //to remove entries from queue
       end;
     end;
   finally
     x.Free;
   end;
-
-  QueueFire; //to remove entries from queue
 
   Result := True;
 end;
@@ -785,11 +793,11 @@ begin
     end;
 
     try
-      sitesdat.DeleteKey('site-' + s.Name, 'autonuke');
-      sitesdat.DeleteKey('site-' + s.Name, 'autoindex');
-      sitesdat.DeleteKey('site-' + s.Name, 'autobnctest');
-      sitesdat.DeleteKey('site-' + s.Name, 'autorules');
-      sitesdat.DeleteKey('site-' + s.Name, 'autodirlist');
+      s.DeleteKey('autonuke');
+      s.DeleteKey('autoindex');
+      s.DeleteKey('autobnctest');
+      s.DeleteKey('autorules');
+      s.DeleteKey('autodirlist');
       // sitesdat.DeleteKey('site-'+s.name,'autologin');
       // sitesdat.UpdateFile;
     except
@@ -814,11 +822,11 @@ begin
     end;
 
     try
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autonuke');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autoindex');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autobnctest');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autorules');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autodirlist');
+      s.DeleteKey('disabled_autonuke');
+      s.DeleteKey('disabled_autoindex');
+      s.DeleteKey('disabled_autobnctest');
+      s.DeleteKey('disabled_autorules');
+      s.DeleteKey('disabled_autodirlist');
       // sitesdat.DeleteKey('site-'+s.name,'autologin');
       // sitesdat.UpdateFile;
     except
@@ -927,6 +935,7 @@ var
   oldslots, newslots: integer;
   ii, i: integer;
   fDoOutputOnly: boolean;
+  fSiteSlot: TSiteSlot;
 begin
   Result := False;
 
@@ -957,14 +966,15 @@ begin
          Continue;
       end;
 
-      sitesdat.WriteInteger('site-' + s.Name, 'slots', newslots);
+      s.WCInteger('slots', newslots);
       if oldslots > newslots then
       begin
         // you have to remove some slots
         for ii := 1 to oldslots - newslots do
         begin
-          TSiteSlot(s.slots[s.slots.Count - 1]).Stop;
+          fSiteSlot := TSiteSlot(s.slots[s.slots.Count - 1]);
           s.slots.Delete(s.slots.Count - 1);
+          fSiteSlot.Free;
         end;
       end
       else if oldslots < newslots then
@@ -1002,14 +1012,15 @@ begin
           Continue;
         end;
 
-        sitesdat.WriteInteger('site-' + s.Name, 'slots', newslots);
+        s.WCInteger('slots', newslots);
         if oldslots > newslots then
         begin
           // you have to remove some slots
           for ii := 1 to oldslots - newslots do
           begin
-            TSiteSlot(s.slots[s.slots.Count - 1]).Stop;
+            fSiteSlot := TSiteSlot(s.slots[s.slots.Count - 1]);
             s.slots.Delete(s.slots.Count - 1);
+            fSiteSlot.Free;
           end;
         end
         else if oldslots < newslots then
@@ -1342,6 +1353,7 @@ var
   i: integer;
   x: TStringList;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   method := SubString(params, ' ', 2);
   i := StrToIntDef(method, -1);
@@ -1544,9 +1556,8 @@ begin
   tn := AddNotify;
   try
     r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE USER ' + username);
-    tn.tasks.Add(r);
-    AddTask(r);
-    QueueFire;
+    tn.AddTask(r);
+    AddTask(r, True);
     tn.event.WaitFor($FFFFFFFF);
   except
   on E: Exception do
@@ -1947,9 +1958,8 @@ var
     try
       try
         r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-        tn.tasks.Add(r);
-        AddTask(r);
-        QueueFire;
+        tn.AddTask(r);
+        AddTask(r, True);
         tn.event.WaitFor($FFFFFFFF);
       except on E: Exception do
         begin
@@ -2130,6 +2140,7 @@ end;
 function IrcBnctest(const netname, channel, params: String): boolean;
 var
   s: TSite;
+  fSiteStatus: TSiteStatus;
   x: TStringList;
   tn: TTaskNotify;
   added: boolean;
@@ -2163,6 +2174,7 @@ begin
         end;
       end;
 
+      fSiteStatus := s.WorkingStatus;
       tn := AddNotify;
       for i := 0 to x.Count - 1 do
       begin
@@ -2170,7 +2182,10 @@ begin
         if s.PermDown then
           Continue;
         if _Bnctest(Netname, Channel, s, tn) then
+        begin
           added := True;
+          s.QueueFire;
+        end;
       end;
     end
     else
@@ -2189,7 +2204,10 @@ begin
           Continue;
 
         if _Bnctest(Netname, Channel, s, tn) then
+        begin
           added := True;
+          s.QueueFire;
+        end;
       end;
     end;
 
@@ -2198,13 +2216,14 @@ begin
   end;
 
   if added then
-    QueueFire;
-
-  if added then
     tn.event.WaitFor($FFFFFFFF);
 
   if (db > 1) then
-    IrcSites(Netname, Channel, 'IrcBnctest');
+    IrcSites(Netname, Channel, 'IrcBnctest')
+
+  // when the status of the site changes, it is being posted anyway, so just do this when the status remains the same
+  else if fSiteStatus = s.WorkingStatus then
+    s.PrintSiteStatusToIRC;
 
   s.RemoveAutoIndex;
   s.RemoveAutoBnctest;
@@ -2248,7 +2267,7 @@ begin
   end;
 
   if _Bnctest(Netname, Channel, s, nil, True) then
-    QueueFire;
+    s.QueueFire;
 
   Result := True;
 end;
@@ -2443,6 +2462,31 @@ begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> value for reduced speedstat weight is: %d', [fSite.Name, ord(fSite.ReducedSpeedstatWeight)])
   else
     fSite.ReducedSpeedstatWeight := boolean(fReducedSpeedstatWeight);
+
+  Result := True;
+end;
+
+function IrcKillConnectionOnStalledTransfer(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fSeconds: Integer;
+  fSite: TSite;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fSeconds := StrToIntDef(SubString(params, ' ', 2), -1);
+  fSite := FindSiteByName(netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  // if no valid value has been given, output the current value
+  if fSeconds < 0 then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> seconds after which stalled transfers are killed: %d', [fSite.Name, fSite.KillConnectionOnStalledTransferSeconds])
+  else
+    fSite.KillConnectionOnStalledTransferSeconds := fSeconds;
 
   Result := True;
 end;

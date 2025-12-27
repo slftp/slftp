@@ -10,9 +10,12 @@ unit mormot.crypt.jwt;
     - Abstract JWT Parsing and Computation
     - JWT Implementation of HS* and S3* Symmetric Algorithms
     - JWT Implementation of ES256 Asymmetric Algorithm
+    - JWT Implementation of RS256/RS384/RS512 Asymmetric Algorithms
+    - TJwtCrypt Implementation via ICryptPublicKey/ICryptPrivateKey
 
    Uses optimized mormot.crypt.core.pas and mormot.crypt.ecc for its process.
-   See mormot.crypt.openssl.pas to support all other JWT algorithms.
+   Include mormot.crypt.openssl.pas to support all other JWT algorithms.
+   The TJwtCrypt class is the way to go to support JWT in your projects.
 
   *****************************************************************************
 }
@@ -37,7 +40,8 @@ uses
   mormot.crypt.core,
   mormot.crypt.secure,
   mormot.crypt.ecc256r1,
-  mormot.crypt.ecc;
+  mormot.crypt.ecc,
+  mormot.crypt.rsa;
 
 
 { **************** Abstract JWT Parsing and Computation }
@@ -110,6 +114,7 @@ type
     /// set of known/registered claims, as stored in the JWT payload
     claims: TJwtClaims;
     /// match TJwtAbstract.Audience[] indexes for reg[jrcAudience]
+    // - is not decoded if joNoAudienceCheck option was defined
     audience: set of 0..15;
     /// known/registered claims UTF-8 values, as stored in the JWT payload
     // - e.g. reg[jrcSubject]='1234567890' and reg[jrcIssuer]='' for
@@ -122,7 +127,8 @@ type
     // $ {"sub": "1234567890","name": "John Doe","admin": true}
     // but data.U['sub'] if not defined, and reg[jrcSubject]='1234567890'
     data: TDocVariantData;
-    /// match the jrcJwtID "jti" claim desobfuscated value
+    /// match the jrcJwtID "jti" claim 64-bit desobfuscated value
+    // - is not decoded if joNoJwtIDCheck option was defined
     id: TSynUniqueIdentifierBits;
   end;
 
@@ -134,12 +140,22 @@ type
   TJwtContentDynArray = array of TJwtContent;
 
   /// available options for TJwtAbstract process
+  // - joHeaderParse won't expect a fixed '{"alg":"%","typ":"JWT"}' header, but
+  // parse for any valid variant (slower)
+  // - joAllowUnexpectedClaims won't reject JWT with unknown TJwtAbstract.Claims
+  // - joAllowUnexpectedAudience won't reject JWT with unknown "aud" item(s)
+  // - joNoJwtIDGenerate won't compute a new "jti" item, but expect it to be
+  // supplied as a DataNameValue pair to TJwtAbstract.Compute()
+  // - joNoJwtIDCheck won't decode/deobfuscate the "jti" item
+  // - joNoAudienceCheck won't decode and check the "aud" - so is faster
+  // - joDoubleInData will allow double floting point values in TJwtContent.data
   TJwtOption = (
     joHeaderParse,
     joAllowUnexpectedClaims,
     joAllowUnexpectedAudience,
     joNoJwtIDGenerate,
     joNoJwtIDCheck,
+    joNoAudienceCheck,
     joDoubleInData);
 
   /// store options for TJwtAbstract process
@@ -149,7 +165,7 @@ type
   // - to represent claims securely between two parties, as defined in industry
   // standard @http://tools.ietf.org/html/rfc7519
   // - you should never use this abstract class directly, but e.g. TJwtHS256,
-  // TJwtHS384, TJwtHS512 or TJwtES256 inherited classes
+  // TJwtHS384, TJwtHS512 or TJwtEs256 inherited classes
   // - for security reasons, one inherited class is implementing a single
   // algorithm, as is very likely to be the case on production: you pickup one
   // "alg", then you stick to it; if your server needs more than one algorithm
@@ -165,8 +181,9 @@ type
     fClaims: TJwtClaims;
     fOptions: TJwtOptions;
     fAudience: TRawUtf8DynArray;
-    fExpirationSeconds: integer;
     fIDGen: TSynUniqueIdentifierGenerator;
+    fExpirationSeconds: integer;
+    fVerifyTimeToleranceSeconds: integer;
     fCacheTimeoutSeconds: integer;
     fCacheResults: TJwtResults;
     fCache: TSynDictionary; // TRawUtf8DynArray/TJwtContentDynArray
@@ -254,14 +271,14 @@ type
     // - it will parse the JWT payload and check for its expiration, and some
     // mandatory fied values - you can optionally retrieve the Expiration time,
     // the ending Signature, and/or the Payload decoded as TDocVariant
-    // - NotBeforeDelta allows to define some time frame for the "nbf" field
+    // - TimeTolerance allows to define some grace delay for "nbf"/"exp" fields
     // - may be used on client side to quickly validate a JWT received from
     // server, without knowing the exact algorithm or secret keys
     class function VerifyPayload(const Token,
       ExpectedAlgo, ExpectedSubject, ExpectedIssuer, ExpectedAudience: RawUtf8;
       Expiration: PUnixTime; Signature, Subject, Issuer, HeadPayload: PRawUtf8;
       Payload: PVariant = nil;
-      IgnoreTime: boolean = false; NotBeforeDelta: TUnixTime = 15): TJwtResult;
+      IgnoreTime: boolean = false; TimeTolerance: TUnixTime = 15): TJwtResult;
     /// in-place decoding of the JWT header, returning the algorithm
     // - checking there is a payload and a signature, without decoding them
     // - could be used to quickly check if a token is likely to be a JWT
@@ -284,6 +301,10 @@ type
     /// the period, in seconds, for the "exp" claim
     property ExpirationSeconds: integer
       read fExpirationSeconds;
+    /// allow to relax the "exp" and "nbf" claims against current timestamp
+    // - default is 30 seconds, to allow small clock sync issue between nodes
+    property VerifyTimeToleranceSeconds: integer
+      read fVerifyTimeToleranceSeconds write fVerifyTimeToleranceSeconds;
     /// the audience string values associated with this instance
     // - will be checked by Verify() method, and set in TJwtContent.audience
     property Audience: TRawUtf8DynArray
@@ -291,7 +312,7 @@ type
     /// delay of optional in-memory cache of Verify() TJwtContent
     // - equals 0 by default, i.e. cache is disabled
     // - may be useful if the signature process is very resource consumming
-    // (e.g. for TJwtES256 or even HMAC-SHA-256) - see also CacheResults
+    // (e.g. for TJwtEs256 or even HMAC-SHA-256) - see also CacheResults
     // - each time this property is assigned, internal cache content is flushed
     property CacheTimeoutSeconds: integer
       read fCacheTimeoutSeconds write SetCacheTimeoutSeconds;
@@ -308,6 +329,13 @@ type
 
   /// class-reference type (metaclass) of a JWT algorithm process
   TJwtAbstractClass = class of TJwtAbstract;
+
+   /// abstract parent class for implementing JWT with asymmetric cryptography
+  TJwtAsym = class(TJwtAbstract)
+  public
+    /// returns the algorithm used to compute the JWT digital signature
+    class function GetAsymAlgo: TCryptAsymAlgo; virtual; abstract;
+  end;
 
   /// implements JSON Web Tokens using 'none' algorithm
   // - as defined in @http://tools.ietf.org/html/rfc7518 paragraph 3.6
@@ -536,7 +564,7 @@ const
     TJwtS3S256);
 
 
-{ **************  JWT Implementation of ES256 Algorithm }
+{ ************** JWT Implementation of ES256 Algorithm }
 
 type
   /// implements JSON Web Tokens using 'ES256' algorithm
@@ -546,11 +574,11 @@ type
   // under x86) you may enable CacheTimeoutSeconds
   // - will use the OpenSSL library if available - about 5 times faster than
   // our pascal/asm code - here are some numbers on x86_64:
-  // $ TJwtES256 pascal:  100 ES256 in 33.57ms i.e. 2.9K/s, aver. 335us
-  // $ TJwtES256 OpenSSL: 100 ES256 in 6.90ms i.e. 14.1K/s, aver. 69us
-  // - our direct OpenSSL access is even slightly faster than TJwtES256Osl:
-  // $ TJwtES256Osl:      100 ES256 in 8.64ms i.e. 11.3K/s, aver. 86us
-  TJwtES256 = class(TJwtAbstract)
+  // $ TJwtEs256 pascal:  100 ES256 in 33.57ms i.e. 2.9K/s, aver. 335us
+  // $ TJwtEs256 OpenSSL: 100 ES256 in 6.90ms i.e. 14.1K/s, aver. 69us
+  // - our direct OpenSSL access is even slightly faster than TJwtEs256Osl:
+  // $ TJwtEs256Osl:      100 ES256 in 8.64ms i.e. 11.3K/s, aver. 86us
+  TJwtEs256 = class(TJwtAsym)
   protected
     fCertificate: TEccCertificate;
     fVerify: TEcc256r1VerifyAbstract; // includes pre-computed public key
@@ -576,6 +604,8 @@ type
       aIDObfuscationKeyNewKdf: integer = 0); reintroduce;
     /// finalize the instance
     destructor Destroy; override;
+    /// overriden to return caaES256
+    class function GetAsymAlgo: TCryptAsymAlgo; override;
     /// access to the associated TEccCertificate instance
     // - which may be a TEccCertificateSecret for Compute() private key
     property Certificate: TEccCertificate
@@ -585,6 +615,147 @@ type
       read fOwnCertificate write fOwnCertificate;
   end;
 
+
+{ ************** JWT Implementation of RS256/RS384/RS512 Algorithms }
+
+type
+  /// abstract parent for JSON Web Tokens using our mormot.crypt.rsa unit
+  // - inherited TJwtRs256/TJwtRs384/TJwtRs512 classes implement proper
+  // RS256/RS384/RS512 algorithms as defined in https://jwt.io
+  TJwtRsa = class(TJwtAsym)
+  protected
+    fRsa: TRsa;
+    fHash: THashAlgo;
+    function ComputeSignature(const headpayload: RawUtf8): RawUtf8; override;
+    procedure CheckSignature(const headpayload: RawUtf8; const signature: RawByteString;
+      var jwt: TJwtContent); override;
+  public
+    /// initialize the JWT processing instance calling SetAlgorithm abstract method
+    // - should supply one RSA key, eigher private or public, in PEM or raw DER
+    // binary format, of at least 2048-bit (as required by NIST SP800-131A) but
+    // it could be 3072-bit for support up to 2030
+    // - the supplied set of claims are expected to be defined in the JWT payload
+    // - aAudience are the allowed values for the jrcAudience claim
+    // - aExpirationMinutes is the deprecation time for the jrcExpirationTime claim
+    // - aIDIdentifier and aIDObfuscationKey/aIDObfuscationKeyNewKdf are passed
+    // to a TSynUniqueIdentifierGenerator instance used for jrcJwtID claim
+    constructor Create(const aKey: RawByteString; aClaims: TJwtClaims;
+      const aAudience: array of RawUtf8; aExpirationMinutes: integer = 0;
+      aIDIdentifier: TSynUniqueIdentifierProcess = 0;
+      aIDObfuscationKey: RawUtf8 = ''; aIDObfuscationKeyNewKdf: integer = 0);
+      reintroduce;
+    /// finalize this JWT instance and its stored key
+    destructor Destroy; override;
+    /// access to the low-level associated TRsa instance
+    property Rsa: TRsa
+      read fRsa;
+  end;
+
+  /// meta-class of TJwtRsa classes
+  TJwtRsaClass = class of TJwtRsa;
+
+  /// implements 'RS256' RSA algorithm over SHA-256
+  // - you may consider faster TJwtRs256Osl from mormot.crypt.openssl instead
+  TJwtRs256 = class(TJwtRsa)
+  public
+    class function GetAsymAlgo: TCryptAsymAlgo; override;
+  end;
+
+  /// implements 'RS384' RSA algorithm over SHA-384
+  // - you may consider faster TJwtRs384Osl from mormot.crypt.openssl instead
+  TJwtRs384 = class(TJwtRsa)
+  public
+    class function GetAsymAlgo: TCryptAsymAlgo; override;
+  end;
+
+  /// implements 'RS512' RSA algorithm over SHA-512
+  // - you may consider faster TJwtRs512Osl from mormot.crypt.openssl instead
+  TJwtRs512 = class(TJwtRsa)
+  public
+    class function GetAsymAlgo: TCryptAsymAlgo; override;
+  end;
+
+  /// implements 'PS256' PSA algorithm over SHA-256
+  // - you may consider faster TJwtPs256Osl from mormot.crypt.openssl instead
+  TJwtPs256 = class(TJwtRsa)
+  public
+    class function GetAsymAlgo: TCryptAsymAlgo; override;
+  end;
+
+  /// implements 'PS384' PSA algorithm over SHA-384
+  // - you may consider faster TJwtPs384Osl from mormot.crypt.openssl instead
+  TJwtPs384 = class(TJwtRsa)
+  public
+    class function GetAsymAlgo: TCryptAsymAlgo; override;
+  end;
+
+  /// implements 'PS512' PSA algorithm over SHA-512
+  // - you may consider faster TJwtPs512Osl from mormot.crypt.openssl instead
+  TJwtPs512 = class(TJwtRsa)
+  public
+    class function GetAsymAlgo: TCryptAsymAlgo; override;
+  end;
+
+
+{ *********** JWT Implementation via ICryptPublicKey/ICryptPrivateKey Factories }
+
+type
+  /// implements JSON Web Tokens using ICryptPublicKey/ICryptPrivateKey wrappers
+  // - this may be the easiest way to work with JWT in our framework
+  // - you may try the other dedicated classes, from this unit (TJwtEs256 ..
+  // TJwtPs512) or from mormot.crypt.openssl (the TJwt*Osl classes) but this
+  // class seems to be the fastest, cleanest, and with the less overhead
+  TJwtCrypt = class(TJwtAbstract)
+  protected
+    fAsymAlgo: TCryptAsymAlgo;
+    fKeyAlgo: TCryptKeyAlgo;
+    fPublicKey: ICryptPublicKey;
+    fPrivateKey: ICryptPrivateKey;
+    function ComputeSignature(const headpayload: RawUtf8): RawUtf8; override;
+    procedure CheckSignature(const headpayload: RawUtf8; const signature: RawByteString;
+      var jwt: TJwtContent); override;
+  public
+    /// check if a given algorithm is supported by this class
+    // - just a wrapper to check that CryptPublicKey[aAlgo] factory do exist
+    class function Supports(aAlgo: TCryptAsymAlgo): boolean;
+    /// initialize this JWT instance from a supplied public key and algorithm
+    // - aPublicKey is expected to be a public key in PEM or DER format, but
+    // a private key with no password encryption is also accepted here
+    // - if no aPublicKey is supplied, it will generate a new key pair and the
+    // PublicKey/PrivateKey properties could be used for proper persistence
+    // (warning: generating a key pair could be very slow with RSA/RSAPSS)
+    // - the supplied set of claims are expected to be defined in the JWT payload
+    // - aAudience are the allowed values for the jrcAudience claim
+    // - aExpirationMinutes is the deprecation time for the jrcExpirationTime claim
+    // - aIDIdentifier and aIDObfuscationKey/aIDObfuscationKeyNewKdf are passed
+    // to a TSynUniqueIdentifierGenerator instance used for jrcJwtID claim
+    constructor Create(aAlgo: TCryptAsymAlgo; const aPublicKey: RawByteString;
+      aClaims: TJwtClaims; const aAudience: array of RawUtf8;
+      aExpirationMinutes: integer = 0; aIDIdentifier: TSynUniqueIdentifierProcess = 0;
+      aIDObfuscationKey: RawUtf8 = ''; aIDObfuscationKeyNewKdf: integer = 0);
+      reintroduce;
+    /// add a private key to this instance execution context
+    // - so that the Compute() method could be used
+    // - will check that the supplied private key do match aPublicKey as
+    // supplied to the constructor
+    function LoadPrivateKey(const aPrivateKey: RawByteString;
+      const aPassword: SpiUtf8 = ''): boolean;
+    /// the asymmetric algorithm with hashing, as supplied to the constructor
+    property AsymAlgo: TCryptAsymAlgo
+      read fAsymAlgo;
+    /// the asymmetric key algorithm of this instance
+    property KeyAlgo: TCryptKeyAlgo
+      read fKeyAlgo;
+    /// low-level access to the associated public key, as supplied to Create()
+    property PublicKey: ICryptPublicKey
+      read fPublicKey;
+    /// low-level access to an associated private key
+    // - if you want the Compute method to be able to sign a new JWT, you should
+    // either call LoadPrivateKey() or initialize and assign to this property
+    // a ICryptPrivateKey instance
+    property PrivateKey: ICryptPrivateKey
+      read fPrivateKey write fPrivateKey;
+  end;
 
 
 implementation
@@ -654,7 +825,7 @@ constructor TJwtAbstract.Create(const aAlgorithm: RawUtf8; aClaims: TJwtClaims;
 begin
   inherited Create; // may have been overriden
   if aAlgorithm = '' then
-    raise EJwtException.CreateUtf8('%.Create(algo?)', [self]);
+    EJwtException.RaiseUtf8('%.Create(algo?)', [self]);
   if high(aAudience) >= 0 then
   begin
     fAudience := TRawUtf8DynArrayFrom(aAudience);
@@ -676,6 +847,7 @@ begin
     FormatUtf8('{"alg":"%","typ":"JWT"}', [aAlgorithm], fHeader);
   fHeaderB64 := BinToBase64Uri(fHeader) + '.';
   fCacheResults := [jwtValid];
+  fVerifyTimeToleranceSeconds := 30; // default grace delay
 end;
 
 destructor TJwtAbstract.Destroy;
@@ -703,7 +875,7 @@ begin
   sig := ComputeSignature(headpayload);
   result := headpayload + '.' + sig;
   if length(result) > JWT_MAXSIZE then
-    raise EJwtException.CreateUtf8('%.Compute oversize: len=%',
+    EJwtException.RaiseUtf8('%.Compute oversize: len=%',
       [self, length(result)]);
   if Signature <> nil then
     Signature^ := sig;
@@ -726,7 +898,7 @@ function TJwtAbstract.PayloadToJson(const DataNameValue: array of const;
 
   procedure RaiseMissing(c: TJwtClaim);
   begin
-    raise EJwtException.CreateUtf8('%.PayloadToJson: missing % (''%'')',
+    EJwtException.RaiseUtf8('%.PayloadToJson: missing % (''%'')',
       [self, _TJwtClaim[c]^, JWT_CLAIMS_TEXT[c]]);
   end;
 
@@ -832,30 +1004,30 @@ end;
 
 function TJwtAbstract.CheckAgainstActualTimestamp(var Jwt: TJwtContent): boolean;
 var
-  nowunix, unix: cardinal;
+  nowunix, unix, tolerance: cardinal;
 begin
   if [jrcExpirationTime, jrcNotBefore, jrcIssuedAt] * Jwt.claims <> [] then
   begin
     result := false;
+    tolerance := fVerifyTimeToleranceSeconds;
     nowunix := UnixTimeUtc; // validate against actual timestamp
     if jrcExpirationTime in Jwt.claims then
       if not ToCardinal(Jwt.reg[jrcExpirationTime], unix) or
-         (nowunix > {%H-}unix) then
+         (nowunix > {%H-}unix + tolerance) then
       begin
         Jwt.result := jwtExpired;
         exit;
       end;
     if jrcNotBefore in Jwt.claims then
       if not ToCardinal(Jwt.reg[jrcNotBefore], unix) or
-         (nowunix < unix) then
+         (nowunix + tolerance < unix) then
       begin
         Jwt.result := jwtNotBeforeFailed;
         exit;
       end;
     if jrcIssuedAt in Jwt.claims then
       if not ToCardinal(Jwt.reg[jrcIssuedAt], unix) or
-         // +60 to allow 1 minute time lap between nodes
-         (unix > nowunix + 60) then
+         (nowunix + tolerance < unix)then
       begin
         Jwt.result := jwtInvalidIssuedAt;
         exit;
@@ -923,7 +1095,7 @@ begin
        not CompareMem(pointer(fHeaderB64), tok, headerlen) then
       exit;
   end;
-  // 2. extract the payload
+  // 2. extract the payload and signature
   Jwt.result := jwtWrongFormat;
   if toklen > JWT_MAXSIZE then
     exit;
@@ -991,14 +1163,29 @@ begin
                         exit;
                       end;
                   jrcAudience:
-                    if Jwt.reg[jrcAudience][1] = '[' then
-                    begin
-                      aud.InitJsonInPlace(info.Value, JSON_FAST);
-                      if aud.Count = 0 then
-                        exit;
-                      for j := 0 to aud.Count - 1 do
+                    if not (joNoAudienceCheck in fOptions) then
+                      if Jwt.reg[jrcAudience][1] = '[' then
                       begin
-                        a := FindRawUtf8(fAudience, VariantToUtf8(aud.Values[j]));
+                        aud.InitJsonInPlace(info.Value, JSON_FAST);
+                        if aud.Count = 0 then
+                          exit;
+                        for j := 0 to aud.Count - 1 do
+                        begin
+                          a := FindRawUtf8(fAudience, VariantToUtf8(aud.Values[j]));
+                          if a < 0 then
+                          begin
+                            Jwt.result := jwtUnknownAudience;
+                            if not (joAllowUnexpectedAudience in fOptions) then
+                              exit;
+                          end
+                          else
+                            include(Jwt.audience, a);
+                        end;
+                        aud.Clear;
+                      end
+                      else
+                      begin
+                        a := FindRawUtf8(fAudience, Jwt.reg[jrcAudience]);
                         if a < 0 then
                         begin
                           Jwt.result := jwtUnknownAudience;
@@ -1008,20 +1195,6 @@ begin
                         else
                           include(Jwt.audience, a);
                       end;
-                      aud.Clear;
-                    end
-                    else
-                    begin
-                      a := FindRawUtf8(fAudience, Jwt.reg[jrcAudience]);
-                      if a < 0 then
-                      begin
-                        Jwt.result := jwtUnknownAudience;
-                        if not (joAllowUnexpectedAudience in fOptions) then
-                          exit;
-                      end
-                      else
-                        include(Jwt.audience, a);
-                    end;
                 end;
               Nlen := 0; // don't add to Jwt.data
               dec(cap);
@@ -1062,14 +1235,6 @@ begin
   result := Jwt.result = jwtValid;
 end;
 
-const
-  JWT_PLD: array[0..4] of PUtf8Char = (
-    'iss',  // 0
-    'aud',  // 1
-    'exp',  // 2
-    'nbf',  // 3
-    'sub'); // 4
-
 class function TJwtAbstract.ExtractAlgo(const Token: RawUtf8): RawUtf8;
 var
   P: PUtf8Char;
@@ -1092,10 +1257,18 @@ begin
   result := PropNameEquals(ExtractAlgo(Token), Algo);
 end;
 
+const
+  JWT_PLD: array[0..4] of PUtf8Char = (
+    'iss',  // 0
+    'aud',  // 1
+    'exp',  // 2
+    'nbf',  // 3
+    'sub'); // 4
+
 class function TJwtAbstract.VerifyPayload(const Token,
   ExpectedAlgo, ExpectedSubject, ExpectedIssuer, ExpectedAudience: RawUtf8;
   Expiration: PUnixTime; Signature, Subject, Issuer, HeadPayload: PRawUtf8;
-  Payload: PVariant; IgnoreTime: boolean; NotBeforeDelta: TUnixTime): TJwtResult;
+  Payload: PVariant; IgnoreTime: boolean; TimeTolerance: TUnixTime): TJwtResult;
 var
   P, B: PUtf8Char;
   V: array[0..high(JWT_PLD)] of TValuePUtf8Char;
@@ -1155,25 +1328,28 @@ begin
       Expiration^ := 0;
     if (V[2].Text <> nil) or
        (V[3].Text <> nil) then
-    begin
-      now := UnixTimeUtc;
+    begin // note: "iat" is just ignored here
+      if IgnoreTime then
+        now := 0
+      else
+        now := UnixTimeUtc;
       if V[2].Text <> nil then
       begin
         time := V[2].ToCardinal;
         result := jwtExpired;
-        if not IgnoreTime and
-           (now > time) then
+        if (now <> 0) and
+           (now > time + PtrUInt(TimeTolerance)) then
           break;
         if Expiration <> nil then
           Expiration^ := time;
       end;
-      if not IgnoreTime and
+      if (now <> 0) and
          (V[3].Text <> nil) then
       begin
         time := V[3].ToCardinal;
         result := jwtNotBeforeFailed;
         if (time = 0) or
-           (now + PtrUInt(NotBeforeDelta) < time) then
+           (now + PtrUInt(TimeTolerance) < time) then
           break;
       end;
     end;
@@ -1345,24 +1521,24 @@ end;
 
 
 
-{ **************  JWT Implementation of ES256 Algorithm }
+{ ************** JWT Implementation of ES256 Algorithm }
 
-{ TJwtES256 }
+{ TJwtEs256 }
 
-constructor TJwtES256.Create(aCertificate: TEccCertificate; aClaims: TJwtClaims;
+constructor TJwtEs256.Create(aCertificate: TEccCertificate; aClaims: TJwtClaims;
   const aAudience: array of RawUtf8; aExpirationMinutes: integer;
   aIDIdentifier: TSynUniqueIdentifierProcess; aIDObfuscationKey: RawUtf8;
   aIDObfuscationKeyNewKdf: integer);
 begin
   if not aCertificate.CheckCRC then
-    raise EJwtException.CreateUtf8('%.Create(aCertificate?)', [self]);
+    EJwtException.RaiseUtf8('%.Create(aCertificate?)', [self]);
   inherited Create('ES256', aClaims, aAudience, aExpirationMinutes,
     aIDIdentifier, aIDObfuscationKey, aIDObfuscationKeyNewKdf);
   fCertificate := aCertificate;
   fVerify := TEcc256r1Verify.Create(fCertificate.Content.Head.Signed.PublicKey);
 end;
 
-destructor TJwtES256.Destroy;
+destructor TJwtEs256.Destroy;
 begin
   if fOwnCertificate then
     fCertificate.Free;
@@ -1370,7 +1546,7 @@ begin
   inherited;
 end;
 
-procedure TJwtES256.CheckSignature(const headpayload: RawUtf8;
+procedure TJwtEs256.CheckSignature(const headpayload: RawUtf8;
   const signature: RawByteString; var jwt: TJwtContent);
 var
   sha: TSha256;
@@ -1384,7 +1560,12 @@ begin
     jwt.result := jwtValid;
 end;
 
-function TJwtES256.ComputeSignature(const headpayload: RawUtf8): RawUtf8;
+class function TJwtEs256.GetAsymAlgo: TCryptAsymAlgo;
+begin
+  result := caaES256;
+end;
+
+function TJwtEs256.ComputeSignature(const headpayload: RawUtf8): RawUtf8;
 var
   sha: TSha256;
   hash: TSha256Digest;
@@ -1392,13 +1573,218 @@ var
 begin
   if not fCertificate.InheritsFrom(TEccCertificateSecret) or
      not TEccCertificateSecret(fCertificate).HasSecret then
-    raise EEccException.CreateUtf8('%.ComputeSignature expects % (%) to hold ' +
+    EEccException.RaiseUtf8('%.ComputeSignature expects % (%) to hold ' +
       'a private key', [self, fCertificate, fCertificate.Serial]);
   sha.Full(pointer(headpayload), length(headpayload), hash);
   if not Ecc256r1Sign(TEccCertificateSecret(fCertificate).PrivateKey, hash, sign) then
-    raise EEccException.CreateUtf8('%.ComputeSignature: ecdsa_sign?', [self]);
+    EEccException.RaiseUtf8('%.ComputeSignature: ecdsa_sign?', [self]);
   result := BinToBase64Uri(@sign, SizeOf(sign));
 end;
+
+
+{ ************** JWT Implementation of RS256/RS384/RS512 Algorithms }
+
+{ TJwtRsa }
+
+constructor TJwtRsa.Create(const aKey: RawByteString; aClaims: TJwtClaims;
+  const aAudience: array of RawUtf8; aExpirationMinutes: integer;
+  aIDIdentifier: TSynUniqueIdentifierProcess; aIDObfuscationKey: RawUtf8;
+  aIDObfuscationKeyNewKdf: integer);
+var
+  a: TCryptAsymAlgo;
+begin
+  a := GetAsymAlgo;
+  fAlgorithm := CAA_JWT[a];
+  fHash := CAA_HF[a];
+  case a of
+    caaRS256 .. caaRS512:
+      fRsa := TRsa.Create;
+    caaPS256 .. caaPS512:
+      fRsa := TRsaPss.Create;
+  else
+    EJwtException.RaiseUtf8('%.Create with %', [self, ToText(a)^]);
+  end;
+  try
+    if aKey <> '' then
+      // try as private key, then as public key
+      if fRsa.LoadFromPrivateKeyPem(aKey) then // handle PEM or DER
+      begin
+        if (fRsa.ModulusBits < 2048) or
+           not fRsa.CheckPrivateKey then
+        ERsaException.RaiseUtf8('%.Create: invalid %-bit private key',
+          [self, fRsa.ModulusBits]);
+      end
+      else if fRsa.LoadFromPublicKeyPem(aKey) then // PEM or DER
+        if fRsa.ModulusBits < 2048 then
+          ERsaException.RaiseUtf8(
+            '%.Create: invalid %-bit public key', [self, fRsa.ModulusBits]);
+    if not fRsa.HasPublicKey then
+      ERsaException.RaiseUtf8('%.Create: invalid key', [self]);
+  except
+    FreeAndNil(fRsa);
+    raise;
+  end;
+  inherited Create(fAlgorithm, aClaims, aAudience, aExpirationMinutes,
+    aIDIdentifier, aIDObfuscationKey, aIDObfuscationKeyNewKdf);
+end;
+
+destructor TJwtRsa.Destroy;
+begin
+  inherited Destroy;
+  fRsa.Free;
+end;
+
+function TJwtRsa.ComputeSignature(const headpayload: RawUtf8): RawUtf8;
+var
+  h: TSynHasher;
+  dig: THash512Rec;
+  sig: RawByteString;
+begin
+  if not fRsa.HasPrivateKey then
+    ERsaException.RaiseUtf8(
+      '%.ComputeSignature requires a private key', [self]);
+  h.Full(fHash, pointer(headpayload), length(headpayload), dig);
+  sig := fRsa.Sign(@dig.b, fHash); // = encrypt with private key
+  if sig = '' then
+    ERsaException.RaiseUtf8(
+      '%.ComputeSignature: %.Sign failed', [self, fRsa]);
+  result := BinToBase64Uri(pointer(sig), length(sig));
+end;
+
+procedure TJwtRsa.CheckSignature(const headpayload: RawUtf8;
+  const signature: RawByteString; var jwt: TJwtContent);
+var
+  h: TSynHasher;
+  dig: THash512Rec;
+begin
+  if fRsa = nil then
+    ERsaException.RaiseUtf8(
+      '%.CheckSignature requires a public key', [self]);
+  jwt.result := jwtInvalidSignature;
+  if length(signature) <> fRsa.ModulusLen then
+    exit;
+  h.Full(fHash, pointer(headpayload), length(headpayload), dig);
+  if fRsa.Verify(@dig, fHash, signature) then // = decrypt with public key
+    jwt.result := jwtValid;
+end;
+
+
+class function TJwtRs256.GetAsymAlgo: TCryptAsymAlgo;
+begin
+  result := caaRS256;
+end;
+
+class function TJwtRs384.GetAsymAlgo: TCryptAsymAlgo;
+begin
+  result := caaRS384;
+end;
+
+class function TJwtRs512.GetAsymAlgo: TCryptAsymAlgo;
+begin
+  result := caaRS512;
+end;
+
+class function TJwtPs256.GetAsymAlgo: TCryptAsymAlgo;
+begin
+  result := caaPS256;
+end;
+
+class function TJwtPs384.GetAsymAlgo: TCryptAsymAlgo;
+begin
+  result := caaPS384;
+end;
+
+class function TJwtPs512.GetAsymAlgo: TCryptAsymAlgo;
+begin
+  result := caaPS512;
+end;
+
+
+{ *********** JWT Implementation via ICryptPublicKey/ICryptPrivateKey Factories }
+
+{ TJwtCrypt }
+
+constructor TJwtCrypt.Create(aAlgo: TCryptAsymAlgo;
+  const aPublicKey: RawByteString; aClaims: TJwtClaims;
+  const aAudience: array of RawUtf8; aExpirationMinutes: integer;
+  aIDIdentifier: TSynUniqueIdentifierProcess; aIDObfuscationKey: RawUtf8;
+  aIDObfuscationKeyNewKdf: integer);
+begin
+  fAsymAlgo := aAlgo;
+  fAlgorithm := CAA_JWT[aAlgo];
+  fKeyAlgo := CAA_CKA[aAlgo];;
+  if CryptPublicKey[fKeyAlgo] = nil then
+    EJwtException.RaiseUtf8('%.Create with unsupported %',
+            [self, ToText(aAlgo)^]);
+  fPublicKey := CryptPublicKey[fKeyAlgo].Create;
+  if aPublicKey = '' then
+  begin
+    // no public key supplied: generate a new key pair
+    fPrivateKey := CryptPrivateKey[fKeyAlgo].Create;
+    if not fPublicKey.Load(fKeyAlgo, fPrivateKey.Generate(fAsymAlgo)) then
+      EJwtException.RaiseUtf8('%.Create: impossible to generate a % key',
+              [self, ToText(fKeyAlgo)^]);
+  end
+  else if not fPublicKey.Load(fKeyAlgo, aPublicKey) then
+  begin
+    // is not a public key: try to load a private key here
+    fPrivateKey := CryptPrivateKey[fKeyAlgo].Create;
+    if not fPrivateKey.Load(fKeyAlgo, nil, aPublicKey, '') or
+       // and generate the associated public key from this private key
+       not fPublicKey.Load(fKeyAlgo, fPrivateKey.ToSubjectPublicKey) then
+      EJwtException.RaiseUtf8('%.Create: impossible to load this % key',
+        [self, ToText(fKeyAlgo)^]);
+  end;
+  inherited Create(fAlgorithm, aClaims, aAudience, aExpirationMinutes,
+    aIDIdentifier, aIDObfuscationKey, aIDObfuscationKeyNewKdf);
+end;
+
+function TJwtCrypt.LoadPrivateKey(const aPrivateKey: RawByteString;
+  const aPassword: SpiUtf8): boolean;
+begin
+  result := false;
+  if (self = nil) or
+     Assigned(fPrivateKey) then
+    exit;
+  fPrivateKey := CryptPrivateKey[fKeyAlgo].Create;
+  if fPrivateKey.Load(fKeyAlgo, fPublicKey, aPrivateKey, aPassword) then
+    result := true
+  else
+    fPrivateKey := nil;
+end;
+
+class function TJwtCrypt.Supports(aAlgo: TCryptAsymAlgo): boolean;
+begin
+  result := CryptPublicKey[CAA_CKA[aAlgo]] <> nil;
+end;
+
+function TJwtCrypt.ComputeSignature(const headpayload: RawUtf8): RawUtf8;
+var
+  sig: RawByteString;
+begin
+  if not Assigned(fPrivateKey) then
+    EJwtException.RaiseUtf8('%.ComputeSignature requires a private key', [self]);
+  sig := fPrivateKey.Sign(fAsymAlgo, headpayload); // = encrypt with private key
+  if sig = '' then
+    EJwtException.RaiseUtf8('%.ComputeSignature: % Sign failed', [self, fAlgorithm]);
+  result := GetSignatureSecurityRaw(fAsymAlgo, sig); // into base-64 encoded raw
+end;
+
+procedure TJwtCrypt.CheckSignature(const headpayload: RawUtf8;
+  const signature: RawByteString; var jwt: TJwtContent);
+var
+  der: RawByteString;
+begin
+  if not Assigned(fPublicKey) then
+    EJwtException.RaiseUtf8('%.CheckSignature requires a public key', [self]);
+  der := SetSignatureSecurityRaw(fAsymAlgo, signature);
+  if fPublicKey.Verify(fAsymAlgo, headpayload, der) then // = decrypt
+    jwt.result := jwtValid
+  else
+    jwt.result := jwtInvalidSignature;
+end;
+
+
 
 
 procedure InitializeUnit;

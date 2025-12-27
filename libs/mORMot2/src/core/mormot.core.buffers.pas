@@ -46,7 +46,7 @@ function ToVarUInt32Length(Value: PtrUInt): PtrUInt;
   {$ifdef HASINLINE}inline;{$endif}
 
 /// return the number of bytes necessary to store some data with a its
-// 32-bit variable-length integer legnth
+// 32-bit variable-length integer length
 function ToVarUInt32LengthWithData(Value: PtrUInt): PtrUInt;
   {$ifdef HASINLINE}inline;{$endif}
 
@@ -168,7 +168,7 @@ function FromVarString(var Source: PByte; SourceMax: PByte;
 
 /// retrieve a variable-length UTF-8 encoded text buffer in a temporary buffer
 // - caller should call Value.Done after use of the Value.buf memory
-// - this overloaded function would include a trailing #0, so Value.buf could
+// - this overloaded function would include a #0 terminator, so Value.buf could
 // be parsed as a valid PUtf8Char buffer (e.g. containing JSON)
 procedure FromVarString(var Source: PByte; var Value: TSynTempBuffer); overload;
 
@@ -213,14 +213,16 @@ type
   TAlgoCompress = class
   protected
     fAlgoID: byte;
+    fAlgoHasForcedFormat: boolean;
+    fAlgoFileExt: TFileName;
+    procedure EnsureAlgoHasNoForcedFormat(const caller: ShortString);
   public
     /// computes by default the crc32c() digital signature of the buffer
     function AlgoHash(Previous: cardinal;
       Data: pointer; DataLen: integer): cardinal; overload; virtual;
-    /// computes the digital signature of the buffer, or Hash32() if defined
+    /// computes the digital signature of the buffer, or Hash32() if specified
     function AlgoHash(ForceHash32: boolean;
       Data: pointer; DataLen: integer): cardinal; overload;
-      {$ifdef HASINLINE}inline;{$endif}
     /// get maximum possible (worse) compressed size for the supplied length
     function AlgoCompressDestLen(PlainLen: integer): integer; virtual; abstract;
     /// this method will compress the supplied data
@@ -238,9 +240,19 @@ type
     /// contains a genuine byte identifier for this algorithm
     // - 0 is reserved for stored, 1 for TAlgoSynLz, 2/3 for TAlgoDeflate/Fast
     // (in mormot.core.zip.pas), 4/5/6 for TAlgoLizard/Fast/Huffman
-    // (in mormot.lib.lizard.pas), 7/8 for TAlgoRleLZ/TAlgoRle
+    // (in mormot.lib.lizard.pas), 7/8 for TAlgoRleLZ/TAlgoRle, 9/10 for limited
+    // TAlgoGZ/TAlgoGZFast (in mormot.core.zip.pas)
     property AlgoID: byte
       read fAlgoID;
+    /// the usual file extension of this algorithm
+    // - e.g. '.synlz' or '.synz' or '.synliz' for SynLZ, Deflate or Lizard
+    property AlgoFileExt: TFileName
+      read fAlgoFileExt;
+    /// if this algorithm does not supports our custom storage format
+    // - e.g. AlgoGZ set true and only supports plain buffers and files methods
+    // and would raise EAlgoCompress when stream methods are used
+    property AlgoHasForcedFormat: boolean
+      read fAlgoHasForcedFormat;
   public
     /// will register AlgoID in the global list, for Algo() class methods
     // - no need to free this instance, since it will be owned by the global list
@@ -248,6 +260,8 @@ type
     // - you should never have to call this constructor, but define a global
     // variable holding a reference to a shared instance
     constructor Create; virtual;
+    /// finalize this algorithm
+    destructor Destroy; override;
     /// get maximum possible (worse) compressed size for the supplied length
     // - including the crc32c + algo 9 bytes header
     function CompressDestLen(PlainLen: integer): integer;
@@ -262,11 +276,12 @@ type
     function Compress(Plain: PAnsiChar; PlainLen: integer;
       CompressionSizeTrigger: integer = 100;
       CheckMagicForCompressed: boolean = false;
-      BufferOffset: integer = 0): RawByteString; overload;
+      BufferOffset: integer = 0): RawByteString; overload; virtual;
     /// compress a memory buffer with crc32c hashing
     // - supplied Comp buffer should contain at least CompressDestLen(PlainLen) bytes
     function Compress(Plain, Comp: PAnsiChar; PlainLen, CompLen: integer;
-      CompressionSizeTrigger: integer = 100; CheckMagicForCompressed: boolean = false): integer; overload;
+      CompressionSizeTrigger: integer = 100;
+      CheckMagicForCompressed: boolean = false): integer; overload; virtual;
     /// compress a memory buffer with crc32c hashing to a TByteDynArray
     function CompressToBytes(const Plain: RawByteString;
       CompressionSizeTrigger: integer = 100;
@@ -311,11 +326,11 @@ type
     // then return the uncompressed size in bytes, or 0 if the crc32c does not match
     // - should call DecompressBody() later on to actually retrieve the content
     function DecompressHeader(Comp: PAnsiChar; CompLen: integer;
-      Load: TAlgoCompressLoad = aclNormal): integer;
+      Load: TAlgoCompressLoad = aclNormal): integer; virtual;
     /// decode the content of a memory buffer compressed via the Compress() method
     // - PlainLen has been returned by a previous call to DecompressHeader()
     function DecompressBody(Comp, Plain: PAnsiChar; CompLen, PlainLen: integer;
-      Load: TAlgoCompressLoad = aclNormal): boolean;
+      Load: TAlgoCompressLoad = aclNormal): boolean; virtual;
     /// partial decoding of a memory buffer compressed via the Compress() method
     // - returns 0 on error, or how many bytes have been written to Partial
     // - will call virtual AlgoDecompressPartial() which is slower, but expected
@@ -325,7 +340,7 @@ type
     // with PartialLenMax > expected PartialLen, and returned bytes may be >
     // PartialLen, but always <= PartialLenMax
     function DecompressPartial(Comp, Partial: PAnsiChar; CompLen,
-      PartialLen, PartialLenMax: integer): integer;
+      PartialLen, PartialLenMax: integer): integer; virtual;
     /// compress a Stream content using this compression algorithm
     // - source Stream may be read and compressed by ChunkBytes = 4MB chunks
     // - a 32-bit Magic number identifies the compressed content chunks
@@ -373,7 +388,9 @@ type
     // matching the Magic number as supplied to FileCompress() function
     // - follow the FileIsSynLZ() deprecated function format
     // - expects the compressed data to be at file beginning (not appended)
-    function FileIsCompressed(const Name: TFileName; Magic: cardinal): boolean;
+    // - may be overriden to support a standard file layout (e.g. AlgoGZ)
+    class function FileIsCompressed(const Name: TFileName;
+      Magic: cardinal): boolean; virtual;
     /// compress a file content using this compression algorithm
     // - source file is split into ChunkBytes blocks (128 MB by default) for
     // fast in-memory compression of any file size, then compressed and
@@ -383,20 +400,18 @@ type
     // file format
     // - follow the FileSynLZ() deprecated function format, if ForceHash32=true
     // so that Hash32() is used instead of the AlgoHash() of this instance
+    // - may be overriden to support a standard file layout (e.g. AlgoGZ)
     function FileCompress(const Source, Dest: TFileName; Magic: cardinal;
       ForceHash32: boolean = false; ChunkBytes: Int64 = 128 shl 20;
-      WithTrailer: boolean = false): boolean;
+      WithTrailer: boolean = false): boolean; virtual;
     /// uncompress a file previously compressed via FileCompress()
     // - you should specify a Magic number to be used to identify the compressed
     // file format
     // - follow the FileUnSynLZ() deprecated function format, if ForceHash32=true
     // so that Hash32() is used instead of the AlgoHash() of this instance
+    // - may be overriden to support a standard file layout (e.g. AlgoGZ)
     function FileUnCompress(const Source, Dest: TFileName; Magic: cardinal;
-      ForceHash32: boolean = false): boolean;
-    /// a TSynLogArchiveEvent handler which will compress older .log files
-    // using our proprietary FileCompress format for this algorithm
-    function EventArchive(aMagic: cardinal;
-      const aOldLogFileName, aDestinationPath, aDestinationExt: TFileName): boolean;
+      ForceHash32: boolean = false): boolean; virtual;
 
     /// get the TAlgoCompress instance corresponding to the AlgoID stored
     // in the supplied compressed buffer
@@ -430,6 +445,7 @@ type
     class function UncompressedSize(const Comp: RawByteString): integer;
     /// returns the algorithm name, from its classname
     // - e.g. TAlgoSynLZ->'synlz' TAlgoLizard->'lizard' nil->'none'
+    // TAlgoDeflateFast->'deflatefast'
     function AlgoName: TShort16;
   end;
 
@@ -526,6 +542,28 @@ var
   // - if RLE has no effect during compression, will fallback to plain store
   AlgoRle: TAlgoCompress;
 
+var
+  /// define how files are compressed by TSynLog.PerformRotation
+  // - as used within mormot.core.log.pas unit, and defined in this unit to be
+  // available wihout any dependency to it (e.g. in compression units)
+  // - assigned to AlgoSynLZ by default for .synlz which is the fastest for logs
+  // - you may set AlgoGZFast from mormot.core.zip.pas to generate .gz standard
+  // files during TSynLog file rotation (with libdeflate if available)
+  // - you may set AlgoLizardFast or AlgoLizardHuffman as non-standard
+  // alternatives (default AlgoLizard is much slower and less efficient on logs)
+  // - if you set nil, no compression will take place during rotation
+  // - note that compression itself is run in the logging background thread
+  LogCompressAlgo: TAlgoCompress;
+
+  /// internal wrapper function used by TSynLogArchiveEvent handlers to compress
+  // and delete older .log files using our proprietary FileCompress format for
+  // a given algorithm
+  // - as used within mormot.core.log.pas unit, and defined in this unit to be
+  // available wihout any dependency to it (e.g. in compression units)
+  // - called by EventArchiveLizard/EventArchiveSynLZ to implement
+  // .synlz/.synliz archival
+  LogCompressAlgoArchive: function(aAlgo: TAlgoCompress; aMagic: cardinal;
+    const aOldLogFileName, aDestinationPath: TFileName): boolean;
 
 const
   /// CompressionSizeTrigger parameter SYNLZTRIG[true] will disable then
@@ -543,6 +581,7 @@ const
 
 /// fast concatenation of several AnsiStrings
 function RawByteStringArrayConcat(const Values: array of RawByteString): RawByteString;
+  {$ifdef FPC}inline;{$endif}
 
 /// creates a TBytes from a RawByteString memory buffer
 procedure RawByteStringToBytes(const buf: RawByteString; out bytes: TBytes);
@@ -652,7 +691,7 @@ type
     /// raise a EFastReader with "Incorrect Data: ...." error message
     procedure ErrorData(const fmt: RawUtf8; const args: array of const); overload;
     /// raise a EFastReader with "Incorrect Data: ...." error message
-    procedure ErrorData(const msg: shortstring); overload;
+    procedure ErrorData(const msg: ShortString); overload;
     /// read the next 32-bit signed value from the buffer
     function VarInt32: integer;
       {$ifdef HASINLINE}inline;{$endif}
@@ -697,6 +736,10 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     /// copy the next VarBlob value from the buffer into a TSynTempBuffer
     procedure VarBlob(out Value: TSynTempBuffer); overload;
+    /// read the next pointer and length value from the buffer
+    // - this version won't call ErrorOverflow, but return false on error
+    // - returns true on read success
+    function VarBlobSafe(out Value: TValueResult): boolean;
     /// read the next ShortString value from the buffer
     function VarShortString: ShortString;
       {$ifdef HASINLINE}inline;{$endif}
@@ -732,15 +775,15 @@ type
     function Next(DataLen: PtrInt): pointer;
       {$ifdef HASINLINE}inline;{$endif}
     /// returns the current position, and move ahead the specified bytes
-    function NextSafe(out Data: Pointer; DataLen: PtrInt): boolean;
+    function NextSafe(out Data: pointer; DataLen: PtrInt): boolean;
       {$ifdef HASINLINE}inline;{$endif}
     /// copy data from the current position, and move ahead the specified bytes
-    procedure Copy(Dest: Pointer; DataLen: PtrInt);
+    procedure Copy(Dest: pointer; DataLen: PtrInt);
       {$ifdef HASINLINE}inline;{$endif}
     /// copy data from the current position, and move ahead the specified bytes
     // - this version won't call ErrorOverflow, but return false on error
     // - returns true on read success
-    function CopySafe(Dest: Pointer; DataLen: PtrInt): boolean;
+    function CopySafe(Dest: pointer; DataLen: PtrInt): boolean;
     /// retrieved cardinal values encoded with TBufferWriter.WriteVarUInt32Array
     // - Values[] will be resized only if it is not long enough, to spare heap
     // - returns decoded count in Values[], which may not be length(Values)
@@ -796,7 +839,7 @@ type
   // - big speed up if data is written in small blocks
   // - also handle optimized storage of any integer/Int64/RawUtf8 values
   // - use TFileBufferReader or TFastReader for decoding of the stored binary
-  TBufferWriter = class
+  TBufferWriter = class(TSynPersistent)
   protected
     fPos: PtrInt;
     fBufLen, fBufLen16: PtrInt;
@@ -856,9 +899,6 @@ type
     /// append 2 bytes of data at the current position
     procedure Write2(Data: cardinal);
       {$ifdef HASINLINE}inline;{$endif}
-    /// append 2 bytes of data, encoded as BigEndian,  at the current position
-    procedure Write2BigEndian(Data: cardinal);
-      {$ifdef HASINLINE}inline;{$endif}
     /// append 4 bytes of data at the current position
     procedure Write4(Data: integer);
       {$ifdef HASINLINE}inline;{$endif}
@@ -871,7 +911,7 @@ type
     /// append 8 bytes of 64-bit integer at the current position
     procedure WriteI64(Data: Int64);
       {$ifdef HASINLINE}inline;{$endif}
-    /// append the same byte a given number of occurences at the current position
+    /// append the same byte a given number of occurrences at the current position
     procedure WriteN(Data: byte; Count: integer);
     /// append some content (may be text or binary) prefixed by its encoded length
     // - will write DataLen as VarUInt32, then the Data content, as expected
@@ -945,10 +985,18 @@ type
     // - caller should specify the maximum possible number of bytes to be written
     // - then write the data to the returned pointer, and call DirectWriteFlush
     // - if len is bigger than the internal buffer, tmp will be used instead
-    function DirectWritePrepare(len: PtrInt; var tmp: RawByteString): PAnsiChar;
+    function DirectWritePrepare(maxlen: PtrInt; var tmp: RawByteString): PAnsiChar;
     /// finalize a direct write to a memory buffer
     // - by specifying the number of bytes written to the buffer
     procedure DirectWriteFlush(len: PtrInt; const tmp: RawByteString);
+    /// allows to write directly to a memory buffer
+    // - caller should specify the maximum possible number of bytes to be written
+    // - len should be smaller than the internal buffer size (not checked)
+    function DirectWriteReserve(maxlen: PtrInt): PByte;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// flush DirectWriteReserve() content
+    procedure DirectWriteReserved(pos: PByte);
+      {$ifdef HASINLINE}inline;{$endif}
     /// write any pending data in the internal buffer to the stream
     // - after a Flush, it's possible to call FileSeek64(aFile,....)
     // - returns the number of bytes written between two FLush method calls
@@ -999,13 +1047,6 @@ const
 { ************ Base64, Base64Uri, Base58 and Baudot Encoding / Decoding }
 
 const
-  /// UTF-8 encoded \uFFF0 special code to mark Base64 binary content in JSON
-  // - Unicode special char U+FFF0 is UTF-8 encoded as EF BF B0 bytes
-  // - as generated by BinToBase64WithMagic() functions, and expected by
-  // the TExtractInlineParameters decoder
-  // - used e.g. when transmitting TDynArray.SaveTo() content
-  JSON_BASE64_MAGIC_C = $b0bfef;
-
   /// UTF-8 encoded \uFFF0 special code to mark Base64 binary content in JSON
   // - Unicode special char U+FFF0 is UTF-8 encoded as EF BF B0 bytes
   // - as generated by BinToBase64WithMagic() functions, and expected by
@@ -1173,12 +1214,12 @@ function IsBase64(sp: PAnsiChar; len: PtrInt): boolean; overload;
 function BinToBase64Length(len: PtrUInt): PtrUInt;
   {$ifdef HASINLINE}inline;{$endif}
 
-/// retrieve the expected undecoded length of a Base64 encoded buffer
-// - here len is the number of bytes in sp
+/// retrieve the expected decoded length of a Base64 encoded buffer
+// - here len is the number of chars in the input sp buffer
 function Base64ToBinLength(sp: PAnsiChar; len: PtrInt): PtrInt;
 
-/// retrieve the expected undecoded length of a Base64 encoded buffer
-// - here len is the number of bytes in sp
+/// retrieve the expected decoded length of a Base64 encoded buffer
+// - here len is the number of chars in the input sp buffer
 // - will check supplied text is a valid Base64 encoded stream
 function Base64ToBinLengthSafe(sp: PAnsiChar; len: PtrInt): PtrInt;
 
@@ -1219,8 +1260,8 @@ procedure Base64uriEncode(rp, sp: PAnsiChar; len: cardinal);
 function BinToBase64uriLength(len: PtrUInt): PtrUInt;
   {$ifdef HASINLINE}inline;{$endif}
 
-/// retrieve the expected undecoded length of a Base64-URI encoded buffer
-// - here len is the number of bytes in sp
+/// retrieve the expected decoded length of a Base64-URI encoded buffer
+// - here len is the number of chars in the encoded buffer
 // - in comparison to Base64 standard encoding, will trim any right-sided '='
 // unsignificant characters, and replace '+' or '/' by '_' or '-'
 function Base64uriToBinLength(len: PtrInt): PtrInt;
@@ -1234,8 +1275,8 @@ function Base64uriToBin(sp: PAnsiChar; len: PtrInt): RawByteString; overload;
 /// fast conversion from Base64-URI encoded text into binary data
 // - in comparison to Base64 standard encoding, will trim any right-sided '='
 // unsignificant characters, and replace '+' or '/' by '_' or '-'
-procedure Base64uriToBin(sp: PAnsiChar; len: PtrInt;
-  var result: RawByteString); overload;
+function Base64uriToBin(sp: PAnsiChar; len: PtrInt;
+  var bin: RawByteString): boolean; overload;
 
 /// fast conversion from Base64-URI encoded text into binary data
 // - caller should always execute temp.Done when finished with the data
@@ -1486,28 +1527,66 @@ function BaudotToAscii(const Baudot: RawByteString): RawUtf8; overload;
 { ***************** URI-Encoded Text Buffer Process }
 
 /// encode a string as URI parameter encoding, i.e. ' ' as '+'
-function UrlEncode(const svar: RawUtf8): RawUtf8; overload;
-  {$ifdef HASINLINE}inline;{$endif}
+function UrlEncode(const Text: RawUtf8): RawUtf8; overload;
 
 /// encode a string as URI parameter encoding, i.e. ' ' as '+'
 function UrlEncode(Text: PUtf8Char): RawUtf8; overload;
 
-/// encode a string as URI network name encoding, i.e. ' ' as %20
-function UrlEncodeName(const svar: RawUtf8): RawUtf8; overload;
-  {$ifdef HASINLINE}inline;{$endif}
+/// append a string as URI parameter encoding, i.e. ' ' as '+'
+procedure UrlEncode(W: TTextWriter; Text: PUtf8Char; TextLen: PtrInt); overload;
+
+/// append a string as URI parameter encoding, i.e. ' ' as '+'
+procedure UrlEncode(W: TTextWriter; const Text: RawUtf8); overload;
 
 /// encode a string as URI network name encoding, i.e. ' ' as %20
+// - only parameters - i.e. after '?' - should replace spaces by '+'
+function UrlEncodeName(const Text: RawUtf8): RawUtf8; overload;
+
+/// encode a string as URI network name encoding, i.e. ' ' as %20
+// - only parameters - i.e. after '?' - should replace spaces by '+'
 function UrlEncodeName(Text: PUtf8Char): RawUtf8; overload;
+
+/// append a string as URI network name encoding, i.e. ' ' as %20
+// - only parameters - i.e. after '?' - should replace spaces by '+'
+procedure UrlEncodeName(W: TTextWriter; Text: PUtf8Char; TextLen: PtrInt); overload;
+
+/// append a string as URI network name encoding, i.e. ' ' as %20
+// - only parameters - i.e. after '?' - should replace spaces by '+'
+procedure UrlEncodeName(W: TTextWriter; const Text: RawUtf8); overload;
+
+type
+  /// some options for UrlEncode()
+  TUrlEncoder = set of (
+    ueTrimLeadingQuestionMark,
+    ueEncodeNames,
+    ueStarNameIsCsv,
+    ueSkipVoidString,
+    ueSkipVoidValue);
 
 /// encode supplied parameters to be compatible with URI encoding
 // - parameters must be supplied two by two, as Name,Value pairs, e.g.
 // ! url := UrlEncode(['select','*','where','ID=12','offset',23,'object',aObject]);
 // - parameters names should be plain ASCII-7 RFC compatible identifiers
-// (0..9a..zA..Z_.~), otherwise their values are skipped
+// (0..9a..zA..Z_.), otherwise they are skipped unless ueEncodeNames is set - the
+// tilde (~) character is part of RFC 3986 but should be escaped in practice
 // - parameters values can be either textual, integer or extended, or any TObject
 // - TObject serialization into UTF-8 will be processed with ObjectToJson()
 function UrlEncode(const NameValuePairs: array of const;
-  TrimLeadingQuestionMark: boolean = false): RawUtf8; overload;
+  Options: TUrlEncoder = []): RawUtf8; overload;
+
+/// encode supplied parameters to be compatible with URI encoding
+// - consider using UrlAppend() if you just need to append some parameters
+function UrlEncode(const NameValuePairs: array of const;
+  TrimLeadingQuestionMark: boolean): RawUtf8; overload;
+
+/// append some encoded Name,Value pairs parameters to an existing URI
+// - will check if Uri does already end with '?' or '&'
+function UrlAppend(const Uri: RawUtf8; const NameValuePairs: array of const;
+  Options: TUrlEncoder = []): RawUtf8;
+
+/// encode a full URI with prefix and parameters
+function UrlEncodeFull(const PrefixFmt: RawUtf8; const PrefixArgs,
+  NameValuePairs: array of const; Options: TUrlEncoder): RawUtf8;
 
 /// decode a UrlEncode() URI encoded parameter into its original value
 function UrlDecode(U: PUtf8Char): RawUtf8; overload;
@@ -1516,12 +1595,15 @@ function UrlDecode(U: PUtf8Char): RawUtf8; overload;
 function UrlDecode(const s: RawUtf8): RawUtf8; overload;
 
 /// decode a UrlEncodeName() URI encoded network name into its original value
-function UrlDecodeName(U: PUtf8Char): RawUtf8; overload;
-
-/// decode a UrlEncodeName() URI encoded network name into its original value
+// - only parameters - i.e. after '?' - should replace spaces by '+'
 function UrlDecodeName(const s: RawUtf8): RawUtf8; overload;
 
+/// decode a UrlEncodeName() URI encoded network name into its original value
+// - only parameters - i.e. after '?' - should replace spaces by '+'
+function UrlDecodeName(U: PUtf8Char): RawUtf8; overload;
+
 /// decode a UrlEncode/UrlEncodeName() URI encoded string into its original value
+// - name=false for parameters (after ?), to replace spaces by '+'
 procedure UrlDecodeVar(U: PUtf8Char; L: PtrInt; var result: RawUtf8; name: boolean);
 
 /// decode a specified parameter compatible with URI encoding into its original
@@ -1596,8 +1678,7 @@ function UrlDecodeNeedParameters(U, CsvNames: PUtf8Char): boolean;
 // - if a pair is decoded, return a PUtf8Char pointer to the next pair in
 // the input buffer, or points to #0 if all content has been processed
 // - if a pair is not decoded, return nil
-function UrlDecodeNextNameValue(U: PUtf8Char;
-  var Name, Value: RawUtf8): PUtf8Char;
+function UrlDecodeNextNameValue(U: PUtf8Char; var Name, Value: RawUtf8): PUtf8Char;
 
 /// decode a URI-encoded Value from an input buffer
 // - decoded value is set in Value out variable
@@ -1613,12 +1694,13 @@ function UrlDecodeNextName(U: PUtf8Char; out Name: RawUtf8): PUtf8Char;
 
 /// checks if the supplied UTF-8 text don't need URI encoding
 // - returns TRUE if all its chars are non-void plain ASCII-7 RFC compatible
-// identifiers (0..9a..zA..Z-_.~)
+// identifiers (0..9a..zA..Z-_.) - the tilde (~) character is part of RFC 3986
+// but should be escaped in practice
 function IsUrlValid(P: PUtf8Char): boolean;
 
 /// checks if the supplied UTF-8 text values don't need URI encoding
 // - returns TRUE if all its chars of all strings are non-void plain ASCII-7 RFC
-// compatible identifiers (0..9a..zA..Z-_.~)
+// compatible identifiers (0..9a..zA..Z-_.) - excluding tilde (~)
 function AreUrlValid(const Url: array of RawUtf8): boolean;
 
 /// ensure the supplied URI contains a trailing '/' charater
@@ -1628,7 +1710,8 @@ function IncludeTrailingUriDelimiter(const URI: RawByteString): RawByteString;
 { *********** Basic MIME Content Types Support }
 
 type
-  /// the known mime types
+  /// some of the best-known mime types
+  // - subset of the whole IANA list which can be quite huge (>1500 items)
   TMimeType = (
     mtUnknown,
     mtPng,
@@ -1666,7 +1749,9 @@ type
     mtBz2,
     mtPdf,
     mtSQlite3,
-    mtXcomp);
+    mtXcomp,
+    mtDicom,
+    mtZstd);
   PMimeType = ^TMimeType;
 
 const
@@ -1683,9 +1768,9 @@ const
     'application/vnd.ms-excel',      // mtXls
     HTML_CONTENT_TYPE,               // mtHtml
     'text/css',                      // mtCss
-    'application/javascript',        // mtJS
+    'text/javascript',               // mtJS RFC 9239
     'image/x-icon',                  // mtXIcon
-    'application/font-woff',         // mtFont
+    'font/woff',                     // mtFont RFC 8081
     TEXT_CONTENT_TYPE,               // mtText
     'image/svg+xml',                 // mtSvg
     XML_CONTENT_TYPE,                // mtXml
@@ -1708,21 +1793,26 @@ const
     'application/bzip2',             // mtBz2
     'application/pdf',               // mtPdf
     'application/x-sqlite3',         // mtSQlite3
-    'application/x-compress');       // mtXcomp
+    'application/x-compress',        // mtXcomp
+    'application/dicom',             // mtDicom
+    'application/zstd');             // mtZstd RFC 8878
 
 /// retrieve the MIME content type from its file name
 function GetMimeContentTypeFromExt(const FileName: TFileName;
   FileExt: PRawUtf8 = nil): TMimeType;
 
+/// retrieve the MIME content type from its file extension text (without '.')
+function GetMimeTypeFromExt(const Ext: RawUtf8): TMimeType;
+
 /// retrieve the MIME content type from a supplied binary buffer
-function GetMimeContentTypeFromMemory(Content: Pointer; Len: PtrInt): TMimeType;
+function GetMimeContentTypeFromMemory(Content: pointer; Len: PtrInt): TMimeType;
 
 /// retrieve the MIME content type from a supplied binary buffer
 // - inspect the first bytes, to guess from standard known headers
 // - return the MIME type, ready to be appended to a 'Content-Type: ' HTTP header
-// - returns DefaultContentType if the binary buffer has an unknown layout
-function GetMimeContentTypeFromBuffer(Content: Pointer; Len: PtrInt;
-  const DefaultContentType: RawUtf8; Mime: PMimeType = nil): RawUtf8;
+// - keep the supplied ContentType if the binary buffer has an unknown layout
+function GetMimeContentTypeFromBuffer(const Content: RawByteString;
+  var ContentType: RawUtf8): TMimeType;
 
 /// retrieve the MIME content type from its file name or a supplied binary buffer
 // - will first check for known file extensions, then inspect the binary content
@@ -1730,15 +1820,17 @@ function GetMimeContentTypeFromBuffer(Content: Pointer; Len: PtrInt;
 // - default is DefaultContentType or 'application/octet-stream' (BINARY_CONTENT_TYPE)
 // or 'application/fileextension' if FileName was specified
 // - see @http://en.wikipedia.org/wiki/Internet_media_type for most common values
-function GetMimeContentType(Content: Pointer; Len: PtrInt; const FileName: TFileName = '';
-  const DefaultContentType: RawUtf8 = BINARY_CONTENT_TYPE; Mime: PMimeType = nil): RawUtf8;
+function GetMimeContentType(const Content: RawByteString; const FileName: TFileName = '';
+  const DefaultContentType: RawUtf8 = BINARY_CONTENT_TYPE): RawUtf8;
 
 /// retrieve the HTTP header for MIME content type from a supplied binary buffer
 // - just append HEADER_CONTENT_TYPE and GetMimeContentType() result
 // - can be used as such:
 // !  Call.OutHead := GetMimeContentTypeHeader(Call.OutBody,aFileName);
 function GetMimeContentTypeHeader(const Content: RawByteString;
-  const FileName: TFileName = ''; Mime: PMimeType = nil): RawUtf8;
+  const FileName: TFileName = ''): RawUtf8;
+
+function ToText(t: TMimeType): PShortString; overload;
 
 const
   /// the "magic" number used to identify .log.synlz compressed files, as
@@ -1749,7 +1841,31 @@ const
 // - returns TRUE, if the header in binary buffer "may" be compressed (this
 // method can trigger false positives), e.g. begin with most common already
 // compressed zip/gz/gif/png/jpeg/avi/mp3/mp4 markers (aka "magic numbers")
-function IsContentCompressed(Content: Pointer; Len: PtrInt): boolean;
+function IsContentCompressed(Content: pointer; Len: PtrInt): boolean;
+
+/// recognize e.g. 'text/css' or 'application/json' as compressible
+// - as used by THttpSocketCompressList.CompressContent
+function IsContentTypeCompressible(ContentType: PUtf8Char; ContentTypeLen: PtrInt;
+  OnlyText: boolean = false): boolean;
+
+/// recognize e.g. 'text/css' or 'application/json' as compressible
+function IsContentTypeCompressibleU(const ContentType: RawUtf8): boolean;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// recognize e.g. 'application/json' or 'application/vnd.####+json'
+function IsContentTypeJson(ContentType: PUtf8Char; ContentTypeLen: PtrInt): boolean;
+
+/// recognize e.g. 'application/[...+]json' or 'text/*'
+function IsContentTypeTextU(const ContentType: RawUtf8): boolean;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// recognize e.g. 'application/json' or 'application/vnd.####+json'
+function IsContentTypeJsonU(const ContentType: RawUtf8): boolean;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// recognize e.g. 'text/*' or 'application/json' patterns
+function IsContentUtf8(const Content, ContentType: RawUtf8): boolean;
+  {$ifdef HASINLINE} inline; {$endif}
 
 /// fast guess of the size, in pixels, of a JPEG memory buffer
 // - will only scan for basic JPEG structure, up to the StartOfFrame (SOF) chunk
@@ -1758,18 +1874,17 @@ function IsContentCompressed(Content: Pointer; Len: PtrInt): boolean;
 // positive recognition, and no waranty that the memory buffer is a valid JPEG
 // - returns FALSE if the buffer does not have any expected SOI/SOF markers
 function GetJpegSize(jpeg: PAnsiChar; len: PtrInt;
-  out Height, Width, Bits: integer): boolean; overload;
+  out Width, Height, Bits: integer): boolean; overload;
 
 
 { ************* Text Memory Buffers and Files }
 
 type
-  {$M+}
   /// able to read a UTF-8 text file using memory map
   // - much faster than TStringList.LoadFromFile()
   // - will ignore any trailing UTF-8 BOM in the file content, but will not
   // expect one either
-  TMemoryMapText = class
+  TMemoryMapText = class(TSynPersistent)
   protected
     fLines: PPointerArray;
     fLinesMax: integer;
@@ -1791,10 +1906,6 @@ type
     // avoid reading the entire file more than once
     procedure ProcessOneLine(LineBeg, LineEnd: PUtf8Char); virtual;
   public
-    /// initialize the memory mapped text file
-    // - this default implementation just do nothing but is called by overloaded
-    // constructors so may be overriden to initialize an inherited class
-    constructor Create; overload; virtual;
     /// read an UTF-8 encoded text file
     // - every line beginning is stored into LinePointers[]
     constructor Create(const aFileName: TFileName); overload;
@@ -1833,8 +1944,8 @@ type
     // - will return '' if aIndex is out of range
     property Lines[aIndex: integer]: RawUtf8
       read GetLine;
-    /// retrieve a line content as generic VCL string type
-    // - a temporary VCL string is created (after conversion for UNICODE Delphi)
+    /// retrieve a line content as RTL string type
+    // - a temporary RTL string is created (after conversion for UNICODE Delphi)
     // - will return '' if aIndex is out of range
     property Strings[aIndex: integer]: string
       read GetString;
@@ -1855,7 +1966,6 @@ type
     property Count: integer
       read fCount;
   end;
-  {$M-}
 
 {$ifndef PUREMORMOT2} // just redirect to mormot.core.text Append(...) overloads
 procedure AppendBufferToRawByteString(var Content: RawByteString;
@@ -1900,7 +2010,7 @@ function AppendUInt32ToBuffer(Buffer: PUtf8Char; Value: PtrUInt): PUtf8Char;
 
 /// fast add text conversion of 0-999 integer value into a given buffer
 // - warning: it won't check that Value is in 0-999 range
-// - up to 4 bytes may be written to the buffer (including trailing #0)
+// - up to 4 bytes may be written to the buffer (including #0 terminator)
 function Append999ToBuffer(Buffer: PUtf8Char; Value: PtrUInt): PUtf8Char;
   {$ifdef HASINLINE}inline;{$endif}
 
@@ -1952,6 +2062,13 @@ function EscapeToShort(source: PAnsiChar; sourcelen: integer): ShortString; over
 /// fill a ShortString with the (hexadecimal) chars of the input text/binary
 function EscapeToShort(const source: RawByteString): ShortString; overload;
 
+/// if source is not UTF-8 calls EscapeToShort, otherwise append it directly
+// - also ensure that txt[] ends with a #0, so that @txt[1] is a valid PUtf8Char
+procedure ContentToShortAppend(source: PAnsiChar; len: PtrInt; var txt: ShortString);
+
+/// if source is not UTF-8 calls EscapeToShort, otherwise return it directly
+function ContentToShort(const source: RawByteString): ShortString;
+  {$ifdef HASINLINE}inline;{$endif}
 
 /// generate some pascal source code holding some data binary as constant
 // - can store sensitive information (e.g. certificates) within the executable
@@ -1977,6 +2094,15 @@ function BinToSource(const ConstName, Comment: RawUtf8; Data: pointer;
 function BinToSource(const ConstName, Comment: RawUtf8; const Data: RawByteString;
   PerLine: integer = 16; const Suffix: RawUtf8 = ''): RawUtf8; overload;
 
+/// generate some 'xx:xx:xx:xx' output buffer with left and right margins
+// - used e.g. by ParsedToText() to output X509 public key content in PeerInfo
+function BinToHumanHex(Data: PByte; Len: integer; PerLine: integer = 16;
+  LeftTab: integer = 0; SepChar: AnsiChar = ':'): RawUtf8; overload;
+
+/// generate some 'xx:xx:xx:xx' output buffer with left and right margins
+procedure BinToHumanHex(W: TTextWriter; Data: PByte; Len: integer;
+  PerLine: integer = 16; LeftTab: integer = 0; SepChar: AnsiChar = ':'); overload;
+
 
 { *************************** TStreamRedirect and other Hash process }
 
@@ -1998,7 +2124,7 @@ type
   /// TStreamHasher.Write optional progression callback
   // - see Sender properties like Context/Size/PerSecond and ExpectedSize
   // (which may be 0 if the download size is unknown)
-  // - see e.g. TStreamRedirect.ProgressToConsole
+  // - see e.g. TStreamRedirect.ProgressStreamToConsole
   TOnStreamProgress = procedure(Sender: TStreamRedirect) of object;
 
   /// optional callback as used e.g. by THttpClientSocketWGet.OnStreamCreate
@@ -2057,6 +2183,8 @@ type
     /// called during process to setup ExpectedSize/ExpectedWrittenSize fields
     procedure SetExpectedSize(SizeExpected, Position: Int64);
     /// retrieve the current status as simple text
+    // - ready to be displayed on the console, e.g. as a single short line with no
+    // CRLF during process, and eventually with full information and ending CRLF
     function GetProgress: RawUtf8;
     /// initialize the information for a new process
     // - once expected size and ident are set, caller should call DoAfter()
@@ -2088,11 +2216,15 @@ type
     fTerminated: boolean;
     fMode: (mUnknown, mRead, mWrite);
     function GetSize: Int64; override;
+    procedure SetSize(NewSize: Longint); override;
+    procedure SetSize(const NewSize: Int64); override;
     function GetProgress: RawUtf8;
     procedure DoReport(ReComputeElapsed: boolean);
     procedure DoHash(data: pointer; len: integer); virtual; // do nothing
+    procedure AfterAppend; virtual;
+    procedure ResetHash; virtual; // called e.g. from Seek(0, soBeginning)
     procedure SetExpectedSize(Value: Int64);
-    procedure ReadWriteHash(const Buffer; Count: Longint); virtual;
+    procedure ReadWriteHash(const Buffer; Count: integer); virtual;
     procedure ReadWriteReport(const Caller: ShortString); virtual;
   public
     /// initialize the internal structure, and start the timing
@@ -2103,9 +2235,22 @@ type
     /// release the associated Redirected stream
     destructor Destroy; override;
     /// can be used as TOnStreamProgress callback writing into the console
+    // - will append the current state in the console last line
     class procedure ProgressStreamToConsole(Sender: TStreamRedirect);
     /// can be used as TOnInfoProgress callback writing into the console
+    // - will append the current state in the console last line
     class procedure ProgressInfoToConsole(Sender: TObject; Info: PProgressInfo);
+    /// can be used as TOnStreamProgress callback writing into the console
+    // - will append the current state in the console with a line feed
+    class procedure ProgressStreamToConsoleLn(Sender: TStreamRedirect);
+    /// can be used as TOnInfoProgress callback writing into the console
+    // - will append the current state in the console with a line feed
+    class procedure ProgressInfoToConsoleLn(Sender: TObject; Info: PProgressInfo);
+    /// notify a TOnStreamProgress callback that a process ended
+    // - create a fake TStreamRedirect and call Ended with the supplied info
+    class procedure NotifyEnded(
+      const OnStream: TOnStreamProgress; const OnInfo: TOnInfoProgress;
+      const Fmt: RawUtf8; const Args: array of const; Size, StartedMs: Int64);
     /// update the hash and redirect the data to the associated TStream
     // - also trigger OnProgress at least every second
     // - will raise an error if Write() (or Append) have been called before
@@ -2114,6 +2259,9 @@ type
     // - also trigger OnProgress at least every second
     // - will raise an error if Read() has been called before
     function Write(const Buffer; Count: Longint): Longint; override;
+    /// overriden to support Seek(0, soBeginning) and reset the Redirected stream
+    // - mandatory for proper THttpClientSocket.SockSendStream rewind
+    function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
     /// update the hash of the existing Redirected stream content
     // - ready to Write() some new data after the existing
     procedure Append;
@@ -2129,6 +2277,8 @@ type
     /// current algorithm name as file/url extension, e.g. '.md5' or '.sha256'
     // - by default, will return '' meaning that no hashing algorithm was set
     class function GetHashFileExt: RawUtf8; virtual;
+    /// current algorithm name, from GetHashFileExt, e.g. 'md5' or 'sha256'
+    class function GetHashName: RawUtf8;
     /// apply the internal hash algorithm to the supplied file content
     // - could be used ahead of time to validate a cached file
     class function HashFile(const FileName: TFileName;
@@ -2137,6 +2287,10 @@ type
     // - this TStream instance will be owned by the TStreamRedirect
     property Redirected: TStream
       read fRedirected write fRedirected;
+    /// low-level access to the progression information data structure
+    // - don't use this but other specific properties like ExpectedSize or Percent
+    property Info: TProgressInfo
+      read fInfo;
     /// you can specify a number of bytes for the final Redirected size
     // - will be used for the callback progress - could be left to 0 for Write()
     // if size is unknown
@@ -2162,7 +2316,7 @@ type
     /// number of bytes processed per second, since initialization of this instance
     property PerSecond: PtrInt
       read fInfo.PerSecond;
-    /// can limit the Read/Write bandwidth used
+    /// can limit the Read/Write bytes-per-second bandwidth used, if not 0
     // - sleep so that PerSecond will keep close to this LimitPerSecond value
     property LimitPerSecond: PtrInt
       read fLimitPerSecond write fLimitPerSecond;
@@ -2188,7 +2342,7 @@ type
     property OnInfoProgress: TOnInfoProgress
       read fInfo.OnProgress write fInfo.OnProgress;
   published
-    /// the current progression as text, as returned by ProgressToConsole
+    /// the current progression as text, as returned by ProgressStreamToConsole
     property Progress: RawUtf8
       read GetProgress;
   end;
@@ -2197,15 +2351,17 @@ type
   TStreamRedirectClass = class of TStreamRedirect;
 
   /// TStreamRedirect with 32-bit THasher checksum
-  TStreamRedirectHasher = class(TStreamRedirect)
+  TStreamRedirectHash32 = class(TStreamRedirect)
   protected
-    fHash: cardinal;
+    fHash, fHashAppend: cardinal;
+    procedure AfterAppend; override;
+    procedure ResetHash; override;
   public
     function GetHash: RawUtf8; override;
   end;
 
   /// TStreamRedirect with crc32c 32-bit checksum
-  TStreamRedirectCrc32c = class(TStreamRedirectHasher)
+  TStreamRedirectCrc32c = class(TStreamRedirectHash32)
   protected
     procedure DoHash(data: pointer; len: integer); override;
   public
@@ -2213,17 +2369,10 @@ type
   end;
 
   /// a fake TStream, which will just count the number of bytes written
-  TFakeWriterStream = class(TStream)
-  protected
-    fWritten: Int64;
-    {$ifdef FPC}
-    function GetPosition: Int64; override;
-    {$endif FPC}
+  TFakeWriterStream = class(TStreamWithPositionAndSize)
   public
     function Read(var Buffer; Count: Longint): Longint; override;
     function Write(const Buffer; Count: Longint): Longint; override;
-    function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
-    function Seek(Offset: Longint; Origin: Word): Longint; override;
   end;
 
   TNestedStream = record
@@ -2254,8 +2403,6 @@ type
     procedure Flush; virtual;
     /// will read up to Count bytes from the internal nested TStream
     function Read(var Buffer; Count: Longint): Longint; override;
-    /// this TStream is read-only: calling this method will raise an exception
-    function Write(const Buffer; Count: Longint): Longint; override;
   end;
 
   /// TStream with an internal memory buffer
@@ -2282,8 +2429,6 @@ type
     function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
     /// will read up to Count bytes from the internal buffer or source TStream
     function Read(var Buffer; Count: Longint): Longint; override;
-    /// this TStream is read-only: calling this method will raise an exception
-    function Write(const Buffer; Count: Longint): Longint; override;
   end;
 
 
@@ -2550,7 +2695,7 @@ type
     // - text should be in a single Values[] entry
     function FindAsText(aPosition, aLength: integer): RawByteString; overload;
       {$ifdef HASINLINE}inline;{$endif}
-    /// returns the text at a given position in Values[]
+    /// returns the text at a given position in Values[] via RawUtf8ToVariant()
     // - text should be in a single Values[] entry
     // - explicitly returns null if the supplied text was not found
     procedure FindAsVariant(aPosition, aLength: integer; out aDest: variant);
@@ -2568,10 +2713,53 @@ type
     /// copy the text at a given position in Values[]
     // - text should be in a single Values[] entry
     procedure FindMove(aPosition, aLength: integer; aDest: pointer);
+      {$ifdef HASINLINE}inline;{$endif}
   end;
 
   /// pointer reference to a TRawByteStringGroup
   PRawByteStringGroup = ^TRawByteStringGroup;
+
+  /// thread-safe reusable set of constant RawByteString/RawUtf8 instances
+  // - all RawByteString will be constant (RefCnt=-2) with some max length
+  // - maintain internally its own TLockedList O(1) set of instances
+  // - warning: any call to New() should manually be followed by one Release()
+  TRawByteStringHeap = class
+  protected
+    fMaxLength: TStrLen;
+    fOne: TLockedList;
+  public
+    /// initialize the internal cache for a given maximum length
+    constructor Create(aMaxLength: integer);
+    /// return a new RawByteString of a given length, with refcount=-2
+    // - if aTextLen is its default 0, MaxLength will be used
+    // - returned from its internal cache, unless aTextLen>MaxLength, which will
+    // allocate a regular RawByteString from heap
+    procedure New(var aDest: RawByteString; aText: PUtf8Char = nil;
+      aTextLen: TStrLen = 0; aCodePage: integer = CP_RAWBYTESTRING); overload;
+    /// return a new RawUtf8 of a given length, with refcount = -2
+    procedure New(var aDest: RawUtf8; aText: PUtf8Char; aTextLen: TStrLen); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// put back a RawByteString acquired from New() into the internal cache
+    procedure Release(var aDest: RawByteString); overload;
+    /// put back a RawUtf8 acquired from New() into the internal cache
+    procedure Release(var aDest: RawUtf8); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// put back a RawByteString acquired from NewUtf8() into the internal cache
+    procedure Release(var aDest: pointer); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// release the RawByteString instances in the cache bin
+    // - keep any existing New() instances intact
+    // - returns how many memory has been released to the heap
+    function Clean: PtrInt;
+    /// release all cached instances
+    destructor Destroy; override;
+    /// how many New() calls are currently active
+    property Count: integer
+      read fOne.Count;
+    /// the maximum length() of RawByteString returned by New()
+    property MaxLength: TStrLen
+      read fMaxLength;
+  end;
 
   /// store one RawByteString content with an associated length
   // - to be used e.g. as a convenient reusable memory buffer
@@ -2581,36 +2769,30 @@ type
   TRawByteStringBuffer = object
   {$endif USERECORDWITHMETHODS}
   private
-    /// the actual storage, with length(Buffer) as Capacity
-    fBuffer: RawByteString;
+    fBuffer: RawUtf8; // actual storage, with length(fBuffer) as Capacity
     fLen: PtrInt;
-    fCapacity: PtrInt; // may not be length(fBuffer) after AsText(UseMainBuffer)
-    procedure GrowBuffer(needed: PtrInt);
   public
     /// set Len to 0, but doesn't clear/free the Buffer itself
     procedure Reset;
       {$ifdef HASINLINE}inline;{$endif}
     /// release/free the internal Buffer storage
-    procedure Clear;
+    // - returns the released memory bytes, i.e. former Capacity before clearing
+    function Clear: PtrInt;
       {$ifdef HASINLINE}inline;{$endif}
     /// a convenient wrapper to pointer(fBuffer) for direct Buffer/Len use
     function Buffer: pointer;
       {$ifdef HASINLINE}inline;{$endif}
-    /// how many bytes are currently used in the Buffer
-    property Len: PtrInt
-      read fLen write fLen;
     /// how many bytes are currently allocated in the Buffer
-    property Capacity: PtrInt
-      read fCapacity;
+    function Capacity: PtrInt;
+      {$ifdef HASINLINE}inline;{$endif}
     /// add some UTF-8 buffer content to the Buffer, resizing it if needed
     procedure Append(P: pointer; PLen: PtrInt); overload;
-      {$ifdef HASINLINE}inline;{$endif}
     /// add some UTF-8 string content to the Buffer, resizing it if needed
     procedure Append(const Text: RawUtf8); overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// add some number as text content to the Buffer, resizing it if needed
     procedure Append(Value: QWord); overload;
-    /// add some UTF-8 shortstring content to the Buffer, resizing it if needed
+    /// add some UTF-8 ShortString content to the Buffer, resizing it if needed
     procedure AppendShort(const Text: ShortString);
       {$ifdef HASINLINE}inline;{$endif}
     /// just after Append/AppendShort, append a #13#10 end of line
@@ -2619,14 +2801,20 @@ type
     /// just after Append/AppendShort, append one single character
     procedure Append(Ch: AnsiChar); overload;
       {$ifdef HASINLINE}inline;{$endif}
+    /// add some UTF-8 string(s) content to the Buffer, resizing it if needed
+    procedure Append(const Text: array of RawUtf8); overload;
     /// add some UTF-8 buffer content to the Buffer, without resizing it
-    function CanAppend(P: pointer; PLen: PtrInt): boolean;
+    function TryAppend(P: pointer; PLen: PtrInt): boolean;
       {$ifdef HASINLINE}inline;{$endif}
-    /// ensure the internal Buffer has at least MaxSize bytes and return it
+    /// ensure the internal Buffer has at least MaxSize bytes
     // - also reset the internal Len to 0
-    function Reserve(MaxSize: PtrInt): pointer;
+    procedure Reserve(MaxSize: PtrInt); overload;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// use a specified string buffer as start
+    procedure Reserve(const WorkingBuffer: RawByteString); overload;
     /// similar to delete(fBuffer, 1, FirstBytes)
     procedure Remove(FirstBytes: PtrInt);
+      {$ifdef HASINLINE}inline;{$endif}
     /// move up to Count bytes from the internal Buffer into another place
     // - returns how many bytes were available to be copied into Dest^
     // - then remove the copied bytes from the internal Buffer/Len storage
@@ -2636,16 +2824,15 @@ type
     // - don't move any byte, but just update the given Pos index
     function ExtractAt(var Dest: PAnsiChar; var Count: PtrInt;
       var Pos: PtrInt): PtrInt;
-    /// similar to insert(P/PLen, fBuffer, Position + 1)
-    // - could optionally include a #13#10 pattern between the two
-    procedure Insert(P: pointer; PLen: PtrInt; Position: PtrInt = 0;
-      CRLF: boolean = false);
     /// retrieve the current Buffer/Len content as RawUtf8 text
     // - with some optional overhead for faster reallocmem at concatenation
     // - won't force Len to 0: caller should call Reset if done with it
     // - UseMainBuffer=true will return a copy of fBuffer into Text
     procedure AsText(out Text: RawUtf8; Overhead: PtrInt = 0;
       UseMainBuffer: boolean = false);
+    /// how many bytes are currently used in the Buffer
+    property Len: PtrInt
+      read fLen write fLen;
   end;
 
   /// pointer reference to a TRawByteStringBuffer
@@ -2682,16 +2869,16 @@ begin
       goto _2
     else if Value < $80 shl 21 then
       goto _3;
-    Dest^ := (Value and $7F) or $80;
+    Dest^ := (Value and $7f) or $80;
     Value := Value shr 7;
     inc(Dest);
-_3: Dest^ := (Value and $7F) or $80;
+_3: Dest^ := (Value and $7f) or $80;
     Value := Value shr 7;
     inc(Dest);
-_2: Dest^ := (Value and $7F) or $80;
+_2: Dest^ := (Value and $7f) or $80;
     Value := Value shr 7;
     inc(Dest);
-_1: Dest^ := (Value and $7F) or $80;
+_1: Dest^ := (Value and $7f) or $80;
     Value := Value shr 7;
     inc(Dest);
   end;
@@ -2733,7 +2920,7 @@ begin
   result := Source^;
   inc(Source);
   if result > $7f then
-    result := (result and $7F) or FromVarUInt32Up128(Source);
+    result := (result and $7f) or FromVarUInt32Up128(Source);
 end;
 
 function FromVarUInt32Big(var Source: PByte): cardinal;
@@ -2749,7 +2936,7 @@ begin
     // Values between 128 and 16256
     c := p^;
     c := c shl 7;
-    result := result and $7F or c;
+    result := result and $7f or c;
     inc(p);
     if c > $7f shl 7 then
     begin
@@ -2757,21 +2944,21 @@ begin
       c := p^;
       c := c shl 14;
       inc(p);
-      result := result and $3FFF or c;
+      result := result and $3fff or c;
       if c > $7f shl 14 then
       begin
         // Values between 2080769 and 266338304
         c := p^;
         c := c shl 21;
         inc(p);
-        result := result and $1FFFFF or c;
+        result := result and $1fffff or c;
         if c > $7f shl 21 then
         begin
           // Values above 266338304
           c := p^;
           c := c shl 28;
           inc(p);
-          result := result and $FFFFFFF or c;
+          result := result and $fffffff or c;
         end;
       end;
     end;
@@ -2794,21 +2981,21 @@ begin
     c := p^;
     c := c shl 14;
     inc(p);
-    result := result and $3FFF or c;
+    result := result and $3fff or c;
     if c > $7f shl 14 then
     begin
       // Values above 2080768
       c := p^;
       c := c shl 21;
       inc(p);
-      result := result and $1FFFFF or c;
+      result := result and $1fffff or c;
       if c > $7f shl 21 then
       begin
         // Values above 266338304
         c := p^;
         c := c shl 28;
         inc(p);
-        result := result and $FFFFFFF or c;
+        result := result and $fffffff or c;
       end;
     end;
   end;
@@ -2847,7 +3034,7 @@ begin
       exit;
     c := Source^;
     c := c shl 7;
-    Value := Value and $7F or c;
+    Value := Value and $7f or c;
     inc(Source);
     if c > $7f shl 7 then
     begin
@@ -2857,7 +3044,7 @@ begin
       c := Source^;
       c := c shl 14;
       inc(Source);
-      Value := Value and $3FFF or c;
+      Value := Value and $3fff or c;
       if c > $7f shl 14 then
       begin
         // Values between 2080769 and 266338304
@@ -2866,7 +3053,7 @@ begin
         c := Source^;
         c := c shl 21;
         inc(Source);
-        Value := Value and $1FFFFF or c;
+        Value := Value and $1fffff or c;
         if c > $7f shl 21 then
         begin
           // Values above 266338304
@@ -2875,7 +3062,7 @@ begin
           c := Source^;
           c := c shl 28;
           inc(Source);
-          Value := Value and $FFFFFFF or c;
+          Value := Value and $fffffff or c;
         end;
       end;
     end;
@@ -2896,26 +3083,26 @@ begin
   begin
     c := p^;
     c := c shl 7;
-    result := result and $7F or integer(c);
+    result := result and $7f or integer(c);
     inc(p);
     if c > $7f shl 7 then
     begin
       c := p^;
       c := c shl 14;
       inc(p);
-      result := result and $3FFF or integer(c);
+      result := result and $3fff or integer(c);
       if c > $7f shl 14 then
       begin
         c := p^;
         c := c shl 21;
         inc(p);
-        result := result and $1FFFFF or integer(c);
+        result := result and $1fffff or integer(c);
         if c > $7f shl 21 then
         begin
           c := p^;
           c := c shl 28;
           inc(p);
-          result := result and $FFFFFFF or integer(c);
+          result := result and $fffffff or integer(c);
         end;
       end;
     end;
@@ -2938,22 +3125,22 @@ begin
   inc(Source);
   c := Source^ shl 7;
   inc(Source);
-  result := result and $7F or c;
+  result := result and $7f or c;
   if c <= $7f shl 7 then
     exit;
   c := Source^ shl 14;
   inc(Source);
-  result := result and $3FFF or c;
+  result := result and $3fff or c;
   if c <= $7f shl 14 then
     exit;
   c := Source^ shl 21;
   inc(Source);
-  result := result and $1FFFFF or c;
+  result := result and $1fffff or c;
   if c <= $7f shl 21 then
     exit;
   c := Source^ shl 28;
   inc(Source);
-  result := result and $FFFFFFF or c;
+  result := result and $fffffff or c;
 end;
 
 function ToVarInt64(Value: Int64; Dest: PByte): PByte;
@@ -2999,13 +3186,13 @@ begin
             goto _2
           else if c >= $80 shl 21 then
             goto _4;
-          Dest^ := (c and $7F) or $80;
+          Dest^ := (c and $7f) or $80;
           c := c shr 7;
           inc(Dest);
-_2:       Dest^ := (c and $7F) or $80;
+_2:       Dest^ := (c and $7f) or $80;
           c := c shr 7;
           inc(Dest);
-_1:       Dest^ := (c and $7F) or $80;
+_1:       Dest^ := (c and $7f) or $80;
           c := c shr 7;
           inc(Dest);
         end;
@@ -3014,8 +3201,8 @@ _1:       Dest^ := (c and $7F) or $80;
         result := Dest;
         exit;
       end;
-_4: PCardinal(Dest)^ := (c and $7F) or (((c shr 7) and $7F) shl 8) or
-      (((c shr 14) and $7F) shl 16) or (((c shr 21) and $7F) shl 24) or $80808080;
+_4: PCardinal(Dest)^ := (c and $7f) or (((c shr 7) and $7f) shl 8) or
+      (((c shr 14) and $7f) shl 16) or (((c shr 21) and $7f) shl 24) or $80808080;
     inc(Dest, 4);
     Value := Value shr 28;
   until false;
@@ -3031,11 +3218,11 @@ begin
   result := p^;
   if result > $7f then
   begin
-    result := result and $7F;
+    result := result and $7f;
   {$else}
   if p^ > $7f then
   begin
-    result := PtrUInt(p^) and $7F;
+    result := PtrUInt(p^) and $7f;
   {$endif CPU64}
     n := 0;
     inc(p);
@@ -3068,7 +3255,7 @@ begin
   inc(Source);
   if c > $7f then
   begin
-    Value := c and $7F;
+    Value := c and $7f;
     n := 7;
     repeat
       if PAnsiChar(Source) >= PAnsiChar(SourceMax) then
@@ -3111,7 +3298,7 @@ begin
   result := Source^;
   if result > $7f then
   begin
-    result := result and $7F;
+    result := result and $7f;
     n := 0;
     inc(Source);
     repeat
@@ -3134,7 +3321,7 @@ begin
   c := Source^;
   if c > $7f then
   begin
-    result := c and $7F;
+    result := c and $7f;
     n := 0;
     inc(Source);
     repeat
@@ -3176,7 +3363,7 @@ begin
   c := Source^;
   if c > $7f then
   begin
-    result := c and $7F;
+    result := c and $7f;
     n := 0;
     inc(Source);
     repeat
@@ -3240,7 +3427,7 @@ end;
 
 function GotoNextVarString(Source: PByte): pointer;
 begin
-  result := Pointer(PtrUInt(Source) + FromVarUInt32(Source));
+  result := pointer(PtrUInt(Source) + FromVarUInt32(Source));
 end;
 
 function FromVarString(var Source: PByte): RawUtf8;
@@ -3275,7 +3462,7 @@ var
 begin
   len := FromVarUInt32(Source);
   Value.Init(Source, len);
-  PByteArray(Value.buf)[len] := 0; // include trailing #0
+  PByteArray(Value.buf)[len] := 0; // include #0 terminator
   inc(Source, len);
 end;
 
@@ -3297,7 +3484,7 @@ begin
     end;
   end;
   Value.Init(Source, len);
-  PByteArray(Value.buf)[len] := 0; // include trailing #0
+  PByteArray(Value.buf)[len] := 0; // include #0 terminator
   inc(Source, len);
   result := true;
 end;
@@ -3375,7 +3562,7 @@ begin
     raise EFastReader.CreateUtf8('Incorrect Data: ' + fmt, args);
 end;
 
-procedure TFastReader.ErrorData(const msg: shortstring);
+procedure TFastReader.ErrorData(const msg: ShortString);
 begin
   ErrorData('%', [msg]);
 end;
@@ -3422,7 +3609,7 @@ function TFastReader.Next2BigEndian: cardinal;
 begin
   if P + 1 >= Last then
     ErrorOverflow;
-  result := swap(PWord(P)^);
+  result := bswap16(PWord(P)^);
   inc(P, 2);
 end;
 
@@ -3463,7 +3650,7 @@ begin
   inc(P, DataLen);
 end;
 
-function TFastReader.NextSafe(out Data: Pointer; DataLen: PtrInt): boolean;
+function TFastReader.NextSafe(out Data: pointer; DataLen: PtrInt): boolean;
 begin
   if P + DataLen > Last then
     result := false
@@ -3475,7 +3662,7 @@ begin
   end;
 end;
 
-procedure TFastReader.Copy(Dest: Pointer; DataLen: PtrInt);
+procedure TFastReader.Copy(Dest: pointer; DataLen: PtrInt);
 begin
   if P + DataLen > Last then
     ErrorOverflow;
@@ -3483,7 +3670,7 @@ begin
   inc(P, DataLen);
 end;
 
-function TFastReader.CopySafe(Dest: Pointer; DataLen: PtrInt): boolean;
+function TFastReader.CopySafe(Dest: pointer; DataLen: PtrInt): boolean;
 begin
   if P + DataLen > Last then
     result := false
@@ -3533,21 +3720,21 @@ begin
     goto e;
   c := ord(P^) shl 7;
   inc(P);
-  result := result and $7F or c;
+  result := result and $7f or c;
   if c <= $7f shl 7 then
     exit; // Values between 128 and 16256
   if P >= Last then
     goto e;
   c := ord(P^) shl 14;
   inc(P);
-  result := result and $3FFF or c;
+  result := result and $3fff or c;
   if c <= $7f shl 14 then
     exit; // Values between 16257 and 2080768
   if P >= Last then
     goto e;
   c := ord(P^) shl 21;
   inc(P);
-  result := result and $1FFFFF or c;
+  result := result and $1fffff or c;
   if c <= $7f shl 21 then
     exit; // Values between 2080769 and 266338304
   if P >= Last then
@@ -3559,7 +3746,7 @@ e:begin
   end;
   c := ord(P^) shl 28;
   inc(P);
-  result := result {%H-}and $FFFFFFF or c;
+  result := result {%H-}and $fffffff or c;
 end;
 
 procedure TFastReader.VarNextInt;
@@ -3614,21 +3801,21 @@ begin
     goto e;
   c := s^ shl 7;
   inc(s);
-  result := result and $7F or c;
+  result := result and $7f or c;
   if c <= $7f shl 7 then
     goto f; // Values between 128 and 16256
   if PAnsiChar(s) >= PAnsiChar(l) then
     goto e;
   c := s^ shl 14;
   inc(s);
-  result := result and $3FFF or c;
+  result := result and $3fff or c;
   if c <= $7f shl 14 then
     goto f; // Values between 16257 and 2080768
   if PAnsiChar(s) >= PAnsiChar(l) then
     goto e;
   c := s^ shl 21;
   inc(s);
-  result := result and $1FFFFF or c;
+  result := result and $1fffff or c;
   if c <= $7f shl 21 then
     goto f; // Values between 2080769 and 266338304
   if PAnsiChar(s) >= PAnsiChar(l) then
@@ -3640,7 +3827,7 @@ e:begin
   end;
   c := s^ shl 28;
   inc(s);
-  result := result {%H-}and $FFFFFFF or c;
+  result := result {%H-}and $fffffff or c;
 f:P := pointer(s);
 end;
 
@@ -3728,7 +3915,7 @@ begin
   if v > $7f then
   begin
     n := 0;
-    v := v and $7F;
+    v := v and $7f;
     repeat
       if P >= Last then
         exit;
@@ -3757,7 +3944,7 @@ e:  ErrorOverflow;
   inc(P);
   if c > $7f then
   begin
-    result := c and $7F;
+    result := c and $7f;
     n := 0;
     repeat
       if P >= Last then
@@ -3785,6 +3972,22 @@ begin
   result.Ptr := P;
   result.Len := len;
   inc(P, len);
+end;
+
+function TFastReader.VarBlobSafe(out Value: TValueResult): boolean;
+var
+  len: PtrUInt;
+begin
+  len := VarUInt32;
+  if P + len > Last then
+  begin
+    result := false;
+    exit;
+  end;
+  Value.Ptr := P;
+  Value.Len := len;
+  inc(P, len);
+  result := true;
 end;
 
 procedure TFastReader.VarBlob(out Value: TSynTempBuffer);
@@ -3881,7 +4084,7 @@ r:  P := s;
     P := s;
     exit;
   end;
-  len := (len and $7F) or (ord(s^) shl 7); // 2nd byte of VarUInt32 decoding
+  len := (len and $7f) or (ord(s^) shl 7); // 2nd byte of VarUInt32 decoding
   inc(s);
   if len <= 255 then
     goto r;
@@ -4124,7 +4327,7 @@ begin
         until (n = 0) or
               (chunk >= chunkend);
       else
-        ErrorData('ReadVarUInt64Array got kind=%', [ord(k)]);
+        ErrorData('ReadVarUInt64Array got kind=%', [ord(k)]){%H-};
     end;
   until n = 0;
 end;
@@ -4195,8 +4398,8 @@ end;
 { TBufferWriter }
 
 constructor TBufferWriter.Create(aFile: THandle; BufLen: integer);
-begin
-  Create(THandleStream.Create(aFile), BufLen);
+begin // raise EOSException on invalid aFile handle
+  Create(TFileStreamEx.CreateFromHandle(aFile, ''), BufLen);
   fInternalStream := true;
 end;
 
@@ -4205,14 +4408,9 @@ constructor TBufferWriter.Create(const aFileName: TFileName;
 var
   s: TStream;
 begin
-  if Append and
-     FileExists(aFileName) then
-  begin
-    s := TFileStreamEx.Create(aFileName, fmOpenWrite);
+  s := TFileStreamEx.CreateWrite(aFileName);
+  if Append then
     s.Seek(0, soEnd);
-  end
-  else
-    s := TFileStreamEx.Create(aFileName, fmCreate);
   Create(s, BufLen);
   fInternalStream := true;
 end;
@@ -4230,7 +4428,7 @@ begin
   if BufLen > 1 shl 22 then
     BufLen := 1 shl 22 // 4 MB sounds right enough
   else if BufLen < 128 then
-    raise EBufferException.CreateUtf8('%.Create(BufLen=%)', [self, BufLen]);
+    EBufferException.RaiseUtf8('%.Create(BufLen=%)', [self, BufLen]);
   GetMem(fBufferInternal, BufLen);
   Setup(aStream, fBufferInternal, BufLen);
 end;
@@ -4284,7 +4482,7 @@ begin
   if fStream.InheritsFrom(TRawByteStringStream) and
      (fTotalFlushed > _STRMAXSIZE) then
     // Delphi strings have a 32-bit length so you should change your algorithm
-    raise EBufferException.CreateUtf8('%.Write: % overflow (%)',
+    EBufferException.RaiseUtf8('%.Write: % overflow (%)',
       [self, fStream, KBNoSpace(fTotalFlushed)]);
   fStream.WriteBuffer(Data^, DataLen);
 end;
@@ -4306,7 +4504,7 @@ procedure TBufferWriter.CancelAll;
 begin
   fTotalFlushed := 0;
   fPos := 0;
-  if fStream.ClassType = TRawByteStringStream then
+  if PClass(fStream)^ = TRawByteStringStream then
     TRawByteStringStream(fStream).Size := 0
   else
     fStream.Seek(0, soBeginning);
@@ -4373,11 +4571,6 @@ begin
     InternalFlush;
   PWord(@fBuffer^[fPos])^ := Data;
   inc(fPos, SizeOf(Word));
-end;
-
-procedure TBufferWriter.Write2BigEndian(Data: cardinal);
-begin
-  Write2(swap(word(Data)));
 end;
 
 procedure TBufferWriter.Write4(Data: integer);
@@ -4459,16 +4652,16 @@ begin
   Write(pointer(Data), Length(Data));
 end;
 
-function TBufferWriter.DirectWritePrepare(len: PtrInt;
+function TBufferWriter.DirectWritePrepare(maxlen: PtrInt;
   var tmp: RawByteString): PAnsiChar;
 begin
-  if (len <= fBufLen) and
-     (fPos + len > fBufLen) then
+  if (maxlen <= fBufLen) and
+     (fPos + maxlen > fBufLen) then
     InternalFlush;
-  if fPos + len > fBufLen then
+  if fPos + maxlen > fBufLen then
   begin
-    if len > length(tmp) then
-      FastSetRawByteString(tmp, nil, len); // don't reallocate buffer (reuse)
+    if maxlen > length(tmp) then
+      FastNewRawByteString(tmp, maxlen); // don't reallocate buffer (reuse)
     result := pointer(tmp);
   end
   else
@@ -4481,6 +4674,18 @@ begin
     inc(fPos, len)
   else
     Write(pointer(tmp), len);
+end;
+
+function TBufferWriter.DirectWriteReserve(maxlen: PtrInt): PByte;
+begin
+  if fPos + maxlen > fBufLen then
+    InternalFlush;
+  result := @fBuffer^[fPos]; // write directly into the buffer
+end;
+
+procedure TBufferWriter.DirectWriteReserved(pos: PByte);
+begin
+  fPos := PAnsiChar(pos) - pointer(fBuffer);
 end;
 
 procedure TBufferWriter.WriteXor(New, Old: PAnsiChar; Len: PtrInt;
@@ -4849,8 +5054,7 @@ begin
             PBeg := PAnsiChar(P) + 4; // leave space for chunk size
             P := PByte(CleverStoreInteger(pointer(Values), PBeg, PEnd, ValuesCount, n));
             if P = nil then
-              raise EBufferException.CreateUtf8(
-                '%.WriteVarUInt32Array: data not sorted', [self]);
+              EBufferException.RaiseUtf8('%.WriteVarUInt32Array: not sorted', [self]);
             PInteger(PBeg - 4)^ := PAnsiChar(P) - PBeg;
           end;
       end;
@@ -4952,7 +5156,7 @@ begin
   result := nil;
   siz := GetTotalWritten;
   if siz > _DAMAXSIZE then
-    raise EBufferException.CreateUtf8('%.FlushToBytes: overflow (%)', [KB(siz)]);
+    EBufferException.RaiseUtf8('%.FlushToBytes: overflow (%)', [KB(siz)]);
   SetLength(result, siz);
   if fStream.Position = 0 then
     // direct assignment from internal buffer
@@ -4998,20 +5202,27 @@ var
 begin
   existing := Algo(fAlgoID);
   if existing <> nil then
-    raise EAlgoCompress.CreateUtf8('%.Create: AlgoID=% already registered by %',
+    EAlgoCompress.RaiseUtf8('%.Create: AlgoID=% already registered by %',
       [self, fAlgoID, existing]);
   ObjArrayAdd(SynCompressAlgos, self);
   RegisterGlobalShutdownRelease(self);
 end;
 
+destructor TAlgoCompress.Destroy;
+begin
+  if LogCompressAlgo = self then
+    LogCompressAlgo := nil; // avoid GPF at shutdown
+  inherited Destroy;
+end;
+
 class function TAlgoCompress.Algo(const Comp: RawByteString): TAlgoCompress;
 begin
-  result := Algo(Pointer(Comp), Length(Comp));
+  result := Algo(pointer(Comp), Length(Comp));
 end;
 
 class function TAlgoCompress.Algo(const Comp: TByteDynArray): TAlgoCompress;
 begin
-  result := Algo(Pointer(Comp), Length(Comp));
+  result := Algo(pointer(Comp), Length(Comp));
 end;
 
 class function TAlgoCompress.Algo(Comp: PAnsiChar; CompLen: integer): TAlgoCompress;
@@ -5097,6 +5308,12 @@ begin
   end;
 end;
 
+procedure TAlgoCompress.EnsureAlgoHasNoForcedFormat(const caller: ShortString);
+begin
+  if fAlgoHasForcedFormat then
+    EAlgoCompress.RaiseUtf8('%.% is unsupported', [self, caller]);
+end;
+
 function TAlgoCompress.AlgoHash(Previous: cardinal;
   Data: pointer; DataLen: integer): cardinal;
 begin
@@ -5129,20 +5346,18 @@ var
   crc: cardinal;
   tmp: array[0..16383] of AnsiChar;  // big enough to resize result in-place
 begin
-  if (self = nil) or
-     (PlainLen = 0) or
+  result := '';
+  if (PlainLen = 0) or
      (Plain = nil) then
-  begin
-    result := '';
     exit;
-  end;
+  EnsureAlgoHasNoForcedFormat('Compress');
   crc := AlgoHash(0, Plain, PlainLen);
   if (PlainLen < CompressionSizeTrigger) or
      (CheckMagicForCompressed and
       IsContentCompressed(Plain, PlainLen)) then
   begin
-    FastSetRawByteString(result, nil, PlainLen + BufferOffset + 9);
-    R := pointer(result);
+    R := FastNewString(PlainLen + BufferOffset + 9);
+    pointer(result) := R;
     inc(R, BufferOffset);
     PCardinal(R)^ := crc;
     R[4] := COMPRESS_STORED;
@@ -5154,8 +5369,8 @@ begin
     len := CompressDestLen(PlainLen) + BufferOffset;
     if len > SizeOf(tmp) then
     begin
-      FastSetRawByteString(result, nil, len);
-      R := pointer(result);
+      R := FastNewString(len);
+      pointer(result) := R;
     end
     else
       R := @tmp;
@@ -5189,10 +5404,10 @@ var
   len: integer;
 begin
   result := 0;
-  if (self = nil) or
-     (PlainLen = 0) or
+  if (PlainLen = 0) or
      (CompLen < PlainLen + 9) then
     exit;
+  EnsureAlgoHasNoForcedFormat('Compress');
   PCardinal(Comp)^ := AlgoHash(0, Plain, PlainLen);
   if (PlainLen >= CompressionSizeTrigger) and
      not (CheckMagicForCompressed and
@@ -5235,6 +5450,7 @@ begin
   if (self = nil) or
      (PlainLen = 0) then
     exit;
+  EnsureAlgoHasNoForcedFormat('CompressToBytes');
   crc := AlgoHash(0, Plain, PlainLen);
   if PlainLen < CompressionSizeTrigger then
   begin
@@ -5289,8 +5505,7 @@ begin
   len := DecompressHeader(Comp, CompLen, Load);
   if len = 0 then
     exit;
-  FastSetRawByteString(result, nil, len + BufferOffset);
-  dec := pointer(result);
+  dec := FastSetString(RawUtf8(result), len + BufferOffset); // CP_UTF8 for FPC
   if not DecompressBody(Comp, dec + BufferOffset, CompLen, len, Load) then
     result := '';
 end;
@@ -5312,7 +5527,7 @@ begin
   len := DecompressHeader(pointer(Comp), length(Comp), Load);
   if len = 0 then
     exit; // invalid crc32c
-  FastSetRawByteString(Dest, nil, len);
+  FastSetString(RawUtf8(Dest), len); // assume CP_UTF8 for FPC RTL bug
   if DecompressBody(pointer(Comp), pointer(Dest), length(Comp), len, Load) then
     result := true
   else
@@ -5330,6 +5545,9 @@ function TAlgoCompress.Decompress(Comp: PAnsiChar; CompLen: integer;
   out PlainLen: integer; var tmp: RawByteString; Load: TAlgoCompressLoad): pointer;
 begin
   result := nil;
+  if self = nil then
+    exit;
+  EnsureAlgoHasNoForcedFormat('Decompress');
   PlainLen := DecompressHeader(Comp, CompLen, Load);
   if PlainLen = 0 then
     exit;
@@ -5338,7 +5556,7 @@ begin
   else
   begin
     if PlainLen > length(tmp) then
-      FastSetRawByteString(tmp, nil, PlainLen);
+      FastSetString(RawUtf8(tmp), PlainLen); // assume CP_UTF8 for FPC RTL bug
     if DecompressBody(Comp, pointer(tmp), CompLen, PlainLen, Load) then
       result := pointer(tmp);
   end;
@@ -5355,6 +5573,7 @@ begin
      (Comp = nil) or
      (PartialLenMax < PartialLen) then
     exit;
+  EnsureAlgoHasNoForcedFormat('DecompressPartial');
   if Comp[4] = COMPRESS_STORED then
     if PCardinal(Comp)^ = PCardinal(Comp + 5)^ then
       BodyLen := CompLen - 9
@@ -5401,9 +5620,11 @@ var
   tmps, tmpd: RawByteString;
 begin
   result := 0;
-  if (Dest = nil) or
+  if (self = nil) or
+     (Dest = nil) or
      (Source = nil) then
     exit;
+  EnsureAlgoHasNoForcedFormat('StreamCompress');
   count := Source.Size;
   if count = 0 then
     exit;
@@ -5417,16 +5638,15 @@ begin
       head.UnCompressedSize := count;
     if S = nil then
     begin
-      FastSetRawByteString(tmps, nil, head.UnCompressedSize);
-      S := pointer(tmps); // here S is a temporary buffer
+      S := FastNewString(head.UnCompressedSize);
+      pointer(tmps) := S; // here S is a temporary buffer
     end;
     if {%H-}tmpd = '' then
-      FastSetRawByteString(tmpd, nil, AlgoCompressDestLen(head.UnCompressedSize));
+      pointer(tmpd) := FastNewString(AlgoCompressDestLen(head.UnCompressedSize));
     dec(count, head.UnCompressedSize); // supports premature end of input
-    if S = pointer(tmps) then
-      head.UnCompressedSize := Source.Read(S^, head.UnCompressedSize);
-    if head.UnCompressedSize <= 0 then
-      exit; // read error
+    if S = pointer({%H-}tmps) then
+      if not StreamReadAll(Source, S, head.UnCompressedSize) then
+        exit;
     head.UncompressedHash := AlgoHash(ForceHash32, S, head.UnCompressedSize);
     D := pointer(tmpd);
     head.CompressedSize := AlgoCompress(S, head.UnCompressedSize, D);
@@ -5444,15 +5664,14 @@ begin
       inc(PByte(S), head.UnCompressedSize); // move ahead to next chunk
     inc(result, SizeOf(head) + head.CompressedSize);
   until count = 0;
-  if WithTrailer then
-  begin
-    inc(result, SizeOf(trail));
-    trail.Magic := Magic;
-    trail.HeaderRelativeOffset := result;        // Int64 into cardinal
-    if trail.HeaderRelativeOffset <> result then // max 4GB compressed size
-      RaiseStreamError(self, 'StreamCompress trail overflow');
-    Dest.WriteBuffer(trail, SizeOf(trail));
-  end;
+  if not WithTrailer then
+    exit;
+  inc(result, SizeOf(trail));
+  trail.Magic := Magic;
+  trail.HeaderRelativeOffset := result;        // Int64 into cardinal
+  if trail.HeaderRelativeOffset <> result then // max 4GB compressed size
+    RaiseStreamError(self, 'StreamCompress: trail overflow');
+  Dest.WriteBuffer(trail, SizeOf(trail));
 end;
 
 function TAlgoCompress.StreamCompress(Source: TStream;
@@ -5489,7 +5708,7 @@ var
   stored: boolean;
 
   function MagicSeek: boolean;
-  // Source not positioned as expected -> try from the end
+  // Source not positioned as expected -> try from the TAlgoCompressTrailer end
   var
     t: PAlgoCompressTrailer;
     tmplen: PtrInt;
@@ -5506,7 +5725,7 @@ var
       if sourcesize < tmplen then
         tmplen := sourcesize;
       Source.Position := sourceSize - tmplen;
-      if Source.Read(tmp, tmplen) <> tmplen then
+      if not StreamReadAll(Source, @tmp, tmplen) then
         exit;
       dec(tmplen, SizeOf(TAlgoCompressTrailer));
       t := @tmp[tmplen];
@@ -5529,8 +5748,10 @@ var
 
 begin
   result := false;
-  if Source = nil then
+  if (self = nil) or
+     (Source = nil) then
     exit;
+  EnsureAlgoHasNoForcedFormat('StreamUnCompress');
   sourceSize := Source.Size;
   sourcePosition := Source.Position;
   if Source.Read(Head, SizeOf(Head)) <> SizeOf(Head) then
@@ -5554,10 +5775,10 @@ begin
     else
     begin
       if Head.CompressedSize > length({%H-}tmps) then
-        FastSetRawByteString(tmps, nil, Head.CompressedSize);
+        FastNewRawByteString(tmps, Head.CompressedSize);
       S := pointer(tmps);
-      if Source.Read(S^, Head.CompressedSize) <> Head.CompressedSize then
-        break;
+      if not StreamReadAll(Source, S, Head.CompressedSize) then
+        exit;
     end;
     inc(sourcePosition, Head.CompressedSize);
     // decompress chunk into Dest
@@ -5577,7 +5798,7 @@ begin
     else
     begin
       if Head.UnCompressedSize > length({%H-}tmpd) then
-        FastSetRawByteString(tmpd, nil, Head.UnCompressedSize);
+        FastNewRawByteString(tmpd, Head.UnCompressedSize);
       D := pointer(tmpd);
     end;
     if stored then
@@ -5619,17 +5840,17 @@ function TAlgoCompress.StreamUnCompress(const Source: TFileName;
 var
   S: TStream;
 begin
-  try
-    S := FileStreamSequentialRead(Source);
+  result := nil;
+  S := FileStreamSequentialRead(Source);
+  if S <> nil then
     try
-      result := StreamUnCompress(S, Magic, ForceHash32);
-    finally
-      S.Free;
+      try
+        result := StreamUnCompress(S, Magic, ForceHash32);
+      finally
+        S.Free;
+      end;
+    except // catch any StreamUnCompress issue
     end;
-  except
-    on E: Exception do
-      result := nil;
-  end;
 end;
 
 function TAlgoCompress.StreamComputeLen(P: PAnsiChar; Len: PtrUInt;
@@ -5642,38 +5863,26 @@ begin
     result := 0
   else
   begin
+    if fAlgoHasForcedFormat then
+      EnsureAlgoHasNoForcedFormat('StreamComputeLen');
     trailer := PAlgoCompressTrailer(P + Len - SizeOf(TAlgoCompressTrailer));
     if (Magic = trailer^.Magic) and
        (trailer^.HeaderRelativeOffset < Len) and
        (PAlgoCompressHead(P + Len - trailer^.HeaderRelativeOffset)^.Magic = Magic) then
-      // trim existing content
+      // compute actual content size from first header to last trailer
       result := Len - trailer^.HeaderRelativeOffset
     else
       result := Len;
   end;
 end;
 
-function TAlgoCompress.FileIsCompressed(const Name: TFileName;
+class function TAlgoCompress.FileIsCompressed(const Name: TFileName;
   Magic: cardinal): boolean;
 var
-  S: TStream;
-  Head: TAlgoCompressHead;
+  h: TAlgoCompressHead;
 begin
-  result := false;
-  if FileExists(Name) then
-  try
-    S := TFileStreamEx.Create(Name, fmOpenReadDenyNone);
-    try
-      if S.Read(Head, SizeOf(Head)) = SizeOf(Head) then
-        if Head.Magic = Magic then
-          result := true; // only check magic, since there may be several chunks
-    finally
-      S.Free;
-    end;
-  except
-    on Exception do
-      result := false;
-  end;
+  result := BufferFromFile(Name, @h, SizeOf(h)) and
+            (h{%H-}.Magic = Magic); // only check first chunk header magic
 end;
 
 function TAlgoCompress.FileCompress(const Source, Dest: TFileName; Magic: cardinal;
@@ -5681,27 +5890,27 @@ function TAlgoCompress.FileCompress(const Source, Dest: TFileName; Magic: cardin
 var
   S, D: THandleStream;
 begin
+  EnsureAlgoHasNoForcedFormat('FileCompres'); // should be overriden
   result := false;
-  if (ChunkBytes > 0) and
-     FileExists(Source) then
-  try
-    S := FileStreamSequentialRead(Source);
+  if ChunkBytes <= 0 then
+    exit;
+  S := FileStreamSequentialRead(Source);
+  if S <> nil then
     try
-      DeleteFile(Dest);
-      D := TFileStreamEx.Create(Dest, fmCreate);
       try
-        StreamCompress(S, D, Magic, ForceHash32, WithTrailer, ChunkBytes);
+        DeleteFile(Dest);
+        D := TFileStreamEx.Create(Dest, fmCreate);
+        try
+          StreamCompress(S, D, Magic, ForceHash32, WithTrailer, ChunkBytes);
+        finally
+          D.Free;
+        end;
+        result := FileSetDateFrom(Dest, S.Handle);
       finally
-        D.Free;
+        S.Free;
       end;
-      result := FileSetDateFrom(Dest, S.Handle);
-    finally
-      S.Free;
+    except  // catch any StreamUnCompress issue
     end;
-  except
-    on Exception do
-      result := false;
-  end;
 end;
 
 function TAlgoCompress.FileUnCompress(const Source, Dest: TFileName;
@@ -5709,10 +5918,11 @@ function TAlgoCompress.FileUnCompress(const Source, Dest: TFileName;
 var
   S, D: THandleStream;
 begin
+  EnsureAlgoHasNoForcedFormat('FileUnCompress'); // should be overriden
   result := false;
-  if FileExists(Source) then
+  S := FileStreamSequentialRead(Source);
+  if S <> nil then
   try
-    S := FileStreamSequentialRead(Source);
     try
       DeleteFile(Dest);
       D := TFileStreamEx.Create(Dest, fmCreate);
@@ -5726,9 +5936,7 @@ begin
     finally
       S.Free;
     end;
-  except
-    on Exception do
-      result := false;
+  except  // catch any StreamUnCompress issue
   end;
 end;
 
@@ -5736,10 +5944,11 @@ function TAlgoCompress.DecompressHeader(Comp: PAnsiChar; CompLen: integer;
   Load: TAlgoCompressLoad): integer;
 begin
   result := 0;
-  if (self = nil) or
-     (CompLen <= 9) or
-     (Comp = nil) or
-     ((Load <> aclNoCrcFast) and
+  if (CompLen <= 9) or
+     (Comp = nil) then
+    exit;
+  EnsureAlgoHasNoForcedFormat('Decompress');
+  if ((Load <> aclNoCrcFast) and
       (AlgoHash(0, Comp + 9, CompLen - 9) <> PCardinal(Comp + 5)^)) then
     exit;
   if Comp[4] = COMPRESS_STORED then
@@ -5755,8 +5964,7 @@ function TAlgoCompress.DecompressBody(Comp, Plain: PAnsiChar;
   CompLen, PlainLen: integer; Load: TAlgoCompressLoad): boolean;
 begin
   result := false;
-  if (self = nil) or
-     (PlainLen <= 0) then
+  if PlainLen <= 0 then
     exit;
   if Comp[4] = COMPRESS_STORED then
     MoveFast(Comp[9], Plain[0], PlainLen)
@@ -5778,22 +5986,6 @@ begin
   result := true;
 end;
 
-function TAlgoCompress.EventArchive(aMagic: cardinal;
-  const aOldLogFileName, aDestinationPath, aDestinationExt: TFileName): boolean;
-begin
-  // aDestinationPath = 'ArchivePath\log\YYYYMM\'
-  result := false;
-  if (aOldLogFileName <> '') and
-     FileExists(aOldLogFileName) then
-  try
-    if FileCompress(aOldLogFileName, EnsureDirectoryExists(aDestinationPath) +
-       ExtractFileName(aOldLogFileName) + aDestinationExt, aMagic, {hash32=}true) then
-      result := DeleteFile(aOldLogFileName);
-  except
-    on Exception do
-      result := false;
-  end;
-end;
 
 
 { TAlgoSynLZ }
@@ -5801,6 +5993,7 @@ end;
 constructor TAlgoSynLZ.Create;
 begin
   fAlgoID := COMPRESS_SYNLZ; // =1
+  fAlgoFileExt := '.synlz';
   inherited Create;
 end;
 
@@ -5937,13 +6130,14 @@ begin
           result := SynLZDecompress1Partial(src, srcLen, dst, dstLen);
       end;
   else
-    result := 0;
+    result := 0{%H-};
   end;
 end;
 
 constructor TAlgoRleLZ.Create;
 begin
   fAlgoID := 7;
+  fAlgoFileExt := '.synrlz';
   inherited Create;
 end;
 
@@ -5972,13 +6166,14 @@ begin
     doUncompressPartial:
       result := RleUnCompressPartial(src, dst, srcLen, dstLen);
   else
-    result := 0;
+    result := 0{%H-};
   end;
 end;
 
 constructor TAlgoRle.Create;
 begin
   fAlgoID := 8;
+  fAlgoFileExt := '.synrle';
   inherited Create;
 end;
 
@@ -5989,21 +6184,8 @@ end;
 
 
 function RawByteStringArrayConcat(const Values: array of RawByteString): RawByteString;
-var
-  i, L: PtrInt;
-  P: PAnsiChar;
 begin
-  L := 0;
-  for i := 0 to high(Values) do
-    inc(L, length(Values[i]));
-  FastSetRawByteString(result{%H-}, nil, L);
-  P := pointer(result);
-  for i := 0 to high(Values) do
-  begin
-    L := length(Values[i]);
-    MoveFast(pointer(Values[i])^, P^, L);
-    inc(P, L);
-  end;
+  Join(Values, RawUtf8(result)); // better explicit CP_UTF8 for FPC bug
 end;
 
 procedure RawByteStringToBytes(const buf: RawByteString; out bytes: TBytes);
@@ -6401,10 +6583,8 @@ var
 begin
   result := '';
   len := length(s);
-  if len = 0 then
-    exit;
-  FastSetString(result, nil, BinToBase64Length(len));
-  Base64Encode(pointer(result), pointer(s), len);
+  if len <> 0 then
+    Base64Encode(FastSetString(result, BinToBase64Length(len)), pointer(s), len);
 end;
 
 function BinToBase64Short(Bin: PAnsiChar; BinBytes: integer): ShortString;
@@ -6430,8 +6610,7 @@ var
 begin
   outlen := BinToBase64Length(len);
   inc(outlen, 2 * (outlen shr 6) + 2); // one CRLF per line
-  FastSetString(result{%H-}, nil, PtrInt(outlen) + length(Prefix) + length(Suffix));
-  p := pointer(result);
+  p := FastSetString(result{%H-}, PtrInt(outlen) + length(Prefix) + length(Suffix));
   if Prefix <> '' then
   begin
     MoveFast(pointer(Prefix)^, p^, PStrLen(PAnsiChar(pointer(Prefix)) - _STRLEN)^);
@@ -6441,7 +6620,7 @@ begin
   begin
     Base64EncodeLoop(p, sp, PERLINE, @b64enc); // better inlining than AVX2 here
     inc(sp, PERLINE);
-    PWord(p + 64)^ := $0a0d; // on all systems for safety
+    PWord(p + 64)^ := CRLFW; // CR + LF on all systems for safety
     inc(p, 66);
     dec(len, PERLINE);
   end;
@@ -6459,7 +6638,7 @@ begin
       Base64EncodeTrailing(p, sp, len); // 1/2 bytes as 4 chars with trailing =
       inc(p, 4);
     end;
-    PWord(p)^ := $0a0d;
+    PWord(p)^ := CRLFW;
     inc(p, 2);
   end;
   if Suffix <> '' then
@@ -6478,16 +6657,14 @@ end;
 function BinToBase64(Bin: PAnsiChar; BinBytes: integer): RawUtf8;
 begin
   result := '';
-  if BinBytes = 0 then
-    exit;
-  FastSetString(result, nil, BinToBase64Length(BinBytes));
-  Base64Encode(pointer(result), Bin, BinBytes);
+  if BinBytes <> 0 then
+    Base64Encode(FastSetString(result, BinToBase64Length(BinBytes)), Bin, BinBytes);
 end;
 
 function BinToBase64(const data, Prefix, Suffix: RawByteString; WithMagic: boolean): RawUtf8;
 var
   lendata, lenprefix, lensuffix, len: integer;
-  res: PByteArray absolute result;
+  res: PByteArray;
 begin
   result := '';
   lendata := length(data);
@@ -6498,7 +6675,7 @@ begin
   len := ((lendata + 2) div 3) * 4 + lenprefix + lensuffix;
   if WithMagic then
     inc(len, 3);
-  FastSetString(result, nil, len);
+  res := FastSetString(result, len);
   if lenprefix > 0 then
     MoveFast(pointer(Prefix)^, res^, lenprefix);
   if WithMagic then
@@ -6527,8 +6704,7 @@ begin
   Result := '';
   if DataLen <= 0 then
     exit;
-  FastSetString(Result, nil, ((DataLen + 2) div 3) * 4 + 3);
-  PInteger(pointer(Result))^ := JSON_BASE64_MAGIC_C;
+  PInteger(FastSetString(Result, ((DataLen + 2) div 3) * 4 + 3))^ := JSON_BASE64_MAGIC_C;
   Base64Encode(PAnsiChar(pointer(Result)) + 3, Data, DataLen);
 end;
 
@@ -6652,35 +6828,26 @@ function Base64ToBinSafe(sp: PAnsiChar; len: PtrInt; var data: RawByteString): b
 var
   resultLen: PtrInt;
 begin
+  result := false;
   resultLen := Base64LengthAdjust(sp, len);
-  if resultLen <> 0 then
-  begin
-    FastSetRawByteString(data, nil, resultLen);
-    result := Base64DecodeMain(sp, pointer(data), len); // may use AVX2
-    if not result then
-      data := '';
-  end
-  else
-  begin
-    result := false;
+  if resultLen <> 0 then // may use AVX2
+    result := Base64DecodeMain(sp, FastNewRawByteString(data, resultLen), len);
+  if not result then
     data := '';
-  end;
 end;
 
 function Base64ToBinSafe(sp: PAnsiChar; len: PtrInt; out data: TBytes): boolean;
 var
   resultLen: PtrInt;
 begin
+  result := false;
   resultLen := Base64LengthAdjust(sp, len);
-  if resultLen <> 0 then
-  begin
-    SetLength(data, resultLen);
-    result := Base64DecodeMain(sp, pointer(data), len); // may use AVX2
-    if not result then
-      data := nil;
-  end
-  else
-    result := false;
+  if resultLen = 0 then
+    exit;
+  SetLength(data, resultLen);
+  result := Base64DecodeMain(sp, pointer(data), len); // may use AVX2
+  if not result then
+    data := nil;
 end;
 
 function Base64ToBin(sp: PAnsiChar; len: PtrInt; var blob: TSynTempBuffer): boolean;
@@ -6768,19 +6935,15 @@ var
 begin
   result := '';
   len := length(s);
-  if len = 0 then
-    exit;
-  FastSetString(result, nil, BinToBase64uriLength(len));
-  Base64uriEncode(pointer(result), pointer(s), len);
+  if len <> 0 then
+    Base64uriEncode(FastSetString(result, BinToBase64uriLength(len)), pointer(s), len);
 end;
 
 function BinToBase64uri(Bin: PAnsiChar; BinBytes: integer): RawUtf8;
 begin
   result := '';
-  if BinBytes <= 0 then
-    exit;
-  FastSetString(result, nil, BinToBase64uriLength(BinBytes));
-  Base64uriEncode(pointer(result), Bin, BinBytes);
+  if BinBytes > 0 then
+    Base64uriEncode(FastSetString(result, BinToBase64uriLength(BinBytes)), Bin, BinBytes);
 end;
 
 function BinToBase64uriShort(Bin: PAnsiChar; BinBytes: integer): ShortString;
@@ -6806,7 +6969,7 @@ begin
     result := (len shr 2) * 3;
     case len and 3 of
       1:
-        result := 0;
+        result := 0; // invalid
       2:
         inc(result, 1);
       3:
@@ -6830,18 +6993,17 @@ begin
   Base64uriToBin(pointer(s), length(s), result{%H-});
 end;
 
-procedure Base64uriToBin(sp: PAnsiChar; len: PtrInt; var result: RawByteString);
+function Base64uriToBin(sp: PAnsiChar; len: PtrInt; var bin: RawByteString): boolean;
 var
   resultLen: PtrInt;
 begin
+  result := false;
   resultLen := Base64uriToBinLength(len);
   if resultLen <> 0 then
-  begin
-    FastSetRawByteString(result, nil, resultLen);
-    if Base64AnyDecode(ConvertBase64UriToBin, sp, pointer(result), len) then
-      exit;
-  end;
-  result := '';
+    result := Base64AnyDecode(ConvertBase64UriToBin, sp,
+      FastNewRawByteString(bin, resultLen), len);
+  if not result then
+    bin := '';
 end;
 
 function Base64uriToBin(sp: PAnsiChar; len: PtrInt; var temp: TSynTempBuffer): boolean;
@@ -6961,6 +7123,11 @@ begin
     result := false
   else
     result := Base64ToBinSafe(PAnsiChar(Value) + 3, ValueLen - 3, Blob);
+end;
+
+function _Base64MagicRawDecode(const Value: RawUtf8; var Blob: RawByteString): boolean;
+begin // caller checked that PCardinal(Value)^ and $ffffff = JSON_BASE64_MAGIC_C
+  result := Base64ToBinSafe(PAnsiChar(pointer(Value)) + 3, length(Value) - 3, Blob);
 end;
 
 
@@ -7211,7 +7378,7 @@ var
 
 function BinToBase32(Bin: PAnsiChar; BinLen: PtrInt): RawUtf8;
 begin
-  FastSetString(result, nil, BinToBase32Length(BinLen));
+  FastSetString(result, BinToBase32Length(BinLen));
   if result <> '' then
     BinToBase32(pointer(Bin), pointer(result), BinLen, @b32enc);
 end;
@@ -7310,8 +7477,8 @@ begin
   if (B32Len > 0) and
      ((B32Len and 7) = 0) then
   begin
-    FastSetRawByteString(result, nil, (B32Len shr 3) * 5);
-    p := Base32Decode(@ConvertBase32ToBin, B32, pointer(result), B32Len);
+    p := Base32Decode(@ConvertBase32ToBin, B32,
+      FastNewRawByteString(result, (B32Len shr 3) * 5), B32Len);
     if p <> nil then
     begin
       FakeLength(result, p - pointer(result));
@@ -7348,7 +7515,7 @@ begin
       // BLOB literals are string literals containing hexadecimal data and
       // preceded by a single "x" or "X" character. For example: X'53514C697465'
       LenHex := (Len - 3) shr 1;
-      pointer(result) := FastNewString(LenHex, CP_RAWBYTESTRING);
+      pointer(result) := FastNewString(LenHex);
       if mormot.core.text.HexToBin(@P[2], pointer(result), LenHex) then
         exit; // valid hexa data
     end
@@ -7377,7 +7544,7 @@ begin
       // BLOB literals are string literals containing hexadecimal data and
       // preceded by a single "x" or "X" character. For example: X'53514C697465'
       LenHex := (Len - 3) shr 1;
-      pointer(result) := FastNewString(LenHex, CP_RAWBYTESTRING);
+      pointer(result) := FastNewString(LenHex);
       if mormot.core.text.HexToBin(@P[2], pointer(result), LenHex) then
         exit; // valid hexa data
     end
@@ -7440,7 +7607,7 @@ begin
     P := pointer(result);
     P[0] := 'X';
     P[1] := '''';
-    BinToHex(RawBlob, P + 2, RawBlobLength);
+    mormot.core.text.BinToHex(RawBlob, P + 2, RawBlobLength);
     P[RawBlobLength * 2 + 2] := '''';
   end;
 end;
@@ -7504,8 +7671,8 @@ var
     if (boundary <> '') and
        (boundary[1] = '"') then
       TrimChars(boundary, 1, 1); // "boundary" -> boundary
-    endBoundary := '--' + boundary + '--' + #13#10;
-    boundary := '--' + boundary + #13#10;
+    Join(['--', boundary, '--'#13#10], endBoundary);
+    boundary := Join(['--', boundary, #13#10]);
     result := true;
   end;
 
@@ -7519,7 +7686,7 @@ begin
       inc(i, length(boundary));
       if i = length(Body) then
         exit; // reached the (premature) end
-      P := PUtf8Char(Pointer(Body)) + i - 1;
+      P := PUtf8Char(pointer(Body)) + i - 1;
       Finalize(part);
       // decode section header
       repeat
@@ -7552,7 +7719,7 @@ begin
           exit;
       until PWord(P)^ = 13 + 10 shl 8;
       // decode section content
-      i := P - PUtf8Char(Pointer(Body)) + 3; // i = just after header
+      i := P - PUtf8Char(pointer(Body)) + 3; // i = just after header
       j := PosEx(boundary, Body, i);
       if j = 0 then
       begin
@@ -7567,8 +7734,8 @@ begin
         if (part.ContentType = '') or
            (PosEx('-8', part.ContentType) > 0) then
         begin
-          if IdemPChar(pointer(part.ContentType), JSON_CONTENT_TYPE_UPPER) then
-            part.ContentType := JSON_CONTENT_TYPE
+          if IsContentTypeJsonU(part.ContentType) then
+            part.ContentType := JSON_CONTENT_TYPE_VAR
           else
             part.ContentType := TEXT_CONTENT_TYPE;
           FakeCodePage(part.Content, CP_UTF8); // ensure value is UTF-8
@@ -7588,7 +7755,7 @@ function MultiPartFormDataNewBound(var boundaries: TRawUtf8DynArray): RawUtf8;
 var
   random: array[0..2] of cardinal;
 begin
-  RandomBytes(@random, SizeOf(random));
+  SharedRandom.Fill(@random, SizeOf(random));
   result := BinToBase64uri(@random, SizeOf(random));
   AddRawUtf8(boundaries, result);
 end;
@@ -7653,7 +7820,7 @@ begin
     for i := length(boundaries) - 1 downto 0 do
       W.Add('--%--'#13#10, [boundaries[i]]);
     W.SetText(MultiPartContent);
-    result := True;
+    result := true;
   finally
     W.Free;
   end;
@@ -7680,8 +7847,7 @@ begin
   if ForcedContentType <> '' then
     part.ContentType := ForcedContentType
   else
-    part.ContentType := GetMimeContentType(
-      pointer(content), length(content), FileName);
+    part.ContentType := GetMimeContentType(content, FileName);
   part.Encoding := 'base64';
   part.Content := BinToBase64(content);
   SetLength(MultiPart, newlen);
@@ -7702,9 +7868,8 @@ begin
   part.Name := FieldName;
   if ForcedContentType <> '' then
     part.ContentType := ForcedContentType
-  else
-    part.ContentType := GetMimeContentTypeFromBuffer(
-      pointer(FieldValue), length(FieldValue), TEXT_CONTENT_TYPE);
+  else if GetMimeContentTypeFromBuffer(FieldValue, part.ContentType) = mtUnknown then
+    part.ContentType := TEXT_CONTENT_TYPE; // fallback to plain text
   part.Content := FieldValue;
   SetLength(MultiPart, newlen);
   MultiPart[newlen - 1] := part;
@@ -7848,117 +8013,238 @@ end;
 
 { ***************** URI-Encoded Text Buffer Process }
 
-function UrlEncode(const svar: RawUtf8): RawUtf8;
-begin
-  result := UrlEncode(pointer(svar));
-end;
+// some local sub-functions for better code generation of UrlEncode()
 
-function UrlEncodeName(const svar: RawUtf8): RawUtf8;
-begin
-  result := UrlEncodeName(pointer(svar));
-end;
-
-// two sub-functions for better code generation of UrlEncode()
-
-procedure _UrlEncode_Write(s, p: PByte; tab: PTextByteSet; space2plus: cardinal);
+function _UrlEncode_Write(s, d: PByte; tab: PTextByteSet; space2plus: cardinal): PtrUInt;
 var
   c: cardinal;
-  hex: ^TByteToWord;
+  hex: PByteToWord;
 begin
-  hex := @TwoDigitsHexWB;
+  result := PtrUInt(d);
+  if d = nil then
+    exit;
+  hex := @TwoDigitsHex;
   repeat
     c := s^;
     inc(s);
     if tcUriUnreserved in tab[c] then
     begin
-      // was ['_', '-', '.', '~', '0'..'9', 'a'..'z', 'A'..'Z']
-      p^ := c;
-      inc(p);
+      // was ['_', '-', '.', '0'..'9', 'a'..'z', 'A'..'Z'] - '~' excluded
+      d^ := c;
+      inc(d);
     end
     else if c = 0 then
-      exit
+      break
     else if c = space2plus then // space2plus=32 for parameter, =48 for URI
     begin
-      p^ := ord('+');
-      inc(p);
+      d^ := ord('+');
+      inc(d);
     end
     else
     begin
-      p^ := ord('%');
-      inc(p);
-      PWord(p)^ := hex[c];
-      inc(p, 2);
+      d^ := ord('%');
+      inc(d);
+      PWord(d)^ := hex[c];
+      inc(d, 2);
     end;
   until false;
+  result := PtrUInt(d) - result; // return the number of written bytes
 end;
 
-function _UrlEncode_ComputeLen(s: PByte; tab: PTextByteSet; space2plus: cardinal): PtrInt;
+function _UrlEncode_ComputeLen(s: PByte; tab: PTextByteSet; space2plus: byte): PtrInt;
 var
-  c: cardinal;
+  c: byte;
+  d: PByte;
 begin
   result := 0;
+  d := s;
   repeat
     c := s^;
     inc(s);
     if (tcUriUnreserved in tab[c]) or
        (c = space2plus) then // =32 for parameter, =48 for URI
-    begin
-      inc(result);
       continue;
-    end;
+    inc(result, PAnsiChar(s) - PAnsiChar(d));
     if c = 0 then
-      exit;
-    inc(result, 3);
+      break;
+    inc(result, 2);
+    d := s;
   until false;
+  dec(result); // don't include last #0 in result Len
+end;
+
+procedure _UrlEncode(Text: pointer; space2plus: cardinal; out result: RawUtf8);
+begin
+  if Text = nil then
+    exit;
+  FastSetString(result, _UrlEncode_ComputeLen(Text, @TEXT_BYTES, space2plus));
+  _UrlEncode_Write(Text, pointer(result), @TEXT_BYTES, space2plus);
+end;
+
+procedure _UrlEncodeW(W: TTextWriter; Text: pointer; TextLen: PtrInt; space2plus: cardinal);
+begin
+  if (Text = nil) or
+     (W = nil) then
+    exit;
+  TextLen := TextLen * 3; // worse case
+  if TextLen > W.BEnd - W.B then // need to compute exact length (very unlikely)
+    TextLen := _UrlEncode_ComputeLen(Text, @TEXT_BYTES, space2plus);
+  inc(W.B, _UrlEncode_Write(Text, W.AddPrepare(TextLen), @TEXT_BYTES, space2plus));
+end;
+
+function UrlEncode(const Text: RawUtf8): RawUtf8;
+begin
+  _UrlEncode(pointer(Text), 32, result);
 end;
 
 function UrlEncode(Text: PUtf8Char): RawUtf8;
 begin
-  result := '';
-  if Text = nil then
-    exit;
-  FastSetString(result, nil, _UrlEncode_ComputeLen(pointer(Text), @TEXT_CHARS, 32));
-  _UrlEncode_Write(pointer(Text), pointer(result), @TEXT_BYTES, 32);
+  _UrlEncode(Text, 32, result);
+end;
+
+procedure UrlEncode(W: TTextWriter; Text: PUtf8Char; TextLen: PtrInt);
+begin
+  _UrlEncodeW(W, Text, TextLen, 32);
+end;
+
+procedure UrlEncode(W: TTextWriter; const Text: RawUtf8);
+begin
+  _UrlEncodeW(W, pointer(Text), length(Text), 32);
+end;
+
+function UrlEncodeName(const Text: RawUtf8): RawUtf8;
+begin
+  _UrlEncode(pointer(Text), 48, result);
 end;
 
 function UrlEncodeName(Text: PUtf8Char): RawUtf8;
 begin
-  result := '';
-  if Text = nil then
-    exit;
-  FastSetString(result, nil, _UrlEncode_ComputeLen(pointer(Text), @TEXT_CHARS, 48));
-  _UrlEncode_Write(pointer(Text), pointer(result), @TEXT_BYTES, 48);
+  _UrlEncode(Text, 48, result);
 end;
+
+procedure UrlEncodeName(W: TTextWriter; Text: PUtf8Char; TextLen: PtrInt);
+begin
+  _UrlEncodeW(W, Text, TextLen, 48);
+end;
+
+procedure UrlEncodeName(W: TTextWriter; const Text: RawUtf8);
+begin
+  _UrlEncodeW(W, pointer(Text), length(Text), 48);
+end;
+
+function UrlEncode(const NameValuePairs: array of const; Options: TUrlEncoder): RawUtf8;
+begin
+  result := UrlEncodeFull('', [], NameValuePairs, Options);
+end;
+
+const
+  _UE_OPT: array[boolean] of TUrlEncoder = ([], [ueTrimLeadingQuestionMark]);
 
 function UrlEncode(const NameValuePairs: array of const;
   TrimLeadingQuestionMark: boolean): RawUtf8;
-// (['select','*','where','ID=12','offset',23,'object',aObject]);
+begin
+  result := UrlEncodeFull('', [], NameValuePairs, _UE_OPT[TrimLeadingQuestionMark]);
+end;
+
+function UrlAppend(const Uri: RawUtf8; const NameValuePairs: array of const;
+  Options: TUrlEncoder): RawUtf8;
+begin
+  if (Uri <> '') and (Uri[length(Uri)] in ['?', '&']) then
+    include(Options, ueTrimLeadingQuestionMark);
+  result := UrlEncodeFull(Uri, [], NameValuePairs, Options);
+end;
+
+function UrlEncodeFull(const PrefixFmt: RawUtf8; const PrefixArgs,
+  NameValuePairs: array of const; Options: TUrlEncoder): RawUtf8;
 var
   a, n: PtrInt;
-  name, value: RawUtf8;
+  name, value, one: RawUtf8;
   p: PVarRec;
+  w: TTextWriter;
+  csv: PUtf8Char;
+  flags: set of (possibleDirect, valueDirect, valueIsCsv, hasContent);
+  tmp: TTextWriterStackBuffer;
 begin
-  result := '';
-  n := high(NameValuePairs);
-  if (n > 0) and
-     (n and 1 = 1) then
-  begin
-    for a := 0 to n shr 1 do
-    begin
-      VarRecToUtf8(NameValuePairs[a * 2], name);
-      if not IsUrlValid(pointer(name)) then
-        continue; // just skip invalid names
-      p := @NameValuePairs[a * 2 + 1];
-      if p^.VType = vtObject then
-        value := ObjectToJson(p^.VObject, [])
-      else
-        VarRecToUtf8(p^, value);
-      result := result + '&' + name + '=' + UrlEncode(value);
-    end;
-    if TrimLeadingQuestionMark then
-      delete(result, 1, 1)
-    else
-      result[1] := '?';
+  flags := [];
+  if DefaultJsonWriter <> TTextWriter then
+    include(flags, possibleDirect);
+  w := DefaultJsonWriter.CreateOwnedStream(tmp);
+  try
+    if PrefixFmt <> '' then
+      w.Add(PrefixFmt, PrefixArgs);
+    n := high(NameValuePairs);
+    if (n > 0) and
+       (n and 1 = 1) then // n should be = 1,3,5,7,..
+      for a := 0 to n shr 1 do
+      begin
+        p := @NameValuePairs[a * 2];
+        VarRecToUtf8(p, name);
+        if name = '' then
+          continue;
+        flags := flags - [valueDirect, valueIsCsv];
+        if (ueStarNameIsCsv in Options) and
+           (name[1] = '*') then
+        begin
+          include(flags, valueIsCsv);
+          delete(name, 1, 1);
+        end;
+        if not IsUrlValid(pointer(name)) then
+          if ueEncodeNames in Options then
+            name := UrlEncodeName(name)
+          else
+            continue; // just skip invalid names
+        inc(p);
+        if (possibleDirect in flags) and
+           (not (valueIsCsv in flags)) and
+           (byte(p^.VType) in vtNotString) then
+          include(flags, valuedirect);
+        if (ueSkipVoidValue in Options) and
+           VarRecIsVoid(p) then
+          continue // skip e.g. '' or 0
+        else if p^.VType = vtObject then // no VarRecToUtf8(vtObject)=ClassName
+          value := ObjectToJson(p^.VObject, [])
+        else if not (valueDirect in flags) then
+        begin
+          VarRecToUtf8(p, value);
+          if (ueSkipVoidString in Options) and
+             (value = '') then
+            continue; // skip ''
+        end;
+        if hasContent in flags then
+          w.AddDirect('&')
+        else
+        begin
+          include(flags, hasContent);
+          if not (ueTrimLeadingQuestionMark in Options) then
+            w.AddDirect('?');
+        end;
+        if valueIsCsv in flags then
+        begin
+          csv := pointer(value); // '*tag', 't1,"t2",t3'
+          repeat
+            GetNextItem(csv, ',', '"', one);
+            if (ueSkipVoidString in Options) and
+               (one = '') then
+              continue;
+            if not (valueIsCsv in flags) then
+              w.AddDirect('&'); // ? or & has been written before the first item
+            exclude(flags, valueIsCsv);
+            w.AddString(name); // 'tag=t1&tag=t2&tag=t3'
+            w.AddDirect('=');
+            _UrlEncodeW(w, pointer(one), length(one), 32);
+          until csv = nil;
+          continue;
+        end;
+        w.AddString(name);
+        w.AddDirect('=');
+        if valueDirect in flags then
+          w.AddVarRec(p) // requires TJsonWriter
+        else
+          _UrlEncodeW(w, pointer(value), length(value), 32); // = UrlEncode(W)
+      end;
+    w.SetText(result);
+  finally
+    w.Free;
   end;
 end;
 
@@ -7972,10 +8258,12 @@ begin
   tab := @TEXT_CHARS;
   repeat
     if tcUriUnreserved in tab[P^] then
-      inc(P) // was  ['_', '-', '.', '~', '0'..'9', 'a'..'z', 'A'..'Z']
+      inc(P) // was  ['_', '-', '.', '0'..'9', 'a'..'z', 'A'..'Z'] - exclude '~'
+    else if P^ = #0 then
+      break
     else
       exit;
-  until P^ = #0;
+  until false;
   result := true;
 end;
 
@@ -7994,7 +8282,7 @@ function IncludeTrailingUriDelimiter(const URI: RawByteString): RawByteString;
 begin
   if (URI <> '') and
      (Uri[length(URI)] <> '/') then
-    result := URI + '/'
+    Join([URI, '/'], RawUtf8(result))
   else
     result := URI;
 end;
@@ -8016,9 +8304,9 @@ begin
         break; // reached end of URI
       '%':
         if not HexToChar(PAnsiChar(U + 1), P) then
-          P^ := U^
+          P^ := U^ // browsers may not follow the RFC (e.g. encode % as % !)
         else
-          inc(U, 2); // browsers may not follow the RFC (e.g. encode % as % !)
+          inc(U, 2);
       '+':
         if name then
           P^ := '+'
@@ -8026,7 +8314,7 @@ begin
           P^ := ' ';
     else
       P^ := U^;
-    end; // case s[i] of
+    end;
     inc(U);
     inc(P);
   until false;
@@ -8082,8 +8370,7 @@ begin
     // decode value content
     if len <> 0 then
     begin
-      FastSetString(Value, nil, len);
-      V := pointer(Value);
+      V := FastSetString(Value, len);
       U := Beg;
       repeat
         if (U^ = '%') and
@@ -8153,8 +8440,7 @@ begin
   if len = 0 then
     exit;
   // decode name content
-  FastSetString(Name, nil, len);
-  V := pointer(Name);
+  V := FastSetString(Name, len);
   U := Beg;
   repeat
     if (U^ = '%') and
@@ -8191,6 +8477,26 @@ begin
     result := U + 1; // jump '&' to let decode the next name=value pair
 end;
 
+procedure UrlDecodeEnd(Next: PPUtf8Char; U: PUtf8Char); {$ifdef HASINLINE} inline; {$endif}
+var
+  c: AnsiChar;
+begin
+  if Next = nil then
+    exit;
+  repeat
+    c := U^;
+    inc(U);
+    if c <> #0 then
+      if c = '&' then
+        break // jump '&'
+      else
+        continue;
+    U := nil; // return nil when end of URI is reached
+    break;
+  until false;
+  Next^ := U;
+end;
+
 function UrlDecodeValue(U: PUtf8Char; const Upper: RawUtf8;
   var Value: RawUtf8; Next: PPUtf8Char): boolean;
 begin
@@ -8207,21 +8513,13 @@ begin
     inc(U, length(Upper));
     U := UrlDecodeNextValue(U, Value);
   end;
-  if Next = nil then
-    exit;
-  while not (U^ in [#0, '&']) do
-    inc(U);
-  if U^ = #0 then
-    Next^ := nil // return nil when end of URI is reached
-  else
-    Next^ := U + 1; // jump '&'
+  UrlDecodeEnd(Next, U);
 end;
 
 function UrlDecodeInteger(U: PUtf8Char; const Upper: RawUtf8;
   var Value: integer; Next: PPUtf8Char): boolean;
 var
-  V: PtrInt;
-  SignNeg: boolean;
+  v, sign: PtrInt;
 begin
   result := false; // mark value not modified by default
   if U = nil then
@@ -8235,39 +8533,29 @@ begin
     inc(U, length(Upper));
     if U^ = '-' then
     begin
-      SignNeg := True;
+      sign := -1;
       inc(U);
     end
     else
-      SignNeg := false;
+      sign := 1;
     if U^ in ['0'..'9'] then
     begin
-      V := 0;
+      v := 0;
       repeat
-        V := (V * 10) + ord(U^) - 48;
+        v := (v * 10) + ord(U^) - 48;
         inc(U);
       until not (U^ in ['0'..'9']);
-      if SignNeg then
-        Value := -V
-      else
-        Value := V;
+      Value := v * sign;
       result := true;
     end;
   end;
-  if Next = nil then
-    exit;
-  while not (U^ in [#0, '&']) do
-    inc(U);
-  if U^ = #0 then
-    Next^ := nil
-  else
-    Next^ := U + 1; // jump '&'
+  UrlDecodeEnd(Next, U);
 end;
 
 function UrlDecodeCardinal(U: PUtf8Char; const Upper: RawUtf8;
   var Value: cardinal; Next: PPUtf8Char): boolean;
 var
-  V: PtrInt;
+  v: PtrInt;
 begin
   result := false; // mark value not modified by default
   if U = nil then
@@ -8281,30 +8569,22 @@ begin
     inc(U, length(Upper));
     if U^ in ['0'..'9'] then
     begin
-      V := 0;
+      v := 0;
       repeat
-        V := (V * 10) + ord(U^) - 48;
+        v := (v * 10) + ord(U^) - 48;
         inc(U);
       until not (U^ in ['0'..'9']);
-      Value := V;
+      Value := v;
       result := true;
     end;
   end;
-  if Next = nil then
-    exit;
-  while not (U^ in [#0, '&']) do
-    inc(U);
-  if U^ = #0 then
-    Next^ := nil
-  else
-    Next^ := U + 1; // jump '&'
+  UrlDecodeEnd(Next, U);
 end;
 
 function UrlDecodeInt64(U: PUtf8Char; const Upper: RawUtf8;
   var Value: Int64; Next: PPUtf8Char): boolean;
 var
-  V: Int64;
-  SignNeg: boolean;
+  v, sign: Int64;
 begin
   result := false; // mark value not modified by default
   if U = nil then
@@ -8318,33 +8598,23 @@ begin
     inc(U, length(Upper));
     if U^ = '-' then
     begin
-      SignNeg := True;
+      sign := -1;
       inc(U);
     end
     else
-      SignNeg := false;
+      sign := 1;
     if U^ in ['0'..'9'] then
     begin
-      V := 0;
+      v := 0;
       repeat
-        V := (V * 10) + ord(U^) - 48;
+        v := (v * 10) + ord(U^) - 48;
         inc(U);
       until not (U^ in ['0'..'9']);
-      if SignNeg then
-        Value := -V
-      else
-        Value := V;
+      Value := v * sign;
       result := true;
     end;
   end;
-  if Next = nil then
-    exit;
-  while not (U^ in [#0, '&']) do
-    inc(U);
-  if U^ = #0 then
-    Next^ := nil
-  else
-    Next^ := U + 1; // jump '&'
+  UrlDecodeEnd(Next, U);
 end;
 
 function UrlDecodeExtended(U: PUtf8Char; const Upper: RawUtf8;
@@ -8379,7 +8649,7 @@ end;
 
 function UrlDecodeNeedParameters(U, CsvNames: PUtf8Char): boolean;
 var
-  tmp: array[byte] of AnsiChar;
+  tmp: TByteToAnsiChar;
   L: integer;
   Beg: PUtf8Char;
 // UrlDecodeNeedParameters('price=20.45&where=LastName%3D','price,where') will
@@ -8428,17 +8698,18 @@ end;
 { *********** Basic MIME Content Types Support }
 
 const
-  MIME_MAGIC: array[0..17] of cardinal = (
+  MIME_MAGIC: array[0 .. 19] of cardinal = (
      $04034b50 + 1, $46445025 + 1, $21726152 + 1, $afbc7a37 + 1,
      $694c5153 + 1, $75b22630 + 1, $9ac6cdd7 + 1, $474e5089 + 1,
      $38464947 + 1, $46464f77 + 1, $a3df451a + 1, $002a4949 + 1,
      $2a004d4d + 1, $2b004d4d + 1, $46464952 + 1, $e011cfd0 + 1,
-     $5367674f + 1, $1c000000 + 1);
+     $5367674f + 1, $1c000000 + 1, $4d434944 + 1, $fd2fb528 + 1);
   MIME_MAGIC_TYPE: array[0..high(MIME_MAGIC)] of TMimeType = (
      mtZip, mtPdf, mtRar, mt7z, mtSQlite3, mtWma, mtWmv, mtPng, mtGif, mtFont,
-     mtWebm, mtTiff, mtTiff, mtTiff, mtWebp{=riff}, mtDoc, mtOgg, mtMp4);
+     mtWebm, mtTiff, mtTiff, mtTiff, mtWebp{=riff}, mtDoc, mtOgg, mtMp4,
+     mtDicom, mtZstd);
 
-function GetMimeContentTypeFromMemory(Content: Pointer; Len: PtrInt): TMimeType;
+function GetMimeContentTypeFromMemory(Content: pointer; Len: PtrInt): TMimeType;
 var
   i: PtrInt;
 begin
@@ -8447,13 +8718,46 @@ begin
   if (Content <> nil) and
      (Len > 4) then
   begin
+    case PAnsiChar(Content)^ of
+      '<':
+        case PCardinal(PAnsiChar(Content) + 1)^ or $20202020 of
+          ord('h') + ord('t') shl 8 + ord('m') shl 16 + ord('l') shl 24:
+            begin
+              result := mtHtml; // legacy HTML document
+              exit;
+            end;
+          ord('!') + ord('d') shl 8 + ord('o') shl 16 + ord('c') shl 24:
+            begin
+              if (PCardinal(PAnsiChar(Content) + 5)^ or $20202020 =
+                 ord('t') + ord('y') shl 8 + ord('p') shl 16 + ord('e') shl 24) and
+                 (PAnsiChar(Content)[9] = ' ') then
+                if (PCardinal(PAnsiChar(Content) + 10)^ or $20202020 =
+                   ord('h') + ord('t') shl 8 + ord('m') shl 16 + ord('l') shl 24) then
+                  result := mtHtml // HTML5 markup
+                else
+                  result := mtXml; // malformed XML document
+              exit;
+            end;
+          ord('?') + ord('x') shl 8 + ord('m') shl 16 + ord('l') shl 24:
+            begin
+              result := mtXml; // "well formed" XML document
+              exit;
+            end;
+        end;
+      '{', '[':
+        begin
+          if (Len < 65535) and (StrLen(Content) = Len) then
+            result := mtJson;
+          exit;
+        end;
+    end;
     i := IntegerScanIndex(@MIME_MAGIC, length(MIME_MAGIC), PCardinal(Content)^ + 1);
     // + 1 to avoid finding it in the exe - may use SSE2
     if i >= 0 then
       result := MIME_MAGIC_TYPE[i];
     case result of // identify some partial matches
       mtUnknown:
-        case PCardinal(Content)^ and $00ffffff of
+        case PCardinal(Content)^ and $00ffffff of // identify 3 bytes magic
           $685a42:
             result := mtBz2;  // 42 5A 68
           $088b1f:
@@ -8466,6 +8770,10 @@ begin
           case PWord(Content)^ of
             $4D42:
               result := mtBmp; // 42 4D
+            else
+              if (Len > 132) and // 'DICOM' prefix may appear at offset 128
+                 (PCardinalArray(Content)^[32] = $4d434944) then
+              result := mtDicom;
           end;
         end;
       mtWebp:
@@ -8523,101 +8831,97 @@ begin
   end;
 end;
 
-function GetMimeContentTypeFromBuffer(Content: Pointer; Len: PtrInt;
-  const DefaultContentType: RawUtf8; Mime: PMimeType): RawUtf8;
-var
-  m: TMimeType;
+function GetMimeContentTypeFromBuffer(const Content: RawByteString;
+  var ContentType: RawUtf8): TMimeType;
 begin
-  m := GetMimeContentTypeFromMemory(Content, Len);
-  if Mime <> nil then
-    Mime^ := m;
-  if m = mtUnknown then
-    result := DefaultContentType
-  else
-    result := MIME_TYPE[m];
+  result := GetMimeContentTypeFromMemory(pointer(Content), Length(Content));
+  if result <> mtUnknown then
+    ContentType := MIME_TYPE[result];
 end;
 
 const
-  MIME_EXT: array[0..45] of PUtf8Char = ( // for IdemPPChar() start check
-    'PNG',  'GIF',  'TIF',  'JP',  'BMP',  'DOC',  'HTM',
-    'CSS',  'JSON',  'ICO',  'WOF',  'TXT',  'SVG',  'ATOM',  'RDF',  'RSS',
-    'WEBP',  'APPC',  'MANI',  'XML',  'JS',  'WOFF',  'OGG',
-    'OGV',  'MP4',  'M2V',  'M2P',  'MP3',  'H264',  'TEXT',  'LOG',  'GZ',
-    'WEBM',  'MKV',  'RAR',  '7Z',  'BZ2', 'WMA', 'WMV', 'AVI',
-    'PPT', 'XLS', 'PDF', 'SQLITE', 'DB3', nil);
+  MIME_EXT: array[0..48] of PUtf8Char = ( // for IdemPPChar() start check
+    'PNG',  'GIF',  'TIF',  'JP',  'BMP', 'DOC',  'HTM',  'CSS',
+    'JSON', 'ICO',  'WOF',  'TXT', 'SVG', 'ATOM', 'RDF',  'RSS',
+    'WEBP', 'APPC', 'MANI', 'XML', 'JS',  'MJS',  'WOFF', 'OGG',
+    'OGV',  'MP4',  'M2V',  'M2P', 'MP3', 'H264', 'TEXT', 'LOG',
+    'GZ',   'WEBM', 'MKV',  'RAR', '7Z',  'BZ2',  'WMA',  'WMV',
+    'AVI',  'PPT',  'XLS',  'PDF', 'DCM', 'DICOM', 'SQLITE', 'DB3', nil);
   MIME_EXT_TYPE: array[0 .. high(MIME_EXT) - 1] of TMimeType = (
-    mtPng,  mtGif,  mtTiff,  mtJpg,  mtBmp,  mtDoc,  mtHtml,
-    mtCss,  mtJson,  mtXIcon,  mtFont,  mtText,  mtSvg,  mtXml,  mtXml,  mtXml,
-    mtWebp,  mtManifest,  mtManifest,  mtXml,  mtJS,  mtFont,  mtOgg,
-    mtOgg,  mtMp4,  mtMp2,  mtMp2,  mtMpeg,  mtH264,  mtText,  mtText,  mtGzip,
-    mtWebm,  mtWebm,  mtRar,  mt7z,  mtBz2, mtWma, mtWmv, mtAvi,
-    mtPpt,  mtXls, mtPdf, mtSQlite3, mtSQlite3);
+    mtPng,  mtGif,  mtTiff,  mtJpg,  mtBmp,  mtDoc,  mtHtml, mtCss,
+    mtJson, mtXIcon, mtFont, mtText, mtSvg,  mtXml,  mtXml,  mtXml,
+    mtWebp, mtManifest, mtManifest,  mtXml,  mtJS,   mtJS,   mtFont, mtOgg,
+    mtOgg,  mtMp4,  mtMp2,   mtMp2,  mtMpeg, mtH264, mtText, mtText,
+    mtGzip, mtWebm, mtWebm,  mtRar,  mt7z,   mtBz2,  mtWma,  mtWmv,
+    mtAvi,  mtPpt,  mtXls,   mtPdf, mtDicom, mtDicom, mtSQlite3, mtSQlite3);
 
-function GetMimeContentTypeFromExt(const FileName: TFileName; FileExt: PRawUtf8): TMimeType;
+function GetMimeTypeFromExt(const Ext: RawUtf8): TMimeType;
 var
-  ext: RawUtf8;
   i: PtrInt;
 begin
   result := mtUnknown;
-  if FileName <> '' then
-  begin
-    ext := RawUtf8(ExtractFileExt(FileName));
-    delete(ext, 1, 1);
-    if length(ext) = 1 then // IdemPPChar() supports 2 chars len minimum
+  case length(Ext) of
+    0: ;
+    1: // IdemPPChar() requires 2 chars len minimum
       case ext[1] of
         'x', 'X':
           result := mtXcomp;
-      end
-    else
+      end;
+  else
     begin
-      i := IdemPPChar(pointer(ext), @MIME_EXT);
+      i := IdemPPChar(pointer(Ext), @MIME_EXT);
       if i >= 0 then
         result := MIME_EXT_TYPE[i]
     end;
   end;
+end;
+
+function GetMimeContentTypeFromExt(const FileName: TFileName; FileExt: PRawUtf8): TMimeType;
+var
+  ext: RawUtf8;
+begin
+  StringToUtf8(ExtractExt(FileName, {withoutdot=}true), ext);
+  result := GetMimeTypeFromExt(ext);
   if FileExt <> nil then
     FileExt^ := {%H-}ext;
 end;
 
-function GetMimeContentType(Content: Pointer; Len: PtrInt; const FileName: TFileName;
-  const DefaultContentType: RawUtf8; Mime: PMimeType): RawUtf8;
+function GetMimeContentType(const Content: RawByteString; const FileName: TFileName;
+  const DefaultContentType: RawUtf8): RawUtf8;
 var
   ext: RawUtf8;
   m: TMimeType;
 begin
-  if FileName <> '' then
+  result := DefaultContentType;
+  if FileName <> '' then // file extension is more precise -> check first
   begin
-    // file extension is more precise -> check first
     m := GetMimeContentTypeFromExt(FileName, @ext);
     if m <> mtUnknown then
     begin
       result := MIME_TYPE[m];
-      if Mime <> nil then
-        Mime^ := m;
       exit;
     end;
-    // fallback to content check
-    if (ext <> '') and
+    if (ext <> '') and // default e.g. 'application/zip' or 'application/pdf'
        (ext[1] in ['a'..'z']) then
-      // e.g. 'application/zip' or 'application/pdf'
-      result := 'application/' + LowerCase(ext)
-    else
-      result := DefaultContentType;
-  end
-  else
-    result := DefaultContentType;
-  result := GetMimeContentTypeFromBuffer(Content, Len, result, Mime);
+      result := 'application/' + LowerCase(ext);
+  end;
+  if Content <> '' then
+    GetMimeContentTypeFromBuffer(Content, result);
 end;
 
 function GetMimeContentTypeHeader(const Content: RawByteString;
-  const FileName: TFileName; Mime: PMimeType): RawUtf8;
+  const FileName: TFileName): RawUtf8;
 begin
-  result := HEADER_CONTENT_TYPE + GetMimeContentType(
-      Pointer(Content), length(Content), FileName, BINARY_CONTENT_TYPE, Mime);
+  Join([HEADER_CONTENT_TYPE, GetMimeContentType(Content, FileName)], result);
+end;
+
+function ToText(t: TMimeType): PShortString;
+begin
+  result := GetEnumName(TypeInfo(TMimeType), ord(t));
 end;
 
 const
-  MIME_COMPRESSED: array[0..38] of cardinal = ( // may use SSE2
+  MIME_COMPRESSED: array[0..39] of cardinal = ( // may use SSE2
     $04034b50, // 'application/zip' = 50 4B 03 04
     $474e5089, // 'image/png' = 89 50 4E 47 0D 0A 1A 0A
     $e0ffd8ff, $e1ffd8ff, // 'image/jpeg' FF D8 FF E0/E1
@@ -8639,26 +8943,23 @@ const
     $a5a5a5a5, // mORMot 1 .mab file
     $a5a5a55a, // .mab file = MAGIC_MAB in mormot.core.log.pas
     $a5aba5a5, // .data = TRESTSTORAGEINMEMORY_MAGIC in mormot.orm.server.pas
-    LOG_MAGIC, // .log.synlz with SynLZ or Lizard compression = $aba51051
+    LOG_MAGIC, // .log.synlz/.log.synliz compression = $aba51051
     $aba5a5ab, $aba5a5ab + 1, $aba5a5ab + 2, $aba5a5ab + 3, $aba5a5ab + 4,
     $aba5a5ab + 5, $aba5a5ab + 6, $aba5a5ab + 7, // .dbsynlz = SQLITE3_MAGIC
     $afbc7a37, // 'application/x-7z-compressed' = 37 7A BC AF 27 1C
     $b7010000, $ba010000, // mpeg = 00 00 01 Bx
     $cececece, // jceks = CE CE CE CE
     $dbeeabed, // .rpm package file
-    $e011cfd0); // msi = D0 CF 11 E0 A1 B1 1A E1
+    $e011cfd0, // msi = D0 CF 11 E0 A1 B1 1A E1
+    $fd2fb528); // Zstandard frame
 
-function IsContentCompressed(Content: Pointer; Len: PtrInt): boolean;
-var
-  i: PtrInt;
+function IsContentCompressed(Content: pointer; Len: PtrInt): boolean;
 begin
   // see http://www.garykessler.net/library/file_sigs.html
   result := false;
   if (Content <> nil) and
      (Len > 8) then
-  begin
-    i := IntegerScanIndex(@MIME_COMPRESSED, length(MIME_COMPRESSED), PCardinal(Content)^);
-    if i >= 0 then
+    if IntegerScanExists(@MIME_COMPRESSED, length(MIME_COMPRESSED), PCardinal(Content)^) then
       result := true
     else
       case PCardinal(Content)^ and $00ffffff of // 24-bit magic
@@ -8679,11 +8980,134 @@ begin
             result := true;
         end;
       end;
+end;
+
+function IsApplicationCompressible(ContentType: PCardinalArray): boolean;
+  {$ifdef HASINLINE} inline; {$endif}
+var
+  c: cardinal;
+begin
+  c := ContentType^[0] and $dfdfdfdf;
+  if c = ord('J') + ord('S') shl 8 + ord('O') shl 16 + ord('N') shl 24 then
+    result := true // application/json
+  else if c = ord('O') + ord('C') shl 8 + ord('T') shl 16 + ord('E') shl 24 then
+    result := false // application/octet-stream is the 2nd most common
+  else if c = ord('J') + ord('A') shl 8 + ord('V') shl 16 + ord('A') shl 24 then
+    result := (ContentType^[1] and $dfdfdfdf) = // application/javascript
+              ord('S') + ord('C') shl 8 + ord('R') shl 16 + ord('I') shl 24
+  else
+  begin
+    c := c and $00ffffff; // application/xml or application/rtf
+    result := (c = ord('X') + ord('M') shl 8 + ord('L') shl 16) or
+              (c = ord('R') + ord('T') shl 8 + ord('F') shl 16);
   end;
 end;
 
+function IsContentTypeCompressible(ContentType: PUtf8Char;
+  ContentTypeLen: PtrInt; OnlyText: boolean): boolean;
+var
+  i: PtrInt;
+begin
+  result := false;
+  if (ContentType <> nil) and
+     (ContentTypeLen > 4) then
+    case PCardinalArray(ContentType)[0] or $20202020 of
+      ord('t') + ord('e') shl 8 + ord('x') shl 16 + ord('t') shl 24:
+        result := ContentType[4] = '/'; // text/*
+      ord('i') + ord('m') shl 8 + ord('a') shl 16 + ord('g') shl 24:
+        if ContentTypeLen > 8 then
+          case PCardinalArray(ContentType)[1] or $20202020 of
+            ord('e') + ord('/') shl 8 + ord('s') shl 16 + ord('v') shl 24:
+              result := ord(ContentType[8]) and $df = ord('G'); // image/svg is XML
+            ord('e') + ord('/') shl 8 + ord('x') shl 16 + ord('-') shl 24:
+              result := (not OnlyText) and  // image/x-ico is bin
+                        (PCardinalArray(ContentType)[2] and $00dfdfdf =
+                         ord('I') + ord('C') shl 8 + ord('O') shl 16);
+          end;
+      ord('a') + ord('p') shl 8 + ord('p') shl 16 + ord('l') shl 24:
+        if (ContentTypeLen > 12) and
+           (PCardinalArray(ContentType)[1] or $20202020 =
+             ord('i') + ord('c') shl 8 + ord('a') shl 16 + ord('t') shl 24) and
+           (PCardinalArray(ContentType)[2] or $00202020 =
+             ord('i') + ord('o') shl 8 + ord('n') shl 16 + ord('/') shl 24) then
+        begin // application/[json/javascript/xml]
+          result := true;
+          inc(ContentType, 12);
+          if IsApplicationCompressible(pointer(ContentType)) then
+            exit; // application/[json/javascript/xml]
+          i := ByteScanIndex(pointer(ContentType), ContentTypeLen - 12, ord('+'));
+          result := (i >= 0) and // e.g. application/atom+xml
+                    IsApplicationCompressible(@ContentType[i + 1]);
+        end;
+    end;
+end;
+
+function IsContentTypeCompressibleU(const ContentType: RawUtf8): boolean;
+begin
+  result := (ContentType <> '') and
+    IsContentTypeCompressible(pointer(ContentType),
+      PStrLen(PAnsiChar(pointer(ContentType)) - _STRLEN)^, {onlytext=}false);
+end;
+
+function IsContentTypeTextU(const ContentType: RawUtf8): boolean;
+begin
+  result := (ContentType <> '') and
+    IsContentTypeCompressible(pointer(ContentType),
+      PStrLen(PAnsiChar(pointer(ContentType)) - _STRLEN)^, {onlytext=}true);
+end;
+
+function IsContentTypeJson(ContentType: PUtf8Char; ContentTypeLen: PtrInt): boolean;
+var
+  i: PtrInt;
+begin
+  result := false;
+  dec(ContentTypeLen, 12);
+  if (ContentTypeLen <= 0) or
+     (PCardinalArray(ContentType)[0] or $20202020 <>
+       ord('a') + ord('p') shl 8 + ord('p') shl 16 + ord('l') shl 24) or
+     (PCardinalArray(ContentType)[1] or $20202020 <>
+       ord('i') + ord('c') shl 8 + ord('a') shl 16 + ord('t') shl 24) or
+     (PCardinalArray(ContentType)[2] or $00202020 <>
+       ord('i') + ord('o') shl 8 + ord('n') shl 16 + ord('/') shl 24) then
+    exit; // not application/*
+  case PCardinalArray(ContentType)[3] or $20202020 of
+    ord('j') + ord('s') shl 8 + ord('o') shl 16 + ord('n') shl 24:
+      ; // found
+    ord('o') + ord('c') shl 8 + ord('t') shl 16 + ord('e') shl 24:
+      exit; // application/octet-stream is very common
+  else
+    begin // try application/vnd.####+json
+      inc(ContentType, 12);
+      i := ByteScanIndex(pointer(ContentType), ContentTypeLen, ord('+'));
+      if (i < 0) or
+         (PCardinal(@ContentType[i + 1])^ or $20202020 <>
+            ord('j') + ord('s') shl 8 + ord('o') shl 16 + ord('n') shl 24) then
+        exit;
+    end;
+  end;
+  result := true; // application/[...+]json
+end;
+
+function IsContentTypeJsonU(const ContentType: RawUtf8): boolean;
+begin
+  result := (ContentType <> '') and
+            IsContentTypeJson(pointer(ContentType),
+              PStrLen(PAnsiChar(pointer(ContentType)) - _STRLEN)^);
+end;
+
+function IsContentUtf8(const Content, ContentType: RawUtf8): boolean;
+begin
+  result := (Content <> '') and
+            (ContentType <> '') and
+            (IsContentTypeJson(pointer(ContentType),
+               PStrLen(PAnsiChar(pointer(ContentType)) - _STRLEN)^) or
+             ((PCardinal(ContentType)^ or $20202020 =
+                 ord('t') + ord('e') shl 8 + ord('x') shl 16 + ord('t') shl 24) and
+              (ContentType[5] = '/')));
+end;
+
 function GetJpegSize(jpeg: PAnsiChar; len: PtrInt;
-  out Height, Width, Bits: integer): boolean;
+  out Width, Height, Bits: integer): boolean;
 var
   je: PAnsiChar;
 begin
@@ -8703,9 +9127,9 @@ begin
     case ord(jpeg^) of
       $c0..$c3, $c5..$c7, $c9..$cb, $cd..$cf: // SOF
         begin
-          Height := swap(PWord(jpeg + 4)^);
-          Width := swap(PWord(jpeg + 6)^);
-          Bits := PByte(jpeg + 8)^ * 8;
+          Height := bswap16(PWord(jpeg + 4)^);
+          Width  := bswap16(PWord(jpeg + 6)^);
+          Bits   := PByte(jpeg + 8)^ * 8;
           result := (Height > 0) and
                     (Height < 20000) and
                     (Width > 0) and
@@ -8719,7 +9143,7 @@ begin
       $ff: // padding
         ;
     else
-      inc(jpeg, swap(PWord(jpeg + 1)^) + 1);
+      inc(jpeg, bswap16(PWord(jpeg + 1)^) + 1);
     end;
   end;
 end;
@@ -8728,10 +9152,6 @@ end;
 { ************* Text Memory Buffers and Files }
 
 { TMemoryMapText }
-
-constructor TMemoryMapText.Create;
-begin
-end;
 
 constructor TMemoryMapText.Create(aFileContent: PUtf8Char; aFileSize: integer);
 begin
@@ -8852,32 +9272,32 @@ var
 begin
   // generated asm is much better with a local proc
   if P < PEnd then
-  repeat
-    PBeg := P;
-    {$ifdef CPUX64}
-    inc(P, BufferLineLength(P, PEnd)); // use branchless SSE2 on x86_64
-    {$else}
-    while (P < PEnd) and
-          (P^ <> #13) and
-          (P^ <> #10) do
-      inc(P);
-    {$endif CPUX64}
-    Map.ProcessOneLine(PBeg, P);
-    if P + 1 < PEnd then
-      if PWord(P)^ = 13 + 10 shl 8 then
-      begin
-        inc(P, 2); // ignore #13#10
-        if P < PEnd then
-          continue;
-      end
-      else
-      begin
-        inc(P);    // ignore #13 or #10
-        if P < PEnd then
-          continue;
-      end;
-    break;
-  until false;
+    repeat
+      PBeg := P;
+      {$ifdef CPUX64}
+      inc(P, BufferLineLength(P, PEnd)); // use branchless SSE2 on x86_64
+      {$else}
+      while (P < PEnd) and
+            (P^ <> #13) and
+            (P^ <> #10) do
+        inc(P);
+      {$endif CPUX64}
+      Map.ProcessOneLine(PBeg, P);
+      if P + 1 < PEnd then
+        if PWord(P)^ = 13 + 10 shl 8 then
+        begin
+          inc(P, 2); // ignore #13#10
+          if P < PEnd then
+            continue;
+        end
+        else
+        begin
+          inc(P);    // ignore #13 or #10
+          if P < PEnd then
+            continue;
+        end;
+      break;
+    until false;
 end;
 
 procedure TMemoryMapText.LoadFromMap(AverageLineLength: integer = 32);
@@ -8890,9 +9310,8 @@ begin
   GetMem(fLines, fLinesMax * SizeOf(pointer));
   P := pointer(fMap.Buffer);
   fMapEnd := P + fMap.Size;
-  if (PWord(P)^ = $BBEF) and
-     (P[2] = #$BF) then
-    inc(P, 3); // ignore UTF-8 BOM
+  if PCardinal(P)^ and $00ffffff = BOM_UTF8 then
+    inc(P, 3); // ignore any UTF-8 BOM
   ParseLines(P, fMapEnd, self);
   if fLinesMax > fCount + 16384 then
     Reallocmem(fLines, fCount * SizeOf(pointer)); // size down only if worth it
@@ -8961,7 +9380,7 @@ begin
   L := length(Text);
   if L <> 0 then
   begin
-    MoveFast(Pointer(Text)^, Buffer^, L);
+    MoveFast(pointer(Text)^, Buffer^, L);
     inc(Buffer, L);
   end;
   result := Buffer;
@@ -9008,25 +9427,13 @@ begin
 end;
 
 function Plural(const itemname: ShortString; itemcount: cardinal): ShortString;
-var
-  len, L: PtrInt;
 begin
-  len := (AppendUInt32ToBuffer(@result[1], itemcount) - PUtf8Char(@result[1])) + 1;
-  result[len] := ' ';
-  L := ord(itemname[0]);
-  if (L > 0) and
-     (L <= 240) then
-  begin
-    // avoid buffer overflow
-    MoveFast(itemname[1], result[len + 1], L);
-    inc(len, L);
-    if itemcount > 1 then
-    begin
-      inc(len);
-      result[len] := 's';
-    end;
-  end;
-  result[0] := AnsiChar(len);
+  result[0] := #0;
+  AppendShortCardinal(itemcount, result);
+  AppendShortChar(' ', @result);
+  AppendShort(itemname, result);
+  if itemcount > 1 then
+    AppendShortCharSafe('s', @result);
 end;
 
 function EscapeBuffer(s: PAnsiChar; slen: integer;
@@ -9035,39 +9442,49 @@ var
   c: AnsiChar;
   tab: PWordArray;
 begin
-  if (slen > 0) and
-     (dmax > 7) then
-  begin
-    tab := @TwoDigitsHexWBLower;
-    repeat
-      c := s^;
-      inc(s);
-      if (c >= ' ') and
-         (c <= #126) then
-      begin
-        d^ := c;
-        inc(d);
-        dec(dmax);
-      end
-      else
-      begin
-        d^ := '$';
-        inc(d);
-        PWord(d)^ := tab[ord(c)];
-        inc(d, 2);
-        dec(dmax, 3);
-      end;
-      if dmax <= 7 then // mark truncated
-      begin
-        PCardinal(d)^ := ord('.') + ord('.') shl 8 + ord('.') shl 16;
-        inc(d, 3);
-        break;
-      end;
-      dec(slen);
-    until slen = 0;
-  end;
-  d^ := #0;
   result := d;
+  if d = nil then
+    exit;
+  dec(dmax); // for trailing #0
+  if (dmax <= 2) or
+     (slen <= 0) then
+  begin
+    result^ := #0;
+    exit;
+  end;
+  inc(d, dmax);
+  tab := @TwoDigitsHexLower;
+  repeat
+    c := s^;
+    inc(s);
+    if (c < ' ') or
+       (c > #126) then
+    begin
+      if dmax < 3 then
+        break;
+      result^ := '$';
+      PWord(result + 1)^ := tab[ord(c)];
+      inc(result, 3);
+      dec(dmax, 3);
+    end
+    else
+    begin
+      result^ := c;
+      inc(result);
+      dec(dmax);
+    end;
+    dec(slen);
+    if slen <> 0 then
+      if dmax = 0 then
+        break
+      else
+        continue;
+    result^ := #0;
+    exit;
+  until false;
+  result := d;
+  PWord(result - 2)^ := ord('.') + ord('.') shl 8;
+  result^ := #0;
 end;
 
 function LogEscape(source: PAnsiChar; sourcelen: integer;
@@ -9077,10 +9494,10 @@ begin
   begin
     temp[0] := ' ';
     EscapeBuffer(source, sourcelen, @temp[1], SizeOf(temp) - 1);
+    result := @temp;
   end
   else
-    temp[0] := #0;
-  result := @temp;
+    result := nil;
 end;
 
 function LogEscapeFull(const source: RawByteString): RawUtf8;
@@ -9090,10 +9507,10 @@ end;
 
 function LogEscapeFull(source: PAnsiChar; sourcelen: integer): RawUtf8;
 begin
-  FastSetString(result{%H-}, nil, sourcelen * 3); // worse case
+  FastSetString(result{%H-}, sourcelen * 3); // worse case
   if sourcelen <> 0 then
     FakeLength(result, pointer(EscapeBuffer(
-      pointer(result), sourcelen, pointer(result), sourcelen * 3)));
+      pointer(source), sourcelen, pointer(result), sourcelen * 3 + 4)));
 end;
 
 function EscapeToShort(source: PAnsiChar; sourcelen: integer): ShortString;
@@ -9106,6 +9523,40 @@ function EscapeToShort(const source: RawByteString): ShortString;
 begin
   result[0] := AnsiChar(
     EscapeBuffer(pointer(source), length(source), @result[1], 255) - @result[1]);
+end;
+
+function ContentToShort(const source: RawByteString): ShortString;
+begin
+  result[0] := #0;
+  ContentToShortAppend(pointer(source), length(source), result);
+end;
+
+procedure ContentToShortAppend(source: PAnsiChar; len: PtrInt; var txt: ShortString);
+var
+  t, max, l: PtrInt;
+begin
+  t := PByte(@txt)^;
+  max := 254 - t;
+  inc(t); // short[t] = destination
+  if len <= max then
+    l := len
+  else
+    l := Utf8TruncatedLength(source, len, max); // test only what is needed
+  if l <> 0 then
+    if IsValidUtf8Pas(pointer(source), l) then // AVX2 doesn't filter #0
+    begin
+      inc(txt[0], l); // we know that t + l <= max
+      MoveFast(source^, txt[t], l);
+      if l <> len  then
+        for l := Utf8TruncatedLength(@txt[1], 255, 253) to 254 do
+          PByteArray(@txt)[l] := ord('.');  // mark truncated, but keep valid UTF-8
+    end
+    else
+      PByte(@txt)^ := EscapeBuffer(source, l, @txt[t], max) - @txt[1];
+  l := PByte(@txt)^;
+  if l <> 255 then
+    inc(l);
+  PByteArray(@txt)[l] := 0;
 end;
 
 function BinToSource(const ConstName, Comment: RawUtf8;
@@ -9166,8 +9617,8 @@ begin
     Dest.AddShorter(#13#10'   ');
     for i := 1 to line do
     begin
-      Dest.Add(' ', '$');
-      Dest.AddByteToHex(P^);
+      Dest.AddDirect(' ', '$');
+      Dest.AddByteToHexLower(P^);
       inc(P);
       Dest.AddComma;
     end;
@@ -9176,6 +9627,46 @@ begin
   Dest.CancelLastComma;
   Dest.Add(');'#13#10'  %_LEN = SizeOf(%);'#13#10, [ConstName, ConstName]);
 end;
+
+function BinToHumanHex(Data: PByte; Len, PerLine, LeftTab: integer;
+  SepChar: AnsiChar): RawUtf8;
+var
+  w: TTextWriter;
+  temp: TTextWriterStackBuffer;
+begin
+  w := TTextWriter.CreateOwnedStream(temp);
+  try
+    BinToHumanHex(w, Data, Len, PerLine, LeftTab, SepChar);
+    w.SetText(result);
+  finally
+    w.Free;
+  end;
+end;
+
+procedure BinToHumanHex(W: TTextWriter; Data: PByte;
+  Len, PerLine, LeftTab: integer; SepChar: AnsiChar);
+var
+  n: integer;
+begin
+  if Data <> nil then
+    while Len > 0 do
+    begin
+      W.AddChars(' ', LeftTab);
+      n := PerLine;
+      repeat
+        W.AddByteToHexLower(Data^);
+        inc(Data);
+        W.Add(SepChar);
+        dec(Len);
+        if Len = 0 then
+          break;
+        dec(n);
+      until n = 0;
+      W.CancelLastChar;
+      W.AddCR;
+    end;
+end;
+
 
 { *************************** TStreamRedirect and other Hash process }
 
@@ -9256,28 +9747,32 @@ end;
 
 function TProgressInfo.GetProgress: RawUtf8;
 var
-  ctx, remain: ShortString;
+  ctx, remain: TShort47;
   persec, expect, curr: TShort16;
 begin
   result := LastProgress;
   if result <> '' then
     exit;
-  Ansi7StringToShortString(Context, ctx);
-  if ctx[0] > #30 then
+  if length(Context) > 32 then
   begin
-    ctx[0] := #33; // truncate to keep information on a single line
+    ctx[0] := #32; // truncate to keep information on a single line
+    MoveFast(pointer(Context)^, ctx[1], 29);
     PCardinal(@ctx[30])^ := ord('.') + ord('.') shl 8 + ord('.') shl 16;
-  end;
-  persec := '';
+  end
+  else
+    Ansi7StringToShortString(Context, ctx);
+  persec[0] := #0;
   if PerSecond <> 0 then
     FormatShort16(' %/s', [KBNoSpace(PerSecond)], persec);
-  KB(CurrentSize, curr, {nospace=}true);
+  curr[0] := #0;
+  AppendKB(CurrentSize, curr, {withspace=}false);
   if ExpectedSize = 0 then
     // size may not be known (e.g. server-side chunking)
     FormatUtf8('% % read% ...', [ctx, curr, persec], result)
   else
   begin
-    KB(ExpectedSize, expect, {nospace=}true);
+    expect[0] := #0;
+    AppendKB(ExpectedSize, expect, {withspace=}false);
     if CurrentSize < ExpectedSize then
     begin
       // we can state the current progression ratio
@@ -9335,30 +9830,84 @@ begin
     result := fInfo.CurrentSize;
 end;
 
+procedure TStreamRedirect.SetSize(NewSize: Longint);
+begin
+  EStreamRedirect.RaiseUtf8('%.Size is read/only', [self]);
+end;
+
+procedure TStreamRedirect.SetSize(const NewSize: Int64);
+begin
+  EStreamRedirect.RaiseUtf8('%.Size is read/only', [self]);
+end;
+
 class procedure TStreamRedirect.ProgressStreamToConsole(Sender: TStreamRedirect);
 begin
-  if Sender <> nil then
+  if (Sender <> nil) and
+     Sender.InheritsFrom(TStreamRedirect) then
     ProgressInfoToConsole(Sender, @Sender.fInfo);
 end;
 
-{$I-}
 class procedure TStreamRedirect.ProgressInfoToConsole(
   Sender: TObject; Info: PProgressInfo);
 var
   eraseline: ShortString;
   msg: RawUtf8;
 begin
-  eraseline[0] := AnsiChar(Info.ConsoleLen + 2);
+  msg := Info^.GetProgress;
+  if length(msg) > 250 then
+    FakeLength(msg, 250); // paranoid overflow check
+  // properly erase previous line
+  eraseline[0] := AnsiChar(Info^.ConsoleLen + 2);
   eraseline[1] := #13;
-  FillCharFast(eraseline[2], ord(eraseline[0]) - 2, 32);
+  FillCharFast(eraseline[2], Info^.ConsoleLen, 32);
   eraseline[ord(eraseline[0])] := #13;
-  system.write(eraseline);
-  msg := Info.GetProgress;
-  Info.ConsoleLen := length(msg); // to properly erase last line
-  system.write(msg);
-  ioresult;
+  Info^.ConsoleLen := length(msg);
+  Prepend(msg, [eraseline]);
+  // output to console in a single syscall
+  ConsoleWriteRaw(msg, {nolf=}true);
 end;
-{$I+}
+
+class procedure TStreamRedirect.ProgressStreamToConsoleLn(Sender: TStreamRedirect);
+begin
+  if (Sender <> nil) and
+     Sender.InheritsFrom(TStreamRedirect) then
+    ProgressInfoToConsoleLn(Sender, @Sender.fInfo);
+end;
+
+class procedure TStreamRedirect.ProgressInfoToConsoleLn(
+  Sender: TObject; Info: PProgressInfo);
+begin
+  ConsoleWriteRaw(Info^.GetProgress);
+end;
+
+class procedure TStreamRedirect.NotifyEnded(
+  const OnStream: TOnStreamProgress; const OnInfo: TOnInfoProgress;
+  const Fmt: RawUtf8; const Args: array of const; Size, StartedMs: Int64);
+var
+  tmp: TStreamRedirect;
+  stop: Int64;
+begin
+  if not Assigned(OnStream) and
+     not Assigned(OnInfo) then
+    exit;
+  QueryPerformanceMicroSeconds(stop);
+  tmp := TStreamRedirect.Create(nil);
+  try
+    tmp.OnProgress := OnStream;
+    tmp.OnInfoProgress := OnInfo;
+    FormatUtf8(Fmt, Args, tmp.fInfo.Context);
+    tmp.fInfo.ProcessedSize := Size;
+    tmp.fInfo.CurrentSize := Size;
+    if StartedMs <> 0 then
+    begin
+      tmp.fInfo.Elapsed := stop - StartedMs;
+      dec(tmp.fInfo.StartTix, tmp.fInfo.Elapsed shr MilliSecsPerSecShl); // fake time
+    end;
+    tmp.Ended;
+  finally
+    tmp.Free;
+  end;
+end;
 
 procedure TStreamRedirect.DoReport(ReComputeElapsed: boolean);
 begin
@@ -9369,6 +9918,14 @@ begin
 end;
 
 procedure TStreamRedirect.DoHash(data: pointer; len: integer);
+begin // no associated hasher on this parent class
+end;
+
+procedure TStreamRedirect.AfterAppend;
+begin // no associated hasher on this parent class
+end;
+
+procedure TStreamRedirect.ResetHash;
 begin // no associated hasher on this parent class
 end;
 
@@ -9387,6 +9944,11 @@ begin
   result := ''; // no associated hasher on this parent class
 end;
 
+class function TStreamRedirect.GetHashName: RawUtf8;
+begin
+  result := copy(GetHashFileExt, 2, 10);
+end;
+
 class function TStreamRedirect.HashFile(const FileName: TFileName;
   const OnProgress: TOnStreamProgress): RawUtf8;
 var
@@ -9397,9 +9959,9 @@ begin
   if GetHashFileExt = '' then
     exit; // no hash function defined
   f := FileOpenSequentialRead(FileName);
-  if not ValidHandle(f) then
+  if not ValidHandle(f) then // would raise EOSException on invalid f
     exit;
-  hasher := Create(TFileStreamFromHandle.Create(f));
+  hasher := Create(TFileStreamEx.CreateFromHandle(f, FileName));
   try
     if Assigned(OnProgress) then
     begin
@@ -9419,20 +9981,20 @@ var
   read: PtrInt;
 begin
   if fRedirected = nil then
-    raise EStreamRedirect.CreateUtf8('%.Append(%): Redirected=nil',
-      [self, fInfo.Context]);
+    EStreamRedirect.RaiseUtf8('%.Append(%): Redirected=nil', [self, fInfo.Context]);
   if fMode = mRead then
-    raise EStreamRedirect.CreateUtf8('%.Append(%) after Read()',
-      [self, fInfo.Context]);
+    EStreamRedirect.RaiseUtf8('%.Append(%) after Read()', [self, fInfo.Context]);
   fMode := mWrite;
   if GetHashFileExt = '' then // DoHash() does nothing
   begin
+    // no hash involved: just move to the end of partial content
     fInfo.CurrentSize := fRedirected.Seek(0, soEnd);
     fPosition := fInfo.CurrentSize;
   end
   else
   begin
-    SetLength(buf, 1 shl 10); // 1MB temporary buffer
+    // compute the hash of the existing partial content
+    pointer(buf) := FastNewString(1 shl 20); // 1MB temporary buffer
     repeat
       read := fRedirected.Read(pointer(buf)^, length(buf));
       if read <= 0 then
@@ -9447,6 +10009,7 @@ begin
            (fInfo.CurrentSize <> read) then
           DoReport(true);
     until false;
+    AfterAppend; // save current hasher state for ResetHash
   end;
 end;
 
@@ -9466,7 +10029,7 @@ begin
   fTerminated := true;
 end;
 
-procedure TStreamRedirect.ReadWriteHash(const Buffer; Count: Longint);
+procedure TStreamRedirect.ReadWriteHash(const Buffer; Count: integer);
 begin
   DoHash(@Buffer, Count);
   inc(fInfo.CurrentSize, Count);
@@ -9476,7 +10039,7 @@ end;
 
 procedure TStreamRedirect.ReadWriteReport(const Caller: ShortString);
 var
-  tix, tosleep: Int64;
+  tix, tosleep, endsleep: Int64;
 begin
   tix := GetTickCount64;
   fInfo.Elapsed := tix - fInfo.StartTix;
@@ -9490,27 +10053,28 @@ begin
       begin
         if (fTimeOut <> 0) and
            (fInfo.Elapsed > fTimeOut) then
-          raise EStreamRedirect.CreateUtf8('%.%(%) timeout after %',
+          EStreamRedirect.RaiseUtf8('%.%(%) timeout after %',
             [self, Caller, fInfo.Context, MilliSecToString(fInfo.Elapsed)]);
         if fLimitPerSecond > 0 then
         begin
-          // adjust bandwith limit every 128 ms by adding some sleep() steps
+          // adjust bandwidth limit every 128 ms by adding some sleep() steps
           tosleep := ((fInfo.ProcessedSize * 1000) div fLimitPerSecond) - fInfo.Elapsed;
           if tosleep > 10 then // on Windows, typical resolution is 16ms
           begin
-            while tosleep > 300 do
+            if tosleep > 300 then
             begin
-              SleepHiRes(300); // show progress on very low bandwidth
-              if Assigned(fOnStreamProgress) or
-                 Assigned(fInfo.OnProgress) or
-                 Assigned(fInfo.OnLog) then
-                DoReport(true);
-              dec(tosleep, 300);
-              if fTerminated then
-                raise EStreamRedirect.CreateUtf8('%.%(%) Terminated',
-                  [self, Caller, fInfo.Context]);
+              endsleep := tix + tosleep;
+              repeat
+                SleepHiRes(300); // show progress on very low bandwidth
+                if Assigned(fOnStreamProgress) or
+                   Assigned(fInfo.OnProgress) or
+                   Assigned(fInfo.OnLog) then
+                  DoReport({ReComputeElapsed=}true);
+                tosleep := endsleep - GetTickCount64;
+              until tosleep < 300;
             end;
-            SleepHiRes(tosleep);
+            if tosleep > 10 then
+              SleepHiRes(tosleep);
           end;
         end;
       end;
@@ -9521,19 +10085,16 @@ begin
      Assigned(fInfo.OnLog) then
     DoReport(false);
   if fTerminated then
-    raise EStreamRedirect.CreateUtf8('%.%(%) Terminated',
-      [self, Caller, fInfo.Context]);
+    EStreamRedirect.RaiseUtf8('%.%(%) Terminated', [self, Caller, fInfo.Context]);
 end;
 
 function TStreamRedirect.Read(var Buffer; Count: Longint): Longint;
 begin
   if fMode = mWrite then
-    raise EStreamRedirect.CreateUtf8('%.Read(%) in Write() mode',
-      [self, fInfo.Context]);
+    EStreamRedirect.RaiseUtf8('%.Read(%) in Write() mode', [self, fInfo.Context]);
   fMode := mRead;
   if fRedirected = nil then
-    raise EStreamRedirect.CreateUtf8('%.Read(%) with Redirected=nil',
-      [self, fInfo.Context]);
+    EStreamRedirect.RaiseUtf8('%.Read(%) with Redirected=nil', [self, fInfo.Context]);
   result := fRedirected.Read(Buffer, Count);
   ReadWriteHash(Buffer, result);
   ReadWriteReport('Read');
@@ -9542,8 +10103,7 @@ end;
 function TStreamRedirect.Write(const Buffer; Count: Longint): Longint;
 begin
   if fMode = mRead then
-    raise EStreamRedirect.CreateUtf8('%.Write(%) in Read() mode',
-      [self, fInfo.Context]);
+    EStreamRedirect.RaiseUtf8('%.Write(%) in Read() mode', [self, fInfo.Context]);
   fMode := mWrite;
   ReadWriteHash(Buffer, Count);
   result := Count;
@@ -9553,10 +10113,32 @@ begin
   ReadWriteReport('Write');
 end;
 
+function TStreamRedirect.Seek(const Offset: Int64; Origin: TSeekOrigin): Int64;
+var
+  prev: Int64;
+begin
+  prev := fPosition;
+  result := inherited Seek(Offset, Origin);
+  if result = prev then
+    exit; // nothing changed
+  ResetHash;
+  fRedirected.Seek(result, soBeginning);
+end;
 
-{ TStreamRedirectHasher }
 
-function TStreamRedirectHasher.GetHash: RawUtf8;
+{ TStreamRedirectHash32 }
+
+procedure TStreamRedirectHash32.AfterAppend;
+begin
+  fHashAppend := fHash; // save for ResetHash
+end;
+
+procedure TStreamRedirectHash32.ResetHash;
+begin
+  fHash := fHashAppend; // restore after e.g. Seek(0, soBeginning)
+end;
+
+function TStreamRedirectHash32.GetHash: RawUtf8;
 begin
   result := CardinalToHexLower(fHash);
 end;
@@ -9579,45 +10161,14 @@ end;
 
 function TFakeWriterStream.Read(var Buffer; Count: Longint): Longint;
 begin
-  // do nothing
-  result := Count;
+  result := Count; // do nothing
 end;
 
 function TFakeWriterStream.Write(const Buffer; Count: Longint): Longint;
 begin
-  // do nothing
-  inc(fWritten, Count);
+  inc(fPosition, Count);
+  inc(fSize, Count);
   result := Count;
-end;
-
-{$ifdef FPC}
-function TFakeWriterStream.GetPosition: Int64;
-begin
-  result := fWritten;
-end;
-{$endif FPC}
-
-function TFakeWriterStream.Seek(Offset: Longint; Origin: Word): Longint;
-begin
-  result := Seek(Offset, TSeekOrigin(Origin));
-end;
-
-function TFakeWriterStream.Seek(const Offset: Int64; Origin: TSeekOrigin): Int64;
-begin
-  case Origin of
-    soBeginning:
-      result := Offset;
-    soEnd:
-      result := fWritten - Offset;
-    else
-      result := fWritten + Offset;
-  end;
-  if result > fWritten then
-    result := fWritten
-  else if result < 0 then
-    result := 0
-  else if result < fWritten then
-    fWritten := result;
 end;
 
 
@@ -9659,9 +10210,9 @@ begin
   begin
     result := pointer(fNested[n - 1].Stream);
     if PClass(result)^ = TRawByteStringStream then
-      exit;
+      exit; // we can append to the previous text stream
   end;
-  result := TRawByteStringStream.Create;
+  result := TRawByteStringStream.Create; // need a new text stream
   NewStream(result);
 end;
 
@@ -9692,7 +10243,7 @@ function TNestedStreamReader.Read(var Buffer; Count: Longint): Longint;
 var
   s, m: ^TNestedStream;
   P: PByte;
-  rd: LongInt;
+  rd: PtrInt;
 begin
   result := 0;
   s := pointer(fContentRead);
@@ -9740,17 +10291,12 @@ begin
   fContentRead := pointer(s);
 end;
 
-function TNestedStreamReader.Write(const Buffer; Count: Longint): Longint;
-begin
-  result := RaiseStreamError(self, 'Write');
-end;
-
 
 { TBufferedStreamReader }
 
 constructor TBufferedStreamReader.Create(aSource: TStream; aBufSize: integer);
 begin
-  SetLength(fBuffer, aBufSize);
+  pointer(fBuffer) := FastNewString(aBufSize);
   fSource := aSource;
   fSize := fSource.Size; // get it once
   fSource.Seek(0, soBeginning);
@@ -9759,7 +10305,7 @@ end;
 constructor TBufferedStreamReader.Create(const aSourceFileName: TFileName;
   aBufSize: integer);
 begin
-  Create(TFileStreamEx.Create(aSourceFileName, fmOpenReadDenyNone));
+  Create(TFileStreamEx.CreateRead(aSourceFileName));
   fOwnStream := fSource;
 end;
 
@@ -9775,11 +10321,10 @@ var
 begin
   prev := fPosition;
   result := inherited Seek(Offset, Origin);
-  if prev <> result then
-  begin
-    fSource.Seek(result, soBeginning);
-    fBufferLeft := 0; // deprecate buffer content
-  end;
+  if result = prev then
+    exit; // nothing changed
+  fSource.Seek(result, soBeginning);
+  fBufferLeft := 0; // deprecate buffer content
 end;
 
 function TBufferedStreamReader.Read(var Buffer; Count: Longint): Longint;
@@ -9821,12 +10366,6 @@ begin
   end;
   inc(fPosition, result);
 end;
-
-function TBufferedStreamReader.Write(const Buffer; Count: Longint): Longint;
-begin
-  result := RaiseStreamError(self, 'Write');
-end;
-
 
 
 function HashFile(const FileName: TFileName; Hasher: THasher): cardinal;
@@ -9998,7 +10537,7 @@ begin
   W.AddHtmlEscape(B, P - B, hfWithinAttributes);
   W.AddShort('" rel="nofollow">');
   W.AddHtmlEscape(B, P - B);
-  W.AddShorter('</a>');
+  W.AddDirect('<', '/', 'a', '>');
 end;
 
 function TTextWriterEscape.ProcessLink: boolean;
@@ -10059,7 +10598,7 @@ begin
   if tweItalic in st then
     Toggle(tweItalic);
   if P <> nil then
-    if PWord(P)^ = $0a0d then
+    if PWord(P)^ = CRLFW then
       inc(P, 2)
     else
       inc(P);
@@ -10159,7 +10698,7 @@ begin
 none:     if lst = twlParagraph then
           begin
             c := PWord(P)^; // detect blank line to separate paragraphs
-            if c = $0a0d then
+            if c = CRLFW then
               inc(P, 2)
             else if c and $ff = $0a then
               inc(P)
@@ -10243,7 +10782,7 @@ begin
         break
       else
       begin
-        if PWord(P)^ = $0a0d then
+        if PWord(P)^ = CRLFW then
           inc(P, 2)
         else
           inc(P);
@@ -10298,7 +10837,7 @@ begin
             else
               W.Add('"', '>');
             W.AddHtmlEscape(B2, P2 - B2, fmt);
-            W.AddShorter('</a>'); // no continune -> need inc(P) over ending )
+            W.AddDirect('<', '/', 'a', '>'); // no inc(P) needed here
           end
           else
             // not a true link -> just append
@@ -10314,7 +10853,7 @@ begin
                 W.AddHtmlEscape(B2, P2 - B2, hfWithinAttributes);
                 W.AddShorter('" src="');
                 W.AddNoJsonEscape(B, P - B);
-                W.AddShorter('">');
+                W.AddDirect('"', '>');
                 inc(P);
                 continue;
               end;
@@ -10413,7 +10952,7 @@ begin
     begin
       P := c + 1; // continue parsing after the Emoji text
       if W <> nil then
-        W.AddNoJsonEscape(pointer(EMOJI_UTF8[result]), 4);
+        W.AddShort(pointer(EMOJI_UTF8[result]), 4);
       exit;
     end;
   end;
@@ -10616,12 +11155,12 @@ procedure TRawByteStringGroup.Compact;
 var
   i: integer;
   v: PRawByteStringGroupValue;
-  tmp: RawByteString;
+  tmp: RawUtf8;
 begin
   if (Values <> nil) and
      (Count > 1) then
   begin
-    FastSetRawByteString(tmp, nil, Position);
+    FastSetString(tmp, Position); // assume CP_UTF8 for FPC RTL bug
     v := pointer(Values);
     for i := 1 to Count do
     begin
@@ -10698,28 +11237,26 @@ function TRawByteStringGroup.Find(aPosition: integer): PRawByteStringGroupValue;
 var
   i: integer;
 begin
-  if (pointer(Values) <> nil) and
-     (cardinal(aPosition) < cardinal(Position)) then
-  begin
-    result := @Values[LastFind]; // this cache is very efficient in practice
-    if (aPosition >= result^.Position) and
-       (aPosition < result^.Position + length(result^.Value)) then
+  result := nil;
+  if (pointer(Values) = nil) or
+     (cardinal(aPosition) >= cardinal(Position)) then
+    exit;
+  result := @Values[LastFind]; // this cache is very efficient in practice
+  if (aPosition >= result^.Position) and
+     (aPosition < result^.Position + length(result^.Value)) then
+    exit;
+  result := @Values[1]; // seldom O(n) brute force search (in CPU L1 cache)
+  for i := 0 to Count - 2 do
+    if result^.Position > aPosition then
+    begin
+      dec(result);
+      LastFind := i;
       exit;
-    result := @Values[1]; // seldom O(n) brute force search (in CPU L1 cache)
-    for i := 0 to Count - 2 do
-      if result^.Position > aPosition then
-      begin
-        dec(result);
-        LastFind := i;
-        exit;
-      end
-      else
-        inc(result);
-    dec(result);
-    LastFind := Count - 1;
-  end
-  else
-    result := nil;
+    end
+    else
+      inc(result);
+  dec(result);
+  LastFind := Count - 1;
 end;
 
 function TRawByteStringGroup.Find(aPosition, aLength: integer): pointer;
@@ -10729,37 +11266,33 @@ var
 label
   found;
 begin
-  if (pointer(Values) <> nil) and
-     (cardinal(aPosition) < cardinal(Position)) then
+  result := nil;
+  if (pointer(Values) = nil) or
+     (cardinal(aPosition) >= cardinal(Position)) then
+    exit;
+  P := @Values[LastFind]; // this cache is very efficient in practice
+  i := aPosition - P^.Position;
+  if (i >= 0) and
+     (i + aLength < length(P^.Value)) then
   begin
-    P := @Values[LastFind]; // this cache is very efficient in practice
-    i := aPosition - P^.Position;
-    if (i >= 0) and
-       (i + aLength < length(P^.Value)) then
+    result := @PByteArray(P^.Value)[i];
+    exit;
+  end;
+  P := @Values[1]; // seldom O(n) brute force search (in CPU L1 cache)
+  for i := 0 to Count - 2 do
+    if P^.Position > aPosition then
     begin
-      result := @PByteArray(P^.Value)[i];
-      exit;
-    end;
-    P := @Values[1]; // seldom O(n) brute force search (in CPU L1 cache)
-    for i := 0 to Count - 2 do
-      if P^.Position > aPosition then
-      begin
-        LastFind := i;
+      LastFind := i;
 found:  dec(P);
-        dec(aPosition, P^.Position);
-        if aLength - aPosition <= length(P^.Value) then
-          result := @PByteArray(P^.Value)[aPosition]
-        else
-          result := nil;
-        exit;
-      end
-      else
-        inc(P);
-    LastFind := Count - 1;
-    goto found;
-  end
-  else
-    result := nil;
+      dec(aPosition, P^.Position);
+      if aLength - aPosition <= length(P^.Value) then
+        result := @PByteArray(P^.Value)[aPosition];
+      exit;
+    end
+    else
+      inc(P);
+  LastFind := Count - 1;
+  goto found;
 end;
 
 procedure TRawByteStringGroup.FindAsText(aPosition, aLength: integer;
@@ -10826,6 +11359,96 @@ begin
 end;
 
 
+{ TRawByteStringHeap }
+
+type
+  TRawByteStringHeapOne = record
+    header: TLockedListOne;
+    strrec: TStrRec;
+  end; // followed by the text content
+  PRawByteStringHeapOne = ^TRawByteStringHeapOne;
+
+const
+  REFCNT_CACHE = -2; // will be handled as constant (released only by our class)
+
+constructor TRawByteStringHeap.Create(aMaxLength: integer);
+begin
+  fMaxLength := aMaxLength;
+  fOne.Init(aMaxLength + (SizeOf(TRawByteStringHeapOne) + 1));
+end;
+
+procedure TRawByteStringHeap.New(var aDest: RawByteString;
+  aText: PUtf8Char; aTextLen: TStrLen; aCodePage: integer);
+var
+  one: PRawByteStringHeapOne;
+begin
+  if aTextLen <= 0 then
+    aTextLen := fMaxLength
+  else if aTextLen > fMaxLength then
+  begin // too big for our cached instances -> manual allocation
+    FastSetStringCP(aDest, aText, aTextLen, aCodePage);
+    exit;
+  end;
+  one := fOne.New;
+  {$ifdef HASCODEPAGE}
+  one^.strrec.codePage := aCodePage;
+  one^.strrec.elemSize := 1;
+  {$endif HASCODEPAGE}
+  one^.strrec.refCnt := REFCNT_CACHE;
+  one^.strrec.length := aTextLen;
+  inc(one);
+  PByteArray(one)[aTextLen] := 0; // like a regular AnsiString
+  if aText <> nil then
+    MoveFast(aText^, one^, aTextLen);
+  FastAssignNew(aDest, one);
+end;
+
+procedure TRawByteStringHeap.New(var aDest: RawUtf8; aText: PUtf8Char; aTextLen: TStrLen);
+begin
+  New(RawByteString(aDest), aText, aTextLen, CP_UTF8);
+end;
+
+procedure TRawByteStringHeap.Release(var aDest: RawByteString);
+var
+  one: PRawByteStringHeapOne;
+begin
+  if self <> nil then
+  begin
+    one := pointer(aDest);
+    dec(one);
+    if (one^.strrec.refCnt = REFCNT_CACHE) and
+       (one^.strrec.length = fMaxLength) and
+       fOne.Free(one) then
+    begin
+      pointer(aDest) := nil;
+      exit;
+    end;
+  end;
+  FastAssignNew(aDest) // this was a regular RawByteString
+end;
+
+procedure TRawByteStringHeap.Release(var aDest: RawUtf8);
+begin
+  Release(RawByteString(aDest));
+end;
+
+procedure TRawByteStringHeap.Release(var aDest: pointer);
+begin
+  Release(PRawByteString(@aDest)^);
+end;
+
+function TRawByteStringHeap.Clean: PtrInt;
+begin
+  result := fOne.EmptyBin * fOne.Size;
+end;
+
+destructor TRawByteStringHeap.Destroy;
+begin
+  fOne.Done;
+  inherited Destroy;
+end;
+
+
 { TRawByteStringBuffer }
 
 procedure TRawByteStringBuffer.Reset;
@@ -10833,11 +11456,12 @@ begin
   fLen := 0;
 end;
 
-procedure TRawByteStringBuffer.Clear;
+function TRawByteStringBuffer.Clear: PtrInt;
 begin
   fLen := 0;
-  fCapacity := 0;
-  fBuffer := '';
+  result := length(fBuffer);
+  if result <> 0 then
+    FastAssignNew(fBuffer);
 end;
 
 function TRawByteStringBuffer.Buffer: pointer;
@@ -10845,23 +11469,26 @@ begin
   result := pointer(fBuffer);
 end;
 
-procedure TRawByteStringBuffer.GrowBuffer(needed: PtrInt);
+function TRawByteStringBuffer.Capacity: PtrInt;
 begin
-  if fCapacity = 0 then
-    inc(needed, 128) // small overhead at first
-  else
-    inc(needed, needed shr 3 + 2048); // generous overhead
-  fCapacity := needed;
-  SetLength(fBuffer, needed);
+  result := length(fBuffer);
 end;
 
 procedure TRawByteStringBuffer.Append(P: pointer; PLen: PtrInt);
 var
   needed: PtrInt;
 begin
-  needed := fLen + PLen + 2;
-  if needed > fCapacity then
-    GrowBuffer(needed);
+  if PLen <= 0 then
+    exit;
+  needed := fLen + PLen + 32; // +32 for Append(AnsiChar), AppendCRLF
+  if needed > length(fBuffer) then
+    if fLen = 0 then // buffer from scratch (fBuffer may be '' or not)
+      FastSetString(fBuffer, needed + 96) // no realloc + small initial overhead
+    else
+    begin
+      inc(needed, needed shr 3 + 2048); // generous overhead on resize
+      SetLength(fBuffer, needed);       // realloc = move existing data
+    end;
   MoveFast(P^, PByteArray(fBuffer)[fLen], PLen);
   inc(fLen, PLen);
 end;
@@ -10892,8 +11519,12 @@ begin
 end;
 
 procedure TRawByteStringBuffer.AppendCRLF;
+var
+  p: PByteArray; // faster than PWord() on Intel
 begin
-  PWord(@PByteArray(fBuffer)[fLen])^ := $0a0d;
+  p := @PByteArray(fBuffer)[fLen];
+  p[0] := 13;
+  p[1] := 10;
   inc(fLen, 2);
 end;
 
@@ -10905,12 +11536,20 @@ end;
 
 procedure TRawByteStringBuffer.AppendShort(const Text: ShortString);
 begin
-  Append(@Text[1], length(Text));
+  Append(@Text[1], ord(Text[0]));
 end;
 
-function TRawByteStringBuffer.CanAppend(P: pointer; PLen: PtrInt): boolean;
+procedure TRawByteStringBuffer.Append(const Text: array of RawUtf8);
+var
+  i: PtrInt;
 begin
-  if fLen + PLen <= fCapacity then
+  for i := 0 to high(Text) do
+    Append(Text[i]);
+end;
+
+function TRawByteStringBuffer.TryAppend(P: pointer; PLen: PtrInt): boolean;
+begin
+  if fLen + PLen <= length(fBuffer) then
   begin
     MoveFast(P^, PByteArray(fBuffer)[fLen], PLen);
     inc(fLen, PLen);
@@ -10920,15 +11559,18 @@ begin
     result := false;
 end;
 
-function TRawByteStringBuffer.Reserve(MaxSize: PtrInt): pointer;
+procedure TRawByteStringBuffer.Reserve(MaxSize: PtrInt);
 begin
   fLen := 0;
-  if MaxSize > fCapacity then
-  begin
-    fCapacity := MaxSize;
-    FastSetRawByteString(fBuffer, nil, MaxSize); // no realloc -> no SetLength()
-  end;
-  result := pointer(fBuffer);
+  if length(fBuffer) < MaxSize then
+    FastSetString(fBuffer, MaxSize); // make new buffer from scratch
+end;
+
+procedure TRawByteStringBuffer.Reserve(const WorkingBuffer: RawByteString);
+begin
+  fLen := 0;
+  if pointer(fBuffer) <> pointer(WorkingBuffer) then
+    fBuffer := WorkingBuffer;
 end;
 
 procedure TRawByteStringBuffer.Remove(FirstBytes: PtrInt);
@@ -10976,22 +11618,6 @@ begin
   dec(Count, result);
 end;
 
-procedure TRawByteStringBuffer.Insert(P: pointer; PLen: PtrInt;
-  Position: PtrInt; CRLF: boolean);
-begin
-  inc(PLen, 2 * ord(CRLF));
-  if PLen + fLen > fCapacity then
-  begin
-    fCapacity := PLen + fLen + fLen shr 3;
-    SetLength(fBuffer, fCapacity);
-  end;
-  MoveFast(pointer(fBuffer)^, PByteArray(fBuffer)[PLen], fLen);
-  dec(PLen, 2 * ord(CRLF));
-  MoveFast(P^, pointer(fBuffer)^, PLen);
-  if CRLF then
-    PWord(@PByteArray(fBuffer)[PLen])^ := $0a0d;
-end;
-
 procedure TRawByteStringBuffer.AsText(out Text: RawUtf8; Overhead: PtrInt;
   UseMainBuffer: boolean);
 begin
@@ -11001,15 +11627,19 @@ begin
     exit;
   if UseMainBuffer and
      (PStrCnt(PAnsiChar(pointer(fBuffer)) - _STRCNT)^ = 1) and
-     (Len + Overhead <= fCapacity) then
-    Text := fBuffer // fast COW
+     (Len + Overhead <= length(fBuffer)) then
+  begin
+    pointer(Text) := pointer(fBuffer); // fast pointer move for refcount=1
+    pointer(fBuffer) := nil;
+  end
   else
   begin
-    FastSetString(Text, nil, Len + Overhead);
+    pointer(Text) := FastNewString(Len + Overhead, CP_UTF8);
     MoveFast(pointer(fBuffer)^, pointer(Text)^, Len);
     if OverHead = 0 then
       exit;
   end;
+  // keep OverHead allocated, but SetLength(Len) and put #0 at right position
   FakeLength(Text, Len);
 end;
 
@@ -11046,7 +11676,7 @@ begin
   for e := succ(low(e)) to high(e) do
   begin
     LowerCaseSelf(EMOJI_TEXT[e]);
-    EMOJI_TAG[e] := ':' + EMOJI_TEXT[e] + ':';
+    Join([':', EMOJI_TEXT[e], ':'], EMOJI_TAG[e]);
     SetLength(EMOJI_UTF8[e], 4); // order matches U+1F600 to U+1F64F codepoints
     Ucs4ToUtf8(ord(e) + $1f5ff, pointer(EMOJI_UTF8[e]));
   end;
@@ -11067,6 +11697,7 @@ begin
   AlgoRle := TAlgoRle.Create;
   Base64EncodeMain := @Base64EncodeMainPas;
   Base64DecodeMain := @Base64DecodeMainPas;
+  Base64MagicRawDecode := @_Base64MagicRawDecode;
   {$ifdef ASMX64AVXNOCONST} // focus on x86_64 server performance
   if cfAVX2 in CpuFeatures then
   begin // our AVX2 asm code is almost 10x faster than the pascal version

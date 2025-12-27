@@ -820,6 +820,10 @@ const
   /// <syntax>Properties.Values[ConnProps_SQLiteOpen_zVfs]=value</syntax>
   /// <summary>see: https://www.sqlite.org/c3ref/open.html</summary>
   ConnProps_SQLiteOpen_zVfs = 'SQLiteOpen_zVfs';
+  // <type>Boolean</type>
+  // <usage>Connection</usage>
+  // <summary>Have SQLite fetch all records after opening a result set</summary>
+  ConnProps_SQLiteFetchAll = 'SQLiteFetchAll';
 {$ENDIF}
 
 {$IFDEF ENABLE_ORACLE}
@@ -990,6 +994,10 @@ const
   ///  for the ODBC connection only. Example:
   ///  Properties.Values[ConnProps_Server]=(localdb)\ZeosLib</summary>
   ConnProps_Server = 'Server';
+  // Type: Number
+  // Default is 380 which is mapped to version 3.8
+  // Also allowed is 3 which is mapped to version 3.0
+  ConnProps_ODBC_Version = 'ODBC_Version';
 {$ENDIF}
 
 {$IFNDEF ZEOS_DISABLE_PROXY}
@@ -1000,6 +1008,15 @@ const
   ///   Behavior is undefined if an undefined value is set.
   /// </summary>
   ConnProps_ProxyProtocol = 'ProxyProtocol';
+  /// <summary>
+  ///   Type: String;
+  ///   Enables TOFU type certificate validation.
+  ///   Defines which public keys will be accepted.
+  ///   Public keys are provided in HEX and delimited by a colon (:).
+  ///   Overrules Delphi automatic checking.
+  ///   If empty, any certificate will be accepted on the first connection.
+  /// </summary>
+  ConnProps_TofuPubKeys = 'TofuPubKeys';
 {$ENDIF}
 
 {$IFDEF ENABLE_POOLED}

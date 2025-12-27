@@ -25,7 +25,7 @@ uses
   mormot.core.os,
   mormot.core.unicode,
   mormot.core.text,
-  mormot.core.search,
+  mormot.core.search, // for TSynMustache.Match helper
   mormot.core.buffers,
   mormot.core.datetime,
   mormot.core.rtti,
@@ -41,6 +41,8 @@ type
   ESynMustache = class(ESynException);
 
   /// identify the {{mustache}} tag kind
+  // - sorted by occurence, to optimize RenderContext() process
+  // - mtText for all text that appears outside a symbol
   // - mtVariable if the tag is a variable - e.g. {{myValue}} - or an Expression
   // Helper - e.g. {{helperName valueName}}
   // - mtVariableUnescape, mtVariableUnescapeAmp to unescape the variable HTML - e.g.
@@ -55,8 +57,8 @@ type
   // - mtSetDelimiter for setting custom delimeter symbols - e.g. {{=<% %>=}} -
   // Warning: current implementation only supports two character delimiters
   // - mtTranslate for content i18n via a callback - e.g. {{"English text}}
-  // - mtText for all text that appears outside a symbol
   TSynMustacheTagKind = (
+    mtText,
     mtVariable,
     mtVariableUnescape,
     mtVariableUnescapeAmp,
@@ -67,10 +69,9 @@ type
     mtPartial,
     mtSetPartial,
     mtSetDelimiter,
-    mtTranslate,
-    mtText);
+    mtTranslate);
 
-  /// store a {{mustache}} tag
+  /// store a {{mustache}} tag parsed definition
   TSynMustacheTag = record
     /// points to the mtText buffer start
     // - main template's text is not allocated as a separate string during
@@ -91,6 +92,8 @@ type
     // - is not set for mtText nor mtSetDelimiter
     Value: RawUtf8;
   end;
+  /// pointer reference to a {{mustache}} tag parsed definition
+  PSynMustacheTag = ^TSynMustacheTag;
 
   /// store all {{mustache}} tags of a given template
   TSynMustacheTagDynArray = array of TSynMustacheTag;
@@ -135,6 +138,7 @@ type
   // other overridden class
   TSynMustacheContext = class
   protected
+    fReuse: TLightLock; // topmost to ensure aarch64 alignment
     fContextCount: integer;
     fEscapeInvert: boolean;
     fOwnWriter: boolean;
@@ -146,17 +150,15 @@ type
     fTempProcessHelper: TVariantDynArray;
     fOnStringTranslate: TOnStringTranslate;
     fOwner: TSynMustache;
-    fReuse: TLightLock;
     // some variant support is needed for the helpers
     function ProcessHelper(const ValueName: RawUtf8; space, helper: PtrInt;
       var Value: TVarData; OwnValue: PPVarData): TSynMustacheSectionType; virtual;
     function GetHelperFromContext(ValueSpace: integer; const ValueName: RawUtf8;
       var Value: TVarData; OwnValue: PPVarData): TSynMustacheSectionType;
-    procedure TranslateBlock(Text: PUtf8Char; TextLen: Integer); virtual;
+    procedure TranslateBlock(Text: PUtf8Char; TextLen: integer); virtual;
     function GetVariantFromContext(const ValueName: RawUtf8): variant;
     procedure PopContext;
-    procedure AppendVariant(const Value: variant; UnEscape: boolean);
-    // inherited class should override those methods
+    // inherited class should override those methods used by RenderContext()
     function GotoNextListItem: boolean;
       virtual; abstract;
     function GetVarDataFromContext(ValueSpace: integer; const ValueName: RawUtf8;
@@ -228,6 +230,9 @@ type
     // corresponding TSynMustache.Render*() methods
     constructor Create(Owner: TSynMustache; WR: TJsonWriter;
       SectionMaxCount: integer; const aDocument: variant; OwnWriter: boolean);
+    /// render this reusable rendering context
+    // - wrap PushContext + Owner.RenderContext + Writer.SetText + CancelAll
+    function Render(const aDoc: variant): RawUtf8;
   end;
 
   TSynMustacheContextData = class;
@@ -243,7 +248,7 @@ type
   /// handle {{mustache}} template rendering context from RTTI and variables
   // - the context is given via our RTTI information
   // - performance is somewhat higher than TSynMustacheContextVariant because
-  // less computation is needed for filling the TDocVariant data
+  // less computation is needed for filling transient TDocVariant instances
   TSynMustacheContextData = class(TSynMustacheContext)
   protected
     fContext: array of record
@@ -251,7 +256,7 @@ type
       Info: TRttiCustom;
       ListCount: integer;
       ListCurrent: integer;
-      Temp: TRttiVarData;
+      Temp: TSynVarData;
     end;
     fOnGetGlobalData: TOnGetGlobalData;
     procedure PushContext(Value: pointer; Rtti: TRttiCustom);
@@ -273,6 +278,12 @@ type
     constructor Create(Owner: TSynMustache; WR: TJsonWriter;
       SectionMaxCount: integer; Value: pointer; ValueRtti: TRttiCustom;
       OwnWriter: boolean);
+    /// render this reusable rendering context
+    // - wrap PushContext + Owner.RenderContext + Writer.SetText + CancelAll
+    function RenderArray(const arr: TDynArray): RawUtf8;
+    /// render this reusable rendering context
+    // - wrap PushContext + Owner.RenderContext + Writer.SetText + CancelAll
+    function RenderRtti(Value: pointer; Rtti: TRttiCustom): RawUtf8;
     /// callback to get data at runtime from a global name
     // - when the Value variable provided to TSynMustache.RenderData is not enough
     property OnGetGlobalData: TOnGetGlobalData
@@ -375,6 +386,8 @@ type
     class procedure MatchI(const Value: variant; out Result: variant);
     class procedure Lower(const Value: variant; out Result: variant);
     class procedure Upper(const Value: variant; out Result: variant);
+    class procedure CamelCase(const Value: variant; out Result: variant);
+    class procedure SnakeCase(const Value: variant; out Result: variant);
     class procedure EnumTrim(const Value: variant; out Result: variant);
     class procedure EnumTrimRight(const Value: variant; out Result: variant);
     class procedure PowerOfTwo(const Value: variant; out Result: variant);
@@ -417,6 +430,14 @@ type
       aTemplate: PUtf8Char; aTemplateLen: integer); overload; virtual;
     /// finalize internal memory
     destructor Destroy; override;
+    /// internal factory calling TSynMustacheContextVariant.Create()
+    // - to call e.g. result.Render() several times
+    function NewMustacheContextVariant(
+      aBufSize: integer = 16384): TSynMustacheContextVariant;
+    /// internal factory calling TSynMustacheContextData.Create()
+    // - to call e.g. result.RenderArray() or result.RenderRtti() several times
+    function NewMustacheContextData(
+      aBufSize: integer = 16384): TSynMustacheContextData;
     /// search some text within the {{mustache}} template text
     function FoundInTemplate(const text: RawUtf8): boolean;
     /// register one Expression Helper callback for a given list of helpers
@@ -440,12 +461,12 @@ type
     /// returns a list of most used static Expression Helpers
     // - registered helpers are DateTimeToText, DateToText, DateFmt, TimeLogToText,
     // BlobToBase64, JsonQuote, JsonQuoteUri, ToJson, EnumTrim, EnumTrimRight,
-    // Lower / Upper (Unicode ready), PowerOfTwo, Equals (expecting two parameters),
-    // NewGuid, ExtractFileName, HumanBytes (calling KB function), Sub (as
-    // {{Sub AString,12,3}}), MarkdownToHtml, SimpleToHtml (Markdown with no
-    // HTML pass-through), WikiToHtml (callining TJsonWriter.AddHtmlEscapeWiki),
-    // Match / MatchI (as {{Match AString,startwith*}}), and Values / Keys (over
-    // a data object)
+    // Lower / Upper (Unicode ready), CamelCase / SnakeCase, PowerOfTwo, Equals
+    // (expecting two parameters), NewGuid, ExtractFileName, HumanBytes (calling
+    // KB function), Sub (as {{Sub AString,12,3}}), MarkdownToHtml, SimpleToHtml
+    // (Markdown with no HTML pass-through), WikiToHtml (calling
+    // TJsonWriter.AddHtmlEscapeWiki), Match / MatchI (as {{Match AString,startwith*}}),
+    // and Values / Keys (over a data object)
     // - an additional #if helper is also registered, which would allow runtime
     // view logic, via = < > <= >= <> operators over two values:
     // $ {{#if .,"=",123}}  {{#if Total,">",1000}}  {{#if info,"<>",""}}
@@ -463,7 +484,7 @@ type
     // - the rendering extended in fTags[] is supplied as parameters
     // - you can specify a list of partials via TSynMustachePartials.CreateOwned
     procedure RenderContext(Context: TSynMustacheContext;
-      TagStart, TagEnd: integer);
+      TagStart, TagEnd: PtrInt);
 
     /// renders the {{mustache}} template from a variant defined context
     // - the context is given via a custom variant type implementing
@@ -573,7 +594,7 @@ type
       read fTags;
     /// the maximum possible number of nested contexts
     // - i.e. the depth of nested {{#....}} {{/....}} sections
-    property SectionMaxCount: Integer
+    property SectionMaxCount: integer
       read fSectionMaxCount;
   end;
 
@@ -624,7 +645,7 @@ begin
     dec(fContextCount);
 end;
 
-procedure TSynMustacheContext.TranslateBlock(Text: PUtf8Char; TextLen: Integer);
+procedure TSynMustacheContext.TranslateBlock(Text: PUtf8Char; TextLen: integer);
 var
   s: string;
 begin
@@ -636,28 +657,6 @@ begin
   end
   else
     fWriter.AddNoJsonEscape(Text, TextLen);
-end;
-
-procedure TSynMustacheContext.AppendVariant(
-  const Value: variant; UnEscape: boolean);
-var
-  tmp: TTempUtf8;
-  wasString: boolean;
-begin
-  if fEscapeInvert then
-    UnEscape := not UnEscape;
-  if TVarData(Value).VType > varNull then
-    if Unescape or
-       VarIsNumeric(Value) then
-      // avoid RawUtf8 conversion for plain numbers or if no HTML escaping
-      fWriter.AddVariant(Value, twNone)
-    else
-    begin
-      VariantToTempUtf8(Value, tmp, wasString);
-      fWriter.AddHtmlEscape(tmp.Text, tmp.Len);
-      if tmp.TempRawUtf8 <> nil then
-        FastAssignNew(tmp.TempRawUtf8);
-    end;
 end;
 
 function TSynMustacheContext.GetVariantFromContext(
@@ -673,14 +672,14 @@ begin
     VariantLoadJson(result, ValueName, @JSON_[mFast])
   else if fGetVarDataFromContextNeedsFree then
   begin
-    if TRttiVarData(result).VType <> varEmpty then
+    if TVarData(result).VType <> varEmpty then
       VarClearProc(TVarData(result));
     GetVarDataFromContext(-1, ValueName, TVarData(result)); // set directly
   end
   else
   begin
-    GetVarDataFromContext(-1, ValueName, tmp); // get TVarData content
-    SetVariantByValue(variant(tmp), result);   // assign/copy value
+    GetVarDataFromContext(-1, ValueName, tmp);      // get TVarData content
+    SetVariantByValue(variant(tmp), result, false); // assign/copy value
   end;
 end;
 
@@ -689,6 +688,7 @@ function TSynMustacheContext.ProcessHelper(const ValueName: RawUtf8;
   OwnValue: PPVarData): TSynMustacheSectionType;
 var
   valnam: RawUtf8;
+  p: PUtf8Char;
   val: TVarData;
   valArr: TDocVariantData absolute val;
   valFree, valFound: boolean;
@@ -696,7 +696,7 @@ var
   j, k, n: PtrInt;
 begin
   valnam := Copy(ValueName, space + 1, maxInt);
-  TRttiVarData(val).VType := varEmpty;
+  TSynVarData(val).VType := varEmpty;
   valFree := fGetVarDataFromContextNeedsFree;
   if valnam <> '' then
   begin
@@ -723,7 +723,10 @@ begin
           ',':
             begin
               // {{helper value,123,"constant"}}
-              CsvToRawUtf8DynArray(Pointer(valnam), names, ',', true);
+              p := pointer(valnam);
+              if j = 1 then
+                inc(p); // for {{helper ,"constant1","constant2",123}}
+              CsvToRawUtf8DynArray(p, names, ',', true);
               // TODO: handle 123,"a,b,c"
               valArr.InitFast;
               for k := 0 to High(names) do
@@ -815,6 +818,14 @@ begin
   inherited Create(Owner, WR, OwnWriter);
   SetLength(fContext, SectionMaxCount + 4);
   PushContext(TVarData(aDocument)); // weak copy
+end;
+
+function TSynMustacheContextVariant.Render(const aDoc: variant): RawUtf8;
+begin
+  PushContext(TVarData(aDoc));
+  fOwner.RenderContext(self, 0, high(fOwner.fTags));
+  Writer.SetText(result);
+  CancelAll;
 end;
 
 procedure TSynMustacheContextVariant.PushContext(const aDoc: TVarData);
@@ -913,8 +924,11 @@ procedure TSynMustacheContextVariant.AppendValue(ValueSpace: integer;
 var
   Value: TVarData;
 begin
+  if fEscapeInvert then
+    UnEscape := not UnEscape;
   GetVarDataFromContext(ValueSpace, ValueName, Value);
-  AppendVariant(variant(Value), UnEscape);
+  if Value.VType > varNull then
+    fWriter.AddVarData(@Value, not UnEscape);
 end;
 
 function SectionIsPseudo(const ValueName: RawUtf8; ListCount, ListCurrent: integer): boolean;
@@ -987,6 +1001,27 @@ begin
   PushContext(Value, ValueRtti);
 end;
 
+function TSynMustacheContextData.RenderArray(const arr: TDynArray): RawUtf8;
+var
+  n: PtrInt;
+begin
+  n := arr.Count;
+  if n <> 0 then
+    DynArrayFakeLength(arr.Value^, n); // as required by RenderContext()
+  PushContext(arr.Value, arr.Info);
+  fOwner.RenderContext(self, 0, high(fOwner.fTags));
+  Writer.SetText(result);
+  CancelAll;
+end;
+
+function TSynMustacheContextData.RenderRtti(Value: pointer; Rtti: TRttiCustom): RawUtf8;
+begin
+  PushContext(Value, Rtti);
+  fOwner.RenderContext(self, 0, high(fOwner.fTags));
+  Writer.SetText(result);
+  CancelAll;
+end;
+
 procedure TSynMustacheContextData.PushContext(Value: pointer; Rtti: TRttiCustom);
 var
   n: PtrInt;
@@ -1050,11 +1085,11 @@ begin
              ord('I') shl 8 + ord('N') shl 16 + ord('D') shl 24 then
         begin
           // {{-index}} pseudo name
-          d := @Temp.Data.VInteger;
-          rc := PT_RTTI[ptInteger];
-          PInteger(d)^ := ListCurrent;
+          Temp.VInteger := ListCurrent;
           if ValueName[7] <> '0' then
-            inc(PInteger(d)^);
+            inc(Temp.VInteger);
+          d := @Temp.VInteger;
+          rc := PT_RTTI[ptInteger];
           exit;
         end
         else
@@ -1111,41 +1146,18 @@ var
   rc: TRttiCustom;
   tmp: TVarData;
 begin
+  if fEscapeInvert then
+    UnEscape := not UnEscape;
   if GetDataFromContext(ValueName, rc, d) then
-  begin
-    // direct append the {{###}} found data
-    if fEscapeInvert then
-      UnEscape := not UnEscape;
-    if UnEscape or
-       (rcfIsNumber in rc.Cache.Flags) then
-      // numbers or true/false don't need any HTML escape
-      fWriter.AddRttiCustomJson(d, rc, twNone, [])
-    else
-      case rc.Kind of
-        // try direct UTF-8 and UTF-16 strings rendering
-        rkLString:
-          fWriter.AddHtmlEscape(PPointer(d)^); // faster with no length
-        {$ifdef HASVARUSTRING}
-        rkUString,
-        {$endif HASVARUSTRING}
-        rkWString:
-          fWriter.AddHtmlEscapeW(PPointer(d)^);
-      else
-        begin
-          // use a temporary variant for any complex content (including JSON)
-          rc.ValueToVariant(d, tmp, @JSON_[mFastFloat]);
-          if fEscapeInvert then
-            UnEscape := not UnEscape; // AppendVariant() does reverse it
-          AppendVariant(variant(tmp), UnEscape);
-          VarClearProc(tmp);
-        end;
-      end;
-  end
+    // we can directly append the {{###}} found data
+    rc.ValueWriteText(d, fWriter, not UnEscape)
   else
   begin
     // try {{helper value}} or {{helper}}
     GetHelperFromContext(ValueSpace, ValueName, tmp, {owned=}nil);
-    AppendVariant(variant(tmp), UnEscape);
+    if tmp.VType <= varNull then
+      exit;
+    fWriter.AddVarData(@tmp, not UnEscape);
     VarClearProc(tmp);
   end;
 end;
@@ -1254,7 +1266,7 @@ begin
   result := TSynMustache.Parse(aTemplate);
   if (result <> nil) and
      (fList.AddObject(aName, result) < 0) then
-    raise ESynMustache.CreateUtf8('%.Add(%) duplicated name', [self, aName]);
+    ESynMustache.RaiseUtf8('%.Add(%) duplicated name', [self, aName]);
 end;
 
 function TSynMustachePartials.Add(const aName: RawUtf8;
@@ -1381,12 +1393,12 @@ begin
             // tag starts on a new line -> check if ends on the same line
             if (fPos > fPosMax) or
                (fPos^ = #$0A) or
-               (PWord(fPos)^ = $0A0D) then
+               (PWord(fPos)^ = CRLFW) then
             begin
               if fPos <= fPosMax then
                 if fPos^ = #$0A then
                   inc(fPos)
-                else if PWord(fPos)^ = $0A0D then
+                else if PWord(fPos)^ = CRLFW then
                   inc(fPos, 2);
               if fTagCount > 0 then
                 // remove any indentation chars from previous text
@@ -1416,7 +1428,7 @@ begin
                 aEnd := P;
                 fPos := P;
                 if not Scan(fTagStopChars) then
-                  raise ESynMustache.CreateUtf8('Unfinished {{%', [aStart]);
+                  ESynMustache.RaiseUtf8('Unfinished {{%', [aStart]);
                 if (aKind = mtVariableUnescape) and
                    (fTagStopChars = $7d7d) and
                    (PWord(fPos - 1)^ = $7d7d) then
@@ -1456,8 +1468,7 @@ begin
               (aEnd[-1] <= ' ') do
           dec(aEnd);
         if aEnd = aStart then
-          raise ESynMustache.CreateUtf8(
-            'Void % identifier', [KindToText(aKind)^]);
+          ESynMustache.RaiseUtf8('Void % identifier', [KindToText(aKind)^]);
         FastSetString(Value, aStart, aEnd - aStart);
         ValueSpace := PosExChar(' ', Value);
       end;
@@ -1471,9 +1482,9 @@ constructor TSynMustacheParser.Create(Template: TSynMustache;
 begin
   fTemplate := Template;
   if length(DelimiterStart) <> 2 then
-    raise ESynMustache.CreateUtf8('DelimiterStart="%"', [DelimiterStart]);
+    ESynMustache.RaiseUtf8('DelimiterStart="%"', [DelimiterStart]);
   if length(DelimiterStop) <> 2 then
-    raise ESynMustache.CreateUtf8('DelimiterStop="%"', [DelimiterStop]);
+    ESynMustache.RaiseUtf8('DelimiterStop="%"', [DelimiterStop]);
   fTagStartChars := PWord(DelimiterStart)^;
   fTagStopChars := PWord(DelimiterStop)^;
 end;
@@ -1572,14 +1583,13 @@ begin
     if Kind <> mtVariable then
       inc(fPos);
     if not Scan(fTagStopChars) then
-      raise ESynMustache.CreateUtf8('Unfinished {{tag [%]', [fPos]);
+      ESynMustache.RaiseUtf8('Unfinished {{tag [%]', [fPos]);
     case Kind of
       mtSetDelimiter:
         begin
           if (fScanEnd - fScanStart <> 6) or
              (fScanEnd[-1] <> '=') then
-            raise ESynMustache.Create(
-              'mtSetDelimiter syntax is e.g. {{=<% %>=}}');
+            raise ESynMustache.Create('mtSetDelimiter syntax is e.g. {{=<% %>=}}');
           fTagStartChars := PWord(fScanStart)^;
           fTagStopChars := PWord(fScanStart + 3)^;
           continue; // do not call AddTag(Kind=mtSetDelimiter)
@@ -1631,21 +1641,18 @@ begin
                         break;
                       end
                       else
-                        raise ESynMustache.CreateUtf8(
-                          'Got {{/%}}, expected {{/%}}',
+                        ESynMustache.RaiseUtf8('Got {{/%}}, expected {{/%}}',
                           [Value, fTemplate.fTags[j].Value]);
                   end;
               end;
             if SectionOppositeIndex < 0 then
-              raise ESynMustache.CreateUtf8(
-                'Missing section end {{/%}}', [Value]);
+              ESynMustache.RaiseUtf8('Missing section end {{/%}}', [Value]);
           end;
         mtSectionEnd:
           begin
             dec(secCount);
             if SectionOppositeIndex < 0 then
-              raise ESynMustache.CreateUtf8(
-                'Unexpected section end {{/%}}', [Value]);
+              ESynMustache.RaiseUtf8('Unexpected section end {{/%}}', [Value]);
           end;
       end;
   SetLength(fTemplate.fTags, fTagCount);
@@ -1726,93 +1733,102 @@ begin
   finally
     Free;
   end;
-  fCachedContextVariant := TSynMustacheContextVariant.Create(self,
-    TJsonWriter.CreateOwnedStream(16384, {nosharedstream=}true),
-    SectionMaxCount + 4, Null, true);
-  fCachedContextVariant.CancelAll; // to be reused from a void context
-  fCachedContextData := TSynMustacheContextData.Create(self,
-    TJsonWriter.CreateOwnedStream(16384, {nosharedstream=}true),
-    SectionMaxCount + 4, nil, nil, true);
-  fCachedContextData.CancelAll; // to be reused from a void context
+  fCachedContextVariant := NewMustacheContextVariant;
+  fCachedContextData    := NewMustacheContextData;
+end;
+
+function TSynMustache.NewMustacheContextVariant(
+  aBufSize: integer): TSynMustacheContextVariant;
+begin
+  result := TSynMustacheContextVariant.Create(self,
+    TJsonWriter.CreateOwnedStream(aBufSize, {nosharedstream=}true),
+    SectionMaxCount + 4, Null, {ownwriter=}true);
+  result.CancelAll; // to be reused from a void context
+end;
+
+function TSynMustache.NewMustacheContextData(
+  aBufSize: integer): TSynMustacheContextData;
+begin
+  result := TSynMustacheContextData.Create(self,
+    TJsonWriter.CreateOwnedStream(aBufSize, {nosharedstream=}true),
+    SectionMaxCount + 4, nil, nil, {ownwriter=}true);
+  result.CancelAll; // to be reused from a void context
 end;
 
 procedure TSynMustache.RenderContext(Context: TSynMustacheContext;
-  TagStart, TagEnd: integer);
+  TagStart, TagEnd: PtrInt);
 var
   partial: TSynMustache;
+  t: PSynMustacheTag;
 begin
-  while TagStart <= TagEnd do
-  begin
-    with fTags[TagStart] do
-      case Kind of
-        mtText:
-          if TextLen <> 0 then
-            // may be 0 e.g. for standalone without previous Line
-            Context.fWriter.AddNoJsonEscape(TextStart, TextLen);
-        mtVariable:
-          Context.AppendValue(ValueSpace, Value, {unescape=}false);
-        mtVariableUnescape,
-        mtVariableUnescapeAmp:
-          Context.AppendValue(ValueSpace, Value, {unescape=}true);
-        mtSection:
-          case Context.AppendSection(ValueSpace, Value) of
-            msNothing:
-              begin
-                // e.g. for no key, false value, or empty list
-                TagStart := SectionOppositeIndex;
-                continue; // ignore whole section
-              end;
-            msList:
-              begin
-                while Context.GotoNextListItem do
-                  RenderContext(Context, TagStart + 1, SectionOppositeIndex - 1);
-                TagStart := SectionOppositeIndex;
-                // ignore whole section since we just rendered it as a list
-                continue;
-              end;
-          // msSingle, msSinglePseudo:
-          //   process the section once with current context
-          end;
-        mtInvertedSection:
-          // display section for no key, false value, or empty list
-          if Context.AppendSection(ValueSpace, Value) <> msNothing then
-          begin
-            TagStart := SectionOppositeIndex;
-            continue; // ignore whole section
-          end;
-        mtSectionEnd:
-          if (fTags[SectionOppositeIndex].Kind in
-               [mtSection, mtInvertedSection]) and
-             (Value[1] <> '-') and
-             (fTags[SectionOppositeIndex].ValueSpace = 0) then
-            Context.PopContext;
-        mtComment:
-          ; // just ignored
-        mtPartial:
-          begin
-            partial := fInternalPartials.GetPartial(Value);
-            if (partial = nil) and
-               (Context.fOwner <> self) then
-              // recursive call
-              partial := Context.fOwner.fInternalPartials.GetPartial(Value);
-            if (partial = nil) and
-               (Context.Partials <> nil) then
-              partial := Context.Partials.GetPartial(Value);
-            if partial <> nil then
-              partial.RenderContext(Context, 0, high(partial.fTags));
-          end;
-        mtSetPartial:
-          // ignore whole internal {{<partial}}
-          TagStart := SectionOppositeIndex;
-        mtTranslate:
-          if TextLen <> 0 then
-            Context.TranslateBlock(TextStart, TextLen);
-      else
-        raise ESynMustache.CreateUtf8('Kind=% not implemented yet',
-          [KindToText(fTags[TagStart].Kind)^]);
-      end;
+  if TagStart <= TagEnd then
+  repeat
+    t := @fTags[TagStart];
+    case t^.Kind of
+      mtText:
+         // may be 0 e.g. for standalone without previous Line
+         Context.fWriter.AddNoJsonEscape(t^.TextStart, t^.TextLen);
+      mtVariable:
+        Context.AppendValue(t^.ValueSpace, t^.Value, {unescape=}false);
+      mtVariableUnescape,
+      mtVariableUnescapeAmp:
+        Context.AppendValue(t^.ValueSpace, t^.Value, {unescape=}true);
+      mtSection:
+        case Context.AppendSection(t^.ValueSpace, t^.Value) of
+          msNothing:
+            begin
+              // e.g. for no key, false value, or empty list
+              TagStart := t^.SectionOppositeIndex;
+              continue; // ignore whole section
+            end;
+          msList:
+            begin
+              while Context.GotoNextListItem do
+                RenderContext(Context, TagStart + 1, t^.SectionOppositeIndex - 1);
+              TagStart := t^.SectionOppositeIndex;
+              // ignore whole section since we just rendered it as a list
+              continue;
+            end;
+        // msSingle, msSinglePseudo:
+        //   process the section once with current context
+        end;
+      mtInvertedSection:
+        // display section for no key, false value, or empty list
+        if Context.AppendSection(t^.ValueSpace, t^.Value) <> msNothing then
+        begin
+          TagStart := t^.SectionOppositeIndex;
+          continue; // ignore whole section
+        end;
+      mtSectionEnd:
+        if t^.Value[1] <> '-' then
+          with fTags[t^.SectionOppositeIndex] do
+            if (Kind in [mtSection, mtInvertedSection]) and
+               (ValueSpace = 0) then
+              Context.PopContext;
+      mtComment:
+        ; // just ignored
+      mtPartial:
+        begin
+          partial := fInternalPartials.GetPartial(t^.Value);
+          if (partial = nil) and
+             (Context.fOwner <> self) then
+            // recursive call
+            partial := Context.fOwner.fInternalPartials.GetPartial(t^.Value);
+          if (partial = nil) and
+             (Context.Partials <> nil) then
+            partial := Context.Partials.GetPartial(t^.Value);
+          if partial <> nil then
+            partial.RenderContext(Context, 0, high(partial.fTags));
+        end;
+      mtSetPartial:
+        // ignore whole internal {{<partial}}
+        TagStart := t^.SectionOppositeIndex;
+      mtTranslate:
+        if t^.TextLen <> 0 then
+          Context.TranslateBlock(t^.TextStart, t^.TextLen);
+    end;
     inc(TagStart);
-  end;
+  until TagStart > TagEnd;
 end;
 
 function TSynMustache.Render(const Context: variant;
@@ -1868,45 +1884,45 @@ begin
 end;
 
 function TSynMustache.RenderData(const Value; ValueTypeInfo: PRttiInfo;
-  const OnGetData: TOnGetGlobalData;
-  Partials: TSynMustachePartials; const Helpers: TSynMustacheHelpers;
-  const OnTranslate: TOnStringTranslate; EscapeInvert: boolean): RawUtf8;
+  const OnGetData: TOnGetGlobalData; Partials: TSynMustachePartials;
+  const Helpers: TSynMustacheHelpers; const OnTranslate: TOnStringTranslate;
+  EscapeInvert: boolean): RawUtf8;
 begin
   result := RenderDataRtti(@Value, Rtti.RegisterType(ValueTypeInfo),
     OnGetData, Partials, Helpers, OnTranslate, EscapeInvert);
 end;
 
 function TSynMustache.RenderDataArray(const Value: TDynArray;
-  const OnGetData: TOnGetGlobalData;
-  Partials: TSynMustachePartials; const Helpers: TSynMustacheHelpers;
-  const OnTranslate: TOnStringTranslate; EscapeInvert: boolean): RawUtf8;
+  const OnGetData: TOnGetGlobalData; Partials: TSynMustachePartials;
+  const Helpers: TSynMustacheHelpers; const OnTranslate: TOnStringTranslate;
+  EscapeInvert: boolean): RawUtf8;
 var
   n: PtrInt;
 begin
   n := Value.Count;
   if n <> 0 then
-    DynArrayFakeLength(Value.Value^, n); // as RenderDataRtti() expects
+    DynArrayFakeLength(Value.Value^, n); // as required by RenderDataRtti()
   result := RenderDataRtti(Value.Value, Value.Info,
     OnGetData, Partials, Helpers, OnTranslate, EscapeInvert);
 end;
 
 function TSynMustache.RenderDataRtti(Value: pointer; ValueRtti: TRttiCustom;
-  const OnGetData: TOnGetGlobalData;
-  Partials: TSynMustachePartials; const Helpers: TSynMustacheHelpers;
-  const OnTranslate: TOnStringTranslate; EscapeInvert: boolean): RawUtf8;
+  const OnGetData: TOnGetGlobalData; Partials: TSynMustachePartials;
+  const Helpers: TSynMustacheHelpers; const OnTranslate: TOnStringTranslate;
+  EscapeInvert: boolean): RawUtf8;
 var
   ctx: TSynMustacheContextData;
   tmp: TTextWriterStackBuffer;
 begin
   if ValueRtti = nil then
-    raise ESynMustache.CreateUtf8('%.RenderData: invalid TypeInfo', [self]);
+    ESynMustache.RaiseUtf8('%.RenderData: invalid TypeInfo', [self]);
   ctx := fCachedContextData; // thread-safe reuse of shared rendering context
   if ctx.fReuse.TryLock then
     ctx.PushContext(Value, ValueRtti)
   else
     ctx := TSynMustacheContextData.Create(
       self, TJsonWriter.CreateOwnedStream(tmp), SectionMaxCount,
-      Value, ValueRtti, true);
+      Value, ValueRtti, {ownwriter=}true);
   try
     ctx.Helpers := Helpers;
     ctx.Partials := Partials;
@@ -2045,7 +2061,9 @@ begin
       'Match',
       'MatchI',
       'Lower',
-      'Upper'],
+      'Upper',
+      'CamelCase',
+      'SnakeCase'],
      [DateTimeToText,
       DateToText,
       DateFmt,
@@ -2071,7 +2089,9 @@ begin
       Match,
       MatchI,
       Lower,
-      Upper]);
+      Upper,
+      CamelCase,
+      SnakeCase]);
   result := HelpersStandardList;
 end;
 
@@ -2273,7 +2293,7 @@ begin
       L := i - 1;
       break;
     end;
-  RawUtf8ToVariant(Pointer(tmp), L, Result);
+  RawUtf8ToVariant(pointer(tmp), L, Result);
 end;
 
 class procedure TSynMustache.PowerOfTwo(const Value: variant;
@@ -2436,6 +2456,23 @@ begin
     RawUtf8ToVariant(UpperCaseUnicode(u), Result);
 end;
 
+class procedure TSynMustache.CamelCase(const Value: variant;
+  out Result: variant);
+var
+  u: RawUtf8;
+begin
+  if VariantToText(Value, u) then
+    RawUtf8ToVariant(LowerCamelCase(u), Result);
+end;
+
+class procedure TSynMustache.SnakeCase(const Value: variant;
+  out Result: variant);
+var
+  u: RawUtf8;
+begin
+  if VariantToText(Value, u) then
+    RawUtf8ToVariant(mormot.core.unicode.SnakeCase(u), Result);
+end;
 
 
 end.

@@ -8,7 +8,6 @@
 {$ifdef FPC}
   // disabled some FPC paranoid warnings
   {$WARN 7102 off : Use of +offset(%ebp) for parameters invalid here }
-  {$WARN 7119 off : Exported/global symbols should be accessed via the GOT }
   {$WARN 7121 off : Check size of memory operand "$1: memory-operand-size is $2 bits, but expected [$3 bits]" }
   {$WARN 7122 off : Check size of memory operand "$1: memory-operand-size is $2 bits, but expected [$3 bits + $4 byte offset]" }
   {$WARN 7123 off : Check "$1: offset of memory operand is negative "$2 byte" }
@@ -1721,7 +1720,7 @@ asm     // Windows x64 calling convention expects to preserve XMM6-XMM15
 end;
 
 // Synopse's x64 asm, optimized for both in+out-order pipelined CPUs
-procedure KeccakPermutationKernel(B, A, C: Pointer);
+procedure KeccakPermutationKernel(B, A, C: pointer);
 {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
         {$ifndef WIN64ABI}  // input: rcx=B, rdx=A, r8=C (Linux: rdi,rsi,rdx)
         mov     r8, rdx
@@ -2032,11 +2031,11 @@ asm     // Windows x64 calling convention expects to preserve XMM6-XMM15 and rdi
 {$else} {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
 {$endif WIN64ABI}
         // + 60H ajustments to keep asm opcodes offsets within -$7f..+$7f range
-        lea     r8, qword ptr [rip + @rhotates_left + 60H]
-        lea     r9, qword ptr [rip + @rhotates_right + 60H]
+        lea     r8,  qword ptr [rip + @rhotates_left + 60H]
+        lea     r9,  qword ptr [rip + @rhotates_right + 60H]
         lea     rax, qword ptr [rip + @iotas]
         lea     rdi, qword ptr [A + 60H]
-        mov     ecx, 24
+        mov     ecx, 24 // cKeccakNumberOfRounds
         vzeroupper
         //vpbroadcastq ymm0, qword ptr [rdi - 60H]
         db $C4, $E2, $7D, $59, $47, $A0
@@ -2048,61 +2047,61 @@ asm     // Windows x64 calling convention expects to preserve XMM6-XMM15 and rdi
         vmovdqu ymm6, yword ptr [rdi + 48H]
         {$ifdef FPC} align 16 {$else} .align 16 {$endif}
 @round: // Theta
-        vpshufd ymm13, ymm2, 4EH
-        vpxor   ymm12, ymm5, ymm3
-        vpxor   ymm9, ymm4, ymm6
-        vpxor   ymm12, ymm12, ymm1
-        vpxor   ymm12, ymm12, ymm9
-        vpermq  ymm11, ymm12, 93H
-        vpxor   ymm13, ymm13, ymm2
-        vpermq  ymm7, ymm13, 4EH
-        vpsrlq  ymm8, ymm12, 63
-        vpaddq  ymm9, ymm12, ymm12
-        vpor    ymm8, ymm8, ymm9
-        vpermq  ymm15, ymm8, 39H
-        vpxor   ymm14, ymm8, ymm11
-        vpermq  ymm14, ymm14, 00H
-        vpxor   ymm13, ymm13, ymm0
-        vpxor   ymm13, ymm13, ymm7
-        vpsrlq  ymm7, ymm13, 63
-        vpaddq  ymm8, ymm13, ymm13
-        vpor    ymm8, ymm8, ymm7
-        vpxor   ymm2, ymm2, ymm14
-        vpxor   ymm0, ymm0, ymm14
+        vpshufd  ymm13, ymm2, 4EH
+        vpxor    ymm12, ymm5, ymm3
+        vpxor    ymm9, ymm4, ymm6
+        vpxor    ymm12, ymm12, ymm1
+        vpxor    ymm12, ymm12, ymm9
+        vpermq   ymm11, ymm12, 93H
+        vpxor    ymm13, ymm13, ymm2
+        vpermq   ymm7, ymm13, 4EH
+        vpsrlq   ymm8, ymm12, 63
+        vpaddq   ymm9, ymm12, ymm12
+        vpor     ymm8, ymm8, ymm9
+        vpermq   ymm15, ymm8, 39H
+        vpxor    ymm14, ymm8, ymm11
+        vpermq   ymm14, ymm14, 00H
+        vpxor    ymm13, ymm13, ymm0
+        vpxor    ymm13, ymm13, ymm7
+        vpsrlq   ymm7, ymm13, 63
+        vpaddq   ymm8, ymm13, ymm13
+        vpor     ymm8, ymm8, ymm7
+        vpxor    ymm2, ymm2, ymm14
+        vpxor    ymm0, ymm0, ymm14
         vpblendd ymm15, ymm15, ymm8, 0C0H
         vpblendd ymm11, ymm11, ymm13, 03H
-        vpxor   ymm15, ymm15, ymm11
+        vpxor    ymm15, ymm15, ymm11
         // Rho + Pi + pre-Chi shuffle
-        vpsllvq ymm10, ymm2, yword ptr [r8 - 60H]
-        vpsrlvq ymm2, ymm2, yword ptr [r9 - 60H]
-        vpor    ymm2, ymm2, ymm10
-        vpxor   ymm3, ymm3, ymm15
-        vpsllvq ymm11, ymm3, yword ptr [r8 - 20H]
-        vpsrlvq ymm3, ymm3, yword ptr [r9 - 20H]
-        vpor    ymm3, ymm3, ymm11
-        vpxor   ymm4, ymm4, ymm15
-        vpsllvq ymm12, ymm4, yword ptr [r8]
-        vpsrlvq ymm4, ymm4, yword ptr [r9]
-        vpor    ymm4, ymm4, ymm12
-        vpxor   ymm5, ymm5, ymm15
-        vpsllvq ymm13, ymm5, yword ptr [r8 + 20H]
-        vpsrlvq ymm5, ymm5, yword ptr [r9 + 20H]
-        vpor    ymm5, ymm5, ymm13
-        vpxor   ymm6, ymm6, ymm15
-        vpermq  ymm10, ymm2, 8DH
-        vpermq  ymm11, ymm3, 8DH
-        vpsllvq ymm14, ymm6, yword ptr [r8 + 40H]
-        vpsrlvq ymm8, ymm6, yword ptr [r9 + 40H]
-        vpor    ymm8, ymm8, ymm14
-        vpxor   ymm1, ymm1, ymm15
-        vpermq  ymm12, ymm4, 1BH
-        vpermq  ymm13, ymm5, 72H
-        vpsllvq ymm15, ymm1, yword ptr [r8 - 40H]
-        vpsrlvq ymm9, ymm1, yword ptr [r9 - 40H]
-        vpor    ymm9, ymm9, ymm15
+        vpsllvq  ymm10, ymm2, yword ptr [r8 - 60H]
+        vpsrlvq  ymm2, ymm2, yword ptr [r9 - 60H]
+        vpor     ymm2, ymm2, ymm10
+        vpxor    ymm3, ymm3, ymm15
+        vpsllvq  ymm11, ymm3, yword ptr [r8 - 20H]
+        vpsrlvq  ymm3, ymm3, yword ptr [r9 - 20H]
+        vpor     ymm3, ymm3, ymm11
+        vpxor    ymm4, ymm4, ymm15
+        vpsllvq  ymm12, ymm4, yword ptr [r8]
+        vpsrlvq  ymm4, ymm4, yword ptr [r9]
+        vpor     ymm4, ymm4, ymm12
+        vpxor    ymm5, ymm5, ymm15
+        vpsllvq  ymm13, ymm5, yword ptr [r8 + 20H]
+        vpsrlvq  ymm5, ymm5, yword ptr [r9 + 20H]
+        vpor     ymm5, ymm5, ymm13
+        vpxor    ymm6, ymm6, ymm15
+        vpermq   ymm10, ymm2, 8DH
+        vpermq   ymm11, ymm3, 8DH
+        vpsllvq  ymm14, ymm6, yword ptr [r8 + 40H]
+        vpsrlvq  ymm8, ymm6, yword ptr [r9 + 40H]
+        vpor     ymm8, ymm8, ymm14
+        vpxor    ymm1, ymm1, ymm15
+        vpermq   ymm12, ymm4, 1BH
+        vpermq   ymm13, ymm5, 72H
+        vpsllvq  ymm15, ymm1, yword ptr [r8 - 40H]
+        vpsrlvq  ymm9, ymm1, yword ptr [r9 - 40H]
+        vpor     ymm9, ymm9, ymm15
         // Chi
-        vpsrldq ymm14, ymm8, 8
-        vpandn  ymm7, ymm8, ymm14
+        vpsrldq  ymm14, ymm8, 8
+        vpandn   ymm7, ymm8, ymm14
         vpblendd ymm3, ymm9, ymm13, 0CH
         vpblendd ymm15, ymm11, ymm9, 0CH
         vpblendd ymm5, ymm10, ymm11, 0CH
@@ -2115,45 +2114,45 @@ asm     // Windows x64 calling convention expects to preserve XMM6-XMM15 and rdi
         vpblendd ymm15, ymm15, ymm13, 0C0H
         vpblendd ymm5, ymm5, ymm13, 0C0H
         vpblendd ymm14, ymm14, ymm11, 0C0H
-        vpandn  ymm3, ymm3, ymm15
-        vpandn  ymm5, ymm5, ymm14
+        vpandn   ymm3, ymm3, ymm15
+        vpandn   ymm5, ymm5, ymm14
         vpblendd ymm6, ymm12, ymm9, 0CH
         vpblendd ymm15, ymm10, ymm12, 0CH
-        vpxor   ymm3, ymm3, ymm10
+        vpxor    ymm3, ymm3, ymm10
         vpblendd ymm6, ymm6, ymm10, 30H
         vpblendd ymm15, ymm15, ymm11, 30H
-        vpxor   ymm5, ymm5, ymm12
+        vpxor    ymm5, ymm5, ymm12
         vpblendd ymm6, ymm6, ymm11, 0C0H
         vpblendd ymm15, ymm15, ymm9, 0C0H
-        vpandn  ymm6, ymm6, ymm15
-        vpxor   ymm6, ymm6, ymm13
-        vpermq  ymm4, ymm8, 1EH
+        vpandn   ymm6, ymm6, ymm15
+        vpxor    ymm6, ymm6, ymm13
+        vpermq   ymm4, ymm8, 1EH
         vpblendd ymm15, ymm4, ymm0, 30H
-        vpermq  ymm1, ymm8, 39H
+        vpermq   ymm1, ymm8, 39H
         vpblendd ymm1, ymm1, ymm0, 0C0H
-        vpandn  ymm1, ymm1, ymm15
+        vpandn   ymm1, ymm1, ymm15
         vpblendd ymm2, ymm11, ymm12, 0CH
         vpblendd ymm14, ymm13, ymm11, 0CH
         vpblendd ymm2, ymm2, ymm13, 30H
         vpblendd ymm14, ymm14, ymm10, 30H
         vpblendd ymm2, ymm2, ymm10, 0C0H
         vpblendd ymm14, ymm14, ymm12, 0C0H
-        vpandn  ymm2, ymm2, ymm14
-        vpxor   ymm2, ymm2, ymm9
-        vpermq  ymm7, ymm7, 00H
-        vpermq  ymm3, ymm3, 1BH
-        vpermq  ymm5, ymm5, 8DH
-        vpermq  ymm6, ymm6, 72H
+        vpandn   ymm2, ymm2, ymm14
+        vpxor    ymm2, ymm2, ymm9
+        vpermq   ymm7, ymm7, 00H
+        vpermq   ymm3, ymm3, 1BH
+        vpermq   ymm5, ymm5, 8DH
+        vpermq   ymm6, ymm6, 72H
         vpblendd ymm4, ymm13, ymm10, 0CH
         vpblendd ymm14, ymm12, ymm13, 0CH
         vpblendd ymm4, ymm4, ymm12, 30H
         vpblendd ymm14, ymm14, ymm9, 30H
         vpblendd ymm4, ymm4, ymm9, 0C0H
         vpblendd ymm14, ymm14, ymm10, 0C0H
-        vpandn  ymm4, ymm4, ymm14
-        vpxor   ymm0, ymm0, ymm7
-        vpxor   ymm1, ymm1, ymm8
-        vpxor   ymm4, ymm4, ymm11
+        vpandn   ymm4, ymm4, ymm14
+        vpxor    ymm0, ymm0, ymm7
+        vpxor    ymm1, ymm1, ymm8
+        vpxor    ymm4, ymm4, ymm11
         // Iota
         vpxor   ymm0, ymm0, yword ptr [rax]
         add     rax, 32
@@ -2467,6 +2466,24 @@ function _sub256(out Output: THash256Rec; const Left, Right: THash256Rec): PtrUI
         adc    eax, eax
 end;
 
+procedure _rshift1(var V: THash256Rec);
+{$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
+        mov     rax, qword ptr [V + 3 * 8]
+        mov     rdx, qword ptr [V + 2 * 8]
+        mov     r9,  qword ptr [V + 1 * 8]
+        mov     r10, qword ptr [V + 0 * 8]
+        mov     r8, rdx
+        mov     r11, r9
+        shrd    rdx, rax, 1     // 2 3
+        shr     rax, 1          // 3
+        shrd    r9, r8, 1       // 1 2
+        shrd    r10, r11, 1     // 0 1
+        mov     qword ptr [V + 3 * 8], rax
+        mov     qword ptr [V + 2 * 8], rdx
+        mov     qword ptr [V + 1 * 8], r9
+        mov     qword ptr [V + 0 * 8], r10
+end;
+
 {$ifdef FPC} // constref to force passing by reference (as Delphi does)
 procedure _mult128(constref l, r: THash128Rec; out product: THash256Rec);
   nostackframe; assembler; asm
@@ -2670,9 +2687,49 @@ procedure _inc128(var Value: THash256Rec; var Added: THash128Rec);
         adc    qword ptr [Value + 24], r8
 end;
 
+// use CF flag to propagate 64-bit additions carry
+function _xasmadd(Value, Adds: pointer; Carry: PtrUInt): PtrUInt;
+{$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
+        // rcx/rdi=Value rdx/rsi=Adds r8/rdx=Carry
+        xor    eax, eax
+        mov    r9, qword ptr [Adds]
+        add    r9, Carry
+        mov    r8 , qword ptr [Adds + 8]
+        mov    r10, qword ptr [Adds + 8 * 2]
+        mov    r11, qword ptr [Adds + 8 * 3]
+        add    qword ptr [Value], r9
+        adc    qword ptr [Value + 8], r8
+        adc    qword ptr [Value + 8 * 2], r10
+        adc    qword ptr [Value + 8 * 3], r11
+        mov    r9,  qword ptr [Adds + 8 * 4]
+        mov    r8 , qword ptr [Adds + 8 * 5]
+        mov    r10, qword ptr [Adds + 8 * 6]
+        mov    r11, qword ptr [Adds + 8 * 7]
+        adc    qword ptr [Value + 8 * 4], r9
+        adc    qword ptr [Value + 8 * 5], r8
+        adc    qword ptr [Value + 8 * 6], r10
+        adc    qword ptr [Value + 8 * 7], r11
+        mov    r9,  qword ptr [Adds + 8 * 8]
+        mov    r8 , qword ptr [Adds + 8 * 9]
+        mov    r10, qword ptr [Adds + 8 * 10]
+        mov    r11, qword ptr [Adds + 8 * 11]
+        adc    qword ptr [Value + 8 * 8], r9
+        adc    qword ptr [Value + 8 * 9], r8
+        adc    qword ptr [Value + 8 * 10], r10
+        adc    qword ptr [Value + 8 * 11], r11
+        mov    r9,  qword ptr [Adds + 8 * 12]
+        mov    r8 , qword ptr [Adds + 8 * 13]
+        mov    r10, qword ptr [Adds + 8 * 14]
+        mov    r11, qword ptr [Adds + 8 * 15]
+        adc    qword ptr [Value + 8 * 12], r9
+        adc    qword ptr [Value + 8 * 13], r8
+        adc    qword ptr [Value + 8 * 14], r10
+        adc    qword ptr [Value + 8 * 15], r11
+        adc    eax, eax // return current carry as 0/1
+end;
 
 // use CF flag to propagate 64-bit substractions carry
-function _x64sub(Value, Subs: pointer; Carry: PtrUInt): PtrUInt;
+function _xasmsub(Value, Subs: pointer; Carry: PtrUInt): PtrUInt;
 {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
         // rcx/rdi=Value rdx/rsi=Subs r8/rdx=Carry
         xor    eax, eax
@@ -2713,7 +2770,7 @@ function _x64sub(Value, Subs: pointer; Carry: PtrUInt): PtrUInt;
 end;
 
 // use "mul" opcode to compute 64-bit * 64-bit into 128-bit
-function _x64mul(Src, Dst: pointer; Factor, Carry: PtrUInt): PtrUInt;
+function _xasmmul(Src, Dst: pointer; Factor, Carry: PtrUInt): PtrUInt;
 {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
         // rcx/rdi=Src rdx/rsi=Dst r8/rdx=Factor r9/rcx=Carry
         {$ifdef WIN64ABI}
@@ -2725,49 +2782,49 @@ function _x64mul(Src, Dst: pointer; Factor, Carry: PtrUInt): PtrUInt;
         {$endif WIN64ABI}
         xor    r10, r10
         mov    r11, Factor
-        mov    rax,  qword ptr [rdi]
+        mov    rax, qword ptr [rdi]
         mul    r11         // rax:rdx = [Src] * Factor
         add    rax, rcx
         adc    rdx, r10    // rax:rdx = ([Src] * Factor) + Carry
         mov    qword ptr [rsi], rax
         mov    rcx, rdx
-        mov    rax,  qword ptr [rdi + 8 * 1]
+        mov    rax, qword ptr [rdi + 8 * 1]
         mul    r11
         add    rax, rcx
         adc    rdx, r10
         mov    qword ptr [rsi + 8 * 1], rax
         mov    rcx, rdx
-        mov    rax,  qword ptr [rdi + 8 * 2]
+        mov    rax, qword ptr [rdi + 8 * 2]
         mul    r11
         add    rax, rcx
         adc    rdx, r10
         mov    qword ptr [rsi + 8 * 2], rax
         mov    rcx, rdx
-        mov    rax,  qword ptr [rdi + 8 * 3]
+        mov    rax, qword ptr [rdi + 8 * 3]
         mul    r11
         add    rax, rcx
         adc    rdx, r10
         mov    qword ptr [rsi + 8 * 3], rax
         mov    rcx, rdx
-        mov    rax,  qword ptr [rdi + 8 * 4]
+        mov    rax, qword ptr [rdi + 8 * 4]
         mul    r11
         add    rax, rcx
         adc    rdx, r10
         mov    qword ptr [rsi + 8 * 4], rax
         mov    rcx, rdx
-        mov    rax,  qword ptr [rdi + 8 * 5]
+        mov    rax, qword ptr [rdi + 8 * 5]
         mul    r11
         add    rax, rcx
         adc    rdx, r10
         mov    qword ptr [rsi + 8 * 5], rax
         mov    rcx, rdx
-        mov    rax,  qword ptr [rdi + 8 * 6]
+        mov    rax, qword ptr [rdi + 8 * 6]
         mul    r11
         add    rax, rcx
         adc    rdx, r10
         mov    qword ptr [rsi + 8 * 6], rax
         mov    rcx, rdx
-        mov    rax,  qword ptr [rdi + 8 * 7]
+        mov    rax, qword ptr [rdi + 8 * 7]
         mul    r11
         add    rax, rcx
         adc    rdx, r10
@@ -2780,7 +2837,7 @@ function _x64mul(Src, Dst: pointer; Factor, Carry: PtrUInt): PtrUInt;
 end;
 
 // use "div" opcode to divide 128-bit into 64-bit * 64-bit result
-function _x64div(Value: pointer; Factor, Carry: PtrUInt): PtrUInt;
+function _xasmdiv(Value: pointer; Factor, Carry: PtrUInt): PtrUInt;
 {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
         // rcx/rdi=Value rdx/rsi=Factor r8/rdx=Carry
         {$ifdef WIN64ABI}
@@ -2846,7 +2903,7 @@ function _x64div(Value: pointer; Factor, Carry: PtrUInt): PtrUInt;
 end;
 
 // use "div" opcode to divide 128-bit into 64-bit * 64-bit result
-function _x64mod(Value: pointer; Factor, Carry: PtrUInt): PtrUInt;
+function _xasmmod(Value: pointer; Factor, Carry: PtrUInt): PtrUInt;
 {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
         // rcx/rdi=Value rdx/rsi=Factor r8/rdx=Carry
         {$ifdef WIN64ABI}
@@ -2896,7 +2953,7 @@ function _x64mod(Value: pointer; Factor, Carry: PtrUInt): PtrUInt;
 end;
 
 // use "mul" opcode to compute 64-bit * 64-bit into 128-bit
-function _x64mult(Src, Dst: pointer; Factor, Carry: PtrUInt): PtrUInt;
+function _xasmmuladd(Src, Dst: pointer; Factor, Carry: PtrUInt): PtrUInt;
 {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
         // rcx/rdi=Src rdx/rsi=Dst r8/rdx=Factor r9/rcx=Carry
         {$ifdef WIN64ABI}
@@ -4144,7 +4201,7 @@ procedure ShiftAesNi(KeySize: cardinal; pk: pointer);
         call    @exp128
 end;
 
-procedure MakeDecrKeyAesNi(Rounds: integer; RK: Pointer);
+procedure MakeDecrKeyAesNi(Rounds: integer; RK: pointer);
 {$ifdef FPC} nostackframe; assembler; asm {$else} asm .noframe {$endif}
         mov     eax, Rounds
         sub     eax, 9
@@ -4278,7 +4335,7 @@ asm     // Windows x64 calling convention expects to preserve XMM6-XMM15
         movups  xmm12, dqword ptr [aes + 16 * 11]
         movups  xmm13, dqword ptr [aes + 16 * 12]
         movups  xmm14, dqword ptr [aes + 16 * 13]
-        add     aes,  16 * 14  // aes = last key
+        add     aes, 16 * 14  // aes = last key
 {$ifdef FPC} align 16 {$else} .align 16 {$endif}
 @s:     movups  xmm15, dqword ptr [aes]
         pxor    xmm7, xmm0

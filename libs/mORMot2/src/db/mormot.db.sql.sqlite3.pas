@@ -1,4 +1,4 @@
-/// Database Framework Direct SQlite3 Connnection
+/// Database Framework Direct SQLite3 Connnection
 // - this unit is a part of the Open Source Synopse mORMot framework 2,
 // licensed under a MPL/GPL/LGPL three license - see LICENSE.md
 unit mormot.db.sql.sqlite3;
@@ -6,7 +6,7 @@ unit mormot.db.sql.sqlite3;
 {
   *****************************************************************************
 
-   Direct SQlite3 Client Access using our mormot.db.raw.sqlite3 Wrapper
+   Direct SQLite3 Client Access using our mormot.db.raw.sqlite3 Wrapper
     -  TSqlDBSQLite3Connection* and TSqlDBSQlite3Statement Classes
 
   *****************************************************************************
@@ -69,7 +69,7 @@ type
     // multi-thread access)
     // - the caller is responsible of freeing this instance
     function NewConnection: TSqlDBConnection; override;
-    /// direct access to the main SQlite3 DB instance
+    /// direct access to the main SQLite3 DB instance
     // - can be used to tune directly the database properties
     property MainSQLite3DB: TSqlDataBase
       read GetMainDB;
@@ -115,10 +115,10 @@ type
     // - StartTransaction method must have been called before
     procedure Rollback; override;
     /// the associated SQLite3 DB instance
-    // - assigned to not nil after successfull connection
+    // - assigned to not nil after successful connection
     property DB: TSqlDataBase
       read fDB;
-    /// query or change the SQlite3 file-based syncrhonization mode, i.e. the
+    /// query or change the SQLite3 file-based syncrhonization mode, i.e. the
     // way it waits for the data to be flushed on hard drive
     // - default smFull is very slow, but achieve 100% ACID behavior
     // - smNormal is faster, and safe until a catastrophic hardware failure occurs
@@ -126,7 +126,7 @@ type
     // but database file may be corrupted in case of failure at the wrong time
     property Synchronous: TSqlSynchronousMode
       read GetSynchronous write SetSynchronous;
-    /// query or change the SQlite3 file-based locking mode, i.e. the
+    /// query or change the SQLite3 file-based locking mode, i.e. the
     // way it locks the file
     // - default lmNormal is ACID and safe
     // - lmExclusive gives better performance in case of a number of write
@@ -265,6 +265,9 @@ type
     function ColumnCurrency(Col: integer): currency; override;
     /// return a Column UTF-8 encoded text value of the current Row, first Col is 0
     function ColumnUtf8(Col: integer): RawUtf8; override;
+    /// return a Column UTF-8 text buffer of the current Row, first Col is 0
+    // - returned pointer is likely to last only until next Step or Reset call
+    function ColumnPUtf8(Col: integer): PUtf8Char; override;
     /// return a Column as a blob value of the current Row, first Col is 0
     // - ColumnBlob() will return the binary content of the field is was not ftBlob,
     // e.g. a 8 bytes RawByteString for a vtInt64/vtDouble/vtDate/vtCurrency,
@@ -344,7 +347,7 @@ end;
 constructor TSqlDBSQLite3ConnectionProperties.Create(aDB: TSqlDatabase);
 begin
   if aDB = nil then
-    raise ESqlDBException.CreateUtf8('%.Create(DB=nil)', [self]);
+    ESqlDBException.RaiseUtf8('%.Create(DB=nil)', [self]);
   fExistingDB := aDB;
   Create('', StringToUtf8(aDB.FileName), '', aDB.Password);
 end;
@@ -631,24 +634,29 @@ end;
 
 function TSqlDBSQLite3Statement.ColumnUtf8(Col: integer): RawUtf8;
 begin
-  result := fStatement.FieldUtf8(Col);
+  fStatement.FieldUtf8(Col, result);
+end;
+
+function TSqlDBSQLite3Statement.ColumnPUtf8(Col: integer): PUtf8Char;
+begin
+  result := fStatement.FieldPUtf8(Col);
 end;
 
 constructor TSqlDBSQLite3Statement.Create(aConnection: TSqlDBConnection);
 begin
   if not aConnection.InheritsFrom(TSqlDBSQLite3Connection) then
-    raise ESqlDBException.CreateUtf8('%.Create(%)', [self, aConnection]);
+    ESqlDBException.RaiseUtf8('%.Create(%)', [self, aConnection]);
   inherited Create(aConnection);
-  fShouldLogSQL := (SynDBLog <> nil) and (sllSQL in SynDBLog.Family.Level);
+  fShouldLogSQL := SynDBLog.HasLevel([sllSQL]);
 end;
 
 constructor TSqlDBSQLite3Statement.CreateFrom(aSQlite3DB: TSqlDataBase);
 begin
   if aSQlite3DB = nil then
-    raise ESqlDBException.CreateUtf8('%.CreateFrom(nil)', [self]);
+    ESqlDBException.RaiseUtf8('%.CreateFrom(nil)', [self]);
   fDB := aSQlite3DB;
   inherited Create(nil);
-  fShouldLogSQL := (SynDBLog <> nil) and (sllSQL in SynDBLog.Family.Level);
+  fShouldLogSQL := SynDBLog.HasLevel([sllSQL]);
 end;
 
 destructor TSqlDBSQLite3Statement.Destroy;
@@ -755,7 +763,7 @@ begin
   if SeekFirst then
   begin
     if fCurrentRow > 0 then
-      raise ESqlDBException.CreateUtf8('%.Step(SeekFirst=true) not implemented', [self]);
+      ESqlDBException.RaiseUtf8('%.Step(SeekFirst=true) not implemented', [self]);
     fCurrentRow := 0;
     //fStatement.Reset;
   end;
@@ -799,8 +807,7 @@ begin
       sqlite3.column_value(fStatement.Request, col), fForceBlobAsNull);
     W.AddComma;
   end;
-  W.CancelLastComma; // cancel last ','
-  W.Add('}');
+  W.CancelLastComma('}');
 end;
 
 

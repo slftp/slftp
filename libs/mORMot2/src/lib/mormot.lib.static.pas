@@ -66,24 +66,26 @@ const
   _CLIB = 'msvcrt.dll'; // redirect to the built-in Microsoft "libc"
 
 type
-  qsort_compare_func = function(P1, P2: Pointer): Integer; cdecl;
+  qsort_compare_func = function(P1, P2: pointer): integer; cdecl;
 
 procedure libc_qsort(baseP: PByte; NElem, Width: PtrInt; comparF: qsort_compare_func); cdecl;
 function libc_rename(oldname, newname: PUtf8Char): integer; cdecl;
-function libc_printf(format: PAnsiChar): Integer; cdecl; varargs;
-function libc_sprintf(buf: Pointer; format: PAnsiChar): Integer; cdecl; varargs;
-function libc_fprintf(fHandle: pointer; format: PAnsiChar): Integer; cdecl; varargs;
+function libc_printf(format: PAnsiChar): integer; cdecl; varargs;
+function libc_sprintf(buf: pointer; format: PAnsiChar): integer; cdecl; varargs;
+function libc_fprintf(fHandle: pointer; format: PAnsiChar): integer; cdecl; varargs;
 function libc_vsnprintf(buf: pointer; nzize: PtrInt; format: PAnsiChar;
   param: pointer): integer; cdecl;
 function libc_strcspn(str, reject: PUtf8Char): integer; cdecl;
 function libc_strcat(dest: PAnsiChar; src: PAnsiChar): PAnsiChar; cdecl;
 function libc_strcpy(dest, src: PAnsiChar): PAnsiChar; cdecl;
-function libc_strncmp(p1, p2: PByte; Size: integer): integer; cdecl;
-function libc_memchr(s: Pointer; c: Integer; n: PtrInt): Pointer; cdecl;
-function libc_memcmp(p1, p2: PByte; Size: integer): integer; cdecl;
-function libc_strchr(s: Pointer; c: Integer): Pointer; cdecl;
+function libc_strspn(p1, p2: PAnsiChar): PAnsiChar; cdecl;
+function libc_strncmp(p1, p2: PByte; Size: PtrInt): integer; cdecl;
+function libc_memchr(s: pointer; c: integer; n: PtrInt): pointer; cdecl;
+function libc_memcmp(p1, p2: PByte; Size: PtrInt): integer; cdecl;
+function libc_strchr(s: pointer; c: integer): pointer; cdecl;
 function libc_strtod(value: PAnsiChar; endPtr: PPAnsiChar): Double; cdecl;
-function libc_write(handle: Integer; buf: Pointer; len: LongWord): Integer; cdecl;
+function libc_fileno(f: pointer): integer; cdecl;
+function libc_write(handle: integer; buf: pointer; len: LongWord): integer; cdecl;
 function libc_log(d: double): double; cdecl;
 
 type
@@ -118,7 +120,9 @@ function umoddi3(num, den: uint64): uint64; cdecl;
 function divdi3(num, den: int64): int64; cdecl;
 function udivdi3(num, den: uint64): uint64; cdecl;
 function udivmoddi4(a, b: UInt64; var c: UInt64): UInt64; cdecl;
+{$ifdef CPUINTEL}
 procedure __chkstk_ms;
+{$endif CPUINTEL}
 
 {$ifdef CPUX64}
 
@@ -252,7 +256,7 @@ begin
   FreeMem(P);
 end;
 
-function pas_realloc(P: pointer; Size: integer): pointer; cdecl;
+function pas_realloc(P: pointer; Size: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'pas_realloc'; {$endif}
 begin
   ReallocMem(P, Size);
@@ -285,16 +289,16 @@ end;
 
 {$ifdef OSWINDOWS}
 
-// SQlite3 is compiled with SQLITE_OMIT_LOCALTIME and SQLITE_NO_THREAD
+// SQLite3 is compiled with SQLITE_OMIT_LOCALTIME and SQLITE_NO_THREAD
 // to ease static linking
 
 function libc_rename(oldname, newname: PUtf8Char): integer; cdecl;
   external _CLIB name 'rename';
-function libc_printf(format: PAnsiChar): Integer; cdecl; varargs;
+function libc_printf(format: PAnsiChar): integer; cdecl; varargs;
   external _CLIB name 'printf';
-function libc_sprintf(buf: Pointer; format: PAnsiChar): Integer; cdecl; varargs;
+function libc_sprintf(buf: pointer; format: PAnsiChar): integer; cdecl; varargs;
   external _CLIB name 'sprintf';
-function libc_fprintf(fHandle: pointer; format: PAnsiChar): Integer; cdecl; varargs;
+function libc_fprintf(fHandle: pointer; format: PAnsiChar): integer; cdecl; varargs;
   external _CLIB name 'fprintf';
 function libc_vsnprintf(buf: pointer; nzize: PtrInt; format: PAnsiChar;
    param: pointer): integer; cdecl;
@@ -305,17 +309,21 @@ function libc_strcat(dest, src: PAnsiChar): PAnsiChar; cdecl;
   external _CLIB name 'strcat';
 function libc_strcpy(dest, src: PAnsiChar): PAnsiChar; cdecl;
   external _CLIB name 'strcpy';
-function libc_strncmp(p1, p2: PByte; Size: integer): integer; cdecl;
+function libc_strspn(p1, p2: PAnsiChar): PAnsiChar; cdecl;
+  external _CLIB name 'strspn';
+function libc_strncmp(p1, p2: PByte; Size: PtrInt): integer; cdecl;
   external _CLIB name 'strncmp';
-function libc_memchr(s: Pointer; c: Integer; n: PtrInt): Pointer; cdecl;
+function libc_memchr(s: pointer; c: integer; n: PtrInt): pointer; cdecl;
   external _CLIB name 'memchr';
-function libc_memcmp(p1, p2: PByte; Size: integer): integer; cdecl;
+function libc_memcmp(p1, p2: PByte; Size: PtrInt): integer; cdecl;
   external _CLIB name 'memcmp';
-function libc_strchr(s: Pointer; c: Integer): Pointer; cdecl;
+function libc_strchr(s: pointer; c: integer): pointer; cdecl;
   external _CLIB name 'strchr';
 function libc_strtod(value: PAnsiChar; endPtr: PPAnsiChar): Double; cdecl;
   external _CLIB name 'strtod';
-function libc_write(handle: Integer; buf: Pointer; len: LongWord): Integer; cdecl;
+ function libc_fileno(f: pointer): integer; cdecl;
+   external _CLIB name '_fileno';
+ function libc_write(handle: integer; buf: pointer; len: LongWord): integer; cdecl;
   external _CLIB name '_write';
 procedure libc_qsort(baseP: PByte; NElem, Width: PtrInt; comparF: qsort_compare_func); cdecl;
   external _CLIB name 'qsort';
@@ -354,7 +362,7 @@ var
  { as standard C library documentation states:
    Statically allocated buffer, shared by the functions gmtime() and localtime().
    Each call of these functions overwrites the content of this structure.
-   -> this buffer is shared, but SQlite3 will protect it with a mutex :) }
+   -> this buffer is shared, but SQLite3 will protect it with a mutex :) }
    atm: time_t;
 
 function localtime32(t: PCardinal): pointer; cdecl;
@@ -382,19 +390,19 @@ end;
 function gettimeofday(var tv: timeval; zone: pointer): integer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'gettimeofday'; {$else} export; {$endif}
 var
-  now, sec: QWord;
+  ms, sec: QWord;
 begin
-  now := UnixMSTimeUtcFast;
-  sec := now div 1000;
+  ms := UnixMSTimeUtcFast;
+  sec := ms div MilliSecsPerSec;
   tv.sec := sec;
-  tv.usec := (now - sec * 1000) * 1000;
+  tv.usec := (ms - sec * MilliSecsPerSec) * MicroSecsPerMilliSec;
   result := 0;
 end;
 
 function fputc(c: integer; f: pointer): integer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'fputc'; {$endif}
 begin
-  if libc_write(PtrInt(f), @c, 1) = 1 then
+  if libc_write(libc_fileno(f), @c, 1) = 1 then
     result := c
   else
     result := 26;
@@ -417,7 +425,7 @@ end;
 function fwrite(buf: pointer; size, count: PtrInt; f: pointer): integer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'fwrite'; {$endif}
 begin
-  result := libc_write(PtrInt(f), buf, size * count) div size;
+  result := libc_write(libc_fileno(f), buf, size * count) div size;
 end;
 
 {$ifdef CPUX86}
@@ -493,7 +501,7 @@ begin
   FreeMem(P);
 end;
 
-function realloc(P: pointer; Size: integer): pointer; cdecl;
+function realloc(P: pointer; Size: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'realloc'; {$endif}
 begin
   result := P;
@@ -510,21 +518,21 @@ begin
   {$endif FPC}
 end;
 
-function memcpy(dest, src: Pointer; count: PtrInt): Pointer; cdecl;
+function memcpy(dest, src: pointer; count: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'memcpy'; {$endif}
 begin
   MoveFast(src^, dest^, count);
   result := dest;
 end;
 
-function memset(dest: Pointer; val: Integer; count: PtrInt): Pointer; cdecl;
+function memset(dest: pointer; val: integer; count: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'memset'; {$endif}
 begin
   FillCharFast(dest^, count, val);
   result := dest;
 end;
 
-function memmove(dest, src: Pointer; count: PtrInt): Pointer; cdecl;
+function memmove(dest, src: pointer; count: PtrInt): pointer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'memmove'; {$endif}
 begin
   MoveFast(src^, dest^, count);
@@ -572,6 +580,8 @@ begin
   raise ELibStatic.Create('Unexpected exit() call');
 end;
 
+{$ifdef CPUINTEL}
+
 procedure printf; assembler; 
  {$ifdef FPC} nostackframe; public name _PREFIX + 'printf'; {$else} export; {$endif}
 asm
@@ -596,6 +606,10 @@ asm
   jmp libc_vsnprintf
 end;
 
+{$else}
+
+{$endif CPUINTEL}
+
 function strcspn(str, reject: PUtf8Char): integer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'strcspn'; {$else} export; {$endif}
 begin
@@ -614,13 +628,19 @@ begin
   result := libc_strcpy(dest, src);
 end;
 
+function strspn(p1, p2: PAnsiChar): PAnsiChar; cdecl;
+  {$ifdef FPC} public name _PREFIX + 'strspn'; {$else} export; {$endif}
+begin
+  result := libc_strspn(p1, p2);
+end;
+
 function strtod(value: PAnsiChar; endPtr: PPAnsiChar): Double; cdecl;
   {$ifdef FPC} public name _PREFIX + '__strtod'; {$else} export; {$endif}
 begin
   result := libc_strtod(value, endPtr);
 end;
 
-function strncmp(p1, p2: PByte; Size: integer): integer; cdecl;
+function strncmp(p1, p2: PByte; Size: PtrInt): integer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'strncmp'; {$endif}
 begin
   result := libc_strncmp(p1, p2, Size);
@@ -632,19 +652,19 @@ begin
   result := GetInteger(str);
 end;
 
-function memchr(s: Pointer; c: Integer; n: PtrInt): Pointer; cdecl;
+function memchr(s: pointer; c: integer; n: PtrInt): pointer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'memchr'; {$else} export; {$endif}
 begin
   result := libc_memchr(s, c, n);
 end;
 
-function memcmp(p1, p2: PByte; Size: integer): integer; cdecl;
+function memcmp(p1, p2: PByte; Size: PtrInt): integer; cdecl;
  {$ifdef FPC} public name _PREFIX + 'memcmp'; {$endif}
 begin
  result := libc_memcmp(p1, p2, Size);
 end;
 
-function strchr(s: PAnsiChar; c: Integer): Pointer; cdecl;
+function strchr(s: PAnsiChar; c: integer): pointer; cdecl;
   {$ifdef FPC} public name _PREFIX + 'strchr'; {$else} export; {$endif}
 begin
   result := libc_strchr(s, c);
@@ -659,7 +679,7 @@ end;
 {$ifdef CPUX86} // not a compiler intrinsic on x86
 
 function _InterlockedCompareExchange(
-  var Dest: integer; New, Comp: integer): longint; stdcall;
+  var Dest: integer; New, Comp: integer): integer; stdcall;
   public alias: '_InterlockedCompareExchange@12';
 begin
   result := InterlockedCompareExchange(Dest, New, Comp);
@@ -2113,6 +2133,7 @@ initialization
 {$ifdef FPC}
 {$ifdef OSWINDOWS}
   // manual fill of our raw mingw import table
+  {$ifndef NOLIBCSTATIC}
   beginthreadex := @libc_beginthreadex;
   endthreadex := @libc_endthreadex;
   {$ifdef CPU32}
@@ -2120,6 +2141,7 @@ initialization
   {$else}
   imp_localtime64 := @localtime64;
   {$endif CPU32}
+  {$endif NOLIBCSTATIC}
 {$endif OSWINDOWS}
 {$ifdef OSLINUXX64}
   _pthread_load;

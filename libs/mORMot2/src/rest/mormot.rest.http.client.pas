@@ -53,7 +53,6 @@ uses
   mormot.core.json,
   mormot.core.threads,
   mormot.core.perf,
-  mormot.core.search,
   mormot.crypt.secure,
   mormot.core.log,
   mormot.core.interfaces,
@@ -105,6 +104,7 @@ type
   /// abstract HTTP/1.1 RESTful JSON mORMot Client class
   // - this class, and other inherited classes defined in this unit, are
   // thread-safe, since each of their Uri() method is protected by a giant lock
+  // - do NOT use this abstract class, but one of its fully implemented child
   TRestHttpClientGeneric = class(TRestClientUri)
   protected
     fKeepAliveMS: cardinal;
@@ -159,7 +159,7 @@ type
     // - the aLogClass.Family will manage this TRestHttpClientGeneric instance
     // life time, until application is closed or Family.EchoRemoteStop is called
     constructor CreateForRemoteLogging(const aServer: RawUtf8;
-      aLogClass: TSynLogClass; aPort: Integer = 8091;
+      aLogClass: TSynLogClass; aPort: integer = 8091;
       const aRoot: RawUtf8 = 'LogService');
     /// save the TRestHttpClientGeneric properties into a persistent storage object
     // - CreateFrom() will expect Definition.ServerName to store the URI as
@@ -226,11 +226,11 @@ type
 
   TRestHttpClientGenericClass = class of TRestHttpClientGeneric;
 
+  {$ifdef USEHTTPREQUEST}
 
   /// HTTP/1.1 RESTful JSON mORMot Client abstract class using either WinINet,
   // WinHttp or libcurl API
-  // - not to be called directly, but via TRestHttpClientWinINet or (even
-  // better) TRestHttpClientWinHttp overridden classes under Windows
+  // - do NOT use this abstract class, but one of its fully implemented children
   TRestHttpClientRequest = class(TRestHttpClientGeneric)
   protected
     fRequest: THttpRequest;
@@ -244,7 +244,7 @@ type
     procedure InternalClose; override;
     /// set the fWinAPI class
     // - the overridden implementation should set the expected fWinAPIClass
-    procedure InternalSetClass; virtual; abstract;
+    procedure InternalSetClass; virtual;
   public
     /// internal class instance used for the connection
     // - will return either a TWinINet, a TWinHttp or a TCurlHttp class instance
@@ -255,17 +255,19 @@ type
       read fExtendedOptions.Auth.Scheme
       write fExtendedOptions.Auth.Scheme;
     /// optional User Name for Authentication
-    property AuthUserName: SynUnicode
+    property AuthUserName: RawUtf8
       read fExtendedOptions.Auth.UserName
       write fExtendedOptions.Auth.UserName;
     /// optional Password for Authentication
-    property AuthPassword: SynUnicode
+    property AuthPassword: SpiUtf8
       read fExtendedOptions.Auth.Password
       write fExtendedOptions.Auth.Password;
   end;
 
   /// meta-class of TRestHttpClientRequest types
   TRestHttpClientRequestClass = class of TRestHttpClientRequest;
+
+  {$endif USEHTTPREQUEST}
 
 
 { ************ TRestHttpClientSocket REST Client Class over Sockets }
@@ -373,7 +375,7 @@ type
     /// used to handle an interface parameter as SOA callback
     function FakeCallbackRegister(Sender: TServiceFactory;
       const Method: TInterfaceMethod; const ParamInfo: TInterfaceMethodArgument;
-      ParamValue: Pointer): TRestClientCallbackID; override;
+      ParamValue: pointer): TRestClientCallbackID; override;
     /// used to finalize an interface parameter as SOA callback
     function FakeCallbackUnregister(Factory: TInterfaceFactory;
       FakeCallbackID: TRestClientCallbackID; Instance: pointer): boolean; override;
@@ -543,7 +545,7 @@ var
   res: Int64Rec;
   log: ISynLog;
 begin
-  log := fLogClass.Enter('InternalUri %', [Call.Method], self);
+  fLogClass.EnterLocal(log, 'InternalUri %', [Call.Method], self);
   if IsOpen then
   begin
     Head := Call.InHead;
@@ -567,15 +569,11 @@ begin
       P := GotoNextLine(P);
     end;
     if Content <> '' then // always favor content type from binary
-      ContentType := GetMimeContentTypeFromBuffer(
-        pointer(Content), Length(Content), ContentType);
+      GetMimeContentTypeFromBuffer(Content, ContentType);
     if fUriPrefix <> '' then
       Call.Url := fUriPrefix + Call.Url;
     if fCustomHeader <> '' then
-      if Call.InHead = '' then
-        Call.InHead := fCustomHeader
-      else
-        Call.InHead := Call.InHead + #13#10 + fCustomHeader;
+      AppendLine(Head, [fCustomHeader]);
     fSafe.Enter;
     try
       res := InternalRequest(Call.Url, Call.Method, Head, Content, ContentType);
@@ -588,7 +586,7 @@ begin
     Call.OutBody := Content;
   end
   else
-    Call.OutStatus := HTTP_NOTIMPLEMENTED; // 501 indicates not socket closed
+    Call.OutStatus := HTTP_CLIENTERROR; // indicates no socket
   if log <> nil then
     with Call do
       log.Log(sllClient, '% % status=% len=% state=%',
@@ -637,13 +635,12 @@ begin
 end;
 
 constructor TRestHttpClientGeneric.CreateForRemoteLogging(const aServer: RawUtf8;
-  aLogClass: TSynLogClass; aPort: Integer; const aRoot: RawUtf8);
+  aLogClass: TSynLogClass; aPort: integer; const aRoot: RawUtf8);
 var
   aModel: TOrmModel;
 begin
   if not Assigned(aLogClass) then
-    raise ERestHttpClient.CreateUtf8(
-      '%.CreateForRemoteLogging(LogClass=nil)', [self]);
+    ERestHttpClient.RaiseUtf8('%.CreateForRemoteLogging(LogClass=nil)', [self]);
   aModel := TOrmModel.Create([], aRoot);
   Create(aServer, UInt32ToUtf8(aPort), aModel, aPort = 443);
   aModel.Owner := self;
@@ -665,10 +662,10 @@ begin
   Definition.DatabaseName := UrlEncode([
     'IgnoreTlsCertificateErrors', ord(fExtendedOptions.TLS.IgnoreCertificateErrors),
     'ConnectTimeout', fConnectTimeout,
-    'SendTimeout', fSendTimeout,
+    'SendTimeout',    fSendTimeout,
     'ReceiveTimeout', fReceiveTimeout,
-    'ProxyName', fProxyName,
-    'ProxyByPass', fProxyByPass], {TrimLeadingQuestionMark=}true);
+    'ProxyName',   fProxyName,
+    'ProxyByPass', fProxyByPass], [ueTrimLeadingQuestionMark]);
 end;
 
 constructor TRestHttpClientGeneric.RegisteredClassCreateFrom(aModel: TOrmModel;
@@ -681,7 +678,7 @@ var
 begin
   URI.From(aDefinition.ServerName);
   Create(URI.Server, URI.Port, aModel, URI.Https);
-  P := Pointer(aDefinition.DataBaseName);
+  P := pointer(aDefinition.DataBaseName);
   while P <> nil do
   begin
     if UrlDecodeCardinal(P, 'CONNECTTIMEOUT=', V) then
@@ -777,8 +774,8 @@ end;
 function TRestHttpClientSocket.InternalRequest(const url, method: RawUtf8;
   var Header, Data, DataType: RawUtf8): Int64Rec;
 begin
-  fLogFamily.SynLog.Log(sllTrace, 'InternalRequest % calling %(%).Request',
-    [method, fSocket.ClassType, pointer(fSocket)], self);
+  fLogFamily.Add.Log(sllTrace, 'InternalRequest % calling %(%).Request',
+    [method, PClass(fSocket)^, pointer(fSocket)], self);
   result.Lo := fSocket.Request(
     url, method, KeepAliveMS, Header, RawByteString(Data), DataType, false);
   result.Hi := fSocket.Http.ServerInternalState;
@@ -788,7 +785,7 @@ begin
 end;
 
 
-
+{$ifdef USEHTTPREQUEST}
 
 { TRestHttpClientRequest }
 
@@ -797,11 +794,16 @@ begin
   result := fRequest <> nil;
 end;
 
+procedure TRestHttpClientRequest.InternalSetClass;
+begin
+  ERestHttpClient.RaiseUtf8('Abstract %: use inherited class', [self]);
+end;
+
 procedure TRestHttpClientRequest.InternalOpen;
 begin
   InternalSetClass;
   if fRequestClass = nil then
-    raise ERestHttpClient.CreateUtf8('fRequestClass=nil for %', [self]);
+    ERestHttpClient.RaiseUtf8('Unsupported %.InternalOpen', [self]);
   fRequest := fRequestClass.Create(fServer, fPort, fHttps, fProxyName,
     fProxyByPass, fConnectTimeout, fSendTimeout, fReceiveTimeout);
   fRequest.ExtendedOptions := fExtendedOptions;
@@ -831,7 +833,7 @@ var
   OutData: RawByteString;
 begin
   if fRequest = nil then
-    result.Lo := HTTP_NOTIMPLEMENTED
+    result.Lo := HTTP_CLIENTERROR // better than 501 NOT IMPLEMENTED
   else
   begin
     result.Lo := fRequest.Request(url, method, KeepAliveMS, Header,
@@ -843,6 +845,7 @@ begin
   end;
 end;
 
+{$endif USEHTTPREQUEST}
 
 
 { ************ TRestHttpClientWebsockets REST Client Class over WebSockets }
@@ -875,7 +878,7 @@ function TRestHttpClientWebsockets.IsOpen: boolean;
         begin
           if Assigned(fOnConnectionFailed) then
             fOnConnectionFailed(self, nil, nil);
-          raise ERestHttpClient.CreateUtf8(
+          ERestHttpClient.RaiseUtf8(
             '%.InternalOpen: WebSocketsUpgrade failed - %', [self, err]);
         end;
       end;
@@ -887,12 +890,12 @@ end;
 
 function TRestHttpClientWebsockets.FakeCallbackRegister(Sender: TServiceFactory;
   const Method: TInterfaceMethod; const ParamInfo: TInterfaceMethodArgument;
-  ParamValue: Pointer): TRestClientCallbackID;
+  ParamValue: pointer): TRestClientCallbackID;
 begin
   if WebSockets = nil then
-    raise EServiceException.CreateUtf8('Missing %.WebSocketsUpgrade() call ' +
+    EServiceException.RaiseUtf8('Missing %.WebSocketsUpgrade() call ' +
       'to enable interface parameter callbacks for %.%(%: %)',
-      [self, Sender.InterfaceTypeInfo ^.Name, Method.Uri,
+      [self, Sender.InterfaceTypeInfo^.RawName, Method.Uri,
        ParamInfo.ParamName^, ParamInfo.ArgTypeName^]);
   if ParamValue = nil then
     result := 0
@@ -914,8 +917,8 @@ begin
     exit;
   end;
   if WebSockets = nil then
-    raise EServiceException.CreateUtf8('Missing %.WebSocketsUpgrade() call', [self]);
-  FormatUtf8('{"%":%}', [Factory.InterfaceTypeInfo^.RawName, FakeCallbackID], body);
+    EServiceException.RaiseUtf8('Missing %.WebSocketsUpgrade() call', [self]);
+  FormatUtf8('{"%":%}', [Factory.InterfaceRtti.Name, FakeCallbackID], body);
   CallbackNonBlockingSetHeader(head); // frames gathering + no wait
   result := CallBack(
     mPOST, 'CacheFlush/_callback_', body, resp, nil, 0, @head) = HTTP_SUCCESS;
@@ -928,7 +931,7 @@ var
 begin
   if (Ctxt = nil) or
      ((Ctxt.InContentType <> '') and
-      not PropNameEquals(Ctxt.InContentType, JSON_CONTENT_TYPE)) then
+      not IsContentTypeJsonU(Ctxt.InContentType)) then
   begin
     result := HTTP_BADREQUEST;
     exit;
@@ -996,7 +999,7 @@ var
   prevconn: THttpServerConnectionID;
   log: ISynLog;
 begin
-  log := fLogFamily.SynLog.Enter(self, 'WebSocketsUpgrade');
+  fLogClass.EnterLocal(log, self, 'WebSocketsUpgrade');
   sockets := WebSockets; // call IsOpen if necessary
   if sockets = nil then
     result := 'Impossible to connect to the Server'
@@ -1035,15 +1038,14 @@ begin
       inc(fUpgradeCount);
     end;
   end;
-  if log <> nil then
-    if result <> '' then
-      log.Log(sllWarning, '[%] error upgrading %', [result, sockets], self)
-    else
-      log.Log(sllHTTP, 'HTTP link upgraded to WebSockets using %',
-        [sockets], self);
+  if result <> '' then
+    fLogClass.Add.Log(sllWarning, '[%] error upgrading %', [result, sockets], self)
+  else if log <> nil then
+    log.Log(sllHTTP, 'HTTP link upgraded to WebSockets using %',
+      [sockets], self);
   if (aRaiseExceptionOnFailure <> nil) and
      (result <> '') then
-    raise aRaiseExceptionOnFailure.CreateUtf8('%.WebSocketsUpgrade failed: [%]',
+    aRaiseExceptionOnFailure.RaiseUtf8('%.WebSocketsUpgrade failed: [%]',
       [self, result]);
 end;
 
@@ -1064,7 +1066,7 @@ begin
         result := 'ServerTimestampSynchronize';
   end;
   if result <> '' then
-    raise ERestHttpClient.CreateUtf8('%.WebSocketsConnect failed on %:%/% -> %',
+    ERestHttpClient.RaiseUtf8('%.WebSocketsConnect failed on %:%/% -> %',
       [self, Server, Port, Model.Root, result]);
 end;
 
