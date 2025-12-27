@@ -451,6 +451,22 @@ begin
     if s2.freeslots = 0 then
       exit;
 
+    if s2.MaxSimUpCooldownActive then
+    begin
+      if not fBusyDestinations.ContainsKey(s2) then
+        fBusyDestinations.Add(s2, 0);
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] Destination site %s is on MaxSim UP cooldown (%ds remaining), skipping %s',
+        [s2.Name, s2.MaxSimUpCooldownRemainingSeconds, t.FullName]);
+      exit;
+    end;
+
+    if s1.MaxSimDownCooldownActive then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
+        [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
+      exit;
+    end;
+
     if fBusyDestinations.ContainsKey(s2) then
     begin
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
@@ -667,6 +683,20 @@ begin
     try
     if s.freeslots = 0 then
       exit;
+
+    if t.wanted_up and s.MaxSimUpCooldownActive then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim UP cooldown (%ds remaining), skip task %s',
+        [s.Name, s.MaxSimUpCooldownRemainingSeconds, t.FullName]);
+      exit;
+    end;
+
+    if t.wanted_dn and s.MaxSimDownCooldownActive then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] Site %s is on MaxSim DOWN cooldown (%ds remaining), skip task %s',
+        [s.Name, s.MaxSimDownCooldownRemainingSeconds, t.FullName]);
+      exit;
+    end;
 
       Inc(t.TryToAssign);
       if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
@@ -1483,6 +1513,7 @@ begin
       continue;
     end;
 
+    ss := '';
     ts := TSite(fSite);
     fBusyDestinationsTmp := fBusyDestinations;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
@@ -1742,6 +1773,7 @@ begin
     exit;
 
   ts := TSite(fSite);
+  ss := '';
 
   //irc_Addconsole('QueueClean: process begin');
   //Debug(dpMessage, section, 'QueueClean begin %d', [tasks.Count]);
@@ -1805,6 +1837,7 @@ begin
       begin
         if (t.ClassType = TPazoRaceTask) then
         begin
+          ss := t.UidText;
           ts2 := nil;
           ts.AcquireSlotsAssignmentLock('QueueClean race');
           try
@@ -1872,6 +1905,7 @@ begin
 
           try
             //t := NIL;
+            ss := t.UidText;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
@@ -1901,6 +1935,7 @@ begin
           if (t.slot1 <> nil) then
           begin
             try
+              ss := t.UidText;
               ts.AcquireSlotsAssignmentLock('QueueClean login, quit, idle, mkdir');
               try
                 TSiteSlot(t.slot1).todotask := nil;
