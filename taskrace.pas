@@ -1277,6 +1277,8 @@ var
           [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
         mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
           [fLastSrcUploader, lSrcUser]);
+        if ssrc.site <> nil then
+          ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
         if not sdst.Send('ABOR') then
           sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
@@ -1306,6 +1308,8 @@ var
         Debug(dpSpam, c_section, '[SRC-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]);
         mainpazo.errorreason := 'Source regression';
+        if ssrc.site <> nil then
+          ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - source regression');
         if not sdst.Send('ABOR') then
           sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
@@ -1364,6 +1368,8 @@ var
         end;
         mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
           [fLastDstUploader, lDstUser]);
+        if sdst.site <> nil then
+          sdst.site.RegisterMaxSimUpHit(sdst.Name);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
         if not ssrc.Send('ABOR') then
           ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
@@ -1393,6 +1399,8 @@ var
         Debug(dpSpam, c_section, '[DST-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]);
         mainpazo.errorreason := 'Destination regression';
+        if sdst.site <> nil then
+          sdst.site.RegisterMaxSimUpHit(sdst.Name);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
         if not ssrc.Send('ABOR') then
           ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
