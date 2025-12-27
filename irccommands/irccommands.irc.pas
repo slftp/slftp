@@ -769,7 +769,7 @@ begin
   fChanSettings := FindIrcChannelSettings(nn, blowchannel);
   if fChanSettings <> nil then
   begin
-    ircth.chanpart(blowchannel, ircth.BotNick);
+    ircth.chanpart(blowchannel);
     IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
     sitesdat.EraseSection('channel-' + nn + '-' + blowchannel);
     ircth.shouldjoin := True;
@@ -854,6 +854,9 @@ begin
   fChanSettings := FindIrcChannelSettings(nn, blowchannel);
   if fChanSettings <> nil then
   begin
+    // use the actual channel name from the object, not the user input
+    // this ensures case sensitivity matches what the IRC server sent
+    blowchannel := fChanSettings.Channel;
     fChanSettings.ChanKey := key;
     sitesdat.WriteString('channel-' + nn + '-' + blowchannel, 'chankey', key);
     ircth.shouldjoin := True;
@@ -904,6 +907,10 @@ begin
     irc_addtext_b(Netname, Channel, format('Channel %s@%s not found.', [blowchannel, nn]));
     exit;
   end;
+
+  // use the actual channel name from the object, not the user input
+  // this ensures case sensitivity matches what the IRC server sent
+  blowchannel := fChanSettings.Channel;
 
   if Names = '' then
   begin
@@ -974,7 +981,7 @@ begin
   fChanSettings := FindIrcChannelSettings(nn, blowchannel);
   if fChanSettings <> nil then
   begin
-    ircth.chanpart(blowchannel, ircth.BotNick);
+    ircth.chanpart(blowchannel);
     IrcChanSettingsList.Remove(fChanSettings.Netname + fChanSettings.Channel);
     ircth.shouldjoin := True;
   end

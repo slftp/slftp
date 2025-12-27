@@ -25,7 +25,7 @@ begin
   {$IFDEF FPC}
     Result := UpperCase( MD5Print(TMDDigest(v)) );
   {$ELSE}
-    Result := MD5DigestToStr(TMD5Digest(v));
+    Result := String(MD5DigestToStr(TMD5Digest(v)));
   {$ENDIF}
 end;
 

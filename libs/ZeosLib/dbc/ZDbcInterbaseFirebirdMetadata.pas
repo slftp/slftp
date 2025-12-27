@@ -451,9 +451,8 @@ var
   isc_info: Byte;
   P: PChar;
   PA: PAnsiChar absolute P;
-  L: NativeUInt;
+  FbPos: Integer;
 begin
-  {$IFDEF WITH_VAR_INIT_WARNING}L := 0;{$ENDIF}
   if FServerVersion = '' then begin
     Connection := Metadata.GetConnection;
     isc_info := isc_info_version;
@@ -462,7 +461,7 @@ begin
       Attachment := FBConnection.GetAttachment;
       Status := FBConnection.GetStatus;
       Attachment.getInfo(Status, 1, @isc_info, SizeOf(Buffer), @Buffer[0]);
-      if (Status.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+      if (Status.getState and cIStatus_STATE_ERRORS) <> 0 then
         FBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(Status.getErrors), 'IAttachment.getInfo', FBConnection);
     {$IFNDEF ZEOS_DISABLE_INTERBASE}end else {$ELSE}end;{$ENDIF}
     {$ENDIF ZEOS_DISABLE_FIREBIRD}
@@ -488,7 +487,8 @@ begin
     then FServerVersion := ConvertConnRawToString({$IFDEF UNICODE}
       Connection.GetConSettings, {$ENDIF}@Buffer[5], Integer(Buffer[4]))
     else FServerVersion := '';
-    FIsFireBird := ZFastCode.Pos('Firebird', FServerVersion) > 0;
+    FbPos := ZFastCode.Pos('Firebird', FServerVersion);
+    FIsFireBird := FbPos > 0;
     FProductVersion := Copy(FServerVersion, ZFastCode.Pos(DBProvider[FIsFireBird],
       FServerVersion)+8+Ord(not FIsFireBird)+1, Length(FServerVersion));
     I := ZFastCode.Pos('.', FProductVersion);
@@ -499,20 +499,14 @@ begin
     else
       tmp := Copy(FProductVersion, I+1, MaxInt);
     FHostVersion := FHostVersion + StrToInt(tmp)*1000;
-    { determine release version see http://www.firebirdfaq.org/faq223/ }
-    if FIsFireBird and (FHostVersion > 2001000) then begin
-      with Connection.CreateStatement.ExecuteQuery('SELECT rdb$get_context(''SYSTEM'', ''ENGINE_VERSION'') from rdb$database') do begin
-        if Next then begin
-          PA := GetPAnsiChar(FirstDbcIndex, L);
-          Inc(PA, NativeInt(L));
-          I := 0;
-          while (PByte(PA-1)^ <> Byte('.')) do begin
-            Dec(PA);
-            Inc(I);
-          end;
-          FHostVersion := FHostVersion+RawToIntDef(PA, PA+I, 0);
-        end;
-        Close;
+    if FIsFireBird and (Copy(FServerVersion, FirstStringIndex, 8) = 'WI-V6.3.') then begin
+      tmp := FServerVersion;
+      Delete(tmp, FbPos - 1, length(tmp));
+      Delete(tmp, FirstStringIndex, 8);
+      FbPos := ZFastCode.Pos('.', tmp);
+      if FbPos > 0 then begin
+        Delete(tmp, FbPos, length(tmp));
+        FHostVersion := FHostVersion + StrToIntDef(tmp, 0);
       end;
     end;
   end;
@@ -1997,7 +1991,7 @@ Str_Size:   Result.UpdateInt(TableColColumnCharOctetLengthIndex, FieldLength);  
       else Result.UpdateInt(TableColColumnNullableIndex, Ord(ntNullable));
       P := GetPAnsiChar(DESCRIPTION_Index, L);
       if P <> nil then begin
-        L := {$IFDEF NATIVEINT_WEAK_REFERENCE}ZCompatibility.{$ENDIF}min(L,255);
+        L := {$IFDEF MISS_MATH_NATIVEUINT_MIN_MAX_OVERLOAD}ZCompatibility.{$ENDIF}min(L,255);
         Result.UpdatePAnsiChar(TableColColumnRemarksIndex, P, L);   //REMARKS
       end;
       P := GetPAnsiChar(DEFAULT_SOURCE_Index, L);

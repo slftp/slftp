@@ -16,12 +16,14 @@ function IrcTestLanguageBase(const netname, channel, params: String): boolean;
 function IrcKillAll(const netname, channel, params: String): boolean;
 function IrcSpamConfig(const netname, channel, params: String): boolean;
 function Ircaddknowngroup(const netname, channel, params: String): boolean;
+function IrcLogLockStats(const netname, channel, params: String): boolean;
 
 implementation
 
 uses
   SysUtils, Classes, Contnrs, Types, irc, kb, sitesunit, mystrings, mrdohutils, RegExpr,
-  debugunit, sllanguagebase, taskrace, knowngroups, configunit, queueunit, irccommandsunit;
+  debugunit, sllanguagebase, taskrace, knowngroups, configunit, queueunit, irccommandsunit,
+  slcriticalsection2;
 
 const
   section = 'irccommands.misc';
@@ -243,7 +245,11 @@ begin
   else
   begin
     try
-      sitesdat.WriteString(s1, s2, s3);
+      // because the sites do cache the settings, we need to set it on the site object
+      if CompareText(ss1, 'site') = 0 then
+        FindSiteByName(netname, UpperCase(ss2)).WCString(s2, s3)
+      else
+        sitesdat.WriteString(s1, s2, s3);
     except
       on E: Exception do
       begin
@@ -484,6 +490,32 @@ begin
   end;
 
   Result := True;
+end;
+
+function IrcLogLockStats(const netname, channel, params: String): boolean;
+var
+  fFilePath: String;
+begin
+  Result := False;
+
+  if not GetUseTimer then
+  begin
+    irc_addtext(netname, channel, 'Timer is not enabled, enable setting monitor_lock_times');
+    exit;
+  end;
+
+  try
+    fFilePath := WriteCriticalSection2StatsToFile;
+    irc_addtext(netname, channel, 'Saved lock stats to file: <b>%s</b>', [fFilePath]);
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] IrcLogLockStats : %s', [E.Message]);
+      irc_addtext(netname, channel, 'Error while saving stats to file: <b>%s</b>', [E.Message]);
+      exit;
+    end;
+  end;
 end;
 
 end.

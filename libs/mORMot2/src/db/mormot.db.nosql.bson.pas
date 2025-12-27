@@ -53,7 +53,7 @@ type
       1:
         (l, h: Int64);
       2:
-        (b: array[0..15] of byte);
+        (b: THash128);
       3:
         (c: array[0..3] of cardinal);
   end;
@@ -199,15 +199,15 @@ const
     '-9.999999999999999999999999999999999E+6144', // dsvMin
     '9.999999999999999999999999999999999E+6144'); // dsvMax
 
-  BSON_DECIMAL128_HI_NAN = $7c00000000000000;
-  BSON_DECIMAL128_HI_INT64POS = $3040000000000000; // 0 fixed decimals
-  BSON_DECIMAL128_HI_INT64NEG = $b040000000000000;
-  BSON_DECIMAL128_HI_CURRPOS = $3038000000000000;  // 4 fixed decimals
-  BSON_DECIMAL128_HI_CURRNEG = $b038000000000000;
-  BSON_DECIMAL128_EXPONENT_MAX = 6111;
-  BSON_DECIMAL128_EXPONENT_MIN = -6176;
+  BSON_DECIMAL128_HI_NAN        = $7c00000000000000;
+  BSON_DECIMAL128_HI_INT64POS   = $3040000000000000; // 0 fixed decimals
+  BSON_DECIMAL128_HI_INT64NEG   = $b040000000000000;
+  BSON_DECIMAL128_HI_CURRPOS    = $3038000000000000;  // 4 fixed decimals
+  BSON_DECIMAL128_HI_CURRNEG    = $b038000000000000;
+  BSON_DECIMAL128_EXPONENT_MAX  = 6111;
+  BSON_DECIMAL128_EXPONENT_MIN  = -6176;
   BSON_DECIMAL128_EXPONENT_BIAS = 6176;
-  BSON_DECIMAL128_MAX_DIGITS = 34;
+  BSON_DECIMAL128_MAX_DIGITS    = 34;
 
 /// ready-to-be displayed text of a TDecimal128SpecialValue
 function ToText(spec: TDecimal128SpecialValue): PShortString; overload;
@@ -372,12 +372,9 @@ type
     case VKind: TBsonElementType of
       betObjectID:
         (
-      {$ifdef fpc} {$push} {$endif} {$hints off}
-        // does not complain if Filler is declared but void
-        VFiller: array[1..SizeOf(TVarData) - SizeOf(TVarType)
-          - SizeOf(TBsonElementType) - SizeOf(TBsonObjectID)] of byte;
-      {$ifdef fpc} {$pop} {$else} {$hints on} {$endif}
-        VObjectID: TBsonObjectID);
+        VObjectID: TBsonObjectID;
+        VPaddingToVarData: array[1..SizeOf(TVarData) - SizeOf(TVarType)
+          - SizeOf(TBsonElementType) - SizeOf(TBsonObjectID)] of byte;);
       betBinary,
       betDoc,
       betArray,
@@ -396,7 +393,7 @@ type
       betDeprecatedSymbol:
         (
         /// store here a RawUtf8 with the associated text
-        // - you have to use RawUF8(VText) when accessing this field
+        // - you have to use RawUtf8(VText) when accessing this field
         VText: pointer;);
   end;
   
@@ -550,7 +547,7 @@ type
     /// the element type
     Kind: TBsonElementType;
     /// number of bytes in the BSON element
-    // - will include the trailing #0 for string element
+    // - will include the #0 terminator for string element
     ElementBytes: integer;
     /// pointer to the BSON element value
     // - is the raw value, without any parsing, e.g. points to a double value or
@@ -582,7 +579,7 @@ type
           (
           /// points to the #0 ending string
           Text: PUtf8Char;
-          /// number of bytes in Text (excluding trailing #0)
+          /// number of bytes in Text (excluding #0 terminator)
           TextLen: integer;);
         betDoc,
         betArray:
@@ -616,7 +613,7 @@ type
     // - since the result won't store any data but points to the original binary
     // content, the supplied Name/Value instances should remain available as long as
     // you will access to the result content
-    // - aName here is just for conveniency, and could be left void
+    // - aName here is just for convenience, and could be left void
     // - supplied aTemp variable will be used for temporary storage, private to
     // this initialized TBsonElement
     procedure FromVariant(const aName: RawUtf8; const aValue: Variant;
@@ -1135,12 +1132,12 @@ function BsonVariant(const NameValuePairs: array of const): variant; overload;
 
 /// create a fields selector BSON document from a field names list
 // - can be used for the projection parameter of a TMongoRequestQuery, e.g.:
-// ! VariantToJson(BsonVariantFieldSelector(['a','b','c']))='{"a":1,"b":1,"c":1}'
+// ! VariantSaveJson(BsonVariantFieldSelector(['a','b','c']))='{"a":1,"b":1,"c":1}'
 function BsonVariantFieldSelector(const FieldNames: array of RawUtf8): variant; overload;
 
 /// create a fields selector BSON document from a CSV field names list
 // - can be used for the projection parameter of a TMongoRequestQuery, e.g.:
-// ! VariantToJson(BsonVariantFieldSelector('a,b,c'))='{"a":1,"b":1,"c":1}'
+// ! VariantSaveJson(BsonVariantFieldSelector('a,b,c'))='{"a":1,"b":1,"c":1}'
 function BsonVariantFieldSelector(const FieldNamesCsv: RawUtf8): variant; overload;
   {$ifdef HASINLINE}inline;{$endif}
 
@@ -1312,31 +1309,30 @@ end;
 
 const
   D128: array[TDecimal128SpecialValue] of TDecimal128Bits = (
-    // dsvError, dsvValue, dsvNan, dsvZero, dsvPosInf, dsvNegInf, dsvMin, dsvMax
     (
     lo: 0;
-    hi: BSON_DECIMAL128_HI_NAN
+    hi: BSON_DECIMAL128_HI_NAN         // dsvError
   ), (
     lo: 0;
-    hi: BSON_DECIMAL128_HI_NAN
+    hi: BSON_DECIMAL128_HI_NAN         // dsvValue
   ), (
     lo: 0;
-    hi: BSON_DECIMAL128_HI_NAN
+    hi: BSON_DECIMAL128_HI_NAN         // dsvNan
   ), (
     lo: 0;
-    hi: BSON_DECIMAL128_HI_INT64POS
+    hi: BSON_DECIMAL128_HI_INT64POS    // dsvZero
   ), (
     lo: 0;
-    hi: $7800000000000000
+    hi: $7800000000000000              // dsvPosInf
   ), (
     lo: 0;
-    hi: QWord($f800000000000000)
+    hi: QWord($f800000000000000)       // dsvNegInf
   ), (
     lo: $378d8e63ffffffff;
-    hi: QWord($dfffed09bead87c0)
+    hi: QWord($dfffed09bead87c0)       // dsvMin
   ), (
     lo: $378d8e63ffffffff;
-    hi: $5fffed09bead87c0
+    hi: $5fffed09bead87c0             // dsvMax
   ));
 
 procedure TDecimal128.SetSpecial(special: TDecimal128SpecialValue);
@@ -1403,7 +1399,7 @@ begin
   else
     tmp[0] := AnsiChar(ExtendedToShort(@tmp, value, precision));
   result := true;
-  case FloatToShortNan(tmp) of
+  case ShortToFloatNan(tmp) of
     fnNan:
       SetSpecial(dsvNan);
     fnInf:
@@ -1963,7 +1959,9 @@ procedure InitBsonObjectIDComputeNew;
 begin
   with GlobalBsonObjectID.DefaultValues do
   begin
-    Counter := Random32 and COUNTER_MASK;
+    repeat
+      Counter := Random32 and COUNTER_MASK;
+    until Counter <> 0;
     with Executable do
       PCardinal(@MachineID)^ := crc32c(crc32c(
         0, pointer(Host), length(Host)), pointer(User), length(User));
@@ -2114,8 +2112,8 @@ end;
 
 procedure TBsonObjectID.ToText(var result: RawUtf8);
 begin
-  FastSetString(result, SizeOf(self) * 2);
-  mormot.core.text.BinToHex(@self, pointer(result), SizeOf(self));
+  mormot.core.text.BinToHex(@self,
+    FastSetString(result, SizeOf(self) * 2), SizeOf(self));
 end;
 
 
@@ -2439,8 +2437,7 @@ var
   var
     buf: PAnsiChar;
   begin
-    bsonvalue.VBlob := nil; // avoid GPF
-    FastNewRawByteString(RawByteString(bsonvalue.VBlob), RegLen + OptLen + 2);
+    bsonvalue.VBlob := FastNewString(RegLen + OptLen + 2);
     buf := bsonvalue.VBlob;
     MoveFast(Reg^, buf^, RegLen);
     inc(buf, RegLen);
@@ -2790,14 +2787,14 @@ var
   // type will be mapped as varUnknown - and will be changed into
   // BsonVariantType.VarType
   BSON_ELEMENTTYPES: array[TBsonElementType] of word = (
-    //betEOF, betFloat, betString, betDoc, betArray, betBinary,
+    //betEOF, betFloat,  betString, betDoc,     betArray,   betBinary,
     varEmpty, varDouble, varString, varUnknown, varUnknown, varUnknown,
     //betDeprecatedUndefined, betObjectID, betBoolean, betDateTime,
-    varEmpty, varUnknown, varBoolean, varDate,
+    varEmpty, varUnknown,                  varBoolean, varDate,
     //betNull, betRegEx, betDeprecatedDbptr, betJS, betDeprecatedSymbol,
-    varNull, varUnknown, varUnknown, varUnknown, varUnknown,
+    varNull, varUnknown, varUnknown,         varUnknown, varUnknown,
     //betJSScope, betInt32, betTimestamp, betInt64, betDecimal128
-    varUnknown, varInteger, varUnknown, varInt64, varUnknown);
+    varUnknown,   varInteger, varUnknown, varInt64, varUnknown);
 
 function TBsonElement.ToVariant(DocArrayConversion: TBsonDocArrayConversion): variant;
 begin
@@ -2849,7 +2846,7 @@ begin
   // betNull, betDeprecatedUndefined, betMinKey or betMaxKey has no data
   end;
   res.VType := BSON_ELEMENTTYPES[Kind];
-  if res.VType = varUnknown then
+  if res.VType = varUnknown then // no exact equivalency to a standard variant
   begin
     resBSON.VType := BsonVariantType.VarType;
     resBSON.VKind := Kind;
@@ -3359,7 +3356,7 @@ end;
 procedure TBsonWriter.BsonWrite(const name: RawUtf8; elemtype: TBsonElementType);
 begin
   if name = '' then
-    Write2(ord(elemtype)) // write with trailing #0 for void name
+    Write2(ord(elemtype)) // write with #0 terminator for void name
   else
   begin
     Write1(ord(elemtype));
@@ -3474,7 +3471,7 @@ begin
     valueLen := StrLen(value);
   Write4(valueLen + 1);
   Write(value, valueLen);
-  Write1(0); // value may be a PUtf8Char with no trailing #0
+  Write1(0); // value may be a PUtf8Char with no #0 terminator
 end;
 
 procedure TBsonWriter.BsonWriteDateTime(const name: RawUtf8; const value: TDateTime);
@@ -3637,7 +3634,7 @@ begin
     vtWideChar,
     vtWideString:
       begin
-        VarRecToTempUtf8(value, tmp);
+        VarRecToTempUtf8(@value, tmp);
         BsonWriteText(name, tmp.Text, tmp.Len);
         if tmp.TempRawUtf8 <> nil then
           RawUtf8(tmp.TempRawUtf8) := '';
@@ -3897,7 +3894,7 @@ begin
   BsonDocumentBegin;
   for i := 0 to (length(NameValuePairs) shr 1) - 1 do
   begin
-    VarRecToUtf8(NameValuePairs[i * 2], Name);
+    VarRecToUtf8(@NameValuePairs[i * 2], Name);
     BsonWrite(Name, NameValuePairs[i * 2 + 1]);
   end;
   BsonDocumentEnd;
@@ -4152,7 +4149,7 @@ begin
      (NameValuePairs[1].VType = vtAnsiString) then
   begin
     // optimized for the ['$db', 'databasename'] usecase
-    VarRecToUtf8(NameValuePairs[0], name);
+    VarRecToUtf8(@NameValuePairs[0], name);
     vallen := length(RawUtf8(NameValuePairs[1].VAnsiString));
     len := length(Bson);
     SetLength(Bson, len + length(name) + vallen + 7); // in-place resize
@@ -4177,7 +4174,7 @@ begin
       a := 0;
       while a < high(NameValuePairs) do
       begin
-        VarRecToUtf8(NameValuePairs[a], name);
+        VarRecToUtf8(@NameValuePairs[a], name);
         W.BsonWrite(name, NameValuePairs[a + 1]);
         inc(a, 2);
       end;
@@ -4471,14 +4468,14 @@ var
   var
     ndx: cardinal;
   begin
-    case VarRecAsChar(NameValuePairs[a]) of
+    case VarRecAsChar(@NameValuePairs[a]) of
       ord('['):
         begin
           W.BsonDocumentBegin(name, betArray);
           ndx := 0;
           repeat
             inc(a);
-            if VarRecAsChar(NameValuePairs[a]) = ord(']') then
+            if VarRecAsChar(@NameValuePairs[a]) = ord(']') then
               break;
             UInt32ToUtf8(ndx, name);
             WriteValue;
@@ -4491,7 +4488,7 @@ var
           W.BsonDocumentBegin(name, betDoc);
           repeat
             inc(a);
-            VarRecToUtf8(NameValuePairs[a], name);
+            VarRecToUtf8(@NameValuePairs[a], name);
             if (a = high(NameValuePairs)) or
                (name = '}') then
               break;
@@ -4512,7 +4509,7 @@ begin
     a := 0;
     while a < high(NameValuePairs) do
     begin
-      VarRecToUtf8(NameValuePairs[a], name);
+      VarRecToUtf8(@NameValuePairs[a], name);
       inc(a);
       WriteValue;
       inc(a);
@@ -4614,7 +4611,7 @@ begin
   if (Format = '?') and
      (high(Params) >= 0) then
   begin
-    VarRecToVariant(Params[0], v);
+    VarRecToVariant(@Params[0], v);
     if DocVariantType.IsOfType(v) then
     begin
       result := Bson(TDocVariantData(v));
