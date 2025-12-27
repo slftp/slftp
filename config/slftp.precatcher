@@ -3,7 +3,7 @@ minimum_rlsname=10
 
 [ignorelist]
 // if any of the words listed here is in the bots actual announce line, the line won't be processed.
-ignorewords=(no-nfo) "( UL-SPEEDTEST )" "( DL-SPEEDTEST )" DN-SPPED UP-SPEED REQUEST REQFILLED NUKE REQUESTS "is now closed for uploads" "Total New dirs" "shot down" "- Required:" REQ invite downloading uploading dap reqstatus nuked nuke undupe selected archive "Total New dirs" delete deleted "closed for uploads" "Total New dirs" "shot down" "- Required:" REQ invite downloading uploading dap reqstatus nuked nuke undupe selected archive "Total New dirs" delete deleted
+ignorewords=(no-nfo) "( UL-SPEEDTEST )" "( DL-SPEEDTEST )" DN-SPPED UP-SPEED REQFILLED REQUESTS "is now closed for uploads" "Total New dirs" "shot down" "- Required:" REQ invite downloading uploading dap reqstatus undupe selected archive "Total New dirs" delete deleted "closed for uploads" "Total New dirs" "shot down" "- Required:" invite downloading uploading dap reqstatus undupe selected archive "Total New dirs" delete deleted
 
 // if any of these words occour at a specified position of the bots announce line, it will be cutted here. 
 // this is useful on sites, which announce the tagline of the racers.
@@ -18,7 +18,7 @@ replacefrom=0-DAY-MKD
 replaceto=0DAY
 replacefrom=(;);';[;];Tansistor Bass;.
 replaceto=
-replacefrom=|;-;.
+replacefrom=|;.
 replaceto=[:space:]
 
 [sections]

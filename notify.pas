@@ -23,12 +23,15 @@ type
   TTaskNotify = class
   private
     tnno: Integer;
+    tasks: TList;
+    function GetTaskCount: Integer;
   public
     event: TEvent;
-    tasks: TList;
     responses: TObjectList;
     constructor Create;
     destructor Destroy; override;
+    procedure AddTask(const aTask: TTask);
+    property TaskCount: Integer read GetTaskCount;
   end;
 
 procedure NotifyInit;
@@ -75,6 +78,17 @@ begin
   event.Free;
   responses.Free;
   inherited;
+end;
+
+procedure TTaskNotify.AddTask(const aTask: TTask);
+begin
+  self.tasks.Add(aTask);
+  aTask.EnableNotify;
+end;
+
+function TTaskNotify.GetTaskCount: Integer;
+begin
+  Result := tasks.Count;
 end;
 
 procedure NotifyInit;

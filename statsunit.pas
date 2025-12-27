@@ -114,6 +114,7 @@ var
   glLastStatsCleanTime: TDateTime;  //< When was the stats DB last cleaned from old entries
   glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
   glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
+  glDeleteAfterDays: integer;
 
 function _GetMinFilesize: Int64; inline;
 begin
@@ -129,6 +130,7 @@ begin
 
   glLastStatsCleanTime := MinDateTime;
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
+  glDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
 
   ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
@@ -609,8 +611,8 @@ begin
       GetTransferStats(s.Name, fSQLPeriod, fFileSizeStats);
 
       // in and out values will have the same total amount
-      Inc(fAllFilesTransfered, fFileSizeStats.FilesCountIn);
-      fAllSizeTransfered := fAllSizeTransfered + fFileSizeStats.SizeIn;
+      Inc(fAllFilesTransfered, fFileSizeStats.FilesCountIn + fFileSizeStats.FilesCountOut);
+      fAllSizeTransfered := fAllSizeTransfered + fFileSizeStats.SizeIn + fFileSizeStats.SizeOut;
 
       PrintStatsToIRC(s.Name, fSQLPeriod, fFileSizeStats);
     end;
@@ -712,14 +714,14 @@ begin
     end;
 
     try
-      if (config.ReadInteger(Section, 'delete_after_days', 0) > 0) and not glWriteStatsThreadShouldStop then
+      if (glDeleteAfterDays > 0) and not glWriteStatsThreadShouldStop then
       begin
 
         // clean the stats DB of old entries once each day
         if (DaysBetween(glLastStatsCleanTime, Today()) > 0) then
         begin
           i := 0;
-          fCleanDate := IncDay(Today(), config.ReadInteger(Section, 'delete_after_days', 0) * -1);
+          fCleanDate := IncDay(Today(), glDeleteAfterDays * -1);
 
           // only delete 1000 at a time
           fRec := TSQLFileInfoRecord.CreateAndFillPrepare(ORMStatsDB.Client, 'TimeStamp < ? limit 1000', [DateToIso8601(fCleanDate, False)]);
@@ -752,7 +754,7 @@ begin
             ORMStatsDB.Execute('pragma optimize;');
           end
           else
-            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, config.ReadInteger(Section, 'delete_after_days', 0)]));
+            Debug(dpSpam, Section, Format('Cleaned %d entries from stats db which are older than %d days', [i, glDeleteAfterDays]));
 
         end;
       end;

@@ -5,7 +5,8 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2;
+  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
+  routeconfig;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -51,7 +52,7 @@ type
   private
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
-    FActiveTransfers: TDictionary<string, string>;
+    FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
@@ -88,7 +89,7 @@ type
     // will be true when autofollow rule is used, otherwise default false
     firesourcesinstead: boolean;
 
-    speed_from: TStringList;
+    speed_from: TList<TSpeedFromRouteInfo>;
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
@@ -175,10 +176,9 @@ type
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
-      @param(aFilename Name of the file)
-      @param(aFilesize Size of the file)
+      @param(de The TDirListEntry of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
-    function PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
+    function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
     { Returns the amount of files for the release, includes files in subdirs
       @returns(Total file count of @link(rls)) }
     function GetCountOfCachedFiles: integer;
@@ -265,6 +265,7 @@ const
 var
   local_pazo_id: integer;
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
+  glPazoPreTimeLookupMode: TPretimeLookupMode;
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -397,6 +398,7 @@ procedure PazoInit;
 begin
   local_pazo_id := 0;
   glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
+  glPazoPreTimeLookupMode := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
 end;
 
 function TPazoSite.GetDirlistGaveUp: boolean;
@@ -427,7 +429,6 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
-  fExtensionMatchSFV, fExtensionMatchNFO: boolean;
 begin
   Result := False;
   dst := nil;
@@ -598,12 +599,10 @@ begin
           // destination dir is not complete
           if not dstdl.complete then
           begin
-            fExtensionMatchSFV := de.Extension = '.sfv';
-            fExtensionMatchNFO := de.Extension = '.nfo';
             // skip nfo and sfv if already there
-            if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
+            if ((dstdl.HasSFV) and (de.IsSFV)) then
               Continue;
-            if ((dstdl.HasNFO) and (fExtensionMatchNFO)) then
+            if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
 
             // Create the race task
@@ -620,9 +619,9 @@ begin
               end;
 
             // Set file type
-            if (fExtensionMatchSFV) then
+            if (de.IsSFV) then
               pr.IsSfv := True;
-            if (fExtensionMatchNFO) then
+            if (de.IsNFO) then
               pr.IsNfo := True;
 
             // sfv not found so we won't race this file yet
@@ -746,31 +745,30 @@ begin
   end;
 end;
 
-function TPazo.PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
+function TPazo.PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
 var
   fKey: String;
   fFilesize: Int64;
   fWasAdded: boolean;
   fPazoSite: TPazoSite;
 begin
-  fKey := aDir + '/' + aFilename;
+  fKey := aDir + '/' + de.FilenameLowerCased;
   fWasAdded := False;
 
   FUniqueFileListOfRelease_cs.Enter('PRegisterFile');
   try
-    if not FUniqueFileListOfRelease.ContainsKey(fKey) then
+    if not FUniqueFileListOfRelease.TryGetValue(fKey, fFilesize) then
     begin
-      FUniqueFileListOfRelease.Add(fKey, aFilesize);
+      FUniqueFileListOfRelease.Add(fKey, de.filesize);
       fWasAdded := True;
-      Result := aFilesize;
+      Result := de.filesize;
     end
     else
     begin
-      fFilesize := FUniqueFileListOfRelease[fKey];
-      if fFilesize < aFilesize then
+      if fFilesize < de.filesize then
       begin
-        FUniqueFileListOfRelease[fKey] := aFilesize;
-        Result := aFilesize;
+        FUniqueFileListOfRelease[fKey] := de.filesize;
+        Result := de.filesize;
       end
       else
       begin
@@ -781,7 +779,7 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And aIsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -794,7 +792,7 @@ begin
         if FindSiteByName('', fPazoSite.Name).UseForNFOdownload = ufnEnabled then
         begin
           Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
-          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, aFilename, 1));
+          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, de.filename, 1));
         end;
       end;
     end;
@@ -834,7 +832,7 @@ begin
   ready := False;
   lastTouch := Now();
   FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
-  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create(GetCaseInsensitveStringComparer);
+  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
   self.cleared := False;
@@ -1105,7 +1103,7 @@ begin
 
       if not aIsSpreadJob then
       begin
-        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
+        if glPazoPreTimeLookupMode <> plmNone then
         begin
           if not (rls.pretime <> 0) then
             Continue;
@@ -1145,7 +1143,7 @@ function TPazo.PFileSize(const aDir, aFilename: String): Int64;
 var
   fKey: String;
 begin
-  fKey := aDir + '/' + aFilename;
+  fKey := aDir + '/' + LowerCase(aFilename);
 
   if not FUniqueFileListOfRelease.TryGetValue(fKey, Result) then
     Result := -1;
@@ -1471,9 +1469,10 @@ begin
 
       for de in fFoundDirListEntries do
       begin
-        if not de.Directory then
+        if not de.Directory and de.FSizeChanged then
         begin
-          pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
+          pazo.PRegisterFile(dir, de);
+          de.FSizeChanged := False;
         end;
       end;
 
@@ -1542,6 +1541,7 @@ var
   fSite: TSite;
 begin
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
+  fTasksAdded := False;
   fFilesToRace := TList<TDirListEntry>.Create;
   try
     try
@@ -1580,7 +1580,7 @@ begin
             de.IsBeingUploaded := False;
           end;
 
-          if (de.Extension = '.sfv') then
+          if (de.IsSFV) then
           begin
             aDirlist.sfv_status := dlSFVFound;
           end;

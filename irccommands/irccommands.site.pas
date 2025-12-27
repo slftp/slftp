@@ -65,7 +65,7 @@ begin
 
   l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
   if tn <> nil then
-    tn.tasks.Add(l);
+    tn.AddTask(l);
 
   l.startat := GiveSiteLastStart;
   AddTask(l);
@@ -275,7 +275,13 @@ begin
 
   if (0 < Pos('-', sitename)) then
   begin
-    irc_addtext(Netname, Channel, 'Sitename cant contain -.');
+    irc_addtext(Netname, Channel, 'Sitename can''t contain -.');
+    exit;
+  end;
+
+  if (0 < Pos('%', sitename)) then
+  begin
+    irc_addtext(Netname, Channel, 'Sitename can''t contain %.');
     exit;
   end;
 
@@ -307,6 +313,7 @@ begin
     if ((bnchost = '') or (bncport = 0)) then
       break;
 
+    // doing this before actually creating the TSite object, so write those into the sites.dat directly and don't use s.WCString
     sitesdat.WriteString('site-' + sitename, 'bnc_host-' + IntToStr(i - 4), bnchost);
     sitesdat.WriteInteger('site-' + sitename, 'bnc_port-' + IntToStr(i - 4), bncport);
 
@@ -556,14 +563,14 @@ begin
       if (aktbnchost = bnchost) and (aktbncport = bncport) then
       begin
         megvan := True;
-        sitesdat.DeleteKey('site-' + sitename, 'bnc_host-' + IntToStr(i));
-        sitesdat.DeleteKey('site-' + sitename, 'bnc_port-' + IntToStr(i));
+        s.DeleteKey('bnc_host-' + IntToStr(i));
+        s.DeleteKey('bnc_port-' + IntToStr(i));
       end;
     end
     else
     begin
-      sitesdat.DeleteKey('site-' + sitename, 'bnc_host-' + IntToStr(i));
-      sitesdat.DeleteKey('site-' + sitename, 'bnc_port-' + IntToStr(i));
+      s.DeleteKey('bnc_host-' + IntToStr(i));
+      s.DeleteKey('bnc_port-' + IntToStr(i));
       s.WCString('bnc_host-' + IntToStr(i - 1), aktbnchost);
       s.WCInteger('bnc_port-' + IntToStr(i - 1), aktbncport);
     end;
@@ -786,11 +793,11 @@ begin
     end;
 
     try
-      sitesdat.DeleteKey('site-' + s.Name, 'autonuke');
-      sitesdat.DeleteKey('site-' + s.Name, 'autoindex');
-      sitesdat.DeleteKey('site-' + s.Name, 'autobnctest');
-      sitesdat.DeleteKey('site-' + s.Name, 'autorules');
-      sitesdat.DeleteKey('site-' + s.Name, 'autodirlist');
+      s.DeleteKey('autonuke');
+      s.DeleteKey('autoindex');
+      s.DeleteKey('autobnctest');
+      s.DeleteKey('autorules');
+      s.DeleteKey('autodirlist');
       // sitesdat.DeleteKey('site-'+s.name,'autologin');
       // sitesdat.UpdateFile;
     except
@@ -815,11 +822,11 @@ begin
     end;
 
     try
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autonuke');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autoindex');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autobnctest');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autorules');
-      sitesdat.DeleteKey('site-' + s.Name, 'disabled_autodirlist');
+      s.DeleteKey('disabled_autonuke');
+      s.DeleteKey('disabled_autoindex');
+      s.DeleteKey('disabled_autobnctest');
+      s.DeleteKey('disabled_autorules');
+      s.DeleteKey('disabled_autodirlist');
       // sitesdat.DeleteKey('site-'+s.name,'autologin');
       // sitesdat.UpdateFile;
     except
@@ -959,7 +966,7 @@ begin
          Continue;
       end;
 
-      sitesdat.WriteInteger('site-' + s.Name, 'slots', newslots);
+      s.WCInteger('slots', newslots);
       if oldslots > newslots then
       begin
         // you have to remove some slots
@@ -1005,7 +1012,7 @@ begin
           Continue;
         end;
 
-        sitesdat.WriteInteger('site-' + s.Name, 'slots', newslots);
+        s.WCInteger('slots', newslots);
         if oldslots > newslots then
         begin
           // you have to remove some slots
@@ -1346,6 +1353,7 @@ var
   i: integer;
   x: TStringList;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   method := SubString(params, ' ', 2);
   i := StrToIntDef(method, -1);
@@ -1548,7 +1556,7 @@ begin
   tn := AddNotify;
   try
     r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE USER ' + username);
-    tn.tasks.Add(r);
+    tn.AddTask(r);
     AddTask(r, True);
     tn.event.WaitFor($FFFFFFFF);
   except
@@ -1950,7 +1958,7 @@ var
     try
       try
         r := TRawTask.Create(Netname, Channel, s.Name, '', 'SITE STAT');
-        tn.tasks.Add(r);
+        tn.AddTask(r);
         AddTask(r, True);
         tn.event.WaitFor($FFFFFFFF);
       except on E: Exception do

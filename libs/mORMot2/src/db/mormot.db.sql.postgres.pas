@@ -177,7 +177,7 @@ type
     fPGParamFormats: TIntegerDynArray;
     // non zero for PGFMT_BIN params
     fPGParamLengths: TIntegerDynArray;
-    /// define the result columns name and content
+    /// define the result columns name and content - called once if cached
     procedure BindColumns;
     /// set parameters as expected by PostgresSQL
     procedure BindParams;
@@ -193,7 +193,7 @@ type
     // - if ExpectResults is TRUE, then Step() and Column*() methods are available
     // to retrieve the data rows
     // - raise an ESqlDBPostgres on any error
-    procedure Prepare(const aSql: RawUtf8; ExpectResults: boolean = False); overload; override;
+    procedure Prepare(const aSql: RawUtf8; ExpectResults: boolean = false); overload; override;
     /// execute a prepared SQL statement
     // - parameters marked as ? should have been already bound with Bind*() functions
     // - this implementation will also handle bound array of values (if any)
@@ -236,7 +236,7 @@ type
     // is not a SELECT but an UPDATE or INSERT command)
     // - if SeekFirst is TRUE, will put the cursor on the first row of results
     // - raise an ESqlDBPostgres on any error
-    function Step(SeekFirst: boolean = False): boolean; override;
+    function Step(SeekFirst: boolean = false): boolean; override;
     /// clear(fRes) when ISqlDBStatement is back in cache
     procedure ReleaseRows; override;
     /// return a Column integer value of the current Row, first Col is 0
@@ -256,6 +256,9 @@ type
     function ColumnPUtf8(Col: integer): PUtf8Char; override;
     /// return a Column as a blob value of the current Row, first Col is 0
     function ColumnBlob(Col: integer): RawByteString; override;
+    /// return a Column as a variant, first Col is 0
+    function ColumnToVariant(Col: integer; var Value: Variant;
+      ForceUtf8: boolean = false): TSqlDBFieldType; override;
     /// return one column value into JSON content
     procedure ColumnToJson(Col: integer; W: TJsonWriter); override;
     /// how many parameters founded during prepare stage
@@ -280,14 +283,14 @@ type
 
   /// event signature for TSqlDBPostgresAsyncStatement.ExecuteAsync() callback
   // - implementation should retrieve the data from Statement.Column*(), then
-  // process it using the opaque Context
+  // process it using the opaque Context - typically a TConnectionAsyncHandle
   // - is called with Statement = nil on any DB fatal error
   TOnSqlDBPostgresAsyncEvent = procedure(
-    Statement: TSqlDBPostgresAsyncStatement; Context: TObject) of object;
+    Statement: TSqlDBPostgresAsyncStatement; Context: PtrInt) of object;
 
   TSqlDBPostgresAsyncTask = record
     Statement: TSqlDBPostgresAsyncStatement;
-    Context: TObject;
+    Context: PtrInt;
     OnFinished: TOnSqlDBPostgresAsyncEvent;
     Options: TSqlDBPostgresAsyncStatementOptions;
   end;
@@ -309,18 +312,25 @@ type
     // !   with fDbPool.Async.PrepareLocked(WORLD_READ_SQL) do
     // !   try
     // !     Bind(1, ComputeRandomWorld);
-    // !     ExecuteAsync(ctxt, OnAsyncDb);
+    // !     ExecuteAsync(ctxt.AsyncHandle, OnAsyncDb);
     // !   finally
     // !     UnLock;
     // !   end;
-    // !   result := ctxt.SetAsyncResponse;
+    // !   result := HTTP_ASYNCRESPONSE;
     // ! end;
-    procedure ExecuteAsync(Context: TObject;
+    // !
+    // ! procedure TRawAsyncServer.OnAsyncDb(Statement: TSqlDBPostgresAsyncStatement;
+    // !   Context: PtrInt);
+    // ! begin
+    // !   fHttpServer.AsyncResponseFmt(Context, '{"id":%,"randomNumber":%}',
+    // !     [Statement.ColumnInt(0), Statement.ColumnInt(1)]);
+    // ! end;
+    procedure ExecuteAsync(Context: PtrInt;
       const OnFinished: TOnSqlDBPostgresAsyncEvent;
       ForcedOptions: PSqlDBPostgresAsyncStatementOptions = nil);
     /// ExecutePrepared-like method for asynchronous process
     // - just wrap ExecuteAsync + UnLock
-    procedure ExecuteAsyncNoParam(Context: TObject;
+    procedure ExecuteAsyncNoParam(Context: PtrInt;
       const OnFinished: TOnSqlDBPostgresAsyncEvent;
       ForcedOptions: PSqlDBPostgresAsyncStatementOptions = nil);
     /// could be used as a short-cut to Owner.Safe.Lock
@@ -356,8 +366,8 @@ type
   /// asynchronous execution engine
   // - allow to execute several statements within an PostgreSQL pipeline, and
   // return the results using asynchronous callbacks from a background thread
-  // - inherits from TSynPersistentLock so you can use Lock/UnLock
-  TSqlDBPostgresAsync = class(TSynPersistentLock)
+  // - inherits from TSynLocked so you can use Lock/UnLock
+  TSqlDBPostgresAsync = class(TSynLocked)
   protected
     fConnection: TSqlDBPostgresConnection;
     fStatements: array of TSqlDBPostgresAsyncStatement;
@@ -491,7 +501,7 @@ var
   log: ISynLog;
   host, port: RawUtf8;
 begin
-  log := SynDBLog.Enter(self, 'Connect');
+  SynDBLog.EnterLocal(log, self, 'Connect');
   Disconnect; // force fTrans=fError=fServer=fContext=nil
   try
     Split(Properties.ServerName, ':', host, port);
@@ -556,7 +566,7 @@ procedure TSqlDBPostgresConnection.StartTransaction;
 var
   log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'StartTransaction');
+  SynDBLog.EnterLocal(log, self, 'StartTransaction');
   if TransactionCount > 0 then
     ESqlDBPostgres.RaiseUtf8('Invalid %.StartTransaction: nested transactions' +
       ' are not supported by Postgres - use SAVEPOINT instead', [self]);
@@ -669,17 +679,12 @@ begin
      not Assigned(PQ.socket) then
     result := nil
   else
-    result := pointer(PtrUInt(PQ.socket(fPGConn)));
+    result := pointer(PtrUInt(PQ.socket(fPGConn))); // transtype to our wrapper
 end;
 
 function TSqlDBPostgresConnection.SocketHasData: boolean;
-var
-  pending: integer;
 begin
-  result := (self <> nil) and
-            Assigned(PQ.socket) and
-            (TNetSocket(PtrUInt(PQ.socket(fPGConn))).RecvPending(pending) = nrOK) and
-            (pending > 0);
+  result := Socket.HasData > 0;
 end;
 
 
@@ -704,24 +709,24 @@ end;
 procedure TSqlDBPostgresConnectionProperties.FillOidMapping;
 begin
   // see pg_type.h (most used first)
-  MapOid(INT4OID, ftInt64);
-  MapOid(INT8OID, ftInt64);
-  MapOid(TEXTOID, ftUtf8); // other char types will be ftUtf8 as fallback
-  MapOid(FLOAT8OID, ftDouble);
-  MapOid(TIMESTAMPOID, ftDate);
-  MapOid(BYTEAOID, ftBlob);
-  MapOid(NUMERICOID, ftCurrency); // our ORM uses NUMERIC(19,4) for currency
-  MapOid(BOOLOID, ftInt64);
-  MapOid(INT2OID, ftInt64);
-  MapOid(CASHOID, ftCurrency);
+  MapOid(INT4OID,        ftInt64);
+  MapOid(INT8OID,        ftInt64);
+  MapOid(TEXTOID,        ftUtf8); // other char types will be ftUtf8 as fallback
+  MapOid(FLOAT8OID,      ftDouble);
+  MapOid(TIMESTAMPOID,   ftDate);
+  MapOid(BYTEAOID,       ftBlob);
+  MapOid(NUMERICOID,     ftCurrency); // our ORM uses NUMERIC(19,4) for currency
+  MapOid(BOOLOID,        ftInt64);
+  MapOid(INT2OID,        ftInt64);
+  MapOid(CASHOID,        ftCurrency);
   MapOid(TIMESTAMPTZOID, ftDate);
-  MapOid(ABSTIMEOID, ftDate);
-  MapOid(DATEOID, ftDate);
-  MapOid(TIMEOID, ftDate);
-  MapOid(TIMETZOID, ftDate);
-  MapOid(REGPROCOID, ftInt64);
-  MapOid(OIDOID, ftInt64);
-  MapOid(FLOAT4OID, ftDouble);
+  MapOid(ABSTIMEOID,     ftDate);
+  MapOid(DATEOID,        ftDate);
+  MapOid(TIMEOID,        ftDate);
+  MapOid(TIMETZOID,      ftDate);
+  MapOid(REGPROCOID,     ftInt64);
+  MapOid(OIDOID,         ftInt64);
+  MapOid(FLOAT4OID,      ftDouble);
   // note: any other unregistered OID will be handled as ftUtf8 to keep the data
 end;
 
@@ -730,7 +735,7 @@ constructor TSqlDBPostgresConnectionProperties.Create(
 begin
   PostgresLibraryInitialize; // raise an ESqlDBPostgres on loading failure
   if PQ.IsThreadSafe <> 1 then
-    raise ESqlDBPostgres.Create('libpq should be compiled in threadsafe mode');
+    raise ESqlDBPostgres.CreateU('libpq should be compiled in threadsafe mode');
   fDbms := dPostgreSQL;
   FillOidMapping;
   inherited Create(aServerName, aDatabaseName, aUserID, aPassWord);
@@ -801,6 +806,9 @@ begin
   result := main.fAsync;
 end;
 
+
+{ TSqlDBPostgresStatement }
+
 procedure TSqlDBPostgresStatement.BindColumns;
 var
   nCols, c: integer;
@@ -841,7 +849,7 @@ var
   p: PSqlDBParam;
 begin
   // mark parameter as textual by default, with no blob length
-  FillCharFast(pointer(fPGParams)^, fParamCount shl POINTERSHR, 0);
+  FillCharFast(pointer(fPGParams)^,       fParamCount shl POINTERSHR, 0);
   FillCharFast(pointer(fPGParamFormats)^, fParamCount shl 2, PGFMT_TEXT);
   FillCharFast(pointer(fPGParamLengths)^, fParamCount shl 2, 0);
   // bind fParams[] as expected by PostgreSQL - potentially as array
@@ -981,8 +989,8 @@ begin
   end
   else
     SqlLogEnd;
-  // allocate libpq parameter buffers as dynamic arrays
-  SetLength(fPGParams, fPreparedParamsCount);
+  // allocate libpq parameter buffers as dynamic arrays - reused when cached
+  SetLength(fPGParams,       fPreparedParamsCount);
   SetLength(fPGParamFormats, fPreparedParamsCount);
   SetLength(fPGParamLengths, fPreparedParamsCount);
 end;
@@ -1265,62 +1273,136 @@ begin
     BlobInPlaceDecode(P, PQ.GetLength(fRes, fCurrentRow, col)));
 end;
 
+function TSqlDBPostgresStatement.ColumnToVariant(
+  Col: integer; var Value: Variant; ForceUtf8: boolean): TSqlDBFieldType;
+var
+  c: PSqlDBColumnProperty;
+  P: pointer;
+  L: PtrInt;
+  NoDecimal: boolean;
+  v: TSynVarData absolute Value;
+begin
+  if v.VType <> 0 then
+    VarClearProc(v.Data);
+  CheckColAndRowset(Col);
+  c := @fColumns[Col];
+  result := c^.ColumnType;
+  P := PQ.GetValue(fRes, fCurrentRow, Col);
+  if ((P = nil) or (PUtf8Char(P)^ = #0)) and
+     (PQ.GetIsNull(fRes, fCurrentRow, Col) = 1) then
+    result := ftNull;
+  v.VType := MAP_FIELDTYPE2VARTYPE[result];
+  v.VAny := nil; // avoid GPF below
+  case result of
+    ftNull:
+      ;
+    ftInt64:
+      if c^.ColumnAttr = BOOLOID then // = PQ.ftype(fRes, Col)
+      begin
+        v.VType := varBoolean;
+        v.VInteger := ord((P <> nil) and (PUtf8Char(P)^ = 't'))
+      end
+      else
+        SetInt64(P, v.VInt64);
+    ftDouble:
+      v.VDouble := GetExtended(P);
+    ftDate:
+      Iso8601ToDateTimePUtf8CharVar(P, StrLen(P), v.VDate);
+    ftCurrency:
+      begin
+        v.VInt64 := StrToCurr64(P, @NoDecimal);
+        if NoDecimal then
+        begin
+          v.VType := varInt64;
+          result := ftInt64;
+        end;
+      end;
+    ftUtf8:
+      begin
+        L := PQ.GetLength(fRes, fCurrentRow, Col);
+        if (P = nil) or
+           (L = 0) then
+          v.VType := varString // avoid obscure "Invalid variant type" in FPC
+        else if ForceUtf8 then
+        begin
+          v.VType := varString;
+          FastSetString(RawUtf8(v.VAny), P, L);
+        end
+        {$ifndef UNICODE}
+        else if (fConnection <> nil) and
+             not fConnection.Properties.VariantStringAsWideString then
+        begin
+          v.VType := varString;
+          CurrentAnsiConvert.Utf8BufferToAnsi(P, L, RawByteString(v.VAny));
+        end
+        {$endif UNICODE}
+        else
+          Utf8ToSynUnicode(P, L, SynUnicode(v.VAny));
+      end;
+    ftBlob:
+      if fForceBlobAsNull then
+        v.VType := varNull
+      else
+        FastSetRawByteString(RawByteString(v.VAny), P,
+          BlobInPlaceDecode(P, PQ.GetLength(fRes, fCurrentRow, col)));
+  end;
+end;
+
 procedure TSqlDBPostgresStatement.ColumnToJson(Col: integer; W: TJsonWriter);
 var
   P: pointer;
+  c: PSqlDBColumnProperty;
 begin
   if (fRes = nil) or
      (fResStatus <> PGRES_TUPLES_OK) or
      (fCurrentRow < 0) then
     ESqlDBPostgres.RaiseUtf8('Unexpected %.ColumnToJson', [self]);
-  with fColumns[Col] do
+  P := PQ.GetValue(fRes, fCurrentRow, Col);
+  if ((P = nil) or (PUtf8Char(P)^ = #0)) and
+     (PQ.GetIsNull(fRes, fCurrentRow, Col) = 1) then
+    W.AddNull
+  else
   begin
-    P := PQ.GetValue(fRes, fCurrentRow, Col);
-    if (PUtf8Char(P)^ = #0) and
-       (PQ.GetIsNull(fRes, fCurrentRow, Col) = 1) then
-      W.AddNull
+    c := @fColumns[Col];
+    case c^.ColumnType of
+      ftNull:
+        W.AddNull;
+      ftInt64,
+      ftDouble,
+      ftCurrency:
+        if c^.ColumnAttr = BOOLOID then // = PQ.ftype(fRes, Col)
+          W.Add((P <> nil) and (PUtf8Char(P)^ = 't'))
+        else
+          // note: StrLen slightly faster than PQ.GetLength for small content
+          W.AddShort(P, StrLen(P));
+      ftUtf8:
+        if (c^.ColumnAttr = JSONOID) or
+           (c^.ColumnAttr = JSONBOID) then
+          W.AddShort(P, PQ.GetLength(fRes, fCurrentRow, Col))
+        else
+        begin
+          W.Add('"');
+          W.AddJsonEscape(P, 0); // Len=0 is faster than StrLen/GetLength
+          W.AddDirect('"');
+        end;
+      ftDate:
+        begin
+          W.Add('"');
+          if (StrLen(P) > 10) and
+             (PAnsiChar(P)[10] = ' ') then
+            PAnsiChar(P)[10] := 'T'; // ensure strict ISO-8601 encoding
+          W.AddJsonEscape(P, 0);
+          W.AddDirect('"');
+        end;
+      ftBlob:
+        if fForceBlobAsNull then
+          W.AddNull
+        else
+          W.WrBase64(P, BlobInPlaceDecode(P,
+            PQ.GetLength(fRes, fCurrentRow, Col)), {withmagic=}true);
     else
-    begin
-      case ColumnType of
-        ftNull:
-          W.AddNull;
-        ftInt64,
-        ftDouble,
-        ftCurrency:
-          if ColumnAttr = BOOLOID then // = PQ.ftype(fRes, Col)
-            W.Add((P <> nil) and (PUtf8Char(P)^ = 't'))
-          else
-            // note: StrLen slightly faster than PQ.GetLength for small content
-            W.AddShort(P, StrLen(P));
-        ftUtf8:
-          if (ColumnAttr = JSONOID) or
-             (ColumnAttr = JSONBOID) then
-            W.AddShort(P, PQ.GetLength(fRes, fCurrentRow, Col))
-          else
-          begin
-            W.Add('"');
-            W.AddJsonEscape(P, 0); // Len=0 is faster than StrLen/GetLength
-            W.AddDirect('"');
-          end;
-        ftDate:
-          begin
-            W.Add('"');
-            if (StrLen(P) > 10) and
-               (PAnsiChar(P)[10] = ' ') then
-              PAnsiChar(P)[10] := 'T'; // ensure strict ISO-8601 encoding
-            W.AddJsonEscape(P);
-            W.AddDirect('"');
-          end;
-        ftBlob:
-          if fForceBlobAsNull then
-            W.AddNull
-          else
-            W.WrBase64(P, BlobInPlaceDecode(P,
-              PQ.GetLength(fRes, fCurrentRow, Col)), {withmagic=}true);
-      else
-        ESqlDBPostgres.RaiseUtf8('%.ColumnToJson: ColumnType=%?',
-          [self, ord(ColumnType)]);
-      end;
+      ESqlDBPostgres.RaiseUtf8('%.ColumnToJson: ColumnType=%?',
+        [self, ord(c^.ColumnType)]);
     end;
   end;
 end;
@@ -1330,7 +1412,7 @@ end;
 
 { TSqlDBPostgresAsyncStatement }
 
-procedure TSqlDBPostgresAsyncStatement.ExecuteAsync(Context: TObject;
+procedure TSqlDBPostgresAsyncStatement.ExecuteAsync(Context: PtrInt;
   const OnFinished: TOnSqlDBPostgresAsyncEvent;
   ForcedOptions: PSqlDBPostgresAsyncStatementOptions);
 var
@@ -1362,7 +1444,7 @@ begin
   end;
 end;
 
-procedure TSqlDBPostgresAsyncStatement.ExecuteAsyncNoParam(Context: TObject;
+procedure TSqlDBPostgresAsyncStatement.ExecuteAsyncNoParam(Context: PtrInt;
   const OnFinished: TOnSqlDBPostgresAsyncEvent;
   ForcedOptions: PSqlDBPostgresAsyncStatementOptions);
 begin
@@ -1400,8 +1482,8 @@ var
   {%H-}log: ISynLog;
 begin
   fProcessing := true;
-  SetCurrentThreadName(fName);
-  log := SynDBLog.Enter(self, 'Execute');
+  SetCurrentThreadName('=%', [fName]);
+  SynDBLog.EnterLocal(log, self, 'Execute');
   try
     repeat
       // notify if needed
@@ -1473,7 +1555,7 @@ begin
   end;
   fProcessing := false;
   log := nil;
-  TSynLog.Add.NotifyThreadEnded;
+  SynDBLog.Add.NotifyThreadEnded;
 end;
 
 

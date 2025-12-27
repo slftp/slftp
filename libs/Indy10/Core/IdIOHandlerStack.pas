@@ -211,8 +211,8 @@ uses
   {$IFDEF WINDOWS}
   Windows,
   {$ENDIF}
-  IdAntiFreezeBase, IdResourceStringsCore, IdResourceStrings, IdStackConsts, IdException,
-  IdTCPConnection, IdComponent, IdIOHandler, IdCustomTransparentProxy;
+  IdAntiFreezeBase, IdResourceStringsCore, IdStackConsts, IdException,
+  IdComponent, IdIOHandler, IdCustomTransparentProxy;
 
 type
   TIdConnectThread = class(TThread)
@@ -240,8 +240,17 @@ type
 
 function TIdIOHandlerStack.Connected: Boolean;
 begin
-  ReadFromSource(False, 0, False);
-  Result := inherited Connected;
+  try
+    ReadFromSource(False, 0, False);
+    Result := inherited Connected;
+  except
+    on E: EIdSocketError do begin
+      if not ((E.LastError = Id_WSAESHUTDOWN) or (E.LastError = Id_WSAECONNABORTED) or (E.LastError = Id_WSAECONNRESET)) then begin
+        raise;
+      end;
+      Result := False;
+    end;
+  end;
 end;
 
 procedure TIdIOHandlerStack.ConnectClient;

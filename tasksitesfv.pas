@@ -11,8 +11,8 @@ type
     FDir, FSFVFilename: String;
     FInitialTaskCreationTime: TDateTime;
     procedure CreateReattemptTask(const aIncrementAttempts: boolean);
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
   public
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer); overload;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;

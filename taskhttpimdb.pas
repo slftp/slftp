@@ -134,7 +134,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.base, mormot.core.variants;
+  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.variants;
 
 const
   section = 'taskhttpimdb';
@@ -163,7 +163,7 @@ var
   fStartIndex, fEndIndex, fCount: integer;
   fJsonObject: variant;
   fJsonString: string;
-  fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
+  fJsonImdbID, fJsonReleaseYear, fTitleType: UTF8String;
   doc: TDocVariantData;
   pdoc: PDocVariantData;
   fYearDoc: PDocVariantData;
@@ -177,7 +177,7 @@ begin
   fEndIndex := Pos('</script>', aPageSource, fStartIndex);
   fCount := fEndIndex - fStartIndex;
   fJsonString := Copy(aPageSource, fStartIndex + Length('type="application/json">'), fCount);
-  fJsonObject := _JsonFast(fJsonString);
+  fJsonObject := _JsonFast(UTF8String(fJsonString));
 
 
   doc := TDocVariantData(fJsonObject);
@@ -186,9 +186,10 @@ begin
   pdoc.GetAsRawUTF8('tconst', fJsonImdbID);
   pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
   pdoc.GetAsDocVariant('releaseYear', fYearDoc);
-  fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear);
+  if not (fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear)) then
+    fYearDoc.GetAsRawUTF8('year', fJsonReleaseYear);
   pdoc.GetAsRawUTF8('titleType', fTitleType);
-  if (fJsonImdbID = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', fTitleType)) then
+  if (UTF8ToString(fJsonImdbID) = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', UTF8ToString(fTitleType))) then
   begin
     Result := _JsonFast(pdoc.ToJSON());
     exit;
@@ -316,6 +317,7 @@ var
   fDocVariant: PDocVariantData;
   fVariant: Variant;
 begin
+  aGenresList := '';
   if not VarIsNull(aJsonObject) then
   begin
     TDocVariantData(aJsonObject).GetAsDocVariant('genres', fDocVariant);
@@ -609,6 +611,7 @@ var
   fBomScreensCount: Integer;
 begin
   Result := False;
+  fImdbCineYear := 0; // Initialize to prevent uninitialized variable warning
 
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then

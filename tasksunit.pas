@@ -7,6 +7,8 @@ uses Classes;
 type
   // this is all or part of the job
   TTask = class
+  private
+    FIsNotifyTask: Boolean;
   public
     site1: String;
     ssite1: Pointer;
@@ -52,6 +54,8 @@ type
     function ScheduleText: String;
     function IsReadyToBeExecuted: boolean; virtual;
     procedure DebugTask;
+    procedure EnableNotify;
+    property IsNotifyTask: Boolean read FIsNotifyTask;
   end;
 
 procedure Tasks_Init;
@@ -60,9 +64,18 @@ procedure Tasks_Uninit;
 const
   MaxNumberErrors = 3;
 
+var
+  GlConvertFilenamesToLowercase: boolean;
+  GlTaskSiteNfoReaddAttempts: integer;
+  GlTaskSiteNfoReaddInterval: integer;
+  GlTaskPretimeReaddAttempts: integer;
+  GlTaskPretimeReaddInterval: integer;
+  GlTaskRaceAutoRuleAdd: boolean;
+  GlTaskRaceBadCrcEvents: integer;
+
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify;
 
 const
   section = 'tasks';
@@ -99,7 +112,7 @@ begin
   announce := '';
   slot1name := '';
   slot2name := '';
-
+  FIsNotifyTask := False;
 
   ssite1 := FindSiteByName('', site1);
   if ssite1 = nil then
@@ -153,9 +166,21 @@ begin
   Result := True;
 end;
 
+procedure TTask.EnableNotify;
+begin
+  FIsNotifyTask := True;
+end;
+
 procedure Tasks_Init;
 begin
   uid_lock := TCriticalSection.Create;
+  GlConvertFilenamesToLowercase := config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True);
+  GlTaskSiteNfoReaddAttempts := config.ReadInteger('tasksitenfo', 'readd_attempts', 5);
+  GlTaskSiteNfoReaddInterval := config.ReadInteger('tasksitenfo', 'readd_interval', 3);
+  GlTaskPretimeReaddAttempts := config.ReadInteger('taskpretime', 'readd_attempts', 5);
+  GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
+  GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
+  GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
 end;
 
 procedure Tasks_Uninit;
