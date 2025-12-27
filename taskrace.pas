@@ -1130,6 +1130,34 @@ begin
   self.filesize := filesize;
 end;
 
+function GetSitePercent(const aSite: TPazoSite; const aDir: String): Integer;
+var
+  dirList: TDirList;
+begin
+  Result := -1;
+  if aSite = nil then
+  begin
+    Debug(dpSpam, c_section, 'GetSitePercent: Site object is NIL for dir %s', [aDir]);
+    exit;
+  end;
+  if aSite.dirlist = nil then
+  begin
+    Debug(dpSpam, c_section, 'GetSitePercent: Site %s has NIL dirlist for dir %s', [aSite.Name, aDir]);
+    exit;
+  end;
+  dirList := aSite.dirlist.FindDirlist(aDir, False);
+  if dirList = nil then
+  begin
+    Debug(dpSpam, c_section, 'GetSitePercent: dirlist not found for %s on site %s', [aDir, aSite.Name]);
+    exit;
+  end;
+
+  Result := dirList.PercentComplete;
+
+  if GetDebugVerbosity = dpSpam then
+    Debug(dpSpam, c_section, 'GetSitePercent: dir %s on site %s -> %d%%', [aDir, aSite.Name, Result]);
+end;
+
 function TPazoRaceTask.Execute(slot: Pointer): boolean;
 label
   TryAgain;
@@ -1151,8 +1179,25 @@ var
   lastResponse: String;
   fDiffSec: integer;
   fDiffMSec: Int64;
-  fDirlist: TDirlist;
+  fElapsedMs: Int64;
   fDirlistEntry: TDirlistEntry;
+  percentInfo: String;
+  srcPercent, dstPercent: Integer;
+  srcPercentStr, dstPercentStr: String;
+  fSrcDirlist: TDirlist;
+  fDstDirlist: TDirlist;
+
+  { FXP partial completion timeout tracking }
+  fSourceCompleteTimestamp: TDateTime; //< Timestamp when source sent 226 (GetTickCount64)
+  fTargetCompleteTimestamp: TDateTime; //< Timestamp when target sent 226 (GetTickCount64)
+  fSourceCompleted: Boolean;       //< True if source reported completion
+  fTargetCompleted: Boolean;       //< True if target reported completion
+
+  { Regression tracking fields }
+  fLastSrcFileSize: Int64;
+  fLastSrcUploader: String;
+  fLastDstFileSize: Int64;
+  fLastDstUploader: String;
 
   procedure _setOutOfSpace(const aSlot: TSiteSlot; const aErrorReason: String);
   begin
@@ -1188,12 +1233,181 @@ var
     end;
   end;
 
+  function CheckSourceUploaderSwitch: boolean;
+  var
+    lSrcFileSize: Int64;
+    lNow: TDateTime;
+    lSrcUser: String;
+    fSrcDirlistEntry: TDirlistEntry;
+    fSrcDiffMSec: Int64;
+  begin
+    Result := False;
+    lSrcFileSize := -1;
+    fSrcDiffMSec := MaxInt;
+    lNow := Now;
+    lSrcUser := '';
+    fSrcDirlistEntry := nil;
+
+    if fSrcDirlist = nil then
+      fSrcDirlist := ps1.dirlist.FindDirlist(dir);
+    if fSrcDirlist <> nil then
+    begin
+      fSrcDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Source');
+      try
+        fSrcDirlistEntry := fSrcDirlist.Find(filename);
+        if fSrcDirlistEntry <> nil then
+        begin
+          lSrcFileSize := fSrcDirlistEntry.filesize;
+          lSrcUser := fSrcDirlistEntry.Username;
+        end;
+        fSrcDiffMSec := MillisecondsBetween(lNow, fSrcDirlist.LastUpdated);
+      finally
+        fSrcDirlist.dirlist_lock.Leave;
+      end;
+    end;
+
+    if (lSrcUser <> '') then
+    begin
+      if (fLastSrcUploader <> '') and (not AnsiSameText(lSrcUser, fLastSrcUploader)) and (lSrcFileSize > 0) then
+      begin
+        Debug(dpSpam, c_section,
+          '[SRC-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
+          [tname, fLastSrcUploader, lSrcUser, lSrcFileSize, fLastSrcFileSize, fSrcDiffMSec]);
+        irc_Adderror(Format('<c7>[SRC-UPLOADER-SWITCH]</c> %s: %s -> %s (size=%d)',
+          [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
+        mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
+          [fLastSrcUploader, lSrcUser]);
+        sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
+        readyerror := True;
+        Result := True;
+        exit;
+      end;
+      fLastSrcUploader := lSrcUser;
+    end;
+
+    // Source Filesize Regression Detection (Slowkicker)
+    if (fSrcDiffMSec < 200) and (lSrcFileSize > 0) then
+    begin
+      if fLastSrcFileSize < 0 then
+        fLastSrcFileSize := lSrcFileSize
+      else if lSrcFileSize > fLastSrcFileSize then
+        fLastSrcFileSize := lSrcFileSize;
+
+      // Filesize decreased: slowkicker detected
+      if (fLastSrcFileSize > 0) and (lSrcFileSize < fLastSrcFileSize) then
+      begin
+        if spamcfg.readbool(c_section, 'src_regression', True) then
+        begin
+          irc_Adderror(Format('<c7>[SRC-REGRESSION]</c> %s: %d->%d age=%dms - killing slots',
+            [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]));
+        end;
+        Debug(dpSpam, c_section, '[SRC-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
+          [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]);
+        mainpazo.errorreason := 'Source regression';
+        sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask - source regression');
+        readyerror := True;
+        Result := True;
+        exit;
+      end;
+    end;
+  end;
+
+  function CheckDestinationUploaderSwitch: boolean;
+  var
+    lDstFileSize: Int64;
+    lNow: TDateTime;
+    lDstUser: String;
+    fDstDirlistEntry: TDirlistEntry;
+    fDstDiffMSec: Int64;
+  begin
+    Result := False;
+    lDstFileSize := -1;
+    fDstDiffMSec := MaxInt;
+    lNow := Now;
+    lDstUser := '';
+    fDstDirlistEntry := nil;
+
+    if fDstDirlist = nil then
+      fDstDirlist := ps2.dirlist.FindDirlist(dir);
+    if fDstDirlist <> nil then
+    begin
+      fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Destination');
+      try
+        fDstDirlistEntry := fDstDirlist.Find(filename);
+        if fDstDirlistEntry <> nil then
+        begin
+          lDstFileSize := fDstDirlistEntry.filesize;
+          lDstUser := fDstDirlistEntry.Username;
+        end;
+        fDstDiffMSec := MillisecondsBetween(lNow, fDstDirlist.LastUpdated);
+      finally
+        fDstDirlist.dirlist_lock.Leave;
+      end;
+    end;
+
+    if (lDstUser <> '') then
+    begin
+      // Only trigger if WE were the previous uploader and now someone else has the file
+      if AnsiSameText(fLastDstUploader, sdst.site.UserName) and (not AnsiSameText(lDstUser, fLastDstUploader)) and (lDstFileSize > 0) then
+      begin
+        Debug(dpSpam, c_section,
+          '[DST-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
+          [tname, fLastDstUploader, lDstUser, lDstFileSize, fLastDstFileSize, fDstDiffMSec]);
+        if spamcfg.readbool(c_section, 'dst_uploader_switch', True) then
+        begin
+          irc_Adderror(Format('<c7>[DST-UPLOADER-SWITCH]</c> %s: %s -> %s (size=%d)',
+            [tname, fLastDstUploader, lDstUser, lDstFileSize]));
+        end;
+        mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
+          [fLastDstUploader, lDstUser]);
+        sdst.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
+        readyerror := True;
+        Result := True;
+        exit;
+      end;
+      fLastDstUploader := lDstUser;
+    end;
+
+    // Destination Filesize Regression Detection (Slowkicker)
+    if (fDstDiffMSec < 200) and (lDstFileSize > 0) then
+    begin
+      if fLastDstFileSize < 0 then
+        fLastDstFileSize := lDstFileSize
+      else if lDstFileSize > fLastDstFileSize then
+        fLastDstFileSize := lDstFileSize;
+
+      // Filesize decreased: slowkicker detected
+      if (fLastDstFileSize > 0) and (lDstFileSize < fLastDstFileSize) then
+      begin
+        if spamcfg.readbool(c_section, 'dst_regression', True) then
+        begin
+          irc_Adderror(Format('<c7>[DST-REGRESSION]</c> %s: %d->%d age=%dms - killing slots',
+            [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]));
+        end;
+        Debug(dpSpam, c_section, '[DST-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
+          [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]);
+        mainpazo.errorreason := 'Destination regression';
+        sdst.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
+        readyerror := True;
+        Result := True;
+        exit;
+      end;
+    end;
+  end;
+
 begin
   Result := False;
   ssrc := slot1;
   sdst := slot2;
   numerrors := 0;
   tname := Name;
+  fSrcDirlist := nil;
+  fDstDirlist := nil;
+
 
   if mainpazo.stopped then
   begin
@@ -2017,6 +2231,13 @@ begin
             if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up (confed max_up: %d)</c> %s (%s)', [sdst.site.max_up, tname, lastResponse]);
 
+            if sdst <> nil then
+            begin
+              if sdst.site <> nil then
+                sdst.site.RegisterMaxSimUpHit(sdst.Name);
+              sdst.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
+            end;
+
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2112,6 +2333,13 @@ begin
             if spamcfg.readbool(c_section, 'reached_max_sim_up', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim up (confed max_up: %d)</c> %s (%s)', [sdst.site.max_up, tname, lastResponse]);
 
+            if sdst <> nil then
+            begin
+              if sdst.site <> nil then
+                sdst.site.RegisterMaxSimUpHit(sdst.Name);
+              sdst.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
+            end;
+
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2184,6 +2412,10 @@ begin
   Debug(dpSpam, 'taskrace', '<-- RECEIVED: %s', [lastResponse]);
 
   started := Now;
+  fLastSrcFileSize := -1;
+  fLastSrcUploader := '';
+  fLastDstFileSize := -1;
+  fLastDstUploader := '';
 
   // 150 File status okay; about to open data connection.
   // 1xx Positive Preliminary reply
@@ -2354,9 +2586,18 @@ begin
           begin
             if spamcfg.readbool(c_section, 'reached_max_sim_down', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR] Maxsim down (confed max_dn/max_pre_dn: %d/%d)</c> %s (%s)', [ssrc.site.max_dn, ssrc.site.max_pre_dn, tname, lastResponse]);
-              // on glftpd we could try to kill ghosts if it occurs over and over and on drftpd only setdown the site helps if it occurs over and over
+              // on glftpd we could try to kill ghosts if it occurs repeatedly, on drftpd only setdown the site helps when it happens over and over
 
-            sdst.DestroySocket(False);
+            if ssrc <> nil then
+            begin
+              if ssrc.site <> nil then
+                ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
+              ssrc.DestroySocketAndRelogin('Maximum of simultaneous downloads reached');
+            end;
+
+            if sdst <> nil then
+              sdst.DestroySocket(False);
+
             mainpazo.errorreason := 'Maximum of simultaneous downloads reached';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2386,6 +2627,12 @@ begin
 
   Debug(dpSpam, 'taskrace', '--> WAIT');
 
+  // Ensure timeout tracking is clean before monitoring the data connection
+  fSourceCompleted := False;
+  fTargetCompleted := False;
+  fSourceCompleteTimestamp := 0;
+  fTargetCompleteTimestamp := 0;
+
   rss := False;
   rsd := False;
   while (True) do
@@ -2412,21 +2659,92 @@ begin
       exit;
     end;
 
+    // Detect when source reports transfer complete (226)
+    if rss and (not FSourceCompleted) and (ssrc.lastResponseCode = 226) then
+    begin
+      fSourceCompleted := True;
+      fSourceCompleteTimestamp := Now;
+      Debug(dpSpam, c_section, '[FXP TIMEOUT] Source completed (226) at %s, waiting max 60s for target | Task: %s',
+        [FormatDateTime('mm-dd hh:nn:ss.zzz', fSourceCompleteTimestamp), tname]);
+    end;
+
+    // Detect when target reports transfer complete (226)
+    if rsd and (not FTargetCompleted) and (sdst.lastResponseCode = 226) then
+    begin
+      fTargetCompleted := True;
+      fTargetCompleteTimestamp := Now;
+      Debug(dpSpam, c_section, '[FXP TIMEOUT] Target completed (226) at %s, waiting max 60s for source | Task: %s',
+        [FormatDateTime('mm-dd hh:nn:ss.zzz', fTargetCompleteTimestamp), tname]);
+    end;
+
+    // Source is done, target still waiting
+    if fSourceCompleted and (not fTargetCompleted) then
+    begin
+      fElapsedMs := MilliSecondsBetween(Now, fSourceCompleteTimestamp);
+
+      if (GetDebugVerbosity = dpSpam) and (fElapsedMs mod 1000 < 150) then
+      begin
+        Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for target response: %d/%d ms elapsed (%.1f%%) | Target code=%d | %s',
+          [fElapsedMs, 60000, (fElapsedMs / 60000.0) * 100, sdst.lastResponseCode, tname]);
+      end;
+
+      if fElapsedMs > 60000 then
+      begin
+        irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Source complete, target no response after 60s: %s', [tname]));
+        Debug(dpError, c_section, '[FXP TIMEOUT] *** TARGET TIMEOUT *** after source 226 (%d ms / %d s) - disconnecting target | Source code=%d Target code=%d | Task: %s',
+          [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
+        sdst.DestroySocketAndRelogin('TPazoRaceTask');
+        mainpazo.errorreason := 'Target timeout after source 226';
+        readyerror := True;
+        exit;
+      end;
+    end;
+
+    // Target is done, source still waiting
+    if fTargetCompleted and (not fSourceCompleted) then
+    begin
+      fElapsedMs := MilliSecondsBetween(Now, fTargetCompleteTimestamp);
+
+      if (GetDebugVerbosity = dpSpam) and (fElapsedMs mod 1000 < 150) then
+      begin
+        Debug(dpSpam, c_section, '[FXP TIMEOUT] Waiting for source response: %d/%d ms elapsed (%.1f%%) | Source code=%d | %s',
+          [fElapsedMs, 60000, (fElapsedMs / 60000.0) * 100, ssrc.lastResponseCode, tname]);
+      end;
+
+      if fElapsedMs > 60000 then
+      begin
+        irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Target complete, source no response after 60s: %s', [tname]));
+        Debug(dpError, c_section, '[FXP TIMEOUT] *** SOURCE TIMEOUT *** after target 226 (%d ms / %d s) - disconnecting source | Source code=%d Target code=%d | Task: %s',
+          [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
+        ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+        mainpazo.errorreason := 'Source timeout after target 226';
+        readyerror := True;
+        exit;
+      end;
+    end;
+
     if ((rsd) and (rss)) then
       Break;
+
+    if CheckSourceUploaderSwitch then
+      exit;
+
+    if CheckDestinationUploaderSwitch then
+      exit;
 
     if sdst.site.KillConnectionOnStalledTransferSeconds > 0 then
     begin
       fDiffSec := SecondsBetween(Now, started);
       if fDiffSec > sdst.site.KillConnectionOnStalledTransferSeconds then
       begin
-        fDirlist := ps2.dirlist.FindDirlist(dir);
-        fDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
+        if fDstDirlist = nil then
+          fDstDirlist := ps2.dirlist.FindDirlist(dir);
+        fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
         try
-          fDirlistEntry := fDirlist.Find(filename);
-          fDiffMSec := MillisecondsBetween(Now, fDirlist.LastUpdated);
+          fDirlistEntry := fDstDirlist.Find(filename);
+          fDiffMSec := MillisecondsBetween(Now, fDstDirlist.LastUpdated);
         finally
-          fDirlist.dirlist_lock.Leave;
+          fDstDirlist.dirlist_lock.Leave;
         end;
 
         // if the dirlist is fairly up to date and shows a file size of 0 bytes,
@@ -3053,6 +3371,39 @@ begin
               speed_stat := Format('<b>%f</b>kB @ <b>%f</b>kB/s', [fsize, racebw]);
           end;
         end;
+
+        percentInfo := '';
+        try
+          srcPercent := GetSitePercent(ps1, dir);
+          dstPercent := GetSitePercent(ps2, dir);
+
+          if (srcPercent >= 0) or (dstPercent >= 0) then
+          begin
+            if srcPercent >= 100 then
+              srcPercentStr := Format('<c9><b>%d%%</b></c>', [srcPercent])
+            else if srcPercent >= 0 then
+              srcPercentStr := Format('<c8>%d%%</c>', [srcPercent])
+            else
+              srcPercentStr := '<c8>--</c>';
+            if dstPercent >= 100 then
+              dstPercentStr := Format('<c9><b>%d%%</b></c>', [dstPercent])
+            else if dstPercent >= 0 then
+              dstPercentStr := Format('<c8>%d%%</c>', [dstPercent])
+            else
+              dstPercentStr := '<c8>--</c>';
+            percentInfo := Format(' [SRC:%s-DST:%s] ',
+              [srcPercentStr, dstPercentStr]);
+          end;
+        except
+          on e: Exception do
+          begin
+            percentInfo := '';
+            Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask PercentInfo: %s', [e.Message]));
+          end;
+        end;
+
+        if percentInfo <> '' then
+          speed_stat := percentInfo + speed_stat;
         irc_SendRACESTATS(tname + ' ' + speed_stat);
 
         // add stats to database
@@ -3073,16 +3424,35 @@ begin
 end;
 
 function TPazoRaceTask.Name: String;
+var
+  slotInfo, siteInfo: String;
 begin
   try
+    slotInfo := '';
+
+    // Always show site1 -> site2
+    siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
+
+    // Additionally show slot names if available
+    if (slot1name <> '') and (slot2name <> '') then
+      slotInfo := Format(' <c9>[%s -> %s]</c>', [slot1name, slot2name])
+    else if slot1name <> '' then
+      slotInfo := Format(' <c9>[%s]</c>', [slot1name])
+    else if slot2name <> '' then
+      slotInfo := Format(' <c9>[%s]</c>', [slot2name]);
+
     if mainpazo.rls = nil then
-      Result := Format('RACE : %d <b>%s</b>-><b>%s</b>: %s (%d)',
-        [pazo_id, site1, site2, filename, rank])
+      Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
+        [pazo_id, siteInfo, slotInfo, filename, rank])
     else
-      Result := Format('RACE : %d <b>%s</b>-><b>%s</b>: %s %s (%d)',
-        [pazo_id, site1, site2, mainpazo.rls.rlsname, filename, rank]);
+      Result := Format('<c7>[RACE]</c> #%d%s%s : <c10><b>%s</b></c> <c7>%s</c> <c7>(%d)</c>',
+        [pazo_id, siteInfo, slotInfo, mainpazo.rls.rlsname, filename, rank]);
   except
-    Result := 'RACE';
+    on e: Exception do
+    begin
+      Result := 'RACE';
+      Debug(dpError, c_section, Format('[EXCEPTION] TPazoRaceTask.Name SlotInfo: %s', [e.Message]));
+    end;
   end;
 end;
 

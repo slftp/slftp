@@ -514,20 +514,20 @@ begin
           end;
         end;
 
-        if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
-        begin
-          MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
-          if not precatcher_debug then
-          begin
-            fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
-            AddTask(fRequestDirlistTask);
-          end;
-          exit;
-        end;
-
         if (mind) then
         begin
           try
+
+            if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
+            begin
+              MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
+              if not precatcher_debug then
+              begin
+                fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
+                AddTask(fRequestDirlistTask);
+              end;
+              exit;
+            end;
 
             if ss.eventtype = kbeADDPRE then
             begin
