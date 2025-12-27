@@ -2060,24 +2060,8 @@ begin
     mSLSetupSocks5(site.proxyname, self, True);
 
   //First step to connect
-  // Protect BNC configuration read with critical section to prevent race conditions
-  bnccsere.Enter('LoginBnc-Read');
-  try
-    Host := RawByteString(RCString('bnc_host-' + IntToStr(i), ''));
-    Port := RCInteger('bnc_port-' + IntToStr(i), 0);
-  finally
-    bnccsere.Leave;
-  end;
-
-  if (Host = '') or (Port = 0) then
-  begin
-    Debug(dpError, section, '[LoginBnc] Invalid BNC config for [%s] index %d: Host="%s" Port=%d', [site.Name, i, Host, Port]);
-    Debug(dpError, section, '[LoginBnc] Check sites.dat section [%s] for bnc_host-%d / bnc_port-%d', [site.Name, i, i]);
-    error := Format('Invalid BNC config at index %d', [i]);
-    exit;
-  end;
-
-  Debug(dpSpam, section, '[LoginBnc] %s BNC %d: %s:%d', [site.Name, i, Host, Port]);
+  Host := RCString('bnc_host-' + IntToStr(i), '');
+  Port := RCInteger('bnc_port-' + IntToStr(i), 0);
   Connect(site.connect_timeout * 1000);
 
   peerport := slSocket.PeerPort;
