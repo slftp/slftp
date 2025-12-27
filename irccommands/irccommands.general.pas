@@ -216,7 +216,7 @@ begin
     {$ENDIF}
   {$ENDIF}
 
-  irc_addtext(Netname, Channel, '<b>%s</b> [%s] (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [GetFullVersionString, GetDelphiCompilerVersion, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, GetOpenSSLShortVersion, DateTimeAsString(started), DatetimetoStr(started)]);
+  irc_addtext(Netname, Channel, '<b>%s</b> [%s] (PID: %s / MEM: %s %s) with OpenSSL %s is up for <c7><b>%s</b></c> [%s]', [GetFullVersionString, COMPILER_VERSION, fProcessID, FloatToStrF(fMemUsage, ffNumber, 15, 2), fUnit, GetOpenSSLVersion, DateTimeAsString(started), DatetimetoStr(started)]);
 
   Result := True;
 end;
@@ -230,7 +230,7 @@ begin
 
   irc_addtext(Netname, Channel, SlftpNewsStatus);
 
-  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [kb_list.Count]);
+  irc_addtext(Netname, Channel, '<b>Knowledge Base</b>: %d Rip''s in mind', [GetKBCount]);
   irc_addtext(Netname, Channel, TheTVDbStatus);
 
   if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) = plmSQLITE then
@@ -267,67 +267,8 @@ begin
 end;
 
 function IrcQueue(const netname, channel, params: String): boolean;
-var
-  i, ii: integer;
-  show_tasks: integer;
-  show_all: boolean;
-  rr: TRegExpr;
 begin
-  rr := TRegExpr.Create;
-  try
-    rr.ModifierI := True;
-
-    show_tasks := 10;
-    rr.Expression := '-c\:([\d]+)';
-    if rr.Exec(params) then
-    begin
-      show_tasks := StrToIntDef(rr.Match[1], 10);
-    end;
-
-    show_all := False;
-    rr.Expression := '--all';
-    if rr.Exec(params) then
-    begin
-      show_tasks := tasks.Count;
-      show_all := True;
-    end;
-
-    ii := 0;
-    irc_addtext(Netname, Channel, 'Tasks in queue: %d displaycount: %d', [tasks.Count, Min(show_tasks, tasks.Count)]);
-
-    for i := 0 to tasks.Count - 1 do
-    begin
-      try
-
-        if show_all then
-        begin
-          irc_addtext(Netname, Channel, TTask(tasks[i]).Fullname);
-          Continue;
-          //        Inc(ii);
-        end
-        else
-        begin
-
-          if (ii > show_tasks) then
-            break;
-
-          rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
-          if ((not rr.Exec(TTask(tasks[i]).Fullname)) and (not TTask(tasks[i]).ready) and (not TTask(tasks[i]).readyerror)) then
-          begin
-            irc_addtext(Netname, Channel, TTask(tasks[i]).Fullname);
-            Inc(ii);
-          end;
-        end;
-      except
-        break;
-      end;
-    end;
-
-  finally
-    rr.Free;
-  end;
-
-  Result := True;
+  Result := IrcQueueShow(netname, channel, params);
 end;
 
 function IrcLastLog(const netname, channel, params: String): boolean;

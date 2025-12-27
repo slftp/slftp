@@ -65,7 +65,6 @@ uses
   IdIOHandler,
   IdIOHandlerSocket,
   IdIOHandlerStack,
-  IdScheduler,
   IdServerIOHandler,
   IdYarn;
 
@@ -76,6 +75,8 @@ type
     fPassThrough: Boolean;
     fIsPeer : Boolean;
     FURIToCheck : String;
+    function GetProxyTargetHost: string;
+    function GetURIHost : string;
     procedure InitComponent; override;
     function RecvEnc(var ABuffer: TIdBytes): Integer; virtual; abstract;
     function SendEnc(const ABuffer: TIdBytes; const AOffset, ALength: Integer): Integer; virtual; abstract;
@@ -118,7 +119,7 @@ type
 
 Procedure RegisterSSL(const AProduct, AVendor, ACopyright,
   ADescription, AURL : String;
-  const AClientClass : TIdClientSSLClass; const AServerClass : TIdServerSSLClass);
+  const AClientClass : TIdClientSSLClass; const AServerClass : TIdServerSSLClass); {$IFDEF HAS_DEPRECATED}deprecated;{$ENDIF}
 
 type
   TIdSSLRegEntry = class(TCollectionItem)
@@ -138,7 +139,9 @@ type
     property URL : String read FURL write FURL;
     property ClientClass : TIdClientSSLClass read FClientClass write FClientClass;
     property ServerClass : TIdServerSSLClass read FServerClass write FServerClass;
-  end;
+  end {$IFDEF HAS_DEPRECATED}deprecated{$ENDIF};
+
+  {$I IdSymbolDeprecatedOff.inc}
 
   TIdSSLRegistry = class(TCollection)
   protected
@@ -149,20 +152,25 @@ type
     function Add: TIdSSLRegEntry;
     property Items [ Index: Integer ] : TIdSSLRegEntry read GetItem
       write SetItem; default;
-  end;
+  end {$IFDEF HAS_DEPRECATED}deprecated{$ENDIF};
 
 var
-  GSSLRegistry : TIdSSLRegistry;
+  GSSLRegistry : TIdSSLRegistry{$IFDEF HAS_DEPRECATED}{$IFDEF USE_SEMICOLON_BEFORE_DEPRECATED};{$ENDIF} deprecated{$ENDIF};
+
+  {$I IdSymbolDeprecatedOn.inc}
 
 implementation
 
 uses
-  SysUtils;
+  SysUtils, IdCustomTransparentProxy, IdURI;
+
+{$I IdSymbolDeprecatedOff.inc}
 
 Procedure RegisterSSL(const AProduct, AVendor, ACopyright,
   ADescription, AURL : String;
   const AClientClass : TIdClientSSLClass; const AServerClass : TIdServerSSLClass);
-var LR : TIdSSLRegEntry;
+var
+  LR : TIdSSLRegEntry;
 begin
   LR := GSSLRegistry.Add;
   LR.ProductName := AProduct;
@@ -174,7 +182,52 @@ begin
   LR.ServerClass := AServerClass;
 end;
 
+{$I IdSymbolDeprecatedOn.inc}
+
 { TIdSSLIOHandlerSocketBase }
+
+function TIdSSLIOHandlerSocketBase.GetProxyTargetHost: string;
+var
+  // under ARC, convert a weak reference to a strong reference before working with it
+  LTransparentProxy, LNextTransparentProxy: TIdCustomTransparentProxy;
+begin
+  Result := '';
+  // RLebeau: not reading from the property as it will create a
+  // default Proxy object if one is not already assigned...
+  LTransparentProxy := FTransparentProxy;
+  if Assigned(LTransparentProxy) then
+  begin
+    if LTransparentProxy.Enabled then
+    begin
+      repeat
+        LNextTransparentProxy := LTransparentProxy.ChainedProxy;
+        if not Assigned(LNextTransparentProxy) then
+          Break;
+        if not LNextTransparentProxy.Enabled then
+          Break;
+        LTransparentProxy := LNextTransparentProxy;
+      until False;
+      Result := LTransparentProxy.Host;
+    end;
+  end;
+
+end;
+
+function TIdSSLIOHandlerSocketBase.GetURIHost : string;
+var
+  LURI: TIdURI;
+begin
+  Result := '';
+  if URIToCheck <> '' then
+  begin
+    LURI := TIdURI.Create(URIToCheck);
+    try
+      Result := LURI.Host;
+    finally
+      LURI.Free;
+    end;
+  end;
+end;
 
 procedure TIdSSLIOHandlerSocketBase.InitComponent;
 begin
@@ -219,6 +272,8 @@ begin
 end;
 
 { TIdSSLRegistry }
+
+{$I IdSymbolDeprecatedOff.inc}
 
 function TIdSSLRegistry.Add: TIdSSLRegEntry;
 begin
