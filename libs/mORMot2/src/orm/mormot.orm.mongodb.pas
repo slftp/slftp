@@ -498,7 +498,7 @@ var
   rtti: TRttiJson;
   js, RecordVersionName: RawUtf8;
   MissingID: boolean;
-  V: PRttiVarData;
+  V: PSynVarData;
 begin
   // parse input JSON
   Doc.InitJson(Json, [dvoValueCopiedByReference, dvoAllowDoubleValue]);
@@ -536,26 +536,26 @@ begin
       // using the ORM/pascal declared types
       info := fStoredClassRecordProps.Fields.List[ndx];
       V := @Doc.Values[i];
-      case V^.VType of
+      case V^.Data.VType of // 32-bit overlapped V^.VType is not correct here
         varInteger:
           // normalize 32-bit integer values into MongoDB boolean or date/time
           case info.OrmFieldType of
             oftBoolean:
               begin
                 // normalize to boolean BSON
-                if V^.Data.VInteger <> 0 then
+                if V^.VInteger <> 0 then
                   V^.Data.VBoolean := true;
                 // doc.InitJson/GetVariantFromJson store 0,1 as varInteger
                 V^.VType := varBoolean;
               end;
             oftUnixTime:
               begin
-                V^.Data.VDate := UnixTimeToDateTime(V^.Data.VInteger);
+                V^.VDate := UnixTimeToDateTime(V^.VInteger);
                 V^.VType := varDate; // direct set to avoid unexpected EInvalidOp
               end;
             oftUnixMSTime: // (very unlikely for actual time)
               begin
-                V^.Data.VDate := UnixMSTimeToDateTime(V^.Data.VInteger);
+                V^.VDate := UnixMSTimeToDateTime(V^.VInteger);
                 V^.VType := varDate;
               end;
           end;
@@ -564,12 +564,12 @@ begin
           case info.OrmFieldType of
             oftUnixTime:
               begin
-                V^.Data.VDate := UnixTimeToDateTime(V^.Data.VInt64);
+                V^.VDate := UnixTimeToDateTime(V^.VInt64);
                 V^.VType := varDate; // direct set to avoid unexpected EInvalidOp
               end;
             oftUnixMSTime:
               begin
-                V^.Data.VDate := UnixMSTimeToDateTime(V^.Data.VInt64);
+                V^.VDate := UnixMSTimeToDateTime(V^.VInt64);
                 V^.VType := varDate;
               end;
           end;
@@ -581,22 +581,22 @@ begin
               begin
                 // ISO-8601 text as MongoDB date/time
                 Iso8601ToDateTimePUtf8CharVar(
-                  V^.Data.VAny, length(RawByteString(V^.Data.VAny)), dt);
-                RawByteString(V^.Data.VAny) := '';
-                V^.Data.VDate := dt;
-                V^.VType := varDate; // direct set to avoid unexpected EInvalidOp
+                  V^.VAny, length(RawByteString(V^.VAny)), dt);
+                FastAssignNew(V^.VAny);
+                V^.VDate := dt;
+                V^.VType := varDate; // direct set to avoid EInvalidOp
               end;
             oftBlob,
             oftBlobCustom:
               begin
                 // store Base64-encoded BLOB as binary
-                blob := BlobToRawBlob(RawByteString(V^.Data.VAny));
+                blob := BlobToRawBlob(RawByteString(V^.VAny));
                 BsonVariantType.FromBinary(blob, bbtGeneric, Variant(V^));
               end;
             oftBlobDynArray:
               begin
                 // store dynamic array as object (if has any Json)
-                blob := BlobToRawBlob(RawByteString(V^.Data.VAny));
+                blob := BlobToRawBlob(RawByteString(V^.VAny));
                 if blob = '' then
                   SetVariantNull(Variant(V^))
                 else
@@ -1431,7 +1431,7 @@ var
             else
               name := fStoredClassRecordProps.Fields.List[Field - 1].Name;
             if SubField <> '' then // 'field.subfield1.subfield2'
-              name := name + SubField;
+              Append(name, SubField);
             if FunctionName <> '' then
               if FunctionKnown = funcDistinct then
               begin
@@ -1756,15 +1756,15 @@ begin
       include(o, mcoTls);
     client := TMongoClient.Create(server, p, o);
     try
-      with aDefinition do
-        if (User <> '') and
-           (Password <> '') then
-        begin
-          pwd := PasswordPlain;
-          database := client.OpenAuth(DatabaseName, User, pwd);
-        end
-        else
-          database := client.Open(DatabaseName);
+      if (aDefinition.User <> '') and
+         (aDefinition.Password <> '') then
+      begin
+        pwd := aDefinition.PasswordPlain;
+        database := client.OpenAuth(
+          aDefinition.DatabaseName, aDefinition.User, pwd);
+      end
+      else
+        database := client.Open(aDefinition.DatabaseName);
       result := CreateInMemoryServer(aModel, aHandleAuthentication);
       OrmMapMongoDBAll(
         (result as TRestServer).OrmInstance as TRestOrmServer,

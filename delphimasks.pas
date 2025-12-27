@@ -156,6 +156,7 @@ begin
   P := PChar(Mask);
   I := 0;
   Cards := 0;
+  SkipTo := False; // Initialize to prevent uninitialized variable warning
   Reset;
   while P^ <> #0 do
   begin

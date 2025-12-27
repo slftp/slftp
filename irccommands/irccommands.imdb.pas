@@ -20,32 +20,30 @@ var
   i: integer;
   imdbdata: TDbImdbData;
 begin
-  Result := foundMovieAlreadyInDbWithReleaseName(params);
-  if Result then
+  Result := False;
+
+  dbaddimdb_cs.Enter('IrcAnnounceIMDBInfo1');
+  try
+    i := last_imdbdata.IndexOf(params);
+  finally
+    dbaddimdb_cs.Leave;
+  end;
+
+  if i = -1 then
   begin
     imdbdata := GetImdbMovieData(params);
     imdbdata.PostResults(params);
   end
   else
   begin
-    irc_addtext(Netname, Channel, Format('<c4><b>ERROR</c></b>: %s not found in database!', [params]));
-    result := True;
-    exit;
-  end;
-end;
+    dbaddimdb_cs.Enter('IrcAnnounceIMDBInfo2');
+    try
+      imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
+    finally
+      dbaddimdb_cs.Leave;
+    end;
 
-function IrcDeleteIMDBInfo(const netname, channel, params: String): boolean;
-begin
-  Result := DeleteIMDbDataWithImdbId(params);
-  if Result then
-  begin
-    irc_addtext(Netname, Channel, Format('<c4><b>INFO</c></b>: %s has been deleted from database!', [params]));
-  end
-  else
-  begin
-    irc_addtext(Netname, Channel, Format('<c4><b>ERROR</c></b>: %s not found in database!', [params]));
-    result := True;
-    exit;
+    imdbdata.PostResults(Netname, Channel, params);
   end;
 end;
 

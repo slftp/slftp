@@ -119,7 +119,7 @@ def update_mORMot():
         for filepath in result:
             os.remove(filepath)
 
-    # # write commit info file
+    # write commit info file
     write_versioninfo(mainpath, sha_hash, commit_msg)
 
     # set defines for memory-manager
@@ -129,6 +129,16 @@ def update_mORMot():
         for line in lines:
             if "$define FPCMM_SERVER" in line:
                 sources.write('{$define FPCMM_SERVER}\n')
+            else:
+                sources.write(line)
+
+    # set defines for openssl
+    with open(os.path.join(mainpath, "src", "mormot.defines.inc"), "r") as sources:
+        lines = sources.readlines()
+    with open(os.path.join(mainpath, "src", "mormot.defines.inc"), "w") as sources:
+        for line in lines:
+            if '{.$define USE_OPENSSL}' in line:
+                sources.write('{$define USE_OPENSSL}\n')
             else:
                 sources.write(line)
 

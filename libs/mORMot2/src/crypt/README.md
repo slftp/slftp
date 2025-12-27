@@ -10,6 +10,8 @@ Those units implement hashing, message digests, encryption, and asymmetric crypt
 
 They are written in a cross-platform way in mind, with a very efficient stand-alone version (using optimized pascal code and assembly), or via an external OpenSSL library.
 
+Hint: If you are not familiar with the algorithms themselves and their details, consider using [mormot.crypt.secure](./mormot.crypt.secure.pas) and its `Rnd`/`Hash`/`Sign`/`Cipher`/`Asym`/`Cert`/`Store` high-level factories.
+
 Legal Notice: as stated by [our licensing terms](../../LICENCE.md), make sure that you comply to any restriction about the use of cryptographic software in your country.
 
 
@@ -46,7 +48,6 @@ Authentication and Security types shared by all framework units.
 - `Rnd`/`Hash`/`Sign`/`Cipher`/`Asym`/`Cert`/`Store` High-Level Algorithms Factories
 - Minimal `PEM`/`DER` Encoding/Decoding
 - Basic ASN.1 Support
-- Windows Executable Digital Signature Stuffing
 
 ### mormot.crypt.ecc256r1
 
@@ -97,6 +98,8 @@ High-Performance Cryptographic Features using *OpenSSL* 1.1 / 3.x
 - *OpenSSL* Asymmetric Cryptography
 - JWT Implementation using any OpenSSL Algorithm
 - Register *OpenSSL* to our General Cryptography Catalog
+
+**Warning**: on Windows, you need to define the `USE_OPENSSL` conditional in YOUR project options to have this code actually link to the OpenSSL library.
 
 TL;DR: On x86_64, our `mormot.crypt.pas` asm is stand-alone and faster than *OpenSSL* for most algorithms, and only 20% slower for `AES-GCM` (but faster for *OpenSSL* 3.0).
 For `ECC` or `RSA`, our `mormot.crypt.ecc256r1` or `mormot.crypt.rsa` units are noticeably slower than *OpenSSL*, but fully stand-alone.

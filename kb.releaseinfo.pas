@@ -705,7 +705,7 @@ begin
       end;
       if rlsname[i] = '.' then
         Inc(FNumberOfDots);
-      if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
+      if CharInSet(rlsname[i], ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
         Inc(FNumberOfVowels);
     end;
 
@@ -747,7 +747,7 @@ begin
         j := 1;
         while (j <= length(words[i])) do
         begin
-          if words[i][j] in ['0'..'9'] then
+          if CharInSet(words[i][j], ['0'..'9']) then
             disks := disks * 10 + Ord(words[i][j]) - 48
           else
             Break;
@@ -1034,6 +1034,7 @@ begin
 
   aSourceType := '';
   aNumberOfDisks := 0;
+  i := 1; // Initialize to prevent uninitialized variable warning
 
   for i := 1 to fWordLen do
   begin
@@ -1475,8 +1476,14 @@ begin
   try
     pazo := FindPazoByName(section, rlsname);
 
-    imdbdata := GetImdbMovieData(pazo.rls.rlsname);
-    if (imdbdata = nil) or UpdateMovieInDbWithImdbDataNeeded(imdbdata) then
+    dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal1');
+    try
+      i := last_imdbdata.IndexOf(rlsname);
+    finally
+      dbaddimdb_cs.Leave;
+    end;
+
+    if i = -1 then
     begin
     // we have the nfo but update needed
       Debug(dpError, rsections, Format('[Info] [Kb.ReleaseInfo] Get or Update IMDB-Infos for ReleaseName: %s', [rlsname]));
@@ -1498,10 +1505,32 @@ begin
     else
     begin
       try
-        // we already have imdb infos
-        irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!', [pazo.rls.rlsname]));
-        imdbdata.PostResults(pazo.rls.rlsname);
-        if pazo.rls is TIMDBRelease then
+        dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal2');
+        try
+          imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
+        finally
+          dbaddimdb_cs.Leave;
+        end;
+
+        imdb_id := imdbdata.imdb_id;
+        imdb_year := imdbdata.imdb_year;
+        imdb_languages.DelimitedText := imdbdata.imdb_languages.DelimitedText;
+        imdb_countries.DelimitedText := imdbdata.imdb_countries.DelimitedText;
+        imdb_genres.DelimitedText := imdbdata.imdb_genres.DelimitedText;
+        imdb_screens := imdbdata.imdb_screens;
+        imdb_rating := imdbdata.imdb_rating;
+        imdb_votes := imdbdata.imdb_votes;
+        CineYear := imdbdata.imdb_cineyear;
+        imdb_ldt := imdbdata.imdb_ldt;
+        imdb_wide := imdbdata.imdb_wide;
+        imdb_festival := imdbdata.imdb_festival;
+        imdb_stvm := imdbdata.imdb_stvm;
+        imdb_stvs := imdbdata.imdb_stvs;
+        imdb_type := imdbdata.imdb_type;
+
+        FLookupDone := True;
+      except
+        on e: Exception do
         begin
           ir := TIMDBRelease(pazo.rls);
           ir.imdb_id := imdbdata.imdb_id;
