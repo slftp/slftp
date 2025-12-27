@@ -913,83 +913,148 @@ begin
         if p = nil then
           Continue;
 
-        // Build release info
-        TDocVariant.New(releaseJson);
-        releaseJson.ReleaseName := UTF8Encode(p.rls.rlsname);
-        releaseJson.Section := UTF8Encode(p.rls.section);
-        releaseJson.Added := DateTimeToUnix(p.added);
-        releaseJson.PazoId := p.pazo_id;
-
-        // Calculate status based on sites
-        if p.stopped then
-        begin
-          releaseJson.Ready := False;
-          releaseJson.Stopped := True;
-        end
-        else if p.ready then
-        begin
-          releaseJson.Ready := True;
-          releaseJson.Stopped := False;
-        end
-        else
-        begin
-          // Check if all sites are complete
-          releaseJson.Ready := True; // Assume complete until proven otherwise
-          for ps in p.PazoSitesList do
-          begin
-            if not (ps.status in [rssNotAllowed, rssComplete, rssRealPre]) then
-            begin
-              releaseJson.Ready := False; // At least one site is not complete
-              Break;
-            end;
-          end;
-          releaseJson.Stopped := False;
+        // Skip if essential properties are not available
+        try
+          if (p.rls = nil) or (p.PazoSitesList = nil) then
+            Continue;
+        except
+          Continue;
         end;
 
-        releaseJson.QueueNumber := p.queuenumber.Value;
+        // Build release info
+        try
+          TDocVariant.New(releaseJson);
+          releaseJson.ReleaseName := UTF8Encode(p.rls.rlsname);
+          releaseJson.Section := UTF8Encode(p.rls.section);
+          releaseJson.Added := DateTimeToUnix(p.added);
+          releaseJson.PazoId := p.pazo_id;
 
-        // Collect site names and compute basic status counts
-        totalSites := 0;
-        allowedSites := 0;
-        presentSites := 0;
-        expectedSites := 0;
-        notAllowedSites := 0;
-
-        sitesArray.Init(JSON_FAST, dvArray);
-        expectedSitesArray.Init(JSON_FAST, dvArray);
-        for ps in p.PazoSitesList do
-        begin
-          if ps.Name <> '' then
+          // Calculate status based on sites
+          if p.stopped then
           begin
-            sitesArray.AddItem(UTF8Encode(ps.Name));
-          end;
-
-          Inc(totalSites);
-
-          isNotAllowed := ps.status in [rssNotAllowed, rssNotAllowedButItsThere];
-          if isNotAllowed then
-            Inc(notAllowedSites)
+            releaseJson.Ready := False;
+            releaseJson.Stopped := True;
+          end
+          else if p.ready then
+          begin
+            releaseJson.Ready := True;
+            releaseJson.Stopped := False;
+          end
           else
-            Inc(allowedSites);
-
-          isPresent := False;
-          try
-            if (ps.dirlist <> nil) then
-              isPresent := (ps.dirlist.entries.Count > 0) or ps.dirlist.Complete;
-          except
-            isPresent := False;
-          end;
-          if not isPresent then
-            isPresent := ps.status in [rssRealPre, rssComplete, rssNotAllowedButItsThere];
-
-          if isPresent then
-            Inc(presentSites);
-
-          if isPresent and (not isNotAllowed) then
           begin
-            Inc(expectedSites);
-            if ps.Name <> '' then
-              expectedSitesArray.AddItem(UTF8Encode(ps.Name));
+            // Check if all sites are complete
+            releaseJson.Ready := True; // Assume complete until proven otherwise
+            try
+              for ps in p.PazoSitesList do
+              begin
+                if ps = nil then
+                  Continue;
+                try
+                  if not (ps.status in [rssNotAllowed, rssComplete, rssRealPre]) then
+                  begin
+                    releaseJson.Ready := False; // At least one site is not complete
+                    Break;
+                  end;
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('GetRecentReleases: Error checking site status for Pazo %d: %s',
+                      [p.pazo_id, E.Message]));
+                  end;
+                end;
+              end;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('GetRecentReleases: Error iterating sites for Ready check, Pazo %d: %s',
+                  [p.pazo_id, E.Message]));
+                releaseJson.Ready := False;
+              end;
+            end;
+            releaseJson.Stopped := False;
+          end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('GetRecentReleases: Error building basic info for Pazo %d: %s',
+              [p.pazo_id, E.Message]));
+            Continue;
+          end;
+        end;
+
+        try
+          releaseJson.QueueNumber := p.queuenumber.Value;
+
+          // Collect site names and compute basic status counts
+          totalSites := 0;
+          allowedSites := 0;
+          presentSites := 0;
+          expectedSites := 0;
+          notAllowedSites := 0;
+
+          sitesArray.Init(JSON_FAST, dvArray);
+          expectedSitesArray.Init(JSON_FAST, dvArray);
+
+          try
+            for ps in p.PazoSitesList do
+            begin
+              if ps = nil then
+                Continue;
+
+              try
+                if ps.Name <> '' then
+                begin
+                  sitesArray.AddItem(UTF8Encode(ps.Name));
+                end;
+
+                Inc(totalSites);
+
+                isNotAllowed := ps.status in [rssNotAllowed, rssNotAllowedButItsThere];
+                if isNotAllowed then
+                  Inc(notAllowedSites)
+                else
+                  Inc(allowedSites);
+
+                isPresent := False;
+                try
+                  if (ps.dirlist <> nil) then
+                    isPresent := (ps.dirlist.entries.Count > 0) or ps.dirlist.Complete;
+                except
+                  isPresent := False;
+                end;
+                if not isPresent then
+                  isPresent := ps.status in [rssRealPre, rssComplete, rssNotAllowedButItsThere];
+
+                if isPresent then
+                  Inc(presentSites);
+
+                if isPresent and (not isNotAllowed) then
+                begin
+                  Inc(expectedSites);
+                  if ps.Name <> '' then
+                    expectedSitesArray.AddItem(UTF8Encode(ps.Name));
+                end;
+              except
+                on E: Exception do
+                begin
+                  Debug(dpError, section, Format('GetRecentReleases: Error processing site info for Pazo %d: %s',
+                    [p.pazo_id, E.Message]));
+                end;
+              end;
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('GetRecentReleases: Error iterating sites for site info, Pazo %d: %s',
+                [p.pazo_id, E.Message]));
+            end;
+          end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('GetRecentReleases: Error collecting site info for Pazo %d: %s',
+              [p.pazo_id, E.Message]));
+            Continue;
           end;
         end;
         releaseJson.Sites := variant(sitesArray);
@@ -1037,54 +1102,134 @@ begin
     p := FindPazoById(PazoId);
     if p = nil then
     begin
-      Debug(dpError, section, Format('Pazo with ID %d not found', [PazoId]));
+      Debug(dpError, section, Format('GetReleaseDetails: Pazo with ID %d not found', [PazoId]));
       Exit;
     end;
 
+    // Check essential properties
+    try
+      if p.rls = nil then
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Pazo %d has nil rls property', [PazoId]));
+        Exit;
+      end;
+      if p.PazoSitesList = nil then
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Pazo %d has nil PazoSitesList property', [PazoId]));
+        Exit;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Error checking Pazo %d properties: %s', [PazoId, E.Message]));
+        Exit;
+      end;
+    end;
+
     // Basic info
-    Response.ReleaseName := UTF8Encode(p.rls.rlsname);
-    Response.Section := UTF8Encode(p.rls.section);
-    Response.Added := p.added;
-    Response.PazoId := p.pazo_id;
-    Response.Ready := p.ready;
-    Response.Stopped := p.stopped;
-    Response.QueueNumber := p.queuenumber.Value;
-    Response.ErrorReason := UTF8Encode(p.errorreason);
-    Response.TotalFiles := p.GetCountOfCachedFiles;
+    try
+      Response.ReleaseName := UTF8Encode(p.rls.rlsname);
+      Response.Section := UTF8Encode(p.rls.section);
+      Response.Added := p.added;
+      Response.PazoId := p.pazo_id;
+      Response.Ready := p.ready;
+      Response.Stopped := p.stopped;
+      Response.QueueNumber := p.queuenumber.Value;
+      Response.ErrorReason := UTF8Encode(p.errorreason);
+      Response.TotalFiles := p.GetCountOfCachedFiles;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Error reading basic info for Pazo %d: %s', [PazoId, E.Message]));
+        Exit;
+      end;
+    end;
 
     // Collect site details
     siteDetailsArray.Init(JSON_FAST, dvArray);
 
-    for ps in p.PazoSitesList do
-    begin
-      TDocVariant.New(siteDetail);
-      siteDetail.SiteName := UTF8Encode(ps.Name);
-      siteDetail.Complete := ps.dirlist.Complete;
-      siteDetail.FileCount := ps.dirlist.entries.Count;
-      siteDetail.TotalFiles := p.GetCountOfCachedFiles;
-      siteDetail.FilesRacedByMe := ps.dirlist.FilesRacedByMe(True);
+    try
+      for ps in p.PazoSitesList do
+      begin
+        if ps = nil then
+        begin
+          Debug(dpError, section, Format('GetReleaseDetails: Pazo %d has nil PazoSite in list', [PazoId]));
+          Continue;
+        end;
 
-      // Calculate percent
-      totalFiles := p.GetCountOfCachedFiles;
-      if totalFiles > 0 then
-        siteDetail.Percent := (ps.dirlist.entries.Count / totalFiles) * 100.0
-      else
-        siteDetail.Percent := 0.0;
+        try
+          TDocVariant.New(siteDetail);
+          siteDetail.SiteName := UTF8Encode(ps.Name);
 
-      // Status text
-      case ps.status of
-        rssNotAllowed: siteDetail.Status := 'Not Allowed';
-        rssNotAllowedButItsThere: siteDetail.Status := 'Not Allowed (Present)';
-        rssAllowed: siteDetail.Status := 'Allowed';
-        rssShouldPre: siteDetail.Status := 'Should Pre';
-        rssRealPre: siteDetail.Status := 'Pre';
-        rssComplete: siteDetail.Status := 'Complete';
-        rssNuked: siteDetail.Status := 'Nuked';
-      else
-        siteDetail.Status := 'Unknown';
+          // Safe dirlist access
+          try
+            if ps.dirlist <> nil then
+            begin
+              siteDetail.Complete := ps.dirlist.Complete;
+              siteDetail.FileCount := ps.dirlist.entries.Count;
+              siteDetail.FilesRacedByMe := ps.dirlist.FilesRacedByMe(True);
+
+              // Calculate percent
+              totalFiles := p.GetCountOfCachedFiles;
+              if totalFiles > 0 then
+                siteDetail.Percent := (ps.dirlist.entries.Count / totalFiles) * 100.0
+              else
+                siteDetail.Percent := 0.0;
+            end
+            else
+            begin
+              siteDetail.Complete := False;
+              siteDetail.FileCount := 0;
+              siteDetail.FilesRacedByMe := 0;
+              siteDetail.Percent := 0.0;
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('GetReleaseDetails: Error accessing dirlist for site %s in Pazo %d: %s',
+                [ps.Name, PazoId, E.Message]));
+              siteDetail.Complete := False;
+              siteDetail.FileCount := 0;
+              siteDetail.FilesRacedByMe := 0;
+              siteDetail.Percent := 0.0;
+            end;
+          end;
+
+          siteDetail.TotalFiles := p.GetCountOfCachedFiles;
+
+          // Status text
+          case ps.status of
+            rssNotAllowed: siteDetail.Status := 'Not Allowed';
+            rssNotAllowedButItsThere: siteDetail.Status := 'Not Allowed (Present)';
+            rssAllowed: siteDetail.Status := 'Allowed';
+            rssShouldPre: siteDetail.Status := 'Should Pre';
+            rssRealPre: siteDetail.Status := 'Pre';
+            rssComplete: siteDetail.Status := 'Complete';
+            rssNuked: siteDetail.Status := 'Nuked';
+          else
+            siteDetail.Status := 'Unknown';
+          end;
+
+          siteDetailsArray.AddItem(siteDetail);
+        except
+          on E: Exception do
+          begin
+            if ps <> nil then
+              Debug(dpError, section, Format('GetReleaseDetails: Error processing site %s in Pazo %d: %s',
+                [ps.Name, PazoId, E.Message]))
+            else
+              Debug(dpError, section, Format('GetReleaseDetails: Error processing nil site in Pazo %d: %s',
+                [PazoId, E.Message]));
+            // Skip this site but continue with others
+          end;
+        end;
       end;
-
-      siteDetailsArray.AddItem(siteDetail);
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Error iterating PazoSitesList for Pazo %d: %s', [PazoId, E.Message]));
+        // Continue with empty site details
+      end;
     end;
 
     Response.SiteDetails := TDocVariantData(siteDetailsArray).ToJSON;
