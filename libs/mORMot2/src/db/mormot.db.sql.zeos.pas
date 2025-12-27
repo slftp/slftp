@@ -10,12 +10,17 @@ unit mormot.db.sql.zeos;
     -  TSqlDBZeosConnection* and TSqlDBZeosStatement Classes
 
   *****************************************************************************
+
+  On Lazarus, on [Error: Identifier not found "TSqlDBZeosConnectionProperties"]
+  compilation error, ensure you:
+    1) installed the proper Zeos package
+    2) undefined the NOSYNDBZEOS conditional in your mormot2 package
 }
 
 interface
 
 {$ifdef NOSYNDBZEOS}
-// NOSYNDBZEOS from mormot2.lpk Lazarus package > Custom Options > Defines
+// disable NOSYNDBZEOS from mormot2.lpk Lazarus package > Custom Options > Defines
 
 implementation // compile a void unit if NOSYNDBZEOS conditional is set
 
@@ -578,7 +583,7 @@ begin
         // EH: hooking a mormot.db.sql limitation. Void strings are not
         // accepted by SQLServer if: fixed-width columns are used and
         // option ANSI_PADDING is set to !off!.
-        StoreVoidStringAsNull := False;
+        StoreVoidStringAsNull := false;
       end;
   end;
   if fDbms in [dOracle, dPostgreSQL, dMySQL, dMariaDB, dMSSQL] then
@@ -649,7 +654,7 @@ begin
       fBatchSendingAbilities := [cCreate, cUpdate, cDelete];
     end;
     OnBatchInsert := nil;
-    fSupportsArrayBindings := True;
+    fSupportsArrayBindings := true;
   end;
   {$endif ZEOS72UP}
 end;
@@ -787,7 +792,7 @@ begin
     stTimestamp:
       result := ftDate;
     {$ifdef ZEOS72UP}
-    stGUID,
+    stGuid,
     {$endif ZEOS72UP}
     stString,
     stUnicodeString,
@@ -808,8 +813,9 @@ class function TSqlDBZeosConnectionProperties.URI(aServer: TSqlDBDefinition;
   aLibraryLocationAppendExePath: boolean): RawUtf8;
 const
   /// ZDBC provider names corresponding to mormot.db.sql recognized SQL engines
-  ZEOS_PROVIDER: array[TSqlDBDefinition] of RawUtf8 = ('', '', 'oracle:',
-    'mssql:', '', 'mysql:', 'sqlite:', 'firebird:', '', 'postgresql:', '', '','mariadb:');
+  ZEOS_PROVIDER: array[TSqlDBDefinition] of RawUtf8 = (
+    '', '', 'oracle:', 'mssql:', '', 'mysql:', 'sqlite:',
+    'firebird:', '', 'postgresql:', '', '','mariadb:');
 begin
   result := URI(ZEOS_PROVIDER[aServer], aServerName, aLibraryLocation,
     aLibraryLocationAppendExePath);
@@ -862,7 +868,7 @@ begin
   if fDatabase = nil then
     ESqlDBZeos.RaiseUtf8('%.Connect() on % failed: Database=nil', [self,
       fProperties.ServerName]);
-  log := SynDBLog.Enter(self, 'Connect');
+  SynDBLog.EnterLocal(log, self, 'Connect');
   if log <> nil then
     with (fProperties as TSqlDBZeosConnectionProperties).fUrl do
       log.Log(sllTrace, 'Connect to % % for % at %:%',
@@ -908,9 +914,9 @@ end;
 
 procedure TSqlDBZeosConnection.StartTransaction;
 var
-  log: ISynLog;
+  {%H-}log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'StartTransaction');
+  SynDBLog.EnterLocal(log, self, 'StartTransaction');
   inherited StartTransaction;
   {$ifdef ZEOS73UP}
   fDatabase.StartTransaction; //returns the txn level
@@ -1015,7 +1021,7 @@ begin
             begin
               // handle null column
               for j := 0 to fParamsArrayCount - 1 do
-                fNullArray[p][j] := True;
+                fNullArray[p][j] := true;
               fStatement.SetDataArray(p + FirstDbcIndex, '', stString, vtUTF8String);
             end;
         else

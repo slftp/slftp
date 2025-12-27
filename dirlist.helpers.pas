@@ -80,6 +80,9 @@ function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
 
+{ Frees the thread vars of the current thread (call this when a thread terminates). }
+procedure CleanupDirlistThreadVars;
+
 implementation
 
 uses
@@ -113,13 +116,13 @@ begin
   if l > Length(aFileExtension) + 6 then
   begin
     // for 3 chars in extension like .nfo, .rar, .mp3, .r02, etc
-    if ( (aFilename[l-6] = '(') and (aFilename[l-4] = ')') and (aFilename[l-5] in ['0'..'9']) ) then
+    if ( (aFilename[l-6] = '(') and (aFilename[l-4] = ')') and CharInSet(aFilename[l-5], ['0'..'9']) ) then
     begin
       Exit(True);
     end;
 
     // for 4 chars like .flac
-    if ( (aFilename[l-7] = '(') and (aFilename[l-5] = ')') and (aFilename[l-6] in ['0'..'9']) ) then
+    if ( (aFilename[l-7] = '(') and (aFilename[l-5] = ')') and CharInSet(aFilename[l-6], ['0'..'9']) ) then
     begin
       Exit(True);
     end;
@@ -299,6 +302,14 @@ end;
 function GetNewdirDirlistReaddValue(): integer;
 begin
   Result := glNewdirDirlistReadd;
+end;
+
+procedure CleanupDirlistThreadVars;
+begin
+  if glSkiplistFilesRegexInstance <> nil then
+    FreeAndNil(glSkiplistFilesRegexInstance);
+  if glSkiplistDirsRegexInstance <> nil then
+    FreeAndNil(glSkiplistDirsRegexInstance);
 end;
 
 end.
