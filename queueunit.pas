@@ -714,11 +714,11 @@ begin
       exit;
     end;
 
-    Inc(t.TryToAssign);
-    if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
-    begin
-      t.TryToAssign := 0;
-      if (maxassign_delay = 0) then
+      Inc(t.TryToAssign);
+      if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
+      begin
+        t.TryToAssign := 0;
+        if (maxassign_delay = 0) then
         begin
           t.ready := True;
         end

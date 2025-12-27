@@ -21,20 +21,48 @@ const
 procedure _PickupSpeedtestFile(d: TDirList; var fsfilename: String; var fsfilesize: Int64);
 var
   de: TDirListEntry;
+  minSize, maxSize, preferredSize: Int64;
+  bestDiff, currentDiff: Int64;
 begin
   fsfilename := '';
   fsfilesize := 0;
+
+  minSize := config.ReadInteger('speedtest', 'min_filesize', 15) * 1024 * 1024;
+  maxSize := config.ReadInteger('speedtest', 'max_filesize', 500) * 1024 * 1024;
+  preferredSize := config.ReadInteger('speedtest', 'preferred_filesize', 100) * 1024 * 1024;
+
+  bestDiff := High(Int64);
+
   d.dirlist_lock.Enter('_PickupSpeedtestFile');
   try
+    // First pass: Try to find file closest to preferred size
     for de in d.entries.Values do
     begin
-      if ((de.filesize > fsfilesize) and (de.filesize >=
-        config.ReadInteger('speedtest', 'min_filesize', 15) * 1024 * 1024) and
-        (de.filesize <= config.ReadInteger('speedtest', 'max_filesize', 120) *
-        1024 * 1024)) then
+      if (de.filesize >= minSize) and (de.filesize <= maxSize) then
       begin
-        fsfilename := de.filename;
-        fsfilesize := de.filesize;
+        currentDiff := Abs(de.filesize - preferredSize);
+        if currentDiff < bestDiff then
+        begin
+          fsfilename := de.filename;
+          fsfilesize := de.filesize;
+          bestDiff := currentDiff;
+        end;
+      end;
+    end;
+
+    // If no file found in range, take smallest available file above minimum
+    if fsfilesize = 0 then
+    begin
+      for de in d.entries.Values do
+      begin
+        if de.filesize >= minSize then
+        begin
+          if (fsfilesize = 0) or (de.filesize < fsfilesize) then
+          begin
+            fsfilename := de.filename;
+            fsfilesize := de.filesize;
+          end;
+        end;
       end;
     end;
   finally
@@ -157,7 +185,7 @@ begin
 
   if ((fsfilesize = 0) or (fsfilename = '')) then
   begin
-    irc_addtext(Netname, Channel,'No suitable file found on site %s for speedtesting, check slftp.ini. Speedtest aborted.', [ss]);
+    irc_addtext(Netname, Channel,'No suitable file found on site %s for speedtesting, check slftp.ini. Speedtest aborted.', [fssitename]);
     exit;
   end;
 
