@@ -3123,98 +3123,86 @@ end;
 procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 var
   fOldNumDn, fNewNumDn: integer;
+  fSlotLoop: TObject;
+  fActiveSlots: String;
 begin
   if Value <> fDownloadingFrom then
   begin
-    // FIX Bug #13: Log EVERY change to downloadingfrom for debugging
     fOldNumDn := site.num_dn;
     if Value then
       fNewNumDn := fOldNumDn + 1
     else
       fNewNumDn := fOldNumDn - 1;
 
-    Debug(dpSpam, section, '[DOWNLOAD-DBG] %s: downloadingfrom %s → %s, %s num_dn: %d → %d',
-      [Name, BoolToStr(fDownloadingFrom, True), BoolToStr(Value, True),
-       site.Name, fOldNumDn, fNewNumDn]);
-
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
       {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
-      if GetDebugVerbosity = dpSpam then
-        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
-      // FIX Bug #8: Log when num_dn exceeds max_dn (indicates race condition)
-      if site.num_dn > site.max_dn then
-        Debug(dpSpam, section, '[BUG #8] Site %s: num_dn (%d) EXCEEDS max_dn (%d)! Slot: %s',
-          [site.Name, site.num_dn, site.max_dn, Name]);
     end
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
-      if GetDebugVerbosity = dpSpam then
-        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
-      // FIX Bug #8: Log when num_dn goes negative (indicates race condition)
-      if site.num_dn < 0 then
-        Debug(dpSpam, section, '[BUG #8] Site %s: num_dn (%d) is NEGATIVE! Slot: %s',
-          [site.Name, site.num_dn, Name]);
     end;
-  end
-  else
-  begin
-    // FIX Bug #14: Log no-op attempts to set downloadingfrom (helps debug invisible decrements)
-    // If code tries to set downloadingfrom to the same value it already has, no counter change occurs
-    // This log helps identify redundant cleanup code or race conditions
-    Debug(dpSpam, section, '[DOWNLOAD-DBG-NOOP] %s: downloadingfrom already %s (no change), %s num_dn: %d',
-      [Name, BoolToStr(Value, True), site.Name, site.num_dn]);
+
+    if GetDebugVerbosity = dpSpam then
+    begin
+      fActiveSlots := '';
+      for fSlotLoop in site.slots do
+        if TSiteSlot(fSlotLoop).downloadingfrom then
+          fActiveSlots := fActiveSlots + IntToStr(TSiteSlot(fSlotLoop).FSlotNumber) + ',';
+      Debug(dpSpam, section, '[DOWNLOAD-DBG] %s: downloadingfrom -> %s. Site %s num_dn: %d -> %d (Active slots: [%s])',
+        [Name, BoolToStr(Value, True), site.Name, fOldNumDn, site.num_dn, fActiveSlots]);
+    end;
+
+    if site.num_dn > site.max_dn then
+      Debug(dpMessage, section, '[LIMIT-EXCEEDED] Site %s: num_dn (%d) exceeds max_dn (%d)! Slot: %s',
+        [site.Name, site.num_dn, site.max_dn, Name]);
+    if site.num_dn < 0 then
+      Debug(dpMessage, section, '[LIMIT-ERROR] Site %s: num_dn (%d) is negative! Slot: %s',
+        [site.Name, site.num_dn, Name]);
   end;
 end;
 
 procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 var
   fOldNumUp, fNewNumUp: integer;
+  fSlotLoop: TObject;
+  fActiveSlots: String;
 begin
   if Value <> fUploadingTo then
   begin
-    // FIX Bug #13: Log EVERY change to uploadingto for debugging
     fOldNumUp := site.num_up;
     if Value then
       fNewNumUp := fOldNumUp + 1
     else
       fNewNumUp := fOldNumUp - 1;
 
-    Debug(dpSpam, section, '[UPLOAD-DBG] %s: uploadingto %s → %s, %s num_up: %d → %d',
-      [Name, BoolToStr(fUploadingTo, True), BoolToStr(Value, True),
-       site.Name, fOldNumUp, fNewNumUp]);
-
     fUploadingTo := Value;
     if fUploadingTo then
-      begin
-        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
-        if GetDebugVerbosity = dpSpam then
-          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
-        // FIX Bug #8: Log when num_up exceeds max_up (indicates race condition)
-        if site.num_up > site.max_up then
-          Debug(dpSpam, section, '[BUG #8] Site %s: num_up (%d) EXCEEDS max_up (%d)! Slot: %s',
-            [site.Name, site.num_up, site.max_up, Name]);
-      end
+    begin
+      {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
+    end
     else
-      begin
-        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
-        if GetDebugVerbosity = dpSpam then
-          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
-        // FIX Bug #8: Log when num_up goes negative (indicates race condition)
-        if site.num_up < 0 then
-          Debug(dpSpam, section, '[BUG #8] Site %s: num_up (%d) is NEGATIVE! Slot: %s',
-            [site.Name, site.num_up, Name]);
-      end;
-  end
-  else
-  begin
-    // FIX Bug #14: Log no-op attempts to set uploadingto (helps debug invisible decrements)
-    // If code tries to set uploadingto to the same value it already has, no counter change occurs
-    // This log helps identify redundant cleanup code or race conditions
-    Debug(dpSpam, section, '[UPLOAD-DBG-NOOP] %s: uploadingto already %s (no change), %s num_up: %d',
-      [Name, BoolToStr(Value, True), site.Name, site.num_up]);
+    begin
+      {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
+    end;
+
+    if GetDebugVerbosity = dpSpam then
+    begin
+      fActiveSlots := '';
+      for fSlotLoop in site.slots do
+        if TSiteSlot(fSlotLoop).uploadingto then
+          fActiveSlots := fActiveSlots + IntToStr(TSiteSlot(fSlotLoop).FSlotNumber) + ',';
+      Debug(dpSpam, section, '[UPLOAD-DBG] %s: uploadingto -> %s. Site %s num_up: %d -> %d (Active slots: [%s])',
+        [Name, BoolToStr(Value, True), site.Name, fOldNumUp, site.num_up, fActiveSlots]);
+    end;
+
+    if site.num_up > site.max_up then
+      Debug(dpMessage, section, '[LIMIT-EXCEEDED] Site %s: num_up (%d) exceeds max_up (%d)! Slot: %s',
+        [site.Name, site.num_up, site.max_up, Name]);
+    if site.num_up < 0 then
+      Debug(dpMessage, section, '[LIMIT-ERROR] Site %s: num_up (%d) is negative! Slot: %s',
+        [site.Name, site.num_up, Name]);
   end;
 end;
 
