@@ -372,7 +372,7 @@ var
  i: Integer;
 begin
  Result:='';
- for i:=0 to 15 do Result:=Result+IntToHex(Digest.v[i], 2);
+ for i:=0 to 15 do Result:=Result+{$IFDEF UNICODE}RawByteString{$ENDIF}(IntToHex(Digest.v[i], 2));
 end;
 
 function MD5String(const S: {$IFDEF UNICODE}RawByteString{$ELSE}String{$ENDIF}): TMD5Digest;
@@ -384,7 +384,7 @@ function MD5File(const FileName: {$IFDEF UNICODE}RawByteString{$ELSE}String{$END
 var
  F: TFileStream;
 begin
- F:=TFileStream.Create(FileName, fmOpenRead);
+ F:=TFileStream.Create({$IFDEF UNICODE}String{$ENDIF}(FileName), fmOpenRead);
  try
   Result:=MD5Stream(F);
  finally

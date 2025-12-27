@@ -27,8 +27,8 @@ interface
 uses
   sysutils,
   classes,
-  Windows,
-  WinINet,
+  windows,
+  wininet,
   mormot.core.base,
   mormot.core.os,
   mormot.core.unicode,
@@ -143,7 +143,7 @@ type
   end;
 
   // the req* values identify Request Headers, and resp* Response Headers
-  THttpHeader = (
+  THttpApiHeader = (
     reqCacheControl,
     reqConnection,
     reqDate,
@@ -287,7 +287,7 @@ type
     // Reserved, must be nil
     pTrailers: pointer;
     // Known headers
-    KnownHeaders: array[low(THttpHeader)..respWwwAuthenticate] of HTTP_KNOWN_HEADER;
+    KnownHeaders: array[low(THttpApiHeader)..respWwwAuthenticate] of HTTP_KNOWN_HEADER;
   end;
 
   HTTP_REQUEST_HEADERS = record
@@ -301,7 +301,7 @@ type
     pTrailers: pointer;
     // Known headers
     // - warning: don't assume pRawValue is #0 terminated - use RawValueLength
-    KnownHeaders: array[low(THttpHeader)..reqUserAgent] of HTTP_KNOWN_HEADER;
+    KnownHeaders: array[low(THttpApiHeader)..reqUserAgent] of HTTP_KNOWN_HEADER;
   end;
 
   HTTP_BYTE_RANGE = record
@@ -766,41 +766,41 @@ const
   //      to do selective logging. If neither of them are present both
   //      types of requests will be logged. Only one these flags can be
   //      set at a time. They are mutually exclusive.
-  HTTP_LOGGING_FLAG_LOG_ERRORS_ONLY = 4;
+  HTTP_LOGGING_FLAG_LOG_ERRORS_ONLY  = 4;
   HTTP_LOGGING_FLAG_LOG_SUCCESS_ONLY = 8;
 
   // The known log fields recognized/supported by HTTPAPI. Following fields
   // are used for W3C logging. Subset of them are also used for error logging
-  HTTP_LOG_FIELD_DATE = $00000001;
-  HTTP_LOG_FIELD_TIME = $00000002;
-  HTTP_LOG_FIELD_CLIENT_IP = $00000004;
-  HTTP_LOG_FIELD_USER_NAME = $00000008;
-  HTTP_LOG_FIELD_SITE_NAME = $00000010;
-  HTTP_LOG_FIELD_COMPUTER_NAME = $00000020;
-  HTTP_LOG_FIELD_SERVER_IP = $00000040;
-  HTTP_LOG_FIELD_METHOD = $00000080;
-  HTTP_LOG_FIELD_URI_STEM = $00000100;
-  HTTP_LOG_FIELD_URI_QUERY = $00000200;
-  HTTP_LOG_FIELD_STATUS = $00000400;
-  HTTP_LOG_FIELD_WIN32_STATUS = $00000800;
-  HTTP_LOG_FIELD_BYTES_SENT = $00001000;
-  HTTP_LOG_FIELD_BYTES_RECV = $00002000;
-  HTTP_LOG_FIELD_TIME_TAKEN = $00004000;
-  HTTP_LOG_FIELD_SERVER_PORT = $00008000;
-  HTTP_LOG_FIELD_USER_AGENT = $00010000;
-  HTTP_LOG_FIELD_COOKIE = $00020000;
-  HTTP_LOG_FIELD_REFERER = $00040000;
-  HTTP_LOG_FIELD_VERSION = $00080000;
-  HTTP_LOG_FIELD_HOST = $00100000;
-  HTTP_LOG_FIELD_SUB_STATUS = $00200000;
+  HTTP_LOG_FIELD_DATE           = $00000001;
+  HTTP_LOG_FIELD_TIME           = $00000002;
+  HTTP_LOG_FIELD_CLIENT_IP      = $00000004;
+  HTTP_LOG_FIELD_USER_NAME      = $00000008;
+  HTTP_LOG_FIELD_SITE_NAME      = $00000010;
+  HTTP_LOG_FIELD_COMPUTER_NAME  = $00000020;
+  HTTP_LOG_FIELD_SERVER_IP      = $00000040;
+  HTTP_LOG_FIELD_METHOD         = $00000080;
+  HTTP_LOG_FIELD_URI_STEM       = $00000100;
+  HTTP_LOG_FIELD_URI_QUERY      = $00000200;
+  HTTP_LOG_FIELD_STATUS         = $00000400;
+  HTTP_LOG_FIELD_WIN32_STATUS   = $00000800;
+  HTTP_LOG_FIELD_BYTES_SENT     = $00001000;
+  HTTP_LOG_FIELD_BYTES_RECV     = $00002000;
+  HTTP_LOG_FIELD_TIME_TAKEN     = $00004000;
+  HTTP_LOG_FIELD_SERVER_PORT    = $00008000;
+  HTTP_LOG_FIELD_USER_AGENT     = $00010000;
+  HTTP_LOG_FIELD_COOKIE         = $00020000;
+  HTTP_LOG_FIELD_REFERER        = $00040000;
+  HTTP_LOG_FIELD_VERSION        = $00080000;
+  HTTP_LOG_FIELD_HOST           = $00100000;
+  HTTP_LOG_FIELD_SUB_STATUS     = $00200000;
   HTTP_ALL_NON_ERROR_LOG_FIELDS = HTTP_LOG_FIELD_SUB_STATUS * 2 - 1;
 
   // Fields that are used only for error logging
   HTTP_LOG_FIELD_CLIENT_PORT = $00400000;
-  HTTP_LOG_FIELD_URI = $00800000;
-  HTTP_LOG_FIELD_SITE_ID = $01000000;
-  HTTP_LOG_FIELD_REASON = $02000000;
-  HTTP_LOG_FIELD_QUEUE_NAME = $04000000;
+  HTTP_LOG_FIELD_URI         = $00800000;
+  HTTP_LOG_FIELD_SITE_ID     = $01000000;
+  HTTP_LOG_FIELD_REASON      = $02000000;
+  HTTP_LOG_FIELD_QUEUE_NAME  = $04000000;
 
 type
   HTTP_LOGGING_TYPE = (
@@ -928,9 +928,9 @@ const
   // there is more entity body to be read for this request
   HTTP_REQUEST_FLAG_MORE_ENTITY_BODY_EXISTS = 1;
   // request was routed based on host and IP binding
-  HTTP_REQUEST_FLAG_IP_ROUTED = 2;
+  HTTP_REQUEST_FLAG_IP_ROUTED               = 2;
   // request was received over HTTP/2
-  HTTP_REQUEST_FLAG_HTTP2 = 4;
+  HTTP_REQUEST_FLAG_HTTP2                   = 4;
 
   // initialization for applications that use the HTTP Server API
   HTTP_INITIALIZE_SERVER = 1;
@@ -941,16 +941,16 @@ const
   HTTP_RECEIVE_REQUEST_ENTITY_BODY_FLAG_FILL_BUFFER = 1;
 
   // see http://msdn.microsoft.com/en-us/library/windows/desktop/aa364499
-  HTTP_SEND_RESPONSE_FLAG_DISCONNECT = $00000001;
-  HTTP_SEND_RESPONSE_FLAG_MORE_DATA = $00000002;
-  HTTP_SEND_RESPONSE_FLAG_BUFFER_DATA = $00000004;
+  HTTP_SEND_RESPONSE_FLAG_DISCONNECT     = $00000001;
+  HTTP_SEND_RESPONSE_FLAG_MORE_DATA      = $00000002;
+  HTTP_SEND_RESPONSE_FLAG_BUFFER_DATA    = $00000004;
   HTTP_SEND_RESPONSE_FLAG_PROCESS_RANGES = $00000020;
-  HTTP_SEND_RESPONSE_FLAG_OPAQUE = $00000040;
+  HTTP_SEND_RESPONSE_FLAG_OPAQUE         = $00000040;
 
   // flag which can be used by HttpRemoveUrlFromUrlGroup()
   HTTP_URL_FLAG_REMOVE_ALL = 1;
 
-  HTTP_KNOWNHEADERS: array[low(THttpHeader)..reqUserAgent] of string[19] = (
+  HTTP_KNOWNHEADERS: array[low(THttpApiHeader)..reqUserAgent] of string[19] = (
     'Cache-Control',
     'Connection',
     'Date',
@@ -1266,55 +1266,52 @@ type
   PLPWStr = Windows.PLPWStr;
 
 const
-  HTTP_QUERY_STATUS_CODE = WinINet.HTTP_QUERY_STATUS_CODE;
+  HTTP_QUERY_STATUS_CODE      = WinINet.HTTP_QUERY_STATUS_CODE;
   HTTP_QUERY_RAW_HEADERS_CRLF = WinINet.HTTP_QUERY_RAW_HEADERS_CRLF;
   HTTP_QUERY_CONTENT_ENCODING = WinINet.HTTP_QUERY_CONTENT_ENCODING;
-  HTTP_QUERY_ACCEPT_ENCODING = WinINet.HTTP_QUERY_ACCEPT_ENCODING;
-  HTTP_QUERY_CONTENT_LENGTH = WinINet.HTTP_QUERY_CONTENT_LENGTH;
-
-  ERROR_INVALID_HANDLE = Windows.ERROR_INVALID_HANDLE;
-  ERROR_INSUFFICIENT_BUFFER = Windows.ERROR_INSUFFICIENT_BUFFER;
+  HTTP_QUERY_ACCEPT_ENCODING  = WinINet.HTTP_QUERY_ACCEPT_ENCODING;
+  HTTP_QUERY_CONTENT_LENGTH   = WinINet.HTTP_QUERY_CONTENT_LENGTH;
 
   ERROR_WINHTTP_AUTODETECTION_FAILED = 12180;
 
 const
   winhttpdll = 'winhttp.dll';
 
-  WINHTTP_ACCESS_TYPE_DEFAULT_PROXY = 0;
-  WINHTTP_ACCESS_TYPE_NO_PROXY = 1;
-  WINHTTP_ACCESS_TYPE_NAMED_PROXY = 3;
+  WINHTTP_ACCESS_TYPE_DEFAULT_PROXY   = 0;
+  WINHTTP_ACCESS_TYPE_NO_PROXY        = 1;
+  WINHTTP_ACCESS_TYPE_NAMED_PROXY     = 3;
   WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY = 4; // Windows 8.1 and newer
 
   WINHTTP_FLAG_BYPASS_PROXY_CACHE = $00000100; // add "pragma: no-cache" request header
-  WINHTTP_FLAG_REFRESH = WINHTTP_FLAG_BYPASS_PROXY_CACHE;
-  WINHTTP_FLAG_SECURE = $00800000; // use TLS if applicable (HTTPS)
-  WINHTTP_ADDREQ_FLAG_COALESCE = $40000000;
-  WINHTTP_QUERY_FLAG_NUMBER = $20000000;
+  WINHTTP_FLAG_REFRESH            = WINHTTP_FLAG_BYPASS_PROXY_CACHE;
+  WINHTTP_FLAG_SECURE             = $00800000; // use TLS if applicable (HTTPS)
+  WINHTTP_ADDREQ_FLAG_COALESCE    = $40000000;
+  WINHTTP_QUERY_FLAG_NUMBER       = $20000000;
 
   // taken from http://www.tek-tips.com/faqs.cfm?fid=7493
   // status manifests for WinHttp status callback
-  WINHTTP_CALLBACK_STATUS_RESOLVING_NAME = $00000001;
-  WINHTTP_CALLBACK_STATUS_NAME_RESOLVED = $00000002;
-  WINHTTP_CALLBACK_STATUS_CONNECTING_TO_SERVER = $00000004;
-  WINHTTP_CALLBACK_STATUS_CONNECTED_TO_SERVER = $00000008;
-  WINHTTP_CALLBACK_STATUS_SENDING_REQUEST = $00000010;
-  WINHTTP_CALLBACK_STATUS_REQUEST_SENT = $00000020;
-  WINHTTP_CALLBACK_STATUS_RECEIVING_RESPONSE = $00000040;
-  WINHTTP_CALLBACK_STATUS_RESPONSE_RECEIVED = $00000080;
-  WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION = $00000100;
-  WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED = $00000200;
-  WINHTTP_CALLBACK_STATUS_HANDLE_CREATED = $00000400;
-  WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING = $00000800;
-  WINHTTP_CALLBACK_STATUS_DETECTING_PROXY = $00001000;
-  WINHTTP_CALLBACK_STATUS_REDIRECT = $00004000;
+  WINHTTP_CALLBACK_STATUS_RESOLVING_NAME        = $00000001;
+  WINHTTP_CALLBACK_STATUS_NAME_RESOLVED         = $00000002;
+  WINHTTP_CALLBACK_STATUS_CONNECTING_TO_SERVER  = $00000004;
+  WINHTTP_CALLBACK_STATUS_CONNECTED_TO_SERVER   = $00000008;
+  WINHTTP_CALLBACK_STATUS_SENDING_REQUEST       = $00000010;
+  WINHTTP_CALLBACK_STATUS_REQUEST_SENT          = $00000020;
+  WINHTTP_CALLBACK_STATUS_RECEIVING_RESPONSE    = $00000040;
+  WINHTTP_CALLBACK_STATUS_RESPONSE_RECEIVED     = $00000080;
+  WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION    = $00000100;
+  WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED     = $00000200;
+  WINHTTP_CALLBACK_STATUS_HANDLE_CREATED        = $00000400;
+  WINHTTP_CALLBACK_STATUS_HANDLE_CLOSING        = $00000800;
+  WINHTTP_CALLBACK_STATUS_DETECTING_PROXY       = $00001000;
+  WINHTTP_CALLBACK_STATUS_REDIRECT              = $00004000;
   WINHTTP_CALLBACK_STATUS_INTERMEDIATE_RESPONSE = $00008000;
-  WINHTTP_CALLBACK_STATUS_SECURE_FAILURE = $00010000;
-  WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE = $00020000;
-  WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE = $00040000;
-  WINHTTP_CALLBACK_STATUS_READ_COMPLETE = $00080000;
-  WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE = $00100000;
-  WINHTTP_CALLBACK_STATUS_REQUEST_ERROR = $00200000;
-  WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE = $00400000;
+  WINHTTP_CALLBACK_STATUS_SECURE_FAILURE        = $00010000;
+  WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE     = $00020000;
+  WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE        = $00040000;
+  WINHTTP_CALLBACK_STATUS_READ_COMPLETE         = $00080000;
+  WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE        = $00100000;
+  WINHTTP_CALLBACK_STATUS_REQUEST_ERROR         = $00200000;
+  WINHTTP_CALLBACK_STATUS_SENDREQUEST_COMPLETE  = $00400000;
   WINHTTP_CALLBACK_FLAG_RESOLVE_NAME =
     WINHTTP_CALLBACK_STATUS_RESOLVING_NAME or
     WINHTTP_CALLBACK_STATUS_NAME_RESOLVED;
@@ -1322,9 +1319,11 @@ const
     WINHTTP_CALLBACK_STATUS_CONNECTING_TO_SERVER or
     WINHTTP_CALLBACK_STATUS_CONNECTED_TO_SERVER;
   WINHTTP_CALLBACK_FLAG_SEND_REQUEST =
-    WINHTTP_CALLBACK_STATUS_SENDING_REQUEST or WINHTTP_CALLBACK_STATUS_REQUEST_SENT;
+    WINHTTP_CALLBACK_STATUS_SENDING_REQUEST or
+    WINHTTP_CALLBACK_STATUS_REQUEST_SENT;
   WINHTTP_CALLBACK_FLAG_RECEIVE_RESPONSE =
-    WINHTTP_CALLBACK_STATUS_RECEIVING_RESPONSE or WINHTTP_CALLBACK_STATUS_RESPONSE_RECEIVED;
+    WINHTTP_CALLBACK_STATUS_RECEIVING_RESPONSE or
+    WINHTTP_CALLBACK_STATUS_RESPONSE_RECEIVED;
   WINHTTP_CALLBACK_FLAG_CLOSE_CONNECTION =
     WINHTTP_CALLBACK_STATUS_CLOSING_CONNECTION or
     WINHTTP_CALLBACK_STATUS_CONNECTION_CLOSED;
@@ -1352,70 +1351,78 @@ const
     WINHTTP_CALLBACK_STATUS_WRITE_COMPLETE or
     WINHTTP_CALLBACK_STATUS_REQUEST_ERROR;
   WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS = $ffffffff;
-  WINHTTP_FLAG_SECURE_PROTOCOL_SSL2 = $00000008;
-  WINHTTP_FLAG_SECURE_PROTOCOL_SSL3 = $00000020;
-  WINHTTP_FLAG_SECURE_PROTOCOL_TLS1 = $00000080;
-
-  // tls 1.1 & 1.2 const from here:
-  // https://github.com/nihon-tc/Rtest/blob/master/header/Microsoft%20SDKs/Windows/v7.0A/Include/winhttp.h
-  WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 = $00000200;
-  WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 = $00000800;
-
-  // Sets an unsigned long integer value that specifies which secure protocols are acceptable.
-  // By default only SSL3 and TLS1 are enabled in Windows 7 and Windows 8.
-  // By default only SSL3, TLS1.0, TLS1.1, and TLS1.2 are enabled in Windows 8.1 and Windows 10.
-  WINHTTP_OPTION_SECURE_PROTOCOLS = 84;
-  // Instructs the stack to start a WebSocket handshake process with WinHttpSendRequest.
-  // This option takes no parameters.
-  WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET = 114;
 
   // if the following value is returned by WinHttpSetStatusCallback, then
   // probably an invalid (non-code) address was supplied for the callback
   WINHTTP_INVALID_STATUS_CALLBACK = -1;
 
-  // values for WINHTTP_OPTION_DISABLE_FEATURE
-  WINHTTP_DISABLE_COOKIES = $00000001;
-  WINHTTP_DISABLE_REDIRECTS = $00000002;
-  WINHTTP_DISABLE_AUTHENTICATION = $00000004;
-  WINHTTP_DISABLE_KEEP_ALIVE = $00000008;
+  // see https://learn.microsoft.com/en-us/windows/win32/winhttp/option-flags
+  WINHTTP_OPTION_SECURITY_FLAGS               = 31;
+  WINHTTP_OPTION_CLIENT_CERT_CONTEXT          = 47;
+  WINHTTP_OPTION_DISABLE_FEATURE              = 63;
+  WINHTTP_OPTION_ENABLE_FEATURE               = 79;
+  WINHTTP_OPTION_SECURE_PROTOCOLS             = 84;
+  WINHTTP_OPTION_REDIRECT_POLICY              = 88;
+  WINHTTP_OPTION_MAX_HTTP_AUTOMATIC_REDIRECTS = 89;
+  WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET        = 114;
 
-  WINHTTP_OPTION_ENABLE_FEATURE = 79;
+  // values for WINHTTP_OPTION_SECURITY_FLAGS
+  SECURITY_FLAG_IGNORE_UNKNOWN_CA          = $00000100;
+  SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE    = $00000200;
+  SECURITY_FLAG_IGNORE_CERT_CN_INVALID     = $00001000; // bad common name in X509 Cert
+  SECURITY_FLAG_IGNORE_CERT_DATE_INVALID   = $00002000; // expired X509 Cert
+
+  SECURITY_FLAG_IGNORE_CERTIFICATES: DWORD =
+    SECURITY_FLAG_IGNORE_UNKNOWN_CA or
+    SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE or
+    SECURITY_FLAG_IGNORE_CERT_CN_INVALID or
+    SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
+
+  // value for WINHTTP_OPTION_CLIENT_CERT_CONTEXT
+  WINHTTP_NO_CLIENT_CERT_CONTEXT     = $00000000;
+
+  // values for WINHTTP_OPTION_DISABLE_FEATURE
+  WINHTTP_DISABLE_COOKIES        = $00000001;
+  WINHTTP_DISABLE_REDIRECTS      = $00000002;
+  WINHTTP_DISABLE_AUTHENTICATION = $00000004;
+  WINHTTP_DISABLE_KEEP_ALIVE     = $00000008;
+
   // values for WINHTTP_OPTION_ENABLE_FEATURE
-  WINHTTP_ENABLE_SSL_REVOCATION = $00000001;
+  WINHTTP_ENABLE_SSL_REVOCATION           = $00000001;
   WINHTTP_ENABLE_SSL_REVERT_IMPERSONATION = $00000002;
 
-  // from http://www.tek-tips.com/faqs.cfm?fid=7493
-  WINHTTP_OPTION_SECURITY_FLAGS = 31;
-  WINHTTP_OPTION_DISABLE_FEATURE = 63;
-  WINHTTP_OPTION_CLIENT_CERT_CONTEXT = $0000002F;
-  WINHTTP_NO_CLIENT_CERT_CONTEXT = $00000000;
+  // values for WINHTTP_OPTION_SECURE_PROTOCOLS
+  WINHTTP_FLAG_SECURE_PROTOCOL_SSL2   = $00000008;
+  WINHTTP_FLAG_SECURE_PROTOCOL_SSL3   = $00000020;
+  WINHTTP_FLAG_SECURE_PROTOCOL_TLS1   = $00000080;
+  WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1 = $00000200;
+  WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 = $00000800;
+  WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3 = $00002000; // Windows 11 or Windows Server 2022 ;)
 
-  ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED = $00002F0C;
+  // values for WINHTTP_OPTION_REDIRECT_POLICY
+  WINHTTP_OPTION_REDIRECT_POLICY_NEVER                  = 0;
+  WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP = 1;
+  WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS                 = 2;
+  WINHTTP_OPTION_REDIRECT_POLICY_DEFAULT =
+    WINHTTP_OPTION_REDIRECT_POLICY_DISALLOW_HTTPS_TO_HTTP;
 
-  SECURITY_FLAG_IGNORE_UNKNOWN_CA = $00000100;
-  SECURITY_FLAG_IGNORE_CERT_DATE_INVALID = $00002000; // expired X509 Cert.
-  SECURITY_FLAG_IGNORE_CERT_CN_INVALID = $00001000; // bad common name in X509 Cert.
-  SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE = $00000200;
-  SECURITY_FLAT_IGNORE_CERTIFICATES: DWORD =
-    SECURITY_FLAG_IGNORE_UNKNOWN_CA or
-    SECURITY_FLAG_IGNORE_CERT_DATE_INVALID or
-    SECURITY_FLAG_IGNORE_CERT_CN_INVALID or
-    SECURITY_FLAG_IGNORE_CERT_WRONG_USAGE;
+  REDIRECT_POLICY_ALWAYS: DWORD = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
 
-  WINHTTP_AUTH_TARGET_SERVER = 0;
-  WINHTTP_AUTH_TARGET_PROXY = 1;
-  WINHTTP_AUTH_SCHEME_BASIC = $00000001;
-  WINHTTP_AUTH_SCHEME_NTLM = $00000002;
-  WINHTTP_AUTH_SCHEME_PASSPORT = $00000004;
-  WINHTTP_AUTH_SCHEME_DIGEST = $00000008;
+  WINHTTP_AUTH_TARGET_SERVER    = 0;
+  WINHTTP_AUTH_TARGET_PROXY     = 1;
+
+  WINHTTP_AUTH_SCHEME_BASIC     = $00000001;
+  WINHTTP_AUTH_SCHEME_NTLM      = $00000002;
+  WINHTTP_AUTH_SCHEME_PASSPORT  = $00000004;
+  WINHTTP_AUTH_SCHEME_DIGEST    = $00000008;
   WINHTTP_AUTH_SCHEME_NEGOTIATE = $00000010;
 
-  WINHTTP_AUTOPROXY_AUTO_DETECT = $00000001;
-  WINHTTP_AUTOPROXY_CONFIG_URL = $00000002;
-  WINHTTP_AUTO_DETECT_TYPE_DHCP = $00000001;
+  WINHTTP_AUTOPROXY_AUTO_DETECT  = $00000001;
+  WINHTTP_AUTOPROXY_CONFIG_URL   = $00000002;
+  WINHTTP_AUTO_DETECT_TYPE_DHCP  = $00000001;
   WINHTTP_AUTO_DETECT_TYPE_DNS_A = $00000002;
 
-  WINHTTP_NO_PROXY_NAME = nil;
+  WINHTTP_NO_PROXY_NAME   = nil;
   WINHTTP_NO_PROXY_BYPASS = nil;
 
 type
@@ -1900,9 +1907,6 @@ uses
 { ************  http.sys / HTTP Server API low-level direct access }
 
 function RegURL(aRoot, aPort: RawUtf8; Https: boolean; aDomainName: RawUtf8): SynUnicode;
-const
-  Prefix: array[boolean] of RawUtf8 = (
-    'http://', 'https://');
 begin
   if aPort = '' then
     aPort := DEFAULT_PORT[Https];
@@ -1922,7 +1926,7 @@ begin
   end
   else
     aRoot := '/'; // allow for instance 'http://*:2869/'
-  aRoot := Prefix[Https] + aDomainName + ':' + aPort + aRoot;
+  aRoot := Join([HTTPS_TEXT[Https], aDomainName, ':', aPort, aRoot]);
   Utf8ToSynUnicode(aRoot, result);
 end;
 
@@ -1935,14 +1939,14 @@ function RetrieveHeadersAndGetRemoteIPConnectionID(const Request: HTTP_REQUEST;
   var ConnectionID: QWord): RawUtf8;
 var
   i, L, Lip: integer;
-  H: THttpHeader;
+  H: THttpApiHeader;
   P: PHTTP_UNKNOWN_HEADER;
   D: PAnsiChar;
   V: PUtf8Char;
 begin
   assert(low(HTTP_KNOWNHEADERS) = low(Request.Headers.KnownHeaders));
   assert(high(HTTP_KNOWNHEADERS) = high(Request.Headers.KnownHeaders));
-  // compute remote IP
+  // compute remote IP from 'X-Real-IP' or 'X-Forwarded-For'
   L := length(RemoteIPHeadUp);
   if L <> 0 then
   begin
@@ -1996,8 +2000,7 @@ begin
       inc(P);
     end;
   // set headers content
-  FastSetString(result{%H-}, L);
-  D := pointer(result);
+  D := FastSetString(result{%H-}, L);
   for H := low(HTTP_KNOWNHEADERS) to high(HTTP_KNOWNHEADERS) do
     if Request.Headers.KnownHeaders[H].RawValueLength <> 0 then
     begin
@@ -2014,17 +2017,22 @@ begin
   P := Request.Headers.pUnknownHeaders;
   if P <> nil then
     for i := 1 to Request.Headers.UnknownHeaderCount do
-    begin
-      MoveFast(P^.pName^, D^, P^.NameLength);
-      inc(D, P^.NameLength);
-      PWord(D)^ := ord(':') + ord(' ') shl 8;
-      inc(D, 2);
-      MoveFast(P^.pRawValue^, D^, P^.RawValueLength);
-      inc(D, P^.RawValueLength);
-      inc(P);
-      PWord(D)^ := 13 + 10 shl 8;
-      inc(D, 2);
-    end;
+      if (P^.NameLength <> 8) or // filter unexpected 'RemoteIP:' from client
+         ((PCardinalArray(P^.pName)[0] or $20202020) <>
+           ord('r') + ord('e') shl 8 + ord('m') shl 16 + ord('o') shl 24) or
+         ((PCardinalArray(P^.pName)[1] or $20202020) <>
+           ord('t') + ord('e') shl 8 + ord('i') shl 16 + ord('p') shl 24) then
+      begin
+        MoveFast(P^.pName^, D^, P^.NameLength);
+        inc(D, P^.NameLength);
+        PWord(D)^ := ord(':') + ord(' ') shl 8;
+        inc(D, 2);
+        MoveFast(P^.pRawValue^, D^, P^.RawValueLength);
+        inc(D, P^.RawValueLength);
+        inc(P);
+        PWord(D)^ := 13 + 10 shl 8;
+        inc(D, 2);
+      end;
   if Lip <> 0 then
   begin
     MoveFast(REMOTEIP_HEADER[1], D^, REMOTEIP_HEADERLEN);
@@ -2032,7 +2040,11 @@ begin
     MoveFast(pointer(RemoteIP)^, D^, Lip);
     inc(D, Lip);
     PWord(D)^ := 13 + 10 shl 8;
+    inc(D, 2);
   end;
+  Lip := D - pointer(result);
+  if Lip <> L then // e.g. if external 'RemoteIP:' was filtered
+    FakeLength(result, Lip);
 end;
 
 procedure HttpApiInitialize;
@@ -2201,8 +2213,8 @@ begin
     i := IdemPPChar(P, @KNOWNHEADERS);
   // WebSockets need CONNECTION as unknown header
   if (i >= 0) and
-     (THttpHeader(i) <> reqConnection) then
-    with Headers.KnownHeaders[THttpHeader(i)] do
+     (THttpApiHeader(i) <> reqConnection) then
+    with Headers.KnownHeaders[THttpApiHeader(i)] do
     begin
       while P^ <> ':' do
         inc(P);
@@ -2312,10 +2324,8 @@ var
 begin
   WinHttpApiInitialize;
   result := 0;
-  ProxyInfo.URL := '';
-  ProxyInfo.Bypass := '';
-  ProxyInfo.ErrorMessage := '';
-  ProxyInfo.AutoDetected := false;
+  Finalize(ProxyInfo);
+  FillCharFast(ProxyInfo, SizeOf(ProxyInfo), 0);
   FillCharFast(WinHttpProxyInfo, SizeOf(WinHttpProxyInfo), 0);
   FillCharFast(AutoProxyOptions, SizeOf(AutoProxyOptions), 0);
   FillCharFast(IEProxyConfig, SizeOf(IEProxyConfig), 0);
@@ -2384,7 +2394,7 @@ begin
       begin
         ProxyInfo.URL := WinHttpProxyInfo.lpszProxy;
         ProxyInfo.Bypass := WinHttpProxyInfo.lpszProxyBypass;
-        ProxyInfo.AutoDetected := True;
+        ProxyInfo.AutoDetected := true;
       end
       else
         result := GetLastError;
@@ -2484,7 +2494,7 @@ function HttpSys2ToWebSocketHeaders(
 var
   headerCnt: integer;
   i: PtrInt;
-  h: THttpHeader;
+  h: THttpApiHeader;
   p: PHTTP_UNKNOWN_HEADER;
   r: PWEB_SOCKET_HTTP_HEADER;
 begin
@@ -2536,8 +2546,7 @@ begin
       inc(len, h^.ulNameLength + h^.ulValueLength + 4);
     inc(h);
   end;
-  FastSetString(result{%H-}, len);
-  d := pointer(result);
+  d := FastSetString(result{%H-}, len);
   h := aHeaders;
   for i := 1 to aHeadersCount do
   begin
@@ -2601,7 +2610,7 @@ initialization
     {$endif CPU64}
     (ord(reqUserAgent) = 40) and
     (ord(respLocation) = 23) and
-    (SizeOf(THttpHeader) = 4) and
+    (SizeOf(THttpApiHeader) = 4) and
     (integer(HTTP_LOG_FIELD_TEST_SUB_STATUS) = HTTP_LOG_FIELD_SUB_STATUS)
   );
 

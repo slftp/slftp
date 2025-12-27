@@ -1,0 +1,2 @@
+Logs all wait and hold times of locks into a file and prints the path to the file.
+Requires the settings event_based_locking_timeout and monitor_lock_times to be enabled.
