@@ -1,8 +1,8 @@
-SHELL = /bin/bash
+SHELL = bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
-CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot -Fulibs/mORMot/* -Fulibs/ZeosLib/*
+CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
 CTESTINCLUDES = -Futests/* -Futests/fptest/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gw3
 # flag for heaptrace output
@@ -28,70 +28,70 @@ all_32: slftp_32 install
 
 all_64: slftp_64 install
 
-slftp:
-	make clean
-	$(call revpatch)
+slftp:	FORCE
+	$(MAKE) clean
+	$(MAKE) revpatch
 	$(CC) $(CFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_32:
-	make clean
-	$(call revpatch)
+slftp_32:	FORCE
+	$(MAKE) clean
+	$(MAKE) revpatch
 	$(CC) -Pi386 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_64:
-	make clean
-	$(call revpatch)
+slftp_64:	FORCE
+	$(MAKE) clean
+	$(MAKE) revpatch
 	$(CC) -Px86_64 $(CFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_debug:
-	$(call revpatch)
+slftp_debug:	FORCE
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_32_debug:
-	$(call revpatch)
+slftp_32_debug:	FORCE
+	$(MAKE) revpatch
 	$(CC) -Pi386 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_64_debug:
-	$(call revpatch)
+slftp_64_debug:	FORCE
+	$(MAKE) revpatch
 	$(CC) -Px86_64 $(CDBFLAGS) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_debug_heaptrace:
-	$(call revpatch)
+slftp_debug_heaptrace:	FORCE
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(HEAPTRACE) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_debug_valgrind:
-	$(call revpatch)
+slftp_debug_valgrind:	FORCE
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(VALGRIND) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_debug_gprof:
-	$(call revpatch)
+slftp_debug_gprof:	FORCE
+	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(GPROF) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-slftp_debug_vtune:
-	$(call revpatch)
+slftp_debug_vtune:	FORCE
+	$(MAKE) revpatch
 	$(CC) $(VTUNE) $(CINCLUDES) slftp.lpr
-	$(call revpatchrevert)
+	$(MAKE) revpatchrevert
 
-test:
-	@make cleanuptestdir
+test:	FORCE
+	$(MAKE) clean
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
 	./tests/slftpUnitTests
-	@make cleanuptestdir
+	$(MAKE) cleanuptestdir
 
 clean:
 	@find . -name "*.ppu" -type f -delete
-	@find . \( -path "./libs/mORMot/static" -o -wholename "./libs/mORMot/SQLite3/sqlite3.o" -o -wholename "./libs/mORMot/padlock*" -o -wholename "./libs/mORMot/SynEcc64O2.o" \) -prune -o -name "*.o" -type f -exec rm {} +
+	@find . \( -path "./libs/mORMot2/static" \) -prune -o -name "*.o" -type f -exec rm {} +
 	@rm -f slftp *.exe
-	@make cleanuptestdir
+	$(MAKE) cleanuptestdir
 
 cleanuptestdir:
 	@find tests -name "*.ppu" -type f -delete
@@ -102,18 +102,19 @@ cleanuptestdir:
 install:
 	@cp slftp $(SLFTPPATH)/slftp
 
+# empty target to force execution
+FORCE:
+
 # patch used HEAD git-hash into slftp.inc
-define revpatch
+revpatch: FORCE
 	@if [ -d ".git" ]; then \
         GIT_COMMIT=$(shell git rev-parse --short HEAD) ;\
 		echo "patching SL_REV entry to $$GIT_COMMIT" ;\
-		sed -i "s/SL_REV: string.*/SL_REV: string = '$$GIT_COMMIT';/g" slftp.inc ;\
+		perl replace_git_commit.pl $$GIT_COMMIT ;\
     fi
-endef
 
 # restore default blank value of slftp.inc
-define revpatchrevert
+revpatchrevert: FORCE
 	@if [ -d ".git" ]; then \
-        sed -i "s/SL_REV: string.*/SL_REV: string = '';/g" slftp.inc ;\
+        perl replace_git_commit.pl ;\
     fi
-endef

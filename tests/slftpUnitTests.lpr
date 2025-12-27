@@ -28,7 +28,7 @@ uses
     cthreads,
   {$ENDIF}
   {$IFDEF CPUX86_64}
-    SynFPCx64MM,
+    mormot.core.fpcx64mm,
   {$ELSE}
     cmem,
   {$ENDIF}
@@ -64,7 +64,10 @@ uses
   taskhttpimdbTests,
   slsslTests,
   sitesunitTests,
-  precatcherTests;
+  precatcherTests,
+  slcriticalsection2Tests,
+  variantCacheTests,
+  sltimerTests;
 
 var
   filecheck: String;

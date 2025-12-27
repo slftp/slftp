@@ -7,14 +7,18 @@ for /f "delims=" %%a in ('where dcc64.exe') do @set CC_64=%%a
 set CC_EXTRAS=-NSWinapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Data;Datasnap;Web;Soap
 set CFLAGS=-B -$O+,C+,D-,L-
 set CDBFLAGS=-B -$O+,C+,D+,L+
-set CINCLUDES=-Uirccommands -Urules -Ulibs/FastMM5 -Ulibs/BeRoHighResolutionTimer -Ulibs/FLRE -Ulibs/rcmdline -Ulibs/lkJSON -Ulibs/TRegExpr -Ulibs/pasmp -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/Protocols/OpenSSL -Ulibs/Indy10/Protocols/OpenSSL/dynamic -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/mORMot -Ulibs/mORMot/SQLite3 -Ulibs/mORMot/CrossPlatform -Ulibs/ZeosLib -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
+
+REM do not set includes here separately, but instead take them from the slftp.dproj file using a powershell script
+::set CINCLUDES=-Uirccommands -Urules -Ulibs/BeRoHighResolutionTimer -Ulibs/FastMM5 -Ulibs/FLRE -Ulibs/Indy10/Core -Ulibs/Indy10/Protocols -Ulibs/Indy10/Protocols/OpenSSL -Ulibs/Indy10/Protocols/OpenSSL/dynamic -Ulibs/Indy10/System -Ulibs/LibTar -Ulibs/lkJSON -Ulibs/mORMot2/src/core -Ulibs/mORMot2/src/lib -Ulibs/mORMot2/src/crypt -Ulibs/mORMot2/src/db -Ulibs/mORMot2/src/orm -Ulibs/mORMot2/src/rest -Ulibs/mORMot2/src/soa -Ulibs/mORMot2/src/net -Ulibs/pasmp -Ulibs/rcmdline -Ulibs/TRegExpr -Ulibs/ZeosLib/core -Ulibs/ZeosLib/dbc -Ulibs/ZeosLib/parsesql -Ulibs/ZeosLib/plain
+for /f "delims=" %%i in ('powershell -ExecutionPolicy Bypass -File extractUnitSearchPaths.ps1 -dprojFile "%DPROJ_FILE%"') do set CINCLUDES=%%i
+
 set UnitTestAppName="tests\slftpUnitTests.exe --exitbehavior:Continue"
 set CTESTINCLUDES=-Utests/DUnitX
 
 REM
 REM OpenSSL version, depending names for 32/64bit will be added later
 REM
-set OPENSSL_NAME=openssl-1.1.1i
+set OPENSSL_NAME=openssl-3.5
 
 REM
 REM Inject git commit into slftp.inc if .git exists
@@ -94,30 +98,32 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win32 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/releases/-/raw/master/deps/%OPENSSL_NAME%-i386-win32.zip', '%OPENSSL_NAME%-i386-win32.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/binaries/-/raw/main/%OPENSSL_NAME%_x86.zip', '%OPENSSL_NAME%_x86.zip')"
 if errorlevel 1 (
 echo Failure reason for downloading OpenSSL is %errorlevel%
 exit /b %errorlevel%
 )
 echo - Extracting OpenSSL libraries -
-powershell expand-archive %OPENSSL_NAME%-i386-win32.zip
+powershell expand-archive %OPENSSL_NAME%_x86.zip
 if errorlevel 1 (
 echo Failure reason for extracting is %errorlevel%
 exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-i386-win32\libcrypto-1_1.dll libcrypto-1_1.dll
-copy /Y %OPENSSL_NAME%-i386-win32\libssl-1_1.dll libssl-1_1.dll
+copy /Y %OPENSSL_NAME%_x86\libcrypto-3-x86.dll libcrypto-3-x86.dll
+copy /Y %OPENSSL_NAME%_x86\libssl-3-x86.dll libssl-3-x86.dll
+copy /Y %OPENSSL_NAME%_x86\ossl-modules\legacy.dll legacy.dll
+
 if errorlevel 1 (
-echo Failure reason for copying is %errorlevel%
-exit /b %errorlevel%
+   echo Failure reason for copying is %errorlevel%
+   exit /b %errorlevel%
 )
 echo - Removing temp OpenSSL stuff -
-del /Q %OPENSSL_NAME%-i386-win32.zip
-rmdir /Q /S %OPENSSL_NAME%-i386-win32
+del /Q %OPENSSL_NAME%_x86.zip
+rmdir /Q /S %OPENSSL_NAME%_x86.zip
 if errorlevel 1 (
-echo Failure reason for deleting is %errorlevel%
-exit /b %errorlevel%
+   echo Failure reason for deleting is %errorlevel%
+   exit /b %errorlevel%
 )
 echo - Creating resource file -
 rc taskhttpimdbTests.rc
@@ -142,27 +148,29 @@ del /q /s *slftp*.exe *.dcu *.dll
 echo -- Testing Win64 ---
 cd tests
 echo - Downloading OpenSSL %OPENSSL_NAME% libraries -
-powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/releases/-/raw/master/deps/%OPENSSL_NAME%-x64_86-win64.zip', '%OPENSSL_NAME%-x64_86-win64.zip')"
+powershell -Command "(New-Object Net.WebClient).DownloadFile('https://gitlab.com/slftp/binaries/-/raw/main/%OPENSSL_NAME%_x64.zip', '%OPENSSL_NAME%_x64.zip')"
 if errorlevel 1 (
-   echo Failure reason for downloading OpenSSL is %errorlevel%
-   exit /b %errorlevel%
+echo Failure reason for downloading OpenSSL is %errorlevel%
+exit /b %errorlevel%
 )
 echo - Extracting OpenSSL libraries -
-powershell expand-archive %OPENSSL_NAME%-x64_86-win64.zip
+powershell expand-archive %OPENSSL_NAME%_x64.zip
 if errorlevel 1 (
-   echo Failure reason for extracting is %errorlevel%
-   exit /b %errorlevel%
+echo Failure reason for extracting is %errorlevel%
+exit /b %errorlevel%
 )
 echo - Copying OpenSSL libraries -
-copy /Y %OPENSSL_NAME%-x64_86-win64\libcrypto-1_1-x64.dll libcrypto-1_1-x64.dll /Y
-copy /Y %OPENSSL_NAME%-x64_86-win64\libssl-1_1-x64.dll libssl-1_1-x64.dll /Y
+copy /Y %OPENSSL_NAME%_x64\libcrypto-3-x64.dll libcrypto-3-x64.dll
+copy /Y %OPENSSL_NAME%_x64\libssl-3-x64.dll libssl-3-x64.dll
+copy /Y %OPENSSL_NAME%_x64\ossl-modules\legacy.dll legacy.dll
+
 if errorlevel 1 (
    echo Failure reason for copying is %errorlevel%
    exit /b %errorlevel%
 )
 echo - Removing temp OpenSSL stuff -
-del /Q %OPENSSL_NAME%-x64_86-win64.zip
-rmdir /Q /S %OPENSSL_NAME%-x64_86-win64
+del /Q %OPENSSL_NAME%_x64.zip
+rmdir /Q /S %OPENSSL_NAME%_x64
 if errorlevel 1 (
    echo Failure reason for deleting is %errorlevel%
    exit /b %errorlevel%

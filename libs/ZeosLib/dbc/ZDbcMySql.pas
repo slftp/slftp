@@ -311,6 +311,7 @@ constructor TZMySQLDriver.Create;
 begin
   inherited Create;
   AddSupportedProtocol(AddPlainDriverToCache(TZMySQLPlainDriver.Create));
+  AddSupportedProtocol(AddPlainDriverToCache(TZMariaDBPlainDriver.Create));
 end;
 
 {**
@@ -581,9 +582,7 @@ begin
     end;
   end;
   try
-    { Sets a default port number. }
-    if Port = 0 then
-       Port := MYSQL_PORT;
+    { Port = 0 means default port number, pass it to driver. }
 
     { Turn on compression protocol. }
     if StrToBoolEx(Info.Values[ConnProps_Compress]) and
@@ -751,7 +750,7 @@ setuint:      UIntOpt := {$IFDEF UNICODE}UnicodeToUInt32Def{$ELSE}RawToUInt32Def
   S := Info.Values[ConnProps_MySQL_FieldType_Bit_1_IsBoolean];
   FMySQL_FieldType_Bit_1_IsBoolean := StrToBoolEx(S);
   FSupportsBitType := (
-    (    FPlainDriver.IsMariaDBDriver and (ClientVersion >= 100109) ) or
+    (    FPlainDriver.IsMariaDBDriver and (ClientVersion >= 100109) or (ClientVersion < 50000) ) or
     (not FPlainDriver.IsMariaDBDriver and (ClientVersion >=  50003) ) ) and (GetHostVersion >= EncodeSQLVersioning(5,0,3));
   //if not explizit !un!set -> assume as default since Zeos 7.3
   FMySQL_FieldType_Bit_1_IsBoolean := FMySQL_FieldType_Bit_1_IsBoolean or (FSupportsBitType and (S = ''));
@@ -822,19 +821,26 @@ end;
 
 function TZMySQLConnection.PrepareCallWithParams(const Name: String;
   Params: TStrings): IZCallableStatement;
+var ClientVersion: ULong;
 begin
-  if (FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 100000)) or
-     (not FPLainDriver.IsMariaDBDriver and (FPLainDriver.mysql_get_client_version >= 50608))
+  if IsClosed then
+     Open;
+  ClientVersion := FPlainDriver.mysql_get_client_version;
+  //The mariadb clientversion has been set down to version 30000 +
+  if (FPLainDriver.IsMariaDBDriver and ((ClientVersion < 50000) or (ClientVersion >= 100207))) or
+     (not FPLainDriver.IsMariaDBDriver and (ClientVersion >= 50608))
   then Result := TZMySQLCallableStatement56up.Create(Self, Name, Params)
   else Result := TZMySQLCallableStatement56down.Create(Self, Name, Params);
 end;
 
 function TZMySQLConnection.PrepareStatementWithParams(const SQL: string;
   Info: TStrings): IZPreparedStatement;
+var ClientVersion: ULong;
 begin
   if IsClosed then
      Open;
-  if FPlainDriver.IsMariaDBDriver and (FPlainDriver.mysql_get_client_version >= 100207) and
+  ClientVersion := FPlainDriver.mysql_get_client_version;
+  if FPlainDriver.IsMariaDBDriver and ((ClientVersion >= 100207) or ( ClientVersion < 50000)) and
      (GetHostVersion >= EncodeSQLVersioning(10,3,0))
   then Result := TZMariaDBBatchDMLPreparedStatement.Create(Self, SQL, Info)
   else Result := TZMySQLEmulatedBatchPreparedStatement.Create(Self, SQL, Info);
@@ -1004,8 +1010,6 @@ procedure TZMySQLConnection.AfterConstruction;
 begin
   FPlainDriver := PlainDriver.GetInstance as TZMySQLPlainDriver;
   FIKnowMyDatabaseName := False;
-  if Self.Port = 0 then
-     Self.Port := MYSQL_PORT;
   FMetaData := TZMySQLDatabaseMetadata.Create(Self, Url);
   inherited AfterConstruction;
   inherited SetTransactionIsolation(tiRepeatableRead);
