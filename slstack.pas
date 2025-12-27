@@ -4,8 +4,7 @@ interface
 
 
 uses
-  Classes, SysUtils,
-  slssl, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_ossl_typ, debugunit, mystrings,
+  Classes, SysUtils, slssl, mormot.lib.openssl11, mormot.core.os, debugunit, mystrings,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -1056,14 +1055,18 @@ begin
 end;
 
 function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Integer;
+var
+  fSslErrorCode: Integer;
 begin
   try
     Result := SSL_read(ssl, PAnsiChar(@buffer), bufsize);
     if Result <= 0 then
     begin
-      error := 'sslread failed: ' + GetLastSSLError(ssl, Result);
-      if 0 < Pos('zero return', error) then
-        error := 'Connection lost';
+      fSslErrorCode := GetLastSSLErrorCode(ssl, Result);
+      if fSslErrorCode = SSL_ERROR_ZERO_RETURN then
+        error := 'Connection lost'
+      else
+        error := 'sslread failed: ' + GetSSLErrorMessageFromErrorCode(ssl, fSslErrorCode);
     end;
   except
     on e: Exception do

@@ -8,6 +8,7 @@ uses
 { Creates an initialized instance of TSQLDBSQLite3ConnectionProperties for further use of given SQLite3 database
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
   @param(aPassword password which is used for encryption/decryption of the database (FOR FUTURE USE! [TODO])
+  @param(aIsInMemory Set to true if this SQLite DB should be an in-memory DB)
   @returns(Initialized TSQLDBSQLite3ConnectionProperties instance, returns exception and nil on failure) }
 function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLDBSQLite3ConnectionProperties;
 
