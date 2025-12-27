@@ -17,13 +17,13 @@ variables:
     - cmd.exe -/c ".\make.bat slftp_64"
   after_script:
     # rename executable
-    - ren slftp.exe slftp_x64-%CI_COMMIT_SHORT_SHA%.exe
+    - ren slftp.exe slftp_x64-${CI_COMMIT_SHORT_SHA}.exe
   artifacts:
     # name of the generated zipfile
-    name: "slftp_x64-%CI_JOB_NAME%-%CI_COMMIT_REF_NAME%-%CI_COMMIT_SHA%"
+    name: "slftp_x64-${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}"
     paths:
       # included file
-      - slftp_x64-%CI_COMMIT_SHORT_SHA%.exe
+      - slftp_x64-${CI_COMMIT_SHORT_SHA}.exe
   tags:
     - windows
     - delphi 64bit
@@ -32,7 +32,7 @@ buildwin64-release:
   <<: *buildwin64
   before_script:
     # delete .git dir to avoid patching in git rev
-    - rmdir .git /s /q
+    - Remove-Item .git -Recurse -Force
   only:
     - tags
 
@@ -56,8 +56,7 @@ buildwin64-development:
       # included file
       - slftp_x64-${CI_COMMIT_SHORT_SHA}
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 buildlinux64-release:
   <<: *buildlinux64
@@ -95,18 +94,18 @@ testlinux64:
   image: $SLFTP_CI_IMAGE
   when: on_success
   before_script:
-    #- cp /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ./libcrypto.so
-    #- cp /usr/lib/x86_64-linux-gnu/libssl.so.1.1 ./libssl.so
-    - wget -O libcrypto.so https://gitlab.com/slftp/ci-images/-/raw/master/libcrypto_openssl-1.1.1s
-    - wget -O libssl.so https://gitlab.com/slftp/ci-images/-/raw/master/libssl_openssl-1.1.1s
+    - cp /usr/lib/x86_64-linux-gnu/libcrypto.so.3 tests/libcrypto.so.3
+    - cp /usr/lib/x86_64-linux-gnu/libssl.so.3 tests/libssl.so.3
+    - cp /usr/lib/x86_64-linux-gnu/ossl-modules/legacy.so tests/legacy.so
+    #- wget -O libcrypto.so https://gitlab.com/slftp/ci-images/-/raw/master/libcrypto_openssl-1.1.1s
+    #- wget -O libssl.so https://gitlab.com/slftp/ci-images/-/raw/master/libssl_openssl-1.1.1s
     - mv config/* tests/
     - apt-get -y install libsqlite3-dev
     - cp /usr/lib/x86_64-linux-gnu/libsqlite3.so ./libsqlite3.so
   script:
     - make test
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 ### sourcecode documentation stage ###
 
@@ -130,8 +129,7 @@ src-docs:
   script:
     - pasdoc --format html --write-uses-list --output src-docs irccommands/*.pas *.pas slftp.lpr
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 pages:
   stage: deploy sourcecode documentation
@@ -148,7 +146,7 @@ pages:
   script:
     - cp -r src-docs public
   tags:
-    - linux
+    - saas-linux-medium-amd64
 
 ### package & release stage ###
 
@@ -236,23 +234,25 @@ upload-package-files:
     - |
      rm -f mysqlwin64.zip
     - |
-     curl -s https://archive.mariadb.org/mariadb-10.5.13/winx64-packages/mariadb-10.5.13-winx64.zip -o mariadbwin64.zip
+     curl -s https://archive.mariadb.org/mariadb-10.5.24/winx64-packages/mariadb-10.5.24-winx64.zip -o mariadbwin64.zip
     - |
      unzip -p mariadbwin64.zip */lib/libmariadb.dll > dist/libmariadb.dll
     - |
      rm -f mariadbwin64.zip
     - |
-     curl -s https://www.sqlite.org/2021/sqlite-dll-win64-x64-3350400.zip -o sqlitewin64.zip
+     curl -s https://www.sqlite.org/2024/sqlite-dll-win-x64-3450300.zip -o sqlitewin64.zip
     - |
      unzip -p sqlitewin64.zip sqlite3.dll > dist/sqlite3-64.dll
     - |
      rm -f sqlitewin64.zip
     - |
-     curl -s http://wiki.overbyte.eu/arch/openssl-1.1.1k-win64.zip -o opensslwin64.zip
+     curl -s -L https://gitlab.com/slftp/binaries/-/tree/main/openssl-3.5_x64.zip -o opensslwin64.zip
     - |
-     unzip -p opensslwin64.zip libcrypto-1_1-x64.dll > dist/libcrypto-1_1-x64.dll
+     unzip -p opensslwin64.zip libcrypto-3-x64.dll > dist/libcrypto-3-x64.dll
     - |
-     unzip -p opensslwin64.zip libssl-1_1-x64.dll > dist/libssl-1_1-x64.dll
+     unzip -p opensslwin64.zip libssl-3-x64.dll > dist/libssl-3-x64.dll
+    - |
+     unzip -p opensslwin64.zip ossl-modules/legacy.dll > dist/legacy.dll
     - |
      rm -f opensslwin64.zip
     - |
@@ -265,8 +265,7 @@ upload-package-files:
       # publish environment variables
       dotenv: build.env
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64
 
 release:
   stage: release
@@ -290,5 +289,4 @@ release:
       --assets-link "{\"name\":\"${SLHELPFILES}\",\"url\":\"${PACKAGE_URL}/${SLHELPFILES}\"}"
       --assets-link "{\"name\":\"${SLPACKAGE}\",\"url\":\"${PACKAGE_URL}/${SLPACKAGE}\"}"
   tags:
-    - linux
-    - docker
+    - saas-linux-medium-amd64

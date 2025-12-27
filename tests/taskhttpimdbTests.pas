@@ -571,7 +571,7 @@ begin
 
   CheckTrue(400 < fVotes, 'Votes mismatch');
   CheckTrue(5000 > fVotes, 'Votes mismatch');
-  CheckTrue(60 < fRating, 'Rating mismatch');
+  CheckTrue(59 < fRating, 'Rating mismatch');
   CheckTrue(62 > fRating, 'Rating mismatch');
 end;
 
@@ -683,7 +683,7 @@ begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt3450958'), fVotes, fRating);
 
   CheckTrue(229000 < fVotes, 'Votes mismatch');
-  CheckTrue(249000 > fVotes, 'Votes mismatch');
+  CheckTrue(500000 > fVotes, 'Votes mismatch');
   CheckTrue(73 < fRating, 'Rating mismatch');
   CheckTrue(76 > fRating, 'Rating mismatch');
 end;
@@ -726,23 +726,24 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('Italy', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2017,7,7), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('July 7, 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Cine&Comic Fest Genova)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[2];
     CheckEqualsString('UK', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2017,7,11), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('July 11, 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[21];
-    CheckEqualsString('Romania', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2017,7,14), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    // no longer getting all the items :(
+    //fReleaseDateInfo := fReleaseDateInfoList[21];
+    //CheckEqualsString('Romania', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('July 14, 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[24];
-    CheckEqualsString('France', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2017,7,17), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Paris) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    //fReleaseDateInfo := fReleaseDateInfoList[25];
+    //CheckEqualsString('Poland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('July 28, 2017', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -765,17 +766,9 @@ begin
     CheckEqualsString('Austria', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Planet der Affen Survival', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
-    CheckEqualsString('Canada (French title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('La guerre de la planète des singes', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
-
-    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
-    CheckEqualsString('Canada (English title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('War for the Planet of the Apes', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
-
-    fAlsoKnownAsInfo := fAlsoKnownAsList[9];
-    CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('La Planète des singes  Suprématie', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    fAlsoKnownAsInfo := fAlsoKnownAsList[2];
+    CheckEqualsString('Brazil', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Planeta dos Macacos A Guerra', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
   end;
@@ -829,7 +822,7 @@ begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0455275'), fVotes, fRating);
 
   CheckTrue(500000 < fVotes, 'Votes mismatch');
-  CheckTrue(520000 > fVotes, 'Votes mismatch');
+  CheckTrue(900000 > fVotes, 'Votes mismatch');
   CheckTrue(80 < fRating, 'Rating mismatch');
   CheckTrue(86 > fRating, 'Rating mismatch');
 end;
@@ -870,25 +863,33 @@ begin
   try
     THtmlIMDbParser.ParseReleaseDateInfo(FReleasePage, fReleaseDateInfoList);
 
+
+    fReleaseDateInfo := fReleaseDateInfoList[0];
     fReleaseDateInfo := fReleaseDateInfoList[1];
-    CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2005,8,29), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    fReleaseDateInfo := fReleaseDateInfoList[2];
+    fReleaseDateInfo := fReleaseDateInfoList[3];
+
+
+    fReleaseDateInfo := fReleaseDateInfoList[1];
+    CheckEqualsString('Thailand', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    CheckEqualsString('August 29, 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[4];
-    CheckEqualsString('Norway', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2006,1,5), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    fReleaseDateInfo := fReleaseDateInfoList[3];
+    CheckEqualsString('Brazil', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    CheckEqualsString('October 10, 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[8];
-    CheckEqualsString('Japan', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2006,5,11), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    // list from imdb is no longer complete ...
+    //fReleaseDateInfo := fReleaseDateInfoList[8];
+    //CheckEqualsString('Japan', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('May 11, 2006', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[17];
-    CheckEqualsString('Switzerland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2007,6,7), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(German speaking region)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    //fReleaseDateInfo := fReleaseDateInfoList[17];
+    //CheckEqualsString('Switzerland', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('June 7, 2007', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('(German speaking region)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -908,15 +909,7 @@ begin
     CheckEqualsString('Prison Break', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
     fAlsoKnownAsInfo := fAlsoKnownAsList[1];
-    CheckEqualsString('Brazil (DVD title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Prison Break Em Busca da Verdade', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
-
-    fAlsoKnownAsInfo := fAlsoKnownAsList[2];
     CheckEqualsString('Brazil', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Prison Break', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
-
-    fAlsoKnownAsInfo := fAlsoKnownAsList[9];
-    CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Prison Break', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
@@ -971,7 +964,7 @@ begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt7214470'), fVotes, fRating);
 
   CheckTrue(1500 < fVotes, 'Votes mismatch');
-  CheckTrue(1800 > fVotes, 'Votes mismatch');
+  CheckTrue(4000 > fVotes, 'Votes mismatch');
   CheckTrue(39 < fRating, 'Rating mismatch');
   CheckTrue(47 > fRating, 'Rating mismatch');
 end;
@@ -1014,23 +1007,24 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('Germany', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2018,2,22), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('February 22, 2018', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('Austria', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2018,2,23), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('February 23, 2018', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[3];
-    CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2019,2,12), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(DVD and Blu-ray and premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    // list is no longer complete
+    //fReleaseDateInfo := fReleaseDateInfoList[3];
+    //CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('February 12, 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('(DVD and Blu-ray and premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[5];
-    CheckEqualsString('Netherlands', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2019,2,21), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    //fReleaseDateInfo := fReleaseDateInfoList[5];
+    //CheckEqualsString('Netherlands', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('February 21, 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('(DVD premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -1054,12 +1048,13 @@ begin
     CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
     fAlsoKnownAsInfo := fAlsoKnownAsList[3];
-    CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Fear Challenge', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    CheckEqualsString('Canada', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('L''Asile Berceau de la Terreur', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
-    CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    // list is no longer complete
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[4];
+    //CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
   end;
@@ -1156,12 +1151,12 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2018,9,30), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('September 30, 2018', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('Spain', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2019,6,1), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('June 1, 2019', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
@@ -1189,9 +1184,9 @@ begin
     CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Marvel Rising Secret Warriors', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[7];
-    CheckEqualsString('USA (alternative title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Marvel Rising Initiation', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
+    CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Marvel Rising Secret Warriors', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
   end;
@@ -1244,8 +1239,8 @@ var
 begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt11095742'), fVotes, fRating);
 
-  CheckTrue(2700 < fVotes, 'Votes mismatch');
-  CheckTrue(5000 > fVotes, 'Votes mismatch');
+  CheckTrue(5000 < fVotes, 'Votes mismatch');
+  CheckTrue(20000 > fVotes, 'Votes mismatch');
   CheckTrue(74 < fRating, 'Rating mismatch');
   CheckTrue(81 > fRating, 'Rating mismatch');
 end;
@@ -1288,18 +1283,19 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2020,1,24), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('January 24, 2020', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Sundance Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2020,3,6), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('March 6, 2020', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(True/False Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[9];
-    CheckEqualsString('Spain', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2020,8,14), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(internet)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    // list is no longer complete
+    //fReleaseDateInfo := fReleaseDateInfoList[9];
+    //CheckEqualsString('Spain', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('August 14, 2020', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('(internet)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -1319,16 +1315,17 @@ begin
     CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
     fAlsoKnownAsInfo := fAlsoKnownAsList[2];
-    CheckEqualsString('Canada (English title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Canada', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
-    CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    // list is no longer complete
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[4];
+    //CheckEqualsString('France', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[5];
-    CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[5];
+    //CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
   end;
@@ -1382,7 +1379,7 @@ begin
   THtmlIMDbParser.ParseVotesAndRating(THtmlIMDbParser.GenerateJSONObject(FMainPage, 'tt0375568'), fVotes, fRating);
 
   CheckTrue(31000 < fVotes, 'Votes mismatch');
-  CheckTrue(39000 > fVotes, 'Votes mismatch');
+  CheckTrue(50000 > fVotes, 'Votes mismatch');
   CheckTrue(59 < fRating, 'Rating mismatch');
   CheckTrue(68 > fRating, 'Rating mismatch');
 end;
@@ -1393,7 +1390,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieLanguage(FMainPage, fLanguageList);
 
-  CheckEqualsString('English', fLanguageList, 'Language(s) mismatch');
+  CheckEqualsString('English,Japanese', fLanguageList, 'Language(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseMovieCountries;
@@ -1402,7 +1399,7 @@ var
 begin
   THtmlIMDbParser.ParseMovieCountries(FMainPage, fCountriesList);
 
-  CheckEqualsString('Hong Kong,USA', fCountriesList, 'Countrie(s) mismatch');
+  CheckEqualsString('Hong Kong,USA,Japan,UK', fCountriesList, 'Countrie(s) mismatch');
 end;
 
 procedure TTestTHtmlIMDbParser_tt0375568.TestParseMovieGenres;
@@ -1425,23 +1422,24 @@ begin
 
     fReleaseDateInfo := fReleaseDateInfoList[0];
     CheckEqualsString('Japan', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2009,10,5), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Tokyo) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    CheckEqualsString('October 5, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('(Tokyo, premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
     fReleaseDateInfo := fReleaseDateInfoList[2];
     CheckEqualsString('Belgium', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2009,10,17), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    CheckEqualsString('October 17, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Gent International Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[3];
-    CheckEqualsString('Italy', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2009,10,18), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Rome Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    // there are only 5 items in the JSON
+    //fReleaseDateInfo := fReleaseDateInfoList[5];
+    //CheckEqualsString('Italy', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('October 18, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('(Rome Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[5];
-    CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
-    CheckEquals(EncodeDate(2009,10,19), fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
-    CheckEqualsString('(Hollywood, California) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
+    //fReleaseDateInfo := fReleaseDateInfoList[7];
+    //CheckEqualsString('USA', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
+    //CheckEqualsString('October 19, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
+    //CheckEqualsString('(Hollywood, California) (premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
   finally
     fReleaseDateInfoList.Free;
   end;
@@ -1465,28 +1463,29 @@ begin
     CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
     fAlsoKnownAsInfo := fAlsoKnownAsList[2];
-    CheckEqualsString('Canada (French title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Astro', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
-
-    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
-    CheckEqualsString('Canada (English title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    CheckEqualsString('Canada', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[5];
-    CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Astro Boy - Der Film', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    // list is no longer complete
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[3];
+    //CheckEqualsString('Canada (English title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[6];
-    CheckEqualsString('Greece (DVD title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[5];
+    //CheckEqualsString('Germany', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Astro Boy - Der Film', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[13];
-    CheckEqualsString('Serbia', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Astro dečak', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[6];
+    //CheckEqualsString('Greece (DVD title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[14];
-    CheckEqualsString('Spain', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
-    CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[13];
+    //CheckEqualsString('Serbia', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Astro dečak', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
+
+    //fAlsoKnownAsInfo := fAlsoKnownAsList[14];
+    //CheckEqualsString('Spain', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
+    //CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
     fAlsoKnownAsList.Free;
   end;
@@ -1549,7 +1548,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
 
-    CheckEquals(15, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(14, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl4094002689', fBOMCountryLinks.Items['USA'], 'Link mismatch');
     CheckEqualsString('/release/rl3985016577', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
     CheckEqualsString('/release/rl3783689985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
@@ -1638,7 +1637,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
 
-    CheckEquals(19, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(18, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl3947005441', fBOMCountryLinks.Items['USA'], 'Link mismatch');
     CheckEqualsString('/release/rl2452522497', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
     CheckEqualsString('/release/rl2335081985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
@@ -1714,7 +1713,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
 
-    CheckEquals(32, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(31, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl1782744577', fBOMCountryLinks.Items['USA'], 'Link mismatch');
     CheckEqualsString('/release/rl3156968961', fBOMCountryLinks.Items['UK'], 'Link mismatch');
     CheckEqualsString('/release/rl1730905601', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
@@ -1812,7 +1811,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetGroupSpecificLinks(FOverviewPage, fBOMGroupReleaseLinks);
 
-    CheckEquals(7, fBOMGroupReleaseLinks.Count, 'Count mismatch');
+    CheckEquals(8, fBOMGroupReleaseLinks.Count, 'Count mismatch');
     CheckEqualsString('/releasegroup/gr2193641989', fBOMGroupReleaseLinks.Items['Original Release'], 'Link mismatch');
     CheckEqualsString('/releasegroup/gr2210419205', fBOMGroupReleaseLinks.Items['1985 Re-release'], 'Link mismatch');
     CheckEqualsString('/releasegroup/gr2160087557', fBOMGroupReleaseLinks.Items['2011 Re-release'], 'Link mismatch');

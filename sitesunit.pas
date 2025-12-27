@@ -5,7 +5,8 @@ interface
 uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
-  taskrules, taskrace, queueunit, Generics.Collections, pazo;
+  taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
+  variantcache, routeconfig;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -194,6 +195,7 @@ type
     property LastIO: TDateTime read FLastIO write FLastIO; //< time of last I/O operation, renewed on every read/write
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
+    property SlotNumber: integer read FSlotNumber;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -211,11 +213,28 @@ type
     fMaxUp: integer;
     fMaxDn: integer;
     fMaxPreDn: integer;
-    fSlotsAssignmentLock: TEvent;
-    fSlotsAssignmentOwningThreadID: TThreadID;
-    fSlotsAssignmentLockCount: integer;
-    fslotsAssignmentLockedName: string;
+    fMaxUpPerRip: integer;
+    fMaxSimUpCooldownUntil: TDateTime;
+    fMaxSimUpCooldownSeconds: integer;
+    fMaxSimDownCooldownUntil: TDateTime;
+    fMaxSimDownCooldownSeconds: integer;
+    fReducedSpeedstatWeight: boolean;
+    fPermDownStatus: boolean;
+    fSkipBeingUploadedFiles: TSkipBeingUploaded;
+    fUseForNFOdownload: TUseForNFODownload;
+    fNoannounce: boolean;
+    flegacydirlist: boolean;
+    fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    fConnect_timeout: integer;
+    fIdleInterval: integer;
+    fIo_timeout: integer;
+    fMaxIdle: integer;
+    fKillConnectionOnStalledTransferSeconds: integer;
+    fSpeedFromCS: TSlCriticalSection2;
+    fSpeedFromCache: TList<TSpeedFromRouteInfo>;
+    fFreeSlotsCS: TSlCriticalSection2;
+    FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
     function GetSkipPreStatus: boolean;
     procedure SetSkipPreStatus(Value: boolean);
@@ -276,8 +295,6 @@ type
     function FetchAutoRules: TRulesTask;
     function FetchAutoDirlist: TAutoDirlistTask;
     function FetchAutoNuke: TAutoNukeTask;
-    procedure SetNumDn(const Value: integer);
-    procedure SetNumUp(const Value: integer);
     procedure SetFreeSlots(const Value: integer);
 
     { function for @link(ProxyName) property to read proxyname from inifile (default value: !!NOIN!!) }
@@ -356,9 +373,6 @@ type
     { procedure for @link(SiteInfos) property to write siteinfos to inifile }
     procedure SetSiteInfos(const Value: String);
 
-    function GetLastKnownCredits: int64;
-    procedure SetLastKnownCredits(const Value: int64);
-
     function GetUseAutoInvite: Boolean;
     procedure SetUseAutoInvite(Value: Boolean);
 
@@ -392,6 +406,11 @@ type
     function GetReducedSpeedstatWeight: boolean;
     { Sets a value indicating whether speedstats should not change calculated rank for this destination site }
     procedure SetReducedSpeedstatWeight(const Value: boolean);
+    { Gets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
+    function GetKillConnectionOnStalledTransferSeconds: integer;
+    { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
+    procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
+    function GetSpeed_From: TList<TSpeedFromRouteInfo>;
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -419,15 +438,15 @@ type
     procedure QueueFire;
     procedure QueueClean;
     procedure QueueSort;
-    function RemovePazo(const aPazoID: integer): boolean;
+    function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
     //procedure QueueEmpty(const sitename: String);
     procedure QueueFireInverval(const interval: integer);
     procedure QueueCleanInverval(const interval: integer);
     procedure RemovePazoMKDIR(const pazo_id: integer; const dir: String);
     procedure RemovePazoRace(const aPazoID: integer; const aDstSite, aDir, aFilename: String);
-    procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
     procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
     procedure RemovePazoDirTasks(const aPazoID: integer);
+    procedure RemovePazoSfv(const aPazoID: integer; const aDir: String);
     function IrcKillAll(const netname, channel, params: String): boolean;
     procedure GetCurrentTasks(const taskLst: Contnrs.TObjectList);
 
@@ -475,7 +494,16 @@ type
     function GetPretime(const section: String): String;
 
     function isRouteableTo(const sitename: String): boolean;
-    function isRouteableFrom(const sitename: String): boolean;
+
+    procedure RegisterMaxSimUpHit(const aSlotName: String);
+    procedure ResetMaxSimUpCooldown;
+    function MaxSimUpCooldownActive: boolean;
+    function MaxSimUpCooldownRemainingSeconds: integer;
+
+    procedure RegisterMaxSimDownHit(const aSlotName: String);
+    procedure ResetMaxSimDownCooldown;
+    function MaxSimDownCooldownActive: boolean;
+    function MaxSimDownCooldownRemainingSeconds: integer;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -513,17 +541,35 @@ type
     { Send the current tasks to the queue console window. }
     procedure QueueSendCurrentTasksToConsole;
 
+    { Lock this site for any operation that will assign / unassign tasks to the slots.
+      @param(aLockName This should be a unique name of the code section which calls this procedure for debugging and performance measusing purposes.) }
     procedure AcquireSlotsAssignmentLock(const aLockName: string); overload;
+
+    { Lock this site for any operation that will assign / unassign tasks to the slots. If the lock could not be acquired within the given timeout,
+      this function returns false.
+      @param(aTimeout Maximum wait time to acquire the lock)
+      @param(aLockName This should be a unique name of the code section which calls this procedure for debugging and performance measusing purposes.) }
     function AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean; overload;
+
+    { Release the previously acquired lock for slots assignment. }
     procedure ReleaseSlotsAssignmentLock;
+
+    procedure RebuildSlot(const aSlotNumber: integer);
+    procedure PrintSiteStatusToIRC;
+
+    { Updates the speed-from cache of this site from the sites.dat. }
+    procedure UpdateSpeedFromCache;
+
+    { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
+    procedure MigrateSpeedLockAndSpeedToConfig;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
     property siteaffils: String read GetAffils write SetAffils;
     property sectionpretime[const Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
-    property num_dn: integer read fNumDn write SetNumDn;
-    property num_up: integer read fNumUp write SetNumUp;
+    property num_dn: integer read fNumDn write fNumDn;
+    property num_up: integer read fNumUp write fNumUp;
     property delayleech[const aSection: String]: integer read GetDelayLeech; //< returns random value between min and max seconds for delaying leech
     property delayupload[const aSection: String]: integer read GetDelayUpload; //< returns random value between min and max seconds for delaying upload
     property freeslots: integer read fFreeslots write SetFreeSlots;
@@ -571,7 +617,6 @@ type
     property SkipPre: boolean read GetSkipPreStatus write SetSkipPreStatus;
 
     property SiteInfos: String read GetSiteInfos write SetSiteInfos; //< holds the siteinfos information text
-    property LastCredits: int64 read GetLastKnownCredits write SetLastKnownCredits; //< value for last known credit amount (NOT IMPLEMENTED!)
     property UseAutoInvite: Boolean read GetUseAutoInvite write SetUseAutoInvite;
 
     property IsUp: Boolean read GetIsUp;
@@ -583,6 +628,8 @@ type
     property UseReverseFxpDestination: boolean read GetUseReverseFxpDestination write SetUseReverseFxpDestination; //< a value indicating whether reverse FXP will be used if the site is the destination for the transfer
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
+    property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
+    property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
   end;
 
 function ReadSites(): boolean;
@@ -591,11 +638,12 @@ procedure SiteAutoStart;
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
 procedure QueueFireInverval(const interval: integer);
 procedure QueueCleanInverval(const interval: integer);
-function RemovePazo(const aPazoID: integer): boolean;
+function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 procedure RemovePazoMKDIR(const pazo_id: integer; const sitename, dir: String);
 procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
 procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
 procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
+procedure RemovePazoSfv(const aPazoID: integer; const aDir: string);
 function IrcQueueShow(const netname, channel, params: String): boolean;
 procedure QueueEmpty(const sitename: String);
 procedure QueueStart;
@@ -699,21 +747,26 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  slconstants;
+  dirlist.helpers, tags, Generics.Defaults;
 
 const
   section = 'sites';
+  MAXSIM_COOLDOWN_INITIAL_SECONDS = 5;
+  MAXSIM_COOLDOWN_MAX_SECONDS = 120;
 
 var
-  bnccsere: TCriticalSection = nil;
+  bnccsere: TSlCriticalSection2 = nil;
   sitelaststart: TDateTime;
   // Config vars
   maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
+  kill_connection_on_stalled_transfer_seconds: integer = 0;
   admin_siteslots: integer = 10;
   autologin: boolean = False;
   killafter: integer = 0;
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
+  gAdminSiteName: String;
+  glSpamLoginLogout: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -914,24 +967,29 @@ end;
     Result := True;
   end;
 
-  function TSite.IrcKillAll(const netname, channel, params: String): boolean;
-  begin
-    Result := fQueue.IrcKillAll(netname, channel, params);
-  end;
+function TSite.IrcKillAll(const netname, channel, params: String): boolean;
+begin
+  Result := fQueue.IrcKillAll(netname, channel, params);
+end;
 
-  procedure TSite.QueueSort;
-  begin
-    fQueue.QueueSort;
-  end;
+procedure TSite.QueueSort;
+begin
+  fQueue.QueueSort;
+end;
 
-  procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
-  begin
-    fQueue.RemoveRaceTasks(aPazoID, aSiteName);
-  end;
+procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+begin
+  fQueue.RemoveRaceTasks(aPazoID, aSiteName);
+end;
 
 procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
   begin
     fQueue.RemovePazoDirTasks(aPazoID);
+  end;
+
+procedure TSite.RemovePazoSfv(const aPazoID: integer; const aDir: string);
+  begin
+    fQueue.RemovePazoSfv(aPazoID, aDir);
   end;
 
   procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
@@ -952,14 +1010,8 @@ procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
     fQueue.RemovePazoRace(aPazoID, aDstSite, aDir, aFilename);
   end;
 
-  procedure TSite.RemovePazoSfv(const aPazoID: integer; const aDir: String);
-  begin
-    fQueue.RemovePazoSfv(aPazoID, aDir);
-  end;
-
   procedure RemovePazoRace(const ps: TPazoSite; const aPazoID: integer; const aDstSite, aDir, aFilename: String);
   var
-    fSite: TSite;
     fPair: TDestinationRank;
     fPazoSite: TPazoSite;
   begin
@@ -983,19 +1035,28 @@ begin
   FindSiteByName('', sitename).RemovePazoMKDIR(pazo_id, dir);
 end;
 
-function RemovePazo(const aPazoID: integer): boolean;
+function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 var fSite: TSite;
 begin
   Result := True;
   for fSite in sites do
   begin
-    Result := fSite.RemovePazo(aPazoID) and Result;
+    Result := fSite.RemovePazo(aPazoID, aForce) and Result;
   end;
 end;
 
-function TSite.RemovePazo(const aPazoID: integer): boolean;
+function TSite.RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
 begin
-  Result := fQueue.RemovePazo(aPazoID);
+  Result := fQueue.RemovePazo(aPazoID, aForce);
+end;
+
+procedure RemovePazoSfv(const aPazoID: integer; const aDir: string);
+var fSite: TSite;
+begin
+  for fSite in sites do
+  begin
+    fSite.RemovePazoSfv(aPazoID, aDir);
+  end;
 end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
@@ -1095,7 +1156,7 @@ end;
 
 function getAdminSiteName: String;
 begin
-  Result := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  Result := gAdminSiteName;
 end;
 
 function SiteSoftWareToString(const aSitename: String): String;
@@ -1216,9 +1277,6 @@ begin
 end;
 
 function FindSiteByName(const aNetname, aSitename: String): TSite;
-var
-  i: integer;
-  s: TSite;
 begin
   sitesDict.TryGetValue(aSitename, Result);
 end;
@@ -1278,7 +1336,9 @@ end;
 procedure SitesInit;
 begin
   sitelaststart := Now();
-  bnccsere := TCriticalSection.Create;
+  gAdminSiteName := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
+  glSpamLoginLogout := spamcfg.readbool(section, 'login_logout', False);
+  bnccsere := TSlCriticalSection2.Create('bnccsere');
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1302,6 +1362,7 @@ begin
   maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
   autologin := config.ReadBool(section, 'autologin', False);
   killafter := config.ReadInteger(section, 'killafter', 0);
+  kill_connection_on_stalled_transfer_seconds := config.ReadInteger('taskrace', 'kill_connection_on_stalled_transfer_seconds', 0);
 
   // Add admin site
   AddSite(TSite.Create(getAdminSiteName));
@@ -1368,7 +1429,7 @@ end;
 
 function GiveSiteLastStart: TDateTime;
 begin
-  bnccsere.Enter;
+  bnccsere.Enter('GiveSiteLastStart');
   try
     if siteLastStart < Now then
       siteLastStart := Now;
@@ -1418,11 +1479,7 @@ begin
   // segfault because values aren't initialized yet
   // * the calls below should normally be at top of this function to avoid overwriting/resetting
   // * of class values by its ancestor
-  {$IFDEF DEBUG}
-    inherited Create(Name, False);
-  {$ELSE}
-    inherited Create(False);
-  {$ENDIF}
+  inherited Create(Name, False);
 
   debug(dpSpam, section, 'Slot %s has been created', [Name]);
 end;
@@ -1469,7 +1526,7 @@ begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
   console_add_sitewindow(Name);
-  while ((not slshutdown) and (not shouldquit)) do // and (not False)
+  while ((not slshutdown) and (not shouldquit)) do
   begin
     try
       if status = ssOnline then
@@ -1534,10 +1591,11 @@ begin
                   try
                     TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
                   finally
-                    TSite(TPazoRaceTask(todotask).ssite2).ReleaseSlotsAssignmentLock;
+                    fSite.ReleaseSlotsAssignmentLock;
                   end;
                 end;
 
+                // prepare all possible destination sites for a possible new transfer by firing their queue
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
                   for fPazoSite in TPazoRaceTask(todotask).mainpazo.PazoSitesList do
@@ -1556,7 +1614,24 @@ begin
                 todotask.slot1 := nil;
               end;
             finally
-              todotask := nil;
+              try
+                self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
+                try
+                  todotask := nil;
+                finally
+                  self.site.ReleaseSlotsAssignmentLock;
+                end;
+              except
+                on E: Exception do
+                begin
+                  // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
+                  // This should not really ever happen, other than in a deadlock situation.
+                  todotask := nil;
+                  Debug(dpError, section,
+                    Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
+                    [e.Message]));
+                end;
+              end;
             end;
           except
             on e: Exception do
@@ -1610,6 +1685,23 @@ begin
       end;
     end;
   end;
+
+  // when the thread terminates, cleanup the thread vars that belong to it
+  try
+    CleanupDirlistThreadVars;
+    CleanupTagsThreadVars;
+    CleanupConsoleThreadVars;
+  except
+    on e: Exception do
+    begin
+      try
+        Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.ClearnupThreadVars : %s', [e.Message]));
+      except
+        // ignore this in case the debug unit has already been uninitialized at shutdown or something like that
+      end;
+    end;
+  end;
+
   console_delwindow(Name);
   kilepve := True;
 end;
@@ -2146,7 +2238,7 @@ begin
     bncList.CaseSensitive := False;
     bncList.Duplicates := dupIgnore;
     splitted := TStringList.Create;
-    bnccsere.Enter;
+    bnccsere.Enter('LoginBnc');
     try
       currentBnc := Host + ':' + IntToStr(Port);
       bncList.Add(currentBnc);
@@ -2184,8 +2276,8 @@ begin
         if RCString('bnc_host-' + IntToStr(j), '') = '' then
           break;
 
-        sitesdat.DeleteKey('site-' + site.Name, 'bnc_host-' + IntToStr(j));
-        sitesdat.DeleteKey('site-' + site.Name, 'bnc_port-' + IntToStr(j));
+        site.DeleteKey('bnc_host-' + IntToStr(j));
+        site.DeleteKey('bnc_port-' + IntToStr(j));
         Debug(dpSpam, section, '[bncsort] Removed BNC from %s: %s', [site.Name, RCString('bnc_host-' + IntToStr(j), '') + ':' + IntToStr(RCInteger('bnc_port-' + IntToStr(j), 0))]);
         inc(j)
       end;
@@ -2198,8 +2290,8 @@ begin
         tmpPort := StrToInt(splitted[1]);
         Debug(dpSpam, section, '[bncsort] Added BNC to %s: %s', [site.Name, tmpHost + ':' + IntToStr(tmpPort)]);
 
-        sitesdat.WriteString('site-' + site.Name, 'bnc_host-' + IntToStr(j), tmpHost);
-        sitesdat.WriteInteger('site-' + site.Name, 'bnc_port-' + IntToStr(j), tmpPort);
+        self.site.WCString('bnc_host-' + IntToStr(j), tmpHost);
+        self.site.WCInteger('bnc_port-' + IntToStr(j), tmpPort);
       end;
     finally
       bnccsere.Leave;
@@ -2208,7 +2300,7 @@ begin
     end;
   end;
 
-  if spamcfg.readbool(section, 'login_logout', False) then
+  if glSpamLoginLogout then
     irc_SendRACESTATS(Format('LOGIN <b>%s</b> (%s)', [site.Name, Name]));
 
   //when there are some tasks running and the user sets the site down meanwhile, then there might be a login
@@ -2261,7 +2353,7 @@ begin
         if site.sw = sswGlftpd then
         begin
           DestroySocket(False);
-          Result := LoginBnc(i, True);
+          Result := LoginBnc(i, False);
         end;
       end
       else
@@ -2791,6 +2883,12 @@ begin
       exit;
     end;
 
+    if (lastResponseCode < 100) OR (lastResponseCode > 299) then
+    begin
+      // response code indicates an error
+      exit;
+    end;
+
     Result := True;
   except
     on e: Exception do
@@ -2806,12 +2904,27 @@ var
   host: String;
   port: Integer;
 begin
-  Result := 0;
+  Result := -1;
+  idTCP := nil;
 
   // stop using sites where you don't add some download slots
   (* TODO: Write a function which can be used before from every caller to this function + depend check if PRE or not *)
   if ( (site.max_pre_dn = 0) or (site.max_dn = 0) ) then
     exit;
+
+  site.AcquireSlotsAssignmentLock('Leechfile-Start');
+  try
+    if site.num_dn >= site.max_dn then
+    begin
+      Result := 0;
+      exit;
+    end;
+
+    // now reserve a download slot
+    self.DownloadingFrom := True;
+  finally
+    site.ReleaseSlotsAssignmentLock;
+  end;
 
   try
     idTCP := TslTCPSocket.Create;
@@ -2906,7 +3019,11 @@ begin
 
       Result := 1;
     finally
-      idTCP.Free;
+      if idTCP <> nil then
+        idTCP.Free;
+
+      // release reserved download slot
+      self.DownloadingFrom := False;
     end;
 
   except
@@ -2929,19 +3046,19 @@ procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 begin
   if Value <> fDownloadingFrom then
   begin
-    bnccsere.Enter;
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
-      site.num_dn := site.num_dn + 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end
     else
     begin
-      site.num_dn := site.num_dn - 1;
-      Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -2949,19 +3066,19 @@ procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 begin
   if Value <> fUploadingTo then
   begin
-    bnccsere.Enter;
     fUploadingTo := Value;
     if fUploadingTo then
       begin
-        site.num_up := site.num_up + 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end
     else
       begin
-        site.num_up := site.num_up - 1;
-        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
-    bnccsere.Leave;
   end;
 end;
 
@@ -2969,19 +3086,23 @@ procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
   if fTodotask <> Value then
   begin
-    bnccsere.Enter;
-    fTodotask := Value;
-    if fTodoTask <> nil then
+    site.fFreeSlotsCS.Enter('SetTodotask');
+    try
+      fTodotask := Value;
+      if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
-        end
-    else
+      end
+      else
       begin
         site.freeslots := site.freeslots + 1;
-        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
       end;
-    bnccsere.Leave;
+    finally
+      site.fFreeSlotsCS.Leave;
+    end;
+
+    if GetDebugVerbosity = dpSpam then
+      Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
   end;
 end;
 
@@ -2993,12 +3114,15 @@ var
   ss, affils: String;
 begin
   debug(dpSpam, section, 'Start creating of site %s', [Name]);
-  slots := TObjectList.Create();
+  slots := TObjectList.Create(False);
   self.Name := Name;
   features := [];
-  fSlotsAssignmentLock := TEvent.Create(nil, False, True, 'SLFTP_SlotsAssignmentMutex_' + Name + '_' + IntToStr(random(2000000000)));
-  fSlotsAssignmentLockCount := 0;
+  fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
+  self.fSpeedFromCS := TSlCriticalSection2.Create('SpeedFromCS_' + Name);
+  self.fSpeedFromCache := nil;
+  self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
+  FSettingsCacheDict := TVariantCache.Create;
 
   if (Name = getAdminSiteName) then
   begin
@@ -3017,75 +3141,56 @@ begin
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
 
+  fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
+  fPermDownStatus := RCBool('permdown', False);
+  fSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  fUseForNFOdownload := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
+  fNoannounce := RCBool('noannounce', False);
+  flegacydirlist := RCBool('legacycwd', False);
+  fConnect_timeout := RCInteger('connect_timeout', 15);
+  fIdleInterval := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
+  fIo_timeout := RCInteger('io_timeout', 15);
+  fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
+  fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
+  fMaxUpPerRip := RCInteger('maxupperrip', 0);
+  fMaxSimUpCooldownUntil := 0;
+  fMaxSimUpCooldownSeconds := 0;
+  fMaxSimDownCooldownUntil := 0;
+  fMaxSimDownCooldownSeconds := 0;
+
   siteinvited := False;
   foutofannounce := 0;
   // reset to explore it again on first login
-  sitesdat.WriteInteger('site-' + Name, 'sw', integer(sswUnknown));
+  WCInteger('sw', integer(sswUnknown));
   WorkingStatus := sstUnknown;
 
   for i := 1 to RCInteger('slots', 2) do
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
-  fMaxDn := RCInteger('max_dn', 2);
-  fMaxUp := RCInteger('max_up', 2);
-  fMaxPreDn := RCInteger('max_pre_dn', max_dn);
-
-
-  // TODO: remove as its been here for a while now...
-  // convert section affils to new global affil format
-  for i := 1 to 1000 do
-  begin
-    ss := SubString(self.sections, ' ', i);
-    if ss = '' then
-      Break;
-    affils := RCString('affils-' + ss, '');
-    DeleteKey('affils-' + ss);
-    if affils = '' then
-      Continue;
-    for j := 1 to 1000 do
-    begin
-      ss := SubString(affils, ' ', j);
-      if ss = '' then
-        Break;
-      self.AddAffil(ss);
-    end;
-  end;
+  MigrateSpeedLockAndSpeedToConfig;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
 
 function TSite.isRouteableTo(const sitename: String): boolean;
 var
-  y: TStringList;
+  fSpeedFromList: TList<TSpeedFromRouteInfo>;
+  fSpeedFromItem: TSpeedFromRouteInfo;
 begin
-  y := TStringList.Create;
-  y.Sorted := True;
+  Result := False;
+  fSpeedFromList := GetSpeed_From;
   try
-    sitesdat.ReadSection('speed-to-' + sitename, y);
-    if y.IndexOf(self.Name) = -1 then
-      Result := False
-    else
-      Result := True;
+    for fSpeedFromItem in fSpeedFromList do
+    begin
+      if fSpeedFromItem.sitename = sitename then
+      begin
+        Result := True;
+        break;
+      end;
+    end;
   finally
-    y.Free;
-  end;
-end;
-
-function TSite.isRouteableFrom(const sitename: String): boolean;
-var
-  y: TStringList;
-begin
-  y := TStringList.Create;
-  y.Sorted := True;
-  try
-    sitesdat.ReadSection('speed-from-' + self.Name, y);
-    if y.IndexOf(sitename) = -1 then
-      Result := False
-    else
-      Result := True;
-  finally
-    y.Free;
+    fSpeedFromList.Free;
   end;
 end;
 
@@ -3114,54 +3219,96 @@ end;
 procedure TSite.DeleteKey(const Name: String);
 begin
   sitesdat.DeleteKey('site-' + self.Name, Name);
+  FSettingsCacheDict.Delete(Name);
 end;
 
 function TSite.RCString(const Name: String; const def: String): String;
+var fValue: Variant;
 begin
-  Result := sitesdat.ReadString('site-' + self.Name, Name, def);
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := sitesdat.ReadString('site-' + self.Name, Name, def);
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCString(const Name: String; const val: String);
 begin
   sitesdat.WriteString('site-' + self.Name, Name, val);
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 function TSite.RCInteger(const Name: String; const def: integer): integer;
+var fValue: Variant;
 begin
-  Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := sitesdat.ReadInteger('site-' + self.Name, Name, def);
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCInteger(const Name: String; const val: integer);
 begin
   sitesdat.WriteInteger('site-' + self.Name, Name, val);
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 function TSite.RCBool(const Name: String; const def: boolean): boolean;
+var fValue: Variant;
 begin
-  Result := sitesdat.ReadBool('site-' + self.Name, Name, def);
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := sitesdat.ReadBool('site-' + self.Name, Name, def);
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCBool(const Name: String; const val: boolean);
 begin
   sitesdat.WriteBool('site-' + self.Name, Name, val);
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 function TSite.RCDateTime(const Name: String; const def: TDateTime): TDateTime;
+var fValue: Variant;
 begin
-  Result := MyStrToDate(sitesdat.ReadString('site-' + self.Name, Name, ''));
+  if FSettingsCacheDict.TryGetValue(Name, fValue) then
+    Result := fValue
+  else
+  begin
+    Result := MyStrToDate(sitesdat.ReadString('site-' + self.Name, Name, ''));
+    FSettingsCacheDict.SetValue(Name, Result);
+  end;
 end;
 
 procedure TSite.WCDateTime(const Name: String; const val: TDateTime);
 begin
   sitesdat.WriteString('site-' + self.Name, Name, MyDateToStr(val));
+  FSettingsCacheDict.SetValue(Name, val);
 end;
 
 destructor TSite.Destroy;
+var
+  fSlot: TSiteSlot;
 begin
   Debug(dpSpam, section, 'Site %s destroy begin', [Name]);
   fQueue.Free;
+  QueueEmpty(Name);
+  for fSlot in slots do
+    fSlot.Free;
   slots.Free;
   fSlotsAssignmentLock.Free;
+  fSpeedFromCS.Free;
+  FreeAndNil(fSpeedFromCache);
+  fFreeSlotsCS.Free;
+  FSettingsCacheDict.Free;
   Debug(dpSpam, section, 'Site %s destroy end', [Name]);
   inherited;
 end;
@@ -3210,6 +3357,15 @@ begin
   WCBool('skip_pre', Value);
 end;
 
+procedure TSite.PrintSiteStatusToIRC;
+begin
+  case FWorkingStatus of
+    sstUp: irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
+    sstDown, sstMarkedAsDownByUser: irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
+    sstTempDown: irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
+  end;
+end;
+
 procedure TSite.SetWorking(const Value: TSiteStatus);
 begin
   if Value <> FWorkingStatus then
@@ -3227,11 +3383,11 @@ begin
       Exit;
     end;
 
+    PrintSiteStatusToIRC;
+
     case Value of
       sstUp:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS UP</c>', [globals.SiteColorOnline, Name]));
-
           if UseForNfoDownload = ufnAutoDisabled then
             UseForNfoDownload := ufnEnabled;
 
@@ -3249,8 +3405,6 @@ begin
         end;
       sstDown, sstMarkedAsDownByUser:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS DOWN</c>', [globals.SiteColorOffline, Name]));
-
           // removeing all tasks for the site
           RemoveAutoIndex;
           RemoveAutoBnctest;
@@ -3262,8 +3416,6 @@ begin
         end;
       sstTempDown:
         begin
-          irc_addadmin(Format('<%s>SITE <b>%s</b> IS TEMPDOWN</c>', [globals.SiteColorOffline, Name]));
-
           // just temp down, removeing all tasks except autobnctest
           RemoveAutoIndex;
           RemoveAutoRules;
@@ -3279,22 +3431,22 @@ end;
 function TSite.Getconnect_timeout: integer;
 begin
   //TODO: Maybe use [timeout] from slftp.ini as default value
-  Result := RCInteger('connect_timeout', 15);
+  Result := fConnect_timeout ;
 end;
 
 function TSite.GetIdleInterval: integer;
 begin
-  Result := RCInteger('idleinterval', config.ReadInteger(section, 'idleinterval', 25));
+  Result := fIdleInterval;
 end;
 
 function TSite.Getio_timeout: integer;
 begin
-  Result := RCInteger('io_timeout', 15);
+  Result := fIo_timeout;
 end;
 
 function TSite.GetMaxIdle: integer;
 begin
-  Result := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
+  Result := fMaxIdle;
 end;
 
 function TSite.GetMaxDn: integer;
@@ -3306,6 +3458,8 @@ procedure TSite.SetMaxDn(Value: integer);
 begin
   WCInteger('max_dn', Value);
   fMaxDn := Value;
+  // also set max pre dn again as default max_dn in case max pre dn is not set
+  fMaxPreDn := RCInteger('max_pre_dn', max_dn);
 end;
 
 function TSite.GetMaxPreDn: integer;
@@ -3335,21 +3489,25 @@ end;
 
 procedure TSite.Setconnect_timeout(const Value: integer);
 begin
+  fConnect_timeout := Value;
   WCInteger('connect_timeout', Value);
 end;
 
 procedure TSite.SetIdleInterval(Value: integer);
 begin
+  fIdleInterval := Value;
   WCInteger('idleinterval', Value);
 end;
 
 procedure TSite.Setio_timeout(const Value: integer);
 begin
+  fIo_timeout := Value;
   WCInteger('io_timeout', Value);
 end;
 
 procedure TSite.SetMaxIdle(Value: integer);
 begin
+  fMaxIdle := Value;
   WCInteger('max_idle', Value);
 end;
 
@@ -3389,11 +3547,12 @@ end;
 
 function TSite.Getlegacydirlist: boolean;
 begin
-  Result := RCBool('legacycwd', False);
+  Result := flegacydirlist;
 end;
 
 procedure TSite.Setlegacydirlist(const Value: boolean);
 begin
+  flegacydirlist := Value;
   WCBool('legacycwd', Value);
 end;
 
@@ -3482,6 +3641,130 @@ begin
   begin
     DeleteKey('pretime-' + Name);
   end;
+end;
+
+procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fMaxSimUpCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimUpCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+
+  fMaxSimUpCooldownSeconds := fNewCooldown;
+  fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
+
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
+end;
+
+procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fMaxSimDownCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimDownCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+
+  fMaxSimDownCooldownSeconds := fNewCooldown;
+  fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
+
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
+end;
+
+procedure TSite.ResetMaxSimUpCooldown;
+begin
+  if (fMaxSimUpCooldownSeconds <> 0) or (fMaxSimUpCooldownUntil <> 0) then
+  begin
+    fMaxSimUpCooldownSeconds := 0;
+    fMaxSimUpCooldownUntil := 0;
+    Debug(dpSpam, section, 'MaxSim UP cooldown for %s cleared', [Name]);
+  end;
+end;
+
+procedure TSite.ResetMaxSimDownCooldown;
+begin
+  if (fMaxSimDownCooldownSeconds <> 0) or (fMaxSimDownCooldownUntil <> 0) then
+  begin
+    fMaxSimDownCooldownSeconds := 0;
+    fMaxSimDownCooldownUntil := 0;
+    Debug(dpSpam, section, 'MaxSim DOWN cooldown for %s cleared', [Name]);
+  end;
+end;
+
+function TSite.MaxSimUpCooldownActive: boolean;
+begin
+  if fMaxSimUpCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  if Now >= fMaxSimUpCooldownUntil then
+  begin
+    if fMaxSimUpCooldownSeconds > 0 then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
+        [Name, fMaxSimUpCooldownSeconds]);
+      fMaxSimUpCooldownSeconds := 0;
+    end;
+    fMaxSimUpCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
+function TSite.MaxSimDownCooldownActive: boolean;
+begin
+  if fMaxSimDownCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  if Now >= fMaxSimDownCooldownUntil then
+  begin
+    if fMaxSimDownCooldownSeconds > 0 then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
+        [Name, fMaxSimDownCooldownSeconds]);
+      fMaxSimDownCooldownSeconds := 0;
+    end;
+    fMaxSimDownCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
+function TSite.MaxSimUpCooldownRemainingSeconds: integer;
+begin
+  if not MaxSimUpCooldownActive then
+    Exit(0);
+
+  Result := SecondsBetween(Now, fMaxSimUpCooldownUntil);
+end;
+
+function TSite.MaxSimDownCooldownRemainingSeconds: integer;
+begin
+  if not MaxSimDownCooldownActive then
+    Exit(0);
+
+  Result := SecondsBetween(Now, fMaxSimDownCooldownUntil);
 end;
 
 function TSite.GetDelayLeechMin(const aSection: String): integer;
@@ -3851,33 +4134,21 @@ begin
 end;
 
 function TSite.FetchAutoIndex: TAutoIndexTask;
-var
-  i: integer;
-  t: TAutoIndexTask;
 begin
   Result := fQueue.FetchAutoIndex;
 end;
 
 function TSite.FetchAutoDirlist: TAutoDirlistTask;
-var
-  i: integer;
-  t: TAutoDirlistTask;
 begin
   Result := fQueue.FetchAutoDirlist;
 end;
 
 function TSite.FetchAutoNuke: TAutoNukeTask;
-var
-  i: integer;
-  t: TAutoNukeTask;
 begin
   Result := fQueue.FetchAutoNuke;
 end;
 
 function TSite.FetchAutoBnctest: TLoginTask;
-var
-  i: integer;
-  t: TLoginTask;
 begin
   Result := fQueue.FetchAutoBnctest;
 end;
@@ -3976,11 +4247,12 @@ end;
 
 function TSite.GetNoannounce: boolean;
 begin
-  Result := RCBool('noannounce', False);
+  Result := fNoannounce;
 end;
 
 procedure TSite.SetNoAnnounce(const Value: boolean);
 begin
+  fNoannounce := Value;
   WCBool('noannounce', Value);
 end;
 
@@ -4083,18 +4355,6 @@ begin
     Result := StrToIntDef(mdtmre.Match[6], 0);
 end;
 
-procedure TSite.SetNumDn(const Value: integer);
-begin
-  if Value >= 0 then
-    fNumDn := Value;
-end;
-
-procedure TSite.SetNumUp(const Value: integer);
-begin
-  if Value >= 0 then
-    fNumUp := Value;
-end;
-
 procedure TSite.SetFreeSlots(const Value: integer);
 begin
   if Value >= 0 then
@@ -4107,39 +4367,20 @@ var
   ss: TSiteSlot;
   fs: integer;
 begin
-  fs := 0;
-  for i := 0 to slots.Count - 1 do
-  begin
-    (*
-        try
-          ss:= TSiteSlot(slots[i]);
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-            irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-            slots[i] := nil;
-            slots[i] := TSiteSlot.Create(self, i);
-            ss:= TSiteSlot(slots[i]);
-            irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-          end;
-        end;
-        if ((slots[i] = nil) or (ss = nil)) then
-        begin
-          Debug(dpError, section, Format('Nil Slot: %s %d recreationg', [name, i]));
-          irc_Adderror(Format('<c4>[ERROR]</c> Nil Slot: %s %d recreationg', [name, i]));
-          slots[i] := nil;
-          slots[i] := TSiteSlot.Create(self, i);
-          ss:= TSiteSlot(slots[i]);
-          irc_Adderror(Format('<c4>[INFO]</c> Nil Slot: %s %d recreated', [name, i]));
-        end;
-    *)
-    ss := TSiteSlot(slots[i]);
-    if ss.todotask = nil then
-      Inc(fs);
-  end;
+  fFreeSlotsCS.Enter('RecalcFreeslots');
+  try
+    fs := 0;
+    for i := 0 to slots.Count - 1 do
+    begin
+      ss := TSiteSlot(slots[i]);
+      if ss.todotask = nil then
+        Inc(fs);
+    end;
 
-  ffreeslots := fs;
+    ffreeslots := fs;
+  finally
+    fFreeSlotsCS.Leave;
+  end;
 end;
 
 procedure TSite.FullLogin;
@@ -4159,6 +4400,18 @@ begin
   end;
 
   ffreeslots := fs;
+end;
+
+procedure TSite.RebuildSlot(const aSlotNumber: integer);
+var
+  fOldSiteSlot: TSiteSlot;
+begin
+  if (aSlotNumber > self.slots.Count - 1) or (aSlotNumber < 0) then
+    raise Exception.Create(Format('Invalid slot number: %d for site %s', [aSlotNumber, self.Name]));
+
+  fOldSiteSlot := TSiteSlot(self.slots[aSlotNumber]);
+  self.slots[aSlotNumber] := TSiteSlot.Create(self, aSlotNumber);
+  fOldSiteSlot.Free;
 end;
 
 procedure CheckSiteSlots(const aSite: TSite); overload;
@@ -4256,54 +4509,17 @@ end;
 
 function TSite.AcquireSlotsAssignmentLock(const aTimeout: Cardinal; const aLockName: string): boolean;
 begin
-  if fSlotsAssignmentOwningThreadID = IdGlobal.CurrentThreadId then
-  begin
-    fSlotsAssignmentLockCount := fSlotsAssignmentLockCount + 1;
-    Result := True;
-    fslotsAssignmentLockedName := aLockName;
-  end
-  else
-  begin
-    case self.fSlotsAssignmentLock.WaitFor(aTimeout) of
-      wrSignaled:
-      {$IFDEF WINDOWS}
-      wrIOCompletion:
-      {$ENDIF}
-      begin
-        fSlotsAssignmentOwningThreadID := IdGlobal.CurrentThreadId;
-        Result := True;
-        fslotsAssignmentLockedName := aLockName;
-      end;
-      wrTimeout:
-          Result := False;
-      wrAbandoned:
-          raise Exception.Create(Format('Mutex abandoned when trying to lock for slots assignment for site %s', [self.Name]));
-      wrError:
-          raise Exception.Create(Format('Error when trying to lock for slots assignment for site %s', [self.Name]));
-    else
-      raise Exception.Create(Format('Unknown wait result when trying to lock for slots assignment for site %s', [self.Name]));
-    end;
-  end;
+  Result := fSlotsAssignmentLock.Enter(aLockName, aTimeout, False);
 end;
 
 procedure TSite.AcquireSlotsAssignmentLock(const aLockName: string);
 begin
-  if not AcquireSlotsAssignmentLock(60000, aLockName) then
-    raise Exception.Create(Format('Unable to acquire slots assignment lock for site %s by thread %s is held by thread %s (%d) - %s', [self.Name, IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(fSlotsAssignmentOwningThreadID, 4), fSlotsAssignmentLockCount, fslotsAssignmentLockedName])); //this should not happen
+  fSlotsAssignmentLock.Enter(aLockName, 60000, True);
 end;
 
 procedure TSite.ReleaseSlotsAssignmentLock;
 begin
-  if fSlotsAssignmentLockCount > 0 then
-  begin
-    fSlotsAssignmentLockCount := fSlotsAssignmentLockCount - 1;
-  end
-  else
-  begin
-    fSlotsAssignmentOwningThreadID := 0;
-    fslotsAssignmentLockedName := '';
-    fSlotsAssignmentLock.SetEvent;
-  end;
+  fSlotsAssignmentLock.Leave;
 end;
 
 function TSite.GetSiteInfos: String;
@@ -4314,16 +4530,6 @@ end;
 procedure TSite.SetSiteInfos(const Value: String);
 begin
   WCString('siteinfos', Value);
-end;
-
-function TSite.GetLastKnownCredits: int64;
-begin
-  Result := -1;
-end;
-
-procedure TSite.SetLastKnownCredits(const Value: int64);
-begin
-  //
 end;
 
 function TSite.GetUseAutoInvite: boolean;
@@ -4423,11 +4629,12 @@ end;
 
 function TSite.GetSiteMaxUpPerRip: integer;
 begin
-  Result := RCInteger('maxupperrip', 0);
+  Result := fMaxUpPerRip;
 end;
 
 procedure TSite.SetSiteMaxUpPerRip(const Value: integer);
 begin
+  fMaxUpPerRip := Value;
   WCInteger('maxupperrip', Value);
 end;
 
@@ -4573,31 +4780,34 @@ end;
 
 function TSite.GetUseForNFOdownload: TUseForNfoDownload;
 begin
-  Result := TUseForNfoDownload(RCInteger('usefornfodownload', 1));
+  Result := fUseForNFOdownload;
 end;
 
 procedure TSite.SetUseForNFOdownload(const Value: TUseForNfoDownload);
 begin
+  fUseForNFOdownload := Value;
   WCInteger('usefornfodownload', Ord(Value));
 end;
 
 function TSite.GetSkipBeingUploadedFiles: TSkipBeingUploaded;
 begin
-  Result := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
+  Result := fSkipBeingUploadedFiles;
 end;
 
 procedure TSite.SetSkipBeingUploadedFiles(const Value: TSkipBeingUploaded);
 begin
+  fSkipBeingUploadedFiles := Value;
   WCInteger('skip_being_uploaded_files', Ord(Value));
 end;
 
 function TSite.GetPermDownStatus: boolean;
 begin
-  Result := RCBool('permdown', False);
+  Result := fPermDownStatus;
 end;
 
 procedure TSite.SetPermDownStatus(Value: boolean);
 begin
+  fPermDownStatus := Value;
   WCBool('permdown', Value);
 end;
 
@@ -4633,12 +4843,166 @@ end;
 
 function TSite.GetReducedSpeedstatWeight: boolean;
 begin
-  Result := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));
+  Result := fReducedSpeedstatWeight;
 end;
 
 procedure TSite.SetReducedSpeedstatWeight(const Value: boolean);
 begin
+  fReducedSpeedstatWeight := Value;
   WCBool('reduced_speedstat_weight', Value);
+end;
+
+function TSite.GetKillConnectionOnStalledTransferSeconds: integer;
+begin
+  Result := fKillConnectionOnStalledTransferSeconds;
+end;
+
+procedure TSite.SetKillConnectionOnStalledTransferSeconds(const Value: integer);
+begin
+  fKillConnectionOnStalledTransferSeconds := Value;
+  WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
+end;
+
+function _mySpeedComparer({$IFDEF FPC}constref{$ELSE}const{$ENDIF} info1, info2: TSpeedFromRouteInfo): Integer;
+begin
+  try
+    // give affil routes more priority
+    if info1.AffilOnly <> info2.AffilOnly then
+    begin
+      if info1.AffilOnly then
+        Result := -1
+      else
+        Result := 1;
+      exit;
+    end;
+
+    // give no-affil routes less priority
+    if info1.NoAffil <> info2.NoAffil then
+    begin
+      if info1.NoAffil then
+        Result := 1
+      else
+        Result := -1;
+      exit;
+    end;
+
+    Result := CompareValue(info2.Speed, info1.Speed);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section,
+        Format('[EXCEPTION] _mySpeedComparer : %s',
+        [e.Message]));
+      Result := 0;
+    end;
+  end;
+end;
+
+function TSite.GetSpeed_From: TList<TSpeedFromRouteInfo>;
+begin
+  if self.fSpeedFromCache = nil then
+  begin
+    try
+      self.fSpeedFromCS.Enter('GetSpeed_From1');
+      if self.fSpeedFromCache = nil then
+        self.UpdateSpeedFromCache;
+    finally
+      self.fSpeedFromCS.Leave;
+    end;
+  end;
+
+  self.fSpeedFromCS.Enter('GetSpeed_From2');
+  try
+    Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
+  finally
+    self.fSpeedFromCS.Leave;
+  end;
+end;
+
+procedure TSite.UpdateSpeedFromCache;
+var
+  fNewValue, fOldValue: TList<TSpeedFromRouteInfo>;
+  fSpeedInfo: TSpeedFromRouteInfo;
+  fStringList: TStringList;
+  i: Integer;
+begin
+  fNewValue := TList<TSpeedFromRouteInfo>.Create;
+  fStringList := TStringList.Create;
+  sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+
+  if fStringList.Count > 0 then
+  begin
+    for i := 0 to fStringList.Count - 1 do
+    begin
+      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
+      fSpeedInfo.Sitename := fStringList.Names[i];
+      fNewValue.Add(fSpeedInfo);
+    end;
+  end;
+
+  fNewValue.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
+  self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
+  try
+    fOldValue := self.fSpeedFromCache;
+    self.fSpeedFromCache := fNewValue;
+  finally
+    self.fSpeedFromCS.Leave;
+  end;
+
+  FreeAndNil(fOldValue);
+  FreeAndNil(fStringList);
+end;
+
+procedure TSite.MigrateSpeedLockAndSpeedToConfig;
+var
+  fStringList: TStringList;
+  i: Integer;
+  fSpeedInfo: TSpeedFromRouteInfo;
+begin
+
+  fStringList := TStringList.Create;
+
+  sitesdat.ReadSectionValues('speedlock-from-' + Name, fStringList);
+  try
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Migrating speedlock routes on %s into the new combined route config. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+
+      for i := 0 to fStringList.Count - 1 do
+      begin
+        fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + self.Name, fStringList.Names[i], '0'));
+        if (fSpeedInfo.Speed = 0) then
+        begin
+          irc_addadmin('No existing speed-from entry found for destination %s. Dropping this speedlock entry.', [fStringList.Names[i]]);
+          Continue;
+        end;
+
+        fSpeedInfo.Locked := True;
+        sitesdat.WriteString('speed-from-' + self.Name, fStringList.Names[i], fSpeedInfo.ToConfigString);
+        irc_addadmin('Migrated speedlock route to destination %s.', [fStringList.Names[i]]);
+      end;
+
+      sitesdat.EraseSection('speedlock-from-' + Name);
+
+      // also delete speedlock-to which apparantly has not been used before anyway.
+      sitesdat.EraseSection('speedlock-to-' + Name);
+
+      UpdateSpeedFromCache;
+    end;
+
+    fStringList.Clear;
+
+    // delete all speed-to settings since we do not need them anymore (and never really did).
+    sitesdat.ReadSectionValues('speed-to-' + Name, fStringList);
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Deleting speed-to settings on %s. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+      sitesdat.EraseSection('speed-to-' + Name);
+    end;
+  finally
+    fStringList.Free;
+  end;
+
 end;
 
 end.

@@ -11,8 +11,8 @@ type
     FDir, FSFVFilename: String;
     FInitialTaskCreationTime: TDateTime;
     procedure CreateReattemptTask(const aIncrementAttempts: boolean);
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
   public
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer); overload;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
@@ -138,7 +138,7 @@ begin
       end;
 
       // check if the SFV is available yet on this site, else wait a bit (rescedule task)
-      fDirlist := self.ps1.dirlist.FindDirlist(FDir);
+      fDirlist := self.ps1.dirlist.FindDirlist(FDir, True);
       fDirlistEntry := fDirlist.Find(FSFVFilename);
       if (fDirlistEntry = nil) or not fDirlistEntry.IsOnSite or fDirlistEntry.IsBeingUploaded then
       begin
@@ -171,8 +171,9 @@ begin
       // SFV file could not be downloaded. Reschedule the task and exit.
       if i <> 1 then
       begin
-        Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
-        CreateReattemptTask(True);
+        if i <> 0 then // LeechFile return value 0 means, currently no slot available
+          Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
+        CreateReattemptTask(i <> 0);  // LeechFile return value 0 means, currently no slot available
         readyerror := True;
         exit;
       end;
@@ -182,7 +183,7 @@ begin
       irc_SendUPDATE(Format('<c3>[SFV]</c> %s %s%s now has SFV information (%s)', [mainpazo.rls.section, fRelativePath, FSFVFilename, self.site1]));
 
       // remove SFV tasks for other sites
-      fSlot.site.RemovePazoSfv(pazo_id, FDir);
+      RemovePazoSfv(pazo_id, FDir);
 
       Debug(dpSpam, section, 'SFV Task finished ' + Name);
     except

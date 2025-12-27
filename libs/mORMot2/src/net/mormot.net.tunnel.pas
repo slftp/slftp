@@ -166,7 +166,7 @@ type
   // - is properly implemented by TTunnelLocalServer/TTunnelLocalClient classes
   // - published ITunnelTransmit so that could be used as receival callback
   // - if you release this instance, the tunnel will end
-  TTunnelLocal = class(TInterfacedObjectWithCustomCreate,
+  TTunnelLocal = class(TInterfacedPersistent,
     ITunnelLocal, ITunnelTransmit)
   protected
     fOptions: TTunnelOptions;
@@ -242,7 +242,7 @@ type
 const
   toEncrypted = [toEcdhe, toEncrypt];
 
-function ToText(opt: TTunnelOptions): shortstring; overload;
+function ToText(opt: TTunnelOptions): ShortString; overload;
 
 
 { ******************** Local NAT Client/Server to Tunnel TCP Streams }
@@ -291,7 +291,7 @@ type
     // - if publicUri is not set, '127.0.0.1:localPort' is used, but you can
     // use a reverse proxy URI like 'publicdomain.com/websockgateway'
     constructor Create(const localPort: RawUtf8; const publicUri: RawUtf8 = '';
-      expirationMinutes: integer = 1); reintroduce;
+      expirationMinutes: integer = 1; aLog: TSynLogClass = nil); reintroduce;
     /// finalize this Relay Server
     destructor Destroy; override;
     /// generate a new WebSockets connection URI and its associated session ID
@@ -324,7 +324,7 @@ begin
   end;
   fServerSock := sock;
   FreeOnTerminate := true;
-  inherited Create({suspended=}false, TSynLog, FormatUtf8('tun %', [fPort]));
+  inherited Create({suspended=}false, nil, nil, TSynLog, Make(['tun ', fPort]));
 end;
 
 destructor TTunnelLocalThread.Destroy;
@@ -364,7 +364,7 @@ begin
     if data = '' then
     begin
       Terminate;
-      raise ETunnel.CreateUtf8('%.OnReceived(%): decrypt error', [self, fPort]);
+      ETunnel.RaiseUtf8('%.OnReceived(%): decrypt error', [self, fPort]);
     end;
   end;
   // relay the (decrypted) data to the local loopback
@@ -376,7 +376,7 @@ begin
      Terminated then
     exit;
   Terminate;
-  raise ETunnel.CreateUtf8('%.OnReceived(%): error % when retransmitting',
+  ETunnel.RaiseUtf8('%.OnReceived(%): error % when retransmitting',
     [self, fPort, ToText(res)^]);
 end;
 
@@ -398,7 +398,7 @@ begin
          not Terminated then
       begin
         fLog.Log(sllTrace,
-          'DoExecute: accepted %', [fClientAddr.IPWithPort], self);
+          'DoExecute: accepted %', [fClientAddr.IPShort({port=}true)], self);
         if (toAcceptNonLocal in fOwner.Options) or
            (fClientAddr.IP4 = cLocalhost32) then
          fState := stProcessing // start background process
@@ -432,7 +432,7 @@ begin
                 fTransmit.Send(tmp);
             end;
         else
-          raise ETunnel.CreateUtf8('%.Execute(%): error % at receiving',
+          ETunnel.RaiseUtf8('%.Execute(%): error % at receiving',
             [self, fPort, ToText(res)^]);
         end;
       end;
@@ -540,13 +540,13 @@ var
   sha3: TSha3;
   log: ISynLog;
 begin
-  log := TSynLog.Enter('Open(%)', [Session], self);
+  TSynLog.EnterLocal(log, 'Open(%)', [Session], self);
   // validate input parameters
   if (fPort <> 0) or
      (not Assigned(fTransmit)) then
-    raise ETunnel.CreateUtf8('%.Open invalid call', [self]);
+    ETunnel.RaiseUtf8('%.Open invalid call', [self]);
   if not uri.From(Address, '0') then
-    raise ETunnel.CreateUtf8('%.Open invalid %', [self, Address]);
+    ETunnel.RaiseUtf8('%.Open invalid %', [self, Address]);
   RemotePort := 0;
   fSession := Sess;
   TransmitOptions := TransmitOptions - [toClientSigned, toServerSigned];
@@ -561,7 +561,7 @@ begin
       TimeOutMS, TimeOutMS, TimeOutMS, {retry=}0, sock, @addr), 'Open');
     result := addr.Port;
     if Assigned(log) then
-      log.Log(sllTrace, 'Open: bound to %', [addr.IPWithPort], self);
+      log.Log(sllTrace, 'Open: bound to %', [addr.IPShort(true)], self);
     fOpenBind := true;
   end
   else
@@ -592,13 +592,13 @@ begin
       log.Log(sllTrace, 'Open: after Send1 len=', [length(frame)], self);
     // server will wait until both sides sent an identical (signed) header
     if not fHandshake.WaitPop(TimeOutMS, nil, remote) then
-      raise ETunnel.CreateUtf8('Open handshake timeout on port %', [result]);
+      ETunnel.RaiseUtf8('Open handshake timeout on port %', [result]);
     if Assigned(log) then
       log.Log(sllTrace, 'Open: after WaitPop1 len=', [length(remote)], self);
     if not FrameVerify(remote, SizeOf(header)) or // also checks length(remote)
        not CompareMem(pointer(remote), @header,
              SizeOf(header) - SizeOf(header.port)) then
-      raise ETunnel.CreateUtf8('Open handshake failed on port %', [result]);
+      ETunnel.RaiseUtf8('Open handshake failed on port %', [result]);
     RemotePort := PTunnelLocalHeader(remote)^.port;
     // optional encryption
     FillZero(key.b);
@@ -609,11 +609,12 @@ begin
       if toEcdhe in fOptions then
       begin
         // optional ECDHE ephemeral encryption
-        FastSetRawByteString(frame, nil, SizeOf(TTunnelEcdhFrame));
-        MainAesPrng.FillRandom(PTunnelEcdhFrame(frame)^.rnd);
+        FastNewRawByteString(frame, SizeOf(TTunnelEcdhFrame));
+        with PTunnelEcdhFrame(frame)^ do
+          SharedRandom.Fill(@rnd, SizeOf(rnd)); // enough for public randomness
         if IsZero(fEcdhe.pub) then // ephemeral key was not specified at Create
           if not Ecc256r1MakeKey(fEcdhe.pub, fEcdhe.priv) then
-            raise ETunnel.CreateUtf8('%.Open: no ECC engine available', [self]);
+            ETunnel.RaiseUtf8('%.Open: no ECC engine available', [self]);
         PTunnelEcdhFrame(frame)^.pub := fEcdhe.pub;
         fTransmit.Send(frame);
         if Assigned(log) then
@@ -667,7 +668,7 @@ begin
 end;
 
 
-function ToText(opt: TTunnelOptions): shortstring;
+function ToText(opt: TTunnelOptions): ShortString;
 begin
   GetSetNameShort(TypeInfo(TTunnelOptions), opt, result, {trim=}true);
 end;
@@ -749,7 +750,7 @@ var
 begin
   if (Sender <> nil) and
      (Sender.Protocol <> nil) and
-     (Sender.Protocol.ClassType = TTunnelRelayServerProtocol) then
+     (PClass(Sender.Protocol)^ = TTunnelRelayServerProtocol) then
   case request.opcode of
     // focBinary or focContinuation/focConnectionClose
     focBinary:
@@ -760,7 +761,7 @@ begin
         head := pointer(request.payload);
         if (length(request.payload) <> SizeOf(head^)) or
            (head^.session <> session) then
-          raise ETunnel.CreateUtf8('%.ProcessIncomingFrame: bad handshake %.%.%',
+          ETunnel.RaiseUtf8('%.ProcessIncomingFrame: bad handshake %.%.%',
             [self, length(request.payload), head^.session, session]);
         fOptions := head^.options;
         connections := (((Sender as TWebSocketProcessServer).
@@ -778,7 +779,7 @@ begin
             reversed := link^.ProcessA.Protocol as TTunnelRelayServerProtocol;
             if (link^.ProcessB <> nil) or
                (reversed.fOptions <> fOptions) then
-              raise ETunnel.CreateUtf8('%.ProcessIncomingFrame: abusive', [self]);
+              ETunnel.RaiseUtf8('%.ProcessIncomingFrame: abusive', [self]);
             // now both sides are properly connected
             link^.ProcessB := Sender;
             fReverse := link^.ProcessA;
@@ -806,13 +807,14 @@ end;
 { TTunnelRelayServer }
 
 constructor TTunnelRelayServer.Create(const localPort, publicUri: RawUtf8;
-  expirationMinutes: integer);
+  expirationMinutes: integer; aLog: TSynLogClass);
 var
   uri: RawUtf8;
 begin
   fLinks := TSynDictionary.Create(TypeInfo(TTunnelRelayIDs),
     TypeInfo(TTunnelRelayLinks), false, {timeout=} expirationMinutes * 60);
-  inherited Create(localPort, nil, nil, 'relaysrv');
+  inherited Create(localPort, nil, nil, 'relaysrv',
+    {threadpool=}2, {keepalive=}30000, {options=}[], aLog);
   if publicUri = '' then
     uri := '127.0.0.1:' + localPort
   else

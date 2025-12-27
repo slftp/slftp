@@ -14,11 +14,12 @@ procedure InitialDbAddImdbSetup;
 procedure InitialPrecatcherSetup;
 procedure InitialKnownGroupsSetup;
 procedure InitialSkiplistSetup;
+procedure InitialFakeSetup;
 
 implementation
 
 uses
-  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher, knowngroups, skiplists;
+  configunit, debugunit, encinifile, kb, sllanguagebase, globalskipunit, tags, dirlist, dbaddimdb, precatcher, knowngroups, skiplists, fake;
 
 procedure InitialConfigSetup;
 var
@@ -79,6 +80,12 @@ procedure InitialSkiplistSetup;
 begin
   SkiplistsInit;
   SkiplistStart;
+end;
+
+procedure InitialFakeSetup;
+begin
+  FakesInit;
+  FakeStart;
 end;
 
 end.

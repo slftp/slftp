@@ -43,6 +43,9 @@ interface
 //    TDynArray and TSynDictionary, then specialization helps a little more
 {.$define NOSPECIALIZE}
 
+// you could try to define this conditional to generate even less code, which
+// may be slightly slower - perhaps not really noticeable on production
+{.$define SMALLGENERICS}
 
 uses
   classes,
@@ -518,8 +521,14 @@ type
     // !   for e in kv do
     // !     writeln(e.Key, ' = ', e.Value);
     function GetEnumerator: TIKeyValueEnumerator<TKey, TValue>;
-    /// returns the number of key/value pairs actually stored
+    /// search the index of given key
+    // - the index could then be used with Key[] and Value[] properties
     // - this is not thread-safe so to be protected by ReadLock/ReadUnLock
+    // - consider using the safer TryGetValue() or Items[] instead
+    function FindKeyIndex(const key: TKey): PtrInt;
+    /// returns the number of key/value pairs actually stored
+    // - this is not thread-safe so to be protected by ReadLock/ReadUnLock if
+    // you want to use the Key[] Value[] indexed properties
     function Count: integer;
     /// high-level access to the stored values from their associated keys
     // - GetItem() raise an EIKeyValue if the key is not available, unless
@@ -562,20 +571,25 @@ type
   // TCriticalSection for the thread safety
   // - kvoDefaultIfNotFound will let IKeyValue<TKey, TValue>.Items[] return the
   // default TValue (e.g. 0 or '') and raise no exception if TKey is not found
+  // - by default, managed values and T*ObjArray will delete their content unless
+  // kvoKeyNoFinalize/kvoValueNoFinalize options are set (handle with care)
   TKeyValueOptions = set of (
     kvoKeyCaseInsensitive,
     kvoThreadSafe,
     kvoThreadCriticalSection,
-    kvoDefaultIfNotFound);
+    kvoDefaultIfNotFound,
+    kvoKeyNoFinalize,
+    kvoValueNoFinalize);
 
   /// stack parameters to ease TIKeyValue<TKey, TValue> creation
   TNewKeyValueContext = record
     Options: TKeyValueOptions;
+    KeySpecific: TRttiParserType;
+    Timeout: cardinal;
     KeyArrayTypeInfo,
     KeyItemTypeInfo: PRttiInfo;
     ValueArrayTypeInfo,
     ValueItemTypeInfo: PRttiInfo;
-    Timeout: cardinal;
     Compress: TAlgoCompress;
     Hasher: THasher;
   end;
@@ -590,7 +604,8 @@ type
     function GetKeyTypeInfo: PRttiInfo;
     function GetValueTypeInfo: PRttiInfo;
     procedure AddOne(key, value: pointer);
-    procedure GetDefault(value: pointer);
+    procedure GetDefaultOrRaise(value: pointer);
+    procedure GetDefaultOrUnlockAndRaise(value: pointer);
     function GetCapacity: integer;
     procedure SetCapacity(value: integer);
     function GetTimeOutSeconds: cardinal;
@@ -654,6 +669,7 @@ type
     function TryAdd(const key: TKey; const value: TValue): boolean;
     /// IKeyValue<> method to search a key and return its associated value
     function TryGetValue(const key: TKey; var value: TValue): boolean;
+      {$ifndef SMALLGENERICS} inline; {$endif}
     /// IKeyValue<> method to search a key or a supplied default
     function GetValueOrDefault(const key: TKey;
       const defaultValue: TValue): TValue;
@@ -667,6 +683,8 @@ type
     function ContainsValue(const value: TValue): boolean;
     /// IKeyValue<> method to iterate over all key/value pairs
     function GetEnumerator: TIKeyValueEnumerator<TKey, TValue>;
+    /// IKeyValue<> method to search the index of given key
+    function FindKeyIndex(const key: TKey): PtrInt;
     /// high-level IKeyValue<> method to get the stored values from their keys
     property Items[const key: TKey]: TValue
       read GetItem write SetItem; default;
@@ -689,7 +707,7 @@ type
     {.$define SPECIALIZE_SMALL}
 
     // enable cold compilation of THash128/TGuid and THash256/THash612
-    // - those types are seldom used, so not cold compiled by default
+    // - those types are hardly used, so not cold compiled by default
     {.$define SPECIALIZE_HASH}
 
     // WideString are slow - RawUtf8 or UnicodeString are to be used instead -
@@ -783,7 +801,7 @@ type
   public
     /// generate a new IList<T> instance for most simple types
     // - use this factory method instead of plain TIList<T>.Create
-    // so that the types will be specifialized and compiled once in this unit
+    // so that the types will be specialized and compiled once in this unit
     // - by default, string values would be searched following exact case,
     // unless the loCaseInsensitive option is set
     // - will associate a TArray<T> storage, unless aDynArrayTypeInfo is set
@@ -803,10 +821,10 @@ type
       aDynArrayTypeInfo: PRttiInfo = nil; aSortAs: TRttiParserType = ptNone): IList<T>;
         static; {$ifdef FPC} inline; {$endif}
     /// generate a new IKeyValue<TKey, TValue> instance
-    // - use this factory method instead of TIKeyValue<>.Create
-    // so that simple types will be specifialized and compiled once in this unit
+    // - use this factory method instead of NewPlainKeyValue<TKey, TValue>
+    // so that simple types will be specialized and compiled once in this unit
     // - you can set an optional timeout period, in seconds - you should call
-    // DeleteDeprecated periodically to search for deprecated items
+    // DeleteDeprecated periodically to search and delete for deprecated items
     // - you can provide specific TypeInfo() if TArray<TKey/TValue> is not enough
     // - by default, this instance won't be thread-safe unless the kvoThreadSafe
     // option is forced, so that process is protected with a TSynLocker mutex
@@ -817,16 +835,18 @@ type
     class function NewKeyValue<TKey, TValue>(aOptions: TKeyValueOptions = [];
       aTimeoutSeconds: cardinal = 0; aCompressAlgo: TAlgoCompress = nil;
       aKeyDynArrayTypeInfo: PRttiInfo = nil; aValueDynArrayTypeInfo: PRttiInfo = nil;
-      aHasher: THasher = nil): IKeyValue<TKey, TValue>;
+      aHasher: THasher = nil; aKeySpecific: TRttiParserType = ptNone): IKeyValue<TKey, TValue>;
         static; {$ifdef FPC} inline; {$endif}
     /// generate a new IKeyValue<TKey, TValue> instance with exact
     // TIKeyValue<TKey, TValue>
     // - to be called for complex types (e.g. record, array or hash) when
     // NewKeyValue<TKey, TValue> fails and triggers EIKeyValue
+    // - won't be able to reuse specialized IKeyValue<> between types and type
+    // definitions, so resulting executable size may be slightly bigger
     class function NewPlainKeyValue<TKey, TValue>(aOptions: TKeyValueOptions = [];
       aTimeoutSeconds: cardinal = 0; aCompressAlgo: TAlgoCompress = nil;
       aKeyDynArrayTypeInfo: PRttiInfo = nil; aValueDynArrayTypeInfo: PRttiInfo = nil;
-      aHasher: THasher = nil): IKeyValue<TKey, TValue>;
+      aHasher: THasher = nil; aKeySpecific: TRttiParserType = ptNone): IKeyValue<TKey, TValue>;
         static; {$ifdef FPC} inline; {$endif}
   end;
 
@@ -868,7 +888,7 @@ begin
   fOptions := aOptions;
   if (aDynArrayTypeInfo = nil) or
      (aDynArrayTypeInfo^.Kind <> rkDynArray) then
-     raise EIList.CreateUtf8('%.Create: % should be a dynamic array of T',
+     EIList.RaiseUtf8('%.Create: % should be a dynamic array of T',
        [self, aDynArrayTypeInfo^.Name^]);
   CreateRtti(Rtti.RegisterType(aDynArrayTypeInfo), aItemTypeInfo, aOptions, aSortAs);
 end;
@@ -881,7 +901,7 @@ begin
     loCaseInsensitive in fOptions);
   if (fDynArray.Info.ArrayRtti = nil) or
      (fDynArray.Info.ArrayRtti.Kind <> aItemTypeInfo^.Kind)  then
-    raise EIList.CreateUtf8('%.Create<%> (%) does not match % (%)',
+    EIList.RaiseUtf8('%.Create<%> (%) does not match % (%)',
       [self, aItemTypeInfo^.RawName, ToText(aItemTypeInfo^.Kind)^,
        aDynArray.Info^.RawName, ToText(fDynArray.Info.ArrayRtti.Kind)^]);
   if loNoFinalize in fOptions then
@@ -904,7 +924,7 @@ end;
 function TIListParent.Delete(ndx: PtrInt): boolean;
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8('%.Delete(%) is not allowed  with ' +
+    EIList.RaiseUtf8('%.Delete(%) is not allowed  with ' +
       'loCreateUniqueIndex: use Remove()', [self, ndx]);
   result := fDynArray.Delete(ndx);
 end;
@@ -912,7 +932,7 @@ end;
 function TIListParent.DoPop(var dest; opt: TListPop): boolean;
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8(
+    EIList.RaiseUtf8(
       '%.Pop() is not compatible with loCreateUniqueIndex', [self]);
   if popFromHead in opt then
     if popPeek in opt then
@@ -962,8 +982,8 @@ end;
 
 function TIListParent.DoAddSorted(const value; wasadded: PBoolean): integer;
 begin
-  if fHasher = nil then
-    raise EIList.CreateUtf8('%.AddSorted() is not allowed  with ' +
+  if fHasher <> nil then
+    EIList.RaiseUtf8('%.AddSorted() is not allowed  with ' +
       'loCreateUniqueIndex: use Add()', [self]);
   result := fDynArray.FastLocateOrAddSorted(value, wasadded);
 end;
@@ -1001,7 +1021,7 @@ end;
 procedure TIListParent.DoInsert(ndx: PtrInt; const value);
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8('%.Insert(%) is not allowed with ' +
+    EIList.RaiseUtf8('%.Insert(%) is not allowed with ' +
       'loCreateUniqueIndex: use Add()', [self, ndx]);
   fDynArray.Insert(ndx, value);
 end;
@@ -1021,17 +1041,17 @@ end;
 
 procedure TIListParent.RaiseGetItem(ndx: PtrInt);
 begin
-  raise EIList.CreateUtf8('%.GetItem(%): out of range (Count=%)',
+  EIList.RaiseUtf8('%.GetItem(%): out of range (Count=%)',
     [self, ndx, fCount]);
 end;
 
 procedure TIListParent.RaiseSetItem(ndx: PtrInt);
 begin
   if fHasher <> nil then
-    raise EIList.CreateUtf8('%.SetItem(%) is not allowed with ' +
+    EIList.RaiseUtf8('%.SetItem(%) is not allowed with ' +
       'loCreateUniqueIndex: use Remove() then Add()', [self, ndx]);
   if PtrUInt(ndx) >= PtrUInt(fCount) then
-    raise EIList.CreateUtf8('%.SetItem(%): out of range (Count=%)',
+    EIList.RaiseUtf8('%.SetItem(%): out of range (Count=%)',
       [self, ndx, fCount]);
 end;
 
@@ -1159,7 +1179,7 @@ begin
   end;
   s := fDynArray.Info.Cache.ItemSize;
   state.After := state.Current + s * PtrUInt(fCount);
-  dec(state.Current, s);
+  dec(state.Current, s); // for the first MoveNext
 end;
 
 procedure TIListParent.NewEnumerator(var state: TIListEnumeratorState;
@@ -1308,35 +1328,37 @@ end;
 constructor TIKeyValueParent.Create(const aContext: TNewKeyValueContext);
 begin
   fOptions := aContext.Options;
-  // validate or recognize most simple dynamic arrays from its TKey/TValue types
+  // we need dynamic arrays RTTI for our TKey/TValue types
   if (aContext.KeyArrayTypeInfo = nil) or
-     (aContext.KeyArrayTypeInfo ^.Kind <> rkDynArray) then
-     raise EIKeyValue.CreateUtf8('%.Create: % should be an array of TKey',
+     (aContext.KeyArrayTypeInfo^.Kind <> rkDynArray) then
+     EIKeyValue.RaiseUtf8('%.Create: % should be an array of TKey',
        [self, aContext.KeyArrayTypeInfo^.Name^]);
   if (aContext.ValueArrayTypeInfo = nil) or
      (aContext.ValueArrayTypeInfo^.Kind <> rkDynArray) then
-     raise EIKeyValue.CreateUtf8('%.Create: % should be an array of TValue',
+     EIKeyValue.RaiseUtf8('%.Create: % should be an array of TValue',
        [self, aContext.ValueArrayTypeInfo^.Name^]);
   // initialize the associated dictionary
   fHasTimeout := aContext.Timeout <> 0;
   fData := TSynDictionary.Create(
     aContext.KeyArrayTypeInfo, aContext.ValueArrayTypeInfo,
     kvoKeyCaseInsensitive in fOptions, aContext.Timeout, aContext.Compress,
-    aContext.Hasher);
+    aContext.Hasher, aContext.KeySpecific);
   if not (kvoThreadSafe in fOptions) then
     fData.ThreadUse := uNoLock // not thread-safe by default
   else if not (kvoThreadCriticalSection in fOptions) then
     fData.ThreadUse := uRWLock;
   fHasLock := fData.ThreadUse <> uNoLock;
+  if kvoKeyNoFinalize in fOptions then
+    fData.Keys.NoFinalize := true; // force weak references
+  if kvoValueNoFinalize in fOptions then
+    fData.Values.NoFinalize := true;
   if (fData.Keys.Info.ArrayRtti = nil) or
-     ((aContext.KeyArrayTypeInfo <> nil) and
-      (fData.Keys.Info.ArrayRtti.Info <> aContext.KeyItemTypeInfo)) then
-    raise EIKeyValue.CreateUtf8('%.Create: TKey does not match %',
+     (fData.Keys.Info.ArrayRtti.Kind <> aContext.KeyItemTypeInfo^.Kind) then
+    EIKeyValue.RaiseUtf8('%.Create: TKey does not match %',
       [self, aContext.KeyArrayTypeInfo^.RawName]);
   if (fData.Values.Info.ArrayRtti = nil) or
-     ((aContext.ValueArrayTypeInfo <> nil) and
-      (fData.Values.Info.ArrayRtti.Info <> aContext.ValueItemTypeInfo)) then
-    raise EIKeyValue.CreateUtf8('%.Create: TValue does not match %',
+     (fData.Values.Info.ArrayRtti.Kind <> aContext.ValueItemTypeInfo^.Kind) then
+    EIKeyValue.RaiseUtf8('%.Create: TValue does not match %',
       [self, aContext.ValueArrayTypeInfo^.RawName]);
 end;
 
@@ -1365,18 +1387,26 @@ end;
 procedure TIKeyValueParent.AddOne(key, value: pointer);
 begin
   if fData.Add(key^, value^) < 0 then
-    raise EIKeyValue.CreateUtf8('%.Add: duplicated key', [self]);
+    EIKeyValue.RaiseUtf8('%.Add: duplicated key', [self]);
 end;
 
-procedure TIKeyValueParent.GetDefault(value: pointer);
+procedure TIKeyValueParent.GetDefaultOrRaise(value: pointer);
+begin
+  if kvoDefaultIfNotFound in fOptions then
+    fData.Values.ItemClear(value)
+  else
+    EIKeyValue.RaiseUtf8('%.GetItem: key not found', [self]);
+end;
+
+procedure TIKeyValueParent.GetDefaultOrUnlockAndRaise(value: pointer);
 begin
   if kvoDefaultIfNotFound in fOptions then
     fData.Values.ItemClear(value)
   else
   begin
     if fHasLock then
-      fData.Safe^.ReadUnLock; // as expected by TIKeyValue<TKey, TValue>.GetItem
-    raise EIKeyValue.CreateUtf8('%.GetItem: key not found', [self]);
+      fData.Safe.ReadUnLock; // as expected by TIKeyValue<TKey, TValue>.GetItem
+    EIKeyValue.RaiseUtf8('%.GetItem: key not found', [self]);
   end;
 end;
 
@@ -1424,36 +1454,43 @@ end;
 procedure TIKeyValueParent.ReadLock;
 begin
   if fHasLock then
-    fData.Safe^.ReadLock;
+    fData.Safe.ReadLock;
 end;
 
 procedure TIKeyValueParent.ReadUnLock;
 begin
   if fHasLock then
-    fData.Safe^.ReadUnLock;
+    fData.Safe.ReadUnLock;
 end;
 
 
 { TIKeyValue<TKey, TValue> }
 
 function TIKeyValue<TKey, TValue>.GetItem(const key: TKey): TValue;
+{$ifdef SMALLGENERICS}
+begin
+  if not fData.FindAndCopy(key, result, fHasTimeout) then
+    GetDefaultOrRaise(@result)
+end;
+{$else}
 var
-  ndx: PtrInt; // slightly more verbose but faster than FindAndCopy
+  ndx: PtrInt; // slightly more verbose but faster than plain FindAndCopy
 begin
   if fHasLock then
-    fData.Safe^.ReadLock;
+    fData.Safe.ReadLock;
   ndx := fData.Find(key, fHasTimeout);
   if ndx < 0 then
-    GetDefault(@result) // may ReadUnLock and raise EIKeyValue
+    GetDefaultOrUnlockAndRaise(@result) // may ReadUnLock and raise EIKeyValue
   else
-    result := TArray<TValue>(fData.Values.Value^)[ndx]; // very efficient
+    result := TArray<TValue>(fData.Values.Value^)[ndx]; // more efficient
   if fHasLock then
-    fData.Safe^.ReadUnLock;
+    fData.Safe.ReadUnLock;
 end;
+{$endif SMALLGENERICS}
 
 function TIKeyValue<TKey, TValue>.GetKey(ndx: PtrInt): TKey;
 begin
-  result := TArray<TKey>(fData.Keys.Value^)[ndx];
+  result := TArray<TKey>(fData.Keys.Value^)[ndx]; // most efficient
 end;
 
 function TIKeyValue<TKey, TValue>.GetValue(ndx: PtrInt): TValue;
@@ -1481,14 +1518,37 @@ end;
 
 function TIKeyValue<TKey, TValue>.TryGetValue(const key: TKey;
   var value: TValue): boolean;
+{$ifdef SMALLGENERICS}
 begin
   result := fData.FindAndCopy(key, value, fHasTimeout);
 end;
+{$else}
+var
+  ndx: PtrInt;
+begin
+  if fHasLock then
+    fData.Safe.ReadLock;
+  ndx := fData.Find(key, fHasTimeout);
+  if ndx >= 0 then
+  begin
+    value := TArray<TValue>(fData.Values.Value^)[ndx];
+    result := true;
+  end
+  else
+    result := false;
+  if fHasLock then
+    fData.Safe.ReadUnLock;
+end;
+{$endif SMALLGENERICS}
 
 function TIKeyValue<TKey, TValue>.GetValueOrDefault(const key: TKey;
   const defaultValue: TValue): TValue;
 begin
+  {$ifdef SMALLGENERICS}
   if not fData.FindAndCopy(key, result, fHasTimeout) then
+  {$else}
+  if not TryGetValue(key, result{%H-}) then
+  {$endif SMALLGENERICS}
     result := defaultValue;
 end;
 
@@ -1522,6 +1582,11 @@ begin
   dec(result.fValue);
 end;
 
+function TIKeyValue<TKey, TValue>.FindKeyIndex(const key: TKey): PtrInt;
+begin
+  result := fData.Find(key, fHasTimeout);
+end;
+
 
 { ************ Collections Factory for IList<> and IKeyValue<> Instances }
 
@@ -1543,7 +1608,7 @@ end;
 class function Collections.{%H-}RaiseUseNewPlainKeyValue(
   const aContext: TNewKeyValueContext): pointer;
 begin
-  raise EIKeyValue.CreateUtf8('Collections.NewKeyValue<>: Types are too ' +
+  raise EIList.CreateUtf8('Collections.NewKeyValue<>: Types are too ' +
     'complex - use Collections.NewPlainKeyValue<%, %> instead',
     [aContext.KeyItemTypeInfo.Name^, aContext.ValueItemTypeInfo.Name^]);
 end;
@@ -2347,7 +2412,7 @@ end;
 class function Collections.NewKeyValue<TKey, TValue>(aOptions: TKeyValueOptions;
   aTimeoutSeconds: cardinal; aCompressAlgo: TAlgoCompress;
   aKeyDynArrayTypeInfo, aValueDynArrayTypeInfo: PRttiInfo;
-  aHasher: THasher): IKeyValue<TKey, TValue>;
+  aHasher: THasher; aKeySpecific: TRttiParserType): IKeyValue<TKey, TValue>;
 var
   ctx: TNewKeyValueContext;
 begin
@@ -2364,6 +2429,7 @@ begin
   ctx.ValueItemTypeInfo := TypeInfo(TValue);
   ctx.Timeout := aTimeOutSeconds;
   ctx.Compress := aCompressAlgo;
+  ctx.KeySpecific := aKeySpecific;
   ctx.Hasher := aHasher;
   {$ifdef SPECIALIZE_ENABLED}
   // IsManagedType() GetTypeKind() SizeOf() intrinsics to compile efficiently
@@ -2436,7 +2502,7 @@ class function Collections.NewPlainKeyValue<TKey, TValue>(
   aOptions: TKeyValueOptions; aTimeoutSeconds: cardinal;
   aCompressAlgo: TAlgoCompress;
   aKeyDynArrayTypeInfo, aValueDynArrayTypeInfo: PRttiInfo;
-  aHasher: THasher): IKeyValue<TKey, TValue>;
+  aHasher: THasher; aKeySpecific: TRttiParserType): IKeyValue<TKey, TValue>;
 var
   ctx: TNewKeyValueContext;
 begin
@@ -2454,6 +2520,7 @@ begin
   ctx.Timeout := aTimeOutSeconds;
   ctx.Compress := aCompressAlgo;
   ctx.Hasher := aHasher;
+  ctx.KeySpecific := aKeySpecific;
   result := TIKeyValue<TKey, TValue>.Create(ctx);
 end;
 

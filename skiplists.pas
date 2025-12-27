@@ -12,7 +12,7 @@ type
     function Dirmatches(const dirname: String): boolean;
   public
     function MatchFile(const filename: String): integer;
-    function Match(const dirname, filename: String): boolean;
+    function Match(const dirname, filename: String; out fileGroupIndex: integer): boolean;
     constructor Create(const dms, fms: String);
     destructor Destroy; override;
   end;
@@ -22,17 +22,30 @@ type
     mask: TslMask;
     allowedfiles: TObjectList;
     alloweddirs: TObjectList;
+    fIsCloned: boolean;
     function FindDirFilterB(list: TObjectList; const dirname: String): TSkiplistFilter;
   public
     sectionname: String;
     dirdepth: integer;
     constructor Create(const sectionname: String);
+    { Creates a clone of the given TSkipList. The allowed files and allowed dirs lists are passed over to the clone by reference, just the mask is
+      actually copied because it has locked regexes in it. }
+    constructor CreateClone(const aOriginal: TSkipList);
     destructor Destroy; override;
 
     function FindFileFilter(const dirname: String): TSkiplistFilter;
     function FindDirFilter(const dirname: String): TSkiplistFilter;
-    function AllowedFile(const dirname, filename: String): TSkipListFilter;
-    function AllowedDir(const dirname, filename: String): TSkipListFilter;
+
+    { Returns the TSkipListFilter object if the given file is allowed. Also returns the index of the file in the list of the allowed file types.
+      For example when you have this in your skiplist: "allowedfiles=Sample:*.mkv,*.mp4" then the file "sample.mkv" will return value 0 and
+      the file "sample.mp4" will return value 1. -1 if it's not allowed. }
+    function AllowedFile(const dirname, filename: String; out fileGroupIndex: integer): TSkipListFilter;
+    { Returns the TSkipListFilter object if the given file is allowed. }
+    function AllowedDir(const dirname, filename: String): TSkipListFilter; overload;
+    { Returns the TSkipListFilter object if the given file is allowed. Also returns the index of the file in the list of the allowed file types.
+      For example when you have this in your skiplist: "alloweddirs=_ROOT_:Sample,Sub,Subs,Proof" then the file "Sample" will return value 0 and
+      the file "Subs" will return value 2. -1 if it's not allowed. }
+    function AllowedDir(const dirname, filename: String; out fileGroupIndex: integer): TSkipListFilter; overload;
   end;
 
 { Find skiplist for specified section.
@@ -58,7 +71,7 @@ function SkiplistCount: integer;
 implementation
 
 uses
-  Classes, mystrings, SysUtils, DebugUnit, slconstants,
+  Classes, mystrings, SysUtils, DebugUnit, globals,
   irc {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -119,9 +132,6 @@ begin
     end;
   end;
 
-  // with this there is a Access Violation - dunno why
-  // FreeAndNil(akt);
-
   CloseFile(f);
 
   if skiplist.Count = 0 then
@@ -158,14 +168,25 @@ begin
   result := True;
   try
     SkiplistStart;
-  except on E: Exception do
-      result := False;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] SkiplistRehash : %s', [e.Message]);
+      Result := False;
+    end;
   end;
 end;
 
 { TSkipList }
 
 function TSkipList.AllowedDir(const dirname, filename: String): TSkipListFilter;
+var
+  fileGroupIndex: integer;
+begin
+  Result := self.AllowedDir(dirname, filename, fileGroupIndex);
+end;
+
+function TSkipList.AllowedDir(const dirname, filename: String; out fileGroupIndex: integer): TSkipListFilter;
 var
   j: integer;
   sf: TSkipListFilter;
@@ -175,35 +196,44 @@ begin
     for j := 0 to alloweddirs.Count - 1 do
     begin
       sf := TSkipListFilter(alloweddirs[j]);
-      if sf.Match(dirname, filename) then
+      if sf.Match(dirname, filename, fileGroupIndex) then
       begin
         Result := sf;
         exit;
       end;
     end;
   except
-    Result := nil;
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.AllowedDir : %s', [e.Message]);
+      Result := nil;
+    end;
   end;
 end;
 
-function TSkipList.AllowedFile(const dirname, filename: String): TSkipListFilter;
+function TSkipList.AllowedFile(const dirname, filename: String; out fileGroupIndex: integer): TSkipListFilter;
 var
   j: integer;
   sf: TSkipListFilter;
 begin
   Result := nil;
+  fileGroupIndex := -1;
   try
     for j := 0 to allowedfiles.Count - 1 do
     begin
       sf := TSkipListFilter(allowedfiles[j]);
-      if sf.Match(dirname, filename) then
+      if sf.Match(dirname, filename, fileGroupIndex) then
       begin
         Result := sf;
         exit;
       end;
     end;
   except
-    Result := nil;
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.AllowedFile : %s', [e.Message]);
+      Result := nil;
+    end;
   end;
 end;
 
@@ -214,12 +244,26 @@ begin
   self.sectionname := UpperCase(sectionname);
   dirdepth := 1;
   mask := TslMask.Create(sectionname);
+  fIsCloned := False;
+end;
+
+constructor TSkipList.CreateClone(const aOriginal: TSkipList);
+begin
+  allowedfiles := aOriginal.allowedfiles;
+  alloweddirs := aOriginal.alloweddirs;
+  sectionname := aOriginal.sectionname;
+  dirdepth := aOriginal.dirdepth;
+  mask := TslMask.Create(sectionname);
+  fIsCloned := True;
 end;
 
 destructor TSkipList.Destroy;
 begin
-  allowedfiles.Free;
-  alloweddirs.Free;
+  if not fIsCloned then
+  begin
+    allowedfiles.Free;
+    alloweddirs.Free;
+  end;
   mask.Free;
   inherited;
 end;
@@ -241,7 +285,11 @@ begin
       end;
     end;
   except
-    Result := nil;
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipList.FindDirFilterB : %s', [e.Message]);
+      Result := nil;
+    end;
   end;
 end;
 
@@ -314,25 +362,35 @@ begin
         exit;
       end;
   except
-    Result := False;
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkiplistFilter.Dirmatches : %s', [e.Message]);
+      Result := False;
+    end;
   end;
 end;
 
-function TSkipListFilter.Match(const dirname, filename: String): boolean;
+function TSkipListFilter.Match(const dirname, filename: String; out fileGroupIndex: integer): boolean;
 var
   i: integer;
 begin
   Result := False;
+  fileGroupIndex := -1;
   try
     if Dirmatches(dirname) then
       for i := 0 to filemask.Count - 1 do
         if TslMask(filemask[i]).Matches(filename) then
         begin
           Result := True;
+          fileGroupIndex := i;
           exit;
         end;
   except
-    Result := False;
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipListFilter.Match : %s', [e.Message]);
+      Result := False;
+    end;
   end;
 end;
 
@@ -396,7 +454,11 @@ begin
         exit;
       end;
   except
-    Result := -1;
+    on e: Exception do
+    begin
+      Debug(dpError, 'skiplists', '[EXCEPTION] TSkipListFilter.MatchFile : %s', [e.Message]);
+      Result := -1;
+    end;
   end;
 end;
 

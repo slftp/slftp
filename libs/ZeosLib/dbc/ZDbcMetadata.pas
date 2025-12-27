@@ -96,7 +96,7 @@ type
     ResultSet: IZResultSet;
   end;
 
-  TZKeyAndResultSetPairList = Class(TZCustomElementList)
+  TZKeyAndResultSetPairList = Class(TZCustomUniqueElementBinarySearchList)
   protected
     /// <summary>Notify about an action which will or was performed.
     ///  if ElementNeedsFinalize is False the method will never be called.
@@ -106,6 +106,8 @@ type
     /// <param>"Index" the index of the element.</param>
     /// <returns>The address or raises an EListError if the Index is invalid.</returns>
     procedure Notify(Ptr: Pointer; Action: TListNotification); override;
+  public
+    constructor Create(ElementSize: Cardinal; ElementNeedsFinalize: Boolean);
   End;
 
   {** Implements Abstract Database Metadata. }
@@ -122,6 +124,7 @@ type
   private
     fCurrentBufIndex: Byte;
     fBuf: Array[Byte] of Char;
+    fKeyAndResultSetValue: TZKeyAndResultSetPair;
   protected
     FIC: IZIdentifierConverter;
     FConSettings: PZConSettings;
@@ -1408,6 +1411,7 @@ type
 var
   IndexInfoColumnsDynArray: TZMetadataColumnDefs;
 const
+  SequenceSchemaIndex = FirstDbcIndex + 1;
   SequenceNameIndex = FirstDbcIndex + 2;
 var
   SequenceColumnsDynArray: TZMetadataColumnDefs;
@@ -2949,11 +2953,14 @@ end;
 procedure TZAbstractDatabaseMetadata.AddResultSetToCache(const Key: string;
   const ResultSet: IZResultSet);
 var I: NativeInt;
-  KeyAndResultSetPair: PZKeyAndResultSetPair;
+  PKeyAndResultSetPair: PZKeyAndResultSetPair;
 begin
-  KeyAndResultSetPair := FCachedResultSets.Add(i);
-  KeyAndResultSetPair.Key := Key;
-  KeyAndResultSetPair.ResultSet := ResultSet;
+  fKeyAndResultSetValue.Key := Key;
+  if not FCachedResultSets.Find(@fKeyAndResultSetValue, i) then begin
+    PKeyAndResultSetPair := FCachedResultSets.Insert(i);
+    PKeyAndResultSetPair^.ResultSet := ResultSet;
+    PKeyAndResultSetPair^.Key := Key;
+  end;
   if ResultSet <> nil then
     ResultSet.BeforeFirst;
 end;
@@ -2965,16 +2972,14 @@ end;
 }
 function TZAbstractDatabaseMetadata.GetResultSetFromCache(
   const Key: string): IZResultSet;
-var I: Integer;
-  KeyAndResultSetPair: PZKeyAndResultSetPair;
+var I: NativeInt;//Integer;
+  PKeyAndResultSetPair: PZKeyAndResultSetPair;
 begin
   Result := nil;
-  for i := FCachedResultSets.Count -1 downto 0 do begin
-    KeyAndResultSetPair := FCachedResultSets.Get(i);
-    if KeyAndResultSetPair.Key = Key then begin
-      Result := KeyAndResultSetPair.ResultSet;
-      Break;
-    end;
+  fKeyAndResultSetValue.Key := Key;
+  if FCachedResultSets.Find(@fKeyAndResultSetValue, i) then begin
+    PKeyAndResultSetPair := FCachedResultSets.Get(i);
+    Result := PKeyAndResultSetPair^.ResultSet;
   end;
   if Result <> nil then
     Result.BeforeFirst;
@@ -5118,6 +5123,23 @@ end;
 
 { TZKeyAndResultSetPairList }
 
+function MetadataKeyCompare(Item1, Item2: Pointer): Integer;
+var P1, P2: Pointer;
+begin
+  P1 := Pointer(PZKeyAndResultSetPair(Item1).Key);
+  if P1 = nil then
+    P1 := {$IFDEF UNICODE}PEmptyUnicodeString{$ELSE}PEmptyAnsiString{$ENDIF};
+  P2 := Pointer(PZKeyAndResultSetPair(Item2).Key);
+  if P2 = nil then
+    P2 := {$IFDEF UNICODE}PEmptyUnicodeString{$ELSE}PEmptyAnsiString{$ENDIF};
+  Result := StrComp(PChar(P1), PChar(P2));
+end;
+
+constructor TZKeyAndResultSetPairList.Create(ElementSize: Cardinal; ElementNeedsFinalize: Boolean);
+begin
+  inherited Create(@MetadataKeyCompare, ElementSize, ElementNeedsFinalize);
+end;
+
 procedure TZKeyAndResultSetPairList.Notify(Ptr: Pointer;
   Action: TListNotification);
 begin
@@ -5224,10 +5246,11 @@ const
     (Name: 'REMARKS'; SQLType: stString; Length: 255)
   );
 
-  SchemaColumnCount = 1;
+  SchemaColumnCount = 2;
   SchemaColumns: array[FirstDbcIndex..SchemaColumnCount {$IFDEF GENERIC_INDEX}-1{$ENDIF}]
     of TZMetadataColumnDef =(
-    (Name: 'TABLE_SCHEM'; SQLType: stString; Length: 255)
+    (Name: 'TABLE_SCHEM'; SQLType: stString; Length: 255),
+    (Name: 'TABLE_CATALOG'; SQLType: stString; Length: 255)
   );
 
   CatalogColumnCount = 1;

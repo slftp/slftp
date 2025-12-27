@@ -529,7 +529,7 @@ type
     /// should be called before any access to the storage content
     // - and protected with a try ... finally StorageUnLock; end section
     procedure StorageLock(WillModifyContent: boolean
-        {$ifdef DEBUGSTORAGELOCK}; const msg: shortstring{$endif}); virtual;
+        {$ifdef DEBUGSTORAGELOCK}; const msg: ShortString{$endif}); virtual;
     /// should be called after any StorageLock-protected access to the content
     // - e.g. protected with a try ... finally StorageUnLock; end section
     procedure StorageUnLock;
@@ -719,7 +719,7 @@ type
   // statement, with = < <= <> != >= > operators, and IS / IS NULL / ID IN (...)
   // - if used within a TOrmVirtualTableJson, you'll be able to handle any kind of
   // SQL statement (even joined SELECT or such) with this memory-stored database
-  // via the SQlite3 virtual tables engine
+  // via the SQLite3 virtual tables engine
   // - data can be stored and retrieved from a file (JSON format is used by
   // default, if BinaryFile parameter is left to false; a proprietary compressed
   // binary format can be used instead) if a file name is supplied at creating
@@ -800,7 +800,7 @@ type
     // - consider using the overlaoded PUtf8Char/len method if you don't need this copy
     procedure LoadFromJson(const aJson: RawUtf8); overload;
     /// load the values from JSON data
-    procedure LoadFromJson(JsonBuffer: PUtf8Char; JsonBufferLen: PtrInt); overload;
+    function LoadFromJson(JsonBuffer: PUtf8Char; JsonBufferLen: PtrInt): boolean; overload;
     /// save the values into JSON data
     function SaveToJson(Expand: boolean): RawUtf8; overload;
     /// save the values into JSON data
@@ -847,7 +847,7 @@ type
     /// will reload all content from the current disk file
     // - any not saved modification will be lost (e.g. if Updatefile has not
     // been called since)
-    procedure ReloadFromFile;
+    function ReloadFromFile: boolean;
     /// retrieve the index in Items[] of a particular ID
     // - return -1 if this ID was not found
     // - use internally fast O(1) hashed search algorithm
@@ -1114,7 +1114,7 @@ type
     // tables could flush the database content without proper notification
     // - this overridden implementation will call Owner.FlushInternalDBCache
     procedure StorageLock(WillModifyContent: boolean
-      {$ifdef DEBUGSTORAGELOCK}; const msg: shortstring {$endif}); override;
+      {$ifdef DEBUGSTORAGELOCK}; const msg: ShortString {$endif}); override;
   end;
 
 
@@ -1455,9 +1455,9 @@ type
   /// abstract REST storage with several database instances
   // - e.g. to maintain a per-User or per-Group (company) storage
   // - inherited class should override the NewStore virtual method, e.g.
-  // TRestStorageMultiDB as defined in mormot.orm.sqlite3.pas for SQlite3 storage
+  // TRestStorageMultiDB as defined in mormot.orm.sqlite3.pas for SQLite3 storage
   // - your custom class should override NewModel to provide the proper data model
-  TRestStorageMulti = class(TSynPersistentRWLightLock)
+  TRestStorageMulti = class(TObjectRWLightLock)
   protected
     fDatabaseIDBits: byte;
     fDatabaseIDMax: TRestStorageMultiDatabaseID;
@@ -1469,7 +1469,7 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     function GetCached: RawJson;
     procedure SetShutdown(Value: boolean); virtual;
-    function IDText(aID: TRestStorageMultiDatabaseID): TShort16;
+    function IDText(aID: TRestStorageMultiDatabaseID): TShort16; virtual;
     function GetDB(aID: TRestStorageMultiDatabaseID): IRestOrmServer; virtual;
     function NewModel: TOrmModel; virtual;
     // inherited classes should implement this abstract virtual method
@@ -1492,7 +1492,7 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     /// raise ERestStorageMulti if the supplied database ID is out of range
     procedure EnsureDatabaseIDCorrect(aID: TRestStorageMultiDatabaseID;
-      const aCaller: shortstring);
+      const aCaller: ShortString);
     /// access to the associated TSynLog instances
     property Log: TSynLogFamily
       read fLog;
@@ -1597,7 +1597,7 @@ begin
   if fFilePath = '' then
     result := Executable.ProgramFilePath + result
   else
-    result := IncludeTrailingPathDelimiter(fFilePath) + result;
+    result := MakePath([fFilePath, result]);
 end;
 
 
@@ -1611,7 +1611,7 @@ var
 begin
   if (aModule = nil) or
      (aTableName = '') then
-    raise EModelException.CreateUtf8('Invalid %.Create(%,"%")',
+    EModelException.RaiseUtf8('Invalid %.Create(%,"%")',
       [self, aModule, aTableName]);
   fModule := aModule;
   fTableName := aTableName;
@@ -1620,7 +1620,7 @@ begin
     // create new fStatic instance e.g. for TOrmVirtualTableLog
     aServer := fModule.Server;
     if aServer = nil then
-      raise EModelException.CreateUtf8('%.Server=nil for %.Create', [Module, self])
+      EModelException.RaiseUtf8('%.Server=nil for %.Create', [Module, self])
     else
       fStaticTableIndex := aServer.Model.GetTableIndex(aTableName);
     if fStaticTableIndex >= 0 then
@@ -1880,7 +1880,7 @@ begin
     fRest := aServer.Owner; // redirect high-level methods to the main TRestServer
   inherited Create(nil);
   if aClass = nil then
-    raise ERestStorage.CreateUtf8('%.Create(aClass=nil)', [self]);
+    ERestStorage.RaiseUtf8('%.Create(aClass=nil)', [self]);
   fStorageSafe.Init;
   fStoredClass := aClass;
   fStoredClassRecordProps := aClass.OrmProps;
@@ -1911,7 +1911,7 @@ begin
   inherited;
   {$ifdef DEBUGSTORAGELOCK}
   if fStorageSafeCount <> 0 then
-    raise ERestStorage.CreateUtf8('%.Destroy with CS=%',
+    ERestStorage.RaiseUtf8('%.Destroy with CS=%',
       [self, fStorageSafeCount]);
   {$endif DEBUGSTORAGELOCK}
   fStorageSafe.Done;
@@ -1951,7 +1951,7 @@ begin
     Index := 0
   else
   begin
-    Index := fStoredClassRecordProps.Fields.IndexByName(pointer(FieldName));
+    Index := fStoredClassRecordProps.Fields.IndexByNameU(pointer(FieldName));
     if Index >= 0 then
       inc(Index) // FindWhereEqual() expects index = RTTI+1
     else
@@ -1972,7 +1972,7 @@ begin
 end;
 
 procedure TRestStorage.StorageLock(WillModifyContent: boolean
-  {$ifdef DEBUGSTORAGELOCK}; const msg: shortstring {$endif});
+  {$ifdef DEBUGSTORAGELOCK}; const msg: ShortString {$endif});
 begin
   {$ifdef DEBUGSTORAGELOCK}
   if true or //fStorageLockLogTrace or
@@ -1998,7 +1998,7 @@ begin
     InternalLog('StorageUnlock % %',
       [fStoredClass, fStorageSafeCount]);
   if fStorageSafeCount < 0 then
-    raise ERestStorage.CreateUtf8('%.StorageUnLock with CS=%',
+    ERestStorage.RaiseUtf8('%.StorageUnLock with CS=%',
       [self, fStorageSafeCount]);
   {$endif DEBUGSTORAGELOCK}
   fStorageSafe.UnLock;
@@ -2017,7 +2017,7 @@ procedure TRestStorage.RecordVersionFieldHandle(Occasion: TOrmOccasion;
 begin
   // caller should ensure that fStoredClassRecordProps.RecordVersionField <> nil
   if fOwner = nil then
-    raise ERestStorage.CreateUtf8('Owner=nil for %.%: TRecordVersion',
+    ERestStorage.RaiseUtf8('Owner=nil for %.%: TRecordVersion',
       [fStoredClass, fStoredClassRecordProps.RecordVersionField.Name]);
   fOwner.Owner.RecordVersionHandle(Occasion, fStoredClassProps.TableIndex,
     Decoder, fStoredClassRecordProps.RecordVersionField);
@@ -2247,7 +2247,7 @@ begin
   inherited Create(aClass, aServer);
   if (fStoredClassProps <> nil) and
      (fStoredClassProps.Kind in INSERT_WITH_ID) then
-    raise ERestStorage.CreateUtf8('%.Create: % virtual table can''t be static',
+    ERestStorage.RaiseUtf8('%.Create: % virtual table can''t be static',
       [self, aClass]);
   fFileName := aFileName;
   fBinaryFile := aBinaryFile;
@@ -2305,7 +2305,7 @@ end;
 
 procedure TRestStorageInMemory.RaiseGetItemOutOfRange(Index: integer);
 begin
-  raise ERestStorage.CreateUtf8('%.GetItem(%) over % is out of range (Count=%)',
+  ERestStorage.RaiseUtf8('%.GetItem(%) over % is out of range (Count=%)',
     [self, Index, fStoredClass, fCount]);
 end;
 
@@ -2361,8 +2361,8 @@ begin
     begin
       if ExistingIndex <> nil then
         ExistingIndex^ := ndx
-      else
-        InternalLog('AddOne: non unique %.% on % %',
+      else if sllDB in fRest.LogLevel then
+        fRest.InternalLog('AddOne: non unique %.% on % %',
           [fStoredClass, fUnique[f].PropInfo.Name, fValue[ndx], Rec], sllDB);
       exit;
     end;
@@ -2370,14 +2370,14 @@ begin
   if ForceID then
   begin
     if Rec.IDValue <= 0 then
-      raise ERestStorage.CreateUtf8('%.AddOne(%.ForceID=0)', [self, Rec]);
+      ERestStorage.RaiseUtf8('%.AddOne(%.ForceID=0)', [self, Rec]);
     ndx := fValues.FindHashed(Rec);
     if ndx >= 0 then
     begin
       if ExistingIndex <> nil then
         ExistingIndex^ := ndx
-      else
-        InternalLog('AddOne: non unique %.ID on % %',
+      else if sllDB in fRest.LogLevel then
+        fRest.InternalLog('AddOne: non unique %.ID on % %',
           [fStoredClass, fValue[ndx], Rec], sllDB);
       exit;
     end;
@@ -2394,13 +2394,13 @@ begin
   // update internal hash tables and add to internal list
   for f := 0 to length(fUnique) - 1 do
     if not fUnique[f].AddedAfterFind(Rec) then // paranoid
-      raise ERestStorage.CreateUtf8('%.AddOne on %.%',
+      ERestStorage.RaiseUtf8('%.AddOne on %.%',
         [self, Rec, fUnique[f].PropInfo.Name]);
   ndx := fValues.FindHashedForAdding(Rec, added);
   if added then
     fValue[ndx] := Rec
   else
-    raise ERestStorage.CreateUtf8('%.AddOne % failed', [self, Rec]); // paranoid
+    ERestStorage.RaiseUtf8('%.AddOne % failed', [self, Rec]); // paranoid
   result := Rec.IDValue; // success
   fModified := true;
   if (fOwner <> nil) then
@@ -2425,8 +2425,9 @@ begin
         if (ndx >= 0) and
            (ndx <> aUpdateIndex) then
         begin
-          InternalLog('UniqueFieldsUpdateOK failed on % for %',
-            [PropInfo.Name, aRec], sllDB);
+          if sllDB in fRest.LogLevel then
+            fRest.InternalLog('UniqueFieldsUpdateOK failed on % for %',
+              [PropInfo.Name, aRec], sllDB);
           exit;
         end;
       end;
@@ -2442,7 +2443,7 @@ begin
     result := false
   else
   begin
-    StorageLock(True {$ifdef DEBUGSTORAGELOCK}, 'EngineDelete'{$endif});
+    StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'EngineDelete'{$endif});
     try
       result := DeleteOne(IDToIndex(ID));
     finally
@@ -2521,10 +2522,10 @@ begin
         id, '', nil, nil);
     for f := 0 to length(fUnique) - 1 do
       if fUnique[f].Hasher.FindBeforeDelete(@rec) < aIndex then
-        raise ERestStorage.CreateUtf8('%.DeleteOne(%) failed on %',
+        ERestStorage.RaiseUtf8('%.DeleteOne(%) failed on %',
           [self, aIndex, fUnique[f].PropInfo.Name]);
     if fValues.FindHashedAndDelete(rec) <> aIndex then
-      raise ERestStorage.CreateUtf8('%.DeleteOne(%) failed', [self, aIndex]);
+      ERestStorage.RaiseUtf8('%.DeleteOne(%) failed', [self, aIndex]);
     if fMaxID = 0 then
       fMaxID := FindMaxID(pointer(fValue), fCount);
     if (fTrackChangesFieldBitsOffset <> 0) and
@@ -2548,7 +2549,7 @@ begin
   n := length(IDs);
   SetLength(ndx, n);
   dec(n);
-  StorageLock(True {$ifdef DEBUGSTORAGELOCK}, 'EngineDeleteWhere' {$endif});
+  StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'EngineDeleteWhere' {$endif});
   try
     for i := 0 to n do
     begin
@@ -2586,7 +2587,7 @@ end;
 function TRestStorageInMemory.AdaptSqlForEngineList(var SQL: RawUtf8): boolean;
 var
   P: PUtf8Char;
-  Prop: RawUtf8;
+  n: ShortString;
   WithoutRowID: boolean;
 begin
   result := inherited AdaptSqlForEngineList(SQL);
@@ -2625,9 +2626,9 @@ begin
     exit;
   end;
   P := GotoNextNotSpace(P + 6);
-  GetNextItem(P, '=', Prop);
+  GetNextItemShortString(P, @n, '=');
   if (P = nil) or
-     (fStoredClassRecordProps.Fields.IndexByName(Prop) < 0) then
+     (fStoredClassRecordProps.Fields.IndexByNameU(@n[1]) < 0) then
     exit;
   if PWord(P)^ = ord(':') + ord('(') shl 8 then
     inc(P, 2); // +2 to ignore :(...): parameter
@@ -2638,9 +2639,8 @@ begin
       exit;
   end;
   repeat
-    inc(P)
-    // go to end of value
-  until P^ in [#0..' ', ';', ')'];
+    inc(P);
+  until P^ in [#0..' ', ';', ')']; // go to end of value
   if PWord(P)^ = ord(')') + ord(':') shl 8 then
     inc(P, 2); // ignore :(...): parameter
   P := GotoNextNotSpace(P);
@@ -2765,8 +2765,7 @@ begin
           case TOrmPropInfoRtti(P).PropRtti.Cache.Size of
             SizeOf(Byte):
               begin
-                // e.g. boolean property
-                b := PAnsiChar(@v)^;
+                b := PAnsiChar(@v)^; // 8-bit search (byte or boolean)
                 for i := 0 to fCount - 1 do
                   if (vp^[offs] = b) and
                      FoundOneAndReachedLimit then
@@ -2776,7 +2775,7 @@ begin
               end;
             SizeOf(Word):
               begin
-                w := PWord(@v)^;
+                w := PWord(@v)^; // 16-bit search
                 for i := 0 to fCount - 1 do
                   if (PWord(@vp^[offs])^ = w) and
                      FoundOneAndReachedLimit then
@@ -2786,8 +2785,7 @@ begin
               end;
             SizeOf(Cardinal):
               begin
-                // handle very common 32-bit integer field
-                c := PCardinal(@v)^;
+                c := PCardinal(@v)^; // 32-bit search (most common)
                 for i := 0 to fCount - 1 do
                   if (PCardinal(@vp^[offs])^ = c) and
                      FoundOneAndReachedLimit then
@@ -3012,7 +3010,7 @@ begin
     exit;
   if (FieldBitsOffset = nil) or
      (PtrUInt(FieldBitsOffset) > PtrUInt(fStoredClass.InstanceSize)) then
-    raise ERestStorage.CreateUtf8('%.TrackChanges(%)', [self, FieldBitsOffset]);
+    ERestStorage.RaiseUtf8('%.TrackChanges(%)', [self, FieldBitsOffset]);
   Persistence.Model.GetTableIndexExisting(fStoredClass); // ensure support table
   fTrackChangesFieldBitsOffset := PtrUInt(FieldBitsOffset);
   fTrackChangesPersistence := Persistence;
@@ -3038,7 +3036,7 @@ begin
   if high(Fields) < 0 then
     upd := StoredClassRecordProps.SimpleFieldsBits[ooUpdate]
   else if not StoredClassRecordProps.FieldBitsFrom(Fields, upd) then
-    raise ERestStorage.CreateUtf8('Invalid %.TrackChangeUpdated', [self]);
+    ERestStorage.RaiseUtf8('Invalid %.TrackChangeUpdated', [self]);
   InternalTrackChangeUpdated(aRec, upd);
 end;
 
@@ -3078,7 +3076,7 @@ begin
         if IsAllFields(b^) then
         begin
           if log = nil then // only start logging if something is to be written
-            log := logclass.Enter(self, 'TrackChangesAndFlush Add');
+            logclass.EnterLocal(log, self, 'TrackChangesAndFlush Add');
           batch.Add(p^, {senddata=}true, {forceid=}true, ALL_FIELDS, true);
           FillZero(b^); // flush
         end;
@@ -3092,7 +3090,7 @@ begin
         if not IsZero(b^) then
         begin
           if log = nil then
-            log := logclass.Enter(self, 'TrackChangesAndFlush Update');
+            logclass.EnterLocal(log, self, 'TrackChangesAndFlush Update');
           batch.Update(p^, b^, {DoNotAutoComputeFields=}true);
           FillZero(b^); // flush
         end;
@@ -3119,7 +3117,7 @@ function TRestStorageInMemory.GetJsonValues(Stream: TStream; Expand: boolean;
 var
   ndx, KnownRowsCount, j: PtrInt;
   id: Int64;
-  W: TOrmWriter;
+  wr: TOrmWriter;
   IsNull: boolean;
   Prop: TOrmPropInfo;
   bits: TFieldBits;
@@ -3131,7 +3129,7 @@ begin
   // exact same format as TOrmTable.GetJsonValues()
   result := 0;
   if length(Stmt.Where) > 1 then
-    raise ERestStorage.CreateUtf8('%.GetJsonValues on % with Stmt.Where[]=%:' +
+    ERestStorage.RaiseUtf8('%.GetJsonValues on % with Stmt.Where[]=%:' +
       ' our in-memory engine only supports a single WHERE clause operation',
       [self, fStoredClass, length(Stmt.Where)]);
   tmp := fTempBuffer; // aBufSize=65500 is ignored if tmp<>nil
@@ -3148,21 +3146,21 @@ begin
   else
     KnownRowsCount := 0;
   Stmt.SelectFieldBits(bits, withID);
-  W := fStoredClassRecordProps.CreateJsonWriter(
+  wr := fStoredClassRecordProps.CreateJsonWriter(
     Stream, Expand, withID, bits, KnownRowsCount, 65500, tmp);
-  if W <> nil then
+  if wr <> nil then
   try
     if Expand then
-      W.Add('[');
+      wr.Add('[');
     if Stmt.Where = nil then
     begin
       // no WHERE statement -> all rows
       for ndx := 0 to KnownRowsCount - 1 do
       begin
         if Expand then
-          W.AddCR; // for better readability
-        fValue[ndx].GetJsonValues(W);
-        W.AddComma;
+          wr.AddCR; // for better readability
+        fValue[ndx].GetJsonValues(wr);
+        wr.AddComma;
       end;
       result := KnownRowsCount;
     end
@@ -3170,7 +3168,7 @@ begin
       case Stmt.Where[0].Operation of
         opEqualTo:
           result := FindWhereEqual(Stmt.Where[0].Field, Stmt.Where[0].Value,
-            GetJsonValuesEvent, W, Stmt.Limit, Stmt.Offset);
+            GetJsonValuesEvent, wr, Stmt.Limit, Stmt.Offset);
         opNotEqualTo,
         opLessThan,
         opLessThanOrEqualTo,
@@ -3178,7 +3176,7 @@ begin
         opGreaterThanOrEqualTo:
           with Stmt.Where[0] do
             result := FindWhere(Field, Value, Operation,
-              GetJsonValuesEvent, W, Stmt.Limit, Stmt.Offset);
+              GetJsonValuesEvent, wr, Stmt.Limit, Stmt.Offset);
         opIn:
           // only handle  ID IN (..)  syntax by now
           if (Stmt.Where[0].Field <> 0) or
@@ -3192,8 +3190,8 @@ begin
                   j := IDToIndex(id);
                   if j >= 0 then
                   begin
-                    fValue[j].GetJsonValues(W);
-                    W.AddComma;
+                    fValue[j].GetJsonValues(wr);
+                    wr.AddComma;
                     inc(result);
                     if (Stmt.Limit > 0) and
                        (result >= Stmt.Limit) then
@@ -3211,8 +3209,8 @@ begin
             for ndx := 0 to fCount - 1 do
               if Prop.IsValueVoid(fValue[ndx]) = IsNull then
               begin
-                fValue[ndx].GetJsonValues(W);
-                W.AddComma;
+                fValue[ndx].GetJsonValues(wr);
+                wr.AddComma;
                 inc(result);
                 if (Stmt.Limit > 0) and
                   (result >= Stmt.Limit) then
@@ -3223,22 +3221,22 @@ begin
             goto err;
       else
         begin
-err:      W.CancelAll;
+err:      wr.CancelAll;
           result := 0;
           exit;
         end;
       end;
     if (result = 0) and
-       W.Expand then
+       wr.Expand then
     begin
       // we want the field names at least, even with no data
-      W.Expand := false; //  {"fieldCount":2,"values":["col1","col2"]}
-      W.CancelAll;
-      fStoredClassRecordProps.SetJsonWriterColumnNames(W, 0);
+      wr.Expand := false; //  {"fieldCount":2,"values":["col1","col2"]}
+      wr.CancelAll;
+      fStoredClassRecordProps.SetJsonWriterColumnNames(wr, 0);
     end;
-    W.EndJsonObject(KnownRowsCount, result);
+    wr.EndJsonObject(KnownRowsCount, result);
   finally
-    W.Free;
+    wr.Free;
   end;
 end;
 
@@ -3399,7 +3397,7 @@ begin
         fModified := true;
         UpdateFile;
       end;
-      InternalLog('DropValues % in %', [fStoredClass, timer.Stop]);
+      fRest.InternalLog('DropValues % in %', [fStoredClass, timer.Stop]);
     end;
   finally
     StorageUnLock;
@@ -3449,7 +3447,7 @@ begin
   if dup > 0 then
   begin
     DropValues({andupdatefile=}false);
-    raise ERestStorage.CreateUtf8('%.LoadFrom%: found % % in %.% field',
+    ERestStorage.RaiseUtf8('%.LoadFrom%: found % % in %.% field',
       [self, _CALLER[binary], Plural('duplicate', dup), fStoredClass,
        {%H-}dupfield]);
   end;
@@ -3469,12 +3467,13 @@ begin
     [_CALLER[binary], fStoredClass, fCount, loaded.Stop, timer.Stop]);
 end;
 
-procedure TRestStorageInMemory.LoadFromJson(
-  JsonBuffer: PUtf8Char; JsonBufferLen: PtrInt);
+function TRestStorageInMemory.LoadFromJson(
+  JsonBuffer: PUtf8Char; JsonBufferLen: PtrInt): boolean;
 var
   T: TOrmTableJson;
   timer: TPrecisionTimer;
 begin
+  result := false;
   timer.Start;
   StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'LoadFromJson' {$endif});
   try
@@ -3488,7 +3487,7 @@ begin
     try
       if T.FieldIndexID < 0 then // no ID field -> load is impossible
         exit;
-      T.ToObjArray(fValue, fStoredClass);
+      result := T.ToObjArray(fValue, fStoredClass);
     finally
       T.Free;
     end;
@@ -3673,7 +3672,7 @@ begin
   S := TResourceStream.Create(Instance, ResourceName, pointer(10));
   try
     if not LoadFromBinary(S) then
-      raise ERestStorage.CreateUtf8('%.LoadFromResource with invalid % content',
+      ERestStorage.RaiseUtf8('%.LoadFromResource with invalid % content',
         [self, fStoredClass]);
   finally
     S.Free;
@@ -3737,7 +3736,7 @@ begin
             j := ndx[i];
           newID := fValue[j].IDValue;
           if newID <= lastID then
-            raise ERestStorage.CreateUtf8('%.SaveToBinary(%): duplicated ID',
+            ERestStorage.RaiseUtf8('%.SaveToBinary(%): duplicated ID',
               [self, fStoredClass]);
           W.WriteVarUInt64(newID - lastID);
           lastID := newID;
@@ -3825,8 +3824,9 @@ begin
     exit;
   if FieldBitGet(fStoredClassRecordProps.IsUniqueFieldsBits, P.PropertyIndex) then
   begin
-    InternalLog('EngineUpdateFieldIncrement(%) on UNIQUE %.%',
-      [ID, fStoredClass, P.Name], sllDB);
+    if sllDB in fRest.LogLevel then
+      fRest.InternalLog('EngineUpdateFieldIncrement(%) on UNIQUE %.%',
+        [ID, fStoredClass, P.Name], sllDB);
     exit;
   end;
   StorageLock(false {$ifdef DEBUGSTORAGELOCK}, 'EngineUpdateFieldIncrement' {$endif});
@@ -3834,8 +3834,9 @@ begin
     i := IDToIndex(ID);
     if i < 0 then
     begin
-      InternalLog('EngineUpdateFieldIncrement(%): %.ID=% not found',
-        [P.Name, fStoredClass, ID], sllDB);
+      if sllDB in fRest.LogLevel then
+        fRest.InternalLog('EngineUpdateFieldIncrement(%): %.ID=% not found',
+          [P.Name, fStoredClass, ID], sllDB);
       exit;
     end;
     P.GetValueVar(fValue[i], false, V, @wasString);
@@ -3843,8 +3844,9 @@ begin
     if wasString or
        (err <> 0) then
     begin
-      InternalLog('EngineUpdateFieldIncrement: %.%=[%] not an integer',
-        [fStoredClass, P.Name, V], sllDB);
+      if sllDB in fRest.LogLevel then
+        fRest.InternalLog('EngineUpdateFieldIncrement: %.%=[%] not an integer',
+          [fStoredClass, P.Name, V], sllDB);
       exit;
     end;
     Int64ToUtf8(int + Increment, V);
@@ -3895,7 +3897,9 @@ begin
     exit; // don't allow setting ID field, which is Read Only
   if FieldBitGet(fStoredClassRecordProps.IsUniqueFieldsBits, P.PropertyIndex) then
   begin
-    InternalLog('EngineUpdateField on UNIQUE %.%', [fStoredClass, P.Name], sllDB);
+    if sllDB in fRest.LogLevel then
+      fRest.InternalLog('EngineUpdateField on UNIQUE %.%',
+        [fStoredClass, P.Name], sllDB);
     exit; { TODO : allow update UNIQUE field? }
   end;
   SetValueWasString := SetValue[1] = '"';
@@ -3962,7 +3966,7 @@ begin
     exit;
   if SentData = '' then
   begin
-    result := True;
+    result := true;
     exit;
   end;
   StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'EngineUpdate' {$endif});
@@ -4253,7 +4257,7 @@ begin
   finally
     StorageUnLock;
   end;
-  InternalLog('UpdateFile % in %', [fStoredClass, timer.Stop], sllDB);
+  fRest.InternalLog('UpdateFile % in %', [fStoredClass, timer.Stop], sllDB);
 end;
 
 procedure TRestStorageInMemory.SetFileName(const aFileName: TFileName);
@@ -4267,33 +4271,33 @@ end;
 procedure TRestStorageInMemory.SetBinaryFile(aBinary: boolean);
 begin
   if aBinary = fBinaryFile then
-    Exit;
+    exit;
   fBinaryFile := aBinary;
   fModified := true;
 end;
 
-procedure TRestStorageInMemory.ReloadFromFile;
+function TRestStorageInMemory.ReloadFromFile: boolean;
 var
   json: RawUtf8;
   stream: TStream;
 begin
-  if (fFileName <> '') and
-     FileExists(fFileName) then
+  result := false;
+  if fFileName = '' then
+    exit;
+  if fBinaryFile then
   begin
-    if fBinaryFile then
-    begin
-      stream := FileStreamSequentialRead(fFileName);
+    stream := FileStreamSequentialRead(fFileName);
+    if stream <> nil then
       try
-        LoadFromBinary(stream)
+        result := LoadFromBinary(stream)
       finally
         stream.Free;
       end;
-    end
-    else
-    begin
-      json := RawUtf8FromFile(fFileName);
-      LoadFromJson(pointer(json), length(json)); // buffer parsed in-place
-    end;
+  end
+  else
+  begin
+    json := RawUtf8FromFile(fFileName);
+    result := LoadFromJson(pointer(json), length(json)); // buffer parsed in-place
   end;
 end;
 
@@ -4456,7 +4460,7 @@ begin
 end;
 
 procedure TRestStorageInMemoryExternal.StorageLock(WillModifyContent: boolean
-   {$ifdef DEBUGSTORAGELOCK}; const msg: shortstring {$endif});
+   {$ifdef DEBUGSTORAGELOCK}; const msg: ShortString {$endif});
 begin
   inherited StorageLock(WillModifyContent {$ifdef DEBUGSTORAGELOCK}, msg {$endif});
   if WillModifyContent and
@@ -4682,12 +4686,12 @@ type
   protected
     fContent: RawUtf8;
     fDateTime: TDateTime;
-    fLevel: TSynLogInfo;
+    fLevel: TSynLogLevel;
   published
     /// the log event time stamp
     property DateTime: TDateTime read fDateTime;
     /// the log event level
-    property Level: TSynLogInfo read fLevel;
+    property Level: TSynLogLevel read fLevel;
     /// the textual message associated to the log event
     property Content: RawUtf8 read fContent;
   end;
@@ -4695,14 +4699,14 @@ type
 constructor TOrmVirtualTableLog.Create(aModule: TOrmVirtualTableModule;
   const aTableName: RawUtf8; FieldCount: integer; Fields: PPUtf8CharArray);
 var
-  aFileName: TFileName;
+  fn: TFileName;
 begin
   inherited Create(aModule, aTableName, FieldCount, Fields);
   if FieldCount = 1 then
-    Utf8ToFileName(Fields[0], aFileName)
+    Utf8ToFileName(Fields[0], fn)
   else
-    aFileName := aModule.FileName(aTableName);
-  fLogFile := TSynLogFile.Create(aFileName);
+    fn := aModule.FileName(aTableName);
+  fLogFile := TSynLogFile.Create(fn);
 end;
 
 destructor TOrmVirtualTableLog.Destroy;
@@ -4782,7 +4786,7 @@ constructor TRestStorageRemote.Create(aClass: TOrmClass;
   aServer: TRestOrmServer; aRemoteRest: TRestOrm);
 begin
   if aRemoteRest = nil then
-    raise ERestStorage.CreateUtf8('%.Create(nil)', [self]);
+    ERestStorage.RaiseUtf8('%.Create(nil)', [self]);
   inherited Create(aClass, aServer);
   fRemoteTableIndex := aRemoteRest.Model.GetTableIndexExisting(aClass);
   fRemoteRest := aRemoteRest;
@@ -4882,7 +4886,7 @@ var
   i, n: PtrInt;
 begin
   if aShardRange < MIN_SHARD then
-    raise ERestStorage.CreateUtf8('Unexpected %.Create(%,aShardRange=%<%)',
+    ERestStorage.RaiseUtf8('Unexpected %.Create(%,aShardRange=%<%)',
       [self, aClass, aShardRange, MIN_SHARD]);
   inherited Create(aClass, aServer);
   fShardRange := aShardRange;
@@ -4901,7 +4905,7 @@ begin
       fShardTableIndex[i] := -1
     else
       fShardTableIndex[i] := fShards[i].Model.GetTableIndexExisting(aClass);
-  InternalLog('Create(%,range=%,maxcount=%) [%..%]', [fStoredClass,
+  fRest.InternalLog('Create(%,range=%,maxcount=%) [%..%]', [fStoredClass,
     fShardRange, fMaxShardCount, fShardOffset, fShardOffset + n - 1], sllDB);
 end;
 
@@ -4921,7 +4925,7 @@ begin
       if rest = nil then
         continue;
       if rest.RefCount <> 1 then
-        raise ERestStorage.CreateUtf8('%.Destroy: %.RefCount=%',
+        ERestStorage.RaiseUtf8('%.Destroy: %.RefCount=%',
           [self, rest.RefCount]);
       IInterface(rest)._Release; // manual reference counting
       for j := i + 1 to high(fShards) do
@@ -4948,7 +4952,7 @@ begin
       rest := fShards[aShardIndex];
       if (rest = nil) or
          (rest.RefCount <> 1) then
-        raise ERestStorage.CreateUtf8('%.RemoveShard(%): %?',
+        ERestStorage.RaiseUtf8('%.RemoveShard(%): %?',
           [self, aShardIndex, fShards[aShardIndex]]);
       if rest <> nil then
       begin
@@ -4972,7 +4976,7 @@ begin
     [fShardLast + 1, fStoredClass], self);
   rest := InitNewShard;
   if rest = nil then
-    raise ERestStorage.CreateUtf8('%.InitNewShard(%) =nil',
+    ERestStorage.RaiseUtf8('%.InitNewShard(%) =nil',
       [self, fStoredClass]);
   inc(fShardNextID, fShardRange);
   SetLength(fShardTableIndex, fShardLast + 1);
@@ -5035,7 +5039,7 @@ var
   i: PtrInt;
 begin
   if JsonGetID(pointer(SentData), result) then
-    raise ERestStorage.CreateUtf8('%.EngineAdd(%) unexpected ID in %',
+    ERestStorage.RaiseUtf8('%.EngineAdd(%) unexpected ID in %',
       [self, fStoredClass, SentData]);
   StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'ShardAdd' {$endif});
   try
@@ -5044,7 +5048,7 @@ begin
     begin
       InternalAddNewShard;
       if fShardLastID >= fShardNextID then
-        raise ERestStorage.CreateUtf8('%.EngineAdd(%) fShardNextID',
+        ERestStorage.RaiseUtf8('%.EngineAdd(%) fShardNextID',
           [self, fStoredClass]);
     end;
     result := fShardLastID;
@@ -5063,7 +5067,9 @@ begin
       if fShards[fShardLast].EngineAdd(
         fShardTableIndex[fShardLast], data) <> result then
       begin
-        InternalLog('EngineAdd error %.ID=%', [fStoredClass, result], sllDB);
+        if sllDB in fRest.LogLevel then
+          fRest.InternalLog('EngineAdd error %.ID=%',
+            [fStoredClass, result], sllDB);
         result := 0;
       end;
     end;
@@ -5157,7 +5163,7 @@ var
   i: PtrInt;
 begin
   result := 0;
-  InternalLog('TableRowCount(%) may take a while', [fStoredClass], sllWarning);
+  fRest.InternalLog('TableRowCount(%) may take a while', [fStoredClass], sllWarning);
   for i := 0 to high(fShards) do
     // no StorageLock protection to avoid blocking
     if fShards[i] <> nil then
@@ -5316,7 +5322,7 @@ begin
   StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'ShardBatchStart' {$endif});
   try
     if fShardBatch <> nil then
-      raise ERestStorage.CreateUtf8('Missing %.InternalBatchStop call', [self]);
+      ERestStorage.RaiseUtf8('Missing %.InternalBatchStop call', [self]);
     if fShardLast < 0 then
       // new DB -> force fShardBatch<>nil
       SetLength(fShardBatch, 1)
@@ -5333,10 +5339,10 @@ end;
 function TRestStorageShard.InternalShardBatch(ShardIndex: integer): TRestBatch;
 begin
   if cardinal(ShardIndex) > cardinal(fShardLast) then
-    raise ERestStorage.CreateUtf8('Unexpected %.InternalShardBatch(%)',
+    ERestStorage.RaiseUtf8('Unexpected %.InternalShardBatch(%)',
       [self, ShardIndex]);
   if fShardBatch = nil then
-    raise ERestStorage.CreateUtf8('Missing %.InternalBatchStart call', [self]);
+    ERestStorage.RaiseUtf8('Missing %.InternalBatchStart call', [self]);
   if ShardIndex >= length(fShardBatch) then
     // InitNewShard just called
     SetLength(fShardBatch, ShardIndex + 1);
@@ -5345,7 +5351,7 @@ begin
       fShardBatch[ShardIndex] := TRestBatch.Create(fShards[ShardIndex],
         fStoredClass, 10000, [boExtendedJson])
     else
-      raise ERestStorage.CreateUtf8('%.InternalShardBatch fShards[%]=nil',
+      ERestStorage.RaiseUtf8('%.InternalShardBatch fShards[%]=nil',
         [self, ShardIndex]);
   result := fShardBatch[ShardIndex];
 end;
@@ -5359,7 +5365,7 @@ begin
       if fShardBatch[i] <> nil then
         if fShards[i].BatchSend(fShardBatch[i]) <> HTTP_SUCCESS then
           InternalLog('InternalBatchStop(%): %.BatchSend failed for shard #%',
-            [fStoredClass, fShards[i].ClassType, i], sllWarning);
+            [fStoredClass, PClass(fShards[i])^, i], sllWarning);
   finally
     ObjArrayClear(fShardBatch);
     StorageUnLock;
@@ -5377,17 +5383,21 @@ var
   n: PtrInt;
 begin
   if aDatabaseIDBits - 1 > 62 then
-    raise ERestStorageMulti.CreateUtf8(
+    ERestStorageMulti.RaiseUtf8(
       '%.Create: invalid aDatabaseIDBits=% (1..63)', [self, aDatabaseIDBits]);
   n := length(aModelClasses);
   if n = 0 then
-    raise ERestStorageMulti.CreateUtf8('%.Create with no Model class', [self]);
+    ERestStorageMulti.RaiseUtf8('%.Create with no Model class', [self]);
   SetLength(fModelClasses, n);
   MoveFast(aModelClasses[0], fModelClasses[0], n * SizeOf(aModelClasses[0]));
   fLog := aLog;
   fSettings := aSettings;
   fDatabaseIDBits := aDatabaseIDBits;
-  fDatabaseIDMax := pred(1 shl aDatabaseIDBits);
+  inc(aDatabaseIDBits); // 1..63 -> pred(1 shl 2..64)
+  if aDatabaseIDBits = 64 then
+    fDatabaseIDMax := high(Int64) // avoid Int64 overflow on (1 shl 64)
+  else
+    fDatabaseIDMax := pred(Int64(1) shl aDatabaseIDBits);
   fCache := TSynDictionary.Create(TypeInfo(TIDDynArray),
     TypeInfo(TInterfaceDynArray), {keyinsensitive=}false, aSettings.TimeOutSec);
 end;
@@ -5423,7 +5433,7 @@ end;
 
 function TRestStorageMulti.IDText(aID: TRestStorageMultiDatabaseID): TShort16;
 begin
-  BinToHexDisplayLowerShort16(aID, fDatabaseIDBits, result);
+  BinBitsToHexDisplayLowerShort16(aID, fDatabaseIDBits, result);
 end;
 
 function TRestStorageMulti.IsDatabaseIDCorrect(aID: TRestStorageMultiDatabaseID): boolean;
@@ -5434,10 +5444,10 @@ begin
 end;
 
 procedure TRestStorageMulti.EnsureDatabaseIDCorrect(
-  aID: TRestStorageMultiDatabaseID; const aCaller: shortstring);
+  aID: TRestStorageMultiDatabaseID; const aCaller: ShortString);
 begin
   if not IsDatabaseIDCorrect(aID) then
-    raise ERestStorageMulti.CreateUtf8('Invalid %.%(%)',
+    ERestStorageMulti.RaiseUtf8('Invalid %.%(%)',
       [self, aCaller, Int64ToHexShort(aID)]);
 end;
 
@@ -5447,7 +5457,7 @@ begin
   if not fCache.FindAndCopy(aID, result) then
   begin
     result := NewDB(aID);
-    fLog.SynLog.Log(sllInfo, 'Initialized DB[%]=%',
+    fLog.Add.Log(sllInfo, 'Initialized DB[%]=%',
       [IDText(aID), ObjectFromInterface(result)], self);
   end;
 end;
@@ -5476,7 +5486,7 @@ constructor TRestStorageMultiOnDisk.Create(aLog: TSynLogFamily;
 begin
   inherited Create(aLog, aDatabaseIDBits, aModelClasses, aSettings);
   if aDatafolder <> '' then
-    fDataFolder := EnsureDirectoryExists(aDatafolder);
+    fDataFolder := EnsureDirectoryExists(aDatafolder, ERestStorageMulti);
   fFilePrefix := aFilePrefix;
 end;
 

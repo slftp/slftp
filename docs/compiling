@@ -4,7 +4,7 @@
 Basic dependencies
 ------------------
 on debian:
-    apt install make binutils zlib1g-dev libncurses-dev libsqlite3-dev libssl-dev fpc-3.2.0
+    apt install make binutils zlib1g-dev libncurses-dev libsqlite3-dev libssl-dev fpc-3.2.2
 
 Requirements
 ------------
@@ -21,14 +21,14 @@ on WINDOWS:
     Use Delphi 10.3 Rio (e.g. free Community Edition) or newer
 
 
-OpenSSL
+OpenSSL (Currently required version: 1.1.1)
 -------
 on UNIX:
     - We recommend to use the included libinstaller.sh script in docs/ directory. -
 
-    wget https://www.openssl.org/source/openssl-1.1.1k.tar.gz
-    tar xf openssl-1.1.1k.tar.gz
-    cd openssl-1.1.1k
+    wget https://www.openssl.org/source/openssl-1.1.1w.tar.gz
+    tar xf openssl-1.1.1w.tar.gz
+    cd openssl-1.1.1w
     ./config shared
     make
     cp lib*.so /path/to/your/slftp/
@@ -108,13 +108,13 @@ Extract the main folder and sub folders (Replace the slFtp file/folders with you
   # tar -xfvj slFtp.v1.*.Linux.Windows.incl.Sources-SLDev.tar.bz2
   # cd slFtp.v1.*.Linux.Windows.incl.Sources-SLDev.tar.bz2
 
-  Change to the source directtory
+  Change to the source directory
 
 	# cd src/slftp
 
 on UNIX:
     - Without editing makefile
-        1. # make
+        1. # make (use gmake on BSD)
         2. # cp slftp /My/slFtp/Path
 
     - With editing makefile (only if you know what you do!)

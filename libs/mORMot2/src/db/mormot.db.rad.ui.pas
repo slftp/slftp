@@ -85,6 +85,9 @@ type
     // search for a field value, returning RecNo (0 = not found by default)
     function SearchForField(const aLookupFieldName: RawUtf8;
       const aLookupValue: variant; aOptions: TLocateOptions): integer; virtual;
+    // compare a field value, calling GetFieldVarData()
+    function CompareField(Field: TField; RowIndex: integer;
+      const Value: variant; Options: TLocateOptions): integer; virtual;
     // used to serialize TBcdVariant as JSON
     class procedure BcdWrite(const aWriter: TTextWriter; const aValue);
   public
@@ -96,7 +99,7 @@ type
     /// get BLOB column data for a given row (may not the active row)
     // - handle ftBlob,ftMemo,ftWideMemo via GetRowFieldData()
     function GetBlobStream(Field: TField; RowIndex: integer): TStream;
-    /// get column data for the current active row
+    /// get column value for the current active row as DB.pas data buffer
     // - handle ftBoolean,ftInteger,ftLargeint,ftFloat,ftCurrency,ftDate,ftTime,
     // ftDateTime,ftString,ftWideString kind of fields via GetRowFieldData()
     {$ifdef ISDELPHIXE3}
@@ -108,16 +111,22 @@ type
     function GetFieldData(Field: TField; Buffer: TValueBuffer): boolean; override;
     {$endif ISDELPHIXE4}
     {$else}
-    // Delphi 2009..XE2 signature
+    // Delphi 2009..XE2 and FPC signature
     function GetFieldData(Field: TField; Buffer: pointer): boolean; override;
     {$endif ISDELPHIXE3}
     {$ifndef UNICODE}
-    // all Delphi versions signature
+    // all non-Unicode Delphi/FPC versions signature
     function GetFieldData(Field: TField; Buffer: pointer;
       NativeFormat: boolean): boolean; override;
     {$endif UNICODE}
+    /// get column value for a row index as TVarData
+    // - returns Value as varEmpty if Field or RawIndex are incorrect
+    // - returns true if the caller needs to call VarClearProc(Value)
+    function GetFieldVarData(Field: TField; RowIndex: integer;
+      out Value: TVarData): boolean; virtual;
     /// searching a dataset for a specified record and making it the active record
-    // - will call SearchForField protected virtual method for actual lookup
+    // - will call SearchForField protected virtual method for one field lookup,
+    // or manual CompareField/GetFieldData search
     function Locate(const KeyFields: string; const KeyValues: variant;
       Options: TLocateOptions): boolean; override;
   published
@@ -187,7 +196,7 @@ type
       const ColumnTypes: array of TSqlDBFieldType); reintroduce;
   end;
 
-/// convert a dynamic array of TDocVariant result into a LCL/VCL DataSet
+/// convert a dynamic array of TDocVariant result into a TDataSet
 // - this function is just a wrapper around TDocVariantArrayDataSet.Create()
 // - the TDataSet will be opened once created
 function VariantsToDataSet(aOwner: TComponent;
@@ -195,7 +204,7 @@ function VariantsToDataSet(aOwner: TComponent;
   const ColumnNames: array of RawUtf8;
   const ColumnTypes: array of TSqlDBFieldType): TDocVariantArrayDataSet; overload;
 
-/// convert a dynamic array of TDocVariant result into a LCL/VCL DataSet
+/// convert a dynamic array of TDocVariant result into a TDataSet
 function VariantsToDataSet(aOwner: TComponent;
   const Data: TVariantDynArray): TDocVariantArrayDataSet; overload;
 
@@ -348,7 +357,7 @@ begin
         begin
           CurrentAnsiConvert.Utf8BufferToAnsi(data, len, tmp);
           len := length(tmp);
-          maxlen := Field.DataSize - 1; // without trailing #0
+          maxlen := Field.DataSize - 1; // without #0 terminator
           if len > maxlen then
             len := maxlen;
           MoveFast(pointer(tmp)^, dest^, len);
@@ -356,21 +365,19 @@ begin
         PAnsiChar(dest)[len] := #0;
       end;
     ftWideString:
-      begin
-        {$ifdef ISDELPHI2007ANDUP} // here dest = PWideChar[] of DataSize bytes
-        if len = 0 then
-          PWideChar(dest)^ := #0
-        else
-          Utf8ToWideChar(dest, data, (Field.DataSize - 2) shr 1, len);
-        {$else}
-        // here dest is PWideString
-        Utf8ToWideString(data, len, WideString(dest^));
-        {$endif ISDELPHI2007ANDUP}
-      end;
+      {$ifdef HASDBFTWIDE}
+      // here dest = PWideChar[] of DataSize bytes
+      if len = 0 then
+        PWideChar(dest)^ := #0
+      else
+        Utf8ToWideChar(dest, data, Field.DataSize shr 1, len);
+      {$else}
+      // on Delphi 7, dest is PWideString
+      Utf8ToWideString(data, len, PWideString(dest)^);
+      {$endif HASDBFTWIDE}
   // ftBlob,ftMemo,ftWideMemo should be retrieved by CreateBlobStream()
   else
-    raise EVirtualDataSet.CreateUtf8(
-      '%.GetFieldData unhandled DataType=% (%)',
+    EVirtualDataSet.RaiseUtf8('%.GetFieldData unhandled DataType=% (%)',
       [self, GetEnumName(TypeInfo(TFieldType), ord(Field.DataType))^,
        ord(Field.DataType)]);
   end;
@@ -409,7 +416,7 @@ function TVirtualDataSet.CreateBlobStream(Field: TField;
   Mode: TBlobStreamMode): TStream;
 begin
   if Mode <> bmRead then
-    raise EVirtualDataSet.CreateUtf8('% BLOB should be ReadOnly', [self]);
+    EVirtualDataSet.RaiseUtf8('% BLOB should be ReadOnly', [self]);
   result := GetBlobStream(Field, PRecInfo(ActiveBuffer).RowIndentifier);
   if result = nil then
     result := TSynMemoryStream.Create; // null BLOB returns a void TStream
@@ -464,7 +471,7 @@ begin
   if DefaultFields then
   {$endif ISDELPHIXE6}
     DestroyFields;
-  fIsCursorOpen := False;
+  fIsCursorOpen := false;
 end;
 
 procedure TVirtualDataSet.InternalFirst;
@@ -507,7 +514,7 @@ begin
     CreateFields;
   BindFields(true);
   fCurrentRow := -1;
-  fIsCursorOpen := True;
+  fIsCursorOpen := true;
 end;
 
 procedure TVirtualDataSet.InternalSetToRecord(Buffer: TRecordBuffer);
@@ -539,7 +546,7 @@ begin
   begin
     dec(Value);
     if cardinal(Value) >= cardinal(GetRecordCount) then
-      raise EVirtualDataSet.CreateUtf8(
+      EVirtualDataSet.RaiseUtf8(
         '%.SetRecNo(%) with Count=%', [self, Value + 1, GetRecordCount]);
     DoBeforeScroll;
     fCurrentRow := Value;
@@ -554,10 +561,77 @@ begin
   result := 0; // nothing found
 end;
 
+function TVirtualDataSet.GetFieldVarData(Field: TField; RowIndex: integer;
+  out Value: TVarData): boolean;
+var
+  p: pointer;
+  plen: integer;
+  v: TSynVarData absolute Value;
+begin
+  result := false; // returns true if caller needs to call VarClearProc(Value)
+  v.VType := varNull;
+  p := GetRowFieldData(Field, RowIndex, plen, {onlychecknull=}false);
+  if p <> nil then
+    case Field.DataType of // follow GetFieldData() pattern
+      ftBoolean:
+        begin
+          v.VType := varBoolean;
+          v.VInteger := PByte(p)^;
+        end;
+      ftInteger:
+        begin
+          v.VType := varInteger;
+          v.VInteger := PInteger(p)^;
+        end;
+      ftLargeint:
+        begin
+          v.VType := varInt64;
+          v.VInt64 := PInt64(p)^;
+        end;
+      ftFloat,
+      ftCurrency:
+        begin
+          v.VType := varDouble;
+          v.VInt64 := PInt64(p)^;
+        end;
+      ftDate,
+      ftTime,
+      ftDateTime:
+        if PInt64(p)^ <> 0 then // handle 30/12/1899 date as NULL
+        begin
+          v.VType := varDate;
+          v.VInt64 := PInt64(p)^;
+        end;
+      ftString,
+      ftWideString:
+        begin
+          v.VType := varString;
+          v.VAny := nil;  // avoid GPF below
+          result := plen > 0; // true if VarClearProc() needed
+          if result then
+            FastSetString(RawUtf8(v.VAny), p, plen);
+        end;
+    else // e.g. ftBlob,ftMemo,ftWideMemo
+      v.VType := varEmpty;
+    end;
+end;
+
+function TVirtualDataSet.CompareField(Field: TField; RowIndex: integer;
+  const Value: variant; Options: TLocateOptions): integer;
+var
+  v: TVarData;
+  needsclear: boolean;
+begin
+  needsclear := GetFieldVarData(Field, RowIndex, v);
+  result := SortDynArrayVariantComp(v, TVarData(Value), loCaseInsensitive in Options);
+  if needsclear then
+    VarClearProc(v);
+end;
+
 function TVirtualDataSet.Locate(const KeyFields: string;
   const KeyValues: variant; Options: TLocateOptions): boolean;
 var
-  i, l, h, found: integer;
+  l, h, r, f, n: integer;
   fields: TDatasetGetFieldList;
 begin
   CheckActive;
@@ -570,38 +644,45 @@ begin
         GetFieldList(fields, KeyFields);
         l := VarArrayLowBound(KeyValues, 1);
         h := VarArrayHighBound(KeyValues, 1);
-        if (fields.Count = 1) and
-           (l < h) then
-        begin
-          found := SearchForField(StringToUtf8(KeyFields), KeyValues, Options);
-          if found > 0 then
+        if l + (fields.Count - 1) = h then // KeyFields and KeyValues do match
+          if fields.Count = 1 then
           begin
-            RecNo := found;
-            exit;
-          end;
-        end
-        else
-          for i := 0 to fields.Count - 1 do
-          begin
-            found := SearchForField(
-              StringToUtf8(TField(fields[i]).FieldName),
-              KeyValues[l + i], Options);
-            if found > 0 then
+            // one KeyFields lookup using dedicated (virtual) method
+            r := SearchForField(StringToUtf8(KeyFields), KeyValues[l], Options);
+            if r > 0 then
             begin
-              RecNo := found;
+              RecNo := r;
               exit;
             end;
-          end;
+          end
+          else
+            // brute force search of several KeyFields/KeyValues
+            for r := 0 to GetRecordCount - 1 do
+            begin
+              n := 0;
+              for f := 0 to fields.Count - 1 do
+                if CompareField(fields[f], r, KeyValues[l + f], Options) = 0 then
+                  inc(n)
+                else
+                  break;
+              if (n > 1) and
+                 (n = fields.Count) then // found all matching fields
+              begin
+                RecNo := r;
+                exit;
+              end;
+            end;
       finally
         fields.Free;
       end;
     end
     else
     begin
-      found := SearchForField(StringToUtf8(KeyFields), KeyValues, Options);
-      if found > 0 then
+      // one KeyFields lookup using dedicated (virtual) method
+      r := SearchForField(StringToUtf8(KeyFields), KeyValues, Options);
+      if r > 0 then
       begin
-        RecNo := found;
+        RecNo := r;
         exit;
       end;
     end;
@@ -626,7 +707,8 @@ end;
 function DataSetToJson(Data: TDataSet): RawJson;
 var
   W: TResultsWriter;
-  f: PtrInt;
+  c: PtrInt;
+  f: TField;
   blob: TRawByteStringStream;
 begin
   result := 'null';
@@ -639,113 +721,124 @@ begin
   try
     // get col names and types
     SetLength(W.ColNames, Data.FieldCount);
-    for f := 0 to high(W.ColNames) do
-      StringToUtf8(Data.FieldDefs[f].Name, W.ColNames[f]);
+    for c := 0 to high(W.ColNames) do
+      StringToUtf8(Data.FieldDefs[c].Name, W.ColNames[c]);
     W.AddColumns;
-    W.Add('[');
+    W.AddDirect('[');
     repeat
-      W.Add('{');
-      for f := 0 to Data.FieldCount - 1 do
+      W.AddDirect('{');
+      for c := 0 to Data.FieldCount - 1 do
       begin
-        W.AddString(W.ColNames[f]);
-        with Data.Fields[f] do
-          if IsNull then
-            W.AddNull
+        W.AddString(W.ColNames[c]);
+        f := Data.Fields[c];
+        if f.IsNull then
+          W.AddNull
+        else
+          case f.DataType of
+            ftBoolean:
+              W.Add(f.AsBoolean);
+            ftSmallint,
+            ftInteger,
+            ftWord,
+            ftAutoInc:
+              W.Add(f.AsInteger);
+            ftLargeInt:
+              W.Add(TLargeIntField(f).AsLargeInt);
+            ftFloat,
+            ftCurrency: // TCurrencyField is sadly a TFloatField (even on FPC)
+              W.Add(f.AsFloat, TFloatField(f).Precision);
+            ftBcd:
+              W.AddCurr(f.AsCurrency);
+            ftFMTBcd:
+              AddBcd(W, f.AsBcd);
+            ftTimeStamp,
+            ftDate,
+            ftTime,
+            ftDateTime:
+              begin
+                W.AddDirect('"');
+                W.AddDateTime(f.AsDateTime);
+                W.AddDirect('"');
+              end;
+            ftString,
+            ftFixedChar,
+            ftMemo,
+            ftGuid:
+              begin
+                W.AddDirect('"');
+                {$ifdef UNICODE}
+                W.AddAnsiString(f.AsAnsiString, twJsonEscape);
+                {$else}
+                W.AddAnsiString(f.AsString, twJsonEscape);
+                {$endif UNICODE}
+                W.AddDirect('"');
+              end;
+            ftWideString:
+              begin
+                W.AddDirect('"');
+                {$ifdef FPC} // Value is still WideString on FPC
+                W.AddJsonEscapeW(pointer(TWideStringField(f).AsUnicodeString));
+                {$else}
+                // Value: string on Delphi 2009+ or WideString on Delphi 7/2007
+                W.AddJsonEscapeW(pointer(TWideStringField(f).Value));
+                {$endif FPC}
+                W.AddDirect('"');
+              end;
+            ftVariant:
+              W.AddVariant(f.AsVariant);
+            ftBytes,
+            ftVarBytes,
+            ftBlob,
+            ftGraphic,
+            ftOraBlob,
+            ftOraClob:
+              begin
+                blob := TRawByteStringStream.Create;
+                try
+                  (f as TBlobField).SaveToStream(blob);
+                  W.WrBase64(pointer(blob.DataString), length(blob.DataString),
+                   {withmagic=}true);
+                finally
+                  blob.Free;
+                end;
+              end;
+            {$ifdef HASDBFTWIDE}
+            ftWideMemo,
+            ftFixedWideChar:
+              begin
+                W.AddDirect('"');
+                {$ifdef FPC} // AsWideString is still WideString on FPC
+                W.AddJsonEscapeW(pointer(f.AsUnicodeString));
+                {$else}
+                // AsWideString: string on Delphi 2009+, WideString Delphi 7/2007
+                W.AddJsonEscapeW(pointer(f.AsWideString));
+                {$endif FPC}
+                W.AddDirect('"');
+              end;
+            {$endif HASDBFTWIDE}
+            {$ifdef HASDBFNEW}
+            ftShortint,
+            ftByte:
+              W.Add(f.AsInteger);
+            ftLongWord:
+              W.AddU(TLongWordField(f).Value);
+            ftExtended:
+              W.AddDouble(f.AsFloat);
+            {$endif HASDBFNEW}
+            {$ifdef HASDBFSINGLE}
+            ftSingle:
+              W.Add(f.AsFloat, SINGLE_PRECISION);
+            {$endif HASDBFSINGLE}
           else
-            case DataType of
-              ftBoolean:
-                W.Add(AsBoolean);
-              ftSmallint,
-              ftInteger,
-              ftWord,
-              ftAutoInc:
-                W.Add(AsInteger);
-              ftLargeInt:
-                W.Add(TLargeIntField(Data.Fields[f]).AsLargeInt);
-              ftFloat,
-              ftCurrency: // TCurrencyField is sadly a TFloatField
-                W.Add(AsFloat, TFloatField(Data.Fields[f]).Precision);
-              ftBcd:
-                W.AddCurr(AsCurrency);
-              ftFMTBcd:
-                AddBcd(W, AsBcd);
-              ftTimeStamp,
-              ftDate,
-              ftTime,
-              ftDateTime:
-                begin
-                  W.Add('"');
-                  W.AddDateTime(AsDateTime);
-                  W.Add('"');
-                end;
-              ftString,
-              ftFixedChar,
-              ftMemo,
-              ftGuid:
-                begin
-                  W.Add('"');
-                  {$ifdef UNICODE}
-                  W.AddAnsiString(AsAnsiString, twJsonEscape);
-                  {$else}
-                  W.AddAnsiString(AsString, twJsonEscape);
-                  {$endif UNICODE}
-                  W.Add('"');
-                end;
-              ftWideString:
-                begin
-                  W.Add('"');
-                  W.AddJsonEscapeW(pointer(TWideStringField(Data.Fields[f]).Value));
-                  W.Add('"');
-                end;
-              ftVariant:
-                W.AddVariant(AsVariant);
-              ftBytes,
-              ftVarBytes,
-              ftBlob,
-              ftGraphic,
-              ftOraBlob,
-              ftOraClob:
-                begin
-                  blob := TRawByteStringStream.Create;
-                  try
-                    (Data.Fields[f] as TBlobField).SaveToStream(blob);
-                    W.WrBase64(pointer(blob.DataString), length(blob.DataString),
-                     {withmagic=}true);
-                  finally
-                    blob.Free;
-                  end;
-                end;
-              {$ifdef HASDBFTWIDE}
-              ftWideMemo,
-              ftFixedWideChar:
-                begin
-                  W.Add('"');
-                  W.AddJsonEscapeW(pointer(AsWideString));
-                  W.Add('"');
-                end;
-              {$endif HASDBFTWIDE}
-              {$ifdef UNICODE}
-              ftShortint,
-              ftByte:
-                W.Add(AsInteger);
-              ftLongWord:
-                W.AddU(TLongWordField(Data.Fields[f]).Value);
-              ftExtended:
-                W.AddDouble(AsFloat);
-              ftSingle:
-                W.Add(AsFloat, SINGLE_PRECISION);
-              {$endif UNICODE}
-            else
-              W.AddNull; // unhandled field type
-            end;
-        W.Add(',');
+            W.AddNull; // unhandled field type
+          end;
+        W.AddComma;
       end;
       W.CancelLastComma;
-      W.Add('}', ',');
+      W.AddDirect('}', ',');
       Data.Next;
     until Data.Eof;
-    W.CancelLastComma;
-    W.Add(']');
+    W.CancelLastComma(']');
     W.SetText(RawUtf8(result));
   finally
     W.Free;
@@ -771,8 +864,7 @@ begin
   begin
     // some columns name/type information has been supplied
     if n <> length(ColumnTypes) then
-      raise EVirtualDataSet.CreateUtf8(
-        '%.Create(ColumnNames<>ColumnTypes)', [self]);
+      EVirtualDataSet.RaiseUtf8('%.Create(ColumnNames<>ColumnTypes)', [self]);
     SetLength(fColumns, n);
     col := pointer(fColumns);
     for ndx := 0 to n - 1 do
@@ -804,7 +896,7 @@ begin
             if j >= fValuesCount then
               break
             else
-              // ensure objects are consistent
+              // ensure objects are consistent and no float valule appears
               with _Safe(fValues[j], dvObject)^ do
                 if (ndx < Length(Names)) and
                    PropNameEquals(Names[ndx], col^.Name) and
@@ -863,7 +955,7 @@ begin
   if VarIsEmptyOrNull(v^) then
     exit
   else if OnlyCheckNull then
-    result := @fTemp64
+    result := @fTemp64 // something not nil, but clearly incorrect
   else
     case col^.FieldType of
       mormot.db.core.ftInt64:
@@ -937,11 +1029,10 @@ begin
       if (cardinal(f) >= cardinal(v^.Count)) or
          not PropNameEquals(aLookupFieldName, v^.Names[f]) then
         f := v^.GetValueIndex(aLookupFieldName);
-      if (f >= 0) and
-         (SortDynArrayVariantComp(
-           TVarData(v^.Values[f]), TVarData(aLookupValue),
-           loCaseInsensitive in aOptions) = 0) then
-        exit;
+      if f >= 0 then
+        if SortDynArrayVariantComp(TVarData(v^.Values[f]), TVarData(aLookupValue),
+           loCaseInsensitive in aOptions) = 0 then
+          exit;
     end;
   result := 0;
 end;

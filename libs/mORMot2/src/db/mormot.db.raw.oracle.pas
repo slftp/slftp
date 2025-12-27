@@ -46,7 +46,7 @@ type
   ub2     = Word;
   sb1     = ShortInt;
   ub1     = byte;
-  dvoid   = Pointer;
+  dvoid   = pointer;
   text    = PAnsiChar; // this conflicts with the standard text definition in FPC (and Delphi perhaps)
   OraText = PAnsiChar;
   size_T  = PtrUInt;
@@ -60,8 +60,8 @@ type
   pdvoid = ^dvoid;
 
   { Handle Types }
-  POCIHandle = Pointer;
-  PPOCIHandle = ^Pointer;
+  POCIHandle = pointer;
+  PPOCIHandle = ^pointer;
   POCIEnv = POCIHandle;
   POCIServer = POCIHandle;
   POCIError = POCIHandle;
@@ -74,7 +74,7 @@ type
   POCITrans = POCIHandle;
 
   { Descriptor Types }
-  POCIDescriptor = Pointer;
+  POCIDescriptor = pointer;
   PPOCIDescriptor = ^POCIDescriptor;
   POCISnapshot = POCIDescriptor;
   POCILobLocator = POCIDescriptor;
@@ -616,7 +616,7 @@ const
   OCI_DURATION_BEGIN_                     = 10;
   OCI_DURATION_CALLOUT_                   = OCI_DURATION_BEGIN_ + 4;
 
-  OCI_DURATION_INVALID: OCIDuration       = $FFFF;                   // Invalid duration
+  OCI_DURATION_INVALID: OCIDuration       = $ffff;                   // Invalid duration
   OCI_DURATION_BEGIN: OCIDuration         = OCI_DURATION_BEGIN_;     // beginning sequence of duration
   OCI_DURATION_NULL: OCIDuration          = OCI_DURATION_BEGIN_ - 1; // null duration
   OCI_DURATION_DEFAULT: OCIDuration       = OCI_DURATION_BEGIN_ - 2; // default
@@ -785,10 +785,10 @@ type
 type
   /// direct access to the native Oracle Client Interface (OCI)
   TSqlDBOracleLib = class(TSynLibrary)
-  protected
+  protected // internal wrapper functions
     procedure HandleError(Conn: TSqlDBConnection; Stmt: TSqlDBStatement;
       Status: integer; ErrorHandle: POCIError; InfoRaiseException: boolean = false;
-      LogLevelNoRaise: TSynLogInfo = sllNone);
+      LogLevelNoRaise: TSynLogLevel = sllNone);
     function BlobOpen(Stmt: TSqlDBStatement; svchp: POCISvcCtx;
       errhp: POCIError; locp: POCIDescriptor): ub4;
     function BlobRead(Stmt: TSqlDBStatement; svchp: POCISvcCtx;
@@ -801,28 +801,29 @@ type
       errhp: POCIError; locp: POCIDescriptor; stream: TStream; BlobLen: ub4;
       csid: ub2 = 0; csfrm: ub1 = SQLCS_IMPLICIT): ub4;
   public
+    // all needed API entries
     ClientVersion: function(var major_version, minor_version,
       update_num, patch_num, port_update_num: sword): sword; cdecl;
-    EnvNlsCreate: function(var envhpp: pointer; mode: ub4; ctxp: Pointer;
-      malocfp: Pointer; ralocfp: Pointer; mfreefp: Pointer; xtramemsz: size_T;
+    EnvNlsCreate: function(var envhpp: pointer; mode: ub4; ctxp: pointer;
+      malocfp: pointer; ralocfp: pointer; mfreefp: pointer; xtramemsz: size_T;
       usrmempp: PPointer; charset, ncharset: ub2): sword; cdecl;
     HandleAlloc: function(parenth: POCIHandle; var hndlpp: pointer;
       atype: ub4; xtramem_sz: size_T = 0; usrmempp: PPointer = nil): sword; cdecl;
-    HandleFree: function(hndlp: Pointer; atype: ub4): sword; cdecl;
+    HandleFree: function(hndlp: pointer; atype: ub4): sword; cdecl;
     ServerAttach: function(srvhp: POCIServer; errhp: POCIError; dblink: text;
       dblink_len: sb4; mode: ub4): sword; cdecl;
     ServerDetach: function(srvhp: POCIServer; errhp: POCIError;
       mode: ub4): sword; cdecl;
     AttrGet: function(trgthndlp: POCIHandle; trghndltyp: ub4;
-      attributep: Pointer; sizep: Pointer; attrtype: ub4;
+      attributep: pointer; sizep: pointer; attrtype: ub4;
       errhp: POCIError): sword; cdecl;
     AttrSet: function(trgthndlp: POCIHandle; trghndltyp: ub4;
-      attributep: Pointer; size: ub4; attrtype: ub4; errhp: POCIError): sword; cdecl;
+      attributep: pointer; size: ub4; attrtype: ub4; errhp: POCIError): sword; cdecl;
     SessionBegin: function(svchp: POCISvcCtx; errhp: POCIError;
       usrhp: POCISession; credt: ub4; mode: ub4): sword; cdecl;
     SessionEnd: function(svchp: POCISvcCtx; errhp: POCIError;
       usrhp: POCISession; mode: ub4): sword; cdecl;
-    ErrorGet: function(hndlp: Pointer; recordno: ub4; sqlstate: text;
+    ErrorGet: function(hndlp: pointer; recordno: ub4; sqlstate: text;
       var errcodep: sb4; bufp: text; bufsiz: ub4; atype: ub4): sword; cdecl;
     StmtPrepare: function(stmtp: POCIStmt; errhp: POCIError; stmt: text;
       stmt_len: ub4; language:ub4; mode: ub4): sword; cdecl;
@@ -832,11 +833,11 @@ type
     StmtFetch: function(stmtp: POCIStmt; errhp: POCIError; nrows: ub4;
       orientation: ub2; mode: ub4): sword; cdecl;
     BindByPos: function(stmtp: POCIStmt; var bindpp: POCIBind;
-      errhp: POCIError; position: ub4; valuep: Pointer; value_sz: sb4; dty: ub2;
-      indp: Pointer; alenp: Pointer; rcodep: Pointer; maxarr_len: ub4;
-      curelep: Pointer; mode: ub4): sword; cdecl;
-    ParamGet: function(hndlp: Pointer; htype: ub4; errhp: POCIError;
-      var parmdpp: Pointer; pos: ub4): sword; cdecl;
+      errhp: POCIError; position: ub4; valuep: pointer; value_sz: sb4; dty: ub2;
+      indp: pointer; alenp: pointer; rcodep: pointer; maxarr_len: ub4;
+      curelep: pointer; mode: ub4): sword; cdecl;
+    ParamGet: function(hndlp: pointer; htype: ub4; errhp: POCIError;
+      var parmdpp: pointer; pos: ub4): sword; cdecl;
     TransStart: function(svchp: POCISvcCtx; errhp: POCIError; timeout: word;
       flags: ub4): sword; cdecl;
     TransRollback: function(svchp:POCISvcCtx; errhp:POCIError;
@@ -844,8 +845,8 @@ type
     TransCommit: function(svchp: POCISvcCtx; errhp: POCIError;
       flags: ub4) :sword; cdecl;
     DescriptorAlloc: function(parenth: POCIEnv; var descpp: pointer;
-      htype: ub4; xtramem_sz: integer; usrmempp: Pointer): sword; cdecl;
-    DescriptorFree: function(descp: Pointer; htype: ub4): sword; cdecl;
+      htype: ub4; xtramem_sz: integer; usrmempp: pointer): sword; cdecl;
+    DescriptorFree: function(descp: pointer; htype: ub4): sword; cdecl;
     DateTimeConstruct: function(hndl: POCIEnv; err: POCIError;
       datetime: POCIDateTime; year: sb2; month: ub1; day: ub1; hour: ub1;
       min: ub1; sec: ub1; fsec: ub4; timezone: text;
@@ -854,8 +855,8 @@ type
       const date: POCIDateTime; var year: sb2; var month: ub1;
       var day: ub1): sword; cdecl;
     DefineByPos: function(stmtp: POCIStmt; var defnpp: POCIDefine;
-      errhp: POCIError; position: ub4; valuep: Pointer; value_sz: sb4; dty: ub2;
-      indp: Pointer; rlenp: Pointer; rcodep: Pointer; mode: ub4): sword; cdecl;
+      errhp: POCIError; position: ub4; valuep: pointer; value_sz: sb4; dty: ub2;
+      indp: pointer; rlenp: pointer; rcodep: pointer; mode: ub4): sword; cdecl;
     LobGetLength: function(svchp: POCISvcCtx; errhp: POCIError;
       locp: POCILobLocator; var lenp: ub4): sword; cdecl;
     LobGetChunkSize: function(svchp: POCISvcCtx; errhp: POCIError;
@@ -863,14 +864,14 @@ type
     LobOpen: function(svchp: POCISvcCtx; errhp: POCIError;
       locp: POCILobLocator; mode: ub1): sword; cdecl;
     LobRead: function(svchp: POCISvcCtx; errhp: POCIError;
-      locp: POCILobLocator; var amtp: ub4; offset: ub4; bufp: Pointer; bufl: ub4;
-      ctxp: Pointer = nil; cbfp: Pointer = nil; csid: ub2 = 0;
+      locp: POCILobLocator; var amtp: ub4; offset: ub4; bufp: pointer; bufl: ub4;
+      ctxp: pointer = nil; cbfp: pointer = nil; csid: ub2 = 0;
       csfrm: ub1 = SQLCS_IMPLICIT): sword; cdecl;
     LobClose: function(svchp: POCISvcCtx; errhp: POCIError;
       locp: POCILobLocator): sword; cdecl;
     LobWrite: function(svchp: POCISvcCtx; errhp: POCIError;
-      locp: POCILobLocator; var amtp: ub4; offset: ub4; bufp: Pointer; buflen: ub4;
-      piece: ub1; ctxp: Pointer = nil; cbfp: Pointer = nil; csid: ub2 = 0;
+      locp: POCILobLocator; var amtp: ub4; offset: ub4; bufp: pointer; buflen: ub4;
+      piece: ub1; ctxp: pointer = nil; cbfp: pointer = nil; csid: ub2 = 0;
       csfrm: ub1 = SQLCS_IMPLICIT): sword; cdecl;
     NlsCharSetNameToID: function(env: POCIEnv; name: PUtf8Char): sword; cdecl;
     StmtPrepare2: function(svchp: POCISvcCtx; var stmtp: POCIStmt; errhp: POCIError;
@@ -916,11 +917,11 @@ type
     /// raise an exception on error
     procedure Check(Conn: TSqlDBConnection; Stmt: TSqlDBStatement;
       Status: integer; ErrorHandle: POCIError;
-      InfoRaiseException: boolean = false; LogLevelNoRaise: TSynLogInfo = sllNone);
+      InfoRaiseException: boolean = false; LogLevelNoRaise: TSynLogLevel = sllNone);
       {$ifdef HASINLINE}inline;{$endif}
     procedure CheckSession(Conn: TSqlDBConnection; Stmt: TSqlDBStatement;
       Status: integer; ErrorHandle: POCIError;
-      InfoRaiseException: boolean = false; LogLevelNoRaise: TSynLogInfo = sllNone);
+      InfoRaiseException: boolean = false; LogLevelNoRaise: TSynLogLevel = sllNone);
     /// retrieve some BLOB content
     procedure BlobFromDescriptor(Stmt: TSqlDBStatement; svchp: POCISvcCtx;
       errhp: POCIError; locp: POCIDescriptor; out result: RawByteString); overload;
@@ -1089,6 +1090,7 @@ end;
 procedure TOracleDate.From(const aValue: TDateTime);
 var
   T: TSynSystemTime;
+  c: cardinal;
 begin
   if aValue <= 0 then
   begin
@@ -1097,8 +1099,9 @@ begin
     exit; // supplied TDateTime value = 0 -> store as null date
   end;
   T.FromDateTime(aValue);
-  Cent := (T.Year div 100) + 100;
-  Year := (T.Year mod 100) + 100;
+  c := T.Year div 100;
+  Cent := c + 100;
+  Year := (T.Year - c * 100) + 100;
   Month := T.Month;
   Day := T.Day;
   if (T.Hour <> 0) or
@@ -1126,7 +1129,7 @@ procedure TOracleDate.From(aIso8601: PUtf8Char; Length: integer);
 var
   Value: QWord;
   Value32: cardinal absolute Value;
-  Y: cardinal;
+  Y, C: cardinal;
   NoTime: boolean;
 begin
   Value := Iso8601ToTimeLogPUtf8Char(aIso8601, Length, @NoTime);
@@ -1136,11 +1139,12 @@ begin
     PInteger(PtrUInt(@self) + 3)^ := 0;  // set Day=Hour=Min=Sec to 0
     exit; // invalid ISO-8601 text -> store as null date
   end;
-  Y := Value shr (6 + 6 + 5 + 5 + 4);
-  Cent := (Y div 100) + 100;
-  Year := (Y mod 100) + 100;
-  Month := ((Value32 shr (6 + 6 + 5 + 5)) and 15) + 1;
-  Day := ((Value32 shr (6 + 6 + 5)) and 31) + 1;
+  Y := Value shr SHR_YY;
+  C := Y div 100;
+  Cent := C + 100;
+  Year := (Y - C * 100) + 100;
+  Month := ((Value32 shr SHR_MM) and AND_MM) + 1;
+  Day := ((Value32 shr SHR_DD) and AND_DD) + 1;
   if NoTime then
   begin
     Hour := 1;
@@ -1148,9 +1152,9 @@ begin
     Sec := 1;
     exit;
   end;
-  Hour := ((Value32 shr (6 + 6)) and 31) + 1;
-  Min := ((Value32 shr 6) and 63) + 1;
-  Sec := (Value32 and 63) + 1;
+  Hour := ((Value32 shr SHR_H) and AND_H) + 1;
+  Min := ((Value32 shr SHR_M) and AND_M) + 1;
+  Sec := (Value32 and AND_S) + 1;
 end;
 
 
@@ -1277,7 +1281,7 @@ const
     Text: 'WE8ISO8859P1'
   ));
 
-  OCI_ENTRIES: array[0..40] of RawUtf8 = (
+  OCI_ENTRIES: array[0..41] of PAnsiChar = (
     'ClientVersion',
     'EnvNlsCreate',
     'HandleAlloc',
@@ -1318,7 +1322,8 @@ const
     'StringAssignText',
     'CollAppend',
     'BindObject',
-    'PasswordChange');
+    'PasswordChange',
+    nil);
 
 
 { TSqlDBOracleLib }
@@ -1378,7 +1383,7 @@ begin
   if UseLobChunks then
   begin
     Check(nil, Stmt, LobGetChunkSize(svchp, errhp, locp, ChunkSize), errhp);
-    pointer(tmp) := FastNewString(ChunkSize * SynDBOracleBlobChunksCount, CP_RAWBYTESTRING);
+    pointer(tmp) := FastNewString(ChunkSize * SynDBOracleBlobChunksCount);
     result := 0;
     repeat
       Read := BlobLen;
@@ -1391,7 +1396,7 @@ begin
   end
   else
   begin
-    pointer(tmp) := FastNewString(BlobLen, CP_RAWBYTESTRING);
+    pointer(tmp) := FastNewString(BlobLen);
     Check(nil, Stmt, LobRead(svchp, errhp, locp, result, 1, pointer(tmp), result,
       nil, nil, csid, csfrm), errhp);
     stream.WriteBuffer(pointer(tmp)^, result);
@@ -1406,7 +1411,7 @@ var
 begin
   Len := BlobOpen(Stmt, svchp, errhp, locp);
   try
-    pointer(result) := FastNewString(Len, CP_RAWBYTESTRING);
+    pointer(result) := FastNewString(Len);
     Read := BlobRead(Stmt, svchp, errhp, locp, pointer(result), Len);
     if Read <> Len then
       SetLength(result, Read);
@@ -1458,7 +1463,7 @@ var
   tmp: RawByteString;
 begin
   Check(nil, Stmt, LobGetChunkSize(svchp, errhp, locp, ChunkSize), errhp);
-  pointer(tmp) := FastNewString(ChunkSize * SynDBOracleBlobChunksCount, CP_RAWBYTESTRING);
+  pointer(tmp) := FastNewString(ChunkSize * SynDBOracleBlobChunksCount);
   l_Offset := 1;
   while stream.Position < stream.Size do
   begin
@@ -1499,7 +1504,7 @@ end;
 
 procedure TSqlDBOracleLib.HandleError(Conn: TSqlDBConnection;
   Stmt: TSqlDBStatement; Status: integer; ErrorHandle: POCIError;
-  InfoRaiseException: boolean; LogLevelNoRaise: TSynLogInfo);
+  InfoRaiseException: boolean; LogLevelNoRaise: TSynLogLevel);
 var
   msg: RawUtf8;
   tmp: array[0..3071] of AnsiChar;
@@ -1547,14 +1552,14 @@ begin
   if LogLevelNoRaise <> sllNone then
     SynDBLog.Add.Log(LogLevelNoRaise, msg{%H-}, self)
   else if Stmt = nil then
-    raise ESqlDBOracle.CreateUtf8('% error: %', [self, msg])
+    ESqlDBOracle.RaiseUtf8('% error: %', [self, msg])
   else
-    raise ESqlDBOracle.CreateUtf8('% error: %', [Stmt, msg]);
+    ESqlDBOracle.RaiseUtf8('% error: %', [Stmt, msg]);
 end;
 
 procedure TSqlDBOracleLib.Check(Conn: TSqlDBConnection; Stmt: TSqlDBStatement;
   Status: integer; ErrorHandle: POCIError; InfoRaiseException: boolean;
-  LogLevelNoRaise: TSynLogInfo);
+  LogLevelNoRaise: TSynLogLevel);
 begin
   if Status <> OCI_SUCCESS then
     HandleError(Conn, Stmt, Status, ErrorHandle, InfoRaiseException, LogLevelNoRaise);
@@ -1562,7 +1567,7 @@ end;
 
 procedure TSqlDBOracleLib.CheckSession(Conn: TSqlDBConnection;
   Stmt: TSqlDBStatement; Status: integer; ErrorHandle: POCIError;
-  InfoRaiseException: boolean; LogLevelNoRaise: TSynLogInfo);
+  InfoRaiseException: boolean; LogLevelNoRaise: TSynLogLevel);
 var
   msg: RawUtf8;
   tmp: array[0..3071] of AnsiChar;
@@ -1585,13 +1590,13 @@ begin
     if ErrNum = 28001 then
       if Conn <> nil then
         if Conn.PasswordChange then
-          Exit;
+          exit;
     if LogLevelNoRaise <> sllNone then
       SynDBLog.Add.Log(LogLevelNoRaise, msg, self)
     else if Stmt = nil then
-      raise ESqlDBOracle.CreateUtf8('% error: %', [self, msg])
+      ESqlDBOracle.RaiseUtf8('% error: %', [self, msg])
     else
-      raise ESqlDBOracle.CreateUtf8('% error: %', [Stmt, msg]);
+      ESqlDBOracle.RaiseUtf8('% error: %', [Stmt, msg]);
   end;
 end;
 
@@ -1658,42 +1663,40 @@ const
 
 constructor TSqlDBOracleLib.Create(LibraryFileName: TFileName);
 var
-  P: PPointerArray;
-  i: PtrInt;
   l1, l2, l3: TFileName;
 begin
   if LibraryFileName = '' then
     LibraryFileName := LIBNAME;
   if (SynDBOracleOCIpath <> '') and
      DirectoryExists(SynDBOracleOCIpath) then
-    l1 := ExtractFilePath(ExpandFileName(
-      SynDBOracleOCIpath + PathDelim)) + LibraryFileName;
+    l1 := MakePath([SynDBOracleOCIpath, LibraryFileName]);
   l2 := Executable.ProgramFilePath + LibraryFileName;
   if not FileExists(l2) then
   begin
-    l2 := Executable.ProgramFilePath + 'OracleInstantClient';
-    if not DirectoryExists(l2) then
-    begin
-      l2 := Executable.ProgramFilePath + 'OCI';
-      if not DirectoryExists(l2) then
-        l2 := Executable.ProgramFilePath + 'Oracle';
-    end;
+    if not DirectoryExistsMake([Executable.ProgramFilePath, 'Oracle'], @l2) then
+      if not DirectoryExistsMake([Executable.ProgramFilePath, 'OCI'], @l2) then
+        l2 := Executable.ProgramFilePath + 'OracleInstantClient';
     l2 := l2 + PathDelim + LibraryFileName;
   end;
   l3 := GetEnvironmentVariable('ORACLE_HOME');
   if l3 <> '' then
-    l3 := IncludeTrailingPathDelimiter(l3) +
-            'bin' + PathDelim + LibraryFileName;
-  TryLoadLibrary([{%H-}l1, l2, l3, LibraryFileName, LIBNAME], ESqlDBOracle);
-  P := @@ClientVersion;
-  for i := 0 to High(OCI_ENTRIES) do
-    Resolve('OCI', OCI_ENTRIES[i], @P[i], {raiseonfailure=}ESqlDBOracle);
-  ClientVersion(
-    major_version, minor_version, update_num, patch_num, port_update_num);
-  SupportsInt64Params := (major_version > 11) or
-                         ((major_version = 11) and
-                          (minor_version > 1));
-  UseLobChunks := true; // by default
+    l3 := MakePath([l3, 'bin', LibraryFileName]);
+  try
+    TryLoadResolve([{%H-}l1, l2, l3, LibraryFileName, LIBNAME],
+      'OCI', @OCI_ENTRIES, @@ClientVersion, ESqlDBOracle);
+    ClientVersion(
+      major_version, minor_version, update_num, patch_num, port_update_num);
+    SupportsInt64Params := (major_version > 11) or
+                           ((major_version = 11) and
+                            (minor_version > 1));
+    UseLobChunks := true; // by default
+  except
+    on E: Exception do
+    begin
+      SetDbError(E);
+      raise;
+    end;
+  end;
 end;
 
 
@@ -1705,7 +1708,7 @@ var
   d100: Qword;
   minus: boolean; // True, if the sign is positive
   Size, i: PtrInt;
-  Mant: array[0..19] of byte;
+  Mant: THash160;
 begin
   FillcharFast(Mant, SizeOf(Mant), 0);
   Exp := 0;
@@ -1762,7 +1765,7 @@ begin
     exit;
   for i1 := 0 to high(CODEPAGES) do
     if CODEPAGES[i1].Charset = aCharset1 then
-      for i2 := 0 to High(CODEPAGES) do
+      for i2 := 0 to high(CODEPAGES) do
         if (CODEPAGES[i2].Charset = aCharset2) and
            (CODEPAGES[i1].Num = CODEPAGES[i2].Num) then
           exit; // aliases are allowed

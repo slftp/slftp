@@ -86,7 +86,7 @@ type
 
   /// one HTTP/WebSockets server connection using non-blocking sockets
   // - is able to upgrade from HTTP to WebSockets on client request
-  TWebSocketAsyncConnection = class(THttpAsyncConnection)
+  TWebSocketAsyncConnection = class(THttpAsyncServerConnection)
   protected
     fProcess: TWebSocketAsyncProcess; // set once upgraded
     function OnRead: TPollAsyncSocketOnReadWrite; override;
@@ -111,7 +111,7 @@ type
     // maintain a thread-safe list to minimize ProcessIdleTix time
     fOutgoingSafe: TLightLock; // atomic fOutgoingHandle[] access
     fOutgoingCount: integer;
-    fOutgoingHandle: TPollAsyncConnectionHandleDynArray;
+    fOutgoingHandle: TConnectionAsyncHandleDynArray; // = array of integer
     procedure NotifyOutgoing(Connection: TWebSocketAsyncConnection);
     procedure ProcessIdleTixSendFrames;
     // overriden to send pending frames
@@ -142,10 +142,10 @@ type
     procedure DoDisconnect(Context: TWebSocketAsyncConnection); virtual;
   public
     /// create an event-driven HTTP/WebSockets Server
-    constructor Create(const aPort: RawUtf8;
-      const OnStart, OnStop: TOnNotifyThread; const ProcessName: RawUtf8;
-      ServerThreadPoolCount: integer = 32; KeepAliveTimeOut: integer = 30000;
-      ProcessOptions: THttpServerOptions = []); override;
+    constructor Create(const aPort: RawUtf8; const OnStart, OnStop: TOnNotifyThread;
+      const ProcessName: RawUtf8; ServerThreadPoolCount: integer = 32;
+      KeepAliveTimeOut: integer = 30000; ProcessOptions: THttpServerOptions = [];
+      aLog: TSynLogClass = nil); override;
     /// finalize the HTTP/WebSockets Server
     destructor Destroy; override;
     /// allow to customize the WebSockets processing
@@ -211,7 +211,8 @@ type
     constructor Create(const aPort: RawUtf8; const OnStart, OnStop: TOnNotifyThread;
       const aProcessName: RawUtf8; ServerThreadPoolCount: integer;
       const aWebSocketsURI, aWebSocketsEncryptionKey: RawUtf8;
-      aWebSocketsAjax: boolean; ProcessOptions: THttpServerOptions); reintroduce;
+      aWebSocketsAjax: boolean; ProcessOptions: THttpServerOptions;
+      aLog: TSynLogClass); reintroduce;
     /// defines the WebSockets protocols to be used for this Server
     // - i.e. 'synopsebin' and optionally 'synopsejson' modes
     // - if aWebSocketsURI is '', any URI would potentially upgrade; you can
@@ -275,13 +276,14 @@ var
 begin
   // this code is not blocking and very quick most of the time
   result := false;
-  delaysec := TWebSocketAsyncServer(fServer).fSettings.HeartbeatDelay shr 10;
+  delaysec := TWebSocketAsyncServer(fServer).
+    fSettings.HeartbeatDelay shr MilliSecsPerSecShl;
   if nowsec < delaysec + fLastOperation then
     exit; // nothing to send (most common case)
   // it is time to notify the other end that we are still alive
   fProcess.SendPing; // Write will change fWasActive, then fLastOperation
   // warning: Write calls ConnectionDelete() so fConnectionLock on socket error
-  result := true; // notify TAsyncConnections.IdleEverySecond
+  result := true; // notify TAsyncConnections.IdleEverySecond for logging
 end;
 
 function TWebSocketAsyncConnection.DecodeHeaders: integer;
@@ -301,7 +303,7 @@ function TWebSocketAsyncConnection.DecodeHeaders: integer;
     if result <> HTTP_SUCCESS then
       exit;
     fHttp.State := hrsUpgraded;
-    fLockMax := true; // WebSockets separate receiving and sending
+    include(fInternalFlags, ifSeparateWLock); // WebSockets separate receive/send
     // send back WS upgrade 101 response
     if fOwner.WriteString(self, resp, {timeout=}1000) then
     begin
@@ -388,7 +390,7 @@ constructor TWebSocketAsyncConnections.Create(const aPort: RawUtf8;
 begin
   inherited Create(aPort, OnStart, OnStop, aConnectionClass, ProcessName,
     aLog, aOptions, aThreadPoolCount);
-  fLastOperationIdleSeconds := 5; // 5 secs is good enough for ping/pong
+  fLastOperationIdleSeconds := 5;   // 5 secs is good enough for ping/pong
   fKeepConnectionInstanceMS := 500; // more conservative for blocking callbacks
 end;
 
@@ -404,15 +406,14 @@ end;
 procedure TWebSocketAsyncConnections.ProcessIdleTixSendFrames;
 var
   i, conn, valid, sent, invalid, unknown: PtrInt;
-  pending: TPollAsyncConnectionHandleDynArray; // keep fOutgoingSafe lock short
+  pending: TConnectionAsyncHandleDynArray; // keep fOutgoingSafe lock short
   c: TAsyncConnection;
-  timer: TPrecisionTimer;
+  start, elapsed: Int64;
 begin
-  if Assigned(fLog) and
-     (sllTrace in fLog.Family.Level) then
-    timer.Start // we monitor frame sending timing
-  else
-    timer.Init; // no need to call high-precision timing API
+  start := 0;
+  elapsed := 0;
+  if fLogClass.HasLevel([sllTrace]) then
+    QueryPerformanceMicroSeconds(start); // we monitor frame sending timing
   fOutgoingSafe.Lock;
   try
     conn := fOutgoingCount;
@@ -439,13 +440,17 @@ begin
     else
       inc(unknown);
   end;
-  timer.Pause; // BeforeSendFrame encrypt/compress may have taken some time
+  if start <> 0 then
+  begin // BeforeSendFrame encrypt/compress may have taken some time
+    QueryPerformanceMicroSeconds(elapsed);
+    dec(elapsed, start);
+  end;
   if (invalid <> 0) or
      (unknown <> 0) or
-     (timer.TimeInMicroSec > 500) then // 0.5 ms seems responsive enough
+     (elapsed > 500) then // 0.5 ms seems responsive enough
     DoLog(sllTrace,
       'ProcessIdleTixSendFrames conn=% valid=% invalid=% unknown=% in %',
-      [conn, valid, invalid, unknown, timer.Time], self);
+      [conn, valid, invalid, unknown, MicroSecToString(elapsed)], self);
 end;
 
 procedure TWebSocketAsyncConnections.ProcessIdleTix(Sender: TObject;
@@ -478,7 +483,7 @@ function TWebSocketAsyncProcess.ComputeContext(
   out RequestProcess: TOnHttpServerRequest): THttpServerRequestAbstract;
 begin
   result := THttpServerRequest.Create(
-    fConnection.fServer, fProtocol.ConnectionID, nil, 
+    fConnection.fServer, fProtocol.ConnectionID, nil,  {asynchandle=}0,
     fProtocol.ConnectionFlags + HTTP_TLS_FLAGS[Assigned(fConnection.fSecure)],
     fProtocol.ConnectionOpaque);
   RequestProcess :=  fConnection.fServer.Request;
@@ -594,7 +599,7 @@ end;
 constructor TWebSocketAsyncServer.Create(const aPort: RawUtf8;
   const OnStart, OnStop: TOnNotifyThread; const ProcessName: RawUtf8;
   ServerThreadPoolCount: integer; KeepAliveTimeOut: integer;
-  ProcessOptions: THttpServerOptions);
+  ProcessOptions: THttpServerOptions; aLog: TSynLogClass);
 begin
   // initialize protocols and connections
   if fConnectionClass = nil then
@@ -611,8 +616,8 @@ begin
   if hsoLogVerbose in ProcessOptions then
     fSettings.SetFullLog;
   // start the HTTP/WebSockets server threads
-  inherited Create(aPort, OnStart, OnStop, ProcessName, ServerThreadPoolCount,
-    KeepAliveTimeOut, ProcessOptions);
+  inherited Create(aPort, OnStart, OnStop, ProcessName,
+    ServerThreadPoolCount, KeepAliveTimeOut, ProcessOptions, aLog);
 end;
 
 destructor TWebSocketAsyncServer.Destroy;
@@ -621,7 +626,7 @@ var
   n: integer;
   log: ISynLog;
 begin
-  log := TSynLog.Enter(self, 'Destroy');
+  TSynLog.EnterLocal(log, self, 'Destroy');
   // notify at once all client connections - don't wait for answer
   closing.opcode := focConnectionClose;
   closing.content := [];
@@ -712,11 +717,12 @@ end;
 
 constructor TWebSocketAsyncServerRest.Create(const aPort: RawUtf8;
   const OnStart, OnStop: TOnNotifyThread; const aProcessName: RawUtf8;
-  ServerThreadPoolCount: integer; const aWebSocketsURI, aWebSocketsEncryptionKey: RawUtf8;
-  aWebSocketsAjax: boolean; ProcessOptions: THttpServerOptions);
+  ServerThreadPoolCount: integer; const aWebSocketsURI,
+  aWebSocketsEncryptionKey: RawUtf8; aWebSocketsAjax: boolean;
+  ProcessOptions: THttpServerOptions; aLog: TSynLogClass);
 begin
-  inherited Create(aPort, OnStart, OnStop, aProcessName, ServerThreadPoolCount,
-    {alive=}30000, ProcessOptions);
+  inherited Create(aPort, OnStart, OnStop, aProcessName,
+    ServerThreadPoolCount, {alive=}30000, ProcessOptions, aLog);
   WebSocketsEnable(aWebSocketsURI, aWebSocketsEncryptionKey, aWebSocketsAjax);
 end;
 

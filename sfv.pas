@@ -24,7 +24,7 @@ type
 
 implementation
 
-uses SysUtils, mystrings, slconstants, debugunit;
+uses SysUtils, mystrings, globals, debugunit;
 
 const
   section = 'sfv';
@@ -52,8 +52,6 @@ begin
 end;
 
 function TPazoSFV.RegisterSFV(const aDir: String): boolean;
-var
-  fKey: String;
 begin
   Result := False;
   FSFVList_cs.Enter;

@@ -2,7 +2,7 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, SysUtils, Contnrs, Generics.Collections, IniFiles, irc, SyncObjs, dbhandler, mormot.orm.core, mormot.core.base, mormot.orm.base, mormot.rest.sqlite3, mormot.core.unicode;
+uses Classes, IniFiles, irc, Contnrs, SyncObjs, Generics.Collections, slcriticalsection2;
 
 type
   { @abstract(Class for information from each single line of the slftp.imdbcountries file) }
@@ -161,7 +161,7 @@ TIMDbBomDataRecord = class(TOrmNoCase)
     imdb_festival:boolean;
     imdb_stvm:boolean;
     imdb_stvs:String;
-    imdb_bom_country: String;
+    imdb_type:String;
     // additional infos
     imdb_origtitle: String; //< original imdb/movie title
     UpdatedTime: TDateTime; //< when was the data updated last time
@@ -248,11 +248,13 @@ procedure dbaddimdbUnInit;
 
 var
   last_addimdb: THashedStringList;
-  gDbAddimdb_cs: TCriticalSection;
+  last_imdbdata: THashedStringList;
+  dbaddimdb_cs: TSlCriticalSection2;
 
 implementation
 
-uses
+uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.releaseinfo,
+  sitesunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
   debugunit, configunit, sitesunit, console, StrUtils, RegExpr,
   DateUtils, mystrings, FLRE, kb, kb.releaseinfo, sllanguagebase,
@@ -311,11 +313,62 @@ begin
   result := TSQLModel.Create([TIMDbDataRecord,TIMDbReleaseDatesRecord,TIMDbAlsoKnownAsRecord, TIMDbBomDataRecord]);
 end;
 
-{ Extracts the moviename from given releasename by stripping year and scene tags
-  @param(aReleasename Releasename)
-  @param(aYear Year value from releasename (see TRelease.year))
-  @returns(Moviename without scene taggins and year) }
-function getMovieNameWithoutSceneTags(const aReleasename: String): String;
+destructor TDbImdb.Destroy;
+begin
+  inherited;
+end;
+
+{ TDbImdbData }
+constructor TDbImdbData.Create(imdb_id:String);
+begin
+  self.imdb_id := imdb_id;
+  imdb_languages:= TStringList.Create;
+  imdb_countries:= TStringList.Create;
+  imdb_genres:= TStringList.Create;
+end;
+
+destructor TDbImdbData.Destroy;
+begin
+  imdb_languages.Free;
+  imdb_countries.Free;
+  imdb_genres.Free;
+  inherited;
+end;
+
+procedure TDbImdbData.PostResults(rls : String = '');
+var status:String;
+begin
+
+  if imdb_stvm then status := 'STV'
+  else if imdb_festival then status := 'Festival'
+  else if imdb_ldt then status := 'Limited'
+  else if imdb_wide then status := 'Wide'
+  else status :='Cine';
+
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/',[rls, imdb_id]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)',[imdb_origtitle, imdb_year]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s',[imdb_countries.DelimitedText,imdb_languages.DelimitedText]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s',[imdb_rating,imdb_votes,imdb_screens,status,imdb_type]));
+end;
+
+procedure TDbImdbData.PostResults(const netname, channel: String; rls : String = '');
+var status:String;
+begin
+  if imdb_stvm then status := 'STV'
+  else if imdb_festival then status := 'Festival'
+  else if imdb_ldt then status := 'Limited'
+  else if imdb_wide then status := 'Wide'
+  else status :='Cine';
+
+  irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/',[rls, imdb_id]));
+  irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)',[imdb_origtitle, imdb_year]));
+  irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s',[imdb_countries.DelimitedText,imdb_languages.DelimitedText]));
+  irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
+  irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s',[imdb_rating,imdb_votes,imdb_screens,status,imdb_type]));
+end;
+
+function ExcludeCountry(const aCountryname: String): Boolean;
 var
   fRx: TRegexpr;
   fLine, fReleaseNameYear: String;
@@ -346,10 +399,37 @@ begin
     end;
   end;
 
-  fRx := TRegexpr.Create;
-  try
-    fRx.ModifierI := True;
-    fRx.ModifierG := True;
+function dbaddimdb_Process(net, chan, nick, msg: String): Boolean;
+begin
+  Result := False;
+  if (1 = Pos(addimdbcmd, msg)) then
+  begin
+    msg := Copy(msg, length(addimdbcmd + ' ') + 1, 1000);
+    dbaddimdb_addimdb(msg);
+    Result := True;
+  end;
+end;
+
+procedure dbaddimdb_addimdb(params: String);
+var
+  rls: String;
+  imdb_id: String;
+  i: Integer;
+begin
+  rls := '';
+  rls := SubString(params, ' ', 1);
+  imdb_id := '';
+  imdb_id := SubString(params, ' ', 2);
+
+  if not dbaddimdb_checkid(imdb_id) then
+  begin
+    Debug(dpSpam, section, '[ADDIMDB] Invalid IMDB ID for %s: %s', [rls, imdb_id]);
+    exit;
+  end;
+
+  if ((rls <> '') and (imdb_id <> '')) then
+  begin
+    dbaddimdb_cs.Enter('addimdb');
     try
       for fLine in imdb_remove_words_list do
       begin
@@ -817,11 +897,18 @@ begin
     irc_AddInfo(Format('<c7>[iMDB]</c> for <b>%s</b> : %s', [aReleaseName, aIMDbId]));
     irc_Addtext_by_key('ADDIMDBECHO', '!addimdb '+aReleaseName+' '+aIMDbId);
 
-    //it might happen, that we have the IMDB ID in our DB, but could not find it with the rls title. So check
-    //if we have the ID in the DB and if so, use the data that we have.
-    fImdbData := FindImdbDataByImdbId(aIMDbId, aReleaseName);
-    if fImdbData <> nil then
-    begin
+  dbaddimdb_cs.Enter('SaveImdb1');
+  try
+    i:= last_addimdb.IndexOf(rls);
+  finally
+    dbaddimdb_cs.Leave;
+  end;
+  if i = -1 then
+  begin
+    db_imdb := TDbImdb.Create(rls, imdb_id);
+
+    dbaddimdb_cs.Enter('SaveImdb2');
+    try
       try
         //invoke SaveImdbData so that the 'also known as' entry will be created and fire kb will be done.
         dbaddimdb_SaveImdbData(aReleaseName, fImdbData, nil, nil, nil);
@@ -839,19 +926,95 @@ begin
         Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (Parse): %s', [e.Message]));
         exit;
       end;
+    end;
+
+    dbaddimdb_cs.Enter('SaveImdb3');
+    try
+      i:= last_addimdb.Count;
+      try
+        while i > 100 do
+        begin
+          last_addimdb.Delete(0);
+          i:= last_addimdb.Count - 1;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdb (cleanup): %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      dbaddimdb_cs.Leave;
+    end;
   end;
 end;
 
 procedure dbaddimdb_ProcessImdbData(const aReleaseName: String; aImdbData: TDbImdbData);
 begin
- if config.ReadBool(section, 'post_lookup_infos', false) then
+  dbaddimdb_cs.Enter('SaveImdbData1');
+  try
+    i:= last_imdbdata.IndexOf(rls);
+  finally
+    dbaddimdb_cs.Leave;
+  end;
+
+  if i = -1 then
   begin
-    irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [aReleaseName, aImdbData.imdb_id]));
-    aImdbData.PostResults(aReleaseName);
+    dbaddimdb_cs.Enter('SaveImdbData2');
+    try
+      try
+        last_imdbdata.AddObject(rls, imdbdata);
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (AddObject): %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      dbaddimdb_cs.Leave;
+    end;
+
+    if config.ReadBool(section, 'post_lookup_infos', false) then
+    begin
+      irc_AddInfo(Format('<c7>[iMDB Data]</c> for <b>%s</b> : %s', [rls, imdbdata.imdb_id]));
+      imdbdata.PostResults(rls);
+    end;
+
+    try
+      dbaddimdb_FireKbAdd(rls);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (FireKbAdd): %s', [e.Message]));
+        exit;
+      end;
+    end;
+
+    dbaddimdb_cs.Enter('SaveImdbData3');
+    try
+      i:= last_imdbdata.Count;
+      try
+        while i > 100 do
+        begin
+          last_imdbdata.Delete(0);
+          i:= last_imdbdata.Count - 1;
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] dbaddimdb_SaveImdbData (cleanup): %s', [e.Message]));
+          exit;
+        end;
+      end;
+    finally
+      dbaddimdb_cs.Leave;
+    end;
   end;
 
   try
-    dbaddimdb_FireKbAdd(aReleaseName);
+    AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls), true);
   except
     on e: Exception do
     begin
@@ -1192,6 +1355,8 @@ end;
 function check_ImdbId(const aIMDbId: String): Boolean;
 begin
   Result := False;
+  dbaddimdb_cs.Enter('checkid');
+  try
     try
       if rx_imdbid.Find(aIMDbId) <> 0 then
       begin
@@ -1212,6 +1377,7 @@ begin
   aIMDbId := '';
   Result := False;
   try
+    dbaddimdb_cs.Enter('parseid');
     try
       if rx_imdbid.MatchAll(aText, rx_captures, 1 ,1) then
       begin
@@ -1254,12 +1420,7 @@ var
   fItem: TMapLanguageCountry;
   fDupe: Boolean;
 begin
-  fDBName := Trim(config.ReadString(section, 'database', 'imdb.db'));
-
-  imdb_remove_words_list := TStringList.Create;
-  imdb_remove_words_list.LoadFromFile(ExtractFilePath(ParamStr(0)) + IMDBREPLACEFILENAME);
-
-  gDbAddimdb_cs := TCriticalSection.Create;
+  dbaddimdb_cs := TSlCriticalSection2.Create('dbaddimdb');
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
   last_addimdb.OwnsObjects:= true;
@@ -1323,6 +1484,8 @@ end;
 
 procedure dbaddimdbUninit;
 begin
+  glLanguageCountryMappingList.Free;
+  dbaddimdb_cs.Enter('Uninit');
   try
     if Assigned(ImdbDatabase) then
     begin

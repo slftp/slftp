@@ -11,16 +11,16 @@ unit mormot.core.os;
   - Gather Operating System Information
   - Operating System Specific Types (e.g. TWinRegistry)
   - Unicode, Time, File, Console, Library process
-  - Cross-Platform Charset and CodePage Support
   - Per Class Properties O(1) Lookup via vmtAutoTable Slot (e.g. for RTTI cache)
   - TSynLocker/TSynLocked and Low-Level Threading Features
   - Unix Daemon and Windows Service Support
 
-   Aim of this unit is to centralize most used OS-specific API calls, like a
-  SysUtils unit on steroids, to avoid $ifdef/$endif in "uses" clauses.
-   In practice, no "Windows", nor "Linux/Posix" reference should be needed in
-  regular units, once mormot.core.os is included. :)
-   This unit only refers to mormot.core.base so can be used almost stand-alone.
+  Aim of this unit is to centralize most used OS-specific API calls, like a
+    SysUtils unit on steroids, to avoid $ifdef/$endif in "uses" clauses.
+    See mormot.core.os.mac and mormot.core.os.security units for completion.
+  In practice, no "Windows", nor "Linux/Posix" reference should be needed in
+    regular units, once mormot.core.os is included. :)
+  This unit only refers to mormot.core.base so can be used almost stand-alone.
 
   *****************************************************************************
 }
@@ -43,9 +43,16 @@ uses
 
 { ****************** Some Cross-System Type and Constant Definitions }
 
+type
+  /// allow to customize the possible line feeds
+  TLineFeed = (
+    lfSystem,
+    lfCR,
+    lfCRLF);
+
 const
   {$ifdef OSWINDOWS}
-  /// operating-system dependent Line Feed characters
+  /// operating-system dependent Line Feed characters (#13#10 or #10)
   CRLF = #13#10;
   /// operating-system dependent wildchar to match all files in a folder
   FILES_ALL = '*.*';
@@ -63,12 +70,33 @@ const
   /// operating-system dependent boolean if paths are case-insensitive
   PathCaseInsensitive = false;
   {$endif OSWINDOWS}
-  /// a convenient shortened constant to open a file for reading
-  fmOpenReadDenyNone = fmOpenRead or fmShareDenyNone;
-  /// a convenient shortened constant to open a file for writing
+  /// system-independent CR+LF two chars, as 16-bit constant
+  CRLFW = $0a0d;
+  /// convert a TLineFeed value into its UTF-8 text representation
+  LINE_FEED: array[TLineFeed] of string[3] = (CRLF, #10, #13#10);
+
+  /// human-friendly alias to open a file for exclusive writing ($20)
+  fmShareRead      = fmShareDenyWrite;
+  /// human-friendly alias to open a file for exclusive reading ($30)
+  fmShareWrite     = fmShareDenyRead;
+  /// human-friendly alias to open a file with no read/write exclusion ($40)
+  fmShareReadWrite = fmShareDenyNone;
+
+  /// a convenient constant to open a file for reading without exclusion
+  fmOpenReadShared = fmOpenRead or fmShareReadWrite;
+
+  /// a convenient constant to open a file for writing without exclusion
+  fmOpenWriteShared = fmOpenReadWrite or fmShareReadWrite;
+
+  /// a convenient constant to create a file without exclusion
+  // - warning: on Delphi 7..2009, fmCreate is defined as $ffff so can't be
+  // associated with file sharing attributes: we will force fmShareReadWrite
+  fmCreateShared = fmCreate or fmShareReadWrite;
+
+  /// a convenient array constant to open a file for writing without exclusion
   fmCreateOrRewrite: array[{rewrite=}boolean] of cardinal = (
-   fmCreate,
-   fmOpenWrite or fmShareDenyNone);
+    fmCreateShared,
+    fmOpenWriteShared);
 
 const
   /// void HTTP Status Code (not a standard value, for internal use only)
@@ -105,6 +133,8 @@ const
   HTTP_USEPROXY = 305;
   /// HTTP Status Code for "Temporary Redirect"
   HTTP_TEMPORARYREDIRECT = 307;
+  /// HTTP Status Code for "Permanent Redirect"
+  HTTP_PERMANENTREDIRECT = 308;
   /// HTTP Status Code for "Bad Request"
   HTTP_BADREQUEST = 400;
   /// HTTP Status Code for "Unauthorized"
@@ -123,12 +153,22 @@ const
   HTTP_TIMEOUT = 408;
   /// HTTP Status Code for "Conflict"
   HTTP_CONFLICT = 409;
+  /// HTTP Status Code for "Gone"
+  HTTP_GONE = 410;
+  /// HTTP Status Code for "Length Required"
+  HTTP_LENGTHREQUIRED = 411;
   /// HTTP Status Code for "Payload Too Large"
   HTTP_PAYLOADTOOLARGE = 413;
   /// HTTP Status Code for "Range Not Satisfiable"
   HTTP_RANGENOTSATISFIABLE = 416;
   /// HTTP Status Code for "I'm a teapot"
   HTTP_TEAPOT = 418;
+  /// HTTP Status Code for "Unprocessable Content"
+  HTTP_UNPROCESSABLE_CONTENT = 422;
+  /// HTTP Status Code for "Upgrade Required"
+  HTTP_UPGRADE_REQUIRED = 426;
+  /// HTTP Status Code for "Too Many Requests"
+  HTTP_TOO_MANY_REQUESTS = 429;
   /// HTTP Status Code for "Internal Server Error"
   HTTP_SERVERERROR = 500;
   /// HTTP Status Code for "Not Implemented"
@@ -142,38 +182,15 @@ const
   /// HTTP Status Code for "HTTP Version Not Supported"
   HTTP_HTTPVERSIONNONSUPPORTED = 505;
 
-  /// clearly wrong response code, used by THttpServerRequest.SetAsyncResponse
-  // - for internal THttpAsyncServer asynchronous process
+  /// a fake response code, generated for client side panic failure/exception
+  // - for it is the number of a man, and that number is 666
+  HTTP_CLIENTERROR = 666;
+  /// a fake response code, usedfor internal THttpAsyncServer asynchronous process
   HTTP_ASYNCRESPONSE = 777;
 
-/// retrieve the HTTP reason text from its integer code
-// - e.g. StatusCodeToReason(200)='OK'
-// - as defined in http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
-// - returns the generic 'Invalid Request' for unknown Code
-// - use an internal cache for efficiency
-// - see also StatusCodeToErrorMsg() from mormot.core.text if you need
-// the HTTP error as both integer and text, returned as ShortString
-function StatusCodeToReason(Code: cardinal): RawUtf8; overload;
-  {$ifdef HASINLINE}inline;{$endif}
+  /// the successful HTTP response codes after a GET request
+  HTTP_GET_OK = [HTTP_SUCCESS, HTTP_NOCONTENT, HTTP_PARTIALCONTENT];
 
-/// retrieve the HTTP reason text from its integer code
-// - as defined in http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
-procedure StatusCodeToReason(Code: cardinal; var Reason: RawUtf8); overload;
-
-/// returns true for successful HTTP status codes, i.e. in 200..399 range
-// - will map mainly SUCCESS (200), CREATED (201), NOCONTENT (204),
-// PARTIALCONTENT (206), NOTMODIFIED (304) or TEMPORARYREDIRECT (307) codes
-// - any HTTP status not part of this range will be identified as erronous
-// request in the internal server statistics
-function StatusCodeIsSuccess(Code: integer): boolean;
-  {$ifdef HASINLINE}inline;{$endif}
-
-/// check the supplied HTTP header to not contain more than one EOL
-// - to avoid unexpected HTTP body injection, e.g. from unsafe business code
-function IsInvalidHttpHeader(head: PUtf8Char; headlen: PtrInt): boolean;
-
-
-const
   /// HTTP header name for the content type, as defined in the corresponding RFC
   HEADER_CONTENT_TYPE = 'Content-Type: ';
 
@@ -195,30 +212,21 @@ const
 
   /// MIME content type used for JSON communication (as used by the Microsoft
   // WCF framework and the YUI framework)
-  // - no 'charset=UTF-8' encoding is necessary, as by specified by RFC 7159
+  // - no 'charset=utf-8' encoding is necessary, as specified by RFC 7159
   JSON_CONTENT_TYPE = 'application/json';
 
   /// HTTP header for MIME content type used for plain JSON
   // - i.e. 'Content-Type: application/json'
   JSON_CONTENT_TYPE_HEADER = HEADER_CONTENT_TYPE + JSON_CONTENT_TYPE;
 
-  /// MIME content type used for plain JSON, in upper case
-  // - could be used e.g. with IdemPChar() to retrieve the Content-Type value
-  JSON_CONTENT_TYPE_UPPER = 'APPLICATION/JSON';
-
-  /// HTTP header for MIME content type used for plain JSON, in upper case
-  // - could be used e.g. with IdemPChar() to retrieve the Content-Type value
-  JSON_CONTENT_TYPE_HEADER_UPPER =
-    HEADER_CONTENT_TYPE_UPPER + JSON_CONTENT_TYPE_UPPER;
-
-  /// MIME content type used for plain UTF-8 text
-  TEXT_CONTENT_TYPE = 'text/plain; charset=UTF-8';
+  /// MIME content type used for plain UTF-8 text - see RFC 7231 section-3.1.1
+  TEXT_CONTENT_TYPE = 'text/plain;charset=utf-8';
 
   /// HTTP header for MIME content type used for plain UTF-8 text
   TEXT_CONTENT_TYPE_HEADER = HEADER_CONTENT_TYPE + TEXT_CONTENT_TYPE;
 
-  /// MIME content type used for UTF-8 encoded HTML
-  HTML_CONTENT_TYPE = 'text/html; charset=UTF-8';
+  /// MIME content type used for UTF-8 encoded HTML - see RFC 7231 section-3.1.1
+  HTML_CONTENT_TYPE = 'text/html;charset=utf-8';
 
   /// HTTP header for MIME content type used for UTF-8 encoded HTML
   HTML_CONTENT_TYPE_HEADER = HEADER_CONTENT_TYPE + HTML_CONTENT_TYPE;
@@ -240,18 +248,6 @@ const
 
   /// MIME content type used for a JPEG picture
   JPEG_CONTENT_TYPE = 'image/jpeg';
-
-  /// a IdemPPChar() compatible array of textual MIME content types
-  // - as used e.g. by IsHtmlContentTypeTextual()
-  CONTENT_TYPE_TEXTUAL: array[0..7] of PAnsiChar = (
-    JSON_CONTENT_TYPE_UPPER,
-    'TEXT/',
-    'APPLICATION/XML',
-    'APPLICATION/JSON',
-    'APPLICATION/JAVASCRIPT',
-    'APPLICATION/X-JAVASCRIPT',
-    'IMAGE/SVG+XML',
-    nil);
 
   /// internal HTTP content-type for efficient static file sending
   // - detected e.g. by http.sys' THttpApiServer.Request or via the NGINX
@@ -276,12 +272,13 @@ const
   // response from the other endpoint
   NORESPONSE_CONTENT_TYPE = '!NORESPONSE';
 
-  /// HTTP body following RFC 2324 standard e.g. for banned IP
-  HTTP_BANIP_RESPONSE: string[195] =
+  /// HTTP body from RFC 2324 e.g. for banned IP or hsoRejectBotUserAgent
+  HTTP_BANIP_RESPONSE: string[191] =
     'HTTP/1.0 418 I''m a teapot'#13#10 +
-    TEXT_CONTENT_TYPE_HEADER + #13#10#13#10 +
+    'Content-Length: 111'#13#10 +
+    'Content-Type: text/plain'#13#10#13#10 +
     'Server refuses to brew coffee because it is currently a teapot.'#13#10 +
-    'Do not mess with it and retry from this IP in a few seconds.';
+    'Botbusters message: "I ain''t ''fraid of no bot"';
 
   /// JSON compatible representation of a boolean value, i.e. 'false' and 'true'
   // - can be used e.g. in logs, or anything accepting a ShortString
@@ -289,8 +286,9 @@ const
     'false', 'true');
 
   /// the JavaScript-like values of non-number IEEE constants
-  // - as recognized by FloatToShortNan, and used by TTextWriter.Add()
+  // - as recognized by ShortToFloatNan, and used by TTextWriter.Add()
   // when serializing such single/double/extended floating-point values
+  // - GetExtended() should also detect those values
   JSON_NAN: array[TFloatNan] of string[11] = (
     '0', '"NaN"', '"Infinity"', '"-Infinity"');
 
@@ -317,199 +315,23 @@ var
   // avoid a memory allocation each time it is assigned to a variable
   BOOL_UTF8: array[boolean] of RawUtf8;
 
+const // some time conversion constants with Milli/Micro/NanoSec resolution
+  SecsPerHour  = SecsPerMin * MinsPerHour; // missing in oldest Delphi
+  SecsPerDay   = SecsPerMin * MinsPerDay;
+  SecsPerWeek  = 7 * SecsPerDay;
+  SecsPerMonth = 2629746; // rough approximation of SecsPerDay * 365.2425 / 12
+  SecsPerYear  = 12 * SecsPerMonth;
 
-type
-  /// Security IDentifier (SID) Authority, encoded as 48-bit binary
-  TSidAuth = array[0..5] of byte;
-  PSidAuth = ^TSidAuth;
-
-  /// Security IDentifier (SID) binary format, as retrieved e.g. by Windows API
-  // - this definition is not detailed on oldest Delphi, and not available on
-  // POSIX, whereas it makes sense to also have it, e.g. for server process
-  TSid = packed record
-     Revision: byte;
-     SubAuthorityCount: byte;
-     IdentifierAuthority: TSidAuth;
-     SubAuthority: array[byte] of cardinal;
-  end;
-  PSid = ^TSid;
-  PSids = array of PSid;
-
-  /// define a list of well-known Security IDentifier (SID) groups
-  // - for instance, wksBuiltinAdministrators is set for local administrators
-  // - warning: does not exactly match winnt.h WELL_KNOWN_SID_TYPE enumeration
-  TWellKnownSid = (
-    wksNull,
-    wksWorld,
-    wksLocal,
-    wksConsoleLogon,
-    wksCreatorOwner,
-    wksCreatorGroup,
-    wksCreatorOwnerServer,
-    wksCreatorGroupServer,
-    wksIntegrityUntrusted,
-    wksIntegrityLow,
-    wksIntegrityMedium,
-    wksIntegrityMediumPlus,
-    wksIntegrityHigh,
-    wksIntegritySystem,
-    wksIntegrityProtectedProcess,
-    wksIntegritySecureProcess,
-    wksAuthenticationAuthorityAsserted,
-    wksAuthenticationServiceAsserted,
-    wksAuthenticationFreshKeyAuth,
-    wksAuthenticationKeyTrust,
-    wksAuthenticationKeyPropertyMfa,
-    wksAuthenticationKeyPropertyAttestation,
-    wksNtAuthority,
-    wksDialup,
-    wksNetwork,
-    wksBatch,
-    wksInteractive,
-    wksService,
-    wksAnonymous,
-    wksProxy,
-    wksEnterpriseControllers,
-    wksSelf,
-    wksAuthenticatedUser,
-    wksRestrictedCode,
-    wksTerminalServer,
-    wksRemoteLogonId,
-    wksThisOrganisation,
-    wksIisUser,
-    wksLocalSystem,
-    wksLocalService,
-    wksNetworkService,
-    wksLocalAccount,
-    wksLocalAccountAndAdministrator,
-    wksBuiltinDomain,
-    wksBuiltinAdministrators,
-    wksBuiltinUsers,
-    wksBuiltinGuests,
-    wksBuiltinPowerUsers,
-    wksBuiltinAccountOperators,
-    wksBuiltinSystemOperators,
-    wksBuiltinPrintOperators,
-    wksBuiltinBackupOperators,
-    wksBuiltinReplicator,
-    wksBuiltinRasServers,
-    wksBuiltinPreWindows2000CompatibleAccess,
-    wksBuiltinRemoteDesktopUsers,
-    wksBuiltinNetworkConfigurationOperators,
-    wksBuiltinIncomingForestTrustBuilders,
-    wksBuiltinPerfMonitoringUsers,
-    wksBuiltinPerfLoggingUsers,
-    wksBuiltinAuthorizationAccess,
-    wksBuiltinTerminalServerLicenseServers,
-    wksBuiltinDcomUsers,
-    wksBuiltinIUsers,
-    wksBuiltinCryptoOperators,
-    wksBuiltinUnknown,
-    wksBuiltinCacheablePrincipalsGroups,
-    wksBuiltinNonCacheablePrincipalsGroups,
-    wksBuiltinEventLogReadersGroup,
-    wksBuiltinCertSvcDComAccessGroup,
-    wksBuiltinRdsRemoteAccessServers,
-    wksBuiltinRdsEndpointServers,
-    wksBuiltinRdsManagementServers,
-    wksBuiltinHyperVAdmins,
-    wksBuiltinAccessControlAssistanceOperators,
-    wksBuiltinRemoteManagementUsers,
-    wksBuiltinDefaultSystemManagedGroup,
-    wksBuiltinStorageReplicaAdmins,
-    wksBuiltinDeviceOwners,
-    wksCapabilityInternetClient,
-    wksCapabilityInternetClientServer,
-    wksCapabilityPrivateNetworkClientServer,
-    wksCapabilityPicturesLibrary,
-    wksCapabilityVideosLibrary,
-    wksCapabilityMusicLibrary,
-    wksCapabilityDocumentsLibrary,
-    wksCapabilityEnterpriseAuthentication,
-    wksCapabilitySharedUserCertificates,
-    wksCapabilityRemovableStorage,
-    wksCapabilityAppointments,
-    wksCapabilityContacts,
-    wksBuiltinAnyPackage,
-    wksBuiltinAnyRestrictedPackage,
-    wksNtlmAuthentication,
-    wksSChannelAuthentication,
-    wksDigestAuthentication);
-
-  /// define a set of well-known SID
-  TWellKnownSids = set of TWellKnownSid;
-
-  /// custom binary buffer type used as convenient Windows SID storage
-  RawSid = type RawByteString;
-
-  /// a dynamic array of binary SID storage buffers
-  RawSidDynArray = array of RawSid;
-
-
-/// a wrapper around MemCmp() on two Security IDentifier binary buffers
-// - will first compare by length, then by content
-function SidCompare(a, b: PSid): integer;
-
-/// compute the actual binary length of a Security IDentifier buffer, in bytes
-function SidLength(sid: PSid): PtrInt;
-  {$ifdef HASINLINE} inline; {$endif}
-
-/// allocate a RawSid instance from a PSid raw handler
-procedure ToRawSid(sid: PSid; out result: RawSid);
-
-/// check if a RawSid binary buffer has the expected length of a valid SID
-function IsValidRawSid(const sid: RawSid): boolean;
-
-/// search within SID dynamic array for a given SID
-function HasSid(const sids: PSids; sid: PSid): boolean;
-
-/// search within SID dynamic array for a given dynamic array of SID buffers
-function HasAnySid(const sids: PSids; const sid: RawSidDynArray): boolean;
-
-/// append a SID buffer pointer to a dynamic array of SID buffers
-procedure AddRawSid(var sids: RawSidDynArray; sid: PSid);
-
-/// convert a Security IDentifier as text, following the standard representation
-procedure SidToTextShort(sid: PSid; var result: shortstring);
-
-/// convert a Security IDentifier as text, following the standard representation
-function SidToText(sid: PSid): RawUtf8;
-
-/// convert several Security IDentifier as text dynamic array
-function SidsToText(sids: PSids): TRawUtf8DynArray;
-
-/// convert a Security IDentifier as text, following the standard representation
-function RawSidToText(const sid: RawSid): RawUtf8;
-
-/// parse a Security IDentifier text, following the standard representation
-// - won't support hexadecimal IdentifierAuthority, i.e. S-1-0x######-....
-function TextToSid(P: PUtf8Char; out sid: TSid): boolean;
-
-/// parse a Security IDentifier text, following the standard representation
-function TextToRawSid(const text: RawUtf8): RawSid; overload;
-  {$ifdef HASINLINE} inline; {$endif}
-
-/// parse a Security IDentifier text, following the standard representation
-function TextToRawSid(const text: RawUtf8; out sid: RawSid): boolean; overload;
-
-/// returns a Security IDentifier of a well-known SID as binary
-// - is using an internal cache for the returned RawSid instances
-function KnownRawSid(wks: TWellKnownSid): RawSid;
-
-/// returns a Security IDentifier of a well-known SID as standard text
-// - e.g. wksBuiltinAdministrators as 'S-1-5-32-544'
-function KnownSidToText(wks: TWellKnownSid): PShortString;
-
-/// recognize most well-known SID from a Security IDentifier binary buffer
-// - returns wksNull if the supplied buffer was not recognized
-function SidToKnown(sid: PSid): TWellKnownSid; overload;
-
-/// recognize most well-known SID from a Security IDentifier standard text
-// - returns wksNull if the supplied text was not recognized
-function SidToKnown(const text: RawUtf8): TWellKnownSid; overload;
-
-/// recognize some well-known SIDs from the supplied SID dynamic array
-function SidToKnownGroups(const sids: PSids): TWellKnownSids;
+  MilliSecsPerSec      = 1000;
+  MilliSecsPerSecShl   = 10; // 1 shl 10 = 1024 = rough approximation of 1000
+  MilliSecsPerMin      = MilliSecsPerSec  * SecsPerMin;
+  MilliSecsPerHour     = MilliSecsPerMin  * MinsPerHour;
+  MilliSecsPerDay      = MilliSecsPerHour * HoursPerDay;
+  MicroSecsPerMilliSec = 1000;
+  MicroSecsPerSec      = MicroSecsPerMilliSec * MilliSecsPerSec;
+  NanoSecsPerMicroSec  = 1000;
+  NanoSecsPerMilliSec  = NanoSecsPerMicroSec  * MicroSecsPerMilliSec;
+  NanoSecsPerSec       = NanoSecsPerMilliSec  * MilliSecsPerSec;
 
 
 { ****************** Gather Operating System Information }
@@ -589,7 +411,8 @@ type
     wEleven,
     wEleven_64,
     wServer2019_64,
-    wServer2022_64);
+    wServer2022_64,
+    wServer2025_64);
 
   /// the running Operating System, encoded as a 32-bit integer
   TOperatingSystemVersion = packed record
@@ -604,6 +427,29 @@ type
   end;
 
 const
+  /// the recognized MacOS versions, as plain text
+  // - indexed from OSVersion32.utsrelease[2] kernel revision
+  // - see https://en.wikipedia.org/wiki/MacOS_version_history#Releases
+  MACOS_NAME: array[8 .. 25] of RawUtf8 = (
+    '10.4 Tiger',
+    '10.5 Leopard',
+    '10.6 Snow Leopard',
+    '10.7 Lion',
+    '10.8 Mountain Lion',
+    '10.9 Mavericks',
+    '10.10 Yosemite',
+    '10.11 El Capitan',
+    '10.12 Sierra',
+    '10.13 High Sierra',
+    '10.14 Mojave',
+    '10.15 Catalina',
+    '11 Big Sur',
+    '12 Monterey',
+    '13 Ventura',
+    '14 Sonoma',
+    '15 Sequoia',
+    '16 Next');
+
   /// the recognized Windows versions, as plain text
   // - defined even outside OSWINDOWS to allow process e.g. from monitoring tools
   WINDOWS_NAME: array[TWindowsVersion] of RawUtf8 = (
@@ -636,7 +482,8 @@ const
     '11',
     '11 64bit',
     'Server 2019 64bit',
-    'Server 2022 64bit');
+    'Server 2022 64bit',
+    'Server 2025 64bit');
 
   /// the recognized Windows versions which are 32-bit
   WINDOWS_32 = [
@@ -812,7 +659,8 @@ var
     {$endif OSWINDOWS};
 
   /// the current Operating System version, as retrieved for the current process
-  // - contains e.g. 'Windows Seven 64 SP1 (6.1.7601)' or
+  // - contains e.g. 'Windows Seven 64 SP1 (6.1.7601)' or 'Windows XP SP3 (5.1.2600)' or
+  // 'Windows 10 64bit 22H2 (10.0.19045.4046)' or 'macOS 13 Ventura (Darwin 22.3.0)' or
   // 'Ubuntu 16.04.5 LTS - Linux 3.13.0 110 generic#157 Ubuntu SMP Mon Feb 20 11:55:25 UTC 2017'
   OSVersionText: RawUtf8;
   /// some addition system information as text, e.g. 'Wine 1.1.5'
@@ -821,11 +669,24 @@ var
   OSVersionInfoEx: RawUtf8;
   /// the current Operating System version, as retrieved for the current process
   // and computed by ToTextOS(OSVersionInt32)
-  // - contains e.g. 'Windows Vista' or 'Ubuntu Linux 5.4.0'
+  // - contains e.g. 'Windows Vista' or 'Ubuntu Linux 5.4.0' or
+  // 'macOS 13 Ventura 22.3.0'
   OSVersionShort: RawUtf8;
 
-  /// some textual information about the current CPU
-  // - contains e.g. '4 x Intel(R) Core(TM) i5-7300U CPU @ 2.60GHz 3MB cache'
+  {$ifdef OSWINDOWS}
+  /// on Windows, the Update Build Revision as shown with the "ver/winver" command
+  // - to track the current update state of the system
+  WindowsUbr: integer;
+  /// on Windows, the ready-to-be-displayed text version of the system
+  // - e.g. 'Windows 10 Entreprise N'
+  WindowsProductName: RawUtf8;
+  /// on Windows, the ready-to-be-displayed text version of the system
+  // - e.g. '22H2'
+  WindowsDisplayVersion: RawUtf8;
+  {$endif OSWINDOWS}
+
+  /// some textual information about the current CPU and its known cache
+  // - contains e.g. '4 x Intel(R) Core(TM) i5-7300U CPU @ 2.60GHz [3MB]'
   CpuInfoText: RawUtf8;
   /// the on-chip cache size, in bytes, as returned by the OS
   // - retrieved from /proc/cpuinfo "cache size" entry (L3 cache) on Linux or
@@ -834,9 +695,6 @@ var
   /// the available cache information as returned by the OS
   // - e.g. 'L1=2*32KB  L2=256KB  L3=3MB' on Windows or '3072 KB' on Linux
   CpuCacheText: RawUtf8;
-  /// some textual information about the current computer hardware, from BIOS
-  // - contains e.g. 'LENOVO 20HES23B0U ThinkPad T470'
-  BiosInfoText: RawUtf8;
 
   /// how many hardware CPU sockets are defined on this system
   // - i.e. the number of physical CPU slots, not the number of logical CPU
@@ -854,6 +712,8 @@ var
   end;
 
   {$ifdef OSLINUXANDROID}
+  /// contains the content of Linux /proc/cpuinfo as retrieved at startup
+  CpuInfoLinux: RawUtf8;
   /// contains the Flags: or Features: value of Linux /proc/cpuinfo
   CpuInfoFeatures: RawUtf8;
   {$endif OSLINUXANDROID}
@@ -863,23 +723,52 @@ var
   /// the running Operating System, encoded as a 32-bit integer
   OSVersionInt32: integer absolute OSVersion32;
 
-/// convert an Operating System type into its text representation
-// - returns e.g. 'Windows Vista' or 'Ubuntu'
+/// some textual information about the current computer hardware, from BIOS
+// - contains e.g. 'LENOVO 20HES23B0U ThinkPad T470'
+// - is a function on Linux to avoid some syscalls at startup
+{$ifdef OSLINUXANDROID} function {$endif} BiosInfoText: RawUtf8;
+
+/// convert an Operating System type into its human-friendly text representation
+// - returns e.g. 'Windows Vista' or 'Windows 10 22H2' or 'Ubuntu' or
+// 'macOS 13 Ventura'
 function ToText(const osv: TOperatingSystemVersion): RawUtf8; overload;
 
+/// low-level function used internally by ToText(osv) to detect Windows versions
+function WinOsBuild(const osv: TOperatingSystemVersion;
+  firstchar: AnsiChar = #0): TShort8;
+
 /// convert an Operating System type into its one-word text representation
-// - returns e.g. 'Vista' or 'Ubuntu'
-function ToTextShort(const osv: TOperatingSystemVersion): RawUtf8;
+// - returns e.g. 'Vista' or 'Ubuntu' or 'OSX'
+function OsvToTextShort(const osv: TOperatingSystemVersion): RawUtf8;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// internal function called when inlining ToTextShort()
+function OsvToTextShorter(const osv: TOperatingSystemVersion): PRawUtf8;
 
 /// convert a 32-bit Operating System type into its full text representation
 // - including the kernel revision (not the distribution version) on POSIX systems
-// - returns e.g. 'Windows Vista', 'Windows 11 64-bit 22000' or 'Ubuntu Linux 5.4.0'
+// - returns e.g. 'Windows Vista', 'Windows 11 64-bit 21H2 22000' or
+// 'Ubuntu Linux 5.4.0'
 function ToTextOS(osint32: integer): RawUtf8;
 
 /// check if the current OS (i.e. OS_KIND value) match a description
 // - will handle osPosix and osLinux as generic detection of those systems
 // - osUnknown will always return true
 function MatchOS(os: TOperatingSystem): boolean;
+
+/// return the best known ERROR_* system error message constant texts
+// - without the 'ERROR_' prefix, but in a cross-platform way
+// - as used by WinErrorText() and some low-level Windows API wrappers
+function WinErrorConstant(Code: cardinal): PShortString;
+
+/// return the error code number, and its ERROR_* constant (if known)
+function WinErrorShort(Code: cardinal): ShortString;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// append the error as ' ERROR_*' constant and return TRUE if known
+// - append nothing and return FALSE if Code is not known
+function AppendWinErrorText(Code: cardinal; var Dest: ShortString;
+  Sep: AnsiChar): boolean;
 
 type
   /// the recognized ARM/AARCH64 CPU types
@@ -947,7 +836,18 @@ type
     actCortexX1C,
     actCortexA715,
     actCortexX3,
-    actNeoverseV2);
+    actNeoverseV2,
+    actCortexA520,
+    actCortexA720,
+    actCortexX4,
+    actNeoverseV3AE,
+    actNeoverseV3,
+    actCortextX925,
+    actCortextA725,
+    actCortextA520AE,
+    actCortextA720AE,
+    actNeoverseN3,
+    actCortextA320);
   /// a set of recognized ARM/AARCH64 CPU types
   TArmCpuTypes = set of TArmCpuType;
 
@@ -971,6 +871,7 @@ type
     aciApple,
     aciFaraday,
     aciIntel,
+    aciMicrosoft,
     aciPhytium,
     aciAmpere);
   /// a set of recognized ARM/AARCH64 CPU hardware implementers
@@ -980,13 +881,15 @@ type
 function ArmCpuType(id: word): TArmCpuType;
 
 /// recognize a given ARM/AARCH64 CPU type name from its 12-bit hardware ID
-function ArmCpuTypeName(act: TArmCpuType; id: word): RawUtf8;
+function ArmCpuTypeName(act: TArmCpuType; id: word;
+  const before: ShortString = ''): ShortString;
 
 /// recognize a given ARM/AARCH64 CPU implementer from its 8-bit hardware ID
 function ArmCpuImplementer(id: byte): TArmCpuImplementer;
 
 /// recognize a given ARM/AARCH64 CPU implementer name from its 8-bit hardware ID
-function ArmCpuImplementerName(aci: TArmCpuImplementer; id: word): RawUtf8;
+function ArmCpuImplementerName(aci: TArmCpuImplementer; id: word;
+  const after: ShortString = ''): ShortString;
 
 
 const
@@ -994,60 +897,43 @@ const
   // - e.g. 'Delphi 10.3 Rio', 'Delphi 2010' or 'Free Pascal 3.3.1'
   COMPILER_VERSION: RawUtf8 =
   {$ifdef FPC}
-    'Free Pascal'
-    {$ifdef VER2_6_4} + ' 2.6.4'{$endif}
-    {$ifdef VER3_0}   + ' 3.0'
-      {$ifdef VER3_0_4}   + '.4' {$else}
-        {$ifdef VER3_0_2} + '.2' {$endif}
-      {$endif VER3_0_4}
-    {$endif VER3_0}
-    {$ifdef VER3_1}   + ' 3.1'
-       {$ifdef VER3_1_1} + '.1' {$endif}
-    {$endif VER3_1}
-    {$ifdef VER3_2}   + ' 3.2'
-      {$ifdef VER3_2_4}     + '.4' {$else}
-        {$ifdef VER3_2_3}   + '.3' {$else}
-          {$ifdef VER3_2_2} + '.2' {$endif}
-        {$endif VER3_2_3}
-      {$endif VER3_2_4}
-    {$endif VER3_2}
-    {$ifdef VER3_3}   + ' 3.3'
-       {$ifdef VER3_3_1} + '.1' {$endif}
-    {$endif VER3_3}
-    {$ifdef VER3_4}   + ' 3.4'  {$endif}
+    'Free Pascal ' + {$I %FPCVERSION%} // FPC makes it simple
   {$else}
     'Delphi'
-    {$ifdef CONDITIONALEXPRESSIONS}  // Delphi 6 or newer
-      {$if     defined(VER140)} + ' 6'
-      {$elseif defined(VER150)} + ' 7'
-      {$elseif defined(VER160)} + ' 8'
-      {$elseif defined(VER170)} + ' 2005'
-      {$elseif defined(VER185)} + ' 2007'
-      {$elseif defined(VER180)} + ' 2006'
-      {$elseif defined(VER200)} + ' 2009'
-      {$elseif defined(VER210)} + ' 2010'
-      {$elseif defined(VER220)} + ' XE'
-      {$elseif defined(VER230)} + ' XE2'
-      {$elseif defined(VER240)} + ' XE3'
-      {$elseif defined(VER250)} + ' XE4'
-      {$elseif defined(VER260)} + ' XE5'
-      {$elseif defined(VER265)} + ' AppMethod 1'
-      {$elseif defined(VER270)} + ' XE6'
-      {$elseif defined(VER280)} + ' XE7'
-      {$elseif defined(VER290)} + ' XE8'
-      {$elseif defined(VER300)} + ' 10 Seattle'
-      {$elseif defined(VER310)} + ' 10.1 Berlin'
-      {$elseif defined(VER320)} + ' 10.2 Tokyo'
-      {$elseif defined(VER330)} + ' 10.3 Rio'
-      {$elseif defined(VER340)} + ' 10.4 Sydney'
-      {$elseif defined(VER350)} + ' 11'
-        {$if declared(RTLVersion113)} + '.3' {$else}
-        {$if declared(RTLVersion112)} + '.2' {$else}
-        {$if declared(RTLVersion111)} + '.1' {$ifend} {$ifend} {$ifend}
-                                + ' Alexandria'
-      {$elseif defined(VER360)} + ' 12 Next'
-      {$ifend}
-    {$endif CONDITIONALEXPRESSIONS}
+    {$if     defined(VER140)} + ' 6'
+    {$elseif defined(VER150)} + ' 7'
+    {$elseif defined(VER160)} + ' 8'
+    {$elseif defined(VER170)} + ' 2005'
+    {$elseif defined(VER185)} + ' 2007'
+    {$elseif defined(VER180)} + ' 2006'
+    {$elseif defined(VER200)} + ' 2009'
+    {$elseif defined(VER210)} + ' 2010'
+    {$elseif defined(VER220)} + ' XE'
+    {$elseif defined(VER230)} + ' XE2'
+    {$elseif defined(VER240)} + ' XE3'
+    {$elseif defined(VER250)} + ' XE4'
+    {$elseif defined(VER260)} + ' XE5'
+    {$elseif defined(VER265)} + ' AppMethod 1'
+    {$elseif defined(VER270)} + ' XE6'
+    {$elseif defined(VER280)} + ' XE7'
+    {$elseif defined(VER290)} + ' XE8'
+    {$elseif defined(VER300)} + ' 10 Seattle'
+    {$elseif defined(VER310)} + ' 10.1 Berlin'
+    {$elseif defined(VER320)} + ' 10.2 Tokyo'
+    {$elseif defined(VER330)} + ' 10.3 Rio'
+    {$elseif defined(VER340)} + ' 10.4 Sydney'
+    {$elseif defined(VER350)} + ' 11'
+      {$if declared(RTLVersion113)} + '.3' {$else}
+      {$if declared(RTLVersion112)} + '.2' {$else}
+      {$if declared(RTLVersion111)} + '.1' {$ifend} {$ifend} {$ifend}
+                              + ' Alexandria'
+    {$elseif defined(VER360)} + ' 12'
+      {$if declared(RTLVersion123)} + '.3' {$else}
+      {$if declared(RTLVersion122)} + '.2' {$else}
+      {$if declared(RTLVersion121)} + '.1' {$ifend} {$ifend} {$ifend}
+                              + ' Athens'
+    {$elseif defined(VER370)} + ' 13 Next'
+    {$ifend}
   {$endif FPC}
   {$ifdef CPU64} + ' 64 bit' {$else} + ' 32 bit' {$endif};
 
@@ -1066,13 +952,18 @@ function GetDelphiCompilerVersion: RawUtf8; deprecated;
 const
   /// a global constant to be appended for Windows Ansi or Wide API names
   // - match the Wide API on Delphi, since String=UnicodeString
+  // - you should not use this suffix, but the 'W' API everywhere, with proper
+  // conversion into RawUtf8 or TFileName/string
   _AW = 'W';
 
 {$else}
 
 const
   /// a global constant to be appended for Windows Ansi or Wide API names
-  // - match the Ansi API on FPC or oldest Delphi, where String=AnsiString
+  // - match the Ansi API oldest Delphi, where String=AnsiString
+  // - but won't always match the Ansi API on FPC, because Lazarus forces
+  // CP_UTF8, so you should NOT use this suffix, but the '*W' API everywhere,
+  // with proper conversion into RawUtf8 or TFileName/string
   _AW = 'A';
 
 type
@@ -1099,6 +990,9 @@ var
   // to run seamlessly on 64-bit Windows
   // - equals always FALSE if the current executable is a 64-bit image
   IsWow64: boolean;
+  /// is set to TRUE if the current process running through a software emulation
+  // - e.g. a Win32/Win64 Intel application running via Prism on Windows for Arm
+  IsWow64Emulation: boolean;
   /// the current System information, as retrieved for the current process
   // - under a WOW64 process, it will use the GetNativeSystemInfo() new API
   // to retrieve the real top-most system information
@@ -1124,15 +1018,20 @@ var
     dwNumberOfProcessors: cardinal;
     /// meaningful system information, as returned by fpuname()
     uts: record
-      sysname, release, version: RawUtf8;
+      sysname, release, version, nodename: RawUtf8;
     end;
     /// Linux Distribution release name, retrieved from /etc/*-release
     release: RawUtf8;
   end;
-  
+
 {$endif OSWINDOWS}
 
-{$M+} // to have existing RTTI for published properties
+  /// the number of physical memory bytes available to the process
+  // - equals TMemoryInfo.memtotal as retrieved from GetMemoryInfo() at startup
+  SystemMemorySize: PtrUInt;
+
+  /// 128-bit of entropy as retrieved during unit initialization
+  StartupRandom: THash128Rec;
 
 type
   /// used to retrieve version information from any EXE
@@ -1142,7 +1041,7 @@ type
   // - for the main executable, do not create once instance of this class, but
   // call GetExecutableVersion / SetExecutableVersion and access the Executable
   // global variable
-  TFileVersion = class
+  TFileVersion = class(TSynPersistent)
   protected
     fDetailed: string;
     fFileName: TFileName;
@@ -1191,10 +1090,13 @@ type
     // GetExecutableVersion / SetExecutableVersion and access the Executable
     // global variable
     constructor Create(const aFileName: TFileName; aMajor: integer = 0;
-      aMinor: integer = 0; aRelease: integer = 0; aBuild: integer = 0);
+      aMinor: integer = 0; aRelease: integer = 0; aBuild: integer = 0;
+      aBuildDate: TDateTime = 0); reintroduce;
     /// open and extract file information from the executable FileName
     // - note that resource extraction is not available on POSIX, unless the
     // FPCUSEVERSIONINFO conditional has been specified in the project options
+    // - for the main executable, don't call from Executable.Version, but just
+    // run GetExecutableVersion global procedure instead
     function RetrieveInformationFromFileName: boolean;
     /// retrieve the version as a 32-bit integer with Major.Minor.Release
     // - following Major shl 16+Minor shl 8+Release bit pattern
@@ -1231,13 +1133,14 @@ type
       read fBuildDateTime write fBuildDateTime;
   end;
 
-{$M-}
-
 /// quickly parse the TFileVersion.UserAgent content
 // - identify e.g. 'myprogram/3.1.0.2W' or 'myprogram/3.1.0.2W32' text
 function UserAgentParse(const UserAgent: RawUtf8;
-  out ProgramName, ProgramVersion: RawUtf8;
-  out OS: TOperatingSystem): boolean;
+  out ProgramName, ProgramVersion: RawUtf8; out OS: TOperatingSystem): boolean;
+
+/// detect any & character, and extract it as part of the result array
+// - e.g. UnAmp('alter&nate') returns ['n', 'alternate']
+function UnAmp(const name: RawUtf8): TRawUtf8DynArray;
 
 type
   /// the command line switches supported by TExecutableCommandLine
@@ -1250,7 +1153,8 @@ type
     clkOption,
     clkParam);
 
-  /// implements command-line arguments parsing e.g. for TExecutable.Command
+  /// implements command-line arguments parsing
+  // - in practice, is accessible via the Executable.Command global instance
   // - call Arg() Options() and Get/Param() to define and retrieve the flags
   // from their names and supply some description text, then call
   // DetectUnknown and/or FullDescription to interact with the user
@@ -1261,10 +1165,10 @@ type
     fRawParams, fValues: TRawUtf8DynArray; // for clkParam
     fDesc, fDescDetail: array[clkArg .. clkParam] of RawUtf8;
     fRetrieved: array[clkArg .. clkParam] of TBooleanDynArray;
+    fDescArg: TRawUtf8DynArray;
     fCaseSensitiveNames: boolean;
     fSwitch: array[{long=}boolean] of RawUtf8;
-    fLineFeed, fExeDescription: RawUtf8;
-    function Full(const v: RawUtf8): RawUtf8;
+    fLineFeed, fExeDescription, fUnknown: RawUtf8;
     procedure Describe(const v: array of RawUtf8;
       k: TExecutableCommandLineKind; d, def: RawUtf8; argindex: integer);
     function Find(const v: array of RawUtf8;
@@ -1272,48 +1176,79 @@ type
       const def: RawUtf8 = ''; f: PtrInt = 0): PtrInt;
   public
     /// mark and describe an "arg" value by 0-based index in Args[]
-    function Arg(index: integer;
-      const description: RawUtf8 = ''): boolean; overload;
+    // - if true, you can access the value from Args[index]
+    function Arg(index: integer; const description: RawUtf8 = '';
+      optional: boolean = true): boolean; overload;
+    /// mark and describe an "arg" value by 0-based index in Args[]
+    // - if existing, returns the value from Args[index] - otherwise returns ''
+    function ArgU(index: integer; const description: RawUtf8 = '';
+      optional: boolean = true): RawUtf8;
+    /// mark and describe a string/TFileName "arg" value by 0-based index in Args[]
+    // - if existing, returns Args[index] as string - otherwise returns ''
+    function ArgString(index: integer; const description: RawUtf8 = '';
+      optional: boolean = true): string;
+    /// mark and describe an existing TFileName "arg" value by 0-based index in Args[]
+    // - if set, will fail in DetectUnknown if the file (or the folder) does not
+    // exist, or returns Args[index] file/folder name as string
+    function ArgFile(index: integer; const description: RawUtf8 = '';
+      optional: boolean = true; isFolder: boolean = false): TFileName;
+    /// will fail in DetectUnknown if the file or folder name does not exist
+    // - also calls and return ExpandFileName() on the supplied file or folder name
+    function CheckFileName(const name: TFileName; isFolder: boolean = false): TFileName;
     /// mark and describe an "arg" value in Args[]
+    // - e.g. returns true if the name appears in Args[]
     function Arg(const name: RawUtf8;
       const description: RawUtf8 = ''): boolean; overload;
     /// mark and describe or or several "arg" value(s) in Args[]
+    // - e.g. returns true if any of the name(s) appears in Args[]
     function Arg(const name: array of RawUtf8;
       const description: RawUtf8 = ''): boolean; overload;
-    /// search for "-optionname" switches in Options[]
+    /// search for a -xxxx switch in Options[]
+    // - returns true if '-name' or '--name' or '/name' do appear
+    // - if name contains a & character, will also register the following char,
+    // e.g. Option('&concise') is the same as Option(['c', 'concise'])
     function Option(const name: RawUtf8;
       const description: RawUtf8 = ''): boolean; overload;
-    /// search for "-optionname" switches in Options[]
+    /// search for one or severl -xxxx switches in Options[]
+    // - returns true if any '-name' or '--name' or '/name' do appear
     function Option(const name: array of RawUtf8;
       const description: RawUtf8 = ''): boolean; overload;
     /// search for "-parametername" and return its RawUtf8 "parametervalue"
+    // - returns true if '-name' or '--name' or '/name' do appear with a value
+    // - if name contains a & character, will also register the following char,
+    // e.g. Get('&concise') is the same as Get(['c', 'concise'])
     function Get(const name: RawUtf8; out value: RawUtf8;
       const description: RawUtf8 = ''; const default: RawUtf8 = ''): boolean; overload;
     /// search for "-parametername" and return its RawUtf8 "parametervalue"
+    // - returns true if any '-name' or '--name' or '/name' do appear with a value
     function Get(const name: array of RawUtf8; out value: RawUtf8;
       const description: RawUtf8 = ''; const default: RawUtf8 = ''): boolean; overload;
-    /// search for "-parametername" and return all RawUtf8 "parametervalue" occurences
+    /// search for "-parametername" and return all RawUtf8 "parametervalue" occurrences
     function Get(const name: array of RawUtf8; out value: TRawUtf8DynArray;
       const description: RawUtf8 = ''): boolean; overload;
     /// search for "-parametername" and return its plain string "parametervalue"
+    // - if name contains a & character, will also register the following char
     function Get(const name: RawUtf8; out value: string;
       const description: RawUtf8 = ''; const default: string = ''): boolean; overload;
-    /// search for "-parametername" and return all string "parametervalue" occurences
+    /// search for "-parametername" and return all string "parametervalue" occurrences
     function Get(const name: array of RawUtf8; out value: TStringDynArray;
       const description: RawUtf8 = ''): boolean; overload;
     /// search for "-parametername" and return its plain string "parametervalue"
     function Get(const name: array of RawUtf8; out value: string;
       const description: RawUtf8 = ''; const default: string = ''): boolean; overload;
-    /// search for "-parametername" and return all string "parametervalue" occurences
+    /// search for "-parametername" and return all string "parametervalue" occurrences
+    // - if name contains a & character, will also register the following char
     function Get(const name: RawUtf8; out value: TStringDynArray;
       const description: RawUtf8 = ''): boolean; overload;
     /// search for "-parametername" and return its integer "parametervalue"
+    // - if name contains a & character, will also register the following char
     function Get(const name: RawUtf8; out value: integer;
       const description: RawUtf8 = ''; default: integer = maxInt): boolean; overload;
     /// search for "-parametername" and return its integer "parametervalue"
     function Get(const name: array of RawUtf8; out value: integer;
       const description: RawUtf8 = ''; default: integer = maxInt): boolean; overload;
     /// search for "-parametername" and return its integer "parametervalue"
+    // - if name contains a & character, will also register the following char
     function Get(const name: RawUtf8; min, max: integer; out value: integer;
       const description: RawUtf8 = ''; default: integer = maxInt): boolean; overload;
     /// search for "-parametername" and return its integer "parametervalue"
@@ -1321,16 +1256,26 @@ type
       out value: integer; const description: RawUtf8 = '';
       default: integer = -1): boolean; overload;
     /// search for "-parametername" parameter in Names[]
+    // - if name contains a & character, will also search the following char
     function Has(const name: RawUtf8): boolean; overload;
     /// search for "-parametername" parameter in Names[]
     function Has(const name: array of RawUtf8): boolean; overload;
     /// search for "-parametername" and return '' or its RawUtf8 "parametervalue"
+    // - if name contains a & character, will also register the following char
     function Param(const name: RawUtf8; const description: RawUtf8 = '';
       const default: RawUtf8 = ''): RawUtf8; overload;
+    /// search for "-parametername" and return '' or its string "parametervalue"
+    // - if name contains a & character, will also register the following char
+    function ParamS(const name: RawUtf8; const description: RawUtf8 = '';
+      const default: string = ''): string; overload;
     /// search for "-parametername" and return '' or its RawUtf8 "parametervalue"
     function Param(const name: array of RawUtf8; const description: RawUtf8 = '';
       const default: RawUtf8 = ''): RawUtf8; overload;
+    /// search for "-parametername" and return '' or its string "parametervalue"
+    function ParamS(const name: array of RawUtf8; const description: RawUtf8 = '';
+      const default: string = ''): string; overload;
     /// search for "-parametername" and return its integer "parametervalue" or default
+    // - if name contains a & character, will also register the following char
     function Param(const name: RawUtf8; default: integer;
       const description: RawUtf8 = ''): integer; overload;
     /// search for "-parametername" and return its integer "parametervalue" or default
@@ -1341,10 +1286,10 @@ type
     // - the parameter <name> would be extracted from any #word in the
     // description text,
     // - for instance:
-    // ! with Executable.Command do
+    // ! with Executable.Command do // or use a local variable
     // ! begin
     // !   ExeDescription := 'An executable to test mORMot Execute.Command';
-    // !   verbose := Option(['v', 'verbose'], 'generate verbose output');
+    // !   verbose := Option('&verbose', 'generate verbose output');
     // !   Get(['t', 'threads'], threads, '#number of threads to run', 5);
     // !   ConsoleWrite(FullDescription);
     // ! end;
@@ -1360,7 +1305,7 @@ type
     // $   -t, --threads <number> (default 5)
     // $                       number of threads to run
     function FullDescription(const customexedescription: RawUtf8 = '';
-      const exename: RawUtf8 = ''): RawUtf8;
+      const exename: RawUtf8 = ''; const onlyusage: RawUtf8 = ''): RawUtf8;
     /// check if the supplied parameters were all registered from previous
     // Arg() Options() and Get/Param() calls
     // - return '' if no unexpected flag has been supplied
@@ -1370,6 +1315,9 @@ type
     // - return false if the parameters are valid
     // - otherwise, return true and caller should exit the process
     function ConsoleWriteUnknown(const exedescription: RawUtf8 = ''): boolean;
+    /// define 'h help' and call ConsoleWriteUnknown()
+    // - caller should exit the process if this method returned true
+    function ConsoleHelpFailed(const exedescription: RawUtf8 = ''): boolean;
     /// fill the stored arguments and options from executable parameters
     // - called e.g. at unit inialization to set Executable.CommandLine variable
     // - you can execute it again e.g. to customize the switches characters
@@ -1378,6 +1326,8 @@ type
       const LongSwitch: RawUtf8 = {$ifdef OSWINDOWS} '/' {$else} '--' {$endif}): boolean;
     /// remove all recognized arguments and switches
     procedure Clear;
+    /// internal method returning a switch text from its identifier
+    function SwitchAsText(const v: RawUtf8): RawUtf8;
     /// the ParamStr(1..ParamCount) arguments as RawUtf8, excluding Options[]
     // switches and Params[]/Values[] parameters
     property Args: TRawUtf8DynArray
@@ -1400,8 +1350,12 @@ type
     // - as used by default by FullDescription() and ConsoleWriteUnknown()
     property ExeDescription: RawUtf8
       read fExeDescription write fExeDescription;
+    /// DescriptionLineFeed value from TExecutableCommandLine.Parse()
+    property LineFeed: RawUtf8
+      read fLineFeed write fLineFeed;
     /// map ParamStr(1 .. ParamCount) values, encoded as RawUtf8
-    // - may be used e.g. for regression tests instead of ParamStr()
+    // - may be used e.g. for regression tests instead of ParamStr():
+    // ! c.RawParams := CsvToRawUtf8DynArray('-o file.txt --y -v -t 1', ' ');
     property RawParams: TRawUtf8DynArray
       read fRawParams write fRawParams;
   end;
@@ -1414,7 +1368,7 @@ type
     ProgramName: RawUtf8;
     /// the main executable details, as used e.g. by TSynLog
     // - e.g. 'C:\Dev\lib\SQLite3\exe\TestSQL3.exe 1.2.3.123 (2011-03-29 11:09:06)'
-    // - you should have called GetExecutableVersion or SetExecutableVersion  
+    // - you should have called GetExecutableVersion or SetExecutableVersion
     // to populate this field
     ProgramFullSpec: RawUtf8;
     /// the main executable file name (including full path)
@@ -1479,7 +1433,7 @@ procedure SetExecutableVersion(aMajor, aMinor, aRelease, aBuild: integer); overl
 procedure SetExecutableVersion(const aVersionText: RawUtf8); overload;
 
 /// return a function/method location according to the supplied code address
-// - returns the address as hexadecimal by default, e.g. '004cb765'
+// - returns the address as hexadecimal by default, e.g. '4cb765'
 // - if mormot.core.log.pas is defined in the project, will redirect to
 // TDebugFile.FindLocationShort() method using .map/.dbg/.mab information, and
 // return filename, symbol name and line number (if any) as plain text, e.g.
@@ -1498,25 +1452,48 @@ var
   // - as used e.g. by GetComputerUuid() fallback if SMBIOS is not available
   GetSystemMacAddress: function: TRawUtf8DynArray;
 
-
 type
   /// identify an operating system folder for GetSystemPath()
+  // - on Windows, spCommonData maps e.g. 'C:\ProgramData',
+  // spUserData points to 'C:\Users\<user>\AppData\Local',
+  // spCommonDocuments to 'C:\Users\Public\Documents',
+  // spUserDocuments to 'C:\Users\<user>\Documents',
+  // spTemp will call GetTempPath() or read the $TEMP environment variable,
+  // pointing typically to 'C:\Users\<user>\AppData\Local\Temp\',
+  // and spLog either to '<exepath>\log' or
+  // 'C:\Users\<user>\AppData\Local\<exename>-log' (the first writable)
+  // - on POSIX, spTemp will use $TMPDIR/$TMP environment variables,
+  // spCommonData, spCommonDocuments and spUserDocuments point to $HOME,
+  // spUserData maps $XDG_CACHE_HOME or '$HOME/.cache' or '$TMP/<user>', and
+  // spLog maps '/var/log/<exename>' or '<exepath>/log' or '$TMP/<exename>-log'
+  // - on all systems, returned spTemp, spLog and spUserData folders are always
+  // writable by the current user
   TSystemPath = (
     spCommonData,
     spUserData,
     spCommonDocuments,
     spUserDocuments,
-    spTempFolder,
+    spTemp,
     spLog);
+
+{$ifndef PUREMORMOT2}
+const
+  spTempFolder = spTemp;
+{$endif PUREMORMOT2}
 
 /// returns an operating system folder
 // - will return the full path of a given kind of private or shared folder,
 // depending on the underlying operating system
 // - will use SHGetFolderPath and the corresponding CSIDL constant under Windows
-// - under POSIX, will return $TMP/$TMPDIR folder for spTempFolder, ~/.cache/appname
-// for spUserData, /var/log for spLog, or the $HOME folder
+// - under POSIX, will return the proper environment variable
+// - spLog is a writable sub-folder specific to mORMot, always created if needed
 // - returned folder name contains the trailing path delimiter (\ or /)
 function GetSystemPath(kind: TSystemPath): TFileName;
+
+/// force an operating system folder
+// - if the default location is not good enough for your project
+// - will just check that the directory exists, not that it is writable
+function SetSystemPath(kind: TSystemPath; const path: TFileName): boolean;
 
 type
   /// identify the (Windows) system certificate stores for GetSystemStoreAsPem()
@@ -1537,32 +1514,50 @@ type
   TSystemCertificateStores = set of TSystemCertificateStore;
 
 var
-  /// the file name, relative to Executable.ProgramFilePath, to be searched
-  // by GetSystemStoreAsPem() to override the OS certificates store
-  // - could be set to a proper relative or absolute location, or to '' to
-  // disable this override (for security purposes)
-  GetSystemStoreAsPemLocalFile: TFileName = 'cacert.pem';
+  /// the local PEM file name to be searched by GetSystemStoreAsPem() to
+  // override the OS certificates store
+  // - a relative file name (i.e. with no included path, e.g. 'cacert.pem') will
+  // be searched in the Executable.ProgramFilePath folder
+  // - an absolute file name (e.g. 'C:\path\to\file.pem' or '/posix/path') could
+  // also be specified
+  // - set by default to '' to disable this override (for security purposes)
+  GetSystemStoreAsPemLocalFile: TFileName;
 
-/// retrieve all certificates of given system store(s) as PEM text
+/// retrieve the OS certificates store as PEM text
+// - first search for [Executable.ProgramFilePath+]GetSystemStoreAsPemLocalFile,
+// then for a file pointed by a 'SSL_CA_CERT_FILE' environment variable - unless
+// OnlySystemStore is forced to true
+// - if no such file exists, or if OnlySystemStore is true, will concatenate the
+// supplied CertStores values via individual GetOneSystemStoreAsPem() calls
 // - return CA + ROOT certificates by default, ready to validate a certificate
-// - will first search for Executable.ProgramFilePath+GetSystemStoreAsPemLocalFile
-// file, then for a file pointed by a 'SSL_CA_CERT_FILE' environment variable
-// - on Windows, will use the System Crypt API over the supplied stores
-// - on POSIX, scsRoot loads the main CA file of the known system file, and
-// scsCA the additional certificate files which may not be part of the main file
-// - Darwin is not supported yet, and is handled as a BSD system
+// - Darwin specific API is not supported yet, and is handled as a BSD system
 // - an internal cache is refreshed every 4 minutes unless FlushCache is set
 function GetSystemStoreAsPem(
   CertStores: TSystemCertificateStores = [scsCA, scsRoot];
-  FlushCache: boolean = false): RawUtf8; overload;
+  FlushCache: boolean = false; OnlySystemStore: boolean = false): RawUtf8;
 
 /// retrieve all certificates of a given system store as PEM text
-// - will only generate PEM files from the system Registry (Windows), or
-// from the system known folders (POSIX - for scsCA and scsRoot only) - ignoring
-// GetSystemStoreAsPemLocalFile file and 'SSL_CA_CERT_FILE' environment variable
+// - on Windows, will use the System Crypt API
+// - on POSIX, scsRoot loads the main CA file of the known system file, and
+// scsCA the additional certificate files which may not be part of the main file
+// - GetSystemStoreAsPemLocalFile file and 'SSL_CA_CERT_FILE' environment
+// variables are ignored: call GetSystemStoreAsPem() instead for the global store
 // - an internal cache is refreshed every 4 minutes unless FlushCache is set
-function GetSystemStoreAsPem(CertStore: TSystemCertificateStore;
-  FlushCache: boolean = false; now: cardinal = 0): RawUtf8; overload;
+function GetOneSystemStoreAsPem(CertStore: TSystemCertificateStore;
+  FlushCache: boolean = false; now: cardinal = 0): RawUtf8;
+
+var
+  /// low-level function used by StuffExeCertificate() in mormot.misc.pecoff.pas
+  // - properly implemented by mormot.crypt.openssl.pas, but mormot.misc.pecoff
+  // has its own stand-alone version using a pre-generated fixed certificate
+  // - warning: the Marker should have no 0 byte within
+  CreateDummyCertificate: function(const Stuff, CertName: RawUtf8;
+    Marker: cardinal): RawByteString;
+
+var
+  /// allow half a day margin when checking a Certificate date validity
+  // - this global setting is used as default for all our units
+  CERT_DEPRECATION_THRESHOLD: TDateTime = 0.5;
 
 type
   /// the raw SMBIOS information as filled by GetRawSmbios
@@ -1599,7 +1594,7 @@ function GetRawSmbios: boolean;
 
 type
   /// the basic SMBIOS fields supported by GetSmbios/DecodeSmbios functions
-  // - only include the first occurence for board/cpu/battery types
+  // - only include the first occurrence for board/cpu/battery types
   // - see TSmbiosInfo in mormot.core.perf.pas for more complete decoding
   TSmbiosBasicInfo = (
     sbiUndefined,
@@ -1669,14 +1664,34 @@ var
 function GetSmbios(info: TSmbiosBasicInfo): RawUtf8;
   {$ifdef HASINLINE} inline; {$endif}
 
+type
+  /// define how GetComputerUuid() computes its 128-bit UUID identifier
+  // - set of potential sources, which may be excluded from computation
+  TGetComputerUuid = set of (
+    gcuSmbios,
+    gcuSmbiosData,
+    gcuSmbiosText,
+    gcuCpuFeatures,
+    gcuCpuInfoText,
+    gcuBiosInfoText,
+    gcuMacAddress);
+
 /// retrieve a genuine 128-bit UUID identifier for this computer
 // - first try GetSmbios(sbiUuid), i.e. the SMBIOS System UUID
 // - otherwise, will compute a genuine hash from known hardware information
-// (CPU, Bios, MAC) and store it in a local file for the next access, e.g. into
-// '/var/tmp/.synopse.uid' on POSIX
+// (CPU, Bios, MAC) and store it in a local file for the next access (if
+// disable is void), e.g. into '/var/tmp/.synopse.uid' on POSIX
 // - on Mac, include the mormot.core.os.mac unit to properly read this UUID
 // - note: some BIOS have no UUID, so we fallback to our hardware hash on those
-procedure GetComputerUuid(out uuid: TGuid);
+// - you can specify some HW sources to be ignored during the calculation
+procedure GetComputerUuid(out uuid: TGuid; disable: TGetComputerUuid = []); overload;
+
+/// retrieve a genuine 128-bit UUID identifier for this computer
+// - returns GetSmbios(sbiUuid) if available
+// - if no GetSmbios(sbiUuid) is available, will compute a genuine hash from HW
+// and store it on a local file for the next access (if disable is void)
+// - you can specify some HW sources to be ignored during the calculation
+function GetComputerUuid(disable: TGetComputerUuid = []): RawUtf8; overload;
 
 
 { ****************** Operating System Specific Types (e.g. TWinRegistry) }
@@ -1684,13 +1699,19 @@ procedure GetComputerUuid(out uuid: TGuid);
 {$ifdef OSWINDOWS}
 
 type
-  TThreadID     = DWORD;
+  // publish basic WinAPI types to avoid including "Windows" in our uses clause
   TMessage      = Messages.TMessage;
   HWND          = Windows.HWND;
   BOOL          = Windows.BOOL;
   LARGE_INTEGER = Windows.LARGE_INTEGER;
   TFileTime     = Windows.FILETIME;
   PFileTime     = ^TFileTime;
+
+  /// Windows handle for a Thread - for cross-platform/cross-compiler clarity
+  // - note that on POSIX TThreadID is a pointer and not a 32-bit file handle
+  TThreadID = DWORD;
+  /// a TThreadID-sized unsigned integer, to ease TThreadID alignment
+  TThreadIDInt = cardinal;
 
   /// the known Windows Registry Root key used by TWinRegistry.ReadOpen
   TWinRegistryRoot = (
@@ -1722,7 +1743,7 @@ type
     // (return the first value of the multi-list) - use ReadData to retrieve
     // all REG_MULTI_SZ values as one blob
     // - we don't use string here since it would induce a dependency to
-    // mormot.core.unicode
+    // mormot.core.unicode and UTF-8 is needed on Delphi 7/2007
     function ReadString(const entry: SynUnicode; andtrim: boolean = true): RawUtf8;
     /// read a Windows Registry content after ReadOpen()
     // - works with any kind of key, but was designed for REG_BINARY
@@ -1733,7 +1754,10 @@ type
     function ReadQword(const entry: SynUnicode): QWord;
     /// read a Windows Registry content as binary buffer after ReadOpen()
     // - just a wrapper around RegQueryValueExW() API call
-    function ReadBuffer(const entry: SynUnicode; Data: pointer; DataLen: DWORD): boolean;
+    function ReadBuffer(const entry: SynUnicode; data: pointer; datalen: DWORD): boolean;
+    /// read a Windows Registry content as length-specified buffer after ReadOpen()
+    // - returns the number of bytes written to Data
+    function ReadMax(const entry: SynUnicode; data: pointer; maxdatalen: DWORD): DWORD;
     /// retrieve a Windows Registry content size as binary bytes after ReadOpen()
     // - returns -1 if the entry is not found
     function ReadSize(const entry: SynUnicode): integer;
@@ -1750,7 +1774,7 @@ type
     wspIncreaseQuota,
     wspUnsolicitedInput,
     wspMachineAccount,
-    wspTCP,
+    wspTCB,
     wspSecurity,
     wspTakeOwnership,
     wspLoadDriver,
@@ -1786,7 +1810,7 @@ type
   /// define which WinAPI token is to be retrieved
   // - define the execution context, i.e. if the token is used for the current
   // process or the current thread
-  // - used e.g. by TSynWindowsPrivileges or CurrentSid()
+  // - used e.g. by TSynWindowsPrivileges or mormot.core.os.security
   TWinTokenType = (
     wttProcess,
     wttThread);
@@ -1805,13 +1829,13 @@ type
     fEnabled: TWinSystemPrivileges;
     fDefEnabled: TWinSystemPrivileges;
     fToken: THandle;
-    function SetPrivilege(
-      aPrivilege: TWinSystemPrivilege; aEnablePrivilege: boolean): boolean;
+    function SetPrivilege(wsp: TWinSystemPrivilege; on: boolean): boolean;
     procedure LoadPrivileges;
   public
     /// initialize the object dedicated to management of available privileges
     // - aTokenPrivilege can be used for current process or current thread
-    procedure Init(aTokenPrivilege: TWinTokenType = wttProcess);
+    procedure Init(aTokenPrivilege: TWinTokenType = wttProcess;
+      aLoadPrivileges: boolean = true);
     /// finalize the object and relese Token handle
     // - aRestoreInitiallyEnabled parameter can be used to restore initially
     // state of enabled privileges
@@ -1819,7 +1843,11 @@ type
     /// enable privilege
     // - if aPrivilege is already enabled return true, if operation is not
     // possible (required privilege doesn't exist or API error) return false
-    function Enable(aPrivilege: TWinSystemPrivilege): boolean;
+    function Enable(aPrivilege: TWinSystemPrivilege): boolean; overload;
+    /// enable one or several privilege(s) from a set
+    // - if aPrivilege is already enabled return true, if operation is not
+    // possible (required privilege doesn't exist or API error) return false
+    function Enable(aPrivilege: TWinSystemPrivileges): boolean; overload;
     /// disable privilege
     // - if aPrivilege is already disabled return true, if operation is not
     // possible (required privilege doesn't exist or API error) return false
@@ -1830,7 +1858,7 @@ type
     /// set of enabled privileges for current process/thread
     property Enabled: TWinSystemPrivileges
       read fEnabled;
-    /// handle to the low-level privileges token
+    /// low-level access to the privileges token handle
     property Token: THandle
       read fToken;
   end;
@@ -1878,21 +1906,6 @@ type
   PWinProcessInfo = ^TWinProcessInfo;
   TWinProcessInfoDynArray = array of TWinProcessInfo;
 
-  /// the SID types, as recognized by LookupSid()
-  TSidType = (
-    stUndefined,
-    stTypeUser,
-    stTypeGroup,
-    stTypeDomain,
-    stTypeAlias,
-    stTypeWellKnownGroup,
-    stTypeDeletedAccount,
-    stTypeInvalid,
-    stTypeUnknown,
-    stTypeComputer,
-    stTypeLabel,
-    stTypeLogonSession);
-
 
 function ToText(p: TWinSystemPrivilege): PShortString; overload;
 
@@ -1906,102 +1919,92 @@ function RawTokenOpen(wtt: TWinTokenType; access: cardinal): THandle;
 function RawTokenGetInfo(tok: THandle; tic: TTokenInformationClass;
   var buf: TSynTempBuffer): cardinal;
 
-/// return the SID of a given token, nil if none found
-// - the returned PSid is located within buf temporary buffer
-// - so caller should call buf.Done once this PSid value is not needed any more
-function RawTokenSid(tok: THandle; var buf: TSynTempBuffer): PSid;
-
-/// return the group SIDs of a given token, nil if none found
-// - the returned PSid is located within buf temporary buffer
-// - so caller should call buf.Done once this PSid value is not needed any more
-function RawTokenGroups(tok: THandle; var buf: TSynTempBuffer): PSids;
-
-/// return the group SIDs of a given token as text dynamic array
-function TokenGroupsText(tok: THandle): TRawUtf8DynArray;
-
-/// check if a group SID is part of a given token
-function TokenHasGroup(tok: THandle; sid: PSid): boolean;
-
-/// check if any group SID is part of a given token
-function TokenHasAnyGroup(tok: THandle; const sid: RawSidDynArray): boolean;
-
-/// return the SID of the current user, from process or thread, as text
-// - e.g. 'S-1-5-21-823746769-1624905683-418753922-1000'
-// - optionally returning the name and domain via LookupSid()
-function CurrentSid(wtt: TWinTokenType = wttProcess;
-  name: PRawUtf8 = nil; domain: PRawUtf8 = nil): RawUtf8; overload;
-
-/// return the SID of the current user, from process or thread, as raw binary
-procedure CurrentRawSid(out sid: RawSid; wtt: TWinTokenType = wttProcess;
-  name: PRawUtf8 = nil; domain: PRawUtf8 = nil); overload;
-
-/// return the SID of the current user groups, from process or thread, as text
-function CurrentGroupsSid(wtt: TWinTokenType = wttProcess): TRawUtf8DynArray;
-
-/// recognize the well-known SIDs from the current user, from process or thread
-// - for instance, for an user with administrator rights on Windows, returns
-// $ [wksWorld, wksLocal, wksConsoleLogon, wksIntegrityHigh, wksInteractive,
-// $  wksAuthenticatedUser, wksThisOrganisation, wksBuiltinAdministrators,
-// $  wksBuiltinUsers, wksNtlmAuthentication]
-function CurrentKnownGroups(wtt: TWinTokenType = wttProcess): TWellKnownSids;
-
-/// fast check if the current user, from process or thread, has a well-known group SID
-function CurrentKnownGroup(wks: TWellKnownSid;
-  wtt: TWinTokenType = wttProcess): boolean;
-
-/// fast check if the current user, from process or thread, has a given group SID
-function CurrentUserHasGroup(const sid: RawUtf8;
-  wtt: TWinTokenType = wttProcess): boolean; overload;
-
-/// fast check if the current user, from process or thread, has a given group SID
-function CurrentUserHasGroup(sid: PSid;
-  wtt: TWinTokenType = wttProcess): boolean; overload;
-
-/// fast check if the current user, from process or thread, has any given group SID
-function CurrentUserHasAnyGroup(const sid: RawSidDynArray;
-  wtt: TWinTokenType = wttProcess): boolean;
-
-/// fast check if the current user, from process or thread, match a group by name
-// - calls LookupSid() on each group SID of this user, and filter with name/domain
-function CurrentUserHasGroup(const name, domain, server: RawUtf8;
-  wtt: TWinTokenType = wttProcess): boolean; overload;
-
-/// just a wrapper around "wksBuiltinAdministrators in CurrentKnownGroups"
-function CurrentUserIsAdmin: boolean;
-
-/// retrieve the name and domain of a given SID
-// - returns stUndefined if the SID could not be resolved by LookupAccountSid()
-function LookupSid(sid: PSid; out name, domain: RawUtf8;
-  const server: RawUtf8 = ''): TSidType; overload;
-
-/// retrieve the name and domain of a given SID, encoded from text
-// - returns stUndefined if the SID could not be resolved by LookupAccountSid()
-function LookupSid(const sid: RawUtf8; out name, domain: RawUtf8;
-  const server: RawUtf8 = ''): TSidType; overload;
-
-/// retrieve the name and domain of a given Token
-function LookupToken(tok: THandle; out name, domain: RawUtf8;
-  const server: RawUtf8 = ''): boolean; overload;
-
-/// retrieve the 'domain\name' combined value of a given Token
-function LookupToken(tok: THandle; const server: RawUtf8 = ''): RawUtf8; overload;
-
 /// retrieve low-level process information, from the Windows API
-procedure GetProcessInfo(aPid: cardinal;
-  out aInfo: TWinProcessInfo); overload;
+// - will set the needed wspDebug / SE_DEBUG_NAME priviledge during the call
+procedure GetProcessInfo(aPid: cardinal; out aInfo: TWinProcessInfo); overload;
 
 /// retrieve low-level process(es) information, from the Windows API
+// - will set the needed wspDebug / SE_DEBUG_NAME priviledge during the call
 procedure GetProcessInfo(const aPidList: TCardinalDynArray;
   out aInfo: TWinProcessInfoDynArray); overload;
+
+/// rough detection of 'c:\windows' and 'c:\program files' folders
+function IsSystemFolder(const Folder: TFileName): boolean;
+
+// check if a folder may be affected by UAC folder virtualization
+// - on Win32 Vista+, detects 'c:\windows' and 'c:\program files' UAC folders
+// - returns always false on Win64
+function IsUacVirtualFolder(const Folder: TFileName): boolean;
+  {$ifdef CPU64} inline; {$endif}
+
+/// check if UAC folder/registry virtualization is enabled for this process
+// - returns always false on Win64 - by design
+// - calls GetTokenInformation(TokenVirtualizationEnabled) on Win32
+// - if you include {$R src\mormot.win.default.manifest.res} in your project,
+// UAC virtualization is disabled and this function returns false
+function IsUacVirtualizationEnabled: boolean;
+  {$ifdef CPU64} inline; {$endif}
 
 /// quickly retrieve a Text value from Registry
 // - could be used if TWinRegistry is not needed, e.g. for a single value
 function ReadRegString(Key: THandle; const Path, Value: string): string;
 
 /// convenient late-binding of any external library function
-// - just wrapper around LoadLibray + GetProcAddress once over a pointer
+// - thread-safe wrapper around LoadLibray + GetProcAddress once over a pointer
 function DelayedProc(var api; var lib: THandle;
   libname: PChar; procname: PAnsiChar): boolean;
+
+{ some Windows API redefined here for Delphi and FPC consistency }
+
+type
+  TTimeZoneName = array[0..31] of WideChar;
+  TTimeZoneInformation = record
+    Bias: integer;
+    StandardName: TTimeZoneName;
+    StandardDate: TSystemTime;
+    StandardBias: integer;
+    DaylightName: TTimeZoneName;
+    DaylightDate: TSystemTime;
+    DaylightBias: integer;
+  end;
+
+  TDynamicTimeZoneInformation = record
+    TimeZone: TTimeZoneInformation; // XP information
+    TimeZoneKeyName: array[0..127] of WideChar;
+    DynamicDaylightTimeDisabled: boolean;
+  end;
+
+function GetTimeZoneInformation(var info: TTimeZoneInformation): DWORD;
+  stdcall; external kernel32;
+
+/// allow to change the current system time zone on Windows
+// - don't use this low-level function but the high-level mormot.core.search
+// TSynTimeZone.ChangeOperatingSystemTimeZone method
+// - will set the needed wspSystemTime / SE_SYSTEMTIME_NAME priviledge
+// - will select the proper API before and after Vista, if needed
+// - raise EOSException on failure
+procedure SetSystemTimeZone(const info: TDynamicTimeZoneInformation);
+
+const
+  /// Windows file APIs have hardcoded MAX_PATH = 260 :(
+  // - but more than 260 chars are possible with the \\?\..... prefix
+  // or by disabling the limitation in registry since Windows 10, version 1607
+  // https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
+  // - extended-length path allows up to 32,767 widechars in theory, but 2047
+  // widechars seems big enough in practice e.g. with NTFS - POSIX uses 4096
+  W32_MAX = 2047;
+
+type
+  /// 4KB stack buffer for no heap allocation during UTF-16 path encoding or
+  // switch to extended-length on > MAX_PATH
+  TW32Temp = array[0..W32_MAX] of WideChar;
+
+/// efficiently return a PWideChar from a TFileName on all compilers
+// - without any memory allocation, and with proper Unicode support
+// - is also able to handle FileName with length > MAX_PATH, up to 2048 chars
+// - all the low-level file functions of this unit (e.g. FileCreate or FileOpen)
+// will use this function to support file names longer than MAX_PATH
+function W32(const FileName: TFileName; var Temp: TW32Temp; DoCopy: boolean = false): PWideChar;
 
 type
   HCRYPTPROV = pointer;
@@ -2111,7 +2114,7 @@ type
     dwMsgEncodingType: DWORD;
     pSigningCert: PCCERT_CONTEXT;
     HashAlgorithm: CRYPT_ALGORITHM_IDENTIFIER;
-    pvHashAuxInfo: Pointer;
+    pvHashAuxInfo: pointer;
     cMsgCert: DWORD;
     rgpMsgCert: PPCCERT_CONTEXT;
     cMsgCrl: DWORD;
@@ -2123,10 +2126,10 @@ type
     dwFlags: DWORD;
     dwInnerContentType: DWORD;
     HashEncryptionAlgorithm: CRYPT_ALGORITHM_IDENTIFIER;
-    pvHashEncryptionAuxInfo: Pointer;
+    pvHashEncryptionAuxInfo: pointer;
   end;
 
-  PFN_CRYPT_GET_SIGNER_CERTIFICATE = function(pvGetArg: Pointer;
+  PFN_CRYPT_GET_SIGNER_CERTIFICATE = function(pvGetArg: pointer;
     dwCertEncodingType: DWORD; pSignerId: PCERT_INFO;
     hMsgCertStore: HCERTSTORE): PCCERT_CONTEXT; stdcall;
   CRYPT_VERIFY_MESSAGE_PARA = record
@@ -2134,7 +2137,17 @@ type
     dwMsgAndCertEncodingType: DWORD;
     hCryptProv: HCRYPTPROV;
     pfnGetSignerCertificate: PFN_CRYPT_GET_SIGNER_CERTIFICATE;
-    pvGetArg: Pointer;
+    pvGetArg: pointer;
+  end;
+
+  PUNICODE_STRING = ^UNICODE_STRING;
+  UNICODE_STRING = packed record
+    Length: word;
+    MaximumLength: word;
+    {$ifdef CPUX64}
+    _align: array[0..3] of byte;
+    {$endif CPUX64}
+    Buffer: PWideChar;
   end;
 
   /// direct access to the Windows CryptoApi
@@ -2177,59 +2190,65 @@ type
     /// fills a buffer with cryptographically random bytes
     // - since Windows Vista with Service Pack 1 (SP1), an AES counter-mode
     // based PRNG specified in NIST Special Publication 800-90 is used
-    GenRandom: function(hProv: HCRYPTPROV; dwLen: DWORD; pbBuffer: Pointer): BOOL; stdcall;
-    /// sign a message (not resolved yet - in crypt32.dll)
-    SignMessage: function(var pSignPara: CRYPT_SIGN_MESSAGE_PARA;
-      fDetachedSignature: BOOL; cToBeSigned: DWORD; rgpbToBeSigned: pointer;
-      var rgcbToBeSigned: DWORD; pbSignedBlob: pointer; var pcbSignedBlob: DWORD): BOOL; stdcall;
-    /// verify a signed message (not resolved yet - in crypt32.dll)
-    VerifyMessageSignature: function(var pVerifyPara: CRYPT_VERIFY_MESSAGE_PARA;
-      dwSignerIndex: DWORD; pbSignedBlob: PByte; cbSignedBlob: DWORD;
-      pbDecoded: PByte; pcbDecoded: LPDWORD; ppSignerCert: PPCCERT_CONTEXT): BOOL; stdcall;
+    GenRandom: function(hProv: HCRYPTPROV; dwLen: DWORD; pbBuffer: pointer): BOOL; stdcall;
+    /// converts a security descriptor to a string format
+    ConvertSecurityDescriptorToStringSecurityDescriptorA: function(
+      SecurityDescriptor: PSECURITY_DESCRIPTOR; RequestedStringSDRevision: DWORD;
+      SecurityInformation: DWORD; var StringSecurityDescriptor: PAnsiChar;
+      StringSecurityDescriptorLen: LPDWORD): BOOL; stdcall;
+
     /// try to load the CryptoApi on this system
     function Available: boolean;
       {$ifdef HASINLINE}inline;{$endif}
+    /// wrapper around ConvertSecurityDescriptorToStringSecurityDescriptorA()
+    // - see also SecurityDescriptorToText() function in mormot.core.os.security
+    function SecurityDescriptorToText(sd: pointer; out text: RawUtf8): boolean;
   end;
 
 const
-  NO_ERROR = Windows.NO_ERROR;
+  NO_ERROR  = Windows.NO_ERROR; // = ERROR_SUCCESS
 
-  ERROR_ACCESS_DENIED = Windows.ERROR_ACCESS_DENIED;
-  ERROR_INVALID_PARAMETER = Windows.ERROR_INVALID_PARAMETER;
-  ERROR_HANDLE_EOF = Windows.ERROR_HANDLE_EOF;
-  ERROR_ALREADY_EXISTS = Windows.ERROR_ALREADY_EXISTS;
-  ERROR_MORE_DATA = Windows.ERROR_MORE_DATA;
-  ERROR_CONNECTION_INVALID = Windows.ERROR_CONNECTION_INVALID;
-  ERROR_OLD_WIN_VERSION = Windows.ERROR_OLD_WIN_VERSION;
-  ERROR_IO_PENDING = Windows.ERROR_IO_PENDING;
-  ERROR_OPERATION_ABORTED = Windows.ERROR_OPERATION_ABORTED;
+  ERROR_ACCESS_DENIED       = Windows.ERROR_ACCESS_DENIED;
+  ERROR_INVALID_HANDLE      = Windows.ERROR_INVALID_HANDLE;
+  ERROR_INSUFFICIENT_BUFFER = Windows.ERROR_INSUFFICIENT_BUFFER;
+  ERROR_INVALID_PARAMETER   = Windows.ERROR_INVALID_PARAMETER;
+  ERROR_HANDLE_EOF          = Windows.ERROR_HANDLE_EOF;
+  ERROR_ALREADY_EXISTS      = Windows.ERROR_ALREADY_EXISTS;
+  ERROR_MORE_DATA           = Windows.ERROR_MORE_DATA;
+  ERROR_CONNECTION_INVALID  = Windows.ERROR_CONNECTION_INVALID;
+  ERROR_OLD_WIN_VERSION     = Windows.ERROR_OLD_WIN_VERSION;
+  ERROR_IO_PENDING          = Windows.ERROR_IO_PENDING;
+  ERROR_OPERATION_ABORTED   = Windows.ERROR_OPERATION_ABORTED;
+
   // see http://msdn.microsoft.com/en-us/library/windows/desktop/aa383770
-  ERROR_WINHTTP_TIMEOUT = 12002;
-  ERROR_WINHTTP_CANNOT_CONNECT = 12029;
+  ERROR_WINHTTP_TIMEOUT                 = 12002;
+  ERROR_WINHTTP_OPERATION_CANCELLED     = 12017;
+  ERROR_WINHTTP_CANNOT_CONNECT          = 12029;
+  ERROR_WINHTTP_CLIENT_AUTH_CERT_NEEDED = 12044;
   ERROR_WINHTTP_INVALID_SERVER_RESPONSE = 12152;
-  ERROR_MUI_FILE_NOT_FOUND = 15100;
+  ERROR_MUI_FILE_NOT_FOUND              = 15100;
 
   INVALID_HANDLE_VALUE = Windows.INVALID_HANDLE_VALUE; // = HANDLE(-1)
-  ENGLISH_LANGID = $0409;
+  ENGLISH_LANGID       = $0409;
 
-  PROV_RSA_FULL = 1;
-  PROV_RSA_AES = 24;
-  CRYPT_NEWKEYSET = 8;
-  CRYPT_VERIFYCONTEXT = DWORD($F0000000);
-  PLAINTEXTKEYBLOB = 8;
-  CUR_BLOB_VERSION = 2;
-  KP_IV = 1;
-  KP_MODE = 4;
-  CALG_AES_128 = $660E;
-  CALG_AES_192 = $660F;
-  CALG_AES_256 = $6610;
-  CRYPT_MODE_CBC = 1;
-  CRYPT_MODE_ECB = 2;
-  CRYPT_MODE_OFB = 3;
-  CRYPT_MODE_CFB = 4;
-  CRYPT_MODE_CTS = 5;
+  PROV_RSA_FULL        = 1;
+  PROV_RSA_AES         = 24;
+  CRYPT_NEWKEYSET      = 8;
+  CRYPT_VERIFYCONTEXT  = DWORD($F0000000);
+  PLAINTEXTKEYBLOB     = 8;
+  CUR_BLOB_VERSION     = 2;
+  KP_IV                = 1;
+  KP_MODE              = 4;
+  CALG_AES_128         = $660E;
+  CALG_AES_192         = $660F;
+  CALG_AES_256         = $6610;
+  CRYPT_MODE_CBC       = 1;
+  CRYPT_MODE_ECB       = 2;
+  CRYPT_MODE_OFB       = 3;
+  CRYPT_MODE_CFB       = 4;
+  CRYPT_MODE_CTS       = 5;
   HCRYPTPROV_NOTTESTED = HCRYPTPROV(-1);
-  NTE_BAD_KEYSET = HRESULT($80090016);
+  NTE_BAD_KEYSET       = HRESULT($80090016);
 
 var
   CryptoApi: TWinCryptoApi;
@@ -2282,9 +2301,6 @@ function PostMessage(hWnd: HWND; Msg: UINT; wParam: WPARAM; lParam: LPARAM): BOO
 function RtlCaptureStackBackTrace(FramesToSkip, FramesToCapture: cardinal;
   BackTrace, BackTraceHash: pointer): byte; stdcall;
 
-/// compatibility function, wrapping Win32 API available since XP
-function IsDebuggerPresent: BOOL; stdcall;
-
 /// retrieves the current thread ID
 // - redefined in mormot.core.os to avoid dependency to the Windows unit
 function GetCurrentThreadId: DWORD; stdcall;
@@ -2325,20 +2341,20 @@ procedure EnterCriticalSection(var cs: TRTLCriticalSection); stdcall;
 // - under Delphi/Windows, directly call the homonymous Win32 API
 procedure LeaveCriticalSection(var cs: TRTLCriticalSection); stdcall;
 
-/// initialize IOCP instance
-// - redefined in mormot.core.os to avoid dependency to the Windows unit
-function CreateIoCompletionPort(FileHandle, ExistingCompletionPort: THandle;
+/// initialize Windows IOCP instance
+// - renamed in mormot.core.os to avoid dependency to the Windows unit
+function IocpCreate(FileHandle, ExistingCompletionPort: THandle;
   CompletionKey: pointer; NumberOfConcurrentThreads: DWORD): THandle; stdcall;
 
-/// retrieve IOCP instance status
-// - redefined in mormot.core.os to avoid dependency to the Windows unit
-function GetQueuedCompletionStatus(CompletionPort: THandle;
-  var lpNumberOfBytesTransferred: DWORD; var lpCompletionKey: PtrUInt;
+/// retrieve Windows IOCP instance status
+// - renamed in mormot.core.os to avoid dependency to the Windows unit
+function IocpGetQueuedStatus(CompletionPort: THandle;
+  var lpNumberOfBytesTransferred: DWORD; var lpCompletionKey: pointer;
   var lpOverlapped: pointer; dwMilliseconds: DWORD): BOOL; stdcall;
 
-/// trigger a IOCP instance
-// - redefined in mormot.core.os to avoid dependency to the Windows unit
-function PostQueuedCompletionStatus(CompletionPort: THandle;
+/// trigger a Windows IOCP instance
+// - renamed in mormot.core.os to avoid dependency to the Windows unit
+function IocpPostQueuedStatus(CompletionPort: THandle;
   NumberOfBytesTransferred: DWORD; dwCompletionKey: pointer;
   lpOverlapped: POverlapped): BOOL; stdcall;
 
@@ -2349,7 +2365,12 @@ function CloseHandle(hObject: THandle): BOOL; stdcall;
 /// redefined here to avoid warning to include "Windows" in uses clause
 // - why did Delphi define this slow RTL function as inlined in SysUtils.pas?
 // - also supports aFileName longer than MAX_PATH
-function FileCreate(const aFileName: TFileName): THandle;
+// - on Windows, aRights parameter is just ignored, and on POSIX aRights = 0
+// will set the default octal 644 file access attributes (-rw-r-r--)
+// - warning: this function replaces ALL SysUtils.FileCreate() overloads,
+// putting aMode as the SECOND parameter, just like with FileOpen()
+function FileCreate(const aFileName: TFileName; aMode: integer = 0;
+  aRights: integer = 0): THandle;
 
 /// redefined here to call CreateFileW() on non-Unicode RTL and support
 // aFileName longer than MAX_PATH
@@ -2359,21 +2380,8 @@ function FileOpen(const aFileName: TFileName; aMode: integer): THandle;
 // - why did Delphi define this slow RTL function as inlined in SysUtils.pas?
 procedure FileClose(F: THandle); stdcall;
 
-/// redefined here to support FileName longer than MAX_PATH
-// - as our FileOpen/FileCreate redefinitions
-// - CheckAsDir = true is used by DirectoryExists()
-function FileExists(const FileName: TFileName; FollowLink: boolean = true;
-  CheckAsDir: boolean = false): boolean;
-
-/// redefined here to support FileName longer than MAX_PATH
-function DirectoryExists(const FileName: TFileName;
-  FollowLink: boolean = true): boolean; {$ifdef HASINLINE} inline; {$endif}
-
 /// redefined here to avoid warning to include "Windows" in uses clause
-// - why did Delphi define this slow RTL function as inlined in SysUtils.pas?
-function DeleteFile(const aFileName: TFileName): boolean;
-
-/// redefined here to avoid warning to include "Windows" in uses clause
+// and support FileName longer than MAX_PATH
 // - why did Delphi define this slow RTL function as inlined in SysUtils.pas?
 function RenameFile(const OldName, NewName: TFileName): boolean;
 
@@ -2382,7 +2390,20 @@ function RenameFile(const OldName, NewName: TFileName): boolean;
 function FileSetTime(const FileName: TFileName;
   const Created, Accessed, Written: Int64): boolean;
 
+/// defined here to call the GetFullPathNameW() Windows API
+// - this function may convert to extended-length path if needed
+// - instead of the "manual" file name expansion of the FPC RTL
+// - also for consistency with Delphi on Windows
+function ExpandFileName(const FileName: TFileName): TFileName;
+
 {$else}
+
+/// redefined from FPC RTL sysutils for consistency
+// - warning: this function replaces ALL SysUtils.FileCreate() overloads,
+// putting aMode as the SECOND parameter, just like with FileOpen()
+// - on POSIX, aRights = 0 will set default octal 644 attributes (-rw-r-r--)
+function FileCreate(const aFileName: TFileName; aMode: integer = 0;
+  aRights: integer = 0): THandle;
 
 /// returns how many files could be opened at once on this POSIX system
 // - hard=true is for the maximum allowed limit, false for the current process
@@ -2405,12 +2426,16 @@ type
   /// Low-level access to the ICU library installed on this system
   // - "International Components for Unicode" (ICU) is an open-source set of
   // libraries for Unicode support, internationalization and globalization
+  // - ICU seems more complete and standard than FPC RTL iconv/cwstrings
   // - used by Unicode_CompareString, Unicode_AnsiToWide, Unicode_WideToAnsi,
   // Unicode_InPlaceUpper and Unicode_InPlaceLower function from this unit
-  TIcuLibrary = packed object
-  protected
+  // - can maintain a thread-safe cache of up to 32 code page converters,
+  // via SharedUcnv() and SharedUcnvUnLock()
+  // - ICU is loaded only when needed outside of mORMot needs
+  TIcuLibrary = record
+  private
     icu, icudata, icui18n: pointer;
-    Loaded: boolean;
+    fLoaded: boolean;
     procedure DoLoad(const LibName: TFileName = ''; Version: string = '');
     procedure Done;
   public
@@ -2418,6 +2443,8 @@ type
     ucnv_open: function (converterName: PAnsiChar; var err: SizeInt): pointer; cdecl;
     /// finalize the ICU text converter for a given encoding
     ucnv_close: procedure (converter: pointer); cdecl;
+    /// reset the ICU text converter for a given encoding
+    ucnv_reset: procedure (converter: pointer); cdecl;
     /// customize the ICU text converter substitute char
     ucnv_setSubstChars: procedure (converter: pointer;
       subChars: PAnsiChar; len: byte; var err: SizeInt); cdecl;
@@ -2462,6 +2489,20 @@ type
     // - wrapper around ucnv_open/ucnv_setSubstChars/ucnv_setFallback calls
     // - caller should make ucnv_close() once done with the returned instance
     function ucnv(codepage: cardinal): pointer;
+    /// return a shared ICU text converter instance
+    // - the first call will initialize a shared instance for the whole process
+    // - if nil is returned, regular ucnv() should be called with a local instance
+    // - if <> nil is returned, SharedUcnvUnLock should eventually be called
+    function SharedUcnv(codepage: cardinal; out ndx: PtrInt): pointer;
+    /// release the SharedUcnv() instance
+    procedure SharedUcnvUnLock(ndx: PtrInt);
+  private
+    // implement a thread-safe cache of up to 32 shared ICU text converters
+    fSharedMainLock: PtrUInt; // = TLightLock
+    fSharedCP:   array[0 .. 31] of word;    // CPU cache-friendly lookup
+    fSharedLock: array[0 .. 31] of PtrUInt; // = TLightLock
+    fSharedCnv:  array[0 .. 31] of pointer; // = ICU converter instance
+    fSharedCount, fSharedLast: integer;
   end;
 
 var
@@ -2484,8 +2525,6 @@ const
 
   /// low-level libcurl library file name, depending on the running OS
   LIBSYSTEMD_PATH = 'libsystemd.so.0';
-
-  ENV_INVOCATION_ID: PAnsiChar = 'INVOCATION_ID';
 
 type
   /// low-level systemd parameter to sd.journal_sendv() function
@@ -2543,10 +2582,10 @@ var
   // - this unit will make sd.Done in its finalization section
   sd: TSystemD;
 
-/// a wrapper to the eventfd() syscall
-// - returns 0 if the kernel does not support eventfd2 (before 2.6.27) or
-// if the platform is not supported (only validated on Linux x86_64 by now)
-// - returns a file descriptor handle on success, which should be fpclose()
+/// a wrapper to the Linux eventfd() syscall
+// - returns 0 if the kernel does not support eventfd2 (before 2.6.27) or if the
+// platform is not validated yet (only Linux i386/x86_64/aarch64 by now)
+// - returns a file descriptor handle on success, to be eventually closed
 function LinuxEventFD(nonblocking, semaphore: boolean): integer;
 
 /// wrapper to read from a eventfd() file
@@ -2562,6 +2601,13 @@ procedure LinuxEventFDWrite(fd: integer; count: QWord);
 /// wrapper to wait for a eventfd() file read
 // - return true if was notified for reading, or false on timeout
 function LinuxEventFDWait(fd: integer; ms: integer): boolean; inline;
+
+/// a wrapper to the Linux getrandom() syscall
+// - returns false if the kernel is unsupported (before 3.17) or if the
+// platform is not validated yet (only Linux x86_64 by now)
+// - used e.g. by function FillSystemRandom() if available, since it makes a
+// single syscall, and /dev/urandom may be not available from some chroot
+function LinuxGetRandom(buf: pointer; len: PtrInt): boolean;
 
 {$endif OSLINUX}
 
@@ -2586,6 +2632,7 @@ type
   // defined in mormot.core.datetime which is really cross-platform, and has
   // consistent field order (FPC POSIX/Windows fields do not match!)
   TSystemTime = Windows.TSystemTime;
+  PSystemTime = Windows.PSystemTime;
 
   /// system-specific type returned by FileAge(): local 32-bit bitmask on Windows
   TFileAge = integer;
@@ -2605,20 +2652,19 @@ type
   /// handle for Slim Reader/Writer (SRW) locks in exclusive mode
   TOSLightMutex = pointer;
 
-/// returns the current UTC time as TSystemTime
-// - under Delphi/Windows, directly call the homonymous Win32 API
-// - redefined in mormot.core.os to avoid dependency to the Windows unit
-// - you should call directly FPC's version otherwise
-// - warning: do not call this function directly, but use TSynSystemTime as
-// defined in mormot.core.datetime which is really cross-platform
-procedure GetLocalTime(out result: TSystemTime); stdcall;
-
-/// a wrapper around FileTimeToLocalFileTime/FileTimeToSystemTime Windows APIs
-// - only used by mormot.lib.static for proper SQlite3 linking on Windows
+/// a wrapper calling SystemTimeToTzSpecificLocalTime Windows API
+// - note: FileTimeToLocalFileTime is not to be involved here
+// - only used by mormot.lib.static for proper SQLite3 linking on Windows
 procedure UnixTimeToLocalTime(I64: TUnixTime; out Local: TSystemTime);
 
 /// convert an Unix seconds time to a Win32 64-bit FILETIME value
 procedure UnixTimeToFileTime(I64: TUnixTime; out FT: TFileTime);
+
+/// convert an Unix milliseconds time to a Win32 64-bit FILETIME value
+procedure UnixMSTimeToFileTime(I64: TUnixMSTime; out FT: TFileTime);
+
+/// convert a TDateTime to a Win32 64-bit FILETIME value
+procedure DateTimeToFileTime(dt: TDateTime; out FT: TFileTime);
 
 /// convert a Win32 64-bit FILETIME value into an Unix seconds time
 function FileTimeToUnixTime(const FT: TFileTime): TUnixTime;
@@ -2727,7 +2773,15 @@ procedure DeleteCriticalSection(var cs : TRTLCriticalSection);
 
 {$ifdef OSPOSIX}
 
-{$ifdef OSDARWIN} // try to stabilize MacOS pthreads API calls
+type
+  /// a TThreadID-sized unsigned integer, to ease TThreadID alignment
+  TThreadIDInt = PtrUInt;
+
+{$ifndef OSLINUX} // try to stabilize MacOS/BSD pthreads API calls
+  {$define NODIRECTTHREADMANAGER}
+{$endif OSLINUX}
+
+{$ifdef NODIRECTTHREADMANAGER} // try to stabilize MacOS pthreads API calls
 function GetCurrentThreadId: TThreadID; inline;
 function TryEnterCriticalSection(var cs: TRTLCriticalSection): integer; inline;
 procedure EnterCriticalSection(var cs: TRTLCriticalSection); inline;
@@ -2751,7 +2805,7 @@ var LeaveCriticalSection: procedure(var cs: TRTLCriticalSection);
 // - defined in mormot.core.os for inlined FpcCurrentThreadManager call
 var TryEnterCriticalSection: function(var cs: TRTLCriticalSection): integer;
 
-{$endif OSDARWIN}
+{$endif NODIRECTTHREADMANAGER}
 
 {$endif OSPOSIX}
 
@@ -2771,25 +2825,54 @@ procedure InitializeCriticalSectionIfNeededAndEnter(var cs: TRTLCriticalSection)
 // - if the supplied mutex is void (i.e. all filled with 0), do nothing
 procedure DeleteCriticalSectionIfNeeded(var cs: TRTLCriticalSection);
 
-/// returns the current UTC time as TSystemTime
+/// returns the current UTC time as TSystemTime from the OS
+// - under Delphi/Windows, directly call the homonymous Win32 API
+// - redefined in mormot.core.os to avoid dependency to the Windows unit
 // - under Linux/POSIX, calls clock_gettime(CLOCK_REALTIME_COARSE) if available
-// - under Windows, directly call the homonymous Win32 API
-// - warning: do not call this function directly, but use TSynSystemTime as
-// defined in mormot.core.datetime which is really cross-platform
+// or fpgettimeofday() on Darwin/MacOS
+// - warning: do not call this function directly, but rather mormot.core.datetime
+// TSynSystemTime.FromNowUtc cross-platform method instead
 procedure GetSystemTime(out result: TSystemTime);
   {$ifdef OSWINDOWS} stdcall; {$endif}
 
+/// set the current system time as UTC timestamp
+// - we define two functions with diverse signature to circumvent the FPC RTL
+// TSystemTime field order inconsistency
+// - warning: do not call this function directly, but rather mormot.core.datetime
+// TSynSystemTime.ChangeOperatingSystemTime cross-platform method instead
+{$ifdef OSWINDOWS}
+function SetSystemTime(const utctime: TSystemTime): boolean;
+{$else}
+function SetSystemTime(utctime: TUnixTime): boolean;
+{$endif OSWINDOWS}
+
+/// returns the current Local time as TSystemTime from the OS
+// - under Delphi/Windows, directly call the homonymous Win32 API
+// - redefined in mormot.core.os to avoid dependency to the Windows unit
+// - under Linux/POSIX, calls clock_gettime(CLOCK_REALTIME_COARSE) if available
+// or fpgettimeofday() on Darwin/MacOS, with FPC RTL TZSeconds adjustment (so
+// will be fixed for the whole process lifetime and won't change at daylight)
+// - warning: do not call this function directly, but rather mormot.core.datetime
+// TSynSystemTime.FromNowLocal cross-platform method instead
+procedure GetLocalTime(out result: TSystemTime);
+  {$ifdef OSWINDOWS} stdcall; {$endif}
+
 /// compatibility function, wrapping Win32 API file truncate at current position
+// or FpFtruncate() on POSIX
 procedure SetEndOfFile(F: THandle);
   {$ifdef OSWINDOWS} stdcall; {$else} inline; {$endif}
 
-/// compatibility function, wrapping Win32 API file flush to disk
+/// compatibility function, wrapping Win32 API file flush to disk or FpFsync()
 procedure FlushFileBuffers(F: THandle);
   {$ifdef OSWINDOWS} stdcall; {$else} inline; {$endif}
 
-/// compatibility function, wrapping Win32 API last error code
+/// compatibility function, wrapping Win32 API last error code or fpgeterrno
 function GetLastError: integer;
   {$ifdef OSWINDOWS} stdcall; {$else} inline; {$endif}
+
+/// check if the last error reporting by the system is a file access violation
+// - call GetLastError is no ErrorCode is supplied
+function IsSharedViolation(ErrorCode: integer = 0): boolean;
 
 /// compatibility function, wrapping Win32 API last error code
 procedure SetLastError(error: integer);
@@ -2808,16 +2891,21 @@ function GetErrorText(error: integer): RawUtf8;
 // ENGLISH_LANGID flag first
 // - if ModuleName does support this Code, will try it as system error
 // - replace SysErrorMessagePerModule() and SysErrorMessage() from mORMot 1
-function WinErrorText(Code: cardinal; ModuleName: PChar): RawUtf8;
-
-/// return the best known ERROR_* system error message constant texts
-// - without the 'ERROR_' prefix
-// - as used by WinErrorText()
-function WinErrorConstant(Code: cardinal): PUtf8Char;
+function WinErrorText(Code: cardinal; ModuleName: PChar = nil): RawUtf8;
 
 /// raise an EOSException from the last system error using WinErrorText()
-procedure RaiseLastError(const Context: shortstring;
+// - if Code is kept to its default 0, GetLastError is called
+procedure RaiseLastError(const Context: ShortString;
+  RaisedException: ExceptClass = nil; Code: integer = 0);
+
+/// return a RaiseLastError-like error message using WinErrorText()
+// - if Code is kept to its default 0, GetLastError is called
+function WinLastError(const Context: ShortString; Code: integer = 0): string;
+
+/// call RaiseLastError(Code) if Code <> NO_ERROR = ERROR_SUCCESS
+procedure WinCheck(const Context: ShortString; Code: integer;
   RaisedException: ExceptClass = nil);
+  {$ifdef HASINLINE} inline; {$endif}
 
 /// raise an Exception from the last module error using WinErrorText()
 procedure RaiseLastModuleError(ModuleName: PChar; ModuleException: ExceptClass);
@@ -2832,8 +2920,8 @@ function GetDesktopWindow: PtrInt;
 /// returns the curent system code page for AnsiString types
 // - as used to initialize CurrentAnsiConvert in mormot.core.unicode unit
 // - calls GetACP() Win32 API value on Delphi, or DefaultSystemCodePage on FPC -
-// i.e. GetSystemCodePage() on POSIX (likely to be UTF-8) or the value used
-// by the LCL for its "string" types (also typically UTF-8 even on Windows)
+// i.e. GetSystemCodePage() on POSIX (likely to be CP_UTF8) or the value used
+// by the LCL for its "string" types (also typically be CP_UTF8 even on Windows)
 function Unicode_CodePage: integer;
   {$ifdef FPC} inline; {$endif}
 
@@ -2843,8 +2931,9 @@ function Unicode_CodePage: integer;
 // - will compute StrLen(PW1/PW2) if L1 or L2 < 0
 // - on POSIX, use the ICU library, or fallback to FPC RTL widestringmanager
 // with a temporary variable - you would need to include cwstring unit
-// - in practice, is seldom called, unless our proprietary WIN32CASE collation
-// is used in mormot.db.raw.sqlite3
+// - in practice, is hardly called, unless our proprietary WIN32CASE collation
+// is used in mormot.db.raw.sqlite3, or via Utf8CompareOS() or Utf8CompareIOS()
+// functions from mormot.core.unicode
 // - consider Utf8ILCompReference() from mormot.core.unicode.pas for an
 // operating-system-independent Unicode 10.0 comparison function
 function Unicode_CompareString(
@@ -2869,9 +2958,10 @@ function Unicode_WideToAnsi(
   W: PWideChar; A: PAnsiChar; LW, LA, CodePage: PtrInt): integer;
 
 /// conversion of some UTF-16 buffer into a temporary Ansi ShortString
-// - used when mormot.core.unicode is an overkill, e.g. TCrtSocket.SockSend()
-procedure Unicode_WideToShort(
-  W: PWideChar; LW, CodePage: PtrInt; var res: ShortString);
+// - used when mormot.core.unicode is an overkill, e.g. SDDL generation
+// - calls IsAnsiCompatibleW() first to quickly handle pure ASCII-7 content
+procedure Unicode_WideToShort(W: PWideChar; LW, CodePage: PtrInt;
+  var res: ShortString);
 
 /// compatibility function, wrapping Win32 API CharUpperBuffW()
 // - on POSIX, use the ICU library, or fallback to 'a'..'z' conversion only
@@ -2885,12 +2975,24 @@ function Unicode_InPlaceUpper(W: PWideChar; WLen: integer): integer;
 function Unicode_InPlaceLower(W: PWideChar; WLen: integer): integer;
   {$ifdef OSWINDOWS} stdcall; {$endif}
 
+/// local RTL wrapper function to avoid linking mormot.core.unicode.pas
+// - returns dest.buf as result, and dest.len as length in WideChar (not bytes)
+// - caller should always call Dest.Done to release any (unlikely) allocated memory
+function Unicode_FromUtf8(Text: PUtf8Char; TextLen: PtrInt;
+  var Dest: TSynTempBuffer): PWideChar;
+
+/// return a code page number into ICU-compatible charset name
+// - Unicode_CodePageName(932) returns e.g. 'SHIFT_JIS'
+// - Unicode_CodePageName(1251) returns 'MS1251' since 'CP####' is used
+// for IBM code pages by ICU - which do not match Windows code pages
+procedure Unicode_CodePageName(CodePage: cardinal; var Name: ShortString);
+
 /// returns a system-wide current monotonic timestamp as milliseconds
 // - will use the corresponding native API function under Vista+, or will be
 // redirected to a custom wrapper function for older Windows versions (XP)
 // to avoid the 32-bit overflow/wrapping issue of GetTickCount
 // - warning: FPC's SysUtils.GetTickCount64 or TThread.GetTickCount64 don't
-// handle properly 49 days wrapping under XP -> always use this safe version
+// handle properly 49.7 days wrapping under XP -> always use this safe version
 // - warning: FPC's SysUtils.GetTickCount64 may call fpgettimeofday() e.g.
 // on Darwin, which is not monotonic -> always use this more coherent version
 // - on POSIX, will call (via vDSO) the very fast CLOCK_MONOTONIC_COARSE if
@@ -2904,25 +3006,30 @@ var
 function GetTickCount64: Int64;
 {$endif OSWINDOWS}
 
+/// returns how many seconds the system was up, accouting for time when
+// the computer is asleep
+// - on Windows, computes GetTickCount64 div 1000
+// - on Linux/BSD, will use CLOCK_BOOTTIME/CLOCK_UPTIME clock
+// - on MacOS, will use mach_continuous_time() API
+function GetUptimeSec: cardinal;
+
 /// returns the current UTC time
-// - will convert from clock_gettime(CLOCK_REALTIME_COARSE) if available
+// - wrap UnixMSTimeUtcFast, so use e.g. clock_gettime(CLOCK_REALTIME_COARSE)
+// under Linux, or GetSystemTimeAsFileTime under Windows
 function NowUtc: TDateTime;
 
 /// returns the current UTC date/time as a second-based c-encoded time
 // - i.e. current number of seconds elapsed since Unix epoch 1/1/1970
-// - faster than NowUtc or GetTickCount64, on Windows or Unix platforms
-// (will use e.g. fast clock_gettime(CLOCK_REALTIME_COARSE) under Linux,
-// or GetSystemTimeAsFileTime under Windows)
+// - use e.g. fast clock_gettime(CLOCK_REALTIME_COARSE) under Linux,
+// or GetSystemTimeAsFileTime under Windows
 // - returns a 64-bit unsigned value, so is "Year2038bug" free
 function UnixTimeUtc: TUnixTime;
 
 /// returns the current UTC date/time as a millisecond-based c-encoded time
 // - i.e. current number of milliseconds elapsed since Unix epoch 1/1/1970
-// - faster and more accurate than NowUtc or GetTickCount64, on Windows or Unix
 // - will use e.g. fast clock_gettime(CLOCK_REALTIME_COARSE) under Linux,
-// or GetSystemTimeAsFileTime/GetSystemTimePreciseAsFileTime under Windows - the
-// later being more accurate, but slightly slower than the former, so you may
-// consider using UnixMSTimeUtcFast on Windows if its 16ms accuracy is enough
+// or GetSystemTimePreciseAsFileTime under Windows 8 and later
+// - on Windows, is slightly more accurate, but slower than UnixMSTimeUtcFast
 function UnixMSTimeUtc: TUnixMSTime;
 
 /// returns the current UTC date/time as a millisecond-based c-encoded time
@@ -2940,7 +3047,9 @@ const
   UnixFileTimeDelta = 116444736000000000;
 
 /// the number of minutes bias in respect to UTC/GMT date/time
-// - as retrieved via -GetLocalTimeOffset() at startup
+// - as retrieved via -GetLocalTimeOffset() at startup, so may not be accurate
+// after a time shift during the process execution - but any long-running
+// process (like a service) should use UTC timestamps only
 var
   TimeZoneLocalBias: integer;
 
@@ -2975,10 +3084,10 @@ type
     ETimestamp: TUnixTime;
     /// the logging level corresponding to this exception
     // - may be either sllException or sllExceptionOS
-    ELevel: TSynLogInfo;
+    ELevel: TSynLogLevel;
     /// retrieve some extended information about a given Exception
     // - on Windows, recognize most DotNet CLR Exception Names
-    function AdditionalInfo(out ExceptionNames: TPUtf8CharDynArray): cardinal;
+    function AdditionalInfo(out ExceptionNames: TPShortStringDynArray): cardinal;
   end;
 
   /// the global function signature expected by RawExceptionIntercept()
@@ -2986,7 +3095,7 @@ type
   TOnRawLogException = procedure(const Ctxt: TSynLogExceptionContext);
 
 /// setup Exception interception for the whole process
-// - call RawExceptionIntercept(nil) to disable custom exception handling
+// - the first to call this procedure will be elected until the process ending
 procedure RawExceptionIntercept(const Handler: TOnRawLogException);
 
 {$endif NOEXCEPTIONINTERCEPT}
@@ -3000,6 +3109,22 @@ procedure QueryPerformanceMicroSeconds(out Value: Int64);
 /// cross-platform check if the supplied THandle is not invalid
 function ValidHandle(Handle: THandle): boolean;
   {$ifdef HASINLINE}inline;{$endif}
+
+/// faster cross-platform alternative to sysutils homonymous function
+// - on Windows, will support FileName longer than MAX_PATH
+// - FPC on Windows is not consistent with Delphi and the expected low-level API
+function SetCurrentDir(const NewDir: TFileName): boolean;
+
+/// faster cross-platform alternative to sysutils homonymous function
+// - on Windows, will support FileName longer than MAX_PATH
+// - CheckAsDir = true is used by DirectoryExists()
+function FileExists(const FileName: TFileName; FollowLink: boolean = true;
+  CheckAsDir: boolean = false): boolean;
+
+/// faster cross-platform alternative to sysutils homonymous function
+// - on Windows, will support FileName longer than MAX_PATH
+function DirectoryExists(const FileName: TFileName;
+  FollowLink: boolean = true): boolean;
 
 /// check for unsafe '..' '/xxx' 'c:xxx' '~/xxx' or '\\' patterns in a path
 function SafePathName(const Path: TFileName): boolean;
@@ -3017,6 +3142,10 @@ function SafeFileNameU(const FileName: RawUtf8): boolean;
 // - i.e. normalize file name to use '\' on Windows, or '/' on POSIX
 // - see MakePath() from mormot.core.text.pas to concatenate path items
 function NormalizeFileName(const FileName: TFileName): TFileName;
+
+/// ensure all \ / path delimiters are normalized into the current OS expectation
+// - this function works in-place on an UTF-8 string instance
+procedure NormalizeFileNameU(var FileName: RawUtf8);
 
 /// add some " before and after if FileName has some space within
 // - could be used when generating command line parameters
@@ -3041,25 +3170,34 @@ function FileAgeToDateTime(const FileName: TFileName): TDateTime;
 // - returns 0 if file (or folder if AllowDir is true) doesn't exist
 // - returns the system API file age (not converted local), encoded as TUnixTime
 // - under Windows, will use GetFileAttributesEx and FileTimeToUnixTime
-// - under POSIX, will call directly the stat API
-// - slightly faster than FileAgeToDateTime() since don't convert to local time
+// - under POSIX, will call directly the stat syscall
+// - faster than FileAgeToDateTime() since don't convert to local time
 function FileAgeToUnixTimeUtc(const FileName: TFileName;
   AllowDir: boolean = false): TUnixTime;
 
 /// get the date and time of one file into a Windows File 32-bit TimeStamp
 // - this cross-system function is used e.g. by mormot.core.zip which expects
 // Windows TimeStamps in its headers
-function FileAgeToWindowsTime(const FileName: TFileName): integer;
+function FileAgeToWindowsTime(F: THandle): integer;
 
 /// copy the date of one file to another
 // - FileSetDate(THandle, Age) is not implemented on POSIX: filename is needed
-function FileSetDateFrom(const Dest: TFileName; SourceHandle: THandle): boolean;
+function FileSetDateFrom(const Dest: TFileName; SourceHandle: THandle): boolean; overload;
+
+/// copy the date of one file to another
+// - FileSetDate(THandle, Age) is not implemented on POSIX: filename is needed
+function FileSetDateFrom(const Dest, Source: TFileName): boolean; overload;
 
 /// copy the date of one file from a Windows File 32-bit TimeStamp
 // - this cross-system function is used e.g. by mormot.core.zip which expects
 // Windows TimeStamps in its headers
 // - FileSetDate(THandle, Age) is not implemented on POSIX: filename is needed
 function FileSetDateFromWindowsTime(const Dest: TFileName; WinTime: integer): boolean;
+
+/// set the file date/time from a supplied UTC TUnixTime value
+// - avoid any temporary conversion to local time
+// - Time may come from FileAgeToUnixTimeUtc()
+function FileSetDateFromUnixUtc(const Dest: TFileName; Time: TUnixTime): boolean;
 
 /// convert a Windows API File 32-bit TimeStamp into a regular TDateTime
 // - returns 0 if the conversion failed
@@ -3074,6 +3212,16 @@ function WindowsFileTime64ToUnixMSTime(WinTime: QWord): TUnixMSTime;
 /// low-level conversion of a TDateTime into a Windows File 32-bit TimeStamp
 // - returns 0 if the conversion failed
 function DateTimeToWindowsFileTime(DateTime: TDateTime): integer;
+
+/// redefined here to avoid warning to include "Windows" in uses clause
+// and support FileName longer than MAX_PATH
+// - why did Delphi define this slow RTL function as inlined in SysUtils.pas?
+function DeleteFile(const aFileName: TFileName): boolean;
+
+/// check if a file (or folder) exists and can be written
+// - on POSIX, call fpaccess() and check for the W_OK attribute
+// - on Windows, check faReadOnly and supports aFileName longer than MAX_PATH
+function FileIsWritable(const FileName: TFileName): boolean;
 
 /// reduce the visibility of a given file, and set its read/write attributes
 // - on POSIX, change attributes for the the owner, and reset group/world flags
@@ -3090,57 +3238,78 @@ procedure FileSetHidden(const FileName: TFileName; ReadOnly: boolean);
 procedure FileSetSticky(const FileName: TFileName);
 
 /// get a file size, from its name
-// - returns 0 if file doesn't exist
+// - returns 0 if file doesn't exist, or is a directory
 // - under Windows, will use GetFileAttributesEx fast API
 // - on POSIX, will use efficient fpStat() single call but not FileOpen/FileClose
 function FileSize(const FileName: TFileName): Int64; overload;
 
 /// get a file size, from its handle
 // - returns 0 if file doesn't exist
-// - on POSIX, will use efficient FpFStat() single call and not file seek
+// - under Windows, will use the GetFileSizeEx fast API
+// - on POSIX, will use efficient FpFStat() single call and no file seek
 function FileSize(F: THandle): Int64; overload;
 
 /// FileSeek() overloaded function, working with huge files
 // - Delphi FileSeek() is buggy -> use this function to safely access files
 // bigger than 2 GB (thanks to sanyin for the report)
 function FileSeek64(Handle: THandle; const Offset: Int64;
-  Origin: cardinal): Int64;
+  Origin: cardinal = soFromBeginning): Int64;
 
 /// get a file size and its UTC Unix timestamp in milliseconds resolution
 // - return false if FileName was not found
 // - return true and set FileSize and FileTimestampUtc if found - note that
 // no local time conversion is done, so timestamp won't match FileAge()
+// - if FileName is a folder/directory, then returned FileSize equals -1
 // - use a single Operating System call, so is faster than FileSize + FileAge
 function FileInfoByName(const FileName: TFileName; out FileSize: Int64;
-  out FileTimestampUtc: TUnixMSTime): boolean;
+  out FileTimestampUtc: TUnixMSTime; FileAttr: PInteger = nil): boolean; overload;
 
-/// get low-level file information, in a cross-platform way
+/// get low-level file information with timings, in a cross-platform way
 // - returns true on success
+// - you can specify nil for any returned value if you don't need
 // - here file write/creation time are given as TUnixMSTime values, for better
 // cross-platform process - note that FileCreateDateTime may not be supported
 // by most Linux file systems, so the oldest timestamp available is returned
 // as failover on such systems (probably the latest file metadata writing)
-function FileInfoByHandle(aFileHandle: THandle; out FileId, FileSize: Int64;
-  out LastWriteAccess, FileCreateDateTime: TUnixMSTime): boolean;
+function FileInfoByHandle(aFileHandle: THandle; FileId, FileSize: PInt64;
+  LastWriteAccess, FileCreateDateTime: PUnixMSTime): boolean;
+
+/// get low-level file information with timings, in a cross-platform way
+// - is a wrapper around FileInfoByHandle() function - rarely called
+// - please prefer FileInfoByName() overload if FileCreateDateTime is not needed
+// - returns true on success
+function FileInfoByName(const FileName: TFileName; FileId, FileSize: PInt64;
+  LastWriteAccess, FileCreateDateTime: PUnixMSTime): boolean; overload;
 
 /// check if a given file is likely to be an executable
 // - will check the DOS/WinPE executable header in its first bytes on Windows
 // - will call fpStat() on POSIX to check the File and Executable bits
 function FileIsExecutable(const FileName: TFileName): boolean;
 
+/// check if a given file is a symbolic link
+function FileIsSymLink(const FileName: TFileName): boolean;
+
 /// compute the size of a directory's files, optionally with nested folders
 // - basic implementation using FindFirst/FindNext so won't be the fastest
 // available, nor fully accurate when files are actually (hard) links
-function DirectorySize(const FileName: TFileName; Recursive: boolean = false): Int64;
+function DirectorySize(const FileName: TFileName; Recursive: boolean = false;
+  const Mask: TFileName = FILES_ALL): Int64;
 
-/// copy one file to another, similar to the Windows API
+/// copy one file to another, using the Windows API if possible
+// - on POSIX, will call StreamCopyUntilEnd() between two TFileStreamEx
+// - will delete the Target file on any copying issue (e.g. process abort)
 function CopyFile(const Source, Target: TFileName;
   FailIfExists: boolean): boolean;
 
+/// create a symbolic link named SymLink pointing to the Target file
+// - won't work with directories, a non existing target file, or on Windows XP
+// - need specific (admin) priviledges on Windows, or developper mode enabled
+function FileSymLink(const SymLink, Target: TFileName): boolean;
+
 /// prompt the user for an error message to notify an unexpected issue
-// - in practice, text encoding is expected to be plain 7-bit ASCII
-// - on Windows, will use Writeln() on a (newly allocated if needed) console
-// - on POSIX, will use Writeln(StdErr)
+// - in practice, text encoding is better to be plain 7-bit ASCII
+// - on Windows, will allocate a console if needed and write to STD_ERROR_HANDLE
+// - on POSIX, will send the output to StdErrorHandle (=2)
 procedure DisplayFatalError(const title, msg: RawUtf8);
 
 /// prompt the user for an error message to notify an unexpected issue
@@ -3152,7 +3321,6 @@ procedure DisplayError(const fmt: string; const args: array of const);
 // - the returned timestamp is in local time, not UTC
 // - this method would use the F.Timestamp field available since Delphi XE2
 function SearchRecToDateTime(const F: TSearchRec): TDateTime;
-  {$ifdef HASINLINE}inline;{$endif}
 
 /// get a file UTC date and time, from a FindFirst/FindNext search
 // - SearchRecToDateTime(), SearchRecToWindowsTime() and F.TimeStamp, which have
@@ -3172,57 +3340,73 @@ function SearchRecToUnixTimeUtc(const F: TSearchRec): TUnixTime;
 function SearchRecToWindowsTime(const F: TSearchRec): integer;
 
 /// check if a FindFirst/FindNext found instance is actually a file
-function SearchRecValidFile(const F: TSearchRec): boolean;
-  {$ifdef HASINLINE}inline;{$endif}
+// - on Windows, hidden files are ignored by default unless IncludeHidden is true
+function SearchRecValidFile(const F: TSearchRec; IncludeHidden: boolean = false): boolean;
 
 /// check if a FindFirst/FindNext found instance is actually a folder
-function SearchRecValidFolder(const F: TSearchRec): boolean;
-  {$ifdef HASINLINE}inline;{$endif}
+function SearchRecValidFolder(const F: TSearchRec; IncludeHidden: boolean = false): boolean;
+
+/// just a wrapper around FindFirst() with proper faHidden support
+function FindFirstDirectory(const Path: TFileName; IncludeHidden: boolean;
+    out F: TSearchRec): integer;
 
 type
-  /// FPC TFileStream miss a Create(aHandle) constructor like Delphi
-  TFileStreamFromHandle = class(THandleStream)
+  /// a TFileStream replacement which supports FileName longer than MAX_PATH,
+  // and a proper Create(aHandle) constructor in FPC
+  TFileStreamEx = class(THandleStream)
   protected
+    fFileName : TFileName;
     fDontReleaseHandle: boolean;
+    function GetSize: Int64; override;
   public
+    /// open or create the file from its name, depending on the supplied Mode
+    // - Mode is typically fmCreate / fmOpenReadShared
+    constructor Create(const aFileName: TFileName; Mode: cardinal);
+    /// can use this class from a low-level file OS handle
+    constructor CreateFromHandle(aHandle: THandle; const aFileName: TFileName;
+      aDontReleaseHandle: boolean = false);
+    /// open for reading via FileOpenSequentialRead()
+    constructor CreateRead(const aFileName: TFileName);
+    /// open for writing or create a non-existing file from its name
+    // - use fmCreate if aFileName does not exists, or fmOpenWrite otherwise
+    constructor CreateWrite(const aFileName: TFileName);
     /// explictely close the handle if needed
     destructor Destroy; override;
     /// Destroy calls FileClose(Handle) unless this property is true
     property DontReleaseHandle: boolean
       read fDontReleaseHandle write fDontReleaseHandle;
-  end;
-
-  /// a TFileStream replacement which supports FileName longer than MAX_PATH
-  TFileStreamEx = class(TFileStreamFromHandle)
-  Private
-    fFileName : TFileName;
-  public
-    /// open or create the file from its name, depending on the supplied Mode
-    // - Mode is typically fmCreate / fmOpenReadDenyNone
-    constructor Create(const aFileName: TFileName; Mode: cardinal);
-    /// can use this class from a low-level file OS handle
-    constructor CreateFromHandle(const aFileName: TFileName; aHandle: THandle);
     /// the file name assigned to this class constructor
     property FileName : TFileName
       read fFilename;
   end;
 
   /// file stream which ignores I/O write errors
-  // - in case disk space is exhausted, TFileStreamWithoutWriteError.WriteBuffer
+  // - in case disk space is exhausted, TFileStreamNoWriteError.WriteBuffer
   // won't throw any exception, so application will continue to work
   // - used e.g. by TSynLog to let the application continue with no exception,
   // even in case of a disk/partition full of logs
-  TFileStreamWithoutWriteError = class(TFileStreamEx)
+  TFileStreamNoWriteError = class(TFileStreamEx)
   public
-    /// this overriden function returns Count, as if it was always sucessfull
+    /// open for writing, potentially with alternate unlocked file names
+    // - use fmCreate if aFileName does not exists, or fmOpenWrite otherwise
+    // - on error, will try up to aAliases alternate '<filename>-locked<#>.<ext>'
+    constructor CreateAndRenameIfLocked(
+      var aFileName: TFileName; aAliases: integer = 3);
+    /// this overriden function returns Count, as if it was always successful
     function Write(const Buffer; Count: Longint): Longint; override;
   end;
 
 /// a wrapper around FileRead() to ensure a whole memory buffer is retrieved
-// - on Windows, will read by 16MB chunks to avoid ERROR_NO_SYSTEM_RESOURCES
+// - expects Size to be up to 2GB (seems like a big enough memory buffer)
+// - on Windows, will read by 16MB chunks max to avoid ERROR_NO_SYSTEM_RESOURCES
 // - will call FileRead() and retry up to Size bytes are filled in the buffer
 // - return true if all memory buffer has been read, or false on error
 function FileReadAll(F: THandle; Buffer: pointer; Size: PtrInt): boolean;
+
+/// a wrapper around FileWrite() to ensure a whole memory buffer is retrieved
+// - will call FileWrite() and retry up to Size bytes are written from the buffer
+// - return true if all memory buffer has been written, or false on error
+function FileWriteAll(F: THandle; Buffer: pointer; Size: PtrInt): boolean;
 
 /// overloaded function optimized for one pass reading of a (huge) file
 // - will use e.g. the FILE_FLAG_SEQUENTIAL_SCAN flag under Windows, as stated
@@ -3233,15 +3417,17 @@ function FileReadAll(F: THandle; Buffer: pointer; Size: PtrInt): boolean;
 function FileOpenSequentialRead(const FileName: TFileName): integer;
 
 /// returns a TFileStreamFromHandle optimized for one pass file reading
-// - will use FileOpenSequentialRead(), i.e. FILE_FLAG_SEQUENTIAL_SCAN on Windows
+// - wrap TFileStreamEx.CreateRead() to use FileOpenSequentialRead(),
+// i.e. FILE_FLAG_SEQUENTIAL_SCAN on Windows
 // - on POSIX, calls fpOpen(pointer(FileName),O_RDONLY) with no fpFlock() call
 // - is used e.g. by TRestOrmServerFullMemory and TAlgoCompress
+// - returns nil if FileName does not exist, without any exception
 function FileStreamSequentialRead(const FileName: TFileName): THandleStream;
 
-/// try to open the file from its name, as fmOpenReadDenyNone
+/// try to open the file from its name, as fmOpenReadShared
 // - on Windows, calls CreateFileW(aFileName,GENERIC_READ) then CloseHandle
 // - on POSIX, calls fpOpen(pointer(aFileName),O_RDONLY) with no fpFlock() call
-function IsFileReadable(const aFileName: TFileName): boolean;
+function FileIsReadable(const aFileName: TFileName): boolean;
 
 /// copy all Source content into Dest from current position
 // - on Delphi, Dest.CopyFrom(Source, 0) uses GetSize and ReadBuffer which is
@@ -3249,14 +3435,16 @@ function IsFileReadable(const aFileName: TFileName): boolean;
 // - returns the number of bytes copied from Source to Dest
 function StreamCopyUntilEnd(Source, Dest: TStream): Int64;
 
-/// read a File content into a string
+/// a wrapper around TStream.Read() to ensure a whole memory buffer is retrieved
+// - same as TStream.ReadBuffer but returning false with no exception on failure
+// - on Windows, will read by 16MB chunks max to avoid ERROR_NO_SYSTEM_RESOURCES
+function StreamReadAll(S: TStream; Buffer: pointer; Size: PtrInt): boolean;
+
+/// read a File content into a string, using FileSize() to guess its length
 // - content can be binary or text
 // - returns '' if file was not found or any read error occurred
-// - wil use GetFileSize() API by default, unless HasNoSize is defined,
-// and read will be done using a buffer (required e.g. for POSIX char files)
 // - uses RawByteString for byte storage, whatever the codepage is
-function StringFromFile(const FileName: TFileName;
-  HasNoSize: boolean = false): RawByteString;
+function StringFromFile(const FileName: TFileName): RawByteString;
 
 /// read a File content from a list of potential files
 // - returns '' if no file was found, or the first matching FileName[] content
@@ -3275,16 +3463,27 @@ function StringFromFolders(const Folders: array of TFileName;
 
 /// create a File from a string content
 // - uses RawByteString for byte storage, whatever the codepage is
-// - can optionaly force writing to disk, and/or set the file local timestamp
+// - can optionaly force flush all write buffers to disk
 function FileFromString(const Content: RawByteString; const FileName: TFileName;
-  FlushOnDisk: boolean = false; FileDate: TDateTime = 0): boolean;
+  FlushOnDisk: boolean = false): boolean;
 
 /// create a File from a memory buffer content
-function FileFromBuffer(Buf: pointer; Len: PtrInt; const FileName: TFileName): boolean;
+function FileFromBuffer(Buf: pointer; Len: PtrInt; const FileName: TFileName;
+  FlushOnDisk: boolean = false): boolean;
+
+/// fill a memory buffer from a file content
+function BufferFromFile(const FileName: TFileName; Buf: pointer; Len: PtrInt): boolean;
+
+/// create or append a string content to a File
+// - can optionally rotate the file to a FileName+'.bak'  over a specific size
+function AppendToFile(const Content: RawUtf8; const FileName: TFileName;
+  BackupOverMaxSize: Int64 = 0): boolean;
 
 /// compute an unique temporary file name
-// - following 'exename_123.tmp' pattern, in the system temporary folder
-function TemporaryFileName: TFileName;
+// - return by default GetSystemPath(spTemp) + 'exename_xxxxxxxx.tmp'
+// - return the first non-existing file name: caller would ensure it is writable
+function TemporaryFileName(FolderName: TFileName = '';
+  ExeName: RawUtf8 = ''): TFileName;
 
 /// extract a path from a file name like ExtractFilePath function
 // - but cross-platform, i.e. detect both '\' and '/' on all platforms
@@ -3293,6 +3492,31 @@ function ExtractPath(const FileName: TFileName): TFileName;
 /// extract a path from a RawUtf8 file name like ExtractFilePath function
 // - but cross-platform, i.e. detect both '\' and '/' on all platforms
 function ExtractPathU(const FileName: RawUtf8): RawUtf8;
+
+/// extract a name from a file name like ExtractFileName function
+// - but cross-platform, i.e. detect both '\' and '/' on all platforms
+function ExtractName(const FileName: TFileName): TFileName;
+
+/// extract a name from a file name like ExtractFileName function
+// - but cross-platform, i.e. detect both '\' and '/' on all platforms
+function ExtractNameU(const FileName: RawUtf8): RawUtf8;
+
+/// extract an extension from a file name like ExtractFileExt function
+// - but cross-platform, i.e. detect both '\' and '/' on all platforms
+function ExtractExt(const FileName: TFileName; WithoutDot: boolean = false): TFileName;
+
+// defined here for proper ExtractExtP() inlining
+function GetLastDelimU(const FileName: RawUtf8; OtherDelim: AnsiChar = #0): PtrInt;
+
+/// extract an extension from a file name like ExtractFileExt function
+// - but cross-platform, i.e. detect both '\' and '/' on all platforms
+function ExtractExtU(const FileName: RawUtf8; WithoutDot: boolean = false): RawUtf8;
+
+/// extract an extension from a file name like ExtractFileExt function
+// - but cross-platform, i.e. detect both '\' and '/' on all platforms
+// - don't allocate anything, but return a pointer to the extension within FileName
+function ExtractExtP(const FileName: RawUtf8; WithoutDot: boolean = false): PUtf8Char;
+  {$ifdef HASINLINE} inline; {$endif}
 
 /// compute the file name, including its path if supplied, but without its extension
 // - e.g. GetFileNameWithoutExt('/var/toto.ext') = '/var/toto'
@@ -3308,8 +3532,8 @@ function GetFileNameWithoutExtOrPath(const FileName: TFileName): RawUtf8;
 
 /// compare two "array of TFileName" elements, grouped by file extension
 // - i.e. with no case sensitivity on Windows
-// - the expected string type is the generic RTL string, i.e. TFileName
-// - calls internally GetFileNameWithoutExt() and AnsiCompareFileName()
+// - the expected string type is the RTL string, i.e. TFileName
+// - like calling GetFileNameWithoutExt() and AnsiCompareFileName()
 function SortDynArrayFileName(const A, B): integer;
 
 {$ifdef ISDELPHI20062007}
@@ -3319,19 +3543,22 @@ function AnsiCompareFileName(const S1, S2 : TFileName): integer;
 
 /// creates a directory if not already existing
 // - returns the full expanded directory name, including trailing path delimiter
-// - returns '' on error, unless RaiseExceptionOnCreationFailure is true
+// - returns '' on error, unless RaiseExceptionOnCreationFailure is set
+// - you can set NoExpand=true if you now that Directory has already a full path
 function EnsureDirectoryExists(const Directory: TFileName;
-  RaiseExceptionOnCreationFailure: boolean = false): TFileName;
+  RaiseExceptionOnCreationFailure: ExceptionClass = nil;
+  NoExpand: boolean = false): TFileName; overload;
 
 /// just a wrapper around EnsureDirectoryExists(NormalizeFileName(Directory))
 function NormalizeDirectoryExists(const Directory: TFileName;
-  RaiseExceptionOnCreationFailure: boolean = false): TFileName;
+  RaiseExceptionOnCreationFailure: ExceptionClass = nil): TFileName; overload;
 
 /// delete the content of a specified directory
 // - only one level of file is deleted within the folder: no recursive deletion
 // is processed by this function (for safety)
 // - if DeleteOnlyFilesNotDirectory is TRUE, it won't remove the folder itself,
 // but just the files found in it
+// - warning: DeletedCount^ should be a 32-bit "integer" variable, not a PtrInt
 function DirectoryDelete(const Directory: TFileName;
   const Mask: TFileName = FILES_ALL; DeleteOnlyFilesNotDirectory: boolean = false;
   DeletedCount: PInteger = nil): boolean;
@@ -3342,13 +3569,32 @@ function DirectoryDelete(const Directory: TFileName;
 // - only one level of file is deleted within the folder: no recursive deletion
 // is processed by this function, unless Recursive is TRUE
 // - if Recursive=true, caller should set TotalSize^=0 to have an accurate value
+// - return false if any deprecated DeleteFile() did fail during the process
 function DirectoryDeleteOlderFiles(const Directory: TFileName;
   TimePeriod: TDateTime; const Mask: TFileName = FILES_ALL;
   Recursive: boolean = false; TotalSize: PInt64 = nil): boolean;
 
+type
+  /// defines how IsDirectoryWritable() verifies a folder
+  // - on Win32 Vista+, idwExcludeWinUac will check IsUacVirtualFolder()
+  // - on Windows, idwExcludeWinSys will check IsSystemFolder()
+  // - on Windows, idwTryWinExeFile will try to generate a 'xxxxx.exe' file
+  // - idwAttributesOnly won't create any file but just check folder faReadOnly
+  // which may be enough with a POSIX's fpaccess() call
+  // - idwWriteSomeContent will also try to write some bytes into the file
+  TIsDirectoryWritable = set of (
+    idwExcludeWinUac,
+    idwExcludeWinSys,
+    idwTryWinExeFile,
+    idwAttributesOnly,
+    idwWriteSomeContent);
+
 /// check if the directory is writable for the current user
-// - try to write a small file with a random name
-function IsDirectoryWritable(const Directory: TFileName): boolean;
+// - try to write and delete a void file with a random name in this folder
+// - use idwAttributesOnly by default on POSIX, since fpaccess() is accurate
+// unless the current user was changed via setuid / DropPriviledges()
+function IsDirectoryWritable(const Directory: TFileName;
+  Flags: TIsDirectoryWritable = [ {$ifdef OSPOSIX} idwAttributesOnly {$endif} ]): boolean;
 
 type
   /// cross-platform memory mapping of a file content
@@ -3373,7 +3619,8 @@ type
     // - if aCustomSize and aCustomOffset are specified, the corresponding
     // map view if created (by default, will map whole file)
     function Map(aFile: THandle; aCustomSize: PtrUInt = 0;
-      aCustomOffset: Int64 = 0; aFileOwned: boolean = false): boolean; overload;
+      aCustomOffset: Int64 = 0; aFileOwned: boolean = false;
+      aFileSize: Int64 = -1): boolean; overload;
     /// map the file specified by its name
     // - file will be closed when UnMap will be called
     function Map(const aFileName: TFileName): boolean; overload;
@@ -3489,8 +3736,8 @@ type
       out Data: TSystemUseData; var PrevKernel, PrevUser: Int64): boolean;
   end;
 
-  /// hold low-level information about current memory usage
-  // - as filled by GetMemoryInfo()
+  /// hold low-level GetMemoryInfo() result about current memory usage
+  // - most fields are in bytes, except percent which is the % of used memory
   TMemoryInfo = record
     memtotal, memfree, filetotal, filefree,
     vmtotal, vmfree, allocreserved, allocused: QWord;
@@ -3514,13 +3761,9 @@ type
   TDiskPartitions = array of TDiskPartition;
 
 
-{$ifdef CPUARM}
-var
-  /// internal wrapper address for ReserveExecutableMemory()
-  // - set to @TInterfacedObjectFake.ArmFakeStub by mormot.core.interfaces.pas
-  ArmFakeStubAddr: pointer;
-{$endif CPUARM}
-
+const
+  // 16*4KB (4KB = memory granularity) for ReserveExecutableMemory()
+  STUB_SIZE = 65536;
 
 /// cross-platform reserve some executable memory
 // - using PAGE_EXECUTE_READWRITE flags on Windows, and PROT_READ or PROT_WRITE
@@ -3528,19 +3771,26 @@ var
 // - this function maintain an internal list of 64KB memory pages for efficiency
 // - memory blocks can not be released (don't try to use fremeem on them) and
 // will be returned to the system at process finalization
-function ReserveExecutableMemory(size: cardinal): pointer;
+// - caller needs to eventually call ReserveExecutableMemoryPageAccess()
+// - raise EOSException if the memory allocation failed at OS level
+function ReserveExecutableMemory(size: cardinal
+  {$ifdef CPUARM} ; ArmFakeStubAddr: pointer {$endif}): pointer;
 
 /// to be called after ReserveExecutableMemory() when you want to actually write
 // the memory blocks
 // - affect the mapping flags of the first memory page (4KB) of the Reserved
 // buffer, so its size should be < 4KB
-// - do nothing on Windows and Linux, but may be needed on OpenBSD
+// - do nothing on Windows and Linux, but may be needed on OpenBSD / OSX
 procedure ReserveExecutableMemoryPageAccess(Reserved: pointer; Exec: boolean);
 
 /// check if the supplied pointer is actually pointing to some memory page
 // - will call slow but safe VirtualQuery API on Windows, or try a fpaccess()
 // syscall on POSIX systems (validated on Linux only)
 function SeemsRealPointer(p: pointer): boolean;
+
+/// check if the supplied pointer is likely to be a valid TObject
+// - will call SeemsRealPointer(p) then check its main VMT entries
+function SeemsRealObject(p: pointer): boolean;
 
 /// fill a buffer with a copy of some low-level system memory
 // - used e.g. by GetRawSmbios on XP or Linux/POSIX
@@ -3552,42 +3802,75 @@ function ReadSystemMemory(address, size: PtrUInt): RawByteString;
 /// return the PIDs of all running processes
 // - under Windows, is a wrapper around EnumProcesses() PsAPI call
 // - on Linux, will enumerate /proc/* pseudo-files
-function EnumAllProcesses(out Count: cardinal): TCardinalDynArray;
+function EnumAllProcesses: TCardinalDynArray;
 
-/// return the process name of a given PID
+/// return the process name of a given process  ID
 // - under Windows, is a wrapper around
 // QueryFullProcessImageNameW/GetModuleFileNameEx PsAPI call
 // - on Linux, will query /proc/[pid]/exe or /proc/[pid]/cmdline pseudo-file
 function EnumProcessName(PID: cardinal): RawUtf8;
 
-/// return the system-wide time usage information
-// - under Windows, is a wrapper around GetSystemTimes() kernel API call
-// - return false on POSIX system - call RetrieveLoadAvg() instead
-function RetrieveSystemTimes(out IdleTime, KernelTime, UserTime: Int64): boolean;
+/// return the process ID of the parent of a given PID
+// - by default (PID = 0), will search for the parent of the current process
+// - returns 0 if the PID was not found
+function GetParentProcess(PID: cardinal = 0): cardinal;
 
-/// return the system-wide time usage information
-// - on LINUX, retrieve /proc/loadavg or on OSX/BSD call libc getloadavg()
-// - return '' on Windows - call RetrieveSystemTimes() instead
-function RetrieveLoadAvg: RawUtf8;
+/// check if this process is currently running into the debugger
+// - redirect to the homonymous WinAPI function on Windows, or check if the
+// /proc/self/status "TracerPid:" value is non zero on Linux, or search if
+// "lazarus" is part of the parent process name for BSD
+{$ifdef OSWINDOWS}
+function IsDebuggerPresent: BOOL; stdcall;
+{$else}
+function IsDebuggerPresent: boolean;
+{$endif ODWINDOWS}
 
 /// return the time and memory usage information about a given process
 // - under Windows, is a wrapper around GetProcessTimes/GetProcessMemoryInfo
+// - on POSIX, is not implemented yet, and return false
 function RetrieveProcessInfo(PID: cardinal; out KernelTime, UserTime: Int64;
   out WorkKB, VirtualKB: cardinal): boolean;
 
+/// return the system-wide time usage information
+// - under Windows, is a wrapper around GetSystemTimes() kernel API call
+// - will use /proc/stat on Linux, or kern.cp_time sysctl on BSD
+// - returned KernelTime includes IdleTime, as with GetSystemTimes() WinAPI
+function RetrieveSystemTimes(out IdleTime, KernelTime, UserTime: Int64): boolean;
+
+/// return the system-wide time usage information as 'U:#.## K:#.##' percents
+// - calling RetrieveSystemTimes() on all platforms
+function RetrieveSystemTimesText: TShort23;
+
+/// return the system-wide time usage information
+// - on LINUX, retrieve /proc/loadavg or on OSX/BSD call libc getloadavg()
+// - on Windows, calls RetrieveSystemTimesText to return 'U:user K:kernel' text
+function RetrieveLoadAvg: TShort23;
+  {$ifdef OSWINDOWS} {$ifdef HASINLINE} inline; {$endif} {$endif}
+
+/// a shorter version of GetSystemInfoText, used e.g. by TSynLogFamily.LevelSysInfo
+// - 'ncores avg1 avg5 avg15 [updays] used/totalram [used/totalswap] osint32' on POSIX,
+// or 'ncores user kern [updays] used/totalram [used/totalswap] osint32' on Windows
+procedure RetrieveSysInfoText(out text: ShortString);
+
 /// retrieve low-level information about current memory usage
-// - as used by TSynMonitorMemory
+// - as used e.g. by TSynMonitorMemory or GetMemoryInfoText
 // - under BSD, only memtotal/memfree/percent are properly returned
 // - allocreserved and allocused are set only if withalloc is TRUE
 function GetMemoryInfo(out info: TMemoryInfo; withalloc: boolean): boolean;
 
 /// retrieve some human-readable text from GetMemoryInfo
 // - numbers are rounded up to a single GB number with no decimals
-// - returns e.g. 'used 6GB/16GB (35% free)' text
-function GetMemoryInfoText: RawUtf8;
+// - returns the size of used memory / total memory e.g. as '6GB/16GB (35%)'
+function GetMemoryInfoText: TShort31;
+
+/// retrieve some human-readable text about the current system in several lines
+// - includes UTC timestamp, memory and disk availability, and exe/OS/CPU info
+function GetSystemInfoText: RawUtf8;
 
 /// retrieve low-level information about a given disk partition
-// - as used by TSynMonitorDisk and GetDiskPartitionsText()
+// - as used e.g. by TSynMonitorDisk and GetDiskPartitionsText()
+// - aDriveFolderOrFile is a directory on disk (no need to specify a raw drive
+// name like 'c:\' on Windows)
 // - warning: aDriveFolderOrFile may be modified at input
 // - only under Windows the Quotas are applied separately to aAvailableBytes
 // in respect to global aFreeBytes
@@ -3595,20 +3878,23 @@ function GetDiskInfo(var aDriveFolderOrFile: TFileName;
   out aAvailableBytes, aFreeBytes, aTotalBytes: QWord
   {$ifdef OSWINDOWS}; aVolumeName: PSynUnicode = nil{$endif}): boolean;
 
+/// retrieve how many bytes are currently available on a given folder
+// - returns 0 if the function fails
+function GetDiskAvailable(aDriveFolderOrFile: TFileName): QWord;
+
 /// retrieve low-level information about all mounted disk partitions of the system
-// - returned partitions array is sorted by "mounted" ascending order
 function GetDiskPartitions: TDiskPartitions;
 
 /// call several Operating System APIs to gather 512-bit of entropy information
 procedure XorOSEntropy(var e: THash512Rec);
 
-/// low-level function returning some random binary from then available
-// Operating System pseudorandom source
+/// low-level function returning some random binary from the Operating System
 // - will call /dev/urandom or /dev/random under POSIX, and CryptGenRandom API
 // on Windows then return TRUE, or fallback to mormot.core.base gsl_rng_taus2
 // generator and return FALSE if the system API failed
-// - on POSIX, only up to 32 bytes (256 bits) bits are retrieved from /dev/urandom
-// or /dev/random as stated by "man urandom" Usage - then RandomBytes() padded
+// - on POSIX, only up to 256 bytes (2048-bits) are retrieved from /dev/urandom
+// or /dev/random as stated by "man urandom" Usage - then padded with our
+// L'Ecuyer gsl_rng_taus2 random generator
 // - so you may consider that the output Buffer is always filled with random
 // - you should not have to call this procedure, but faster and safer TAesPrng
 // from mormot.crypt.core - also consider the TSystemPrng class
@@ -3638,13 +3924,9 @@ type
 var
   /// low-level handle used for console writing
   // - may be overriden when console is redirected
-  // - on Windows, is initialized when AllocConsole or TextColor() are called
+  // - on Windows, is initialized when AllocConsole, HasConsole or TextColor()
+  // are actually called
   StdOut: THandle;
-
-  {$ifdef OSPOSIX}
-  /// set at initialization if StdOut has the TTY flag and env has a known TERM
-  StdOutIsTTY: boolean;
-  {$endif OSPOSIX}
 
   /// global flag to modify the code behavior at runtime when run from TSynTests
   // - e.g. TSynDaemon.AfterCreate won't overwrite TSynTests.RunAsConsole logs
@@ -3654,6 +3936,18 @@ var
 // - do nothing on Linux/POSIX, but set StdOut propertly from StdOutputHandle
 // - on Windows, will call the corresponding API, and set StdOut global variable
 procedure AllocConsole;
+
+/// always true on POSIX, may be false for a plain Windows GUI application
+{$ifdef OSWINDOWS}
+function HasConsole: boolean;
+{$else}
+const HasConsole = true; // assume POSIX has always a console somewhere
+
+/// POSIX only: true if StdOut has the TTY flag and env has a known TERM
+// - equals false if the console does not support colors, e.g. piped to a file
+// or from the Lazarus debugger
+function StdOutIsTTY: boolean; inline;
+{$endif OSWINDOWS}
 
 /// change the console text writing color
 procedure TextColor(Color: TConsoleColor);
@@ -3665,6 +3959,16 @@ procedure TextBackground(Color: TConsoleColor);
 // - this method is protected by its own CriticalSection for output consistency
 procedure ConsoleWrite(const Text: RawUtf8; Color: TConsoleColor = ccLightGray;
   NoLineFeed: boolean = false; NoColor: boolean = false); overload;
+
+/// write some text to the console using the current color
+// - similar to writeln() but redirect to ConsoleWrite(NoColor=true)
+procedure ConsoleWriteRaw(const Text: RawUtf8; NoLineFeed: boolean = false); overload;
+  {$ifdef HASINLINE} inline; {$endif}
+
+/// append a line feed to the console
+// - similar to writeln but redirect to ConsoleWrite() with proper thread safety
+procedure ConsoleWriteLn;
+  {$ifdef HASINLINE} inline; {$endif}
 
 /// will wait for the ENTER key to be pressed, with all needed waiting process
 // - on the main thread, will call Synchronize() for proper work e.g. with
@@ -3693,27 +3997,104 @@ procedure Win32PWideCharToUtf8(P: PWideChar; Len: PtrInt;
 procedure Win32PWideCharToUtf8(P: PWideChar; out res: RawUtf8); overload;
 
 /// local RTL wrapper function to avoid linking mormot.core.unicode.pas
-// - returns dest.buf as PWideChar result, and dest.len as length
-// - caller should always call dest.Done to release (unlikely) temporary memory
-function Utf8ToWin32PWideChar(const Text: RawUtf8;
-  var dest: TSynTempBuffer): PWideChar;
+procedure Win32PWideCharToFileName(P: PWideChar; out fn: TFileName);
+
+/// local RTL wrapper function to avoid linking mormot.core.unicode.pas
+// - just a wrapper around Unicode_FromUtf8() over a temporary buffer
+// - caller should always call d.Done to release any (unlikely) allocated memory
+function Utf8ToWin32PWideChar(const u: RawUtf8; var d: TSynTempBuffer): PWideChar;
+
+/// local RTL wrapper function to avoid linking mormot.core.unicode.pas
+// - returns true and set A on conversion success from UTF-8 to code page CP
+// - as used internally by Utf8ToConsole()
+function Win32Utf8ToAnsi(P: pointer; L, CP: integer; var A: RawByteString): boolean;
+
+{$ifndef NOEXCEPTIONINTERCEPT}
+/// get DotNet exception class names from HRESULT - published for testing purpose
+procedure Win32DotNetExceptions(code: cardinal; var names: TPShortStringDynArray);
+{$endif NOEXCEPTIONINTERCEPT}
+
+/// ask the Operating System to convert a file URL to a local file path
+// - only Windows has a such a PathCreateFromUrlW() API
+// - POSIX define this in mormot.net.http.pas, where TUri is available
+// - used e.g. by TNetClientProtocolFile to implement the 'file://' protocol
+function GetFileNameFromUrl(const Uri: RawUtf8): TFileName;
 
 {$else}
-
-/// internal function to avoid linking mormot.core.buffers.pas
-function PosixParseHex32(p: PAnsiChar): integer;
 
 /// internal function just wrapping fppoll(POLLIN or POLLPRI)
 function WaitReadPending(fd, timeout: integer): boolean;
 
+type
+  /// optional callback used by PosixFileNames()
+  // - same signature as mormot.core.search MatchAnyP()
+  TOnPosixFileName = function(opaque: pointer; name: PUtf8Char; namelen: PtrInt): boolean;
+
+/// POSIX-only function calling directly getdents/getdents64 syscall
+// - could be used when FindFirst/FindNext are an overkill, e.g. to quickly
+// cache all file names of a folder in memory, optionally with its sub-folders
+// - used e.g. by TPosixFileCaseInsensitive from mormot.core.unicode
+// - warning: the file system has to support d_type (e.g. btrfs, ext2-ext4) so
+// that Recursive is handled and only DT_REG files are retrieved; non-compliant
+// file systems (or Linux Kernel older than 2.6.4) won't support the Recursive
+// search, and may return some false positives, like symlinks or nested folders
+// - an optional callback can be supplied, used e.g. by the FileNames() function
+// in mormot.core.search to efficiently implement name mask search with a TMatch
+// - IncludeFolders would include nested folders as '/foldername'
+function PosixFileNames(const Folder: TFileName; Recursive: boolean;
+  OnFile: TOnPosixFileName = nil; OnFileOpaque: pointer = nil;
+  ExcludesDir: boolean = false; IncludeHiddenFiles: boolean = false;
+  IncludeFolders: boolean = false): TRawUtf8DynArray;
+
+{$ifdef OSLINUXANDROID}
+/// read a File content into a string, without using FileSize()
+// - result will be filled using a buffer as required e.g. for POSIX char files
+// like /proc/... or /sys/...
+function StringFromFileNoSize(const FileName: TFileName): RawByteString;
+
+/// read a small File content into a string, without using FileSize()
+// - in respect to StringFromFileNoSize(), this will make a single read()
+procedure LoadProcFileTrimed(fn: PAnsiChar; var result: RawUtf8); overload;
+{$endif OSLINUXANDROID}
+
 {$endif OSWINDOWS}
 
-/// internal function to avoid linking mormot.core.buffers.pas
-// - will round up the value to fit in a single number without decimals
-function _oskb(Size: QWord): string;
+/// will append the value as one-decimal number text and B/KB/MB/GB/TB suffix
+// - append EB, PB, TB, GB, MB, KB or B symbol with or without a preceding space
+// - for EB, PB, TB, GB, MB and KB, add one fractional digit
+procedure AppendKb(Size: Int64; var Dest: ShortString; WithSpace: boolean = false);
+
+/// convert a size to a human readable value
+// - append EB, PB, TB, GB, MB, KB or B symbol with preceding space
+function KB(Size: Int64): TShort16; overload;
+  {$ifdef FPC_OR_UNICODE}inline;{$endif} // Delphi 2007 is buggy as hell
+
+/// convert a size to a human readable value
+// - append EB, PB, TB, GB, MB, KB or B symbol without preceding space
+function KBNoSpace(Size: Int64): TShort16;
+  {$ifdef FPC_OR_UNICODE}inline;{$endif} // Delphi 2007 is buggy as hell
+
+type
+  /// function prototype for AppendShortUuid()
+  TAppendShortUuid = procedure(const u: TGuid; var s: ShortString);
+  /// function prototype for ShortToUuid()
+  TShortToUuid = function(const text: ShortString; out uuid: TGuid): boolean;
+
+var
+  /// decode a '3F2504E0-4F89-11D3-9A0C-0305E82C3301' text into a TGuid
+  // - this unit defaults to the RTL, but mormot.core.text.pas will override it
+  ShortToUuid: TShortToUuid;
+
+  /// append a TGuid into lower-cased '3f2504e0-4f89-11d3-9a0c-0305e82c3301' text
+  // - this unit defaults to the RTL, but mormot.core.text.pas will override it
+  AppendShortUuid: TAppendShortUuid;
+
+  /// return the RTTI text of a given enumerate as mormot.core.rtti GetEnumName()
+  // - this unit defaults to minimal code, but overriden by mormot.core.rtti.pas
+  GetEnumNameRtti: function(Info: pointer; Value: integer): PShortString;
 
 /// direct conversion of a UTF-8 encoded string into a console OEM-encoded string
-// - under Windows, will use the CP_OEM encoding
+// - under Windows, will use GetConsoleOutputCP() codepage, following CP_OEM
 // - under Linux, will expect the console to be defined with UTF-8 encoding
 // - we don't propose any ConsoleToUtf8() function because Windows depends on
 // the running program itself: most should generates CP_OEM (e.g. 850) as expected,
@@ -3739,18 +4120,27 @@ type
     // - ProcName can be a space-separated list of procedure names, to try
     // alternate API names (e.g. for OpenSSL 1.1.1/3.x compatibility)
     // - if ProcName starts with '?' then RaiseExceptionOnFailure = nil is set
-    function Resolve(const Prefix, ProcName: RawUtf8; Entry: PPointer;
-      RaiseExceptionOnFailure: ExceptionClass = nil): boolean;
+    function Resolve(const Prefix: RawUtf8; ProcName: PAnsiChar; Entry: PPointer;
+      RaiseExceptionOnFailure: ExceptionClass = nil; SilentError: PString = nil): boolean;
     /// cross-platform resolution of all function entries in this library
     // - will search and fill Entry^ for all ProcName^ until ProcName^=nil
-    // - return true on success, false and call FreeLib if any entry is missing
-    function ResolveAll(ProcName: PPAnsiChar; Entry: PPointer): boolean;
+    // - return true on success
+    // - if any entry is missing, raise RaiseExceptionOnFailure or return false
+    // and continue if SilentError = nil, or exit if SilentError <> nil
+    function ResolveAll(ProcName: PPAnsiChar; Entry: PPointer;
+      const Prefix: RawUtf8 = ''; RaiseExceptionOnFailure: ExceptionClass = nil;
+      SilentError: PString = nil): boolean;
     /// cross-platform call to FreeLibrary() + set fHandle := 0
     // - as called by Destroy, but you can use it directly to reload the library
     procedure FreeLib;
     /// same as SafeLoadLibrary() but setting fLibraryPath and cwd on Windows
     function TryLoadLibrary(const aLibrary: array of TFileName;
-      aRaiseExceptionOnFailure: ExceptionClass): boolean; virtual;
+      aRaiseExceptionOnFailure: ExceptionClass = nil;
+      aSilentError: PString = nil): boolean; virtual;
+    /// wrap TryLoadLibrary() and Resolve() with optional exception call
+    function TryLoadResolve(const aLibrary: array of TFileName;
+      const Prefix: RawUtf8; ProcName: PPAnsiChar; Entry: PPointer;
+      RaiseExceptionOnFailure: ExceptionClass = nil; SilentError: PString = nil): boolean;
     /// release associated memory and linked library
     destructor Destroy; override;
     /// return TRUE if the library and all procedures were found
@@ -3777,65 +4167,35 @@ type
 // - some systems do forbid such live patching: consider setting NOPATCHVMT
 // and NOPATCHRTL conditionals for such projects
 procedure PatchCode(Old, New: pointer; Size: PtrInt; Backup: pointer = nil;
-  LeaveUnprotected: boolean = false);
+  LeaveUnprotected: boolean = {$ifdef OSLINUX} true {$else} false {$endif});
 
 /// self-modifying code - change one PtrUInt in the code segment
 procedure PatchCodePtrUInt(Code: PPtrUInt; Value: PtrUInt;
-  LeaveUnprotected: boolean = false);
+  LeaveUnprotected: boolean = {$ifdef OSLINUX} true {$else} false {$endif});
 
 {$ifdef CPUINTEL}
 /// low-level i386/x86_64 asm routine patch and redirection
-procedure RedirectCode(Func, RedirectFunc: Pointer);
+procedure RedirectCode(Func, RedirectFunc: pointer);
 {$endif CPUINTEL}
 
-
-{ ************** Cross-Platform Charset and CodePage Support }
-
-{$ifdef OSPOSIX}
-const
-  ANSI_CHARSET = 0;
-  DEFAULT_CHARSET = 1;
-  SYMBOL_CHARSET = 2;
-  SHIFTJIS_CHARSET = $80;
-  HANGEUL_CHARSET = 129;
-  GB2312_CHARSET = 134;
-  CHINESEBIG5_CHARSET = 136;
-  OEM_CHARSET = 255;
-  JOHAB_CHARSET = 130;
-  HEBREW_CHARSET = 177;
-  ARABIC_CHARSET = 178;
-  GREEK_CHARSET = 161;
-  TURKISH_CHARSET = 162;
-  VIETNAMESE_CHARSET = 163;
-  THAI_CHARSET = 222;
-  EASTEUROPE_CHARSET = 238;
-  RUSSIAN_CHARSET = 204;
-  BALTIC_CHARSET = 186;
-{$else}
-{$ifdef FPC} // a missing declaration
-const
-  VIETNAMESE_CHARSET = 163;
-{$endif FPC}
-{$endif OSPOSIX}
-
-/// convert a char set to a code page
-function CharSetToCodePage(CharSet: integer): cardinal;
-
-/// convert a code page to a char set
-function CodePageToCharSet(CodePage: cardinal): integer;
+/// close any LeaveUnprotected=true R/W/X memory-mapped paged back as R/X
+// - could be used to harden back all memory regions at once, when every RTTI,
+// ORM or SOA features are eventually initialized
+// - only implemented and tested on Linux by now
+procedure PatchCodeProtectBack;
 
 
 { **************** TSynLocker/TSynLocked and Low-Level Threading Features }
 
 type
-  /// a lightweight exclusive non-rentrant lock, stored in a PtrUInt value
+  /// a lightweight exclusive non-reentrant lock, stored in a PtrUInt value
   // - calls SwitchToThread after some spinning, but don't use any R/W OS API
-  // - warning: methods are non rentrant, i.e. calling Lock twice in a raw would
-  // deadlock: use TRWLock or TSynLocker/TOSLock for reentrant methods
+  // - warning: methods are non reentrant, i.e. calling Lock twice in a raw would
+  // deadlock: see reentrant TMultiLightLock or TRWLock or TSynLocker/TOSLock
   // - several lightlocks, each protecting a few variables (e.g. a list), may
   // be more efficient than a more global TOSLock/TRWLock
-  // - our light locks are expected to be kept a very small amount of time (some
-  // CPU cycles): use TOSLightLock if the lock may block too long
+  // - our light locks are expected to be kept a very small amount of time (a
+  // few CPU cycles): use TOSLightLock if the lock may block too long
   // - TryLock/UnLock can be used to thread-safely acquire a shared resource
   // - only consume 4 bytes on CPU32, 8 bytes on CPU64
   {$ifdef USERECORDWITHMETHODS}
@@ -3845,8 +4205,7 @@ type
   {$endif USERECORDWITHMETHODS}
   private
     Flags: PtrUInt;
-    // low-level function called by the Lock method when inlined
-    procedure LockSpin;
+    procedure LockSpin; // called by the Lock method when inlined
   public
     /// to be called if the instance has not been filled with 0
     // - e.g. not needed if TLightLock is defined as a class field
@@ -3856,18 +4215,68 @@ type
     // - does nothing - just for compatibility with TOSLock
     procedure Done;
       {$ifdef HASINLINE} inline; {$endif}
-    /// enter an exclusive non-rentrant lock
+    /// enter an exclusive non-reentrant lock
     procedure Lock;
       {$ifdef HASINLINE} inline; {$endif}
-    /// try to enter an exclusive non-rentrant lock
+    /// try to enter an exclusive non-reentrant lock
     // - if returned true, caller should eventually call UnLock()
     // - could also be used to thread-safely acquire a shared resource
     function TryLock: boolean;
       {$ifdef HASINLINE} inline; {$endif}
-    /// leave an exclusive non-rentrant lock
+    /// check if the non-reentrant lock has been acquired
+    function IsLocked: boolean;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// leave an exclusive non-reentrant lock
     procedure UnLock;
       {$ifdef HASINLINE} inline; {$endif}
   end;
+  PLightLock = ^TLightLock;
+
+  /// a lightweight exclusive reentrant lock
+  // - methods are reentrant, i.e. calling Lock twice in a raw would not deadlock
+  // - our light locks are expected to be kept a very small amount of time (a
+  // few CPU cycles): use TSynLocker or TOSLock if the lock may block too long
+  // - TryLock/UnLock can be used to thread-safely acquire a shared resource,
+  // in a re-entrant way
+  {$ifdef USERECORDWITHMETHODS}
+  TMultiLightLock = record
+  {$else}
+  TMultiLightLock = object
+  {$endif USERECORDWITHMETHODS}
+  private
+    Flags: PtrUInt;
+    ThreadID: TThreadID; // pointer on POSIX, DWORD on Windows
+    ReentrantCount: TThreadIDInt;
+    procedure LockSpin; // called by the Lock method when inlined
+  public
+    /// to be called if the instance has not been filled with 0
+    // - e.g. not needed if TMultiLightLock is defined as a class field
+    procedure Init;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// could be called to finalize the instance as a TOSLock
+    // - will make any further TryLock fail - also for compatibility with TOSLock
+    procedure Done;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// enter an exclusive reentrant lock
+    procedure Lock;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// try to enter an exclusive reentrant lock
+    // - if returned true, caller should eventually call UnLock()
+    // - could also be used to thread-safely acquire a shared resource
+    function TryLock: boolean;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// acquire this lock for the current thread, ignore any previous state
+    // - could be done to safely acquire and finalize a resource
+    // - this method is reentrant: you can call Lock/UnLock on this thread
+    procedure ForceLock;
+    /// check if the reentrant lock has been acquired
+    function IsLocked: boolean;
+      {$ifdef HASINLINE} inline; {$endif}
+    /// leave an exclusive reentrant lock
+    procedure UnLock;
+      {$ifdef CPUINTEL}{$ifdef HASINLINE} inline; {$endif}{$endif}
+  end;
+  PMultiLightLock = ^TMultiLightLock;
 
   /// a lightweight multiple Reads / exclusive Write non-upgradable lock
   // - calls SwitchToThread after some spinning, but don't use any R/W OS API
@@ -3875,8 +4284,8 @@ type
   // WriteLock within a ReadLock, or within another WriteLock, would deadlock
   // - consider TRWLock if you need an upgradable lock - but for mostly reads,
   // TRWLightLock.ReadLock/ReadUnLock/WriteLock pattern is faster than upgrading
-  // - our light locks are expected to be kept a very small amount of time (some
-  // CPU cycles): use TSynLocker or TOSLock if the lock may block too long
+  // - our light locks are expected to be kept a very small amount of time (a
+  // few CPU cycles): use TSynLocker or TOSLock if the lock may block too long
   // - several lightlocks, each protecting a few variables (e.g. a list), may
   // be more efficient than a more global TOSLock/TRWLock
   // - only consume 4 bytes on CPU32, 8 bytes on CPU64
@@ -3886,9 +4295,10 @@ type
   TRWLightLock = object
   {$endif USERECORDWITHMETHODS}
   private
-    Flags: PtrUInt; // bit 0 = WriteLock, >0 = ReadLock
-    // low-level function called by the Lock method when inlined
+    Flags: PtrUInt; // bit 0 = WriteLock, bits 1..31/63 = ReadLock
+    // low-level functions called by the Lock methods when inlined
     procedure ReadLockSpin;
+    procedure WriteLockSpin;
   public
     /// to be called if the instance has not been filled with 0
     // - e.g. not needed if TRWLightLock is defined as a class field
@@ -3908,29 +4318,30 @@ type
     /// leave a non-upgradable multiple reads lock
     procedure ReadUnLock;
       {$ifdef HASINLINE} inline; {$endif}
-    /// enter a non-rentrant non-upgradable exclusive write lock
+    /// enter a non-reentrant non-upgradable exclusive write lock
     // - warning: nested WriteLock call after a ReadLock or another WriteLock
     // would deadlock
     procedure WriteLock;
-    /// try to enter a non-rentrant non-upgradable exclusive write lock
+      {$ifdef HASINLINE} inline; {$endif}
+    /// try to enter a non-reentrant non-upgradable exclusive write lock
     // - if returned true, caller should eventually call WriteUnLock
     // - warning: nested TryWriteLock call after a ReadLock or another WriteLock
     // would deadlock
     function TryWriteLock: boolean;
       {$ifdef HASINLINE} inline; {$endif}
-    /// leave a non-rentrant non-upgradable exclusive write lock
+    /// leave a non-reentrant non-upgradable exclusive write lock
     procedure WriteUnLock;
       {$ifdef HASINLINE} inline; {$endif}
   end;
+  PRWLightLock = ^TRWLightLock;
 
-type
   /// how TRWLock.Lock and TRWLock.UnLock high-level wrapper methods are called
   TRWLockContext = (
     cReadOnly,
     cReadWrite,
     cWrite);
 
-  /// a lightweight multiple Reads / exclusive Write reentrant lock
+  /// a lightweight multiple Reads / exclusive Write reentrant and upgradable lock
   // - calls SwitchToThread after some spinning, but don't use any R/W OS API
   // - our light locks are expected to be kept a very small amount of time (some
   // CPU cycles): use TSynLocker or TOSLock if the lock may block too long
@@ -3945,9 +4356,9 @@ type
     Flags: PtrUInt; // bit 0 = WriteLock, 1 = ReadWriteLock, >1 = ReadOnlyLock
     LastReadWriteLockThread, LastWriteLockThread: TThreadID; // to be reentrant
     LastReadWriteLockCount,  LastWriteLockCount: cardinal;
-    {$ifndef FPC_ASMX64}
+    {$ifndef ASMX64}
     procedure ReadOnlyLockSpin;
-    {$endif FPC_ASMX64}
+    {$endif ASMX64}
   public
     /// initialize the R/W lock
     // - not needed if TRWLock is part of a class - i.e. if was filled with 0
@@ -3967,7 +4378,7 @@ type
     // !   rwlock.ReadOnlyUnLock;
     // ! end;
     procedure ReadOnlyLock;
-      {$ifdef HASINLINE} {$ifndef FPC_ASMX64} inline; {$endif} {$endif}
+      {$ifdef HASINLINE} {$ifndef ASMX64} inline; {$endif} {$endif}
     /// release a previous ReadOnlyLock call
     procedure ReadOnlyUnLock;
       {$ifdef HASINLINE} inline; {$endif}
@@ -4001,7 +4412,7 @@ type
     // - the write lock is exclusive
     // - calling WriteLock within a ReadWriteLock is allowed and won't block
     // - but calling WriteLock within a ReadOnlyLock would deaadlock
-    // - this method is rentrant from a single thread
+    // - this method is reentrant from a single thread
     // - typical usage is the following:
     // ! rwlock.WriteLock; // block any ReadOnlyLock/ReadWriteLock/WriteLock
     // ! try
@@ -4022,10 +4433,10 @@ type
   end;
   PRWLock = ^TRWLock;
 
-  /// the standard rentrant lock supplied by the Operating System
+  /// the standard reentrant lock supplied by the Operating System
   // - maps TRTLCriticalSection, i.e. calls Win32 API or pthreads library
   // - don't forget to call Init and Done to properly initialize the structure
-  // - if you do require a non-rentrant/recursive lock, consider TOSLightLock
+  // - if you do require a non-reentrant/recursive lock, consider TOSLightLock
   // - same signature as TLightLock/TOSLightLock, usable as compile time alternatives
   {$ifdef USERECORDWITHMETHODS}
   TOSLock = record
@@ -4052,8 +4463,9 @@ type
     procedure UnLock;
       {$ifdef FPC} inline; {$endif}
   end;
+  POSLock = ^TOSLock;
 
-  /// the fastest non-rentrant lock supplied by the Operating System
+  /// the fastest non-reentrant lock supplied by the Operating System
   // - calls Slim Reader/Writer (SRW) Win32 API in exclusive mode or directly
   // the pthread_mutex_*() library calls in non-recursive/fast mode on Linux
   // - on XP, where SRW are not available, fallback to a TLightLock
@@ -4062,7 +4474,7 @@ type
   // - to protect a very small code section of a few CPU cycles with no Init/Done
   // needed, and a lower footprint, you may consider our TLightLock
   // - same signature as TOSLock/TLightLock, usable as compile time alternatives
-  // - warning: non-rentrant, i.e. nested Lock calls would block, as TLightLock
+  // - warning: non-reentrant, i.e. nested Lock calls would block, as TLightLock
   // - no TryLock is defined on Windows, because TryAcquireSRWLockExclusive()
   // raised some unexpected EExternalException C000026 NT_STATUS_RESOURCE_NOT_OWNED
   // ("Attempt to release mutex not owned by caller") during testing
@@ -4094,8 +4506,62 @@ type
     procedure UnLock;
       {$ifdef HASINLINE} inline; {$endif}
   end;
+  POSLightLock = ^TOSLightLock;
 
-type
+  /// points to one data entry in TLockedList
+  PLockedListOne = ^TLockedListOne;
+  /// abstract parent of one data entry in TLockedList, storing two PLockedListOne
+  // - TLockedList should store unmanaged records starting with those fields
+  // - sequence field contains an incremental random-seeded 30-bit integer > 65535,
+  // to avoid ABA problems when instances are recycled
+  TLockedListOne = record
+    next, prev: pointer;
+    sequence: PtrUInt;
+  end;
+  /// optional callback event to finalize one TLockedListOne instance
+  TOnLockedListOne = procedure(one: PLockedListOne) of object;
+
+  /// thread-safe dual-linked list of TLockedListOne descendants with recycling
+  {$ifdef USERECORDWITHMETHODS}
+  TLockedList = record
+  {$else}
+  TLockedList = object
+  {$endif USERECORDWITHMETHODS}
+  private
+    fHead, fBin: pointer;
+    fSize: integer;
+    fSequence: PtrUInt;
+    fOnFree: TOnLockedListOne;
+  public
+    /// thread-safe access to the list
+    Safe: TLightLock;
+    /// how many TLockedListOne instances are currently stored in this list
+    // - excluding the instances in the recycle bin
+    Count: integer;
+    /// initialize the storage for an inherited TLockedListOne size
+    procedure Init(onesize: PtrUInt; const onefree: TOnLockedListOne = nil);
+    /// release all stored memory
+    procedure Done;
+    /// allocate a new PLockedListOne data instance in threadsafe O(1) process
+    // - returned buffer is filled with Size zero bytes
+    function New: pointer;
+    /// release one PLockedListOne used data instance in threadsafe O(1) process
+    function Free(one: pointer): boolean;
+    /// release all TLockedListOne instances currently stored in this list
+    // - without moving any of those instances into the internal recycle bin
+    procedure Clear;
+    /// release all to-be-recycled items available in the internal bin
+    // - returns how many items have been released from the internal collector
+    function EmptyBin: integer;
+    /// raw access to the stored items as PLockedListOne dual-linked list
+    property Head: pointer
+      read fHead;
+    /// the size of one stored instance, including its TLockedListOne header
+    property Size: integer
+      read fSize;
+  end;
+  PLockedList = ^TLockedList;
+
   /// how TSynLocker handles its thread processing
   // - by default, uSharedLock will use the main TRTLCriticalSection
   // - you may set uRWLock and call overloaded RWLock/RWUnLock() to use our
@@ -4116,11 +4582,11 @@ type
   // @http://www.delphitools.info/2011/11/30/fixing-tcriticalsection
   // - internal padding is used to safely store up to 7 values protected
   // from concurrent access with a mutex, so that SizeOf(TSynLocker)>128
-  // - for object-level locking, see TSynPersistentLock which owns one such
+  // - for object-level locking, see TSynLocked which owns one such
   // instance, or call low-level fSafe := NewSynLocker in your constructor,
   // then fSafe^.DoneAndFreemem in your destructor
   // - RWUse property could replace the TRTLCriticalSection by a lighter TRWLock
-  // - see also TRWLock and TSynPersistentRWLock if the multiple read / exclusive
+  // - see also TRWLock and TObjectRWLock if the multiple read / exclusive
   // write lock is better (only if the locked process does not take too much time)
   {$ifdef USERECORDWITHMETHODS}
   TSynLocker = record
@@ -4142,8 +4608,8 @@ type
     procedure SetBool(Index: integer; const Value: boolean);
     function GetUnlockedInt64(Index: integer): Int64;
     procedure SetUnlockedInt64(Index: integer; const Value: Int64);
-    function GetPointer(Index: integer): Pointer;
-    procedure SetPointer(Index: integer; const Value: Pointer);
+    function GetPointer(Index: integer): pointer;
+    procedure SetPointer(Index: integer; const Value: pointer);
     function GetUtf8(Index: integer): RawUtf8;
     procedure SetUtf8(Index: integer; const Value: RawUtf8);
     function GetIsLocked: boolean;
@@ -4152,9 +4618,9 @@ type
     // - defined in protected section for better inlining and to fix a Delphi
     // compiler bug about warning a missing Windows unit in the uses classes
     procedure RWLock(context: TRWLockContext);
-      {$ifdef HASINLINE} inline; {$endif}
+      {$ifdef HASSAFEINLINE} inline; {$endif}
     procedure RWUnLock(context: TRWLockContext);
-      {$ifdef HASINLINE} inline; {$endif}
+      {$ifdef HASSAFEINLINE} inline; {$endif}
   public
     /// internal padding data, also used to store up to 7 variant values
     // - this memory buffer will ensure no CPU cache line mixup occurs
@@ -4163,12 +4629,15 @@ type
     // - if you want to access those array values, ensure you protect them
     // using a Safe.Lock; try ... Padding[n] ... finally Safe.Unlock structure,
     // and maintain the PaddingUsedCount property accurately
-    Padding: array[0..6] of TVarData;
+    Padding: array[0..6] of TSynVarData;
     /// initialize the mutex
     // - calling this method is mandatory (e.g. in the class constructor owning
     // the TSynLocker instance), otherwise you may encounter unexpected
     // behavior, like access violations or memory leaks
     procedure Init;
+    /// initialize the mutex if this TSynLocker instance is filled with zeros
+    procedure InitFromClass;
+       {$ifdef FPC} inline; {$endif} { Delphi makes warning about Windows unit }
     /// finalize the mutex
     // - calling this method is mandatory (e.g. in the class destructor owning
     // the TSynLocker instance), otherwise you may encounter unexpected
@@ -4293,10 +4762,10 @@ type
     /// safe locked access to a pointer/TObject value
     // - you may store up to 7 variables, using an 0..6 index, shared with
     // Locked, LockedBool, LockedInt64 and LockedUtf8 array properties
-    // - pointers will be stored internally as a varUnknown variant
+    // - pointers will be stored internally as a varAny variant
     // - returns nil if the Index is out of range, or does not store a pointer
     // - allow concurrent thread reading if RWUse was set to uRWLock
-    property LockedPointer[Index: integer]: Pointer
+    property LockedPointer[Index: integer]: pointer
       read GetPointer write SetPointer;
     /// safe locked access to an UTF-8 string value
     // - you may store up to 7 variables, using an 0..6 index, shared with
@@ -4310,8 +4779,8 @@ type
     // - you may store up to 7 variables, using an 0..6 index, shared with
     // Locked and LockedUtf8 array properties
     // - Int64s will be stored internally as a varInt64 variant
-    // - returns the newly stored value
-    // - if the internal value is not defined yet, would use 0 as default value
+    // - returns the previously stored value
+    // - if the internal value is not defined yet, would return 0 as default
     function LockedInt64Increment(Index: integer; const Increment: Int64): Int64;
     /// safe locked in-place exchange of a Variant value
     // - you may store up to 7 variables, using an 0..6 index, shared with
@@ -4321,7 +4790,7 @@ type
     /// safe locked in-place exchange of a pointer/TObject value
     // - you may store up to 7 variables, using an 0..6 index, shared with
     // Locked and LockedUtf8 array properties
-    // - pointers will be stored internally as a varUnknown variant
+    // - pointers will be stored internally as a varAny variant
     // - returns the previous stored value, nil if the Index is out of range,
     // or does not store a pointer
     function LockedPointerExchange(Index: integer; Value: pointer): pointer;
@@ -4357,16 +4826,16 @@ type
   // - on Windows, calls directly the CreateEvent/ResetEvent/SetEvent API
   // - on Linux, will use eventfd() in blocking and non-semaphore mode
   // - on other POSIX, will use PRTLEvent which is lighter than TEvent BasicEvent
-  // - only limitation is that we don't know if WaitFor is signaled or timeout,
-  // but this is not a real one in practice since most code don't need this
-  // information or has already its own flag in its implementation logic
-  TSynEvent = class
+  TSynEvent = class(TSynPersistent)
   protected
     fHandle: pointer; // Windows THandle or FPC PRTLEvent
+    {$ifdef OSLINUX}
     fFD: integer;     // for eventfd()
+    {$endif OSLINUX}
+    fNotified: boolean;
   public
     /// initialize an instance of cross-platform event
-    constructor Create;
+    constructor Create; override;
     /// finalize this instance of cross-platform event
     destructor Destroy; override;
     /// ignore any pending events, so that WaitFor will be set on next SetEvent
@@ -4376,13 +4845,17 @@ type
     procedure SetEvent;
       {$ifdef OSPOSIX} inline; {$endif}
     /// wait until SetEvent is called from another thread, with a maximum time
-    // - does not return if it was signaled or timeout
+    // - returns true if was signaled by SetEvent, or false on timeout
     // - WARNING: you should wait from a single thread at once
-    procedure WaitFor(TimeoutMS: integer);
+    function WaitFor(TimeoutMS: integer): boolean;
       {$ifdef OSPOSIX} inline; {$endif}
     /// wait until SetEvent is called from another thread, with no maximum time
-    procedure WaitForEver;
+    // - returns true if was signaled by SetEvent, or false if aborted/destroyed
+    function WaitForEver: boolean;
       {$ifdef OSPOSIX} inline; {$endif}
+    /// wait until SetEvent is called, calling CheckSynchronize() on main thread
+    // - returns true if was signaled by SetEvent, or false on timeout
+    function WaitForSafe(TimeoutMS: integer): boolean;
     /// calls SleepHiRes() in steps while checking terminated flag and this event
     function SleepStep(var start: Int64; terminated: PBoolean): Int64;
     /// could be used to tune your algorithm if the eventfd() API is used
@@ -4390,39 +4863,82 @@ type
       {$ifdef HASINLINE} inline; {$endif}
   end;
 
-
-/// initialize a TSynLocker instance from heap
-// - call DoneandFreeMem to release the associated memory and OS mutex
-// - is used e.g. in TSynPersistentLock to reduce class instance size
-function NewSynLocker: PSynLocker;
-
-type
-  {$M+}
-
-  /// a persistent-agnostic alternative to TSynPersistentLock
-  // - can be used as base class when custom JSON persistence is not needed
-  // - consider a TRWLock field as a lighter multi read / exclusive write option
-  TSynLocked = class
+  /// a thread-safe class with a virtual constructor and properties persistence
+  // - publishes a TSynLocker instance, and its managed critical section
+  // - consider a TLightLock field as lighter options, or a R/W lock with
+  // TObjectRWLock and TObjectRWLightLock classes, or even a TObjectOSLightLock
+  // - TSynLockedWithRttiMethods would add paranoid JSON persistence lock
+  TSynLocked = class(TSynPersistent)
   protected
     fSafe: PSynLocker; // TSynLocker would increase inherited fields offset
   public
     /// initialize the instance, and its associated lock
-    // - is defined as virtual, just like TObjectWithCustomCreate/TSynPersistent
-    constructor Create; virtual;
+    constructor Create; override;
     /// finalize the instance, and its associated lock
     destructor Destroy; override;
     /// access to the associated instance critical section
-    // - call Safe.Lock/UnLock to protect multi-thread access on this storage
     property Safe: PSynLocker
+      read fSafe;
+    /// could be used as a short-cut to Safe^.Lock
+    procedure Lock;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// could be used as a short-cut to Safe^.UnLock
+    procedure Unlock;
+      {$ifdef HASINLINE}inline;{$endif}
+  end;
+
+  /// a thread-safe class with a virtual constructor and properties persistence
+  // - publishes the fastest available non-reentrant Operating System lock
+  TObjectOSLightLock = class(TSynPersistent)
+  protected
+    fSafe: TOSLightLock;
+  public
+    /// initialize the instance, and its associated OS lock
+    constructor Create; override;
+    /// finalize the instance, and its associated OS lock
+    destructor Destroy; override;
+    /// access to the associated non-reentrant Operating System lock instance
+    property Safe: TOSLightLock
+      read fSafe;
+    /// could be used as a short-cut to Safe^.Lock
+    procedure Lock;
+      {$ifdef HASINLINE}inline;{$endif}
+    /// could be used as a short-cut to Safe^.UnLock
+    procedure Unlock;
+      {$ifdef HASINLINE}inline;{$endif}
+  end;
+
+  /// a thread-safe class with a virtual constructor and properties persistence
+  // - publishes a non-upgradable multiple Read / exclusive Write TRWLightLock
+  TObjectRWLightLock = class(TSynPersistent)
+  protected
+    fSafe: TRWLightLock;
+  public
+    /// access to the associated non-upgradable TRWLightLock instance
+    // - call Safe methods to protect multi-thread access on this storage
+    property Safe: TRWLightLock
       read fSafe;
   end;
 
-  {$M-}
+  /// a thread-safe class with a virtual constructor and properties persistence
+  // - publishes an upgradable multiple Read / exclusive Write TRWLock
+  TObjectRWLock = class(TSynPersistent)
+  protected
+    fSafe: TRWLock;
+  public
+    /// access to the associated upgradable TRWLock instance
+    // - call Safe methods to protect multi-thread access on this storage
+    property Safe: TRWLock
+      read fSafe;
+  end;
 
-  /// meta-class definition of the TSynLocked hierarchy
-  TSynLockedClass = class of TSynLocked;
+/// initialize a TSynLocker instance from heap
+// - call DoneandFreeMem to release the associated memory and OS mutex
+// - as used e.g. by TSynLocked/TSynLockedWithRttiMethods to reduce class instance size
+function NewSynLocker: PSynLocker;
 
-  /// a thread-safe Pierre L'Ecuyer software random generator
+type
+  /// a thread-safe Pierre L'Ecuyer gsl_rng_taus2 software random generator
   // - just wrap TLecuyer with a TLighLock
   // - should not be used, unless may be slightly faster than a threadvar
   {$ifdef USERECORDWITHMETHODS}
@@ -4434,9 +4950,11 @@ type
     Safe: TLightLock;
     Generator: TLecuyer;
     /// compute the next 32-bit generated value
-    function Next: cardinal; overload;
+    function Next: cardinal;
     /// compute a 64-bit floating point value
     function NextDouble: double;
+    /// compute a 64-bit integer value
+    function NextQWord: QWord;
     /// XOR some memory buffer with random bytes
     procedure Fill(dest: pointer; count: integer);
     /// fill some string[31] with 7-bit ASCII random text
@@ -4446,11 +4964,77 @@ type
   TThreadIDDynArray = array of TThreadID;
 
 var
-  /// a global thread-safe Pierre L'Ecuyer software random generator
-  // - should not be used, unless may be slightly faster than a threadvar
+  /// a global thread-safe Pierre L'Ecuyer gsl_rng_taus2 software random generator
+  // - could be used if a threadvar is overkill, e.g. for short-living threads
+  // - called e.g. by Random32/Random31/Random64/RandomDouble/RandomBytes functions
   SharedRandom: TLecuyerThreadSafe;
 
+/// fast compute of some 32-bit random value, using the gsl_rng_taus2 generator
+// - this function will use well documented and proven Pierre L'Ecuyer software
+// generator - which happens to be faster (and safer) than RDRAND opcode (which
+// is used for seeding anyway)
+// - consider using TAesPrng.Main.Random32(), which offers cryptographic-level
+// randomness, but is twice slower (even with AES-NI)
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+function Random32: cardinal; overload;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// compute of a 32-bit random value <> 0, using the gsl_rng_taus2 generator
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+function Random32Not0: cardinal;
+
+/// fast compute of some 31-bit random value, using the gsl_rng_taus2 generator
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+function Random31: integer;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// compute of a 31-bit random value <> 0, using the gsl_rng_taus2 generator
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+function Random31Not0: integer;
+
+/// fast compute of a 64-bit random value, using the gsl_rng_taus2 generator
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+function Random64: QWord;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// fast compute of bounded 32-bit random value, using the gsl_rng_taus2 generator
+// - calls internally the overloaded Random32 function, ensuring Random32(max)<max
+// - consider using TAesPrng.Main.Random32(), which offers cryptographic-level
+// randomness, but is twice slower (even with AES-NI)
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+function Random32(max: cardinal): cardinal; overload;
+
+/// fast compute of a 64-bit random floating point, using the gsl_rng_taus2 generator
+// - returns a random value in range [0..1)
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+function RandomDouble: double;
+  {$ifdef HASINLINE}inline;{$endif}
+
+/// fill a memory buffer with random bytes from the gsl_rng_taus2 generator
+// - will actually XOR the Dest buffer with Lecuyer numbers
+// - consider also the cryptographic-level TAesPrng.Main.FillRandom() method
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+procedure RandomBytes(Dest: PByte; Count: integer);
+
+/// fill some string[31] with 7-bit ASCII random text
+// - thread-safe function calling SharedRandom - whereas the RTL Random() is not
+procedure RandomShort31(var dest: TShort31);
+
+{$ifndef PUREMORMOT2}
+/// fill some 32-bit memory buffer with values from the gsl_rng_taus2 generator
+// - the destination buffer is expected to be allocated as 32-bit items
+procedure FillRandom(Dest: PCardinal; CardinalCount: integer);
+{$endif PUREMORMOT2}
+
+/// compute a random UUid value from the RandomBytes() generator and RFC 4122
+procedure RandomGuid(out result: TGuid); overload;
+
+/// compute a random UUid value from the RandomBytes() generator and RFC 4122
+function RandomGuid: TGuid; overload;
+  {$ifdef HASINLINE}inline;{$endif}
+
 {$ifdef OSPOSIX}
+var
   /// could be set to TRUE to force SleepHiRes(0) to call the POSIX sched_yield
   // - in practice, it has been reported as buggy under POSIX systems
   // - even Linus Torvald himself raged against its usage - see e.g.
@@ -4463,16 +5047,15 @@ var
 // - using millisecond resolution
 // - SleepHiRes(0) calls ThreadSwitch on Windows, but POSIX version will
 // wait 10 microsecond unless SleepHiRes0Yield is forced to true (bad idea)
-// - in respect to RTL's Sleep() function, it will return on ESysEINTR if was
-// interrupted by any OS signal
-// - warning: wait typically the next system timer interrupt on Windows, which
-// is every 16ms by default; as a consequence, never rely on the ms supplied
-// value to guess the elapsed time, but call GetTickCount64
+// - warning: wait typically for the next system timer interrupt (on Windows,
+// 16ms by default); as a consequence, never rely on the relative ms delay
+// to guess the elapsed time, but compare with on absolute GetTickCount64; for
+// the very same reason, it won't retry on any ESysEINTR (not as RTL's Sleep)
 procedure SleepHiRes(ms: cardinal); overload;
 
 /// similar to Windows sleep() API call, but truly cross-platform and checking
 // the Terminated flag during its wait for quick abort response
-// - returns true if terminated^ was set to true
+// - returns true if terminated^ was set to true (terminatedvalue)
 function SleepHiRes(ms: cardinal; var terminated: boolean;
   terminatedvalue: boolean = true): boolean; overload;
 
@@ -4502,6 +5085,16 @@ procedure SwitchToThread;
 /// try LockedExc() in a loop, calling SwitchToThread after some spinning
 procedure SpinExc(var Target: PtrUInt; NewValue, Comperand: PtrUInt);
 
+/// wrapper to implement a thread-safe T*ObjArray dynamic array storage
+// - warning: aCount^ should be a 32-bit "integer" variable, not a PtrInt
+function ObjArrayAdd(var aObjArray; aItem: TObject;
+  var aSafe: TLightLock; aCount: PInteger = nil): PtrInt; overload;
+
+/// wrapper to implement a thread-safe pointer dynamic array storage
+// - warning: aCount^ should be a 32-bit "integer" variable, not a PtrInt
+function PtrArrayDelete(var aPtrArray; aItem: pointer; var aSafe: TLightLock;
+  aCount: PInteger = nil): PtrInt; overload;
+
 /// try to kill/cancel a thread
 // - on Windows, calls the TerminateThread() API
 // - under Linux/FPC, calls pthread_cancel() API which is asynchronous
@@ -4526,7 +5119,7 @@ function SetCpuSet(var CpuSet: TCpuSet; CpuIndex: cardinal): boolean;
 /// retrieve the current CPU cores masks available of the system
 // - the current process may have been tuned to use only a sub-set of the cores
 // e.g. via "taskset -c" on Linux
-// - return the number of accessible CPU cores - i.e. GetBitCount(CpuSet) or
+// - return the number of accessible CPU cores - i.e. GetBitsCount(CpuSet) or
 // 0 if the function failed
 function CurrentCpuSet(out CpuSet: TCpuSet): integer;
 
@@ -4550,12 +5143,12 @@ function SetThreadSocketAffinity(Thread: TThread; SocketIndex: cardinal): boolea
 procedure RawSetThreadName(ThreadID: TThreadID; const Name: RawUtf8);
 
 /// name the current thread so that it would be easily identified in the IDE debugger
-// - could then be retrieved by CurrentThreadName/GetCurrentThreadName
+// - could then be retrieved by CurrentThreadNameShort/GetCurrentThreadName
 // - just a wrapper around SetThreadName(GetCurrentThreadId, ...)
 procedure SetCurrentThreadName(const Format: RawUtf8; const Args: array of const); overload;
 
 /// name the current thread so that it would be easily identified in the IDE debugger
-// - could also be retrieved by CurrentThreadName/GetCurrentThreadName
+// - could also be retrieved by CurrentThreadNameShort/GetCurrentThreadName
 // - just a wrapper around SetThreadName(GetCurrentThreadId, ...)
 procedure SetCurrentThreadName(const Name: RawUtf8); overload;
 
@@ -4566,24 +5159,22 @@ var
   // conditional, if you have issues with this feature when debugging your app
   // - most meaningless patterns (like 'TSql') are trimmed to reduce the
   // resulting length - which is convenient e.g. with POSIX truncation to 16 chars
-  // - you can retrieve the name later on using CurrentThreadName
+  // - you can retrieve the name later on using CurrentThreadNameShort
   // - this method will register TSynLog.LogThreadName(), so threads calling it
   // should also call TSynLogFamily.OnThreadEnded/TSynLog.NotifyThreadEnded
   SetThreadName: procedure(ThreadID: TThreadID; const Format: RawUtf8;
     const Args: array of const);
 
-threadvar
-  /// low-level access to the thread name, as set by SetThreadName()
-  // - since threadvar can't contain managed strings, it is limited to 31 chars,
-  // which is enough since POSIX truncates to 16 chars and SetThreadName does
-  // trim meaningless patterns
-  CurrentThreadName: TShort31;
+/// low-level access to the thread name, as set by SetThreadName()
+// - since threadvar can't contain managed strings, it is defined as TShort31,
+// so is limited to 31 chars, which is enough since POSIX truncates to 16 chars
+// and SetThreadName does trim meaningless patterns
+function CurrentThreadNameShort: PShortString;
 
 /// retrieve the thread name, as set by SetThreadName()
-// - if possible, direct CurrentThreadName threadvar access is slightly faster
-// - will return the CurrentThreadName value, truncated to 31 chars
+// - if possible, direct CurrentThreadNameShort function is slightly faster
+// - will return the CurrentThreadNameShort^ threadvar 31 chars value
 function GetCurrentThreadName: RawUtf8;
-  {$ifdef HASINLINE}inline;{$endif}
 
 /// returns the thread id and the thread name as a ShortString
 // - returns e.g. 'Thread 0001abcd [shortthreadname]'
@@ -4760,7 +5351,7 @@ type
 function OpenSCManagerW(lpMachineName, lpDatabaseName: PWideChar;
   dwDesiredAccess: cardinal): SC_HANDLE; stdcall; external advapi32;
 function ChangeServiceConfig2W(hService: SC_HANDLE; dwsInfoLevel: cardinal;
-  lpInfo: Pointer): BOOL; stdcall; external advapi32;
+  lpInfo: pointer): BOOL; stdcall; external advapi32;
 function StartServiceW(hService: SC_HANDLE; dwNumServiceArgs: cardinal;
   lpServiceArgVectors: PPWideChar): BOOL; stdcall; external advapi32;
 function CreateServiceW(hSCManager: SC_HANDLE;
@@ -4775,7 +5366,7 @@ function CloseServiceHandle(hSCObject: SC_HANDLE): BOOL; stdcall; external advap
 function QueryServiceStatus(hService: SC_HANDLE;
   var lpServiceStatus: TServiceStatus): BOOL; stdcall; external advapi32;
 function QueryServiceStatusEx(hService: SC_HANDLE;
-  InfoLevel: SC_STATUS_TYPE; lpBuffer: Pointer; cbBufSize: cardinal;
+  InfoLevel: SC_STATUS_TYPE; lpBuffer: pointer; cbBufSize: cardinal;
   var pcbBytesNeeded: cardinal): BOOL; stdcall; external advapi32;
 function ControlService(hService: SC_HANDLE; dwControl: cardinal;
   var lpServiceStatus: TServiceStatus): BOOL; stdcall; external advapi32;
@@ -4790,6 +5381,13 @@ function OpenServiceManager(const TargetComputer, DatabaseName: RawUtf8;
   dwDesiredAccess: cardinal): SC_HANDLE;
 function OpenServiceInstance(hSCManager: SC_HANDLE; const ServiceName: RawUtf8;
   dwDesiredAccess: cardinal): SC_HANDLE;
+
+function GetNamedSecurityInfoW(pObjectName: PWideChar; ObjectType,
+  SecurityInfo: cardinal; ppsidOwner, ppsidGroup, ppDacl, ppSacl: pointer;
+  var ppSecurityDescriptor: PSECURITY_DESCRIPTOR): DWORD; stdcall; external advapi32;
+function SetNamedSecurityInfoW(pObjectName: PWideChar; ObjectType,
+  SecurityInfo: cardinal; psidOwner, psidGroup: pointer;
+  pDacl, pSacl: pointer): DWORD; stdcall; external advapi32;
 
 
 { *** high level classes to define and manage Windows Services }
@@ -4871,7 +5469,8 @@ type
     /// wrapper around CreateNewService() to install the current executable as service
     class function Install(const Name, DisplayName, Description: RawUtf8;
       AutoStart: boolean; ExeName: TFileName = '';
-      const Dependencies: RawUtf8 = ''): TServiceState;
+      const Dependencies: RawUtf8 = ''; const UserName: RawUtf8 = '';
+      const Password: RawUtf8 = ''): TServiceState;
     /// wrapper around CreateOpenService(SERVICE_QUERY_STATUS) and GetState
     class function CurrentState(const Name: RawUtf8): TServiceState;
     /// open an existing service, in order to control it or its configuration
@@ -4936,9 +5535,7 @@ type
       const Dependencies: RawUtf8 = '');
   end;
 
-  {$M+}
   TService = class;
-  {$M-}
 
   /// callback procedure for Windows Service Controller
   TServiceControlHandler = procedure(CtrlCode: cardinal); stdcall;
@@ -4949,8 +5546,9 @@ type
   /// event triggered to implement the Service functionality
   TServiceEvent = procedure(Sender: TService) of object;
 
-  /// let an executable implement a Windows Service
-  TService = class
+  /// abstract class to let an executable implement a Windows Service
+  // - do not use this class directly, but TServiceSingle
+  TService = class(TSynPersistent)
   protected
     fServiceName: RawUtf8;
     fDisplayName: RawUtf8;
@@ -4969,8 +5567,8 @@ type
     fStatusRec: TServiceStatus;
     fArgsList: TRawUtf8DynArray;
     fStatusHandle: THandle;
-    function GetArgCount: Integer;
-    function GetArgs(Idx: Integer): RawUtf8;
+    function GetArgCount: integer;
+    function GetArgs(Idx: integer): RawUtf8;
     function GetInstalled: boolean;
     procedure SetStatus(const Value: TServiceStatus);
     procedure CtrlHandle(Code: cardinal);
@@ -4979,12 +5577,12 @@ type
     procedure ServiceProc(ArgCount: integer; Args: PPWideChar);
   public
     /// internal method redirecting to WindowsServiceLog global variable
-    class procedure DoLog(Level: TSynLogInfo; const Fmt: RawUtf8;
+    class procedure DoLog(Level: TSynLogLevel; Fmt: PUtf8Char;
       const Args: array of const; Instance: TObject);
     /// Creates the service
     // - the service is added to the internal registered services
-    // - main application must call the global ServicesRun procedure to actually
-    // start the services
+    // - main application must instantiate the TServiceSingle class, then call
+    // the global ServiceSingleRun procedure to actually start the services
     // - caller must free the TService instance when it's no longer used
     constructor Create(const aServiceName, aDisplayName: RawUtf8); reintroduce; virtual;
     /// this method is the main service entrance, from the OS point of view
@@ -5013,11 +5611,11 @@ type
     procedure Execute; virtual;
 
     /// Number of arguments passed to the service by the service controler
-    property ArgCount: Integer
+    property ArgCount: integer
       read GetArgCount;
     /// List of arguments passed to the service by the service controler
     // - Idx is in range 0..ArgCount - 1
-    property Args[Idx: Integer]: RawUtf8
+    property Args[Idx: integer]: RawUtf8
       read GetArgs;
     /// Any data You wish to associate with the service object
     property Data: cardinal
@@ -5092,6 +5690,9 @@ type
 
   /// inherit from this class if your application has a single Windows Service
   // - note that only this single-service implementation is available by now
+  // - the regular way of executing services is to instantiate a TServiceSingle
+  // instance (which will fill the ServiceSingle variable) and its methods,
+  // then eventually call ServiceSingleRun
   TServiceSingle = class(TService)
   public
     /// will set a global function as service controller
@@ -5101,11 +5702,15 @@ type
   end;
 
 var
-  /// the main TService instance running in the current executable
+  /// the main TServiceSingle instance running in the current executable
+  // - the regular way of executing services is to instantiate a TServiceSingle
+  // instance (which will fill this ServiceSingle variable) and its methods,
+  // then eventually call ServiceSingleRun
   ServiceSingle: TServiceSingle = nil;
 
 /// launch the registered Service execution
-// - ServiceSingle provided by this application is sent to the operating system
+// - ServiceSingle provided by this application (most probably from
+// TServiceSingle.Create) is sent to the operating system
 // - returns TRUE on success
 // - returns FALSE on error (to get extended information, call GetLastError)
 function ServiceSingleRun: boolean;
@@ -5145,28 +5750,34 @@ function AssignJobToProcess(job, process: THandle; const ctxt: ShortString): boo
 
 /// low-level function able to properly run or fork the current process
 // then execute the start/stop methods of a TSynDaemon / TDDDDaemon instance
-// - fork will create a local /run/[ProgramName]-[ProgramPathHash].pid file name
+// - dofork will create e.g. a /run/.[ProgramName][ProgramFilePathHash].pid file
 // - onLog can be assigned from TSynLog.DoLog for proper logging
 procedure RunUntilSigTerminated(daemon: TObject; dofork: boolean;
   const start, stop: TThreadMethod; const onlog: TSynLogProc = nil;
   const servicename: string = '');
 
 /// kill a process previously created by RunUntilSigTerminated(dofork=true)
-// - will lookup a local /run/[ProgramName]-[ProgramPathHash].pid file name to
-// retrieve the actual PID to be killed, then send a SIGTERM, and wait
+// - will lookup a local /run/.[ProgramName][ProgramFilePathHash].pid file
+// to retrieve the actual PID to be killed, then send a SIGTERM, and wait
 // waitseconds for the .pid file to disapear
 // - returns true on success, false on error (e.g. no valid .pid file or
 // the file didn't disappear, which may mean that the daemon is broken)
 function RunUntilSigTerminatedForKill(waitseconds: integer = 30): boolean;
 
 var
-  /// optional folder where the .pid is created
+  /// optional folder where the .pid is created by RunUntilSigTerminatedPidFile()
   // - should include a trailing '/' character
-  // - to be used if the current executable folder is read/only
+  // - will be used insted of /run if the current executable folder is read/only
   RunUntilSigTerminatedPidFilePath: TFileName;
+  /// optional genuine number to identify this executable instance
+  // - is filled with Executable.ProgramFilePath hash by default
+  RunUntilSigTerminatedPidFileGenuine: cardinal;
+  /// the computed RunUntilSigTerminatedPidFile result value, used as cache
+  RunUntilSigTerminatedPidFileName: TFileName;
 
 /// local .pid file name as created by RunUntilSigTerminated(dofork=true)
-function RunUntilSigTerminatedPidFile(ensureWritable: boolean = false): TFileName;
+// - typically return /run/.[ProgramName][ProgramFilePathHash].pid file name
+function RunUntilSigTerminatedPidFile: TFileName;
 
 /// check the local .pid file to return either ssRunning or ssStopped
 function RunUntilSigTerminatedState: TServiceState;
@@ -5218,7 +5829,10 @@ type
   PParseCommands = ^TParseCommands;
 
   /// used to store references of arguments recognized by ParseCommandArgs()
-  TParseCommandsArgs = array[0..31] of PAnsiChar;
+  // - up to 255 arguments are usually stored on the stack as function result
+  // - POSIX has almost no limit (since command line is intensively used in scripts),
+  // but some Windows versions seemed to limit to 8KB total as a whole
+  TParseCommandsArgs = array[byte] of PAnsiChar;
   PParseCommandsArgs = ^TParseCommandsArgs;
 
 const
@@ -5230,25 +5844,38 @@ const
   PARSECOMMAND_ERROR =
     [pcUnbalancedSingleQuote .. pcHasEndingBackSlash];
 
+  /// let ParseCommandArgs/ExtractExecutableName/ExtractCommandArgs follow the
+  // current running OS command-line expectations by default
   PARSCOMMAND_POSIX = {$ifdef OSWINDOWS} false {$else} true {$endif};
 
 /// low-level parsing of a RunCommand() execution command
-// - parse and fills argv^[0..argc^-1] with corresponding arguments, after
-// un-escaping and un-quoting if applicable, using temp^ to store the content
+// - parse and fill argv^[0 .. argc^ - 1] with corresponding arguments, after
+// un-escaping and un-quoting if applicable, using temp^ to store the content,
+// and argv^[argc^] = nil, as expected by low-level OS exec() syscall parameters
 // - if argv=nil, do only the parsing, not the argument extraction - could be
 // used for fast validation of the command line syntax
 // - you can force arguments OS flavor using the posix parameter - note that
 // Windows parsing is not consistent by itself (e.g. double quoting or
 // escaping depends on the actual executable called) so returned flags
 // should be considered as indicative only with posix=false
+// - you can check for errors with result * PARSECOMMAND_ERROR <> []
+// - warning: argc^ should be a 32-bit "integer" variable, not a PtrInt
 function ParseCommandArgs(const cmd: RawUtf8; argv: PParseCommandsArgs = nil;
   argc: PInteger = nil; temp: PRawUtf8 = nil;
   posix: boolean = PARSCOMMAND_POSIX): TParseCommands;
 
-/// low-level extration of the executable of a RunCommand() execution command
+/// high-level extraction of the executable of a RunCommand() execution command
 // - returns the first parameter returned by ParseCommandArgs()
+// - returns '' if cmd is incorrectly formatted
 function ExtractExecutableName(const cmd: RawUtf8;
   posix: boolean = PARSCOMMAND_POSIX): RawUtf8;
+
+/// high-level extraction of all parts of a RunCommand() execution command
+// - output param[0] is the executable name, and other param[] are the
+// actual command line arguments, just like the ParamStr() RTL function
+// - param is left nil on error, with result * PARSECOMMAND_ERROR <> []
+function ExtractCommandArgs(const cmd: RawUtf8; out param: TRawUtf8DynArray;
+  posix: boolean = PARSCOMMAND_POSIX): TParseCommands;
 
 type
   /// callback used by RunRedirect() to notify of console output at runtime
@@ -5309,10 +5936,11 @@ function RunCommand(const cmd: TFileName; waitfor: boolean;
 // use the system code page or even UTF-16 binary with BOM (!) - so you
 // may consider using AnsiToUtf8() with the proper code page
 // - will optionally call onoutput() to notify the new output state
-// - can abort if onoutput() callback returns false, or waitfordelayms expires
+// - aborts if onoutput() callback returns true, or waitfordelayms expires
 // - optional env is Windows only, (FPC popen does not support it), and should
 // be encoded as name=value#0 pairs
 // - you can specify a wrkdir if the path specified by cmd is not good enough
+// - warning: exitcode^ should be a 32-bit "integer" variable, not a PtrInt
 function RunRedirect(const cmd: TFileName; exitcode: PInteger = nil;
   const onoutput: TOnRedirect = nil; waitfordelayms: cardinal = INFINITE;
   setresult: boolean = true; const env: TFileName = '';
@@ -5325,21 +5953,34 @@ var
   RunAbortTimeoutSecs: integer = 5;
 
 {$ifdef OSWINDOWS}
+
+/// Windows-specific RunCommand() function returning raw TProcessInformation
+function RunCommandWin(const cmd: TFileName; waitfor: boolean;
+  var processinfo: TProcessInformation; const env: TFileName = '';
+  options: TRunOptions = []; waitfordelayms: cardinal = INFINITE;
+  redirected: PRawByteString = nil; const onoutput: TOnRedirect = nil;
+  const wrkdir: TFileName = ''; jobtoclose: PHandle = nil): integer;
+
 type
-  /// how in RunRedirect() or RunCommand() should try to gracefully terminate
+  /// how RunRedirect() or RunCommand() should try to gracefully terminate
   // - ramCtrlC calls CancelProcess(), i.e. send CTRL_C_EVENT
   // - ramQuit calls QuitProcess(), i.e. send WM_QUIT on all the process threads
+  // - note that TerminateProcess is always called after RunAbortTimeoutSecs
+  // timeout, or if this set of methods is void
   TRunAbortMethods = set of (ramCtrlC, ramQuit);
 var
   /// RunRedirect/RunCommand methods to gracefully terminate before TerminateProcess
   RunAbortMethods: TRunAbortMethods = [ramCtrlC, ramQuit];
 {$else}
 type
-  /// how in RunRedirect() should try to gracefully terminate
-  TRunAbortMethods = set of (ramSIGTERM);
+  /// how RunRedirect() should try to gracefully terminate
+  // - ramSigTerm send a fpkill(pid, SIGTERM) to the process
+  // - note that SIGKILL is always sent after RunAbortTimeoutSecs timeout,
+  // or if ramSigTerm was not supplied
+  TRunAbortMethods = set of (ramSigTerm);
 var
   /// RunRedirect() methods to gracefully terminate before SIGKILL
-  RunAbortMethods: TRunAbortMethods = [ramSIGTERM];
+  RunAbortMethods: TRunAbortMethods = [ramSigTerm];
 {$endif OSWINDOWS}
 
 
@@ -5360,600 +6001,249 @@ implementation
 
 { ****************** Some Cross-System Type and Constant Definitions }
 
-var
-  // live cache array to avoid memory allocations
-  ReasonCache: array[1..5, 0..13] of RawUtf8;
-
-procedure StatusCode2Reason(Code: cardinal; var Reason: RawUtf8);
+function _fmt(const Fmt: string; const Args: array of const): RawUtf8; overload;
 begin
-  case Code of
-    // HTTP_SUCCESS: is set at startup
-    HTTP_CONTINUE:
-      Reason := 'Continue';
-    HTTP_SWITCHINGPROTOCOLS:
-      Reason := 'Switching Protocols';
-    HTTP_CREATED:
-      Reason := 'Created';
-    HTTP_ACCEPTED:
-      Reason := 'Accepted';
-    HTTP_NONAUTHORIZEDINFO:
-      Reason := 'Non-Authoritative Information';
-    HTTP_NOCONTENT:
-      Reason := 'No Content';
-    HTTP_RESETCONTENT:
-      Reason := 'Reset Content';
-    HTTP_PARTIALCONTENT:
-      Reason := 'Partial Content';
-    207:
-      Reason := 'Multi-Status';
-    HTTP_MULTIPLECHOICES:
-      Reason := 'Multiple Choices';
-    HTTP_MOVEDPERMANENTLY:
-      Reason := 'Moved Permanently';
-    HTTP_FOUND:
-      Reason := 'Found';
-    HTTP_SEEOTHER:
-      Reason := 'See Other';
-    HTTP_NOTMODIFIED:
-      Reason := 'Not Modified';
-    HTTP_USEPROXY:
-      Reason := 'Use Proxy';
-    HTTP_TEMPORARYREDIRECT:
-      Reason := 'Temporary Redirect';
-    308:
-      Reason := 'Permanent Redirect';
-    HTTP_BADREQUEST:
-      Reason := 'Bad Request';
-    HTTP_UNAUTHORIZED:
-      Reason := 'Unauthorized';
-    HTTP_FORBIDDEN:
-      Reason := 'Forbidden';
-    HTTP_NOTFOUND:
-      Reason := 'Not Found';
-    HTTP_NOTALLOWED:
-      Reason := 'Method Not Allowed';
-    HTTP_NOTACCEPTABLE:
-      Reason := 'Not Acceptable';
-    HTTP_PROXYAUTHREQUIRED:
-      Reason := 'Proxy Authentication Required';
-    HTTP_TIMEOUT:
-      Reason := 'Request Timeout';
-    HTTP_CONFLICT:
-      Reason := 'Conflict';
-    410:
-      Reason := 'Gone';
-    411:
-      Reason := 'Length Required';
-    412:
-      Reason := 'Precondition Failed';
-    HTTP_PAYLOADTOOLARGE:
-      Reason := 'Payload Too Large';
-    414:
-      Reason := 'URI Too Long';
-    415:
-      Reason := 'Unsupported Media Type';
-    HTTP_RANGENOTSATISFIABLE:
-      Reason := 'Requested Range Not Satisfiable';
-    HTTP_TEAPOT:
-      Reason := 'I''m a teapot';
-    426:
-      Reason := 'Upgrade Required';
-    HTTP_SERVERERROR:
-      Reason := 'Internal Server Error';
-    HTTP_NOTIMPLEMENTED:
-      Reason := 'Not Implemented';
-    HTTP_BADGATEWAY:
-      Reason := 'Bad Gateway';
-    HTTP_UNAVAILABLE:
-      Reason := 'Service Unavailable';
-    HTTP_GATEWAYTIMEOUT:
-      Reason := 'Gateway Timeout';
-    HTTP_HTTPVERSIONNONSUPPORTED:
-      Reason := 'HTTP Version Not Supported';
-    511:
-      Reason := 'Network Authentication Required';
-  else
-    Reason := 'Invalid Request';
-  end;
+  result := RawUtf8(format(Fmt, Args)); // good enough (seldom called)
 end;
 
-function StatusCodeToReason(Code: cardinal): RawUtf8;
+procedure _fmt(const Fmt: string; const Args: array of const;
+  var result: RawUtf8); overload;
 begin
-  StatusCodeToReason(Code, result);
+  result := RawUtf8(format(Fmt, Args)); // good enough (seldom called)
 end;
 
-procedure StatusCodeToReason(Code: cardinal; var Reason: RawUtf8);
-var
-  Hi, Lo: cardinal;
-begin
-  if Code = 200 then
-  begin
-    Reason := ReasonCache[2, 0]; // optimistic approach :)
-    exit;
-  end;
-  Hi := Code div 100;
-  Lo := Code - Hi * 100;
-  if not ((Hi in [1..5]) and
-          (Lo in [0..13])) then
-  begin
-    Hi := 5;
-    Lo := 13; // returns cached 'Invalid Request'
-  end;
-  Reason := ReasonCache[Hi, Lo];
-  if Reason <> '' then
-    exit;
-  StatusCode2Reason(Code, Reason);
-  ReasonCache[Hi, Lo] := Reason;
-end;
-
-function StatusCodeIsSuccess(Code: integer): boolean;
-begin
-  result := (Code >= HTTP_SUCCESS) and
-            (Code < HTTP_BADREQUEST); // 200..399
-end;
-
-function IsInvalidHttpHeader(head: PUtf8Char; headlen: PtrInt): boolean;
-var
-  i: PtrInt;
-  c: cardinal;
-begin
-  result := true;
-  for i := 0 to headlen - 3 do
-  begin
-    c := PCardinal(head + i)^;
-    if (c = $0a0d0a0d) or
-       (Word(c) = $0d0d) or
-       (Word(c) = $0a0a) then
-      exit;
-  end;
-  result := false;
-end;
-
-function _oskb(Size: QWord): string;
-const
-  _U: array[0..2] of string[3] = ('GB', 'MB', 'KB');
-var
-  u, v: cardinal;
-begin
-  u := 0;
-  v := (Size + 1 shl 29) shr 30; // "+ 1 shl ##" to round up the value
-  if v = 0 then
-  begin
-    inc(u);
-    v := (Size + 1 shl 19) shr 20;
-    if v = 0 then
-    begin
-      inc(u);
-      v := (Size + 1 shl 9) shr 10;
-    end;
-  end;
-  result := format('%d%s', [v, _U[u]]);
-end;
-
-function SidLength(sid: PSid): PtrInt;
-begin
-  if sid = nil then
-    result := 0
-  else
-    result := integer(sid^.SubAuthorityCount) shl 2 + 8;
-end;
-
-function SidCompare(a, b: PSid): integer;
-var
-  l: PtrInt;
-begin
-  l := SidLength(a);
-  result := l - SidLength(b);
-  if result = 0 then
-    result := MemCmp(pointer(a), pointer(b), l);
-end;
-
-procedure ToRawSid(sid: PSid; out result: RawSid);
-begin
-  if sid <> nil then
-    FastSetRawByteString(RawByteString(result), sid, SidLength(sid));
-end;
-
-procedure SidToTextShort(sid: PSid; var result: shortstring);
-var
-  a: PSidAuth;
-  i: PtrInt;
-begin // faster than ConvertSidToStringSidA()
-  if (sid = nil ) or
-     (sid^.Revision <> 1) then
-  begin
-    result[0] := #0; // invalid SID
-    exit;
-  end;
-  a := @sid^.IdentifierAuthority;
-  if (a^[0] <> 0) or
-     (a^[1] <> 0) then
-  begin
-    result := 'S-1-0x';
-    for i := 0 to 5 do
-      AppendShortByteHex(a^[i], result)
-  end
-  else
-  begin
-    result := 'S-1-';
-    AppendShortCardinal(bswap32(PCardinal(@a^[2])^), result);
-  end;
-  for i := 0 to integer(sid^.SubAuthorityCount) - 1 do
-  begin
-    AppendShortChar('-', result);
-    AppendShortCardinal(sid^.SubAuthority[i], result);
-  end;
-end;
-
-function SidToText(sid: PSid): RawUtf8;
-var
-  tmp: shortstring;
-begin
-  SidToTextShort(sid, tmp);
-  FastSetString(result, @tmp[1], ord(tmp[0]));
-end;
-
-function SidsToText(sids: PSids): TRawUtf8DynArray;
-var
-  i: PtrInt;
-begin
-  SetLength(result, length(sids));
-  for i := 0 to length(sids) - 1 do
-    result[i] := SidToText(sids[i]);
-end;
-
-function IsValidRawSid(const sid: RawSid): boolean;
-var
-  l: PtrInt;
-begin
-  l := length(sid);
-  result := (l >= SizeOf(TSidAuth) + 2) and
-            (SidLength(pointer(sid)) = l)
-end;
-
-function HasSid(const sids: PSids; sid: PSid): boolean;
-var
-  i: PtrInt;
-begin
-  result := true;
-  if sid <> nil then
-    for i := 0 to length(sids) - 1 do
-      if SidCompare(sid, sids[i]) = 0 then
-        exit;
-  result := false;
-end;
-
-function HasAnySid(const sids: PSids; const sid: RawSidDynArray): boolean;
-var
-  i: PtrInt;
-begin
-  result := true;
-  for i := 0 to length(sid) - 1 do
-    if HasSid(sids, pointer(sid[i])) then
-      exit;
-  result := false;
-end;
-
-procedure AddRawSid(var sids: RawSidDynArray; sid: PSid);
+procedure _AddRawUtf8(var Values: TRawUtf8DynArray; const Value: RawUtf8);
 var
   n: PtrInt;
 begin
-  if sid = nil then
-    exit;
-  n := length(sids);
-  SetLength(sids, n + 1);
-  ToRawSid(sid, sids[n]);
+  n := length(Values);
+  SetLength(Values, n + 1);
+  Values[n] := Value;
 end;
 
-function RawSidToText(const sid: RawSid): RawUtf8;
+function _GetNextSpaced(var P: PAnsiChar): RawUtf8; // separated by space/feed
+var
+  S: PAnsiChar;
 begin
-  if IsValidRawSid(sid) then
-    result := SidToText(pointer(sid))
-  else
-    result := '';
+  result := '';
+  S := P;
+  if S = nil then
+    exit;
+  while S^ <= ' ' do
+    if S^ = #0 then
+      exit
+    else
+      inc(S);
+  P := S;
+  repeat
+    inc(S);
+  until S^ <= ' ';
+  FastSetString(result, P, S - P);
+  P := S;
 end;
 
-// GetNextCardinal() on POSIX does not ignore trailing '-'
-function GetNextUInt32(var P: PUtf8Char): cardinal;
+function _GetNextCardinal(var P: PAnsiChar): PtrUInt;
 var
   c: cardinal;
+  S: PAnsiChar;
 begin
   result := 0;
-  if P = nil then
+  S := P;
+  if S = nil then
     exit;
-  repeat
-    c := ord(P^) - 48;
-    if c > 9 then
-      break
+  while not (S^ in ['0'..'9']) do
+    if S^ = #0 then
+      exit
     else
-      result := result * 10 + c;
-    inc(P);
+      inc(S);
+  repeat
+    c := ord(S^) - 48;
+    if c > 9 then
+      break;
+    result := result * 10 + c;
+    inc(S);
   until false;
-  while P^ in ['.', '-', ' '] do
-    inc(P);
+  P := S;
 end;
 
-function TextToSid(P: PUtf8Char; out sid: TSid): boolean;
+procedure AppendKb(Size: Int64; var Dest: ShortString; WithSpace: boolean);
+const
+  _U: array[1..5] of AnsiChar = 'KMGTE';
+var
+  u: PtrInt;
+  b: Int64;
+begin
+  if Size < 0 then
+    exit;
+  u := 0;
+  b := 1 shl 10;
+  repeat
+    if Size < b - (b shr 3) then
+      break;
+    b := b shl 10;
+    inc(u);
+  until u = high(_u);
+  Size := (Size * 10000) shr (u * 10);
+  SimpleRoundTo2DigitsCurr64(Size);
+  AppendShortCurr64(Size, Dest, 1);
+  if WithSpace then
+    AppendShortChar(' ', @Dest);
+  if u <> 0 then
+    AppendShortChar(_U[u], @Dest);
+  AppendShortChar('B', @Dest);
+end;
+
+function KB(Size: Int64): TShort16;
+begin
+  result[0] := #0;
+  AppendKb(Size, result, {withspace=}true);
+end;
+
+function KBNoSpace(Size: Int64): TShort16;
+begin
+  result[0] := #0;
+  AppendKb(Size, result, {withspace=}false);
+end;
+
+{$ifdef ISDELPHI} // missing convenient RTL function in Delphi
+function TryStringToGUID(const s: string; var uuid: TGuid): boolean;
+begin
+  try
+    uuid := StringToGUID(s);
+    result := true;
+  except
+    result := false;
+  end;
+end;
+{$endif ISDELPHI}
+
+function _ShortToUuid(const text: ShortString; out uuid: TGuid): boolean;
+begin
+  result := (text[0] = #36) and
+            TryStringToGUID('{' + string(text) + '}', uuid); // RTL
+end;
+
+procedure _AppendShortUuid(const u: TGuid; var s: ShortString);
+begin
+  AppendShortAnsi7String(AnsiString(LowerCase(copy(GUIDToString(u), 2, 36))), s);
+end;
+
+function TextToUuid(const text: RawUtf8; out uuid: TGuid): boolean;
+var
+  tmp: string[36];
 begin
   result := false;
-  if (P = nil) or
-     (PCardinal(P)^ <>
-        ord('S') + ord('-') shl 8 + ord('1') shl 16 + ord('-') shl 24) then
+  if length(text) <> 36 then
     exit;
-  inc(P, 4);
-  if not (P^ in ['1'..'9']) then
-    exit;
-  PInt64(@sid)^ := 1;
-  PCardinal(@sid.IdentifierAuthority[2])^ := bswap32(GetNextUInt32(P));
-  while P^ in ['0'..'9'] do
-  begin
-    sid.SubAuthority[sid.SubAuthorityCount] := GetNextUInt32(P);
-    inc(sid.SubAuthorityCount);
-    if sid.SubAuthorityCount = 0 then
-      exit; // avoid any overflow
-  end;
-  result := P^ = #0
+  tmp[0] := #36;
+  MoveFast(pointer(text)^, tmp[1], 36);
+  result := ShortToUuid(tmp, uuid); // may call mormot.core.text
 end;
 
-function TextToRawSid(const text: RawUtf8): RawSid;
-begin
-  TextToRawSid(text, result);
-end;
-
-function TextToRawSid(const text: RawUtf8; out sid: RawSid): boolean;
+procedure UuidToText(const u: TGuid; var result: RawUtf8); // internal call
 var
-  tmp: TSid; // maximum size possible on stack (1032 bytes)
+  tmp: ShortString;
 begin
-  result := TextToSid(pointer(text), tmp);
-  if result then
-    ToRawSid(@tmp, sid)
-end;
-
-var
-  KNOWN_SID: array[TWellKnownSid] of RawSid;
-  KNOWN_SID_TEXT: array[TWellKnownSid] of string[15];
-const
-  INTEGRITY_SID: array[0..7] of word = ( // S-1-16-x known values
-    0, 4096, 8192, 8448, 12288, 16384, 20480, 28672);
-
-procedure ComputeKnownSid(wks: TWellKnownSid);
-var
-  sid: TSid;
-begin
-  PInt64(@sid)^ := $0101; // sid.Revision=1, sid.SubAuthorityCount=1
-  if wks <= wksLocal then
-  begin // S-1-1-0
-    sid.IdentifierAuthority[5] := ord(wks);
-    sid.SubAuthority[0] := 0;
-  end
-  else if wks = wksConsoleLogon then
-  begin // S-1-2-1
-    sid.IdentifierAuthority[5] := 2;
-    sid.SubAuthority[0] := 1;
-  end
-  else if wks <= wksCreatorGroupServer then
-  begin // S-1-3-0
-    sid.IdentifierAuthority[5] := 3;
-    sid.SubAuthority[0] := ord(wks) - ord(wksCreatorOwner);
-  end
-  else if wks <= wksIntegritySecureProcess then
-  begin
-    sid.IdentifierAuthority[5] := 16; // S-1-16-x
-    sid.SubAuthority[0] := INTEGRITY_SID[ord(wks) - ord(wksIntegrityUntrusted)];
-  end
-  else if wks <= wksAuthenticationKeyPropertyAttestation then
-  begin // S-1-18-1
-    sid.IdentifierAuthority[5] := 18;
-    sid.SubAuthority[0] := ord(wks) - (ord(wksAuthenticationAuthorityAsserted) - 1)
-  end
-  else
-  begin // S-1-5-x
-    sid.IdentifierAuthority[5] := 5;
-    if wks = wksNtAuthority then
-      sid.SubAuthorityCount := 0
-    else if wks <= wksInteractive then
-      sid.SubAuthority[0] := ord(wks) - ord(wksNtAuthority)
-    else if wks <= wksThisOrganisation then
-      sid.SubAuthority[0] := ord(wks) - (ord(wksNtAuthority) - 1)
-    else if wks <= wksNetworkService then
-      sid.SubAuthority[0] := ord(wks) - (ord(wksNtAuthority) - 2)
-    else if wks <= wksLocalAccountAndAdministrator then //  S-1-5-113
-      sid.SubAuthority[0] := ord(wks) - (ord(wksLocalAccount) - 113)
-    else
-    begin
-      sid.SubAuthority[0] := 32;
-      if wks <> wksBuiltinDomain then
-      begin
-        sid.SubAuthorityCount := 2;
-        if wks <= wksBuiltinDcomUsers then
-          sid.SubAuthority[1] := ord(wks) - (ord(wksBuiltinAdministrators) - 544)
-        else if wks <= wksBuiltinDeviceOwners then // S-1-5-32-583
-          sid.SubAuthority[1] := ord(wks) - (ord(wksBuiltinIUsers) - 568)
-        else if wks <= wksCapabilityContacts then
-        begin // S-1-15-3-1
-          sid.IdentifierAuthority[5] := 15;
-          sid.SubAuthority[0] := 3;
-          sid.SubAuthority[1] := ord(wks) - (ord(wksCapabilityInternetClient) - 1)
-        end
-        else if wks <= wksBuiltinAnyRestrictedPackage then
-        begin // S-1-15-2-1
-          sid.IdentifierAuthority[5] := 15;
-          sid.SubAuthority[0] := 2;
-          sid.SubAuthority[1] := ord(wks) - (ord(wksBuiltinAnyPackage) - 1)
-        end
-        else if wks <= wksDigestAuthentication then
-        begin
-          sid.SubAuthority[0] := 64;
-          case wks of
-            wksNtlmAuthentication:
-              sid.SubAuthority[1] := 10; // S-1-5-64-10
-            wksSChannelAuthentication:
-              sid.SubAuthority[1] := 14;
-            wksDigestAuthentication:
-              sid.SubAuthority[1] := 21;
-          end;
-        end;
-      end;
-    end;
-  end;
-  GlobalLock;
-  if KNOWN_SID[wks] = '' then
-  begin
-    SidToTextShort(@sid, KNOWN_SID_TEXT[wks]);
-    ToRawSid(@sid, KNOWN_SID[wks]); // to be set last
-  end;
-  GlobalUnLock;
-end;
-
-function KnownRawSid(wks: TWellKnownSid): RawSid;
-begin
-  if (wks <> wksNull) and
-     (KNOWN_SID[wks] = '') then
-    ComputeKnownSid(wks);
-  result := KNOWN_SID[wks];
-end;
-
-function KnownSidToText(wks: TWellKnownSid): PShortString;
-begin
-  if (wks <> wksNull) and
-     (KNOWN_SID[wks] = '') then
-    ComputeKnownSid(wks);
-  result := @KNOWN_SID_TEXT[wks];
-end;
-
-// https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
-// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/81d92bba-d22b-4a8c-908a-554ab29148ab
-
-function SidToKnown(sid: PSid): TWellKnownSid;
-var
-  c: integer;
-begin
-  result := wksNull; // not recognized
-  if (sid = nil) or
-     (sid.Revision <> 1) or
-     (PCardinal(@sid.IdentifierAuthority)^ <> 0) or
-     (sid.IdentifierAuthority[4] <> 0) then
-    exit;
-  case sid.SubAuthorityCount of // very fast O(1) SID binary recognition
-    0:
-      if sid.IdentifierAuthority[5] = 5 then
-        result := wksNtAuthority; // S-1-5
-    1:
-      begin
-        c := sid.SubAuthority[0];
-        case sid.IdentifierAuthority[5] of
-          1:
-            if c = 0 then
-              result := wksWorld; // S-1-1-0
-          2:
-            if c in [0 .. 1] then // S-1-2-x
-              result := TWellKnownSid(ord(wksLocal) + c);
-          3:
-            if c in [0 .. 3] then // S-1-3-x
-              result := TWellKnownSid(ord(wksCreatorOwner) + c);
-          5:
-            case c of // S-1-5-x
-              1 .. 4:
-                result := TWellKnownSid((ord(wksDialup) - 1) + c);
-              6 .. 15:
-                result := TWellKnownSid((ord(wksService) - 6) + c);
-              17 .. 20:
-                result := TWellKnownSid((ord(wksIisUser) - 17) + c);
-              32:
-                result := wksBuiltinDomain;
-              113 .. 114:
-                result := TWellKnownSid(integer(ord(wksLocalAccount) - 113) + c);
-            end;
-          16:
-            begin // S-1-16-x
-              c := WordScanIndex(@INTEGRITY_SID, length(INTEGRITY_SID), c);
-              if c >= 0 then
-                result := TWellKnownSid(ord(wksIntegrityUntrusted) + c);
-            end;
-          18:
-            if c in [1 .. 6] then // S-1-18-x
-              result :=
-                TWellKnownSid((ord(wksAuthenticationAuthorityAsserted) - 1) + c);
-        end;
-      end;
-    2:
-      begin
-        c := sid.SubAuthority[1];
-        case sid.IdentifierAuthority[5] of
-          5:
-            case sid.SubAuthority[0] of
-              32: // S-1-5-32-544
-                case c of
-                  544 .. 562:
-                    result := TWellKnownSid(ord(wksBuiltinAdministrators) + c - 544);
-                  568 .. 583:
-                    result := TWellKnownSid(ord(wksBuiltinIUsers) + c - 568);
-                end;
-              64: // S-1-5-64-10
-                case c of
-                  10:
-                    result := wksNtlmAuthentication;
-                  14:
-                    result := wksSChannelAuthentication;
-                  21:
-                    result := wksDigestAuthentication;
-                end;
-            end;
-          15:
-            case sid.SubAuthority[0] of
-              2:
-                if c in [1 .. 2] then // S-1-15-2-x
-                  result := TWellKnownSid(ord(pred(wksBuiltinAnyPackage)) + c);
-              3:
-                if c in [1 .. 12] then // S-1-15-3-x
-                  result := TWellKnownSid(ord(pred(wksCapabilityInternetClient)) + c);
-            end;
-        end;
-      end;
-  end;
-end;
-
-function SidToKnown(const text: RawUtf8): TWellKnownSid;
-var
-  sid: TSid;
-begin
-  if TextToSid(pointer(text), sid) then
-    result := SidToKnown(@sid)
-  else
-    result := wksNull;
-end;
-
-function SidToKnownGroups(const sids: PSids): TWellKnownSids;
-var
-  k: TWellKnownSid;
-  i: PtrInt;
-begin
-  result := [];
-  for i := 0 to length(sids) - 1 do
-  begin
-    k := SidToKnown(sids[i]);
-    if k <> wksNull then
-      include(result, k);
-  end;
+  tmp[0] := #0;
+  AppendShortUuid(u, tmp); // may call mormot.core.text
+  FastSetString(result, @tmp[1], ord(tmp[0]));
 end;
 
 
 { ****************** Gather Operating System Information }
 
-function ToText(const osv: TOperatingSystemVersion): RawUtf8;
+const // cf https://en.wikipedia.org/wiki/List_of_Microsoft_Windows_versions
+  DESKTOP_INT: array[0 .. 18] of cardinal = (
+     10240,  10586,  14393,  15063,  16299,  17134,  17763,  18362,  18363,
+     19041,  19042,  19043,  19044,  19045,  22000,  22621,  22631,  26100,
+     27686); // detect 25H2 Canary builds since 15/8/2024
+  DESKTOP_TXT: array[0 .. high(DESKTOP_INT), 0 .. 3] of AnsiChar = (
+    '1507', '1511', '1607', '1703', '1709', '1803', '1809', '1903', '1909',
+    '2004', '20H2', '21H1', '21H2', '22H2', '21H2', '22H2', '23H2', '24H2',
+    '25H2');
+  SERVER_INT: array[0 .. 10] of cardinal = (
+    14393,  16299,  17134,  17763,  18362,  18363,  19041,  19042,  20348,
+    25398,  26100);
+  SERVER_TXT: array[0 .. high(SERVER_INT), 0 .. 3] of AnsiChar = (
+    '1607', '1709', '1803', '1809', '1903', '1909', '2004', '20H2', '21H2',
+    '23H2', '24H2');
+
+function FindOsBuild(c: cardinal; hi: PtrInt; b, t: PCardinalArray): cardinal;
 begin
-  if osv.os = osWindows then
-    result := 'Windows ' + WINDOWS_NAME[osv.win]
-  else
-    result := OS_NAME[osv.os];
+  repeat
+    if c >= b^[hi] then
+    begin
+      result := t^[hi];
+      exit;
+    end;
+    dec(hi);
+  until hi < 0;
+  result := 0;
 end;
 
-function ToTextShort(const osv: TOperatingSystemVersion): RawUtf8;
+function WinOsBuild(const osv: TOperatingSystemVersion; firstchar: AnsiChar): TShort8;
+var
+  c: cardinal;
 begin
-  if osv.os = osWindows then
-    result := WINDOWS_NAME[osv.win]
+  result[0] := #0;
+  if osv.os <> osWindows then
+    exit;
+  c := osv.winbuild;
+  case  osv.win of
+    wTen, wTen_64, wEleven, wEleven_64: // desktop versions
+      c := FindOsBuild(c, high(DESKTOP_INT), @DESKTOP_INT, @DESKTOP_TXT);
+    wServer2016, wServer2016_64, wServer2019_64, wServer2022_64, wServer2025_64:
+      c := FindOsBuild(c, high(SERVER_INT), @SERVER_INT, @SERVER_TXT);
   else
-    result := OS_NAME[osv.os];
+    exit;
+  end;
+  if c <> 0 then
+    if firstchar = #0 then
+    begin
+      result[0] := #4; // e.g. '21H2' for firstchar=#0
+      PCardinal(@result[1])^ := c;
+    end
+    else
+    begin
+      result[0] := #5; // e.g. ' 21H2' for firstchar=' '
+      result[1] := firstchar;
+      PCardinal(@result[2])^ := c;
+    end;
+end;
+
+function ToText(const osv: TOperatingSystemVersion): RawUtf8;
+begin
+  result := OS_NAME[osv.os];
+  case osv.os of
+    osWindows:
+      begin
+        Join(['Windows ', WINDOWS_NAME[osv.win]], result);
+        AppendShortToUtf8(WinOsBuild(osv, ' '), result);
+      end;
+    osOSX:
+      if osv.utsrelease[2] in [low(MACOS_NAME) .. high(MACOS_NAME)] then
+        Join(['macOS ', MACOS_NAME[osv.utsrelease[2]]], result);
+  end;
+end;
+
+function OsvToTextShorter(const osv: TOperatingSystemVersion): PRawUtf8;
+begin
+  result := nil;
+  case osv.os of
+    osWindows:
+      result := @WINDOWS_NAME[osv.win];
+    osOSX:
+      if osv.utsrelease[2] in [low(MACOS_NAME) .. high(MACOS_NAME)] then
+        result := @MACOS_NAME[osv.utsrelease[2]];
+  end;
+  if (result = nil) or
+     (result^ = '') then
+    result := @OS_NAME[osv.os];
+end;
+
+function OsvToTextShort(const osv: TOperatingSystemVersion): RawUtf8;
+begin
+  result := OsvToTextShorter(osv)^;
 end;
 
 const
@@ -5972,7 +6262,7 @@ begin
   result := ToText(osv);
   if (osv.os = osWindows) and
      (osv.winbuild <> 0) then
-    // include the Windows build number, e.g. 'Windows 11 64-bit 22000'
+    // include the Windows build number, e.g. 'Windows 11 64bit 21H2 22000'
     result := _fmt('%s %d', [result, osv.winbuild]);
   if (osv.os >= osLinux) and
      (osv.utsrelease[2] <> 0) then
@@ -5999,6 +6289,188 @@ begin
     else
       result := false;
     end;
+end;
+
+// PUtf8Char for system error text reduces the executable size vs RawUtf8
+// on Delphi (aligned to 4 bytes), but not on FPC (aligned to 16 bytes), and
+// enumerates allow cross-platform error support outside of the Windows unit
+
+const
+  NULL_STR: string[1] = '';
+
+{$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
+var
+  _GetEnumNameRttiTmp: string[127]; // output 'TEnumTypeName#value'
+{$endif FPC_REQUIRES_PROPER_ALIGNMENT}
+
+function _GetEnumNameRtti(Info: pointer; Value: integer): PShortString;
+begin
+  if Value < 0 then
+  begin
+    result := @NULL_STR;
+    exit;
+  end;
+  // minimal version with no Kind, EnumBaseType nor Value min/max check
+  {$ifdef FPC_REQUIRES_PROPER_ALIGNMENT}
+  // no arm32 support yet - see fpc_shortstr_enum_intern() in sstrings.inc
+  result := @_GetEnumNameRttiTmp;
+  result^ := PShortString(@PByteArray(Info)[1])^;
+  AppendShortChar('#', pointer(result));
+  AppendShortCardinal(Value, result^);
+  {$else}
+  // quickly jump over Kind + NameLen + Name +  OrdType + Min + Max + EnumBaseType
+  result := @PAnsiChar(Info)[PByteArray(Info)[1] + (1 + 1 + 1 + 4 + 4 +
+    SizeOf(pointer) {$ifdef FPC_PROVIDE_ATTR_TABLE} + SizeOf(pointer) {$endif})];
+  if Value > 0 then
+    repeat
+      inc(PByte(result), ord(result^[0]) + 1); // next ShortString
+      dec(Value);
+    until Value = 0;
+  {$endif FPC_REQUIRES_PROPER_ALIGNMENT}
+end;
+
+type
+  // https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes
+  TWinError0 = ( // 0..39
+    SUCCESS, INVALID_FUNCTION, FILE_NOT_FOUND, PATH_NOT_FOUND,
+    TOO_MANY_OPEN_FILES, ACCESS_DENIED, INVALID_HANDLE, ARENA_TRASHED,
+    NOT_ENOUGH_MEMORY, INVALID_BLOCK, BAD_ENVIRONMENT, BAD_FORMAT,
+    INVALID_ACCESS, INVALID_DATA, OUTOFMEMORY, INVALID_DRIVE,
+    CURRENT_DIRECTORY, NOT_SAME_DEVICE, NO_MORE_FILES, WRITE_PROTECT,
+    BAD_UNIT, NOT_READY, BAD_COMMAND, CRC, BAD_LENGTH, SEEK,
+    NOT_DOS_DISK, SECTOR_NOT_FOUND, OUT_OF_PAPER, WRITE_FAULT,
+    READ_FAULT, GEN_FAILURE, SHARING_VIOLATION, LOCK_VIOLATION,
+    WRONG_DISK, FAIL_I35, SHARING_BUFFER_EXCEEDED, FAIL_I37, HANDLE_EOF,
+    HANDLE_DISK_FULL);
+  TWinError50 = ( // 50..55
+    NOT_SUPPORTED, REM_NOT_LIST, DUP_NAME, BAD_NETPATH,
+    NETWORK_BUSY, DEV_NOT_EXIST);
+  TWinError80 = ( // 80..89
+    FILE_EXISTS, FAIL_I81, CANNOT_MAKE, FAIL_I83, OUT_OF_STRUCTURES,
+    ALREADY_ASSIGNED, INVALID_PASSWORD, INVALID_PARAMETER,
+    NET_WRITE_FAULT, NO_PROC_SLOTS);
+  TWinError108 = ( // 108..129
+    DRIVE_LOCKED, BROKEN_PIPE, OPEN_FAILED, BUFFER_OVERFLOW,
+    DISK_FULL, NO_MORE_SEARCH_HANDLES, INVALID_TARGET_HANDLE, FAIL_I115,
+    FAIL_I116, INVALID_CATEGORY, INVALID_VERIFY_SWITCH, BAD_DRIVER_LEVEL,
+    CALL_NOT_IMPLEMENTED, SEM_TIMEOUT, INSUFFICIENT_BUFFER,
+    INVALID_NAME, INVALID_LEVEL, NO_VOLUME_LABEL, MOD_NOT_FOUND,
+    PROC_NOT_FOUND, WAIT_NO_CHILDREN, CHILD_NOT_COMPLETE);
+  TWinError995 = ( // 995..1013
+    OPERATION_ABORTED, IO_INCOMPLETE, IO_PENDING, NOACCESS, SWAPERROR,
+    FAIL_I1000, STACK_OVERFLOW, INVALID_MESSAGE, CAN_NOT_COMPLETE,
+    INVALID_FLAGS, UNRECOGNIZED_VOLUME, FILE_INVALID, FULLSCREEN_MODE,
+    NO_TOKEN, BADDB, BADKEY, CANTOPEN, CANTREAD, CANTWRITE);
+  TWinError1051 = ( // 1051..1079
+    DEPENDENT_SERVICES_RUNNING, INVALID_SERVICE_CONTROL,
+    SERVICE_REQUEST_TIMEOUT, SERVICE_NO_THREAD, SERVICE_DATABASE_LOCKED,
+    SERVICE_ALREADY_RUNNING, INVALID_SERVICE_ACCOUNT, SERVICE_IS_DISABLED,
+    CIRCULAR_DEPENDENCY, SERVICE_DOES_NOT_EXIST, SERVICE_CANNOT_ACCEPT_CTRL,
+    SERVICE_NOT_ACTIVE, FAILED_SERVICE_CONTROLLER_CONNECT,
+    EXCEPTION_IN_SERVICE, DATABASE_DOES_NOT_EXIST, SERVICE_SPECIFIC_ERROR,
+    PROCESS_ABORTED, SERVICE_DEPENDENCY_FAIL, SERVICE_LOGON_FAILED,
+    SERVICE_START_HANG, INVALID_SERVICE_LOCK, SERVICE_MARKED_FOR_DELETE,
+    SERVICE_EXISTS, ALREADY_RUNNING_LKG, SERVICE_DEPENDENCY_DELETED,
+    BOOT_ALREADY_ACCEPTED, SERVICE_NEVER_STARTED, DUPLICATE_SERVICE_NAME,
+    DIFFERENT_SERVICE_ACCOUNT);
+  TWinError1200 = ( // 1200..1246
+    BAD_DEVICE, CONNECTION_UNAVAIL, DEVICE_ALREADY_REMEMBERED,
+    NO_NET_OR_BAD_PATH, BAD_PROVIDER, CANNOT_OPEN_PROFILE, BAD_PROFILE,
+    NOT_CONTAINER, EXTENDED_ERROR, INVALID_GROUPNAME, INVALID_COMPUTERNAME,
+    INVALID_EVENTNAME, INVALID_DOMAINNAME, INVALID_SERVICENAME,
+    INVALID_NETNAME, INVALID_SHARENAME, INVALID_PASSWORDNAME,
+    INVALID_MESSAGENAME, INVALID_MESSAGEDEST, SESSION_CREDENTIAL_CONFLICT,
+    REMOTE_SESSION_LIMIT_EXCEEDED, DUP_DOMAINNAME, NO_NETWORK, CANCELLED,
+    USER_MAPPED_FILE, CONNECTION_REFUSED, GRACEFUL_DISCONNECT,
+    ADDRESS_ALREADY_ASSOCIATED, ADDRESS_NOT_ASSOCIATED, CONNECTION_INVALID,
+    CONNECTION_ACTIVE, NETWORK_UNREACHABLE, HOST_UNREACHABLE,
+    PROTOCOL_UNREACHABLE, PORT_UNREACHABLE, REQUEST_ABORTED,
+    CONNECTION_ABORTED, RETRY, CONNECTION_COUNT_LIMIT,
+    LOGIN_TIME_RESTRICTION, LOGIN_WKSTA_RESTRICTION, INCORRECT_ADDRESS,
+    ALREADY_REGISTERED, SERVICE_NOT_FOUND, NOT_AUTHENTICATED,
+    NOT_LOGGED_ON, _CONTINUE);
+  TWinError1315 = ( // 1315..1342
+    INVALID_ACCOUNT_NAME, USER_EXISTS, NO_SUCH_USER, GROUP_EXISTS,
+    NO_SUCH_GROUP, MEMBER_IN_GROUP, MEMBER_NOT_IN_GROUP, LAST_ADMIN,
+    WRONG_PASSWORD, ILL_FORMED_PASSWORD, PASSWORD_RESTRICTION, LOGON_FAILURE,
+    ACCOUNT_RESTRICTION, INVALID_LOGON_HOURS, INVALID_WORKSTATION,
+    PASSWORD_EXPIRED, ACCOUNT_DISABLED, NONE_MAPPED, TOO_MANY_LUIDS_REQUESTED,
+    LUIDS_EXHAUSTED, INVALID_SUB_AUTHORITY, INVALID_ACL, INVALID_SID,
+    INVALID_SECURITY_DESCR, _1339, BAD_INHERITANCE_ACL, SERVER_DISABLED,
+    SERVER_NOT_DISABLED);
+  // O(log(n)) binary search in WINERR_SORTED[] constants
+  TWinErrorOne = (
+    CRYPT_E_BAD_ENCODE, CRYPT_E_SELF_SIGNED, CRYPT_E_BAD_MSG, CRYPT_E_REVOKED,
+    CRYPT_E_NO_REVOCATION_CHECK, CRYPT_E_REVOCATION_OFFLINE, TRUST_E_BAD_DIGEST,
+    TRUST_E_NOSIGNATURE, CERT_E_EXPIRED, CERT_E_CHAINING, CERT_E_REVOKED,
+    ALREADY_EXISTS, MORE_DATA, ACCOUNT_EXPIRED, NO_SYSTEM_RESOURCES,
+    PASSWORD_MUST_CHANGE, ERROR_ACCOUNT_LOCKED_OUT,
+    WSAEFAULT, WSAEINVAL, WSAEMFILE, WSAEWOULDBLOCK, WSAENOTSOCK, WSAENETDOWN,
+    WSAENETUNREACH, WSAENETRESET, WSAECONNABORTED, WSAECONNRESET, WSAENOBUFS,
+    WSAETIMEDOUT, WSAECONNREFUSED, WSATRY_AGAIN,
+    WINHTTP_TIMEOUT, WINHTTP_OPERATION_CANCELLED, WINHTTP_CANNOT_CONNECT,
+    WINHTTP_CLIENT_AUTH_CERT_NEEDED, WINHTTP_INVALID_SERVER_RESPONSE);
+const
+  WINERR_SORTED: array[TWinErrorOne] of cardinal = (
+    // some security-related HRESULT errors (negative 32-bit values first)
+    $80092002, $80092007, $8009200d, $80092010, $80092012, $80092013, $80096010,
+    $800b0100, $800b0101, $800b010a, $800b010c,
+    // sparse system errors
+    183, 234, 701, 1450, 1907, 1909,
+    // main Windows Socket API (WSA) errors
+    10014, 10022, 10024, 10035, 10038, 10050, 10051, 10052, 10053, 10054, 10055,
+    10060, 10061, 11002,
+    // most common WinHttp API errors (in range 12000...12152)
+    12002, 12017, 12029, 12044, 12152);
+
+function WinErrorConstant(Code: cardinal): PShortString;
+begin
+  case Code of // split into TWinError* types (faster and cross-platform)
+    0 .. ord(high(TWinError0)):
+      result := GetEnumNameRtti(TypeInfo(TWinError0), Code);
+    50 .. 50 + ord(high(TWinError50)):
+      result := GetEnumNameRtti(TypeInfo(TWinError50), Code - 50);
+    80 .. 80 + ord(high(TWinError80)):
+      result := GetEnumNameRtti(TypeInfo(TWinError80), Code - 80);
+    108 .. 108 + ord(high(TWinError108)):
+      result := GetEnumNameRtti(TypeInfo(TWinError108), Code - 108);
+    995 .. 995 + ord(high(TWinError995)):
+      result := GetEnumNameRtti(TypeInfo(TWinError995), Code - 995);
+    1051 .. 1051 + ord(high(TWinError1051)):
+      result := GetEnumNameRtti(TypeInfo(TWinError1051), Code - 1051);
+    1200 .. 1200 + ord(high(TWinError1200)):
+      result := GetEnumNameRtti(TypeInfo(TWinError1200), Code - 1200);
+    1315 .. 1315 + ord(high(TWinError1315)):
+      result := GetEnumNameRtti(TypeInfo(TWinError1315), Code - 1315);
+  else
+    result := GetEnumNameRtti(TypeInfo(TWinErrorOne),
+      FastFindIntegerSorted(@WINERR_SORTED, ord(high(WINERR_SORTED)), Code));
+  end;
+end;
+
+function WinErrorShort(Code: cardinal): ShortString;
+begin
+  result[0] := #0;
+  AppendShortCardinal(Code, result);
+  AppendWinErrorText(Code, result, ' ');
+end;
+
+function AppendWinErrorText(Code: cardinal; var Dest: ShortString;
+  Sep: AnsiChar): boolean;
+var
+  txt: PShortString;
+begin
+  result := false;
+  txt := WinErrorConstant(Code);
+  if txt^[0] = #0 then
+    exit;
+  if Sep <> #0 then
+    AppendShortChar(Sep, @Dest);
+  if (Code < 10000) or
+     (Code > 11999) then
+    AppendShort('ERROR_', Dest); // if not WSA*
+  AppendShort(txt^, Dest);
+  result := true;
 end;
 
 const
@@ -6065,7 +6537,18 @@ const
     $0d4c,  // actCortexX1C
     $0d4d,  // actCortexA715
     $0d4e,  // actCortexX3
-    $0d4f); // actNeoverseV2
+    $0d4f,  // actNeoverseV2
+    $0d80,  // actCortexA520
+    $0d81,  // actCortexA720
+    $0d82,  // actCortexX4
+    $0d83,  // actNeoverseV3AE
+    $0d84,  // actNeoverseV3
+    $0d85,  // actCortextX925
+    $0d87,  // actCortextA725
+    $0d88,  // actCortextA520AE
+    $0d89,  // actCortextA720AE
+    $0d8e,  // actNeoverseN3
+    $0d8f); // actCortextA320
 
   ARMCPU_IMPL: array[TArmCpuImplementer] of byte = (
     0,    // aciUnknown
@@ -6085,6 +6568,7 @@ const
     $61,  // aciApple
     $66,  // aciFaraday
     $69,  // aciIntel
+    $6d,  // aciMicrosoft
     $70,  // aciPhytium
     $c0); // aciAmpere
 
@@ -6092,22 +6576,25 @@ const
      '',
      'ARM810', 'ARM920', 'ARM922', 'ARM926', 'ARM940', 'ARM946', 'ARM966',
      'ARM1020', 'ARM1022', 'ARM1026', 'ARM11 MPCore', 'ARM1136', 'ARM1156',
-     'ARM1176', 'Cortex-A5', 'Cortex-A7', 'Cortex-A8', 'Cortex-A9',
-     'Cortex-A17',{Originally A12} 'Cortex-A15', 'Cortex-A17', 'Cortex-R4',
-     'Cortex-R5', 'Cortex-R7', 'Cortex-R8', 'Cortex-M0', 'Cortex-M1',
-     'Cortex-M3', 'Cortex-M4', 'Cortex-M7', 'Cortex-M0+', 'Cortex-A32',
-     'Cortex-A53', 'Cortex-A35', 'Cortex-A55', 'Cortex-A65', 'Cortex-A57',
-     'Cortex-A72', 'Cortex-A73', 'Cortex-A75', 'Cortex-A76', 'Neoverse-N1',
-     'Cortex-A77', 'Cortex-A76AE', 'Cortex-R52', 'Cortex-M23', 'Cortex-M33',
-     'Neoverse-V1', 'Cortex-A78', 'Cortex-A78AE', 'Cortex-X1', 'Cortex-510',
-     'Cortex-710', 'Cortex-X2', 'Neoverse-N2', 'Neoverse-E1', 'Cortex-A78C',
-     'Cortex-X1C', 'Cortex-A715', 'Cortex-X3', 'Neoverse-V2');
+     'ARM1176',     'Cortex-A5',   'Cortex-A7',   'Cortex-A8',   'Cortex-A9',
+     'Cortex-A17',{originally A12} 'Cortex-A15',  'Cortex-A17',  'Cortex-R4',
+     'Cortex-R5',   'Cortex-R7',   'Cortex-R8',   'Cortex-M0',   'Cortex-M1',
+     'Cortex-M3',   'Cortex-M4',   'Cortex-M7',   'Cortex-M0+',  'Cortex-A32',
+     'Cortex-A53',  'Cortex-A35',  'Cortex-A55',  'Cortex-A65',  'Cortex-A57',
+     'Cortex-A72',  'Cortex-A73',  'Cortex-A75',  'Cortex-A76',  'Neoverse-N1',
+     'Cortex-A77',  'Cortex-A76AE','Cortex-R52',  'Cortex-M23',  'Cortex-M33',
+     'Neoverse-V1', 'Cortex-A78',  'Cortex-A78AE','Cortex-X1',   'Cortex-510',
+     'Cortex-710',  'Cortex-X2',   'Neoverse-N2', 'Neoverse-E1', 'Cortex-A78C',
+     'Cortex-X1C',  'Cortex-A715', 'Cortex-X3',   'Neoverse-V2', 'Cortex-A520',
+     'Cortex-A720', 'Cortex-X4',   'Neoverse-V3AE','Neoverse-V3','Cortex-X925',
+     'Cortex-A725', 'Cortex-A520AE', 'Cortex-A720AE', 'Neoverse-N3',
+     'Cortex-A320');
 
   ARMCPU_IMPL_TXT: array[TArmCpuImplementer] of string[18] = (
       '',
       'ARM', 'Broadcom', 'Cavium', 'DEC', 'FUJITSU', 'HiSilicon', 'Infineon',
       'Motorola/Freescale', 'NVIDIA', 'APM', 'Qualcomm', 'Samsung', 'Marvell',
-      'Apple', 'Faraday', 'Intel', 'Phytium', 'Ampere');
+      'Apple', 'Faraday', 'Intel', 'Microsoft', 'Phytium', 'Ampere');
 
 function ArmCpuType(id: word): TArmCpuType;
 begin
@@ -6117,12 +6604,16 @@ begin
   result := actUnknown;
 end;
 
-function ArmCpuTypeName(act: TArmCpuType; id: word): RawUtf8;
+function ArmCpuTypeName(act: TArmCpuType; id: word; const before: ShortString): ShortString;
 begin
+  result := before;
   if act = actUnknown then
-    result := 'ARM 0x' + RawUtf8(IntToHex(id, 3))
+  begin
+    AppendShort('ARM 0x', result);;
+    AppendShortIntHex(id, result);
+  end
   else
-    ShortStringToAnsi7String(ARMCPU_ID_TXT[act], result);
+    AppendShort(ARMCPU_ID_TXT[act], result);
 end;
 
 function ArmCpuImplementer(id: byte): TArmCpuImplementer;
@@ -6133,12 +6624,17 @@ begin
   result := aciUnknown;
 end;
 
-function ArmCpuImplementerName(aci: TArmCpuImplementer; id: word): RawUtf8;
+function ArmCpuImplementerName(aci: TArmCpuImplementer; id: word;
+  const after: ShortString): ShortString;
 begin
   if aci = aciUnknown then
-    result := 'HW 0x' + RawUtf8(IntToHex(id, 2))
+  begin
+    result := 'HW 0x';
+    AppendShortIntHex(id, result);
+  end
   else
-    ShortStringToAnsi7String(ARMCPU_IMPL_TXT[aci], result);
+    result := ARMCPU_IMPL_TXT[aci];
+  AppendShort(after, result);
 end;
 
 
@@ -6150,7 +6646,7 @@ begin
 end;
 
 {$ifdef CPUINTEL}
-procedure RedirectCode(Func, RedirectFunc: Pointer);
+procedure RedirectCode(Func, RedirectFunc: pointer);
 var
   rel: PtrInt;
   NewJump: packed record
@@ -6175,74 +6671,6 @@ end;
 {$endif CPUINTEL}
 
 
-
-{ ************** Cross-Platform Charset and CodePage Support }
-
-function CharSetToCodePage(CharSet: integer): cardinal;
-begin
-  case CharSet of
-    SHIFTJIS_CHARSET:
-      result := 932;
-    HANGEUL_CHARSET:
-      result := 949;
-    GB2312_CHARSET:
-      result := 936;
-    HEBREW_CHARSET:
-      result := 1255;
-    ARABIC_CHARSET:
-      result := 1256;
-    GREEK_CHARSET:
-      result := 1253;
-    TURKISH_CHARSET:
-      result := 1254;
-    VIETNAMESE_CHARSET:
-      result := 1258;
-    THAI_CHARSET:
-      result := 874;
-    EASTEUROPE_CHARSET:
-      result := 1250;
-    RUSSIAN_CHARSET:
-      result := 1251;
-    BALTIC_CHARSET:
-      result := 1257;
-  else
-    result := CP_WINANSI; // default ANSI_CHARSET = iso-8859-1 = windows-1252
-  end;
-end;
-
-function CodePageToCharSet(CodePage: cardinal): integer;
-begin
-  case CodePage of
-    932:
-      result := SHIFTJIS_CHARSET;
-    949:
-      result := HANGEUL_CHARSET;
-    936:
-      result := GB2312_CHARSET;
-    1255:
-      result := HEBREW_CHARSET;
-    1256:
-      result := ARABIC_CHARSET;
-    1253:
-      result := GREEK_CHARSET;
-    1254:
-      result := TURKISH_CHARSET;
-    1258:
-      result := VIETNAMESE_CHARSET;
-    874:
-      result := THAI_CHARSET;
-    1250:
-      result := EASTEUROPE_CHARSET;
-    1251:
-      result := RUSSIAN_CHARSET;
-    1257:
-      result := BALTIC_CHARSET;
-  else
-    result := ANSI_CHARSET; // default is iso-8859-1 = windows-1252
-  end;
-end;
-
-
 { ****************** Unicode, Time, File, Console, Library process }
 
 procedure InitializeCriticalSectionIfNeededAndEnter(var cs: TRTLCriticalSection);
@@ -6261,7 +6689,7 @@ end;
 function Unicode_CodePage: integer;
 begin
   {$ifdef FPC}
-  // = GetSystemCodePage on POSIX, Lazarus may override to UTF-8 on Windows
+  // = GetSystemCodePage on POSIX, Lazarus may override to be CP_UTF8 on Windows
   result := DefaultSystemCodePage;
   {$else}
   // Delphi always uses the main Windows System Code Page
@@ -6284,10 +6712,11 @@ var
 begin
   if LW <= 0 then
     res[0] := #0
-  else if (LW <= 255) and
-          IsAnsiCompatibleW(W, LW) then
+  else if IsAnsiCompatibleW(W, LW) then
   begin
-    // fast handling of pure English content
+    // fast handling of pure ASCII-7 content (very common case)
+    if LW > 255 then
+      LW := 255;
     res[0] := AnsiChar(LW);
     i := 1;
     repeat
@@ -6304,23 +6733,108 @@ begin
       Unicode_WideToAnsi(W, PAnsiChar(@res[1]), LW, 255, CodePage));
 end;
 
+function Unicode_FromUtf8(Text: PUtf8Char; TextLen: PtrInt;
+  var Dest: TSynTempBuffer): PWideChar;
+var
+  i: PtrInt;
+begin
+  if (Text = nil) or
+     (TextLen <= 0) then
+    result := Dest.Init(0)
+  else if IsAnsiCompatible(pointer(Text), TextLen) then // optimistic way
+  begin
+    result := Dest.Init(TextLen);
+    for i := 0 to TextLen - 1 do
+      PWordArray(result)[i] := PByteArray(Text)[i];
+    result[Dest.len] := #0; // Text[TextLen] may not be #0
+  end
+  else // use the RTL to perform the UTF-8 to UTF-16 conversion
+  begin                               
+    result := Dest.Init(TextLen * 2); // maximum absolute UTF-16 size in bytes
+    Dest.len := Utf8ToUnicode(result, TextLen + 8, pointer(Text), TextLen);
+    if Dest.len <= 0 then                  // + 8 = + SYNTEMPTRAIL/2
+      Dest.len := 0
+    else
+    begin
+      dec(Dest.len); // Utf8ToUnicode() returned length includes #0 terminator
+      result[Dest.len] := #0; // missing on FPC
+    end;
+  end;
+end;
+
+procedure Unicode_CodePageName(CodePage: cardinal; var Name: ShortString);
+begin // cut-down and fixed version of FPC rtl/objpas/sysutils/syscodepages.inc
+  case codepage of
+    932:
+      Name  := 'SHIFT_JIS';
+    936:
+      Name := 'GBK';
+    949:
+      Name := 'KS-C5601'; // Unified Hangul Code
+    950:
+      Name := 'BIG5';
+    951: // not standard: will fallback to 950 in mormot.core.os.windows.inc
+      Name := 'BIG5-HKSCS';
+    CP_UTF16: // = 1200
+      Name := 'UTF16LE';
+    1201:
+      Name := 'UTF16BE';
+    1361:
+      Name := 'JOHAB';
+    12000:
+      Name := 'UTF32LE';
+    20932:
+      Name := 'EUC-JP'; // Japanese (JIS 0208-1990 and 0121-1990)
+    28591 .. 28606:
+      begin
+        Name := 'ISO-8859-';
+        AppendShortCardinal(codepage - 28590, Name);
+      end;
+    50220, 50222:
+      Name := 'ISO-2022-JP';
+    50221:
+      Name := 'CDISO2022JP';
+    50225:
+      Name := 'ISO-2022-KR';
+    50227:
+      Name := 'ISO-2022-CN';
+    51936:
+      Name := 'EUC-CN';  // EUC Simplified Chinese
+    51949:
+      Name := 'EUC-KR';  // EUC Korean
+    CP_HZ: // = 52936
+      Name := 'HZ';      // HZ-GB2312 Simplified Chinese
+    54936:
+      Name := 'GB18030'; // GB18030 Simplified Chinese
+    CP_UTF8: // = 65001
+      Name := 'UTF8';
+  else
+    begin  // 'MS####' is enough for most code pages
+      Name := 'MS';
+      AppendShortCardinal(codepage, Name);
+    end; // ICU expects 'CP####' for IBM codepages which are not Windows'
+  end;
+  Name[ord(Name[0]) + 1] := #0; // ensure is ASCIIZ - e.g. for ucnv_open()
+end;
+
 function NowUtc: TDateTime;
 begin
-  result := UnixMSTimeUtcFast / Int64(MSecsPerDay) + Int64(UnixDelta);
+  result := UnixMSTimeUtcFast / Int64(MilliSecsPerDay) + Int64(UnixDelta);
 end;
 
 function DateTimeToWindowsFileTime(DateTime: TDateTime): integer;
 var
-  YY, MM, DD, H, m, s, ms: word;
+  yy, mm, dd, h, m, s, ms: word;
 begin
-  DecodeDate(DateTime, YY, MM, DD);
+  result := 0;
+  if DateTime = 0 then
+    exit;
+  DecodeDate(DateTime, yy, mm, dd);
   DecodeTime(DateTime, h, m, s, ms);
-  if (YY < 1980) or
-     (YY > 2099) then
-    result := 0
-  else
+  if (yy >= 1980) and
+     (yy <= 2099) then // hard limit is 2108, but WinAPI up to 2099/12/31
     result := (s shr 1) or (m shl 5) or (h shl 11) or
-      cardinal((DD shl 16) or (MM shl 21) or (cardinal(YY - 1980) shl 25));
+      cardinal((dd shl 16) or (mm shl 21) or (cardinal(yy - 1980) shl 25));
 end;
 
 function WindowsFileTimeToDateTime(WinTime: integer): TDateTime;
@@ -6328,11 +6842,11 @@ var
   date, time: TDateTime;
 begin
   with PLongRec(@WinTime)^ do
-  if TryEncodeDate(Hi shr 9 + 1980, Hi shr 5 and 15, Hi and 31, date) and
-     TryEncodeTime(Lo shr 11, Lo shr 5 and 63, Lo and 31 shl 1, 0, time) then
-    result := date + time
-  else
-    result := 0;
+    if TryEncodeDate(Hi shr 9 + 1980, Hi shr 5 and 15, Hi and 31, date) and
+       TryEncodeTime(Lo shr 11, Lo shr 5 and 63, Lo and 31 shl 1, 0, time) then
+      result := date + time
+    else
+      result := 0;
 end;
 
 const
@@ -6343,28 +6857,53 @@ begin
   result := (Int64(WinTime) - UnixFileTimeDelta) div FileTimePerMs;
 end;
 
-function DirectorySize(const FileName: TFileName; Recursive: boolean): Int64;
+function FileInfoByName(const FileName: TFileName; FileId, FileSize: PInt64;
+  LastWriteAccess, FileCreateDateTime: PUnixMSTime): boolean;
 var
-  SR: TSearchRec;
+  h: THandle;
+begin
+  result := false;
+  h := FileOpenSequentialRead(FileName); // = plain fpOpen() on POSIX
+  if not ValidHandle(h) then
+    exit;
+  result := FileInfoByHandle(h, FileId, FileSize, LastWriteAccess, FileCreateDateTime);
+  FileClose(h);
+end;
+
+function DirectorySize(const FileName: TFileName; Recursive: boolean;
+  const Mask: TFileName): Int64;
+var
+  sr: TSearchRec;
   dir: TFileName;
 begin
   result := 0;
   dir := IncludeTrailingPathDelimiter(FileName);
-  if FindFirst(dir + FILES_ALL, faAnyFile, SR) <> 0 then
+  if FindFirst(dir + Mask, faAnyFile, sr) <> 0 then
     exit;
   repeat
-   if SearchRecValidFile(SR) then
-     inc(result, SR.Size)
+   if SearchRecValidFile(sr, {includehidden=}true) then
+     inc(result, sr.Size)
    else if Recursive and
-           SearchRecValidFolder(SR) then
-     inc(result, DirectorySize(dir + SR.Name, true));
-  until FindNext(SR) <> 0;
-  FindClose(SR);
+           SearchRecValidFolder(sr, {includehidden=}true) then
+     inc(result, DirectorySize(dir + sr.Name, true));
+  until FindNext(sr) <> 0;
+  FindClose(sr);
 end;
 
-function ValidHandle(Handle: THandle): boolean;
+function DirectoryExists(const FileName: TFileName; FollowLink: boolean): boolean;
+var
+  len: PtrInt;
 begin
-  result := PtrInt(Handle) > 0;
+  len := length(FileName);
+  if len = 0 then
+    result := false
+  else if (len = 1) and
+          (FileName[1] = '.') then
+    result := true
+  else if FileName[len] <> PathDelim then
+    result := FileExists(FileName, FollowLink, {checkasdir=}true)
+  else
+    result := FileExists(copy(FileName, 1, len - 1), FollowLink, true);
 end;
 
 function SafePathName(const Path: TFileName): boolean;
@@ -6430,8 +6969,32 @@ begin
 end;
 
 function NormalizeFileName(const FileName: TFileName): TFileName;
+var
+  i, j: PtrInt;
 begin
-  result := StringReplace(FileName, InvertedPathDelim, PathDelim, [rfReplaceAll]);
+  result := FileName;
+  j := Pos(InvertedPathDelim, result);
+  if j <> 0 then
+    for i := j to length(result) do
+      if result[i] = InvertedPathDelim then
+        result[i] := PathDelim;
+end;
+
+procedure NormalizeFileNameU(var FileName: RawUtf8);
+var
+  i: PtrInt;
+  p: PAnsiChar;
+begin
+  i := PosExChar(InvertedPathDelim, FileName);
+  if i = 0 then
+    exit;
+  p := UniqueRawUtf8(FileName);
+  inc(p, i - 1);
+  repeat
+    if p^ = InvertedPathDelim then
+      p^ := PathDelim;
+    inc(p);
+  until p^ = #0;
 end;
 
 function QuoteFileName(const FileName: TFileName): TFileName;
@@ -6444,6 +7007,21 @@ begin
     result := FileName;
 end;
 
+procedure DisplayFatalError(const title, msg: RawUtf8);
+var
+  u: RawUtf8;
+begin
+  if title <> '' then
+  begin
+    SetLength(u, length(Title) + 1);
+    FillCharFast(pointer(u)^, length(u), ord('-'));
+    u := Join([CRLF, title, CRLF, u, CRLF + CRLF, msg, CRLF]);
+  end
+  else
+    Join([msg, CRLF], u);
+  ConsoleErrorWrite(u);
+end;
+
 procedure DisplayError(const fmt: string; const args: array of const);
 var
   msg: string;
@@ -6452,41 +7030,42 @@ begin
   DisplayFatalError('', RawUtf8(msg));
 end;
 
-function SearchRecToDateTime(const F: TSearchRec): TDateTime;
-begin
-  {$ifdef ISDELPHIXE}
-  result := F.Timestamp; // use new API
-  {$else}
-  result := FileDateToDateTime(F.Time);
-  {$endif ISDELPHIXE}
-end;
-
 function SearchRecToDateTimeUtc(const F: TSearchRec): TDateTime;
 begin
   result := SearchRecToUnixTimeUtc(F) / Int64(SecsPerDay) + Int64(UnixDelta);
 end;
 
-function SearchRecValidFile(const F: TSearchRec): boolean;
+const
+  // faHidden is supported by the FPC RTL on POSIX, by checking an initial '.'
+  faInvalid = faDirectory + {$ifdef OSWINDOWS} faVolumeID{%H-} + {$endif} faSysFile{%H-};
+
+function SearchRecValidFile(const F: TSearchRec; IncludeHidden: boolean): boolean;
 begin
   result := (F.Name <> '') and
-            (F.Attr and faInvalidFile = 0);
+            (F.Attr and faInvalid = 0) and
+            (IncludeHidden or
+             (F.Attr and faHidden{%H-} = 0));
 end;
 
-function SearchRecValidFolder(const F: TSearchRec): boolean;
+function SearchRecValidFolder(const F: TSearchRec; IncludeHidden: boolean): boolean;
 begin
-  result := (F.Attr and faDirectoryMask = faDirectory) and
+  result := (F.Attr and faDirectory <> 0) and
+            (IncludeHidden or
+             (F.Attr and faHidden{%H-} = 0)) and
             (F.Name <> '') and
             (F.Name <> '.') and
             (F.Name <> '..');
 end;
 
-{ TFileStreamFromHandle }
-
-destructor TFileStreamFromHandle.Destroy;
+function FindFirstDirectory(const Path: TFileName; IncludeHidden: boolean;
+  out F: TSearchRec): integer;
 begin
-  if not fDontReleaseHandle then
-    FileClose(Handle); // otherwise file remains opened (FPC RTL inconsistency)
+  result := faDirectory;
+  if IncludeHidden then
+    result := result or faHidden{%H-};
+  result := FindFirst(Path, result, F);
 end;
+
 
 { TFileStreamEx }
 
@@ -6495,33 +7074,112 @@ var
   h: THandle;
 begin
   if Mode and fmCreate = fmCreate then
-    h := FileCreate(aFileName)
+    h := FileCreate(aFileName, Mode and $00ff) // fmCreate=$ffff on oldest Delphi
   else
     h := FileOpen(aFileName, Mode);
-  CreateFromHandle(aFileName, h);
+  CreateFromHandle(h, aFileName); // raise EOSException on invalid h
 end;
 
-constructor TFileStreamEx.CreateFromHandle(const aFileName: TFileName; aHandle: THandle);
+constructor TFileStreamEx.CreateFromHandle(aHandle: THandle;
+  const aFileName: TFileName; aDontReleaseHandle: boolean);
 begin
   if not ValidHandle(aHandle) then
     raise EOSException.CreateFmt('%s.Create(%s) failed as %s',
       [ClassNameShort(self)^, aFileName, GetErrorText(GetLastError)]);
   inherited Create(aHandle); // TFileStreamFromHandle constructor which own it 
   fFileName := aFileName;
+  fDontReleaseHandle := aDontReleaseHandle;
 end;
 
-{ TFileStreamWithoutWriteError }
+constructor TFileStreamEx.CreateRead(const aFileName: TFileName);
+begin // raise EOSException on invalid handle/aFileName
+  CreateFromHandle(FileOpenSequentialRead(aFileName), aFileName);
+end;
 
-function TFileStreamWithoutWriteError.Write(const Buffer; Count: Longint): Longint;
+constructor TFileStreamEx.CreateWrite(const aFileName: TFileName);
+var
+  h: THandle;
 begin
-  inherited Write(Buffer, Count);
-  result := Count; // to ignore I/O errors
+  h := FileOpen(aFileName, fmOpenReadWrite or fmShareRead);
+  if not ValidHandle(h) then // we may need to create the file
+    h := FileCreate(aFileName, fmShareRead);
+  CreateFromHandle(h, aFileName); // raise EOSException on invalid h
+end;
+
+destructor TFileStreamEx.Destroy;
+begin
+  if not fDontReleaseHandle then
+    FileClose(Handle); // otherwise file remains opened (FPC RTL inconsistency)
+end;
+
+function TFileStreamEx.GetSize: Int64;
+begin
+  result := FileSize(Handle); // faster than 3 FileSeek() calls - and threadsafe
+end;
+
+
+{ TFileStreamNoWriteError }
+
+constructor TFileStreamNoWriteError.CreateAndRenameIfLocked(
+  var aFileName: TFileName; aAliases: integer);
+var
+  h: THandle;
+  fn, ext: TFileName;
+  err, retry: integer;
+
+  function CanOpenWrite: boolean;
+  begin
+    h := FileOpen(aFileName, fmOpenReadWrite or fmShareRead);
+    result := ValidHandle(h);
+    if not result then
+      err := GetLastError;
+  end;
+
+begin
+  // logic similar to TSynLog.CreateLogWriter
+  h := 0;
+  err := 0;
+  if not CanOpenWrite then
+    if not FileExists(aFileName) then
+      // immediately raise EOSException if this new file could not be created
+      h := FileCreate(aFileName, fmShareRead)
+    else
+    begin
+      fn := aFileName;
+      ext := ExtractFileExt(aFileName);
+      for retry := 1 to aAliases do
+      begin
+        if IsSharedViolation(err) then
+        begin
+          // file was locked: wait a little for a background process and retry
+          SleepHiRes(50);
+          if CanOpenWrite then
+            break;
+        end;
+        // file can't be opened: try '<filename>-locked<#>.<ext>' alternatives
+        aFileName := ChangeFileExt(fn, '-locked' + IntToStr(retry) + ext);
+        if CanOpenWrite then
+          break;
+      end;
+    end;
+  CreateFromHandle(h, aFileName); // raise EOSException on invalid h
+end;
+
+function TFileStreamNoWriteError.Write(const Buffer; Count: Longint): Longint;
+begin
+  FileWriteAll(Handle, @Buffer, Count); // and ignore any I/O error
+  result := Count; // optimistic view: emulate all data was properly written
 end;
 
 
 function FileStreamSequentialRead(const FileName: TFileName): THandleStream;
+var
+  h: THandle;
 begin
-  result := TFileStreamFromHandle.Create(FileOpenSequentialRead(FileName));
+  result := nil;
+  h := FileOpenSequentialRead(FileName);
+  if ValidHandle(h) then // would raise EOSException on invalid h
+    result := TFileStreamEx.CreateFromHandle(h, FileName);
 end;
 
 function StreamCopyUntilEnd(Source, Dest: TStream): Int64;
@@ -6546,7 +7204,8 @@ var
   chunk, read: PtrInt;
 begin
   result := false;
-  repeat
+  while Size > 0 do
+  begin
     chunk := Size;
     {$ifdef OSWINDOWS}
     if chunk > 16 shl 20 then
@@ -6557,48 +7216,67 @@ begin
       exit; // error reading Size bytes
     inc(PByte(Buffer), read);
     dec(Size, read);
-  until Size = 0;
+  end;
   result := true;
 end;
 
-function StringFromFile(const FileName: TFileName; HasNoSize: boolean): RawByteString;
+function StreamReadAll(S: TStream; Buffer: pointer; Size: PtrInt): boolean;
 var
-  F: THandle;
+  chunk, read: PtrInt;
+begin
+  result := false;
+  while Size > 0 do
+  begin
+    chunk := Size;
+    {$ifdef OSWINDOWS}
+    if chunk > 16 shl 20 then
+      chunk := 16 shl 20; // to avoid ERROR_NO_SYSTEM_RESOURCES errors
+    {$endif OSWINDOWS}
+    read := S.Read(Buffer^, chunk);
+    if read <= 0 then
+      exit; // error reading Size bytes
+    inc(PByte(Buffer), read);
+    dec(Size, read);
+  end;
+  result := true;
+end;
+
+function FileWriteAll(F: THandle; Buffer: pointer; Size: PtrInt): boolean;
+var
+  written: PtrInt;
+begin
+  result := false;
+  if Size > 0 then
+    repeat
+      written := FileWrite(F, Buffer^, Size);
+      if written <= 0 then
+        exit; // fatal error
+      inc(PByte(Buffer), written); // e.g. may have been interrrupted
+      dec(Size, written);
+    until Size = 0;
+  result := true;
+end;
+
+function StringFromFile(const FileName: TFileName): RawByteString;
+var
+  h: THandle;
   size: Int64;
-  read, pos: integer;
-  tmp: array[0..$7fff] of AnsiChar; // 32KB stack buffer
 begin
   result := '';
   if FileName = '' then
     exit;
-  F := FileOpenSequentialRead(FileName); // = plain fpOpen() on POSIX
-  if ValidHandle(F) then
+  h := FileOpenSequentialRead(FileName); // = plain fpOpen() on POSIX
+  if not ValidHandle(h) then
+    exit;
+  size := FileSize(h);
+  if (size < MaxInt) and // 2GB seems big enough for a RawByteString
+     (size > 0) then
   begin
-    if HasNoSize then
-    begin
-      pos := 0;
-      repeat
-        read := FileRead(F, tmp, SizeOf(tmp)); // fill per 32KB local buffer
-        if read <= 0 then
-          break;
-        SetLength(result, pos + read); // in-place resize
-        MoveFast(tmp, PByteArray(result)^[pos], read);
-        inc(pos, read);
-      until false;
-    end
-    else
-    begin
-      size := FileSize(F);
-      if (size < MaxInt) and // 2GB seems big enough for a RawByteString
-         (size > 0) then
-      begin
-        SetLength(result, size);
-        if not FileReadAll(F, pointer(result), size) then
-          result := ''; // error reading
-      end;
-    end;
-    FileClose(F);
+    pointer(result) := FastNewString(size, CP_UTF8); // UTF-8 for FPC RTL bug
+    if not FileReadAll(h, pointer(result), size) then
+      result := ''; // error reading
   end;
+  FileClose(h);
 end;
 
 function StringFromFirstFile(const FileName: array of TFileName): RawByteString;
@@ -6618,6 +7296,7 @@ function StringFromFiles(const FileName: array of TFileName): TRawByteStringDynA
 var
   f: PtrInt;
 begin
+  result := nil;
   SetLength(result, length(FileName));
   for f := 0 to high(FileName) do
     result[f] := StringFromFile(FileName[f]);
@@ -6671,122 +7350,194 @@ begin
     DynArrayFakeLength(FileNames^, n);
 end;
 
-function FileFromString(const Content: RawByteString; const FileName: TFileName;
-  FlushOnDisk: boolean; FileDate: TDateTime): boolean;
+function FileFromString(const Content: RawByteString;
+  const FileName: TFileName; FlushOnDisk: boolean): boolean;
+begin
+  result := FileFromBuffer(pointer(Content), length(Content), FileName, FlushOnDisk);
+end;
+
+function FileFromBuffer(Buf: pointer; Len: PtrInt; const FileName: TFileName;
+  FlushOnDisk: boolean): boolean;
 var
-  F: THandle;
-  P: PByte;
-  L, written: integer;
+  h: THandle;
 begin
   result := false;
-  if FileName = '' then
+  h := FileCreate(FileName);
+  if not ValidHandle(h) then
     exit;
-  F := FileCreate(FileName);
-  if PtrInt(F) < 0 then
+  result := FileWriteAll(h, Buf, Len);
+  if result and
+     FlushOnDisk then
+    FlushFileBuffers(h);
+  FileClose(h);
+end;
+
+function BufferFromFile(const FileName: TFileName; Buf: pointer; Len: PtrInt): boolean;
+var
+  h: THandle;
+begin
+  result := false;
+  h := FileOpen(FileName, fmOpenReadShared);
+  if not ValidHandle(h) then
     exit;
-  L := length(Content);
-  P := pointer(Content);
-  while L > 0 do
+  result := FileReadAll(h, Buf, Len);
+  FileClose(h);
+end;
+
+function AppendToFile(const Content: RawUtf8; const FileName: TFileName;
+  BackupOverMaxSize: Int64): boolean;
+var
+  h: THandle;
+  bak: TFileName;
+begin
+  result := Content = '';
+  if result then
+    exit;
+  if (BackupOverMaxSize > 0) and
+     (FileSize(FileName) > BackupOverMaxSize) then
   begin
-    written := FileWrite(F, P^, L);
-    if written < 0 then
-    begin
-      FileClose(F);
+    bak := FileName + '.bak';
+    DeleteFile(bak);
+    RenameFile(FileName, bak);
+    h := 0;
+  end
+  else
+    h := FileOpen(FileName, fmOpenWriteShared);
+  if ValidHandle(h) then
+    FileSeek64(h, 0, soFromEnd) // append
+  else
+  begin
+    h := FileCreate(FileName, fmShareReadWrite);
+    if not ValidHandle(h) then
       exit;
-    end;
-    dec(L, written);
-    inc(P, written);
   end;
-  if FlushOnDisk then
-    FlushFileBuffers(F);
-  {$ifdef OSWINDOWS}
-  if FileDate <> 0 then
-    FileSetDate(F, DateTimeToFileDate(FileDate)); // use the existing handle
-  FileClose(F);
-  {$else}
-  FileClose(F); // POSIX expects the file to be closed to set the date
-  if FileDate <> 0 then
-    FileSetDate(FileName, DateTimeToFileDate(FileDate));
-  {$endif OSWINDOWS}
-  result := true;
-end;
-
-function FileFromBuffer(Buf: pointer; Len: PtrInt; const FileName: TFileName): boolean;
-var
-  F: THandle;
-  written: PtrInt;
-begin
-  result := false;
-  if FileName = '' then
-    exit;
-  F := FileCreate(FileName);
-  if PtrInt(F) < 0 then
-    exit;
-  result := true;
-  while Len > 0 do
-  begin
-    written := FileWrite(F, Buf^, Len);
-    if written <= 0 then
-    begin
-      result := false;
-      break;
-    end;
-    dec(Len, written);
-    inc(PByte(Buf), written);
-  end;
-  FileClose(F);
+  result := FileWriteAll(h, pointer(Content), Length(Content));
+  FileClose(h);
 end;
 
 var
-  _TmpCounter: integer;
+  _TmpCounter: integer; // global thread-safe counter for this process
 
-function TemporaryFileName: TFileName;
+function TemporaryFileName(FolderName: TFileName; ExeName: RawUtf8): TFileName;
 var
-  folder: TFileName;
   retry: integer;
 begin
-  // fast cross-platform implementation
-  folder := GetSystemPath(spTempFolder);
+  if FolderName = '' then
+    FolderName := GetSystemPath(spTemp)
+  else
+    FolderName := IncludeTrailingPathDelimiter(FolderName);
+  if ExeName = '' then
+    ExeName := Executable.ProgramName;
   if _TmpCounter = 0 then
-    _TmpCounter := Random32;
-  retry := 10;
-  repeat
+    _TmpCounter := Random31Not0; // to avoid collision and easily forged names
+  for retry := 1 to 10 do // no endless loop
+  begin
     // thread-safe unique file name generation
     result := Format('%s%s_%x.tmp',
-      [folder, Executable.ProgramName, InterlockedIncrement(_TmpCounter)]);
+      [FolderName, ExeName, InterlockedIncrement(_TmpCounter)]);
     if not FileExists(result) then
       exit;
-    dec(retry); // no endless loop
-  until retry = 0;
+  end;
   raise EOSException.Create('TemporaryFileName failed');
 end;
 
-function ExtractPath(const FileName: TFileName): TFileName;
+function GetLastDelim(const FileName: TFileName; OtherDelim: cardinal): PtrInt;
 var
-  i: PtrInt;
   {$ifdef UNICODE}
   p: PWordArray;
   {$else}
   p: PByteArray;
   {$endif UNICODE}
+  c: cardinal;
 begin
+  result := length(FileName);
+  if result = 0 then
+    exit;
   p := pointer(FileName);
-  i := length(FileName);
-  while (i > 0) and
-        not (P[i - 1] in [ord('\'), ord('/'), ord(':')]) do
-    dec(i);
-  SetString(result, PChar(p), i);
+  repeat
+    c := p[result - 1];
+    if (c = OtherDelim) or  (c = ord('\')) or (c = ord('/')) or (c = ord(':')) then
+      exit;
+    dec(result);
+  until result = 0;
+end;
+
+function GetLastDelimU(const FileName: RawUtf8; OtherDelim: AnsiChar): PtrInt;
+var
+  c: AnsiChar;
+begin
+  result := length(FileName);
+  if result = 0 then
+    exit;
+  repeat
+    c := AnsiChar(PByteArray(FileName)[result - 1]);
+    if (c = OtherDelim) or  (c = '\') or (c = '/') or (c = ':') then
+      exit;
+    dec(result);
+  until result = 0;
+end;
+
+function ExtractPath(const FileName: TFileName): TFileName;
+begin
+  SetString(result, PChar(pointer(FileName)), GetLastDelim(FileName, 0));
+end;
+
+function ExtractName(const FileName: TFileName): TFileName;
+begin
+  result := copy(FileName, GetLastDelim(FileName, 0) + 1, maxInt);
+end;
+
+function ExtractNameU(const FileName: RawUtf8): RawUtf8;
+begin
+  result := copy(FileName, GetLastDelimU(FileName) + 1, maxInt);
 end;
 
 function ExtractPathU(const FileName: RawUtf8): RawUtf8;
+begin
+  FastSetString(result, pointer(FileName), GetLastDelimU(FileName));
+end;
+
+function ExtractExt(const FileName: TFileName; WithoutDot: boolean): TFileName;
 var
   i: PtrInt;
 begin
-  i := length(FileName);
-  while (i > 0) and
-        not (FileName[i] in ['\', '/', ':']) do
-    dec(i);
-  FastSetString(result, pointer(FileName), i);
+  result := '';
+  i := GetLastDelim(FileName, ord('.'));
+  if (i <= 1) or
+     (FileName[i] <> '.') then
+    exit;
+  if WithoutDot then
+    inc(i);
+  result := copy(FileName, i, 100);
+end;
+
+function ExtractExtU(const FileName: RawUtf8; WithoutDot: boolean): RawUtf8;
+var
+  i: PtrInt;
+begin
+  result := '';
+  i := GetLastDelimU(FileName, '.');
+  if (i <= 1) or
+     (FileName[i] <> '.') then
+    exit;
+  if WithoutDot then
+    inc(i);
+  result := copy(FileName, i, 100);
+end;
+
+function ExtractExtP(const FileName: RawUtf8; WithoutDot: boolean): PUtf8Char;
+var
+  i: PtrInt;
+begin
+  result := nil;
+  i := GetLastDelimU(FileName, '.') - 1;
+  if i <= 0 then
+    exit;
+  result := PUtf8Char(pointer(FileName)) + i;
+  if result^ <> '.' then
+    result := nil
+  else if WithoutDot then
+    inc(result);
 end;
 
 function GetFileNameWithoutExt(const FileName: TFileName; Extension: PFileName): TFileName;
@@ -6810,7 +7561,7 @@ begin
   begin
     result := copy(FileName, 1, i - 1);
     if Extension <> nil then
-      Extension^ := copy(FileName, i, 20);
+      Extension^ := copy(FileName, i, 100);
   end;
 end;
 
@@ -6819,40 +7570,52 @@ begin
   result := RawUtf8(GetFileNameWithoutExt(ExtractFileName(FileName)));
 end;
 
-{$ifdef ISDELPHI20062007} // circumvent Delphi 2007 RTL inlining issue
-function AnsiCompareFileName(const S1, S2 : TFileName): integer;
-begin
-  result := SysUtils.AnsiCompareFileName(S1,S2);
-end;
-{$endif ISDELPHI20062007}
-
-function SortDynArrayFileName(const A, B): integer;
+function PosExtString(Str: PChar): PChar; // work on AnsiString + UnicodeString
 var
-  Aname, Aext, Bname, Bext: TFileName;
+  i: PtrInt;
 begin
-  // code below is not very fast, but correct ;)
-  Aname := GetFileNameWithoutExt(string(A), @Aext);
-  Bname := GetFileNameWithoutExt(string(B), @Bext);
-  result := AnsiCompareFileName(Aext, Bext);
-  if result = 0 then
-    // if both extensions matches, compare by filename
-    result := AnsiCompareFileName(Aname, Bname);
+  result := nil;
+  if Str <> nil then // excludes '.' at first position e.g. for '.htdigest'
+    for i := PStrLen(PAnsiChar(Str) - _STRLEN)^ - 1 downto 1 do
+      case Str[i] of
+        {$ifdef OSWINDOWS} '\', ':' {$else} '/' {$endif}:
+          exit; // reached end of filename
+        '.':
+          begin
+            result := @Str[i + 1]; // compare extension just after '.'
+            exit;
+          end;
+      end;
 end;
 
 function EnsureDirectoryExists(const Directory: TFileName;
-  RaiseExceptionOnCreationFailure: boolean): TFileName;
+  RaiseExceptionOnCreationFailure: ExceptionClass; NoExpand: boolean): TFileName;
 begin
-  result := IncludeTrailingPathDelimiter(ExpandFileName(Directory));
-  if not DirectoryExists(result) then
-    if not ForceDirectories(result) then
-      if not RaiseExceptionOnCreationFailure then
-        result := ''
-      else
-        raise Exception.CreateFmt('Impossible to create folder %s', [result]);
+  if Directory = '' then
+    if RaiseExceptionOnCreationFailure <> nil then
+      raise RaiseExceptionOnCreationFailure.Create('EnsureDirectoryExists('''')')
+    else
+      result := ''
+  else
+  begin
+    if NoExpand then
+      result := Directory
+    else
+      result := ExpandFileName(Directory);
+    result := IncludeTrailingPathDelimiter(result);
+    if not DirectoryExists(result) then
+      if not ForceDirectories(result) then
+        if RaiseExceptionOnCreationFailure <> nil then
+          raise RaiseExceptionOnCreationFailure.CreateFmt(
+            'EnsureDirectoryExists(%s) failed as %s',
+            [result, GetErrorText(GetLastError)])
+        else
+          result := '';
+  end;
 end;
 
 function NormalizeDirectoryExists(const Directory: TFileName;
-  RaiseExceptionOnCreationFailure: boolean): TFileName;
+  RaiseExceptionOnCreationFailure: ExceptionClass): TFileName;
 begin
   result := EnsureDirectoryExists(NormalizeFileName(Directory),
     RaiseExceptionOnCreationFailure);
@@ -6861,28 +7624,28 @@ end;
 function DirectoryDelete(const Directory: TFileName; const Mask: TFileName;
   DeleteOnlyFilesNotDirectory: boolean; DeletedCount: PInteger): boolean;
 var
-  F: TSearchRec;
-  Dir: TFileName;
+  f: TSearchRec;
   n: integer;
+  dir: TFileName;
 begin
   n := 0;
   result := true;
   if DirectoryExists(Directory) then
   begin
-    Dir := IncludeTrailingPathDelimiter(Directory);
-    if FindFirst(Dir + Mask, faAnyFile - faDirectory, F) = 0 then
+    dir := IncludeTrailingPathDelimiter(Directory);
+    if FindFirst(dir + Mask, faAnyFile - faDirectory, f) = 0 then
     begin
       repeat
-        if SearchRecValidFile(F) then
-          if DeleteFile(Dir + F.Name) then
+        if SearchRecValidFile(f) then
+          if DeleteFile(dir + f.Name) then
             inc(n)
           else
             result := false;
-      until FindNext(F) <> 0;
-      FindClose(F);
+      until FindNext(f) <> 0;
+      FindClose(f);
     end;
     if not DeleteOnlyFilesNotDirectory and
-       not RemoveDir(Dir) then
+       not RemoveDir(dir) then
       result := false;
   end;
   if DeletedCount <> nil then
@@ -6893,8 +7656,8 @@ function DirectoryDeleteOlderFiles(const Directory: TFileName;
   TimePeriod: TDateTime; const Mask: TFileName; Recursive: boolean;
   TotalSize: PInt64): boolean;
 var
-  F: TSearchRec;
-  Dir: TFileName;
+  f: TSearchRec;
+  dir: TFileName;
   old: TDateTime;
 begin
   if not Recursive and
@@ -6904,53 +7667,82 @@ begin
   if (Directory = '') or
      not DirectoryExists(Directory) then
     exit;
-  Dir := IncludeTrailingPathDelimiter(Directory);
-  if FindFirst(Dir + Mask, faAnyFile, F) = 0 then
+  dir := IncludeTrailingPathDelimiter(Directory);
+  if FindFirst(dir + Mask, faAnyFile, f) = 0 then
   begin
     old := NowUtc - TimePeriod;
     repeat
-      if SearchRecValidFolder(F) then
+      if SearchRecValidFolder(f) then
       begin
         if Recursive then
           DirectoryDeleteOlderFiles(
-            Dir + F.Name, TimePeriod, Mask, true, TotalSize);
+            dir + f.Name, TimePeriod, Mask, true, TotalSize);
       end
-      else if SearchRecValidFile(F) and
-              (SearchRecToDateTimeUtc(F) < old) then
-        if not DeleteFile(Dir + F.Name) then
+      else if SearchRecValidFile(f) and
+              (SearchRecToDateTimeUtc(f) < old) then
+        if not DeleteFile(dir + f.Name) then
           result := false
         else if TotalSize <> nil then
-          inc(TotalSize^, F.Size);
-    until FindNext(F) <> 0;
-    FindClose(F);
+          inc(TotalSize^, f.Size);
+    until FindNext(f) <> 0;
+    FindClose(f);
   end;
 end;
 
-function IsDirectoryWritable(const Directory: TFileName): boolean;
+function IsDirectoryWritable(const Directory: TFileName;
+  Flags: TIsDirectoryWritable): boolean;
 var
-  dir, fn: TFileName;
-  f: THandle;
+  dir, fmt, fn: TFileName;
+  h: THandle;
   retry: integer;
 begin
-  dir := ExcludeTrailingPathDelimiter(Directory);
+  // check the Directory itself
   result := false;
-  if FileIsReadOnly(dir) then
+  if Directory = '' then
+    exit;                       
+  dir := ExcludeTrailingPathDelimiter(Directory);
+  if not FileIsWritable(dir) then
+    exit; // the folder does not exist or is read-only for the current user
+  if idwAttributesOnly in Flags then
+  begin
+    result := true; // e.g. POSIX folder fpaccess() seems enough
     exit;
-  retry := 20;
+  end;
+  {$ifdef OSWINDOWS}
+  // ensure is not a system/virtual folder
+  if ((idwExcludeWinUac in Flags) and
+      IsUacVirtualFolder(dir)) or
+     ((idwExcludeWinSys in Flags) and
+      IsSystemFolder(dir)) then
+    exit;
+  // compute a non existing temporary file name in this Directory
+  if idwTryWinExeFile in Flags then
+    fmt := '%s\%x.exe'  // may trigger the anti-virus heuristic
+  else
+    fmt := '%s\%x.test'; // neutral file name
+    // we tried .crt which triggered UAC heuristic but also some anti-viruses :(
+  {$else}
+  // compute a non existing temporary file name in this Directory
+  fmt := '%s/.%x.test'; // make the file "invisible"
+  {$endif OSWINDOWS}
+  retry := 10;
   repeat
-    fn := Format('%s' + PathDelim + {$ifdef OSPOSIX} '.' + {$endif OSPOSIX}
-      '%x.test', [dir, Random32]);
+    fn := Format(fmt, [dir, Random32]);
     if not FileExists(fn) then
       break;
     dec(retry); // never loop forever
     if retry = 0 then
       exit;
   until false;
-  f := FileCreate(fn);
-  if PtrInt(f) < 0 then
-    exit;
-  FileClose(f);
-  result := DeleteFile(fn);
+  // ensure we can create this temporary file
+  h := FileCreate(fn);
+  if not ValidHandle(h) then
+    exit; // a file can't be created
+  result := (not (idwWriteSomeContent in flags)) or // some pointers and hash
+            (FileWrite(h, Executable, SizeOf(Executable)) = SizeOf(Executable));
+  FileClose(h);
+  if not DeleteFile(fn) then // success if the file can be created and deleted
+    result := false;
 end;
 
 
@@ -7017,11 +7809,10 @@ begin
   end;
   {$endif WITH_RAISEPROC}
   {$ifdef WITH_VECTOREXCEPT} // SEH32/SEH64 official API
-  // RemoveVectoredContinueHandler() is available under 64 bit editions only
-  if Assigned(AddVectoredExceptionHandler) then
+  if not AddVectoredExceptionHandlerCalled then
   begin
     AddVectoredExceptionHandler(0, @SynLogVectoredHandler);
-    AddVectoredExceptionHandler := nil;
+    AddVectoredExceptionHandlerCalled := true;
   end;
   {$endif WITH_VECTOREXCEPT}
   {$ifdef WITH_RTLUNWINDPROC}
@@ -7040,9 +7831,9 @@ end;
 { TMemoryMap }
 
 function TMemoryMap.Map(aFile: THandle; aCustomSize: PtrUInt;
-  aCustomOffset: Int64; aFileOwned: boolean): boolean;
+  aCustomOffset: Int64; aFileOwned: boolean; aFileSize: Int64): boolean;
 var
-  Available: Int64;
+  available: Int64;
 begin
   fBuf := nil;
   fBufSize := 0;
@@ -7051,8 +7842,10 @@ begin
   {$endif OSWINDOWS}
   fFileLocal := aFileOwned;
   fFile := aFile;
-  fFileSize := mormot.core.os.FileSize(fFile);
-  if fFileSize = 0 then
+  if aFileSize < 0 then
+    aFileSize := mormot.core.os.FileSize(fFile);
+  fFileSize := aFileSize;
+  if aFileSize = 0 then
   begin
     result := true; // handle 0 byte file without error (but no memory map)
     exit;
@@ -7066,11 +7859,11 @@ begin
     fBufSize := fFileSize
   else
   begin
-    Available := fFileSize - aCustomOffset;
-    if Available < 0 then
+    available := fFileSize - aCustomOffset;
+    if available < 0 then
       exit;
-    if aCustomSize > Available then
-      fBufSize := Available;
+    if aCustomSize > available then
+      fBufSize := available;
     fBufSize := aCustomSize;
   end;
   fLoadedNotMapped := fBufSize < 1 shl 20;
@@ -7078,7 +7871,7 @@ begin
   begin
     // mapping is not worth it for size < 1MB which can be just read at once
     GetMem(fBuf, fBufSize);
-    FileSeek64(fFile, aCustomOffset, soFromBeginning);
+    FileSeek64(fFile, aCustomOffset);
     if FileReadAll(fFile, fBuf, fBufSize) then
       result := true
     else
@@ -7107,18 +7900,17 @@ end;
 
 function TMemoryMap.Map(const aFileName: TFileName): boolean;
 var
-  F: THandle;
+  h: THandle;
 begin
   result := false;
   // Memory-mapped file access does not go through the cache manager so
   // using FileOpenSequentialRead() is pointless here
-  F := FileOpen(aFileName, fmOpenReadDenyNone);
-  if not ValidHandle(F) then
+  h := FileOpen(aFileName, fmOpenReadShared);
+  if not ValidHandle(h) then
     exit;
-  if Map(F) then
-    result := true
-  else
-    FileClose(F);
+  result := Map(h);
+  if not result then
+    FileClose(h);
   fFileLocal := result;
 end;
 
@@ -7150,7 +7942,7 @@ begin
   fFileName := aFileName;
   // Memory-mapped file access does not go through the cache manager so
   // using FileOpenSequentialRead() is pointless here
-  fFileStream := TFileStreamEx.Create(aFileName, fmOpenReadDenyNone);
+  fFileStream := TFileStreamEx.Create(aFileName, fmOpenReadShared);
   Create(fFileStream.Handle, aCustomSize, aCustomOffset);
 end;
 
@@ -7195,12 +7987,11 @@ end;
 
 procedure TExecutableResource.Close;
 begin
-  if HGlobal <> 0 then
-  begin
-    UnlockResource(HGlobal); // only needed outside of Windows
-    FreeResource(HGlobal);
-    HGlobal := 0;
-  end;
+  if HGlobal = 0 then
+    exit;
+  UnlockResource(HGlobal); // only needed outside of Windows
+  FreeResource(HGlobal);
+  HGlobal := 0;
 end;
 
 
@@ -7221,39 +8012,18 @@ var
   CurrentFakeStubBuffer: TFakeStubBuffer;
   CurrentFakeStubBuffers: array of TFakeStubBuffer;
   CurrentFakeStubBufferLock: TLightLock;
-  {$ifdef UNIX}
-  MemoryProtection: boolean = false; // set to true if PROT_EXEC seems to fail
-  {$endif UNIX}
 
 constructor TFakeStubBuffer.Create;
 begin
-  {$ifdef OSWINDOWS}
-  Stub := VirtualAlloc(nil, STUB_SIZE, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+  Stub := StubMemoryAlloc;
   if Stub = nil then
-  {$else OSWINDOWS}
-  if not MemoryProtection then
-    Stub := StubCallAllocMem(STUB_SIZE, PROT_READ or PROT_WRITE or PROT_EXEC);
-  if (Stub = MAP_FAILED) or
-     MemoryProtection then
-  begin
-    // i.e. on OpenBSD or OSX M1, we can not have w^x protection
-    Stub := StubCallAllocMem(STUB_SIZE, PROT_READ OR PROT_WRITE);
-    if Stub <> MAP_FAILED then
-      MemoryProtection := True;
-  end;
-  if Stub = MAP_FAILED then
-  {$endif OSWINDOWS}
     raise EOSException.Create('ReserveExecutableMemory(): OS mmap failed');
   PtrArrayAdd(CurrentFakeStubBuffers, self);
 end;
 
 destructor TFakeStubBuffer.Destroy;
 begin
-  {$ifdef OSWINDOWS}
-  VirtualFree(Stub, 0, MEM_RELEASE);
-  {$else}
-  fpmunmap(Stub, STUB_SIZE);
-  {$endif OSWINDOWS}
+  StubMemoryFree(Stub);
   inherited;
 end;
 
@@ -7265,13 +8035,17 @@ begin
   inc(StubUsed, size);
 end;
 
-function ReserveExecutableMemory(size: cardinal): pointer;
+function ReserveExecutableMemory(size: cardinal
+  {$ifdef CPUARM} ; ArmFakeStubAddr: pointer {$endif}): pointer;
 begin
   if size > STUB_SIZE then
     raise EOSException.CreateFmt('ReserveExecutableMemory(size=%d>%d)',
       [size, STUB_SIZE]);
   CurrentFakeStubBufferLock.Lock;
   try
+    {$ifdef CPUARM}
+    StubCallFakeStubAddr := ArmFakeStubAddr; // for StubCallAllocMem()
+    {$endif CPUARM}
     if (CurrentFakeStubBuffer = nil) or
        (CurrentFakeStubBuffer.StubUsed + size > STUB_SIZE) then
       CurrentFakeStubBuffer := TFakeStubBuffer.Create;
@@ -7281,31 +8055,33 @@ begin
   end;
 end;
 
-{$ifdef UNIX}
-procedure ReserveExecutableMemoryPageAccess(Reserved: pointer; Exec: boolean);
+function SeemsRealObject(p: pointer): boolean;
 var
-  PageAlignedFakeStub: pointer;
-  flags: cardinal;
+  i: PtrInt;
 begin
-  if not MemoryProtection then
-    // nothing to be done on this platform
-    exit;
-  // toggle execution permission of memory to be able to write into memory
-  PageAlignedFakeStub := Pointer(
-    (PtrUInt(Reserved) div SystemInfo.dwPageSize) * SystemInfo.dwPageSize);
-  if Exec then
-    flags := PROT_READ OR PROT_EXEC
-  else
-    flags := PROT_READ or PROT_WRITE;
-  if SynMProtect(PageAlignedFakeStub, SystemInfo.dwPageSize shl 1, flags) < 0 then
-     raise EOSException.Create('ReserveExecutableMemoryPageAccess: mprotect fail');
+  result := false;
+  if SeemsRealPointer(p) then
+  try
+    p := PPointer(p)^; // p = vmt
+    if (not SeemsRealPointer(p)) or
+       (PPtrInt(PAnsiChar(p) + vmtInstanceSize)^ < sizeof(pointer)) or
+       (PPtrInt(PAnsiChar(p) + vmtDestroy)^ = 0) then
+      exit;
+    p := PPointer(PAnsiChar(p) + vmtClassName)^; // p = ClassName: PShortString
+    if (not SeemsRealPointer(p)) or
+       (PByte(p)^ = 0) then // length(ClassName)
+      exit;
+    for i := 1 to PByte(p)^ do
+      if PAnsiChar(p)[i] <= ' ' then
+        exit; // should be a valid ASCII or UTF-8 pascal identifier
+    result := true;
+  except
+    result := false; // paranoid
+    {$ifdef OSWINDOWS}
+    LastMemInfo.State := 0; // reset VirtualQuery() cache
+    {$endif OSWINDOWS}
+  end;
 end;
-{$else}
-procedure ReserveExecutableMemoryPageAccess(Reserved: pointer; Exec: boolean);
-begin
-  // nothing to be done
-end;
-{$endif UNIX}
 
 {$ifndef PUREMORMOT2}
 function GetDelphiCompilerVersion: RawUtf8;
@@ -7314,36 +8090,127 @@ begin
 end;
 {$endif PUREMORMOT2}
 
-function GetMemoryInfoText: RawUtf8;
+function RetrieveSystemTimesText: TShort23;
+var
+  I, K, U, S: Int64;
+begin // return 'U:usr K:krn' percents on windows
+  result[0] := #0;
+  if not RetrieveSystemTimes(I, K, U) then
+    exit;
+  dec(K, I); // raw KernelTime includes IdleTime with GetSystemTimes() WinAPI
+  S := I + K + U;
+  if S = 0 then
+    exit;
+  U := (U * 1000000) div S;
+  K := (K * 1000000) div S;
+  PCardinal(@result)^ := 2 + ord('U') shl 8 + ord(':') shl 16;
+  AppendShortCurr64(U, result, {fixeddecimals=}2);
+  AppendShort(' K:', result);
+  AppendShortCurr64(K, result, {fixeddecimals=}2);
+end;
+
+procedure AppendFreeTotalKB(free, total: QWord; var dest: ShortString);
+begin
+  AppendKb(free, dest);
+  AppendShortChar('/', @dest);
+  AppendKb(total, dest);
+  AppendShortChar(' ', @dest);
+end;
+
+function GetMemoryInfoText: TShort31;
 var
   info: TMemoryInfo;
 begin
-  if GetMemoryInfo(info, false) then
-    _fmt('used %s/%s (%d%s free)', [_oskb(info.memtotal - info.memfree),
-      _oskb(info.memtotal), info.percent, '%'], result)
-  else
-    result := '';
+  result[0] := #0;
+  if not GetMemoryInfo(info, false) then
+    exit;
+  AppendFreeTotalKB(info.memtotal - info.memfree, info.memtotal, result);
+  AppendShortChar('(', @result);
+  AppendShortCardinal(info.percent, result);
+  AppendShortTwoChars(ord('%') + ord(')') shl 8, @result);
+end;
+
+function GetDiskAvailable(aDriveFolderOrFile: TFileName): QWord;
+var
+  free, total: QWord; // dummy values
+begin
+  if not GetDiskInfo(aDriveFolderOrFile, result, free, total) then
+    result := 0;
+end;
+
+function GetSystemInfoText: RawUtf8;
+var
+  avail, free, total: QWord;
+begin
+  GetDiskInfo(Executable.ProgramFilePath, avail, free, total);
+  _fmt('Current UTC date: %s (%d)'+ CRLF +'Memory used: %s'+ CRLF +
+       'Current disk free: %s/%s'+ CRLF +'Load: %s'+ CRLF +
+       'Exe: %s'+ CRLF +'OS: %s'+ CRLF +'Cpu: %s'+ CRLF +'Bios: %s'+ CRLF,
+    [FormatDateTime('yyyy"-"mm"-"dd" "hh":"nn":"ss', NowUtc), UnixTimeUtc,
+     GetMemoryInfoText, KB(avail), KB(total), RetrieveLoadAvg,
+     Executable.Version.VersionInfo, OSVersionText, CpuInfoText, BiosInfoText],
+     result);
+end;
+
+procedure RetrieveSysInfoText(out text: ShortString);
+var
+  si: TSysInfo;  // Linuxism
+begin
+  text[0] := #0;
+  AppendShortCardinal(SystemInfo.dwNumberOfProcessors, text);
+  if not RetrieveSysInfo(si) then // single syscall on Linux/Android
+    exit;
+  AppendShortChar(' ', @text);
+  AppendShortCurr64((Int64(si.loads[0]) * CURR_RES + 5000) shr 16, text, 2);
+  AppendShortChar(' ', @text);
+  AppendShortCurr64((Int64(si.loads[1]) * CURR_RES + 5000) shr 16, text, 2);
+  AppendShortChar(' ', @text);
+  {$ifdef OSPOSIX}
+  AppendShortCurr64((Int64(si.loads[2]) * CURR_RES + 5000) shr 16, text, 2);
+  AppendShortChar(' ', @text);
+  inc(si.freeram, si.bufferram);
+  {$endif OSPOSIX}
+  if si.uptime > SecsPerDay then
+  begin
+    AppendShortCardinal(cardinal(si.uptime) div SecsPerDay, text);
+    AppendShortChar(' ', @text);
+  end;
+  AppendFreeTotalKB(QWord(si.totalram - si.freeram) * si.mem_unit,
+                    QWord(si.totalram) * si.mem_unit, text);
+  if si.freeswap < si.totalswap shr 2 then // include swap if free below 25%
+    AppendFreeTotalKB(QWord(si.totalswap - si.freeswap) * si.mem_unit,
+                      QWord(si.totalswap) * si.mem_unit, text);
+  AppendShortIntHex(OSVersionInt32, text); // identify OS version
+end;
+
+
+procedure ConsoleWriteRaw(const Text: RawUtf8; NoLineFeed: boolean);
+begin
+  ConsoleWrite(Text, ccLightGray, NoLineFeed, {nocolor=}true);
+end;
+
+procedure ConsoleWriteLn;
+begin
+  ConsoleWrite(CRLF, ccLightGray, {nolinefeed=}true, {nocolor=}true);
 end;
 
 function ConsoleReadBody: RawByteString;
 var
   len, n: integer;
-  P: PByte;
+  p: PByte;
 begin
-  result := '';
   len := ConsoleStdInputLen;
-  SetLength(result, len);
-  P := pointer(result);
+  p := FastNewRawByteString(result, len);
   while len > 0 do
   begin
-    n := FileRead(StdInputHandle, P^, len);
+    n := FileRead(StdInputHandle, p^, len);
     if n <= 0 then
     begin
       result := ''; // read error
       break;
     end;
     dec(len, n);
-    inc(P, n);
+    inc(p, n);
   end;
 end;
 
@@ -7352,38 +8219,41 @@ var
 
 { TSynLibrary }
 
-function TSynLibrary.Resolve(const Prefix, ProcName: RawUtf8; Entry: PPointer;
-  RaiseExceptionOnFailure: ExceptionClass): boolean;
+function TSynLibrary.Resolve(const Prefix: RawUtf8; ProcName: PAnsiChar;
+  Entry: PPointer; RaiseExceptionOnFailure: ExceptionClass; SilentError: PString): boolean;
 var
-  P: PAnsiChar;
+  p: PAnsiChar;
   name, search: RawUtf8;
-{$ifdef OSPOSIX}
+  ignoremissing: boolean;
+  error: string;
+  {$ifdef OSPOSIX}
   dlinfo: dl_info;
-{$endif OSPOSIX}
+  {$endif OSPOSIX}
 begin
   result := false;
   if (Entry = nil) or
      (fHandle = 0) or
-     (ProcName = '') then
+     (ProcName = nil) then
     exit; // avoid GPF
-  P := pointer(ProcName);
+  p := ProcName; // transient copy to keep ProcName for error message below
+  ignoremissing := false;
   repeat
-    name := GetNextItem(P); // try all alternate names
+    name := _GetNextSpaced(p); // try all alternate 'name1 name2 ... name#'
     if name = '' then
       break;
     if name[1] = '?' then
     begin
-      RaiseExceptionOnFailure := nil;
+      ignoremissing := true;
       delete(name, 1, 1);
     end;
-    search := Prefix + name;
+    Join([Prefix, name], search);
     Entry^ := LibraryResolve(fHandle, pointer(search));
     if (Entry^ = nil) and
        (Prefix <> '') then // try without the prefix
       Entry^ := LibraryResolve(fHandle, pointer(name));
     result := Entry^ <> nil;
   until result;
-  {$ifdef OSPOSIX}
+  {$ifdef OSPOSIX} // on POSIX we can retrieve the fully response LibraryPath
   if result and
      not fLibraryPathTested then
   begin
@@ -7394,34 +8264,44 @@ begin
       fLibraryPath := dlinfo.dli_fname;
   end;
   {$endif OSPOSIX}
-  if (RaiseExceptionOnFailure <> nil) and
-     not result then
-  begin
-    FreeLib;
-    raise RaiseExceptionOnFailure.CreateFmt(
-      '%s.Resolve(''%s%s''): not found in %s',
-      [ClassNameShort(self)^, Prefix, ProcName, LibraryPath]);
-  end;
+  result := result or ignoremissing;
+  if result or
+     ((RaiseExceptionOnFailure = nil) and
+      (SilentError = nil)) then
+    exit;
+  FreeLib; // abort loading
+  error := Format('%s.Resolve(''%s%s''): not found in %s',
+    [ClassNameShort(self)^, Prefix, ProcName, LibraryPath]);
+  if RaiseExceptionOnFailure <> nil then
+    raise RaiseExceptionOnFailure.Create(error)
+  else if SilentError <> nil then
+    SilentError^:= error;
 end;
 
-function TSynLibrary.ResolveAll(ProcName: PPAnsiChar; Entry: PPointer): boolean;
-var
-  tmp: RawUtf8;
+function TSynLibrary.ResolveAll(ProcName: PPAnsiChar; Entry: PPointer;
+  const Prefix: RawUtf8; RaiseExceptionOnFailure: ExceptionClass;
+  SilentError: PString): boolean;
 begin
-  repeat
-    if ProcName^ = nil then
-      break;
-    FastSetString(tmp, ProcName^, StrLen(ProcName^));
-    if not Resolve('', tmp, Entry) then
+  result := true;
+  while ProcName^ <> nil do
+  begin
+    if not Resolve(Prefix, ProcName^, Entry, RaiseExceptionOnFailure, SilentError) then
     begin
-      FreeLib;
       result := false;
-      exit;
+      if SilentError <> nil then
+        exit; // Resolve() made FreeLib anyway
     end;
     inc(ProcName);
     inc(Entry);
-  until false;
-  result := true;
+  end;
+end;
+
+function TSynLibrary.TryLoadResolve(const aLibrary: array of TFileName;
+  const Prefix: RawUtf8; ProcName: PPAnsiChar; Entry: PPointer;
+  RaiseExceptionOnFailure: ExceptionClass; SilentError: PString): boolean;
+begin
+  result := TryLoadLibrary(aLibrary, RaiseExceptionOnFailure) and
+      ResolveAll(ProcName, Entry, Prefix, RaiseExceptionOnFailure, SilentError);
 end;
 
 destructor TSynLibrary.Destroy;
@@ -7439,11 +8319,11 @@ begin
 end;
 
 function TSynLibrary.TryLoadLibrary(const aLibrary: array of TFileName;
-  aRaiseExceptionOnFailure: ExceptionClass): boolean;
+  aRaiseExceptionOnFailure: ExceptionClass; aSilentError: PString): boolean;
 var
   i, j: PtrInt;
   {$ifdef OSWINDOWS}
-  cwd,
+  cwd: TFileName;
   {$endif OSWINDOWS}
   lib, libs, nwd: TFileName;
   err: string;
@@ -7472,11 +8352,16 @@ begin
       lib := Executable.ProgramFilePath + lib;
       nwd := Executable.ProgramFilePath;
     end;
+    if {%H-}libs = '' then
+      libs := lib
+    else
+      libs := libs + ', ' + lib; // include path
     {$ifdef OSWINDOWS}
     if nwd <> '' then
     begin
       cwd := GetCurrentDir;
       SetCurrentDir(nwd); // change the current folder at loading on Windows
+      lib := ExtractFileName(lib); // seems more stable that way
     end;
     fHandle := LibraryOpen(lib); // preserve x87 flags and prevent msg box 
     if nwd <> '' then
@@ -7484,7 +8369,7 @@ begin
     {$else}
     fHandle := LibraryOpen(lib); // use regular .so loading behavior
     {$endif OSWINDOWS}
-    if fHandle <> 0 then
+    if fHandle <> 0 then // found this library
     begin
       {$ifdef OSWINDOWS} // on POSIX, will call dladdr() in Resolve()
       fLibraryPath := GetModuleName(fHandle);
@@ -7494,18 +8379,17 @@ begin
       exit;
     end;
     // handle any error
-    if {%H-}libs = '' then
-      libs := lib
-    else
-      libs := libs + ', ' + lib;
     err := LibraryError;
     if err <> '' then
       libs := libs + ' [' + err + ']';
   end;
-  result := false;
+  libs := Format('%s.TryLoadLibray failed - searched in %s',
+    [ClassNameShort(self)^, libs]);
   if aRaiseExceptionOnFailure <> nil then
-    raise aRaiseExceptionOnFailure.CreateFmt('%s.TryLoadLibray failed' +
-      ' - searched in %s', [ClassNameShort(self)^, libs]);
+    raise aRaiseExceptionOnFailure.Create(libs)
+  else if aSilentError <> nil then
+    aSilentError^ := libs;
+  result := false;
 end;
 
 function TSynLibrary.Exists: boolean;
@@ -7518,16 +8402,17 @@ end;
 { TFileVersion }
 
 constructor TFileVersion.Create(const aFileName: TFileName;
-  aMajor, aMinor, aRelease, aBuild: integer);
+  aMajor, aMinor, aRelease, aBuild: integer; aBuildDate: TDateTime);
 var
-  M, D: word;
+  m, d: word;
 begin
   fFileName := aFileName;
   SetVersion(aMajor, aMinor, aRelease, aBuild);
-  if fBuildDateTime = 0 then // get build date from file age
-    fBuildDateTime := FileAgeToDateTime(aFileName);
-  if fBuildDateTime <> 0 then
-    DecodeDate(fBuildDateTime, BuildYear, M, D);
+  if aBuildDate = 0 then // get build date from file age
+    aBuildDate := FileAgeToDateTime(aFileName);
+  fBuildDateTime := aBuildDate;
+  if aBuildDate <> 0 then
+    DecodeDate(aBuildDate, BuildYear, m, d);
 end;
 
 function TFileVersion.Version32: integer;
@@ -7600,7 +8485,7 @@ begin
         OS_INITIAL[OS_KIND]], fUserAgent);
       {$ifdef OSWINDOWS}
       if OSVersion in WINDOWS_32 then
-        fUserAgent := fUserAgent + '32';
+        AppendShortToUtf8('32', fUserAgent);
       {$endif OSWINDOWS}
     end;
     result := fUserAgent;
@@ -7618,8 +8503,7 @@ begin
 end;
 
 function UserAgentParse(const UserAgent: RawUtf8;
-  out ProgramName, ProgramVersion: RawUtf8;
-  out OS: TOperatingSystem): boolean;
+  out ProgramName, ProgramVersion: RawUtf8; out OS: TOperatingSystem): boolean;
 var
   i, v, vlen, o: PtrInt;
 begin
@@ -7650,13 +8534,13 @@ end;
 
 procedure SetExecutableVersion(const aVersionText: RawUtf8);
 var
-  P: PUtf8Char;
-  i: integer;
+  p: PAnsiChar;
+  i: PtrInt;
   ver: array[0 .. 3] of integer;
 begin
-  P := pointer(aVersionText);
+  p := pointer(aVersionText);
   for i := 0 to 3 do
-    ver[i] := GetNextUInt32(P);
+    ver[i] := _GetNextCardinal(p);
   SetExecutableVersion(ver[0], ver[1], ver[2], ver[3]);
 end;
 
@@ -7668,7 +8552,7 @@ begin
       Version.DetailedOrVoid, Version.BuildDateTimeString], ProgramFullSpec);
     Hash.c0 := Version.Version32;
     {$ifdef OSLINUXANDROID}
-    Hash.c0 := crc32c(Hash.c0, pointer(CpuInfoFeatures), length(CpuInfoFeatures));
+    Hash.c0 := crc32c(Hash.c0, pointer(CpuInfoLinux), length(CpuInfoLinux));
     {$else}
     {$ifdef CPUINTELARM}
     Hash.c0 := crc32c(Hash.c0, @CpuFeatures, SizeOf(CpuFeatures));
@@ -7690,15 +8574,23 @@ begin
 end;
 
 procedure InitializeExecutableInformation; // called once at startup
+var
+  dt: TDateTime;
 begin
   with Executable do
   begin
     {$ifdef OSWINDOWS}
     ProgramFileName := ParamStr(0); // RTL seems just fine here
+    dt := FileAgeToDateTime(ProgramFileName);
     {$else}
     ProgramFileName := GetExecutableName(@InitializeExecutableInformation);
-    if (ProgramFileName = '') or
-       not FileExists(ProgramFileName) then
+    if ProgramFileName <> '' then
+    begin
+      dt := FileAgeToDateTime(ProgramFileName);
+      if dt = 0 then
+        ProgramFileName := '';
+    end;
+    if ProgramFileName = '' then
       ProgramFileName := ExpandFileName(ParamStr(0));
     {$endif OSWINDOWS}
     ProgramFilePath := ExtractFilePath(ProgramFileName);
@@ -7712,8 +8604,9 @@ begin
       Host := 'unknown';
     if User = '' then
       User := 'unknown';
-    Version := TFileVersion.Create(ProgramFileName); // with versions=0
+    Version := TFileVersion.Create(ProgramFileName, 0, 0, 0, 0, dt);
     Command := TExecutableCommandLine.Create;
+    Command.ExeDescription := ProgramName;
     Command.Parse;
   end;
   ComputeExecutableHash;
@@ -7728,16 +8621,16 @@ end;
 
 { TExecutableCommandLine }
 
-function TExecutableCommandLine.Full(const v: RawUtf8): RawUtf8;
+function TExecutableCommandLine.SwitchAsText(const v: RawUtf8): RawUtf8;
 begin
-  result := fSwitch[length(v) > 1] + v;
+  Join([fSwitch[length(v) > 1], v], result);
 end;
 
 procedure TExecutableCommandLine.Describe(const v: array of RawUtf8;
   k: TExecutableCommandLineKind; d, def: RawUtf8; argindex: integer);
 var
   i, j: PtrInt;
-  desc, param, pnames: RawUtf8;
+  desc, param, pnames, sp: RawUtf8;
 begin
   if (self = nil) or
      (d = '') then
@@ -7746,43 +8639,117 @@ begin
   begin
     if high(v) < 0 then
       exit;
-    desc := Full(v[0]);
+    desc := SwitchAsText(v[0]);
     if length(v[0]) <> 1 then
-      desc := '    ' + desc; // right align --#
+      desc := Join(['    ', desc]); // right align --#
     for i := 1 to high(v) do
-      desc := desc + ', ' + Full(v[i]);
+      desc := Join([desc, ', ', SwitchAsText(v[i])]);
   end;
   if k <> clkOption then
   begin
-    i := PosExChar('#', d);
+    i := PosExChar('#', d); // #valuename in description -> <valuename>
     if i > 0 then
     begin
       j := 1;
       while d[i + j] > ' ' do
         inc(j);
       delete(d, i, 1); // remove #
-      param := copy(d, i, j - 1); // extract parameter value name
+      if d[i] <> '#' then
+        param := copy(d, i, j - 1) // extract '<valuename>'
+      else
+      begin
+        param := copy(d, i + 1, j - 2); // ##type
+        delete(d, i, j);                // not included in description
+      end;
     end
     else if k = clkArg then
       if high(v) = 0 then
         param := v[0]
       else if argindex > 0 then
-        param := _fmt('arg%d', [argindex])
+        _fmt('arg%d', [argindex], param)
       else
         param := 'arg'
     else
-      param := 'value';
-    desc := desc + ' <' + param + '>';
+    begin
+      i := PosEx(' - values: ', d); // see SetObjectFromExecutableCommandLine()
+      if i > 0 then
+      begin
+        inc(i, 11);
+        j := 1;
+        if copy(d, i, 7) = 'set of ' then
+          inc(j, 7);
+        while d[i + j] > ' ' do
+          inc(j);
+        param := copy(d, i, j);
+        dec(i, 11);
+        delete(d, i, j + 11);
+        if j > 50 then
+        begin
+          j := 50;
+          for i := 50 downto 1 do
+            if param[i] in [',', '|'] then
+            begin
+              j := i;
+              break;
+            end;
+          insert(Join([fLineFeed, '         ']), param, j + 1);
+        end;
+      end
+      else
+        param := 'value';
+    end;
+    desc := Join([desc, ' <', param, '>']);
+    if (k = clkArg) and
+       (argindex > 0) then
+    begin
+      if argindex > length(fDescArg) then
+        SetLength(fDescArg, argindex);
+      fDescArg[argindex - 1] := param;
+    end;
   end;
-  fDesc[k] := fDesc[k] + ' ' + desc;
+  fDesc[k] := Join([fDesc[k], ' ', desc]);
+  j := 1;
+  if fSwitch[true] <> '--' then
+    repeat
+      i := PosEx('--', d, j); // e.g. '--switch' -> '/switch' on Windows
+      if i = 0 then
+        break;
+      delete(d, i, 2);
+      insert(fSwitch[true], d, i);
+      j := i;
+    until false;
   if def <> '' then
-    def := ' (default ' + def + ')';
-  pnames := _fmt('  %0:-20s', [desc + def]);
-  if length(pnames) > 22 then // write description on next line
-    fDescDetail[k] := fDescDetail[k] + pnames + fLineFeed +
-            '                      ' + d + fLineFeed
+    def := Join([' (default ', def, ')']);
+  _fmt('  %0:-20s', [Join([desc + def])], pnames);
+  if (length(pnames) > 22) or
+     (length(d) > 80) then
+  begin
+    // write description on next line(s)
+    sp := fLineFeed + '                      ';
+    while length(d) > 57 do
+    begin
+      j := 57;
+      for i := 57 downto 1 do
+        if d[i] = ' ' then
+        begin
+          j := i;
+          break;
+        end;
+      if j = 57 then
+        for i := 57 downto 1 do
+          if d[i] in [',', ';', '|'] then
+          begin
+            j := i;
+            break;
+          end;
+      pnames := Join([pnames, sp, copy(d, 1, j)]);
+      delete(d, 1, j);
+    end;
+    pnames := Join([pnames, sp, d]);
+  end
   else
-    fDescDetail[k] := fDescDetail[k] + pnames + d + fLineFeed;
+    pnames := pnames + d; // we can put everything on the same line
+  fDescDetail[k] := Join([fDescDetail[k], pnames, fLineFeed]);
 end;
 
 function TExecutableCommandLine.Find(const v: array of RawUtf8;
@@ -7811,18 +8778,72 @@ begin
   result := -1
 end;
 
-function TExecutableCommandLine.Arg(index: integer; const description: RawUtf8): boolean;
+function TExecutableCommandLine.Arg(index: integer; const description: RawUtf8;
+  optional: boolean): boolean;
+var
+  n: PtrUInt;
 begin
-  result := (self <> nil) and
-            (PtrUInt(index) < PtrUInt(length(fNames[clkArg])));
+  result := self <> nil;
+  if not result then
+    exit;
+  n := length(fNames[clkArg]);
+  result := PtrUInt(index) < n;
   if result then
-    fRetrieved[clkArg][index] := true;
+    fRetrieved[clkArg][index] := true
+  else
+  begin
+    SetLength(fRetrieved[clkArg], n + 1); // to notify missing <arg>
+    if optional then
+      fRetrieved[clkArg][index] := true;
+  end;
   Describe([], clkArg, description, '', index + 1);
+end;
+
+function TExecutableCommandLine.ArgU(index: integer; const description: RawUtf8;
+  optional: boolean): RawUtf8;
+begin
+  result := '';
+  if Arg(index, description, optional) then
+    result := Args[index];
+end;
+
+function TExecutableCommandLine.ArgString(index: integer;
+  const description: RawUtf8; optional: boolean): string;
+begin
+  result := '';
+  if Arg(index, description, optional) then
+    result := string(Args[index]);
+end;
+
+function TExecutableCommandLine.ArgFile(index: integer;
+  const description: RawUtf8; optional, isFolder: boolean): TFileName;
+begin
+  result := ArgString(index, description, optional);
+  if result <> '' then
+    result := CheckFileName(result, isFolder);
+end;
+
+const
+  FD: array[boolean] of string[7] = ('File', 'Folder');
+
+function TExecutableCommandLine.CheckFileName(const name: TFileName;
+  isFolder: boolean): TFileName;
+begin
+  result := ExpandFileName(name);
+  if isFolder then
+  begin
+    if DirectoryExists(result) then
+      exit;
+  end
+  else if FileExists(result) then
+    exit;
+  fUnknown := _fmt('%s%s %s does not exist%s',
+    [fUnknown, FD[isFolder], result, fLineFeed]);
 end;
 
 function TExecutableCommandLine.Arg(const name, description: RawUtf8): boolean;
 begin
-  result := Find([name], clkArg, description) >= 0;
+  result := Arg([name], description);
 end;
 
 function TExecutableCommandLine.Arg(const name: array of RawUtf8;
@@ -7831,9 +8852,23 @@ begin
   result := Find(name, clkArg, description) >= 0;
 end;
 
+function UnAmp(const name: RawUtf8): TRawUtf8DynArray;
+var
+  i: PtrInt;
+begin
+  i := PosExChar('&', name);
+  SetLength(result, ord(i <> 0) + 1);
+  result[0] := name;
+  if i = 0 then
+    exit;
+  delete(result[0], i, 1);
+  result[1] := result[0]; // &# char first
+  result[0] := copy(name, i + 1, 1);
+end;
+
 function TExecutableCommandLine.Option(const name, description: RawUtf8): boolean;
 begin
-  result := Find([name], clkOption, description) >= 0;
+  result := Find(UnAmp(name), clkOption, description) >= 0
 end;
 
 function TExecutableCommandLine.Option(const name: array of RawUtf8;
@@ -7845,16 +8880,7 @@ end;
 function TExecutableCommandLine.Get(const name: RawUtf8; out value: RawUtf8;
   const description, default: RawUtf8): boolean;
 begin
-  result := Get([name], value, description, default);
-end;
-
-procedure AddRawUtf8(var Values: TRawUtf8DynArray; const Value: RawUtf8);
-var
-  n: PtrInt;
-begin
-  n := length(Values);
-  SetLength(Values, n + 1);
-  Values[n] := Value;
+  result := Get(UnAmp(name), value, description, default);
 end;
 
 function TExecutableCommandLine.Get(const name: array of RawUtf8;
@@ -7870,9 +8896,12 @@ begin
   repeat
     i := Find(name, clkParam, '', '', first);
     if i < 0 then
-      break;
-    AddRawUtf8(value, fValues[i]);
-    result := true;
+      break; // no more occurence
+    if fValues[i] <> '' then
+    begin
+      _AddRawUtf8(value, fValues[i]);
+      result := true;
+    end;
     first := i + 1;
   until first >= length(fValues);
 end;
@@ -7901,7 +8930,7 @@ end;
 function TExecutableCommandLine.Get(const name: RawUtf8; out value: string;
   const description: RawUtf8; const default: string): boolean;
 begin
-  result := Get([name], value, description, default);
+  result := Get(UnAmp(name), value, description, default);
 end;
 
 function TExecutableCommandLine.Get(const name: array of RawUtf8;
@@ -7909,14 +8938,17 @@ function TExecutableCommandLine.Get(const name: array of RawUtf8;
 var
   tmp: RawUtf8;
 begin
-  result := Get(name, tmp, description, RawUtf8(default));
-  value := string(tmp);
+  result := Get(name, tmp, description);
+  if result then
+    value := string(tmp)
+  else
+    value := default; // no conversion needed
 end;
 
 function TExecutableCommandLine.Get(const name: RawUtf8;
   out value: TStringDynarray; const description: RawUtf8): boolean;
 begin
-  result := Get([name], value, description);
+  result := Get(UnAmp(name), value, description);
 end;
 
 function TExecutableCommandLine.Get(const name: array of RawUtf8;
@@ -7934,26 +8966,22 @@ end;
 function TExecutableCommandLine.Get(const name: RawUtf8;
   out value: integer; const description: RawUtf8; default: integer): boolean;
 begin
-  result := Get([name], value, description, default);
-end;
-
-function defI(default: integer): RawUtf8;
-begin
-  if default = maxInt then
-    result := ''
-  else
-    result := RawUtf8(IntToStr(default));
+  result := Get(UnAmp(name), value, description, default);
 end;
 
 function TExecutableCommandLine.Get(const name: array of RawUtf8;
   out value: integer; const description: RawUtf8; default: integer): boolean;
 var
   i: PtrInt;
+  def: RawUtf8;
 begin
-  if self = nil then
-    i := -1
-  else
-    i := Find(name, clkParam, description, defI(default));
+  i := -1;
+  if self <> nil then
+  begin
+    if default <> maxInt then
+      ShortStringToAnsi7String(ToShort(default), def); // no Delphi str(RawUtf8)
+    i := Find(name, clkParam, description, def);
+  end;
   result := (i >= 0) and
             ToInteger(Values[i], value);
   if not result and
@@ -7964,7 +8992,7 @@ end;
 function TExecutableCommandLine.Get(const name: RawUtf8; min, max: integer;
   out value: integer; const description: RawUtf8; default: integer): boolean;
 begin
-  result := Get([name], min, max, value, description, default);
+  result := Get(UnAmp(name), min, max, value, description, default);
 end;
 
 function TExecutableCommandLine.Get(const name: array of RawUtf8;
@@ -7978,7 +9006,7 @@ end;
 
 function TExecutableCommandLine.Has(const name: RawUtf8): boolean;
 begin
-  result := Find([name], clkParam) >= 0;
+  result := Find(UnAmp(name), clkParam) >= 0;
 end;
 
 function TExecutableCommandLine.Has(const name: array of RawUtf8): boolean;
@@ -7989,7 +9017,7 @@ end;
 function TExecutableCommandLine.Param(
   const name, description, default: RawUtf8): RawUtf8;
 begin
-  Get([name], result, description, default);
+  Get(UnAmp(name), result, description, default);
 end;
 
 function TExecutableCommandLine.Param(const name: array of RawUtf8;
@@ -7998,10 +9026,22 @@ begin
   Get(name, result, description, default);
 end;
 
+function TExecutableCommandLine.ParamS(const name: array of RawUtf8;
+  const description: RawUtf8; const default: string): string;
+begin
+  Get(name, result, description, default);
+end;
+
 function TExecutableCommandLine.Param(const name: RawUtf8;
   default: integer; const description: RawUtf8): integer;
 begin
-  Get([name], result, description, default);
+  Get(UnAmp(name), result, description, default);
+end;
+
+function TExecutableCommandLine.ParamS(const name: RawUtf8;
+  const description: RawUtf8; const default: string): string;
+begin
+  Get(UnAmp(name), result, description, default);
 end;
 
 function TExecutableCommandLine.Param(const name: array of RawUtf8;
@@ -8014,16 +9054,18 @@ const
   CLK_TXT: array[clkOption .. clkParam] of RawUtf8 = (
     ' [options]', ' [params]');
   CLK_DESCR: array[clkOption .. clkParam] of RawUtf8 = (
-    'Options:', 'Params:');
+    'Options', 'Params');
+  CASE_DESCR: array[boolean] of RawUtf8 = (
+    ':', ' (case-sensitive):');
 
 function TExecutableCommandLine.FullDescription(
-  const customexedescription, exename: RawUtf8): RawUtf8;
+  const customexedescription, exename, onlyusage: RawUtf8): RawUtf8;
 var
   clk: TExecutableCommandLineKind;
 begin
   if customexedescription <> '' then
     fExeDescription := customexedescription;
-  result := fExeDescription + fLineFeed + fLineFeed + 'Usage: ';
+  result := Join([fExeDescription, fLineFeed, fLineFeed, 'Usage: ']);
   if exename = '' then
     result := result + Executable.ProgramName
   else
@@ -8033,13 +9075,17 @@ begin
     if fDesc[clk] <> '' then
       result := result + CLK_TXT[clk];
   result := result + fLineFeed;
-  for clk := low(fDescDetail) to high(fDescDetail) do
-    if fDescDetail[clk] <> '' then
-    begin
-      if clk in [low(CLK_TXT) .. high(CLK_TXT)] then
-        result := result + fLineFeed + CLK_DESCR[clk];
-      result := result + fLineFeed + fDescDetail[clk];
-    end;
+  if onlyusage <> '' then
+    result := result + onlyusage
+  else
+    for clk := low(fDescDetail) to high(fDescDetail) do
+      if fDescDetail[clk] <> '' then
+      begin
+        if clk in [low(CLK_DESCR) .. high(CLK_DESCR)] then
+          result := Join([result,
+                    fLineFeed, CLK_DESCR[clk], CASE_DESCR[CaseSensitiveNames]]);
+        result := Join([result, fLineFeed, fDescDetail[clk]]);
+      end;
 end;
 
 function TExecutableCommandLine.DetectUnknown: RawUtf8;
@@ -8047,22 +9093,26 @@ var
   clk: TExecutableCommandLineKind;
   i: PtrInt;
 begin
-  result := '';
+  result := fUnknown;
   for clk := low(fRetrieved) to high(fRetrieved) do
     for i := 0 to length(fRetrieved[clk]) - 1 do
       if not fRetrieved[clk][i] then
-      begin
-        result := result + 'Unexpected ' + Full(fNames[clk][i]) + ' ';
-        case clk of
-          clkArg:
-            result := result + 'argument';
-          clkOption:
-            result := result + 'option';
-          clkParam:
-            result := result + fValues[i] + ' parameter';
+        if clk = clkArg then
+          if fDescArg = nil then
+            result := Join([result, 'Unexpected "', fRawParams[i], '" argument', fLineFeed])
+          else
+            result := Join([result, 'Missing <', fDescArg[i], '> argument', fLineFeed])
+        else
+        begin
+          result := Join([result, 'Unexpected ', SwitchAsText(fNames[clk][i]), ' ']);
+          case clk of
+            clkOption:
+              result := Join([result, 'option']);
+            clkParam:
+              result := Join([result, fValues[i], ' parameter']);
+          end;
+          result := result + fLineFeed;
         end;
-        result := result + fLineFeed;
-      end;
 end;
 
 function TExecutableCommandLine.ConsoleWriteUnknown(
@@ -8074,8 +9124,20 @@ begin
   result := err <> '';
   if not result then
     exit;
-  ConsoleWrite(err, ccLightRed);
   ConsoleWrite(FullDescription(exedescription));
+  ConsoleWrite(err, ccLightRed);
+end;
+
+function TExecutableCommandLine.ConsoleHelpFailed(
+  const exedescription: RawUtf8): boolean;
+begin
+  if exedescription <> '' then
+    fExeDescription := exedescription;
+  result := Option(['?', 'h', 'help'], 'display this help');
+  if result then
+    ConsoleWrite(FullDescription)
+  else
+    result := ConsoleWriteUnknown(exedescription);
 end;
 
 procedure TExecutableCommandLine.Clear;
@@ -8093,10 +9155,10 @@ begin
   result := false;
   fLineFeed := DescriptionLineFeed;
   if (ShortSwitch = '') or
-     (LongSwitch = '') then
+     (LongSwitch  = '') then
     exit;
   fSwitch[false] := ShortSwitch;
-  fSwitch[true] := LongSwitch;
+  fSwitch[true]  := LongSwitch;
   if fRawParams = nil then
   begin
     n := ParamCount;
@@ -8118,12 +9180,13 @@ begin
     s := fRawParams[i];
     if s <> '' then
       if CompareMemSmall(pointer(s), pointer(LongSwitch), length(LongSwitch)) then
-        swlen[i] := length(LongSwitch)
+        swlen[i] := length(LongSwitch)  // start with LongSwitch
       else if CompareMemSmall(pointer(s), pointer(ShortSwitch), length(ShortSwitch)) then
-        swlen[i] := length(ShortSwitch)
+        swlen[i] := length(ShortSwitch) // start with ShortSwitch
       {$ifdef OSWINDOWS}
-      else while s[swlen[i] + 1] = '-' do
-        inc(swlen[i]); // allow -v --verbose on Windows for cross-platform run
+      else
+        while s[swlen[i] + 1] = '-' do
+          inc(swlen[i]); // allow -v --verbose on Windows for cross-platform run
       {$endif OSWINDOWS}
   end;
   i := 0;
@@ -8139,117 +9202,161 @@ begin
           if j <> 1 then
             if j <> 0 then
             begin
-              AddRawUtf8(fNames[clkParam], copy(s, 1, j - 1));
-              AddRawUtf8(fValues, copy(s, j + 1, MaxInt));
+              _AddRawUtf8(fNames[clkParam], copy(s, 1, j - 1));
+              _AddRawUtf8(fValues, copy(s, j + 1, MaxInt));
             end
             else if (i + 1 = n) or
                     (swlen[i + 1] <> 0) then
-              AddRawUtf8(fNames[clkOption], s)
+              _AddRawUtf8(fNames[clkOption], s)
             else
             begin
-              AddRawUtf8(fNames[clkParam], s);
+              _AddRawUtf8(fNames[clkParam], s);
               inc(i);
-              AddRawUtf8(fValues, fRawParams[i]);
+              _AddRawUtf8(fValues, fRawParams[i]);
             end;
           end;
       end
       else
-        AddRawUtf8(fNames[clkArg], s);
+        _AddRawUtf8(fNames[clkArg], s);
     inc(i);
   until i = n;
-  SetLength(fRetrieved[clkArg], length(fNames[clkArg]));
+  SetLength(fRetrieved[clkArg],    length(fNames[clkArg]));
   SetLength(fRetrieved[clkOption], length(fNames[clkOption]));
-  SetLength(fRetrieved[clkParam], length(fNames[clkParam]));
+  SetLength(fRetrieved[clkParam],  length(fNames[clkParam]));
   result := true;
 end;
 
+var
+  _SystemPath: array[TSystemPath] of TFileName; // GetSystemPath() cache
+
+function GetSystemPath(kind: TSystemPath): TFileName;
+begin
+  result := _SystemPath[kind];
+  if result <> '' then
+    exit;
+  _ComputeSystemPath(kind, result); // in os.posix.inc or os.windows.inc
+  _SystemPath[kind] := result;
+end;
+
+function SetSystemPath(kind: TSystemPath; const path: TFileName): boolean;
+var
+  full: TFileName;
+begin
+  full := ExpandFileName(ExcludeTrailingPathDelimiter(path));
+  result := DirectoryExists(full);
+  if result then
+    _SystemPath[kind] := IncludeTrailingPathDelimiter(full);
+end;
 
 function _GetExecutableLocation(aAddress: pointer): ShortString;
-var
-  i: PtrInt;
 begin // return the address as hexadecimal - hexstr() is not available on Delphi
   result[0] := #0;
-  for i := SizeOf(aAddress) - 1 downto 0 do
-    AppendShortByteHex(PByteArray(aAddress)[i], result);
+  AppendShortIntHex(PtrUInt(aAddress), result);
 end; // mormot.core.log.pas will properly decode debug info - and handle .mab
 
 var
-  _SystemStoreAsPem: array[0..ord(high(TSystemCertificateStore)) + 1] of record
+  _SystemStoreAsPemSafe: TLightLock;
+  _OneSystemStoreAsPem: array[TSystemCertificateStore] of record
     Tix: cardinal;
     Pem: RawUtf8;
   end;
+  _SystemStoreAsPem: record
+    Tix: cardinal;
+    Scope: TSystemCertificateStores;
+    Pem: RawUtf8;
+  end;
 
-function GetSystemStoreAsPem(CertStore: TSystemCertificateStore;
+function GetOneSystemStoreAsPem(CertStore: TSystemCertificateStore;
   FlushCache: boolean; now: cardinal): RawUtf8;
 begin
   if now = 0 then
     now := GetTickCount64 shr 18 + 1; // div 262.144 seconds = every 4.4 min
-  with _SystemStoreAsPem[ord(CertStore) + 1] do
-  begin
-    if not FlushCache then
-      if Tix = now then
-      begin
-        result := Pem; // quick retrieved from cache
-        exit;
-      end;
-    // fallback search depending on the POSIX / Windows specific OS
-    result := _GetSystemStoreAsPem(CertStore);
-    Tix := now;
-    Pem := result;
-  end;
-end;
-
-function GetSystemStoreAsPem(CertStores: TSystemCertificateStores;
-  FlushCache: boolean): RawUtf8;
-var
-  now: cardinal;
-  s: TSystemCertificateStore;
-  v: RawUtf8;
-label
-  notfound;
-begin
-  result := '';
-  now := GetTickCount64 shr 18 + 1;
-  // first search if bounded within the application
-  with _SystemStoreAsPem[0] do // cached in slot [0]
-  begin
-    if not FlushCache then
-      if Tix = now then
-        if Pem = '' then
-          goto notfound
-        else
+  _SystemStoreAsPemSafe.Lock;
+  try
+    // first search if not already in cache
+    with _OneSystemStoreAsPem[CertStore] do
+    begin
+      if not FlushCache then
+        if Tix = now then
         begin
           result := Pem; // quick retrieved from cache
           exit;
         end;
-    if GetSystemStoreAsPemLocalFile <> '' then
-      {$ifdef OSPOSIX}
-      if GetSystemStoreAsPemLocalFile[1] = '/' then // full /posix/path
-      {$else}
-      if GetSystemStoreAsPemLocalFile[2] = ':' then // 'C:\path\to\file.pem'
-      {$endif OSPOSIX}
-        result := StringFromFile(GetSystemStoreAsPemLocalFile)
-      else
-        result := StringFromFile(
-          Executable.ProgramFilePath + GetSystemStoreAsPemLocalFile);
-    if result = '' then
-      result := StringFromFile(GetEnvironmentVariable('SSL_CA_CERT_FILE'));
-    Tix := now;
-    Pem := result;
+      // fallback search depending on the POSIX / Windows specific OS
+      result := _GetSystemStoreAsPem(CertStore); // implemented in each .inc
+      Tix := now;
+      Pem := result;
+    end;
+  finally
+    _SystemStoreAsPemSafe.UnLock;
   end;
-notfound:
+end;
+
+function GetSystemStoreAsPem(CertStores: TSystemCertificateStores;
+  FlushCache, OnlySystemStore: boolean): RawUtf8;
+var
+  now: cardinal;
+  s: TSystemCertificateStore;
+  v: RawUtf8;
+begin
+  result := '';
+  now := GetTickCount64 shr 18 + 1;
+  _SystemStoreAsPemSafe.Lock;
+  try
+    // first search if not already in cache
+    if not FlushCache then
+      with _SystemStoreAsPem do
+        if (Tix = now) and
+           (Scope = CertStores) and
+           (Pem <> '') then
+        begin
+          result := Pem; // quick retrieved from cache
+          exit;
+        end;
+    // load from a file, bounded within the application or from env variable
+    if not OnlySystemStore then
+    begin
+      if GetSystemStoreAsPemLocalFile <> '' then
+        {$ifdef OSPOSIX}
+        if GetSystemStoreAsPemLocalFile[1] = '/' then // full /posix/path
+        {$else}
+        if GetSystemStoreAsPemLocalFile[2] = ':' then // 'C:\path\to\file.pem'
+        {$endif OSPOSIX}
+          result := StringFromFile(GetSystemStoreAsPemLocalFile)
+        else
+          result := StringFromFile(
+            Executable.ProgramFilePath + GetSystemStoreAsPemLocalFile);
+      if result = '' then
+        result := StringFromFile(GetEnvironmentVariable('SSL_CA_CERT_FILE'));
+    end;
+  finally
+    _SystemStoreAsPemSafe.UnLock; // GetOneSystemStoreAsPem() blocks
+  end;
+  // fallback to search depending on the POSIX / Windows specific OS stores
   if result = '' then
-    // fallback to search depending on the POSIX / Windows specific OS
     for s := low(s) to high(s) do
       if s in CertStores then
       begin
-        v := GetSystemStoreAsPem(s, FlushCache, now);
+        v := GetOneSystemStoreAsPem(s, FlushCache, now); // may use its cache
         if v <> '' then
-          result := result + #13#10 + v;
+          result := Join([result, v, #13#10]);
       end;
+  if result = '' then
+    exit;
+  _SystemStoreAsPemSafe.Lock;
+  try
+    with _SystemStoreAsPem do
+    begin
+      Tix := now;
+      Scope := CertStores;
+      Pem := result;
+    end;
+  finally
+    _SystemStoreAsPemSafe.UnLock;
+  end;
 end;
 
-{$ifdef CPUINTEL} // don't mess with raw SMBIOS encoding outside of Intel/AMD
+// SMBIOS can be available outside of Intel/AMD - e.g. on aarch64-win64
 
 // from DSP0134 3.6.0 System Management BIOS (SMBIOS) Reference Specification
 const
@@ -8294,19 +9401,22 @@ type
   end;
   PSmbEntryPoint64 = ^TSmbEntryPoint64;
 
-function GetRawSmbios32(p: PSmbEntryPoint32; var info: TRawSmbiosInfo): PtrUInt;
+function SmbiosChecksum(p: pointer; l: PtrInt): PtrUInt;
 var
   cs: byte;
   i: PtrInt;
 begin
   cs := 0;
-  for i := 0 to p^.Length - 1 do
+  for i := 0 to l - 1 do
     inc(cs, PByteArray(p)[i]);
-  if cs <> 0 then
-  begin
-    result := 0; // invalid checksum
+  result := ord(cs = 0); // returns 0 if failed
+end;
+
+function GetRawSmbios32(p: PSmbEntryPoint32; var info: TRawSmbiosInfo): PtrUInt;
+begin
+  result := SmbiosChecksum(p, p^.Length);
+  if result = 0 then
     exit;
-  end;
   result := p^.StructAddr;
   info.SmbMajorVersion := p^.MajVers;
   info.SmbMinorVersion := p^.MinVers;
@@ -8315,18 +9425,10 @@ begin
 end;
 
 function GetRawSmbios64(p: PSmbEntryPoint64; var info: TRawSmbiosInfo): PtrUInt;
-var
-  cs: byte;
-  i: PtrInt;
 begin
-  cs := 0;
-  for i := 0 to p^.Length - 1 do
-    inc(cs, PByteArray(p)[i]);
-  if cs <> 0 then
-  begin
-    result := 0;
+  result := SmbiosChecksum(p, p^.Length);
+  if result = 0 then
     exit;
-  end;
   result := p^.StructAddr;
   info.SmbMajorVersion := p^.MajVers;
   info.SmbMinorVersion := p^.MinVers;
@@ -8354,7 +9456,7 @@ begin
         exit;
     end
     else if (p^.Anchor = SMB_ANCHOR4) and
-            (p^.Checksum = SMB_ANCHOR5) then
+            (PSmbEntryPoint64(p)^.Anch5 = SMB_ANCHOR5) then
     begin
       result := GetRawSmbios64(pointer(p), info);
       if result <> 0 then
@@ -8363,8 +9465,6 @@ begin
     inc(PHash128(p)); // search on 16-byte (paragraph) boundaries
   until PtrUInt(p) >= PtrUInt(pend);
 end;
-
-{$endif CPUINTEL}
 
 procedure ComputeGetSmbios;
 begin
@@ -8407,19 +9507,7 @@ begin
   result := _Smbios[info];
 end;
 
-{$ifdef ISDELPHI} // missing convenient RTL function in Delphi
-function TryStringToGUID(const s: string; var uuid: TGuid): boolean;
-begin
-  try
-    uuid := StringToGUID(s);
-    result := true;
-  except
-    result := false;
-  end;
-end;
-{$endif ISDELPHI}
-
-procedure GetComputerUuid(out uuid: TGuid);
+procedure GetComputerUuid(out uuid: TGuid; disable: TGetComputerUuid);
 var
   n, i: PtrInt;
   u: THash128Rec absolute uuid;
@@ -8439,50 +9527,84 @@ begin
   // first try to retrieve the Machine BIOS UUID
   if not _SmbiosRetrieved then
     ComputeGetSmbios; // maybe from local SMB_CACHE file for non-root
-  if (_Smbios[sbiUuid] <> '') and
-     TryStringToGUID('{' + string(_Smbios[sbiUuid]) + '}', uuid) then
+  if not (gcuSmbios in disable) and
+     (_Smbios[sbiUuid] <> '') and
+     TextToUuid(_Smbios[sbiUuid], uuid) then
     exit;
-  // did we already compute this UUID?
-  fn := UUID_CACHE;
-  s := StringFromFile(fn);
-  if length(s) = SizeOf(uuid) then
+  // did we already compute (and persist) this UUID?
+  if disable = [] then // we persist a fully-qualified UUID only
   begin
-    uuid := PGuid(s)^; // seems to be a valid UUID binary blob
-    exit;
+    fn := UUID_CACHE;
+    s := StringFromFile(fn);
+    if length(s) = SizeOf(uuid) then
+    begin
+      uuid := PGuid(s)^; // seems to be a valid UUID binary blob
+      exit;
+    end;
   end;
   // no known UUID: compute and store a 128-bit hash from HW specs
   // which should remain identical even between full OS reinstalls
   // note: /etc/machine-id is no viable alternative since it is from SW random
-  {$ifdef CPUINTELARM}
-  crc128c(@CpuFeatures, SizeOf(CpuFeatures), u.b);
-  {$else}
   s := CPU_ARCH_TEXT;
   crc128c(pointer(s), length(s), u.b); // rough starting point
+  {$ifdef CPUINTELARM}
+  if not (gcuCpuFeatures in disable) then
+    crc128c(@CpuFeatures, SizeOf(CpuFeatures), u.b); // override
   {$endif CPUINTELARM}
-  if RawSmbios.Data <> '' then // some bios have no uuid but some HW info
+  if (RawSmbios.Data <> '') and // some bios have no uuid but some HW info
+     not (gcuSmbiosData in disable) then
     crc32c128(@u.b, pointer(RawSmbios.Data), length(RawSmbios.Data));
   n := 0;
-  for i := 0 to length(_Smbios) - 1 do // some of _Smbios[] may be set
-    crctext(PRawUtf8Array(@_Smbios)[i]);
-  crctext(CpuCacheText);
-  crctext(BiosInfoText);
-  crctext(CpuInfoText);
-  if Assigned(GetSystemMacAddress) then
+  if not (gcuSmbiosText in disable) then
+    for i := 0 to length(_Smbios) - 1 do // some of _Smbios[] may be set
+      crctext(PRawUtf8Array(@_Smbios)[i]);
+  if not (gcuCpuInfoText in disable) then
+    crctext(CpuCacheText);
+  if not (gcuBiosInfoText in disable) then
+    crctext(BiosInfoText);
+  if not (gcuCpuInfoText in disable) then
+    crctext(CpuInfoText);
+  if Assigned(GetSystemMacAddress) and
+     not (gcuMacAddress in disable) then
     // from mormot.net.sock or mormot.core.os.posix.inc for Linux only
     mac := GetSystemMacAddress;
   if mac <> nil then
-  begin
     // MAC should make it unique at least over the local network
     for i := 0 to high(mac) do
-      crctext(mac[i]);
+      crctext(mac[i])
+  else
+  begin
+    // unpersisted fallback if mormot.net.sock is not included (very unlikely)
+    crctext(Executable.Host);
+    exit; // unpersisted
+  end;
+  if fn <> '' then // disable = []
     // we have enough unique HW information to store it locally for next startup
     // note: RawSmbios.Data may not be genuine e.g. between VMs
     if FileFromBuffer(@u, SizeOf(u), fn) then
       FileSetSticky(fn); // use S_ISVTX so that file is not removed from /var/tmp
-  end
-  else
-    // unpersisted fallback if mormot.net.sock is not included (very unlikely)
-    crctext(Executable.Host);
+end;
+
+var
+  _GetComputerUuid: RawUtf8;
+
+function GetComputerUuid(disable: TGetComputerUuid): RawUtf8;
+var
+  u: TGuid;
+begin
+  if disable = [] then
+  begin
+    result := _GetComputerUuid; // try from cache
+    if result <> '' then
+      exit;
+  end;
+  GetComputerUuid(u, disable);
+  UuidToText(u, result);
+  if disable <> [] then
+    exit; // cache fully-qualified UUID only
+  GlobalLock;
+  _GetComputerUuid := result;
+  GlobalUnLock;
 end;
 
 procedure DecodeSmbiosUuid(src: PGuid; out dest: RawUtf8; const raw: TRawSmbiosInfo);
@@ -8508,10 +9630,10 @@ begin
       (raw.SmbMajorVersion shl 8 + raw.SmbMinorVersion < $0206)) then
   begin
     uid.D1 := bswap32(uid.D1);
-    uid.D2 := swap(uid.D2);
-    uid.D3 := swap(uid.D3);
+    uid.D2 := bswap16(uid.D2);
+    uid.D3 := bswap16(uid.D3);
   end;
-  dest := RawUtf8(UpperCase(copy(GUIDToString(uid), 2, 36)));
+  UuidToText(uid, dest);
 end;
 
 function DecodeSmbios(var raw: TRawSmbiosInfo; out info: TSmbiosBasicInfos): PtrInt;
@@ -8527,7 +9649,7 @@ begin
   if s = nil then
     exit;
   sEnd := @s[length(raw.Data)];
-  FillCharFast(lines, SizeOf(lines), 0);
+  FillCharFast(lines, SizeOf(lines), ord(sbiUndefined));
   repeat
     if (s[0] = 127) or // type (127=EOT)
        (s[1] < 4) or   // length
@@ -8607,7 +9729,7 @@ begin
         len := StrLen(s);
         if cur^ <> sbiUndefined then
         begin
-          if info[cur^] = '' then // only set the first occurence if multiple
+          if info[cur^] = '' then // only set the first occurrence if multiple
           begin
             trimright := len;
             while (trimright <> 0) and
@@ -8677,17 +9799,6 @@ procedure TLightLock.Done;
 begin // just for compatibility with TOSLock
 end;
 
-procedure TLightLock.LockSpin;
-var
-  spin: PtrUInt;
-begin
-  spin := SPIN_COUNT;
-  repeat
-    spin := DoSpin(spin);
-  until (Flags = 0) and // when spinning, first check without atomicity
-        LockedExc(Flags, 1, 0);
-end;
-
 procedure TLightLock.Lock;
 begin
   // we tried a dedicated asm but it was slower: inlining is preferred
@@ -8695,19 +9806,116 @@ begin
     LockSpin;
 end;
 
-function TLightLock.TryLock: boolean;
-begin
-  result := LockedExc(Flags, 1, 0);
-end;
-
 procedure TLightLock.UnLock;
 begin
   {$ifdef CPUINTEL}
   Flags := 0; // non reentrant locks need no additional thread safety
   {$else}
-  LockedDec(Flags, 1); // ARM can be weak-ordered
+  LockedExc(Flags, 0, 1); // ARM can be weak-ordered
   // https://preshing.com/20121019/this-is-why-they-call-it-a-weakly-ordered-cpu
   {$endif CPUINTEL}
+end;
+
+function TLightLock.TryLock: boolean;
+begin
+  result := (Flags = 0) and // first check without any (slow) atomic opcode
+            LockedExc(Flags, 1, 0);
+end;
+
+function TLightLock.IsLocked: boolean;
+begin
+  result := Flags <> 0;
+end;
+
+procedure TLightLock.LockSpin;
+var
+  spin: PtrUInt;
+begin
+  spin := SPIN_COUNT;
+  repeat
+    spin := DoSpin(spin);
+  until TryLock;
+end;
+
+
+{ TMultiLightLock }
+
+procedure TMultiLightLock.Init;
+begin
+  Flags := 0;
+  ThreadID := TThreadID(0);
+  ReentrantCount := 0;
+end;
+
+procedure TMultiLightLock.Done;
+begin
+  Flags := PtrUInt(-1);
+  ThreadID := TThreadID(0); // invalid combination to let TryLock fail
+end;
+
+procedure TMultiLightLock.Lock;
+begin
+  if not TryLock then
+    LockSpin;
+end;
+
+procedure TMultiLightLock.UnLock;
+begin
+  dec(ReentrantCount);
+  if ReentrantCount <> 0 then
+    exit;
+  {$ifdef CPUINTEL}
+  Flags := 0;
+  {$else}
+  LockedExc(Flags, 0, 1); // ARM can be weak-ordered
+  // https://preshing.com/20121019/this-is-why-they-call-it-a-weakly-ordered-cpu
+  {$endif CPUINTEL}
+  ThreadID := TThreadID(0);
+end;
+
+function TMultiLightLock.TryLock: boolean;
+var
+  tid: TThreadID;
+begin
+  tid := GetCurrentThreadId;
+  if Flags = 0 then                // is not locked
+    if LockedExc(Flags, 1, 0) then // atomic acquisition
+    begin
+      ThreadID := tid;
+      ReentrantCount := 1;
+      result := true;          // acquired this lock
+    end
+    else
+      result := false          // impossible to acquire this lock
+  else if ThreadID <> tid then // locked by another thread
+    result := false
+  else
+  begin
+    inc(ReentrantCount);       // locked by this thread - make it reentrant
+    result := true;
+  end;
+end;
+
+procedure TMultiLightLock.ForceLock;
+begin
+  Flags := PtrUInt(-1); // forced acquisition, whatever the current state is
+  ThreadID := GetCurrentThreadId;
+  ReentrantCount := MaxInt; // make this method reentrant
+end;
+
+function TMultiLightLock.IsLocked: boolean;
+begin
+  result := Flags <> 0;
+end;
+
+procedure TMultiLightLock.LockSpin;
+var
+  spin: PtrUInt;
+begin
+  spin := SPIN_COUNT;
+  repeat
+    spin := DoSpin(spin);
+  until TryLock;
 end;
 
 
@@ -8716,18 +9924,6 @@ end;
 procedure TRWLightLock.Init;
 begin
   Flags := 0; // bit 0=WriteLock, >0=ReadLock counter
-end;
-
-procedure TRWLightLock.ReadLockSpin;
-var
-  f, spin: PtrUInt;
-begin
-  spin := SPIN_COUNT;
-  repeat
-    spin := DoSpin(spin);
-    f := Flags and not 1; // bit 0=WriteLock, >0=ReadLock counter
-  until (Flags = f) and
-        LockedExc(Flags, f + 2, f);
 end;
 
 procedure TRWLightLock.ReadLock;
@@ -8754,19 +9950,14 @@ begin
   LockedDec(Flags, 2);
 end;
 
-procedure TRWLightLock.WriteLock;
+procedure TRWLightLock.ReadLockSpin;
 var
-  spin, f: PtrUInt;
+  spin: PtrUInt;
 begin
   spin := SPIN_COUNT;
-  // acquire the WR flag bit
   repeat
-    f := Flags and not 1; // bit 0=WriteLock, >0=ReadLock counter
-    if (Flags = f) and
-       LockedExc(Flags, f + 1, f) then
-      exit;
     spin := DoSpin(spin);
-  until false;
+  until TryReadLock;
 end;
 
 function TRWLightLock.TryWriteLock: boolean;
@@ -8778,9 +9969,25 @@ begin
             LockedExc(Flags, f + 1, f);
 end;
 
+procedure TRWLightLock.WriteLock;
+begin
+  if not TryWriteLock then
+    WriteLockSpin;
+end;
+
 procedure TRWLightLock.WriteUnLock;
 begin
   LockedDec(Flags, 1);
+end;
+
+procedure TRWLightLock.WriteLockSpin;
+var
+  spin: PtrUInt;
+begin
+  spin := SPIN_COUNT;
+  repeat
+    spin := DoSpin(spin);
+  until TryWriteLock;
 end;
 
 
@@ -8800,10 +10007,13 @@ begin
 end;
 
 // dedicated asm for this most simple (and used) method
-{$ifdef FPC_ASMX64} // some Delphi version was reported to fail with no clue why
+{$ifdef ASMX64}
 
 procedure TRWLock.ReadOnlyLock;
-asm     // since we may call SwitchToThread we need to have a stackframe
+// stack frame is required (at least on Windows) since it may call SwitchToThread
+var
+  backup: pointer; // better than push/pop since we have a stack frame
+asm
         {$ifdef SYSVABI}
         mov     rcx, rdi      // rcx = self
         {$endif SYSVABI}
@@ -8816,9 +10026,9 @@ asm     // since we may call SwitchToThread we need to have a stackframe
         pause
         dec     r8d
         jnz     @spin
-        push    rcx
+        mov     qword ptr [backup], rcx
         call    SwitchToThread
-        pop     rcx
+        mov     rcx, qword ptr [backup] // restore for the wait loop
         jmp     @retry
 @done:  // restore the stack frame
 end;
@@ -8847,7 +10057,7 @@ begin
         LockedExc(Flags, f + 4, f);
 end;
 
-{$endif FPC_ASMX64}
+{$endif ASMX64}
 
 procedure TRWLock.ReadOnlyUnLock;
 begin
@@ -8928,7 +10138,7 @@ procedure TRWLock.WriteUnlock;
 begin
   if LastWriteLockCount <> 0 then
   begin
-    dec(LastWriteLockCount);
+    dec(LastWriteLockCount); // reentrant call
     exit;
   end;
   LastWriteLockThread := TThreadID(0);
@@ -8984,6 +10194,115 @@ begin
 end;
 
 
+{ TLockedList }
+
+procedure TLockedList.Init(onesize: PtrUInt; const onefree: TOnLockedListOne);
+begin
+  FillCharFast(self, SizeOf(self), 0);
+  fSize := onesize;
+  fOnFree := onefree;
+  fSequence := (Random32 shr 2) + 65536; // 65535 < sequence < MaxInt
+end;
+
+function LockedListFreeAll(o: PLockedListOne; const OnFree: TOnLockedListOne): integer;
+var
+  next: PLockedListOne;
+begin
+  result := 0;
+  while o <> nil do
+  begin
+    inc(result);
+    next := o.next;
+    if Assigned(OnFree) then
+      OnFree(o);
+    FreeMem(o);
+    o := next;
+  end;
+end;
+
+procedure TLockedList.Done;
+begin
+  Clear;
+  EmptyBin;
+end;
+
+procedure TLockedList.Clear;
+begin
+  Safe.Lock;
+  try
+    LockedListFreeAll(fHead, fOnFree);
+    fHead := nil;
+    Count := 0;
+  finally
+    Safe.UnLock;
+  end;
+end;
+
+function TLockedList.EmptyBin: integer;
+begin
+  Safe.Lock;
+  try
+    result := LockedListFreeAll(fBin, nil);
+    fBin := nil;
+  finally
+    Safe.UnLock;
+  end;
+end;
+
+function TLockedList.New: pointer;
+begin
+  Safe.Lock;
+  try
+    // try to recycle from single-linked list bin, or allocate
+    result := fBin;
+    if result <> nil then
+      fBin := PLockedListOne(result).next
+    else
+      result := AllocMem(fSize);
+    PLockedListOne(result).sequence := fSequence;
+    inc(fSequence); // protected by Safe.Lock
+    // insert at beginning of the main double-linked list
+    PLockedListOne(result).next := fHead;
+    if fHead <> nil then
+      PLockedListOne(fHead).prev := result;
+    fHead := result;
+    inc(Count);
+  finally
+    Safe.UnLock;
+  end;
+end;
+
+function TLockedList.Free(one: pointer): boolean;
+var
+  o: PLockedListOne absolute one;
+begin
+  result := false;
+  if (o = nil) or
+     (o^.sequence = 0) then
+    exit;
+  Safe.Lock;
+  try
+    // remove from main double-linked list
+    if o = fHead then
+      fHead := o.next;
+    if o.next <> nil then
+      PLockedListOne(o.next).prev := o.prev;
+    if o.prev <> nil then
+      PLockedListOne(o.prev).next := o.next;
+    // release internals and add to the recycle bin
+    if Assigned(fOnFree) then
+      fOnFree(o);
+    FillCharFast(o^, fSize, 0); // garbage collect as void
+    o.next := fBin;
+    fBin := o;
+    dec(Count);
+  finally
+    Safe.UnLock;
+  end;
+  result := true;
+end;
+
+
 { TAutoLock }
 
 constructor TAutoLock.Create(aLock: PSynLocker);
@@ -9000,29 +10319,39 @@ end;
 
 { TSynLocker }
 
+procedure TSynLocker.InitFromClass;
+begin
+  InitializeCriticalSection(fSection);
+  fInitialized := true;
+end;
+
 function NewSynLocker: PSynLocker;
 begin
   result := AllocMem(SizeOf(TSynLocker));
-  InitializeCriticalSection(result^.fSection);
-  result^.fInitialized := true;
+  result^.InitFromClass;
 end;
 
 procedure TSynLocker.Init;
 begin
-  InitializeCriticalSection(fSection);
   fLockCount := 0;
   fPaddingUsedCount := 0;
-  fInitialized := true;
   fRW.Init;
+  InitializeCriticalSection(fSection);
+  fInitialized := true;
 end;
 
 procedure TSynLocker.Done;
 var
   i: PtrInt;
+  v: PSynVarData;
 begin
-  for i := 0 to fPaddingUsedCount - 1 do
-    if not (integer(Padding[i].VType) in VTYPE_SIMPLE) then
-      VarClearProc(Padding[i]);
+  v := @Padding[0];
+  for i := 1 to fPaddingUsedCount do
+  begin
+    if (v^.VType and VTYPE_STATIC) <> 0 then
+      VarClearProc(v^.Data); // won't include varAny = SetPointer
+    inc(v);
+  end;
   DeleteCriticalSection(fSection);
   fInitialized := false;
 end;
@@ -9146,7 +10475,7 @@ begin
   begin
   {$endif HASFASTTRYFINALLY}
     RWLock(cReadOnly);
-    result := variant(Padding[Index]);
+    result := variant(Padding[Index]); // safe copy
   {$ifdef HASFASTTRYFINALLY}
   finally
   {$endif HASFASTTRYFINALLY}
@@ -9196,6 +10525,7 @@ end;
 
 function TSynLocker.GetBool(Index: integer): boolean;
 begin
+  result := false;
   if cardinal(Index) < cardinal(fPaddingUsedCount) then
   {$ifdef HASFASTTRYFINALLY}
   try
@@ -9209,9 +10539,7 @@ begin
   finally
   {$endif HASFASTTRYFINALLY}
     RWUnLock(cReadOnly);
-  end
-  else
-    result := false;
+  end;
 end;
 
 procedure TSynLocker.SetBool(Index: integer; const Value: boolean);
@@ -9228,16 +10556,16 @@ end;
 
 procedure TSynLocker.SetUnlockedInt64(Index: integer; const Value: Int64);
 begin
-  if cardinal(Index) <= high(Padding) then
-  begin
-    if Index >= fPaddingUsedCount then
-      fPaddingUsedCount := Index + 1;
-    variant(Padding[Index]) := Value;
-  end;
+  if cardinal(Index) >= high(Padding) then
+    exit;
+  if Index >= fPaddingUsedCount then
+    fPaddingUsedCount := Index + 1;
+  variant(Padding[Index]) := Value;
 end;
 
-function TSynLocker.GetPointer(Index: integer): Pointer;
+function TSynLocker.GetPointer(Index: integer): pointer;
 begin
+  result := nil;
   if cardinal(Index) < cardinal(fPaddingUsedCount) then
   {$ifdef HASFASTTRYFINALLY}
   try
@@ -9245,136 +10573,125 @@ begin
   begin
   {$endif HASFASTTRYFINALLY}
     RWLock(cReadOnly);
-    with Padding[Index] do
-      if VType = varUnknown then
-        result := VUnknown
-      else
-        result := nil;
+    with Padding[Index].Data do
+      if VType = varAny then
+        result := VAny;
   {$ifdef HASFASTTRYFINALLY}
   finally
   {$endif HASFASTTRYFINALLY}
     RWUnLock(cReadOnly);
-  end
-  else
-    result := nil;
+  end;
 end;
 
-procedure TSynLocker.SetPointer(Index: integer; const Value: Pointer);
+procedure TSynLocker.SetPointer(Index: integer; const Value: pointer);
 begin
   if cardinal(Index) <= high(Padding) then
-  try
-    RWLock(cWrite);
-    if Index >= fPaddingUsedCount then
-      fPaddingUsedCount := Index + 1;
-    with Padding[Index] do
-    begin
-      VarClearAndSetType(PVariant(@VType)^, varUnknown);
-      VUnknown := Value;
+    try
+      RWLock(cWrite);
+      if Index >= fPaddingUsedCount then
+        fPaddingUsedCount := Index + 1;
+      with Padding[Index] do
+      begin
+        VarClearAndSetType(variant(Data), varAny);
+        VAny := Value;
+      end;
+    finally
+      RWUnLock(cWrite);
     end;
-  finally
-    RWUnLock(cWrite);
-  end;
 end;
 
 function TSynLocker.GetUtf8(Index: integer): RawUtf8;
 begin
   if cardinal(Index) < cardinal(fPaddingUsedCount) then
-  {$ifdef HASFASTTRYFINALLY}
-  try
-  {$else}
-  begin
-  {$endif HASFASTTRYFINALLY}
-    RWLock(cReadOnly);
-    VariantStringToUtf8(variant(Padding[Index]), result);
-  {$ifdef HASFASTTRYFINALLY}
-  finally
-  {$endif HASFASTTRYFINALLY}
-    RWUnLock(cReadOnly);
-  end
-  else
-    result := '';
+    {$ifdef HASFASTTRYFINALLY}
+    try
+    {$else}
+    begin
+    {$endif HASFASTTRYFINALLY}
+      RWLock(cReadOnly);
+      VariantStringToUtf8(variant(Padding[Index]), result);
+    {$ifdef HASFASTTRYFINALLY}
+    finally
+    {$endif HASFASTTRYFINALLY}
+      RWUnLock(cReadOnly);
+    end
+    else
+      result := '';
 end;
 
 procedure TSynLocker.SetUtf8(Index: integer; const Value: RawUtf8);
 begin
   if cardinal(Index) <= high(Padding) then
-  try
-    RWLock(cWrite);
-    if Index >= fPaddingUsedCount then
-      fPaddingUsedCount := Index + 1;
-    RawUtf8ToVariant(Value, variant(Padding[Index]));
-  finally
-    RWUnLock(cWrite);
-  end;
+    try
+      RWLock(cWrite);
+      if Index >= fPaddingUsedCount then
+        fPaddingUsedCount := Index + 1;
+      RawUtf8ToVariant(Value, variant(Padding[Index]));
+    finally
+      RWUnLock(cWrite);
+    end;
 end;
 
 function TSynLocker.LockedInt64Increment(Index: integer; const Increment: Int64): Int64;
 begin
+  result := 0;
   if cardinal(Index) <= high(Padding) then
-  try
-    RWLock(cWrite);
-    result := 0;
-    if Index < fPaddingUsedCount then
-      VariantToInt64(variant(Padding[Index]), result)
-    else
-      fPaddingUsedCount := Index + 1;
-    variant(Padding[Index]) := Int64(result + Increment);
-  finally
-    RWUnLock(cWrite);
-  end
-  else
-    result := 0;
+    try
+      RWLock(cWrite);
+      with Padding[Index] do
+      begin
+        if Index < fPaddingUsedCount then
+          VariantToInt64(variant(Data), result)
+        else
+          fPaddingUsedCount := Index + 1;
+        variant(Data) := Int64(result + Increment);
+      end;
+    finally
+      RWUnLock(cWrite);
+    end;
 end;
 
 function TSynLocker.LockedExchange(Index: integer; const Value: variant): variant;
 begin
   VarClear(result);
   if cardinal(Index) <= high(Padding) then
-  try
-    RWLock(cWrite);
-    with Padding[Index] do
-    begin
-      if Index < fPaddingUsedCount then
-        result := PVariant(@VType)^
-      else
-        fPaddingUsedCount := Index + 1;
-      PVariant(@VType)^ := Value;
+    try
+      RWLock(cWrite);
+      with Padding[Index] do
+      begin
+        if Index < fPaddingUsedCount then
+          result := variant(Data)
+        else
+          fPaddingUsedCount := Index + 1;
+        variant(Data) := Value;
+      end;
+    finally
+      RWUnLock(cWrite);
     end;
-  finally
-    RWUnLock(cWrite);
-  end;
 end;
 
 function TSynLocker.LockedPointerExchange(Index: integer; Value: pointer): pointer;
 begin
+  result := nil;
   if cardinal(Index) <= high(Padding) then
-  try
-    RWLock(cWrite);
-    with Padding[Index] do
-    begin
-      if Index < fPaddingUsedCount then
-        if VType = varUnknown then
-          result := VUnknown
-        else
-        begin
-          VarClear(PVariant(@VType)^);
-          result := nil;
-        end
-      else
+    try
+      RWLock(cWrite);
+      with Padding[Index] do
       begin
-        fPaddingUsedCount := Index + 1;
-        result := nil;
+        if Index < fPaddingUsedCount then
+          if VType = varAny then
+            result := VAny
+          else
+            VarClearProc(Data)
+        else
+          fPaddingUsedCount := Index + 1;
+        VType := varAny;
+        VAny := Value;
       end;
-      VType := varUnknown;
-      VUnknown := Value;
+    finally
+      RWUnLock(cWrite);
     end;
-  finally
-    RWUnLock(cWrite);
-  end
-  else
-    result := nil;
 end;
-
 
 
 { TSynLocked }
@@ -9386,8 +10703,44 @@ end;
 
 destructor TSynLocked.Destroy;
 begin
-  inherited Destroy;
   fSafe^.DoneAndFreeMem;
+end;
+
+procedure TSynLocked.Lock;
+begin
+  if self <> nil then
+    fSafe^.Lock;
+end;
+
+procedure TSynLocked.Unlock;
+begin
+  if self <> nil then
+    fSafe^.UnLock;
+end;
+
+
+{ TObjectOSLightLock }
+
+constructor TObjectOSLightLock.Create;
+begin
+  fSafe.Init;
+end;
+
+destructor TObjectOSLightLock.Destroy;
+begin
+  fSafe.Done;
+end;
+
+procedure TObjectOSLightLock.Lock;
+begin
+  if self <> nil then
+    fSafe.Lock;
+end;
+
+procedure TObjectOSLightLock.Unlock;
+begin
+  if self <> nil then
+    fSafe.UnLock;
 end;
 
 
@@ -9414,13 +10767,21 @@ begin
     until result >= endtix;
 end;
 
-function TSynEvent.IsEventFD: boolean;
+function TSynEvent.WaitForSafe(TimeoutMS: integer): boolean;
+var
+  endtix: Int64;
 begin
-  {$ifdef HASEVENTFD}
-  result := fFD <> 0;
-  {$else}
-  result := false;
-  {$endif HASEVENTFD}
+  if GetCurrentThreadID = MainThreadID then
+  begin
+    endtix := GetTickCount64 + TimeoutMS;
+    repeat
+      CheckSynchronize(1); // make UI responsive enough
+    until WaitFor(10) or
+          (GetTickCount64 > endtix);
+    result := fNotified;
+  end
+  else
+    result := WaitFor(TimeoutMS);
 end;
 
 
@@ -9440,6 +10801,13 @@ begin
   Safe.UnLock;
 end;
 
+function TLecuyerThreadSafe.NextQWord: QWord;
+begin
+  Safe.Lock;
+  result := Generator.NextQWord;
+  Safe.UnLock;
+end;
+
 procedure TLecuyerThreadSafe.Fill(dest: pointer; count: integer);
 begin
   Safe.Lock;
@@ -9452,6 +10820,76 @@ begin
   Fill(@dest, 32);
   FillAnsiStringFromRandom(@dest, 32);
 end;
+
+function Random32: cardinal;
+begin
+  result := SharedRandom.Next;
+end;
+
+function Random32Not0: cardinal;
+begin
+  repeat
+    result := SharedRandom.Next;
+  until result <> 0;
+end;
+
+function Random31: integer;
+begin
+  result := SharedRandom.Next shr 1;
+end;
+
+function Random31Not0: integer;
+begin
+  repeat
+    result := SharedRandom.Next shr 1;
+  until result <> 0;
+end;
+
+function Random32(max: cardinal): cardinal;
+begin
+  result := (QWord(SharedRandom.Next) * max) shr 32;
+end;
+
+function Random64: QWord;
+begin
+  result := SharedRandom.NextQWord;
+end;
+
+function RandomDouble: double;
+begin
+  result := SharedRandom.NextDouble;
+end;
+
+procedure RandomBytes(Dest: PByte; Count: integer);
+begin
+  if Count > 0 then
+    SharedRandom.Fill(pointer(Dest), Count);
+end;
+
+procedure RandomShort31(var dest: TShort31);
+begin
+  SharedRandom.FillShort31(dest);
+end;
+
+function RandomGuid: TGuid;
+begin
+  RandomGuid(result);
+end;
+
+procedure RandomGuid(out result: TGuid);
+begin // see https://datatracker.ietf.org/doc/html/rfc4122#section-4.4
+  SharedRandom.Fill(@result, SizeOf(TGuid));
+  PCardinal(@result.D3)^ := (PCardinal(@result.D3)^ and $ff3f0fff) + $00804000;
+  // version bits 12-15 = 4 (random) and reserved bits 6-7 = 1
+end;
+
+{$ifndef PUREMORMOT2}
+procedure FillRandom(Dest: PCardinal; CardinalCount: integer);
+begin
+  if CardinalCount > 0 then
+    SharedRandom.Fill(pointer(Dest), CardinalCount shl 2);
+end;
+{$endif PUREMORMOT2}
 
 
 procedure GlobalLock;
@@ -9563,6 +11001,30 @@ begin
     spin := DoSpin(spin);
 end;
 
+function ObjArrayAdd(var aObjArray; aItem: TObject;
+  var aSafe: TLightLock; aCount: PInteger): PtrInt;
+begin
+  aSafe.Lock;
+  if aCount <> nil then
+    result := PtrArrayAdd(aObjArray, aItem, aCount^)
+  else
+    result := PtrArrayAdd(aObjArray, aItem);
+  aSafe.UnLock;
+end;
+
+function PtrArrayDelete(var aPtrArray; aItem: pointer; var aSafe: TLightLock;
+  aCount: PInteger): PtrInt;
+begin
+  if pointer(aPtrArray) = nil then
+  begin
+    result := -1; // no need to lock anything
+    exit;
+  end;
+  aSafe.Lock;
+  result := PtrArrayDelete(aPtrArray, aItem, aCount);
+  aSafe.UnLock;
+end;
+
 function SetCpuSet(var CpuSet: TCpuSet; CpuIndex: cardinal): boolean;
 begin
   result := false;
@@ -9613,15 +11075,23 @@ begin
   SetThreadName(GetCurrentThreadId, '%', [Name]);
 end;
 
+threadvar // do not publish for compilation within Delphi packages
+  _CurrentThreadName: TShort31; // 31 chars is enough for our debug purpose
+
+function CurrentThreadNameShort: PShortString;
+begin
+  result := @_CurrentThreadName;
+end;
+
 function GetCurrentThreadName: RawUtf8;
 begin
-  ShortStringToAnsi7String(CurrentThreadName, result);
+  ShortStringToAnsi7String(_CurrentThreadName, result);
 end;
 
 function GetCurrentThreadInfo: ShortString;
 begin
   result := ShortString(format('Thread %x [%s]',
-    [PtrUInt(GetCurrentThreadId), CurrentThreadName]));
+    [PtrUInt(GetCurrentThreadId), _CurrentThreadName]));
 end;
 
 
@@ -9641,7 +11111,7 @@ const
     'Failed',
     'Error');
 
-function ToText(st: TServiceState): PShortString; overload;
+function ToText(st: TServiceState): PShortString;
 begin
   result := @_SERVICESTATE[st];
 end;
@@ -9659,13 +11129,29 @@ begin
     FastSetString(result, argv[0], StrLen(argv[0]));
 end;
 
+function ExtractCommandArgs(const cmd: RawUtf8; out param: TRawUtf8DynArray;
+  posix: boolean): TParseCommands;
+var
+  temp: RawUtf8;
+  argv: TParseCommandsArgs;
+  argc: integer;
+  i: PtrInt;
+begin
+  result := ParseCommandArgs(cmd, @argv, @argc, @temp, posix);
+  if result * PARSECOMMAND_ERROR <> [] then
+    exit; // failed
+  SetLength(param, argc);
+  for i := 0 to argc - 1 do
+    FastSetString(param[i], argv[i], StrLen(argv[i]));
+end;
+
 function ParseCommandArgs(const cmd: RawUtf8; argv: PParseCommandsArgs;
   argc: PInteger; temp: PRawUtf8; posix: boolean): TParseCommands;
 var
   n: PtrInt;
   state: set of (sWhite, sInArg, sInSQ, sInDQ, sSpecial, sBslash);
   c: AnsiChar;
-  D, P: PAnsiChar;
+  d, p: PAnsiChar;
 begin
   result := [pcInvalidCommand];
   if argv <> nil then
@@ -9675,22 +11161,22 @@ begin
   if cmd = '' then
     exit;
   if argv = nil then
-    D := nil
+    d := nil
   else
   begin
     if temp = nil then
       exit;
     SetLength(temp^, length(cmd));
-    D := pointer(temp^);
+    d := pointer(temp^);
   end;
   state := [];
   n := 0;
-  P := pointer(cmd);
-  repeat
-    c := P^;
-    if D <> nil then
-      D^ := c;
-    inc(P);
+  p := pointer(cmd);
+  repeat // parse the command line text, using a state machine in the loop
+    c := p^;
+    if d <> nil then
+      d^ := c;
+    inc(p);
     case c of
       #0:
         begin
@@ -9700,7 +11186,10 @@ begin
             include(result, pcUnbalancedDoubleQuote);
           exclude(result, pcInvalidCommand);
           if argv <> nil then
-            argv[n] := nil;
+            if n <= high(argv^) then
+              argv^[n] := nil // always end with a last argv^[] = nil
+            else
+              include(result, pcTooManyArguments);
           if argc <> nil then
             argc^ := n;
           exit;
@@ -9710,10 +11199,10 @@ begin
          if state = [sInArg] then
          begin
            state := [];
-           if D <> nil then
+           if d <> nil then
            begin
-             D^ := #0;
-             inc(D);
+             d^ := #0;
+             inc(d);
            end;
            continue;
          end;
@@ -9725,7 +11214,7 @@ begin
            (state * [sInSQ, sBslash] = []) then
           if sInDQ in state then
           begin
-            case P^ of
+            case p^ of
               '"', '\', '$', '`':
                 begin
                   include(state, sBslash);
@@ -9733,35 +11222,35 @@ begin
                 end;
             end;
           end
-          else if P^ = #0 then
+          else if p^ = #0 then
           begin
             include(result, pcHasEndingBackSlash);
             exit;
           end
           else
           begin
-            if D <> nil then
-              D^ := P^;
-            inc(P);
+            if d <> nil then
+              d^ := p^;
+            inc(p);
           end;
       '^':
         if not posix and
            (state * [sInSQ, sInDQ, sBslash] = []) then
-          if PWord(P)^ = $0a0d then
+          if PWord(p)^ = CRLFW then
           begin
-            inc(P, 2);
+            inc(p, 2);
             continue;
           end
-          else if P^ = #0 then
+          else if p^ = #0 then
           begin
             include(result, pcHasEndingBackSlash);
             exit;
           end
           else
           begin
-            if D <> nil then
-              D^ := P^;
-            inc(P);
+            if d <> nil then
+              d^ := p^;
+            inc(p);
           end;
       '''':
         if posix and
@@ -9773,13 +11262,10 @@ begin
           end
           else if state = [] then
           begin
-            if argv <> nil then
-            begin
-              argv[n] := D;
-              inc(n);
-              if n = high(argv^) then
-                exit;
-            end;
+            if (argv <> nil) and
+               (n <= high(argv^)) then
+              argv^[n] := d;
+            inc(n);
             state := [sInSQ, sInArg];
             continue;
           end
@@ -9797,13 +11283,10 @@ begin
           end
           else if state = [] then
           begin
-            if argv <> nil then
-            begin
-              argv[n] := D;
-              inc(n);
-              if n = high(argv^) then
-                exit;
-            end;
+            if (argv <> nil) and
+               (n <= high(argv^)) then
+              argv^[n] := d;
+            inc(n);
             state := [sInDQ, sInArg];
             continue;
           end
@@ -9850,31 +11333,27 @@ begin
     exclude(state, sBslash);
     if state = [] then
     begin
-      if argv <> nil then
-      begin
-        argv[n] := D;
-        inc(n);
-        if n = high(argv^) then
-          exit;
-      end;
+      if (argv <> nil) and
+         (n <= high(argv^)) then
+        argv^[n] := d;
+      inc(n);
       state := [sInArg];
     end;
-    if D <> nil then
-      inc(D);
+    if d <> nil then
+      inc(d);
   until false;
 end;
 
 procedure TrimDualSpaces(var s: RawUtf8);
 var
-  f, i: integer;
+  i: PtrInt;
 begin
-  f := 1;
+  i := 1;
   repeat
-    i := PosEx('  ', s, f);
+    i := PosEx('  ', s, i);
     if i = 0 then
       break;
-    delete(s, i, 1); // dual space -> single space
-    f := i;
+    delete(s, i, 1); // dual spaces -> single space
   until false;
   TrimSelf(s);
 end;
@@ -9883,15 +11362,19 @@ end;
 procedure InitializeUnit;
 begin
   {$ifdef ISFPC27}
+  // we force UTF-8 everywhere on FPC for consistency with Lazarus
   SetMultiByteConversionCodePage(CP_UTF8);
   SetMultiByteRTLFileSystemCodePage(CP_UTF8);
   {$endif ISFPC27}
   GlobalCriticalSection.Init;
   ConsoleCriticalSection.Init;
+  {$ifdef CPUINTELARM}
+  crc32c128(@StartupRandom, @CpuFeatures, SizeOf(CpuFeatures));
+  {$endif CPUINTELARM}
   InitializeSpecificUnit; // in mormot.core.os.posix/windows.inc files
   TrimDualSpaces(OSVersionText);
   TrimDualSpaces(OSVersionInfoEx);
-  TrimDualSpaces(BiosInfoText);
+  {$ifndef OSLINUXANDROID} TrimDualSpaces(BiosInfoText); {$endif}
   TrimDualSpaces(CpuInfoText);
   OSVersionShort := ToTextOS(OSVersionInt32);
   InitializeExecutableInformation;
@@ -9900,10 +11383,12 @@ begin
   NULL_STR_VAR := 'null';
   BOOL_UTF8[false] := 'false';
   BOOL_UTF8[true]  := 'true';
-  ReasonCache[2, 0] := 'OK'; // HTTP_SUCCESS
-  // minimal stubs which will be properly implemented in mormot.core.log.pas
-  GetExecutableLocation := _GetExecutableLocation;
-  SetThreadName := _SetThreadName;
+  // minimal stubs which will be properly implemented in other mormot.core units
+  GetExecutableLocation := _GetExecutableLocation; // mormot.core.log
+  SetThreadName         := _SetThreadName;
+  ShortToUuid           := _ShortToUuid;           // mormot.core.text
+  AppendShortUuid       := _AppendShortUuid;
+  GetEnumNameRtti       := _GetEnumNameRtti;       // mormot.core.rtti
 end;
 
 procedure FinalizeUnit;

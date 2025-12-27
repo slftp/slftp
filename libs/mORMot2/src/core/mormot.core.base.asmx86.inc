@@ -20,9 +20,9 @@
  - use SS2 and not FPU fld/fst which may trigger unexpected exceptions (Agner)
  - use dedicated branchless sub-functions for small buffers of 0..32 bytes
  - use simple SSE2 loop for 33..255 bytes
- - assume ERBMS is available (cpuid flag may not be propagated within VMs)
+ - assume ERMSB is available (cpuid flag may not be propagated within VMs)
  - use "rep movsb" for 256..512K input (should work on all CPUs, even older with
- no ERBMS), or as fallback if no SSE2 CPU is used
+   no ERMSB), or as fallback if no SSE2 CPU is used
  - use non volatile SSE2 loop when >= 512KB (to not pollute the CPU cache)
  - don't use backward "std rep movsb" since it is not involved by ERMBS (slow)
  - note: Delphi Win32 x87 RTL code by John O'Harrow seems deprecated
@@ -241,7 +241,7 @@ asm
         movups  xmm1, dqword ptr [eax]       // last 16
         push    ecx
         neg     ecx
-        and     edx,  -16                    // 16-byte align writes
+        and     edx, -16                     // 16-byte align writes
         lea     ecx, [ecx + edx + 16]
         pop     edx
         cmp     ecx, -NONTEMPORALSIZE        // assume > 512KB bypass the cache
@@ -328,7 +328,7 @@ end;
 
 {$endif FPC_X86}
 
-function CompareMem(P1, P2: Pointer; Length: PtrInt): boolean;
+function CompareMem(P1, P2: pointer; Length: PtrInt): boolean;
 {$ifdef FPC}nostackframe; assembler;{$endif}
 asm
         // eax=P1 edx=P2 ecx=Length
@@ -396,18 +396,18 @@ asm
 @setsml:setz    al
 end;
 
-function crc32cfast(crc: cardinal; buf: PAnsiChar; len: cardinal): cardinal;
-{$ifdef FPC}nostackframe; assembler;{$endif}
+function crc32fasttab(crc: cardinal; buf: PAnsiChar; len: cardinal;
+  tab: PCrc32tab): cardinal;
 asm
         // adapted from Aleksandr Sharahov code and Maxim Masiutin remarks
-        test    edx, edx
-        jz      @z
-        neg     ecx
-        jz      @z
-        not     eax
         push    ebx
         push    ebp
-        lea     ebp, [crc32ctab]
+        mov     ebp, tab
+        not     eax
+        neg     ecx       // eax=crc edx=buf ecx=-len ebp=tab
+        jz      @z
+        test    edx, edx
+        jz      @z
 @head:  test    dl, 3
         jz      @align
         movzx   ebx, byte ptr [edx]
@@ -417,16 +417,14 @@ asm
         xor     eax, dword ptr [ebx * 4 + ebp]
         inc     ecx
         jnz     @head
-        pop     ebp
-        pop     ebx
-        not     eax
-@z:     ret
+@z:     jmp     @e
 @align: sub     edx, ecx
         add     ecx, 8
         jg      @done
         push    esi
         push    edi
         mov     edi, edx
+        {$ifdef FPC} align   8 {$endif FPC}
 @by8:   mov     edx, eax
         mov     ebx, [edi + ecx - 4]
         xor     edx, [edi + ecx - 8]
@@ -1197,7 +1195,7 @@ asm
 @no:    mov     eax, -1
         pop     ebx
         ret
-        // 16bit-unaligned loop (seldom called)
+        // 16bit-unaligned loop (hardly called)
 @unal:  lea     ecx, [ecx + edx * 2]
         neg     edx
 @unals: cmp     word ptr [ecx + edx * 2], ax
@@ -1256,7 +1254,7 @@ asm
 @no:    mov     eax, -1
         pop     ebx
         ret
-        // 32bit-unaligned loop (seldom called)
+        // 32bit-unaligned loop (hardly called)
 @unal:  lea     ecx, [ecx + edx * 4]
         neg     edx
 @unals: cmp     dword ptr [ecx + edx * 4], eax
@@ -1281,30 +1279,30 @@ asm
         mov     ebp, esp
         {$endif FPC}
         mov     ecx, eax
-        mov     eax, dword ptr [ebp+8H]
-        mul     dword ptr [ebp+10H]
+        mov     eax, dword ptr [ebp + 8H]
+        mul     dword ptr [ebp + 10H]
         mov     dword ptr [ecx], eax
-        mov     dword ptr [ebp-4H], edx
-        mov     eax, dword ptr [ebp+8H]
-        mul     dword ptr [ebp+14H]
-        add     eax, dword ptr [ebp-4H]
+        mov     dword ptr [ebp - 4H], edx
+        mov     eax, dword ptr [ebp + 8H]
+        mul     dword ptr [ebp + 14H]
+        add     eax, dword ptr [ebp - 4H]
         adc     edx, 0
-        mov     dword ptr [ebp-10H], eax
-        mov     dword ptr [ebp-0CH], edx
-        mov     eax, dword ptr [ebp+0CH]
-        mul     dword ptr [ebp+10H]
-        add     eax, dword ptr [ebp-10H]
+        mov     dword ptr [ebp - 10H], eax
+        mov     dword ptr [ebp - 0CH], edx
+        mov     eax, dword ptr [ebp + 0CH]
+        mul     dword ptr [ebp + 10H]
+        add     eax, dword ptr [ebp - 10H]
         adc     edx, 0
-        mov     dword ptr [ecx+4H], eax
-        mov     dword ptr [ebp-14H], edx
-        mov     eax, dword ptr [ebp+0CH]
-        mul     dword ptr [ebp+14H]
-        add     eax, dword ptr [ebp-0CH]
+        mov     dword ptr [ecx + 4H], eax
+        mov     dword ptr [ebp - 14H], edx
+        mov     eax, dword ptr [ebp + 0CH]
+        mul     dword ptr [ebp + 14H]
+        add     eax, dword ptr [ebp - 0CH]
         adc     edx, 0
-        add     eax, dword ptr [ebp-14H]
+        add     eax, dword ptr [ebp - 14H]
         adc     edx, 0
-        mov     dword ptr [ecx+8H], eax
-        mov     dword ptr [ecx+0CH], edx
+        mov     dword ptr [ecx + 8H], eax
+        mov     dword ptr [ecx + 0CH], edx
         {$ifdef FPC}
         pop     ebp
         {$endif FPC}
@@ -2068,7 +2066,7 @@ asm
         fild    qword ptr [eax]
         push    edx
         neg     edx
-        and     esi,  -8
+        and     esi, -8
         lea     edx, [edx + esi + 8]
         pop     esi
 @lrgnxt:fild    qword ptr [eax + edx]
@@ -2102,7 +2100,7 @@ asm
         movups  xmm1, dqword ptr [eax]
         push    edx
         neg     edx
-        and     esi,  -16
+        and     esi, -16
         lea     edx, [edx + esi + 16]
         pop     esi
 @lrgnxt:movups  xmm0, dqword ptr [eax + edx]
@@ -2347,17 +2345,29 @@ asm
         rdtsc
 end;
 
+{$ifdef ISDELPHI}
+procedure FastStringAddRef(str: pointer); // will call compilerproc on FPC
+asm
+        test    str, str
+        jz      @z
+        cmp     dword ptr [str - _STRCNT], 0 // = 32-bit on Delphi 32-bit
+        jl      @z
+   lock inc     dword ptr [str - _STRCNT]
+@z:
+end;
+{$endif ISDELPHI}
+
 function StrCntDecFree(var refcnt: TStrCnt): boolean;
 {$ifdef FPC}nostackframe; assembler;{$endif}
 asm
-   lock dec dword ptr [refcnt]  // =longint on Delphi and FPC 32-bit
+   lock dec dword ptr [refcnt]  // = 32-bit on Delphi and FPC 32-bit
         setbe   al
 end; // don't check for ismultithread global since lock is cheaper on new CPUs
 
 function DACntDecFree(var refcnt: TDACnt): boolean;
 {$ifdef FPC}nostackframe; assembler;{$endif}
 asm
-   lock dec dword ptr [refcnt]  // =longint on Delphi and FPC 32-bit
+   lock dec dword ptr [refcnt]  // = 32-bit on Delphi and FPC 32-bit
         setbe   al
 end; // don't check for ismultithread global since lock is cheaper on new CPUs
 
@@ -2406,6 +2416,11 @@ asm
         mov     edi, cpueax
         mov     ebx, cpuecx
         mov     esi, Registers
+        xor     eax, eax
+        mov     TIntelRegisters(esi).&eax, eax
+        mov     TIntelRegisters(esi).&ebx, eax
+        mov     TIntelRegisters(esi).&ecx, eax
+        mov     TIntelRegisters(esi).&edx, eax
         pushfd
         pop     eax
         mov     edx, eax
@@ -2433,7 +2448,9 @@ end;
 // inspired by ValExt_JOH_PAS_8_a by John O'Harrow - calls Delphi System.@Pow10
 function GetExtended(P: PUtf8Char; out err: integer): TSynExtended;
 const
-  Ten: double = 10.0;
+  _Ten:  double = 10.0;
+  _NaN:  double = Nan;
+  _Inf:  double = Infinity;
 asm
         // in: eax=text, edx=@err  out: st(0)=result
         push    ebx                 // save used registers
@@ -2441,7 +2458,6 @@ asm
         push    edi
         mov     esi, eax            // string pointer
         push    eax                 // save for error condition
-        xor     ebx, ebx
         push    eax                 // allocate local storage for loading fpu
         test    esi, esi
         jz      @nil                // nil string
@@ -2450,7 +2466,7 @@ asm
         cmp     bl, ' '
         je      @trim
         xor     ecx, ecx            // clear sign flag
-        fld     qword[Ten]          // load 10 into fpu
+        fld     qword ptr [_Ten]    // load 10.0 into fpu
         xor     eax, eax            // zero number of decimal places
         fldz                        // zero result in fpu
         cmp     bl, '0'
@@ -2480,7 +2496,7 @@ asm
         inc     esi
         jmp     @gdig1
 @frac:  cmp     bl, '.' - '0'
-        jne     @exp                // no decimal point
+        jne     @spec               // no decimal point - maybe Nan/Inf or E
         movzx   ebx, byte ptr [esi] // get next char
         test    bl, bl
         jz      @dotend             // string ends with '.'
@@ -2497,13 +2513,35 @@ asm
         test    bl, bl              // end reached?
         jnz     @fracl              // no, get next digit
         jmp     @finish             // yes, finished (no exponent)
+@spec:  or      bl, $20
+        cmp     bl, 'e' - '0'       // try 'E' or 'e'
+        je      @doexp
+        movzx   eax, word ptr [esi] // next two chars into eax
+        and     eax, $dfdf
+        cmp     bl, 'n' - '0'       // try 'Nan'
+        jne     @speci
+        cmp     eax, $4e41
+        jne     @error
+        lea     eax, [_Nan]         // return Nan constant
+        jmp     @spret
+@speci: cmp     bl, 'i' - '0'       // try 'Inf'
+        jne     @error
+        cmp     eax, $464e
+        jne     @error
+        lea     eax, [_Inf]         // return Infinity constant
+@spret: ffree   st(0)
+        fincstp
+        fld     qword ptr [eax]     // return PDouble(eax)^ constant
+        xor     eax, eax
+        mov     [edx], eax          // result code = 0
+        jmp     @pow                // exit with proper sign flag handling
 @dotend:test    cl, cl              // any digits found before '.'?
         jnz     @finish             // yes, valid
         jmp     @error              // no,invalid
 @exp:   or      bl, $20
         cmp     bl, 'e' - '0'
-        jne     @error              // not 'e' or 'e'
-        movzx   ebx, byte ptr [esi] // get next char
+        jne     @error              // not 'E' nor 'e'
+@doexp: movzx   ebx, byte ptr [esi] // get next char
         inc     esi
         mov     cl, 0               // clear exponent sign flag
         cmp     bl, '-'

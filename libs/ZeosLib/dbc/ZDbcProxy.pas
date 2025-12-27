@@ -81,6 +81,7 @@ type
     function GetPlainDriver: IZProxyPlainDriver;
     function GetConnectionInterface: IZDbcProxy;
     function GetDbInfoStr: ZWideString;
+    function GetPublicKeys: ZWideString;
   end;
 
   {** Implements DBC Proxy Database Connection. }
@@ -222,6 +223,11 @@ type
     function GetDbInfoStr: ZWideString;
 
     procedure ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory); override;
+
+    /// <summary>
+    ///   Gets the public keys from a dbc proxy server in TOFU mode.
+    /// </summary>
+    function GetPublicKeys: ZWideString;
   end;
 
 var
@@ -352,6 +358,7 @@ var
   PropList: WideString;
   MyDbInfo: WideString;
   WsUrl: String; // Webservice URL
+  TofuPubKeys: String;
 begin
   if not Closed then
     Exit;
@@ -367,6 +374,12 @@ begin
   LogMessage := 'CONNECT TO "'+ URL.Database + '" AS USER "' + URL.UserName + '"';
 
   PropList := WideString(encodeProperties('autocommit', BoolToStr(GetAutoCommit, True)));
+
+  if URL.Properties.IndexOfName(ConnProps_TofuPubKeys) >= 0 then begin
+    TofuPubKeys := URL.Properties.Values[ConnProps_TofuPubKeys];
+    PropList := PropList + LineEnding + 'TofuPubKeys=' + TofuPubKeys;
+  end;
+
   FConnIntf.Connect(WideString(User), WideString(Password), WideString(WsUrl), WideString(Database), PropList, MyDbInfo);
 
   DriverManager.LogMessage(lcConnect, URL.Protocol , LogMessage);
@@ -736,9 +749,16 @@ var
   Statement: IZStatement;
 begin
   Statement := CreateStatementWithParams(nil);
-  Statement.Execute(SQL);
-  Statement.Close;
+  try
+    Statement.Execute(SQL);
+  finally
+    Statement.Close;
+  end;
+end;
 
+function TZDbcProxyConnection.GetPublicKeys: ZWideString;
+begin
+  Result := FConnIntf.GetPublicKeys;
 end;
 
 initialization
