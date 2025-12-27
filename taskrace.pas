@@ -1277,8 +1277,9 @@ var
           [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
         mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
           [fLastSrcUploader, lSrcUser]);
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
+        if not sdst.Send('ABOR') then
+          sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
         readyerror := True;
         Result := True;
         exit;
@@ -1305,8 +1306,9 @@ var
         Debug(dpSpam, c_section, '[SRC-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]);
         mainpazo.errorreason := 'Source regression';
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - source regression');
+        if not sdst.Send('ABOR') then
+          sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
         readyerror := True;
         Result := True;
         exit;
@@ -1363,7 +1365,8 @@ var
         mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
           [fLastDstUploader, lDstUser]);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
+        if not ssrc.Send('ABOR') then
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
         readyerror := True;
         Result := True;
         exit;
@@ -1391,7 +1394,8 @@ var
           [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]);
         mainpazo.errorreason := 'Destination regression';
         sdst.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
+        if not ssrc.Send('ABOR') then
+          ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
         readyerror := True;
         Result := True;
         exit;
@@ -2238,6 +2242,12 @@ begin
               sdst.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
+            if ssrc <> nil then
+            begin
+              if not ssrc.Send('ABOR') then
+                ssrc.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
+            end;
+
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2338,6 +2348,12 @@ begin
               if sdst.site <> nil then
                 sdst.site.RegisterMaxSimUpHit(sdst.Name);
               sdst.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
+            end;
+
+            if ssrc <> nil then
+            begin
+              if not ssrc.Send('ABOR') then
+                ssrc.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
@@ -2596,7 +2612,10 @@ begin
             end;
 
             if sdst <> nil then
-              sdst.DestroySocket(False);
+            begin
+              if not sdst.Send('ABOR') then
+                sdst.DestroySocketAndRelogin('Maximum of simultaneous downloads reached');
+            end;
 
             mainpazo.errorreason := 'Maximum of simultaneous downloads reached';
             readyerror := True;
