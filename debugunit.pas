@@ -176,7 +176,7 @@ procedure DebugInit;
 begin
   glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
   glCachedDebugCategories := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
-  glFlushLines := config.ReadInteger(section, 'flushlines', 0) <> 0;
+  glFlushLines := config.ReadBool(section, 'flushlines', False);
   _OpenLogFile;
   debug_lock := TSlCriticalSection2.Create('debug_lock');
 end;
@@ -212,8 +212,11 @@ begin
       WriteLn(f, logtext);
       if glFlushLines then
       begin
-        Flush(f); // flush TextFile buffer
+        {$IFDEF FPC}
         FileFlush(TTextRec(f).Handle); // ensure kernel flush to avoid truncated lines
+        {$ELSE}
+        Flush(f); // flush TextFile buffer
+        {$ENDIF}
       end;
     except
       on e: Exception do
