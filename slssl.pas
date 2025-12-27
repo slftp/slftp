@@ -3,11 +3,15 @@ unit slssl;
 interface
 
 uses
-  IdOpenSSLHeaders_ossl_typ;
+mormot.lib.openssl11, mormot.core.os, mormot.crypt.openssl;
 
 { Get the full OpenSSL version string including version, compiler flags, built date and platform info
   @returns(OpenSSL version string + additional info) }
 function GetOpenSSLVersion: String;
+
+{ Get the Information if openssl is available
+  @returns(OpenSSL version string + additional info) }
+function GetOpenSSLAvailable: boolean;
 
 { Get the full OpenSSL version
   @returns(OpenSSL version string) }
@@ -28,18 +32,32 @@ function GetOpenSSLConnectionContext: PSSL_CTX;
 { Return string representing error result code of TLS/SSL I/O operation @br
   @note(also checks the current thread's OpenSSL error queue)
   @param(aSSL SSL which did the call)
-  @param(aErrCode Error code of previous OpenSSL API call)
+  @param(aSslReturnCode Return code of previous OpenSSL API call)
   @returns(String that indicates the error) }
-function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
+function GetLastSSLError(const aSSL: PSSL; const aSslReturnCode: Integer): String;
+
+{ Get the error code of the latest error from OpenSSL.
+  @param(aSSL SSL which did the call)
+  @param(aSslReturnCode Return code of previous OpenSSL API call)
+  @returns(The OpenSSL error code) }
+function GetLastSSLErrorCode(const aSSL: PSSL; const aSslReturnCode: Integer): Integer;
+
+{ Get the corresponding error message to the given OpenSSL error code.
+  @param(aSSL SSL which did the call)
+  @param(aSslErrorCode The error code to get the message for)
+  @returns(String that indicates the error) }
+function GetSSLErrorMessageFromErrorCode(const aSSL: PSSL; const aSslErrorCode: Integer): String;
+
+
+{ Loads OpenSSL.
+  @param(aError In case an error occurs, this out parameter will contains some info.)
+  @returns(True, in case of success. False otherwise.) }
+function InitOpenSSL(out aError: String): boolean;
 
 implementation
 
 uses
-  SysUtils, IdOpenSSLHeaders_err, IdOpenSSLHeaders_crypto, IdOpenSSLHeaders_ssl;
-
-//const
-//  gSSL_Default_Cipher_List = 'ALL:!EXP';
-//  gSSL_Default_Cipher_List = 'HIGH'; // probably more secure
+  SysUtils, mormot.core.base;
 
 var
   gSSLContextSettings: PSSL_CTX = nil; // default SSL/TLS context used for all connections
@@ -48,62 +66,140 @@ var
 // can be called repeatedly until there are no more error codes to return.
 function _GetEarliestOpenSSLErrorCode: String;
 var
-  fErrStr: String;
+  fErrStr: RawUtf8;
   fErrors: Integer;
-  fErrCode: Cardinal;
+  fErrCode: integer;
 begin
   Result := '';
-  SetLength(fErrStr, 255);
-  fErrors := 0;
-  while (true) do
-  begin
-    fErrCode := ERR_get_error();
-    if fErrCode = 0 then
-      Break;
-    ERR_error_string_n(fErrCode, @fErrStr[1], Length(fErrStr));
-    Inc(fErrors);
+  try
+    fErrors := 0;
+    while (true) do
+    begin
+      fErrCode := ERR_get_error();
+      if fErrCode = 0 then
+        Break;
+      OpenSSL_error(fErrCode, fErrStr);
+      Inc(fErrors);
 
-    if Result <> '' then
-      Result := Result + ' / ';
+      if Result <> '' then
+        Result := Result + ' / ';
 
-    Result := Result + fErrStr;
+    Result := Result + UTF8ToString(fErrStr);
+    end;
+
+    if fErrors = 0 then
+      Result := 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
+  except
+    on e: Exception do
+    begin
+      Result := 'Error while getting OpenSSL error: ' + e.Message;
+    end;
   end;
-
-  if fErrors = 0 then
-    Result := 'NO SSL ERROR, THIS CALL SHOULD HAVE NOT HAPPEN!';
 end;
 
 function GetOpenSSLVersion: String;
 begin
-  Result := Format('%s %s %s %s',[
-    OpenSSL_version(OPENSSL_VERSION_CONST),
-    OpenSSL_version(OPENSSL_CFLAGS),
-    OpenSSL_version(OPENSSL_BUILT_ON),
-    OpenSSL_version(OPENSSL_PLATFORM)]);
+  Result := ''; // Initialize to prevent uninitialized variable warning
+  if OpenSslIsLoaded then
+  begin
+    // Get and display the OpenSSL version
+    Result := UTF8ToString(OpenSslVersionText);
+  end;
+end;
+
+function GetOpenSSLAvailable: boolean;
+begin
+  Result := OpenSslIsLoaded;
+end;
+
+function initOpenSsl(out aError: String): boolean;
+var
+  fLoadedProvider: POSSL_PROVIDER;
+  i: integer;
+begin
+  Result := True;
+  aError := '';
+
+  if not OpenSslIsLoaded then
+  begin
+    {$IFNDEF MSWINDOWS}
+    // the libinstaller used to install the files named libcrypto.so and libssl.so which the mormot loader does not
+    // find, because it expects libcrypto.so.3 / libcrypto.so.1. Therefore tell mormot to load those files explicitly
+    // if they exist.
+    if FileExists(ExtractFilePath(ParamStr(0)) + 'libcrypto.so') and FileExists(ExtractFilePath(ParamStr(0)) + 'libssl.so') then
+      Result := OpenSslInitialize(ExtractFilePath(ParamStr(0)) + 'libcrypto.so', ExtractFilePath(ParamStr(0)) + 'libssl.so')
+    else
+    {$ENDIF}
+    Result := OpenSslInitialize;
+
+    if Result then
+      RegisterOpenSsl
+    else
+    begin
+      aError := 'OpenSslInitialize failed! can not load openssl! ' + _GetEarliestOpenSSLErrorCode;
+      exit;
+    end;
+
+    if OpenSslVersion >= OPENSSL3_VERNUM then
+    begin
+      {$IFDEF UNICODE}
+        i := OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(Pointer(AnsiString(ExtractFilePath(ParamStr(0))))));
+      {$ELSE}
+        i := OSSL_PROVIDER_set_default_search_path(NIL, PAnsiChar(ExtractFilePath(ParamStr(0))));
+      {$ENDIF}
+
+      if i <> 1 then
+      begin
+        aError := 'OSSL_PROVIDER_set_default_search_path error ' + _GetEarliestOpenSSLErrorCode;
+        Result := False;
+        exit;
+      end;
+
+      fLoadedProvider := OSSL_PROVIDER_load(NIL, 'default');
+      if fLoadedProvider = NIL THEN
+      begin
+        aError := 'default ssl provider not loaded! ' + _GetEarliestOpenSSLErrorCode;
+        Result := False;
+        exit;
+      end;
+
+      fLoadedProvider := OSSL_PROVIDER_load(NIL, 'legacy');
+      if fLoadedProvider = NIL THEN
+      begin
+        aError := 'legacy ssl provider not loaded! ' + _GetEarliestOpenSSLErrorCode;
+        Result := False;
+        exit;
+      end;
+    end;
+    if OpenSslVersion < OPENSSL1_VERNUM then
+    begin
+      aError := 'Openssl-Version is too old! Please Update!';
+      Result := False;
+      exit;
+    end;
+  end;
 end;
 
 function GetOpenSSLShortVersion: String;
 begin
-  Result := Copy(OpenSSL_version(OPENSSL_VERSION_CONST), 9, 6);
+    Result := Int64(High(OpenSSL_version_num)).ToString();
 end;
 
 function InitOpenSSLConnectionContext(out aError: String): Boolean;
 begin
   Result := False;
 
-  gSSLContextSettings := SSL_CTX_new(TLS_client_method());
-  if (gSSLContextSettings = nil) then
+  if OpenSslIsAvailable then
   begin
-    aError := _GetEarliestOpenSSLErrorCode;
-    exit;
-  end;
+  gSSLContextSettings := SSL_CTX_new(TLS_client_method());
+    if (gSSLContextSettings = nil) then
+    begin
+      aError := _GetEarliestOpenSSLErrorCode;
+      exit;
+    end;
 
-  SSL_CTX_set_default_verify_paths(gSSLContextSettings);
-  //SSL_CTX_set_options(gSSLContextSettings, SSL_OP_ALL);
-  SSL_CTX_set_mode(gSSLContextSettings, SSL_MODE_AUTO_RETRY);
-  //SSL_CTX_set_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF);
-  //SSL_CTX_set_session_cache_mode(gSSLContextSettings, SSL_SESS_CACHE_OFF); // probably better for 1.1.1 if needed at all
-  //SSL_CTX_set_cipher_list(gSSLContextSettings, gSSL_Default_Cipher_List);
+    SSL_CTX_set_default_verify_paths(gSSLContextSettings);
+  end;
 
   Result := True;
 end;
@@ -121,11 +217,23 @@ begin
   Result := gSSLContextSettings;
 end;
 
-function GetLastSSLError(const aSSL: PSSL; const aErrCode: Integer): String;
+function GetLastSSLError(const aSSL: PSSL; const aSslReturnCode: Integer): String;
 var
   fErrorCode: Integer;
 begin
-  fErrorCode := SSL_get_error(aSSL, aErrCode);
+  // first try to get the error via mormot
+  try
+    EOpenSsl.Check(aSslReturnCode, '', aSSL);
+  except
+    on e: Exception do
+    begin
+      Result := e.Message;
+      exit;
+    end;
+  end;
+
+  // if mormot does not extract the error, use the old way
+  fErrorCode := SSL_get_error(aSSL, aSslReturnCode);
   case fErrorCode of
     SSL_ERROR_NONE: Result := 'no error';
     SSL_ERROR_ZERO_RETURN: Result := 'zero return';
@@ -142,6 +250,19 @@ begin
   else
     Result := 'unknown error';
   end;
+end;
+
+function GetLastSSLErrorCode(const aSSL: PSSL; const aSslReturnCode: Integer): Integer;
+begin
+  Result := SSL_get_error(aSSL, aSslReturnCode);
+end;
+
+function GetSSLErrorMessageFromErrorCode(const aSSL: PSSL; const aSslErrorCode: Integer): String;
+var
+  fErrorMessage: RawUTF8;
+begin
+  SSL_get_error_text(aSslErrorCode, fErrorMessage);
+  Result := UTF8ToString(fErrorMessage);
 end;
 
 end.

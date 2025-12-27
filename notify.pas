@@ -23,12 +23,15 @@ type
   TTaskNotify = class
   private
     tnno: Integer;
+    tasks: TList;
+    function GetTaskCount: Integer;
   public
     event: TEvent;
-    tasks: TList;
     responses: TObjectList;
     constructor Create;
     destructor Destroy; override;
+    procedure AddTask(const aTask: TTask);
+    property TaskCount: Integer read GetTaskCount;
   end;
 
 procedure NotifyInit;
@@ -39,7 +42,7 @@ procedure RemoveTN(tn: TTaskNotify);
 
 implementation
 
-uses SysUtils, Types, irc, debugunit;
+uses SysUtils, Types, irc, debugunit, slcriticalsection2;
 
 const
   section = 'notify';
@@ -47,9 +50,9 @@ const
 var
   glTaskNumber: Integer; //< unique number used to identify the task event
   tasknotifies: TObjectList; //< list of all current TTaskNotify entities
-  FLockObject: TCriticalSection; //lock for access to tasknotifies list
+  FLockObject: TSlCriticalSection2; //lock for access to tasknotifies list
 
-{ TSiteResponse }
+  { TSiteResponse }
 
 constructor TSiteResponse.Create(const sitename, slotname, response: String; const time: TDateTime);
 begin
@@ -77,24 +80,35 @@ begin
   inherited;
 end;
 
+procedure TTaskNotify.AddTask(const aTask: TTask);
+begin
+  self.tasks.Add(aTask);
+  aTask.EnableNotify;
+end;
+
+function TTaskNotify.GetTaskCount: Integer;
+begin
+  Result := tasks.Count;
+end;
+
 procedure NotifyInit;
 begin
   tasknotifies := TObjectList.Create;
-  FLockObject := TCriticalSection.Create;
+  FLockObject := TSlCriticalSection2.Create('Notify');
   glTaskNumber := 0;
 end;
 
 procedure NotifyUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
-  FLockObject.Enter;
+  FLockObject.Enter('NotifyUninit');
   try
     tasknotifies.Free;
   finally
     FLockObject.Leave;
   end;
   FLockObject.Free;
-  Debug(dpSpam, section, 'Uninit2');  
+  Debug(dpSpam, section, 'Uninit2');
 end;
 
 procedure TaskReady(t: TTask);
@@ -102,7 +116,7 @@ var
   i: integer;
   tn: TTaskNotify;
 begin
-  FLockObject.Enter;
+  FLockObject.Enter('TaskReady');
   try
     for i := tasknotifies.Count - 1 downto 0 do
     begin
@@ -128,7 +142,7 @@ begin
           Continue;
         end;
       end;
-     end;
+    end;
   finally
     FLockObject.Leave;
   end;
@@ -137,7 +151,7 @@ end;
 function AddNotify: TTaskNotify;
 begin
   Result := TTaskNotify.Create;
-  FLockObject.Enter;
+  FLockObject.Enter('AddNotify');
   try
     tasknotifies.Add(Result);
   finally
@@ -147,7 +161,7 @@ end;
 
 procedure RemoveTN(tn: TTaskNotify);
 begin
-  FLockObject.Enter;
+  FLockObject.Enter('RemoveTN');
   try
     try
       tasknotifies.Remove(tn);

@@ -94,7 +94,7 @@ var
 
     for i := 1 to Length(Result) do
     begin
-      if Result[i] in [#13, #10] then
+      if CharInSet(Result[i], [#13, #10]) then
       begin
         Result := Copy(Result, 1, i - 1);
         Break;
@@ -109,6 +109,7 @@ var
   end;
 
 begin
+  Result := nil;
   { search for Genre }
   fPos := Pos('genre', LowerCase(aNFO));
   if fPos = 0 then
@@ -209,16 +210,14 @@ ujra:
 
   d := TDirlist.Create(s.Name, nil, nil, s.lastResponse);
   try
-    d.dirlist_lock.Enter;
+    d.dirlist_lock.Enter('s.Dirlist');
     try
-      for i := 0 to d.entries.Count - 1 do
+      for de in d.entries.Values do
       begin
-        de := TDirlistEntry(d.entries.Objects[i]);
-
-        if ((not de.Directory) and (de.Extension = '.sfv')) then
+        if ((not de.Directory) and (de.IsSFV)) then
           fSFVFile := de.filename;
 
-        if ((not de.Directory) and (de.Extension = '.nfo')) then
+        if ((not de.Directory) and (de.IsNFO)) then
           fNFOFile := de.filename;
       end;
     finally
@@ -269,9 +268,7 @@ ujra:
   end;
 
   // trying to get the SFV
-  s.downloadingfrom := True;
   i := s.LeechFile(ss, fSFVFile);
-  s.downloadingfrom := False;
   if (i < 0)  then
   begin
     readyerror := True;
@@ -283,9 +280,7 @@ ujra:
   ss.Clear;
 
   // trying to get the NFO
-  s.downloadingfrom := True;
   i := s.LeechFile(ss, fNFOFile);
-  s.downloadingfrom := False;
   if (i < 0)  then
   begin
     readyerror := true;

@@ -197,7 +197,7 @@ implementation
 uses
   IdException,
   IdGlobal, IdFTPCommon, IdGlobalProtocols,
-  {$IFDEF VCL_6_OR_ABOVE}DateUtils,{$ENDIF}
+  {$IFDEF HAS_UNIT_DateUtils}DateUtils,{$ENDIF}
   SysUtils;
 
 { TIdFTPLPUnix }
@@ -749,7 +749,13 @@ begin
     {$ENDIF}
     begin
       Inc(wYear);
-      LI.ModifiedDate := EncodeDate(wYear, wMonth, wDay) + EncodeTime(wHour, wMin, wSec, wMSec);
+      if (wMonth = 2) and (wDay = 29) and (not IsLeapYear(wYear)) then
+      begin
+        {temporary workaround for Leap Year, February 29th. Encode with day - 1, but do NOT decrement wDay since this will give us the wrong day when we adjust/re-calculate the date later}
+        LI.ModifiedDate := EncodeDate(wYear, wMonth, wDay - 1) + EncodeTime(wHour, wMin, wSec, wMSec);
+      end else begin
+        LI.ModifiedDate := EncodeDate(wYear, wMonth, wDay) + EncodeTime(wHour, wMin, wSec, wMSec);
+      end;
     end;
   end;
 

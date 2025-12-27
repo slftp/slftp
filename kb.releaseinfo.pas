@@ -35,6 +35,7 @@ type
     FIsInternal: Boolean; //< @true if @link(rlsname) matches [\_\-\.]\(?(internal|int)\)?([\_\-\.]|$) regex, otherwise @false
     FPretimeUTC: Int64; //< UTC pretime for release
     FPretimeSource: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
+    FIsSFVRelease: boolean; //< True if this release will have it's files checked to be in a SFV file before being transfered (if there is a SFV file)
   public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
@@ -92,6 +93,7 @@ type
     property IsInternal: Boolean read FIsInternal;
     property Pretime: Int64 read FPretimeUTC;
     property PretimeSource: String read FPretimeSource;
+    property IsSFVRelease: Boolean read FIsSFVRelease;
   end;
 
   { @abstract(Class with support for 0-DAY release information) }
@@ -401,7 +403,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, SyncObjs,
-  globalskipunit, irccommandsunit {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, kb {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   configsection = 'kb';
@@ -414,6 +416,7 @@ var
   nonfodirlistgenre: boolean;
   nomvdirlistgenre: boolean;
   glMP3Types: TStringList; //< List of MP3 types
+  glSFVReleaseSectionMask: TslMask;
 
 procedure KbReleaseInit;
 var
@@ -519,6 +522,13 @@ begin
   GlTvTags := TStringList.Create;
   GlTvTags.CaseSensitive := False;
   GlTvTags.DelimitedText := config.ReadString(configsection, 'tvtags', 'AHDTV APDTV ADSR BDRip BluRay DSR DVDR DVDRip HDTV HDTVRip HR.PDTV PDTV WebRip WEB WebHD SATRip dTV');
+
+
+  ss := config.ReadString('taskrace', 'SFVRelease', '');
+  if ss <> '' then
+  begin
+    glSFVReleaseSectionMask := TslMask.Create(ss);
+  end;
 end;
 
 procedure KbReleaseUninit;
@@ -539,6 +549,11 @@ begin
     end;
   end;
   kb_sectionhandlers.Free;
+
+  if glSFVReleaseSectionMask <> nil then
+  begin
+    glSFVReleaseSectionMask.Free;
+  end;
 end;
 
 function EventStringToTKBEventType(const aEvent: string): TKBEventType;
@@ -690,7 +705,7 @@ begin
       end;
       if rlsname[i] = '.' then
         Inc(FNumberOfDots);
-      if (rlsname[i] in ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
+      if CharInSet(rlsname[i], ['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U']) then
         Inc(FNumberOfVowels);
     end;
 
@@ -732,7 +747,7 @@ begin
         j := 1;
         while (j <= length(words[i])) do
         begin
-          if words[i][j] in ['0'..'9'] then
+          if CharInSet(words[i][j], ['0'..'9']) then
             disks := disks * 10 + Ord(words[i][j]) - 48
           else
             Break;
@@ -751,6 +766,11 @@ begin
 
   if FakeChecking then
     FakeCheck(self);
+
+  if glSFVReleaseSectionMask <> nil then
+  begin
+    FIsSFVRelease := glSFVReleaseSectionMask.Matches(self.section);
+  end;
 end;
 
 destructor TRelease.Destroy;
@@ -1014,6 +1034,7 @@ begin
 
   aSourceType := '';
   aNumberOfDisks := 0;
+  i := 1; // Initialize to prevent uninitialized variable warning
 
   for i := 1 to fWordLen do
   begin
@@ -1454,7 +1475,7 @@ begin
   try
     pazo := FindPazoByName(section, rlsname);
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal1');
     try
       i := last_imdbdata.IndexOf(rlsname);
     finally
@@ -1494,7 +1515,7 @@ begin
     begin
       // we already have imdb infos
       try
-        dbaddimdb_cs.Enter;
+        dbaddimdb_cs.Enter('TIMDBRelease.Aktualizal2');
         try
           imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
         finally

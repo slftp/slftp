@@ -570,7 +570,7 @@ begin
        fForceBlobTransfert[fModel.GetTableIndexExisting(POrmClass(Value)^)] then
       result := UpdateBlobFields(Value);
     if result and
-       assigned(OnRecordUpdate) then
+       Assigned(OnRecordUpdate) then
       OnRecordUpdate(Value);
   end;
 end;
@@ -593,7 +593,7 @@ begin
   begin
     state := Value.InternalState;
     if ClientRetrieve(fModel.GetTableIndexExisting(POrmClass(Value)^),
-        aID, False, state, resp) then
+        aID, false, state, resp) then
     begin
       Value.InternalState := state;
       original := Value.GetJsonValues(
@@ -950,7 +950,7 @@ begin
        (json <> '') then
     begin
       result := TOrmTableJson.CreateFromTables(Tables, SQL, json,
-        {ownjson=}PStrCnt(PAnsiChar(pointer(json)) - _STRCNT)^ = 1);
+        {ownjson=}(GetRefCount(json) = 1));
       result.InternalState := state;
     end
     else
@@ -997,7 +997,7 @@ begin
   if json = '' then
     exit;
   result := TOrmTableJson.CreateFromTables(Tables, sql, json,
-    {ownjson=}PStrCnt(PAnsiChar(pointer(json)) - _STRCNT)^ = 1);
+    {ownjson=}(GetRefCount(json) = 1));
   result.InternalState := state;
 end;
 
