@@ -227,12 +227,19 @@ begin
   FIPVersion := Id_IPv4;
 
   LTokenPos := IndyPos('://', LURI);    {Do not Localize}
+  if (LTokenPos = 0) and TextStartsWith(LURI, '//') then begin {Do not Localize}
+    LTokenPos := 1;
+  end;
   if LTokenPos > 0 then begin
     // absolute URI
     // What to do when data don't match configuration ??    {Do not Localize}
     // Get the protocol
-    FProtocol := Copy(LURI, 1, LTokenPos  - 1);
-    Delete(LURI, 1, LTokenPos + 2);
+    if LURI[LTokenPos] = ':' then begin {Do not Localize}
+      FProtocol := Copy(LURI, 1, LTokenPos - 1);
+      Delete(LURI, 1, LTokenPos + 2);
+    end else begin
+      Delete(LURI, 1, LTokenPos + 1);
+    end;
     // separate the path from the parameters
     LTokenPos := IndyPos('?', LURI);    {Do not Localize}
     // RLebeau: this is BAD! It messes up JSP and similar URLs that use '=' characters in the document
@@ -452,7 +459,18 @@ begin
   EnsureEncoding(AByteEncoding, encUTF8);
   {$IFDEF STRING_IS_ANSI}
   EnsureEncoding(ASrcEncoding, encOSDefault);
-  LChars := ASrcEncoding.GetChars(RawToBytes(ASrc[1], Length(ASrc)));
+  LChars := ASrcEncoding.GetChars(
+    {$IFNDEF VCL_6_OR_ABOVE}
+    // RLebeau: for some reason, Delphi 5 causes a "There is no overloaded
+    // version of 'GetChars' that can be called with these arguments" compiler
+    // error if the PByte type-cast is used, even though GetChars() actually
+    // expects a PByte as input.  Must be a compiler bug, as it compiles fine
+    // in Delphi 6.  So, converting to TIdBytes until I find a better solution...
+    RawToBytes(PAnsiChar(ASrc)^, Length(ASrc))
+    {$ELSE}
+    PByte(PAnsiChar(ASrc)), Length(ASrc)
+    {$ENDIF}
+  );
   {$ENDIF}
 
   // 2 Chars to handle UTF-16 surrogates
@@ -538,7 +556,18 @@ begin
   EnsureEncoding(AByteEncoding, encUTF8);
   {$IFDEF STRING_IS_ANSI}
   EnsureEncoding(ASrcEncoding, encOSDefault);
-  LChars := ASrcEncoding.GetChars(RawToBytes(ASrc[1], Length(ASrc)));
+  LChars := ASrcEncoding.GetChars(
+    {$IFNDEF VCL_6_OR_ABOVE}
+    // RLebeau: for some reason, Delphi 5 causes a "There is no overloaded
+    // version of 'GetChars' that can be called with these arguments" compiler
+    // error if the PByte type-cast is used, even though GetChars() actually
+    // expects a PByte as input.  Must be a compiler bug, as it compiles fine
+    // in Delphi 6.  So, converting to TIdBytes until I find a better solution...
+    RawToBytes(PAnsiChar(ASrc)^, Length(ASrc))
+    {$ELSE}
+    PByte(PAnsiChar(ASrc)), Length(ASrc)
+    {$ENDIF}
+  );
   {$ENDIF}
 
   // 2 Chars to handle UTF-16 surrogates

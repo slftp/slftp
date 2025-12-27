@@ -817,7 +817,7 @@ begin
   else
   begin
     DecodeTime(DateTime, Hour, Minute, Second, MS);
-    Fraction := SqlUInteger(MS) * 1000000;
+    Fraction := SqlUInteger(MS) * NanoSecsPerMilliSec;
   end;
   if PInt64(@Hour)^ = 0 then
   begin
@@ -890,7 +890,7 @@ const
   ODBC_LIB = 'libodbc.so.1';
   {$endif OSWINDOWS}
 
-  ODBC_ENTRIES: array[0..66] of RawUtf8 = (
+  ODBC_ENTRIES: array[0..67] of PAnsiChar = (
     'AllocEnv',
     'AllocHandle',
     'AllocStmt',
@@ -957,7 +957,8 @@ const
     'DriverConnectW',
     'ProcedureColumnsA',
     'ProcedureColumnsW',
-    'Procedures');
+    'Procedures',
+    nil);
 
 
 {$ifdef OSWINDOWS}
@@ -1026,14 +1027,16 @@ begin
 end;
 
 constructor TOdbcLib.Create;
-var
-  P: PPointerArray;
-  i: PtrInt;
 begin
-  TryLoadLibrary([ODBC_LIB], EOdbcException);
-  P := @@AllocEnv;
-  for i := 0 to High(ODBC_ENTRIES) do
-    Resolve('SQL', ODBC_ENTRIES[i], @P[i], {raiseonfailure=}EOdbcException);
+  try
+    TryLoadResolve([ODBC_LIB], 'SQL', @ODBC_ENTRIES, @@AllocEnv, EOdbcException);
+  except
+    on E: Exception do
+    begin
+      SetDbError(E);
+      raise;
+    end;
+  end;
 end;
 
 function TOdbcLib.GetDiagField(StatementHandle: SqlHStmt): RawUtf8;
@@ -1052,7 +1055,7 @@ procedure TOdbcLib.GetInfoString(ConnectionHandle: SqlHDbc;
   InfoType: SqlUSmallint; var Dest: RawUtf8);
 var
   Len: SqlSmallint;
-  Info: array[byte] of WideChar;
+  Info: TByteToWideChar;
 begin
   Len := 0;
   Check(nil, nil,
@@ -1109,7 +1112,7 @@ begin
   if LogLevelNoRaise <> sllNone then
   begin
     SynDBLog.Add.Log(LogLevelNoRaise, msg);
-    SetDbError(msg);
+    SetDbError(msg); // silent failure without exception, but GetDbError text
   end
   else if Stmt = nil then
     EOdbcException.RaiseUtf8('% error: %', [self, msg])

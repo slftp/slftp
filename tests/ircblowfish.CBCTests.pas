@@ -14,7 +14,7 @@ type
   TTestIrcBlowkeyCBC = class(TTestIrcChannelSettingsSetup)
   private
     // copy of slftpUnitTestsSetupIndyOpenSSL unit because it cannot be called if not inherited from TTestIndyOpenSSL
-    procedure LoadIndyOpenSSL;
+    procedure LoadMormotOpenSSL;
   published
     procedure TestEncryptMessage;
     procedure TestDecryptMessage;
@@ -23,7 +23,7 @@ type
 implementation
 
 uses
-  SysUtils, ircchansettings, ircblowfish.CBC, IdOpenSSLLoader, IdSSLOpenSSLHeaders;
+  SysUtils, ircchansettings, ircblowfish.CBC, mormot.lib.openssl11, mormot.core.os, slssl;
 
 { TTestIrcBlowkeyCBC }
 
@@ -49,17 +49,15 @@ var
     (_dText:'[SKIP] : MP3 Najoua_Belyzel_-_Rendez-Vous_(De_La_Lune_Au_Soleil)-WEB-FR-2019-ZzZz @ XXXX "XXXX * if foreign && not language = German || mp3foreign && mp3language != DE then DROP" (COMPLETE)' ; _eText:'+OK *F0VWajKu7KLXb5SJbQpNLPhAdo8pb1tlwOT+Q5OLD6/Oj64ETCXeXEdO0zBMq+svj7nkbp6z1fi1PdDQ/U0q0jNbFeQ+hyrv1ByNz+GHMTMmXJQPiW57PQkzV5qQ9+BLwgkhOnbMF8RiQ1wu7ksGPBhveYtrR9kaGDim/9mIvyQKcJekf/ANp6gBsRLABfjcB' + '1q1lAGCpUU6EgttCygeg1Q0F08zWEIpdi1bsSXljOznBO0uojAebltLQmusQ1JkC6H2CMs0dkE=')
   );
 
-procedure TTestIrcBlowkeyCBC.LoadIndyOpenSSL;
-var
-  fSslLoader: IOpenSSLLoader;
+procedure TTestIrcBlowkeyCBC.LoadMormotOpenSSL;
+var fCheckSslLoaded: boolean;
+var fError: String;
 begin
-  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
-  // Tell Indy OpenSSL to load libs from current dir
-  fSslLoader.OpenSSLPath := '.';
-
+  fError := '';
+  fCheckSslLoaded := InitOpenSSL(fError);
 
   try
-    CheckTrue(fSslLoader.Load, 'IdOpenSSLLoader.Load failed: ' + fSslLoader.FailedToLoad.CommaText);
+    CheckTrue(fCheckSslLoaded, 'Mormotssl failed: ' + fError);
   except
     on e: Exception do
     begin
@@ -74,7 +72,7 @@ var
   fInputStr, fResult: String;
   i: Integer;
 begin
-  LoadIndyOpenSSL;
+  LoadMormotOpenSSL;
 
   for fChanSettingsObj in IrcChanSettingsList.Values do
   begin
@@ -112,7 +110,7 @@ var
   fInputStr, fResult: String;
   i: Integer;
 begin
-  LoadIndyOpenSSL;
+  LoadMormotOpenSSL;
 
   for fChanSettingsObj in IrcChanSettingsList.Values do
   begin

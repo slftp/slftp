@@ -52,13 +52,13 @@ var
 implementation
 
 uses
-  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, DateUtils, IdGlobal;
+  Classes, irc, sitesunit, Debugunit, SysUtils, configunit, encinifile, DateUtils, IdGlobal, slcriticalsection2;
 
 const
   r_section = 'ranks';
 
 var
-  rankslock: TCriticalSection;
+  rankslock: TSlCriticalSection2;
   glRanks: TObjectList; // TODO: use TObjectList<TRankStat>
 
 function RemoveRanks(const aSitename: String): boolean;
@@ -67,7 +67,7 @@ var
 begin
   Result := False;
   try
-    rankslock.Enter;
+    rankslock.Enter('RemoveRanks');
     try
       for i := glRanks.Count - 1 downto 0 do
         if TRankStat(glRanks.Items[i]).sitename = aSitename then
@@ -76,7 +76,11 @@ begin
       rankslock.Leave;
     end;
   except
-    exit;
+    on e: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] RemoveRanks1: %s', [e.Message]));
+     exit;
+    end;
   end;
   Result := True;
 end;
@@ -88,7 +92,7 @@ var
 begin
   Result := False;
   try
-    rankslock.Enter;
+    rankslock.Enter('RemoveRanks2');
     try
       for i := glRanks.Count - 1 downto 0 do
       begin
@@ -100,7 +104,11 @@ begin
       rankslock.Leave;
     end;
   except
-    exit;
+    on e: Exception do
+    begin
+      Debug(dpError, r_section, Format('[EXCEPTION] RemoveRanks2: %s', [e.Message]));
+      exit;
+    end;
   end;
   Result := True;
 end;
@@ -113,7 +121,7 @@ end;
 function RanksReload: boolean;
 begin
   try
-    rankslock.Enter;
+    rankslock.Enter('RanksReload');
     try
       glRanks.clear;
       RanksStart;
@@ -132,7 +140,7 @@ end;
 
 procedure RanksInit;
 begin
-  rankslock := TCriticalSection.Create;
+  rankslock := TSlCriticalSection2.Create('Ranks');
   ranks_last_save := Now;
   ranks_last_process := Now;
   glRanks := TObjectList.Create;
@@ -161,7 +169,10 @@ begin
         try
           x.Add(TRankStat(glRanks[i]).ToString);
         except
-          Continue;
+          on E: Exception do
+          begin
+            Debug(dpError, r_section, '[EXCEPTION] RanksSave add TRankStat: %s', [e.Message]);
+          end;
         end;
       end;
       x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.ranks');
@@ -242,7 +253,10 @@ begin
         inc(db);
       end;
     except
-      Continue;
+      on E: Exception do
+      begin
+        Debug(dpError, r_section, '[EXCEPTION] RanksProcess loop1: %s', [e.Message]);
+      end;
     end;
   end;
 
@@ -270,7 +284,10 @@ begin
         rankstatAdd(ps.name, p.rls.section, ranknew);
       end;
     except
-      Continue;
+      on E: Exception do
+      begin
+        Debug(dpError, r_section, '[EXCEPTION] RanksProcess loop2: %s', [e.Message]);
+      end;
     end;
   end;
 end;
@@ -289,14 +306,10 @@ begin
     for i := 0 to glRanks.Count - 1 do
     begin
       try if i > glRanks.Count then Break; except Break; end;
-      try
-        r := TRankStat(glRanks[i]);
-        fSitename := r.sitename;
-        s := findSiteByName(aNetname, fSitename);
-        fSection := r.section;
-      except
-        Break;
-      end;
+      r := TRankStat(glRanks[i]);
+      fSitename := r.sitename;
+      s := findSiteByName(aNetname, fSitename);
+      fSection := r.section;
 
       fRankLockValue := s.getRankLock(fSection);
       if fRankLockValue > 0 then
@@ -306,10 +319,10 @@ begin
       if fNewAvg = 0 then
         fNewAvg := 1;
 
-      fOldAvg := sitesdat.ReadInteger('site-' + fSitename, 'rank-' + fSection, 1);
+      fOldAvg := s.RCInteger('rank-' + fSection, 1);
       if fNewAvg <> fOldAvg then
       begin
-        sitesdat.WriteInteger('site-' + fSitename, 'rank-' + fSection, fNewAvg);
+        s.WCInteger('rank-' + fSection, fNewAvg);
         irc_SendRANKSTATS(Format('Changing rank of %s %s from %d to %d', [fSitename, fSection, fOldAvg, fNewAvg]));
       end;
     end;
@@ -331,7 +344,7 @@ var
 begin
   x := TEncStringlist.Create(passphrase);
   try
-    rankslock.Enter;
+    rankslock.Enter('RanksStart');
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.ranks');
       for i := 0 to x.Count - 1 do
@@ -387,7 +400,7 @@ begin
   max_entries := config.readInteger(r_section, 'max_entries', 1000);
 
   try
-    rankslock.Enter;
+    rankslock.Enter('RankStatAdd');
     try
       glRanks.Add(s);
       while (glRanks.Count > max_entries) do

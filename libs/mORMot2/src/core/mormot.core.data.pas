@@ -7,9 +7,10 @@ unit mormot.core.data;
   *****************************************************************************
 
    Low-Level Data Processing Functions shared by all framework units
-    - RTL TPersistent / TInterfacedObject with Custom Constructor
-    - TSynPersistent* TSyn*List TSynLocker classes
-    - TSynPersistentStore with proper Binary Serialization
+    - RTL TPersistent or Root Classes with Custom Constructor
+    - IAutoFree and IAutoLocker Reference-Counted Process
+    - TSynList TSynObjectList TSynLocker classes
+    - TObjectStore with proper Binary Serialization
     - INI Files and In-memory Access
     - Efficient RTTI Values Binary Serialization and Comparison
     - TDynArray and TDynArrayHashed Wrappers
@@ -41,10 +42,10 @@ uses
   mormot.core.buffers;
 
 
-{ ************ RTL TPersistent / TInterfacedObject with Custom Constructor }
+{ ************ RTL TPersistent or Root Classes with Custom Constructor }
 
 type
-    /// abstract parent class with a virtual constructor, ready to be overridden
+  /// abstract parent class with a virtual constructor, ready to be overridden
   // to initialize the instance
   // - you can specify such a class if you need an object including published
   // properties (like TPersistent) with a virtual constructor (e.g. to
@@ -57,30 +58,11 @@ type
     constructor Create; virtual;
   end;
 
-  {$M+}
-  /// abstract parent class with threadsafe implementation of IInterface and
-  // a virtual constructor
-  // - you can specify e.g. such a class to TRestServer.ServiceRegister() if
-  // you need an interfaced object with a virtual constructor, ready to be
-  // overridden to initialize the instance
-  TInterfacedObjectWithCustomCreate = class(TInterfacedObject)
-  public
-    /// this virtual constructor will be called at instance creation
-    // - this constructor does nothing, but is declared as virtual so that
-    // inherited classes may safely override this default void implementation
-    constructor Create; virtual;
-    /// used to mimic TInterfacedObject reference counting
-    // - Release=true will call TInterfacedObject._Release
-    // - Release=false will call TInterfacedObject._AddRef
-    // - could be used to emulate proper reference counting of the instance
-    // via interfaces variables, but still storing plain class instances
-    // (e.g. in a global list of instances) - warning: use with extreme caution!
-    procedure RefCountUpdate(Release: boolean); virtual;
-  end;
-  {$M-}
+  /// legacy type defined for compatibility with existing user code
+  // - TInterfacedPersistent seems a better name, consistent with TSynPersistent
+  TInterfacedObjectWithCustomCreate = TInterfacedPersistent;
 
-
-  /// an abstract ancestor, for implementing a custom TInterfacedObject like class
+  /// an abstract ancestor, for implementing an abstract TInterfacedObject class
   // - by default, will do nothing: no instance would be retrieved by
   // QueryInterface unless the VirtualQueryInterface protected method is
   // overriden, and _AddRef/_Release methods would call VirtualAddRef and
@@ -88,23 +70,20 @@ type
   // - using this class will leverage the signature difference between Delphi
   // and FPC, among all supported platforms
   // - the class includes a RefCount integer field
-  TSynInterfacedObject = class(TObject, IUnknown)
+  TSynInterfacedObject = class(TSynPersistent, IUnknown)
   protected
     fRefCount: integer;
     // returns E_NOINTERFACE by default
     function VirtualQueryInterface(IID: PGuid; out Obj): TIntQry; virtual;
-    // always return 1 for a "non allocated" instance (0 triggers release)
+    // to be overriden -  return 1 for a "non allocated" instance (0 means release)
     function VirtualAddRef: integer;  virtual; abstract;
     function VirtualRelease: integer; virtual; abstract;
+    // IUnknown methods
     function QueryInterface({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
       IID: TGuid; out Obj): TIntQry; {$ifdef OSWINDOWS}stdcall{$else}cdecl{$endif};
     function _AddRef: TIntCnt;       {$ifdef OSWINDOWS}stdcall{$else}cdecl{$endif};
     function _Release: TIntCnt;      {$ifdef OSWINDOWS}stdcall{$else}cdecl{$endif};
   public
-    /// this virtual constructor will be called at instance creation
-    // - this constructor does nothing, but is declared as virtual so that
-    // inherited classes may safely override this default void implementation
-    constructor Create; virtual;
     /// the associated reference count
     property RefCount: integer
       read fRefCount write fRefCount;
@@ -123,10 +102,6 @@ type
     constructor Create; reintroduce; virtual;
   end;
 
-  /// used to determine the exact class type of a TInterfacedObjectWithCustomCreate
-  // - could be used to create instances using its virtual constructor
-  TInterfacedObjectWithCustomCreateClass = class of TInterfacedObjectWithCustomCreate;
-
   /// used to determine the exact class type of a TPersistentWithCustomCreateClass
   // - could be used to create instances using its virtual constructor
   TPersistentWithCustomCreateClass = class of TPersistentWithCustomCreate;
@@ -135,6 +110,15 @@ type
   TInterfacedCollectionClass = class of TInterfacedCollection;
 
 
+{ ************ IAutoFree and IAutoLocker Reference-Counted Process }
+
+{ WARNING:
+    FPC and Delphi 10.4+ do require an explicit local variable or "with"
+    clause to keep the reference locked - previous behavior was to keep the
+    variable up to the end of the method, which is not the case any more.
+}
+
+type
   /// interface for TAutoFree to register another TObject instance
   // to an existing IAutoFree local variable
   // - WARNING: both FPC and Delphi 10.4+ don't keep the IAutoFree instance
@@ -150,7 +134,8 @@ type
   // up to the end-of-method -> you should not use TAutoFree for new projects :(
   // - be aware that it won't implement a full ARC memory model, but may be
   // just used to avoid writing some try ... finally blocks on local variables
-  // - use with caution, only on well defined local scope
+  // - use with caution, only on well defined local scope, via a "with" clause
+  // or a local variable
   TAutoFree = class(TInterfacedObject, IAutoFree)
   protected
     fObject: TObject;
@@ -180,9 +165,12 @@ type
     // !var
     // !  myVar: TMyClass;
     // !begin
-    // !  TAutoFree.One(myVar,TMyClass.Create);
+    // !  with TAutoFree.One(myVar,TMyClass.Create) do
+    // !  begin
     // !  ... use myVar
-    // !end; // here myVar will be released
+    // !  end; // Delphi 10.4 and later: myVar will be released here
+    // !  ... some other code
+    // !end; // Delphi 10.3 and sooner: myVar will be released here
     // - warning: under FPC, you should assign the result of this method to a local
     // IAutoFree variable - see bug http://bugs.freepascal.org/view.php?id=26602
     // - Delphi 10.4 also did change it and release the IAutoFree before the
@@ -197,16 +185,19 @@ type
     // !var
     // !  var1, var2: TMyClass;
     // !begin
-    // !  TAutoFree.Several([
+    // !  with TAutoFree.Several([
     // !    @var1,TMyClass.Create,
-    // !    @var2,TMyClass.Create]);
+    // !    @var2,TMyClass.Create]) do
+    // !  begin
     // !  ... use var1 and var2
-    // !end; // here var1 and var2 will be released
+    // !  end;
+    // !  ... some other code
+    // !end;
     // - warning: under FPC, you should assign the result of this method to a local
     // IAutoFree variable - see bug http://bugs.freepascal.org/view.php?id=26602
     // - Delphi 10.4 also did change it and release the IAutoFree before the
     // end of the current method, and an "array of pointer" cannot be inlined
-    // by the Delphi compiler, so you should explicitly call ForMethod:
+    // by the Delphi compiler, so you could explicitly call ForMethod:
     // !  TAutoFree.Several([
     // !    @var1,TMyClass.Create,
     // !    @var2,TMyClass.Create]).ForMethod;
@@ -221,7 +212,7 @@ type
     // !  .... do something
     // !  auto.Another(var2,TMyClass.Create);
     // !  ... use var1 and var2
-    // !end; // here var1 and var2 will be released
+    // !end; // here var1 and var2 will be released since local auto is explicit
     procedure Another(var localVariable; obj: TObject);
     /// will finalize the associated TObject instances
     // - note that releasing the TObject instances won't be protected, so
@@ -285,13 +276,14 @@ type
   // - you can use one instance of this to protect multi-threaded execution
   // - the main class may initialize a IAutoLocker property in Create, then call
   // IAutoLocker.ProtectMethod in any method to make its execution thread safe
-  // - this class inherits from TInterfacedObjectWithCustomCreate so you
-  // could define one published property of a mormot.core.interface.pas
-  // TInjectableObject as IAutoLocker so that this class may be automatically
-  // injected
-  // - consider inherit from high-level TSynPersistentLock or call low-level
+  // - this class inherits from TInterfacedPersistent so you could define
+  // one published property of a mormot.core.interface.pas TInjectableObject as
+  // IAutoLocker so that this class may be automatically injected
+  // - consider inherit from high-level TSynLocked or call low-level
   // fSafe := NewSynLocker / fSafe^.DoneAndFreemem instead
-  TAutoLocker = class(TInterfacedObjectWithCustomCreate, IAutoLocker)
+  // - use with caution, only on well defined local scope, via a "with" clause
+  // or a local variable, especially on FPC or Delphi 10.4+
+  TAutoLocker = class(TInterfacedPersistent, IAutoLocker)
   protected
     fSafe: TSynLocker;
   public
@@ -353,33 +345,9 @@ type
 
 
 
-{ ************ TSynPersistent* TSyn*List TSynLocker classes }
+{ ************ TSynList TSynObjectList TSynLocker classes }
 
 type
-  /// our own empowered TPersistent-like parent class
-  // - TPersistent has an unexpected speed overhead due a giant lock introduced
-  // to manage property name fixup resolution (which we won't use outside the UI)
-  // - this class has a virtual constructor, so is a preferred alternative
-  // to both TPersistent and TPersistentWithCustomCreate classes
-  // - features some protected methods to customize its JSON serialization
-  // - for best performance, any type inheriting from this class will bypass
-  // some regular steps: do not implement interfaces or use TMonitor with them!
-  TSynPersistent = class(TObjectWithCustomCreate)
-  protected
-    // this default implementation will call AssignError()
-    procedure AssignTo(Dest: TSynPersistent); virtual;
-    procedure AssignError(Source: TSynPersistent);
-  public
-    /// allows to implement a TPersistent-like assignement mechanism
-    // - inherited class should override AssignTo() protected method
-    // to implement the proper assignment
-    procedure Assign(Source: TSynPersistent); virtual;
-  end;
-
-  /// used to determine the exact class type of a TSynPersistent
-  TSynPersistentClass = class of TSynPersistent;
-
-
   {$ifdef HASITERATORS}
   /// abstract pointer Enumerator
   TPointerEnumerator = record
@@ -396,21 +364,18 @@ type
   end;
   {$endif HASITERATORS}
 
-  {$M+}
   /// simple and efficient TList, without any notification
   // - regular TList has an internal notification mechanism which slows down
   // basic process, and can't be easily inherited
   // - stateless methods (like Add/Clear/Exists/Remove) are defined as virtual
   // since can be overriden e.g. by TSynObjectListLocked to add a TSynLocker
-  TSynList = class(TObject)
+  TSynList = class(TSynPersistent)
   protected
     fCount: integer;
     fList: TPointerDynArray;
     function Get(index: integer): pointer;
       {$ifdef HASINLINE}inline;{$endif}
   public
-    /// virtual constructor called at instance creation
-    constructor Create; virtual;
     /// add one item to the list
     function Add(item: pointer): PtrInt; virtual;
     /// insert one item to the list at a given position
@@ -441,8 +406,10 @@ type
     property Items[index: integer]: pointer
       read Get; default;
   end;
-  {$M-}
   PSynList = ^TSynList;
+
+  /// meta-class of TSynList type
+  TSynListClass = class of TSynList;
 
   /// simple and efficient TObjectList, without any notification
   TSynObjectList = class(TSynList)
@@ -481,73 +448,8 @@ type
   /// meta-class of TSynObjectList type
   TSynObjectListClass = class of TSynObjectList;
 
-  /// adding locking methods to a TSynPersistent with virtual constructor
-  // - you may use this class instead of the RTL TCriticalSection, since it
-  // would use a TSynLocker which does not suffer from CPU cache line conflit,
-  // and is cross-compiler whereas TMonitor is Delphi-specific and buggy (at
-  // least before XE5)
-  // - if you don't need TSynPersistent overhead, consider plain TSynLocked class
-  TSynPersistentLock = class(TSynPersistent)
-  protected
-    // TSynLocker would increase inherited fields offset -> managed PSynLocker
-    fSafe: PSynLocker;
-    // will lock/unlock the instance during JSON serialization of its properties
-    function RttiBeforeWriteObject(W: TTextWriter;
-      var Options: TTextWriterWriteObjectOptions): boolean; override;
-    procedure RttiAfterWriteObject(W: TTextWriter;
-      Options: TTextWriterWriteObjectOptions); override;
-    // set the rcfHookWrite flag to call RttiBeforeWriteObject
-    class procedure RttiCustomSetParser(Rtti: TRttiCustom); override;
-  public
-    /// initialize the instance, and its associated lock
-    constructor Create; override;
-    /// finalize the instance, and its associated lock
-    destructor Destroy; override;
-    /// access to the associated instance critical section
-    // - call Safe.Lock/UnLock to protect multi-thread access on this storage
-    property Safe: PSynLocker
-      read fSafe;
-    /// could be used as a short-cut to Safe.Lock
-    procedure Lock;
-      {$ifdef HASINLINE}inline;{$endif}
-    /// could be used as a short-cut to Safe.UnLock
-    procedure Unlock;
-      {$ifdef HASINLINE}inline;{$endif}
-  end;
-
-  /// adding light non-upgradable multiple Read / exclusive Write locking
-  // methods to a TSynPersistent with virtual constructor
-  TSynPersistentRWLightLock = class(TSynPersistent)
-  protected
-    fSafe: TRWLightLock;
-  public
-    /// access to the associated non-upgradable TRWLightLock instance
-    // - call Safe methods to protect multi-thread access on this storage
-    property Safe: TRWLightLock
-      read fSafe;
-  end;
-
-  /// adding light upgradable multiple Read / exclusive Write locking methods
-  // to a TSynPersistent with virtual constructor
-  TSynPersistentRWLock = class(TSynPersistent)
-  protected
-    fSafe: TRWLock;
-  public
-    /// access to the associated upgradable TRWLock instance
-    // - call Safe methods to protect multi-thread access on this storage
-    property Safe: TRWLock
-      read fSafe;
-  end;
-
-  {$ifndef PUREMORMOT2}
-
-  /// used for backward compatibility only with existing code
-  TSynPersistentLocked = class(TSynPersistentLock);
-
-  {$endif PUREMORMOT2}
-
   /// adding locking methods to a TInterfacedObject with virtual constructor
-  TInterfacedObjectLocked = class(TInterfacedObjectWithCustomCreate)
+  TInterfacedObjectLocked = class(TInterfacedPersistent)
   protected
     fSafe: PSynLocker; // TSynLocker would increase inherited fields offset
   public
@@ -562,7 +464,7 @@ type
   end;
 
   /// adding light locking methods to a TInterfacedObject with virtual constructor
-  TInterfacedObjectRWLocked = class(TInterfacedObjectWithCustomCreate)
+  TInterfacedObjectRWLocked = class(TInterfacedPersistent)
   protected
     fSafe: TRWLock;
   public
@@ -650,13 +552,13 @@ type
   end;
 
 
-{ ************ TSynPersistentStore with proper Binary Serialization }
+{ ************ TObjectStore with proper Binary Serialization }
 
 type
   /// abstract high-level handling of (SynLZ-)compressed persisted storage
   // - LoadFromReader/SaveToWriter abstract methods should be overriden
   // with proper binary persistence implementation
-  TSynPersistentStore = class(TSynPersistentRWLock)
+  TObjectStore = class(TObjectRWLock)
   protected
     fName: RawUtf8;
     fReader: TFastReader;
@@ -728,6 +630,10 @@ type
       read fSaveToLastUncompressed;
   end;
 
+  {$ifndef PUREMORMOT2}
+  TSynPersistentStore = TObjectStore;
+  {$endif PUREMORMOT2}
+
 
 
 { ********** Efficient RTTI Values Binary Serialization and Comparison }
@@ -745,7 +651,7 @@ type
   // any previous value for the name "AB"
   // - dvoReturnNullForUnknownProperty will be used when retrieving any value
   // from its name (for dvObject kind of instance), or index (for dvArray or
-  // dvObject kind of instance)
+  // dvObject kind of instance), when the value is not found
   // - by default, internal values will be copied by-value from one variant
   // instance to another, to ensure proper safety - but it may be too slow:
   // if you set dvoValueCopiedByReference, the internal
@@ -753,6 +659,8 @@ type
   // to avoid memory allocations, BUT it may break internal process if you change
   // some values in place (since VValue/VName and VCount won't match) - as such,
   // if you set this option, ensure that you use the content as read-only
+  // - by default, any string value will be stored as RawUtf8 varString, with
+  // conversion if needed, unless dvoValueDoNotNormalizeAsRawUtf8 is defined
   // - any registered custom types may have an extended JSON syntax (e.g.
   // TBsonVariant does for MongoDB types), and will be searched during JSON
   // parsing, unless dvoJsonParseDoNotTryCustomVariants is set (slightly faster)
@@ -778,7 +686,8 @@ type
   // - dvoInternNames and dvoInternValues will use shared TRawUtf8Interning
   // instances to maintain a list of RawUtf8 names/values for all TDocVariant,
   // so that redundant text content will be allocated only once on heap
-  // - see JSON_[TDocVariantModel] and all JSON_* constants as useful sets
+  // - see JSON_[TDocVariantModel] and all JSON_* constants as useful sets, and
+  // TDocVariantData.IsObject/IsArray/IsCaseSensitive/Has wrapper methods
   TDocVariantOption = (
     dvoIsArray,
     dvoIsObject,
@@ -786,6 +695,7 @@ type
     dvoCheckForDuplicatedNames,
     dvoReturnNullForUnknownProperty,
     dvoValueCopiedByReference,
+    dvoValueDoNotNormalizeAsRawUtf8,
     dvoJsonParseDoNotTryCustomVariants,
     dvoJsonParseDoNotGuessCount,
     dvoJsonObjectParseWithinString,
@@ -794,12 +704,14 @@ type
     dvoInternNames,
     dvoInternValues);
 
-  /// set of options for a TDocVariant storage
+  /// set of options for a TDocVariant storage (stored in 16-bit)
   // - defined in this unit to avoid circular reference with mormot.core.variants
   // - see JSON_[TDocVariantModel] and all JSON_* constants (e.g. JSON_FAST or
   // JSON_FAST_FLOAT) as potential values
   // - when specifying the options, you should not include dvoIsArray nor
   // dvoIsObject directly in the set, but explicitly define TDocVariantDataKind
+  // - see TDocVariantData.IsObject/IsArray/IsCaseSensitive/Has wrapper methods
+  // which are faster than 16-bit "if dvo* in VOptions" on Intel
   TDocVariantOptions = set of TDocVariantOption;
 
   /// pointer to a set of options for a TDocVariant storage
@@ -1255,6 +1167,7 @@ type
     procedure SetCapacity(aCapacity: PtrInt);
     procedure SetCompare(const aCompare: TDynArraySortCompare);
       {$ifdef HASINLINE}inline;{$endif}
+    procedure SetNoFinalize(aValue: boolean);
     function FindIndex(const Item; aIndex: PIntegerDynArray;
       aCompare: TDynArraySortCompare): PtrInt;
       {$ifdef HASINLINE}inline;{$endif}
@@ -1787,13 +1700,13 @@ type
       ClearBeforeCopy: boolean = false);
       {$ifdef HASINLINE}inline;{$endif}
     /// compare the content of two items, returning TRUE if both values equal
-    // - use the Compare() property function (if set) or using Info.Cache.ItemInfo
-    // if available - and fallbacks to binary comparison
+    // - use the Compare() property function (if set) or using
+    // Info.Cache.ItemInfoManaged if available - and fallbacks to binary comparison
     function ItemEquals(A, B: pointer; CaseInSensitive: boolean = false): boolean;
       {$ifdef HASINLINE}inline;{$endif}
     /// compare the content of two items, returning -1, 0 or +1s
-    // - use the Compare() property function (if set) or using Info.Cache.ItemInfo
-    // if available - and fallbacks to binary comparison
+    // - use the Compare() property function (if set) or using
+    // Info.Cache.ItemInfoManaged if available - and fallbacks to binary comparison
     function ItemCompare(A, B: pointer; CaseInSensitive: boolean = false): integer;
     /// will reset the element content
     // - i.e. release any managed type memory, and fill Item with zeros
@@ -1870,14 +1783,14 @@ type
     /// can be set to TRUE to avoid any item finalization
     // -  e.g. with T*ObjArray - handle with care to avoid memory leaks
     property NoFinalize: boolean
-      read fNoFinalize write fNoFinalize;
+      read fNoFinalize write SetNoFinalize;
 
     /// low-level direct access to the storage variable
     property Value: PPointer
       read fValue;
     /// low-level extended RTTI access
-    // - use e.g. Info.ArrayRtti to access the item RTTI, or Info.Cache.ItemInfo
-    // to get the managed item TypeInfo()
+    // - use e.g. Info.ArrayRtti to access the item RTTI, or
+    // Info.Cache.ItemInfoManaged to get the managed item TypeInfo()
     property Info: TRttiCustom
       read fInfo;
     /// low-level direct access to the external count (if defined at Init)
@@ -1946,7 +1859,8 @@ type
   /// implements O(1) lookup to any dynamic array content
   // - this won't handle the storage process (like add/update), just efficiently
   // maintain a hash table over an existing dynamic array: several TDynArrayHasher
-  // could be applied to a single TDynArray wrapper
+  // could be applied to a single TDynArray wrapper or could index one or several
+  // fields of an ORM table via TRestStorageInMemoryUnique in mormot.orm.storage
   // - TDynArrayHashed will use a TDynArrayHasher on its own storage
   {$ifdef USERECORDWITHMETHODS}
   TDynArrayHasher = record
@@ -1969,7 +1883,8 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     procedure HashAdd(aHashCode: cardinal; var result: PtrInt);
     procedure HashDelete(aArrayIndex, aHashTableIndex: PtrInt; aHashCode: cardinal);
-    function RaiseFatalCollision(const caller: shortstring; aHashCode: cardinal): integer;
+    function RaiseFatalCollision(const caller: ShortString; aHashCode: cardinal): integer;
+    procedure RaiseNoHasher;
     procedure HashTableInit(aHasher: THasher);
     procedure SetEventCompare(const Value: TOnDynArraySortCompare);
     procedure SetEventHash(const Value: TOnDynArrayHashOne);
@@ -2001,13 +1916,13 @@ type
     function Find(aHashCode: cardinal; aForAdd: boolean): PtrInt; overload;
     /// returns position in array, or next void index in HashTable[] as -(index+1)
     function FindOrNew(aHashCode: cardinal; Item: pointer; aHashTableIndex: PPtrInt): PtrInt;
-    /// returns position in array, or -1 if not found with a custom comparer
-    function FindOrNewComp(aHashCode: cardinal; Item: pointer;
-      Comp: TDynArraySortCompare = nil): PtrInt;
+    /// returns position in array, or -1 if not found with an optional custom comparer
+    function FindIndex(aHashCode: cardinal; Item: pointer; Comp: TDynArraySortCompare = nil): PtrInt;
+    /// returns pointer in array, or nil if not found
+    function FindHash(aHashCode: cardinal; Item: pointer): pointer;
     /// search an hashed element value for adding, updating the internal hash table
     // - trigger hashing if Count reaches CountTrigger
-    function FindBeforeAdd(Item: pointer; out wasAdded: boolean;
-      aHashCode: cardinal): PtrInt;
+    function FindBeforeAdd(Item: pointer; out wasAdded: boolean; aHashCode: cardinal): PtrInt;
     /// search and delete an element value, updating the internal hash table
     function FindBeforeDelete(Item: pointer): PtrInt;
     /// full computation of the internal hash table
@@ -2069,6 +1984,8 @@ type
     procedure SetCount(aCount: PtrInt); inline;
     procedure SetCapacity(aCapacity: PtrInt); inline;
     function GetCapacity: PtrInt; inline;
+    function GetNoFinalize: boolean; inline;
+    procedure SetNoFinalize(Value: boolean); inline;
   public
     InternalDynArray: TDynArray;
     function Value: PPointer; inline;
@@ -2097,6 +2014,7 @@ type
       aCompare: TDynArraySortCompare);
     property Count: PtrInt read GetCount write SetCount;
     property Capacity: PtrInt read GetCapacity write SetCapacity;
+    property NoFinalize: boolean read GetNoFinalize write SetNoFinalize;
   private
   {$else UNDIRECTDYNARRAY}
   TDynArrayHashed = object(TDynArray)
@@ -2201,7 +2119,7 @@ type
       const ExceptionArgs: array of const;
       aNewIndex: PPtrInt = nil): pointer; overload;
     /// ensure a given element name is unique, then add it to the array
-    // - just a wrapper to AddUniqueName(aName,'',[],aNewIndex)
+    // - just a wrapper to AddUniqueName(aName, '', [], aNewIndex)
     function AddUniqueName(const aName: RawUtf8;
       aNewIndex: PPtrInt = nil): pointer; overload;
     /// search for a given element name, make it unique, and add it to the array
@@ -2211,7 +2129,7 @@ type
     // - use internally FindHashedForAdding method
     // - this version will set the field content with the unique value
     // - returns a pointer to the newly added element (to set other fields)
-    function AddAndMakeUniqueName(aName: RawUtf8): pointer;
+    function AddAndMakeUniqueName(const aName: RawUtf8): pointer;
     /// search for an element value inside the dynamic array using hashing, then
     // update any matching item, or add the item if none matched
     // - by design, hashed field shouldn't have been modified by this update,
@@ -2397,6 +2315,10 @@ procedure CopyInt64(const Source: TInt64DynArray; out Dest: TInt64DynArray);
 function MaxInteger(const Values: TIntegerDynArray; ValuesCount: PtrInt;
   MaxStart: integer = -1): integer;
 
+/// find the maximum 64-bit integer in Values[]
+function MaxInt64(const Values: TInt64DynArray; ValuesCount: PtrInt;
+  MaxStart: Int64 = -1): Int64;
+
 /// sum all 32-bit integers in Values[]
 function SumInteger(const Values: TIntegerDynArray; ValuesCount: PtrInt): integer;
 
@@ -2575,12 +2497,12 @@ function ObjectToIni(const Instance: TObject; const SectionName: RawUtf8 = 'Main
 
 /// returns TRUE if the supplied HTML Headers contains 'Content-Type: text/...',
 // 'Content-Type: application/json' or 'Content-Type: application/xml'
-function IsHtmlContentTypeTextual(Headers: PUtf8Char): boolean;
+function IsHttpHeadersContentTypeText(Headers: PUtf8Char): boolean;
   {$ifdef HASINLINE}inline;{$endif}
 
 /// search if the WebSocketUpgrade() header is present
 // - consider checking the hsrConnectionUpgrade flag instead
-function IsWebSocketUpgrade(headers: PUtf8Char): boolean;
+function IsHttpHeadersTextWebSocketUpgrade(headers: PUtf8Char): boolean;
 
 
 { ************ RawUtf8 String Values Interning and TRawUtf8List }
@@ -2593,11 +2515,18 @@ type
   TRawUtf8Hashed = object
   {$endif USERECORDWITHMETHODS}
   public
+    /// how many items are currently in this hash table
     Count: integer;
+    /// actually stores the Values items
     Value: TRawUtf8DynArray;
+    /// the hash table associated to Value[0 .. Count - 1]
     Values: TDynArrayHashed;
+    /// alternative to Values.Hasher.HashOne() using PUtf8Char + Length
+    FromBuffer: TUtf8Hasher;
+    /// alternative to Values.Compare() using PUtf8Char + Length
+    CompFromBuffer: TDynArraySortCompare;
     /// initialize the RawUtf8 dynamic array and hasher
-    procedure Init;
+    procedure Init(CaseInsensitive: boolean);
   end;
 
   /// used to store one list of hashed RawUtf8 in TRawUtf8Interning pool
@@ -2613,21 +2542,30 @@ type
     fHash: TRawUtf8Hashed;
   public
     /// initialize the RawUtf8 slot (and its Safe mutex)
-    procedure Init;
-    /// returns the interned RawUtf8 value
-    procedure Unique(var aResult: RawUtf8; const aText: RawUtf8;
-      aTextHash: cardinal);
+    // - if CaseInsensitive is true, similar strings will be recognized, and
+    // stored normalized as the first occurence of each case-insensitive match
+    procedure Init(CaseInsensitive: boolean = false; Capacity: integer = 0);
+    /// compute one interned RawUtf8 value
+    // - return true if aText was added to the list, or false if was existing
+    function Unique(var aResult: RawUtf8; const aText: RawUtf8;
+      aTextHash: cardinal): boolean; overload;
+    /// compute one interned RawUtf8 value, with no pre-computed hash
+    function Unique(var aResult: RawUtf8; const aText: RawUtf8): boolean; overload;
     /// returns the interned RawUtf8 value
     // - only allocates new aResult string if needed
     procedure UniqueFromBuffer(var aResult: RawUtf8;
       aText: PUtf8Char; aTextLen: PtrInt; aTextHash: cardinal); overload;
-    /// returns the interned RawUtf8 value with no pre-computed hash
+    /// compute the interned RawUtf8 value from a buffer, with no pre-computed hash
     procedure UniqueFromBuffer(var aResult: RawUtf8;
       aText: PUtf8Char; aTextLen: PtrInt); overload;
-    /// ensure the supplied RawUtf8 value is interned
+    /// ensure the supplied RawUtf8 value is interned and unique
     procedure UniqueText(var aText: RawUtf8; aTextHash: cardinal);
-    /// return the interned value, if any
-    function Existing(const aText: RawUtf8; aTextHash: cardinal): pointer;
+    /// return the interned value reference, or nil if aText did not appear yet
+    // - reference is pointer(fHash.Value[]) with no ref-count involved
+    function Existing(const aText: RawUtf8; aTextHash: cardinal): pointer; overload;
+    /// return the interned value reference, with no pre-computed hash
+    function Existing(const aText: RawUtf8): pointer; overload;
+      {$ifdef HASINLINE}inline;{$endif}
     /// delete all stored RawUtf8 values
     procedure Clear;
     /// reclaim any unique RawUtf8 values
@@ -2647,11 +2585,15 @@ type
   protected
     fPool: array of TRawUtf8InterningSlot;
     fPoolLast: integer;
+    HashBuffer: TUtf8Hasher; // = fPool[].Values.Hasher.HashOne()
   public
     /// initialize the storage and its internal hash pools
     // - aHashTables is the pool size, and should be a power of two <= 512
-    // (1, 2, 4, 8, 16, 32, 64, 128, 256, 512)
-    constructor Create(aHashTables: integer = 4); reintroduce;
+    // (1, 2, 4, 8, 16, 32, 64, 128, 256, 512) - rounded up if not an exact power
+    // - if aCaseInsensitive is true, similar strings will be recognized, and
+    // stored normalized as the first occurence of each case-insensitive match
+    constructor Create(aHashTables: integer = 4;
+      aCaseInsensitive: boolean = false); reintroduce;
     /// return a RawUtf8 variable stored within this class
     // - if aText occurs for the first time, add it to the internal string pool
     // - if aText does exist in the internal string pool, return the shared
@@ -2660,7 +2602,7 @@ type
     /// check if a RawUtf8 value is already stored within this class
     // - if not existing, returns nil and don't add it to the pool
     // - if existing, returns pointer(fValue[i]) of the unique stored RawUtf8
-    // - use e.g. for very fast per-pointer lookup of interned property names
+    // - used e.g. for very fast per-pointer lookup of interned property names
     function Existing(const aText: RawUtf8): pointer;
     /// return a RawUtf8 variable stored within this class from a text buffer
     // - if aText occurs for the first time, add it to the internal string pool
@@ -2672,7 +2614,8 @@ type
     // - if aText occurs for the first time, add it to the internal string pool
     // - if aText does exist in the internal string pool, return the shared
     // instance (with its reference counter increased), to reduce memory usage
-    procedure Unique(var aResult: RawUtf8; const aText: RawUtf8); overload;
+    // - returns true if aText was added to the list, or false if was existing
+    function Unique(var aResult: RawUtf8; const aText: RawUtf8): boolean; overload;
     /// return a RawUtf8 variable stored within this class from a text buffer
     // - if aText occurs for the first time, add it to the internal string pool
     // - if aText does exist in the internal string pool, return the shared
@@ -2728,7 +2671,7 @@ type
   // - if fNoDuplicate flag is defined, an internal hash table will be
   // maintained to perform IndexOf() lookups in O(1) linear way
   // - not thread-safe by default, unless fThreadSafe is set to use the TRWLock
-  TRawUtf8List = class(TSynPersistentRWLock)
+  TRawUtf8List = class(TObjectRWLock)
   protected
     fCount: PtrInt;
     fValue: TRawUtf8DynArray;
@@ -3033,6 +2976,9 @@ type
 
 {$endif PUREMORMOT2}
 
+/// copy two TRawUtf8List instances
+procedure CopyRawUtf8List(Dest, Source: TRawUtf8List);
+
 /// sort a dynamic array of PUtf8Char items, via an external array of indexes
 // - you can use FastFindIndexedPUtf8Char() for fast O(log(n)) binary search
 procedure QuickSortIndexedPUtf8Char(Values: PPUtf8CharArray; Count: integer;
@@ -3186,29 +3132,13 @@ type
 implementation
 
 
-{ ************ RTL TPersistent / TInterfacedObject with Custom Constructor }
+{ ************ RTL TPersistent or Root Classes with Custom Constructor }
 
 { TPersistentWithCustomCreate }
 
 constructor TPersistentWithCustomCreate.Create;
 begin
   // nothing to do by default - overridden constructor may add custom code
-end;
-
-
-{ TInterfacedObjectWithCustomCreate }
-
-constructor TInterfacedObjectWithCustomCreate.Create;
-begin
-  // nothing to do by default - overridden constructor may add custom code
-end;
-
-procedure TInterfacedObjectWithCustomCreate.RefCountUpdate(Release: boolean);
-begin
-  if Release then
-    _Release
-  else
-    _AddRef;
 end;
 
 
@@ -3221,11 +3151,6 @@ end;
 
 
 { TSynInterfacedObject }
-
-constructor TSynInterfacedObject.Create;
-begin
-  // do-nothing virtual constructor
-end;
 
 function TSynInterfacedObject._AddRef: TIntCnt;
 begin
@@ -3249,6 +3174,8 @@ begin
   result := E_NOINTERFACE;
 end;
 
+
+{ ************ IAutoFree and IAutoLocker Reference-Counted Process }
 
 { TAutoFree }
 
@@ -3358,28 +3285,7 @@ begin
 end;
 
 
-{ ************ TSynPersistent* / TSyn*List / TSynLocker classes }
-
-{ TSynPersistent }
-
-procedure TSynPersistent.AssignError(Source: TSynPersistent);
-begin
-  raise EConvertError.CreateFmt('Cannot assign a %s to a %s',
-    [ClassNameShort(Source)^, ClassNameShort(self)^]);
-end;
-
-procedure TSynPersistent.AssignTo(Dest: TSynPersistent);
-begin
-  Dest.AssignError(Self);
-end;
-
-procedure TSynPersistent.Assign(Source: TSynPersistent);
-begin
-  if Source <> nil then
-    Source.AssignTo(Self)
-  else
-    AssignError(nil);
-end;
+{ ************ TSyn*List / TSynLocker classes }
 
 {$ifdef HASITERATORS}
 
@@ -3418,21 +3324,12 @@ end;
 
 {$endif HASITERATORS}
 
-{ TSynList }
 
-constructor TSynList.Create;
-begin
-  // nothing to do
-end;
+{ TSynList }
 
 function TSynList.Add(item: pointer): PtrInt;
 begin
-  // inlined result := ObjArrayAddCount(fList, item, fCount);
-  result := fCount;
-  if result = length(fList) then
-    SetLength(fList, NextGrow(result));
-  fList[result] := item;
-  inc(fCount);
+  result := PtrArrayAdd(fList, item, fCount);
 end;
 
 function TSynList.Insert(item: pointer; index: PtrInt): PtrInt;
@@ -3541,64 +3438,15 @@ begin
 end;
 
 
-{ TSynPersistentLock }
-
-constructor TSynPersistentLock.Create;
-begin
-  inherited Create; // may have been overriden
-  fSafe := NewSynLocker;
-end;
-
-destructor TSynPersistentLock.Destroy;
-begin
-  inherited Destroy;
-  fSafe^.DoneAndFreeMem;
-end;
-
-procedure TSynPersistentLock.Lock;
-begin
-  if self <> nil then
-    fSafe^.Lock;
-end;
-
-procedure TSynPersistentLock.Unlock;
-begin
-  if self <> nil then
-    fSafe^.UnLock;
-end;
-
-class procedure TSynPersistentLock.RttiCustomSetParser(Rtti: TRttiCustom);
-begin
-  // let's call our overriden RttiBeforeWriteObject and RttiAfterWriteObject
-  Rtti.Flags := Rtti.Flags + [rcfHookWrite];
-end;
-
-function TSynPersistentLock.RttiBeforeWriteObject(W: TTextWriter;
-  var Options: TTextWriterWriteObjectOptions): boolean;
-begin
-  if woPersistentLock in Options then
-    fSafe.Lock;
-  result := false; // continue with default JSON serialization
-end;
-
-procedure TSynPersistentLock.RttiAfterWriteObject(W: TTextWriter;
-  Options: TTextWriterWriteObjectOptions);
-begin
-  if woPersistentLock in Options then
-    fSafe.UnLock;
-end;
-
 { TInterfacedObjectLocked }
 
 constructor TInterfacedObjectLocked.Create;
 begin
-  inherited Create;
   fSafe := NewSynLocker;
 end;
 
 destructor TInterfacedObjectLocked.Destroy;
 begin
-  inherited Destroy;
   fSafe^.DoneAndFreeMem;
 end;
 
@@ -3742,54 +3590,54 @@ begin
 end;
 
 
-{ ************ TSynPersistentStore with proper Binary Serialization }
+{ ************ TObjectStore with proper Binary Serialization }
 
-{ TSynPersistentStore }
+{ TObjectStore }
 
-constructor TSynPersistentStore.Create(const aName: RawUtf8);
+constructor TObjectStore.Create(const aName: RawUtf8);
 begin
   inherited Create; // may have been overriden
   fName := aName;
 end;
 
-constructor TSynPersistentStore.CreateFrom(const aBuffer: RawByteString;
+constructor TObjectStore.CreateFrom(const aBuffer: RawByteString;
   aLoad: TAlgoCompressLoad);
 begin
   CreateFromBuffer(pointer(aBuffer), length(aBuffer), aLoad);
 end;
 
-constructor TSynPersistentStore.CreateFromBuffer(
+constructor TObjectStore.CreateFromBuffer(
   aBuffer: pointer; aBufferLen: integer; aLoad: TAlgoCompressLoad);
 begin
   inherited Create; // may have been overriden
   LoadFrom(aBuffer, aBufferLen, aLoad);
 end;
 
-constructor TSynPersistentStore.CreateFromFile(const aFileName: TFileName;
+constructor TObjectStore.CreateFromFile(const aFileName: TFileName;
   aLoad: TAlgoCompressLoad);
 begin
   inherited Create; // may have been overriden
   LoadFromFile(aFileName, aLoad);
 end;
 
-procedure TSynPersistentStore.LoadFromReader;
+procedure TObjectStore.LoadFromReader;
 begin
   fReader.VarUtf8(fName);
 end;
 
-procedure TSynPersistentStore.SaveToWriter(aWriter: TBufferWriter);
+procedure TObjectStore.SaveToWriter(aWriter: TBufferWriter);
 begin
   aWriter.Write(fName);
 end;
 
-procedure TSynPersistentStore.LoadFrom(const aBuffer: RawByteString;
+procedure TObjectStore.LoadFrom(const aBuffer: RawByteString;
   aLoad: TAlgoCompressLoad);
 begin
   if aBuffer <> '' then
     LoadFrom(pointer(aBuffer), length(aBuffer), aLoad);
 end;
 
-procedure TSynPersistentStore.LoadFrom(aBuffer: pointer; aBufferLen: integer;
+procedure TObjectStore.LoadFrom(aBuffer: pointer; aBufferLen: integer;
   aLoad: TAlgoCompressLoad);
 var
   localtemp: RawByteString;
@@ -3815,7 +3663,7 @@ begin
   LoadFromReader;
 end;
 
-function TSynPersistentStore.LoadFromFile(const aFileName: TFileName;
+function TObjectStore.LoadFromFile(const aFileName: TFileName;
   aLoad: TAlgoCompressLoad): boolean;
 var
   temp: RawByteString;
@@ -3826,7 +3674,7 @@ begin
     LoadFrom(temp, aLoad);
 end;
 
-procedure TSynPersistentStore.SaveTo(out aBuffer: RawByteString;
+procedure TObjectStore.SaveTo(out aBuffer: RawByteString;
   nocompression: boolean; BufLen: integer; ForcedAlgo: TAlgoCompress;
   BufferOffset: integer);
 var
@@ -3846,13 +3694,13 @@ begin
   end;
 end;
 
-function TSynPersistentStore.SaveTo(nocompression: boolean; BufLen: integer;
+function TObjectStore.SaveTo(nocompression: boolean; BufLen: integer;
   ForcedAlgo: TAlgoCompress; BufferOffset: integer): RawByteString;
 begin
   SaveTo(result, nocompression, BufLen, ForcedAlgo, BufferOffset);
 end;
 
-function TSynPersistentStore.SaveToFile(const aFileName: TFileName;
+function TObjectStore.SaveToFile(const aFileName: TFileName;
   nocompression: boolean; BufLen: integer; ForcedAlgo: TAlgoCompress): PtrUInt;
 var
   temp: RawByteString;
@@ -4126,7 +3974,7 @@ end;
 function GetSectionContent(const Content, SectionName: RawUtf8): RawUtf8;
 var
   P: PUtf8Char;
-  UpperSection: array[byte] of AnsiChar;
+  UpperSection: TByteToAnsiChar;
 begin
   P := pointer(Content);
   PWord(UpperCopy255(UpperSection{%H-}, SectionName))^ := ord(']');
@@ -4140,7 +3988,7 @@ function DeleteSection(var Content: RawUtf8; const SectionName: RawUtf8;
   EraseSectionHeader: boolean): boolean;
 var
   P: PUtf8Char;
-  UpperSection: array[byte] of AnsiChar;
+  UpperSection: TByteToAnsiChar;
 begin
   result := false; // no modification
   P := pointer(Content);
@@ -4198,7 +4046,7 @@ end;
 
 procedure ReplaceSection(var Content: RawUtf8; const SectionName, NewSectionContent: RawUtf8);
 var
-  UpperSection: array[byte] of AnsiChar;
+  UpperSection: TByteToAnsiChar;
   P: PUtf8Char;
 begin
   P := pointer(Content);
@@ -4206,7 +4054,7 @@ begin
   if FindSectionFirstLine(P, UpperSection) then
     ReplaceSection(P, Content, NewSectionContent)
   else
-    Content := Content + '[' + SectionName + ']'#13#10 + NewSectionContent;
+    Append(Content, ['[', SectionName, ']'#13#10, NewSectionContent]);
 end;
 
 function FindIniNameValueInteger(P: PUtf8Char; const UpperName: RawUtf8): PtrInt;
@@ -4231,7 +4079,7 @@ end;
 function FindIniEntry(const Content, Section, Name, DefaultValue: RawUtf8): RawUtf8;
 var
   P: PUtf8Char;
-  UpperSection, UpperName: array[byte] of AnsiChar;
+  UpperSection, UpperName: TByteToAnsiChar;
 begin
   result := DefaultValue;
   P := pointer(Content);
@@ -4337,13 +4185,13 @@ var
   SectionFound: boolean;
   i, UpperNameLength: PtrInt;
   V: RawUtf8;
-  UpperSection, UpperName: array[byte] of AnsiChar;
+  UpperSection, UpperName: TByteToAnsiChar;
 begin
   UpperNameLength := length(Name);
   PWord(UpperCopy255Buf(
     UpperName{%H-}, pointer(Name), UpperNameLength))^ := ord('=');
   inc(UpperNameLength);
-  V := Value + CRLF;
+  Join([Value, CRLF], V);
   P := pointer(Content);
   // 1. find Section, and try update within it
   if Section = '' then
@@ -4358,14 +4206,14 @@ begin
        Content, Value, V, P, @UpperName, UpperNameLength) then
       exit;
   // 2. section or Name= entry not found: add Name=Value
-  V := Name + '=' + V;
+  V := Join([Name, '=', V]);
   if not SectionFound then
     // create not existing [Section]
-    V := '[' + Section + (']' + CRLF) + V;
+    V := Join(['[', Section, (']' + CRLF), V]);
   // insert Name=Value at P^ (end of file or end of [Section])
   if P = nil then
     // insert at end of file
-    Content := Content + V
+    Append(Content, V)
   else
   begin
     // insert at end of [Section]
@@ -4384,9 +4232,14 @@ begin
   FileFromString(Content, FileName);
 end;
 
-function IsHtmlContentTypeTextual(Headers: PUtf8Char): boolean;
+function IsHttpHeadersContentTypeText(Headers: PUtf8Char): boolean;
+var
+  ct: PUtf8Char;
+  len: PtrInt;
 begin
-  result := ExistsIniNameValue(Headers, HEADER_CONTENT_TYPE_UPPER, @CONTENT_TYPE_TEXTUAL);
+  ct := FindNameValuePointer(Headers, HEADER_CONTENT_TYPE_UPPER, len);
+  result := (ct <> nil) and
+            IsContentTypeCompressible(ct, len, {onlytext=}true);
 end;
 
 const
@@ -4395,7 +4248,7 @@ const
     'KEEP-ALIVE, UPGRADE',
     nil);
 
-function IsWebSocketUpgrade(headers: PUtf8Char): boolean;
+function IsHttpHeadersTextWebSocketUpgrade(headers: PUtf8Char): boolean;
 begin
   result := ExistsIniNameValue(pointer(headers), 'CONNECTION: ', @WS_UPGRADE);
 end;
@@ -4410,7 +4263,7 @@ var
   section, nested, json: PUtf8Char;
   name: PAnsiChar;
   n, v: RawUtf8;
-  up: array[byte] of AnsiChar;
+  up: TByteToAnsiChar;
 begin
   result := false; // true when at least one property has been read
   if (Ini = '') or
@@ -4431,7 +4284,7 @@ begin
         if Level = 0 then
           n := p^.Name
         else
-          n := SectionName + '.' + p^.Name;
+          Join([SectionName, '.', p^.Name], n);
         if IniToObject(Ini, p^.Prop^.GetObjProp(Instance), n,
               DocVariantOptions, Level + 1) then
           result := true;
@@ -4467,7 +4320,7 @@ begin
         else if v <> #0 then
           if (p^.OffsetSet <= 0) or // has a setter?
              (rcfBoolean in p^.Value.Cache.Flags) or // simple value?
-             (p^.Value.Kind in (rkGetIntegerPropTypes + [rkEnumeration, rkFloat])) then
+             (p^.Value.Kind in (rkIntegerPropTypes + [rkEnumeration, rkFloat])) then
           begin
             if p^.Prop^.SetValueText(Instance, v) then // RTTI conversion
               result := true;
@@ -4540,7 +4393,7 @@ begin
           if Level = 0 then
             n := p^.Name
           else
-            n := SectionName + '.' + p^.Name;
+            Join([SectionName, '.', p^.Name], n);
           s := ObjectToIni(p^.Prop^.GetObjProp(Instance), n, Options, Level + 1);
           if s <> '' then
             AddRawUtf8(nested, nestedcount, s);
@@ -4605,47 +4458,88 @@ end;
 var // filled at startup with a 32-bit random value to avoid hash flooding
   HashSeed: cardinal; // defined locally in this unit to avoid symbol export
 
+{ HashAnsiString/HashAnsiStringI alternatives from PUtf8Char + length }
+
+function HashIntern(P: PUtf8Char; L: PtrUInt): cardinal;
+begin
+  if P <> nil then
+  begin
+    if L > 256 then // no need to hash too big a content
+    begin
+      P := @P[L - 256]; // hash ending of string (more likely to vary)
+      L := 256;
+    end;
+    result := InterningHasher(HashSeed, pointer(P), L);
+  end
+  else
+    result := 0;
+end;
+
+function HashInternI(P: PUtf8Char; L: PtrUInt): cardinal;
+var
+  tmp: TByteToAnsiChar; // avoid slow heap allocation
+begin
+  if (P <> nil) and
+     (L <> 0) then
+    result := InterningHasher(HashSeed, tmp{%H-},
+      UpperCopy255Buf(tmp{%H-}, P, L) - {%H-}tmp)
+  else
+    result := 0;
+end;
+
+const
+  HASH_INTERN: array[{CaseInsensitive:}boolean] of TUtf8Hasher = (
+    HashIntern, HashInternI);
+  COMP_PUTF8CHAR: array[{CaseInsensitive:}boolean] of TDynArraySortCompare = (
+    SortDynArrayPUtf8Char, SortDynArrayPUtf8CharI);
+
+
 { TRawUtf8Hashed }
 
-procedure TRawUtf8Hashed.Init;
+procedure TRawUtf8Hashed.Init(CaseInsensitive: boolean);
 begin
   Values.InitSpecific(TypeInfo(TRawUtf8DynArray), Value, ptRawUtf8,
-    @Count, false, InterningHasher);
+    @Count, CaseInsensitive, InterningHasher);
+  FromBuffer := HASH_INTERN[CaseInsensitive]; // same as Values.Hasher.HashOne()
+  CompFromBuffer := COMP_PUTF8CHAR[CaseInsensitive]; // same as Values.Compare()
 end;
 
 
 { TRawUtf8InterningSlot }
 
-procedure TRawUtf8InterningSlot.Init;
+procedure TRawUtf8InterningSlot.Init(CaseInsensitive: boolean; Capacity: integer);
 begin
-  fHash.Init;
+  fHash.Init(CaseInsensitive);
+  if Capacity <> 0 then
+    fHash.Values.SetCapacity(Capacity);
 end;
 
-procedure TRawUtf8InterningSlot.Unique(var aResult: RawUtf8;
-  const aText: RawUtf8; aTextHash: cardinal);
+function TRawUtf8InterningSlot.Unique(var aResult: RawUtf8;
+  const aText: RawUtf8; aTextHash: cardinal): boolean;
 var
   i: PtrInt;
-  added: boolean;
 begin
   fSafe.ReadLock; // a TRWLightLock is faster here than an upgradable TRWLock
-  i := fHash.Values.Hasher.FindOrNewComp(aTextHash, @aText);
+  i := fHash.Values.Hasher.FindIndex(aTextHash, @aText);
   if i >= 0 then
   begin
-    aResult := fHash.Value[i]; // return unified string instance
+    aResult := fHash.Value[i]; // return the interned value
     fSafe.ReadUnLock;
+    result := false;
     exit;
   end;
   fSafe.ReadUnLock;
   fSafe.WriteLock; // need to be added within the write lock
-  i := fHash.Values.FindHashedForAdding(aText, added, aTextHash);
-  if added then
-  begin
+  i := fHash.Values.FindHashedForAdding(aText, {added=}result, aTextHash);
+  if result then // was not added in a background thread
     fHash.Value[i] := aText; // copy new value to the pool
-    aResult := aText;
-  end
-  else
-    aResult := fHash.Value[i]; // was added in a background thread
+  aResult := fHash.Value[i]; // return the interned value
   fSafe.WriteUnLock;
+end;
+
+function TRawUtf8InterningSlot.Unique(var aResult: RawUtf8; const aText: RawUtf8): boolean;
+begin
+  result := Unique(aResult, aText, fHash.FromBuffer(pointer(aText), length(aText)));
 end;
 
 procedure TRawUtf8InterningSlot.UniqueFromBuffer(var aResult: RawUtf8;
@@ -4662,33 +4556,35 @@ begin
     exit;
   end;
   c := aText[aTextLen];
-  aText[aTextLen] := #0; // input buffer may not be #0 terminated
-  i := fHash.Values.Hasher.FindOrNewComp(aTextHash, @aText, @SortDynArrayPUtf8Char);
+  if c <> #0 then // write only if needed - avoid GPF from constant string
+    aText[aTextLen] := #0; // input buffer may not be #0 terminated
+  i := fHash.Values.Hasher.FindIndex(aTextHash, @aText, fHash.CompFromBuffer);
   if i >= 0 then
   begin
-    aResult := fHash.Value[i]; // return unified string instance
+    aResult := fHash.Value[i]; // return the interned value
     fSafe.ReadUnLock;
-    aText[aTextLen] := c;
+    if c <> #0 then
+      aText[aTextLen] := c;
     exit;
   end;
   fSafe.ReadUnLock;
-  fSafe.WriteLock; // need to be added
+  fSafe.WriteLock; // need to be added in exclusive mode
   bak := fHash.Values.Hasher.Compare; // (RawUtf8,RawUtf8) -> (RawUtf8,PUtf8Char)
-  PDynArrayHasher(@fHash.Values.Hasher)^.fCompare := @SortDynArrayPUtf8Char;
+  PDynArrayHasher(@fHash.Values.Hasher)^.fCompare := fHash.CompFromBuffer;
   i := fHash.Values.FindHashedForAdding(aText, added, aTextHash);
   PDynArrayHasher(@fHash.Values.Hasher)^.fCompare := bak;
   if added then
     FastSetString(fHash.Value[i], aText, aTextLen); // new value to the pool
-  aResult := fHash.Value[i];
+  aResult := fHash.Value[i]; // return the interned value
   fSafe.WriteUnLock;
-  aText[aTextLen] := c;
+  if c <> #0 then
+    aText[aTextLen] := c;
 end;
 
 procedure TRawUtf8InterningSlot.UniqueFromBuffer(var aResult: RawUtf8;
   aText: PUtf8Char; aTextLen: PtrInt);
 begin
-  UniqueFromBuffer(aResult, aText, aTextLen,
-    InterningHasher(HashSeed, pointer(aText), aTextLen));
+  UniqueFromBuffer(aResult, aText, aTextLen, fHash.FromBuffer(aText, aTextLen));
 end;
 
 procedure TRawUtf8InterningSlot.UniqueText(var aText: RawUtf8; aTextHash: cardinal);
@@ -4697,7 +4593,7 @@ var
   added: boolean;
 begin
   fSafe.ReadLock;
-  i := fHash.Values.Hasher.FindOrNewComp(aTextHash, @aText);
+  i := fHash.Values.Hasher.FindIndex(aTextHash, @aText);
   if i >= 0 then
   begin
     aText := fHash.Value[i]; // return unified string instance
@@ -4720,10 +4616,15 @@ var
 begin
   result := nil;
   fSafe.ReadLock;
-  i := fHash.Values.Hasher.FindOrNewComp(aTextHash, @aText);
+  i := fHash.Values.Hasher.FindIndex(aTextHash, @aText);
   if i >= 0 then
-    result := pointer(fHash.Value[i]); // return a pointer to unified string instance
+    result := pointer(fHash.Value[i]); // return a pointer to the unified string
   fSafe.ReadUnLock;
+end;
+
+function TRawUtf8InterningSlot.Existing(const aText: RawUtf8): pointer;
+begin
+  result := Existing(aText, fHash.FromBuffer(pointer(aText), length(aText)));
 end;
 
 procedure TRawUtf8InterningSlot.Clear;
@@ -4753,7 +4654,7 @@ begin
     d := s;
     for i := 1 to fHash.Count do
     begin
-      if PStrCnt(PAnsiChar(s^) - _STRCNT)^ <= aMaxRefCount then
+      if PStrCnt(PAnsiChar(s^) - _STRCNT)^ <= aMaxRefCount then // also -1
       begin
         {$ifdef FPC}
         FastAssignNew(PRawUtf8(s)^);
@@ -4786,23 +4687,20 @@ end;
 
 { TRawUtf8Interning }
 
-constructor TRawUtf8Interning.Create(aHashTables: integer);
+constructor TRawUtf8Interning.Create(aHashTables: integer; aCaseInsensitive: boolean);
 var
-  p: integer;
   i: PtrInt;
 begin
   inherited Create; // may have been overriden
-  for p := 0 to 9 do
-    if aHashTables = 1 shl p then
-    begin
-      SetLength(fPool, aHashTables);
-      fPoolLast := aHashTables - 1;
-      for i := 0 to fPoolLast do
-        fPool[i].Init;
-      exit;
-    end;
-  ESynException.RaiseUtf8('%.Create(%) not allowed: ' +
-    'should be a power of 2 <= 512', [self, aHashTables]);
+  if (aHashTables > 512) or
+     (aHashTables <= 0) then
+    ESynException.RaiseUtf8('%.Create(%) failed as > 512', [self, aHashTables]);
+  aHashTables := NextPowerOfTwo(aHashTables);
+  SetLength(fPool, aHashTables);
+  fPoolLast := aHashTables - 1;
+  for i := 0 to fPoolLast do
+    fPool[i].Init(aCaseInsensitive);
+  HashBuffer := HASH_INTERN[aCaseInsensitive]; // same as fPool[i].FromBuffer()
 end;
 
 procedure TRawUtf8Interning.Clear;
@@ -4834,19 +4732,19 @@ begin
       inc(result, fPool[i].Count);
 end;
 
-procedure TRawUtf8Interning.Unique(var aResult: RawUtf8; const aText: RawUtf8);
+function TRawUtf8Interning.Unique(var aResult: RawUtf8; const aText: RawUtf8): boolean;
 var
   hash: cardinal;
 begin
+  result := false; // not added
   if aText = '' then
     aResult := ''
   else if self = nil then
     aResult := aText
   else
   begin
-    // inlined fPool[].Values.HashElement
-    hash := InterningHasher(HashSeed, pointer(aText), length(aText));
-    fPool[hash and fPoolLast].Unique(aResult, aText, hash);
+    hash := HashBuffer(pointer(aText), length(aText));
+    result := fPool[hash and fPoolLast].Unique(aResult, aText, hash); // maybe added
   end;
 end;
 
@@ -4857,8 +4755,7 @@ begin
   if (self <> nil) and
      (aText <> '') then
   begin
-    // inlined fPool[].Values.HashElement
-    hash := InterningHasher(HashSeed, pointer(aText), length(aText));
+    hash := HashBuffer(pointer(aText), length(aText));
     fPool[hash and fPoolLast].UniqueText(aText, hash);
   end;
 end;
@@ -4873,8 +4770,7 @@ begin
     result := aText
   else
   begin
-    // inlined fPool[].Values.HashElement
-    hash := InterningHasher(HashSeed, pointer(aText), length(aText));
+    hash := HashBuffer(pointer(aText), length(aText));
     fPool[hash and fPoolLast].Unique(result, aText, hash);
   end;
 end;
@@ -4886,7 +4782,7 @@ begin
   result := nil;
   if self = nil then
     exit;
-  hash := InterningHasher(HashSeed, pointer(aText), length(aText));
+  hash := HashBuffer(pointer(aText), length(aText));
   result := fPool[hash and fPoolLast].Existing(aText, hash);
 end;
 
@@ -4907,8 +4803,7 @@ begin
     FastSetString(aResult, aText, aTextLen)
   else
   begin
-    // inlined fPool[].Values.HashElement
-    hash := InterningHasher(HashSeed, pointer(aText), aTextLen);
+    hash := HashBuffer(aText, aTextLen);
     fPool[hash and fPoolLast].UniqueFromBuffer(aResult, aText, aTextLen, hash);
   end;
 end;
@@ -5399,9 +5294,6 @@ begin
 end;
 
 function TRawUtf8List.GetText(const Delimiter: RawUtf8): RawUtf8;
-var
-  DelimLen, i, Len: PtrInt;
-  P: PUtf8Char;
 begin
   result := '';
   if (self = nil) or
@@ -5409,34 +5301,9 @@ begin
     exit;
   if fThreadSafe in fFlags then
     fSafe.ReadOnlyLock;
-  try
-    DelimLen := length(Delimiter);
-    Len := DelimLen * (fCount - 1);
-    for i := 0 to fCount - 1 do
-      inc(Len, length(fValue[i]));
-    FastSetString(result, Len);
-    P := pointer(result);
-    i := 0;
-    repeat
-      Len := length(fValue[i]);
-      if Len > 0 then
-      begin
-        MoveFast(pointer(fValue[i])^, P^, Len);
-        inc(P, Len);
-      end;
-      inc(i);
-      if i >= fCount then
-        Break;
-      if DelimLen > 0 then
-      begin
-        MoveByOne(pointer(Delimiter), P, DelimLen);
-        inc(P, DelimLen);
-      end;
-    until false;
-  finally
-    if fThreadSafe in fFlags then
-      fSafe.ReadOnlyUnLock;
-  end;
+  PRawUtf8ToCsv(pointer(fValue), fCount, Delimiter, {rev=}false, result);
+  if fThreadSafe in fFlags then
+    fSafe.ReadOnlyUnLock;
 end;
 
 procedure TRawUtf8List.SaveToStream(Dest: TStream; const Delimiter: RawUtf8);
@@ -5473,15 +5340,9 @@ end;
 
 procedure TRawUtf8List.SaveToFile(
   const FileName: TFileName; const Delimiter: RawUtf8);
-var
-  FS: TStream;
 begin
-  FS := TFileStreamEx.Create(FileName, fmCreate);
-  try
-    SaveToStream(FS, Delimiter);
-  finally
-    FS.Free;
-  end;
+  if FileName <> '' then
+    FileFromString(GetText(Delimiter), FileName); // faster than SaveToStream()
 end;
 
 function TRawUtf8List.GetTextCRLF: RawUtf8;
@@ -5522,7 +5383,7 @@ end;
 
 function TRawUtf8List.IndexOfName(const Name: RawUtf8): PtrInt;
 var
-  UpperName: array[byte] of AnsiChar;
+  UpperName: TByteToAnsiChar;
   table: PNormTable;
 begin
   if self <> nil then
@@ -5799,6 +5660,12 @@ begin
   end;
 end;
 
+procedure CopyRawUtf8List(Dest, Source: TRawUtf8List);
+begin
+  Dest.Clear;
+  Dest.AddRawUtf8List(Source);
+end;
+
 
 { ********** Efficient RTTI Values Binary Serialization and Comparison }
 
@@ -5865,14 +5732,14 @@ end;
 
 function _BS_UString(Data: PUnicodeString; Dest: TBufferWriter; Info: PRttiInfo): PtrInt;
 begin
-  Dest.WriteVar(pointer(Data^), length(Data^) * 2);
+  Dest.WriteVar(pointer(Data^), length(Data^) * 2); // length is stored in bytes
   result := SizeOf(pointer);
 end;
 
 function _BL_UString(Data: PUnicodeString; var Source: TFastReader; Info: PRttiInfo): PtrInt;
 begin
   with Source.VarBlob do
-    SetString(Data^, PWideChar(Ptr), Len shr 1); // length in bytes was stored
+    FastSynUnicode(Data^, Ptr, Len shr 1); // length was stored in bytes
   result := SizeOf(pointer);
 end;
 
@@ -6030,7 +5897,7 @@ var
 label
   raw;
 begin
-  Info := Info^.DynArrayItemType(itemsize);
+  Info := Info^.DynArrayItemType(itemsize); // nil if unmanaged
   Dest.Write1(0); // warning: store itemsize=0 (mORMot 1 ignores it anyway)
   Dest.Write1(DelphiType(Info));
   Data := PPointer(Data)^; // de-reference pointer to array data
@@ -6096,28 +5963,28 @@ end;
 
 function _BL_DynArray(Data: PAnsiChar; var Source: TFastReader; Info: PRttiInfo): PtrInt;
 var
-  n, itemsize: PtrInt;
-  iteminfo: PRttiInfo;
+  n, siz: PtrInt;
+  nfo: PRttiInfo;
   load: TRttiBinaryLoad;
 label
   raw;
 begin
-  iteminfo := Info^.DynArrayItemType(itemsize); // nil for unmanaged items
-  n := DynArrayLoadHeader(Source, Info, iteminfo);
+  nfo := Info^.DynArrayItemType(siz); // nil for unmanaged items
+  n := DynArrayLoadHeader(Source, Info, nfo);
   if PPointer(Data)^ <> nil then
-    FastDynArrayClear(pointer(Data), iteminfo);
+    FastDynArrayClear(pointer(Data), nfo);
   if n > 0 then
   begin
-    DynArrayNew(pointer(Data), n, itemsize); // allocate zeroed  memory
+    DynArrayNew(pointer(Data), n, siz); // allocate zeroed  memory
     Data := PPointer(Data)^; // point to first item
-    if iteminfo = nil then
-raw:  Source.Copy(Data, itemsize * n)
+    if nfo = nil then
+raw:  Source.Copy(Data, siz * n)
     else
     begin
-      load := RTTI_BINARYLOAD[iteminfo^.Kind];
+      load := RTTI_BINARYLOAD[nfo^.Kind];
       if Assigned(load) then
         repeat
-          inc(Data, load(Data, Source, iteminfo));
+          inc(Data, load(Data, Source, nfo));
           dec(n);
         until n = 0
       else
@@ -6380,7 +6247,7 @@ label
   raw;
 begin
   Info := Info^.ArrayItemType(n, result);
-  if Info = nil then
+  if Info = nil then // unmanaged
 raw:Dest.Write(Data, result)
   else
   begin
@@ -6403,7 +6270,7 @@ label
   raw;
 begin
   Info := Info^.ArrayItemType(n, result);
-  if Info = nil then
+  if Info = nil then // unmanaged
 raw:Source.Copy(Data, result)
   else
   begin
@@ -6422,7 +6289,7 @@ function _BC_Array(A, B: pointer; Info: PRttiInfo; out Compared: integer): PtrIn
 var
   n: PtrInt;
 begin
-  Info := Info^.ArrayItemType(n, result);
+  Info := Info^.ArrayItemType(n, result); // nil if unmanaged
   Compared := BinaryCompare(A, B, Info, n, {CaseInSensitive=}false);
 end;
 
@@ -6430,7 +6297,7 @@ function _BCI_Array(A, B: pointer; Info: PRttiInfo; out Compared: integer): PtrI
 var
   n: PtrInt;
 begin
-  Info := Info^.ArrayItemType(n, result);
+  Info := Info^.ArrayItemType(n, result); // nil if unmanaged
   Compared := BinaryCompare(A, B, Info, n, {CaseInSensitive=}true);
 end;
 
@@ -6438,7 +6305,7 @@ procedure _BS_VariantComplex(Data: PVariant; Dest: TBufferWriter);
 var
   temp: RawUtf8;
 begin
-  // not very fast, but creates valid JSON
+  // not very fast, but creates valid JSON to be embedded in the binary output
   _VariantSaveJson(Data^, twJsonEscape, temp);
   Dest.Write(temp);
 end;
@@ -6449,7 +6316,7 @@ var
 begin
   Source.VarBlob(temp); // load into a private copy for in-place JSON parsing
   try
-    BinaryVariantLoadAsJson(Data^, temp.buf, Source.CustomVariants);
+    _VariantLoadJson(Data^, temp.buf, Source.CustomVariants);
   finally
     temp.Done;
   end;
@@ -6501,7 +6368,7 @@ begin
     vt := VARIANT_SIZE[vt];
     if vt <> 0 then
       if vt = 255 then
-        with Source.VarBlob do // valOleStr
+        with Source.VarBlob do // varOleStr (=8)
           SetString(WideString(Data^.vAny), PWideChar(Ptr), Len shr 1)
       else
         Source.Copy(@Data^.VInt64, vt); // simple types
@@ -6512,12 +6379,12 @@ begin
   {$ifdef HASVARUSTRING}
   else if vt = varUString then
     with Source.VarBlob do
-      SetString(UnicodeString(Data^.vAny), PWideChar(Ptr), Len shr 1)
+      FastSynUnicode(UnicodeString(Data^.vAny), Ptr, Len shr 1)
   {$endif HASVARUSTRING}
-  else if Assigned(BinaryVariantLoadAsJson) then
-    _BL_VariantComplex(pointer(Data), Source)
+  else if Assigned(_VariantLoadJson) then
+    _BL_VariantComplex(pointer(Data), Source) // redirect to _VariantLoadJson()
   else
-    Source.ErrorData('RTTI_BINARYLOAD[tkVariant] missing mormot.core.json.pas', []);
+    Source.ErrorData('RTTI_BINARYLOAD[tkVariant] missing mormot.core.variants', []);
   result := SizeOf(Data^);
 end;
 
@@ -6697,7 +6564,7 @@ function BinarySaveLength(Data: pointer; Info: PRttiInfo; Len: PInteger;
 var
   size: integer;
   W: TBufferWriter; // not very fast, but good enough (RecordSave don't use it)
-  temp: array[byte] of byte; // will use mostly TFakeWriterStream.Write()
+  temp: TByteToByte; // will use mostly TFakeWriterStream.Write()
   save: TRttiBinarySave;
 begin
   save := RTTI_BINARYSAVE[Info^.Kind];
@@ -7239,10 +7106,12 @@ procedure TDynArray.ItemCopy(Source, Dest: pointer);
 var
   nfo: TRttiCustom;
 begin
+  if Source = Dest then
+    exit;
   nfo := fInfo.ArrayRtti;
   if (nfo <> nil) and // inlined nfo.ValueCopy() to avoid MoveFast() twice
-     Assigned(nfo.Copy) then
-    nfo.Copy(Dest, Source, nfo.Info) // also for T*ObjArray
+     Assigned(nfo.Copy) then // managed or 2/4/8..32 bytes move (also T*ObjArray)
+    nfo.Copy(Dest, Source, nfo.Info)
   else
     MoveFast(Source^, Dest^, fInfo.Cache.ItemSize);
 end;
@@ -7276,21 +7145,21 @@ var
   comp: TRttiCompare;
   rtti: PRttiInfo;
 label
-  bin;
+  raw;
 begin
   if Assigned(fCompare) then
     result := fCompare(A^, B^)
   else if not(rcfArrayItemManaged in fInfo.Flags) then
-bin: // fast binary comparison with length
-     result := MemCmp(A, B, fInfo.Cache.ItemSize)
+     // fast binary comparison with length
+raw: result := MemCmp(A, B, fInfo.Cache.ItemSize)
   else
   begin
-    rtti := fInfo.Cache.ItemInfo; // <> nil for managed items
+    rtti := fInfo.Cache.ItemInfoRaw;
     comp := RTTI_COMPARE[CaseInsensitive, rtti.Kind];
     if Assigned(comp) then
       comp(A, B, rtti, result)
     else
-      goto bin;
+      goto raw;
   end;
 end;
 
@@ -7401,7 +7270,7 @@ end;
 function TDynArray.Delete(aIndex: PtrInt): boolean;
 var
   n: PtrInt;
-  s, len: PtrUInt;
+  siz, tomove: PtrUInt;
   P: PAnsiChar;
   wassorted: boolean;
 begin
@@ -7414,19 +7283,19 @@ begin
   if PDACnt(PAnsiChar(fValue^) - _DACNT)^ > 1 then
     InternalSetLength(n, n); // unique
   dec(n);
-  s := fInfo.Cache.ItemSize;
-  P := PAnsiChar(fValue^) + PtrUInt(aIndex) * s;
+  siz := fInfo.Cache.ItemSize;
+  P := PAnsiChar(fValue^) + PtrUInt(aIndex) * siz;
   if (fInfo.ArrayRtti <> nil) and
      not fNoFinalize then
     fInfo.ArrayRtti.ValueFinalize(P); // also for T*ObjArray
-  len := n - aIndex;
-  if len <> 0 then
+  tomove := n - aIndex;
+  if tomove <> 0 then
   begin
-    len := len * s;
-    MoveFast(P[s], P[0], len);
-    inc(P, len);
+    tomove := tomove * siz;
+    MoveFast(P[siz], P[0], tomove);
+    inc(P, tomove);
   end;
-  FillCharFast(P^, s, 0);
+  FillCharFast(P^, siz, 0);
   wassorted := fSorted;
   SetCount(n); // won't reallocate
   fSorted := wassorted; // deletion won't change the order
@@ -7503,19 +7372,19 @@ function TDynArray.ItemMoveTo(index: PtrInt; Dest: pointer): boolean;
 var
   p: pointer;
 begin
+  result := false;
   p := ItemPtr(index);
   if (p = nil) or
      (Dest = nil) then
-  begin
-    result := false;
     exit;
-  end;
+  result := true;
+  if p = Dest then
+    exit;
   if (fInfo.ArrayRtti <> nil) and
      not fNoFinalize then
     fInfo.ArrayRtti.ValueFinalize(Dest); // also handle T*ObjArray
   MoveFast(p^, Dest^, fInfo.Cache.ItemSize);
   FillCharFast(p^, fInfo.Cache.ItemSize, 0);
-  result := true;
 end;
 
 procedure TDynArray.ItemCopyFrom(Source: pointer; index: PtrInt;
@@ -7524,12 +7393,12 @@ var
   p: pointer;
 begin
   p := ItemPtr(index);
-  if p <> nil then
-  begin
-    if ClearBeforeCopy then // safer if Source is a copy of p^
-      ItemClear(p);
-    ItemCopy(Source, p);
-  end;
+  if (p = nil) or
+     (p = Source) then
+    exit;
+  if ClearBeforeCopy then // safer if Source is a copy of p^
+    ItemClear(p);
+  ItemCopy(Source, p);
 end;
 
 {$ifdef CPU64}
@@ -7647,7 +7516,7 @@ begin
     if not (rcfArrayItemManaged in fInfo.Flags) then
       FillCharFast(fValue^^, n * fInfo.Cache.ItemSize, 0) // e.g. THash256
     else
-      FillZeroRtti(fInfo.Cache.ItemInfo, fValue^^);
+      FillZeroRtti(fInfo.Cache.ItemInfoRaw, fValue^^);
 end;
 
 procedure TDynArray.SaveTo(W: TBufferWriter);
@@ -8036,7 +7905,7 @@ var
 begin
   FindCount := 0;
   result := nil;
-  if not FastLocateSorted(Item, found) then
+  if not FastLocateSorted(Item, found) then // O(log(n)) locate a matching item
     exit;
   P := fValue^;
   limit := P;
@@ -8048,13 +7917,13 @@ begin
     inc(FindCount);
     dec(P, siz);
   until (P < limit) or
-        (fCompare(P^, fnd^) <> 0);
+        (fCompare(P^, fnd^) <> 0); // search all matches before located item
   inc(limit, GetCount * siz);
   P := fnd;
   repeat
     inc(P, siz);
     if (P >= limit) or
-       (fCompare(P^, fnd^) <> 0) then
+       (fCompare(P^, fnd^) <> 0) then // search after
       break;
     inc(FindCount);
   until false;
@@ -8095,7 +7964,7 @@ begin
         cmp := fCompare(Item, P[i * fInfo.Cache.ItemSize]);
         if cmp = 0 then
         begin
-          // returns true + index of existing Item
+          // returns true + index of (first found) existing Item
           Index := i;
           result := true;
           exit;
@@ -8167,10 +8036,7 @@ procedure QuickSortIndexedPUtf8Char(Values: PPUtf8CharArray; Count: integer;
 var
   QS: TDynArrayQuickSort;
 begin
-  if CaseSensitive then
-    QS.Compare := SortDynArrayPUtf8Char
-  else
-    QS.Compare := SortDynArrayPUtf8CharI;
+  QS.Compare := COMP_PUTF8CHAR[not CaseSensitive];
   QS.Value := pointer(Values);
   QS.ElemSize := SizeOf(PUtf8Char);
   SetLength(SortedIndexes, Count);
@@ -8233,9 +8099,8 @@ begin
           dec(J);
         end;
       until I > J;
-      if J - L < R - I then
+      if J - L < R - I then // use recursion only for smaller range
       begin
-        // use recursion only for smaller range
         if L < J then
           QuickSort(L, J);
         L := I;
@@ -8284,9 +8149,8 @@ begin
           dec(J);
         end;
       until I > J;
-      if J - L < R - I then
+      if J - L < R - I then // use recursion only for smaller range
       begin
-        // use recursion only for smaller range
         if L < J then
           QuickSortEvent(L, J);
         L := I;
@@ -8335,9 +8199,8 @@ begin
           dec(J);
         end;
       until I > J;
-      if J - L < R - I then
+      if J - L < R - I then // use recursion only for smaller range
       begin
-        // use recursion only for smaller range
         if L < J then
           QuickSortEventReverse(L, J);
         L := I;
@@ -8383,9 +8246,8 @@ begin
           dec(J);
         end;
       until I > J;
-      if J - L < R - I then
+      if J - L < R - I then // use recursion only for smaller range
       begin
-        // use recursion only for smaller range
         if L < J then
           QuickSortIndexed(L, J);
         L := I;
@@ -8433,9 +8295,8 @@ begin
           dec(J);
         end;
       until I > J;
-      if J - L < R - I then
+      if J - L < R - I then // use recursion only for smaller range
       begin
-        // use recursion only for smaller range
         if L < J then
           QuickSortPtr(L, J, Compare, V);
         L := I;
@@ -8452,15 +8313,15 @@ end;
 procedure TDynArray.SortRange(aStart, aStop: integer;
   aCompare: TDynArraySortCompare);
 var
-  QuickSort: TDynArrayQuickSort;
+  qs: TDynArrayQuickSort;
 begin
   if aStop <= aStart then
     exit; // nothing to sort
   if Assigned(aCompare) then
-    QuickSort.Compare := aCompare
+    qs.Compare := aCompare
   else
-    QuickSort.Compare := @fCompare;
-  if Assigned(QuickSort.Compare) and
+    qs.Compare := @fCompare;
+  if Assigned(qs.Compare) and
      (fValue <> nil) and
      (fValue^ <> nil) then
   begin
@@ -8468,31 +8329,31 @@ begin
       case fInfo.ArrayRtti.Parser of
         // call optimized sorting functions for most simple types
         ptWord:
-          if @QuickSort.Compare = @SortDynArrayWord then
+          if @qs.Compare = @SortDynArrayWord then
           begin
             QuickSortWord(fValue^, aStart, aStop);
             exit;
           end;
         ptInteger:
-          if @QuickSort.Compare = @SortDynArrayInteger then
+          if @qs.Compare = @SortDynArrayInteger then
           begin
             QuickSortInteger(fValue^, aStart, aStop);
             exit;
           end;
         ptInt64:
-          if @QuickSort.Compare = @SortDynArrayInt64 then
+          if @qs.Compare = @SortDynArrayInt64 then
           begin
             QuickSortInt64(fValue^, aStart, aStop);
             exit;
           end;
         ptQWord:
-          if @QuickSort.Compare = @SortDynArrayQWord then
+          if @qs.Compare = @SortDynArrayQWord then
           begin
             QuickSortQWord(fValue^, aStart, aStop);
             exit;
           end;
         ptDouble:
-          if @QuickSort.Compare = @SortDynArrayDouble then
+          if @qs.Compare = @SortDynArrayDouble then
           begin
             QuickSortDouble(fValue^, aStart, aStop);
             exit;
@@ -8500,13 +8361,13 @@ begin
       end;
     if fInfo.Cache.ItemSize = SizeOf(pointer) then
       // dedicated function for pointers - e.g. strings or T*ObjArray
-      QuickSortPtr(aStart, aStop, QuickSort.Compare, fValue^)
+      QuickSortPtr(aStart, aStop, qs.Compare, fValue^)
     else
     begin
       // generic process for any kind of array items
-      QuickSort.Value := fValue^;
-      QuickSort.ElemSize := fInfo.Cache.ItemSize;
-      QuickSort.QuickSort(aStart, aStop);
+      qs.Value := fValue^;
+      qs.ElemSize := fInfo.Cache.ItemSize;
+      qs.QuickSort(aStart, aStop);
     end;
   end;
 end;
@@ -8550,34 +8411,34 @@ end;
 
 procedure TDynArray.Sort(const aCompare: TOnDynArraySortCompare; aReverse: boolean);
 var
-  QuickSort: TDynArrayQuickSort;
+  qs: TDynArrayQuickSort;
   R: PtrInt;
 begin
   if (not Assigned(aCompare)) or
      (fValue = nil) or
      (fValue^ = nil) then
     exit; // nothing to sort
-  QuickSort.CompareEvent := aCompare;
-  QuickSort.Value := fValue^;
-  QuickSort.ElemSize := fInfo.Cache.ItemSize;
+  qs.CompareEvent := aCompare;
+  qs.Value := fValue^;
+  qs.ElemSize := fInfo.Cache.ItemSize;
   R := Count - 1;
   if aReverse then
-    QuickSort.QuickSortEventReverse(0, R)
+    qs.QuickSortEventReverse(0, R)
   else
-    QuickSort.QuickSortEvent(0, R);
+    qs.QuickSortEvent(0, R);
 end;
 
 procedure TDynArray.CreateOrderedIndex(var aIndex: TIntegerDynArray;
   aCompare: TDynArraySortCompare);
 var
-  QuickSort: TDynArrayQuickSort;
+  qs: TDynArrayQuickSort;
   n: integer;
 begin
   if Assigned(aCompare) then
-    QuickSort.Compare := aCompare
+    qs.Compare := aCompare
   else
-    QuickSort.Compare := @fCompare;
-  if Assigned(QuickSort.Compare) and
+    qs.Compare := @fCompare;
+  if Assigned(qs.Compare) and
      (fValue <> nil) and
      (fValue^ <> nil) then
   begin
@@ -8587,32 +8448,32 @@ begin
       SetLength(aIndex, n);
       FillIncreasing(pointer(aIndex), 0, n);
     end;
-    QuickSort.Value := fValue^;
-    QuickSort.ElemSize := fInfo.Cache.ItemSize;
-    QuickSort.Index := pointer(aIndex);
-    QuickSort.QuickSortIndexed(0, n - 1);
+    qs.Value := fValue^;
+    qs.ElemSize := fInfo.Cache.ItemSize;
+    qs.Index := pointer(aIndex);
+    qs.QuickSortIndexed(0, n - 1);
   end;
 end;
 
 procedure TDynArray.CreateOrderedIndex(out aIndex: TSynTempBuffer;
   aCompare: TDynArraySortCompare);
 var
-  QuickSort: TDynArrayQuickSort;
+  qs: TDynArrayQuickSort;
   n: integer;
 begin
   if Assigned(aCompare) then
-    QuickSort.Compare := aCompare
+    qs.Compare := aCompare
   else
-    QuickSort.Compare := @fCompare;
-  if Assigned(QuickSort.Compare) and
+    qs.Compare := @fCompare;
+  if Assigned(qs.Compare) and
      (fValue <> nil) and
      (fValue^ <> nil) then
   begin
     n := GetCount;
-    QuickSort.Value := fValue^;
-    QuickSort.ElemSize := fInfo.Cache.ItemSize;
-    QuickSort.Index := PCardinalArray(aIndex.InitIncreasing(n));
-    QuickSort.QuickSortIndexed(0, n - 1);
+    qs.Value := fValue^;
+    qs.ElemSize := fInfo.Cache.ItemSize;
+    qs.Index := PCardinalArray(aIndex.InitIncreasing(n));
+    qs.QuickSortIndexed(0, n - 1);
   end
   else
     aIndex.buf := nil; // avoid GPF in aIndex.Done
@@ -8646,17 +8507,17 @@ end;
 procedure TDynArray.AddDynArray(aSource: PDynArray;
   aStartIndex: integer; aCount: integer);
 var
-  SourceCount: integer;
+  n: integer;
 begin
   if (aSource <> nil) and
      (aSource^.fValue <> nil) and
-     (fInfo.Cache.ItemInfo = aSource^.Info.Cache.ItemInfo) then
+     (fInfo.Cache.ItemInfoRaw = aSource^.Info.Cache.ItemInfoRaw) then
   begin
     // check supplied aCount paramter with (external) Source.Count
-    SourceCount := aSource^.Count;
+    n := aSource^.Count;
     if (aCount < 0) or
-       (aCount > SourceCount) then
-      aCount := SourceCount;
+       (aCount > n) then
+      aCount := n;
     // actually add the items
     AddArray(aSource.fValue^, aStartIndex, aCount);
   end;
@@ -8677,7 +8538,7 @@ begin
   result := n - B.Count;
   if (result = 0) and
      (n <> 0) then
-    if fInfo.Cache.ItemInfo <> B.Info.Cache.ItemInfo then
+    if fInfo.Cache.ItemInfoRaw <> B.Info.Cache.ItemInfoRaw then
       result := ComparePointer(fValue^, B.fValue^)
     else if Assigned(fCompare) and
        not ignorecompare then
@@ -8702,14 +8563,14 @@ begin
       // binary comparison with length (always CaseSensitive)
       result := MemCmp(fValue^, B.fValue^, n * fInfo.Cache.ItemSize)
     else
-      result := BinaryCompare(fValue^, B.fValue^, fInfo.Cache.ItemInfo, n,
+      result := BinaryCompare(fValue^, B.fValue^, fInfo.Cache.ItemInfoRaw, n,
         not CaseSensitive);
 end;
 
 procedure TDynArray.Copy(Source: PDynArray; ObjArrayByRef: boolean);
 begin
   if (fValue = nil) or
-     (fInfo.Cache.ItemInfo <> Source.Info.Cache.ItemInfo) then
+     (fInfo.Cache.ItemInfoRaw <> Source.Info.Cache.ItemInfoRaw) then
     exit;
   if not ObjArrayByRef and
      (rcfObjArray in fInfo.Flags) then
@@ -8724,19 +8585,19 @@ end;
 
 procedure TDynArray.CopyFrom(const Source; MaxItem: integer; ObjArrayByRef: boolean);
 var
-  SourceDynArray: TDynArray;
+  src: TDynArray;
 begin
-  SourceDynArray.InitRtti(fInfo, pointer(@Source)^);
-  SourceDynArray.fCountP := @MaxItem; // would set Count=0 at Init()
-  Copy(@SourceDynArray, ObjArrayByRef);
+  src.InitRtti(fInfo, pointer(@Source)^);
+  src.fCountP := @MaxItem; // would set Count=0 at Init()
+  Copy(@src, ObjArrayByRef);
 end;
 
 procedure TDynArray.CopyTo(out Dest; ObjArrayByRef: boolean);
 var
-  DestDynArray: TDynArray;
+  dst: TDynArray;
 begin
-  DestDynArray.InitRtti(fInfo, Dest);
-  DestDynArray.Copy(@self, ObjArrayByRef);
+  dst.InitRtti(fInfo, Dest);
+  dst.Copy(@self, ObjArrayByRef);
 end;
 
 function IndexFind(P, V: PAnsiChar; cmp: TRttiCompare; rtti: PRttiInfo; n: integer): PtrInt;
@@ -8769,7 +8630,7 @@ begin
 bin:  result := AnyScanIndex(fValue^, @Item, n, fInfo.Cache.ItemSize)
     else
     begin
-      rtti := fInfo.Cache.ItemInfo;
+      rtti := fInfo.Cache.ItemInfoManaged;
       if rtti = nil then
         goto bin; // unmanaged items
       cmp := RTTI_COMPARE[CaseInSensitive, rtti.Kind];
@@ -8800,7 +8661,7 @@ end;
 procedure TDynArray.InternalSetLength(OldLength, NewLength: PtrUInt);
 var
   p: PDynArrayRec;
-  NeededSize, minLength: PtrUInt;
+  needed, siz: PtrUInt;
 begin
   // this method is faster than default System.DynArraySetLength() function
   p := fValue^;
@@ -8817,7 +8678,7 @@ begin
         if (OldLength <> 0) and
            not fNoFinalize then
           if rcfArrayItemManaged in fInfo.Flags then
-            FastFinalizeArray(fValue^, fInfo.Cache.ItemInfo, OldLength)
+            FastFinalizeArray(fValue^, fInfo.Cache.ItemInfoManaged, OldLength)
           else if rcfObjArray in fInfo.Flags then
             RawObjectsClear(fValue^, OldLength);
         FreeMem(p);
@@ -8827,9 +8688,9 @@ begin
     exit;
   end;
   // calculate the needed size of the resulting memory structure on heap
-  NeededSize := NewLength * PtrUInt(fInfo.Cache.ItemSize) + SizeOf(TDynArrayRec);
+  needed := NewLength * PtrUInt(fInfo.Cache.ItemSize) + SizeOf(TDynArrayRec);
   {$ifdef CPU32}
-  if NeededSize > 1 shl 30 then
+  if needed > 1 shl 30 then
     // in practice, consider that max workable memory block is 1 GB on 32-bit
     EDynArray.RaiseUtf8('TDynArray.InternalSetLength(%,%) size concern',
       [fInfo.Name, NewLength]);
@@ -8837,7 +8698,7 @@ begin
   // if not shared (refCnt=1), resize; if shared, create copy (not thread safe)
   if p = nil then
   begin
-    p := AllocMem(NeededSize); // RTL/OS will return zeroed memory
+    p := AllocMem(needed); // RTL/OS will return zeroed memory
     OldLength := NewLength;    // no FillcharFast() below
   end
   else
@@ -8850,36 +8711,36 @@ begin
          not fNoFinalize then
         // reduce array in-place
         if rcfArrayItemManaged in fInfo.Flags then // in trailing items
-          FastFinalizeArray(pointer(PAnsiChar(p) + NeededSize),
-            fInfo.Cache.ItemInfo, OldLength - NewLength)
+          FastFinalizeArray(pointer(PAnsiChar(p) + needed),
+            fInfo.Cache.ItemInfoManaged, OldLength - NewLength)
         else if rcfObjArray in fInfo.Flags then // FreeAndNil() of resized objects
-          RawObjectsClear(pointer(PAnsiChar(p) + NeededSize), OldLength - NewLength);
-      ReallocMem(p, NeededSize);
+          RawObjectsClear(pointer(PAnsiChar(p) + needed), OldLength - NewLength);
+      ReallocMem(p, needed);
     end
     else
     begin
       // dynamic array already referenced elsewhere -> create our own copy
-      minLength := OldLength;
-      if minLength > NewLength then
-        minLength := NewLength;
-      if fInfo.Cache.ItemInfo = nil then // unmanaged items
+      siz := OldLength;
+      if siz > NewLength then
+        siz := NewLength;
+      if fInfo.Cache.ItemInfoManaged = nil then // unmanaged items
       begin
-        GetMem(p, NeededSize);
+        GetMem(p, needed);
         MoveFast(fValue^^, PByteArray(p)[SizeOf(TDynArrayRec)],
-          minLength * PtrUInt(fInfo.Cache.ItemSize));
+          siz * PtrUInt(fInfo.Cache.ItemSize));
       end
       else
       begin
-        p := AllocMem(NeededSize);
+        p := AllocMem(needed);
         OldLength := NewLength;    // no FillcharFast() below
         CopySeveral(@PByteArray(p)[SizeOf(TDynArrayRec)], fValue^,
-          minLength, fInfo.Cache.ItemInfo, fInfo.Cache.ItemSize);
+          siz, fInfo.Cache.ItemInfoManaged, fInfo.Cache.ItemSize);
       end;
       // for thread safety, adjust the refcount after data copy
       if fNoFinalize then
         FastDynArrayClear(fValue, nil)
       else // note: rcfObjArray should never appear with refcnt>1
-        FastDynArrayClear(fValue, fInfo.Cache.ItemInfo);
+        FastDynArrayClear(fValue, fInfo.Cache.ItemInfoManaged);
     end;
   end;
   // set refCnt=1 and new length to the heap header
@@ -8893,9 +8754,9 @@ begin
   // reset new allocated items content to zero
   if NewLength > OldLength then
   begin
-    minLength := fInfo.Cache.ItemSize;
-    OldLength := OldLength * minLength;
-    FillCharFast(PAnsiChar(p)[OldLength], NewLength * minLength - OldLength, 0);
+    siz := fInfo.Cache.ItemSize;
+    OldLength := OldLength * siz;
+    FillCharFast(PAnsiChar(p)[OldLength], NewLength * siz - OldLength, 0);
   end;
 end;
 
@@ -8913,10 +8774,11 @@ begin
   arrayptr := PPtrInt(arrayptr)^;
   if extcount <> 0 then
   begin
-    // fCountP^ as external capacity
+    // fCountP^ as external length
     oldlen := PInteger(extcount)^;
     delta := aCount - oldlen;
-    if delta = 0 then
+    if (delta = 0) and
+       (aCount <> 0) then
       exit;
     PInteger(extcount)^ := aCount; // store new length
     if arrayptr <> 0 then
@@ -8991,6 +8853,11 @@ begin
   end;
 end;
 
+procedure TDynArray.SetNoFinalize(aValue: boolean);
+begin // need a method to avoid compilation error on Delphi
+  fNoFinalize := aValue;
+end;
+
 procedure TDynArray.Slice(var Dest; Limit, Offset: cardinal);
 var
   n: cardinal;
@@ -9011,7 +8878,7 @@ begin
   dst.SetCapacity(Limit);
   CopySeveral(pointer(Dest),
     @(PByteArray(fValue^)[Offset * cardinal(fInfo.Cache.ItemSize)]),
-    Limit, fInfo.Cache.ItemInfo, fInfo.Cache.ItemSize);
+    Limit, fInfo.Cache.ItemInfoManaged, fInfo.Cache.ItemSize);
 end;
 
 procedure TDynArray.SliceAsDynArray(Dest: PPointer; Offset, Limit: integer);
@@ -9019,8 +8886,8 @@ var
   p: PDynArrayRec;
   n: integer;
 begin
-  if dest^ <> nil then
-    FastDynArrayClear(dest, fInfo.Cache.ItemInfo); // reset Dest variable slot
+  if dest^ <> nil then // reset Dest variable slot
+    FastDynArrayClear(dest, fInfo.Cache.ItemInfoManaged);
   n := GetCount;
   if Offset < 0 then
   begin
@@ -9061,7 +8928,7 @@ function TDynArray.AddArray(const DynArrayVar; aStartIndex, aCount: integer): in
 var
   c, s: PtrInt;
   n: integer;
-  PS, PD: pointer;
+  ps, pd: pointer;
 begin
   result := 0;
   if fValue = nil then
@@ -9080,15 +8947,15 @@ begin
   n := GetCount;
   SetCount(n + aCount);
   s := fInfo.Cache.ItemSize;
-  PS := PAnsiChar(DynArrayVar) + aStartIndex * s;
-  PD := PAnsiChar(fValue^) + n * s;
-  CopySeveral(PD, PS, aCount, fInfo.Cache.ItemInfo, s);
+  ps := PAnsiChar(DynArrayVar) + aStartIndex * s;
+  pd := PAnsiChar(fValue^) + n * s;
+  CopySeveral(pd, ps, aCount, fInfo.Cache.ItemInfoManaged, s);
 end;
 
 function TDynArray.ItemLoadMem(Source, SourceMax: PAnsiChar): RawByteString;
 begin
   if (Source <> nil) and
-     (fInfo.Cache.ItemInfo = nil) then // unmanaged items
+     (fInfo.Cache.ItemInfoManaged = nil) then // unmanaged items
     FastSetRawByteString(result, Source, fInfo.Cache.ItemSize)
   else
   begin
@@ -9101,14 +8968,14 @@ end;
 procedure TDynArray.ItemLoad(Source, SourceMax: PAnsiChar; Item: pointer);
 begin
   if Source <> nil then // avoid GPF
-    if fInfo.Cache.ItemInfo = nil then
+    if fInfo.Cache.ItemInfoManaged = nil then
     begin
       if {$ifndef PUREMORMOT2} (SourceMax = nil) or {$endif}
          (Source + fInfo.Cache.ItemSize <= SourceMax) then
         MoveFast(Source^, Item^, fInfo.Cache.ItemSize);
     end
     else
-      BinaryLoad(Item, Source, fInfo.Cache.ItemInfo, nil, SourceMax, rkAllTypes);
+      BinaryLoad(Item, Source, fInfo.Cache.ItemInfoManaged, nil, SourceMax, rkAllTypes);
 end;
 
 procedure TDynArray.ItemLoadMemClear(var ItemTemp: RawByteString);
@@ -9119,10 +8986,10 @@ end;
 
 function TDynArray.ItemSave(Item: pointer): RawByteString;
 begin
-  if fInfo.Cache.ItemInfo = nil then
+  if fInfo.Cache.ItemInfoManaged = nil then
     FastSetRawByteString(result, Item, fInfo.Cache.ItemSize)
   else
-    result := BinarySave(Item, fInfo.Cache.ItemInfo, rkAllTypes);
+    result := BinarySave(Item, fInfo.Cache.ItemInfoManaged, rkAllTypes);
 end;
 
 function TDynArray.ItemLoadFind(Source, SourceMax: PAnsiChar): integer;
@@ -9134,12 +9001,12 @@ begin
   if (Source = nil) or
      (fInfo.Cache.ItemSize > SizeOf(tmp)) then
     exit;
-  if fInfo.Cache.ItemInfo = nil then // nil for unmanaged items
+  if fInfo.Cache.ItemInfoManaged = nil then // nil for unmanaged items
     data := Source
   else
   begin
     FillCharFast(tmp, fInfo.Cache.ItemSize, 0);
-    BinaryLoad(@tmp, Source, fInfo.Cache.ItemInfo, nil, SourceMax, rkAllTypes);
+    BinaryLoad(@tmp, Source, fInfo.Cache.ItemInfoManaged, nil, SourceMax, rkAllTypes);
     if Source = nil then
       exit;
     data := @tmp;
@@ -9162,7 +9029,7 @@ function HashAnsiString(Item: PAnsiChar; Hasher: THasher): cardinal;
 var
   l: PtrInt;
 begin
-  Item := PPointer(Item)^; // passed by reference
+  Item := PPointer(Item)^; // passed as non-nil PAnsiString reference
   if Item <> nil then
   begin
     l := PStrLen(Item - _STRLEN)^;
@@ -9179,9 +9046,9 @@ end;
 
 function HashAnsiStringI(Item: PUtf8Char; Hasher: THasher): cardinal;
 var
-  tmp: array[byte] of AnsiChar; // avoid any slow heap allocation
+  tmp: TByteToAnsiChar; // avoid any slow heap allocation
 begin
-  Item := PPointer(Item)^;
+  Item := PPointer(Item)^; // passed as non-nil PAnsiString reference
   if Item <> nil then
     result := Hasher(HashSeed, tmp{%H-},
       UpperCopy255Buf(tmp{%H-}, Item, PStrLen(Item - _STRLEN)^) - {%H-}tmp)
@@ -9189,19 +9056,20 @@ begin
     result := 0;
 end;
 
-function HashSynUnicode(Item: PSynUnicode; Hasher: THasher): cardinal;
+function HashSynUnicode(Item: PAnsiChar; Hasher: THasher): cardinal;
 var
   l: PtrInt;
 begin
-  if PtrUInt(Item^) <> 0 then
+  l := Length(PSynUnicode(Item)^) * 2; // binary length of content in bytes
+  if l <> 0 then
   begin
-    l := Length(Item^) * 2;
-    if l > 255 then // no need to hash too big a content
+    Item := PPointer(Item)^; // access to the UTF-16 content in bytes
+    if l > 256 then // no need to hash too big a content
     begin
-      Item := @PAnsiChar(Item)[l - 256]; // hash ending of string
+      Item := @Item[l - 256]; // hash ending of string
       l := 256;
     end;
-    result := Hasher(HashSeed, pointer(Item^), l)
+    result := Hasher(HashSeed, Item, l)
   end
   else
     result := 0;
@@ -9209,7 +9077,7 @@ end;
 
 function HashSynUnicodeI(Item: PSynUnicode; Hasher: THasher): cardinal;
 var
-  tmp: array[byte] of AnsiChar; // avoid slow heap allocation
+  tmp: TByteToAnsiChar; // avoid slow heap allocation
 begin
   if PtrUInt(Item^) <> 0 then
     result := Hasher(HashSeed, tmp{%H-}, UpperCopy255W(tmp{%H-}, Item^) - {%H-}tmp)
@@ -9228,7 +9096,7 @@ end;
 
 function HashWideStringI(Item: PWideString; Hasher: THasher): cardinal;
 var
-  tmp: array[byte] of AnsiChar; // avoid slow heap allocation
+  tmp: TByteToAnsiChar; // avoid slow heap allocation
 begin
   if PtrUInt(Item^) <> 0 then
     result := Hasher(HashSeed, tmp{%H-},
@@ -9239,7 +9107,7 @@ end;
 
 function HashPUtf8Char(Item: PAnsiChar; Hasher: THasher): cardinal;
 begin
-  Item := PPointer(Item)^; // passed by reference
+  Item := PPointer(Item)^; // passed as non-nil PPAnsiChar reference
   if Item <> nil then
     result := Hasher(HashSeed, Item, StrLen(Item))
   else
@@ -9248,9 +9116,9 @@ end;
 
 function HashPUtf8CharI(Item: PUtf8Char; Hasher: THasher): cardinal;
 var
-  tmp: array[byte] of AnsiChar; // avoid slow heap allocation
+  tmp: TByteToAnsiChar; // avoid slow heap allocation
 begin
-  Item := PPointer(Item)^;
+  Item := PPointer(Item)^; // passed as non-nil PPUtf8Char reference
   if Item <> nil then
     result := Hasher(HashSeed, tmp{%H-},
       UpperCopy255Buf(tmp{%H-}, Item, StrLen(Item)) - {%H-}tmp)
@@ -9301,7 +9169,7 @@ end;
 function VariantHash(const value: variant; CaseInsensitive: boolean;
   Hasher: THasher): cardinal;
 var
-  tmp: array[byte] of AnsiChar; // avoid heap allocation
+  tmp: TByteToAnsiChar; // avoid heap allocation
   vt: cardinal;
   S: TStream;
   W: TTextWriter;
@@ -9439,7 +9307,7 @@ const
     @HashAnsiStringI,        //  ptRawUtf8
     nil,                     //  ptRecord
     @HashInteger,            //  ptSingle
-    {$ifdef UNICODE} @HashSynUnicodeI {$else} @HashAnsiStringI {$endif}, //  ptString
+    {$ifdef UNICODE} @HashSynUnicodeI {$else} @HashAnsiStringI {$endif}, // ptString
     @HashSynUnicodeI,        //  ptSynUnicode
     @HashInt64,              //  ptDateTime
     @HashInt64,              //  ptDateTimeMS
@@ -9470,44 +9338,30 @@ begin
   result := PT_HASH[CaseInsensitive, Kind];
 end;
 
-function DynArrayHashSortType(info: TRttiCustom): TRttiParserType;
-  {$ifdef HASINLINE} inline; {$endif}
-var
-  size: integer;
-begin
-  result := info.ArrayFirstField;
-  if not (result in [ptNone, ptEnumeration, ptSet]) then
-    exit;
-  size := info.ArrayFirstFieldSize; // guess from (first field) item size
-  if size = 0 then
-  begin
-    size := info.Cache.Size;
-    info := info.ArrayRtti;
-    if info <> nil then
-      size := info.Cache.Size;
-  end;
-  result := ItemSizeToDynArrayKind(size);
-end;
-
 procedure TDynArrayHasher.Init(aDynArray: PDynArray; aHashItem: TDynArrayHashOne;
   const aEventHash: TOnDynArrayHashOne; aHasher: THasher;
   aCompare: TDynArraySortCompare; const aEventCompare: TOnDynArraySortCompare;
   aCaseInsensitive: boolean);
-var
-  pt: TRttiParserType;
 begin
   fDynArray := aDynArray;
-  pt := DynArrayHashSortType(aDynArray^.Info);
-  if not (Assigned(aHashItem) or
-          Assigned(aEventHash)) then
-    aHashItem := PT_HASH[aCaseInsensitive, pt];
   fHashItem := aHashItem;
   fEventHash := aEventHash;
-  if not (Assigned(aCompare) or
-          Assigned(aEventCompare)) then
-    aCompare := PT_SORT[aCaseInsensitive, pt];
+  if not (Assigned(fHashItem) or
+          Assigned(fEventHash)) then
+  begin
+    fHashItem := PT_HASH[aCaseInsensitive, fDynArray^.Info.ArrayFirstFieldSort];
+    if not Assigned(fHashItem) then // fallback to binary hash if not enough RTTI
+      fEventHash := fDynArray^.Info.ValueFullHash;
+  end;
   fCompare := aCompare;
   fEventCompare := aEventCompare;
+  if not (Assigned(fCompare) or
+          Assigned(fEventCompare)) then
+  begin
+    fCompare := PT_SORT[aCaseInsensitive, fDynArray^.Info.ArrayFirstFieldSort];
+    if not Assigned(fCompare) then // fallback
+      fEventCompare := fDynArray^.Info.ValueFullCompare;
+  end;
   HashTableInit(aHasher);
 end;
 
@@ -9516,11 +9370,15 @@ procedure TDynArrayHasher.InitSpecific(aDynArray: PDynArray;
 begin
   fDynArray := aDynArray;
   if aKind in [ptNone, ptEnumeration, ptSet] then
-    aKind := DynArrayHashSortType(fDynArray^.Info); // use RTTI if not enough
-  fHashItem := PT_HASH[aCaseInsensitive, aKind];
+    aKind := fDynArray^.Info.ArrayFirstFieldSort; // use RTTI if not enough
   fEventHash := nil;
-  fCompare := PT_SORT[aCaseInsensitive, aKind];
+  fHashItem := PT_HASH[aCaseInsensitive, aKind];
+  if not Assigned(fHashItem) then // fallback
+    fEventHash := fDynArray^.Info.ValueFullHash;
   fEventCompare := nil;
+  fCompare := PT_SORT[aCaseInsensitive, aKind];
+  if not Assigned(fCompare) then // fallback
+    fEventCompare := fDynArray^.Info.ValueFullCompare;
   HashTableInit(aHasher);
 end;
 
@@ -9556,7 +9414,7 @@ end;
 procedure TDynArrayHasher.SetEventCompare(const Value: TOnDynArraySortCompare);
 begin
   if fDynArray^.GetCount <> 0 then
-    raise EDynArray.Create('TDynArrayHasher: unexpected SetEventCompare');
+    raise EDynArray.Create('TDynArrayHasher: late SetEventCompare');
   fEventCompare := Value;
   HashTableInit(fHasher);
 end;
@@ -9564,7 +9422,7 @@ end;
 procedure TDynArrayHasher.SetEventHash(const Value: TOnDynArrayHashOne);
 begin
   if fDynArray^.GetCount <> 0 then
-    raise EDynArray.Create('TDynArrayHasher: unexpected SetEventHash');
+    raise EDynArray.Create('TDynArrayHasher: late SetEventHash');
   fEventHash := Value;
   HashTableInit(fHasher);
 end;
@@ -9651,16 +9509,19 @@ begin
     result := PIntegerArray(result)[aHashTableIndex];
 end;
 
+procedure TDynArrayHasher.RaiseNoHasher;
+begin
+  EDynArray.RaiseUtf8('TDynArrayHasher: % has no RTTI - use InitSpecific()',
+    [fDynArray^.Info.Name]);
+end;
+
 function TDynArrayHasher.Find(aHashCode: cardinal; aForAdd: boolean): PtrInt;
 var
   first, last, ndx, siz: PtrInt;
   P: PAnsiChar;
 begin
   if not (hasHasher in fState) then
-  begin
-    result := -1;
-    exit;
-  end;
+    RaiseNoHasher;
   result := HashTableIndex(aHashCode);
   first := result;
   last := fHashTableSize;
@@ -9691,7 +9552,7 @@ begin
         last := first;
       end;
   until false;
-  RaiseFatalCollision('Find', aHashCode);
+  result := RaiseFatalCollision('Find', aHashCode);
 end;
 
 function TDynArrayHasher.FindOrNew(aHashCode: cardinal; Item: pointer;
@@ -9704,10 +9565,7 @@ var
   P: PAnsiChar;
 begin
   if not (hasHasher in fState) then
-  begin
-    result := -1;
-    exit; // we need comparison and hash functions
-  end;
+    RaiseNoHasher;
   {$ifdef DYNARRAYHASHCOLLISIONCOUNT}
   collisions := 0;
   {$endif DYNARRAYHASHCOLLISIONCOUNT}
@@ -9755,39 +9613,66 @@ begin
         last := first;
       end;
   until false;
-  RaiseFatalCollision('FindOrNew', aHashCode);
+  result := RaiseFatalCollision('FindOrNew', aHashCode);
 end;
 
-function TDynArrayHasher.FindOrNewComp(aHashCode: cardinal; Item: pointer;
+function TDynArrayHasher.FindIndex(aHashCode: cardinal; Item: pointer;
   Comp: TDynArraySortCompare): PtrInt;
 var
   first, last, ndx: PtrInt;
 begin // cut-down version of FindOrNew()
-  if hasHasher in fState then
-  begin
-    if not Assigned(Comp) then
-      Comp := fCompare;
-    ndx := HashTableIndex(aHashCode);
-    first := ndx;
-    last := fHashTableSize;
-    repeat
-      result := HashTableIndexToIndex(ndx) - 1; // index+1 was stored
-      if (result < 0) or // void slot = not found, or return matching index
-         (Comp((PAnsiChar(fDynArray^.Value^) +
-           result * fDynArray^.fInfo.Cache.ItemSize)^, Item^) = 0) then
-        exit;
-      inc(ndx); // hash or slot collision -> search next item
-      if ndx = last then
-        if ndx = first then
-          break
-        else
-        begin
-          ndx := 0;
-          last := first;
-        end;
-    until false;
-  end;
-  result := RaiseFatalCollision('FindOrNewComp', aHashCode);
+  if not (hasHasher in fState) then
+    RaiseNoHasher;
+  if not Assigned(Comp) then
+    Comp := fCompare;
+  ndx := HashTableIndex(aHashCode);
+  first := ndx;
+  last := fHashTableSize;
+  repeat
+    result := HashTableIndexToIndex(ndx) - 1; // Index+1 was stored
+    if (result < 0) or // void slot = not found, or return matching index
+       (Comp((PAnsiChar(fDynArray^.Value^) +
+         result * fDynArray^.fInfo.Cache.ItemSize)^, Item^) = 0) then
+      exit;
+    inc(ndx); // hash or slot collision -> search next item
+    if ndx = last then
+      if ndx = first then
+        break
+      else
+      begin
+        ndx := 0;
+        last := first;
+      end;
+  until false;
+  result := RaiseFatalCollision('FindIndex', aHashCode);
+end;
+
+function TDynArrayHasher.FindHash(aHashCode: cardinal; Item: pointer): pointer;
+var
+  first, last, ndx, pos: PtrInt;
+begin // cut-down version of FindIndex()
+  ndx := HashTableIndex(aHashCode);
+  first := ndx;
+  last := fHashTableSize;
+  repeat
+    result := nil;
+    pos := HashTableIndexToIndex(ndx); // Index+1 was stored
+    if pos = 0 then // void slot = not found, or return matching index
+      exit;
+    result := PAnsiChar(fDynArray^.Value^) +
+              (pos - 1) * fDynArray^.fInfo.Cache.ItemSize;
+    if fCompare(result^, Item^) = 0 then
+      exit;
+    inc(ndx); // hash or slot collision -> search next item
+    if ndx = last then
+      if ndx = first then
+        RaiseFatalCollision('FindHash', aHashCode)
+      else
+      begin
+        ndx := 0;
+        last := first;
+      end;
+  until false;
 end;
 
 procedure TDynArrayHasher.HashAdd(aHashCode: cardinal; var result: PtrInt);
@@ -9884,18 +9769,15 @@ end;
 function TDynArrayHasher.FindBeforeAdd(Item: pointer; out wasAdded: boolean;
   aHashCode: cardinal): PtrInt;
 begin
+  if not (hasHasher in fState) then
+    RaiseNoHasher;
   wasAdded := false;
-  if hasHasher in fState then
-  begin
-    result := FindOrNew(aHashCode, Item, nil);
-    if result >= 0 then
-      exit;
-    // found no matching item
-    wasAdded := true;
-    HashAdd(aHashCode, result);
-  end
-  else
-    result := -1
+  result := FindOrNew(aHashCode, Item, nil);
+  if result >= 0 then
+    exit;
+  // found no matching item
+  wasAdded := true;
+  HashAdd(aHashCode, result);
 end;
 
 function TDynArrayHasher.FindBeforeDelete(Item: pointer): PtrInt;
@@ -9916,7 +9798,7 @@ begin
     result := -1;
 end;
 
-function TDynArrayHasher.RaiseFatalCollision(const caller: shortstring;
+function TDynArrayHasher.RaiseFatalCollision(const caller: ShortString;
   aHashCode: cardinal): integer;
 begin   // a dedicated sub-procedure reduces code size
   result := 0; // make compiler happy
@@ -10171,6 +10053,16 @@ begin
   InternalDynArray.SetCapacity(aCapacity);
 end;
 
+function TDynArrayHashed.GetNoFinalize: boolean;
+begin
+  result := InternalDynArray.NoFinalize;
+end;
+
+procedure TDynArrayHashed.SetNoFinalize(Value: boolean);
+begin
+  InternalDynArray.NoFinalize := Value;
+end;
+
 function TDynArrayHashed.Value: PPointer;
 begin
   result := InternalDynArray.fValue;
@@ -10335,31 +10227,28 @@ begin
     SetCount(result + 1); // reserve space for a void element in array
 end;
 
-function TDynArrayHashed.AddAndMakeUniqueName(aName: RawUtf8): pointer;
+function TDynArrayHashed.AddAndMakeUniqueName(const aName: RawUtf8): pointer;
 var
-  ndx: PtrInt;
-  j: PtrUInt;
+  ndx, j: PtrInt;
   added: boolean;
-  aName_: RawUtf8;
+  n: RawUtf8;
 begin
-  if aName = '' then
-    aName := '_';
-  ndx := FindHashedForAdding(aName, added);
-  if not added then
-  begin
-    // force unique column name
-    aName_ := aName + '_';
-    j := 1;
-    repeat
-      if j > high(SmallUInt32Utf8) then // should never happen - 999 is enough
-        raise EDynArray.Create('TDynArrayHashed.AddAndMakeUniqueName overflow');
-      aName := aName_ + SmallUInt32Utf8[j];
-      ndx := FindHashedForAdding(aName, added);
-      inc(j);
-    until added;
-  end;
+  n := aName;
+  if n = '' then
+    n := '_';
+  j := 0;
+  repeat
+    ndx := FindHashedForAdding(n, added);
+    if added then
+      break;
+    if j = 9999 then // never loop forever
+      EDynArray.RaiseUtf8(
+        'TDynArrayHashed.AddAndMakeUniqueName(%) overflow', [aName]);
+    inc(j);
+    Make([aName, '_', j], n); // try 'name_1', 'name_2', ... until genuine
+  until false;
   result := PAnsiChar(Value^) + ndx * Info.Cache.ItemSize;
-  PRawUtf8(result)^ := aName; // store unique name at 1st position
+  PRawUtf8(result)^ := n; // store unique name at 1st position
 end;
 
 function TDynArrayHashed.AddUniqueName(const aName: RawUtf8;
@@ -10938,15 +10827,39 @@ end;
 
 function MaxInteger(const Values: TIntegerDynArray; ValuesCount: PtrInt; MaxStart: integer): integer;
 var
-  i: PtrInt;
+  p: PInteger;
   v: integer;
 begin
   result := MaxStart;
-  for i := 0 to ValuesCount - 1 do
+  if ValuesCount > 0 then
   begin
-    v := Values[i];
-    if v > result then
-      result := v; // movca branchless opcode on FPC
+    p := pointer(Values);
+    repeat
+      v := p^;
+      if v > result then
+        result := v; // movca branchless opcode on FPC
+      inc(p);
+      dec(ValuesCount);
+    until ValuesCount = 0;
+  end;
+end;
+
+function MaxInt64(const Values: TInt64DynArray; ValuesCount: PtrInt; MaxStart: Int64): Int64;
+var
+  p: PInt64;
+  v: Int64;
+begin
+  result := MaxStart;
+  if ValuesCount > 0 then
+  begin
+    p := pointer(Values);
+    repeat
+      v := p^;
+      if v > result then
+        result := v; // movca branchless opcode on FPC
+      inc(p);
+      dec(ValuesCount);
+    until ValuesCount = 0;
   end;
 end;
 
@@ -11354,28 +11267,33 @@ begin
       exit; // the parameter is not in the expected format for Ctxt
   end;
   // if we reached here, the URI do match up to now
-  if (P^ = #0) or (P^ = '?') then
-  begin
-    if (P^ = '?') and (Ctxt <> nil) then
-      LookupParam(Ctxt, P, -1); // store the inlined parameters position in Ctxt
-    result := self; // exact match found for this entry (excluding URI params)
-    exit;
-  end;
-  ch := pointer(Child);
-  if ch = nil then
-    exit;
-  n := PDALen(PAnsiChar(ch) - _DALEN)^ + _DAOFF;
-  repeat
-    if (ch^.Names <> nil) or
-       (ch^.Chars[1] = t^[P^]) then // recursive call only if worth it
-    begin
-      result := ch^.Lookup(P, Ctxt);
-      if result <> nil then
-        exit; // match found in children
+  result := self;
+  case P^ of
+    #0:
+      ; // exact match found for this entry (without params)
+    '?':
+      if Ctxt <> nil then // store the inlined parameters position in Ctxt
+        LookupParam(Ctxt, P, -1);
+  else
+    begin // search remaining URI chars in children nodes
+      result := nil;
+      ch := pointer(Child);
+      if ch = nil then
+        exit;
+      n := PDALen(PAnsiChar(ch) - _DALEN)^ + _DAOFF;
+      repeat
+        if (ch^.Names <> nil) or
+           (ch^.Chars[1] = t^[P^]) then // recursive call only if worth it
+        begin
+          result := ch^.Lookup(P, Ctxt);
+          if result <> nil then
+            exit; // match found in children
+        end;
+        inc(ch);
+        dec(n);
+      until n = 0;
     end;
-    inc(ch);
-    dec(n);
-  until n = 0;
+  end;
 end;
 
 
@@ -11396,7 +11314,7 @@ begin
     // parse static..<param1>..static..<param2>..static into static/param nodes
     repeat
       GetNextItem(u, '<', item);
-      full := full + item;
+      Append(full, item);
       result := Insert(full) as TRadixTreeNodeParams; // static (Names = nil)
       if u = nil then
         break;
@@ -11420,7 +11338,7 @@ begin
         ERadixTree.RaiseUtf8('Duplicated <%> in %.Setup(''%'')',
           [item, self, aFromUri]);
       AddRawUtf8(aNames, item);
-      full := full + '<' + item + '>'; // avoid name collision with static
+      Append(full, ['<', item, '>']); // avoid name collision with static
       result := Insert(full) as TRadixTreeNodeParams; // param (Names <> nil)
       result.Names := copy(aNames); // each node has its own Names copy
       result.Flags := flags;
@@ -11441,114 +11359,86 @@ procedure InitializeUnit;
 var
   k: TRttiKind;
 begin
-  HashSeed := Random32; // to avoid hash flooding
   // initialize RTTI low-level comparison functions
-  RTTI_ORD_COMPARE[roSByte]  := @_BC_SByte;
-  RTTI_ORD_COMPARE[roUByte]  := @_BC_UByte;
-  RTTI_ORD_COMPARE[roSWord]  := @_BC_SWord;
-  RTTI_ORD_COMPARE[roUWord]  := @_BC_UWord;
-  RTTI_ORD_COMPARE[roSLong]  := @_BC_SLong;
-  RTTI_ORD_COMPARE[roULong]  := @_BC_ULong;
+  RTTI_ORD_COMPARE[roSByte]       := @_BC_SByte;
+  RTTI_ORD_COMPARE[roUByte]       := @_BC_UByte;
+  RTTI_ORD_COMPARE[roSWord]       := @_BC_SWord;
+  RTTI_ORD_COMPARE[roUWord]       := @_BC_UWord;
+  RTTI_ORD_COMPARE[roSLong]       := @_BC_SLong;
+  RTTI_ORD_COMPARE[roULong]       := @_BC_ULong;
   {$ifdef FPC_NEWRTTI}
-  RTTI_ORD_COMPARE[roSQWord] := @_BC_SQWord;
-  RTTI_ORD_COMPARE[roUQWord] := @_BC_UQWord;
+  RTTI_ORD_COMPARE[roSQWord]      := @_BC_SQWord;
+  RTTI_ORD_COMPARE[roUQWord]      := @_BC_UQWord;
   {$endif FPC_NEWRTTI}
-  RTTI_FLOAT_COMPARE[rfSingle]   := @_BC_Single;
-  RTTI_FLOAT_COMPARE[rfDouble]   := @_BC_Double;
-  RTTI_FLOAT_COMPARE[rfExtended] := @_BC_Extended;
-  RTTI_FLOAT_COMPARE[rfComp]     := @_BC_SQWord; // PInt64 is the best
-  RTTI_FLOAT_COMPARE[rfCurr]     := @_BC_SQWord;
+  RTTI_FLOAT_COMPARE[rfSingle]    := @_BC_Single;
+  RTTI_FLOAT_COMPARE[rfDouble]    := @_BC_Double;
+  RTTI_FLOAT_COMPARE[rfExtended]  := @_BC_Extended;
+  RTTI_FLOAT_COMPARE[rfComp]      := @_BC_SQWord; // PInt64 is the best
+  RTTI_FLOAT_COMPARE[rfCurr]      := @_BC_SQWord;
   // initialize RTTI binary persistence and high-level comparison functions
+  RTTI_BINARYSAVE[rkFloat]        := @_BS_Float;
+  RTTI_BINARYLOAD[rkFloat]        := @_BS_Float;
+  RTTI_COMPARE[false, rkFloat]    := @_BC_Float;
+  RTTI_COMPARE[true,  rkFloat]    := @_BC_Float;
+  RTTI_BINARYSAVE[rkLString]      := @_BS_String;
+  RTTI_BINARYLOAD[rkLString]      := @_BL_LString;
+  RTTI_COMPARE[false, rkLString]  := @_BC_LString;
+  RTTI_COMPARE[true,  rkLString]  := @_BCI_LString;
+  {$ifdef HASVARUSTRING}
+  RTTI_BINARYSAVE[rkUString]      := @_BS_UString;
+  RTTI_BINARYLOAD[rkUString]      := @_BL_UString;
+  RTTI_COMPARE[false, rkUString]  := @_BC_WString;
+  RTTI_COMPARE[true,  rkUString]  := @_BCI_WString;
+  {$endif HASVARUSTRING}
+  RTTI_BINARYSAVE[rkWString]      := @_BS_WString;
+  RTTI_BINARYLOAD[rkWString]      := @_BL_WString;
+  RTTI_COMPARE[false, rkWString]  := @_BC_WString;
+  RTTI_COMPARE[true,  rkWString]  := @_BCI_WString;
+  RTTI_BINARYSAVE[rkDynArray]     := @_BS_DynArray;
+  RTTI_BINARYLOAD[rkDynArray]     := @_BL_DynArray;
+  RTTI_COMPARE[false, rkDynArray] := @_BC_DynArray;
+  RTTI_COMPARE[true,  rkDynArray] := @_BCI_DynArray;
+  RTTI_BINARYSAVE[rkArray]        := @_BS_Array;
+  RTTI_BINARYLOAD[rkArray]        := @_BL_Array;
+  RTTI_COMPARE[false, rkArray]    := @_BC_Array;
+  RTTI_COMPARE[true,  rkArray]    := @_BCI_Array;
+  RTTI_BINARYSAVE[rkVariant]      := @_BS_Variant;
+  RTTI_BINARYLOAD[rkVariant]      := @_BL_Variant;
+  RTTI_COMPARE[false, rkVariant]  := @_BC_Variant;
+  RTTI_COMPARE[true,  rkVariant]  := @_BCI_Variant;
+  RTTI_COMPARE[false, rkClass]    := @_BC_Object;
+  RTTI_COMPARE[true,  rkClass]    := @_BCI_Object;
   for k := succ(low(k)) to high(k) do
+    if k in rkHasRttiOrdTypes then // true ordinal types
+    begin
+      RTTI_BINARYSAVE[k]     := @_BS_Ord;
+      RTTI_BINARYLOAD[k]     := @_BL_Ord;
+      RTTI_COMPARE[false, k] := @_BC_Ord;
+      RTTI_COMPARE[true,  k] := @_BC_Ord;
+    end
+    else
     case k of
-      rkInteger,
-      rkEnumeration,
-      rkSet,
-      rkChar,
-      rkWChar
-      {$ifdef FPC}, rkBool{$endif}:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_Ord;
-          RTTI_BINARYLOAD[k] := @_BL_Ord;
-          RTTI_COMPARE[false, k] := @_BC_Ord;
-          RTTI_COMPARE[true,  k] := @_BC_Ord;
-        end;
       {$ifdef FPC} rkQWord, {$endif}
       rkInt64:
         begin
-          RTTI_BINARYSAVE[k] := @_BS_64;
-          RTTI_BINARYLOAD[k] := @_BL_64;
+          RTTI_BINARYSAVE[k]     := @_BS_64;
+          RTTI_BINARYLOAD[k]     := @_BL_64;
           RTTI_COMPARE[false, k] := @_BC_64;
           RTTI_COMPARE[true,  k] := @_BC_64;
-        end;
-      rkFloat:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_Float;
-          RTTI_BINARYLOAD[k] := @_BS_Float;
-          RTTI_COMPARE[false, k] := @_BC_Float;
-          RTTI_COMPARE[true,  k] := @_BC_Float;
-        end;
-      rkLString:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_String;
-          RTTI_BINARYLOAD[k] := @_BL_LString;
-          RTTI_COMPARE[false, k] := @_BC_LString;
-          RTTI_COMPARE[true,  k] := @_BCI_LString;
-        end;
-      {$ifdef HASVARUSTRING}
-      rkUString:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_UString;
-          RTTI_BINARYLOAD[k] := @_BL_UString;
-          RTTI_COMPARE[false, k] := @_BC_WString;
-          RTTI_COMPARE[true,  k] := @_BCI_WString;
-        end;
-      {$endif HASVARUSTRING}
-      rkWString:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_WString;
-          RTTI_BINARYLOAD[k] := @_BL_WString;
-          RTTI_COMPARE[false, k] := @_BC_WString;
-          RTTI_COMPARE[true,  k] := @_BCI_WString;
         end;
       {$ifdef FPC}rkObject,{$else}{$ifdef UNICODE}rkMRecord,{$endif}{$endif}
       rkRecord:
         begin
-          RTTI_BINARYSAVE[k] := @_BS_Record;
-          RTTI_BINARYLOAD[k] := @_BL_Record;
+          RTTI_BINARYSAVE[k]     := @_BS_Record;
+          RTTI_BINARYLOAD[k]     := @_BL_Record;
           RTTI_COMPARE[false, k] := @_BC_Record;
           RTTI_COMPARE[true,  k] := @_BCI_Record;
-        end;
-      rkDynArray:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_DynArray;
-          RTTI_BINARYLOAD[k] := @_BL_DynArray;
-          RTTI_COMPARE[false, k] := @_BC_DynArray;
-          RTTI_COMPARE[true,  k] := @_BCI_DynArray;
-        end;
-      rkArray:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_Array;
-          RTTI_BINARYLOAD[k] := @_BL_Array;
-          RTTI_COMPARE[false, k] := @_BC_Array;
-          RTTI_COMPARE[true,  k] := @_BCI_Array;
-        end;
-      rkVariant:
-        begin
-          RTTI_BINARYSAVE[k] := @_BS_Variant;
-          RTTI_BINARYLOAD[k] := @_BL_Variant;
-          RTTI_COMPARE[false, k] := @_BC_Variant;
-          RTTI_COMPARE[true,  k] := @_BCI_Variant;
-        end;
-      rkClass:
-        begin
-          RTTI_COMPARE[false, k] := @_BC_Object;
-          RTTI_COMPARE[true,  k] := @_BCI_Object;
         end;
         // unsupported types will contain nil
     end;
   // setup internal function wrappers
   GetDataFromJson := _GetDataFromJson;
+  HashSeed := Random32Not0; // random at startup, to avoid hash flooding
 end;
 
 

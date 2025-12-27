@@ -6,7 +6,7 @@ unit mormot.db.raw.sqlite3.static;
 {
   *****************************************************************************
 
-    Statically linked SQLite3 3.44.2 engine with optional AES encryption
+    Statically linked SQLite3 3.46.1 engine with optional AES encryption
     - TSqlite3LibraryStatic Implementation
     - Encryption-Related Functions
 
@@ -15,7 +15,7 @@ unit mormot.db.raw.sqlite3.static;
     ensure you downloaded latest https://synopse.info/files/mormot2static.7z
     or https://synopse.info/files/mormot2static.tgz
       If the platform is not supported yet, fallback loading a system library.
-      To patch and compile the official SQlite3 amalgamation file, follow the
+      To patch and compile the official SQLite3 amalgamation file, follow the
     instruction from the res/static/sqlite3 folder.
 
   *****************************************************************************
@@ -83,9 +83,9 @@ type
     constructor Create; override;
     /// unload the static library
     destructor Destroy; override;
-    /// calls ForceToUseSharedMemoryManager after SQlite3 is loaded
+    /// calls ForceToUseSharedMemoryManager after SQLite3 is loaded
     procedure BeforeInitialization; override;
-    /// validates EXPECTED_SQLITE3_VERSION after SQlite3 is initialized
+    /// validates EXPECTED_SQLITE3_VERSION after SQLite3 is initialized
     procedure AfterInitialization; override;
   end;
 
@@ -94,15 +94,15 @@ const
   /// the exact version expected by the current state of this unit
   // - an error message is generated via DisplayFatalError() if the statically
   // linked sqlite3.o(bj) does not match this expected value
-  EXPECTED_SQLITE3_VERSION = '3.44.2';
+  EXPECTED_SQLITE3_VERSION = '3.46.1';
 
   /// the github release tag associated with this EXPECTED_SQLITE3_VERSION
   // - to be used if you don't want the latest version of sqlite3, but the very
   // same binaries expected by this unit, in one of its previous version
   // - you could download the static for this exact mORMot source revision e.g. as
-  // https://github.com/synopse/mORMot2/releases/download/2.2.stable/mormot2static.7z
-  // https://github.com/synopse/mORMot2/releases/download/2.2.stable/mormot2static.tgz
-  EXPECTED_RELEASE_TAG = '2.2.stable';
+  // https://github.com/synopse/mORMot2/releases/download/2.3.stable/mormot2static.7z
+  // https://github.com/synopse/mORMot2/releases/download/2.3.stable/mormot2static.tgz
+  EXPECTED_RELEASE_TAG = '2.3.stable';
 
   /// where to download the latest available static binaries, including SQLite3
   {$ifdef OSWINDOWS}
@@ -123,7 +123,7 @@ const
 // - password will use AES-128 (see ForceSQLite3AesCtr) after PBKDF2 SHAKE_128
 // with rounds=1000 or a JSON (extended) serialized TSynSignerParams object like
 // ${algo:"saSha512",secret:"StrongPassword",salt:"FixedSalt",rounds:10000}
-// - please note that this encryption is compatible only with SQlite3 files made
+// - please note that this encryption is compatible only with SQLite3 files made
 // with this mormot.db.raw.sqlite3.static unit (not external/official/wxsqlite3 dll)
 // - implementation is NOT compatible with the official SQLite Encryption Extension
 // (SEE) file format, not the wxsqlite3 extension, but is (much) faster thanks
@@ -184,11 +184,15 @@ uses
 {$ifdef FPC}  // FPC expects .o linking
 
   {$ifdef OSWINDOWS}
-    {$ifdef CPU64}
-      {$L ..\..\static\x86_64-win64\sqlite3.o}
+    {$ifdef CPUINTEL}
+      {$ifdef CPU64}
+        {$L ..\..\static\x86_64-win64\sqlite3.o}
+      {$else}
+        {$L ..\..\static\i386-win32\sqlite3.o}
+      {$endif CPU64}
     {$else}
-      {$L ..\..\static\i386-win32\sqlite3.o}
-    {$endif CPU64}
+      'unsupported yet'
+    {$endif CPUINTEL}
   {$endif OSWINDOWS}
 
   {$ifdef OSDARWIN}
@@ -272,7 +276,7 @@ uses
 // - FPC will use explicit public name exports from mormot.lib.static
 // but Delphi requires the exports to be defined in this very same unit
 
-function malloc(size: cardinal): pointer; cdecl;
+function malloc(size: PtrInt): pointer; cdecl;
 begin
   GetMem(result, size);
 end;
@@ -282,7 +286,7 @@ begin
   FreeMem(P);
 end;
 
-function realloc(P: pointer; Size: integer): pointer; cdecl;
+function realloc(P: pointer; Size: PtrInt): pointer; cdecl;
 begin
   ReallocMem(P, Size);
   result := P;
@@ -381,7 +385,34 @@ begin
   result := abs(x);
 end;
 
+function strchr(p: PAnsiChar; chr: AnsiChar): PAnsiChar; cdecl;
+begin // needed since 3.46.1
+  result := nil;
+  if p <> nil then
+    while p^ <> chr do
+      if p^ = #0 then
+        exit // not found
+      else
+        inc(p);
+  result := p;
+end;
+
 {$endif CPU32}
+
+function memchr(p: pointer; chr: byte; n: PtrInt): PAnsiChar; cdecl;
+var
+  i: PtrInt;
+begin // needed since 3.46.1
+  result := p;
+  if p = nil then
+    exit;
+  i := ByteScanIndex(p, n, chr); // use SSE2
+  if i >= 0 then
+    inc(result, i)
+  else
+    result := nil; // not found
+end;
+
 
 {$endif OSWINDOWS}
 
@@ -445,12 +476,12 @@ begin
     end;
 end;
 
-function memcmp(p1, p2: pByte; Size: integer): integer; cdecl;
+function memcmp(p1, p2: pByte; Size: PtrInt): integer; cdecl;
 begin
   result := libc_memcmp(p1, p2, Size);
 end;
 
-function strncmp(p1, p2: PByte; Size: integer): integer; cdecl;  
+function strncmp(p1, p2: PByte; Size: PtrInt): integer; cdecl;
 begin
   result := libc_strncmp(p1, p2, Size);
 end;
@@ -466,7 +497,7 @@ var
   { as standard C library documentation states:
   Statically allocated buffer, shared by the functions gmtime() and localtime().
   Each call of these functions overwrites the content of this structure.
-  -> this buffer is shared, but SQlite3 will protect it with a mutex :) }
+  -> this buffer is shared, but SQLite3 will protect it with a mutex :) }
   atm: time_t;
 
 function localtime(t: PCardinal): pointer; cdecl;
@@ -521,7 +552,7 @@ var
 { ************ Encryption-Related Functions }
 
 {
- Our SQlite3 static files includes a SQLite3MultipleCiphers VFS for encryption.
+ Our SQLite3 static files includes a SQLite3MultipleCiphers VFS for encryption.
  See https://github.com/synopse/mORMot2/tree/master/res/static/libsqlite3
  The SQLite3 source is not patched to implement the VFS itself (it is not
  mandatory), but is patched to add some key-related high-level features - see
@@ -549,6 +580,8 @@ var
 
 const
   CODEC_PBKDF2_SALT = 'J6CuDftfPr22FnYn';
+  // statically allocated TAes in lib/static/libsqlite3/sqlite3mc.c
+  KEYLENGTH = 300;
 
 procedure CodecGenerateKey(var aes: TAes;
   userPassword: pointer; passwordLength: integer);
@@ -556,6 +589,8 @@ var
   s: TSynSigner;
   k: THash512Rec;
 begin
+  if SizeOf(TAes) > KEYLENGTH then
+    ESqlite3Exception.RaiseUtf8('CodecGenerateKey: TAes=%', [SizeOf(TAes)]);
   // userPassword may be TSynSignerParams JSON content
   s.Pbkdf2(userPassword, passwordLength, k, CODEC_PBKDF2_SALT);
   s.AssignTo(k, aes, {encrypt=}true);
@@ -746,21 +781,14 @@ end;
 
 function IsOldSqlEncryptTable(const FileName: TFileName): boolean;
 var
-  F: THandle;
   hdr: array[0..2047] of byte;
 begin
-  result := false;
-  F := FileOpen(FileName, fmOpenReadShared);
-  if not ValidHandle(F) then
-    exit;
-  if (FileRead(F, hdr, SizeOf(hdr)) = SizeOf(hdr)) and
+  result := BufferFromFile(FileName, @hdr, SizeOf(hdr)) and
+     IsEqual(PHash128(@hdr)^, SQLITE_FILE_HEADER128.b) and
      // see https://www.sqlite.org/fileformat.html (4 in bigendian = 1024 bytes)
      (PWord(@hdr[16])^ = 4) and
-     IsEqual(PHash128(@hdr)^, SQLITE_FILE_HEADER128.b) then
-    if not (hdr[1024] in [5, 10, 13]) then
-      // B-tree leaf Type to be either 5 (interior) 10 (index) or 13 (table)
-      result := true;
-  FileClose(F);
+     // B-tree leaf Type to be either 5 (interior) 10 (index) or 13 (table)
+     not (hdr[1024] in [5, 10, 13]);
 end;
 
 const

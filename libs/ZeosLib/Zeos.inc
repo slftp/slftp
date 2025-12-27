@@ -246,6 +246,7 @@
               {$IF CompilerVersion >= 21} //Delphi 2010+
                 {$WEAKLINKRTTI ON}                    //suppress extended RTTI
                 {.$RTTI EXPLICIT METHODS([]) PROPERTIES([]) FIELDS([])} //suppress extended RTTI for some unknown reason we've compilation issues. So enable this define manually!
+                {$DEFINE WITH_RECORD_METHODS}         //compiler support methods in records
                 {$DEFINE WITH_TSQLTimeStampOffset}    //The TSQLTimeStampOffset is declared in SqlTimSt.pas
                 {$DEFINE WITH_DEPRECATED_MESSAGE}     //Compiler supports deprecated messages
                 {$UNDEF WITH_INLINE_ANSICOMPARETEXT}  // AnsiCompareText is no more inline declared
@@ -393,10 +394,11 @@
                                           {$UNDEF WITH_TMEMOFIELD_GETASVARIANT_varNULL_BUG} //The bug is resolved.
                                           {$DEFINE USE_SYNCOBJS_FOR_INLINING} //Add SyncObjs unit to the uses list to resolve a warning about inlining
                                           {$IF CompilerVersion >= 35} //Delphi 11 Alexandria
-										    {$DEFINE TCERTIFICATE_HAS_PUBLICKEY}
+                                            {$DEFINE TCERTIFICATE_HAS_PUBLICKEY}
                                             {$DEFINE MEMORYSTREAM_REALLOC_NATIVEINT} // TMemoryStream.Realloc uses NativeInt instead of Longint
                                             {$IF CompilerVersion >= 36} //Delphi 12 Athens
                                               {$DEFINE NATIVEINT_WEAK_REFERENCE} // TMemoryStream.Realloc uses NativeInt instead of Longint
+                                              {$UNDEF MISS_MATH_NATIVEUINT_MIN_MAX_OVERLOAD}
                                             {$IFEND CompilerVersion >= 36} // Delphi 12 Athens
                                           {$IFEND CompilerVersion >= 35} // Delphi 11 Alexandria
                                         {$IFEND CompilerVersion >= 34}
@@ -594,7 +596,7 @@
 {$IFNDEF ZEOS_DISABLE_PROXY}
   {$IF DEFINED(HAVE_UNICODESTRING) AND ((NOT DEFINED(FPC)) OR (DEFINED(WINDOWS)))}
     {$DEFINE ENABLE_PROXY}
-    {$IF NOT DEFINED(FPC) AND DEFINED(ZEOS_PROXY_USE_INTERNAL_PROXY)}
+    {$IF NOT DEFINED(FPC) AND DEFINED(ZEOS_PROXY_USE_INTERNAL_PROXY) AND (CompilerVersion >= 22)} //Delphi XE+
        {$DEFINE ENABLE_INTERNAL_PROXY}
     {$IFEND}
   {$IFEND}

@@ -7,6 +7,8 @@ uses Classes;
 type
   // this is all or part of the job
   TTask = class
+  private
+    FIsNotifyTask: Boolean;
   public
     site1: String;
     ssite1: Pointer;
@@ -35,8 +37,6 @@ type
     uid: UInt64;
     time: TDateTime; //< some time value
 
-    dependencies: TStringList;
-
     wanted_up: Boolean;
     wanted_dn: Boolean;
 
@@ -44,7 +44,6 @@ type
 
     constructor Create(const netname, channel, site1: String); overload;
     constructor Create(const netname, channel, site1, site2: String); overload;
-    destructor Destroy; override;
 
     function Execute(slot: Pointer): Boolean; virtual; abstract;
 
@@ -53,19 +52,30 @@ type
     function Fullname: String; virtual;
     function UidText: String;
     function ScheduleText: String;
+    function IsReadyToBeExecuted: boolean; virtual;
     procedure DebugTask;
+    procedure EnableNotify;
+    property IsNotifyTask: Boolean read FIsNotifyTask;
   end;
 
 procedure Tasks_Init;
 procedure Tasks_Uninit;
-function FindTaskByUidText(const uidtext: String): TTask;
 
 const
   MaxNumberErrors = 3;
 
+var
+  GlConvertFilenamesToLowercase: boolean;
+  GlTaskSiteNfoReaddAttempts: integer;
+  GlTaskSiteNfoReaddInterval: integer;
+  GlTaskPretimeReaddAttempts: integer;
+  GlTaskPretimeReaddInterval: integer;
+  GlTaskRaceAutoRuleAdd: boolean;
+  GlTaskRaceBadCrcEvents: integer;
+
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify;
 
 const
   section = 'tasks';
@@ -102,7 +112,7 @@ begin
   announce := '';
   slot1name := '';
   slot2name := '';
-  dependencies := TStringList.Create;
+  FIsNotifyTask := False;
 
   ssite1 := FindSiteByName('', site1);
   if ssite1 = nil then
@@ -124,12 +134,6 @@ begin
   end;
 end;
 
-destructor TTask.Destroy;
-begin
-  dependencies.Free;
-  inherited;
-end;
-
 procedure TTask.DebugTask;
 begin
   Debug(dpSpam, section, '%s', [Fullname]);
@@ -138,7 +142,7 @@ end;
 function TTask.Fullname: String;
 begin
   try
-    Result := Format('#%d (%s): %s [%d] [%s]', [uid, site1, name, TryToAssign, dependencies.DelimitedText]);
+    Result := Format('#%d (%s): %s [%d] [%d]', [uid, site1, name, TryToAssign, Ord(IsReadyToBeExecuted)]);
   except
     Result := 'TTask';
   end;
@@ -156,9 +160,27 @@ begin
   Result := '#' + IntToStr(uid);
 end;
 
+
+function TTask.IsReadyToBeExecuted: boolean;
+begin
+  Result := True;
+end;
+
+procedure TTask.EnableNotify;
+begin
+  FIsNotifyTask := True;
+end;
+
 procedure Tasks_Init;
 begin
   uid_lock := TCriticalSection.Create;
+  GlConvertFilenamesToLowercase := config.ReadBool('taskrace', 'convert_filenames_to_lowercase', True);
+  GlTaskSiteNfoReaddAttempts := config.ReadInteger('tasksitenfo', 'readd_attempts', 5);
+  GlTaskSiteNfoReaddInterval := config.ReadInteger('tasksitenfo', 'readd_interval', 3);
+  GlTaskPretimeReaddAttempts := config.ReadInteger('taskpretime', 'readd_attempts', 5);
+  GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
+  GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
+  GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
 end;
 
 procedure Tasks_Uninit;
@@ -166,30 +188,6 @@ begin
   Debug(dpSpam, section, 'Uninit1');
   uid_lock.Free;
   Debug(dpSpam, section, 'Uninit2');
-end;
-
-function FindTaskByUidText(const uidtext: String): TTask;
-var
-  i: Integer;
-begin
-  Result := nil;
-
-  for i := tasks.Count - 1 downto 0 do
-  begin
-    try
-      if ((TTask(tasks[i]).UidText = uidtext) and (not TTask(tasks[i]).ready) and (not TTask(tasks[i]).readyerror)) then
-      begin
-        Result := TTask(tasks[i]);
-        break;
-      end;
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] FindTaskByUidText: %s', [e.Message]));
-        Result := nil;
-      end;
-    end;
-  end;
 end;
 
 end.
