@@ -9,7 +9,7 @@ uses
       baseunix,
     {$ENDIF}
   {$ENDIF}
-  mslproxys, slstack, debugunit, slssl, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_err;
+  mslproxys, slstack, debugunit, slssl, mormot.lib.openssl11, mormot.core.os;
 
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
@@ -139,10 +139,7 @@ var
 
 implementation
 
-uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc;
-
-
-var sltcp_lock: TCriticalSection;
+uses SysUtils, slhelper, Math, DateUtils, mainthread, globals, irc, mormot.core.base, slcriticalsection2;
 
 
 procedure sltcp_Init;
@@ -154,7 +151,6 @@ begin
   if not PopulateLocalAddresses(sltcp_LocalAddresses, sltcp_error) then
     exit;
 
-  sltcp_lock := TCriticalSection.Create;
   sltcp_inited := True;
 
   slDefaultSocks5 := TslSocks5.Create;
@@ -171,7 +167,6 @@ begin
     slStackUninit;
 
   sltcp_LocalAddresses.Free;
-  sltcp_lock.Free;
   slDefaultSocks5.Free;
 
   sltcp_inited := False;
@@ -217,8 +212,8 @@ end;
   fSSLCTX := GetOpenSSLConnectionContext;
 
   socks5:= TslSocks5.Create;
-  socks5.username:= sok5.username;
-  socks5.password:= sok5.password;
+  socks5.username:= RawByteString(sok5.username);
+  socks5.password:= RawByteString(sok5.password);
   socks5.host:= sok5.host;
   socks5.port:= sok5.port;
   socks5.enabled:= ((sok5.enabled) and (sok5.host <> ''));
@@ -339,35 +334,30 @@ end;
 function TslTCPSocket.GetSocket(udp: Boolean = False; lReuse: Boolean= False): Boolean;
 begin
   Result:= False;
-  sltcp_lock.Enter;
-  try
-    // kell kerni egy uj socketet
-    // Obtain a new socket
-    if not slGetSocket(slSocket, udp, error) then
+
+  // kell kerni egy uj socketet
+  // Obtain a new socket
+  if not slGetSocket(slSocket, udp, error) then
+  begin
+    Disconnect;
+    exit;
+  end;
+
+  if(lReuse)then
+    reuse(1);
+
+
+  // kell bindelni
+  //be ?bindelni?
+  if ((fBindIp <> '') or (fBindPort <> 0)) then
+  begin
+    if not slBind(slSocket, fBindIp, fBindPort, error) then
     begin
       Disconnect;
       exit;
     end;
-
-    if(lReuse)then
-      reuse(1);
-
-
-    // kell bindelni
-    //be ?bindelni?
-    if ((fBindIp <> '') or (fBindPort <> 0)) then
-    begin
-      if not slBind(slSocket, fBindIp, fBindPort, error) then
-      begin
-        Disconnect;
-        exit;
-      end;
-    end;
-    Result:= True;
-  finally
-    sltcp_lock.Leave;
-
   end;
+  Result:= True;
 end;
 
 function TslTCPSocket.ConnectB(host: String; port: Integer; timeout: Integer; udp: Boolean): Boolean;
@@ -509,7 +499,7 @@ begin
                          //               IP V6 address: X'04'    {Do not Localize}
   // host name
   if 0 = System.Pos('.', Host) then begin
-    Host := slConvertIp(Host);
+    Host := RawByteString(slConvertIp(Host));
   end;
 
   tempBuffer[4] := AnsiChar(Chr(Length(Host)));
@@ -543,7 +533,7 @@ begin
 
   if error <> '' then exit;
 
-  socksextra:= Copy(s, 11, Length(s)-11);
+  socksextra:= RawByteString(Copy(s, 11, Length(s)-11));
 
   Result:= True;
 end;
@@ -601,9 +591,11 @@ function TslTCPSocket.TurnToSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTi
 var er: String;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
+    fErrorMessage: RawUtf8;
 begin
   shouldquit:= False;
   Result:= False;
+  sslerr := 0; // Initialize to prevent uninitialized variable warning
   try
     setlength(er, 512);
 
@@ -622,18 +614,14 @@ begin
     if not slSetNonblocking(slSocket, error) then exit;
 
 
-    sltcp_lock.Enter;
-    try
-      fSSL:= nil;
-      fssl:= SSL_new(sslctx);
-    finally
-      sltcp_lock.Leave;
-    end;
+    fSSL:= nil;
+    fssl:= SSL_new(sslctx);
 
     if (fSSL = nil) then
     begin
-      ERR_error_string(ERR_get_error(), @er[1]);
-      er:= AnsiString(PAnsiChar(er));
+      err := ERR_get_error();
+      OpenSSL_error(err, fErrorMessage);
+      er := UTF8ToString(fErrorMessage);
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
@@ -651,10 +639,8 @@ begin
     begin
       if i* 100 > timeout then
       begin
-        error:= 'timeout';
-        ERR_error_string(ERR_get_error(), @er[1]);
-        er:= AnsiString(PAnsiChar(er));
-        error:= 'ssl failed '+er;
+        er:= GetLastSSLError(fSSL, sslerr);
+        error:= 'timeout, ssl failed '+ er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
         exit;
@@ -685,8 +671,7 @@ begin
       end
       else
       begin
-        ERR_error_string(ERR_get_error(), @er[1]);
-        er:= AnsiString(PAnsiChar(er));
+        er:= GetLastSSLError(fSSL, sslerr);
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
@@ -713,9 +698,11 @@ function TslTCPSocket.AcceptSSL(sslctx: PSSL_CTX; timeout: Integer = slDefaultTi
 var er: String;
     sslerr, err, i: Integer;
     shouldquit: Boolean;
+    fErrorMessage: RawUtf8;
 begin
   shouldquit:= False;
   Result:= False;
+  sslerr := 0; // Initialize to prevent uninitialized variable warning
   try
     setlength(er, 512);
 
@@ -734,17 +721,13 @@ begin
     if not slSetNonblocking(slSocket, error) then exit;
 
 
-    sltcp_lock.Enter;
-    try
-      fssl:= SSL_new(sslctx);
-    finally
-      sltcp_lock.Leave;
-    end;
+    fssl:= SSL_new(sslctx);
 
     if (fSSL = nil) then
     begin
-      ERR_error_string(ERR_get_error(), @er[1]);
-      er:= AnsiString(PAnsiChar(er));
+      err := ERR_get_error();
+      OpenSSL_error(err, fErrorMessage);
+      er := UTF8ToString(fErrorMessage);
       error:= 'Cant create new ssl: '+er;
       exit;
     end;
@@ -762,10 +745,8 @@ begin
     begin
       if i* 100 > timeout then
       begin
-        error:= 'timeout';
-        ERR_error_string(ERR_get_error(), @er[1]);
-        er:= AnsiString(PAnsiChar(er));
-        error:= 'ssl failed '+er;
+        er:= GetLastSSLError(fSSL, sslerr);
+        error:= 'timeout, ssl failed '+ er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
         exit;
@@ -796,8 +777,7 @@ begin
       end
       else
       begin
-        ERR_error_string(ERR_get_error(), @er[1]);
-        er:= AnsiString(PAnsiChar(er));
+        er:= GetLastSSLError(fSSL, sslerr);
         error:= 'ssl failed '+er;
         DisconnectSSL;
         slSetBlocking(slSocket,er);
@@ -962,7 +942,7 @@ end;
 function TslTCPSocket.WriteLn(s: String; timeout: Integer = slDefaultTimeout): Boolean;
 begin
   try
-    Result:= Write(s+slEOL, timeout);
+    Result:= Write(RawByteString(s+slEOL), timeout);
   except
     on e: Exception do
     begin
@@ -1243,11 +1223,7 @@ end;
 
 procedure TslTCPThread.Start;
 begin
-  {$IFDEF MSWINDOWS}
-    connectionThread.Resume;
-  {$ELSE}
     connectionThread.Start;
-  {$ENDIF}
 end;
 
 procedure TslTCPThread.Stop;

@@ -2,6 +2,28 @@ unit dirlist.helpers;
 
 interface
 
+uses Generics.Collections;
+
+type
+  { @abstract(Information for a specific file which is parsed from a TDirlist) }
+  {fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename}
+  TParsedDirListEntry = class
+    private
+      fFilename: String; //< lowercased filename
+      fUsername: String; //< name of user who sent this file
+      fGroupname: String; //< name of group the @link(FUsername) is associated with
+      fDirMask: String; //< Indicates what kind of Directory Mask the current dir is
+      fFilesize: int64; //Current size of the file
+      fDate: String; //Current timestamp of the file
+    public
+      property Filename: string read fFilename;
+      property Username: string read fUsername;
+      property Groupname: string read fGroupname;
+      property DirMask: string read fDirMask;
+      property Date: string read fDate;
+      property Filesize: int64 read fFilesize;
+  end;
+
 { Check if given file is screwed up by FTPRush
   @param(aFilename Filename)
   @param(aFileExtension File extension of given filename)
@@ -53,17 +75,18 @@ function GetNewdirMaxCreatedValue(): integer;
   @returns(@glNewdirDirlistReadd) }
 function GetNewdirDirlistReaddValue(): integer;
 
-{ returns the value for NewdirDirlistReaddAuto initially stored in config to have a better performance and don't load the value everytime from file)
-  @returns(@glNewdirDirlistReaddAuto) }
-function GetNewdirDirlistReaddAuto(): boolean;
+function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
 procedure DirlistHelperInit;
 
+{ Frees the thread vars of the current thread (call this when a thread terminates). }
+procedure CleanupDirlistThreadVars;
+
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
 
 const
   section = 'dirlist.helpers';
@@ -78,6 +101,9 @@ var
   glNewdirDirlistReadd: Integer;
   glNewdirDirlistReaddAuto: boolean;
 
+threadvar
+  glSkiplistFilesRegexInstance: TRegExpr;
+  glSkiplistDirsRegexInstance: TRegExpr;
 
 {$I common.inc}
 
@@ -91,13 +117,13 @@ begin
   if l > Length(aFileExtension) + 6 then
   begin
     // for 3 chars in extension like .nfo, .rar, .mp3, .r02, etc
-    if ( (aFilename[l-6] = '(') and (aFilename[l-4] = ')') and (aFilename[l-5] in ['0'..'9']) ) then
+    if ( (aFilename[l-6] = '(') and (aFilename[l-4] = ')') and CharInSet(aFilename[l-5], ['0'..'9']) ) then
     begin
       Exit(True);
     end;
 
     // for 4 chars like .flac
-    if ( (aFilename[l-7] = '(') and (aFilename[l-5] = ')') and (aFilename[l-6] in ['0'..'9']) ) then
+    if ( (aFilename[l-7] = '(') and (aFilename[l-5] = ')') and CharInSet(aFilename[l-6], ['0'..'9']) ) then
     begin
       Exit(True);
     end;
@@ -141,9 +167,31 @@ begin
   aItem := aRespLine.Trim; // file or dirname
 end;
 
+function GetSkiplistDirsRegexInstance: TRegExpr;
+begin
+  if glSkiplistDirsRegexInstance = nil then
+  begin
+    glSkiplistDirsRegexInstance := TRegExpr.Create;
+    glSkiplistDirsRegexInstance.ModifierI := True;
+    glSkiplistDirsRegexInstance.Expression := glSkiplistDirsRegex;
+  end;
+
+  Result := glSkiplistDirsRegexInstance;
+end;
+
+function GetSkiplistFilesRegexInstance: TRegExpr;
+begin
+  if glSkiplistFilesRegexInstance = nil then
+  begin
+    glSkiplistFilesRegexInstance := TRegExpr.Create;
+    glSkiplistFilesRegexInstance.ModifierI := True;
+    glSkiplistFilesRegexInstance.Expression := glSkiplistFilesRegex;
+  end;
+
+  Result := glSkiplistFilesRegexInstance;
+end;
+
 function IsValidFilename(const aInput: String): Boolean;
-var
-  fRegExpr: TRegExpr;
 begin
   Result := False;
 
@@ -157,24 +205,14 @@ begin
 
   if glSkiplistFilesRegex <> '' then
   begin
-    fRegExpr := TRegExpr.Create;
-    try
-      fRegExpr.ModifierI := True;
-      fRegExpr.Expression := glSkiplistFilesRegex;
-
-      if fRegExpr.Exec(aInput) then
-        Exit(False);
-    finally
-      fRegExpr.Free;
-    end;
+    if GetSkiplistFilesRegexInstance.Exec(aInput) then
+      Exit(False);
   end;
 
   Result := True;
 end;
 
 function IsValidDirname(const aInput: String): Boolean;
-var
-  fRegExpr: TRegExpr;
 begin
   Result := False;
 
@@ -183,19 +221,51 @@ begin
 
   if glSkiplistDirsRegex <> '' then
   begin
-    fRegExpr := TRegExpr.Create;
-    try
-      fRegExpr.ModifierI := True;
-      fRegExpr.Expression := glSkiplistDirsRegex;
-
-      if fRegExpr.Exec(aInput) then
-        Exit(False);
-    finally
-      fRegExpr.Free;
-    end;
+    if GetSkiplistDirsRegexInstance.Exec(aInput) then
+      Exit(False);
   end;
 
   Result := True;
+end;
+
+function ParseStatResponse(s: String): TObjectList<TParsedDirListEntry>;
+var
+  fLineToParse: string;
+  fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+  fParsedDirlistEntry: TParsedDirlistEntry;
+begin
+  fParsedDirlistEntries := TObjectList<TParsedDirListEntry>.Create(True);
+  try
+    while (True) do
+    begin
+      fLineToParse := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
+      // tmp contains a single line:
+      // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+
+      if fLineToParse = '' then break;
+      if (Length(fLineToParse) > 11) then
+      begin
+        if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') and (fLineToParse[11] = ' ')) then
+          continue;
+        ParseStatResponseLine(fLineToParse, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+        fParsedDirlistEntry := TParsedDirlistEntry.Create;
+        fParsedDirlistEntry.fDirMask := fDirMask;
+        fParsedDirlistEntry.fUsername := fUsername;
+        fParsedDirlistEntry.fGroupname := fGroupname;
+        fParsedDirlistEntry.fFilesize := fFilesize;
+        fParsedDirlistEntry.fDate := fDatum;
+        fParsedDirlistEntry.FFilename := fFilename;
+        fParsedDirlistEntries.Add(fParsedDirlistEntry);
+      end;
+    end;
+  except
+    fParsedDirlistEntries.Free;
+    raise;
+  end;
+
+  Result := fParsedDirlistEntries;
 end;
 
 procedure DirlistHelperInit;
@@ -243,10 +313,12 @@ begin
   Result := glNewdirDirlistReadd;
 end;
 
-function GetNewdirDirlistReaddAuto(): boolean;
+procedure CleanupDirlistThreadVars;
 begin
-  Result := glNewdirDirlistReaddAuto;
+  if glSkiplistFilesRegexInstance <> nil then
+    FreeAndNil(glSkiplistFilesRegexInstance);
+  if glSkiplistDirsRegexInstance <> nil then
+    FreeAndNil(glSkiplistDirsRegexInstance);
 end;
 
 end.
-

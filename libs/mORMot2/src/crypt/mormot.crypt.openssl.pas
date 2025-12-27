@@ -16,6 +16,9 @@ unit mormot.crypt.openssl;
 
   *****************************************************************************
 
+  Warning: on Windows, you need to define the USE_OPENSSL conditional in YOUR
+   project options to have this code actually link to the OpenSSL library.
+
   TL;DR: On x86_64, our mormot.crypt.core.pas asm is stand-alone and faster
          than OpenSSL for most algorithms, and only 20% slower for AES-GCM.
          For ECC/RSA, mormot.crypt.ecc/rsa are slower than OpenSSL so this
@@ -90,17 +93,23 @@ type
 { ************** AES Cypher/Uncypher in various Modes }
 
 type
+  PAesOsl = ^TAesOsl;
+
   /// reusable wrapper around OpenSSL Cipher process
+  {$ifdef USERECORDWITHMETHODS}
+  TAesOsl = record
+  {$else}
   TAesOsl = object
+  {$endif USERECORDWITHMETHODS}
   public
     Owner: TAesAbstract;
     Cipher: PEVP_CIPHER; // computed from TAesAbstractOsl.AlgoName
     Ctx: array[boolean] of PEVP_CIPHER_CTX; // set and reused in CallEvp()
     procedure Init(aOwner: TAesAbstract; aCipherName: PUtf8Char);
     procedure Done;
-    procedure SetEvp(DoEncrypt: boolean; const method: shortstring);
+    procedure Clone(another: PAesOsl);
+    procedure SetEvp(DoEncrypt: boolean; const method: ShortString);
     procedure UpdEvp(DoEncrypt: boolean; BufIn, BufOut: pointer; Count: cardinal);
-    procedure Clone(ToOwner: TAesAbstract; out ToAesOsl: TAesOsl);
   end;
 
   /// handle AES cypher/uncypher with chaining with OpenSSL 1.1
@@ -196,15 +205,14 @@ type
   protected
     fAes: TAesOsl;
     function AesGcmInit: boolean; override; // from fKey/fKeySize
+    procedure AesGcmClone(another: TAesGcmAbstract); override;
     procedure AesGcmDone; override;
     procedure AesGcmReset; override; // from fIV/CTR_POS
     function AesGcmProcess(BufIn, BufOut: pointer; Count: cardinal): boolean; override;
   public
-    /// creates a new instance with the very same values
-    // - by design, our classes will use TAesGcmEngine stateless context, so
-    // this method will just copy the current fields to a new instance,
-    // by-passing the key creation step
-    function Clone: TAesAbstract; override;
+    /// wrapper around function OpenSslIsAvailable
+    // - actual cipher won't be checked until Create() since we need the keysize
+    class function IsAvailable: boolean; override;
     /// compute a class instance similar to this one, for performing the
     // reverse encryption/decryption process
     // - will return self to avoid creating two instances
@@ -326,7 +334,7 @@ type
 /// retrieve a low-level PEVP_MD digest from its algorithm name
 // - raise an EOpenSslHash if this algorithm is not found
 function OpenSslGetMdByName(const Algorithm: RawUtf8;
-  const Caller: shortstring): PEVP_MD; overload;
+  const Caller: ShortString): PEVP_MD; overload;
 
 /// retrieve a low-level PEVP_MD digest from mORMot THashAlgo enum
 // - returns nil if not found, e.g. if OpenSsl is not available
@@ -752,7 +760,21 @@ begin
     EVP_CIPHER_CTX_free(Ctx[true]);
 end;
 
-procedure TAesOsl.SetEvp(DoEncrypt: boolean; const method: shortstring);
+procedure TAesOsl.Clone(another: PAesOsl);
+var
+  enc: boolean;
+begin // another^.Owned is set by the caller
+  another^.Cipher := Cipher;
+  for enc := false to true do
+    if Ctx[enc] <> nil then
+    begin
+      // efficient Ctx[] copy
+      another^.Ctx[enc] := EVP_CIPHER_CTX_new;
+      EVP_CIPHER_CTX_copy(another^.Ctx[enc], Ctx[enc]);
+    end;
+end;
+
+procedure TAesOsl.SetEvp(DoEncrypt: boolean; const method: ShortString);
 var
   c: PEVP_CIPHER_CTX;
 begin
@@ -799,29 +821,6 @@ begin
   Owner.IV := PAesBlock(EVP_CIPHER_CTX_iv(c))^; // for fIVUpdated := true
   // no need to call EVP_CipherFinal_ex() since we expect no padding
 end;
-
-procedure TAesOsl.Clone(ToOwner: TAesAbstract; out ToAesOsl: TAesOsl);
-var
-  enc: boolean;
-  s, d: TAesAbstractOsl;
-begin
-  s := TAesAbstractOsl(Owner);
-  d := TAesAbstractOsl(ToOwner);
-  d.fKeySize := s.fKeySize;
-  d.fKeySizeBytes := s.fKeySizeBytes;
-  d.fAlgoMode := s.fAlgoMode;
-  d.fKey := s.fKey;
-  ToAesOsl.Owner := ToOwner;
-  ToAesOsl.Cipher := Cipher;
-  for enc := false to true do
-    if Ctx[enc] <> nil then
-    begin
-      // efficient Ctx[] copy
-      ToAesOsl.Ctx[enc] := EVP_CIPHER_CTX_new;
-      EVP_CIPHER_CTX_copy(ToAesOsl.Ctx[enc], Ctx[enc]);
-    end;
-end;
-
 
 
 { ************** OpenSSL Cryptographic Pseudorandom Number Generator (CSPRNG) }
@@ -871,7 +870,7 @@ end;
 
 procedure TAesAbstractOsl.AfterCreate;
 var
-  nam: TShort16;
+  nam: TShort15;
 begin
   AlgoName(nam); // always #0 terminated
   fAes.Init(self, pointer(@nam[1]));
@@ -903,8 +902,9 @@ end;
 
 function TAesAbstractOsl.Clone: TAesAbstract;
 begin
-  result := TAesAbstractOsl(NewInstance);
-  fAes.Clone(result, TAesAbstractOsl(result).fAes); // efficient Ctx[] copy
+  result := InternalCopy; // copy main properties
+  TAesAbstractOsl(result).fAes.Owner := result;
+  fAes.Clone(@TAesAbstractOsl(result).fAes); // efficient Ctx[] copy
 end;
 
 function TAesAbstractOsl.CloneEncryptDecrypt: TAesAbstract;
@@ -956,13 +956,24 @@ end;
 
 { TAesGcmOsl }
 
+class function TAesGcmOsl.IsAvailable: boolean;
+begin
+  result := OpenSslIsAvailable;
+end;
+
 function TAesGcmOsl.AesGcmInit: boolean;
 var
-  nam: TShort16;
+  nam: TShort15;
 begin
   AlgoName(nam); // always #0 terminated
   fAes.Init(self, pointer(@nam[1]));
   result := nam[0] <> #0;
+end;
+
+procedure TAesGcmOsl.AesGcmClone(another: TAesGcmAbstract);
+begin
+  TAesGcmOsl(another).fAes.Owner := another;
+  fAes.Clone(@TAesGcmOsl(another).fAes); // efficient Ctx[] copy
 end;
 
 procedure TAesGcmOsl.AesGcmDone;
@@ -1015,12 +1026,6 @@ begin
       end
   end;
   fStarted := stNone; // allow reuse of this fAes instance
-end;
-
-function TAesGcmOsl.Clone: TAesAbstract;
-begin
-  result := TAesGcmOsl(NewInstance);
-  fAes.Clone(result, TAesGcmOsl(result).fAes); // efficient Ctx[] copy
 end;
 
 function TAesGcmOsl.CloneEncryptDecrypt: TAesAbstract;
@@ -1199,7 +1204,7 @@ end;
 
 
 function OpenSslGetMdByName(const Algorithm: RawUtf8;
-  const Caller: shortstring): PEVP_MD;
+  const Caller: ShortString): PEVP_MD;
 begin
   EOpenSslHash.CheckAvailable(nil, Caller);
   if Algorithm = 'null' then
@@ -1229,7 +1234,8 @@ const
     'sha512',     // hfSHA512
     'sha512-256', // hfSHA512_256
     'sha3-256',   // hfSHA3_256
-    'sha3-512');  // hfSHA3_512
+    'sha3-512',   // hfSHA3_512
+    'sha224');    // hfSHA224
 
   CAA_MD: array[TCryptAsymAlgo] of RawUtf8 = (
     'SHA256', // caaES256
@@ -1250,7 +1256,7 @@ var
 begin
   if (_HashAlgoMd[hfSHA256] = nil) and
      OpenSslIsAvailable then
-    for h := low(h) to high(h) do
+    for h := low(h) to high(h) do // populate once
       _HashAlgoMd[h] := EVP_get_digestbyname(HF_MD[h]);
   result := _HashAlgoMd[Algorithm];
 end;
@@ -1308,7 +1314,7 @@ begin
 end;
 
 var
-  EvpOk, EvpKo: TIntegerDynArray; // creating a context has a cost
+  EvpOk, EvpKo: TIntegerDynArray; // cache to avoid creating ctx each time
 
 function OpenSslSupports(EvpType: integer): boolean;
 var
@@ -1395,7 +1401,7 @@ begin
           EOpenSsl.Check(EVP_PKEY_keygen(ctx, @result));
         end
       else
-        exit; // unsupported type
+        exit; // unsupported type (yet)
     end;
   finally
     EVP_PKEY_CTX_free(ctx);
@@ -1720,7 +1726,7 @@ begin
   sig := fPrivKey^.Sign(fAlgoMd, pointer(headpayload), length(headpayload));
   if sig = '' then
     EJwtException.RaiseUtf8('%.ComputeSignature: OpenSslSign % failed [%]',
-      [self, fAlgorithm, SSL_error_short(ERR_get_error)]);
+      [self, fAlgorithm, OpenSSL_error_short(ERR_get_error)]);
   result := GetSignatureSecurityRaw(fAsymAlgo, sig); // into base-64 encoded raw
 end;
 
@@ -1863,6 +1869,7 @@ type
   public
     constructor Create(const name: RawUtf8); overload; override;
     constructor Create(caa: TCryptAsymAlgo); reintroduce; overload;
+    function KeyAlgo: TCryptKeyAlgo; override;
     procedure GeneratePem(out pub, priv: RawUtf8; const privpwd: RawUtf8); override;
     function Sign(hasher: TCryptHasher; msg: pointer; msglen: PtrInt;
       const priv: RawByteString; out sig: RawByteString;
@@ -1880,6 +1887,11 @@ begin
     result := fDefaultHashAlgorithm
   else
     result := hasher.AlgoName; // let OpenSSL resolve the algorithm by name
+end;
+
+function TCryptAsymOsl.KeyAlgo: TCryptKeyAlgo;
+begin
+  result := CAA_CKA[fCaa];
 end;
 
 constructor TCryptAsymOsl.Create(const name: RawUtf8);
@@ -2199,6 +2211,7 @@ type
   TCryptStoreAlgoOpenSsl = class(TCryptStoreAlgo)
   public
     function New: ICryptStore; override; // = TCryptStoreOpenSsl.Create(self)
+    function DefaultCertAlgo: TCryptCertAlgo; override;
   end;
 
   /// class implementing ICryptStore using OpenSSL
@@ -2224,7 +2237,6 @@ type
       IgnoreError: TCryptCertValidities; TimeUtc: TDateTime): TCryptCertValidity; override;
     function Count: integer; override;
     function CrlCount: integer; override;
-    function DefaultCertAlgo: TCryptCertAlgo; override;
   end;
 
 
@@ -2280,7 +2292,7 @@ begin
       if CommonName <> '' then
         cn := CommonName;
       name.AddEntries(Country, State, Locality, Organization, OrgUnit,
-        cn, EmailAddress, SurName, GivenName);
+        cn, EmailAddress, SurName, GivenName, SerialNumber);
     end
     else
       name.AddEntry('CN', cn);
@@ -2293,7 +2305,7 @@ function TCryptCertAlgoOpenSsl.CreateSelfSignedCsr(const Subjects: RawUtf8;
   const PrivateKeyPassword: SpiUtf8; var PrivateKeyPem: RawUtf8;
   Usages: TCryptCertUsages; Fields: PCryptCertFields): RawUtf8;
 
-  procedure RaiseError(const msg: shortstring);
+  procedure RaiseError(const msg: ShortString);
   begin
     ECryptCert.RaiseUtf8('%.CreateSelfSignedCsr %: % error', [self, JwtName, msg]);
   end;
@@ -2610,8 +2622,12 @@ begin
           FillZero(pem);
         end
         else
-          // ccfBinary will use the PKCS#12 binary encoding
-          result := fX509.ToPkcs12(fPrivKey, PrivatePassword);
+          // ccfBinary will use PKCS#12/.PFX encoding
+          // - warning: default algorithm changed to AES-256-CBC with OpenSSL 3
+          // https://github.com/openssl/openssl/commit/762970bd686c4aa
+          // - use '3des=' prefix (which will be trimmed) to force PBE-SHA1-3DES
+          // or 'aes=' prefix to force AES-256-CBC algorithm on OpenSSL 1.x
+          result := fX509.ToPkcs12Ex(fPrivKey, PrivatePassword);
     cccPrivateKeyOnly:
       if fPrivKey = nil then
         RaiseError('Save(cccPrivateKeyOnly) with no Private Key')
@@ -2652,15 +2668,15 @@ begin
     exit;
   case Content of
     cccCertOnly:
-      // input only include the X.509 certificate as PEM, DER or PKCS#12
+      // input only include the X.509 certificate as PEM, DER or PKCS#12/.PFX
       if IsPem(Saved) then
-        fX509 := LoadCertificate(PemToDer(Saved)) // PEM
+        fX509 := LoadCertificate(PemToDer(Saved)) // certificate-only PEM
       else
       begin
-        fX509 := LoadCertificate(Saved); // DER
+        fX509 := LoadCertificate(Saved); // certificate-only DER binary
         if not Assigned(fX509) then
         begin
-          pkcs12 := LoadPkcs12(Saved); // try PKCS#12 certificate
+          pkcs12 := LoadPkcs12(Saved); // certificate in PKCS#12/.PFX binary
           pkcs12.Extract(PrivatePassword, nil, @fX509, nil); // ignore key
           pkcs12.Free;
         end;
@@ -2677,19 +2693,14 @@ begin
           if fX509 = nil then
             exit;
           fPrivKey := LoadPrivateKey(priv, PrivatePassword);
+          if not fX509.MatchPrivateKey(fPrivKey) then
+            Clear;
         finally
           FillZero(priv);
         end
-        else
-        begin
-          // input should be PKCS#12 binary with certificate and private key
-          pkcs12 := LoadPkcs12(Saved);
-          if not pkcs12.Extract(PrivatePassword, @fPrivKey, @fX509, nil) then
+        else // try PKCS#12/.PFX binary with certificate and private key
+          if not ParsePkcs12(Saved, PrivatePassword, fX509, fPrivKey) then
             Clear;
-          pkcs12.Free;
-        end;
-        if not fX509.MatchPrivateKey(fPrivKey) then
-          Clear;
       end;
   end;
   result := fX509 <> nil;
@@ -2767,8 +2778,6 @@ end;
 
 function CanVerify(auth: PX509; usage: TX509Usage; selfsigned: boolean;
   IgnoreError: TCryptCertValidities; TimeUtc: TDateTime): TCryptCertValidity;
-var
-  na, nb: TDateTime;
 begin
   if auth = nil then
     result := cvUnknownAuthority
@@ -2780,14 +2789,7 @@ begin
     result := cvValidSigned;
     if cvDeprecatedAuthority in IgnoreError then
       exit;
-    if TimeUtc = 0 then
-      TimeUtc := NowUtc;
-    na := auth.NotAfter; // 0 if ASN1_TIME_to_tm() not supported by old OpenSSL
-    nb := auth.NotBefore;
-    if ((na <> 0) and
-        (TimeUtc > na + CERT_DEPRECATION_THRESHOLD)) or
-       ((nb <> 0) and
-        (TimeUtc + CERT_DEPRECATION_THRESHOLD < nb)) then
+    if not auth^.IsValidDate(TimeUtc) then
       result := cvDeprecatedAuthority;
   end;
 end;
@@ -2934,6 +2936,11 @@ begin
   result := TCryptStoreOpenSsl.Create(self);
 end;
 
+function TCryptStoreAlgoOpenSsl.DefaultCertAlgo: TCryptCertAlgo;
+begin
+  result := CryptCertOpenSsl[CryptAlgoDefault];
+end;
+
 
 { TCryptStoreOpenSsl }
 
@@ -2954,26 +2961,29 @@ end;
 function TCryptStoreOpenSsl.Save: RawByteString;
 var
   x: PX509DynArray;
-  crl: Pstack_st_X509_CRL;
+  c: PX509_CRLDynArray;
   i: PtrInt;
   tmp: TTextWriterStackBuffer;
 begin
   // since DER has no simple binary array format, use PEM serialization
   with TTextWriter.CreateOwnedStream(tmp) do
   try
-    x := fStore.Certificates;
+    // first write any X.509 certificates
+    x := fStore.CertificatesLocked;
     for i := 0 to length(x) - 1 do
     begin
       AddString(x[i].ToPem);
-      AddShorter(CRLF);
+      AddDirectNewLine; // = #13#10 on Windows, #10 on POSIX
     end;
-    crl := fStore.StackX509_CRL;
-    for i := 0 to crl.Count - 1 do
+    fStore.UnLock;
+    // followed by X.509 CRLs
+    c := fStore.CrlsLocked;
+    for i := 0 to length(c) - 1 do
     begin
-      AddString(PX509_CRL(crl.Items[i]).ToPem); // raise EOpenSsl (not signed)
-      AddShorter(CRLF);
+      AddString(c[i].ToPem); // raise EOpenSsl (not signed)
+      AddDirectNewLine;
     end;
-    crl.Free;
+    fStore.UnLock;
     SetText(RawUtf8(result));
   finally
     Free;
@@ -3123,15 +3133,11 @@ begin
   result := fStore.CrlCount;
 end;
 
-function TCryptStoreOpenSsl.DefaultCertAlgo: TCryptCertAlgo;
-begin
-  result := CryptCertOpenSsl[CryptAlgoDefault];
-end;
-
 function TCryptStoreOpenSsl.Revoke(const Cert: ICryptCert;
   Reason: TCryptCertRevocationReason; RevocationDate: TDateTime): boolean;
 var
   r, days: integer;
+  c: PX509_CRL;
 begin
   result := false;
   if Cert = nil then
@@ -3140,16 +3146,22 @@ begin
   if r = CRL_REASON_NONE then
     raise EOpenSslCert.CreateFmt(
       'TCryptStoreOpenSsl.Revoke: unsupported %s', [ToText(Reason)^]);
-  if RevocationDate = 0 then
-    days := 0 // revoke now
-  else
-  begin
-    days :=  trunc(RevocationDate - Now);
-    if days < 0 then
-      days := 0;
-  end;
-  result := fStore.MainCrl.AddRevokedCertificate(
-    (cert.Instance as TCryptCertOpenSsl).fX509, nil, r, days);
+  c := fStore.MainCrlAcquired;
+  if c <> nil then
+    try
+      if RevocationDate = 0 then
+        days := 0 // revoke now
+      else
+      begin
+        days :=  trunc(RevocationDate - Now);
+        if days < 0 then
+          days := 0;
+      end;
+      result := c.AddRevokedCertificate(
+        (cert.Instance as TCryptCertOpenSsl).fX509, nil, r, days);
+    finally
+      c.Free;
+    end;
 end;
 
 function ToValidity(err: integer): TCryptCertValidity;
@@ -3317,7 +3329,7 @@ begin
   der := PemToDer(Cert);
   if not AsnDecChunk(der) then // basic input validation
     exit;
-  x := LoadCertificate(Cert);
+  x := LoadCertificate(der);
   if x <> nil then
     result := CryptCertOpenSsl[X509Algo(x)].FromHandle(x);
 end;
@@ -3460,7 +3472,15 @@ finalization
 
 {$else}
 
+// void definition to avoid most $ifdef USE_OPENSSL ... $endif
+
+procedure RegisterOpenSsl;
+
 implementation
+
+procedure RegisterOpenSsl;
+begin
+end;
 
 {$endif USE_OPENSSL}
 

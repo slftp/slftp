@@ -54,12 +54,12 @@ begin
   Result := Copy(text, i + 5, 100);
   for i := 1 to length(Result) do
   begin
-    if Result[i] in [#13,#10] then
+    if CharInSet(Result[i], [#13,#10]) then
     begin
       Result := Copy(Result, 1, i-1);
       Break;
     end;
-    if (not (Result[i] in ['a'..'z','A'..'Z'])) then
+    if (not CharInSet(Result[i], ['a'..'z','A'..'Z'])) then
       Result[i] := ' ';
   end;
 
@@ -228,7 +228,12 @@ begin
       begin
         Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
         try
-          r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+          // LeechFile return value 0 means, currently no slot available
+          if i = 0 then
+            r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt)
+          else
+            r := TPazoGenreNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+
           r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
           AddTask(r);
         except

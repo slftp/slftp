@@ -303,7 +303,7 @@ type
     ulDeviceError: CK_ULONG;
   end;
 
-function ToText(f: CKT_FLAGS): shortstring; overload;
+function ToText(f: CKT_FLAGS): ShortString; overload;
 
 
 { ---------- 3.4 Object types }
@@ -1995,7 +1995,7 @@ type
     function(Sender: TPkcs11; Slot: TPkcs11SlotID): boolean of object;
 
   /// can load and use a PKCS#11 library
-  // - need to explicitely call Safe.Lock/UnLock in a multi-thread context
+  // - need to explicitly call Safe.Lock/UnLock in a multi-thread context
   TPkcs11 = class(TSynLocked)
   protected
     fC: CK_FUNCTION_LIST_PTR;
@@ -2228,7 +2228,7 @@ implementation
 
 { ***************** Low-Level PKCS#11 / Cryptoki API Definitions }
 
-function ToText(f: CKT_FLAGS): shortstring;
+function ToText(f: CKT_FLAGS): ShortString;
 begin
   GetSetNameShort(TypeInfo(CKT_FLAGS), f, result);
 end;
@@ -3455,15 +3455,15 @@ end;
 
 { ***************** PKCS#11 High-Level Wrappers }
 
-procedure UnPad(p: PUtf8Char; max: integer; var text: RawUtf8);
+procedure UnPad(p: PUtf8Char; max: PtrInt; var text: RawUtf8);
 begin
   FastSetString(text, p, max);
   TrimSelf(text);
 end;
 
-function Pad(const text: RawUtf8; max: integer): RawUtf8;
+function Pad(const text: RawUtf8; max: PtrInt): RawUtf8;
 var
-  len: integer;
+  len: PtrInt;
 begin
   FastSetString(result, max);
   len := length(text);
@@ -4004,6 +4004,28 @@ begin
   result := true;
 end;
 
+const
+  // use a constant array to circumvent aarch64-win64 FPC bug
+  CKA_DEFAULT: array[0 .. 17] of CK_ATTRIBUTE_TYPE = (
+    CKA_CLASS,
+    CKA_LABEL,
+    CKA_APPLICATION,
+    CKA_UNIQUE_ID,
+    CKA_START_DATE,
+    CKA_END_DATE,
+    CKA_ID,
+    CKA_SERIAL_NUMBER,
+    CKA_ISSUER,
+    CKA_SUBJECT,
+    CKA_OWNER,
+    CKA_URL,
+    CKA_CERTIFICATE_TYPE,
+    CKA_KEY_TYPE,
+    CKA_KEY_GEN_MECHANISM,
+    CKA_MODULUS_BITS,
+    CKA_EC_POINT,
+    CKA_VALUE_LEN);
+
 function TPkcs11.GetObjects(Filter: PCK_ATTRIBUTES;
   Handles: PCK_OBJECT_HANDLE_DYNARRAY;
   Values: PRawByteStringDynArray): TPkcs11ObjectDynArray;
@@ -4024,11 +4046,7 @@ begin
     u := fC.FindObjectsInit(fSession, pointer(Filter^.Attrs), Filter^.Count);
   Check(u, 'FindObjectsInit');
   arr.Clear;
-  arr.Add([CKA_CLASS, CKA_LABEL, CKA_APPLICATION, CKA_UNIQUE_ID,
-           CKA_START_DATE, CKA_END_DATE, CKA_ID, CKA_SERIAL_NUMBER,
-           CKA_ISSUER, CKA_SUBJECT, CKA_OWNER, CKA_URL, CKA_CERTIFICATE_TYPE,
-           CKA_KEY_TYPE, CKA_KEY_GEN_MECHANISM, CKA_MODULUS_BITS,
-           CKA_EC_POINT, CKA_VALUE_LEN]);
+  arr.Add(CKA_DEFAULT);
   for s := low(POS2CKA) to high(POS2CKA) do
     arr.Add(POS2CKA[s]);
   if Values <> nil then

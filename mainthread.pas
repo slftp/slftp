@@ -56,8 +56,8 @@ uses
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
-  StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot, IdOpenSSLLoader, IdOpenSSLHeaders_crypto,
-  taskautodirlist;
+  StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
+  taskautodirlist, slcriticalsection2, mormot.core.unicode;
 
 {$I slftp.inc}
 
@@ -67,6 +67,7 @@ const
 var
   queue_fire: integer;
   queueclean_interval: integer;
+  queue_stat_interval: integer;
   ranks_save_interval: integer;
   recalc_ranks_interval: integer;
   speedstats_save_interval: integer;
@@ -81,12 +82,12 @@ end;
 
 function Main_Init: String;
 var
-  fSslLoader: IOpenSSLLoader;
-  fOpenSSLVersion, fSSLErrorMsg: String;
-  fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
-  fError: String;
+  fSSLErrorMsg, fError, fHost, fPort, fUser, fPass, fDbName, fDBMS, fLibName: String;
 begin
   Result := '';
+  fSSLErrorMsg := '';
+
+  SlCriticalSection2Init(config.ReadInteger('debug', 'event_based_locking_timeout', 0), config.ReadBool('debug', 'monitor_lock_times', False));
 
   if not sltcp_inited then
   begin
@@ -96,36 +97,10 @@ begin
 
   console_addline('Admin', 'Load OpenSSL', True);
   { load OpenSSL }
-  fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
-  fSslLoader.OpenSSLPath := '.';
-  try
-    if not fSslLoader.Load then
-    begin
-      Result := Format('Failed to load OpenSSL from slftp dir:%s %s', [sLineBreak, fSslLoader.FailedToLoad.CommaText]);
-      exit;
-    end;
-  except
-    on e: Exception do
-    begin
-      Result := Format('[EXCEPTION] Unexpected error while loading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]);
-      exit;
-    end;
-  end;
 
-  // check if we at least have OpenSSL 1.1.0
-  if not Assigned(OpenSSL_version) then
+  if not InitOpenSSL(fSSLErrorMsg) then
   begin
-    Result := Format('OpenSSL %s needed.', [lib_OpenSSL]);
-    exit;
-  end;
-
-  { verify that it loaded the correct OpenSSL version }
-  fOpenSSLVersion := GetOpenSSLShortVersion;
-  // remove letter from version
-  SetLength(fOpenSSLVersion, Length(fOpenSSLVersion) - 1);
-  if (fOpenSSLVersion <> lib_OpenSSL) then
-  begin
-    Result := Format('OpenSSL version %s is not supported! OpenSSL %s needed.', [GetOpenSSLVersion, lib_OpenSSL]);
+    Result := Format('OpenSSL Error: %s - please check your Openssl Installation!', [fSSLErrorMsg]);
     exit;
   end;
 
@@ -148,9 +123,9 @@ begin
     end;
   end;
 
-  if sqlite3.VersionText < lib_SQLite3 then
+  if UTF8ToString(sqlite3.VersionText) < lib_SQLite3 then
   begin
-    result := Format('SQLite3 version %s is too old! %sVersion %s or newer needed.', [sqlite3.VersionText, sLineBreak, lib_SQLite3]);
+    result := Format('SQLite3 version %s is too old! %sVersion %s or newer needed.', [UTF8ToString(sqlite3.VersionText), sLineBreak, lib_SQLite3]);
     exit;
   end;
 
@@ -183,7 +158,7 @@ begin
       end;
 
       // create connection
-      MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, fHost + ':' + fPort, fLibName), fDbName, fUser, fPass);
+      MySQLCon := TSQLDBZEOSConnectionProperties.Create(TSQLDBZEOSConnectionProperties.URI(dMySQL, StringToUTF8(fHost + ':' + fPort), StringToUTF8(fLibName)), StringToUTF8(fDbName), StringToUTF8(fUser), StringToUTF8(fPass));
     except
       on e: Exception do
       begin
@@ -308,6 +283,7 @@ begin
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
+  queue_stat_interval := 500;
   ranks_save_interval := config.readInteger('ranks', 'save_interval', 900);
   recalc_ranks_interval := config.readInteger('ranks', 'recalc_ranks_interval', 1800);
   speedstats_save_interval := config.readInteger('speedstats', 'save_interval', 900);
@@ -325,10 +301,10 @@ begin
   end;
 
   // fire queue scheduler
-  if ((queue_fire > 0) and (MilliSecondsBetween(Now, queue_last_run) >= queue_fire)) then
+  if ((queue_fire > 0)) then
   begin
     try
-      QueueFire;
+      QueueFireInverval(queue_fire);
     except
       on e: Exception do
       begin
@@ -338,15 +314,27 @@ begin
   end;
 
   // clean queue scheduler
-  if ((queueclean_interval > 0) and (SecondsBetween(Now, queueclean_last_run) >= queueclean_interval)) then
+  if (queueclean_interval > 0) then
   begin
     try
-      QueueClean;
+      QueueCleanInverval(queueclean_interval);
     except
       on e: Exception do
       begin
         Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
-        queueclean_last_run := Now;
+      end;
+    end;
+  end;
+
+  // number of tasks in queue shown in console
+  if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > queue_stat_interval then
+  begin
+    try
+      QueueStatAll;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
       end;
     end;
   end;
@@ -518,6 +506,8 @@ begin
 end;
 
 procedure Main_Stop;
+var
+fSite: TSite;
 begin
   // this is just a matter of putting the right shit on the kitty,
   // uninitialization will be in Main_Uninit
@@ -529,13 +519,13 @@ begin
   IrcStop();
   kb_Save();
   kb_Stop;
-  QueueFire();
+  kb_FreeList;
+  for fSite in sites do
+    fSite.QueueFire();
   Debug(dpSpam, section, 'Main_Stop end');
 end;
 
 procedure Main_Uninit;
-var
-  fSslLoader: IOpenSSLLoader;
 begin
   Debug(dpSpam, section, 'Uninit1');
   (*
@@ -582,6 +572,8 @@ begin
   dbtvinfoUnInit;
   NewsUnInit;
   AutodirlistUninit;
+  DirlistUnInit;
+  SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic
   if Assigned(sqlite3) then
@@ -593,16 +585,6 @@ begin
 
   { unload OpenSSL }
   UninitOpenSSLConnectionContext;
-
-  try
-    fSslLoader := IdOpenSSLLoader.GetOpenSSLLoader;
-    fSslLoader.Unload;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] Unexpected error while unloading OpenSSL: %s%s %s%s', [sLineBreak, e.ClassName, sLineBreak, e.Message]));
-    end;
-  end;
 
   Debug(dpSpam, section, 'Uninit3');
   Debug(dpError, section, 'Clean exit');
