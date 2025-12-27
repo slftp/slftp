@@ -33,6 +33,7 @@ type
     FDirectory: Boolean; //< @true if current dir is a directory
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
+    FWasOnSite: Boolean; //< Helper flag to remember if a file has been on the site before ParseDirlist reset the IsOnSite flag
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
     FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
     { Contains the index of the file type in the skiplist. For files and directories. For example when you have this in
@@ -71,6 +72,7 @@ type
 
     property FilenameLowerCased: String read FFilenameLowerCase;
     property Extension: String read FExtension;
+    property Username: String read FUsername;
     property RacedByMe: Boolean read FRacedByMe write FRacedByMe;
     property Directory: Boolean read FDirectory;
     property DirType: TDirType read FDirType;
@@ -120,7 +122,7 @@ type
     function CompleteByTag: Boolean;
 
     procedure SetLastChanged(const value: TDateTime);
-    
+
     procedure SetFullPath(const aFullPath: string);
     { Calculates the FMultiCD field based on the contained dirlist entries. }
     procedure CalculateMultiCD;
@@ -620,6 +622,7 @@ begin
   try
     for de in entries.Values do
     begin
+      de.FWasOnSite := de.IsOnSite;
       de.IsOnSite := False;
     end;
 
@@ -783,6 +786,7 @@ begin
         de.FUsername := fParsedDirlistEntry.Username;
         de.FGroupname := fParsedDirlistEntry.Groupname;
         de.FSizeChanged := True;
+        de.justadded := Not de.FWasOnSite;
 
         // the file had size of 0 when first seen, then IsNFO / IsSFV was not set. Set it now when the file size is greater than 0.
         if de.IsNFO and not FHasNFO and (de.filesize > 0) then
@@ -1447,7 +1451,7 @@ begin
     else
       self.FDirType := IsMain;
   end;
-    
+
   self.FDirectory := aIsDirectory;
   self.dirlist := dirlist;
   self.filename := filename;
