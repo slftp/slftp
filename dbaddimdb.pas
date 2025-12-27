@@ -2,7 +2,7 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, IniFiles, irc, Contnrs, SyncObjs, Generics.Collections;
+uses Classes, IniFiles, irc, Contnrs, SyncObjs, Generics.Collections, slcriticalsection2;
 
 type
   { @abstract(Class for information from each single line of the slftp.imdbcountries file) }
@@ -47,6 +47,7 @@ type
     imdb_festival:boolean;
     imdb_stvm:boolean;
     imdb_stvs:String;
+    imdb_type:String;
     // additional infos
     imdb_origtitle: String; //< original imdb/movie title
     constructor Create(imdb_id :String);
@@ -78,12 +79,12 @@ procedure dbaddimdbUnInit;
 var
   last_addimdb: THashedStringList;
   last_imdbdata: THashedStringList;
-  dbaddimdb_cs: TCriticalSection;
+  dbaddimdb_cs: TSlCriticalSection2;
 
 implementation
 
 uses DateUtils, SysUtils, configunit, mystrings, FLRE, kb, kb.releaseinfo,
-  queueunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
+  sitesunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo;
 
 const
   section = 'dbaddimdb';
@@ -158,7 +159,7 @@ begin
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)',[imdb_origtitle, imdb_year]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s',[imdb_countries.DelimitedText,imdb_languages.DelimitedText]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s)',[imdb_rating,imdb_votes,imdb_screens,status]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s',[imdb_rating,imdb_votes,imdb_screens,status,imdb_type]));
 end;
 
 procedure TDbImdbData.PostResults(const netname, channel: String; rls : String = '');
@@ -174,7 +175,7 @@ begin
   irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)',[imdb_origtitle, imdb_year]));
   irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s',[imdb_countries.DelimitedText,imdb_languages.DelimitedText]));
   irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
-  irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s)',[imdb_rating,imdb_votes,imdb_screens,status]));
+  irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s',[imdb_rating,imdb_votes,imdb_screens,status,imdb_type]));
 end;
 
 function ExcludeCountry(const aCountryname: String): Boolean;
@@ -229,7 +230,7 @@ begin
 
   if ((rls <> '') and (imdb_id <> '')) then
   begin
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('addimdb');
     try
       i:= last_addimdb.IndexOf(rls);
     finally
@@ -273,7 +274,7 @@ begin
       exit;
   end;
 
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('SaveImdb1');
   try
     i:= last_addimdb.IndexOf(rls);
   finally
@@ -283,7 +284,7 @@ begin
   begin
     db_imdb := TDbImdb.Create(rls, imdb_id);
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdb2');
     try
       try
         last_addimdb.AddObject(rls, db_imdb);
@@ -311,7 +312,7 @@ begin
       end;
     end;
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdb3');
     try
       i:= last_addimdb.Count;
       try
@@ -337,7 +338,7 @@ procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
 var
   i: Integer;
 begin
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('SaveImdbData1');
   try
     i:= last_imdbdata.IndexOf(rls);
   finally
@@ -346,7 +347,7 @@ begin
 
   if i = -1 then
   begin
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdbData2');
     try
       try
         last_imdbdata.AddObject(rls, imdbdata);
@@ -377,7 +378,7 @@ begin
       end;
     end;
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdbData3');
     try
       i:= last_imdbdata.Count;
       try
@@ -402,7 +403,7 @@ end;
 procedure dbaddimdb_ParseImdb(rls, imdb_id: String);
 begin
   try
-    AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls));
+    AddTask(TPazoHTTPImdbTask.Create(imdb_id, rls), true);
   except
     on e: Exception do
     begin
@@ -447,7 +448,7 @@ end;
 function dbaddimdb_checkid(const imdbid: String): Boolean;
 begin
   Result := False;
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('checkid');
   try
     try
       if rx_imdbid.Find(imdbid) <> 0 then
@@ -470,7 +471,7 @@ begin
   imdbid := '';
   Result := False;
   try
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('parseid');
     try
       if rx_imdbid.MatchAll(text, rx_captures, 1 ,1) then
       begin
@@ -507,7 +508,7 @@ var
   fItem: TMapLanguageCountry;
   fDupe: Boolean;
 begin
-  dbaddimdb_cs := TCriticalSection.Create;
+  dbaddimdb_cs := TSlCriticalSection2.Create('dbaddimdb');
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
   last_addimdb.OwnsObjects:= True;
@@ -565,7 +566,7 @@ end;
 procedure dbaddimdbUninit;
 begin
   glLanguageCountryMappingList.Free;
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('Uninit');
   try
     FreeAndNil(last_addimdb);
     FreeAndNil(last_imdbdata);

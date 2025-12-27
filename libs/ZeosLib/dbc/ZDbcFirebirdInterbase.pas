@@ -1563,15 +1563,22 @@ begin
 end;
 
 procedure TZInterbaseFirebirdConnection.Commit;
+var txn: IZInterbaseFirebirdTransaction; //localize
+    txnLvl: Integer;
 begin
   if Closed then
     raise EZSQLException.Create(SConnectionIsNotOpened);
   if AutoCommit then
     raise EZSQLException.Create(SCannotUseCommit);
-  with GetActiveTransaction do begin
-    Commit;
-    if (not FRestartTransaction) and (GetTransactionLevel <= 0) then
+  txn := GetActiveTransaction;
+  try
+    txn.Commit;
+    txnLvl := txn.GetTransactionLevel;
+    if (fActiveTransaction = nil {released because of commit?}) or
+       (not FRestartTransaction) and (txnLvl <= 0) then
       SetAutoCommit(True);
+  finally
+    txn := nil;
   end;
 end;
 
@@ -2207,7 +2214,7 @@ begin
     and (ImmediatelyReleasable <> Sender) then
       ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
     for I:= fTransactions.Count - 1 downto 0 do
-      if Supports(IZTransaction(fTransactions[I]), IImmediatelyReleasable, ImmediatelyReleasable)
+      if (fTransactions[I].QueryInterface(IImmediatelyReleasable, ImmediatelyReleasable) = S_OK)
       and (Sender <> ImmediatelyReleasable) then
         ImmediatelyReleasable.ReleaseImmediat(Sender, AError);
   end;
@@ -2233,15 +2240,22 @@ begin
 end;
 
 procedure TZInterbaseFirebirdConnection.Rollback;
+var txn: IZInterbaseFirebirdTransaction; //localize
+    txnLvl: Integer;
 begin
   if Closed then
     raise EZSQLException.Create(SConnectionIsNotOpened);
   if AutoCommit then
     raise EZSQLException.Create(SCannotUseRollback);
-  with GetActiveTransaction do begin
-    Rollback;
-    if (not FRestartTransaction) and (GetTransactionLevel <= 0) then
-      SetAutoCommit(True)
+  txn := GetActiveTransaction;
+  try
+    txn.Rollback;
+    txnLvl := txn.GetTransactionLevel;
+    if (fActiveTransaction = nil {released because of commit?}) or
+       (not FRestartTransaction) and (txnLvl <= 0) then
+      SetAutoCommit(True);
+  finally
+    txn := nil;
   end;
 end;
 
@@ -3910,7 +3924,7 @@ function TZAbstractInterbaseFirebirdResultSet.IsNull(ColumnIndex: Integer): Bool
 begin
   {$IFNDEF DISABLE_CHECKING}
   CheckClosed;
-  Assert((ColumnIndex >= FirstDbcIndex) and (ColumnIndex <= ColumnsInfo.Count {$IFDEF GENERIC_INDEX}-1{$ENDIF}), 'Index out of Range.');
+  CheckError((ColumnIndex >= FirstDbcIndex) and (ColumnIndex <= ColumnsInfo.Count {$IFDEF GENERIC_INDEX}-1{$ENDIF}), 'Index out of Range.');
   {$ENDIF}
   with TZInterbaseFirebirdColumnInfo(ColumnsInfo[ColumnIndex{$IFNDEF GENERIC_INDEX}-1{$ENDIF}]) do
     Result := (sqlind <> nil) and (sqlind^ = ISC_NULL)
@@ -4551,12 +4565,6 @@ begin
   LastUpdateCount := BatchDMLArrayCount;
 end;
 
-{$IF not declared(PRawByteString)}
-type
-  PRawByteString = ^RawByteString;
-{$IFEND}
-
-
 const
   sRETURNING = 'RETURNING';
   EBStart = {$IFNDEF NO_ANSISTRING}AnsiString{$ELSE}RawByteString{$ENDIF}('EXECUTE BLOCK(');
@@ -4585,7 +4593,7 @@ var
   PStmts, PResult, P: PAnsiChar;
   TypeToken: PRawByteString;
   procedure ComposeTypeTokens;
-  var TypeToken: PRawByteString;
+  var TypeToken: {$IFNDEF WITH_RAWBYTESTRING}ZCompatibility.{$ENDIF} PRawByteString;
     ParamIndex, j: Cardinal;
     SQLWriter: TZRawSQLStringWriter;
     CodePageInfo: PZCodePage;

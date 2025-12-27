@@ -37,7 +37,11 @@
 --=========================( NEW SETTINGS AND FILES )==============================-
 
     NEW slftp.ini parameter(s):
-      reduced_speedstat_weight=0
+      SFVRelease=
+      event_based_locking=0
+	  monitor_lock_times=0
+	  mode=0 in [dbaddpre] for in-memory pre DB
+	  add_to_kb_on_dbaddpre_insert=0
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -45,15 +49,61 @@
 
 --==============================( KNOWN BUGS )====================================-
 
-    Setting !maxupdn to 0 for upload/download leads to problems -> generating gillions of queued tasks
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
 
+--=============================( SLFTP v1.5.11 )==================================-
+    {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
+    {#} Fix build on BSD
+    {#} Fix corrupted sites.dat and rtpl/SITE.setting files when the process gets killed or crashes
+    {#} Fix REQUEST precatcher event firing when it should not
+    {+} Enable SFV check to avoid sending wrong files. Set sections in SFVRelease in [taskrace] of slftp.ini
+    {+} Enable locks with timeout in slftp.ini section 'debug' setting 'event_based_locking'. This is to debug deadlocks and
+        will raise an exception with some info about which thread and code is blocking a lock.
+    {+} Enable lock monitoring by setting monitor_lock_times=1 then you can use !loglockstats to generate a report.
+    {+} Allow to add a Rls to the KB / start race when it's being added to the predb. Enable by setting add_to_kb_on_dbaddpre_insert=1
+    {+} Cooldown time when a site get a max sim up/dn error during which no new tasks will be assigned to the corresponding direction
+    {+} Monitor files of running transfers and detect changes of username and file size regressions to abort a transfer immediately
+        which would else block a slot and fail later.
+    {+} Kill a connection if one site has reported the transfer as completed but the other one is still waiting.
+    {^} Rewrite rules unit for faster race start
+    {^} Rewrite of in-memory pre DB which now uses in-memory SQLite. Enable by using mode=0 in [dbaddpre] section of slftp.ini
+    {^} Added support for OpenSSL 3
+    {^} Improve parallelization of the queue which results in higher task throughput especially when you have many routes. If
+        the CPU load gets too high, increate the value of newdir_dirlist_readd as it's not closer to actually reaching this value
+        of dirlist interval
+    {^} Various other performance improvements
+    {^} The routeset command now features the option -f to enable the given route only for races where the group is added
+        as affil on the source site. Also the option -n was added to race only when the group is no affil.
+    {^} Changed the look of the raced file announce which now shows the slot name and the % complete state of the race
+        on the sites.
+    {-} The routelock command has been removed. Use routeset with option -l instead.
+        Existing route locks will be migrated, if you revert to an older version, you will need to set those routes again.
+
+
 --=============================( SLFTP v1.5.10 )==================================-
+    {+} Expose IMDB type to rulesengine. You can now make rules to block for example TV Movie or Short. !rulehelp imdbtype
     {+} Made regex for http pretime configurable (see slftp.ini). It now expects only one row of text from the remote endpoint
+    {+} You can now print the version of a slftp executable by adding the parameter -v or --version
+    {+} The new setting kill_connection_on_stalled_transfer_seconds allows to set a timeout in seconds after which a transfer that is stalled at
+        0 bytes gets killed (by closing the connection). This option can be set per site as well using !killconnectiononstalledtransfer. Stalled
+        transfers will be posted into the channel with role ERROR.
     {#} Fix bugs which caused some mp3 genres not to be recognized and setting mp3genres be ignored (#322)
+    {#} Fix 'Site down' spam on Admin channel
+    {#} Fix TV lookup issues with case sensitivity and show names that include a '
+    {#} Fix CD number calculation error when the release name contains a very large number
+    {#} Fix showing a file in race stats even if the transfer failed
+    {#} Fix sometimes transfering files with size 0 even if it is not configured to do so (by setting skip_being_uploaded_files)
+    {#} Fix some memory leaks
+    {#} Fix race condition leading to subdirs (Sample) not being detected at batch/spread (#64)
     {^} Reevaluate race if a pre time is added to the local SQLite DB after the race is already in KB
     {^} Option to reduce weight of speedstats when calculating destination ranks during a race (setting reduced_speedstat_weight in slftp.ini)
     {^} Improve caching of skiplist values for dirlist
+    {^} Write race stats to the DB asynchronously
+    {^} Adjust parsing of the IMDB website because it has a new layout
+    {^} Various improvements for the reqfiller, racing/spreading, performance, slot management
+    {^} Upgraded to mORMot2 and updated other 3rd party libraries
+    {^} Show some more details at startup to see what's taking long
+    {^} Consider 'file not allowed' and 'bad zip' responses from pzs zipscript
 
 --=============================( SLFTP v1.5.9 )===================================-
     {+} Support 'site search' cmd to find requests, use setting use_site_search_on_reqfill in ini or !usesitesearchonreqfill per site

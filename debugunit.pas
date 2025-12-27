@@ -30,32 +30,81 @@ procedure Debug(const priority: TDebugPriority; const section, FormatStr: String
   @param(aMaxLinesToRead number of lines to read from logfile)
   @returns(logfile lines) }
 function LogTail(const aMaxLinesToRead: Integer): String;
+{ Writes Debug Level to config file and global variable
+  @param(netname for irc output)
+  @param(channel name for irc output)
+  @param(new debug value) }
+function WriteDebugVerbosity(const netname, channel, params: String): boolean;
+{ Returns the currently used debug verbosity / priority }
+function GetDebugVerbosity: TDebugPriority;
 
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal;
+  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, slcriticalsection2;
 
 const
   section = 'debug';
 
 var
   f: TextFile;
-  debug_lock: TCriticalSection;
+  debug_lock: TSlCriticalSection2;
+  glCachedDebugPriority: TDebugPriority = dpError;
+  glCachedDebugCategories: string = ',verbose,';
 
 function _GetDebugLogFileName: String;
 begin
   Result := config.ReadString(section, 'debugfile', ExtractFilePath(ParamStr(0)) + 'slftp.log');
 end;
 
-function _GetDebugVerbosity: TDebugPriority; inline;
+function GetDebugVerbosity: TDebugPriority;
 begin
-  Result := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
+  Result := glCachedDebugPriority;
+end;
+
+function WriteDebugVerbosity(const netname, channel, params: String): boolean;
+var
+  val: integer;
+begin
+  Result := False;
+  val := StrToIntDef(params, -1);
+  if val = -1 then
+  begin
+
+    case glCachedDebugPriority of
+      dpError: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
+      dpMessage: irc_Addtext(Netname, Channel, 'Only Logging Errors and common Messages.');
+      dpSpam: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
+      dpNone: irc_Addtext(Netname, Channel, 'Skip Logging...');
+    end;
+    Result := True;
+    Exit;
+  end
+  else if (val <= 3) then
+  begin
+    config.WriteInteger('debug', 'verbosity', val);
+    config.UpdateFile;
+    glCachedDebugPriority := TDebugPriority(val);
+    case glCachedDebugPriority of
+      dpError: irc_Addtext(Netname, Channel, 'Only Logging Errors.');
+      dpMessage: irc_Addtext(Netname, Channel, 'Only Logging Errors and common Messages.');
+      dpSpam: irc_Addtext(Netname, Channel, 'Only Logging Almost everything.');
+      dpNone: irc_Addtext(Netname, Channel, 'Skip Logging...');
+    end;
+    Result := True;
+    Exit;
+  end
+  else
+  begin
+    irc_Addtext(Netname, Channel, '<c4>Syntax error</c>, unknown verbosity.');
+    Result := False;
+    Exit;
+  end;
 end;
 
 function _GetDebugCategories: String; inline;
 begin
-  Result := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
+  Result := glCachedDebugCategories;
 end;
 
 procedure _OpenLogFile;
@@ -124,8 +173,10 @@ end;
 
 procedure DebugInit;
 begin
-  debug_lock := TCriticalSection.Create;
+  glCachedDebugPriority := TDebugPriority(config.ReadInteger(section, 'verbosity', 0));
+  glCachedDebugCategories := ',' + LowerCase(config.ReadString(section, 'categories', 'verbose')) + ',';
   _OpenLogFile;
+  debug_lock := TSlCriticalSection2.Create('debug_lock');
 end;
 
 procedure DebugUninit;
@@ -136,22 +187,27 @@ end;
 
 procedure Debug(const priority: TDebugPriority; const section, msg: String); overload;
 var
-  nowstr: String;
+  nowstr, logtext: String;
 begin
-  if _GetDebugVerbosity = dpNone then
+  if glCachedDebugPriority = dpNone then
     exit;
 
-  if (_GetDebugVerbosity < priority) then
+  if (glCachedDebugPriority < priority) then
     exit;
 
   if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
     exit;
 
   DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
-  debug_lock.Enter;
+  logtext := Format('%s (%s) [%-25s] %s', [nowstr, 'NA', section, msg]);
+
+  if debug_lock = nil then  // has not been initialized yet
+    exit;
+
+  debug_lock.Enter('Debug');
   try
     try
-      WriteLn(f, Format('%s (%s) [%-25s] %s', [nowstr, IntToHex(IdGlobal.CurrentThreadId, 4), section, msg]));
+      WriteLn(f, logtext);
     except
       on e: Exception do
       begin
@@ -181,7 +237,7 @@ function LogTail(const aMaxLinesToRead: Integer): String;
 begin
   Result := '';
 
-  debug_lock.Enter;
+  debug_lock.Enter('LogTail');
   try
     _CloseLogFile;
     try

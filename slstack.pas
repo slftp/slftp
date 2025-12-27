@@ -4,8 +4,7 @@ interface
 
 
 uses
-  Classes, SysUtils,
-  slssl, IdOpenSSLHeaders_ssl, IdOpenSSLHeaders_ossl_typ, debugunit, mystrings,
+  Classes, SysUtils, slssl, mormot.lib.openssl11, mormot.core.os, debugunit, mystrings,
 {$IFDEF FPC}
   sockets
   {$IFDEF MSWINDOWS}
@@ -310,30 +309,39 @@ end;
 
 function PopulateLocalAddresses(l: TStringList; var error: String): Boolean;
 var
-  fHost: String;
+  fHost, fHostName: String;
 begin
   Result := False;
 
-  TIdStack.IncUsage;
+  fHost := '';
+  fHostName := slGetHostName;
+
   try
-    fHost := GStack.ResolveHost(slGetHostName);
-  finally
-    TIdStack.DecUsage;
+    TIdStack.IncUsage;
+    try
+      fHost := GStack.ResolveHost(fHostName);
+    finally
+      TIdStack.DecUsage;
+    end;
+  except
+    on e: Exception do
+    begin
+      // the debug unit and the admin console are not yet available here, so just log this to the console
+      WriteLn(Format('Warning: unable to resolve host %s: %s', [fHostName, e.Message]));
+      // sleep so the user can actually read this message
+      Sleep(3000);
+    end;
   end;
 
   l.Clear;
 
-  if fHost = '' then
-  begin
-    error := 'Cant query local addresses';
-    exit;
-  end
-  else
+  if fHost <> '' then
   begin
     l.Add(fHost);
-    l.Add('127.0.0.1');
-    Result := True;
   end;
+
+  l.Add('127.0.0.1');
+  Result := True;
 end;
 
 
@@ -1047,14 +1055,18 @@ begin
 end;
 
 function slRecv(ssl: PSSL; var buffer; bufsize: Integer; var error: String): Integer;
+var
+  fSslErrorCode: Integer;
 begin
   try
     Result := SSL_read(ssl, PAnsiChar(@buffer), bufsize);
     if Result <= 0 then
     begin
-      error := 'sslread failed: ' + GetLastSSLError(ssl, Result);
-      if 0 < Pos('zero return', error) then
-        error := 'Connection lost';
+      fSslErrorCode := GetLastSSLErrorCode(ssl, Result);
+      if fSslErrorCode = SSL_ERROR_ZERO_RETURN then
+        error := 'Connection lost'
+      else
+        error := 'sslread failed: ' + GetSSLErrorMessageFromErrorCode(ssl, fSslErrorCode);
     end;
   except
     on e: Exception do

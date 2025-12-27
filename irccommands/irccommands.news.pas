@@ -46,7 +46,7 @@ begin
   announce := SubString(params, ' ', 2);
 
   // check if first char of first input is alphabetical
-  if input[1] in ['A'..'Z', 'a'..'z'] then
+  if CharInSet(input[1], ['A'..'Z', 'a'..'z']) then
   begin
     if (announce = '-s') or (announce = '-show') then
       AnnounceIt := True;

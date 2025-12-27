@@ -1,4 +1,2 @@
-7a3ba3732c0a0f6ef20d3d4e22bb141e0b63698f
-Merge pull request #287 from Alexey-T/master
-
-typo in docs
+b574d688d28751b76387e82b319fb1f4bd08108a
+micro fix from https://gitlab.com/freepascal.org/fpc/source/-/commit/ae74e9f8cd6a28e24be7e4d47b00039bfbfe8a57

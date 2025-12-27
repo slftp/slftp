@@ -53,7 +53,7 @@ uses
     cthreads,
   {$ENDIF}
   {$IFDEF CPUX86_64}
-    SynFPCx64MM,
+    mormot.core.fpcx64mm,
   {$ELSE}
     cmem,
   {$ENDIF}
@@ -67,6 +67,7 @@ var
 
 begin
   fBinaryFilename := ExtractFileName(ParamStr(0));
+  fCmdLine := ''; // Initialize to prevent uninitialized variable warning
   if ParamCount <> 0 then
   begin
     // execute command line util

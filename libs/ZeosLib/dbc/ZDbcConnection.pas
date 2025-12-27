@@ -556,7 +556,7 @@ type
     ///  transaction was started. 2 means the transaction was saved. 3 means the
     ///  previous savepoint got saved too and so on.</summary>
     /// <returns>Returns the current txn-level. </returns>
-    function GetTransactionLevel: Integer;
+    function GetTransactionLevel: Integer; virtual;
   public //implement IZTransactionManager
     function CreateTransaction(AutoCommit, ReadOnly: Boolean;
       TransactIsolationLevel: TZTransactIsolationLevel; Params: TStrings): IZTransaction;
@@ -812,7 +812,8 @@ const
       ({spAS400}      cUnknown,   cUnknown,   cUnknown),
       ({spInformix}   cUnknown,   cUnknown,   cUnknown),
       ({spCUBRID}     cUnknown,   cUnknown,   cUnknown),
-      ({spFoxPro}     cUnknown,   cUnknown,   cUnknown)
+      ({spFoxPro}     cUnknown,   cUnknown,   cUnknown),
+      ({spDuckDB}     cUnknown,   cUnknown,   cUnknown)
     );
   cSavePointSyntaxA: array[TZServerProvider, TZSavePointQueryType] of RawByteString =
     ( ({spUnknown}    cUnknown,   cUnknown,   cUnknown),
@@ -830,7 +831,8 @@ const
       ({spAS400}      cUnknown,   cUnknown,   cUnknown),
       ({spInformix}   cUnknown,   cUnknown,   cUnknown),
       ({spCUBRID}     cUnknown,   cUnknown,   cUnknown),
-      ({spFoxPro}     cUnknown,   cUnknown,   cUnknown)
+      ({spFoxPro}     cUnknown,   cUnknown,   cUnknown),
+      ({spDuckDB}     cUnknown,   cUnknown,   cUnknown)
     );
 
   sCommitMsg = 'COMMIT TRANSACTION';
@@ -876,7 +878,8 @@ const
     {spAS400}     nil,
     {spInformix}  TZInformixSequence,
     {spCUBRID}    TZCubridSequence,
-    {spFoxPro}    nil
+    {spFoxPro}    nil,
+    {spDuckDB}    nil
     );
 
 { TZAbstractDriver }
@@ -974,7 +977,7 @@ begin
     TempPlain := FCachedPlainDrivers.Get(TempKey) as IZPlainDriver;
     if Assigned(TempPlain) then begin
       Result := TempPlain.Clone;
-      AddPlainDriverToCache(Result, Protocol, LibLocation);
+      {$IFNDEF ZEOS_DISABLE_DRIVER_CACHE}AddPlainDriverToCache(Result, Protocol, LibLocation);{$ENDIF}
     end;
   end;
 end;

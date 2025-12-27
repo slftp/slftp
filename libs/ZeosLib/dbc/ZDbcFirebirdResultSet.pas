@@ -117,6 +117,19 @@ type
     FResultset: IResultset;
     FResultSetAddr: PIResultSet;
   public
+    /// <summary>Releases all driver handles and set the object in a closed
+    ///  Zombi mode waiting for destruction. Each known supplementary object,
+    ///  supporting this interface, gets called too. This may be a recursive
+    ///  call from parant to childs or vice vera. So finally all resources
+    ///  to the servers are released. This method is triggered by a connecton
+    ///  loss. Don't use it by hand except you know what you are doing.</summary>
+    /// <param>"Sender" the object that did notice the connection lost.</param>
+    /// <param>"AError" a reference to an EZSQLConnectionLost error.
+    ///  You may free and nil the error object so no Error is thrown by the
+    ///  generating method. So we start from the premisse you have your own
+    ///  error handling in any kind.</param>
+    procedure ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost); override;
+  public
     Constructor Create(const Statement: IZStatement; const SQL: String;
       MessageMetadata: IMessageMetadata; OrgTypeList: TZIBFBOrgSqlTypeAndScaleList;
       Status: IStatus; DataBuffer: Pointer; ResultSet: PIResultSet);
@@ -627,6 +640,16 @@ begin
   FCursorLocation := rctServer;
 end;
 
+procedure TZFirebirdResultSet.ReleaseImmediat(const Sender: IImmediatelyReleasable; var AError: EZSQLConnectionLost);
+begin
+  if FResultSet <> nil then begin
+    FResultSet{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
+    FResultSet := nil;
+    FResultSetAddr^ := nil;
+  end;
+  inherited;
+end;
+
 function TZFirebirdResultSet.First: Boolean;
 var Status: Integer;
 begin
@@ -641,9 +664,9 @@ begin
       RegisterCursor;
     end;
     Status := FResultSet.fetchFirst(FStatus, FDataBuffer);
-    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
+    Result := Status = cIStatus_RESULT_OK;
     if not Result then begin
-      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
+      if Status = cIStatus_RESULT_NO_DATA then begin
         LastRowNo := 0;
         RowNo := 1; //set AfterLast
       end else
@@ -702,9 +725,9 @@ begin
       RegisterCursor;
     end;
     Status := FResultSet.fetchLast(FStatus, FDataBuffer);
-    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
+    Result := Status = cIStatus_RESULT_OK;
     if not Result then begin
-      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
+      if Status = cIStatus_RESULT_NO_DATA then begin
         if RowNo = 0 then
           RowNo := 1; //else ?? which row do we have now?
       end else
@@ -731,9 +754,9 @@ begin
       RegisterCursor;
     end;
     Status := FResultSet.fetchAbsolute(FStatus, Row, FDataBuffer);
-    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
+    Result := Status = cIStatus_RESULT_OK;
     if not Result then begin
-      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
+      if Status = cIStatus_RESULT_NO_DATA then begin
         RowNo := Row;
         if LastRowNo >= Row then
           LastRowNo := Row -1;
@@ -764,9 +787,9 @@ begin
     end;
     Status := FResultSet.fetchRelative(FStatus, Rows, FDataBuffer);
     RowNo := RowNo + Rows;
-    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
+    Result := Status = cIStatus_RESULT_OK;
     if not Result then begin
-      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
+      if Status = cIStatus_RESULT_NO_DATA then begin
         if LastRowNo >= RowNo then
           LastRowNo := RowNo -1;
       end else
@@ -808,12 +831,12 @@ begin
       RegisterCursor;
     end;
     Status := FResultSet.fetchNext(FStatus, FDataBuffer);
-    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
+    Result := Status = cIStatus_RESULT_OK;
     if not Result then try
-      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
+      if Status = cIStatus_RESULT_NO_DATA then begin
         if GetType = rtForwardOnly then begin
           FResultSet.Close(FStatus); //dereister cursor from Txn
-          if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+          if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
             FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IResultSet.close', Self)
           else // Close() releases intf on success
             FResultSet:= nil;
@@ -829,7 +852,7 @@ begin
       //if statement is prepared but a syntax error did happen on execute only
       //example TestSF443
       if Assigned(FResultSet) then
-        FResultSet.release;
+        FResultSet{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
       FResultSet := nil;
       FResultSetAddr^ := nil;
       if (FFBTransaction <> nil) then
@@ -865,10 +888,10 @@ begin
       RegisterCursor;
     end;
     Status := FResultSet.fetchPrior(FStatus, FDataBuffer);
-    Result := Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_OK{$ELSE}IStatus_RESULT_OK{$ENDIF};
+    Result := Status = cIStatus_RESULT_OK;
     RowNo := RowNo -1;
     if not Result then begin
-      if Status = {$IFDEF WITH_CLASS_CONST}IStatus.RESULT_NO_DATA{$ELSE}IStatus_RESULT_NO_DATA{$ENDIF} then begin
+      if Status = cIStatus_RESULT_NO_DATA then begin
         if LastRowNo < RowNo then
           LastRowNo := RowNo;
       end else
@@ -884,7 +907,7 @@ begin
   try
     if FResultSet <> nil then begin
       FResultSet.close(FStatus);
-      if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+      if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
         FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IResultSet.close', Self)
       else begin // Close() releases intf on success
         FResultSet:= nil;
@@ -893,7 +916,7 @@ begin
     end;
   finally
     if FResultSet <> nil then begin
-      FResultSet.release;
+      FResultSet{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
       FResultSet := nil;
       FResultSetAddr^ := nil;
     end;
@@ -938,14 +961,14 @@ begin
     try
       FBlob.cancel(FStatus);
       try
-        if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+        if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
           FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.cancel', Self)
         else // cancel() releases intf on success
           FBlob:= nil; 
       FOwnerLob.FFBConnection.GetActiveTransaction.DeRegisterOpenUnCachedLob(FOwnerLob);
       finally
         if Assigned(FBlob) then
-          FBlob.release;
+          FBlob{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
       end;
     finally
       FLobIsOpen := False;
@@ -963,13 +986,13 @@ begin
   Assert(FLobIsOpen);
   FBlob.close(FStatus);
   try
-    if ((Fstatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0) then
+    if ((Fstatus.getState and cIStatus_STATE_ERRORS) <> 0) then
       FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.close', Self)
     else // close() releases intf on success
       FBlob:= nil;
   finally
     if Assigned(FBlob) then
-      FBlob.release;
+      FBlob{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
   end;
   FLobIsOpen := False;
   FPosition := 0;
@@ -982,22 +1005,22 @@ begin
   BlobId := OwnerLob.FBlobId;
   FPlainDriver := OwnerLob.FPlainDriver;
   FFBTransaction := OwnerLob.FFBTransaction.GetTransaction;
-  FFBTransaction.AddRef;
+  FFBTransaction{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.AddRef;
   BlobInfo :=  @FOwnerLob.FBlobInfo;
   FStatus := OwnerLob.FFBConnection.GetStatus;
   FAttachment := OwnerLob.FFBConnection.GetAttachment;
-  FAttachment.addRef;
+  FAttachment{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.addRef;
 end;
 
 procedure TZFirebirdLobStream.CreateLob;
 var WasRegistered: Boolean;
 begin
   if FBlob <> nil then
-    FBlob.release;
+    FBlob{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
   WasRegistered := Int64(BlobId) <> 0;
   { create blob handle }
   FBlob := FAttachment.createBlob(Fstatus, FFBTransaction, @BlobId, 0, nil);
-  if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+  if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
     FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IAttachment.createBlob', Self);
   if not WasRegistered then
     FOwnerLob.FFBConnection.GetActiveTransaction.RegisterOpenUnCachedLob(FOwnerLob);
@@ -1020,8 +1043,8 @@ begin
   finally
     FOwnerLob.FLobStream := nil;
     FOwnerLob.FIsUpdated := Updated;
-    FAttachment.release;
-    FFBTransaction.release;
+    FAttachment{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
+    FFBTransaction{$IFDEF WITH_RECORD_METHODS}.ReferenceCounted{$ENDIF}.release;
   end;
   inherited;
 end;
@@ -1039,7 +1062,7 @@ begin
   Items[3] := isc_info_blob_type;
 
   FBlob.getInfo(FStatus, 4, @Items[0], SizeOf(Results), @Results[0]);
-  if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+  if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
     FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.GetInfo', Self);
   pBufStart := @Results[0];
   pBuf := pBufStart;
@@ -1084,7 +1107,7 @@ begin
   if not FLobIsOpen then begin
     if (Int64(BlobID) <> 0) then begin
       FBlob := FAttachment.openBlob(FStatus, FFBTransaction, @BlobID, 0, nil);
-      if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+      if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
         FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IAttachment.openBlob', Self);
       FillBlobInfo;
     end else
@@ -1112,23 +1135,15 @@ begin
       then SegLen := FOwnerLob.FBlobInfo.MaxSegmentSize
       else SegLen := Word(Count);
       Status := FBlob.getSegment(FStatus, SegLen, PBuf, @BytesRead);
-      if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+      if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
         FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.getSegment', Self);
       case Status of
-        {$IFDEF WITH_CLASS_CONST}
-        IStatus.RESULT_OK, IStatus.RESULT_SEGMENT
-        {$ELSE}
-        IStatus_RESULT_OK, IStatus_RESULT_SEGMENT
-        {$ENDIF}: begin
+        cIStatus_RESULT_OK, cIStatus_RESULT_SEGMENT: begin
             Inc(Result, Integer(BytesRead));
             Dec(Count, BytesRead);
             Inc(PBuf, BytesRead);
           end;
-        {$IFDEF WITH_CLASS_CONST}
-        IStatus.RESULT_NO_DATA
-        {$ELSE}
-        IStatus_RESULT_NO_DATA
-        {$ENDIF}: begin
+        cIStatus_RESULT_NO_DATA: begin
            Inc(Result, Integer(BytesRead));
            Break;
           end
@@ -1152,7 +1167,7 @@ begin
   end;
   if (Result <> FPosition) then begin
     Result := FBlob.seek(FStatus, Origin, Offset);
-    if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+    if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
        FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.seek', Self);
   end;
   FPosition := Result;
@@ -1181,7 +1196,7 @@ begin
     then SegLen := BlobInfo.MaxSegmentSize
     else SegLen := Count;
     FBlob.putSegment(FStatus, SegLen, TempBuffer);
-    if (FStatus.getState and {$IFDEF WITH_CLASS_CONST}IStatus.STATE_ERRORS{$ELSE}IStatus_STATE_ERRORS{$ENDIF}) <> 0 then
+    if (FStatus.getState and cIStatus_STATE_ERRORS) <> 0 then
       FOwnerLob.FFBConnection.HandleErrorOrWarning(lcOther, PARRAY_ISC_STATUS(FStatus.getErrors), 'IBlob.putSegment', Self);
     Inc(Result, SegLen);
     Inc(TempBuffer, SegLen);
@@ -1314,6 +1329,8 @@ begin
     WriteStream := Lob.CreateLobStream(FColumnCodePage, lsmWrite);
     P := nil;
     try
+      if not FBlobInfoFilled then
+        FLobStream.OpenLob;
       if FBlobInfo.TotalSize > 0 then begin
         segmentsize := FBlobInfo.MaxSegmentSize;
         GetMem(P, SegmentSize);
