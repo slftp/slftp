@@ -200,8 +200,8 @@ begin
         fQuery.ExecutePrepared;
         while fQuery.Step do
         begin
-          Result := Result + fQuery.ColumnUtf8('sitename') + '-' + fQuery.ColumnUtf8('section') + '=' + fQuery.ColumnUtf8('path') + #13#10;
-          aRls := fQuery.ColumnUtf8('rls');
+          Result := Result + fQuery.ColumnString('sitename') + '-' + fQuery.ColumnString('section') + '=' + fQuery.ColumnString('path') + #13#10;
+          aRls := fQuery.ColumnString('rls');
         end;
       except
         on e: Exception do
@@ -239,7 +239,7 @@ begin
         fQuery.ExecutePrepared;
         while fQuery.Step do
         begin
-          Result := Result + fQuery.ColumnUtf8('sitename') + '-' + fQuery.ColumnUtf8('section') + '=' + fQuery.ColumnUtf8('path') + '/' + fQuery.ColumnUtf8('rls') + #13#10;
+          Result := Result + fQuery.ColumnString('sitename') + '-' + fQuery.ColumnString('section') + '=' + fQuery.ColumnString('path') + '/' + fQuery.ColumnString('rls') + #13#10;
         end;
       except
         on e: Exception do

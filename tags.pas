@@ -19,6 +19,11 @@ procedure TagsUninit;
   @param(aFilename complete dir/file)
   @returns(@link(tctCOMPLETE) if complete, @link(tctINCOMPLETE) if incomplete, otherwise @link(tctUNMATCHED).) }
 function TagComplete(const aFilename: String): TTagCompleteType;
+{ Extracts the numeric percentage from a tag string (e.g. "95% Complete")
+  @param(aFilename complete dir/file tag)
+  @param(aPercent extracted percentage value between 0 and 100)
+  @returns(@true if a percentage was found, @false otherwise.) }
+function TagExtractPercent(const aFilename: String; out aPercent: Integer): Boolean;
 
 { Frees the thread vars of the current thread (call this when a thread terminates). }
 procedure CleanupTagsThreadVars;
@@ -26,14 +31,14 @@ procedure CleanupTagsThreadVars;
 implementation
 
 uses
-  Classes, SysUtils, mystrings, configunit, debugunit, FLRE;
+  Classes, SysUtils, StrUtils, mystrings, configunit, debugunit, FLRE;
 
 const
   section = 'tags';
 
 var
-  glCompleteRegex: string;
-  glIncompleteRegex: string;
+  glCompleteRegex: RawByteString;
+  glIncompleteRegex: RawByteString;
 
 threadvar
   glCompleteRegexInstance, glIncompleteRegexInstance: TFLRE; //< complete and incomplete regex object
@@ -107,7 +112,7 @@ begin
 
   // is the file/dir a complete tag
   try
-    if GetCompleteRegexInstance.Find(aFilename) <> 0 then
+    if GetCompleteRegexInstance.Find(RawByteString(aFilename)) <> 0 then
     begin
       Debug(dpSpam, section, 'TagComplete By FLRE %s', [aFilename]);
       Result := tctCOMPLETE;
@@ -122,7 +127,7 @@ begin
 
   // is the file/dir an incomplete tag
   try
-    if GetIncompleteRegexInstance.Find(aFilename) <> 0 then
+    if GetIncompleteRegexInstance.Find(RawByteString(aFilename)) <> 0 then
     begin
       Debug(dpSpam, section, 'TagIncomplete By FLRE %s', [aFilename]);
       Result := tctINCOMPLETE;
@@ -136,10 +141,59 @@ begin
   end;
 end;
 
+function TagExtractPercent(const aFilename: String; out aPercent: Integer): Boolean;
+var
+  idx, startIdx, endIdx: Integer;
+  numStr: String;
+  tempPercent: Integer;
+begin
+  Result := False;
+  aPercent := -1;
+  if aFilename = '' then
+    exit;
+
+  // get the position of the first '%'
+  idx := Pos('%', aFilename);
+  while idx > 1 do
+  begin
+    startIdx := idx - 1;
+    while (startIdx >= 1) and (aFilename[startIdx] = ' ') do
+      Dec(startIdx);
+
+    if (startIdx < 1) or not (aFilename[startIdx] in ['0'..'9']) then
+    begin
+      // we reached the start of the string or a char that is not a number, try to find another
+      // '%' at a higher position inside of the string.
+      idx := PosEx('%', aFilename, idx + 1);
+      Continue;
+    end;
+
+    // find the beginning of the actual percent number
+    endIdx := startIdx;
+    while (startIdx >= 1) and (aFilename[startIdx] in ['0'..'9']) do
+      Dec(startIdx);
+    Inc(startIdx);
+
+    // get the number from the string with the start and end index we just determined
+    numStr := Trim(Copy(aFilename, startIdx, endIdx - startIdx + 1));
+    if TryStrToInt(numStr, tempPercent) and (tempPercent >= 0) and (tempPercent <= 100) then
+    begin
+      // we were able to parse and it's a valid percent number
+      aPercent := tempPercent;
+      Result := True;
+      exit;
+    end;
+
+    // if we reach this place, no valid percent number was found before the '%' char
+    // try to find another '%' at a higher position inside of the string.
+    idx := PosEx('%', aFilename, idx + 1);
+  end;
+end;
+
 procedure TagsInit;
 var
   complete_regex_default, incomplete_regex_default: String;
-  dummy_string: String;
+  dummy_string: RawByteString;
   fTestingRegexInstance: TFLRE;
 begin
   Debug(dpSpam, section, 'Init %s begins', [section]);
@@ -150,7 +204,7 @@ begin
   dummy_string := '[xy] - ( 19M 4F - COMPLETE ) - [xy]';
 
   // check custom slftp.ini complete_regex
-  glCompleteRegex := config.ReadString(section, 'complete_regex', complete_regex_default);
+  glCompleteRegex := RawByteString(config.ReadString(section, 'complete_regex', complete_regex_default));
 
   fTestingRegexInstance := TFLRE.Create(glCompleteRegex, [rfIGNORECASE]);
   try
@@ -159,7 +213,7 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, Format('TagComplete: slftp.ini complete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      glCompleteRegex := complete_regex_default;
+      glCompleteRegex := RawByteString(complete_regex_default);
     end;
   end;
 
@@ -167,7 +221,7 @@ begin
     FreeAndNil(fTestingRegexInstance);
 
   // check custom slftp.ini incomplete_regex
-  glIncompleteRegex := config.ReadString(section, 'incomplete_regex', incomplete_regex_default);
+  glIncompleteRegex := RawByteString(config.ReadString(section, 'incomplete_regex', incomplete_regex_default));
 
   fTestingRegexInstance := TFLRE.Create(glIncompleteRegex, [rfIGNORECASE]);
   try
@@ -176,7 +230,7 @@ begin
     on e: Exception do
     begin
       Debug(dpError, section, Format('TagComplete: slftp.ini incomplete_regex is invalid. Falling back to default. (Exception :%s)', [e.Message]));
-      glIncompleteRegex := incomplete_regex_default;
+      glIncompleteRegex := RawByteString(incomplete_regex_default);
     end;
   end;
 
