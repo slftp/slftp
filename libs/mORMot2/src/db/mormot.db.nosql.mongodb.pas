@@ -189,7 +189,7 @@ function ToText(op: TMongoOperation): PShortString; overload;
   // this is the standard command request and reply body
   // - mmkSequence is used when there are several sections, encoded as the
   // 32-bit size, then the ASCIIZ document identifier, then zero or more
-  // BSON objects, ending one the declared size has been reached
+  // BSON objects, ending once the declared size has been reached
   // - mmkInternal is used for internal purposes and rejected by the server
   TMongoMsgKind = (
     mmkBody,
@@ -311,6 +311,7 @@ type
     procedure ToJson(W: TJsonWriter; Mode: TMongoJsonMode); overload; virtual;
     /// write the main parameters of the request as JSON
     function ToJson(Mode: TMongoJsonMode): RawUtf8; overload;
+  published
     /// identify the message, after call to any reintroduced Create() constructor
     property MongoRequestID: integer
       read fRequestID;
@@ -509,7 +510,10 @@ type
       const Command: variant; Flags: TMongoMsgFlags; ToReturn: integer); reintroduce;
     /// write the main parameters of the request as JSON
     procedure ToJson(W: TJsonWriter; Mode: TMongoJsonMode); override;
-end;
+    /// the command to be sent in this message - not published (could be huge)
+    property Command: variant
+      read fCommand;
+  end;
 
   {$endif MONGO_OLDPROTOCOL}
 
@@ -539,7 +543,7 @@ end;
     fPosition: integer;
     fLatestDocIndex: integer;
     fLatestDocValue: variant;
-    fElapsedMS: Int64;
+    fElapsedMicroSec: Int64;
     {$ifdef MONGO_OLDPROTOCOL}
     fStartingFrom: integer;
     procedure ComputeDocumentsList;
@@ -635,12 +639,14 @@ end;
     // if there is only one document in this reply
     // - this method is very optimized and will convert the BSON binary content
     // directly into JSON
+    // - WithHeader is used for logging, and may add some flags before the JSON
     procedure FetchAllToJson(W: TJsonWriter; Mode: TMongoJsonMode = modMongoStrict;
       WithHeader: boolean = false; MaxSize: PtrUInt = 0);
     /// return all documents content as a JSON array, or one JSON object
     // if there is only one document in this reply
     // - this method is very optimized and will convert the BSON binary content
     // directly into JSON
+    // - WithHeader is used for logging, and may add some flags before the JSON
     function ToJson(Mode: TMongoJsonMode = modMongoStrict;
       WithHeader: boolean = false; MaxSize: PtrUInt = 0): RawUtf8;
     /// append all documents content to a dynamic array of TDocVariant
@@ -739,8 +745,6 @@ type
   TOnMongoConnectionReply = procedure(Request: TMongoRequest;
     const Reply: TMongoReplyCursor; var Opaque) of object;
 
-{$M+}
-
   TMongoClient = class;
   TMongoDatabase = class;
   TMongoCollection = class;
@@ -749,7 +753,7 @@ type
   // - all access will be protected by a mutex (critical section): it is thread
   // safe but you may use one TMongoClient per thread or a connection pool, for
   // better performance
-  TMongoConnection = class
+  TMongoConnection = class(TSynPersistent)
   protected
     fSafe: TOSLock;
     fLocked: cardinal;
@@ -1021,7 +1025,7 @@ type
   /// remote access to a MongoDB server
   // - a single server can have several active connections, if some secondary
   // hosts were defined
-  TMongoClient = class
+  TMongoClient = class(TSynPersistent)
   protected
     fConnectionString: RawUtf8;
     fDatabases: TRawUtf8List;
@@ -1250,7 +1254,7 @@ type
   end;
 
   /// remote access to a MongoDB database
-  TMongoDatabase = class
+  TMongoDatabase = class(TSynPersistent)
   protected
     fClient: TMongoClient;
     fName: RawUtf8;
@@ -1339,7 +1343,7 @@ type
   end;
 
   /// remote access to a MongoDB collection
-  TMongoCollection = class
+  TMongoCollection = class(TSynPersistent)
   protected
     fDatabase: TMongoDatabase;
     fName: RawUtf8;
@@ -1859,6 +1863,9 @@ type
     property ErrorReply: TMongoReplyCursor
       read fError;
   published
+    /// the associated MongoDB request
+    property Request: TMongoRequest
+      read fRequest;
     /// the associated error reply document, as a TDocVariant instance
     // - will return the first document available in ErrorReply, or the supplied
     // aErrorDoc: TDocVariantData instance
@@ -1884,7 +1891,6 @@ type
       read fSystemLastError;
   end;
 
-{$M-}
 
 
 /// ready-to-be displayed text of a TMongoClientWriteConcern item
@@ -1927,7 +1933,7 @@ procedure TMongoRequest.BsonWriteParam(const paramDoc: variant);
 begin
   if TVarData(paramDoc).VType = varVariantByRef then
     BsonWriteParam(PVariant(TVarData(paramDoc).VPointer)^)
-  else if VarIsStr(paramDoc) then
+  else if VarIsString(paramDoc) then
     BsonWriteProjection(VariantToUtf8(paramDoc))
   else 
     BsonWriteDoc(paramDoc); // TBsonVariant or TDocVariant
@@ -1938,8 +1944,11 @@ end;
 const
   OP_COMPRESSED = 2012;
   OP_MSG        = 2013;
-  
-  ZLIB_COMPRESSORID = 2;
+
+  NOOP_COMPRESSORID   = 0;
+  SNAPPY_COMPRESSORID = 1;
+  ZLIB_COMPRESSORID   = 2; // we only support zlib compression by now
+  ZSTD_COMPRESSORID   = 3;
 
 {$endif MONGO_OLDPROTOCOL}
 
@@ -2012,7 +2021,7 @@ begin
   W.AddTypedJson(@fRequestOpCode, TypeInfo(TMongoOperation));
   W.Add(',');
   {$endif MONGO_OLDPROTOCOL}
-  W.AddShorter('req:');
+  W.AddDirect('r', 'e', 'q', ':');
   W.AddPointer(PtrUInt(fRequestID), '"');
   if fResponseTo <> 0 then
   begin
@@ -2248,7 +2257,7 @@ begin
   fNumberToReturn := ToReturn;
   // follow TMongoMsgHeader
   inherited Create(Database, Collection); // write TMongoWireHeader
-  if VarIsStr(Command) then
+  if VarIsString(Command) then
     fCommand := BsonVariant([Command, 1]) // as expected by hello command e.g.
   else
     fCommand := Command;
@@ -2307,7 +2316,7 @@ begin
     W.Add(',zlib:%', [fCompressed]);
   W.AddShorter(',cmd:');
   if AddMongoJson(fCommand, W, modMongoShell, 1024) then
-    W.AddShorter('...') // huge Command has been truncated after 1KB
+    W.AddDirect('.', '.', '.') // huge Command has been truncated after 1KB
   else
     W.AddDirect('}')
 end;
@@ -2347,8 +2356,8 @@ begin
   fLatestDocIndex := -1;
   if StartMS <> 0 then
   begin
-    QueryPerformanceMicroSeconds(fElapsedMS);
-    dec(fElapsedMS, StartMS);
+    QueryPerformanceMicroSeconds(fElapsedMicroSec);
+    dec(fElapsedMicroSec, StartMS);
   end;
 end;
 
@@ -2413,7 +2422,7 @@ begin
     if cmp.CompressorId <> ZLIB_COMPRESSORID then
       EMongoException.RaiseUtf8('%compressor=%', [_E, cmp.CompressorId]);
     if (cmp.UncompressedSize < 5) or
-       (cmp.UncompressedSize > 16 shl 20) then
+       (cmp.UncompressedSize > BSON_MAXDOCUMENTSIZE) then
       EMongoException.RaiseUtf8('%size=%', [_E, cmp.UncompressedSize]);
     FastNewRawByteString(fReply, cmp.UncompressedSize);
     // may use libdeflate on supported platforms
@@ -2445,8 +2454,8 @@ begin
   fLatestDocIndex := -1;
   if StartMS <> 0 then
   begin
-    QueryPerformanceMicroSeconds(fElapsedMS);
-    dec(fElapsedMS, StartMS);
+    QueryPerformanceMicroSeconds(fElapsedMicroSec);
+    dec(fElapsedMicroSec, StartMS);
   end;
 end;
 
@@ -2699,7 +2708,7 @@ begin
        CursorID, StartingFrom, fDocumentCount]);
     {$else}
     // not true JSON for logs is fine
-    W.Add('% %/% ', [MicroSecToString(fElapsedMS),
+    W.Add('% %/% ', [MicroSecToString(fElapsedMicroSec),
       {%H-}pointer(ResponseTo), {%H-}pointer(RequestID)]);
     if ResponseFlags <> [] then
       W.Add('flags:% ', [{%H-}pointer(integer(ResponseFlags))]);
@@ -2713,7 +2722,7 @@ begin
     inc(b, SizeOf(integer)); // points to the "e_list" of "int32 e_list #0"
     if BsonListToJson(b, betDoc, W, Mode, MaxSize) then
     begin
-      W.AddShorter('...'); // truncated
+      W.AddDirect('.', '.', '.'); // truncated
       exit;
     end;
     W.AddComma;
@@ -3021,7 +3030,7 @@ procedure TMongoConnection.ReplyJsonStrict(Request: TMongoRequest;
 var
   W: TJsonWriter absolute Opaque;
 begin
-  Reply.FetchAllToJson(W, modMongoStrict, false);
+  Reply.FetchAllToJson(W, modMongoStrict, {withHeader=}false);
   W.AddComma;
 end;
 
@@ -3030,7 +3039,7 @@ procedure TMongoConnection.ReplyJsonExtended(Request: TMongoRequest;
 var
   W: TJsonWriter absolute Opaque;
 begin
-  Reply.FetchAllToJson(W, modMongoShell, false);
+  Reply.FetchAllToJson(W, modMongoShell, {withHeader=}false);
   W.AddComma;
 end;
 
@@ -3039,7 +3048,7 @@ procedure TMongoConnection.ReplyJsonNoMongo(Request: TMongoRequest;
 var
   W: TJsonWriter absolute Opaque;
 begin
-  Reply.FetchAllToJson(W, modNoMongo, false);
+  Reply.FetchAllToJson(W, modNoMongo, {withHeader=}false);
   W.AddComma;
 end;
 
@@ -3134,7 +3143,7 @@ begin
   Result.Init(Request, reply, start);
   if start <> 0 then
     Client.Log.Log(Client.LogReplyEvent,
-      Result.ToJson(modMongoShell, True, Client.LogReplyEventMaxSize), Request);
+      Result.ToJson(modMongoShell, true, Client.LogReplyEventMaxSize), Request);
   {$ifdef MONGO_OLDPROTOCOL}
   if mrfQueryFailure in Result.ResponseFlags then
     raise EMongoRequestException.Create('Query failure', self, Request, Result);
@@ -3144,16 +3153,30 @@ begin
   {$endif MONGO_OLDPROTOCOL}
 end;
 
-const
-  RECV_ERROR =
-    '%.SendAndGetReply(%): Server response timeout or connection broken, ' +
-    'probably due to a bad formatted BSON request -> close socket';
-
 procedure TMongoConnection.SendAndGetReply(
   Request: TMongoRequest; out result: TMongoReply);
+
+  procedure RecvRaiseFailed(Buf: pointer; Len: integer);
+  var
+    res: TNetResult;
+    err: integer;
+  begin
+    if not fSocket.TrySockRecv(Buf, Len, {stopbeforelen=}false, @res, @err) then
+    try
+      Close;
+    finally
+      // explicit EMongoRequestException: the server usually close the socket
+      // e.g. on malformatted BSON, with no explicit error message
+      raise EMongoRequestException.CreateUtf8(
+        '%.SendAndGetReply: Server response timeout or connection broken, ' +
+        'probably due to a bad formatted BSON request [% %] -> close socket',
+        [self, err, ToText(res)^], self, Request);
+    end;
+  end;
+
 var
   Header: TMongoWireHeader;
-  HeaderLen, DataLen: integer;
+  p: PMongoWireHeader;
 begin
   if self = nil then
     raise EMongoRequestException.Create('Connection=nil', self, Request);
@@ -3162,41 +3185,31 @@ begin
   try
     if Send(Request) then
     begin
-      HeaderLen := SizeOf(Header);
-      if not fSocket.TrySockRecv(@Header, HeaderLen) then
-        try
-          Close;
-        finally
-          raise EMongoRequestException.CreateUtf8(
-            RECV_ERROR, [self, 'hdr'], self, Request);
-        end;
-      SetLength(result, Header.MessageLength);
-      PMongoWireHeader(result)^ := Header;
-      DataLen := Header.MessageLength - SizeOf(Header);
-      if not fSocket.TrySockRecv(@PByteArray(result)[SizeOf(Header)], DataLen) then
-        try
-          Close;
-        finally
-          raise EMongoRequestException.CreateUtf8(
-            RECV_ERROR, [self, 'msg'], self, Request);
-        end;
+      RecvRaiseFailed(@Header, SizeOf(Header));
+      p := FastNewRawByteString(result, Header.MessageLength);
+      p^ := Header;
+      inc(p);
+      if Header.MessageLength > BSON_MAXDOCUMENTSIZE * 8 then // paranoid
+        raise EMongoRequestException.CreateUtf8(
+          '%.SendAndGetReply: Server returned MessageLength=% seems invalid',
+          [self, Header.MessageLength], self, Request);
+      RecvRaiseFailed(p, Header.MessageLength - SizeOf(Header));
       if Header.ResponseTo = Request.MongoRequestID then
         exit; // success
-      {$ifdef MONGO_OLDPROTOCOL}
+      {$ifdef MONGO_OLDPROTOCOL} // some debugging hint for old protocol
       if Header.OpCode = WIRE_OPCODES[opMsgOld] then
       begin
         if Client.Log <> nil then
           Client.Log.Log(sllWarning, 'Msg (deprecated) from MongoDB: %',
-            [BsonToJson(@PByteArray(result)[SizeOf(Header)], betDoc, DataLen,
-             modMongoShell)], Request);
+            [BsonToJson(p, betDoc, DataLen, modMongoShell)], Request);
       end
       else if Header.OpCode = WIRE_OPCODES[opMsg] then
         if Client.Log <> nil then
           Client.Log.Log(sllWarning, 'Msg from MongoDB: %',
-            [EscapeToShort(@PByteArray(result)[SizeOf(Header)], DataLen)], Request);
+            [EscapeToShort(p, DataLen)], Request);
       {$endif MONGO_OLDPROTOCOL}
     end;
-    // if we reached here, this is due to a socket error or an unexpeted opcode
+    // if we reached here, this is due to a socket error or an unexpected opcode
     raise EMongoRequestException.CreateUtf8(
       '%.SendAndGetReply: OpCode=% and ResponseTo=% (expected:%)',
       [self, Header.OpCode, Header.ResponseTo, Request.MongoRequestID], self, Request);
@@ -3221,7 +3234,7 @@ begin
   // since OP_MSG mqfSlaveOk was replaced by Global Command Argument
   // https://github.com/mongodb/specifications/blob/master/source/server-selection/server-selection.rst
   if (c.ReadPreference in [rpPrimaryPreferred, rpNearest]) and
-     not VarIsStr(_command) then
+     not VarIsString(_command) then
     BsonVariantType.AddItem(_command,
       ['$readPreference', BsonVariant(['mode', 'primaryPreferred'])]);
   result := TMongoMsg.Create(c, db, aCollectionName, _command, flags, 1);
@@ -3329,7 +3342,7 @@ begin
   inherited CustomLog(WR, Context);
   if fRequest <> nil then
   begin
-    WR.AddInstanceName(fRequest, ':');
+    WR.AddInstanceName(fRequest);
     if WR.InheritsFrom(TJsonWriter) then
       fRequest.ToJson(TJsonWriter(WR), modMongoShell)
     else
@@ -3337,7 +3350,7 @@ begin
   end;
   if (fError.fReply <> '') and
      WR.InheritsFrom(TJsonWriter) then
-    fError.FetchAllToJson(TJsonWriter(WR), modMongoShell, True);
+    fError.FetchAllToJson(TJsonWriter(WR), modMongoShell, {withHeader=}true);
   result := false; // log stack trace
 end;
 {$endif NOEXCEPTIONINTERCEPT}
@@ -3396,9 +3409,6 @@ end;
 
 constructor TMongoClient.Create(const Host: RawUtf8; Port: integer;
   aOptions: TMongoClientOptions; const SecondaryHostCsv, SecondaryPortCsv: RawUtf8);
-const
-  PROT: array[boolean] of string[1] = (
-    '', 's');
 var
   secHost: TRawUtf8DynArray;
   secPort: TIntegerDynArray;
@@ -3417,7 +3427,7 @@ begin
   fServerMaxWriteBatchSize := 100000;
   fLogReplyEventMaxSize := 1024;
   fGracefulReconnect.Enabled := true;
-  FormatUtf8('mongodb%://%:%', [PROT[mcoTls in Options], Host, Port],
+  FormatUtf8('mongodb%://%:%', [TLS_TEXT[mcoTls in Options], Host, Port],
     fConnectionString);
   CsvToRawUtf8DynArray(pointer(SecondaryHostCsv), secHost);
   nHost := length(secHost);
@@ -3610,7 +3620,7 @@ begin
           Auth(DatabaseName, UserName, digest, ForceMongoDBCR, i);
           with fGracefulReconnect do
             if Enabled and
-               (EncryptedDigest='') then
+               (EncryptedDigest = '') then
             begin
               ForcedDBCR := ForceMongoDBCR;
               User := UserName;
@@ -3690,7 +3700,7 @@ begin
     // SCRAM-SHA-1
     // https://tools.ietf.org/html/rfc5802#section-5
     user := StringReplaceAll(UserName, ['=', '=3D', ',', '=2C']);
-    RandomBytes(@rnd, SizeOf(rnd)); // Lecuyer is enough for public random
+    SharedRandom.Fill(@rnd, SizeOf(rnd)); // Lecuyer is enough for public random
     nonce := BinToBase64(@rnd, SizeOf(rnd));
     FormatUtf8('n=%,r=%', [user, nonce], first);
     BsonVariantType.FromBinary('n,,' + first, bbtGeneric, bson);
@@ -3701,6 +3711,7 @@ begin
         'payload', bson,
         'autoAuthorize', 1
         ]), res);
+    resp.Init;
     CheckPayload;
     if err = '' then
     begin
@@ -3709,8 +3720,9 @@ begin
         err := 'returned invalid nonce';
     end;
     if err <> '' then
-      EMongoException.RaiseUtf8('%.OpenAuthSCRAM("%") step1: % - res=%',
-        [self, DatabaseName, err, res]);
+      EMongoException.RaiseUtf8(
+        '%.OpenAuthSCRAM("%") step1: % - res=% payload=%',
+        [self, DatabaseName, err, res, PVariant(@resp)^]);
     key := 'c=biws,r=' {%H-}+ rnonce;
     Pbkdf2HmacSha1(Digest, Base64ToBin(resp.U['s']),
       Utf8ToInteger(resp.U['i']), salted);
@@ -3735,8 +3747,9 @@ begin
        (resp.U['v'] <> BinToBase64(@server, SizeOf(server))) then
       err := 'Server returned an invalid signature';
     if err <> '' then
-      EMongoException.RaiseUtf8('%.OpenAuthSCRAM("%") step2: % - res=%',
-        [self, DatabaseName, err, res]);
+      EMongoException.RaiseUtf8(
+        '%.OpenAuthSCRAM("%") step2: % - res=% payload=%',
+        [self, DatabaseName, err, res, PVariant(@resp)^]);
     if not res.done then
     begin
       // third empty challenge may be required
@@ -3758,7 +3771,7 @@ end;
 
 procedure TMongoClient.AfterOpen;
 var
-  w: integer;
+  mw: integer;
   c: TDocVariantData;
   compression: PDocVariantData;
 begin
@@ -3787,7 +3800,7 @@ begin
                          '}',
                          'driver',
                          '{',
-                             'name', SYNOPSE_FRAMEWORK_NAME,
+                             'name',    SYNOPSE_FRAMEWORK_NAME,
                              'version', SYNOPSE_FRAMEWORK_VERSION,
                          '}',
                          'os',
@@ -3805,8 +3818,8 @@ begin
         GetAsInteger('maxBsonObjectSize', fServerMaxBsonObjectSize);
         GetAsInteger('maxMessageSizeBytes', fServerMaxMessageSizeBytes);
         GetAsInteger('maxWriteBatchSize', fServerMaxWriteBatchSize);
-        GetAsInteger('maxWireVersion', w);
-        byte(fServerMaxWireVersion) := w;
+        GetAsInteger('maxWireVersion', mw);
+        byte(fServerMaxWireVersion) := mw;
         GetAsBoolean('readOnly', fServerReadOnly);
         if mcoZlibCompressor in fOptions then
           if (not GetAsArray('compression', compression)) or
@@ -3826,7 +3839,7 @@ begin
     if Enabled then
     try
       if fLog <> nil then
-        log := fLog.Enter(self, 'ReOpen: graceful reconnect');
+        fLog.EnterLocal(log, self, 'ReOpen: graceful reconnect');
       fConnections[0].Open;
       if EncryptedDigest <> '' then
       try
@@ -4155,7 +4168,7 @@ end;
 function TMongoCollection.Drop: RawUtf8;
 var
   res: Variant;
-  {%H-}log: ISynLog;
+  log: ISynLog;
 begin
   if self = nil then
   begin
@@ -4163,9 +4176,10 @@ begin
     exit;
   end;
   if Database.Client.Log <> nil then
-    log := Database.Client.Log.Enter('Drop %', [fName], self);
+    Database.Client.Log.EnterLocal(log, 'Drop %', [fName], self);
   result := fDatabase.RunCommand(BsonVariant('{drop:?}', [], [fName]), res);
-  Database.Client.Log.Log(sllTrace, 'Drop("%")->%', [fName, res], self);
+  if Assigned(log) then
+    log.Log(sllTrace, 'Drop("%")->%', [fName, res], self);
   if result = '' then
     Database.fCollections.Delete(fName);
 end;
@@ -4176,13 +4190,13 @@ var
   indexName: RawUtf8;
   ndx, order: integer;
   useCommand: boolean;
-  {%H-}log: ISynLog;
+  log: ISynLog;
 begin
   if (self = nil) or
      (Database = nil) then
     exit;
   if Database.Client.Log <> nil then
-    log := Database.Client.Log.Enter('EnsureIndex %', [fName], self);
+    Database.Client.Log.EnterLocal(log, 'EnsureIndex %', [fName], self);
   if DocVariantData(Keys)^.kind <> dvObject then
     EMongoException.RaiseUtf8('%[%].EnsureIndex(Keys?)',
       [self,
@@ -4221,7 +4235,8 @@ begin
       [], [fName, doc]), res)
   else
     fDatabase.GetCollectionOrCreate('system.indexes').Insert([doc]);
-  Database.Client.Log.Log(sllTrace, 'EnsureIndex("%",%)->%', [fName, doc, res], self);
+  if Assigned(log) then
+    log.Log(sllTrace, 'EnsureIndex("%",%)->%', [fName, doc, res], self);
 end;
 
 procedure TMongoCollection.EnsureIndex(const Keys: array of RawUtf8;
@@ -4318,7 +4333,7 @@ begin
     else
       cmd.AddValue('filter', Criteria);
   if not VarIsEmptyOrNull(Projection) then
-    if VarIsStr(Projection) then
+    if VarIsString(Projection) then
       EMongoException.RaiseUtf8('%.DoFind: unsupported string', [self])
     else
       cmd.AddValue('projection', Projection);
@@ -4480,7 +4495,7 @@ begin
   result := 0;
   _Safe(Database.Client.Connections[0].SendAndFree(
     TMongoRequestDelete.Create(fFullCollectionName,
-      Query, Flags), False))^.GetAsInteger('n', result);
+      Query, Flags), false))^.GetAsInteger('n', result);
 end;
 
 {$else}

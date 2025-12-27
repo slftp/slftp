@@ -26,21 +26,14 @@ type
   }
   TAddPreMode = (apmMemory, apmSQLITE, apmMYSQL, apmNone);
 
-  TDbAddPre = class
-    rls: String;
-    pretime: Int64;
-    constructor Create(const rls: String; const pretime: Int64);
-    destructor Destroy; override;
-  end;
-
-function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
+function dbaddpre_ADDPRE(const netname, channel, nickname, aRlsName, aSection, params: String; event: TKBEventType): boolean;
 function dbaddpre_GetRlz(const rls: String): Int64;
-function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
+function dbaddpre_InsertRlz(const rls, rls_section, Source: String; const aSkipDbCleanup: boolean = False): boolean;
 function dbaddpre_GetCount: integer;
 function dbaddpre_GetPreduration(const rlz_pretime: Int64): String;
 function dbaddpre_Status: String;
 
-function dbaddpre_Process(const net, chan, nick: String; msg: String): boolean;
+function dbaddpre_Process(const net, chan, nick, msg: String): boolean;
 
 procedure dbaddpreInit;
 procedure dbaddpreStart;
@@ -73,27 +66,28 @@ implementation
 
 uses
   DateUtils, SysUtils, StrUtils, configunit, mystrings, console, sitesunit, FLRE, IniFiles, slcriticalsection2,
-  irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos;
+  irc, debugunit, precatcher, taskpretime, dbhandler, http, mormot.db.sql, mormot.db.sql.sqlite3, mormot.db.sql.zeos,
+  IdThreadSafe;
 
 const
   section = 'dbaddpre';
+  DBCLEANUP_INTERVAL = 50;
+  DBCLEANUP_NUM_ENTRIES_TO_KEEP = 300;
 
 var
   addpreSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
-  SQLite3Lock: TSLCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
 
   addprecmd: TStringList;
   kbadd_addpre: boolean;
-
-  last_addpre: THashedStringList;
-  last_addpre_lock: TSLCriticalSection2;
+  add_to_kb_on_dbaddpre_insert: boolean;
 
   dbaddpre_mode: TAddPreMode = TAddPreMode(3);
   dbaddpre_plm1: TPretimeLookupMode;
   dbaddpre_plm2: TPretimeLookupMode;
 
   config_taskpretime_url: String;
-  config_taskpretime_regexp: String;
+  config_taskpretime_regexp: RawByteString;
+  FDbCleanupCounter: TIdThreadSafeInt32;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
 begin
@@ -123,19 +117,6 @@ end;
 function addPreModeToString(aAddPreMode: TAddPreMode): String;
 begin
   Result := ReplaceText(TEnum<TAddPreMode>.ToString(aAddPreMode), 'apm', '');
-end;
-
-{ TDbAddPre }
-
-constructor TDbAddPre.Create(const rls: String; const pretime: Int64);
-begin
-  self.rls := rls;
-  self.pretime := pretime;
-end;
-
-destructor TDbAddPre.Destroy;
-begin
-  inherited;
 end;
 
 function GetPretimeURL: String;
@@ -175,7 +156,7 @@ begin
     end;
 
     Debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response]);
-    if rx_pretime.MatchAll(response, rx_captures, 1, 1) then
+    if rx_pretime.MatchAll(RawByteString(response), rx_captures, 1, 1) then
     begin
       Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response]);
       aPretimePos := rx_pretime.NamedGroupIndices['pretime'];
@@ -215,28 +196,23 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  SQLite3Lock.Enter('ReadPretimeOverSQLITE');
+  fQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
   try
-    fQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+    fQuery.Prepare('SELECT ts FROM addpre WHERE rlz = ?');
+    fQuery.BindTextS(1, rls);
     try
-      fQuery.Prepare('SELECT ts FROM addpre WHERE rlz = ?');
-      fQuery.BindTextS(1, rls);
-      try
-        fQuery.ExecutePrepared;
-        if fQuery.Step then
-          Result := fQuery.ColumnInt(0);
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] ReadPretimeOverSQLITE: %s', [e.Message]));
-          exit;
-        end;
+      fQuery.ExecutePrepared;
+      if fQuery.Step then
+        Result := fQuery.ColumnInt(0);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] ReadPretimeOverSQLITE: %s', [e.Message]));
+        exit;
       end;
-    finally
-      fQuery.free;
     end;
   finally
-    SQLite3Lock.Leave;
+    fQuery.free;
   end;
 end;
 
@@ -255,7 +231,7 @@ begin
 
   fQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
   try
-    fQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?');
+    fQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?', True);
     fQuery.BindTextS(1, rls);
     try
       fQuery.ExecutePrepared;
@@ -344,7 +320,7 @@ begin
   Result := kb_Add('', '', getAdminSiteName, rls_section, '', event, rls, '');
 end;
 
-function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
+function dbaddpre_ADDPRE(const netname, channel, nickname, aRlsName, aSection, params: String; event: TKBEventType): boolean;
 var
   rls: String;
   rls_section: String;
@@ -354,7 +330,8 @@ begin
   Result := False;
 
   rls := '';
-  rls := SubString(params, ' ', 1);
+  rls := SubString(aRlsName, ' ', 1);
+
   if ((rls <> '') and (length(rls) > minimum_rlsname)) then
   begin
     if dbaddpre_mode <> apmNone then
@@ -366,11 +343,23 @@ begin
 
         //send event to kb_add to trigger race evaluation
         if rls_section <> '' then
+          kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '')
+        else if add_to_kb_on_dbaddpre_insert then
+        begin
+          rls_section := aSection;  // if the precatcher config has a fixed section ... I don't think it makes much sense, but it's possible
+          if rls_section = '' then
+          begin
+            rls_section := ProcessDoReplace(params, rls);
+            rls_section := FindSection(' ' + rls_section + ' ');
+          end;
+
+          rls_section := PrecatcherSectionMapping(rls, rls_section);
           kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '');
+        end;
       end;
     end;
 
-    if ((event = kbeADDPRE) and (kbadd_addpre)) then
+    if ((event = kbeADDPRE) and (kbadd_addpre)) then // I assume this does the same as the code just above (issue a kb event after the pre time is there)
     begin
       kb_entry := FindReleaseInKbList('-' + rls);
 
@@ -390,40 +379,11 @@ begin
 end;
 
 function dbaddpre_GetRlz(const rls: String): Int64;
-var
-  i: integer;
-  addpredata: TDbAddPre;
 begin
   Result := 0;
 
   case dbaddpre_mode of
-    apmMemory:
-      begin
-        try
-          last_addpre_lock.Enter('dbaddpre_GetRlz');
-          try
-            i := last_addpre.IndexOf(rls);
-            if i = -1 then
-            begin
-              Result := 0;
-              exit;
-            end;
-            addpredata := TDbAddPre(last_addpre.Objects[i]);
-          finally
-            last_addpre_lock.Leave;
-          end;
-
-          Result := addpredata.pretime;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_GetRlz (memory): %s', [e.Message]));
-            Result := 0;
-            exit;
-          end;
-        end;
-      end;
-    apmSQLITE:
+    apmMemory, apmSQLITE:
       begin
         Result := ReadPretimeOverSQLITE(rls);
       end;
@@ -434,77 +394,38 @@ begin
   end;
 end;
 
-function dbaddpre_InsertRlz(const rls, rls_section, Source: String): boolean;
+function dbaddpre_InsertRlz(const rls, rls_section, Source: String; const aSkipDbCleanup: boolean = False): boolean;
 var
-  i: integer;
-  pretime: Int64;
-  addpredata: TDbAddPre;
   fMySQLQuery: TSqlDBZeosStatement;
   fSQLiteQuery: TSqlDBSQLite3Statement;
   fTableName, fReleaseField, fSectionField, fTimeField, fSourceField: String;
 begin
   Result := False;
 
-  pretime := dbaddpre_GetRlz(rls);
-  if pretime <> 0 then
-    exit;
+  // no need to check for existing pre time because we use insert or ignore
 
   case dbaddpre_mode of
-    apmMemory:
+    apmMemory, apmSQLITE:
       begin
+        fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
         try
-          last_addpre_lock.Enter('dbaddpre_InsertRlz');
+          fSQLiteQuery.Prepare('INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (?, ?, ?, ?)');
+          fSQLiteQuery.BindTextS(1, rls);
+          fSQLiteQuery.BindTextS(2, rls_section);
+          fSQLiteQuery.Bind(3, DateTimeToUnix(Now(), False));
+          fSQLiteQuery.BindTextS(4, Source);
           try
-            addpredata := TDbAddPre.Create(rls, DateTimeToUnix(Now(), False));
-            last_addpre.AddObject(rls, addpredata);
-
-            i := last_addpre.Count;
-            if i > 150 then
+            fSQLiteQuery.ExecutePrepared;
+            Result := fSqliteQuery.UpdateCount > 0; // only return true if the insert actually happened and has not been ignored
+          except
+            on e: Exception do
             begin
-              while i > 100 do
-              begin
-                last_addpre.Delete(0);
-                i := last_addpre.Count - 1;
-              end;
+              Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
+              exit;
             end;
-          finally
-            last_addpre_lock.Leave;
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (memory): %s', [e.Message]));
-            Result := False;
-            exit;
-          end;
-        end;
-      end;
-    apmSQLITE:
-      begin
-        SQLite3Lock.Enter('dbaddpre_InsertRlz');
-        try
-          fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
-          try
-            fSQLiteQuery.Prepare('INSERT OR IGNORE INTO addpre (rlz, section, ts, source) VALUES (?, ?, ?, ?)');
-            fSQLiteQuery.BindTextS(1, rls);
-            fSQLiteQuery.BindTextS(2, rls_section);
-            fSQLiteQuery.Bind(3, DateTimeToUnix(Now(), False));
-            fSQLiteQuery.BindTextS(4, Source);
-            try
-              fSQLiteQuery.ExecutePrepared;
-            except
-              on e: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
-                Result := False;
-                exit;
-              end;
-            end;
-          finally
-            fSQLiteQuery.free;
           end;
         finally
-          SQLite3Lock.Leave;
+          fSQLiteQuery.free;
         end;
       end;
     apmMYSQL:
@@ -532,11 +453,11 @@ begin
           fMySQLQuery.Bind(3, DateTimeToUnix(Now(), False));
           try
             fMySQLQuery.ExecutePrepared;
+            Result := fMySQLQuery.UpdateCount > 0; // only return true if the insert actually happened and has not been ignored
           except
             on e: Exception do
             begin
               Debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (mysql): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
-              Result := False;
               exit;
             end;
           end;
@@ -546,7 +467,43 @@ begin
       end;
   end;
 
-  Result := True;
+  // db cleanup currently only for in-memory DB
+  if Result and (dbaddpre_mode = apmMemory) then
+  begin
+    FDbCleanupCounter.Increment;
+
+    if (FDbCleanupCounter.Value >= DBCLEANUP_INTERVAL) and not aSkipDbCleanup then // we can skip the DB cleanup if we do not want to waste the time for it (e.g. sitepre)
+    begin
+      try
+        FDbCleanupCounter.Value := 0;
+        fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
+        try
+          fSQLiteQuery.Prepare('DELETE FROM addpre WHERE ts < (SELECT MIN(ts) FROM (SELECT ts FROM addpre ORDER BY ts DESC LIMIT ?));');
+          fSQLiteQuery.Bind(1, DBCLEANUP_NUM_ENTRIES_TO_KEEP);
+          try
+            fSQLiteQuery.ExecutePrepared;
+            if fSQLiteQuery.UpdateCount > 0 then
+            begin
+              debug(dpSpam, section, Format('Addpre DB cleanup: Cleaned %d entries from the Pre DB, keeping only the latest %d', [fSQLiteQuery.UpdateCount, DBCLEANUP_NUM_ENTRIES_TO_KEEP]));
+            end;
+          except
+            on e: Exception do
+            begin
+              debug(dpError, section, Format('[EXCEPTION] dbaddpre_InsertRlz (sqlite): %s - values: %s %s %s', [e.Message, rls, rls_section, Source]));
+              exit;
+            end;
+          end;
+        finally
+          fSQLiteQuery.Free;
+        end;
+      except
+        on e: Exception do
+        begin
+          debug(dpError, section, Format('[EXCEPTION] DB Cleanup: %s ', [e.Message]));
+        end;
+      end;
+    end;
+  end;
 end;
 
 function dbaddpre_GetCount: integer;
@@ -557,28 +514,19 @@ var
 begin
   Result := 0;
   case dbaddpre_mode of
-    apmMemory:
+    apmMemory, apmSQLITE:
       begin
-        Result := last_addpre.Count;
-      end;
-    apmSQLITE:
-      begin
-        SQLite3Lock.Enter('dbaddpre_GetCount');
+        fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
         try
-          fSQLiteQuery := TSqlDBSQLite3Statement.Create(addpreSQLite3DBCon.ThreadSafeConnection);
-          try
-            fSQLiteQuery.Prepare('SELECT count(*) FROM addpre');
-            fSQLiteQuery.ExecutePrepared;
-            if not fSQLiteQuery.Step then
-              Result := 0
-            else
-              Result := fSQLiteQuery.ColumnInt(0);
+          fSQLiteQuery.Prepare('SELECT count(*) FROM addpre');
+          fSQLiteQuery.ExecutePrepared;
+          if not fSQLiteQuery.Step then
+            Result := 0
+          else
+            Result := fSQLiteQuery.ColumnInt(0);
 
-          finally
-            fSQLiteQuery.Free;
-          end;
         finally
-          SQLite3Lock.Leave;
+          fSQLiteQuery.Free;
         end;
       end;
     apmMYSQL:
@@ -622,9 +570,10 @@ begin
     Result := Format('%2.2d Sec', [preage mod 60]);
 end;
 
-function dbaddpre_Process(const net, chan, nick: String; msg: String): boolean;
+function dbaddpre_Process(const net, chan, nick, msg: String): boolean;
 var
   ii: integer;
+  fRlsname: String;
 begin
   Result := False;
   ii := -1;
@@ -639,14 +588,9 @@ begin
     //  if (1 = Pos(addprecmd, msg)) then
   begin
     Result := True;
-    msg := Copy(msg, length(addprecmd.Strings[ii] + ' ') + 1, 1000);
+    fRlsname := Copy(msg, length(addprecmd.Strings[ii] + ' ') + 1, 1000);
     try
-      last_addpre_lock.Enter('dbaddpre_Process');
-      try
-        dbaddpre_ADDPRE(net, chan, nick, msg, kbeADDPRE);
-      finally
-        last_addpre_lock.Leave;
-      end;
+      dbaddpre_ADDPRE(net, chan, nick, fRlsname, '', msg, kbeADDPRE);
     except
       on e: Exception do
       begin
@@ -660,17 +604,12 @@ end;
 function dbaddpre_Status: String;
 begin
   Result := '';
-  Result := Format('<b>Dupe.db</b>: %d Rips, with %d in Memory', [dbaddpre_GetCount, last_addpre.Count]);
+  Result := Format('<b>Dupe.db</b>: %d Rips', [dbaddpre_GetCount]);
 end;
 
 procedure dbaddpreInit;
 begin
-  last_addpre_lock := TSLCriticalSection2.Create('last_addpre_lock');
   addprecmd := TStringList.Create;
-  last_addpre := THashedStringList.Create;
-  last_addpre.Duplicates := dupIgnore;
-  last_addpre.CaseSensitive := False;
-  last_addpre.Sorted := True;
 end;
 
 procedure dbaddpreStart;
@@ -679,21 +618,23 @@ var
 begin
   addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre');
   kbadd_addpre := config.ReadBool(section, 'kbadd_addpre', False);
+  add_to_kb_on_dbaddpre_insert := config.ReadBool(section, 'add_to_kb_on_dbaddpre_insert', False);
 
   dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 3));
   dbaddpre_plm1 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode', 0));
   dbaddpre_plm2 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode_2', 0));
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
-  config_taskpretime_regexp := config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$');
+  config_taskpretime_regexp := RawByteString(config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$'));
+
+  FDbCleanupCounter := TIdThreadSafeInt32.Create;
 
   if ( (dbaddpre_mode = apmSQLITE) or (dbaddpre_plm1 = plmSQLITE) or (dbaddpre_plm2 = plmSQLITE) ) then
   begin
-    SQLite3Lock := TSLCriticalSection2.Create('SQLite3Lock');
     db_pre_name := Trim(config.ReadString(section, 'db_file', 'db_addpre.db'));
 
     try
-      addpreSQLite3DBCon := CreateSQLite3DbConn(db_pre_name, '');
+      addpreSQLite3DBCon := CreateSQLite3DbConn(db_pre_name, '', dbaddpre_mode = apmMemory);
 
       addpreSQLite3DBCon.MainSQLite3DB.Execute(
         'CREATE TABLE IF NOT EXISTS addpre (rlz VARCHAR(255) NOT NULL, section VARCHAR(25) NOT NULL, ts INT(12) NOT NULL, source VARCHAR(255) NOT NULL)'
@@ -730,13 +671,7 @@ procedure dbaddpreUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
   addprecmd.Free;
-  last_addpre_lock.Free;
-  last_addpre.Free;
-
-  if Assigned(SQLite3Lock) then
-  begin
-    FreeAndNil(SQLite3Lock);
-  end;
+  FDbCleanupCounter.Free;
 
   if Assigned(addpreSQLite3DBCon) then
   begin
@@ -746,4 +681,3 @@ begin
 end;
 
 end.
-

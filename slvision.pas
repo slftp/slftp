@@ -2,7 +2,7 @@
 
 interface
 
-uses Classes, types, SyncObjs, Contnrs;
+uses Classes, types, slcriticalsection2, Contnrs, Generics.Collections;
 
 type
   TslRect = class
@@ -29,7 +29,7 @@ type
 
   TslConsoleTask = class
     procedure Execute(); virtual; abstract;
-    procedure OnConleTaskAdded(v_queue: TObjectList); virtual;
+    procedure OnConleTaskAdded(v_queue: Contnrs.TObjectList); virtual;
   end;
 
   TslVisible = (slvParent, slvHidden, slvVisible);
@@ -372,12 +372,30 @@ type
     procedure AddControl(control: TslControl); override;
   end;
 
+  { Used to store messages to be added to slvision console for quick adding and not blocking the calling thread with slvision_lock }
+  TConsoleAddTaskCollection = class
+  private
+    fTasks: TList<TslConsoleTask>; //< tasks to be added on the next slvision iteration
+    fTasksCS: TSlCriticalSection2;
+    fOverloadMessageWindows: TDictionary<string, integer>; //< key: window names where tasks have been skipped due to a critical overload of the console. value: not used atm
+    { Adds the tasks that have been created since the last iteration and adds them to the given list and clears the tasks lists for the next iteration.
+      If there has been a critical console overload, it will also add the concerned window names to the given dictionary. }
+    procedure GetAddedTasks(const aTasksOut: TList<TslConsoleTask>; const aOverloadWindowsOut: TDictionary<string, integer>);
+    { Add a new task }
+    procedure AddTask(const aTask: TslConsoleTask);
+    { Add a task with a hint that other tasks have been removed due to a critical console overload. Does nothing if such a task is already there for the given window name. }
+    procedure AddOverloadMessageForWindow(const aWindowName: string);
+    constructor Create;
+  public
+    destructor Destroy; override;
+  end;
+
   TslApplication = class(TslControl)
   private
     fOnExit: TslEvent;
     fOnShow: TslEvent;
     fLocalConsoleTasks: TObjectList;
-    fConsoleTasks: TObjectList;
+    fConsoleTasks: Contnrs.TObjectList;
     fLocalConsoleToUpdate: TStringList;
     fConsoleToUpdate: TStringList;
     procedure slOnResize;
@@ -385,6 +403,9 @@ type
     procedure ShowMessage(const s: String);
     procedure CopyConsoleTasks;
     function InputQuery(const title, Caption: String; var reply: String; password: boolean = False): boolean;
+    { Does the handling of just added tasks which has previously happened directly when adding a task, but now the tasks are buffered
+     so that the caller does not have to wait for slvision_lock }
+    procedure HandleAddConsoleTask;
   protected
     procedure SetColors; override;
     function BackgroundCharacter: Char; override;
@@ -405,13 +426,13 @@ type
     procedure Repaint; override;
     procedure ProcessMessages(const aForceProcessing: boolean = False);
     procedure GotoXy(ca: TslRect; x, y: integer); override;
-    procedure AddConsoleTask(t: TslConsoleTask);
+    procedure AddConsoleTask(const t: TslConsoleTask);
     property OnExit: TslEvent Read fOnExit Write fOnExit;
     property OnShow: TslEvent Read fOnShow Write fOnShow;
   end;
 
   TslRemoveEarlierTask = class(TslConsoleTask)
-    procedure OnConleTaskAdded(v_queue: TObjectList); override;
+    procedure OnConleTaskAdded(v_queue: Contnrs.TObjectList); override;
   end;
 
   TslRepaintTask = class(TslRemoveEarlierTask)
@@ -450,17 +471,32 @@ type
     procedure OnTimer; override;
   end;
 
+  { Allowes to define a function that will be invoked when there is a critical overload of the console. It should return a task that will
+    be displayed as a replacement for the tasks that have been skipped because of the overload. }
+  TGetOverloadReplacementTaskFunction = function(const aWindowName: string): TslConsoleTask;
 
 procedure ShowMessage(const s: String);
 function InputQuery(const title, Caption: String; var reply: String;
   password: boolean = False; replyfile: String = ''): boolean;
 procedure SetFocus(control: TslControl);
 
+{ Returns true, if the console is currently overloaded and messages to the given console window will be discarded. Some console windows
+  will always accept messages, even if the console is overloaded (e.g. Admin). This will also add a message to the given console that
+  some message have been discarded because of a current overload situation if there is one. }
+function CheckConsoleCriticalOverload(const aWindowName: string): boolean;
+
+{ Cleans the threadvars of the current thread }
+procedure CleanupSlVisionThreadVars;
+
 var
-  slVisionFrequency: integer = 50;
-  slVisionThreadFrequency: integer = 4; // 4 * 50
   slApp: TslApplication = nil;
-  slvision_lock: TCriticalSection;
+  slvision_lock: TSlCriticalSection2;
+  glGetOverloadReplacementTaskFunction: TGetOverloadReplacementTaskFunction;
+
+const
+  GlConsoleWindowNameAdmin: string = 'Admin';
+  GlConsoleWindowNameSlots: string = 'Slots';
+  GlConsoleWindowNameQueue: string = 'Queue';
 
 implementation
 
@@ -469,10 +505,21 @@ uses slconsole, SysUtils, DateUtils, Math
   , Clipbrd
 {$ENDIF}
   , debugunit, mystrings, mainthread, configunit, kb, irc, rulesunit,
-  speedstatsunit, ranksunit, notify;
+  speedstatsunit, ranksunit, notify, IdGlobal;
 
 var
   slig, lvtf: integer;
+  glAddConsoleTaskCollections: TList<TConsoleAddTaskCollection>;
+  glAddConsoleTaskCS: TSlCriticalSection2;
+  glIsSlVisionOverloaded: boolean; // True when there are so many tasks that it's considered overloaded, false otherwise
+  glIsSlVisionOverloadedCritical: boolean;
+  slVisionFrequency: integer = 50;
+  slVisionThreadFrequency: integer = 4; // 4 * 50
+  slVisionTaskOverloadThreshold: integer = 10000; // when there are more tasks than this to be processed in a single iteration, it's considered overloaded
+  slVisionTaskOverloadCriticalThreshold: integer = 20000; // when it's overloaded this much, we will need to drop tasks
+
+threadvar
+  glThreadAddConsoleTaskCollection: TConsoleAddTaskCollection; // buffer for fast adding of console tasks
 
 
 procedure ShowMessage(const s: String);
@@ -546,7 +593,7 @@ begin
   l_infos.Right := 2;
 
   fLocalConsoleTasks := TObjectList.Create(True);
-  fConsoleTasks      := TObjectList.Create(False);
+  fConsoleTasks      := Contnrs.TObjectList.Create(False);
   fLocalConsoleToUpdate := TStringList.Create();
   fConsoleToUpdate   := TStringList.Create();
   fConsoleToUpdate.Duplicates := dupIgnore;
@@ -554,6 +601,8 @@ begin
 
 
   timers.Add(TslClockTimer.Create(l_clock));
+  glAddConsoleTaskCS := TSlCriticalSection2.Create('TslApplication.glAddConsoleTaskCS');
+  glAddConsoleTaskCollections := TList<TConsoleAddTaskCollection>.Create;
 end;
 
 procedure TslApplication.GetClientArea(ca: TslRect; whowantstoknow: TslControl);
@@ -585,11 +634,12 @@ var
   t: TslConsoleTask;
 begin
   Inc(lvtf);
-  if aForceProcessing or (lvtf >= slVisionThreadFrequency) then
+  if aForceProcessing or (lvtf >= slVisionThreadFrequency) or glIsSlVisionOverloaded then
   begin
+    self.HandleAddConsoleTask;
     lvtf := 0;
     try
-      slvision_lock.Enter();
+      slvision_lock.Enter('ProcessMessages');
       try
         CopyConsoleTasks;
 
@@ -611,7 +661,11 @@ begin
             t.Execute;
             fLocalConsoleTasks.Remove(t);
           except
-            Break;
+            on e: Exception do
+            begin
+              Debug(dpError, 'slvision', Format('[EXCEPTION] TslApplication.ProcessMessages - task execute: %s', [e.Message]));
+              Break;
+            end;
           end;
         end;
 
@@ -679,7 +733,7 @@ begin
       end;
     end;
 
-    if not k then
+    if not k and not glIsSlVisionOverloaded then
     begin
       Sleep(slVisionFrequency);
     end;
@@ -743,6 +797,8 @@ begin
   fLocalConsoleTasks.Free;
   fConsoleToUpdate.Free;
   fLocalConsoleToUpdate.Free;
+  glAddConsoleTaskCollections.Free;
+  glAddConsoleTaskCS.Free;
 
   inherited;
 end;
@@ -870,75 +926,159 @@ begin
   end;
 end;
 
-procedure TslApplication.AddConsoleTask(t: TslConsoleTask);
+function GetAddConsoleTaskCollection: TConsoleAddTaskCollection;
+begin
+  // create the threadvar collection if it does not yet exist for this thread
+  if glThreadAddConsoleTaskCollection = nil then
+  begin
+    glThreadAddConsoleTaskCollection := TConsoleAddTaskCollection.Create;
+    glAddConsoleTaskCS.Enter('AddConsoleTask');
+    try
+      glAddConsoleTaskCollections.Add(glThreadAddConsoleTaskCollection);
+    finally
+      glAddConsoleTaskCS.Leave;
+    end;
+  end;
+  Result := glThreadAddConsoleTaskCollection;
+end;
+
+function CheckConsoleCriticalOverload(const aWindowName: string): boolean;
+begin
+  // don't skip any messages for the special windows
+  Result := glIsSlVisionOverloadedCritical and
+    (CompareText(aWindowName, GlConsoleWindowNameAdmin) <> 0) and
+    (CompareText(aWindowName, GlConsoleWindowNameSlots) <> 0) and
+    (CompareText(aWindowName, GlConsoleWindowNameQueue) <> 0);
+  if Result then
+    GetAddConsoleTaskCollection.AddOverloadMessageForWindow(aWindowName);
+end;
+
+procedure TslApplication.AddConsoleTask(const t: TslConsoleTask);
+begin
+  // add the task to the buffer
+  GetAddConsoleTaskCollection.AddTask(t);
+end;
+
+procedure TslApplication.HandleAddConsoleTask;
 var
-  i: integer;
+  i, j: integer;
+  fAddedTasks: TList<TslConsoleTask>;
+  fCollection: TConsoleAddTaskCollection;
+  fTask: TslConsoleTask;
+  fOverloadInfo: string;
+  fOverloadReplacementTasks: TDictionary<string, TslConsoleTask>;
+  fOverloadMessageWindows: TDictionary<string, integer>;
+  fOverloadMessageWindowsKVP: TPair<string, integer>;
 begin
   try
-    slvision_lock.Enter();
+    // get tasks from all threads that have added a task since the last run
+    fAddedTasks := TList<TslConsoleTask>.Create;
+    fOverloadMessageWindows := TDictionary<string, integer>.Create;
+    glAddConsoleTaskCS.Enter('HandleAddConsoleTask');
     try
-
-      try
-        fConsoleTasks.Add(t);
-      except
-        on E: Exception do
-          Debug(dpError, 'slvision', Format(
-            '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleTasks.Add: %s',
-            [e.Message]));
-      end;
-
-      try
-        t.OnConleTaskAdded(fConsoleTasks);
-      except
-        on E: Exception do
-          Debug(dpError, 'slvision', Format(
-            '[EXCEPTION] TslApplication.AddConsoleTask.t.OnConleTaskAdded: %s',
-            [e.Message]));
-      end;
-      if t is TslTextBoxTask then
+      for fCollection in glAddConsoleTaskCollections do
       begin
-        with TslTextBoxTask(t) do
-          if textbox <> nil then
-          begin
-            if remove then
+        fCollection.GetAddedTasks(fAddedTasks, fOverloadMessageWindows);
+      end;
+    finally
+      glAddConsoleTaskCS.Leave;
+    end;
+
+    fOverloadInfo := '';
+    glIsSlVisionOverloaded := fAddedTasks.Count > slVisionTaskOverloadThreshold;
+    glIsSlVisionOverloadedCritical := fAddedTasks.Count > slVisionTaskOverloadCriticalThreshold;
+
+    if glIsSlVisionOverloadedCritical then
+      fOverloadInfo := ' (overload critical)'
+    else if glIsSlVisionOverloaded then
+      fOverloadInfo := ' (overload)';
+
+    Debug(dpSpam, 'slvision', 'Console tasks added: ' + IntToStr(fAddedTasks.Count) + fOverloadInfo);
+
+    if fOverloadMessageWindows.Count > 0 then
+    begin
+      Debug(dpSpam, 'slvision', 'Some console tasks have been removed due to overload');
+      if Assigned(glGetOverloadReplacementTaskFunction) then
+      begin
+        for fOverloadMessageWindowsKVP in fOverloadMessageWindows do
+        begin
+          fAddedTasks.Add(glGetOverloadReplacementTaskFunction(fOverloadMessageWindowsKVP.Key));
+        end;
+      end
+      else
+      begin
+        Debug(dpError, 'slvision', 'glGetOverloadReplacementTaskFunction has not been set!');
+      end;
+    end;
+
+    slvision_lock.Enter('HandleAddConsoleTask');
+    try
+      for fTask in fAddedTasks do
+      begin
+        try
+          fConsoleTasks.Add(fTask);
+        except
+          on E: Exception do
+            Debug(dpError, 'slvision', Format(
+              '[EXCEPTION] TslApplication.HandleAddConsoleTask.fConsoleTasks.Add: %s',
+              [e.Message]));
+        end;
+
+        try
+          fTask.OnConleTaskAdded(fConsoleTasks);
+        except
+          on E: Exception do
+            Debug(dpError, 'slvision', Format(
+              '[EXCEPTION] TslApplication.HandleAddConsoleTask.t.OnConleTaskAdded: %s',
+              [e.Message]));
+        end;
+        if fTask is TslTextBoxTask then
+        begin
+          with TslTextBoxTask(fTask) do
+            if textbox <> nil then
             begin
-              i := fConsoleToUpdate.IndexOf(windowTitle);
-              if i >= 0 then
+              if remove then
+              begin
+                i := fConsoleToUpdate.IndexOf(windowTitle);
+                if i >= 0 then
+                begin
+                  try
+                    fConsoleToUpdate.Delete(i);
+                  except
+                    on E: Exception do
+                      Debug(dpError, 'slvision',
+                        Format(
+                        '[EXCEPTION] TslApplication.HandleAddConsoleTask.fConsoleToUpdate.Delete: %s',
+                        [e.Message]));
+                  end;
+                end;
+              end
+              else
               begin
                 try
-                  fConsoleToUpdate.Delete(i);
+                  fConsoleToUpdate.AddObject(windowTitle, textBox);
                 except
                   on E: Exception do
                     Debug(dpError, 'slvision',
                       Format(
-                      '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.Delete: %s',
+                      '[EXCEPTION] TslApplication.HandleAddConsoleTask.fConsoleToUpdate.AddObject: %s',
                       [e.Message]));
                 end;
-              end;
-            end
-            else
-            begin
-              try
-                fConsoleToUpdate.AddObject(windowTitle, textBox);
-              except
-                on E: Exception do
-                  Debug(dpError, 'slvision',
-                    Format(
-                    '[EXCEPTION] TslApplication.AddConsoleTask.fConsoleToUpdate.AddObject: %s',
-                    [e.Message]));
-              end;
 
+              end;
             end;
-          end;
+        end;
       end;
     finally
       slvision_lock.Leave();
+      fAddedTasks.Free;
+      fOverloadMessageWindows.Free;
     end;
   except
     on e: Exception do
     begin
       Debug(dpError, 'slvision',
-        Format('[EXCEPTION] TslApplication.AddConsoleTask: %s', [e.Message]));
+        Format('[EXCEPTION] TslApplication.HandleAddConsoleTask: %s', [e.Message]));
     end;
   end;
 end;
@@ -2976,14 +3116,15 @@ end;
 
 { TslConsoleTask }
 
-procedure TslConsoleTask.OnConleTaskAdded(v_queue: TObjectList);
+procedure TslConsoleTask.OnConleTaskAdded(v_queue: Contnrs.TObjectList);
 begin
   // nothing.
 end;
 
+
 { TslRemoveEarlierTask }
 
-procedure TslRemoveEarlierTask.OnConleTaskAdded(v_queue: TObjectList);
+procedure TslRemoveEarlierTask.OnConleTaskAdded(v_queue: Contnrs.TObjectList);
 var
   i: integer;
 begin
@@ -3032,8 +3173,83 @@ begin
   self.textbox     := textbox;
 end;
 
+{ TConsoleAddTaskCollection }
+
+procedure TConsoleAddTaskCollection.GetAddedTasks(const aTasksOut: TList<TslConsoleTask>; const aOverloadWindowsOut: TDictionary<string, integer>);
+var
+  fOverloadMessageWindowsKVP: TPair<string, integer>;
+begin
+  self.fTasksCS.Enter('GetAddedTasks');
+  try
+    aTasksOut.AddRange(self.fTasks);
+    self.fTasks.Clear;
+
+    // combine the dictionary of all TConsoleAddTaskCollection instances, so we can then create the info message for all concerned windows
+    for fOverloadMessageWindowsKVP in self.fOverloadMessageWindows do
+      aOverloadWindowsOut.TryAdd(fOverloadMessageWindowsKVP.Key, fOverloadMessageWindowsKVP.Value);
+    self.fOverloadMessageWindows.Clear;
+  finally
+    self.fTasksCS.Leave;
+  end;
+end;
+
+procedure TConsoleAddTaskCollection.AddTask(const aTask: TslConsoleTask);
+begin
+  self.fTasksCS.Enter('AddTask');
+  try
+    self.fTasks.Add(aTask);
+  finally
+    self.fTasksCS.Leave;
+  end;
+end;
+
+procedure TConsoleAddTaskCollection.AddOverloadMessageForWindow(const aWindowName: string);
+begin
+  self.fTasksCS.Enter('AddOverloadMessageForWindow');
+  try
+    fOverloadMessageWindows.TryAdd(aWindowName, 0);
+  finally
+    self.fTasksCS.Leave;
+  end;
+end;
+
+constructor TConsoleAddTaskCollection.Create;
+begin
+  self.fTasks := TList<TslConsoleTask>.Create;
+  // we only have 1 TConsoleAddTaskCollection per thread so the thread ID should be unique for the TSlCriticalSection2
+  self.fTasksCS := TSlCriticalSection2.Create('TConsoleAddTaskCollection_' + UintToStr(IdGlobal.CurrentThreadId));
+  fOverloadMessageWindows := TDictionary<string, integer>.Create;
+end;
+
+destructor TConsoleAddTaskCollection.Destroy;
+begin
+  self.fTasksCS.Enter('Destroy');
+  try
+    self.fTasks.Free;
+    self.fOverloadMessageWindows.Free;
+  finally
+    self.fTasksCS.Leave;
+  end;
+  self.fTasksCS.Free;
+  inherited;
+end;
+
+procedure CleanupSlVisionThreadVars;
+begin
+  if glThreadAddConsoleTaskCollection <> nil then
+  begin
+    glAddConsoleTaskCS.Enter('CleanupSlVisionThreadVars');
+    try
+      glAddConsoleTaskCollections.Remove(glThreadAddConsoleTaskCollection);
+    finally
+      glAddConsoleTaskCS.Leave;
+    end;
+    FreeAndNil(glThreadAddConsoleTaskCollection);
+  end;
+end;
+
 initialization
-  slvision_lock := TCriticalSection.Create();
+  slvision_lock := TSlCriticalSection2.Create('slvision');
   slig := 0;
   lvtf := 0;
 

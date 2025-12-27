@@ -22,8 +22,8 @@ begin
   slDefaultSocks5.Enabled := config.ReadBool(section, 'enabled', False);
   slDefaultSocks5.Host := config.ReadString(section, 'host', '127.0.0.1');
   slDefaultSocks5.Port := config.ReadInteger(section, 'port', 11101);
-  slDefaultSocks5.Username := config.ReadString(section, 'username', 'user');
-  slDefaultSocks5.Password := config.ReadString(section, 'password', 'pw');
+  slDefaultSocks5.Username := RawByteString(config.ReadString(section, 'username', 'user'));
+  slDefaultSocks5.Password := RawByteString(config.ReadString(section, 'password', 'pw'));
 end;
 
 procedure SetupSocks5(c: TslTCPSocket; usesocks5: Boolean);
@@ -54,8 +54,8 @@ begin
     c.socks5.enabled := so5.Enabled;
     c.socks5.Host := so5.host;
     c.socks5.Port := so5.port;
-    c.socks5.Username := so5.username;
-    c.socks5.Password := so5.password;
+    c.socks5.Username := RawByteString(so5.username);
+    c.socks5.Password := RawByteString(so5.password);
   end;
 end;
 

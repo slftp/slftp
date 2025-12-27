@@ -323,6 +323,9 @@ type
     destructor Destroy; override;
   end;
 
+  {
+  Used to give info about rules including its global rule ID.
+  }
   TRuleWithID = class
     ID: integer;
     FRule: TRule;
@@ -356,7 +359,8 @@ implementation
 
 uses
   SysUtils, Math, DateUtils, IdGlobal, {$IFDEF MSWINDOWS}Windows,{$ENDIF} Types, configunit, sitesunit, mystrings, encinifile, debugunit,
-  ruleconditions.common, ruleconditions.zeroday, ruleconditions.mp3, ruleconditions.tv, ruleconditions.imdb, ruleconditions.mvid, ruleconditions.nfo;
+  ruleconditions.common, ruleconditions.zeroday, ruleconditions.mp3, ruleconditions.tv, ruleconditions.imdb, ruleconditions.mvid, ruleconditions.nfo,
+  routeconfig;
 
 const
   dsection = 'rules';
@@ -368,8 +372,8 @@ type
 var
   prefixops: TClassList;
   infixops: TClassList;
-  rules: TDictionary<string, TDictionary<string, TObjectList<TRule>>>;
-  rtpl: TDictionary<string, TDictionary<string, TObjectList<TRule>>>;
+  rules: TDictionary<string, TDictionary<string, TObjectList<TRule>>>; //< key: sitename; inner key: section name
+  rtpl: TDictionary<string, TDictionary<string, TObjectList<TRule>>>; //< pretty sure, we don't actually need this anymore
   split_site_data: boolean;
 
 { TInfixOperator }
@@ -1616,25 +1620,21 @@ begin
 end;
 
 function CalculateRank(const aDestSite: TSite; const aSpeedFrom: integer; const aSection: string; const aIsPre: boolean): integer;
-var
-  fCalculatedRank: integer;
 begin
   //reduce speed stats weight - multiply ranks by 10, then the speedstats can't change the rank, but still change order within the same rank
   if (aDestSite.ReducedSpeedstatWeight) then
-    fCalculatedRank := aSpeedFrom + aDestSite.GetRank(aSection) * 10
+    Result := aSpeedFrom + aDestSite.GetRank(aSection) * 10
   else
-    fCalculatedRank := aSpeedFrom * aDestSite.GetRank(aSection); //normal calculation
+    Result := aSpeedFrom * aDestSite.GetRank(aSection); //normal calculation
 
   if (aIsPre) then
-    fCalculatedRank := Result + 100;
-
-  Result := fCalculatedRank;
+    Result := Result + 100;
 end;
 
 function FireRules(p: TPazo; ps: TPazoSite): boolean;
 var
   dstps: TPazoSite;
-  i: integer;
+  fSpeedInfo: TSpeedFromRouteInfo;
   ps_s, dstps_s: TSite;
 begin
   Result := False;
@@ -1656,17 +1656,10 @@ begin
   p.srcsite := ps.Name;
   Debug(dpSpam, dsection, '-> ' + Format('%s: %s %s', [ps.Name, p.rls.section, p.rls.rlsname]));
 
-  for i := 0 to ps.speed_from.Count - 1 do
+  for fSpeedInfo in ps.speed_from do
   begin
     try
-      if i > ps.speed_from.Count then
-        Break;
-    except
-      Break;
-    end;
-
-    try
-      dstps := p.FindSite(ps.speed_from.Names[i]);
+      dstps := p.FindSite(fSpeedInfo.Sitename);
       if dstps = nil then
         Continue;
 
@@ -1676,6 +1669,20 @@ begin
         begin
           if (dstps.reason = '') then
             dstps.reason := 'Affil';
+          Continue;
+        end;
+
+        if fSpeedInfo.AffilOnly and not ps.StatusRealPreOrShouldPre then
+        begin
+          if (dstps.reason = '') then
+            dstps.reason := 'Affil only route';
+          Continue;
+        end;
+
+        if fSpeedInfo.NoAffil and ps.StatusRealPreOrShouldPre then
+        begin
+          if (dstps.reason = '') then
+            dstps.reason := 'No-Affil route';
           Continue;
         end;
 
@@ -1697,7 +1704,7 @@ begin
         // i'm allowed to e ...
         if ((dstps.status in [rssAllowed]) or (FireRuleSet(p, dstps) = raAllow)) then
         begin
-          Result := ps.AddDestination(dstps, CalculateRank(dstps_s, StrToIntDef(ps.speed_from.ValueFromIndex[i], 1), p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
+          Result := ps.AddDestination(dstps, CalculateRank(dstps_s, fSpeedInfo.Speed, p.rls.section, ps.status in [rssShouldPre, rssRealPre]));
         end;
       end;
     except
@@ -1714,7 +1721,6 @@ end;
 
 procedure RulesSave;
 var
-  i: integer;
   fEncStringlist: TEncStringlist;
   fRulesPath: String;
   fRulesBySite: TDictionary<string, TStringList>;
@@ -1805,9 +1811,12 @@ begin
     finally
       fKeysToDelete.Free;
     end;
+
+    RulesSave;
   end;
 end;
 
+{ Returns the global ID for the given rule }
 function GetGlobalIdForRule(const aRule: TRule): integer;
 var
   fRulesPerSite: TPair<String, TDictionary<string, TObjectList<TRule>>>;
@@ -1815,6 +1824,8 @@ var
   fRule: TRule;
 begin
   Result := 0;
+
+  // iterate all sites/sections and count the rules until we find the given one
   for fRulesPerSite in rules do
   begin
     for fRulesPerSection in fRulesPerSite.Value do
@@ -1830,6 +1841,7 @@ begin
   end;
 end;
 
+{ Creates a TRule object from the given rule string and adds it to the list. Returns the TRule object and its global rule ID }
 function DoAddRule(const rule: String; var error: String; const aNotAddToRtpl: boolean): TPair<TRule, integer>;
 var
   r: TRule;
@@ -1897,6 +1909,7 @@ var
   fRulesPerSection: TObjectList<TRule>;
 begin
   Result := False;
+  fOldRule := nil; // Initialize to prevent uninitialized variable warning
 
   fNewRule := TRule.Create(aRule);
   if fNewRule.error <> '' then

@@ -5,7 +5,7 @@
    FPC specific definitions used by mormot.core.rtti.pas implementation
 }
 
-{$ifdef HASDIRECTTYPEINFO}
+{$ifdef HASDIRECTTYPEINFO} // FPC VER3_0 had no redirection
 
 type
   DeRef = pointer;
@@ -43,14 +43,15 @@ type
 
 function GetTypeData(TypeInfo: pointer): PTypeData;
 begin
-  // jump over Kind+Name - compiles as 2 asm opcodes on x86_64
+  // jump over Kind+RawName - compiles as 2 asm opcodes on x86_64
   result := @PByteArray(TypeInfo)[PByte(TypeInfo + 1)^ + 2];
 end;
 
 {$endif FPC_REQUIRES_PROPER_ALIGNMENT}
 
 type
-  PRecordInfo = PTypeData; // oldest Delphi PTypeData doesn't have RecordSize
+  PRecordInfo = PTypeData;
+  PArrayInfo = ^TArrayTypeData;
 
 function TRttiInfo.RttiClass: PRttiClass; // for proper inlining below
 begin
@@ -173,6 +174,7 @@ function TRttiInfo.EnumBaseType: PRttiEnumType; // moved here for proper inlinin
 begin
   result := pointer(GetTypeData(@self));
   if Kind <> rkBool then
+    // rkBool is an ordinal with Min/Max but without BaseType/NameList
     result := result^.EnumBaseType;
 end;
 
@@ -180,7 +182,6 @@ function GetEnumName(aTypeInfo: PRttiInfo; aIndex: integer): PShortString;
 begin // is very efficiently inlined by FPC
   result := aTypeInfo^.EnumBaseType.GetEnumNameOrd(aIndex);
 end;
-
 
 function TRttiInterfaceTypeData.IntfGuid: PGuid;
 begin
@@ -353,12 +354,12 @@ end;
 
 
 const
+  // RawUtf8 is defined as weak system.UTF8String type in mormot.core.base
+  UTF8_NAME: string[7] = 'RawUtf8';
   // FPC RTTI names integer type as "longint"
   INTEGER_NAME:  string[7] = 'Integer';
   // FPC RTTI names cardinal type as "longword"
   CARDINAL_NAME: string[8] = 'Cardinal';
-  // RawUtf8 is defined as weak system.UTF8String type in mormot.core.base
-  UTF8_NAME: string[7] = 'RawUtf8';
 
 function TRttiInfo.Name: PShortString;
 begin
@@ -376,7 +377,7 @@ begin
     else
       result := @INTEGER_NAME    // instead of 'longint'
   else
-    result := @NULCHAR;
+    result := @NULCHAR;          // instead of a GPF
 end;
 
 function TRttiInfo.RecordSize: PtrInt;
@@ -387,13 +388,6 @@ begin
   else
     result := GetTypeData(@self)^.RecSize;
 end;
-
-{$ifdef ISFPC32}
-function TRttiInfo.SetEnumSize: PtrInt;
-begin
-  result := GetTypeData(@self)^.SetSize; // newer FPC have direct size field :)
-end;
-{$endif ISFPC32}
 
 {$ifdef FPC_NEWRTTI}
 
@@ -457,12 +451,43 @@ end;
 
 {$endif FPC_NEWRTTI}
 
+{$ifdef HASEXTRECORDRTTI} // read enhanced RTTI available since latest trunk
+
+function TRttiInfo.RecordAllFields(out RecSize: PtrInt): TRttiRecordAllFields;
+var
+  tab: PExtendedFieldTable;
+  ent: PExtendedFieldEntry;
+  i: integer;
+begin
+  result := nil; // reset any previous list
+  tab := PRecordData(GetTypeData(@self))^.ExtendedFields;
+  if (tab = nil) or
+     (tab^.FieldCount = 0) then
+    exit; // no extended RTTI
+  SetLength(result, tab^.FieldCount);
+  for i := 0 to tab^.FieldCount - 1 do
+  begin
+    ent := tab^.Field[i];
+    with result[i] do
+    begin
+      TypeInfo := DeRef(ent^.FieldType);
+      Offset := ent^.FieldOffset;
+      Name := ent^.Name;
+      if Name = nil then
+        Name := @NULCHAR; // avoid unexpected GPF on unsufficient RTTI
+    end;
+  end;
+end;
+
+{$else}
 
 function TRttiInfo.RecordAllFields(out RecSize: PtrInt): TRttiRecordAllFields;
 begin
   RecSize := RecordSize;
-  Finalize(result{%H-}); // enhanced RTTI not available yet on FPC
+  result := nil; // extended record information available on latest trunk only
 end;
+
+{$endif HASEXTRECORDRTTI}
 
 function TRttiInfo.IsQWord: boolean;
 begin
@@ -472,6 +497,7 @@ end;
 function TRttiInfo.IsBoolean: boolean;
 begin
   result := (Kind = rkBool);
+  // boolean is not a rkEnumeration on FPC, and has no BaseType/NameList items
 end;
 
 function TRttiInfo.DynArrayItemType(out aDataSize: PtrInt): PRttiInfo;
@@ -483,7 +509,7 @@ end;
 
 function TRttiInfo.DynArrayItemType: PRttiInfo;
 begin
-  result := DeRef(GetTypeData(@self)^.elTypeRef);
+  result := DeRef(GetTypeData(@self)^.elTypeRef); // nil for unmanaged types
 end;
 
 function TRttiInfo.DynArrayItemTypeExtended: PRttiInfo;
@@ -497,18 +523,15 @@ begin
   end;
 end;
 
-function TRttiInfo.ArrayItemType(out aDataCount, aDataSize: PtrInt): PRttiInfo;
+function TRttiInfo.ArrayItemTypeExtended(out aDataCount, aDataSize: PtrInt): PRttiInfo;
 var
   info: ^TArrayTypeData;
 begin
+  // nfo^.DimCount=1 is not tested explicitly -> assume single dimension array
   info := @GetTypeData(@self)^.ArrayData;
   aDataCount := info^.ElCount;
   aDataSize := info^.Size {$ifdef VER2_6} * info^.ElCount {$endif};
-  result := DeRef(info^.ElTypeRef);
-  if (info^.DimCount <> 1) or
-     (result = nil) or
-     not (result^.Kind in rkManagedTypes) then
-    result := nil;
+  result := DeRef(info^.ElTypeRef); // may be nil for old Delphi unmanaged types
 end;
 
 function TRttiInfo.ArraySize: PtrInt;
@@ -523,33 +546,33 @@ function GetPublishedMethods(Instance: TObject;
   out Methods: TPublishedMethodInfoDynArray; aClass: TClass): integer;
 
   procedure AddParentsFirst(C: TClass);
-  type
-    TMethodInfo = packed record
-      Name: PShortString;
-      Addr: pointer;
-    end;
   var
-    Table: PIntegerArray;
-    M: ^TMethodInfo;
-    i: integer;
+    info: PIntegerArray; // PVmtMethodTable is wrong (GPF on aarch64-linux) :(
+    m: PVmtMethodEntry;
+    r: ^TPublishedMethodInfo;
+    n: integer;
   begin
     if C = nil then
       exit;
     AddParentsFirst(GetClassParent(C)); // put children methods afterwards
-    Table := PPointer(PtrUInt(C) + PtrUInt(vmtMethodTable))^;
-    if Table = nil then
-      exit;
-    SetLength(Methods, result + Table^[0]);
-    M := @Table^[1];
-    for i := 1 to Table^[0] do  // Table^[0] = methods count
-      with Methods[result] do
-      begin
-        ShortStringToAnsi7String(M^.Name^, Name);
-        Method.Data := Instance;
-        Method.Code := M^.Addr;
-        inc(M);
-        inc(result);
-      end;
+    info := PPointer(PtrUInt(C) + PtrUInt(vmtMethodTable))^;
+    if info = nil then
+      exit; // no published method for this class level
+    n := info[0];
+    if n = 0 then
+      exit; // paranoid
+    SetLength(Methods, result + n);
+    r := @Methods[result];
+    inc(result, n);
+    m := @info[1];
+    repeat
+      ShortStringToAnsi7String(m^.Name^, r^.Name);
+      r^.Method.Data := Instance;
+      r^.Method.Code := m^.CodeAddress;
+      inc(r);
+      inc(m);
+      dec(n);
+    until n = 0;
   end;
 
 begin
@@ -633,7 +656,7 @@ end;
 
 const
   // gather rk* to reduce number of TRttiCustomListPairs hash slots in memory
-  RK_TOSLOT_MAX = 14;
+  RK_TOSLOT_MAX = {$ifdef NOPATCHVMT} 11 {$else} 10 {$endif NOPATCHVMT};
   RK_TOSLOT: array[TRttiKind] of byte = (
     0,   // rkUnknown
     1,   // rkInteger
@@ -646,21 +669,25 @@ const
     6,   // rkLStringOld
     6,   // rkLString
     7,   // rkWString
-    8,   // rkVariant
+    7,   // rkVariant
     2,   // rkArray
-    9,   // rkRecord
-    8,   // rkInterface
-    10,  // rkClass
-    11,  // rkObject
-    7,   // rkWChar
+    8,   // rkRecord
+    7,   // rkInterface
+    {$ifdef NOPATCHVMT}
+    11,  // rkClass
+    {$else}
+    4,   // vmtAutoTable is used instead of rkClass slot
+    {$endif NOPATCHVMT}
+    8,  // rkObject
+    2,   // rkWChar
     3,   // rkBool
-    12,  // rkInt64
-    13,  // rkQWord
-    14,  // rkDynArray
+    9,   // rkInt64
+    9,   // rkQWord
+    10,  // rkDynArray
     0,   // rkInterfaceRaw
     0,   // rkProcVar
     7,   // rkUString
-    7,   // rkUChar
+    2,   // rkUChar
     0,   // rkHelper
     0,   // rkFile
     0,   // rkClassRef
@@ -929,7 +956,7 @@ var
   new: pointer;
 begin
   if cp <= CP_OEMCP then // TranslatePlaceholderCP logic
-    cp := DefaultSystemCodePage;
+    cp := Unicode_CodePage;
   new := FastNewString(len, cp);
   if buf <> nil then
     MoveFast(buf^, new^, len);
@@ -1059,7 +1086,7 @@ begin
       p := pointer(s[i]);
       if p <> nil then
         // use mormot.core.unicode efficient conversion
-        t.AddNoJsonEscape(p, _lstrlen(RawByteString(p)), _lstrcp(RawByteString(p), cp));
+        t.AddNoJsonEscapeCP(p, _lstrlen(RawByteString(p)), _lstrcp(RawByteString(p), cp));
     end;
     t.SetText(u);
   finally
@@ -1191,7 +1218,7 @@ begin
   {$ifdef FPC_HAS_CPSTRING}
   RedirectCode(@fpc_setstring_ansistr, @_setstring_ansistr_pansichar);
   // Delphi/Windows is never natively UTF-8, but FPC+Lazarus is very likely :)
-  if DefaultSystemCodePage = CP_UTF8 then
+  if Unicode_CodePage = CP_UTF8 then
   begin
     // dedicated UTF-8 concatenation RTL function replacements
     RedirectCode(@fpc_ansistr_concat, @_ansistr_concat_utf8);

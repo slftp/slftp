@@ -151,7 +151,7 @@ type
     fStats: TSynMonitorInputOutputObjArray;
     fImplementationClass: TInterfacedClass;
     fImplementationClassKind: (
-      ickBlank, ickWithCustomCreate, ickInjectable, ickInjectableRest,
+      ickBlank, ickPersistent, ickInjectable, ickInjectableRest,
       ickFromInjectedResolver, ickFake);
     fImplementationClassInterfaceEntry: PInterfaceEntry;
     fSharedInterface: IInterface;
@@ -178,13 +178,13 @@ type
     /// this method will create an implementation instance
     // - reference count will be set to one, in order to allow safe passing
     // of the instance into an interface, if AndIncreaseRefCount is TRUE
-    // - will handle TInterfacedObjectWithCustomCreate and TInjectableObject
+    // - will handle TInterfacedPersistent and TInjectableObject
     // as expected, if necessary
     function CreateInstance(AndIncreaseRefCount: boolean): TInterfacedObject;
   public
     /// initialize the service provider on the server side
     // - expect an direct server-side implementation class, which may inherit
-    // from plain TInterfacedClass, TInterfacedObjectWithCustomCreate if you
+    // from plain TInterfacedClass, TInterfacedPersistent if you
     // need an overridden constructor, or TInjectableObject to support DI/IoC
     // - for sicClientDriven, sicPerSession, sicPerUser or sicPerGroup modes,
     // a time out (in seconds) can be defined (default is 30 minutes) - if the
@@ -607,23 +607,23 @@ begin
       EServiceException.RaiseUtf8('%.Create: no Shared Instance for %/I%',
         [self, fImplementationClass, fInterfaceUri]);
     if (aSharedInstance as TInterfacedObjectFake).
-        Factory.InterfaceTypeInfo <> aInterface then
+        Factory.InterfaceRtti.Info <> aInterface then
       EServiceException.RaiseUtf8(
         '%.Create: shared % instance does not implement I%',
         [self, fImplementationClass, fInterfaceUri]);
   end
   else
   begin
-    if aRestServer.Services.Implements(fInterface.InterfaceTypeInfo) then
+    if aRestServer.Services.Implements(fInterface.InterfaceRtti.Info) then
       fImplementationClassKind := ickFromInjectedResolver
     else if fImplementationClass.InheritsFrom(TInjectableObjectRest) then
       fImplementationClassKind := ickInjectableRest
     else if fImplementationClass.InheritsFrom(TInjectableObject) then
       fImplementationClassKind := ickInjectable
-    else if fImplementationClass.InheritsFrom(TInterfacedObjectWithCustomCreate) then
-      fImplementationClassKind := ickWithCustomCreate;
+    else if fImplementationClass.InheritsFrom(TInterfacedPersistent) then
+      fImplementationClassKind := ickPersistent;
     fImplementationClassInterfaceEntry := fImplementationClass.
-      GetInterfaceEntry(fInterface.InterfaceIID);
+      GetInterfaceEntry(fInterface.InterfaceGuid^);
     if fImplementationClassInterfaceEntry = nil then
       EServiceException.RaiseUtf8('%.Create: % does not implement I%',
         [self, fImplementationClass, fInterfaceUri]);
@@ -865,7 +865,7 @@ begin
   except
     on E: Exception do
       fRestServer.Internallog('%.InstanceFree: ignored % exception ' +
-        'during I%._Release', [ClassType, E.ClassType, InterfaceUri], sllDebug);
+        'during I%._Release', [PClass(self)^, PClass(E)^, InterfaceUri], sllDebug);
   end;
 end;
 
@@ -1178,9 +1178,8 @@ var
   dummyObj: pointer;
 begin
   case fImplementationClassKind of
-    ickWithCustomCreate:
-      result := TInterfacedObjectWithCustomCreateClass(
-        fImplementationClass).Create;
+    ickPersistent:
+      result := TInterfacedPersistentClass(fImplementationClass).Create;
     ickInjectable:
       result := TInjectableObjectClass(
         fImplementationClass).CreateWithResolver(fResolver, true);
@@ -1191,7 +1190,7 @@ begin
       begin
         dummyObj := nil;
         if not TServiceContainerServer(fResolver).TryResolve(
-            fInterface.InterfaceTypeInfo, dummyObj) then
+            fInterface.InterfaceRtti.Info, dummyObj) then
           EInterfaceFactory.RaiseUtf8(
            'ickFromInjectedResolver: TryResolve(%) failed', [fInterface.InterfaceName]);
         result := TInterfacedObject(ObjectFromInterface(IInterface(dummyObj)));
@@ -1251,11 +1250,11 @@ begin
         begin
           W.AddShort('},Output:{');
           if not (optNoLogOutput in Sender.Options) then
-            if ArgsResultIsServiceCustomAnswer then
+            if imfResultIsServiceCustomAnswer in Flags then
               with PServiceCustomAnswer(Sender.Values[ArgsResultIndex])^ do
               begin
                 len := length(Content);
-                W.AddShorter('len:');
+                W.AddDirect('l', 'e', 'n', ':');
                 W.AddU(len);
                 if (Status <> 0) and
                    (Status <> HTTP_SUCCESS) then
@@ -1267,9 +1266,12 @@ begin
                    (len > 0) and
                    (len <= 1024) then
                 begin
-                  // write up to 1KB of result binary as Base64 text
+                  // write up to 1KB of result binary as (Base64) text
                   W.AddShort(',result:"');
-                  W.WrBase64(pointer(content), len, false);
+                  if IsValidUtf8NotVoid(pointer(content), len) then
+                    W.AddJsonEscape(pointer(content), len)
+                  else
+                    W.WrBase64(pointer(content), len, false);
                   W.AddDirect('"');
                 end;
               end
@@ -1296,7 +1298,7 @@ begin
       smsError:
         begin
           W.AddShort('},Output:{');
-          W.AddClassName(Sender.LastException.ClassType);
+          W.AddClassName(PClass(Sender.LastException)^);
           W.AddDirect(':', '"');
           W.AddJsonEscapeString(Sender.LastException.Message);
           W.AddDirect('"');
@@ -1341,7 +1343,7 @@ begin
   begin
     W.AddShorter(',IP:"');
     W.AddShort(ip, StrLen(ip));
-    W.AddShorter('"},');
+    W.AddDirect('"', '}', ',');
   end;
   with Ctxt.ServiceExecution^ do
     IRestOrm(LogRest).AsyncBatchRawAppend(LogClass, W);
@@ -1446,7 +1448,7 @@ begin
         entry := fImplementationClassInterfaceEntry
       else
       begin
-        entry := Inst.Instance.GetInterfaceEntry(fInterface.InterfaceIID);
+        entry := Inst.Instance.GetInterfaceEntry(fInterface.InterfaceGuid^);
         if entry = nil then
           exit;
       end;
@@ -1644,14 +1646,14 @@ begin
     if fServer.Services <> nil then
       with fServer.Services as TServiceContainerServer do
         if fFakeCallbacks <> nil then
-          FakeCallbackRemove(self);
+          FakeCallbackRemove(self); // remove from weak fFakeCallbacks.List[]
   end;
   inherited Destroy;
 end;
 
 function TInterfacedObjectFakeServer.CanLog: boolean;
 begin
-  result := not IdemPropName(fFactory.InterfaceTypeInfo^.RawName, 'ISynLogCallback');
+  result := not IdemPropNameU(fFactory.InterfaceRtti.Name, 'ISynLogCallback');
 end;
 
 function TInterfacedObjectFakeServer.CallbackInvoke(
@@ -1677,7 +1679,7 @@ begin
     if CanLog then
       fServer.InternalLog('%.CallbackInvoke: % instance has been released on ' +
         'the client side, so I% callback notification was NOT sent', [self,
-        fFactory.InterfaceTypeInfo^.RawName, aMethod.InterfaceDotMethodName], sllWarning);
+        fFactory.InterfaceRtti.Name, aMethod.InterfaceDotMethodName], sllWarning);
     if fRaiseExceptionOnInvokeError or
        ((fServer.Services <> nil) and
         (coRaiseExceptionIfReleasedByClient in
@@ -1715,10 +1717,10 @@ end;
 
 destructor TServiceContainerServer.Destroy;
 var
-  i: integer;
+  i: PtrInt;
   call: TRestUriParams;
   ctxt: TRestServerUriContext;
-  fake: ^TInterfacedObjectFakeServer;
+  fake: TInterfacedObjectFakeServer;
 begin
   if (fFakeCallbacks <> nil) and
      (fFakeCallbacks.Count <> 0) then
@@ -1727,15 +1729,14 @@ begin
     ctxt := TRestServerUriContext.Create;
     try
       ctxt.Prepare(fRestServer, call);
-      fake := pointer(fFakeCallbacks.List);
-      for i := 1 to fFakeCallbacks.Count do
+      for i := fFakeCallbacks.Count - 1 downto 0 do // backward for safety
       begin
+        fake := fFakeCallbacks.List[i];
         // prevent GPF in TInterfacedObjectFakeServer.Destroy
-        fake^.fServer := nil;
+        fake.fServer := nil;
         // notify as to be released (paranoid)
-        if not fake^.fReleasedOnClientSide then
-          RemoveFakeCallback(fake^, ctxt);
-        inc(fake);
+        if not fake.fReleasedOnClientSide then
+          RemoveFakeCallback(fake, ctxt);
       end;
     finally
       ctxt.Free;
@@ -1763,7 +1764,7 @@ begin
      (high(aInterfaces) < 0) then
     exit;
   if aSharedImplementation <> nil then
-    if (aSharedImplementation.ClassType <> aImplementationClass) or
+    if (PClass(aSharedImplementation)^ <> aImplementationClass) or
        (aInstanceCreation <> sicShared) then
       EServiceException.RaiseUtf8('%.AddImplementation: invalid % class',
         [self, aSharedImplementation]);
@@ -1776,8 +1777,8 @@ begin
      aSharedImplementation.InheritsFrom(TInterfacedObjectFake) then
   begin
     // TInterfacedObjectFake has no RTTI
-    if IsEqualGuid(uid[0],
-        @TInterfacedObjectFake(aSharedImplementation).Factory.InterfaceIID) then
+    if IsEqualGuid(uid[0], @TInterfacedObjectFake(aSharedImplementation).
+                              Factory.InterfaceGuid^) then
       uid[0] := nil; // mark TGuid implemented by this fake interface
   end
   else
@@ -1876,6 +1877,7 @@ var
   connectionID: TRestConnectionID;
   fake: TInterfacedObjectFakeServer;
 begin
+  // method called by TInterfacedObjectFakeServer.Destroy
   if (self = nil) or
      (fFakeCallbacks = nil) or
      (fFakeCallbacks.Count = 0) then
@@ -1962,12 +1964,12 @@ begin
       @fake.fService.fInterface.Methods[Ctxt.ServiceMethodIndex];
     Ctxt.ServiceExecution :=
       @fake.fService.fExecution[Ctxt.ServiceMethodIndex];
-    Ctxt.ServiceExecutionOptions := Ctxt.ServiceExecution.Options;
+    Ctxt.ServiceExecutionOptions := Ctxt.ServiceExecution.Options; // transient copy
     Ctxt.Service := fake.fService;
     Ctxt.ServiceMethodIndex := Ctxt.ServiceMethodIndex + SERVICE_PSEUDO_METHOD_COUNT;
     FormatUtf8('[%,"%"]',
       [PtrInt(PtrUInt(fake.fFakeInterface)), fake.Factory.InterfaceName], params);
-    Ctxt.ServiceParameters := pointer(params);
+    Ctxt.ServiceParameters := pointer(params); // keep ServiceParametersLen=0
     withlog := (sllDebug in fRestServer.LogLevel) and
                fake.CanLog; // before ExcuteMethod which may free fake instance
     fake._AddRef; // ExecuteMethod() calls fake._Release on its parameter
@@ -1986,8 +1988,8 @@ procedure TServiceContainerServer.RemoveFakeCallbackOnConnectionClose(
 var
   call: TRestUriParams;
   ctxt: TRestServerUriContext;
-  fake: ^TInterfacedObjectFakeServer;
-  i: integer;
+  fake: TInterfacedObjectFakeServer;
+  i: PtrInt;
 begin
   if (self = nil) or
      (fFakeCallbacks = nil) or
@@ -1999,13 +2001,12 @@ begin
     ctxt.Prepare(fRestServer, call);
     fFakeCallbacks.Safe.WriteLock; // may include a nested WriteLock (reentrant)
     try
-      fake := pointer(fFakeCallbacks.List);
-      for i := 1 to fFakeCallbacks.Count do
+      for i := fFakeCallbacks.Count - 1 downto 0 do // backward for safety
       begin
-        if (fake^.fLowLevelConnectionID = aConnectionID) and
-           not fake^.fReleasedOnClientSide then
-          RemoveFakeCallback(fake^, ctxt);
-        inc(fake);
+        fake := fFakeCallbacks.List[i];
+        if (fake.fLowLevelConnectionID = aConnectionID) and
+           not fake.fReleasedOnClientSide then
+          RemoveFakeCallback(fake, ctxt);
       end;
     finally
       fFakeCallbacks.Safe.WriteUnLock;
@@ -2076,8 +2077,8 @@ begin
     InterfaceArrayAdd(fRecordVersionCallback[TableIndex], SlaveCallback);
     instance := ObjectFromInterface(SlaveCallback);
     if (instance <> nil) and
-       (instance.ClassType = TInterfacedObjectFakeServer) then
-      TInterfacedObjectFakeServer(instance).fRaiseExceptionOnInvokeError := True;
+       (PClass(instance)^ = TInterfacedObjectFakeServer) then
+      TInterfacedObjectFakeServer(instance).fRaiseExceptionOnInvokeError := true;
   finally
     fRestServer.AcquireExecution[execOrmWrite].Safe.UnLock;
   end;
@@ -2122,7 +2123,7 @@ begin
   begin
     if callbacktext <> nil then
       AppendWithSpace(callbacktext^, ClassNameShort(instance)^);
-    result := (instance.ClassType = TInterfacedObjectFakeServer) and
+    result := (PClass(instance)^ = TInterfacedObjectFakeServer) and
               TInterfacedObjectFakeServer(instance).fReleasedOnClientSide;
   end;
 end;
@@ -2134,7 +2135,7 @@ var
 begin
   instance := ObjectFromInterface(callback);
   if (instance <> nil) and
-     (instance.ClassType = TInterfacedObjectFakeServer) then
+     (PClass(instance)^ = TInterfacedObjectFakeServer) then
     TInterfacedObjectFakeServer(instance).fOpaque := Opaque;
 end;
 
@@ -2145,7 +2146,7 @@ var
 begin
   instance := ObjectFromInterface(callback);
   if (instance <> nil) and
-     (instance.ClassType = TInterfacedObjectFakeServer) then
+     (PClass(instance)^ = TInterfacedObjectFakeServer) then
     result := TInterfacedObjectFakeServer(instance).fOpaque
   else
     result := nil;
@@ -2434,7 +2435,7 @@ end;
 
 procedure TServiceRecordVersionCallback.CurrentFrame(isLast: boolean);
 
-  procedure Error(const msg: shortstring);
+  procedure Error(const msg: ShortString);
   begin
     fRest.InternalLog('%.CurrentFrame(%) on %: %',
       [self, isLast, fTable, msg], sllError);

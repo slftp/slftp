@@ -224,7 +224,9 @@ type
     TimeoutTix: Int64;
     /// the transmitted file name, UTF-8 encoded
     FileName: RawUtf8;
-    /// the transmitted file content, as a TStream
+    /// the full file name, as resolved locally on the file system
+    FileNameFull: TFileName;
+    /// the actual transmitted file content, as a TStream
     FileStream: TStream;
     /// the UDP/IP connection to be used by SendFrame() method
     Sock: TNetSocket;
@@ -276,7 +278,7 @@ type
     function SendFrame: TNetResult;
     /// generate and send an ERR packet, then close Sock and FileStream
     procedure SendErrorAndShutdown(err: TTftpError; log: TSynLog;
-      obj: TObject; const caller: shortstring);
+      obj: TObject; const caller: ShortString);
     /// close Sock and FileStream
     procedure Shutdown;
   end;
@@ -289,7 +291,7 @@ function ToOpcode(const frame: TTftpFrame): TTftpOpcode;
   {$ifdef HASINLINE} inline; {$endif}
 
 /// convert TFTP frame Opcode + Sequence to text, ready for logging
-function ToText(const frame: TTftpFrame; len: integer = 0): shortstring; overload;
+function ToText(const frame: TTftpFrame; len: integer = 0): ShortString; overload;
 
 function ToText(e: TTftpError): PShortString; overload;
 
@@ -304,12 +306,12 @@ implementation
 
 function ToOpcode(const frame: TTftpFrame): TTftpOpcode;
 begin
-  result := TTftpOpcode(Swap(frame.Opcode));
+  result := TTftpOpcode(bswap16(frame.Opcode));
   if result > high(TTftpOpCode) then
     result := toUndefined;
 end;
 
-function ToText(const frame: TTftpFrame; len: integer): shortstring;
+function ToText(const frame: TTftpFrame; len: integer): ShortString;
 var
   c: TTftpOpcode;
   seq: integer;
@@ -335,32 +337,32 @@ begin
     AppendShortCardinal(frame.Opcode, result);
     exit;
   end;
-  seq := swap(frame.Sequence);
+  seq := bswap16(frame.Sequence);
   case c of
     toRrq,
     toWrq,
     toOck:
       if len <= 0 then
         // 'RRQ filename' / 'WRQ filename' / 'OACK option'
-        AppendShortBuffer(@frame.Header, StrLen(@frame.Header), result)
+        AppendShortBuffer(@frame.Header, StrLen(@frame.Header), @result)
       else
       begin
         // all options will be included with #0 terminated (logged as space)
         if len > 240 then
           len := 240; // ensure at least beginning of frame is logged
-        AppendShortBuffer(@frame.Header, len, result);
+        AppendShortBuffer(@frame.Header, len, @result);
       end;
     toDat,
     toAck:
       begin
         /// 'DAT #123,len' / 'ACK #123'
-        AppendShortChar('#', result);
+        AppendShortChar('#', @result);
         AppendShortCardinal(seq, result);
         dec(len, SizeOf(Frame.Sequence));
         if (len >= 0) and
            (c = toDat) then
         begin
-          AppendShortChar(',', result);
+          AppendShortChar(',', @result);
           AppendShortCardinal(len, result);
         end;
       end;
@@ -369,10 +371,10 @@ begin
         AppendShortCardinal(seq, result);
         if seq <= ord(teLast) then
         begin
-          AppendShort(' (', result);
+          AppendShortTwoChars(' (', @result);
           AppendShort(GetEnumName(TypeInfo(TTftpError), seq)^, result);
-          AppendShort(') ', result);
-          AppendShortBuffer(@frame.Header, StrLen(@frame.Header), result)
+          AppendShortTwoChars(') ', @result);
+          AppendShortBuffer(@frame.Header, StrLen(@frame.Header), @result)
         end;
       end;
   end;
@@ -390,26 +392,26 @@ end;
 procedure TTftpContext.SetDefaultOptions(
   op: TTftpOpcode; opt: TTftpContextOptions);
 begin
-  OpCode := op;
+  OpCode             := op;
   HasExtendedOptions := false;
-  RetryCount := 0;
-  TimeoutSec := TFTP_TIMEOUT_DEFAULT;    // = 5 seconds
-  BlockSize := TFTP_BLKSIZE_DEFAULT;     // = 512 as before RFC7440
-  TransferSize := TFTP_TSIZE_UNKNOWN;    // = -1 meaning no tsize option
-  WindowSize := TFTP_WINDOWSIZE_DEFAULT; // = 1 as before RFC7440
-  Options := opt;
-  LastWindowCounter := WindowSize;
-  LastReceivedSequence := 0;
-  LastReceivedSequenceHi := 0;
+  RetryCount         := 0;
+  TimeoutSec         := TFTP_TIMEOUT_DEFAULT;    // = 5 seconds
+  BlockSize          := TFTP_BLKSIZE_DEFAULT;    // = 512 as before RFC7440
+  TransferSize       := TFTP_TSIZE_UNKNOWN;      // = -1 meaning no tsize option
+  WindowSize         := TFTP_WINDOWSIZE_DEFAULT; // = 1 as before RFC7440
+  CurrentSize        := 0;
+  Options            := opt;
+  LastWindowCounter  := WindowSize;
+  LastReceivedSequence     := 0;
+  LastReceivedSequenceHi   := 0;
   LastAcknowledgedSequence := 0;
-  CurrentSize := 0;
 end;
 
 procedure TTftpContext.AppendTextToFrame(const Text: RawUtf8);
 var
   len: PtrInt;
 begin
-  len := length(Text) + 1; // include trailing #0
+  len := length(Text) + 1; // include #0 terminator
   if FrameLen + len > SizeOf(Frame^) then
     exit; // paranoid
   MoveFast(pointer(Text)^, PByteArray(Frame)[FrameLen], len);
@@ -453,7 +455,7 @@ begin
   ParseLen := len - SizeOf(Frame^.Opcode);
   if (ParseLen <= 0) or
      (ParseLen > SizeOf(Frame.Header)) or
-     (Frame^.Header[ParseLen - 1] <> 0) or // should end with a trailing #0
+     (Frame^.Header[ParseLen - 1] <> 0) or // should end with a #0 terminator
      not (OpCode in [toRrq, toWrq, toOck]) then
     exit;
   Parse := @Frame^.Header;
@@ -529,7 +531,7 @@ begin
       //       +-------+---~~---+---+---~~---+---+---~~---+---+---~~---+---+
       // OACK |   6   |  opt1  | 0 | value1 | 0 |  optN  | 0 | valueN | 0 |
       //      +-------+---~~---+---+---~~---+---+---~~---+---+---~~---+---+
-      Frame^.Opcode := swap(word(TFTP_OACK));
+      Frame^.Opcode := bswap16(TFTP_OACK);
   end
   else
     // RFC 1350 regular response
@@ -566,7 +568,7 @@ begin
      (op <> OpDataAck) or
      (FileStream = nil) then
     exit;
-  Frame^.Sequence := swap(Frame^.Sequence);
+  Frame^.Sequence := bswap16(Frame^.Sequence);
   CurrentSize := // compute position from seq to allow retry from other side
     (LastReceivedSequenceHi + Frame^.Sequence) * BlockSize;
   case op of
@@ -641,8 +643,8 @@ begin
   //        ------------------
   //  ACK  | 04    |  seq    |
   //       ------------------
-  Frame^.Opcode := swap(word(TFTP_ACK));
-  Frame^.Sequence := swap(LastReceivedSequence);
+  Frame^.Opcode := bswap16(TFTP_ACK);
+  Frame^.Sequence := bswap16(LastReceivedSequence);
   FrameLen := SizeOf(Frame^.Opcode) + SizeOf(Frame^.Sequence);
 end;
 
@@ -655,8 +657,8 @@ begin
   inc(LastReceivedSequence);
   if LastReceivedSequence = 0 then
     inc(LastReceivedSequenceHi, 1 shl 16); // handle 16-bit sequence overflow
-  Frame^.Opcode := swap(word(TFTP_DAT));
-  Frame^.Sequence := swap(LastReceivedSequence);
+  Frame^.Opcode := bswap16(TFTP_DAT);
+  Frame^.Sequence := bswap16(LastReceivedSequence);
   if CurrentSize <> FileStream.Position then
     FileStream.Seek(Int64(CurrentSize), soBeginning);
   FrameLen := FileStream.Read(Frame^.Data,  BlockSize);
@@ -684,7 +686,7 @@ begin
   //    >-------+---+---~~---+---+
   //   <  optN  | 0 | valueN | 0 |
   //   >-------+---+---~~---+---+
-  Frame^.Opcode := swap(word(ord(OpCode)));
+  Frame^.Opcode := bswap16(ord(OpCode));
   FrameLen := SizeOf(Frame^.OpCode);
   AppendTextToFrame(FileName);
   AppendTextToFrame('octet');
@@ -701,11 +703,11 @@ begin
   //        -----------------------------------------
   // ERROR | 05    |  ErrorCode |   ErrMsg   |   0  |
   //       -----------------------------------------
-  Frame^.Opcode := swap(word(TFTP_ERR));
+  Frame^.Opcode := bswap16(TFTP_ERR);
   if err > teLast then
     Frame^.ErrorCode := 0
   else
-    Frame^.ErrorCode := swap(word(ord(err)));
+    Frame^.ErrorCode := bswap16(ord(err));
   FrameLen := SizeOf(Frame^.Opcode) + SizeOf(Frame^.ErrorCode);
   if msg <> '' then
     AppendTextToFrame(msg)
@@ -733,7 +735,7 @@ begin
 end;
 
 procedure TTftpContext.SendErrorAndShutdown(err: TTftpError; log: TSynLog;
-  obj: TObject; const caller: shortstring);
+  obj: TObject; const caller: ShortString);
 begin
   GenerateErrorFrame(err, '');
   log.Log(sllTrace, '%: % % failed as %',

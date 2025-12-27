@@ -448,13 +448,13 @@ type
   /// kind of exceptions raised by this unit
   E7Zip = class(ESynException)
   protected
-    class procedure RaiseAfterCheck(Caller: TObject; const Context: shortstring;
+    class procedure RaiseAfterCheck(Caller: TObject; const Context: ShortString;
       Res: HResult);
   public
-    class procedure Check(Caller: TObject; const Context: shortstring;
+    class procedure Check(Caller: TObject; const Context: ShortString;
       Res: HResult);
       {$ifdef HASINLINE} inline; {$endif}
-    class procedure CheckOk(Caller: TObject; const Context: shortstring;
+    class procedure CheckOk(Caller: TObject; const Context: ShortString;
       Res: HResult);
       {$ifdef HASINLINE} inline; {$endif}
   end;
@@ -772,7 +772,7 @@ type
     /// factory of the main I7zReader high-level archive file decompressor
     // - will guess the file format from its existing content by default
     function NewReader(const name: TFileName;
-      fmt: T7zFormatHandler = fhUndefined): I7zReader; overload;
+      fmt: T7zFormatHandler = fhUndefined; const pw: RawUtf8 = ''): I7zReader; overload;
     /// factory of the main I7zWriter high-level archive compressor
     function NewWriter(fmt: T7zFormatHandler): I7zWriter; overload;
     /// factory of the main I7zWriter high-level archive compressor
@@ -815,8 +815,8 @@ type
     /// I7zLib methods
     function FileName: TFileName;
     function NewReader(fmt: T7zFormatHandler): I7zReader; overload;
-    function NewReader(const name: TFileName;
-      fmt: T7zFormatHandler = fhUndefined): I7zReader; overload;
+    function NewReader(const name: TFileName; fmt: T7zFormatHandler = fhUndefined;
+      const pw: RawUtf8 = ''): I7zReader; overload;
     function NewWriter(fmt: T7zFormatHandler): I7zWriter; overload;
     function NewWriter(const name: TFileName;
       fmt: T7zFormatHandler = fhUndefined): I7zWriter; overload;
@@ -827,7 +827,7 @@ type
 // - will guess the file format from its existing content
 // - will own its own TZlib instance to access the 7z.dll library
 function New7zReader(const name: TFileName; fmt: T7zFormatHandler = fhUndefined;
-  const lib: TFileName = ''): I7zReader;
+  const lib: TFileName = '';  const pw: RawUtf8 = ''): I7zReader;
 
 /// global factory of the main I7zWriter high-level archive compressor
 // - will own its own TZlib instance to access the 7z.dll library
@@ -861,20 +861,20 @@ end;
 { E7Zip }
 
 class procedure E7Zip.RaiseAfterCheck(Caller: TObject;
-  const Context: shortstring; Res: HResult);
+  const Context: ShortString; Res: HResult);
 begin
   raise CreateFmt('%s.%s error %x (%s)',
-    [ClassNameShort(Caller)^, Context, Res, string(WinErrorText(Res, nil))])
+    [ClassNameShort(Caller)^, Context, Res, string(WinErrorText(Res))])
 end;
 
-class procedure E7Zip.Check(Caller: TObject; const Context: shortstring;
+class procedure E7Zip.Check(Caller: TObject; const Context: ShortString;
   Res: HResult);
 begin
   if Res and $80000000 <> 0 then
     RaiseAfterCheck(Caller, Context, Res);
 end;
 
-class procedure E7Zip.CheckOk(Caller: TObject; const Context: shortstring;
+class procedure E7Zip.CheckOk(Caller: TObject; const Context: ShortString;
   Res: HResult);
 begin
   if Res <> S_OK then
@@ -1361,7 +1361,6 @@ class function T7zLib.FormatDetect(const FileName: TFileName;
   OnlyFileName: boolean): T7zFormatHandler;
 var
   h: THash128Rec;
-  f: THandle;
   i, l: PtrInt;
   ext: RawUtf8;
 begin
@@ -1371,21 +1370,16 @@ begin
   // first try to identify from binary header
   if not OnlyFileName then
   begin
-    f := FileOpen(FileName, fmOpenReadShared);
-    if not ValidHandle(f) then
-      exit;
-    l := FileRead(f, h, SizeOf(h));
-    FileClose(f);
-    if l <> SizeOf(h) then
+    if not BufferFromFile(FileName, @h, SizeOf(h)) then
       exit;
     case h.c[0] of
       $04034b50:
         result := fhZip;
       $21726152:
         if h.c[1] = $0001071a then
-          result := fhRar
+          result := fhRar5
         else
-          result := fhRar5;
+          result := fhRar;
       $afbc7a37:
         result := fh7z;
       $28635349:
@@ -1572,12 +1566,14 @@ begin
   result := T7zReader.Create(self, fmt, {libowned=}false);
 end;
 
-function T7zLib.NewReader(const name: TFileName;
-  fmt: T7zFormatHandler): I7zReader;
+function T7zLib.NewReader(const name: TFileName; fmt: T7zFormatHandler;
+  const pw: RawUtf8): I7zReader;
 begin
   if fmt = fhUndefined then
     fmt := FormatDetect(name);
   result := T7zReader.Create(self, fmt, {libowned=}false);
+  if pw <> '' then
+    result.SetPassword(pw); // to be set before OpenFile()
   result.OpenFile(name);
 end;
 
@@ -1591,12 +1587,15 @@ begin
   result := T7zWriter.Create(self, NewReader(name, fmt), {libowned=}false);
 end;
 
+
 function New7zReader(const name: TFileName; fmt: T7zFormatHandler;
-  const lib: TFileName): I7zReader;
+  const lib: TFileName; const pw: RawUtf8): I7zReader;
 begin
   if fmt = fhUndefined then
     fmt := T7zLib.FormatDetect(name);
   result := T7zReader.Create(T7zLib.Create(lib), fmt, {libowned=}true);
+  if pw <> '' then
+    result.SetPassword(pw); // before OpenFile()
   result.OpenFile(name);
 end;
 
@@ -2121,7 +2120,7 @@ begin
     eamExtract:
       if fStream <> nil then
         outStream := T7zStream.Create(fStream, false, index)
-      else if assigned(fExtractCallback) then
+      else if Assigned(fExtractCallback) then
       begin
         result := fExtractCallback(self, index, outStream);
         exit;
@@ -2224,7 +2223,7 @@ begin
   fExtractCallback := callback;
   try
     E7Zip.CheckOk(self, 'ExtractAll', fInArchive.Extract(
-      nil, $FFFFFFFF, ord(Assigned(callback)), self as IArchiveExtractCallback));
+      nil, $ffffffff, ord(Assigned(callback)), self as IArchiveExtractCallback));
   finally
     fExtractCallback := nil;
   end;
@@ -2237,7 +2236,7 @@ begin
   fExtractPathNoSubFolder := nosubfolder;
   try
     E7Zip.CheckOk(self, 'ExtractAll', fInArchive.Extract(
-      nil, $FFFFFFFF, 0, self as IArchiveExtractCallback));
+      nil, $ffffffff, 0, self as IArchiveExtractCallback));
   finally
     fExtractPath := '';
   end;

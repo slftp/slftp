@@ -17,11 +17,14 @@ Cross-Platform Raw Sockets API Definition
 - MAC and IP Addresses Support
 - TLS / HTTPS Encryption Abstract Layer
 - Efficient Multiple Sockets Polling
+- `TSocketStream` Socket Wrapper
+- Windows IOCP sockets support
 - `TUri` parsing/generating URL wrapper
 - `TCrtSocket` Buffered Socket Read/Write Class
 - NTP / SNTP Protocol Client
 
-The Low-Level Sockets API is encapsultated into a single set of functions, and wrapped around a `TNetSocket` abstract helper, and never made public.
+The Low-Level Sockets API, which is complex and inconsistent among OS, is not made public and shouldn't be used in end-user code. This unit encapsultates all Sockets features into a single set of functions, e.g. around the TNetSocket abstract wrapper.
+
 
 ### mormot.net.http
 
@@ -39,7 +42,7 @@ HTTP Client Classes
 - `THttpClientSocket` Implementing HTTP client over plain sockets
 - Additional Client Protocols Support (e.g. 'file://')
 - `THttpRequest` Abstract HTTP client class
-- `TWinHttp` `TWinINet` `TWinHttpWebSocketClient` `TCurlHTTP`
+- `TWinHttp` `TWinINet` `TCurlHTTP` classes
 - `TSimpleHttpClient` Wrapper Class
 - Cached HTTP Connection to a Remote Server
 - Send Email using the `SMTP` Protocol
@@ -73,18 +76,21 @@ WebSockets Abstract Processing for Client and Server
 - WebSockets Asynchronous Frames Parsing
 - WebSockets Client and Server Shared Process
 - `TWebSocketProtocolChat` Simple Protocol
+- Socket.IO / Engine.IO Raw Protocols
 
 ### mormot.net.ws.client
 
 WebSockets Bidirectional Client
 - `TWebSocketProcessClient` Processing Class
 - `THttpClientWebSockets` Bidirectional REST Client
+- Socket.IO / Engine.IO Client Protocol over WebSockets
 
 ### mormot.net.ws.server
 
 WebSockets Bidirectional Server
 - `TWebSocketProcessServer` Processing Class
 - `TWebSocketServerSocket` Bidirectional REST Server
+- Socket.IO / Engine.IO Server Protocol over WebSockets
 
 ### mormot.net.ws.async
 
@@ -105,7 +111,7 @@ A Private Relay client should connect to a Public Relay Server, probably behind 
 
 ### mormot.net.rtsphttp
 
-RTSP Stream Tunnelling over HTTP as defined by Apple at https://goo.gl/CX6VA3
+RTSP Stream Tunnelling over HTTP as defined by Apple at https://web.archive.org/web/20090706123224/developer.apple.com/quicktime/icefloe/dispatch028.html
 - Low-level HTTP and RTSP Connections
 - RTSP over HTTP Tunnelling 
 
@@ -144,10 +150,13 @@ Automatic Certificate Management Environment (ACME v2) Client
 ### mormot.net.ldap
 
 Simple LDAP Protocol Client
-- LDAP Protocol Definitions
-- LDAP Response Storage
 - CLDAP Client Functions
-- LDAP Client Class
+- LDIF Data Interchange Format
+- LDAP Protocol Definitions
+- LDAP Attributes Definitions
+- LDAP Response Storage
+- Main `TLdapClient` Class
+- Dedicated `TLdapCheckMember` Class
 - HTTP BASIC Authentication via LDAP or Kerberos
 
 ### mormot.net.dns
@@ -155,3 +164,11 @@ Simple LDAP Protocol Client
 Simple DNS Protocol Client
 - Low-Level DNS Protocol Definitions
 - High-Level DNS Query
+
+### mormot.net.openapi
+
+OpenAPI Language-agnostic Interface to HTTP APIs
+- OpenAPI Document Wrappers
+- FPC/Delphi Pascal Client Code Generation
+
+See https://blog.synopse.info/?post/2024/09/06/Swagger/OpenAPI-Client-Generator-for-Delphi-and-FPC
