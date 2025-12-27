@@ -26,14 +26,14 @@ type
   }
   TAddPreMode = (apmMemory, apmSQLITE, apmMYSQL, apmNone);
 
-function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
+function dbaddpre_ADDPRE(const netname, channel, nickname, aRlsName, aSection, params: String; event: TKBEventType): boolean;
 function dbaddpre_GetRlz(const rls: String): Int64;
 function dbaddpre_InsertRlz(const rls, rls_section, Source: String; const aSkipDbCleanup: boolean = False): boolean;
 function dbaddpre_GetCount: integer;
 function dbaddpre_GetPreduration(const rlz_pretime: Int64): String;
 function dbaddpre_Status: String;
 
-function dbaddpre_Process(const net, chan, nick: String; msg: String): boolean;
+function dbaddpre_Process(const net, chan, nick, msg: String): boolean;
 
 procedure dbaddpreInit;
 procedure dbaddpreStart;
@@ -79,13 +79,14 @@ var
 
   addprecmd: TStringList;
   kbadd_addpre: boolean;
+  add_to_kb_on_dbaddpre_insert: boolean;
 
   dbaddpre_mode: TAddPreMode = TAddPreMode(3);
   dbaddpre_plm1: TPretimeLookupMode;
   dbaddpre_plm2: TPretimeLookupMode;
 
   config_taskpretime_url: String;
-  config_taskpretime_regexp: String;
+  config_taskpretime_regexp: RawByteString;
   FDbCleanupCounter: TIdThreadSafeInt32;
 
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
@@ -155,7 +156,7 @@ begin
     end;
 
     Debug(dpSpam, section, 'Pretime results for %s' + #13#10 + '%s', [rls, response]);
-    if rx_pretime.MatchAll(response, rx_captures, 1, 1) then
+    if rx_pretime.MatchAll(RawByteString(response), rx_captures, 1, 1) then
     begin
       Debug(dpMessage, section, 'ReadPretimeOverHTTP : %s', [response]);
       aPretimePos := rx_pretime.NamedGroupIndices['pretime'];
@@ -230,7 +231,7 @@ begin
 
   fQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
   try
-    fQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?');
+    fQuery.Prepare('SELECT `' + fTimeField + '` FROM `' + fTableName + '` WHERE `' + fReleaseField + '` = ?', True);
     fQuery.BindTextS(1, rls);
     try
       fQuery.ExecutePrepared;
@@ -319,7 +320,7 @@ begin
   Result := kb_Add('', '', getAdminSiteName, rls_section, '', event, rls, '');
 end;
 
-function dbaddpre_ADDPRE(const netname, channel, nickname, params: String; event: TKBEventType): boolean;
+function dbaddpre_ADDPRE(const netname, channel, nickname, aRlsName, aSection, params: String; event: TKBEventType): boolean;
 var
   rls: String;
   rls_section: String;
@@ -329,7 +330,8 @@ begin
   Result := False;
 
   rls := '';
-  rls := SubString(params, ' ', 1);
+  rls := SubString(aRlsName, ' ', 1);
+
   if ((rls <> '') and (length(rls) > minimum_rlsname)) then
   begin
     if dbaddpre_mode <> apmNone then
@@ -341,11 +343,23 @@ begin
 
         //send event to kb_add to trigger race evaluation
         if rls_section <> '' then
+          kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '')
+        else if add_to_kb_on_dbaddpre_insert then
+        begin
+          rls_section := aSection;  // if the precatcher config has a fixed section ... I don't think it makes much sense, but it's possible
+          if rls_section = '' then
+          begin
+            rls_section := ProcessDoReplace(params, rls);
+            rls_section := FindSection(' ' + rls_section + ' ');
+          end;
+
+          rls_section := PrecatcherSectionMapping(rls, rls_section);
           kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '');
+        end;
       end;
     end;
 
-    if ((event = kbeADDPRE) and (kbadd_addpre)) then
+    if ((event = kbeADDPRE) and (kbadd_addpre)) then // I assume this does the same as the code just above (issue a kb event after the pre time is there)
     begin
       kb_entry := FindReleaseInKbList('-' + rls);
 
@@ -556,9 +570,10 @@ begin
     Result := Format('%2.2d Sec', [preage mod 60]);
 end;
 
-function dbaddpre_Process(const net, chan, nick: String; msg: String): boolean;
+function dbaddpre_Process(const net, chan, nick, msg: String): boolean;
 var
   ii: integer;
+  fRlsname: String;
 begin
   Result := False;
   ii := -1;
@@ -573,9 +588,9 @@ begin
     //  if (1 = Pos(addprecmd, msg)) then
   begin
     Result := True;
-    msg := Copy(msg, length(addprecmd.Strings[ii] + ' ') + 1, 1000);
+    fRlsname := Copy(msg, length(addprecmd.Strings[ii] + ' ') + 1, 1000);
     try
-      dbaddpre_ADDPRE(net, chan, nick, msg, kbeADDPRE);
+      dbaddpre_ADDPRE(net, chan, nick, fRlsname, '', msg, kbeADDPRE);
     except
       on e: Exception do
       begin
@@ -603,13 +618,14 @@ var
 begin
   addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre');
   kbadd_addpre := config.ReadBool(section, 'kbadd_addpre', False);
+  add_to_kb_on_dbaddpre_insert := config.ReadBool(section, 'add_to_kb_on_dbaddpre_insert', False);
 
   dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 3));
   dbaddpre_plm1 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode', 0));
   dbaddpre_plm2 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode_2', 0));
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
-  config_taskpretime_regexp := config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$');
+  config_taskpretime_regexp := RawByteString(config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$'));
 
   FDbCleanupCounter := TIdThreadSafeInt32.Create;
 

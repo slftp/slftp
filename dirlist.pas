@@ -2,7 +2,7 @@ unit dirlist;
 
 interface
 
-uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv;
+uses Classes, Contnrs, SyncObjs, slcriticalsection2, skiplists, globals, Generics.Collections, IniFiles, sfv, tags;
 
 type
   {
@@ -33,6 +33,7 @@ type
     FDirectory: Boolean; //< @true if current dir is a directory
     FDirType: TDirType; //< Indicates what kind of Directory the current dir is
     FIsOnSite: Boolean; //< @true if this entry is available on the site
+    FWasOnSite: Boolean; //< Helper flag to remember if a file has been on the site before ParseDirlist reset the IsOnSite flag
     FIsBeingUploaded: Boolean;  //< @true if this entry is a file currently being uploaded TODO: flag is only valid on glftpd, for all other ftpds it'll always be false
     FSkipListAlreadyProcessed: Boolean;  //< @true if the skiplist process has already been applied to this dirlistentry, @false otherwise.
     { Contains the index of the file type in the skiplist. For files and directories. For example when you have this in
@@ -71,6 +72,7 @@ type
 
     property FilenameLowerCased: String read FFilenameLowerCase;
     property Extension: String read FExtension;
+    property Username: String read FUsername;
     property RacedByMe: Boolean read FRacedByMe write FRacedByMe;
     property Directory: Boolean read FDirectory;
     property DirType: TDirType read FDirType;
@@ -101,6 +103,8 @@ type
 
     // TODO: sometimes its without a '/' at the end, check if this is correct and what happens if we add it by default (could remove extra code in RegenerateSkiplist then)
     FCompleteDirTag: String; //< complete dir found on ftpd while dirlisting
+    FCompleteDirTagLastChecked: String; //< contains the last complete tag that was checked  (cache)
+    FCompleteDirTagLastResult: TTagCompleteType; // contains the result of the last complete tag that was checked (cache)
 
     FStartedTime: TDateTime; //< time when the first @link(TDirlistEntry) was created
     FCompletedTime: TDateTime; //< time when the TDirlit was recognized as complete
@@ -118,7 +122,7 @@ type
     function CompleteByTag: Boolean;
 
     procedure SetLastChanged(const value: TDateTime);
-    
+
     procedure SetFullPath(const aFullPath: string);
     { Calculates the FMultiCD field based on the contained dirlist entries. }
     procedure CalculateMultiCD;
@@ -189,6 +193,11 @@ type
     property LastChanged: TDateTime read FLastChanged write SetLastChanged;
     property CachedCompleteResult: Boolean read FCachedCompleteResult write FCachedCompleteResult;
     property CompleteDirTag: String read FCompleteDirTag;
+
+    { Returns the % completion status of this dir based on the zipscript tag. If the % cannot be determined, because either
+      there is no zipscript tag or we can't parse the % from it, -1 is returned.
+      @returns(The completion status of this dir in %.) }
+    function PercentComplete: Integer;
     property StartedTime: TDateTime read FStartedTime;
     property CompletedTime: TDateTime read FCompletedTime;
     property FullPath: String read FFullPath write SetFullPath;
@@ -219,7 +228,7 @@ var
 implementation
 
 uses
-  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, tags, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
+  SysUtils, DateUtils, StrUtils, debugunit, mystrings, Math, RegExpr, irc, configunit, mrdohutils, console, IdGlobal, dirlist.helpers, Generics.Defaults;
 
 const
   section = 'dirlist';
@@ -232,6 +241,32 @@ var
 {$I common.inc}
 
 { TDirList }
+
+function TDirList.PercentComplete: Integer;
+begin
+  Result := -1;
+  if FCompleteDirTag = '' then
+  begin
+    if GetDebugVerbosity = dpSpam then
+      Debug(dpSpam, section, 'PercentComplete: No CompleteDirTag for %s', [FFullPath]);
+    exit;
+  end;
+
+  // if we already determined this dirlist to be complete, just return the 100%
+  if FCachedCompleteResult then
+  begin
+    Result := 100;
+    exit;
+  end;
+
+  if not TagExtractPercent(FCompleteDirTag, Result) then
+  begin
+    Debug(dpSpam, section, 'PercentComplete: Failed to extract percent from tag "%s" (%s)', [FCompleteDirTag, FFullPath]);
+    Result := -1;
+  end
+  else if GetDebugVerbosity = dpSpam then
+    Debug(dpSpam, section, 'PercentComplete: Extracted %d%% from tag "%s" (%s)', [Result, FCompleteDirTag, FFullPath]);
+end;
 
 function TDirList.Complete: Boolean;
 var
@@ -587,6 +622,7 @@ begin
   try
     for de in entries.Values do
     begin
+      de.FWasOnSite := de.IsOnSite;
       de.IsOnSite := False;
     end;
 
@@ -614,7 +650,10 @@ begin
         //if it's a file and has a size > 0, it can't be a complete tag
         or ((fParsedDirlistEntry.Filesize < 1) and (fParsedDirlistEntry.DirMask[1] <> 'd')
 
-        //if it's a file and has already been checked to be valid, it can't be a complete tag
+          // skip .missing files which are created by the zipscript for files that have not yet been sent
+          and not fParsedDirlistEntry.Filename.EndsWith('-missing')
+
+          //if it's a file and has already been checked to be valid, it can't be a complete tag
           and not FIsValidFileCache.ContainsKey(fParsedDirlistEntry.Filename)))
         then
         begin
@@ -747,6 +786,7 @@ begin
         de.FUsername := fParsedDirlistEntry.Username;
         de.FGroupname := fParsedDirlistEntry.Groupname;
         de.FSizeChanged := True;
+        de.justadded := Not de.FWasOnSite;
 
         // the file had size of 0 when first seen, then IsNFO / IsSFV was not set. Set it now when the file size is greater than 0.
         if de.IsNFO and not FHasNFO and (de.filesize > 0) then
@@ -984,11 +1024,22 @@ begin
   if (FCompleteDirTag = '') then
     exit;
 
-  i := TagComplete(FCompleteDirTag);
-  if (i = tctCOMPLETE) then
+  // check if the previous check was against the same tag, then we don't need to calculate the result again
+  if FCompleteDirTagLastChecked = FCompleteDirTag then
+    i := FCompleteDirTagLastResult
+  else
   begin
-    Result := True;
-    exit;
+    i := TagComplete(FCompleteDirTag);
+
+    // cache the result
+    FCompleteDirTagLastResult := i;
+    FCompleteDirTagLastChecked := FCompleteDirTag;
+
+    if (i = tctCOMPLETE) then
+    begin
+      Result := True;
+      exit;
+    end;
   end;
 end;
 
@@ -1400,7 +1451,7 @@ begin
     else
       self.FDirType := IsMain;
   end;
-    
+
   self.FDirectory := aIsDirectory;
   self.dirlist := dirlist;
   self.filename := filename;
