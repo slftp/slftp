@@ -1547,10 +1547,16 @@ begin
 end;
 
 procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
+var
+  fWasActive: boolean;
 begin
+  fWasActive := uploadingto or downloadingfrom;
   DestroySocket(False);
   try
-    Relogin(0, False, aMessage);
+    if fWasActive then
+      Relogin(1000, False, aMessage)
+    else
+      Relogin(0, False, aMessage);
   except
     on e: Exception do
     begin

@@ -2781,6 +2781,10 @@ begin
           if (fDiffMSec < 200) and (fDirlistEntry.filesize = 0) then
           begin
             irc_Adderror(Format('<c4>[STALLED]</c> [%s]: File size 0 for %d seconds - kill connection', [tname, fDiffSec]));
+            if ssrc.site <> nil then
+              ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
+            if sdst.site <> nil then
+              sdst.site.RegisterMaxSimUpHit(sdst.Name);
             sdst.DestroySocketAndRelogin('TPazoRaceTask');
             ssrc.DestroySocketAndRelogin('TPazoRaceTask');
             readyerror := True;
