@@ -4,7 +4,7 @@ unit ZBase64;
 
 interface
 
-{$IF DEFINED(FPC) OR DEFINED(WITH_TBYTES)}
+{$IFDEF WITH_TBYTES}
 
 uses
   Classes, SysUtils;
@@ -12,11 +12,11 @@ uses
 function ZDecodeBase64(const InStr: {$IFDEF NEXTGEN}String{$ELSE}AnsiString{$ENDIF}): TBytes;
 function ZEncodeBase64(const InValue: TBytes): {$IFDEF NEXTGEN}String{$ELSE}AnsiString{$ENDIF};
 
-{$IFEND}
+{$ENDIF}
 
 implementation
 
-{$IF DEFINED(FPC) OR DEFINED(WITH_TBYTES)}
+{$IFDEF WITH_TBYTES}
 
 uses {$IFDEF WITH_NETENCODING}
      System.NetEncoding
@@ -37,7 +37,7 @@ var
   OutStream: TBytesStream;
   {$ELSE}
   InStream: TMemoryStream;
-  OutStream: TBytesStream;
+  OutStream: {$IF DECLARED(TBytesStream)}TBytesStream{$ELSE}TMemoryStream{$IFEND};
   {$ENDIF}
 {$ENDIF}
 begin
@@ -63,14 +63,20 @@ begin
     {$ELSE}
     try
       InStream := TMemoryStream.Create;
-      OutStream := TBytesStream.Create;
+      OutStream := {$IF DECLARED(TBytesStream)}TBytesStream{$ELSE}TMemoryStream{$IFEND}.Create;
 
       InStream.Write(InStr[1], Length(InStr));
       InStream.Position := 0;
 
       DecodeStream(InStream, OutStream);
 
+      {$IF DECLARED(TBytesStream)}
       Result := OutStream.Bytes;
+      {$ELSE}
+      SetLength(Result, OutStream.Size);
+      OutStream.Position := 0;
+      OutStream.Read(Result[0], OutStream.Size);
+      {$IFEND}
     finally
       if Assigned(InStream) then
         FreeAndNil(InStream);
@@ -89,7 +95,7 @@ var
   EncodingStream: TBase64EncodingStream;
   OutStream: TStringStream;
   {$ELSE}
-  InStream: TBytesStream;
+  InStream: {$IF DECLARED(TBytesStream)}TBytesStream{$ELSE}TMemoryStream{$IFEND};
   OutStream: TMemoryStream;
   {$ENDIF}
 {$ENDIF}
@@ -99,11 +105,12 @@ begin
   {$ELSE}
     {$IFDEF FPC}
     try
-      InStream := TBytesStream.Create(InValue);
-      EncodingStream := TBase64EncodingStream.Create(InStream);
       OutStream := TStringStream.Create('');
+      EncodingStream := TBase64EncodingStream.Create(OutStream);
+      InStream := TBytesStream.Create(InValue);
 
-      OutStream.CopyFrom(EncodingStream, EncodingStream.Size);
+      EncodingStream.CopyFrom(InStream, InStream.Size);
+      EncodingStream.Flush;
       Result := OutStream.DataString;
     finally
       if Assigned(OutStream) then
@@ -115,7 +122,13 @@ begin
     end;
     {$ELSE}
     try
+      {$IF DECLARED(TBytesStream)}
       InStream := TBytesStream.Create(InValue);
+      {$ELSE}
+      InStream := TMemoryStream.Create;
+      InStream.Write(InValue[0], Length[InValue]);
+      InStream.Position := 0;
+      {$IFEND}
       OutStream := TMemoryStream.Create;
 
       EncodeStream(InStream, OutStream);
@@ -132,7 +145,7 @@ begin
   {$ENDIF}
 end;
 
-{$IFEND}
+{$ENDIF}
 
 end.
 

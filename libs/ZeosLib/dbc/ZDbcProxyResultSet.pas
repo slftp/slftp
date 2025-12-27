@@ -425,7 +425,10 @@ begin
   FMetadataNode := FResultSetNode.ChildNodes.FindNode('metadata');
   FRowsNode := FResultSetNode.ChildNodes.FindNode('rows');
 
-  LastRowNo := FRowsNode.ChildNodes.Count;
+  if Assigned(FRowsNode) then
+    LastRowNo := FRowsNode.ChildNodes.Count
+  else
+    LastRowNo := 0;
 
   { Fills the column info. }
   ColumnsInfo.Clear;
@@ -1104,7 +1107,11 @@ begin
 
   case ColType of
     stBytes, stBinaryStream:
+      {$IFDEF NEXTGEN}
       Result := ZDecodeBase64(Val);
+      {$ELSE}
+      Result := ZDecodeBase64(AnsiString(Val));
+      {$ENDIF}
     else begin
       raise EZSQLException.Create('GetBytes is not supported for ' + ColInfo.GetColumnTypeName + ' (yet). Column: ' + ColInfo.ColumnLabel);
     end;
@@ -1372,6 +1379,7 @@ var
   ColType: TZSQLType;
   Idx: Integer;
   Val: String;
+  ValVariant: Variant;
   //AnsiVal: {$IFDEF NEXTGEN}RawByteString{$ELSE}AnsiString{$ENDIF};
   Bytes: TBytes;
   ColInfo: TZColumnInfo;
@@ -1390,17 +1398,22 @@ begin
   end;
 
   Idx := ColumnIndex - FirstDbcIndex;
-  Val := FCurrentRowNode.ChildNodes.Get(Idx).Attributes[ValueAttr];
+  ValVariant := FCurrentRowNode.ChildNodes.Get(Idx).Attributes[ValueAttr];
+  Val := VarToStr(ValVariant);
   ColInfo := TZColumnInfo(ColumnsInfo.Items[Idx]);
   ColType := ColInfo.ColumnType;
   case ColType of
     stBinaryStream: begin
-      {$IFDEF NO_ANSISTRING}
-      Bytes := ZDecodeBase64(Val);
-      {$ELSE}
-      Bytes := ZDecodeBase64(AnsiString(Val));
-      {$ENDIF}
-      Result := TZAbstractBlob.CreateWithData(@Bytes[0], Length(Bytes)) as IZBlob;
+      if Val = '' then
+        Result := TZAbstractBLob.CreateWithData(nil, 0)
+      else begin
+        {$IFDEF NO_ANSISTRING}
+        Bytes := ZDecodeBase64(Val);
+        {$ELSE}
+        Bytes := ZDecodeBase64(AnsiString(Val));
+        {$ENDIF}
+        Result := TZAbstractBlob.CreateWithData(@Bytes[0], Length(Bytes)) as IZBlob;
+      end;
     end;
     stAsciiStream, stUnicodeStream: begin
       if Val <> '' then

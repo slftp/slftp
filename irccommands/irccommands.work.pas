@@ -22,7 +22,7 @@ implementation
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, kb.releaseinfo, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
-  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers;
+  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections;
 
 const
   section = 'irccommands.work';
@@ -30,7 +30,6 @@ const
 function IrcDirlist(const netname, channel, params: String): boolean;
 var
   s: TSite;
-  i: integer;
   sitename, section, sectiondir, dir: String;
   d: TDirList;
   de: TDirListEntry;
@@ -68,10 +67,8 @@ begin
   try
     if d <> nil then
     begin
-      for i := 0 to d.entries.Count - 1 do
+      for de in d.entries.Values do
       begin
-        de := TDirListEntry(d.entries.Objects[i]);
-
         if de.directory then
           irc_addtext(Netname, Channel, '<b>%s</b>', [de.filename])
         else
@@ -165,9 +162,11 @@ var
   sitename, section, sectiondir: String;
   d: TDirList;
   de: TDirListEntry;
+  fEntries: TList<TDirListEntry>;
   amount: integer;
 begin
   Result := False;
+  fEntries := nil;
 
   sitename := UpperCase(SubString(params, ' ', 1));
   section := UpperCase(SubString(params, ' ', 2));
@@ -199,12 +198,14 @@ begin
   try
     if d <> nil then
     begin
-      d.SortByModify;
-      for i := 0 to d.entries.Count - 1 do
+      fEntries := TList<TDirListEntry>.Create(d.entries.Values);
+      SortDirlistEntriesByModify(fEntries);
+      for i := 0 to fEntries.Count - 1 do
       begin
         if i >= amount then
           break;
-        de := TDirListEntry(d.entries.Objects[i]);
+
+        de := TDirListEntry(fEntries[i]);
 
         if de.directory then
         begin
@@ -216,6 +217,7 @@ begin
     end;
   finally
     d.Free;
+    FreeAndNil(fEntries);
   end;
 
   Result := True;
@@ -316,7 +318,7 @@ begin
     exit;
   end;
 
-  p := TPazo(kb_list.Objects[pazo_id]);
+  p := FindPazoByID(pazo_id);
   p.Clear;
 
   try
@@ -718,7 +720,7 @@ begin
   rls := rc.Create(rlsname, srcdir);
   p := PazoAdd(rls);
   //  pazo_id := p.pazo_id;
-  kb_list.AddObject('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
+  AddPazoToKB('TRANSFER-' + IntToStr(RandomRange(10000000, 99999999)), p);
 
   p.AddSite(srcsite.Name, ftpsrcdir, False);
   p.AddSite(dstsite.Name, ftpdstdir, False);
@@ -733,8 +735,7 @@ begin
   ps_src.dirlist.dirlistadded := True;
 
   pd := TPazoDirlistTask.Create(Netname, Channel, ps_src.Name, p, '', False, False);
-  AddTask(pd);
-  QueueFire;
+  AddTask(pd, True);
 
   irc_addtext(Netname, Channel,
     'File Transfer has started. Type <c4>%sstop <b>%d</b></c> if you need.', [irccmdprefix,
@@ -932,7 +933,7 @@ begin
 
   if i <> -1 then
   begin
-    p := TPazo(kb_list.Objects[i]);
+    p := FindPazoByID(i);
     p.AddSites;
     p.rls.aktualizalva := False;
     if sitename <> '' then
@@ -962,6 +963,9 @@ begin
   Result := False;
   i := 0; //< position of date value in string
   h := 0; //< position of first reason character
+  yyyy := ''; // Initialize to prevent uninitialized variable warning
+  yy := ''; // Initialize to prevent uninitialized variable warning
+  mm := ''; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
 
   if nil <> FindSiteByName(Netname, sitename) then
@@ -1078,6 +1082,9 @@ var
 begin
   Result := False;
   h := 0;
+  yyyy := ''; // Initialize to prevent uninitialized variable warning
+  yy := ''; // Initialize to prevent uninitialized variable warning
+  mm := ''; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
   if nil <> FindSiteByName(Netname, sitename) then
   begin
@@ -1181,9 +1188,8 @@ var
   begin
     r := TRawTask.Create(Netname, Channel, sitename, dir, command);
     tn := AddNotify;
-    tn.tasks.Add(r);
-    AddTask(r);
-    QueueFire;
+    tn.AddTask(r);
+    AddTask(r, True);
 
     tn.event.WaitFor($FFFFFFFF);
 
@@ -1336,7 +1342,7 @@ var
   SOK, SBAD, predir: String;
   section, rip: String;
   s:     TSite;
-  ii, i: integer;
+  i: integer;
   d:     TDirlist;
   de:    TDirListEntry;
 begin
@@ -1371,13 +1377,12 @@ begin
       Continue;
 
     d := DirlistB(netname, channel, s.Name, MyIncludeTrailingSlash(predir));
-    d.dirlist_lock.Enter;
+    d.dirlist_lock.Enter('IrcCheckForExistsRip');
     try
       if d <> nil then
       begin
-        for ii := 0 to d.entries.Count - 1 do
+        for de in d.entries.Values do
         begin
-          de := TDirListEntry(d.entries.Objects[ii]);
           if ((de.directory) and (de.filename = rip)) then
           begin
             if SOK = '' then

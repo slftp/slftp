@@ -72,7 +72,6 @@ const
   MYSQL_ERRMSG_SIZE    = 512;
   SQLSTATE_LENGTH      = 5;
 
-  MYSQL_PORT           = 3306;
   LOCAL_HOST           = 'localhost';
 
   { Field's flags }
@@ -909,6 +908,8 @@ const
   LINUX_DLL56_LOCATION_EMBEDDED = 'libmysqld'+SharedSuffix+'.19';
   LINUX_DLL57_LOCATION = 'libmysqlclient'+SharedSuffix+'.20';
   LINUX_DLL57_LOCATION_EMBEDDED = 'libmysqld'+SharedSuffix+'.20';
+  LINUX_DLL58_LOCATION = 'libmysqlclient'+SharedSuffix+'.21';
+  LINUX_DLL58_LOCATION_EMBEDDED = 'libmysqld'+SharedSuffix+'.21';
 {$ENDIF}
 
 type
@@ -1146,6 +1147,10 @@ type
     function GetDescription: string; override;
   end;
 
+  TZMariaDBPlainDriver = class(TZMySQLPlainDriver)
+  public
+    function GetProtocol: string; override;
+  end;
 {$ENDIF ZEOS_DISABLE_MYSQL}
 
 implementation
@@ -1404,6 +1409,8 @@ begin
   FLoader.AddLocation(LINUX_DLL56_LOCATION_EMBEDDED);
   FLoader.AddLocation(LINUX_DLL57_LOCATION);
   FLoader.AddLocation(LINUX_DLL57_LOCATION_EMBEDDED);
+  FLoader.AddLocation(LINUX_DLL58_LOCATION);
+  FLoader.AddLocation(LINUX_DLL58_LOCATION_EMBEDDED);
 {$ENDIF}
   LoadCodePages;
 end;
@@ -1421,6 +1428,13 @@ end;
 function TZMySQLPlainDriver.IsMariaDBDriver: Boolean;
 begin
   Result := FIsMariaDBDriver;
+end;
+
+  { TZMariaDBPlainDriver }
+
+function TZMariaDBPlainDriver.GetProtocol: string;
+begin
+  Result := 'mariadb';
 end;
 
 {$ENDIF ZEOS_DISABLE_MYSQL}

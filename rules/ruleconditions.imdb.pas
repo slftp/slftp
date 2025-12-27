@@ -96,6 +96,12 @@ type
     class function Description: String; override;
   end;
 
+  TConditionIMDBType = class(TStringCondition)
+    function SupplyValue(r: TPazo): String; override;
+    class function Name: String; override;
+    class function Description: String; override;
+  end;
+
 implementation
 
 uses
@@ -452,6 +458,29 @@ end;
 class function TConditionIMDBCurrentCineyear.Description: String;
 begin
   Result := IMDBCurrentCineYearDescription;
+end;
+
+{ TConditionIMDBType }
+
+function TConditionIMDBType.SupplyValue(r: TPazo): String;
+begin
+  Result := '';
+  try
+    if r.rls is TIMDBRelease then
+      Result := TIMDBRelease(r.rls).imdb_type;
+  except
+    Result := '';
+  end;
+end;
+
+class function TConditionIMDBType.Name: String;
+begin
+  Result := 'imdbtype';
+end;
+
+class function TConditionIMDBType.Description: String;
+begin
+  Result := IMDBTypeDescription;
 end;
 
 end.

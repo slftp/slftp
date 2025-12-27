@@ -46,20 +46,22 @@ program slftpUnitTests;
   {$APPTYPE CONSOLE}
 {$ENDIF}
 
+{$R 'taskhttpimdbTests.res' 'taskhttpimdbTests.rc'}
+
 uses
   FastMM5,
   {$IFDEF TESTINSIGHT}
-    TestInsight.DUnitX,
-  {$ENDIF}
+  TestInsight.DUnitX,
+  {$ENDIF }
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
   DUnitX.TestFramework,
-  Classes, SysUtils,
+  Classes,
+  SysUtils,
   mrdohutils,
   SynSQLite3,
   slftpUnitTestsSetup,
-  ircchansettings,
-  // add all test units below
+  slsslTests,
   mystringsTests,
   mystringsTests.Base64,
   httpTests,
@@ -81,10 +83,11 @@ uses
   kb.releaseinfo.NullDayTests,
   kb.releaseinfo.MVIDTests,
   taskhttpimdbTests,
-  slsslTests,
   sitesunitTests,
   precatcherTests,
-  imdbDatabaseTests;
+  slcriticalsection2Tests,
+  variantCacheTests,
+  sltimerTests;
 
 // allow more user mode address space
 {$SetPEFlags $20}
@@ -117,9 +120,9 @@ begin
   InitialDirlistSetup;
   InitialDbAddImdbSetup;
   InitialPrecatcherSetup;
-  IrcChannelSettingsInit;
   InitialKnownGroupsSetup;
   InitialSkiplistSetup;
+  InitialFakeSetup;
 
   {$IFDEF TESTINSIGHT}
     TestInsight.DUnitX.RunRegisteredTests;

@@ -87,35 +87,28 @@ begin
     exit;
   end;
 
-//  // exit if imdb info is already known in last_imdbdata
-//    gDbAddimdb_cs.Enter;
-//    try
-//      aFound_LastImdb := last_addimdb.IndexOf(getMovieNameWithoutSceneTags(mainpazo.rls.rlsname));
-//      if aFound_LastImdb = -1 then
-//      begin
-//
-//        last_addimdb.add(getMovieNameWithoutSceneTags(mainpazo.rls.rlsname));
-//      end;
-//    finally
-//      gDbAddimdb_cs.Leave;
-//    end;
-//
-//  try
-//      afound := (aFound_LastImdb <> -1);
-//      if afound = True then
-//      begin
-//        Result := True;
-//        ready := True;
-//        exit;
-//      end;
-//    except
-//      on e: Exception do
-//      begin
-//        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
-//        readyerror := True;
-//        exit;
-//      end;
-//  end;
+  // exit if imdb info is already known in last_imdbdata
+  dbaddimdb_cs.Enter('TPazoSiteNfoTask.Execute');
+  try
+    try
+      i := last_imdbdata.IndexOf(mainpazo.rls.rlsname);
+      if i <> -1 then
+      begin
+        Result := True;
+        ready := True;
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazoSiteNfoTask last_imdbdata.IndexOf: %s', [e.Message]));
+        readyerror := True;
+        exit;
+      end;
+    end;
+  finally
+    dbaddimdb_cs.Leave;
+  end;
 
   // exit if nfo is already in dbaddnfo
   try
@@ -207,16 +200,14 @@ begin
   end;
 
   // no nfo file found. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if (nfofile = '') then
     begin
-      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      if attempt < GlTaskSiteNfoReaddAttempts then
       begin
         Debug(dpSpam, section, '[iNFO]: No nfo file found for ' + mainpazo.rls.rlsname);
         try
           r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
-          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 1));
+          r.startat := IncSecond(Now, GlTaskSiteNfoReaddInterval);
           AddTask(r);
         except
           on e: Exception do
@@ -235,9 +226,6 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // try to get the nfo file
   try
@@ -252,17 +240,20 @@ begin
   end;
 
   // nfo file could not be downloaded. Reschedule the task and exit.
-  queue_lock.Enter;
-  try
     if i <> 1 then
     begin
-      if attempt < config.readInteger(section, 'readd_attempts', 5) then
+      if attempt < GlTaskSiteNfoReaddAttempts then
       begin
         Debug(dpSpam, section, '[iNFO]: Nfo file could not be downloaded for ' + mainpazo.rls.rlsname);
 
         try
-          r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
-          r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 3));
+          // LeechFile return value 0 means, currently no slot available
+          if i = 0 then
+            r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt)
+          else
+            r := TPazoSiteNfoTask.Create(netname, channel, ps1.name, mainpazo, attempt + 1);
+
+          r.startat := IncSecond(Now, GlTaskSiteNfoReaddInterval);
           AddTask(r);
         except
           on e: Exception do
@@ -281,13 +272,8 @@ begin
       Result := True;
       exit;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   // nfo file was downloaded. Parsing it and adding it to dbaddnfo
-  queue_lock.Enter;
-  try
     try
       Debug(dpError, section, Format('[Info] nfo file was downloaded. Parsing it and adding it to dbaddnfo: %s', [mainpazo.rls.rlsname]));
       parseNFO(mainpazo.rls.rlsname, mainpazo.rls.section, ss.DataString);
@@ -301,9 +287,6 @@ begin
         exit;
       end;
     end;
-  finally
-    queue_lock.Leave;
-  end;
 
   ready := True;
   Result := True;

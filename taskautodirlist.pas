@@ -15,15 +15,22 @@ type
     function Name: String; override;
   end;
 
+  procedure AutoDirlistInit;
+  procedure AutoDirlistUninit;
+
 implementation
 
 uses
   SyncObjs, Contnrs, configunit, sitesunit, taskraw, indexer, Math, pazo, taskrace, Classes,
   precatcher, kb, queueunit, StrUtils, dateutils, dirlist, SysUtils, irc, debugunit, RegExpr,
-  kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify;
+  kb.releaseinfo, mystrings, IdGlobal, tasksearchrelease, notify, Generics.Collections, taskcwd,
+  routeconfig;
 
 const
   rsections = 'autodirlist';
+
+var
+  FilledReqs: TThreadList<string>;
 
 type
   TReqFillerThread = class(TThread)
@@ -35,6 +42,31 @@ type
     constructor Create(p: Tpazo; const secdir, rlsname: String);
     procedure Execute; override;
   end;
+
+procedure AutoDirlistInit;
+begin
+  FilledReqs := TThreadList<string>.Create;
+end;
+
+procedure AutoDirlistUninit;
+begin
+  FreeAndNil(FilledReqs);
+end;
+
+procedure SetRequestFilled(const aKbKey: string);
+begin
+  FilledReqs.Add(aKbKey);
+end;
+
+function IsRequestAlreadyFilled(const aKbKey: string): boolean;
+begin
+  try
+    Result := FilledReqs.LockList.Contains(aKbKey);
+  finally
+    FilledReqs.UnlockList;
+  end;
+end;
+
 
 { TAutoDirlistTask }
 
@@ -63,8 +95,10 @@ var
   site: TSite;
   pdt: TPazoDirlistTask;
   fSiteSearchTask: TSearchReleaseTask; //< task for 'site search' to find a release
+  fCwdTask: TCWDTask; //< used to check whether the rls is actually present on the site
   fTaskNotify: TTaskNotify; //< wait for tasks
   fSiteResponse: TSiteResponse; //< site search response
+  fKbKey: String; //< dummy release name to be used for adding the req filling pazo to the KB
 
   function IsSourceSiteValid(aSite: TSite): boolean;
   var
@@ -89,8 +123,14 @@ begin
     releasenametofind := Copy(releasenametofind, 12, 1000);
   end;
 
-  i := kb_list.IndexOf('REQUEST-' + site1 + '-' + releasenametofind);
-  if i <> -1 then
+  fKbKey := 'REQUEST-' + site1 + '-' + releasenametofind;
+  if IsRequestAlreadyFilled(fKbKey) then
+  begin
+    exit;
+  end;
+
+  p := FindPazoByKey(fKbKey);
+  if p <> nil then
   begin
     exit;
   end;
@@ -102,6 +142,48 @@ begin
     db := 0;
     i := 0;
     maindir := secdir + reqdir;
+
+    //check if the dir is actually there and the site is ready on the sites that the indexer found
+    //by issuing a CWD into the directory that we have indexed
+    if x.Count > 0 then
+    begin
+      fTaskNotify := AddNotify;
+      for i := x.Count - 1 downto 0 do
+      begin
+        ss := x.Names[i];
+        sitename := Fetch(ss, '-', True, False);
+
+        if sitename = site1 then //we found the rls indexed on the same site as the request was made, ignore at this point
+          continue;
+
+        site := FindSiteByName(netname, sitename);
+        if IsSourceSiteValid(site) then
+        begin
+          fCwdTask := TCWDTask.Create('', '', site.Name, MyIncludeTrailingSlash(x.Values[x.Names[i]]) + MyIncludeTrailingSlash(releasenametofind));
+          fTaskNotify.AddTask(fCwdTask);
+          AddTask(fCwdTask);
+        end;
+      end;
+
+      fTaskNotify.event.WaitFor($FFFFFFFF);
+      for fSiteResponse in fTaskNotify.responses do
+      begin
+        if fSiteResponse.response <> '1' then // the CWD task will return '1' in case of success
+        begin
+          for i := x.Count - 1 downto 0 do
+          begin
+            ss := x.Names[i];
+            sitename := Fetch(ss, '-', True, False);
+            if sitename = fSiteResponse.sitename then
+            begin
+              x.Delete(i);
+            end;
+          end;
+        end;
+      end;
+
+      RemoveTN(fTaskNotify);
+    end;
 
     if x.Count = 0 then //not found in index, try site search
     begin
@@ -135,8 +217,8 @@ begin
       begin
         if site.UseSiteSearchOnReqFill and (IsSourceSiteValid(site)) then
         begin
-          fSiteSearchTask := TSearchReleaseTask.Create('', '', site.Name, releasenametofind);
-          fTaskNotify.tasks.Add(fSiteSearchTask);
+          fSiteSearchTask := TSearchReleaseTask.Create('', '', site.Name, releasenametofind, False);
+          fTaskNotify.AddTask(fSiteSearchTask);
           AddTask(fSiteSearchTask);
         end;
       end;
@@ -147,7 +229,7 @@ begin
       try
         for fSiteResponse in fTaskNotify.responses do
         begin
-          fSiteSearchResponse.Text := ParsePathFromSiteSearchResult(fSiteResponse.response, releasenametofind);
+          fSiteSearchResponse.Text := fSiteResponse.response;
 
           //use just the first search result for now
           if fSiteSearchResponse.Count > 0 then
@@ -164,6 +246,7 @@ begin
       end;
     end;
 
+    i := 0;
     while (i < x.Count) do
     begin
       ss := x.Names[i];
@@ -205,7 +288,8 @@ begin
       rc := FindSectionHandler(ss);
       rls := rc.Create(releasenametofind, ss);
       p := PazoAdd(rls);
-      kb_list.AddObject('REQUEST-' + site1 + '-' + releasenametofind, p);
+      AddPazoToKB(fKbKey, p);
+      SetRequestFilled(fKbKey);
 
       ps := p.AddSite(site1, maindir);
       ps.status := rssAllowed;
@@ -215,7 +299,7 @@ begin
         sitename := Fetch(ss, '-', True, False);
         ps := p.AddSite(sitename, x.Values[x.Names[i]]);
         ps.status := rssRealPre;
-        ps.AddDestination(site1, sitesdat.ReadInteger('speed-from-' + sitename, site1, 0));
+        ps.AddDestination(site1, TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sitename, site1, '0')).Speed);
       end;
 
       for ps in p.PazoSitesList do
@@ -251,7 +335,7 @@ end;
 function TAutoDirlistTask.Execute(slot: Pointer): Boolean;
 var
   s: TSiteSlot;
-  i, j: Integer;
+  i: Integer;
   l: TAutoDirlistTask;
   asection, ss, section, sectiondir: String;
   dl: TDirList;
@@ -348,11 +432,10 @@ begin
 
       // dirlist successful, you must work with the elements
       dl := TDirlist.Create(s.site.name, nil, nil, s.lastResponse);
-      dl.dirlist_lock.Enter;
+      dl.dirlist_lock.Enter('TAutoDirlistTask.Execute');
       try
-        for j := 0 to dl.entries.Count - 1 do
+        for de in dl.entries.Values do
         begin
-          de := TDirlistEntry(dl.entries.Objects[j]);
           if ((de.Directory) and (0 = pos('nuked', de.FilenameLowerCased))) then
           begin
             if section = 'REQUEST' then

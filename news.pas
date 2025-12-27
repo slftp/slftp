@@ -57,7 +57,8 @@ var
 implementation
 
 uses
-  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit, RegExpr, PasMP;
+  // PasMP does not compile on BSD, so don't use it and don't use the news unit
+  Classes, StrUtils, DateUtils, encinifile, configunit, irc, mystrings, debugunit, RegExpr{$IFNDEF BSD}, PasMP{$ENDIF};
 
 const
   section = 'news';
@@ -73,20 +74,26 @@ const
 
 var
   SlftpNewsFilename: String;
+{$IFNDEF BSD}
   NewsMultiReadSingleWriteLock: TPasMPMultipleReaderSingleWriterLock;
+{$ENDIF}
 
 
 procedure NewsInit;
 begin
+{$IFNDEF BSD}
   SlftpNewsFilename := ExtractFilePath(ParamStr(0)) + 'slftp.news';
   NewsMultiReadSingleWriteLock := TPasMPMultipleReaderSingleWriterLock.Create;
   last_news_announce := Now;
+{$ENDIF}
 end;
 
 procedure NewsUnInit;
 begin
+{$IFNDEF BSD}
   if Assigned(NewsMultiReadSingleWriteLock) then
     NewsMultiReadSingleWriteLock.Free;
+{$ENDIF}
 end;
 
 function CheckForValidCategory(const category: String): Integer;
@@ -116,6 +123,7 @@ var
   dontadd: boolean;
   rx: TRegexpr;
 begin
+{$IFNDEF BSD}
   Result := False;
   dontadd := False;
 
@@ -195,7 +203,7 @@ begin
   finally
     rx.Free;
   end;
-
+{$ENDIF}
   Result := True;
 end;
 
@@ -226,6 +234,7 @@ var
   actualmsg: TStringList;
   textshown: boolean;
 begin
+{$IFNDEF BSD}
   Result := False;
   textshown := False;
 
@@ -320,7 +329,7 @@ begin
   finally
     x.Free;
   end;
-
+{$ENDIF}
   Result := True;
 end;
 
@@ -329,6 +338,7 @@ var
   x: TEncStringList;
   msgtext: TStringList;
 begin
+{$IFNDEF BSD}
   Result := False;
 
   x := TEncStringList.Create(passphrase);
@@ -373,7 +383,7 @@ begin
   finally
     x.Free;
   end;
-
+{$ENDIF}
   Result := True;
 end;
 
@@ -383,6 +393,7 @@ var
   i, j: Integer;
   msgtext: TStringList;
 begin
+{$IFNDEF BSD}
   Result := False;
   j := 0;
 
@@ -420,7 +431,7 @@ begin
   finally
     x.Free;
   end;
-
+{$ENDIF}
   Result := True;
 end;
 
@@ -432,7 +443,7 @@ var
 begin
   UnreadCount := 0;
   ReadCount := 0;
-
+{$IFNDEF BSD}
   x := TEncStringList.Create(passphrase);
   try
     NewsMultiReadSingleWriteLock.AcquireRead;
@@ -454,7 +465,7 @@ begin
   finally
     x.Free;
   end;
-
+{$ENDIF}
   last_news_announce := Now;
   Result := Format('<b>News</b>: You have <b>%d</b> unread from overall <b>%d</b> messages. See %snews for further details.', [UnreadCount, UnreadCount + ReadCount, irc.irccmdprefix]);
 end;

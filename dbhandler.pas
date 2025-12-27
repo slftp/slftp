@@ -3,13 +3,14 @@ unit dbhandler;
 interface
 
 uses
-  SynDBSQLite3, SynDBZeos, mORMot, mORMotSQLite3;
+  mormot.db.sql.zeos, mormot.db.sql.sqlite3, mormot.orm.core, mormot.rest.sqlite3;
 
 { Creates an initialized instance of TSQLDBSQLite3ConnectionProperties for further use of given SQLite3 database
   @param(aDatabaseName name of the database file on local storage, must include filename extension)
   @param(aPassword password which is used for encryption/decryption of the database (FOR FUTURE USE! [TODO])
+  @param(aIsInMemory Set to true if this SQLite DB should be an in-memory DB)
   @returns(Initialized TSQLDBSQLite3ConnectionProperties instance, returns exception and nil on failure) }
-function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
+function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLDBSQLite3ConnectionProperties;
 
 { Initialize an ORM instance of TSQLRestClientDB with default settings and create missing tables
   @param(aORMSQLModel SQL ORM model for database (object must remain for complete runtime))
@@ -24,7 +25,7 @@ var
 implementation
 
 uses
-  SysUtils, debugunit, globals, SynCommons, SynSQLite3;
+  SysUtils, debugunit, globals, mormot.core.unicode, mormot.db.raw.sqlite3;
 
 const
   section = 'dbhandler';
@@ -34,24 +35,23 @@ begin
   Result := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim;
 end;
 
-procedure _CreateDatabaseFolder;
-begin
-  if not DirectoryExists(_GetDatabasePath) then
-    Mkdir(_GetDatabasePath);
-end;
-
-function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String): TSQLDBSQLite3ConnectionProperties;
+function CreateSQLite3DbConn(const aDatabaseName: String; const aPassword: String; const aIsInMemory: Boolean = False): TSQLDBSQLite3ConnectionProperties;
 begin
   Result := nil;
 
   _CreateDatabaseFolder;
 
   try
-    Result := TSQLDBSQLite3ConnectionProperties.Create(StringToUTF8(_GetDatabasePath + aDatabaseName), '', '', '');
-    // locks the database file for exclusive use during the whole session, read/write will be much faster
-    Result.MainSQLite3DB.LockingMode := lmExclusive;
-    // enable Write-Ahead Logging mode a which is slightly faster
-    Result.MainSQLite3DB.WALMode := True;
+    if aIsInMemory then
+      Result := TSQLDBSQLite3ConnectionProperties.Create(':memory:', aDatabaseName, '', '')
+    else
+    begin
+      Result := TSQLDBSQLite3ConnectionProperties.Create(StringToUTF8(_GetDatabasePath + aDatabaseName), '', '', '');
+      // locks the database file for exclusive use during the whole session, read/write will be much faster
+      Result.MainSQLite3DB.LockingMode := lmExclusive;
+      // enable Write-Ahead Logging mode a which is slightly faster
+      Result.MainSQLite3DB.WALMode := True;
+    end;
   except
     on e: Exception do
     begin
@@ -73,6 +73,8 @@ begin
     Result.DB.LockingMode := lmExclusive;
     // enable Write-Ahead Logging mode a which is slightly faster
     Result.DB.WALMode := True;
+    Result.DB.Synchronous := smNormal;
+
     // create missing sql tables
     Result.Server.CreateMissingTables;
   except

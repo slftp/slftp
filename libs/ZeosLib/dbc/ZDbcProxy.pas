@@ -81,6 +81,7 @@ type
     function GetPlainDriver: IZProxyPlainDriver;
     function GetConnectionInterface: IZDbcProxy;
     function GetDbInfoStr: ZWideString;
+    function GetPublicKeys: ZWideString;
   end;
 
   {** Implements DBC Proxy Database Connection. }
@@ -97,10 +98,6 @@ type
     //shadow properties - they just mirror the values that are set on the server
     FCatalog: String;
     FServerProvider: TZServerProvider;
-
-    {$IFDEF ZEOS73UP}
-    FStartTransactionUsed: Boolean;
-    {$ENDIF}
   protected
     procedure transferProperties(PropName, PropValue: String);
     procedure applyProperties(const Properties: String);
@@ -184,6 +181,7 @@ type
     ///  was started. 2 means the transaction was saved. 3 means the previous
     ///  savepoint got saved too and so on.</returns>
     function StartTransaction: Integer;
+    function GetTransactionLevel: Integer; override;
     {$ENDIF}
 
     procedure Open; override;
@@ -225,6 +223,11 @@ type
     function GetDbInfoStr: ZWideString;
 
     procedure ExecuteImmediat(const SQL: UnicodeString; LoggingCategory: TZLoggingCategory); override;
+
+    /// <summary>
+    ///   Gets the public keys from a dbc proxy server in TOFU mode.
+    /// </summary>
+    function GetPublicKeys: ZWideString;
   end;
 
 var
@@ -338,6 +341,7 @@ end;
 }
 procedure TZDbcProxyConnection.AfterConstruction;
 begin
+  FTransactionLevel := 0;
   FMetadata := TZProxyDatabaseMetadata.Create(Self, Url);
   FConnIntf := GetPlainDriver.GetLibraryInterface;
   if not assigned(FConnIntf) then
@@ -354,13 +358,10 @@ var
   PropList: WideString;
   MyDbInfo: WideString;
   WsUrl: String; // Webservice URL
+  TofuPubKeys: String;
 begin
   if not Closed then
     Exit;
-
-  {$IFDEF ZEOS73UP}
-  FStartTransactionUsed := false;
-  {$ENDIF}
 
   WsUrl := URL.Properties.Values[ConnProps_ProxyProtocol];
   if WsUrl = '' then
@@ -373,6 +374,12 @@ begin
   LogMessage := 'CONNECT TO "'+ URL.Database + '" AS USER "' + URL.UserName + '"';
 
   PropList := WideString(encodeProperties('autocommit', BoolToStr(GetAutoCommit, True)));
+
+  if URL.Properties.IndexOfName(ConnProps_TofuPubKeys) >= 0 then begin
+    TofuPubKeys := URL.Properties.Values[ConnProps_TofuPubKeys];
+    PropList := PropList + LineEnding + 'TofuPubKeys=' + TofuPubKeys;
+  end;
+
   FConnIntf.Connect(WideString(User), WideString(Password), WideString(WsUrl), WideString(Database), PropList, MyDbInfo);
 
   DriverManager.LogMessage(lcConnect, URL.Protocol , LogMessage);
@@ -488,12 +495,8 @@ begin
   if not Closed then
     if not GetAutoCommit then begin
       FConnIntf.Commit;
-      {$IFDEF ZEOS73UP}
-      if FStartTransactionUsed then begin
-        SetAutoCommit(True);
-        FStartTransactionUsed := false;
-      end;
-      {$ENDIF}
+      Dec(FTransactionLevel);
+      AutoCommit := FTransactionLevel = 0;
     end else
       raise EZSQLException.Create(SInvalidOpInAutoCommit);
 end;
@@ -503,34 +506,25 @@ begin
   if not Closed then
     if not GetAutoCommit then begin
       FConnIntf.Rollback;
-      {$IFDEF ZEOS73UP}
-      if FStartTransactionUsed then begin
-        SetAutoCommit(True);
-        FStartTransactionUsed := false;
-      end;
-      {$ENDIF}
+      Dec(FTransactionLevel);
+      AutoCommit := FTransactionLevel = 0;
     end else
       raise EZSQLException.Create(SInvalidOpInAutoCommit);
 end;
 
 {$IFDEF ZEOS73UP}
-// for now we don't support nested transactions.
-// Todo: Integrate changes for nested transactions support.
 function TZDbcProxyConnection.StartTransaction: Integer;
 begin
-  if FStartTransactionUsed or not GetAutoCommit then
-    raise EZSQLException.Create('The proxy driver does not support nested transactions.');
-  FStartTransactionUsed := True;
-  SetAutoCommit(False);
-  Result := 1;
+  Result := FConnIntf.StartTransaction;
+  AutoCommit := False;
+  FTransactionLevel := Result;
 end;
 
-(*
-function TZDbcProxyConnection.GetConnectionTransaction: IZTransaction;
+function TZDbcProxyConnection.GetTransactionLevel: Integer;
 begin
-  raise EZSQLException.Create('Unsupported');
+  Result := FTransactionLevel;
 end;
-*)
+
 {$ENDIF}
 
 {**
@@ -571,6 +565,10 @@ begin
   if Value <> GetAutoCommit then begin
     if not Closed then
       FConnIntf.SetAutoCommit(Value);
+      if Value then
+        FTransactionLevel := 0
+      else
+        FTransactionLevel := 1;
     inherited;
   end;
 end;
@@ -751,9 +749,16 @@ var
   Statement: IZStatement;
 begin
   Statement := CreateStatementWithParams(nil);
-  Statement.Execute(SQL);
-  Statement.Close;
+  try
+    Statement.Execute(SQL);
+  finally
+    Statement.Close;
+  end;
+end;
 
+function TZDbcProxyConnection.GetPublicKeys: ZWideString;
+begin
+  Result := FConnIntf.GetPublicKeys;
 end;
 
 initialization
