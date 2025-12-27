@@ -71,7 +71,7 @@ uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
-  slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
+  slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
@@ -724,7 +724,7 @@ begin
     end;
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
-    if (psource.status <> rssRealPre) then
+    if (psource <> nil) and (psource.status <> rssRealPre) then
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
@@ -1517,7 +1517,7 @@ begin
       for ps in destinations do
       begin
         // Check for every destination if its routable if we care about that
-        rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ps.Name, 0);
+        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sps.Name, ps.Name, '0')).Speed;
         if ((glOnlyUseRouteableSitesOnTryToComplete) and (rank = 0)) then
           Continue;
         ssites_info.Add(ps.Name);
@@ -1530,7 +1530,7 @@ begin
       // Add every destination and the real ranks (if available) or a default of 0 for routing source -> destination
       for j := 0 to ssites_info.Count - 1 do
       begin
-        rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ssites_info[j], 0);
+        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sps.Name, ssites_info[j], '0')).Speed;
         ps.AddDestination(ssites_info[j], rank);
         dsites_info := site_allocation.Items[ssites_info[j]];
         dsites_info.Add(sps.Name);

@@ -80,7 +80,7 @@ begin
         if IsStatsDatabaseActive and ( FileExists(fDatabasePath + fFileName) and (skipfiles.IndexOf(fFileName) = -1) ) then
         begin
           doStatsBackup(fDatabasePath, fFileName + '.bak');
-          AddFile(fDatabasePath + fFileName + '.bak', fDatabasePath + fFileName);
+          AddFile(AnsiString(fDatabasePath + fFileName + '.bak'), AnsiString(fDatabasePath + fFileName));
           DeleteFile({$IFDEF UNICODE}PChar{$ELSE}PAnsiChar{$ENDIF}(fDatabasePath + fFileName + '.bak'));
         end;
 
@@ -127,7 +127,7 @@ begin
         if FindFirst(fRtplPath + '*.*', faAnyFile - faDirectory, sr) = 0 then
         begin
           repeat
-            AddFile(fRtplPath + sr.Name, 'rtpl/' + sr.name);
+            AddFile(AnsiString(fRtplPath + sr.Name), AnsiString('rtpl/' + sr.name));
           until FindNext(sr) <> 0;
           {$IFDEF MSWINDOWS}
             SysUtils.FindClose(sr);
