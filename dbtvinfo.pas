@@ -1001,7 +1001,7 @@ begin
       fQuery.Prepare(
         'SELECT DISTINCT infos.tvmaze_id, series.showname, infos.country, infos.status, ' +
         'infos.classification, infos.network, infos.genre, infos.tv_language, ' +
-        'infos.premiered_year, infos.rating ' +
+        'infos.premiered_year, infos.rating, infos.last_updated, infos.created_at ' +
         'FROM infos LEFT JOIN series ON infos.tvmaze_id = series.id'
       );
       fQuery.ExecutePrepared;
@@ -1009,15 +1009,17 @@ begin
       begin
         TDocVariant.New(recordItem);
         TDocVariantData(recordItem).AddValue('TVMazeId', fQuery.ColumnInt('tvmaze_id'));
-        TDocVariantData(recordItem).AddValue('Showname', fQuery.ColumnString('showname'));
-        TDocVariantData(recordItem).AddValue('Country', fQuery.ColumnString('country'));
-        TDocVariantData(recordItem).AddValue('Status', fQuery.ColumnString('status'));
-        TDocVariantData(recordItem).AddValue('Classification', fQuery.ColumnString('classification'));
-        TDocVariantData(recordItem).AddValue('Network', fQuery.ColumnString('network'));
-        TDocVariantData(recordItem).AddValue('Genre', fQuery.ColumnString('genre'));
-        TDocVariantData(recordItem).AddValue('Language', fQuery.ColumnString('tv_language'));
+        TDocVariantData(recordItem).AddValue('Showname', fQuery.ColumnUtf8('showname'));
+        TDocVariantData(recordItem).AddValue('Country', fQuery.ColumnUtf8('country'));
+        TDocVariantData(recordItem).AddValue('Status', fQuery.ColumnUtf8('status'));
+        TDocVariantData(recordItem).AddValue('Classification', fQuery.ColumnUtf8('classification'));
+        TDocVariantData(recordItem).AddValue('Network', fQuery.ColumnUtf8('network'));
+        TDocVariantData(recordItem).AddValue('Genre', fQuery.ColumnUtf8('genre'));
+        TDocVariantData(recordItem).AddValue('Language', fQuery.ColumnUtf8('tv_language'));
         TDocVariantData(recordItem).AddValue('PremieredYear', fQuery.ColumnInt('premiered_year'));
         TDocVariantData(recordItem).AddValue('Rating', fQuery.ColumnInt('rating'));
+        TDocVariantData(recordItem).AddValue('LastUpdated', fQuery.ColumnInt('last_updated'));
+        TDocVariantData(recordItem).AddValue('CreatedAt', fQuery.ColumnInt('created_at'));
 
         recordsArray.AddItem(recordItem);
       end;
@@ -1105,7 +1107,7 @@ begin
         fQuery.Reset;
         fQuery.Prepare(
           'INSERT OR IGNORE INTO infos (tvmaze_id, premiered_year, country, status, classification, network, genre, ' +
-          'tv_language, rating, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          'tv_language, rating, last_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         fQuery.Bind(1, tvmazeIdInt);
         fQuery.Bind(2, aPremieredYear);
@@ -1117,6 +1119,7 @@ begin
         fQuery.BindTextS(8, aLanguage);
         fQuery.Bind(9, aRating);
         fQuery.Bind(10, DateTimeToUnix(Now));
+        fQuery.Bind(11, DateTimeToUnix(Now));
         fQuery.ExecutePrepared;
       end;
     finally
@@ -1397,17 +1400,25 @@ end;
 
 procedure dbTVInfoStart;
 const
-  CurrentDbVersion: integer = 4;
+  CurrentDbVersion: integer = 5;
 var
   fDBName: String;
   fUserVersion: integer;
   fQuery: TSqlDBSQLite3Statement;
 begin
+  // Check if already initialized
+  if (SQLite3Lock <> nil) and (tvinfoSQLite3DBCon <> nil) then
+    Exit;
+
   fUserVersion := -1;
-  SQLite3Lock := TSlCriticalSection2.Create('tvdb');
+
+  if SQLite3Lock = nil then
+    SQLite3Lock := TSlCriticalSection2.Create('tvdb');
 
   fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
-  tvinfoSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');
+
+  if tvinfoSQLite3DBCon = nil then
+    tvinfoSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');
 
   {* db version code *}
   fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
@@ -1454,6 +1465,17 @@ begin
             fQuery.Reset;
 
             fQuery.Prepare('PRAGMA user_version = 4');
+            fQuery.ExecutePrepared;
+          end;
+        4:
+          begin
+            fQuery.Prepare('ALTER TABLE infos ADD COLUMN created_at INTEGER DEFAULT -1');
+            fQuery.ExecutePrepared;
+
+            // release the SQL statement, results and bound parameters before reopen
+            fQuery.Reset;
+
+            fQuery.Prepare('PRAGMA user_version = 5');
             fQuery.ExecutePrepared;
           end;
       end;

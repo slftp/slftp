@@ -445,6 +445,8 @@ type
     FLanguage: RawUTF8;
     FPremieredYear: integer;
     FRating: integer;
+    FLastUpdated: integer;
+    FCreatedAt: integer;
   published
     property TVMazeId: RawUTF8 read FTVMazeId write FTVMazeId;
     property Showname: RawUTF8 read FShowname write FShowname;
@@ -456,6 +458,8 @@ type
     property Language: RawUTF8 read FLanguage write FLanguage;
     property PremieredYear: integer read FPremieredYear write FPremieredYear;
     property Rating: integer read FRating write FRating;
+    property LastUpdated: integer read FLastUpdated write FLastUpdated;
+    property CreatedAt: integer read FCreatedAt write FCreatedAt;
   end;
 
   { List of TV Show Records }

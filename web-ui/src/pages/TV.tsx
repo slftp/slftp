@@ -18,7 +18,7 @@ import {
   Pagination,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconSearch, IconPlus, IconEdit, IconTrash, IconDeviceTv } from '@tabler/icons-react';
+import { IconSearch, IconPlus, IconEdit, IconTrash, IconDeviceTv, IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 import { apiClient } from '../api/client';
 
 function parseMaybeJsonArray(value: unknown): any[] {
@@ -52,6 +52,42 @@ function TruncatedCell({ children, width }: { children: React.ReactNode; width: 
         </div>
       </Tooltip>
     </Table.Td>
+  );
+}
+
+type SortField = 'TVMazeId' | 'Showname' | 'Country' | 'Status' | 'Network' | 'Genre' | 'PremieredYear' | 'Rating' | 'LastUpdated' | 'CreatedAt';
+type SortDirection = 'asc' | 'desc';
+
+function SortableHeader({
+  children,
+  field,
+  currentField,
+  direction,
+  onClick,
+  width
+}: {
+  children: React.ReactNode;
+  field: SortField;
+  currentField: SortField;
+  direction: SortDirection;
+  onClick: (field: SortField) => void;
+  width: string;
+}) {
+  const isActive = currentField === field;
+  return (
+    <Table.Th
+      style={{ width, cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => onClick(field)}
+    >
+      <Group gap={4} wrap="nowrap">
+        <span>{children}</span>
+        {isActive && (
+          direction === 'asc' ?
+            <IconChevronUp size={14} /> :
+            <IconChevronDown size={14} />
+        )}
+      </Group>
+    </Table.Th>
   );
 }
 
@@ -91,6 +127,8 @@ interface TVRecord {
   Language: string;
   PremieredYear: number;
   Rating: number;
+  LastUpdated: number;
+  CreatedAt: number;
 }
 
 interface FormData {
@@ -132,6 +170,10 @@ export function TV() {
   const [yearMax, setYearMax] = useState<number | string>('');
   const [ratingMin, setRatingMin] = useState<number | string>('');
 
+  // Sort state
+  const [sortField, setSortField] = useState<SortField>('LastUpdated');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   // Pagination state
   const [page, setPage] = useState(1);
   const itemsPerPage = 100;
@@ -157,10 +199,22 @@ export function TV() {
     refetchOnWindowFocus: false,
   });
 
-  // Client-side filtering
+  // Handler for column sorting
+  const handleSort = (field: SortField) => {
+    console.log('Sorting by:', field, 'current:', sortField, sortDirection);
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Client-side filtering and sorting
   const filtered = useMemo(() => {
     let result = data || [];
 
+    // Apply filters
     if (shownameFilter) {
       result = result.filter(r =>
         r.Showname.toLowerCase().includes(shownameFilter.toLowerCase()) ||
@@ -198,8 +252,24 @@ export function TV() {
       result = result.filter(r => r.Rating >= Number(ratingMin));
     }
 
-    return result;
-  }, [data, shownameFilter, countryFilter, statusFilter, networkFilter, genreFilter, yearMin, yearMax, ratingMin]);
+    // Apply sorting (create new array to ensure React detects change)
+    const sorted = [...result].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      // Handle string comparison case-insensitively
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [data, shownameFilter, countryFilter, statusFilter, networkFilter, genreFilter, yearMin, yearMax, ratingMin, sortField, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -460,27 +530,49 @@ export function TV() {
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th style={{ width: '100px' }}>TVMaze ID</Table.Th>
-                <Table.Th style={{ width: '250px' }}>Show Name</Table.Th>
-                <Table.Th style={{ width: '100px' }}>Country</Table.Th>
-                <Table.Th style={{ width: '100px' }}>Status</Table.Th>
-                <Table.Th style={{ width: '150px' }}>Network</Table.Th>
-                <Table.Th style={{ width: '120px' }}>Genre</Table.Th>
-                <Table.Th style={{ width: '70px' }}>Year</Table.Th>
-                <Table.Th style={{ width: '70px' }}>Rating</Table.Th>
+                <SortableHeader field="TVMazeId" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  TVMaze ID
+                </SortableHeader>
+                <SortableHeader field="Showname" currentField={sortField} direction={sortDirection} onClick={handleSort} width="250px">
+                  Show Name
+                </SortableHeader>
+                <SortableHeader field="Country" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  Country
+                </SortableHeader>
+                <SortableHeader field="Status" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  Status
+                </SortableHeader>
+                <SortableHeader field="Network" currentField={sortField} direction={sortDirection} onClick={handleSort} width="150px">
+                  Network
+                </SortableHeader>
+                <SortableHeader field="Genre" currentField={sortField} direction={sortDirection} onClick={handleSort} width="120px">
+                  Genre
+                </SortableHeader>
+                <SortableHeader field="PremieredYear" currentField={sortField} direction={sortDirection} onClick={handleSort} width="70px">
+                  Year
+                </SortableHeader>
+                <SortableHeader field="Rating" currentField={sortField} direction={sortDirection} onClick={handleSort} width="70px">
+                  Rating
+                </SortableHeader>
+                <SortableHeader field="CreatedAt" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  Created
+                </SortableHeader>
+                <SortableHeader field="LastUpdated" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  Updated
+                </SortableHeader>
                 <Table.Th style={{ width: '80px' }}>Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {isLoading ? (
                 <Table.Tr>
-                  <Table.Td colSpan={9}>
+                  <Table.Td colSpan={11}>
                     <Text ta="center">Loading...</Text>
                   </Table.Td>
                 </Table.Tr>
               ) : filtered.length === 0 ? (
                 <Table.Tr>
-                  <Table.Td colSpan={9}>
+                  <Table.Td colSpan={11}>
                     <Text ta="center">No records found</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -507,6 +599,16 @@ export function TV() {
                     <TruncatedCell width={120}>{record.Genre}</TruncatedCell>
                     <Table.Td style={{ width: '70px' }}>{record.PremieredYear}</Table.Td>
                     <Table.Td style={{ width: '70px' }}>{record.Rating}</Table.Td>
+                    <Table.Td style={{ width: '100px' }}>
+                      {record.CreatedAt && record.CreatedAt > 0
+                        ? new Date(record.CreatedAt * 1000).toLocaleDateString('de-DE')
+                        : 'N/A'}
+                    </Table.Td>
+                    <Table.Td style={{ width: '100px' }}>
+                      {record.LastUpdated && record.LastUpdated > 0
+                        ? new Date(record.LastUpdated * 1000).toLocaleDateString('de-DE')
+                        : 'Never'}
+                    </Table.Td>
                     <Table.Td style={{ width: '80px' }}>
                       <Group gap="xs" wrap="nowrap">
                         <ActionIcon

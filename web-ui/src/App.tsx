@@ -47,7 +47,7 @@ function App() {
           <Route path="databases" element={<Databases />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="rules" element={<Rules />} />
-          <Route path="simulator" element={<Simulator />} />
+          <Route path="tools" element={<Simulator />} />
           <Route path="sections" element={<Sections />} />
           <Route path="irc" element={<IRC />} />
           <Route path="stats" element={<Stats />} />

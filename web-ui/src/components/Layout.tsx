@@ -22,7 +22,7 @@ export function Layout() {
     { icon: IconTrophy, label: 'Races', to: '/races' },
     { icon: IconRoute, label: 'Routes', to: '/routes' },
     { icon: IconFilter, label: 'Rules', to: '/rules' },
-    { icon: IconFlask, label: 'Tools', to: '/simulator' },
+    { icon: IconFlask, label: 'Tools', to: '/tools' },
     { icon: IconFolders, label: 'Sections', to: '/sections' },
     { icon: IconServer, label: 'Sites Manager', to: '/sites' },
     { icon: IconChartBar, label: 'Stats', to: '/stats' },
