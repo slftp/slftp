@@ -2,7 +2,7 @@ unit encinifile;
 
 interface
 
-uses Classes, slmd5, SyncObjs, StrUtils;
+uses Classes, slmd5, SyncObjs, StrUtils, slcriticalsection2;
 
 type
   TEncStringlist = class(TStringList)
@@ -97,7 +97,7 @@ type
   // threadsafe TIniFile with encryption support
   TEncIniFile = class(TMyCustomIniFile)
   private
-    il: TCriticalSection;
+    il: TSlCriticalSection2;
     fSima: Boolean;
     FFilename: String;
     FPassHash: TslMD5Data;
@@ -546,7 +546,7 @@ end;
 constructor TEncIniFile.Create(const FileName: String; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True);
 begin
   inherited Create(FileName);
-  il:= TCriticalSection.Create;
+  il:= TSlCriticalSection2.Create('encinifile_' + FileName);
   fPassHash:= Passphrase;
   self.AutoUpdate:= autoupdate;
   FFilename:= FileName;
@@ -593,11 +593,14 @@ procedure TEncIniFile.Clear;
 var
   I: Integer;
 begin
-  il.Enter;
-  for I := 0 to FSections.Count - 1 do
-    TObject(FSections.Objects[I]).Free;
-  FSections.Clear;
-  il.Leave;
+  il.Enter('Clear');
+  try
+    for I := 0 to FSections.Count - 1 do
+      TObject(FSections.Objects[I]).Free;
+    FSections.Clear;
+  finally
+    il.Leave;
+  end;
 end;
 
 procedure TEncIniFile.DeleteKey(const Section, Ident: String);
@@ -605,45 +608,49 @@ var
   I, J: Integer;
   Strings: TStrings;
 begin
-  il.Enter;
-  I := FSections.IndexOf(Section);
-  if I >= 0 then
-  begin
-    Strings := TStrings(FSections.Objects[I]);
-    J := Strings.IndexOfName(Ident);
-    if J >= 0 then
-      Strings.Delete(J);
+  il.Enter('DeleteKey');
+  try
+    I := FSections.IndexOf(Section);
+    if I >= 0 then
+    begin
+      Strings := TStrings(FSections.Objects[I]);
+      J := Strings.IndexOfName(Ident);
+      if J >= 0 then
+        Strings.Delete(J);
+    end;
+
+    if self.AutoUpdate then
+      UpdateFile;
+
+  finally
+    il.Leave;
   end;
-
-  if self.AutoUpdate then
-    UpdateFile;
-
-  il.Leave;
 end;
 
 procedure TEncIniFile.EraseSection(const Section: String);
 var
   I: Integer;
 begin
-  il.Enter;
-  I := FSections.IndexOf(Section);
-  if I >= 0 then
-  begin
-    TStrings(FSections.Objects[I]).Free;
-    FSections.Delete(I);
+  il.Enter('EraseSection');
+  try
+    I := FSections.IndexOf(Section);
+    if I >= 0 then
+    begin
+      TStrings(FSections.Objects[I]).Free;
+      FSections.Delete(I);
+    end;
+
+    if self.AutoUpdate then
+      UpdateFile;
+
+  finally
+    il.Leave;
   end;
-
-  if self.AutoUpdate then
-    UpdateFile;
-
-  il.Leave;
 end;
 
 function TEncIniFile.GetCaseSensitive: Boolean;
 begin
-  il.Enter;
   Result := FSections.CaseSensitive;
-  il.Leave;
 end;
 
 procedure TEncIniFile.MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
@@ -776,7 +783,7 @@ var
   I, J: Integer;
   SectionStrings: TStrings;
 begin
-  il.Enter;
+  il.Enter('ReadSection');
   Strings.BeginUpdate;
   try
     Strings.Clear;
@@ -795,9 +802,12 @@ end;
 
 procedure TEncIniFile.ReadSections(Strings: TStrings);
 begin
-  il.Enter;
-  Strings.Assign(FSections);
-  il.Leave;
+  il.Enter('ReadSections');
+  try
+    Strings.Assign(FSections);
+  finally
+    il.Leave;
+  end;
 end;
 
 procedure TEncIniFile.ReadSectionValues(const Section: String;
@@ -805,7 +815,7 @@ procedure TEncIniFile.ReadSectionValues(const Section: String;
 var
   I: Integer;
 begin
-  il.Enter;
+  il.Enter('ReadSectionValues');
   Strings.BeginUpdate;
   try
     Strings.Clear;
@@ -825,16 +835,19 @@ var
   Strings: TStrings;
 begin
   Result := Default;
-  il.Enter;
-  I := FSections.IndexOf(Section);
-  if I >= 0 then
-  begin
-    Strings := TStrings(FSections.Objects[I]);
-    I := Strings.IndexOfName(Ident);
+  il.Enter('ReadString');
+  try
+    I := FSections.IndexOf(Section);
     if I >= 0 then
-      Result := Copy(Strings[I], Length(Ident) + 2, Maxint);
+    begin
+      Strings := TStrings(FSections.Objects[I]);
+      I := Strings.IndexOfName(Ident);
+      if I >= 0 then
+        Result := Copy(Strings[I], Length(Ident) + 2, Maxint);
+    end;
+  finally
+    il.Leave;
   end;
-  il.Leave;
 end;
 
 
@@ -842,19 +855,22 @@ procedure TEncIniFile.SetCaseSensitive(Value: Boolean);
 var
   I: Integer;
 begin
-  il.Enter;
-  if Value <> FSections.CaseSensitive then
-  begin
-    FSections.CaseSensitive := Value;
-    for I := 0 to FSections.Count - 1 do
-      with TMyHashedStringList(FSections.Objects[I]) do
-      begin
-        CaseSensitive := Value;
-        Changed;
-      end;
-    TMyHashedStringList(FSections).Changed;
+  il.Enter('SetCaseSensitive');
+  try
+    if Value <> FSections.CaseSensitive then
+    begin
+      FSections.CaseSensitive := Value;
+      for I := 0 to FSections.Count - 1 do
+        with TMyHashedStringList(FSections.Objects[I]) do
+        begin
+          CaseSensitive := Value;
+          Changed;
+        end;
+      TMyHashedStringList(FSections).Changed;
+    end;
+  finally
+    il.Leave;
   end;
-  il.Leave;
 end;
 
 procedure TEncIniFile.SetStrings(List: TStrings);
@@ -866,59 +882,62 @@ var
   split_site_data: Boolean;
 begin
   Clear;
-  il.Enter;
-  Strings := nil;
+  il.Enter('SetStrings');
+  try
+    Strings := nil;
 
-  if config <> nil then begin
-    split_site_data := config.ReadBool('sites', 'split_site_data', False);
-  end else begin
-    split_site_data := False;
-  end;
+    if config <> nil then begin
+      split_site_data := config.ReadBool('sites', 'split_site_data', False);
+    end else begin
+      split_site_data := False;
+    end;
 
-  for I := 0 to List.Count - 1 do
-  begin
-    S := Trim(List[I]);
-    if (S <> '') and (S[1] <> ';') then
-      if (S[1] = '[') and (S[Length(S)] = ']') then
-      begin
-        Delete(S, 1, 1);
-        SetLength(S, Length(S)-1);
-        Strings := AddSection(Trim(S));
+    for I := 0 to List.Count - 1 do
+    begin
+      S := Trim(List[I]);
+      if (S <> '') and (S[1] <> ';') then
+        if (S[1] = '[') and (S[Length(S)] = ']') then
+        begin
+          Delete(S, 1, 1);
+          SetLength(S, Length(S)-1);
+          Strings := AddSection(Trim(S));
 
-        if (split_site_data) then begin
-          if AnsiEndsText('sites.dat', FFilename) then
-          begin
-            S := Trim(S);
-            if 1 = Pos('site-', S) then
+          if (split_site_data) then begin
+            if AnsiEndsText('sites.dat', FFilename) then
             begin
-              S := Copy(S, 6, Length(S)-5);
-              S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
-              if FileExists(S) then
+              S := Trim(S);
+              if 1 = Pos('site-', S) then
               begin
-                ListSplitFile := TStringList.Create;
-                try
-                  ListSplitFile.LoadFromFile(S);
-                  for J := 0 to ListSplitFile.Count - 1 do
-                    Strings.Add(ListSplitFile[J]);
-                finally
-                  ListSplitFile.Free;
+                S := Copy(S, 6, Length(S)-5);
+                S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
+                if FileExists(S) then
+                begin
+                  ListSplitFile := TStringList.Create;
+                  try
+                    ListSplitFile.LoadFromFile(S);
+                    for J := 0 to ListSplitFile.Count - 1 do
+                      Strings.Add(ListSplitFile[J]);
+                  finally
+                    ListSplitFile.Free;
+                  end;
                 end;
               end;
             end;
           end;
-        end;
-      end
-      else
-        if Strings <> nil then
-        begin
-          J := Pos('=', S);
-          if J > 0 then // remove spaces before and after '='
-            Strings.Add(Trim(Copy(S, 1, J-1)) + '=' + Trim(Copy(S, J+1, MaxInt)) )
-          else
-            Strings.Add(S);
-        end;
+        end
+        else
+          if Strings <> nil then
+          begin
+            J := Pos('=', S);
+            if J > 0 then // remove spaces before and after '='
+              Strings.Add(Trim(Copy(S, 1, J-1)) + '=' + Trim(Copy(S, J+1, MaxInt)) )
+            else
+              Strings.Add(S);
+          end;
+    end;
+  finally
+    il.Leave;
   end;
-  il.Leave;
 end;
 
 procedure TEncIniFile.UpdateFile;
@@ -960,30 +979,33 @@ var
   S: String;
   Strings: TStrings;
 begin
-  il.Enter;
-  I := FSections.IndexOf(Section);
-  if I >= 0 then
-    Strings := TStrings(FSections.Objects[I])
-  else
-    Strings := AddSection(Section);
-  S := Ident + '=' + Value;
-  I := Strings.IndexOfName(Ident);
-  if I >= 0 then
-    Strings[I] := S
-  else
-    Strings.Add(S);
+  il.Enter('WriteString');
+  try
+    I := FSections.IndexOf(Section);
+    if I >= 0 then
+      Strings := TStrings(FSections.Objects[I])
+    else
+      Strings := AddSection(Section);
+    S := Ident + '=' + Value;
+    I := Strings.IndexOfName(Ident);
+    if I >= 0 then
+      Strings[I] := S
+    else
+      Strings.Add(S);
 
-  if self.AutoUpdate then
-    UpdateFile;
+    if self.AutoUpdate then
+      UpdateFile;
 
-  il.Leave;
+  finally
+    il.Leave;
+  end;
 end;
 
 procedure TEncIniFile.SaveUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter;
+  il.Enter('SaveUnencrypted');
   List := TStringList.Create;
   try
     GetStrings(List);
@@ -1000,20 +1022,23 @@ procedure TEncIniFile.LoadUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter;
-  if (FileName <> '') and FileExists(FileName) then
-  begin
-    List := TStringList.Create;
-    try
-      List.LoadFromFile(filename);
-      SetStrings(List);
-    finally
-      List.Free;
-    end;
-  end
-  else
-    Clear;
-  il.Leave;
+  il.Enter('LoadUnencrypted');
+  try
+    if (FileName <> '') and FileExists(FileName) then
+    begin
+      List := TStringList.Create;
+      try
+        List.LoadFromFile(filename);
+        SetStrings(List);
+      finally
+        List.Free;
+      end;
+    end
+    else
+      Clear;
+  finally
+    il.Leave;
+  end;
 end;
 
 

@@ -370,7 +370,7 @@ type
     wString,
     wRawJson,
     wBlob,
-    wGUID,
+    wGuid,
     wCustomAnswer,
     wRecord,
     wArray,
@@ -470,7 +470,7 @@ const
     SWI64, SWI64, SWI64, SWI64, SWI64, SWD64, SWD32, SWD64,
     '{"type":"string","format":"date-time"}', // wDateTime
     '{"type":"string"}', '{"type":"string"}', '{"type":"object"}', //FIXME! //wRawJson
-    '{"type":"string","format":"binary"}', '{"type":"string"}', //wBlob,wGUID
+    '{"type":"string","format":"binary"}', '{"type":"string"}', //wBlob,wGuid
     '', '', '', '', //wCustomAnswer, wRecord, wArray, wVariant
     '', SWI64, '', '' //wObject, wORM, wInterface, wRecordVersion
     ));
@@ -526,7 +526,7 @@ const
     wRawUtf8,  //  ptSynUnicode
     wDateTime, //  ptDateTime
     wDateTime, //  ptDateTimeMS
-    wGUID,     //  ptGuid
+    wGuid,     //  ptGuid
     wBlob,     //  ptHash128
     wBlob,     //  ptHash256
     wBlob,     //  ptHash512
@@ -655,15 +655,16 @@ begin
     ptClass:
       ; // use rtti.Props
     ptArray,
-    ptDynArray:
-      rtti := rtti.ArrayRtti; // use array item
+    ptDynArray:  // use array item (may be nil for static unmanaged)
+      rtti := rtti.ArrayRtti;
   else
     exit; // no nested properties
   end;
   TDocVariant.NewFast(result);
-  for i := 0 to rtti.Props.Count - 1 do
-    TDocVariantData(result).AddItem(
-      ContextOneProperty(rtti.Props.List[i], parentName));
+  if rtti <> nil then
+    for i := 0 to rtti.Props.Count - 1 do
+      TDocVariantData(result).AddItem(
+        ContextOneProperty(rtti.Props.List[i], parentName));
 end;
 
 function ClassToWrapperType(c: TClass): TWrapperType;
@@ -717,8 +718,10 @@ var
       wRecord:
         if rtti.Props.Count <> 0 then
           info := _ObjFast([
-            'name',   typName,
-            'fields', ContextNestedProperties(rtti, parentName)]);
+            'name',      typName,
+            'camelName', LowerCamelCase(typName),
+            'snakeName', SnakeCase(typName),
+            'fields',    ContextNestedProperties(rtti, parentName)]);
       wArray:
         begin
           if rtti.ObjArrayClass <> nil then
@@ -742,9 +745,12 @@ var
           end;
           // can be used to create static array (dynamic arrays have ItemCount=0)
           //  array{{#staticMaxIndex}}[0..{{staticMaxIndex}}]{{/staticMaxIndex}} of
+          _ObjAddProps([
+            'name',      typName,
+            'camelName', LowerCamelCase(typName),
+            'snakeName', SnakeCase(typName)], info);
           if rtti.Cache.ItemCount > 0 then
             _Safe(info)^.AddValue('staticMaxIndex', rtti.Cache.ItemCount-1);
-          _Safe(info)^.AddValue('name', typName);
         end;
     end;
     if not VarIsEmptyOrNull(info) then
@@ -778,7 +784,7 @@ begin
   end;
   if (typ = wRecord) and
      PropNameEquals(typName, 'TGUID') then
-    typ := wGUID
+    typ := wGuid
   else if (typ = wRecord) and
           PropNameEquals(typName, 'TServiceCustomAnswer') then
     typ := wCustomAnswer;
@@ -858,7 +864,7 @@ begin
         if self <> nil then
           RegisterType(fSets);
       end;
-    wGUID:
+    wGuid:
       _ObjAddProps(['toVariant',   'GuidToVariant',
                     'fromVariant', 'VariantToGuid'], result);
     wCustomAnswer:
@@ -961,6 +967,8 @@ begin
       kind := CROSSPLATFORM_KIND[nfo.OrmFieldType];
       _ObjAddProps(['index',        f + 1,
                     'name',         nfo.Name,
+                    'camelName',    LowerCamelCase(nfo.Name),
+                    'snakeName',    SnakeCase(nfo.Name),
                     'sql',          ord(nfo.OrmFieldType),
                     'sqlName',      nfo.OrmFieldTypeName^,
                     'typeKind',     ord(kind),
@@ -1006,8 +1014,10 @@ begin
           'uri', uri,
           'interfaceUri',         InterfaceUri,
           'interfaceMangledUri',  InterfaceMangledUri,
-          'interfaceName',        InterfaceFactory.InterfaceTypeInfo^.RawName,
-          'GUID',                 GuidToRawUtf8(InterfaceFactory.InterfaceIID),
+          'interfaceName',        InterfaceFactory.InterfaceRtti.Name,
+          'camelName',            LowerCamelCase(InterfaceFactory.InterfaceUri),
+          'snakeName',            SnakeCase(InterfaceFactory.InterfaceUri),
+          'GUID',                 GuidToRawUtf8(InterfaceFactory.InterfaceGuid^),
           'contractExpected',     UnQuoteSqlString(ContractExpected),
           'instanceCreation',     ord(InstanceCreation),
           'instanceCreationName', GetEnumNameTrimed(
@@ -1028,7 +1038,7 @@ begin
       services.AddItem(rec);
     end;
     fSOA := _ObjFast([
-      'enabled',          True,
+      'enabled',          true,
       'services',         variant(services),
       'expectMangledUri', fServer.Services.ExpectMangledUri]);
   end;
@@ -1051,7 +1061,7 @@ begin
     for i := 0 to interfaces.Count - 1 do
       services.AddItem(_ObjFast([
         'interfaceName',
-          TInterfaceFactory(interfaces.List[i]).InterfaceTypeInfo^.RawName,
+          TInterfaceFactory(interfaces.List[i]).InterfaceRtti.Name,
         'methods', ContextFromMethods(interfaces.List[i])]));
   finally
     interfaces.Safe.ReadUnLock;
@@ -1072,6 +1082,7 @@ const
 var
   a, r: PtrInt;
   arg: variant;
+  n: RawUtf8;
 begin
   TDocVariant.NewFast(result);
   r := 0;
@@ -1080,12 +1091,15 @@ begin
     with meth.Args[a] do
     begin
       arg := ContextFromRtti(TYPES_SOA[ValueType], ArgRtti);
+      ShortStringToAnsi7String(ParamName^, n);
       _ObjAddProps([
-        'argName',  ParamName^,
-        'argType',  ArgTypeName^,
-        'dir',      ord(ValueDirection),
-        'dirName',  DIRTODELPHI[ValueDirection],
-        'dirNoOut', DIRTOSMS[ValueDirection]], arg);
+        'argName',   n,
+        'camelName', LowerCamelCase(n),
+        'snakeName', SnakeCase(n),
+        'argType',   ArgTypeName^,
+        'dir',       ord(ValueDirection),
+        'dirName',   DIRTODELPHI[ValueDirection],
+        'dirNoOut',  DIRTOSMS[ValueDirection]], arg);
       if ValueDirection in [imdConst, imdVar] then
         _ObjAddProp('dirInput', true, arg);
       if ValueDirection <> imdConst then
@@ -1127,6 +1141,8 @@ begin
   begin
     result := _ObjFast([
       'methodName',      uri,
+      'camelName',       LowerCamelCase(uri),
+      'snakeName',       SnakeCase(uri),
       'methodIndex',     ExecutionMethodIndex,
       'verb',            VERB_DELPHI[ArgsResultIndex >= 0],
       'args',            ContextArgsFromMethod(meth),
@@ -1147,9 +1163,9 @@ begin
       if ArgsOutNotResultLast > 0 then
         _ObjAddProp('hasOutNotResultParams', true, result);
     end;
-    if ArgsResultIsServiceCustomAnswer then
+    if imfResultIsServiceCustomAnswer in Flags then
       _ObjAddProp('resultIsServiceCustomAnswer', true, result);
-    if IsInherited then
+    if imfIsInherited in Flags then
       _ObjAddProp('isInherited', true, result);
   end;
 end;
@@ -1183,7 +1199,7 @@ var
   m: PtrInt;
   methods: TDocVariantData; // circumvent FPC -O2 memory leak
 begin
-  AddUnit(int.InterfaceTypeInfo^.InterfaceUnitName^, nil);
+  AddUnit(int.InterfaceRtti.Info^.InterfaceUnitName^, nil);
   {%H-}methods.InitFast;
   for m := 0 to int.MethodsCount - 1 do
     methods.AddItem(ContextFromMethod(int.Methods[m]));
@@ -1210,6 +1226,8 @@ begin
   result := ContextFromRtti(wUnknown, prop.Value, '', fullName);
   _ObjAddProps([
     'propName',     prop.Name,
+    'camelName',    LowerCamelCase(prop.Name),
+    'snakeName',    SnakeCase(prop.Name),
     'fullPropName', fullName], result);
   if level > 0 then
     _ObjAddPropU('nestedIdentation', RawUtf8OfChar(' ', level * 2), result);
@@ -1306,7 +1324,7 @@ begin
   if fServer <> nil then
     for s := 0 to fServer.AuthenticationSchemesCount - 1 do
     begin
-      authClass := fServer.AuthenticationSchemes[s].ClassType;
+      authClass := PClass(fServer.AuthenticationSchemes[s])^;
       if (authClass = TRestServerAuthenticationDefault) or
          (authClass = TRestServerAuthenticationNone) then
       begin
@@ -1367,8 +1385,7 @@ begin
     exit;
   templateFound := -1;
   for i := 0 to high(Path) do
-    if FindFirst(IncludeTrailingPathDelimiter(Path[i]) + '*.mustache',
-        faAnyFile, SR) = 0 then
+    if FindFirst(MakePath([Path[i], '*.mustache']), faAnyFile, SR) = 0 then
     begin
       templateFound := i;
       break;
@@ -1401,7 +1418,7 @@ begin
     root := Ctxt.Server.Model.Root;
     if Ctxt.UriMethodPath = '' then
     begin
-      result := '<html><title>mORMot Wrappers</title>' +
+      result := '<!DOCTYPE html><html><title>mORMot Wrappers</title>' +
         '<body style="font-family:verdana;"><h1>Generated Code/Doc Wrappers</h1>' +
         '<hr><h2>Available Templates:</h2><ul>';
       repeat
@@ -1447,8 +1464,7 @@ begin
     // download as file
     head := HEADER_CONTENT_TYPE + 'application/' + LowerCase(templateExt);
   templateName := templateName + '.' + templateExt + '.mustache';
-  template := RawUtf8FromFile(
-    IncludeTrailingPathDelimiter(Path[templateFound]) + Utf8ToString(templateName));
+  template := RawUtf8FromFile(MakePath([Path[templateFound], templateName]));
   if template = '' then
   begin
     Ctxt.Error(templateName, HTTP_NOTFOUND);
@@ -1596,7 +1612,7 @@ begin
   ComputeSearchPath(Path, SearchPath);
   for i := 0 to High(SearchPath) do
   begin
-    result := IncludeTrailingPathDelimiter(SearchPath[i]) + TemplateName;
+    result := MakePath([SearchPath[i], TemplateName]);
     if FileExists(result) then
       exit;
   end;
@@ -1849,7 +1865,7 @@ begin
     begin
       if VarRecToUtf8IsString(CustomDelays[i], intf) and
          VarRecToUtf8IsString(CustomDelays[i + 1], meth) and
-         VarRecToInt64(CustomDelays[i + 2], delay) then
+         VarRecToInt64(@CustomDelays[i + 2], delay) then
         if _Safe(context.soa.services)^.
             GetDocVariantByProp('interfaceName', intf, false, service) and
            service^.GetAsDocVariantSafe('methods')^.
@@ -1904,12 +1920,13 @@ type
     procedure Execute;
   end;
 
-{$I-}
-
 procedure TServiceClientCommandLine.ToConsole(const Fmt: RawUtf8;
   const Args: array of const; Color: TConsoleColor; NoLineFeed: boolean);
+var
+  txt: RawUtf8;
 begin
-  ConsoleWrite(FormatUtf8(Fmt, Args), Color, NoLineFeed, cloNoColor in fOptions);
+  FormatUtf8(Fmt, Args, txt);
+  ConsoleWrite(txt, Color, NoLineFeed, cloNoColor in fOptions);
 end;
 
 function TServiceClientCommandLine.Find(const name: RawUtf8;
@@ -1968,7 +1985,7 @@ begin
         delete(line, j, 1);
         i := k;
       until false;
-      writeln(line);
+      ConsoleWriteRaw(line);
     end;
   until P = nil;
 end;
@@ -2014,11 +2031,13 @@ procedure TServiceClientCommandLine.ShowMethod(service: TInterfaceFactory;
   const
     IN_OUT: array[boolean] of RawUtf8 = ('OUT', ' IN');
   var
-    arg, i: integer;
+    arg: integer;  // should be integer for ArgNextInput/ArgNextOutput below
+    i: PtrInt;
     line, typ: RawUtf8;
   begin
     ToConsole('%', [IN_OUT[input]], ccDarkGray, {nolinefeed=}true);
-    if not input and method^.ArgsResultIsServiceCustomAnswer then
+    if (not input) and
+       (imfResultIsServiceCustomAnswer in method^.Flags) then
       line := ' is undefined'
     else
     begin
@@ -2199,8 +2218,6 @@ begin
   end;
   ToConsole('', [], ccDarkGray);
 end;
-
-{$I+}
 
 
 procedure ExecuteFromCommandLine(const aServices: array of TGuid;

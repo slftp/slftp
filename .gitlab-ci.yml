@@ -94,10 +94,11 @@ testlinux64:
   image: $SLFTP_CI_IMAGE
   when: on_success
   before_script:
-    #- cp /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 ./libcrypto.so
-    #- cp /usr/lib/x86_64-linux-gnu/libssl.so.1.1 ./libssl.so
-    - wget -O libcrypto.so https://gitlab.com/slftp/ci-images/-/raw/master/libcrypto_openssl-1.1.1s
-    - wget -O libssl.so https://gitlab.com/slftp/ci-images/-/raw/master/libssl_openssl-1.1.1s
+    - cp /usr/lib/x86_64-linux-gnu/libcrypto.so.3 tests/libcrypto.so.3
+    - cp /usr/lib/x86_64-linux-gnu/libssl.so.3 tests/libssl.so.3
+    - cp /usr/lib/x86_64-linux-gnu/ossl-modules/legacy.so tests/legacy.so
+    #- wget -O libcrypto.so https://gitlab.com/slftp/ci-images/-/raw/master/libcrypto_openssl-1.1.1s
+    #- wget -O libssl.so https://gitlab.com/slftp/ci-images/-/raw/master/libssl_openssl-1.1.1s
     - mv config/* tests/
   script:
     - make test
@@ -243,11 +244,13 @@ upload-package-files:
     - |
      rm -f sqlitewin64.zip
     - |
-     curl -s -L http://wiki.overbyte.eu/arch/openssl-1.1.1w-win64.zip -o opensslwin64.zip
+     curl -s -L https://gitlab.com/slftp/binaries/-/tree/main/openssl-3.5_x64.zip -o opensslwin64.zip
     - |
-     unzip -p opensslwin64.zip libcrypto-1_1-x64.dll > dist/libcrypto-1_1-x64.dll
+     unzip -p opensslwin64.zip libcrypto-3-x64.dll > dist/libcrypto-3-x64.dll
     - |
-     unzip -p opensslwin64.zip libssl-1_1-x64.dll > dist/libssl-1_1-x64.dll
+     unzip -p opensslwin64.zip libssl-3-x64.dll > dist/libssl-3-x64.dll
+    - |
+     unzip -p opensslwin64.zip ossl-modules/legacy.dll > dist/legacy.dll
     - |
      rm -f opensslwin64.zip
     - |

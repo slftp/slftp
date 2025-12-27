@@ -105,7 +105,6 @@ const
     (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$route'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routeset'; hnd: IrcSetSpeed; minparams: 3; maxparams: -1 ; hlpgrp: 'route'),
-    (cmd: 'routelock'; hnd: IrcLockSpeed; minparams: 3; maxparams: -1; hlpgrp: 'route'),
     (cmd: 'routesin'; hnd: IrcInroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'routesout'; hnd: IrcOutroutes; minparams: 0; maxparams: 1; hlpgrp: 'route'),
     (cmd: 'speedstats'; hnd: IrcSpeedStats; minparams: 1; maxparams: 4; hlpgrp: 'route'),
@@ -172,6 +171,7 @@ const
     (cmd: 'killall'; hnd: IrcKillAll; minparams: 0; maxparams: 0; hlpgrp: 'misc'),
     (cmd: 'spamconf'; hnd: IrcSpamConfig; minparams: 0; maxparams: 3; hlpgrp: 'misc'),
     (cmd: 'addknowngroup'; hnd: Ircaddknowngroup; minparams: 1; maxparams: - 1; hlpgrp: 'misc'),
+    (cmd: 'loglockstats'; hnd: IrcLogLockStats; minparams: 0; maxparams: 0; hlpgrp: 'misc'),
 
     (cmd: 'NEWS'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$news'),
     (cmd: 'news'; hnd: IrcNews; minparams: 0; maxparams: 2; hlpgrp: 'news'),
@@ -327,7 +327,7 @@ procedure RawB(const netname, channel: String; sitename, dir, command: String; A
 implementation
 
 uses
-  SysUtils, Contnrs, debugunit, mystrings, notify, taskdirlist, queueunit, taskraw, sltcp;
+  SysUtils, Contnrs, debugunit, mystrings, notify, taskdirlist, sitesunit, taskraw, sltcp;
 
 const
   section = 'irccommandsunit';
@@ -444,9 +444,8 @@ begin
 
   r := TDirlistTask.Create(Netname, Channel, sitename, dir, true);
   tn := AddNotify;
-  tn.tasks.Add(r);
-  AddTask(r);
-  QueueFire;
+  tn.AddTask(r);
+  AddTask(r, true);
 
   tn.event.WaitFor($FFFFFFFF);
 
@@ -473,9 +472,8 @@ var
 begin
   r := TRawTask.Create(Netname, Channel, sitename, dir, command);
   tn := AddNotify;
-  tn.tasks.Add(r);
-  AddTask(r);
-  QueueFire;
+  tn.AddTask(r);
+  AddTask(r, true);
 
   tn.event.WaitFor($FFFFFFFF);
 

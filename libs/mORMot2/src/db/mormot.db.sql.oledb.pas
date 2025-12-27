@@ -470,9 +470,10 @@ type
     // - a ftUtf8 content will be mapped into a generic WideString variant
     // for pre-Unicode version of Delphi, and a generic UnicodeString (=string)
     // since Delphi 2009: you may not loose any data during charset conversion
-    // - a ftBlob content will be mapped into a TBlobData AnsiString variant
-    function ColumnToVariant(
-      Col: integer; var Value: Variant): TSqlDBFieldType; override;
+    // set ForceUtf8 = true to generate a RawUtf8 as varString
+    // - a ftBlob BLOB content will be mapped into a TBlobData AnsiString variant
+    function ColumnToVariant(Col: integer; var Value: Variant;
+      ForceUtf8: boolean = false): TSqlDBFieldType; override;
 
     /// just map the original Collection into a TSqlDBOleDBConnection class
     property OleDBConnection: TSqlDBOleDBConnection
@@ -815,7 +816,7 @@ begin
   if (NewType in [ftUnknown, ftNull]) or
      (fConnection.Properties.BatchSendingAbilities *
        [cCreate, cUpdate, cDelete] = []) then
-    ESqlDBException.RaiseUtf8(
+    EOleDBException.RaiseUtf8(
       'Invalid call to %s.BindArray(Param=%d,Type=%s)',
       [self, Param, TSqlDBFieldTypeToString(NewType)]);
   SetLength(result^.VArray, ArrayCount);
@@ -938,17 +939,17 @@ end;
 
 function TSqlDBOleDBStatement.ColumnCurrency(Col: integer): currency;
 begin
-  GetCol64(Col, ftCurrency, result);
+  GetCol64(Col, ftCurrency, result{%H-});
 end;
 
 function TSqlDBOleDBStatement.ColumnDateTime(Col: integer): TDateTime;
 begin
-  GetCol64(Col, ftDate, result);
+  GetCol64(Col, ftDate, result{%H-});
 end;
 
 function TSqlDBOleDBStatement.ColumnDouble(Col: integer): double;
 begin
-  GetCol64(Col, ftDouble, result);
+  GetCol64(Col, ftDouble, result{%H-});
 end;
 
 function TSqlDBOleDBStatement.ColumnIndex(const aColumnName: RawUtf8): integer;
@@ -965,7 +966,7 @@ end;
 
 function TSqlDBOleDBStatement.ColumnInt(Col: integer): Int64;
 begin
-  GetCol64(Col, ftInt64, result);
+  GetCol64(Col, ftInt64, result{%H-});
 end;
 
 function TSqlDBOleDBStatement.ColumnName(Col: integer): RawUtf8;
@@ -1046,10 +1047,11 @@ begin
 end;
 
 function TSqlDBOleDBStatement.ColumnToVariant(
-  Col: integer; var Value: Variant): TSqlDBFieldType;
+  Col: integer; var Value: Variant; ForceUtf8: boolean): TSqlDBFieldType;
 var
   C: PSqlDBColumnProperty;
   V: PColumnValue;
+  P: pointer;
 begin
   // dedicated version to avoid as much memory allocation than possible
   V := GetCol(Col, C);
@@ -1067,18 +1069,26 @@ begin
       ftCurrency,
       ftDate:
         VInt64 := V^.Int64; // copy 64 bit content
-      ftUtf8: // as varSynUnicode
+      ftUtf8: // VType is varSynUnicode unless ForceUtf8 is set
         begin
+          P := ColPtr(C, V);
           VAny := nil;
-          {$ifndef UNICODE}
-          if not Connection.Properties.VariantStringAsWideString then
+          if ForceUtf8 or
+             (P = nil) or
+             (V^.Length = 0) then
           begin
             VType := varString;
-            RawUnicodeToString(ColPtr(C, V), V^.Length shr 1, AnsiString(VAny));
+            RawUnicodeToUtf8(P, V^.Length shr 1, RawUtf8(VAny));
           end
-          else
+          {$ifndef UNICODE}
+          else if not Connection.Properties.VariantStringAsWideString then
+          begin
+            VType := varString;
+            RawUnicodeToString(P, V^.Length shr 1, AnsiString(VAny));
+          end
           {$endif UNICODE}
-            SetString(SynUnicode(VAny), PWideChar(ColPtr(C, V)), V^.Length shr 1);
+          else
+            FastSynUnicode(SynUnicode(VAny), P, V^.Length shr 1);
         end;
       ftBlob: // as varString
         if fForceBlobAsNull then
@@ -1721,7 +1731,7 @@ var
   unknown: IUnknown;
   {%H-}log: ISynLog;
 begin
-  Log := SynDBLog.Enter(self, 'Connect');
+  SynDBLog.EnterLocal(log, self, 'Connect');
   // check context
   if Connected then
     Disconnect;
@@ -1761,7 +1771,7 @@ constructor TSqlDBOleDBConnection.Create(aProperties: TSqlDBConnectionProperties
 var
   {%H-}log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'Create');
+  SynDBLog.EnterLocal(log, self, 'Create');
   if not aProperties.InheritsFrom(TSqlDBOleDBConnectionProperties) then
     EOleDBException.RaiseUtf8('Invalid %.Create(%)', [self, aProperties]);
   fOleDBProperties := TSqlDBOleDBConnectionProperties(aProperties);
@@ -1774,7 +1784,7 @@ destructor TSqlDBOleDBConnection.Destroy;
 var
   log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'Destroy');
+  SynDBLog.EnterLocal(log, self, 'Destroy');
   try
     inherited Destroy; // call Disconnect;
     fMalloc := nil;
@@ -1790,7 +1800,7 @@ procedure TSqlDBOleDBConnection.Disconnect;
 var
   {%H-}log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'Disconnect');
+  SynDBLog.EnterLocal(log, self, 'Disconnect');
   try
     inherited Disconnect; // flush any cached statement
   finally
@@ -1899,12 +1909,12 @@ procedure TSqlDBOleDBConnection.Commit;
 var
   {%H-}log: ISynLog;
 begin
-  Log := SynDBLog.Enter(self, 'Commit');
-  if assigned(fTransaction) then
+  SynDBLog.EnterLocal(log, self, 'Commit');
+  if Assigned(fTransaction) then
   begin
     inherited Commit;
     try
-      OleDbCheck(nil, fTransaction.Commit(False, XACTTC_SYNC, 0));
+      OleDbCheck(nil, fTransaction.Commit(false, XACTTC_SYNC, 0));
     except
       inc(fTransactionCount); // the transaction is still active
       raise;
@@ -1916,11 +1926,11 @@ procedure TSqlDBOleDBConnection.Rollback;
 var
   {%H-}log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'Rollback');
-  if assigned(fTransaction) then
+  SynDBLog.EnterLocal(log, self, 'Rollback');
+  if Assigned(fTransaction) then
   begin
     inherited Rollback;
-    OleDbCheck(nil, fTransaction.Abort(nil, False, False));
+    OleDbCheck(nil, fTransaction.Abort(nil, false, false));
   end;
 end;
 
@@ -1928,8 +1938,8 @@ procedure TSqlDBOleDBConnection.StartTransaction;
 var
   {%H-}log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'StartTransaction');
-  if assigned(fTransaction) then
+  SynDBLog.EnterLocal(log, self, 'StartTransaction');
+  if Assigned(fTransaction) then
   begin
     inherited StartTransaction;
     OleDbCheck(nil,
@@ -1950,7 +1960,7 @@ var
   tmp: PWideChar;
   log: ISynLog;
 begin
-  log := SynDBLog.Enter(self, 'ConnectionStringDialog');
+  SynDBLog.EnterLocal(log, self, 'ConnectionStringDialog');
   result := false;
   if self <> nil then
   try
@@ -1970,7 +1980,7 @@ begin
       case res of
         S_OK:
           begin
-            OleCheck(DataInitialize.GetInitializationString(DBInitialize, True, tmp));
+            OleCheck(DataInitialize.GetInitializationString(DBInitialize, true, tmp));
             fConnectionString := tmp;
             if tmp <> nil then
               CoTaskMemFree(tmp);

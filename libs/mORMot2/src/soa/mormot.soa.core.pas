@@ -72,14 +72,14 @@ type
     // - will be stored in JSON_FAST_EXTENDED format, i.e. with
     // shortened field names, for smaller TEXT storage
     // - content may be searched using JsonGet/JsonHas SQL functions on a
-    // SQlite3 storage, or with direct document query under MongoDB/PostgreSQL
+    // SQLite3 storage, or with direct document query under MongoDB/PostgreSQL
     property Input: variant
       read fInput write fInput;
     /// the output parameters, as a JSON document, including result: for a function
     // - will be stored in JSON_FAST_EXTENDED format, i.e. with
     // shortened field names, for smaller TEXT storage
     // - content may be searched using JsonGet/JsonHas SQL functions on a
-    // SQlite3 storage, or with direct document query under MongoDB/PostgreSQL
+    // SQLite3 storage, or with direct document query under MongoDB/PostgreSQL
     property Output: variant
       read fOutput write fOutput;
     /// the Session ID, if there is any
@@ -195,17 +195,49 @@ type
     moaInclude,
     moaExclude);
 
+  /// used by TServiceAuthorization to stored its authorizations
+  TServiceAuthorizationState = (
+    idAllowAll,
+    idDenyAll,
+    idAllowed,
+    idDenied);
+
+  /// used by TServiceFactoryExecution to store its authorizations
+  {$ifdef USERECORDWITHMETHODS}
+  TServiceAuthorization = record
+  {$else}
+  TServiceAuthorization = object
+  {$endif USERECORDWITHMETHODS}
+    /// set if all TAuthGroup ID(s) should be defined for this factory
+    // - used on server side within TRestServerUriContext.ExecuteSoaByInterface
+    // - idAllowed, idDenied define what ID[] are storing
+    // - default is idAllowAll
+    StateID: TServiceAuthorizationState;
+    /// the sorted list of allowed/denied TAuthGroup ID(s)
+    // - used on server side within TRestServerUriContext.ExecuteSoaByInterface
+    // - IDs should be in 32-bit range, to reduce memory/cache size
+    // - idAllowed, idDenied define what ID[] are storing
+    SortedID: TIntegerDynArray;
+    /// quickly check if this TAuthGroup ID can execute this method
+    function IsDenied(const ID: TID): boolean;
+    /// define idAllowAll for this method, and remove any previous SortedID
+    procedure AllowAll;
+    /// define idDenyAll for this method, and remove any previous SortedID
+    procedure DenyAll;
+    /// deny one TAuthGroup ID for this method, likely to use idDenied state
+    // - can also remove a previous Allow(ID) during idAllowed state
+    procedure Deny(const ID: TID);
+    /// allow one TAuthGroup ID for this method, likely to use idAllowed state
+    // - can also remove a previous Deny(ID) during idDenied state
+    procedure Allow(const ID: TID);
+  end;
+
   /// internal per-method list of execution context as hold in TServiceFactory
   TServiceFactoryExecution = record
-    /// the list of denied TAuthGroup ID(s)
-    // - used on server side within TRestServerUriContext.ExecuteSoaByInterface
-    // - bit 0 for client TAuthGroup.ID=1 and so on...
-    // - is therefore able to store IDs up to 256 (maximum bit of 255 is a
-    // limitation of the pascal compiler itself)
-    // - void by default, i.e. no denial = all groups allowed for this method
-    Denied: set of 0..255;
     /// execution options for this method (about thread safety or logging)
     Options: TInterfaceMethodOptions;
+    /// store the current defined authorization of this method
+    Auth: TServiceAuthorization;
     /// where execution information should be written as TOrmServiceLog
     // - is a weak pointer to a IRestOrm instance to avoid reference counting
     LogRest: pointer;
@@ -259,7 +291,7 @@ type
       aOptions: TInterfaceMethodOptions; aAction: TServiceMethodOptionsAction);
     function GetInterfaceTypeInfo: PRttiInfo;
       {$ifdef HASINLINE}inline;{$endif}
-    function GetInterfaceIID: TGUID;
+    function GetInterfaceIID: TGuid;
       {$ifdef HASINLINE}inline;{$endif}
   public
     /// initialize the service provider parameters
@@ -287,17 +319,17 @@ type
     /// search for a method name within this Interface RTTI and pseudo-methods
     // - will return -1 if not found, im* pseudo-methods as 0..3, or the index
     // in InterfaceFactory.Methods[] incremented by SERVICE_PSEUDO_METHOD_COUNT
-    function ServiceMethodIndex(const Name: RawUtf8): PtrInt;
+    function ServiceMethodIndex(const aUri: RawUtf8): PtrInt;
     /// access to the registered Interface RTTI information
     property InterfaceFactory: TInterfaceFactory
       read fInterface;
     /// the registered Interface low-level Delphi RTTI type
-    // - just maps InterfaceFactory.InterfaceTypeInfo
+    // - just maps InterfaceFactory.InterfaceRtti.Info
     property InterfaceTypeInfo: PRttiInfo
       read GetInterfaceTypeInfo;
     /// the registered Interface GUID
     // - just maps InterfaceFactory.InterfaceIID
-    property InterfaceIID: TGUID
+    property InterfaceIID: TGuid
       read GetInterfaceIID;
     /// the service contract, serialized as a JSON object
     // - a "contract" is in fact the used interface signature, i.e. its
@@ -369,7 +401,6 @@ const
   /// the Server-side instance implementation patterns without any ID
   // - so imFree won't be supported
   SERVICE_IMPLEMENTATION_NOID = [sicSingle, sicShared];
-
 
 function ToText(si: TServiceInstanceImplementation): PShortString; overload;
 
@@ -672,11 +703,8 @@ type
     // - can be used as such to resolve an I: ICalculator interface
     // ! if fClient.Services.Info(ICalculator).Get(I) then
     // !   ... use I
-    {$ifdef FPC_HAS_CONSTREF}
-    function Info(constref aGuid: TGUID): TServiceFactory; overload;
-    {$else}
-    function Info(const aGuid: TGUID): TServiceFactory; overload;
-    {$endif FPC_HAS_CONSTREF}
+    function Info({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+      aGuid: TGuid): TServiceFactory; overload;
     /// retrieve a service provider from its type information
     // - on match, it  will return the service the corresponding interface factory
     // - returns nil if the type information does not match any registered interface
@@ -689,8 +717,8 @@ type
     /// notify the other side that the given Callback event interface is released
     // - this default implementation will do nothing
     function CallBackUnRegister(const Callback: IInvokable): boolean; virtual;
-    /// retrieve all registered Services TGUID
-    procedure SetGUIDs(out Services: TGuidDynArray);
+    /// retrieve all registered Services GUID
+    procedure SetGuids(out Services: TGuidDynArray);
     /// retrieve all registered Services names
     // - i.e. all interface names without the initial 'I', e.g. 'Calculator' for
     // ICalculator
@@ -875,7 +903,7 @@ type
   TServicesPublishedInterfacesDynArray = array of TServicesPublishedInterfaces;
 
   /// used e.g. by TRestServer to store a list of TServicesPublishedInterfaces
-  TServicesPublishedInterfacesList = class(TSynPersistentRWLightLock)
+  TServicesPublishedInterfacesList = class(TObjectRWLightLock)
   private
     fDynArray: TDynArray;
     fDynArrayTimeoutTix: TDynArray;
@@ -1032,9 +1060,14 @@ constructor TServiceFactory.Create(aOwner: TInterfaceResolver;
 begin
   inherited CreateWithResolver(aOwner, {raiseIfNotFound=}true);
   fInterface := TInterfaceFactory.Get(aInterface);
+  if fInterface = nil then // paranoid
+    EServiceException.RaiseUtf8('%.Create: no I%', [self, aInterface^.RawName]);
   fInstanceCreation := aInstanceCreation;
-  fInterfaceMangledUri := BinToBase64Uri(@fInterface.InterfaceIID, SizeOf(TGUID));
+  fInterfaceMangledUri :=
+    BinToBase64Uri(PAnsiChar(fInterface.InterfaceGuid), SizeOf(TGuid));
   fInterfaceUri := fInterface.InterfaceUri;
+  if fOrm = nil then
+    EServiceException.RaiseUtf8('%.Create: I% has no ORM', [self, fInterfaceUri]);
   if fOrm.Model.GetTableIndex(fInterfaceUri) >= 0 then
     EServiceException.RaiseUtf8('%.Create: I% routing name is ' +
       'already used by a % SQL table name', [self, fInterfaceUri, fInterfaceUri]);
@@ -1056,33 +1089,36 @@ begin
     fContractExpected := fContractHash; // for security
 end;
 
-function TServiceFactory.ServiceMethodIndex(const Name: RawUtf8): PtrInt;
+function TServiceFactory.ServiceMethodIndex(const aUri: RawUtf8): PtrInt;
 begin
-  result := fInterface.FindMethodIndex(Name);
-  if result >= 0 then
-    inc(result, SERVICE_PSEUDO_METHOD_COUNT)
-  else
+  if aUri <> '' then
   begin
+    result := fInterface.FindMethodIndex(aUri);
+    if result >= 0 then
+    begin
+      inc(result, SERVICE_PSEUDO_METHOD_COUNT);
+      exit;
+    end;
     for result := 0 to SERVICE_PSEUDO_METHOD_COUNT - 1 do
-      if IdemPropNameU(Name,
+      if IdemPropNameU(aUri,
            SERVICE_PSEUDO_METHOD[TServiceInternalMethod(result)]) then
         exit;
-    result := -1;
   end;
+  result := -1;
 end;
 
 function TServiceFactory.GetInterfaceTypeInfo: PRttiInfo;
 begin
   if (self <> nil) and
      (fInterface <> nil) then
-    result := fInterface.InterfaceTypeInfo
+    result := fInterface.InterfaceRtti.Info
   else
     result := nil;
 end;
 
-function TServiceFactory.GetInterfaceIID: TGUID;
+function TServiceFactory.GetInterfaceIID: TGuid;
 begin
-  result := fInterface.InterfaceIID;
+  result := fInterface.InterfaceRtti.Cache.InterfaceGuid^;
 end;
 
 procedure TServiceFactory.ExecutionAction(const aMethod: array of RawUtf8;
@@ -1122,20 +1158,100 @@ end;
 
 { ************ TServiceFactoryServerAbstract Abstract Service Provider }
 
-function TServiceFactoryServerAbstract.GetAuthGroupIDs(
-  const aGroup: array of RawUtf8; out IDs: TIDDynArray): boolean;
+{ TServiceAuthorization }
+
+function TServiceAuthorization.IsDenied(const ID: TID): boolean;
+begin
+  result := true;
+  if (ID > 0) and
+     (ID <= MaxInt) then
+    case StateID of
+      idAllowAll:
+        result := false;
+      idAllowed: // FastFindIntegerSorted() has branchless x86_64 asm
+        result := FastFindIntegerSorted(
+                    pointer(SortedID), length(SortedID) - 1, ID) < 0;
+      idDenied:
+        result := FastFindIntegerSorted(
+                    pointer(SortedID), length(SortedID) - 1, ID) >= 0;
+    end;
+end;
+
+procedure TServiceAuthorization.AllowAll;
+begin
+  SortedID := nil;
+  StateID := idAllowAll;
+end;
+
+procedure TServiceAuthorization.DenyAll;
+begin
+  SortedID := nil;
+  StateID := idDenyAll;
+end;
+
+procedure TServiceAuthorization.Allow(const ID: TID);
 var
   i: PtrInt;
+begin
+  if (ID <= 0) or
+     (ID > MaxInt) then
+    EServiceException.RaiseUtf8('TServiceFactoryServer: Unexpected Allow(%)', [ID]);
+  case StateID of
+    idAllowAll:
+      exit;
+    idDenyAll:
+      StateID := idAllowed;
+    idDenied:
+      begin
+        i := FastFindIntegerSorted(pointer(SortedID), length(SortedID) - 1, ID);
+        if i < 0 then
+          EServiceException.RaiseUtf8(
+            'TServiceFactoryServer: Allow(%) after no matching Deny()', [ID]);
+        DeleteInteger(SortedID, i);
+        if SortedID = nil then
+          StateID := idAllowAll;
+        exit;
+      end;
+  end;
+  AddSortedInteger(SortedID, ID)
+end;
+
+procedure TServiceAuthorization.Deny(const ID: TID);
+var
+  i: PtrInt;
+begin
+  if (ID <= 0) or
+     (ID > MaxInt) then
+    EServiceException.RaiseUtf8('TServiceFactoryServer: Unexpected Deny(%)', [ID]);
+  case StateID of
+    idDenyAll:
+      exit;
+    idAllowAll:
+      StateID := idDenied;
+    idAllowed:
+      begin
+        i := FastFindIntegerSorted(pointer(SortedID), length(SortedID) - 1, ID);
+        if i < 0 then
+          EServiceException.RaiseUtf8(
+            'TServiceFactoryServer: Deny(%) after no matching Allow()', [ID]);
+        DeleteInteger(SortedID, i);
+        if SortedID = nil then
+          StateID := idDenyAll;
+        exit;
+      end;
+  end;
+  AddSortedInteger(SortedID, ID)
+end;
+
+
+{ TServiceFactoryServerAbstract }
+
+function TServiceFactoryServerAbstract.GetAuthGroupIDs(
+  const aGroup: array of RawUtf8; out IDs: TIDDynArray): boolean;
 begin
   result := (self <> nil) and
     fOrm.MainFieldIDs(
       fOrm.Model.GetTableInherited(DefaultTAuthGroupClass), aGroup, IDs);
-  if result then
-    for i := 0 to high(IDs) do
-      // fExecution[].Denied set is able to store IDs up to 256 only
-      if IDs[i] > 255 then
-        EServiceException.RaiseUtf8(
-          'Unsupported %.Allow/Deny with GroupID=% >255', [self, IDs[i]]);
 end;
 
 function TServiceFactoryServerAbstract.AllowAll: TServiceFactoryServerAbstract;
@@ -1144,7 +1260,7 @@ var
 begin
   if self <> nil then
     for m := 0 to fInterface.MethodsCount - 1 do
-      FillcharFast(fExecution[m].Denied, SizeOf(fExecution[m].Denied), 0);
+      fExecution[m].Auth.AllowAll;
   result := self;
 end;
 
@@ -1155,9 +1271,8 @@ var
 begin
   if self <> nil then
     for m := 0 to fInterface.MethodsCount - 1 do
-      with fExecution[m] do
-        for g := 0 to high(aGroupID) do
-          exclude(Denied, aGroupID[g] - 1);
+      for g := 0 to high(aGroupID) do
+        fExecution[m].Auth.Allow(aGroupID[g]);
   result := self;
 end;
 
@@ -1177,7 +1292,7 @@ var
 begin
   if self <> nil then
     for m := 0 to fInterface.MethodsCount - 1 do
-      FillcharFast(fExecution[m].Denied, SizeOf(fExecution[m].Denied), 255);
+      fExecution[m].Auth.DenyAll;
   result := self;
 end;
 
@@ -1188,9 +1303,8 @@ var
 begin
   if self <> nil then
     for m := 0 to fInterface.MethodsCount - 1 do
-      with fExecution[m] do
-        for g := 0 to high(aGroupID) do
-          include(Denied, aGroupID[g] - 1);
+      for g := 0 to high(aGroupID) do
+        fExecution[m].Auth.Deny(aGroupID[g]);
   result := self;
 end;
 
@@ -1211,9 +1325,7 @@ var
 begin
   if self <> nil then
     for m := 0 to high(aMethod) do
-      FillcharFast(
-        fExecution[fInterface.CheckMethodIndex(aMethod[m])].Denied,
-        SizeOf(fExecution[0].Denied), 0);
+      fExecution[fInterface.CheckMethodIndex(aMethod[m])].Auth.AllowAll;
   result := self;
 end;
 
@@ -1222,13 +1334,15 @@ function TServiceFactoryServerAbstract.AllowByID(
   const aGroupID: array of TID): TServiceFactoryServerAbstract;
 var
   m, g: PtrInt;
+  e: PServiceFactoryExecution;
 begin
   if self <> nil then
-    if high(aGroupID) >= 0 then
-      for m := 0 to high(aMethod) do
-        with fExecution[fInterface.CheckMethodIndex(aMethod[m])] do
-          for g := 0 to high(aGroupID) do
-            exclude(Denied, aGroupID[g] - 1);
+    for m := 0 to high(aMethod) do
+    begin
+      e := @fExecution[fInterface.CheckMethodIndex(aMethod[m])];
+      for g := 0 to high(aGroupID) do
+        e^.Auth.Allow(aGroupID[g]);
+    end;
   result := self;
 end;
 
@@ -1250,9 +1364,7 @@ var
 begin
   if self <> nil then
     for m := 0 to high(aMethod) do
-      FillcharFast(
-        fExecution[fInterface.CheckMethodIndex(aMethod[m])].Denied,
-        SizeOf(fExecution[0].Denied), 255);
+      fExecution[fInterface.CheckMethodIndex(aMethod[m])].Auth.DenyAll;
   result := self;
 end;
 
@@ -1261,12 +1373,15 @@ function TServiceFactoryServerAbstract.DenyByID(
   const aGroupID: array of TID): TServiceFactoryServerAbstract;
 var
   m, g: PtrInt;
+  e: PServiceFactoryExecution;
 begin
   if self <> nil then
-    for m := 0 to high(aMethod) do
-      with fExecution[fInterface.CheckMethodIndex(aMethod[m])] do
-        for g := 0 to high(aGroupID) do
-          include(Denied, aGroupID[g] - 1);
+  for m := 0 to high(aMethod) do
+    begin
+      e := @fExecution[fInterface.CheckMethodIndex(aMethod[m])];
+      for g := 0 to high(aGroupID) do
+        e^.Auth.Deny(aGroupID[g]);
+    end;
   result := self;
 end;
 
@@ -1523,7 +1638,7 @@ begin
       n := PDALen(PAnsiChar(p) - _DALEN)^ + _DAOFF;
       repeat
         result := p^.Service;
-        if result.fInterface.InterfaceTypeInfo = aTypeInfo then
+        if result.fInterface.InterfaceRtti.Info = aTypeInfo then
           exit;
         inc(p);
         dec(n);
@@ -1533,11 +1648,8 @@ begin
   result := nil;
 end;
 
-{$ifdef FPC_HAS_CONSTREF}
-function TServiceContainer.Info(constref aGuid: TGUID): TServiceFactory;
-{$else}
-function TServiceContainer.Info(const aGuid: TGUID): TServiceFactory;
-{$endif FPC_HAS_CONSTREF}
+function TServiceContainer.Info({$ifdef FPC_HAS_CONSTREF}constref{$else}const{$endif}
+  aGuid: TGuid): TServiceFactory;
 var
   n: TDALen;
   p: PServiceContainerInterface;
@@ -1552,7 +1664,7 @@ begin
       n := PDALen(PAnsiChar(p) - _DALEN)^ + _DAOFF;
       repeat
         result := p^.Service;
-        with PHash128Rec(@result.fInterface.InterfaceIID)^ do
+        with PHash128Rec(result.fInterface.InterfaceRtti.Cache.InterfaceGuid)^ do
           if (g.L = L) and
              (g.H = H) then
             exit;
@@ -1564,7 +1676,7 @@ begin
   result := nil;
 end;
 
-procedure TServiceContainer.SetGUIDs(out Services: TGuidDynArray);
+procedure TServiceContainer.SetGuids(out Services: TGuidDynArray);
 var
   i, n: PtrInt;
 begin
@@ -1573,7 +1685,7 @@ begin
   n := length(fInterface);
   SetLength(Services, n);
   for i := 0 to n - 1 do
-    Services[i] := fInterface[i].Service.fInterface.InterfaceIID;
+    Services[i] := fInterface[i].Service.InterfaceIID;
 end;
 
 procedure TServiceContainer.SetInterfaceNames(out Names: TRawUtf8DynArray);
@@ -1843,7 +1955,7 @@ begin
   if P^ = '[' then
     // when transmitted as [params] in a _contract_ HTTP body content
     inc(P);
-  if (RecordLoadJson(nfo, P, TypeInfo(TServicesPublishedInterfaces)) = nil) or
+  if (RecordLoadJsonInPlace(nfo, P, TypeInfo(TServicesPublishedInterfaces)) = nil) or
      (nfo.PublicUri.Address = '') then
     // invalid supplied JSON content
     exit;
