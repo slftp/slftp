@@ -21,11 +21,17 @@ type
     property Message: String read FMessage;
   end;
 
+  TIrcLogHook = procedure(const Netname, Channel, Msg: String);
+
   TIRCChannroles = record
     Name: String;
     Description: String;
   end;
 
+var
+  GlIrcLogHook: TIrcLogHook = nil;
+
+type
   TMyIrcThread = class(TslTCPThread)
   private
     FSocketWriteLock: TSlCriticalSection2; //< Lock to protected the underlying write function of the socket to disallow concurrent access
@@ -238,6 +244,9 @@ var
   end;
 
 begin
+  if Assigned(GlIrcLogHook) then
+    GlIrcLogHook(netname, channel, msg);
+
   if slshutdown then
     exit;
 

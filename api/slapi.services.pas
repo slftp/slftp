@@ -359,18 +359,39 @@ type
     function GetRoutes(const SiteName: RawUTF8): RawJSON;
 
     /// POST /api/speed/test/local
-    /// Starts local speed test
-    function TestSpeedLocal(const SiteName: RawUTF8): boolean;
+    /// Starts local speed test, returns Test ID
+    function TestSpeedLocal(const SiteName: RawUTF8): RawUTF8;
 
     /// POST /api/speed/test/out
-    /// Starts outbound speed test
+    /// Starts outbound speed test, returns Test ID
     function TestSpeedOut(const SourceSite: RawUTF8;
-                          const DestSites: RawUTF8): boolean;
+                          const DestSites: RawUTF8): RawUTF8;
 
     /// POST /api/speed/test/in
-    /// Starts inbound speed test
+    /// Starts inbound speed test, returns Test ID
     function TestSpeedIn(const DestSite: RawUTF8;
-                         const SourceSites: RawUTF8): boolean;
+                         const SourceSites: RawUTF8): RawUTF8;
+
+    /// POST /api/speed/test/cleanup
+    /// Starts cleanup, returns Test ID
+    function TestSpeedCleanup(const Sites: RawUTF8): RawUTF8;
+
+    /// POST /api/speed/test/matrix
+    /// Starts matrix speed test (filtered sites), returns Test ID
+    function TestSpeedMatrix(const IncludeSites: RawUTF8 = '';
+                             const ExcludeSites: RawUTF8 = ''): RawUTF8;
+
+    /// GET /api/speed/sites
+    /// Returns array of sites with SPEEDTEST section
+    function GetSpeedTestSites: RawJSON;
+
+    /// GET /api/speed/test/{id}/log
+    /// Returns live log for test
+    function GetTestLog(const TestId: RawUTF8): RawJSON;
+
+    /// GET /api/speed/test/{id}/status
+    /// Returns status for test
+    function GetTestStatus(const TestId: RawUTF8): RawJSON;
 
     /// GET /api/speed/results
     /// Returns speed test results

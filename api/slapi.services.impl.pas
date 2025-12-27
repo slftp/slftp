@@ -19,6 +19,7 @@ uses
   mormot.soa.server,
   slapi.types,
 	  slapi.services,
+    slapi.speedtest,
 	  slapi.issues,
 	  sitesunit,
 	  queueunit,
@@ -171,11 +172,17 @@ type
   TApiSpeedServiceImpl = class(TInjectableObjectRest, IApiSpeedService)
   public
     function GetRoutes(const SiteName: RawUTF8): RawJSON;
-    function TestSpeedLocal(const SiteName: RawUTF8): boolean;
+    function TestSpeedLocal(const SiteName: RawUTF8): RawUTF8;
     function TestSpeedOut(const SourceSite: RawUTF8;
-                          const DestSites: RawUTF8): boolean;
+                          const DestSites: RawUTF8): RawUTF8;
     function TestSpeedIn(const DestSite: RawUTF8;
-                         const SourceSites: RawUTF8): boolean;
+                         const SourceSites: RawUTF8): RawUTF8;
+    function TestSpeedCleanup(const Sites: RawUTF8): RawUTF8;
+    function TestSpeedMatrix(const IncludeSites: RawUTF8 = '';
+                             const ExcludeSites: RawUTF8 = ''): RawUTF8;
+    function GetSpeedTestSites: RawJSON;
+    function GetTestLog(const TestId: RawUTF8): RawJSON;
+    function GetTestStatus(const TestId: RawUTF8): RawJSON;
     function GetSpeedResults(const SiteName: RawUTF8): RawJSON;
     function RecalculateRoutes: boolean;
   end;
@@ -885,6 +892,14 @@ begin
 
     kbList := GetKBList;
     kbLock := GetKBLock;
+
+    if (kbList = nil) or (kbLock = nil) then
+    begin
+      Debug(dpError, section, 'GetRecentReleases: KB not initialized');
+      Response.Releases := '[]';
+      Result := True;
+      Exit;
+    end;
 
     kbLock.Enter('GetRecentReleases');
     try
@@ -3586,19 +3601,111 @@ begin
   Result := '[]';
 end;
 
-function TApiSpeedServiceImpl.TestSpeedLocal(const SiteName: RawUTF8): boolean;
+function TApiSpeedServiceImpl.TestSpeedLocal(const SiteName: RawUTF8): RawUTF8;
 begin
-  Result := True;
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartLocal(UTF8ToString(SiteName)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedLocal: %s', [E.Message]));
+      raise; // Let mORMot handle the 500, but we have logged it.
+    end;
+  end;
 end;
 
-function TApiSpeedServiceImpl.TestSpeedOut(const SourceSite, DestSites: RawUTF8): boolean;
+function TApiSpeedServiceImpl.TestSpeedOut(const SourceSite, DestSites: RawUTF8): RawUTF8;
 begin
-  Result := True;
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartOut(UTF8ToString(SourceSite), UTF8ToString(DestSites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedOut: %s', [E.Message]));
+      raise;
+    end;
+  end;
 end;
 
-function TApiSpeedServiceImpl.TestSpeedIn(const DestSite, SourceSites: RawUTF8): boolean;
+function TApiSpeedServiceImpl.TestSpeedIn(const DestSite, SourceSites: RawUTF8): RawUTF8;
 begin
-  Result := True;
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartIn(UTF8ToString(DestSite), UTF8ToString(SourceSites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedIn: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.TestSpeedCleanup(const Sites: RawUTF8): RawUTF8;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartCleanup(UTF8ToString(Sites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedCleanup: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.TestSpeedMatrix(const IncludeSites: RawUTF8;
+  const ExcludeSites: RawUTF8): RawUTF8;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartMatrix(
+      UTF8ToString(IncludeSites),
+      UTF8ToString(ExcludeSites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedMatrix: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.GetSpeedTestSites: RawJSON;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.GetSpeedTestSites);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSpeedTestSites: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.GetTestLog(const TestId: RawUTF8): RawJSON;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.GetLog(UTF8ToString(TestId)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetTestLog: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.GetTestStatus(const TestId: RawUTF8): RawJSON;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.GetStatus(UTF8ToString(TestId)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetTestStatus: %s', [E.Message]));
+      raise;
+    end;
+  end;
 end;
 
 function TApiSpeedServiceImpl.GetSpeedResults(const SiteName: RawUTF8): RawJSON;

@@ -108,6 +108,11 @@ Speed (ApiSpeedService)
 - TestSpeedLocal: Body {"SiteName":"..."}
 - TestSpeedOut: Body {"SourceSite":"...", "DestSites":"..."}
 - TestSpeedIn: Body {"DestSite":"...", "SourceSites":"..."}
+- TestSpeedCleanup: Body {"Sites":"..."} (optional, space-separated; empty = all)
+- TestSpeedMatrix: Body {"IncludeSites":"...","ExcludeSites":"..."} (optional, space-separated; if IncludeSites is empty or omitted, all SPEEDTEST sites are used)
+- GetSpeedTestSites: Returns array of sites with SPEEDTEST section.
+- GetTestLog: Body {"TestId":"..."} Returns log lines for the test.
+- GetTestStatus: Body {"TestId":"..."} Returns status + structured results.
 - GetSpeedResults: Body {"SiteName":"..."}
 - RecalculateRoutes: Recalculates routes.
 
