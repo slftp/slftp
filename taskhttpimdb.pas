@@ -135,7 +135,7 @@ implementation
 
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo, http,
-  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.base, mormot.core.variants;
+  sitesunit, RegExpr, dbaddimdb, mystrings, dbtvinfo, sllanguagebase, mormot.core.variants;
 
 const
   section = 'taskhttpimdb';
@@ -164,8 +164,7 @@ var
   fStartIndex, fEndIndex, fCount: integer;
   fJsonObject: variant;
   fJsonString: string;
-  fJsonImdbID, fJsonReleaseYear, fTitleType: RawUTF8;
-  rr: TRegExpr;
+  fJsonImdbID, fJsonReleaseYear, fTitleType: UTF8String;
   doc: TDocVariantData;
   pdoc, pdoc2: PDocVariantData;
   fYearDoc: PDocVariantData;
@@ -179,11 +178,19 @@ begin
   fEndIndex := Pos('</script>', aPageSource, fStartIndex);
   fCount := fEndIndex - fStartIndex;
   fJsonString := Copy(aPageSource, fStartIndex + Length('type="application/json">'), fCount);
-  fJsonObject := _JsonFast(fJsonString);
-  
+  fJsonObject := _JsonFast(UTF8String(fJsonString));
+
 
   doc := TDocVariantData(fJsonObject);
-  if aIsMainPage then
+  doc.GetAsDocVariant('props', pdoc);
+  pdoc.GetAsDocVariant('pageProps', pdoc);
+  pdoc.GetAsRawUTF8('tconst', fJsonImdbID);
+  pdoc.GetAsDocVariant('aboveTheFoldData', pdoc);
+  pdoc.GetAsDocVariant('releaseYear', fYearDoc);
+  if not (fYearDoc.GetAsRawUTF8('Year', fJsonReleaseYear)) then
+    fYearDoc.GetAsRawUTF8('year', fJsonReleaseYear);
+  pdoc.GetAsRawUTF8('titleType', fTitleType);
+  if (UTF8ToString(fJsonImdbID) = aImdbID) and (fJsonReleaseYear <> '') and (0 <> Pos('text', UTF8ToString(fTitleType))) then
   begin
     doc.GetAsDocVariant('props', pdoc);
     pdoc.GetAsDocVariant('pageProps', pdoc);
@@ -285,6 +292,16 @@ begin
     SetLength(aLanguageList, Length(aLanguageList) - 1);
 end;
 
+function RewriteUSAandUK(const aCountryName: string): string;
+begin
+  Result := aCountryName;
+  // rewrite to old format so the existing rules will work
+  if aCountryName = 'United States' then
+    Result := 'USA'
+  else if aCountryName = 'United Kingdom' then
+    Result := 'UK';
+end;
+
 
 class procedure THtmlIMDbParser.ParseMovieCountries(const aPageSource: String; out aCountriesList: String);
 var
@@ -294,21 +311,18 @@ begin
   aCountriesList := '';
   fRegex := TRegExpr.Create;
   try
-    fRegex.Expression := 'data-testid="title-details-origin">.*?<div.*?>(.*?)<\/div>';
+    fRegex.Expression := 'data-testid="title-details-origin">.*?<div(.*?<\/a>)<\/li><\/ul><\/div>';
     if fRegex.Exec(aPageSource) then
     begin
       fMatch := fRegex.Match[1];
-      fRegex.Expression := 'ref_=tt_dt_cn">(.*?)<\/a>';
+      fRegex.Expression := 'ref_=tt_dt_cnt?">(.*?)<\/a>';
       if fRegex.Exec(fMatch) then
       begin
         repeat
           fMatch := fRegex.Match[1];
 
           // rewrite to old format
-          if fMatch = 'United States' then
-            fMatch := 'USA'
-          else if fMatch = 'United Kingdom' then
-            fMatch := 'UK';
+          fMatch := RewriteUSAandUK(fMatch);
 
           aCountriesList := aCountriesList + fMatch + ',';
         until not fRegex.ExecNext;
@@ -328,6 +342,7 @@ var
   fDocVariant: PDocVariantData;
   fVariant: Variant;
 begin
+  aGenresList := '';
   if not VarIsNull(aJsonObject) then
   begin
     TDocVariantData(aJsonObject).GetAsDocVariant('genres', fDocVariant);
@@ -344,18 +359,31 @@ end;
 
 class procedure THtmlIMDbParser.ParseReleaseDateInfo(const aJsonObject: Variant; var aReleaseDateInfoList: TObjectList<TIMDbReleaseDateInfo>);
 var
+  rr: TRegExpr;
+  pos1, pos2: integer;
+  fCountryCode: String;
   fCountry: String;
   fReleaseDate: String;
   fExtraInfo: String;
-  fID: RawUTF8;
-  fDocVariant, fDocVariant3, fDocVariant5: PDocVariantData;
-  fDocVariant2, fDocVariant4: TDocVariantData;
-  fVariant, fVariant2, fVariant3: Variant;
+  fExtractedPageSource: string;
 begin
-  if not VarIsNull(aJsonObject) then
-  begin
-    TDocVariantData(aJsonObject).GetAsDocVariant('categories', fDocVariant);
-    for fVariant in fDocVariant.Values do
+
+  // we need to copy this string to another variable because else we would alter the page source that we will still need for other stuff (only on FPC it seems)
+  fExtractedPageSource := aPageSource;
+
+  // extract text between Release Date and Also Known As (AKA) because the AKA text is so similar that it also matches the regex
+  pos1 := Pos('Release Date<', fExtractedPageSource);
+  pos2 := Pos('Also Known As (AKA)<', fExtractedPageSource);
+  if (pos1 > 0) and (pos2 > pos1) then
+    fExtractedPageSource := Copy(fExtractedPageSource, pos1 + 1, pos2 - pos1 - 1);
+
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<a class="ipc-metadata-list-item__label.*?aria-label=".*?" aria-disabled="false" href="\/calendar\/\?region=(.*?)' +
+                     '&amp;ref_=ttrel_[0-9]">(.{3,30}?)<\/a><div.*?aria-disabled="false">(.*?)<\/span>(?:..{10,100}?subText">(.*?)<\/span>)?.{10,100}?(?:role="presentation">)';
+
+    if rr.Exec(fExtractedPageSource) then
     begin
       fDocVariant2 := TDocVariantData(_JsonFast(fVariant));
       fDocVariant2.GetAsRawUTF8('id', fID);
@@ -367,32 +395,13 @@ begin
         begin
           fCountry := fVariant2.rowTitle;
 
-          // rewrite to old format
-          if fCountry = 'United States' then
-            fCountry := 'USA'
-          else if fCountry = 'United Kingdom' then
-            fCountry := 'UK';
+        fCountry := RewriteUSAandUK(fCountry);
 
-          if ExcludeCountry(fCountry) then
-            Continue;
+        if ExcludeCountry(fCountry) then
+          Continue;
 
-          fDocVariant4 := TDocVariantData(_JsonFast(fVariant2));
-          fDocVariant4.GetAsDocVariant('listContent', fDocVariant5);
-
-          for fVariant3 in fDocVariant5.Values do
-          begin
-            fReleaseDate := fVariant3.text;
-            try
-              fExtraInfo := fVariant3.subText;
-            except
-              fExtraInfo := '';
-            end;
-            break;
-          end;
-
-          aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fReleaseDate, fExtraInfo));
-        end;
-      end;
+        aReleaseDateInfoList.Add(TIMDbReleaseDateInfo.Create(fCountry, fReleaseDate, HTMLDecode(fExtraInfo)));
+      until not rr.ExecNext;
     end;
   end;
 end;
@@ -408,10 +417,12 @@ var
   fDocVariant2, fDocVariant4: TDocVariantData;
   fVariant, fVariant2, fVariant3: Variant;
 begin
-  if not VarIsNull(aJsonObject) then
-  begin
-    TDocVariantData(aJsonObject).GetAsDocVariant('categories', fDocVariant);
-    for fVariant in fDocVariant.Values do
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := 'metadata-list-item__label" aria-disabled="false">(.*?)<\/span>.+?item__list-content-item" aria-disabled="false">(.*?)<\/span>';
+
+    if rr.Exec(aPageSource) then
     begin
       fDocVariant2 := TDocVariantData(_JsonFast(fVariant));
       fDocVariant2.GetAsRawUTF8('id', fID);
@@ -429,30 +440,8 @@ begin
           end;
 
 
-          fDocVariant4 := TDocVariantData(_JsonFast(fVariant2));
-          fDocVariant4.GetAsDocVariant('listContent', fDocVariant5);
-
-          for fVariant3 in fDocVariant5.Values do
-          begin
-            fTitle := fVariant3.text;
-
-            // extra info is currently not used
-            try
-              fExtraInfo := fVariant3.subText;
-            except
-              fExtraInfo := '';
-            end;
-            break;
-          end;
-
-          fTitle := Trim(fTitle);
-          fTitle := fTitle.Replace(':', '', [rfReplaceAll, rfIgnoreCase]);
-          if not LowerCase(fCountry).Contains('original title') and ExcludeCountry(fCountry) then
-            Continue;
-
-          aAlsoKnownAsList.Add(TIMDbAlsoKnownAsInfo.Create(fCountry, fTitle));
-        end;
-      end;
+        aAlsoKnownAsList.Add(TIMDbAlsoKnownAsInfo.Create(fCountry, HTMLDecode(fTitle)));
+      until not rr.ExecNext;
     end;
   end;
 end;
@@ -509,10 +498,10 @@ begin
         fLink := Trim(rr.Match[1]);
         fCountry := Trim(rr.Match[2]);
 
+        fCountry := RewriteUSAandUK(fCountry);
+
         if fCountry = 'Domestic' then
           fCountry := 'USA';
-        if fCountry = 'United Kingdom' then
-          fCountry := 'UK';
 
         if ExcludeCountry(fCountry) then
           Continue;
@@ -660,6 +649,7 @@ var
   fBomScreensCount: Integer;
 begin
   Result := False;
+  fImdbCineYear := 0; // Initialize to prevent uninitialized variable warning
 
   (* Get IMDb main page *)
   if not HttpGetUrl('https://www.imdb.com/title/' + FImdbTitleID + '/', fImdbMainPage, fHttpGetErrMsg) then
@@ -909,18 +899,22 @@ begin
       try
         for fBOMCountryLinkPair in fBOMCountryLinks do
         begin
-          // all links on original release page have this reference
-          if not HttpGetUrl('https://www.boxofficemojo.com' + fBOMCountryLinkPair.Value + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
+          // only get info for the current country because the stuff for the other countries is not used atm and it's just making the IMDB lookup slower
+          if fBOMCountryLinkPair.Key = fReleasenameCountry then
           begin
-            Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
-            irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
-            Result := True;
-            ready := True;
-            exit;
-          end;
+            // all links on original release page have this reference
+            if not HttpGetUrl('https://www.boxofficemojo.com' + fBOMCountryLinkPair.Value + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
+            begin
+              Debug(dpMessage, section, Format('[FAILED] TPazoHTTPImdbTask BoxOfficeMojo --> %s ', [fHttpGetErrMsg]));
+              irc_Adderror(Format('<c4>[FAILED]</c> TPazoHTTPImdbTask BoxOfficeMojo --> %s', [fHttpGetErrMsg]));
+              Result := True;
+              ready := True;
+              exit;
+            end;
 
-          { NOTE: this needs to be saved }
-          fBOMCountryScreens.Add(fBOMCountryLinkPair.Key, THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
+            { NOTE: this needs to be saved }
+            fBOMCountryScreens.Add(fBOMCountryLinkPair.Key, THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
+          end;
         end;
 
         { NOTE: all that needs to be done separately for each dedicated releasename based on the language->country -- check USA & UK for english }

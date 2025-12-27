@@ -174,7 +174,6 @@ for item in BOM_RELEASES:
     else:
         raise Exception("Impossible to find Release URL!")
     if weblink != item["Link"]:
-        #raise Exception("Release URL links have changed!")
         raise Exception("Release URL links have changed! Expected: {0} Actual: {1}".format(item["Link"], weblink))
     htmlcode = get_latest_pagesource(
         "https://www.boxofficemojo.com" + item["Link"] + "/")

@@ -450,7 +450,7 @@ constructor TSqlDBFireDacConnection.Create(aProperties: TSqlDBConnectionProperti
 begin
   inherited Create(aProperties);
   fDatabase := TADConnection.Create(nil);
-  fDatabase.ResourceOptions.SilentMode := True; // no need for wait cursor
+  fDatabase.ResourceOptions.SilentMode := true; // no need for wait cursor
   fDatabase.LoginPrompt := false;
   fDatabase.Params.Text := (fProperties as TSqlDBFireDacConnectionProperties).
     fFireDacOptions.Text;
@@ -463,7 +463,7 @@ begin
   if fDatabase = nil then
     ESqlDBFireDac.RaiseUtf8('%.Connect(%): Database=nil',
       [self, fProperties.ServerName]);
-  Log := SynDBLog.Enter('Connect to DriverID=% Database=%',
+  SynDBLog.EnterLocal(Log, 'Connect to DriverID=% Database=%',
     [FIREDAC_PROVIDER[fProperties.Dbms], fProperties.DatabaseName], self);
   try
     fDatabase.Open;

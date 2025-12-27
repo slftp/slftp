@@ -16,14 +16,14 @@ implementation
 
 uses
   configunit, debugunit, DateUtils, SysUtils, console, slvision, slblowfish,
-  StrUtils, Classes, SyncObjs, dbhandler, mormot.db.sql.sqlite3;
+  StrUtils, Classes, SyncObjs, dbhandler, mormot.db.sql.sqlite3, slcriticalsection2;
 
 const
   section = 'indexer';
 
 var
   indexesSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection
-  SQLite3Lock: TCriticalSection = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
+  SQLite3Lock: TSlCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
 
 function IndexerAlive: boolean;
 begin
@@ -37,7 +37,7 @@ procedure indexerAddRelease(const rls, site, section, path: String);
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('indexerAddRelease');
   try
     fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
@@ -67,7 +67,7 @@ procedure indexerRemoveSiteSection(const site, section: String);
 var
   fQuery: TSqlDBSQLite3Statement;
 begin
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('indexerRemoveSiteSection');
   try
     fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
@@ -129,7 +129,7 @@ end;
 
 procedure indexerInit;
 begin
-  SQLite3Lock := TCriticalSection.Create;
+  SQLite3Lock := TSlCriticalSection2.Create('Indexer');
 end;
 
 procedure indexerUninit;
@@ -155,7 +155,7 @@ begin
   Result := '';
   fAll := 0;
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('indexerStat');
   try
     fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
@@ -190,7 +190,7 @@ var
 begin
   Result := '';
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('indexerQuery');
   try
     fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
@@ -200,8 +200,8 @@ begin
         fQuery.ExecutePrepared;
         while fQuery.Step do
         begin
-          Result := Result + fQuery.ColumnUtf8('sitename') + '-' + fQuery.ColumnUtf8('section') + '=' + fQuery.ColumnUtf8('path') + #13#10;
-          aRls := fQuery.ColumnUtf8('rls');
+          Result := Result + fQuery.ColumnString('sitename') + '-' + fQuery.ColumnString('section') + '=' + fQuery.ColumnString('path') + #13#10;
+          aRls := fQuery.ColumnString('rls');
         end;
       except
         on e: Exception do
@@ -228,7 +228,7 @@ begin
   aRls := ReplaceText(aRls, ' ', '%');
   aRls := '%' + aRls + '%';
 
-  SQLite3Lock.Enter;
+  SQLite3Lock.Enter('indexerQueryPartially');
   try
     fQuery := TSqlDBSQLite3Statement.Create(indexesSQLite3DBCon.ThreadSafeConnection);
     try
@@ -239,7 +239,7 @@ begin
         fQuery.ExecutePrepared;
         while fQuery.Step do
         begin
-          Result := Result + fQuery.ColumnUtf8('sitename') + '-' + fQuery.ColumnUtf8('section') + '=' + fQuery.ColumnUtf8('path') + '/' + fQuery.ColumnUtf8('rls') + #13#10;
+          Result := Result + fQuery.ColumnString('sitename') + '-' + fQuery.ColumnString('section') + '=' + fQuery.ColumnString('path') + '/' + fQuery.ColumnString('rls') + #13#10;
         end;
       except
         on e: Exception do

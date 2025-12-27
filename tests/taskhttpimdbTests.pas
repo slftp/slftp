@@ -870,6 +870,13 @@ begin
     fReleaseDateInfo := fReleaseDateInfoList[3];
 
 
+
+    fReleaseDateInfo := fReleaseDateInfoList[0];
+    fReleaseDateInfo := fReleaseDateInfoList[1];
+    fReleaseDateInfo := fReleaseDateInfoList[2];
+    fReleaseDateInfo := fReleaseDateInfoList[3];
+
+
     fReleaseDateInfo := fReleaseDateInfoList[1];
     CheckEqualsString('Thailand', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('August 29, 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');

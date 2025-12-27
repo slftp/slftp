@@ -25,6 +25,9 @@ procedure ConsoleUninit;
 function ReadAppQueueCaption: String;
 function ReadAppSitesCaption: String;
 
+{ Cleans the threadvars of the current thread }
+procedure CleanupConsoleThreadVars;
+
 var
   no_console_msg: Boolean;
   no_console_queue: Boolean;
@@ -35,7 +38,7 @@ implementation
 uses
   slvision, slconsole, mystrings, queueunit, debugunit, configunit, sitesunit,
   Contnrs, versioninfo, SysUtils, mainthread, Classes, irc, taskraw, slhelper,
-  kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs
+  kb, StrUtils, encinifile, dateutils, mrdohutils, SyncObjs, Generics.Collections
   {$IFDEF MSWINDOWS},Windows {$ENDIF};
 
 const
@@ -87,21 +90,12 @@ type
     procedure Execute; override;
   end;
 
-  (*
-  TTextBoxBeginUpdateTask = class(TslCommandWindowTask)
-    procedure Execute; override;
-  end;
-  TTextBoxEndUpdateTask = class(TslCommandWindowTask)
-    procedure Execute; override;
-  end;
-  *)
   TTextBoxAddLineTask = class(TslCommandWindowTask)
   private
     msg: String;
   public
     constructor Create(const windowtitle, msg: String);
     procedure Execute; override;
-(*    procedure OnConleTaskAdded(queue: TObjectList); override; *)
   end;
 
   TItemManageTask = class(TTextBoxAddLineTask)
@@ -175,12 +169,19 @@ var
   app: TMySlApp;
   add_time_stamp: Boolean;
 
+{ @returns(A TslConsoleTask with a hint that other console tasks have been removed due to console overload.) }
+function GetConsoleOverloadReplacementTask(const aWindowName: string): TslConsoleTask;
+begin
+  Result := TTextBoxAddLineTask.Create(aWindowName, '!!! REMOVED LINES DUE TO CONSOLE OVERLOAD !!!');
+end;
+
 procedure ConsoleInit;
 begin
   add_time_stamp := config.ReadBool('console','add_time_stamp', False);
   no_console_msg := config.ReadBool('console','no_console_msg', False);
   no_console_queue := config.ReadBool('console','no_console_queue', False);
   no_console_slot := config.ReadBool('console','no_console_slot', False);
+  glGetOverloadReplacementTaskFunction := GetConsoleOverloadReplacementTask;
 end;
 
 procedure ConsoleUninit;
@@ -206,7 +207,7 @@ begin
   for i:= 1 to length(s) do
     if (skip = 0) then
     begin
-      if ((ord(s[i]) >= 32) or (s[i] in [#13,#10])) then
+      if ((ord(s[i]) >= 32) or CharInSet(s[i], [#13,#10])) then
       begin
         if (ord(s[i]) <> 255) then
         begin
@@ -274,22 +275,24 @@ begin
 
   w := windowtitle;
   if w = '' then
-    w := 'Admin';
+    w := GlConsoleWindowNameAdmin;
 
-(*
-  if (no_console_msg and (UpperCase(w) <> 'ADMIN') and (UpperCase(w) <> 'QUEUE') and (UpperCase(w) <> 'SLOTS')) then exit;
-  if (no_console_queue and (UpperCase(w) = 'QUEUE')) then exit;
-  if (no_console_slot and (UpperCase(w) = 'SLOTS')) then exit;
-*)
+  if (no_console_msg and (CompareText(w, GlConsoleWindowNameAdmin) <> 0) and (CompareText(w, GlConsoleWindowNameSlots) <> 0) and (CompareText(w, GlConsoleWindowNameQueue) <> 0)) then exit;
+  if (no_console_queue and (CompareText(w, GlConsoleWindowNameQueue) = 0)) then exit;
+  if (no_console_slot and (CompareText(w, GlConsoleWindowNameSlots) = 0)) then exit;
 
   try
-    if add_time_stamp then
-      app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now), WrapText(msg, (slScreen.GetWidth() - 2))])))
-    else
-      app.AddConsoleTask(TTextBoxAddLineTask.Create(w, WrapText(msg, (slScreen.GetWidth() - 2))));
+    // don't even add any new tasks if there is a critical overload of the console
+    if not CheckConsoleCriticalOverload(w) then
+    begin
+      if add_time_stamp then
+        app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now), WrapText(msg, (slScreen.GetWidth() - 2))])))
+      else
+        app.AddConsoleTask(TTextBoxAddLineTask.Create(w, WrapText(msg, (slScreen.GetWidth() - 2))));
 
-    if processImmediately then
-      app.ProcessMessages(True);
+      if processImmediately then
+        app.ProcessMessages(True);
+    end;
   except
     on e: Exception do
     begin
@@ -306,7 +309,7 @@ begin
   if app = nil then
     exit;
 
-  slvision_lock.Enter();
+  slvision_lock.Enter('console_add_ircwindow');
   try
     if nil = MyFindWindow(windowtitle) then
       app.AddIrcWindow(windowtitle);
@@ -320,12 +323,12 @@ begin
   if app = nil then
     exit;
 
-  if (no_console_queue and (UpperCase(windowtitle) = 'QUEUE')) then
+  if (no_console_queue and (CompareText(windowtitle, GlConsoleWindowNameQueue) = 0)) then
     exit;
-  if (no_console_slot and (UpperCase(windowtitle) = 'SLOTS')) then
+  if (no_console_slot and (CompareText(windowtitle, GlConsoleWindowNameSlots) = 0)) then
     exit;
 
-  slvision_lock.Enter();
+  slvision_lock.Enter('console_add_dummywindow');
   try
     if nil = MyFindWindow(windowtitle) then
       app.AddDummyWindow(windowtitle);
@@ -339,7 +342,7 @@ begin
   if (no_console_msg) then exit;
 
   if app = nil then exit;
-  slvision_lock.Enter();
+  slvision_lock.Enter('console_add_sitewindow');
   try
     if nil = MyFindWindow(windowtitle) then
       app.AddSiteWindow(windowtitle);
@@ -357,7 +360,7 @@ begin
     exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('console_windows');
     try
       for i:= 0 to app.m.children.Count-1 do
       begin
@@ -383,7 +386,7 @@ begin
   if app = nil then exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('console_delwindow');
     try
       t := MyFindWindow(windowtitle);
       if t <> nil then t.Free;
@@ -415,6 +418,8 @@ begin
 end;
 
 procedure ConsoleStart;
+var
+  fSite: TSite;
 begin
   slConsoleInit;
 
@@ -428,7 +433,10 @@ begin
         if inited then
         begin
           Debug(dpError, section, 'slFtp exiting');
-          QueueFire;
+          for fSite in sites do
+          begin
+            fSite.QueueFire;
+          end;
           SlotsFire;
         end;
         Free;
@@ -471,7 +479,7 @@ end;
 
 procedure Console_Slot_Add(const name, FormatStr: String; const Args: array of const);
 begin
-  if (no_console_slot) then exit;
+  if (no_console_slot OR (app.slots.Visible <> slvVisible)) then exit;
   try
     Console_Slot_add(name, Format(FormatStr, Args));
   except
@@ -484,7 +492,7 @@ end;
 
 procedure Console_Slot_Add(const name, s: String);
 begin
-  if (no_console_slot) then exit;
+  if (no_console_slot OR (app.slots.Visible <> slvVisible)) then exit;
   try
     if app <> nil then
       app.AddConsoleTask(TSlotItemAddTask.Create(name, s));
@@ -498,7 +506,7 @@ end;
 
 procedure Console_Slot_Close(const name: String);
 begin
-  if (no_console_slot) then exit;
+  if (no_console_slot OR (app.slots.Visible <> slvVisible)) then exit;
   try
     if app <> nil then
       app.AddConsoleTask(TSlotItemDelTask.Create(name));
@@ -515,7 +523,7 @@ begin
   if (no_console_queue OR (app.queue.Visible <> slvVisible)) then exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('console_windows');
     try
       if app <> nil then
         app.AddConsoleTask(TQueueItemAddTask.Create(name, task));
@@ -535,7 +543,7 @@ begin
   if (no_console_queue OR (app.queue.Visible <> slvVisible)) then exit;
 
   try
-    slvision_lock.Enter();
+    slvision_lock.Enter('Console_QueueDel');
     try
       if app <> nil then
         app.AddConsoleTask(TQueueItemDelTask.Create(name));
@@ -574,7 +582,7 @@ begin
 
   m := TslMutualVisibilityControl.Create(self);
 
-  cw := TslCommandWindow.Create(0, 0, 'Admin', 'Command:', m);
+  cw := TslCommandWindow.Create(0, 0, GlConsoleWindowNameAdmin, 'Command:', m);
 
   cw.commandedit.OnCommand := OnAdminCommand;
   cw.commandedit.OnKeyDown := OnKeyDown;
@@ -702,12 +710,12 @@ ujra:
 
   if not no_console_slot then
   begin
-    slots := AddDummyWindow('Slots');
+    slots := AddDummyWindow(GlConsoleWindowNameSlots);
   end;
 
   if not no_console_queue then
   begin
-    queue := AddDummyWindow('Queue');
+    queue := AddDummyWindow(GlConsoleWindowNameQueue);
   end;
 
   cw.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
@@ -807,8 +815,8 @@ function TMySlApp.AddDummyWindow(const netname: String): TslCommandWindow;
 begin
   Result := nil;
 
-  if (no_console_queue and (UpperCase(netname) = 'QUEUE')) then exit;
-  if (no_console_slot and (UpperCase(netname) = 'SLOTS')) then exit;
+  if (no_console_queue and (CompareText(netname, GlConsoleWindowNameQueue) = 0)) then exit;
+  if (no_console_slot and (CompareText(netname, GlConsoleWindowNameSlots) = 0)) then exit;
 
   Result := TslCommandWindow.Create(0,0,netname, 'This is a dummy edit control, dont type anything.', nil);
   Result.textbox.maxlines := config.ReadInteger(section, 'maxlines', 1000);
@@ -1006,62 +1014,6 @@ begin
   end;
 end;
 
-(*
-procedure TTextBoxAddLineTask.OnConleTaskAdded(queue: TObjectList);
-var i, van: Integer;
-begin
-  // adni kell beginupdate, endupdate taskokat ha szukseges
-  van:= -1;
-  for i:= 0 to queue.Count -2 do
-    if (queue[i] is TTextBoxAddLineTask) and (TTextBoxAddLineTask(queue[i]).windowtitle = windowtitle) then
-    begin
-      van:= i;
-      break;
-    end;
-
-  if van < 0 then exit;
-  if (van = 0) or (not (queue[van-1] is TTextBoxBeginUpdateTask)) or (TTextBoxBeginUpdateTask(queue[van-1]).windowtitle <> windowtitle) then
-  begin
-    // beszurunk beginupdatetaskot es endupdatetaskot is
-    queue.Insert(van,  TTextBoxBeginUpdateTask.Create(windowtitle) );
-    queue.Add(TTextBoxEndUpdateTask.Create(windowtitle) );
-    exit;
-  end;
-
-  // most modostani kell az endupdatetask helyet
-  van:= -1;
-  for i:= queue.Count -2 downto 0 do
-    if (queue[i] is TTextBoxEndupdateTask) and (TTextBoxEndupdateTask(queue[i]).windowtitle = windowtitle) then
-    begin
-      van:= i;
-      break;
-    end;
-
-  if van = -1 then exit; // ez nem fordulhatna elo
-  queue.Move(van, queue.Count-1);
-end;
-
-{ TTextBoxBeginUpdateTask }
-
-procedure TTextBoxBeginUpdateTask.Execute;
-var w: TslCommandWindow;
-begin
-  w:= FindWindow();
-  if w = nil then exit;
-  w.textbox.BeginUpdate;
-end;
-
-{ TTextBoxEndUpdateTask }
-
-procedure TTextBoxEndUpdateTask.Execute;
-var w: TslCommandWindow;
-begin
-  w:= FindWindow();
-  if w = nil then exit;
-  w.textbox.EndUpdate;
-end;
-*)
-
 { TDelWindowTask }
 
 constructor TDelWindowTask.Create(const windowtitle: String);
@@ -1145,17 +1097,24 @@ end;
 procedure TShowWindowTask.Execute;
 var
   w: TslCommandWindow;
+  fSite: TSite;
 begin
   try
     w := FindWindow;
     if w = nil then exit;
     w.Visible := slvVisible;
 
-    //when the queue window is shown, update the content because that window is not being updated if not visible
-    if UpperCase(w.Title) = 'QUEUE' then
+    //when the queue or slots window is shown, update the content because that window is not being updated if not visible
+    if CompareText(w.Title, GlConsoleWindowNameQueue) = 0 then
     begin
       app.queue.textbox.Text := '';
-      QueueSendCurrentTasksToConsole;
+      for fSite in sites do
+        fSite.QueueSendCurrentTasksToConsole;
+    end
+    else if CompareText(w.Title, GlConsoleWindowNameSlots) = 0 then
+    begin
+      // i see no need to update all the slot info right now, they will update themselves soon enough
+      app.slots.textbox.Text := '';
     end;
   except
     on e: Exception do
@@ -1169,7 +1128,7 @@ end;
 
 constructor TQueueItemAddTask.Create(const name, msg: String);
 begin
-  inherited Create('Queue', msg);
+  inherited Create(GlConsoleWindowNameQueue, msg);
   self.name := name;
 end;
 
@@ -1197,7 +1156,7 @@ end;
 
 constructor TQueueItemDelTask.Create(const name: String);
 begin
-  inherited Create('Queue', '');
+  inherited Create(GlConsoleWindowNameQueue, '');
   self.name := name;
 end;
 
@@ -1223,7 +1182,7 @@ end;
 
 constructor TSlotItemAddTask.Create(const name, msg: String);
 begin
-  inherited Create('Slots', msg);
+  inherited Create(GlConsoleWindowNameSlots, msg);
   self.name := name;
 end;
 
@@ -1251,7 +1210,7 @@ end;
 
 constructor TSlotItemDelTask.Create(const name: String);
 begin
-  inherited Create('Slots', '');
+  inherited Create(GlConsoleWindowNameSlots, '');
   self.name := name;
 end;
 
@@ -1271,6 +1230,11 @@ begin
       Debug(dpError, 'console', Format('[EXCEPTION] Execute: %s', [e.Message]));
     end;
   end;
+end;
+
+procedure CleanupConsoleThreadVars;
+begin
+  CleanupSlVisionThreadVars;
 end;
 
 end.
