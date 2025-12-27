@@ -214,6 +214,10 @@ type
     fMaxDn: integer;
     fMaxPreDn: integer;
     fMaxUpPerRip: integer;
+    fMaxSimUpCooldownUntil: TDateTime;
+    fMaxSimUpCooldownSeconds: integer;
+    fMaxSimDownCooldownUntil: TDateTime;
+    fMaxSimDownCooldownSeconds: integer;
     fReducedSpeedstatWeight: boolean;
     fPermDownStatus: boolean;
     fSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -491,6 +495,16 @@ type
 
     function isRouteableTo(const sitename: String): boolean;
 
+    procedure RegisterMaxSimUpHit(const aSlotName: String);
+    procedure ResetMaxSimUpCooldown;
+    function MaxSimUpCooldownActive: boolean;
+    function MaxSimUpCooldownRemainingSeconds: integer;
+
+    procedure RegisterMaxSimDownHit(const aSlotName: String);
+    procedure ResetMaxSimDownCooldown;
+    function MaxSimDownCooldownActive: boolean;
+    function MaxSimDownCooldownRemainingSeconds: integer;
+
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
       @returns(minvalue if set, otherwise 0) }
@@ -752,6 +766,8 @@ uses
 
 const
   section = 'sites';
+  MAXSIM_COOLDOWN_INITIAL_SECONDS = 5;
+  MAXSIM_COOLDOWN_MAX_SECONDS = 120;
 
 var
   bnccsere: TSlCriticalSection2 = nil;
@@ -2058,7 +2074,7 @@ begin
     mSLSetupSocks5(site.proxyname, self, True);
 
   //First step to connect
-  Host := RawByteString(RCString('bnc_host-' + IntToStr(i), ''));
+  Host := RCString('bnc_host-' + IntToStr(i), '');
   Port := RCInteger('bnc_port-' + IntToStr(i), 0);
   Connect(site.connect_timeout * 1000);
 
@@ -2959,7 +2975,7 @@ begin
         exit;
       end;
 
-      idTCP.Host := RawByteString(host);
+      idTCP.Host := host;
       idTCP.Port := port;
 
       if not Send('REST %d', [restFrom]) then
@@ -3152,6 +3168,10 @@ begin
   fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
   fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
   fMaxUpPerRip := RCInteger('maxupperrip', 0);
+  fMaxSimUpCooldownUntil := 0;
+  fMaxSimUpCooldownSeconds := 0;
+  fMaxSimDownCooldownUntil := 0;
+  fMaxSimDownCooldownSeconds := 0;
 
   siteinvited := False;
   foutofannounce := 0;
@@ -3636,6 +3656,130 @@ begin
   begin
     DeleteKey('pretime-' + Name);
   end;
+end;
+
+procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fMaxSimUpCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimUpCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+
+  fMaxSimUpCooldownSeconds := fNewCooldown;
+  fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
+
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
+end;
+
+procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fMaxSimDownCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimDownCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+
+  fMaxSimDownCooldownSeconds := fNewCooldown;
+  fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
+
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
+end;
+
+procedure TSite.ResetMaxSimUpCooldown;
+begin
+  if (fMaxSimUpCooldownSeconds <> 0) or (fMaxSimUpCooldownUntil <> 0) then
+  begin
+    fMaxSimUpCooldownSeconds := 0;
+    fMaxSimUpCooldownUntil := 0;
+    Debug(dpSpam, section, 'MaxSim UP cooldown for %s cleared', [Name]);
+  end;
+end;
+
+procedure TSite.ResetMaxSimDownCooldown;
+begin
+  if (fMaxSimDownCooldownSeconds <> 0) or (fMaxSimDownCooldownUntil <> 0) then
+  begin
+    fMaxSimDownCooldownSeconds := 0;
+    fMaxSimDownCooldownUntil := 0;
+    Debug(dpSpam, section, 'MaxSim DOWN cooldown for %s cleared', [Name]);
+  end;
+end;
+
+function TSite.MaxSimUpCooldownActive: boolean;
+begin
+  if fMaxSimUpCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  if Now >= fMaxSimUpCooldownUntil then
+  begin
+    if fMaxSimUpCooldownSeconds > 0 then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
+        [Name, fMaxSimUpCooldownSeconds]);
+      fMaxSimUpCooldownSeconds := 0;
+    end;
+    fMaxSimUpCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
+function TSite.MaxSimDownCooldownActive: boolean;
+begin
+  if fMaxSimDownCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  if Now >= fMaxSimDownCooldownUntil then
+  begin
+    if fMaxSimDownCooldownSeconds > 0 then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
+        [Name, fMaxSimDownCooldownSeconds]);
+      fMaxSimDownCooldownSeconds := 0;
+    end;
+    fMaxSimDownCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
+function TSite.MaxSimUpCooldownRemainingSeconds: integer;
+begin
+  if not MaxSimUpCooldownActive then
+    Exit(0);
+
+  Result := SecondsBetween(Now, fMaxSimUpCooldownUntil);
+end;
+
+function TSite.MaxSimDownCooldownRemainingSeconds: integer;
+begin
+  if not MaxSimDownCooldownActive then
+    Exit(0);
+
+  Result := SecondsBetween(Now, fMaxSimDownCooldownUntil);
 end;
 
 function TSite.GetDelayLeechMin(const aSection: String): integer;
