@@ -2,7 +2,8 @@
   This file is a part of the Open Source Synopse mORMot framework 2,
   licensed under a MPL/GPL/LGPL three license - see LICENSE.md
 
-  POSIX Sockets API calls via the libc, as used by mormot.net.sock.pas
+  The POSIX Sockets API is called via the libc, since SOCKDIRECTSYSCALL does not
+  make any difference in terms of stability or performance.
 }
 
 uses
@@ -12,7 +13,7 @@ uses
   {$ifdef OSLINUXANDROID}
   linux,   // for epoll
   {$endif OSLINUXANDROID}
-  initc; // link clib='c' for our socket purpose
+  initc;  // link clib='c' for our socket purpose
 
 {$ifdef OSLINUX}
   {$define HASACCEPT4} // use Linux-specific accept4() enhanced API call
@@ -107,7 +108,7 @@ const
 
 type
   /// a socket is always cint = 32-bit integer sized on POSIX
-  // - we extend it to PtrInt for our TNetSocketWrap cast
+  // - but we use PtrInt on POSIX to cast it as TNetSocket = ^PNetSocketWrap
   TSocket = PtrInt;
 
   PSockAddrIn6 = ^sockaddr_in6;
@@ -175,13 +176,13 @@ type
   {$undef HASACCEPT4}
 {$endif OLDLIBC}
 
-{.$define DIRECTSYSCALL} // no noticeable performance or stability change
+{.$define SOCKDIRECTSYSCALL} // no noticeable performance or stability change
 
 {$ifdef SOCKDIRECTSYSCALL}
 
 function gethostbyname(name: PAnsiChar): PHostEnt; cdecl;
   external clib name 'gethostbyname' + LIBC_SUFFIX;
-  // no syscall available from FPC -> use libc wrapper
+  // no syscall available from FPC -> use libc wrapper anyway
 
 function socket(af, struct, protocol: integer): integer; inline;
 begin
@@ -215,17 +216,17 @@ begin
   result := fpclose(s);
 end;
 
-function getnameinfo(addr: PSockAddr; namelen: tsocklen; host: PAnsiChar;
-   hostlen: tsocklen; serv: PAnsiChar; servlen: tsocklen; flags: integer): integer; cdecl;
+function getnameinfo(addr: PSockAddr; namelen: TSockLen; host: PAnsiChar;
+   hostlen: TSockLen; serv: PAnsiChar; servlen: TSockLen; flags: integer): integer; cdecl;
   external clib name 'getnameinfo' + LIBC_SUFFIX;
   // no syscall available from FPC
 
-function bind(s: integer; addr: PSockAddr; namelen: tsocklen): integer; inline;
+function bind(s: integer; addr: PSockAddr; namelen: TSockLen): integer; inline;
 begin
   result := fpbind(s, addr, namelen);
 end;
 
-function getsockname(s: integer; name: PSockAddr; var namelen: tsocklen): integer; inline;
+function getsockname(s: integer; name: PSockAddr; var namelen: TSockLen): integer; inline;
 begin
   result := fpgetsockname(s, name, @namelen);
 end;
@@ -235,18 +236,18 @@ begin
   result := fplisten(s, backlog);
 end;
 
-function accept(s: integer; addr: PSockAddr; var addrlen: tsocklen): integer; inline;
+function accept(s: integer; addr: PSockAddr; var addrlen: TSockLen): integer; inline;
 begin
   result := fpaccept(s, addr, @addrlen);
 end;
 
 {$ifdef HASACCEPT4}
-function accept4(s: integer; addr: PSockAddr; var addrlen: tsocklen; flags: integer): integer; cdecl;
+function accept4(s: integer; addr: PSockAddr; var addrlen: TSockLen; flags: integer): integer; cdecl;
   external clib name 'accept4';
   // no syscall available from FPC
 {$endif HASACCEPT4}
 
-function connect(s: integer; name: PSockAddr; namelen: tsocklen): integer; inline;
+function connect(s: integer; name: PSockAddr; namelen: TSockLen): integer; inline;
   begin
     result := fpconnect(s, name, namelen);
   end;
@@ -279,7 +280,7 @@ begin
  result := fpsendto(s, Buf, len, flags, addrto, tolen);
 end;
 
-function getpeername(s: integer; name: PSockAddr; var namelen: tsocklen): integer; inline;
+function getpeername(s: integer; name: PSockAddr; var namelen: TSockLen): integer; inline;
 begin
   result := fpgetpeername(s, name, @namelen);
 end;
@@ -313,33 +314,33 @@ function shutdown(s: integer; how: integer): integer; cdecl;
 function closesocket(s: integer): integer; cdecl;
   external clib name 'close' + LIBC_SUFFIX;
 
-function getnameinfo(addr: PSockAddr; namelen: tsocklen; host: PAnsiChar;
-   hostlen: tsocklen; serv: PAnsiChar; servlen: tsocklen; flags: integer): integer; cdecl;
+function getnameinfo(addr: PSockAddr; namelen: TSockLen; host: PAnsiChar;
+   hostlen: TSockLen; serv: PAnsiChar; servlen: TSockLen; flags: integer): integer; cdecl;
   external clib name 'getnameinfo' + LIBC_SUFFIX;
 
-function bind(s: integer; addr: PSockAddr; namelen: tsocklen): integer; cdecl;
+function bind(s: integer; addr: PSockAddr; namelen: TSockLen): integer; cdecl;
   external clib name 'bind' + LIBC_SUFFIX;
 
-function getsockname(s: integer; name: PSockAddr; var namelen: tsocklen): integer; cdecl;
+function getsockname(s: integer; name: PSockAddr; var namelen: TSockLen): integer; cdecl;
   external clib name 'getsockname' + LIBC_SUFFIX;
 
 function listen(s: integer; backlog: integer): integer; cdecl;
   external clib name 'listen' + LIBC_SUFFIX;
 
-function accept(s: integer; addr: PSockAddr; var addrlen: tsocklen): integer; cdecl;
+function accept(s: integer; addr: PSockAddr; var addrlen: TSockLen): integer; cdecl;
   external clib name 'accept' + LIBC_SUFFIX;
 
 {$undef ACCEPT4_SYSCALL}
 
 {$ifdef HASACCEPT4}
 
-function accept4(s: integer; addr: PSockAddr; var addrlen: tsocklen; flags: integer): integer;
+function accept4(s: integer; addr: PSockAddr; var addrlen: TSockLen; flags: integer): integer;
   cdecl; external clib name 'accept4'  // no LIBC_SUFFIX: libc 2.10 is required
     {$ifdef OSLINUXINTEL} + '@GLIBC_2.10' {$endif} ;
 
 {$endif HASACCEPT4}
 
-function connect(s: integer; name: PSockAddr; namelen: tsocklen): integer; cdecl;
+function connect(s: integer; name: PSockAddr; namelen: TSockLen): integer; cdecl;
   external clib name 'connect' + LIBC_SUFFIX;
 
 function select(nfds: integer; readfds, writefds, exceptfds: PFDSet;
@@ -360,7 +361,7 @@ function sendto(s: integer; Buf: pointer; len: size_t; flags: integer;
    addrto: PSockAddr; tolen: integer): ssize_t; cdecl;
   external clib name 'sendto' + LIBC_SUFFIX;
 
-function getpeername(s: integer; name: PSockAddr; var namelen: tsocklen): integer; cdecl;
+function getpeername(s: integer; name: PSockAddr; var namelen: TSockLen): integer; cdecl;
   external clib name 'getpeername' + LIBC_SUFFIX;
 
 {$endif SOCKDIRECTSYSCALL}
@@ -376,9 +377,9 @@ function poll(fds: PPollFD; nfds, timeout: integer): integer; cdecl;
   external clib name 'poll' + LIBC_SUFFIX;
 {$endif OSDARWIN}
 
-function sockerrno: integer; inline;
+function RawSocketErrNo: integer;
 begin
-  result := cerrno; // from libc
+  result := cerrno; // thread-locale variable from libc
 end;
 
 {$ifdef HASACCEPT4}
@@ -388,7 +389,7 @@ var
 
 function doaccept(s: TSocket; addr: PSockAddr; var async: boolean): integer;
 var
-  len: tsocklen;
+  len: TSockLen;
 begin
   len := SOCKADDR_SIZE;
   {$ifdef HASACCEPT4}
@@ -419,36 +420,46 @@ end;
 { TNetAddr }
 
 var
-  _gethostbynamesafe: TOSLightLock; // gethostbyname() result is NOT thread-safe
+  _gethostbynamesafe: TOSLightLock;
+  // gethostbyname() result is NOT thread-safe: we need to protect its calls;
+  // since this may take some time, we use a pthread mutex, not a TLightLock
+
+procedure TNetAddr.Clear;
+var
+  ad4: sockaddr absolute Addr;
+begin
+  PInteger(@ad4.sin_family)^ := 0; // sin_family and sin_port = 0
+end; // other fields are not supposed/required to be initialized on POSIX
 
 function TNetAddr.SetFrom(const address, addrport: RawUtf8;
   layer: TNetLayer): TNetResult;
 var
   h: PHostEnt;
-  addr4: sockaddr absolute Addr;
+  ad4: sockaddr absolute Addr;
 begin
-  FillCharFast(Addr, SizeOf(Addr), 0);
+  PInteger(@ad4.sin_family)^ := 0; // sin_family and sin_port = 0 are enough
   result := nrNotFound;
   if address = '' then
     exit;
   // handle domain socket name
   if layer = nlUnix then
   begin
-    if length(address) >= SizeOf(psockaddr_un(@Addr)^.sun_path) then
-      // avoid buffer overflow
-      result := nrFatalError
-    else
-      with psockaddr_un(@Addr)^ do
+    // socket file name is just copied to the address struct
+    with psockaddr_un(@Addr)^ do
+      if length(address) >= SizeOf(sun_path) then
+        // avoid buffer overflow or truncated socket name
+        result := nrFatalError
+      else
       begin
         sun_family := AF_UNIX;
-        MoveFast(pointer(address)^, sun_path, length(address));
+        MoveFast(pointer(address)^, sun_path, length(address) + 1); // +1 for #0
         result := nrOK;
       end;
     exit;
   end;
   // check supplied IP port
-  addr4.sin_port := htons(GetCardinal(pointer(addrport)));
-  if (addr4.sin_port = 0) and
+  ad4.sin_port := bswap16(GetCardinal(pointer(addrport)));
+  if (ad4.sin_port = 0) and
      (addrport <> '0') then // explicit '0' to get ephemeral port
     exit;
   // check most simple IPv4 resolution (maybe using mormot.net.dns)
@@ -463,10 +474,10 @@ begin
       result := nrNotFound
     else
     begin
-      addr4.sin_family := h^.h_addrtype;
+      ad4.sin_family := h^.h_addrtype;
       case h^.h_addrtype of
         AF_INET:
-           addr4.sin_addr := h^.h_addr^^;
+           ad4.sin_addr.s_addr := h^.h_addr^^.s_addr;
         AF_INET6:
            psockaddr6(@Addr)^.sin6_addr := h^.h_addr6^^;
       else
@@ -581,7 +592,7 @@ end;
 
 function TNetSocketWrap.HasLowPriority: boolean;
 begin
-  result := false;
+  result := false; // not applicable on POSIX
 end;
 
 function TNetSocketWrap.WaitFor(ms: integer; scope: TNetEvents;
@@ -607,7 +618,7 @@ begin
   res := poll(@p, 1, ms);
   if res < 0 then
   begin
-    res := sockerrno;
+    res := RawSocketErrNo;
     if loerr <> nil then
       loerr^ := res;
     if res = ESysEAGAIN then
@@ -664,21 +675,34 @@ const
 {$endif OSANDROID}
 
 {$ifdef OSLINUX}
-procedure RetrieveEnhancedInfo(var a: TMacAddress);
+procedure RetrieveEnhancedInfo(var a: TMacAddress; var procnetroute: RawUtf8);
 var
-  sysfs: RawUtf8;
+  fn: ShortString;
+  fnlen: AnsiChar;
+  s: RawUtf8;
   p: PUtf8Char;
   l: PtrInt;
   ip: cardinal;
 begin
-  // see https://www.kernel.org/doc/Documentation/ABI/testing/sysfs-class-net
-  sysfs := NetConcat(['/sys/class/net/', a.Name, '/']);
-  a.FriendlyName := TrimU(StringFromFile(sysfs + 'ifalias', {nosize=}true));
-  a.Speed := GetCardinal(pointer(StringFromFile(sysfs + 'speed', true)));
-  a.Mtu := GetCardinal(pointer(StringFromFile(sysfs + 'mtu', true)));
+  // see https://www.kernel.org/doc/Documentation/ABI/testing/fn-class-net
+  fn := '/sys/class/net/';
+  AppendShortAnsi7String(a.Name, fn);
+  fnlen := fn[0];
+  AppendShort('/ifalias'#0, fn);
+  LoadProcFileTrimed(@fn[1], a.FriendlyName);
+  fn[0] := fnlen;
+  AppendShort('/speed'#0, fn);
+  LoadProcFileTrimed(@fn[1], s);
+  a.Speed := GetCardinal(pointer(s));
+  fn[0] := fnlen;
+  AppendShort('/mtu'#0, fn);
+  LoadProcFileTrimed(@fn[1], s);
+  a.Mtu := GetCardinal(pointer(s));
   // we retrieve the gateway from /proc/net/route
   l := length(a.Name);
-  p := pointer(StringFromFile('/proc/net/route', true));
+  if procnetroute = '' then // get routes list once
+    procnetroute := StringFromFileNoSize('/proc/net/route');
+  p := pointer(procnetroute);
   while p <> nil do
   begin
     if (MemCmp(pointer(p), pointer(a.Name), l) = 0) and
@@ -730,7 +754,7 @@ type
     sdl_nlen: byte;      // interface name length, no trailing 0 required
     sdl_alen: byte;      // link level address length
     sdl_slen: byte;      // link layer selector length
-    sdl_data: array[byte] of byte; // interface name + link level address
+    sdl_data: TByteToByte; // interface name + link level address
   end;
   {$else}
   psockaddr_ll = ^sockaddr_ll;
@@ -741,7 +765,7 @@ type
     sll_hatype: word;
     sll_pkttype: byte;
     sll_halen: byte;
-    sll_addr: array[byte] of byte;
+    sll_addr: TByteToByte;
   end;
   {$endif OSBSDDARWIN}
 
@@ -800,6 +824,9 @@ var
   list, info: pifaddrs;
   i, n: PtrInt;
   mac: RawUtf8;
+  {$ifdef OSLINUX}
+  procnetroute: RawUtf8; // retrieve routes once for all MAC addresses
+  {$endif OSLINUX}
 begin
   // https://github.com/zeromq/czmq/blob/899f81985961513c7f4e/src/ziflist.c#L210
   result := nil;
@@ -849,6 +876,7 @@ begin
           with result[n] do
           begin
             Name := info^.ifa_name; // e.g. 'eth0' on Linux
+            AdapterName := Name;
             Address := mac;
             if info^.ifa_addr <> nil then
             begin
@@ -902,7 +930,7 @@ begin
           end;
           {$ifdef OSLINUX}
           if info^.ifa_flags and IFF_UP <> 0 then
-            RetrieveEnhancedInfo(result[n]);
+            RetrieveEnhancedInfo(result[n], procnetroute);
           {$endif OSLINUX}
           // on POSIX, there is no such things as per-interface DNS, and
           // no standard way of knowing the Gateway
@@ -959,8 +987,9 @@ function RetrieveMacAddresses(UpAndDown: boolean): TMacAddressDynArray;
 var
   n: integer;
   SR: TSearchRec;
-  fn: TFileName;
-  f: RawUtf8;
+  fn: ShortString;
+  fnlen: AnsiChar;
+  f, procnetroute: RawUtf8;
 begin
   result := nil;
   if FindFirst('/sys/class/net/*', faDirectory, SR) = 0 then
@@ -970,18 +999,23 @@ begin
       if (SR.Name <> 'lo') and
          SearchRecValidFolder(SR) then
       begin
-        fn := '/sys/class/net/' + SR.Name;
-        f := StringFromFile(fn + '/flags', {nosize=}true);
+        fn := '/sys/class/net/';
+        AppendShortAnsi7String(SR.Name, fn);
+        fnlen := fn[0];
+        AppendShort('/flags'#0, fn);
+        LoadProcFileTrimed(@fn[1], f);
         if (length(f) > 2) and // e.g. '0x40' or '0x1043'
-           (PosixParseHex32(pointer(f)) and (IFF_UP or IFF_LOOPBACK) = IFF_UP) then
+           (ParseHex0x(pointer(f)) and (IFF_UP or IFF_LOOPBACK) = IFF_UP) then
         begin
-          f := TrimU(StringFromFile(fn + '/address', {nosize=}true));
+          fn[0] := fnlen;
+          AppendShort('/address'#0, fn);
+          LoadProcFileTrimed(@fn[1], f);
           if f <> '' then
           begin
             SetLength(result, n + 1);
             result[n].Name := SR.Name;
             result[n].Address := f;
-            RetrieveEnhancedInfo(result[n]);
+            RetrieveEnhancedInfo(result[n], procnetroute);
             // sadly, retrieving IP and mask from /proc is very complex
             // https://stackoverflow.com/a/14725655/458259
             // a solution may be to use ioctl()
@@ -1036,7 +1070,7 @@ var
 begin
   result := nil;
   if usePosixEnv then
-    resolv := StringFromFile(GetEnvironmentVariable('ETC'), true);
+    resolv := StringFromFile(GetEnvironmentVariable('ETC'));
   if resolv = '' then
     // all systems are likely to have or generate this file
     // - even the libc seems to read it when implementing gethostname()

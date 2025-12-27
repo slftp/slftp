@@ -1,10 +1,10 @@
 # Synopse *mORMot 2* Framework
 
-*An Open Source Client-Server ORM/SOA/MVC framework in modern Object Pascal*
+*An Open Source Client-Server ToolBox aka ORM/SOA/MVC framework in modern Object Pascal*
 
 ![Happy mORMot](doc/happymormot.png)
 
-(c) 2008-2024 Synopse Informatique - Arnaud Bouchez
+(c) 2008-2025 Synopse Informatique - Arnaud Bouchez
 
 https://synopse.info  - http://mORMot.net
 
@@ -23,26 +23,34 @@ You can find more about *mORMot 2* in:
 - the [Source Code `src` sub-folder](src);
 - the [Old mORMot 1 Documentation](https://synopse.info/files/html/Synopse%20mORMot%20Framework%20SAD%201.18.html) which still mostly apply to the new version - especially the design/conceptual parts.
 
+To discuss about *mORMot*, in addition to [our official forum](https://synopse.info/forum), you can join:
+- the [mORMot Telegram group](https://t.me/synopse_mormot);
+- the [mORMot Discord server](https://discord.gg/BcmcpY6afj).
+
+Those discussion groups are not managed by Synopse, but by some *mORMot 2* users: thanks a lot to them!
+
 If you find it worth using, please consider [sponsoring mORMot 2 dev](https://github.com/synopse/mORMot2/blob/master/DONATE.md) if you can - and even better through [sharing your own commits](https://github.com/synopse/mORMot2/pulls). :-)
 
 ## Presentation
 
 ### mORMot What?
 
-Synopse *mORMot 2* is an Open Source Client-Server ORM SOA MVC framework for Delphi 7 up to Delphi 12 Athenes and FPC 3.2/trunk, targeting Windows/Linux/BSD/MacOS for servers, and any platform for clients (including mobile or AJAX).
+Synopse *mORMot 2* is the ultimate Open Source ToolBox for modern Object Pascal. It is a fully featured Client-Server ORM SOA MVC framework for Delphi 7 up to Delphi 12.2 Athenes and FPC 3.2/trunk, targeting Windows/Linux/BSD/MacOS for servers, and any platform for clients (including mobile or AJAX).
 
 ![mORMot map](doc/IamLost.png)
 
 The main features of *mORMot* are therefore:
 
  - An optimized cross-compiler and cross-platform JSON/UTF-8 and RTTI kernel;
+ - Complete and efficient Cryptography primitives (hashes, encryption, asymetric keys, X.509, OpenSSL);
+ - A fully features Client/Server network layer (e.g. HTTP/S, WebSockets, OpenAPI/Swagger, async servers, LDAP, DNS, ACME);
  - Direct SQL and NoSQL database access (e.g. SQLite3, PostgreSQL, Oracle, MSSQL, OleDB, ODBC, MongoDB);
  - ORM/ODM: objects persistence on almost any database (SQL or NoSQL);
  - SOA: organize your business logic into REST services defined as `interface`;
  - Convention-over-configuration REST/JSON router, locally or over HTTP/HTTPS/WebSockets;
  - Clients: consume your data or services from any platform, via ORM/SOA APIs;
  - Web MVC: publish your ORM/SOA process as responsive Web Applications;
- - A lot of other reusable bricks (e.g. Unicode, cryptography, network, threads, dictionaries, logging, binary serialization, variants, generics, cross-platform...).
+ - A lot of other reusable bricks (e.g. Unicode, network, threads, dictionaries, logging, binary serialization, variants, generics, cross-platform, pdf generation...).
 
 Emphasizing speed and versatility, *mORMot* leverages the advantages of modern object pascal native code and easy-to-deploy solutions, reducing deployment cost and increasing ROI. It can be used:
 
@@ -81,7 +89,7 @@ See [the full licensing terms](LICENCE.md).
 
 The framework source code:
 - Tries to stay compatible with FPC stable and Delphi 7 and up;
-- Is currently validated against FPC 3.2.3 (fixes-3_2) and Lazarus 2.2.5 (fixes_2_2), Delphi 7, 2007, 2009, 2010, XE4, XE7, XE8, 10.4 and 11.1.
+- Is currently validated against FPC 3.2.3 (fixes-3_2) and Lazarus 2.2.5 (fixes_2_2), Delphi 7, 2007, 2009, 2010, XE4, XE7, XE8, 10.4, 11.1 and 12.2.
 
 Note that [FPC 3.2.2 has a regression with variant late binding](https://gitlab.com/freepascal.org/fpc/source/-/issues/39438) - use FPC 3.2.2 fixes branch instead.
 
@@ -97,7 +105,7 @@ Please submit pull requests for non-validated versions.
     - and download and extract latest https://synopse.info/files/mormot2static.tgz or https://synopse.info/files/mormot2static.7z into `c:\github\mORMot2\static`.
   - or as direct download of a given release (e.g. for a build script):
     - Download a *Source code (zip)* release from https://github.com/synopse/mORMot2/releases and extract it e.g. into `d:\mormot2`,
-    - and extract its associated `mormot2static.tgz` or `mormot2static.7z` file content into `d:\mormot2\static`.
+    - and download and extract its associated `mormot2static.tgz` or `mormot2static.7z` file content into `d:\mormot2\static`.
 2. Setup your favorite IDE: 
   - On Lazarus:
     - Just open and compile the [`/packages/lazarus/mormot2.lpk`](packages/lazarus/mormot2.lpk) package;
@@ -112,7 +120,9 @@ Please submit pull requests for non-validated versions.
   - Start from an example, and follow the [documentation](https://synopse.info/files/doc/mORMot2.html).
   - Feel free to contribute by posting enhancements and patches to this quickly evolving project.
 
-## Coming From Version 2
+For safety, the SHA-256 checksums of the current version of the downloaded binary files, as published in our https://synopse.info/files server, are available in [this repository `static/dev.sha256` file](static/dev.sha256).
+
+## Coming From Version 1.18
 
 ### Why Rewrite a Working Solution?
 

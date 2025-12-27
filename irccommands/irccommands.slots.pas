@@ -141,6 +141,9 @@ var
   site: TSite;
 begin
   Result := False;
+  minv := 0; // Initialize to prevent uninitialized variable warning
+  maxv := 0; // Initialize to prevent uninitialized variable warning
+  site := nil; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
   if sitename <> '*' then
   begin
@@ -302,6 +305,9 @@ var
   site: TSite;
 begin
   Result := False;
+  minv := 0; // Initialize to prevent uninitialized variable warning
+  maxv := 0; // Initialize to prevent uninitialized variable warning
+  site := nil; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
   if sitename <> '*' then
   begin

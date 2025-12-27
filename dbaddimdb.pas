@@ -2,7 +2,7 @@ unit dbaddimdb;
 
 interface
 
-uses Classes, IniFiles, irc, Contnrs, SyncObjs, Generics.Collections;
+uses Classes, IniFiles, irc, Contnrs, SyncObjs, Generics.Collections, slcriticalsection2;
 
 type
   { @abstract(Class for information from each single line of the slftp.imdbcountries file) }
@@ -79,7 +79,7 @@ procedure dbaddimdbUnInit;
 var
   last_addimdb: THashedStringList;
   last_imdbdata: THashedStringList;
-  dbaddimdb_cs: TCriticalSection;
+  dbaddimdb_cs: TSlCriticalSection2;
 
 implementation
 
@@ -230,7 +230,7 @@ begin
 
   if ((rls <> '') and (imdb_id <> '')) then
   begin
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('addimdb');
     try
       i:= last_addimdb.IndexOf(rls);
     finally
@@ -274,7 +274,7 @@ begin
       exit;
   end;
 
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('SaveImdb1');
   try
     i:= last_addimdb.IndexOf(rls);
   finally
@@ -284,7 +284,7 @@ begin
   begin
     db_imdb := TDbImdb.Create(rls, imdb_id);
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdb2');
     try
       try
         last_addimdb.AddObject(rls, db_imdb);
@@ -312,7 +312,7 @@ begin
       end;
     end;
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdb3');
     try
       i:= last_addimdb.Count;
       try
@@ -338,7 +338,7 @@ procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
 var
   i: Integer;
 begin
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('SaveImdbData1');
   try
     i:= last_imdbdata.IndexOf(rls);
   finally
@@ -347,7 +347,7 @@ begin
 
   if i = -1 then
   begin
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdbData2');
     try
       try
         last_imdbdata.AddObject(rls, imdbdata);
@@ -378,7 +378,7 @@ begin
       end;
     end;
 
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('SaveImdbData3');
     try
       i:= last_imdbdata.Count;
       try
@@ -448,7 +448,7 @@ end;
 function dbaddimdb_checkid(const imdbid: String): Boolean;
 begin
   Result := False;
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('checkid');
   try
     try
       if rx_imdbid.Find(imdbid) <> 0 then
@@ -471,7 +471,7 @@ begin
   imdbid := '';
   Result := False;
   try
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('parseid');
     try
       if rx_imdbid.MatchAll(text, rx_captures, 1 ,1) then
       begin
@@ -508,7 +508,7 @@ var
   fItem: TMapLanguageCountry;
   fDupe: Boolean;
 begin
-  dbaddimdb_cs := TCriticalSection.Create;
+  dbaddimdb_cs := TSlCriticalSection2.Create('dbaddimdb');
   last_addimdb:= THashedStringList.Create;
   last_addimdb.CaseSensitive:= False;
   last_addimdb.OwnsObjects:= True;
@@ -566,7 +566,7 @@ end;
 procedure dbaddimdbUninit;
 begin
   glLanguageCountryMappingList.Free;
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('Uninit');
   try
     FreeAndNil(last_addimdb);
     FreeAndNil(last_imdbdata);

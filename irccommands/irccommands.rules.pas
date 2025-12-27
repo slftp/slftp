@@ -18,14 +18,13 @@ function IrcAutoRules(const netname, channel, params: String): boolean;
 implementation
 
 uses
-  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings, System.Generics.Collections;
+  SysUtils, Classes, Contnrs, irc, sitesunit, rulesunit, RegExpr, mystrings, Generics.Collections;
 
 const
   section = 'irccommands.rules';
 
 function IrcRuleAdd(const netname, channel, params: String): boolean;
 var
-  r: TRule;
   sitename, rule, section, error: String;
   s: TSite;
   fAddedRule: TPair<TRule, integer>;
@@ -70,15 +69,12 @@ end;
 function IrcRuleDel(const netname, channel, params: String): boolean;
 var
   id: integer;
-  fSite: TSite;
-  fMessage, fSitename, fSection: string;
+  fMessage: string;
 begin
   Result := False;
-  fSitename := UpperCase(SubString(params, ' ', 1));
-  fSection := UpperCase(SubString(params, ' ', 2));
-  id := StrToIntDef(SubString(params, ' ', 3), -1);
+  id := StrToIntDef(SubString(params, ' ', 1), -1);
 
-  if RuleDel(id, fSitename, fSection, fMessage) then
+  if RuleDel(id, fMessage) then
   begin
     Irc_AddText(netname, channel, fMessage);
     Result := True;
@@ -92,7 +88,6 @@ end;
 function IrcRuleMod(const netname, channel, params: String): boolean;
 var
   id: integer;
-  r: TRule;
   sitename, rule, section, fMessage: String;
   s: TSite;
 begin
@@ -135,7 +130,6 @@ end;
 function IrcRuleIns(const netname, channel, params: String): boolean;
 var
   id: integer;
-  r: TRule;
   sitename, rule, section, fMessage: String;
   s: TSite;
 begin
@@ -179,16 +173,13 @@ function IrcShowAllRules(const netname, channel, params: String): boolean;
 var
   sitename, sections: String;
   xs: TStringList;
-  ii, i, count: Integer;
-  r: TRule;
-  fFoundRules: TList<TPair<TRule, integer>>;
-  fRuleIndexPair: TPair<TRule, integer>;
+  fFoundRules: TObjectList<TRuleWithID>;
+  fRuleWithID: TRuleWithID;
 begin
   Result := False;
 
   sitename := UpperCase(SubString(params, ' ', 1));
   sections := UpperCase(mystrings.RightStr(params, length(sitename) + 1));
-  count := 0;
 
   if (sitename = '*') and (sections = '') then
   begin
@@ -208,9 +199,9 @@ begin
       exit;
     end;
 
-    for fRuleIndexPair in fFoundRules do
+    for fRuleWithID in fFoundRules do
     begin
-      irc_addtext(Netname, Channel, '%d %s', [fRuleIndexPair.Value, fRuleIndexPair.Key.AsText(True)]);
+      irc_addtext(Netname, Channel, '%d %s', [fRuleWithID.ID, fRuleWithID.FRule.AsText(True)]);
     end;
   finally
     xs.Free;
@@ -289,8 +280,6 @@ end;
 
 function IrcRules(const netname, channel, params: String): boolean;
 var
-  i: integer;
-  r: TRule;
   s: TSite;
   sitename, section, fRuleInfo: String;
   fFoundRulesInfoStrings: TList<String>;
@@ -409,10 +398,8 @@ end;
 
 function IrcRuleCopy(const netname, channel, params: String): boolean;
 var
-  rr, r: TRule;
-  rule, error, src_s, dst_s, src_section, dst_section: String;
+  src_s, dst_s, src_section, dst_section: String;
   ss: TSite;
-  i: integer;
 begin
   Result := False;
   src_s := UpperCase(SubString(params, ' ', 1));

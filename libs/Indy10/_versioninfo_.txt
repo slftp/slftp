@@ -1,2 +1,4 @@
-874ca5ea25ba999f9f7eefae8472dea7d6387f26
-Adding new TIdThread.Synchronize() overload for anonymous procedures in Delphi 2009+
+51703ed50652984203e8ea55189ad5a5b1c3f629
+Updating CompUtil for upcoming RAD Studio 13.
+
+Further tweaks to PkgGen.

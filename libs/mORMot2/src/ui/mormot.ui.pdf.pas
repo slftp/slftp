@@ -878,8 +878,8 @@ type
   /// a PDF object, storing a textual value
   // - the value is specified as a PdfString
   // - this object is stored as '(escapedValue)'
-  // - in case of MBCS, conversion is made into Unicode before writing, and
-  // stored as '<FEFFHexUnicodeEncodedValue>'
+  // - in case of MBCS, conversion is made into UTF-16 before writing, and
+  // stored as '<FEFFHexUnicodeEncodedValue>' with an initial BOM_UTF16LE
   TPdfText = class(TPdfObject)
   private
     fValue: RawByteString;
@@ -896,7 +896,8 @@ type
   // - the value is specified as an UTF-8 encoded string
   // - this object is stored as '(escapedValue)'
   // - in case characters with ANSI code higher than 8 Bits, conversion is made
-  // into Unicode before writing, and '<FEFFHexUnicodeEncodedValue>'
+  // into UTF-16 before writing, and '<FEFFHexUnicodeEncodedValue>'  with an
+  // initial BOM_UTF16LE
   TPdfTextUtf8 = class(TPdfObject)
   private
     fValue: RawUtf8;
@@ -975,11 +976,11 @@ type
     constructor Create(AObjectMgr: TPdfObjectMgr; AArray: PWordArray;
       AArrayCount: integer); reintroduce; overload;
     /// create an array of PDF objects, with some specified TPdfName values
-    constructor CreateNames(AObjectMgr: TPdfObjectMgr; const AArray: array of
-      PdfString); reintroduce; overload;
+    constructor CreateNames(AObjectMgr: TPdfObjectMgr;
+      const AArray: array of PdfString); reintroduce; overload;
     /// create an array of PDF objects, with some specified TPdfReal values
-    constructor CreateReals(AObjectMgr: TPdfObjectMgr; const AArray: array of
-      double); reintroduce; overload;
+    constructor CreateReals(AObjectMgr: TPdfObjectMgr;
+      const AArray: array of double); reintroduce; overload;
     /// release the instance memory, and all embedded objects instances
     destructor Destroy; override;
     /// Add a PDF object to the array
@@ -1514,7 +1515,7 @@ type
     // - you can specify a clipping rectangle region as ClipRc parameter
     function CreateOrGetImage(B: TBitmap; DrawAt: PPdfBox = nil;
       ClipRc: PPdfBox = nil): PdfString;
-    // create a new optional content group (layer)
+    /// create a new optional content group (layer)
     // - returns a TPdfOptionalContentGroup needed for
     // TPdfCanvas.BeginMarkedContent
     // - if ParentContentGroup is not nil, the new content group is a
@@ -1523,12 +1524,19 @@ type
     // - Visible controls the initial state of the content group
     function CreateOptionalContentGroup(ParentContentGroup: TPdfOptionalContentGroup;
       const Title: string; Visible: boolean = true): TPdfOptionalContentGroup;
-    // create a Radio Optional ContentGroup
+    /// create a Radio Optional ContentGroup
     // - ContentGroups is a array of TPdfOptionalContentGroups which should behave like
     // radiobuttons, i.e. only one active at a time
     // - visibility must be set with CreateOptionalContentGroup, only one group should be visible
     procedure CreateOptionalContentRadioGroup(
       const ContentGroups: array of TPdfOptionalContentGroup);
+    /// create an attached file from its name
+    function CreateFileAttachment(const AttachFile: TFileName;
+      const Description: string = ''): TPdfDictionary;
+    /// create an attached file from its buffer content
+    function CreateFileAttachmentFromBuffer(const Buffer: RawByteString;
+      const Title, Description, MimeType: string;
+      CreationDate, ModDate: TDateTime): TPdfDictionary;
     /// retrieve the current PDF Canvas, associated to the current page
     property Canvas: TPdfCanvas
       read fCanvas;
@@ -1555,7 +1563,7 @@ type
       read GetDefaultPageLandscape write SetDefaultPageLandscape;
     /// the default page size, used for every new page creation (i.e. AddPage method call)
     // - a write to this property this will reset the default paper orientation
-    // to Portrait: you must explicitely set DefaultPageLandscape to true, if needed
+    // to Portrait: you must explicitly set DefaultPageLandscape to true, if needed
     property DefaultPaperSize: TPdfPaperSize
       read fDefaultPaperSize write SetDefaultPaperSize;
     /// the compression method used for page content storage
@@ -2197,6 +2205,7 @@ type
   // as Unicode if necessary
   TPdfInfo = class(TPdfDictionaryWrapper)
   private
+    fCustomMetadata: RawUtf8;
     function GetAuthor: string;
     procedure SetAuthor(const Value: string);
     function GetCreationDate: TDateTime;
@@ -2233,6 +2242,10 @@ type
     /// the PDF document title
     property Title: string
       read GetTitle write SetTitle;
+    /// allow to add some custom XMP metadata for PDFA/1
+    // - may be used e.g. to generate ZUGFeRD-PDF content
+    property CustomMetadata: RawUtf8
+     read fCustomMetadata write fCustomMetadata;
   end;
 
   /// a dictionary wrapper class for the PDF document catalog fields
@@ -2451,7 +2464,7 @@ type
   protected
     // we use TWordDynArray for auto garbage collection and generic handling
     // - since the Ttf file is big endian, we swap all words at loading, to
-    // be used directly by the Intel x86 code; integer (longint) values
+    // be used directly by the Intel x86 code; integer (32-bit) values
     // must take care of this byte swapping
     fcmap, fhead, fhhea, fhmtx: TWordDynArray;
   public
@@ -2522,7 +2535,7 @@ type
     procedure CreateAssociatedUnicodeFont;
     // update font description from used chars
     procedure PrepareForSaving;
-    // low level adding of a glyph (returns the real glyph index found, 0 if none)
+    // low level add glyph (returns the real glyph index found, aGlyph if none)
     function GetAndMarkGlyphAsUsed(aGlyph: word): word;
   public
     /// create the TrueType font object instance
@@ -3052,7 +3065,7 @@ begin
   for i := 3 to 7 do
     PWordArray(pointer(result))^[i] := TwoDigitLookupW[D[i]];
   PByteArray(result)[16] := ord('Z');
-//  Assert(abs(_PdfDateToDateTime(result)-ADate)<MSecsPerSec);
+//  Assert(abs(_PdfDateToDateTime(result)-ADate)<MilliSecsPerSec);
 end;
 
 function PdfDateToDateTime(const AText: TPdfDate; out AValue: TDateTime): boolean;
@@ -3073,8 +3086,9 @@ begin
   if (H < 24) and
     (MI < 60) and
     (SS < 60) then // inlined EncodeTime()
-    AValue := AValue + (H * (MinsPerHour * SecsPerMin * MSecsPerSec) +
-              MI * (SecsPerMin * MSecsPerSec) + SS * MSecsPerSec) / MSecsPerDay
+    AValue := AValue + (H * MilliSecsPerHour +
+                        MI * MilliSecsPerMin +
+                        SS * MilliSecsPerSec) / MilliSecsPerDay
   else
     exit;
   result := true;
@@ -3380,7 +3394,7 @@ var
   i: PtrInt;
 begin
   for i := 0 to PLen - 1 do
-    P^[i] := swap(P^[i]);
+    P^[i] := bswap16(P^[i]);
 end;
 
 function GetTtfData(aDC: HDC; aTableName: PAnsiChar; var Ref: TWordDynArray): pointer;
@@ -4618,7 +4632,9 @@ var
 begin
   if BEnd - B <= 24 then
     Save;
+  {$ifndef ASMINTEL} // our StrInt32 asm has less CPU cache pollution
   if cardinal(Value) < 1000 then
+  {$endif ASMINTEL}
     if cardinal(Value) < 10 then
     begin
       B^ := AnsiChar(Value + 48);
@@ -4629,11 +4645,13 @@ begin
       PWord(B)^ := TwoDigitLookupW[Value];
       inc(B, 2);
     end
+    {$ifndef ASMINTEL}
     else
     begin
       PCardinal(B)^ := PCardinal(SmallUInt32Utf8[Value])^;
       inc(B, 3);
     end
+    {$endif ASMINTEL}
   else
   begin
     P := StrInt32(@t[23], Value);
@@ -4854,14 +4872,14 @@ end;
 
 function TPdfWrite.AddHex(const Bin: PdfString): TPdfWrite;
 var
-  L, len: integer;
+  L, len: PtrInt;
   PW: pointer;
 begin
   len := length(Bin);
   PW := pointer(Bin);
   repeat
     L := len;
-    if BEnd - B <= L * 2 then
+    if PtrInt(BEnd - B) <= L * 2 then // note: PtrInt(BEnd - B) could be < 0
     begin
       Save;
       if L > high(fTmp) shr 1 then
@@ -5022,7 +5040,7 @@ function TPdfWrite.AddUnicodeHex(PW: PWideChar; WideCharCount: integer): TPdfWri
   end;
 
 var
-  L: integer;
+  L: PtrInt;
   {$ifdef USE_PDFSECURITY}
   sectmp: TSynTempBuffer;
   {$endif USE_PDFSECURITY}
@@ -5996,9 +6014,9 @@ end;
 
 function TPdfFontTrueType.GetAndMarkGlyphAsUsed(aGlyph: word): word;
 var
-  i: integer;
+  i: PtrInt;
 begin
-  result := aGlyph;
+  result := aGlyph; // fallback to raw glyph index if nothing explicit
   // 1. check if not already registered as used
   with WinAnsiFont do // WinAnsiFont.fUsedWide[] = glyphs used by ShowText
     for i := 0 to fUsedWideChar.Count - 1 do
@@ -6013,7 +6031,6 @@ begin
           WideChar(fUsedWideChar.Values[i]))].Glyph;
         exit; // result may be 0 if this glyph doesn't exist in the CMAP content
       end;
-  result := 0; // returns 0 if not found
 end;
 
 constructor TPdfFontTrueType.Create(ADoc: TPdfDocument; AFontIndex: integer;
@@ -6191,7 +6208,7 @@ begin
   inc(PTtfTableDirectory(e));
   n := 0;
   if SubSetSize > SizeOf(PTtfTableDirectory) then
-    for i := 1 to swap(PTtfTableDirectory(SubSetData)^.numTables) do
+    for i := 1 to bswap16(PTtfTableDirectory(SubSetData)^.numTables) do
     begin
       if IntegerScanIndex(@TTF_SUBSET, length(TTF_SUBSET), e^.tag) >= 0 then
       begin
@@ -6209,11 +6226,11 @@ begin
   // update the main directory
   dir := pointer(ttf);
   dir^.sfntVersion := PTtfTableDirectory(SubSetData)^.sfntVersion;
-  dir^.numTables := swap(word(n));
+  dir^.numTables := bswap16(n);
   //len := HighBit(n); // always 8 when n in 8..15
-  //dir^.searchRange := swap(len * 16);
-  //dir^.entrySelector := swap(Floor(log2(len))); // requires the Math unit
-  //dir^.rangeShift := swap((integer(n) - len) * 16);
+  //dir^.searchRange := bswap16(len * 16);
+  //dir^.entrySelector := bswap16(Floor(log2(len))); // requires the Math unit
+  //dir^.rangeShift := bswap16((integer(n) - len) * 16);
   dir^.searchRange := 32768; // pre-computed values for n in 8..15
   dir^.entrySelector := 768;
   dir^.rangeShift := 8192;
@@ -7119,8 +7136,9 @@ begin
     fOutputIntents := TPdfArray.Create(fXRef);
     dic := TPdfDictionary.Create(fXRef);
     dic.AddItem('Type', 'OutputIntent');
-    dic.AddItem('S', 'GTS_PdfA1'); // there is no GTS_PdfA2 or GTS_PdfA3
+    dic.AddItem('S', 'GTS_PDFA1'); // there is no GTS_PdfA2 or GTS_PdfA3
     dic.AddItemText('OutputConditionIdentifier', 'sRGB');
+    dic.AddItemText('Info', 'sRGB'); // to show the output intents on Acrobat-Reader tab "standards"
     dic.AddItemText('RegistryName', 'http://www.color.org');
     rgb := TPdfStream.Create(self);
     rgb.Attributes.AddItem('N', 3);
@@ -7140,15 +7158,15 @@ begin
   end;
   if needFileID then
   begin
-    RandomBytes(@fFileID, SizeOf(fFileID));
+    SharedRandom.Fill(@fFileID, SizeOf(fFileID));
     SetLength(hexFileID, SizeOf(fFileID) * 2 + 2);
     P := pointer(hexFileID);
     P[0] := '<';
     mormot.core.text.BinToHex(PAnsiChar(@fFileID), P + 1, 16);
     P[SizeOf(fFileID) * 2 + 1] := '>';
-    ID := TPdfArray.Create(fXRef);
-    ID.AddItem(TPdfRawText.Create(hexFileID));
-    ID.AddItem(TPdfRawText.Create(hexFileID));
+    ID := TPdfArray.Create(fXRef); // array of 2 strings, as file identifier
+    ID.AddItem(TPdfRawText.Create(hexFileID)); // creation ID
+    ID.AddItem(TPdfRawText.Create(hexFileID)); // modified ID
     fTrailer.Attributes.AddItem('ID', ID);
   end;
   {$ifdef USE_PDFSECURITY}
@@ -7299,8 +7317,9 @@ begin
       '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">').
       AddS(Info.Subject).
       Add('</rdf:li></rdf:Alt></dc:description>' +
-      '</rdf:Description>' +
-      '<rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">' +
+      '</rdf:Description>').
+      Add(Info.CustomMetadata).
+      Add('<rdf:Description rdf:about="" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">' +
       '<pdf:Keywords>').
       AddS(Info.Keywords).
       Add('</pdf:Keywords>' +
@@ -7820,6 +7839,86 @@ begin
       end;
     end;
   end;
+end;
+
+function TPdfDocument.CreateFileAttachment(const AttachFile: TFileName;
+  const Description: string): TPdfDictionary;
+var
+  lw, fc: TUnixMSTime;
+  buf: RawByteString;
+begin
+  result := nil;
+  if not FileInfoByName(AttachFile, nil, nil, @lw, @fc) then
+    exit;
+  buf := StringFromFile(AttachFile);
+  if buf <> '' then
+    result := CreateFileAttachmentFromBuffer(buf, ExtractFileName(AttachFile),
+      Description, '', UnixMSTimeToDateTimeZ(fc), UnixMSTimeToDateTimeZ(lw));
+end;
+
+function TPdfDocument.CreateFileAttachmentFromBuffer(const Buffer: RawByteString;
+  const Title, Description, MimeType: string; CreationDate, ModDate: TDateTime): TPdfDictionary;
+var
+  fs, ef, ndic, efdic, parms: TPdfDictionary;
+  arr: TPdfArray;
+  str: TPdfStream;
+  txt: TPdfTextString;
+  mime: RawUtf8;
+begin
+  // create embedded file stream with main attributes
+  str := TPdfStream.Create(Self);
+  str.Writer.Add(pointer(Buffer), length(Buffer));
+  str.Attributes.AddItem('Type', 'EmbeddedFile');
+  if MimeType <> '' then
+    StringToUtf8(MimeType, mime)
+  else if Pos('.', Description) <> 0 then
+    mime := GetMimeContentType(Buffer, Description)
+  else
+    mime := GetMimeContentType(Buffer);
+  str.Attributes.AddItem('Subtype', mime);
+  // file Params attribute
+  parms := TPdfDictionary.Create(fXref);
+  parms.AddItem('Size', length(Buffer));
+  if CreationDate <> 0 then
+    parms.AddItemText('CreationDate', DateTimeToPdfDate(CreationDate));
+  if ModDate <> 0 then
+    parms.AddItemText('ModDate', DateTimeToPdfDate(ModDate));
+  str.Attributes.AddItem('Params', parms);
+  // create Filespec
+  fs := TPdfDictionary.Create(fXref);
+  fXref.AddObject(fs);
+  fs.AddItem('Type', 'Filespec');
+  fs.AddItemTextString('F', Title);
+  fs.AddItemTextString('UF', Title);
+  fs.AddItemTextString('Desc', Description);
+  fs.AddItem('AFRelationship', 'Alternative'); // alternative or source
+  ef := TPdfDictionary.Create(fXref);
+  ef.AddItem('F', str);
+  ef.AddItem('UF', str);
+  fs.AddItem('EF', ef);
+  // ensure we have the needed Names and EmbeddedFiles dictionaries
+  ndic := Root.Data.PdfDictionaryByName('Names');
+  if ndic = nil then
+  begin
+    ndic := TPdfDictionary.Create(fXref);
+    root.Data.AddItem('Names', ndic);
+  end;
+  efdic := ndic.PdfDictionaryByName('EmbeddedFiles');
+  if efdic = nil then
+  begin
+    efdic := TPdfDictionary.Create(fXref);
+    ndic.AddItem('EmbeddedFiles', efdic);
+    arr := TPdfArray.Create(fXref);
+    efdic.AddItem('Names', arr);
+  end
+  else
+    arr := efdic.PdfArrayByName('Names');
+  // add title and Filespec in Names array
+  txt := TPdfTextString.Create(Title);
+  arr.AddItem(txt);
+  arr.AddItem(fs);
+  // return the newly created Filespec dictionary
+  result := fs;
 end;
 
 procedure TPdfDocument.SetUseOptionalContent(Value: boolean);
@@ -8929,7 +9028,7 @@ begin
   if PW <> nil then
     if fPage.fFont.FTrueTypeFontsIndex = 0 then
     begin
-      s := fDoc.Engine.UnicodeBufferToAnsi(PW, StrLenW(PW));
+      fDoc.Engine.UnicodeBufferToAnsiVar(PW, StrLenW(PW), s);
       i := 1;
       while i <= length(s) do
       begin // loop is MBCS ready
@@ -9706,7 +9805,7 @@ begin
   fPermissions := aPermissions;
   fUserPassword := aUserPassword;
   if aOwnerPassword = '' then
-    raise EPdfInvalidOperation.CreateUtf8(
+    EPdfInvalidOperation.RaiseUtf8(
       '% expect a non void owner password', [self]);
   fOwnerPassword := aOwnerPassword;
 end;
@@ -10337,7 +10436,7 @@ end;
 function EnumEMFFunc(DC: HDC; var Table: THandleTable; R: PEnhMetaRecord;
   NumObjects: DWord; E: TPdfEnum): LongBool; stdcall;
 var
-  i: integer;
+  i: PtrInt;
   InitTransX: XForm;
   polytypes: PByteArray;
 begin
@@ -10876,18 +10975,14 @@ begin
           with PEMRBitBlt(R)^ do // only handle RGB bitmaps (no palette)
             if (offBmiSrc <> 0) and
                (offBitsSrc <> 0) then
-            begin
               E.DrawBitmap(xSrc, ySrc, cxDest, cyDest, xDest, yDest,
                 cxDest, cyDest, iUsageSrc, pointer(PtrUInt(R) + offBmiSrc),
-                pointer(PtrUInt(R) + offBitsSrc), @PEMRBitBlt(R)^.rclBounds,
-                @PEMRBitBlt(R)^.xformSrc, PEMRBitBlt(R)^.dwRop);
-            end
+                pointer(PtrUInt(R) + offBitsSrc), @rclBounds, @xformSrc, dwRop)
             else
-              case PEMRBitBlt(R)^.dwRop of // we only handle PATCOPY = fillrect
+              case dwRop of // we only handle PATCOPY = fillrect
                 PATCOPY:
-                  with PEMRBitBlt(R)^ do
-                    E.FillRectangle(Rect(xDest, yDest,
-                      xDest + cxDest, yDest + cyDest), true);
+                  E.FillRectangle(Rect(xDest, yDest,
+                    xDest + cxDest, yDest + cyDest), true);
               end;
         end;
       EMR_STRETCHBLT:
@@ -10895,18 +10990,14 @@ begin
           with PEMRStretchBlt(R)^ do // only handle RGB bitmaps (no palette)
             if (offBmiSrc <> 0) and
                (offBitsSrc <> 0) then
-            begin
               E.DrawBitmap(xSrc, ySrc, cxSrc, cySrc, xDest, yDest, cxDest,
                 cyDest, iUsageSrc, pointer(PtrUInt(R) + offBmiSrc),
-                pointer(PtrUInt(R) + offBitsSrc), @PEMRStretchBlt(R)^.rclBounds,
-                @PEMRStretchBlt(R)^.xformSrc, PEMRStretchBlt(R)^.dwRop);
-            end
+                pointer(PtrUInt(R) + offBitsSrc), @rclBounds, @xformSrc, dwRop)
             else
-              case PEMRStretchBlt(R)^.dwRop of // we only handle PATCOPY = fillrect
+              case dwRop of // we only handle PATCOPY = fillrect
                 PATCOPY:
-                  with PEMRStretchBlt(R)^ do
-                    E.FillRectangle(Rect(
-                      xDest, yDest, xDest + cxDest, yDest + cyDest), true);
+                  E.FillRectangle(Rect(
+                    xDest, yDest, xDest + cxDest, yDest + cyDest), true);
               end;
         end;
       EMR_STRETCHDIBITS:
@@ -10919,8 +11010,7 @@ begin
                 bmiHeader.biHeight := -bmiHeader.biHeight;
             E.DrawBitmap(xSrc, ySrc, cxSrc, cySrc, xDest, yDest, cxDest, cyDest,
               iUsageSrc, pointer(PtrUInt(R) + offBmiSrc),
-              pointer(PtrUInt(R) + offBitsSrc), @PEMRStretchDIBits(R)^.rclBounds,
-              nil, PEMRStretchDIBits(R)^.dwRop);
+              pointer(PtrUInt(R) + offBitsSrc), @rclBounds, nil, dwRop);
           end;
       EMR_TRANSPARENTBLT:
         with PEMRTransparentBLT(R)^ do // only handle RGB bitmaps (no palette)
@@ -10928,17 +11018,29 @@ begin
              (offBitsSrc <> 0) then
             E.DrawBitmap(xSrc, ySrc, cxSrc, cySrc, xDest, yDest, cxDest, cyDest,
               iUsageSrc, pointer(PtrUInt(R) + offBmiSrc),
-              pointer(PtrUInt(R) + offBitsSrc), @PEMRTransparentBLT(R)^.rclBounds,
-              @PEMRTransparentBLT(R)^.xformSrc, SRCCOPY,
-              PEMRTransparentBLT(R)^.dwRop); // dwRop stores the transparent color
+              pointer(PtrUInt(R) + offBitsSrc), @rclBounds, @xformSrc, SRCCOPY,
+              dwRop); // dwRop stores the transparent color
+      EMR_ALPHABLEND:
+        with PEMRAlphaBlend(R)^ do // only handle RGB bitmaps (no palette nor transparency)
+          if (offBmiSrc <> 0) and
+             (offBitsSrc <> 0) then
+            E.DrawBitmap (xSrc, ySrc, cxSrc, cySrc, xDest, yDest, cxDest, cyDest,
+              iUsageSrc, pointer(PtrUInt(R) + offBmiSrc), pointer(
+               PtrUInt(R) + offBitsSrc), @rclBounds, @xformSrc, SRCCOPY, dwRop)
+          else
+            case dwRop of // we only handle PATCOPY = fillrect
+              PATCOPY:
+                E.FillRectangle(Rect(xDest, yDest,
+                  xDest + cxDest, yDest + cyDest), true);
+            end;
       EMR_GDICOMMENT:
-        with PEMRGDICOMMENT(R)^ do
+        with PEMRGDIComment(R)^ do
           if cbData >= 1  then
             E.HandleComment(
               TPdfGdiComment(Data[0]), PAnsiChar(@Data) + 1, cbData - 1);
       EMR_MODIFYWORLDTRANSFORM:
         with PEMRModifyWorldTransform(R)^ do
-          E.ScaleMatrix(@PEMRModifyWorldTransform(R)^.xform, iMode);
+          E.ScaleMatrix(@xform, iMode);
       EMR_EXTCREATEPEN: // approx. - fast solution
         with PEMRExtCreatePen(R)^ do
           if ihPen - 1 < cardinal(length(E.Obj)) then
@@ -11853,7 +11955,7 @@ begin
   begin
     Canvas.GSave;
     Canvas.NewPath;
-    DC[nDC].ClipRgnNull := False;
+    DC[nDC].ClipRgnNull := false;
     d := @Data^.RgnData;
     pr := @d^.Buffer;
     for i := 1 to d^.rdh.nCount do
