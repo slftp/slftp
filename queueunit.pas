@@ -446,10 +446,11 @@ begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
-    if s1.freeslots = 0 then
-      exit;
-    if s2.freeslots = 0 then
-      exit;
+    // FIX Bug #6: Removed TOCTOU race condition - freeslots check without lock
+    // Previously: checked freeslots without lock, then acquired lock later
+    // This early exit was just an optimization but caused race conditions
+    // The actual slot availability is properly checked later (lines 500-529 for s1, 548-554 for s2)
+    // with proper locking, making these early checks redundant and unsafe
 
     if s2.MaxSimUpCooldownActive then
     begin
@@ -477,24 +478,14 @@ begin
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
       exit; // we are already sending this file to the same destination site
 
-    if s2.num_up >= s2.max_up then
-      exit;
+    // FIX Bug #7: Removed TOCTOU race conditions for num_up and num_dn checks
+    // Previously: checked num_up/num_dn without locks, then acquired locks later
+    // These early exits were optimizations but caused race conditions
+    // The actual slot availability is properly checked later (lines 545-551 for s1, 563-564 for s2)
+    // with proper locking, making these early checks redundant and unsafe
 
     if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
       exit; // we are already sending this file the opposite route
-
-    // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
-    //if t.ps1.status = rssRealPre then
-    if t.ps1.StatusRealPreOrShouldPre then
-    begin
-      if s1.num_dn >= s1.max_pre_dn then
-        exit;
-    end
-    else
-    begin
-      if s1.num_dn >= s1.max_dn then
-        exit;
-    end;
 
     ss1 := nil;
     for i := 0 to s1.slots.Count - 1 do
@@ -528,63 +519,109 @@ begin
     if ss1 = nil then
       exit;
 
-
-    if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
-    begin
-      fBusyDestinations.Add(s2, 0);
+    // FIX Bug #7: Acquire lock for source site (s1) to prevent TOCTOU race on num_dn
+    // Must acquire s1 lock FIRST (before s2) to prevent deadlock
+    // Previously: only s2 was locked, allowing num_dn to exceed max_dn
+    if not s1.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots-source') then
       exit;
-    end;
 
     try
-      // check again now that we have the lock at the destination
-      if s2.num_up >= s2.max_up then
-        exit;
-
-      // again check if this file is already being sent to the destination now that we have the slot assignment lock
-      if t.ps2.HasActiveTransfer(t.dir + t.filename) then
-        exit; // we are already sending this file to the same destination site
-
-      ss2 := nil;
-      for fSiteSlotLoop in s2.slots do
+      // FIX Bug #11: Re-check ss1.todotask with lock held (prevents race condition)
+      // Between the earlier check (line 502) and now, another thread may have assigned this slot
+      // If the slot is now busy, we must exit to prevent overwriting todotask and losing num_dn increment
+      if ss1.todotask <> nil then
       begin
-        if (fSiteSlotLoop.todotask = nil) and (fSiteSlotLoop.status = ssOnline) then
+        Debug(dpSpam, section, '[BUG #11] %s was assigned by another thread, EXIT', [ss1.Name]);
+        exit;
+      end;
+
+      // FIX Bug #7: Re-check num_dn with lock held (prevents race condition)
+      // Between the earlier check (lines 493/498) and now, another thread may have assigned slots
+      if t.ps1.StatusRealPreOrShouldPre then
+      begin
+        if s1.num_dn >= s1.max_pre_dn then
         begin
-          // available slot we might use
-          ss2 := fSiteSlotLoop;
-          break;
+          Debug(dpSpam, section, '[MAXDN-DBG] %s: num_dn (%d) >= max_pre_dn (%d), EXIT', [s1.Name, s1.num_dn, s1.max_pre_dn]);
+          exit;
+        end;
+      end
+      else
+      begin
+        if s1.num_dn >= s1.max_dn then
+        begin
+          Debug(dpSpam, section, '[MAXDN-DBG] %s: num_dn (%d) >= max_dn (%d), EXIT', [s1.Name, s1.num_dn, s1.max_dn]);
+          exit;
         end;
       end;
-      if ss2 = nil then
-        exit;
 
-      // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
-      i := ss2.site.MaxUpPerRip;
-      if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
+      // Acquire lock for destination site (s2)
+      if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots-destination') then
       begin
-        Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
+        fBusyDestinations.Add(s2, 0);
         exit;
       end;
 
-      Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
-      t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
-      t.assigned := Now;
-      t.dst.assigned := Now;
-      t.dst.wait_for := t.Name;
-      t.dst.slot1 := ss2;
-      AddTask(t.dst);
-      t.ps2.AddActiveTransfer(t.dir + t.filename, s1.Name);
-      t.slot1      := ss1;
-      t.slot1name  := ss1.Name;
-      t.slot2      := ss2;
-      t.slot2name  := ss2.Name;
-      ss1.downloadingfrom := True;
-      ss2.uploadingto := True;
-      ss1.todotask := t;
-      ss2.todotask := t.dst;
-      ss2.Fire;
-      ss1.Fire;
+      try
+        // check again now that we have the lock at the destination
+        if s2.num_up >= s2.max_up then
+          exit;
+
+        // again check if this file is already being sent to the destination now that we have the slot assignment lock
+        if t.ps2.HasActiveTransfer(t.dir + t.filename) then
+          exit; // we are already sending this file to the same destination site
+
+        ss2 := nil;
+        for fSiteSlotLoop in s2.slots do
+        begin
+          if (fSiteSlotLoop.todotask = nil) and (fSiteSlotLoop.status = ssOnline) then
+          begin
+            // available slot we might use
+            ss2 := fSiteSlotLoop;
+            break;
+          end;
+        end;
+        if ss2 = nil then
+          exit;
+
+        // now you can relax, just check if you don't abuse your max simultaneous uploads for a rip
+        i := ss2.site.MaxUpPerRip;
+        if ((i > 0) and (t.ps2.ActiveTransferCount >= i)) then
+        begin
+          Debug(dpSpam, section, 'We shouldnt upload more than maxupperrip value [' + IntToStr(i) + '] for' + ss2.Name);
+          exit;
+        end;
+
+        Debug(dpSpam, section, 'FOUND SLOTS FOR ' + t.FullName + ': ' + ss1.Name + ' ' + ss2.Name);
+        t.dst      := TWaitTask.Create(t.netname, t.channel, t.site2);
+        t.assigned := Now;
+        t.dst.assigned := Now;
+        t.dst.wait_for := t.Name;
+        t.dst.slot1 := ss2;
+        AddTask(t.dst);
+        t.ps2.AddActiveTransfer(t.dir + t.filename, s1.Name);
+        t.slot1      := ss1;
+        t.slot1name  := ss1.Name;
+        t.slot2      := ss2;
+        t.slot2name  := ss2.Name;
+
+        Debug(dpSpam, section, '[MAXDN-DBG] BEFORE assign: %s num_dn=%d/%d, %s num_up=%d/%d',
+          [s1.Name, s1.num_dn, s1.max_dn, s2.Name, s2.num_up, s2.max_up]);
+
+        ss1.downloadingfrom := True;
+        ss2.uploadingto := True;
+
+        Debug(dpSpam, section, '[MAXDN-DBG] AFTER assign: %s num_dn=%d/%d, %s num_up=%d/%d, Task: %s',
+          [s1.Name, s1.num_dn, s1.max_dn, s2.Name, s2.num_up, s2.max_up, t.FullName]);
+
+        ss1.todotask := t;
+        ss2.todotask := t.dst;
+        ss2.Fire;
+        ss1.Fire;
+      finally
+        s2.ReleaseSlotsAssignmentLock;
+      end;
     finally
-      s2.ReleaseSlotsAssignmentLock;
+      s1.ReleaseSlotsAssignmentLock;
     end;
   except
   on e: Exception do
@@ -788,6 +825,15 @@ begin
           exit;
       end;
 
+      // FIX Bug #11: Re-check ss.todotask with lock held (prevents race condition)
+      // Between the slot search (lines 824-831) and now, the slot state may have changed
+      // If the slot is now busy, we must exit to prevent overwriting todotask and losing num_dn increment
+      if ss.todotask <> nil then
+      begin
+        Debug(dpSpam, section, '[BUG #11] TryToAssignSlots: %s was assigned by another thread, EXIT', [ss.Name]);
+        exit;
+      end;
+
       if ((t.wanted_dn) or (t.wanted_up)) then
       begin
         if t.wanted_dn then
@@ -814,18 +860,38 @@ begin
 
         //OLD CODE before max_pre_dn was added
           if s.num_dn >= ss.site.max_dn then
+          begin
+            Debug(dpSpam, section, '[MAXDN-DBG] TryToAssignSlots: %s num_dn (%d) >= max_dn (%d), EXIT for task %s',
+              [s.Name, s.num_dn, ss.site.max_dn, t.FullName]);
             exit;
+          end;
 
+          Debug(dpSpam, section, '[MAXDN-DBG] TryToAssignSlots BEFORE: %s num_dn=%d/%d, Task: %s',
+            [s.Name, s.num_dn, s.max_dn, t.FullName]);
 
           ss.downloadingfrom := True;
+
+          Debug(dpSpam, section, '[MAXDN-DBG] TryToAssignSlots AFTER: %s num_dn=%d/%d, Task: %s',
+            [s.Name, s.num_dn, s.max_dn, t.FullName]);
 
         end
         else
         if t.wanted_up then
         begin
           if s.num_up >= ss.site.max_up then
+          begin
+            Debug(dpSpam, section, '[MAXUP-DBG] TryToAssignSlots: %s num_up (%d) >= max_up (%d), EXIT for task %s',
+              [s.Name, s.num_up, ss.site.max_up, t.FullName]);
             exit;
+          end;
+
+          Debug(dpSpam, section, '[MAXUP-DBG] TryToAssignSlots BEFORE: %s num_up=%d/%d, Task: %s',
+            [s.Name, s.num_up, s.max_up, t.FullName]);
+
           ss.uploadingto := True;
+
+          Debug(dpSpam, section, '[MAXUP-DBG] TryToAssignSlots AFTER: %s num_up=%d/%d, Task: %s',
+            [s.Name, s.num_up, s.max_up, t.FullName]);
         end;
       end;
 
@@ -912,15 +978,78 @@ var
   t: TTask;
   fSetDownPazo: TList<TPazo>;
   fPazo: TPazo;
+  ts: TSite;
+  fNeedRecalc: Boolean;
 begin
   fSetDownPazo := TList<TPazo>.Create;
+  fNeedRecalc := False;
   try
     main_lock.Enter('QueueEmpty');
     try
+      ts := TSite(fSite);
+
       for t in tasks do
       begin
-        if ((not t.ready) and (t.slot1 = nil) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
+        // FIX Bug #4: Clear assigned slots for tasks on this site before marking as error
+        // Previously: only marked unassigned tasks as error, leaving assigned slots occupied
+        if ((not t.ready) and (not t.dontremove) and ((t.site1 = sitename) or (t.site2 = sitename))) then
+        begin
+          // Clear slot1 if assigned and belongs to this site
+          if (t.slot1 <> nil) and (t.site1 = sitename) then
+          begin
+            ts.AcquireSlotsAssignmentLock('QueueEmpty-slot1');
+            try
+              TSiteSlot(t.slot1).todotask := nil;
+
+              // FIX Bug #17: Cooldown before releasing flags in QueueEmpty (same as QueueClean)
+              // QueueEmpty is called when queue is cleared manually or on errors
+              // If tasks had active transfers, we need cooldown to prevent ghost login 553 errors
+              if (TSiteSlot(t.slot1).downloadingfrom or TSiteSlot(t.slot1).uploadingto) and (glDestroySocketCooldownMs > 0) then
+              begin
+                Debug(dpSpam, section, '[BUG #17] QueueEmpty: %s waiting %dms before releasing flags (ghost login prevention)',
+                  [TSiteSlot(t.slot1).Name, glDestroySocketCooldownMs]);
+                Sleep(glDestroySocketCooldownMs);
+              end;
+
+              TSiteSlot(t.slot1).downloadingfrom := False;
+              TSiteSlot(t.slot1).uploadingto := False;
+              t.slot1 := nil;
+              t.slot1name := '';
+              fNeedRecalc := True;
+            finally
+              ts.ReleaseSlotsAssignmentLock;
+            end;
+          end;
+
+          // Clear slot2 if assigned and belongs to this site
+          if (t.slot2 <> nil) and (t.site2 = sitename) then
+          begin
+            ts.AcquireSlotsAssignmentLock('QueueEmpty-slot2');
+            try
+              TSiteSlot(t.slot2).todotask := nil;
+
+              // FIX Bug #17: Cooldown before releasing flags in QueueEmpty (same as QueueClean)
+              // QueueEmpty is called when queue is cleared manually or on errors
+              // If tasks had active transfers, we need cooldown to prevent ghost login 553 errors
+              if (TSiteSlot(t.slot2).downloadingfrom or TSiteSlot(t.slot2).uploadingto) and (glDestroySocketCooldownMs > 0) then
+              begin
+                Debug(dpSpam, section, '[BUG #17] QueueEmpty: %s waiting %dms before releasing flags (ghost login prevention)',
+                  [TSiteSlot(t.slot2).Name, glDestroySocketCooldownMs]);
+                Sleep(glDestroySocketCooldownMs);
+              end;
+
+              TSiteSlot(t.slot2).downloadingfrom := False;
+              TSiteSlot(t.slot2).uploadingto := False;
+              t.slot2 := nil;
+              t.slot2name := '';
+              fNeedRecalc := True;
+            finally
+              ts.ReleaseSlotsAssignmentLock;
+            end;
+          end;
+
           t.readyerror := True;
+        end;
 
         if (t is TPazoTask) and not fSetDownPazo.Contains(TPazoTask(t).mainpazo) then
           fSetDownPazo.Add(TPazoTask(t).mainpazo);
@@ -933,6 +1062,10 @@ begin
     begin
       fPazo.SiteDown(sitename);
     end;
+
+    // FIX Bug #4: Recalculate freeslots after clearing assigned slots
+    if fNeedRecalc then
+      ts.RecalcFreeslots;
   finally
     fSetDownPazo.Free;
   end;
@@ -1845,6 +1978,16 @@ begin
             begin
               try
                 TSiteSlot(t.slot1).todotask := nil;
+
+                // FIX Bug #16: Cooldown before releasing flags in QueueClean (same as DestroySocket/Execute)
+                // QueueClean removes stuck/old tasks - if they had active transfers, we need cooldown
+                if (TSiteSlot(t.slot1).downloadingfrom or TSiteSlot(t.slot1).uploadingto) and (glDestroySocketCooldownMs > 0) then
+                begin
+                  Debug(dpSpam, section, '[BUG #16] QueueClean: %s waiting %dms before releasing flags (ghost login prevention)',
+                    [TSiteSlot(t.slot1).Name, glDestroySocketCooldownMs]);
+                  Sleep(glDestroySocketCooldownMs);
+                end;
+
                 TSiteSlot(t.slot1).downloadingfrom := False;
                 TSiteSlot(t.slot1).uploadingto := False;
                 t.slot1 := nil;
@@ -1865,6 +2008,16 @@ begin
                 ts2 := TSiteSlot(t.slot2).site;
 
                 TSiteSlot(t.slot2).todotask := nil;
+
+                // FIX Bug #16: Cooldown before releasing flags in QueueClean (same as DestroySocket/Execute)
+                // QueueClean removes stuck/old tasks - if they had active transfers, we need cooldown
+                if (TSiteSlot(t.slot2).downloadingfrom or TSiteSlot(t.slot2).uploadingto) and (glDestroySocketCooldownMs > 0) then
+                begin
+                  Debug(dpSpam, section, '[BUG #16] QueueClean: %s waiting %dms before releasing flags (ghost login prevention)',
+                    [TSiteSlot(t.slot2).Name, glDestroySocketCooldownMs]);
+                  Sleep(glDestroySocketCooldownMs);
+                end;
+
                 TSiteSlot(t.slot2).downloadingfrom := False;
                 TSiteSlot(t.slot2).uploadingto := False;
                 t.slot2 := nil;
@@ -1939,13 +2092,24 @@ begin
               ts.AcquireSlotsAssignmentLock('QueueClean login, quit, idle, mkdir');
               try
                 TSiteSlot(t.slot1).todotask := nil;
+
+                // FIX Bug #16: Cooldown before releasing flags in QueueClean (same as DestroySocket/Execute)
+                // QueueClean removes stuck/old tasks - if they had active transfers, we need cooldown
+                if (TSiteSlot(t.slot1).downloadingfrom or TSiteSlot(t.slot1).uploadingto) and (glDestroySocketCooldownMs > 0) then
+                begin
+                  Debug(dpSpam, section, '[BUG #16] QueueClean: %s waiting %dms before releasing flags (ghost login prevention)',
+                    [TSiteSlot(t.slot1).Name, glDestroySocketCooldownMs]);
+                  Sleep(glDestroySocketCooldownMs);
+                end;
+
+                // FIX Bug #8: Move downloadingfrom/uploadingto INSIDE lock to prevent race conditions
+                TSiteSlot(t.slot1).downloadingfrom := False;
+                TSiteSlot(t.slot1).uploadingto := False;
+                t.slot1     := nil;
+                t.slot1name := '';
               finally
                 ts.ReleaseSlotsAssignmentLock;
               end;
-              TSiteSlot(t.slot1).downloadingfrom := False;
-              TSiteSlot(t.slot1).uploadingto := False;
-              t.slot1     := nil;
-              t.slot1name := '';
             except
               on e: Exception do
               begin
@@ -2007,6 +2171,12 @@ begin
     Debug(dpError, section, Format('[CLEAN] QueueClean: Killed : %s other tasks',
       [IntToStr(tkill_other)]));
   end;
+
+  // FIX Bug #3: Recalculate freeslots after cleaning up stuck tasks
+  // QueueClean releases slots by setting todotask := nil, but didn't recalculate the freeslots counter
+  // This ensures freeslots is accurate after cleanup operations
+  if (tkill_race <> 0) or (tkill_other <> 0) then
+    ts.RecalcFreeslots;
 
   finally
     queueclean_last_run := Now;

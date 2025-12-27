@@ -741,6 +741,7 @@ procedure DeleteSite(const aSite: TSite);
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
   sites: Contnrs.TObjectList = nil; //< holds a list of all @link(TSite) objects
+  glDestroySocketCooldownMs: integer; //< Cooldown in ms after DestroySocket/QueueClean to prevent ghost login issues (default: 50ms)
 
 implementation
 
@@ -1363,6 +1364,7 @@ begin
   autologin := config.ReadBool(section, 'autologin', False);
   killafter := config.ReadInteger(section, 'killafter', 0);
   kill_connection_on_stalled_transfer_seconds := config.ReadInteger('taskrace', 'kill_connection_on_stalled_transfer_seconds', 0);
+  glDestroySocketCooldownMs := config.ReadInteger(section, 'destroysocket_cooldown_ms', 50);
 
   // Add admin site
   AddSite(TSite.Create(getAdminSiteName));
@@ -1498,6 +1500,40 @@ begin
     prot := prNone;
     SSCNEnabled := False;
     aktdir := '';
+
+    // FIX Bug #9: Reset downloadingfrom/uploadingto to prevent ghost downloads/uploads
+    // When a slot reconnects, these flags must be cleared to decrement num_dn/num_up
+    // Otherwise num_dn/num_up stays high even though the transfer is gone (ghost!)
+    Debug(dpSpam, section, '[BUG #9] DestroySocket: %s was downloadingfrom=%s uploadingto=%s, resetting to False',
+      [Name, BoolToStr(downloadingfrom, True), BoolToStr(uploadingto, True)]);
+
+    // FIX Bug #18: Acquire SlotsAssignmentLock before resetting flags to prevent TOCTOU race
+    // Problem: Queue checks num_dn < max_dn (without lock) then assigns slot
+    //          But between check and assignment, this DestroySocket decrements num_dn
+    //          Result: num_dn can exceed max_dn! Example:
+    //          - T1 (Queue): Check num_dn=2 < max_dn=3 → OK
+    //          - T2 (DestroySocket): downloadingfrom := False → num_dn-- = 1
+    //          - T1 (Queue): downloadingfrom := True → num_dn++ = 2
+    //          - But server still has ghost connection → num_dn exceeds max_dn!
+    // Solution: Hold SlotsAssignmentLock during flag reset to make check+decrement atomic
+    site.AcquireSlotsAssignmentLock('DestroySocket-Reset Flags');
+    try
+      // FIX Bug #10: Configurable cooldown after resetting flags to prevent ghost login issues
+      // Problem: FTP server (glFTPd) may not release login session immediately after disconnect
+      // If we decrement num_dn and queue immediately assigns new task, server sees ghost+new > max
+      // Solution: Wait a configurable time (default 50ms) to give server time to cleanup
+      if (downloadingfrom or uploadingto) and (glDestroySocketCooldownMs > 0) then
+      begin
+        Debug(dpSpam, section, '[BUG #10] DestroySocket: %s waiting %dms before releasing flags (ghost login prevention)',
+          [Name, glDestroySocketCooldownMs]);
+        Sleep(glDestroySocketCooldownMs);
+      end;
+
+      downloadingfrom := False;
+      uploadingto := False;
+    finally
+      site.ReleaseSlotsAssignmentLock;
+    end;
   except
     on e: Exception do
     begin
@@ -1513,7 +1549,14 @@ end;
 procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
 begin
   DestroySocket(False);
-  Relogin(0, False, aMessage);
+  try
+    Relogin(0, False, aMessage);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.DestroySocketAndRelogin Relogin %s: %s', [Name, e.Message]));
+    end;
+  end;
 end;
 
 procedure TSiteSlot.Execute;
@@ -1575,8 +1618,27 @@ begin
 
         Debug(dpSpam, section, Format('<-- %s', [Name]));
 
-        uploadingto := False;
-        downloadingfrom := False;
+        // FIX Bug #12: Acquire SlotsAssignmentLock before resetting uploadingto/downloadingfrom
+        // This is the normal path after task completion (successful or error)
+        // Without lock: Race condition where queue sees num_dn decreased and immediately assigns new task
+        // Example from logs: num_dn=3 (max) → num_dn=2 (this reset) → immediate new assignment
+        site.AcquireSlotsAssignmentLock('Execute-Reset Flags After Task');
+        try
+          // FIX Bug #10: Cooldown before resetting flags (also for normal task completion, not just DestroySocket)
+          // Problem: glFTPd needs time to cleanup FTP connection after task end
+          // If we immediately reset flags and queue assigns new task, server sees: old connection (not yet gone) + new = too many!
+          if (downloadingfrom or uploadingto) and (glDestroySocketCooldownMs > 0) then
+          begin
+            Debug(dpSpam, section, '[BUG #10] Execute: %s waiting %dms after task completion before releasing flags (ghost login prevention)',
+              [Name, glDestroySocketCooldownMs]);
+            Sleep(glDestroySocketCooldownMs);
+          end;
+
+          uploadingto := False;
+          downloadingfrom := False;
+        finally
+          site.ReleaseSlotsAssignmentLock;
+        end;
 
         if (todotask <> nil) then
         begin
@@ -1672,13 +1734,23 @@ begin
       begin
         Debug(dpError, section, '[Exception] Slot exception : %s', [e.Message]);
         try
-          todotask := nil;
+          // FIX Bug #2: Acquire SlotsAssignmentLock before setting todotask := nil
+          // to prevent race conditions with queue thread assigning tasks
+          self.site.AcquireSlotsAssignmentLock('Exception-Reset TodoTask');
+          try
+            todotask := nil;
+          finally
+            self.site.ReleaseSlotsAssignmentLock;
+          end;
         except
           on e: Exception do
           begin
             Debug(dpError, section,
               Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
               [e.Message]));
+            // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway
+            // This should not really ever happen, other than in a deadlock situation
+            todotask := nil;
             break;
           end;
         end;
@@ -3043,42 +3115,100 @@ begin
 end;
 
 procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
+var
+  fOldNumDn, fNewNumDn: integer;
 begin
   if Value <> fDownloadingFrom then
   begin
+    // FIX Bug #13: Log EVERY change to downloadingfrom for debugging
+    fOldNumDn := site.num_dn;
+    if Value then
+      fNewNumDn := fOldNumDn + 1
+    else
+      fNewNumDn := fOldNumDn - 1;
+
+    Debug(dpSpam, section, '[DOWNLOAD-DBG] %s: downloadingfrom %s → %s, %s num_dn: %d → %d',
+      [Name, BoolToStr(fDownloadingFrom, True), BoolToStr(Value, True),
+       site.Name, fOldNumDn, fNewNumDn]);
+
     fDownloadingFrom := Value;
     if fDownloadingFrom then
     begin
       {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
       if GetDebugVerbosity = dpSpam then
         Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      // FIX Bug #8: Log when num_dn exceeds max_dn (indicates race condition)
+      if site.num_dn > site.max_dn then
+        Debug(dpSpam, section, '[BUG #8] Site %s: num_dn (%d) EXCEEDS max_dn (%d)! Slot: %s',
+          [site.Name, site.num_dn, site.max_dn, Name]);
     end
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
       if GetDebugVerbosity = dpSpam then
         Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      // FIX Bug #8: Log when num_dn goes negative (indicates race condition)
+      if site.num_dn < 0 then
+        Debug(dpSpam, section, '[BUG #8] Site %s: num_dn (%d) is NEGATIVE! Slot: %s',
+          [site.Name, site.num_dn, Name]);
     end;
+  end
+  else
+  begin
+    // FIX Bug #14: Log no-op attempts to set downloadingfrom (helps debug invisible decrements)
+    // If code tries to set downloadingfrom to the same value it already has, no counter change occurs
+    // This log helps identify redundant cleanup code or race conditions
+    Debug(dpSpam, section, '[DOWNLOAD-DBG-NOOP] %s: downloadingfrom already %s (no change), %s num_dn: %d',
+      [Name, BoolToStr(Value, True), site.Name, site.num_dn]);
   end;
 end;
 
 procedure TSiteSlot.SetUploadingTo(const Value: boolean);
+var
+  fOldNumUp, fNewNumUp: integer;
 begin
   if Value <> fUploadingTo then
   begin
+    // FIX Bug #13: Log EVERY change to uploadingto for debugging
+    fOldNumUp := site.num_up;
+    if Value then
+      fNewNumUp := fOldNumUp + 1
+    else
+      fNewNumUp := fOldNumUp - 1;
+
+    Debug(dpSpam, section, '[UPLOAD-DBG] %s: uploadingto %s → %s, %s num_up: %d → %d',
+      [Name, BoolToStr(fUploadingTo, True), BoolToStr(Value, True),
+       site.Name, fOldNumUp, fNewNumUp]);
+
     fUploadingTo := Value;
     if fUploadingTo then
       begin
         {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
         if GetDebugVerbosity = dpSpam then
           Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        // FIX Bug #8: Log when num_up exceeds max_up (indicates race condition)
+        if site.num_up > site.max_up then
+          Debug(dpSpam, section, '[BUG #8] Site %s: num_up (%d) EXCEEDS max_up (%d)! Slot: %s',
+            [site.Name, site.num_up, site.max_up, Name]);
       end
     else
       begin
         {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
         if GetDebugVerbosity = dpSpam then
           Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        // FIX Bug #8: Log when num_up goes negative (indicates race condition)
+        if site.num_up < 0 then
+          Debug(dpSpam, section, '[BUG #8] Site %s: num_up (%d) is NEGATIVE! Slot: %s',
+            [site.Name, site.num_up, Name]);
       end;
+  end
+  else
+  begin
+    // FIX Bug #14: Log no-op attempts to set uploadingto (helps debug invisible decrements)
+    // If code tries to set uploadingto to the same value it already has, no counter change occurs
+    // This log helps identify redundant cleanup code or race conditions
+    Debug(dpSpam, section, '[UPLOAD-DBG-NOOP] %s: uploadingto already %s (no change), %s num_up: %d',
+      [Name, BoolToStr(Value, True), site.Name, site.num_up]);
   end;
 end;
 
@@ -4357,8 +4487,12 @@ end;
 
 procedure TSite.SetFreeSlots(const Value: integer);
 begin
-  if Value >= 0 then
-    fFreeslots := Value;
+  // FIX Bug #5: Add upper bounds check to prevent freeslots from exceeding total slots
+  // Previously: only checked Value >= 0, allowing freeslots to be set higher than available slots
+  if (Value >= 0) and (Value <= slots.Count) then
+    fFreeslots := Value
+  else
+    Debug(dpError, section, 'SetFreeSlots: Invalid value %d for site %s (slots: %d)', [Value, Name, slots.Count]);
 end;
 
 procedure TSite.RecalcFreeslots;
@@ -4387,9 +4521,7 @@ procedure TSite.FullLogin;
 var
   i: integer;
   ss: TSiteSlot;
-  fs: integer;
 begin
-  fs := 0;
   for i := 0 to slots.Count - 1 do
   begin
     ss := TSiteSlot(slots[i]);
@@ -4399,7 +4531,9 @@ begin
     end;
   end;
 
-  ffreeslots := fs;
+  // FIX Bug #1: Call RecalcFreeslots to properly count free slots
+  // Previously: fs was initialized to 0 and never incremented, causing ffreeslots to always be set to 0
+  RecalcFreeslots;
 end;
 
 procedure TSite.RebuildSlot(const aSlotNumber: integer);
