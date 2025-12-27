@@ -245,7 +245,7 @@ begin
         if (j <> 0) then
         begin
           // make sure its [\.\-\_]language[\.\-\_]
-          if (aRlsname[j - 1] in ['.', '-', '_']) and (aRlsname[j + sllang.ExpressionLength] in ['.', '-', '_']) then
+          if CharInSet(aRlsname[j - 1], ['.', '-', '_']) and CharInSet(aRlsname[j + sllang.ExpressionLength], ['.', '-', '_']) then
           begin
             Result := sllang.Language;
             break;

@@ -8,6 +8,7 @@
 {$ifdef FPC}
   // disabled some FPC paranoid warnings
   {$WARN 7119 off : Exported/global symbols should be accessed via the GOT }
+  // REL works in fact when accessing global variables defined within this unit
   {$WARN 7121 off : Check size of memory operand "$1: memory-operand-size is $2 bits, but expected [$3 bits]" }
   {$WARN 7122 off : Check size of memory operand "$1: memory-operand-size is $2 bits, but expected [$3 bits + $4 byte offset]" }
   {$WARN 7123 off : Check "$1: offset of memory operand is negative "$2 byte" }
@@ -15,17 +16,22 @@
 
 {$ifdef ASMX64}
 
+{$ifndef FPC_PICX64} // MoveFast/FillCharFast use non-PIC compatible @jmptab
+
 {
  FillCharFast/MoveFast implementation notes:
- - assume ERBMS is available (cpuid flag may not be propagated within VMs)
+ - assume ERMSB is available (cpuid flag may not be propagated within VMs)
  - use branchless sub-functions for smallest buffers, then SSE2 up to 255 bytes
  - use "rep movsb" for 256..512K input (should work on all CPUs, even oldest)
  - don't use backward "std rep movsb" since it is not involved by ERMBS (slow)
  - use non-temporal SSE2 or AVX loop >= 512KB (to not pollute the CPU cache)
  - will check X64CpuFeatures global to adjust the algorithm if cpuAVX is set
+ - our @jmptab trick is not PIC-compatible so we fallback to the RTL there
  - regarding benchmark, run TTestLowLevelCommon.CustomRTL on x86_64
   -> FillCharFast/MoveFast seems faster, especially for small lengths (strings)
   -> Delphi RTL is slower than FPC's, and it does not support AVX assembly yet
+  -> about the weird "byte ptr [X64CpuFeatures wrt..gotpcrel]" syntax, see
+     http://www.tortall.net/projects/yasm/manual/html/objfmt-elf64.html
 }
 
 const
@@ -50,14 +56,11 @@ const
   // - see also mormot.core.fpcx64mm.pas as reference
   SSE2MAXSIZE = 256;
 
-  // identify Intel/AMD AVX2+BMI support at Haswell level
-  CPUAVX2HASWELL = [cfAVX2, cfSSE42, cfBMI1, cfBMI2, cfCLMUL];
-
 procedure MoveFast(const src; var dst; cnt: PtrInt);
 {$ifdef FPC}nostackframe; assembler;
 asm {$else} asm .noframe {$endif} // rcx/rdi=src rdx/rsi=dst r8/rdx=cnt
         mov     rax, cnt             // rax=r8/rdx=cnt
-        lea     r10, [rip + @jmptab] // 0..16 dedicated sub-functions
+        lea     r10, [rip + @jmptab] // 0..16 dedicated sub-functions (non-PIC)
         sub     rax, 16
         ja      @up16                // >16 or <0
         {$ifdef WIN64ABI}    // circumvent FPC asm bug and adapt to xmm ABI
@@ -157,11 +160,19 @@ asm {$else} asm .noframe {$endif} // rcx/rdi=src rdx/rsi=dst r8/rdx=cnt
 @lrgbwd:// backward SSE2/AVX move
         cmp     rax, SSE2MAXSIZE
         jb      @bsse2 // 97/129..255 bytes is not worth AVX context transition
+        {$ifdef FPC_PICX64} // not working yet due to @jmptab relocation
+        test    byte ptr [X64CpuFeatures wrt..gotpcrel], 1 shl cpuAVX
+        {$else}
         test    byte ptr [rip + X64CpuFeatures], 1 shl cpuAVX
+        {$endif FPC_PICX64}
         jz      @bsse2
         jmp     @bavx
 @lrgfwd:// forward SSE2/AVX move
+        {$ifdef FPC_PICX64} // not working yet due to @jmptab relocation
+        test    byte ptr [X64CpuFeatures wrt..gotpcrel], 1 shl cpuAVX
+        {$else}
         test    byte ptr [rip + X64CpuFeatures], 1 shl cpuAVX
+        {$endif FPC_PICX64}
         jnz     @favx
         {$else}
 @lrgfwd:{$endif ASMX64AVXNOCONST}
@@ -388,7 +399,7 @@ procedure FillCharFast(var dst; cnt: PtrInt; value: byte);
 {$ifdef FPC}nostackframe; assembler;
 asm {$else} asm .noframe {$endif} // rcx/rdi=dst rdx/rsi=cnt r8b/dl=val
         mov     r9, $0101010101010101
-        lea     r10, [rip + @jmptab]
+        lea     r10, [rip + @jmptab] // does not work on PIC
         {$ifdef WIN64ABI}
         movzx   eax, r8b
         {$else}
@@ -449,7 +460,7 @@ asm {$else} asm .noframe {$endif} // rcx/rdi=dst rdx/rsi=cnt r8b/dl=val
 @sml10: movups  oword ptr [r8 - 16], xmm0 // last 16 bytes (may be overlapping)
         ret
 @abv255:{$ifdef WITH_ERMS}
-        cmp     rax, r9                   // non-temporal move > 512KB
+        cmp     r10, r9                   // non-temporal move > 512KB
         {$ifdef ASMX64AVXNOCONST}
         jae     @avx
         {$else}
@@ -480,7 +491,11 @@ asm {$else} asm .noframe {$endif} // rcx/rdi=dst rdx/rsi=cnt r8b/dl=val
         jae     @sse2nt                // bypass cache for cnt>512KB
         jmp     @reg
         {$ifdef ASMX64AVXNOCONST}
-@avx:   test    byte ptr [rip + X64CpuFeatures], 1 shl cpuAVX
+@avx:   {$ifdef FPC_PICX64} // not working yet due to @jmptab relocation
+        test    byte ptr [X64CpuFeatures wrt..gotpcrel], 1 shl cpuAVX
+        {$else}
+        test    byte ptr [rip + X64CpuFeatures], 1 shl cpuAVX
+        {$endif FPC_PICX64}
         jz      @sse2
         movups  oword ptr [dst], xmm0  // first unaligned 1..16 bytes
         add     dst, 16
@@ -545,6 +560,8 @@ asm {$else} asm .noframe {$endif} // rcx/rdi=dst rdx/rsi=cnt r8b/dl=val
 @05:    mov     byte ptr [dst + 4], al
 @04:    mov     dword ptr [dst], eax
 end;
+
+{$endif FPC_PICX64} // our @jmptab trick is not PIC-compatible
 
 function crc32fasttab(crc: cardinal; buf: PAnsiChar; len: cardinal;
   tab: PCrc32tab): cardinal;
@@ -637,7 +654,7 @@ function StrInt32(P: PAnsiChar; val: PtrInt): PAnsiChar;
         mov     rax, val
         cmp     val, 10
         jb      @1              // direct process of common val<10
-        lea     r8, [rip + TwoDigitLookup]
+        lea     r8, qword ptr [rip + TwoDigitLookup] // also for FPC_PIC
 {$ifdef FPC} align 8 {$else} .align 8 {$endif}
 @s:     lea     P, [P - 2]
         cmp     rax, 100
@@ -671,7 +688,7 @@ function StrUInt32(P: PAnsiChar; val: PtrUInt): PAnsiChar;
         mov     rax, val
         cmp     val, 10
         jb      @1  // direct process of common val<10
-        lea     r8, [rip + TwoDigitLookup]
+        lea     r8, qword ptr [rip + TwoDigitLookup] // also for FPC_PIC
 @s:     lea     P, [P - 2]
         cmp     rax, 100
         jb      @2
@@ -699,9 +716,7 @@ end;
 
 {$endif ASMX64}
 
-{$ifdef CPUX64ASM} /// proper compilation on FPC and Delphi XE7+
-
-{$ifdef FPC}
+{$ifdef FPC} // FPC-specific functions with raw RTL access
 
 procedure fpc_freemem; external name 'FPC_FREEMEM'; // access to RTL from asm
 
@@ -743,7 +758,29 @@ asm
 @z:
 end;
 
+{$else} // Delphi specific function
+
+procedure FastStringAddRef(str: pointer); // will call compilerproc on FPC
+asm
+        .noframe
+        test    str, str
+        jz      @z
+        {$ifdef STRCNT32}
+        cmp     dword ptr [str - _STRCNT], 0
+        jl      @z
+   lock inc     dword ptr [str - _STRCNT]
+        {$else}
+        cmp     qword ptr [str - _STRCNT], 0
+        jl      @z
+   lock inc     qword ptr [str - _STRCNT]
+        {$endif STRCNT32}
+@z:
+end;
+
 {$endif FPC}
+
+// following functions using AVX2 asm on FPC and Delphi XE7+
+{$ifdef CPUX64ASM}
 
 {
   Some numbers, with CITIES_MAX=200000, deleting 1/128 entries
@@ -753,8 +790,8 @@ end;
   hash=ms is the time needed to hash input (not impacted by adjusting algorithm)
   -> TDynArray.Delete move() now takes more time than the HashTable update :)
   1. naive loop
-    for i := 0 to HashTableSize-1 do
-      if HashTable[i]>aArrayIndex then
+    for i := 0 to HashTableSize - 1 do
+      if HashTable[i] > aArrayIndex then
         dec(HashTable[i]);
     3 #257  adjust=7.95ms 191.7MB/s hash=8us
     23 #195075  adjust=4.27s 548.6MB/s hash=2.47ms
@@ -764,7 +801,7 @@ end;
   3. SSE2 simd assembly makes about 3x improvement
     3 #257  adjust=290us 5.1GB hash=8us
     23 #195075  adjust=201.53ms 11.3GB/s hash=2.44ms
-  4. AVX2 simd assembly gives some additional 40% (on my iCore3 cpu)
+  4. AVX2 simd assembly gives some additional 40% (on my Core i3 cpu)
     3 #257  adjust=262us 5.6GB hash=8us
     23 #195075  adjust=161.73ms 14.1GB/s hash=2.57ms
 }
@@ -798,7 +835,7 @@ asm     // Windows x64 calling convention expects to preserve XMM6-XMM15
         sub     r8, 1
         jmp     @align
 @ok:    {$ifdef ASMX64AVXNOCONST}
-        test    byte ptr [rip + X64CpuFeatures], 1 shl cpuAVX2
+        test    byte ptr [rip + X64CpuFeatures], 1 shl cpuAVX2 // also for PIC
         jz      @sse2
         vpshufd ymm0, ymm0, 0          // shuffle to ymm0 128-bit low lane
         vperm2f128 ymm0, ymm0, ymm0, 0 // copy to ymm0 128-bit high lane
@@ -1530,7 +1567,7 @@ end;
 
 {$endif ASMX64AVXNOCONST}
 
-{$endif CPUX64ASM} // SSE2 asm is invalid prior to Delphi XE7 (to be refined)
+{$endif CPUX64ASM} // AVX2 asm is invalid prior to Delphi XE7 (to be refined)
 
 
 // functions below are always available, even on DARWIN
@@ -2159,7 +2196,7 @@ function WordScanIndex(P: PWordArray; Count: PtrInt; Value: word): PtrInt;
         cmp     rdx, rax
         jbe     @no
         ret
-        // 16bit-unaligned loop (seldom called)
+        // 16bit-unaligned loop (hardly called)
 {$ifdef FPC} align 8 {$else} .align 8 {$endif}
 @unal:  lea     rcx, [rcx + rdx * 2]
         neg     rdx
@@ -2225,7 +2262,7 @@ function IntegerScanIndex(P: PCardinalArray; Count: PtrInt; Value: cardinal): Pt
         cmp     rdx, rax
         jbe     @no
         ret
-        // 32bit-unaligned loop (seldom called)
+        // 32bit-unaligned loop (hardly called)
 {$ifdef FPC} align 8 {$else} .align 8 {$endif}
 @unal:  lea     rcx, [rcx + rdx * 4]
         neg     rdx
@@ -2254,7 +2291,7 @@ function MemCmp(P1, P2: PByteArray; L: PtrInt): integer;
 @by16:    // loop comparing 16 bytes
           movups  xmm1, oword ptr [P1 + L]
           movups  xmm2, oword ptr [P2 + L]
-          pcmpeqb xmm1, xmm2             // compare 16 bytes
+          pcmpeqb xmm1, xmm2             // compare 16 bytes (128-bit)
           pmovmskb eax, xmm1             // get byte mask
           xor     eax, r9d               // not ax
           jnz     @diff                  // difference found

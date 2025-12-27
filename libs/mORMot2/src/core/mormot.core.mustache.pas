@@ -138,6 +138,7 @@ type
   // other overridden class
   TSynMustacheContext = class
   protected
+    fReuse: TLightLock; // topmost to ensure aarch64 alignment
     fContextCount: integer;
     fEscapeInvert: boolean;
     fOwnWriter: boolean;
@@ -149,7 +150,6 @@ type
     fTempProcessHelper: TVariantDynArray;
     fOnStringTranslate: TOnStringTranslate;
     fOwner: TSynMustache;
-    fReuse: TLightLock;
     // some variant support is needed for the helpers
     function ProcessHelper(const ValueName: RawUtf8; space, helper: PtrInt;
       var Value: TVarData; OwnValue: PPVarData): TSynMustacheSectionType; virtual;
@@ -256,7 +256,7 @@ type
       Info: TRttiCustom;
       ListCount: integer;
       ListCurrent: integer;
-      Temp: TRttiVarData;
+      Temp: TSynVarData;
     end;
     fOnGetGlobalData: TOnGetGlobalData;
     procedure PushContext(Value: pointer; Rtti: TRttiCustom);
@@ -386,6 +386,8 @@ type
     class procedure MatchI(const Value: variant; out Result: variant);
     class procedure Lower(const Value: variant; out Result: variant);
     class procedure Upper(const Value: variant; out Result: variant);
+    class procedure CamelCase(const Value: variant; out Result: variant);
+    class procedure SnakeCase(const Value: variant; out Result: variant);
     class procedure EnumTrim(const Value: variant; out Result: variant);
     class procedure EnumTrimRight(const Value: variant; out Result: variant);
     class procedure PowerOfTwo(const Value: variant; out Result: variant);
@@ -459,12 +461,12 @@ type
     /// returns a list of most used static Expression Helpers
     // - registered helpers are DateTimeToText, DateToText, DateFmt, TimeLogToText,
     // BlobToBase64, JsonQuote, JsonQuoteUri, ToJson, EnumTrim, EnumTrimRight,
-    // Lower / Upper (Unicode ready), PowerOfTwo, Equals (expecting two parameters),
-    // NewGuid, ExtractFileName, HumanBytes (calling KB function), Sub (as
-    // {{Sub AString,12,3}}), MarkdownToHtml, SimpleToHtml (Markdown with no
-    // HTML pass-through), WikiToHtml (callining TJsonWriter.AddHtmlEscapeWiki),
-    // Match / MatchI (as {{Match AString,startwith*}}), and Values / Keys (over
-    // a data object)
+    // Lower / Upper (Unicode ready), CamelCase / SnakeCase, PowerOfTwo, Equals
+    // (expecting two parameters), NewGuid, ExtractFileName, HumanBytes (calling
+    // KB function), Sub (as {{Sub AString,12,3}}), MarkdownToHtml, SimpleToHtml
+    // (Markdown with no HTML pass-through), WikiToHtml (calling
+    // TJsonWriter.AddHtmlEscapeWiki), Match / MatchI (as {{Match AString,startwith*}}),
+    // and Values / Keys (over a data object)
     // - an additional #if helper is also registered, which would allow runtime
     // view logic, via = < > <= >= <> operators over two values:
     // $ {{#if .,"=",123}}  {{#if Total,">",1000}}  {{#if info,"<>",""}}
@@ -670,14 +672,14 @@ begin
     VariantLoadJson(result, ValueName, @JSON_[mFast])
   else if fGetVarDataFromContextNeedsFree then
   begin
-    if TRttiVarData(result).VType <> varEmpty then
+    if TVarData(result).VType <> varEmpty then
       VarClearProc(TVarData(result));
     GetVarDataFromContext(-1, ValueName, TVarData(result)); // set directly
   end
   else
   begin
-    GetVarDataFromContext(-1, ValueName, tmp); // get TVarData content
-    SetVariantByValue(variant(tmp), result);   // assign/copy value
+    GetVarDataFromContext(-1, ValueName, tmp);      // get TVarData content
+    SetVariantByValue(variant(tmp), result, false); // assign/copy value
   end;
 end;
 
@@ -694,7 +696,7 @@ var
   j, k, n: PtrInt;
 begin
   valnam := Copy(ValueName, space + 1, maxInt);
-  TRttiVarData(val).VType := varEmpty;
+  TSynVarData(val).VType := varEmpty;
   valFree := fGetVarDataFromContextNeedsFree;
   if valnam <> '' then
   begin
@@ -1083,11 +1085,11 @@ begin
              ord('I') shl 8 + ord('N') shl 16 + ord('D') shl 24 then
         begin
           // {{-index}} pseudo name
-          d := @Temp.Data.VInteger;
-          rc := PT_RTTI[ptInteger];
-          PInteger(d)^ := ListCurrent;
+          Temp.VInteger := ListCurrent;
           if ValueName[7] <> '0' then
-            inc(PInteger(d)^);
+            inc(Temp.VInteger);
+          d := @Temp.VInteger;
+          rc := PT_RTTI[ptInteger];
           exit;
         end
         else
@@ -1391,12 +1393,12 @@ begin
             // tag starts on a new line -> check if ends on the same line
             if (fPos > fPosMax) or
                (fPos^ = #$0A) or
-               (PWord(fPos)^ = $0A0D) then
+               (PWord(fPos)^ = CRLFW) then
             begin
               if fPos <= fPosMax then
                 if fPos^ = #$0A then
                   inc(fPos)
-                else if PWord(fPos)^ = $0A0D then
+                else if PWord(fPos)^ = CRLFW then
                   inc(fPos, 2);
               if fTagCount > 0 then
                 // remove any indentation chars from previous text
@@ -2059,7 +2061,9 @@ begin
       'Match',
       'MatchI',
       'Lower',
-      'Upper'],
+      'Upper',
+      'CamelCase',
+      'SnakeCase'],
      [DateTimeToText,
       DateToText,
       DateFmt,
@@ -2085,7 +2089,9 @@ begin
       Match,
       MatchI,
       Lower,
-      Upper]);
+      Upper,
+      CamelCase,
+      SnakeCase]);
   result := HelpersStandardList;
 end;
 
@@ -2450,6 +2456,23 @@ begin
     RawUtf8ToVariant(UpperCaseUnicode(u), Result);
 end;
 
+class procedure TSynMustache.CamelCase(const Value: variant;
+  out Result: variant);
+var
+  u: RawUtf8;
+begin
+  if VariantToText(Value, u) then
+    RawUtf8ToVariant(LowerCamelCase(u), Result);
+end;
+
+class procedure TSynMustache.SnakeCase(const Value: variant;
+  out Result: variant);
+var
+  u: RawUtf8;
+begin
+  if VariantToText(Value, u) then
+    RawUtf8ToVariant(mormot.core.unicode.SnakeCase(u), Result);
+end;
 
 
 end.

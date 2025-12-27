@@ -20,7 +20,7 @@ unit mormot.lib.z;
 
 interface
 
-{$I ..\mormot.defines.inc}
+{$I ..\mormot.defines.inc} // define LIBDEFLATESTATIC on supported targets
 
 {$if not defined(ZLIBSTATIC) and
      not defined(ZLIBPAS) and
@@ -30,7 +30,11 @@ interface
   // select best known choice if not overriden for the whole project
   {$ifdef FPC}
     {$ifdef OSWINDOWS}
-      {$define ZLIBSTATIC} // FPC Win32 Win64: we supply our static .o
+      {$ifdef CPUINTEL}
+        {$define ZLIBSTATIC} // FPC Win32 Win64: we supply our static .o
+      {$else}
+        {$define ZLIBPAS}    // aarch64-win64: no static yet
+      {$endif CPUINTEL}
     {$else}
       {$ifdef OSANDROID}
         {$define ZLIBPAS}  // FPC Android: paszlib (Alf reported problems)
@@ -53,7 +57,7 @@ interface
 {.$define LIBDEFLATESTATIC}
 // you may try to enable it e.g. for arm/aarch64-linux (not tested yet)
 
-{$ifdef NOLIBDEFLATESTATIC}
+{$ifdef NOLIBDEFLATESTATIC} // override mormot.defines.inc default support
   {$undef LIBDEFLATESTATIC}
 {$endif NOLIBDEFLATESTATIC}
 
@@ -199,6 +203,7 @@ function zlibCompressMax(input: PtrUInt): PtrUInt;
 const
   ZLIB_VERSION = '1.2.3';
 
+  // block methods results
   Z_NO_FLUSH      = 0;
   Z_PARTIAL_FLUSH = 1;
   Z_SYNC_FLUSH    = 2;
@@ -206,10 +211,12 @@ const
   Z_FINISH        = 4;
   Z_BLOCK         = 5;
 
+  // stream methods results
   Z_OK            = 0;
   Z_STREAM_END    = 1;
   Z_NEED_DICT     = 2;
 
+  // API error numbers (all negative)
   Z_ERRNO         = -1;
   Z_STREAM_ERROR  = -2;
   Z_DATA_ERROR    = -3;
@@ -217,33 +224,41 @@ const
   Z_BUF_ERROR     = -5;
   Z_VERSION_ERROR = -6;
 
+  // compression levels
   Z_DEFAULT_COMPRESSION = -1; // documented to match Z_USUAL_COMPRESSION (6)
   Z_NO_COMPRESSION      = 0;
   Z_BEST_SPEED          = 1;
   Z_USUAL_COMPRESSION   = 6;
-  Z_BEST_COMPRESSION    = 9;
+  Z_BEST_COMPRESSION    = {$ifdef LIBDEFLATESTATIC} 12 {$else} 9 {$endif};
 
+  // compression strategies/algorithms
+  Z_DEFAULT_STRATEGY = 0;
   Z_FILTERED         = 1;
   Z_HUFFMAN_ONLY     = 2;
   Z_RLE              = 3;
   Z_FIXED            = 4;
-  Z_DEFAULT_STRATEGY = 0;
 
+  // compression encoding
   Z_BINARY  = 0;
   Z_ASCII   = 1;
   Z_UNKNOWN = 2;
 
-  Z_STORED   = 0;
-  Z_DEFLATED = 8;
+  // memory level parameter
+  DEF_MEM_LEVEL = 8;
 
-  MAX_WBITS = 15; // 32K LZ77 window
-
+  // default 15-bit / 32KB size for the LZ77 window
+  MAX_WBITS = 15;
+  // the LZ77 window parameter value
   Z_MAX_BITS: array[{ZlibFormat:}boolean] of integer = (
     -MAX_WBITS,   // raw output with no header or trailing checksum
      MAX_WBITS);  // include zlib-specific header
 
-  DEF_MEM_LEVEL = 8;
-  Z_NULL = 0;
+  // 24-bit header magic number of a .gz file
+  GZ_MAGIC = $088B1F;
+
+  // main .zip methods
+  Z_STORED   = 0;
+  Z_DEFLATED = 8;
 
 
 { *******************   Low-Level libdeflate in-memory Compression Library }
@@ -794,8 +809,8 @@ end;
 
 function TZLib.CompressInit(CompressionLevel: integer; ZlibFormat: boolean): boolean;
 begin
-  if CompressionLevel > 9 then
-    CompressionLevel := 9; // libdeflate allows additional 10,11,12 level
+  if CompressionLevel > Z_BEST_COMPRESSION then
+    CompressionLevel := Z_BEST_COMPRESSION; // libdeflate is up to 12
   result := deflateInit2_(
     Stream, CompressionLevel, Z_DEFLATED, Z_MAX_BITS[ZLibFormat],
     DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY, ZLIB_VERSION, SizeOf(Stream)) >= 0;
@@ -1043,7 +1058,7 @@ var
 begin
   z.Init(src, dst, srcLen, dstLen);
   if CompressionLevel > 9 then
-    CompressionLevel := 9; // levels 10,11,12 are implemented by libdeflate
+    CompressionLevel := 9;
   if z.CompressInit(CompressionLevel, ZlibFormat) then
     try
       z.Check(z.Compress(Z_FINISH), [Z_STREAM_END, Z_OK], 'CompressMem');

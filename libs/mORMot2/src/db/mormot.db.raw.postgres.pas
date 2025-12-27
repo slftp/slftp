@@ -139,6 +139,19 @@ const
   PGFMT_TEXT = 0;
   PGFMT_BIN  = 1;
 
+  PG_DIAG_SEVERITY           = ord('S');
+  PG_DIAG_SQLSTATE           = ord('C');
+  PG_DIAG_MESSAGE_PRIMARY    = ord('M');
+  PG_DIAG_MESSAGE_DETAIL     = ord('D');
+  PG_DIAG_MESSAGE_HINT       = ord('H');
+  PG_DIAG_STATEMENT_POSITION = ord('P');
+  PG_DIAG_INTERNAL_POSITION  = ord('p');
+  PG_DIAG_INTERNAL_QUERY     = ord('q');
+  PG_DIAG_CONTEXT            = ord('W');
+  PG_DIAG_SOURCE_FILE        = ord('F');
+  PG_DIAG_SOURCE_LINE        = ord('L');
+  PG_DIAG_SOURCE_FUNCTION    = ord('R');
+
 /// compute the PostgreSQL raw binary to encode an array of (integer) parameters
 function ToArrayOid(Values: PByte; ArrayOid, ValueCount, ValueSize: integer;
   var Bin: RawByteString): boolean;
@@ -275,8 +288,7 @@ begin
   else
     exit; // unsupported
   end;
-  FastNewRawByteString(Bin, len);
-  p := pointer(Bin);
+  p := FastNewRawByteString(Bin, len);
   p^ := $01000000;           // dimensions
   inc(p);
   p^ := $00000000;           // has null
@@ -316,7 +328,7 @@ begin
       dec(ValueCount)
     until ValueCount = 0;
   //if PAnsiChar(p) - pointer(Bin) <> length(Bin) then
-  //  raise ESqlDBPostgres.Create('ToIntArrayOid');
+  //  raise ESqlDBPostgres.CreateU('ToIntArrayOid');
   result := true;
 end;
 
@@ -324,7 +336,7 @@ end;
 { ************ PostgreSQL Client Library Loading }
 
 const
-  PQ_ENTRIES: array[0..36] of RawUtf8 = (
+  PQ_ENTRIES: array[0..36] of PAnsiChar = ( // will be prefixed by 'PQ' chars
     'libVersion',
     'isthreadsafe',
     'setdbLogin',
@@ -388,16 +400,24 @@ var
   raiseonfailure: ExceptionClass;
   i: PtrInt;
 begin
-  TryFromExecutableFolder := true;
-  TryLoadLibrary([
-    SynDBPostgresLibrary, LIBNAME, LIBNAME2], ESqlDBPostgres);
-  P := @@LibVersion;
-  raiseonfailure := ESqlDBPostgres;
-  for i := 0 to High(PQ_ENTRIES) do
-  begin
-    if PQ_ENTRIES[i] = 'enterPipelineMode' then
-      raiseonfailure := nil; // old libpq with no pipelining API
-    Resolve('PQ', PQ_ENTRIES[i], @P[I], raiseonfailure);
+  try
+    TryFromExecutableFolder := true;
+    TryLoadLibrary([
+      SynDBPostgresLibrary, LIBNAME, LIBNAME2], ESqlDBPostgres);
+    P := @@LibVersion;
+    raiseonfailure := ESqlDBPostgres;
+    for i := 0 to High(PQ_ENTRIES) do
+    begin
+      if StrComp(PQ_ENTRIES[i], PAnsiChar('enterPipelineMode')) = 0 then
+        raiseonfailure := nil; // allow old libpq with no pipelining API
+      Resolve('PQ', PQ_ENTRIES[i], @P[I], raiseonfailure);
+    end;
+  except
+    on E: Exception do
+    begin
+      SetDbError(E);
+      raise;
+    end;
   end;
 end;
 
@@ -412,16 +432,16 @@ procedure TSqlDBPostgresLib.RaiseError(conn: PPGconn; const ctxt: ShortString;
   res: PPGresult);
 var
   errMsg, errCode: PUtf8Char;
+  msg: RawUtf8;
 begin
   errMsg := ErrorMessage(conn);
+  errCode := nil;
   if res <> nil then
-  begin
-    errCode := ResultErrorField(res, ord('C'){PG_DIAG_SQLSTATE});
+    errCode := ResultErrorField(res, PG_DIAG_SQLSTATE);
+  FormatUtf8('% % failed: % [%]', [self, ctxt, errCode, errMsg], msg);
+  if res <> nil then
     Clear(res);
-  end
-  else
-    errCode := nil;
-  ESqlDBPostgres.RaiseUtf8('% % failed: % [%]', [self, ctxt, errCode, errMsg]);
+  raise ESqlDBPostgres.CreateU(msg); // will properly call SetDbError()
 end;
 
 procedure TSqlDBPostgresLib.Check(conn: PPGconn; const ctxt: ShortString;

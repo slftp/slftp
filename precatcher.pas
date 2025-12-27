@@ -50,7 +50,7 @@ function ExtractReleasename(ts_data: TStringList): String;
   @param(aCleanSitebotAnnounce Sitebot announce with additional characters removed and section enclosed by whitespaces)
   @returns(First occurring section name of the mapping if section is listed, otherwise empty string) }
 function FindSection(const aCleanSitebotAnnounce: String): String;
-function ProcessDoReplace(const s: String): String;
+function ProcessDoReplace(const s: String; const rls: String = ''): String;
 
 var
   precatcher_debug: boolean = False;
@@ -71,6 +71,7 @@ uses
 
 const
   rsections = 'precatcher';
+  glReleaseNamePlaceHolder: String = '${RELEASENAMEPLACEHOLDER}$';
 
 var
   catcherFilename, replacefromline: String;
@@ -260,12 +261,15 @@ begin
   end;
 end;
 
-function ProcessDoReplace(const s: String): String;
+function ProcessDoReplace(const s: String; const rls: String = ''): String;
 var
   i: integer;
   rep_s: String;
 begin
   rep_s := s;
+
+  if rls <> '' then
+    rep_s := ReplaceText(rep_s, rls, glReleaseNamePlaceHolder);
 
   if replacefrom.Count = replaceto.Count then
   begin
@@ -278,6 +282,9 @@ begin
   else
     Debug(dpError, rsections, 'replacefrom count is <> replaceto count!');
 
+  if rls <> '' then
+    rep_s := ReplaceText(rep_s, glReleaseNamePlaceHolder, rls);
+
   Result := rep_s;
 end;
 
@@ -287,78 +294,81 @@ var
 begin
   precatcher_lock.Enter('ProcessReleaseVege');
   try
-  event := KBEventTypeToString(kb_event);
-  MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
-  Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
+    event := KBEventTypeToString(kb_event);
+    MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
+    Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
 
-  if (kb_event <> kbeREQUEST) then
-  begin
-
-    if CheckIfGlobalSkippedGroup(rls) then
+    if (kb_event <> kbeREQUEST) then
     begin
-      MyDebug('<c4>[GLOBAL SKIPPED GROUP]</c> detected!: ' + rls);
-      Debug(dpSpam, rsections, 'Global skipped group detected!: ' + rls);
-      if ((not precatcher_debug) and (spamcfg.ReadBool('precatcher', 'global_skip_group', True))) then
-        irc_addadmin('<b><c14>Info</c></b>: Global skipped group detected!: ' + rls);
-      skiprlses.Add(rls);
+
+      if CheckIfGlobalSkippedGroup(rls) then
+      begin
+        MyDebug('<c4>[GLOBAL SKIPPED GROUP]</c> detected!: ' + rls);
+        Debug(dpSpam, rsections, 'Global skipped group detected!: ' + rls);
+        if ((not precatcher_debug) and (spamcfg.ReadBool('precatcher', 'global_skip_group', True))) then
+          irc_addadmin('<b><c14>Info</c></b>: Global skipped group detected!: ' + rls);
+        skiprlses.Add(rls);
+        exit;
+      end;
+
+    end;
+
+    // removing double spaces
+    s := ts_data.DelimitedText;
+
+    MyDebug('Cleaned up line with rlsname: %s', [s]);
+    Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
+    s := ' ' + s + ' ';
+
+    if section = '' then
+    begin
+      section := FindSection(s);
+    end;
+    MyDebug('Section: %s', [section]);
+
+    if section <> 'REQUEST' then
+    begin
+
+      oldsection := section;
+      try
+        section := PrecatcherSectionMapping(rls, section);
+      except
+        on e: Exception do
+        begin
+          section := '';
+          Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
+        end;
+      end;
+    end;
+
+    if oldsection <> section then
+    begin
+      MyDebug('Mapped section: %s', [section]);
+      Debug(dpSpam, rsections, 'Mapped section: %s', [section]);
+    end;
+
+    if ((section = '') and (not (kb_event in [kbeCOMPLETE, kbeNUKE]))) then
+    begin
+      irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
+      MyDebug('No section?! ' + sitename + '@' + rls);
       exit;
     end;
 
-  end;
+    genre := '';
+    if ((kb_event <> kbeNEWDIR) and (FindSectionHandler(section).Name = 'TMP3Release')) then
+    begin
+      // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
 
-  // removing double spaces
-  s := ts_data.DelimitedText;
-
-  MyDebug('Cleaned up line with rlsname: %s', [s]);
-  Debug(dpSpam, rsections, 'Cleaned up line with rlsname: %s', [s]);
-  s := ' ' + s + ' ';
-
-  if section = '' then
-  begin
-    section := FindSection(s);
-  end;
-  MyDebug('Section: %s', [section]);
-
-  if section <> 'REQUEST' then
-  begin
-
-    oldsection := section;
-    try
-      section := PrecatcherSectionMapping(rls, section);
-    except
-      on e: Exception do
+      // removes rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
+      genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]));
+      if genre <> '' then
       begin
-        section := '';
-        Debug(dpError, rsections, Format('[EXCEPTION] PrecatcherSectionMapping: %s', [e.Message]));
+        MyDebug('Genre: %s', [genre]);
+        Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
       end;
     end;
-  end;
-
-  if oldsection <> section then
-  begin
-    MyDebug('Mapped section: %s', [section]);
-    Debug(dpSpam, rsections, 'Mapped section: %s', [section]);
-  end;
-
-  if ((section = '') and (not (kb_event in [kbeCOMPLETE, kbeNUKE]))) then
-  begin
-    irc_Addadmin('<c14><b>Info</c></b>: Section on %s for %s was not found. Add Sectionname to slftp.precatcher under [sections] and/or [mappings].', [sitename, rls]);
-    MyDebug('No section?! ' + sitename + '@' + rls);
-    exit;
-  end;
-
-  genre := '';
-  if ((kb_event <> kbeNEWDIR) and (FindSectionHandler(section).Name = 'TMP3Release')) then
-  begin
-    // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
-
-    // removes rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
-    genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]));
-    if genre <> '' then
-    begin
-      MyDebug('Genre: %s', [genre]);
-      Debug(dpSpam, rsections, Format('Genre found via IRC announce: %s', [genre]));
-    end;
+  finally
+    precatcher_lock.Leave;
   end;
 
   finally
@@ -410,7 +420,11 @@ begin
     try
       sc := TSiteChan(cd.Objects[i]);
     except
-      exit;
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, Format('[EXCEPTION] TSiteChan() : %s', [e.Message]));
+        exit;
+      end;
     end;
 
     ts_data := TStringList.Create;
@@ -486,11 +500,7 @@ begin
 
 
       // do the [replace] from slftp.precatcher
-      s := ReplaceText(ts_data.DelimitedText, rls, '${RELEASENAMEPLACEHOLDER}$');
-      s := ProcessDoReplace(s);
-      s := ReplaceText(s, '${RELEASENAMEPLACEHOLDER}$', rls);
-      ts_data.DelimitedText := s;
-
+      ts_data.DelimitedText := ProcessDoReplace(ts_data.DelimitedText, rls);
       MyDebug('After replace line is: %s', [ts_data.DelimitedText]);
 
 
@@ -508,27 +518,27 @@ begin
           end;
         end;
 
-        if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
-        begin
-          MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
-          if not precatcher_debug then
-          begin
-            fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
-            AddTask(fRequestDirlistTask);
-          end;
-          exit;
-        end;
-
         if (mind) then
         begin
           try
+
+            if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
+            begin
+              MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
+              if not precatcher_debug then
+              begin
+                fRequestDirlistTask := TAutoDirlistTask.Create(net, chan, sc.sitename, rls);
+                AddTask(fRequestDirlistTask);
+              end;
+              exit;
+            end;
 
             if ss.eventtype = kbeADDPRE then
             begin
               MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
               if not precatcher_debug then
               begin
-                dbaddpre_ADDPRE(net, chan, nick, rls, kbeADDPRE);
+                dbaddpre_ADDPRE(net, chan, nick, rls, ss.section, ts_data.DelimitedText, kbeADDPRE);
               end;
               exit;
             end;
