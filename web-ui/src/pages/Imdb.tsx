@@ -18,7 +18,7 @@ import {
   Pagination,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconSearch, IconPlus, IconEdit, IconTrash, IconMovie } from '@tabler/icons-react';
+import { IconSearch, IconPlus, IconEdit, IconTrash, IconMovie, IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 import { apiClient } from '../api/client';
 
 function parseMaybeJsonArray(value: unknown): any[] {
@@ -45,6 +45,42 @@ function TruncatedCell({ children, width }: { children: React.ReactNode; width: 
         </div>
       </Tooltip>
     </Table.Td>
+  );
+}
+
+type SortField = 'ImdbId' | 'Title' | 'Year' | 'Rating' | 'Votes' | 'Genres' | 'Countries' | 'Languages' | 'ImdbType' | 'CreationTime' | 'UpdatedTime';
+type SortDirection = 'asc' | 'desc';
+
+function SortableHeader({
+  children,
+  field,
+  currentField,
+  direction,
+  onClick,
+  width
+}: {
+  children: React.ReactNode;
+  field: SortField;
+  currentField: SortField;
+  direction: SortDirection;
+  onClick: (field: SortField) => void;
+  width: string;
+}) {
+  const isActive = currentField === field;
+  return (
+    <Table.Th
+      style={{ width, cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => onClick(field)}
+    >
+      <Group gap={4} wrap="nowrap">
+        <span>{children}</span>
+        {isActive && (
+          direction === 'asc' ?
+            <IconChevronUp size={14} /> :
+            <IconChevronDown size={14} />
+        )}
+      </Group>
+    </Table.Th>
   );
 }
 
@@ -126,6 +162,10 @@ export function Imdb() {
   const [languageFilter, setLanguageFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('');
 
+  // Sort state
+  const [sortField, setSortField] = useState<SortField>('UpdatedTime');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
   // Pagination state
   const [page, setPage] = useState(1);
   const itemsPerPage = 100;
@@ -151,10 +191,22 @@ export function Imdb() {
     refetchOnWindowFocus: false,
   });
 
-  // Client-side filtering
+  // Handler for column sorting
+  const handleSort = (field: SortField) => {
+    console.log('Sorting by:', field, 'current:', sortField, sortDirection);
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Client-side filtering and sorting
   const filtered = useMemo(() => {
     let result = data || [];
 
+    // Apply filters
     if (titleFilter) {
       result = result.filter(r =>
         r.Title.toLowerCase().includes(titleFilter.toLowerCase()) ||
@@ -190,8 +242,24 @@ export function Imdb() {
       result = result.filter(r => r.ImdbType.toLowerCase() === typeFilter.toLowerCase());
     }
 
-    return result;
-  }, [data, titleFilter, yearMin, yearMax, ratingMin, genreFilter, countryFilter, languageFilter, typeFilter]);
+    // Apply sorting (create new array to ensure React detects change)
+    const sorted = [...result].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      // Handle string comparison case-insensitively
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [data, titleFilter, yearMin, yearMax, ratingMin, genreFilter, countryFilter, languageFilter, typeFilter, sortField, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -449,28 +517,52 @@ export function Imdb() {
           <Table striped highlightOnHover withTableBorder>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th style={{ width: '100px' }}>IMDB ID</Table.Th>
-                <Table.Th style={{ width: '300px' }}>Title</Table.Th>
-                <Table.Th style={{ width: '70px' }}>Year</Table.Th>
-                <Table.Th style={{ width: '70px' }}>Rating</Table.Th>
-                <Table.Th style={{ width: '90px' }}>Votes</Table.Th>
-                <Table.Th style={{ width: '150px' }}>Genres</Table.Th>
-                <Table.Th style={{ width: '130px' }}>Countries</Table.Th>
-                <Table.Th style={{ width: '120px' }}>Languages</Table.Th>
-                <Table.Th style={{ width: '80px' }}>Type</Table.Th>
+                <SortableHeader field="ImdbId" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  IMDB ID
+                </SortableHeader>
+                <SortableHeader field="Title" currentField={sortField} direction={sortDirection} onClick={handleSort} width="300px">
+                  Title
+                </SortableHeader>
+                <SortableHeader field="Year" currentField={sortField} direction={sortDirection} onClick={handleSort} width="70px">
+                  Year
+                </SortableHeader>
+                <SortableHeader field="Rating" currentField={sortField} direction={sortDirection} onClick={handleSort} width="70px">
+                  Rating
+                </SortableHeader>
+                <SortableHeader field="Votes" currentField={sortField} direction={sortDirection} onClick={handleSort} width="90px">
+                  Votes
+                </SortableHeader>
+                <SortableHeader field="Genres" currentField={sortField} direction={sortDirection} onClick={handleSort} width="150px">
+                  Genres
+                </SortableHeader>
+                <SortableHeader field="Countries" currentField={sortField} direction={sortDirection} onClick={handleSort} width="130px">
+                  Countries
+                </SortableHeader>
+                <SortableHeader field="Languages" currentField={sortField} direction={sortDirection} onClick={handleSort} width="120px">
+                  Languages
+                </SortableHeader>
+                <SortableHeader field="ImdbType" currentField={sortField} direction={sortDirection} onClick={handleSort} width="80px">
+                  Type
+                </SortableHeader>
+                <SortableHeader field="CreationTime" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  Created
+                </SortableHeader>
+                <SortableHeader field="UpdatedTime" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  Updated
+                </SortableHeader>
                 <Table.Th style={{ width: '80px' }}>Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {isLoading ? (
                 <Table.Tr>
-                  <Table.Td colSpan={10}>
+                  <Table.Td colSpan={12}>
                     <Text ta="center">Loading...</Text>
                   </Table.Td>
                 </Table.Tr>
               ) : filtered.length === 0 ? (
                 <Table.Tr>
-                  <Table.Td colSpan={10}>
+                  <Table.Td colSpan={12}>
                     <Text ta="center">No records found</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -494,6 +586,16 @@ export function Imdb() {
                     <TruncatedCell width={130}>{record.Countries}</TruncatedCell>
                     <TruncatedCell width={120}>{record.Languages}</TruncatedCell>
                     <Table.Td style={{ width: '80px' }}>{record.ImdbType}</Table.Td>
+                    <Table.Td style={{ width: '100px' }}>
+                      {record.CreationTime && record.CreationTime > 0
+                        ? new Date(record.CreationTime * 1000).toLocaleDateString('de-DE')
+                        : 'N/A'}
+                    </Table.Td>
+                    <Table.Td style={{ width: '100px' }}>
+                      {record.UpdatedTime && record.UpdatedTime > 0
+                        ? new Date(record.UpdatedTime * 1000).toLocaleDateString('de-DE')
+                        : 'N/A'}
+                    </Table.Td>
                     <Table.Td style={{ width: '80px' }}>
                       <Group gap="xs" wrap="nowrap">
                         <ActionIcon
