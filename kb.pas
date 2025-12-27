@@ -69,9 +69,9 @@ implementation
 
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
-  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings,
+  taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
-  slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers,
+  slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
   globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
@@ -104,6 +104,14 @@ var
 
   rename_patterns: integer;
   taskpretime_mode: integer;
+  glAutoAddAffils: boolean;
+  glOnlyUseRouteableSitesOnTryToComplete: boolean;
+
+function GetKBCount: integer;
+begin
+  // access to Count is thread safe, so no lock required
+  Result := kb_list.Count;
+end;
 
 function GetKBCount: integer;
 begin
@@ -436,7 +444,7 @@ begin
         if TPretimeLookupMOde(taskpretime_mode) = plmSQLITE then
         begin
           try
-            dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename);
+            dbaddpre_InsertRlz(rls, section, 'SITE-' + sitename, True);
           except
             on e: Exception do
             begin
@@ -510,10 +518,10 @@ begin
             if spamcfg.ReadBool('kb', 'new_rls', True) then
               irc_Addstats(Format('<c7>[<b>NEW</b>]</c> %s %s @ <b>%s</b> (<c7><b>Not found in PreDB</b></c>)', [section, rls, sitename]));
 
-            if config.readInteger('taskpretime', 'readd_attempts', 5) > 0 then
+            if GlTaskPretimeReaddAttempts > 0 then
             begin
               fPreTimeLookupTask := TPazoPretimeLookupTask.Create(netname, channel, getadminsitename, p, 1);
-              fPreTimeLookupTask.startat := IncSecond(Now, config.ReadInteger('taskpretime', 'readd_interval', 3));
+              fPreTimeLookupTask.startat := IncSecond(Now, GlTaskPretimeReaddInterval);
               AddTask(fPreTimeLookupTask);
             end;
           end;
@@ -667,7 +675,7 @@ begin
     begin
       if (s <> nil) then
       begin
-        if ((not s.IsAffil(r.groupname)) and (config.ReadBool(rsections, 'auto_add_affils', True))) then
+        if ((not s.IsAffil(r.groupname)) and (glAutoAddAffils)) then
           s.AddAffil(r.groupname);
       end;
       r.PredOnAnySite := True;
@@ -722,7 +730,7 @@ begin
     end;
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
-    if (psource.status <> rssRealPre) then
+    if (psource <> nil) and (psource.status <> rssRealPre) then
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
@@ -1343,6 +1351,8 @@ begin
   kb_keep_entries := config.ReadInteger(rsections, 'kb_keep_entries', 86400 * 7);
 
   taskpretime_mode := config.ReadInteger('taskpretime', 'mode', 0);
+  glAutoAddAffils := config.ReadBool(rsections, 'auto_add_affils', True);
+  glOnlyUseRouteableSitesOnTryToComplete := config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', True);
 end;
 
 procedure kb_Stop;
@@ -1513,8 +1523,8 @@ begin
       for ps in destinations do
       begin
         // Check for every destination if its routable if we care about that
-        rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ps.Name, 0);
-        if ((config.ReadBool(rsections, 'only_use_routable_sites_on_try_to_complete', True)) and (rank = 0)) then
+        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sps.Name, ps.Name, '0')).Speed;
+        if ((glOnlyUseRouteableSitesOnTryToComplete) and (rank = 0)) then
           Continue;
         ssites_info.Add(ps.Name);
       end;
@@ -1526,7 +1536,7 @@ begin
       // Add every destination and the real ranks (if available) or a default of 0 for routing source -> destination
       for j := 0 to ssites_info.Count - 1 do
       begin
-        rank := sitesdat.ReadInteger('speed-from-' + sps.Name, ssites_info[j], 0);
+        rank := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + sps.Name, ssites_info[j], '0')).Speed;
         ps.AddDestination(ssites_info[j], rank);
         dsites_info := site_allocation.Items[ssites_info[j]];
         dsites_info.Add(sps.Name);

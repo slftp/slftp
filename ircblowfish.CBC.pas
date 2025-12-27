@@ -36,7 +36,7 @@ type
 implementation
 
 uses
-  debugunit, IdOpenSSLHeaders_blowfish, IdOpenSSLHeaders_ossl_typ, IdOpenSSLHeaders_evp, IdOpenSSLHeaders_evperr, IdOpenSSLHeaders_rand, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
+  debugunit, mormot.lib.openssl11, mormot.core.os, {$IFDEF UNICODE}NetEncoding,{$ENDIF} mystrings;
 
 const
   section = 'ircblowfish.CBC';
@@ -246,11 +246,13 @@ begin
   Result := eText;
 
   {* init struct for decryption *}
+
   fCTX := EVP_CIPHER_CTX_new();
   try
-    if (EVP_CipherInit_ex(fCTX, EVP_bf_cbc(), nil, nil, nil, 0) <> 1) then
+    i := EVP_CipherInit_ex(fCTX, EVP_bf_cbc(), nil, nil, nil, 0);
+    if (i <> 1) then
     begin
-      Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC decryption!');
+      Debug(dpError, section, '[FiSH] First EVP_CipherInit_ex failed for CBC decryption! Value:' + i.toString());
       exit;
     end;
 

@@ -5,7 +5,8 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv;
+  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
+  routeconfig;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -51,7 +52,7 @@ type
   private
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
-    FActiveTransfers: TStringList;
+    FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
     FActiveTransfersCS: TCriticalSection;
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
@@ -88,7 +89,7 @@ type
     // will be true when autofollow rule is used, otherwise default false
     firesourcesinstead: boolean;
 
-    speed_from: TStringList;
+    speed_from: TList<TSpeedFromRouteInfo>;
 
     property dirlistgaveup: boolean read GetDirlistGaveUp write SetDirListGaveUp; //< gets or sets a value indicating whether dirlisting have been given up for this site
     property Destinations: TList<TDestinationRank> read FDestinations; //< destination sites and ranks
@@ -157,8 +158,9 @@ type
     function StatusText: String;
     procedure Clear;
     procedure RemoveActiveTransfer(const aFilepath: String);
-    function HasActiveTransfer(const aFilepath: String): boolean;
-    procedure AddActiveTransfer(const aFilepath: String);
+    function HasActiveTransfer(const aFilepath: String): boolean; overload;
+    function HasActiveTransfer(const aFilepath, aSourceSite: String): boolean; overload;
+    procedure AddActiveTransfer(const aFilepath, aSourceSite: String);
 
   end;
 
@@ -168,16 +170,15 @@ type
     lastannounceirc: String; //< last announce string for [STATS] after race
     lastannounceroutes: String; //< last announce string from @link(TPazo.RoutesText)
     FExcludeFromIncfiller: boolean; //< @true if the incomplete filler should ignore this TPazo (e.g. already handled once), @false otherwise.
-    FUniqueFileListOfRelease_cs: TCriticalSection; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
+    FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
-      @param(aFilename Name of the file)
-      @param(aFilesize Size of the file)
+      @param(de The TDirListEntry of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
-    function PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
+    function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
     { Returns the amount of files for the release, includes files in subdirs
       @returns(Total file count of @link(rls)) }
     function GetCountOfCachedFiles: integer;
@@ -264,6 +265,7 @@ const
 var
   local_pazo_id: integer;
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
+  glPazoPreTimeLookupMode: TPretimeLookupMode;
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -396,6 +398,7 @@ procedure PazoInit;
 begin
   local_pazo_id := 0;
   glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
+  glPazoPreTimeLookupMode := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
 end;
 
 function TPazoSite.GetDirlistGaveUp: boolean;
@@ -426,7 +429,6 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
-  fExtensionMatchSFV, fExtensionMatchNFO: boolean;
 begin
   Result := False;
   dst := nil;
@@ -597,12 +599,10 @@ begin
           // destination dir is not complete
           if not dstdl.complete then
           begin
-            fExtensionMatchSFV := de.Extension = '.sfv';
-            fExtensionMatchNFO := de.Extension = '.nfo';
             // skip nfo and sfv if already there
-            if ((dstdl.HasSFV) and (fExtensionMatchSFV)) then
+            if ((dstdl.HasSFV) and (de.IsSFV)) then
               Continue;
-            if ((dstdl.HasNFO) and (fExtensionMatchNFO)) then
+            if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
 
             // Create the race task
@@ -619,9 +619,9 @@ begin
               end;
 
             // Set file type
-            if (fExtensionMatchSFV) then
+            if (de.IsSFV) then
               pr.IsSfv := True;
-            if (fExtensionMatchNFO) then
+            if (de.IsNFO) then
               pr.IsNfo := True;
 
             // sfv not found so we won't race this file yet
@@ -745,31 +745,30 @@ begin
   end;
 end;
 
-function TPazo.PRegisterFile(const aDir, aFilename: String; const aFilesize: Int64; const aIsSFV: boolean): Int64;
+function TPazo.PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
 var
   fKey: String;
   fFilesize: Int64;
   fWasAdded: boolean;
   fPazoSite: TPazoSite;
 begin
-  fKey := aDir + '/' + aFilename;
+  fKey := aDir + '/' + de.FilenameLowerCased;
   fWasAdded := False;
 
-  FUniqueFileListOfRelease_cs.Enter;
+  FUniqueFileListOfRelease_cs.Enter('PRegisterFile');
   try
-    if not FUniqueFileListOfRelease.ContainsKey(fKey) then
+    if not FUniqueFileListOfRelease.TryGetValue(fKey, fFilesize) then
     begin
-      FUniqueFileListOfRelease.Add(fKey, aFilesize);
+      FUniqueFileListOfRelease.Add(fKey, de.filesize);
       fWasAdded := True;
-      Result := aFilesize;
+      Result := de.filesize;
     end
     else
     begin
-      fFilesize := FUniqueFileListOfRelease[fKey];
-      if fFilesize < aFilesize then
+      if fFilesize < de.filesize then
       begin
-        FUniqueFileListOfRelease[fKey] := aFilesize;
-        Result := aFilesize;
+        FUniqueFileListOfRelease[fKey] := de.filesize;
+        Result := de.filesize;
       end
       else
       begin
@@ -780,7 +779,7 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And aIsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -793,7 +792,7 @@ begin
         if FindSiteByName('', fPazoSite.Name).UseForNFOdownload = ufnEnabled then
         begin
           Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
-          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, aFilename, 1));
+          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, de.filename, 1));
         end;
       end;
     end;
@@ -832,8 +831,8 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TCriticalSection.Create;
-  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create(GetCaseInsensitveStringComparer);
+  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+  FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
   self.cleared := False;
@@ -1104,7 +1103,7 @@ begin
 
       if not aIsSpreadJob then
       begin
-        if TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0)) <> plmNone then
+        if glPazoPreTimeLookupMode <> plmNone then
         begin
           if not (rls.pretime <> 0) then
             Continue;
@@ -1144,7 +1143,7 @@ function TPazo.PFileSize(const aDir, aFilename: String): Int64;
 var
   fKey: String;
 begin
-  fKey := aDir + '/' + aFilename;
+  fKey := aDir + '/' + LowerCase(aFilename);
 
   if not FUniqueFileListOfRelease.TryGetValue(fKey, Result) then
     Result := -1;
@@ -1245,7 +1244,7 @@ begin
   pazo := aParentPazo;
   Name := aName;
 
-  FActiveTransfers := TStringList.Create;
+  FActiveTransfers := TDictionary<string, string>.Create(GetCaseInsensitveStringComparer);
   FActiveTransfersCS := TCriticalSection.Create;
   ts := 0;
   firesourcesinstead := False;
@@ -1378,7 +1377,6 @@ end;
 function TPazoSite.ParseDirlist(const netname, channel, dir, liststring: String; pre: boolean = False): boolean;
 var
   d: TDirList;
-  i: integer;
   de: TDirListEntry;
   fFoundDirListEntries, fRemovePazoRaceEntries: TObjectList<TDirListEntry>;
   fTasksAdded: boolean;
@@ -1423,17 +1421,6 @@ begin
   if d.entries.Count = 0 then
     exit;
 
-  // sort the dirlist
-  try
-    d.Sort;
-  except
-    on e: Exception do
-    begin
-      Debug(dpError, section, '[EXCEPTION] TPazoSite.ParseDirlist (d.Sort): %s', [e.Message]);
-      exit;
-    end;
-  end;
-
 
   // Do some stuff obviously
   if d.entries.Count > 0 then
@@ -1443,9 +1430,8 @@ begin
     try
       d.dirlist_lock.Enter('TPazoSite.ParseDirlist');
       try
-        for i := 0 to d.entries.Count - 1 do
+        for de in d.entries.Values do
         begin
-          de := TDirListEntry(d.entries.Objects[i]);
           if ((not de.skiplisted) and (de.IsOnSite)) then
           begin
             if not de.Directory then
@@ -1455,7 +1441,6 @@ begin
                 de.justadded := False;
                 fRemovePazoRaceEntries.Add(de);
               end;
-              pazo.PRegisterFile(dir, de.filename, de.filesize, de.Extension = '.sfv');
             end;
 
             fFoundDirListEntries.Add(de);
@@ -1464,6 +1449,8 @@ begin
       finally
         d.dirlist_lock.Leave;
       end;
+
+      SortDirlistEntries(fFoundDirListEntries);
 
       //do this outside dirlist_lock to avoid deadlocks
       fTasksAdded := Tuzelj(netname, channel, dir, fFoundDirListEntries);
@@ -1478,6 +1465,15 @@ begin
       for de in fRemovePazoRaceEntries do
       begin
         RemovePazoRace(self, pazo.pazo_id, Name, dir, de.filename);
+      end;
+
+      for de in fFoundDirListEntries do
+      begin
+        if not de.Directory and de.FSizeChanged then
+        begin
+          pazo.PRegisterFile(dir, de);
+          de.FSizeChanged := False;
+        end;
       end;
 
     finally
@@ -1515,7 +1511,7 @@ begin
       begin
         de := TDirListEntry.Create(filename, dl, False);
         de.error := True;
-        dl.entries.AddObject(de.filename, de);
+        dl.entries.Add(de.filename, de);
       end;
     finally
       dl.dirlist_lock.Leave;
@@ -1539,13 +1535,13 @@ end;
 procedure TPazoSite.ParseDupe(const aNetname, aChannel: String; aDirlist: TDirList; const aDir: string; const aFilenames: TArray<String>; const aSentByMe, aIsComplete: boolean);
 var
   de: TDirListEntry;
-  rrgx: TRegExpr;
   fTasksAdded: boolean;
   fFilesToRace: TList<TDirListEntry>;
   fFilename: string;
   fSite: TSite;
 begin
   //Debug(dpSpam, section, '--> '+Format('%d ParseDupe %s %s %s %s', [pazo.pazo_id, name, pazo.rls.rlsname, aDir, aFilename]));
+  fTasksAdded := False;
   fFilesToRace := TList<TDirListEntry>.Create;
   try
     try
@@ -1564,7 +1560,7 @@ begin
             de.filesize := -1;
 
             de.RegenerateSkiplist;
-            aDirlist.entries.AddObject(de.filename, de);
+            aDirlist.entries.Add(de.filename, de);
             aDirlist.LastChanged := Now();
           end;
 
@@ -1584,7 +1580,7 @@ begin
             de.IsBeingUploaded := False;
           end;
 
-          if (de.Extension = '.sfv') then
+          if (de.IsSFV) then
           begin
             aDirlist.sfv_status := dlSFVFound;
           end;
@@ -1602,6 +1598,8 @@ begin
       finally
         aDirlist.dirlist_lock.Leave;
       end;
+
+      SortDirlistEntries(fFilesToRace);
 
       //do this outside dirlist_lock to avoid deadlocks
       if fFilesToRace.Count > 0 then
@@ -1656,7 +1654,6 @@ procedure TPazoSite.ProcessXDupeResponse(const aNetname, aChannel, aDir, aFullRe
 var
   dl: TDirList;
   fFileList: TList<String>;
-  fFilename: String;
 begin
   try
     dl := dirlist.FindDirlist(aDir);
@@ -1687,7 +1684,6 @@ function TPazoSite.Stats: String;
 var
   fsize: double;
   fsname, fsizetrigger: String;
-  i: integer;
   de: TDirlistEntry;
   sum: Int64;
 begin
@@ -1726,17 +1722,15 @@ begin
         sum := 0;
         dirlist.dirlist_lock.Enter('TPazoSite.Stats');
         try
-          for i := dirlist.entries.Count - 1 downto 0 do
+          for de in dirlist.entries.Values do
           begin
-            if i < 0 then Break;
             try
-              de := TDirlistEntry(dirlist.entries.Objects[i]);
               if (de.RacedByMe and not de.IsAsciiFiletype) then
                 Inc(sum, de.filesize);
               //if ((de.directory) and (de.subdirlist <> nil)) then inc(sum, de.subdirlist.SizeRacedByMe(True));
 
-              Debug(dpError, section, Format('%d for %s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
-                [i, fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
+              Debug(dpError, section, Format('%s -- filename %s filesize %d byme %s IsAsciiFiletype %s (sum: %d)',
+                [fsname, de.filename, de.filesize, BoolToStr(de.RacedByMe, True), BoolToStr(de.IsAsciiFiletype, True), sum]));
             except
               on E: Exception do
               begin
@@ -1970,15 +1964,11 @@ begin
 end;
 
 procedure TPazoSite.RemoveActiveTransfer(const aFilepath: String);
-var
-  i: Int32;
 begin
   FActiveTransfersCS.Enter;
   try
     try
-      i := FActiveTransfers.IndexOf(aFilepath);
-      if i <> -1 then
-        FActiveTransfers.Delete(i);
+      FActiveTransfers.Remove(aFilepath);
     except
       on E: Exception do
       begin
@@ -1994,17 +1984,32 @@ function TPazoSite.HasActiveTransfer(const aFilepath: String): boolean;
 begin
   FActiveTransfersCS.Enter;
   try
-    Result := FActiveTransfers.IndexOf(aFilepath) <> -1;
+    Result := FActiveTransfers.ContainsKey(aFilepath);
   finally
     FActiveTransfersCS.Leave;
   end;
 end;
 
-procedure TPazoSite.AddActiveTransfer(const aFilepath: String);
+function TPazoSite.HasActiveTransfer(const aFilepath, aSourceSite: String): boolean;
+var
+  fSourceSiteName: string;
 begin
   FActiveTransfersCS.Enter;
   try
-    FActiveTransfers.Add(aFilepath);
+    Result := FActiveTransfers.TryGetValue(aFilepath, fSourceSiteName) and (fSourceSiteName = aSourceSite);
+  finally
+    FActiveTransfersCS.Leave;
+  end;
+end;
+
+procedure TPazoSite.AddActiveTransfer(const aFilepath, aSourceSite: String);
+begin
+  FActiveTransfersCS.Enter;
+  try
+    if not FActiveTransfers.TryAdd(aFilepath, aSourceSite) then
+    begin
+      Debug(dpError, section, Format('[WARN] TPazoSite.AddActiveTransfer: Tried to add active transfer, but it was already there %s: %s', [Name, aFilepath]));
+    end;
   finally
     FActiveTransfersCS.Leave;
   end;

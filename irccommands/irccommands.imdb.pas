@@ -21,7 +21,7 @@ var
 begin
   Result := False;
 
-  dbaddimdb_cs.Enter;
+  dbaddimdb_cs.Enter('IrcAnnounceIMDBInfo1');
   try
     i := last_imdbdata.IndexOf(params);
   finally
@@ -36,7 +36,7 @@ begin
   end
   else
   begin
-    dbaddimdb_cs.Enter;
+    dbaddimdb_cs.Enter('IrcAnnounceIMDBInfo2');
     try
       imdbdata := TDbImdbData(last_imdbdata.Objects[i]);
     finally
