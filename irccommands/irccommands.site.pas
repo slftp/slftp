@@ -275,7 +275,13 @@ begin
 
   if (0 < Pos('-', sitename)) then
   begin
-    irc_addtext(Netname, Channel, 'Sitename cant contain -.');
+    irc_addtext(Netname, Channel, 'Sitename can''t contain -.');
+    exit;
+  end;
+
+  if (0 < Pos('%', sitename)) then
+  begin
+    irc_addtext(Netname, Channel, 'Sitename can''t contain %.');
     exit;
   end;
 
@@ -1347,6 +1353,7 @@ var
   i: integer;
   x: TStringList;
 begin
+  Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   method := SubString(params, ' ', 2);
   i := StrToIntDef(method, -1);

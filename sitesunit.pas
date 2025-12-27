@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache;
+  variantcache, routeconfig;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -214,6 +214,10 @@ type
     fMaxDn: integer;
     fMaxPreDn: integer;
     fMaxUpPerRip: integer;
+    fMaxSimUpCooldownUntil: TDateTime;
+    fMaxSimUpCooldownSeconds: integer;
+    fMaxSimDownCooldownUntil: TDateTime;
+    fMaxSimDownCooldownSeconds: integer;
     fReducedSpeedstatWeight: boolean;
     fPermDownStatus: boolean;
     fSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -228,7 +232,7 @@ type
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
     fSpeedFromCS: TSlCriticalSection2;
-    fSpeedFromCache: TStringList;
+    fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
     const FDefaultSslMethod: TSSLMEthods = sslAuthTls;
@@ -406,7 +410,7 @@ type
     function GetKillConnectionOnStalledTransferSeconds: integer;
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
-    function GetSpeed_From: TStringList;
+    function GetSpeed_From: TList<TSpeedFromRouteInfo>;
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -490,7 +494,16 @@ type
     function GetPretime(const section: String): String;
 
     function isRouteableTo(const sitename: String): boolean;
-    function isRouteableFrom(const sitename: String): boolean;
+
+    procedure RegisterMaxSimUpHit(const aSlotName: String);
+    procedure ResetMaxSimUpCooldown;
+    function MaxSimUpCooldownActive: boolean;
+    function MaxSimUpCooldownRemainingSeconds: integer;
+
+    procedure RegisterMaxSimDownHit(const aSlotName: String);
+    procedure ResetMaxSimDownCooldown;
+    function MaxSimDownCooldownActive: boolean;
+    function MaxSimDownCooldownRemainingSeconds: integer;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -546,6 +559,9 @@ type
 
     { Updates the speed-from cache of this site from the sites.dat. }
     procedure UpdateSpeedFromCache;
+
+    { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
+    procedure MigrateSpeedLockAndSpeedToConfig;
 
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
@@ -613,7 +629,7 @@ type
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
-    property Speed_From: TStringList read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
   end;
 
 function ReadSites(): boolean;
@@ -731,10 +747,12 @@ implementation
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
   mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
-  dirlist.helpers, tags;
+  dirlist.helpers, tags, Generics.Defaults;
 
 const
   section = 'sites';
+  MAXSIM_COOLDOWN_INITIAL_SECONDS = 5;
+  MAXSIM_COOLDOWN_MAX_SECONDS = 120;
 
 var
   bnccsere: TSlCriticalSection2 = nil;
@@ -949,20 +967,20 @@ end;
     Result := True;
   end;
 
-  function TSite.IrcKillAll(const netname, channel, params: String): boolean;
-  begin
-    Result := fQueue.IrcKillAll(netname, channel, params);
-  end;
+function TSite.IrcKillAll(const netname, channel, params: String): boolean;
+begin
+  Result := fQueue.IrcKillAll(netname, channel, params);
+end;
 
-  procedure TSite.QueueSort;
-  begin
-    fQueue.QueueSort;
-  end;
+procedure TSite.QueueSort;
+begin
+  fQueue.QueueSort;
+end;
 
-  procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
-  begin
-    fQueue.RemoveRaceTasks(aPazoID, aSiteName);
-  end;
+procedure TSite.RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
+begin
+  fQueue.RemoveRaceTasks(aPazoID, aSiteName);
+end;
 
 procedure TSite.RemovePazoDirTasks(const aPazoID: integer);
   begin
@@ -3135,6 +3153,10 @@ begin
   fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
   fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
   fMaxUpPerRip := RCInteger('maxupperrip', 0);
+  fMaxSimUpCooldownUntil := 0;
+  fMaxSimUpCooldownSeconds := 0;
+  fMaxSimDownCooldownUntil := 0;
+  fMaxSimDownCooldownSeconds := 0;
 
   siteinvited := False;
   foutofannounce := 0;
@@ -3146,41 +3168,29 @@ begin
     slots.Add(TSiteSlot.Create(self, i - 1));
 
   RecalcFreeslots;
+  MigrateSpeedLockAndSpeedToConfig;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
 
 function TSite.isRouteableTo(const sitename: String): boolean;
 var
-  y: TStringList;
+  fSpeedFromList: TList<TSpeedFromRouteInfo>;
+  fSpeedFromItem: TSpeedFromRouteInfo;
 begin
-  y := TStringList.Create;
-  y.Sorted := True;
+  Result := False;
+  fSpeedFromList := GetSpeed_From;
   try
-    sitesdat.ReadSection('speed-to-' + sitename, y);
-    if y.IndexOf(self.Name) = -1 then
-      Result := False
-    else
-      Result := True;
+    for fSpeedFromItem in fSpeedFromList do
+    begin
+      if fSpeedFromItem.sitename = sitename then
+      begin
+        Result := True;
+        break;
+      end;
+    end;
   finally
-    y.Free;
-  end;
-end;
-
-function TSite.isRouteableFrom(const sitename: String): boolean;
-var
-  y: TStringList;
-begin
-  y := TStringList.Create;
-  y.Sorted := True;
-  try
-    sitesdat.ReadSection('speed-from-' + self.Name, y);
-    if y.IndexOf(sitename) = -1 then
-      Result := False
-    else
-      Result := True;
-  finally
-    y.Free;
+    fSpeedFromList.Free;
   end;
 end;
 
@@ -3631,6 +3641,130 @@ begin
   begin
     DeleteKey('pretime-' + Name);
   end;
+end;
+
+procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fMaxSimUpCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimUpCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+
+  fMaxSimUpCooldownSeconds := fNewCooldown;
+  fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
+
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
+end;
+
+procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fMaxSimDownCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimDownCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+
+  fMaxSimDownCooldownSeconds := fNewCooldown;
+  fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
+
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s)(slot: %s)',
+    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
+end;
+
+procedure TSite.ResetMaxSimUpCooldown;
+begin
+  if (fMaxSimUpCooldownSeconds <> 0) or (fMaxSimUpCooldownUntil <> 0) then
+  begin
+    fMaxSimUpCooldownSeconds := 0;
+    fMaxSimUpCooldownUntil := 0;
+    Debug(dpSpam, section, 'MaxSim UP cooldown for %s cleared', [Name]);
+  end;
+end;
+
+procedure TSite.ResetMaxSimDownCooldown;
+begin
+  if (fMaxSimDownCooldownSeconds <> 0) or (fMaxSimDownCooldownUntil <> 0) then
+  begin
+    fMaxSimDownCooldownSeconds := 0;
+    fMaxSimDownCooldownUntil := 0;
+    Debug(dpSpam, section, 'MaxSim DOWN cooldown for %s cleared', [Name]);
+  end;
+end;
+
+function TSite.MaxSimUpCooldownActive: boolean;
+begin
+  if fMaxSimUpCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  if Now >= fMaxSimUpCooldownUntil then
+  begin
+    if fMaxSimUpCooldownSeconds > 0 then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
+        [Name, fMaxSimUpCooldownSeconds]);
+      fMaxSimUpCooldownSeconds := 0;
+    end;
+    fMaxSimUpCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
+function TSite.MaxSimDownCooldownActive: boolean;
+begin
+  if fMaxSimDownCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  if Now >= fMaxSimDownCooldownUntil then
+  begin
+    if fMaxSimDownCooldownSeconds > 0 then
+    begin
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
+        [Name, fMaxSimDownCooldownSeconds]);
+      fMaxSimDownCooldownSeconds := 0;
+    end;
+    fMaxSimDownCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+
+  Result := True;
+end;
+
+function TSite.MaxSimUpCooldownRemainingSeconds: integer;
+begin
+  if not MaxSimUpCooldownActive then
+    Exit(0);
+
+  Result := SecondsBetween(Now, fMaxSimUpCooldownUntil);
+end;
+
+function TSite.MaxSimDownCooldownRemainingSeconds: integer;
+begin
+  if not MaxSimDownCooldownActive then
+    Exit(0);
+
+  Result := SecondsBetween(Now, fMaxSimDownCooldownUntil);
 end;
 
 function TSite.GetDelayLeechMin(const aSection: String): integer;
@@ -4729,12 +4863,30 @@ begin
   WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
 end;
 
-function _mySpeedComparer(List: TStringList; Index1, Index2: integer): integer;
+function _mySpeedComparer({$IFDEF FPC}constref{$ELSE}const{$ENDIF} info1, info2: TSpeedFromRouteInfo): Integer;
 begin
   try
-    Result :=
-      CompareValue(StrToIntDef(list.ValueFromIndex[Index2], 0),
-      StrToIntDef(list.ValueFromIndex[Index1], 0));
+    // give affil routes more priority
+    if info1.AffilOnly <> info2.AffilOnly then
+    begin
+      if info1.AffilOnly then
+        Result := -1
+      else
+        Result := 1;
+      exit;
+    end;
+
+    // give no-affil routes less priority
+    if info1.NoAffil <> info2.NoAffil then
+    begin
+      if info1.NoAffil then
+        Result := 1
+      else
+        Result := -1;
+      exit;
+    end;
+
+    Result := CompareValue(info2.Speed, info1.Speed);
   except
     on e: Exception do
     begin
@@ -4746,7 +4898,7 @@ begin
   end;
 end;
 
-function TSite.GetSpeed_From: TStringList;
+function TSite.GetSpeed_From: TList<TSpeedFromRouteInfo>;
 begin
   if self.fSpeedFromCache = nil then
   begin
@@ -4759,10 +4911,9 @@ begin
     end;
   end;
 
-  Result := TStringList.Create;
   self.fSpeedFromCS.Enter('GetSpeed_From2');
   try
-    Result.Assign(self.fSpeedFromCache);
+    Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
   finally
     self.fSpeedFromCS.Leave;
   end;
@@ -4770,11 +4921,26 @@ end;
 
 procedure TSite.UpdateSpeedFromCache;
 var
-  fNewValue, fOldValue: TStringList;
+  fNewValue, fOldValue: TList<TSpeedFromRouteInfo>;
+  fSpeedInfo: TSpeedFromRouteInfo;
+  fStringList: TStringList;
+  i: Integer;
 begin
-  fNewValue := TStringList.Create;
-  sitesdat.ReadSectionValues('speed-from-' + Name, fNewValue);
-  fNewValue.CustomSort(_mySpeedComparer);
+  fNewValue := TList<TSpeedFromRouteInfo>.Create;
+  fStringList := TStringList.Create;
+  sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+
+  if fStringList.Count > 0 then
+  begin
+    for i := 0 to fStringList.Count - 1 do
+    begin
+      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
+      fSpeedInfo.Sitename := fStringList.Names[i];
+      fNewValue.Add(fSpeedInfo);
+    end;
+  end;
+
+  fNewValue.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
   self.fSpeedFromCS.Enter('UpdateSpeedFromCache');
   try
     fOldValue := self.fSpeedFromCache;
@@ -4784,6 +4950,59 @@ begin
   end;
 
   FreeAndNil(fOldValue);
+  FreeAndNil(fStringList);
+end;
+
+procedure TSite.MigrateSpeedLockAndSpeedToConfig;
+var
+  fStringList: TStringList;
+  i: Integer;
+  fSpeedInfo: TSpeedFromRouteInfo;
+begin
+
+  fStringList := TStringList.Create;
+
+  sitesdat.ReadSectionValues('speedlock-from-' + Name, fStringList);
+  try
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Migrating speedlock routes on %s into the new combined route config. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+
+      for i := 0 to fStringList.Count - 1 do
+      begin
+        fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(sitesdat.ReadString('speed-from-' + self.Name, fStringList.Names[i], '0'));
+        if (fSpeedInfo.Speed = 0) then
+        begin
+          irc_addadmin('No existing speed-from entry found for destination %s. Dropping this speedlock entry.', [fStringList.Names[i]]);
+          Continue;
+        end;
+
+        fSpeedInfo.Locked := True;
+        sitesdat.WriteString('speed-from-' + self.Name, fStringList.Names[i], fSpeedInfo.ToConfigString);
+        irc_addadmin('Migrated speedlock route to destination %s.', [fStringList.Names[i]]);
+      end;
+
+      sitesdat.EraseSection('speedlock-from-' + Name);
+
+      // also delete speedlock-to which apparantly has not been used before anyway.
+      sitesdat.EraseSection('speedlock-to-' + Name);
+
+      UpdateSpeedFromCache;
+    end;
+
+    fStringList.Clear;
+
+    // delete all speed-to settings since we do not need them anymore (and never really did).
+    sitesdat.ReadSectionValues('speed-to-' + Name, fStringList);
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Deleting speed-to settings on %s. If you revert to the old version, you will need to set those routes again.', [self.Name]);
+      sitesdat.EraseSection('speed-to-' + Name);
+    end;
+  finally
+    fStringList.Free;
+  end;
+
 end;
 
 end.

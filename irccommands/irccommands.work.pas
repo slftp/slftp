@@ -1014,6 +1014,9 @@ begin
   Result := False;
   i := 0; //< position of date value in string
   h := 0; //< position of first reason character
+  yyyy := ''; // Initialize to prevent uninitialized variable warning
+  yy := ''; // Initialize to prevent uninitialized variable warning
+  mm := ''; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
 
   if nil <> FindSiteByName(Netname, sitename) then
@@ -1130,6 +1133,9 @@ var
 begin
   Result := False;
   h := 0;
+  yyyy := ''; // Initialize to prevent uninitialized variable warning
+  yy := ''; // Initialize to prevent uninitialized variable warning
+  mm := ''; // Initialize to prevent uninitialized variable warning
   sitename := UpperCase(SubString(params, ' ', 1));
   if nil <> FindSiteByName(Netname, sitename) then
   begin

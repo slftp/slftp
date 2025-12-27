@@ -116,13 +116,13 @@ begin
   if l > Length(aFileExtension) + 6 then
   begin
     // for 3 chars in extension like .nfo, .rar, .mp3, .r02, etc
-    if ( (aFilename[l-6] = '(') and (aFilename[l-4] = ')') and (aFilename[l-5] in ['0'..'9']) ) then
+    if ( (aFilename[l-6] = '(') and (aFilename[l-4] = ')') and CharInSet(aFilename[l-5], ['0'..'9']) ) then
     begin
       Exit(True);
     end;
 
     // for 4 chars like .flac
-    if ( (aFilename[l-7] = '(') and (aFilename[l-5] = ')') and (aFilename[l-6] in ['0'..'9']) ) then
+    if ( (aFilename[l-7] = '(') and (aFilename[l-5] = ')') and CharInSet(aFilename[l-6], ['0'..'9']) ) then
     begin
       Exit(True);
     end;
