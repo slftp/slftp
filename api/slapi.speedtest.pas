@@ -4,7 +4,7 @@ interface
 
 uses
   Classes, SysUtils, Generics.Collections, slcriticalsection2, mormot.core.json,
-  mormot.core.variants, mormot.core.text, RegExpr;
+  mormot.core.variants, mormot.core.text, RegExpr{$IFDEF MSWINDOWS}, Windows {$ENDIF};
 
 type
   TSpeedTestType = (stLocal, stOut, stIn, stCleanup, stMatrix);
