@@ -53,7 +53,7 @@
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;DUnitX.MemoryLeakMonitor;$(DCC_Namespace)</DCC_Namespace>
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <Icns_MainIcns>$(BDS)\bin\delphi_PROJECTICNS.icns</Icns_MainIcns>
-        <DCC_UnitSearchPath>irccommands;rules;libs\BeRoHighResolutionTimer;libs\FastMM5;libs\FLRE;libs\LibTar;libs\lkJSON;libs\mORMot2\src\core;libs\mORMot2\src\lib;libs\mORMot2\src\crypt;libs\mORMot2\src\db;libs\mORMot2\src\orm;libs\mORMot2\src\net;libs\mORMot2\src\rest;libs\mORMot2\src\soa;libs\pasmp;libs\rcmdline;libs\TRegExpr;libs\ZeosLib\core;libs\ZeosLib\dbc;libs\ZeosLib\parsesql;libs\ZeosLib\plain;tests;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>api;irccommands;rules;libs\BeRoHighResolutionTimer;libs\FastMM5;libs\FLRE;libs\LibTar;libs\lkJSON;libs\mORMot2\src\core;libs\mORMot2\src\lib;libs\mORMot2\src\crypt;libs\mORMot2\src\db;libs\mORMot2\src\orm;libs\mORMot2\src\net;libs\mORMot2\src\rest;libs\mORMot2\src\soa;libs\pasmp;libs\rcmdline;libs\TRegExpr;libs\ZeosLib\core;libs\ZeosLib\dbc;libs\ZeosLib\parsesql;libs\ZeosLib\plain;tests;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_ExeOutput>p:\apps\slftp</DCC_ExeOutput>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">

@@ -143,10 +143,34 @@ web-ui-build:
 
 web-ui-deploy: web-ui-build
 	@echo "Deploying Web UI to $(WEB_DEPLOY_DIR)..."
-	@mkdir -p $(WEB_DEPLOY_DIR)
+	@set -euo pipefail; \
+	deploy_dir="$(WEB_DEPLOY_DIR)"; \
+	if [[ -z "$$deploy_dir" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR is empty; refusing to deploy."; \
+		exit 2; \
+	fi; \
+	deploy_real="$$(realpath -m "$$deploy_dir")"; \
+	repo_real="$$(realpath -m .)"; \
+	if [[ "$$deploy_real" == "/" || "$$deploy_real" == "$$repo_real" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR=$$deploy_real is unsafe; refusing to delete anything."; \
+		exit 2; \
+	fi; \
+	if [[ -e "$$deploy_real/slftp.lpr" || -d "$$deploy_real/.git" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR=$$deploy_real looks like a source checkout; refusing."; \
+		exit 2; \
+	fi; \
+	if [[ -e "$$deploy_real/slftp.ini" || -e "$$deploy_real/sites.dat" || -e "$$deploy_real/slftp" || -e "$$deploy_real/slftp_x86" || -e "$$deploy_real/slftp_x64" || -e "$$deploy_real/slftp_x86.exe" || -e "$$deploy_real/slftp_x64.exe" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR=$$deploy_real looks like a slftp install dir; refusing to clean it."; \
+			echo "Hint: deploy into a dedicated web folder, e.g. $$deploy_real/web"; \
+			exit 2; \
+		fi; \
+		mkdir -p "$$deploy_real"
 	@echo "Cleaning old files..."
-	@rm -rf $(WEB_DEPLOY_DIR)/*
-	@cp -r $(WEB_UI_DIR)/dist/* $(WEB_DEPLOY_DIR)/
+	@set -euo pipefail; \
+	deploy_real="$$(realpath -m "$(WEB_DEPLOY_DIR)")"; \
+	shopt -s dotglob nullglob; \
+	rm -rf -- "$$deploy_real"/*; \
+	cp -r -- "$(WEB_UI_DIR)/dist/"* "$$deploy_real"/
 	@echo "Web UI deployed to $(WEB_DEPLOY_DIR)"
 	@echo "Note: Login with API key from slftp.ini [api] section"
 

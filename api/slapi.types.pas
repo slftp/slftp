@@ -9,7 +9,8 @@ uses
   mormot.core.variants,
   mormot.core.json,
   mormot.core.rtti,
-  mormot.orm.core;
+  mormot.orm.core,
+  mormot.orm.base;
 
 type
   { API Response Types }
@@ -48,6 +49,8 @@ type
     FSitesDown: integer;
     FQueueSize: integer;
     FActiveTasks: integer;
+    FDirlistPerSecond: Double;
+    FDirlistPerSecondMax: Double;
   published
     property Version: RawUTF8 read FVersion write FVersion;
     property Uptime: Int64 read FUptime write FUptime;
@@ -56,6 +59,8 @@ type
     property SitesDown: integer read FSitesDown write FSitesDown;
     property QueueSize: integer read FQueueSize write FQueueSize;
     property ActiveTasks: integer read FActiveTasks write FActiveTasks;
+    property DirlistPerSecond: Double read FDirlistPerSecond write FDirlistPerSecond;
+    property DirlistPerSecondMax: Double read FDirlistPerSecondMax write FDirlistPerSecondMax;
   end;
 
   { Site Status Enum }
@@ -387,6 +392,139 @@ type
   published
     property Total: integer read FTotal write FTotal;
     property Issues: RawJSON read FIssues write FIssues;
+  end;
+
+  { IMDB Record }
+  TApiImdbRecord = class(TOrm)
+  private
+    FImdbId: RawUTF8;
+    FTitle: RawUTF8;
+    FYear: integer;
+    FRating: integer;
+    FVotes: integer;
+    FGenres: RawUTF8;
+    FCountries: RawUTF8;
+    FLanguages: RawUTF8;
+    FImdbType: RawUTF8;
+    FCreationTime: TDateTime;
+    FUpdatedTime: TDateTime;
+  published
+    property ImdbId: RawUTF8 read FImdbId write FImdbId;
+    property Title: RawUTF8 read FTitle write FTitle;
+    property Year: integer read FYear write FYear;
+    property Rating: integer read FRating write FRating;
+    property Votes: integer read FVotes write FVotes;
+    property Genres: RawUTF8 read FGenres write FGenres;
+    property Countries: RawUTF8 read FCountries write FCountries;
+    property Languages: RawUTF8 read FLanguages write FLanguages;
+    property ImdbType: RawUTF8 read FImdbType write FImdbType;
+    property CreationTime: TDateTime read FCreationTime write FCreationTime;
+    property UpdatedTime: TDateTime read FUpdatedTime write FUpdatedTime;
+  end;
+
+  { List of IMDB Records }
+  TApiImdbRecordList = class(TOrm)
+  private
+    FTotal: integer;
+    FRecords: RawJSON;
+  published
+    property Total: integer read FTotal write FTotal;
+    property Records: RawJSON read FRecords write FRecords;
+  end;
+
+  { TV Show Record }
+  TApiTVRecord = class(TOrm)
+  private
+    FTVMazeId: RawUTF8;
+    FShowname: RawUTF8;
+    FCountry: RawUTF8;
+    FStatus: RawUTF8;
+    FClassification: RawUTF8;
+    FNetwork: RawUTF8;
+    FGenre: RawUTF8;
+    FLanguage: RawUTF8;
+    FPremieredYear: integer;
+    FRating: integer;
+    FLastUpdated: integer;
+    FCreatedAt: integer;
+  published
+    property TVMazeId: RawUTF8 read FTVMazeId write FTVMazeId;
+    property Showname: RawUTF8 read FShowname write FShowname;
+    property Country: RawUTF8 read FCountry write FCountry;
+    property Status: RawUTF8 read FStatus write FStatus;
+    property Classification: RawUTF8 read FClassification write FClassification;
+    property Network: RawUTF8 read FNetwork write FNetwork;
+    property Genre: RawUTF8 read FGenre write FGenre;
+    property Language: RawUTF8 read FLanguage write FLanguage;
+    property PremieredYear: integer read FPremieredYear write FPremieredYear;
+    property Rating: integer read FRating write FRating;
+    property LastUpdated: integer read FLastUpdated write FLastUpdated;
+    property CreatedAt: integer read FCreatedAt write FCreatedAt;
+  end;
+
+  { List of TV Show Records }
+  TApiTVRecordList = class(TOrm)
+  private
+    FTotal: integer;
+    FRecords: RawJSON;
+  published
+    property Total: integer read FTotal write FTotal;
+    property Records: RawJSON read FRecords write FRecords;
+  end;
+
+  { ORM Models for TV Database }
+  TInfos = class(TOrm)
+  private
+    FTVMazeId: Integer;
+    FTVDbId: Integer;
+    FTVRageId: Integer;
+    FPremieredYear: Integer;
+    FCountry: RawUTF8;
+    FStatus: RawUTF8;
+    FClassification: RawUTF8;
+    FNetwork: RawUTF8;
+    FGenre: RawUTF8;
+    FEndedYear: Integer;
+    FLastUpdated: Integer;
+    FNextDate: Integer;
+    FNextSeason: Integer;
+    FNextEpisode: Integer;
+    FRating: Integer;
+    FAirdays: RawUTF8;
+    FTVLanguage: RawUTF8;
+  published
+    property TVMazeId: Integer index 1 read FTVMazeId write FTVMazeId stored AS_UNIQUE;
+    property TVDbId: Integer read FTVDbId write FTVDbId;
+    property TVRageId: Integer read FTVRageId write FTVRageId;
+    property PremieredYear: Integer read FPremieredYear write FPremieredYear;
+    property Country: RawUTF8 read FCountry write FCountry;
+    property Status: RawUTF8 read FStatus write FStatus;
+    property Classification: RawUTF8 read FClassification write FClassification;
+    property Network: RawUTF8 read FNetwork write FNetwork;
+    property Genre: RawUTF8 read FGenre write FGenre;
+    property EndedYear: Integer read FEndedYear write FEndedYear;
+    property LastUpdated: Integer read FLastUpdated write FLastUpdated;
+    property NextDate: Integer read FNextDate write FNextDate;
+    property NextSeason: Integer read FNextSeason write FNextSeason;
+    property NextEpisode: Integer read FNextEpisode write FNextEpisode;
+    property Rating: Integer read FRating write FRating;
+    property Airdays: RawUTF8 read FAirdays write FAirdays;
+    property TVLanguage: RawUTF8 read FTVLanguage write FTVLanguage;
+  end;
+
+  TSeries = class(TOrm)
+  private
+    FRip: RawUTF8;
+    FShowname: RawUTF8;
+    FRipCountry: RawUTF8;
+    FTVMazeUrl: RawUTF8;
+    FTVMazeIdRef: Integer;
+  published
+    property Rip: RawUTF8 index 1 read FRip write FRip stored AS_UNIQUE;
+    property Showname: RawUTF8 read FShowname write FShowname;
+    property RipCountry: RawUTF8 read FRipCountry write FRipCountry;
+    property TVMazeUrl: RawUTF8 read FTVMazeUrl write FTVMazeUrl;
+    property TVMazeIdRef: Integer read FTVMazeIdRef write FTVMazeIdRef;
   end;
 
 implementation

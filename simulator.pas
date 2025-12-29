@@ -91,7 +91,8 @@ procedure SimulatorUninit;
 implementation
 
 uses
-  SysUtils, TypInfo, sitesunit, rulesunit, routeconfig, debugunit, DateUtils, StrUtils, configunit, kb, encinifile;
+  SysUtils, TypInfo, sitesunit, rulesunit, routeconfig, debugunit, DateUtils, StrUtils, configunit, kb, encinifile,
+  slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'simulator';

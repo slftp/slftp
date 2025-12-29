@@ -1,8 +1,9 @@
-import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip } from '@mantine/core';
-import { IconAlertCircle, IconPlayerPlay, IconWand } from '@tabler/icons-react';
+import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs } from '@mantine/core';
+import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
+import { SpeedTest } from './SpeedTest';
 
 type RecentRelease = {
   ReleaseName: string;
@@ -59,7 +60,7 @@ function parseMaybeJsonArray<T = any>(value: unknown): T[] {
   return [];
 }
 
-export function Simulator() {
+function ReleaseSimulator() {
   const [section, setSection] = useState('');
   const [releaseName, setReleaseName] = useState('');
   const [simulatePre, setSimulatePre] = useState(false);
@@ -117,10 +118,10 @@ export function Simulator() {
   const routes = useMemo(() => parseMaybeJsonArray<SimulatorRouteResult>(sim?.Routes), [sim?.Routes]);
 
   const recentReleases = recentReleasesData || [];
-  const releaseOptions = useMemo(() =>
-    recentReleases.map(r => r.ReleaseName),
-    [recentReleases]
-  );
+  const releaseOptions = useMemo(() => {
+    const names = recentReleases.map(r => r.ReleaseName);
+    return [...new Set(names)];
+  }, [recentReleases]);
 
   const handleReleaseSelect = (value: string) => {
     const release = recentReleases.find(r => r.ReleaseName === value);
@@ -138,10 +139,6 @@ export function Simulator() {
 
   return (
     <Stack>
-      <Group justify="space-between" align="center">
-        <Title order={2}>Simulator</Title>
-      </Group>
-
       <Card withBorder radius="md" p="md">
         <Stack gap="md">
           <Autocomplete
@@ -299,6 +296,35 @@ export function Simulator() {
           </Card>
         </>
       )}
+    </Stack>
+  );
+}
+
+export function Simulator() {
+  const [activeTab, setActiveTab] = useState<string | null>('simulator');
+
+  return (
+    <Stack>
+      <Title order={2}>Tools</Title>
+
+      <Tabs value={activeTab} onChange={setActiveTab}>
+        <Tabs.List>
+          <Tabs.Tab value="simulator" leftSection={<IconCpu size="0.8rem" />}>
+            Release Simulator
+          </Tabs.Tab>
+          <Tabs.Tab value="speedtest" leftSection={<IconBolt size="0.8rem" />}>
+            Speedtests
+          </Tabs.Tab>
+        </Tabs.List>
+
+        <Tabs.Panel value="simulator" pt="xs">
+          <ReleaseSimulator />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="speedtest" pt="xs">
+          <SpeedTest />
+        </Tabs.Panel>
+      </Tabs>
     </Stack>
   );
 }

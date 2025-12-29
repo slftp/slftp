@@ -3,7 +3,7 @@ unit dbtvinfo;
 interface
 
 uses
-  Classes, IniFiles, irc, kb.releaseinfo, Contnrs;
+  Classes, IniFiles, irc, kb.releaseinfo, Contnrs, mormot.core.base;
 
 type
   { @abstract(Possible return values for special cases in getShowValues procedure)
@@ -68,6 +68,10 @@ type
 
 function getTVInfoCount: integer;
 function getTVInfoSeriesCount: integer;
+procedure getTVInfoRecords(out Records: RawJSON; out Total: Integer);
+procedure upsertTVInfoSeries(const aTVMazeId: String; const aShowname: String);
+procedure upsertTVInfoRecord(const aTVMazeId, aCountry, aStatus, aClassification, aNetwork, aGenre, aLanguage: String;
+  aPremieredYear, aRating: Integer);
 
 function TheTVDbStatus: String;
 
@@ -116,7 +120,7 @@ implementation
 uses
   DateUtils, SysUtils, Math, configunit, StrUtils, mystrings, console, sitesunit, queueunit, slmasks, http, RegExpr,
   debugunit, tasktvinfolookup, pazo, mrdohutils, uLkJSON, dbhandler, SyncObjs, sllanguagebase, mormot.db.sql.sqlite3,
-  Generics.Collections, news, kb, slcriticalsection2, mormot.core.unicode;
+  Generics.Collections, news, kb, slcriticalsection2, mormot.core.unicode, mormot.core.variants;
 
 const
   section = 'tasktvinfo';
@@ -977,6 +981,155 @@ begin
   end;
 end;
 
+procedure getTVInfoRecords(out Records: RawJSON; out Total: Integer);
+var
+  fQuery: TSqlDBSQLite3Statement;
+  recordsArray: TDocVariantData;
+  recordItem: variant;
+begin
+  Records := '[]';
+  Total := 0;
+
+  if tvinfoSQLite3DBCon = nil then
+    Exit;
+
+  recordsArray.InitFast(dvArray);
+  SQLite3Lock.Enter('getTVInfoRecords');
+  try
+    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.Prepare(
+        'SELECT DISTINCT infos.tvmaze_id, series.showname, infos.country, infos.status, ' +
+        'infos.classification, infos.network, infos.genre, infos.tv_language, ' +
+        'infos.premiered_year, infos.rating, infos.last_updated, infos.created_at ' +
+        'FROM infos LEFT JOIN series ON infos.tvmaze_id = series.id'
+      );
+      fQuery.ExecutePrepared;
+      while fQuery.Step do
+      begin
+        TDocVariant.New(recordItem);
+        TDocVariantData(recordItem).AddValue('TVMazeId', fQuery.ColumnInt('tvmaze_id'));
+        TDocVariantData(recordItem).AddValue('Showname', fQuery.ColumnUtf8('showname'));
+        TDocVariantData(recordItem).AddValue('Country', fQuery.ColumnUtf8('country'));
+        TDocVariantData(recordItem).AddValue('Status', fQuery.ColumnUtf8('status'));
+        TDocVariantData(recordItem).AddValue('Classification', fQuery.ColumnUtf8('classification'));
+        TDocVariantData(recordItem).AddValue('Network', fQuery.ColumnUtf8('network'));
+        TDocVariantData(recordItem).AddValue('Genre', fQuery.ColumnUtf8('genre'));
+        TDocVariantData(recordItem).AddValue('Language', fQuery.ColumnUtf8('tv_language'));
+        TDocVariantData(recordItem).AddValue('PremieredYear', fQuery.ColumnInt('premiered_year'));
+        TDocVariantData(recordItem).AddValue('Rating', fQuery.ColumnInt('rating'));
+        TDocVariantData(recordItem).AddValue('LastUpdated', fQuery.ColumnInt('last_updated'));
+        TDocVariantData(recordItem).AddValue('CreatedAt', fQuery.ColumnInt('created_at'));
+
+        recordsArray.AddItem(recordItem);
+      end;
+    finally
+      fQuery.Free;
+    end;
+  finally
+    SQLite3Lock.Leave;
+  end;
+
+  Total := recordsArray.Count;
+  Records := recordsArray.ToJSON;
+end;
+
+procedure upsertTVInfoSeries(const aTVMazeId: String; const aShowname: String);
+var
+  fQuery: TSqlDBSQLite3Statement;
+  tvmazeIdInt: Integer;
+begin
+  if (tvinfoSQLite3DBCon = nil) or (aShowname = '') then
+    Exit;
+
+  tvmazeIdInt := StrToIntDef(aTVMazeId, -1);
+  if tvmazeIdInt < 0 then
+    Exit;
+
+  SQLite3Lock.Enter('upsertTVInfoSeries');
+  try
+    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.Prepare('DELETE FROM series WHERE id = ?');
+      fQuery.Bind(1, tvmazeIdInt);
+      fQuery.ExecutePrepared;
+
+      fQuery.Reset;
+      fQuery.Prepare('INSERT OR IGNORE INTO series (rip, showname, id, tvmaze_url) VALUES (?, ?, ?, ?)');
+      fQuery.BindTextS(1, aShowname);
+      fQuery.BindTextS(2, aShowname);
+      fQuery.Bind(3, tvmazeIdInt);
+      fQuery.BindTextS(4, '');
+      fQuery.ExecutePrepared;
+    finally
+      fQuery.Free;
+    end;
+  finally
+    SQLite3Lock.Leave;
+  end;
+end;
+
+procedure upsertTVInfoRecord(const aTVMazeId, aCountry, aStatus, aClassification, aNetwork, aGenre, aLanguage: String;
+  aPremieredYear, aRating: Integer);
+var
+  fQuery: TSqlDBSQLite3Statement;
+  tvmazeIdInt: Integer;
+begin
+  if tvinfoSQLite3DBCon = nil then
+    Exit;
+
+  tvmazeIdInt := StrToIntDef(aTVMazeId, -1);
+  if tvmazeIdInt < 0 then
+    Exit;
+
+  SQLite3Lock.Enter('upsertTVInfoRecord');
+  try
+    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.Prepare(
+        'UPDATE infos SET premiered_year = ?, country = ?, status = ?, classification = ?, network = ?, genre = ?, ' +
+        'tv_language = ?, rating = ?, last_updated = ? WHERE tvmaze_id = ?'
+      );
+      fQuery.Bind(1, aPremieredYear);
+      fQuery.BindTextS(2, aCountry);
+      fQuery.BindTextS(3, aStatus);
+      fQuery.BindTextS(4, aClassification);
+      fQuery.BindTextS(5, aNetwork);
+      fQuery.BindTextS(6, aGenre);
+      fQuery.BindTextS(7, aLanguage);
+      fQuery.Bind(8, aRating);
+      fQuery.Bind(9, DateTimeToUnix(Now));
+      fQuery.Bind(10, tvmazeIdInt);
+      fQuery.ExecutePrepared;
+
+      if fQuery.UpdateCount = 0 then
+      begin
+        fQuery.Reset;
+        fQuery.Prepare(
+          'INSERT OR IGNORE INTO infos (tvmaze_id, premiered_year, country, status, classification, network, genre, ' +
+          'tv_language, rating, last_updated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        fQuery.Bind(1, tvmazeIdInt);
+        fQuery.Bind(2, aPremieredYear);
+        fQuery.BindTextS(3, aCountry);
+        fQuery.BindTextS(4, aStatus);
+        fQuery.BindTextS(5, aClassification);
+        fQuery.BindTextS(6, aNetwork);
+        fQuery.BindTextS(7, aGenre);
+        fQuery.BindTextS(8, aLanguage);
+        fQuery.Bind(9, aRating);
+        fQuery.Bind(10, DateTimeToUnix(Now));
+        fQuery.Bind(11, DateTimeToUnix(Now));
+        fQuery.ExecutePrepared;
+      end;
+    finally
+      fQuery.Free;
+    end;
+  finally
+    SQLite3Lock.Leave;
+  end;
+end;
+
 function getTVInfoByShowName(const aRls_Showname: String): TTVInfoDB;
 var
   tvi: TTVInfoDB;
@@ -1247,17 +1400,25 @@ end;
 
 procedure dbTVInfoStart;
 const
-  CurrentDbVersion: integer = 4;
+  CurrentDbVersion: integer = 5;
 var
   fDBName: String;
   fUserVersion: integer;
   fQuery: TSqlDBSQLite3Statement;
 begin
+  // Check if already initialized
+  if (SQLite3Lock <> nil) and (tvinfoSQLite3DBCon <> nil) then
+    Exit;
+
   fUserVersion := -1;
-  SQLite3Lock := TSlCriticalSection2.Create('tvdb');
+
+  if SQLite3Lock = nil then
+    SQLite3Lock := TSlCriticalSection2.Create('tvdb');
 
   fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
-  tvinfoSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');
+
+  if tvinfoSQLite3DBCon = nil then
+    tvinfoSQLite3DBCon := CreateSQLite3DbConn(fDBName, '');
 
   {* db version code *}
   fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
@@ -1304,6 +1465,17 @@ begin
             fQuery.Reset;
 
             fQuery.Prepare('PRAGMA user_version = 4');
+            fQuery.ExecutePrepared;
+          end;
+        4:
+          begin
+            fQuery.Prepare('ALTER TABLE infos ADD COLUMN created_at INTEGER DEFAULT -1');
+            fQuery.ExecutePrepared;
+
+            // release the SQL statement, results and bound parameters before reopen
+            fQuery.Reset;
+
+            fQuery.Prepare('PRAGMA user_version = 5');
             fQuery.ExecutePrepared;
           end;
       end;
@@ -1407,4 +1579,3 @@ begin
 end;
 
 end.
-

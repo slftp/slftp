@@ -52,7 +52,7 @@ export function Dashboard() {
       }
       return res.data as SystemStatus;
     },
-    refetchInterval: 30000,
+    refetchInterval: 5000,
     refetchOnWindowFocus: false,
   });
 
@@ -80,7 +80,7 @@ export function Dashboard() {
       }
       return { releases: [], total: 0 };
     },
-    refetchInterval: 30000,
+    refetchInterval: 5000,
     refetchOnWindowFocus: false,
   });
 
@@ -93,7 +93,7 @@ export function Dashboard() {
       }
       return res.data as IssuesSummary;
     },
-    refetchInterval: 30000,
+    refetchInterval: 5000,
     refetchOnWindowFocus: false,
   });
 
@@ -209,9 +209,17 @@ export function Dashboard() {
               <Text fw={700} size="xl">
                 {stats.ActiveTasks}
               </Text>
-              <Text size="xs" c="dimmed">
-                Queue Size: {stats.QueueSize}
-              </Text>
+              <Group gap="xs">
+                <Text size="xs" c="dimmed">
+                  Queue Size: {stats.QueueSize}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  ·
+                </Text>
+                <Text size="xs" c="blue" fw={500}>
+                  {stats.DirlistPerSecond?.toFixed(1) ?? 0} dir/s (max: {stats.DirlistPerSecondMax?.toFixed(1) ?? 0})
+                </Text>
+              </Group>
             </div>
             <ThemeIcon color="grape" variant="light" size={48} radius="md">
               <IconListCheck size="1.8rem" stroke={1.5} />

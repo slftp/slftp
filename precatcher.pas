@@ -2,13 +2,40 @@ unit precatcher;
 
 interface
 
-uses Classes, Contnrs, slmasks, encinifile, kb, kb.releaseinfo;
+uses
+  Classes,
+  SysUtils,
+  Contnrs,
+  slmasks,
+  encinifile,
+  kb,
+  kb.releaseinfo;
 
 type
+  { Precatcher hit information for API/UI diagnostics }
+  TPrecatcherHit = record
+    Id: Int64;
+    At: TDateTime;
+    Netname: String;
+    Channel: String;
+    Nick: String;
+    Sitename: String;
+    EventType: TKBEventType;
+    Section: String;
+    ReleaseName: String;
+    RuleId: Integer;
+    RuleLine: String;
+    Text: String;
+  end;
+
+  TPrecatcherHits = array of TPrecatcherHit;
+
   TSection = class
     eventtype: TKBEventType;
     section: String;
     words: TStringList;
+    ruleid: Integer;
+    ruleline: String;
 
     constructor Create;
     destructor Destroy; override;
@@ -57,6 +84,18 @@ function ExtractReleasename(ts_data: TStringList): String;
 function FindSection(const aCleanSitebotAnnounce: String): String;
 function ProcessDoReplace(const s: String; const rls: String = ''): String;
 
+/// Stores a precatcher rule hit for later retrieval via API/UI.
+procedure Precatcher_LogHit(const aNetname, aChannel, aNick, aSitename: String;
+  const aEventType: TKBEventType; const aSection, aReleaseName: String;
+  const aRuleId: Integer; const aRuleLine, aText: String);
+
+/// Returns recent precatcher hits (reverse chronological) with optional filters.
+procedure Precatcher_GetHits(const aLimit: Integer; const aSinceUnix: Int64;
+  const aReleaseName, aSiteName: String; out aHits: TPrecatcherHits);
+
+/// Returns the last hit for a given rule id.
+function Precatcher_TryGetLastHitForRule(const aRuleId: Integer; out aHit: TPrecatcherHit): Boolean;
+
 var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
@@ -71,7 +110,9 @@ var
 implementation
 
 uses
-  SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
+  DateUtils,
+  Generics.Collections,
+  sitesunit, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
   console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal, slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
@@ -79,6 +120,8 @@ uses
 const
   rsections = 'precatcher';
   glReleaseNamePlaceHolder: String = '${RELEASENAMEPLACEHOLDER}$';
+  CPrecatcherMaxHits = 5000;
+  CPrecatcherMaxTextLen = 400;
 
 var
   catcherFilename, replacefromline: String;
@@ -91,6 +134,10 @@ var
   precatcher_lock: TSlCriticalSection2;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
+  GlPrecatcherHits: TList<TPrecatcherHit>;
+  GlPrecatcherHitsLock: TSlCriticalSection2;
+  GlPrecatcherHitSeq: Int64;
+  GlPrecatcherLastHitByRuleId: TDictionary<Integer, TPrecatcherHit>;
 
 procedure _LogMissingSectionIfNeeded(const aNetname, aSitename, aSection, aReleaseName, aReason, aKbEvent: String);
 var
@@ -106,6 +153,104 @@ begin
       'MISSING_SECTION|' + aSitename + '|' + aSection, 300);
     irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)',
       [aSection, aReleaseName, aSitename, aKbEvent]));
+  end;
+end;
+
+procedure Precatcher_LogHit(const aNetname, aChannel, aNick, aSitename: String;
+  const aEventType: TKBEventType; const aSection, aReleaseName: String;
+  const aRuleId: Integer; const aRuleLine, aText: String);
+var
+  h: TPrecatcherHit;
+  t: String;
+begin
+  if not (aEventType in [kbeNEWDIR, kbePRE, kbeCOMPLETE, kbeNUKE, kbeREQUEST, kbeADDPRE]) then
+    Exit;
+  if (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  t := aText;
+  if Length(t) > CPrecatcherMaxTextLen then
+    t := Copy(t, 1, CPrecatcherMaxTextLen);
+
+  GlPrecatcherHitsLock.Enter('Precatcher_LogHit');
+  try
+    Inc(GlPrecatcherHitSeq);
+    h.Id := GlPrecatcherHitSeq;
+    h.At := Now;
+    h.Netname := aNetname;
+    h.Channel := aChannel;
+    h.Nick := aNick;
+    h.Sitename := aSitename;
+    h.EventType := aEventType;
+    h.Section := aSection;
+    h.ReleaseName := aReleaseName;
+    h.RuleId := aRuleId;
+    h.RuleLine := aRuleLine;
+    h.Text := t;
+
+    GlPrecatcherHits.Add(h);
+    if GlPrecatcherHits.Count > CPrecatcherMaxHits then
+      GlPrecatcherHits.Delete(0);
+
+    if GlPrecatcherLastHitByRuleId <> nil then
+      GlPrecatcherLastHitByRuleId.AddOrSetValue(aRuleId, h);
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
+
+procedure Precatcher_GetHits(const aLimit: Integer; const aSinceUnix: Int64;
+  const aReleaseName, aSiteName: String; out aHits: TPrecatcherHits);
+var
+  i: Integer;
+  c: Integer;
+  sinceUtc: TDateTime;
+  h: TPrecatcherHit;
+begin
+  SetLength(aHits, 0);
+  if (aLimit <= 0) or (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  if aSinceUnix > 0 then
+    sinceUtc := UnixToDateTime(aSinceUnix, False)
+  else
+    sinceUtc := 0;
+
+  c := 0;
+  GlPrecatcherHitsLock.Enter('Precatcher_GetHits');
+  try
+    for i := GlPrecatcherHits.Count - 1 downto 0 do
+    begin
+      h := GlPrecatcherHits[i];
+      if (aSinceUnix > 0) and (h.At < sinceUtc) then
+        Break;
+      if (aReleaseName <> '') and (not SameText(h.ReleaseName, aReleaseName)) then
+        Continue;
+      if (aSiteName <> '') and (not SameText(h.Sitename, aSiteName)) then
+        Continue;
+
+      SetLength(aHits, c + 1);
+      aHits[c] := h;
+      Inc(c);
+      if c >= aLimit then
+        Break;
+    end;
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
+
+function Precatcher_TryGetLastHitForRule(const aRuleId: Integer; out aHit: TPrecatcherHit): Boolean;
+begin
+  Result := False;
+  if (GlPrecatcherLastHitByRuleId = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  GlPrecatcherHitsLock.Enter('Precatcher_TryGetLastHitForRule');
+  try
+    Result := GlPrecatcherLastHitByRuleId.TryGetValue(aRuleId, aHit);
+  finally
+    GlPrecatcherHitsLock.Leave;
   end;
 end;
 
@@ -597,6 +742,9 @@ begin
             end;
             rls_section := PrecatcherSectionMapping(rls, rls_section);
 
+            Precatcher_LogHit(net, chan, nick, sc.sitename, ss.eventtype, rls_section, rls,
+              ss.ruleid, ss.ruleline, Data);
+
             if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
             begin
               MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
@@ -674,7 +822,7 @@ begin
 
 end;
 
-function ProcessChannels(s: String): boolean;
+function ProcessChannels(s: String; const aRuleId: Integer): boolean;
 var
   network, chan, nick, sitename, words, event, forced_section: String;
   sci: integer;
@@ -722,6 +870,8 @@ begin
     section := TSection.Create;
     section.section := forced_section;
     section.eventtype := EventStringToTKBEventType(event);
+    section.ruleid := aRuleId;
+    section.ruleline := s;
 
     if (words <> '') then
       for i := 1 to Count(',', words) + 1 do
@@ -758,7 +908,7 @@ begin
   i := 0;
   while (i < catcherFile.Count) do
   begin
-    if not ProcessChannels(catcherFile[i]) then
+    if not ProcessChannels(catcherFile[i], i) then
     begin
       catcherFile.Delete(i);
       Dec(i);
@@ -1022,6 +1172,11 @@ begin
       halt;
     end;
   end;
+
+  GlPrecatcherHits := TList<TPrecatcherHit>.Create;
+  GlPrecatcherLastHitByRuleId := TDictionary<Integer, TPrecatcherHit>.Create;
+  GlPrecatcherHitsLock := TSlCriticalSection2.Create('precatcher_hits_lock');
+  GlPrecatcherHitSeq := 0;
 end;
 
 procedure Precatcher_UnInit;
@@ -1046,6 +1201,13 @@ begin
 
   precatcher_debug_lock.Free;
   Closefile(debug_f);
+
+  GlPrecatcherHitsLock.Free;
+  GlPrecatcherHitsLock := nil;
+  GlPrecatcherLastHitByRuleId.Free;
+  GlPrecatcherLastHitByRuleId := nil;
+  GlPrecatcherHits.Free;
+  GlPrecatcherHits := nil;
 
   Debug(dpSpam, rsections, 'Uninit2');
 end;

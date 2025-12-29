@@ -1,9 +1,12 @@
-import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch } from '@mantine/core';
-import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch } from '@tabler/icons-react';
+import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch, ScrollArea } from '@mantine/core';
+import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch, IconListCheck } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient } from '../api/client';
+import type { Site } from '../api/client';
 import { notifications } from '@mantine/notifications';
+import { parseIrcAnnounce, parsedAnnounceToWords } from '../utils/ircAnnounceParser';
+import type { ParsedAnnounce } from '../utils/ircAnnounceParser';
 
 interface IrcNetwork {
   name: string;
@@ -33,6 +36,61 @@ interface PrecatcherRule {
   section: string;
 }
 
+interface RecentRelease {
+  ReleaseName: string;
+  Section: string;
+  Added: number;
+  PazoId: number;
+  Ready: boolean;
+  Stopped: boolean;
+  QueueNumber: number;
+  Sites: string[];
+  TotalSites?: number;
+  AllowedSites?: number;
+  PresentSites?: number;
+  ExpectedSites?: number;
+  ExpectedSitesList?: string[];
+  NotAllowedSites?: number;
+}
+
+interface PrecatcherHit {
+  id: number;
+  atUnix: number;
+  netname: string;
+  channel: string;
+  nick: string;
+  sitename: string;
+  event: string;
+  section: string;
+  releaseName: string;
+  ruleId: number;
+  ruleLine: string;
+  text: string;
+}
+
+interface ReleaseSiteDetail {
+  SiteName: string;
+  Complete: boolean;
+  FileCount: number;
+  TotalFiles: number;
+  FilesRacedByMe: number;
+  Percent: number;
+  Status: string;
+}
+
+interface ReleaseDetails {
+  ReleaseName: string;
+  Section: string;
+  Added: string;
+  PazoId: number;
+  Ready: boolean;
+  Stopped: boolean;
+  QueueNumber: number;
+  SiteDetails: ReleaseSiteDetail[];
+  TotalFiles: number;
+  ErrorReason: string;
+}
+
 const EVENT_TYPES = [
   { value: 'PRE', label: 'PRE' },
   { value: 'ADDPRE', label: 'ADDPRE' },
@@ -47,6 +105,20 @@ export function IRC() {
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('networks');
 
+  const formatUnix = (unix?: number) => {
+    if (!unix) return '';
+    try {
+      return new Date(unix * 1000).toLocaleString();
+    } catch {
+      return '';
+    }
+  };
+
+  const [matchesWindow, setMatchesWindow] = useState<string>('24h');
+  const [matchesFilter, setMatchesFilter] = useState('');
+  const [selectedMatchRelease, setSelectedMatchRelease] = useState<RecentRelease | null>(null);
+  const [matchModalOpened, setMatchModalOpened] = useState(false);
+
   // Channel state
   const [editingChannel, setEditingChannel] = useState<IrcChannel | null>(null);
   const [editChankey, setEditChankey] = useState('');
@@ -60,6 +132,8 @@ export function IRC() {
 
   // Rules state
   const [addingRule, setAddingRule] = useState(false);
+  const [editingRule, setEditingRule] = useState<PrecatcherRule | null>(null);
+  const [ircAnnounce, setIrcAnnounce] = useState('');
   const [newNetname, setNewNetname] = useState('');
   const [newChannel, setNewChannel] = useState('');
   const [newBotnicks, setNewBotnicks] = useState('');
@@ -137,6 +211,63 @@ export function IRC() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: addRuleChannels } = useQuery({
+    queryKey: ['irc-channels', 'rule', newNetname],
+    queryFn: async (): Promise<IrcChannel[]> => {
+      if (!newNetname) return [];
+      const res = await apiClient.post('/ApiIrcService/GetChannels', { NetName: newNetname });
+
+      let channels: IrcChannel[] = [];
+      try {
+        if (res.data.result && Array.isArray(res.data.result)) {
+          const resultData = res.data.result[0];
+          if (typeof resultData === 'string') {
+            channels = JSON.parse(resultData);
+          } else if (Array.isArray(resultData)) {
+            channels = resultData;
+          }
+        } else if (typeof res.data === 'string') {
+          channels = JSON.parse(res.data);
+        } else if (Array.isArray(res.data)) {
+          channels = res.data;
+        }
+      } catch (e) {
+        console.error('Failed to parse IRC channels:', e);
+        return [];
+      }
+
+      return channels;
+    },
+    enabled: !!newNetname,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: sites } = useQuery({
+    queryKey: ['sites'],
+    queryFn: async (): Promise<Site[]> => {
+      const res = await apiClient.post('/ApiSitesService/GetSites', { Filter: '' });
+      let responseData = res.data;
+      if (res.data.result && Array.isArray(res.data.result)) {
+        responseData = res.data.result[0];
+      }
+
+      const rawSites = responseData.Sites;
+      let parsedSites: Site[] = [];
+      try {
+        if (typeof rawSites === 'string') {
+          parsedSites = JSON.parse(rawSites);
+        } else if (Array.isArray(rawSites)) {
+          parsedSites = rawSites;
+        }
+      } catch (e) {
+        console.error('Failed to parse sites JSON', e);
+      }
+
+      return parsedSites;
+    },
+    refetchOnWindowFocus: false,
+  });
+
   const { data: rules, isLoading: rulesLoading } = useQuery({
     queryKey: ['precatcher-rules'],
     queryFn: async (): Promise<PrecatcherRule[]> => {
@@ -162,7 +293,144 @@ export function IRC() {
       return rules;
     },
     refetchOnWindowFocus: false,
-    enabled: activeTab === 'rules',
+    enabled: activeTab === 'rules' || activeTab === 'matches',
+  });
+
+  const getWindowSinceUnix = () => {
+    const now = Math.floor(Date.now() / 1000);
+    switch (matchesWindow) {
+      case '1h': return now - 3600;
+      case '6h': return now - 6 * 3600;
+      case '24h': return now - 24 * 3600;
+      case '7d': return now - 7 * 24 * 3600;
+      case 'all': return 0;
+      default: return now - 24 * 3600;
+    }
+  };
+
+  const { data: recentReleases, isLoading: releasesLoading } = useQuery({
+    queryKey: ['precatcher-releases', matchesWindow],
+    queryFn: async (): Promise<RecentRelease[]> => {
+      const res = await apiClient.post('/ApiSystemService/GetRecentReleases', { Limit: 50 });
+      try {
+        if (res.data?.result && Array.isArray(res.data.result)) {
+          const payload = res.data.result[0];
+          const releases = payload?.Releases;
+          if (Array.isArray(releases)) return releases as RecentRelease[];
+          if (typeof releases === 'string') {
+            const parsed = JSON.parse(releases);
+            return Array.isArray(parsed) ? (parsed as RecentRelease[]) : [];
+          }
+          return [];
+        }
+        return [];
+      } catch {
+        return [];
+      }
+    },
+    refetchOnWindowFocus: false,
+    enabled: activeTab === 'matches',
+  });
+
+  const { data: precatcherHits, isLoading: hitsLoading } = useQuery({
+    queryKey: ['precatcher-hits', matchesWindow],
+    queryFn: async (): Promise<PrecatcherHit[]> => {
+      const res = await apiClient.post('/ApiPrecatcherService/GetHits', {
+        Limit: 1000,
+        SinceUnix: getWindowSinceUnix(),
+        ReleaseName: '',
+        SiteName: '',
+      });
+      let hits: PrecatcherHit[] = [];
+      try {
+        if (res.data?.result && Array.isArray(res.data.result)) {
+          const resultData = res.data.result[0];
+          if (Array.isArray(resultData)) hits = resultData as PrecatcherHit[];
+          else if (typeof resultData === 'string') hits = JSON.parse(resultData) as PrecatcherHit[];
+        } else if (typeof res.data === 'string') {
+          hits = JSON.parse(res.data) as PrecatcherHit[];
+        } else if (Array.isArray(res.data)) {
+          hits = res.data as PrecatcherHit[];
+        }
+      } catch {
+        return [];
+      }
+      return hits;
+    },
+    refetchOnWindowFocus: false,
+    enabled: activeTab === 'matches',
+  });
+
+  const { data: matchReleaseDetails, isLoading: matchReleaseDetailsLoading } = useQuery({
+    queryKey: ['releaseDetails', selectedMatchRelease?.PazoId],
+    queryFn: async (): Promise<ReleaseDetails | null> => {
+      if (!selectedMatchRelease?.PazoId) return null;
+      const res = await apiClient.post('/ApiSystemService/GetReleaseDetails', { PazoId: selectedMatchRelease.PazoId });
+      if (res.data && res.data.result && Array.isArray(res.data.result)) {
+        const details = res.data.result[0];
+        if (details && details.SiteDetails) {
+          const siteDetails = (() => {
+            if (Array.isArray(details.SiteDetails)) return details.SiteDetails;
+            if (typeof details.SiteDetails === 'string') {
+              try {
+                const parsed = JSON.parse(details.SiteDetails);
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            }
+            return [];
+          })();
+          return { ...details, SiteDetails: siteDetails } as ReleaseDetails;
+        }
+        return details as ReleaseDetails;
+      }
+      return null;
+    },
+    enabled: matchModalOpened && !!selectedMatchRelease?.PazoId,
+    refetchOnWindowFocus: false,
+  });
+
+  const normalize = (s?: string) => (s || '').trim().toLowerCase();
+
+  const isPresentOnSite = (sd?: ReleaseSiteDetail) => {
+    if (!sd) return false;
+    const st = normalize(sd.Status);
+    if (st.includes('present')) return true;
+    if (st === 'pre' || st === 'complete') return true;
+    if ((sd.FileCount || 0) > 0) return true;
+    if ((sd.Percent || 0) > 0) return true;
+    if ((sd.FilesRacedByMe || 0) > 0) return true;
+    if (sd.Complete) return true;
+    return false;
+  };
+
+  const matchesByRelease = (() => {
+    const map = new Map<string, { hits: PrecatcherHit[]; sites: Set<string>; lastAt: number }>();
+    for (const hit of precatcherHits || []) {
+      const key = hit.releaseName || '';
+      if (!key) continue;
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, { hits: [hit], sites: new Set([hit.sitename]), lastAt: hit.atUnix });
+      } else {
+        existing.hits.push(hit);
+        existing.sites.add(hit.sitename);
+        if (hit.atUnix > existing.lastAt) existing.lastAt = hit.atUnix;
+      }
+    }
+    return map;
+  })();
+
+  const filteredReleases = (recentReleases || []).filter((r) => {
+    if (!matchesFilter) return true;
+    const term = matchesFilter.toLowerCase();
+    const sites = (r.Sites || []).join(' ').toLowerCase();
+    return (
+      (r.ReleaseName || '').toLowerCase().includes(term) ||
+      (r.Section || '').toLowerCase().includes(term) ||
+      sites.includes(term)
+    );
   });
 
   const getStatusBadge = (network: IrcNetwork) => {
@@ -292,15 +560,20 @@ export function IRC() {
 
   const addRuleMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post('/ApiPrecatcherService/AddPrecatcherRule', {
-        netname: newNetname,
-        channel: newChannel,
-        botnicks: newBotnicks,
-        sitename: newSitename,
-        event: newEvent,
-        words: newWords,
-        section: newSection,
-      });
+      const payload = {
+        RuleData: {
+          netname: newNetname,
+          channel: newChannel,
+          botnicks: newBotnicks,
+          sitename: newSitename,
+          event: newEvent,
+          words: newWords,
+          section: newSection,
+        },
+      };
+      console.debug('[precatcher] add rule payload', payload);
+      const res = await apiClient.post('/ApiPrecatcherService/AddPrecatcherRule', payload);
+      console.debug('[precatcher] add rule response', res.data);
     },
     onSuccess: () => {
       notifications.show({
@@ -309,6 +582,8 @@ export function IRC() {
         color: 'green',
       });
       setAddingRule(false);
+      setEditingRule(null);
+      setIrcAnnounce('');
       setNewNetname('');
       setNewChannel('');
       setNewBotnicks('');
@@ -326,6 +601,142 @@ export function IRC() {
       });
     },
   });
+
+  const updateRuleMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingRule) return;
+      const payload = {
+        RuleId: editingRule.id,
+        RuleData: {
+          netname: newNetname,
+          channel: newChannel,
+          botnicks: newBotnicks,
+          sitename: newSitename,
+          event: newEvent,
+          words: newWords,
+          section: newSection,
+        },
+      };
+      console.debug('[precatcher] update rule payload', payload);
+      const res = await apiClient.post('/ApiPrecatcherService/UpdatePrecatcherRule', payload);
+      console.debug('[precatcher] update rule response', res.data);
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Updated',
+        message: 'Precatcher rule updated successfully',
+        color: 'green',
+      });
+      setAddingRule(false);
+      setEditingRule(null);
+      setIrcAnnounce('');
+      setNewNetname('');
+      setNewChannel('');
+      setNewBotnicks('');
+      setNewSitename('');
+      setNewEvent('PRE');
+      setNewWords('');
+      setNewSection('');
+      queryClient.invalidateQueries({ queryKey: ['precatcher-rules'] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message,
+        color: 'red',
+      });
+    },
+  });
+
+  const pickWordsFromRules = (parsed: ParsedAnnounce, rulesList: PrecatcherRule[]) => {
+    if (!rulesList || rulesList.length === 0) return '';
+
+    const botNick = parsed.botNick.trim().toLowerCase();
+    if (!botNick) return '';
+
+    const eventType = parsed.eventType.trim().toUpperCase();
+    if (!eventType) return '';
+
+    const matchesBotnick = (value: string) => {
+      if (!value) return false;
+      const tokens = value
+        .split(/[,\s]+/)
+        .map((token) => token.trim().toLowerCase())
+        .filter(Boolean);
+      return tokens.includes(botNick);
+    };
+
+    const matchesEvent = (value: string) => value.trim().toUpperCase() === eventType;
+    const baseMatches = rulesList.filter((rule) => matchesEvent(rule.event) && matchesBotnick(rule.botnicks) && rule.words);
+    if (baseMatches.length === 0) return '';
+
+    const counts = new Map<string, { count: number; firstIndex: number }>();
+    baseMatches.forEach((rule, index) => {
+      const key = rule.words;
+      const entry = counts.get(key);
+      if (entry) {
+        entry.count += 1;
+      } else {
+        counts.set(key, { count: 1, firstIndex: index });
+      }
+    });
+
+    let best = '';
+    let bestCount = 0;
+    let bestIndex = Number.POSITIVE_INFINITY;
+    counts.forEach((entry, key) => {
+      if (entry.count > bestCount || (entry.count === bestCount && entry.firstIndex < bestIndex)) {
+        best = key;
+        bestCount = entry.count;
+        bestIndex = entry.firstIndex;
+      }
+    });
+
+    return best;
+  };
+
+  const handleAnnounceChange = (value: string) => {
+    setIrcAnnounce(value);
+
+    if (!value.trim()) {
+      setNewBotnicks('');
+      setNewEvent('PRE');
+      setNewWords('');
+      return;
+    }
+
+    const parsed = parseIrcAnnounce(value);
+    if (!parsed) {
+      setNewBotnicks('');
+      setNewEvent('PRE');
+      setNewWords('');
+      return;
+    }
+
+    setNewBotnicks(parsed.botNick);
+    setNewEvent(parsed.eventType);
+    const wordsFromRules = pickWordsFromRules(parsed, rules || []);
+    setNewWords(wordsFromRules || parsedAnnounceToWords(parsed));
+
+    notifications.show({
+      title: 'Auto-filled',
+      message: `Parsed announce from bot ${parsed.botNick}`,
+      color: 'blue',
+      autoClose: 2000,
+    });
+  };
+
+  const handleEditRule = (rule: PrecatcherRule) => {
+    setEditingRule(rule);
+    setNewNetname(rule.netname);
+    setNewChannel(rule.channel);
+    setNewBotnicks(rule.botnicks);
+    setNewSitename(rule.sitename);
+    setNewEvent(rule.event);
+    setNewWords(rule.words);
+    setNewSection(rule.section);
+    setAddingRule(true);
+  };
 
   const deleteRuleMutation = useMutation({
     mutationFn: async (ruleId: number) => {
@@ -472,6 +883,9 @@ export function IRC() {
           </Tabs.Tab>
           <Tabs.Tab value="rules" leftSection={<IconFilter size="1rem" />}>
             Catchlist
+          </Tabs.Tab>
+          <Tabs.Tab value="matches" leftSection={<IconListCheck size="1rem" />}>
+            Matches
           </Tabs.Tab>
           <Tabs.Tab value="test" leftSection={<IconFlask size="1rem" />}>
             Test
@@ -736,13 +1150,22 @@ export function IRC() {
                       </Table.Td>
                       <Table.Td>{rule.section}</Table.Td>
                       <Table.Td>
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          onClick={() => deleteRuleMutation.mutate(rule.id)}
-                        >
-                          <IconTrash size="1rem" />
-                        </ActionIcon>
+                        <Group gap={4}>
+                          <ActionIcon
+                            variant="light"
+                            color="blue"
+                            onClick={() => handleEditRule(rule)}
+                          >
+                            <IconEdit size="1rem" />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="light"
+                            color="red"
+                            onClick={() => deleteRuleMutation.mutate(rule.id)}
+                          >
+                            <IconTrash size="1rem" />
+                          </ActionIcon>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -753,6 +1176,321 @@ export function IRC() {
             {rules && rules.length === 0 && (
               <Text c="dimmed" ta="center" py="xl">No catchlist entries configured</Text>
             )}
+          </Stack>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="matches" pt="md">
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Title order={3}>Release Matches</Title>
+              <Group gap="xs">
+                <Select
+                  value={matchesWindow}
+                  onChange={(v) => setMatchesWindow(v || '24h')}
+                  data={[
+                    { value: '1h', label: 'Last 1h' },
+                    { value: '6h', label: 'Last 6h' },
+                    { value: '24h', label: 'Last 24h' },
+                    { value: '7d', label: 'Last 7d' },
+                    { value: 'all', label: 'All (since start)' },
+                  ]}
+                  style={{ width: 170 }}
+                />
+                <TextInput
+                  placeholder="Filter releases/sites..."
+                  leftSection={<IconSearch size="1rem" />}
+                  value={matchesFilter}
+                  onChange={(event) => setMatchesFilter(event.currentTarget.value)}
+                  style={{ width: 260 }}
+                />
+                <ActionIcon
+                  variant="outline"
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ['precatcher-releases'] });
+                    queryClient.invalidateQueries({ queryKey: ['precatcher-hits'] });
+                  }}
+                >
+                  <IconRefresh size="1.1rem" />
+                </ActionIcon>
+              </Group>
+            </Group>
+
+            {(releasesLoading || hitsLoading) ? (
+              <Center h={300}><Loader size="lg" /></Center>
+            ) : (
+              <ScrollArea>
+                <Table highlightOnHover withTableBorder withColumnBorders>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Release</Table.Th>
+                    <Table.Th>Section</Table.Th>
+                    <Table.Th>Added</Table.Th>
+                    <Table.Th>Total</Table.Th>
+                    <Table.Th>Allowed</Table.Th>
+                    <Table.Th>Present</Table.Th>
+                    <Table.Th>Expected</Table.Th>
+                    <Table.Th>Matched</Table.Th>
+                    <Table.Th>Hits</Table.Th>
+                    <Table.Th>Last Hit</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {filteredReleases.map((r) => {
+                      const m = matchesByRelease.get(r.ReleaseName);
+                      const expectedSitesList = (r.ExpectedSitesList || r.Sites || [])
+                        .map((s) => normalize(s))
+                        .filter(Boolean);
+                      const expectedSitesNormalized = new Set(expectedSitesList);
+                      const matchedSites = m
+                        ? Array.from(m.sites).filter((s) => expectedSitesNormalized.has(normalize(s))).length
+                        : 0;
+                      const hitsCount = m ? m.hits.length : 0;
+                      const lastAt = m ? m.lastAt : 0;
+                      const sitesList = (r.Sites || []).join(', ');
+                      const matchedSitesList = m
+                        ? Array.from(m.sites).filter((s) => expectedSitesNormalized.has(normalize(s))).join(', ')
+                        : '';
+                      const totalSites = r.TotalSites ?? (r.Sites || []).length;
+                      const allowedSites = r.AllowedSites ?? totalSites;
+                      const presentSites = r.PresentSites ?? 0;
+                      const expectedSites = r.ExpectedSites ?? expectedSitesNormalized.size ?? allowedSites;
+                      const rowFilter = matchesFilter.toLowerCase();
+                      if (rowFilter && m) {
+                        const anyHitMatches = m.hits.some((h) =>
+                          (h.sitename || '').toLowerCase().includes(rowFilter) ||
+                          (h.event || '').toLowerCase().includes(rowFilter)
+                        );
+                        if (!anyHitMatches &&
+                          !r.ReleaseName.toLowerCase().includes(rowFilter) &&
+                          !r.Section.toLowerCase().includes(rowFilter) &&
+                          !(r.Sites || []).join(' ').toLowerCase().includes(rowFilter)
+                        ) {
+                          return null;
+                        }
+                      }
+
+                      return (
+                        <Table.Tr
+                          key={r.PazoId}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => {
+                            setSelectedMatchRelease(r);
+                            setMatchModalOpened(true);
+                          }}
+                        >
+                          <Table.Td fw={600}>{r.ReleaseName}</Table.Td>
+                          <Table.Td>{r.Section || '-'}</Table.Td>
+                          <Table.Td>{formatUnix(r.Added)}</Table.Td>
+                          <Table.Td>
+                            <Tooltip label={sitesList || 'No sites'} disabled={!sitesList}>
+                              <Badge variant="light">{totalSites}</Badge>
+                            </Tooltip>
+                          </Table.Td>
+                          <Table.Td><Badge variant="light">{allowedSites}</Badge></Table.Td>
+                          <Table.Td><Badge variant="light">{presentSites}</Badge></Table.Td>
+                          <Table.Td><Badge variant="light">{expectedSites}</Badge></Table.Td>
+                          <Table.Td>
+                            <Tooltip label={matchedSitesList || ''} disabled={!matchedSitesList}>
+                              <Badge color={matchedSites === expectedSites && expectedSites > 0 ? 'green' : (matchedSites > 0 ? 'yellow' : 'gray')}>
+                                {matchedSites}/{expectedSites}
+                              </Badge>
+                            </Tooltip>
+                          </Table.Td>
+                          <Table.Td>
+                            {hitsCount > 0 ? <Badge variant="light">{hitsCount}</Badge> : <Text size="sm" c="dimmed">0</Text>}
+                          </Table.Td>
+                          <Table.Td>
+                            {lastAt ? <Text size="sm">{formatUnix(lastAt)}</Text> : <Text size="sm" c="dimmed">-</Text>}
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    })}
+                  </Table.Tbody>
+                </Table>
+              </ScrollArea>
+            )}
+
+            <Modal
+              opened={matchModalOpened}
+              onClose={() => {
+                setMatchModalOpened(false);
+              }}
+              title={`Matches: ${selectedMatchRelease?.ReleaseName || ''}`}
+              size="90%"
+            >
+              {selectedMatchRelease && (
+                <ScrollArea h="75vh">
+                  <Stack gap="md">
+                    <div>
+                      <Title order={5}>Site Presence vs. Announce</Title>
+                      <Text size="sm" c="dimmed">
+                        We expect an announce only if the release is present on a site (based on current release details). Then we check if any precatcher hit happened for that site in the selected window.
+                      </Text>
+                      {matchReleaseDetailsLoading && <Text size="sm" c="dimmed" mt="xs">Loading release site status...</Text>}
+                    </div>
+
+                    {(() => {
+                      const releaseSites = (selectedMatchRelease.Sites || [])
+                        .map((s) => normalize(s))
+                        .filter(Boolean);
+
+                      const hits = matchesByRelease.get(selectedMatchRelease.ReleaseName)?.hits || [];
+                      const relevantRules = (rules || []).filter((r) => releaseSites.includes(normalize(r.sitename)));
+
+                      const botsBySite = new Map<string, Set<string>>();
+                      for (const r of relevantRules) {
+                        const siteKey = normalize(r.sitename);
+                        const set = botsBySite.get(siteKey) || new Set<string>();
+                        for (const b of (r.botnicks || '').split(',').map((x) => normalize(x)).filter(Boolean)) {
+                          set.add(b);
+                        }
+                        botsBySite.set(siteKey, set);
+                      }
+
+                      const hitsBySite = new Map<string, PrecatcherHit[]>();
+                      for (const h of hits) {
+                        const siteKey = normalize(h.sitename);
+                        if (!releaseSites.includes(siteKey)) continue;
+                        const arr = hitsBySite.get(siteKey) || [];
+                        arr.push(h);
+                        hitsBySite.set(siteKey, arr);
+                      }
+
+                      const detailsBySite = new Map<string, ReleaseSiteDetail>();
+                      for (const sd of (matchReleaseDetails?.SiteDetails || [])) {
+                        const key = normalize(sd.SiteName);
+                        if (key) detailsBySite.set(key, sd);
+                      }
+
+                      const rows = releaseSites.map((siteKey) => {
+                        const expectedBots = Array.from(botsBySite.get(siteKey) || new Set<string>()).sort();
+                        const siteHits = hitsBySite.get(siteKey) || [];
+                        const seenBots = Array.from(new Set(siteHits.map((h) => normalize(h.nick)).filter(Boolean))).sort();
+                        const missingBots = expectedBots.filter((b) => !seenBots.includes(b));
+                        const eventsSeen = Array.from(new Set(siteHits.map((h) => normalize(h.event)).filter(Boolean))).sort();
+                        const sd = detailsBySite.get(siteKey);
+                        const present = isPresentOnSite(sd);
+                        const st = normalize(sd?.Status);
+                        const allowedByRules = st !== 'not allowed' && st !== 'not allowed (present)';
+                        const expectedAnnounce = present && allowedByRules;
+                        return { siteKey, sd, expectedBots, seenBots, missingBots, eventsSeen, hitsCount: siteHits.length, present, expectedAnnounce };
+                      });
+
+                      if (rows.length === 0) {
+                        return <Text size="sm" c="dimmed">No site data available.</Text>;
+                      }
+
+                      const severityRank = (r: any) => {
+                        if (r.expectedAnnounce && r.hitsCount === 0) return 0;
+                        if (r.expectedAnnounce && r.missingBots.length > 0) return 1;
+                        if (r.expectedAnnounce) return 2;
+                        return 3;
+                      };
+
+                      const sorted = rows
+                        .slice()
+                        .sort((a, b) => {
+                          const ra = severityRank(a);
+                          const rb = severityRank(b);
+                          if (ra !== rb) return ra - rb;
+                          return a.siteKey.localeCompare(b.siteKey);
+                        });
+
+                      const missingCount = sorted.filter((r) => r.expectedAnnounce && r.hitsCount === 0).length;
+                      const partialCount = sorted.filter((r) => r.expectedAnnounce && r.hitsCount > 0 && r.missingBots.length > 0).length;
+
+                      return (
+                        <>
+                          <Group gap="xs">
+                            <Badge color={missingCount > 0 ? 'red' : 'green'} variant="light">Missing announces: {missingCount}</Badge>
+                            <Badge color={partialCount > 0 ? 'yellow' : 'green'} variant="light">Missing bots: {partialCount}</Badge>
+                            <Text size="sm" c="dimmed">Sorted by importance (missing/partial first)</Text>
+                          </Group>
+
+                          <Table withTableBorder withColumnBorders highlightOnHover>
+                            <Table.Thead>
+                              <Table.Tr>
+                                <Table.Th>Site</Table.Th>
+                                <Table.Th>Present</Table.Th>
+                                <Table.Th>Site Status</Table.Th>
+                                <Table.Th>Files</Table.Th>
+                                <Table.Th>Expected Announce</Table.Th>
+                                <Table.Th>Announce Status</Table.Th>
+                                <Table.Th>Hits</Table.Th>
+                                <Table.Th>Seen Bots</Table.Th>
+                                <Table.Th>Missing Bots</Table.Th>
+                                <Table.Th>Events Seen</Table.Th>
+                              </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                              {sorted.map((r) => {
+                                const missingAnnounce = r.expectedAnnounce && r.hitsCount === 0;
+                                const partial = r.expectedAnnounce && r.hitsCount > 0 && r.missingBots.length > 0;
+                                const ok = r.expectedAnnounce && !missingAnnounce && !partial;
+
+                                const rowStyle =
+                                  missingAnnounce ? { backgroundColor: 'rgba(255, 0, 0, 0.08)' } :
+                                  partial ? { backgroundColor: 'rgba(255, 165, 0, 0.08)' } :
+                                  undefined;
+
+                                return (
+                                  <Table.Tr key={r.siteKey} style={rowStyle}>
+                              <Table.Td fw={600}>{r.siteKey.toUpperCase()}</Table.Td>
+                              <Table.Td>
+                                {r.present ? <Badge color="green" variant="light">yes</Badge> : <Badge color="gray" variant="light">no</Badge>}
+                              </Table.Td>
+                              <Table.Td>{r.sd?.Status || '-'}</Table.Td>
+                              <Table.Td>
+                                {r.sd ? (
+                                  <Text size="sm">{r.sd.FileCount}/{r.sd.TotalFiles} ({Math.round(r.sd.Percent)}%)</Text>
+                                ) : (
+                                  <Text size="sm" c="dimmed">-</Text>
+                                )}
+                              </Table.Td>
+                              <Table.Td>
+                                {r.expectedAnnounce ? <Badge color="blue" variant="light">yes</Badge> : <Badge color="gray" variant="light">no</Badge>}
+                              </Table.Td>
+                              <Table.Td>
+                                {missingAnnounce ? (
+                                  <Badge color="red">missing</Badge>
+                                ) : partial ? (
+                                  <Badge color="yellow">partial</Badge>
+                                ) : ok ? (
+                                  <Badge color="green">ok</Badge>
+                                ) : (
+                                  <Badge color="gray" variant="light">n/a</Badge>
+                                )}
+                              </Table.Td>
+                              <Table.Td>
+                                {r.hitsCount > 0 ? (
+                                  <Badge variant="light">{r.hitsCount}</Badge>
+                                ) : (
+                                  <Badge color={r.expectedAnnounce ? 'red' : 'gray'} variant="light">no hits</Badge>
+                                )}
+                              </Table.Td>
+                              <Table.Td>{r.seenBots.length > 0 ? r.seenBots.join(', ') : <Text size="sm" c="dimmed">-</Text>}</Table.Td>
+                              <Table.Td>
+                                {r.missingBots.length > 0 ? (
+                                  <Tooltip label={r.missingBots.join(', ')}>
+                                    <Badge color="yellow" variant="light">{r.missingBots.length} missing</Badge>
+                                  </Tooltip>
+                                ) : (
+                                  <Text size="sm" c="dimmed">-</Text>
+                                )}
+                              </Table.Td>
+                              <Table.Td>{r.eventsSeen.length > 0 ? r.eventsSeen.join(', ') : <Text size="sm" c="dimmed">-</Text>}</Table.Td>
+                                  </Table.Tr>
+                                );
+                              })}
+                            </Table.Tbody>
+                          </Table>
+                        </>
+                      );
+                    })()}
+                  </Stack>
+                </ScrollArea>
+              )}
+            </Modal>
           </Stack>
         </Tabs.Panel>
 
@@ -900,35 +1638,96 @@ export function IRC() {
 
       <Modal
         opened={addingRule}
-        onClose={() => setAddingRule(false)}
-        title="Add Catchlist Entry"
+        onClose={() => {
+          setAddingRule(false);
+          setEditingRule(null);
+          setIrcAnnounce('');
+          setNewNetname('');
+          setNewChannel('');
+          setNewBotnicks('');
+          setNewSitename('');
+          setNewEvent('PRE');
+          setNewWords('');
+          setNewSection('');
+        }}
+        title={editingRule ? "Edit Catchlist Entry" : "Add Catchlist Entry"}
         centered
         size="lg"
       >
         <Stack gap="md">
-          <TextInput
-            label="Site Name"
-            value={newSitename}
-            onChange={(e) => setNewSitename(e.currentTarget.value)}
-            placeholder="SITEONE"
-            required
-          />
+          {!editingRule && (
+            <Textarea
+              label="IRC Announce (Optional)"
+              value={ircAnnounce}
+              onChange={(e) => handleAnnounceChange(e.currentTarget.value)}
+              placeholder="Paste IRC announce here to auto-fill fields"
+              minRows={2}
+              description="Paste an IRC announce to automatically extract bot nick, event type, and release pattern"
+            />
+          )}
 
-          <TextInput
-            label="Network Name"
-            value={newNetname}
-            onChange={(e) => setNewNetname(e.currentTarget.value)}
-            placeholder="IRCNET"
-            required
-          />
+          {(sites && sites.length > 0) ? (
+            <Select
+              label="Site Name"
+              value={newSitename}
+              onChange={(value) => setNewSitename(value || '')}
+              data={sites.map((site) => ({ value: site.name, label: site.name }))}
+              placeholder="Select a site"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Site Name"
+              value={newSitename}
+              onChange={(e) => setNewSitename(e.currentTarget.value)}
+              placeholder="SITEONE"
+              required
+            />
+          )}
 
-          <TextInput
-            label="Channel"
-            value={newChannel}
-            onChange={(e) => setNewChannel(e.currentTarget.value)}
-            placeholder="#pre"
-            required
-          />
+          {(networks && networks.length > 0) ? (
+            <Select
+              label="Network Name"
+              value={newNetname}
+              onChange={(value) => {
+                setNewNetname(value || '');
+                setNewChannel('');
+              }}
+              data={networks.map((net) => ({ value: net.name, label: net.name }))}
+              placeholder="Select a network"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Network Name"
+              value={newNetname}
+              onChange={(e) => setNewNetname(e.currentTarget.value)}
+              placeholder="IRCNET"
+              required
+            />
+          )}
+
+          {(addRuleChannels && addRuleChannels.length > 0) ? (
+            <Select
+              label="Channel"
+              value={newChannel}
+              onChange={(value) => setNewChannel(value || '')}
+              data={addRuleChannels.map((chan) => ({ value: chan.channel, label: chan.channel }))}
+              placeholder="Select a channel"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Channel"
+              value={newChannel}
+              onChange={(e) => setNewChannel(e.currentTarget.value)}
+              placeholder="#pre"
+              required
+            />
+          )}
 
           <TextInput
             label="Bot Nicks"
@@ -951,8 +1750,8 @@ export function IRC() {
             label="Words"
             value={newWords}
             onChange={(e) => setNewWords(e.currentTarget.value)}
-            placeholder="*release*"
-            description="Keywords to match in the announce"
+            placeholder="NEW,RACE,join"
+            description="Comma-separated keywords (substring match, no wildcards)"
             required
           />
 
@@ -965,11 +1764,18 @@ export function IRC() {
           />
 
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setAddingRule(false)}>
+            <Button variant="default" onClick={() => {
+              setAddingRule(false);
+              setEditingRule(null);
+            }}>
               Cancel
             </Button>
-            <Button onClick={() => addRuleMutation.mutate()} loading={addRuleMutation.isPending} leftSection={<IconPlus size="1rem" />}>
-              Add
+            <Button 
+              onClick={() => editingRule ? updateRuleMutation.mutate() : addRuleMutation.mutate()} 
+              loading={editingRule ? updateRuleMutation.isPending : addRuleMutation.isPending} 
+              leftSection={editingRule ? <IconEdit size="1rem" /> : <IconPlus size="1rem" />}
+            >
+              {editingRule ? "Update" : "Add"}
             </Button>
           </Group>
         </Stack>

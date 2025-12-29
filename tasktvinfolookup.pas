@@ -397,7 +397,7 @@ begin
     if js = nil then
       Exit;
 
-    tvr.tv_showname := String(js.Field['name'].Value);
+    tvr.tv_showname := UTF8Encode(WideString(js.Field['name'].Value));
 
     if LowerCase(tvr.tv_showname) = 'not found' then
     begin
@@ -406,20 +406,20 @@ begin
     end;
 
     tvr.tvmaze_id := String(js.Field['id'].Value);
-    tvr.tv_url := String(js.Field['url'].Value);
+    tvr.tv_url := UTF8Encode(WideString(js.Field['url'].Value));
 
     if js.Field['language'].SelfType <> jsNull then
-    tvr.tv_language:=String(js.Field['language'].Value);
+    tvr.tv_language:=UTF8Encode(WideString(js.Field['language'].Value));
 
     if js.Field['status'].SelfType = jsNull then
       tvr.tv_status := 'unknown'
     else
-      tvr.tv_status := String(js.Field['status'].Value);
+      tvr.tv_status := UTF8Encode(WideString(js.Field['status'].Value));
 
     if js.Field['type'].SelfType = jsNull then
       tvr.tv_classification := 'unknown'
     else
-      tvr.tv_classification := String(js.Field['type'].Value);
+      tvr.tv_classification := UTF8Encode(WideString(js.Field['type'].Value));
 
     tvr.tv_running := Boolean( (lowercase(tvr.tv_status) = 'running') or (lowercase(tvr.tv_status) = 'in development') );
     tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
@@ -435,7 +435,7 @@ begin
     begin
       if js.Field['webChannel'].SelfType <> jsNull then
       begin
-        tvr.tv_network := String(js.Field['webChannel'].Field['name'].Value);
+        tvr.tv_network := UTF8Encode(WideString(js.Field['webChannel'].Field['name'].Value));
 
         if js.Field['webChannel'].Field['country'].SelfType = jsNull then
           tvr.tv_country := 'unknown'
@@ -450,7 +450,7 @@ begin
     end
     else
     begin
-      tvr.tv_network := String(js.Field['network'].Field['name'].Value);
+      tvr.tv_network := UTF8Encode(WideString(js.Field['network'].Field['name'].Value));
 
       if js.Field['network'].Field['country'].SelfType = jsNull then
         tvr.tv_country := 'unknown'
@@ -465,12 +465,12 @@ begin
 
     if js.Field['schedule'].SelfType <> jsNull then
       for i := 0 to js.Field['schedule'].Field['days'].Count - 1 do
-        tvr.tv_days.Add(string(js.Field['schedule'].Field['days'].Child[i].Value));
+        tvr.tv_days.Add(UTF8Encode(WideString(js.Field['schedule'].Field['days'].Child[i].Value)));
 
     if js.Field['genres'].SelfType <> jsNull then
     begin
       for I := 0 to js.Field['genres'].Count - 1 do
-        tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+        tvr.tv_genres.Add(UTF8Encode(WideString(js.Field['genres'].Child[i].Value)));
     end;
     Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Genres: %s URL: %s', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 

@@ -40,7 +40,7 @@ export function Logs() {
 
       return parsed;
     },
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 30000 : false,
     refetchOnWindowFocus: false,
   });
 
@@ -84,10 +84,10 @@ export function Logs() {
       <Group justify="space-between" align="center">
         <Title order={2}>System Logs</Title>
         <Group>
-           <Switch 
-            label="Auto-refresh (5s)" 
-            checked={autoRefresh} 
-            onChange={(e) => setAutoRefresh(e.currentTarget.checked)} 
+           <Switch
+            label="Auto-refresh (30s)"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.currentTarget.checked)}
            />
            <Button 
              leftSection={<IconRefresh size="1rem" />} 

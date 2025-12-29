@@ -19,10 +19,12 @@ uses
   mormot.soa.server,
   slapi.types,
 	  slapi.services,
+    slapi.speedtest,
 	  slapi.issues,
 	  sitesunit,
 	  queueunit,
 	  tasksunit,
+  taskrace,
   tasklogin,
   statsunit,
   ranksunit,
@@ -36,10 +38,11 @@ uses
   mainthread,
 	  debugunit,
 	  configunit,
-	  routeconfig,
-	  delphimd5,
-	  RegExpr,
-	  slcriticalsection2;
+  routeconfig,
+  delphimd5,
+  RegExpr,
+  slcriticalsection2,
+  globals;
 
 type
   { System Service Implementation }
@@ -55,7 +58,6 @@ type
     function GetAutoStatus: boolean;
     function SetAutoStatus(Enabled: boolean): boolean;
   end;
-
   { Sites Service Implementation }
   TApiSitesServiceImpl = class(TInjectableObjectRest, IApiSitesService)
   public
@@ -129,6 +131,13 @@ type
     function RecalculateRanks: boolean;
   end;
 
+  { Live Races Service Implementation }
+  TApiRacesServiceImpl = class(TInjectableObjectRest, IApiRacesService)
+  public
+    function GetRaces(const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+    function GetReleaseTransfers(const Release: RawUTF8; const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+  end;
+
   { IRC Service Implementation }
   TApiIrcServiceImpl = class(TInjectableObjectRest, IApiIrcService)
   public
@@ -163,11 +172,17 @@ type
   TApiSpeedServiceImpl = class(TInjectableObjectRest, IApiSpeedService)
   public
     function GetRoutes(const SiteName: RawUTF8): RawJSON;
-    function TestSpeedLocal(const SiteName: RawUTF8): boolean;
+    function TestSpeedLocal(const SiteName: RawUTF8): RawUTF8;
     function TestSpeedOut(const SourceSite: RawUTF8;
-                          const DestSites: RawUTF8): boolean;
+                          const DestSites: RawUTF8): RawUTF8;
     function TestSpeedIn(const DestSite: RawUTF8;
-                         const SourceSites: RawUTF8): boolean;
+                         const SourceSites: RawUTF8): RawUTF8;
+    function TestSpeedCleanup(const Sites: RawUTF8): RawUTF8;
+    function TestSpeedMatrix(const IncludeSites: RawUTF8 = '';
+                             const ExcludeSites: RawUTF8 = ''): RawUTF8;
+    function GetSpeedTestSites: RawJSON;
+    function GetTestLog(const TestId: RawUTF8): RawJSON;
+    function GetTestStatus(const TestId: RawUTF8): RawJSON;
     function GetSpeedResults(const SiteName: RawUTF8): RawJSON;
     function RecalculateRoutes: boolean;
   end;
@@ -185,10 +200,13 @@ type
 	  public
 	    function GetPrecatcherRules: RawJSON;
 	    function AddPrecatcherRule(const RuleData: RawJSON): integer;
+	    function UpdatePrecatcherRule(RuleId: integer; const RuleData: RawJSON): boolean;
 	    function DeletePrecatcherRule(RuleId: integer): boolean;
 	    function TestPrecatcher(const Announce: RawUTF8): RawJSON;
 	    function ReloadPrecatcher: boolean;
 	    function GetMappings: RawJSON;
+	    function GetHits(const Limit: integer; const SinceUnix: Int64;
+	      const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
 	  end;
 
 	  { Simulator Service Implementation }
@@ -203,6 +221,7 @@ type
 	  public
 	    function GetSummary(const WindowSeconds: integer; out Response: TApiIssuesSummary): boolean;
 	    function GetIssues(const Limit: integer; const SinceUnix: Int64; const TypesCsv: RawUTF8; out Response: TApiIssuesList): boolean;
+	    function DeleteIssue(const IssueId: Int64): boolean;
 	    function ClearIssues: boolean;
 	  end;
 
@@ -212,6 +231,38 @@ type
 	    function GetLogs(const Lines: integer): RawJSON;
 	    function ClearLogs: boolean;
 	  end;
+
+  { Browser Service Implementation }
+  TApiBrowserServiceImpl = class(TInjectableObjectRest, IApiBrowserService)
+  public
+    function GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
+  end;
+
+  { IMDB Service Implementation }
+  TApiImdbServiceImpl = class(TInjectableObjectRest, IApiImdbService)
+  public
+    function GetAllImdbRecords(out Response: TApiImdbRecordList): boolean;
+    function GetImdbRecordById(const ImdbId: RawUTF8; out Response: TApiImdbRecord): boolean;
+    function CreateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8;
+                              out NewId: RawUTF8): boolean;
+    function UpdateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8): boolean;
+    function DeleteImdbRecord(const ImdbId: RawUTF8): boolean;
+  end;
+
+  { TV Service Implementation }
+  TApiTVServiceImpl = class(TInjectableObjectRest, IApiTVService)
+  public
+    function GetAllTVRecords(out Response: TApiTVRecordList): boolean;
+    function GetTVRecordById(const TVMazeId: RawUTF8; out Response: TApiTVRecord): boolean;
+    function CreateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer;
+                            out NewId: RawUTF8): boolean;
+    function UpdateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer): boolean;
+    function DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
+  end;
 
 implementation
 
@@ -224,7 +275,15 @@ uses
   taskraw,
   SyncObjs,
   IdStack,
-  irccommands.irc;
+  irccommands.irc,
+  dirlist.helpers,
+  dbaddimdb,
+  dbtvinfo,
+  dbhandler,
+  mormot.orm.core,
+  mormot.orm.base,
+  mormot.db.raw.sqlite3,
+  mormot.rest.sqlite3;
 
 {$I ../slftp.inc}
 
@@ -232,6 +291,14 @@ const
   section = 'slapi.services';
   CGetSiteCreditsTimeoutMs = 30000;
   CGetSiteCreditsCacheSeconds = 3600;
+  CBrowserCacheSeconds = 60; // Cache duration for browser listings
+
+var
+  GlApiTaskToPazoId: TDictionary<Int64, Integer>;
+  GlApiTaskToPazoIdLock: TSLCriticalSection2;
+
+  TVDatabase: TSQLRestClientDB;
+  TVDBModel: TSQLModel;
 
 type
   TSiteCreditsCacheEntry = record
@@ -243,9 +310,314 @@ type
     StatLine: RawUTF8;
   end;
 
+  TBrowserCacheStatus = (bcsPending, bcsReady, bcsError);
+
+  TBrowserCacheEntry = class
+  public
+    Status: TBrowserCacheStatus;
+    Timestamp: TDateTime;
+    Data: RawUTF8; // JSON string of file list
+    Error: string;
+  end;
+
+  TBrowserDirlistTask = class(TTask)
+  private
+    FDir: string;
+    FCacheKey: string;
+  public
+    constructor Create(const aSite, aDir, aCacheKey: string);
+    function Execute(slot: Pointer): Boolean; override;
+    function Name: String; override;
+  end;
+
 var
   glSiteCreditsCacheLock: TSlCriticalSection2;
   glSiteCreditsCache: TDictionary<string, TSiteCreditsCacheEntry>;
+  
+  glBrowserCacheLock: TSlCriticalSection2;
+  glBrowserCache: TObjectDictionary<string, TBrowserCacheEntry>;
+
+{ TBrowserDirlistTask }
+
+constructor TBrowserDirlistTask.Create(const aSite, aDir, aCacheKey: string);
+begin
+  inherited Create('', '', aSite);
+  FDir := aDir;
+  FCacheKey := aCacheKey;
+end;
+
+function TBrowserDirlistTask.Execute(slot: Pointer): Boolean;
+var
+  s: TSiteSlot;
+  entry: TBrowserCacheEntry;
+  parsedList: TObjectList<TParsedDirListEntry>;
+  parsedEntry: TParsedDirlistEntry;
+  jsonArr: TDocVariantData;
+  fileObj: variant;
+  i: integer;
+begin
+  Result := False;
+  s := TSiteSlot(slot);
+  
+  // Try to login if needed
+  if s.status <> ssOnline then
+    if not s.ReLogin then
+    begin
+      glBrowserCacheLock.Enter('BrowserTask_LoginFail');
+      try
+        if glBrowserCache.TryGetValue(FCacheKey, entry) then
+        begin
+          entry.Status := bcsError;
+          entry.Error := 'Login failed';
+          entry.Timestamp := Now;
+        end;
+      finally
+        glBrowserCacheLock.Leave;
+      end;
+      readyerror := True;
+      Exit;
+    end;
+
+  // Execute Dirlist
+  // We force CWD to ensure we are in the right directory and get a clean listing
+  if not s.Dirlist(FDir, True) then
+  begin
+    glBrowserCacheLock.Enter('BrowserTask_DirlistFail');
+    try
+      if glBrowserCache.TryGetValue(FCacheKey, entry) then
+      begin
+        entry.Status := bcsError;
+        entry.Error := Format('Failed to list directory: %s', [s.lastResponse]);
+        entry.Timestamp := Now;
+      end;
+    finally
+      glBrowserCacheLock.Leave;
+    end;
+    readyerror := True;
+    Exit;
+  end;
+
+  // Parse result
+  try
+    parsedList := ParseStatResponse(s.lastResponse);
+    try
+      jsonArr.InitFast(dvArray);
+      
+      for i := 0 to parsedList.Count - 1 do
+      begin
+        parsedEntry := parsedList[i];
+        
+        // Skip current/parent dir dots if they appear (usually filtered but just in case)
+        if (parsedEntry.Filename = '.') or (parsedEntry.Filename = '..') then
+          Continue;
+
+        TDocVariant.New(fileObj);
+        TDocVariantData(fileObj).AddValue('name', UTF8Encode(parsedEntry.Filename));
+        TDocVariantData(fileObj).AddValue('size', parsedEntry.Filesize);
+        TDocVariantData(fileObj).AddValue('date', UTF8Encode(parsedEntry.Date));
+        TDocVariantData(fileObj).AddValue('user', UTF8Encode(parsedEntry.Username));
+        TDocVariantData(fileObj).AddValue('group', UTF8Encode(parsedEntry.Groupname));
+        TDocVariantData(fileObj).AddValue('perm', UTF8Encode(parsedEntry.DirMask));
+        
+        // IsDirectory check: usually starts with 'd'
+        if (Length(parsedEntry.DirMask) > 0) and (parsedEntry.DirMask[1] = 'd') then
+          TDocVariantData(fileObj).AddValue('is_dir', True)
+        else
+          TDocVariantData(fileObj).AddValue('is_dir', False);
+          
+        jsonArr.AddItem(fileObj);
+      end;
+      
+      // Update Cache
+      glBrowserCacheLock.Enter('BrowserTask_Success');
+      try
+        if glBrowserCache.TryGetValue(FCacheKey, entry) then
+        begin
+          entry.Status := bcsReady;
+          entry.Data := jsonArr.ToJSON;
+          entry.Error := '';
+          entry.Timestamp := Now;
+        end;
+      finally
+        glBrowserCacheLock.Leave;
+      end;
+      
+      Result := True;
+      ready := True;
+      
+    finally
+      parsedList.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      glBrowserCacheLock.Enter('BrowserTask_Exception');
+      try
+        if glBrowserCache.TryGetValue(FCacheKey, entry) then
+        begin
+          entry.Status := bcsError;
+          entry.Error := Format('Exception parsing dirlist: %s', [E.Message]);
+          entry.Timestamp := Now;
+        end;
+      finally
+        glBrowserCacheLock.Leave;
+      end;
+      readyerror := True;
+    end;
+  end;
+end;
+
+function TBrowserDirlistTask.Name: String;
+begin
+  Result := Format('BROWSER: %s @ %s', [FDir, site1]);
+end;
+
+{ TApiBrowserServiceImpl }
+
+function TApiBrowserServiceImpl.GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
+var
+  s: TSite;
+  fPath: string;
+  fSiteName: string;
+  cacheKey: string;
+  entry: TBrowserCacheEntry;
+  needsFetch: boolean;
+  resultDoc: variant;
+  task: TBrowserDirlistTask;
+begin
+  Result := '{}';
+  try
+    fSiteName := UTF8ToString(SiteName);
+    fPath := UTF8ToString(Path);
+    
+    // Normalize path
+    if fPath = '' then fPath := '/';
+    // ensure leading slash
+    if fPath[1] <> '/' then fPath := '/' + fPath;
+    // remove trailing slash if not root
+    if (Length(fPath) > 1) and (fPath[Length(fPath)] = '/') then
+      Delete(fPath, Length(fPath), 1);
+      
+    cacheKey := UpperCase(fSiteName) + '|' + fPath;
+    needsFetch := False;
+    
+    // Check Cache
+    glBrowserCacheLock.Enter('GetPath_CheckCache');
+    try
+      if glBrowserCache.TryGetValue(cacheKey, entry) then
+      begin
+        if ForceRefresh then
+          needsFetch := True
+        else if (entry.Status = bcsReady) and (SecondsBetween(Now, entry.Timestamp) > CBrowserCacheSeconds) then
+          needsFetch := True
+        else if (entry.Status = bcsError) and (SecondsBetween(Now, entry.Timestamp) > 10) then // Retry errors after 10s
+          needsFetch := True;
+      end
+      else
+      begin
+        // New entry
+        entry := TBrowserCacheEntry.Create;
+        entry.Status := bcsPending;
+        entry.Timestamp := Now;
+        glBrowserCache.Add(cacheKey, entry);
+        needsFetch := True;
+      end;
+      
+      // If we are pending but not needsFetch (meaning it's already pending from a recent request), just return pending
+      if (entry.Status = bcsPending) and (not needsFetch) then
+      begin
+        // If it's been pending for too long (> 30s), treat as timeout/needs refetch
+        if SecondsBetween(Now, entry.Timestamp) > 30 then
+          needsFetch := True;
+      end;
+      
+      // Update entry if we are fetching
+      if needsFetch then
+      begin
+        entry.Status := bcsPending;
+        entry.Timestamp := Now;
+        entry.Error := '';
+      end;
+      
+    finally
+      glBrowserCacheLock.Leave;
+    end;
+
+    // Trigger Task if needed
+    if needsFetch then
+    begin
+      s := FindSiteByName('', fSiteName);
+      if s = nil then
+      begin
+        TDocVariant.New(resultDoc);
+        TDocVariantData(resultDoc).AddValue('status', 'error');
+        TDocVariantData(resultDoc).AddValue('message', UTF8Encode('Site not found'));
+        Result := VariantSaveJSON(resultDoc);
+        
+        // Update cache to error
+        glBrowserCacheLock.Enter('GetPath_SiteError');
+        try
+          if glBrowserCache.TryGetValue(cacheKey, entry) then
+          begin
+            entry.Status := bcsError;
+            entry.Error := 'Site not found';
+          end;
+        finally
+          glBrowserCacheLock.Leave;
+        end;
+        Exit;
+      end;
+      
+      task := TBrowserDirlistTask.Create(fSiteName, fPath, cacheKey);
+      // Give it high priority? TBrowserDirlistTask inherits from TTask. 
+      // AddTask puts it in the queue.
+      // We rely on queue order.
+      s.AddTask(task, True); // True = Fire queue immediately
+    end;
+
+    // Build Response based on current state (even if we just queued it)
+    glBrowserCacheLock.Enter('GetPath_BuildResponse');
+    try
+      if glBrowserCache.TryGetValue(cacheKey, entry) then
+      begin
+        TDocVariant.New(resultDoc);
+        
+        case entry.Status of
+          bcsPending:
+          begin
+            TDocVariantData(resultDoc).AddValue('status', 'pending');
+          end;
+          bcsReady:
+          begin
+            TDocVariantData(resultDoc).AddValue('status', 'ready');
+            TDocVariantData(resultDoc).AddValue('files', _JsonFast(entry.Data));
+            TDocVariantData(resultDoc).AddValue('path', UTF8Encode(fPath));
+            TDocVariantData(resultDoc).AddValue('timestamp', DateTimeToUnix(entry.Timestamp));
+          end;
+          bcsError:
+          begin
+            TDocVariantData(resultDoc).AddValue('status', 'error');
+            TDocVariantData(resultDoc).AddValue('message', UTF8Encode(entry.Error));
+          end;
+        end;
+        
+        Result := VariantSaveJSON(resultDoc);
+      end;
+    finally
+      glBrowserCacheLock.Leave;
+    end;
+
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetPath: %s', [E.Message]));
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('status', 'error');
+      TDocVariantData(resultDoc).AddValue('message', UTF8Encode(E.Message));
+      Result := VariantSaveJSON(resultDoc);
+    end;
+  end;
+end;
 
 { TApiLogServiceImpl }
 
@@ -360,6 +732,18 @@ begin
   end;
 end;
 
+function TApiIssuesServiceImpl.DeleteIssue(const IssueId: Int64): boolean;
+begin
+  Result := False;
+  try
+    IssuesStore.DeleteIssue(IssueId);
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] DeleteIssue: %s', [E.Message]));
+  end;
+end;
+
 function TApiIssuesServiceImpl.ClearIssues: boolean;
 begin
   IssuesStore.Clear;
@@ -423,6 +807,10 @@ begin
     // Treat all queued tasks as active for dashboard purposes; transfers also counted via activeSum
     Response.ActiveTasks := qTotal;
 
+    // Use global rate calculated by QueueThread
+    Response.DirlistPerSecond := GlDirlistRate;
+    Response.DirlistPerSecondMax := GlDirlistRateMax;
+
     Result := True;
   except
     on E: Exception do
@@ -482,8 +870,12 @@ var
   releaseJson: variant;
   releasesArray: TDocVariantData;
   sitesArray: TDocVariantData;
+  expectedSitesArray: TDocVariantData;
   kbList: TStringList;
   kbLock: TSlCriticalSection2;
+  totalSites, allowedSites, presentSites, expectedSites, notAllowedSites: Integer;
+  isNotAllowed: Boolean;
+  isPresent: Boolean;
 begin
   Result := False;
   Response := TApiReleasesList.Create;
@@ -501,6 +893,14 @@ begin
     kbList := GetKBList;
     kbLock := GetKBLock;
 
+    if (kbList = nil) or (kbLock = nil) then
+    begin
+      Debug(dpError, section, 'GetRecentReleases: KB not initialized');
+      Response.Releases := '[]';
+      Result := True;
+      Exit;
+    end;
+
     kbLock.Enter('GetRecentReleases');
     try
       // Iterate through kb_list backwards (newest first)
@@ -513,51 +913,157 @@ begin
         if p = nil then
           Continue;
 
-        // Build release info
-        TDocVariant.New(releaseJson);
-        releaseJson.ReleaseName := UTF8Encode(p.rls.rlsname);
-        releaseJson.Section := UTF8Encode(p.rls.section);
-        releaseJson.Added := DateTimeToUnix(p.added);
-        releaseJson.PazoId := p.pazo_id;
-
-        // Calculate status based on sites
-        if p.stopped then
-        begin
-          releaseJson.Ready := False;
-          releaseJson.Stopped := True;
-        end
-        else if p.ready then
-        begin
-          releaseJson.Ready := True;
-          releaseJson.Stopped := False;
-        end
-        else
-        begin
-          // Check if all sites are complete
-          releaseJson.Ready := True; // Assume complete until proven otherwise
-          for ps in p.PazoSitesList do
-          begin
-            if not (ps.status in [rssNotAllowed, rssComplete, rssRealPre]) then
-            begin
-              releaseJson.Ready := False; // At least one site is not complete
-              Break;
-            end;
-          end;
-          releaseJson.Stopped := False;
+        // Skip if essential properties are not available
+        try
+          if (p.rls = nil) or (p.PazoSitesList = nil) then
+            Continue;
+        except
+          Continue;
         end;
 
-        releaseJson.QueueNumber := p.queuenumber.Value;
+        // Build release info
+        try
+          TDocVariant.New(releaseJson);
+          releaseJson.ReleaseName := UTF8Encode(p.rls.rlsname);
+          releaseJson.Section := UTF8Encode(p.rls.section);
+          releaseJson.Added := DateTimeToUnix(p.added);
+          releaseJson.PazoId := p.pazo_id;
 
-        // Collect site names
-        sitesArray.Init(JSON_FAST, dvArray);
-        for ps in p.PazoSitesList do
-        begin
-          if ps.Name <> '' then
+          // Calculate status based on sites
+          if p.stopped then
           begin
-            sitesArray.AddItem(UTF8Encode(ps.Name));
+            releaseJson.Ready := False;
+            releaseJson.Stopped := True;
+          end
+          else if p.ready then
+          begin
+            releaseJson.Ready := True;
+            releaseJson.Stopped := False;
+          end
+          else
+          begin
+            // Check if all sites are complete
+            releaseJson.Ready := True; // Assume complete until proven otherwise
+            try
+              for ps in p.PazoSitesList do
+              begin
+                if ps = nil then
+                  Continue;
+                try
+                  if not (ps.status in [rssNotAllowed, rssComplete, rssRealPre]) then
+                  begin
+                    releaseJson.Ready := False; // At least one site is not complete
+                    Break;
+                  end;
+                except
+                  on E: Exception do
+                  begin
+                    Debug(dpError, section, Format('GetRecentReleases: Error checking site status for Pazo %d: %s',
+                      [p.pazo_id, E.Message]));
+                  end;
+                end;
+              end;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('GetRecentReleases: Error iterating sites for Ready check, Pazo %d: %s',
+                  [p.pazo_id, E.Message]));
+                releaseJson.Ready := False;
+              end;
+            end;
+            releaseJson.Stopped := False;
+          end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('GetRecentReleases: Error building basic info for Pazo %d: %s',
+              [p.pazo_id, E.Message]));
+            Continue;
+          end;
+        end;
+
+        try
+          releaseJson.QueueNumber := p.queuenumber.Value;
+
+          // Collect site names and compute basic status counts
+          totalSites := 0;
+          allowedSites := 0;
+          presentSites := 0;
+          expectedSites := 0;
+          notAllowedSites := 0;
+
+          sitesArray.Init(JSON_FAST, dvArray);
+          expectedSitesArray.Init(JSON_FAST, dvArray);
+
+          try
+            for ps in p.PazoSitesList do
+            begin
+              if ps = nil then
+                Continue;
+
+              try
+                if ps.Name <> '' then
+                begin
+                  sitesArray.AddItem(UTF8Encode(ps.Name));
+                end;
+
+                Inc(totalSites);
+
+                isNotAllowed := ps.status in [rssNotAllowed, rssNotAllowedButItsThere];
+                if isNotAllowed then
+                  Inc(notAllowedSites)
+                else
+                  Inc(allowedSites);
+
+                isPresent := False;
+                try
+                  if (ps.dirlist <> nil) then
+                    isPresent := (ps.dirlist.entries.Count > 0) or ps.dirlist.Complete;
+                except
+                  isPresent := False;
+                end;
+                if not isPresent then
+                  isPresent := ps.status in [rssRealPre, rssComplete, rssNotAllowedButItsThere];
+
+                if isPresent then
+                  Inc(presentSites);
+
+                if isPresent and (not isNotAllowed) then
+                begin
+                  Inc(expectedSites);
+                  if ps.Name <> '' then
+                    expectedSitesArray.AddItem(UTF8Encode(ps.Name));
+                end;
+              except
+                on E: Exception do
+                begin
+                  Debug(dpError, section, Format('GetRecentReleases: Error processing site info for Pazo %d: %s',
+                    [p.pazo_id, E.Message]));
+                end;
+              end;
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('GetRecentReleases: Error iterating sites for site info, Pazo %d: %s',
+                [p.pazo_id, E.Message]));
+            end;
+          end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('GetRecentReleases: Error collecting site info for Pazo %d: %s',
+              [p.pazo_id, E.Message]));
+            Continue;
           end;
         end;
         releaseJson.Sites := variant(sitesArray);
+        releaseJson.TotalSites := totalSites;
+        releaseJson.AllowedSites := allowedSites;
+        releaseJson.PresentSites := presentSites;
+        releaseJson.ExpectedSites := expectedSites;
+        releaseJson.ExpectedSitesList := variant(expectedSitesArray);
+        releaseJson.NotAllowedSites := notAllowedSites;
 
         releasesArray.AddItem(releaseJson);
         Inc(count);
@@ -596,54 +1102,134 @@ begin
     p := FindPazoById(PazoId);
     if p = nil then
     begin
-      Debug(dpError, section, Format('Pazo with ID %d not found', [PazoId]));
+      Debug(dpError, section, Format('GetReleaseDetails: Pazo with ID %d not found', [PazoId]));
       Exit;
     end;
 
+    // Check essential properties
+    try
+      if p.rls = nil then
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Pazo %d has nil rls property', [PazoId]));
+        Exit;
+      end;
+      if p.PazoSitesList = nil then
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Pazo %d has nil PazoSitesList property', [PazoId]));
+        Exit;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Error checking Pazo %d properties: %s', [PazoId, E.Message]));
+        Exit;
+      end;
+    end;
+
     // Basic info
-    Response.ReleaseName := UTF8Encode(p.rls.rlsname);
-    Response.Section := UTF8Encode(p.rls.section);
-    Response.Added := p.added;
-    Response.PazoId := p.pazo_id;
-    Response.Ready := p.ready;
-    Response.Stopped := p.stopped;
-    Response.QueueNumber := p.queuenumber.Value;
-    Response.ErrorReason := UTF8Encode(p.errorreason);
-    Response.TotalFiles := p.GetCountOfCachedFiles;
+    try
+      Response.ReleaseName := UTF8Encode(p.rls.rlsname);
+      Response.Section := UTF8Encode(p.rls.section);
+      Response.Added := p.added;
+      Response.PazoId := p.pazo_id;
+      Response.Ready := p.ready;
+      Response.Stopped := p.stopped;
+      Response.QueueNumber := p.queuenumber.Value;
+      Response.ErrorReason := UTF8Encode(p.errorreason);
+      Response.TotalFiles := p.GetCountOfCachedFiles;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Error reading basic info for Pazo %d: %s', [PazoId, E.Message]));
+        Exit;
+      end;
+    end;
 
     // Collect site details
     siteDetailsArray.Init(JSON_FAST, dvArray);
 
-    for ps in p.PazoSitesList do
-    begin
-      TDocVariant.New(siteDetail);
-      siteDetail.SiteName := UTF8Encode(ps.Name);
-      siteDetail.Complete := ps.dirlist.Complete;
-      siteDetail.FileCount := ps.dirlist.entries.Count;
-      siteDetail.TotalFiles := p.GetCountOfCachedFiles;
-      siteDetail.FilesRacedByMe := ps.dirlist.FilesRacedByMe(True);
+    try
+      for ps in p.PazoSitesList do
+      begin
+        if ps = nil then
+        begin
+          Debug(dpError, section, Format('GetReleaseDetails: Pazo %d has nil PazoSite in list', [PazoId]));
+          Continue;
+        end;
 
-      // Calculate percent
-      totalFiles := p.GetCountOfCachedFiles;
-      if totalFiles > 0 then
-        siteDetail.Percent := (ps.dirlist.entries.Count / totalFiles) * 100.0
-      else
-        siteDetail.Percent := 0.0;
+        try
+          TDocVariant.New(siteDetail);
+          siteDetail.SiteName := UTF8Encode(ps.Name);
 
-      // Status text
-      case ps.status of
-        rssNotAllowed: siteDetail.Status := 'Not Allowed';
-        rssNotAllowedButItsThere: siteDetail.Status := 'Not Allowed (Present)';
-        rssAllowed: siteDetail.Status := 'Allowed';
-        rssShouldPre: siteDetail.Status := 'Should Pre';
-        rssRealPre: siteDetail.Status := 'Pre';
-        rssComplete: siteDetail.Status := 'Complete';
-        rssNuked: siteDetail.Status := 'Nuked';
-      else
-        siteDetail.Status := 'Unknown';
+          // Safe dirlist access
+          try
+            if ps.dirlist <> nil then
+            begin
+              siteDetail.Complete := ps.dirlist.Complete;
+              siteDetail.FileCount := ps.dirlist.entries.Count;
+              siteDetail.FilesRacedByMe := ps.dirlist.FilesRacedByMe(True);
+
+              // Calculate percent
+              totalFiles := p.GetCountOfCachedFiles;
+              if totalFiles > 0 then
+                siteDetail.Percent := (ps.dirlist.entries.Count / totalFiles) * 100.0
+              else
+                siteDetail.Percent := 0.0;
+            end
+            else
+            begin
+              siteDetail.Complete := False;
+              siteDetail.FileCount := 0;
+              siteDetail.FilesRacedByMe := 0;
+              siteDetail.Percent := 0.0;
+            end;
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('GetReleaseDetails: Error accessing dirlist for site %s in Pazo %d: %s',
+                [ps.Name, PazoId, E.Message]));
+              siteDetail.Complete := False;
+              siteDetail.FileCount := 0;
+              siteDetail.FilesRacedByMe := 0;
+              siteDetail.Percent := 0.0;
+            end;
+          end;
+
+          siteDetail.TotalFiles := p.GetCountOfCachedFiles;
+
+          // Status text
+          case ps.status of
+            rssNotAllowed: siteDetail.Status := 'Not Allowed';
+            rssNotAllowedButItsThere: siteDetail.Status := 'Not Allowed (Present)';
+            rssAllowed: siteDetail.Status := 'Allowed';
+            rssShouldPre: siteDetail.Status := 'Should Pre';
+            rssRealPre: siteDetail.Status := 'Pre';
+            rssComplete: siteDetail.Status := 'Complete';
+            rssNuked: siteDetail.Status := 'Nuked';
+          else
+            siteDetail.Status := 'Unknown';
+          end;
+
+          siteDetailsArray.AddItem(siteDetail);
+        except
+          on E: Exception do
+          begin
+            if ps <> nil then
+              Debug(dpError, section, Format('GetReleaseDetails: Error processing site %s in Pazo %d: %s',
+                [ps.Name, PazoId, E.Message]))
+            else
+              Debug(dpError, section, Format('GetReleaseDetails: Error processing nil site in Pazo %d: %s',
+                [PazoId, E.Message]));
+            // Skip this site but continue with others
+          end;
+        end;
       end;
-
-      siteDetailsArray.AddItem(siteDetail);
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('GetReleaseDetails: Error iterating PazoSitesList for Pazo %d: %s', [PazoId, E.Message]));
+        // Continue with empty site details
+      end;
     end;
 
     Response.SiteDetails := TDocVariantData(siteDetailsArray).ToJSON;
@@ -2401,16 +2987,69 @@ begin
 end;
 
 function TApiQueueServiceImpl.GetTask(TaskUid: Int64; out Info: TApiTaskInfo): boolean;
+var
+  fPazoId: Integer;
+  fPazo: TPazo;
 begin
   Result := False;
+  Info := nil;
   try
     Info := TApiTaskInfo.Create;
     Info.Uid := TaskUid;
+    Info.TaskType := 'Transfer';
+
+    fPazoId := -1;
+    if (GlApiTaskToPazoId <> nil) then
+    begin
+      GlApiTaskToPazoIdLock.Enter('ApiTaskMap.GetTask');
+      try
+        if not GlApiTaskToPazoId.TryGetValue(TaskUid, fPazoId) then
+          fPazoId := -1;
+      finally
+        GlApiTaskToPazoIdLock.Leave;
+      end;
+    end;
+
+    if fPazoId = -1 then
+    begin
+      Info.Status := 'unknown';
+      Exit(True);
+    end;
+
+    fPazo := FindPazoById(fPazoId);
+    if fPazo = nil then
+    begin
+      Info.Status := 'completed';
+      Info.Completed := Now;
+      Exit(True);
+    end;
+
+    Info.Created := fPazo.added;
+    if fPazo.readyerror or fPazo.stopped then
+    begin
+      Info.Status := 'failed';
+      Info.Completed := Now;
+    end
+    else if fPazo.ready then
+    begin
+      Info.Status := 'completed';
+      Info.Completed := Now;
+    end
+    else
+    begin
+      if fPazo.queuenumber.Value > 0 then
+        Info.Status := 'in_progress'
+      else
+        Info.Status := 'pending';
+    end;
+
     Result := True;
   except
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] GetTask: %s', [E.Message]));
+      if Info <> nil then
+        FreeAndNil(Info);
       Result := False;
     end;
   end;
@@ -2446,23 +3085,106 @@ end;
 
 function TApiQueueServiceImpl.CreateTransferTask(const SourceSite, DestSite, Section,
                                                 Dir, FileName: RawUTF8): Int64;
+var
+  fSourceSite: String;
+  fDestSite: String;
+  fDestDir: String;
+  fFullSourcePath: String;
+  fSourceDir: String;
+  fBaseName: String;
+  fLastSlash: Integer;
+  fPazo: TPazo;
+  fSrcPs, fDstPs: TPazoSite;
+  fTask: TPazoRaceTask;
 begin
   Result := 0;
   try
-    Debug(dpMessage, section, Format('CreateTransferTask API: %s -> %s',
-          [UTF8ToString(SourceSite), UTF8ToString(DestSite)]));
+    fSourceSite := UpperCase(Trim(UTF8ToString(SourceSite)));
+    fDestSite := UpperCase(Trim(UTF8ToString(DestSite)));
+    fDestDir := Trim(UTF8ToString(Dir));
+    fFullSourcePath := Trim(UTF8ToString(FileName));
+
+    Debug(dpMessage, section, Format('CreateTransferTask API: %s -> %s (%s) %s -> %s',
+          [fSourceSite, fDestSite, UTF8ToString(Section), fFullSourcePath, fDestDir]));
+
+    if (fSourceSite = '') or (fDestSite = '') then
+      raise Exception.Create('SourceSite/DestSite is required');
+    if FindSiteByName('', fSourceSite) = nil then
+      raise Exception.CreateFmt('Unknown SourceSite: %s', [fSourceSite]);
+    if FindSiteByName('', fDestSite) = nil then
+      raise Exception.CreateFmt('Unknown DestSite: %s', [fDestSite]);
+    if fFullSourcePath = '' then
+      raise Exception.Create('FileName is required');
+
+    // Normalize FTP paths (always '/')
+    if fDestDir = '' then
+      fDestDir := '/';
+    if fDestDir[1] <> '/' then
+      fDestDir := '/' + fDestDir;
+
+    if fFullSourcePath[1] <> '/' then
+      fFullSourcePath := '/' + fFullSourcePath;
+
+    // Split FTP path into dir + basename (don't use ExtractFileName/Dir; those are OS dependent)
+    fLastSlash := LastDelimiter('/', fFullSourcePath);
+    if fLastSlash <= 0 then
+    begin
+      fSourceDir := '/';
+      fBaseName := fFullSourcePath;
+    end
+    else if fLastSlash = 1 then
+    begin
+      fSourceDir := '/';
+      fBaseName := Copy(fFullSourcePath, 2, MaxInt);
+    end
+    else
+    begin
+      fSourceDir := Copy(fFullSourcePath, 1, fLastSlash - 1);
+      fBaseName := Copy(fFullSourcePath, fLastSlash + 1, MaxInt);
+    end;
+
+    if fBaseName = '' then
+      raise Exception.CreateFmt('Invalid FileName (no basename): %s', [fFullSourcePath]);
+
+    fPazo := PazoAdd(nil);
+    AddPazoToKB(Format('TRANSFER-API-%d', [fPazo.pazo_id]), fPazo);
+
+    fSrcPs := fPazo.AddSite(fSourceSite, fSourceDir, False);
+    fDstPs := fPazo.AddSite(fDestSite, fDestDir, False);
+    fSrcPs.AddDestination(fDstPs, 1);
+
+    // Align with IRC transfer behavior: mark destination allowed + source dirlist "present"
+    fDstPs.status := rssAllowed;
+    if (fSrcPs.dirlist <> nil) then
+      fSrcPs.dirlist.dirlistadded := True;
+
+    fTask := TPazoRaceTask.Create('CONSOLE', 'Browser', fSourceSite, fDestSite, fPazo, nil, '', fBaseName, 0, 1);
+    AddTask(fTask, True);
+
+    if GlApiTaskToPazoId <> nil then
+    begin
+      GlApiTaskToPazoIdLock.Enter('ApiTaskMap.Add');
+      try
+        GlApiTaskToPazoId.AddOrSetValue(fTask.uid, fPazo.pazo_id);
+      finally
+        GlApiTaskToPazoIdLock.Leave;
+      end;
+    end;
+
+    Result := fTask.uid;
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] CreateTransferTask: %s', [E.Message]));
+      Debug(dpError, section, Format('[EXCEPTION] CreateTransferTask: %s %s', [E.ClassName, E.Message]));
+      Result := 0;
     end;
   end;
 end;
 
-function TApiQueueServiceImpl.StopTask(TaskUid: Int64): boolean;
-begin
-  Result := False;
-  try
+	function TApiQueueServiceImpl.StopTask(TaskUid: Int64): boolean;
+	begin
+	  Result := False;
+	  try
     Debug(dpMessage, section, Format('StopTask API: %d', [TaskUid]));
     Result := True;
   except
@@ -2540,6 +3262,17 @@ end;
 function TApiStatsServiceImpl.RecalculateRanks: boolean;
 begin
   Result := True;
+end;
+
+function TApiRacesServiceImpl.GetRaces(const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+begin
+  Result := StatsGetRecentRacesJson(Page, PageSize, SinceUnix);
+end;
+
+function TApiRacesServiceImpl.GetReleaseTransfers(const Release: RawUTF8; const Page: integer; const PageSize: integer;
+  const SinceUnix: Int64): RawJSON;
+begin
+  Result := StatsGetReleaseRacesJson(UTF8ToString(Release), Page, PageSize, SinceUnix);
 end;
 
 function TApiIrcServiceImpl.GetNetworks: RawJSON;
@@ -3013,19 +3746,111 @@ begin
   Result := '[]';
 end;
 
-function TApiSpeedServiceImpl.TestSpeedLocal(const SiteName: RawUTF8): boolean;
+function TApiSpeedServiceImpl.TestSpeedLocal(const SiteName: RawUTF8): RawUTF8;
 begin
-  Result := True;
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartLocal(UTF8ToString(SiteName)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedLocal: %s', [E.Message]));
+      raise; // Let mORMot handle the 500, but we have logged it.
+    end;
+  end;
 end;
 
-function TApiSpeedServiceImpl.TestSpeedOut(const SourceSite, DestSites: RawUTF8): boolean;
+function TApiSpeedServiceImpl.TestSpeedOut(const SourceSite, DestSites: RawUTF8): RawUTF8;
 begin
-  Result := True;
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartOut(UTF8ToString(SourceSite), UTF8ToString(DestSites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedOut: %s', [E.Message]));
+      raise;
+    end;
+  end;
 end;
 
-function TApiSpeedServiceImpl.TestSpeedIn(const DestSite, SourceSites: RawUTF8): boolean;
+function TApiSpeedServiceImpl.TestSpeedIn(const DestSite, SourceSites: RawUTF8): RawUTF8;
 begin
-  Result := True;
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartIn(UTF8ToString(DestSite), UTF8ToString(SourceSites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedIn: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.TestSpeedCleanup(const Sites: RawUTF8): RawUTF8;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartCleanup(UTF8ToString(Sites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedCleanup: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.TestSpeedMatrix(const IncludeSites: RawUTF8;
+  const ExcludeSites: RawUTF8): RawUTF8;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.StartMatrix(
+      UTF8ToString(IncludeSites),
+      UTF8ToString(ExcludeSites)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] TestSpeedMatrix: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.GetSpeedTestSites: RawJSON;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.GetSpeedTestSites);
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSpeedTestSites: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.GetTestLog(const TestId: RawUTF8): RawJSON;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.GetLog(UTF8ToString(TestId)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetTestLog: %s', [E.Message]));
+      raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.GetTestStatus(const TestId: RawUTF8): RawJSON;
+begin
+  try
+    Result := UTF8Encode(TSpeedTestManager.Instance.GetStatus(UTF8ToString(TestId)));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetTestStatus: %s', [E.Message]));
+      raise;
+    end;
+  end;
 end;
 
 function TApiSpeedServiceImpl.GetSpeedResults(const SiteName: RawUTF8): RawJSON;
@@ -3105,56 +3930,315 @@ var
   ruleDoc: variant;
   netname, channel, botnicks, sitename, event, words, section: string;
   kb_event: TKBEventType;
+  missingFields: string;
+
+  function GetRuleField(const FieldName: RawUTF8; out FieldValue: string): boolean;
+  var
+    rawValue: variant;
+  begin
+    Result := False;
+    try
+      if FieldName = 'netname' then
+        rawValue := ruleDoc.netname
+      else if FieldName = 'channel' then
+        rawValue := ruleDoc.channel
+      else if FieldName = 'botnicks' then
+        rawValue := ruleDoc.botnicks
+      else if FieldName = 'sitename' then
+        rawValue := ruleDoc.sitename
+      else if FieldName = 'event' then
+        rawValue := ruleDoc.event
+      else if FieldName = 'words' then
+        rawValue := ruleDoc.words
+      else if FieldName = 'section' then
+        rawValue := ruleDoc.section
+      else
+      begin
+        Debug(dpError, 'slapi', Format('AddPrecatcherRule: Unknown field %s', [UTF8ToString(FieldName)]));
+        Exit;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, 'slapi', Format('AddPrecatcherRule: Missing or invalid field %s (%s)', [UTF8ToString(FieldName), E.Message]));
+        Exit;
+      end;
+    end;
+
+    if VarIsNull(rawValue) or VarIsEmpty(rawValue) then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Field %s is null/empty (type=%d)', [UTF8ToString(FieldName), VarType(rawValue)]));
+      Exit;
+    end;
+
+    FieldValue := UTF8ToString(VariantToUTF8(rawValue));
+    Result := True;
+  end;
 begin
   Result := -1;
   try
+    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Incoming payload len=%d', [Length(RuleData)]));
+    if RuleData = '' then
+    begin
+      Debug(dpError, 'slapi', 'AddPrecatcherRule: Empty RuleData payload (expected JSON in RuleData param)');
+      Exit;
+    end;
+
+    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Raw payload=%s', [RuleData]));
     ruleDoc := _JsonFast(RuleData);
 
-    netname := UpperCase(UTF8ToString(VariantToUTF8(ruleDoc.netname)));
-    channel := UTF8ToString(VariantToUTF8(ruleDoc.channel));
-    botnicks := UTF8ToString(VariantToUTF8(ruleDoc.botnicks));
-    sitename := UpperCase(UTF8ToString(VariantToUTF8(ruleDoc.sitename)));
-    event := UpperCase(UTF8ToString(VariantToUTF8(ruleDoc.event)));
-    words := UTF8ToString(VariantToUTF8(ruleDoc.words));
-    section := UTF8ToString(VariantToUTF8(ruleDoc.section));
+    if VarIsEmpty(ruleDoc) or VarIsNull(ruleDoc) then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Invalid JSON payload: %s', [RuleData]));
+      Exit;
+    end;
+
+    // Accept wrapper payload: { "RuleData": { ... } }
+    try
+      if not VarIsEmpty(ruleDoc.RuleData) and not VarIsNull(ruleDoc.RuleData) then
+      begin
+        Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Using RuleData wrapper payload');
+        ruleDoc := ruleDoc.RuleData;
+      end
+      else
+        Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Using direct payload');
+    except
+      // ignore if no RuleData field
+      Debug(dpSpam, 'slapi', 'AddPrecatcherRule: No RuleData wrapper present');
+    end;
+
+    missingFields := '';
+    if not GetRuleField('netname', netname) then
+      missingFields := missingFields + ' netname';
+    if not GetRuleField('channel', channel) then
+      missingFields := missingFields + ' channel';
+    if not GetRuleField('botnicks', botnicks) then
+      missingFields := missingFields + ' botnicks';
+    if not GetRuleField('sitename', sitename) then
+      missingFields := missingFields + ' sitename';
+    if not GetRuleField('event', event) then
+      missingFields := missingFields + ' event';
+    if not GetRuleField('words', words) then
+      missingFields := missingFields + ' words';
+    if not GetRuleField('section', section) then
+      missingFields := missingFields + ' section';
+
+    if missingFields <> '' then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Missing required fields:%s (payload=%s)', [missingFields, RuleData]));
+      Exit;
+    end;
+
+    netname := UpperCase(netname);
+    sitename := UpperCase(sitename);
+    event := UpperCase(event);
+
+    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Parsed netname=%s channel=%s botnicks=%s sitename=%s event=%s words=%s section=%s',
+      [netname, channel, botnicks, sitename, event, words, section]));
 
     // Validate event type
     kb_event := EventStringToTKBEventType(event);
     if not (kb_event in [kbePRE, kbeADDPRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST]) then
     begin
-      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Invalid event type: %s', [event]));
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Invalid event type: %s (payload=%s)', [event, RuleData]));
+      Exit;
+    end;
+    Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Event type OK');
+
+    // Validate site exists
+    if FindSiteByName('', sitename) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Site %s not found (payload=%s)', [sitename, RuleData]));
+      Exit;
+    end;
+    Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Site OK');
+
+    // Validate channel exists
+    if FindIrcChannelSettings(netname, channel) = nil then
+    begin
+      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Channel %s@%s not found (payload=%s)', [channel, netname, RuleData]));
+      Exit;
+    end;
+    Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Channel OK');
+
+    // Add rule to catcherFile
+    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Adding rule to catcherFile (count before=%d)', [catcherFile.Count]));
+    catcherFile.Add(Format('%s;%s;%s;%s;%s;%s;%s',
+      [netname, channel, botnicks, sitename, event, words, section]));
+    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Added rule line=%s', [catcherFile[catcherFile.Count - 1]]));
+    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: catcherFile count after add=%d', [catcherFile.Count]));
+
+    // Rebuild precatcher
+    Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Rebuilding precatcher');
+    PrecatcherRebuild;
+    Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Precatcher rebuild complete');
+
+    Result := catcherFile.Count - 1; // Return ID of newly added rule
+    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Returning rule id=%d', [Result]));
+
+    Debug(dpMessage, 'slapi', Format('AddPrecatcherRule: Added rule for %s@%s -> %s', [channel, netname, sitename]));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] AddPrecatcherRule: %s (payload=%s)', [E.Message, RuleData]));
+      Result := -1;
+    end;
+  end;
+end;
+
+function TApiPrecatcherServiceImpl.UpdatePrecatcherRule(RuleId: integer; const RuleData: RawJSON): boolean;
+var
+  ruleDoc: variant;
+  netname, channel, botnicks, sitename, event, words, section: string;
+  kb_event: TKBEventType;
+  missingFields: string;
+
+  function GetRuleField(const FieldName: RawUTF8; out FieldValue: string): boolean;
+  var
+    rawValue: variant;
+  begin
+    Result := False;
+    try
+      if FieldName = 'netname' then
+        rawValue := ruleDoc.netname
+      else if FieldName = 'channel' then
+        rawValue := ruleDoc.channel
+      else if FieldName = 'botnicks' then
+        rawValue := ruleDoc.botnicks
+      else if FieldName = 'sitename' then
+        rawValue := ruleDoc.sitename
+      else if FieldName = 'event' then
+        rawValue := ruleDoc.event
+      else if FieldName = 'words' then
+        rawValue := ruleDoc.words
+      else if FieldName = 'section' then
+        rawValue := ruleDoc.section
+      else
+      begin
+        Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Unknown field %s', [UTF8ToString(FieldName)]));
+        Exit;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Missing or invalid field %s (%s)', [UTF8ToString(FieldName), E.Message]));
+        Exit;
+      end;
+    end;
+
+    if VarIsNull(rawValue) or VarIsEmpty(rawValue) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Field %s is null/empty (type=%d)', [UTF8ToString(FieldName), VarType(rawValue)]));
+      Exit;
+    end;
+
+    FieldValue := UTF8ToString(VariantToUTF8(rawValue));
+    Result := True;
+  end;
+begin
+  Result := False;
+  try
+    if (RuleId < 0) or (RuleId >= catcherFile.Count) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid rule ID: %d', [RuleId]));
+      Exit;
+    end;
+
+    Debug(dpSpam, 'slapi', Format('UpdatePrecatcherRule: Incoming payload len=%d', [Length(RuleData)]));
+    if RuleData = '' then
+    begin
+      Debug(dpError, 'slapi', 'UpdatePrecatcherRule: Empty RuleData payload (expected JSON in RuleData param)');
+      Exit;
+    end;
+
+    Debug(dpSpam, 'slapi', Format('UpdatePrecatcherRule: Raw payload=%s', [RuleData]));
+    ruleDoc := _JsonFast(RuleData);
+
+    if VarIsEmpty(ruleDoc) or VarIsNull(ruleDoc) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid JSON payload: %s', [RuleData]));
+      Exit;
+    end;
+
+    // Accept wrapper payload: { "RuleData": { ... } }
+    try
+      if not VarIsEmpty(ruleDoc.RuleData) and not VarIsNull(ruleDoc.RuleData) then
+      begin
+        Debug(dpSpam, 'slapi', 'UpdatePrecatcherRule: Using RuleData wrapper payload');
+        ruleDoc := ruleDoc.RuleData;
+      end
+      else
+        Debug(dpSpam, 'slapi', 'UpdatePrecatcherRule: Using direct payload');
+    except
+      // ignore if no RuleData field
+      Debug(dpSpam, 'slapi', 'UpdatePrecatcherRule: No RuleData wrapper present');
+    end;
+
+    missingFields := '';
+    if not GetRuleField('netname', netname) then
+      missingFields := missingFields + ' netname';
+    if not GetRuleField('channel', channel) then
+      missingFields := missingFields + ' channel';
+    if not GetRuleField('botnicks', botnicks) then
+      missingFields := missingFields + ' botnicks';
+    if not GetRuleField('sitename', sitename) then
+      missingFields := missingFields + ' sitename';
+    if not GetRuleField('event', event) then
+      missingFields := missingFields + ' event';
+    if not GetRuleField('words', words) then
+      missingFields := missingFields + ' words';
+    if not GetRuleField('section', section) then
+      missingFields := missingFields + ' section';
+
+    if missingFields <> '' then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Missing required fields:%s (payload=%s)', [missingFields, RuleData]));
+      Exit;
+    end;
+
+    netname := UpperCase(netname);
+    sitename := UpperCase(sitename);
+    event := UpperCase(event);
+
+    Debug(dpSpam, 'slapi', Format('UpdatePrecatcherRule: Parsed netname=%s channel=%s botnicks=%s sitename=%s event=%s words=%s section=%s',
+      [netname, channel, botnicks, sitename, event, words, section]));
+
+    // Validate event type
+    kb_event := EventStringToTKBEventType(event);
+    if not (kb_event in [kbePRE, kbeADDPRE, kbeCOMPLETE, kbeNEWDIR, kbeNUKE, kbeREQUEST]) then
+    begin
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid event type: %s (payload=%s)', [event, RuleData]));
       Exit;
     end;
 
     // Validate site exists
     if FindSiteByName('', sitename) = nil then
     begin
-      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Site %s not found', [sitename]));
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Site %s not found (payload=%s)', [sitename, RuleData]));
       Exit;
     end;
 
     // Validate channel exists
     if FindIrcChannelSettings(netname, channel) = nil then
     begin
-      Debug(dpError, 'slapi', Format('AddPrecatcherRule: Channel %s@%s not found', [channel, netname]));
+      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Channel %s@%s not found (payload=%s)', [channel, netname, RuleData]));
       Exit;
     end;
 
-    // Add rule to catcherFile
-    catcherFile.Add(Format('%s;%s;%s;%s;%s;%s;%s',
-      [netname, channel, botnicks, sitename, event, words, section]));
+    // Update rule in catcherFile
+    catcherFile[RuleId] := Format('%s;%s;%s;%s;%s;%s;%s',
+      [netname, channel, botnicks, sitename, event, words, section]);
 
     // Rebuild precatcher
     PrecatcherRebuild;
 
-    Result := catcherFile.Count - 1; // Return ID of newly added rule
-
-    Debug(dpMessage, 'slapi', Format('AddPrecatcherRule: Added rule for %s@%s -> %s', [channel, netname, sitename]));
+    Debug(dpMessage, 'slapi', Format('UpdatePrecatcherRule: Updated rule #%d for %s@%s -> %s', [RuleId, channel, netname, sitename]));
+    Result := True;
   except
     on E: Exception do
     begin
-      Debug(dpError, 'slapi', Format('[EXCEPTION] AddPrecatcherRule: %s', [E.Message]));
-      Result := -1;
+      Debug(dpError, 'slapi', Format('[EXCEPTION] UpdatePrecatcherRule: %s (payload=%s)', [E.Message, RuleData]));
+      Result := False;
     end;
   end;
 end;
@@ -3346,6 +4430,51 @@ begin
   end;
 end;
 
+function TApiPrecatcherServiceImpl.GetHits(const Limit: integer; const SinceUnix: Int64;
+  const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
+var
+  hits: TPrecatcherHits;
+  hitsArray: TDocVariantData;
+  hitDoc: variant;
+  i: Integer;
+  releaseFilter: String;
+  siteFilter: String;
+begin
+  Result := '[]';
+  try
+    releaseFilter := UTF8ToString(ReleaseName);
+    siteFilter := UTF8ToString(SiteName);
+    Precatcher_GetHits(Limit, SinceUnix, releaseFilter, siteFilter, hits);
+
+    hitsArray.InitFast(dvArray);
+    for i := 0 to Length(hits) - 1 do
+    begin
+      TDocVariant.New(hitDoc);
+      TDocVariantData(hitDoc).AddValue('id', hits[i].Id);
+      TDocVariantData(hitDoc).AddValue('atUnix', DateTimeToUnix(hits[i].At));
+      TDocVariantData(hitDoc).AddValue('netname', UTF8Encode(hits[i].Netname));
+      TDocVariantData(hitDoc).AddValue('channel', UTF8Encode(hits[i].Channel));
+      TDocVariantData(hitDoc).AddValue('nick', UTF8Encode(hits[i].Nick));
+      TDocVariantData(hitDoc).AddValue('sitename', UTF8Encode(hits[i].Sitename));
+      TDocVariantData(hitDoc).AddValue('event', UTF8Encode(KBEventTypeToString(hits[i].EventType)));
+      TDocVariantData(hitDoc).AddValue('section', UTF8Encode(hits[i].Section));
+      TDocVariantData(hitDoc).AddValue('releaseName', UTF8Encode(hits[i].ReleaseName));
+      TDocVariantData(hitDoc).AddValue('ruleId', hits[i].RuleId);
+      TDocVariantData(hitDoc).AddValue('ruleLine', UTF8Encode(hits[i].RuleLine));
+      TDocVariantData(hitDoc).AddValue('text', UTF8Encode(hits[i].Text));
+      hitsArray.AddItem(hitDoc);
+    end;
+
+    Result := hitsArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetHits: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
+end;
+
 { TApiSimulatorServiceImpl }
 
 function TApiSimulatorServiceImpl.Simulate(const Section, ReleaseName: RawUTF8; const SimulatePre: boolean): RawJSON;
@@ -3479,12 +4608,439 @@ begin
   end;
 end;
 
+{ TApiImdbServiceImpl }
+
+function TApiImdbServiceImpl.GetAllImdbRecords(out Response: TApiImdbRecordList): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+  recordsArray: TDocVariantData;
+  recordItem: variant;
+begin
+  Result := False;
+  Response := TApiImdbRecordList.Create;
+
+  try
+    recordsArray.InitFast(dvArray);
+
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Response.Total := 0;
+      Response.Records := '[]';
+      Result := True;
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, '1=1 ORDER BY UpdatedTime DESC', [], []);
+    try
+      while dbRecord.FillOne do
+      begin
+        TDocVariant.New(recordItem);
+        TDocVariantData(recordItem).AddValue('ImdbId', dbRecord.IMDbID);
+        TDocVariantData(recordItem).AddValue('Title', dbRecord.IMDbTitle);
+        TDocVariantData(recordItem).AddValue('Year', dbRecord.IMDbYear);
+        TDocVariantData(recordItem).AddValue('Rating', dbRecord.IMDbRating);
+        TDocVariantData(recordItem).AddValue('Votes', dbRecord.IMDbVotes);
+        TDocVariantData(recordItem).AddValue('Genres', dbRecord.IMDbGenres);
+        TDocVariantData(recordItem).AddValue('Countries', dbRecord.IMDbCountries);
+        TDocVariantData(recordItem).AddValue('Languages', dbRecord.IMDbLanguages);
+        TDocVariantData(recordItem).AddValue('ImdbType', dbRecord.IMDbType);
+        TDocVariantData(recordItem).AddValue('CreationTime', DateTimeToUnix(dbRecord.CreationTime, False));
+        TDocVariantData(recordItem).AddValue('UpdatedTime', DateTimeToUnix(dbRecord.UpdatedTime, False));
+        recordsArray.AddItem(recordItem);
+      end;
+    finally
+      dbRecord.Free;
+    end;
+
+    Response.Total := recordsArray.Count;
+    Response.Records := recordsArray.ToJSON;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetAllImdbRecords: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.GetImdbRecordById(const ImdbId: RawUTF8; out Response: TApiImdbRecord): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+begin
+  Result := False;
+  Response := TApiImdbRecord.Create;
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    try
+      if dbRecord.FillOne then
+      begin
+        Response.ImdbId := dbRecord.IMDbID;
+        Response.Title := dbRecord.IMDbTitle;
+        Response.Year := dbRecord.IMDbYear;
+        Response.Rating := dbRecord.IMDbRating;
+        Response.Votes := dbRecord.IMDbVotes;
+        Response.Genres := dbRecord.IMDbGenres;
+        Response.Countries := dbRecord.IMDbCountries;
+        Response.Languages := dbRecord.IMDbLanguages;
+        Response.ImdbType := dbRecord.IMDbType;
+        Response.CreationTime := dbRecord.CreationTime;
+        Response.UpdatedTime := dbRecord.UpdatedTime;
+        Result := True;
+      end;
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetImdbRecordById: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.CreateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                                              const Genres, Countries, Languages, ImdbType: RawUTF8;
+                                              out NewId: RawUTF8): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+  currentTime: TDateTime;
+  titleCleaned: string;
+begin
+  Result := False;
+  NewId := '';
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    // Check if record with this IMDB ID already exists
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    if dbRecord.FillOne then
+    begin
+      dbRecord.Free;
+      Debug(dpError, section, Format('[IMDB API] Record with IMDB ID %s already exists', [UTF8ToString(ImdbId)]));
+      Exit;
+    end;
+    dbRecord.Free;
+
+    currentTime := Now;
+    titleCleaned := getMovieNameWithoutSceneTags(UTF8ToString(Title));
+
+    dbRecord := TIMDbDataRecord.Create;
+    try
+      dbRecord.IMDbID := ImdbId;
+      dbRecord.IMDbTitle := Title;
+      dbRecord.IMDbTitleCleaned := UTF8Encode(titleCleaned);
+      dbRecord.IMDbYear := Year;
+      dbRecord.IMDbRating := Rating;
+      dbRecord.IMDbVotes := Votes;
+      dbRecord.IMDbGenres := Genres;
+      dbRecord.IMDbCountries := Countries;
+      dbRecord.IMDbLanguages := Languages;
+      dbRecord.IMDbType := ImdbType;
+      dbRecord.CreationTime := currentTime;
+      dbRecord.UpdatedTime := currentTime;
+
+      ImdbDatabase.Add(dbRecord, True);
+      NewId := ImdbId;
+      Result := True;
+      Debug(dpSpam, section, Format('[IMDB API] Created new record: %s', [UTF8ToString(ImdbId)]));
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] CreateImdbRecord: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.UpdateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                                              const Genres, Countries, Languages, ImdbType: RawUTF8): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+  titleCleaned: string;
+begin
+  Result := False;
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    try
+      if dbRecord.FillOne then
+      begin
+        titleCleaned := getMovieNameWithoutSceneTags(UTF8ToString(Title));
+
+        dbRecord.IMDbTitle := Title;
+        dbRecord.IMDbTitleCleaned := UTF8Encode(titleCleaned);
+        dbRecord.IMDbYear := Year;
+        dbRecord.IMDbRating := Rating;
+        dbRecord.IMDbVotes := Votes;
+        dbRecord.IMDbGenres := Genres;
+        dbRecord.IMDbCountries := Countries;
+        dbRecord.IMDbLanguages := Languages;
+        dbRecord.IMDbType := ImdbType;
+        dbRecord.UpdatedTime := Now;
+
+        ImdbDatabase.Update(dbRecord);
+        Result := True;
+        Debug(dpSpam, section, Format('[IMDB API] Updated record: %s', [UTF8ToString(ImdbId)]));
+      end
+      else
+      begin
+        Debug(dpError, section, Format('[IMDB API] Record with IMDB ID %s not found', [UTF8ToString(ImdbId)]));
+      end;
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] UpdateImdbRecord: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiImdbServiceImpl.DeleteImdbRecord(const ImdbId: RawUTF8): boolean;
+var
+  dbRecord: TIMDbDataRecord;
+begin
+  Result := False;
+
+  try
+    if ImdbDatabase = nil then
+    begin
+      Debug(dpError, section, '[IMDB API] ImdbDatabase is nil');
+      Exit;
+    end;
+
+    dbRecord := TIMDbDataRecord.CreateAndFillPrepare(ImdbDatabase.Client, 'IMDbID = ?', [], [ImdbId]);
+    try
+      if dbRecord.FillOne then
+      begin
+        Result := ImdbDatabase.Delete(TIMDbDataRecord, dbRecord.IDValue);
+        Debug(dpSpam, section, Format('[IMDB API] Deleted record: %s', [UTF8ToString(ImdbId)]));
+      end
+      else
+      begin
+        Debug(dpError, section, Format('[IMDB API] Record with IMDB ID %s not found', [UTF8ToString(ImdbId)]));
+      end;
+    finally
+      dbRecord.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] DeleteImdbRecord: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+{ TV Database Initialization }
+procedure InitTVDatabase;
+var
+  dbPath: String;
+begin
+  if TVDatabase <> nil then
+    Exit;
+
+  dbPath := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
+  if dbPath = '' then
+    dbPath := 'tvinfos.db';
+  if ExtractFilePath(dbPath) = '' then
+    dbPath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim + dbPath;
+  TVDBModel := TSQLModel.Create([TInfos, TSeries]);
+  TVDatabase := TSQLRestClientDB.Create(TVDBModel, nil, dbPath, TSQLRestServerDB, False, '');
+  // Don't create missing tables - use existing database as-is
+  TVDatabase.DB.LockingMode := lmNormal;
+  TVDatabase.DB.Synchronous := smNormal;
+end;
+
+{ TV Service Implementation }
+
+function TApiTVServiceImpl.GetAllTVRecords(out Response: TApiTVRecordList): boolean;
+var
+  recordsJson: RawJSON;
+  totalCount: Integer;
+begin
+  Result := False;
+  Response := TApiTVRecordList.Create;
+
+  try
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+
+    if not TVInfoDbAlive then
+    begin
+      Debug(dpError, section, '[TV API] TV info database is not available');
+      Response.Total := 0;
+      Response.Records := '[]';
+      Result := True;
+      Exit;
+    end;
+
+    getTVInfoRecords(recordsJson, totalCount);
+    Response.Total := totalCount;
+    Response.Records := recordsJson;
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, '[GetAllTVRecords] Exception: ' + E.Message);
+      Response.Free;
+      Response := nil;
+    end;
+  end;
+end;
+
+function TApiTVServiceImpl.GetTVRecordById(const TVMazeId: RawUTF8; out Response: TApiTVRecord): boolean;
+var
+  tvInfo: TTVInfoDB;
+begin
+  Result := False;
+  Response := TApiTVRecord.Create;
+  try
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+
+    tvInfo := getTVInfoByShowID(UTF8ToString(TVMazeId));
+    if tvInfo = nil then
+      Exit;
+    try
+      Response.TVMazeId := UTF8Encode(tvInfo.tvmaze_id);
+      Response.Showname := UTF8Encode(tvInfo.tv_showname);
+      Response.Country := UTF8Encode(tvInfo.tv_country);
+      Response.Status := UTF8Encode(tvInfo.tv_status);
+      Response.Classification := UTF8Encode(tvInfo.tv_classification);
+      Response.Network := UTF8Encode(tvInfo.tv_network);
+      Response.Genre := UTF8Encode(tvInfo.tv_genres.CommaText);
+      Response.Language := UTF8Encode(tvInfo.tv_language);
+      Response.PremieredYear := tvInfo.tv_premiered_year;
+      Response.Rating := tvInfo.tv_rating;
+    finally
+      tvInfo.Free;
+    end;
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, '[GetTVRecordById] Exception: ' + E.Message);
+      Response.Free;
+      Response := nil;
+    end;
+  end;
+end;
+
+function TApiTVServiceImpl.CreateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                                          Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer;
+                                          out NewId: RawUTF8): boolean;
+var
+  tvmazeIdInt: Integer;
+begin
+  Result := False;
+  try
+    if not TryStrToInt(TVMazeId, tvmazeIdInt) then
+      Exit;
+
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+    upsertTVInfoRecord(UTF8ToString(TVMazeId), UTF8ToString(Country), UTF8ToString(Status),
+      UTF8ToString(Classification), UTF8ToString(Network), UTF8ToString(Genre), UTF8ToString(Language),
+      PremieredYear, Rating);
+    upsertTVInfoSeries(UTF8ToString(TVMazeId), UTF8ToString(Showname));
+
+    NewId := TVMazeId;
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[CreateTVRecord] Exception: ' + E.Message);
+  end;
+end;
+
+function TApiTVServiceImpl.UpdateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                                          Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer): boolean;
+var
+  tvmazeIdInt: Integer;
+begin
+  Result := False;
+  try
+    if not TryStrToInt(TVMazeId, tvmazeIdInt) then
+      Exit;
+
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+    upsertTVInfoRecord(UTF8ToString(TVMazeId), UTF8ToString(Country), UTF8ToString(Status),
+      UTF8ToString(Classification), UTF8ToString(Network), UTF8ToString(Genre), UTF8ToString(Language),
+      PremieredYear, Rating);
+    upsertTVInfoSeries(UTF8ToString(TVMazeId), UTF8ToString(Showname));
+
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[UpdateTVRecord] Exception: ' + E.Message);
+  end;
+end;
+
+function TApiTVServiceImpl.DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
+var
+  deleteResult: Integer;
+begin
+  Result := False;
+  try
+    if not TVInfoDbAlive then
+      dbTVInfoStart;
+
+    deleteResult := deleteTVInfoByID(UTF8ToString(TVMazeId));
+    Result := deleteResult = 1;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[DeleteTVRecord] Exception: ' + E.Message);
+  end;
+end;
+
 initialization
   glSiteCreditsCacheLock := TSlCriticalSection2.Create('ApiSiteCreditsCache');
   glSiteCreditsCache := TDictionary<string, TSiteCreditsCacheEntry>.Create;
+  glBrowserCacheLock := TSlCriticalSection2.Create('ApiBrowserCache');
+  glBrowserCache := TObjectDictionary<string, TBrowserCacheEntry>.Create([doOwnsValues]);
+  GlApiTaskToPazoIdLock := TSLCriticalSection2.Create('ApiTaskMap');
+  GlApiTaskToPazoId := TDictionary<Int64, Integer>.Create;
 
 finalization
   glSiteCreditsCache.Free;
   glSiteCreditsCacheLock.Free;
+  glBrowserCache.Free;
+  glBrowserCacheLock.Free;
+  GlApiTaskToPazoId.Free;
+  GlApiTaskToPazoIdLock.Free;
+
+  if TVDatabase <> nil then
+  begin
+    TVDatabase.Free;
+    TVDBModel.Free;
+  end;
 
 end.

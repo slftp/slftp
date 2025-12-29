@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
 
 
 type TQueueStat = class
@@ -37,6 +37,10 @@ type
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  
+  // Rate tracking
+  fLastDirlistCheckTime: TDateTime;
+  fLastDirlistCount: Integer;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -88,6 +92,9 @@ procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 
 var
   QueueStatUpdateDateTime: TDateTime;
+  GlDirlistCompletedCounter: TIdThreadSafeInt32;
+  GlDirlistRate: Double;
+  GlDirlistRateMax: Double;
 
 implementation
 
@@ -707,11 +714,11 @@ begin
       exit;
     end;
 
-    Inc(t.TryToAssign);
-    if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
-    begin
-      t.TryToAssign := 0;
-      if (maxassign_delay = 0) then
+      Inc(t.TryToAssign);
+      if ((maxassign <> 0) and (t.TryToAssign > maxassign)) then
+      begin
+        t.TryToAssign := 0;
+        if (maxassign_delay = 0) then
         begin
           t.ready := True;
         end
@@ -1511,6 +1518,21 @@ begin
   begin
     queue_last_run := Now();
 
+    // Calculate dirlist rate
+    if fLastDirlistCheckTime = 0 then
+    begin
+      fLastDirlistCheckTime := queue_last_run;
+      fLastDirlistCount := GlDirlistCompletedCounter.Value;
+    end
+    else if SecondsBetween(queue_last_run, fLastDirlistCheckTime) >= 1 then
+    begin
+      GlDirlistRate := (GlDirlistCompletedCounter.Value - fLastDirlistCount) / SecondsBetween(queue_last_run, fLastDirlistCheckTime);
+      if GlDirlistRate > GlDirlistRateMax then
+        GlDirlistRateMax := GlDirlistRate;
+      fLastDirlistCount := GlDirlistCompletedCounter.Value;
+      fLastDirlistCheckTime := queue_last_run;
+    end;
+
     if fSite = nil then
       fSite := FindSiteByName('', fSiteName);
 
@@ -1755,10 +1777,12 @@ begin
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
+  GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
 end;
 
 procedure QueueUninit;
 begin
+  GlDirlistCompletedCounter.Free;
   StatsList.Free;
 end;
 

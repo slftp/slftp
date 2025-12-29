@@ -1,9 +1,12 @@
 import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea } from '@mantine/core';
-import { IconFilter, IconMapPin, IconFlask, IconRefresh, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconFilter, IconMapPin, IconFlask, IconRefresh, IconPlus, IconTrash, IconEdit } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient } from '../api/client';
+import type { Site } from '../api/client';
 import { notifications } from '@mantine/notifications';
+import { parseIrcAnnounce, parsedAnnounceToWords } from '../utils/ircAnnounceParser';
+import type { ParsedAnnounce } from '../utils/ircAnnounceParser';
 
 interface PrecatcherRule {
   id: number;
@@ -23,6 +26,23 @@ interface SectionMapping {
   mask: string;
 }
 
+interface IrcNetwork {
+  name: string;
+  host: string;
+  port: number;
+  status: string;
+  nickname: string;
+  connected: boolean;
+  channels_count: number;
+}
+
+interface IrcChannel {
+  channel: string;
+  chankey: string;
+  chanroles: string;
+  blowkey: string;
+}
+
 const EVENT_TYPES = [
   { value: 'PRE', label: 'PRE' },
   { value: 'ADDPRE', label: 'ADDPRE' },
@@ -36,8 +56,10 @@ export function Precatcher() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string>('rules');
   const [addingRule, setAddingRule] = useState(false);
+  const [editingRule, setEditingRule] = useState<PrecatcherRule | null>(null);
 
   // Add Rule form state
+  const [ircAnnounce, setIrcAnnounce] = useState('');
   const [newNetname, setNewNetname] = useState('');
   const [newChannel, setNewChannel] = useState('');
   const [newBotnicks, setNewBotnicks] = useState('');
@@ -80,6 +102,90 @@ export function Precatcher() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: networks } = useQuery({
+    queryKey: ['irc-networks'],
+    queryFn: async (): Promise<IrcNetwork[]> => {
+      const res = await apiClient.post('/ApiIrcService/GetNetworks', {});
+
+      let networks: IrcNetwork[] = [];
+      try {
+        if (res.data.result && Array.isArray(res.data.result)) {
+          const resultData = res.data.result[0];
+          if (Array.isArray(resultData)) {
+            networks = resultData;
+          }
+        } else if (typeof res.data === 'string') {
+          networks = JSON.parse(res.data);
+        } else if (Array.isArray(res.data)) {
+          networks = res.data;
+        }
+      } catch (e) {
+        console.error('Failed to parse IRC networks:', e);
+        return [];
+      }
+
+      return networks;
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: addRuleChannels } = useQuery({
+    queryKey: ['irc-channels', 'rule', newNetname],
+    queryFn: async (): Promise<IrcChannel[]> => {
+      if (!newNetname) return [];
+      const res = await apiClient.post('/ApiIrcService/GetChannels', { NetName: newNetname });
+
+      let channels: IrcChannel[] = [];
+      try {
+        if (res.data.result && Array.isArray(res.data.result)) {
+          const resultData = res.data.result[0];
+          if (typeof resultData === 'string') {
+            channels = JSON.parse(resultData);
+          } else if (Array.isArray(resultData)) {
+            channels = resultData;
+          }
+        } else if (typeof res.data === 'string') {
+          channels = JSON.parse(res.data);
+        } else if (Array.isArray(res.data)) {
+          channels = res.data;
+        }
+      } catch (e) {
+        console.error('Failed to parse IRC channels:', e);
+        return [];
+      }
+
+      return channels;
+    },
+    enabled: !!newNetname,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: sites } = useQuery({
+    queryKey: ['sites'],
+    queryFn: async (): Promise<Site[]> => {
+      const res = await apiClient.post('/ApiSitesService/GetSites', { Filter: '' });
+      let responseData = res.data;
+      if (res.data.result && Array.isArray(res.data.result)) {
+        responseData = res.data.result[0];
+      }
+
+      const rawSites = responseData.Sites;
+      let parsedSites: Site[] = [];
+      try {
+        if (typeof rawSites === 'string') {
+          parsedSites = JSON.parse(rawSites);
+        } else if (Array.isArray(rawSites)) {
+          parsedSites = rawSites;
+        }
+      } catch (e) {
+        console.error('Failed to parse sites JSON', e);
+      }
+
+      return parsedSites;
+    },
+    refetchOnWindowFocus: false,
+  });
+
   const { data: mappings, isLoading: mappingsLoading } = useQuery({
     queryKey: ['precatcher-mappings'],
     queryFn: async (): Promise<SectionMapping[]> => {
@@ -110,15 +216,20 @@ export function Precatcher() {
 
   const addRuleMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post('/ApiPrecatcherService/AddPrecatcherRule', {
-        netname: newNetname,
-        channel: newChannel,
-        botnicks: newBotnicks,
-        sitename: newSitename,
-        event: newEvent,
-        words: newWords,
-        section: newSection,
-      });
+      const payload = {
+        RuleData: {
+          netname: newNetname,
+          channel: newChannel,
+          botnicks: newBotnicks,
+          sitename: newSitename,
+          event: newEvent,
+          words: newWords,
+          section: newSection,
+        },
+      };
+      console.debug('[precatcher] add rule payload', payload);
+      const res = await apiClient.post('/ApiPrecatcherService/AddPrecatcherRule', payload);
+      console.debug('[precatcher] add rule response', res.data);
     },
     onSuccess: () => {
       notifications.show({
@@ -127,6 +238,54 @@ export function Precatcher() {
         color: 'green',
       });
       setAddingRule(false);
+      setEditingRule(null);
+      setIrcAnnounce('');
+      setNewNetname('');
+      setNewChannel('');
+      setNewBotnicks('');
+      setNewSitename('');
+      setNewEvent('PRE');
+      setNewWords('');
+      setNewSection('');
+      queryClient.invalidateQueries({ queryKey: ['precatcher-rules'] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message,
+        color: 'red',
+      });
+    },
+  });
+
+  const updateRuleMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingRule) return;
+      const payload = {
+        RuleId: editingRule.id,
+        RuleData: {
+          netname: newNetname,
+          channel: newChannel,
+          botnicks: newBotnicks,
+          sitename: newSitename,
+          event: newEvent,
+          words: newWords,
+          section: newSection,
+        },
+      };
+      console.debug('[precatcher] update rule payload', payload);
+      const res = await apiClient.post('/ApiPrecatcherService/UpdatePrecatcherRule', payload);
+      console.debug('[precatcher] update rule response', res.data);
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Updated',
+        message: 'Precatcher rule updated successfully',
+        color: 'green',
+      });
+      setAddingRule(false);
+      setEditingRule(null);
+      setIrcAnnounce('');
       setNewNetname('');
       setNewChannel('');
       setNewBotnicks('');
@@ -167,6 +326,98 @@ export function Precatcher() {
       });
     },
   });
+
+  const handleEditRule = (rule: PrecatcherRule) => {
+    setEditingRule(rule);
+    setNewNetname(rule.netname);
+    setNewChannel(rule.channel);
+    setNewBotnicks(rule.botnicks);
+    setNewSitename(rule.sitename);
+    setNewEvent(rule.event);
+    setNewWords(rule.words);
+    setNewSection(rule.section);
+    setAddingRule(true);
+  };
+
+  const pickWordsFromRules = (parsed: ParsedAnnounce, rulesList: PrecatcherRule[]) => {
+    if (!rulesList || rulesList.length === 0) return '';
+
+    const botNick = parsed.botNick.trim().toLowerCase();
+    if (!botNick) return '';
+
+    const eventType = parsed.eventType.trim().toUpperCase();
+    if (!eventType) return '';
+
+    const matchesBotnick = (value: string) => {
+      if (!value) return false;
+      const tokens = value
+        .split(/[,\s]+/)
+        .map((token) => token.trim().toLowerCase())
+        .filter(Boolean);
+      return tokens.includes(botNick);
+    };
+
+    const matchesEvent = (value: string) => value.trim().toUpperCase() === eventType;
+    const baseMatches = rulesList.filter((rule) => matchesEvent(rule.event) && matchesBotnick(rule.botnicks) && rule.words);
+    if (baseMatches.length === 0) return '';
+
+    const counts = new Map<string, { count: number; firstIndex: number }>();
+    baseMatches.forEach((rule, index) => {
+      const key = rule.words;
+      const entry = counts.get(key);
+      if (entry) {
+        entry.count += 1;
+      } else {
+        counts.set(key, { count: 1, firstIndex: index });
+      }
+    });
+
+    let best = '';
+    let bestCount = 0;
+    let bestIndex = Number.POSITIVE_INFINITY;
+    counts.forEach((entry, key) => {
+      if (entry.count > bestCount || (entry.count === bestCount && entry.firstIndex < bestIndex)) {
+        best = key;
+        bestCount = entry.count;
+        bestIndex = entry.firstIndex;
+      }
+    });
+
+    return best;
+  };
+
+  const handleAnnounceChange = (value: string) => {
+    setIrcAnnounce(value);
+
+    if (!value.trim()) {
+      setNewBotnicks('');
+      setNewEvent('PRE');
+      setNewWords('');
+      return;
+    }
+
+    const parsed = parseIrcAnnounce(value);
+    if (!parsed) {
+      setNewBotnicks('');
+      setNewEvent('PRE');
+      setNewWords('');
+      return;
+    }
+
+    setNewBotnicks(parsed.botNick);
+
+    setNewEvent(parsed.eventType);
+
+    const wordsFromRules = pickWordsFromRules(parsed, rules || []);
+    setNewWords(wordsFromRules || parsedAnnounceToWords(parsed));
+
+    notifications.show({
+      title: 'Auto-filled',
+      message: `Parsed announce from bot ${parsed.botNick}`,
+      color: 'blue',
+      autoClose: 2000,
+    });
+  };
 
   const testPrecatcherMutation = useMutation({
     mutationFn: async () => {
@@ -267,13 +518,22 @@ export function Precatcher() {
                       </Table.Td>
                       <Table.Td>{rule.section}</Table.Td>
                       <Table.Td>
-                        <ActionIcon
-                          variant="light"
-                          color="red"
-                          onClick={() => deleteRuleMutation.mutate(rule.id)}
-                        >
-                          <IconTrash size="1rem" />
-                        </ActionIcon>
+                        <Group gap={4}>
+                          <ActionIcon
+                            variant="light"
+                            color="blue"
+                            onClick={() => handleEditRule(rule)}
+                          >
+                            <IconEdit size="1rem" />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="light"
+                            color="red"
+                            onClick={() => deleteRuleMutation.mutate(rule.id)}
+                          >
+                            <IconTrash size="1rem" />
+                          </ActionIcon>
+                        </Group>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -386,35 +646,96 @@ export function Precatcher() {
 
       <Modal
         opened={addingRule}
-        onClose={() => setAddingRule(false)}
-        title="Add Catchlist Entry"
+        onClose={() => {
+          setAddingRule(false);
+          setEditingRule(null);
+          setIrcAnnounce('');
+          setNewNetname('');
+          setNewChannel('');
+          setNewBotnicks('');
+          setNewSitename('');
+          setNewEvent('PRE');
+          setNewWords('');
+          setNewSection('');
+        }}
+        title={editingRule ? "Edit Catchlist Entry" : "Add Catchlist Entry"}
         centered
         size="lg"
       >
         <Stack gap="md">
-          <TextInput
-            label="Site Name"
-            value={newSitename}
-            onChange={(e) => setNewSitename(e.currentTarget.value)}
-            placeholder="SITEONE"
-            required
-          />
+          {!editingRule && (
+            <Textarea
+              label="IRC Announce (Optional)"
+              value={ircAnnounce}
+              onChange={(e) => handleAnnounceChange(e.currentTarget.value)}
+              placeholder="Paste IRC announce here to auto-fill fields"
+              minRows={2}
+              description="Paste an IRC announce to automatically extract bot nick, event type, and release pattern"
+            />
+          )}
 
-          <TextInput
-            label="Network Name"
-            value={newNetname}
-            onChange={(e) => setNewNetname(e.currentTarget.value)}
-            placeholder="IRCNET"
-            required
-          />
+          {(sites && sites.length > 0) ? (
+            <Select
+              label="Site Name"
+              value={newSitename}
+              onChange={(value) => setNewSitename(value || '')}
+              data={sites.map((site) => ({ value: site.name, label: site.name }))}
+              placeholder="Select a site"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Site Name"
+              value={newSitename}
+              onChange={(e) => setNewSitename(e.currentTarget.value)}
+              placeholder="SITEONE"
+              required
+            />
+          )}
 
-          <TextInput
-            label="Channel"
-            value={newChannel}
-            onChange={(e) => setNewChannel(e.currentTarget.value)}
-            placeholder="#pre"
-            required
-          />
+          {(networks && networks.length > 0) ? (
+            <Select
+              label="Network Name"
+              value={newNetname}
+              onChange={(value) => {
+                setNewNetname(value || '');
+                setNewChannel('');
+              }}
+              data={networks.map((net) => ({ value: net.name, label: net.name }))}
+              placeholder="Select a network"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Network Name"
+              value={newNetname}
+              onChange={(e) => setNewNetname(e.currentTarget.value)}
+              placeholder="IRCNET"
+              required
+            />
+          )}
+
+          {(addRuleChannels && addRuleChannels.length > 0) ? (
+            <Select
+              label="Channel"
+              value={newChannel}
+              onChange={(value) => setNewChannel(value || '')}
+              data={addRuleChannels.map((chan) => ({ value: chan.channel, label: chan.channel }))}
+              placeholder="Select a channel"
+              searchable
+              required
+            />
+          ) : (
+            <TextInput
+              label="Channel"
+              value={newChannel}
+              onChange={(e) => setNewChannel(e.currentTarget.value)}
+              placeholder="#pre"
+              required
+            />
+          )}
 
           <TextInput
             label="Bot Nicks"
@@ -437,8 +758,8 @@ export function Precatcher() {
             label="Words"
             value={newWords}
             onChange={(e) => setNewWords(e.currentTarget.value)}
-            placeholder="*release*"
-            description="Keywords to match in the announce"
+            placeholder="NEW,RACE,join"
+            description="Comma-separated keywords (substring match, no wildcards)"
             required
           />
 
@@ -451,11 +772,18 @@ export function Precatcher() {
           />
 
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setAddingRule(false)}>
+            <Button variant="default" onClick={() => {
+              setAddingRule(false);
+              setEditingRule(null);
+            }}>
               Cancel
             </Button>
-            <Button onClick={() => addRuleMutation.mutate()} loading={addRuleMutation.isPending} leftSection={<IconPlus size="1rem" />}>
-              Add
+            <Button 
+              onClick={() => editingRule ? updateRuleMutation.mutate() : addRuleMutation.mutate()} 
+              loading={editingRule ? updateRuleMutation.isPending : addRuleMutation.isPending} 
+              leftSection={editingRule ? <IconEdit size="1rem" /> : <IconPlus size="1rem" />}
+            >
+              {editingRule ? "Update" : "Add"}
             </Button>
           </Group>
         </Stack>

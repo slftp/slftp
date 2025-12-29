@@ -251,6 +251,18 @@ type
     function RecalculateRanks: boolean;
   end;
 
+  { Live Races API }
+  IApiRacesService = interface(IInvokable)
+    ['{A4A0E0F5-2D0D-4C6F-AE9C-8A62A5B736C8}']
+
+    /// GET /api/races
+    /// Returns recent raced file entries from stats DB (paged)
+    function GetRaces(const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+
+    /// Returns raced file entries for a given release (paged)
+    function GetReleaseTransfers(const Release: RawUTF8; const Page: integer; const PageSize: integer; const SinceUnix: Int64): RawJSON;
+  end;
+
   { IRC Management API }
   IApiIrcService = interface(IInvokable)
     ['{3D8E5F6A-7B9C-8D0E-1F2A-5B6C7D8E9F0A}']
@@ -347,18 +359,39 @@ type
     function GetRoutes(const SiteName: RawUTF8): RawJSON;
 
     /// POST /api/speed/test/local
-    /// Starts local speed test
-    function TestSpeedLocal(const SiteName: RawUTF8): boolean;
+    /// Starts local speed test, returns Test ID
+    function TestSpeedLocal(const SiteName: RawUTF8): RawUTF8;
 
     /// POST /api/speed/test/out
-    /// Starts outbound speed test
+    /// Starts outbound speed test, returns Test ID
     function TestSpeedOut(const SourceSite: RawUTF8;
-                          const DestSites: RawUTF8): boolean;
+                          const DestSites: RawUTF8): RawUTF8;
 
     /// POST /api/speed/test/in
-    /// Starts inbound speed test
+    /// Starts inbound speed test, returns Test ID
     function TestSpeedIn(const DestSite: RawUTF8;
-                         const SourceSites: RawUTF8): boolean;
+                         const SourceSites: RawUTF8): RawUTF8;
+
+    /// POST /api/speed/test/cleanup
+    /// Starts cleanup, returns Test ID
+    function TestSpeedCleanup(const Sites: RawUTF8): RawUTF8;
+
+    /// POST /api/speed/test/matrix
+    /// Starts matrix speed test (filtered sites), returns Test ID
+    function TestSpeedMatrix(const IncludeSites: RawUTF8 = '';
+                             const ExcludeSites: RawUTF8 = ''): RawUTF8;
+
+    /// GET /api/speed/sites
+    /// Returns array of sites with SPEEDTEST section
+    function GetSpeedTestSites: RawJSON;
+
+    /// GET /api/speed/test/{id}/log
+    /// Returns live log for test
+    function GetTestLog(const TestId: RawUTF8): RawJSON;
+
+    /// GET /api/speed/test/{id}/status
+    /// Returns status for test
+    function GetTestStatus(const TestId: RawUTF8): RawJSON;
 
     /// GET /api/speed/results
     /// Returns speed test results
@@ -398,6 +431,10 @@ type
     /// Adds precatcher rule
     function AddPrecatcherRule(const RuleData: RawJSON): integer;
 
+    /// PUT /api/precatcher/{id}
+    /// Updates precatcher rule
+    function UpdatePrecatcherRule(RuleId: integer; const RuleData: RawJSON): boolean;
+
     /// DELETE /api/precatcher/{id}
     /// Deletes precatcher rule
     function DeletePrecatcherRule(RuleId: integer): boolean;
@@ -413,6 +450,11 @@ type
     /// GET /api/precatcher/mappings
     /// Returns section mappings
     function GetMappings: RawJSON;
+
+    /// GET /api/precatcher/hits
+    /// Returns recent precatcher matches (reverse chronological)
+    function GetHits(const Limit: integer; const SinceUnix: Int64;
+      const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
   end;
 
   { Simulator API }
@@ -440,6 +482,10 @@ type
     /// Returns recent issues/events (TypesCsv e.g. "SKIP,DONT_MATCH,MISSING_SECTION")
     function GetIssues(const Limit: integer; const SinceUnix: Int64; const TypesCsv: RawUTF8; out Response: TApiIssuesList): boolean;
 
+    /// DELETE /api/issues/{id}
+    /// Deletes a specific issue by ID
+    function DeleteIssue(const IssueId: Int64): boolean;
+
     /// DELETE /api/issues
     /// Clears the in-memory issues buffer
     function ClearIssues: boolean;
@@ -456,6 +502,67 @@ type
     /// DELETE /api/logs
     /// Clears logs (if supported) or returns error
     function ClearLogs: boolean;
+  end;
+
+  { File Browser API }
+  IApiBrowserService = interface(IInvokable)
+    ['{9A0B1C2D-3E4F-5A6B-7C8D-9E0F1A2B3C4D}']
+
+    /// GET /api/browser/{site}
+    /// Returns directory listing for a specific path
+    /// Query params: path (default /), refresh (bool)
+    function GetPath(const SiteName: RawUTF8; const Path: RawUTF8; ForceRefresh: boolean): RawJSON;
+  end;
+
+  { IMDB Database API }
+  IApiImdbService = interface(IInvokable)
+    ['{A1B2C3D4-E5F6-7A8B-9C0D-1E2F3A4B5C6D}']
+
+    /// GET /api/imdb
+    /// Returns all IMDB records
+    function GetAllImdbRecords(out Response: TApiImdbRecordList): boolean;
+
+    /// GET /api/imdb/{id}
+    /// Returns IMDB record by ID
+    function GetImdbRecordById(const ImdbId: RawUTF8; out Response: TApiImdbRecord): boolean;
+
+    /// POST /api/imdb
+    /// Creates new IMDB record
+    function CreateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8;
+                              out NewId: RawUTF8): boolean;
+
+    /// PUT /api/imdb/{id}
+    /// Updates existing IMDB record
+    function UpdateImdbRecord(const ImdbId, Title: RawUTF8; Year, Rating, Votes: integer;
+                              const Genres, Countries, Languages, ImdbType: RawUTF8): boolean;
+
+    /// DELETE /api/imdb/{id}
+    /// Deletes IMDB record
+    function DeleteImdbRecord(const ImdbId: RawUTF8): boolean;
+  end;
+
+  { TV Database API }
+  IApiTVService = interface(IInvokable)
+    ['{B2C3D4E5-F6A7-8B9C-0D1E-2F3A4B5C6D7E}']
+
+    /// Returns all TV show records
+    function GetAllTVRecords(out Response: TApiTVRecordList): boolean;
+
+    /// Returns TV show record by TVMaze ID
+    function GetTVRecordById(const TVMazeId: RawUTF8; out Response: TApiTVRecord): boolean;
+
+    /// Creates new TV show record
+    function CreateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer;
+                            out NewId: RawUTF8): boolean;
+
+    /// Updates existing TV show record
+    function UpdateTVRecord(const TVMazeId, Showname, Country, Status, Classification,
+                            Network, Genre, Language: RawUTF8; PremieredYear, Rating: integer): boolean;
+
+    /// Deletes TV show record
+    function DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
   end;
 
 implementation

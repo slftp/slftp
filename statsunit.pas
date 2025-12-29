@@ -100,6 +100,20 @@ procedure StatRaces(const aNetname, aChannel, aSitename, aPeriod: String; const 
   @returns(JSON object with sites and totals; or an error if stats are disabled) }
 function StatsGetRaceStatsJson(const aSitename, aPeriod: String; const aDetailed: Boolean): RawJSON;
 
+{ Returns recent raced file entries as JSON for the Web API
+  @param(aLimit max number of items; defaults to 200; capped to 5000)
+  @param(aSinceUnix only return entries with timestamp >= since (unix seconds); 0 disables filter)
+  @returns(JSON object with enabled/error/items) }
+function StatsGetRecentRacesJson(const aPage: integer; const aPageSize: integer; const aSinceUnix: Int64): RawJSON;
+
+{ Returns recent raced file entries for a given release as JSON for the Web API
+  @param(aRelease release name)
+  @param(aPage page number (1..5))
+  @param(aPageSize items per page (max 500))
+  @param(aSinceUnix only return entries with timestamp >= since (unix seconds); 0 disables filter)
+  @returns(JSON object with enabled/error/items) }
+function StatsGetReleaseRacesJson(const aRelease: String; const aPage: integer; const aPageSize: integer; const aSinceUnix: Int64): RawJSON;
+
 { Creates a backup of stats-database - this is needed because the file is in use and can't be copied
   @param(aPath path where the backup should be stored in the filesystem with last slash, e.g. /path/to/file/)
   @param(aFileName filename including fileextension) }
@@ -108,7 +122,7 @@ procedure doStatsBackup(const aPath, aFileName: String);
 implementation
 
 uses
-  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, slcriticalsection2, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3, mormot.core.text, mormot.core.json;
+  SysUtils, Contnrs, Generics.Collections, dbhandler, debugunit, configunit, sitesunit, irc, mystrings, slcriticalsection2, DateUtils, mormot.rest.sqlite3, mormot.core.unicode, mormot.core.os, mormot.db.raw.sqlite3, mormot.core.text, mormot.core.json, mormot.core.variants;
 
 const
   section = 'stats';
@@ -562,6 +576,191 @@ begin
   finally
     w.Free;
   end;
+end;
+
+function StatsGetRecentRacesJson(const aPage: integer; const aPageSize: integer; const aSinceUnix: Int64): RawJSON;
+var
+  page: integer;
+  pageSize: integer;
+  offset: integer;
+  statsRec: TSQLStatsRecord;
+  sinceDt: TDateTime;
+  sinceIso: RawUTF8;
+  whereSql: RawUTF8;
+  resultDoc: variant;
+  row: variant;
+  itemsVar: variant;
+  itemsArr: TDocVariantData absolute itemsVar;
+begin
+  page := aPage;
+  if page <= 0 then
+    page := 1;
+  if page > 5 then
+    page := 5;
+
+  pageSize := aPageSize;
+  if pageSize <= 0 then
+    pageSize := 500;
+  if pageSize > 500 then
+    pageSize := 500;
+
+  offset := (page - 1) * pageSize;
+
+  TDocVariant.New(resultDoc);
+  TDocVariantData(resultDoc).AddValue('enabled', IsStatsDatabaseActive);
+  TDocVariantData(resultDoc).AddValue('error', '');
+  TDocVariantData(resultDoc).AddValue('page', page);
+  TDocVariantData(resultDoc).AddValue('pageSize', pageSize);
+  TDocVariantData(resultDoc).AddValue('maxPages', 5);
+  itemsArr.InitFast(dvArray);
+
+  if not IsStatsDatabaseActive then
+  begin
+    TDocVariantData(resultDoc).AddValue('error', 'stats disabled');
+    TDocVariantData(resultDoc).AddValue('items', itemsVar);
+    Result := VariantSaveJSON(resultDoc);
+    Exit;
+  end;
+
+  try
+    if aSinceUnix > 0 then
+    begin
+      sinceDt := UnixToDateTime(aSinceUnix, False);
+      sinceIso := DateToIso8601(sinceDt, False);
+      whereSql := StringToUTF8(Format('timestamp >= ? order by timestamp desc limit %d offset %d', [pageSize, offset]));
+      statsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client, whereSql, [], [sinceIso]);
+    end
+    else
+    begin
+      whereSql := StringToUTF8(Format('1=1 order by timestamp desc limit %d offset %d', [pageSize, offset]));
+      statsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client, whereSql, [], []);
+    end;
+    try
+      while statsRec.FillOne do
+      begin
+        TDocVariant.New(row);
+        TDocVariantData(row).AddValue('Id', statsRec.ID);
+        TDocVariantData(row).AddValue('TsUnix', DateTimeToUnix(statsRec.FileInfoRec.TimeStamp, False));
+        TDocVariantData(row).AddValue('SrcSite', statsRec.SrcSiteRec.Name);
+        TDocVariantData(row).AddValue('DstSite', statsRec.DstSiteRec.Name);
+        TDocVariantData(row).AddValue('Section', statsRec.SectionRec.Section);
+        TDocVariantData(row).AddValue('Release', statsRec.FileInfoRec.ReleaseName);
+        TDocVariantData(row).AddValue('FileName', statsRec.FileInfoRec.FileName);
+        TDocVariantData(row).AddValue('SizeBytes', statsRec.FileInfoRec.FileSize);
+        itemsArr.AddItem(row);
+      end;
+    finally
+      statsRec.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] StatsGetRecentRacesJson: %s', [E.Message]));
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(E.Message));
+    end;
+  end;
+
+  TDocVariantData(resultDoc).AddValue('items', itemsVar);
+  Result := VariantSaveJSON(resultDoc);
+end;
+
+function StatsGetReleaseRacesJson(const aRelease: String; const aPage: integer; const aPageSize: integer; const aSinceUnix: Int64): RawJSON;
+var
+  page: integer;
+  pageSize: integer;
+  offset: integer;
+  statsRec: TSQLStatsRecord;
+  sinceDt: TDateTime;
+  sinceIso: RawUTF8;
+  releaseUtf8: RawUTF8;
+  whereSql: RawUTF8;
+  resultDoc: variant;
+  row: variant;
+  itemsVar: variant;
+  itemsArr: TDocVariantData absolute itemsVar;
+begin
+  page := aPage;
+  if page <= 0 then
+    page := 1;
+  if page > 5 then
+    page := 5;
+
+  pageSize := aPageSize;
+  if pageSize <= 0 then
+    pageSize := 500;
+  if pageSize > 500 then
+    pageSize := 500;
+
+  offset := (page - 1) * pageSize;
+
+  TDocVariant.New(resultDoc);
+  TDocVariantData(resultDoc).AddValue('enabled', IsStatsDatabaseActive);
+  TDocVariantData(resultDoc).AddValue('error', '');
+  TDocVariantData(resultDoc).AddValue('page', page);
+  TDocVariantData(resultDoc).AddValue('pageSize', pageSize);
+  TDocVariantData(resultDoc).AddValue('maxPages', 5);
+  TDocVariantData(resultDoc).AddValue('release', StringToUTF8(Trim(aRelease)));
+  itemsArr.InitFast(dvArray);
+
+  if not IsStatsDatabaseActive then
+  begin
+    TDocVariantData(resultDoc).AddValue('error', 'stats disabled');
+    TDocVariantData(resultDoc).AddValue('items', itemsVar);
+    Result := VariantSaveJSON(resultDoc);
+    Exit;
+  end;
+
+  if Trim(aRelease) = '' then
+  begin
+    TDocVariantData(resultDoc).AddValue('error', 'release required');
+    TDocVariantData(resultDoc).AddValue('items', itemsVar);
+    Result := VariantSaveJSON(resultDoc);
+    Exit;
+  end;
+
+  try
+    releaseUtf8 := StringToUTF8(Trim(aRelease));
+
+    if aSinceUnix > 0 then
+    begin
+      sinceDt := UnixToDateTime(aSinceUnix, False);
+      sinceIso := DateToIso8601(sinceDt, False);
+      whereSql := StringToUTF8(Format('FileInfoRec.ReleaseName = ? AND timestamp >= ? order by timestamp desc limit %d offset %d', [pageSize, offset]));
+      statsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client, whereSql, [], [releaseUtf8, sinceIso]);
+    end
+    else
+    begin
+      whereSql := StringToUTF8(Format('FileInfoRec.ReleaseName = ? order by timestamp desc limit %d offset %d', [pageSize, offset]));
+      statsRec := TSQLStatsRecord.CreateAndFillPrepareJoined(ORMStatsDB.Client, whereSql, [], [releaseUtf8]);
+    end;
+
+    try
+      while statsRec.FillOne do
+      begin
+        TDocVariant.New(row);
+        TDocVariantData(row).AddValue('Id', statsRec.ID);
+        TDocVariantData(row).AddValue('TsUnix', DateTimeToUnix(statsRec.FileInfoRec.TimeStamp, False));
+        TDocVariantData(row).AddValue('SrcSite', statsRec.SrcSiteRec.Name);
+        TDocVariantData(row).AddValue('DstSite', statsRec.DstSiteRec.Name);
+        TDocVariantData(row).AddValue('Section', statsRec.SectionRec.Section);
+        TDocVariantData(row).AddValue('Release', statsRec.FileInfoRec.ReleaseName);
+        TDocVariantData(row).AddValue('FileName', statsRec.FileInfoRec.FileName);
+        TDocVariantData(row).AddValue('SizeBytes', statsRec.FileInfoRec.FileSize);
+        itemsArr.AddItem(row);
+      end;
+    finally
+      statsRec.Free;
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] StatsGetReleaseRacesJson: %s', [E.Message]));
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(E.Message));
+    end;
+  end;
+
+  TDocVariantData(resultDoc).AddValue('items', itemsVar);
+  Result := VariantSaveJSON(resultDoc);
 end;
 
 procedure writeStatsToDB(const aStatRaceRecord: TStatRaceRecord);

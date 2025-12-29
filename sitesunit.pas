@@ -4139,7 +4139,8 @@ begin
     exit;
 
   // there is no need to add.
-  t := TLoginTask.Create('', '', Name, False, True);
+  // Autobnctest should behave like dev: only attempt login if needed, no full BNC benchmark
+  t := TLoginTask.Create('', '', Name, False, True, False);
   t.dontremove := True;
   try
     AddTask(t);
