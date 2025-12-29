@@ -71,6 +71,9 @@ function GetApiServer: TSlftpApiServer;
 { Initialize API server from config }
 procedure ApiInit;
 
+{ Start API server listening }
+procedure ApiStart;
+
 { Shutdown API server }
 procedure ApiUninit;
 
@@ -472,12 +475,25 @@ begin
     ApiServer.Host := config.ReadString('api', 'host', '127.0.0.1');
     ApiServer.ApiKey := config.ReadString('api', 'apikey', '');
 
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, rsection, Format('[EXCEPTION] ApiInit: %s', [E.Message]));
+      FreeAndNil(ApiServer);
+    end;
+  end;
+end;
+
+procedure ApiStart;
+begin
+  try
+    if ApiServer = nil then Exit;
+
     if ApiServer.Enabled then
     begin
       if not ApiServer.Start then
       begin
         Debug(dpError, rsection, 'Failed to start API server');
-        FreeAndNil(ApiServer);
       end
       else
       begin
@@ -493,8 +509,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, rsection, Format('[EXCEPTION] ApiInit: %s', [E.Message]));
-      FreeAndNil(ApiServer);
+      Debug(dpError, rsection, Format('[EXCEPTION] ApiStart: %s', [E.Message]));
     end;
   end;
 end;

@@ -507,6 +507,8 @@ begin
   slshutdown := False;
   console_addline('Admin', 'Start Queue', True);
   QueueStart();
+  console_addline('Admin', 'Start REST API', True);
+  ApiStart;
 
   // Start LoadMonitor for performance monitoring
   if config.ReadBool('performance_monitor', 'enabled', True) then
