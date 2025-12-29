@@ -432,6 +432,7 @@ export function Dashboard() {
                   <Table.Th>Status</Table.Th>
                   <Table.Th>Started</Table.Th>
                   <Table.Th>Completed</Table.Th>
+                  <Table.Th>Duration</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -567,6 +568,15 @@ export function Dashboard() {
                                 </Text>
                               )}
                             </Stack>
+                          ) : (
+                            <Text size="xs" c="dimmed">-</Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td>
+                          {site.StartedTime > 0 && site.CompletedTime > 0 ? (
+                            <Text size="xs" fw={500} style={{ fontFamily: 'monospace' }}>
+                              {((site.CompletedTime - site.StartedTime) / 1000).toFixed(3)}s
+                            </Text>
                           ) : (
                             <Text size="xs" c="dimmed">-</Text>
                           )}
