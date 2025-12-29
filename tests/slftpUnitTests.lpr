@@ -68,7 +68,9 @@ uses
   imdbDatabaseTests,
   slcriticalsection2Tests,
   variantCacheTests,
-  sltimerTests;
+  sltimerTests,
+  mormot.db.raw.sqlite3.static,
+  mormot.db.sql.sqlite3;
 
 var
   filecheck: String;
