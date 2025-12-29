@@ -2477,8 +2477,10 @@ var
   i: integer;
   sectionName: string;
   sectionDir: string;
+  siteSections: TStringList;
 begin
   Result := '';
+  siteSections := nil;
   try
     s := FindSiteByName('', UTF8ToString(SiteName));
     if s = nil then
@@ -2490,11 +2492,19 @@ begin
 
     sectionsArray.InitFast(dvArray);
 
-    if kb_sections <> nil then
-    begin
-      for i := 0 to kb_sections.Count - 1 do
+    // Parse site's actual sections property instead of using global kb_sections
+    siteSections := TStringList.Create;
+    try
+      siteSections.Delimiter := ' ';
+      siteSections.StrictDelimiter := True;
+      siteSections.DelimitedText := s.sections;
+
+      for i := 0 to siteSections.Count - 1 do
       begin
-        sectionName := kb_sections[i];
+        sectionName := Trim(siteSections[i]);
+        if sectionName = '' then
+          Continue;
+
         sectionDir := s.sectiondir[sectionName];
 
         TDocVariant.New(sectionDoc);
@@ -2502,6 +2512,8 @@ begin
         TDocVariantData(sectionDoc).AddValue('dir', UTF8Encode(sectionDir));
         sectionsArray.AddItem(sectionDoc);
       end;
+    finally
+      siteSections.Free;
     end;
 
     Result := sectionsArray.ToJSON;

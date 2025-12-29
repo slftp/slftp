@@ -999,10 +999,11 @@ begin
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
       fQuery.Prepare(
-        'SELECT DISTINCT infos.tvmaze_id, series.showname, infos.country, infos.status, ' +
+        'SELECT infos.tvmaze_id, MAX(series.showname) as showname, infos.country, infos.status, ' +
         'infos.classification, infos.network, infos.genre, infos.tv_language, ' +
         'infos.premiered_year, infos.rating, infos.last_updated, infos.created_at ' +
-        'FROM infos LEFT JOIN series ON infos.tvmaze_id = series.id'
+        'FROM infos LEFT JOIN series ON infos.tvmaze_id = series.id ' +
+        'GROUP BY infos.tvmaze_id'
       );
       fQuery.ExecutePrepared;
       while fQuery.Step do

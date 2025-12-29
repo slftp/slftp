@@ -775,6 +775,34 @@ begin
           Exit;
         end;
 
+        // Can't dirlist error (SPEEDTEST directory doesn't exist or access denied)
+        re.Expression := 'Can''t dirlist (.+) in (.+)\.';
+        if re.Exec(Msg) then
+        begin
+          src := Trim(re.Match[2]); // Site name
+          ctx.Lock.Enter('UpdateRes');
+          try
+            // Find all running results with this source and mark as failed
+            for i := 0 to ctx.Results.Count - 1 do
+            begin
+              if (ctx.Results[i].Status = tsRunning) and (ctx.Results[i].Source = src) then
+              begin
+                ctx.Results[i].Status := tsFailed;
+                ctx.Results[i].Success := False;
+                ctx.Results[i].Message := 'SPEEDTEST directory not found on source site';
+                ctx.Results[i].EndTime := Now;
+
+                // Add to sites without files to skip further tests
+                if ctx.SitesWithoutFiles.IndexOf(src) = -1 then
+                  ctx.SitesWithoutFiles.Add(src);
+              end;
+            end;
+          finally
+            ctx.Lock.Leave;
+          end;
+          Exit;
+        end;
+
         // No suitable file found error
         re.Expression := 'No suitable file found on site .* for speedtesting';
         if re.Exec(Msg) then
