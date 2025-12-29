@@ -13,6 +13,7 @@ uses
   mormot.core.text,
   mormot.core.json,
   mormot.core.rtti,
+  mormot.core.datetime,
   mormot.core.interfaces,
   mormot.core.variants,
   mormot.soa.core,
@@ -756,7 +757,7 @@ function TApiSystemServiceImpl.GetStatus(out Response: TApiSystemStatus): boolea
 var
   i: integer;
   s: TSite;
-  upCount, downCount: integer;
+  upCount, downCount, siteCount: integer;
   qTotal, qRace, qDir, qAuto, qOther: integer;
   activeSum: integer;
 begin
@@ -772,17 +773,23 @@ begin
 
     upCount := 0;
     downCount := 0;
+    siteCount := 0;
     activeSum := 0;
 
     if sitesunit.sites <> nil then
     begin
-      Response.SitesCount := sitesunit.sites.Count;
-
       for i := 0 to sitesunit.sites.Count - 1 do
       begin
         s := TSite(sitesunit.sites[i]);
         if s = nil then
           Continue;
+
+        // Skip admin site (SLFTP) in count
+        if s.Name = sitesunit.getAdminSiteName then
+          Continue;
+
+        Inc(siteCount);
+
         if s.WorkingStatus = sstUp then
           Inc(upCount)
         else if s.PermDown then
@@ -793,9 +800,9 @@ begin
         // Sum current active transfers (download+upload)
         activeSum := activeSum + s.num_dn + s.num_up;
       end;
-    end
-    else
-      Response.SitesCount := 0;
+    end;
+
+    Response.SitesCount := siteCount;
 
     Response.SitesUp := upCount;
     Response.SitesDown := downCount;
@@ -1168,6 +1175,8 @@ begin
               siteDetail.Complete := ps.dirlist.Complete;
               siteDetail.FileCount := ps.dirlist.entries.Count;
               siteDetail.FilesRacedByMe := ps.dirlist.FilesRacedByMe(True);
+              siteDetail.StartedTime := DateTimeToUnixMSTime(ps.dirlist.StartedTime);
+              siteDetail.CompletedTime := DateTimeToUnixMSTime(ps.dirlist.CompletedTime);
 
               // Calculate percent
               totalFiles := p.GetCountOfCachedFiles;
@@ -1182,6 +1191,8 @@ begin
               siteDetail.FileCount := 0;
               siteDetail.FilesRacedByMe := 0;
               siteDetail.Percent := 0.0;
+              siteDetail.StartedTime := 0;
+              siteDetail.CompletedTime := 0;
             end;
           except
             on E: Exception do
@@ -1192,6 +1203,8 @@ begin
               siteDetail.FileCount := 0;
               siteDetail.FilesRacedByMe := 0;
               siteDetail.Percent := 0.0;
+              siteDetail.StartedTime := 0;
+              siteDetail.CompletedTime := 0;
             end;
           end;
 

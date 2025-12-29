@@ -24,6 +24,8 @@ interface ReleaseSiteDetail {
   FilesRacedByMe: number;
   Percent: number;
   Status: string;
+  StartedTime: number;
+  CompletedTime: number;
 }
 
 interface ReleaseDetails {
@@ -368,7 +370,7 @@ export function Dashboard() {
             <Title order={3}>Release Details</Title>
           </Group>
         }
-        size="xl"
+        size="1400px"
       >
         {detailsLoading ? (
           <Center h={300}><Loader size="lg" /></Center>
@@ -404,10 +406,22 @@ export function Dashboard() {
 	                  <Text size="sm" c="dimmed" w={90}>Queue #</Text>
 	                  <Text size="sm">#{releaseDetails.QueueNumber}</Text>
 	                </Group>
+	                {releaseDetails.Added && (
+	                  <Group gap="sm" align="center" wrap="nowrap">
+	                    <Text size="sm" c="dimmed" w={90}>Added</Text>
+	                    <Text size="sm" style={{ fontFamily: 'monospace' }}>
+	                      {new Date(releaseDetails.Added).toLocaleString()}
+	                    </Text>
+	                  </Group>
+	                )}
 	              </Stack>
 	            </Card>
 
-            <Title order={4}>Sites ({releaseDetails.SiteDetails.filter(s => s.SiteName.toLowerCase() !== 'slftp').length})</Title>
+            <Title order={4}>Sites ({releaseDetails.SiteDetails.filter(s =>
+              s.SiteName.toLowerCase() !== 'slftp' &&
+              s.Status !== 'Not Allowed' &&
+              s.Status !== 'Not Allowed (Present)'
+            ).length})</Title>
 
             <Table striped highlightOnHover>
               <Table.Thead>
@@ -416,14 +430,36 @@ export function Dashboard() {
                   <Table.Th>Files</Table.Th>
                   <Table.Th>Progress</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  <Table.Th>Started</Table.Th>
+                  <Table.Th>Completed</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {(() => {
-                  // Filter out slftp site
-                  const visibleSites = releaseDetails.SiteDetails.filter(s => s.SiteName.toLowerCase() !== 'slftp');
+                  // Filter out slftp site and "Not Allowed" sites
+                  const allSites = releaseDetails.SiteDetails.filter(s =>
+                    s.SiteName.toLowerCase() !== 'slftp' &&
+                    s.Status !== 'Not Allowed' &&
+                    s.Status !== 'Not Allowed (Present)'
+                  );
+
+                  // Sort by CompletedTime (ascending - fastest first)
+                  const visibleSites = [...allSites].sort((a, b) => {
+                    // Sites without completion time go to the end
+                    if (a.CompletedTime === 0 && b.CompletedTime === 0) return 0;
+                    if (a.CompletedTime === 0) return 1;
+                    if (b.CompletedTime === 0) return -1;
+                    return a.CompletedTime - b.CompletedTime;
+                  });
+
                   // Calculate max files across all visible sites for relative progress
                   const maxFiles = Math.max(...visibleSites.map(s => s.FileCount));
+
+                  // Find fastest completion time (smallest CompletedTime > 0)
+                  const fastestCompletedTime = Math.min(...visibleSites.filter(s => s.CompletedTime > 0).map(s => s.CompletedTime));
+
+                  // Find fastest start time (smallest StartedTime > 0)
+                  const fastestStartedTime = Math.min(...visibleSites.filter(s => s.StartedTime > 0).map(s => s.StartedTime));
 
                   return visibleSites.map((site, idx) => {
                     // Use Complete flag for 100%, otherwise relative to max
@@ -452,12 +488,12 @@ export function Dashboard() {
                             )}
                           </Stack>
                         </Table.Td>
-                        <Table.Td style={{ width: '35%' }}>
+                        <Table.Td style={{ width: '30%' }}>
                           <Stack gap="xs">
                             <Progress
                               value={progress}
                               color={site.Complete ? 'green' : site.FileCount === 0 ? 'gray' : 'blue'}
-                              size="lg"
+                              size="md"
                             />
                             <Text size="xs" c="dimmed" ta="right">
                               {progress.toFixed(1)}%
@@ -476,6 +512,64 @@ export function Dashboard() {
                           >
                             {site.Status}
                           </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          {site.StartedTime > 0 ? (
+                            <Stack gap={4}>
+                              <Text size="xs" style={{ fontFamily: 'monospace' }}>
+                                {new Date(site.StartedTime).toLocaleString(undefined, {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  fractionalSecondDigits: 3
+                                } as any)}
+                              </Text>
+                              {fastestStartedTime && site.StartedTime > fastestStartedTime && (
+                                <Text size="xs" c="orange" fw={500}>
+                                  +{((site.StartedTime - fastestStartedTime) / 1000).toFixed(3)}s
+                                </Text>
+                              )}
+                              {fastestStartedTime && site.StartedTime === fastestStartedTime && (
+                                <Text size="xs" c="green" fw={600}>
+                                  FASTEST
+                                </Text>
+                              )}
+                            </Stack>
+                          ) : (
+                            <Text size="xs" c="dimmed">-</Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td>
+                          {site.CompletedTime > 0 ? (
+                            <Stack gap={4}>
+                              <Text size="xs" style={{ fontFamily: 'monospace' }}>
+                                {new Date(site.CompletedTime).toLocaleString(undefined, {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  fractionalSecondDigits: 3
+                                } as any)}
+                              </Text>
+                              {fastestCompletedTime && site.CompletedTime > fastestCompletedTime && (
+                                <Text size="xs" c="orange" fw={500}>
+                                  +{((site.CompletedTime - fastestCompletedTime) / 1000).toFixed(3)}s
+                                </Text>
+                              )}
+                              {fastestCompletedTime && site.CompletedTime === fastestCompletedTime && (
+                                <Text size="xs" c="green" fw={600}>
+                                  FASTEST
+                                </Text>
+                              )}
+                            </Stack>
+                          ) : (
+                            <Text size="xs" c="dimmed">-</Text>
+                          )}
                         </Table.Td>
                       </Table.Tr>
                     );
