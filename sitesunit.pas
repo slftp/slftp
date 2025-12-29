@@ -2458,7 +2458,7 @@ begin
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
         if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
-          irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+          irc_Adderror(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
 
         site.WorkingStatus := sstTempDown;
         exit;
@@ -2475,7 +2475,7 @@ begin
       end;
 
       if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
-        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+        irc_Adderror(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
 
       site.WorkingStatus := sstTempDown;
     end;
