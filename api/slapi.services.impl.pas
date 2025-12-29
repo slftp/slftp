@@ -1734,17 +1734,81 @@ end;
 function TApiSitesServiceImpl.DeleteSite(const SiteName: RawUTF8): boolean;
 var
   s: TSite;
+  sname: string;
+  i: integer;
 begin
   Result := False;
+  sname := UTF8ToString(SiteName);
+
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', sname);
     if s = nil then
       Exit;
 
-    Debug(dpMessage, section, Format('DeleteSite API: %s', [UTF8ToString(SiteName)]));
+    Debug(dpMessage, section, Format('DeleteSite API: %s', [sname]));
 
     s.Stop;
-    sitesunit.DeleteSite(s);
+
+    // Cleanup sites.dat - same logic as IRC IrcDelsite command
+    try
+      // Erase speed-from and speed-to sections
+      sitesdat.EraseSection('speed-from-' + sname);
+      sitesdat.EraseSection('speed-to-' + sname);
+
+      // Remove this site from other sites' speed routes
+      for i := 0 to sites.Count - 1 do
+      begin
+        sitesdat.DeleteKey('speed-from-' + TSite(sites.Items[i]).Name, sname);
+        sitesdat.DeleteKey('speed-to-' + TSite(sites.Items[i]).Name, sname);
+      end;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('DeleteSite - remove routes failed: %s', [E.Message]));
+    end;
+
+    try
+      RulesRemove(sname, '');
+      RulesSave;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('DeleteSite - rules remove failed: %s', [E.Message]));
+    end;
+
+    try
+      RemoveRanks(sname);
+      RanksSave;
+      RanksReload;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('DeleteSite - ranks remove failed: %s', [E.Message]));
+    end;
+
+    try
+      Precatcher_DelSiteChans(sname);
+      PrecatcherRebuild;
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('DeleteSite - catches remove failed: %s', [E.Message]));
+    end;
+
+    if not RemoveStats(sname) then
+      Debug(dpError, section, Format('DeleteSite - stats remove failed for %s', [sname]));
+
+    try
+      sitesdat.EraseSection('site-' + sname);
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('DeleteSite - erase site section failed: %s', [E.Message]));
+    end;
+
+    try
+      sitesunit.DeleteSite(s);
+    except
+      on E: Exception do
+        Debug(dpError, section, Format('DeleteSite - remove TSite object failed: %s', [E.Message]));
+    end;
+
+    sitesdat.UpdateFile;
 
     Result := True;
   except
