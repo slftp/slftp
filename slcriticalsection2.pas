@@ -207,21 +207,17 @@ implementation
 
   class function TslCriticalSection2.GetOrCreate(const aName: string): TslCriticalSection2;
   begin
-    Result := nil;
-
     if not glIsInitialized then
       raise Exception.Create('TslCriticalSection2 system not initialized!');  // glUsedCriticalSections is not here in that case
 
     glUsedCriticalSectionsLock.Enter;
     try
-      glUsedCriticalSections.TryGetValue(aName, Result);
+      if not glUsedCriticalSections.TryGetValue(aName, Result) then
+      begin
+        Result := TslCriticalSection2.Create(aName);
+      end;
     finally
       glUsedCriticalSectionsLock.Leave;
-    end;
-
-    if Result = nil then
-    begin
-      Result := TslCriticalSection2.Create(aName);
     end;
   end;
 
