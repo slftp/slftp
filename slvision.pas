@@ -3217,7 +3217,8 @@ constructor TConsoleAddTaskCollection.Create;
 begin
   self.fTasks := TList<TslConsoleTask>.Create;
   // we only have 1 TConsoleAddTaskCollection per thread so the thread ID should be unique for the TSlCriticalSection2
-  self.fTasksCS := TSlCriticalSection2.Create('TConsoleAddTaskCollection_' + UintToStr(IdGlobal.CurrentThreadId));
+  // use GetOrCreate because thread IDs are being reused
+  self.fTasksCS := TSlCriticalSection2.GetOrCreate('TConsoleAddTaskCollection_' + UintToStr(IdGlobal.CurrentThreadId));
   fOverloadMessageWindows := TDictionary<string, integer>.Create;
 end;
 
