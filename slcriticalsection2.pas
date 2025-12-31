@@ -37,6 +37,11 @@ type
     constructor Create(aName: string; const aAlwaysUseTimeoutLocking: boolean = False);
     destructor Destroy; override;
 
+    { Returns an existing TslCriticalSection2 if there already exists one with the same name. Creates a new TslCriticalSection2 otherwise.
+      Use with caution to not produce deadlocks. Only use if you know what you are doing!
+      @param(aName The unique name for the critical section.) }
+    class function GetOrCreate(const aName: string): TslCriticalSection2;
+
     { Acquire lock.
       @param(aLockOwnerName A unique name for the code which invokes this function. This is for debugging and performance monitoring purposes.)
       @param(aTimeoutMs The timeout for how long should be waited to acquire the lock.)
@@ -197,6 +202,22 @@ implementation
     else
     begin
       self.InitNoTimeoutLocking;
+    end;
+  end;
+
+  class function TslCriticalSection2.GetOrCreate(const aName: string): TslCriticalSection2;
+  begin
+    if not glIsInitialized then
+      raise Exception.Create('TslCriticalSection2 system not initialized!');  // glUsedCriticalSections is not here in that case
+
+    glUsedCriticalSectionsLock.Enter;
+    try
+      if not glUsedCriticalSections.TryGetValue(aName, Result) then
+      begin
+        Result := TslCriticalSection2.Create(aName);
+      end;
+    finally
+      glUsedCriticalSectionsLock.Leave;
     end;
   end;
 
