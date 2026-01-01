@@ -505,7 +505,7 @@ uses slconsole, SysUtils, DateUtils, Math
   , Clipbrd
 {$ENDIF}
   , debugunit, mystrings, mainthread, configunit, kb, irc, rulesunit,
-  speedstatsunit, ranksunit, notify, IdGlobal;
+  speedstatsunit, ranksunit, notify, mormot.core.os;
 
 var
   slig, lvtf: integer;
@@ -3218,7 +3218,7 @@ begin
   self.fTasks := TList<TslConsoleTask>.Create;
   // we only have 1 TConsoleAddTaskCollection per thread so the thread ID should be unique for the TSlCriticalSection2
   // use GetOrCreate because thread IDs are being reused
-  self.fTasksCS := TSlCriticalSection2.GetOrCreate('TConsoleAddTaskCollection_' + UintToStr(IdGlobal.CurrentThreadId));
+  self.fTasksCS := TSlCriticalSection2.GetOrCreate('TConsoleAddTaskCollection_' + UintToStr(GetCurrentThreadId));
   fOverloadMessageWindows := TDictionary<string, integer>.Create;
 end;
 
