@@ -1236,6 +1236,8 @@ procedure kb_Save;
 var
   i: integer;
   x: TEncStringList;
+  kb_lines: TStringList;
+  kb_renames: TStringList;
   p: TPazo;
 
   function GetKbPazoInfoLine(p: TPazo): String;
@@ -1249,41 +1251,57 @@ var
 begin
   kb_last_saved := Now();
   Debug(dpSpam, rsections, 'kb_Save');
-  x := TEncStringList.Create(passphrase);
+  kb_lines := TStringList.Create;
+  kb_renames := TStringList.Create;
   try
+    kb_lock.Enter('kb_save_snapshot');
     try
-      for i := 0 to kb_list.Count - 1 do
-      begin
-        p := TPazo(kb_list.Objects[i]);
-        if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
-          (1 <> Pos('REQUEST-', kb_list[i])) and
-          (SecondsBetween(Now, p.added) < kb_keep_entries)) then
-          x.Add(GetKbPazoInfoLine(p));
-      end;
-    except
-      exit;
-    end;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
-  finally
-    x.Free;
-  end;
+      try
+        for i := 0 to kb_list.Count - 1 do
+        begin
+          p := TPazo(kb_list.Objects[i]);
+          if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
+            (1 <> Pos('REQUEST-', kb_list[i])) and
+            (SecondsBetween(Now, p.added) < kb_keep_entries)) then
+            kb_lines.Add(GetKbPazoInfoLine(p));
+        end;
 
-  debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
-  x := TEncStringList.Create(passphrase);
-  try
-    try
-      for i := 0 to kb_skip.Count - 1 do
-      begin
-        if i > 249 then
-          break;
-        x.Add(kb_skip[i]);
+        for i := 0 to kb_skip.Count - 1 do
+        begin
+          if i > 249 then
+            break;
+          kb_renames.Add(kb_skip[i]);
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] kb_Save snapshot: %s', [e.Message]));
+          exit;
+        end;
       end;
-    except
-      exit;
+    finally
+      kb_lock.Leave;
     end;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
+
+    x := TEncStringList.Create(passphrase);
+    try
+      x.Assign(kb_lines);
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
+    finally
+      x.Free;
+    end;
+
+    debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
+    x := TEncStringList.Create(passphrase);
+    try
+      x.Assign(kb_renames);
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
+    finally
+      x.Free;
+    end;
   finally
-    x.Free;
+    kb_lines.Free;
+    kb_renames.Free;
   end;
 end;
 
@@ -1745,12 +1763,7 @@ begin
       if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
       begin
         try
-          kb_lock.Enter('kb_save');
-          try
-            kb_Save;
-          finally
-            kb_lock.Leave;
-          end;
+          kb_Save;
         except
           on e: Exception do
           begin

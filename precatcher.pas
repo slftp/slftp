@@ -138,6 +138,7 @@ var
   GlPrecatcherHitsLock: TSlCriticalSection2;
   GlPrecatcherHitSeq: Int64;
   GlPrecatcherLastHitByRuleId: TDictionary<Integer, TPrecatcherHit>;
+  GlPrecatcherHitsLockTimeout: Integer;
 
 procedure _LogMissingSectionIfNeeded(const aNetname, aSitename, aSection, aReleaseName, aReason, aKbEvent: String);
 var
@@ -162,6 +163,7 @@ procedure Precatcher_LogHit(const aNetname, aChannel, aNick, aSitename: String;
 var
   h: TPrecatcherHit;
   t: String;
+  lockAcquired: Boolean;
 begin
   if not (aEventType in [kbeNEWDIR, kbePRE, kbeCOMPLETE, kbeNUKE, kbeREQUEST, kbeADDPRE]) then
     Exit;
@@ -172,7 +174,15 @@ begin
   if Length(t) > CPrecatcherMaxTextLen then
     t := Copy(t, 1, CPrecatcherMaxTextLen);
 
-  GlPrecatcherHitsLock.Enter('Precatcher_LogHit');
+  if GlPrecatcherHitsLockTimeout > 0 then
+    lockAcquired := GlPrecatcherHitsLock.Enter('Precatcher_LogHit', GlPrecatcherHitsLockTimeout, False)
+  else
+    lockAcquired := GlPrecatcherHitsLock.Enter('Precatcher_LogHit');
+  if not lockAcquired then
+  begin
+    Debug(dpError, rsections, Format('[EXCEPTION] Precatcher_LogHit: Unable to acquire lock ''precatcher_hits_lock'' within %d ms.', [GlPrecatcherHitsLockTimeout]));
+    Exit;
+  end;
   try
     Inc(GlPrecatcherHitSeq);
     h.Id := GlPrecatcherHitSeq;
@@ -217,7 +227,18 @@ begin
     sinceUtc := 0;
 
   c := 0;
-  GlPrecatcherHitsLock.Enter('Precatcher_GetHits');
+  if GlPrecatcherHitsLockTimeout > 0 then
+  begin
+    if not GlPrecatcherHitsLock.Enter('Precatcher_GetHits', GlPrecatcherHitsLockTimeout, False) then
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] Precatcher_GetHits: Unable to acquire lock ''precatcher_hits_lock'' within %d ms.', [GlPrecatcherHitsLockTimeout]));
+      Exit;
+    end;
+  end
+  else
+  begin
+    GlPrecatcherHitsLock.Enter('Precatcher_GetHits');
+  end;
   try
     for i := GlPrecatcherHits.Count - 1 downto 0 do
     begin
@@ -1177,6 +1198,7 @@ begin
   GlPrecatcherLastHitByRuleId := TDictionary<Integer, TPrecatcherHit>.Create;
   GlPrecatcherHitsLock := TSlCriticalSection2.Create('precatcher_hits_lock');
   GlPrecatcherHitSeq := 0;
+  GlPrecatcherHitsLockTimeout := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
 end;
 
 procedure Precatcher_UnInit;
