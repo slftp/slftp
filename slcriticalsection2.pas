@@ -84,7 +84,7 @@ type
 
 implementation
   uses
-    SysUtils, IdGlobal, debugunit, Classes, Math;
+    SysUtils, debugunit, Classes, Math, mormot.core.os;
 
   // these types are used for timer log output
   type
@@ -276,7 +276,7 @@ implementation
 
       try
         // allow for the same thread to enter multiple times
-        if FLockOwningThreadID = IdGlobal.CurrentThreadId then
+        if FLockOwningThreadID = GetCurrentThreadId then
         begin
           FLockCount := FLockCount + 1;
           Result := True;
@@ -290,7 +290,7 @@ implementation
             wrIOCompletion:
 {$ENDIF}
               begin
-                FLockOwningThreadID := IdGlobal.CurrentThreadId;
+                FLockOwningThreadID := GetCurrentThreadId;
                 Result := True;
                 FLockOwnerNameStack.Push(aLockOwnerName);
               end;
@@ -298,7 +298,7 @@ implementation
               begin
                 if aRaiseExceptionOnFail then
                 begin
-                  raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(IdGlobal.CurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
+                  raise Exception.Create(Format('Unable to acquire lock ''%s'' (%s) by %s thread within %d ms. Lock is held by thread %s (%d) - %s (%s)', [FName, aLockOwnerName, IntToHex(GetCurrentThreadId, 4), aTimeoutMs, IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName, FCurrentCodeSegmentName]));
                 end;
                 Result := False;
               end;
@@ -369,10 +369,10 @@ implementation
     if FUseTimeoutLocking then
     begin
       if FLockOwningThreadID = 0 then
-        raise Exception.Create(Format('Trying to leave lock by thread %s but it has not been entered before', [IntToHex(IdGlobal.CurrentThreadId, 4)]));
+        raise Exception.Create(Format('Trying to leave lock by thread %s but it has not been entered before', [IntToHex(GetCurrentThreadId, 4)]));
 
-      if FLockOwningThreadID <> IdGlobal.CurrentThreadId then
-        raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(IdGlobal.CurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
+      if FLockOwningThreadID <> GetCurrentThreadId then
+        raise Exception.Create(Format('Trying to leave lock by thread %s but it is held by thread %s (%d) - %s', [IntToHex(GetCurrentThreadId, 4), IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
 
       if FLockCount > 0 then
       begin
@@ -408,7 +408,7 @@ implementation
         exit;
       end;
 
-      if FLockOwningThreadID <> IdGlobal.CurrentThreadId then
+      if FLockOwningThreadID <> GetCurrentThreadId then
       begin
         Debug(dpError, glDebugSection, Format('Tried to notify code segment ''%s'', but lock is by another thread %s (%d) - %s.', [IntToHex(FLockOwningThreadID, 4), FLockCount, CurrentLockOwnerName]));
         exit;
