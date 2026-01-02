@@ -210,6 +210,8 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  timeoutMs: integer;
+  startTick, elapsedMs: QWord;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -493,7 +495,20 @@ begin
       p := PazoAdd(r);
 
       // need to search all sites where there is such a section ...
-      p.AddSites;
+      timeoutMs := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
+      if timeoutMs > 0 then
+      begin
+        startTick := GetTickCount64;
+        p.AddSites;
+        elapsedMs := GetTickCount64 - startTick;
+        if elapsedMs >= QWord(timeoutMs) then
+          Debug(dpError, rsections, 'kb_AddB_2 AddSites took %d ms (event=%s section=%s rls=%s site=%s)',
+            [elapsedMs, KBEventTypeToString(event), section, rls, sitename]);
+      end
+      else
+      begin
+        p.AddSites;
+      end;
 
       kb_list.BeginUpdate;
       try
@@ -592,7 +607,20 @@ begin
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
-            p.AddSites;
+            timeoutMs := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
+            if timeoutMs > 0 then
+            begin
+              startTick := GetTickCount64;
+              p.AddSites;
+              elapsedMs := GetTickCount64 - startTick;
+              if elapsedMs >= QWord(timeoutMs) then
+                Debug(dpError, rsections, 'kb_AddB_2 AddSites took %d ms (event=%s section=%s rls=%s site=%s)',
+                  [elapsedMs, KBEventTypeToString(event), section, rls, sitename]);
+            end
+            else
+            begin
+              p.AddSites;
+            end;
           end;
         end;
       end;

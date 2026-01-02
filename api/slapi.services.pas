@@ -455,6 +455,22 @@ type
     /// Returns recent precatcher matches (reverse chronological)
     function GetHits(const Limit: integer; const SinceUnix: Int64;
       const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
+
+    /// GET /api/precatcher/config
+    /// Returns slftp.precatcher file content with MD5
+    function GetPrecatcherConfig: RawJSON;
+
+    /// POST /api/precatcher/config/validate
+    /// Validates precatcher config syntax
+    function ValidatePrecatcherConfig(const Content: RawJSON): RawJSON;
+
+    /// POST /api/precatcher/config/save
+    /// Saves precatcher config with MD5 conflict detection and optional reload
+    function SavePrecatcherConfig(const Content: RawJSON; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
+
+    /// GET /api/precatcher/helpers
+    /// Returns helper data (section names, mapping templates) for click-to-insert
+    function GetPrecatcherHelpers: RawJSON;
   end;
 
   { Simulator API }

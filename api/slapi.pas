@@ -43,6 +43,8 @@ type
   FApiKey: string;
   procedure RegisterServices;
   function CheckApiKey(Ctxt: TRestServerUriContext): integer;
+  function OnApiError(Ctxt: TRestServerUriContext; E: Exception): boolean;
+  procedure OnApiAfter(Ctxt: TRestServerUriContext);
   function DoOnCustomRequest(var Call: TRestUriParams): boolean;
   function ServeIndexHtml(Ctxt: THttpServerRequestAbstract): cardinal;
   public
@@ -86,6 +88,9 @@ const
 
 var
   ApiServer: TSlftpApiServer = nil;
+
+threadvar
+  ApiExceptionLogged: boolean;
 
 function GetApiServer: TSlftpApiServer;
 begin
@@ -151,6 +156,47 @@ begin
     Ctxt.Error('Invalid API key', HTTP_FORBIDDEN);
     Result := HTTP_FORBIDDEN;
     Debug(dpError, rsection, 'API authentication failed');
+  end;
+end;
+
+function TSlftpApiServer.OnApiError(Ctxt: TRestServerUriContext; E: Exception): boolean;
+var
+  url: string;
+begin
+  ApiExceptionLogged := True;
+  url := '';
+  if (Ctxt <> nil) and (Ctxt.Call <> nil) then
+    url := UTF8ToString(Ctxt.Call^.Url);
+
+  if url <> '' then
+    Debug(dpError, rsection, Format('[API EXCEPTION] %s: %s', [url, E.Message]))
+  else
+    Debug(dpError, rsection, Format('[API EXCEPTION] %s', [E.Message]));
+
+  Result := True;
+end;
+
+procedure TSlftpApiServer.OnApiAfter(Ctxt: TRestServerUriContext);
+var
+  url: string;
+  status: integer;
+begin
+  try
+    if (Ctxt = nil) or (Ctxt.Call = nil) then
+      Exit;
+
+    url := UTF8ToString(Ctxt.Call^.Url);
+    if (Length(url) < 4) or (UpperCase(Copy(url, 1, 4)) <> '/API') then
+      Exit;
+
+    status := Ctxt.Call^.OutStatus;
+    if not StatusCodeIsSuccess(status) then
+    begin
+      if not ApiExceptionLogged then
+        Debug(dpError, rsection, Format('[API ERROR] %s status=%d', [url, status]));
+    end;
+  finally
+    ApiExceptionLogged := False;
   end;
 end;
 
@@ -384,6 +430,8 @@ begin
       // Create REST server
       FRestServer := TRestServerFullMemory.Create(model);
       FRestServer.CreateMissingTables;
+      FRestServer.OnErrorUri := OnApiError;
+      FRestServer.OnAfterUri := OnApiAfter;
 
       // Register services
       RegisterServices;

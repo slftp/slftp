@@ -208,6 +208,10 @@ type
 	    function GetMappings: RawJSON;
 	    function GetHits(const Limit: integer; const SinceUnix: Int64;
 	      const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
+	    function GetPrecatcherConfig: RawJSON;
+	    function ValidatePrecatcherConfig(const Content: RawJSON): RawJSON;
+	    function SavePrecatcherConfig(const Content: RawJSON; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
+	    function GetPrecatcherHelpers: RawJSON;
 	  end;
 
 	  { Simulator Service Implementation }
@@ -4560,6 +4564,311 @@ begin
     begin
       Debug(dpError, 'slapi', Format('[EXCEPTION] GetHits: %s', [E.Message]));
       Result := '[]';
+    end;
+  end;
+end;
+
+function TApiPrecatcherServiceImpl.GetPrecatcherConfig: RawJSON;
+var
+  fileName: string;
+  fileDoc: variant;
+  sl: TStringList;
+  md5Hash: RawUTF8;
+begin
+  Result := '{}';
+  try
+    fileName := ExtractFilePath(ParamStr(0)) + 'slftp.precatcher';
+
+    TDocVariant.New(fileDoc);
+    TDocVariantData(fileDoc).AddValue('Path', UTF8Encode(fileName));
+    TDocVariantData(fileDoc).AddValue('Exists', FileExists(fileName));
+
+    if FileExists(fileName) then
+    begin
+      md5Hash := _Md5OfFile(fileName);
+      TDocVariantData(fileDoc).AddValue('Md5', md5Hash);
+
+      sl := TStringList.Create;
+      try
+        sl.LoadFromFile(fileName);
+        TDocVariantData(fileDoc).AddValue('Content', UTF8Encode(sl.Text));
+      finally
+        sl.Free;
+      end;
+    end
+    else
+    begin
+      TDocVariantData(fileDoc).AddValue('Md5', '');
+      TDocVariantData(fileDoc).AddValue('Content', '');
+    end;
+
+    Result := TDocVariantData(fileDoc).ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetPrecatcherConfig: %s', [E.Message]));
+      Result := '{}';
+    end;
+  end;
+end;
+
+function TApiPrecatcherServiceImpl.ValidatePrecatcherConfig(const Content: RawJSON): RawJSON;
+var
+  lines: TStringList;
+  errors: TDocVariantData;
+  errObj: variant;
+  resultDoc: variant;
+  i: integer;
+  line: string;
+  currentSection: string;
+  replacefromCount, replacetoCount: integer;
+  re: TRegExpr;
+  regexField, regexPattern: string;
+  regexEnd: integer;
+  semicolonCount, j: integer;
+
+  procedure AddError(const aLine: integer; const aMessage: string);
+  begin
+    TDocVariant.New(errObj);
+    TDocVariantData(errObj).AddValue('line', aLine);
+    TDocVariantData(errObj).AddValue('message', UTF8Encode(aMessage));
+    errors.AddItem(errObj);
+  end;
+
+  function ValidateRegex(const regexStr: string): boolean;
+  begin
+    Result := False;
+    re := TRegExpr.Create;
+    try
+      try
+        re.Expression := regexStr;
+        re.Compile;
+        Result := True;
+      except
+        on E: Exception do
+          Result := False;
+      end;
+    finally
+      re.Free;
+    end;
+  end;
+
+begin
+  Result := '{}';
+  currentSection := '';
+  replacefromCount := 0;
+  replacetoCount := 0;
+
+  try
+    TDocVariant.New(resultDoc);
+    errors.InitFast(dvArray);
+
+    lines := TStringList.Create;
+    try
+      lines.Text := UTF8ToString(Content);
+      for i := 0 to lines.Count - 1 do
+      begin
+        line := Trim(lines[i]);
+
+        // Skip empty lines and comments
+        if (line = '') or (Length(line) > 0) and ((line[1] = '/') or (line[1] = ';') or (line[1] = '#')) then
+          Continue;
+
+        // Section headers
+        if line = '[racetool]' then
+          currentSection := 'racetool'
+        else if line = '[ignorelist]' then
+          currentSection := 'ignorelist'
+        else if line = '[replace]' then
+          currentSection := 'replace'
+        else if line = '[sections]' then
+          currentSection := 'sections'
+        else if line = '[mappings]' then
+          currentSection := 'mappings'
+        else if line = '[channels]' then
+          currentSection := 'channels'
+        else if line = '[pretime]' then
+          currentSection := 'pretime'
+        else
+        begin
+          // Validate based on current section
+          if currentSection = 'sections' then
+          begin
+            if Pos('=', line) = 0 then
+              AddError(i + 1, 'Invalid sections format. Expected: SECTION=alias1,alias2');
+          end
+          else if currentSection = 'mappings' then
+          begin
+            // Count semicolons manually
+            semicolonCount := 0;
+            for j := 1 to Length(line) do
+              if line[j] = ';' then
+                Inc(semicolonCount);
+
+            if semicolonCount <> 2 then
+              AddError(i + 1, 'Invalid mappings format. Expected: orig;new;/regex/')
+            else
+            begin
+              regexField := SubString(line, ';', 3);
+              if (Length(regexField) >= 2) and (regexField[1] = '/') then
+              begin
+                regexEnd := Pos('/', Copy(regexField, 2, MaxInt));
+                if regexEnd > 0 then
+                begin
+                  regexPattern := Copy(regexField, 2, regexEnd - 1);
+                  if not ValidateRegex(regexPattern) then
+                    AddError(i + 1, Format('Invalid regex pattern: %s', [regexPattern]));
+                end;
+              end;
+            end;
+          end
+          else if currentSection = 'replace' then
+          begin
+            if Pos('replacefrom=', line) = 1 then
+              Inc(replacefromCount)
+            else if Pos('replaceto=', line) = 1 then
+              Inc(replacetoCount);
+          end
+          else if currentSection = 'ignorelist' then
+          begin
+            if (Pos('ignorewords=', line) <> 1) and (Pos('tagline=', line) <> 1) then
+              AddError(i + 1, 'Invalid ignorelist format. Expected: ignorewords= or tagline=');
+          end;
+        end;
+      end;
+
+      // Validate replacefrom/replaceto pairing
+      if replacefromCount <> replacetoCount then
+        AddError(0, Format('Mismatched replacefrom/replaceto count: %d from, %d to', [replacefromCount, replacetoCount]));
+
+    finally
+      lines.Free;
+    end;
+
+    TDocVariantData(resultDoc).AddValue('Ok', TDocVariantData(errors).Count = 0);
+    TDocVariantData(resultDoc).AddValue('Errors', variant(errors));
+    Result := TDocVariantData(resultDoc).ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] ValidatePrecatcherConfig: %s', [E.Message]));
+      Result := '{"Ok":false,"Errors":[]}';
+    end;
+  end;
+end;
+
+function TApiPrecatcherServiceImpl.SavePrecatcherConfig(const Content: RawJSON; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
+var
+  fileName: string;
+  currentMd5: RawUTF8;
+  validationResult: RawJSON;
+  validationDoc: variant;
+  resultDoc: variant;
+  sl: TStringList;
+  newMd5: RawUTF8;
+begin
+  Result := '{}';
+  try
+    TDocVariant.New(resultDoc);
+    fileName := ExtractFilePath(ParamStr(0)) + 'slftp.precatcher';
+
+    // MD5 conflict check
+    currentMd5 := '';
+    if FileExists(fileName) then
+      currentMd5 := _Md5OfFile(fileName);
+
+    if (ExpectedMd5 <> '') and (currentMd5 <> '') and
+       (UpperCase(UTF8ToString(ExpectedMd5)) <> UpperCase(UTF8ToString(currentMd5))) then
+    begin
+      TDocVariantData(resultDoc).AddValue('Ok', False);
+      TDocVariantData(resultDoc).AddValue('Message', 'Conflict: file changed on disk since last load');
+      TDocVariantData(resultDoc).AddValue('Path', UTF8Encode(fileName));
+      TDocVariantData(resultDoc).AddValue('Md5', currentMd5);
+      TDocVariantData(resultDoc).AddValue('Errors', '[]');
+      Result := TDocVariantData(resultDoc).ToJSON;
+      Exit;
+    end;
+
+    // Validate before save
+    validationResult := ValidatePrecatcherConfig(Content);
+    validationDoc := _JsonFast(validationResult);
+
+    if not validationDoc.Ok then
+    begin
+      TDocVariantData(resultDoc).AddValue('Ok', False);
+      TDocVariantData(resultDoc).AddValue('Message', 'Validation failed');
+      TDocVariantData(resultDoc).AddValue('Path', UTF8Encode(fileName));
+      TDocVariantData(resultDoc).AddValue('Md5', currentMd5);
+      TDocVariantData(resultDoc).AddValue('Errors', validationDoc.Errors);
+      Result := TDocVariantData(resultDoc).ToJSON;
+      Exit;
+    end;
+
+    // Save to disk
+    sl := TStringList.Create;
+    try
+      sl.Text := UTF8ToString(Content);
+      sl.SaveToFile(fileName);
+    finally
+      sl.Free;
+    end;
+
+    // Calculate new MD5
+    newMd5 := _Md5OfFile(fileName);
+
+    // Reload if requested
+    if Reload then
+      PrecatcherReload;
+
+    TDocVariantData(resultDoc).AddValue('Ok', True);
+    TDocVariantData(resultDoc).AddValue('Message', 'Saved successfully');
+    TDocVariantData(resultDoc).AddValue('Path', UTF8Encode(fileName));
+    TDocVariantData(resultDoc).AddValue('Md5', newMd5);
+    TDocVariantData(resultDoc).AddValue('Errors', '[]');
+    Result := TDocVariantData(resultDoc).ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] SavePrecatcherConfig: %s', [E.Message]));
+      Result := '{"Ok":false,"Message":"Exception occurred","Errors":[]}';
+    end;
+  end;
+end;
+
+function TApiPrecatcherServiceImpl.GetPrecatcherHelpers: RawJSON;
+var
+  helpers: TDocVariantData;
+  sections: TDocVariantData;
+  mappingTemplates: TDocVariantData;
+  i: integer;
+begin
+  Result := '{}';
+  try
+    helpers.InitFast(dvObject);
+
+    // Section names from kb_sections
+    sections.InitFast(dvArray);
+    if kb_sections <> nil then
+    begin
+      for i := 0 to kb_sections.Count - 1 do
+        sections.AddItem(UTF8Encode(kb_sections[i]));
+    end;
+    helpers.AddValue('sections', variant(sections));
+
+    // Mapping templates
+    mappingTemplates.InitFast(dvArray);
+    mappingTemplates.AddItem(';SECTION;/regex/');
+    mappingTemplates.AddItem(';SECTION;/regex/i');
+    mappingTemplates.AddItem('ORIG;NEW;/regex/');
+    mappingTemplates.AddItem('ORIG;NEW;/regex/i');
+    helpers.AddValue('mappingTemplates', variant(mappingTemplates));
+
+    Result := helpers.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetPrecatcherHelpers: %s', [E.Message]));
+      Result := '{}';
     end;
   end;
 end;
