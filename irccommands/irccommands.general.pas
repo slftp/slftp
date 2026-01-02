@@ -19,7 +19,7 @@ uses
   SysUtils, Classes, StrUtils, Math, Contnrs, irccommandsunit, irc, RegExpr, statsunit, mainthread,
   debugunit, tasksunit, configunit, sitesunit, news, dbaddpre, dbaddurl, dbaddnfo, dbaddimdb, dbtvinfo,
   console, precatcher, queueunit, kb, mystrings, backupunit, versioninfo, slssl, irccommands.site,
-  mormot.core.os, {$IFDEF MSWINDOWS}Windows, psAPI,{$ELSE}process,{$ENDIF} IdGlobal;
+  mormot.core.os {$IFDEF MSWINDOWS}, psAPI{$ELSE}, process{$ENDIF};
 
 const
   section = 'irccommands.general';
@@ -180,7 +180,12 @@ var
   {$ENDIF}
   fMemUsage: double;
 begin
-  fProcessID := IntToStr(IdGlobal.CurrentProcessId);
+  {$IFDEF MSWINDOWS}
+  fProcessID := IntToStr(GetCurrentProcessId);
+  {$ELSE}
+  fProcessID := IntToStr(GetProcessID);
+  {$ENDIF}
+
 
   {$IFDEF MSWINDOWS}
     fMemCounters.cb := SizeOf(fMemCounters);
@@ -191,7 +196,7 @@ begin
     end
     else
       fMemUsage := 0;
-    
+
     RecalcSizeValueAndUnit(fMemUsage, fUnit, 0);
   {$ELSE}
     {$IFDEF UNIX}
