@@ -180,7 +180,12 @@ var
   {$ENDIF}
   fMemUsage: double;
 begin
+  {$IFDEF MSWINDOWS}
   fProcessID := IntToStr(GetCurrentProcessId);
+  {$ELSE}
+  fProcessID := IntToStr(GetProcessID);
+  {$ENDIF}
+
 
   {$IFDEF MSWINDOWS}
     fMemCounters.cb := SizeOf(fMemCounters);
@@ -191,7 +196,7 @@ begin
     end
     else
       fMemUsage := 0;
-    
+
     RecalcSizeValueAndUnit(fMemUsage, fUnit, 0);
   {$ELSE}
     {$IFDEF UNIX}
