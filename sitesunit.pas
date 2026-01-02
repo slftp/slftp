@@ -3281,8 +3281,7 @@ end;
 procedure TSite.DeleteKey(const Name: String);
 begin
   sitesdat.DeleteKey('site-' + self.Name, Name);
-  if FSettingsCacheDict.ContainsKey(Name) then
-    FSettingsCacheDict.Remove(Name);
+  FSettingsCacheDict.Delete(Name);
 end;
 
 function TSite.RCString(const Name: String; const def: String): String;
