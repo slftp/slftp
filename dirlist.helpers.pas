@@ -43,7 +43,7 @@ function ReleaseOnlyConsistsOfNFO(const aFullPath: String): Boolean;
   @param(aFilesize extracted filesize, -1 if parsed text is not a number)
   @param(aDatum extracted date and time with removed extra whitespaces)
   @param(aItem extracted dirname or filename) }
-procedure ParseStatResponseLine(var aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
+procedure ParseStatResponseLine(const aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
 
 { Checks if given input is valid for a file (e.g. doesn't start with dot or is skipped globally)
   @param(aInput File or Dirname)
@@ -86,7 +86,8 @@ procedure CleanupDirlistThreadVars;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings,
+  mormot.core.base, mormot.core.text;
 
 const
   section = 'dirlist.helpers';
@@ -145,25 +146,31 @@ begin
   end;
 end;
 
-procedure ParseStatResponseLine(var aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
+procedure ParseStatResponseLine(const aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
+var
+  P: PUtf8Char;
+  fDate1, fDate2, fDate3: RawUtf8;
 begin
   // drwxrwxrwx   2 aq11     iND              3 Apr 19 23:14 Sample
   // -rw-r--r--   1 abc      Friends  100000000 Apr 19 23:14 baby.animals.s01e05.little.hunters.internal.2160p.uhdtv.h265-cbfm.r00
-  aDirMask := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  Fetch(aRespLine, ' ', True, False); // No. of something
-  aRespLine := aRespLine.TrimLeft;
-  aUsername := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aGroupname := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aFilesize := StrToInt64Def(Fetch(aRespLine, ' ', True, False), -1);
-  aDatum := Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aDatum := aDatum + ' ' + Fetch(aRespLine, ' ', True, False);
-  aRespLine := aRespLine.TrimLeft;
-  aDatum := aDatum + ' ' + Fetch(aRespLine, ' ', True, False); // date and time
-  aItem := aRespLine.Trim; // file or dirname
+  P := Pointer(UTF8String(aRespLine));
+  
+  aDirMask := string(GetNextItem(P, ' '));
+  GetNextItem(P, ' '); // Skip "No. of links"
+  aUsername := string(GetNextItem(P, ' '));
+  aGroupname := string(GetNextItem(P, ' '));
+  aFilesize := GetNextItemInt64(P, ' ');
+  
+  fDate1 := GetNextItem(P, ' ');
+  fDate2 := GetNextItem(P, ' ');
+  fDate3 := GetNextItem(P, ' ');
+  aDatum := string(fDate1 + ' ' + fDate2 + ' ' + fDate3);
+  
+  // The rest of the line is the filename/item
+  if P <> nil then
+    aItem := string(Trim(P))
+  else
+    aItem := '';
 end;
 
 function GetSkiplistDirsRegexInstance: TRegExpr;
@@ -227,28 +234,30 @@ begin
   Result := True;
 end;
 
-function ParseStatResponse(s: String): TObjectList<TParsedDirListEntry>;
+function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 var
-  fLineToParse: string;
-  fParsedDirlistEntries: TObjectList<TParsedDirListEntry>;
+  fLineToParse: RawUtf8;
+  fParsedDirlistEntries: TObjectList<TParsedDirlistEntry>;
   fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
   fFilesize: Int64;
   fParsedDirlistEntry: TParsedDirlistEntry;
+  P: PUtf8Char;
 begin
-  fParsedDirlistEntries := TObjectList<TParsedDirListEntry>.Create(True);
+  fParsedDirlistEntries := TObjectList<TParsedDirlistEntry>.Create(True);
   try
-    while (True) do
+    P := Pointer(s);
+    while P <> nil do
     begin
-      fLineToParse := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
+      fLineToParse := Trim(GetNextItem(P, #10));
       // tmp contains a single line:
       // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 
-      if fLineToParse = '' then break;
+      if fLineToParse = '' then continue;
       if (Length(fLineToParse) > 11) then
       begin
         if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') and (fLineToParse[11] = ' ')) then
           continue;
-        ParseStatResponseLine(fLineToParse, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+        ParseStatResponseLine(string(fLineToParse), fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
         fParsedDirlistEntry := TParsedDirlistEntry.Create;
         fParsedDirlistEntry.fDirMask := fDirMask;
         fParsedDirlistEntry.fUsername := fUsername;
