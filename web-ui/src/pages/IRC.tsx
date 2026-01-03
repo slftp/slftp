@@ -1,5 +1,5 @@
 import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch, ScrollArea } from '@mantine/core';
-import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch, IconListCheck } from '@tabler/icons-react';
+import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch, IconListCheck, IconCopy } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { apiClient } from '../api/client';
@@ -738,6 +738,25 @@ export function IRC() {
     setAddingRule(true);
   };
 
+  const handleCopyRule = (rule: PrecatcherRule) => {
+    setEditingRule(null); // Ensure we are in "add" mode, not "edit"
+    setNewNetname(rule.netname);
+    setNewChannel(rule.channel);
+    setNewBotnicks(rule.botnicks);
+    setNewSitename(rule.sitename);
+    setNewEvent(rule.event);
+    setNewWords(rule.words);
+    setNewSection(rule.section);
+    setAddingRule(true);
+    
+    notifications.show({
+      title: 'Copied',
+      message: 'Rule copied. Modify settings and click Add to save as new entry.',
+      color: 'blue',
+      autoClose: 3000,
+    });
+  };
+
   const deleteRuleMutation = useMutation({
     mutationFn: async (ruleId: number) => {
       await apiClient.post('/ApiPrecatcherService/DeletePrecatcherRule', {
@@ -1155,13 +1174,23 @@ export function IRC() {
                             variant="light"
                             color="blue"
                             onClick={() => handleEditRule(rule)}
+                            title="Edit"
                           >
                             <IconEdit size="1rem" />
                           </ActionIcon>
                           <ActionIcon
                             variant="light"
+                            color="orange"
+                            onClick={() => handleCopyRule(rule)}
+                            title="Copy to new entry"
+                          >
+                            <IconCopy size="1rem" />
+                          </ActionIcon>
+                          <ActionIcon
+                            variant="light"
                             color="red"
                             onClick={() => deleteRuleMutation.mutate(rule.id)}
+                            title="Delete"
                           >
                             <IconTrash size="1rem" />
                           </ActionIcon>
