@@ -280,7 +280,7 @@ begin
       if ((ps.dirlist <> nil) and (ps.dirlist.CompletedTime <> 0)) then
       begin
         d := Millisecondsbetween(ps.dirlist.CompletedTime, p.added);
-        ranknew := Round((d - minduration) / diff * 8) + 1;
+        ranknew := 9 - Round((d - minduration) / diff * 8);
         rankstatAdd(ps.name, p.rls.section, ranknew);
       end;
     except
