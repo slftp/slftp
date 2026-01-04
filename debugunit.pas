@@ -212,10 +212,9 @@ begin
       WriteLn(f, logtext);
       if glFlushLines then
       begin
+        Flush(f); // flush TextFile buffer
         {$IFDEF FPC}
         FileFlush(TTextRec(f).Handle); // ensure kernel flush to avoid truncated lines
-        {$ELSE}
-        Flush(f); // flush TextFile buffer
         {$ENDIF}
       end;
     except
