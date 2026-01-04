@@ -23,6 +23,7 @@ interface IrcChannel {
   chankey: string;
   chanroles: string;
   blowkey: string;
+  is_added: boolean;
 }
 
 interface PrecatcherRule {
@@ -1053,20 +1054,45 @@ export function IRC() {
                       <Table.Td>{channel.chanroles || '-'}</Table.Td>
                       <Table.Td>
                         <Group gap="xs">
-                          <ActionIcon
-                            variant="light"
-                            color="blue"
-                            onClick={() => openEditModal(channel)}
-                          >
-                            <IconEdit size="1rem" />
-                          </ActionIcon>
-                          <ActionIcon
-                            variant="light"
-                            color="red"
-                            onClick={() => deleteChannelMutation.mutate(channel.channel)}
-                          >
-                            <IconTrash size="1rem" />
-                          </ActionIcon>
+                          {/* Show + icon for channels that are joined but not added via ircchanadd */}
+                          {!channel.is_added ? (
+                            <Tooltip label="Add channel (ircchanadd)">
+                              <ActionIcon
+                                variant="light"
+                                color="green"
+                                onClick={() => {
+                                  setNewChannelName(channel.channel);
+                                  setNewChankey('');
+                                  setNewBlowkey('');
+                                  setNewChanroles('');
+                                  setAddingChannel(true);
+                                }}
+                              >
+                                <IconPlus size="1rem" />
+                              </ActionIcon>
+                            </Tooltip>
+                          ) : (
+                            <>
+                              <Tooltip label="Edit channel">
+                                <ActionIcon
+                                  variant="light"
+                                  color="blue"
+                                  onClick={() => openEditModal(channel)}
+                                >
+                                  <IconEdit size="1rem" />
+                                </ActionIcon>
+                              </Tooltip>
+                              <Tooltip label="Delete channel">
+                                <ActionIcon
+                                  variant="light"
+                                  color="red"
+                                  onClick={() => deleteChannelMutation.mutate(channel.channel)}
+                                >
+                                  <IconTrash size="1rem" />
+                                </ActionIcon>
+                              </Tooltip>
+                            </>
+                          )}
                         </Group>
                       </Table.Td>
                     </Table.Tr>
@@ -1608,6 +1634,7 @@ export function IRC() {
             value={newBlowkey}
             onChange={(e) => setNewBlowkey(e.currentTarget.value)}
             placeholder="Leave empty for no encryption"
+            description="Prefix with 'cbc:' for CBC mode (e.g., cbc:yourkey), otherwise ECB is used"
           />
           <TextInput
             label="Roles"
@@ -1645,7 +1672,7 @@ export function IRC() {
             value={editBlowkey}
             onChange={(e) => setEditBlowkey(e.currentTarget.value)}
             placeholder="Leave empty to keep current blowkey"
-            description="Only enter if you want to change the blowfish key"
+            description="Prefix with 'cbc:' for CBC mode (e.g., cbc:yourkey), otherwise ECB is used"
           />
           <TextInput
             label="Roles"

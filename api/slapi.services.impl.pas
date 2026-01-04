@@ -3496,6 +3496,9 @@ begin
             end;
           end;
 
+          // Add is_added flag (true if channel has settings = was added via ircchanadd)
+          TDocVariantData(chanDoc).AddValue('is_added', chanSettings <> nil);
+
           // Add settings if found, otherwise use empty values
           if chanSettings <> nil then
           begin
@@ -3600,6 +3603,8 @@ function TApiIrcServiceImpl.SetChannelBlowkey(const NetName, Channel, Blowkey: R
 var
   chanSettings: TIrcChannelSettings;
   netNameStr, channelStr, blowkeyStr: string;
+  cbc, inviteonly: boolean;
+  chankey, chanroles: string;
 begin
   Result := False;
   try
@@ -3614,8 +3619,30 @@ begin
       Exit;
     end;
 
-    chanSettings.UpdateKey(blowkeyStr);
-    Debug(dpMessage, 'slapi', Format('SetChannelBlowkey: Updated blowkey for %s@%s', [channelStr, netNameStr]));
+    // Check if blowkey starts with 'cbc:' prefix (for CBC mode)
+    cbc := False;
+    if Copy(LowerCase(blowkeyStr), 1, 4) = 'cbc:' then
+    begin
+      Delete(blowkeyStr, 1, 4);
+      cbc := True;
+    end;
+
+    // Store current settings
+    chankey := chanSettings.ChanKey;
+    chanroles := chanSettings.ChanRoles;
+    inviteonly := False; // Not stored in current settings, use default
+
+    // Write to config
+    sitesdat.WriteString('channel-' + netNameStr + '-' + channelStr, 'blowkey', blowkeyStr);
+    sitesdat.WriteBool('channel-' + netNameStr + '-' + channelStr, 'cbc', cbc);
+
+    // Remove old entry from list to create proper blowfish class (ECB or CBC)
+    IrcChanSettingsList.Remove(netNameStr + channelStr);
+
+    // Re-register with new settings
+    RegisterChannelSettings(netNameStr, channelStr, chanroles, blowkeyStr, chankey, inviteonly, cbc);
+
+    Debug(dpMessage, 'slapi', Format('SetChannelBlowkey: Updated blowkey for %s@%s (CBC: %s)', [channelStr, netNameStr, BoolToStr(cbc, True)]));
     Result := True;
   except
     on E: Exception do
@@ -3689,6 +3716,7 @@ end;
 function TApiIrcServiceImpl.AddChannel(const NetName, Channel, ChanKey, Blowkey, Roles: RawUTF8): boolean;
 var
   netNameStr, channelStr, chankeyStr, blowkeyStr, rolesStr: string;
+  cbc: boolean;
 begin
   Result := False;
   try
@@ -3705,10 +3733,25 @@ begin
       Exit;
     end;
 
-    // Use RegisterChannelSettings to add the channel
-    RegisterChannelSettings(netNameStr, channelStr, rolesStr, blowkeyStr, chankeyStr, False, True);
+    // Check if blowkey starts with 'cbc:' prefix (for CBC mode)
+    cbc := False;
+    if Copy(LowerCase(blowkeyStr), 1, 4) = 'cbc:' then
+    begin
+      Delete(blowkeyStr, 1, 4);
+      cbc := True;
+    end;
 
-    Debug(dpMessage, 'slapi', Format('AddChannel: Added channel %s@%s', [channelStr, netNameStr]));
+    // Write to config if blowkey is set
+    if blowkeyStr <> '' then
+    begin
+      sitesdat.WriteString('channel-' + netNameStr + '-' + channelStr, 'blowkey', blowkeyStr);
+      sitesdat.WriteBool('channel-' + netNameStr + '-' + channelStr, 'cbc', cbc);
+    end;
+
+    // Use RegisterChannelSettings to add the channel
+    RegisterChannelSettings(netNameStr, channelStr, rolesStr, blowkeyStr, chankeyStr, False, cbc);
+
+    Debug(dpMessage, 'slapi', Format('AddChannel: Added channel %s@%s (CBC: %s)', [channelStr, netNameStr, BoolToStr(cbc, True)]));
     Result := True;
   except
     on E: Exception do
