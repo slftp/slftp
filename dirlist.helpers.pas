@@ -244,10 +244,12 @@ var
   fFilesize: Int64;
   fParsedDirlistEntry: TParsedDirlistEntry;
   P: PUtf8Char;
+  fUtf8Input: RawUtf8;
 begin
   fParsedDirlistEntries := TObjectList<TParsedDirlistEntry>.Create(True);
   try
-    P := Pointer(s);
+    fUtf8Input := UTF8String(s);
+    P := Pointer(fUtf8Input);
     while P <> nil do
     begin
       fLineToParse := Trim(GetNextItem(P, #10));
