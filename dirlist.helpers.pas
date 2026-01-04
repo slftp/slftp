@@ -149,11 +149,13 @@ end;
 procedure ParseStatResponseLine(const aRespLine: String; out aDirMask, aUsername, aGroupname: String; out aFilesize: Int64; out aDatum, aItem: String);
 var
   P: PUtf8Char;
+  fUtf8Line: RawUtf8;
   fDate1, fDate2, fDate3: RawUtf8;
 begin
   // drwxrwxrwx   2 aq11     iND              3 Apr 19 23:14 Sample
   // -rw-r--r--   1 abc      Friends  100000000 Apr 19 23:14 baby.animals.s01e05.little.hunters.internal.2160p.uhdtv.h265-cbfm.r00
-  P := Pointer(UTF8String(aRespLine));
+  fUtf8Line := UTF8String(aRespLine);
+  P := Pointer(fUtf8Line);
   
   aDirMask := string(GetNextItem(P, ' '));
   GetNextItem(P, ' '); // Skip "No. of links"
