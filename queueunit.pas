@@ -443,6 +443,8 @@ var
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
 begin
+  // NOTE: Caller must hold SlotsAssignmentLock for source site (s1)
+  // s1 should normally be self.fSite (the queue's site)
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
@@ -529,7 +531,7 @@ begin
       exit;
 
 
-    if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
+    if not s2.AcquireSlotsAssignmentLock(10, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
       exit;
@@ -675,12 +677,11 @@ var
   sst: TSiteSlot;
   actual_count: integer;
 begin
-   // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
+  // NOTE: Caller must hold SlotsAssignmentLock for self.fSite
+  // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
     s := TSite(self.fSite);
-    s.AcquireSlotsAssignmentLock('TryToAssignSlots');
-    try
     if s.freeslots = 0 then
       exit;
 
@@ -835,9 +836,6 @@ begin
       t.assigned  := Now;
       ss.todotask := t;
       ss.Fire;
-    finally
-      s.ReleaseSlotsAssignmentLock;
-    end;
   except
   on e: Exception do
     begin
