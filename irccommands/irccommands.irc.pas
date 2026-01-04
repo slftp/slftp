@@ -1030,6 +1030,8 @@ begin
         Continue;
       if s.PermDown then
         Continue;
+      if not (s.WorkingStatus in [sstUnknown, sstUp, sstMarkedAsDownByUser]) then
+        Continue;
 
       if s.IRCNick = '' then
       begin
@@ -1065,6 +1067,8 @@ begin
             if Uppercase(s.Name) = getAdminSiteName then
               Continue;
             if s.PermDown then
+              Continue;
+            if not (s.WorkingStatus in [sstUnknown, sstUp, sstMarkedAsDownByUser]) then
               Continue;
 
             if s.IRCNick = '' then
