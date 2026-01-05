@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, fetchBrowserPath } from '../api/client';
 import {
@@ -8,7 +8,6 @@ import {
   Badge,
   Breadcrumbs,
   Center,
-  Checkbox,
   Divider,
   Group,
   Loader,
@@ -26,8 +25,6 @@ import {
   IconArrowUp,
   IconChevronDown,
   IconChevronUp,
-  IconFile,
-  IconFolder,
   IconFolderOpen,
   IconInfoCircle,
   IconRefresh,
@@ -35,6 +32,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import type { BrowserResponse, FileEntry } from '../api/client';
+import { FileRow } from './FileBrowserPaneRow';
 
 type SitesListItem = { name: string };
 type GetSitesResponse = {
@@ -93,21 +91,6 @@ function _parseModifiedMs(aFile: FileEntry): number | null {
   return null;
 }
 
-function _formatModified(aMs: number | null): string {
-  if (!aMs) return '—';
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      year: '2-digit',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(aMs));
-  } catch {
-    return new Date(aMs).toLocaleString();
-  }
-}
-
 function _toggleSort(aCurrentBy: SortBy, aCurrentDir: SortDir, aNextBy: SortBy): { by: SortBy; dir: SortDir } {
   if (aCurrentBy !== aNextBy) return { by: aNextBy, dir: 'asc' };
   return { by: aCurrentBy, dir: aCurrentDir === 'asc' ? 'desc' : 'asc' };
@@ -116,12 +99,6 @@ function _toggleSort(aCurrentBy: SortBy, aCurrentDir: SortDir, aNextBy: SortBy):
 function _sortIndicator(aActive: boolean, aDir: SortDir) {
   if (!aActive) return <IconSelector size="0.9rem" />;
   return aDir === 'asc' ? <IconChevronUp size="0.9rem" /> : <IconChevronDown size="0.9rem" />;
-}
-
-function _splitFilename(aName: string): { base: string; ext: string } {
-  const idx = aName.lastIndexOf('.');
-  if (idx <= 0 || idx === aName.length - 1) return { base: aName, ext: '' };
-  return { base: aName.slice(0, idx), ext: aName.slice(idx) };
 }
 
 export function FileBrowserPane({
@@ -138,6 +115,15 @@ export function FileBrowserPane({
   const [sortBy, setSortBy] = useState<SortBy>('modified');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const queryClient = useQueryClient();
+  const toggleStartTime = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (toggleStartTime.current !== null) {
+      const duration = performance.now() - toggleStartTime.current;
+      console.log(`[FileBrowser] Selection updated in ${duration.toFixed(2)}ms. Selected count: ${selectedFiles.size}`);
+      toggleStartTime.current = null;
+    }
+  }, [selectedFiles]);
 
   useEffect(() => {
     if (propSite !== undefined) setInternalSite(propSite);
@@ -159,13 +145,13 @@ export function FileBrowserPane({
     setSelectedFiles(new Set());
   };
 
-  const handlePathNavigate = (newPath: string) => {
+  const handlePathNavigate = useCallback((newPath: string) => {
     let p = newPath.startsWith('/') ? newPath : '/' + newPath;
     if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
     setInternalPath(p);
     onPathChange?.(p);
     setSelectedFiles(new Set());
-  };
+  }, [onPathChange]);
 
   const { data: sitesData, error: sitesError, isLoading: sitesLoading } = useQuery<SitesListItem[]>({
     queryKey: ['sitesList'],
@@ -232,20 +218,16 @@ export function FileBrowserPane({
     setSelectedFiles(new Set());
   };
 
-  const toggleSelection = (fileName: string) => {
-    const newSet = new Set(selectedFiles);
-    if (newSet.has(fileName)) newSet.delete(fileName);
-    else newSet.add(fileName);
-    setSelectedFiles(newSet);
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  const toggleSelection = useCallback((fileName: string) => {
+    toggleStartTime.current = performance.now();
+    console.log(`[FileBrowser] Toggling selection for: ${fileName}`);
+    setSelectedFiles((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileName)) newSet.delete(fileName);
+      else newSet.add(fileName);
+      return newSet;
+    });
+  }, []);
 
   const pathParts = internalPath.split('/').filter((p) => p);
   const selectedCount = selectedFiles.size;
@@ -502,89 +484,15 @@ export function FileBrowserPane({
                 )}
 
                 {sortedFiles.map(({ f, modifiedMs }, idx) => (
-                  <Table.Tr
+                  <FileRow
                     key={`${f.name}-${idx}`}
-                    style={{ cursor: f.is_dir ? 'pointer' : 'default', userSelect: 'none' }}
-                    data-selected={selectedFiles.has(f.name) || undefined}
-                    onClick={(e) => {
-                      if (e.ctrlKey || e.metaKey) {
-                        toggleSelection(f.name);
-                        return;
-                      }
-                      if (f.is_dir) {
-                        handlePathNavigate(internalPath + (internalPath === '/' ? '' : '/') + f.name);
-                      } else {
-                        toggleSelection(f.name);
-                      }
-                    }}
-                  >
-                    <Table.Td>
-                      <Checkbox
-                        checked={selectedFiles.has(f.name)}
-                        onChange={() => toggleSelection(f.name)}
-                        onClick={(e) => e.stopPropagation()}
-                        size="xs"
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-                        <ThemeIcon color={f.is_dir ? 'blue' : 'gray'} variant="light" size="sm">
-                          {f.is_dir ? <IconFolder size="0.8rem" /> : <IconFile size="0.8rem" />}
-                        </ThemeIcon>
-                        <Tooltip label={f.name} withArrow withinPortal>
-                          {f.is_dir ? (
-                            <Text size="sm" fw={600} truncate style={{ minWidth: 0, flex: 1 }}>
-                              {f.name}
-                            </Text>
-                          ) : (
-                            (() => {
-                              const parts = _splitFilename(f.name);
-                              return (
-                                <Text
-                                  size="sm"
-                                  fw={400}
-                                  component="span"
-                                  style={{ minWidth: 0, flex: 1, display: 'flex' }}
-                                >
-                                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    {parts.base}
-                                  </span>
-                                  {parts.ext && (
-                                    <span style={{ flex: '0 0 auto', whiteSpace: 'nowrap' }}>
-                                      {parts.ext}
-                                    </span>
-                                  )}
-                                </Text>
-                              );
-                            })()
-                          )}
-                        </Tooltip>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      {(() => {
-                        const uid = (f.user || '').toString();
-                        const display = uid.length > 6 ? `${uid.slice(0, 6)}…` : (uid || '—');
-                        return (
-                          <Tooltip label={uid || '—'} withArrow withinPortal>
-                            <Text size="sm" c="dimmed" ta="right">
-                              {display}
-                            </Text>
-                          </Tooltip>
-                        );
-                      })()}
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c="dimmed" ta="right">
-                        {f.is_dir ? '—' : formatSize(f.size)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c="dimmed">
-                        {_formatModified(modifiedMs)}
-                      </Text>
-                    </Table.Td>
-                  </Table.Tr>
+                    file={f}
+                    modifiedMs={modifiedMs}
+                    selected={selectedFiles.has(f.name)}
+                    onToggle={toggleSelection}
+                    onNavigate={handlePathNavigate}
+                    currentPath={internalPath}
+                  />
                 ))}
               </Table.Tbody>
             </Table>

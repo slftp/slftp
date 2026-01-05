@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Title, Group, Button, Grid, Paper, Stack, Text, Badge, Tooltip, Menu } from '@mantine/core';
-import { IconArrowRight, IconArrowLeft, IconArrowsExchange, IconDots, IconBolt } from '@tabler/icons-react';
+import { Title, Group, Button, Grid, Paper, Stack, Text, Badge, Tooltip, Menu, Tabs } from '@mantine/core';
+import { IconArrowRight, IconArrowLeft, IconArrowsExchange, IconDots, IconBolt, IconFolders, IconArrowsLeftRight } from '@tabler/icons-react';
 import { FileBrowserPane } from './FileBrowserPane';
 import { apiClient } from '../api/client';
 import type { FileEntry } from '../api/client';
@@ -10,6 +10,7 @@ import { fetchBrowserPath } from '../api/client';
 
 export function FileBrowser() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<string | null>('fxp');
   const [leftSite, setLeftSite] = useState<string | null>(null);
   const [rightSite, setRightSite] = useState<string | null>(null);
   const [leftPath, setLeftPath] = useState('/');
@@ -24,9 +25,9 @@ export function FileBrowser() {
     const lp = leftPath;
     const rp = rightPath;
     if (ls) await fetchBrowserPath(ls, lp, true);
-    if (rs) await fetchBrowserPath(rs, rp, true);
+    if (rs && activeTab === 'fxp') await fetchBrowserPath(rs, rp, true);
     if (ls) queryClient.invalidateQueries({ queryKey: ['browser', ls, lp] });
-    if (rs) queryClient.invalidateQueries({ queryKey: ['browser', rs, rp] });
+    if (rs && activeTab === 'fxp') queryClient.invalidateQueries({ queryKey: ['browser', rs, rp] });
   };
 
   const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -120,56 +121,66 @@ export function FileBrowser() {
         <div>
           <Group gap="xs">
             <Title order={2}>Browser</Title>
-            <Badge variant="light">Dual pane</Badge>
           </Group>
           <Text size="sm" c="dimmed">
-            Browse both sides and run commands from the toolbar
+            Browse sites and manage files
           </Text>
         </div>
       </Group>
 
+      <Tabs value={activeTab} onChange={setActiveTab} variant="default">
+        <Tabs.List>
+          <Tabs.Tab value="fxp" leftSection={<IconArrowsLeftRight size={16} />}>FXP</Tabs.Tab>
+          <Tabs.Tab value="browse" leftSection={<IconFolders size={16} />}>Browse</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+
       <Paper withBorder radius="md" p="sm">
         <Group justify="space-between" wrap="wrap" gap="sm">
           <Group gap="xs" wrap="wrap">
-            <Tooltip label="Queue transfer left → right (FXP)" withArrow withinPortal>
-              <Button
-                variant="light"
-                leftSection={<IconArrowRight size="1.1rem" />}
-                disabled={!canCopyToRight}
-                onClick={() => handleTransfer('left')}
-              >
-                FXP L→R
-              </Button>
-            </Tooltip>
+            {activeTab === 'fxp' && (
+              <>
+                <Tooltip label="Queue transfer left → right (FXP)" withArrow withinPortal>
+                  <Button
+                    variant="light"
+                    leftSection={<IconArrowRight size="1.1rem" />}
+                    disabled={!canCopyToRight}
+                    onClick={() => handleTransfer('left')}
+                  >
+                    FXP L→R
+                  </Button>
+                </Tooltip>
 
-            <Tooltip label="Queue transfer right → left (FXP)" withArrow withinPortal>
-              <Button
-                variant="light"
-                leftSection={<IconArrowLeft size="1.1rem" />}
-                disabled={!canCopyToLeft}
-                onClick={() => handleTransfer('right')}
-              >
-                FXP R→L
-              </Button>
-            </Tooltip>
+                <Tooltip label="Queue transfer right → left (FXP)" withArrow withinPortal>
+                  <Button
+                    variant="light"
+                    leftSection={<IconArrowLeft size="1.1rem" />}
+                    disabled={!canCopyToLeft}
+                    onClick={() => handleTransfer('right')}
+                  >
+                    FXP R→L
+                  </Button>
+                </Tooltip>
 
-            <Tooltip label="Swap panes" withArrow withinPortal>
-              <Button
-                variant="default"
-                leftSection={<IconArrowsExchange size="1.1rem" />}
-                disabled={transferring}
-                onClick={() => {
-                  setLeftSite(rightSite);
-                  setRightSite(leftSite);
-                  setLeftPath(rightPath);
-                  setRightPath(leftPath);
-                  setLeftSelection(rightSelection);
-                  setRightSelection(leftSelection);
-                }}
-              >
-                Swap
-              </Button>
-            </Tooltip>
+                <Tooltip label="Swap panes" withArrow withinPortal>
+                  <Button
+                    variant="default"
+                    leftSection={<IconArrowsExchange size="1.1rem" />}
+                    disabled={transferring}
+                    onClick={() => {
+                      setLeftSite(rightSite);
+                      setRightSite(leftSite);
+                      setLeftPath(rightPath);
+                      setRightPath(leftPath);
+                      setLeftSelection(rightSelection);
+                      setRightSelection(leftSelection);
+                    }}
+                  >
+                    Swap
+                  </Button>
+                </Tooltip>
+              </>
+            )}
 
             <Menu withinPortal position="bottom-start">
               <Menu.Target>
@@ -187,14 +198,16 @@ export function FileBrowser() {
           </Group>
 
           <Group gap="xs" wrap="wrap">
-            <Badge variant="light">{leftSelection.length} selected (L)</Badge>
-            <Badge variant="light">{rightSelection.length} selected (R)</Badge>
+            <Badge variant="light">{leftSelection.length} selected {activeTab === 'fxp' ? '(L)' : ''}</Badge>
+            {activeTab === 'fxp' && (
+              <Badge variant="light">{rightSelection.length} selected (R)</Badge>
+            )}
           </Group>
         </Group>
       </Paper>
 
       <Grid style={{ flex: 1, minHeight: 0 }} gutter="md">
-        <Grid.Col span={{ base: 12, md: 6 }} style={{ height: '100%', minHeight: 0 }}>
+        <Grid.Col span={activeTab === 'browse' ? 12 : { base: 12, md: 6 }} style={{ height: '100%', minHeight: 0 }}>
           <FileBrowserPane
             site={leftSite}
             path={leftPath}
@@ -204,15 +217,17 @@ export function FileBrowser() {
           />
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 6 }} style={{ height: '100%', minHeight: 0 }}>
-          <FileBrowserPane
-            site={rightSite}
-            path={rightPath}
-            onSiteChange={setRightSite}
-            onPathChange={setRightPath}
-            onSelectionChange={setRightSelection}
-          />
-        </Grid.Col>
+        {activeTab === 'fxp' && (
+          <Grid.Col span={{ base: 12, md: 6 }} style={{ height: '100%', minHeight: 0 }}>
+            <FileBrowserPane
+              site={rightSite}
+              path={rightPath}
+              onSiteChange={setRightSite}
+              onPathChange={setRightPath}
+              onSelectionChange={setRightSelection}
+            />
+          </Grid.Col>
+        )}
       </Grid>
     </Stack>
   );
