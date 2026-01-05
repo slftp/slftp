@@ -180,11 +180,12 @@ begin
   fDate2 := GetNextItem(P, ' ');
   SkipSpaces;
   fDate3 := GetNextItem(P, ' ');
+  SkipSpaces;  // Skip spaces after time before filename
   aDatum := string(fDate1 + ' ' + fDate2 + ' ' + fDate3);
 
   // The rest of the line is the filename/item
   if P <> nil then
-    aItem := string(Trim(P))
+    aItem := string(P)  // P already points to start of filename after SkipSpaces
   else
     aItem := '';
 end;
