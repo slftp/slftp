@@ -260,10 +260,16 @@ var
   fParsedDirlistEntry: TParsedDirlistEntry;
   P: PUtf8Char;
   fUtf8Input: RawUtf8;
+  fNormalizedInput: String;
 begin
   fParsedDirlistEntries := TObjectList<TParsedDirlistEntry>.Create(True);
   try
-    fUtf8Input := UTF8String(s);
+    // Normalize line endings: replace CRLF and CR with LF
+    // This handles both Unix (LF), Windows (CRLF), and Mac (CR) line endings
+    fNormalizedInput := StringReplace(s, #13#10, #10, [rfReplaceAll]);
+    fNormalizedInput := StringReplace(fNormalizedInput, #13, #10, [rfReplaceAll]);
+
+    fUtf8Input := UTF8String(fNormalizedInput);
     P := Pointer(fUtf8Input);
     while P <> nil do
     begin
