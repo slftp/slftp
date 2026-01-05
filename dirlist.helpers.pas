@@ -151,23 +151,37 @@ var
   P: PUtf8Char;
   fUtf8Line: RawUtf8;
   fDate1, fDate2, fDate3: RawUtf8;
+
+  procedure SkipSpaces;
+  begin
+    while (P <> nil) and (P^ = ' ') do
+      Inc(P);
+  end;
+
 begin
   // drwxrwxrwx   2 aq11     iND              3 Apr 19 23:14 Sample
   // -rw-r--r--   1 abc      Friends  100000000 Apr 19 23:14 baby.animals.s01e05.little.hunters.internal.2160p.uhdtv.h265-cbfm.r00
   fUtf8Line := UTF8String(aRespLine);
   P := Pointer(fUtf8Line);
-  
+
   aDirMask := string(GetNextItem(P, ' '));
+  SkipSpaces;
   GetNextItem(P, ' '); // Skip "No. of links"
+  SkipSpaces;
   aUsername := string(GetNextItem(P, ' '));
+  SkipSpaces;
   aGroupname := string(GetNextItem(P, ' '));
+  SkipSpaces;
   aFilesize := GetNextItemInt64(P, ' ');
-  
+  SkipSpaces;
+
   fDate1 := GetNextItem(P, ' ');
+  SkipSpaces;
   fDate2 := GetNextItem(P, ' ');
+  SkipSpaces;
   fDate3 := GetNextItem(P, ' ');
   aDatum := string(fDate1 + ' ' + fDate2 + ' ' + fDate3);
-  
+
   // The rest of the line is the filename/item
   if P <> nil then
     aItem := string(Trim(P))
