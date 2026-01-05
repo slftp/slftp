@@ -1,8 +1,30 @@
-import { Alert, Badge, Button, Card, Center, Divider, Group, Loader, ScrollArea, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Center,
+  Code,
+  Divider,
+  Grid,
+  Group,
+  Loader,
+  Paper,
+  ScrollArea,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+  Tooltip,
+  ActionIcon,
+} from '@mantine/core';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
+import { IconCheck, IconCode, IconDeviceFloppy, IconFileText, IconRefresh, IconSearch, IconAlertCircle, IconArrowRight } from '@tabler/icons-react';
 import { apiClient } from '../api/client';
 import type { Site } from '../api/client';
 
@@ -10,9 +32,6 @@ type RuleError = { line: number; message: string };
 type RuleCondition = { name: string; ops: string; description: string };
 
 export function Rules() {
-  const CONDITIONS_VISIBLE = 3;
-  const CONDITION_ROW_HEIGHT = 68;
-  const CONDITION_ROW_GAP = 6;
   const [searchParams, setSearchParams] = useSearchParams();
   const [siteName, setSiteName] = useState<string>('');
   const [rtplContent, setRtplContent] = useState('');
@@ -27,6 +46,7 @@ export function Rules() {
   const rtplTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const rtplLineNumbersRef = useRef<HTMLPreElement | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState<string | null>('editor');
 
   const rtplLineNumbers = useMemo(() => {
     const count = Math.max(1, rtplContent.split('\n').length);
@@ -111,17 +131,28 @@ export function Rules() {
   };
 
   const focusLine = (lineNumber: number) => {
-    const el = rtplTextareaRef.current;
-    if (!el) return;
-    if (lineNumber <= 0) return;
-    const lines = rtplContent.split('\n');
-    const idx = Math.min(lineNumber - 1, lines.length - 1);
-    let offset = 0;
-    for (let i = 0; i < idx; i++) offset += lines[i].length + 1;
-    requestAnimationFrame(() => {
+    // Switch to editor tab if not active
+    if (activeTab !== 'editor' && activeTab !== 'split') {
+      setActiveTab('editor');
+    }
+    
+    // Allow tab switch to happen
+    setTimeout(() => {
+      const el = rtplTextareaRef.current;
+      if (!el) return;
+      if (lineNumber <= 0) return;
+      const lines = rtplContent.split('\n');
+      const idx = Math.min(lineNumber - 1, lines.length - 1);
+      let offset = 0;
+      for (let i = 0; i < idx; i++) offset += lines[i].length + 1;
+      
       el.focus();
       el.setSelectionRange(offset, offset);
-    });
+      
+      // Try to scroll line into view (approximate)
+      const lineHeight = 20; // approximate
+      el.scrollTop = (lineNumber - 5) * lineHeight;
+    }, 100);
   };
 
   const syncRtplLineNumberScroll = () => {
@@ -137,10 +168,6 @@ export function Rules() {
     const q = conditionSearch.trim().toLowerCase();
     return list.filter((c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
   }, [conditions, conditionSearch]);
-
-  useEffect(() => {
-    // no-op; selection is not required for click-to-insert
-  }, [filteredConditions]);
 
   const loadMutation = useMutation({
     mutationFn: async (selectedSite: string) => {
@@ -243,207 +270,234 @@ export function Rules() {
   if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">Could not load sites</Alert>;
 
+  const editorPanel = (
+    <div
+      style={{
+        border: '1px solid var(--mantine-color-default-border)',
+        borderRadius: 'var(--mantine-radius-md)',
+        overflow: 'hidden',
+        display: 'flex',
+        height: 'calc(100vh - 300px)',
+        minHeight: '500px',
+        background: 'var(--mantine-color-default)',
+        position: 'relative',
+      }}
+    >
+      <pre
+        ref={rtplLineNumbersRef}
+        style={{
+          margin: 0,
+          padding: '12px 10px 12px 12px',
+          width: 52,
+          textAlign: 'right',
+          color: 'var(--mantine-color-dimmed)',
+          background: 'var(--mantine-color-body)',
+          borderRight: '1px solid var(--mantine-color-default-border)',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          fontSize: 13,
+          lineHeight: 1.45,
+          overflow: 'hidden',
+          userSelect: 'none',
+        }}
+      >
+        {rtplLineNumbers}
+      </pre>
+      <Textarea
+        value={rtplContent}
+        onChange={(e) => setRtplContent(e.currentTarget.value)}
+        onScroll={syncRtplLineNumberScroll}
+        variant="unstyled"
+        ref={rtplTextareaRef}
+        placeholder="Select a site and click Load to start editing..."
+        styles={{
+          root: { flex: 1, height: '100%', overflow: 'hidden' },
+          wrapper: { height: '100%' },
+          input: {
+            height: '100%',
+            padding: '12px 12px 12px 10px',
+            fontFamily:
+              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            fontSize: 13,
+            lineHeight: 1.45,
+            whiteSpace: 'pre',
+            overflowX: 'auto',
+          },
+        }}
+      />
+    </div>
+  );
+
+  const snapshotPanel = (
+    <Stack gap="xs" h="100%">
+       <Group justify="space-between">
+         <Text size="sm" fw={500}>Current Site Rules Snapshot</Text>
+         <Code>{siteRulesSnapshotPath}</Code>
+       </Group>
+      <Textarea
+        value={siteRulesSnapshotContent}
+        readOnly
+        variant="filled"
+        styles={{
+          input: {
+            fontFamily: 'monospace',
+            height: 'calc(100vh - 340px)',
+            minHeight: '460px',
+            fontSize: '13px',
+            whiteSpace: 'pre',
+            overflowX: 'auto',
+          }
+        }}
+      />
+    </Stack>
+  );
+
   return (
-    <Card shadow="sm" padding="lg" radius="md" withBorder>
-      <Group justify="space-between" align="flex-end" mb="md">
-        <Title order={3}>Rules</Title>
-        <Group align="flex-end">
-          <Group gap="xs" align="center">
-            <Text fw={500} size="sm">Site</Text>
-            <Select
-              aria-label="Site"
-              placeholder="Site"
+    <Stack gap="md" h="100%">
+      <Paper p="md" shadow="sm" radius="md" withBorder>
+        <Group justify="space-between" align="center">
+          <Group>
+            <Title order={3}>Rules Editor</Title>
+            {hasLoaded && (
+              <Group gap="xs">
+                 <Badge variant="dot" color={syntaxOk === false ? 'red' : syntaxOk === true ? 'green' : 'gray'}>
+                    {isCheckingSyntax ? 'Checking...' : syntaxOk === false ? 'Syntax Errors' : syntaxOk === true ? 'Syntax OK' : 'Ready'}
+                 </Badge>
+              </Group>
+            )}
+          </Group>
+          
+          <Group>
+             <Select
+              placeholder="Select Site"
               value={siteName}
               data={siteOptions}
               onChange={(v) => v && setSiteName(v)}
               searchable
-              w={260}
+              w={250}
             />
+            <Tooltip label="Load rtpl (Loads the actual file content from the server into this editor)">
+              <Button variant="default" onClick={() => loadMutation.mutate(siteName)} loading={loadMutation.isPending} disabled={!siteName}>
+                Load rtpl
+              </Button>
+            </Tooltip>
+            
+            <Divider orientation="vertical" />
+
+            <Tooltip label="Syntax check (Checks the current editor content for syntax errors without saving)">
+               <ActionIcon variant="light" color="blue" size="lg" onClick={() => runSyntaxCheck(rtplContent, true)} loading={isCheckingSyntax} disabled={!hasLoaded}>
+                 <IconCheck size="1.2rem" />
+               </ActionIcon>
+            </Tooltip>
+
+            <Tooltip label="Save (Writes changes to disk)">
+               <Button 
+                  leftSection={<IconDeviceFloppy size="1rem" />} 
+                  color="blue" 
+                  onClick={() => saveMutation.mutate(false)} 
+                  loading={saveMutation.isPending} 
+                  disabled={!hasLoaded || syntaxOk === false || isCheckingSyntax}
+                >
+                  Save
+               </Button>
+            </Tooltip>
+
+            <Tooltip label="Rulesreload (Triggers !rulesreload: reloads all rules from disk into memory, same as the IRC command)">
+               <Button variant="subtle" color="gray" leftSection={<IconRefresh size="1rem" />} onClick={() => reloadMutation.mutate()} loading={reloadMutation.isPending}>
+                 Rulesreload
+               </Button>
+            </Tooltip>
           </Group>
-          <Button variant="default" loading={loadMutation.isPending} onClick={() => loadMutation.mutate(siteName)} disabled={!siteName}>
-            Load
-          </Button>
-          <Button variant="default" loading={isCheckingSyntax} onClick={() => runSyntaxCheck(rtplContent, true)} disabled={!hasLoaded}>
-            Syntax check
-          </Button>
-          <Button variant="outline" loading={reloadMutation.isPending} onClick={() => reloadMutation.mutate()}>
-            Reload rules
-          </Button>
-          <Button loading={saveMutation.isPending} onClick={() => saveMutation.mutate(true)} disabled={!hasLoaded || syntaxOk === false || isCheckingSyntax}>
-            Save
-          </Button>
         </Group>
-      </Group>
 
-      <Stack gap="sm">
-        {hasLoaded && (
-          <Group>
-            {isCheckingSyntax && <Badge variant="light">Checking syntax…</Badge>}
-            {syntaxOk === true && <Badge color="green" variant="light">Syntax OK</Badge>}
-            {syntaxOk === false && <Badge color="red" variant="light">Syntax errors</Badge>}
-            {syntaxOk === false && errors.length > 0 && (
-              <Text size="xs" c="dimmed">
-                {errors.length} error(s) – fix them or re-run syntax check
-              </Text>
-            )}
-          </Group>
-        )}
-
-        {hasLoaded && (
-          <Group gap="xl" wrap="nowrap">
-            <Text
-              size="xs"
-              c="dimmed"
-              style={{ flex: 1, minWidth: 0 }}
-              lineClamp={1}
-              title={rtplPath}
-            >
-              rtpl file: {rtplPath}
-            </Text>
-            {siteName !== '*' && (
-              <Text
-                size="xs"
-                c="dimmed"
-                style={{ flex: 1, minWidth: 0 }}
-                lineClamp={1}
-                title={siteRulesSnapshotPath}
-              >
-                snapshot: {siteRulesSnapshotPath}
-              </Text>
-            )}
-          </Group>
-        )}
-
+        {/* Validation Errors */}
         {errors.length > 0 && (
-          <Alert color="red" title="Validation errors">
-            <ScrollArea h={160}>
-              {errors.slice(0, 250).map((e) => (
+          <Alert icon={<IconAlertCircle size="1rem" />} title="Validation Errors" color="red" mt="md" variant="light" withCloseButton onClose={() => setErrors([])}>
+            <ScrollArea.Autosize mah={100}>
+              {errors.map((e, idx) => (
                 <Text
-                  key={`${e.line}-${e.message}`}
+                  key={idx}
                   size="sm"
                   style={{ cursor: 'pointer' }}
                   onClick={() => focusLine(e.line)}
+                  c="red.7"
+                  fw={500}
                 >
                   Line {e.line}: {e.message}
                 </Text>
               ))}
-            </ScrollArea>
+            </ScrollArea.Autosize>
           </Alert>
         )}
+      </Paper>
 
-        <Divider label="Conditions" />
-        <Group justify="space-between" align="flex-end">
-          <TextInput
-            label="Search"
-            placeholder="Filter conditions by name/description (e.g. year, tag, mp3language)"
-            value={conditionSearch}
-            onChange={(e) => setConditionSearch(e.currentTarget.value)}
-            w={520}
-          />
-          <Group>
-            <Badge variant="light">
-              {filteredConditions.length}/{(conditions || []).length}
-            </Badge>
-          </Group>
-        </Group>
+      <Paper p="sm" shadow="sm" radius="md" withBorder h="100%">
+        <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
+          <Tabs.List mb="xs">
+            <Tabs.Tab value="editor" leftSection={<IconCode size="0.8rem" />}>Editor</Tabs.Tab>
+            <Tabs.Tab value="snapshot" leftSection={<IconFileText size="0.8rem" />}>Snapshot (Site Rules)</Tabs.Tab>
+            <Tabs.Tab value="conditions" leftSection={<IconSearch size="0.8rem" />}>Conditions</Tabs.Tab>
+          </Tabs.List>
 
-        <Card withBorder padding="sm" radius="md">
-          <Stack gap="xs">
-            <Text fw={600} size="sm">Click a condition to insert `if …`</Text>
-            <ScrollArea h={CONDITIONS_VISIBLE * CONDITION_ROW_HEIGHT + (CONDITIONS_VISIBLE - 1) * CONDITION_ROW_GAP}>
-              <Stack gap={CONDITION_ROW_GAP}>
-                {filteredConditions.map((c) => (
-                  <Card
-                    key={c.name}
-                    withBorder
-                    padding="xs"
-                    radius="sm"
-                    style={{ cursor: 'pointer', height: CONDITION_ROW_HEIGHT, overflow: 'hidden' }}
-                    onClick={() => insertAtCursorOrReplaceSelection(`if ${c.name} `)}
-                  >
-                    <Group justify="space-between" align="flex-start">
-                      <Stack gap={2} style={{ flex: 1 }}>
-                        <Group gap="xs">
-                          <Text fw={600} size="sm">{c.name}</Text>
-                        </Group>
-                        <Text size="xs" c="dimmed" lineClamp={2}>{c.description}</Text>
-                      </Stack>
-                    </Group>
-                  </Card>
-                ))}
-                {filteredConditions.length === 0 && (
-                  <Text size="sm" c="dimmed">No matches.</Text>
-                )}
-              </Stack>
-            </ScrollArea>
-          </Stack>
-        </Card>
+          <Tabs.Panel value="editor">
+            {editorPanel}
+            {hasLoaded && (
+              <Text size="xs" c="dimmed" mt={4} ta="right">
+                File: {rtplPath}
+              </Text>
+            )}
+          </Tabs.Panel>
 
-        <Group align="flex-start" grow>
-          <Stack gap={6} style={{ flex: 1 }}>
-            <Text fw={500} size="sm">Incoming rules (*.rtpl)</Text>
-            <div
-              style={{
-                border: '1px solid var(--mantine-color-default-border)',
-                borderRadius: 'var(--mantine-radius-md)',
-                overflow: 'hidden',
-                display: 'flex',
-                width: '100%',
-                background: 'var(--mantine-color-default)',
-              }}
-            >
-              <pre
-                ref={rtplLineNumbersRef}
-                style={{
-                  margin: 0,
-                  padding: '12px 10px 12px 12px',
-                  width: 52,
-                  textAlign: 'right',
-                  color: 'var(--mantine-color-dimmed)',
-                  background: 'var(--mantine-color-default-hover)',
-                  borderRight: '1px solid var(--mantine-color-default-border)',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                  fontSize: 13,
-                  lineHeight: 1.45,
-                  overflow: 'hidden',
-                  userSelect: 'none',
-                }}
-              >
-                {rtplLineNumbers}
-              </pre>
-              <Textarea
-                value={rtplContent}
-                onChange={(e) => setRtplContent(e.currentTarget.value)}
-                onScroll={syncRtplLineNumberScroll}
-                autosize
-                minRows={24}
-                variant="unstyled"
-                ref={rtplTextareaRef}
-                styles={{
-                  root: { flex: 1 },
-                  input: {
-                    padding: '12px 12px 12px 10px',
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                    fontSize: 13,
-                    lineHeight: 1.45,
-                  },
-                }}
-              />
-            </div>
-          </Stack>
-          <Stack gap="xs">
-            <Textarea
-              label="SITE RULES snapshot (read-only)"
-              value={siteRulesSnapshotContent}
-              readOnly
-              autosize
-              minRows={24}
-            />
-            {siteName === '*' && <Text size="xs" c="dimmed">No SITE RULES snapshot for global rules.</Text>}
-          </Stack>
-        </Group>
-      </Stack>
-    </Card>
+          <Tabs.Panel value="snapshot">
+            {snapshotPanel}
+          </Tabs.Panel>
+
+          <Tabs.Panel value="conditions">
+             <Stack h="100%" gap="md">
+                <TextInput
+                  placeholder="Search conditions..."
+                  leftSection={<IconSearch size="0.8rem" />}
+                  value={conditionSearch}
+                  onChange={(e) => setConditionSearch(e.currentTarget.value)}
+                />
+                
+                <Text size="xs" c="dimmed">
+                   Click a condition to insert it into the editor (switches to Editor tab).
+                </Text>
+
+                <ScrollArea style={{ height: 'calc(100vh - 400px)', minHeight: '400px' }}>
+                  <Grid gutter="sm">
+                    {filteredConditions.map((c) => (
+                      <Grid.Col key={c.name} span={{ base: 12, md: 6, lg: 4 }}>
+                        <Paper
+                          withBorder
+                          p="sm"
+                          radius="sm"
+                          style={{ cursor: 'pointer', transition: 'background-color 0.2s', height: '100%' }}
+                          onClick={() => {
+                             insertAtCursorOrReplaceSelection(`if ${c.name} `);
+                             setActiveTab('editor');
+                          }}
+                          className="condition-card"
+                        >
+                          <Group justify="space-between" align="start" wrap="nowrap" mb={4}>
+                             <Text size="sm" fw={700} style={{ fontFamily: 'monospace' }}>{c.name}</Text>
+                             <IconArrowRight size="0.8rem" style={{ opacity: 0.5 }} />
+                          </Group>
+                          <Text size="xs" c="dimmed" lh={1.3}>
+                            {c.description}
+                          </Text>
+                        </Paper>
+                      </Grid.Col>
+                    ))}
+                  </Grid>
+                  {filteredConditions.length === 0 && (
+                    <Text size="sm" c="dimmed" ta="center" py="xl">No matches found</Text>
+                  )}
+                </ScrollArea>
+             </Stack>
+          </Tabs.Panel>
+        </Tabs>
+      </Paper>
+    </Stack>
   );
 }

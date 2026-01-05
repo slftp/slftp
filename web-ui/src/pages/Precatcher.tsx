@@ -741,8 +741,8 @@ export function Precatcher() {
             label="Bot Nicks"
             value={newBotnicks}
             onChange={(e) => setNewBotnicks(e.currentTarget.value)}
-            placeholder="PreBot|AnotherBot"
-            description="Use | to separate multiple nicks"
+            placeholder="PreBot,AnotherBot"
+            description="Use , to separate multiple nicks"
             required
           />
 
