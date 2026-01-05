@@ -274,9 +274,10 @@ begin
       if fLineToParse = '' then continue;
       if (Length(fLineToParse) > 11) then
       begin
-        // Only process lines that match UNIX permission format: 'd' or '-' at position 1, space at position 11
-        // This filters out FTP status messages like "213- status of -l:", "total 12345", "213 End of Status"
-        if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-')) or (fLineToParse[11] <> ' ') then
+        // Only process lines that start with 'd' (directory) or '-' (file)
+        // Position 11 check is flexible: can be space (glFTPD: "drwxrwxrwx   2") or digit (DrFTPD: "-rw-rw-rw- 1")
+        // This filters out FTP status messages like "213- status of -l:", "total 12345"
+        if (fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') then
           continue;
         ParseStatResponseLine(string(fLineToParse), fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
         fParsedDirlistEntry := TParsedDirlistEntry.Create;
