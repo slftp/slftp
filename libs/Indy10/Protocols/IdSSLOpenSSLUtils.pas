@@ -564,41 +564,29 @@ end;
   {$IFDEF UNIX}
 
 function IndySSL_load_client_CA_file(const AFileName: String) : PSTACK_OF_X509_NAME;
-var
-  fUtf8FileName: RawUtf8;
 begin
-  fUtf8FileName := UTF8String(AFileName);
-  Result := SSL_load_client_CA_file(PAnsiChar(Pointer(fUtf8FileName)));
+  Result := SSL_load_client_CA_file(PAnsiChar(UTF8String(AFileName)));
 end;
 
 function IndySSL_CTX_use_PrivateKey_file(ctx: PSSL_CTX; const AFileName: String;
   AType: Integer): Boolean;
 {$IFDEF USE_INLINE} inline; {$ENDIF}
-var
-  fUtf8FileName: RawUtf8;
 begin
-  fUtf8FileName := UTF8String(AFileName);
-  Result := SSL_CTX_use_PrivateKey_file(ctx, PAnsiChar(Pointer(fUtf8FileName)),
+  Result := SSL_CTX_use_PrivateKey_file(ctx, PAnsiChar(UTF8String(AFileName)),
     AType) > 0;
 end;
 
 function IndySSL_CTX_use_certificate_file(ctx: PSSL_CTX;
   const AFileName: String; AType: Integer): Boolean;
 {$IFDEF USE_INLINE} inline; {$ENDIF}
-var
-  fUtf8FileName: RawUtf8;
 begin
-  fUtf8FileName := UTF8String(AFileName);
-  Result := SSL_CTX_use_certificate_file(ctx, PAnsiChar(Pointer(fUtf8FileName)),
+  Result := SSL_CTX_use_certificate_file(ctx, PAnsiChar(UTF8String(AFileName)),
     AType) > 0;
 end;
 
 function IndyX509_STORE_load_locations(ctx: PX509_STORE;
   const AFileName, APathName: String): TIdC_INT;
 {$IFDEF USE_INLINE} inline; {$ENDIF}
-var
-  fUtf8FileName, fUtf8PathName: RawUtf8;
-  fFileNamePtr, fPathNamePtr: PAnsiChar;
 begin
   // RLebeau 4/18/2010: X509_STORE_load_locations() expects nil pointers
   // for unused values, but casting a string directly to a PAnsiChar
@@ -606,24 +594,9 @@ begin
   // to fail. Need to cast the string to an intermediate Pointer so the
   // PAnsiChar cast is applied to the raw data and thus can be nil...
   //
-  // Store UTF8 strings in local variables to prevent dangling pointers
-  if AFileName <> '' then
-  begin
-    fUtf8FileName := UTF8String(AFileName);
-    fFileNamePtr := PAnsiChar(Pointer(fUtf8FileName));
-  end
-  else
-    fFileNamePtr := nil;
-
-  if APathName <> '' then
-  begin
-    fUtf8PathName := UTF8String(APathName);
-    fPathNamePtr := PAnsiChar(Pointer(fUtf8PathName));
-  end
-  else
-    fPathNamePtr := nil;
-
-  Result := X509_STORE_load_locations(ctx, fFileNamePtr, fPathNamePtr);
+  Result := X509_STORE_load_locations(ctx,
+    PAnsiChar(Pointer(UTF8String(AFileName))),
+    PAnsiChar(Pointer(UTF8String(APathName))));
 end;
 
 function IndySSL_CTX_load_verify_locations(ctx: PSSL_CTX;

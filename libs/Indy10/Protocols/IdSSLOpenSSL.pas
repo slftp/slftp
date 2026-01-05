@@ -1824,17 +1824,15 @@ function IndySSL_load_client_CA_file(const AFileName: String) : PSTACK_OF_X509_N
 {$IFDEF USE_MARSHALLED_PTRS}
 var
   M: TMarshaller;
-{$ELSE}
-var
-  fUtf8FileName: RawUtf8;
 {$ENDIF}
 begin
-  {$IFDEF USE_MARSHALLED_PTRS}
-  Result := SSL_load_client_CA_file(M.AsUtf8(AFileName).ToPointer);
-  {$ELSE}
-  fUtf8FileName := UTF8String(AFileName);
-  Result := SSL_load_client_CA_file(PAnsiChar(Pointer(fUtf8FileName)));
-  {$ENDIF}
+  Result := SSL_load_client_CA_file(
+    {$IFDEF USE_MARSHALLED_PTRS}
+    M.AsUtf8(AFileName).ToPointer
+    {$ELSE}
+    PAnsiChar(UTF8String(AFileName))
+    {$ENDIF}
+  );
 end;
 
 function IndySSL_CTX_use_PrivateKey_file(ctx: PSSL_CTX; const AFileName: String;
@@ -1843,17 +1841,15 @@ function IndySSL_CTX_use_PrivateKey_file(ctx: PSSL_CTX; const AFileName: String;
 {$IFDEF USE_MARSHALLED_PTRS}
 var
   M: TMarshaller;
-{$ELSE}
-var
-  fUtf8FileName: RawUtf8;
 {$ENDIF}
 begin
-  {$IFDEF USE_MARSHALLED_PTRS}
-  Result := SSL_CTX_use_PrivateKey_file(ctx, M.AsUtf8(AFileName).ToPointer, AType);
-  {$ELSE}
-  fUtf8FileName := UTF8String(AFileName);
-  Result := SSL_CTX_use_PrivateKey_file(ctx, PAnsiChar(Pointer(fUtf8FileName)), AType);
-  {$ENDIF}
+  Result := SSL_CTX_use_PrivateKey_file(ctx,
+    {$IFDEF USE_MARSHALLED_PTRS}
+    M.AsUtf8(AFileName).ToPointer
+    {$ELSE}
+    PAnsiChar(UTF8String(AFileName))
+    {$ENDIF}
+    , AType);
 end;
 
 function IndySSL_CTX_use_certificate_file(ctx: PSSL_CTX;
@@ -1862,17 +1858,15 @@ function IndySSL_CTX_use_certificate_file(ctx: PSSL_CTX;
 {$IFDEF USE_MARSHALLED_PTRS}
 var
   M: TMarshaller;
-{$ELSE}
-var
-  fUtf8FileName: RawUtf8;
 {$ENDIF}
 begin
-  {$IFDEF USE_MARSHALLED_PTRS}
-  Result := SSL_CTX_use_certificate_file(ctx, M.AsUtf8(AFileName).ToPointer, AType);
-  {$ELSE}
-  fUtf8FileName := UTF8String(AFileName);
-  Result := SSL_CTX_use_certificate_file(ctx, PAnsiChar(Pointer(fUtf8FileName)), AType);
-  {$ENDIF}
+  Result := SSL_CTX_use_certificate_file(ctx,
+    {$IFDEF USE_MARSHALLED_PTRS}
+    M.AsUtf8(AFileName).ToPointer
+    {$ELSE}
+    PAnsiChar(UTF8String(AFileName))
+    {$ENDIF}
+    , AType);
 end;
 
 function IndySSL_CTX_use_certificate_chain_file(ctx :PSSL_CTX;
@@ -1881,17 +1875,14 @@ function IndySSL_CTX_use_certificate_chain_file(ctx :PSSL_CTX;
 {$IFDEF USE_MARSHALLED_PTRS}
 var
   M: TMarshaller;
-{$ELSE}
-var
-  fUtf8FileName: RawUtf8;
 {$ENDIF}
 begin
-  {$IFDEF USE_MARSHALLED_PTRS}
-  Result := SSL_CTX_use_certificate_chain_file(ctx, M.AsUtf8(AFileName).ToPointer);
-  {$ELSE}
-  fUtf8FileName := UTF8String(AFileName);
-  Result := SSL_CTX_use_certificate_chain_file(ctx, PAnsiChar(Pointer(fUtf8FileName)));
-  {$ENDIF}
+  Result := SSL_CTX_use_certificate_chain_file(ctx,
+    {$IFDEF USE_MARSHALLED_PTRS}
+    M.AsUtf8(AFileName).ToPointer
+    {$ELSE}
+    PAnsiChar(UTF8String(AFileName))
+    {$ENDIF});
 end;
 
 {$IFDEF USE_MARSHALLED_PTRS}
@@ -1913,11 +1904,6 @@ function IndyX509_STORE_load_locations(ctx: PX509_STORE;
 var
   M: TMarshaller;
 {$ENDIF}
-{$IFNDEF USE_MARSHALLED_PTRS}
-var
-  fUtf8FileName, fUtf8PathName: RawUtf8;
-  fFileNamePtr, fPathNamePtr: PAnsiChar;
-{$ENDIF}
 begin
   // RLebeau 4/18/2010: X509_STORE_load_locations() expects nil pointers
   // for unused values, but casting a string directly to a PAnsiChar
@@ -1929,31 +1915,15 @@ begin
   // an empty string, so need to handle nil specially with marshalled
   // strings as well...
   //
-  {$IFDEF USE_MARSHALLED_PTRS}
   Result := X509_STORE_load_locations(ctx,
+    {$IFDEF USE_MARSHALLED_PTRS}
     AsUtf8OrNil(M, AFileName),
     AsUtf8OrNil(M, APathName)
+    {$ELSE}
+    PAnsiChar(Pointer(UTF8String(AFileName))),
+    PAnsiChar(Pointer(UTF8String(APathName)))
+    {$ENDIF}
   );
-  {$ELSE}
-  // Store UTF8 strings in local variables to prevent dangling pointers
-  if AFileName <> '' then
-  begin
-    fUtf8FileName := UTF8String(AFileName);
-    fFileNamePtr := PAnsiChar(Pointer(fUtf8FileName));
-  end
-  else
-    fFileNamePtr := nil;
-
-  if APathName <> '' then
-  begin
-    fUtf8PathName := UTF8String(APathName);
-    fPathNamePtr := PAnsiChar(Pointer(fUtf8PathName));
-  end
-  else
-    fPathNamePtr := nil;
-
-  Result := X509_STORE_load_locations(ctx, fFileNamePtr, fPathNamePtr);
-  {$ENDIF}
 end;
 
 function IndySSL_CTX_load_verify_locations(ctx: PSSL_CTX;
@@ -1985,17 +1955,16 @@ var
   j: Integer;
   {$IFDEF USE_MARSHALLED_PTRS}
   M: TMarshaller;
-  {$ELSE}
-  fUtf8FileName: RawUtf8;
   {$ENDIF}
 begin
   Result := 0;
-  {$IFDEF USE_MARSHALLED_PTRS}
-  B := BIO_new_file(M.AsUtf8(AFileName).ToPointer, 'r');
-  {$ELSE}
-  fUtf8FileName := UTF8String(AFileName);
-  B := BIO_new_file(PAnsiChar(Pointer(fUtf8FileName)), 'r');
-  {$ENDIF}
+  B := BIO_new_file(
+    {$IFDEF USE_MARSHALLED_PTRS}
+    M.AsUtf8(AFileName).ToPointer
+    {$ELSE}
+    PAnsiChar(UTF8String(AFileName))
+    {$ENDIF}
+    , 'r');
   if Assigned(B) then begin
     try
       case AType of
