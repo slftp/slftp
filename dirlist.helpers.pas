@@ -259,7 +259,9 @@ begin
       if fLineToParse = '' then continue;
       if (Length(fLineToParse) > 11) then
       begin
-        if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') and (fLineToParse[11] = ' ')) then
+        // Only process lines that start with 'd' (directory) or '-' (file)
+        // This filters out FTP status messages like "213- status of -l:" or "total 12345"
+        if (fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') then
           continue;
         ParseStatResponseLine(string(fLineToParse), fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
         fParsedDirlistEntry := TParsedDirlistEntry.Create;
