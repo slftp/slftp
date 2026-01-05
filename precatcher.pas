@@ -782,7 +782,6 @@ begin
               MyDebug('Event: ' + KBEventTypeToString(ss.eventtype));
               if not precatcher_debug then
               begin
-                _LogMissingSectionIfNeeded(net, sc.sitename, rls_section, rls, 'ADDPRE', KBEventTypeToString(kbeADDPRE));
                 dbaddpre_ADDPRE(net, chan, nick, rls, ss.section, ts_data.DelimitedText, kbeADDPRE);
               end;
               exit;
