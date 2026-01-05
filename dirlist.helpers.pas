@@ -260,20 +260,42 @@ var
   fParsedDirlistEntry: TParsedDirlistEntry;
   P: PUtf8Char;
   fUtf8Input: RawUtf8;
-  fNormalizedInput: String;
+
+  // Local function to get next line handling CR, LF, and CRLF without string allocations
+  function GetNextLine(var P: PUtf8Char): RawUtf8;
+  var
+    Start: PUtf8Char;
+  begin
+    if (P = nil) or (P^ = #0) then
+    begin
+      Result := '';
+      P := nil;
+      Exit;
+    end;
+
+    Start := P;
+    // Find next CR or LF
+    while (P^ <> #0) and (P^ <> #13) and (P^ <> #10) do
+      Inc(P);
+
+    SetString(Result, Start, P - Start);
+
+    // Skip all CR and LF characters (handles CR, LF, CRLF, LFCR)
+    while (P^ = #13) or (P^ = #10) do
+      Inc(P);
+
+    if P^ = #0 then
+      P := nil;
+  end;
+
 begin
   fParsedDirlistEntries := TObjectList<TParsedDirlistEntry>.Create(True);
   try
-    // Normalize line endings: replace CRLF and CR with LF
-    // This handles both Unix (LF), Windows (CRLF), and Mac (CR) line endings
-    fNormalizedInput := StringReplace(s, #13#10, #10, [rfReplaceAll]);
-    fNormalizedInput := StringReplace(fNormalizedInput, #13, #10, [rfReplaceAll]);
-
-    fUtf8Input := UTF8String(fNormalizedInput);
+    fUtf8Input := UTF8String(s);
     P := Pointer(fUtf8Input);
     while P <> nil do
     begin
-      fLineToParse := Trim(GetNextItem(P, #10));
+      fLineToParse := Trim(GetNextLine(P));
       // tmp contains a single line:
       // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
 
