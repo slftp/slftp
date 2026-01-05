@@ -23,6 +23,7 @@ type
     procedure TestParseStatResponseLineGlftpd2;
     procedure TestParseStatResponseLineDrftpd1;
     procedure TestParseStatResponseLineDrftpd2;
+    procedure TestParseStatResponseLineComplexDirname;
     procedure TestReleaseContainsNFOOnly;
     procedure TestIsValidFilename1;
     procedure TestIsValidFilename2;
@@ -176,6 +177,24 @@ begin
   CheckEquals(27212887049, fFilesize);
   CheckEquals('Apr 7 19:36', fDatum);
   CheckEquals('Disaster.Report.4.Summer.Memories-CODEX', fFilename);
+end;
+
+procedure TTestDirlistHelpers.TestParseStatResponseLineComplexDirname;
+var
+  fTmp: String;
+  fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
+  fFilesize: Int64;
+begin
+  // Test parsing with complex directory name containing special characters and multiple spaces
+  fTmp := 'drwxrwxrwx   2 user1    group1         10 Jan  5 12:20 [::::::::::::::] -   0% Complete - [GRP]';
+  ParseStatResponseLine(fTmp, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
+
+  CheckEquals('drwxrwxrwx', fDirMask);
+  CheckEquals('user1', fUsername);
+  CheckEquals('group1', fGroupname);
+  CheckEquals(10, fFilesize);
+  CheckEquals('Jan 5 12:20', fDatum);
+  CheckEquals('[::::::::::::::] -   0% Complete - [GRP]', fFilename);
 end;
 
 procedure TTestDirlistHelpers.TestReleaseContainsNFOOnly;
