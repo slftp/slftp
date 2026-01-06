@@ -3095,10 +3095,10 @@ end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
-  if fTodotask <> Value then
-  begin
-    site.fFreeSlotsCS.Enter('SetTodotask');
-    try
+  site.fFreeSlotsCS.Enter('SetTodotask');
+  try
+    if fTodotask <> Value then
+    begin
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
@@ -3108,12 +3108,12 @@ begin
       begin
         site.freeslots := site.freeslots + 1;
       end;
-    finally
-      site.fFreeSlotsCS.Leave;
-    end;
 
-    if GetDebugVerbosity = dpSpam then
-      Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+    end;
+  finally
+    site.fFreeSlotsCS.Leave;
   end;
 end;
 
