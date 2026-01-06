@@ -87,6 +87,7 @@ uses
   sitesunitTests,
   precatcherTests,
   slcriticalsection2Tests,
+  dbaddimdbInit,
   imdbDatabaseTests,
   variantCacheTests,
   sltimerTests;

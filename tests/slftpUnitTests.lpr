@@ -65,6 +65,7 @@ uses
   slsslTests,
   sitesunitTests,
   precatcherTests,
+  dbaddimdbInit,
   imdbDatabaseTests,
   slcriticalsection2Tests,
   variantCacheTests,
