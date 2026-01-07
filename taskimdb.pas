@@ -88,6 +88,13 @@ begin
     exit;
   end;
 
+  if mainpazo.IsUDPEnabled then
+  begin
+    ready := True;
+    Result := True;
+    exit;
+  end;
+
   Debug(dpMessage, section, Name);
 
   imdbrls := dbaddimdb_getimdbrls(mainpazo.rls.rlsname);
@@ -164,4 +171,3 @@ end;
 
 
 end.
-

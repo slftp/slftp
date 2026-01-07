@@ -1140,7 +1140,8 @@ begin
   if shot <> nil then
   begin
     try
-      AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
+      if not pazo.IsUDPEnabled then
+        AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
     except
       on e: Exception do
       begin
@@ -1215,7 +1216,8 @@ begin
   if shot <> nil then
   begin
     try
-      AddTask(TPazoGenreNfoTask.Create('', '', shot.Name, pazo, 1));
+      if not pazo.IsUDPEnabled then
+        AddTask(TPazoGenreNfoTask.Create('', '', shot.Name, pazo, 1));
     except
       on e: Exception do
       begin
@@ -1496,15 +1498,18 @@ begin
       end;
 
       // no nfo, start searching nfo
-      for j := pazo.PazoSitesList.Count - 1 downto 0 do
+      if not pazo.IsUDPEnabled then
       begin
-        ps := TPazoSite(pazo.PazoSitesList[j]);
-        try
-          AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
+        for j := pazo.PazoSitesList.Count - 1 downto 0 do
+        begin
+          ps := TPazoSite(pazo.PazoSitesList[j]);
+          try
+            AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
+            end;
           end;
         end;
       end;
@@ -1744,4 +1749,3 @@ begin
 end;
 
 end.
-

@@ -86,6 +86,13 @@ begin
     exit;
   end;
 
+  if mainpazo.IsUDPEnabled then
+  begin
+    ready := True;
+    Result := True;
+    exit;
+  end;
+
   Debug(dpMessage, section, Name);
 
   // mp3genre already known?

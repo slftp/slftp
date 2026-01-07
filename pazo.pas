@@ -303,12 +303,6 @@ begin
   end;
 end;
 
-procedure UdpAdminLog(const aMessage: String);
-begin
-  Debug(dpError, section, '[UDP] %s', [aMessage]);
-  irc_Addadmin('[UDP] ' + aMessage);
-end;
-
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
 begin
@@ -908,12 +902,8 @@ begin
       end
       else
       begin
-        Debug(dpMessage, section, 'UDP notification sent for %s', [rls.rlsname]);
         if FUDPEnabled then
           irc_SendROUTEINFOS(Format('Sending to cbftp: %s %s %s', [rls.section, rls.rlsname, sitelist]));
-        UdpAdminLog(Format('RoutesText: UDP notification sent for %s %s %s', [
-          rls.section, rls.rlsname, sitelist
-        ]));
       end;
     except
       on E: Exception do
@@ -963,7 +953,7 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) and not IsUDPEnabled then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -1106,18 +1096,22 @@ begin
           lastannounceconsole := s;
         end;
 
-        // display race stats on irc
-        s := Stats(False, False);
-        if ((lastannounceirc <> s) and (s <> '')) then
+        // display race stats on irc (skip when UDP is enabled)
+        if not IsUDPEnabled then
         begin
-          irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
-          irc_AddstatsB(Stats(False, True));
-          lastannounceirc := s;
+          s := Stats(False, False);
+          if ((lastannounceirc <> s) and (s <> '')) then
+          begin
+            irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
+            irc_AddstatsB(Stats(False, True));
+            lastannounceirc := s;
+          end;
         end;
       end
       else
       begin
-        irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
+        if not IsUDPEnabled then
+          irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
       end;
     end;
   end;
