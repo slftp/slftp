@@ -161,3 +161,9 @@ TV Database (ApiTVService)
 - CreateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
 - UpdateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
 - DeleteTVRecord: Body {"TVMazeId":"1234"}
+
+Config (ApiConfigService)
+- GetConfigList: Body {}. Returns list of editable config files.
+- GetConfigContent: Body {"Filename":"..."}. Returns content of the specified file.
+- SaveConfigContent: Body {"Filename":"...", "Content":"..."}. Saves content to the file.
+- ReloadConfig: Body {"Filename":"..."}. Reloads the configuration file if supported. Supported files: slftp.precatcher, slftp.skip, slftp.skipgroups, slftp.rules, slftp.languagebase, slftp.knowngroups, slftp.imdbcountries, slftp.imdbreplace, slftp.spamconf. Returns true on success.

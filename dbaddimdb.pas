@@ -236,6 +236,7 @@ var
 procedure dbaddimdbInit;
 procedure dbaddimdbStart;
 procedure dbaddimdbUnInit;
+procedure dbaddimdbReload;
 { Creates HTTP task to fetch IMDB data from API
   @param(aReleaseName Release name)
   @param(aIMDbId IMDB ID) }
@@ -1256,6 +1257,12 @@ begin
   end;
   
   FreeAndNil(dbaddimdb_cs);
+end;
+
+procedure dbaddimdbReload;
+begin
+  dbaddimdbUnInit;
+  dbaddimdbInit;
 end;
 
 function dbaddimdb_parseid(const text: String; out imdbid: String): Boolean;

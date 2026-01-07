@@ -185,3 +185,42 @@ export const fetchBrowserPath = async (site: string, path: string, refresh: bool
   }
   return response.data;
 };
+
+export const fetchConfigList = async (): Promise<string[]> => {
+  const response = await apiClient.post<any>('/ApiConfigService/GetConfigList');
+  if (response.data && response.data.result && Array.isArray(response.data.result)) {
+    return response.data.result[0];
+  }
+  return [];
+};
+
+export const fetchConfigContent = async (filename: string): Promise<string> => {
+  const response = await apiClient.post<any>('/ApiConfigService/GetConfigContent', {
+    Filename: filename
+  });
+  if (response.data && response.data.result && Array.isArray(response.data.result)) {
+    return response.data.result[0];
+  }
+  return '';
+};
+
+export const saveConfigContent = async (filename: string, content: string): Promise<boolean> => {
+  const response = await apiClient.post<any>('/ApiConfigService/SaveConfigContent', {
+    Filename: filename,
+    Content: content
+  });
+  if (response.data && response.data.result && Array.isArray(response.data.result)) {
+    return response.data.result[0];
+  }
+  return false;
+};
+
+export const reloadConfig = async (filename: string): Promise<boolean> => {
+  const response = await apiClient.post<any>('/ApiConfigService/ReloadConfig', {
+    Filename: filename
+  });
+  if (response.data && response.data.result && Array.isArray(response.data.result)) {
+    return response.data.result[0];
+  }
+  return false;
+};

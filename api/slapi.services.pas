@@ -581,6 +581,27 @@ type
     function DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
   end;
 
+  { Config Editor API }
+  IApiConfigService = interface(IInvokable)
+    ['{C3D4E5F6-A7B8-9C0D-1E2F-3A4B5C6D7E8F}']
+
+    /// GET /api/config/files
+    /// Returns list of editable configuration files
+    function GetConfigList: RawJSON;
+
+    /// GET /api/config/content/{filename}
+    /// Returns content of a configuration file
+    function GetConfigContent(const Filename: RawUTF8): RawJSON;
+
+    /// POST /api/config/save
+    /// Saves configuration file content
+    function SaveConfigContent(const Filename, Content: RawUTF8): boolean;
+
+    /// POST /api/config/reload/{filename}
+    /// Triggers reload for specific configuration
+    function ReloadConfig(const Filename: RawUTF8): boolean;
+  end;
+
 implementation
 
 {$I ../slftp.inc}

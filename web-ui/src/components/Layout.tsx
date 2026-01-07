@@ -11,7 +11,14 @@ export function Layout() {
   const location = useLocation();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
 
-  const links = [
+  interface NavLinkItem {
+    icon: any;
+    label: string;
+    to: string;
+    children?: { label: string; to: string }[];
+  }
+
+  const links: NavLinkItem[] = [
     { icon: IconDashboard, label: 'Dashboard', to: '/' },
     { icon: IconFolder, label: 'Browser', to: '/browser' },
     { icon: IconBolt, label: 'PRE', to: '/pre' },
@@ -28,18 +35,44 @@ export function Layout() {
     { icon: IconChartBar, label: 'Stats', to: '/stats' },
   ];
 
-  const items = links.map((link) => (
-    <NavLink
-      key={link.label}
-      active={location.pathname === link.to}
-      label={link.label}
-      leftSection={<link.icon size="1rem" stroke={1.5} />}
-      onClick={() => {
-        navigate(link.to);
-        if (window.innerWidth < 768) toggle(); // Close menu on mobile after click
-      }}
-    />
-  ));
+  const items = links.map((link) => {
+    if (link.children) {
+      return (
+        <NavLink
+          key={link.label}
+          label={link.label}
+          leftSection={<link.icon size="1rem" stroke={1.5} />}
+          childrenOffset={28}
+          defaultOpened={location.pathname.startsWith(link.to)}
+        >
+          {link.children.map((child) => (
+             <NavLink
+               key={child.label}
+               label={child.label}
+               active={location.pathname === child.to}
+               onClick={() => {
+                 navigate(child.to);
+                 if (window.innerWidth < 768) toggle();
+               }}
+             />
+          ))}
+        </NavLink>
+      );
+    }
+
+    return (
+      <NavLink
+        key={link.label}
+        active={location.pathname === link.to}
+        label={link.label}
+        leftSection={<link.icon size="1rem" stroke={1.5} />}
+        onClick={() => {
+          navigate(link.to);
+          if (window.innerWidth < 768) toggle(); // Close menu on mobile after click
+        }}
+      />
+    );
+  });
 
   const handleLogout = () => {
     clearApiToken();

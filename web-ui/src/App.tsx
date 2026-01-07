@@ -10,7 +10,7 @@ import { IRC } from './pages/IRC';
 import { Stats } from './pages/Stats';
 import { Logs } from './pages/Logs';
 import { Issues } from './pages/Issues';
-import { Simulator } from './pages/Simulator';
+import { Tools } from './pages/Tools';
 import { FileBrowser } from './pages/FileBrowser';
 import { Pre } from './pages/Pre';
 import { Races } from './pages/Races';
@@ -47,7 +47,7 @@ function App() {
           <Route path="databases" element={<Databases />} />
           <Route path="routes" element={<RoutesPage />} />
           <Route path="rules" element={<Rules />} />
-          <Route path="tools" element={<Simulator />} />
+          <Route path="tools" element={<Tools />} />
           <Route path="sections" element={<Sections />} />
           <Route path="irc" element={<IRC />} />
           <Route path="stats" element={<Stats />} />

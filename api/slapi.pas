@@ -219,7 +219,8 @@ begin
     TypeInfo(IApiLogService),
     TypeInfo(IApiBrowserService),
     TypeInfo(IApiImdbService),
-    TypeInfo(IApiTVService)
+    TypeInfo(IApiTVService),
+    TypeInfo(IApiConfigService)
   ]);
 
   // Register all service interfaces with their implementations
@@ -239,6 +240,7 @@ begin
   FRestServer.ServiceDefine(TApiBrowserServiceImpl, [IApiBrowserService], sicShared);
   FRestServer.ServiceDefine(TApiImdbServiceImpl, [IApiImdbService], sicShared);
   FRestServer.ServiceDefine(TApiTVServiceImpl, [IApiTVService], sicShared);
+  FRestServer.ServiceDefine(TApiConfigServiceImpl, [IApiConfigService], sicShared);
 
   Debug(dpMessage, rsection, 'API Services registered');
 end;

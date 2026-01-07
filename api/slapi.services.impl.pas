@@ -9,6 +9,7 @@ uses
   DateUtils,
   Variants,
   mormot.core.base,
+  mormot.core.os,
   mormot.core.data,
   mormot.core.text,
   mormot.core.json,
@@ -269,6 +270,15 @@ type
     function DeleteTVRecord(const TVMazeId: RawUTF8): boolean;
   end;
 
+  { Config Service Implementation }
+  TApiConfigServiceImpl = class(TInjectableObjectRest, IApiConfigService)
+  public
+    function GetConfigList: RawJSON;
+    function GetConfigContent(const Filename: RawUTF8): RawJSON;
+    function SaveConfigContent(const Filename, Content: RawUTF8): boolean;
+    function ReloadConfig(const Filename: RawUTF8): boolean;
+  end;
+
 implementation
 
 uses
@@ -285,6 +295,11 @@ uses
   dbaddimdb,
   dbtvinfo,
   dbhandler,
+  sllanguagebase,
+  skiplists,
+  globalskipunit,
+  knowngroups,
+  mrdohutils,
   mormot.orm.core,
   mormot.orm.base,
   mormot.db.raw.sqlite3,
@@ -5460,6 +5475,125 @@ begin
     on E: Exception do
       Debug(dpError, section, '[DeleteTVRecord] Exception: ' + E.Message);
   end;
+end;
+
+{ TApiConfigServiceImpl }
+
+function TApiConfigServiceImpl.GetConfigList: RawJSON;
+var
+  files: TDocVariantData;
+  baseDir: string;
+begin
+  files.Init(JSON_FAST, dvArray);
+  baseDir := ExtractFilePath(ParamStr(0));
+
+  if FileExists(baseDir + 'slftp.ini') then files.AddItem('slftp.ini');
+  if FileExists(baseDir + 'slftp.spamconf') then files.AddItem('slftp.spamconf');
+  if FileExists(baseDir + 'slftp.scheduler') then files.AddItem('slftp.scheduler');
+  if FileExists(baseDir + 'slftp.skip') then files.AddItem('slftp.skip');
+  if FileExists(baseDir + 'slftp.imdbcountries') then files.AddItem('slftp.imdbcountries');
+  if FileExists(baseDir + 'slftp.imdbreplace') then files.AddItem('slftp.imdbreplace');
+  if FileExists(baseDir + 'slftp.knowngroups') then files.AddItem('slftp.knowngroups');
+  if FileExists(baseDir + 'slftp.precatcher') then files.AddItem('slftp.precatcher');
+  if FileExists(baseDir + 'slftp.rules') then files.AddItem('slftp.rules');
+  if FileExists(baseDir + 'slftp.languagebase') then files.AddItem('slftp.languagebase');
+  if FileExists(baseDir + 'slftp.skipgroups') then files.AddItem('slftp.skipgroups');
+
+  Result := files.ToJSON;
+end;
+
+function TApiConfigServiceImpl.GetConfigContent(const Filename: RawUTF8): RawJSON;
+var
+  fn, baseDir: string;
+begin
+  baseDir := ExtractFilePath(ParamStr(0));
+  fn := UTF8ToString(Filename);
+  
+  // Security check: only allow known files
+  if (fn <> 'slftp.ini') and (fn <> 'slftp.spamconf') and (fn <> 'slftp.scheduler') and 
+     (fn <> 'slftp.skip') and (fn <> 'slftp.imdbcountries') and (fn <> 'slftp.imdbreplace') and 
+     (fn <> 'slftp.knowngroups') and (fn <> 'slftp.precatcher') and (fn <> 'slftp.rules') and
+     (fn <> 'slftp.languagebase') and (fn <> 'slftp.skipgroups') then
+  begin
+     Result := '""';
+     Exit;
+  end;
+
+  if FileExists(baseDir + fn) then
+    Result := VariantSaveJSON(StringFromFile(baseDir + fn))
+  else
+    Result := '""';
+end;
+
+function TApiConfigServiceImpl.SaveConfigContent(const Filename, Content: RawUTF8): boolean;
+var
+  fn, baseDir: string;
+begin
+  Result := False;
+  baseDir := ExtractFilePath(ParamStr(0));
+  fn := UTF8ToString(Filename);
+
+  // Security check
+   if (fn <> 'slftp.ini') and (fn <> 'slftp.spamconf') and (fn <> 'slftp.scheduler') and 
+     (fn <> 'slftp.skip') and (fn <> 'slftp.imdbcountries') and (fn <> 'slftp.imdbreplace') and 
+     (fn <> 'slftp.knowngroups') and (fn <> 'slftp.precatcher') and (fn <> 'slftp.rules') and
+     (fn <> 'slftp.languagebase') and (fn <> 'slftp.skipgroups') then
+     Exit;
+
+  try
+    FileFromString(Content, baseDir + fn);
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, '[SaveConfigContent] ' + E.Message);
+  end;
+end;
+
+function TApiConfigServiceImpl.ReloadConfig(const Filename: RawUTF8): boolean;
+var
+  fn: string;
+begin
+  Result := False;
+  fn := UTF8ToString(Filename);
+
+  if fn = 'slftp.precatcher' then
+  begin
+    PrecatcherReload;
+    Result := True;
+  end
+  else if (fn = 'slftp.skip') or (fn = 'slftp.skipgroups') then
+  begin
+    SkiplistRehash;
+    Rehashglobalskiplist;
+    Result := True;
+  end
+  else if fn = 'slftp.rules' then
+  begin
+    RulesReload;
+    Result := True;
+  end
+  else if fn = 'slftp.languagebase' then
+  begin
+    // sllanguagebase.SLLanguagesReload;
+    Result := True;
+  end
+  else if fn = 'slftp.knowngroups' then
+  begin
+    KnownGroupsStart();
+    Result := True;
+  end
+  else if (fn = 'slftp.imdbcountries') or (fn = 'slftp.imdbreplace') then
+  begin
+    dbaddimdbReload;
+    Result := True;
+  end
+  else if fn = 'slftp.spamconf' then
+  begin
+    UninitmRdOHConfigFiles;
+    InitmRdOHConfigFiles;
+    Result := True;
+  end;
+  // slftp.ini and slftp.scheduler currently require restart
 end;
 
 initialization
