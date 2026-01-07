@@ -903,7 +903,7 @@ begin
       else
       begin
         if FUDPEnabled then
-          irc_SendROUTEINFOS(Format('Sending to cbftp: %s %s %s', [rls.section, rls.rlsname, sitelist]));
+          irc_SendROUTEINFOS(Format('<c10>[<b>CBFTP</b>]</c> Sending to cbftp: %s %s %s', [rls.section, rls.rlsname, sitelist]));
       end;
     except
       on E: Exception do

@@ -193,6 +193,19 @@ var
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
 
+  function IsUDPEnabled: Boolean;
+  var
+    rawEnable: String;
+    udpIp: String;
+    udpPort: Integer;
+  begin
+    rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+    udpIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+    udpPort := config.ReadInteger('UDPConfig', 'Port', 0);
+    Result := (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) and
+      (udpIp <> '') and (udpPort >= 1) and (udpPort <= 65535);
+  end;
+
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
   begin
@@ -419,8 +432,9 @@ begin
       if (event = kbeCOMPLETE) then
       begin
         // complet an old rls not in kb
-        irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
-          [section, rls, '<b>' + sitename + '</b>']));
+        if not IsUDPEnabled then
+          irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
+            [section, rls, '<b>' + sitename + '</b>']));
         exit;
       end;
 
