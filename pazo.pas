@@ -231,6 +231,7 @@ type
     function AsText: String;
     { Show headline for [ROUTES] announce and print infos for each item in @link(PazoSitesList) if different then previous @link(lastannounceroutes) }
     function RoutesText: String;
+    function IsUDPEnabled: Boolean;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
     constructor Create(const rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
@@ -273,6 +274,40 @@ var
   local_pazo_id: integer;
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
+
+function RlsStatusToString(const aStatus: TRlsSiteStatus): String;
+begin
+  case aStatus of
+    rssNotAllowed: Result := 'not_allowed';
+    rssNotAllowedButItsThere: Result := 'not_allowed_present';
+    rssAllowed: Result := 'allowed';
+    rssShouldPre: Result := 'should_pre';
+    rssRealPre: Result := 'real_pre';
+    rssComplete: Result := 'complete';
+    rssNuked: Result := 'nuked';
+  else
+    Result := 'unknown';
+  end;
+end;
+
+function SiteStatusToString(const aStatus: TSiteStatus): String;
+begin
+  case aStatus of
+    sstUnknown: Result := 'unknown';
+    sstUp: Result := 'up';
+    sstDown: Result := 'down';
+    sstTempDown: Result := 'tempdown';
+    sstMarkedAsDownByUser: Result := 'markeddown';
+  else
+    Result := 'other';
+  end;
+end;
+
+procedure UdpAdminLog(const aMessage: String);
+begin
+  Debug(dpError, section, '[UDP] %s', [aMessage]);
+  irc_Addadmin('[UDP] ' + aMessage);
+end;
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -742,6 +777,13 @@ begin
     Result := SecondsBetween(Now, added);
 end;
 
+function TPazo.IsUDPEnabled: Boolean;
+begin
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+  Result := FUDPEnabled;
+end;
+
 function TPazo.AsText: String;
 var
   ps: TPazoSite;
@@ -804,7 +846,9 @@ begin
       s := FindSiteByName('', ps.Name);
       if (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) or
          ((s <> nil) and (s.WorkingStatus = sstMarkedAsDownByUser)) then
+      begin
         sitelist := sitelist + ps.Name + ',';
+      end;
     end;
 
     if sitelist <> '' then
@@ -865,7 +909,11 @@ begin
       else
       begin
         Debug(dpMessage, section, 'UDP notification sent for %s', [rls.rlsname]);
-        irc_SendROUTEINFOS(Format('Sending to cbftp: %s %s %s', [rls.section, rls.rlsname, sitelist]));
+        if FUDPEnabled then
+          irc_SendROUTEINFOS(Format('Sending to cbftp: %s %s %s', [rls.section, rls.rlsname, sitelist]));
+        UdpAdminLog(Format('RoutesText: UDP notification sent for %s %s %s', [
+          rls.section, rls.rlsname, sitelist
+        ]));
       end;
     except
       on E: Exception do
@@ -1231,12 +1279,12 @@ begin
       s := TSite(sitesunit.sites[i]);
       if (not FUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp])) then
         Continue;
-      if s.PermDown then
+      if (not FUDPEnabled) and s.PermDown then
         Continue;
       if aIsSpreadJob then
       begin
         if s.SkipPre then
-          Continue;
+        Continue;
       end;
 
       sectiondir := s.sectiondir[rls.section];

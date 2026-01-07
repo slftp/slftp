@@ -796,7 +796,8 @@ begin
   ss := p.RoutesText;
   if ss <> '' then
   begin
-    irc_SendROUTEINFOS(ss);
+    if not p.IsUDPEnabled then
+      irc_SendROUTEINFOS(ss);
   end;
 
   if (psource <> nil) and (psource.Status = rssNotAllowed) then
@@ -875,13 +876,21 @@ function kb_Add(const netname, channel, sitename, section, genre: String; event:
 begin
   Result := 0;
   if (Trim(sitename) = '') then
+  begin
     exit;
+  end;
   if (Trim(section) = '') then
+  begin
     exit;
+  end;
   if (Trim(rls) = '') then
+  begin
     exit;
+  end;
   if section = 'TRASH' then
+  begin
     exit;
+  end;
 
   try
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
