@@ -774,6 +774,7 @@ var
   udpMessage: RawUtf8;
   destAddr: TNetAddr;
   res: TNetResult;
+  s: TSite;
 begin
   if rls = nil then
   begin
@@ -800,7 +801,9 @@ begin
   begin
     for ps in PazoSitesList do
     begin
-      if ps.status in [rssAllowed, rssShouldPre, rssRealPre] then
+      s := FindSiteByName('', ps.Name);
+      if (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) or
+         ((s <> nil) and (s.WorkingStatus = sstMarkedAsDownByUser)) then
         sitelist := sitelist + ps.Name + ',';
     end;
 
@@ -860,7 +863,10 @@ begin
         lastannounceroutes := '';
       end
       else
+      begin
         Debug(dpMessage, section, 'UDP notification sent for %s', [rls.rlsname]);
+        irc_SendROUTEINFOS(Format('Sending to cbftp: %s %s %s', [rls.section, rls.rlsname, sitelist]));
+      end;
     except
       on E: Exception do
       begin
@@ -1215,6 +1221,9 @@ var
   sectiondir: String;
   ps: TPazoSite;
 begin
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+
   Result := False;
   for i := sitesunit.sites.Count - 1 downto 0 do
   begin
