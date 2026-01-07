@@ -14,7 +14,7 @@ uses
 const
   slDefaultTimeout = 10000; // default timeout is 10 seconds
   slDefaultBacklog = 30;
-  slBufferSize = 16384;
+  slBufferSize = 32768; // 32KB - optimized for FTP transfers (previously 16KB)
   slLF = #10;
   slCR = #13;
   slEOL = slCR + slLF;
