@@ -477,6 +477,8 @@ var
   s: TSite;
   fd: String;
 begin
+  if pazo.FUDPEnabled then exit(False);
+
   Result := False;
   dst := nil;
   dstdl := nil;
@@ -975,6 +977,8 @@ begin
   FUDPPort := 0;
   FUDPPassword := '';
 
+  LoadUDPConfig;
+
   inherited Create;
 end;
 
@@ -1216,7 +1220,7 @@ begin
   begin
     try
       s := TSite(sitesunit.sites[i]);
-      if not (s.WorkingStatus in [sstUnknown, sstUp]) then
+      if (not FUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp])) then
         Continue;
       if s.PermDown then
         Continue;
