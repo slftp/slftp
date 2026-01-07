@@ -2939,6 +2939,13 @@ begin
           exit;
         if not Read('PRET RETR %s') then
           exit;
+
+        if (lastResponseCode < 200) Or (lastResponseCode > 299) then
+        begin
+          irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: PRET Error on %s: %s', [site.name, Trim(lastResponse)]);
+          Result := -1;
+          exit;
+        end;
       end;
 
       if not Send('PASV') then
@@ -3017,6 +3024,7 @@ begin
       if not Read() then
         exit;
 
+      irc_SendRACESTATS(Format('LEECH : %s %s', [site.Name, filename]));
       Result := 1;
     finally
       if idTCP <> nil then
