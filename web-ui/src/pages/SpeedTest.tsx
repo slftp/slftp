@@ -613,7 +613,7 @@ export function SpeedTest() {
                       <Table.Th>Destination</Table.Th>
                       <Table.Th>Speed</Table.Th>
                       <Table.Th>Amount</Table.Th>
-                      <Table.Th>Time</Table.Th>
+                      <Table.Th style={{ width: 1, whiteSpace: 'nowrap' }}>Time</Table.Th>
                       <Table.Th>Started</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -647,11 +647,11 @@ export function SpeedTest() {
                               <Text c="dimmed">-</Text>
                             )}
                           </Table.Td>
-                          <Table.Td>{r.time || '-'}</Table.Td>
-                          <Table.Td>
-                            <Group gap={4}>
+                          <Table.Td style={{ whiteSpace: 'nowrap' }}>{r.time || '-'}</Table.Td>
+                          <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                            <Group gap={4} style={{ whiteSpace: 'nowrap' }}>
                               <IconClock size={14} />
-                              <Text size="xs">{r.startTime}</Text>
+                              <Text size="xs" style={{ whiteSpace: 'nowrap' }}>{r.startTime}</Text>
                             </Group>
                           </Table.Td>
                         </Table.Tr>

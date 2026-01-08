@@ -324,8 +324,8 @@ export function Issues() {
             <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Time</Table.Th>
-                  <Table.Th style={{ width: 120 }}>Type</Table.Th>
+                  <Table.Th style={{ width: 1, whiteSpace: 'nowrap' }}>Time</Table.Th>
+                  <Table.Th style={{ minWidth: 90, whiteSpace: 'nowrap' }}>Type</Table.Th>
                   <Table.Th>Section</Table.Th>
                   <Table.Th>Release</Table.Th>
                   <Table.Th>Site</Table.Th>
@@ -337,13 +337,20 @@ export function Issues() {
               <Table.Tbody>
                 {filtered.map((i) => (
                   <Table.Tr key={`${i.Id}`}>
-                    <Table.Td>
-                      <Text size="xs">
-                        {i.TsUnix ? new Date(i.TsUnix * 1000).toLocaleString() : ''}
+                    <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                      <Text size="xs" style={{ whiteSpace: 'nowrap' }}>
+                        {i.TsUnix
+                          ? `${new Date(i.TsUnix * 1000).toLocaleDateString()} ${new Date(i.TsUnix * 1000).toLocaleTimeString()}`
+                          : ''}
                       </Text>
                     </Table.Td>
-                    <Table.Td>
-                      <Badge color={typeColor(i.IssueType)} variant="light" size="sm" style={{ whiteSpace: 'nowrap' }}>
+                    <Table.Td style={{ minWidth: 90, whiteSpace: 'nowrap' }}>
+                      <Badge
+                        color={typeColor(i.IssueType)}
+                        variant="light"
+                        size="sm"
+                        style={{ whiteSpace: 'nowrap', maxWidth: 'none' }}
+                      >
                         {i.IssueType}
                       </Badge>
                     </Table.Td>

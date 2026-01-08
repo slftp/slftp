@@ -160,7 +160,7 @@ export function Races() {
             <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th style={{ width: 180 }}>Time</Table.Th>
+                  <Table.Th style={{ width: 1, whiteSpace: 'nowrap' }}>Time</Table.Th>
                   <Table.Th>From → To</Table.Th>
                   <Table.Th>Release / File</Table.Th>
                   <Table.Th style={{ width: 120 }}>Section</Table.Th>
@@ -170,8 +170,12 @@ export function Races() {
               <Table.Tbody>
                 {filtered.map((r) => (
                   <Table.Tr key={`${r.Id}`}>
-                    <Table.Td>
-                      <Text size="xs">{r.TsUnix ? new Date(r.TsUnix * 1000).toLocaleString() : ''}</Text>
+                    <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                      <Text size="xs" style={{ whiteSpace: 'nowrap' }}>
+                        {r.TsUnix
+                          ? `${new Date(r.TsUnix * 1000).toLocaleDateString()} ${new Date(r.TsUnix * 1000).toLocaleTimeString()}`
+                          : ''}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Group gap={6} wrap="nowrap">
@@ -249,7 +253,7 @@ export function Races() {
                 <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th style={{ width: 180 }}>Time</Table.Th>
+                      <Table.Th style={{ width: 1, whiteSpace: 'nowrap' }}>Time</Table.Th>
                       <Table.Th>From → To</Table.Th>
                       <Table.Th style={{ width: 120 }}>Section</Table.Th>
                       <Table.Th>File</Table.Th>
@@ -259,8 +263,12 @@ export function Races() {
                   <Table.Tbody>
                     {releaseTransfers.map((t) => (
                       <Table.Tr key={`rel-${t.Id}`}>
-                        <Table.Td>
-                          <Text size="xs">{t.TsUnix ? new Date(t.TsUnix * 1000).toLocaleString() : ''}</Text>
+                        <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                          <Text size="xs" style={{ whiteSpace: 'nowrap' }}>
+                            {t.TsUnix
+                              ? `${new Date(t.TsUnix * 1000).toLocaleDateString()} ${new Date(t.TsUnix * 1000).toLocaleTimeString()}`
+                              : ''}
+                          </Text>
                         </Table.Td>
                         <Table.Td>
                           <Group gap={6} wrap="nowrap">
