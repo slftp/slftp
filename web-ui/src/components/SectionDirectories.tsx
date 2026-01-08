@@ -84,6 +84,56 @@ export function SectionDirectories() {
     refetchOnReconnect: false,
   });
 
+  const { data: availableSectionsData } = useQuery({
+    queryKey: ['sections-available'],
+    queryFn: async () => {
+      const res = await apiClient.post('/ApiSitesService/GetAvailableSections', {});
+      let available: string[] = [];
+      try {
+        if (typeof res.data === 'string') {
+          available = JSON.parse(res.data);
+        } else if (Array.isArray(res.data)) {
+          available = res.data;
+        } else if (res.data.result) {
+          const resultData = Array.isArray(res.data.result) ? res.data.result[0] : res.data.result;
+          if (typeof resultData === 'string') {
+            available = JSON.parse(resultData);
+          } else if (Array.isArray(resultData)) {
+            available = resultData;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse available sections:', e);
+        return [];
+      }
+      return available;
+    },
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  useEffect(() => {
+    if (!availableSectionsData || availableSectionsData.length === 0) return;
+    setSectionDirs(prev => {
+      const next = { ...prev };
+      for (const section of availableSectionsData) {
+        if (!(section in next)) {
+          next[section] = '';
+        }
+      }
+      return next;
+    });
+    setOriginalDirs(prev => {
+      const next = { ...prev };
+      for (const section of availableSectionsData) {
+        if (!(section in next)) {
+          next[section] = '';
+        }
+      }
+      return next;
+    });
+  }, [availableSectionsData, sectionsData]);
+
   const saveAllMutation = useMutation({
     mutationFn: async () => {
       const changes = Object.keys(sectionDirs).filter(
@@ -125,12 +175,31 @@ export function SectionDirectories() {
   const filteredSections = useMemo(() => {
     if (!sectionsData) return [];
 
-    let data = sectionsData;
+    const available = availableSectionsData || [];
+    const combined: SectionData[] = [];
+    const seen = new Set<string>();
+
+    for (const section of available) {
+      combined.push({ section, dir: sectionDirs[section] || '' });
+      seen.add(section);
+    }
+
+    for (const sectionData of sectionsData) {
+      if (!seen.has(sectionData.section)) {
+        combined.push({
+          section: sectionData.section,
+          dir: sectionDirs[sectionData.section] || sectionData.dir || '',
+        });
+        seen.add(sectionData.section);
+      }
+    }
+
+    let data = combined.length > 0 ? combined : sectionsData;
 
     if (showOnlySet) {
       data = data.filter(s => {
-        const dir = sectionDirs[s.section];
-        return dir && dir.trim().length > 0;
+        const dir = sectionDirs[s.section] || s.dir || '';
+        return dir.trim().length > 0;
       });
     }
 
@@ -138,7 +207,7 @@ export function SectionDirectories() {
 
     const query = searchQuery.toLowerCase();
     return data.filter(s => s.section.toLowerCase().includes(query));
-  }, [sectionsData, searchQuery, showOnlySet, sectionDirs]);
+  }, [sectionsData, availableSectionsData, searchQuery, showOnlySet, sectionDirs]);
 
   const hasChanges = useMemo(() => {
     return Object.keys(sectionDirs).some(
