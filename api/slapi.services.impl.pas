@@ -5755,9 +5755,7 @@ end;
 
 function GetHelpDocsRoot: string;
 begin
-  Result := '/mnt/webui_dev/docs';
-  if not DirectoryExists(Result) then
-    Result := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + 'docs';
+  Result := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + 'docs';
 end;
 
 function IsHelpDocNameSafe(const Name: string): boolean;
