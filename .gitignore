@@ -77,3 +77,4 @@ lib/*
 
 # Gitlab autobuilder
 .gitlab-ci.yml
+CLAUDE.md

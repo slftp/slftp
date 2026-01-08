@@ -65,7 +65,7 @@ implementation
 
 uses
   SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
-  inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
+  inifiles, DebugUnit, StrUtils, configunit, FLRE, globalskipunit, dbaddpre,
   console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
@@ -804,31 +804,45 @@ end;
 
 procedure ProcessMappings(s: String);
 var
-  db, i: integer;
+  db, i, j: integer;
   ss: String;
-  rx: TRegExpr;
+  rx: TFLRE;
+  rx_captures: TFLREMultiCaptures;
+  fUtf8Ss: RawByteString;
 begin
   if IsLineCommentedOut(s) then
   begin
     exit;
   end;
 
-  rx := TRegExpr.Create;
+  // Use FLRE.TFLREFlag to avoid naming conflict with SysUtils.TReplaceFlags
+  rx := TFLRE.Create('(\/.*?\/i?)', [FLRE.rfIGNORECASE]);
   try
-    rx.ModifierI := True;
-
     if Count(';', s) = 2 then
     begin
       ss := SubString(s, ';', 3);
-      rx.Expression := '(\/.*?\/i?)';
-      if rx.Exec(ss) then
+      fUtf8Ss := RawByteString(ss);
+
+      // Migrated to FLRE for performance
+      if rx.MatchAll(fUtf8Ss, rx_captures) then
       begin
-        repeat
-          mappingslist.Add(TMap.Create(UpperCase(SubString(s, ';', 1)), UpperCase(SubString(s, ';', 2)), rx.Match[1]));
-        until not rx.ExecNext;
+        // Extract all regex patterns found in the mapping
+        for j := 0 to High(rx_captures) do
+        begin
+          if Length(rx_captures[j]) >= 2 then
+          begin
+            mappingslist.Add(TMap.Create(
+              UpperCase(SubString(s, ';', 1)),
+              UpperCase(SubString(s, ';', 2)),
+              string(Copy(fUtf8Ss, rx_captures[j][1].Start, rx_captures[j][1].Length))
+            ));
+          end;
+        end;
+        SetLength(rx_captures, 0);
       end
       else
       begin
+        // No regex pattern found, use comma-separated values
         db := Count(',', ss);
         for i := 1 to db + 1 do
           mappingslist.Add(TMap.Create(UpperCase(SubString(s, ';', 1)), UpperCase(SubString(s, ';', 2)), SubString(ss, ',', i)));
