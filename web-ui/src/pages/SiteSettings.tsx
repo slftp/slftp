@@ -57,6 +57,15 @@ export function SiteSettings() {
   const [country, setCountry] = useState('');
   const [skipUploaded, setSkipUploaded] = useState<string>('0');
   const [killOnStalled, setKillOnStalled] = useState<number | ''>('');
+  const [sslMethod, setSslMethod] = useState('0');
+  const [sslFxp, setSslFxp] = useState('0');
+  const [maxUpPerRip, setMaxUpPerRip] = useState<number | ''>(0);
+  const [siteFullName, setSiteFullName] = useState('');
+  const [siteLinkSpeed, setSiteLinkSpeed] = useState('');
+  const [siteSize, setSiteSize] = useState('');
+  const [siteNotes, setSiteNotes] = useState('');
+  const [identResponse, setIdentResponse] = useState('');
+  const [siteInfos, setSiteInfos] = useState('');
 
   const resolveDnsMutation = useMutation({
     mutationFn: async (host: string) => {
@@ -105,6 +114,15 @@ export function SiteSettings() {
       setCountry(siteInfo.Country || '');
       setSkipUploaded(String(siteInfo.SkipBeingUploadedFiles ?? 0));
       setKillOnStalled(siteInfo.KillConnectionOnStalledTransferSeconds ?? 0);
+      setSslMethod(String(siteInfo.SslMethod ?? 0));
+      setSslFxp(String(siteInfo.SslFxp ?? 0));
+      setMaxUpPerRip(siteInfo.MaxUpPerRip ?? 0);
+      setSiteFullName(siteInfo.SiteFullName || '');
+      setSiteLinkSpeed(siteInfo.SiteLinkSpeed || '');
+      setSiteSize(siteInfo.SiteSize || '');
+      setSiteNotes(siteInfo.SiteNotes || '');
+      setIdentResponse(siteInfo.Ident || '');
+      setSiteInfos(siteInfo.SiteInfos || '');
     }
   }, [siteInfo]);
 
@@ -154,8 +172,9 @@ export function SiteSettings() {
       await apiClient.post('/ApiSitesService/SetSiteAutoRules', { SiteName: siteName, IntervalSeconds: Number(autoRulesInterval) });
       await apiClient.post('/ApiSitesService/SetSiteAffils', { SiteName: siteName, Affils: affils });
       await apiClient.post('/ApiSitesService/SetSiteIrcNick', { SiteName: siteName, IrcNick: ircnick });
-      await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: siteName, Username: username, Password: password, BncsJson: JSON.stringify(bncs), MaxIdle: Number(maxIdle), IdleInterval: Number(idleInterval), LegacyCwd: legacyCwd });
+      await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: siteName, Username: username, Password: password, BncsJson: JSON.stringify(bncs), MaxIdle: Number(maxIdle), IdleInterval: Number(idleInterval), LegacyCwd: legacyCwd, SslFxp: Number(sslFxp) });
       await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: siteName, Status: status });
+      await apiClient.post('/ApiSitesService/SetSiteSslMethod', { SiteName: siteName, SslMethod: Number(sslMethod) });
       
       // New Config endpoint
       await apiClient.post('/ApiSitesService/SetSiteConfig', { 
@@ -167,7 +186,14 @@ export function SiteSettings() {
               autonuke: Number(autoNuke),
               country: country,
               skip_being_uploaded_files: Number(skipUploaded),
-              kill_connection_on_stalled_transfer: Number(killOnStalled)
+              kill_connection_on_stalled_transfer: Number(killOnStalled),
+              maxupperrip: Number(maxUpPerRip),
+              site_full_name: siteFullName,
+              site_link_speed: siteLinkSpeed,
+              site_size: siteSize,
+              site_notes: siteNotes,
+              ident_response: identResponse,
+              site_infos: siteInfos
           }
       });
     },
@@ -238,18 +264,6 @@ export function SiteSettings() {
                             onChange={(e) => setPassword(e.currentTarget.value)}
                             placeholder="Leave empty to keep current"
                         />
-                        <TextInput
-                            label="IRC Nick"
-                            value={ircnick}
-                            onChange={(e) => setIrcNick(e.currentTarget.value)}
-                            placeholder="YourNick"
-                        />
-                        <TextInput
-                            label="Country"
-                            value={country}
-                            onChange={(e) => setCountry(e.currentTarget.value)}
-                            placeholder=".DE"
-                        />
                         <Select
                             label="Status"
                             data={[
@@ -291,6 +305,12 @@ export function SiteSettings() {
                             min={0}
                             onChange={(val) => setMaxUp(val === '' ? '' : Number(val))}
                         />
+                        <NumberInput
+                            label="Max Up per RIP"
+                            value={maxUpPerRip}
+                            min={0}
+                            onChange={(val) => setMaxUpPerRip(val === '' ? '' : Number(val))}
+                        />
                     </SimpleGrid>
                 </div>
 
@@ -327,10 +347,31 @@ export function SiteSettings() {
                             min={0}
                             onChange={(val) => setKillOnStalled(val === '' ? '' : Number(val))}
                         />
+                        <Select
+                            label="SSLFXP"
+                            value={sslFxp}
+                            onChange={(val) => setSslFxp(val || '0')}
+                            data={[
+                                { value: '0', label: 'Off' },
+                                { value: '1', label: 'On' },
+                                { value: '2', label: 'Unsupported' }
+                            ]}
+                        />
+                        <Select
+                            label="SSL Method"
+                            value={sslMethod}
+                            onChange={(val) => setSslMethod(val || '0')}
+                            data={[
+                                { value: '0', label: 'Off' },
+                                { value: '1', label: 'Implicit SSL' },
+                                { value: '2', label: 'AUTH SSL' },
+                                { value: '3', label: 'AUTH TLS' }
+                            ]}
+                        />
                     </SimpleGrid>
                     <Group mt="md">
                         <Switch label="Auto-Login" checked={autoLogin} onChange={(e) => setAutoLogin(e.currentTarget.checked)} />
-                        <Switch label="Legacy CWD (glftpd v2)" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
+                        <Switch label="Legacy CWD" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
                         <Switch label="Permanent Down" checked={permDown} color="red" onChange={(e) => setPermDown(e.currentTarget.checked)} />
                     </Group>
                 </div>
@@ -345,6 +386,60 @@ export function SiteSettings() {
                     placeholder="GRP1 GRP2"
                     minRows={3}
                 />
+
+                <Divider />
+
+                <div>
+                    <Text size="sm" fw={500} c="dimmed" mb={8}>Site Details</Text>
+                    <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
+                        <TextInput
+                            label="IRC Nick"
+                            value={ircnick}
+                            onChange={(e) => setIrcNick(e.currentTarget.value)}
+                            placeholder="YourNick"
+                        />
+                        <TextInput
+                            label="Country"
+                            value={country}
+                            onChange={(e) => setCountry(e.currentTarget.value)}
+                            placeholder=".DE"
+                        />
+                        <TextInput
+                            label="Ident Response"
+                            value={identResponse}
+                            onChange={(e) => setIdentResponse(e.currentTarget.value)}
+                        />
+                        <TextInput
+                            label="Full Name"
+                            value={siteFullName}
+                            onChange={(e) => setSiteFullName(e.currentTarget.value)}
+                        />
+                        <TextInput
+                            label="Link Speed"
+                            value={siteLinkSpeed}
+                            onChange={(e) => setSiteLinkSpeed(e.currentTarget.value)}
+                        />
+                        <TextInput
+                            label="Site Size"
+                            value={siteSize}
+                            onChange={(e) => setSiteSize(e.currentTarget.value)}
+                        />
+                    </SimpleGrid>
+                    <Textarea
+                        label="Notes"
+                        value={siteNotes}
+                        onChange={(e) => setSiteNotes(e.currentTarget.value)}
+                        minRows={3}
+                        mt="md"
+                    />
+                    <Textarea
+                        label="Site Infos"
+                        value={siteInfos}
+                        onChange={(e) => setSiteInfos(e.currentTarget.value)}
+                        minRows={3}
+                        mt="md"
+                    />
+                </div>
             </Stack>
         </Paper>
 

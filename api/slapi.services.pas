@@ -163,6 +163,10 @@ type
                                 LegacyCwd: boolean;
                                 SslFxp: integer): boolean;
 
+    /// PATCH /api/sites/{name}/sslmethod
+    /// Sets SSL method (0=Off, 1=Implicit SSL, 2=AUTH SSL, 3=AUTH TLS)
+    function SetSiteSslMethod(const SiteName: RawUTF8; SslMethod: integer): boolean;
+
     /// POST /api/sites/{name}/config
     /// Sets various site configuration options (autobnctest, autodirlist, country, etc.)
     function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;

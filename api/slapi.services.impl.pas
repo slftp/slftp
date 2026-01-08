@@ -96,6 +96,7 @@ type
                                 MaxIdle, IdleInterval: integer;
                                 LegacyCwd: boolean;
                                 SslFxp: integer): boolean;
+    function SetSiteSslMethod(const SiteName: RawUTF8; SslMethod: integer): boolean;
     function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
@@ -1582,6 +1583,7 @@ begin
     Info.Slots := s.slots.Count;
     Info.FreeSlots := s.freeslots;
     Info.SslEnabled := (s.RCInteger('sslfxp', 0) > 0);
+    Info.SslMethod := integer(s.sslmethod);
 
     Result := True;
   except
@@ -2400,6 +2402,7 @@ begin
     Info.Slots := s.slots.Count;
     Info.FreeSlots := s.freeslots;
     Info.SslEnabled := (s.RCInteger('sslfxp', 0) > 0);
+    Info.SslMethod := integer(s.sslmethod);
     Info.SslFxp := s.RCInteger('sslfxp', 0);
 
     bncsArray.InitFast(dvArray);
@@ -2431,6 +2434,13 @@ begin
     Info.Country := UTF8Encode(s.Country);
     Info.SkipBeingUploadedFiles := Integer(s.SkipBeingUploadedFiles);
     Info.KillConnectionOnStalledTransferSeconds := s.KillConnectionOnStalledTransferSeconds;
+    Info.SiteFullName := UTF8Encode(s.SiteFullName);
+    Info.SiteLinkSpeed := UTF8Encode(s.SiteLinkSpeed);
+    Info.SiteSize := UTF8Encode(s.SiteSize);
+    Info.SiteNotes := UTF8Encode(s.SiteNotes);
+    Info.Ident := UTF8Encode(s.Ident);
+    Info.SiteInfos := UTF8Encode(s.SiteInfos);
+    Info.MaxUpPerRip := s.MaxUpPerRip;
 
     Result := True;
   except
@@ -2462,6 +2472,13 @@ begin
     if data.GetValueIndex('country') >= 0 then s.Country := string(data.GetValueOrNull('country'));
     if data.GetValueIndex('skip_being_uploaded_files') >= 0 then s.SkipBeingUploadedFiles := TSkipBeingUploaded(Integer(data.GetValueOrNull('skip_being_uploaded_files')));
     if data.GetValueIndex('kill_connection_on_stalled_transfer') >= 0 then s.KillConnectionOnStalledTransferSeconds := data.GetValueOrNull('kill_connection_on_stalled_transfer');
+    if data.GetValueIndex('maxupperrip') >= 0 then s.MaxUpPerRip := data.GetValueOrNull('maxupperrip');
+    if data.GetValueIndex('site_full_name') >= 0 then s.SiteFullName := string(data.GetValueOrNull('site_full_name'));
+    if data.GetValueIndex('site_link_speed') >= 0 then s.SiteLinkSpeed := string(data.GetValueOrNull('site_link_speed'));
+    if data.GetValueIndex('site_size') >= 0 then s.SiteSize := string(data.GetValueOrNull('site_size'));
+    if data.GetValueIndex('site_notes') >= 0 then s.SiteNotes := string(data.GetValueOrNull('site_notes'));
+    if data.GetValueIndex('ident_response') >= 0 then s.Ident := string(data.GetValueOrNull('ident_response'));
+    if data.GetValueIndex('site_infos') >= 0 then s.SiteInfos := string(data.GetValueOrNull('site_infos'));
 
     Debug(dpMessage, section, Format('SetSiteConfig API: %s updated', [UTF8ToString(SiteName)]));
     Result := True;
@@ -2533,6 +2550,31 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] SetSiteCredentials: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.SetSiteSslMethod(const SiteName: RawUTF8; SslMethod: integer): boolean;
+var
+  s: TSite;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    if (SslMethod < 0) or (SslMethod > Integer(High(TSSLMethods))) then
+      Exit;
+
+    s.sslmethod := TSSLMethods(SslMethod);
+    Debug(dpMessage, section, Format('SetSiteSslMethod API: %s -> %d', [UTF8ToString(SiteName), SslMethod]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteSslMethod: %s', [E.Message]));
       Result := False;
     end;
   end;
