@@ -475,11 +475,11 @@ type
 
     /// POST /api/precatcher/config/validate
     /// Validates precatcher config syntax
-    function ValidatePrecatcherConfig(const Content: RawJSON): RawJSON;
+    function ValidatePrecatcherConfig(const Content: RawUTF8): RawJSON;
 
     /// POST /api/precatcher/config/save
     /// Saves precatcher config with MD5 conflict detection and optional reload
-    function SavePrecatcherConfig(const Content: RawJSON; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
+    function SavePrecatcherConfig(const Content: RawUTF8; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
 
     /// GET /api/precatcher/helpers
     /// Returns helper data (section names, mapping templates) for click-to-insert

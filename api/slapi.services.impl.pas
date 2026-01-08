@@ -215,8 +215,8 @@ type
 	    function GetHits(const Limit: integer; const SinceUnix: Int64;
 	      const ReleaseName: RawUTF8; const SiteName: RawUTF8): RawJSON;
 	    function GetPrecatcherConfig: RawJSON;
-	    function ValidatePrecatcherConfig(const Content: RawJSON): RawJSON;
-	    function SavePrecatcherConfig(const Content: RawJSON; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
+	    function ValidatePrecatcherConfig(const Content: RawUTF8): RawJSON;
+	    function SavePrecatcherConfig(const Content: RawUTF8; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
 	    function GetPrecatcherHelpers: RawJSON;
 	  end;
 
@@ -4827,7 +4827,7 @@ begin
   end;
 end;
 
-function TApiPrecatcherServiceImpl.ValidatePrecatcherConfig(const Content: RawJSON): RawJSON;
+function TApiPrecatcherServiceImpl.ValidatePrecatcherConfig(const Content: RawUTF8): RawJSON;
 var
   lines: TStringList;
   errors: TDocVariantData;
@@ -4972,7 +4972,7 @@ begin
   end;
 end;
 
-function TApiPrecatcherServiceImpl.SavePrecatcherConfig(const Content: RawJSON; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
+function TApiPrecatcherServiceImpl.SavePrecatcherConfig(const Content: RawUTF8; const ExpectedMd5: RawUTF8; Reload: boolean): RawJSON;
 var
   fileName: string;
   currentMd5: RawUTF8;
