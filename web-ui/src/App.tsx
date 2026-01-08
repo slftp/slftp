@@ -15,6 +15,7 @@ import { FileBrowser } from './pages/FileBrowser';
 import { Pre } from './pages/Pre';
 import { Races } from './pages/Races';
 import { Databases } from './pages/Databases';
+import { Help } from './pages/Help';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -48,6 +49,7 @@ function App() {
           <Route path="routes" element={<RoutesPage />} />
           <Route path="rules" element={<Rules />} />
           <Route path="tools" element={<Tools />} />
+          <Route path="help" element={<Help />} />
           <Route path="sections" element={<Sections />} />
           <Route path="irc" element={<IRC />} />
           <Route path="stats" element={<Stats />} />

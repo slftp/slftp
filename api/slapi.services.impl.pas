@@ -12,6 +12,7 @@ uses
   mormot.core.os,
   mormot.core.data,
   mormot.core.text,
+  mormot.core.unicode,
   mormot.core.json,
   mormot.core.rtti,
   mormot.core.datetime,
@@ -281,6 +282,13 @@ type
     function GetConfigContent(const Filename: RawUTF8): RawJSON;
     function SaveConfigContent(const Filename, Content: RawUTF8): boolean;
     function ReloadConfig(const Filename: RawUTF8): boolean;
+  end;
+
+  TApiHelpServiceImpl = class(TInjectableObjectRest, IApiHelpService)
+  public
+    function GetHelpDocs: RawJSON;
+    function GetHelpDocContent(const Name: RawUTF8): RawJSON;
+    function SearchHelpDocs(const Query: RawUTF8): RawJSON;
   end;
 
 implementation
@@ -5743,6 +5751,98 @@ begin
     Result := True;
   end;
   // slftp.ini and slftp.scheduler currently require restart
+end;
+
+function GetHelpDocsRoot: string;
+begin
+  Result := '/mnt/webui_dev/docs';
+  if not DirectoryExists(Result) then
+    Result := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + 'docs';
+end;
+
+function IsHelpDocNameSafe(const Name: string): boolean;
+begin
+  Result := (Name <> '') and (ExtractFileExt(Name) = '') and
+    (Pos('/', Name) = 0) and (Pos('\', Name) = 0) and (Pos('..', Name) = 0);
+end;
+
+function TApiHelpServiceImpl.GetHelpDocs: RawJSON;
+var
+  files: TDocVariantData;
+  root: string;
+  sr: TSearchRec;
+begin
+  files.Init(JSON_FAST, dvArray);
+  root := GetHelpDocsRoot;
+
+  if FindFirst(IncludeTrailingPathDelimiter(root) + '*', faAnyFile, sr) = 0 then
+  try
+    repeat
+      if (sr.Attr and faDirectory) = 0 then
+      begin
+        if IsHelpDocNameSafe(sr.Name) then
+          files.AddItem(StringToUtf8(sr.Name));
+      end;
+    until FindNext(sr) <> 0;
+  finally
+    FindClose(sr);
+  end;
+
+  Result := files.ToJSON;
+end;
+
+function TApiHelpServiceImpl.GetHelpDocContent(const Name: RawUTF8): RawJSON;
+var
+  root, docName, fullPath: string;
+begin
+  Result := '""';
+  root := GetHelpDocsRoot;
+  docName := UTF8ToString(Name);
+
+  if not IsHelpDocNameSafe(docName) then
+    Exit;
+
+  fullPath := IncludeTrailingPathDelimiter(root) + docName;
+  if FileExists(fullPath) then
+    Result := VariantSaveJSON(StringFromFile(fullPath));
+end;
+
+function TApiHelpServiceImpl.SearchHelpDocs(const Query: RawUTF8): RawJSON;
+var
+  files: TDocVariantData;
+  root, queryLower, nameLower, contentLower, content: string;
+  sr: TSearchRec;
+begin
+  files.Init(JSON_FAST, dvArray);
+  root := GetHelpDocsRoot;
+  queryLower := LowerCase(UTF8ToString(Query));
+
+  if FindFirst(IncludeTrailingPathDelimiter(root) + '*', faAnyFile, sr) = 0 then
+  try
+    repeat
+      if (sr.Attr and faDirectory) = 0 then
+      begin
+        if not IsHelpDocNameSafe(sr.Name) then
+          Continue;
+
+        nameLower := LowerCase(sr.Name);
+        if (queryLower = '') or (Pos(queryLower, nameLower) > 0) then
+        begin
+          files.AddItem(StringToUtf8(sr.Name));
+          Continue;
+        end;
+
+        content := StringFromFile(IncludeTrailingPathDelimiter(root) + sr.Name);
+        contentLower := LowerCase(content);
+        if Pos(queryLower, contentLower) > 0 then
+          files.AddItem(StringToUtf8(sr.Name));
+      end;
+    until FindNext(sr) <> 0;
+  finally
+    FindClose(sr);
+  end;
+
+  Result := files.ToJSON;
 end;
 
 initialization
