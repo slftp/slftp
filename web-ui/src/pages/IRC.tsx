@@ -828,6 +828,15 @@ export function IRC() {
   const [newNetworkNick, setNewNetworkNick] = useState('');
   const [newNetworkIdent, setNewNetworkIdent] = useState('');
   const [newNetworkUser, setNewNetworkUser] = useState('');
+  const [editingNetwork, setEditingNetwork] = useState(false);
+  const [editNetworkName, setEditNetworkName] = useState('');
+  const [editNetworkHost, setEditNetworkHost] = useState('');
+  const [editNetworkPort, setEditNetworkPort] = useState('6697');
+  const [editNetworkSsl, setEditNetworkSsl] = useState(true);
+  const [editNetworkPassword, setEditNetworkPassword] = useState('');
+  const [editNetworkNick, setEditNetworkNick] = useState('');
+  const [editNetworkIdent, setEditNetworkIdent] = useState('');
+  const [editNetworkUser, setEditNetworkUser] = useState('');
 
   const addNetworkMutation = useMutation({
     mutationFn: async () => {
@@ -868,6 +877,38 @@ export function IRC() {
     },
   });
 
+  const updateNetworkMutation = useMutation({
+    mutationFn: async () => {
+      if (!editNetworkName) return;
+      await apiClient.post('/ApiIrcService/SetNetworkConfig', {
+        NetName: editNetworkName,
+        Host: editNetworkHost,
+        Port: parseInt(editNetworkPort, 10),
+        Ssl: editNetworkSsl,
+        Password: editNetworkPassword,
+        Nick: editNetworkNick,
+        Ident: editNetworkIdent,
+        User: editNetworkUser,
+      });
+    },
+    onSuccess: () => {
+      notifications.show({
+        title: 'Saved',
+        message: 'Network updated successfully',
+        color: 'green',
+      });
+      setEditingNetwork(false);
+      queryClient.invalidateQueries({ queryKey: ['irc-networks'] });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message,
+        color: 'red',
+      });
+    },
+  });
+
   const deleteNetworkMutation = useMutation({
     mutationFn: async (networkName: string) => {
       await apiClient.post('/ApiIrcService/DeleteNetwork', {
@@ -890,6 +931,28 @@ export function IRC() {
       });
     },
   });
+
+  const openEditNetwork = async (networkName: string) => {
+    setEditingNetwork(true);
+    setEditNetworkName(networkName);
+    try {
+      const res = await apiClient.post('/ApiIrcService/GetNetworkConfig', { NetName: networkName });
+      const data = res.data.result?.[0] || res.data;
+      setEditNetworkHost(data.Host || '');
+      setEditNetworkPort(String(data.Port ?? '6697'));
+      setEditNetworkSsl(Boolean(data.Ssl));
+      setEditNetworkPassword(data.Password || '');
+      setEditNetworkNick(data.Nick || '');
+      setEditNetworkIdent(data.Ident || '');
+      setEditNetworkUser(data.User || '');
+    } catch (err: any) {
+      notifications.show({
+        title: 'Error',
+        message: err.message || 'Failed to load network config',
+        color: 'red',
+      });
+    }
+  };
 
   return (
     <Card shadow="sm" padding="lg" radius="md" withBorder>
@@ -957,6 +1020,15 @@ export function IRC() {
                                 onClick={() => handleViewChannels(network.name)}
                             >
                                 <IconHash size="1rem" />
+                            </ActionIcon>
+                            </Tooltip>
+                            <Tooltip label="Edit network">
+                            <ActionIcon
+                                variant="light"
+                                color="blue"
+                                onClick={() => openEditNetwork(network.name)}
+                            >
+                                <IconEdit size="1rem" />
                             </ActionIcon>
                             </Tooltip>
                             <Tooltip label="Delete network">
@@ -1899,6 +1971,71 @@ export function IRC() {
             </Button>
             <Button onClick={() => addNetworkMutation.mutate()} loading={addNetworkMutation.isPending} leftSection={<IconCheck size="1rem" />}>
               Add
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={editingNetwork}
+        onClose={() => setEditingNetwork(false)}
+        title="Edit IRC Network"
+        centered
+      >
+        <Stack gap="md">
+          <TextInput
+            label="Network Name"
+            value={editNetworkName}
+            disabled
+          />
+          <TextInput
+            label="Host"
+            value={editNetworkHost}
+            onChange={(e) => setEditNetworkHost(e.currentTarget.value)}
+            placeholder="irc.network.org"
+            required
+          />
+          <TextInput
+            label="Port"
+            value={editNetworkPort}
+            onChange={(e) => setEditNetworkPort(e.currentTarget.value)}
+            required
+          />
+          <Switch
+            label="Use SSL"
+            checked={editNetworkSsl}
+            onChange={(event) => setEditNetworkSsl(event.currentTarget.checked)}
+          />
+          <TextInput
+            label="Password"
+            value={editNetworkPassword}
+            onChange={(e) => setEditNetworkPassword(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <TextInput
+            label="Nick"
+            value={editNetworkNick}
+            onChange={(e) => setEditNetworkNick(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <TextInput
+            label="Ident"
+            value={editNetworkIdent}
+            onChange={(e) => setEditNetworkIdent(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <TextInput
+            label="User"
+            value={editNetworkUser}
+            onChange={(e) => setEditNetworkUser(e.currentTarget.value)}
+            placeholder="Optional"
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setEditingNetwork(false)} leftSection={<IconX size="1rem" />}>
+              Cancel
+            </Button>
+            <Button onClick={() => updateNetworkMutation.mutate()} loading={updateNetworkMutation.isPending} leftSection={<IconCheck size="1rem" />}>
+              Save
             </Button>
           </Group>
         </Stack>

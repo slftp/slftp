@@ -147,6 +147,8 @@ type
     function GetNetworks: RawJSON;
     function GetNetworkStatus(const NetName: RawUTF8;
                               out Info: TApiIrcNetwork): boolean;
+    function GetNetworkConfig(const NetName: RawUTF8;
+                              out Info: TApiIrcNetworkConfig): boolean;
     function GetChannels(const NetName: RawUTF8): RawJSON;
     function SendMessage(const NetName, Channel, Message: RawUTF8): boolean;
     function JumpServer(const NetName: RawUTF8): boolean;
@@ -156,6 +158,7 @@ type
     function AddChannel(const NetName, Channel, ChanKey, Blowkey, Roles: RawUTF8): boolean;
     function DeleteChannel(const NetName, Channel: RawUTF8): boolean;
     function AddNetwork(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
+    function SetNetworkConfig(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
     function DeleteNetwork(const NetName: RawUTF8): boolean;
   end;
 
@@ -3485,6 +3488,50 @@ begin
   Result := True;
 end;
 
+function TApiIrcServiceImpl.GetNetworkConfig(const NetName: RawUTF8; out Info: TApiIrcNetworkConfig): boolean;
+var
+  netNameStr: string;
+  host: string;
+  port: integer;
+  ident: string;
+  suffix: string;
+begin
+  Result := False;
+  try
+    netNameStr := UpperCase(UTF8ToString(NetName));
+    host := sitesdat.ReadString('ircnet-' + netNameStr, 'bnc_host-0', '');
+    if host = '' then
+      host := sitesdat.ReadString('ircnet-' + netNameStr, 'host', '');
+    if host = '' then
+      Exit;
+
+    port := sitesdat.ReadInteger('ircnet-' + netNameStr, 'bnc_port-0',
+      sitesdat.ReadInteger('ircnet-' + netNameStr, 'port', 0));
+
+    Info := TApiIrcNetworkConfig.Create;
+    Info.Name := UTF8Encode(netNameStr);
+    Info.Host := UTF8Encode(host);
+    Info.Port := port;
+    Info.Ssl := sitesdat.ReadBool('ircnet-' + netNameStr, 'ssl', False);
+    Info.Password := UTF8Encode(sitesdat.ReadString('ircnet-' + netNameStr, 'password', ''));
+    Info.Nick := UTF8Encode(sitesdat.ReadString('ircnet-' + netNameStr, 'nick', ''));
+    ident := sitesdat.ReadString('ircnet-' + netNameStr, 'ident', '');
+    suffix := '@soulless.ftp';
+    if (Length(ident) > Length(suffix)) and (Copy(ident, Length(ident) - Length(suffix) + 1, Length(suffix)) = suffix) then
+      ident := Copy(ident, 1, Length(ident) - Length(suffix));
+    Info.Ident := UTF8Encode(ident);
+    Info.User := UTF8Encode(sitesdat.ReadString('ircnet-' + netNameStr, 'username', ''));
+
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] GetNetworkConfig: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
 function TApiIrcServiceImpl.GetChannels(const NetName: RawUTF8): RawJSON;
 var
   channelsArray: TDocVariantData;
@@ -3873,6 +3920,66 @@ begin
     on E: Exception do
     begin
       Debug(dpError, 'slapi', Format('[EXCEPTION] AddNetwork: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiIrcServiceImpl.SetNetworkConfig(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
+var
+  netNameStr: string;
+  hostStr: string;
+  nickStr: string;
+  identStr: string;
+  userStr: string;
+  suffix: string;
+  ircThread: TMyIrcThread;
+begin
+  Result := False;
+  try
+    netNameStr := UpperCase(UTF8ToString(NetName));
+    hostStr := UTF8ToString(Host);
+    if hostStr = '' then
+      Exit;
+
+    nickStr := UTF8ToString(Nick);
+    if nickStr = '' then
+      nickStr := config.ReadString('irc', 'nickname', 'slftp');
+
+    userStr := UTF8ToString(User);
+    if userStr = '' then
+      userStr := config.ReadString('irc', 'username', 'slftp');
+
+    identStr := UTF8ToString(Ident);
+    if identStr = '' then
+      identStr := config.ReadString('irc', 'realname', 'slftp');
+    suffix := '@soulless.ftp';
+    if (Length(identStr) <= Length(suffix)) or (Copy(identStr, Length(identStr) - Length(suffix) + 1, Length(suffix)) <> suffix) then
+      identStr := identStr + suffix;
+
+    sitesdat.WriteString('ircnet-' + netNameStr, 'bnc_host-0', hostStr);
+    sitesdat.WriteInteger('ircnet-' + netNameStr, 'bnc_port-0', Port);
+    sitesdat.DeleteKey('ircnet-' + netNameStr, 'host');
+    sitesdat.DeleteKey('ircnet-' + netNameStr, 'port');
+    sitesdat.WriteBool('ircnet-' + netNameStr, 'ssl', Ssl);
+    sitesdat.WriteString('ircnet-' + netNameStr, 'password', UTF8ToString(Password));
+    sitesdat.WriteString('ircnet-' + netNameStr, 'nick', nickStr);
+    sitesdat.WriteString('ircnet-' + netNameStr, 'anick', '_' + nickStr);
+    sitesdat.WriteString('ircnet-' + netNameStr, 'ident', identStr);
+    sitesdat.WriteString('ircnet-' + netNameStr, 'username', userStr);
+
+    ircThread := FindIrcnetwork(netNameStr);
+    if ircThread <> nil then
+      IrcJump('', '', netNameStr)
+    else
+      myIrcThreads.Add(TMyIrcThread.Create(netNameStr));
+
+    Debug(dpMessage, 'slapi', Format('SetNetworkConfig: Updated IRC network %s', [netNameStr]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] SetNetworkConfig: %s', [E.Message]));
       Result := False;
     end;
   end;

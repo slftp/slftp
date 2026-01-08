@@ -280,6 +280,11 @@ type
     function GetNetworkStatus(const NetName: RawUTF8;
                               out Info: TApiIrcNetwork): boolean;
 
+    /// GET /api/irc/networks/{name}/config
+    /// Returns network configuration
+    function GetNetworkConfig(const NetName: RawUTF8;
+                              out Info: TApiIrcNetworkConfig): boolean;
+
     /// GET /api/irc/channels
     /// Returns joined channels
     function GetChannels(const NetName: RawUTF8): RawJSON;
@@ -315,6 +320,10 @@ type
     /// POST /api/irc/networks
     /// Adds a new IRC network
     function AddNetwork(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
+
+    /// PATCH /api/irc/networks/{name}
+    /// Updates IRC network config
+    function SetNetworkConfig(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
 
     /// DELETE /api/irc/networks/{name}
     /// Deletes an IRC network

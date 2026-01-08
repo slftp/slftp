@@ -298,6 +298,28 @@ type
     property Nickname: RawUTF8 read FNickname write FNickname;
   end;
 
+  { IRC Network Config }
+  TApiIrcNetworkConfig = class(TOrm)
+  private
+    FName: RawUTF8;
+    FHost: RawUTF8;
+    FPort: integer;
+    FSsl: boolean;
+    FPassword: RawUTF8;
+    FNick: RawUTF8;
+    FIdent: RawUTF8;
+    FUser: RawUTF8;
+  published
+    property Name: RawUTF8 read FName write FName;
+    property Host: RawUTF8 read FHost write FHost;
+    property Port: integer read FPort write FPort;
+    property Ssl: boolean read FSsl write FSsl;
+    property Password: RawUTF8 read FPassword write FPassword;
+    property Nick: RawUTF8 read FNick write FNick;
+    property Ident: RawUTF8 read FIdent write FIdent;
+    property User: RawUTF8 read FUser write FUser;
+  end;
+
   { Speed Test Result }
   TApiSpeedTestResult = class(TOrm)
   private
