@@ -3970,7 +3970,7 @@ begin
 
     ircThread := FindIrcnetwork(netNameStr);
     if ircThread <> nil then
-      IrcJump('', '', netNameStr)
+      ircThread.shouldrestart := True
     else
       myIrcThreads.Add(TMyIrcThread.Create(netNameStr));
 

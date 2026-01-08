@@ -621,6 +621,10 @@ export function IRC() {
       console.debug('[precatcher] update rule payload', payload);
       const res = await apiClient.post('/ApiPrecatcherService/UpdatePrecatcherRule', payload);
       console.debug('[precatcher] update rule response', res.data);
+      const result = res.data?.result ? res.data.result[0] : res.data;
+      if (result !== true) {
+        throw new Error('Update failed');
+      }
     },
     onSuccess: () => {
       notifications.show({
@@ -1821,6 +1825,9 @@ export function IRC() {
               onChange={(value) => {
                 setNewNetname(value || '');
                 setNewChannel('');
+                if (value) {
+                  queryClient.invalidateQueries({ queryKey: ['irc-channels', 'rule', value] });
+                }
               }}
               data={networks.map((net) => ({ value: net.name, label: net.name }))}
               placeholder="Select a network"
