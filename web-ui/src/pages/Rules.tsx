@@ -24,9 +24,10 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
-import { IconCheck, IconCode, IconDeviceFloppy, IconFileText, IconRefresh, IconSearch, IconAlertCircle, IconArrowRight } from '@tabler/icons-react';
+import { IconCheck, IconCode, IconDeviceFloppy, IconFileText, IconRefresh, IconSearch, IconAlertCircle, IconArrowRight, IconBulb } from '@tabler/icons-react';
 import { apiClient } from '../api/client';
 import type { Site } from '../api/client';
+import { RulesExamples } from '../components/RulesExamples';
 
 type RuleError = { line: number; message: string };
 type RuleCondition = { name: string; ops: string; description: string };
@@ -74,8 +75,10 @@ export function Rules() {
   const siteOptions = useMemo(() => {
     const opts = [{ value: '*', label: '* (global rules)' }];
     const list = (sites || []).filter((s) => s.name.toLowerCase() !== 'slftp').map((s) => ({ value: s.name, label: s.name }));
-    list.sort((a, b) => a.label.localeCompare(b.label));
-    return opts.concat(list);
+    // Deduplicate sites by value
+    const uniqueList = Array.from(new Map(list.map(item => [item.value, item])).values());
+    uniqueList.sort((a, b) => a.label.localeCompare(b.label));
+    return opts.concat(uniqueList);
   }, [sites]);
 
   const { data: conditions } = useQuery({
@@ -436,6 +439,7 @@ export function Rules() {
             <Tabs.Tab value="editor" leftSection={<IconCode size="0.8rem" />}>Editor</Tabs.Tab>
             <Tabs.Tab value="snapshot" leftSection={<IconFileText size="0.8rem" />}>Snapshot (Site Rules)</Tabs.Tab>
             <Tabs.Tab value="conditions" leftSection={<IconSearch size="0.8rem" />}>Conditions</Tabs.Tab>
+            <Tabs.Tab value="examples" leftSection={<IconBulb size="0.8rem" />}>Examples</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="editor">
@@ -495,6 +499,10 @@ export function Rules() {
                   )}
                 </ScrollArea>
              </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="examples">
+             <RulesExamples conditions={conditions || []} />
           </Tabs.Panel>
         </Tabs>
       </Paper>
