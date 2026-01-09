@@ -211,7 +211,7 @@ var
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
   timeoutMs: integer;
-  startTick, elapsedMs: QWord;
+  startTick, elapsedMs: Uint64;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -501,7 +501,7 @@ begin
         startTick := GetTickCount64;
         p.AddSites;
         elapsedMs := GetTickCount64 - startTick;
-        if elapsedMs >= QWord(timeoutMs) then
+        if elapsedMs >= Uint64(timeoutMs) then
           Debug(dpError, rsections, 'kb_AddB_2 AddSites took %d ms (event=%s section=%s rls=%s site=%s)',
             [elapsedMs, KBEventTypeToString(event), section, rls, sitename]);
       end
@@ -613,7 +613,7 @@ begin
               startTick := GetTickCount64;
               p.AddSites;
               elapsedMs := GetTickCount64 - startTick;
-              if elapsedMs >= QWord(timeoutMs) then
+              if elapsedMs >= Uint64(timeoutMs) then
                 Debug(dpError, rsections, 'kb_AddB_2 AddSites took %d ms (event=%s section=%s rls=%s site=%s)',
                   [elapsedMs, KBEventTypeToString(event), section, rls, sitename]);
             end
