@@ -28,59 +28,82 @@ function ReplaceThemeMSG(const msg: string): string;
 
 implementation
 
-uses RegExpr;
+uses FLRE;
 
 const
-  mColorExpression: string = '<c(\d+)>(.*?)<\/c>';
+  mColorExpression: RawByteString = '<c(\d+)>(.*?)</c>';
   mColorChar: string = #3;
-  bColorExpression: string = '<d(\d+)>(.*?)<\/d>';
+  bColorExpression: RawByteString = '<d(\d+)>(.*?)</d>';
   bColorChar: string = #4;
 
 function ReplaceThemeMSG(const msg: string): string;
 var
-  bcolrx, colrx: TRegExpr;
+  bcolrx, colrx: TFLRE;
+  colrx_captures, bcolrx_captures: TFLREMultiCaptures;
   smsg, s: string;
+  i: Integer;
+  fUtf8Msg: RawByteString;
 begin
   smsg := msg;
-  colrx := TRegExpr.Create;
-  bcolrx := TRegExpr.Create;
+
+  smsg := StringReplace(smsg, '<b>', #2, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '</b>', #2, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '<u>', #31, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '</u>', #31, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '<i>', #22, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '</i>', #22, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '<l>', #10, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '</l>', #10, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '<f>', #17, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '</f>', #17, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '<r>', #18, [rfReplaceAll]);
+  smsg := StringReplace(smsg, '</r>', #18, [rfReplaceAll]);
+
+  fUtf8Msg := RawByteString(smsg);
+
+  colrx := TFLRE.Create(mColorExpression, [FLRE.rfIGNORECASE]);
+  bcolrx := TFLRE.Create(bColorExpression, [FLRE.rfIGNORECASE]);
   try
-    bcolrx.ModifierI := True;
-    colrx.ModifierI := True;
-    colrx.Expression := mColorExpression;
-    bcolrx.Expression := bColorExpression;
-
-    smsg := StringReplace(smsg, '<b>', #2, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '</b>', #2, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '<u>', #31, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '</u>', #31, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '<i>', #22, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '</i>', #22, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '<l>', #10, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '</l>', #10, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '<f>', #17, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '</f>', #17, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '<r>', #18, [rfReplaceAll]);
-    smsg := StringReplace(smsg, '</r>', #18, [rfReplaceAll]);
-
-  //TODO: Implement it in FLRE, used very often and TRegExpr is super slow...
-
     {   mIRC Color    }
-    if colrx.Exec(smsg) then
+    if colrx.MatchAll(fUtf8Msg, colrx_captures) then
     begin
-      repeat
-        s := Format('%s%.2d%s%:0s', [mColorChar, StrToInt(colrx.Match[1]), colrx.Match[2]]);
-        smsg := StringReplace(smsg, colrx.Match[0], s, [rfReplaceAll, rfIgnoreCase]);
-      until not colrx.ExecNext;
+      for i := High(colrx_captures) downto 0 do
+      begin
+        if Length(colrx_captures[i]) >= 3 then
+        begin
+          s := Format('%s%.2d%s%:0s', [
+            mColorChar,
+            StrToInt(string(Copy(fUtf8Msg, colrx_captures[i][1].Start, colrx_captures[i][1].Length))),
+            string(Copy(fUtf8Msg, colrx_captures[i][2].Start, colrx_captures[i][2].Length))
+          ]);
+          smsg := StringReplace(smsg,
+            string(Copy(fUtf8Msg, colrx_captures[i][0].Start, colrx_captures[i][0].Length)),
+            s, [rfReplaceAll, rfIgnoreCase]);
+        end;
+      end;
+      SetLength(colrx_captures, 0);
     end;
 
+    fUtf8Msg := RawByteString(smsg);
+
     {   bersirc (RGB) Color    }
-    if bcolrx.Exec(smsg) then
+    if bcolrx.MatchAll(fUtf8Msg, bcolrx_captures) then
     begin
-      repeat
-        s := Format('%s%.2d%s%:0s', [bColorChar, StrToInt(bcolrx.Match[1]), bcolrx.Match[2]]);
-        smsg := StringReplace(smsg, bcolrx.Match[0], s, [rfReplaceAll, rfIgnoreCase]);
-      until not bcolrx.ExecNext;
+      for i := High(bcolrx_captures) downto 0 do
+      begin
+        if Length(bcolrx_captures[i]) >= 3 then
+        begin
+          s := Format('%s%.2d%s%:0s', [
+            bColorChar,
+            StrToInt(string(Copy(fUtf8Msg, bcolrx_captures[i][1].Start, bcolrx_captures[i][1].Length))),
+            string(Copy(fUtf8Msg, bcolrx_captures[i][2].Start, bcolrx_captures[i][2].Length))
+          ]);
+          smsg := StringReplace(smsg,
+            string(Copy(fUtf8Msg, bcolrx_captures[i][0].Start, bcolrx_captures[i][0].Length)),
+            s, [rfReplaceAll, rfIgnoreCase]);
+        end;
+      end;
+      SetLength(bcolrx_captures, 0);
     end;
 
     Result := smsg;
