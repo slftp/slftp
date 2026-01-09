@@ -46,11 +46,14 @@ These commands simplify the entire build and deployment workflow on Linux system
 
 Deploy Web UI
 
-At runtime, only the web/ folder in your slftp installation directory is needed; Node/npm is not required.
+> [!IMPORTANT]
+> **Naming & Location:** The Web UI folder **MUST** be named exactly `web` and it **MUST** be located in the same directory as your `slftp` binary. If you name it differently or put it elsewhere, you will see an "index.html not found" error.
+
+At runtime, only the `web/` folder in your slftp installation directory is needed; Node/npm is not required.
 
 Linux/Mac:
 # Deploy Web UI assets (clean old files first to avoid browser cache issues!)
-# Assuming /your/slftp/path/ is your production directory
+# Assuming /your/slftp/path/ is your production directory where the slftp binary resides
 rm -rf /your/slftp/path/web/*
 cp -r web-ui/dist/* /your/slftp/path/web/
 
