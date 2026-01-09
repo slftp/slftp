@@ -31,10 +31,12 @@ implementation
 uses FLRE;
 
 const
-  mColorExpression: RawByteString = '<c(\d+)>(.*?)</c>';
+  // Note: Forward slash does not need escaping in FLRE (unlike TRegExpr)
+  mColorExpression: RawByteString = '<c(\d+)>(.*?)<\/c>';
   mColorChar: string = #3;
-  bColorExpression: RawByteString = '<d(\d+)>(.*?)</d>';
+  bColorExpression: RawByteString = '<d(\d+)>(.*?)<\/d>';
   bColorChar: string = #4;
+
 
 function ReplaceThemeMSG(const msg: string): string;
 var
@@ -46,6 +48,7 @@ var
 begin
   smsg := msg;
 
+  // Simple replacements (no regex needed)
   smsg := StringReplace(smsg, '<b>', #2, [rfReplaceAll]);
   smsg := StringReplace(smsg, '</b>', #2, [rfReplaceAll]);
   smsg := StringReplace(smsg, '<u>', #31, [rfReplaceAll]);
@@ -59,14 +62,17 @@ begin
   smsg := StringReplace(smsg, '<r>', #18, [rfReplaceAll]);
   smsg := StringReplace(smsg, '</r>', #18, [rfReplaceAll]);
 
+  // Convert to UTF8 for FLRE processing
   fUtf8Msg := RawByteString(smsg);
 
+  // Use FLRE.TFLREFlag to avoid naming conflict with SysUtils.TReplaceFlags
   colrx := TFLRE.Create(mColorExpression, [FLRE.rfIGNORECASE]);
   bcolrx := TFLRE.Create(bColorExpression, [FLRE.rfIGNORECASE]);
   try
-    {   mIRC Color    }
+    {   mIRC Color - migrated to FLRE for performance   }
     if colrx.MatchAll(fUtf8Msg, colrx_captures) then
     begin
+      // Process matches in reverse order to maintain string positions
       for i := High(colrx_captures) downto 0 do
       begin
         if Length(colrx_captures[i]) >= 3 then
@@ -78,17 +84,19 @@ begin
           ]);
           smsg := StringReplace(smsg,
             string(Copy(fUtf8Msg, colrx_captures[i][0].Start, colrx_captures[i][0].Length)),
-            s, [rfReplaceAll, rfIgnoreCase]);
+            s, [rfReplaceAll, SysUtils.rfIgnoreCase]);
         end;
       end;
       SetLength(colrx_captures, 0);
     end;
 
+    // Update UTF8 message for next regex
     fUtf8Msg := RawByteString(smsg);
 
-    {   bersirc (RGB) Color    }
+    {   bersirc (RGB) Color - migrated to FLRE for performance   }
     if bcolrx.MatchAll(fUtf8Msg, bcolrx_captures) then
     begin
+      // Process matches in reverse order to maintain string positions
       for i := High(bcolrx_captures) downto 0 do
       begin
         if Length(bcolrx_captures[i]) >= 3 then
@@ -100,7 +108,7 @@ begin
           ]);
           smsg := StringReplace(smsg,
             string(Copy(fUtf8Msg, bcolrx_captures[i][0].Start, bcolrx_captures[i][0].Length)),
-            s, [rfReplaceAll, rfIgnoreCase]);
+            s, [rfReplaceAll, SysUtils.rfIgnoreCase]);
         end;
       end;
       SetLength(bcolrx_captures, 0);
