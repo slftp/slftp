@@ -360,7 +360,7 @@ begin
       // TODO: add an extra event for GENRE and/or do a proper way of parsing genre
 
       // removes rlsname from irc line to avoid detecting genre Noise for e.g. Systemic_Noise_-_Show_Me-(FU122)-WEB-2018-ZzZz
-      genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, rfIgnoreCase]));
+      genre := TryToExtractMP3GenreFromSitebotAnnounce(StringReplace(s, rls, '', [rfReplaceAll, Sysutils.rfIgnoreCase]));
       if genre <> '' then
       begin
         MyDebug('Genre: %s', [genre]);
