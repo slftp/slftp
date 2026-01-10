@@ -98,6 +98,10 @@ type
   TEncIniFile = class(TMyCustomIniFile)
   private
     il: TSlCriticalSection2;
+    fUpdateLock: TSlCriticalSection2;
+    fLastUpdateTick: QWord;
+    fUpdateIntervalMs: Cardinal;
+    fPendingUpdate: Boolean;
     fSima: Boolean;
     FFilename: String;
     FPassHash: TslMD5Data;
@@ -106,6 +110,7 @@ type
     function AddSection(const Section: String): TStrings;
     function GetCaseSensitive: Boolean;
     procedure LoadValues;
+    procedure RequestUpdate;
     procedure SetCaseSensitive(Value: Boolean);
     procedure MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
   public
@@ -547,6 +552,18 @@ constructor TEncIniFile.Create(const FileName: String; Passphrase: TslMD5Data; a
 begin
   inherited Create(FileName);
   il:= TSlCriticalSection2.Create('encinifile_' + FileName);
+  fUpdateLock := TSlCriticalSection2.Create('encinifile_update_' + FileName);
+  fLastUpdateTick := 0;
+  fPendingUpdate := False;
+  if AnsiEndsText('sites.dat', FileName) then
+  begin
+    if config <> nil then
+      fUpdateIntervalMs := config.ReadInteger('sites', 'update_interval_ms', 5000)
+    else
+      fUpdateIntervalMs := 5000;
+  end
+  else
+    fUpdateIntervalMs := 0;
   fPassHash:= Passphrase;
   self.AutoUpdate:= autoupdate;
   FFilename:= FileName;
@@ -574,6 +591,7 @@ begin
     Clear;
   FSections.Free;
   il.Free;
+  fUpdateLock.Free;
   inherited Destroy;
 end;
 
@@ -607,7 +625,9 @@ procedure TEncIniFile.DeleteKey(const Section, Ident: String);
 var
   I, J: Integer;
   Strings: TStrings;
+  doUpdate: Boolean;
 begin
+  doUpdate := False;
   il.Enter('DeleteKey');
   try
     I := FSections.IndexOf(Section);
@@ -619,18 +639,20 @@ begin
         Strings.Delete(J);
     end;
 
-    if self.AutoUpdate then
-      UpdateFile;
-
+    doUpdate := self.AutoUpdate;
   finally
     il.Leave;
   end;
+  if doUpdate then
+    RequestUpdate;
 end;
 
 procedure TEncIniFile.EraseSection(const Section: String);
 var
   I: Integer;
+  doUpdate: Boolean;
 begin
+  doUpdate := False;
   il.Enter('EraseSection');
   try
     I := FSections.IndexOf(Section);
@@ -640,12 +662,12 @@ begin
       FSections.Delete(I);
     end;
 
-    if self.AutoUpdate then
-      UpdateFile;
-
+    doUpdate := self.AutoUpdate;
   finally
     il.Leave;
   end;
+  if doUpdate then
+    RequestUpdate;
 end;
 
 function TEncIniFile.GetCaseSensitive: Boolean;
@@ -945,10 +967,18 @@ var
   List: TStringList;
   myS: TMemoryStream;
 begin
+  fUpdateLock.Enter('UpdateFile');
   myS:= TMemoryStream.Create;
   List := TStringList.Create;
   try
-    GetStrings(List);
+    fLastUpdateTick := GetTickCount64;
+    fPendingUpdate := False;
+    il.Enter('UpdateFile');
+    try
+      GetStrings(List);
+    finally
+      il.Leave;
+    end;
 
     if not fSima then
     begin
@@ -959,6 +989,7 @@ begin
   finally
     List.Free;
     myS.Free;
+    fUpdateLock.Leave;
   end;
 
   // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
@@ -978,7 +1009,9 @@ var
   I: Integer;
   S: String;
   Strings: TStrings;
+  doUpdate: Boolean;
 begin
+  doUpdate := False;
   il.Enter('WriteString');
   try
     I := FSections.IndexOf(Section);
@@ -993,12 +1026,42 @@ begin
     else
       Strings.Add(S);
 
-    if self.AutoUpdate then
-      UpdateFile;
-
+    doUpdate := self.AutoUpdate;
   finally
     il.Leave;
   end;
+  if doUpdate then
+    RequestUpdate;
+end;
+
+procedure TEncIniFile.RequestUpdate;
+var
+  nowTick: QWord;
+  shouldUpdate: Boolean;
+begin
+  if fUpdateIntervalMs = 0 then
+  begin
+    UpdateFile;
+    exit;
+  end;
+
+  shouldUpdate := False;
+  nowTick := GetTickCount64;
+  fUpdateLock.Enter('RequestUpdate');
+  try
+    if (fLastUpdateTick = 0) or (nowTick - fLastUpdateTick >= fUpdateIntervalMs) then
+    begin
+      shouldUpdate := True;
+      fPendingUpdate := False;
+    end
+    else
+      fPendingUpdate := True;
+  finally
+    fUpdateLock.Leave;
+  end;
+
+  if shouldUpdate then
+    UpdateFile;
 end;
 
 procedure TEncIniFile.SaveUnencrypted(filename: String);
