@@ -607,7 +607,9 @@ procedure TEncIniFile.DeleteKey(const Section, Ident: String);
 var
   I, J: Integer;
   Strings: TStrings;
+  doUpdate: Boolean;
 begin
+  doUpdate := False;
   il.Enter('DeleteKey');
   try
     I := FSections.IndexOf(Section);
@@ -619,18 +621,20 @@ begin
         Strings.Delete(J);
     end;
 
-    if self.AutoUpdate then
-      UpdateFile;
-
+    doUpdate := self.AutoUpdate;
   finally
     il.Leave;
   end;
+  if doUpdate then
+    UpdateFile;
 end;
 
 procedure TEncIniFile.EraseSection(const Section: String);
 var
   I: Integer;
+  doUpdate: Boolean;
 begin
+  doUpdate := False;
   il.Enter('EraseSection');
   try
     I := FSections.IndexOf(Section);
@@ -640,12 +644,12 @@ begin
       FSections.Delete(I);
     end;
 
-    if self.AutoUpdate then
-      UpdateFile;
-
+    doUpdate := self.AutoUpdate;
   finally
     il.Leave;
   end;
+  if doUpdate then
+    UpdateFile;
 end;
 
 function TEncIniFile.GetCaseSensitive: Boolean;
@@ -673,10 +677,12 @@ var
   I, J: Integer;
   Strings: TStrings;
   ListSplitFile: TStringList;
+  ExistingSplitFile: TStringList;
   K: Integer;
   split_site_data: Boolean;
   Found: Boolean;
   S: String;
+  isSpeedSection: Boolean;
   const splitredirectkeys : array [1..8] of String = ('username', 'password', 'max_dn', 'max_pre_dn',
   'max_up', 'slots', 'proxyname', 'ircnick');
 begin
@@ -685,7 +691,13 @@ begin
   try
     for I := 0 to FSections.Count - 1 do
     begin
-      List.Add('[' + FSections[I] + ']');
+      isSpeedSection := split_site_data and AnsiEndsText('sites.dat', FFilename) and
+        (AnsiStartsText('speed-from-', FSections[I]) or
+        AnsiStartsText('affilspeed-from-', FSections[I]) or
+        AnsiStartsText('affilspeed-to-', FSections[I]));
+
+      if not isSpeedSection then
+        List.Add('[' + FSections[I] + ']');
       Strings := TStrings(FSections.Objects[I]);
 
       if (split_site_data) then
@@ -707,7 +719,7 @@ begin
                 end;
               end;
               if not Found then
-                if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
+                if (1 = Pos('bnc_', S)) then
                   Found := True;
 
               if Found then
@@ -720,6 +732,82 @@ begin
             S := FSections[I];
             S := Copy(S, 6, Length(S) - 5);
             S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+
+            if FileExists(S) then
+            begin
+              ExistingSplitFile := TStringList.Create;
+              try
+                ExistingSplitFile.LoadFromFile(S);
+                for J := 0 to ExistingSplitFile.Count - 1 do
+                begin
+                  if AnsiStartsText('speed-from-', ExistingSplitFile.Names[J]) or
+                    AnsiStartsText('affilspeed-from-', ExistingSplitFile.Names[J]) or
+                    AnsiStartsText('affilspeed-to-', ExistingSplitFile.Names[J]) then
+                  begin
+                    if ListSplitFile.IndexOfName(ExistingSplitFile.Names[J]) = -1 then
+                      ListSplitFile.Add(ExistingSplitFile[J]);
+                  end;
+                end;
+              finally
+                ExistingSplitFile.Free;
+              end;
+            end;
+
+            // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
+            ListSplitFile.SaveToFile(S + '.sltmp');
+            MoveAndOverwriteFile(S + '.sltmp', S);
+          finally
+            ListSplitFile.Free;
+          end;
+        end
+        else if AnsiEndsText('sites.dat', FFilename) and
+          ((1 = Pos('speed-from-', FSections[I])) or (1 = Pos('affilspeed-from-', FSections[I])) or
+          (1 = Pos('affilspeed-to-', FSections[I]))) then
+        begin
+          ListSplitFile := TStringList.Create;
+          try
+            if 1 = Pos('speed-from-', FSections[I]) then
+            begin
+              S := Copy(FSections[I], Length('speed-from-') + 1, MaxInt);
+              S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+              if FileExists(S) then
+                ListSplitFile.LoadFromFile(S);
+
+              for J := 0 to Strings.Count - 1 do
+              begin
+                if Strings.Names[J] = '' then
+                  Continue;
+                ListSplitFile.Values['speed-from-' + Strings.Names[J]] := Strings.ValueFromIndex[J];
+              end;
+            end
+            else if 1 = Pos('affilspeed-from-', FSections[I]) then
+            begin
+              S := Copy(FSections[I], Length('affilspeed-from-') + 1, MaxInt);
+              S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+              if FileExists(S) then
+                ListSplitFile.LoadFromFile(S);
+
+              for J := 0 to Strings.Count - 1 do
+              begin
+                if Strings.Names[J] = '' then
+                  Continue;
+                ListSplitFile.Values['affilspeed-from-' + Strings.Names[J]] := Strings.ValueFromIndex[J];
+              end;
+            end
+            else if 1 = Pos('affilspeed-to-', FSections[I]) then
+            begin
+              S := Copy(FSections[I], Length('affilspeed-to-') + 1, MaxInt);
+              S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+              if FileExists(S) then
+                ListSplitFile.LoadFromFile(S);
+
+              for J := 0 to Strings.Count - 1 do
+              begin
+                if Strings.Names[J] = '' then
+                  Continue;
+                ListSplitFile.Values['affilspeed-to-' + Strings.Names[J]] := Strings.ValueFromIndex[J];
+              end;
+            end;
 
             // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
             ListSplitFile.SaveToFile(S + '.sltmp');
@@ -738,7 +826,8 @@ begin
       begin
         for J := 0 to Strings.Count - 1 do List.Add(Strings[J]);
       end;
-      List.Add('');
+      if not isSpeedSection then
+        List.Add('');
     end;
 
   finally
@@ -880,6 +969,28 @@ var
   Strings: TStrings;
   ListSplitFile: TStringList;
   split_site_data: Boolean;
+  siteName: String;
+
+  procedure AddSpeedValue(const aSectionPrefix, aSiteName, aKey, aValue: String);
+  var
+    sectionName: String;
+    sectionStrings: TStrings;
+    idx: Integer;
+  begin
+    sectionName := aSectionPrefix + aSiteName;
+    idx := FSections.IndexOf(sectionName);
+    if idx >= 0 then
+      sectionStrings := TStrings(FSections.Objects[idx])
+    else
+      sectionStrings := AddSection(sectionName);
+
+    if aKey = '' then
+      exit;
+    if sectionStrings.IndexOfName(aKey) = -1 then
+      sectionStrings.Add(aKey + '=' + aValue)
+    else
+      sectionStrings.Values[aKey] := aValue;
+  end;
 begin
   Clear;
   il.Enter('SetStrings');
@@ -908,15 +1019,76 @@ begin
               S := Trim(S);
               if 1 = Pos('site-', S) then
               begin
-                S := Copy(S, 6, Length(S)-5);
-                S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+S+'.settings';
+                siteName := Copy(S, 6, Length(S)-5);
+                S := ExtractFilePath(ParamStr(0))+'rtpl'+PathDelim+siteName+'.settings';
                 if FileExists(S) then
                 begin
                   ListSplitFile := TStringList.Create;
                   try
                     ListSplitFile.LoadFromFile(S);
                     for J := 0 to ListSplitFile.Count - 1 do
-                      Strings.Add(ListSplitFile[J]);
+                      if AnsiStartsText('speed-from-', ListSplitFile.Names[J]) then
+                        AddSpeedValue('speed-from-', siteName, Copy(ListSplitFile.Names[J], Length('speed-from-') + 1, MaxInt), ListSplitFile.ValueFromIndex[J])
+                      else if AnsiStartsText('affilspeed-from-', ListSplitFile.Names[J]) then
+                        AddSpeedValue('affilspeed-from-', siteName, Copy(ListSplitFile.Names[J], Length('affilspeed-from-') + 1, MaxInt), ListSplitFile.ValueFromIndex[J])
+                      else if AnsiStartsText('affilspeed-to-', ListSplitFile.Names[J]) then
+                        AddSpeedValue('affilspeed-to-', siteName, Copy(ListSplitFile.Names[J], Length('affilspeed-to-') + 1, MaxInt), ListSplitFile.ValueFromIndex[J])
+                      else
+                        Strings.Add(ListSplitFile[J]);
+                  finally
+                    ListSplitFile.Free;
+                  end;
+                end;
+              end;
+              if 1 = Pos('speed-from-', S) then
+              begin
+                S := Copy(S, Length('speed-from-') + 1, MaxInt);
+                S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+                if FileExists(S) then
+                begin
+                  ListSplitFile := TStringList.Create;
+                  try
+                    ListSplitFile.LoadFromFile(S);
+                    for J := 0 to ListSplitFile.Count - 1 do
+                      if AnsiStartsText('speed-from-', ListSplitFile.Names[J]) then
+                        Strings.Values[Copy(ListSplitFile.Names[J], Length('speed-from-') + 1, MaxInt)] :=
+                          ListSplitFile.ValueFromIndex[J];
+                  finally
+                    ListSplitFile.Free;
+                  end;
+                end;
+              end;
+              if 1 = Pos('affilspeed-from-', S) then
+              begin
+                S := Copy(S, Length('affilspeed-from-') + 1, MaxInt);
+                S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+                if FileExists(S) then
+                begin
+                  ListSplitFile := TStringList.Create;
+                  try
+                    ListSplitFile.LoadFromFile(S);
+                    for J := 0 to ListSplitFile.Count - 1 do
+                      if AnsiStartsText('affilspeed-from-', ListSplitFile.Names[J]) then
+                        Strings.Values[Copy(ListSplitFile.Names[J], Length('affilspeed-from-') + 1, MaxInt)] :=
+                          ListSplitFile.ValueFromIndex[J];
+                  finally
+                    ListSplitFile.Free;
+                  end;
+                end;
+              end;
+              if 1 = Pos('affilspeed-to-', S) then
+              begin
+                S := Copy(S, Length('affilspeed-to-') + 1, MaxInt);
+                S := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + S + '.settings';
+                if FileExists(S) then
+                begin
+                  ListSplitFile := TStringList.Create;
+                  try
+                    ListSplitFile.LoadFromFile(S);
+                    for J := 0 to ListSplitFile.Count - 1 do
+                      if AnsiStartsText('affilspeed-to-', ListSplitFile.Names[J]) then
+                        Strings.Values[Copy(ListSplitFile.Names[J], Length('affilspeed-to-') + 1, MaxInt)] :=
+                          ListSplitFile.ValueFromIndex[J];
                   finally
                     ListSplitFile.Free;
                   end;
@@ -978,7 +1150,9 @@ var
   I: Integer;
   S: String;
   Strings: TStrings;
+  doUpdate: Boolean;
 begin
+  doUpdate := False;
   il.Enter('WriteString');
   try
     I := FSections.IndexOf(Section);
@@ -993,12 +1167,12 @@ begin
     else
       Strings.Add(S);
 
-    if self.AutoUpdate then
-      UpdateFile;
-
+    doUpdate := self.AutoUpdate;
   finally
     il.Leave;
   end;
+  if doUpdate then
+    UpdateFile;
 end;
 
 procedure TEncIniFile.SaveUnencrypted(filename: String);
