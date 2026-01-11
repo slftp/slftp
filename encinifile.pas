@@ -689,8 +689,7 @@ begin
     for I := 0 to FSections.Count - 1 do
     begin
       if (split_site_data) and AnsiEndsText('sites.dat', FFilename) and
-         ((1 = Pos('speed-from-', FSections[I])) or (1 = Pos('affilspeed-from-', FSections[I])) or
-          (1 = Pos('speed-to-', FSections[I]))) then
+         ((1 = Pos('speed-from-', FSections[I])) or (1 = Pos('affilspeed-from-', FSections[I]))) then
         Continue;
 
       List.Add('[' + FSections[I] + ']');
@@ -742,16 +741,6 @@ begin
             begin
               ListSplitFile.Add('');
               ListSplitFile.Add('[affilspeed-from-' + SiteName + ']');
-              SpeedStrings := TStrings(FSections.Objects[SpeedSecIdx]);
-              for K := 0 to SpeedStrings.Count - 1 do
-                ListSplitFile.Add(SpeedStrings[K]);
-            end;
-
-            SpeedSecIdx := FSections.IndexOf('speed-to-' + SiteName);
-            if SpeedSecIdx >= 0 then
-            begin
-              ListSplitFile.Add('');
-              ListSplitFile.Add('[speed-to-' + SiteName + ']');
               SpeedStrings := TStrings(FSections.Objects[SpeedSecIdx]);
               for K := 0 to SpeedStrings.Count - 1 do
                 ListSplitFile.Add(SpeedStrings[K]);
