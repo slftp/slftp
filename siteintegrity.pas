@@ -191,7 +191,8 @@ var
         // 4. Deprecated Section Check
         if StartsText('affilspeed-to-', s_Section) then
         begin
-          ReportWarn(Format('Deprecated Section "%s" found. This section type is no longer used and should be removed.', [s_Section]));
+          ReportWarn(Format('Deprecated Section "%s" found. This section type is no longer used and should be removed. Source: %s',
+            [s_Section, GetSectionSourceHint(s_Section, SplitModeConfigured)]));
           IssuesFound := True;
         end;
       end;
@@ -228,7 +229,6 @@ begin
     Exit;
   end;
 
-<<<<<<< HEAD
   RedirectKeys := TStringList.Create;
   RedirectKeys.CaseSensitive := False;
   RedirectKeys.Add('redirect');
