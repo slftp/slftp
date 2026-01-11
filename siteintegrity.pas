@@ -76,6 +76,19 @@ begin
     Result := '';
 end;
 
+function GetSectionSourceHint(const aSection: String; SplitModeEnabled: Boolean): String;
+var
+  SiteName: String;
+begin
+  if SplitModeEnabled and StartsText('site-', aSection) then
+  begin
+    SiteName := Copy(aSection, 6, MaxInt);
+    Result := Format('sites.dat + rtpl/%s.settings', [SiteName]);
+  end
+  else
+    Result := 'sites.dat';
+end;
+
 procedure CheckSitesIntegrity;
 var
   ini: TEncIniFile;
@@ -130,13 +143,15 @@ var
                   Continue;
                 if (s_KeysInSection[s_j] = '') and (s_KeysInSection[s_k] = '') then
                 begin
-                  ReportWarn(Format('Section "%s": Duplicate empty key found (blank line).', [s_Section]));
+                  ReportWarn(Format('Section "%s": Duplicate empty key found (blank line). Source: %s',
+                    [s_Section, GetSectionSourceHint(s_Section, SplitModeConfigured)]));
                   IssuesFound := True;
                 end
                 else
                 begin
-                  ReportError(Format('Section "%s": Duplicate key collision found: "%s" vs "%s"',
-                    [s_Section, s_KeysInSection[s_j], s_KeysInSection[s_k]]));
+                  ReportError(Format('Section "%s": Duplicate key collision found: "%s" vs "%s". Source: %s',
+                    [s_Section, s_KeysInSection[s_j], s_KeysInSection[s_k],
+                     GetSectionSourceHint(s_Section, SplitModeConfigured)]));
                   IssuesFound := True;
                 end;
               end;
