@@ -677,6 +677,9 @@ var
   split_site_data: Boolean;
   Found: Boolean;
   S: String;
+  SiteName: String;
+  SpeedSecIdx: Integer;
+  SpeedStrings: TStrings;
   const splitredirectkeys : array [1..8] of String = ('username', 'password', 'max_dn', 'max_pre_dn',
   'max_up', 'slots', 'proxyname', 'ircnick');
 begin
@@ -685,6 +688,11 @@ begin
   try
     for I := 0 to FSections.Count - 1 do
     begin
+      if (split_site_data) and AnsiEndsText('sites.dat', FFilename) and
+         ((1 = Pos('speed-from-', FSections[I])) or (1 = Pos('affilspeed-from-', FSections[I])) or
+          (1 = Pos('speed-to-', FSections[I]))) then
+        Continue;
+
       List.Add('[' + FSections[I] + ']');
       Strings := TStrings(FSections.Objects[I]);
 
@@ -707,7 +715,7 @@ begin
                 end;
               end;
               if not Found then
-                if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
+                if (1 = Pos('bnc_', S)) then
                   Found := True;
 
               if Found then
@@ -715,6 +723,38 @@ begin
 
               else
                 ListSplitFile.Add(Strings[J])
+            end;
+
+            SiteName := Copy(FSections[I], 6, MaxInt);
+            
+            SpeedSecIdx := FSections.IndexOf('speed-from-' + SiteName);
+            if SpeedSecIdx >= 0 then
+            begin
+              ListSplitFile.Add('');
+              ListSplitFile.Add('[speed-from-' + SiteName + ']');
+              SpeedStrings := TStrings(FSections.Objects[SpeedSecIdx]);
+              for K := 0 to SpeedStrings.Count - 1 do
+                ListSplitFile.Add(SpeedStrings[K]);
+            end;
+
+            SpeedSecIdx := FSections.IndexOf('affilspeed-from-' + SiteName);
+            if SpeedSecIdx >= 0 then
+            begin
+              ListSplitFile.Add('');
+              ListSplitFile.Add('[affilspeed-from-' + SiteName + ']');
+              SpeedStrings := TStrings(FSections.Objects[SpeedSecIdx]);
+              for K := 0 to SpeedStrings.Count - 1 do
+                ListSplitFile.Add(SpeedStrings[K]);
+            end;
+
+            SpeedSecIdx := FSections.IndexOf('speed-to-' + SiteName);
+            if SpeedSecIdx >= 0 then
+            begin
+              ListSplitFile.Add('');
+              ListSplitFile.Add('[speed-to-' + SiteName + ']');
+              SpeedStrings := TStrings(FSections.Objects[SpeedSecIdx]);
+              for K := 0 to SpeedStrings.Count - 1 do
+                ListSplitFile.Add(SpeedStrings[K]);
             end;
 
             S := FSections[I];
@@ -875,9 +915,10 @@ end;
 
 procedure TEncIniFile.SetStrings(List: TStrings);
 var
-  I, J: Integer;
+  I, J, K: Integer;
   S: String;
   Strings: TStrings;
+  CurrentStrings: TStrings;
   ListSplitFile: TStringList;
   split_site_data: Boolean;
 begin
@@ -915,8 +956,22 @@ begin
                   ListSplitFile := TStringList.Create;
                   try
                     ListSplitFile.LoadFromFile(S);
+                    CurrentStrings := Strings;
                     for J := 0 to ListSplitFile.Count - 1 do
-                      Strings.Add(ListSplitFile[J]);
+                    begin
+                      S := Trim(ListSplitFile[J]);
+                      if (S <> '') and (S[1] = '[') and (S[Length(S)] = ']') then
+                      begin
+                        S := Copy(S, 2, Length(S)-2);
+                        K := FSections.IndexOf(S);
+                        if K >= 0 then
+                          CurrentStrings := TStrings(FSections.Objects[K])
+                        else
+                          CurrentStrings := AddSection(S);
+                      end
+                      else
+                        CurrentStrings.Add(ListSplitFile[J]);
+                    end;
                   finally
                     ListSplitFile.Free;
                   end;
