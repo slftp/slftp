@@ -128,9 +128,17 @@ var
                 if (StartsText('site-', s_Section)) and
                    (s_KeysInSection[s_j] = s_KeysInSection[s_k]) then
                   Continue;
-                ReportError(Format('Section "%s": Duplicate key collision found: "%s" vs "%s"', 
-                  [s_Section, s_KeysInSection[s_j], s_KeysInSection[s_k]]));
-                IssuesFound := True;
+                if (s_KeysInSection[s_j] = '') and (s_KeysInSection[s_k] = '') then
+                begin
+                  ReportWarn(Format('Section "%s": Duplicate empty key found (blank line).', [s_Section]));
+                  IssuesFound := True;
+                end
+                else
+                begin
+                  ReportError(Format('Section "%s": Duplicate key collision found: "%s" vs "%s"',
+                    [s_Section, s_KeysInSection[s_j], s_KeysInSection[s_k]]));
+                  IssuesFound := True;
+                end;
               end;
         
           // 2. Check Split Data Constraints (Only if checking raw sites.dat)
