@@ -949,7 +949,11 @@ begin
                     for J := 0 to ListSplitFile.Count - 1 do
                     begin
                       S := Trim(ListSplitFile[J]);
-                      if (S <> '') and (S[1] = '[') and (S[Length(S)] = ']') then
+                      if (S = '') then
+                        Continue;
+                      if (S[1] = ';') then
+                        Continue;
+                      if (S[1] = '[') and (S[Length(S)] = ']') then
                       begin
                         S := Copy(S, 2, Length(S)-2);
                         K := FSections.IndexOf(S);
