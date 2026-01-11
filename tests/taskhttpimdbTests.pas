@@ -1548,7 +1548,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
 
-    CheckEquals(14, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(15, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl4094002689', fBOMCountryLinks.Items['USA'], 'Link mismatch');
     CheckEqualsString('/release/rl3985016577', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
     CheckEqualsString('/release/rl3783689985', fBOMCountryLinks.Items['Portugal'], 'Link mismatch');
@@ -1713,7 +1713,7 @@ begin
   try
     THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(FOverviewPage, fBOMCountryLinks);
 
-    CheckEquals(31, fBOMCountryLinks.Count, 'Count mismatch');
+    CheckEquals(32, fBOMCountryLinks.Count, 'Count mismatch');
     CheckEqualsString('/release/rl1782744577', fBOMCountryLinks.Items['USA'], 'Link mismatch');
     CheckEqualsString('/release/rl3156968961', fBOMCountryLinks.Items['UK'], 'Link mismatch');
     CheckEqualsString('/release/rl1730905601', fBOMCountryLinks.Items['Italy'], 'Link mismatch');
