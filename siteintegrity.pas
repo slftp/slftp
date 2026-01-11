@@ -205,6 +205,7 @@ begin
     Exit;
   end;
 
+<<<<<<< HEAD
   RedirectKeys := TStringList.Create;
   RedirectKeys.CaseSensitive := False;
   RedirectKeys.Add('redirect');

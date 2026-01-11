@@ -16,7 +16,7 @@ uses
   {$ELSE}
     process, baseunix, pwd, users,
   {$ENDIF}
-  rcmdline, encinifile, versioninfo;
+  rcmdline, encinifile, versioninfo, siteintegrity;
 
 procedure _ShowFullHelpInformation(const aCmdLineReaderHelp, aBinaryName: String);
 begin
@@ -26,6 +26,7 @@ begin
   WriteLn(Format('  %s -e --infile=rules.plain --outfile=slftp.rules --pw', [aBinaryName]));
   WriteLn(Format('  %s -d --infile=slftp.rules --outfile=rules.txt --pf=key.txt', [aBinaryName]));
   WriteLn(Format('  %s -e --pf=masterpass.txt --infile=rules.plain --outfile=slftp.rules', [aBinaryName]));
+  WriteLn(Format('  %s --checksites', [aBinaryName]));
 end;
 
 procedure _WipeString(var aPassword: String);
@@ -229,6 +230,7 @@ var
   fIsEncryptMode: Boolean;
   fIsDecryptMode: Boolean;
   fIsPasswordMode: Boolean;
+  fIsCheckSitesMode: Boolean;
   fPasswordFile: String;
   fInputFilename: String;
   fOutputFilename: String;
@@ -256,6 +258,9 @@ begin
       fCmdLineReader.declareFile('pf', 'Filename in which the password is stored as plain text', '');
       fCmdLineReader.declareFile('infile', 'Filename for the input file to be encrypted/decrypted', '');
       fCmdLineReader.declareFile('outfile', 'Filename for the encrypted/decrypted output file', '');
+      
+      fCmdLineReader.beginDeclarationCategory('Integrity Checks:');
+      fCmdLineReader.declareFlag('checksites', 'Check sites.dat for integrity issues (duplicates, orphans, misplaced keys)');
 
       fCmdLineReader.parse(aCmdLine);
     except
@@ -271,6 +276,7 @@ begin
     fIsEncryptMode := fCmdLineReader.readFlag('encrypt');
     fIsDecryptMode := fCmdLineReader.readFlag('decrypt');
     fIsPasswordMode := fCmdLineReader.readFlag('pw');
+    fIsCheckSitesMode := fCmdLineReader.readFlag('checksites');
     fPasswordFile := fCmdLineReader.readString('pf');
     fInputFilename := fCmdLineReader.readString('infile');
     fOutputFilename := fCmdLineReader.readString('outfile');
@@ -284,6 +290,10 @@ begin
     begin
       fVersion := GetFullVersionString;
       WriteLn(fVersion);
+    end
+    else if fIsCheckSitesMode then
+    begin
+      CheckSitesIntegrity;
     end
     else if fIsEncryptMode and fIsDecryptMode then
     begin
