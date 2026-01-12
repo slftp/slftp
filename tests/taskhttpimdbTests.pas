@@ -762,11 +762,11 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('War for the Planet of the Apes', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[1];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
     CheckEqualsString('Austria', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Planet der Affen Survival', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[2];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
     CheckEqualsString('Brazil', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Planeta dos Macacos A Guerra', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
@@ -870,12 +870,12 @@ begin
     fReleaseDateInfo := fReleaseDateInfoList[3];
 
 
-    fReleaseDateInfo := fReleaseDateInfoList[1];
+    fReleaseDateInfo := fReleaseDateInfoList[2];
     CheckEqualsString('Thailand', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('August 29, 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[3];
+    fReleaseDateInfo := fReleaseDateInfoList[4];
     CheckEqualsString('Brazil', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('October 10, 2005', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
@@ -908,7 +908,7 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Prison Break', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[1];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
     CheckEqualsString('Brazil', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Prison Break', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
   finally
@@ -1043,11 +1043,11 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[1];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[2];
     CheckEqualsString('Austria', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Heilstätten', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
     CheckEqualsString('Canada', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('L''Asile Berceau de la Terreur', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
@@ -1314,7 +1314,7 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[2];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
     CheckEqualsString('Canada', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Boys State', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
@@ -1425,7 +1425,7 @@ begin
     CheckEqualsString('October 5, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Tokyo, premiere)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
 
-    fReleaseDateInfo := fReleaseDateInfoList[2];
+    fReleaseDateInfo := fReleaseDateInfoList[4];
     CheckEqualsString('Belgium', fReleaseDateInfo.Country, 'Releasedate Country mismatch');
     CheckEqualsString('October 17, 2009', fReleaseDateInfo.ReleaseDate, 'Releasedate Date mismatch');
     CheckEqualsString('(Gent International Film Festival)', fReleaseDateInfo.ExtraInfo, 'Releasedate Extra info mismatch');
@@ -1458,11 +1458,11 @@ begin
     CheckEqualsString('(original title)', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[1];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[3];
     CheckEqualsString('Brazil', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
-    fAlsoKnownAsInfo := fAlsoKnownAsList[2];
+    fAlsoKnownAsInfo := fAlsoKnownAsList[4];
     CheckEqualsString('Canada', fAlsoKnownAsInfo.Country, 'AKA Country mismatch');
     CheckEqualsString('Astro Boy', fAlsoKnownAsInfo.Title, 'AKA Title mismatch');
 
