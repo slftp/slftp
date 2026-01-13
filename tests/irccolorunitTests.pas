@@ -17,6 +17,12 @@ type
     procedure TestReplaceThemeMSG3;
     procedure TestReplaceThemeMSG4;
     procedure TestReplaceThemeMSG5;
+    procedure TestReplaceThemeMSG_EmptyInput;
+    procedure TestReplaceThemeMSG_NoColorCodes;
+    procedure TestReplaceThemeMSG_BersiRCColor;
+    procedure TestReplaceThemeMSG_MixedColors;
+    procedure TestReplaceThemeMSG_InvalidColorCode;
+    procedure TestReplaceThemeMSG_AllFormattingCodes;
   end;
 
 implementation
@@ -75,10 +81,67 @@ var
   fInput, fResult, fExpect: String;
 begin
   fInput := '<c10>[<b>TVInfo</b>]</c> <b>Country</b> USA - <b>Network</b> NBC - <b>Language</b> English - <b>Rating</b> 62/100';
-  fExpect := #3 + '10[' + #2 + 'TVInfo' + #2 + ']' + #3 + ' ' + #2 + 'Country' + #2 + ' USA - ' + #2 + 'Network' + #2 + ' NBC - ' + #2 + 'Language' + #2 + ' English - ' + #2 + 'Rating' + #2 + ' 62/100'; 
+  fExpect := #3 + '10[' + #2 + 'TVInfo' + #2 + ']' + #3 + ' ' + #2 + 'Country' + #2 + ' USA - ' + #2 + 'Network' + #2 + ' NBC - ' + #2 + 'Language' + #2 + ' English - ' + #2 + 'Rating' + #2 + ' 62/100';
   fResult := ReplaceThemeMSG(fInput);
 
   CheckEqualsString(fExpect, fResult);
+end;
+
+procedure TTestIrcColorUnit.TestReplaceThemeMSG_EmptyInput;
+var
+  fInput, fResult: String;
+begin
+  fInput := '';
+  fResult := ReplaceThemeMSG(fInput);
+  CheckEqualsString('', fResult, 'Empty input should return empty string');
+end;
+
+procedure TTestIrcColorUnit.TestReplaceThemeMSG_NoColorCodes;
+var
+  fInput, fResult: String;
+begin
+  fInput := 'Plain text without any codes';
+  fResult := ReplaceThemeMSG(fInput);
+  CheckEqualsString(fInput, fResult, 'Text without codes should remain unchanged');
+end;
+
+procedure TTestIrcColorUnit.TestReplaceThemeMSG_BersiRCColor;
+var
+  fInput, fResult, fExpect: String;
+begin
+  fInput := '<d10>RGB Color Test</d>';
+  fExpect := #4 + '10RGB Color Test' + #4;
+  fResult := ReplaceThemeMSG(fInput);
+  CheckEqualsString(fExpect, fResult, 'BersiRC color codes should be converted correctly');
+end;
+
+procedure TTestIrcColorUnit.TestReplaceThemeMSG_MixedColors;
+var
+  fInput, fResult, fExpect: String;
+begin
+  fInput := '<c7>mIRC color</c> and <d10>bersirc color</d>';
+  fExpect := #3 + '07mIRC color' + #3 + ' and ' + #4 + '10bersirc color' + #4;
+  fResult := ReplaceThemeMSG(fInput);
+  CheckEqualsString(fExpect, fResult, 'Mixed mIRC and BersiRC colors should both work');
+end;
+
+procedure TTestIrcColorUnit.TestReplaceThemeMSG_InvalidColorCode;
+var
+  fInput, fResult: String;
+begin
+  fInput := '<c>No number</c>';
+  fResult := ReplaceThemeMSG(fInput);
+  CheckEqualsString(fInput, fResult, 'Invalid color codes should be ignored');
+end;
+
+procedure TTestIrcColorUnit.TestReplaceThemeMSG_AllFormattingCodes;
+var
+  fInput, fResult, fExpect: String;
+begin
+  fInput := '<b>Bold</b> <u>Underline</u> <i>Italic</i> <l>Blink</l> <f>FixedWidth</f> <r>Reverse</r>';
+  fExpect := #2 + 'Bold' + #2 + ' ' + #31 + 'Underline' + #31 + ' ' + #29 + 'Italic' + #29 + ' ' + #5 + 'Blink' + #5 + ' ' + #17 + 'FixedWidth' + #17 + ' ' + #22 + 'Reverse' + #22;
+  fResult := ReplaceThemeMSG(fInput);
+  CheckEqualsString(fExpect, fResult, 'All formatting codes should be converted correctly');
 end;
 
 initialization

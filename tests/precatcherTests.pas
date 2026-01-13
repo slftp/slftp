@@ -16,6 +16,12 @@ type
     procedure TestFindSection2;
     procedure TestFindSection3;
     procedure TestFindSection4;
+    procedure TestProcessMappings_RegexPattern;
+    procedure TestProcessMappings_MultiplePatterns;
+    procedure TestProcessMappings_NoRegex;
+    procedure TestProcessMappings_EmptyThirdField;
+    procedure TestProcessMappings_CommentedLine;
+    procedure TestProcessMappings_InvalidFormat;
   end;
 
 implementation
@@ -63,6 +69,84 @@ begin
   fExpectedSection := '';
 
   CheckEqualsString(fExpectedSection, FindSection(fInputStr), 'Finding section failed!');
+end;
+
+procedure TTestPrecatcher.TestProcessMappings_RegexPattern;
+var
+  fInput: String;
+  fInitialCount: Integer;
+begin
+  fInitialCount := mappingslist.Count;
+  fInput := 'MP3;FLAC;/.*\.mp3$/i';
+
+  ProcessMappings(fInput);
+
+  CheckEquals(fInitialCount + 1, mappingslist.Count, 'Should add one mapping');
+end;
+
+procedure TTestPrecatcher.TestProcessMappings_MultiplePatterns;
+var
+  fInput: String;
+  fInitialCount: Integer;
+begin
+  fInitialCount := mappingslist.Count;
+  fInput := 'MP3;FLAC;/.*\.mp3$/i,/.*\.flac$/i';
+
+  ProcessMappings(fInput);
+
+  CheckEquals(fInitialCount + 2, mappingslist.Count, 'Should add two mappings for two regex patterns');
+end;
+
+procedure TTestPrecatcher.TestProcessMappings_NoRegex;
+var
+  fInput: String;
+  fInitialCount: Integer;
+begin
+  fInitialCount := mappingslist.Count;
+  fInput := 'MP3;FLAC;test1,test2';
+
+  ProcessMappings(fInput);
+
+  CheckEquals(fInitialCount + 2, mappingslist.Count, 'Should add two mappings for comma-separated strings');
+end;
+
+procedure TTestPrecatcher.TestProcessMappings_EmptyThirdField;
+var
+  fInput: String;
+  fInitialCount: Integer;
+begin
+  fInitialCount := mappingslist.Count;
+  fInput := 'MP3;FLAC;';
+
+  ProcessMappings(fInput);
+
+  CheckEquals(fInitialCount + 1, mappingslist.Count, 'Should add one mapping even with empty third field');
+end;
+
+procedure TTestPrecatcher.TestProcessMappings_CommentedLine;
+var
+  fInput: String;
+  fInitialCount: Integer;
+begin
+  fInitialCount := mappingslist.Count;
+  fInput := '# MP3;FLAC;/.*\.mp3$/i';
+
+  ProcessMappings(fInput);
+
+  CheckEquals(fInitialCount, mappingslist.Count, 'Commented lines should be skipped');
+end;
+
+procedure TTestPrecatcher.TestProcessMappings_InvalidFormat;
+var
+  fInput: String;
+  fInitialCount: Integer;
+begin
+  fInitialCount := mappingslist.Count;
+  fInput := 'MP3;FLAC';
+
+  ProcessMappings(fInput);
+
+  CheckEquals(fInitialCount, mappingslist.Count, 'Invalid format (less than 2 semicolons) should not add mapping');
 end;
 
 initialization
