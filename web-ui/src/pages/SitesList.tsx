@@ -39,6 +39,10 @@ export function SitesList() {
   const [newSitePassword, setNewSitePassword] = useState('');
   const [newSiteSsl, setNewSiteSsl] = useState(false);
 
+  // Delete Site Confirmation Modal
+  const [deleteSiteModalOpened, setDeleteSiteModalOpened] = useState(false);
+  const [siteToDelete, setSiteToDelete] = useState<string | null>(null);
+
   // Fetch Sites
   const { data, isLoading, error } = useQuery({
     queryKey: ['sites'],
@@ -298,9 +302,8 @@ export function SitesList() {
           </Tooltip>
           <Tooltip label="Delete site">
             <ActionIcon variant="light" color="red" onClick={() => {
-              if (confirm(`Delete site ${site.name}?`)) {
-                deleteSiteMutation.mutate(site.name);
-              }
+              setSiteToDelete(site.name);
+              setDeleteSiteModalOpened(true);
             }}>
               <IconX size="1rem" />
             </ActionIcon>
@@ -411,6 +414,49 @@ export function SitesList() {
           Add Site
         </Button>
       </Group>
+    </Modal>
+
+    <Modal
+      opened={deleteSiteModalOpened}
+      onClose={() => {
+        setDeleteSiteModalOpened(false);
+        setSiteToDelete(null);
+      }}
+      title="Confirm Site Deletion"
+      centered
+    >
+      <Stack gap="md">
+        <Text>
+          Are you sure you want to delete site <Text component="span" fw={700} c="red">{siteToDelete}</Text>?
+        </Text>
+        <Text size="sm" c="dimmed">
+          This will remove the site configuration, speed routes, rules, ranks, and precatcher entries. This action cannot be undone.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button
+            variant="default"
+            onClick={() => {
+              setDeleteSiteModalOpened(false);
+              setSiteToDelete(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            loading={deleteSiteMutation.isPending}
+            onClick={() => {
+              if (siteToDelete) {
+                deleteSiteMutation.mutate(siteToDelete);
+                setDeleteSiteModalOpened(false);
+                setSiteToDelete(null);
+              }
+            }}
+          >
+            Delete Site
+          </Button>
+        </Group>
+      </Stack>
     </Modal>
   </Card>
   );

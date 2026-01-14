@@ -842,6 +842,10 @@ export function IRC() {
   const [editNetworkIdent, setEditNetworkIdent] = useState('');
   const [editNetworkUser, setEditNetworkUser] = useState('');
 
+  // Delete Network Confirmation Modal
+  const [deleteNetworkModalOpened, setDeleteNetworkModalOpened] = useState(false);
+  const [networkToDelete, setNetworkToDelete] = useState<string | null>(null);
+
   const addNetworkMutation = useMutation({
     mutationFn: async () => {
       await apiClient.post('/ApiIrcService/AddNetwork', {
@@ -1039,7 +1043,10 @@ export function IRC() {
                             <ActionIcon
                                 variant="light"
                                 color="red"
-                                onClick={() => deleteNetworkMutation.mutate(network.name)}
+                                onClick={() => {
+                                  setNetworkToDelete(network.name);
+                                  setDeleteNetworkModalOpened(true);
+                                }}
                             >
                                 <IconTrash size="1rem" />
                             </ActionIcon>
@@ -2043,6 +2050,49 @@ export function IRC() {
             </Button>
             <Button onClick={() => updateNetworkMutation.mutate()} loading={updateNetworkMutation.isPending} leftSection={<IconCheck size="1rem" />}>
               Save
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={deleteNetworkModalOpened}
+        onClose={() => {
+          setDeleteNetworkModalOpened(false);
+          setNetworkToDelete(null);
+        }}
+        title="Confirm Network Deletion"
+        centered
+      >
+        <Stack gap="md">
+          <Text>
+            Are you sure you want to delete network <Text component="span" fw={700} c="red">{networkToDelete}</Text>?
+          </Text>
+          <Text size="sm" c="dimmed">
+            This will remove the network configuration and all associated channels. This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" mt="md">
+            <Button
+              variant="default"
+              onClick={() => {
+                setDeleteNetworkModalOpened(false);
+                setNetworkToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              loading={deleteNetworkMutation.isPending}
+              onClick={() => {
+                if (networkToDelete) {
+                  deleteNetworkMutation.mutate(networkToDelete);
+                  setDeleteNetworkModalOpened(false);
+                  setNetworkToDelete(null);
+                }
+              }}
+            >
+              Delete Network
             </Button>
           </Group>
         </Stack>
