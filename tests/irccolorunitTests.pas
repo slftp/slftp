@@ -139,7 +139,7 @@ var
   fInput, fResult, fExpect: String;
 begin
   fInput := '<b>Bold</b> <u>Underline</u> <i>Italic</i> <l>Blink</l> <f>FixedWidth</f> <r>Reverse</r>';
-  fExpect := #2 + 'Bold' + #2 + ' ' + #31 + 'Underline' + #31 + ' ' + #29 + 'Italic' + #29 + ' ' + #5 + 'Blink' + #5 + ' ' + #17 + 'FixedWidth' + #17 + ' ' + #22 + 'Reverse' + #22;
+  fExpect := #2 + 'Bold' + #2 + ' ' + #31 + 'Underline' + #31 + ' ' + #22 + 'Italic' + #22 + ' ' + #10 + 'Blink' + #10 + ' ' + #17 + 'FixedWidth' + #17 + ' ' + #18 + 'Reverse' + #18;
   fResult := ReplaceThemeMSG(fInput);
   CheckEqualsString(fExpect, fResult, 'All formatting codes should be converted correctly');
 end;
