@@ -52,6 +52,11 @@ function ExtractReleasename(ts_data: TStringList): String;
 function FindSection(const aCleanSitebotAnnounce: String): String;
 function ProcessDoReplace(const s: String; const rls: String = ''): String;
 
+{ Processes a mapping configuration line from the [mappings] section
+  @param(s Configuration line in format: OrigSection;NewSection;pattern1,pattern2,...)
+  @note(Exported for unit testing) }
+procedure ProcessMappings(s: String);
+
 var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
