@@ -228,6 +228,7 @@ type
     FStarted: TDateTime;
     FCompleted: TDateTime;
     FName: RawUTF8;
+    FError: RawUTF8;
   published
     property Uid: Int64 read FUid write FUid;
     property TaskType: RawUTF8 read FType write FType;
@@ -238,6 +239,7 @@ type
     property Started: TDateTime read FStarted write FStarted;
     property Completed: TDateTime read FCompleted write FCompleted;
     property Name: RawUTF8 read FName write FName;
+    property Error: RawUTF8 read FError write FError;
   end;
 
   { Queue Stats }

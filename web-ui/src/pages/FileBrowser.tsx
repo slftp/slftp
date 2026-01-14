@@ -49,7 +49,8 @@ export function FileBrowser() {
           continue;
         }
         if (status === 'failed') {
-          throw new Error(`Transfer task failed (uid ${uid})`);
+          const reason = info?.Error || `(uid ${uid})`;
+          throw new Error(`Transfer task failed: ${reason}`);
         }
       }
       await sleep(1500);
@@ -77,22 +78,43 @@ export function FileBrowser() {
     setTransferring(true);
     let queued = 0;
     const taskUids: number[] = [];
+
     try {
       for (const file of selection) {
-        const fullSrcPath = srcPath + (srcPath === '/' ? '' : '/') + file.name;
-        const res = await apiClient.post('/ApiQueueService/CreateTransferTask', {
-          SourceSite: srcSite,
-          DestSite: dstSite,
-          Section: 'FXP',
-          Dir: dstPath,
-          FileName: fullSrcPath,
-        });
-        const taskUid = Array.isArray(res.data?.result) ? res.data.result[0] : res.data?.result ?? res.data;
-        if (!taskUid || taskUid === 0) {
-          throw new Error('Transfer task was not queued (API returned 0)');
+        if (file.is_dir) {
+          // Use the new Release Transfer API for directories
+          // This delegates recursion and transfer logic to the backend (TPazoDirlistTask)
+          // similar to the !transfer IRC command.
+          const res = await apiClient.post('/ApiQueueService/CreateReleaseTransferTask', {
+            SourceSite: srcSite,
+            DestSite: dstSite,
+            SourceDir: srcPath,
+            DestDir: dstPath,
+            RlsName: file.name
+          });
+          const taskUid = Array.isArray(res.data?.result) ? res.data.result[0] : res.data?.result ?? res.data;
+          if (!taskUid || taskUid === 0) {
+             throw new Error(`Directory transfer task for ${file.name} was not queued`);
+          }
+          taskUids.push(Number(taskUid));
+          queued++;
+        } else {
+          // Standard file transfer
+          const fullSrcPath = srcPath + (srcPath === '/' ? '' : '/') + file.name;
+          const res = await apiClient.post('/ApiQueueService/CreateTransferTask', {
+            SourceSite: srcSite,
+            DestSite: dstSite,
+            Section: 'FXP',
+            Dir: dstPath,
+            FileName: fullSrcPath,
+          });
+          const taskUid = Array.isArray(res.data?.result) ? res.data.result[0] : res.data?.result ?? res.data;
+          if (!taskUid || taskUid === 0) {
+            throw new Error(`Transfer task for ${file.name} was not queued`);
+          }
+          taskUids.push(Number(taskUid));
+          queued++;
         }
-        taskUids.push(Number(taskUid));
-        queued++;
       }
 
       notifications.show({

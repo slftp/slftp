@@ -220,9 +220,17 @@ type
     function CreateSpreadTask(const SourceSite, Section, Release: RawUTF8): Int64;
 
     /// POST /api/tasks/transfer
-    /// Creates FXP transfer task
+    /// Creates FXP transfer task for a single file
     function CreateTransferTask(const SourceSite, DestSite, Section,
                                 Dir, FileName: RawUTF8): Int64;
+
+    /// POST /api/tasks/transfer/release
+    /// Creates recursive FXP transfer task for a release (directory)
+    /// Similar to IRC !transfer command.
+    /// SourceDir and DestDir can be paths or section names.
+    /// RlsName is the name of the release directory.
+    function CreateReleaseTransferTask(const SourceSite, DestSite, SourceDir,
+                                DestDir, RlsName: RawUTF8): Int64;
 
     /// DELETE /api/tasks/{uid}
     /// Stops and removes task

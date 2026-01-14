@@ -8,6 +8,7 @@ import {
   Badge,
   Breadcrumbs,
   Center,
+  Checkbox,
   Divider,
   Group,
   Loader,
@@ -68,20 +69,70 @@ function _parseModifiedMs(aFile: FileEntry): number | null {
       return value < 1_000_000_000_000 ? value * 1000 : value;
     }
     if (typeof value === 'string' && value.trim() !== '') {
+      // Try parsing standard ISO dates first
       const ms = Date.parse(value);
-      if (!Number.isNaN(ms)) return ms;
+      if (!Number.isNaN(ms) && ms > 0) {
+        // If year is 2001 and original string doesn't contain 2001, it's likely a misparse of "MMM DD HH:MM"
+        const d = new Date(ms);
+        if (d.getFullYear() === 2001 && !value.includes('2001')) {
+           // Fall through to manual parsing
+        } else {
+           return ms;
+        }
+      }
 
-      // Common FTP-style date formats that are not reliably parsed by Date.parse
+      const now = new Date();
+      const currentYear = now.getFullYear();
+
+      // Regex for "MMM DD HH:MM" (e.g. "Jan 14 20:26") - common Unix ls -l
+      const reUnixTime = /^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{2}):(\d{2})$/;
+      const mUnixTime = value.match(reUnixTime);
+      if (mUnixTime) {
+        const monthStr = mUnixTime[1];
+        const day = parseInt(mUnixTime[2], 10);
+        const hour = parseInt(mUnixTime[3], 10);
+        const minute = parseInt(mUnixTime[4], 10);
+        
+        const monthIndex = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(monthStr) / 3;
+        if (monthIndex >= 0) {
+          // Assume current year first
+          const d = new Date(currentYear, monthIndex, day, hour, minute);
+          // If date is in future (by more than 1 day tolerance), assumes it was last year
+          if (d.getTime() > now.getTime() + 86400000) {
+            d.setFullYear(currentYear - 1);
+          }
+          return d.getTime();
+        }
+      }
+
+      // Regex for "MMM DD YYYY" (e.g. "Oct 12 2024") - common Unix ls -l for older files
+      const reUnixYear = /^([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})$/;
+      const mUnixYear = value.match(reUnixYear);
+      if (mUnixYear) {
+        const monthStr = mUnixYear[1];
+        const day = parseInt(mUnixYear[2], 10);
+        const year = parseInt(mUnixYear[3], 10);
+        
+        const monthIndex = "JanFebMarAprMayJunJulAugSepOctNovDec".indexOf(monthStr) / 3;
+        if (monthIndex >= 0) {
+          return new Date(year, monthIndex, day).getTime();
+        }
+      }
+
+      // Common FTP-style date formats (MM-DD HH:MM)
       // e.g. "12-18 01:45" (MM-DD HH:MM) -> assume current year, local time
       const m1 = value.match(/^(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
       if (m1) {
-        const year = new Date().getFullYear();
         const month = Number(m1[1]);
         const day = Number(m1[2]);
         const hour = Number(m1[3]);
         const minute = Number(m1[4]);
         if ([month, day, hour, minute].every((n) => Number.isFinite(n))) {
-          const d = new Date(year, month - 1, day, hour, minute, 0, 0);
+          const d = new Date(currentYear, month - 1, day, hour, minute, 0, 0);
+          // If date is in future, assume last year
+          if (d.getTime() > now.getTime() + 86400000) {
+             d.setFullYear(currentYear - 1);
+          }
           if (!Number.isNaN(d.getTime())) return d.getTime();
         }
       }
@@ -229,6 +280,17 @@ export function FileBrowserPane({
     });
   }, []);
 
+  const toggleSelectAll = () => {
+    if (files.length === 0) return;
+    
+    if (selectedFiles.size === files.length) {
+      setSelectedFiles(new Set());
+    } else {
+      const allNames = new Set(files.map(f => f.name));
+      setSelectedFiles(allNames);
+    }
+  };
+
   const pathParts = internalPath.split('/').filter((p) => p);
   const selectedCount = selectedFiles.size;
   const canNavigateUp = internalPath !== '/';
@@ -246,6 +308,9 @@ export function FileBrowserPane({
       return true;
     });
   }, [filesRaw]);
+
+  const allSelected = files.length > 0 && selectedFiles.size === files.length;
+  const indeterminate = selectedFiles.size > 0 && selectedFiles.size < files.length;
 
   const sortedFiles = useMemo(() => {
     const decorated = files.map((f) => ({ f, modifiedMs: _parseModifiedMs(f) }));
@@ -413,7 +478,15 @@ export function FileBrowserPane({
             >
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th style={{ width: 30 }} />
+                  <Table.Th style={{ width: 40, paddingLeft: 10 }}>
+                    <Checkbox 
+                      checked={allSelected}
+                      indeterminate={indeterminate}
+                      onChange={toggleSelectAll}
+                      size="sm"
+                      aria-label="Select all files"
+                    />
+                  </Table.Th>
                   <Table.Th
                     onClick={() => {
                       const next = _toggleSort(sortBy, sortDir, 'name');

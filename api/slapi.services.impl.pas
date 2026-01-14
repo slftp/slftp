@@ -121,6 +121,8 @@ type
     function CreateSpreadTask(const SourceSite, Section, Release: RawUTF8): Int64;
     function CreateTransferTask(const SourceSite, DestSite, Section,
                                 Dir, FileName: RawUTF8): Int64;
+    function CreateReleaseTransferTask(const SourceSite, DestSite, SourceDir,
+                                DestDir, RlsName: RawUTF8): Int64;
     function StopTask(TaskUid: Int64): boolean;
     function EmptyQueue(const SiteName: RawUTF8): boolean;
   end;
@@ -3190,6 +3192,7 @@ begin
     begin
       Info.Status := 'failed';
       Info.Completed := Now;
+      Info.Error := UTF8Encode(fPazo.errorreason);
     end
     else if fPazo.ready then
     begin
@@ -3337,6 +3340,118 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] CreateTransferTask: %s %s', [E.ClassName, E.Message]));
+      Result := 0;
+    end;
+  end;
+end;
+
+function TApiQueueServiceImpl.CreateReleaseTransferTask(const SourceSite, DestSite, SourceDir,
+                                DestDir, RlsName: RawUTF8): Int64;
+var
+  fSourceSite, fDestSite, fRlsName: String;
+  fSrcDirParam, fDstDirParam: String;
+  fFtpSrcDir, fFtpDstDir: String;
+  sSrc, sDst: TSite;
+  rc: TCRelease;
+  rls: TRelease;
+  p: TPazo;
+  ps_src, ps_dst: TPazoSite;
+  pd: TPazoDirlistTask;
+begin
+  Result := 0;
+  try
+    fSourceSite := UpperCase(Trim(UTF8ToString(SourceSite)));
+    fDestSite := UpperCase(Trim(UTF8ToString(DestSite)));
+    fSrcDirParam := Trim(UTF8ToString(SourceDir));
+    fDstDirParam := Trim(UTF8ToString(DestDir));
+    fRlsName := Trim(UTF8ToString(RlsName));
+
+    Debug(dpMessage, section, Format('CreateReleaseTransferTask API: %s -> %s | %s -> %s | Rls: %s',
+          [fSourceSite, fDestSite, fSrcDirParam, fDstDirParam, fRlsName]));
+
+    if (fSourceSite = '') or (fDestSite = '') or (fSrcDirParam = '') or (fDstDirParam = '') or (fRlsName = '') then
+      raise Exception.Create('Missing parameters (SourceSite, DestSite, SourceDir, DestDir, RlsName are required)');
+
+    // Validate Source Site
+    sSrc := FindSiteByName('', fSourceSite);
+    if sSrc = nil then raise Exception.CreateFmt('Source site %s not found', [fSourceSite]);
+    if sSrc.PermDown then raise Exception.CreateFmt('Source site %s is perm down', [fSourceSite]);
+    if not (sSrc.WorkingStatus in [sstUnknown, sstUp]) then raise Exception.CreateFmt('Source site %s is down', [fSourceSite]);
+
+    // Validate Dest Site
+    sDst := FindSiteByName('', fDestSite);
+    if sDst = nil then raise Exception.CreateFmt('Dest site %s not found', [fDestSite]);
+    if sDst.PermDown then raise Exception.CreateFmt('Dest site %s is perm down', [fDestSite]);
+    if not (sDst.WorkingStatus in [sstUnknown, sstUp]) then raise Exception.CreateFmt('Dest site %s is down', [fDestSite]);
+
+    // Resolve Source Dir (Path vs Section)
+    if ((1 = Pos('/', fSrcDirParam)) or (length(fSrcDirParam) = LastDelimiter('/', fSrcDirParam))) then
+      fFtpSrcDir := fSrcDirParam
+    else
+    begin
+      fFtpSrcDir := sSrc.sectiondir[UpperCase(fSrcDirParam)];
+      if fFtpSrcDir = '' then raise Exception.CreateFmt('Source site %s has no dir for section %s', [fSourceSite, fSrcDirParam]);
+    end;
+
+    // Resolve Dest Dir (Path vs Section)
+    if ((1 = Pos('/', fDstDirParam)) or (length(fDstDirParam) = LastDelimiter('/', fDstDirParam))) then
+      fFtpDstDir := fDstDirParam
+    else
+    begin
+      fFtpDstDir := sDst.sectiondir[UpperCase(fDstDirParam)];
+      if fFtpDstDir = '' then raise Exception.CreateFmt('Dest site %s has no dir for section %s', [fDestSite, fDstDirParam]);
+    end;
+
+    // Create Pazo and Task
+    // We treat fSrcDirParam as "section" for FindSectionHandler if it's a section, 
+    // or fallback to 'PRE' or similar if path. 
+    // IrcTransfer uses srcdir as "section" param to FindSectionHandler.
+    rc := FindSectionHandler(fSrcDirParam); 
+    rls := rc.Create(fRlsName, fSrcDirParam);
+    p := PazoAdd(rls);
+    
+    // Add to KB for tracking
+    AddPazoToKB(Format('TRANSFER-API-%d', [p.pazo_id]), p);
+
+    p.AddSite(sSrc.Name, fFtpSrcDir, False);
+    p.AddSite(sDst.Name, fFtpDstDir, False);
+
+    ps_src := p.FindSite(sSrc.Name);
+    ps_src.AddDestination(sDst.Name, 200);
+
+    ps_dst := p.FindSite(sDst.Name);
+    ps_dst.status := rssAllowed;
+
+    // Ensure source has "dirlist added" so it processes results
+    // ps_src re-retrieval (it might have changed since addsite?)
+    if p.PazoSitesList.Count > 0 then
+    begin
+       ps_src := TPazoSite(p.PazoSitesList[0]); 
+       if ps_src.dirlist <> nil then
+         ps_src.dirlist.dirlistadded := True;
+    end;
+
+    // Create the Dirlist Task which starts the chain reaction
+    pd := TPazoDirlistTask.Create('CONSOLE', 'Browser', ps_src.Name, p, '', False, False);
+    AddTask(pd, True);
+
+    // Map the task UID (of the Dirlist task) to the Pazo ID so GetTask can track status
+    if GlApiTaskToPazoId <> nil then
+    begin
+      GlApiTaskToPazoIdLock.Enter('ApiTaskMap.Add');
+      try
+        GlApiTaskToPazoId.AddOrSetValue(pd.uid, p.pazo_id);
+      finally
+        GlApiTaskToPazoIdLock.Leave;
+      end;
+    end;
+
+    Result := pd.uid;
+
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] CreateReleaseTransferTask: %s %s', [E.ClassName, E.Message]));
       Result := 0;
     end;
   end;
