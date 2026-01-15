@@ -37,6 +37,7 @@ type
     fss: TStringStream;
     fSSL: PSSL;
     fSSLCTX: PSSL_CTX;
+    fSSLSession: PSSL_SESSION;
     fBindIp: String;
     fBindPort: Integer;
     fOnWaitingforSocket: TWaitingforsocketEvent;
@@ -183,6 +184,7 @@ begin
   ClearSocket;
 
   fSSLCTX := GetOpenSSLConnectionContext;
+  fSSLSession := nil;
 
   socks5:= TslSocks5.Create;
   socks5.username:= slDefaultSocks5.username;
@@ -210,6 +212,7 @@ end;
   ClearSocket;
 
   fSSLCTX := GetOpenSSLConnectionContext;
+  fSSLSession := nil;
 
   socks5:= TslSocks5.Create;
   socks5.username:= RawByteString(sok5.username);
@@ -236,6 +239,11 @@ end;
 destructor TslTCPSocket.Destroy;
 begin
   Disconnect;
+  if fSSLSession <> nil then
+  begin
+    SSL_SESSION_free(fSSLSession);
+    fSSLSession := nil;
+  end;
   socks5.Free;
   fss.Free;
 
@@ -626,6 +634,16 @@ begin
       exit;
     end;
 
+    // Try to reuse session if we have one
+    if fSSLSession <> nil then
+    begin
+      if SSL_set_session(fSSL, fSSLSession) = 0 then
+      begin
+        SSL_SESSION_free(fSSLSession);
+        fSSLSession := nil;
+      end;
+    end;
+
     if SSL_set_fd(fSSL, slSocket.socket) = 0 then
     begin
       DisconnectSSL;
@@ -648,7 +666,14 @@ begin
 
       err:= SSL_connect(fssl);
 
-      if(err = 1) then Break;
+      if(err = 1) then
+      begin
+        // Handshake successful, save session for next time
+        if fSSLSession <> nil then
+          SSL_SESSION_free(fSSLSession);
+        fSSLSession := SSL_get1_session(fSSL);
+        Break;
+      end;
 
       sslerr:= SSL_get_error(fssl, err);
       if((sslerr = SSL_ERROR_WANT_READ) or (sslerr = SSL_ERROR_WANT_WRITE) or (sslerr = SSL_ERROR_WANT_X509_LOOKUP)) then
