@@ -192,6 +192,7 @@ type
     function GetSpeedTestSites: RawJSON;
     function GetTestLog(const TestId: RawUTF8): RawJSON;
     function GetTestStatus(const TestId: RawUTF8): RawJSON;
+    function AbortSpeedTest(const TestId: RawUTF8): boolean;
     function GetSpeedResults(const SiteName: RawUTF8): RawJSON;
     function RecalculateRoutes: boolean;
   end;
@@ -4272,6 +4273,20 @@ begin
     begin
       Debug(dpError, section, Format('[EXCEPTION] GetTestStatus: %s', [E.Message]));
       raise;
+    end;
+  end;
+end;
+
+function TApiSpeedServiceImpl.AbortSpeedTest(const TestId: RawUTF8): boolean;
+begin
+  Result := False;
+  try
+    Result := TSpeedTestManager.Instance.AbortTest(UTF8ToString(TestId));
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] AbortSpeedTest: %s', [E.Message]));
+      Result := False;
     end;
   end;
 end;

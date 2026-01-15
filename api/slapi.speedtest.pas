@@ -8,7 +8,7 @@ uses
 
 type
   TSpeedTestType = (stLocal, stOut, stIn, stCleanup, stMatrix);
-  TSpeedTestStatus = (stsRunning, stsFinished, stsError);
+  TSpeedTestStatus = (stsRunning, stsFinished, stsError, stsAborted);
   TTransferStatus = (tsRunning, tsSuccess, tsFailed, tsNoFile);
 
   TSpeedTestResult = class
@@ -30,6 +30,8 @@ type
     TestID: string;
     TestType: TSpeedTestType;
     Status: TSpeedTestStatus;
+    /// True if an abort was requested for this test.
+    Aborted: boolean;
     Log: TStringList;
     Results: TObjectList<TSpeedTestResult>;
     Lock: TSLCriticalSection2;
@@ -63,6 +65,8 @@ type
     function GetLog(const TestID: string): string;
     function GetStatus(const TestID: string): string; // JSON with log + results
     function GetSpeedTestSites: string; // JSON array of sites with SPEEDTEST section
+    /// Aborts a running matrix speedtest.
+    function AbortTest(const TestID: string): boolean;
 
     procedure LogHook(const Net, Chan, Msg: string);
     procedure CleanupOldTests;
@@ -95,6 +99,7 @@ begin
   TestID := ID;
   TestType := AType;
   Status := stsRunning;
+  Aborted := False;
   Log := TStringList.Create;
   Results := TObjectList<TSpeedTestResult>.Create;
   Lock := TSLCriticalSection2.Create('SpeedTestCtx-' + ID);
@@ -220,108 +225,132 @@ var
   res: TSpeedTestResult;
   k: integer;
   found: boolean;
+  function IsAborted: boolean;
+  begin
+    FContext.Lock.Enter('IsAborted');
+    try
+      Result := FContext.Aborted;
+    finally
+      FContext.Lock.Leave;
+    end;
+  end;
 begin
   netname := 'API-' + FContext.TestID;
   try
-    case FContext.TestType of
-      stLocal:
-        if FParams.Count > 0 then
-          IrcSpeedTestLocal(netname, 'OUTPUT', FParams[0]);
-      stOut:
-        if FParams.Count > 1 then
-          IrcSpeedTestOut(netname, 'OUTPUT', FParams[0] + ' ' + FParams[1]);
-      stIn:
-        if FParams.Count > 1 then
-          IrcSpeedTestIn(netname, 'OUTPUT', FParams[0] + ' ' + FParams[1]);
-      stCleanup:
-        if FParams.Count > 0 then
-          IrcSpeedTestCleanup(netname, 'OUTPUT', FParams[0])
-        else
-          IrcSpeedTestCleanup(netname, 'OUTPUT', '');
-      stMatrix:
-        if FParams.Count > 0 then
-        begin
-          // Parse pairs: "siteA:siteB|siteC:siteD|..."
-          pairs := TStringList.Create;
-          try
-            pairs.Delimiter := '|';
-            pairs.StrictDelimiter := True;
-            pairs.DelimitedText := FParams[0];
-
-            for i := 0 to pairs.Count - 1 do
-            begin
-              pair := pairs[i];
-              colonPos := Pos(':', pair);
-              if colonPos > 0 then
-              begin
-                source := Copy(pair, 1, colonPos - 1);
-                dest := Copy(pair, colonPos + 1, Length(pair));
-
-                // Check if source site has no files
-                FContext.Lock.Enter('CheckNoFile');
-                try
-                  if FContext.SitesWithoutFiles.IndexOf(source) >= 0 then
-                  begin
-                    // Skip test, create no_file result immediately
-                    FContext.AddLog(Format('[%d/%d] Skipping %s -> %s (no file on source)', [i + 1, pairs.Count, source, dest]));
-                    res := TSpeedTestResult.Create;
-                    res.Source := source;
-                    res.Destination := dest;
-                    res.Status := tsNoFile;
-                    res.Success := False;
-                    res.Message := 'Source site has no speedtest file';
-                    res.StartTime := Now;
-                    res.EndTime := Now;
-                    FContext.Results.Add(res);
-                    Continue;
-                  end;
-                finally
-                  FContext.Lock.Leave;
-                end;
-
-                FContext.Lock.Enter('AddRes');
-                try
-                  found := False;
-                  for k := FContext.Results.Count - 1 downto 0 do
-                  begin
-                    if (FContext.Results[k].Source = source) and
-                      (FContext.Results[k].Destination = dest) then
-                    begin
-                      found := True;
-                      Break;
-                    end;
-                  end;
-
-                  if not found then
-                  begin
-                    res := TSpeedTestResult.Create;
-                    res.Source := source;
-                    res.Destination := dest;
-                    res.Status := tsRunning;
-                    res.StartTime := Now;
-                    res.Message := 'Running...';
-                    FContext.Results.Add(res);
-                  end;
-                finally
-                  FContext.Lock.Leave;
-                end;
-
-                FContext.AddLog(Format('[%d/%d] Testing %s -> %s', [i + 1, pairs.Count, source, dest]));
-                IrcSpeedTestOut(netname, 'OUTPUT', source + ' ' + dest);
-                Sleep(2000); // Small delay between tests
-              end;
-            end;
-          finally
-            pairs.Free;
-          end;
-        end;
-    end;
-
-    FContext.Lock.Enter('ThreadFinish');
     try
-      FContext.Status := stsFinished;
+      case FContext.TestType of
+        stLocal:
+          if FParams.Count > 0 then
+            IrcSpeedTestLocal(netname, 'OUTPUT', FParams[0]);
+        stOut:
+          if FParams.Count > 1 then
+            IrcSpeedTestOut(netname, 'OUTPUT', FParams[0] + ' ' + FParams[1]);
+        stIn:
+          if FParams.Count > 1 then
+            IrcSpeedTestIn(netname, 'OUTPUT', FParams[0] + ' ' + FParams[1]);
+        stCleanup:
+          if FParams.Count > 0 then
+            IrcSpeedTestCleanup(netname, 'OUTPUT', FParams[0])
+          else
+            IrcSpeedTestCleanup(netname, 'OUTPUT', '');
+        stMatrix:
+          if FParams.Count > 0 then
+          begin
+            // Parse pairs: "siteA:siteB|siteC:siteD|..."
+            pairs := TStringList.Create;
+            try
+              pairs.Delimiter := '|';
+              pairs.StrictDelimiter := True;
+              pairs.DelimitedText := FParams[0];
+
+              for i := 0 to pairs.Count - 1 do
+              begin
+                if IsAborted then
+                  Break;
+
+                pair := pairs[i];
+                colonPos := Pos(':', pair);
+                if colonPos > 0 then
+                begin
+                  source := Copy(pair, 1, colonPos - 1);
+                  dest := Copy(pair, colonPos + 1, Length(pair));
+
+                  // Check if source site has no files
+                  FContext.Lock.Enter('CheckNoFile');
+                  try
+                    if FContext.SitesWithoutFiles.IndexOf(source) >= 0 then
+                    begin
+                      // Skip test, create no_file result immediately
+                      FContext.AddLog(Format('[%d/%d] Skipping %s -> %s (no file on source)', [i + 1, pairs.Count, source, dest]));
+                      res := TSpeedTestResult.Create;
+                      res.Source := source;
+                      res.Destination := dest;
+                      res.Status := tsNoFile;
+                      res.Success := False;
+                      res.Message := 'Source site has no speedtest file';
+                      res.StartTime := Now;
+                      res.EndTime := Now;
+                      FContext.Results.Add(res);
+                      Continue;
+                    end;
+                  finally
+                    FContext.Lock.Leave;
+                  end;
+
+                  FContext.Lock.Enter('AddRes');
+                  try
+                    found := False;
+                    for k := FContext.Results.Count - 1 downto 0 do
+                    begin
+                      if (FContext.Results[k].Source = source) and
+                        (FContext.Results[k].Destination = dest) then
+                      begin
+                        found := True;
+                        Break;
+                      end;
+                    end;
+
+                    if not found then
+                    begin
+                      res := TSpeedTestResult.Create;
+                      res.Source := source;
+                      res.Destination := dest;
+                      res.Status := tsRunning;
+                      res.StartTime := Now;
+                      res.Message := 'Running...';
+                      FContext.Results.Add(res);
+                    end;
+                  finally
+                    FContext.Lock.Leave;
+                  end;
+
+                  FContext.AddLog(Format('[%d/%d] Testing %s -> %s', [i + 1, pairs.Count, source, dest]));
+                  IrcSpeedTestOut(netname, 'OUTPUT', source + ' ' + dest);
+                  if IsAborted then
+                    Break;
+                  Sleep(2000); // Small delay between tests
+                end;
+              end;
+            finally
+              pairs.Free;
+            end;
+          end;
+      end;
+
+      FContext.Lock.Enter('ThreadFinish');
+      try
+        if not FContext.Aborted then
+          FContext.Status := stsFinished;
+      finally
+        FContext.Lock.Leave;
+      end;
     finally
-      FContext.Lock.Leave;
+      if FContext.TestType = stMatrix then
+      begin
+        if IsAborted then
+          SpeedTestMatrixStop(FContext.TestID, netname, 'OUTPUT');
+        SpeedTestMatrixUnregister(FContext.TestID);
+      end;
     end;
   except
     on E: Exception do
@@ -329,8 +358,12 @@ begin
       FContext.AddLog('EXCEPTION: ' + E.Message);
       FContext.Lock.Enter('ThreadError');
       try
-        FContext.Status := stsError;
-        FContext.ResultMsg := E.Message;
+        if FContext.Aborted then
+          FContext.Status := stsAborted
+        else
+          FContext.Status := stsError;
+        if not FContext.Aborted then
+          FContext.ResultMsg := E.Message;
       finally
         FContext.Lock.Leave;
       end;
@@ -543,6 +576,7 @@ begin
         stsRunning: doc.status := 'running';
         stsFinished: doc.status := 'finished';
         stsError: doc.status := 'error';
+        stsAborted: doc.status := 'aborted';
       end;
       if ctx.ResultMsg <> '' then
         doc.message := ctx.ResultMsg;
@@ -890,6 +924,59 @@ begin
   Result := ja.ToJSON;
 end;
 
+function TSpeedTestManager.AbortTest(const TestID: string): boolean;
+var
+  ctx: TSpeedTestContext;
+  i: integer;
+  stopped: integer;
+begin
+  Result := False;
+  ctx := nil;
+
+  FLock.Enter('AbortTest');
+  try
+    if not FTests.TryGetValue(TestID, ctx) then
+      Exit;
+  finally
+    FLock.Leave;
+  end;
+
+  if ctx = nil then
+    Exit;
+
+  ctx.Lock.Enter('AbortTestCtx');
+  try
+    if ctx.Status <> stsRunning then
+      Exit;
+    if ctx.TestType <> stMatrix then
+      Exit;
+
+    ctx.Aborted := True;
+    ctx.Status := stsAborted;
+    ctx.ResultMsg := 'Matrix speedtest aborted';
+
+    for i := ctx.Results.Count - 1 downto 0 do
+    begin
+      if ctx.Results[i].Status = tsRunning then
+      begin
+        ctx.Results[i].Status := tsFailed;
+        ctx.Results[i].Success := False;
+        ctx.Results[i].Message := 'Aborted';
+        ctx.Results[i].EndTime := Now;
+      end;
+    end;
+  finally
+    ctx.Lock.Leave;
+  end;
+
+  ctx.AddLog('Matrix speedtest aborted by user');
+  stopped := SpeedTestMatrixStop(TestID, 'API-' + TestID, 'OUTPUT');
+  if stopped > 0 then
+    ctx.AddLog(Format('Stopped %d speedtest transfer(s)', [stopped]));
+
+  Result := True;
+end;
+
 function TSpeedTestManager.StartMatrix(const IncludeSites, ExcludeSites: string): string;
 var
   ctx: TSpeedTestContext;
@@ -904,11 +991,13 @@ var
   source, dest: string;
   allPairs: string;
 begin
+  id := '';
   try
     Debug(dpMessage, section, 'Starting Matrix Speedtest');
     CleanupOldTests;
     id := IntToStr(GetTickCount64);
     ctx := TSpeedTestContext.Create(id, stMatrix);
+    SpeedTestMatrixRegister(id);
 
     // Collect all sites with SPEEDTEST (skip PermDown and admin site)
     sitelist := TStringList.Create;
@@ -996,6 +1085,8 @@ begin
   except
     on E: Exception do
     begin
+      if id <> '' then
+        SpeedTestMatrixUnregister(id);
       Debug(dpError, section, Format('[EXCEPTION] TSpeedTestManager.StartMatrix: %s', [E.Message]));
       raise;
     end;
@@ -1006,10 +1097,12 @@ procedure TSpeedTestManager.CleanupOldTests;
 var
   key: string;
   keysToRemove: TList<string>;
+  matrixToRemove: TList<string>;
   ctx: TSpeedTestContext;
 begin
   // Remove tests older than 1 hour
   keysToRemove := TList<string>.Create;
+  matrixToRemove := TList<string>.Create;
   try
     FLock.Enter('Cleanup');
     try
@@ -1017,7 +1110,11 @@ begin
       begin
         ctx := FTests[key];
         if (Now - ctx.Timestamp) > (1/24) then // 1 hour
+        begin
           keysToRemove.Add(key);
+          if ctx.TestType = stMatrix then
+            matrixToRemove.Add(key);
+        end;
       end;
 
       for key in keysToRemove do
@@ -1025,8 +1122,11 @@ begin
     finally
       FLock.Leave;
     end;
+    for key in matrixToRemove do
+      SpeedTestMatrixUnregister(key);
   finally
     keysToRemove.Free;
+    matrixToRemove.Free;
   end;
 end;
 

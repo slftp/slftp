@@ -7,16 +7,123 @@ function IrcSpeedTestLocal(const netname, channel, params: String): boolean;
 function IrcSpeedTestOut(const netname, channel, params: String): boolean;
 function IrcSpeedTestIn(const netname, channel, params: String): boolean;
 function IrcSpeedTestCleanup(const netname, channel, params: String): boolean;
+/// Registers a matrix speedtest ID for pazo tracking.
+procedure SpeedTestMatrixRegister(const TestId: String);
+/// Unregisters a matrix speedtest ID and frees tracking data.
+procedure SpeedTestMatrixUnregister(const TestId: String);
+/// Registers a pazo ID for a matrix speedtest based on the API netname.
+procedure SpeedTestMatrixRegisterPazo(const NetName: String; const PazoId: integer);
+/// Stops tracked pazos for a matrix speedtest and clears the list.
+function SpeedTestMatrixStop(const TestId, NetName, Channel: String): integer;
 
 implementation
 
 uses
   SysUtils, Classes, Contnrs, SyncObjs, sitesunit, pazo, taskrace, taskspeedtest, irc, notify, taskfilesize,
   speedstatsunit, kb, mystrings, dirlist, taskdirlist, configunit, queueunit, IdGlobal, irccommandsunit,
-  Generics.Collections;
+  irccommands.work, slcriticalsection2, Generics.Collections;
 
 const
   section = 'irccommands.speed';
+
+var
+  speedtestMatrixLock: TSLCriticalSection2;
+  speedtestMatrixPazos: TDictionary<String, TList<Integer>>;
+
+function ExtractSpeedTestId(const NetName: String): String;
+begin
+  Result := '';
+  if Pos('API-', NetName) = 1 then
+    Result := Copy(NetName, 5, MaxInt);
+end;
+
+procedure SpeedTestMatrixRegister(const TestId: String);
+var
+  ids: TList<Integer>;
+begin
+  if TestId = '' then
+    Exit;
+
+  speedtestMatrixLock.Enter('SpeedTestMatrixRegister');
+  try
+    if not speedtestMatrixPazos.TryGetValue(TestId, ids) then
+    begin
+      ids := TList<Integer>.Create;
+      speedtestMatrixPazos.Add(TestId, ids);
+    end;
+  finally
+    speedtestMatrixLock.Leave;
+  end;
+end;
+
+procedure SpeedTestMatrixUnregister(const TestId: String);
+var
+  ids: TList<Integer>;
+begin
+  if TestId = '' then
+    Exit;
+
+  speedtestMatrixLock.Enter('SpeedTestMatrixUnregister');
+  try
+    if speedtestMatrixPazos.TryGetValue(TestId, ids) then
+    begin
+      speedtestMatrixPazos.Remove(TestId);
+      ids.Free;
+    end;
+  finally
+    speedtestMatrixLock.Leave;
+  end;
+end;
+
+procedure SpeedTestMatrixRegisterPazo(const NetName: String; const PazoId: integer);
+var
+  testId: String;
+  ids: TList<Integer>;
+begin
+  testId := ExtractSpeedTestId(NetName);
+  if testId = '' then
+    Exit;
+
+  speedtestMatrixLock.Enter('SpeedTestMatrixRegisterPazo');
+  try
+    if speedtestMatrixPazos.TryGetValue(testId, ids) then
+    begin
+      if ids.IndexOf(PazoId) < 0 then
+        ids.Add(PazoId);
+    end;
+  finally
+    speedtestMatrixLock.Leave;
+  end;
+end;
+
+function SpeedTestMatrixStop(const TestId, NetName, Channel: String): integer;
+var
+  ids: TList<Integer>;
+  idList: array of Integer;
+  i: integer;
+begin
+  Result := 0;
+  if TestId = '' then
+    Exit;
+
+  speedtestMatrixLock.Enter('SpeedTestMatrixStop');
+  try
+    if not speedtestMatrixPazos.TryGetValue(TestId, ids) then
+      Exit;
+    SetLength(idList, ids.Count);
+    for i := 0 to ids.Count - 1 do
+      idList[i] := ids[i];
+    ids.Clear;
+  finally
+    speedtestMatrixLock.Leave;
+  end;
+
+  for i := 0 to Length(idList) - 1 do
+  begin
+    if IrcPazoStop(NetName, Channel, IntToStr(idList[i])) then
+      Inc(Result);
+  end;
+end;
 
 procedure _PickupSpeedtestFile(d: TDirList; var fsfilename: String; var fsfilesize: Int64);
 var
@@ -257,6 +364,7 @@ begin
   p := PazoAdd(nil);
 
   AddPazoToKB('TRANSFER-speedtest-' + IntToStr(p.pazo_id), p);
+  SpeedTestMatrixRegisterPazo(Netname, p.pazo_id);
 
   while (True) do
   begin
@@ -626,5 +734,27 @@ begin
   RemoveTN(tn);
   Result := True;
 end;
+
+procedure FreeSpeedTestMatrixRegistry;
+var
+  ids: TList<Integer>;
+begin
+  if speedtestMatrixPazos <> nil then
+  begin
+    for ids in speedtestMatrixPazos.Values do
+      ids.Free;
+    speedtestMatrixPazos.Free;
+  end;
+
+  if speedtestMatrixLock <> nil then
+    speedtestMatrixLock.Free;
+end;
+
+initialization
+  speedtestMatrixLock := TSLCriticalSection2.Create('SpeedTestMatrixRegistry');
+  speedtestMatrixPazos := TDictionary<String, TList<Integer>>.Create;
+
+finalization
+  FreeSpeedTestMatrixRegistry;
 
 end.

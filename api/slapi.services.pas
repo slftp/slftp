@@ -414,6 +414,10 @@ type
     /// Returns status for test
     function GetTestStatus(const TestId: RawUTF8): RawJSON;
 
+    /// POST /api/speed/test/abort
+    /// Aborts a running matrix speedtest
+    function AbortSpeedTest(const TestId: RawUTF8): boolean;
+
     /// GET /api/speed/results
     /// Returns speed test results
     function GetSpeedResults(const SiteName: RawUTF8): RawJSON;

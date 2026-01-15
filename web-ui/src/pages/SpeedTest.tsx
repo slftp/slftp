@@ -36,6 +36,13 @@ export function SpeedTest() {
     // Load testId from localStorage on mount
     return localStorage.getItem('speedtest-current-id');
   });
+  const [testType, setTestType] = useState<string | null>(() => {
+    const stored = localStorage.getItem('speedtest-current-type');
+    if (stored && ['local', 'out', 'in', 'cleanup', 'matrix'].includes(stored)) {
+      return stored;
+    }
+    return null;
+  });
   const [logs, setLogs] = useState<string[]>([]);
   const [testStatus, setTestStatus] = useState<string>('');
   const [results, setResults] = useState<SpeedTestResult[]>([]);
@@ -52,6 +59,14 @@ export function SpeedTest() {
       localStorage.removeItem('speedtest-current-id');
     }
   }, [testId]);
+
+  useEffect(() => {
+    if (testType) {
+      localStorage.setItem('speedtest-current-type', testType);
+    } else {
+      localStorage.removeItem('speedtest-current-type');
+    }
+  }, [testType]);
 
   const { data: sitesData } = useQuery({
     queryKey: ['sites'],
@@ -105,7 +120,7 @@ export function SpeedTest() {
       return data as string[];
     },
     enabled: !!testId,
-    refetchInterval: (testStatus === 'finished' || testStatus === 'error') ? false : 1000,
+    refetchInterval: (testStatus === 'finished' || testStatus === 'error' || testStatus === 'aborted') ? false : 1000,
   });
 
   const { data: statusData } = useQuery({
@@ -121,7 +136,7 @@ export function SpeedTest() {
       return data as SpeedTestLogResponse;
     },
     enabled: !!testId,
-    refetchInterval: (testStatus === 'finished' || testStatus === 'error') ? false : 1000,
+    refetchInterval: (testStatus === 'finished' || testStatus === 'error' || testStatus === 'aborted') ? false : 1000,
   });
 
   useEffect(() => {
@@ -169,8 +184,9 @@ export function SpeedTest() {
       }
       return data as string; // Test ID
     },
-    onSuccess: (id) => {
+    onSuccess: (id, vars) => {
       setTestId(id);
+      setTestType(vars.type);
       setLogs([]);
       setResults([]);
       setTestStatus('running');
@@ -203,6 +219,26 @@ export function SpeedTest() {
   
   const cleanupForm = useForm({
     initialValues: { sites: [] as string[] }
+  });
+
+  const abortTestMutation = useMutation({
+    mutationFn: async () => {
+      if (!testId) return false;
+      const res = await apiClient.post('/ApiSpeedService/AbortSpeedTest', { TestId: testId });
+      let data = res.data;
+      if (res.data.result && Array.isArray(res.data.result)) {
+        data = res.data.result[0];
+      }
+      return data as boolean;
+    },
+    onSuccess: (ok) => {
+      if (!ok) {
+        setLogs(prev => [...prev, 'ERROR ABORTING TEST']);
+      }
+    },
+    onError: (err: any) => {
+      setLogs(prev => [...prev, `ERROR ABORTING TEST: ${err.message}`]);
+    }
   });
 
   const handleStartLocal = (values: typeof localForm.values) => {
@@ -245,6 +281,10 @@ export function SpeedTest() {
         ExcludeSites: ''
       }
     });
+  };
+
+  const handleAbortMatrix = () => {
+    abortTestMutation.mutate();
   };
 
   const formatSpeed = (speedKbps: string): { value: string; unit: string } => {
@@ -444,6 +484,17 @@ export function SpeedTest() {
               >
                 Start Matrix Test
               </Button>
+              {testType === 'matrix' && testId && testStatus === 'running' && (
+                <Button
+                  color="red"
+                  variant="light"
+                  onClick={handleAbortMatrix}
+                  loading={abortTestMutation.isPending}
+                  leftSection={<IconX size="1rem" />}
+                >
+                  Abort Matrix Test
+                </Button>
+              )}
             </Stack>
           </Tabs.Panel>
 
@@ -585,10 +636,12 @@ export function SpeedTest() {
                   variant="light"
                   onClick={() => {
                     setTestId(null);
+                    setTestType(null);
                     setResults([]);
                     setLogs([]);
                     setTestStatus('');
                     localStorage.removeItem('speedtest-current-id');
+                    localStorage.removeItem('speedtest-current-type');
                   }}
                   title="Clear current test"
                 >
@@ -670,7 +723,7 @@ export function SpeedTest() {
           <Paper shadow="xs" p="md" withBorder style={{ height: '100%' }}>
             <Group justify="space-between" mb="xs">
               <Title order={5}>Log</Title>
-              <Text size="sm" c={testStatus === 'running' ? 'blue' : testStatus === 'error' ? 'red' : 'green'}>
+              <Text size="sm" c={testStatus === 'running' ? 'blue' : testStatus === 'error' ? 'red' : testStatus === 'aborted' ? 'yellow' : 'green'}>
                 {testStatus || 'Idle'}
               </Text>
             </Group>
