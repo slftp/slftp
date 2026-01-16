@@ -1001,7 +1001,7 @@ begin
       fQuery.Prepare(
         'SELECT infos.tvmaze_id, MAX(series.showname) as showname, infos.country, infos.status, ' +
         'infos.classification, infos.network, infos.genre, infos.tv_language, ' +
-        'infos.premiered_year, infos.rating, infos.last_updated, infos.created_at ' +
+        'infos.premiered_year, infos.rating, infos.last_updated ' +
         'FROM infos LEFT JOIN series ON infos.tvmaze_id = series.id ' +
         'GROUP BY infos.tvmaze_id'
       );
@@ -1020,7 +1020,6 @@ begin
         TDocVariantData(recordItem).AddValue('PremieredYear', fQuery.ColumnInt('premiered_year'));
         TDocVariantData(recordItem).AddValue('Rating', fQuery.ColumnInt('rating'));
         TDocVariantData(recordItem).AddValue('LastUpdated', fQuery.ColumnInt('last_updated'));
-        TDocVariantData(recordItem).AddValue('CreatedAt', fQuery.ColumnInt('created_at'));
 
         recordsArray.AddItem(recordItem);
       end;

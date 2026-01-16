@@ -55,7 +55,7 @@ function TruncatedCell({ children, width }: { children: React.ReactNode; width: 
   );
 }
 
-type SortField = 'TVMazeId' | 'Showname' | 'Country' | 'Status' | 'Network' | 'Genre' | 'PremieredYear' | 'Rating' | 'LastUpdated' | 'CreatedAt';
+type SortField = 'TVMazeId' | 'Showname' | 'Country' | 'Status' | 'Network' | 'Genre' | 'PremieredYear' | 'Rating' | 'LastUpdated';
 type SortDirection = 'asc' | 'desc';
 
 function SortableHeader({
@@ -128,7 +128,6 @@ interface TVRecord {
   PremieredYear: number;
   Rating: number;
   LastUpdated: number;
-  CreatedAt: number;
 }
 
 interface FormData {
@@ -554,9 +553,6 @@ export function TV() {
                 <SortableHeader field="Rating" currentField={sortField} direction={sortDirection} onClick={handleSort} width="70px">
                   Rating
                 </SortableHeader>
-                <SortableHeader field="CreatedAt" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
-                  Created
-                </SortableHeader>
                 <SortableHeader field="LastUpdated" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
                   Updated
                 </SortableHeader>
@@ -566,13 +562,13 @@ export function TV() {
             <Table.Tbody>
               {isLoading ? (
                 <Table.Tr>
-                  <Table.Td colSpan={11}>
+                  <Table.Td colSpan={10}>
                     <Text ta="center">Loading...</Text>
                   </Table.Td>
                 </Table.Tr>
               ) : filtered.length === 0 ? (
                 <Table.Tr>
-                  <Table.Td colSpan={11}>
+                  <Table.Td colSpan={10}>
                     <Text ta="center">No records found</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -599,11 +595,6 @@ export function TV() {
                     <TruncatedCell width={120}>{record.Genre}</TruncatedCell>
                     <Table.Td style={{ width: '70px' }}>{record.PremieredYear}</Table.Td>
                     <Table.Td style={{ width: '70px' }}>{record.Rating}</Table.Td>
-                    <Table.Td style={{ width: '100px' }}>
-                      {record.CreatedAt && record.CreatedAt > 0
-                        ? new Date(record.CreatedAt * 1000).toLocaleDateString('de-DE')
-                        : 'N/A'}
-                    </Table.Td>
                     <Table.Td style={{ width: '100px' }}>
                       {record.LastUpdated && record.LastUpdated > 0
                         ? new Date(record.LastUpdated * 1000).toLocaleDateString('de-DE')
