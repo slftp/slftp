@@ -1,8 +1,8 @@
-import { Card, Title, Table, Alert, Loader, Center, TextInput, Button, Stack, Group, Text, ScrollArea, Badge, Switch, Tooltip } from '@mantine/core';
-import { IconChevronRight, IconSearch, IconDeviceFloppy, IconPin } from '@tabler/icons-react';
+import { Card, Title, Table, Alert, Loader, Center, TextInput, Button, Stack, Group, Text, ScrollArea, Badge, Switch, Tooltip, Modal, MultiSelect, ActionIcon, Breadcrumbs } from '@mantine/core';
+import { IconChevronRight, IconSearch, IconDeviceFloppy, IconPin, IconPlus, IconFolderOpen, IconArrowUp, IconRefresh } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { apiClient } from '../api/client';
+import { apiClient, fetchBrowserPath, fetchConfigContent } from '../api/client';
 import { notifications } from '@mantine/notifications';
 
 interface SectionData {
@@ -20,6 +20,11 @@ export function SectionDirectories() {
   const [preserveSection, setPreserveSection] = useState<string | null>(null);
   const [markedSection, setMarkedSection] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserPath, setBrowserPath] = useState('/');
+  const [quickSection, setQuickSection] = useState<string[]>([]);
+  const [quickPath, setQuickPath] = useState('');
+  const [autoMapLoading, setAutoMapLoading] = useState(false);
 
   const { data: sitesData, isLoading: sitesLoading } = useQuery({
     queryKey: ['sites'],
@@ -112,6 +117,33 @@ export function SectionDirectories() {
     refetchOnReconnect: false,
   });
 
+  const { data: browserData, isLoading: browserLoading, isRefetching: browserRefetching } = useQuery({
+    queryKey: ['sections-browser', selectedSite, browserPath],
+    queryFn: async () => {
+      if (!selectedSite) return null;
+      return fetchBrowserPath(selectedSite, browserPath);
+    },
+    enabled: !!selectedSite && browserOpen,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return (data?.status === 'pending' ? 1000 : false);
+    },
+  });
+
+  const { data: precatcherConfig } = useQuery({
+    queryKey: ['slftp-precatcher-config'],
+    queryFn: async () => fetchConfigContent('slftp.precatcher'),
+    enabled: browserOpen,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: precatcherIni } = useQuery({
+    queryKey: ['slftp-precatcher-ini'],
+    queryFn: async () => fetchConfigContent('slftp.ini'),
+    enabled: browserOpen,
+    refetchOnWindowFocus: false,
+  });
+
   useEffect(() => {
     if (!availableSectionsData || availableSectionsData.length === 0) return;
     setSectionDirs(prev => {
@@ -170,6 +202,387 @@ export function SectionDirectories() {
 
   const handleSaveAll = () => {
     saveAllMutation.mutate();
+  };
+
+  const normalizePath = (value: string) => {
+    let p = value.trim();
+    if (!p) return '';
+    if (!p.startsWith('/')) p = '/' + p;
+    if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+    return p;
+  };
+
+  const parsePrecatcherConfig = (content: string) => {
+    const sections: Array<{ section: string; alias: string }> = [];
+    const mappings: Array<{ orig: string; target: string; mask: string }> = [];
+    let block = '';
+    const lines = content.split(/\r?\n/);
+
+    const isLineCommented = (line: string) => {
+      const t = line.trim();
+      return t.startsWith('#') || t.startsWith('//');
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        block = trimmed.toLowerCase();
+        continue;
+      }
+      if (isLineCommented(line)) continue;
+
+      if (block === '[sections]') {
+        const idx = line.indexOf('=');
+        if (idx <= 0) continue;
+        const section = line.slice(0, idx).trim().toUpperCase();
+        const aliases = line.slice(idx + 1).split(',');
+        for (const alias of aliases) {
+          const a = alias.trim();
+          if (a) sections.push({ section, alias: ` ${a} ` });
+        }
+      } else if (block === '[mappings]') {
+        const parts = line.split(';');
+        if (parts.length < 3) continue;
+        const orig = parts[0].trim().toUpperCase();
+        const target = parts[1].trim().toUpperCase();
+        const rhs = parts.slice(2).join(';').trim();
+        if (!target || rhs.length === 0) continue;
+
+        const regexMatches = rhs.match(/\/.*?\/i?/g);
+        if (regexMatches && regexMatches.length > 0) {
+          for (const match of regexMatches) {
+            mappings.push({ orig, target, mask: match });
+          }
+        } else {
+          const masks = rhs.split(',');
+          for (const mask of masks) {
+            const m = mask.trim();
+            if (m) mappings.push({ orig, target, mask: m });
+          }
+        }
+      }
+    }
+
+    return { sections, mappings };
+  };
+
+  const parsePrecatcherIni = (content: string) => {
+    const lines = content.split(/\r?\n/);
+    let block = '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+      if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+        block = trimmed.toLowerCase();
+        continue;
+      }
+      if (block === '[precatcher]') {
+        const idx = trimmed.indexOf('=');
+        if (idx <= 0) continue;
+        const key = trimmed.slice(0, idx).trim().toLowerCase();
+        const val = trimmed.slice(idx + 1).trim().toLowerCase();
+        if (key === 'recursiv_mapping') {
+          return val === '1' || val === 'true' || val === 'yes';
+        }
+      }
+    }
+    return false;
+  };
+
+  const precatcherRules = useMemo(() => {
+    if (!precatcherConfig) return { sections: [], mappings: [] };
+    return parsePrecatcherConfig(precatcherConfig);
+  }, [precatcherConfig]);
+
+  const recursiveMappingEnabled = useMemo(() => {
+    if (!precatcherIni) return false;
+    return parsePrecatcherIni(precatcherIni);
+  }, [precatcherIni]);
+
+  const cleanReleaseName = (name: string) => {
+    const cleaned = name.replace(/[^A-Za-z0-9]+/g, ' ').trim();
+    return ` ${cleaned} `;
+  };
+
+  const maskMatches = (mask: string, input: string) => {
+    if (!mask) return false;
+    const isRegex = mask.startsWith('/') && (mask.endsWith('/') || mask.endsWith('/i'));
+    if (isRegex) {
+      const hasI = mask.endsWith('/i');
+      const pattern = mask.slice(1, hasI ? -2 : -1);
+      try {
+        const re = new RegExp(pattern, hasI ? 'i' : undefined);
+        return re.test(input);
+      } catch {
+        return false;
+      }
+    }
+
+    const escaped = mask.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    const glob = '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$';
+    try {
+      return new RegExp(glob, 'i').test(input);
+    } catch {
+      return false;
+    }
+  };
+
+  const findSectionFromAliases = (releaseName: string) => {
+    const cleaned = cleanReleaseName(releaseName).toLowerCase();
+    for (const entry of precatcherRules.sections) {
+      if (cleaned.includes(entry.alias.toLowerCase())) {
+        return entry.section;
+      }
+    }
+    return '';
+  };
+
+  const applyMappings = (releaseName: string, initialSection: string) => {
+    let section = initialSection || '';
+    let count = 0;
+    const release = releaseName;
+    const maxDepth = 100;
+
+    while (count < maxDepth) {
+      let mapped = false;
+      for (const mapping of precatcherRules.mappings) {
+        const isGlobal = mapping.orig === '' && count === 0;
+        if (!(isGlobal || mapping.orig === section)) continue;
+        if (!maskMatches(mapping.mask, release)) continue;
+        if (recursiveMappingEnabled && mapping.target !== 'TRASH') {
+          section = mapping.target;
+          mapped = true;
+          break;
+        }
+        return mapping.target;
+      }
+      if (!mapped) break;
+      count += 1;
+    }
+
+    return section;
+  };
+
+  const autoMapFromReleases = () => {
+    if (!precatcherConfig) {
+      notifications.show({
+        title: 'Precatcher config',
+        message: 'Precatcher config is not loaded yet.',
+        color: 'yellow',
+      });
+      return;
+    }
+    if (!browserData?.files) {
+      notifications.show({
+        title: 'No data',
+        message: 'No directory listing available yet.',
+        color: 'yellow',
+      });
+      return;
+    }
+    const dirs = browserData.files.filter((f) => f.is_dir);
+    if (dirs.length === 0) {
+      notifications.show({
+        title: 'No folders',
+        message: 'No folders found in this path.',
+        color: 'yellow',
+      });
+      return;
+    }
+
+    const counts = new Map<string, number>();
+    for (const dir of dirs) {
+      const detected = findSectionFromAliases(dir.name);
+      const mapped = applyMappings(dir.name, detected);
+      if (mapped) counts.set(mapped, (counts.get(mapped) || 0) + 1);
+    }
+
+    if (counts.size === 0) {
+      notifications.show({
+        title: 'No matches',
+        message: 'No sections matched from release names.',
+        color: 'yellow',
+      });
+      return;
+    }
+
+    const sections = Array.from(counts.keys());
+    setQuickSection(sections);
+    setQuickPath(browserPath);
+    const summary = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([section, count]) => `${section} (${count})`)
+      .join(', ');
+    notifications.show({
+      title: 'Auto-mapped sections',
+      message: `Found ${counts.size} section(s). ${summary}`,
+      color: 'green',
+    });
+  };
+
+  const handleQuickAdd = () => {
+    const sections = quickSection.map((s) => s.trim()).filter(Boolean);
+    const path = normalizePath(quickPath);
+    if (sections.length === 0 || !path) {
+      notifications.show({
+        title: 'Missing data',
+        message: 'Select one or more sections and a directory path first.',
+        color: 'yellow',
+      });
+      return;
+    }
+    setSectionDirs((prev) => {
+      const next = { ...prev };
+      for (const section of sections) {
+        next[section] = path;
+      }
+      return next;
+    });
+  };
+
+  const browserDirs = useMemo(() => {
+    const files = browserData?.files || [];
+    return files.filter((f) => f.is_dir);
+  }, [browserData]);
+
+  const breadcrumbItems = useMemo(() => {
+    const parts = browserPath === '/' ? [] : browserPath.split('/').filter(Boolean);
+    const items = [
+      { label: '/', path: '/' },
+      ...parts.map((part, idx) => ({
+        label: part,
+        path: '/' + parts.slice(0, idx + 1).join('/'),
+      })),
+    ];
+    return items;
+  }, [browserPath]);
+
+  const navigateBrowserPath = (value: string) => {
+    const next = normalizePath(value);
+    setBrowserPath(next || '/');
+  };
+
+  const openBrowser = () => {
+    setBrowserPath('/');
+    setBrowserOpen(true);
+  };
+
+  const handleBrowserRefresh = () => {
+    if (!selectedSite) return;
+    fetchBrowserPath(selectedSite, browserPath, true).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['sections-browser', selectedSite, browserPath] });
+    });
+  };
+
+  const fetchBrowserPathReady = async (site: string, path: string) => {
+    let res = await fetchBrowserPath(site, path, true);
+    let attempts = 0;
+    while (res?.status === 'pending' && attempts < 6) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      res = await fetchBrowserPath(site, path);
+      attempts += 1;
+    }
+    return res;
+  };
+
+  const autoMapFromSubfolders = async () => {
+    if (!precatcherConfig) {
+      notifications.show({
+        title: 'Precatcher config',
+        message: 'Precatcher config is not loaded yet.',
+        color: 'yellow',
+      });
+      return;
+    }
+    if (!selectedSite) return;
+    if (!browserData?.files) {
+      notifications.show({
+        title: 'No data',
+        message: 'No directory listing available yet.',
+        color: 'yellow',
+      });
+      return;
+    }
+
+    const dirs = browserData.files.filter((f) => f.is_dir);
+    if (dirs.length === 0) {
+      notifications.show({
+        title: 'No folders',
+        message: 'No folders found in this path.',
+        color: 'yellow',
+      });
+      return;
+    }
+
+    setAutoMapLoading(true);
+    try {
+      const suggestions = new Map<string, { path: string; count: number }>();
+
+      for (const dir of dirs) {
+        const subPath = normalizePath(`${browserPath === '/' ? '' : browserPath}/${dir.name}`);
+        const listing = await fetchBrowserPathReady(selectedSite, subPath);
+        const releaseDirs = listing?.files?.filter((f) => f.is_dir) || [];
+        if (releaseDirs.length === 0) continue;
+
+        const counts = new Map<string, number>();
+        for (const entry of releaseDirs) {
+          const detected = findSectionFromAliases(entry.name);
+          const mapped = applyMappings(entry.name, detected);
+          if (mapped) counts.set(mapped, (counts.get(mapped) || 0) + 1);
+        }
+
+        let bestSection = '';
+        let bestCount = 0;
+        for (const [section, count] of counts.entries()) {
+          if (count > bestCount) {
+            bestSection = section;
+            bestCount = count;
+          }
+        }
+
+        if (!bestSection) continue;
+        const existing = suggestions.get(bestSection);
+        if (!existing || bestCount > existing.count) {
+          suggestions.set(bestSection, { path: subPath, count: bestCount });
+        }
+      }
+
+      if (suggestions.size === 0) {
+        notifications.show({
+          title: 'No matches',
+          message: 'No sections matched from subfolder releases.',
+          color: 'yellow',
+        });
+        return;
+      }
+
+      let applied = 0;
+      let skipped = 0;
+      setSectionDirs((prev) => {
+        const next = { ...prev };
+        for (const [section, suggestion] of suggestions.entries()) {
+          if (next[section] && next[section] !== suggestion.path) {
+            skipped += 1;
+            continue;
+          }
+          if (next[section] !== suggestion.path) {
+            applied += 1;
+          }
+          next[section] = suggestion.path;
+        }
+        return next;
+      });
+
+      notifications.show({
+        title: 'Auto-mapped subfolders',
+        message: `Applied ${applied} section(s). Skipped ${skipped} with existing paths.`,
+        color: 'green',
+      });
+    } finally {
+      setAutoMapLoading(false);
+    }
   };
 
   const filteredSections = useMemo(() => {
@@ -313,6 +726,44 @@ export function SectionDirectories() {
           <Center h={300}><Loader size="lg" /></Center>
         ) : (
           <>
+            <Group align="end" wrap="wrap">
+              <Stack gap={4} style={{ minWidth: 200, flex: '0 0 220px' }}>
+                <Text size="sm" fw={500}>Section</Text>
+                <MultiSelect
+                  data={(availableSectionsData || []).map(s => ({ value: s, label: s }))}
+                  value={quickSection}
+                  onChange={setQuickSection}
+                  placeholder="Choose sections"
+                  searchable
+                  clearSearchOnChange={false}
+                  maxDropdownHeight={360}
+                  clearable
+                />
+              </Stack>
+              <Stack gap={4} style={{ flex: 1, minWidth: 240 }}>
+                <Text size="sm" fw={500}>Directory path</Text>
+                <TextInput
+                  placeholder="/path/to/dir"
+                  value={quickPath}
+                  onChange={(e) => setQuickPath(e.currentTarget.value)}
+                  rightSection={
+                    <ActionIcon variant="subtle" onClick={openBrowser} aria-label="Browse">
+                      <IconFolderOpen size="1rem" />
+                    </ActionIcon>
+                  }
+                />
+              </Stack>
+              <Button
+                leftSection={<IconPlus size="1rem" />}
+                onClick={handleQuickAdd}
+              >
+                Add section path
+              </Button>
+            </Group>
+            <Text size="xs" c="dimmed">
+              Quick add lets you select one or more precatcher sections and set a directory path. Use the folder icon to browse remote paths.
+            </Text>
+
             <Group>
               <TextInput
                 placeholder="Search sections..."
@@ -431,6 +882,108 @@ export function SectionDirectories() {
           </>
         )}
       </Stack>
+      <Modal opened={browserOpen} onClose={() => setBrowserOpen(false)} title="Browse site directory" size="xl">
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Group gap="xs">
+              <ActionIcon
+                variant="light"
+                onClick={() => navigateBrowserPath(browserPath.split('/').slice(0, -1).join('/') || '/')}
+                aria-label="Up one level"
+              >
+                <IconArrowUp size="1rem" />
+              </ActionIcon>
+              <ActionIcon
+                variant="light"
+                onClick={handleBrowserRefresh}
+                aria-label="Refresh"
+              >
+                <IconRefresh size="1rem" />
+              </ActionIcon>
+            </Group>
+            <Group gap="xs">
+              <Button
+                variant="light"
+                onClick={autoMapFromReleases}
+                loading={autoMapLoading}
+              >
+                Auto map from releases (beta)
+              </Button>
+              <Button
+                variant="light"
+                onClick={autoMapFromSubfolders}
+                loading={autoMapLoading}
+              >
+                Auto map subfolders (beta)
+              </Button>
+              <Button
+                leftSection={<IconPlus size="1rem" />}
+                onClick={() => {
+                  setQuickPath(browserPath);
+                  setBrowserOpen(false);
+                }}
+              >
+                Use this path
+              </Button>
+            </Group>
+          </Group>
+
+          <Breadcrumbs>
+            {breadcrumbItems.map((item) => (
+              <Button
+                key={item.path}
+                variant="subtle"
+                size="compact-sm"
+                onClick={() => navigateBrowserPath(item.path)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Breadcrumbs>
+          <Text size="xs" c="dimmed">
+            Auto map scans folder names against `slftp.precatcher` sections/mappings. "Subfolders" uses each child directory to map its contained releases.
+          </Text>
+
+          {(browserLoading || browserRefetching) && (
+            <Center h={120}><Loader size="md" /></Center>
+          )}
+
+          {!browserLoading && browserData?.status === 'error' && (
+            <Alert color="red" title="Browser error">
+              {browserData.message || 'Failed to load directory.'}
+            </Alert>
+          )}
+
+          {!browserLoading && browserData?.status !== 'error' && (
+            <Table striped highlightOnHover withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Directory</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {browserDirs.length === 0 && (
+                  <Table.Tr>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">No folders in this path.</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                )}
+                {browserDirs.map((dir) => (
+                  <Table.Tr key={dir.name} style={{ cursor: 'pointer' }} onClick={() => navigateBrowserPath(`${browserPath === '/' ? '' : browserPath}/${dir.name}`)}>
+                    <Table.Td>
+                      <Group gap="xs">
+                        <IconFolderOpen size="1rem" />
+                        <Text fw={600}>{dir.name}</Text>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </Stack>
+      </Modal>
     </Card>
   );
 }

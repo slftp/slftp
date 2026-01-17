@@ -63,7 +63,12 @@ Call the API (curl examples, only implemented endpoints)
     -d '{"SiteName":""}' \
     http://127.0.0.1:8089/api/ApiQueueService/GetQueueStats
 
-See API_DOCUMENTATION for the short list of working endpoints; all others are currently stubbed.
+- Browser path (used by Web UI Sections auto-mapping):
+  curl -X POST -H "Authorization: Bearer <apikey>" -H "Content-Type: application/json" \
+    -d '{"SiteName":"<site>", "Path":"/", "ForceRefresh":true}' \
+    http://127.0.0.1:8089/api/ApiBrowserService/GetPath
+
+See API_DOCUMENTATION for the list of endpoints; many are used by the Web UI (Browser, Help, Precatcher config, Speed tests, and queue transfer APIs).
 
 Updating after code changes
 

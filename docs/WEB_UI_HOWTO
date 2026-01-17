@@ -74,6 +74,31 @@ Web UI configuration
 - For dev server: npm run dev (runs on http://localhost:5173)
   Set VITE_API_BASE_URL env var if connecting to remote API
 
+Web UI feature overview
+- Header: Auto switch toggles global auto mode; theme toggle for light/dark.
+- Dashboard: status summary, issues summary, recent releases, release details.
+- Browser: FXP and Browse modes; queue file and release transfers; refresh panes.
+- PRE: run pre/pretest/prelist commands; detect section; simulate pre; recent releases list.
+- IRC: manage networks/channels, keys/roles/blowkeys; precatcher rules; test precatcher; matches view.
+- Databases: IMDB and TV CRUD with filters and sorting.
+- Issues: issue summary + list, advanced filters; add missing section paths and clear matching issues.
+- Logs: tail log output with auto refresh.
+- Races: races list and transfer details.
+- Routes: matrix and list views; edit speed/lock/affil flags per route.
+- Rules: RTPL editor with validate/save/reload; rule condition examples.
+- Tools: release simulator; detect section; speed tests; config editor.
+- Help: helpfiles search and viewer.
+- Sections: directory manager, quick add, remote browse, auto map (beta), precatcher config editor.
+- Sites Manager: add/delete/ghost sites; credits; detailed site settings; queue controls.
+- Stats: race stats per site and period.
+
+Sections Manager (beta)
+- Sections -> Directories: quick add lets you pick one or more precatcher sections and set a directory path.
+- Use the folder icon to browse remote site paths and copy the path into the form.
+- Auto map from releases (beta): uses slftp.precatcher sections/mappings to suggest sections from folder names in the current path.
+- Auto map subfolders (beta): scans each child folder and maps its contained release folders to a best-match section.
+- Auto mapping is a helper only; review changes before clicking "Save All Changes".
+
 Updating after code changes
 
 If you changed frontend code (TypeScript/React files):

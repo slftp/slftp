@@ -67,6 +67,7 @@ Queue (ApiQueueService)
 - CreateDirlistTask: Body {"SiteName":"...", "Section":"...", "Dir":"..."}
 - CreateSpreadTask: Body {"SourceSite":"...", "Section":"...", "Release":"..."}
 - CreateTransferTask: Body {"SourceSite":"...", "DestSite":"...", "Section":"...", "Dir":"...", "FileName":"..."}
+- CreateReleaseTransferTask: Body {"SourceSite":"...", "DestSite":"...", "SourceDir":"...", "DestDir":"...", "RlsName":"..."}
 - StopTask: Body {"TaskUid":<int>}
 - EmptyQueue: Body {"SiteName":"..."}
 
@@ -82,6 +83,7 @@ Races (ApiRacesService)
 
 IRC (ApiIrcService)
 - GetNetworks: Returns networks.
+- GetNetworkConfig: Body {"NetName":"..."}.
 - GetNetworkStatus: Body {"NetName":"..."}
 - GetChannels: Body {"NetName":"..."}
 - SendMessage: Body {"NetName":"...", "Channel":"...", "Message":"..."}
@@ -89,6 +91,7 @@ IRC (ApiIrcService)
 - SetChannelBlowkey: Body {"NetName":"...", "Channel":"...", "Blowkey":"..."}
 - SetChannelKey: Body {"NetName":"...", "Channel":"...", "ChanKey":"..."}
 - SetChannelRoles: Body {"NetName":"...", "Channel":"...", "Roles":"..."}
+- SetNetworkConfig: Body {"NetName":"...", "Config":{...}}.
 - AddChannel: Body {"NetName":"...", "Channel":"...", "ChanKey":"...", "Blowkey":"...", "Roles":"..."}
 - DeleteChannel: Body {"NetName":"...", "Channel":"..."}
 - AddNetwork: Body {"NetName":"...", "Host":"...", "Port":6697, "Ssl":true, "Password":"...", "Nick":"...", "Ident":"...", "User":"..."}
@@ -115,6 +118,7 @@ Speed (ApiSpeedService)
 - GetTestStatus: Body {"TestId":"..."} Returns status + structured results.
 - GetSpeedResults: Body {"SiteName":"..."}
 - RecalculateRoutes: Recalculates routes.
+- AbortSpeedTest: Body {"TestId":"..."} Aborts a running speed test.
 
 KnowledgeBase (ApiKnowledgeBaseService)
 - GetKBEntries: Body {"Section":"...", "Limit":<int>}
@@ -127,6 +131,9 @@ Precatcher (ApiPrecatcherService)
 - UpdatePrecatcherRule: Body {"RuleId":<int>, "RuleData":{...}}
 - DeletePrecatcherRule: Body {"RuleId":<int>}
 - TestPrecatcher: Body {"Announce":"..."}
+- GetPrecatcherConfig: Returns slftp.precatcher content.
+- ValidatePrecatcherConfig: Body {"Content":"..."}.
+- SavePrecatcherConfig: Body {"Content":"..."}.
 - ReloadPrecatcher: Reloads config.
 - GetMappings: Returns section mappings.
 - GetHits: Body {"Limit":<int>, "SinceUnix":<int>, "ReleaseName":"", "SiteName":""}. Returns recent precatcher hits.
@@ -145,8 +152,13 @@ Logs (ApiLogService)
 - GetLogs: Body {"Lines":<int>}. Returns array of log lines.
 - ClearLogs: Clears log file (not implemented safely yet).
 
+Help (ApiHelpService)
+- GetHelpDocs: Returns list of help doc filenames.
+- GetHelpDocContent: Body {"Filename":"..."}.
+- SearchHelpDocs: Body {"Query":"..."}.
+
 Browser (ApiBrowserService)
-- GetPath: Body {"SiteName":"...", "Path":"/", "ForceRefresh":true|false}
+- GetPath: Body {"SiteName":"...", "Path":"/", "ForceRefresh":true|false}. Returns status pending/ready/error and file entries.
 
 IMDB (ApiImdbService)
 - GetAllImdbRecords: Body {}. Returns list of IMDB records.
@@ -164,6 +176,6 @@ TV Database (ApiTVService)
 
 Config (ApiConfigService)
 - GetConfigList: Body {}. Returns list of editable config files.
-- GetConfigContent: Body {"Filename":"..."}. Returns content of the specified file.
+- GetConfigContent: Body {"Filename":"..."}. Returns content of the specified file (used by Web UI for slftp.precatcher; slftp.ini is read-only).
 - SaveConfigContent: Body {"Filename":"...", "Content":"..."}. Saves content to the file.
 - ReloadConfig: Body {"Filename":"..."}. Reloads the configuration file if supported. Supported files: slftp.precatcher, slftp.skip, slftp.skipgroups, slftp.rules, slftp.languagebase, slftp.knowngroups, slftp.imdbcountries, slftp.imdbreplace, slftp.spamconf. Returns true on success.
