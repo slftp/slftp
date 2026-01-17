@@ -76,6 +76,9 @@ type
 // Global instance function
 function GlLoadMonitor: TLoadMonitor;
 
+// Check if LoadMonitor is available and running
+function IsLoadMonitorAvailable: Boolean;
+
 implementation
 
 uses
@@ -144,6 +147,11 @@ begin
   if not Assigned(GlLoadMonitorInstance) then
     GlLoadMonitorInstance := TLoadMonitor.Create;
   Result := GlLoadMonitorInstance;
+end;
+
+function IsLoadMonitorAvailable: Boolean;
+begin
+  Result := Assigned(GlLoadMonitorInstance) and GlLoadMonitorInstance.Enabled;
 end;
 
 { TLoadMonitor }

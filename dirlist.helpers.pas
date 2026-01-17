@@ -398,6 +398,13 @@ begin
   end;
 
   try
+    // Check if LoadMonitor is available and running
+    if not IsLoadMonitorAvailable then
+    begin
+      Result := baseValue;
+      Exit;
+    end;
+
     // Get current performance level from LoadMonitor
     performanceLevel := GlLoadMonitor.CurrentPerformanceLevel;
 
