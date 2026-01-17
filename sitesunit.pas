@@ -2467,7 +2467,7 @@ begin
       if ((lastResponseCode = 234) and (0 <> Pos('234 AUTH TLS successful', lastResponse))) then
       begin
         if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
-          irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
+          irc_Addadmin('<c4>SITE <b>%s</b></c> WiLL DOWN, maybe enforce TLS?', [site.Name]);
 
         site.WorkingStatus := sstTempDown;
         exit;
@@ -2484,7 +2484,7 @@ begin
       end;
 
       if (site.WorkingStatus <> sstTempDown) or aShowDownMessageIfAlreadyDown then
-        irc_addtext(todotask, '<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
+        irc_Addadmin('<c4>SITE <b>%s</b></c> WiLL DOWN %s - lastResponse: %d %s', [site.Name, s_message, lastResponseCode, lastResponse]);
 
       site.WorkingStatus := sstTempDown;
     end;
@@ -2948,6 +2948,13 @@ begin
           exit;
         if not Read('PRET RETR %s') then
           exit;
+
+        if (lastResponseCode < 200) Or (lastResponseCode > 299) then
+        begin
+          irc_Adderror(todotask, '<c4>[LEECHFILE ERROR]</c>: PRET Error on %s: %s', [site.name, Trim(lastResponse)]);
+          Result := -1;
+          exit;
+        end;
       end;
 
       if not Send('PASV') then
@@ -3026,6 +3033,7 @@ begin
       if not Read() then
         exit;
 
+      irc_SendRACESTATS(Format('LEECH : %s %s', [site.Name, filename]));
       Result := 1;
     finally
       if idTCP <> nil then

@@ -157,6 +157,8 @@ begin
     while glTWriteStatsThreadRunning do
       Sleep(100);
 
+    // Checkpoint WAL to merge changes back into main database and truncate WAL file
+    ORMStatsDB.DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
     FreeAndNil(ORMStatsDB);
   end;
   if Assigned(ORMStatsModel) then
