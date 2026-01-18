@@ -1,5 +1,5 @@
-import { Card, Title, Table, Alert, Loader, Center, TextInput, Button, Stack, Group, Text, ScrollArea, Badge, Switch, Tooltip, Modal, MultiSelect, ActionIcon, Breadcrumbs } from '@mantine/core';
-import { IconChevronRight, IconSearch, IconDeviceFloppy, IconPin, IconPlus, IconFolderOpen, IconArrowUp, IconRefresh } from '@tabler/icons-react';
+import { Card, Title, Table, Alert, Loader, Center, TextInput, Button, Stack, Group, Text, ScrollArea, Badge, Switch, Tooltip, Modal, MultiSelect, ActionIcon, Breadcrumbs, Box } from '@mantine/core';
+import { IconChevronRight, IconSearch, IconDeviceFloppy, IconPin, IconPlus, IconFolderOpen, IconArrowUp, IconRefresh, IconCheck } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { apiClient, fetchBrowserPath, fetchConfigContent } from '../api/client';
@@ -24,7 +24,6 @@ export function SectionDirectories() {
   const [browserPath, setBrowserPath] = useState('/');
   const [quickSection, setQuickSection] = useState<string[]>([]);
   const [quickPath, setQuickPath] = useState('');
-  const [autoMapLoading, setAutoMapLoading] = useState(false);
 
   const { data: sitesData, isLoading: sitesLoading } = useQuery({
     queryKey: ['sites'],
@@ -338,27 +337,32 @@ export function SectionDirectories() {
     return '';
   };
 
-  const applyMappings = (releaseName: string, initialSection: string) => {
-    let section = initialSection || '';
-    let count = 0;
-    const release = releaseName;
-    const maxDepth = 100;
+  const applyMappings = (releaseName: string, initialSection: string, depth: number = 0): string => {
+    const currentDepth = depth + 1;
 
-    while (count < maxDepth) {
-      let mapped = false;
-      for (const mapping of precatcherRules.mappings) {
-        const isGlobal = mapping.orig === '' && count === 0;
-        if (!(isGlobal || mapping.orig === section)) continue;
-        if (!maskMatches(mapping.mask, release)) continue;
-        if (recursiveMappingEnabled && mapping.target !== 'TRASH') {
-          section = mapping.target;
-          mapped = true;
-          break;
-        }
+    if (currentDepth > 500) {
+      console.error('[applyMappings] Max recursion depth reached for:', releaseName);
+      return '';
+    }
+
+    let section = initialSection || '';
+
+    for (const mapping of precatcherRules.mappings) {
+      // Global mappings (orig='') only apply on first call (depth=1)
+      const isGlobal = mapping.orig === '' && currentDepth === 1;
+      const matchesSection = mapping.orig === section;
+
+      if (!(isGlobal || matchesSection)) continue;
+      if (!maskMatches(mapping.mask, releaseName)) continue;
+
+      // Found a match
+      if (recursiveMappingEnabled && mapping.target !== 'TRASH') {
+        // Recursive mapping: continue mapping with new section
+        return applyMappings(releaseName, mapping.target, currentDepth);
+      } else {
+        // Non-recursive: return immediately
         return mapping.target;
       }
-      if (!mapped) break;
-      count += 1;
     }
 
     return section;
@@ -408,17 +412,45 @@ export function SectionDirectories() {
     }
 
     const sections = Array.from(counts.keys());
-    setQuickSection(sections);
-    setQuickPath(browserPath);
+    const path = normalizePath(browserPath);
     const summary = Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 6)
       .map(([section, count]) => `${section} (${count})`)
       .join(', ');
+
+    const notificationId = `auto-map-${Date.now()}`;
+
+    const handleApply = () => {
+      setSectionDirs((prev) => {
+        const next = { ...prev };
+        for (const section of sections) {
+          next[section] = path;
+        }
+        return next;
+      });
+      notifications.hide(notificationId);
+      notifications.show({
+        title: 'Applied',
+        message: `Set ${sections.length} section(s) to ${path}`,
+        color: 'green',
+      });
+    };
+
     notifications.show({
+      id: notificationId,
       title: 'Auto-mapped sections',
-      message: `Found ${counts.size} section(s). ${summary}`,
+      message: (
+        <Box>
+          <Text size="sm" mb="xs">Found {counts.size} section(s). {summary}</Text>
+          <Button size="xs" leftSection={<IconCheck size="1rem" />} onClick={handleApply}>
+            Apply to {path}
+          </Button>
+        </Box>
+      ),
       color: 'green',
+      autoClose: false,
+      withCloseButton: true,
     });
   };
 
@@ -474,115 +506,6 @@ export function SectionDirectories() {
     fetchBrowserPath(selectedSite, browserPath, true).then(() => {
       queryClient.invalidateQueries({ queryKey: ['sections-browser', selectedSite, browserPath] });
     });
-  };
-
-  const fetchBrowserPathReady = async (site: string, path: string) => {
-    let res = await fetchBrowserPath(site, path, true);
-    let attempts = 0;
-    while (res?.status === 'pending' && attempts < 6) {
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      res = await fetchBrowserPath(site, path);
-      attempts += 1;
-    }
-    return res;
-  };
-
-  const autoMapFromSubfolders = async () => {
-    if (!precatcherConfig) {
-      notifications.show({
-        title: 'Precatcher config',
-        message: 'Precatcher config is not loaded yet.',
-        color: 'yellow',
-      });
-      return;
-    }
-    if (!selectedSite) return;
-    if (!browserData?.files) {
-      notifications.show({
-        title: 'No data',
-        message: 'No directory listing available yet.',
-        color: 'yellow',
-      });
-      return;
-    }
-
-    const dirs = browserData.files.filter((f) => f.is_dir);
-    if (dirs.length === 0) {
-      notifications.show({
-        title: 'No folders',
-        message: 'No folders found in this path.',
-        color: 'yellow',
-      });
-      return;
-    }
-
-    setAutoMapLoading(true);
-    try {
-      const suggestions = new Map<string, { path: string; count: number }>();
-
-      for (const dir of dirs) {
-        const subPath = normalizePath(`${browserPath === '/' ? '' : browserPath}/${dir.name}`);
-        const listing = await fetchBrowserPathReady(selectedSite, subPath);
-        const releaseDirs = listing?.files?.filter((f) => f.is_dir) || [];
-        if (releaseDirs.length === 0) continue;
-
-        const counts = new Map<string, number>();
-        for (const entry of releaseDirs) {
-          const detected = findSectionFromAliases(entry.name);
-          const mapped = applyMappings(entry.name, detected);
-          if (mapped) counts.set(mapped, (counts.get(mapped) || 0) + 1);
-        }
-
-        let bestSection = '';
-        let bestCount = 0;
-        for (const [section, count] of counts.entries()) {
-          if (count > bestCount) {
-            bestSection = section;
-            bestCount = count;
-          }
-        }
-
-        if (!bestSection) continue;
-        const existing = suggestions.get(bestSection);
-        if (!existing || bestCount > existing.count) {
-          suggestions.set(bestSection, { path: subPath, count: bestCount });
-        }
-      }
-
-      if (suggestions.size === 0) {
-        notifications.show({
-          title: 'No matches',
-          message: 'No sections matched from subfolder releases.',
-          color: 'yellow',
-        });
-        return;
-      }
-
-      let applied = 0;
-      let skipped = 0;
-      setSectionDirs((prev) => {
-        const next = { ...prev };
-        for (const [section, suggestion] of suggestions.entries()) {
-          if (next[section] && next[section] !== suggestion.path) {
-            skipped += 1;
-            continue;
-          }
-          if (next[section] !== suggestion.path) {
-            applied += 1;
-          }
-          next[section] = suggestion.path;
-        }
-        return next;
-      });
-
-      notifications.show({
-        title: 'Auto-mapped subfolders',
-        message: `Applied ${applied} section(s). Skipped ${skipped} with existing paths.`,
-        color: 'green',
-      });
-    } finally {
-      setAutoMapLoading(false);
-    }
   };
 
   const filteredSections = useMemo(() => {
@@ -905,16 +828,8 @@ export function SectionDirectories() {
               <Button
                 variant="light"
                 onClick={autoMapFromReleases}
-                loading={autoMapLoading}
               >
                 Auto map from releases (beta)
-              </Button>
-              <Button
-                variant="light"
-                onClick={autoMapFromSubfolders}
-                loading={autoMapLoading}
-              >
-                Auto map subfolders (beta)
               </Button>
               <Button
                 leftSection={<IconPlus size="1rem" />}
@@ -941,7 +856,7 @@ export function SectionDirectories() {
             ))}
           </Breadcrumbs>
           <Text size="xs" c="dimmed">
-            Auto map scans folder names against `slftp.precatcher` sections/mappings. "Subfolders" uses each child directory to map its contained releases.
+            Auto map scans folder names against `slftp.precatcher` sections/mappings and suggests which sections to add.
           </Text>
 
           {(browserLoading || browserRefetching) && (
