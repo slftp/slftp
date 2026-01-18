@@ -242,23 +242,33 @@ begin
   try
     if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['previousepisode'] <> nil)) then
     begin
-      if (json.Field['_embedded'].Field['previousepisode'].Field['number'] <> NIL) then
+      if (json.Field['_embedded'].Field['previousepisode'].Field['number'] <> NIL) and
+         (json.Field['_embedded'].Field['previousepisode'].Field['number'].SelfType <> jsNull) then
         ep_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['number'].Value), -1)
       else
         ep_prevnum := -1;
 
-      if (json.Field['_embedded'].Field['previousepisode'].Field['season'] <> NIL) then
+      if (json.Field['_embedded'].Field['previousepisode'].Field['season'] <> NIL) and
+         (json.Field['_embedded'].Field['previousepisode'].Field['season'].SelfType <> jsNull) then
         se_prevnum := StrToIntDef(string(json.Field['_embedded'].Field['previousepisode'].Field['season'].Value), -1)
       else
         se_prevnum := -1;
       prevdt := UnixToDateTime(0);
 
-      if String(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value) = '' then
-        airt := '00:00'
+      if (json.Field['_embedded'].Field['previousepisode'].Field['airtime'] <> nil) and
+         (json.Field['_embedded'].Field['previousepisode'].Field['airtime'].SelfType <> jsNull) then
+      begin
+        if String(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value) = '' then
+          airt := '00:00'
+        else
+          airt := String(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
+      end
       else
-        airt := String(json.Field['_embedded'].Field['previousepisode'].Field['airtime'].Value);
+        airt := '00:00';
 
-      if ((json.Field['_embedded'].Field['previousepisode'].Field['airdate'] <> nil) AND (string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) <> '')) then
+      if ((json.Field['_embedded'].Field['previousepisode'].Field['airdate'] <> nil) AND
+          (json.Field['_embedded'].Field['previousepisode'].Field['airdate'].SelfType <> jsNull) AND
+          (string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) <> '')) then
       begin
         prevdt := StrToDateTime(string(json.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
         hadPrev := True;
@@ -275,17 +285,37 @@ begin
   try
     if ((json.Field['_embedded'] <> nil) and (json.Field['_embedded'].Field['nextepisode'] <> nil)) then
     begin
-      ep_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1);
-      se_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1);
+      if (json.Field['_embedded'].Field['nextepisode'].Field['number'] <> nil) and
+         (json.Field['_embedded'].Field['nextepisode'].Field['number'].SelfType <> jsNull) then
+        ep_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['number'].Value), -1)
+      else
+        ep_nextnum := -1;
+
+      if (json.Field['_embedded'].Field['nextepisode'].Field['season'] <> nil) and
+         (json.Field['_embedded'].Field['nextepisode'].Field['season'].SelfType <> jsNull) then
+        se_nextnum := StrToIntDef(string(json.Field['_embedded'].Field['nextepisode'].Field['season'].Value), -1)
+      else
+        se_nextnum := -1;
       nextdt := UnixToDateTime(0);
 
-      if String(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value) = '' then
-        airt := '00:00'
+      if (json.Field['_embedded'].Field['nextepisode'].Field['airtime'] <> nil) and
+         (json.Field['_embedded'].Field['nextepisode'].Field['airtime'].SelfType <> jsNull) then
+      begin
+        if String(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value) = '' then
+          airt := '00:00'
+        else
+          airt := String(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
+      end
       else
-        airt := String(json.Field['_embedded'].Field['nextepisode'].Field['airtime'].Value);
+        airt := '00:00';
 
-      nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
-      hadNext := True;
+      if (json.Field['_embedded'].Field['nextepisode'].Field['airdate'] <> nil) and
+         (json.Field['_embedded'].Field['nextepisode'].Field['airdate'].SelfType <> jsNull) and
+         (string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) <> '') then
+      begin
+        nextdt := StrToDateTime(string(json.Field['_embedded'].Field['nextepisode'].Field['airdate'].Value) + ' ' + airt, formatSettings);
+        hadNext := True;
+      end;
     end;
   except on e: Exception do
     begin
@@ -493,7 +523,10 @@ begin
       tvr.tv_next_date := DateTimeToUnix(date);
     end
     else
-      if ((js.Field['_embedded'] <> nil) and (js.Field['_embedded'].Field['previousepisode'] <> nil)) then
+      if ((js.Field['_embedded'] <> nil) and
+          (js.Field['_embedded'].Field['previousepisode'] <> nil) and
+          (js.Field['_embedded'].Field['previousepisode'].Field['airdate'] <> nil) and
+          (js.Field['_embedded'].Field['previousepisode'].Field['airdate'].SelfType <> jsNull)) then
         tvr.tv_endedyear := StrtoIntdef(Copy(string(js.Field['_embedded'].Field['previousepisode'].Field['airdate'].Value), 1, 4), -1);
 
     if ((js.Field['rating'].SelfType <> jsNull) and (js.Field['rating'].Field['average'].SelfType <> jsNull)) then
