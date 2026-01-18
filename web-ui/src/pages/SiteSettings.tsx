@@ -55,6 +55,10 @@ export function SiteSettings() {
   const [autoIndex, setAutoIndex] = useState<number | ''>('');
   const [autoNuke, setAutoNuke] = useState<number | ''>('');
   const [country, setCountry] = useState('');
+  const [dirlistPriority, setDirlistPriority] = useState<string>('2');
+  const [newdirDirlistReadd, setNewdirDirlistReadd] = useState<number | ''>(0);
+  const [globalDirlistInterval, setGlobalDirlistInterval] = useState<number>(0);
+  const [performanceAdjustedDirlist, setPerformanceAdjustedDirlist] = useState(true);
   const [skipUploaded, setSkipUploaded] = useState<string>('0');
   const [killOnStalled, setKillOnStalled] = useState<number | ''>('');
   const [sslMethod, setSslMethod] = useState('0');
@@ -112,6 +116,13 @@ export function SiteSettings() {
       setAutoIndex(siteInfo.AutoIndexInterval ?? 0);
       setAutoNuke(siteInfo.AutoNukeInterval ?? 0);
       setCountry(siteInfo.Country || '');
+      
+      const perfAdj = Boolean(siteInfo.PerformanceAdjustedDirlist);
+      setPerformanceAdjustedDirlist(perfAdj);
+      setDirlistPriority(perfAdj ? String(siteInfo.DirlistPriority ?? 2) : 'OFF');
+      
+      setNewdirDirlistReadd(siteInfo.NewdirDirlistReadd === 0 ? '' : (siteInfo.NewdirDirlistReadd ?? ''));
+      setGlobalDirlistInterval(siteInfo.GlobalDirlistInterval ?? 0);
       setSkipUploaded(String(siteInfo.SkipBeingUploadedFiles ?? 0));
       setKillOnStalled(siteInfo.KillConnectionOnStalledTransferSeconds ?? 0);
       setSslMethod(String(siteInfo.SslMethod ?? 0));
@@ -156,6 +167,12 @@ export function SiteSettings() {
       setStatus(siteRuntime.status === 'DOWN' || siteRuntime.status === 'DOWN_BY_USER' ? 'DOWN' : 'UP');
       setPermDown(Boolean(siteRuntime.permdown));
       setAutoLogin(Boolean(siteRuntime.autologin));
+      
+      const perfAdj = Boolean(siteRuntime.performance_adjusted_dirlist);
+      setPerformanceAdjustedDirlist(perfAdj);
+      setDirlistPriority(perfAdj ? String(siteRuntime.dirlist_priority ?? 2) : 'OFF');
+      
+      setNewdirDirlistReadd(siteRuntime.newdir_dirlist_readd === 0 ? '' : (siteRuntime.newdir_dirlist_readd ?? ''));
       setAutoRulesInterval(siteRuntime.autorules_interval ?? 0);
       setIrcNick(siteRuntime.ircnick ?? '');
     }
@@ -185,6 +202,9 @@ export function SiteSettings() {
               autoindex: Number(autoIndex),
               autonuke: Number(autoNuke),
               country: country,
+              dirlist_priority: dirlistPriority === 'OFF' ? 2 : Number(dirlistPriority),
+              newdir_dirlist_readd: Number(newdirDirlistReadd),
+              performance_adjusted_dirlist: performanceAdjustedDirlist,
               skip_being_uploaded_files: Number(skipUploaded),
               kill_connection_on_stalled_transfer: Number(killOnStalled),
               maxupperrip: Number(maxUpPerRip),
@@ -310,6 +330,7 @@ export function SiteSettings() {
                             value={maxUpPerRip}
                             min={0}
                             onChange={(val) => setMaxUpPerRip(val === '' ? '' : Number(val))}
+                            placeholder="0 = unlimited"
                         />
                     </SimpleGrid>
                 </div>
@@ -346,6 +367,34 @@ export function SiteSettings() {
                             value={killOnStalled}
                             min={0}
                             onChange={(val) => setKillOnStalled(val === '' ? '' : Number(val))}
+                        />
+                        <Select
+                            label="Dirlist Priority"
+                            data={[
+                                { value: 'OFF', label: 'Off (Static)' },
+                                { value: '0', label: 'Very Low' },
+                                { value: '1', label: 'Low' },
+                                { value: '2', label: 'Normal' },
+                                { value: '3', label: 'High' },
+                                { value: '4', label: 'Very High' }
+                            ]}
+                            value={dirlistPriority}
+                            onChange={(v) => {
+                                if (v === 'OFF') {
+                                    setPerformanceAdjustedDirlist(false);
+                                    setDirlistPriority('OFF');
+                                } else {
+                                    setPerformanceAdjustedDirlist(true);
+                                    setDirlistPriority(v || '2');
+                                }
+                            }}
+                        />
+                        <NumberInput
+                            label="Dirlist Interval (ms)"
+                            placeholder={`Empty = Global (${globalDirlistInterval}ms)`}
+                            value={newdirDirlistReadd}
+                            min={0}
+                            onChange={(val) => setNewdirDirlistReadd(val === '' ? '' : Number(val))}
                         />
                         <Select
                             label="SSLFXP"
