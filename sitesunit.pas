@@ -227,6 +227,7 @@ type
     flegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    FSocketInitErrorCount: integer; //< site-wide counter for socket initialization errors
     fConnect_timeout: integer;
     fIdleInterval: integer;
     fIo_timeout: integer;
@@ -2315,6 +2316,7 @@ begin
   end;
 
   status := ssOnline;
+  site.FSocketInitErrorCount := 0; // Reset error counter on successful login
 
   if LastNonIdleTaskExecution = 0 then
     LastNonIdleTaskExecution := Now();
@@ -2656,10 +2658,27 @@ begin
 
     if not WriteLn(s, site.io_timeout * 1000) then
     begin
-      irc_Adderror(todotask, '<c4>[ERROR Send]</c> %s: %s (%s)', [Name, error, s]);
+      // Rate-limit "Socket not initialized" errors to prevent IRC spam
+      if error = 'Socket not initialized' then
+      begin
+        Inc(site.FSocketInitErrorCount);
+
+        // Only report first 3 errors to IRC (site-wide, not per slot)
+        if site.FSocketInitErrorCount <= 3 then
+          irc_Adderror(todotask, '<c4>[ERROR Send]</c> %s: %s (%s)', [Name, error, s]);
+      end
+      else
+      begin
+        // For other errors, always report
+        irc_Adderror(todotask, '<c4>[ERROR Send]</c> %s: %s (%s)', [Name, error, s]);
+      end;
+
       DestroySocket(False);
       exit;
     end;
+
+    // Reset error counter on successful send
+    site.FSocketInitErrorCount := 0;
 
     LastIO := Now();
     Result := True;
@@ -3202,6 +3221,7 @@ begin
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
+  FSocketInitErrorCount := 0;
 
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
