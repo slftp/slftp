@@ -446,7 +446,13 @@ begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
+
+    if (s1.slots.Count > 1) and (s1.freeslots <= 1) then
+      exit;
     if s1.freeslots = 0 then
+      exit;
+
+    if (s2.slots.Count > 1) and (s2.freeslots <= 1) then
       exit;
     if s2.freeslots = 0 then
       exit;
