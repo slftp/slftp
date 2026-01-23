@@ -3,7 +3,6 @@ import {
   Badge,
   Button,
   Center,
-  Code,
   Divider,
   Grid,
   Group,
@@ -19,12 +18,16 @@ import {
   Title,
   Tooltip,
   ActionIcon,
+  Code,
+  useMantineColorScheme,
 } from '@mantine/core';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { notifications } from '@mantine/notifications';
 import { IconCheck, IconCode, IconDeviceFloppy, IconFileText, IconRefresh, IconSearch, IconAlertCircle, IconArrowRight, IconBulb } from '@tabler/icons-react';
+import Editor from '@monaco-editor/react';
+import DOMPurify from 'dompurify';
 import { apiClient } from '../api/client';
 import type { Site } from '../api/client';
 import { RulesExamples } from '../components/RulesExamples';
@@ -33,6 +36,7 @@ type RuleError = { line: number; message: string };
 type RuleCondition = { name: string; ops: string; description: string };
 
 export function Rules() {
+  const { colorScheme } = useMantineColorScheme();
   const [searchParams, setSearchParams] = useSearchParams();
   const [siteName, setSiteName] = useState<string>('');
   const [rtplContent, setRtplContent] = useState('');
@@ -44,15 +48,11 @@ export function Rules() {
   const [syntaxOk, setSyntaxOk] = useState<boolean | null>(null);
   const [isCheckingSyntax, setIsCheckingSyntax] = useState(false);
   const [conditionSearch, setConditionSearch] = useState('');
-  const rtplTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const rtplLineNumbersRef = useRef<HTMLPreElement | null>(null);
+  
+  const editorRef = useRef<any>(null);
+  
   const [hasLoaded, setHasLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>('editor');
-
-  const rtplLineNumbers = useMemo(() => {
-    const count = Math.max(1, rtplContent.split('\n').length);
-    return Array.from({ length: count }, (_, idx) => String(idx + 1)).join('\n');
-  }, [rtplContent]);
 
   const { data: sites, isLoading, error } = useQuery({
     queryKey: ['sites'],
@@ -112,25 +112,103 @@ export function Rules() {
     }
   }, [searchParams, siteOptions]);
 
+  const handleEditorWillMount = (monaco: any) => {
+    // Register a new language
+    monaco.languages.register({ id: 'slftp-rules' });
+
+    // Register a tokens provider for the language
+    monaco.languages.setMonarchTokensProvider('slftp-rules', {
+      tokenizer: {
+        root: [
+          [/\b(if|then|and|or|not|in|notin)\b/i, 'keyword'],
+          [/\b(DROP|ALLOW)\b/i, 'type'],
+          [/\b(default)\b/i, 'constant'],
+          [/\b(group|age|releasename|section|tag|year|mp3language|mp3year|mp3numdisks|imdblookupdone|imdblanguages|imdbgenre|imdbgenres|imdbrating|imdbyear|imdbvotes|imdbcountry|tvlookupdone|tvlanguage|tvcountry|tvgenres|tvscripted|tvrunning|tvstatus|tvclassification|tvseason|tvep|nfolookupdone|internal|files|size|disk|kb)\b/i, 'variable'],
+          [/#.*$/, 'comment'],
+          [/"[^"]*"/, 'string'],
+          [/'[^']*'/, 'string'],
+          [/\/(?:[^\/\\]|\\.)+\/[gimuy]*/, 'regexp'],
+          [/\b\d+\b/, 'number'],
+          [/[{}()\[\]]/, '@brackets'],
+          [/[<>!=~]+/, 'operator'],
+          [/&&|\|\|/, 'operator'],
+        ]
+      }
+    });
+
+    const commonRules = [
+      { token: 'keyword', fontStyle: 'bold' },
+      { token: 'type', fontStyle: 'bold' },
+      { token: 'comment', fontStyle: 'italic' },
+    ];
+
+    // Define Dark theme
+    monaco.editor.defineTheme('slftp-theme-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [
+        ...commonRules,
+        { token: 'keyword', foreground: '569cd6' },
+        { token: 'type', foreground: '4ec9b0' },
+        { token: 'constant', foreground: '4fc1ff' },
+        { token: 'variable', foreground: '9cdcfe' },
+        { token: 'comment', foreground: '6a9955' },
+        { token: 'string', foreground: 'ce9178' },
+        { token: 'regexp', foreground: 'd16969' },
+        { token: 'number', foreground: 'b5cea8' },
+        { token: 'operator', foreground: 'd4d4d4' },
+      ],
+      colors: {
+        'editor.background': '#1a1b1e',
+        'editor.selectionBackground': '#264f78',
+        'editor.lineHighlightBackground': '#2b2d30',
+        'editorCursor.foreground': '#aeafad',
+        'editorWhitespace.foreground': '#3b3a32',
+        'editorIndentGuide.background': '#404040',
+        'editorSelectionHighlightBackground': '#add6ff26',
+      }
+    });
+
+    // Define Light theme
+    monaco.editor.defineTheme('slftp-theme-light', {
+      base: 'vs',
+      inherit: true,
+      rules: [
+        ...commonRules,
+        { token: 'keyword', foreground: '0000ff' },
+        { token: 'type', foreground: '267f99' },
+        { token: 'constant', foreground: '0070c1' },
+        { token: 'variable', foreground: '001080' },
+        { token: 'comment', foreground: '008000' },
+        { token: 'string', foreground: 'a31515' },
+        { token: 'regexp', foreground: '811f3f' },
+        { token: 'number', foreground: '098658' },
+        { token: 'operator', foreground: '000000' },
+      ],
+      colors: {
+        'editor.background': '#ffffff',
+        'editor.lineHighlightBackground': '#f3f3f3',
+      }
+    });
+  };
+
+  const handleEditorDidMount = (editor: any) => {
+    editorRef.current = editor;
+  };
+
   const insertAtCursorOrReplaceSelection = (insertText: string) => {
-    const el = rtplTextareaRef.current;
-    if (!el) {
+    const editor = editorRef.current;
+    if (!editor) {
       setRtplContent((prev) => prev + insertText);
       return;
     }
 
-    const start = el.selectionStart ?? rtplContent.length;
-    const end = el.selectionEnd ?? start;
-    const before = rtplContent.slice(0, start);
-    const after = rtplContent.slice(end);
-    const next = before + insertText + after;
-    setRtplContent(next);
-
-    requestAnimationFrame(() => {
-      const newPos = start + insertText.length;
-      el.focus();
-      el.setSelectionRange(newPos, newPos);
-    });
+    const selection = editor.getSelection();
+    const op = { range: selection, text: insertText, forceMoveMarkers: true };
+    editor.executeEdits("my-source", [op]);
+    editor.focus();
+    // Update local state is handled by onChange prop, but executeEdits might not trigger it immediately in all cases? 
+    // Usually it does, but for safety rely on the editor's internal state -> change event loop.
   };
 
   const focusLine = (lineNumber: number) => {
@@ -141,28 +219,14 @@ export function Rules() {
     
     // Allow tab switch to happen
     setTimeout(() => {
-      const el = rtplTextareaRef.current;
-      if (!el) return;
+      const editor = editorRef.current;
+      if (!editor) return;
       if (lineNumber <= 0) return;
-      const lines = rtplContent.split('\n');
-      const idx = Math.min(lineNumber - 1, lines.length - 1);
-      let offset = 0;
-      for (let i = 0; i < idx; i++) offset += lines[i].length + 1;
       
-      el.focus();
-      el.setSelectionRange(offset, offset);
-      
-      // Try to scroll line into view (approximate)
-      const lineHeight = 20; // approximate
-      el.scrollTop = (lineNumber - 5) * lineHeight;
+      editor.revealLineInCenter(lineNumber);
+      editor.setPosition({ column: 1, lineNumber: lineNumber });
+      editor.focus();
     }, 100);
-  };
-
-  const syncRtplLineNumberScroll = () => {
-    const el = rtplTextareaRef.current;
-    const gutter = rtplLineNumbersRef.current;
-    if (!el || !gutter) return;
-    gutter.scrollTop = el.scrollTop;
   };
 
   const filteredConditions = useMemo(() => {
@@ -270,6 +334,35 @@ export function Rules() {
     return () => clearTimeout(t);
   }, [hasLoaded, rtplContent]);
 
+  const statusDisplay = useMemo(() => {
+    if (!hasLoaded) return null;
+    if (isCheckingSyntax) return <Badge color="yellow" variant="light">Checking...</Badge>;
+    
+    if (syntaxOk === true) return (
+      <Group gap={6}>
+        <IconCheck size={18} color="var(--mantine-color-green-6)" />
+        <Text size="sm" c="green" fw={500} style={{ whiteSpace: 'nowrap' }}>Syntax OK</Text>
+      </Group>
+    );
+    
+    if (errors.length > 0) {
+      const firstError = errors[0];
+      return (
+        <Tooltip label={errors.map(e => `Line ${e.line}: ${e.message}`).join('\n')} multiline position="bottom-end">
+          <Group gap={6} style={{ cursor: 'pointer', maxWidth: '100%' }} wrap="nowrap" onClick={() => focusLine(firstError.line)}>
+            <IconAlertCircle size={18} color="var(--mantine-color-red-6)" style={{ minWidth: 18 }} />
+            <Text size="sm" c="red" fw={500} lineClamp={1}>
+              Line {firstError.line}: <span dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(firstError.message) }} />
+              {errors.length > 1 && ` (+${errors.length - 1})`}
+            </Text>
+          </Group>
+        </Tooltip>
+      );
+    }
+    
+    return <Badge color="gray" variant="dot">Ready</Badge>;
+  }, [hasLoaded, isCheckingSyntax, syntaxOk, errors]);
+
   if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">Could not load sites</Alert>;
 
@@ -279,52 +372,30 @@ export function Rules() {
         border: '1px solid var(--mantine-color-default-border)',
         borderRadius: 'var(--mantine-radius-md)',
         overflow: 'hidden',
-        display: 'flex',
         height: 'calc(100vh - 300px)',
         minHeight: '500px',
-        background: 'var(--mantine-color-default)',
-        position: 'relative',
+        background: colorScheme === 'dark' ? '#1a1b1e' : '#ffffff',
       }}
     >
-      <pre
-        ref={rtplLineNumbersRef}
-        style={{
-          margin: 0,
-          padding: '12px 10px 12px 12px',
-          width: 52,
-          textAlign: 'right',
-          color: 'var(--mantine-color-dimmed)',
-          background: 'var(--mantine-color-body)',
-          borderRight: '1px solid var(--mantine-color-default-border)',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-          fontSize: 13,
-          lineHeight: 1.45,
-          overflow: 'hidden',
-          userSelect: 'none',
-        }}
-      >
-        {rtplLineNumbers}
-      </pre>
-      <Textarea
+      <Editor
+        height="100%"
+        language="slftp-rules"
+        theme={colorScheme === 'dark' ? 'slftp-theme-dark' : 'slftp-theme-light'}
         value={rtplContent}
-        onChange={(e) => setRtplContent(e.currentTarget.value)}
-        onScroll={syncRtplLineNumberScroll}
-        variant="unstyled"
-        ref={rtplTextareaRef}
-        placeholder="Select a site and click Load to start editing..."
-        styles={{
-          root: { flex: 1, height: '100%', overflow: 'hidden' },
-          wrapper: { height: '100%' },
-          input: {
-            height: '100%',
-            padding: '12px 12px 12px 10px',
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            fontSize: 13,
-            lineHeight: 1.45,
-            whiteSpace: 'pre',
-            overflowX: 'auto',
-          },
+        onChange={(value) => setRtplContent(value || '')}
+        beforeMount={handleEditorWillMount}
+        onMount={handleEditorDidMount}
+        options={{
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          fontSize: 13,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          wordWrap: 'on',
+          automaticLayout: true,
+          renderWhitespace: 'none',
+          occurrencesHighlight: 'singleFile',
+          selectionHighlight: true,
+          renderLineHighlight: 'all',
         }}
       />
     </div>
@@ -360,13 +431,6 @@ export function Rules() {
         <Group justify="space-between" align="center">
           <Group>
             <Title order={3}>Rules Editor</Title>
-            {hasLoaded && (
-              <Group gap="xs">
-                 <Badge variant="dot" color={syntaxOk === false ? 'red' : syntaxOk === true ? 'green' : 'gray'}>
-                    {isCheckingSyntax ? 'Checking...' : syntaxOk === false ? 'Syntax Errors' : syntaxOk === true ? 'Syntax OK' : 'Ready'}
-                 </Badge>
-              </Group>
-            )}
           </Group>
           
           <Group>
@@ -411,36 +475,24 @@ export function Rules() {
             </Tooltip>
           </Group>
         </Group>
-
-        {/* Validation Errors */}
-        {errors.length > 0 && (
-          <Alert icon={<IconAlertCircle size="1rem" />} title="Validation Errors" color="red" mt="md" variant="light" withCloseButton onClose={() => setErrors([])}>
-            <ScrollArea.Autosize mah={100}>
-              {errors.map((e, idx) => (
-                <Text
-                  key={idx}
-                  size="sm"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => focusLine(e.line)}
-                  c="red.7"
-                  fw={500}
-                >
-                  Line {e.line}: {e.message}
-                </Text>
-              ))}
-            </ScrollArea.Autosize>
-          </Alert>
-        )}
       </Paper>
 
       <Paper p="sm" shadow="sm" radius="md" withBorder h="100%">
         <Tabs value={activeTab} onChange={setActiveTab} keepMounted={false}>
-          <Tabs.List mb="xs">
-            <Tabs.Tab value="editor" leftSection={<IconCode size="0.8rem" />}>Editor</Tabs.Tab>
-            <Tabs.Tab value="snapshot" leftSection={<IconFileText size="0.8rem" />}>Snapshot (Site Rules)</Tabs.Tab>
-            <Tabs.Tab value="conditions" leftSection={<IconSearch size="0.8rem" />}>Conditions</Tabs.Tab>
-            <Tabs.Tab value="examples" leftSection={<IconBulb size="0.8rem" />}>Examples</Tabs.Tab>
-          </Tabs.List>
+          <Group justify="space-between" align="center" mb="xs" wrap="nowrap">
+            <Tabs.List style={{ borderBottom: 'none', flexShrink: 0 }}>
+              <Tabs.Tab value="editor" leftSection={<IconCode size="0.8rem" />}>Editor</Tabs.Tab>
+              <Tabs.Tab value="snapshot" leftSection={<IconFileText size="0.8rem" />}>Snapshot (Site Rules)</Tabs.Tab>
+              <Tabs.Tab value="conditions" leftSection={<IconSearch size="0.8rem" />}>Conditions</Tabs.Tab>
+              <Tabs.Tab value="examples" leftSection={<IconBulb size="0.8rem" />}>Examples</Tabs.Tab>
+            </Tabs.List>
+            
+            <Group gap="xs" pr="xs" style={{ flexGrow: 1, justifyContent: 'flex-end', minWidth: 0 }}>
+              {statusDisplay}
+            </Group>
+          </Group>
+          
+          <Divider mb="xs" />
 
           <Tabs.Panel value="editor">
             {editorPanel}
