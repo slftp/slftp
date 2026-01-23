@@ -1550,6 +1550,8 @@ begin
 
   if Assigned(tvinfoSQLite3DBCon) then
   begin
+    // Checkpoint WAL to merge changes back into main database and truncate WAL file
+    tvinfoSQLite3DBCon.MainSQLite3DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
     FreeAndNil(tvinfoSQLite3DBCon);
   end;
 
