@@ -2068,8 +2068,12 @@ begin
     exit;
   end;
 
-  irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
-    [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]));
+  if s.slots.Count > 1 then
+    irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d (Reserved: 1) Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
+      [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]))
+  else
+    irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
+      [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]));
 
   for i := 0 to s.slots.Count - 1 do
   begin
