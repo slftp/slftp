@@ -15,25 +15,26 @@ export function Layout() {
     icon: any;
     label: string;
     to: string;
+    color?: string;
     children?: { label: string; to: string }[];
   }
 
   const links: NavLinkItem[] = [
-    { icon: IconDashboard, label: 'Dashboard', to: '/' },
-    { icon: IconFolder, label: 'Browser', to: '/browser' },
-    { icon: IconBolt, label: 'PRE', to: '/pre' },
-    { icon: IconBrandHipchat, label: 'IRC', to: '/irc' },
-    { icon: IconDatabase, label: 'Databases', to: '/databases' },
-    { icon: IconAlertTriangle, label: 'Issues', to: '/issues' },
-    { icon: IconFileText, label: 'Logs', to: '/logs' },
-    { icon: IconTrophy, label: 'Races', to: '/races' },
-    { icon: IconRoute, label: 'Routes', to: '/routes' },
-    { icon: IconFilter, label: 'Rules', to: '/rules' },
-    { icon: IconFlask, label: 'Tools', to: '/tools' },
-    { icon: IconHelpCircle, label: 'Help', to: '/help' },
-    { icon: IconFolders, label: 'Sections', to: '/sections' },
-    { icon: IconServer, label: 'Sites Manager', to: '/sites' },
-    { icon: IconChartBar, label: 'Stats', to: '/stats' },
+    { icon: IconDashboard, label: 'Dashboard', to: '/', color: 'blue' },
+    { icon: IconFolder, label: 'Browser', to: '/browser', color: 'yellow' },
+    { icon: IconBolt, label: 'PRE', to: '/pre', color: 'orange' },
+    { icon: IconBrandHipchat, label: 'IRC', to: '/irc', color: 'grape' },
+    { icon: IconDatabase, label: 'Databases', to: '/databases', color: 'cyan' },
+    { icon: IconAlertTriangle, label: 'Issues', to: '/issues', color: 'red' },
+    { icon: IconFileText, label: 'Logs', to: '/logs', color: 'gray' },
+    { icon: IconTrophy, label: 'Races', to: '/races', color: 'green' },
+    { icon: IconRoute, label: 'Routes', to: '/routes', color: 'indigo' },
+    { icon: IconFilter, label: 'Rules', to: '/rules', color: 'pink' },
+    { icon: IconFlask, label: 'Tools', to: '/tools', color: 'teal' },
+    { icon: IconHelpCircle, label: 'Help', to: '/help', color: 'violet' },
+    { icon: IconFolders, label: 'Sections', to: '/sections', color: 'lime' },
+    { icon: IconServer, label: 'Sites Manager', to: '/sites', color: 'blue' },
+    { icon: IconChartBar, label: 'Stats', to: '/stats', color: 'orange' },
   ];
 
   const items = links.map((link) => {
@@ -42,9 +43,10 @@ export function Layout() {
         <NavLink
           key={link.label}
           label={link.label}
-          leftSection={<link.icon size="1rem" stroke={1.5} />}
+          leftSection={<link.icon size="1rem" stroke={1.5} color={link.color} />}
           childrenOffset={28}
           defaultOpened={location.pathname.startsWith(link.to)}
+          color={link.color}
         >
           {link.children.map((child) => (
              <NavLink
@@ -55,6 +57,7 @@ export function Layout() {
                  navigate(child.to);
                  if (window.innerWidth < 768) toggle();
                }}
+               color={link.color}
              />
           ))}
         </NavLink>
@@ -66,11 +69,12 @@ export function Layout() {
         key={link.label}
         active={location.pathname === link.to}
         label={link.label}
-        leftSection={<link.icon size="1rem" stroke={1.5} />}
+        leftSection={<link.icon size="1rem" stroke={1.5} color={link.color} />}
         onClick={() => {
           navigate(link.to);
           if (window.innerWidth < 768) toggle(); // Close menu on mobile after click
         }}
+        color={link.color}
       />
     );
   });
