@@ -1,6 +1,6 @@
 import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconBrandHipchat, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask, IconFolder, IconBolt, IconTrophy, IconDatabase, IconHelpCircle } from '@tabler/icons-react';
+import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconMessage2, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask, IconFolder, IconBolt, IconTrophy, IconDatabase, IconHelpCircle } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
 import { AutoSwitch } from './AutoSwitch';
@@ -23,7 +23,7 @@ export function Layout() {
     { icon: IconDashboard, label: 'Dashboard', to: '/', color: 'blue' },
     { icon: IconFolder, label: 'Browser', to: '/browser', color: 'yellow' },
     { icon: IconBolt, label: 'PRE', to: '/pre', color: 'orange' },
-    { icon: IconBrandHipchat, label: 'IRC', to: '/irc', color: 'grape' },
+    { icon: IconMessage2, label: 'IRC', to: '/irc', color: 'violet' },
     { icon: IconDatabase, label: 'Databases', to: '/databases', color: 'cyan' },
     { icon: IconAlertTriangle, label: 'Issues', to: '/issues', color: 'red' },
     { icon: IconFileText, label: 'Logs', to: '/logs', color: 'gray' },
@@ -46,7 +46,6 @@ export function Layout() {
           leftSection={<link.icon size="1rem" stroke={1.5} color={link.color} />}
           childrenOffset={28}
           defaultOpened={location.pathname.startsWith(link.to)}
-          color={link.color}
         >
           {link.children.map((child) => (
              <NavLink
@@ -57,7 +56,6 @@ export function Layout() {
                  navigate(child.to);
                  if (window.innerWidth < 768) toggle();
                }}
-               color={link.color}
              />
           ))}
         </NavLink>
@@ -74,7 +72,6 @@ export function Layout() {
           navigate(link.to);
           if (window.innerWidth < 768) toggle(); // Close menu on mobile after click
         }}
-        color={link.color}
       />
     );
   });
