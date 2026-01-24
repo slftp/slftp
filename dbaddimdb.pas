@@ -245,7 +245,7 @@ procedure CreateHttpTask(const aReleaseName, aIMDbId: String);
 implementation
 
 uses Math, configunit, mystrings, kb,
-  sitesunit, RegExpr, debugunit, taskhttpimdb, taskhttpimdbapi, pazo, mrdohutils, dbtvinfo, FLRE,
+  sitesunit, RegExpr, debugunit, taskhttpimdb, pazo, mrdohutils, dbtvinfo, FLRE,
   tasksunit;
 
 const
@@ -305,6 +305,7 @@ begin
   end;
 
   fValidCountries := TStringList.Create;
+  fValidCountries.QuoteChar := #0;
   try
     for i := 0 to aRawCountries.Count - 1 do
     begin
@@ -335,6 +336,22 @@ begin
     Debug(dpSpam, section, Format('[PROCESSCOUNTRIES] Final result: "%s"', [Result]));
   finally
     fValidCountries.Free;
+  end;
+end;
+
+function FormatListForDisplay(const aList: TStringList): string;
+var
+  i: Integer;
+begin
+  Result := '';
+  if (aList = nil) or (aList.Count = 0) then Exit;
+  
+  // Build string manually to avoid quoting logic of TStringList
+  for i := 0 to aList.Count - 1 do
+  begin
+    Result := Result + aList[i];
+    if i < aList.Count - 1 then
+      Result := Result + ',';
   end;
 end;
 
@@ -805,8 +822,14 @@ begin
   inherited Create;
   imdb_id := aIMDbId;
   imdb_languages := TStringList.Create;
+  imdb_languages.Delimiter := ',';
+  imdb_languages.StrictDelimiter := True;
   imdb_countries := TStringList.Create;
+  imdb_countries.Delimiter := ',';
+  imdb_countries.StrictDelimiter := True;
   imdb_genres := TStringList.Create;
+  imdb_genres.Delimiter := ',';
+  imdb_genres.StrictDelimiter := True;
   imdb_year := 0;
   imdb_rating := 0;
   imdb_votes := 0;
@@ -972,9 +995,9 @@ begin
   Debug(dpSpam, section, Format('[POSTRESULTS] About to call irc_Addstats for: %s', [aRls]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/', [aRls, imdb_id]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)', [imdb_origtitle, imdb_year]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s', [ProcessCountriesForDisplay(imdb_countries), imdb_languages.DelimitedText]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s', [imdb_rating,imdb_votes,imdb_screens,status,imdb_type]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s', [ProcessCountriesForDisplay(imdb_countries), FormatListForDisplay(imdb_languages)]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [FormatListForDisplay(imdb_genres)]));
+  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) (%s) | Type: %s', [imdb_rating,imdb_votes,status,imdb_type]));
   Debug(dpSpam, section, '[POSTRESULTS] IRC output completed');
 end;
 
@@ -1514,7 +1537,7 @@ begin
     end;
 
     Debug(dpSpam, section, Format('[IMDB-FLOW11] Creating IMDB API task for %s, IMDB-ID: %s', [aReleaseName, aIMDbId]));
-    AddTask(TPazoHTTPImdbApiTask.Create(aIMDbId, aReleaseName, True), true);
+    AddTask(TPazoHTTPImdbTask.Create(aIMDbId, aReleaseName), true);
     Debug(dpSpam, section, Format('[IMDB-FLOW14] Task object created and added to task queue for %s', [aReleaseName]));
   except
     on e: Exception do

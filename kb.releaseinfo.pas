@@ -1690,8 +1690,14 @@ begin
   FLookupDone := False;
   imdb_id := '';
   imdb_languages := TStringList.Create;
+  imdb_languages.Delimiter := ',';
+  imdb_languages.StrictDelimiter := True;
   imdb_countries := TStringList.Create;
+  imdb_countries.Delimiter := ',';
+  imdb_countries.StrictDelimiter := True;
   imdb_genres := TStringList.Create;
+  imdb_genres.Delimiter := ',';
+  imdb_genres.StrictDelimiter := True;
 end;
 
 class function TIMDBRelease.DefaultSections: String;
