@@ -224,3 +224,14 @@ export const reloadConfig = async (filename: string): Promise<boolean> => {
   }
   return false;
 };
+
+export const executeRawCommand = async (siteName: string, command: string): Promise<string> => {
+  const response = await apiClient.post<any>('/ApiSitesService/ExecuteRawCommand', {
+    SiteName: siteName,
+    Command: command
+  });
+  if (response.data && response.data.result && Array.isArray(response.data.result)) {
+    return response.data.result[0];
+  }
+  return response.data;
+};

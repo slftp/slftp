@@ -99,6 +99,7 @@ type
                                 SslFxp: integer): boolean;
     function SetSiteSslMethod(const SiteName: RawUTF8; SslMethod: integer): boolean;
     function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
+    function ExecuteRawCommand(const SiteName, Command: RawUTF8; out Response: RawUTF8): boolean;
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
@@ -2534,6 +2535,68 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] SetSiteConfig: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.ExecuteRawCommand(const SiteName, Command: RawUTF8; out Response: RawUTF8): boolean;
+var
+  s: TSite;
+  tn: TTaskNotify;
+  r: TRawTask;
+  waitRes: TWaitResult;
+begin
+  Result := False;
+  Response := '';
+
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+    begin
+      Response := 'Site not found';
+      Result := True;
+      Exit;
+    end;
+
+    if s.PermDown then
+    begin
+      Response := 'Site is permdown';
+      Result := True;
+      Exit;
+    end;
+
+    tn := AddNotify;
+    try
+      r := TRawTask.Create('API', '', s.Name, '', UTF8ToString(Command));
+      tn.AddTask(r);
+      AddTask(r, True);
+
+      waitRes := tn.event.WaitFor(30000); // 30s timeout
+      if waitRes <> wrSignaled then
+      begin
+        Response := 'Timed out waiting for command response';
+        Result := True;
+        Exit;
+      end;
+
+      if (tn.responses = nil) or (tn.responses.Count = 0) then
+      begin
+        Response := 'No response received from site';
+        Result := True;
+        Exit;
+      end;
+
+      Response := UTF8Encode(TSiteResponse(tn.responses[0]).response);
+      Result := True;
+    finally
+      RemoveTN(tn);
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] ExecuteRawCommand: %s', [E.Message]));
+      Response := UTF8Encode('Exception: ' + E.Message);
       Result := False;
     end;
   end;

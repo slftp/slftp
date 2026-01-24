@@ -1,9 +1,9 @@
-import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp } from '@tabler/icons-react';
+import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center, Code, Paper } from '@mantine/core';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconReportSearch } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiClient, fetchBrowserPath } from '../api/client';
+import { apiClient, fetchBrowserPath, executeRawCommand } from '../api/client';
 import type { Issue, IssuesSummary } from '../api/client';
 import { notifications } from '@mantine/notifications';
 
@@ -110,6 +110,7 @@ export function Issues() {
   const [addSectionModalOpened, setAddSectionModalOpened] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [sectionPath, setSectionPath] = useState('');
+  const [rawResponse, setRawResponse] = useState<string | null>(null);
 
   // Browser state
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -190,9 +191,29 @@ export function Issues() {
     },
   });
 
+  const checkStatsMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedIssue || !sectionPath.trim()) return '';
+      // Default to SITE STAT -l for checking uploaders
+      const cmd = `SITE STAT -l ${sectionPath.trim()}`;
+      return executeRawCommand(selectedIssue.SiteName, cmd);
+    },
+    onSuccess: (data) => {
+      setRawResponse(data);
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message || 'Failed to execute command',
+        color: 'red'
+      });
+    }
+  });
+
   const handleOpenAddSection = (issue: Issue) => {
     setSelectedIssue(issue);
     setSectionPath('');
+    setRawResponse(null);
     setAddSectionModalOpened(true);
   };
 
@@ -524,18 +545,41 @@ export function Issues() {
               }
             }}
           />
-          <Group justify="flex-end" mt="md">
-            <Button variant="light" onClick={() => setAddSectionModalOpened(false)}>
-              Cancel
-            </Button>
+          <Group justify="space-between" mt="md">
             <Button
-              onClick={handleAddSection}
-              loading={addSectionMutation.isPending}
+              variant="outline"
+              color="blue"
+              leftSection={<IconReportSearch size="1rem" />}
+              onClick={() => checkStatsMutation.mutate()}
+              loading={checkStatsMutation.isPending}
               disabled={!sectionPath.trim()}
             >
-              Add Section
+              Check Stats (SITE STAT -l)
             </Button>
+            <Group>
+              <Button variant="light" onClick={() => setAddSectionModalOpened(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddSection}
+                loading={addSectionMutation.isPending}
+                disabled={!sectionPath.trim()}
+              >
+                Add Section
+              </Button>
+            </Group>
           </Group>
+
+          {rawResponse && (
+            <Paper withBorder p="xs" mt="md" bg="dark.8">
+              <Text size="xs" fw={700} mb="xs" c="dimmed">SITE STAT Response:</Text>
+              <ScrollArea h={200}>
+                <Code block bg="transparent" color="gray.3" style={{ whiteSpace: 'pre-wrap', fontSize: '11px' }}>
+                  {rawResponse}
+                </Code>
+              </ScrollArea>
+            </Paper>
+          )}
         </Stack>
       </Modal>
 
