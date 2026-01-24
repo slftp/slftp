@@ -167,9 +167,13 @@ type
     /// Sets SSL method (0=Off, 1=Implicit SSL, 2=AUTH SSL, 3=AUTH TLS)
     function SetSiteSslMethod(const SiteName: RawUTF8; SslMethod: integer): boolean;
 
-    /// POST /api/sites/{name}/raw
-    /// Executes a raw FTP command and returns the response
-    function ExecuteRawCommand(const SiteName, Command: RawUTF8; out Response: RawUTF8): boolean;
+    /// POST /api/sites/{name}/config
+    /// Sets various site configuration options (autobnctest, autodirlist, country, etc.)
+    function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
+
+    function GetAvailableSections: RawJSON;
+    function GetSiteSections(const SiteName: RawUTF8): RawJSON;
+    function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
 
     /// Loads incoming rules file for a site from rtpl/<site>.rtpl (or admin file for '*')
     function GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
