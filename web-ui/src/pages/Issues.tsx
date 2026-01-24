@@ -1,9 +1,9 @@
-import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook } from '@tabler/icons-react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center } from '@mantine/core';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp } from '@tabler/icons-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiClient } from '../api/client';
+import { apiClient, fetchBrowserPath } from '../api/client';
 import type { Issue, IssuesSummary } from '../api/client';
 import { notifications } from '@mantine/notifications';
 
@@ -105,10 +105,15 @@ function upsertFilterField(prev: string, field: IssueFilterField, value: string)
 
 export function Issues() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState('');
   const [addSectionModalOpened, setAddSectionModalOpened] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [sectionPath, setSectionPath] = useState('');
+
+  // Browser state
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserPath, setBrowserPath] = useState('/');
 
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
     queryKey: ['issuesSummary'],
@@ -134,6 +139,19 @@ export function Issues() {
     },
     refetchInterval: 30000,
     refetchOnWindowFocus: false,
+  });
+
+  const { data: browserData, isLoading: browserLoading, isRefetching: browserRefetching } = useQuery({
+    queryKey: ['issues-browser', selectedIssue?.SiteName, browserPath],
+    queryFn: async () => {
+      if (!selectedIssue?.SiteName) return null;
+      return fetchBrowserPath(selectedIssue.SiteName, browserPath);
+    },
+    enabled: !!selectedIssue?.SiteName && browserOpen,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return (data?.status === 'pending' ? 1000 : false);
+    },
   });
 
   const issues = Array.isArray(data) ? data : [];
@@ -196,6 +214,48 @@ export function Issues() {
       issueIds: matchingIssueIds,
     });
   };
+
+  const normalizePath = (value: string) => {
+    let p = value.trim();
+    if (!p) return '';
+    if (!p.startsWith('/')) p = '/' + p;
+    if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+    return p;
+  };
+
+  const navigateBrowserPath = (value: string) => {
+    const next = normalizePath(value);
+    setBrowserPath(next || '/');
+  };
+
+  const handleBrowserRefresh = () => {
+    if (!selectedIssue?.SiteName) return;
+    fetchBrowserPath(selectedIssue.SiteName, browserPath, true).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['issues-browser', selectedIssue.SiteName, browserPath] });
+    });
+  };
+
+  const openBrowser = () => {
+    setBrowserPath('/');
+    setBrowserOpen(true);
+  };
+
+  const browserDirs = useMemo(() => {
+    const files = browserData?.files || [];
+    return files.filter((f) => f.is_dir);
+  }, [browserData]);
+
+  const breadcrumbItems = useMemo(() => {
+    const parts = browserPath === '/' ? [] : browserPath.split('/').filter(Boolean);
+    const items = [
+      { label: '/', path: '/' },
+      ...parts.map((part, idx) => ({
+        label: part,
+        path: '/' + parts.slice(0, idx + 1).join('/'),
+      })),
+    ];
+    return items;
+  }, [browserPath]);
 
   const filtered = useMemo(() => {
     const q = filter.trim();
@@ -453,6 +513,11 @@ export function Issues() {
             value={sectionPath}
             onChange={(e) => setSectionPath(e.currentTarget.value)}
             autoFocus
+            rightSection={
+              <ActionIcon variant="subtle" onClick={openBrowser} aria-label="Browse">
+                <IconFolderOpen size="1rem" />
+              </ActionIcon>
+            }
             onKeyDown={(e) => {
               if (e.key === 'Enter' && sectionPath.trim()) {
                 handleAddSection();
@@ -471,6 +536,90 @@ export function Issues() {
               Add Section
             </Button>
           </Group>
+        </Stack>
+      </Modal>
+
+      <Modal opened={browserOpen} onClose={() => setBrowserOpen(false)} title={`Browse ${selectedIssue?.SiteName}`} size="xl">
+        <Stack gap="sm">
+          <Group justify="space-between">
+            <Group gap="xs">
+              <ActionIcon
+                variant="light"
+                onClick={() => navigateBrowserPath(browserPath.split('/').slice(0, -1).join('/') || '/')}
+                aria-label="Up one level"
+              >
+                <IconArrowUp size="1rem" />
+              </ActionIcon>
+              <ActionIcon
+                variant="light"
+                onClick={handleBrowserRefresh}
+                aria-label="Refresh"
+              >
+                <IconRefresh size="1rem" />
+              </ActionIcon>
+            </Group>
+            <Button
+              leftSection={<IconPlus size="1rem" />}
+              onClick={() => {
+                setSectionPath(browserPath);
+                setBrowserOpen(false);
+              }}
+            >
+              Use this path
+            </Button>
+          </Group>
+
+          <Breadcrumbs>
+            {breadcrumbItems.map((item) => (
+              <Button
+                key={item.path}
+                variant="subtle"
+                size="compact-sm"
+                onClick={() => navigateBrowserPath(item.path)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </Breadcrumbs>
+
+          {(browserLoading || browserRefetching) && (
+            <Center h={120}><Loader size="md" /></Center>
+          )}
+
+          {!browserLoading && browserData?.status === 'error' && (
+            <Alert color="red" title="Browser error">
+              {browserData.message || 'Failed to load directory.'}
+            </Alert>
+          )}
+
+          {!browserLoading && browserData?.status !== 'error' && (
+            <Table striped highlightOnHover withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Directory</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {browserDirs.length === 0 && (
+                  <Table.Tr>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">No folders in this path.</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                )}
+                {browserDirs.map((dir) => (
+                  <Table.Tr key={dir.name} style={{ cursor: 'pointer' }} onClick={() => navigateBrowserPath(`${browserPath === '/' ? '' : browserPath}/${dir.name}`)}>
+                    <Table.Td>
+                      <Group gap="xs">
+                        <IconFolderOpen size="1rem" />
+                        <Text fw={600}>{dir.name}</Text>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
         </Stack>
       </Modal>
     </Stack>
