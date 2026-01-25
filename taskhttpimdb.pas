@@ -156,7 +156,7 @@ var
   
   i, j: Integer;
   fVariant, fVariant2: Variant;
-  fCountryName, fAttributesStr: String;
+  fCountryName, fLanguageName, fAttributesStr: String;
 begin
   aImdbData := TDbImdbData.Create(aImdbId);
   fImdbCineYear := 0;
@@ -237,7 +237,13 @@ begin
         begin
           fCountryName := fStrHelper;
           if fCountryName = 'United States' then fCountryName := 'USA'
-          else if fCountryName = 'United Kingdom' then fCountryName := 'UK';
+          else if fCountryName = 'United Kingdom' then fCountryName := 'UK'
+          else if Pos('Hong Kong', fCountryName) > 0 then fCountryName := 'Hong Kong'
+          else if Pos('(', fCountryName) > 0 then
+          begin
+            // Remove everything in parentheses (e.g., "Taiwan (Province of China)" -> "Taiwan")
+            fCountryName := Trim(Copy(fCountryName, 1, Pos('(', fCountryName) - 1));
+          end;
           aImdbData.imdb_countries.Add(fCountryName);
         end;
       end;
@@ -253,7 +259,17 @@ begin
         fVariant2 := TDocVariantData(fVariant).Values[i];
         fStrHelper := TDocVariantData(fVariant2).GetValueOrNull('name');
         if fStrHelper <> '' then
-          aImdbData.imdb_languages.Add(fStrHelper);
+        begin
+          fLanguageName := fStrHelper;
+          // Simplify language variants to base language
+          if Pos('Chinese', fLanguageName) > 0 then fLanguageName := 'Chinese'
+          else if Pos('Arabic', fLanguageName) > 0 then fLanguageName := 'Arabic'
+          else if Pos('Spanish', fLanguageName) > 0 then fLanguageName := 'Spanish'
+          else if Pos('Portuguese', fLanguageName) > 0 then fLanguageName := 'Portuguese'
+          else if Pos('French', fLanguageName) > 0 then fLanguageName := 'French'
+          else if Pos('German', fLanguageName) > 0 then fLanguageName := 'German';
+          aImdbData.imdb_languages.Add(fLanguageName);
+        end;
       end;
     end;
   end;
