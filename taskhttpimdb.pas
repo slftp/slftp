@@ -6,10 +6,29 @@ uses
   tasksunit, Generics.Collections, Variants, dbaddimdb, Classes;
 
 type
+  { @abstract(Extracts screen count information from Box Office Mojo HTML) }
+  THtmlBoxOfficeMojoParser = class
+  public
+    { Parses countries (only includes one from slftp.imdbcountries) and links from the title overview page @br @note(Domestic gets renamed to USA, United Kingdom gets renamed to UK)
+      @param(aPageSource Webpage HTML sourcecode)
+      @param(aCountryLinks Countryname and link to the release information) }
+    class procedure GetCountrySpecificLinks(const aPageSource: String; out aCountryLinks: TDictionary<String, String>);
+
+    { Finds "Original Release" group link (used when main page doesn't have USA/Domestic)
+      @param(aPageSource Webpage HTML sourcecode)
+      @returns(Link to Original Release group, or empty string if not found) }
+    class function GetOriginalReleaseGroupLink(const aPageSource: String): String;
+
+    { Parses theaters screens of widest release
+      @param(aPageSource Webpage HTML sourcecode)
+      @returns(Screens count of widest release (0 if nothing found)) }
+    class function GetWidestScreensCount(const aPageSource: String): Integer;
+  end;
+
   { @abstract(Processes IMDb JSON data into TDbImdbData structure) }
   TImdbDataProcessor = class
   public
-    class function Process(const aReleaseName, aImdbId: String; const aTitleJson, aReleaseDatesJson: Variant; out aImdbData: TDbImdbData): String;
+    class function Process(const aReleaseName, aImdbId: String; const aTitleJson, aReleaseDatesJson: Variant; const aBomScreenCounts: TDictionary<String, Integer>; out aImdbData: TDbImdbData): String;
   end;
 
   TPazoHTTPImdbTask = class(TTask)
@@ -28,14 +47,89 @@ implementation
 uses
   SysUtils, irc, StrUtils, debugunit, dateutils, configunit, kb, kb.releaseinfo,
   sitesunit, mystrings, dbtvinfo, sllanguagebase, mormot.core.variants,
-  imdbapi;
+  imdbapi, http, RegExpr;
 
 const
   section = 'taskhttpimdb';
 
+{ THtmlBoxOfficeMojoParser }
+
+class procedure THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(const aPageSource: String; out aCountryLinks: TDictionary<String, String>);
+var
+  rr: TRegExpr;
+  fLink: String;
+  fCountry: String;
+begin
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<a class="a-link-normal" href="(\/release\/rl\d+).*?">(.*?)<\/a>';
+
+    if rr.Exec(aPageSource) then
+    begin
+      repeat
+        fLink := Trim(rr.Match[1]);
+        fCountry := Trim(rr.Match[2]);
+
+        if fCountry = 'Domestic' then
+          fCountry := 'USA';
+        if fCountry = 'United Kingdom' then
+          fCountry := 'UK';
+
+        if ExcludeCountry(fCountry) then
+          Continue;
+
+        aCountryLinks.AddOrSetValue(fCountry, fLink);
+      until not rr.ExecNext;
+    end;
+  finally
+    rr.Free;
+  end;
+end;
+
+class function THtmlBoxOfficeMojoParser.GetOriginalReleaseGroupLink(const aPageSource: String): String;
+var
+  rr: TRegExpr;
+begin
+  Result := '';
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    // Look for "Original Release" group link
+    rr.Expression := '<a class="a-link-normal" href="(\/releasegroup\/gr\d+).*?">Original Release<\/a>';
+
+    if rr.Exec(aPageSource) then
+      Result := Trim(rr.Match[1]);
+  finally
+    rr.Free;
+  end;
+end;
+
+class function THtmlBoxOfficeMojoParser.GetWidestScreensCount(const aPageSource: String): Integer;
+var
+  rr: TRegExpr;
+  fScreensCount: String;
+begin
+  Result := 0;
+  rr := TRegExpr.Create;
+  try
+    rr.ModifierI := True;
+    rr.Expression := '<div[^>]*><span>Widest Release<\/span><span>([0-9,]*) theaters<\/span><\/div>';
+
+    if rr.Exec(aPageSource) then
+    begin
+      fScreensCount := rr.Match[1];
+      fScreensCount := StringReplace(fScreensCount, ',', '', [rfReplaceAll, rfIgnoreCase]);
+      Result := StrToIntDef(fScreensCount, 0);
+    end;
+  finally
+    rr.Free;
+  end;
+end;
+
 { TImdbDataProcessor }
 
-class function TImdbDataProcessor.Process(const aReleaseName, aImdbId: String; const aTitleJson, aReleaseDatesJson: Variant; out aImdbData: TDbImdbData): String;
+class function TImdbDataProcessor.Process(const aReleaseName, aImdbId: String; const aTitleJson, aReleaseDatesJson: Variant; const aBomScreenCounts: TDictionary<String, Integer>; out aImdbData: TDbImdbData): String;
 var
   fImdbOriginalTitle: String;
   fImdbTitleExtraInfo: String;
@@ -282,19 +376,58 @@ begin
              end;
         end;
     end;
-    
+
+    // Screen counts from BOM (if available)
+    if (aBomScreenCounts <> nil) then
+    begin
+      // Try release country first, then fall back to USA, then UK
+      if not ((fReleasenameCountry <> '') and aBomScreenCounts.TryGetValue(fReleasenameCountry, aImdbData.imdb_screens)) then
+      begin
+        if not aBomScreenCounts.TryGetValue('USA', aImdbData.imdb_screens) then
+          aBomScreenCounts.TryGetValue('UK', aImdbData.imdb_screens);
+      end;
+
+      // Apply classification thresholds based on screen count (always use USA/UK thresholds since we fetch those)
+      if aImdbData.imdb_screens = 0 then
+      begin
+        fIsSTV := True;
+        fStatusReasonList.Add('STV due to zero screens');
+      end
+      else if aImdbData.imdb_screens > 0 then
+      begin
+        if aImdbData.imdb_screens >= 500 then
+        begin
+          fIsWide := True;
+          fStatusReasonList.Add(Format('Wide due to %d screens', [aImdbData.imdb_screens]));
+        end
+        else if aImdbData.imdb_screens >= 250 then
+        begin
+          fIsLimited := True;
+          fStatusReasonList.Add(Format('Limited due to %d screens', [aImdbData.imdb_screens]));
+        end;
+      end
+      else
+      begin
+        // Screen count not found
+        aImdbData.imdb_screens := -1;
+      end;
+    end
+    else
+    begin
+      // BOM not used
+      aImdbData.imdb_screens := -1;
+    end;
+
     // Status String Construction
     for i := 0 to fStatusReasonList.Count - 1 do
     begin
       fStatusReason := fStatusReason + Format('%d - %s%s', [i + 1, fStatusReasonList[i], #13#10]);
     end;
-    
+
   finally
     fStatusReasonList.Free;
   end;
 
-  // Screen counts are not available via imdbapi.dev; mark as unknown.
-  aImdbData.imdb_screens := -1;
   aImdbData.imdb_rating := fImdbRating;
   aImdbData.imdb_votes := fImdbVotes;
   aImdbData.imdb_cineyear := fImdbCineYear;
@@ -323,10 +456,20 @@ var
   imdbdata: TDbImdbData;
   fTitleJson: Variant;
   fReleaseDatesJson: Variant;
+  fBomScreenCounts: TDictionary<String, Integer>;
+  fBomCountryLinks: TDictionary<String, String>;
+  fBomCountryLinkPair: TPair<String, String>;
+  fBomMainPage: String;
+  fBomCountryPage: String;
+  fBomGroupLink: String;
+  fBomGroupPage: String;
+  fHttpGetErrMsg: String;
+  fParseBOM: Boolean;
 begin
   Result := False;
-  
-  // 1. Fetch Main Title Data
+  fBomScreenCounts := nil;
+
+  // 1. Fetch Main Title Data from API
   if not TImdbApi.GetTitle(FImdbTitleID, fTitleJson) then
   begin
     irc_Adderror(Format('<c4>[FAILED]</c> Unable to fetch JSON for %s from IMDb API', [FImdbTitleID]));
@@ -334,16 +477,108 @@ begin
     Result := True;
     Exit;
   end;
-  
-  // 2. Fetch Release Dates
-  // We allow this to fail silently or return null, process logic handles null
+
+  // 2. Fetch Release Dates from API
   if not TImdbApi.GetReleaseDates(FImdbTitleID, fReleaseDatesJson) then
     fReleaseDatesJson := Null;
 
-  // 3. Process
-  TImdbDataProcessor.Process(FReleaseName, FImdbTitleID, fTitleJson, fReleaseDatesJson, imdbdata);
-  
-  // 4. Save
+  // 3. Optionally fetch BOM screen counts (if enabled in config)
+  fParseBOM := config.ReadBool('dbaddimdb', 'parse_boxofficemojo_always', True);
+  Debug(dpMessage, section, Format('[BOM] parse_boxofficemojo_always=%s for %s', [BoolToStr(fParseBOM, True), FImdbTitleID]));
+  if fParseBOM then
+  begin
+    Debug(dpMessage, section, Format('[BOM] Starting BOM fetch for %s', [FImdbTitleID]));
+    try
+      if HttpGetUrl(Format('https://www.boxofficemojo.com/title/%s/', [FImdbTitleID]), fBomMainPage, fHttpGetErrMsg) then
+      begin
+        fBomCountryLinks := TDictionary<String, String>.Create;
+        try
+          THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomMainPage, fBomCountryLinks);
+          Debug(dpMessage, section, Format('[BOM] Found %d country links on main page for %s (USA=%s, UK=%s)', [fBomCountryLinks.Count, FImdbTitleID, BoolToStr(fBomCountryLinks.ContainsKey('USA'), True), BoolToStr(fBomCountryLinks.ContainsKey('UK'), True)]));
+
+          // If USA/UK not found on main page, try "Original Release" group
+          if not (fBomCountryLinks.ContainsKey('USA') or fBomCountryLinks.ContainsKey('UK')) then
+          begin
+            Debug(dpMessage, section, Format('[BOM] USA/UK not found on main page, checking for Original Release group for %s', [FImdbTitleID]));
+            fBomGroupLink := THtmlBoxOfficeMojoParser.GetOriginalReleaseGroupLink(fBomMainPage);
+
+            if fBomGroupLink <> '' then
+            begin
+              Debug(dpMessage, section, Format('[BOM] Found Original Release group: %s', [fBomGroupLink]));
+
+              if HttpGetUrl('https://www.boxofficemojo.com' + fBomGroupLink, fBomGroupPage, fHttpGetErrMsg) then
+              begin
+                // Parse countries from Original Release group and add to existing dictionary
+                THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomGroupPage, fBomCountryLinks);
+                Debug(dpMessage, section, Format('[BOM] After Original Release group: total %d country links', [fBomCountryLinks.Count]));
+              end
+              else
+              begin
+                Debug(dpMessage, section, Format('[BOM] Failed to fetch Original Release group page: %s', [fHttpGetErrMsg]));
+              end;
+            end
+            else
+            begin
+              Debug(dpMessage, section, '[BOM] No Original Release group found');
+            end;
+          end;
+
+          if fBomCountryLinks.Count > 0 then
+          begin
+            fBomScreenCounts := TDictionary<String, Integer>.Create;
+
+            // Only fetch USA and UK screen counts (all we need for Wide/Limited classification)
+            if fBomCountryLinks.ContainsKey('USA') then
+            begin
+              if HttpGetUrl('https://www.boxofficemojo.com' + fBomCountryLinks['USA'] + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
+              begin
+                fBomScreenCounts.AddOrSetValue('USA', THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
+                Debug(dpMessage, section, Format('[BOM] USA: %d screens', [fBomScreenCounts['USA']]));
+              end;
+            end;
+
+            if fBomCountryLinks.ContainsKey('UK') then
+            begin
+              if HttpGetUrl('https://www.boxofficemojo.com' + fBomCountryLinks['UK'] + '?ref_=bo_gr_rls', fBomCountryPage, fHttpGetErrMsg) then
+              begin
+                fBomScreenCounts.AddOrSetValue('UK', THtmlBoxOfficeMojoParser.GetWidestScreensCount(fBomCountryPage));
+                Debug(dpMessage, section, Format('[BOM] UK: %d screens', [fBomScreenCounts['UK']]));
+              end;
+            end;
+
+            Debug(dpMessage, section, Format('[BOM] Fetched screen counts for %d countries for %s', [fBomScreenCounts.Count, FImdbTitleID]));
+          end
+          else
+          begin
+            Debug(dpMessage, section, Format('[BOM] No matching countries found on BOM for %s', [FImdbTitleID]));
+          end;
+        finally
+          fBomCountryLinks.Free;
+        end;
+      end
+      else
+      begin
+        Debug(dpMessage, section, Format('[BOM] Failed to fetch main page for %s: %s', [FImdbTitleID, fHttpGetErrMsg]));
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] BOM scraping failed for %s: %s', [FImdbTitleID, e.Message]));
+        if fBomScreenCounts <> nil then
+          FreeAndNil(fBomScreenCounts);
+      end;
+    end;
+  end;
+
+  // 4. Process with optional BOM data
+  try
+    TImdbDataProcessor.Process(FReleaseName, FImdbTitleID, fTitleJson, fReleaseDatesJson, fBomScreenCounts, imdbdata);
+  finally
+    if fBomScreenCounts <> nil then
+      fBomScreenCounts.Free;
+  end;
+
+  // 5. Save
   try
     dbaddimdb_SaveImdbData(FReleaseName, imdbdata);
   except
