@@ -530,7 +530,10 @@ export function SectionDirectories() {
       }
     }
 
-    let data = combined.length > 0 ? combined : sectionsData;
+    let data = combined.length > 0 ? combined : [...sectionsData];
+    
+    // Sort sections alphabetically by name
+    data.sort((a, b) => a.section.localeCompare(b.section));
 
     if (showOnlySet) {
       data = data.filter(s => {
