@@ -270,6 +270,7 @@ var
   local_pazo_id: integer;
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
+  glShowCompleteTimeStats: boolean;
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -403,6 +404,7 @@ begin
   local_pazo_id := 0;
   glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
   glPazoPreTimeLookupMode := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
+  glShowCompleteTimeStats := config.ReadBool('taskrace', 'show_complete_time_stats', False);
 end;
 
 function TPazoSite.GetDirlistGaveUp: boolean;
@@ -916,11 +918,14 @@ begin
           irc_AddstatsB(Stats(False, True));
           lastannounceirc := s;
 
-          s := SiteCompleteTimesStats(False);
-          if s <> '' then
+          if glShowCompleteTimeStats then
           begin
-            irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
-            irc_addstats(s);
+            s := SiteCompleteTimesStats(False);
+            if s <> '' then
+            begin
+              irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
+              irc_addstats(s);
+            end;
           end;
         end;
       end
