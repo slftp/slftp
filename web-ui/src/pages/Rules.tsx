@@ -50,6 +50,7 @@ export function Rules() {
   const [conditionSearch, setConditionSearch] = useState('');
   
   const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
   
   const [hasLoaded, setHasLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>('editor');
@@ -115,6 +116,25 @@ export function Rules() {
   const handleEditorWillMount = (monaco: any) => {
     // Register a new language
     monaco.languages.register({ id: 'slftp-rules' });
+    monaco.languages.setLanguageConfiguration('slftp-rules', {
+      brackets: [
+        ['{', '}'],
+        ['[', ']'],
+        ['(', ')'],
+      ],
+      autoClosingPairs: [
+        { open: '{', close: '}' },
+        { open: '[', close: ']' },
+        { open: '(', close: ')' },
+        { open: '"', close: '"' },
+        { open: "'", close: "'" },
+      ],
+      colorizedBracketPairs: [
+        ['{', '}'],
+        ['[', ']'],
+        ['(', ')'],
+      ],
+    });
 
     // Register a tokens provider for the language
     monaco.languages.setMonarchTokensProvider('slftp-rules', {
@@ -127,11 +147,23 @@ export function Rules() {
           [/#.*$/, 'comment'],
           [/"[^"]*"/, 'string'],
           [/'[^']*'/, 'string'],
-          [/\/(?:[^\/\\]|\\.)+\/[gimuy]*/, 'regexp'],
           [/\b\d+\b/, 'number'],
           [/[{}()\[\]]/, '@brackets'],
+          [/[\/\\]/, 'delimiter'],
+          [/!~|=~/, { token: 'operator', next: '@afterRegexOp' }],
           [/[<>!=~]+/, 'operator'],
           [/&&|\|\|/, 'operator'],
+        ],
+        afterRegexOp: [
+          [/\s+/, 'white'],
+          [/\/(?!\s)/, { token: 'delimiter.regexp', next: '@regex' }],
+          [/./, { token: '', next: '@pop' }],
+        ],
+        regex: [
+          [/[^\\/()[\]{}]+/, 'regexp'],
+          [/\\./, 'regexp'],
+          [/[(){}\[\]]/, '@brackets'],
+          [/\/[gimuy]*/, { token: 'delimiter.regexp', next: '@pop' }],
         ]
       }
     });
@@ -157,6 +189,9 @@ export function Rules() {
         { token: 'regexp', foreground: 'd16969' },
         { token: 'number', foreground: 'b5cea8' },
         { token: 'operator', foreground: 'd4d4d4' },
+        { token: 'delimiter', foreground: 'd7ba7d' },
+        { token: 'delimiter.regexp', foreground: 'ffff00', fontStyle: 'bold underline' },
+        { token: 'delimiter.regexp.slftp-rules', foreground: 'ffff00', fontStyle: 'bold underline' },
       ],
       colors: {
         'editor.background': '#1a1b1e',
@@ -166,6 +201,18 @@ export function Rules() {
         'editorWhitespace.foreground': '#3b3a32',
         'editorIndentGuide.background': '#404040',
         'editorSelectionHighlightBackground': '#add6ff26',
+        'editorBracketHighlightForeground1': '#d7ba7d',
+        'editorBracketHighlightForeground2': '#4ec9b0',
+        'editorBracketHighlightForeground3': '#569cd6',
+        'editorBracketHighlightForeground4': '#ce9178',
+        'editorBracketHighlightForeground5': '#b5cea8',
+        'editorBracketHighlightForeground6': '#c586c0',
+        'editorBracketPairGuide.activeBackground1': '#d7ba7d40',
+        'editorBracketPairGuide.activeBackground2': '#4ec9b040',
+        'editorBracketPairGuide.activeBackground3': '#569cd640',
+        'editorBracketPairGuide.activeBackground4': '#ce917840',
+        'editorBracketPairGuide.activeBackground5': '#b5cea840',
+        'editorBracketPairGuide.activeBackground6': '#c586c040',
       }
     });
 
@@ -184,16 +231,32 @@ export function Rules() {
         { token: 'regexp', foreground: '811f3f' },
         { token: 'number', foreground: '098658' },
         { token: 'operator', foreground: '000000' },
+        { token: 'delimiter', foreground: 'a31515' },
+        { token: 'delimiter.regexp', foreground: 'c00000', fontStyle: 'bold underline' },
+        { token: 'delimiter.regexp.slftp-rules', foreground: 'c00000', fontStyle: 'bold underline' },
       ],
       colors: {
         'editor.background': '#ffffff',
         'editor.lineHighlightBackground': '#f3f3f3',
+        'editorBracketHighlightForeground1': '#a31515',
+        'editorBracketHighlightForeground2': '#0451a5',
+        'editorBracketHighlightForeground3': '#098658',
+        'editorBracketHighlightForeground4': '#795e26',
+        'editorBracketHighlightForeground5': '#267f99',
+        'editorBracketHighlightForeground6': '#811f3f',
+        'editorBracketPairGuide.activeBackground1': '#a3151540',
+        'editorBracketPairGuide.activeBackground2': '#0451a540',
+        'editorBracketPairGuide.activeBackground3': '#09865840',
+        'editorBracketPairGuide.activeBackground4': '#795e2640',
+        'editorBracketPairGuide.activeBackground5': '#267f9940',
+        'editorBracketPairGuide.activeBackground6': '#811f3f40',
       }
     });
   };
 
-  const handleEditorDidMount = (editor: any) => {
+  const handleEditorDidMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
   };
 
   const insertAtCursorOrReplaceSelection = (insertText: string) => {
@@ -396,6 +459,9 @@ export function Rules() {
           occurrencesHighlight: 'singleFile',
           selectionHighlight: true,
           renderLineHighlight: 'all',
+          matchBrackets: 'always',
+          bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
+          guides: { bracketPairs: true, bracketPairsHorizontal: false },
         }}
       />
     </div>
