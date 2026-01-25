@@ -1,4 +1,4 @@
-import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch, ScrollArea } from '@mantine/core';
+import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch, ScrollArea, MultiSelect } from '@mantine/core';
 import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch, IconListCheck, IconCopy } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -101,6 +101,53 @@ const EVENT_TYPES = [
   { value: 'REQUEST', label: 'REQUEST' },
 ];
 
+const CHANROLE_OPTIONS = [
+  { value: 'ADMIN', label: 'ADMIN' },
+  { value: 'STATS', label: 'STATS' },
+  { value: 'ERROR', label: 'ERROR' },
+  { value: 'INFO', label: 'INFO' },
+  { value: 'INDEXER', label: 'INDEXER' },
+  { value: 'GROUP', label: 'GROUP' },
+  { value: 'NUKE', label: 'NUKE' },
+  { value: 'IRCEVENT', label: 'IRCEVENT' },
+  { value: 'KB', label: 'KB' },
+  { value: 'UPDATE', label: 'UPDATE' },
+  { value: 'SPEEDSTATS', label: 'SPEEDSTATS' },
+  { value: 'RACESTATS', label: 'RACESTATS' },
+  { value: 'RANKSTATS', label: 'RANKSTATS' },
+  { value: 'PRECATCHSTATS', label: 'PRECATCHSTATS' },
+  { value: 'SKIPLOG', label: 'SKIPLOG' },
+  { value: 'ROUTEINFOS', label: 'ROUTEINFOS' },
+  { value: 'ADDPRE', label: 'ADDPRE' },
+  { value: 'ADDTVMAZE', label: 'ADDTVMAZE' },
+  { value: 'ADDURL', label: 'ADDURL' },
+  { value: 'ADDIMDB', label: 'ADDIMDB' },
+  { value: 'ADDPREECHO', label: 'ADDPREECHO' },
+  { value: 'ADDGN', label: 'ADDGN' },
+  { value: 'ADDTVMAZEECHO', label: 'ADDTVMAZEECHO' },
+  { value: 'ADDURLECHO', label: 'ADDURLECHO' },
+  { value: 'ADDIMDBECHO', label: 'ADDIMDBECHO' },
+  { value: 'ADDGNECHO', label: 'ADDGNECHO' },
+];
+
+const parseChanroles = (roles: string) =>
+  roles
+    .split(/[ ,]+/)
+    .map((role) => role.trim())
+    .filter(Boolean);
+
+const formatChanroles = (roles: string[]) => roles.join(' ');
+
+const buildChanroleOptions = (roles: string[]) => {
+  const byValue = new Map(CHANROLE_OPTIONS.map((opt) => [opt.value, opt]));
+  for (const role of roles) {
+    if (!byValue.has(role)) {
+      byValue.set(role, { value: role, label: role });
+    }
+  }
+  return Array.from(byValue.values());
+};
+
 export function IRC() {
   const queryClient = useQueryClient();
   const [selectedNetwork, setSelectedNetwork] = useState<string | null>(null);
@@ -130,6 +177,8 @@ export function IRC() {
   const [newChankey, setNewChankey] = useState('');
   const [newBlowkey, setNewBlowkey] = useState('');
   const [newChanroles, setNewChanroles] = useState('');
+  const editChanroleValues = parseChanroles(editChanroles);
+  const newChanroleValues = parseChanroles(newChanroles);
 
   // Rules state
   const [addingRule, setAddingRule] = useState(false);
@@ -461,11 +510,13 @@ export function IRC() {
       });
 
       // Save blowkey
-      await apiClient.post('/ApiIrcService/SetChannelBlowkey', {
-        NetName: selectedNetwork,
-        Channel: editingChannel.channel,
-        Blowkey: editBlowkey,
-      });
+      if (editBlowkey !== '') {
+        await apiClient.post('/ApiIrcService/SetChannelBlowkey', {
+          NetName: selectedNetwork,
+          Channel: editingChannel.channel,
+          Blowkey: editBlowkey,
+        });
+      }
 
       // Save roles
       await apiClient.post('/ApiIrcService/SetChannelRoles', {
@@ -1719,12 +1770,15 @@ export function IRC() {
             placeholder="Leave empty for no encryption"
             description="Prefix with 'cbc:' for CBC mode (e.g., cbc:yourkey), otherwise ECB is used"
           />
-          <TextInput
+          <MultiSelect
             label="Roles"
-            value={newChanroles}
-            onChange={(e) => setNewChanroles(e.currentTarget.value)}
-            placeholder="e.g., ADDPRE, NUKE, UNNUKE"
-            description="Channel roles/permissions"
+            data={buildChanroleOptions(newChanroleValues)}
+            value={newChanroleValues}
+            onChange={(values) => setNewChanroles(formatChanroles(values))}
+            placeholder="Select channel roles"
+            description="Channel roles/permissions (saved space-separated)"
+            searchable
+            clearable
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setAddingChannel(false)} leftSection={<IconX size="1rem" />}>
@@ -1757,12 +1811,15 @@ export function IRC() {
             placeholder="Leave empty to keep current blowkey"
             description="Prefix with 'cbc:' for CBC mode (e.g., cbc:yourkey), otherwise ECB is used"
           />
-          <TextInput
+          <MultiSelect
             label="Roles"
-            value={editChanroles}
-            onChange={(e) => setEditChanroles(e.currentTarget.value)}
-            placeholder="e.g., ADDPRE, NUKE, UNNUKE"
-            description="Channel roles/permissions"
+            data={buildChanroleOptions(editChanroleValues)}
+            value={editChanroleValues}
+            onChange={(values) => setEditChanroles(formatChanroles(values))}
+            placeholder="Select channel roles"
+            description="Channel roles/permissions (saved space-separated)"
+            searchable
+            clearable
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setEditingChannel(null)} leftSection={<IconX size="1rem" />}>
