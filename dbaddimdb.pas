@@ -986,18 +986,33 @@ begin
 
   // IRC output like in mORMot2 reference
   Debug(dpSpam, section, '[POSTRESULTS] Starting IRC output');
-  if imdb_stvm then status := 'STV'
-  else if imdb_festival then status := 'Festival'
-  else if imdb_ldt then status := 'Limited'
-  else if imdb_wide then status := 'Wide'
-  else status := 'Cine';
 
   Debug(dpSpam, section, Format('[POSTRESULTS] About to call irc_Addstats for: %s', [aRls]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: https://www.imdb.com/title/%s/', [aRls, imdb_id]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>Original Title - Year</b></c> ...: %s (%d)', [imdb_origtitle, imdb_year]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c9>Country - Languages</b></c> ..: %s - %s', [ProcessCountriesForDisplay(imdb_countries), FormatListForDisplay(imdb_languages)]));
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [FormatListForDisplay(imdb_genres)]));
-  irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) (%s) | Type: %s', [imdb_rating,imdb_votes,status,imdb_type]));
+
+  // Only show release status (Wide/Limited/STV/Festival/Cine) if BOM data was fetched
+  if imdb_stvm or imdb_festival or imdb_ldt or imdb_wide then
+  begin
+    if imdb_stvm then status := 'STV'
+    else if imdb_festival then status := 'Festival'
+    else if imdb_ldt then status := 'Limited'
+    else if imdb_wide then status := 'Wide'
+    else status := 'Cine';
+
+    if imdb_screens >= 0 then
+      irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) @ %d Screens (%s) | Type: %s', [imdb_rating,imdb_votes,imdb_screens,status,imdb_type]))
+    else
+      irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) (%s) | Type: %s', [imdb_rating,imdb_votes,status,imdb_type]));
+  end
+  else
+  begin
+    // BOM data not available - don't show release status
+    irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c7><b>Rating</b>/<b>Type</b></c> ....: <b>%d</b> of 100 (%d) | Type: %s', [imdb_rating,imdb_votes,imdb_type]));
+  end;
+
   Debug(dpSpam, section, '[POSTRESULTS] IRC output completed');
 end;
 
