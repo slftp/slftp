@@ -446,6 +446,20 @@ begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
+
+    // If approaching slot limits, wait briefly to allow FTP servers to clean up ghost connections
+    // This check must be done BEFORE any locks are acquired to avoid blocking other threads
+    if t.ps1.StatusRealPreOrShouldPre then
+    begin
+      if (s1.num_dn + 1 >= s1.max_pre_dn) or (s2.num_up + 1 >= s2.max_up) then
+        Sleep(150);
+    end
+    else
+    begin
+      if (s1.num_dn + 1 >= s1.max_dn) or (s2.num_up + 1 >= s2.max_up) then
+        Sleep(150);
+    end;
+
     if s1.freeslots = 0 then
       exit;
     if s2.freeslots = 0 then
