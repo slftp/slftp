@@ -209,6 +209,8 @@ type
     fkreditz: TDateTime;
     fNumDn: integer;
     fNumUp: integer;
+    FLastDnReleaseAt: TDateTime;
+    FLastUpReleaseAt: TDateTime;
     fQueue: TQueueThread;
     fMaxUp: integer;
     fMaxDn: integer;
@@ -570,6 +572,8 @@ type
     property sectionpretime[const Name: String]: integer read GetSectionPreTime write SetSectionPreTime;
     property num_dn: integer read fNumDn write fNumDn;
     property num_up: integer read fNumUp write fNumUp;
+    property LastDnReleaseAt: TDateTime read FLastDnReleaseAt; //< timestamp of last download slot release
+    property LastUpReleaseAt: TDateTime read FLastUpReleaseAt; //< timestamp of last upload slot release
     property delayleech[const aSection: String]: integer read GetDelayLeech; //< returns random value between min and max seconds for delaying leech
     property delayupload[const aSection: String]: integer read GetDelayUpload; //< returns random value between min and max seconds for delaying upload
     property freeslots: integer read fFreeslots write SetFreeSlots;
@@ -3064,6 +3068,7 @@ begin
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
+      site.FLastDnReleaseAt := Now;
       if GetDebugVerbosity = dpSpam then
         Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
@@ -3084,6 +3089,7 @@ begin
     else
       begin
         {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
+        site.FLastUpReleaseAt := Now;
         if GetDebugVerbosity = dpSpam then
           Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
@@ -3165,6 +3171,8 @@ begin
   fMaxSimUpCooldownSeconds := 0;
   fMaxSimDownCooldownUntil := 0;
   fMaxSimDownCooldownSeconds := 0;
+  FLastDnReleaseAt := 0;
+  FLastUpReleaseAt := 0;
 
   siteinvited := False;
   foutofannounce := 0;

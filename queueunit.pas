@@ -100,6 +100,7 @@ var
   // config
   maxassign: integer;
   maxassign_delay: integer;
+  glGhostDelayMs: integer;
   sample_dirs_priority: Integer; //< value for priority in queue sorter for sample dirs from slftp.ini
   proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
   subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
@@ -676,36 +677,45 @@ var
   actual_count: integer;
   s1, s2: TSite;
   raceTask: TPazoRaceTask;
+  fDelayUntil: TDateTime;
+  fCandidateUntil: TDateTime;
+  fNow: TDateTime;
 begin
    // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
     s := TSite(self.fSite);
 
-    // If this is a race task approaching slot limits, wait briefly to allow
+    // If this is a race task approaching slot limits, defer briefly to allow
     // FTP servers to clean up ghost connections. Must be done BEFORE acquiring locks.
-    if t.ClassType = TPazoRaceTask then
+    if (glGhostDelayMs > 0) and (t.ClassType = TPazoRaceTask) then
     begin
       raceTask := TPazoRaceTask(t);
-      s1 := TSite(raceTask.ssite1);
-      s2 := TSite(raceTask.ssite2);
+      if not raceTask.ps1.StatusRealPreOrShouldPre then
+      begin
+        s1 := TSite(raceTask.ssite1);
+        s2 := TSite(raceTask.ssite2);
+        fDelayUntil := 0;
+        fNow := Now;
 
-      if raceTask.ps1.StatusRealPreOrShouldPre then
-      begin
-        if (s1.num_dn + 1 >= s1.max_pre_dn) or (s2.num_up + 1 >= s2.max_up) then
+        if (s1.num_dn + 1 >= s1.max_dn) and (s1.LastDnReleaseAt > 0) then
         begin
-          Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d) PRE',
-            [s1.Name, s2.Name, s1.num_dn, s1.max_pre_dn, s2.num_up, s2.max_up]);
-          Sleep(150);
+          fCandidateUntil := IncMilliSecond(s1.LastDnReleaseAt, glGhostDelayMs);
+          if fCandidateUntil > fDelayUntil then
+            fDelayUntil := fCandidateUntil;
         end;
-      end
-      else
-      begin
-        if (s1.num_dn + 1 >= s1.max_dn) or (s2.num_up + 1 >= s2.max_up) then
+
+        if (s2.num_up + 1 >= s2.max_up) and (s2.LastUpReleaseAt > 0) then
         begin
-          Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d)',
-            [s1.Name, s2.Name, s1.num_dn, s1.max_dn, s2.num_up, s2.max_up]);
-          Sleep(150);
+          fCandidateUntil := IncMilliSecond(s2.LastUpReleaseAt, glGhostDelayMs);
+          if fCandidateUntil > fDelayUntil then
+            fDelayUntil := fCandidateUntil;
+        end;
+
+        if (fDelayUntil > 0) and (fNow < fDelayUntil) then
+        begin
+          t.startat := fDelayUntil;
+          exit;
         end;
       end;
     end;
@@ -1756,6 +1766,9 @@ begin
   // config
   maxassign := config.ReadInteger(section, 'maxassign', 200);
   maxassign_delay := config.ReadInteger(section, 'maxassign_delay', 15);
+  glGhostDelayMs := config.ReadInteger(section, 'ghost_delay_ms', 150);
+  if glGhostDelayMs < 0 then
+    glGhostDelayMs := 0;
   sample_dirs_priority := config.ReadInteger(section, 'sample_dirs_priority', 1);
   if not (sample_dirs_priority in [0..2]) then
     sample_dirs_priority := 1;
