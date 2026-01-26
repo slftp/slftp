@@ -452,12 +452,20 @@ begin
     if t.ps1.StatusRealPreOrShouldPre then
     begin
       if (s1.num_dn + 1 >= s1.max_pre_dn) or (s2.num_up + 1 >= s2.max_up) then
+      begin
+        Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d) PRE',
+          [s1.Name, s2.Name, s1.num_dn, s1.max_pre_dn, s2.num_up, s2.max_up]);
         Sleep(150);
+      end;
     end
     else
     begin
       if (s1.num_dn + 1 >= s1.max_dn) or (s2.num_up + 1 >= s2.max_up) then
+      begin
+        Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d)',
+          [s1.Name, s2.Name, s1.num_dn, s1.max_dn, s2.num_up, s2.max_up]);
         Sleep(150);
+      end;
     end;
 
     if s1.freeslots = 0 then
