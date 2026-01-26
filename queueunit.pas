@@ -446,28 +446,6 @@ begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
-
-    // If approaching slot limits, wait briefly to allow FTP servers to clean up ghost connections
-    // This check must be done BEFORE any locks are acquired to avoid blocking other threads
-    if t.ps1.StatusRealPreOrShouldPre then
-    begin
-      if (s1.num_dn + 1 >= s1.max_pre_dn) or (s2.num_up + 1 >= s2.max_up) then
-      begin
-        Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d) PRE',
-          [s1.Name, s2.Name, s1.num_dn, s1.max_pre_dn, s2.num_up, s2.max_up]);
-        Sleep(150);
-      end;
-    end
-    else
-    begin
-      if (s1.num_dn + 1 >= s1.max_dn) or (s2.num_up + 1 >= s2.max_up) then
-      begin
-        Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d)',
-          [s1.Name, s2.Name, s1.num_dn, s1.max_dn, s2.num_up, s2.max_up]);
-        Sleep(150);
-      end;
-    end;
-
     if s1.freeslots = 0 then
       exit;
     if s2.freeslots = 0 then
@@ -696,11 +674,42 @@ var
   ss:  TSiteSlot;
   sst: TSiteSlot;
   actual_count: integer;
+  s1, s2: TSite;
+  raceTask: TPazoRaceTask;
 begin
    // Debug(dpSpam, section, 'TryToAssignSlots profile '+t.Fullname);
 
   try
     s := TSite(self.fSite);
+
+    // If this is a race task approaching slot limits, wait briefly to allow
+    // FTP servers to clean up ghost connections. Must be done BEFORE acquiring locks.
+    if t.ClassType = TPazoRaceTask then
+    begin
+      raceTask := TPazoRaceTask(t);
+      s1 := TSite(raceTask.ssite1);
+      s2 := TSite(raceTask.ssite2);
+
+      if raceTask.ps1.StatusRealPreOrShouldPre then
+      begin
+        if (s1.num_dn + 1 >= s1.max_pre_dn) or (s2.num_up + 1 >= s2.max_up) then
+        begin
+          Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d) PRE',
+            [s1.Name, s2.Name, s1.num_dn, s1.max_pre_dn, s2.num_up, s2.max_up]);
+          Sleep(150);
+        end;
+      end
+      else
+      begin
+        if (s1.num_dn + 1 >= s1.max_dn) or (s2.num_up + 1 >= s2.max_up) then
+        begin
+          Debug(dpError, section, '[GHOST DELAY] Waiting 150ms before last slot: %s->%s (dn:%d/%d up:%d/%d)',
+            [s1.Name, s2.Name, s1.num_dn, s1.max_dn, s2.num_up, s2.max_up]);
+          Sleep(150);
+        end;
+      end;
+    end;
+
     s.AcquireSlotsAssignmentLock('TryToAssignSlots');
     try
     if s.freeslots = 0 then
