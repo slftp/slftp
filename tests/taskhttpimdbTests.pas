@@ -4,9 +4,9 @@ interface
 
 uses
   {$IFDEF FPC}
-    TestFramework;
+    TestFramework{$IFDEF MSWINDOWS}, Windows {$ENDIF};
   {$ELSE}
-    DUnitX.TestFramework, DUnitX.DUnitCompatibility;
+    DUnitX.TestFramework, DUnitX.DUnitCompatibility{$IFDEF MSWINDOWS}, Windows {$ENDIF};
   {$ENDIF}
 
 type
@@ -147,7 +147,7 @@ var
   fImdbData: TDbImdbData;
 begin
   fTitleJson := _JsonFast(LoadResource('tt3450958_Main'));
-  if VarIsNull(fTitleJson) then Fail('Failed to load tt3450958_Main JSON');
+  CheckFalse(VarIsNull(fTitleJson), 'Failed to load tt3450958_Main JSON');
   
   fReleaseDatesJson := _JsonFast(LoadResource('tt3450958_ReleaseDates'));
 
