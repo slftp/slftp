@@ -810,7 +810,6 @@ var
   udpMessage: RawUtf8;
   destAddr: TNetAddr;
   res: TNetResult;
-  s: TSite;
 begin
   if rls = nil then
   begin
@@ -837,9 +836,7 @@ begin
   begin
     for ps in PazoSitesList do
     begin
-      s := FindSiteByName('', ps.Name);
-      if (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) or
-         ((s <> nil) and (s.WorkingStatus = sstMarkedAsDownByUser)) then
+      if (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) then
       begin
         sitelist := sitelist + ps.Name + ',';
       end;
