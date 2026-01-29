@@ -62,3 +62,5 @@ slot_down=0
 siteslot_recycle=0
 # announce that rules haven't changed (you need to enable autorules first)
 rules_nochange=0
+# 530 Site is full / login limit reached errors
+site_full=1

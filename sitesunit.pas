@@ -104,6 +104,10 @@ type
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
     event: TEvent;
+    fMaxSimUpCooldownUntil: TDateTime;
+    fMaxSimUpCooldownSeconds: integer;
+    fMaxSimDownCooldownUntil: TDateTime;
+    fMaxSimDownCooldownSeconds: integer;
     function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure SetOnline(Value: TSlotStatus);
 
@@ -196,6 +200,16 @@ type
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
     property SlotNumber: integer read FSlotNumber;
+
+    procedure RegisterMaxSimUpHit;
+    procedure ResetMaxSimUpCooldown;
+    function MaxSimUpCooldownActive: boolean;
+    function MaxSimUpCooldownRemainingSeconds: integer;
+
+    procedure RegisterMaxSimDownHit;
+    procedure ResetMaxSimDownCooldown;
+    function MaxSimDownCooldownActive: boolean;
+    function MaxSimDownCooldownRemainingSeconds: integer;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -216,10 +230,6 @@ type
     fMaxDn: integer;
     fMaxPreDn: integer;
     fMaxUpPerRip: integer;
-    fMaxSimUpCooldownUntil: TDateTime;
-    fMaxSimUpCooldownSeconds: integer;
-    fMaxSimDownCooldownUntil: TDateTime;
-    fMaxSimDownCooldownSeconds: integer;
     fReducedSpeedstatWeight: boolean;
     fPermDownStatus: boolean;
     fSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -496,16 +506,6 @@ type
     function GetPretime(const section: String): String;
 
     function isRouteableTo(const sitename: String): boolean;
-
-    procedure RegisterMaxSimUpHit(const aSlotName: String);
-    procedure ResetMaxSimUpCooldown;
-    function MaxSimUpCooldownActive: boolean;
-    function MaxSimUpCooldownRemainingSeconds: integer;
-
-    procedure RegisterMaxSimDownHit(const aSlotName: String);
-    procedure ResetMaxSimDownCooldown;
-    function MaxSimDownCooldownActive: boolean;
-    function MaxSimDownCooldownRemainingSeconds: integer;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -1462,6 +1462,10 @@ begin
   LastIO := Now();
   LastTaskExecution := Now();
   SSCNEnabled := False;
+  fMaxSimUpCooldownUntil := 0;
+  fMaxSimUpCooldownSeconds := 0;
+  fMaxSimDownCooldownUntil := 0;
+  fMaxSimDownCooldownSeconds := 0;
 
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
@@ -2354,10 +2358,16 @@ begin
         ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse))) or
         ((lastResponseCode = 530) and (0 <> Pos('The site is full', lastResponse)))) then
       begin
+        if spamcfg.readbool(section, 'site_full', True) then
+          irc_Adderror(todotask, '<c4>[ERROR Login]</c> %s@%s:: %s', [Name, bnc, lastResponse]);
         if site.sw = sswGlftpd then
         begin
           DestroySocket(False);
-          Result := LoginBnc(i, False);
+          // Try to kill ghosts if account is restricted due to simultaneous logins
+          if (0 <> Pos('your account is restricted to', lastResponse)) then
+            Result := LoginBnc(i, True)
+          else
+            Result := LoginBnc(i, False);
         end;
       end
       else
@@ -2383,6 +2393,8 @@ begin
         ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse))) or
         ((lastResponseCode = 530) and (0 <> Pos('The site is full', lastResponse)))) then
       begin
+        if spamcfg.readbool(section, 'site_full', True) then
+          irc_Adderror(todotask, '<c4>[ERROR Login]</c> %s:: %s', [Name, lastResponse]);
         DestroySocket(False);
       end
       else
@@ -3167,10 +3179,6 @@ begin
   fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
   fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
   fMaxUpPerRip := RCInteger('maxupperrip', 0);
-  fMaxSimUpCooldownUntil := 0;
-  fMaxSimUpCooldownSeconds := 0;
-  fMaxSimDownCooldownUntil := 0;
-  fMaxSimDownCooldownSeconds := 0;
   FLastDnReleaseAt := 0;
   FLastUpReleaseAt := 0;
 
@@ -3659,7 +3667,7 @@ begin
   end;
 end;
 
-procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
+procedure TSiteSlot.RegisterMaxSimUpHit;
 var
   fNewCooldown: integer;
 begin
@@ -3675,11 +3683,11 @@ begin
   fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
-  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s)(slot: %s)',
-    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for slot %s set to %ds (until %s)',
+    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil)]);
 end;
 
-procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
+procedure TSiteSlot.RegisterMaxSimDownHit;
 var
   fNewCooldown: integer;
 begin
@@ -3695,31 +3703,31 @@ begin
   fMaxSimDownCooldownSeconds := fNewCooldown;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
-  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s)(slot: %s)',
-    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for slot %s set to %ds (until %s)',
+    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil)]);
 end;
 
-procedure TSite.ResetMaxSimUpCooldown;
+procedure TSiteSlot.ResetMaxSimUpCooldown;
 begin
   if (fMaxSimUpCooldownSeconds <> 0) or (fMaxSimUpCooldownUntil <> 0) then
   begin
     fMaxSimUpCooldownSeconds := 0;
     fMaxSimUpCooldownUntil := 0;
-    Debug(dpSpam, section, 'MaxSim UP cooldown for %s cleared', [Name]);
+    Debug(dpSpam, section, 'MaxSim UP cooldown for slot %s cleared', [Name]);
   end;
 end;
 
-procedure TSite.ResetMaxSimDownCooldown;
+procedure TSiteSlot.ResetMaxSimDownCooldown;
 begin
   if (fMaxSimDownCooldownSeconds <> 0) or (fMaxSimDownCooldownUntil <> 0) then
   begin
     fMaxSimDownCooldownSeconds := 0;
     fMaxSimDownCooldownUntil := 0;
-    Debug(dpSpam, section, 'MaxSim DOWN cooldown for %s cleared', [Name]);
+    Debug(dpSpam, section, 'MaxSim DOWN cooldown for slot %s cleared', [Name]);
   end;
 end;
 
-function TSite.MaxSimUpCooldownActive: boolean;
+function TSiteSlot.MaxSimUpCooldownActive: boolean;
 begin
   if fMaxSimUpCooldownUntil = 0 then
   begin
@@ -3731,7 +3739,7 @@ begin
   begin
     if fMaxSimUpCooldownSeconds > 0 then
     begin
-      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for slot %s expired after %ds',
         [Name, fMaxSimUpCooldownSeconds]);
       fMaxSimUpCooldownSeconds := 0;
     end;
@@ -3743,7 +3751,7 @@ begin
   Result := True;
 end;
 
-function TSite.MaxSimDownCooldownActive: boolean;
+function TSiteSlot.MaxSimDownCooldownActive: boolean;
 begin
   if fMaxSimDownCooldownUntil = 0 then
   begin
@@ -3755,7 +3763,7 @@ begin
   begin
     if fMaxSimDownCooldownSeconds > 0 then
     begin
-      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for slot %s expired after %ds',
         [Name, fMaxSimDownCooldownSeconds]);
       fMaxSimDownCooldownSeconds := 0;
     end;
@@ -3767,7 +3775,7 @@ begin
   Result := True;
 end;
 
-function TSite.MaxSimUpCooldownRemainingSeconds: integer;
+function TSiteSlot.MaxSimUpCooldownRemainingSeconds: integer;
 begin
   if not MaxSimUpCooldownActive then
     Exit(0);
@@ -3775,7 +3783,7 @@ begin
   Result := SecondsBetween(Now, fMaxSimUpCooldownUntil);
 end;
 
-function TSite.MaxSimDownCooldownRemainingSeconds: integer;
+function TSiteSlot.MaxSimDownCooldownRemainingSeconds: integer;
 begin
   if not MaxSimDownCooldownActive then
     Exit(0);
