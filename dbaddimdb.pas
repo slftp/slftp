@@ -160,7 +160,7 @@ begin
   irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
 
   // Only show release status (Wide/Limited/STV/Festival/Cine) if BOM data was fetched
-  if imdb_stvm or imdb_festival or imdb_ldt or imdb_wide then
+  if (imdb_screens >= 0) or imdb_stvm or imdb_festival or imdb_ldt or imdb_wide then
   begin
     if imdb_stvm then status := 'STV'
     else if imdb_festival then status := 'Festival'
@@ -189,7 +189,7 @@ begin
   irc_AddText(netname, channel, Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <b><c5>Genres</b></c> .........: %s', [imdb_genres.DelimitedText]));
 
   // Only show release status (Wide/Limited/STV/Festival/Cine) if BOM data was fetched
-  if imdb_stvm or imdb_festival or imdb_ldt or imdb_wide then
+  if (imdb_screens >= 0) or imdb_stvm or imdb_festival or imdb_ldt or imdb_wide then
   begin
     if imdb_stvm then status := 'STV'
     else if imdb_festival then status := 'Festival'
