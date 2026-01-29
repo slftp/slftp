@@ -775,7 +775,7 @@ begin
           end;
         end;
         // only half of the slots for dirlist
-        if (actual_count > s.slots.Count div 2) then
+        if (actual_count >= s.slots.Count div 2) then
         begin
           exit;
         end;
