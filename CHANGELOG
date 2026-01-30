@@ -43,6 +43,9 @@
 	  mode=0 in [dbaddpre] for in-memory pre DB
 	  add_to_kb_on_dbaddpre_insert=0
 	  show_complete_time_stats=0
+    NEW slftp.spamconf parameter(s):
+      login_cooldown=1
+      maxsim_cooldown=1
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -51,6 +54,22 @@
 --==============================( KNOWN BUGS )====================================-
 
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
+
+--========================( API/WebUI BRANCH ADDITIONS )==========================-
+    {+} HTTP API and Web UI (mORMot) with token authentication and core endpoints.
+    {+} Web UI pages: Sites, Routes, Issues, Logs, Stats, Speedtests/Tools, Config editor, Help.
+    {+} IRC network/channel management in Web UI with CBC/ECB blowfish, roles/keys, and delete persistence.
+    {+} Rules editor upgraded to Monaco with custom syntax highlighting and Examples tab.
+    {+} Precatcher UI: catchlist, filters, matches view, announce parser, and edit tooling.
+    {+} Sections/Directory manager: auto-map, alphabetical sorting, configured-only view, missing section dialog with browser.
+    {+} File/FXP browser (beta) and recursive release transfer support.
+    {+} IMDb/TV DB browser, imdbapi.dev migration, persistent DB improvements, BOM screen count restore.
+    {+} Release simulator, IRC matches view, site credits, and issues tracking.
+    {^} Dynamic dirlist interval controls exposed in API/Web UI.
+    {+} IRC command !performance to show performance monitor stats and dirlist adjustments.
+    {+} Site-specific skiplists in slftp.skip (site and site+section overrides).
+    {#} Fix 530 login logging, socket init error rate-limiting, ghost login cleanup, precatcher newline handling,
+        and complete site cleanup when deleting via Web UI.
 
 --=============================( SLFTP v1.5.11 )==================================-
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
