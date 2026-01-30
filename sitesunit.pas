@@ -2350,6 +2350,7 @@ begin
         ((lastResponseCode = 530) and (0 <> Pos('your maximum number of connections', lastResponse))) or
         ((lastResponseCode = 530) and (0 <> Pos('The site is full', lastResponse)))) then
       begin
+        irc_Adderror(todotask, '<c4>[ERROR Login]</c> %s@%s:: %s', [Name, bnc, error]);
         if site.sw = sswGlftpd then
         begin
           DestroySocket(False);
@@ -2380,12 +2381,14 @@ begin
         ((lastResponseCode = 530) and (0 <> Pos('The site is full', lastResponse)))) then
       begin
         DestroySocket(False);
+        if spamcfg.readbool(section, 'slot_down', False) then
+          irc_Adderror(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end
       else
       begin
         DestroySocket(False);
         if spamcfg.readbool(section, 'slot_down', False) then
-          irc_addtext(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
+          irc_Adderror(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
 end;
