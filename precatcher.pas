@@ -2,13 +2,40 @@ unit precatcher;
 
 interface
 
-uses Classes, Contnrs, slmasks, encinifile, kb, kb.releaseinfo;
+uses
+  Classes,
+  SysUtils,
+  Contnrs,
+  slmasks,
+  encinifile,
+  kb,
+  kb.releaseinfo;
 
 type
+  { Precatcher hit information for API/UI diagnostics }
+  TPrecatcherHit = record
+    Id: Int64;
+    At: TDateTime;
+    Netname: String;
+    Channel: String;
+    Nick: String;
+    Sitename: String;
+    EventType: TKBEventType;
+    Section: String;
+    ReleaseName: String;
+    RuleId: Integer;
+    RuleLine: String;
+    Text: String;
+  end;
+
+  TPrecatcherHits = array of TPrecatcherHit;
+
   TSection = class
     eventtype: TKBEventType;
     section: String;
     words: TStringList;
+    ruleid: Integer;
+    ruleline: String;
 
     constructor Create;
     destructor Destroy; override;
@@ -44,6 +71,11 @@ procedure Precatcher_Init;
 procedure Precatcher_Uninit;
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 
+// Captures precatcher debug output into a string list for APIs/tests.
+// Caller must call Precatcher_EndDebugCapture and then free the list.
+procedure Precatcher_BeginDebugCapture(out aCapture: TStringList);
+procedure Precatcher_EndDebugCapture(const aCapture: TStringList);
+
 function ExtractReleasename(ts_data: TStringList): String;
 
 { Tries to extract the section from the given sitebot announce by iterating through the [sections] items
@@ -52,10 +84,24 @@ function ExtractReleasename(ts_data: TStringList): String;
 function FindSection(const aCleanSitebotAnnounce: String): String;
 function ProcessDoReplace(const s: String; const rls: String = ''): String;
 
+/// Stores a precatcher rule hit for later retrieval via API/UI.
+procedure Precatcher_LogHit(const aNetname, aChannel, aNick, aSitename: String;
+  const aEventType: TKBEventType; const aSection, aReleaseName: String;
+  const aRuleId: Integer; const aRuleLine, aText: String);
+
+/// Returns recent precatcher hits (reverse chronological) with optional filters.
+procedure Precatcher_GetHits(const aLimit: Integer; const aSinceUnix: Int64;
+  const aReleaseName, aSiteName: String; out aHits: TPrecatcherHits);
+
+/// Returns the last hit for a given rule id.
+function Precatcher_TryGetLastHitForRule(const aRuleId: Integer; out aHit: TPrecatcherHit): Boolean;
+
 var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
   precatcher_debug_netname, precatcher_debug_channel: String;
+  precatcher_debug_capture: TStringList = nil;
+  precatcher_debug_capture_only: boolean = False;
   //  precatcher_auto: Boolean;
   catcherFile: TEncStringlist;
   mappingslist: TObjectList;
@@ -64,14 +110,18 @@ var
 implementation
 
 uses
-  SysUtils, sitesunit, Dateutils, irc, queueunit, mystrings, precatcher.helpers,
+  DateUtils,
+  Generics.Collections,
+  sitesunit, irc, queueunit, mystrings, precatcher.helpers,
   inifiles, DebugUnit, StrUtils, configunit, Regexpr, globalskipunit, dbaddpre,
-  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal {$IFDEF MSWINDOWS}, Windows{$ENDIF}
+  console, mrdohutils, SlCriticalSection2, taskautodirlist, IdGlobal, slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF}
   ;
 
 const
   rsections = 'precatcher';
   glReleaseNamePlaceHolder: String = '${RELEASENAMEPLACEHOLDER}$';
+  CPrecatcherMaxHits = 5000;
+  CPrecatcherMaxTextLen = 400;
 
 var
   catcherFilename, replacefromline: String;
@@ -84,11 +134,167 @@ var
   precatcher_lock: TSlCriticalSection2;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
+  GlPrecatcherHits: TList<TPrecatcherHit>;
+  GlPrecatcherHitsLock: TSlCriticalSection2;
+  GlPrecatcherHitSeq: Int64;
+  GlPrecatcherLastHitByRuleId: TDictionary<Integer, TPrecatcherHit>;
+  GlPrecatcherHitsLockTimeout: Integer;
+
+procedure _LogMissingSectionIfNeeded(const aNetname, aSitename, aSection, aReleaseName, aReason, aKbEvent: String);
+var
+  siteObj: TSite;
+begin
+  if (aSitename = '') or (aSection = '') then
+    Exit;
+
+  siteObj := FindSiteByName(aNetname, aSitename);
+  if (siteObj <> nil) and (siteObj.sectiondir[aSection] = '') then
+  begin
+    IssueLog('MISSING_SECTION', aSection, aReleaseName, aSitename, aReason, aKbEvent,
+      'MISSING_SECTION|' + aSitename + '|' + aSection, 300);
+    irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)',
+      [aSection, aReleaseName, aSitename, aKbEvent]));
+  end;
+end;
+
+procedure Precatcher_LogHit(const aNetname, aChannel, aNick, aSitename: String;
+  const aEventType: TKBEventType; const aSection, aReleaseName: String;
+  const aRuleId: Integer; const aRuleLine, aText: String);
+var
+  h: TPrecatcherHit;
+  t: String;
+  lockAcquired: Boolean;
+begin
+  if not (aEventType in [kbeNEWDIR, kbePRE, kbeCOMPLETE, kbeNUKE, kbeREQUEST, kbeADDPRE]) then
+    Exit;
+  if (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  t := aText;
+  if Length(t) > CPrecatcherMaxTextLen then
+    t := Copy(t, 1, CPrecatcherMaxTextLen);
+
+  if GlPrecatcherHitsLockTimeout > 0 then
+    lockAcquired := GlPrecatcherHitsLock.Enter('Precatcher_LogHit', GlPrecatcherHitsLockTimeout, False)
+  else
+    lockAcquired := GlPrecatcherHitsLock.Enter('Precatcher_LogHit');
+  if not lockAcquired then
+  begin
+    Debug(dpError, rsections, Format('[EXCEPTION] Precatcher_LogHit: Unable to acquire lock ''precatcher_hits_lock'' within %d ms.', [GlPrecatcherHitsLockTimeout]));
+    Exit;
+  end;
+  try
+    Inc(GlPrecatcherHitSeq);
+    h.Id := GlPrecatcherHitSeq;
+    h.At := Now;
+    h.Netname := aNetname;
+    h.Channel := aChannel;
+    h.Nick := aNick;
+    h.Sitename := aSitename;
+    h.EventType := aEventType;
+    h.Section := aSection;
+    h.ReleaseName := aReleaseName;
+    h.RuleId := aRuleId;
+    h.RuleLine := aRuleLine;
+    h.Text := t;
+
+    GlPrecatcherHits.Add(h);
+    if GlPrecatcherHits.Count > CPrecatcherMaxHits then
+      GlPrecatcherHits.Delete(0);
+
+    if GlPrecatcherLastHitByRuleId <> nil then
+      GlPrecatcherLastHitByRuleId.AddOrSetValue(aRuleId, h);
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
+
+procedure Precatcher_GetHits(const aLimit: Integer; const aSinceUnix: Int64;
+  const aReleaseName, aSiteName: String; out aHits: TPrecatcherHits);
+var
+  i: Integer;
+  c: Integer;
+  sinceUtc: TDateTime;
+  h: TPrecatcherHit;
+begin
+  SetLength(aHits, 0);
+  if (aLimit <= 0) or (GlPrecatcherHits = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  if aSinceUnix > 0 then
+    sinceUtc := UnixToDateTime(aSinceUnix, False)
+  else
+    sinceUtc := 0;
+
+  c := 0;
+  if GlPrecatcherHitsLockTimeout > 0 then
+  begin
+    if not GlPrecatcherHitsLock.Enter('Precatcher_GetHits', GlPrecatcherHitsLockTimeout, False) then
+    begin
+      Debug(dpError, rsections, Format('[EXCEPTION] Precatcher_GetHits: Unable to acquire lock ''precatcher_hits_lock'' within %d ms.', [GlPrecatcherHitsLockTimeout]));
+      Exit;
+    end;
+  end
+  else
+  begin
+    GlPrecatcherHitsLock.Enter('Precatcher_GetHits');
+  end;
+  try
+    for i := GlPrecatcherHits.Count - 1 downto 0 do
+    begin
+      h := GlPrecatcherHits[i];
+      if (aSinceUnix > 0) and (h.At < sinceUtc) then
+        Break;
+      if (aReleaseName <> '') and (not SameText(h.ReleaseName, aReleaseName)) then
+        Continue;
+      if (aSiteName <> '') and (not SameText(h.Sitename, aSiteName)) then
+        Continue;
+
+      SetLength(aHits, c + 1);
+      aHits[c] := h;
+      Inc(c);
+      if c >= aLimit then
+        Break;
+    end;
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
+
+function Precatcher_TryGetLastHitForRule(const aRuleId: Integer; out aHit: TPrecatcherHit): Boolean;
+begin
+  Result := False;
+  if (GlPrecatcherLastHitByRuleId = nil) or (GlPrecatcherHitsLock = nil) then
+    Exit;
+
+  GlPrecatcherHitsLock.Enter('Precatcher_TryGetLastHitForRule');
+  try
+    Result := GlPrecatcherLastHitByRuleId.TryGetValue(aRuleId, aHit);
+  finally
+    GlPrecatcherHitsLock.Leave;
+  end;
+end;
 
 procedure mydebug(const s: String); overload;
 var
   nowstr: String;
 begin
+  if (precatcher_debug_capture <> nil) then
+  begin
+    try
+      precatcher_debug_lock.Enter('mydebug_capture');
+      try
+        precatcher_debug_capture.Add(s);
+      finally
+        precatcher_debug_lock.Leave;
+      end;
+    except
+      on e: Exception do
+        Debug(dpError, rsections, Format('[EXCEPTION] mydebug_capture: %s', [e.Message]));
+    end;
+    if precatcher_debug_capture_only then
+      Exit;
+  end;
   Debug(dpSpam, rsections, s);
   if precatcher_ircdebug then
   begin
@@ -112,6 +318,36 @@ begin
   if (precatcher_debug) then
   begin
     irc_Addtext(precatcher_debug_netname, precatcher_debug_channel, s);
+  end;
+end;
+
+procedure Precatcher_BeginDebugCapture(out aCapture: TStringList);
+begin
+  aCapture := TStringList.Create;
+  precatcher_debug_lock.Enter('BeginDebugCapture');
+  try
+    precatcher_debug_capture := aCapture;
+    precatcher_debug_capture_only := True;
+    precatcher_debug := True;
+    precatcher_debug_netname := '';
+    precatcher_debug_channel := '';
+  finally
+    precatcher_debug_lock.Leave;
+  end;
+end;
+
+procedure Precatcher_EndDebugCapture(const aCapture: TStringList);
+begin
+  precatcher_debug_lock.Enter('EndDebugCapture');
+  try
+    if precatcher_debug_capture = aCapture then
+      precatcher_debug_capture := nil;
+    precatcher_debug_capture_only := False;
+    precatcher_debug := False;
+    precatcher_debug_netname := '';
+    precatcher_debug_channel := '';
+  finally
+    precatcher_debug_lock.Leave;
   end;
 end;
 
@@ -401,7 +637,9 @@ var
   ss: TSection;
   mind: boolean;
   ts_data: TStringList;
-  rls, s: String;
+  rls: String;
+  rls_section: String;
+  siteObj: TSite;
   fRequestDirlistTask: TAutoDirlistTask;
 begin
   MyDebug('Process %s %s %s %s', [net, chan, nick, Data]);
@@ -517,6 +755,16 @@ begin
         if (mind) then
         begin
           try
+            rls_section := ss.section;
+            if rls_section = '' then
+            begin
+              rls_section := ProcessDoReplace(ts_data.DelimitedText, rls);
+              rls_section := FindSection(' ' + rls_section + ' ');
+            end;
+            rls_section := PrecatcherSectionMapping(rls, rls_section);
+
+            Precatcher_LogHit(net, chan, nick, sc.sitename, ss.eventtype, rls_section, rls,
+              ss.ruleid, ss.ruleline, Data);
 
             if (ss.section = 'REQUEST') or (ss.eventtype = kbeREQUEST) then
             begin
@@ -538,6 +786,9 @@ begin
               end;
               exit;
             end;
+
+            if not precatcher_debug then
+              _LogMissingSectionIfNeeded(net, sc.sitename, rls_section, rls, 'PRECATCHER', KBEventTypeToString(ss.eventtype));
 
             ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
 
@@ -591,7 +842,7 @@ begin
 
 end;
 
-function ProcessChannels(s: String): boolean;
+function ProcessChannels(s: String; const aRuleId: Integer): boolean;
 var
   network, chan, nick, sitename, words, event, forced_section: String;
   sci: integer;
@@ -639,6 +890,8 @@ begin
     section := TSection.Create;
     section.section := forced_section;
     section.eventtype := EventStringToTKBEventType(event);
+    section.ruleid := aRuleId;
+    section.ruleline := s;
 
     if (words <> '') then
       for i := 1 to Count(',', words) + 1 do
@@ -675,7 +928,7 @@ begin
   i := 0;
   while (i < catcherFile.Count) do
   begin
-    if not ProcessChannels(catcherFile[i]) then
+    if not ProcessChannels(catcherFile[i], i) then
     begin
       catcherFile.Delete(i);
       Dec(i);
@@ -939,6 +1192,12 @@ begin
       halt;
     end;
   end;
+
+  GlPrecatcherHits := TList<TPrecatcherHit>.Create;
+  GlPrecatcherLastHitByRuleId := TDictionary<Integer, TPrecatcherHit>.Create;
+  GlPrecatcherHitsLock := TSlCriticalSection2.Create('precatcher_hits_lock');
+  GlPrecatcherHitSeq := 0;
+  GlPrecatcherHitsLockTimeout := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
 end;
 
 procedure Precatcher_UnInit;
@@ -963,6 +1222,13 @@ begin
 
   precatcher_debug_lock.Free;
   Closefile(debug_f);
+
+  GlPrecatcherHitsLock.Free;
+  GlPrecatcherHitsLock := nil;
+  GlPrecatcherLastHitByRuleId.Free;
+  GlPrecatcherLastHitByRuleId := nil;
+  GlPrecatcherHits.Free;
+  GlPrecatcherHits := nil;
 
   Debug(dpSpam, rsections, 'Uninit2');
 end;
@@ -1101,4 +1367,3 @@ begin
 end;
 
 end.
-

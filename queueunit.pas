@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
 
 
 type TQueueStat = class
@@ -11,6 +11,7 @@ type TQueueStat = class
     FDirlistTaskCount: integer;
     FAutoTaskCount: integer;
     FOtherTaskCount: integer;
+    FActiveTaskCount: integer; // tasks currently running (status=Running)
 end;
 
 type TQueueTask = class
@@ -36,6 +37,10 @@ type
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  
+  // Rate tracking
+  fLastDirlistCheckTime: TDateTime;
+  fLastDirlistCount: Integer;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -83,9 +88,13 @@ property QueueCleanLastRun: TDateTime read queueclean_last_run;
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
 
 var
   QueueStatUpdateDateTime: TDateTime;
+  GlDirlistCompletedCounter: TIdThreadSafeInt32;
+  GlDirlistRate: Double;
+  GlDirlistRateMax: Double;
 
 implementation
 
@@ -446,7 +455,13 @@ begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
+
+    if (s1.slots.Count > 1) and (s1.freeslots <= 1) then
+      exit;
     if s1.freeslots = 0 then
+      exit;
+
+    if (s2.slots.Count > 1) and (s2.freeslots <= 1) then
       exit;
     if s2.freeslots = 0 then
       exit;
@@ -638,16 +653,23 @@ begin
 
     if ss = nil then
     begin
-      // all slots are busy, which means they are already logged in, we can stop here
-      if not t.noannounce then
+      if t.kill then
+      begin
+        if not t.noannounce then
+          irc_Addtext(t, '<c4>Unable to kill ghosts on <b>%s</b>: all slots busy</c>', [t.site1]);
+      end
+      else if not t.noannounce then
       begin
         if bnc = '' then
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
         else
           irc_Addtext(t, '<b>%s</b> IS ALREADY UP: %s', [t.site1, bnc]);
       end;
-      s.WorkingStatus := sstUp;
-      debug(dpMessage, section, '%s IS UP', [t.site1]);
+      if not t.kill then
+      begin
+        s.WorkingStatus := sstUp;
+        debug(dpMessage, section, '%s IS UP', [t.site1]);
+      end;
       t.ready := True;
       exit;
     end;
@@ -1502,6 +1524,21 @@ begin
   begin
     queue_last_run := Now();
 
+    // Calculate dirlist rate
+    if fLastDirlistCheckTime = 0 then
+    begin
+      fLastDirlistCheckTime := queue_last_run;
+      fLastDirlistCount := GlDirlistCompletedCounter.Value;
+    end
+    else if SecondsBetween(queue_last_run, fLastDirlistCheckTime) >= 1 then
+    begin
+      GlDirlistRate := (GlDirlistCompletedCounter.Value - fLastDirlistCount) / SecondsBetween(queue_last_run, fLastDirlistCheckTime);
+      if GlDirlistRate > GlDirlistRateMax then
+        GlDirlistRateMax := GlDirlistRate;
+      fLastDirlistCount := GlDirlistCompletedCounter.Value;
+      fLastDirlistCheckTime := queue_last_run;
+    end;
+
     if fSite = nil then
       fSite := FindSiteByName('', fSiteName);
 
@@ -1746,10 +1783,12 @@ begin
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
+  GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
 end;
 
 procedure QueueUninit;
 begin
+  GlDirlistCompletedCounter.Free;
   StatsList.Free;
 end;
 
@@ -2085,6 +2124,26 @@ begin
 
   QueueStatUpdateDateTime := Now;
   Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
+end;
+
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
+var
+  queueStat: TQueueStat;
+begin
+  race := 0;
+  dirlist := 0;
+  autotasks := 0;
+  other := 0;
+
+  for queueStat in StatsList do
+  begin
+    race := race + queueStat.FRaceTaskCount;
+    dirlist := dirlist + queueStat.FDirlistTaskCount;
+    autotasks := autotasks + queueStat.FAutoTaskCount;
+    other := other + queueStat.FOtherTaskCount;
+  end;
+
+  total := race + dirlist + autotasks + other;
 end;
 
 procedure TQueueThread.QueueSendCurrentTasksToConsole;

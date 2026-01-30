@@ -116,6 +116,7 @@ type
     function MkdirError(const dir: String): boolean;
     function AddDestination(const sitename: String; const rank: integer): boolean; overload;
     function AddDestination(const ps: TPazoSite; const rank: integer): boolean; overload;
+    procedure RemoveDestination(const sitename: String);
 
     { Add the raced file and appropiate infos into database
       @param(aParentPazo pazo where this TPazoSite belongs to)
@@ -179,9 +180,6 @@ type
       @param(de The TDirListEntry of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
     function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
-    { Returns the amount of files for the release, includes files in subdirs
-      @returns(Total file count of @link(rls)) }
-    function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
 
@@ -246,6 +244,9 @@ type
       @param(aFilename Name of the file)
       @returns(filesize in bytes, -1 if not found or unknown file) }
     function PFileSize(const aDir, aFilename: String): Int64;
+    { Returns the amount of files for the release, includes files in subdirs
+      @returns(Total file count of @link(rls)) }
+    function GetCountOfCachedFiles: integer;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -435,6 +436,7 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
+  siteSkipList: TSkipList;
 begin
   Result := False;
   dst := nil;
@@ -446,10 +448,20 @@ begin
   // something's fucked
   if error then exit;
 
-  if (dir <> '') then
-    fd := pazo.rls.rlsname + '/' + dir
+  if pazo.rls <> nil then
+  begin
+    if (dir <> '') then
+      fd := pazo.rls.rlsname + '/' + dir
+    else
+      fd := pazo.rls.rlsname;
+  end
   else
-    fd := pazo.rls.rlsname;
+  begin
+    if (dir <> '') then
+      fd := 'SPEEDTEST/' + dir
+    else
+      fd := 'SPEEDTEST';
+  end;
 
   // ignore this site if you don't have setup download slots for it
   s := FindSiteByName('', Name);
@@ -540,19 +552,26 @@ begin
           try
             if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
             begin
-              Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
-
-            // Create the mkdir task
-              if (dstdl.parent <> nil) then
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+              siteSkipList := FindSiteSkipList(dst.Name, pazo.sl.sectionname);
+              if (siteSkipList <> nil) and siteSkipList.ShouldSkipDirUp('_ROOT_', dir) then
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping MKDIR for skipped directory %s on %s', [fd, Name, dst.Name, dir, dst.Name]);
+                dstdl.need_mkdir := False;
+              end
               else
-                pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
+              begin
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
-              // add delay to mkdir if delay_upload enabled
-              if dst.delay_upload > 0 then
-                pm.startat := IncSecond(Now, dst.delay_upload);
+                if (dstdl.parent <> nil) then
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                else
+                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
 
-              dstdl.dependency_mkdir := pm.UidText;
+                if dst.delay_upload > 0 then
+                  pm.startat := IncSecond(Now, dst.delay_upload);
+
+                dstdl.dependency_mkdir := pm.UidText;
+              end;
             end;
           finally
             dstdl.dirlist_lock.Leave;
@@ -579,7 +598,8 @@ begin
           try
             pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
             Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
+            if pazo.rls <> nil then
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
             AddTask(pd, true);
           except
@@ -602,6 +622,56 @@ begin
               Continue;
             if ((dstdl.HasNFO) and (de.IsNFO)) then
               Continue;
+
+            // Check if site-specific skiplist is found and applied
+            try
+              siteSkipList := FindSiteSkipList(dst.Name, pazo.sl.sectionname);
+              if siteSkipList <> nil then
+              begin
+                if siteSkipList.ShouldSkipDirUp('_ROOT_', dir) then
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped directory %s', [fd, Name, dst.Name, de.filename, dir]);
+                  Continue;
+                end;
+
+                if siteSkipList.ShouldSkipFileUp(dir, de.filename) then
+                begin
+                  Continue;
+                end
+                else
+                begin
+                  if siteSkipList.ShouldSkipFileUp('_ROOT_', de.filename) then
+                  begin
+                    Continue;
+                  end;
+                end;
+              end;
+
+              siteSkipList := FindSiteSkipList(Name, pazo.sl.sectionname);
+              if siteSkipList <> nil then
+              begin
+                if siteSkipList.ShouldSkipDirDn('_ROOT_', dir) then
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping file %s in skipped source directory %s', [fd, Name, dst.Name, de.filename, dir]);
+                  Continue;
+                end;
+
+                if siteSkipList.ShouldSkipFileDn(dir, de.filename) then
+                begin
+                  Continue;
+                end
+                else
+                begin
+                  if siteSkipList.ShouldSkipFileDn('_ROOT_', de.filename) then
+                  begin
+                    Continue;
+                  end;
+                end;
+              end;
+            except
+              on e: Exception do
+                Debug(dpError, section, '%s :: ERROR during site skiplist lookup: %s', [fd, e.Message]);
+            end;
 
             // Create the race task
             Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding RACE task on %s %s', [fd, Name, dst.Name, dst.Name, de.filename]);
@@ -703,7 +773,10 @@ function TPazo.AsText: String;
 var
   ps: TPazoSite;
 begin
-  Result := rls.AsText(pazo_id);
+  if rls <> nil then
+    Result := rls.AsText(pazo_id)
+  else
+    Result := Format('Speedtest (pazo %d)%s', [pazo_id, #13#10]);
 
   Result := Result + Format('Age: %ds %s', [age, #13#10]);
 
@@ -725,7 +798,10 @@ function TPazo.RoutesText: String;
 var
   ps: TPazoSite;
 begin
-  Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count]);
+  if rls <> nil then
+    Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count])
+  else
+    Result := Format('<c3>[ROUTES]</c> : <b>SPEEDTEST</b> (%d sites)', [PazoSitesList.Count]);
   Result := Result + #13#10;
 
   for ps in PazoSitesList do
@@ -777,7 +853,8 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
-  if fWasAdded And de.IsSFV and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+ if fWasAdded and de.IsSFV and (self.rls <> nil) and (FPazoSFV <> nil) and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
+
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -803,6 +880,8 @@ begin
 end;
 
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
+var
+  fLockName: String;
 begin
   if rls <> nil then
   begin
@@ -829,22 +908,31 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+  if rls <> nil then
+    fLockName := rls.Name
+  else
+    fLockName := 'SPEEDTEST';
+  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + fLockName + '_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
   self.cleared := False;
 
   FExcludeFromIncfiller := False;
-  if rls.IsSFVRelease then
-    FPazoSFV := TPazoSFV.Create;
+  if (rls <> nil) and rls.IsSFVRelease then
+    FPazoSFV := TPazoSFV.Create
+  else
+    FPazoSFV := nil;
 
   inherited Create;
 end;
 
 destructor TPazo.Destroy;
 begin
-  Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  if rls <> nil then
+    Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname])
+  else
+    Debug(dpSpam, section, 'TPazo.Destroy: SPEEDTEST');
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
@@ -1323,6 +1411,42 @@ begin
   end;
 end;
 
+procedure TPazoSite.RemoveDestination(const sitename: String);
+var
+  i: Integer;
+  removed: Boolean;
+  speedInfo: TSpeedFromRouteInfo;
+begin
+  removed := False;
+
+  destinations_cs.Enter;
+  try
+    for i := FDestinations.Count - 1 downto 0 do
+    begin
+      if SameText(FDestinations.Items[i].PazoSite.Name, sitename) then
+      begin
+        FDestinations.Delete(i);
+        removed := True;
+      end;
+    end;
+  finally
+    destinations_cs.Leave;
+  end;
+
+  if removed and (speed_from <> nil) then
+  begin
+    for i := speed_from.Count - 1 downto 0 do
+    begin
+      speedInfo := speed_from[i];
+      if SameText(speedInfo.Sitename, sitename) then
+      begin
+        speed_from.Delete(i);
+        Break;
+      end;
+    end;
+  end;
+end;
+
 //compare function to sort by rank
 function _CompareDestinationRanks({$IFDEF FPC}constref{$ELSE}const{$ENDIF} Left, Right: TDestinationRank): Integer;
 begin
@@ -1466,7 +1590,10 @@ begin
   if d <> nil then
   begin
     debug(dpSpam, section, 'MkdirError ' + Name + ' ' + dir);
-    irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
+    if pazo.rls <> nil then
+      irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]))
+    else
+      irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : SPEEDTEST %s @ <b>%s</b>', [dir, Name]));
     d.need_mkdir := True;
     d.error := True;
   end;
@@ -2026,7 +2153,12 @@ begin
     RemovePazoDirTasks(pazo.pazo_id, Name);
 
     if not aMessage.IsEmpty then
-      irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, aMessage]));
+    begin
+      if pazo.rls <> nil then
+        irc_Addstats(Format('<c7>[SITE FAILED]</c> : %s %s @ <b>%s</b> <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, Name, aMessage]))
+      else
+        irc_Addstats(Format('<c7>[SITE FAILED]</c> : SPEEDTEST @ <b>%s</b> <b>%s</b>', [Name, aMessage]));
+    end;
 
   except
     on e: Exception do

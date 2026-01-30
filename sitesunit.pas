@@ -104,7 +104,6 @@ type
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
     event: TEvent;
-    function LoginBnc(const i: integer; kill: boolean = False): boolean;
     procedure SetOnline(Value: TSlotStatus);
 
     { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
@@ -128,7 +127,7 @@ type
     procedure DestroySocket(down: boolean);
     { Invokes Relogin after invoking DestroySocket.
       @param(aMessage Info which task is issuing this command.) }
-    procedure DestroySocketAndRelogin(const aMessage: string);
+    procedure DestroySocketAndRelogin(const aMessage: string; kill: boolean = False);
     procedure Quit;
     { Invokes Relogin after invoking Quit.
       @param(aMessage Info which task is issuing this command.) }
@@ -136,6 +135,7 @@ type
     function Name: String;
     procedure Fire;
     function Login(kill: boolean = False): boolean;
+    function LoginBnc(const i: integer; kill: boolean = False; skipReorder: boolean = False): boolean;
     procedure Execute; override;
     constructor Create(const aSite: TSite; const aSlotNumber: integer);
     destructor Destroy; override;
@@ -143,6 +143,7 @@ type
     function RCInteger(const Name: String; const def: integer): integer;
     function RCDateTime(const Name: String; const def: TDateTime): TDateTime;
     function RCString(const Name, def: String): String;
+    procedure ReorderBncList(aBncList: TStringList);
 
     procedure Stop; override;
     { Reads the last-modified time (cmd: MDTM = MODIFICATION TIME) of the specified file @link(aFilename)
@@ -336,6 +337,12 @@ type
     procedure SetNextAutoDirlistDateTime(const Value: TDateTime);
     function GetAutoDirlistSections: String;
     procedure SetAutoDirlistSections(const Value: String);
+    function GetNewdirDirlistReadd: integer;
+    procedure SetNewdirDirlistReadd(const Value: integer);
+    function GetDirlistPriority: integer;
+    procedure SetDirlistPriority(const Value: integer);
+    function GetPerformanceAdjustedDirlist: Boolean;
+    procedure SetPerformanceAdjustedDirlist(const Value: Boolean);
 
     { function for @link(SiteFullName) property to read full sitename from inifile }
     function GetSiteFullName: String;
@@ -590,6 +597,9 @@ type
     property AutoDirlistInterval: integer read GetAutoDirlistInterval write SetAutoDirlistInterval; //< Interval in seconds for autodirlist, zero means turned off
     property NextAutoDirlistDateTime: TDateTime read GetNextAutoDirlistDateTime write SetNextAutoDirlistDateTime; //< timestamp of next autodirlist run
     property AutoDirlistSections: String read GetAutoDirlistSections write SetAutoDirlistSections; //< section(s) for autodirlist
+    property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd; //< Interval in milliseconds for dirlist readd, zero means use global default
+    property DirlistPriority: integer read GetDirlistPriority write SetDirlistPriority; //< Site priority for dynamic dirlist performance (0=VeryLow, 1=Low, 2=Normal, 3=High, 4=VeryHigh)
+    property PerformanceAdjustedDirlist: Boolean read GetPerformanceAdjustedDirlist write SetPerformanceAdjustedDirlist; //< Enable/disable performance-based dirlist interval adjustment
     property SiteFullName: String read GetSiteFullName write SetSiteFullName; //< full name of site
     property SiteLinkSpeed: String read GetSiteLinkSpeed write SetSiteLinkSpeed; //< link speed of site
     property SiteSize: String read GetSiteSize write SetSiteSize; //< size of site
@@ -1512,10 +1522,10 @@ begin
     status := ssOffline;
 end;
 
-procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
+procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string; kill: boolean = False);
 begin
   DestroySocket(False);
-  Relogin(0, False, aMessage);
+  Relogin(0, kill, aMessage);
 end;
 
 procedure TSiteSlot.Execute;
@@ -1925,54 +1935,44 @@ begin
   Result := False;
   dir := MyIncludeTrailingSlash(dir);
 
-  if ((dir <> aktdir) or (force)) then
+  if ((site.legacydirlist) or (force)) then
   begin
-    if ((site.legacydirlist) or (force)) then
+    if (not force) and (dir = aktdir) then
     begin
-      if not Send('CWD %s', [dir]) then
-        exit;
-      if not Read('CWD') then
-        exit;
+      Result := True;
+      exit;
+    end;
 
-      if (lastResponseCode = 250) then
+    if not Send('CWD %s', [dir]) then
+      exit;
+    if not Read('CWD') then
+      exit;
+
+    if (lastResponseCode = 250) then
+    begin
+      if (0 <> Pos('250- Matched ', lastresponse)) then
       begin
-        if (0 <> Pos('250- Matched ', lastresponse)) then
-        begin
-          Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
-
-          if dir[1] <> '/' then
-            aktdir := aktdir + dir
-          else
-            aktdir := dir;
-
-          Result := True;
-          exit;
-        end;
-        (*
-                if (0 <> Pos('Looks like this is a pre', lastresponse)) then
-                  pre:= True;
-        *)
-        if dir[1] <> '/' then
-          aktdir := aktdir + dir
-        else
-          aktdir := dir;
-      end
-      else
-      begin
-        //irc_addtext(todotask, '%s: %s', [name, trim(lastResponse)]);
-        Result := False;
+        Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
+        aktdir := dir;
+        Result := True;
         exit;
       end;
+			
+      aktdir := dir;
+      Result := True;
     end
     else
     begin
-      if dir[1] <> '/' then
-        aktdir := aktdir + dir
-      else
-        aktdir := dir;
+      Debug(dpMessage, section, 'CWD failed for %s: %d %s', [dir, lastResponseCode, Trim(lastResponse)]);
+      Result := False;
+      exit;
     end;
+  end
+  else
+  begin
+    aktdir := dir;
+    Result := True;
   end;
-  Result := True;
 end;
 
 function ParseSiteSoftwareVersionFromString(aSiteSoftWare: TSiteSw; const aText: String): String;
@@ -2017,7 +2017,7 @@ begin
 
 end;
 
-function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False): boolean;
+function TSiteSlot.LoginBnc(const i: integer; kill: boolean = False; skipReorder: boolean = False): boolean;
 var
   sslm: TSSLMethods;
   un, upw, tmp: String;
@@ -2248,7 +2248,8 @@ begin
   Result := True;
 
   // change order of bnc if the current successful bnc is not the first
-  if i <> 0 then
+  // skip reordering if this is called during BNC testing
+  if (i <> 0) and (not skipReorder) then
   begin
     bncList := TStringList.Create;
     bncList.CaseSensitive := False;
@@ -2330,6 +2331,7 @@ begin
   end;
 
   status := ssOnline;
+  site.FSocketInitErrorCount := 0; // Reset error counter on successful login
 
   if LastNonIdleTaskExecution = 0 then
     LastNonIdleTaskExecution := Now();
@@ -2414,6 +2416,59 @@ begin
           irc_Adderror(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
+end;
+
+procedure TSiteSlot.ReorderBncList(aBncList: TStringList);
+var
+  j: Integer;
+  tmpHost: String;
+  tmpPort: Integer;
+  splitted: TStringList;
+begin
+  if aBncList.Count < 1 then
+  begin
+    Debug(dpError, section, '[ReorderBncList] Empty BNC list provided for %s', [site.Name]);
+    exit;
+  end;
+
+  splitted := TStringList.Create;
+  bnccsere.Enter('ReorderBncList');
+  try
+    // Clear current BNC list
+    j := 0;
+    while (True) do
+    begin
+      if RCString('bnc_host-' + IntToStr(j), '') = '' then
+        break;
+
+      site.DeleteKey('bnc_host-' + IntToStr(j));
+      site.DeleteKey('bnc_port-' + IntToStr(j));
+      Debug(dpSpam, section, '[ReorderBncList] Removed BNC from %s: index %d', [site.Name, j]);
+      inc(j)
+    end;
+
+    // Re-add BNCs in new order
+    for j := 0 to aBncList.Count - 1 do
+    begin
+      splitString(aBncList[j], ':', splitted);
+      if splitted.Count >= 2 then
+      begin
+        tmpHost := splitted[0];
+        tmpPort := StrToIntDef(splitted[1], 0);
+        Debug(dpSpam, section, '[ReorderBncList] %s[%d]: %s:%d', [site.Name, j, tmpHost, tmpPort]);
+
+        self.site.WCString('bnc_host-' + IntToStr(j), tmpHost);
+        self.site.WCInteger('bnc_port-' + IntToStr(j), tmpPort);
+      end
+      else
+        Debug(dpError, section, '[ReorderBncList] Invalid BNC format: %s', [aBncList[j]]);
+    end;
+  finally
+    bnccsere.Leave;
+    FreeAndNil(splitted);
+  end;
+
+  Debug(dpMessage, section, '[ReorderBncList] Reordered %d BNCs for %s', [aBncList.Count, site.Name]);
 end;
 
 function TSiteSlot.ReLogin(limit_maxrelogins: integer = 0; kill: boolean = False; s_message: String = ''; const aShowDownMessageIfAlreadyDown: boolean = False): boolean;
@@ -2628,10 +2683,27 @@ begin
 
     if not WriteLn(s, site.io_timeout * 1000) then
     begin
-      irc_Adderror(todotask, '<c4>[ERROR Send]</c> %s: %s (%s)', [Name, error, s]);
+      // Rate-limit "Socket not initialized" errors to prevent IRC spam
+      if error = 'Socket not initialized' then
+      begin
+        Inc(site.FSocketInitErrorCount);
+
+        // Only report first 3 errors to IRC (site-wide, not per slot)
+        if site.FSocketInitErrorCount <= 3 then
+          irc_Adderror(todotask, '<c4>[ERROR Send]</c> %s: %s (%s)', [Name, error, s]);
+      end
+      else
+      begin
+        // For other errors, always report
+        irc_Adderror(todotask, '<c4>[ERROR Send]</c> %s: %s (%s)', [Name, error, s]);
+      end;
+
       DestroySocket(False);
       exit;
     end;
+
+    // Reset error counter on successful send
+    site.FSocketInitErrorCount := 0;
 
     LastIO := Now();
     Result := True;
@@ -3175,6 +3247,7 @@ begin
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
+  FSocketInitErrorCount := 0;
 
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
@@ -4088,7 +4161,8 @@ begin
     exit;
 
   // there is no need to add.
-  t := TLoginTask.Create('', '', Name, False, True);
+  // Autobnctest should behave like dev: only attempt login if needed, no full BNC benchmark
+  t := TLoginTask.Create('', '', Name, False, True, False);
   t.dontremove := True;
   try
     AddTask(t);
@@ -4769,6 +4843,36 @@ end;
 procedure TSite.SetAutoDirlistSections(const Value: String);
 begin
   WCString('autodirlistsections', Value);
+end;
+
+function TSite.GetNewdirDirlistReadd: integer;
+begin
+  Result := RCInteger('newdir_dirlist_readd', 0);
+end;
+
+procedure TSite.SetNewdirDirlistReadd(const Value: integer);
+begin
+  WCInteger('newdir_dirlist_readd', Value);
+end;
+
+function TSite.GetDirlistPriority: integer;
+begin
+  Result := RCInteger('dirlist_priority', 2); // Default to Normal (spNormal = 2)
+end;
+
+procedure TSite.SetDirlistPriority(const Value: integer);
+begin
+  WCInteger('dirlist_priority', Value);
+end;
+
+function TSite.GetPerformanceAdjustedDirlist: Boolean;
+begin
+  Result := RCBool('performance_adjusted_dirlist', True); // Default to enabled
+end;
+
+procedure TSite.SetPerformanceAdjustedDirlist(const Value: Boolean);
+begin
+  WCBool('performance_adjusted_dirlist', Value);
 end;
 
 function TSite.GetSiteFullName;

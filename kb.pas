@@ -47,6 +47,14 @@ function FindSectionHandler(const section: String): TCRelease;
       @returns(The number of items in the KB) }
 function GetKBCount: integer;
 
+{ Returns a reference to the KB list (read-only access)
+      @returns(The KB list stringlist) }
+function GetKBList: TStringList;
+
+{ Returns a reference to the KB lock for thread-safe access
+      @returns(The KB critical section) }
+function GetKBLock: TSlCriticalSection2;
+
 { Lists all KB entries to IRC which match the given section
       @param(section The section to show the KB entries of.)
       @param(hits The limit of how many entries should be listed.) }
@@ -74,7 +82,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -111,6 +119,16 @@ function GetKBCount: integer;
 begin
   // access to Count is thread safe, so no lock required
   Result := kb_list.Count;
+end;
+
+function GetKBList: TStringList;
+begin
+  Result := kb_list;
+end;
+
+function GetKBLock: TSlCriticalSection2;
+begin
+  Result := kb_lock;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
@@ -192,6 +210,8 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  timeoutMs: integer;
+  startTick, elapsedMs: Uint64;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -411,6 +431,8 @@ begin
       if (event = kbeNUKE) then
       begin
         // nuking an old rls not in kb
+        IssueLog('NUKE', section, rls, sitename, 'not in kb', KBEventTypeToString(event),
+          'NUKE|' + sitename + '|' + rls);
         irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ %s (not in kb)',
           [section, rls, '<b>' + sitename + '</b>']));
         exit;
@@ -473,7 +495,20 @@ begin
       p := PazoAdd(r);
 
       // need to search all sites where there is such a section ...
-      p.AddSites;
+      timeoutMs := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
+      if timeoutMs > 0 then
+      begin
+        startTick := GetTickCount64;
+        p.AddSites;
+        elapsedMs := GetTickCount64 - startTick;
+        if elapsedMs >= Uint64(timeoutMs) then
+          Debug(dpError, rsections, 'kb_AddB_2 AddSites took %d ms (event=%s section=%s rls=%s site=%s)',
+            [elapsedMs, KBEventTypeToString(event), section, rls, sitename]);
+      end
+      else
+      begin
+        p.AddSites;
+      end;
 
       kb_list.BeginUpdate;
       try
@@ -572,7 +607,20 @@ begin
           begin
             if spamcfg.ReadBool('kb', 'updated_rls', True) then
               irc_SendUPDATE(Format('<c3>[UPDATE]</c> %s %s @ <b>%s</b> now has pretime (<c3><b>%s ago</b></c>) (%s)', [section, rls, sitename, dbaddpre_GetPreduration(r.pretime), r.PretimeSource]));
-            p.AddSites;
+            timeoutMs := config.ReadInteger('debug', 'event_based_locking_timeout', 0);
+            if timeoutMs > 0 then
+            begin
+              startTick := GetTickCount64;
+              p.AddSites;
+              elapsedMs := GetTickCount64 - startTick;
+              if elapsedMs >= Uint64(timeoutMs) then
+                Debug(dpError, rsections, 'kb_AddB_2 AddSites took %d ms (event=%s section=%s rls=%s site=%s)',
+                  [elapsedMs, KBEventTypeToString(event), section, rls, sitename]);
+            end
+            else
+            begin
+              p.AddSites;
+            end;
           end;
         end;
       end;
@@ -634,7 +682,12 @@ begin
 
         if ((sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp])) then
         begin
-          irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+          if (p.rls.section <> '') and (s.sectiondir[p.rls.section] = '') then
+          begin
+            irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+            IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event),
+              'MISSING_SECTION|' + sitename + '|' + p.rls.section, 300);
+          end;
         end;
       end;
 
@@ -657,6 +710,17 @@ begin
     s := FindSiteByName(netname, psource.Name);
     if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
+
+    // PRE-events usually already have psource assigned, so we must check missing section here too.
+    if (s <> nil) and (sitename <> getAdminSiteName) and (not s.PermDown) and (s.WorkingStatus in [sstUnknown, sstUp]) then
+    begin
+      if (p.rls.section <> '') and (s.sectiondir[p.rls.section] = '') then
+      begin
+        irc_Addstats(Format('<c5>[SECTION NOT SET]</c> : %s %s @ %s (%s)', [p.rls.section, p.rls.rlsname, sitename, KBEventTypeToString(event)]));
+        IssueLog('MISSING_SECTION', p.rls.section, p.rls.rlsname, sitename, '', KBEventTypeToString(event),
+          'MISSING_SECTION|' + sitename + '|' + p.rls.section, 300);
+      end;
+    end;
 
     psource.ircevent := True;
 
@@ -691,6 +755,8 @@ begin
       psource.Status := rssNuked;
       irc_Addstats(Format('<c4>[NUKE]</c> %s %s @ <b>%s</b>',
         [section, rls, sitename]));
+      IssueLog('NUKE', p.rls.section, p.rls.rlsname, psource.Name, '', KBEventTypeToString(event),
+        'NUKE|' + psource.Name + '|' + p.rls.rlsname);
       try
         RemovePazoMKDIR(p.pazo_id, psource.Name, rls);
         RemoveRaceTasks(p.pazo_id, psource.Name);
@@ -728,11 +794,15 @@ begin
     begin
       if (rule_result = raDrop) and (spamcfg.ReadBool('kb', 'skip_rls', True)) then
       begin
+        IssueLog('SKIP', p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event),
+          'SKIP|' + psource.Name + '|' + p.rls.rlsname);
         irc_Addstats(Format('<c5>[SKIP]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end
       else if (rule_result = raDontmatch) and (spamcfg.ReadBool('kb', 'dont_match_rls', True)) then
       begin
+        IssueLog('DONT_MATCH', p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event),
+          'DONT_MATCH|' + psource.Name + '|' + p.rls.rlsname);
         irc_Addstats(Format('<c5>[DONT MATCH]</c> : %s %s @ %s "%s" (%s)',
           [p.rls.section, p.rls.rlsname, psource.Name, psource.reason, KBEventTypeToString(event)]));
       end;
@@ -1194,6 +1264,8 @@ procedure kb_Save;
 var
   i: integer;
   x: TEncStringList;
+  kb_lines: TStringList;
+  kb_renames: TStringList;
   p: TPazo;
 
   function GetKbPazoInfoLine(p: TPazo): String;
@@ -1207,41 +1279,57 @@ var
 begin
   kb_last_saved := Now();
   Debug(dpSpam, rsections, 'kb_Save');
-  x := TEncStringList.Create(passphrase);
+  kb_lines := TStringList.Create;
+  kb_renames := TStringList.Create;
   try
+    kb_lock.Enter('kb_save_snapshot');
     try
-      for i := 0 to kb_list.Count - 1 do
-      begin
-        p := TPazo(kb_list.Objects[i]);
-        if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
-          (1 <> Pos('REQUEST-', kb_list[i])) and
-          (SecondsBetween(Now, p.added) < kb_keep_entries)) then
-          x.Add(GetKbPazoInfoLine(p));
-      end;
-    except
-      exit;
-    end;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
-  finally
-    x.Free;
-  end;
+      try
+        for i := 0 to kb_list.Count - 1 do
+        begin
+          p := TPazo(kb_list.Objects[i]);
+          if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
+            (1 <> Pos('REQUEST-', kb_list[i])) and
+            (SecondsBetween(Now, p.added) < kb_keep_entries)) then
+            kb_lines.Add(GetKbPazoInfoLine(p));
+        end;
 
-  debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
-  x := TEncStringList.Create(passphrase);
-  try
-    try
-      for i := 0 to kb_skip.Count - 1 do
-      begin
-        if i > 249 then
-          break;
-        x.Add(kb_skip[i]);
+        for i := 0 to kb_skip.Count - 1 do
+        begin
+          if i > 249 then
+            break;
+          kb_renames.Add(kb_skip[i]);
+        end;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] kb_Save snapshot: %s', [e.Message]));
+          exit;
+        end;
       end;
-    except
-      exit;
+    finally
+      kb_lock.Leave;
     end;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
+
+    x := TEncStringList.Create(passphrase);
+    try
+      x.Assign(kb_lines);
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
+    finally
+      x.Free;
+    end;
+
+    debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
+    x := TEncStringList.Create(passphrase);
+    try
+      x.Assign(kb_renames);
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
+    finally
+      x.Free;
+    end;
   finally
-    x.Free;
+    kb_lines.Free;
+    kb_renames.Free;
   end;
 end;
 
@@ -1630,10 +1718,13 @@ begin
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
-              j := kb_latest.IndexOf(p.rls.rlsname);
-              if j <> -1 then
+              if p.rls <> nil then
               begin
-                kb_latest.Delete(j);
+                j := kb_latest.IndexOf(p.rls.rlsname);
+                if j <> -1 then
+                begin
+                  kb_latest.Delete(j);
+                end;
               end;
               fDeletedPazos.Add(p);
             end;
@@ -1700,12 +1791,7 @@ begin
       if ((kb_save_entries <> 0) and (SecondsBetween(Now(), kb_last_saved) > kb_save_entries)) then
       begin
         try
-          kb_lock.Enter('kb_save');
-          try
-            kb_Save;
-          finally
-            kb_lock.Leave;
-          end;
+          kb_Save;
         except
           on e: Exception do
           begin

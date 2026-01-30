@@ -89,6 +89,13 @@ var
   config_taskpretime_regexp: RawByteString;
   FDbCleanupCounter: TIdThreadSafeInt32;
 
+  // MySQL field name caches for taskmysqlpretime
+  glMySQLPretimeTableName: String;    //< Cache for 'taskmysqlpretime'/'tablename'
+  glMySQLPretimeRlsNameField: String; //< Cache for 'taskmysqlpretime'/'rlsname_field'
+  glMySQLPretimeRlsDateField: String; //< Cache for 'taskmysqlpretime'/'rlsdate_field'
+  glMySQLPretimeSectionField: String; //< Cache for 'taskmysqlpretime'/'section_field'
+  glMySQLPretimeSourceField: String;  //< Cache for 'taskmysqlpretime'/'source_field'
+
 procedure setPretimeMode_One(mode: TPretimeLookupMode);
 begin
   dbaddpre_plm1 := mode;
@@ -225,9 +232,9 @@ begin
   if rls = '' then
     irc_adderror('No Releasename as parameter!');
 
-  fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
-  fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-  fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
+  fTimeField := glMySQLPretimeRlsDateField;
+  fTableName := glMySQLPretimeTableName;
+  fReleaseField := glMySQLPretimeRlsNameField;
 
   fQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
   try
@@ -432,11 +439,11 @@ begin
       begin
         fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
         try
-          fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
-          fReleaseField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
-          fSectionField := config.ReadString('taskmysqlpretime', 'section_field', 'section');
-          fTimeField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
-          fSourceField := config.ReadString('taskmysqlpretime', 'source_field', '-1');
+          fTableName := glMySQLPretimeTableName;
+          fReleaseField := glMySQLPretimeRlsNameField;
+          fSectionField := glMySQLPretimeSectionField;
+          fTimeField := glMySQLPretimeRlsDateField;
+          fSourceField := glMySQLPretimeSourceField;
 
           if fSourceField = '-1' then
           begin
@@ -533,7 +540,7 @@ begin
       begin
           fMySQLQuery := TSqlDBZeosStatement.Create(MySQLCon.ThreadSafeConnection);
           try
-            fTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+            fTableName := glMySQLPretimeTableName;
             fMySQLQuery.Prepare('SELECT count(*) FROM `' + fTableName + '`', True);
             fMySQLQuery.ExecutePrepared;
             if not fMySQLQuery.Step then
@@ -626,6 +633,13 @@ begin
 
   config_taskpretime_url := config.readString('taskpretime', 'url', '');
   config_taskpretime_regexp := RawByteString(config.readString('taskpretime', 'regexp', '(\S+) (?<pretime>\d+) (\S+) (\S+) (\S+)$'));
+
+  // Initialize MySQL field name caches
+  glMySQLPretimeTableName := config.ReadString('taskmysqlpretime', 'tablename', 'addpre');
+  glMySQLPretimeRlsNameField := config.ReadString('taskmysqlpretime', 'rlsname_field', 'rls');
+  glMySQLPretimeSectionField := config.ReadString('taskmysqlpretime', 'section_field', 'section');
+  glMySQLPretimeRlsDateField := config.ReadString('taskmysqlpretime', 'rlsdate_field', 'ts');
+  glMySQLPretimeSourceField := config.ReadString('taskmysqlpretime', 'source_field', '-1');
 
   FDbCleanupCounter := TIdThreadSafeInt32.Create;
 

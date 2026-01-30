@@ -1,10 +1,15 @@
 unit irccommands.work;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
 
 { slftp work commands functions }
 function IrcDirlist(const netname, channel, params: String): boolean;
 function IrcAutoDirlist(const netname, channel, params: String): boolean;
+function IrcNewdirlistReadd(const netname, channel, params: String): boolean;
+function IrcDirlistPriority(const netname, channel, params: String): boolean;
 function IrcLatest(const netname, channel, params: String): boolean;
 function IrcSpread(const netname, channel, params: String): boolean; overload;
 function IrcSpread(const netname, channel, params: String; const verbose: boolean): boolean; overload;
@@ -22,7 +27,8 @@ implementation
 uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, kb.releaseinfo, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
-  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections;
+  globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections,
+  dirlist.helpers;
 
 const
   section = 'irccommands.work';
@@ -151,6 +157,213 @@ begin
 
   if fNeedTaskCreate then
     s.AutoDirlist;
+
+  Result := True;
+end;
+
+function IrcNewdirlistReadd(const netname, channel, params: String): boolean;
+var
+  sitename: String;
+  interval: integer;
+  s: TSite;
+begin
+  Result := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  interval := StrToIntDef(SubString(params, ' ', 2), -1);
+
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
+    exit;
+  end;
+
+  if interval > -1 then
+  begin
+    if interval = 0 then
+    begin
+      s.DeleteKey('newdir_dirlist_readd');
+      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s reset to global default (%d ms)', 
+                  [sitename, GetNewdirDirlistReaddValue()]);
+    end
+    else
+    begin
+      s.NewdirDirlistReadd := interval;
+      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s set to %d ms', 
+                  [sitename, interval]);
+    end;
+  end
+  else
+  begin
+    if s.NewdirDirlistReadd = 0 then
+      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s: global default (%d ms)', 
+                  [sitename, GetNewdirDirlistReaddValue()])
+    else
+      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s: %d ms', 
+                  [sitename, s.NewdirDirlistReadd]);
+  end;
+
+  Result := True;
+end;
+
+function IrcDirlistPriority(const netname, channel, params: String): boolean;
+var
+  sitename, valueToken, modeToken: String;
+  s: TSite;
+  priorityValue: Integer;
+  overview: TStringList;
+  modeText: String;
+  i: Integer;
+  priorityChanged, modeChanged: Boolean;
+  newMode: Boolean;
+
+  function PriorityText(const value: Integer): String;
+  begin
+    case value of
+      0: Result := 'VeryLow';
+      1: Result := 'Low';
+      2: Result := 'Normal';
+      3: Result := 'High';
+      4: Result := 'VeryHigh';
+    else
+      Result := 'Unknown';
+    end;
+  end;
+
+begin
+  Result := False;
+  sitename := UpperCase(SubString(params, ' ', 1));
+  valueToken := UpperCase(SubString(params, ' ', 2));
+  modeToken := UpperCase(SubString(params, ' ', 3));
+  
+  // No sitename -> show overview
+  if sitename = '' then
+  begin
+    overview := TStringList.Create;
+    try
+      for i := 0 to sitesunit.sites.Count - 1 do
+      begin
+        s := TSite(sitesunit.sites[i]);
+        priorityValue := s.DirlistPriority;
+        if s.PerformanceAdjustedDirlist then
+          modeText := 'dyn=on'
+        else
+          modeText := 'dyn=off';
+        overview.Add(Format('%-15s: %d (%s) %s',
+          [s.Name, priorityValue, PriorityText(priorityValue), modeText]));
+      end;
+
+      irc_addtext(Netname, Channel, 'Dirlist priorities (default = 2 / Normal):');
+      for i := 0 to overview.Count - 1 do
+        irc_addtext(Netname, Channel, '  %s', [overview[i]]);
+    finally
+      overview.Free;
+    end;
+
+    Result := True;
+    Exit;
+  end;
+
+  s := FindSiteByName(Netname, sitename);
+  if s = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
+    Exit;
+  end;
+
+  // Set or reset priority
+  if valueToken <> '' then
+  begin
+    priorityChanged := False;
+    modeChanged := False;
+
+    if valueToken = 'RESET' then
+    begin
+      s.DeleteKey('dirlist_priority');
+      priorityChanged := True;
+    end
+    else
+    begin
+      // Check if it's a numeric priority value first (0-4)
+      priorityValue := StrToIntDef(valueToken, -1);
+      if (priorityValue >= 0) and (priorityValue <= 4) then
+      begin
+        s.DirlistPriority := priorityValue;
+        priorityChanged := True;
+      end
+      else if (valueToken = 'ON') or (valueToken = 'ENABLE') then
+      begin
+        s.PerformanceAdjustedDirlist := True;
+        modeChanged := True;
+      end
+      else if (valueToken = 'OFF') or (valueToken = 'DISABLE') then
+      begin
+        s.PerformanceAdjustedDirlist := False;
+        modeChanged := True;
+      end
+      else
+      begin
+        irc_addtext(Netname, Channel, 'Invalid value %s. Use 0-4, ON/OFF, or RESET.', [valueToken]);
+        Exit;
+      end;
+    end;
+
+    if modeToken <> '' then
+    begin
+      if (modeToken = 'ON') or (modeToken = 'ENABLE') or (modeToken = '1') then
+      begin
+        s.PerformanceAdjustedDirlist := True;
+        modeChanged := True;
+      end
+      else if (modeToken = 'OFF') or (modeToken = 'DISABLE') or (modeToken = '0') then
+      begin
+        s.PerformanceAdjustedDirlist := False;
+        modeChanged := True;
+      end
+      else if modeToken <> 'DEFAULT' then
+      begin
+        irc_addtext(Netname, Channel, 'Unknown mode %s. Use ON/OFF.', [modeToken]);
+        Exit;
+      end;
+    end;
+
+    if priorityChanged or modeChanged then
+    begin
+      priorityValue := s.DirlistPriority;
+      if priorityChanged then
+      begin
+        irc_addtext(Netname, Channel, 'Dirlist priority for %s set to %d (%s)',
+          [s.Name, priorityValue, PriorityText(priorityValue)]);
+      end;
+
+      if modeChanged then
+      begin
+        if s.PerformanceAdjustedDirlist then
+          irc_addtext(Netname, Channel, 'Dirlist performance adjustment for %s: ON', [s.Name])
+        else
+          irc_addtext(Netname, Channel, 'Dirlist performance adjustment for %s: OFF', [s.Name]);
+      end;
+
+      Result := True;
+      Exit;
+    end
+    else
+    begin
+      irc_addtext(Netname, Channel, 'No changes applied.');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // No valueToken -> display current
+  priorityValue := s.DirlistPriority;
+  newMode := s.PerformanceAdjustedDirlist;
+  irc_addtext(Netname, Channel, 'Dirlist priority for %s: %d (%s)',
+    [s.Name, priorityValue, PriorityText(priorityValue)]);
+  if newMode then
+    irc_addtext(Netname, Channel, 'Performance adjustment: ON')
+  else
+    irc_addtext(Netname, Channel, 'Performance adjustment: OFF');
 
   Result := True;
 end;

@@ -63,7 +63,7 @@ begin
   if (s.WorkingStatus = sstMarkedAsDownByUser) then
     s.WorkingStatus := sstUnknown;
 
-  l := TLoginTask.Create(Netname, Channel, s.Name, kill, False);
+  l := TLoginTask.Create(Netname, Channel, s.Name, kill, False, True);
   if tn <> nil then
     tn.AddTask(l);
 
@@ -2068,8 +2068,12 @@ begin
     exit;
   end;
 
-  irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
-    [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]));
+  if s.slots.Count > 1 then
+    irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d (Reserved: 1) Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
+      [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]))
+  else
+    irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
+      [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]));
 
   for i := 0 to s.slots.Count - 1 do
   begin
@@ -2250,10 +2254,37 @@ function IrcKill(const netname, channel, params: String): boolean;
 var
   sitename: String;
   s: TSite;
+  i: Integer;
+  killCount: Integer;
 begin
   Result := False;
 
   sitename := UpperCase(params);
+
+  if sitename = '*' then
+  begin
+    Result := True;
+    killCount := 0;
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites.Items[i]);
+      if s.Name = getAdminSiteName then
+        Continue;
+
+      if _Bnctest(Netname, Channel, s, nil, True) then
+      begin
+        s.QueueFire;
+        Inc(killCount);
+      end;
+    end;
+
+    if killCount > 0 then
+      irc_addtext(Netname, Channel, 'Ghost connections killed on <b>%d</b> sites.', [killCount])
+    else
+      irc_addtext(Netname, Channel, 'No ghost connections found to kill.');
+    exit;
+  end;
+
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
@@ -2262,9 +2293,7 @@ begin
   end;
 
   if (s.Name = getAdminSiteName) then
-  begin
     exit;
-  end;
 
   if _Bnctest(Netname, Channel, s, nil, True) then
     s.QueueFire;

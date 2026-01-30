@@ -1541,6 +1541,7 @@ var
   ldepth: Integer;
   s, fDirPathHelper: String;
   sf: TSkipListFilter;
+  siteSkipList: TSkipList;
 begin
   if dirlist.skiplist = nil then exit;
 
@@ -1621,6 +1622,79 @@ begin
       begin
         irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> dirdepth %s %s : %s%s', [dirlist.site_name, dirlist.skiplist.sectionname, fDirPathHelper, filename]));
         skiplisted := True;
+      end;
+    end;
+
+    if not skiplisted then
+    begin
+      siteSkipList := FindSiteSkipList(dirlist.site_name, dirlist.skiplist.sectionname);
+      if siteSkipList <> nil then
+      begin
+        if not directory then
+        begin
+          s := dirlist.Dirname;
+          if siteSkipList.ShouldSkipFileUp(s, filename) then
+          begin
+            skiplisted := True;
+            if dirlist.skipped.IndexOf(filename) = -1 then
+            begin
+              dirlist.skipped.Add(filename);
+              irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Site-specific skip file (UP) %s %s %s : %s%s',
+                [dirlist.site_name, siteSkipList.sectionname, s, fDirPathHelper, filename]));
+            end;
+            exit;
+          end
+          else if siteSkipList.ShouldSkipFileDn(s, filename) then
+          begin
+            skiplisted := True;
+            if dirlist.skipped.IndexOf(filename) = -1 then
+            begin
+              dirlist.skipped.Add(filename);
+              irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Site-specific skip file (DN) %s %s %s : %s%s',
+                [dirlist.site_name, siteSkipList.sectionname, s, fDirPathHelper, filename]));
+            end;
+            exit;
+          end
+          else if siteSkipList.ShouldSkipFile(s, filename) then
+          begin
+            skiplisted := True;
+            if dirlist.skipped.IndexOf(filename) = -1 then
+            begin
+              dirlist.skipped.Add(filename);
+              irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Site-specific skip file %s %s %s : %s%s',
+                [dirlist.site_name, siteSkipList.sectionname, s, fDirPathHelper, filename]));
+            end;
+            exit;
+          end;
+        end
+        else
+        begin
+          s := dirlist.Dirname;
+          if siteSkipList.ShouldSkipDirUp(s, filename) then
+          begin
+            skiplisted := True;
+            dirlist.skipped.Add(filename);
+            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Site-specific skip dir (UP) %s %s : %s%s',
+              [dirlist.site_name, siteSkipList.sectionname, fDirPathHelper, filename]));
+            exit;
+          end
+          else if siteSkipList.ShouldSkipDirDn(s, filename) then
+          begin
+            skiplisted := True;
+            dirlist.skipped.Add(filename);
+            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Site-specific skip dir (DN) %s %s : %s%s',
+              [dirlist.site_name, siteSkipList.sectionname, fDirPathHelper, filename]));
+            exit;
+          end
+          else if siteSkipList.ShouldSkipDir(s, filename) then
+          begin
+            skiplisted := True;
+            dirlist.skipped.Add(filename);
+            irc_Addtext_by_key('SKIPLOG', Format('<c2>[SKIP]</c> Site-specific skip dir %s %s : %s%s',
+              [dirlist.site_name, siteSkipList.sectionname, fDirPathHelper, filename]));
+            exit;
+          end;
+        end;
       end;
     end;
   end;

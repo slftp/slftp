@@ -2,7 +2,7 @@ SHELL = bash
 SLFTPPATH = ~/slftp
 CC = fpc
 CFLAGS = -MDelphi -O3 -Xs
-CINCLUDES = -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
+CINCLUDES = -Fuapi -Fuirccommands -Furules -Fulibs/BeRoHighResolutionTimer -Fulibs/FLRE -Fulibs/rcmdline -Fulibs/lkJSON -Fulibs/TRegExpr -Fulibs/pasmp -Fulibs/Indy10/* -Fulibs/Indy10/Protocols -Fulibs/Indy10/Protocols/OpenSSL -Fulibs/Indy10/Protocols/OpenSSL/* -Fulibs/LibTar -Fulibs/mORMot2/src/core -Fulibs/mORMot2/src/lib -Fulibs/mORMot2/src/crypt -Fulibs/mORMot2/src/db -Fulibs/mORMot2/src/orm -Fulibs/mORMot2/src/rest -Fulibs/mORMot2/src/soa -Fulibs/ZeosLib/* -Fulibs/mORMot2/src/net/
 CTESTINCLUDES = -Futests/* -Futests/fptest/*
 CDBFLAGS = -dDEBUG -MDelphi -gl -gp -gw3
 # flag for heaptrace output
@@ -27,6 +27,8 @@ all: slftp install
 all_32: slftp_32 install
 
 all_64: slftp_64 install
+
+all-with-ui: slftp web-ui-prod
 
 slftp:	FORCE
 	$(MAKE) clean
@@ -100,7 +102,13 @@ cleanuptestdir:
 	@rm -f tests/*.res tests/*.or
 
 install:
-	@cp slftp $(SLFTPPATH)/slftp
+	@if [ -d "$(SLFTPPATH)" ]; then \
+		cp slftp $(SLFTPPATH)/slftp; \
+		echo "Installed slftp to $(SLFTPPATH)/slftp"; \
+	else \
+		echo "Warning: $(SLFTPPATH) does not exist. Skipping install."; \
+		echo "Copy manually: cp slftp /your/path/"; \
+	fi
 
 # empty target to force execution
 FORCE:
@@ -118,3 +126,52 @@ revpatchrevert: FORCE
 	@if [ -d ".git" ]; then \
         perl replace_git_commit.pl ;\
     fi
+
+.PHONY: web-ui-build web-ui-deploy web-ui-prod
+
+WEB_UI_DIR = web-ui
+# WEB_DEPLOY_DIR can be overridden: make web-ui-deploy WEB_DEPLOY_DIR=/custom/path
+WEB_DEPLOY_DIR ?= ./web
+
+web-ui-build:
+	@echo "Building Web UI..."
+	@cd $(WEB_UI_DIR) && npm install && npm run build
+	@echo "Web UI built successfully in $(WEB_UI_DIR)/dist/"
+	@echo ""
+	@echo "To deploy manually:"
+	@echo "  cp -r $(WEB_UI_DIR)/dist/* /your/slftp/web/"
+
+web-ui-deploy: web-ui-build
+	@echo "Deploying Web UI to $(WEB_DEPLOY_DIR)..."
+	@set -euo pipefail; \
+	deploy_dir="$(WEB_DEPLOY_DIR)"; \
+	if [[ -z "$$deploy_dir" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR is empty; refusing to deploy."; \
+		exit 2; \
+	fi; \
+	deploy_real="$$(realpath -m "$$deploy_dir")"; \
+	repo_real="$$(realpath -m .)"; \
+	if [[ "$$deploy_real" == "/" || "$$deploy_real" == "$$repo_real" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR=$$deploy_real is unsafe; refusing to delete anything."; \
+		exit 2; \
+	fi; \
+	if [[ -e "$$deploy_real/slftp.lpr" || -d "$$deploy_real/.git" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR=$$deploy_real looks like a source checkout; refusing."; \
+		exit 2; \
+	fi; \
+	if [[ -e "$$deploy_real/slftp.ini" || -e "$$deploy_real/sites.dat" || -e "$$deploy_real/slftp" || -e "$$deploy_real/slftp_x86" || -e "$$deploy_real/slftp_x64" || -e "$$deploy_real/slftp_x86.exe" || -e "$$deploy_real/slftp_x64.exe" ]]; then \
+		echo "ERROR: WEB_DEPLOY_DIR=$$deploy_real looks like a slftp install dir; refusing to clean it."; \
+			echo "Hint: deploy into a dedicated web folder, e.g. $$deploy_real/web"; \
+			exit 2; \
+		fi; \
+		mkdir -p "$$deploy_real"
+	@echo "Cleaning old files..."
+	@set -euo pipefail; \
+	deploy_real="$$(realpath -m "$(WEB_DEPLOY_DIR)")"; \
+	shopt -s dotglob nullglob; \
+	rm -rf -- "$$deploy_real"/*; \
+	cp -r -- "$(WEB_UI_DIR)/dist/"* "$$deploy_real"/
+	@echo "Web UI deployed to $(WEB_DEPLOY_DIR)"
+	@echo "Note: Login with API key from slftp.ini [api] section"
+
+web-ui-prod: web-ui-deploy

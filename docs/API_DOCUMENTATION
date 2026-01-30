@@ -1,0 +1,181 @@
+slftp REST API Documentation (Beta)
+Status: Early beta; Windows untested.
+
+Base URL
+- http://<host>:<port>/api (default http://127.0.0.1:8089/api)
+- Calls are POST to /api/<Interface>/<Method> with JSON bodies; responses often wrap data in result: [ ... ].
+
+Authentication
+- If apikey is set in config/slftp.ini, send Authorization: Bearer <key>.
+- If apikey is empty, no auth required (not recommended on exposed hosts).
+- API key protection only applies to /api/* paths; web UI is served without auth.
+
+Implemented Endpoints
+
+System (ApiSystemService)
+- GetStatus: Returns Version, Uptime, SitesCount/Up/Down, QueueSize, ActiveTasks.
+- GetUptime: Returns uptime in seconds.
+- GetVersion: Returns version string.
+- Shutdown: Initiates graceful shutdown.
+- CreateBackup: Creates configuration backup.
+- GetRecentReleases: Body {"Limit": 20}. Returns recent releases with site counts (TotalSites, AllowedSites, PresentSites, ExpectedSites, NotAllowedSites).
+- GetReleaseDetails: Body {"PazoId": <id>}. Returns release details.
+- GetAutoStatus: Body {}. Returns global auto status.
+- SetAutoStatus: Body {"Enabled":true|false}. Sets global auto status.
+
+Sites (ApiSitesService)
+- GetSites: Body {"Filter":""}. Returns list of sites.
+- GetSite: Body {"SiteName":"<name>"}. Returns basic site details.
+- GetSiteCredits: Body {"SiteName":"<name>", "ForceRefresh":true|false}. Returns credits/ratio data.
+- GetSiteInfo: Body {"SiteName":"<name>"}. Returns full site details including BNCs, automation settings, country, etc.
+- AddSite: Body {"Name":"...", "Host":"...", "Port":21, "Username":"...", "Password":"...", "SslEnabled":true|false}
+- DeleteSite: Body {"SiteName":"<name>"}
+- SetSiteStatus: Body {"SiteName":"<name>","Status":"UP|DOWN"}
+- SetSiteSlots: Body {"SiteName":"<name>","Slots":<int>}
+- SetSiteMaxUpDn: Body {"SiteName":"<name>","MaxUp":<int>,"MaxDn":<int>}
+- SetSiteMaxPreDn: Body {"SiteName":"<name>","MaxPreDn":<int>}
+- SetSitePermDown: Body {"SiteName":"<name>","PermDown":true|false}
+- SetSiteAutoLogin: Body {"SiteName":"<name>","Enabled":true|false}
+- SetSiteAutoRules: Body {"SiteName":"<name>","IntervalSeconds":<int>}
+- SetSiteAffils: Body {"SiteName":"<name>","Affils":"GRP1 GRP2"}
+- SetSiteIrcNick: Body {"SiteName":"<name>","IrcNick":"..."}
+- SetSiteCredentials: Sets detailed credentials/BNCs.
+- SetSiteConfig: Body {"SiteName":"<name>", "Config":{...}}. Sets misc options (autobnctest, country, etc).
+- RunSiteAutoRules: Body {"SiteName":"<name>"}
+- GetSiteRoutes: Body {"SiteName":"<name>"}
+- SetSiteRoute: Body {"SourceSite":"...", "DestSite":"...", "Speed":<int>, "Locked":bool, "AffilOnly":bool, "NoAffil":bool}
+- TestSite: Body {"SiteName":"<name>"}
+- ResolveHostname: Body {"Hostname":"..."}
+- GhostSite: Body {"SiteName":"<name>"}
+- RecalcFreeSlots: Body {"SiteName":"<name>"}
+- RebuildSlots: Body {"SiteName":"<name>"}
+- ExecuteIrcCommand: Body {"Command":"..."}
+- GetAvailableSections: Returns list of known sections.
+- GetSiteSections: Body {"SiteName":"<name>"}
+- SetSiteSection: Body {"SiteName":"...", "Section":"...", "Dir":"..."}
+- GetSiteRtpl: Body {"SiteName":"<name>"}. Returns raw RTPL file content.
+- GetSiteRulesSnapshot: Body {"SiteName":"<name>"}. Returns the cached SITE RULES snapshot.
+- SaveSiteRtpl: Body {"SiteName":"...", "Content":"...", "ExpectedMd5":"...", "Reload":bool}
+- ValidateRtpl: Body {"Content":"..."}
+- ReloadRules: Reloads all rules.
+- GetRuleConditions: Returns available rule conditions.
+
+Queue (ApiQueueService)
+- GetQueueStats: Returns stats.
+- GetQueue: Body {"SiteName":"<name>"}. Returns queue items.
+- GetTask: Body {"TaskUid":<int>}.
+- CreateDirlistTask: Body {"SiteName":"...", "Section":"...", "Dir":"..."}
+- CreateSpreadTask: Body {"SourceSite":"...", "Section":"...", "Release":"..."}
+- CreateTransferTask: Body {"SourceSite":"...", "DestSite":"...", "Section":"...", "Dir":"...", "FileName":"..."}
+- CreateReleaseTransferTask: Body {"SourceSite":"...", "DestSite":"...", "SourceDir":"...", "DestDir":"...", "RlsName":"..."}
+- StopTask: Body {"TaskUid":<int>}
+- EmptyQueue: Body {"SiteName":"..."}
+
+Stats (ApiStatsService)
+- GetRaceStats: Body {"SiteName":"...", "Period":"DAY|MONTH|YEAR", "Detailed":bool}
+- GetRanks: Body {"SiteName":"..."}
+- SetRank: Body {"SiteName":"...", "Section":"...", "Score":<int>}
+- RecalculateRanks: Recalculates all ranks.
+
+Races (ApiRacesService)
+- GetRaces: Body {"Page":<int>, "PageSize":<int>, "SinceUnix":<int>}
+- GetReleaseTransfers: Body {"Release":"...", "Page":<int>, "PageSize":<int>, "SinceUnix":<int>}
+
+IRC (ApiIrcService)
+- GetNetworks: Returns networks.
+- GetNetworkConfig: Body {"NetName":"..."}.
+- GetNetworkStatus: Body {"NetName":"..."}
+- GetChannels: Body {"NetName":"..."}
+- SendMessage: Body {"NetName":"...", "Channel":"...", "Message":"..."}
+- JumpServer: Body {"NetName":"..."}
+- SetChannelBlowkey: Body {"NetName":"...", "Channel":"...", "Blowkey":"..."}
+- SetChannelKey: Body {"NetName":"...", "Channel":"...", "ChanKey":"..."}
+- SetChannelRoles: Body {"NetName":"...", "Channel":"...", "Roles":"..."}
+- SetNetworkConfig: Body {"NetName":"...", "Config":{...}}.
+- AddChannel: Body {"NetName":"...", "Channel":"...", "ChanKey":"...", "Blowkey":"...", "Roles":"..."}
+- DeleteChannel: Body {"NetName":"...", "Channel":"..."}
+- AddNetwork: Body {"NetName":"...", "Host":"...", "Port":6697, "Ssl":true, "Password":"...", "Nick":"...", "Ident":"...", "User":"..."}
+- DeleteNetwork: Body {"NetName":"..."}
+
+Rules (ApiRulesService)
+- GetRules: Body {"SiteName":"...", "Section":"..."}
+- GetRule: Body {"RuleId":<int>}
+- AddRule: Body {"RuleData":{...}}
+- ModifyRule: Body {"RuleId":<int>, "RuleData":{...}}
+- DeleteRule: Body {"RuleId":<int>}
+- TestRule: Body {"RuleData":{...}, "ReleaseName":"..."}
+- ReloadRules: Reloads rules.
+
+Speed (ApiSpeedService)
+- GetRoutes: Body {"SiteName":"..."}
+- TestSpeedLocal: Body {"SiteName":"..."}
+- TestSpeedOut: Body {"SourceSite":"...", "DestSites":"..."}
+- TestSpeedIn: Body {"DestSite":"...", "SourceSites":"..."}
+- TestSpeedCleanup: Body {"Sites":"..."} (optional, space-separated; empty = all)
+- TestSpeedMatrix: Body {"IncludeSites":"...","ExcludeSites":"..."} (optional, space-separated; if IncludeSites is empty or omitted, all SPEEDTEST sites are used)
+- GetSpeedTestSites: Returns array of sites with SPEEDTEST section.
+- GetTestLog: Body {"TestId":"..."} Returns log lines for the test.
+- GetTestStatus: Body {"TestId":"..."} Returns status + structured results.
+- GetSpeedResults: Body {"SiteName":"..."}
+- RecalculateRoutes: Recalculates routes.
+- AbortSpeedTest: Body {"TestId":"..."} Aborts a running speed test.
+
+KnowledgeBase (ApiKnowledgeBaseService)
+- GetKBEntries: Body {"Section":"...", "Limit":<int>}
+- SearchKB: Body {"Query":"..."}
+- AddKBEntry: Body {"Section":"...", "Release":"..."}
+
+Precatcher (ApiPrecatcherService)
+- GetPrecatcherRules: Returns rules.
+- AddPrecatcherRule: Body {"RuleData":{...}}
+- UpdatePrecatcherRule: Body {"RuleId":<int>, "RuleData":{...}}
+- DeletePrecatcherRule: Body {"RuleId":<int>}
+- TestPrecatcher: Body {"Announce":"..."}
+- GetPrecatcherConfig: Returns slftp.precatcher content.
+- ValidatePrecatcherConfig: Body {"Content":"..."}.
+- SavePrecatcherConfig: Body {"Content":"..."}.
+- ReloadPrecatcher: Reloads config.
+- GetMappings: Returns section mappings.
+- GetHits: Body {"Limit":<int>, "SinceUnix":<int>, "ReleaseName":"", "SiteName":""}. Returns recent precatcher hits.
+
+Simulator (ApiSimulatorService)
+- Simulate: Body {"Section":"...", "ReleaseName":"...", "SimulatePre":true|false}
+- DetectSection: Body {"ReleaseName":"..."}
+
+Issues (ApiIssuesService)
+- GetSummary: Body {"WindowSeconds":<int>}. Returns counts within a time window.
+- GetIssues: Body {"Limit":<int>, "SinceUnix":<int>, "TypesCsv":"..."}. Returns recent issues/events.
+- DeleteIssue: Body {"IssueId":<int>}. Deletes a specific issue by ID.
+- ClearIssues: Clears the in-memory issues buffer.
+
+Logs (ApiLogService)
+- GetLogs: Body {"Lines":<int>}. Returns array of log lines.
+- ClearLogs: Clears log file (not implemented safely yet).
+
+Help (ApiHelpService)
+- GetHelpDocs: Returns list of help doc filenames.
+- GetHelpDocContent: Body {"Filename":"..."}.
+- SearchHelpDocs: Body {"Query":"..."}.
+
+Browser (ApiBrowserService)
+- GetPath: Body {"SiteName":"...", "Path":"/", "ForceRefresh":true|false}. Returns status pending/ready/error and file entries.
+
+IMDB (ApiImdbService)
+- GetAllImdbRecords: Body {}. Returns list of IMDB records.
+- GetImdbRecordById: Body {"ImdbId":"tt1234567"}.
+- CreateImdbRecord: Body {"ImdbId":"tt1234567","Title":"...","Year":2024,"Rating":75,"Votes":1234,"Genres":"...","Countries":"...","Languages":"...","ImdbType":"movie"}
+- UpdateImdbRecord: Body {"ImdbId":"tt1234567","Title":"...","Year":2024,"Rating":75,"Votes":1234,"Genres":"...","Countries":"...","Languages":"...","ImdbType":"movie"}
+- DeleteImdbRecord: Body {"ImdbId":"tt1234567"}
+
+TV Database (ApiTVService)
+- GetAllTVRecords: Body {}. Returns list of TV show records.
+- GetTVRecordById: Body {"TVMazeId":"1234"}.
+- CreateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
+- UpdateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
+- DeleteTVRecord: Body {"TVMazeId":"1234"}
+
+Config (ApiConfigService)
+- GetConfigList: Body {}. Returns list of editable config files.
+- GetConfigContent: Body {"Filename":"..."}. Returns content of the specified file (used by Web UI for slftp.precatcher; slftp.ini is read-only).
+- SaveConfigContent: Body {"Filename":"...", "Content":"..."}. Saves content to the file.
+- ReloadConfig: Body {"Filename":"..."}. Reloads the configuration file if supported. Supported files: slftp.precatcher, slftp.skip, slftp.skipgroups, slftp.rules, slftp.languagebase, slftp.knowngroups, slftp.imdbcountries, slftp.imdbreplace, slftp.spamconf. Returns true on success.

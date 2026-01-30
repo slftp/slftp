@@ -90,14 +90,23 @@ begin
 end;
 
 procedure TVariantCache.Delete(const aKey: string);
+{$IFDEF FPC}
+var
+  idx: integer;
+{$ENDIF}
 begin
   FLock.Enter;
   try
+{$IFDEF FPC}
+    idx := FDict.IndexOf(aKey);
+    if idx >= 0 then
+      FDict.Delete(idx);
+{$ELSE}
     FDict.Remove(aKey);
+{$ENDIF}
   finally
     FLock.Leave;
   end;
 end;
 
 end.
-

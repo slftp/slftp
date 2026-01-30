@@ -125,6 +125,21 @@ on UNIX:
     There are also other defines for different debug versions which can be used for valgrind or gdb.
       For gdb: make slftp_debug (or slftp_32_debug/slftp_64_debug)
       For valgrind: make slftp_debug_valgrind
+    
+Web UI (optional)
+-----------------
+Build backend + Web UI and deploy the UI to `./web/`:
+
+IMPORTANT / READ THIS
+---------------------
+	The deploy target wipes the target directory before copying (`rm -rf WEB_DEPLOY_DIR/*`).
+	Also: WEB_DEPLOY_DIR must point to the *web folder*, not your slftp install dir (deploy aborts if it detects `slftp.ini`, `sites.dat`, `slftp`, etc in the target directory).
+
+	    # make all-with-ui
+
+Deploy to a custom directory:
+
+	    # make web-ui-deploy WEB_DEPLOY_DIR=/path/to/your/slftp/web
 
 on WINDOWS:
     Open cmd.exe and switch into slFtp dir 

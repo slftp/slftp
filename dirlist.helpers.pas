@@ -2,7 +2,11 @@ unit dirlist.helpers;
 
 interface
 
-uses Generics.Collections;
+uses Generics.Collections, sitesunit;
+
+type
+  { Site Priority Levels for Dynamic Dirlist Performance }
+  TSiteDirlistPriority = (spVeryLow, spLow, spNormal, spHigh, spVeryHigh);
 
 type
   { @abstract(Information for a specific file which is parsed from a TDirlist) }
@@ -73,7 +77,28 @@ function GetNewdirMaxCreatedValue(): integer;
 
 { returns the value for NewdirDirlistReadd initially stored in config to have a better performance and don't load the value everytime from file)
   @returns(@glNewdirDirlistReadd) }
-function GetNewdirDirlistReaddValue(): integer;
+function GetNewdirDirlistReaddValue(): integer; overload;
+
+{ returns the site-specific value for NewdirDirlistReadd or falls back to global default
+  @param(sitename Name of the site to get the value for)
+  @returns(Site-specific value or global default) }
+function GetNewdirDirlistReaddValue(const sitename: String): integer; overload;
+
+{ Returns performance-adjusted dirlist readd value based on current system load and site priority
+  @param(sitename Name of the site to get the value for)
+  @param(usePerformanceAdjustment Whether to apply performance-based adjustments)
+  @returns(Performance-adjusted dirlist readd value in milliseconds) }
+function GetPerformanceAdjustedDirlistReaddValue(const sitename: String; usePerformanceAdjustment: Boolean = True): integer;
+
+{ Converts TSiteDirlistPriority enum to human-readable string
+  @param(priority The priority level)
+  @returns(String representation of priority) }
+function GetSitePriorityText(priority: TSiteDirlistPriority): String;
+
+{ Converts integer priority value (0-4) to TSiteDirlistPriority enum
+  @param(priorityValue Integer value 0-4)
+  @returns(TSiteDirlistPriority enum value) }
+function IntToDirlistPriority(priorityValue: Integer): TSiteDirlistPriority;
 
 function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 
@@ -86,10 +111,40 @@ procedure CleanupDirlistThreadVars;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings, loadmonitorunit, Math;
 
 const
   section = 'dirlist.helpers';
+
+  // Performance Level Constants
+  MIN_DIRLIST_INTERVAL = 10;     // 10ms absolute minimum
+  MAX_DIRLIST_INTERVAL = 1000;   // 1000ms absolute maximum
+  DEFAULT_PERFORMANCE_LEVEL = 5; // Balanced default
+
+  // Dynamic Dirlist Performance Matrix (10ms - 1000ms range)
+  // Performance Level → Site Priority → Interval (milliseconds)
+  DIRLIST_PERFORMANCE_MATRIX: array[1..9] of record
+    VeryLow, Low, Normal, High, VeryHigh: Integer;
+  end = (
+    // Performance Level 1 (CPU overload - slowest)
+    (VeryLow: 1000; Low: 800; Normal: 600; High: 400; VeryHigh: 300),
+    // Performance Level 2 (very high load)
+    (VeryLow: 800; Low: 600; Normal: 450; High: 300; VeryHigh: 200),
+    // Performance Level 3 (high load)
+    (VeryLow: 600; Low: 450; Normal: 300; High: 200; VeryHigh: 150),
+    // Performance Level 4 (medium-high load)
+    (VeryLow: 450; Low: 300; Normal: 200; High: 150; VeryHigh: 100),
+    // Performance Level 5 (balanced - standard)
+    (VeryLow: 300; Low: 200; Normal: 150; High: 100; VeryHigh: 80),
+    // Performance Level 6 (low load)
+    (VeryLow: 200; Low: 150; Normal: 100; High: 80; VeryHigh: 60),
+    // Performance Level 7 (very low load)
+    (VeryLow: 150; Low: 100; Normal: 80; High: 60; VeryHigh: 40),
+    // Performance Level 8 (minimal load)
+    (VeryLow: 100; Low: 80; Normal: 60; High: 40; VeryHigh: 25),
+    // Performance Level 9 (optimal performance - fastest)
+    (VeryLow: 80; Low: 60; Normal: 40; High: 25; VeryHigh: 10)
+  );
 
 var
   glSkiplistFilesRegex: String; //< global_skip_files regex from slftp.ini
@@ -302,6 +357,145 @@ end;
 function GetNewdirDirlistReaddValue(): integer;
 begin
   Result := glNewdirDirlistReadd;
+end;
+
+function GetNewdirDirlistReaddValue(const sitename: String): integer;
+var
+  s: TSite;
+begin
+  if sitename <> '' then
+  begin
+    s := FindSiteByName('', sitename);
+    if s <> nil then
+    begin
+      Result := s.NewdirDirlistReadd;
+      if Result > 0 then
+        exit;
+    end;
+  end;
+  
+  Result := glNewdirDirlistReadd;
+end;
+
+function GetPerformanceAdjustedDirlistReaddValue(const sitename: String; usePerformanceAdjustment: Boolean = True): integer;
+var
+  baseValue: Integer;
+  performanceLevel: Integer;
+  sitePriority: TSiteDirlistPriority;
+  site: TSite;
+  perfEnabled: Boolean;
+begin
+  // Get base value (current static system)
+  baseValue := GetNewdirDirlistReaddValue(sitename);
+
+  // Check if performance adjustment is globally enabled
+  perfEnabled := config.ReadBool('dirlist_performance', 'enabled', True);
+
+  if not usePerformanceAdjustment or not perfEnabled then
+  begin
+    Result := baseValue;
+    Exit;
+  end;
+
+  try
+    // Check if LoadMonitor is available and running
+    if not IsLoadMonitorAvailable then
+    begin
+      Result := baseValue;
+      Exit;
+    end;
+
+    // Get current performance level from LoadMonitor
+    performanceLevel := GlLoadMonitor.CurrentPerformanceLevel;
+
+    // Validate performance level
+    if (performanceLevel < 1) or (performanceLevel > 9) then
+    begin
+      Debug(dpError, section, 'Invalid performance level %d, using default', [performanceLevel]);
+      performanceLevel := DEFAULT_PERFORMANCE_LEVEL;
+    end;
+
+    // Get site priority (default to normal if site not found or no priority set)
+    sitePriority := spNormal; // Default
+    site := FindSiteByName('', sitename);
+
+    // Thread-safe access: verify site still valid before accessing properties
+    if (site <> nil) then
+    begin
+      try
+        // Check if performance adjustment is enabled for this site
+        if not site.PerformanceAdjustedDirlist then
+        begin
+          Result := baseValue; // Use static value if performance adjustment disabled
+          Exit;
+        end;
+
+        // Convert integer priority to enum (0=VeryLow, 1=Low, 2=Normal, 3=High, 4=VeryHigh)
+        sitePriority := IntToDirlistPriority(site.DirlistPriority);
+      except
+        on E: Exception do
+        begin
+          // Site object may have been freed, use default
+          Debug(dpError, section, 'Error accessing site %s: %s, using default priority',
+            [sitename, E.Message]);
+          sitePriority := spNormal;
+        end;
+      end;
+    end;
+
+    // Matrix lookup for performance-adjusted value
+    case sitePriority of
+      spVeryLow:  Result := DIRLIST_PERFORMANCE_MATRIX[performanceLevel].VeryLow;
+      spLow:      Result := DIRLIST_PERFORMANCE_MATRIX[performanceLevel].Low;
+      spNormal:   Result := DIRLIST_PERFORMANCE_MATRIX[performanceLevel].Normal;
+      spHigh:     Result := DIRLIST_PERFORMANCE_MATRIX[performanceLevel].High;
+      spVeryHigh: Result := DIRLIST_PERFORMANCE_MATRIX[performanceLevel].VeryHigh;
+    else
+      Result := baseValue; // Fallback on unknown priority
+    end;
+
+    // Apply safety bounds
+    Result := Max(MIN_DIRLIST_INTERVAL, Min(MAX_DIRLIST_INTERVAL, Result));
+
+    // Debug output (controlled via !logverbosity spam)
+    Debug(dpSpam, section,
+      'Performance adjustment: Site=%s, PerfLevel=%d, Priority=%s, BaseValue=%dms, AdjustedValue=%dms',
+      [sitename, performanceLevel, GetSitePriorityText(sitePriority), baseValue, Result]);
+
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, 'Error in performance adjustment for %s: %s, using base value %dms',
+        [sitename, E.Message, baseValue]);
+      Result := baseValue; // Fallback to static value on any error
+    end;
+  end;
+end;
+
+function GetSitePriorityText(priority: TSiteDirlistPriority): String;
+begin
+  case priority of
+    spVeryLow:  Result := 'VeryLow';
+    spLow:      Result := 'Low';
+    spNormal:   Result := 'Normal';
+    spHigh:     Result := 'High';
+    spVeryHigh: Result := 'VeryHigh';
+  else
+    Result := 'Unknown';
+  end;
+end;
+
+function IntToDirlistPriority(priorityValue: Integer): TSiteDirlistPriority;
+begin
+  case priorityValue of
+    0: Result := spVeryLow;
+    1: Result := spLow;
+    2: Result := spNormal;
+    3: Result := spHigh;
+    4: Result := spVeryHigh;
+  else
+    Result := spNormal; // Default for invalid values
+  end;
 end;
 
 procedure CleanupDirlistThreadVars;
