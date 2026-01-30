@@ -2345,7 +2345,7 @@ begin
   // Check if site is on maxsim cooldown
   if site.MaxSimUpCooldownActive or site.MaxSimDownCooldownActive then
   begin
-    Debug(dpError, section, '[MAXSIM COOLDOWN] Slot %s login blocked: site on cooldown (UP: %ds, DOWN: %ds)',
+    Debug(dpSpam, section, '[MAXSIM COOLDOWN] Slot %s login blocked: site on cooldown (UP: %ds, DOWN: %ds)',
       [Name, site.MaxSimUpCooldownRemainingSeconds, site.MaxSimDownCooldownRemainingSeconds]);
     Exit(False);
   end;
@@ -3694,8 +3694,10 @@ begin
   fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
-  Debug(dpError, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s) (slot: %s)',
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s) (slot: %s)',
     [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
+  irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> UP cooldown for <b>%s</b> set to <b>%ds</b> (slot: %s)',
+    [Name, fMaxSimUpCooldownSeconds, aSlotName]));
 end;
 
 procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
@@ -3714,8 +3716,10 @@ begin
   fMaxSimDownCooldownSeconds := fNewCooldown;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
-  Debug(dpError, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s) (slot: %s)',
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s) (slot: %s)',
     [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
+  irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> DOWN cooldown for <b>%s</b> set to <b>%ds</b> (slot: %s)',
+    [Name, fMaxSimDownCooldownSeconds, aSlotName]));
 end;
 
 procedure TSite.ResetMaxSimUpCooldown;
@@ -3724,7 +3728,7 @@ begin
   begin
     fMaxSimUpCooldownSeconds := 0;
     fMaxSimUpCooldownUntil := 0;
-    Debug(dpError, section, '[MAXSIM COOLDOWN] UP cooldown for %s cleared', [Name]);
+    Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s cleared', [Name]);
   end;
 end;
 
@@ -3734,7 +3738,7 @@ begin
   begin
     fMaxSimDownCooldownSeconds := 0;
     fMaxSimDownCooldownUntil := 0;
-    Debug(dpError, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s cleared', [Name]);
+    Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s cleared', [Name]);
   end;
 end;
 
@@ -3750,8 +3754,10 @@ begin
   begin
     if fMaxSimUpCooldownSeconds > 0 then
     begin
-      Debug(dpError, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
         [Name, fMaxSimUpCooldownSeconds]);
+      irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> UP cooldown for <b>%s</b> expired after <b>%ds</b>',
+        [Name, fMaxSimUpCooldownSeconds]));
       fMaxSimUpCooldownSeconds := 0;
     end;
     fMaxSimUpCooldownUntil := 0;
@@ -3774,8 +3780,10 @@ begin
   begin
     if fMaxSimDownCooldownSeconds > 0 then
     begin
-      Debug(dpError, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
         [Name, fMaxSimDownCooldownSeconds]);
+      irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> DOWN cooldown for <b>%s</b> expired after <b>%ds</b>',
+        [Name, fMaxSimDownCooldownSeconds]));
       fMaxSimDownCooldownSeconds := 0;
     end;
     fMaxSimDownCooldownUntil := 0;
