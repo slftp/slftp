@@ -4027,11 +4027,19 @@ end;
 function TApiIrcServiceImpl.DeleteChannel(const NetName, Channel: RawUTF8): boolean;
 var
   netNameStr, channelStr, dictKey: string;
+  ircth: TMyIrcThread;
 begin
   Result := False;
   try
     netNameStr := UTF8ToString(NetName);
     channelStr := UTF8ToString(Channel);
+
+    ircth := FindIrcnetwork(netNameStr);
+    if ircth = nil then
+    begin
+      Debug(dpError, 'slapi', Format('DeleteChannel: Network %s not found', [netNameStr]));
+      Exit;
+    end;
 
     // Check if channel exists
     if FindIrcChannelSettings(netNameStr, channelStr) = nil then
@@ -4043,8 +4051,16 @@ begin
     // Create key for dictionary (same format as in IrcChanSettingsList)
     dictKey := netNameStr + channelStr;
 
+    // Part channel and remove from config to match !ircchandel behavior
+    ircth.chanpart(channelStr);
+
     // Remove from global list
     IrcChanSettingsList.Remove(dictKey);
+
+    // Remove from sites.dat
+    sitesdat.EraseSection('channel-' + netNameStr + '-' + channelStr);
+
+    ircth.shouldjoin := True;
 
     Debug(dpMessage, 'slapi', Format('DeleteChannel: Removed channel %s@%s', [channelStr, netNameStr]));
     Result := True;
