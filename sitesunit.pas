@@ -226,6 +226,8 @@ type
     flegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    FSocketInitErrorCount: integer; //< site-wide counter for socket initialization errors
+    fFirstLoginDone: Boolean; //< tracks if first login after startup was done (for ghost killing)
     fConnect_timeout: integer;
     fIdleInterval: integer;
     fIo_timeout: integer;
@@ -2124,6 +2126,13 @@ begin
   un := self.site.UserName;
   upw := self.site.PassWord;
 
+  // Kill ghost connections on first login after startup
+  if (not site.fFirstLoginDone) then
+  begin
+    kill := True;
+    Debug(dpMessage, section, '[LOGIN] %s: First login after startup - using !username to kill ghosts', [Name]);
+  end;
+
   // to kill ghost logins you need to use '!' as first char on your username
   if (kill) then
   begin
@@ -2150,6 +2159,13 @@ begin
   begin
     error := Trim(lastResponse);
     exit;
+  end;
+
+  // Mark first login as done after successful login
+  if not site.fFirstLoginDone then
+  begin
+    site.fFirstLoginDone := True;
+    Debug(dpMessage, section, '[LOGIN] %s: First login completed successfully', [Name]);
   end;
 
   tryToGetSiteSoftwareAndVersionFromLastResponse;
@@ -3134,6 +3150,7 @@ begin
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
+  fFirstLoginDone := False;
 
   if (Name = getAdminSiteName) then
   begin
