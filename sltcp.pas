@@ -246,7 +246,10 @@ procedure TslTCPSocket.DisconnectSSL;
 begin
   if fSSL <> nil then
   begin
-    SSL_shutdown(fSSL);
+    // If SSL_shutdown returns 0, "close notify" was sent but peer's response not yet received.
+    // Call SSL_shutdown again for bidirectional shutdown.
+    if SSL_shutdown(fSSL) = 0 then
+      SSL_shutdown(fSSL);
 
     SSL_free(fSSL);
     fSSL:= nil;
