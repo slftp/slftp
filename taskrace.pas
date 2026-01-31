@@ -1277,8 +1277,8 @@ var
           [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
         mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
           [fLastSrcUploader, lSrcUser]);
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
+        sdst.QuitAndRelogin('TPazoRaceTask - source uploader switch');
+        ssrc.QuitAndRelogin('TPazoRaceTask - source uploader switch');
         readyerror := True;
         Result := True;
         exit;
@@ -1305,8 +1305,8 @@ var
         Debug(dpSpam, c_section, '[SRC-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]);
         mainpazo.errorreason := 'Source regression';
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - source regression');
+        sdst.QuitAndRelogin('TPazoRaceTask - source regression');
+        ssrc.QuitAndRelogin('TPazoRaceTask - source regression');
         readyerror := True;
         Result := True;
         exit;
@@ -1362,8 +1362,8 @@ var
         end;
         mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
           [fLastDstUploader, lDstUser]);
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
+        sdst.QuitAndRelogin('TPazoRaceTask - destination uploader switch');
+        ssrc.QuitAndRelogin('TPazoRaceTask - destination uploader switch');
         readyerror := True;
         Result := True;
         exit;
