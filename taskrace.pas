@@ -1371,31 +1371,12 @@ var
       fLastDstUploader := lDstUser;
     end;
 
-    // Destination Filesize Regression Detection (Slowkicker)
     if (fDstDiffMSec < 200) and (lDstFileSize > 0) then
     begin
       if fLastDstFileSize < 0 then
         fLastDstFileSize := lDstFileSize
       else if lDstFileSize > fLastDstFileSize then
         fLastDstFileSize := lDstFileSize;
-
-      // Filesize decreased: slowkicker detected
-      if (fLastDstFileSize > 0) and (lDstFileSize < fLastDstFileSize) then
-      begin
-        if spamcfg.readbool(c_section, 'dst_regression', True) then
-        begin
-          irc_Adderror(Format('<c7>[DST-REGRESSION]</c> %s: %d->%d age=%dms - killing slots',
-            [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]));
-        end;
-        Debug(dpSpam, c_section, '[DST-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
-          [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]);
-        mainpazo.errorreason := 'Destination regression';
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
-        readyerror := True;
-        Result := True;
-        exit;
-      end;
     end;
   end;
 
