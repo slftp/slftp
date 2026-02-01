@@ -16,6 +16,7 @@ import { Pre } from './pages/Pre';
 import { Races } from './pages/Races';
 import { Databases } from './pages/Databases';
 import { Help } from './pages/Help';
+import { Cbftp } from './pages/cbftp/Cbftp';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -41,6 +42,7 @@ function App() {
           <Route path="sites" element={<SitesList />} />
           <Route path="sites/:siteName" element={<SiteSettings />} />
           <Route path="browser" element={<FileBrowser />} />
+          <Route path="cbftp" element={<Cbftp />} />
           <Route path="pre" element={<Pre />} />
           <Route path="logs" element={<Logs />} />
           <Route path="races" element={<Races />} />

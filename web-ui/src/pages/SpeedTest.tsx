@@ -120,7 +120,7 @@ export function SpeedTest() {
       return data as string[];
     },
     enabled: !!testId,
-    refetchInterval: (testStatus === 'finished' || testStatus === 'error' || testStatus === 'aborted') ? false : 1000,
+    refetchInterval: (testStatus === 'finished' || testStatus === 'error' || testStatus === 'aborted') ? false : 30000,
   });
 
   const { data: statusData } = useQuery({
@@ -136,7 +136,7 @@ export function SpeedTest() {
       return data as SpeedTestLogResponse;
     },
     enabled: !!testId,
-    refetchInterval: (testStatus === 'finished' || testStatus === 'error' || testStatus === 'aborted') ? false : 1000,
+    refetchInterval: (testStatus === 'finished' || testStatus === 'error' || testStatus === 'aborted') ? false : 30000,
   });
 
   useEffect(() => {

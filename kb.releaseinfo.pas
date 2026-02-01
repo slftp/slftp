@@ -1143,7 +1143,8 @@ begin
   if shot <> nil then
   begin
     try
-      AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
+      if not pazo.IsUDPEnabled then
+        AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
     except
       on e: Exception do
       begin
@@ -1218,7 +1219,8 @@ begin
   if shot <> nil then
   begin
     try
-      AddTask(TPazoGenreNfoTask.Create('', '', shot.Name, pazo, 1));
+      if not pazo.IsUDPEnabled then
+        AddTask(TPazoGenreNfoTask.Create('', '', shot.Name, pazo, 1));
     except
       on e: Exception do
       begin

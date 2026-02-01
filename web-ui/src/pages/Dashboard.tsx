@@ -54,7 +54,7 @@ export function Dashboard() {
       }
       return res.data as SystemStatus;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 
@@ -82,7 +82,7 @@ export function Dashboard() {
       }
       return { releases: [], total: 0 };
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 
@@ -95,7 +95,7 @@ export function Dashboard() {
       }
       return res.data as IssuesSummary;
     },
-    refetchInterval: 5000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 

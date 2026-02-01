@@ -194,7 +194,7 @@ export function TV() {
       }
       return [];
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
   });
 

@@ -10,6 +10,16 @@ Authentication
 - If apikey is empty, no auth required (not recommended on exposed hosts).
 - API key protection only applies to /api/* paths; web UI is served without auth.
 
+Cbftp proxy (optional)
+- If cbftp HTTPS/JSON API is enabled, slftp can proxy it under /api/cbftp.
+- Configure config/slftp.ini:
+  [UDPConfig]
+  IP=127.0.0.1
+  ApiPort=55477
+  Password=<cbftp_api_password>
+- Access via: http://<host>:<port>/api/cbftp/...
+- The Web UI exposes only a subset of cbftp features (more to come).
+
 Implemented Endpoints
 
 System (ApiSystemService)

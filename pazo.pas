@@ -174,6 +174,11 @@ type
     FUniqueFileListOfRelease_cs: TSlCriticalSection2; //< Critical section for Add calls to @link(FUniqueFileListOfRelease)
     FUniqueFileListOfRelease: TDictionary<String, Int64>; //< Dictionary with files (including subdirs) and corresponding filesize (biggest value seen on any site) for this release, Key="dir + '/' + filename" and Value=filesize
     FPazoSFV: TPazoSFV;
+    FUDPEnabled: Boolean;
+    FUDPIp: String;
+    FUDPPort: Integer;
+    FUDPPassword: String;
+    FUDPConfigLoaded: Boolean;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -182,6 +187,7 @@ type
     function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
+    procedure LoadUDPConfig;
 
   public
     pazo_id: integer;
@@ -223,6 +229,7 @@ type
     function AsText: String;
     { Show headline for [ROUTES] announce and print infos for each item in @link(PazoSitesList) if different then previous @link(lastannounceroutes) }
     function RoutesText: String;
+    function IsUDPEnabled: Boolean;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
     { Generate site completion times statistics relative to pazo added time
       @param(console @true if output is for console, @false for IRC)
@@ -262,7 +269,8 @@ implementation
 uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv;
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  mormot.core.base, mormot.core.unicode, mormot.net.sock;
 
 const
   section = 'pazo';
@@ -272,6 +280,34 @@ var
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
   glShowCompleteTimeStats: boolean;
+
+function RlsStatusToString(const aStatus: TRlsSiteStatus): String;
+begin
+  case aStatus of
+    rssNotAllowed: Result := 'not_allowed';
+    rssNotAllowedButItsThere: Result := 'not_allowed_present';
+    rssAllowed: Result := 'allowed';
+    rssShouldPre: Result := 'should_pre';
+    rssRealPre: Result := 'real_pre';
+    rssComplete: Result := 'complete';
+    rssNuked: Result := 'nuked';
+  else
+    Result := 'unknown';
+  end;
+end;
+
+function SiteStatusToString(const aStatus: TSiteStatus): String;
+begin
+  case aStatus of
+    sstUnknown: Result := 'unknown';
+    sstUp: Result := 'up';
+    sstDown: Result := 'down';
+    sstTempDown: Result := 'tempdown';
+    sstMarkedAsDownByUser: Result := 'markeddown';
+  else
+    Result := 'other';
+  end;
+end;
 
 
 constructor TDestinationRank.Create(const aPazoSite: TPazoSite; const aRank: integer);
@@ -394,6 +430,46 @@ begin
   end;
 end;
 
+procedure TPazo.LoadUDPConfig;
+var
+  rawEnable: String;
+begin
+  FUDPEnabled := False;
+  FUDPConfigLoaded := False;
+  FUDPIp := '';
+  FUDPPort := 0;
+  FUDPPassword := '';
+
+  if not Assigned(config) then
+  begin
+    Debug(dpMessage, section, 'TPazo.LoadUDPConfig: config not initialised, retrying later');
+    Exit;
+  end;
+
+  rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+  FUDPIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+  FUDPPort := config.ReadInteger('UDPConfig', 'Port', 0);
+  FUDPPassword := config.ReadString('UDPConfig', 'Password', '');
+  FUDPEnabled := SameText(rawEnable, 'True') or SameText(rawEnable, '1');
+
+  if FUDPEnabled then
+  begin
+    if (FUDPPort < 1) or (FUDPPort > 65535) then
+    begin
+      Debug(dpError, section, Format('TPazo.LoadUDPConfig: invalid UDP port %d - disabling UDP', [FUDPPort]));
+      FUDPEnabled := False;
+    end;
+
+    if FUDPIp = '' then
+    begin
+      Debug(dpError, section, 'TPazo.LoadUDPConfig: UDP IP is empty - disabling UDP');
+      FUDPEnabled := False;
+    end;
+  end;
+
+  FUDPConfigLoaded := True;
+end;
+
 function PazoAdd(const rls: TRelease): TPazo;
 begin
   Result := TPazo.Create(rls, local_pazo_id);
@@ -438,6 +514,8 @@ var
   fd: String;
   siteSkipList: TSkipList;
 begin
+  if pazo.FUDPEnabled then exit(False);
+
   Result := False;
   dst := nil;
   dstdl := nil;
@@ -769,6 +847,13 @@ begin
     Result := SecondsBetween(Now, added);
 end;
 
+function TPazo.IsUDPEnabled: Boolean;
+begin
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+  Result := FUDPEnabled;
+end;
+
 function TPazo.AsText: String;
 var
   ps: TPazoSite;
@@ -797,6 +882,13 @@ end;
 function TPazo.RoutesText: String;
 var
   ps: TPazoSite;
+  cbftpLine: String;
+  sitelist: String;
+  shouldSendUDP: Boolean;
+  udpSocket: TNetSocket;
+  udpMessage: RawUtf8;
+  destAddr: TNetAddr;
+  res: TNetResult;
 begin
   if rls <> nil then
     Result := Format('<c3>[ROUTES]</c> : <b>%s</b> (%d sites)', [rls.rlsname, PazoSitesList.Count])
@@ -809,6 +901,35 @@ begin
     Result := Result + ps.RoutesText;
   end;
 
+  cbftpLine := '';
+  sitelist := '';
+  shouldSendUDP := False;
+
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+
+  if FUDPEnabled then
+  begin
+    for ps in PazoSitesList do
+    begin
+      if (ps.status in [rssAllowed, rssShouldPre, rssRealPre]) then
+      begin
+        sitelist := sitelist + ps.Name + ',';
+      end;
+    end;
+
+    if sitelist <> '' then
+    begin
+      SetLength(sitelist, Length(sitelist) - 1);
+      cbftpLine := Format('<c3>[CBFTP]</c> : <b>%s %s</b> %s', [rls.section, rls.rlsname, sitelist]);
+      cbftpLine := cbftpLine + #13#10;
+      Result := Result + cbftpLine;
+      shouldSendUDP := True;
+    end
+    else
+      Debug(dpMessage, section, 'TPazo.RoutesText: no eligible sites for UDP, skipping send');
+  end;
+
   if (Result <> lastannounceroutes) then
   begin
     lastannounceroutes := Result;
@@ -816,6 +937,58 @@ begin
   else
   begin
     Result := '';
+    shouldSendUDP := False;
+  end;
+
+  if shouldSendUDP then
+  begin
+    udpMessage := StringToUtf8(FUDPPassword + ' race ' + rls.section + ' ' + rls.rlsname + ' ' + sitelist);
+    udpSocket := nil;
+    try
+      // Create UDP socket
+      udpSocket := NewRawSocket(nfIP4, nlUdp);
+      if udpSocket = nil then
+      begin
+        Debug(dpError, section, 'UDP socket creation failed');
+        lastannounceroutes := '';
+        Exit;
+      end;
+
+      // Set send timeout
+      udpSocket.SetSendTimeout(2000);
+
+      // Set destination address
+      res := destAddr.SetFrom(StringToUtf8(FUDPIp), StringToUtf8(IntToStr(FUDPPort)), nlUdp);
+      if res <> nrOK then
+      begin
+        Debug(dpError, section, 'UDP address resolution failed: %s', [ToText(res)^]);
+        lastannounceroutes := '';
+        Exit;
+      end;
+
+      // Send UDP datagram
+      res := udpSocket.SendTo(pointer(udpMessage), length(udpMessage), destAddr);
+      if res <> nrOK then
+      begin
+        Debug(dpError, section, 'UDP send failed: %s', [ToText(res)^]);
+        lastannounceroutes := '';
+      end
+      else
+      begin
+        if FUDPEnabled then
+          irc_SendROUTEINFOS(Format('<c10>[<b>CBFTP</b>]</c> Sending to cbftp: %s %s %s', [rls.section, rls.rlsname, sitelist]));
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText: UDP operation failed: %s', [E.Message]));
+        lastannounceroutes := '';
+      end;
+    end;
+
+    // Cleanup
+    if udpSocket <> nil then
+      udpSocket.Close;
   end;
 end;
 
@@ -853,8 +1026,7 @@ begin
     FUniqueFileListOfRelease_cs.Leave;
   end;
 
- if fWasAdded and de.IsSFV and (self.rls <> nil) and (FPazoSFV <> nil) and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) then
-
+  if fWasAdded and de.IsSFV and (self.rls <> nil) and (FPazoSFV <> nil) and self.rls.IsSFVRelease and not FPazoSFV.HasSFV(aDir) and not IsUDPEnabled then
   begin
     if FPazoSFV.RegisterSFV(aDir) then
     begin
@@ -923,6 +1095,14 @@ begin
     FPazoSFV := TPazoSFV.Create
   else
     FPazoSFV := nil;
+
+  FUDPConfigLoaded := False;
+  FUDPEnabled := False;
+  FUDPIp := '';
+  FUDPPort := 0;
+  FUDPPassword := '';
+
+  LoadUDPConfig;
 
   inherited Create;
 end;
@@ -999,27 +1179,32 @@ begin
           lastannounceconsole := s;
         end;
 
-        s := Stats(False, False);
-        if ((lastannounceirc <> s) and (s <> '')) then
+        // display race stats on irc (skip when UDP is enabled)
+        if not IsUDPEnabled then
         begin
-          irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
-          irc_AddstatsB(Stats(False, True));
-          lastannounceirc := s;
-
-          if glShowCompleteTimeStats then
+          s := Stats(False, False);
+          if ((lastannounceirc <> s) and (s <> '')) then
           begin
-            s := SiteCompleteTimesStats(False);
-            if s <> '' then
+            irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
+            irc_AddstatsB(Stats(False, True));
+            lastannounceirc := s;
+
+            if glShowCompleteTimeStats then
             begin
-              irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
-              irc_addstats(s);
+              s := SiteCompleteTimesStats(False);
+              if s <> '' then
+              begin
+                irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
+                irc_addstats(s);
+              end;
             end;
           end;
         end;
       end
       else
       begin
-        irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
+        if not IsUDPEnabled then
+          irc_addstats('<c10>[<b>STATS</b>]</c> Pazo Stopped.');
       end;
     end;
   end;
@@ -1265,19 +1450,22 @@ var
   sectiondir: String;
   ps: TPazoSite;
 begin
+  if not FUDPConfigLoaded then
+    LoadUDPConfig;
+
   Result := False;
   for i := sitesunit.sites.Count - 1 downto 0 do
   begin
     try
       s := TSite(sitesunit.sites[i]);
-      if not (s.WorkingStatus in [sstUnknown, sstUp]) then
+      if (not FUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp])) then
         Continue;
-      if s.PermDown then
+      if (not FUDPEnabled) and s.PermDown then
         Continue;
       if aIsSpreadJob then
       begin
         if s.SkipPre then
-          Continue;
+        Continue;
       end;
 
       sectiondir := s.sectiondir[rls.section];

@@ -125,7 +125,7 @@ export function SectionDirectories() {
     enabled: !!selectedSite && browserOpen,
     refetchInterval: (query) => {
       const data = query.state.data;
-      return (data?.status === 'pending' ? 1000 : false);
+      return (data?.status === 'pending' ? 30000 : false);
     },
   });
 

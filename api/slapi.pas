@@ -28,6 +28,7 @@ uses
   slapi.services.impl,
   slapi.issues,
   slapi.issueshook,
+  slapi.cbftp,
   configunit,
   debugunit;
 
@@ -45,6 +46,7 @@ type
   function CheckApiKey(Ctxt: TRestServerUriContext): integer;
   function OnApiError(Ctxt: TRestServerUriContext; E: Exception): boolean;
   procedure OnApiAfter(Ctxt: TRestServerUriContext);
+  function OnBeforeUri(Ctxt: TRestServerUriContext): boolean;
   function DoOnCustomRequest(var Call: TRestUriParams): boolean;
   function ServeIndexHtml(Ctxt: THttpServerRequestAbstract): cardinal;
   public
@@ -200,6 +202,34 @@ begin
   end;
 end;
 
+function TSlftpApiServer.OnBeforeUri(Ctxt: TRestServerUriContext): boolean;
+var
+  sUrl: string;
+  sUrlLower: string;
+begin
+  Result := True; // By default, let mORMot continue processing
+
+  if (Ctxt = nil) or (Ctxt.Call = nil) then
+    Exit;
+
+  sUrl := UTF8ToString(Ctxt.Call^.Url);
+
+  // Normalize leading slash
+  if (sUrl <> '') and (sUrl[1] <> '/') then
+    sUrl := '/' + sUrl;
+
+  sUrlLower := LowerCase(sUrl);
+
+  // Check for cbftp proxy requests (intercept BEFORE mORMot's service routing)
+  if ((Length(sUrlLower) >= 11) and (Copy(sUrlLower, 1, 11) = '/api/cbftp/')) or
+     ((Length(sUrlLower) >= 7) and (Copy(sUrlLower, 1, 7) = '/cbftp/')) then
+  begin
+    // Handle cbftp proxy request
+    HandleCbftpRequest(Ctxt.Call^);
+    Result := False; // handled here, skip mORMot service routing
+  end;
+end;
+
 procedure TSlftpApiServer.RegisterServices;
 begin
   // Register all service interfaces with mORMot2
@@ -271,6 +301,7 @@ var
   FileName: TFileName;
   ContentType: RawUTF8;
   sUrl: string;
+  sUrlLower: string;
   basePath: string;
   normalizedPath: string;
   authHeader: RawUTF8;
@@ -306,6 +337,16 @@ begin
     sUrl := '/'
   else if sUrl[1] <> '/' then
     sUrl := '/' + sUrl;
+
+  // Check for cbftp proxy requests first (allow /cbftp/ and /api/cbftp/)
+  sUrlLower := LowerCase(sUrl);
+  if ((Length(sUrlLower) >= 7) and (Copy(sUrlLower, 1, 7) = '/cbftp/')) or
+     ((Length(sUrlLower) >= 11) and (Copy(sUrlLower, 1, 11) = '/api/cbftp/')) then
+  begin
+    // Handle cbftp proxy request (has its own auth via cbftp password)
+    Result := HandleCbftpRequest(Call);
+    Exit(Result);
+  end;
 
   // If it's an API call (/api/...), check authentication first
   if (Length(sUrl) >= 4) and (Copy(UpperCase(sUrl), 1, 4) = '/API') then
@@ -436,6 +477,7 @@ begin
       FRestServer.CreateMissingTables;
       FRestServer.OnErrorUri := OnApiError;
       FRestServer.OnAfterUri := OnApiAfter;
+      FRestServer.OnBeforeUri := OnBeforeUri;
 
       // Register services
       RegisterServices;

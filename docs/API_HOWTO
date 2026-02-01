@@ -17,6 +17,16 @@ apikey=<your_long_secret_here>
 - Use 127.0.0.1 for local-only; 0.0.0.0 if you intentionally expose it (prefer behind TLS/proxy).
 - Set a strong apikey. If set, send Authorization: Bearer <apikey> on API calls.
 
+Cbftp proxy (optional)
+- If cbftp HTTPS/JSON API is enabled, slftp can proxy it under /api/cbftp.
+- Configure config/slftp.ini:
+  [UDPConfig]
+  IP=127.0.0.1
+  ApiPort=55477
+  Password=<cbftp_api_password>
+- Access via: http://<host>:<port>/api/cbftp/...
+- The Web UI exposes only a subset of cbftp features (more to come).
+
 Build backend
 make        # or make slftp_debug
 
