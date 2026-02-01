@@ -3044,41 +3044,41 @@ end;
 
 procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
 begin
-  if Value <> fDownloadingFrom then
-  begin
-    fDownloadingFrom := Value;
-    if fDownloadingFrom then
+  site.fFreeSlotsCS.Enter('SetDownloadingFrom');
+  try
+    if Value <> fDownloadingFrom then
     begin
-      {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
+      fDownloadingFrom := Value;
+      if fDownloadingFrom then
+        Inc(site.fNumDn)
+      else
+        Dec(site.fNumDn);
+
       if GetDebugVerbosity = dpSpam then
-        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
-    end
-    else
-    begin
-      {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
-      if GetDebugVerbosity = dpSpam then
-        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name, site.num_dn]);
     end;
+  finally
+    site.fFreeSlotsCS.Leave;
   end;
 end;
 
 procedure TSiteSlot.SetUploadingTo(const Value: boolean);
 begin
-  if Value <> fUploadingTo then
-  begin
-    fUploadingTo := Value;
-    if fUploadingTo then
-      begin
-        {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
-        if GetDebugVerbosity = dpSpam then
-          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
-      end
-    else
-      begin
-        {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
-        if GetDebugVerbosity = dpSpam then
-          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
-      end;
+  site.fFreeSlotsCS.Enter('SetUploadingTo');
+  try
+    if Value <> fUploadingTo then
+    begin
+      fUploadingTo := Value;
+      if fUploadingTo then
+        Inc(site.fNumUp)
+      else
+        Dec(site.fNumUp);
+
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name, site.num_up]);
+    end;
+  finally
+    site.fFreeSlotsCS.Leave;
   end;
 end;
 
