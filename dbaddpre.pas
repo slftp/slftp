@@ -688,6 +688,8 @@ begin
 
   if Assigned(addpreSQLite3DBCon) then
   begin
+    // Checkpoint WAL to merge changes back into main database and truncate WAL file
+    addpreSQLite3DBCon.MainSQLite3DB.Execute('PRAGMA wal_checkpoint(TRUNCATE)');
     FreeAndNil(addpreSQLite3DBCon);
   end;
   Debug(dpSpam, section, 'Uninit2');

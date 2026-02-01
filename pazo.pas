@@ -233,6 +233,10 @@ type
     function RoutesText: String;
     function IsUDPEnabled: Boolean;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
+    { Generate site completion times statistics relative to pazo added time
+      @param(console @true if output is for console, @false for IRC)
+      @returns(Formatted string with site completion times) }
+    function SiteCompleteTimesStats(const console: boolean): String;
     constructor Create(const rls: TRelease; const pazo_id: integer);
     destructor Destroy; override;
     function FindSite(const sitename: String): TPazoSite;
@@ -274,6 +278,7 @@ var
   local_pazo_id: integer;
   glMaxBadcrcEvents: integer; //< max number of bad crc events read from config
   glPazoPreTimeLookupMode: TPretimeLookupMode;
+  glShowCompleteTimeStats: boolean;
 
 function RlsStatusToString(const aStatus: TRlsSiteStatus): String;
 begin
@@ -475,6 +480,7 @@ begin
   local_pazo_id := 0;
   glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
   glPazoPreTimeLookupMode := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
+  glShowCompleteTimeStats := config.ReadBool('taskrace', 'show_complete_time_stats', False);
 end;
 
 function TPazoSite.GetDirlistGaveUp: boolean;
@@ -1085,7 +1091,6 @@ begin
 
       if not stopped then
       begin
-        // display race stats on console
         s := Stats(True, False);
         if ((lastannounceconsole <> s) and (s <> '')) then
         begin
@@ -1102,6 +1107,16 @@ begin
             irc_addstats(Format('<c10>[<b>STATS</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles, s]));
             irc_AddstatsB(Stats(False, True));
             lastannounceirc := s;
+
+            if glShowCompleteTimeStats then
+            begin
+              s := SiteCompleteTimesStats(False);
+              if s <> '' then
+              begin
+                irc_addstats(Format('<c10>[<b>COMPLETE TIME AFTER ADDPRE</b>]</c> %s %s (%d):', [rls.section, rls.rlsname, GetCountOfCachedFiles]));
+                irc_addstats(s);
+              end;
+            end;
           end;
         end;
       end
@@ -1206,6 +1221,100 @@ begin
         end;
       end;
     end;
+  finally
+    sitesSorted.Free;
+  end;
+end;
+
+function TPazo.SiteCompleteTimesStats(const console: boolean): String;
+var
+  numComplete: integer;
+  ps: TPazoSite;
+  s: TSite;
+  sitesSorted: TObjectList<TPazoSite>;
+  secondsFromAddpre: Double;
+begin
+  Result := '';
+  numComplete := 1;
+
+  Debug(dpSpam, section, Format('[TIMING DEBUG] Starting SiteCompleteTimesStats | Release: %s | ADDPRE Time: %s',
+    [rls.rlsname, FormatDateTime('hh:nn:ss.zzz', added)]));
+
+  sitesSorted := TObjectList<TPazoSite>.Create(False);
+  try
+    sitesSorted.AddRange(PazoSitesList);
+    sitesSorted.Sort(TComparer<TPazoSite>.Construct(_CompareCompleteTimes));
+
+    for ps in sitesSorted do
+    begin
+      try
+        if ps.status = rssNotAllowed then
+        begin
+          Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: rssNotAllowed', [ps.Name]));
+          Continue;
+        end;
+        s := FindSiteByName('', ps.Name);
+        if s = nil then
+        begin
+          Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: Site not found', [ps.Name]));
+          Continue;
+        end;
+        if s.noannounce and not console then
+        begin
+          Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: noannounce setting', [ps.Name]));
+          Continue;
+        end;
+
+        if ps.status in [rssRealPre, rssShouldPre] then
+        begin
+          if Result <> '' then
+            Result := Result + ' ';
+
+          Debug(dpSpam, section, Format('[TIMING DEBUG] Site: %s | Status: PRE (%d)',
+            [ps.Name, Ord(ps.status)]));
+
+          Result := Concat(Result, '<c9>', IntToStr(numComplete), '.</c> ', ps.Name, ' <c8>(PRE)</c>');
+          inc(numComplete);
+          Continue;
+        end;
+
+        if ps.status <> rssComplete then
+        begin
+          Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: Status not rssComplete (Status: %d)',
+            [ps.Name, Ord(ps.status)]));
+          Continue;
+        end;
+
+        if ps.DirlistGaveUpAndSentNoFiles or (ps.dirlist.CompletedTime = 0) then
+        begin
+          Debug(dpSpam, section, Format('[TIMING DEBUG] SKIPPED: %s - Reason: GaveUp or no CompletedTime (GaveUp: %s, CompletedTime: %s)',
+            [ps.Name, BoolToStr(ps.DirlistGaveUpAndSentNoFiles, True),
+            FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime)]));
+          Continue;
+        end;
+
+        if Result <> '' then
+          Result := Result + ' ';
+
+        secondsFromAddpre := MilliSecondsBetween(added, ps.dirlist.CompletedTime) / 1000.0;
+
+        Debug(dpSpam, section, Format('[TIMING DEBUG] Site: %s | ADDPRE: %s | Completed: %s | Diff: %.3fs | Status: %d',
+          [ps.Name, FormatDateTime('hh:nn:ss.zzz', added), FormatDateTime('hh:nn:ss.zzz', ps.dirlist.CompletedTime),
+          secondsFromAddpre, Ord(ps.status)]));
+
+        Result := Concat(Result, '<c9>', IntToStr(numComplete), '.</c> ', ps.Name, ' <c8>(', Format('%.3f', [secondsFromAddpre]), 's)</c>');
+        inc(numComplete);
+      except
+        on e: Exception do
+        begin
+          Debug(dpSpam, section, Format('[EXCEPTION] TPazo.SiteCompleteTimesStats: %s', [e.Message]));
+          Continue;
+        end;
+      end;
+    end;
+
+    Debug(dpSpam, section, Format('[TIMING DEBUG] Completed SiteCompleteTimesStats | Total sites included: %d | Result length: %d',
+      [numComplete - 1, Length(Result)]));
   finally
     sitesSorted.Free;
   end;
