@@ -4387,9 +4387,7 @@ procedure TSite.FullLogin;
 var
   i: integer;
   ss: TSiteSlot;
-  fs: integer;
 begin
-  fs := 0;
   for i := 0 to slots.Count - 1 do
   begin
     ss := TSiteSlot(slots[i]);
@@ -4399,7 +4397,7 @@ begin
     end;
   end;
 
-  ffreeslots := fs;
+  RecalcFreeslots;
 end;
 
 procedure TSite.RebuildSlot(const aSlotNumber: integer);
