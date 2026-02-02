@@ -2137,7 +2137,7 @@ begin
   upw := self.site.PassWord;
 
   // Kill ghost connections on first login after startup
-  if (not site.fFirstLoginDone) then
+  if (not site.fFirstLoginDone) and (config.ReadBool('sites', 'kill_ghosts_on_startup', True)) then
   begin
     kill := True;
     Debug(dpMessage, section, '[LOGIN] %s: First login after startup - using !username to kill ghosts', [Name]);
@@ -3772,49 +3772,21 @@ begin
 end;
 
 procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
-var
-  fNewCooldown: integer;
 begin
-  if fMaxSimUpCooldownSeconds = 0 then
-    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
-  else
-  begin
-    fNewCooldown := fMaxSimUpCooldownSeconds * 2;
-    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
-      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
-  end;
-
-  fMaxSimUpCooldownSeconds := fNewCooldown;
+  fMaxSimUpCooldownSeconds := 2;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s) (slot: %s)',
     [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
-  if spamcfg.readbool(section, 'maxsim_cooldown', True) then
-    irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> UP cooldown for <b>%s</b> set to <b>%ds</b> (slot: %s)',
-      [Name, fMaxSimUpCooldownSeconds, aSlotName]));
 end;
 
 procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
-var
-  fNewCooldown: integer;
 begin
-  if fMaxSimDownCooldownSeconds = 0 then
-    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
-  else
-  begin
-    fNewCooldown := fMaxSimDownCooldownSeconds * 2;
-    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
-      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
-  end;
-
-  fMaxSimDownCooldownSeconds := fNewCooldown;
+  fMaxSimDownCooldownSeconds := 2;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s) (slot: %s)',
     [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
-  if spamcfg.readbool(section, 'maxsim_cooldown', True) then
-    irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> DOWN cooldown for <b>%s</b> set to <b>%ds</b> (slot: %s)',
-      [Name, fMaxSimDownCooldownSeconds, aSlotName]));
 end;
 
 procedure TSite.ResetMaxSimUpCooldown;
@@ -3851,9 +3823,6 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
         [Name, fMaxSimUpCooldownSeconds]);
-      if spamcfg.readbool(section, 'maxsim_cooldown', True) then
-        irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> UP cooldown for <b>%s</b> expired after <b>%ds</b>',
-          [Name, fMaxSimUpCooldownSeconds]));
       fMaxSimUpCooldownSeconds := 0;
     end;
     fMaxSimUpCooldownUntil := 0;
@@ -3878,9 +3847,6 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
         [Name, fMaxSimDownCooldownSeconds]);
-      if spamcfg.readbool(section, 'maxsim_cooldown', True) then
-        irc_Adderror(Format('<c7>[MAXSIM COOLDOWN]</c> DOWN cooldown for <b>%s</b> expired after <b>%ds</b>',
-          [Name, fMaxSimDownCooldownSeconds]));
       fMaxSimDownCooldownSeconds := 0;
     end;
     fMaxSimDownCooldownUntil := 0;
@@ -3908,27 +3874,13 @@ begin
 end;
 
 procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
-var
-  fNewCooldown: integer;
 begin
-  if fLoginCooldownSeconds = 0 then
-    fNewCooldown := LOGIN_COOLDOWN_INITIAL_SECONDS
-  else
-  begin
-    fNewCooldown := fLoginCooldownSeconds * 2;
-    if fNewCooldown > LOGIN_COOLDOWN_MAX_SECONDS then
-      fNewCooldown := LOGIN_COOLDOWN_MAX_SECONDS;
-  end;
-
-  fLoginCooldownSeconds := fNewCooldown;
+  fLoginCooldownSeconds := 2;
   fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
   fLoginCooldownLastSlot := aSlotName;
 
   Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s set to %ds (until %s) (slot: %s)',
     [Name, fLoginCooldownSeconds, DateTimeToStr(fLoginCooldownUntil), aSlotName]);
-  if spamcfg.readbool(section, 'login_cooldown', True) then
-    irc_Adderror(Format('<c7>[LOGIN COOLDOWN]</c> Login cooldown for <b>%s</b> set to <b>%ds</b> (slot: %s)',
-      [Name, fLoginCooldownSeconds, aSlotName]));
 end;
 
 procedure TSite.ResetLoginCooldown;
@@ -3958,17 +3910,11 @@ begin
       begin
         Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s expired after %ds',
           [Name, fLoginCooldownSeconds]);
-        if spamcfg.readbool(section, 'login_cooldown', True) then
-          irc_Adderror(Format('<c7>[LOGIN COOLDOWN]</c> Login cooldown for <b>%s</b> expired after <b>%ds</b>',
-            [Name, fLoginCooldownSeconds]));
       end
       else
       begin
         Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s expired after %ds (slot: %s)',
           [Name, fLoginCooldownSeconds, fLoginCooldownLastSlot]);
-        if spamcfg.readbool(section, 'login_cooldown', True) then
-          irc_Adderror(Format('<c7>[LOGIN COOLDOWN]</c> Login cooldown for <b>%s</b> expired after <b>%ds</b> (slot: %s)',
-            [Name, fLoginCooldownSeconds, fLoginCooldownLastSlot]));
       end;
       fLoginCooldownSeconds := 0;
     end;

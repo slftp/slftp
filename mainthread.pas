@@ -522,6 +522,9 @@ begin
         Debug(dpError, section, 'Failed to start Performance Monitor: %s', [E.Message]);
     end;
   end;
+
+  if config.ReadBool('sites', 'kill_ghosts_on_startup', True) then
+    irc_addadmin('Startup: Ghost killing enabled for first logins.');
 end;
 
 procedure Main_Stop;

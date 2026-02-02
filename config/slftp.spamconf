@@ -56,10 +56,6 @@ queue_recycle=1
 # LOGIN SITENAME (SITENAME/NUMBER)
 # QUIT SITENAME (SITENAME/NUMBER)
 login_logout=0
-# announce login cooldown messages
-login_cooldown=1
-# announce maxsim cooldown messages
-maxsim_cooldown=1
 # Suppress (SLOT SITENAME/NUMBER IS DOWN) messages
 slot_down=0
 # TSiteSlot.Execute: Force Leave:SITENAME/NUMBER SiteSlot Recycle 15min
