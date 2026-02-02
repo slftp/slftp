@@ -471,7 +471,7 @@ begin
     case s.lastResponseCode of
       421:
         begin
-          s.DestroySocketAndRelogin('TPazoDirlistTask');
+          s.QuitAndRelogin('TPazoDirlistTask');
           goto TryAgain;
         end;
 
@@ -1430,8 +1430,8 @@ var
           [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
         mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
           [fLastSrcUploader, lSrcUser]);
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
+        sdst.QuitAndRelogin('TPazoRaceTask - source uploader switch');
+        ssrc.QuitAndRelogin('TPazoRaceTask - source uploader switch');
         readyerror := True;
         Result := True;
         exit;
@@ -1458,8 +1458,8 @@ var
         Debug(dpSpam, c_section, '[SRC-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]);
         mainpazo.errorreason := 'Source regression';
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - source regression');
+        sdst.QuitAndRelogin('TPazoRaceTask - source regression');
+        ssrc.QuitAndRelogin('TPazoRaceTask - source regression');
         readyerror := True;
         Result := True;
         exit;
@@ -1515,8 +1515,8 @@ var
         end;
         mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
           [fLastDstUploader, lDstUser]);
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
+        sdst.QuitAndRelogin('TPazoRaceTask - destination uploader switch');
+        ssrc.QuitAndRelogin('TPazoRaceTask - destination uploader switch');
         readyerror := True;
         Result := True;
         exit;
@@ -1524,31 +1524,12 @@ var
       fLastDstUploader := lDstUser;
     end;
 
-    // Destination Filesize Regression Detection (Slowkicker)
     if (fDstDiffMSec < 200) and (lDstFileSize > 0) then
     begin
       if fLastDstFileSize < 0 then
         fLastDstFileSize := lDstFileSize
       else if lDstFileSize > fLastDstFileSize then
         fLastDstFileSize := lDstFileSize;
-
-      // Filesize decreased: slowkicker detected
-      if (fLastDstFileSize > 0) and (lDstFileSize < fLastDstFileSize) then
-      begin
-        if spamcfg.readbool(c_section, 'dst_regression', True) then
-        begin
-          irc_Adderror(Format('<c7>[DST-REGRESSION]</c> %s: %d->%d age=%dms - killing slots',
-            [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]));
-        end;
-        Debug(dpSpam, c_section, '[DST-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
-          [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]);
-        mainpazo.errorreason := 'Destination regression';
-        sdst.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
-        ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
-        readyerror := True;
-        Result := True;
-        exit;
-      end;
     end;
   end;
 
@@ -2248,7 +2229,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(Format('<c4>[Can''t open data connection]</c> %s : %d %s', [tname, lastResponseCode, LeftStr(lastResponse, 90)]));
 
-            sdst.DestroySocketAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Can''t open data connection';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2261,7 +2242,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(sdst.todotask, '<c4>[ERROR Cant build]</c> TPazoRaceTask %s', [tname]);
 
-            sdst.DestroySocketAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Timeout or building data connection problem';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2388,7 +2369,7 @@ begin
             begin
               if sdst.site <> nil then
                 sdst.site.RegisterMaxSimUpHit(sdst.Name);
-              sdst.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
+              sdst.QuitAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
@@ -2502,7 +2483,7 @@ begin
             begin
               if sdst.site <> nil then
                 sdst.site.RegisterMaxSimUpHit(sdst.Name);
-              sdst.DestroySocketAndRelogin('Maximum of simultaneous uploads reached');
+              sdst.QuitAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
             mainpazo.errorreason := 'Maximum of simultaneous uploads reached';
@@ -2551,7 +2532,7 @@ begin
       irc_Adderror(sdst.todotask, '<c4>[ERROR FXP]</c> TPazoRaceTask %s: %s %d %s', [sdst.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
 
       mainpazo.errorreason := Format('Unhandled error %s after STOR (%s) : %d %s', [sdst.site.Name, tname, lastResponseCode, LeftStr(lastResponse, 90)]);
-      sdst.DestroySocketAndRelogin('TPazoRaceTask');
+      sdst.QuitAndRelogin('TPazoRaceTask');
       readyerror := True;
       Debug(dpMessage, c_section, '<- ' + tname);
       exit;
@@ -2609,7 +2590,7 @@ begin
             if spamcfg.readbool(c_section, 'cant_open_data_connection', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR Cant open]</c> TPazoRaceTask %s', [tname]);
 
-              sdst.DestroySocketAndRelogin('TPazoRaceTask');
+              sdst.QuitAndRelogin('TPazoRaceTask');
               mainpazo.errorreason := 'Timeout or opening data connection problem';
               readyerror := True;
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2625,7 +2606,7 @@ begin
 
 
               // maybe remove the source from race because fxp isn't allowed?
-              sdst.DestroySocketAndRelogin('TPazoRaceTask');
+              sdst.QuitAndRelogin('TPazoRaceTask');
               mainpazo.errorreason := 'Opening data connection problem';
               readyerror := True;
               Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2685,7 +2666,7 @@ begin
             // need to have first coded TSite.LastCredits to get it work somehow
             ssrc.site.SetKredits;
 
-            sdst.DestroySocketAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Out of credits';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2708,7 +2689,7 @@ begin
             if spamcfg.readbool(c_section, 'permission_denied', True) then
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
-            sdst.DestroySocketAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Permission denied';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2723,7 +2704,7 @@ begin
               irc_Adderror(ssrc.todotask, '<c4>[ERROR] Permission denied</c> %s', [tname]);
 
             //TODO: Disable downloading for this site for some time until you uploaded more stuff to download again
-            sdst.DestroySocketAndRelogin('TPazoRaceTask');
+            sdst.QuitAndRelogin('TPazoRaceTask');
             mainpazo.errorreason := 'Permission denied - limit of bandwidth usage detected';
             readyerror := True;
             Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2757,7 +2738,7 @@ begin
             begin
               if ssrc.site <> nil then
                 ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
-              ssrc.DestroySocketAndRelogin('Maximum of simultaneous downloads reached');
+              ssrc.QuitAndRelogin('Maximum of simultaneous downloads reached');
             end;
 
             if sdst <> nil then
