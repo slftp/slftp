@@ -3207,10 +3207,10 @@ end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
 begin
-  if fTodotask <> Value then
-  begin
-    site.fFreeSlotsCS.Enter('SetTodotask');
-    try
+  site.fFreeSlotsCS.Enter('SetTodotask');
+  try
+    if fTodotask <> Value then
+    begin
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
@@ -3220,12 +3220,12 @@ begin
       begin
         site.freeslots := site.freeslots + 1;
       end;
-    finally
-      site.fFreeSlotsCS.Leave;
-    end;
 
-    if GetDebugVerbosity = dpSpam then
-      Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+    end;
+  finally
+    site.fFreeSlotsCS.Leave;
   end;
 end;
 
@@ -4609,9 +4609,7 @@ procedure TSite.FullLogin;
 var
   i: integer;
   ss: TSiteSlot;
-  fs: integer;
 begin
-  fs := 0;
   for i := 0 to slots.Count - 1 do
   begin
     ss := TSiteSlot(slots[i]);
@@ -4621,7 +4619,7 @@ begin
     end;
   end;
 
-  ffreeslots := fs;
+  RecalcFreeslots;
 end;
 
 procedure TSite.RebuildSlot(const aSlotNumber: integer);
