@@ -37,6 +37,8 @@ Sites (ApiSitesService)
 - GetSites: Body {"Filter":""}. Returns list of sites.
 - GetSite: Body {"SiteName":"<name>"}. Returns basic site details.
 - GetSiteCredits: Body {"SiteName":"<name>", "ForceRefresh":true|false}. Returns credits/ratio data.
+- GetSiteUser: Body {"SiteName":"<name>", "UserName":"<username>"}.
+  Returns raw SITE USER output (if UserName is empty, uses the site's configured username).
 - GetSiteInfo: Body {"SiteName":"<name>"}. Returns full site details including BNCs, automation settings, country, etc.
 - AddSite: Body {"Name":"...", "Host":"...", "Port":21, "Username":"...", "Password":"...", "SslEnabled":true|false}
 - DeleteSite: Body {"SiteName":"<name>"}
@@ -50,6 +52,7 @@ Sites (ApiSitesService)
 - SetSiteAffils: Body {"SiteName":"<name>","Affils":"GRP1 GRP2"}
 - SetSiteIrcNick: Body {"SiteName":"<name>","IrcNick":"..."}
 - SetSiteCredentials: Sets detailed credentials/BNCs.
+- SetSiteSslMethod: Body {"SiteName":"<name>","SslMethod":0|1|2|3} (0=Off, 1=Implicit SSL, 2=AUTH SSL, 3=AUTH TLS)
 - SetSiteConfig: Body {"SiteName":"<name>", "Config":{...}}. Sets misc options (autobnctest, country, etc).
 - RunSiteAutoRules: Body {"SiteName":"<name>"}
 - GetSiteRoutes: Body {"SiteName":"<name>"}
@@ -146,6 +149,7 @@ Precatcher (ApiPrecatcherService)
 - SavePrecatcherConfig: Body {"Content":"..."}.
 - ReloadPrecatcher: Reloads config.
 - GetMappings: Returns section mappings.
+- GetPrecatcherHelpers: Returns helper data (sections, mapping templates).
 - GetHits: Body {"Limit":<int>, "SinceUnix":<int>, "ReleaseName":"", "SiteName":""}. Returns recent precatcher hits.
 
 Simulator (ApiSimulatorService)
