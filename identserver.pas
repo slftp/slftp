@@ -9,6 +9,20 @@ interface
   B answer:   56646,13307 : USERID : UNIX : slftpuser
 *)
 
+{ Parse the ident request and extract server and client ports
+  @param(aRequest The raw request line)
+  @param(aServerPort Output: server port)
+  @param(aClientPort Output: client port)
+  @returns(True if parsing was successful) }
+function ParseIdentRequest(const aRequest: String; out aServerPort, aClientPort: Integer): Boolean;
+
+{ Build the ident response string
+  @param(aServerPort Server port from request)
+  @param(aClientPort Client port from request)
+  @param(aIdentReply The ident username to return)
+  @returns(Formatted ident response) }
+function BuildIdentResponse(aServerPort, aClientPort: Integer; const aIdentReply: String): String;
+
 type
   { @abstract(Ident server thread for replying to ident requests on port 113) }
   TIdentServerThread = class(TThread)
@@ -22,20 +36,6 @@ type
       @param(aPeerPort Port from server who requests ident)
       @returns(Sites ident string if configured, otherwise default ident from config) }
     function FindSiteIdent(const aPeerIP: String; const aPeerPort: Integer): String;
-
-    { Parse the ident request and extract server and client ports
-      @param(aRequest The raw request line)
-      @param(aServerPort Output: server port)
-      @param(aClientPort Output: client port)
-      @returns(True if parsing was successful) }
-    function ParseIdentRequest(const aRequest: String; out aServerPort, aClientPort: Integer): Boolean;
-
-    { Build the ident response string
-      @param(aServerPort Server port from request)
-      @param(aClientPort Client port from request)
-      @param(aIdentReply The ident username to return)
-      @returns(Formatted ident response) }
-    function BuildIdentResponse(aServerPort, aClientPort: Integer; const aIdentReply: String): String;
   protected
     procedure Execute; override;
   public
@@ -99,7 +99,7 @@ begin
   end;
 end;
 
-function TIdentServerThread.ParseIdentRequest(const aRequest: String; out aServerPort, aClientPort: Integer): Boolean;
+function ParseIdentRequest(const aRequest: String; out aServerPort, aClientPort: Integer): Boolean;
 var
   fCommaPos: Integer;
   fServerPortStr, fClientPortStr: String;
@@ -126,7 +126,7 @@ begin
             (aClientPort > 0) and (aClientPort <= 65535);
 end;
 
-function TIdentServerThread.BuildIdentResponse(aServerPort, aClientPort: Integer; const aIdentReply: String): String;
+function BuildIdentResponse(aServerPort, aClientPort: Integer; const aIdentReply: String): String;
 begin
   // Response format: "serverport, clientport : USERID : UNIX : username"
   Result := Format('%d, %d : USERID : UNIX : %s'#13#10, [aServerPort, aClientPort, aIdentReply]);
