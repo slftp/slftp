@@ -1,7 +1,7 @@
 import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
-import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconMessage2, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask, IconFolder, IconBolt, IconTrophy, IconDatabase, IconHelpCircle, IconCloud } from '@tabler/icons-react';
+import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconMessage2, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask, IconFolder, IconBolt, IconTrophy, IconDatabase, IconHelpCircle, IconTransfer } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
 import { isCbftpEnabled } from '../api/cbftpClient';
@@ -31,7 +31,7 @@ export function Layout() {
   const allLinks: NavLinkItem[] = [
     { icon: IconDashboard, label: 'Dashboard', to: '/', color: 'blue' },
     { icon: IconFolder, label: 'Browser', to: '/browser', color: 'yellow' },
-    { icon: IconCloud, label: 'cbftp', to: '/cbftp', color: 'grape' },
+    { icon: IconTransfer, label: 'cbftp', to: '/cbftp', color: 'cyan' },
     { icon: IconBolt, label: 'PRE', to: '/pre', color: 'orange' },
     { icon: IconMessage2, label: 'IRC', to: '/irc', color: 'violet' },
     { icon: IconDatabase, label: 'Databases', to: '/databases', color: 'cyan' },
