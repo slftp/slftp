@@ -325,6 +325,16 @@ export const getRawCommandResult = async (id: number): Promise<RawCommandRespons
   return response.data;
 };
 
+// Check if cbftp integration is enabled
+export const isCbftpEnabled = async (): Promise<boolean> => {
+  try {
+    const response = await cbftpClient.get<{ enabled: boolean }>('/cbftp/enabled');
+    return response.data?.enabled ?? false;
+  } catch {
+    return false;
+  }
+};
+
 // Info
 export const getInfo = async (): Promise<CbftpInfo> => {
   const response = await cbftpClient.get('/cbftp/info');

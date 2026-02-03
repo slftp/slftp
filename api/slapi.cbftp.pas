@@ -8,6 +8,9 @@ uses
 { Handle cbftp proxy requests }
 function HandleCbftpRequest(var Call: TRestUriParams): Boolean;
 
+{ Check if cbftp integration is enabled }
+function IsCbftpEnabled: Boolean;
+
 implementation
 
 uses
@@ -18,6 +21,11 @@ const
 
 var
   GlobalCbftpClient: TCbftpClient = nil;
+
+function IsCbftpEnabled: Boolean;
+begin
+  Result := config.ReadBool('UDPConfig', 'EnableUDP', False);
+end;
 
 function GetCbftpClient: TCbftpClient;
 var
@@ -85,8 +93,46 @@ var
     else
       Result := aText;
   end;
+
+  function ExtractCbftpPath(const aUrl: RawUtf8): RawUtf8;
+  begin
+    Result := aUrl;
+    if (Result <> '') and (Result[1] <> '/') then
+      Result := '/' + Result;
+    if StartsStr('/api/cbftp', Result) then
+      Delete(Result, 1, Length('/api/cbftp'))
+    else if StartsStr('/cbftp', Result) then
+      Delete(Result, 1, Length('/cbftp'));
+    // Remove query string for path check
+    if Pos('?', Result) > 0 then
+      Result := Copy(Result, 1, Pos('?', Result) - 1);
+  end;
+
 begin
   Result := False;
+
+  // Handle /enabled endpoint first - always works regardless of config
+  path := ExtractCbftpPath(Call.Url);
+  if (Call.Method = 'GET') and (path = '/enabled') then
+  begin
+    Call.OutStatus := 200;
+    if IsCbftpEnabled then
+      Call.OutBody := '{"enabled":true}'
+    else
+      Call.OutBody := '{"enabled":false}';
+    Call.OutHead := 'Content-Type: application/json';
+    Exit(True);
+  end;
+
+  // If cbftp is disabled, reject all other requests
+  if not IsCbftpEnabled then
+  begin
+    Call.OutStatus := 503;
+    Call.OutBody := '{"error":"cbftp integration is disabled","enabled":false}';
+    Call.OutHead := 'Content-Type: application/json';
+    Exit(True);
+  end;
+
   client := GetCbftpClient;
   if client = nil then
   begin

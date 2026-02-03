@@ -1,8 +1,10 @@
 import { AppShell, Burger, Group, NavLink, Title, useMantineColorScheme, ActionIcon, Avatar, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { useQuery } from '@tanstack/react-query';
 import { IconDashboard, IconServer, IconMoon, IconSun, IconRoute, IconFolders, IconMessage2, IconLogout, IconFilter, IconChartBar, IconFileText, IconAlertTriangle, IconFlask, IconFolder, IconBolt, IconTrophy, IconDatabase, IconHelpCircle, IconCloud } from '@tabler/icons-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
+import { isCbftpEnabled } from '../api/cbftpClient';
 import { AutoSwitch } from './AutoSwitch';
 
 export function Layout() {
@@ -10,6 +12,13 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+
+  const { data: cbftpEnabled } = useQuery({
+    queryKey: ['cbftp-enabled'],
+    queryFn: isCbftpEnabled,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: false,
+  });
 
   interface NavLinkItem {
     icon: any;
@@ -19,7 +28,7 @@ export function Layout() {
     children?: { label: string; to: string }[];
   }
 
-  const links: NavLinkItem[] = [
+  const allLinks: NavLinkItem[] = [
     { icon: IconDashboard, label: 'Dashboard', to: '/', color: 'blue' },
     { icon: IconFolder, label: 'Browser', to: '/browser', color: 'yellow' },
     { icon: IconCloud, label: 'cbftp', to: '/cbftp', color: 'grape' },
@@ -37,6 +46,9 @@ export function Layout() {
     { icon: IconServer, label: 'Sites Manager', to: '/sites', color: 'blue' },
     { icon: IconChartBar, label: 'Stats', to: '/stats', color: 'orange' },
   ];
+
+  // Filter out cbftp if not enabled
+  const links = allLinks.filter(link => link.to !== '/cbftp' || cbftpEnabled);
 
   const items = links.map((link) => {
     if (link.children) {
