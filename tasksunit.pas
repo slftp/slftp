@@ -76,6 +76,7 @@ var
   glTaskraceFilenameNotAllowed: Boolean; //< Cache for spamcfg 'taskrace'/'filename_not_allowed'
   glTaskraceCantCreateDir: Boolean;      //< Cache for spamcfg 'taskrace'/'cant_create_dir'
   glTaskraceDenyingCreationOf: Boolean;  //< Cache for spamcfg 'taskrace'/'denying_creation_of'
+  glTaskraceMkdir: Boolean;              //< Cache for spamcfg 'taskrace'/'mkdir'
 
 implementation
 
@@ -189,6 +190,7 @@ begin
   glTaskraceFilenameNotAllowed := spamcfg.ReadBool('taskrace', 'filename_not_allowed', True);
   glTaskraceCantCreateDir := spamcfg.ReadBool('taskrace', 'cant_create_dir', True);
   glTaskraceDenyingCreationOf := spamcfg.ReadBool('taskrace', 'denying_creation_of', True);
+  glTaskraceMkdir := spamcfg.ReadBool('taskrace', 'mkdir', True);
 end;
 
 procedure Tasks_Uninit;
