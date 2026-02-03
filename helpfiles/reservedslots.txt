@@ -1,0 +1,9 @@
+Usage: <cmd> sitename1,sitename2 [reserved_slots]
+Reserve free slots for non-race tasks. If reserved_slots is omitted, shows current value.
+
+Examples:
+<cmd> HQ1 2 <- keep 2 free slots for non-race tasks on HQ1
+<cmd> HQ1 <- show current reserved slots on HQ1
+<cmd> * 1 <- set reserved slots to 1 for all sites
+
+Note: On single-slot sites, the effective reserved slots is 0.

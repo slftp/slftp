@@ -442,19 +442,34 @@ var
   s1, s2: TSite;
   i: integer;
   ss1, ss2, fSiteSlotLoop: TSiteSlot;
+  fReserved1: integer;
+  fReserved2: integer;
+
+  function CalcReservedRaceSlots(const aSite: TSite): integer;
+  begin
+    Result := aSite.RCInteger('reserved_race_slots', 1);
+    if Result < 0 then
+      Result := 0;
+    if aSite.slots.Count <= 1 then
+      Result := 0;
+  end;
 begin
   try
     s1 := TSite(t.ssite1);
     s2 := TSite(t.ssite2);
 
-    if (s1.slots.Count > 1) and (s1.freeslots <= 1) then
-      exit;
     if s1.freeslots = 0 then
       exit;
 
-    if (s2.slots.Count > 1) and (s2.freeslots <= 1) then
-      exit;
     if s2.freeslots = 0 then
+      exit;
+
+    fReserved1 := CalcReservedRaceSlots(s1);
+    if (fReserved1 > 0) and (s1.freeslots <= fReserved1) then
+      exit;
+
+    fReserved2 := CalcReservedRaceSlots(s2);
+    if (fReserved2 > 0) and (s2.freeslots <= fReserved2) then
       exit;
 
     if s2.MaxSimUpCooldownActive then
