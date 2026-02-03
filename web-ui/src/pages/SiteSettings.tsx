@@ -17,15 +17,24 @@ import {
   SimpleGrid,
   Divider,
   Badge,
-  Text
+  Text,
+  Code
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconPlus, IconX, IconDeviceFloppy, IconWorld } from '@tabler/icons-react';
+import { IconArrowLeft, IconPlus, IconX, IconDeviceFloppy, IconWorld, IconRefresh } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import type { Bnc } from '../api/client';
+
+type SiteUserResponse = {
+  SiteName?: string;
+  UserName?: string;
+  Ok?: boolean;
+  Message?: string;
+  Output?: string;
+};
 
 export function SiteSettings() {
   const { siteName } = useParams();
@@ -70,6 +79,8 @@ export function SiteSettings() {
   const [siteNotes, setSiteNotes] = useState('');
   const [identResponse, setIdentResponse] = useState('');
   const [siteInfos, setSiteInfos] = useState('');
+  const [siteUserInfo, setSiteUserInfo] = useState<SiteUserResponse | null>(null);
+  const [siteUserFetchedAt, setSiteUserFetchedAt] = useState<number | null>(null);
 
   const resolveDnsMutation = useMutation({
     mutationFn: async (host: string) => {
@@ -159,6 +170,11 @@ export function SiteSettings() {
   });
 
   useEffect(() => {
+    setSiteUserInfo(null);
+    setSiteUserFetchedAt(null);
+  }, [siteName]);
+
+  useEffect(() => {
     if (siteRuntime) {
       setSlots(siteRuntime.slots ?? 0);
       setMaxDn(siteRuntime.max_dn ?? siteRuntime.slots ?? 0);
@@ -225,6 +241,36 @@ export function SiteSettings() {
     },
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
+
+  const fetchSiteUserMutation = useMutation({
+    mutationFn: async (requestedUserName: string) => {
+      if (!siteName) throw new Error('No site name');
+      const res = await apiClient.post('/ApiSitesService/GetSiteUser', {
+        SiteName: siteName,
+        UserName: requestedUserName
+      });
+      return res.data.result?.[0] || res.data;
+    },
+    onSuccess: (data: SiteUserResponse) => {
+      setSiteUserInfo(data);
+      setSiteUserFetchedAt(Date.now());
+      if (data?.Ok === false && data?.Message) {
+        notifications.show({ title: 'SITE USER', message: data.Message, color: 'red' });
+      }
+    },
+    onError: (err: any) => {
+      const message = err.message || 'Failed to fetch SITE USER';
+      setSiteUserInfo({ Ok: false, Message: message, Output: '' });
+      setSiteUserFetchedAt(Date.now());
+      notifications.show({ title: 'Error', message, color: 'red' });
+    }
+  });
+
+  useEffect(() => {
+    if (!siteName || !siteInfo) return;
+    if (siteUserFetchedAt || fetchSiteUserMutation.isPending) return;
+    fetchSiteUserMutation.mutate(siteInfo.Username || '');
+  }, [siteName, siteInfo, siteUserFetchedAt, fetchSiteUserMutation.isPending]);
 
   // Actions
   const ghostMutation = useMutation({
@@ -490,6 +536,61 @@ export function SiteSettings() {
                     />
                 </div>
             </Stack>
+        </Paper>
+
+        <Paper withBorder p="md" radius="md">
+            <Group justify="space-between" mb="md" align="center">
+                <Group>
+                    <Title order={4}>SITE USER</Title>
+                    {siteUserInfo && (
+                        <Badge color={siteUserInfo.Ok ? 'green' : 'red'}>
+                            {siteUserInfo.Ok ? 'OK' : 'ERROR'}
+                        </Badge>
+                    )}
+                </Group>
+                <Group gap="sm" align="center">
+                    <Text size="sm" c="dimmed">
+                        User: {siteInfo?.Username || '-'}
+                    </Text>
+                    <Button
+                        leftSection={<IconRefresh size="1rem" />}
+                        variant="light"
+                        loading={fetchSiteUserMutation.isPending}
+                        onClick={() => fetchSiteUserMutation.mutate(siteInfo?.Username || '')}
+                    >
+                        Refresh
+                    </Button>
+                </Group>
+            </Group>
+            {siteUserInfo ? (
+                <Stack gap="xs">
+                    {siteUserInfo.Message && siteUserInfo.Ok === false && (
+                        <Alert color="red" title="SITE USER">
+                            {siteUserInfo.Message}
+                        </Alert>
+                    )}
+                    <Code block style={{ whiteSpace: 'pre' }}>
+                        {siteUserInfo.Output || 'No output'}
+                    </Code>
+                    <Group gap="xs">
+                        <Text size="xs" c="dimmed">
+                            User: {siteUserInfo.UserName || siteInfo?.Username || '-'}
+                        </Text>
+                        {siteUserFetchedAt && (
+                            <Text size="xs" c="dimmed">
+                                Last fetched: {new Date(siteUserFetchedAt).toLocaleString()}
+                            </Text>
+                        )}
+                        <Text size="xs" c="dimmed">
+                            Auto fetched on open.
+                        </Text>
+                    </Group>
+                </Stack>
+            ) : (
+                <Text size="sm" c="dimmed">
+                    Loading SITE USER output...
+                </Text>
+            )}
         </Paper>
 
         <Paper withBorder p="md" radius="md">
