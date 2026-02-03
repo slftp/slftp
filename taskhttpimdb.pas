@@ -355,7 +355,10 @@ begin
                 
                 if fCountryName = fReleasenameCountry then
                 begin
-                   if not VarIsNull(fVariant2.releaseDate) then
+                   if not VarIsNull(fVariant2.releaseDate) and
+                      not VarIsNull(fVariant2.releaseDate.year) and
+                      not VarIsNull(fVariant2.releaseDate.month) and
+                      not VarIsNull(fVariant2.releaseDate.day) then
                      fImdbReleaseDate := Format('%d-%d-%d', [Integer(fVariant2.releaseDate.year), Integer(fVariant2.releaseDate.month), Integer(fVariant2.releaseDate.day)]);
                    
                    fAttributesStr := '';
@@ -383,7 +386,9 @@ begin
                    end;
                    
                    // Check CineYear (First theatrical release)
-                   if (not fIsSTV) and (not fIsFestival) and (fImdbCineYear = 0) and not VarIsNull(fVariant2.releaseDate) then
+                   if (not fIsSTV) and (not fIsFestival) and (fImdbCineYear = 0) and
+                      not VarIsNull(fVariant2.releaseDate) and
+                      not VarIsNull(fVariant2.releaseDate.year) then
                    begin
                       fImdbCineYear := fVariant2.releaseDate.year;
                       fStatusReasonList.Add(Format('Cine year for %s is %d taken from %s (Attributes: %s)', [fReleasenameCountry, fImdbCineYear, fImdbReleaseDate, fAttributesStr]));
