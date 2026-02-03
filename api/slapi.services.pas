@@ -73,6 +73,10 @@ type
     /// Executes SITE STAT and returns parsed credits/ratio (cached for ~1h unless ForceRefresh is true)
     function GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;
 
+    /// POST /api/sites/{name}/user
+    /// Executes SITE USER and returns raw user info output
+    function GetSiteUser(const SiteName, UserName: RawUTF8; out Info: TApiSiteUserInfo): boolean;
+
     /// POST /api/sites
     /// Adds new site
     function AddSite(const Name, Host: RawUTF8; Port: integer;

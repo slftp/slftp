@@ -67,6 +67,7 @@ type
     function GetSites(const Filter: RawUTF8; out Sites: TApiSitesList): boolean;
     function GetSite(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
     function GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;
+    function GetSiteUser(const SiteName, UserName: RawUTF8; out Info: TApiSiteUserInfo): boolean;
     function AddSite(const Name, Host: RawUTF8; Port: integer;
                      const Username, Password: RawUTF8;
                      SslEnabled: boolean): boolean;
@@ -302,6 +303,7 @@ uses
   simulator,
   mystrings,
   notify,
+  sltcp,
   taskraw,
   SyncObjs,
   IdStack,
@@ -326,6 +328,7 @@ const
   section = 'slapi.services';
   CGetSiteCreditsTimeoutMs = 30000;
   CGetSiteCreditsCacheSeconds = 3600;
+  CGetSiteUserTimeoutMs = 30000;
   CBrowserCacheSeconds = 60; // Cache duration for browser listings
 
 var
@@ -1760,6 +1763,133 @@ begin
     on E: Exception do
     begin
       Debug(dpError, section, Format('[EXCEPTION] GetSiteCredits: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetSiteUser(const SiteName, UserName: RawUTF8; out Info: TApiSiteUserInfo): boolean;
+var
+  fSite: TSite;
+  fNotify: TTaskNotify;
+  fTask: TRawTask;
+  fWaitRes: TWaitResult;
+  fOutput: string;
+  fResponse: string;
+  fUserName: string;
+  fSiteNameStr: string;
+  fIndex: integer;
+begin
+  Result := False;
+  Info := TApiSiteUserInfo.Create;
+  Info.SiteName := SiteName;
+  Info.UserName := UserName;
+  Info.Ok := False;
+  Info.Message := '';
+  Info.Output := '';
+
+  try
+    fSiteNameStr := UTF8ToString(SiteName);
+    fSite := FindSiteByName('', fSiteNameStr);
+    if fSite = nil then
+    begin
+      Info.Message := 'Site not found';
+      Result := True;
+      Exit;
+    end;
+
+    if fSite.PermDown then
+    begin
+      Info.Message := 'Site is permdown';
+      Result := True;
+      Exit;
+    end;
+
+    if not fSite.IsUp then
+    begin
+      Info.Message := 'Site is offline';
+      Result := True;
+      Exit;
+    end;
+
+    fUserName := UTF8ToString(UserName);
+    if fUserName = '' then
+      fUserName := fSite.username;
+
+    if fUserName = '' then
+    begin
+      Info.Message := 'No username configured';
+      Result := True;
+      Exit;
+    end;
+
+    Info.UserName := UTF8Encode(fUserName);
+
+    fNotify := AddNotify;
+    try
+      fTask := TRawTask.Create('API', '', fSite.Name, '', 'SITE USER ' + fUserName);
+      fNotify.AddTask(fTask);
+      AddTask(fTask, True);
+
+      fWaitRes := fNotify.event.WaitFor(CGetSiteUserTimeoutMs);
+      if fWaitRes <> wrSignaled then
+      begin
+        Info.Message := 'Timed out waiting for SITE USER';
+        Result := True;
+        Exit;
+      end;
+
+      if (fNotify.responses = nil) or (fNotify.responses.Count = 0) then
+      begin
+        Info.Message := 'No SITE USER response received';
+        Result := True;
+        Exit;
+      end;
+
+      fOutput := '';
+      for fIndex := 0 to fNotify.responses.Count - 1 do
+      begin
+        fResponse := TSiteResponse(fNotify.responses[fIndex]).response;
+        if fResponse = '' then
+          Continue;
+        if fOutput <> '' then
+          fOutput := fOutput + slEOL;
+        fOutput := fOutput + fResponse;
+      end;
+
+      if fOutput = '' then
+      begin
+        Info.Message := 'Empty SITE USER response';
+        Result := True;
+        Exit;
+      end;
+
+      if (Pos('You do not have access', fOutput) <> 0) or (Pos('Access denied', fOutput) <> 0) then
+      begin
+        Info.Message := 'Access denied for SITE USER';
+        Info.Output := UTF8Encode(fOutput);
+        Result := True;
+        Exit;
+      end;
+
+      if Pos('does not exist', fOutput) <> 0 then
+      begin
+        Info.Message := 'User does not exist';
+        Info.Output := UTF8Encode(fOutput);
+        Result := True;
+        Exit;
+      end;
+
+      Info.Output := UTF8Encode(fOutput);
+      Info.Ok := True;
+      Result := True;
+    finally
+      RemoveTN(fNotify);
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSiteUser: %s', [E.Message]));
       Result := False;
     end;
   end;

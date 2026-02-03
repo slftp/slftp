@@ -216,6 +216,22 @@ type
     property StatLine: RawUTF8 read FStatLine write FStatLine;
   end;
 
+  /// Site user info as returned by SITE USER
+  TApiSiteUserInfo = class(TOrm)
+  private
+    FSiteName: RawUTF8;
+    FUserName: RawUTF8;
+    FOk: boolean;
+    FMessage: RawUTF8;
+    FOutput: RawUTF8;
+  published
+    property SiteName: RawUTF8 read FSiteName write FSiteName;
+    property UserName: RawUTF8 read FUserName write FUserName;
+    property Ok: boolean read FOk write FOk;
+    property Message: RawUTF8 read FMessage write FMessage;
+    property Output: RawUTF8 read FOutput write FOutput;
+  end;
+
   { Task Status }
   TApiTaskStatus = (
     atsPending,
