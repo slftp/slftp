@@ -78,6 +78,8 @@ var
   cd, skiprlses: THashedStringList;
   tagline, irclines_ignorewords, replacefrom, replaceto: TStringList;
   huntartunk: huntartunk_tipus;
+  ignorePhraseRegex: TRegExpr; //< compiled regex for phrase matching (phrases with spaces)
+  ignorePhrasePatterns: TStringList; //< list of phrases included in regex (for debug output)
 
   debug_f: TextFile;
   precatcher_debug_lock: TSlCriticalSection2;
@@ -457,15 +459,12 @@ begin
         end;
       end;
 
-      // fulltext check for quoted phrases (that contains at least one space)
-      for i := 0 to irclines_ignorewords.Count - 1 do
+      // fulltext check for quoted phrases using compiled regex (single match instead of N iterations)
+      if (ignorePhraseRegex.Expression <> '') and ignorePhraseRegex.Exec(ts_data.DelimitedText) then
       begin
-        if AnsiContainsText(irclines_ignorewords[i],' ') and AnsiContainsText(ts_data.DelimitedText, irclines_ignorewords[i]) then
-        begin
-          MyDebug('Ignoreword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
-          Debug(dpSpam, rsections, 'Ignoreword (phrase) "' + irclines_ignorewords[i] + '" found in ' + Data);
-          exit;
-        end;
+        MyDebug('Ignoreword (phrase) matched by regex in ' + Data);
+        Debug(dpSpam, rsections, 'Ignoreword (phrase) matched: "%s" in %s', [ignorePhraseRegex.Match[0], Data]);
+        exit;
       end;
 
 
@@ -740,6 +739,54 @@ begin
     minimum_rlsname := StrToIntDef(SubString(s, '=', 2), 10);
 end;
 
+{ Rebuilds the compiled regex for phrase matching from irclines_ignorewords.
+  Only phrases containing spaces are included in the regex.
+  Called after config reload to update the compiled pattern. }
+procedure RebuildIgnorePhraseRegex;
+var
+  i: integer;
+  fPattern: String;
+  fPhrase: String;
+begin
+  ignorePhrasePatterns.Clear;
+  fPattern := '';
+
+  // Build regex pattern from phrases (words with spaces)
+  for i := 0 to irclines_ignorewords.Count - 1 do
+  begin
+    fPhrase := irclines_ignorewords[i];
+    if Pos(' ', fPhrase) > 0 then
+    begin
+      // Escape regex special characters in the phrase
+      fPhrase := QuoteRegExprMetaChars(fPhrase);
+      if fPattern <> '' then
+        fPattern := fPattern + '|';
+      fPattern := fPattern + fPhrase;
+      ignorePhrasePatterns.Add(irclines_ignorewords[i]);
+    end;
+  end;
+
+  // Compile the pattern if we have any phrases
+  if fPattern <> '' then
+  begin
+    try
+      ignorePhraseRegex.Expression := fPattern;
+      ignorePhraseRegex.Compile;
+      Debug(dpSpam, rsections, 'RebuildIgnorePhraseRegex: compiled %d phrases into regex', [ignorePhrasePatterns.Count]);
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, rsections, '[EXCEPTION] RebuildIgnorePhraseRegex: %s', [e.Message]);
+        ignorePhraseRegex.Expression := ''; // clear on error
+      end;
+    end;
+  end
+  else
+  begin
+    ignorePhraseRegex.Expression := '';
+  end;
+end;
+
 procedure ProcessIgnoreList(s: String);
 begin
   if (SubString(s, '=', 1) = 'ignorewords') then
@@ -918,6 +965,10 @@ begin
   replaceto := TStringList.Create;
   replaceto.Duplicates := dupAccept;
 
+  ignorePhraseRegex := TRegExpr.Create;
+  ignorePhraseRegex.ModifierI := True; // case insensitive
+  ignorePhrasePatterns := TStringList.Create;
+
   huntartunk := sehun;
 
   // ezt itt most csak azert hogy jo sorrendben hivodjanak meg az inicializaciok -- Now it here just so that good order should call the initialization ??
@@ -946,6 +997,8 @@ begin
   Debug(dpSpam, rsections, 'Uninit1');
 
   irclines_ignorewords.Free;
+  ignorePhraseRegex.Free;
+  ignorePhrasePatterns.Free;
 
   precatcher_lock.Free;
 
@@ -1090,9 +1143,12 @@ begin
   // Rewrite files to disk
   PrecatcherRebuild;
 
+  // Build compiled regex for phrase matching
+  RebuildIgnorePhraseRegex;
+
   result := 'Precatcher reloaded successfully.' + sLineBreak;
   result := result + 'Minimum_rlsname: ' + IntToStr(minimum_rlsname) + sLineBreak;
-  result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, irclines_ignorewords.Count]);
+  result := result + Format('Sections (%d) - Mapping (%d) - Replace|from/to: (%d/%d) - Ignorelist (%d) - IgnorePhrases (%d)', [kb_sections.Count, mappingslist.Count, replacefrom.Count, replaceto.Count, irclines_ignorewords.Count, ignorePhrasePatterns.Count]);
 end;
 
 function precatcherauto: boolean;
