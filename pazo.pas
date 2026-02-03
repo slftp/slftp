@@ -1173,15 +1173,20 @@ end;
 function TPazo.AddSites(const aIsSpreadJob: boolean): boolean;
 var
   s: TSite;
-  i: integer;
   sectiondir: String;
   ps: TPazoSite;
+  fSitesForSection: TList<TSite>;
 begin
   Result := False;
-  for i := sitesunit.sites.Count - 1 downto 0 do
+
+  // Use cached section-to-sites lookup instead of iterating all sites
+  fSitesForSection := GetSitesForSection(rls.section);
+  if fSitesForSection = nil then
+    exit;
+
+  for s in fSitesForSection do
   begin
     try
-      s := TSite(sitesunit.sites[i]);
       if not (s.WorkingStatus in [sstUnknown, sstUp]) then
         Continue;
       if s.PermDown then
@@ -1192,11 +1197,8 @@ begin
           Continue;
       end;
 
-      sectiondir := s.sectiondir[rls.section];
-      if (sectiondir = '') then
-        Continue;
-
-      sectiondir := DatumIdentifierReplace(sectiondir);
+      // sectiondir is guaranteed to exist (cache only contains sites with section configured)
+      sectiondir := DatumIdentifierReplace(s.sectiondir[rls.section]);
 
       if FindSite(s.Name) <> nil then
         Continue;
@@ -1227,6 +1229,7 @@ begin
 
       PazoSitesList.Add(ps);
       CheckSiteSlots(s);
+      Result := True;
     except
       on e: Exception do
       begin
@@ -1234,8 +1237,6 @@ begin
         Continue;
       end;
     end;
-
-    Result := True;
   end;
 end;
 

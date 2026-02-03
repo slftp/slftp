@@ -658,6 +658,17 @@ function FindSiteByName(const aNetname, aSitename: String): TSite;
   @param(aSlotname slotname which is used for searching)
   @returns(@link(TSiteSlot) class of slot, @nil otherwise) }
 function FindSlotByName(const aSlotname: String): TSiteSlot;
+
+{ Returns a list of sites that have the given section configured.
+  Uses a cached dictionary for O(1) lookup instead of iterating all sites.
+  @param(aSection section name to look up)
+  @returns(TList<TSite> of sites with this section, or empty list if none) }
+function GetSitesForSection(const aSection: String): TList<TSite>;
+
+{ Rebuilds the section-to-sites cache. Called automatically during SitesStart
+  and when section configurations change. }
+procedure RebuildSectionSitesCache;
+
 procedure SitesInit;
 procedure SitesStart;
 procedure SitesUninit;
@@ -765,6 +776,8 @@ var
   autologin: boolean = False;
   killafter: integer = 0;
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
+  sectionSitesCache: TObjectDictionary<String, TList<TSite>>; //< cache mapping section names to list of sites with that section
+  sectionSitesCacheLock: TSlCriticalSection2; //< lock for thread-safe access to sectionSitesCache
   gAdminSiteName: String;
   glSpamLoginLogout: boolean;
 
@@ -1333,6 +1346,79 @@ begin
   end;
 end;
 
+procedure RebuildSectionSitesCache;
+var
+  i: integer;
+  s: TSite;
+  fSectionList: TStringList;
+  fSectionName: String;
+  fSiteList: TList<TSite>;
+begin
+  if sectionSitesCache = nil then
+    exit;
+
+  sectionSitesCacheLock.Enter('RebuildSectionSitesCache');
+  try
+    // Clear existing cache
+    sectionSitesCache.Clear;
+
+    // Iterate through all sites and build the cache
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites[i]);
+
+      // Parse the site's sections string
+      fSectionList := TStringList.Create;
+      try
+        fSectionList.Delimiter := ',';
+        fSectionList.StrictDelimiter := True;
+        fSectionList.DelimitedText := s.sections;
+
+        for fSectionName in fSectionList do
+        begin
+          if fSectionName = '' then
+            Continue;
+
+          // Check if site has a directory configured for this section
+          if s.sectiondir[fSectionName] = '' then
+            Continue;
+
+          // Get or create the site list for this section
+          if not sectionSitesCache.TryGetValue(fSectionName, fSiteList) then
+          begin
+            fSiteList := TList<TSite>.Create;
+            sectionSitesCache.Add(fSectionName, fSiteList);
+          end;
+
+          fSiteList.Add(s);
+        end;
+      finally
+        fSectionList.Free;
+      end;
+    end;
+
+    Debug(dpSpam, section, 'RebuildSectionSitesCache: cached %d sections', [sectionSitesCache.Count]);
+  finally
+    sectionSitesCacheLock.Leave;
+  end;
+end;
+
+function GetSitesForSection(const aSection: String): TList<TSite>;
+begin
+  Result := nil;
+
+  if sectionSitesCache = nil then
+    exit;
+
+  sectionSitesCacheLock.Enter('GetSitesForSection');
+  try
+    if not sectionSitesCache.TryGetValue(aSection, Result) then
+      Result := nil;
+  finally
+    sectionSitesCacheLock.Leave;
+  end;
+end;
+
 procedure SitesInit;
 begin
   sitelaststart := Now();
@@ -1341,6 +1427,8 @@ begin
   bnccsere := TSlCriticalSection2.Create('bnccsere');
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
+  sectionSitesCache := TObjectDictionary<String, TList<TSite>>.Create([doOwnsValues]);
+  sectionSitesCacheLock := TSlCriticalSection2.Create('sectionSitesCache');
 end;
 
 function CompareSiteNamesForAlphabeticalOrder(site1, site2: TSite): Integer;
@@ -1396,6 +1484,9 @@ begin
   // sort sites alphabetical
   sites.Sort(@CompareSiteNamesForAlphabeticalOrder);
 
+  // Build section-to-sites cache for fast lookup
+  RebuildSectionSitesCache;
+
   debug(dpSpam, section, 'SitesStart end');
 end;
 
@@ -1413,6 +1504,18 @@ begin
   begin
     sitesDict.Free;
     sitesDict := nil;
+  end;
+
+  if sectionSitesCache <> nil then
+  begin
+    sectionSitesCache.Free;
+    sectionSitesCache := nil;
+  end;
+
+  if sectionSitesCacheLock <> nil then
+  begin
+    sectionSitesCacheLock.Free;
+    sectionSitesCacheLock := nil;
   end;
 
   if sitesdat <> nil then
@@ -3612,6 +3715,8 @@ begin
   begin
     DeleteKey('dir-' + Name);
   end;
+  // Rebuild section cache when section directory changes
+  RebuildSectionSitesCache;
 end;
 
 function TSite.GetSections: String;
@@ -3622,6 +3727,8 @@ end;
 procedure TSite.SettSections(Value: String);
 begin
   WCString('sections', Value);
+  // Rebuild section cache when sections change
+  RebuildSectionSitesCache;
 end;
 
 function TSite.GetAffils: String;
