@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertCircle, IconEye, IconEdit, IconTrash, IconPlus, IconSearch, IconFolder } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { getSites, getSite, createSite, updateSite, deleteSite, getSiteSections, createSiteSection, updateSiteSection, deleteSiteSection } from '../../api/cbftpClient';
-import type { CbftpSite, SiteSection } from '../../api/cbftpClient';
+import type { CbftpSite, SiteSection, Skiplist } from '../../api/cbftpClient';
 
 export function Sites() {
   const queryClient = useQueryClient();
@@ -20,6 +20,11 @@ export function Sites() {
   const [editMode, setEditMode] = useState(false);
   const [selectedSection, setSelectedSection] = useState<SiteSection | null>(null);
   const [sectionEditMode, setSectionEditMode] = useState(false);
+  const [skiplistFormOpened, { open: openSkiplistForm, close: closeSkiplistForm }] = useDisclosure(false);
+  const [deleteSkiplistOpened, { open: openDeleteSkiplist, close: closeDeleteSkiplist }] = useDisclosure(false);
+  const [selectedSkiplistIndex, setSelectedSkiplistIndex] = useState<number | null>(null);
+  const [skiplistEditMode, setSkiplistEditMode] = useState(false);
+  const [skiplist, setSkiplist] = useState<Skiplist[]>([]);
 
   const { data: siteNames, isLoading, error } = useQuery<string[]>({
     queryKey: ['cbftp-sites'],
@@ -153,23 +158,48 @@ export function Sites() {
     },
   });
 
+  const skiplistForm = useForm({
+    initialValues: {
+      action: 'DENY' as 'ALLOW' | 'DENY' | 'UNIQUE' | 'SIMILAR',
+      pattern: '',
+      regex: false,
+      dir: false,
+      file: true,
+      scope: 'IN_RACE' as 'IN_RACE' | 'ALL',
+    },
+    validate: {
+      pattern: (value) => (value.trim() ? null : 'Pattern is required'),
+    },
+  });
+
   const form = useForm({
     initialValues: {
       name: '',
       addresses: [] as string[],
       user: '',
       password: '',
+      base_path: '/',
       tls_mode: 'NONE' as 'NONE' | 'AUTH_TLS' | 'IMPLICIT',
+      tls_transfer_policy: 'PREFER_OFF' as 'ALWAYS_OFF' | 'PREFER_OFF' | 'PREFER_ON' | 'ALWAYS_ON',
       transfer_protocol: 'IPV4_ONLY' as 'IPV4_ONLY' | 'PREFER_IPV4' | 'PREFER_IPV6' | 'IPV6_ONLY',
       max_logins: 3,
+      max_idle_time: 60,
       max_sim_down: 2,
+      max_sim_down_complete: 0,
+      max_sim_down_pre: 0,
+      max_sim_down_transferjob: 0,
       max_sim_up: 3,
       leave_free_slot: true,
+      stay_logged_in: false,
       priority: 'NORMAL' as 'VERY_LOW' | 'LOW' | 'NORMAL' | 'HIGH' | 'VERY_HIGH',
       list_command: 'STAT_L' as 'STAT_L' | 'LIST',
       list_frequency: 'AUTO' as 'VERY_LOW' | 'FIXED_LOW' | 'FIXED_AVERAGE' | 'FIXED_HIGH' | 'FIXED_VERY_HIGH' | 'AUTO' | 'DYNAMIC_LOW' | 'DYNAMIC_AVERAGE' | 'DYNAMIC_HIGH' | 'DYNAMIC_VERY_HIGH',
       allow_download: 'YES' as 'YES' | 'NO' | 'MATCH_ONLY',
       allow_upload: 'YES' as 'YES' | 'NO',
+      transfer_source_policy: 'ALLOW' as 'ALLOW' | 'BLOCK',
+      transfer_target_policy: 'ALLOW' as 'ALLOW' | 'BLOCK',
+      proxy_type: 'GLOBAL' as 'GLOBAL' | 'NONE' | 'USE',
+      proxy_name: '',
       disabled: false,
       cepr: true,
       cpsv: true,
@@ -177,6 +207,11 @@ export function Sites() {
       sscn: false,
       xdupe: true,
       broken_pasv: false,
+      force_binary_mode: false,
+      // Array fields as comma-separated strings for easy editing
+      affils: [] as string[],
+      except_source_sites: [] as string[],
+      except_target_sites: [] as string[],
     },
     validate: {
       name: (value) => (value.trim() ? null : 'Site name is required'),
@@ -199,17 +234,28 @@ export function Sites() {
         addresses: site.addresses || [],
         user: site.user || '',
         password: site.password || '',
+        base_path: site.base_path || '/',
         tls_mode: site.tls_mode || 'NONE',
+        tls_transfer_policy: site.tls_transfer_policy || 'PREFER_OFF',
         transfer_protocol: site.transfer_protocol || 'IPV4_ONLY',
         max_logins: site.max_logins || 3,
+        max_idle_time: site.max_idle_time || 60,
         max_sim_down: site.max_sim_down || 2,
+        max_sim_down_complete: site.max_sim_down_complete || 0,
+        max_sim_down_pre: site.max_sim_down_pre || 0,
+        max_sim_down_transferjob: site.max_sim_down_transferjob || 0,
         max_sim_up: site.max_sim_up || 3,
         leave_free_slot: site.leave_free_slot !== undefined ? site.leave_free_slot : true,
+        stay_logged_in: site.stay_logged_in || false,
         priority: site.priority || 'NORMAL',
         list_command: site.list_command || 'STAT_L',
         list_frequency: site.list_frequency || 'AUTO',
         allow_download: site.allow_download || 'YES',
         allow_upload: site.allow_upload || 'YES',
+        transfer_source_policy: site.transfer_source_policy || 'ALLOW',
+        transfer_target_policy: site.transfer_target_policy || 'ALLOW',
+        proxy_type: site.proxy_type || 'GLOBAL',
+        proxy_name: site.proxy_name || '',
         disabled: site.disabled || false,
         cepr: site.cepr !== undefined ? site.cepr : true,
         cpsv: site.cpsv !== undefined ? site.cpsv : true,
@@ -217,7 +263,12 @@ export function Sites() {
         sscn: site.sscn || false,
         xdupe: site.xdupe !== undefined ? site.xdupe : true,
         broken_pasv: site.broken_pasv || false,
+        force_binary_mode: site.force_binary_mode || false,
+        affils: site.affils || [],
+        except_source_sites: site.except_source_sites || [],
+        except_target_sites: site.except_target_sites || [],
       });
+      setSkiplist(site.skiplist || []);
     }
     openForm();
   };
@@ -226,6 +277,7 @@ export function Sites() {
     setEditMode(false);
     setSelectedSite(null);
     form.reset();
+    setSkiplist([]);
     openForm();
   };
 
@@ -235,10 +287,11 @@ export function Sites() {
   };
 
   const handleSubmit = (values: typeof form.values) => {
+    const submitData = { ...values, skiplist };
     if (editMode && selectedSite) {
-      updateMutation.mutate({ name: selectedSite, updates: values });
+      updateMutation.mutate({ name: selectedSite, updates: submitData });
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate(submitData);
     }
   };
 
@@ -278,6 +331,54 @@ export function Sites() {
         section: values,
       });
     }
+  };
+
+  const handleAddSkiplist = () => {
+    setSkiplistEditMode(false);
+    setSelectedSkiplistIndex(null);
+    skiplistForm.reset();
+    openSkiplistForm();
+  };
+
+  const handleEditSkiplist = (index: number) => {
+    setSkiplistEditMode(true);
+    setSelectedSkiplistIndex(index);
+    const entry = skiplist[index];
+    skiplistForm.setValues({
+      action: entry.action,
+      pattern: entry.pattern,
+      regex: entry.regex,
+      dir: entry.dir,
+      file: entry.file,
+      scope: entry.scope,
+    });
+    openSkiplistForm();
+  };
+
+  const handleDeleteSkiplist = (index: number) => {
+    setSelectedSkiplistIndex(index);
+    openDeleteSkiplist();
+  };
+
+  const handleSkiplistSubmit = (values: typeof skiplistForm.values) => {
+    if (skiplistEditMode && selectedSkiplistIndex !== null) {
+      const newSkiplist = [...skiplist];
+      newSkiplist[selectedSkiplistIndex] = values;
+      setSkiplist(newSkiplist);
+    } else {
+      setSkiplist([...skiplist, values]);
+    }
+    closeSkiplistForm();
+    skiplistForm.reset();
+  };
+
+  const confirmDeleteSkiplist = () => {
+    if (selectedSkiplistIndex !== null) {
+      const newSkiplist = skiplist.filter((_, i) => i !== selectedSkiplistIndex);
+      setSkiplist(newSkiplist);
+    }
+    closeDeleteSkiplist();
+    setSelectedSkiplistIndex(null);
   };
 
   const filteredSites = (siteNames || []).filter((name) =>
@@ -456,6 +557,7 @@ export function Sites() {
               <Tabs.Tab value="preferences">Preferences</Tabs.Tab>
               <Tabs.Tab value="policies">Policies</Tabs.Tab>
               <Tabs.Tab value="advanced">Advanced</Tabs.Tab>
+              <Tabs.Tab value="skiplist">Skiplist</Tabs.Tab>
               {editMode && <Tabs.Tab value="sections" leftSection={<IconFolder size={14} />}>Sections</Tabs.Tab>}
             </Tabs.List>
 
@@ -478,6 +580,16 @@ export function Sites() {
                 />
                 <TextInput label="Username" {...form.getInputProps('user')} />
                 <TextInput label="Password" type="password" {...form.getInputProps('password')} />
+                <TextInput label="Base Path" placeholder="/" {...form.getInputProps('base_path')} />
+                <TextInput
+                  label="Affils (comma-separated)"
+                  placeholder="GROUP1, GROUP2"
+                  value={form.values.affils.join(', ')}
+                  onChange={(e) => {
+                    const affils = e.currentTarget.value.split(',').map(a => a.trim()).filter(a => a);
+                    form.setFieldValue('affils', affils);
+                  }}
+                />
               </Stack>
             </Tabs.Panel>
 
@@ -491,6 +603,16 @@ export function Sites() {
                     { value: 'IMPLICIT', label: 'Implicit' },
                   ]}
                   {...form.getInputProps('tls_mode')}
+                />
+                <Select
+                  label="TLS Transfer Policy"
+                  data={[
+                    { value: 'ALWAYS_OFF', label: 'Always Off' },
+                    { value: 'PREFER_OFF', label: 'Prefer Off' },
+                    { value: 'PREFER_ON', label: 'Prefer On' },
+                    { value: 'ALWAYS_ON', label: 'Always On' },
+                  ]}
+                  {...form.getInputProps('tls_transfer_policy')}
                 />
                 <Select
                   label="Transfer Protocol"
@@ -507,6 +629,30 @@ export function Sites() {
                   min={1}
                   {...form.getInputProps('max_logins')}
                 />
+                <NumberInput
+                  label="Max Idle Time (seconds)"
+                  min={0}
+                  {...form.getInputProps('max_idle_time')}
+                />
+                <Switch
+                  label="Stay Logged In"
+                  {...form.getInputProps('stay_logged_in', { type: 'checkbox' })}
+                />
+                <Select
+                  label="Proxy Type"
+                  data={[
+                    { value: 'GLOBAL', label: 'Global' },
+                    { value: 'NONE', label: 'None' },
+                    { value: 'USE', label: 'Use Specific' },
+                  ]}
+                  {...form.getInputProps('proxy_type')}
+                />
+                {form.values.proxy_type === 'USE' && (
+                  <TextInput
+                    label="Proxy Name"
+                    {...form.getInputProps('proxy_name')}
+                  />
+                )}
               </Stack>
             </Tabs.Panel>
 
@@ -516,6 +662,24 @@ export function Sites() {
                   label="Max Simultaneous Downloads"
                   min={0}
                   {...form.getInputProps('max_sim_down')}
+                />
+                <NumberInput
+                  label="Max Sim Downloads (Complete)"
+                  description="Limit for completed releases"
+                  min={0}
+                  {...form.getInputProps('max_sim_down_complete')}
+                />
+                <NumberInput
+                  label="Max Sim Downloads (Pre)"
+                  description="Limit during pre phase"
+                  min={0}
+                  {...form.getInputProps('max_sim_down_pre')}
+                />
+                <NumberInput
+                  label="Max Sim Downloads (Transfer Job)"
+                  description="Limit for transfer jobs"
+                  min={0}
+                  {...form.getInputProps('max_sim_down_transferjob')}
                 />
                 <NumberInput
                   label="Max Simultaneous Uploads"
@@ -588,6 +752,44 @@ export function Sites() {
                   ]}
                   {...form.getInputProps('allow_upload')}
                 />
+                <Select
+                  label="Transfer Source Policy"
+                  description="Allow/Block as source for FXP"
+                  data={[
+                    { value: 'ALLOW', label: 'Allow' },
+                    { value: 'BLOCK', label: 'Block' },
+                  ]}
+                  {...form.getInputProps('transfer_source_policy')}
+                />
+                <Select
+                  label="Transfer Target Policy"
+                  description="Allow/Block as target for FXP"
+                  data={[
+                    { value: 'ALLOW', label: 'Allow' },
+                    { value: 'BLOCK', label: 'Block' },
+                  ]}
+                  {...form.getInputProps('transfer_target_policy')}
+                />
+                <TextInput
+                  label="Except Source Sites (comma-separated)"
+                  description="Exception list for source policy"
+                  placeholder="SITE1, SITE2"
+                  value={form.values.except_source_sites.join(', ')}
+                  onChange={(e) => {
+                    const sites = e.currentTarget.value.split(',').map(s => s.trim()).filter(s => s);
+                    form.setFieldValue('except_source_sites', sites);
+                  }}
+                />
+                <TextInput
+                  label="Except Target Sites (comma-separated)"
+                  description="Exception list for target policy"
+                  placeholder="SITE1, SITE2"
+                  value={form.values.except_target_sites.join(', ')}
+                  onChange={(e) => {
+                    const sites = e.currentTarget.value.split(',').map(s => s.trim()).filter(s => s);
+                    form.setFieldValue('except_target_sites', sites);
+                  }}
+                />
                 <Switch
                   label="Disabled"
                   {...form.getInputProps('disabled', { type: 'checkbox' })}
@@ -603,6 +805,76 @@ export function Sites() {
                 <Switch label="SSCN" {...form.getInputProps('sscn', { type: 'checkbox' })} />
                 <Switch label="XDUPE" {...form.getInputProps('xdupe', { type: 'checkbox' })} />
                 <Switch label="Broken PASV" {...form.getInputProps('broken_pasv', { type: 'checkbox' })} />
+                <Switch label="Force Binary Mode" {...form.getInputProps('force_binary_mode', { type: 'checkbox' })} />
+              </Stack>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="skiplist" pt="md">
+              <Stack gap="md">
+                <Group justify="space-between">
+                  <Text fw={500}>Skiplist Rules</Text>
+                  <Button size="xs" leftSection={<IconPlus size={14} />} onClick={handleAddSkiplist}>
+                    Add Rule
+                  </Button>
+                </Group>
+
+                {skiplist.length > 0 ? (
+                  <Table striped highlightOnHover>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Action</Table.Th>
+                        <Table.Th>Pattern</Table.Th>
+                        <Table.Th>Type</Table.Th>
+                        <Table.Th>Scope</Table.Th>
+                        <Table.Th style={{ width: 100 }}>Actions</Table.Th>
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {skiplist.map((entry, index) => (
+                        <Table.Tr key={index}>
+                          <Table.Td>
+                            <Badge color={entry.action === 'DENY' ? 'red' : entry.action === 'ALLOW' ? 'green' : 'blue'}>
+                              {entry.action}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" style={{ fontFamily: 'monospace' }}>
+                              {entry.pattern}
+                              {entry.regex && <Badge size="xs" ml="xs" variant="outline">regex</Badge>}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap={4}>
+                              {entry.dir && <Badge size="xs" variant="light">dir</Badge>}
+                              {entry.file && <Badge size="xs" variant="light">file</Badge>}
+                            </Group>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge variant="outline">{entry.scope}</Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap="xs">
+                              <Tooltip label="Edit">
+                                <ActionIcon size="sm" variant="light" color="blue" onClick={() => handleEditSkiplist(index)}>
+                                  <IconEdit size={14} />
+                                </ActionIcon>
+                              </Tooltip>
+                              <Tooltip label="Delete">
+                                <ActionIcon size="sm" variant="light" color="red" onClick={() => handleDeleteSkiplist(index)}>
+                                  <IconTrash size={14} />
+                                </ActionIcon>
+                              </Tooltip>
+                            </Group>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                ) : (
+                  <Paper p="md" withBorder>
+                    <Text c="dimmed" ta="center">No skiplist rules configured</Text>
+                  </Paper>
+                )}
               </Stack>
             </Tabs.Panel>
 
@@ -746,6 +1018,81 @@ export function Sites() {
               sectionName: selectedSection.name,
             })}
           >
+            Delete
+          </Button>
+        </Group>
+      </Modal>
+
+      {/* Skiplist Add/Edit Modal */}
+      <Modal
+        opened={skiplistFormOpened}
+        onClose={closeSkiplistForm}
+        title={skiplistEditMode ? 'Edit Skiplist Rule' : 'Add Skiplist Rule'}
+        size="md"
+      >
+        <form onSubmit={skiplistForm.onSubmit(handleSkiplistSubmit)}>
+          <Stack gap="md">
+            <Select
+              label="Action"
+              data={[
+                { value: 'DENY', label: 'Deny' },
+                { value: 'ALLOW', label: 'Allow' },
+                { value: 'UNIQUE', label: 'Unique' },
+                { value: 'SIMILAR', label: 'Similar' },
+              ]}
+              {...skiplistForm.getInputProps('action')}
+            />
+            <TextInput
+              label="Pattern"
+              placeholder="e.g., *.nfo or ^sample.*"
+              required
+              {...skiplistForm.getInputProps('pattern')}
+            />
+            <Switch
+              label="Use Regex"
+              description="Interpret pattern as regular expression"
+              {...skiplistForm.getInputProps('regex', { type: 'checkbox' })}
+            />
+            <Group>
+              <Switch
+                label="Match Directories"
+                {...skiplistForm.getInputProps('dir', { type: 'checkbox' })}
+              />
+              <Switch
+                label="Match Files"
+                {...skiplistForm.getInputProps('file', { type: 'checkbox' })}
+              />
+            </Group>
+            <Select
+              label="Scope"
+              data={[
+                { value: 'IN_RACE', label: 'In Race' },
+                { value: 'ALL', label: 'All' },
+              ]}
+              {...skiplistForm.getInputProps('scope')}
+            />
+          </Stack>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={closeSkiplistForm}>
+              Cancel
+            </Button>
+            <Button type="submit">
+              {skiplistEditMode ? 'Update' : 'Add'}
+            </Button>
+          </Group>
+        </form>
+      </Modal>
+
+      {/* Skiplist Delete Confirmation Modal */}
+      <Modal opened={deleteSkiplistOpened} onClose={closeDeleteSkiplist} title="Delete Skiplist Rule" size="sm">
+        <Text>
+          Are you sure you want to delete this skiplist rule?
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={closeDeleteSkiplist}>
+            Cancel
+          </Button>
+          <Button color="red" onClick={confirmDeleteSkiplist}>
             Delete
           </Button>
         </Group>
