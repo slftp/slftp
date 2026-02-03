@@ -15,6 +15,7 @@ function IrcSetdown(const netname, channel, params: String): boolean;
 function IrcSetSitePermdown(const netname, channel, params: String): boolean;
 function IrcSetDir(const netname, channel, params: String): boolean;
 function IrcSlots(const netname, channel, params: String): boolean;
+function IrcReservedSlots(const netname, channel, params: String): boolean;
 function IrcMaxUpDn(const netname, channel, params: String): boolean;
 function IrcMaxUpPerRip(const netname, channel, params: String): boolean;
 function IrcMaxIdle(const netname, channel, params: String): boolean;
@@ -1064,6 +1065,107 @@ begin
   Result := True;
 end;
 
+function IrcReservedSlots(const netname, channel, params: String): boolean;
+var
+  fSitename: String;
+  fValue: String;
+  fSite: TSite;
+  fSites: TStringList;
+  fIndex: integer;
+  fReserved: integer;
+  fOutputOnly: boolean;
+
+  function CalcEffectiveReserved(const aSite: TSite; const aConfigured: integer): integer;
+  begin
+    Result := aConfigured;
+    if Result < 0 then
+      Result := 0;
+    if aSite.slots.Count <= 1 then
+      Result := 0;
+  end;
+
+  procedure Announce(const aSite: TSite);
+  var
+    fConfigured: integer;
+    fEffective: integer;
+  begin
+    fConfigured := aSite.RCInteger('reserved_race_slots', 1);
+    if fConfigured < 0 then
+      fConfigured := 0;
+    fEffective := CalcEffectiveReserved(aSite, fConfigured);
+    if fConfigured = fEffective then
+      irc_addtext(Netname, Channel, 'Reserved race slots on <b>%s</b>: <b>%d</b>', [aSite.Name, fConfigured])
+    else
+      irc_addtext(Netname, Channel, 'Reserved race slots on <b>%s</b>: <b>%d</b> (effective: %d)', [aSite.Name, fConfigured, fEffective]);
+  end;
+begin
+  Result := False;
+
+  fSitename := UpperCase(SubString(params, ' ', 1));
+  fValue := Trim(SubString(params, ' ', 2));
+  fOutputOnly := (fValue = '');
+
+  if not fOutputOnly then
+  begin
+    fReserved := StrToIntDef(fValue, -1);
+    if fReserved < 0 then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b></c>: reserved slots must be >= 0.');
+      exit;
+    end;
+  end
+  else
+  begin
+    fReserved := -1;
+  end;
+
+  if fSitename = '*' then
+  begin
+    for fIndex := 0 to sites.Count - 1 do
+    begin
+      fSite := TSite(sites.Items[fIndex]);
+      if (fSite.Name = getAdminSiteName) then
+        Continue;
+      if fOutputOnly then
+      begin
+        Announce(fSite);
+        Continue;
+      end;
+      fSite.WCInteger('reserved_race_slots', fReserved);
+      Announce(fSite);
+    end;
+  end
+  else
+  begin
+    fSites := TStringList.Create;
+    try
+      fSites.commatext := fSitename;
+      for fIndex := 0 to fSites.Count - 1 do
+      begin
+        fSite := FindSiteByName(Netname, fSites.Strings[fIndex]);
+        if fSite = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSites.Strings[fIndex]]);
+          Continue;
+        end;
+        if fSite.Name = getAdminSiteName then
+          Continue;
+        if fOutputOnly then
+          Announce(fSite)
+        else
+        begin
+          fSite.WCInteger('reserved_race_slots', fReserved);
+          Announce(fSite);
+        end;
+      end;
+    finally
+      fSites.Free;
+    end;
+  end;
+
+  Result := True;
+end;
+
 function IrcMaxUpDn(const netname, channel, params: String): boolean;
 var
   sitename: String;
@@ -2078,6 +2180,16 @@ var
   s: TSite;
   ss: TSiteSlot;
   i: integer;
+  fReserved: integer;
+
+  function CalcEffectiveReserved(const aSite: TSite): integer;
+  begin
+    Result := aSite.RCInteger('reserved_race_slots', 1);
+    if Result < 0 then
+      Result := 0;
+    if aSite.slots.Count <= 1 then
+      Result := 0;
+  end;
 begin
   Result := False;
 
@@ -2090,9 +2202,11 @@ begin
     exit;
   end;
 
+  fReserved := CalcEffectiveReserved(s);
+
   if s.slots.Count > 1 then
-    irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d (Reserved: 1) Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
-      [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]))
+    irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d (Reserved: %d) Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
+      [sitename, s.slots.Count, s.freeslots, fReserved, s.num_dn, s.max_dn, s.num_up, s.max_up]))
   else
     irc_addtext(Netname, Channel, Format('Slots for %s : Total: %d Free: %d Dn/MaxDn: %d/%d Up/MaxUp: %d/%d',
       [sitename, s.slots.Count, s.freeslots, s.num_dn, s.max_dn, s.num_up, s.max_up]));

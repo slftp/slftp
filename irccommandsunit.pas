@@ -77,6 +77,7 @@ const
     (cmd: 'setpermdown'; hnd: IrcSetSitePermdown; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp: 'site'),
     (cmd: 'slots'; hnd: IrcSlots; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'reservedslots'; hnd: IrcReservedSlots; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 4; hlpgrp: 'site'),
     (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxidle'; hnd: IrcMaxIdle; minparams: 2; maxparams: 3; hlpgrp: 'site'),
