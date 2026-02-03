@@ -91,4 +91,12 @@ begin
   end;
 
   ConsoleStart;
+
+  {$IFDEF UNIX}
+  FpExit(0);
+  {$ENDIF}
+  {$IFDEF WINDOWS}
+  ExitProcess(0);
+  {$ENDIF}
+  Halt(0);
 end.
