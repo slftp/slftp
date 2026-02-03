@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, Stack, Table, TextInput, Text, Tooltip, Tabs, Select, Switch, NumberInput, ScrollArea } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, Stack, Table, TextInput, Text, Tooltip, Tabs, Select, Switch, NumberInput, ScrollArea, Paper } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconAlertCircle, IconEye, IconEdit, IconTrash, IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconAlertCircle, IconEye, IconEdit, IconTrash, IconPlus, IconSearch, IconFolder } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { getSites, getSite, createSite, updateSite, deleteSite } from '../../api/cbftpClient';
-import type { CbftpSite } from '../../api/cbftpClient';
+import { getSites, getSite, createSite, updateSite, deleteSite, getSiteSections, createSiteSection, updateSiteSection, deleteSiteSection } from '../../api/cbftpClient';
+import type { CbftpSite, SiteSection } from '../../api/cbftpClient';
 
 export function Sites() {
   const queryClient = useQueryClient();
@@ -14,8 +14,12 @@ export function Sites() {
   const [detailsOpened, { open: openDetails, close: closeDetails }] = useDisclosure(false);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
+  const [sectionFormOpened, { open: openSectionForm, close: closeSectionForm }] = useDisclosure(false);
+  const [deleteSectionOpened, { open: openDeleteSection, close: closeDeleteSection }] = useDisclosure(false);
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [selectedSection, setSelectedSection] = useState<SiteSection | null>(null);
+  const [sectionEditMode, setSectionEditMode] = useState(false);
 
   const { data: siteNames, isLoading, error } = useQuery<string[]>({
     queryKey: ['cbftp-sites'],
@@ -83,6 +87,69 @@ export function Sites() {
     },
     onError: (error: Error) => {
       notifications.show({ title: 'Error', message: error.message, color: 'red' });
+    },
+  });
+
+  // Site Sections query and mutations
+  const { data: siteSections, refetch: refetchSections } = useQuery<SiteSection[]>({
+    queryKey: ['cbftp-site-sections', selectedSite],
+    queryFn: () => getSiteSections(selectedSite!),
+    enabled: !!selectedSite && (formOpened || detailsOpened),
+  });
+
+  const createSectionMutation = useMutation({
+    mutationFn: ({ siteName, section }: { siteName: string; section: SiteSection }) =>
+      createSiteSection(siteName, section),
+    onSuccess: () => {
+      notifications.show({ title: 'Success', message: 'Section added successfully', color: 'green' });
+      refetchSections();
+      queryClient.invalidateQueries({ queryKey: ['cbftp-site', selectedSite] });
+      closeSectionForm();
+      sectionForm.reset();
+    },
+    onError: (error: Error) => {
+      notifications.show({ title: 'Error', message: error.message, color: 'red' });
+    },
+  });
+
+  const updateSectionMutation = useMutation({
+    mutationFn: ({ siteName, sectionName, updates }: { siteName: string; sectionName: string; updates: Partial<SiteSection> }) =>
+      updateSiteSection(siteName, sectionName, updates),
+    onSuccess: () => {
+      notifications.show({ title: 'Success', message: 'Section updated successfully', color: 'green' });
+      refetchSections();
+      queryClient.invalidateQueries({ queryKey: ['cbftp-site', selectedSite] });
+      closeSectionForm();
+      sectionForm.reset();
+    },
+    onError: (error: Error) => {
+      notifications.show({ title: 'Error', message: error.message, color: 'red' });
+    },
+  });
+
+  const deleteSectionMutation = useMutation({
+    mutationFn: ({ siteName, sectionName }: { siteName: string; sectionName: string }) =>
+      deleteSiteSection(siteName, sectionName),
+    onSuccess: () => {
+      notifications.show({ title: 'Success', message: 'Section deleted successfully', color: 'green' });
+      refetchSections();
+      queryClient.invalidateQueries({ queryKey: ['cbftp-site', selectedSite] });
+      closeDeleteSection();
+      setSelectedSection(null);
+    },
+    onError: (error: Error) => {
+      notifications.show({ title: 'Error', message: error.message, color: 'red' });
+    },
+  });
+
+  const sectionForm = useForm({
+    initialValues: {
+      name: '',
+      path: '',
+    },
+    validate: {
+      name: (value) => (value.trim() ? null : 'Section name is required'),
+      path: (value) => (value.trim() ? null : 'Path is required'),
     },
   });
 
@@ -172,6 +239,44 @@ export function Sites() {
       updateMutation.mutate({ name: selectedSite, updates: values });
     } else {
       createMutation.mutate(values);
+    }
+  };
+
+  const handleAddSection = () => {
+    setSectionEditMode(false);
+    setSelectedSection(null);
+    sectionForm.reset();
+    openSectionForm();
+  };
+
+  const handleEditSection = (section: SiteSection) => {
+    setSectionEditMode(true);
+    setSelectedSection(section);
+    sectionForm.setValues({
+      name: section.name,
+      path: section.path,
+    });
+    openSectionForm();
+  };
+
+  const handleDeleteSection = (section: SiteSection) => {
+    setSelectedSection(section);
+    openDeleteSection();
+  };
+
+  const handleSectionSubmit = (values: typeof sectionForm.values) => {
+    if (!selectedSite) return;
+    if (sectionEditMode && selectedSection) {
+      updateSectionMutation.mutate({
+        siteName: selectedSite,
+        sectionName: selectedSection.name,
+        updates: { path: values.path },
+      });
+    } else {
+      createSectionMutation.mutate({
+        siteName: selectedSite,
+        section: values,
+      });
     }
   };
 
@@ -351,6 +456,7 @@ export function Sites() {
               <Tabs.Tab value="preferences">Preferences</Tabs.Tab>
               <Tabs.Tab value="policies">Policies</Tabs.Tab>
               <Tabs.Tab value="advanced">Advanced</Tabs.Tab>
+              {editMode && <Tabs.Tab value="sections" leftSection={<IconFolder size={14} />}>Sections</Tabs.Tab>}
             </Tabs.List>
 
             <Tabs.Panel value="basic" pt="md">
@@ -499,6 +605,61 @@ export function Sites() {
                 <Switch label="Broken PASV" {...form.getInputProps('broken_pasv', { type: 'checkbox' })} />
               </Stack>
             </Tabs.Panel>
+
+            {editMode && (
+              <Tabs.Panel value="sections" pt="md">
+                <Stack gap="md">
+                  <Group justify="space-between">
+                    <Text fw={500}>Site Sections</Text>
+                    <Button size="xs" leftSection={<IconPlus size={14} />} onClick={handleAddSection}>
+                      Add Section
+                    </Button>
+                  </Group>
+
+                  {siteSections && siteSections.length > 0 ? (
+                    <Table striped highlightOnHover>
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Name</Table.Th>
+                          <Table.Th>Path</Table.Th>
+                          <Table.Th style={{ width: 100 }}>Actions</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {siteSections.map((section) => (
+                          <Table.Tr key={section.name}>
+                            <Table.Td>
+                              <Badge variant="light">{section.name}</Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Text size="sm" c="dimmed">{section.path}</Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap="xs">
+                                <Tooltip label="Edit">
+                                  <ActionIcon size="sm" variant="light" color="blue" onClick={() => handleEditSection(section)}>
+                                    <IconEdit size={14} />
+                                  </ActionIcon>
+                                </Tooltip>
+                                <Tooltip label="Delete">
+                                  <ActionIcon size="sm" variant="light" color="red" onClick={() => handleDeleteSection(section)}>
+                                    <IconTrash size={14} />
+                                  </ActionIcon>
+                                </Tooltip>
+                              </Group>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  ) : (
+                    <Paper p="md" withBorder>
+                      <Text c="dimmed" ta="center">No sections configured for this site</Text>
+                    </Paper>
+                  )}
+                </Stack>
+              </Tabs.Panel>
+            )}
           </Tabs>
 
           <Group justify="flex-end" mt="md">
@@ -525,6 +686,65 @@ export function Sites() {
             color="red"
             loading={deleteMutation.isPending}
             onClick={() => selectedSite && deleteMutation.mutate(selectedSite)}
+          >
+            Delete
+          </Button>
+        </Group>
+      </Modal>
+
+      {/* Section Add/Edit Modal */}
+      <Modal
+        opened={sectionFormOpened}
+        onClose={closeSectionForm}
+        title={sectionEditMode ? 'Edit Section' : 'Add Section'}
+        size="md"
+      >
+        <form onSubmit={sectionForm.onSubmit(handleSectionSubmit)}>
+          <Stack gap="md">
+            <TextInput
+              label="Section Name"
+              placeholder="e.g., MP3, FLAC, TV-HD"
+              required
+              disabled={sectionEditMode}
+              {...sectionForm.getInputProps('name')}
+            />
+            <TextInput
+              label="Path"
+              placeholder="e.g., /incoming/mp3"
+              required
+              {...sectionForm.getInputProps('path')}
+            />
+          </Stack>
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" onClick={closeSectionForm}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={createSectionMutation.isPending || updateSectionMutation.isPending}
+            >
+              {sectionEditMode ? 'Update' : 'Add'}
+            </Button>
+          </Group>
+        </form>
+      </Modal>
+
+      {/* Section Delete Confirmation Modal */}
+      <Modal opened={deleteSectionOpened} onClose={closeDeleteSection} title="Delete Section" size="sm">
+        <Text>
+          Are you sure you want to delete section <Text span c="red" fw={700}>{selectedSection?.name}</Text> from this site?
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button variant="default" onClick={closeDeleteSection}>
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            loading={deleteSectionMutation.isPending}
+            onClick={() => selectedSite && selectedSection && deleteSectionMutation.mutate({
+              siteName: selectedSite,
+              sectionName: selectedSection.name,
+            })}
           >
             Delete
           </Button>

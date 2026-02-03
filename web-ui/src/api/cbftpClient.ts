@@ -208,6 +208,23 @@ export const getSiteSections = async (siteName: string): Promise<SiteSection[]> 
   return response.data;
 };
 
+export const getSiteSection = async (siteName: string, sectionName: string): Promise<SiteSection> => {
+  const response = await cbftpClient.get<SiteSection>(`/cbftp/sites/${siteName}/sections/${sectionName}`);
+  return response.data;
+};
+
+export const createSiteSection = async (siteName: string, section: SiteSection): Promise<void> => {
+  await cbftpClient.post(`/cbftp/sites/${siteName}/sections`, section);
+};
+
+export const updateSiteSection = async (siteName: string, sectionName: string, updates: Partial<SiteSection>): Promise<void> => {
+  await cbftpClient.patch(`/cbftp/sites/${siteName}/sections/${sectionName}`, updates);
+};
+
+export const deleteSiteSection = async (siteName: string, sectionName: string): Promise<void> => {
+  await cbftpClient.delete(`/cbftp/sites/${siteName}/sections/${sectionName}`);
+};
+
 // Sections
 export const getSections = async (): Promise<string[]> => {
   const response = await cbftpClient.get<Array<string | CbftpSection>>('/cbftp/sections');

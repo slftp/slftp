@@ -74,6 +74,8 @@ var
   detail: RawUtf8;
   detailLimit: Integer;
   errorPayload: RawUtf8;
+  siteName: RawUtf8;
+  sectionName: RawUtf8;
 
   function QueryHasIdTrue(const aQuery: RawUtf8): Boolean;
   var
@@ -174,9 +176,16 @@ begin
       else if StartsStr('/sites/', path) then
       begin
         Delete(path, 1, 7); // Remove '/sites/'
-        if Pos('/sections', path) > 0 then
+        if Pos('/sections/', path) > 0 then
         begin
-          // /sites/{name}/sections
+          // /sites/{name}/sections/{sectionName} - get single section
+          siteName := Copy(path, 1, Pos('/sections/', path) - 1);
+          sectionName := Copy(path, Pos('/sections/', path) + 10, MaxInt);
+          response := client.GetSiteSection(siteName, sectionName);
+        end
+        else if Pos('/sections', path) > 0 then
+        begin
+          // /sites/{name}/sections - get all sections
           Delete(path, Pos('/sections', path), MaxInt);
           response := client.GetSiteSections(path);
         end
@@ -217,7 +226,14 @@ begin
     end
     else if method = 'POST' then
     begin
-      if path = '/sites' then
+      if StartsStr('/sites/', path) and (Pos('/sections', path) > 0) then
+      begin
+        // POST /sites/{name}/sections - create section on site
+        Delete(path, 1, 7); // Remove '/sites/'
+        siteName := Copy(path, 1, Pos('/sections', path) - 1);
+        success := client.CreateSiteSection(siteName, body);
+      end
+      else if path = '/sites' then
         success := client.CreateSite(body)
       else if path = '/sections' then
         success := client.CreateSection(body)
@@ -262,7 +278,15 @@ begin
     end
     else if method = 'PATCH' then
     begin
-      if StartsStr('/sites/', path) then
+      if StartsStr('/sites/', path) and (Pos('/sections/', path) > 0) then
+      begin
+        // PATCH /sites/{name}/sections/{sectionName} - update section on site
+        Delete(path, 1, 7); // Remove '/sites/'
+        siteName := Copy(path, 1, Pos('/sections/', path) - 1);
+        sectionName := Copy(path, Pos('/sections/', path) + 10, MaxInt);
+        success := client.UpdateSiteSection(siteName, sectionName, body);
+      end
+      else if StartsStr('/sites/', path) then
       begin
         Delete(path, 1, 7); // Remove '/sites/'
         success := client.UpdateSite(path, body);
@@ -278,7 +302,15 @@ begin
     end
     else if method = 'DELETE' then
     begin
-      if StartsStr('/sites/', path) then
+      if StartsStr('/sites/', path) and (Pos('/sections/', path) > 0) then
+      begin
+        // DELETE /sites/{name}/sections/{sectionName} - delete section from site
+        Delete(path, 1, 7); // Remove '/sites/'
+        siteName := Copy(path, 1, Pos('/sections/', path) - 1);
+        sectionName := Copy(path, Pos('/sections/', path) + 10, MaxInt);
+        success := client.DeleteSiteSection(siteName, sectionName);
+      end
+      else if StartsStr('/sites/', path) then
       begin
         Delete(path, 1, 7); // Remove '/sites/'
         success := client.DeleteSite(path);

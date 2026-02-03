@@ -57,6 +57,18 @@ type
     { Get sections for a site }
     function GetSiteSections(const aSiteName: RawUtf8): RawUtf8;
 
+    { Get a single section for a site }
+    function GetSiteSection(const aSiteName, aSectionName: RawUtf8): RawUtf8;
+
+    { Create a section on a site }
+    function CreateSiteSection(const aSiteName: RawUtf8; const aBody: RawUtf8): Boolean;
+
+    { Update a section on a site }
+    function UpdateSiteSection(const aSiteName, aSectionName: RawUtf8; const aBody: RawUtf8): Boolean;
+
+    { Delete a section from a site }
+    function DeleteSiteSection(const aSiteName, aSectionName: RawUtf8): Boolean;
+
     { Get list of all sections }
     function GetSections: RawUtf8;
 
@@ -260,6 +272,26 @@ end;
 function TCbftpClient.GetSiteSections(const aSiteName: RawUtf8): RawUtf8;
 begin
   Result := DoRequest('GET', '/sites/' + aSiteName + '/sections');
+end;
+
+function TCbftpClient.GetSiteSection(const aSiteName, aSectionName: RawUtf8): RawUtf8;
+begin
+  Result := DoRequest('GET', '/sites/' + aSiteName + '/sections/' + aSectionName);
+end;
+
+function TCbftpClient.CreateSiteSection(const aSiteName: RawUtf8; const aBody: RawUtf8): Boolean;
+begin
+  Result := DoRequest('POST', '/sites/' + aSiteName + '/sections', aBody) <> '';
+end;
+
+function TCbftpClient.UpdateSiteSection(const aSiteName, aSectionName: RawUtf8; const aBody: RawUtf8): Boolean;
+begin
+  Result := DoRequest('PATCH', '/sites/' + aSiteName + '/sections/' + aSectionName, aBody) <> '';
+end;
+
+function TCbftpClient.DeleteSiteSection(const aSiteName, aSectionName: RawUtf8): Boolean;
+begin
+  Result := DoRequest('DELETE', '/sites/' + aSiteName + '/sections/' + aSectionName) <> '';
 end;
 
 function TCbftpClient.GetSections: RawUtf8;
