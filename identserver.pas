@@ -2,35 +2,49 @@ unit identserver;
 
 interface
 
-uses
-  IdGlobal, IdContext, IdIdentServer;
-
 (*
+  Ident Server (RFC 1413) implementation using mORMot2 sockets.
+
   A request:  56646,13307
-  B answer:  56646,13307 : USERID : UNIX : slftpuser
+  B answer:   56646,13307 : USERID : UNIX : slftpuser
 *)
 
 type
-  { @abstract(Ident server for replying to ident requests) }
-  TIdentServer = class(TIdIdentServer)
+  { @abstract(Ident server thread for replying to ident requests on port 113) }
+  TIdentServerThread = class(TThread)
   private
     FDefaultIdentResponse: String; //< default ident response from inifile
+    FPort: Integer; //< port to listen on (default 113)
+    FActive: Boolean; //< flag to indicate if server is running
 
     { Tries to find the site's ident by iterating all siteslots to find the appropriate connection by IP and Port
       @param(aPeerIP IP address from server who requests ident)
       @param(aPeerPort Port from server who requests ident)
       @returns(Sites ident string if configured, otherwise default ident from config) }
     function FindSiteIdent(const aPeerIP: String; const aPeerPort: Integer): String;
-    { Event which is triggered when an ident was requested, sends the ident answer
-      @param(AContext Connection information)
-      @param(AServerPort Server port)
-      @param(AClientPort Client port) }
-    procedure SendReply(AContext: TIdContext; AServerPort, AClientPort: TIdPort);
+
+    { Parse the ident request and extract server and client ports
+      @param(aRequest The raw request line)
+      @param(aServerPort Output: server port)
+      @param(aClientPort Output: client port)
+      @returns(True if parsing was successful) }
+    function ParseIdentRequest(const aRequest: String; out aServerPort, aClientPort: Integer): Boolean;
+
+    { Build the ident response string
+      @param(aServerPort Server port from request)
+      @param(aClientPort Client port from request)
+      @param(aIdentReply The ident username to return)
+      @returns(Formatted ident response) }
+    function BuildIdentResponse(aServerPort, aClientPort: Integer; const aIdentReply: String): String;
+  protected
+    procedure Execute; override;
   public
-    { Creates an ident server on port 113 which replies to ident requests }
-    constructor Create;
+    { Creates an ident server thread on specified port (default 113) }
+    constructor Create(aPort: Integer = 113);
 
     property DefaultIdentResponse: String read FDefaultIdentResponse;
+    property Port: Integer read FPort;
+    property Active: Boolean read FActive;
   end;
 
 { Just a helper function to initialize @link(IdentServer) if enabled in config
@@ -42,26 +56,28 @@ procedure IdentServerStop;
 implementation
 
 uses
-  SysUtils, configunit, sitesunit, debugunit;
+  SysUtils, Classes, configunit, sitesunit, debugunit,
+  mormot.net.sock, mormot.core.base, mormot.core.text;
 
 const
   section = 'ident';
+  IDENT_TIMEOUT_MS = 5000; // 5 second timeout for ident connections
 
 var
-  glMyIdentServer: TIdentServer = nil;
+  glMyIdentServer: TIdentServerThread = nil;
 
-{ TIdentServer }
+{ TIdentServerThread }
 
-constructor TIdentServer.Create;
+constructor TIdentServerThread.Create(aPort: Integer = 113);
 begin
-  inherited;
-
+  inherited Create(False);
+  FreeOnTerminate := False;
+  FPort := aPort;
+  FActive := False;
   FDefaultIdentResponse := config.ReadString(section, 'response', 'slftpuser');
-  OnIdentQuery := SendReply;
-  Active := True;
 end;
 
-function TIdentServer.FindSiteIdent(const aPeerIP: String; const aPeerPort: Integer): String;
+function TIdentServerThread.FindSiteIdent(const aPeerIP: String; const aPeerPort: Integer): String;
 var
   i, j: Integer;
   s: TSite;
@@ -83,16 +99,125 @@ begin
   end;
 end;
 
-procedure TIdentServer.SendReply(AContext: TIdContext; AServerPort, AClientPort: TIdPort);
+function TIdentServerThread.ParseIdentRequest(const aRequest: String; out aServerPort, aClientPort: Integer): Boolean;
 var
-  fServerIP: String;
-  fIdentReply: String;
+  fCommaPos: Integer;
+  fServerPortStr, fClientPortStr: String;
 begin
-  fServerIP := AContext.Connection.Socket.Binding.PeerIP;
-  Debug(dpSpam, section, Format('IDENT request from %s:%d for port %d', [fServerIP, AServerPort, AClientPort]));
-  fIdentReply := FindSiteIdent(fServerIP, AServerPort);
-  Debug(dpSpam, section, Format('IDENT reply is %s', [fIdentReply]));
-  ReplyIdent(AContext, AServerPort, AClientPort, 'UNIX', fIdentReply, {Charset}'');
+  Result := False;
+  aServerPort := 0;
+  aClientPort := 0;
+
+  // Request format: "serverport,clientport" or "serverport, clientport"
+  fCommaPos := Pos(',', aRequest);
+  if fCommaPos = 0 then
+    exit;
+
+  fServerPortStr := Trim(Copy(aRequest, 1, fCommaPos - 1));
+  fClientPortStr := Trim(Copy(aRequest, fCommaPos + 1, Length(aRequest)));
+
+  // Remove any trailing CR/LF
+  fClientPortStr := Trim(fClientPortStr);
+
+  aServerPort := StrToIntDef(fServerPortStr, 0);
+  aClientPort := StrToIntDef(fClientPortStr, 0);
+
+  Result := (aServerPort > 0) and (aServerPort <= 65535) and
+            (aClientPort > 0) and (aClientPort <= 65535);
+end;
+
+function TIdentServerThread.BuildIdentResponse(aServerPort, aClientPort: Integer; const aIdentReply: String): String;
+begin
+  // Response format: "serverport, clientport : USERID : UNIX : username"
+  Result := Format('%d, %d : USERID : UNIX : %s'#13#10, [aServerPort, aClientPort, aIdentReply]);
+end;
+
+procedure TIdentServerThread.Execute;
+var
+  fListenSock: TCrtSocket;
+  fClientSock: TNetSocket;
+  fClientAddr: TNetAddr;
+  fClient: TCrtSocket;
+  fRequest: RawUtf8;
+  fServerPort, fClientPort: Integer;
+  fPeerIP: String;
+  fIdentReply: String;
+  fResponse: RawUtf8;
+  fResult: TNetResult;
+begin
+  fListenSock := nil;
+  try
+    // Create listening socket on ident port
+    fListenSock := TCrtSocket.Bind(RawUtf8(IntToStr(FPort)), nlTcp, IDENT_TIMEOUT_MS, True);
+    FActive := True;
+    Debug(dpMessage, section, Format('Ident server listening on port %d', [FPort]));
+
+    while not Terminated do
+    begin
+      // Accept incoming connection with timeout
+      fResult := fListenSock.Sock.Accept(fClientSock, fClientAddr, IDENT_TIMEOUT_MS);
+
+      if Terminated then
+        Break;
+
+      if fResult = nrRetry then
+        // Timeout, try again
+        Continue;
+
+      if fResult <> nrOk then
+      begin
+        // Error accepting connection
+        Debug(dpSpam, section, Format('Ident server accept error: %d', [Ord(fResult)]));
+        Continue;
+      end;
+
+      // Got a connection, handle it
+      fClient := TCrtSocket.Create(IDENT_TIMEOUT_MS);
+      try
+        fClient.AcceptRequest(fClientSock, @fClientAddr);
+        fPeerIP := string(fClient.RemoteIP);
+
+        try
+          // Read the request line
+          fClient.SockRecvLn(fRequest);
+
+          if ParseIdentRequest(string(fRequest), fServerPort, fClientPort) then
+          begin
+            Debug(dpSpam, section, Format('IDENT request from %s for ports %d,%d', [fPeerIP, fServerPort, fClientPort]));
+
+            // Find the appropriate ident response
+            fIdentReply := FindSiteIdent(fPeerIP, fServerPort);
+            Debug(dpSpam, section, Format('IDENT reply is %s', [fIdentReply]));
+
+            // Send response
+            fResponse := RawUtf8(BuildIdentResponse(fServerPort, fClientPort, fIdentReply));
+            fClient.SockSend(pointer(fResponse), Length(fResponse));
+            fClient.SockSendFlush;
+          end
+          else
+          begin
+            Debug(dpSpam, section, Format('IDENT invalid request from %s: %s', [fPeerIP, string(fRequest)]));
+          end;
+        except
+          on e: Exception do
+            Debug(dpSpam, section, Format('IDENT error handling request from %s: %s', [fPeerIP, e.Message]));
+        end;
+      finally
+        fClient.Free;
+      end;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('Ident server error: %s', [e.Message]));
+    end;
+  end;
+
+  FActive := False;
+  if fListenSock <> nil then
+    fListenSock.Free;
+
+  Debug(dpMessage, section, 'Ident server stopped');
 end;
 
 function IdentServerInit: String;
@@ -101,14 +226,24 @@ begin
   try
     if config.ReadBool(section, 'enabled', False) then
     begin
-      glMyIdentServer := TIdentServer.Create;
-      Debug(dpMessage, section, 'Ident server successfully started');
+      glMyIdentServer := TIdentServerThread.Create(113);
+      // Wait briefly for the server to start
+      Sleep(100);
+      if glMyIdentServer.Active then
+        Debug(dpMessage, section, 'Ident server successfully started')
+      else
+        Debug(dpMessage, section, 'Ident server thread created, waiting for activation');
     end;
   except
     on e: Exception do
     begin
       Result := e.Message;
-      glMyIdentServer := nil;
+      if glMyIdentServer <> nil then
+      begin
+        glMyIdentServer.Terminate;
+        glMyIdentServer.WaitFor;
+        FreeAndNil(glMyIdentServer);
+      end;
     end;
   end;
 end;
@@ -117,9 +252,10 @@ procedure IdentServerStop;
 begin
   if Assigned(glMyIdentServer) then
   begin
+    glMyIdentServer.Terminate;
+    glMyIdentServer.WaitFor;
     FreeAndNil(glMyIdentServer);
   end;
 end;
 
 end.
-
