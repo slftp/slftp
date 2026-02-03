@@ -1583,6 +1583,15 @@ begin
           if fTask = nil then
             Continue;
 
+          // Special check for SITENFO tasks: if site is down or NFO download is disabled, mark task as ready
+          if (fTask is TPazoSiteNfoTask) then
+          begin
+            if (ts.UseForNFOdownload <> ufnEnabled) or (ts.WorkingStatus in [sstDown, sstMarkedAsDownByUser, sstTempDown]) then
+            begin
+              fTask.ready := True;
+            end;
+          end;
+
           try
             if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
             begin

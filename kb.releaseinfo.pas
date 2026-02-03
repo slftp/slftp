@@ -1142,16 +1142,20 @@ begin
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
   begin
-    try
-      if not pazo.IsUDPEnabled then
-        AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
-    except
-      on e: Exception do
-      begin
-        Debug(dpError, rsections, Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s', [e.Message]));
+    with FindSiteByName('', shot.Name) do
+    if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+    begin
+      try
+        if not pazo.IsUDPEnabled then
+          AddTask(TPazoGenreDirlistTask.Create('', '', shot.Name, pazo, 1));
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, rsections, Format('[EXCEPTION] TMP3Release.Aktualizal.AddTask: %s', [e.Message]));
+        end;
       end;
+      Result := True;
     end;
-    Result := True;
   end;
 end;
 
@@ -1215,22 +1219,41 @@ begin
   if i <> -1 then
     exit;
 
-  shot := FindMostCompleteSite(pazo);
-  if shot <> nil then
-  begin
-    try
-      if not pazo.IsUDPEnabled then
-        AddTask(TPazoGenreNfoTask.Create('', '', shot.Name, pazo, 1));
-    except
-      on e: Exception do
+    shot := FindMostCompleteSite(pazo);
+
+    if shot <> nil then
+
+    begin
+
+      with FindSiteByName('', shot.Name) do
+
+      if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+
       begin
-        Debug(dpError, rsections,
-          Format('[EXCEPTION] TNFORelease.Aktualizal.AddTask: %s',
-          [e.Message]));
+
+        try
+
+          if not pazo.IsUDPEnabled then
+
+            AddTask(TPazoGenreNfoTask.Create('', '', shot.Name, pazo, 1));
+
+        except
+
+          on e: Exception do
+
+          begin
+
+            Debug(dpError, rsections, Format('[EXCEPTION] TNFORelease.Aktualizal.AddTask: %s', [e.Message]));
+
+          end;
+
+        end;
+
+        Result := True;
+
       end;
+
     end;
-    Result := True;
-  end;
 end;
 
 function TNFORelease.Aktualizald(const extrainfo: String): boolean;
@@ -1568,14 +1591,23 @@ begin
         end;
 
         // start searching nfo
-        for j := pazo.PazoSitesList.Count - 1 downto 0 do
+        if not pazo.IsUDPEnabled then
         begin
-          ps := TPazoSite(pazo.PazoSitesList[j]);
-          try
-            AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
-          except
-            on e: Exception do
-              Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
+          for j := pazo.PazoSitesList.Count - 1 downto 0 do
+          begin
+            ps := TPazoSite(pazo.PazoSitesList[j]);
+            with FindSiteByName('', ps.Name) do
+            begin
+              if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+              begin
+                try
+                  AddTask(TPazoSiteNfoTask.Create('', '', ps.Name, pazo, 1));
+                except
+                  on e: Exception do
+                    Debug(dpError, rsections, Format('[EXCEPTION] TIMDBRelease.Aktualizal.AddTask: %s', [e.Message]));
+                end;
+              end;
+            end;
           end;
         end;
 
@@ -1801,8 +1833,12 @@ begin
   shot := FindMostCompleteSite(pazo);
   if shot <> nil then
   begin
-    AddTask(TPazoMVIDTask.Create('', '', shot.Name, pazo, 1));
-    Result := True;
+    with FindSiteByName('', shot.Name) do
+    if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+    begin
+      AddTask(TPazoMVIDTask.Create('', '', shot.Name, pazo, 1));
+      Result := True;
+    end;
   end;
 end;
 

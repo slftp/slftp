@@ -1036,10 +1036,13 @@ begin
 
       for fPazoSite in PazoSitesList do
       begin
-        if FindSiteByName('', fPazoSite.Name).UseForNFOdownload = ufnEnabled then
+        with FindSiteByName('', fPazoSite.Name) do
         begin
-          Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
-          AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, de.filename, 1));
+          if (WorkingStatus = sstUp) and (UseForNFOdownload = ufnEnabled) then
+          begin
+            Debug(dpSpam, section, 'Add SFV task for %s %s (%s)', [rls.rlsname, aDir, fPazoSite.Name]);
+            AddTask(TPazoSiteSfvTask.Create('', '', fPazoSite.Name, self, aDir, de.filename, 1));
+          end;
         end;
       end;
     end;
