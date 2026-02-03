@@ -23,8 +23,11 @@ var
   GlobalCbftpClient: TCbftpClient = nil;
 
 function IsCbftpEnabled: Boolean;
+var
+  s: string;
 begin
-  Result := config.ReadBool('UDPConfig', 'EnableUDP', False);
+  s := LowerCase(config.ReadString('UDPConfig', 'EnableUDP', '0'));
+  Result := (s = 'true') or (s = '1') or (s = 'yes');
 end;
 
 function GetCbftpClient: TCbftpClient;
