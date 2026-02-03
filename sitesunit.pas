@@ -752,7 +752,7 @@ uses
 const
   section = 'sites';
   MAXSIM_COOLDOWN_INITIAL_SECONDS = 5;
-  MAXSIM_COOLDOWN_MAX_SECONDS = 120;
+  MAXSIM_COOLDOWN_MAX_SECONDS = 5;
 
 var
   bnccsere: TSlCriticalSection2 = nil;
