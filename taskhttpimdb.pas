@@ -514,34 +514,29 @@ begin
       begin
         fBomCountryLinks := TDictionary<String, String>.Create;
         try
-          THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomMainPage, fBomCountryLinks);
-          Debug(dpMessage, section, Format('[BOM] Found %d country links on main page for %s (USA=%s, UK=%s)', [fBomCountryLinks.Count, FImdbTitleID, BoolToStr(fBomCountryLinks.ContainsKey('USA'), True), BoolToStr(fBomCountryLinks.ContainsKey('UK'), True)]));
+          // Prefer Original Release group if available (title page may only show re-release links lacking screen data)
+          fBomGroupLink := THtmlBoxOfficeMojoParser.GetOriginalReleaseGroupLink(fBomMainPage);
 
-          // If USA/UK not found on main page, try "Original Release" group
-          if not (fBomCountryLinks.ContainsKey('USA') or fBomCountryLinks.ContainsKey('UK')) then
+          if fBomGroupLink <> '' then
           begin
-            Debug(dpMessage, section, Format('[BOM] USA/UK not found on main page, checking for Original Release group for %s', [FImdbTitleID]));
-            fBomGroupLink := THtmlBoxOfficeMojoParser.GetOriginalReleaseGroupLink(fBomMainPage);
+            Debug(dpMessage, section, Format('[BOM] Found Original Release group: %s, fetching for %s', [fBomGroupLink, FImdbTitleID]));
 
-            if fBomGroupLink <> '' then
+            if HttpGetUrl('https://www.boxofficemojo.com' + fBomGroupLink, fBomGroupPage, fHttpGetErrMsg) then
             begin
-              Debug(dpMessage, section, Format('[BOM] Found Original Release group: %s', [fBomGroupLink]));
-
-              if HttpGetUrl('https://www.boxofficemojo.com' + fBomGroupLink, fBomGroupPage, fHttpGetErrMsg) then
-              begin
-                // Parse countries from Original Release group and add to existing dictionary
-                THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomGroupPage, fBomCountryLinks);
-                Debug(dpMessage, section, Format('[BOM] After Original Release group: total %d country links', [fBomCountryLinks.Count]));
-              end
-              else
-              begin
-                Debug(dpMessage, section, Format('[BOM] Failed to fetch Original Release group page: %s', [fHttpGetErrMsg]));
-              end;
+              THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomGroupPage, fBomCountryLinks);
+              Debug(dpMessage, section, Format('[BOM] Original Release group: %d country links (USA=%s, UK=%s)', [fBomCountryLinks.Count, FImdbTitleID, BoolToStr(fBomCountryLinks.ContainsKey('USA'), True), BoolToStr(fBomCountryLinks.ContainsKey('UK'), True)]));
             end
             else
             begin
-              Debug(dpMessage, section, '[BOM] No Original Release group found');
+              Debug(dpMessage, section, Format('[BOM] Failed to fetch Original Release group page: %s', [fHttpGetErrMsg]));
             end;
+          end;
+
+          // Fallback to main page links if Original Release group not available or has no USA/UK
+          if not (fBomCountryLinks.ContainsKey('USA') or fBomCountryLinks.ContainsKey('UK')) then
+          begin
+            THtmlBoxOfficeMojoParser.GetCountrySpecificLinks(fBomMainPage, fBomCountryLinks);
+            Debug(dpMessage, section, Format('[BOM] Fallback to main page: %d country links for %s (USA=%s, UK=%s)', [fBomCountryLinks.Count, FImdbTitleID, BoolToStr(fBomCountryLinks.ContainsKey('USA'), True), BoolToStr(fBomCountryLinks.ContainsKey('UK'), True)]));
           end;
 
           if fBomCountryLinks.Count > 0 then
