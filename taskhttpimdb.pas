@@ -504,8 +504,8 @@ begin
     fReleaseDatesJson := Null;
 
   // 3. Optionally fetch BOM screen counts (if enabled in config)
-  fParseBOM := config.ReadBool('dbaddimdb', 'parse_boxofficemojo_always', True);
-  Debug(dpMessage, section, Format('[BOM] parse_boxofficemojo_always=%s for %s', [BoolToStr(fParseBOM, True), FImdbTitleID]));
+  fParseBOM := config.ReadBool('dbaddimdb', 'enable_boxofficemojo_lookup', False);
+  Debug(dpMessage, section, Format('[BOM] enable_boxofficemojo_lookup=%s for %s', [BoolToStr(fParseBOM, True), FImdbTitleID]));
   if fParseBOM then
   begin
     Debug(dpMessage, section, Format('[BOM] Starting BOM fetch for %s', [FImdbTitleID]));
