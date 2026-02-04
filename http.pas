@@ -32,11 +32,17 @@ var
   fNumErrors: Integer;
   fOutHeaders: RawUtf8;
   fOutStatus: integer;
+  fInHeaders: RawUtf8;
+  fRandomUserAgent: String;
 begin
   Result := False;
   fNumErrors := 0;
   fOutHeaders := '';
   fOutStatus := 0;
+
+  // Select random User-Agent
+  fRandomUserAgent := UserAgents[Random(UserAgentsCount + 1)];
+  fInHeaders := 'User-Agent: ' + fRandomUserAgent;
 
   TryAgain:
   Inc(fNumErrors);
@@ -46,7 +52,7 @@ begin
     aErrMsg := '';
     // load website
     try
-      aRecvStr := HttpGet(aUrl, @fOutHeaders, {forceNotSocket:}False, @fOutStatus, {timeout:}0, {forcesocket:}False, {ignoreTlsCertError:}True);
+      aRecvStr := HttpGet(aUrl, fInHeaders, @fOutHeaders, {forceNotSocket:}False, @fOutStatus, {timeout:}0, {forcesocket:}False, {ignoreTlsCertError:}True);
     except
       on e: Exception do
       begin
