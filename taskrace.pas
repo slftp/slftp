@@ -1363,7 +1363,7 @@ var
     Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
   end;
 
-  procedure _handleErrorRETR();
+  procedure _handleErrorRETR(const aCmd: String);
   begin
     if (
       ( (lastResponseCode = 550) AND (
@@ -1378,7 +1378,7 @@ var
     begin
       if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
       begin
-        irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+        irc_Adderror(ssrc.todotask, Format('<c4>[ERROR %s No Such File]</c> TPazoRaceTask %%s', [aCmd]), [tname]);
       end;
     end
     else
@@ -1431,8 +1431,8 @@ var
           [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
         mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
           [fLastSrcUploader, lSrcUser]);
-        sdst.QuitAndRelogin('TPazoRaceTask - source uploader switch');
-        ssrc.QuitAndRelogin('TPazoRaceTask - source uploader switch');
+        sdst.DestroySocket(False);
+        ssrc.DestroySocket(False);
         readyerror := True;
         Result := True;
         exit;
@@ -1459,8 +1459,8 @@ var
         Debug(dpSpam, c_section, '[SRC-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]);
         mainpazo.errorreason := 'Source regression';
-        sdst.QuitAndRelogin('TPazoRaceTask - source regression');
-        ssrc.QuitAndRelogin('TPazoRaceTask - source regression');
+        sdst.DestroySocket(False);
+        ssrc.DestroySocket(False);
         readyerror := True;
         Result := True;
         exit;
@@ -1516,8 +1516,8 @@ var
         end;
         mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
           [fLastDstUploader, lDstUser]);
-        sdst.QuitAndRelogin('TPazoRaceTask - destination uploader switch');
-        ssrc.QuitAndRelogin('TPazoRaceTask - destination uploader switch');
+        sdst.DestroySocket(False);
+        ssrc.DestroySocket(False);
         readyerror := True;
         Result := True;
         exit;
@@ -1789,7 +1789,7 @@ begin
       end;
 
       Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
-      _handleErrorRETR();
+      _handleErrorRETR('PRET');
       readyerror := True;
       mainpazo.errorreason := 'PRET RETR failed on ' + site1;
       Debug(dpSpam, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -2754,13 +2754,11 @@ begin
     end;
 
 
-    _handleErrorRETR();
+    _handleErrorRETR('RETR');
 
 
-    // ilyenkor a dst szalon a legjobb ha lezarjuk a geci a socketet mert az ABOR meg a sok szar amugy sem hasznalhato.
-    // es majd ugyis automatan ujrabejelentkezik a cumo
-    // This is the best salon dst If you close the socket because of spunk ABOR a lot of crap anyway be used.
-    // And then anyway Automatic redial occurs in the CumC3
+    // In this case, it is best to close the destination socket immediately because ABOR and other methods are unreliable.
+    // The system will automatically handle the relogin and retry.
     sdst.DestroySocket(False);
 
     mainpazo.errorreason := 'No free slots?';
@@ -2901,8 +2899,8 @@ begin
           if (fDiffMSec < 200) and (fDirlistEntry.filesize = 0) then
           begin
             irc_Adderror(Format('<c4>[STALLED]</c> [%s]: File size 0 for %d seconds - kill connection', [tname, fDiffSec]));
-            sdst.DestroySocketAndRelogin('TPazoRaceTask');
-            ssrc.DestroySocketAndRelogin('TPazoRaceTask');
+            sdst.DestroySocket(False);
+            ssrc.DestroySocket(False);
             readyerror := True;
             exit;
           end;
@@ -2987,7 +2985,7 @@ begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
           begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR WAIT No Such File]</c> TPazoRaceTask %s', [tname]);
           end;
 
           Debug(dpMessage, c_section, '<- ' + lastResponse + ' ' + tname);
@@ -3002,7 +3000,7 @@ begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
           begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR WAIT No Such File]</c> TPazoRaceTask %s', [tname]);
           end;
 
           mainpazo.errorreason := 'File is being deleted';
@@ -3016,7 +3014,7 @@ begin
           //exit here, try again won't help if file don't get traded just again after deleting
           if spamcfg.readbool(c_section, 'no_such_file_or_directory', True) then
           begin
-            irc_Adderror(ssrc.todotask, '<c4>[ERROR No Such File]</c> TPazoRaceTask %s', [tname]);
+            irc_Adderror(ssrc.todotask, '<c4>[ERROR WAIT No Such File]</c> TPazoRaceTask %s', [tname]);
           end;
 
           mainpazo.errorreason := 'File wasn''t found in any root';

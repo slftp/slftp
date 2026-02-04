@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Badge, Button, Group, Loader, Stack, Table, Textarea, Text, Select, MultiSelect, Switch, NumberInput, Paper, Code, ScrollArea, ActionIcon, Tooltip } from '@mantine/core';
+import { Badge, Button, Group, Loader, Stack, Textarea, Text, Select, MultiSelect, Switch, NumberInput, Paper, Code, ScrollArea, ActionIcon, Tooltip } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { IconTerminal, IconRefresh, IconHistory } from '@tabler/icons-react';
@@ -22,7 +22,8 @@ interface CommandHistory {
 }
 
 export function RawCommands() {
-  const [results, setResults] = useState<RawCommandResult[]>([]);
+  const [successes, setSuccesses] = useState<RawCommandResult[]>([]);
+  const [failures, setFailures] = useState<RawCommandResult[]>([]);
   const [asyncRequestId, setAsyncRequestId] = useState<number | null>(null);
   const [commandHistory, setCommandHistory] = useState<CommandHistory[]>(() => {
     const saved = localStorage.getItem('cbftp-command-history');
@@ -48,8 +49,9 @@ export function RawCommands() {
   });
 
   useEffect(() => {
-    if (asyncResults?.results) {
-      setResults(asyncResults.results);
+    if (asyncResults?.successes || asyncResults?.failures) {
+      setSuccesses(asyncResults.successes || []);
+      setFailures(asyncResults.failures || []);
       // Stop polling once we have results
       setAsyncRequestId(null);
     }
@@ -66,12 +68,13 @@ export function RawCommands() {
           message: `Async command started (ID: ${response.id}). Polling for results...`,
           color: 'blue',
         });
-      } else if (response.results) {
+      } else if (response.successes || response.failures) {
         // Sync command
-        setResults(response.results);
+        setSuccesses(response.successes || []);
+        setFailures(response.failures || []);
         notifications.show({
           title: 'Success',
-          message: 'Command executed successfully',
+          message: 'Command executed',
           color: 'green',
         });
       }
@@ -102,7 +105,7 @@ export function RawCommands() {
       pathType: 'none' as 'none' | 'path' | 'section',
       path: '',
       path_section: '',
-      timeout: 10,
+      timeout: 30,
       async: false,
     },
     validate: {
@@ -139,7 +142,8 @@ export function RawCommands() {
   };
 
   const clearResults = () => {
-    setResults([]);
+    setSuccesses([]);
+    setFailures([]);
     setAsyncRequestId(null);
   };
 
@@ -235,7 +239,7 @@ export function RawCommands() {
               >
                 Execute
               </Button>
-              {results.length > 0 && (
+              {(successes.length > 0 || failures.length > 0) && (
                 <Button variant="default" onClick={clearResults}>
                   Clear Results
                 </Button>
@@ -277,46 +281,36 @@ export function RawCommands() {
       )}
 
       {/* Results */}
-      {results.length > 0 && (
-        <Paper p="md" withBorder>
-          <Text fw={500} mb="md">
-            Results ({results.length} sites)
+      {(successes.length > 0 || failures.length > 0) && (
+        <Stack gap="md">
+          <Text fw={500}>
+            Results ({successes.length} successes, {failures.length} failures)
           </Text>
-          <ScrollArea h={400}>
-            <Table striped>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Site</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Output</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {results.map((result, index) => (
-                  <Table.Tr key={index}>
-                    <Table.Td>{result.site}</Table.Td>
-                    <Table.Td>
-                      <Badge color={result.success ? 'green' : 'red'}>
-                        {result.success ? 'Success' : 'Failed'}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      {result.error ? (
-                        <Text c="red" size="sm">
-                          {result.error}
-                        </Text>
-                      ) : (
-                        <Code block style={{ whiteSpace: 'pre-wrap', maxWidth: 600 }}>
-                          {result.output || 'No output'}
-                        </Code>
-                      )}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
-        </Paper>
+          {failures.map((result, index) => (
+            <Paper key={`fail-${index}`} p="sm" withBorder>
+              <Group justify="apart" mb="xs">
+                <Text fw={700} size="sm">{result.name}</Text>
+                <Badge color="red" size="sm">Failed</Badge>
+              </Group>
+              <Code block color="red.1" c="red.9" style={{ whiteSpace: 'pre-wrap' }}>
+                {result.reason || result.error || 'Unknown error'}
+              </Code>
+            </Paper>
+          ))}
+          {successes.map((result, index) => (
+            <Paper key={`success-${index}`} p="sm" withBorder>
+              <Group justify="apart" mb="xs">
+                <Text fw={700} size="sm">{result.name}</Text>
+                <Badge color="green" size="sm">Success</Badge>
+              </Group>
+              <ScrollArea h={500}>
+                <Code block style={{ whiteSpace: 'pre', fontSize: '12px' }}>
+                  {result.result || 'No output'}
+                </Code>
+              </ScrollArea>
+            </Paper>
+          ))}
+        </Stack>
       )}
     </Stack>
   );

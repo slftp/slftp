@@ -122,15 +122,16 @@ export interface RawCommandRequest {
 }
 
 export interface RawCommandResult {
-  site: string;
-  success: boolean;
-  output: string;
+  name: string;
+  result?: string;
   error?: string;
+  reason?: string;
 }
 
 export interface RawCommandResponse {
   id?: number;
-  results?: RawCommandResult[];
+  successes?: RawCommandResult[];
+  failures?: RawCommandResult[];
 }
 
 export interface StartSpreadJobRequest {

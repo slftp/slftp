@@ -45,10 +45,10 @@ function IrcHelpHeader(const netname, channel, params: String): boolean;
 
 const
   { Names of IRC command groups for @link(hlpgrp) }
-  helpCommands: array[0..23] of String = ('general', 'site', 'auto', 'route',
+  helpCommands: array[0..27] of String = ('general', 'site', 'auto', 'route',
     'rank', 'speed', 'work', 'prebot', 'stats', 'slots', 'misc', 'news', 'irc',
     'rules', 'indexer', 'info', 'reload', 'socks5', 'pretime', 'imdb', 'tv', 'test',
-    'section', 'simulator' {, 'preurl', 'mysql'});
+    'section', 'simulator', 'kb', 'precatcher', 'speedtest', 'windows');
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
   ircCommandsArray: array[1..230] of TIrcCommand = (

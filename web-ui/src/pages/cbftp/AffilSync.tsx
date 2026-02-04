@@ -270,7 +270,7 @@ export function AffilSync() {
                 <Table.Th>Site</Table.Th>
                 <Table.Th>slftp Affils</Table.Th>
                 <Table.Th>cbftp Affils</Table.Th>
-                <Table.Th>Status</Table.Th>
+                <Table.Th style={{ width: 130 }}>Status</Table.Th>
                 <Table.Th style={{ width: 100 }}>Action</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -288,7 +288,7 @@ export function AffilSync() {
                     <Text fw={500}>{comp.siteName}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Group gap={4}>
+                    <Group gap={4} wrap="wrap">
                       {comp.slftpAffils.length > 0 ? (
                         comp.slftpAffils.map((affil) => (
                           <Badge key={affil} size="sm" variant="light" color="blue">
@@ -302,7 +302,7 @@ export function AffilSync() {
                   </Table.Td>
                   <Table.Td>
                     {comp.existsInCbftp ? (
-                      <Group gap={4}>
+                      <Group gap={4} wrap="wrap">
                         {comp.cbftpAffils.length > 0 ? (
                           comp.cbftpAffils.map((affil) => (
                             <Badge key={affil} size="sm" variant="light" color="cyan">

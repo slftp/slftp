@@ -167,6 +167,8 @@ begin
   method := Call.Method;
   body := Call.InBody;
 
+  Debug(dpMessage, section, Format('HandleCbftpRequest: %s %s', [method, path]));
+
   success := False;
   response := '';
 
@@ -276,7 +278,8 @@ begin
         success := response <> '';
       end;
 
-      if not success then
+      // Only set default success response if we actually succeeded AND have no response body
+      if success and (response = '') then
         response := '{"success":true}';
     end
     else if method = 'PATCH' then

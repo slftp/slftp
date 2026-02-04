@@ -220,14 +220,8 @@ begin
 
   sUrlLower := LowerCase(sUrl);
 
-  // Check for cbftp proxy requests (intercept BEFORE mORMot's service routing)
-  if ((Length(sUrlLower) >= 11) and (Copy(sUrlLower, 1, 11) = '/api/cbftp/')) or
-     ((Length(sUrlLower) >= 7) and (Copy(sUrlLower, 1, 7) = '/cbftp/')) then
-  begin
-    // Handle cbftp proxy request
-    HandleCbftpRequest(Ctxt.Call^);
-    Result := False; // handled here, skip mORMot service routing
-  end;
+  // Check for other interceptions if needed
+  Result := True; // By default, let mORMot continue processing
 end;
 
 procedure TSlftpApiServer.RegisterServices;

@@ -148,7 +148,7 @@ begin
   FPort := aPort;
   FPassword := aPassword;
   FBaseUrl := FormatUtf8('https://%:%', [aHost, aPort], [], False);
-  FHttpClient := TCbftpHttpClient.Create(5000); // 5 second timeout
+  FHttpClient := TCbftpHttpClient.Create(30000); // 30 second timeout
   // avoid OS/system proxy for localhost cbftp
   TCbftpHttpClient(FHttpClient).DisableProxy;
   FHttpClient.TLS.IgnoreCertificateErrors := True; // cbftp uses self-signed cert
@@ -205,10 +205,10 @@ begin
       if aBody <> '' then
         headers := headers + 'Content-Type: application/json'#13#10;
 
-      Debug(dpMessage, section, Format('cbftp %s %s', [aMethod, aPath]));
-
       // Execute request
+      Debug(dpMessage, section, Format('cbftp %s %s', [aMethod, aPath]));
       status := FHttpClient.Request(path, aMethod, 0, headers, aBody, '', False);
+      
       FLastStatus := status;
       FLastResponse := FHttpClient.Content;
       FLastError := '';

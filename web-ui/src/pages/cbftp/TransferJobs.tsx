@@ -35,11 +35,16 @@ export function TransferJobs() {
     name: search || undefined,
   };
 
-  const { data: jobNames, isLoading, error } = useQuery<string[]>({
+  const { data: jobNamesRaw, isLoading, error } = useQuery<string[]>({
     queryKey: ['cbftp-transfer-jobs', filters],
     queryFn: () => getTransferJobs(filters),
     refetchInterval: 30000,
   });
+
+  const jobNames = useMemo(() => {
+    if (!jobNamesRaw) return [];
+    return [...jobNamesRaw].reverse();
+  }, [jobNamesRaw]);
 
   const { data: jobDetailsList } = useQuery<CbftpTransferJob[]>({
     queryKey: ['cbftp-transfer-jobs-details', jobNames],

@@ -39,11 +39,16 @@ export function SpreadJobs() {
     name: search || undefined,
   };
 
-  const { data: jobNames, isLoading, error } = useQuery<string[]>({
+  const { data: jobNamesRaw, isLoading, error } = useQuery<string[]>({
     queryKey: ['cbftp-spread-jobs', filters],
     queryFn: () => getSpreadJobs(filters) as Promise<string[]>,
     refetchInterval: 30000,
   });
+
+  const jobNames = useMemo(() => {
+    if (!jobNamesRaw) return [];
+    return [...jobNamesRaw].reverse();
+  }, [jobNamesRaw]);
 
   const { data: jobDetailsList } = useQuery<CbftpSpreadJob[]>({
     queryKey: ['cbftp-spread-jobs-details', jobNames],
