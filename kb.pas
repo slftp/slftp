@@ -669,7 +669,7 @@ begin
     end;
 
     s := FindSiteByName(netname, psource.Name);
-    if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
+    if ((s <> nil) and (not p.IsUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
 
     psource.ircevent := True;
