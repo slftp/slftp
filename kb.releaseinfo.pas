@@ -1529,9 +1529,9 @@ begin
 
         imdb_id := imdbdata.imdb_id;
         imdb_year := imdbdata.imdb_year;
-        imdb_languages.DelimitedText := imdbdata.imdb_languages.DelimitedText;
-        imdb_countries.DelimitedText := imdbdata.imdb_countries.DelimitedText;
-        imdb_genres.DelimitedText := imdbdata.imdb_genres.DelimitedText;
+        imdb_languages.Assign(imdbdata.imdb_languages);
+        imdb_countries.Assign(imdbdata.imdb_countries);
+        imdb_genres.Assign(imdbdata.imdb_genres);
         imdb_screens := imdbdata.imdb_screens;
         imdb_rating := imdbdata.imdb_rating;
         imdb_votes := imdbdata.imdb_votes;
@@ -1601,8 +1601,14 @@ begin
   FLookupDone := False;
   imdb_id := '';
   imdb_languages := TStringList.Create;
+  imdb_languages.Delimiter := ',';
+  imdb_languages.StrictDelimiter := True;
   imdb_countries := TStringList.Create;
+  imdb_countries.Delimiter := ',';
+  imdb_countries.StrictDelimiter := True;
   imdb_genres := TStringList.Create;
+  imdb_genres.Delimiter := ',';
+  imdb_genres.StrictDelimiter := True;
 end;
 
 class function TIMDBRelease.DefaultSections: String;

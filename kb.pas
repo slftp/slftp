@@ -500,7 +500,7 @@ begin
       if (event = kbeADDPRE) then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
-          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s', [section, rls]));
+          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
       end
       else if (event = kbePRE) then
       begin
