@@ -98,6 +98,7 @@ type
     FLastNonIdleTaskExecution: TDateTime;
     mdtmre: TRegExpr; //< regex for parsing MDTM ftpd response
     aktdir: String;
+    FAktDirIsRemote: boolean;
     prot: TProtection;
     kilepve: boolean;
     FSlotNumber: integer; //< number of slot
@@ -1473,6 +1474,7 @@ begin
   kilepve := False;
 
   aktdir := '';
+  FAktDirIsRemote := False;
   prot := prNone;
   status := ssNone;
   lastResponse := '';
@@ -1520,6 +1522,7 @@ begin
     prot := prNone;
     SSCNEnabled := False;
     aktdir := '';
+    FAktDirIsRemote := False;
   except
     on e: Exception do
     begin
@@ -1947,7 +1950,7 @@ begin
 
   if ((site.legacydirlist) or (force)) then
   begin
-    if (not force) and (dir = aktdir) then
+    if (not force) and (dir = aktdir) and (FAktDirIsRemote) then
     begin
       Result := True;
       exit;
@@ -1964,11 +1967,13 @@ begin
       begin
         Debug(dpError, section, 'TRIMMED RLSNAME DETECTED! ' + Name + ' ' + dir);
         aktdir := dir;
+        FAktDirIsRemote := True;
         Result := True;
         exit;
       end;
 			
       aktdir := dir;
+      FAktDirIsRemote := True;
       Result := True;
     end
     else
@@ -1981,6 +1986,7 @@ begin
   else
   begin
     aktdir := dir;
+    FAktDirIsRemote := False;
     Result := True;
   end;
 end;
@@ -2914,6 +2920,7 @@ begin
     dir := Copy(dir, 1, Pos('"', dir) - 1);
 
     aktdir := MyIncludeTrailingSlash(dir);
+    FAktDirIsRemote := True;
     Result := True;
   except
     on e: Exception do
