@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Loader, Modal, Pagination, ScrollArea, Stack, Table, Text, TextInput, Title, Switch } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconSearch, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
@@ -14,6 +14,9 @@ type RaceLine = {
   FileName: string;
   SizeBytes: number;
 };
+
+type SortField = 'TsUnix' | 'SrcSite' | 'DstSite' | 'Section' | 'Release' | 'FileName' | 'SizeBytes';
+type SortDirection = 'asc' | 'desc';
 
 function parseMaybeJsonArray(value: unknown): any[] {
   if (Array.isArray(value)) return value;
@@ -36,6 +39,8 @@ export function Races() {
   const maxPages = 5;
   const [selectedRelease, setSelectedRelease] = useState<string | null>(null);
   const [releasePage, setReleasePage] = useState(1);
+  const [sortField, setSortField] = useState<SortField>('TsUnix');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['races', page],
@@ -94,12 +99,91 @@ export function Races() {
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return races;
-    return races.filter((r) => {
-      const hay = `${r.SrcSite || ''} ${r.DstSite || ''} ${r.Section || ''} ${r.Release || ''} ${r.FileName || ''}`.toLowerCase();
-      return hay.includes(q);
+    let result = races;
+    
+    if (q) {
+      result = races.filter((r) => {
+        const release = (r.Release || '').toLowerCase();
+        const fileName = (r.FileName || '').toLowerCase();
+        const srcSite = (r.SrcSite || '').toLowerCase();
+        const dstSite = (r.DstSite || '').toLowerCase();
+        const section = (r.Section || '').toLowerCase();
+        
+        // Search in each field separately for better matching
+        return release.includes(q) || 
+               fileName.includes(q) || 
+               srcSite.includes(q) || 
+               dstSite.includes(q) || 
+               section.includes(q);
+      });
+    }
+    
+    // Sort the results
+    result = [...result].sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+      
+      switch (sortField) {
+        case 'TsUnix':
+          aVal = a.TsUnix || 0;
+          bVal = b.TsUnix || 0;
+          break;
+        case 'SrcSite':
+          aVal = (a.SrcSite || '').toLowerCase();
+          bVal = (b.SrcSite || '').toLowerCase();
+          break;
+        case 'DstSite':
+          aVal = (a.DstSite || '').toLowerCase();
+          bVal = (b.DstSite || '').toLowerCase();
+          break;
+        case 'Section':
+          aVal = (a.Section || '').toLowerCase();
+          bVal = (b.Section || '').toLowerCase();
+          break;
+        case 'Release':
+          aVal = (a.Release || '').toLowerCase();
+          bVal = (b.Release || '').toLowerCase();
+          break;
+        case 'FileName':
+          aVal = (a.FileName || '').toLowerCase();
+          bVal = (b.FileName || '').toLowerCase();
+          break;
+        case 'SizeBytes':
+          aVal = a.SizeBytes || 0;
+          bVal = b.SizeBytes || 0;
+          break;
+      }
+      
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
     });
-  }, [races, filter]);
+    
+    return result;
+  }, [races, filter, sortField, sortDirection]);
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortHeader = ({ field, children, style }: { field: SortField; children: React.ReactNode; style?: React.CSSProperties }) => (
+    <Table.Th 
+      style={{ ...style, cursor: 'pointer', userSelect: 'none' }} 
+      onClick={() => handleSort(field)}
+    >
+      <Group gap={4} wrap="nowrap">
+        {children}
+        {sortField === field && (
+          sortDirection === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />
+        )}
+      </Group>
+    </Table.Th>
+  );
 
   const formatBytes = (bytes?: number): string => {
     if (!bytes || !Number.isFinite(bytes) || bytes <= 0) return '';
@@ -160,11 +244,11 @@ export function Races() {
             <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th style={{ width: 1, whiteSpace: 'nowrap' }}>Time</Table.Th>
-                  <Table.Th>From → To</Table.Th>
-                  <Table.Th>Release / File</Table.Th>
-                  <Table.Th style={{ width: 120 }}>Section</Table.Th>
-                  <Table.Th style={{ width: 140 }}>Size</Table.Th>
+                  <SortHeader field="TsUnix" style={{ width: 1, whiteSpace: 'nowrap' }}>Time</SortHeader>
+                  <SortHeader field="SrcSite">From → To</SortHeader>
+                  <SortHeader field="Release">Release / File</SortHeader>
+                  <SortHeader field="Section" style={{ width: 120 }}>Section</SortHeader>
+                  <SortHeader field="SizeBytes" style={{ width: 140 }}>Size</SortHeader>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
