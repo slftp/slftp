@@ -2,6 +2,9 @@ unit identserver;
 
 interface
 
+uses
+  Classes;
+
 (*
   Ident Server (RFC 1413) implementation using mORMot2 sockets.
 
@@ -56,7 +59,7 @@ procedure IdentServerStop;
 implementation
 
 uses
-  SysUtils, Classes, configunit, sitesunit, debugunit,
+  SysUtils, configunit, sitesunit, debugunit,
   mormot.net.sock, mormot.core.base, mormot.core.text;
 
 const
@@ -155,7 +158,7 @@ begin
     while not Terminated do
     begin
       // Accept incoming connection with timeout
-      fResult := fListenSock.Sock.Accept(fClientSock, fClientAddr, IDENT_TIMEOUT_MS);
+      fResult := fListenSock.Sock.Accept(fClientSock, fClientAddr, {async=}False);
 
       if Terminated then
         Break;
