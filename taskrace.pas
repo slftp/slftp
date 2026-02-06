@@ -25,10 +25,12 @@ type
     is_pre: boolean;
     FDoIncFilling: boolean; //< @true if created to do incomplete filling, @false otherwise
     FSiteName: String; //< Name of the site for site-specific configuration
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
+    FWaitForComplete: boolean;
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False; const aDependingOnDirlist: TDirList = nil; aWaitForComplete: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
     function GetDirlistReaddValue: integer; //< Returns site-specific or global dirlist readd value
+    function IsReadyToBeExecuted: boolean; override;
   end;
 
   TPazoMkdirTask = class(TPazoTask)
@@ -80,7 +82,8 @@ implementation
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers;
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
+  globals;
 
 const
   c_section = 'taskrace';
@@ -314,13 +317,27 @@ end;
 
 
 { TPazoDirlistTask }
-constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
+constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False; const aDependingOnDirlist: TDirList = nil; aWaitForComplete: boolean = False);
 begin
   self.dir := dir;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
   self.FSiteName := site;
-  inherited Create(netname, channel, site, '', pazo, nil);
+  self.FWaitForComplete := aWaitForComplete;
+  inherited Create(netname, channel, site, '', pazo, aDependingOnDirlist);
+end;
+
+function TPazoDirlistTask.IsReadyToBeExecuted: boolean;
+begin
+  Result := inherited IsReadyToBeExecuted;
+  if not Result then Exit;
+
+  if FWaitForComplete and (FDependingOnDirlist <> nil) then
+  begin
+    // Only execute if parent directory is complete
+    if not FDependingOnDirlist.Complete then
+      Result := False;
+  end;
 end;
 
 function TPazoDirlistTask.Execute(slot: Pointer): boolean;
@@ -339,12 +356,18 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
+  waitForCompleteSubdirTypes: String;
+  waitForComplete: boolean;
 begin
   numerrors := 0;
   Result := False;
   s := slot;
   tname := Name;
   fSubDirlistTasks := nil;
+  waitForCompleteSubdirTypes := glWaitForCompleteSubdirTypes;
+
+  if FWaitForComplete then
+    Debug(dpSpam, c_section, 'DIRLIST starting now (Parent is COMPLETE): %s (dir=%s)', [site1, dir]);
 
   if mainpazo.stopped then
   begin
@@ -585,7 +608,11 @@ begin
 
     // set the dirlist full path. Used mainly for debug outputing.
     if d <> nil then
+    begin
       d.FullPath := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+      if FWaitForComplete then
+        Debug(dpSpam, c_section, 'DIRLIST success after wait: %s (dir=%s, entries=%d)', [site1, dir, d.entries.Count]);
+    end;
 
     // Search for sub directories
     fSubDirlistTasks := TList<TPazoDirlistTask>.Create;
@@ -610,7 +637,11 @@ begin
                 Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
                 [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
               try
-                fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre));
+                waitForComplete := ShouldWaitForComplete(de.DirType, waitForCompleteSubdirTypes);
+                if waitForComplete then
+                  Debug(dpSpam, c_section, 'DIRLIST created with WaitForComplete=True: %s (dir=%s, type=%s)', [site1, aktdir, de.DirTypeAsString]);
+
+                fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre, False, d, waitForComplete));
                 if (de.subdirlist <> nil) then
                   de.subdirlist.dirlistadded := True;
               except
@@ -738,7 +769,7 @@ begin
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
     begin
       // do more dirlist
-      r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+      r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre, False, FDependingOnDirlist, FWaitForComplete);
       r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue());
 
       try
@@ -787,9 +818,9 @@ begin
           if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre, False, FDependingOnDirlist, FWaitForComplete);
             r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue());
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
+            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False, False, FDependingOnDirlist, FWaitForComplete);
             r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue());
 
             try

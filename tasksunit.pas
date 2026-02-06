@@ -2,7 +2,7 @@ unit tasksunit;
 
 interface
 
-uses Classes;
+uses Classes, globals;
 
 type
   // this is all or part of the job
@@ -61,6 +61,8 @@ type
 procedure Tasks_Init;
 procedure Tasks_Uninit;
 
+function ShouldWaitForComplete(const aDirType: TDirType; const aWaitTypes: String): boolean;
+
 const
   MaxNumberErrors = 3;
 
@@ -77,6 +79,7 @@ var
   glTaskraceCantCreateDir: Boolean;      //< Cache for spamcfg 'taskrace'/'cant_create_dir'
   glTaskraceDenyingCreationOf: Boolean;  //< Cache for spamcfg 'taskrace'/'denying_creation_of'
   glTaskraceMkdir: Boolean;              //< Cache for spamcfg 'taskrace'/'mkdir'
+  glWaitForCompleteSubdirTypes: String;
 
 implementation
 
@@ -88,6 +91,45 @@ const
 var
   uidg: UInt64 = 1;
   uid_lock: TCriticalSection;
+
+function CsvContainsToken(const aCsv, aToken: String): boolean;
+var
+  list: TStringList;
+  i: integer;
+begin
+  Result := False;
+  if (aCsv = '') or (aToken = '') then
+    Exit;
+
+  list := TStringList.Create;
+  try
+    list.Delimiter := ',';
+    list.StrictDelimiter := True;
+    list.DelimitedText := LowerCase(aCsv);
+    for i := 0 to list.Count - 1 do
+    begin
+      if Trim(list[i]) = LowerCase(aToken) then
+      begin
+        Result := True;
+        Break;
+      end;
+    end;
+  finally
+    list.Free;
+  end;
+end;
+
+function ShouldWaitForComplete(const aDirType: TDirType; const aWaitTypes: String): boolean;
+begin
+  case aDirType of
+    IsSample: Result := CsvContainsToken(aWaitTypes, 'sample');
+    IsProof: Result := CsvContainsToken(aWaitTypes, 'proof');
+    IsSubs: Result := CsvContainsToken(aWaitTypes, 'subs');
+    IsCovers: Result := CsvContainsToken(aWaitTypes, 'covers');
+  else
+    Result := False;
+  end;
+end;
 
 constructor TTask.Create(const netname, channel, site1: String);
 begin
@@ -191,6 +233,7 @@ begin
   glTaskraceCantCreateDir := spamcfg.ReadBool('taskrace', 'cant_create_dir', True);
   glTaskraceDenyingCreationOf := spamcfg.ReadBool('taskrace', 'denying_creation_of', True);
   glTaskraceMkdir := spamcfg.ReadBool('taskrace', 'mkdir', True);
+  glWaitForCompleteSubdirTypes := config.ReadString('taskrace', 'wait_for_complete_subdir_types', '');
 end;
 
 procedure Tasks_Uninit;

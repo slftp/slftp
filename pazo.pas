@@ -270,7 +270,7 @@ uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
   mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
-  mormot.core.base, mormot.core.unicode, mormot.net.sock;
+  mormot.core.base, mormot.core.unicode, mormot.net.sock, tasksunit;
 
 const
   section = 'pazo';
@@ -674,7 +674,11 @@ begin
         if ((dst.status <> rssNotAllowed) and (not dstdl.dirlistadded) and (not dst.dirlistgaveup)) then
         begin
           try
-            pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
+            if (dstdl.parent <> nil) then
+              pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False, False, dstdl.parent.dirlist, ShouldWaitForComplete(dstdl.parent.DirType, glWaitForCompleteSubdirTypes))
+            else
+              pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
+
             Debug(dpSpam, section, '%s %s :: Checking routes from %s to %s :: Dirlist added to %s (DEST SITE)', [fd, dir, Name, dst.Name, dst.Name]);
             if pazo.rls <> nil then
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
