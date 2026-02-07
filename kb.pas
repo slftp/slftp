@@ -429,9 +429,23 @@ begin
       kb_latest.Insert(0, rls + '=' + section);
     end;
 
+    // sightings threshold check
+    if (add_to_kb_on_dbaddpre_insert) and (addpre_sightings_threshold > 1) and (event <> kbePRE) then
+    begin
+      i := kb_list.IndexOf(section + '-' + rls);
+      if i = -1 then // only for brand new releases
+      begin
+        j := dbaddpre_GetSightingCount(rls);
+        if j < addpre_sightings_threshold then
+        begin
+          Debug(dpError, rsections, Format('Sighting threshold not met for %s: %d/%d. Skipping.', [rls, j, addpre_sightings_threshold]));
+          exit;
+        end;
+      end;
+    end;
+
     // Start cleanup lists
     KbListsCleanUp; // TODO: maybe run it only every 60mins? not needed to run it every time...
-
   finally
     kb_lock.Leave;
   end;
