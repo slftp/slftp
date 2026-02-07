@@ -80,6 +80,9 @@ var
   addprecmd: TStringList;
   kbadd_addpre: boolean;
   add_to_kb_on_dbaddpre_insert: boolean;
+  addpre_sightings_threshold: integer;
+  glSightings: TStringList;
+  glSightingsLock: TSLCriticalSection2;
 
   dbaddpre_mode: TAddPreMode = TAddPreMode(3);
   dbaddpre_plm1: TPretimeLookupMode;
@@ -326,6 +329,7 @@ var
   rls_section: String;
   kb_entry: String;
   p: Integer;
+  fSightingCount: Integer;
 begin
   Result := False;
 
@@ -336,15 +340,33 @@ begin
   begin
     if dbaddpre_mode <> apmNone then
     begin
-      if dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname) then
-      begin
-        // we just inserted the pre time, find out if there's already a KB entry
-        rls_section := FindReleaseInLatestKBList(rls);
+      dbaddpre_InsertRlz(rls, '', netname + '-' + channel + '-' + nickname);
 
-        //send event to kb_add to trigger race evaluation
-        if rls_section <> '' then
-          kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '')
-        else if add_to_kb_on_dbaddpre_insert then
+      fSightingCount := 0;
+      glSightingsLock.Enter('dbaddpre_ADDPRE');
+      try
+        fSightingCount := StrToIntDef(glSightings.Values[rls], 0) + 1;
+        glSightings.Values[rls] := IntToStr(fSightingCount);
+
+        // cleanup sightings list if it gets too large
+        if glSightings.Count > 1000 then
+        begin
+          while glSightings.Count > 800 do
+            glSightings.Delete(0);
+        end;
+      finally
+        glSightingsLock.Leave;
+      end;
+
+      // we just inserted the pre time, find out if there's already a KB entry
+      rls_section := FindReleaseInLatestKBList(rls);
+
+      //send event to kb_add to trigger race evaluation
+      if rls_section <> '' then
+        kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '')
+      else if add_to_kb_on_dbaddpre_insert then
+      begin
+        if (fSightingCount >= addpre_sightings_threshold) then
         begin
           rls_section := aSection;  // if the precatcher config has a fixed section ... I don't think it makes much sense, but it's possible
           if rls_section = '' then
@@ -610,6 +632,10 @@ end;
 procedure dbaddpreInit;
 begin
   addprecmd := TStringList.Create;
+  glSightings := TStringList.Create;
+  glSightings.Sorted := True;
+  glSightings.Duplicates := dupIgnore;
+  glSightingsLock := TSLCriticalSection2.Create('glSightingsLock');
 end;
 
 procedure dbaddpreStart;
@@ -619,6 +645,7 @@ begin
   addprecmd.CommaText := config.ReadString(section, 'addprecmd', '!addpre');
   kbadd_addpre := config.ReadBool(section, 'kbadd_addpre', False);
   add_to_kb_on_dbaddpre_insert := config.ReadBool(section, 'add_to_kb_on_dbaddpre_insert', False);
+  addpre_sightings_threshold := config.ReadInteger(section, 'sightings_threshold', 1);
 
   dbaddpre_mode := TAddPreMode(config.ReadInteger(section, 'mode', 3));
   dbaddpre_plm1 := TPretimeLookupMode(config.ReadInteger('taskpretime', 'mode', 0));
@@ -671,6 +698,8 @@ procedure dbaddpreUninit;
 begin
   Debug(dpSpam, section, 'Uninit1');
   addprecmd.Free;
+  glSightings.Free;
+  glSightingsLock.Free;
   FDbCleanupCounter.Free;
 
   if Assigned(addpreSQLite3DBCon) then
