@@ -29,11 +29,16 @@ type
 function dbaddpre_ADDPRE(const netname, channel, nickname, aRlsName, aSection, params: String; event: TKBEventType): boolean;
 function dbaddpre_GetRlz(const rls: String): Int64;
 function dbaddpre_InsertRlz(const rls, rls_section, Source: String; const aSkipDbCleanup: boolean = False): boolean;
+function dbaddpre_GetSightingCount(const rls: String): integer;
 function dbaddpre_GetCount: integer;
 function dbaddpre_GetPreduration(const rlz_pretime: Int64): String;
 function dbaddpre_Status: String;
 
 function dbaddpre_Process(const net, chan, nick, msg: String): boolean;
+
+var
+  addpre_sightings_threshold: integer;
+  add_to_kb_on_dbaddpre_insert: boolean;
 
 procedure dbaddpreInit;
 procedure dbaddpreStart;
@@ -79,8 +84,6 @@ var
 
   addprecmd: TStringList;
   kbadd_addpre: boolean;
-  add_to_kb_on_dbaddpre_insert: boolean;
-  addpre_sightings_threshold: integer;
   glSightings: TStringList;
   glSightingsLock: TSLCriticalSection2;
 
@@ -348,6 +351,8 @@ begin
         fSightingCount := StrToIntDef(glSightings.Values[rls], 0) + 1;
         glSightings.Values[rls] := IntToStr(fSightingCount);
 
+        Debug(dpMessage, section, Format('Sighting for %s: %d (Threshold: %d)', [rls, fSightingCount, addpre_sightings_threshold]));
+
         // cleanup sightings list if it gets too large
         if glSightings.Count > 1000 then
         begin
@@ -528,6 +533,20 @@ begin
   end;
 end;
 
+function dbaddpre_GetSightingCount(const rls: String): integer;
+begin
+  Result := 0;
+  if not Assigned(glSightings) then
+    exit;
+
+  glSightingsLock.Enter('dbaddpre_GetSightingCount');
+  try
+    Result := StrToIntDef(glSightings.Values[rls], 0);
+  finally
+    glSightingsLock.Leave;
+  end;
+end;
+
 function dbaddpre_GetCount: integer;
 var
   fMySQLQuery: TSqlDBStatementWithParamsAndColumns; // really not sure why but on FPC this must be a TSqlDBStatementWithParamsAndColumns and not TSqlDBZeosStatement, else we get this compile error: dbaddpre.pas(568,37) Error: Incompatible types: got "TSqlDBStatementWithParamsAndColumns" expected "TSqlDBZeosStatement"
@@ -633,8 +652,7 @@ procedure dbaddpreInit;
 begin
   addprecmd := TStringList.Create;
   glSightings := TStringList.Create;
-  glSightings.Sorted := True;
-  glSightings.Duplicates := dupIgnore;
+  glSightings.Sorted := False;
   glSightingsLock := TSLCriticalSection2.Create('glSightingsLock');
 end;
 

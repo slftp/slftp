@@ -408,6 +408,17 @@ begin
     i := kb_list.IndexOf(section + '-' + rls);
     if i = -1 then
     begin
+      // sightings threshold check
+      if (add_to_kb_on_dbaddpre_insert) and (addpre_sightings_threshold > 1) and (event <> kbePRE) then
+      begin
+        j := dbaddpre_GetSightingCount(rls);
+        if j < addpre_sightings_threshold then
+        begin
+          Debug(dpMessage, rsections, Format('Sighting threshold not met for %s: %d/%d. Skipping.', [rls, j, addpre_sightings_threshold]));
+          exit;
+        end;
+      end;
+
       if (event = kbeNUKE) then
       begin
         // nuking an old rls not in kb
