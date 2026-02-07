@@ -94,6 +94,33 @@ begin
     (AnsiContainsText(aResponse, 'fxp from') and AnsiContainsText(aResponse, 'slow file kicks'));
 end;
 
+function IsSiteUploadDestination(const aPazo: TPazo; const aSiteName: String): Boolean;
+var
+  i, j: Integer;
+  ps: TPazoSite;
+begin
+  Result := False;
+  if aPazo = nil then
+    Exit;
+  for i := 0 to aPazo.PazoSitesList.Count - 1 do
+  begin
+    ps := TPazoSite(aPazo.PazoSitesList[i]);
+    if ps = nil then
+      Continue;
+    ps.destinations_cs.Enter;
+    try
+      for j := 0 to ps.Destinations.Count - 1 do
+        if SameText(ps.Destinations[j].PazoSite.Name, aSiteName) then
+        begin
+          Result := True;
+          Exit;
+        end;
+    finally
+      ps.destinations_cs.Leave;
+    end;
+  end;
+end;
+
 function AutoRemoveDeniedRoute(const SourceSite, DestSite: String; out Status: String): Boolean;
 var
   normalizedSource, normalizedDest: String;
@@ -334,9 +361,13 @@ begin
 
   if FWaitForComplete and (FDependingOnDirlist <> nil) then
   begin
-    // Only execute if parent directory is complete
-    if not FDependingOnDirlist.Complete then
+    // Only execute if parent directory is complete or has error/pazo stopped
+    if not FDependingOnDirlist.Complete and not FDependingOnDirlist.error then
+    begin
+      if (mainpazo <> nil) and mainpazo.stopped then
+        Exit; // Allow execution (will fail cleanly) when pazo is stopped
       Result := False;
+    end;
   end;
 end;
 
@@ -358,6 +389,8 @@ var
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
   waitForCompleteSubdirTypes: String;
   waitForComplete: boolean;
+  parentDirlist: TDirList;
+  mkTask: TPazoMkdirTask;
 begin
   numerrors := 0;
   Result := False;
@@ -516,6 +549,30 @@ begin
               //we're too early, mkdir is not done yet ... the site is slow?
               //continue to create a new dirlist task below
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
+              
+              // If this site is an upload destination, trigger mkdir immediately
+              if IsSiteUploadDestination(mainpazo, site1) then
+              begin
+                // Set need_mkdir flag on the dirlist entry if it exists
+                if d <> nil then
+                  d.need_mkdir := True;
+                
+                // Create mkdir task
+                try
+                  if dir <> '' then
+                    parentDirlist := ps1.dirlist
+                  else
+                    parentDirlist := nil;
+                    
+                  mkTask := TPazoMkdirTask.Create(netname, channel, site1, mainpazo, parentDirlist, dir);
+                  if ps1.delay_upload > 0 then
+                    mkTask.startat := IncSecond(Now, ps1.delay_upload);
+                  AddTask(mkTask);
+                except
+                  on e: Exception do
+                    Debug(dpError, c_section, '[EXCEPTION] Failed to create MKDIR task: %s', [e.Message]);
+                end;
+              end;
             end
             else
             begin
