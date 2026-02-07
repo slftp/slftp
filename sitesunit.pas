@@ -2142,21 +2142,6 @@ begin
   un := self.site.UserName;
   upw := self.site.PassWord;
 
-  // Kill ghost connections on first login after startup (glftpd only)
-  if (not site.fFirstLoginDone) and (config.ReadBool('sites', 'kill_ghosts_on_startup', True))
-    and (site.sw = sswGlftpd) then
-  begin
-    kill := True;
-    Debug(dpMessage, section, '[LOGIN] %s: First login after startup - using !username to kill ghosts', [Name]);
-  end;
-
-  // Only glftpd supports !username ghost-kill
-  if kill and (site.sw <> sswGlftpd) then
-  begin
-    Debug(dpMessage, section, '[LOGIN] %s: !username ghost-kill skipped (non-glftpd)', [Name]);
-    kill := False;
-  end;
-
   // to kill ghost logins you need to use '!' as first char on your username
   if (kill) then
   begin
