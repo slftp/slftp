@@ -372,7 +372,7 @@ begin
         fSightingCount := StrToIntDef(glSightings.Values[rls], 0) + 1;
         glSightings.Values[rls] := IntToStr(fSightingCount);
 
-        Debug(dpError, section, Format('Sighting for %s: %d (Threshold: %d)', [rls, fSightingCount, addpre_sightings_threshold]));
+        Debug(dpMessage, section, Format('Sighting for %s: %d (Threshold: %d)', [rls, fSightingCount, addpre_sightings_threshold]));
 
         // cleanup sightings list if it gets too large
         if glSightings.Count > 1000 then

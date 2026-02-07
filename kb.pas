@@ -438,7 +438,7 @@ begin
         j := dbaddpre_GetSightingCount(rls);
         if j < addpre_sightings_threshold then
         begin
-          Debug(dpError, rsections, Format('Sighting threshold not met for %s: %d/%d. Skipping.', [rls, j, addpre_sightings_threshold]));
+          Debug(dpMessage, rsections, Format('Sighting threshold not met for %s: %d/%d. Skipping.', [rls, j, addpre_sightings_threshold]));
           exit;
         end;
       end;
