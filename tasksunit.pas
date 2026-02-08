@@ -72,10 +72,11 @@ var
   GlTaskPretimeReaddInterval: integer;
   GlTaskRaceAutoRuleAdd: boolean;
   GlTaskRaceBadCrcEvents: integer;
+  glTaskraceMkdir: Boolean; //< Cache for spamcfg 'taskrace'/'mkdir'
 
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify, mrdohutils;
 
 const
   section = 'tasks';
@@ -181,6 +182,7 @@ begin
   GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
   GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
   GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
+  glTaskraceMkdir := spamcfg.ReadBool('taskrace', 'mkdir', True);
 end;
 
 procedure Tasks_Uninit;

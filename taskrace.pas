@@ -1091,7 +1091,8 @@ begin
 
   try
     // echo race info
-    irc_SendRACESTATS(tname);
+    if glTaskraceMkdir then
+      irc_SendRACESTATS(tname);
   except
     on e: Exception do
     begin
