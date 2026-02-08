@@ -1276,8 +1276,11 @@ var
         Debug(dpSpam, c_section,
           '[SRC-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
           [tname, fLastSrcUploader, lSrcUser, lSrcFileSize, fLastSrcFileSize, fSrcDiffMSec]);
-        irc_Adderror(Format('<c7>[SRC-UPLOADER-SWITCH]</c> %s: %s -> %s (size=%d)',
-          [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
+        if spamcfg.readbool(c_section, 'src_uploader_switch', True) then
+        begin
+          irc_Adderror(Format('<c7>[SRC-UPLOADER-SWITCH]</c> %s: %s -> %s (size=%d)',
+            [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
+        end;
         mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
           [fLastSrcUploader, lSrcUser]);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');

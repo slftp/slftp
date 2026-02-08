@@ -13,6 +13,13 @@ filename_not_allowed=1
 cant_create_dir=1
 permission_denied=1
 crc_error=1
+src_uploader_switch=1
+dst_uploader_switch=1
+src_regression=1
+dst_regression=1
+partial_timeout=1
+stalled=1
+mkdir=0
 
 [kb]
 # PRE announce on STATS chan for sitepres
