@@ -1319,6 +1319,8 @@ var
     lDstFileSize: Int64;
     lNow: TDateTime;
     lDstUser: String;
+    lPrevDstUser: String;
+    lDstIsOurUser: boolean;
     fDstDirlistEntry: TDirlistEntry;
     fDstDiffMSec: Int64;
   begin
@@ -1327,6 +1329,8 @@ var
     fDstDiffMSec := MaxInt;
     lNow := Now;
     lDstUser := '';
+    lPrevDstUser := fLastDstUploader;
+    lDstIsOurUser := False;
     fDstDirlistEntry := nil;
 
     if fDstDirlist = nil then
@@ -1371,8 +1375,11 @@ var
       fLastDstUploader := lDstUser;
     end;
 
+    lDstIsOurUser := AnsiSameText(lDstUser, sdst.site.UserName) or
+      AnsiSameText(lPrevDstUser, sdst.site.UserName);
+
     // Destination Filesize Regression Detection (Slowkicker)
-    if (fDstDiffMSec < 200) and (lDstFileSize > 0) then
+    if (fDstDiffMSec < 200) and (lDstFileSize > 0) and lDstIsOurUser then
     begin
       if fLastDstFileSize < 0 then
         fLastDstFileSize := lDstFileSize
