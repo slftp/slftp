@@ -1268,7 +1268,10 @@ var
 
     if (lSrcUser <> '') then
     begin
-      if (fLastSrcUploader <> '') and (not AnsiSameText(lSrcUser, fLastSrcUploader)) and (lSrcFileSize > 0) then
+      if config.ReadBool(c_section, 'check_src_uploader_switch', True)
+        and (fLastSrcUploader <> '')
+        and (not AnsiSameText(lSrcUser, fLastSrcUploader))
+        and (lSrcFileSize > 0) then
       begin
         Debug(dpSpam, c_section,
           '[SRC-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
@@ -1295,7 +1298,9 @@ var
         fLastSrcFileSize := lSrcFileSize;
 
       // Filesize decreased: slowkicker detected
-      if (fLastSrcFileSize > 0) and (lSrcFileSize < fLastSrcFileSize) then
+      if config.ReadBool(c_section, 'check_src_regression', True)
+        and (fLastSrcFileSize > 0)
+        and (lSrcFileSize < fLastSrcFileSize) then
       begin
         if spamcfg.readbool(c_section, 'src_regression', True) then
         begin
@@ -1350,7 +1355,10 @@ var
     if (lDstUser <> '') then
     begin
       // Only trigger if WE were the previous uploader and now someone else has the file
-      if AnsiSameText(fLastDstUploader, sdst.site.UserName) and (not AnsiSameText(lDstUser, fLastDstUploader)) and (lDstFileSize > 0) then
+      if config.ReadBool(c_section, 'check_dst_uploader_switch', True)
+        and AnsiSameText(fLastDstUploader, sdst.site.UserName)
+        and (not AnsiSameText(lDstUser, fLastDstUploader))
+        and (lDstFileSize > 0) then
       begin
         Debug(dpSpam, c_section,
           '[DST-UPLOADER-SWITCH] %s: %s -> %s at size=%d (prev size=%d age=%dms)',
