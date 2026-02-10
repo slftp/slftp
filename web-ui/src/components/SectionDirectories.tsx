@@ -1,13 +1,24 @@
 import { Card, Title, Table, Alert, Loader, Center, TextInput, Button, Stack, Group, Text, ScrollArea, Badge, Switch, Tooltip, Modal, MultiSelect, ActionIcon, Breadcrumbs, Box } from '@mantine/core';
-import { IconChevronRight, IconSearch, IconDeviceFloppy, IconPin, IconPlus, IconFolderOpen, IconArrowUp, IconRefresh, IconCheck } from '@tabler/icons-react';
+import { IconChevronRight, IconSearch, IconDeviceFloppy, IconPin, IconPlus, IconFolderOpen, IconArrowUp, IconRefresh, IconCheck, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { apiClient, fetchBrowserPath, fetchConfigContent } from '../api/client';
 import { notifications } from '@mantine/notifications';
+import { sortBrowserDirs, type BrowserDirSortBy, type BrowserSortDir } from '../utils/browserDates';
 
 interface SectionData {
   section: string;
   dir: string;
+}
+
+function toggleBrowserSort(currentBy: BrowserDirSortBy, currentDir: BrowserSortDir, nextBy: BrowserDirSortBy): { by: BrowserDirSortBy; dir: BrowserSortDir } {
+  if (currentBy !== nextBy) return { by: nextBy, dir: nextBy === 'modified' ? 'desc' : 'asc' };
+  return { by: currentBy, dir: currentDir === 'asc' ? 'desc' : 'asc' };
+}
+
+function browserSortIndicator(active: boolean, dir: BrowserSortDir) {
+  if (!active) return <IconSelector size="0.9rem" />;
+  return dir === 'asc' ? <IconChevronUp size="0.9rem" /> : <IconChevronDown size="0.9rem" />;
 }
 
 export function SectionDirectories() {
@@ -22,6 +33,8 @@ export function SectionDirectories() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [browserPath, setBrowserPath] = useState('/');
+  const [browserSortBy, setBrowserSortBy] = useState<BrowserDirSortBy>('modified');
+  const [browserSortDir, setBrowserSortDir] = useState<BrowserSortDir>('desc');
   const [quickSection, setQuickSection] = useState<string[]>([]);
   const [quickPath, setQuickPath] = useState('');
 
@@ -476,8 +489,8 @@ export function SectionDirectories() {
 
   const browserDirs = useMemo(() => {
     const files = browserData?.files || [];
-    return files.filter((f) => f.is_dir);
-  }, [browserData]);
+    return sortBrowserDirs(files.filter((f) => f.is_dir), browserSortBy, browserSortDir);
+  }, [browserData, browserSortBy, browserSortDir]);
 
   const breadcrumbItems = useMemo(() => {
     const parts = browserPath === '/' ? [] : browserPath.split('/').filter(Boolean);
@@ -494,6 +507,12 @@ export function SectionDirectories() {
   const navigateBrowserPath = (value: string) => {
     const next = normalizePath(value);
     setBrowserPath(next || '/');
+  };
+
+  const handleBrowserSort = (nextBy: BrowserDirSortBy) => {
+    const next = toggleBrowserSort(browserSortBy, browserSortDir, nextBy);
+    setBrowserSortBy(next.by);
+    setBrowserSortDir(next.dir);
   };
 
   const openBrowser = () => {
@@ -876,13 +895,30 @@ export function SectionDirectories() {
             <Table striped highlightOnHover withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Directory</Table.Th>
+                  <Table.Th
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => handleBrowserSort('name')}
+                  >
+                    <Group gap={4} wrap="nowrap">
+                      <Text size="sm" fw={600}>Directory</Text>
+                      {browserSortIndicator(browserSortBy === 'name', browserSortDir)}
+                    </Group>
+                  </Table.Th>
+                  <Table.Th
+                    style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    onClick={() => handleBrowserSort('modified')}
+                  >
+                    <Group gap={4} wrap="nowrap">
+                      <Text size="sm" fw={600}>Modified</Text>
+                      {browserSortIndicator(browserSortBy === 'modified', browserSortDir)}
+                    </Group>
+                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {browserDirs.length === 0 && (
                   <Table.Tr>
-                    <Table.Td>
+                    <Table.Td colSpan={2}>
                       <Text size="sm" c="dimmed">No folders in this path.</Text>
                     </Table.Td>
                   </Table.Tr>
@@ -894,6 +930,9 @@ export function SectionDirectories() {
                         <IconFolderOpen size="1rem" />
                         <Text fw={600}>{dir.name}</Text>
                       </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">{dir.date || '-'}</Text>
                     </Table.Td>
                   </Table.Tr>
                 ))}

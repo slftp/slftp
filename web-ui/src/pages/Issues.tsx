@@ -1,11 +1,12 @@
 import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient, fetchBrowserPath } from '../api/client';
 import type { Issue, IssuesSummary } from '../api/client';
 import { notifications } from '@mantine/notifications';
+import { sortBrowserDirs, type BrowserDirSortBy, type BrowserSortDir } from '../utils/browserDates';
 
 function parseMaybeJsonArray(value: unknown): any[] {
   if (Array.isArray(value)) return value;
@@ -103,7 +104,18 @@ function upsertFilterField(prev: string, field: IssueFilterField, value: string)
   return tokens.join(' ').trim();
 }
 
+function toggleBrowserSort(currentBy: BrowserDirSortBy, currentDir: BrowserSortDir, nextBy: BrowserDirSortBy): { by: BrowserDirSortBy; dir: BrowserSortDir } {
+  if (currentBy !== nextBy) return { by: nextBy, dir: nextBy === 'modified' ? 'desc' : 'asc' };
+  return { by: currentBy, dir: currentDir === 'asc' ? 'desc' : 'asc' };
+}
+
+function browserSortIndicator(active: boolean, dir: BrowserSortDir) {
+  if (!active) return <IconSelector size="0.9rem" />;
+  return dir === 'asc' ? <IconChevronUp size="0.9rem" /> : <IconChevronDown size="0.9rem" />;
+}
+
 export function Issues() {
+  const BROWSER_PENDING_POLL_MS = 1000;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState('');
@@ -114,6 +126,8 @@ export function Issues() {
   // Browser state
   const [browserOpen, setBrowserOpen] = useState(false);
   const [browserPath, setBrowserPath] = useState('/');
+  const [browserSortBy, setBrowserSortBy] = useState<BrowserDirSortBy>('modified');
+  const [browserSortDir, setBrowserSortDir] = useState<BrowserSortDir>('desc');
 
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
     queryKey: ['issuesSummary'],
@@ -150,7 +164,7 @@ export function Issues() {
     enabled: !!selectedIssue?.SiteName && browserOpen,
     refetchInterval: (query) => {
       const data = query.state.data;
-      return (data?.status === 'pending' ? 30000 : false);
+      return (data?.status === 'pending' ? BROWSER_PENDING_POLL_MS : false);
     },
   });
 
@@ -240,10 +254,16 @@ export function Issues() {
     setBrowserOpen(true);
   };
 
+  const handleBrowserSort = (nextBy: BrowserDirSortBy) => {
+    const next = toggleBrowserSort(browserSortBy, browserSortDir, nextBy);
+    setBrowserSortBy(next.by);
+    setBrowserSortDir(next.dir);
+  };
+
   const browserDirs = useMemo(() => {
     const files = browserData?.files || [];
-    return files.filter((f) => f.is_dir);
-  }, [browserData]);
+    return sortBrowserDirs(files.filter((f) => f.is_dir), browserSortBy, browserSortDir);
+  }, [browserData, browserSortBy, browserSortDir]);
 
   const breadcrumbItems = useMemo(() => {
     const parts = browserPath === '/' ? [] : browserPath.split('/').filter(Boolean);
@@ -582,7 +602,7 @@ export function Issues() {
             ))}
           </Breadcrumbs>
 
-          {(browserLoading || browserRefetching) && (
+          {(browserLoading || browserRefetching || browserData?.status === 'pending') && (
             <Center h={120}><Loader size="md" /></Center>
           )}
 
@@ -592,17 +612,34 @@ export function Issues() {
             </Alert>
           )}
 
-          {!browserLoading && browserData?.status !== 'error' && (
+          {!browserLoading && browserData?.status === 'ready' && (
             <Table striped highlightOnHover withTableBorder withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Directory</Table.Th>
+                  <Table.Th
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => handleBrowserSort('name')}
+                  >
+                    <Group gap={4} wrap="nowrap">
+                      <Text size="sm" fw={600}>Directory</Text>
+                      {browserSortIndicator(browserSortBy === 'name', browserSortDir)}
+                    </Group>
+                  </Table.Th>
+                  <Table.Th
+                    style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}
+                    onClick={() => handleBrowserSort('modified')}
+                  >
+                    <Group gap={4} wrap="nowrap">
+                      <Text size="sm" fw={600}>Modified</Text>
+                      {browserSortIndicator(browserSortBy === 'modified', browserSortDir)}
+                    </Group>
+                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {browserDirs.length === 0 && (
                   <Table.Tr>
-                    <Table.Td>
+                    <Table.Td colSpan={2}>
                       <Text size="sm" c="dimmed">No folders in this path.</Text>
                     </Table.Td>
                   </Table.Tr>
@@ -614,6 +651,9 @@ export function Issues() {
                         <IconFolderOpen size="1rem" />
                         <Text fw={600}>{dir.name}</Text>
                       </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="dimmed">{dir.date || '-'}</Text>
                     </Table.Td>
                   </Table.Tr>
                 ))}
