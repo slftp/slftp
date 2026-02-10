@@ -506,6 +506,7 @@ var
   dst: TPazoSite;
   dstrank: Integer;
   dstdl: TDirList;
+  hasMkdirDependency: Boolean;
   pm: TPazoMkdirTask;
   pr: TPazoRaceTask;
   pd: TPazoDirlistTask;
@@ -622,6 +623,7 @@ begin
         if ((dde <> nil) and (dde.error)) then Continue;
 
         pm := nil;
+        hasMkdirDependency := False;
         // Check if mkdir is needed
         Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Checking if mkdir is needed on %s', [fd, Name, dst.Name, dst.Name]);
         if ((dstdl.entries <> nil) and (dstdl.entries.Count = 0)) then
@@ -651,6 +653,7 @@ begin
                 dstdl.dependency_mkdir := pm.UidText;
               end;
             end;
+            hasMkdirDependency := dstdl.dependency_mkdir <> '';
           finally
             dstdl.dirlist_lock.Leave;
           end;
@@ -676,6 +679,8 @@ begin
           try
             if (dstdl.parent <> nil) then
               pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False, False, dstdl.parent.dirlist, ShouldWaitForComplete(dstdl.parent.DirType, glWaitForCompleteSubdirTypes))
+            else if hasMkdirDependency then
+              pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False, False, dstdl)
             else
               pd := TPazoDirlistTask.Create(netname, channel, dst.Name, pazo, dir, False);
 

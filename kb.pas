@@ -81,7 +81,7 @@ uses
   rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
+  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, skiplists, IniFiles,
   globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -208,7 +208,11 @@ var
   rule_result: TRuleAction;
   rlz, grp: String;
   dlt: TPazoDirlistTask;
+  mkt: TPazoMkdirTask;
   l: TLoginTask;
+  depDirlist: TDirList;
+  siteSkipList: TSkipList;
+  hasMkdirDependency: Boolean;
   fPretimeLookupTask: TPazoPretimeLookupTask;
   timeoutMs: integer;
   startTick, elapsedMs: Uint64;
@@ -224,6 +228,37 @@ var
     udpPort := config.ReadInteger('UDPConfig', 'Port', 0);
     Result := (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) and
       (udpIp <> '') and (udpPort >= 1) and (udpPort <= 65535);
+  end;
+
+  function IsSiteUploadDestination(const aPazo: TPazo; const aSiteName: String): Boolean;
+  var
+    srcIdx, dstIdx: Integer;
+    srcPs: TPazoSite;
+  begin
+    Result := False;
+    if aPazo = nil then
+      Exit;
+
+    for srcIdx := 0 to aPazo.PazoSitesList.Count - 1 do
+    begin
+      srcPs := TPazoSite(aPazo.PazoSitesList[srcIdx]);
+      if srcPs = nil then
+        Continue;
+
+      srcPs.destinations_cs.Enter;
+      try
+        for dstIdx := 0 to srcPs.Destinations.Count - 1 do
+        begin
+          if SameText(srcPs.Destinations[dstIdx].PazoSite.Name, aSiteName) then
+          begin
+            Result := True;
+            Exit;
+          end;
+        end;
+      finally
+        srcPs.destinations_cs.Leave;
+      end;
+    end;
   end;
 
   { Removes the oldest knowledge base entries }
@@ -918,6 +953,7 @@ begin
           end;
           try
             ps := TPazoSite(p.PazoSitesList[i]);
+            depDirlist := nil;
 
             // dirlist not available
             if ps.dirlist = nil then
@@ -930,11 +966,49 @@ begin
             if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
               Continue;
 
+            // Upload destination sites should prepare MKDIR before dirlisting root.
+            if IsSiteUploadDestination(p, ps.Name) then
+            begin
+              mkt := nil;
+              hasMkdirDependency := False;
+              ps.dirlist.dirlist_lock.Enter('kb_AddB MKDIR setup');
+              try
+                if (ps.dirlist.need_mkdir) and (ps.dirlist.dependency_mkdir = '') then
+                begin
+                  siteSkipList := FindSiteSkipList(ps.Name, p.sl.sectionname);
+                  if (siteSkipList <> nil) and siteSkipList.ShouldSkipDirUp('_ROOT_', '') then
+                  begin
+                    Debug(dpSpam, section, 'kb_AddB skipping MKDIR for _ROOT_ on %s', [ps.Name]);
+                    ps.dirlist.need_mkdir := False;
+                  end
+                  else
+                  begin
+                    mkt := TPazoMkdirTask.Create(netname, channel, ps.Name, p, nil, '');
+                    if ps.delay_upload > 0 then
+                      mkt.startat := IncSecond(Now, ps.delay_upload);
+                    ps.dirlist.dependency_mkdir := mkt.UidText;
+                  end;
+                end;
+                hasMkdirDependency := ps.dirlist.dependency_mkdir <> '';
+              finally
+                ps.dirlist.dirlist_lock.Leave;
+              end;
+
+              if mkt <> nil then
+              begin
+                irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s MKDIR added to : %s (UPLOAD DEST) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+                AddTask(mkt, True);
+              end;
+
+              if hasMkdirDependency then
+                depDirlist := ps.dirlist;
+            end;
+
             // Source site is PRE site for this group
             if ps.status in [rssShouldPre, rssRealPre] then
             begin
               r.PredOnAnySite := True;
-              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True, False, depDirlist);
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
               ps.dirlist.dirlistadded := True;
               AddTask(dlt, true);
@@ -943,7 +1017,7 @@ begin
             // Source site is _not_ a PRE site for this group
             if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
             begin
-              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False, False, depDirlist);
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
               ps.dirlist.dirlistadded := True;
               AddTask(dlt, true);
