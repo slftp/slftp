@@ -6,6 +6,8 @@ import { apiClient, fetchBrowserPath, fetchConfigContent } from '../api/client';
 import { notifications } from '@mantine/notifications';
 import { sortBrowserDirs, type BrowserDirSortBy, type BrowserSortDir } from '../utils/browserDates';
 
+const BROWSER_PENDING_POLL_MS = 120;
+
 interface SectionData {
   section: string;
   dir: string;
@@ -129,18 +131,26 @@ export function SectionDirectories() {
     refetchOnReconnect: false,
   });
 
-  const { data: browserData, isLoading: browserLoading, isRefetching: browserRefetching } = useQuery({
+  const { data: browserData, isLoading: browserLoading, isRefetching: browserRefetching, refetch: refetchBrowser } = useQuery({
     queryKey: ['sections-browser', selectedSite, browserPath],
     queryFn: async () => {
       if (!selectedSite) return null;
       return fetchBrowserPath(selectedSite, browserPath);
     },
     enabled: !!selectedSite && browserOpen,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return (data?.status === 'pending' ? 30000 : false);
-    },
   });
+
+  useEffect(() => {
+    if (!browserOpen || !selectedSite) return;
+    if (browserData?.status !== 'pending') return;
+    if (browserRefetching) return;
+
+    const timer = window.setTimeout(() => {
+      void refetchBrowser();
+    }, BROWSER_PENDING_POLL_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [browserOpen, selectedSite, browserData?.status, browserRefetching, refetchBrowser]);
 
   const { data: precatcherConfig } = useQuery({
     queryKey: ['slftp-precatcher-config'],
@@ -515,9 +525,19 @@ export function SectionDirectories() {
     setBrowserSortDir(next.dir);
   };
 
+  const prefetchBrowserPath = (pathValue: string, forceRefresh: boolean) => {
+    if (!selectedSite) return;
+    const targetPath = normalizePath(pathValue) || '/';
+    fetchBrowserPath(selectedSite, targetPath, forceRefresh).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['sections-browser', selectedSite, targetPath] });
+    });
+  };
+
   const openBrowser = () => {
-    setBrowserPath('/');
+    const startPath = normalizePath(quickPath) || '/';
+    setBrowserPath(startPath);
     setBrowserOpen(true);
+    prefetchBrowserPath(startPath, true);
   };
 
   const handleBrowserRefresh = () => {
@@ -691,6 +711,7 @@ export function SectionDirectories() {
                   placeholder="/path/to/dir"
                   value={quickPath}
                   onChange={(e) => setQuickPath(e.currentTarget.value)}
+                  onFocus={() => prefetchBrowserPath(quickPath, true)}
                   rightSection={
                     <ActionIcon variant="subtle" onClick={openBrowser} aria-label="Browse">
                       <IconFolderOpen size="1rem" />

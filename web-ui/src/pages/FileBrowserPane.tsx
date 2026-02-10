@@ -52,6 +52,8 @@ interface FileBrowserPaneProps {
   onSelectionChange?: (files: FileEntry[]) => void;
 }
 
+const BROWSER_PENDING_POLL_MS = 120;
+
 function _parseModifiedMs(aFile: FileEntry): number | null {
   const record = aFile as unknown as Record<string, unknown>;
   const candidates = [
@@ -170,8 +172,6 @@ export function FileBrowserPane({
 
   useEffect(() => {
     if (toggleStartTime.current !== null) {
-      const duration = performance.now() - toggleStartTime.current;
-      console.log(`[FileBrowser] Selection updated in ${duration.toFixed(2)}ms. Selected count: ${selectedFiles.size}`);
       toggleStartTime.current = null;
     }
   }, [selectedFiles]);
@@ -232,18 +232,26 @@ export function FileBrowserPane({
 
   const siteOptions = sitesData ? sitesData.map((s) => ({ value: s.name, label: s.name })) : [];
 
-  const { data: browserData, isLoading, error, isRefetching } = useQuery({
+  const { data: browserData, isLoading, error, isRefetching, refetch: refetchBrowser } = useQuery({
     queryKey: ['browser', internalSite, internalPath],
     queryFn: async (): Promise<BrowserResponse | null> => {
       if (!internalSite) return null;
       return fetchBrowserPath(internalSite, internalPath);
     },
     enabled: !!internalSite,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      return (data?.status === 'pending' ? 30000 : false);
-    },
   });
+
+  useEffect(() => {
+    if (!internalSite) return;
+    if (browserData?.status !== 'pending') return;
+    if (isRefetching) return;
+
+    const timer = window.setTimeout(() => {
+      void refetchBrowser();
+    }, BROWSER_PENDING_POLL_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [internalSite, browserData?.status, isRefetching, refetchBrowser]);
 
   useEffect(() => {
     if (!onSelectionChange || !browserData?.files) return;
@@ -271,7 +279,6 @@ export function FileBrowserPane({
 
   const toggleSelection = useCallback((fileName: string) => {
     toggleStartTime.current = performance.now();
-    console.log(`[FileBrowser] Toggling selection for: ${fileName}`);
     setSelectedFiles((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(fileName)) newSet.delete(fileName);
