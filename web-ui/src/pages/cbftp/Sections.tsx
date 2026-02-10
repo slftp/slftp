@@ -1,366 +1,757 @@
-import { useState } from 'react';
-import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, Stack, Table, TextInput, Text, Tooltip, Select, Switch, Box, Paper } from '@mantine/core';
+import { useState, useMemo } from 'react';
+import { 
+  Alert, 
+  Badge, 
+  Button, 
+  Checkbox, 
+  Collapse,
+  Group, 
+  Loader, 
+  Modal,
+  Paper, 
+  SimpleGrid,
+  Stack, 
+  Table, 
+  Text, 
+  Title,
+  Center,
+  Tooltip,
+  Switch,
+  ThemeIcon,
+  ScrollArea,
+  SegmentedControl
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { useForm } from '@mantine/form';
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconAlertCircle, IconTrash, IconPlus, IconSearch, IconEdit, IconX } from '@tabler/icons-react';
+import { 
+  IconRefresh, 
+  IconArrowRight, 
+  IconCheck, 
+  IconX, 
+  IconAlertCircle,
+  IconFolders,
+  IconChevronDown,
+  IconEdit,
+  IconPlus,
+  IconArrowLeft
+} from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { getSections, getSection, createSection, updateSection, deleteSection } from '../../api/cbftpClient';
-import type { CbftpSection, Skiplist } from '../../api/cbftpClient';
+import { 
+  getSites as getCbftpSites, 
+  getSite as getCbftpSite, 
+  createSiteSection,
+  updateSiteSection 
+} from '../../api/cbftpClient';
+import type { CbftpSite } from '../../api/cbftpClient';
+import { apiClient } from '../../api/client';
+
+interface SlftpSection {
+  section: string;
+  dir: string;
+}
+
+interface SectionSyncStatus {
+  name: string;
+  slftpPath: string;
+  cbftpPath: string | null;
+  status: 'MATCH' | 'MISMATCH' | 'MISSING_IN_CBFTP';
+}
+
+interface SiteComparison {
+  siteName: string;
+  sections: SectionSyncStatus[];
+  needsSync: boolean;
+  existsInCbftp: boolean;
+}
+
+// Direction: 'slftp' = use slftp path, 'cbftp' = use cbftp path
+type SyncDirection = 'slftp' | 'cbftp';
+
+interface SyncResult {
+  site: string;
+  success: boolean;
+  error?: string;
+  changes: number;
+}
+
+interface SiteRowProps {
+  comp: SiteComparison;
+  isSelected: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onToggleSelect: () => void;
+  onSync: (directions: Map<string, SyncDirection>) => void;
+  isSyncing: boolean;
+  showOnlyDifferences: boolean;
+}
+
+function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSync, isSyncing, showOnlyDifferences }: SiteRowProps) {
+  const mismatchCount = comp.sections.filter(s => s.status === 'MISMATCH').length;
+  const missingCount = comp.sections.filter(s => s.status === 'MISSING_IN_CBFTP').length;
+  const matchCount = comp.sections.filter(s => s.status === 'MATCH').length;
+  
+  // State for sync directions per section (only for mismatches)
+  const [syncDirections, setSyncDirections] = useState<Map<string, SyncDirection>>(new Map());
+  
+  // Filter sections when showOnlyDifferences is enabled
+  const displaySections = showOnlyDifferences 
+    ? comp.sections.filter(s => s.status !== 'MATCH')
+    : comp.sections;
+
+  const handleDirectionChange = (sectionName: string, direction: SyncDirection) => {
+    const newDirections = new Map(syncDirections);
+    newDirections.set(sectionName, direction);
+    setSyncDirections(newDirections);
+  };
+
+  // Set all mismatches to same direction
+  const setAllDirections = (direction: SyncDirection) => {
+    const newDirections = new Map(syncDirections);
+    comp.sections
+      .filter(s => s.status === 'MISMATCH')
+      .forEach(s => newDirections.set(s.name, direction));
+    setSyncDirections(newDirections);
+  };
+
+  return (
+    <>
+      <Table.Tr 
+        style={{ cursor: 'pointer' }} 
+        onClick={onToggle}
+        bg={isExpanded ? 'var(--mantine-color-blue-light)' : undefined}
+      >
+        <Table.Td onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={isSelected}
+            onChange={onToggleSelect}
+            disabled={!comp.needsSync || !comp.existsInCbftp}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </Table.Td>
+        <Table.Td>
+          <Group gap="xs">
+            <ThemeIcon 
+              size="sm" 
+              variant="light" 
+              color={isExpanded ? 'blue' : 'gray'}
+              style={{ transition: 'transform 0.2s', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+            >
+              <IconChevronDown size={14} />
+            </ThemeIcon>
+            <Text fw={600}>{comp.siteName}</Text>
+            {!comp.existsInCbftp && <Badge color="red" size="xs" variant="filled">Not in cbftp</Badge>}
+          </Group>
+        </Table.Td>
+        <Table.Td>
+          <Group gap={4}>
+            {comp.sections.length > 0 ? (
+              <>
+                <Badge size="sm" color="blue" variant="light">
+                  {comp.sections.length} total
+                </Badge>
+                {mismatchCount > 0 && (
+                  <Badge size="sm" color="orange" variant="light" leftSection={<IconEdit size={10} />}>
+                    {mismatchCount} changed
+                  </Badge>
+                )}
+                {missingCount > 0 && (
+                  <Badge size="sm" color="blue" variant="light" leftSection={<IconPlus size={10} />}>
+                    {missingCount} new
+                  </Badge>
+                )}
+                {matchCount > 0 && mismatchCount === 0 && missingCount === 0 && (
+                  <Badge size="sm" color="green" variant="light" leftSection={<IconCheck size={10} />}>
+                    All match
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <Text size="sm" c="dimmed">No sections</Text>
+            )}
+          </Group>
+        </Table.Td>
+        <Table.Td>
+          {!comp.existsInCbftp ? (
+            <Badge color="gray" variant="outline">N/A</Badge>
+          ) : comp.needsSync ? (
+            <Badge color="yellow" leftSection={<IconX size={12} />}>Out of Sync</Badge>
+          ) : comp.sections.length === 0 ? (
+            <Badge color="gray" variant="outline">No Sections</Badge>
+          ) : (
+            <Badge color="green" leftSection={<IconCheck size={12} />}>In Sync</Badge>
+          )}
+        </Table.Td>
+        <Table.Td onClick={(e) => e.stopPropagation()}>
+          {comp.existsInCbftp && comp.needsSync && (
+            <Tooltip label="Sync this site">
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconArrowRight size={14} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSync(syncDirections);
+                }}
+                loading={isSyncing}
+              >
+                Sync
+              </Button>
+            </Tooltip>
+          )}
+        </Table.Td>
+      </Table.Tr>
+      
+      {/* Expanded Detail Row */}
+      <Table.Tr style={{ display: isExpanded ? 'table-row' : 'none' }}>
+        <Table.Td colSpan={5} style={{ padding: 0, border: 'none' }}>
+          <Collapse in={isExpanded}>
+            <Paper p="md" withBorder radius={0}>
+              {/* Bulk direction controls for mismatches */}
+              {mismatchCount > 0 && (
+                <Group mb="md" p="xs" bg="var(--mantine-color-gray-light)" style={{ borderRadius: 4 }}>
+                  <Text size="sm" fw={500}>Set all mismatches to:</Text>
+                  <Group gap="xs">
+                    <Button size="xs" variant="light" leftSection={<IconArrowRight size={14} />} onClick={() => setAllDirections('slftp')}>
+                      slftp
+                    </Button>
+                    <Button size="xs" variant="light" leftSection={<IconArrowLeft size={14} />} onClick={() => setAllDirections('cbftp')}>
+                      cbftp
+                    </Button>
+                  </Group>
+                  <Text size="xs" c="dimmed">
+                    (Default: slftp → cbftp)
+                  </Text>
+                </Group>
+              )}
+              
+              <ScrollArea h={Math.min(displaySections.length * 55 + 20, 400)}>
+                <Stack gap="xs">
+                  {displaySections.map((sec) => {
+                    const direction = syncDirections.get(sec.name) || 'slftp';
+                    return (
+                    <Group key={sec.name} gap="md" wrap="nowrap" p="xs" style={{ 
+                      borderRadius: '4px',
+                      border: '1px solid var(--mantine-color-default-border)',
+                      background: 'var(--mantine-color-body)'
+                    }}>
+                      <Badge 
+                        size="md" 
+                        variant="filled" 
+                        color={sec.status === 'MATCH' ? 'green' : sec.status === 'MISMATCH' ? 'orange' : 'blue'}
+                        style={{ minWidth: 100 }}
+                      >
+                        {sec.name}
+                      </Badge>
+                      
+                      <Group gap="xs" style={{ flex: 1 }} align="center">
+                        <Text size="sm" fw={500} style={{ fontFamily: 'monospace', minWidth: 150 }}>
+                          {sec.slftpPath}
+                        </Text>
+                        
+                        {sec.status === 'MISMATCH' && sec.cbftpPath && (
+                          <>
+                            {/* Direction selector */}
+                            <SegmentedControl
+                              size="xs"
+                              value={direction}
+                              onChange={(val) => handleDirectionChange(sec.name, val as SyncDirection)}
+                              data={[
+                                { value: 'slftp', label: <Tooltip label="Use slftp path"><IconArrowRight size={14} /></Tooltip> },
+                                { value: 'cbftp', label: <Tooltip label="Use cbftp path"><IconArrowLeft size={14} /></Tooltip> },
+                              ]}
+                            />
+                            <Text size="sm" c={direction === 'cbftp' ? 'blue' : 'orange'} fw={500} style={{ fontFamily: 'monospace' }}>
+                              {sec.cbftpPath}
+                            </Text>
+                          </>
+                        )}
+                        
+                        {sec.status === 'MISSING_IN_CBFTP' && (
+                          <>
+                            <IconArrowRight size={14} color="var(--mantine-color-blue-6)" />
+                            <Badge size="sm" color="blue" variant="dot">Will be added</Badge>
+                          </>
+                        )}
+                        
+                        {sec.status === 'MATCH' && (
+                          <IconCheck size={16} color="var(--mantine-color-green-6)" />
+                        )}
+                      </Group>
+                    </Group>
+                  );})}
+                  {displaySections.length === 0 && (
+                    <Text c="dimmed" ta="center" py="md">
+                      {showOnlyDifferences 
+                        ? 'No differences - all sections are in sync!'
+                        : 'No sections configured in slftp for this site.'}
+                    </Text>
+                  )}
+                </Stack>
+              </ScrollArea>
+            </Paper>
+          </Collapse>
+        </Table.Td>
+      </Table.Tr>
+    </>
+  );
+}
 
 export function Sections() {
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState('');
-  const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
-  const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
+  const [selectedSites, setSelectedSites] = useState<Set<string>>(new Set());
+  const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
+  const [showOnlyDifferences, setShowOnlyDifferences] = useState(false);
+  
+  // Report modal state
+  const [reportOpened, { open: openReport, close: closeReport }] = useDisclosure(false);
+  const [lastSyncResults, setLastSyncResults] = useState<SyncResult[]>([]);
+  
+  // Global sync directions per site per section
+  const [allSyncDirections, setAllSyncDirections] = useState<Map<string, Map<string, SyncDirection>>>(new Map());
 
-  const { data: sectionNames, isLoading, error } = useQuery<Array<string | CbftpSection>>({
-    queryKey: ['cbftp-sections'],
-    queryFn: getSections,
-    refetchInterval: 30000,
+  // Fetch slftp sites with sections
+  const { data: slftpSites, isLoading: loadingSlftp, error: slftpError } = useQuery({
+    queryKey: ['slftp-sites-sections-full'],
+    queryFn: async (): Promise<SiteComparison[]> => {
+      // 1. Get sites from slftp
+      const res = await apiClient.post('/ApiSitesService/GetSites', { Filter: '' });
+      let rawSitesData = res.data.result?.[0] || res.data;
+      let sitesList = rawSitesData.Sites || [];
+      
+      if (typeof sitesList === 'string') {
+        try { sitesList = JSON.parse(sitesList); } catch { sitesList = []; }
+      }
+
+      // 2. Get cbftp site list for existence check
+      const cbftpNames = await getCbftpSites().catch(() => [] as string[]);
+      const cbftpNamesSet = new Set(cbftpNames);
+
+      // 3. Get detailed cbftp sites with sections
+      let cbftpSitesMap = new Map<string, CbftpSite>();
+      try {
+        const cbftpSites = await Promise.all(
+          cbftpNames.map(name => 
+            getCbftpSite(name).catch(() => null)
+          )
+        );
+        cbftpSites.forEach(site => {
+          if (site) cbftpSitesMap.set(site.name, site);
+        });
+      } catch { /* ignore */ }
+
+      const comparisons: SiteComparison[] = [];
+      for (const site of sitesList) {
+        const name = site.name || site.Name;
+        if (!name || name.toLowerCase() === 'slftp') continue;
+        
+        try {
+          // Fetch slftp sections
+          const sectionsRes = await apiClient.post('/ApiSitesService/GetSiteSections', { SiteName: name });
+          let slSections = sectionsRes.data.result?.[0] || sectionsRes.data;
+          if (typeof slSections === 'string') slSections = JSON.parse(slSections);
+          // Debug logging for ATL
+
+          // Filter out sections without a valid path (dir-SECTION not defined in slftp)
+          const slftpSections: SlftpSection[] = (Array.isArray(slSections) ? slSections : [])
+            .filter((ss: SlftpSection) => ss.dir && ss.dir.trim().length > 0);
+
+
+          // Get cbftp sections
+          const cbftpSite = cbftpSitesMap.get(name);
+          const cbftpSections = cbftpSite?.sections || [];
+          const existsInCbftp = cbftpNamesSet.has(name);
+
+          const cbftpSectionMap = new Map<string, string>();
+          cbftpSections.forEach(s => cbftpSectionMap.set(s.name, s.path));
+
+
+          const sectionStatuses: SectionSyncStatus[] = slftpSections.map(ss => {
+            const cbftpPath = cbftpSectionMap.get(ss.section) ?? null;
+            let status: SectionSyncStatus['status'] = 'MATCH';
+            if (cbftpPath === null) {
+              status = 'MISSING_IN_CBFTP';
+            } else {
+              // Normalize paths for comparison (remove trailing slashes)
+              const normalizedSlftp = ss.dir.replace(/\/$/, '');
+              const normalizedCbftp = cbftpPath.replace(/\/$/, '');
+              if (normalizedSlftp !== normalizedCbftp) status = 'MISMATCH';
+            }
+            return { name: ss.section, slftpPath: ss.dir, cbftpPath, status };
+          });
+
+          comparisons.push({
+            siteName: name,
+            sections: sectionStatuses,
+            needsSync: sectionStatuses.some(s => s.status !== 'MATCH'),
+            existsInCbftp
+          });
+        } catch (e) {
+          console.error(`Error processing site ${name}:`, e);
+          comparisons.push({ siteName: name, sections: [], needsSync: false, existsInCbftp: cbftpNamesSet.has(name) });
+        }
+      }
+      return comparisons.sort((a, b) => {
+        if (a.needsSync && !b.needsSync) return -1;
+        if (!a.needsSync && b.needsSync) return 1;
+        return a.siteName.localeCompare(b.siteName);
+      });
+    },
+    staleTime: 30000,
   });
 
+  const filteredSites = useMemo(() => {
+    if (!showOnlyDifferences) return slftpSites || [];
+    return (slftpSites || []).filter(s => s.needsSync);
+  }, [slftpSites, showOnlyDifferences]);
 
-  const createMutation = useMutation({
-    mutationFn: createSection,
-    onSuccess: () => {
-      notifications.show({ title: 'Success', message: 'Section created successfully', color: 'green' });
-      queryClient.invalidateQueries({ queryKey: ['cbftp-sections'] });
-      closeForm();
-      form.reset();
+  const sitesNeedingSync = useMemo(() =>
+    (slftpSites || []).filter(c => c.needsSync && c.existsInCbftp),
+    [slftpSites]
+  );
+
+
+
+  // Sync mutation
+  const syncMutation = useMutation({
+    mutationFn: async ({ siteNames, directions }: { siteNames: string[], directions?: Map<string, Map<string, SyncDirection>> }) => {
+      const results: { site: string; success: boolean; error?: string; changes: number }[] = [];
+
+      for (const siteName of siteNames) {
+        const comparison = slftpSites?.find(c => c.siteName === siteName);
+        if (!comparison || !comparison.existsInCbftp) {
+          results.push({ site: siteName, success: false, error: 'Site not found in cbftp', changes: 0 });
+          continue;
+        }
+
+        const siteDirections = directions?.get(siteName) || new Map<string, SyncDirection>();
+        let successCount = 0;
+        let errorMsg = '';
+
+        // Process each section individually
+        for (const s of comparison.sections) {
+          if (s.status === 'MATCH') continue; // Skip already matching sections
+
+          try {
+            let path: string;
+            
+            if (s.status === 'MISMATCH' && s.cbftpPath) {
+              const dir = siteDirections.get(s.name) || 'slftp';
+              path = dir === 'slftp' ? s.slftpPath : s.cbftpPath;
+            } else {
+              path = s.slftpPath;
+            }
+            
+            // Normalize: remove trailing slash (except for root /)
+            if (path && path.length > 1 && path.endsWith('/')) {
+              path = path.slice(0, -1);
+            }
+            
+            if (!path || path.trim().length === 0) continue;
+
+            if (s.status === 'MISSING_IN_CBFTP') {
+              // Create new section
+              await createSiteSection(siteName, { name: s.name, path });
+            } else if (s.status === 'MISMATCH') {
+              // Update existing section
+              await updateSiteSection(siteName, s.name, { path });
+            }
+            successCount++;
+          } catch (error: any) {
+            errorMsg = `${s.name}: ${error.message || String(error)}`;
+            console.error(`Failed to sync section ${s.name} for site ${siteName}:`, error);
+          }
+        }
+
+        if (successCount > 0 && !errorMsg) {
+          results.push({ site: siteName, success: true, changes: successCount });
+        } else if (errorMsg) {
+          results.push({ site: siteName, success: false, error: errorMsg, changes: successCount });
+        } else {
+          results.push({ site: siteName, success: true, changes: 0 });
+        }
+      }
+
+      return results;
+    },
+    onSuccess: (results) => {
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      const totalChanges = results.reduce((acc, r) => acc + r.changes, 0);
+
+      setLastSyncResults(results);
+
+      if (successCount > 0) {
+        notifications.show({
+          title: 'Sync Complete',
+          message: `Synced ${successCount} site(s) with ${totalChanges} section changes${failCount > 0 ? `, ${failCount} failed` : ''}`,
+          color: failCount > 0 ? 'yellow' : 'green',
+        });
+      } else if (failCount > 0) {
+        notifications.show({
+          title: 'Sync Failed',
+          message: `Failed to sync ${failCount} site(s)`,
+          color: 'red',
+        });
+      }
+
+      // Open report modal if there are failures
+      if (failCount > 0) {
+        openReport();
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['slftp-sites-sections-full'] });
+      setSelectedSites(new Set());
     },
     onError: (error: Error) => {
-      notifications.show({ title: 'Error', message: error.message, color: 'red' });
+      notifications.show({
+        title: 'Sync Error',
+        message: error.message,
+        color: 'red',
+      });
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ name, updates }: { name: string; updates: Partial<CbftpSection> }) =>
-      updateSection(name, updates),
-    onSuccess: () => {
-      notifications.show({ title: 'Success', message: 'Section updated successfully', color: 'green' });
-      queryClient.invalidateQueries({ queryKey: ['cbftp-sections'] });
-      closeForm();
-      form.reset();
-    },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Error', message: error.message, color: 'red' });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteSection,
-    onSuccess: () => {
-      notifications.show({ title: 'Success', message: 'Section deleted successfully', color: 'green' });
-      queryClient.invalidateQueries({ queryKey: ['cbftp-sections'] });
-      closeDelete();
-      setSelectedSection(null);
-    },
-    onError: (error: Error) => {
-      notifications.show({ title: 'Error', message: error.message, color: 'red' });
-    },
-  });
-
-  const form = useForm({
-    initialValues: {
-      name: '',
-      hotkey: undefined as number | undefined,
-      skiplist: [] as Skiplist[],
-    },
-    validate: {
-      name: (value) => (value.trim() ? null : 'Section name is required'),
-    },
-  });
-
-  const handleAdd = () => {
-    setEditMode(false);
-    setSelectedSection(null);
-    form.reset();
-    openForm();
-  };
-
-  const handleEdit = async (sectionName: string) => {
-    setSelectedSection(sectionName);
-    setEditMode(true);
-
-    // Wait for section details to load
-    const section = await getSection(sectionName);
-    form.setValues({
-      name: section.name,
-      hotkey: section.hotkey,
-      skiplist: section.skiplist || [],
-    });
-
-    openForm();
-  };
-
-  const handleDelete = (sectionName: string) => {
-    setSelectedSection(sectionName);
-    openDelete();
-  };
-
-  const handleSubmit = (values: typeof form.values) => {
-    if (editMode && selectedSection) {
-      updateMutation.mutate({ name: selectedSection, updates: values });
+  const handleSelectAll = () => {
+    const selectable = sitesNeedingSync.map(c => c.siteName);
+    
+    if (selectedSites.size === selectable.length) {
+      setSelectedSites(new Set());
     } else {
-      createMutation.mutate(values);
+      setSelectedSites(new Set(selectable));
     }
   };
 
-  const addSkiplistRule = () => {
-    form.setFieldValue('skiplist', [
-      ...form.values.skiplist,
-      {
-        action: 'DENY' as const,
-        dir: false,
-        file: true,
-        pattern: '',
-        regex: false,
-        scope: 'ALL' as const,
-      },
-    ]);
+  const handleToggleSite = (siteName: string) => {
+    const newSelected = new Set(selectedSites);
+    if (newSelected.has(siteName)) {
+      newSelected.delete(siteName);
+    } else {
+      newSelected.add(siteName);
+    }
+    setSelectedSites(newSelected);
   };
 
-  const removeSkiplistRule = (index: number) => {
-    form.setFieldValue(
-      'skiplist',
-      form.values.skiplist.filter((_, i) => i !== index)
+  const handleToggleExpand = (siteName: string) => {
+    const newExpanded = new Set(expandedSites);
+    if (newExpanded.has(siteName)) {
+      newExpanded.delete(siteName);
+    } else {
+      newExpanded.add(siteName);
+    }
+    setExpandedSites(newExpanded);
+  };
+
+  const handleSyncSelected = () => {
+    if (selectedSites.size > 0) {
+      syncMutation.mutate({ siteNames: [...selectedSites], directions: allSyncDirections });
+    }
+  };
+
+  const handleSyncSingle = (siteName: string, directions: Map<string, SyncDirection>) => {
+    const dirMap = new Map(allSyncDirections);
+    dirMap.set(siteName, directions);
+    setAllSyncDirections(dirMap);
+    syncMutation.mutate({ siteNames: [siteName], directions: dirMap });
+  };
+
+  if (loadingSlftp) {
+    return (
+      <Center h={200}>
+        <Loader />
+      </Center>
     );
-  };
-
-  const normalizedSections = (sectionNames || [])
-    .map((entry) => (typeof entry === 'string' ? entry : entry?.name))
-    .filter((name): name is string => typeof name === 'string' && name.length > 0);
-
-  const filteredSections = normalizedSections.filter((name) =>
-    name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (isLoading) {
-    return <Loader />;
   }
 
-  if (error) {
+  if (slftpError) {
     return (
       <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red">
-        {error instanceof Error ? error.message : 'Failed to fetch sections'}
+        Failed to load slftp sites: {String(slftpError)}
       </Alert>
     );
   }
 
   return (
-    <>
-      <Group justify="apart" mb="md">
-        <TextInput
-          placeholder="Search sections..."
-          leftSection={<IconSearch size={16} />}
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          style={{ width: 300 }}
-        />
-        <Button leftSection={<IconPlus size={16} />} onClick={handleAdd}>
-          Add Section
-        </Button>
-      </Group>
-
-      <Text mb="md">Total Sections: {normalizedSections.length}</Text>
-
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Hotkey</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {filteredSections.map((sectionName) => (
-            <Table.Tr key={sectionName}>
-              <Table.Td>{sectionName}</Table.Td>
-              <Table.Td>
-                <Badge color="gray">N/A</Badge>
-              </Table.Td>
-              <Table.Td>
-                <Group gap="xs">
-                  <Tooltip label="Edit">
-                    <ActionIcon variant="light" color="blue" onClick={() => handleEdit(sectionName)}>
-                      <IconEdit size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Delete">
-                    <ActionIcon variant="light" color="red" onClick={() => handleDelete(sectionName)}>
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Group>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-
-      {/* Add/Edit Form Modal */}
-      <Modal
-        opened={formOpened}
-        onClose={closeForm}
-        title={editMode ? 'Edit Section' : 'Add Section'}
-        size="xl"
-      >
-        <form onSubmit={form.onSubmit(handleSubmit)}>
-          <Stack gap="md">
-            <TextInput
-              label="Name"
-              required
-              disabled={editMode}
-              {...form.getInputProps('name')}
+    <Stack gap="md">
+      <Paper p="md" withBorder>
+        <Group justify="space-between" mb="md">
+          <Group>
+            <IconFolders size="1.5rem" style={{ opacity: 0.7 }} />
+            <div>
+              <Title order={4}>Section Sync</Title>
+              <Text size="sm" c="dimmed">
+                Sync section paths between slftp and cbftp. Click a site to choose sync direction.
+              </Text>
+            </div>
+          </Group>
+          <Group>
+            <Switch
+              label="Only show differences"
+              checked={showOnlyDifferences}
+              onChange={(e) => {
+                setShowOnlyDifferences(e.currentTarget.checked);
+                setSelectedSites(new Set());
+              }}
             />
-
-            <Select
-              label="Hotkey (0-9)"
-              placeholder="None"
-              clearable
-              data={[
-                { value: '0', label: '0' },
-                { value: '1', label: '1' },
-                { value: '2', label: '2' },
-                { value: '3', label: '3' },
-                { value: '4', label: '4' },
-                { value: '5', label: '5' },
-                { value: '6', label: '6' },
-                { value: '7', label: '7' },
-                { value: '8', label: '8' },
-                { value: '9', label: '9' },
-              ]}
-              value={form.values.hotkey?.toString()}
-              onChange={(value) => form.setFieldValue('hotkey', value ? parseInt(value) : undefined)}
-            />
-
-            <Box>
-              <Group justify="apart" mb="sm">
-                <Text fw={500}>Skiplist Rules</Text>
-                <Button size="xs" onClick={addSkiplistRule}>
-                  Add Rule
-                </Button>
-              </Group>
-
-              <Stack gap="sm">
-                {form.values.skiplist.map((rule, index) => (
-                  <Paper key={index} p="sm" withBorder>
-                    <Stack gap="xs">
-                      <Group justify="apart">
-                        <Text size="sm" fw={500}>Rule {index + 1}</Text>
-                        <ActionIcon
-                          color="red"
-                          variant="subtle"
-                          onClick={() => removeSkiplistRule(index)}
-                        >
-                          <IconX size={16} />
-                        </ActionIcon>
-                      </Group>
-
-                      <Group grow>
-                        <Select
-                          label="Action"
-                          data={[
-                            { value: 'ALLOW', label: 'Allow' },
-                            { value: 'DENY', label: 'Deny' },
-                            { value: 'UNIQUE', label: 'Unique' },
-                            { value: 'SIMILAR', label: 'Similar' },
-                          ]}
-                          value={rule.action}
-                          onChange={(value) =>
-                            form.setFieldValue(`skiplist.${index}.action`, value as any)
-                          }
-                        />
-                        <Select
-                          label="Scope"
-                          data={[
-                            { value: 'IN_RACE', label: 'In Race' },
-                            { value: 'ALL', label: 'All' },
-                          ]}
-                          value={rule.scope}
-                          onChange={(value) =>
-                            form.setFieldValue(`skiplist.${index}.scope`, value as any)
-                          }
-                        />
-                      </Group>
-
-                      <TextInput
-                        label="Pattern"
-                        placeholder="*.nfo or regex pattern"
-                        value={rule.pattern}
-                        onChange={(e) =>
-                          form.setFieldValue(`skiplist.${index}.pattern`, e.currentTarget.value)
-                        }
-                      />
-
-                      <Group>
-                        <Switch
-                          label="Directory"
-                          checked={rule.dir}
-                          onChange={(e) =>
-                            form.setFieldValue(`skiplist.${index}.dir`, e.currentTarget.checked)
-                          }
-                        />
-                        <Switch
-                          label="File"
-                          checked={rule.file}
-                          onChange={(e) =>
-                            form.setFieldValue(`skiplist.${index}.file`, e.currentTarget.checked)
-                          }
-                        />
-                        <Switch
-                          label="Regex"
-                          checked={rule.regex}
-                          onChange={(e) =>
-                            form.setFieldValue(`skiplist.${index}.regex`, e.currentTarget.checked)
-                          }
-                        />
-                      </Group>
-                    </Stack>
-                  </Paper>
-                ))}
-
-                {form.values.skiplist.length === 0 && (
-                  <Text size="sm" c="dimmed">
-                    No skiplist rules defined. Click "Add Rule" to create one.
-                  </Text>
-                )}
-              </Stack>
-            </Box>
-
-            <Group justify="flex-end" mt="md">
-              <Button variant="default" onClick={closeForm}>
-                Cancel
-              </Button>
-              <Button type="submit" loading={createMutation.isPending || updateMutation.isPending}>
-                {editMode ? 'Update' : 'Create'}
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
-
-      {/* Delete Confirmation Modal */}
-      <Modal opened={deleteOpened} onClose={closeDelete} title="Delete Section" size="sm">
-        <Text>
-          Are you sure you want to delete section <Text span c="red" fw={700}>{selectedSection}</Text>?
-        </Text>
-        <Group justify="flex-end" mt="md">
-          <Button variant="default" onClick={closeDelete}>
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            loading={deleteMutation.isPending}
-            onClick={() => selectedSection && deleteMutation.mutate(selectedSection)}
-          >
-            Delete
-          </Button>
+            <Button
+              variant="light"
+              leftSection={<IconRefresh size={16} />}
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['slftp-sites-sections-full'] })}
+            >
+              Refresh
+            </Button>
+            <Button
+              leftSection={<IconArrowRight size={16} />}
+              disabled={selectedSites.size === 0 || syncMutation.isPending}
+              loading={syncMutation.isPending}
+              onClick={handleSyncSelected}
+            >
+              Sync Selected ({selectedSites.size})
+            </Button>
+          </Group>
         </Group>
+
+        <Group gap="md" mb="md">
+          <Badge color="blue" variant="light" size="lg">
+            Total Sites: {slftpSites?.length || 0}
+          </Badge>
+          <Badge color={sitesNeedingSync.length > 0 ? 'yellow' : 'green'} variant="light" size="lg">
+            Need Sync: {sitesNeedingSync.length}
+          </Badge>
+          {showOnlyDifferences && (
+            <Badge color="grape" variant="light" size="lg">
+              Showing: {filteredSites.length}
+            </Badge>
+          )}
+        </Group>
+
+        {filteredSites.length > 0 ? (
+          <Table striped highlightOnHover withTableBorder>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th style={{ width: 40 }}>
+                  <Checkbox
+                    checked={selectedSites.size === sitesNeedingSync.length && sitesNeedingSync.length > 0}
+                    indeterminate={selectedSites.size > 0 && selectedSites.size < sitesNeedingSync.length}
+                    onChange={handleSelectAll}
+                    disabled={sitesNeedingSync.length === 0}
+                  />
+                </Table.Th>
+                <Table.Th>Site</Table.Th>
+                <Table.Th>Summary</Table.Th>
+                <Table.Th style={{ width: 130 }}>Status</Table.Th>
+                <Table.Th style={{ width: 100 }}>Action</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {filteredSites.map((comp) => (
+                <SiteRow
+                  key={comp.siteName}
+                  comp={comp}
+                  isSelected={selectedSites.has(comp.siteName)}
+                  isExpanded={expandedSites.has(comp.siteName)}
+                  onToggle={() => handleToggleExpand(comp.siteName)}
+                  onToggleSelect={() => handleToggleSite(comp.siteName)}
+                  onSync={(directions) => handleSyncSingle(comp.siteName, directions)}
+                  isSyncing={syncMutation.isPending}
+                  showOnlyDifferences={showOnlyDifferences}
+                />
+              ))}
+            </Table.Tbody>
+          </Table>
+        ) : (
+          <Paper p="xl" withBorder>
+            <Text ta="center" c="dimmed">
+              {showOnlyDifferences 
+                ? 'No sites with differences found. All sections are in sync!' 
+                : 'No sites found.'}
+            </Text>
+          </Paper>
+        )}
+      </Paper>
+
+      {/* Sync Report Modal */}
+      <Modal
+        opened={reportOpened}
+        onClose={closeReport}
+        title="Sync Report"
+        size="lg"
+      >
+        <Stack gap="md">
+          <SimpleGrid cols={3}>
+            <Paper withBorder p="xs" radius="md" ta="center">
+              <Text size="xs" c="dimmed" tt="uppercase">Processed</Text>
+              <Text fw={700} size="xl">{lastSyncResults.length}</Text>
+            </Paper>
+            <Paper withBorder p="xs" radius="md" ta="center">
+              <Text size="xs" c="dimmed" tt="uppercase">Success</Text>
+              <Text fw={700} size="xl" c="green">
+                {lastSyncResults.filter(r => r.success).length}
+              </Text>
+            </Paper>
+            <Paper withBorder p="xs" radius="md" ta="center">
+              <Text size="xs" c="dimmed" tt="uppercase">Failed</Text>
+              <Text fw={700} size="xl" c="red">
+                {lastSyncResults.filter(r => !r.success).length}
+              </Text>
+            </Paper>
+          </SimpleGrid>
+
+          {lastSyncResults.some(r => !r.success) && (
+            <>
+              <Text fw={600} c="red">Failed Sites:</Text>
+              <Paper withBorder p="xs" radius="md">
+                <ScrollArea h={250}>
+                  <Stack gap="xs">
+                    {lastSyncResults
+                      .filter(r => !r.success)
+                      .map((res, idx) => (
+                        <Group key={idx} justify="space-between" wrap="nowrap" p="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+                          <Group gap="xs">
+                            <IconX size={16} color="var(--mantine-color-red-6)" />
+                            <Text size="sm" fw={600}>{res.site}</Text>
+                          </Group>
+                          <Text size="xs" c="red" style={{ maxWidth: '60%', textAlign: 'right' }}>
+                            {res.error || 'Unknown error'}
+                          </Text>
+                        </Group>
+                      ))}
+                  </Stack>
+                </ScrollArea>
+              </Paper>
+            </>
+          )}
+
+          {lastSyncResults.some(r => r.success) && (
+            <>
+              <Text fw={600} c="green">Successful Sites:</Text>
+              <Paper withBorder p="xs" radius="md">
+                <ScrollArea h={150}>
+                  <Stack gap="xs">
+                    {lastSyncResults
+                      .filter(r => r.success)
+                      .map((res, idx) => (
+                        <Group key={idx} justify="space-between" wrap="nowrap" p="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}>
+                          <Group gap="xs">
+                            <IconCheck size={16} color="var(--mantine-color-green-6)" />
+                            <Text size="sm" fw={600}>{res.site}</Text>
+                          </Group>
+                          <Badge size="sm" color="blue" variant="light">
+                            {res.changes} changes
+                          </Badge>
+                        </Group>
+                      ))}
+                  </Stack>
+                </ScrollArea>
+              </Paper>
+            </>
+          )}
+
+          <Group justify="flex-end" mt="md">
+            <Button onClick={closeReport}>Close</Button>
+          </Group>
+        </Stack>
       </Modal>
-    </>
+    </Stack>
   );
 }
