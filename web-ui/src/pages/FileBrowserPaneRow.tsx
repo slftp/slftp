@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Table, Checkbox, Group, ThemeIcon, Tooltip, Text } from '@mantine/core';
-import { IconFolder, IconFile } from '@tabler/icons-react';
+import { IconFolder, IconFile, IconLink } from '@tabler/icons-react';
 import type { FileEntry } from '../api/client';
 
 interface FileRowProps {
@@ -54,14 +54,14 @@ export const FileRow = memo(function FileRow({
 
   return (
     <Table.Tr
-      style={{ cursor: f.is_dir ? 'pointer' : 'default', userSelect: 'none' }}
+      style={{ cursor: (f.is_dir || f.is_symlink) ? 'pointer' : 'default', userSelect: 'none' }}
       data-selected={selected || undefined}
       onClick={(e) => {
         if (e.ctrlKey || e.metaKey) {
           onToggle(f.name);
           return;
         }
-        if (f.is_dir) {
+        if (f.is_dir || f.is_symlink) {
           onNavigate(currentPath + (currentPath === '/' ? '' : '/') + f.name);
         } else {
           onToggle(f.name);
@@ -78,10 +78,16 @@ export const FileRow = memo(function FileRow({
       </Table.Td>
       <Table.Td>
         <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-          <ThemeIcon color={f.is_dir ? 'blue' : 'gray'} variant="light" size="sm">
-            {f.is_dir ? <IconFolder size="0.8rem" /> : <IconFile size="0.8rem" />}
+          <ThemeIcon color={f.is_symlink ? 'teal' : (f.is_dir ? 'blue' : 'gray')} variant="light" size="sm">
+            {f.is_symlink ? (
+              <IconLink size="0.8rem" />
+            ) : f.is_dir ? (
+              <IconFolder size="0.8rem" />
+            ) : (
+              <IconFile size="0.8rem" />
+            )}
           </ThemeIcon>
-          <Tooltip label={f.name} withArrow withinPortal>
+          <Tooltip label={f.is_symlink && f.symlink_target ? `${f.name} -> ${f.symlink_target}` : f.name} withArrow withinPortal>
             {f.is_dir ? (
               <Text size="sm" fw={600} truncate style={{ minWidth: 0, flex: 1 }}>
                 {f.name}

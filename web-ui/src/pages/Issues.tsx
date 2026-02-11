@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -262,7 +262,7 @@ export function Issues() {
 
   const browserDirs = useMemo(() => {
     const files = browserData?.files || [];
-    return sortBrowserDirs(files.filter((f) => f.is_dir), browserSortBy, browserSortDir);
+    return sortBrowserDirs(files.filter((f) => f.is_dir || f.is_symlink), browserSortBy, browserSortDir);
   }, [browserData, browserSortBy, browserSortDir]);
 
   const breadcrumbItems = useMemo(() => {
@@ -640,7 +640,7 @@ export function Issues() {
                 {browserDirs.length === 0 && (
                   <Table.Tr>
                     <Table.Td colSpan={2}>
-                      <Text size="sm" c="dimmed">No folders in this path.</Text>
+                      <Text size="sm" c="dimmed">No folders or symlinks in this path.</Text>
                     </Table.Td>
                   </Table.Tr>
                 )}
@@ -648,8 +648,10 @@ export function Issues() {
                   <Table.Tr key={dir.name} style={{ cursor: 'pointer' }} onClick={() => navigateBrowserPath(`${browserPath === '/' ? '' : browserPath}/${dir.name}`)}>
                     <Table.Td>
                       <Group gap="xs">
-                        <IconFolderOpen size="1rem" />
-                        <Text fw={600}>{dir.name}</Text>
+                        {dir.is_symlink ? <IconLink size="1rem" /> : <IconFolderOpen size="1rem" />}
+                        <Tooltip label={dir.is_symlink && dir.symlink_target ? `${dir.name} -> ${dir.symlink_target}` : dir.name} withArrow withinPortal>
+                          <Text fw={600}>{dir.name}</Text>
+                        </Tooltip>
                       </Group>
                     </Table.Td>
                     <Table.Td>

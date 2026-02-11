@@ -19,6 +19,8 @@ type
       fDirMask: String; //< Indicates what kind of Directory Mask the current dir is
       fFilesize: int64; //Current size of the file
       fDate: String; //Current timestamp of the file
+      fIsSymlink: Boolean; //< @true if entry is a symlink
+      fSymlinkTarget: String; //< target of symlink (if applicable)
     public
       property Filename: string read fFilename;
       property Username: string read fUsername;
@@ -26,6 +28,8 @@ type
       property DirMask: string read fDirMask;
       property Date: string read fDate;
       property Filesize: int64 read fFilesize;
+      property IsSymlink: Boolean read fIsSymlink;
+      property SymlinkTarget: string read fSymlinkTarget;
   end;
 
 { Check if given file is screwed up by FTPRush
@@ -289,6 +293,9 @@ var
   fDirMask, fUsername, fGroupname, fDatum, fFilename: String;
   fFilesize: Int64;
   fParsedDirlistEntry: TParsedDirlistEntry;
+  fIsSymlink: Boolean;
+  fSymlinkTarget: String;
+  fArrowPos: Integer;
 begin
   fParsedDirlistEntries := TObjectList<TParsedDirListEntry>.Create(True);
   try
@@ -297,12 +304,27 @@ begin
       fLineToParse := Trim(GetFirstLineFromTextViaNewlineIndicators(s));
       // tmp contains a single line:
       // drwxrwxrwx   2 nete     Death_Me     4096 Jan 29 05:05 Whisteria_Cottage-Heathen-RERIP-2009-pLAN9
+      // lrwxrwxrwx   1 user     group        10 Jan 01 00:00 linkname -> target
 
       if fLineToParse = '' then break;
       if (Length(fLineToParse) > 11) then
       begin
-        if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') and (fLineToParse[11] = ' ')) then
+        if ((fLineToParse[1] <> 'd') and (fLineToParse[1] <> '-') and (fLineToParse[1] <> 'l') and (fLineToParse[11] = ' ')) then
           continue;
+
+        fIsSymlink := (fLineToParse[1] = 'l');
+        fSymlinkTarget := '';
+
+        if fIsSymlink then
+        begin
+          fArrowPos := Pos(' -> ', fLineToParse);
+          if fArrowPos > 0 then
+          begin
+            fSymlinkTarget := Trim(Copy(fLineToParse, fArrowPos + 4, MaxInt));
+            fLineToParse := Copy(fLineToParse, 1, fArrowPos - 1);
+          end;
+        end;
+
         ParseStatResponseLine(fLineToParse, fDirMask, fUsername, fGroupname, fFilesize, fDatum, fFilename);
         fParsedDirlistEntry := TParsedDirlistEntry.Create;
         fParsedDirlistEntry.fDirMask := fDirMask;
@@ -311,6 +333,8 @@ begin
         fParsedDirlistEntry.fFilesize := fFilesize;
         fParsedDirlistEntry.fDate := fDatum;
         fParsedDirlistEntry.FFilename := fFilename;
+        fParsedDirlistEntry.fIsSymlink := fIsSymlink;
+        fParsedDirlistEntry.fSymlinkTarget := fSymlinkTarget;
         fParsedDirlistEntries.Add(fParsedDirlistEntry);
       end;
     end;

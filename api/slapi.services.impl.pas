@@ -462,6 +462,10 @@ begin
           TDocVariantData(fileObj).AddValue('is_dir', True)
         else
           TDocVariantData(fileObj).AddValue('is_dir', False);
+
+        TDocVariantData(fileObj).AddValue('is_symlink', parsedEntry.IsSymlink);
+        if parsedEntry.IsSymlink then
+          TDocVariantData(fileObj).AddValue('symlink_target', UTF8Encode(parsedEntry.SymlinkTarget));
           
         jsonArr.AddItem(fileObj);
       end;
