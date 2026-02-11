@@ -35,6 +35,81 @@ import { RulesExamples } from '../components/RulesExamples';
 type RuleError = { line: number; message: string };
 type RuleCondition = { name: string; ops: string; description: string };
 
+function buildConditionExample(condition: RuleCondition, site: string): string {
+  const cond = (condition.name || '').trim();
+  const condLower = cond.toLowerCase();
+  const ops = ((condition.ops || '').trim() + ' ').replace(/\s+/g, ' ').trim();
+  const siteToken = (site && site !== '*') ? site : 'EXAMPLESITE';
+  const section = '*';
+  const prefix = `${siteToken} ${section} if `;
+
+  if (condLower === 'default') {
+    return `${prefix}default then ALLOW`;
+  }
+
+  if (ops === '') {
+    return `${prefix}${cond} then DROP\n${siteToken} ${section} if default then ALLOW`;
+  }
+
+  if (condLower === 'section') {
+    return `${prefix}section =~ /^(TV|X265|BLURAY)/i then ALLOW`;
+  }
+
+  if (ops.includes('=~') || ops.includes('!~')) {
+    if (condLower.includes('release')) {
+      return `${prefix}${cond} =~ /[-._](GERMAN|FRENCH)[-._]/i then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    return `${prefix}${cond} =~ /pattern/i then DROP\n${siteToken} ${section} if default then ALLOW`;
+  }
+
+  if (ops.includes('notin') || ops.includes('in')) {
+    if (condLower.includes('language') || condLower.includes('lang')) {
+      return `${prefix}${cond} notin English, German then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    if (condLower.includes('country')) {
+      return `${prefix}${cond} notin USA, UK then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    if (condLower.includes('genre')) {
+      return `${prefix}${cond} in Documentary, Sports then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    if (condLower.includes('group')) {
+      return `${prefix}${cond} in GROUP1, GROUP2, GROUP3 then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    return `${prefix}${cond} in VALUE1, VALUE2 then DROP\n${siteToken} ${section} if default then ALLOW`;
+  }
+
+  if (ops.includes('<') || ops.includes('>') || ops.includes('>=') || ops.includes('<=')) {
+    if (condLower.includes('year')) {
+      return `${prefix}${cond} < 2020 then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    if (condLower.includes('rating')) {
+      return `${prefix}${cond} < 65 then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    if (condLower.includes('votes')) {
+      return `${prefix}${cond} < 500 then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    if (condLower.includes('size') || condLower.includes('files') || condLower.includes('kb') || condLower.includes('disk') || condLower.includes('age')) {
+      return `${prefix}${cond} > 500 then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    return `${prefix}${cond} > 0 then DROP\n${siteToken} ${section} if default then ALLOW`;
+  }
+
+  if (ops.includes('!=') || ops.includes('=')) {
+    if (condLower.includes('language') || condLower.includes('lang')) {
+      return `${prefix}${cond} != English then DROP\n${siteToken} ${section} if default then ALLOW`;
+    }
+    if (condLower.includes('country')) {
+      return `${prefix}${cond} = USA then ALLOW`;
+    }
+    if (condLower.includes('year')) {
+      return `${prefix}${cond} = 2024 then ALLOW`;
+    }
+    return `${prefix}${cond} = VALUE then DROP\n${siteToken} ${section} if default then ALLOW`;
+  }
+
+  return `${prefix}${cond} then DROP\n${siteToken} ${section} if default then ALLOW`;
+}
+
 export function Rules() {
   const { colorScheme } = useMantineColorScheme();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -51,6 +126,7 @@ export function Rules() {
   
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
+  const conditionClickTimeoutRef = useRef<number | null>(null);
   
   const [hasLoaded, setHasLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>('editor');
@@ -261,17 +337,22 @@ export function Rules() {
 
   const insertAtCursorOrReplaceSelection = (insertText: string) => {
     const editor = editorRef.current;
-    if (!editor) {
+    const canEditInMonaco = (activeTab === 'editor' || activeTab === 'split') && !!editor && !!editor.getModel?.();
+
+    if (!canEditInMonaco) {
       setRtplContent((prev) => prev + insertText);
       return;
     }
 
-    const selection = editor.getSelection();
-    const op = { range: selection, text: insertText, forceMoveMarkers: true };
-    editor.executeEdits("my-source", [op]);
-    editor.focus();
-    // Update local state is handled by onChange prop, but executeEdits might not trigger it immediately in all cases? 
-    // Usually it does, but for safety rely on the editor's internal state -> change event loop.
+    try {
+      const selection = editor.getSelection();
+      const op = { range: selection, text: insertText, forceMoveMarkers: true };
+      editor.executeEdits('my-source', [op]);
+      editor.focus();
+      setRtplContent(editor.getValue());
+    } catch {
+      setRtplContent((prev) => prev + insertText);
+    }
   };
 
   const focusLine = (lineNumber: number) => {
@@ -298,6 +379,36 @@ export function Rules() {
     const q = conditionSearch.trim().toLowerCase();
     return list.filter((c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q));
   }, [conditions, conditionSearch]);
+
+  const getConditionExample = (c: RuleCondition): string => {
+    return buildConditionExample(c, siteName);
+  };
+
+  const insertConditionFromCard = (c: RuleCondition, fullExample: boolean) => {
+    const example = getConditionExample(c);
+    const text = fullExample ? `${example}\n` : `${example.split('\n')[0]}\n`;
+    insertAtCursorOrReplaceSelection(text);
+    setActiveTab('editor');
+  };
+
+  const handleConditionCardClick = (c: RuleCondition) => {
+    if (conditionClickTimeoutRef.current !== null) {
+      window.clearTimeout(conditionClickTimeoutRef.current);
+    }
+
+    conditionClickTimeoutRef.current = window.setTimeout(() => {
+      insertConditionFromCard(c, false);
+      conditionClickTimeoutRef.current = null;
+    }, 220);
+  };
+
+  const handleConditionCardDoubleClick = (c: RuleCondition) => {
+    if (conditionClickTimeoutRef.current !== null) {
+      window.clearTimeout(conditionClickTimeoutRef.current);
+      conditionClickTimeoutRef.current = null;
+    }
+    insertConditionFromCard(c, true);
+  };
 
   const loadMutation = useMutation({
     mutationFn: async (selectedSite: string) => {
@@ -425,6 +536,14 @@ export function Rules() {
     
     return <Badge color="gray" variant="dot">Ready</Badge>;
   }, [hasLoaded, isCheckingSyntax, syntaxOk, errors]);
+
+  useEffect(() => {
+    return () => {
+      if (conditionClickTimeoutRef.current !== null) {
+        window.clearTimeout(conditionClickTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
   if (error) return <Alert color="red" title="Error">Could not load sites</Alert>;
@@ -583,22 +702,24 @@ export function Rules() {
                 />
                 
                 <Text size="xs" c="dimmed">
-                   Click a condition to insert it into the editor (switches to Editor tab).
+                   Click inserts a quick rule line. Double-click inserts a full example rule block.
                 </Text>
 
                 <ScrollArea style={{ height: 'calc(100vh - 400px)', minHeight: '400px' }}>
                   <Grid gutter="sm">
                     {filteredConditions.map((c) => (
                       <Grid.Col key={c.name} span={{ base: 12, md: 6, lg: 4 }}>
+                        {(() => {
+                          const conditionExample = getConditionExample(c);
+                          const shortExample = conditionExample.split('\n')[0];
+                          return (
                         <Paper
                           withBorder
                           p="sm"
                           radius="sm"
                           style={{ cursor: 'pointer', transition: 'background-color 0.2s', height: '100%' }}
-                          onClick={() => {
-                             insertAtCursorOrReplaceSelection(`if ${c.name} `);
-                             setActiveTab('editor');
-                          }}
+                          onClick={() => handleConditionCardClick(c)}
+                          onDoubleClick={() => handleConditionCardDoubleClick(c)}
                           className="condition-card"
                         >
                           <Group justify="space-between" align="start" wrap="nowrap" mb={4}>
@@ -608,7 +729,14 @@ export function Rules() {
                           <Text size="xs" c="dimmed" lh={1.3}>
                             {c.description}
                           </Text>
+                          <Tooltip label={conditionExample} withArrow multiline w={420}>
+                            <Text size="xs" mt={6} style={{ fontFamily: 'monospace' }} c="blue">
+                              {shortExample}
+                            </Text>
+                          </Tooltip>
                         </Paper>
+                          );
+                        })()}
                       </Grid.Col>
                     ))}
                   </Grid>
