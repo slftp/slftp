@@ -116,6 +116,8 @@ function browserSortIndicator(active: boolean, dir: BrowserSortDir) {
 
 export function Issues() {
   const BROWSER_PENDING_POLL_MS = 1000;
+  const BROWSER_INITIAL_RENDER_LIMIT = 1000;
+  const BROWSER_RENDER_LIMIT_STEP = 1000;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState('');
@@ -128,6 +130,7 @@ export function Issues() {
   const [browserPath, setBrowserPath] = useState('/');
   const [browserSortBy, setBrowserSortBy] = useState<BrowserDirSortBy>('modified');
   const [browserSortDir, setBrowserSortDir] = useState<BrowserSortDir>('desc');
+  const [browserRenderLimit, setBrowserRenderLimit] = useState<number>(BROWSER_INITIAL_RENDER_LIMIT);
 
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useQuery({
     queryKey: ['issuesSummary'],
@@ -240,6 +243,7 @@ export function Issues() {
   const navigateBrowserPath = (value: string) => {
     const next = normalizePath(value);
     setBrowserPath(next || '/');
+    setBrowserRenderLimit(BROWSER_INITIAL_RENDER_LIMIT);
   };
 
   const handleBrowserRefresh = () => {
@@ -251,6 +255,7 @@ export function Issues() {
 
   const openBrowser = () => {
     setBrowserPath('/');
+    setBrowserRenderLimit(BROWSER_INITIAL_RENDER_LIMIT);
     setBrowserOpen(true);
   };
 
@@ -264,6 +269,8 @@ export function Issues() {
     const files = browserData?.files || [];
     return sortBrowserDirs(files.filter((f) => f.is_dir || f.is_symlink), browserSortBy, browserSortDir);
   }, [browserData, browserSortBy, browserSortDir]);
+  const visibleBrowserDirs = useMemo(() => browserDirs.slice(0, browserRenderLimit), [browserDirs, browserRenderLimit]);
+  const hasHiddenBrowserDirs = browserDirs.length > visibleBrowserDirs.length;
 
   const breadcrumbItems = useMemo(() => {
     const parts = browserPath === '/' ? [] : browserPath.split('/').filter(Boolean);
@@ -644,7 +651,7 @@ export function Issues() {
                     </Table.Td>
                   </Table.Tr>
                 )}
-                {browserDirs.map((dir) => (
+                {visibleBrowserDirs.map((dir) => (
                   <Table.Tr key={dir.name} style={{ cursor: 'pointer' }} onClick={() => navigateBrowserPath(`${browserPath === '/' ? '' : browserPath}/${dir.name}`)}>
                     <Table.Td>
                       <Group gap="xs">
@@ -659,6 +666,24 @@ export function Issues() {
                     </Table.Td>
                   </Table.Tr>
                 ))}
+                {hasHiddenBrowserDirs && (
+                  <Table.Tr>
+                    <Table.Td colSpan={2}>
+                      <Group justify="space-between" wrap="nowrap">
+                        <Text size="sm" c="dimmed">
+                          Showing {visibleBrowserDirs.length} of {browserDirs.length} entries
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setBrowserRenderLimit((prev) => Math.min(prev + BROWSER_RENDER_LIMIT_STEP, browserDirs.length))}
+                        >
+                          Load {Math.min(BROWSER_RENDER_LIMIT_STEP, browserDirs.length - visibleBrowserDirs.length)} more
+                        </Button>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                )}
               </Table.Tbody>
             </Table>
           )}

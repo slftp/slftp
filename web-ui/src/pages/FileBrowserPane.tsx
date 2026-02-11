@@ -6,6 +6,7 @@ import {
   Alert,
   Anchor,
   Badge,
+  Button,
   Breadcrumbs,
   Center,
   Checkbox,
@@ -53,6 +54,8 @@ interface FileBrowserPaneProps {
 }
 
 const BROWSER_PENDING_POLL_MS = 120;
+const INITIAL_RENDER_LIMIT = 1000;
+const RENDER_LIMIT_STEP = 1000;
 
 function _parseModifiedMs(aFile: FileEntry): number | null {
   const record = aFile as unknown as Record<string, unknown>;
@@ -167,6 +170,7 @@ export function FileBrowserPane({
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortBy>('modified');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [renderLimit, setRenderLimit] = useState<number>(INITIAL_RENDER_LIMIT);
   const queryClient = useQueryClient();
   const toggleStartTime = useRef<number | null>(null);
 
@@ -184,6 +188,7 @@ export function FileBrowserPane({
     if (propPath !== undefined) {
       setInternalPath(propPath);
       setInputPath(propPath);
+      setRenderLimit(INITIAL_RENDER_LIMIT);
     }
   }, [propPath]);
 
@@ -194,6 +199,7 @@ export function FileBrowserPane({
     setInternalPath(newPath);
     onPathChange?.(newPath);
     setSelectedFiles(new Set());
+    setRenderLimit(INITIAL_RENDER_LIMIT);
   };
 
   const handlePathNavigate = useCallback((newPath: string) => {
@@ -202,6 +208,7 @@ export function FileBrowserPane({
     setInternalPath(p);
     onPathChange?.(p);
     setSelectedFiles(new Set());
+    setRenderLimit(INITIAL_RENDER_LIMIT);
   }, [onPathChange]);
 
   const { data: sitesData, error: sitesError, isLoading: sitesLoading } = useQuery<SitesListItem[]>({
@@ -351,6 +358,8 @@ export function FileBrowserPane({
     });
     return decorated;
   }, [files, sortBy, sortDir]);
+  const visibleSortedFiles = useMemo(() => sortedFiles.slice(0, renderLimit), [sortedFiles, renderLimit]);
+  const hasHiddenRows = sortedFiles.length > visibleSortedFiles.length;
 
   return (
     <Stack gap="sm" h="100%" mih={0}>
@@ -563,7 +572,7 @@ export function FileBrowserPane({
                   </Table.Tr>
                 )}
 
-                {sortedFiles.map(({ f, modifiedMs }, idx) => (
+                {visibleSortedFiles.map(({ f, modifiedMs }, idx) => (
                   <FileRow
                     key={`${f.name}-${idx}`}
                     file={f}
@@ -574,6 +583,24 @@ export function FileBrowserPane({
                     currentPath={internalPath}
                   />
                 ))}
+                {hasHiddenRows && (
+                  <Table.Tr>
+                    <Table.Td colSpan={5}>
+                      <Group justify="space-between" wrap="nowrap">
+                        <Text size="sm" c="dimmed">
+                          Showing {visibleSortedFiles.length} of {sortedFiles.length} entries
+                        </Text>
+                        <Button
+                          size="xs"
+                          variant="light"
+                          onClick={() => setRenderLimit((prev) => Math.min(prev + RENDER_LIMIT_STEP, sortedFiles.length))}
+                        >
+                          Load {Math.min(RENDER_LIMIT_STEP, sortedFiles.length - visibleSortedFiles.length)} more
+                        </Button>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                )}
               </Table.Tbody>
             </Table>
           </Table.ScrollContainer>

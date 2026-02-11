@@ -49,9 +49,6 @@ export const FileRow = memo(function FileRow({
   onNavigate,
   currentPath,
 }: FileRowProps) {
-  // Debug log to check for unnecessary re-renders
-  console.log(`[FileRow] Rendering: ${f.name} (selected: ${selected})`);
-
   return (
     <Table.Tr
       style={{ cursor: (f.is_dir || f.is_symlink) ? 'pointer' : 'default', userSelect: 'none' }}
