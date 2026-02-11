@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs, Textarea, Modal } from '@mantine/core';
 import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -48,6 +48,38 @@ type SimulatorResponse = {
   };
 };
 
+type DetectSectionResponse = {
+  success: boolean;
+  section?: string;
+  error?: string;
+  message?: string;
+  debug?: DetectSectionDebug;
+};
+
+type DetectSectionDebug = {
+  release?: string;
+  inputDirect?: string;
+  sectionDirect?: string;
+  usedReplace?: boolean;
+  replaceChanged?: boolean;
+  resolution?: string;
+  inputAfterReplace?: string;
+  sectionAfterReplace?: string;
+  sectionBeforeMapping?: string;
+  sectionAfterMapping?: string;
+  mappingChanged?: boolean;
+  compactTrace?: string;
+  trace?: string;
+};
+
+type SectionDetectionResult = {
+  ReleaseName: string;
+  Section: string;
+  Error?: string;
+  Success: boolean;
+  Debug?: DetectSectionDebug;
+};
+
 function parseMaybeJsonArray<T = any>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
   if (typeof value === 'string') {
@@ -61,11 +93,21 @@ function parseMaybeJsonArray<T = any>(value: unknown): T[] {
   return [];
 }
 
+async function detectSectionByReleaseName(rlsName: string): Promise<DetectSectionResponse> {
+  const res = await apiClient.post('/ApiSimulatorService/DetectSection', { ReleaseName: rlsName });
+  if (res.data?.result && Array.isArray(res.data.result)) return res.data.result[0] as DetectSectionResponse;
+  return res.data as DetectSectionResponse;
+}
+
 function ReleaseSimulator() {
   const [section, setSection] = useState('');
   const [releaseName, setReleaseName] = useState('');
   const [simulatePre, setSimulatePre] = useState(false);
   const [filter, setFilter] = useState('');
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsRelease, setDetailsRelease] = useState('');
+  const [detailsSection, setDetailsSection] = useState('');
+  const [detailsDebug, setDetailsDebug] = useState<DetectSectionDebug | undefined>(undefined);
 
   const { data: recentReleasesData } = useQuery({
     queryKey: ['recent-releases'],
@@ -102,15 +144,21 @@ function ReleaseSimulator() {
   });
 
   const detectSectionMutation = useMutation({
-    mutationFn: async (rlsName: string) => {
-      const res = await apiClient.post('/ApiSimulatorService/DetectSection', { ReleaseName: rlsName });
-      if (res.data?.result && Array.isArray(res.data.result)) return res.data.result[0];
-      return res.data;
-    },
+    mutationFn: detectSectionByReleaseName,
     onSuccess: (data) => {
       if (data?.success && data?.section) {
         setSection(data.section);
       }
+    },
+  });
+
+  const detectSectionDetailsMutation = useMutation({
+    mutationFn: detectSectionByReleaseName,
+    onSuccess: (data, rlsName) => {
+      setDetailsRelease(rlsName);
+      setDetailsSection(data?.section || '');
+      setDetailsDebug(data?.debug);
+      setDetailsOpen(true);
     },
   });
 
@@ -223,7 +271,17 @@ function ReleaseSimulator() {
                 <Badge color="teal" variant="light">Allowed: {sim.AllowedSites}</Badge>
                 <Badge color="violet" variant="light">{simulatePre ? 'PRE' : 'NEWDIR'}</Badge>
               </Group>
-              <Text size="xs" c="dimmed">{sim.Section} · {sim.Releasename}</Text>
+              <Tooltip label="Show how this section was built">
+                <Button
+                  variant="subtle"
+                  size="compact-sm"
+                  px={0}
+                  onClick={() => sim.Releasename && detectSectionDetailsMutation.mutate(sim.Releasename)}
+                  loading={detectSectionDetailsMutation.isPending}
+                >
+                  {sim.Section} · {sim.Releasename}
+                </Button>
+              </Tooltip>
             </Group>
           </Card>
 
@@ -297,6 +355,309 @@ function ReleaseSimulator() {
           </Card>
         </>
       )}
+
+      <Modal
+        opened={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        title="Section Build Details"
+        size="80%"
+        yOffset="2vh"
+      >
+        <Stack gap="xs">
+          <Text size="sm"><b>Release:</b> {detailsRelease || '-'}</Text>
+          <Text size="sm"><b>Final Section:</b> {detailsSection || '-'}</Text>
+          <Table withTableBorder withColumnBorders>
+            <Table.Tbody>
+              <Table.Tr>
+                <Table.Td w={180}><Text size="sm">Direct input</Text></Table.Td>
+                <Table.Td><Text size="sm" ff="monospace">{detailsDebug?.inputDirect || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Direct section</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.sectionDirect || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Tried replace fallback</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.usedReplace ? 'yes' : 'no'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Replace changed input</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.usedReplace ? (detailsDebug?.replaceChanged ? 'yes' : 'no') : '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Resolution mode</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.resolution || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Input after replace</Text></Table.Td>
+                <Table.Td><Text size="sm" ff="monospace">{detailsDebug?.inputAfterReplace || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Section after replace</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.sectionAfterReplace || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Before mapping</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.sectionBeforeMapping || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">After mapping</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.sectionAfterMapping || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Mapping changed</Text></Table.Td>
+                <Table.Td><Text size="sm">{detailsDebug?.mappingChanged ? 'yes' : 'no'}</Text></Table.Td>
+              </Table.Tr>
+            </Table.Tbody>
+          </Table>
+
+          {detailsDebug?.compactTrace && (
+            <Textarea
+              label="Compact Trace"
+              readOnly
+              value={detailsDebug.compactTrace}
+              autosize
+              minRows={6}
+              maxRows={16}
+            />
+          )}
+
+          {detailsDebug?.trace && (
+            <details>
+              <summary>Full Trace</summary>
+              <Textarea
+                label=""
+                readOnly
+                value={detailsDebug.trace}
+                autosize
+                minRows={6}
+                maxRows={14}
+                mt="xs"
+              />
+            </details>
+          )}
+        </Stack>
+      </Modal>
+    </Stack>
+  );
+}
+
+function SectionsSimulator() {
+  const [releaseInput, setReleaseInput] = useState('');
+  const [selectedResult, setSelectedResult] = useState<SectionDetectionResult | null>(null);
+
+  const releases = useMemo(() => {
+    const names = releaseInput
+      .split(/\r?\n/)
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    return [...new Set(names)];
+  }, [releaseInput]);
+
+  const detectSectionsMutation = useMutation({
+    mutationFn: async (releaseNames: string[]) => {
+      const result = await Promise.all(releaseNames.map(async (releaseName) => {
+        try {
+          const response = await detectSectionByReleaseName(releaseName);
+          if (response?.success && response.section) {
+            return {
+              ReleaseName: releaseName,
+              Section: response.section,
+              Success: true,
+              Debug: response.debug,
+            } as SectionDetectionResult;
+          }
+
+          return {
+            ReleaseName: releaseName,
+            Section: '',
+            Error: response?.error || response?.message || 'No section detected',
+            Success: false,
+            Debug: response.debug,
+          } as SectionDetectionResult;
+        } catch (error: any) {
+          return {
+            ReleaseName: releaseName,
+            Section: '',
+            Error: error?.message || 'Request failed',
+            Success: false,
+            Debug: undefined,
+          } as SectionDetectionResult;
+        }
+      }));
+
+      return result;
+    },
+  });
+
+  const results = detectSectionsMutation.data || [];
+  const detectedCount = results.filter((r) => r.Success).length;
+
+  return (
+    <Stack>
+      <Card withBorder radius="md" p="md">
+        <Stack gap="md">
+          <Textarea
+            label="Releases"
+            placeholder="One release per line..."
+            value={releaseInput}
+            onChange={(e) => setReleaseInput(e.currentTarget.value)}
+            autosize
+            minRows={8}
+            maxRows={18}
+          />
+
+          <Group justify="space-between" align="center">
+            <Text size="sm" c="dimmed">
+              {releases.length} unique release{releases.length === 1 ? '' : 's'}
+            </Text>
+            <Button
+              leftSection={<IconWand size="1rem" />}
+              onClick={() => detectSectionsMutation.mutate(releases)}
+              loading={detectSectionsMutation.isPending}
+              disabled={releases.length === 0}
+            >
+              Detect Sections
+            </Button>
+          </Group>
+        </Stack>
+      </Card>
+
+      {detectSectionsMutation.isPending && (
+        <Group justify="center" p="md"><Loader size="md" /></Group>
+      )}
+
+      {detectSectionsMutation.isError && (
+        <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red">
+          {(detectSectionsMutation.error as any)?.message || 'Failed to detect sections'}
+        </Alert>
+      )}
+
+      {results.length > 0 && (
+        <>
+          <Card withBorder radius="md" p="sm">
+            <Group gap="xs">
+              <Badge color="gray" variant="light">Total: {results.length}</Badge>
+              <Badge color="teal" variant="light">Detected: {detectedCount}</Badge>
+              <Badge color="red" variant="light">Failed: {results.length - detectedCount}</Badge>
+            </Group>
+          </Card>
+
+          <Card withBorder radius="md" p="md">
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Release</Table.Th>
+                  <Table.Th>Section</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Error</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {results.map((result) => (
+                  <Table.Tr key={result.ReleaseName}>
+                    <Table.Td>
+                      <Button variant="subtle" size="compact-sm" px={0} onClick={() => setSelectedResult(result)}>
+                        {result.ReleaseName}
+                      </Button>
+                    </Table.Td>
+                    <Table.Td><Text size="sm">{result.Section || '-'}</Text></Table.Td>
+                    <Table.Td>
+                      <Badge color={result.Success ? 'teal' : 'red'} variant="light">
+                        {result.Success ? 'OK' : 'FAILED'}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td><Text size="sm" c={result.Success ? 'dimmed' : 'red'}>{result.Error || '-'}</Text></Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Card>
+        </>
+      )}
+
+      <Modal
+        opened={selectedResult !== null}
+        onClose={() => setSelectedResult(null)}
+        title="Section Build Details"
+        size="80%"
+        yOffset="2vh"
+      >
+        <Stack gap="xs">
+          <Text size="sm"><b>Release:</b> {selectedResult?.ReleaseName || '-'}</Text>
+          <Text size="sm"><b>Final Section:</b> {selectedResult?.Section || '-'}</Text>
+          <Table withTableBorder withColumnBorders>
+            <Table.Tbody>
+              <Table.Tr>
+                <Table.Td w={180}><Text size="sm">Direct input</Text></Table.Td>
+                <Table.Td><Text size="sm" ff="monospace">{selectedResult?.Debug?.inputDirect || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Direct section</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionDirect || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Tried replace fallback</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.usedReplace ? 'yes' : 'no'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Replace changed input</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.usedReplace ? (selectedResult?.Debug?.replaceChanged ? 'yes' : 'no') : '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Resolution mode</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.resolution || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Input after replace</Text></Table.Td>
+                <Table.Td><Text size="sm" ff="monospace">{selectedResult?.Debug?.inputAfterReplace || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Section after replace</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionAfterReplace || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Before mapping</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionBeforeMapping || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">After mapping</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionAfterMapping || '-'}</Text></Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td><Text size="sm">Mapping changed</Text></Table.Td>
+                <Table.Td><Text size="sm">{selectedResult?.Debug?.mappingChanged ? 'yes' : 'no'}</Text></Table.Td>
+              </Table.Tr>
+            </Table.Tbody>
+          </Table>
+
+          {selectedResult?.Debug?.compactTrace && (
+            <Textarea
+              label="Compact Trace"
+              readOnly
+              value={selectedResult.Debug.compactTrace}
+              autosize
+              minRows={6}
+              maxRows={16}
+            />
+          )}
+
+          {selectedResult?.Debug?.trace && (
+            <details>
+              <summary>Full Trace</summary>
+              <Textarea
+                label=""
+                readOnly
+                value={selectedResult.Debug.trace}
+                autosize
+                minRows={6}
+                maxRows={14}
+                mt="xs"
+              />
+            </details>
+          )}
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
@@ -313,6 +674,9 @@ export function Tools() {
           <Tabs.Tab value="simulator" leftSection={<IconCpu size="0.8rem" />}>
             Release Simulator
           </Tabs.Tab>
+          <Tabs.Tab value="sections-simulator" leftSection={<IconWand size="0.8rem" />}>
+            Sections Simulator
+          </Tabs.Tab>
           <Tabs.Tab value="speedtest" leftSection={<IconBolt size="0.8rem" />}>
             Speedtests
           </Tabs.Tab>
@@ -323,6 +687,10 @@ export function Tools() {
 
         <Tabs.Panel value="simulator" pt="xs">
           <ReleaseSimulator />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="sections-simulator" pt="xs">
+          <SectionsSimulator />
         </Tabs.Panel>
 
         <Tabs.Panel value="speedtest" pt="xs">

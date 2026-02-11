@@ -374,6 +374,7 @@ var
   
   glBrowserCacheLock: TSlCriticalSection2;
   glBrowserCache: TObjectDictionary<string, TBrowserCacheEntry>;
+  glPrecatcherDebugCaptureLock: TSlCriticalSection2;
 
 { TBrowserDirlistTask }
 
@@ -4894,9 +4895,11 @@ var
   announceDoc, resultDoc: variant;
   netname, channel, nick, text: string;
   debugLines: TStringList;
+  debugCaptureActive: Boolean;
 begin
   Result := '{}';
   debugLines := nil;
+  debugCaptureActive := False;
   try
     if Announce = '' then
     begin
@@ -4953,14 +4956,29 @@ begin
       Exit;
     end;
 
-    // Enable debug capture temporarily
-    Precatcher_BeginDebugCapture(debugLines);
-
-    // Process the announce
-    PrecatcherProcessB(netname, channel, nick, text);
-
-    // Disable debug capture
-    Precatcher_EndDebugCapture(debugLines);
+    glPrecatcherDebugCaptureLock.Enter('TestPrecatcher');
+    try
+      // Enable debug capture temporarily
+      Precatcher_BeginDebugCapture(debugLines);
+      debugCaptureActive := True;
+      try
+        // Process the announce
+        PrecatcherProcessB(netname, channel, nick, text);
+      finally
+        Precatcher_EndDebugCapture(debugLines);
+        debugCaptureActive := False;
+      end;
+    finally
+      if debugCaptureActive then
+      begin
+        try
+          Precatcher_EndDebugCapture(debugLines);
+        except
+          // ignore cleanup errors in exception path
+        end;
+      end;
+      glPrecatcherDebugCaptureLock.Leave;
+    end;
 
     // Return success
     TDocVariant.New(resultDoc);
@@ -5492,10 +5510,38 @@ end;
 function TApiSimulatorServiceImpl.DetectSection(const ReleaseName: RawUTF8): RawJSON;
 var
   resultDoc: variant;
+  debugDoc: variant;
   rls: string;
   detectedSection: string;
+  sectionDirect: string;
+  sectionAfterReplace: string;
+  sectionBeforeMapping: string;
+  inputDirect: string;
+  inputAfterReplace: string;
+  usedReplace: Boolean;
+  debugLines: TStringList;
+  compactLines: TStringList;
+  replaceLines: TStringList;
+  mappingSections: TStringList;
+  mappedLines: TStringList;
+  line: string;
+  sectionInChain: string;
+  pathText: string;
+  valueText: string;
+  resolutionMode: string;
+  replaceChanged: Boolean;
+  mappingOnly: Boolean;
+  i: Integer;
+  p: Integer;
+  debugCaptureActive: Boolean;
 begin
   Result := '{}';
+  debugLines := nil;
+  compactLines := nil;
+  replaceLines := nil;
+  mappingSections := nil;
+  mappedLines := nil;
+  debugCaptureActive := False;
   try
     rls := Trim(UTF8ToString(ReleaseName));
 
@@ -5509,18 +5555,192 @@ begin
       Exit;
     end;
 
-    // Use precatcher logic to detect section
-    detectedSection := FindSection(' ' + rls + ' ');
-    if detectedSection = '' then
-      detectedSection := FindSection(' ' + ProcessDoReplace(' ' + rls + ' ', rls) + ' ');
+    glPrecatcherDebugCaptureLock.Enter('DetectSection');
+    try
+      Precatcher_BeginDebugCapture(debugLines);
+      debugCaptureActive := True;
+      try
+        inputDirect := ' ' + rls + ' ';
 
-    // Apply section mapping
-    detectedSection := PrecatcherSectionMapping(rls, detectedSection);
+        // Use precatcher logic to detect section
+        sectionDirect := FindSection(inputDirect);
+        detectedSection := sectionDirect;
+
+        usedReplace := sectionDirect = '';
+        inputAfterReplace := '';
+        sectionAfterReplace := '';
+        if usedReplace then
+        begin
+          inputAfterReplace := ProcessDoReplace(inputDirect, rls);
+          sectionAfterReplace := FindSection(' ' + inputAfterReplace + ' ');
+          detectedSection := sectionAfterReplace;
+        end;
+
+        sectionBeforeMapping := detectedSection;
+
+        // Apply section mapping
+        detectedSection := PrecatcherSectionMapping(rls, detectedSection);
+      finally
+        Precatcher_EndDebugCapture(debugLines);
+        debugCaptureActive := False;
+      end;
+    finally
+      if debugCaptureActive then
+      begin
+        try
+          Precatcher_EndDebugCapture(debugLines);
+        except
+          // ignore cleanup errors in exception path
+        end;
+        debugCaptureActive := False;
+      end;
+      glPrecatcherDebugCaptureLock.Leave;
+    end;
+
+    compactLines := TStringList.Create;
+    replaceLines := TStringList.Create;
+    mappingSections := TStringList.Create;
+    mappedLines := TStringList.Create;
+
+    if debugLines <> nil then
+    begin
+      for i := 0 to debugLines.Count - 1 do
+      begin
+        line := Trim(debugLines[i]);
+        if line = '' then
+          Continue;
+
+        if Pos('ProcessDoReplace ', line) = 1 then
+        begin
+          if replaceLines.IndexOf(line) = -1 then
+            replaceLines.Add(line);
+          Continue;
+        end;
+
+        if Pos('PrecatcherSectionMapping start testing ', line) = 1 then
+        begin
+          p := Pos(' in ', line);
+          if p > 0 then
+            sectionInChain := Trim(Copy(line, p + 4, MaxInt))
+          else
+            sectionInChain := '';
+
+          if mappingSections.IndexOf(sectionInChain) = -1 then
+            mappingSections.Add(sectionInChain);
+          Continue;
+        end;
+
+        if (Pos('PrecatcherSectionMapping ', line) = 1) and (Pos(' mapped to ', line) > 0) then
+        begin
+          if mappedLines.IndexOf(line) = -1 then
+            mappedLines.Add(line);
+          Continue;
+        end;
+      end;
+    end;
+
+    compactLines.Add(Format('Release: %s', [rls]));
+    if sectionDirect <> '' then
+      valueText := sectionDirect
+    else
+      valueText := '(none)';
+    compactLines.Add(Format('Direct section: %s', [valueText]));
+
+    if sectionAfterReplace <> '' then
+      valueText := sectionAfterReplace
+    else
+      valueText := '(none)';
+    compactLines.Add(Format('Section after replace: %s', [valueText]));
+
+    replaceChanged := usedReplace and (inputAfterReplace <> inputDirect);
+    if usedReplace then
+      compactLines.Add(Format('Replace changed input: %s', [BoolToStr(replaceChanged, True)]));
+
+    if replaceChanged and (replaceLines.Count > 0) then
+    begin
+      compactLines.Add('');
+      compactLines.Add('Applied replace rules:');
+      for i := 0 to replaceLines.Count - 1 do
+        compactLines.Add('- ' + replaceLines[i]);
+    end;
+
+    if mappingSections.Count > 0 then
+    begin
+      pathText := '';
+      for i := 0 to mappingSections.Count - 1 do
+      begin
+        sectionInChain := mappingSections[i];
+        if sectionInChain = '' then
+          sectionInChain := '(root)';
+
+        if pathText = '' then
+          pathText := sectionInChain
+        else
+          pathText := pathText + ' -> ' + sectionInChain;
+      end;
+      compactLines.Add('');
+      compactLines.Add('Mapping path: ' + pathText);
+    end;
+
+    if mappedLines.Count > 0 then
+    begin
+      compactLines.Add('');
+      compactLines.Add('Matched mappings:');
+      for i := 0 to mappedLines.Count - 1 do
+        compactLines.Add('- ' + mappedLines[i]);
+    end;
+
+    mappingOnly := (sectionDirect = '') and (sectionAfterReplace = '') and (detectedSection <> '');
+    if mappingOnly then
+      resolutionMode := 'mapping-only'
+    else if sectionAfterReplace <> '' then
+      resolutionMode := 'replace+mapping'
+    else if sectionDirect <> '' then
+      resolutionMode := 'direct+mapping'
+    else
+      resolutionMode := 'none';
+
+    compactLines.Add('');
+    compactLines.Add('Resolution: ' + resolutionMode);
+
+    compactLines.Add('');
+    if sectionBeforeMapping <> '' then
+      valueText := sectionBeforeMapping
+    else
+      valueText := '(none)';
+    compactLines.Add(Format('Before mapping: %s', [valueText]));
+
+    if detectedSection <> '' then
+      valueText := detectedSection
+    else
+      valueText := '(none)';
+    compactLines.Add(Format('Final section: %s', [valueText]));
 
     TDocVariant.New(resultDoc);
     TDocVariantData(resultDoc).AddValue('success', True);
     TDocVariantData(resultDoc).AddValue('error', '');
     TDocVariantData(resultDoc).AddValue('section', UTF8Encode(detectedSection));
+    TDocVariant.New(debugDoc);
+    TDocVariantData(debugDoc).AddValue('release', UTF8Encode(rls));
+    TDocVariantData(debugDoc).AddValue('inputDirect', UTF8Encode(inputDirect));
+    TDocVariantData(debugDoc).AddValue('sectionDirect', UTF8Encode(sectionDirect));
+    TDocVariantData(debugDoc).AddValue('usedReplace', usedReplace);
+    TDocVariantData(debugDoc).AddValue('replaceChanged', replaceChanged);
+    TDocVariantData(debugDoc).AddValue('resolution', UTF8Encode(resolutionMode));
+    TDocVariantData(debugDoc).AddValue('inputAfterReplace', UTF8Encode(inputAfterReplace));
+    TDocVariantData(debugDoc).AddValue('sectionAfterReplace', UTF8Encode(sectionAfterReplace));
+    TDocVariantData(debugDoc).AddValue('sectionBeforeMapping', UTF8Encode(sectionBeforeMapping));
+    TDocVariantData(debugDoc).AddValue('sectionAfterMapping', UTF8Encode(detectedSection));
+    TDocVariantData(debugDoc).AddValue('mappingChanged', sectionBeforeMapping <> detectedSection);
+    if (debugLines <> nil) and (debugLines.Count > 0) then
+      TDocVariantData(debugDoc).AddValue('trace', UTF8Encode(debugLines.Text))
+    else
+      TDocVariantData(debugDoc).AddValue('trace', UTF8Encode(''));
+    if (compactLines <> nil) and (compactLines.Count > 0) then
+      TDocVariantData(debugDoc).AddValue('compactTrace', UTF8Encode(compactLines.Text))
+    else
+      TDocVariantData(debugDoc).AddValue('compactTrace', UTF8Encode(''));
+    TDocVariantData(resultDoc).AddValue('debug', debugDoc);
     Result := VariantSaveJSON(resultDoc);
   except
     on E: Exception do
@@ -5533,6 +5753,16 @@ begin
       Result := VariantSaveJSON(resultDoc);
     end;
   end;
+  if mappedLines <> nil then
+    mappedLines.Free;
+  if mappingSections <> nil then
+    mappingSections.Free;
+  if replaceLines <> nil then
+    replaceLines.Free;
+  if compactLines <> nil then
+    compactLines.Free;
+  if debugLines <> nil then
+    debugLines.Free;
 end;
 
 { TApiImdbServiceImpl }
@@ -6162,6 +6392,7 @@ initialization
   glSiteCreditsCache := TDictionary<string, TSiteCreditsCacheEntry>.Create;
   glBrowserCacheLock := TSlCriticalSection2.Create('ApiBrowserCache');
   glBrowserCache := TObjectDictionary<string, TBrowserCacheEntry>.Create([doOwnsValues]);
+  glPrecatcherDebugCaptureLock := TSlCriticalSection2.Create('ApiPrecatcherDebugCapture');
   GlApiTaskToPazoIdLock := TSLCriticalSection2.Create('ApiTaskMap');
   GlApiTaskToPazoId := TDictionary<Int64, Integer>.Create;
 
@@ -6170,6 +6401,7 @@ finalization
   glSiteCreditsCacheLock.Free;
   glBrowserCache.Free;
   glBrowserCacheLock.Free;
+  glPrecatcherDebugCaptureLock.Free;
   GlApiTaskToPazoId.Free;
   GlApiTaskToPazoIdLock.Free;
 
