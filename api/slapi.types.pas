@@ -107,6 +107,7 @@ type
     FPerformanceAdjustedDirlist: boolean;
     FSkipBeingUploadedFiles: integer;
     FKillConnectionOnStalledTransferSeconds: integer;
+    FDestinationQueueLimit: integer;
   published
     property Name: RawUTF8 read FName write FName;
     property Username: RawUTF8 read FUsername write FUsername;
@@ -140,6 +141,7 @@ type
     property PerformanceAdjustedDirlist: boolean read FPerformanceAdjustedDirlist write FPerformanceAdjustedDirlist;
     property SkipBeingUploadedFiles: integer read FSkipBeingUploadedFiles write FSkipBeingUploadedFiles;
     property KillConnectionOnStalledTransferSeconds: integer read FKillConnectionOnStalledTransferSeconds write FKillConnectionOnStalledTransferSeconds;
+    property DestinationQueueLimit: integer read FDestinationQueueLimit write FDestinationQueueLimit;
   end;
 
   { Text File Response (e.g. rules files) }

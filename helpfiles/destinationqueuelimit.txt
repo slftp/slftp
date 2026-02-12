@@ -1,0 +1,12 @@
+Usage: <cmd> sitename1,sitename2 [limit]
+Set destination-side queued race task limit per site.
+Value 0 means no limit.
+If limit is omitted, the current value is shown.
+
+Examples:
+<cmd> SITENAME 250 <- cap queued race tasks targeting SITENAME at 250
+<cmd> SITENAME 0 <- disable destination queue limit on SITENAME
+<cmd> * 150 <- set limit to 150 on all sites
+
+Note:
+Limit applies when creating new race tasks for the site as destination.

@@ -657,6 +657,7 @@ function ReadSites(): boolean;
 procedure SlotsFire;
 procedure SiteAutoStart;
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
 procedure QueueFireInverval(const interval: integer);
 procedure QueueCleanInverval(const interval: integer);
 function RemovePazo(const aPazoID: integer; const aForce: boolean = False): boolean;
@@ -1127,6 +1128,22 @@ begin
     begin
       Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [t.Name, e.Message]);
     end;
+  end;
+end;
+
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
+var
+  fSite: TSite;
+begin
+  Result := 0;
+  if aDestinationSiteName = '' then
+    Exit;
+
+  for fSite in sites do
+  begin
+    if (fSite = nil) or (fSite.fQueue = nil) then
+      Continue;
+    Inc(Result, fSite.fQueue.GetPendingRaceTasksToDestination(aDestinationSiteName));
   end;
 end;
 

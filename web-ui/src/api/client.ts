@@ -89,6 +89,7 @@ export interface Site {
   permdown?: boolean;
   autologin?: boolean;
   autorules_interval?: number;
+  destination_queue_limit?: number;
 }
 
 export interface SitesListResponse {

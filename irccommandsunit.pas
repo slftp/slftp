@@ -51,7 +51,7 @@ const
     'section', 'simulator', 'kb', 'precatcher', 'speedtest', 'windows');
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..230] of TIrcCommand = (
+  ircCommandsArray: array[1..231] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -78,6 +78,7 @@ const
     (cmd: 'setdir'; hnd: IrcSetDir; minparams: 2; maxparams: - 1; hlpgrp: 'site'),
     (cmd: 'slots'; hnd: IrcSlots; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'reservedslots'; hnd: IrcReservedSlots; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'destinationqueuelimit'; hnd: IrcDestinationQueueLimit; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxupdn'; hnd: IrcMaxUpDn; minparams: 3; maxparams: 4; hlpgrp: 'site'),
     (cmd: 'maxupperrip'; hnd: IrcMaxUpPerRip; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'maxidle'; hnd: IrcMaxIdle; minparams: 2; maxparams: 3; hlpgrp: 'site'),

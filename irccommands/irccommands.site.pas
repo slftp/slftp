@@ -16,6 +16,7 @@ function IrcSetSitePermdown(const netname, channel, params: String): boolean;
 function IrcSetDir(const netname, channel, params: String): boolean;
 function IrcSlots(const netname, channel, params: String): boolean;
 function IrcReservedSlots(const netname, channel, params: String): boolean;
+function IrcDestinationQueueLimit(const netname, channel, params: String): boolean;
 function IrcMaxUpDn(const netname, channel, params: String): boolean;
 function IrcMaxUpPerRip(const netname, channel, params: String): boolean;
 function IrcMaxIdle(const netname, channel, params: String): boolean;
@@ -1155,6 +1156,97 @@ begin
         else
         begin
           fSite.WCInteger('reserved_race_slots', fReserved);
+          Announce(fSite);
+        end;
+      end;
+    finally
+      fSites.Free;
+    end;
+  end;
+
+  Result := True;
+end;
+
+function IrcDestinationQueueLimit(const netname, channel, params: String): boolean;
+var
+  fSitename: String;
+  fValue: String;
+  fSite: TSite;
+  fSites: TStringList;
+  fIndex: integer;
+  fLimit: integer;
+  fOutputOnly: boolean;
+
+  procedure Announce(const aSite: TSite);
+  var
+    fConfigured: integer;
+  begin
+    fConfigured := aSite.RCInteger('destination_queue_limit', 0);
+    if fConfigured < 0 then
+      fConfigured := 0;
+
+    if fConfigured = 0 then
+      irc_addtext(Netname, Channel, 'Destination queue limit on <b>%s</b>: <b>no limit</b>', [aSite.Name])
+    else
+      irc_addtext(Netname, Channel, 'Destination queue limit on <b>%s</b>: <b>%d</b>', [aSite.Name, fConfigured]);
+  end;
+begin
+  Result := False;
+
+  fSitename := UpperCase(SubString(params, ' ', 1));
+  fValue := Trim(SubString(params, ' ', 2));
+  fOutputOnly := (fValue = '');
+
+  if not fOutputOnly then
+  begin
+    fLimit := StrToIntDef(fValue, -1);
+    if fLimit < 0 then
+    begin
+      irc_addtext(Netname, Channel, '<c4><b>Syntax error</b></c>: destination queue limit must be >= 0 (0 = no limit).');
+      Exit;
+    end;
+  end
+  else
+  begin
+    fLimit := -1;
+  end;
+
+  if fSitename = '*' then
+  begin
+    for fIndex := 0 to sites.Count - 1 do
+    begin
+      fSite := TSite(sites.Items[fIndex]);
+      if (fSite.Name = getAdminSiteName) then
+        Continue;
+      if fOutputOnly then
+      begin
+        Announce(fSite);
+        Continue;
+      end;
+      fSite.WCInteger('destination_queue_limit', fLimit);
+      Announce(fSite);
+    end;
+  end
+  else
+  begin
+    fSites := TStringList.Create;
+    try
+      fSites.CommaText := fSitename;
+      for fIndex := 0 to fSites.Count - 1 do
+      begin
+        fSite := FindSiteByName(Netname, fSites.Strings[fIndex]);
+        if fSite = nil then
+        begin
+          irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSites.Strings[fIndex]]);
+          Continue;
+        end;
+        if fSite.Name = getAdminSiteName then
+          Continue;
+        if fOutputOnly then
+          Announce(fSite)
+        else
+        begin
+          fSite.WCInteger('destination_queue_limit', fLimit);
           Announce(fSite);
         end;
       end;

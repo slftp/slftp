@@ -50,6 +50,7 @@ export function SiteSettings() {
   const [maxDn, setMaxDn] = useState<number | ''>('');
   const [maxUp, setMaxUp] = useState<number | ''>('');
   const [maxPreDn, setMaxPreDn] = useState<number | ''>('');
+  const [destinationQueueLimit, setDestinationQueueLimit] = useState<number | ''>(0);
   const [status, setStatus] = useState<'UP' | 'DOWN' | ''>('');
   const [permDown, setPermDown] = useState(false);
   const [autoLogin, setAutoLogin] = useState(false);
@@ -136,6 +137,7 @@ export function SiteSettings() {
       setGlobalDirlistInterval(siteInfo.GlobalDirlistInterval ?? 0);
       setSkipUploaded(String(siteInfo.SkipBeingUploadedFiles ?? 0));
       setKillOnStalled(siteInfo.KillConnectionOnStalledTransferSeconds ?? 0);
+      setDestinationQueueLimit(siteInfo.DestinationQueueLimit ?? 0);
       setSslMethod(String(siteInfo.SslMethod ?? 0));
       setSslFxp(String(siteInfo.SslFxp ?? 0));
       setMaxUpPerRip(siteInfo.MaxUpPerRip ?? 0);
@@ -190,6 +192,7 @@ export function SiteSettings() {
       
       setNewdirDirlistReadd(siteRuntime.newdir_dirlist_readd === 0 ? '' : (siteRuntime.newdir_dirlist_readd ?? ''));
       setAutoRulesInterval(siteRuntime.autorules_interval ?? 0);
+      setDestinationQueueLimit(siteRuntime.destination_queue_limit ?? 0);
       setIrcNick(siteRuntime.ircnick ?? '');
     }
   }, [siteRuntime]);
@@ -223,6 +226,7 @@ export function SiteSettings() {
               performance_adjusted_dirlist: performanceAdjustedDirlist,
               skip_being_uploaded_files: Number(skipUploaded),
               kill_connection_on_stalled_transfer: Number(killOnStalled),
+              destination_queue_limit: Number(destinationQueueLimit),
               maxupperrip: Number(maxUpPerRip),
               site_full_name: siteFullName,
               site_link_speed: siteLinkSpeed,
@@ -377,6 +381,13 @@ export function SiteSettings() {
                             min={0}
                             onChange={(val) => setMaxUpPerRip(val === '' ? '' : Number(val))}
                             placeholder="0 = unlimited"
+                        />
+                        <NumberInput
+                            label="Destination Queue Limit"
+                            value={destinationQueueLimit}
+                            min={0}
+                            onChange={(val) => setDestinationQueueLimit(val === '' ? '' : Number(val))}
+                            placeholder="0 = no limit"
                         />
                     </SimpleGrid>
                 </div>

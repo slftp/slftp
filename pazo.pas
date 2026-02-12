@@ -514,6 +514,9 @@ var
   s: TSite;
   fd: String;
   siteSkipList: TSkipList;
+  destinationQueueLimit: Integer;
+  destinationQueuedRaceCount: Integer;
+  destinationQueueLimitReached: Boolean;
 begin
   if pazo.FUDPEnabled then exit(False);
 
@@ -592,6 +595,14 @@ begin
       // Dirlist for destination site not available
       if dstdl = nil then Continue;
       if dstdl.error then Continue;
+      destinationQueueLimit := s.RCInteger('destination_queue_limit', 0);
+      if destinationQueueLimit < 0 then
+        destinationQueueLimit := 0;
+      if destinationQueueLimit > 0 then
+        destinationQueuedRaceCount := GetPendingRaceTaskCountForDestination(dst.Name)
+      else
+        destinationQueuedRaceCount := 0;
+      destinationQueueLimitReached := False;
 
       for de in aDirListEntries do
       begin
@@ -704,6 +715,17 @@ begin
           // destination dir is not complete
           if not dstdl.complete then
           begin
+            if (destinationQueueLimit > 0) and (destinationQueuedRaceCount >= destinationQueueLimit) then
+            begin
+              if not destinationQueueLimitReached then
+              begin
+                destinationQueueLimitReached := True;
+                Debug(dpSpam, section, '%s :: Skipping new RACE tasks to %s due destination_queue_limit=%d (queued=%d)',
+                  [fd, dst.Name, destinationQueueLimit, destinationQueuedRaceCount]);
+              end;
+              Continue;
+            end;
+
             // skip nfo and sfv if already there
             if ((dstdl.HasSFV) and (de.IsSFV)) then
               Continue;
@@ -803,6 +825,7 @@ begin
             // finally we can add the task
             try
               AddTask(pr);
+              Inc(destinationQueuedRaceCount);
               Result := True;
             except
               on e: Exception do

@@ -77,6 +77,7 @@ function FetchAutoBnctest: TLoginTask;
 function FetchAutoRules: TRulesTask;
 function FetchAutoDirlist: TAutoDirlistTask;
 function FetchAutoNuke: TAutoNukeTask;
+function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
 
 { Send the current tasks to the queue console window. }
 procedure QueueSendCurrentTasksToConsole;
@@ -2316,6 +2317,34 @@ begin
         begin
           Debug(dpError, section, Format('[EXCEPTION] TSite.FetchAutoRules: %s', [e.Message]));
         end;
+      end;
+    end;
+  finally
+    main_lock.Leave;
+  end;
+end;
+
+function TQueueThread.GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
+var
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+begin
+  Result := 0;
+  if aDestinationSiteName = '' then
+    Exit;
+
+  main_lock.Enter('GetPendingRaceTasksToDestination');
+  try
+    for fTask in tasks do
+    begin
+      if not (fTask is TPazoRaceTask) then
+        Continue;
+
+      fRaceTask := TPazoRaceTask(fTask);
+      if (not fRaceTask.ready) and (not fRaceTask.readyerror) and (fRaceTask.slot1 = nil) and
+        SameText(fRaceTask.site2, aDestinationSiteName) then
+      begin
+        Inc(Result);
       end;
     end;
   finally

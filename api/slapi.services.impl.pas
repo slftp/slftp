@@ -1331,6 +1331,7 @@ type
     DirlistPriority: integer;
     NewdirDirlistReadd: integer;
     PerformanceAdjustedDirlist: boolean;
+    DestinationQueueLimit: integer;
   end;
 var
   i: integer;
@@ -1505,6 +1506,15 @@ begin
           // ignore
         end;
 
+        snapshots[snapshotCount].DestinationQueueLimit := 0;
+        try
+          snapshots[snapshotCount].DestinationQueueLimit := s.RCInteger('destination_queue_limit', 0);
+          if snapshots[snapshotCount].DestinationQueueLimit < 0 then
+            snapshots[snapshotCount].DestinationQueueLimit := 0;
+        except
+          // ignore
+        end;
+
         Inc(snapshotCount);
       end;
     except
@@ -1573,6 +1583,7 @@ begin
         TDocVariantData(siteDoc).AddValue('dirlist_priority', snapshot.DirlistPriority);
         TDocVariantData(siteDoc).AddValue('newdir_dirlist_readd', snapshot.NewdirDirlistReadd);
         TDocVariantData(siteDoc).AddValue('performance_adjusted_dirlist', snapshot.PerformanceAdjustedDirlist);
+        TDocVariantData(siteDoc).AddValue('destination_queue_limit', snapshot.DestinationQueueLimit);
       except
         // ignore add failures
       end;
@@ -2614,6 +2625,9 @@ begin
     Info.PerformanceAdjustedDirlist := s.PerformanceAdjustedDirlist;
     Info.SkipBeingUploadedFiles := Integer(s.SkipBeingUploadedFiles);
     Info.KillConnectionOnStalledTransferSeconds := s.KillConnectionOnStalledTransferSeconds;
+    Info.DestinationQueueLimit := s.RCInteger('destination_queue_limit', 0);
+    if Info.DestinationQueueLimit < 0 then
+      Info.DestinationQueueLimit := 0;
     Info.SiteFullName := UTF8Encode(s.SiteFullName);
     Info.SiteLinkSpeed := UTF8Encode(s.SiteLinkSpeed);
     Info.SiteSize := UTF8Encode(s.SiteSize);
@@ -2636,6 +2650,7 @@ function TApiSitesServiceImpl.SetSiteConfig(const SiteName: RawUTF8; const Confi
 var
   s: TSite;
   data: TDocVariantData;
+  fDestinationQueueLimit: integer;
 begin
   Result := False;
   try
@@ -2655,6 +2670,13 @@ begin
     if data.GetValueIndex('performance_adjusted_dirlist') >= 0 then s.PerformanceAdjustedDirlist := boolean(data.GetValueOrNull('performance_adjusted_dirlist'));
     if data.GetValueIndex('skip_being_uploaded_files') >= 0 then s.SkipBeingUploadedFiles := TSkipBeingUploaded(Integer(data.GetValueOrNull('skip_being_uploaded_files')));
     if data.GetValueIndex('kill_connection_on_stalled_transfer') >= 0 then s.KillConnectionOnStalledTransferSeconds := data.GetValueOrNull('kill_connection_on_stalled_transfer');
+    if data.GetValueIndex('destination_queue_limit') >= 0 then
+    begin
+      fDestinationQueueLimit := data.GetValueOrNull('destination_queue_limit');
+      if fDestinationQueueLimit < 0 then
+        fDestinationQueueLimit := 0;
+      s.WCInteger('destination_queue_limit', fDestinationQueueLimit);
+    end;
     if data.GetValueIndex('maxupperrip') >= 0 then s.MaxUpPerRip := data.GetValueOrNull('maxupperrip');
     if data.GetValueIndex('site_full_name') >= 0 then s.SiteFullName := string(data.GetValueOrNull('site_full_name'));
     if data.GetValueIndex('site_link_speed') >= 0 then s.SiteLinkSpeed := string(data.GetValueOrNull('site_link_speed'));
