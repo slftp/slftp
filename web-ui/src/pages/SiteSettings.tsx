@@ -12,6 +12,7 @@ import {
   Switch,
   Textarea,
   TextInput,
+  Tooltip,
   Title,
   Paper,
   SimpleGrid,
@@ -21,7 +22,7 @@ import {
   Code
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconArrowLeft, IconPlus, IconX, IconDeviceFloppy, IconWorld, IconRefresh } from '@tabler/icons-react';
+import { IconArrowLeft, IconPlus, IconX, IconDeviceFloppy, IconWorld, IconRefresh, IconInfoCircle } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -383,7 +384,27 @@ export function SiteSettings() {
                             placeholder="0 = unlimited"
                         />
                         <NumberInput
-                            label="Destination Queue Limit"
+                            label={
+                                <Group gap={6} align="center" wrap="nowrap">
+                                    <span>Destination Queue Limit</span>
+                                    <Tooltip
+                                        withArrow
+                                        multiline
+                                        w={320}
+                                        label="Limits pending, not-yet-assigned RACE tasks targeting this destination. 0 means no limit."
+                                    >
+                                        <ActionIcon
+                                            variant="subtle"
+                                            color="gray"
+                                            size="xs"
+                                            radius="xl"
+                                            aria-label="Destination Queue Limit Info"
+                                        >
+                                            <IconInfoCircle size={14} />
+                                        </ActionIcon>
+                                    </Tooltip>
+                                </Group>
+                            }
                             value={destinationQueueLimit}
                             min={0}
                             onChange={(val) => setDestinationQueueLimit(val === '' ? '' : Number(val))}
