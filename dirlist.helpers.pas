@@ -131,23 +131,23 @@ const
     VeryLow, Low, Normal, High, VeryHigh: Integer;
   end = (
     // Performance Level 1 (CPU overload - slowest)
-    (VeryLow: 1000; Low: 800; Normal: 600; High: 400; VeryHigh: 300),
+    (VeryLow: 1000; Low: 800; Normal: 500; High: 150; VeryHigh: 25),
     // Performance Level 2 (very high load)
-    (VeryLow: 800; Low: 600; Normal: 450; High: 300; VeryHigh: 200),
+    (VeryLow: 900; Low: 700; Normal: 450; High: 130; VeryHigh: 25),
     // Performance Level 3 (high load)
-    (VeryLow: 600; Low: 450; Normal: 300; High: 200; VeryHigh: 150),
+    (VeryLow: 800; Low: 600; Normal: 400; High: 110; VeryHigh: 25),
     // Performance Level 4 (medium-high load)
-    (VeryLow: 450; Low: 300; Normal: 200; High: 150; VeryHigh: 100),
+    (VeryLow: 700; Low: 500; Normal: 350; High: 90; VeryHigh: 25),
     // Performance Level 5 (balanced - standard)
-    (VeryLow: 300; Low: 200; Normal: 150; High: 100; VeryHigh: 80),
+    (VeryLow: 600; Low: 400; Normal: 300; High: 75; VeryHigh: 25),
     // Performance Level 6 (low load)
-    (VeryLow: 200; Low: 150; Normal: 100; High: 80; VeryHigh: 60),
+    (VeryLow: 500; Low: 300; Normal: 240; High: 60; VeryHigh: 20),
     // Performance Level 7 (very low load)
-    (VeryLow: 150; Low: 100; Normal: 80; High: 60; VeryHigh: 40),
+    (VeryLow: 400; Low: 220; Normal: 180; High: 45; VeryHigh: 15),
     // Performance Level 8 (minimal load)
-    (VeryLow: 100; Low: 80; Normal: 60; High: 40; VeryHigh: 25),
+    (VeryLow: 300; Low: 150; Normal: 120; High: 35; VeryHigh: 12),
     // Performance Level 9 (optimal performance - fastest)
-    (VeryLow: 80; Low: 60; Normal: 40; High: 25; VeryHigh: 10)
+    (VeryLow: 200; Low: 100; Normal: 80; High: 25; VeryHigh: 10)
   );
 
 var
