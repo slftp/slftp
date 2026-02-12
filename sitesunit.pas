@@ -920,11 +920,55 @@ end;
     i, ii: integer;
     show_tasks: integer;
     show_all: boolean;
-    rr: TRegExpr;
+    rr, rrTaskState: TRegExpr;
     fSite: TSite;
     fTasksList: Contnrs.TObjectList;
+    fDestinationQueueCountCache: TDictionary<String, Integer>;
+
+    function GetDestinationQueueCount(const aDestinationSite: String): integer;
+    begin
+      Result := 0;
+      if aDestinationSite = '' then
+        Exit;
+
+      if not fDestinationQueueCountCache.TryGetValue(UpperCase(aDestinationSite), Result) then
+      begin
+        Result := GetPendingRaceTaskCountForDestination(aDestinationSite);
+        fDestinationQueueCountCache.Add(UpperCase(aDestinationSite), Result);
+      end;
+    end;
+
+    function FormatQueueTaskForDisplay(const aQueueTask: TQueueTask): String;
+    var
+      fBaseLine: String;
+      fRunnableText: String;
+      fDestinationQueueCount: integer;
+    begin
+      Result := aQueueTask.FFullname;
+      fBaseLine := Result;
+
+      if rrTaskState.Exec(Result) then
+        fBaseLine := rrTaskState.Match[1];
+
+      if aQueueTask.FRunnable then
+        fRunnableText := 'yes'
+      else
+        fRunnableText := 'no';
+
+      Result := Format('%s [tries=%d runnable=%s]',
+        [fBaseLine, aQueueTask.FTryToAssign, fRunnableText]);
+
+      if aQueueTask.FDestinationSite <> '' then
+      begin
+        fDestinationQueueCount := GetDestinationQueueCount(aQueueTask.FDestinationSite);
+        Result := Format('%s [dstQueue=%d]',
+          [Result, fDestinationQueueCount]);
+      end;
+    end;
   begin
     rr := TRegExpr.Create;
+    rrTaskState := TRegExpr.Create;
+    fDestinationQueueCountCache := TDictionary<String, Integer>.Create;
     fTasksList := TObjectList.Create(True);
     try
 
@@ -951,6 +995,8 @@ end;
         show_all := True;
       end;
 
+      rrTaskState.Expression := '^(.*)\s\[(\d+)\]\s\[([01])\]$';
+
       ii := 0;
       irc_addtext(netname, channel, 'Tasks in queue: %d displaycount: %d', [fTasksList.Count, Min(show_tasks, fTasksList.Count)]);
 
@@ -960,7 +1006,7 @@ end;
 
           if show_all then
           begin
-            irc_addtext(netname, channel, TQueueTask(fTasksList[i]).FFullname);
+            irc_addtext(netname, channel, FormatQueueTaskForDisplay(TQueueTask(fTasksList[i])));
           end
           else
           begin
@@ -971,7 +1017,7 @@ end;
             rr.Expression := '(AUTO(LOGIN|INDEX|NUKE|RULES))';
             if ((not rr.Exec(TQueueTask(fTasksList[i]).FFullname))) then
             begin
-              irc_addtext(netname, channel, TQueueTask(fTasksList[i]).FFullname);
+              irc_addtext(netname, channel, FormatQueueTaskForDisplay(TQueueTask(fTasksList[i])));
               Inc(ii);
             end;
           end;
@@ -985,6 +1031,8 @@ end;
 
     finally
       fTasksList.Free;
+      fDestinationQueueCountCache.Free;
+      rrTaskState.Free;
       rr.Free;
     end;
 

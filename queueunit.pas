@@ -17,6 +17,9 @@ end;
 type TQueueTask = class
   FFullname: string;
   FType: TClass;
+  FTryToAssign: integer;
+  FRunnable: boolean;
+  FDestinationSite: string;
 end;
 
 type
@@ -2411,6 +2414,7 @@ end;
   var
   fTask: TTask;
   fQueueTask: TQueueTask;
+  fRaceTask: TPazoRaceTask;
   begin
     main_lock.Enter('GetCurrentTasks');
     try
@@ -2419,6 +2423,19 @@ end;
         fQueueTask := TQueueTask.Create;
         fQueueTask.FFullname := fTask.Fullname;
         fQueueTask.FType := fTask.ClassType;
+        fQueueTask.FTryToAssign := fTask.TryToAssign;
+        fQueueTask.FRunnable := fTask.IsReadyToBeExecuted;
+        fQueueTask.FDestinationSite := '';
+        if (fTask is TPazoRaceTask) then
+        begin
+          fRaceTask := TPazoRaceTask(fTask);
+          fQueueTask.FDestinationSite := fRaceTask.site2;
+        end
+        else if (fTask is TWaitTask) then
+        begin
+          // WaitTask.site1 is the destination site for the paired race task
+          fQueueTask.FDestinationSite := fTask.site1;
+        end;
         taskLst.Add(fQueueTask);
       end;
     finally
