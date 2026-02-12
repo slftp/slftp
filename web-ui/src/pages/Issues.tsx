@@ -315,13 +315,13 @@ export function Issues() {
     });
   }, [issues, filter]);
 
-  const typeColor = (t: string) => {
+  const typeBadgeStyle = (t: string) => {
     const u = (t || '').toUpperCase();
-    if (u === 'SKIP') return 'orange';
-    if (u === 'DONT_MATCH' || u === 'DONTMATCH') return 'red';
-    if (u === 'MISSING_SECTION' || u === 'MISSING_SECTION_DIR') return 'yellow';
-    if (u === 'NUKE') return 'grape';
-    return 'gray';
+    if (u === 'SKIP') return { background: 'rgba(251, 191, 36, 0.25)', border: '1px solid rgba(251, 191, 36, 0.5)', color: '#fbbf24' };
+    if (u === 'DONT_MATCH' || u === 'DONTMATCH') return { background: 'rgba(248, 113, 113, 0.25)', border: '1px solid rgba(248, 113, 113, 0.5)', color: '#f87171' };
+    if (u === 'MISSING_SECTION' || u === 'MISSING_SECTION_DIR') return { background: 'rgba(250, 204, 21, 0.25)', border: '1px solid rgba(250, 204, 21, 0.5)', color: '#facc15' };
+    if (u === 'NUKE') return { background: 'rgba(168, 85, 247, 0.25)', border: '1px solid rgba(168, 85, 247, 0.5)', color: '#a855f7' };
+    return { background: 'rgba(100, 116, 139, 0.25)', border: '1px solid rgba(100, 116, 139, 0.5)', color: '#94a3b8' };
   };
 
   return (
@@ -340,35 +340,62 @@ export function Issues() {
           ) : (
             <Group justify="space-between">
               <Group gap="xs">
-                <Badge color="gray" variant="light" style={{ cursor: 'pointer' }} onClick={() => setFilter('')}>Total: {summary.Total}</Badge>
+                <Badge 
+                  variant="light" 
+                  style={{ 
+                    cursor: 'pointer',
+                    background: 'rgba(100, 116, 139, 0.25)',
+                    border: '1px solid rgba(100, 116, 139, 0.5)',
+                    color: '#94a3b8'
+                  }} 
+                  onClick={() => setFilter('')}
+                >
+                  Total: {summary.Total}
+                </Badge>
                 <Badge
-                  color="orange"
                   variant="light"
-                  style={{ cursor: 'pointer' }}
+                  style={{ 
+                    cursor: 'pointer',
+                    background: 'rgba(251, 191, 36, 0.25)',
+                    border: '1px solid rgba(251, 191, 36, 0.5)',
+                    color: '#fbbf24'
+                  }}
                   onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'SKIP'))}
                 >
                   Skip: {summary.Skip}
                 </Badge>
                 <Badge
-                  color="red"
                   variant="light"
-                  style={{ cursor: 'pointer' }}
+                  style={{ 
+                    cursor: 'pointer',
+                    background: 'rgba(248, 113, 113, 0.25)',
+                    border: '1px solid rgba(248, 113, 113, 0.5)',
+                    color: '#f87171'
+                  }}
                   onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'DONT_MATCH'))}
                 >
                   DontMatch: {summary.DontMatch}
                 </Badge>
                 <Badge
-                  color="yellow"
                   variant="light"
-                  style={{ cursor: 'pointer' }}
+                  style={{ 
+                    cursor: 'pointer',
+                    background: 'rgba(250, 204, 21, 0.25)',
+                    border: '1px solid rgba(250, 204, 21, 0.5)',
+                    color: '#facc15'
+                  }}
                   onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'MISSING_SECTION'))}
                 >
                   MissingSection: {summary.MissingSection}
                 </Badge>
                 <Badge
-                  color="grape"
                   variant="light"
-                  style={{ cursor: 'pointer' }}
+                  style={{ 
+                    cursor: 'pointer',
+                    background: 'rgba(168, 85, 247, 0.25)',
+                    border: '1px solid rgba(168, 85, 247, 0.5)',
+                    color: '#a855f7'
+                  }}
                   onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'NUKE'))}
                 >
                   Nuke: {summary.Nuke}
@@ -433,10 +460,13 @@ export function Issues() {
                     </Table.Td>
                     <Table.Td style={{ minWidth: 90, whiteSpace: 'nowrap' }}>
                       <Badge
-                        color={typeColor(i.IssueType)}
                         variant="light"
                         size="sm"
-                        style={{ whiteSpace: 'nowrap', maxWidth: 'none' }}
+                        style={{ 
+                          whiteSpace: 'nowrap', 
+                          maxWidth: 'none',
+                          ...typeBadgeStyle(i.IssueType)
+                        }}
                       >
                         {i.IssueType}
                       </Badge>

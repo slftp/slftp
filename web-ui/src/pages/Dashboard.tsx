@@ -1,9 +1,41 @@
-import { SimpleGrid, Card, Text, Title, Group, ThemeIcon, RingProgress, Center, Stack, Loader, Alert, Badge, Table, ScrollArea, Modal, Progress, Tooltip } from '@mantine/core';
-import { IconClock, IconListCheck, IconAlertCircle, IconRocket, IconInfoCircle, IconAlertTriangle } from '@tabler/icons-react';
+import { 
+  SimpleGrid, 
+  Card, 
+  Text, 
+  Title, 
+  Group, 
+  ThemeIcon, 
+  Center, 
+  Stack, 
+  Loader, 
+  Alert, 
+  Badge, 
+  Table, 
+  ScrollArea, 
+  Modal, 
+  Progress, 
+  Tooltip,
+  Box,
+  Grid,
+} from '@mantine/core';
+import { 
+  IconClock, 
+  IconAlertCircle, 
+  IconRocket, 
+  IconInfoCircle, 
+  IconAlertTriangle,
+  IconServer,
+  IconActivity,
+  IconTrendingUp,
+  IconCheck,
+  IconPlayerPlay,
+  IconPlayerPause,
+} from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import type { SystemStatus, IssuesSummary } from '../api/client';
 import { useState } from 'react';
+import { StatCard, MiniStatCard } from '../components/StatCard';
 
 interface ReleaseInfo {
   ReleaseName: string;
@@ -61,7 +93,7 @@ export function Dashboard() {
   const { data: releasesData, isLoading: releasesLoading } = useQuery({
     queryKey: ['recentReleases'],
     queryFn: async () => {
-      const res = await apiClient.post('/ApiSystemService/GetRecentReleases', { Limit: 10 });
+      const res = await apiClient.post('/ApiSystemService/GetRecentReleases', { Limit: 15 });
       if (res.data && res.data.result && Array.isArray(res.data.result)) {
         const releasesList = res.data.result[0];
         if (releasesList && releasesList.Releases) {
@@ -127,10 +159,32 @@ export function Dashboard() {
     enabled: selectedPazoId !== null && modalOpened,
   });
 
-  if (isLoading) return <Center h={400}><Loader size="xl" /></Center>;
+  if (isLoading) return (
+    <Center h={300}>
+      <Stack align="center" gap="sm">
+        <Loader 
+          size="lg" 
+          color="brand"
+          style={{
+            filter: 'drop-shadow(0 0 16px rgba(67, 24, 255, 0.4))',
+          }}
+        />
+        <Text size="sm" c="dimmed">Loading system status...</Text>
+      </Stack>
+    </Center>
+  );
   
   if (error) return (
-    <Alert icon={<IconAlertCircle size="1rem" />} title="Connection Error" color="red">
+    <Alert 
+      icon={<IconAlertCircle size="1.25rem" />} 
+      title="Connection Error" 
+      color="red"
+      radius="lg"
+      style={{
+        background: 'rgba(255, 77, 77, 0.1)',
+        border: '1px solid rgba(255, 77, 77, 0.3)',
+      }}
+    >
       Could not connect to slftp API. Is the server running on port 8089?
       <br />
       Error: {error.message}
@@ -139,7 +193,6 @@ export function Dashboard() {
 
   const stats = data!;
 
-  // Format uptime (seconds to readable)
   const formatUptime = (seconds: number) => {
     const d = Math.floor(seconds / (3600 * 24));
     const h = Math.floor((seconds % (3600 * 24)) / 3600);
@@ -152,205 +205,342 @@ export function Dashboard() {
   const totalSites = stats.SitesCount;
   const sitesUpPct = totalSites > 0 ? (stats.SitesUp / totalSites) * 100 : 0;
 
+  const readyCount = releasesData?.releases.filter((r: ReleaseInfo) => r.Ready).length || 0;
+  const racingCount = releasesData?.releases.filter((r: ReleaseInfo) => !r.Ready && !r.Stopped).length || 0;
+  const stoppedCount = releasesData?.releases.filter((r: ReleaseInfo) => r.Stopped).length || 0;
+
   return (
-    <Stack>
-      <Title order={2}>System Status</Title>
-      
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-        
-        {/* Uptime Card */}
-        <Card withBorder padding="lg" radius="md">
-          <Group justify="space-between">
-            <div>
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase">
-                Uptime
-              </Text>
-              <Text fw={700} size="xl">
-                {uptimeStr}
-              </Text>
-              <Text size="xs" c="dimmed">
-                Version: {stats.Version}
-              </Text>
-            </div>
-            <ThemeIcon color="blue" variant="light" size={48} radius="md">
-              <IconClock size="1.8rem" stroke={1.5} />
-            </ThemeIcon>
-          </Group>
-        </Card>
+    <Stack gap="lg">
+      {/* Header Section */}
+      <Box>
+        <Group justify="space-between" align="flex-end" mb={4}>
+          <div>
+            <Text size="xs" c="dimmed" mb={2}>Welcome back,</Text>
+            <Title 
+              order={4}
+              style={{
+                background: 'linear-gradient(135deg, #fff 0%, #a3aed0 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              System Overview
+            </Title>
+          </div>
+          <Badge
+            size="sm"
+            radius="md"
+            style={{
+              background: 'linear-gradient(135deg, rgba(67, 24, 255, 0.2) 0%, rgba(134, 140, 255, 0.1) 100%)',
+              border: '1px solid rgba(67, 24, 255, 0.3)',
+            }}
+          >
+            v{stats.Version}
+          </Badge>
+        </Group>
+      </Box>
 
-        {/* Sites Status Card */}
-        <Card withBorder padding="lg" radius="md">
-          <Group justify="space-between">
-            <div>
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase">
-                Sites Online
-              </Text>
-              <Text fw={700} size="xl">
-                {stats.SitesUp} / {stats.SitesCount}
-              </Text>
-              <Text size="xs" c={stats.SitesDown > 0 ? 'red' : 'dimmed'}>
-                {stats.SitesDown} Offline
-              </Text>
-            </div>
-            <RingProgress
-              size={55}
-              thickness={6}
-              roundCaps
-              sections={[{ value: sitesUpPct, color: sitesUpPct > 90 ? 'teal' : 'orange' }]}
-            />
-          </Group>
-        </Card>
+      {/* Main Stats Grid */}
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        <StatCard
+          title="Uptime"
+          value={uptimeStr}
+          subtitle={`Version ${stats.Version}`}
+          icon={<IconClock size="1.4rem" stroke={1.5} color="white" />}
+          iconColor="#4318ff"
+          iconGradient="linear-gradient(135deg, #4318ff 0%, #868cff 100%)"
+          variant="gradient"
+        />
 
-        {/* Queue Card */}
-        <Card withBorder padding="lg" radius="md">
-          <Group justify="space-between">
-            <div>
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase">
-                Active Tasks
-              </Text>
-              <Text fw={700} size="xl">
-                {stats.ActiveTasks}
-              </Text>
-              <Group gap="xs">
-                <Text size="xs" c="dimmed">
-                  Queue Size: {stats.QueueSize}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  ·
-                </Text>
-                <Text size="xs" c="blue" fw={500}>
-                  {stats.DirlistPerSecond?.toFixed(1) ?? 0} dir/s (max: {stats.DirlistPerSecondMax?.toFixed(1) ?? 0})
-                </Text>
-              </Group>
-            </div>
-            <ThemeIcon color="grape" variant="light" size={48} radius="md">
-              <IconListCheck size="1.8rem" stroke={1.5} />
-            </ThemeIcon>
-          </Group>
-        </Card>
+        <StatCard
+          title="Sites Online"
+          value={`${stats.SitesUp} / ${stats.SitesCount}`}
+          subtitle={stats.SitesDown > 0 ? `${stats.SitesDown} sites offline` : 'All systems operational'}
+          icon={<IconServer size="1.4rem" stroke={1.5} color="white" />}
+          iconColor="#00ff88"
+          iconGradient="linear-gradient(135deg, #00ff88 0%, #00d4ff 100%)"
+          trend={{ value: sitesUpPct, isPositive: sitesUpPct > 90 }}
+        />
 
-        {/* Issues Card */}
-        <Card withBorder padding="lg" radius="md">
-          <Group justify="space-between">
-            <div>
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase">
-                Issues (24h)
-              </Text>
-              <Text fw={700} size="xl">
-                {issuesSummary?.Total ?? 0}
-              </Text>
-              <Text size="xs" c="dimmed">
-                Skip: {issuesSummary?.Skip ?? 0} · DontMatch: {issuesSummary?.DontMatch ?? 0} · Missing: {issuesSummary?.MissingSection ?? 0} · Nuke: {issuesSummary?.Nuke ?? 0}
-              </Text>
-            </div>
-            <ThemeIcon color="yellow" variant="light" size={48} radius="md">
-              <IconAlertTriangle size="1.8rem" stroke={1.5} />
-            </ThemeIcon>
-          </Group>
-        </Card>
+        <StatCard
+          title="Active Tasks"
+          value={stats.ActiveTasks}
+          subtitle={`Queue: ${stats.QueueSize} | ${stats.DirlistPerSecond?.toFixed(1) ?? 0} dir/s`}
+          icon={<IconActivity size="1.4rem" stroke={1.5} color="white" />}
+          iconColor="#9b59b6"
+          iconGradient="linear-gradient(135deg, #9b59b6 0%, #e74c3c 100%)"
+        />
 
+        <StatCard
+          title="Issues (24h)"
+          value={issuesSummary?.Total ?? 0}
+          subtitle={`Skip: ${issuesSummary?.Skip ?? 0} · Missing: ${issuesSummary?.MissingSection ?? 0}`}
+          icon={<IconAlertTriangle size="1.4rem" stroke={1.5} color="white" />}
+          iconColor="#ffb547"
+          iconGradient="linear-gradient(135deg, #ffb547 0%, #ff6b6b 100%)"
+          trend={issuesSummary && issuesSummary.Total > 0 ? { value: issuesSummary.Total, isPositive: false } : undefined}
+        />
       </SimpleGrid>
 
-      {/* Recent Releases */}
-      <Card withBorder padding="lg" radius="md" mt="xl">
+      {/* Mini Stats Row */}
+      <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
+        <MiniStatCard
+          title="Ready"
+          value={readyCount}
+          icon={<IconCheck size="1rem" />}
+          color="#00ff88"
+        />
+        <MiniStatCard
+          title="Racing"
+          value={racingCount}
+          icon={<IconPlayerPlay size="1rem" />}
+          color="#4318ff"
+        />
+        <MiniStatCard
+          title="Stopped"
+          value={stoppedCount}
+          icon={<IconPlayerPause size="1rem" />}
+          color="#ffb547"
+        />
+        <MiniStatCard
+          title="Dir/sec"
+          value={stats.DirlistPerSecondMax?.toFixed(1) ?? 0}
+          icon={<IconTrendingUp size="1rem" />}
+          color="#00d4ff"
+        />
+      </SimpleGrid>
+
+      {/* Recent Releases Table */}
+      <Card
+        radius="xl"
+        padding="lg"
+        style={{
+          background: 'linear-gradient(127.09deg, rgba(30, 41, 59, 0.9) 19.41%, rgba(40, 49, 71, 0.8) 76.65%)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          boxShadow: '0 4px 24px rgba(0, 0, 0, 0.4), 0 0 60px rgba(67, 24, 255, 0.08)',
+        }}
+      >
         <Group justify="space-between" mb="md">
-          <Group>
-            <ThemeIcon color="violet" variant="light" size={32} radius="md">
-              <IconRocket size="1.2rem" stroke={1.5} />
+          <Group gap="sm">
+            <ThemeIcon
+              size={36}
+              radius="lg"
+              style={{
+                background: 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)',
+                boxShadow: '0 6px 20px rgba(67, 24, 255, 0.3)',
+              }}
+            >
+              <IconRocket size="1rem" stroke={2} color="white" />
             </ThemeIcon>
-            <Title order={3}>Recent Releases</Title>
+            <Box>
+              <Title order={5} style={{ color: '#fff', marginBottom: 2 }}>Recent Releases</Title>
+              <Text size="xs" c="dimmed">Latest racing activity</Text>
+            </Box>
           </Group>
           {releasesData && (
-            <Badge size="lg" variant="light">
+            <Badge
+              size="sm"
+              radius="md"
+              style={{
+                background: 'rgba(67, 24, 255, 0.15)',
+                border: '1px solid rgba(67, 24, 255, 0.25)',
+                color: '#868cff',
+              }}
+            >
               {releasesData.total} total
             </Badge>
           )}
         </Group>
 
-	        {releasesLoading ? (
-	          <Center h={200}><Loader size="md" /></Center>
-	        ) : releasesData && releasesData.releases.length > 0 ? (
-	          <ScrollArea type="always" offsetScrollbars>
-	            <div style={{ minWidth: 900 }}>
-	            <Table striped highlightOnHover style={{ tableLayout: 'fixed' }}>
-	              <Table.Thead>
-	                <Table.Tr>
-	                  <Table.Th style={{ width: '42%' }}>Release</Table.Th>
-	                  <Table.Th style={{ width: '14%' }}>Section</Table.Th>
-	                  <Table.Th style={{ width: '24%' }}>Sites</Table.Th>
-	                  <Table.Th style={{ width: '10%' }}>Status</Table.Th>
-	                  <Table.Th style={{ width: '10%' }}>Queue #</Table.Th>
-	                </Table.Tr>
-	              </Table.Thead>
-	              <Table.Tbody>
-	                {releasesData.releases.map((release: ReleaseInfo, idx: number) => (
-                  <Table.Tr
-                    key={release.PazoId || idx}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => {
-                      setSelectedPazoId(release.PazoId);
-                      setModalOpened(true);
-	                    }}
-	                  >
-	                    <Table.Td>
-	                      <Tooltip label={release.ReleaseName} position="top-start" withArrow>
-	                        <Text size="sm" fw={500} style={{ fontFamily: 'monospace' }} truncate>
-	                          {release.ReleaseName}
-	                        </Text>
-	                      </Tooltip>
-	                    </Table.Td>
-	                    <Table.Td>
+        {releasesLoading ? (
+          <Center h={150}>
+            <Loader color="brand" size="md" />
+          </Center>
+        ) : releasesData && releasesData.releases.length > 0 ? (
+          <ScrollArea type="always" offsetScrollbars>
+            <div style={{ minWidth: 800 }}>
+              <Table 
+                style={{ tableLayout: 'fixed' }}
+                styles={{
+                  thead: {
+                    background: 'rgba(30, 41, 59, 0.8)',
+                  },
+                  th: {
+                    color: '#94a3b8',
+                    fontWeight: 600,
+                    fontSize: '10px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    padding: '10px 12px',
+                  },
+                  td: {
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                    padding: '10px 12px',
+                  },
+                  tr: {
+                    transition: 'background 0.15s ease',
+                    '&:hover': {
+                      background: 'rgba(79, 70, 229, 0.08)',
+                    },
+                  },
+                }}
+              >
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th style={{ width: '42%' }}>Release</Table.Th>
+                    <Table.Th style={{ width: '14%' }}>Section</Table.Th>
+                    <Table.Th style={{ width: '24%' }}>Sites</Table.Th>
+                    <Table.Th style={{ width: '10%' }}>Status</Table.Th>
+                    <Table.Th style={{ width: '10%' }}>Queue #</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {releasesData.releases.map((release: ReleaseInfo, idx: number) => (
+                    <Table.Tr
+                      key={release.PazoId || idx}
+                      style={{ 
+                        cursor: 'pointer',
+                        background: idx % 2 === 1 ? 'rgba(15, 23, 42, 0.6)' : 'transparent',
+                      }}
+                      onClick={() => {
+                        setSelectedPazoId(release.PazoId);
+                        setModalOpened(true);
+                      }}
+                    >
+                      <Table.Td>
+                        <Tooltip label={release.ReleaseName} position="top-start" withArrow>
+                          <Text 
+                            size="sm" 
+                            fw={500} 
+                            style={{ 
+                              fontFamily: 'monospace',
+                              color: '#fff',
+                            }} 
+                            truncate
+                          >
+                            {release.ReleaseName}
+                          </Text>
+                        </Tooltip>
+                      </Table.Td>
+                      <Table.Td>
                         {!release.Section || release.Section === '' ? (
-                          <Badge color="red" variant="filled" size="xs">
-                            SECTION NOT SET
+                          <Badge 
+                            color="red" 
+                            variant="filled" 
+                            size="xs"
+                            radius="sm"
+                          >
+                            NO SECTION
                           </Badge>
                         ) : (
-                          <Badge size="sm" variant="dot">
-                            <Text span size="xs" truncate style={{ maxWidth: 140 }}>
-                              {release.Section}
-                            </Text>
+                          <Badge 
+                            size="xs" 
+                            variant="light"
+                            radius="sm"
+                            styles={{
+                              root: {
+                                background: 'rgba(67, 24, 255, 0.12)',
+                                border: '1px solid rgba(67, 24, 255, 0.25)',
+                                color: '#868cff',
+                              },
+                            }}
+                          >
+                            {release.Section}
                           </Badge>
                         )}
-	                    </Table.Td>
-	                    <Table.Td>
-	                      <Group gap="xs" wrap="wrap">
-	                        {release.Sites && release.Sites.length > 0 ? (
-	                          release.Sites.filter(s => s.toLowerCase() !== 'slftp').slice(0, 3).map((site, i) => (
-	                            <Badge key={i} size="sm" variant="light" color="blue">
-	                              {site}
-	                            </Badge>
-                          ))
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={4} wrap="wrap">
+                          {release.Sites && release.Sites.length > 0 ? (
+                            release.Sites.filter(s => s.toLowerCase() !== 'slftp').slice(0, 4).map((site, i) => (
+                              <Badge 
+                                key={i} 
+                                size="xs" 
+                                variant="light"
+                                radius="sm"
+                                styles={{
+                                  root: {
+                                    background: 'rgba(0, 212, 255, 0.12)',
+                                    border: '1px solid rgba(0, 212, 255, 0.25)',
+                                    color: '#00d4ff',
+                                  },
+                                }}
+                              >
+                                {site}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Text size="xs" c="dimmed">No sites</Text>
+                          )}
+                          {release.Sites && release.Sites.filter(s => s.toLowerCase() !== 'slftp').length > 4 && (
+                            <Badge 
+                              size="xs" 
+                              variant="light"
+                              radius="sm"
+                              c="dimmed"
+                            >
+                              +{release.Sites.filter(s => s.toLowerCase() !== 'slftp').length - 4}
+                            </Badge>
+                          )}
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        {release.Ready ? (
+                          <Badge 
+                            size="xs" 
+                            radius="sm"
+                            style={{
+                              background: 'rgba(0, 255, 136, 0.15)',
+                              border: '1px solid rgba(0, 255, 136, 0.3)',
+                              color: '#00ff88',
+                            }}
+                          >
+                            Ready
+                          </Badge>
+                        ) : release.Stopped ? (
+                          <Badge 
+                            size="xs" 
+                            radius="sm"
+                            style={{
+                              background: 'rgba(255, 77, 77, 0.15)',
+                              border: '1px solid rgba(255, 77, 77, 0.3)',
+                              color: '#ff4d4d',
+                            }}
+                          >
+                            Stopped
+                          </Badge>
                         ) : (
-                          <Text size="xs" c="dimmed">No sites</Text>
-                        )}
-                        {release.Sites && release.Sites.filter(s => s.toLowerCase() !== 'slftp').length > 3 && (
-                          <Badge size="sm" variant="light" color="gray">
-                            +{release.Sites.filter(s => s.toLowerCase() !== 'slftp').length - 3}
+                          <Badge 
+                            size="xs" 
+                            radius="sm"
+                            style={{
+                              background: 'rgba(255, 181, 71, 0.15)',
+                              border: '1px solid rgba(255, 181, 71, 0.3)',
+                              color: '#ffb547',
+                            }}
+                          >
+                            Racing
                           </Badge>
                         )}
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      {release.Ready ? (
-                        <Badge size="sm" color="green">Ready</Badge>
-                      ) : release.Stopped ? (
-                        <Badge size="sm" color="red">Stopped</Badge>
-                      ) : (
-                        <Badge size="sm" color="yellow">Racing</Badge>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c="dimmed">#{release.QueueNumber}</Text>
-	                    </Table.Td>
-	                  </Table.Tr>
-	                ))}
-	              </Table.Tbody>
-	            </Table>
-	            </div>
-	          </ScrollArea>
-	        ) : (
-	          <Center h={150}>
-	            <Text c="dimmed">No recent releases</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" c="dimmed">#{release.QueueNumber}</Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </div>
+          </ScrollArea>
+        ) : (
+          <Center h={120}>
+            <Stack align="center" gap="xs">
+              <ThemeIcon size={40} radius="xl" color="gray" variant="light">
+                <IconRocket size="1.25rem" />
+              </ThemeIcon>
+              <Text size="sm" c="dimmed">No recent releases</Text>
+            </Stack>
           </Center>
         )}
       </Card>
@@ -363,234 +553,326 @@ export function Dashboard() {
           setSelectedPazoId(null);
         }}
         title={
-          <Group>
-            <ThemeIcon color="violet" variant="light">
-              <IconInfoCircle size="1.2rem" />
+          <Group gap="sm">
+            <ThemeIcon
+              size={36}
+              radius="lg"
+              style={{
+                background: 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)',
+              }}
+            >
+              <IconInfoCircle size="1rem" color="white" />
             </ThemeIcon>
-            <Title order={3}>Release Details</Title>
+            <Box>
+              <Title order={5} style={{ marginBottom: 0 }}>Release Details</Title>
+              <Text size="xs" c="dimmed">Detailed racing information</Text>
+            </Box>
           </Group>
         }
-        size="1400px"
+        size="1200px"
+        radius="xl"
+        styles={{
+          content: {
+            background: 'rgba(17, 28, 68, 0.98)',
+            backdropFilter: 'blur(30px)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+          },
+          header: {
+            background: 'transparent',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            padding: '16px 24px',
+          },
+          body: {
+            padding: '20px 24px',
+          },
+        }}
       >
         {detailsLoading ? (
-          <Center h={300}><Loader size="lg" /></Center>
-	        ) : releaseDetails ? (
-	          <Stack gap="md">
-	            <Card withBorder padding="md">
-	              <Stack gap="xs">
-	                <Group gap="sm" align="flex-start" wrap="nowrap">
-	                  <Text size="sm" c="dimmed" w={90}>Release</Text>
-	                  <Text size="sm" fw={600} style={{ fontFamily: 'monospace', flex: 1, wordBreak: 'break-word' }}>
-	                    {releaseDetails.ReleaseName}
-	                  </Text>
-	                </Group>
-	                <Group gap="sm" align="center" wrap="nowrap">
-	                  <Text size="sm" c="dimmed" w={90}>Section</Text>
-	                  <Badge>{releaseDetails.Section}</Badge>
-	                </Group>
-	                <Group gap="sm" align="center" wrap="nowrap">
-	                  <Text size="sm" c="dimmed" w={90}>Total Files</Text>
-	                  <Badge variant="light">{releaseDetails.TotalFiles} files</Badge>
-	                </Group>
-	                <Group gap="sm" align="center" wrap="nowrap">
-	                  <Text size="sm" c="dimmed" w={90}>Status</Text>
-	                  {releaseDetails.Ready ? (
-	                    <Badge color="green">Ready</Badge>
-	                  ) : releaseDetails.Stopped ? (
-	                    <Badge color="red">Stopped</Badge>
-	                  ) : (
-	                    <Badge color="yellow">Racing</Badge>
-	                  )}
-	                </Group>
-	                <Group gap="sm" align="center" wrap="nowrap">
-	                  <Text size="sm" c="dimmed" w={90}>Queue #</Text>
-	                  <Text size="sm">#{releaseDetails.QueueNumber}</Text>
-	                </Group>
-	                {releaseDetails.Added && (
-	                  <Group gap="sm" align="center" wrap="nowrap">
-	                    <Text size="sm" c="dimmed" w={90}>Added</Text>
-	                    <Text size="sm" style={{ fontFamily: 'monospace' }}>
-	                      {new Date(releaseDetails.Added).toLocaleString()}
-	                    </Text>
-	                  </Group>
-	                )}
-	              </Stack>
-	            </Card>
+          <Center h={250}>
+            <Loader size="md" color="brand" />
+          </Center>
+        ) : releaseDetails ? (
+          <Stack gap="md">
+            {/* Release Info Card */}
+            <Card
+              radius="lg"
+              padding="md"
+              style={{
+                background: 'linear-gradient(127.09deg, rgba(30, 41, 59, 0.9) 19.41%, rgba(50, 60, 90, 0.8) 76.65%)',
+                border: '1px solid rgba(67, 24, 255, 0.2)',
+              }}
+            >
+              <Grid gutter="md">
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap={6}>
+                    <Group gap="sm" wrap="nowrap">
+                      <Text size="xs" c="dimmed" w={70}>Release</Text>
+                      <Text 
+                        size="sm" 
+                        fw={500} 
+                        style={{ 
+                          fontFamily: 'monospace',
+                          color: '#fff',
+                        }}
+                        truncate
+                      >
+                        {releaseDetails.ReleaseName}
+                      </Text>
+                    </Group>
+                    <Group gap="sm">
+                      <Text size="xs" c="dimmed" w={70}>Section</Text>
+                      <Badge
+                        size="xs"
+                        radius="sm"
+                        styles={{
+                          root: {
+                            background: 'rgba(67, 24, 255, 0.15)',
+                            border: '1px solid rgba(67, 24, 255, 0.3)',
+                            color: '#868cff',
+                          },
+                        }}
+                      >
+                        {releaseDetails.Section}
+                      </Badge>
+                    </Group>
+                    <Group gap="sm">
+                      <Text size="xs" c="dimmed" w={70}>Total Files</Text>
+                      <Text size="sm" fw={500}>{releaseDetails.TotalFiles} files</Text>
+                    </Group>
+                  </Stack>
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, md: 6 }}>
+                  <Stack gap={6}>
+                    <Group gap="sm">
+                      <Text size="xs" c="dimmed" w={70}>Status</Text>
+                      {releaseDetails.Ready ? (
+                        <Badge
+                          size="xs"
+                          radius="sm"
+                          style={{
+                            background: 'rgba(0, 255, 136, 0.15)',
+                            border: '1px solid rgba(0, 255, 136, 0.3)',
+                            color: '#00ff88',
+                          }}
+                        >
+                          Ready
+                        </Badge>
+                      ) : releaseDetails.Stopped ? (
+                        <Badge
+                          size="xs"
+                          radius="sm"
+                          style={{
+                            background: 'rgba(255, 77, 77, 0.15)',
+                            border: '1px solid rgba(255, 77, 77, 0.3)',
+                            color: '#ff4d4d',
+                          }}
+                        >
+                          Stopped
+                        </Badge>
+                      ) : (
+                        <Badge
+                          size="xs"
+                          radius="sm"
+                          style={{
+                            background: 'rgba(255, 181, 71, 0.15)',
+                            border: '1px solid rgba(255, 181, 71, 0.3)',
+                            color: '#ffb547',
+                          }}
+                        >
+                          Racing
+                        </Badge>
+                      )}
+                    </Group>
+                    <Group gap="sm">
+                      <Text size="xs" c="dimmed" w={70}>Queue #</Text>
+                      <Text size="sm">#{releaseDetails.QueueNumber}</Text>
+                    </Group>
+                    {releaseDetails.Added && (
+                      <Group gap="sm">
+                        <Text size="xs" c="dimmed" w={70}>Added</Text>
+                        <Text size="xs" style={{ fontFamily: 'monospace' }}>
+                          {new Date(releaseDetails.Added).toLocaleString()}
+                        </Text>
+                      </Group>
+                    )}
+                  </Stack>
+                </Grid.Col>
+              </Grid>
+            </Card>
 
-            <Title order={4}>Sites ({releaseDetails.SiteDetails.filter(s =>
-              s.SiteName.toLowerCase() !== 'slftp' &&
-              s.Status !== 'Not Allowed' &&
-              s.Status !== 'Not Allowed (Present)'
-            ).length})</Title>
-
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Site</Table.Th>
-                  <Table.Th>Files</Table.Th>
-                  <Table.Th>Progress</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Started</Table.Th>
-                  <Table.Th>Completed</Table.Th>
-                  <Table.Th>Duration</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(() => {
-                  // Filter out slftp site and "Not Allowed" sites
-                  const allSites = releaseDetails.SiteDetails.filter(s =>
-                    s.SiteName.toLowerCase() !== 'slftp' &&
-                    s.Status !== 'Not Allowed' &&
-                    s.Status !== 'Not Allowed (Present)'
-                  );
-
-                  // Sort by CompletedTime (ascending - fastest first)
-                  const visibleSites = [...allSites].sort((a, b) => {
-                    // Sites without completion time go to the end
-                    if (a.CompletedTime === 0 && b.CompletedTime === 0) return 0;
-                    if (a.CompletedTime === 0) return 1;
-                    if (b.CompletedTime === 0) return -1;
-                    return a.CompletedTime - b.CompletedTime;
-                  });
-
-                  // Calculate max files across all visible sites for relative progress
-                  const maxFiles = Math.max(...visibleSites.map(s => s.FileCount));
-
-                  // Find fastest completion time (smallest CompletedTime > 0)
-                  const fastestCompletedTime = Math.min(...visibleSites.filter(s => s.CompletedTime > 0).map(s => s.CompletedTime));
-
-                  // Find fastest start time (smallest StartedTime > 0)
-                  const fastestStartedTime = Math.min(...visibleSites.filter(s => s.StartedTime > 0).map(s => s.StartedTime));
-
-                  return visibleSites.map((site, idx) => {
-                    // Use Complete flag for 100%, otherwise relative to max
-                    const progress = site.Complete ? 100 : maxFiles > 0 ? (site.FileCount / maxFiles) * 100 : 0;
-
-                    return (
-                      <Table.Tr key={idx}>
-                        <Table.Td>
-                          <Text fw={500}>{site.SiteName}</Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Stack gap={4}>
-                            {site.Complete ? (
-                              <Badge size="sm" variant="light" color="green">
-                                {site.FileCount} files (Complete)
-                              </Badge>
-                            ) : (
-                              <Text size="sm" fw={500}>
-                                {site.FileCount} / {maxFiles} files
-                              </Text>
-                            )}
-                            {site.FilesRacedByMe > 0 && (
-                              <Text size="xs" c="blue" fw={500}>
-                                {site.FilesRacedByMe} uploaded by me
-                              </Text>
-                            )}
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td style={{ width: '30%' }}>
-                          <Stack gap="xs">
-                            <Progress
-                              value={progress}
-                              color={site.Complete ? 'green' : site.FileCount === 0 ? 'gray' : 'blue'}
-                              size="md"
-                            />
-                            <Text size="xs" c="dimmed" ta="right">
-                              {progress.toFixed(1)}%
-                            </Text>
-                          </Stack>
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge
-                            size="sm"
-                            color={
-                              site.Complete ? 'green' :
-                              site.Status.includes('Not Allowed') ? 'red' :
-                              site.Status === 'Pre' ? 'blue' :
-                              'gray'
-                            }
-                          >
-                            {site.Status}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          {site.StartedTime > 0 ? (
-                            <Stack gap={4}>
-                              <Text size="xs" style={{ fontFamily: 'monospace' }}>
-                                {new Date(site.StartedTime).toLocaleString(undefined, {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit',
-                                  fractionalSecondDigits: 3
-                                } as any)}
-                              </Text>
-                              {fastestStartedTime && site.StartedTime > fastestStartedTime && (
-                                <Text size="xs" c="orange" fw={500}>
-                                  +{((site.StartedTime - fastestStartedTime) / 1000).toFixed(3)}s
-                                </Text>
-                              )}
-                              {fastestStartedTime && site.StartedTime === fastestStartedTime && (
-                                <Text size="xs" c="green" fw={600}>
-                                  FASTEST
-                                </Text>
-                              )}
-                            </Stack>
-                          ) : (
-                            <Text size="xs" c="dimmed">-</Text>
-                          )}
-                        </Table.Td>
-                        <Table.Td>
-                          {site.CompletedTime > 0 ? (
-                            <Stack gap={4}>
-                              <Text size="xs" style={{ fontFamily: 'monospace' }}>
-                                {new Date(site.CompletedTime).toLocaleString(undefined, {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit',
-                                  fractionalSecondDigits: 3
-                                } as any)}
-                              </Text>
-                              {fastestCompletedTime && site.CompletedTime > fastestCompletedTime && (
-                                <Text size="xs" c="orange" fw={500}>
-                                  +{((site.CompletedTime - fastestCompletedTime) / 1000).toFixed(3)}s
-                                </Text>
-                              )}
-                              {fastestCompletedTime && site.CompletedTime === fastestCompletedTime && (
-                                <Text size="xs" c="green" fw={600}>
-                                  FASTEST
-                                </Text>
-                              )}
-                            </Stack>
-                          ) : (
-                            <Text size="xs" c="dimmed">-</Text>
-                          )}
-                        </Table.Td>
-                        <Table.Td>
-                          {site.StartedTime > 0 && site.CompletedTime > 0 ? (
-                            <Text size="xs" fw={500} style={{ fontFamily: 'monospace' }}>
-                              {((site.CompletedTime - site.StartedTime) / 1000).toFixed(3)}s
-                            </Text>
-                          ) : (
-                            <Text size="xs" c="dimmed">-</Text>
-                          )}
-                        </Table.Td>
-                      </Table.Tr>
+            {/* Sites Table */}
+            <Box>
+              <Title order={6} mb="sm" style={{ color: '#fff' }}>
+                Site Details ({releaseDetails.SiteDetails.filter(s =>
+                  s.SiteName.toLowerCase() !== 'slftp' &&
+                  s.Status !== 'Not Allowed' &&
+                  s.Status !== 'Not Allowed (Present)'
+                ).length} sites)
+              </Title>
+              
+              <Table
+                striped
+                highlightOnHover
+                styles={{
+                  thead: {
+                    background: 'rgba(17, 28, 68, 0.8)',
+                  },
+                  th: {
+                    color: '#a3aed0',
+                    fontWeight: 600,
+                    fontSize: '10px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    padding: '10px 12px',
+                  },
+                  td: {
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                    padding: '10px 12px',
+                  },
+                }}
+              >
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Site</Table.Th>
+                    <Table.Th>Files</Table.Th>
+                    <Table.Th style={{ width: '25%' }}>Progress</Table.Th>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>Duration</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {(() => {
+                    const allSites = releaseDetails.SiteDetails.filter(s =>
+                      s.SiteName.toLowerCase() !== 'slftp' &&
+                      s.Status !== 'Not Allowed' &&
+                      s.Status !== 'Not Allowed (Present)'
                     );
-                  });
-                })()}
-              </Table.Tbody>
-            </Table>
+
+                    const visibleSites = [...allSites].sort((a, b) => {
+                      if (a.CompletedTime === 0 && b.CompletedTime === 0) return 0;
+                      if (a.CompletedTime === 0) return 1;
+                      if (b.CompletedTime === 0) return -1;
+                      return a.CompletedTime - b.CompletedTime;
+                    });
+
+                    const maxFiles = Math.max(...visibleSites.map(s => s.FileCount));
+
+                    return visibleSites.map((site, idx) => {
+                      const progress = site.Complete ? 100 : maxFiles > 0 ? (site.FileCount / maxFiles) * 100 : 0;
+
+                      return (
+                        <Table.Tr key={idx}>
+                          <Table.Td>
+                            <Text fw={500} size="sm">{site.SiteName}</Text>
+                          </Table.Td>
+                          <Table.Td>
+                            <Stack gap={2}>
+                              {site.Complete ? (
+                                <Badge
+                                  size="xs"
+                                  radius="sm"
+                                  styles={{
+                                    root: {
+                                      background: 'rgba(0, 255, 136, 0.15)',
+                                      border: '1px solid rgba(0, 255, 136, 0.3)',
+                                      color: '#00ff88',
+                                    },
+                                  }}
+                                >
+                                  {site.FileCount} files
+                                </Badge>
+                              ) : (
+                                <Text size="xs">
+                                  {site.FileCount} / {maxFiles}
+                                </Text>
+                              )}
+                              {site.FilesRacedByMe > 0 && (
+                                <Text size="11px" c="#868cff" fw={500}>
+                                  {site.FilesRacedByMe} uploaded
+                                </Text>
+                              )}
+                            </Stack>
+                          </Table.Td>
+                          <Table.Td>
+                            <Stack gap={4}>
+                              <Progress
+                                value={progress}
+                                size="xs"
+                                radius="xl"
+                                styles={{
+                                  root: {
+                                    background: 'rgba(255, 255, 255, 0.08)',
+                                  },
+                                  section: {
+                                    background: site.Complete 
+                                      ? '#00ff88' 
+                                      : site.FileCount === 0 
+                                        ? '#707eae' 
+                                        : 'linear-gradient(90deg, #4318ff, #868cff)',
+                                    boxShadow: site.Complete 
+                                      ? '0 0 8px rgba(0, 255, 136, 0.4)' 
+                                      : '0 0 8px rgba(67, 24, 255, 0.25)',
+                                  },
+                                }}
+                              />
+                              <Text size="11px" c="dimmed" ta="right">
+                                {progress.toFixed(0)}%
+                              </Text>
+                            </Stack>
+                          </Table.Td>
+                          <Table.Td>
+                            <Badge
+                              size="xs"
+                              radius="sm"
+                              styles={{
+                                root: {
+                                  background: site.Complete
+                                    ? 'rgba(0, 255, 136, 0.15)'
+                                    : site.Status.includes('Not Allowed')
+                                      ? 'rgba(255, 77, 77, 0.15)'
+                                      : site.Status === 'Pre'
+                                        ? 'rgba(67, 24, 255, 0.15)'
+                                        : 'rgba(112, 126, 174, 0.15)',
+                                  border: site.Complete
+                                    ? '1px solid rgba(0, 255, 136, 0.3)'
+                                    : site.Status.includes('Not Allowed')
+                                      ? '1px solid rgba(255, 77, 77, 0.3)'
+                                      : site.Status === 'Pre'
+                                        ? '1px solid rgba(67, 24, 255, 0.3)'
+                                        : '1px solid rgba(112, 126, 174, 0.3)',
+                                  color: site.Complete
+                                    ? '#00ff88'
+                                    : site.Status.includes('Not Allowed')
+                                      ? '#ff4d4d'
+                                      : site.Status === 'Pre'
+                                        ? '#868cff'
+                                        : '#a3aed0',
+                                },
+                              }}
+                            >
+                              {site.Status}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            {site.StartedTime > 0 && site.CompletedTime > 0 ? (
+                              <Text size="xs" fw={500} style={{ fontFamily: 'monospace' }}>
+                                {((site.CompletedTime - site.StartedTime) / 1000).toFixed(2)}s
+                              </Text>
+                            ) : (
+                              <Text size="xs" c="dimmed">-</Text>
+                            )}
+                          </Table.Td>
+                        </Table.Tr>
+                      );
+                    });
+                  })()}
+                </Table.Tbody>
+              </Table>
+            </Box>
           </Stack>
         ) : (
-          <Center h={200}>
-            <Text c="dimmed">No details available</Text>
+          <Center h={150}>
+            <Text size="sm" c="dimmed">No details available</Text>
           </Center>
         )}
       </Modal>

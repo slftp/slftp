@@ -1,68 +1,348 @@
+/* Vision UI Dashboard Theme - Dark Glassmorphism */
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  /* Vision UI Color Palette - Aufgehellt */
+  --vision-bg-primary: #0f1729;
+  --vision-bg-secondary: #141b2d;
+  --vision-bg-card: rgba(20, 27, 45, 0.85);
+  --vision-bg-card-secondary: rgba(30, 37, 55, 0.6);
+  
+  /* Vision UI Official Gradients - Aufgehellt */
+  --vision-gradient-main: linear-gradient(127.09deg, rgba(20, 27, 45, 0.9) 19.41%, rgba(30, 37, 55, 0.7) 76.65%);
+  --vision-gradient-blue: linear-gradient(135deg, #0c2461 0%, #1e3a8a 100%);
+  --vision-gradient-card: linear-gradient(127.09deg, rgba(30, 41, 59, 0.9) 19.41%, rgba(40, 49, 71, 0.7) 76.65%);
+  --vision-gradient-glow: linear-gradient(135deg, rgba(67, 24, 255, 0.25) 0%, rgba(0, 212, 255, 0.15) 100%);
+  --vision-gradient-header: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.85) 100%);
+  
+  /* Primary Colors - Violet/Blue Gradient */
+  --vision-primary: #4f46e5;
+  --vision-primary-light: #818cf8;
+  --vision-primary-gradient: linear-gradient(135deg, #4f46e5 0%, #818cf8 100%);
+  --vision-secondary: #22d3ee;
+  --vision-secondary-gradient: linear-gradient(135deg, #22d3ee 0%, #34d399 100%);
+  
+  /* Accent Colors */
+  --vision-success: #34d399;
+  --vision-warning: #fbbf24;
+  --vision-danger: #f87171;
+  --vision-info: #22d3ee;
+  
+  /* Text Colors */
+  --vision-text-primary: #f8fafc;
+  --vision-text-secondary: #94a3b8;
+  --vision-text-muted: #64748b;
+  
+  /* Borders */
+  --vision-border: rgba(255, 255, 255, 0.12);
+  --vision-border-hover: rgba(255, 255, 255, 0.2);
+  
+  /* Shadows */
+  --vision-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --vision-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --vision-shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.4);
+  --vision-shadow-glow: 0 0 60px rgba(79, 70, 229, 0.2);
+  
+  /* Glass Effect */
+  --vision-glass: rgba(30, 41, 59, 0.75);
+  --vision-glass-border: rgba(255, 255, 255, 0.1);
+  
+  /* Border Radius */
+  --vision-radius-sm: 8px;
+  --vision-radius: 16px;
+  --vision-radius-lg: 24px;
+  --vision-radius-xl: 32px;
+}
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+html {
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
+  font-family: 'Inter', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #0f1729 0%, #1e293b 50%, #1e3a8a 100%);
+  background-attachment: fixed;
+  color: var(--vision-text-primary);
   min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* Animated Background Gradient */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(ellipse at 15% 15%, rgba(79, 70, 229, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 85%, rgba(34, 211, 238, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(30, 58, 138, 0.3) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: -1;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--vision-primary) 0%, var(--vision-primary-light) 100%);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--vision-primary-light) 0%, var(--vision-primary) 100%);
+}
+
+/* Selection */
+::selection {
+  background: rgba(79, 70, 229, 0.35);
+  color: white;
+}
+
+/* Vision UI Card Style */
+.vision-card {
+  background: var(--vision-gradient-main);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--vision-glass-border);
+  border-radius: var(--vision-radius);
+  box-shadow: var(--vision-shadow), var(--vision-shadow-glow);
+  transition: all 0.3s ease;
+}
+
+.vision-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: var(--vision-shadow-lg), 0 0 80px rgba(79, 70, 229, 0.25);
+  transform: translateY(-2px);
+}
+
+/* Vision UI Blue Card */
+.vision-card-blue {
+  background: var(--vision-gradient-blue);
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  box-shadow: 0 8px 32px rgba(12, 36, 97, 0.4), 0 0 40px rgba(79, 70, 229, 0.15);
+}
+
+/* Gradient Text */
+.gradient-text {
+  background: var(--vision-primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-secondary {
+  background: var(--vision-secondary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Gradient Backgrounds */
+.gradient-bg-main {
+  background: var(--vision-gradient-main);
+}
+
+.gradient-bg-blue {
+  background: var(--vision-gradient-blue);
+}
+
+.gradient-bg-primary {
+  background: var(--vision-primary-gradient);
+}
+
+.gradient-bg-secondary {
+  background: var(--vision-secondary-gradient);
+}
+
+.gradient-bg-warm {
+  background: linear-gradient(135deg, #f87171 0%, #fbbf24 100%);
+}
+
+.gradient-bg-cool {
+  background: linear-gradient(135deg, #22d3ee 0%, #818cf8 100%);
+}
+
+/* Glow Effects */
+.glow-primary {
+  box-shadow: 0 0 30px rgba(79, 70, 229, 0.4);
+}
+
+.glow-success {
+  box-shadow: 0 0 30px rgba(52, 211, 153, 0.4);
+}
+
+.glow-warning {
+  box-shadow: 0 0 30px rgba(251, 191, 36, 0.4);
+}
+
+.glow-danger {
+  box-shadow: 0 0 30px rgba(248, 113, 113, 0.4);
+}
+
+/* Stats Card Variants */
+.stat-card-primary {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.2) 0%, rgba(79, 70, 229, 0.08) 100%);
+  border: 1px solid rgba(79, 70, 229, 0.35);
+}
+
+.stat-card-success {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.2) 0%, rgba(52, 211, 153, 0.08) 100%);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.stat-card-warning {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.08) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.stat-card-danger {
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.2) 0%, rgba(248, 113, 113, 0.08) 100%);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+/* Button Styles */
+.vision-button {
+  background: var(--vision-primary-gradient);
+  border: none;
+  border-radius: var(--vision-radius-sm);
+  color: white;
+  font-weight: 600;
+  padding: 10px 24px;
   cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);
 }
 
-@media (prefers-color-scheme: light) {
+.vision-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(79, 70, 229, 0.5);
+}
+
+.vision-button-outline {
+  background: transparent;
+  border: 1px solid var(--vision-primary);
+  color: var(--vision-primary-light);
+}
+
+.vision-button-outline:hover {
+  background: rgba(79, 70, 229, 0.15);
+}
+
+/* Input Styles */
+.vision-input {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid var(--vision-glass-border);
+  border-radius: var(--vision-radius-sm);
+  color: var(--vision-text-primary);
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+}
+
+.vision-input:focus {
+  outline: none;
+  border-color: var(--vision-primary-light);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+.vision-input::placeholder {
+  color: var(--vision-text-muted);
+}
+
+/* Progress Bar */
+.vision-progress {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.vision-progress-bar {
+  background: var(--vision-primary-gradient);
+  border-radius: 10px;
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+/* Mantine Overrides */
+.mantine-AppShell-main {
+  background: transparent !important;
+}
+
+.mantine-AppShell-header {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(20, 27, 45, 0.9) 100%) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.mantine-AppShell-navbar {
+  background: linear-gradient(127.09deg, rgba(20, 27, 45, 0.95) 19.41%, rgba(30, 41, 59, 0.85) 76.65%) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.mantine-Modal-content {
+  background: linear-gradient(127.09deg, rgba(20, 27, 45, 0.98) 19.41%, rgba(30, 41, 59, 0.9) 76.65%) !important;
+  backdrop-filter: blur(30px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--vision-radius-lg) !important;
+}
+
+.mantine-Modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.mantine-Button-root {
+  transition: all 0.3s ease !important;
+}
+
+.mantine-Card-root {
+  transition: all 0.3s ease !important;
+}
+
+/* Table Striping Override - Darker */
+.mantine-Table-tbody tr:nth-child(odd) {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Disable Mantine Table hover effect globally */
+:root {
+  --table-hover-color: transparent !important;
+}
+
+.mantine-Table-table {
+  --table-hover-color: transparent !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    --vision-radius: 12px;
+    --vision-radius-lg: 20px;
   }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+  
+  html {
+    font-size: 14px;
   }
 }

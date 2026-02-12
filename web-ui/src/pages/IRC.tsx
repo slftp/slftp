@@ -485,11 +485,11 @@ export function IRC() {
 
   const getStatusBadge = (network: IrcNetwork) => {
     if (network.connected) {
-      return <Badge color="green">Connected</Badge>;
+      return <Badge variant="light" style={{ background: 'rgba(52, 211, 153, 0.25)', border: '1px solid rgba(52, 211, 153, 0.5)', color: '#34d399' }}>Connected</Badge>;
     } else if (network.status.includes('onnect')) {
-      return <Badge color="yellow">Connecting</Badge>;
+      return <Badge variant="light" style={{ background: 'rgba(251, 191, 36, 0.25)', border: '1px solid rgba(251, 191, 36, 0.5)', color: '#fbbf24' }}>Connecting</Badge>;
     } else {
-      return <Badge color="red">Disconnected</Badge>;
+      return <Badge variant="light" style={{ background: 'rgba(248, 113, 113, 0.25)', border: '1px solid rgba(248, 113, 113, 0.5)', color: '#f87171' }}>Disconnected</Badge>;
     }
   };
 

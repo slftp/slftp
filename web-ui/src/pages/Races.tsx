@@ -263,11 +263,11 @@ export function Races() {
                     </Table.Td>
                     <Table.Td>
                       <Group gap={6} wrap="nowrap">
-                        <Badge variant="light" color="indigo" style={{ maxWidth: 'none', whiteSpace: 'nowrap' }}>
+                        <Badge variant="light" style={{ maxWidth: 'none', whiteSpace: 'nowrap', background: 'rgba(99, 102, 241, 0.35)', border: '1px solid rgba(99, 102, 241, 0.6)', color: '#fff' }}>
                           {r.SrcSite || '—'}
                         </Badge>
                         <Text size="xs" c="dimmed">→</Text>
-                        <Badge variant="light" color="grape" style={{ maxWidth: 'none', whiteSpace: 'nowrap' }}>
+                        <Badge variant="light" style={{ maxWidth: 'none', whiteSpace: 'nowrap', background: 'rgba(168, 85, 247, 0.35)', border: '1px solid rgba(168, 85, 247, 0.6)', color: '#fff' }}>
                           {r.DstSite || '—'}
                         </Badge>
                       </Group>
@@ -358,9 +358,8 @@ export function Races() {
                           <Group gap={6} wrap="nowrap">
                             <Badge
                               variant="light"
-                              color="indigo"
                               styles={{
-                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center' },
+                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center', background: 'rgba(99, 102, 241, 0.35)', border: '1px solid rgba(99, 102, 241, 0.6)', color: '#fff' },
                                 label: { overflow: 'visible', textOverflow: 'clip' }
                               }}
                             >
@@ -369,9 +368,8 @@ export function Races() {
                             <Text size="xs" c="dimmed">→</Text>
                             <Badge
                               variant="light"
-                              color="grape"
                               styles={{
-                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center' },
+                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center', background: 'rgba(168, 85, 247, 0.35)', border: '1px solid rgba(168, 85, 247, 0.6)', color: '#fff' },
                                 label: { overflow: 'visible', textOverflow: 'clip' }
                               }}
                             >
