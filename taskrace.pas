@@ -356,18 +356,24 @@ end;
 
 function TPazoDirlistTask.IsReadyToBeExecuted: boolean;
 begin
+  if FWaitForComplete and (FDependingOnDirlist <> nil) then
+  begin
+    // When parent gave up or errored, execute once so this task can terminate cleanly
+    if FDependingOnDirlist.error or FDependingOnDirlist.DirlistGaveUp then
+      Exit(True);
+    if (mainpazo <> nil) and mainpazo.stopped then
+      Exit(True);
+  end;
+
   Result := inherited IsReadyToBeExecuted;
-  if not Result then Exit;
+  if not Result then
+    Exit;
 
   if FWaitForComplete and (FDependingOnDirlist <> nil) then
   begin
-    // Only execute if parent directory is complete or has error/pazo stopped
-    if not FDependingOnDirlist.Complete and not FDependingOnDirlist.error then
-    begin
-      if (mainpazo <> nil) and mainpazo.stopped then
-        Exit; // Allow execution (will fail cleanly) when pazo is stopped
+    // Only execute if parent directory is complete
+    if not FDependingOnDirlist.Complete then
       Result := False;
-    end;
   end;
 end;
 
@@ -401,6 +407,14 @@ begin
 
   if FWaitForComplete then
     Debug(dpSpam, c_section, 'DIRLIST starting now (Parent is COMPLETE): %s (dir=%s)', [site1, dir]);
+
+  if FWaitForComplete and (FDependingOnDirlist <> nil) and FDependingOnDirlist.DirlistGaveUp then
+  begin
+    Debug(dpSpam, c_section, 'DIRLIST skipped because parent gave up: %s (dir=%s)', [site1, dir]);
+    ready := True;
+    Result := True;
+    Exit;
+  end;
 
   if mainpazo.stopped then
   begin
