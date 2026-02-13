@@ -11,6 +11,7 @@ interface StatCardProps {
   trend?: {
     value: number;
     isPositive: boolean;
+    showSign?: boolean;
   };
   variant?: 'default' | 'gradient' | 'outline';
 }
@@ -110,7 +111,7 @@ export function StatCard({
                   padding: '2px 6px',
                 }}
               >
-                {trend.isPositive ? '+' : ''}{trend.value}%
+                {trend.showSign !== false && trend.isPositive ? '+' : ''}{trend.value}%
               </Badge>
             )}
           </Group>

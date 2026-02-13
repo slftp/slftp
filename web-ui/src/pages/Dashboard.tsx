@@ -28,7 +28,6 @@ import {
   IconActivity,
   IconCpu,
   IconHash,
-  IconTrendingUp,
   IconCheck,
   IconPlayerPlay,
   IconPlayerPause,
@@ -242,7 +241,7 @@ export function Dashboard() {
     return `${h}h ${m}m`;
   };
   const formatLoadAvg = (avg1: number, avg5: number, avg15: number) =>
-    `${avg1.toFixed(2).replace('.', ',')}, ${avg5.toFixed(2).replace('.', ',')}, ${avg15.toFixed(2).replace('.', ',')}`;
+    `${avg1.toFixed(2)}, ${avg5.toFixed(2)}, ${avg15.toFixed(2)}`;
 
   const uptimeStr = formatUptime(stats.Uptime);
   const totalSites = stats.SitesCount;
@@ -298,7 +297,7 @@ export function Dashboard() {
           icon={<IconServer size="1.4rem" stroke={1.5} color="white" />}
           iconColor="#00ff88"
           iconGradient="linear-gradient(135deg, #00ff88 0%, #00d4ff 100%)"
-          trend={{ value: sitesUpPct, isPositive: sitesUpPct > 90 }}
+          trend={{ value: sitesUpPct, isPositive: sitesUpPct > 90, showSign: false }}
         />
 
         <StatCard
@@ -317,12 +316,11 @@ export function Dashboard() {
           icon={<IconAlertTriangle size="1.4rem" stroke={1.5} color="white" />}
           iconColor="#ffb547"
           iconGradient="linear-gradient(135deg, #ffb547 0%, #ff6b6b 100%)"
-          trend={issuesSummary && issuesSummary.Total > 0 ? { value: issuesSummary.Total, isPositive: false } : undefined}
         />
       </SimpleGrid>
 
       {/* Mini Stats Row */}
-      <SimpleGrid cols={{ base: 2, sm: 3, lg: 7 }} spacing="sm">
+      <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="sm">
         <MiniStatCard
           title="Ready"
           value={readyCount}
@@ -340,12 +338,6 @@ export function Dashboard() {
           value={stoppedCount}
           icon={<IconPlayerPause size="1rem" />}
           color="#ffb547"
-        />
-        <MiniStatCard
-          title="Dir/sec Peak"
-          value={stats.DirlistPerSecondMax?.toFixed(1) ?? 0}
-          icon={<IconTrendingUp size="1rem" />}
-          color="#00d4ff"
         />
         {stats.LoadAvgAvailable && (
           <MiniStatCard

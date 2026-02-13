@@ -442,6 +442,10 @@ export function IRC() {
   });
 
   const normalize = (s?: string) => (s || '').trim().toLowerCase();
+  const isMatchAnnounceEvent = (event?: string) => {
+    const e = normalize(event);
+    return e === 'pre' || e === 'newdir';
+  };
 
   const isPresentOnSite = (sd?: ReleaseSiteDetail) => {
     if (!sd) return false;
@@ -1513,7 +1517,7 @@ export function IRC() {
                     <div>
                       <Title order={5}>Site Presence vs. Announce</Title>
                       <Text size="sm" c="dimmed">
-                        We expect an announce only if the release is present on a site (based on current release details). Then we check if any precatcher hit happened for that site in the selected window.
+                        We expect an announce only if the release is present on a site (based on current release details). This view compares PRE/NEWDIR rules and PRE/NEWDIR hits in the selected window.
                       </Text>
                       {matchReleaseDetailsLoading && <Text size="sm" c="dimmed" mt="xs">Loading release site status...</Text>}
                     </div>
@@ -1524,7 +1528,9 @@ export function IRC() {
                         .filter(Boolean);
 
                       const hits = matchesByRelease.get(selectedMatchRelease.ReleaseName)?.hits || [];
-                      const relevantRules = (rules || []).filter((r) => releaseSites.includes(normalize(r.sitename)));
+                      const relevantRules = (rules || []).filter(
+                        (r) => releaseSites.includes(normalize(r.sitename)) && isMatchAnnounceEvent(r.event)
+                      );
 
                       const botsBySite = new Map<string, Set<string>>();
                       for (const r of relevantRules) {
@@ -1538,6 +1544,7 @@ export function IRC() {
 
                       const hitsBySite = new Map<string, PrecatcherHit[]>();
                       for (const h of hits) {
+                        if (!isMatchAnnounceEvent(h.event)) continue;
                         const siteKey = normalize(h.sitename);
                         if (!releaseSites.includes(siteKey)) continue;
                         const arr = hitsBySite.get(siteKey) || [];
