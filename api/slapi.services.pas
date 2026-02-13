@@ -69,6 +69,10 @@ type
     /// Returns detailed info for specific site
     function GetSite(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
 
+    /// POST /api/sites/slots/runtime
+    /// Returns current runtime state for all slots (or one site if SiteName is set)
+    function GetSlotsRuntime(const SiteName: RawUTF8): RawJSON;
+
     /// POST /api/sites/{name}/credits
     /// Executes SITE STAT and returns parsed credits/ratio (cached for ~1h unless ForceRefresh is true)
     function GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;

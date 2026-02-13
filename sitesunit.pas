@@ -96,6 +96,8 @@ type
     FLastIO: TDateTime;
     FLastTaskExecution: TDateTime;
     FLastNonIdleTaskExecution: TDateTime;
+    FCurrentAction: String;
+    FCurrentActionCS: TCriticalSection;
     mdtmre: TRegExpr; //< regex for parsing MDTM ftpd response
     aktdir: String;
     FAktDirIsRemote: boolean;
@@ -113,6 +115,8 @@ type
     procedure SetDownloadingFrom(const Value: boolean);
     procedure SetUploadingTo(const Value: boolean);
     procedure SetTodotask(Value: TTask);
+    function GetCurrentAction: String;
+    procedure SetCurrentAction(const Value: String);
   public
     //    pre: Boolean;
     localport: integer;
@@ -197,6 +201,7 @@ type
     property LastIO: TDateTime read FLastIO write FLastIO; //< time of last I/O operation, renewed on every read/write
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
+    property CurrentAction: String read GetCurrentAction write SetCurrentAction; //< latest live action/command for slot view
     property SlotNumber: integer read FSlotNumber;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
@@ -1533,6 +1538,8 @@ begin
   debug(dpSpam, section, Format('Start creating of slot %s/%d', [aSite.Name, aSlotNumber]));
   self.site := aSite;
   self.FSlotNumber := aSlotNumber;
+  FCurrentActionCS := TCriticalSection.Create;
+  FCurrentAction := 'Initializing...';
 
   todotask := nil;
   event := TEvent.Create(nil, False, False, Name);
@@ -1588,6 +1595,7 @@ begin
     SSCNEnabled := False;
     aktdir := '';
     FAktDirIsRemote := False;
+    CurrentAction := 'Disconnected';
   except
     on e: Exception do
     begin
@@ -1620,7 +1628,10 @@ begin
   begin
     try
       if status = ssOnline then
+      begin
+        CurrentAction := 'Idle...';
         Console_Slot_Add(Name, 'Idle...');
+      end;
 
       if (todotask <> nil) then
       begin
@@ -1803,6 +1814,7 @@ begin
   DestroySocket(True);
 
   FreeAndNil(event);
+  FreeAndNil(FCurrentActionCS);
   mdtmre.Free;
 
   inherited;
@@ -2758,6 +2770,7 @@ function TSiteSlot.Send(const s: String): boolean;
 begin
   Result := False;
   try
+    CurrentAction := s;
     Console_Slot_Add(Name, s);
     console_addline(Name, s);
 
@@ -3291,6 +3304,33 @@ begin
     end;
   finally
     site.fFreeSlotsCS.Leave;
+  end;
+end;
+
+function TSiteSlot.GetCurrentAction: String;
+begin
+  Result := '';
+  if FCurrentActionCS = nil then
+    Exit;
+
+  FCurrentActionCS.Enter;
+  try
+    Result := FCurrentAction;
+  finally
+    FCurrentActionCS.Leave;
+  end;
+end;
+
+procedure TSiteSlot.SetCurrentAction(const Value: String);
+begin
+  if FCurrentActionCS = nil then
+    Exit;
+
+  FCurrentActionCS.Enter;
+  try
+    FCurrentAction := Value;
+  finally
+    FCurrentActionCS.Leave;
   end;
 end;
 

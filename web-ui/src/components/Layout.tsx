@@ -75,8 +75,9 @@ export function Layout() {
     };
   }, []);
 
-  const navItems: NavItem[] = [
+  const navItemsBase: NavItem[] = [
     { icon: IconDashboard, label: 'Dashboard', to: '/', color: '#4318ff' },
+    { icon: IconActivity, label: 'Monitoring', to: '/monitoring', color: '#22d3ee' },
     { icon: IconActivity, label: 'Races', to: '/races', color: '#00ff88' },
     { icon: IconBolt, label: 'PRE', to: '/pre', color: '#ffb547' },
     { icon: IconServer, label: 'Sites', to: '/sites', color: '#00d4ff' },
@@ -93,6 +94,10 @@ export function Layout() {
     { icon: IconHelpCircle, label: 'Help', to: '/help', color: '#9b59b6' },
     ...(cbftpEnabled ? [{ icon: IconTransfer, label: 'cbftp', to: '/cbftp', color: '#00d4ff' }] : []),
   ];
+
+  const navItems = navItemsBase
+    .slice()
+    .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
 
   const handleLogout = () => {
     clearApiToken();

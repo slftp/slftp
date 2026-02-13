@@ -301,6 +301,15 @@ var
   isApiCall: Boolean;
   isCbftpCall: Boolean;
   isCbftpEnabledEndpoint: Boolean;
+  isSlotsStreamCall: Boolean;
+  siteFilter: string;
+  requestedHash: string;
+  currentHash: string;
+  timeoutMs: integer;
+  startTick: QWord;
+  slotsJson: RawUTF8;
+  streamBody: RawUTF8;
+  streamChanged: boolean;
   
   function GetMimeType(const FN: TFileName): RawUTF8;
   var
@@ -367,6 +376,62 @@ var
     end;
   end;
 
+  function QueryParam(const aUrl, aName: string): string;
+  var
+    query: string;
+    pairs: TStringList;
+    i: integer;
+    eqPos: integer;
+    key: string;
+  begin
+    Result := '';
+    if aName = '' then
+      Exit;
+
+    eqPos := Pos('?', aUrl);
+    if eqPos <= 0 then
+      Exit;
+
+    query := Copy(aUrl, eqPos + 1, MaxInt);
+    if query = '' then
+      Exit;
+
+    pairs := TStringList.Create;
+    try
+      pairs.StrictDelimiter := True;
+      pairs.Delimiter := '&';
+      pairs.DelimitedText := query;
+      for i := 0 to pairs.Count - 1 do
+      begin
+        eqPos := Pos('=', pairs[i]);
+        if eqPos <= 0 then
+          Continue;
+        key := LowerCase(Copy(pairs[i], 1, eqPos - 1));
+        if key = LowerCase(aName) then
+        begin
+          Result := Copy(pairs[i], eqPos + 1, MaxInt);
+          Exit;
+        end;
+      end;
+    finally
+      pairs.Free;
+    end;
+  end;
+
+  function CalcFnv1a32Hex(const aData: RawUTF8): string;
+  var
+    i: integer;
+    h: cardinal;
+  begin
+    h := 2166136261;
+    for i := 1 to Length(aData) do
+    begin
+      h := h xor Ord(aData[i]);
+      h := h * 16777619;
+    end;
+    Result := LowerCase(IntToHex(h, 8));
+  end;
+
 begin
   Result := False; // By default, let mORMot handle
 
@@ -390,6 +455,9 @@ begin
     (Copy(sUrlLower, 1, 15) = '/cbftp/enabled?') or
     (sUrlLower = '/api/cbftp/enabled') or
     (Copy(sUrlLower, 1, 19) = '/api/cbftp/enabled?');
+  isSlotsStreamCall :=
+    (sUrlLower = '/api/sites/slots/stream') or
+    (Copy(sUrlLower, 1, 24) = '/api/sites/slots/stream?');
   isApiCall := (Length(sUrl) >= 4) and (Copy(UpperCase(sUrl), 1, 4) = '/API');
 
   // Check for cbftp proxy requests first (allow /cbftp/ and /api/cbftp/)
@@ -402,6 +470,64 @@ begin
 
     Result := HandleCbftpRequest(Call);
     Exit(Result);
+  end;
+
+  if isSlotsStreamCall then
+  begin
+    if not RequireApiAuth then
+      Exit(True); // Rejected by auth
+
+    if UpperCase(UTF8ToString(Call.Method)) <> 'GET' then
+    begin
+      Call.OutStatus := HTTP_NOTALLOWED;
+      Call.OutBody := 'Method not allowed';
+      Exit(True);
+    end;
+
+    siteFilter := QueryParam(sUrl, 'site');
+    requestedHash := LowerCase(QueryParam(sUrl, 'hash'));
+    timeoutMs := StrToIntDef(QueryParam(sUrl, 'timeout_ms'), 15000);
+    if timeoutMs < 1000 then
+      timeoutMs := 1000;
+    if timeoutMs > 30000 then
+      timeoutMs := 30000;
+
+    startTick := GetTickCount64;
+    streamChanged := False;
+    currentHash := '';
+    slotsJson := '[]';
+
+    repeat
+      slotsJson := ApiGetSlotsRuntimeJson(UTF8Encode(siteFilter));
+      currentHash := CalcFnv1a32Hex(slotsJson);
+      if (requestedHash = '') or (requestedHash <> currentHash) then
+      begin
+        streamChanged := True;
+        Break;
+      end;
+      Sleep(100);
+    until (GetTickCount64 - startTick) >= QWord(timeoutMs);
+
+    streamBody := 'retry: 250'#10;
+    if streamChanged then
+    begin
+      streamBody := streamBody + 'event: slots'#10 +
+        'data: {"hash":"' + UTF8Encode(currentHash) + '","slots":' + slotsJson + '}'#10#10;
+    end
+    else
+    begin
+      streamBody := streamBody + 'event: ping'#10 +
+        'data: {"hash":"' + UTF8Encode(currentHash) + '"}'#10#10;
+    end;
+
+    Call.OutHead :=
+      'Content-Type: text/event-stream; charset=utf-8'#13#10 +
+      'Cache-Control: no-cache, no-transform'#13#10 +
+      'Connection: keep-alive'#13#10 +
+      'X-Accel-Buffering: no';
+    Call.OutBody := streamBody;
+    Call.OutStatus := HTTP_SUCCESS;
+    Exit(True);
   end;
 
   // If it's an API call (/api/...), check authentication first

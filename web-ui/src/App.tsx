@@ -18,6 +18,7 @@ import { Races } from './pages/Races';
 import { Databases } from './pages/Databases';
 import { Help } from './pages/Help';
 import { Cbftp } from './pages/cbftp/Cbftp';
+import { Monitoring } from './pages/Monitoring';
 import Login from './pages/Login';
 import { isAuthenticated } from './api/client';
 
@@ -47,6 +48,7 @@ function App() {
           <Route path="pre" element={<Pre />} />
           <Route path="logs" element={<Logs />} />
           <Route path="races" element={<Races />} />
+          <Route path="monitoring" element={<Monitoring />} />
           <Route path="issues" element={<Issues />} />
           <Route path="databases" element={<Databases />} />
           <Route path="routes" element={<RoutesPage />} />

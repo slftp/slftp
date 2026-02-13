@@ -47,6 +47,8 @@ uses
   slcriticalsection2,
   globals;
 
+function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
+
 type
   { System Service Implementation }
   TApiSystemServiceImpl = class(TInjectableObjectRest, IApiSystemService)
@@ -66,6 +68,7 @@ type
   public
     function GetSites(const Filter: RawUTF8; out Sites: TApiSitesList): boolean;
     function GetSite(const SiteName: RawUTF8; out Info: TApiSiteInfo): boolean;
+    function GetSlotsRuntime(const SiteName: RawUTF8): RawJSON;
     function GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;
     function GetSiteUser(const SiteName, UserName: RawUTF8; out Info: TApiSiteUserInfo): boolean;
     function AddSite(const Name, Host: RawUTF8; Port: integer;
@@ -1751,6 +1754,176 @@ begin
       Result := False;
     end;
   end;
+end;
+
+function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
+var
+  sitesArray: TDocVariantData;
+  siteDoc, slotsDoc, slotDoc: variant;
+  filterSite: string;
+  i, j: integer;
+  s: TSite;
+  ss: TSiteSlot;
+  task: TTask;
+  taskName: string;
+  taskUid: Int64;
+  nowTs: TDateTime;
+  lockAcquired: boolean;
+  totalSlots: integer;
+  freeSlots: integer;
+  activeSlots: integer;
+  siteStatus: RawUTF8;
+
+  function AgeSeconds(const aWhen, aNow: TDateTime): integer;
+  var
+    delta: Int64;
+  begin
+    Result := -1;
+    if aWhen <= 0 then
+      Exit;
+    try
+      delta := SecondsBetween(aNow, aWhen);
+      if delta < 0 then
+        delta := 0;
+      if delta > High(Integer) then
+        delta := High(Integer);
+      Result := integer(delta);
+    except
+      Result := -1;
+    end;
+  end;
+
+  function DirectionText(const aUploading, aDownloading: boolean): RawUTF8;
+  begin
+    if aUploading and aDownloading then
+      Result := 'up+down'
+    else if aUploading then
+      Result := 'up'
+    else if aDownloading then
+      Result := 'down'
+    else
+      Result := 'idle';
+  end;
+
+begin
+  Result := '[]';
+  sitesArray.InitFast(dvArray);
+  filterSite := Trim(UTF8ToString(SiteName));
+  nowTs := Now;
+
+  try
+    if sitesunit.sites = nil then
+    begin
+      Result := sitesArray.ToJSON;
+      Exit;
+    end;
+
+    for i := 0 to sitesunit.sites.Count - 1 do
+    begin
+      s := TSite(sitesunit.sites[i]);
+      if s = nil then
+        Continue;
+      if s.Name = sitesunit.getAdminSiteName then
+        Continue;
+      if (filterSite <> '') and (filterSite <> '*') and (CompareText(s.Name, filterSite) <> 0) then
+        Continue;
+
+      case s.WorkingStatus of
+        sstUp: siteStatus := 'UP';
+        sstDown, sstTempDown: siteStatus := 'DOWN';
+        sstMarkedAsDownByUser: siteStatus := 'DOWN_BY_USER';
+      else
+        siteStatus := 'UNKNOWN';
+      end;
+
+      totalSlots := 0;
+      freeSlots := -1;
+      activeSlots := 0;
+      TDocVariant.New(slotsDoc);
+      TDocVariantData(slotsDoc).InitFast(dvArray);
+      lockAcquired := s.AcquireSlotsAssignmentLock(150, 'GetSlotsRuntime');
+      try
+        if lockAcquired then
+        begin
+          if s.slots <> nil then
+            totalSlots := s.slots.Count;
+          freeSlots := s.freeslots;
+
+          for j := 0 to totalSlots - 1 do
+          begin
+            ss := TSiteSlot(s.slots[j]);
+            if ss = nil then
+              Continue;
+
+            TDocVariant.New(slotDoc);
+            TDocVariantData(slotDoc).AddValue('slot', ss.SlotNumber);
+            TDocVariantData(slotDoc).AddValue('name', UTF8Encode(ss.Name));
+            TDocVariantData(slotDoc).AddValue('status', UTF8Encode(SlotStatusToString(ss.Status)));
+
+            task := ss.todotask;
+            taskName := 'Idle';
+            taskUid := 0;
+            if task <> nil then
+            begin
+              taskName := 'Task';
+              try
+                taskName := task.Name;
+              except
+                // keep fallback task name
+              end;
+              if taskName = '' then
+                taskName := 'Task';
+              try
+                taskUid := task.uid;
+              except
+                taskUid := 0;
+              end;
+              Inc(activeSlots);
+            end;
+
+            TDocVariantData(slotDoc).AddValue('task', UTF8Encode(taskName));
+            if taskUid > 0 then
+              TDocVariantData(slotDoc).AddValue('task_uid', taskUid);
+            TDocVariantData(slotDoc).AddValue('action', UTF8Encode(ss.CurrentAction));
+            TDocVariantData(slotDoc).AddValue('uploading', ss.uploadingto);
+            TDocVariantData(slotDoc).AddValue('downloading', ss.downloadingfrom);
+            TDocVariantData(slotDoc).AddValue('direction', DirectionText(ss.uploadingto, ss.downloadingfrom));
+            TDocVariantData(slotDoc).AddValue('last_io_sec', AgeSeconds(ss.LastIO, nowTs));
+            TDocVariantData(slotDoc).AddValue('last_task_sec', AgeSeconds(ss.LastTaskExecution, nowTs));
+            TDocVariantData(slotDoc).AddValue('last_non_idle_task_sec', AgeSeconds(ss.LastNonIdleTaskExecution, nowTs));
+            TDocVariantData(slotDoc).AddValue('response_code', ss.lastResponseCode);
+            TDocVariantData(slotsDoc).AddItem(slotDoc);
+          end;
+        end;
+      finally
+        if lockAcquired then
+          s.ReleaseSlotsAssignmentLock;
+      end;
+
+      TDocVariant.New(siteDoc);
+      TDocVariantData(siteDoc).AddValue('site', UTF8Encode(s.Name));
+      TDocVariantData(siteDoc).AddValue('site_status', siteStatus);
+      TDocVariantData(siteDoc).AddValue('locked', not lockAcquired);
+      TDocVariantData(siteDoc).AddValue('slots_total', totalSlots);
+      TDocVariantData(siteDoc).AddValue('slots_free', freeSlots);
+      TDocVariantData(siteDoc).AddValue('active_slots', activeSlots);
+      TDocVariantData(siteDoc).AddValue('slots', slotsDoc);
+      sitesArray.AddItem(siteDoc);
+    end;
+
+    Result := sitesArray.ToJSON;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] GetSlotsRuntime: %s', [E.Message]));
+      Result := '[]';
+    end;
+  end;
+end;
+
+function TApiSitesServiceImpl.GetSlotsRuntime(const SiteName: RawUTF8): RawJSON;
+begin
+  Result := ApiGetSlotsRuntimeJson(SiteName);
 end;
 
 function TApiSitesServiceImpl.GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;

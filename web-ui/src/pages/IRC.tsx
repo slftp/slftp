@@ -462,6 +462,7 @@ export function IRC() {
   const matchesByRelease = (() => {
     const map = new Map<string, { hits: PrecatcherHit[]; sites: Set<string>; lastAt: number }>();
     for (const hit of precatcherHits || []) {
+      if (!isMatchAnnounceEvent(hit.event)) continue;
       const key = hit.releaseName || '';
       if (!key) continue;
       const existing = map.get(key);
@@ -1423,8 +1424,6 @@ export function IRC() {
                     <Table.Th>Present</Table.Th>
                     <Table.Th>Expected</Table.Th>
                     <Table.Th>Matched</Table.Th>
-                    <Table.Th>Hits</Table.Th>
-                    <Table.Th>Last Hit</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -1437,8 +1436,6 @@ export function IRC() {
                       const matchedSites = m
                         ? Array.from(m.sites).filter((s) => expectedSitesNormalized.has(normalize(s))).length
                         : 0;
-                      const hitsCount = m ? m.hits.length : 0;
-                      const lastAt = m ? m.lastAt : 0;
                       const sitesList = (r.Sites || []).join(', ');
                       const matchedSitesList = m
                         ? Array.from(m.sites).filter((s) => expectedSitesNormalized.has(normalize(s))).join(', ')
@@ -1488,12 +1485,6 @@ export function IRC() {
                                 {matchedSites}/{expectedSites}
                               </Badge>
                             </Tooltip>
-                          </Table.Td>
-                          <Table.Td>
-                            {hitsCount > 0 ? <Badge variant="light">{hitsCount}</Badge> : <Text size="sm" c="dimmed">0</Text>}
-                          </Table.Td>
-                          <Table.Td>
-                            {lastAt ? <Text size="sm">{formatUnix(lastAt)}</Text> : <Text size="sm" c="dimmed">-</Text>}
                           </Table.Td>
                         </Table.Tr>
                       );
