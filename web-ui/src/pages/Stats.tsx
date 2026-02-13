@@ -285,7 +285,7 @@ export function Stats() {
                     <Table.Td fw={500}>{s.name}</Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>{formatBytes(totalBytes)}</Table.Td>
                     <Table.Td style={{ textAlign: 'right' }}>
-                       <Badge variant="light" color={ratioColor}>
+                       <Badge variant="filled" color={ratioColor}>
                          {formatRatio(s.inBytes, s.outBytes)}
                        </Badge>
                     </Table.Td>

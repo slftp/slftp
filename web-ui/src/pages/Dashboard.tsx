@@ -304,7 +304,7 @@ export function Dashboard() {
         <StatCard
           title="Active Tasks"
           value={stats.ActiveTasks}
-          subtitle={`Queue: ${stats.QueueSize} | ${stats.DirlistPerSecond?.toFixed(1) ?? 0} dir/s`}
+          subtitle={`Queue: ${stats.QueueSize} | Dir/sec now: ${stats.DirlistPerSecond?.toFixed(1) ?? 0} | peak: ${stats.DirlistPerSecondMax?.toFixed(1) ?? 0}`}
           icon={<IconActivity size="1.4rem" stroke={1.5} color="white" />}
           iconColor="#9b59b6"
           iconGradient="linear-gradient(135deg, #9b59b6 0%, #e74c3c 100%)"
@@ -342,7 +342,7 @@ export function Dashboard() {
           color="#ffb547"
         />
         <MiniStatCard
-          title="Dir/sec"
+          title="Dir/sec Peak"
           value={stats.DirlistPerSecondMax?.toFixed(1) ?? 0}
           icon={<IconTrendingUp size="1rem" />}
           color="#00d4ff"
