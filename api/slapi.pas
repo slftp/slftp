@@ -298,10 +298,9 @@ var
   sUrlLower: string;
   basePath: string;
   normalizedPath: string;
-  authHeader: RawUTF8;
-  providedKey: RawUTF8;
-  idx, crlfPos, colonPos: Integer;
-  headerLine: string;
+  isApiCall: Boolean;
+  isCbftpCall: Boolean;
+  isCbftpEnabledEndpoint: Boolean;
   
   function GetMimeType(const FN: TFileName): RawUTF8;
   var
@@ -320,6 +319,54 @@ var
     else Result := 'application/octet-stream';
   end;
 
+  function RequireApiAuth: Boolean;
+  var
+    authHeader: RawUTF8;
+    providedKey: RawUTF8;
+    idx, crlfPos, colonPos: Integer;
+    headerLine: string;
+  begin
+    Result := True;
+
+    if FApiKey = '' then
+      Exit(True);
+
+    authHeader := '';
+    if Pos('AUTHORIZATION:', UpperCase(Call.InHead)) > 0 then
+    begin
+      // Extract value after "Authorization: "
+      idx := Pos('AUTHORIZATION:', UpperCase(Call.InHead));
+      headerLine := Copy(Call.InHead, idx, MaxInt);
+      crlfPos := Pos(#13, headerLine);
+      if crlfPos > 0 then
+        headerLine := Copy(headerLine, 1, crlfPos - 1);
+      colonPos := Pos(':', headerLine);
+      if colonPos > 0 then
+        authHeader := Trim(Copy(headerLine, colonPos + 1, MaxInt));
+    end;
+
+    if authHeader = '' then
+    begin
+      Call.OutStatus := HTTP_FORBIDDEN;
+      Call.OutBody := 'Missing Authorization header';
+      Exit(False);
+    end;
+
+    // Expected format: "Bearer YOUR_API_KEY" or just "YOUR_API_KEY"
+    if (Length(authHeader) >= 7) and (UpperCase(Copy(authHeader, 1, 7)) = 'BEARER ') then
+      providedKey := Copy(authHeader, 8, Length(authHeader))
+    else
+      providedKey := authHeader;
+
+    if providedKey <> UTF8Encode(FApiKey) then
+    begin
+      Call.OutStatus := HTTP_FORBIDDEN;
+      Call.OutBody := 'Invalid API key';
+      Debug(dpError, rsection, 'API authentication failed');
+      Exit(False);
+    end;
+  end;
+
 begin
   Result := False; // By default, let mORMot handle
 
@@ -332,59 +379,36 @@ begin
   else if sUrl[1] <> '/' then
     sUrl := '/' + sUrl;
 
-  // Check for cbftp proxy requests first (allow /cbftp/ and /api/cbftp/)
   sUrlLower := LowerCase(sUrl);
-  if ((Length(sUrlLower) >= 7) and (Copy(sUrlLower, 1, 7) = '/cbftp/')) or
-     ((Length(sUrlLower) >= 11) and (Copy(sUrlLower, 1, 11) = '/api/cbftp/')) then
+  isCbftpCall :=
+    ((Length(sUrlLower) >= 7) and (Copy(sUrlLower, 1, 7) = '/cbftp/')) or
+    (sUrlLower = '/cbftp') or
+    ((Length(sUrlLower) >= 11) and (Copy(sUrlLower, 1, 11) = '/api/cbftp/')) or
+    (sUrlLower = '/api/cbftp');
+  isCbftpEnabledEndpoint :=
+    (sUrlLower = '/cbftp/enabled') or
+    (Copy(sUrlLower, 1, 15) = '/cbftp/enabled?') or
+    (sUrlLower = '/api/cbftp/enabled') or
+    (Copy(sUrlLower, 1, 19) = '/api/cbftp/enabled?');
+  isApiCall := (Length(sUrl) >= 4) and (Copy(UpperCase(sUrl), 1, 4) = '/API');
+
+  // Check for cbftp proxy requests first (allow /cbftp/ and /api/cbftp/)
+  if isCbftpCall then
   begin
-    // Handle cbftp proxy request (has its own auth via cbftp password)
+    // Keep /cbftp/enabled public for frontend capability checks.
+    // All other cbftp proxy endpoints require the slftp API key.
+    if (not isCbftpEnabledEndpoint) and (not RequireApiAuth) then
+      Exit(True); // Rejected by auth
+
     Result := HandleCbftpRequest(Call);
     Exit(Result);
   end;
 
   // If it's an API call (/api/...), check authentication first
-  if (Length(sUrl) >= 4) and (Copy(UpperCase(sUrl), 1, 4) = '/API') then
+  if isApiCall then
   begin
-    // Check API key if configured
-    if FApiKey <> '' then
-    begin
-      // Parse Authorization header from InHead
-      authHeader := '';
-      if Pos('AUTHORIZATION:', UpperCase(Call.InHead)) > 0 then
-      begin
-        // Extract value after "Authorization: "
-        idx := Pos('AUTHORIZATION:', UpperCase(Call.InHead));
-        headerLine := Copy(Call.InHead, idx, MaxInt);
-        crlfPos := Pos(#13, headerLine);
-        if crlfPos > 0 then
-          headerLine := Copy(headerLine, 1, crlfPos - 1);
-        // Get value after "Authorization: "
-        colonPos := Pos(':', headerLine);
-        if colonPos > 0 then
-          authHeader := Trim(Copy(headerLine, colonPos + 1, MaxInt));
-      end;
-
-      if authHeader = '' then
-      begin
-        Call.OutStatus := HTTP_FORBIDDEN;
-        Call.OutBody := 'Missing Authorization header';
-        Exit(True); // We handled it (rejected)
-      end;
-
-      // Expected format: "Bearer YOUR_API_KEY" or just "YOUR_API_KEY"
-      if (Length(authHeader) >= 7) and (UpperCase(Copy(authHeader, 1, 7)) = 'BEARER ') then
-        providedKey := Copy(authHeader, 8, Length(authHeader))
-      else
-        providedKey := authHeader;
-
-      if providedKey <> UTF8Encode(FApiKey) then
-      begin
-        Call.OutStatus := HTTP_FORBIDDEN;
-        Call.OutBody := 'Invalid API key';
-        Debug(dpError, rsection, 'API authentication failed');
-        Exit(True); // We handled it (rejected)
-      end;
-    end;
+    if not RequireApiAuth then
+      Exit(True); // Rejected by auth
 
     // Auth passed (or not required), let mORMot handle the API call
     Exit(False); // mORMot handles it
