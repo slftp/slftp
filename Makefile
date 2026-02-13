@@ -49,6 +49,7 @@ slftp_64:	FORCE
 	$(MAKE) revpatchrevert
 
 slftp_debug:	FORCE
+	$(MAKE) clean
 	$(MAKE) revpatch
 	$(CC) $(CDBFLAGS) $(CINCLUDES) slftp.lpr
 	$(MAKE) revpatchrevert
