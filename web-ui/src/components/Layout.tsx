@@ -95,9 +95,12 @@ export function Layout() {
     ...(cbftpEnabled ? [{ icon: IconTransfer, label: 'cbftp', to: '/cbftp', color: '#00d4ff' }] : []),
   ];
 
-  const navItems = navItemsBase
+  const dashboardItem = navItemsBase.find((item) => item.to === '/');
+  const sortedNavItems = navItemsBase
+    .filter((item) => item.to !== '/')
     .slice()
-    .sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()));
+    .sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
+  const navItems = dashboardItem ? [dashboardItem, ...sortedNavItems] : sortedNavItems;
 
   const handleLogout = () => {
     clearApiToken();
@@ -182,7 +185,7 @@ export function Layout() {
         <ScrollArea h="100%" type="never" scrollbarSize={0}>
           <Box p="xs">
             <Stack gap={2}>
-              {navItems.map((item) => {
+              {navItems.map((item, index) => {
                 const active = isActive(item.to);
                 return (
                   <NavLink
@@ -202,6 +205,7 @@ export function Layout() {
                     }}
                     styles={{
                       root: {
+                        order: index,
                         borderRadius: '8px',
                         padding: '8px 10px',
                         margin: '1px 0',

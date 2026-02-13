@@ -4,6 +4,7 @@ import {
   Badge,
   Card,
   Center,
+  Checkbox,
   Group,
   Loader,
   ScrollArea,
@@ -42,6 +43,7 @@ function parseSseMessage(raw: string): { event: string; data: string } | null {
 
 export function Monitoring() {
   const [filter, setFilter] = useState('');
+  const [onlyActive, setOnlyActive] = useState(false);
   const [isVisible, setIsVisible] = useState<boolean>(document.visibilityState === 'visible');
   const [streamMode, setStreamMode] = useState<StreamMode>('stream');
   const [sitesData, setSitesData] = useState<SiteSlotsRuntime[] | null>(null);
@@ -133,6 +135,18 @@ export function Monitoring() {
   const data = sitesData || [];
 
   const filteredSites = useMemo(() => {
+    const isActiveSlot = (slot: SlotRuntime): boolean => {
+      const task = (slot.task || '').trim().toLowerCase();
+      if (task && task !== 'idle') return true;
+
+      const direction = (slot.direction || '').trim().toLowerCase();
+      if (direction && direction !== 'idle') return true;
+
+      const action = (slot.action || '').trim().toLowerCase();
+      if (!action) return false;
+      return action !== 'idle' && action !== 'idle...' && action !== 'disconnected' && action !== 'initializing...';
+    };
+
     const list = data.slice().sort((a, b) => a.site.localeCompare(b.site));
     const term = filter.trim().toLowerCase();
 
@@ -149,11 +163,12 @@ export function Monitoring() {
               (slot.action || '').toLowerCase().includes(term) ||
               slot.task.toLowerCase().includes(term)
             );
-          });
+          })
+          .filter((slot) => !onlyActive || isActiveSlot(slot));
         return { ...site, slots };
       })
       .filter((site) => site.slots.length > 0 || site.locked);
-  }, [data, filter]);
+  }, [data, filter, onlyActive]);
 
   const isLoading = !sitesData && (streamMode === 'stream' || fallbackQuery.isLoading);
   const hasError = streamMode === 'fallback' && !sitesData && !!fallbackQuery.error;
@@ -200,6 +215,11 @@ export function Monitoring() {
           value={filter}
           onChange={(event) => setFilter(event.currentTarget.value)}
           style={{ flex: 1, minWidth: 260 }}
+        />
+        <Checkbox
+          label="Only active slots"
+          checked={onlyActive}
+          onChange={(event) => setOnlyActive(event.currentTarget.checked)}
         />
       </Group>
 
