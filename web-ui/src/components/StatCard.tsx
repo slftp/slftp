@@ -53,15 +53,14 @@ export function StatCard({
       radius="lg"
       style={{
         ...styles,
-        backdropFilter: 'blur(20px)',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25), 0 0 30px rgba(67, 24, 255, 0.03)',
-        transition: 'all 0.3s ease',
+        boxShadow: '0 3px 14px rgba(0, 0, 0, 0.22)',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
       }}
       styles={{
         root: {
           '&:hover': {
             transform: 'translateY(-2px)',
-            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.35), 0 0 40px rgba(67, 24, 255, 0.08)',
+            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.3)',
             borderColor: 'rgba(255, 255, 255, 0.12)',
           },
         },
@@ -132,7 +131,7 @@ export function StatCard({
           radius="lg"
           style={{
             background: iconGradient,
-            boxShadow: `0 4px 16px ${iconColor === 'brand' ? 'rgba(67, 24, 255, 0.35)' : 'rgba(0, 0, 0, 0.25)'}`,
+            boxShadow: `0 3px 10px ${iconColor === 'brand' ? 'rgba(67, 24, 255, 0.28)' : 'rgba(0, 0, 0, 0.2)'}`,
             flexShrink: 0,
           }}
         >
@@ -159,10 +158,9 @@ export function MiniStatCard({ title, value, icon, color = '#4318ff', onClick }:
       onClick={onClick}
       style={{
         background: 'rgba(17, 28, 68, 0.4)',
-        backdropFilter: 'blur(10px)',
         border: '1px solid rgba(255, 255, 255, 0.05)',
         cursor: onClick ? 'pointer' : 'default',
-        transition: 'all 0.3s ease',
+        transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
       }}
       styles={{
         root: {

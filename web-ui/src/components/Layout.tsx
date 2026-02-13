@@ -47,11 +47,32 @@ export function Layout() {
   });
 
   useEffect(() => {
+    let ticking = false;
+    let rafId = 0;
+    let isMounted = true;
+
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
+      if (ticking || !isMounted) return;
+      ticking = true;
+
+      rafId = window.requestAnimationFrame(() => {
+        if (!isMounted) return;
+        const isScrolled = window.scrollY > 20;
+        setScrolled((prev) => (prev === isScrolled ? prev : isScrolled));
+        ticking = false;
+      });
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      isMounted = false;
+      if (rafId !== 0) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
   const navItems: NavItem[] = [
@@ -99,10 +120,10 @@ export function Layout() {
       <AppShell.Header
         style={{
           background: scrolled ? 'rgba(15, 21, 53, 0.95)' : 'rgba(15, 21, 53, 0.8)',
-          backdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(10px)',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: scrolled ? '0 4px 30px rgba(0, 0, 0, 0.3)' : 'none',
-          transition: 'all 0.3s ease',
+          boxShadow: scrolled ? '0 4px 20px rgba(0, 0, 0, 0.28)' : 'none',
+          transition: 'background-color 0.2s ease, box-shadow 0.2s ease',
         }}
       >
         <Group h="100%" px="md" justify="space-between">
@@ -149,7 +170,7 @@ export function Layout() {
       <AppShell.Navbar
         style={{
           background: 'linear-gradient(127.09deg, rgba(6, 11, 40, 0.98) 19.41%, rgba(10, 14, 35, 0.9) 76.65%)',
-          backdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(10px)',
           borderRight: '1px solid rgba(255, 255, 255, 0.08)',
         }}
       >
@@ -183,8 +204,8 @@ export function Layout() {
                           ? `linear-gradient(135deg, ${item.color}20 0%, ${item.color}10 100%)`
                           : 'transparent',
                         border: active ? `1px solid ${item.color}40` : '1px solid transparent',
-                        boxShadow: active ? `0 0 12px ${item.color}15` : 'none',
-                        transition: 'all 0.2s ease',
+                        boxShadow: active ? `0 0 8px ${item.color}12` : 'none',
+                        transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
                         '&:hover': {
                           background: active 
                             ? `linear-gradient(135deg, ${item.color}25 0%, ${item.color}15 100%)`
@@ -215,7 +236,7 @@ export function Layout() {
                     padding: '8px 10px',
                     background: 'rgba(255, 77, 77, 0.08)',
                     border: '1px solid rgba(255, 77, 77, 0.15)',
-                    transition: 'all 0.2s ease',
+                    transition: 'background-color 0.2s ease, border-color 0.2s ease',
                     '&:hover': {
                       background: 'rgba(255, 77, 77, 0.15)',
                       borderColor: 'rgba(255, 77, 77, 0.25)',

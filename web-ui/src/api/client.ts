@@ -65,7 +65,18 @@ export interface SystemStatus {
   SitesUp: number;
   SitesDown: number;
   QueueSize: number;
+  QueueSizeMax: number;
   ActiveTasks: number;
+  LoadAvgCurrent1: number;
+  LoadAvgCurrent5: number;
+  LoadAvgCurrent15: number;
+  LoadAvgPeak1: number;
+  LoadAvgPeak5: number;
+  LoadAvgPeak15: number;
+  LoadAvgAvailable: boolean;
+  CpuLoadCurrent: number;
+  CpuLoadMax: number;
+  CpuLoadAvailable: boolean;
   DirlistPerSecond: number;
   DirlistPerSecondMax: number;
 }

@@ -316,6 +316,7 @@ uses
   skiplists,
   globalskipunit,
   knowngroups,
+  loadmonitorunit,
   mrdohutils,
   mormot.orm.core,
   mormot.orm.base,
@@ -375,6 +376,11 @@ var
   glBrowserCacheLock: TSlCriticalSection2;
   glBrowserCache: TObjectDictionary<string, TBrowserCacheEntry>;
   glPrecatcherDebugCaptureLock: TSlCriticalSection2;
+  glSystemStatusQueueSizeMax: integer = 0;
+  glSystemStatusCpuLoadMax: integer = 0;
+  glSystemStatusLoadAvgPeak1: Double = 0;
+  glSystemStatusLoadAvgPeak5: Double = 0;
+  glSystemStatusLoadAvgPeak15: Double = 0;
 
 { TBrowserDirlistTask }
 
@@ -795,6 +801,46 @@ end;
 
 { TApiSystemServiceImpl }
 
+function TryGetLoadAverage(out aAvg1, aAvg5, aAvg15: Double): boolean;
+var
+  fLoadText: string;
+  fParts: TStringList;
+  fFormatSettings: TFormatSettings;
+begin
+  Result := False;
+  aAvg1 := 0;
+  aAvg5 := 0;
+  aAvg15 := 0;
+
+  fLoadText := Trim(String(RetrieveLoadAvg));
+  if fLoadText = '' then
+    Exit;
+
+  // Windows returns system/user/kernel CPU text, not POSIX load average triplet.
+  if (Pos('U:', UpperCase(fLoadText)) > 0) or (Pos('K:', UpperCase(fLoadText)) > 0) then
+    Exit;
+
+  fParts := TStringList.Create;
+  try
+    ExtractStrings([' '], [], PChar(fLoadText), fParts);
+    if fParts.Count < 3 then
+      Exit;
+
+    fFormatSettings := DefaultFormatSettings;
+    fFormatSettings.DecimalSeparator := '.';
+    if not TryStrToFloat(fParts[0], aAvg1, fFormatSettings) then
+      Exit;
+    if not TryStrToFloat(fParts[1], aAvg5, fFormatSettings) then
+      Exit;
+    if not TryStrToFloat(fParts[2], aAvg15, fFormatSettings) then
+      Exit;
+
+    Result := True;
+  finally
+    fParts.Free;
+  end;
+end;
+
 function TApiSystemServiceImpl.GetStatus(out Response: TApiSystemStatus): boolean;
 var
   i: integer;
@@ -802,6 +848,10 @@ var
   upCount, downCount, siteCount: integer;
   qTotal, qRace, qDir, qAuto, qOther: integer;
   activeSum: integer;
+  currentCpuLoad: integer;
+  cpuLoadAvailable: boolean;
+  currentLoadAvg1, currentLoadAvg5, currentLoadAvg15: Double;
+  loadAvgAvailable: boolean;
 begin
   Result := False;
   try
@@ -853,8 +903,56 @@ begin
     QueueStatAll;
     GetQueueTotals(qTotal, qRace, qDir, qAuto, qOther);
     Response.QueueSize := qTotal;
+    if qTotal > glSystemStatusQueueSizeMax then
+      glSystemStatusQueueSizeMax := qTotal;
+    Response.QueueSizeMax := glSystemStatusQueueSizeMax;
     // Treat all queued tasks as active for dashboard purposes; transfers also counted via activeSum
     Response.ActiveTasks := qTotal;
+
+    loadAvgAvailable := TryGetLoadAverage(currentLoadAvg1, currentLoadAvg5, currentLoadAvg15);
+    Response.LoadAvgAvailable := loadAvgAvailable;
+    if loadAvgAvailable then
+    begin
+      Response.LoadAvgCurrent1 := currentLoadAvg1;
+      Response.LoadAvgCurrent5 := currentLoadAvg5;
+      Response.LoadAvgCurrent15 := currentLoadAvg15;
+
+      if currentLoadAvg1 > glSystemStatusLoadAvgPeak1 then
+        glSystemStatusLoadAvgPeak1 := currentLoadAvg1;
+      if currentLoadAvg5 > glSystemStatusLoadAvgPeak5 then
+        glSystemStatusLoadAvgPeak5 := currentLoadAvg5;
+      if currentLoadAvg15 > glSystemStatusLoadAvgPeak15 then
+        glSystemStatusLoadAvgPeak15 := currentLoadAvg15;
+
+      Response.LoadAvgPeak1 := glSystemStatusLoadAvgPeak1;
+      Response.LoadAvgPeak5 := glSystemStatusLoadAvgPeak5;
+      Response.LoadAvgPeak15 := glSystemStatusLoadAvgPeak15;
+    end
+    else
+    begin
+      Response.LoadAvgCurrent1 := 0;
+      Response.LoadAvgCurrent5 := 0;
+      Response.LoadAvgCurrent15 := 0;
+      Response.LoadAvgPeak1 := 0;
+      Response.LoadAvgPeak5 := 0;
+      Response.LoadAvgPeak15 := 0;
+    end;
+
+    cpuLoadAvailable := IsLoadMonitorAvailable;
+    Response.CpuLoadAvailable := cpuLoadAvailable;
+    if cpuLoadAvailable then
+    begin
+      currentCpuLoad := GlLoadMonitor.CurrentCPUUsageTotal;
+      Response.CpuLoadCurrent := currentCpuLoad;
+      if currentCpuLoad > glSystemStatusCpuLoadMax then
+        glSystemStatusCpuLoadMax := currentCpuLoad;
+      Response.CpuLoadMax := glSystemStatusCpuLoadMax;
+    end
+    else
+    begin
+      Response.CpuLoadCurrent := 0;
+      Response.CpuLoadMax := 0;
+    end;
 
     // Use global rate calculated by QueueThread
     Response.DirlistPerSecond := GlDirlistRate;

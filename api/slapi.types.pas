@@ -48,7 +48,18 @@ type
     FSitesUp: integer;
     FSitesDown: integer;
     FQueueSize: integer;
+    FQueueSizeMax: integer;
     FActiveTasks: integer;
+    FLoadAvgCurrent1: Double;
+    FLoadAvgCurrent5: Double;
+    FLoadAvgCurrent15: Double;
+    FLoadAvgPeak1: Double;
+    FLoadAvgPeak5: Double;
+    FLoadAvgPeak15: Double;
+    FLoadAvgAvailable: boolean;
+    FCpuLoadCurrent: integer;
+    FCpuLoadMax: integer;
+    FCpuLoadAvailable: boolean;
     FDirlistPerSecond: Double;
     FDirlistPerSecondMax: Double;
   published
@@ -58,7 +69,18 @@ type
     property SitesUp: integer read FSitesUp write FSitesUp;
     property SitesDown: integer read FSitesDown write FSitesDown;
     property QueueSize: integer read FQueueSize write FQueueSize;
+    property QueueSizeMax: integer read FQueueSizeMax write FQueueSizeMax;
     property ActiveTasks: integer read FActiveTasks write FActiveTasks;
+    property LoadAvgCurrent1: Double read FLoadAvgCurrent1 write FLoadAvgCurrent1;
+    property LoadAvgCurrent5: Double read FLoadAvgCurrent5 write FLoadAvgCurrent5;
+    property LoadAvgCurrent15: Double read FLoadAvgCurrent15 write FLoadAvgCurrent15;
+    property LoadAvgPeak1: Double read FLoadAvgPeak1 write FLoadAvgPeak1;
+    property LoadAvgPeak5: Double read FLoadAvgPeak5 write FLoadAvgPeak5;
+    property LoadAvgPeak15: Double read FLoadAvgPeak15 write FLoadAvgPeak15;
+    property LoadAvgAvailable: boolean read FLoadAvgAvailable write FLoadAvgAvailable;
+    property CpuLoadCurrent: integer read FCpuLoadCurrent write FCpuLoadCurrent;
+    property CpuLoadMax: integer read FCpuLoadMax write FCpuLoadMax;
+    property CpuLoadAvailable: boolean read FCpuLoadAvailable write FCpuLoadAvailable;
     property DirlistPerSecond: Double read FDirlistPerSecond write FDirlistPerSecond;
     property DirlistPerSecondMax: Double read FDirlistPerSecondMax write FDirlistPerSecondMax;
   end;
