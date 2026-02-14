@@ -155,7 +155,7 @@ var
   fReleasenameCountry: String;
   
   i, j: Integer;
-  fVariant, fVariant2: Variant;
+  fVariant, fVariant2, fCountryVariant, fNameVariant: Variant;
   fCountryName, fLanguageName, fAttributesStr: String;
 begin
   aImdbData := TDbImdbData.Create(aImdbId);
@@ -218,7 +218,9 @@ begin
     begin
       for i := 0 to TDocVariantData(fVariant).Count - 1 do
       begin
-        fStrHelper := VarToStr(TDocVariantData(fVariant).Values[i]);
+        fVariant2 := TDocVariantData(fVariant).Values[i];
+        if VarIsNull(fVariant2) then Continue;
+        fStrHelper := VarToStr(fVariant2);
         if fStrHelper <> '' then
           aImdbData.imdb_genres.Add(fStrHelper);
       end;
@@ -232,7 +234,10 @@ begin
       for i := 0 to TDocVariantData(fVariant).Count - 1 do
       begin
         fVariant2 := TDocVariantData(fVariant).Values[i];
-        fStrHelper := TDocVariantData(fVariant2).GetValueOrNull('name');
+        if VarIsNull(fVariant2) then Continue;
+        fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('name');
+        if VarIsNull(fNameVariant) then Continue;
+        fStrHelper := fNameVariant;
         if fStrHelper <> '' then
         begin
           fCountryName := fStrHelper;
@@ -257,7 +262,10 @@ begin
       for i := 0 to TDocVariantData(fVariant).Count - 1 do
       begin
         fVariant2 := TDocVariantData(fVariant).Values[i];
-        fStrHelper := TDocVariantData(fVariant2).GetValueOrNull('name');
+        if VarIsNull(fVariant2) then Continue;
+        fNameVariant := TDocVariantData(fVariant2).GetValueOrNull('name');
+        if VarIsNull(fNameVariant) then Continue;
+        fStrHelper := fNameVariant;
         if fStrHelper <> '' then
         begin
           fLanguageName := fStrHelper;
@@ -345,9 +353,16 @@ begin
              for i := 0 to TDocVariantData(fVariant).Count - 1 do
              begin
                 fVariant2 := TDocVariantData(fVariant).Values[i];
-                if VarIsNull(fVariant2.country) or VarIsNull(fVariant2.country.name) then Continue;
                 
-                fCountryName := fVariant2.country.name;
+                // Skip if fVariant2 itself is null
+                if VarIsNull(fVariant2) then Continue;
+                
+                // Safely get country name using GetValueOrNull to avoid Null conversion errors
+                fCountryVariant := TDocVariantData(fVariant2).GetValueOrNull('country');
+                if VarIsNull(fCountryVariant) then Continue;
+                
+                fCountryName := TDocVariantData(fCountryVariant).GetValueOrNull('name');
+                if fCountryName = '' then Continue;
                 
                 // Rewrite USA/UK to match internal standard if needed
                 if fCountryName = 'United States' then fCountryName := 'USA'
