@@ -302,6 +302,7 @@ var
   isCbftpCall: Boolean;
   isCbftpEnabledEndpoint: Boolean;
   isSlotsStreamCall: Boolean;
+  isSlotsHistoryCall: Boolean;
   siteFilter: string;
   requestedHash: string;
   currentHash: string;
@@ -458,6 +459,9 @@ begin
   isSlotsStreamCall :=
     (sUrlLower = '/api/sites/slots/stream') or
     (Copy(sUrlLower, 1, 24) = '/api/sites/slots/stream?');
+  isSlotsHistoryCall :=
+    (sUrlLower = '/api/sites/slots/history') or
+    (Copy(sUrlLower, 1, 25) = '/api/sites/slots/history?');
   isApiCall := (Length(sUrl) >= 4) and (Copy(UpperCase(sUrl), 1, 4) = '/API');
 
   // Check for cbftp proxy requests first (allow /cbftp/ and /api/cbftp/)
@@ -526,6 +530,33 @@ begin
       'Connection: keep-alive'#13#10 +
       'X-Accel-Buffering: no';
     Call.OutBody := streamBody;
+    Call.OutStatus := HTTP_SUCCESS;
+    Exit(True);
+  end;
+
+  if isSlotsHistoryCall then
+  begin
+    if not RequireApiAuth then
+      Exit(True);
+
+    if UpperCase(UTF8ToString(Call.Method)) <> 'GET' then
+    begin
+      Call.OutStatus := HTTP_NOTALLOWED;
+      Call.OutBody := 'Method not allowed';
+      Exit(True);
+    end;
+
+    Call.OutHead :=
+      'Content-Type: text/event-stream; charset=utf-8'#13#10 +
+      'Cache-Control: no-cache, no-transform'#13#10 +
+      'Connection: keep-alive'#13#10 +
+      'X-Accel-Buffering: no';
+    Call.OutBody := ApiGetSlotHistorySSE(
+      QueryParam(sUrl, 'site'),
+      StrToIntDef(QueryParam(sUrl, 'slot'), -1),
+      StrToQWordDef(QueryParam(sUrl, 'seq'), 0),
+      StrToIntDef(QueryParam(sUrl, 'timeout_ms'), 5000)
+    );
     Call.OutStatus := HTTP_SUCCESS;
     Exit(True);
   end;

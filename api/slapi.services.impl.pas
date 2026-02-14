@@ -48,6 +48,7 @@ uses
   globals;
 
 function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
+function ApiGetSlotHistorySSE(const aSiteName: string; aSlotNumber: integer; aSeq: QWord; aTimeoutMs: integer): RawUTF8;
 
 type
   { System Service Implementation }
@@ -1924,6 +1925,115 @@ end;
 function TApiSitesServiceImpl.GetSlotsRuntime(const SiteName: RawUTF8): RawJSON;
 begin
   Result := ApiGetSlotsRuntimeJson(SiteName);
+end;
+
+function ApiGetSlotHistorySSE(const aSiteName: string; aSlotNumber: integer; aSeq: QWord; aTimeoutMs: integer): RawUTF8;
+var
+  doc: TDocVariantData;
+  linesArr: TDocVariantData;
+  s: TSite;
+  ss: TSiteSlot;
+  lines: TArray<String>;
+  currentSeq: QWord;
+  i: integer;
+  lockAcquired: boolean;
+  startTick: QWord;
+  changed: boolean;
+  clampedTimeout: integer;
+  dataJson: RawUTF8;
+begin
+  Result := 'retry: 250'#10'event: ping'#10'data: {}'#10#10;
+
+  clampedTimeout := aTimeoutMs;
+  if clampedTimeout < 500 then
+    clampedTimeout := 500;
+  if clampedTimeout > 15000 then
+    clampedTimeout := 15000;
+
+  try
+    s := sitesunit.FindSiteByName('', aSiteName);
+    if s = nil then
+      Exit;
+
+    // Resolve the slot once (outside the poll loop)
+    lockAcquired := s.AcquireSlotsAssignmentLock(150, 'GetSlotHistory');
+    try
+      if not lockAcquired then
+        Exit;
+      if (s.slots = nil) or (aSlotNumber < 0) or (aSlotNumber >= s.slots.Count) then
+        Exit;
+      ss := TSiteSlot(s.slots[aSlotNumber]);
+    finally
+      if lockAcquired then
+        s.ReleaseSlotsAssignmentLock;
+    end;
+
+    if ss = nil then
+      Exit;
+
+    // Long-poll: wait until seq changes or timeout
+    startTick := GetTickCount64;
+    changed := False;
+    repeat
+      currentSeq := ss.HistorySeq;
+      if (aSeq = 0) or (currentSeq <> aSeq) then
+      begin
+        changed := True;
+        Break;
+      end;
+      Sleep(100);
+    until (GetTickCount64 - startTick) >= QWord(clampedTimeout);
+
+    if not changed then
+    begin
+      Result := 'retry: 250'#10 +
+        'event: ping'#10 +
+        'data: {"seq":' + UTF8Encode(IntToStr(currentSeq)) + '}'#10#10;
+      Exit;
+    end;
+
+    // Fetch history snapshot
+    lines := ss.GetHistory;
+    currentSeq := ss.HistorySeq;
+
+    doc.InitFast(dvObject);
+    linesArr.InitFast(dvArray);
+
+    if (aSeq = 0) then
+    begin
+      // Initial load: send full buffer
+      for i := 0 to High(lines) do
+        linesArr.AddItem(UTF8Encode(lines[i]));
+    end
+    else
+    begin
+      // Delta: only send new lines since last seq
+      // newCount = how many lines were added since aSeq
+      // but cap to available lines in buffer
+      i := High(lines) - integer(currentSeq - aSeq) + 1;
+      if i < 0 then
+        i := 0;
+      while i <= High(lines) do
+      begin
+        linesArr.AddItem(UTF8Encode(lines[i]));
+        Inc(i);
+      end;
+    end;
+
+    doc.AddValue('seq', Int64(currentSeq));
+    doc.AddValue('full', aSeq = 0);
+    doc.AddValue('lines', Variant(linesArr));
+    dataJson := doc.ToJSON;
+
+    Result := 'retry: 250'#10 +
+      'event: history'#10 +
+      'data: ' + dataJson + #10#10;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] ApiGetSlotHistorySSE: %s', [E.Message]));
+    end;
+  end;
 end;
 
 function TApiSitesServiceImpl.GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;

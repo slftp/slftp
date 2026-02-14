@@ -107,6 +107,9 @@ type
     fstatus: TSlotStatus;
     fSSCNEnabled: boolean;
     event: TEvent;
+    FHistory: TQueue<String>;
+    FHistoryLock: TCriticalSection;
+    FHistorySeq: QWord;
     procedure SetOnline(Value: TSlotStatus);
 
     { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
@@ -193,6 +196,10 @@ type
     { Get the ident reply for an ident request
       @returns(Ident reply for the site) }
     function GetIdentReply: String;
+
+    procedure AddHistory(const aLine: String);
+    function GetHistory: TArray<String>;
+    property HistorySeq: QWord read FHistorySeq;
 
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;
@@ -1540,6 +1547,9 @@ begin
   self.FSlotNumber := aSlotNumber;
   FCurrentActionCS := TCriticalSection.Create;
   FCurrentAction := 'Initializing...';
+  FHistory := TQueue<String>.Create;
+  FHistoryLock := TCriticalSection.Create;
+  FHistorySeq := 0;
 
   todotask := nil;
   event := TEvent.Create(nil, False, False, Name);
@@ -1814,11 +1824,39 @@ begin
   DestroySocket(True);
 
   FreeAndNil(event);
+  FreeAndNil(FHistoryLock);
+  FreeAndNil(FHistory);
   FreeAndNil(FCurrentActionCS);
   mdtmre.Free;
 
   inherited;
   Debug(dpSpam, section, 'Slot %s destroy end', [Name]);
+end;
+
+procedure TSiteSlot.AddHistory(const aLine: String);
+var
+  sLine: String;
+begin
+  sLine := Format('[%s] %s', [FormatDateTime('hh:nn:ss', Now), aLine]);
+  FHistoryLock.Acquire;
+  try
+    while FHistory.Count >= 5000 do
+      FHistory.Dequeue;
+    FHistory.Enqueue(sLine);
+    Inc(FHistorySeq);
+  finally
+    FHistoryLock.Release;
+  end;
+end;
+
+function TSiteSlot.GetHistory: TArray<String>;
+begin
+  FHistoryLock.Acquire;
+  try
+    Result := FHistory.ToArray;
+  finally
+    FHistoryLock.Release;
+  end;
 end;
 
 function TSiteSlot.SendProtC: boolean;
@@ -2756,6 +2794,7 @@ begin
   if (lastResponseCode <> 230) then
   begin
     console_addline(Name, aktread);
+    AddHistory(aktread);
   end;
 
   if ((lastResponseCode >= 1000) or (lastResponseCode < 100)) then // auto read more
@@ -2773,6 +2812,7 @@ begin
     CurrentAction := s;
     Console_Slot_Add(Name, s);
     console_addline(Name, s);
+    AddHistory(s);
 
 
     if not WriteLn(s, site.io_timeout * 1000) then

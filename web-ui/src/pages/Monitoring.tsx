@@ -2,11 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Badge,
+  Button,
   Card,
   Center,
   Checkbox,
+  Code,
   Group,
   Loader,
+  Modal,
   ScrollArea,
   Stack,
   Table,
@@ -14,9 +17,10 @@ import {
   TextInput,
   Title,
 } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
-import { IconAlertCircle, IconSearch } from '@tabler/icons-react';
-import { fetchSlotsRuntime, type SiteSlotsRuntime, type SlotRuntime } from '../api/client';
+import { IconAlertCircle, IconArrowDown, IconPlayerPause, IconPlayerPlay, IconSearch } from '@tabler/icons-react';
+import { fetchSlotsRuntime, type SlotHistory, type SiteSlotsRuntime, type SlotRuntime } from '../api/client';
 
 const STREAM_RETRY_MS = 50;
 const STREAM_TIMEOUT_MS = 15000;
@@ -44,6 +48,9 @@ function parseSseMessage(raw: string): { event: string; data: string } | null {
 export function Monitoring() {
   const [filter, setFilter] = useState('');
   const [onlyActive, setOnlyActive] = useState(false);
+  const [historyOpened, { open: openHistory, close: closeHistory }] = useDisclosure(false);
+  const [selectedSlot, setSelectedSlot] = useState<{ site: string; slot: number } | null>(null);
+  const historyScrollRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState<boolean>(document.visibilityState === 'visible');
   const [streamMode, setStreamMode] = useState<StreamMode>('stream');
   const [sitesData, setSitesData] = useState<SiteSlotsRuntime[] | null>(null);
@@ -170,6 +177,130 @@ export function Monitoring() {
       .filter((site) => site.slots.length > 0 || site.locked);
   }, [data, filter, onlyActive]);
 
+  const [historyLines, setHistoryLines] = useState<string[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPaused, setHistoryPaused] = useState(false);
+  const historySeqRef = useRef(0);
+  const historyPausedRef = useRef(false);
+  const pauseBufferRef = useRef<string[]>([]);
+  const wasAtBottomRef = useRef(true);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  useEffect(() => {
+    if (!historyOpened || !selectedSlot) return;
+
+    let stopped = false;
+    let retryTimer: number | null = null;
+    setHistoryLines([]);
+    setHistoryLoading(true);
+    historySeqRef.current = 0;
+
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem('apiToken');
+        const params = new URLSearchParams({
+          site: selectedSlot.site,
+          slot: String(selectedSlot.slot),
+          seq: String(historySeqRef.current),
+          timeout_ms: '5000',
+        });
+        const response = await fetch(`${apiBase}/sites/slots/history?${params.toString()}`, {
+          method: 'GET',
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const raw = await response.text();
+        const message = parseSseMessage(raw);
+        if (message?.data) {
+          const payload = JSON.parse(message.data) as SlotHistory;
+          if (payload.seq) {
+            historySeqRef.current = payload.seq;
+          }
+          if (message.event === 'history' && Array.isArray(payload.lines)) {
+            if (payload.full) {
+              pauseBufferRef.current = [];
+              setHistoryLines(payload.lines.slice(-10000));
+            } else if (historyPausedRef.current) {
+              pauseBufferRef.current.push(...payload.lines);
+            } else {
+              setHistoryLines(prev => [...prev, ...payload.lines].slice(-10000));
+            }
+            setHistoryLoading(false);
+          }
+        }
+      } catch {
+        // retry on error
+      } finally {
+        if (!stopped) {
+          retryTimer = window.setTimeout(poll, 50);
+        }
+      }
+    };
+
+    poll();
+
+    return () => {
+      stopped = true;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
+  }, [historyOpened, selectedSlot]);
+
+  useEffect(() => {
+    if (historyLines.length > 0 && historyScrollRef.current) {
+      const el = historyScrollRef.current;
+      if (wasAtBottomRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+  }, [historyLines]);
+
+  const handleHistoryScroll = () => {
+    if (historyScrollRef.current) {
+      const el = historyScrollRef.current;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+      wasAtBottomRef.current = atBottom;
+      setIsAtBottom(atBottom);
+    }
+  };
+
+  const toggleHistoryPause = () => {
+    if (historyPausedRef.current) {
+      // Unpause: flush buffered lines
+      const buffered = pauseBufferRef.current;
+      pauseBufferRef.current = [];
+      if (buffered.length > 0) {
+        setHistoryLines(prev => [...prev, ...buffered].slice(-10000));
+      }
+      historyPausedRef.current = false;
+      setHistoryPaused(false);
+    } else {
+      historyPausedRef.current = true;
+      setHistoryPaused(true);
+    }
+  };
+
+  const jumpToBottom = () => {
+    if (historyScrollRef.current) {
+      const el = historyScrollRef.current;
+      el.scrollTop = el.scrollHeight;
+      wasAtBottomRef.current = true;
+      setIsAtBottom(true);
+    }
+  };
+
+  const handleSlotClick = (site: string, slot: number) => {
+    setSelectedSlot({ site, slot });
+    setHistoryPaused(false);
+    historyPausedRef.current = false;
+    pauseBufferRef.current = [];
+    openHistory();
+  };
+
   const isLoading = !sitesData && (streamMode === 'stream' || fallbackQuery.isLoading);
   const hasError = streamMode === 'fallback' && !sitesData && !!fallbackQuery.error;
 
@@ -249,9 +380,13 @@ export function Monitoring() {
                   </Table.Thead>
                   <Table.Tbody>
                     {site.slots.map((slot: SlotRuntime) => (
-                      <Table.Tr key={`${site.site}-${slot.slot}`}>
+                      <Table.Tr
+                        key={`${site.site}-${slot.slot}`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => handleSlotClick(site.site, slot.slot)}
+                      >
                         <Table.Td style={{ width: 72, whiteSpace: 'nowrap' }}>
-                          <Text size="sm" ff="monospace">{slot.slot}</Text>
+                          <Text size="sm" ff="monospace" td="underline">{slot.slot}</Text>
                         </Table.Td>
                         <Table.Td>
                           <Text
@@ -271,6 +406,56 @@ export function Monitoring() {
           </Card>
         ))
       )}
+
+      <Modal
+        opened={historyOpened}
+        onClose={closeHistory}
+        title={selectedSlot ? `${selectedSlot.site} / Slot ${selectedSlot.slot}` : 'Slot History'}
+        size="90%"
+      >
+        <Stack gap="xs">
+          {historyLoading ? (
+            <Center h={200}><Loader size="md" /></Center>
+          ) : (
+            <>
+              <Group justify="space-between">
+                <Group gap="xs">
+                  <Button
+                    variant={historyPaused ? 'filled' : 'light'}
+                    color={historyPaused ? 'yellow' : 'gray'}
+                    size="sm"
+                    leftSection={historyPaused ? <IconPlayerPlay size="1.1rem" /> : <IconPlayerPause size="1.1rem" />}
+                    onClick={toggleHistoryPause}
+                  >
+                    {historyPaused ? 'Resume' : 'Pause'}
+                  </Button>
+                  {historyPaused && (
+                    <Badge color="yellow" variant="light" size="lg">
+                      {pauseBufferRef.current.length} buffered
+                    </Badge>
+                  )}
+                </Group>
+                <Button
+                  variant="light"
+                  size="sm"
+                  leftSection={<IconArrowDown size="1.1rem" />}
+                  onClick={jumpToBottom}
+                  disabled={isAtBottom}
+                >
+                  Jump to latest
+                </Button>
+              </Group>
+              <ScrollArea h="70vh" viewportRef={historyScrollRef} onScrollPositionChange={handleHistoryScroll}>
+                <Code block style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
+                  {historyLines.length
+                    ? historyLines.join('\n')
+                    : 'No history available.'}
+                </Code>
+              </ScrollArea>
+            </>
+          )}
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

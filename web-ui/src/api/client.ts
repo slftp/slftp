@@ -265,6 +265,12 @@ export const reloadConfig = async (filename: string): Promise<boolean> => {
   return false;
 };
 
+export interface SlotHistory {
+  seq: number;
+  full: boolean;
+  lines: string[];
+}
+
 export const fetchSlotsRuntime = async (siteName: string = ''): Promise<SiteSlotsRuntime[]> => {
   const response = await apiClient.post<any>('/ApiSitesService/GetSlotsRuntime', {
     SiteName: siteName
