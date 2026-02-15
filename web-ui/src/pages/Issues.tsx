@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center, Pill } from '@mantine/core';
 import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -170,6 +170,31 @@ export function Issues() {
       return (data?.status === 'pending' ? BROWSER_PENDING_POLL_MS : false);
     },
   });
+
+  const { data: siteSectionsData } = useQuery({
+    queryKey: ['siteSections', selectedIssue?.SiteName],
+    queryFn: async () => {
+      const res = await apiClient.post('/ApiSitesService/GetSiteSections', { SiteName: selectedIssue?.SiteName });
+      const raw = res.data?.result ?? res.data;
+      return parseMaybeJsonArray(Array.isArray(raw) ? raw[0] : raw) as { section: string; dir: string }[];
+    },
+    enabled: !!selectedIssue?.SiteName && addSectionModalOpened,
+  });
+
+  const sectionPathSuggestions = useMemo(() => {
+    if (!siteSectionsData || siteSectionsData.length === 0) return [];
+    // Collect unique dirs from the site's existing sections as path hints
+    const dirSet = new Map<string, string[]>();
+    for (const entry of siteSectionsData) {
+      if (!entry.dir) continue;
+      const sections = dirSet.get(entry.dir) || [];
+      sections.push(entry.section);
+      dirSet.set(entry.dir, sections);
+    }
+    return Array.from(dirSet.entries())
+      .map(([dir, sections]) => ({ dir, sections }))
+      .sort((a, b) => a.dir.localeCompare(b.dir));
+  }, [siteSectionsData]);
 
   const issues = Array.isArray(data) ? data : [];
 
@@ -581,6 +606,28 @@ export function Issues() {
               }
             }}
           />
+          {sectionPathSuggestions.length > 0 && (
+            <Stack gap={4}>
+              <Text size="xs" c="dimmed">Existing paths on this site:</Text>
+              <Group gap="xs">
+                {sectionPathSuggestions.map((s) => (
+                  <Tooltip
+                    key={s.dir}
+                    label={s.sections.join(', ')}
+                    withArrow
+                    withinPortal
+                  >
+                    <Pill
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSectionPath(s.dir)}
+                    >
+                      {s.dir}
+                    </Pill>
+                  </Tooltip>
+                ))}
+              </Group>
+            </Stack>
+          )}
           <Group justify="flex-end" mt="md">
             <Button variant="light" onClick={() => setAddSectionModalOpened(false)}>
               Cancel
