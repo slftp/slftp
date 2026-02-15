@@ -59,7 +59,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist, slcriticalsection2, mormot.core.unicode, loadmonitorunit, slapi;
+  taskautodirlist, slcriticalsection2, mormot.core.unicode, loadmonitorunit, slapi, slapi.services.impl;
 
 {$I slftp.inc}
 
@@ -333,15 +333,16 @@ begin
     end;
   end;
 
-  // number of tasks in queue shown in console
+  // number of tasks in queue shown in console + update system status peaks
   if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > queue_stat_interval then
   begin
     try
       QueueStatAll;
+      UpdateSystemStatusPeaks;
     except
       on e: Exception do
       begin
-        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueStat): %s', [e.Message]);
       end;
     end;
   end;

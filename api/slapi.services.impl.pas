@@ -50,6 +50,10 @@ uses
 function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
 function ApiGetSlotHistorySSE(const aSiteName: string; aSlotNumber: integer; aSeq: QWord; aTimeoutMs: integer): RawUTF8;
 
+{ Updates system status peak values (load avg, CPU, queue size).
+  Called periodically from Main_Iter so peaks are tracked independently of API calls. }
+procedure UpdateSystemStatusPeaks;
+
 type
   { System Service Implementation }
   TApiSystemServiceImpl = class(TInjectableObjectRest, IApiSystemService)
@@ -803,7 +807,7 @@ begin
   Result := True;
 end;
 
-{ TApiSystemServiceImpl }
+{ System status peak tracking }
 
 function TryGetLoadAverage(out aAvg1, aAvg5, aAvg15: Double): boolean;
 var
@@ -845,6 +849,39 @@ begin
   end;
 end;
 
+procedure UpdateSystemStatusPeaks;
+var
+  avg1, avg5, avg15: Double;
+  qTotal, qRace, qDir, qAuto, qOther: integer;
+  cpuLoad: integer;
+begin
+  // Load average peaks
+  if TryGetLoadAverage(avg1, avg5, avg15) then
+  begin
+    if avg1 > glSystemStatusLoadAvgPeak1 then
+      glSystemStatusLoadAvgPeak1 := avg1;
+    if avg5 > glSystemStatusLoadAvgPeak5 then
+      glSystemStatusLoadAvgPeak5 := avg5;
+    if avg15 > glSystemStatusLoadAvgPeak15 then
+      glSystemStatusLoadAvgPeak15 := avg15;
+  end;
+
+  // Queue size peak
+  GetQueueTotals(qTotal, qRace, qDir, qAuto, qOther);
+  if qTotal > glSystemStatusQueueSizeMax then
+    glSystemStatusQueueSizeMax := qTotal;
+
+  // CPU load peak
+  if IsLoadMonitorAvailable then
+  begin
+    cpuLoad := GlLoadMonitor.CurrentCPUUsageTotal;
+    if cpuLoad > glSystemStatusCpuLoadMax then
+      glSystemStatusCpuLoadMax := cpuLoad;
+  end;
+end;
+
+{ TApiSystemServiceImpl }
+
 function TApiSystemServiceImpl.GetStatus(out Response: TApiSystemStatus): boolean;
 var
   i: integer;
@@ -852,7 +889,6 @@ var
   upCount, downCount, siteCount: integer;
   qTotal, qRace, qDir, qAuto, qOther: integer;
   activeSum: integer;
-  currentCpuLoad: integer;
   cpuLoadAvailable: boolean;
   currentLoadAvg1, currentLoadAvg5, currentLoadAvg15: Double;
   loadAvgAvailable: boolean;
@@ -907,8 +943,6 @@ begin
     QueueStatAll;
     GetQueueTotals(qTotal, qRace, qDir, qAuto, qOther);
     Response.QueueSize := qTotal;
-    if qTotal > glSystemStatusQueueSizeMax then
-      glSystemStatusQueueSizeMax := qTotal;
     Response.QueueSizeMax := glSystemStatusQueueSizeMax;
     // Treat all queued tasks as active for dashboard purposes; transfers also counted via activeSum
     Response.ActiveTasks := qTotal;
@@ -920,14 +954,6 @@ begin
       Response.LoadAvgCurrent1 := currentLoadAvg1;
       Response.LoadAvgCurrent5 := currentLoadAvg5;
       Response.LoadAvgCurrent15 := currentLoadAvg15;
-
-      if currentLoadAvg1 > glSystemStatusLoadAvgPeak1 then
-        glSystemStatusLoadAvgPeak1 := currentLoadAvg1;
-      if currentLoadAvg5 > glSystemStatusLoadAvgPeak5 then
-        glSystemStatusLoadAvgPeak5 := currentLoadAvg5;
-      if currentLoadAvg15 > glSystemStatusLoadAvgPeak15 then
-        glSystemStatusLoadAvgPeak15 := currentLoadAvg15;
-
       Response.LoadAvgPeak1 := glSystemStatusLoadAvgPeak1;
       Response.LoadAvgPeak5 := glSystemStatusLoadAvgPeak5;
       Response.LoadAvgPeak15 := glSystemStatusLoadAvgPeak15;
@@ -946,10 +972,7 @@ begin
     Response.CpuLoadAvailable := cpuLoadAvailable;
     if cpuLoadAvailable then
     begin
-      currentCpuLoad := GlLoadMonitor.CurrentCPUUsageTotal;
-      Response.CpuLoadCurrent := currentCpuLoad;
-      if currentCpuLoad > glSystemStatusCpuLoadMax then
-        glSystemStatusCpuLoadMax := currentCpuLoad;
+      Response.CpuLoadCurrent := GlLoadMonitor.CurrentCPUUsageTotal;
       Response.CpuLoadMax := glSystemStatusCpuLoadMax;
     end
     else
