@@ -974,11 +974,13 @@ begin
     begin
       Response.CpuLoadCurrent := GlLoadMonitor.CurrentCPUUsageTotal;
       Response.CpuLoadMax := glSystemStatusCpuLoadMax;
+      Response.PerformanceLevel := GlLoadMonitor.CurrentPerformanceLevel;
     end
     else
     begin
       Response.CpuLoadCurrent := 0;
       Response.CpuLoadMax := 0;
+      Response.PerformanceLevel := 0;
     end;
 
     // Use global rate calculated by QueueThread

@@ -28,9 +28,6 @@ import {
   IconActivity,
   IconCpu,
   IconHash,
-  IconCheck,
-  IconPlayerPlay,
-  IconPlayerPause,
 } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
@@ -160,28 +157,7 @@ export function Dashboard() {
     enabled: selectedPazoId !== null && modalOpened,
   });
 
-  const { readyCount, racingCount, stoppedCount } = useMemo(() => {
-    const releases = releasesData?.releases ?? [];
-    let ready = 0;
-    let racing = 0;
-    let stopped = 0;
 
-    for (const release of releases) {
-      if (release.Ready) {
-        ready++;
-      } else if (release.Stopped) {
-        stopped++;
-      } else {
-        racing++;
-      }
-    }
-
-    return {
-      readyCount: ready,
-      racingCount: racing,
-      stoppedCount: stopped,
-    };
-  }, [releasesData]);
 
   const { visibleSiteDetails, maxSiteFiles } = useMemo(() => {
     const allSites = (releaseDetails?.SiteDetails ?? []).filter((site) =>
@@ -321,24 +297,6 @@ export function Dashboard() {
 
       {/* Mini Stats Row */}
       <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="sm">
-        <MiniStatCard
-          title="Ready"
-          value={readyCount}
-          icon={<IconCheck size="1rem" />}
-          color="#00ff88"
-        />
-        <MiniStatCard
-          title="Racing"
-          value={racingCount}
-          icon={<IconPlayerPlay size="1rem" />}
-          color="#4318ff"
-        />
-        <MiniStatCard
-          title="Stopped"
-          value={stoppedCount}
-          icon={<IconPlayerPause size="1rem" />}
-          color="#ffb547"
-        />
         {stats.LoadAvgAvailable && (
           <MiniStatCard
             title="Load Avg"
@@ -361,6 +319,22 @@ export function Dashboard() {
           icon={<IconHash size="1rem" />}
           color="#9b59b6"
         />
+        {stats.CpuLoadAvailable && (
+          <MiniStatCard
+            title="CPU Load"
+            value={`${stats.CpuLoadCurrent}%`}
+            icon={<IconCpu size="1rem" />}
+            color={stats.CpuLoadCurrent > 80 ? '#e74c3c' : stats.CpuLoadCurrent > 60 ? '#ffb547' : '#00ff88'}
+          />
+        )}
+        {stats.CpuLoadAvailable && stats.PerformanceLevel > 0 && (
+          <MiniStatCard
+            title="Perf Level"
+            value={stats.PerformanceLevel}
+            icon={<IconActivity size="1rem" />}
+            color={stats.PerformanceLevel >= 7 ? '#00ff88' : stats.PerformanceLevel >= 4 ? '#ffb547' : '#ff6b6b'}
+          />
+        )}
       </SimpleGrid>
 
       {/* Recent Releases Table */}

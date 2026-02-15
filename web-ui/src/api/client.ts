@@ -77,6 +77,7 @@ export interface SystemStatus {
   CpuLoadCurrent: number;
   CpuLoadMax: number;
   CpuLoadAvailable: boolean;
+  PerformanceLevel: number;
   DirlistPerSecond: number;
   DirlistPerSecondMax: number;
 }

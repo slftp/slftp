@@ -60,6 +60,7 @@ type
     FCpuLoadCurrent: integer;
     FCpuLoadMax: integer;
     FCpuLoadAvailable: boolean;
+    FPerformanceLevel: integer;
     FDirlistPerSecond: Double;
     FDirlistPerSecondMax: Double;
   published
@@ -81,6 +82,7 @@ type
     property CpuLoadCurrent: integer read FCpuLoadCurrent write FCpuLoadCurrent;
     property CpuLoadMax: integer read FCpuLoadMax write FCpuLoadMax;
     property CpuLoadAvailable: boolean read FCpuLoadAvailable write FCpuLoadAvailable;
+    property PerformanceLevel: integer read FPerformanceLevel write FPerformanceLevel;
     property DirlistPerSecond: Double read FDirlistPerSecond write FDirlistPerSecond;
     property DirlistPerSecondMax: Double read FDirlistPerSecondMax write FDirlistPerSecondMax;
   end;
