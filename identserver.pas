@@ -73,11 +73,12 @@ var
 
 constructor TIdentServerThread.Create(aPort: Integer = 113);
 begin
-  inherited Create(False);
+  inherited Create(True); // create suspended to avoid race condition
   FreeOnTerminate := False;
   FPort := aPort;
   FActive := False;
   FDefaultIdentResponse := config.ReadString(section, 'response', 'slftpuser');
+  Start; // now start the thread with all fields properly initialized
 end;
 
 function TIdentServerThread.FindSiteIdent(const aPeerIP: String; const aPeerPort: Integer): String;
