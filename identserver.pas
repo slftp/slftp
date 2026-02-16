@@ -150,13 +150,17 @@ var
   fResponse: AnsiString;
   fResult: TNetResult;
   fEvents: TNetEvents;
+  fSockHandle: PtrInt;
 begin
+  Debug(dpError, section, Format('IDENT DEBUG: Execute starting, FPort=%d, FDefaultIdentResponse="%s"', [FPort, FDefaultIdentResponse]));
+
   fListenSock := nil;
   try
     // Create listening socket on ident port
     fListenSock := TCrtSocket.Bind(RawUtf8(IntToStr(FPort)), nlTcp, IDENT_TIMEOUT_MS, True);
+    fSockHandle := fListenSock.Sock.Socket;
     FActive := True;
-    Debug(dpMessage, section, Format('Ident server listening on port %d', [FPort]));
+    Debug(dpError, section, Format('IDENT DEBUG: Bind successful, listening on port %d, socket fd=%d', [FPort, fSockHandle]));
 
     while not Terminated do
     begin
@@ -171,65 +175,78 @@ begin
 
       if fResult <> nrOk then
       begin
-        Debug(dpSpam, section, Format('Ident server accept error: %d', [Ord(fResult)]));
+        Debug(dpError, section, Format('IDENT DEBUG: Accept error: %d', [Ord(fResult)]));
         Continue;
       end;
 
       // Get peer IP from the accepted address
       fClientAddr.IP(fPeerIP);
+      Debug(dpError, section, Format('IDENT DEBUG: Accepted connection from %s, client fd=%d', [fPeerIP, fClientSock.Socket]));
 
       try
         try
           // Wait for data to be available (timeout 5s)
           fEvents := fClientSock.WaitFor(IDENT_TIMEOUT_MS, [neRead, neError]);
+          if neError in fEvents then
+          begin
+            Debug(dpError, section, Format('IDENT DEBUG: WaitFor returned error for %s', [fPeerIP]));
+            Continue;
+          end;
           if not (neRead in fEvents) then
           begin
-            Debug(dpSpam, section, Format('IDENT timeout waiting for request from %s', [fPeerIP]));
+            Debug(dpError, section, Format('IDENT DEBUG: WaitFor timeout (no data) from %s', [fPeerIP]));
             Continue;
           end;
 
           // Read request directly from the raw socket
           fBufLen := SizeOf(fBuf);
           fResult := fClientSock.Recv(@fBuf, fBufLen);
+          Debug(dpError, section, Format('IDENT DEBUG: Recv result=%d, bytes=%d from %s', [Ord(fResult), fBufLen, fPeerIP]));
+
           if (fResult <> nrOk) or (fBufLen <= 0) then
           begin
-            Debug(dpSpam, section, Format('IDENT recv error from %s: %d', [fPeerIP, Ord(fResult)]));
+            Debug(dpError, section, Format('IDENT DEBUG: Recv failed from %s', [fPeerIP]));
             Continue;
           end;
 
           // Convert buffer to string, strip CR/LF
           SetString(fRequest, PAnsiChar(@fBuf), fBufLen);
           fRequest := Trim(fRequest);
+          Debug(dpError, section, Format('IDENT DEBUG: Raw request from %s: "%s" (%d bytes)', [fPeerIP, fRequest, fBufLen]));
 
           if ParseIdentRequest(fRequest, fServerPort, fClientPort) then
           begin
-            Debug(dpSpam, section, Format('IDENT request from %s for ports %d,%d', [fPeerIP, fServerPort, fClientPort]));
+            Debug(dpError, section, Format('IDENT DEBUG: Parsed ports %d,%d from %s', [fServerPort, fClientPort, fPeerIP]));
 
             // Find the appropriate ident response
             fIdentReply := FindSiteIdent(string(fPeerIP), fServerPort);
-            Debug(dpSpam, section, Format('IDENT reply is %s', [fIdentReply]));
+            Debug(dpError, section, Format('IDENT DEBUG: FindSiteIdent returned "%s" for %s:%d', [fIdentReply, fPeerIP, fServerPort]));
 
             // Build and send response directly via raw socket
             fResponse := AnsiString(BuildIdentResponse(fServerPort, fClientPort, fIdentReply));
             fSendLen := Length(fResponse);
-            fClientSock.Send(pointer(fResponse), fSendLen);
+            Debug(dpError, section, Format('IDENT DEBUG: Sending response (%d bytes): "%s"', [fSendLen, Trim(string(fResponse))]));
+
+            fResult := fClientSock.Send(pointer(fResponse), fSendLen);
+            Debug(dpError, section, Format('IDENT DEBUG: Send result=%d, sent=%d bytes', [Ord(fResult), fSendLen]));
           end
           else
           begin
-            Debug(dpSpam, section, Format('IDENT invalid request from %s: %s', [fPeerIP, fRequest]));
+            Debug(dpError, section, Format('IDENT DEBUG: ParseIdentRequest FAILED for "%s" from %s', [fRequest, fPeerIP]));
           end;
         except
           on e: Exception do
-            Debug(dpMessage, section, Format('IDENT error handling request from %s: %s', [fPeerIP, e.Message]));
+            Debug(dpError, section, Format('IDENT DEBUG: EXCEPTION from %s: %s', [fPeerIP, e.Message]));
         end;
       finally
         fClientSock.ShutdownAndClose({rdwr=}false);
+        Debug(dpError, section, Format('IDENT DEBUG: Connection closed for %s', [fPeerIP]));
       end;
     end;
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('Ident server error: %s', [e.Message]));
+      Debug(dpError, section, Format('IDENT DEBUG: FATAL server error: %s', [e.Message]));
     end;
   end;
 
@@ -237,7 +254,7 @@ begin
   if fListenSock <> nil then
     fListenSock.Free;
 
-  Debug(dpMessage, section, 'Ident server stopped');
+  Debug(dpError, section, 'IDENT DEBUG: Server stopped');
 end;
 
 function IdentServerInit: String;
