@@ -60,7 +60,7 @@ implementation
 
 uses
   SysUtils, configunit, sitesunit, debugunit,
-  mormot.net.sock, mormot.core.base, mormot.core.text;
+  mormot.core.base, mormot.net.sock;
 
 const
   section = 'ident';
@@ -141,13 +141,15 @@ var
   fListenSock: TCrtSocket;
   fClientSock: TNetSocket;
   fClientAddr: TNetAddr;
-  fClient: TCrtSocket;
-  fRequest: RawUtf8;
+  fBuf: array[0..255] of AnsiChar;
+  fBufLen, fSendLen: Integer;
+  fRequest: String;
   fServerPort, fClientPort: Integer;
-  fPeerIP: String;
+  fPeerIP: RawUtf8;
   fIdentReply: String;
-  fResponse: RawUtf8;
+  fResponse: AnsiString;
   fResult: TNetResult;
+  fEvents: TNetEvents;
 begin
   fListenSock := nil;
   try
@@ -165,49 +167,63 @@ begin
         Break;
 
       if fResult = nrRetry then
-        // Timeout, try again
         Continue;
 
       if fResult <> nrOk then
       begin
-        // Error accepting connection
         Debug(dpSpam, section, Format('Ident server accept error: %d', [Ord(fResult)]));
         Continue;
       end;
 
-      // Got a connection, handle it
-      fClient := TCrtSocket.Create(IDENT_TIMEOUT_MS);
+      // Get peer IP from the accepted address
+      fClientAddr.IP(fPeerIP);
+
       try
-        fClient.AcceptRequest(fClientSock, @fClientAddr);
-        fPeerIP := string(fClient.RemoteIP);
-
         try
-          // Read the request line
-          fClient.SockRecvLn(fRequest);
+          // Wait for data to be available (timeout 5s)
+          fEvents := fClientSock.WaitFor(IDENT_TIMEOUT_MS, [neRead, neError]);
+          if not (neRead in fEvents) then
+          begin
+            Debug(dpSpam, section, Format('IDENT timeout waiting for request from %s', [fPeerIP]));
+            Continue;
+          end;
 
-          if ParseIdentRequest(string(fRequest), fServerPort, fClientPort) then
+          // Read request directly from the raw socket
+          fBufLen := SizeOf(fBuf);
+          fResult := fClientSock.Recv(@fBuf, fBufLen);
+          if (fResult <> nrOk) or (fBufLen <= 0) then
+          begin
+            Debug(dpSpam, section, Format('IDENT recv error from %s: %d', [fPeerIP, Ord(fResult)]));
+            Continue;
+          end;
+
+          // Convert buffer to string, strip CR/LF
+          SetString(fRequest, PAnsiChar(@fBuf), fBufLen);
+          fRequest := Trim(fRequest);
+
+          if ParseIdentRequest(fRequest, fServerPort, fClientPort) then
           begin
             Debug(dpSpam, section, Format('IDENT request from %s for ports %d,%d', [fPeerIP, fServerPort, fClientPort]));
 
             // Find the appropriate ident response
-            fIdentReply := FindSiteIdent(fPeerIP, fServerPort);
+            fIdentReply := FindSiteIdent(string(fPeerIP), fServerPort);
             Debug(dpSpam, section, Format('IDENT reply is %s', [fIdentReply]));
 
-            // Send response
-            fResponse := RawUtf8(BuildIdentResponse(fServerPort, fClientPort, fIdentReply));
-            fClient.SockSend(pointer(fResponse), Length(fResponse));
-            fClient.SockSendFlush;
+            // Build and send response directly via raw socket
+            fResponse := AnsiString(BuildIdentResponse(fServerPort, fClientPort, fIdentReply));
+            fSendLen := Length(fResponse);
+            fClientSock.Send(pointer(fResponse), fSendLen);
           end
           else
           begin
-            Debug(dpSpam, section, Format('IDENT invalid request from %s: %s', [fPeerIP, string(fRequest)]));
+            Debug(dpSpam, section, Format('IDENT invalid request from %s: %s', [fPeerIP, fRequest]));
           end;
         except
           on e: Exception do
-            Debug(dpSpam, section, Format('IDENT error handling request from %s: %s', [fPeerIP, e.Message]));
+            Debug(dpMessage, section, Format('IDENT error handling request from %s: %s', [fPeerIP, e.Message]));
         end;
       finally
-        fClient.Free;
+        fClientSock.ShutdownAndClose({rdwr=}false);
       end;
     end;
   except
