@@ -1,5 +1,6 @@
 import { Card, Group, Text, ThemeIcon, Stack, Badge } from '@mantine/core';
 import { type ReactNode } from 'react';
+import { useTheme } from '../context/ThemeContext';
 
 interface StatCardProps {
   title: string;
@@ -21,17 +22,30 @@ export function StatCard({
   value,
   subtitle,
   icon,
-  iconColor = 'brand',
-  iconGradient = 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)',
+  iconColor,
+  iconGradient,
   trend,
   variant = 'default',
 }: StatCardProps) {
+  const { currentTheme } = useTheme();
+  const isMinimal = currentTheme === 'minimal';
+
+  // Use theme-aware colors if not explicitly provided
+  const effectiveIconColor = iconColor || (isMinimal ? '#6b7280' : '#4318ff');
+  const effectiveIconGradient = iconGradient || (isMinimal 
+    ? 'linear-gradient(135deg, #4b5563 0%, #6b7280 100%)' 
+    : 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)');
+
   const getCardStyles = () => {
     switch (variant) {
       case 'gradient':
         return {
-          background: 'linear-gradient(135deg, rgba(67, 24, 255, 0.15) 0%, rgba(134, 140, 255, 0.05) 100%)',
-          border: '1px solid rgba(67, 24, 255, 0.2)',
+          background: isMinimal
+            ? 'linear-gradient(135deg, rgba(75, 85, 99, 0.15) 0%, rgba(107, 114, 128, 0.05) 100%)'
+            : 'linear-gradient(135deg, rgba(67, 24, 255, 0.15) 0%, rgba(134, 140, 255, 0.05) 100%)',
+          border: isMinimal
+            ? '1px solid rgba(75, 85, 99, 0.25)'
+            : '1px solid rgba(67, 24, 255, 0.2)',
         };
       case 'outline':
         return {
@@ -40,7 +54,9 @@ export function StatCard({
         };
       default:
         return {
-          background: 'rgba(17, 28, 68, 0.6)',
+          background: isMinimal 
+            ? 'rgba(31, 41, 55, 0.8)' 
+            : 'rgba(17, 28, 68, 0.6)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
         };
     }
@@ -54,14 +70,18 @@ export function StatCard({
       radius="lg"
       style={{
         ...styles,
-        boxShadow: '0 3px 14px rgba(0, 0, 0, 0.22)',
+        boxShadow: isMinimal 
+          ? '0 2px 8px rgba(0, 0, 0, 0.2)' 
+          : '0 3px 14px rgba(0, 0, 0, 0.22)',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
       }}
       styles={{
         root: {
           '&:hover': {
             transform: 'translateY(-2px)',
-            boxShadow: '0 6px 20px rgba(0, 0, 0, 0.3)',
+            boxShadow: isMinimal 
+              ? '0 4px 12px rgba(0, 0, 0, 0.25)' 
+              : '0 6px 20px rgba(0, 0, 0, 0.3)',
             borderColor: 'rgba(255, 255, 255, 0.12)',
           },
         },
@@ -75,7 +95,7 @@ export function StatCard({
             tt="uppercase"
             truncate
             style={{ 
-              color: '#a3aed0',
+              color: 'var(--text-secondary)',
               letterSpacing: '0.05em',
             }}
           >
@@ -88,7 +108,9 @@ export function StatCard({
               size="xl"
               truncate
               style={{ 
-                background: variant === 'gradient' ? 'linear-gradient(135deg, #fff 0%, #a3aed0 100%)' : 'none',
+                background: variant === 'gradient' 
+                  ? 'linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%)' 
+                  : 'none',
                 WebkitBackgroundClip: variant === 'gradient' ? 'text' : 'unset',
                 WebkitTextFillColor: variant === 'gradient' ? 'transparent' : 'white',
               }}
@@ -120,7 +142,7 @@ export function StatCard({
             <Text 
               size="xs" 
               truncate
-              style={{ color: '#707eae' }}
+              style={{ color: 'var(--text-muted)' }}
             >
               {subtitle}
             </Text>
@@ -131,8 +153,10 @@ export function StatCard({
           size={40}
           radius="lg"
           style={{
-            background: iconGradient,
-            boxShadow: `0 3px 10px ${iconColor === 'brand' ? 'rgba(67, 24, 255, 0.28)' : 'rgba(0, 0, 0, 0.2)'}`,
+            background: effectiveIconGradient,
+            boxShadow: isMinimal 
+              ? '0 2px 8px rgba(0, 0, 0, 0.2)' 
+              : `0 3px 10px ${effectiveIconColor === 'brand' ? 'rgba(67, 24, 255, 0.28)' : 'rgba(0, 0, 0, 0.2)'}`,
             flexShrink: 0,
           }}
         >
@@ -151,14 +175,21 @@ interface MiniStatCardProps {
   onClick?: () => void;
 }
 
-export function MiniStatCard({ title, value, icon, color = '#4318ff', onClick }: MiniStatCardProps) {
+export function MiniStatCard({ title, value, icon, color, onClick }: MiniStatCardProps) {
+  const { currentTheme } = useTheme();
+  const isMinimal = currentTheme === 'minimal';
+
+  const effectiveColor = color || (isMinimal ? '#6b7280' : '#4318ff');
+
   return (
     <Card
       padding="sm"
       radius="md"
       onClick={onClick}
       style={{
-        background: 'rgba(17, 28, 68, 0.4)',
+        background: isMinimal 
+          ? 'rgba(31, 41, 55, 0.6)' 
+          : 'rgba(17, 28, 68, 0.4)',
         border: '1px solid rgba(255, 255, 255, 0.05)',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
@@ -166,7 +197,9 @@ export function MiniStatCard({ title, value, icon, color = '#4318ff', onClick }:
       styles={{
         root: {
           '&:hover': {
-            background: 'rgba(17, 28, 68, 0.6)',
+            background: isMinimal 
+              ? 'rgba(31, 41, 55, 0.8)' 
+              : 'rgba(17, 28, 68, 0.6)',
             borderColor: 'rgba(255, 255, 255, 0.1)',
             transform: onClick ? 'translateY(-2px)' : 'none',
           },
@@ -178,15 +211,15 @@ export function MiniStatCard({ title, value, icon, color = '#4318ff', onClick }:
           size={32}
           radius="md"
           style={{
-            background: `linear-gradient(135deg, ${color}30 0%, ${color}15 100%)`,
-            border: `1px solid ${color}30`,
+            background: `linear-gradient(135deg, ${effectiveColor}30 0%, ${effectiveColor}15 100%)`,
+            border: `1px solid ${effectiveColor}30`,
             flexShrink: 0,
           }}
         >
           {icon}
         </ThemeIcon>
         <Stack gap={0} style={{ minWidth: 0 }}>
-          <Text size="11px" style={{ color: '#707eae' }} truncate>
+          <Text size="11px" style={{ color: 'var(--text-muted)' }} truncate>
             {title}
           </Text>
           <Text fw={700} size="md" truncate>

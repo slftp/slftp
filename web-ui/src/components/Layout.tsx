@@ -24,6 +24,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { clearApiToken } from '../api/client';
 import { isCbftpEnabled } from '../api/cbftpClient';
 import { AutoSwitch } from './AutoSwitch';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import { useState, useEffect, type ReactNode } from 'react';
 
 interface NavItem {
@@ -127,10 +128,10 @@ export function Layout() {
       {/* Header */}
       <AppShell.Header
         style={{
-          background: scrolled ? 'rgba(15, 21, 53, 0.95)' : 'rgba(15, 21, 53, 0.8)',
+          background: scrolled ? 'var(--gradient-header)' : 'var(--gradient-main)',
           backdropFilter: 'blur(10px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: scrolled ? '0 4px 20px rgba(0, 0, 0, 0.28)' : 'none',
+          borderBottom: '1px solid var(--border)',
+          boxShadow: scrolled ? 'var(--shadow)' : 'none',
           transition: 'background-color 0.2s ease, box-shadow 0.2s ease',
         }}
       >
@@ -150,7 +151,7 @@ export function Layout() {
                 size={28} 
                 radius="xl"
                 style={{
-                  boxShadow: '0 0 16px rgba(67, 24, 255, 0.3)',
+                  boxShadow: 'var(--shadow-glow)',
                 }}
               />
               <Title 
@@ -169,6 +170,7 @@ export function Layout() {
           </Group>
 
           <Group gap="sm">
+            <ThemeSwitcher />
             <AutoSwitch />
           </Group>
         </Group>
@@ -177,9 +179,9 @@ export function Layout() {
       {/* Sidebar */}
       <AppShell.Navbar
         style={{
-          background: 'linear-gradient(127.09deg, rgba(6, 11, 40, 0.98) 19.41%, rgba(10, 14, 35, 0.9) 76.65%)',
+          background: 'var(--gradient-main)',
           backdropFilter: 'blur(10px)',
-          borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRight: '1px solid var(--border)',
         }}
       >
         <ScrollArea h="100%" type="never" scrollbarSize={0}>
@@ -218,7 +220,7 @@ export function Layout() {
                         '&:hover': {
                           background: active 
                             ? `linear-gradient(135deg, ${item.color}25 0%, ${item.color}15 100%)`
-                            : 'rgba(67, 24, 255, 0.08)',
+                            : 'var(--nav-hover-bg)',
                         },
                       },
                       label: {

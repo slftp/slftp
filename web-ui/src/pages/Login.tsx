@@ -20,12 +20,15 @@ import {
   IconShieldLock,
 } from '@tabler/icons-react';
 import { setApiToken } from '../api/client';
+import { useTheme } from '../context/ThemeContext';
 
 const Login: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { currentTheme } = useTheme();
+  const isMinimal = currentTheme === 'minimal';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +45,42 @@ const Login: React.FC = () => {
     navigate('/');
   };
 
+  // Theme-aware styles
+  const bgGradient = isMinimal 
+    ? 'linear-gradient(180deg, #111827 0%, #1f2937 100%)'
+    : 'linear-gradient(135deg, #0f1729 0%, #1e293b 50%, #1e3a8a 100%)';
+  
+  const orbGradient1 = isMinimal 
+    ? 'radial-gradient(circle, rgba(75, 85, 99, 0.15) 0%, transparent 60%)'
+    : 'radial-gradient(circle, rgba(67, 24, 255, 0.2) 0%, transparent 60%)';
+    
+  const orbGradient2 = isMinimal 
+    ? 'radial-gradient(circle, rgba(107, 114, 128, 0.1) 0%, transparent 60%)'
+    : 'radial-gradient(circle, rgba(0, 212, 255, 0.15) 0%, transparent 60%)';
+
+  const cardBg = isMinimal
+    ? 'linear-gradient(180deg, rgba(31, 41, 55, 0.98) 0%, rgba(17, 24, 39, 0.95) 100%)'
+    : 'linear-gradient(127.09deg, rgba(30, 41, 59, 0.95) 19.41%, rgba(40, 49, 71, 0.9) 76.65%)';
+    
+  const cardShadow = isMinimal
+    ? '0 24px 64px rgba(0, 0, 0, 0.4)'
+    : '0 24px 64px rgba(0, 0, 0, 0.5), 0 0 80px rgba(67, 24, 255, 0.15)';
+
+  const primaryGradient = isMinimal
+    ? 'linear-gradient(135deg, #4b5563 0%, #6b7280 100%)'
+    : 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)';
+    
+  const primaryGlow = isMinimal
+    ? '0 8px 32px rgba(0, 0, 0, 0.3)'
+    : '0 8px 32px rgba(67, 24, 255, 0.5)';
+    
+  const primaryGlowHover = isMinimal
+    ? '0 12px 32px rgba(0, 0, 0, 0.4)'
+    : '0 12px 32px rgba(67, 24, 255, 0.6)';
+
+  const accentColor = isMinimal ? '#6b7280' : '#868cff';
+  const accentColor2 = isMinimal ? '#9ca3af' : '#00d4ff';
+
   return (
     <Box
       style={{
@@ -49,7 +88,7 @@ const Login: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0f1729 0%, #1e293b 50%, #1e3a8a 100%)',
+        background: bgGradient,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -62,7 +101,7 @@ const Login: React.FC = () => {
           left: '-10%',
           width: '50%',
           height: '50%',
-          background: 'radial-gradient(circle, rgba(67, 24, 255, 0.2) 0%, transparent 60%)',
+          background: orbGradient1,
           borderRadius: '50%',
           filter: 'blur(80px)',
           animation: 'float 12s ease-in-out infinite',
@@ -75,7 +114,7 @@ const Login: React.FC = () => {
           right: '-10%',
           width: '50%',
           height: '50%',
-          background: 'radial-gradient(circle, rgba(0, 212, 255, 0.15) 0%, transparent 60%)',
+          background: orbGradient2,
           borderRadius: '50%',
           filter: 'blur(80px)',
           animation: 'float 12s ease-in-out infinite reverse',
@@ -114,10 +153,10 @@ const Login: React.FC = () => {
         style={{
           width: '100%',
           maxWidth: '420px',
-          background: 'linear-gradient(127.09deg, rgba(30, 41, 59, 0.95) 19.41%, rgba(40, 49, 71, 0.9) 76.65%)',
+          background: cardBg,
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
-          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.5), 0 0 80px rgba(67, 24, 255, 0.15)',
+          boxShadow: cardShadow,
           position: 'relative',
           zIndex: 1,
         }}
@@ -130,8 +169,8 @@ const Login: React.FC = () => {
                 size={64}
                 radius="xl"
                 style={{
-                  background: 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)',
-                  boxShadow: '0 8px 32px rgba(67, 24, 255, 0.5)',
+                  background: primaryGradient,
+                  boxShadow: primaryGlow,
                 }}
               >
                 <IconRocket size="2rem" stroke={2} color="white" />
@@ -197,8 +236,8 @@ const Login: React.FC = () => {
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   color: '#fff',
                   '&:focus': {
-                    borderColor: '#868cff',
-                    boxShadow: '0 0 0 3px rgba(67, 24, 255, 0.15)',
+                    borderColor: accentColor,
+                    boxShadow: `0 0 0 3px ${isMinimal ? 'rgba(75, 85, 99, 0.2)' : 'rgba(67, 24, 255, 0.15)'}`,
                   },
                 },
               }}
@@ -214,12 +253,12 @@ const Login: React.FC = () => {
               fullWidth
               styles={{
                 root: {
-                  background: 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)',
-                  boxShadow: '0 8px 24px rgba(67, 24, 255, 0.5)',
+                  background: primaryGradient,
+                  boxShadow: primaryGlow,
                   transition: 'all 0.3s ease',
                   '&:hover': {
                     transform: 'translateY(-2px)',
-                    boxShadow: '0 12px 32px rgba(67, 24, 255, 0.6)',
+                    boxShadow: primaryGlowHover,
                   },
                   '&:active': {
                     transform: 'translateY(0)',
@@ -235,8 +274,8 @@ const Login: React.FC = () => {
               radius="md"
               styles={{
                 root: {
-                  background: 'rgba(0, 212, 255, 0.05)',
-                  border: '1px solid rgba(0, 212, 255, 0.2)',
+                  background: isMinimal ? 'rgba(75, 85, 99, 0.1)' : 'rgba(0, 212, 255, 0.05)',
+                  border: isMinimal ? '1px solid rgba(75, 85, 99, 0.2)' : '1px solid rgba(0, 212, 255, 0.2)',
                 },
               }}
             >
@@ -245,13 +284,13 @@ const Login: React.FC = () => {
                   size="sm"
                   radius="sm"
                   style={{
-                    background: 'rgba(0, 212, 255, 0.2)',
+                    background: isMinimal ? 'rgba(75, 85, 99, 0.2)' : 'rgba(0, 212, 255, 0.2)',
                   }}
                 >
-                  <IconLock size="0.8rem" color="#00d4ff" />
+                  <IconLock size="0.8rem" color={accentColor2} />
                 </ThemeIcon>
                 <Text size="xs" c="dimmed" style={{ flex: 1 }}>
-                  The API key can be found in your <Text span fw={600} c="#868cff">slftp.ini</Text> configuration file under the [api] section.
+                  The API key can be found in your <Text span fw={600} c={accentColor}>slftp.ini</Text> configuration file under the [api] section.
                 </Text>
               </Group>
             </Alert>

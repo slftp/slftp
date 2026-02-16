@@ -790,7 +790,7 @@ export function SectionDirectories() {
                             onClick={() => setMarkedSection(isMarked ? null : sectionData.section)}
                             style={{
                               cursor: 'pointer',
-                              backgroundColor: isMarked ? 'var(--mantine-color-blue-light)' : undefined,
+                              backgroundColor: isMarked ? 'var(--nav-hover-bg)' : undefined,
                               scrollMarginTop: '45px'
                             }}
                           >
@@ -802,7 +802,7 @@ export function SectionDirectories() {
                                 </Group>
                                 {isMarked && (
                                   <Tooltip label="Marked for scroll preservation">
-                                    <IconPin size="1rem" color="var(--mantine-color-blue-6)" />
+                                    <IconPin size="1rem" color="var(--primary-light)" />
                                   </Tooltip>
                                 )}
                               </Group>

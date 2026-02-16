@@ -119,7 +119,7 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
       <Table.Tr 
         style={{ cursor: 'pointer' }} 
         onClick={onToggle}
-        bg={isExpanded ? 'var(--mantine-color-blue-light)' : undefined}
+        bg={isExpanded ? 'var(--nav-hover-bg)' : undefined}
       >
         <Table.Td onClick={(e) => e.stopPropagation()}>
           <Checkbox
@@ -269,7 +269,7 @@ function SiteRow({ comp, isSelected, isExpanded, onToggle, onToggleSelect, onSyn
                         
                         {sec.status === 'MISSING_IN_CBFTP' && (
                           <>
-                            <IconArrowRight size={14} color="var(--mantine-color-blue-6)" />
+                            <IconArrowRight size={14} color="var(--primary-light)" />
                             <Badge size="sm" color="blue" variant="dot">Will be added</Badge>
                           </>
                         )}

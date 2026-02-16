@@ -14,7 +14,7 @@ html {
 
 /* Focus outline styles */
 *:focus-visible {
-  outline: 2px solid rgba(134, 140, 255, 0.5);
+  outline: 2px solid var(--primary-light);
   outline-offset: 2px;
 }
 
@@ -56,10 +56,10 @@ button, a, input, select, textarea {
 /* Pulse glow animation */
 @keyframes pulseGlow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(67, 24, 255, 0.3);
+    box-shadow: 0 0 20px var(--shadow-glow);
   }
   50% {
-    box-shadow: 0 0 40px rgba(67, 24, 255, 0.5);
+    box-shadow: 0 0 40px var(--shadow-glow);
   }
 }
 
@@ -69,29 +69,29 @@ button, a, input, select, textarea {
 
 /* Glass effect helper */
 .glass {
-  background: rgba(17, 28, 68, 0.6);
+  background: var(--glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
 }
 
 /* Gradient text helper */
 .text-gradient {
-  background: linear-gradient(135deg, #fff 0%, #a3aed0 100%);
+  background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-gradient-primary {
-  background: linear-gradient(135deg, #4318ff 0%, #868cff 100%);
+  background: var(--primary-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .text-gradient-success {
-  background: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%);
+  background: linear-gradient(135deg, #00ff88 0%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -161,9 +161,9 @@ button, a, input, select, textarea {
 
 /* Badge variants */
 .badge-glow-primary {
-  background: rgba(67, 24, 255, 0.2);
-  border: 1px solid rgba(67, 24, 255, 0.4);
-  box-shadow: 0 0 12px rgba(67, 24, 255, 0.2);
+  background: var(--nav-hover-bg);
+  border: 1px solid var(--nav-active-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .badge-glow-success {

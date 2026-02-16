@@ -245,8 +245,8 @@ export function Dashboard() {
             size="sm"
             radius="md"
             style={{
-              background: 'linear-gradient(135deg, rgba(67, 24, 255, 0.2) 0%, rgba(134, 140, 255, 0.1) 100%)',
-              border: '1px solid rgba(67, 24, 255, 0.3)',
+              background: 'var(--nav-active-bg)',
+              border: '1px solid var(--nav-active-border)',
             }}
           >
             v{stats.Version}
@@ -261,8 +261,6 @@ export function Dashboard() {
           value={uptimeStr}
           subtitle={`Version ${stats.Version}`}
           icon={<IconClock size="1.4rem" stroke={1.5} color="white" />}
-          iconColor="#4318ff"
-          iconGradient="linear-gradient(135deg, #4318ff 0%, #868cff 100%)"
           variant="gradient"
         />
 
@@ -342,10 +340,10 @@ export function Dashboard() {
         radius="xl"
         padding="lg"
         style={{
-          background: 'linear-gradient(127.09deg, rgba(30, 41, 59, 0.9) 19.41%, rgba(40, 49, 71, 0.8) 76.65%)',
+          background: 'var(--gradient-card)',
           backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          boxShadow: '0 4px 18px rgba(0, 0, 0, 0.35)',
+          border: '1px solid var(--border)',
+          boxShadow: 'var(--shadow)',
         }}
       >
         <Group justify="space-between" mb="md">
@@ -354,8 +352,8 @@ export function Dashboard() {
               size={36}
               radius="lg"
               style={{
-                background: 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)',
-                boxShadow: '0 4px 12px rgba(67, 24, 255, 0.24)',
+                background: 'var(--primary-gradient)',
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
               <IconRocket size="1rem" stroke={2} color="white" />
@@ -370,9 +368,9 @@ export function Dashboard() {
               size="sm"
               radius="md"
               style={{
-                background: 'rgba(67, 24, 255, 0.15)',
-                border: '1px solid rgba(67, 24, 255, 0.25)',
-                color: '#868cff',
+                background: 'var(--nav-hover-bg)',
+                border: '1px solid var(--nav-active-border)',
+                color: 'var(--primary-light)',
               }}
             >
               {releasesData.total} total
@@ -394,7 +392,7 @@ export function Dashboard() {
                     background: 'rgba(30, 41, 59, 0.8)',
                   },
                   th: {
-                    color: '#94a3b8',
+                    color: 'var(--text-secondary)',
                     fontWeight: 600,
                     fontSize: '10px',
                     textTransform: 'uppercase',
@@ -402,13 +400,13 @@ export function Dashboard() {
                     padding: '10px 12px',
                   },
                   td: {
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                    borderBottom: '1px solid var(--border)',
                     padding: '10px 12px',
                   },
                   tr: {
                     transition: 'background-color 0.12s linear',
                     '&:hover': {
-                      background: 'rgba(79, 70, 229, 0.08)',
+                      background: 'var(--table-row-hover)',
                     },
                   },
                 }}
@@ -431,7 +429,7 @@ export function Dashboard() {
                         key={release.PazoId || idx}
                         style={{ 
                           cursor: 'pointer',
-                          background: idx % 2 === 1 ? 'rgba(15, 23, 42, 0.6)' : 'transparent',
+                          background: idx % 2 === 1 ? 'var(--table-row-odd)' : 'transparent',
                         }}
                         onClick={() => {
                           setSelectedPazoId(release.PazoId);
@@ -470,9 +468,9 @@ export function Dashboard() {
                                 radius="sm"
                                 styles={{
                                   root: {
-                                    background: 'rgba(67, 24, 255, 0.12)',
-                                    border: '1px solid rgba(67, 24, 255, 0.25)',
-                                    color: '#868cff',
+                                    background: 'var(--nav-hover-bg)',
+                                    border: '1px solid var(--nav-active-border)',
+                                    color: 'var(--primary-light)',
                                   },
                                 }}
                               >
@@ -491,9 +489,9 @@ export function Dashboard() {
                                     radius="sm"
                                     styles={{
                                       root: {
-                                        background: 'rgba(0, 212, 255, 0.12)',
-                                        border: '1px solid rgba(0, 212, 255, 0.25)',
-                                        color: '#00d4ff',
+                                        background: 'rgba(34, 197, 94, 0.12)',
+                                        border: '1px solid rgba(34, 197, 94, 0.25)',
+                                        color: '#22c55e',
                                       },
                                     }}
                                   >
@@ -589,7 +587,7 @@ export function Dashboard() {
               size={36}
               radius="lg"
               style={{
-                background: 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)',
+                background: 'var(--primary-gradient)',
               }}
             >
               <IconInfoCircle size="1rem" color="white" />
@@ -604,13 +602,13 @@ export function Dashboard() {
         radius="xl"
         styles={{
           content: {
-            background: 'rgba(17, 28, 68, 0.98)',
+            background: 'var(--bg-secondary)',
             backdropFilter: 'blur(12px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
+            border: '1px solid var(--border)',
           },
           header: {
             background: 'transparent',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+            borderBottom: '1px solid var(--border)',
             padding: '16px 24px',
           },
           body: {
@@ -629,8 +627,8 @@ export function Dashboard() {
               radius="lg"
               padding="md"
               style={{
-                background: 'linear-gradient(127.09deg, rgba(30, 41, 59, 0.9) 19.41%, rgba(50, 60, 90, 0.8) 76.65%)',
-                border: '1px solid rgba(67, 24, 255, 0.2)',
+                background: 'var(--gradient-card)',
+                border: '1px solid var(--border)',
               }}
             >
               <Grid gutter="md">
@@ -657,9 +655,9 @@ export function Dashboard() {
                         radius="sm"
                         styles={{
                           root: {
-                            background: 'rgba(67, 24, 255, 0.15)',
-                            border: '1px solid rgba(67, 24, 255, 0.3)',
-                            color: '#868cff',
+                            background: 'var(--nav-hover-bg)',
+                            border: '1px solid var(--nav-active-border)',
+                            color: 'var(--primary-light)',
                           },
                         }}
                       >
@@ -798,7 +796,7 @@ export function Dashboard() {
                               </Text>
                             )}
                             {site.FilesRacedByMe > 0 && (
-                              <Text size="11px" c="#868cff" fw={500}>
+                              <Text size="11px" c="var(--primary-light)" fw={500}>
                                 {site.FilesRacedByMe} uploaded
                               </Text>
                             )}
@@ -818,8 +816,8 @@ export function Dashboard() {
                                   background: site.Complete 
                                     ? '#00ff88' 
                                     : site.FileCount === 0 
-                                      ? '#707eae' 
-                                      : 'linear-gradient(90deg, #4318ff, #868cff)',
+                                      ? 'var(--text-muted)' 
+                                      : 'var(--primary-gradient)',
                                 },
                               }}
                             />
@@ -839,22 +837,22 @@ export function Dashboard() {
                                   : site.Status.includes('Not Allowed')
                                     ? 'rgba(255, 77, 77, 0.15)'
                                     : site.Status === 'Pre'
-                                      ? 'rgba(67, 24, 255, 0.15)'
+                                      ? 'var(--nav-hover-bg)'
                                       : 'rgba(112, 126, 174, 0.15)',
                                 border: site.Complete
                                   ? '1px solid rgba(0, 255, 136, 0.3)'
                                   : site.Status.includes('Not Allowed')
                                     ? '1px solid rgba(255, 77, 77, 0.3)'
                                     : site.Status === 'Pre'
-                                      ? '1px solid rgba(67, 24, 255, 0.3)'
+                                      ? '1px solid var(--nav-active-border)'
                                       : '1px solid rgba(112, 126, 174, 0.3)',
                                 color: site.Complete
                                   ? '#00ff88'
                                   : site.Status.includes('Not Allowed')
                                     ? '#ff4d4d'
                                     : site.Status === 'Pre'
-                                      ? '#868cff'
-                                      : '#a3aed0',
+                                      ? 'var(--primary-light)'
+                                      : 'var(--text-secondary)',
                               },
                             }}
                           >
