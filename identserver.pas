@@ -258,22 +258,33 @@ begin
 end;
 
 function IdentServerInit: String;
+var
+  fEnabled: Boolean;
 begin
   Result := '';
+  Debug(dpError, section, 'IDENT DEBUG: IdentServerInit called');
   try
-    if config.ReadBool(section, 'enabled', False) then
+    fEnabled := config.ReadBool(section, 'enabled', False);
+    Debug(dpError, section, Format('IDENT DEBUG: config [ident] enabled = %s', [BoolToStr(fEnabled, True)]));
+
+    if fEnabled then
     begin
+      Debug(dpError, section, Format('IDENT DEBUG: Creating thread on port 113, default response = "%s"',
+        [config.ReadString(section, 'response', 'slftpuser')]));
       glMyIdentServer := TIdentServerThread.Create(113);
       // Wait briefly for the server to start
       Sleep(100);
       if glMyIdentServer.Active then
-        Debug(dpMessage, section, 'Ident server successfully started')
+        Debug(dpError, section, 'IDENT DEBUG: Server is ACTIVE after 100ms')
       else
-        Debug(dpMessage, section, 'Ident server thread created, waiting for activation');
-    end;
+        Debug(dpError, section, 'IDENT DEBUG: Server is NOT ACTIVE after 100ms');
+    end
+    else
+      Debug(dpError, section, 'IDENT DEBUG: Ident server is DISABLED in config');
   except
     on e: Exception do
     begin
+      Debug(dpError, section, Format('IDENT DEBUG: IdentServerInit EXCEPTION: %s', [e.Message]));
       Result := e.Message;
       if glMyIdentServer <> nil then
       begin
