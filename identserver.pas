@@ -183,8 +183,9 @@ begin
       fClientAddr.IP(fPeerIP);
       Debug(dpError, section, Format('IDENT DEBUG: Accepted connection from %s, client fd=%d', [fPeerIP, fClientSock.Socket]));
 
-      // Ensure response data is fully sent before close() returns
-      fClientSock.SetLinger(5);
+      // Configure client socket for reliable ident response delivery
+      fClientSock.SetLinger(5);   // block close() until data sent (up to 5s)
+      fClientSock.SetNoDelay(true); // disable Nagle, send response immediately
 
       try
         try
@@ -225,13 +226,32 @@ begin
             fIdentReply := FindSiteIdent(string(fPeerIP), fServerPort);
             Debug(dpError, section, Format('IDENT DEBUG: FindSiteIdent returned "%s" for %s:%d', [fIdentReply, fPeerIP, fServerPort]));
 
-            // Build and send response directly via raw socket
+            // Build and send response via raw socket (SendAll ensures all bytes are written)
             fResponse := AnsiString(BuildIdentResponse(fServerPort, fClientPort, fIdentReply));
             fSendLen := Length(fResponse);
             Debug(dpError, section, Format('IDENT DEBUG: Sending response (%d bytes): "%s"', [fSendLen, Trim(string(fResponse))]));
 
-            fResult := fClientSock.Send(pointer(fResponse), fSendLen);
-            Debug(dpError, section, Format('IDENT DEBUG: Send result=%d, sent=%d bytes', [Ord(fResult), fSendLen]));
+            fResult := fClientSock.SendAll(pointer(fResponse), fSendLen);
+            Debug(dpError, section, Format('IDENT DEBUG: SendAll result=%d for %s', [Ord(fResult), fPeerIP]));
+
+            // Diagnostic: check how the FTP server reacts after receiving our response
+            fEvents := fClientSock.WaitFor(2000, [neRead, neError]);
+            if neError in fEvents then
+              Debug(dpError, section, Format('IDENT DEBUG: Post-send: peer ERROR for %s', [fPeerIP]))
+            else if neRead in fEvents then
+            begin
+              // neRead after send = peer sent data or closed connection
+              fBufLen := SizeOf(fBuf);
+              fResult := fClientSock.Recv(@fBuf, fBufLen);
+              if fResult = nrClosed then
+                Debug(dpError, section, Format('IDENT DEBUG: Post-send: peer CLOSED gracefully for %s (good)', [fPeerIP]))
+              else if fResult = nrOk then
+                Debug(dpError, section, Format('IDENT DEBUG: Post-send: peer sent %d unexpected bytes for %s', [fBufLen, fPeerIP]))
+              else
+                Debug(dpError, section, Format('IDENT DEBUG: Post-send: recv result=%d for %s', [Ord(fResult), fPeerIP]));
+            end
+            else
+              Debug(dpError, section, Format('IDENT DEBUG: Post-send: WaitFor TIMEOUT (2s) for %s - peer not responding', [fPeerIP]));
           end
           else
           begin
@@ -242,9 +262,7 @@ begin
             Debug(dpError, section, Format('IDENT DEBUG: EXCEPTION from %s: %s', [fPeerIP, e.Message]));
         end;
       finally
-        // Give TCP stack time to deliver response before closing
-        Sleep(50);
-        fClientSock.ShutdownAndClose({rdwr=}true);
+        fClientSock.ShutdownAndClose({rdwr=}false);
         Debug(dpError, section, Format('IDENT DEBUG: Connection closed for %s', [fPeerIP]));
       end;
     end;
