@@ -183,6 +183,9 @@ begin
       fClientAddr.IP(fPeerIP);
       Debug(dpError, section, Format('IDENT DEBUG: Accepted connection from %s, client fd=%d', [fPeerIP, fClientSock.Socket]));
 
+      // Ensure response data is fully sent before close() returns
+      fClientSock.SetLinger(5);
+
       try
         try
           // Wait for data to be available (timeout 5s)
@@ -239,7 +242,9 @@ begin
             Debug(dpError, section, Format('IDENT DEBUG: EXCEPTION from %s: %s', [fPeerIP, e.Message]));
         end;
       finally
-        fClientSock.ShutdownAndClose({rdwr=}false);
+        // Give TCP stack time to deliver response before closing
+        Sleep(50);
+        fClientSock.ShutdownAndClose({rdwr=}true);
         Debug(dpError, section, Format('IDENT DEBUG: Connection closed for %s', [fPeerIP]));
       end;
     end;
