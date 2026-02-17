@@ -769,6 +769,7 @@ var
   glSpamLoginLogout: boolean;
   glSocks5: boolean;
   siteslot_recycle: boolean;
+  slot_down_message_to_irc: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1343,6 +1344,7 @@ begin
   bnccsere := TSlCriticalSection2.Create('bnccsere');
   glSocks5 := config.ReadBool(section, 'socks5', False);
   siteslot_recycle := spamcfg.readbool(section, 'siteslot_recycle', False);
+  slot_down_message_to_irc := spamcfg.readbool(section, 'slot_down', False);
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -2388,7 +2390,7 @@ begin
       else
       begin
         DestroySocket(False);
-        if spamcfg.readbool(section, 'slot_down', False) then
+        if slot_down_message_to_irc then
           irc_addtext(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
