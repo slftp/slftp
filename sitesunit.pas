@@ -768,6 +768,7 @@ var
   gAdminSiteName: String;
   glSpamLoginLogout: boolean;
   glSocks5: boolean;
+  siteslot_recycle: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1341,6 +1342,7 @@ begin
   glSpamLoginLogout := spamcfg.readbool(section, 'login_logout', False);
   bnccsere := TSlCriticalSection2.Create('bnccsere');
   glSocks5 := config.ReadBool(section, 'socks5', False);
+  siteslot_recycle := spamcfg.readbool(section, 'siteslot_recycle', False);
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1660,7 +1662,7 @@ begin
             end;
         else { Timeout reach }
           begin
-            if spamcfg.readbool(section, 'siteslot_recycle', False) then
+            if siteslot_recycle then
               irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
                 Name + ' SiteSlot Recycle 15min');
             Debug(dpSpam, section, 'TSiteSlot.Execute: Force Leave:' +
