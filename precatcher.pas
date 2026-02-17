@@ -82,6 +82,8 @@ var
   precatcher_debug_lock: TSlCriticalSection2;
   precatcher_lock: TSlCriticalSection2;
   precatcher_auto: Boolean;
+  recursiv_mapping: Boolean;
+  announce_event: Boolean;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
 
@@ -222,7 +224,7 @@ begin
         MyDebug(Format('PrecatcherSectionMapping testing %s for %s', [rls, x.newsection]));
         if (x.mask.Matches(rls)) then
         begin
-          if ((config.ReadBool(rsections, 'recursiv_mapping', False)) and (x.newsection <> 'TRASH')) then
+          if ((recursiv_mapping) and (x.newsection <> 'TRASH')) then
           begin
             Result := PrecatcherSectionMapping(rls, x.newsection, x_count);
             exit;
@@ -378,7 +380,7 @@ begin
   if not precatcher_debug then
   begin
     try
-      if spamcfg.ReadBool('precatcher', 'announce_event', True) then
+      if announce_event then
       begin
         irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
       end;
@@ -926,6 +928,8 @@ begin
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
   precatcher_auto := sitesdat.ReadBool('precatcher', 'auto', False);
+  recursiv_mapping := config.ReadBool(rsections, 'recursiv_mapping', False);
+  announce_event := spamcfg.ReadBool('precatcher', 'announce_event', True);
 
   precatcher_debug_lock := TSlCriticalSection2.Create('precatcher_debug_lock');
   Assignfile(debug_f, precatcher_logfilename);
