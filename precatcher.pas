@@ -56,7 +56,6 @@ var
   precatcher_debug: boolean = False;
   precatcher_ircdebug: boolean = False;
   precatcher_debug_netname, precatcher_debug_channel: String;
-  //  precatcher_auto: Boolean;
   catcherFile: TEncStringlist;
   mappingslist: TObjectList;
   minimum_rlsname: integer = 10;
@@ -82,6 +81,7 @@ var
   debug_f: TextFile;
   precatcher_debug_lock: TSlCriticalSection2;
   precatcher_lock: TSlCriticalSection2;
+  precatcher_auto: Boolean;
 
   glSectionList: TStringList; //< List of all entries of the [sections] category
 
@@ -925,6 +925,7 @@ begin
   catcherFile := TEncStringList.Create(passphrase);
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
+  precatcher_auto := sitesdat.ReadBool('precatcher', 'auto', False);
 
   precatcher_debug_lock := TSlCriticalSection2.Create('precatcher_debug_lock');
   Assignfile(debug_f, precatcher_logfilename);
@@ -1097,7 +1098,7 @@ end;
 
 function precatcherauto: boolean;
 begin
-  Result := sitesdat.ReadBool('precatcher', 'auto', False);
+  Result := precatcher_auto;
 end;
 
 end.
