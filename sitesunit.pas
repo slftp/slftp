@@ -767,6 +767,7 @@ var
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
   gAdminSiteName: String;
   glSpamLoginLogout: boolean;
+  glSocks5: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1339,6 +1340,7 @@ begin
   gAdminSiteName := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
   glSpamLoginLogout := spamcfg.readbool(section, 'login_logout', False);
   bnccsere := TSlCriticalSection2.Create('bnccsere');
+  glSocks5 := config.ReadBool(section, 'socks5', False);
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -2054,7 +2056,7 @@ begin
   end;
 
   if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or (site.proxyname = '')) then
-    SetupSocks5(self, (not RCBool('nosocks5', False)) and (config.ReadBool(section, 'socks5', False)))
+    SetupSocks5(self, (not RCBool('nosocks5', False)) and (glSocks5))
   else
     mSLSetupSocks5(site.proxyname, self, True);
 
