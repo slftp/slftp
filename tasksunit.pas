@@ -72,7 +72,6 @@ var
   GlTaskPretimeReaddInterval: integer;
   GlTaskRaceAutoRuleAdd: boolean;
   GlTaskRaceBadCrcEvents: integer;
-  GlPostCrcErrorsToIRC: boolean;
 
 implementation
 
@@ -182,7 +181,6 @@ begin
   GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
   GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
   GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
-  GlPostCrcErrorsToIRC := spamcfg.readbool(c_section, 'crc_error', True);
 end;
 
 procedure Tasks_Uninit;

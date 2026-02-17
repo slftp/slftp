@@ -24,7 +24,7 @@ type
     dir: String;
     is_pre: boolean;
     FDoIncFilling: boolean; //< @true if created to do incomplete filling, @false otherwise
-    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aDependingOnDirlist: TDirList; aIsFromIncompleteFiller: boolean = False);
+    constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
   end;
@@ -168,12 +168,12 @@ end;
 
 
 { TPazoDirlistTask }
-constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aDependingOnDirlist: TDirList; aIsFromIncompleteFiller: boolean = False);
+constructor TPazoDirlistTask.Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
 begin
   self.dir := dir;
   self.is_pre := is_pre;
   self.FDoIncFilling := aIsFromIncompleteFiller;
-  inherited Create(netname, channel, site, '', pazo, aDependingOnDirlist);
+  inherited Create(netname, channel, site, '', pazo, nil);
 end;
 
 function TPazoDirlistTask.Execute(slot: Pointer): boolean;
@@ -463,7 +463,7 @@ begin
                 Format('<c7>[DIRLIST]</c> %s %s %s Dirlist (SUBDIR) added to : %s',
                 [mainpazo.rls.section, mainpazo.rls.rlsname, aktdir, site1]));
               try
-                fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre, nil));
+                fSubDirlistTasks.Add(TPazoDirlistTask.Create(netname, channel, site1, mainpazo, aktdir, is_pre));
                 if (de.subdirlist <> nil) then
                   de.subdirlist.dirlistadded := True;
               except
@@ -591,7 +591,7 @@ begin
     if ((d <> nil) and (not is_pre) and (not d.Complete)) then
     begin
       // do more dirlist
-      r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre, nil);
+      r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
       r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
 
       try
@@ -640,9 +640,9 @@ begin
           if is_pre or (ps.dirlist.entries.Count > 0)  then
           begin
             // do more dirlist
-            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre, nil);
+            r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
             r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
-            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False, nil);
+            r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
             r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
 
             try
@@ -3255,7 +3255,7 @@ begin
 
     else if (sdst.lastResponse.Contains('CRC-Check: BAD!') or sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) then
     begin
-      if GlPostCrcErrorsToIRC then
+      if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3264,7 +3264,7 @@ begin
 
     else if (sdst.lastResponse.Contains('SFV-file: BAD!')) then
     begin
-      if GlPostCrcErrorsToIRC then
+      if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3274,7 +3274,7 @@ begin
 
     else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
-      if GlPostCrcErrorsToIRC then
+      if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3283,7 +3283,7 @@ begin
 
     else if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
     begin
-      if GlPostCrcErrorsToIRC then
+      if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
       end;
@@ -3292,7 +3292,7 @@ begin
 
     else if sdst.lastResponse.Contains('NFO-File: DUPE!') then
     begin
-      if GlPostCrcErrorsToIRC then
+      if spamcfg.readbool(c_section, 'crc_error', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NFO DUPE]</c> %s', [Name]);
       end;
@@ -3301,7 +3301,7 @@ begin
 
     else if sdst.lastResponse.Contains('-file: Not allowed') then
     begin
-      if GlPostCrcErrorsToIRC then
+      if spamcfg.ReadBool('taskrace', 'filename_not_allowed', True) then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NOT ALLOWED]</c> %s', [Name]);
       end;
