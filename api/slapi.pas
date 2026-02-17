@@ -30,7 +30,8 @@ uses
   slapi.issueshook,
   slapi.cbftp,
   configunit,
-  debugunit;
+  debugunit,
+  globals;
 
 type
   { REST API Server for slftp }
@@ -311,6 +312,14 @@ var
   slotsJson: RawUTF8;
   streamBody: RawUTF8;
   streamChanged: boolean;
+  // Slot monitoring endpoint vars
+  siteName: string;
+  slotNum: integer;
+  isEnable: Boolean;
+  restOfUrl: string;
+  qPos: integer;
+  slashPos: integer;
+  slotStr: string;
   
   function GetMimeType(const FN: TFileName): RawUTF8;
   var
@@ -558,6 +567,61 @@ begin
       StrToIntDef(QueryParam(sUrl, 'timeout_ms'), 5000)
     );
     Call.OutStatus := HTTP_SUCCESS;
+    Exit(True);
+  end;
+
+  // Slot monitoring enable/disable endpoint for specific site/slot
+  // URL format: /api/monitoring/enable/SITE/SLOT or /api/monitoring/disable/SITE/SLOT
+  Debug(dpMessage, rsection, Format('Checking monitoring endpoint: url=%s method=%s', 
+    [sUrl, UTF8ToString(Call.Method)]));
+  if (Pos('/api/monitoring/enable/', sUrlLower) = 1) or
+     (Pos('/api/monitoring/disable/', sUrlLower) = 1) then
+  begin
+    Debug(dpMessage, rsection, 'Monitoring endpoint matched!');
+    if not RequireApiAuth then
+      Exit(True);
+
+    if UpperCase(UTF8ToString(Call.Method)) <> 'POST' then
+    begin
+      Call.OutStatus := HTTP_NOTALLOWED;
+      Call.OutBody := '{"error":"Method not allowed"}';
+      Exit(True);
+    end;
+
+    // Determine enable/disable
+    isEnable := Pos('/api/monitoring/enable/', sUrlLower) = 1;
+    
+    // Extract site and slot from URL after the prefix
+    if isEnable then
+      restOfUrl := Copy(sUrl, Length('/api/monitoring/enable/') + 1, MaxInt)
+    else
+      restOfUrl := Copy(sUrl, Length('/api/monitoring/disable/') + 1, MaxInt);
+      
+    // Remove query string if any
+    qPos := Pos('?', restOfUrl);
+    if qPos > 0 then
+      restOfUrl := Copy(restOfUrl, 1, qPos - 1);
+    
+    // Split by '/' to get site and slot
+    slashPos := Pos('/', restOfUrl);
+    if slashPos > 0 then
+    begin
+      siteName := UpperCase(Copy(restOfUrl, 1, slashPos - 1));
+      slotStr := Copy(restOfUrl, slashPos + 1, MaxInt);
+      slotNum := StrToIntDef(slotStr, -1);
+      
+      if (siteName <> '') and (slotNum >= 0) then
+      begin
+        SetSlotMonitored(siteName, slotNum, isEnable);
+        Call.OutBody := Format('{"site":"%s","slot":%d,"enabled":%s}', 
+          [siteName, slotNum, BoolToStr(isEnable, 'true', 'false')]);
+        Call.OutStatus := HTTP_SUCCESS;
+        Exit(True);
+      end;
+    end;
+    
+    Call.OutStatus := HTTP_BADREQUEST;
+    Call.OutBody := '{"error":"Invalid format. Use /api/monitoring/enable/SITE/SLOT"}';
     Exit(True);
   end;
 

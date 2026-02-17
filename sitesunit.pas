@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig;
+  variantcache, routeconfig, globals;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -780,7 +780,7 @@ implementation
 
 uses
   SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
+  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, taskidle, taskquit, IdGlobal,
   dirlist.helpers, tags, Generics.Defaults;
 
 const
@@ -1547,7 +1547,8 @@ begin
   self.FSlotNumber := aSlotNumber;
   FCurrentActionCS := TCriticalSection.Create;
   FCurrentAction := 'Initializing...';
-  FHistory := TQueue<String>.Create;
+  // History is created lazily - only when WebUI requests it
+  FHistory := nil;
   FHistoryLock := TCriticalSection.Create;
   FHistorySeq := 0;
 
@@ -1836,7 +1837,27 @@ end;
 procedure TSiteSlot.AddHistory(const aLine: String);
 var
   sLine: String;
+  siteName: string;
 begin
+  // Only add history if this specific slot is being monitored via WebUI
+  siteName := '';
+  if Self.site <> nil then
+    siteName := Self.site.Name;
+  if not IsSlotMonitored(siteName, Self.FSlotNumber) then
+    Exit;
+    
+  // Lazy loading: create history queue on first use
+  if FHistory = nil then
+  begin
+    FHistoryLock.Acquire;
+    try
+      if FHistory = nil then
+        FHistory := TQueue<String>.Create;
+    finally
+      FHistoryLock.Release;
+    end;
+  end;
+    
   sLine := Format('[%s] %s', [FormatDateTime('hh:nn:ss', Now), aLine]);
   FHistoryLock.Acquire;
   try
@@ -1853,6 +1874,9 @@ function TSiteSlot.GetHistory: TArray<String>;
 begin
   FHistoryLock.Acquire;
   try
+    // Lazy loading: create history on first access
+    if FHistory = nil then
+      FHistory := TQueue<String>.Create;
     Result := FHistory.ToArray;
   finally
     FHistoryLock.Release;

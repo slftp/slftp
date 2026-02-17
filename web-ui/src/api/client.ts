@@ -296,3 +296,13 @@ export const fetchSlotsRuntime = async (siteName: string = ''): Promise<SiteSlot
 
   return [];
 };
+
+export const setSlotMonitoring = async (site: string, slot: number, enabled: boolean): Promise<boolean> => {
+  const action = enabled ? 'enable' : 'disable';
+  try {
+    const response = await apiClient.post(`/monitoring/${action}/${site}/${slot}`);
+    return response.status === 200;
+  } catch {
+    return false;
+  }
+};

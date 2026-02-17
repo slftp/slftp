@@ -20,7 +20,7 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { IconAlertCircle, IconArrowDown, IconPlayerPause, IconPlayerPlay, IconSearch } from '@tabler/icons-react';
-import { fetchSlotsRuntime, type SlotHistory, type SiteSlotsRuntime, type SlotRuntime } from '../api/client';
+import { fetchSlotsRuntime, setSlotMonitoring, type SlotHistory, type SiteSlotsRuntime, type SlotRuntime } from '../api/client';
 
 const STREAM_RETRY_MS = 50;
 const STREAM_TIMEOUT_MS = 15000;
@@ -293,7 +293,18 @@ export function Monitoring() {
     }
   };
 
-  const handleSlotClick = (site: string, slot: number) => {
+  // Cleanup: disable monitoring when closing history modal
+  useEffect(() => {
+    if (!historyOpened && selectedSlot) {
+      // Disable monitoring for this slot when modal closes
+      setSlotMonitoring(selectedSlot.site, selectedSlot.slot, false);
+      setSelectedSlot(null);
+    }
+  }, [historyOpened, selectedSlot]);
+
+  const handleSlotClick = async (site: string, slot: number) => {
+    // Enable monitoring for this specific slot
+    await setSlotMonitoring(site, slot, true);
     setSelectedSlot({ site, slot });
     setHistoryPaused(false);
     historyPausedRef.current = false;
