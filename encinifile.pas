@@ -783,6 +783,7 @@ var
   I, J: Integer;
   SectionStrings: TStrings;
 begin
+Debug(dpError, 'ini', 'ReadSection-' + Section);
   il.Enter('ReadSection');
   Strings.BeginUpdate;
   try
@@ -802,6 +803,7 @@ end;
 
 procedure TEncIniFile.ReadSections(Strings: TStrings);
 begin
+Debug(dpError, 'ini', 'ReadSections-');
   il.Enter('ReadSections');
   try
     Strings.Assign(FSections);
@@ -815,6 +817,7 @@ procedure TEncIniFile.ReadSectionValues(const Section: String;
 var
   I: Integer;
 begin
+Debug(dpError, 'ini', 'ReadSectionValues-' + Section);
   il.Enter('ReadSectionValues');
   Strings.BeginUpdate;
   try
@@ -835,7 +838,9 @@ var
   Strings: TStrings;
 begin
   Result := Default;
+Debug(dpError, 'ini', 'ReadString-' + Section + '-' + Ident + '-' + Default);
   il.Enter('ReadString');
+il.SetCurrentCodeSegment(Section + '-' + Ident + '-' + Default);
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -979,7 +984,9 @@ var
   S: String;
   Strings: TStrings;
 begin
+Debug(dpError, 'ini', 'WriteString-' + Section + '-' + Ident + '-' + Value);
   il.Enter('WriteString');
+il.SetCurrentCodeSegment(Section + '-' + Ident + '-' + Value);
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
