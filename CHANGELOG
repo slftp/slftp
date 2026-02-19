@@ -67,6 +67,7 @@
     {+} Release simulator, IRC matches view, site credits, and issues tracking.
     {^} Dynamic dirlist interval controls exposed in API/Web UI.
     {+} IRC command !performance to show performance monitor stats and dirlist adjustments.
+    {+} IRC command !diehard to immediately kill slftp without graceful shutdown (use with caution).
     {+} Site-specific skiplists in slftp.skip (site and site+section overrides).
     {#} Fix 530 login logging, socket init error rate-limiting, ghost login cleanup, precatcher newline handling,
         and complete site cleanup when deleting via Web UI.

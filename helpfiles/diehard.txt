@@ -1,0 +1,2 @@
+Immediately kill slftp process without graceful shutdown.
+All running transfers will be aborted immediately. Use with caution!

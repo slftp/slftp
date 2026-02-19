@@ -5,6 +5,7 @@ interface
 { slftp general commands functions }
 function IrcHelp(const netname, channel, params: String): boolean;
 function IrcDie(const netname, channel, params: String): boolean;
+function IrcDieHard(const netname, channel, params: String): boolean;
 function IrcUptime(const netname, channel, params: String): boolean;
 function IrcShowAppStatus(const netname, channel, params: String): boolean;
 function IrcQueue(const netname, channel, params: String): boolean;
@@ -168,6 +169,17 @@ begin
   finally
     Result := slshutdown;
   end;
+end;
+
+function IrcDieHard(const netname, channel, params: String): boolean;
+begin
+  try
+    irc_addtext(Netname, Channel, '<c4>Performing HARD shutdown...</c>');
+    Debug(dpError, section, 'HARD shutdown initiated by %s on %s', [Netname, Channel]);
+  finally
+    Halt(0);
+  end;
+  Result := True;
 end;
 
 function IrcUptime(const netname, channel, params: String): boolean;
