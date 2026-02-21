@@ -48,6 +48,10 @@ After this, you can safely use the other tvmaze conditions.
 As an example, you can use a rule like this:
   !ruleadd sitename tv if tvgenres =~ *Action* then ALLOW
 
+To drop old episodes by concrete SxxEyy airdate you can use:
+  !ruleadd sitename tv if tvepisodeagedays > 180 then DROP
+(returns -1 if the episode airdate is unknown)
+
 For sites, which allow everything except docus, you probably want a rule like this
 instead of a "default" rule at the end of the ruleset:
   !ruleadd sitename tv if tvscripted then ALLOW

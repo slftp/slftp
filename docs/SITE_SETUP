@@ -744,8 +744,11 @@ Example 3: TV rules (USA/UK scripted shows only)
   # Drop non-scripted (reality TV, etc.)
   Rule 3: ifnot tvscripted then DROP
 
+  # Drop episodes older than 180 days (based on SxxEyy airdate)
+  Rule 4: if tvepisodeagedays > 180 then DROP
+
   # Allow everything else
-  Rule 4: if default then ALLOW
+  Rule 5: if default then ALLOW
 
 Important: Lookup-dependent rules
 For TV/IMDB/MP3 lookups to work, configure [kb] section in slftp.ini:

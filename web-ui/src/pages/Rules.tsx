@@ -219,7 +219,7 @@ export function Rules() {
           [/\b(if|then|and|or|not|in|notin)\b/i, 'keyword'],
           [/\b(DROP|ALLOW)\b/i, 'type'],
           [/\b(default)\b/i, 'constant'],
-          [/\b(group|age|releasename|section|tag|year|mp3language|mp3year|mp3numdisks|imdblookupdone|imdblanguages|imdbgenre|imdbgenres|imdbrating|imdbyear|imdbvotes|imdbcountry|tvlookupdone|tvlanguage|tvcountry|tvgenres|tvscripted|tvrunning|tvstatus|tvclassification|tvseason|tvep|nfolookupdone|internal|files|size|disk|kb)\b/i, 'variable'],
+          [/\b(group|age|releasename|section|tag|year|mp3language|mp3year|mp3numdisks|imdblookupdone|imdblanguages|imdbgenre|imdbgenres|imdbrating|imdbyear|imdbvotes|imdbcountry|tvlookupdone|tvlanguage|tvcountry|tvgenres|tvscripted|tvrunning|tvstatus|tvclassification|tvepisodeagedays|tvseason|tvep|nfolookupdone|internal|files|size|disk|kb)\b/i, 'variable'],
           [/#.*$/, 'comment'],
           [/"[^"]*"/, 'string'],
           [/'[^']*'/, 'string'],

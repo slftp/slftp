@@ -296,6 +296,7 @@ type
     tvtag: String; //< contains the tv tag of the release name (DVDRip HDTV HDTVRip ...)
     tvlanguage: String;
     tvrating: integer; //< tv rating value (max score is 100, min score is 0)
+    episode_airdate: Int64; //< unix timestamp for concrete SxxEyy episode airdate, -1 if unknown
 
     constructor Create(const rlsname, section: String; FakeChecking: boolean = True; SavedPretime: int64 = -1); override;
     destructor Destroy; override;
@@ -1432,6 +1433,8 @@ begin
     Result := Result + Format('Current Episode: %s', [BoolToStr(currentepisode, True)]) + #13#10;
     Result := Result + Format('Current on Air: %s', [BoolToStr(currentair, True)]) + #13#10;
     Result := Result + Format('Daily: %s', [BoolToStr(daily, True)]) + #13#10;
+    if episode_airdate > 0 then
+      Result := Result + Format('Episode Airdate: %s', [FormatDateTime('yyyy-mm-dd', UnixToDateTime(episode_airdate))]) + #13#10;
   except
     on e: Exception do
     begin
@@ -1451,6 +1454,7 @@ begin
   showname := '';
   episode := -1;
   season := -1;
+  episode_airdate := -1;
   c_episode := -1;
   genres := TStringList.Create;
   genres.QuoteChar := '"';

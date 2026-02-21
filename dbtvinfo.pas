@@ -131,6 +131,11 @@ var
   addtinfodbcmd: String; //< irc command for addtvmaze channel, default: !addtvmaze
   LastAddtvmazeIDs: TList<String>; // ugly way to prevent looping of !addtvmaze announces when info is already stored with different ID
 
+function TryGetEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean; forward;
+function UpsertEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; const aAirdateUnix: Int64): Boolean; forward;
+function FetchEpisodeAirdateFromTVMaze(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean; forward;
+function EnsureEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean; forward;
+
 function replaceTVShowChars(const aName: String; forWebFetch: boolean = false): String;
 var
   fHelper: String;
@@ -156,7 +161,7 @@ begin
   Result := fHelper;
 end;
 
-procedure getShowValues(const aRlsname: String; out showName: String);
+procedure getShowValues(const aRlsname: String; out showName: String); overload;
 var
   fSeason: integer;
   fEpisode: int64;
@@ -164,7 +169,7 @@ begin
   getShowValues(aRlsname, showName, fSeason, fEpisode);
 end;
 
-procedure getShowValues(const aRlsname: String; out showName: String; out season: integer; out episode: int64);
+procedure getShowValues(const aRlsname: String; out showName: String; out season: integer; out episode: int64); overload;
 var
   rx: TRegexpr;
   ttags, ltags: TStringlist;
@@ -369,6 +374,167 @@ begin
   end;
 end;
 
+function ParseEpisodeAirdateToUnix(const aAirdate: String; out aAirdateUnix: Int64): Boolean;
+var
+  y, m, d: Integer;
+  parsedDate: TDateTime;
+begin
+  Result := False;
+  aAirdateUnix := -1;
+
+  if Length(aAirdate) < 10 then
+    Exit;
+
+  y := StrToIntDef(Copy(aAirdate, 1, 4), 0);
+  m := StrToIntDef(Copy(aAirdate, 6, 2), 0);
+  d := StrToIntDef(Copy(aAirdate, 9, 2), 0);
+  if (y <= 0) or (m <= 0) or (d <= 0) then
+    Exit;
+
+  try
+    parsedDate := EncodeDate(y, m, d);
+    aAirdateUnix := DateTimeToUnix(parsedDate);
+    Result := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] ParseEpisodeAirdateToUnix(%s): %s', [aAirdate, e.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TryGetEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean;
+var
+  fQuery: TSqlDBSQLite3Statement;
+  fTVMazeID: Integer;
+begin
+  Result := False;
+  aAirdateUnix := -1;
+
+  if tvinfoSQLite3DBCon = nil then
+    Exit;
+
+  fTVMazeID := StrToIntDef(aTVMazeID, -1);
+  if (fTVMazeID < 0) or (aSeason < 0) or (aEpisode < 0) then
+    Exit;
+
+  SQLite3Lock.Enter('TryGetEpisodeAirdate');
+  try
+    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.Prepare('SELECT airdate FROM episode_airdates WHERE tvmaze_id = ? AND season = ? AND episode = ?');
+      fQuery.Bind(1, fTVMazeID);
+      fQuery.Bind(2, aSeason);
+      fQuery.Bind(3, aEpisode);
+      fQuery.ExecutePrepared;
+      if fQuery.Step then
+      begin
+        aAirdateUnix := fQuery.ColumnInt('airdate');
+        Result := aAirdateUnix > 0;
+      end;
+    finally
+      fQuery.Free;
+    end;
+  finally
+    SQLite3Lock.Leave;
+  end;
+end;
+
+function UpsertEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; const aAirdateUnix: Int64): Boolean;
+var
+  fQuery: TSqlDBSQLite3Statement;
+  fTVMazeID: Integer;
+begin
+  Result := False;
+
+  if tvinfoSQLite3DBCon = nil then
+    Exit;
+
+  fTVMazeID := StrToIntDef(aTVMazeID, -1);
+  if (fTVMazeID < 0) or (aSeason < 0) or (aEpisode < 0) or (aAirdateUnix <= 0) then
+    Exit;
+
+  SQLite3Lock.Enter('UpsertEpisodeAirdate');
+  try
+    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.Prepare('INSERT OR REPLACE INTO episode_airdates (tvmaze_id, season, episode, airdate, updated_at) VALUES (?, ?, ?, ?, ?)');
+      fQuery.Bind(1, fTVMazeID);
+      fQuery.Bind(2, aSeason);
+      fQuery.Bind(3, aEpisode);
+      fQuery.Bind(4, aAirdateUnix);
+      fQuery.Bind(5, DateTimeToUnix(Now));
+      fQuery.ExecutePrepared;
+      Result := True;
+    finally
+      fQuery.Free;
+    end;
+  finally
+    SQLite3Lock.Leave;
+  end;
+end;
+
+function FetchEpisodeAirdateFromTVMaze(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean;
+var
+  url, response, fHttpGetErrMsg, airdate: String;
+  js: TlkJSONobject;
+begin
+  Result := False;
+  aAirdateUnix := -1;
+
+  if (aTVMazeID = '') or (aSeason < 0) or (aEpisode < 0) then
+    Exit;
+
+  url := Format('https://api.tvmaze.com/shows/%s/episodebynumber?season=%d&number=%d', [aTVMazeID, aSeason, aEpisode]);
+  if not HttpGetUrl(url, response, fHttpGetErrMsg) then
+  begin
+    Debug(dpSpam, section, Format('[FAILED] TVMaze episode airdate lookup (%s S%dE%d): %s', [aTVMazeID, aSeason, aEpisode, fHttpGetErrMsg]));
+    Exit;
+  end;
+
+  if ((response = '') or (response = '[]')) then
+    Exit;
+
+  js := nil;
+  try
+    try
+      js := TlkJSON.ParseText(AnsiString(response)) as TlkJSONObject;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] FetchEpisodeAirdateFromTVMaze JSON parse (%s S%dE%d): %s', [aTVMazeID, aSeason, aEpisode, e.Message]));
+        Exit;
+      end;
+    end;
+
+    if (js = nil) or (js.Field['airdate'] = nil) or (js.Field['airdate'].SelfType = jsNull) then
+      Exit;
+
+    airdate := String(js.Field['airdate'].Value);
+    Result := ParseEpisodeAirdateToUnix(airdate, aAirdateUnix);
+  finally
+    if js <> nil then
+      js.Free;
+  end;
+end;
+
+function EnsureEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean;
+begin
+  Result := TryGetEpisodeAirdate(aTVMazeID, aSeason, aEpisode, aAirdateUnix);
+  if Result then
+    Exit;
+
+  if not FetchEpisodeAirdateFromTVMaze(aTVMazeID, aSeason, aEpisode, aAirdateUnix) then
+  begin
+    Result := False;
+    Exit;
+  end;
+
+  UpsertEpisodeAirdate(aTVMazeID, aSeason, aEpisode, aAirdateUnix);
+  Result := aAirdateUnix > 0;
+end;
+
 { TTVInfoDB }
 
 procedure TTVInfoDB.setTheTVDbID(const aID: integer);
@@ -496,6 +662,10 @@ begin
 end;
 
 procedure TTVInfoDB.SetTVDbRelease(tr: TTVRelease);
+var
+  fLookupSeason: Integer;
+  fLookupEpisode: Integer;
+  fEpisodeAirdateUnix: Int64;
 begin
   tr.showname := rls_showname;
   tr.thetvdbid := thetvdb_id;
@@ -516,6 +686,9 @@ begin
   tr.currentair := false;
   tr.tvlanguage := tv_language;
   tr.tvrating := tv_rating;
+  tr.episode_airdate := -1;
+  fLookupSeason := tr.season;
+  fLookupEpisode := tr.episode;
 
   if YearOf(now) = tv_next_season then
   begin
@@ -575,10 +748,16 @@ begin
     end;
   end;
 
+  if (fLookupSeason > 0) and (fLookupSeason < 500) and (fLookupEpisode > 0) then
+  begin
+    if EnsureEpisodeAirdate(tvmaze_id, fLookupSeason, fLookupEpisode, fEpisodeAirdateUnix) then
+      tr.episode_airdate := fEpisodeAirdateUnix;
+  end;
+
   tr.FLookupDone := True;
 
   if config.ReadBool(section, 'post_lookup_infos', False) then
-    PostResults(rls_showname);
+    PostResults(tr.rlsname);
 end;
 
 constructor TTVInfoDB.Create(const rls_showname: String);
@@ -616,11 +795,34 @@ var
   toAnnounce: TStringlist;
   toStats: boolean;
   I: Integer;
+  fLookupRls, fLookupShowName: String;
+  fLookupSeason: Integer;
+  fLookupEpisodeInt64: Int64;
+  fLookupEpisode: Integer;
+  fEpisodeAirdateUnix: Int64;
 begin
   toAnnounce := TStringlist.Create;
   toStats := Boolean((netname = '') and (channel = ''));
+  fLookupRls := rls;
+  fLookupShowName := '';
+  fLookupSeason := -1;
+  fLookupEpisodeInt64 := -1;
+  fLookupEpisode := -1;
+  fEpisodeAirdateUnix := -1;
+
   if ((rls = '') or (tvmaze_id = rls)) then
     rls := rls_showname;
+
+  if fLookupRls = '' then
+    fLookupRls := rls;
+
+  getShowValues(fLookupRls, fLookupShowName, fLookupSeason, fLookupEpisodeInt64);
+  if (fLookupSeason > 0) and (fLookupSeason < 500) and (fLookupEpisodeInt64 > 0) and (fLookupEpisodeInt64 <= High(Integer)) then
+  begin
+    fLookupEpisode := Integer(fLookupEpisodeInt64);
+    if not EnsureEpisodeAirdate(tvmaze_id, fLookupSeason, fLookupEpisode, fEpisodeAirdateUnix) then
+      fEpisodeAirdateUnix := -1;
+  end;
 
   try
     if config.ReadBool(section, 'use_new_announce_style', True) then
@@ -632,6 +834,9 @@ begin
 
       if ((tv_next_season > 0) and (tv_next_ep > 0)) then
         toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Season</b> %d - <b>Episode</b> %d - <b>Date</b> %s', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd', UnixToDateTime(tv_next_date))]));
+
+      if fEpisodeAirdateUnix > 0 then
+        toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Episode Airdate</b> %s (S%dE%d)', [FormatDateTime('yyyy-mm-dd', UnixToDateTime(fEpisodeAirdateUnix)), fLookupSeason, fLookupEpisode]));
 
       toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Genre</b> %s - <b>Classification</b> %s - <b>Status</b> %s', [tv_genres.CommaText, tv_classification, tv_status]));
       toAnnounce.Add(Format('<c10>[<b>TVInfo</b>]</c> <b>Country</b> %s - <b>Network</b> %s - <b>Language</b> %s - <b>Rating</b> %d/100', [tv_country, tv_network, tv_language, tv_rating]));
@@ -646,6 +851,9 @@ begin
 
       if ((tv_next_season > 0) and (tv_next_ep > 0)) then
         toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c9><b>Season/Episode (Date)</c></b> ...........: <b>%d.%d</b> (%s)', [tv_next_season, tv_next_ep, FormatDateTime('yyyy-mm-dd', UnixToDateTime(tv_next_date))]));
+
+      if fEpisodeAirdateUnix > 0 then
+        toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c9><b>Episode Airdate</c></b> ...........: <b>%s</b> (S%dE%d)', [FormatDateTime('yyyy-mm-dd', UnixToDateTime(fEpisodeAirdateUnix)), fLookupSeason, fLookupEpisode]));
 
       toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>.. <c9><b>Genre (Class) @ Status</c></b> ..: %s (%s) @ %s', [tv_genres.CommaText, tv_classification, tv_status]));
       toAnnounce.Add(Format('(<c9>i</c>)....<c7><b>TVInfo (db)</b></c>....... <c4><b>Country/Channel</c></b> ....: <b>%s</b> (%s) ', [tv_country, tv_network]));
@@ -870,6 +1078,21 @@ begin
         on e: Exception do
         begin
           Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByID infos: %s', [e.Message]));
+          exit;
+        end;
+      end;
+
+      // release the SQL statement, results and bound parameters before reopen
+      fQuery.Reset;
+
+      fQuery.Prepare('DELETE FROM episode_airdates WHERE tvmaze_id = ?');
+      fQuery.BindTextS(1, aID);
+      try
+        fQuery.ExecutePrepared;
+      except
+        on e: Exception do
+        begin
+          Debug(dpError, section, Format('[EXCEPTION] deleteTVInfoByID episode_airdates: %s', [e.Message]));
           exit;
         end;
       end;
@@ -1527,9 +1750,22 @@ begin
     ');'
   );
 
+  // episode_airdates table
+  tvinfoSQLite3DBCon.MainSQLite3DB.Execute(
+    'CREATE TABLE IF NOT EXISTS episode_airdates(' +
+      'tvmaze_id INTEGER NOT NULL,' +
+      'season INTEGER NOT NULL,' +
+      'episode INTEGER NOT NULL,' +
+      'airdate INTEGER NOT NULL,' +
+      'updated_at INTEGER NOT NULL DEFAULT -1,' +
+      'PRIMARY KEY (tvmaze_id ASC, season ASC, episode ASC)' +
+    ');'
+  );
+
   // indexes
   tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.tvinfo ON infos (tvmaze_id ASC);');
   tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.Rips ON series (rip ASC);');
+  tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.TVEpisodeAirdates ON episode_airdates (tvmaze_id ASC, season ASC, episode ASC);');
 
   LastAddtvmazeIDs := TList<String>.Create;
 

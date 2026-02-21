@@ -37,3 +37,5 @@ const
   TVDailyShowDescription: string = 'Returns true when the show airs daily, otherwise false.';
 
   TVRatingDescription: string = 'Returns with the TMaze rating of the show. (MULTIPLIED by ten: max score is 100, min score is 0)';
+
+  TVEpisodeAgeDaysDescription: string = 'Returns age in days of the concrete episode from the releasename (SxxEyy) based on TVMaze airdate. Returns -1 if unknown.';

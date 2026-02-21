@@ -68,6 +68,7 @@ uses
   slcriticalsection2Tests,
   variantCacheTests,
   sltimerTests,
+  ruleconditions.tvTests,
   mormot.db.raw.sqlite3.static,
   mormot.db.sql.sqlite3;
 
