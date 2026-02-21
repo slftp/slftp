@@ -136,7 +136,7 @@ WEB_DEPLOY_DIR ?= ./web
 
 web-ui-build:
 	@echo "Building Web UI..."
-	@cd $(WEB_UI_DIR) && npm install && npm run build
+	@cd $(WEB_UI_DIR) && npm install --no-audit --no-fund && npm run build
 	@echo "Web UI built successfully in $(WEB_UI_DIR)/dist/"
 	@echo ""
 	@echo "To deploy manually:"
