@@ -27,6 +27,15 @@ type
     function Name: String; override;
   end;
 
+  TPazoTVEpisodeBulkBackfillTask = class(TTask)
+  private
+    tvmaze_id: String;
+  public
+    constructor Create(const aTVMazeID: String);
+    function Execute(slot: Pointer): boolean; override;
+    function Name: String; override;
+  end;
+
 function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
 function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
 
@@ -734,6 +743,42 @@ begin
       saveTVInfos(tvmaze_id, tvdb, rls, False);
   finally
     tvdb.free;
+  end;
+
+  ready := True;
+  Result := True;
+end;
+
+{ TPazoTVEpisodeBulkBackfillTask }
+
+constructor TPazoTVEpisodeBulkBackfillTask.Create(const aTVMazeID: String);
+begin
+  inherited Create('', '', getAdminSiteName);
+  tvmaze_id := aTVMazeID;
+end;
+
+function TPazoTVEpisodeBulkBackfillTask.Name: String;
+begin
+  Result := Format('TV episode bulk backfill for TVMaze ID %s', [tvmaze_id]);
+end;
+
+function TPazoTVEpisodeBulkBackfillTask.Execute(slot: Pointer): boolean;
+var
+  fCount: Integer;
+begin
+  try
+    try
+      fCount := ExecuteEpisodeBulkBackfill(tvmaze_id);
+      Debug(dpSpam, section, 'TV episode bulk backfill finished for ID %s (%d rows)', [tvmaze_id, fCount]);
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> Episode bulk backfill finished for ID %s (%d rows)', [tvmaze_id, fCount]));
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazoTVEpisodeBulkBackfillTask.Execute(%s): %s', [tvmaze_id, e.Message]));
+      end;
+    end;
+  finally
+    ReleaseEpisodeBackfillSlot(tvmaze_id);
   end;
 
   ready := True;

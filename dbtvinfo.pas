@@ -114,6 +114,8 @@ procedure getShowValues(const aRlsname: String; out showName: String; out season
 function replaceTVShowChars(const aName: String; forWebFetch: boolean = false): String;
 
 function TVInfoDbAlive: boolean;
+function ExecuteEpisodeBulkBackfill(const aTVMazeID: String): Integer;
+procedure ReleaseEpisodeBackfillSlot(const aTVMazeID: String);
 
 implementation
 
@@ -130,6 +132,8 @@ var
   SQLite3Lock: TSlCriticalSection2 = nil; //< Critical Section used for read/write blocking as concurrently does not work flawless
   addtinfodbcmd: String; //< irc command for addtvmaze channel, default: !addtvmaze
   LastAddtvmazeIDs: TList<String>; // ugly way to prevent looping of !addtvmaze announces when info is already stored with different ID
+  EpisodeBackfillLock: TSlCriticalSection2 = nil; //< lock for in-memory queued TVMaze IDs for episode bulk backfill
+  EpisodeBackfillQueue: TStringList = nil; //< currently queued/running TVMaze IDs for episode bulk backfill
 
 function TryGetEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean; forward;
 function UpsertEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; const aAirdateUnix: Int64): Boolean; forward;
@@ -535,6 +539,164 @@ begin
   Result := aAirdateUnix > 0;
 end;
 
+function GetEpisodeAirdateCount(const aTVMazeID: String): Integer;
+var
+  fQuery: TSqlDBSQLite3Statement;
+  fTVMazeID: Integer;
+begin
+  Result := 0;
+
+  if tvinfoSQLite3DBCon = nil then
+    Exit;
+
+  fTVMazeID := StrToIntDef(aTVMazeID, -1);
+  if fTVMazeID < 0 then
+    Exit;
+
+  SQLite3Lock.Enter('GetEpisodeAirdateCount');
+  try
+    fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
+    try
+      fQuery.Prepare('SELECT COUNT(*) FROM episode_airdates WHERE tvmaze_id = ?');
+      fQuery.Bind(1, fTVMazeID);
+      fQuery.ExecutePrepared;
+      if fQuery.Step then
+        Result := fQuery.ColumnInt(0);
+    finally
+      fQuery.Free;
+    end;
+  finally
+    SQLite3Lock.Leave;
+  end;
+end;
+
+function AcquireEpisodeBackfillSlot(const aTVMazeID: String): Boolean;
+begin
+  Result := False;
+
+  if (aTVMazeID = '') or (EpisodeBackfillLock = nil) or (EpisodeBackfillQueue = nil) then
+    Exit;
+
+  EpisodeBackfillLock.Enter('AcquireEpisodeBackfillSlot');
+  try
+    if EpisodeBackfillQueue.IndexOf(aTVMazeID) <> -1 then
+      Exit;
+
+    EpisodeBackfillQueue.Add(aTVMazeID);
+    Result := True;
+  finally
+    EpisodeBackfillLock.Leave;
+  end;
+end;
+
+procedure ReleaseEpisodeBackfillSlot(const aTVMazeID: String);
+var
+  fIndex: Integer;
+begin
+  if (aTVMazeID = '') or (EpisodeBackfillLock = nil) or (EpisodeBackfillQueue = nil) then
+    Exit;
+
+  EpisodeBackfillLock.Enter('ReleaseEpisodeBackfillSlot');
+  try
+    fIndex := EpisodeBackfillQueue.IndexOf(aTVMazeID);
+    if fIndex <> -1 then
+      EpisodeBackfillQueue.Delete(fIndex);
+  finally
+    EpisodeBackfillLock.Leave;
+  end;
+end;
+
+procedure QueueEpisodeBulkBackfill(const aTVMazeID: String);
+var
+  fTask: TPazoTVEpisodeBulkBackfillTask;
+begin
+  if aTVMazeID = '' then
+    Exit;
+
+  if not AcquireEpisodeBackfillSlot(aTVMazeID) then
+    Exit;
+
+  try
+    fTask := TPazoTVEpisodeBulkBackfillTask.Create(aTVMazeID);
+    AddTask(fTask);
+  except
+    on e: Exception do
+    begin
+      ReleaseEpisodeBackfillSlot(aTVMazeID);
+      Debug(dpError, section, Format('[EXCEPTION] QueueEpisodeBulkBackfill(%s): %s', [aTVMazeID, e.Message]));
+    end;
+  end;
+end;
+
+function ExecuteEpisodeBulkBackfill(const aTVMazeID: String): Integer;
+var
+  i: Integer;
+  fSeason: Integer;
+  fEpisode: Integer;
+  fAirdateUnix: Int64;
+  fAirdate: String;
+  fResponse: String;
+  fHttpGetErrMsg: String;
+  fURL: String;
+  fJsonList: TlkJSONlist;
+begin
+  Result := 0;
+
+  if aTVMazeID = '' then
+    Exit;
+
+  fURL := Format('https://api.tvmaze.com/shows/%s/episodes', [aTVMazeID]);
+  if not HttpGetUrl(fURL, fResponse, fHttpGetErrMsg) then
+  begin
+    Debug(dpSpam, section, Format('[FAILED] TVMaze episode bulk backfill (%s): %s', [aTVMazeID, fHttpGetErrMsg]));
+    Exit;
+  end;
+
+  if (fResponse = '') or (fResponse = '[]') then
+    Exit;
+
+  fJsonList := nil;
+  try
+    try
+      fJsonList := TlkJSON.ParseText(AnsiString(fResponse)) as TlkJSONlist;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] ExecuteEpisodeBulkBackfill JSON parse (%s): %s', [aTVMazeID, e.Message]));
+        Exit;
+      end;
+    end;
+
+    if fJsonList = nil then
+      Exit;
+
+    for i := 0 to fJsonList.Count - 1 do
+    begin
+      if (fJsonList.Child[i].Field['season'] = nil) or (fJsonList.Child[i].Field['season'].SelfType = jsNull) then
+        Continue;
+      if (fJsonList.Child[i].Field['number'] = nil) or (fJsonList.Child[i].Field['number'].SelfType = jsNull) then
+        Continue;
+      if (fJsonList.Child[i].Field['airdate'] = nil) or (fJsonList.Child[i].Field['airdate'].SelfType = jsNull) then
+        Continue;
+
+      fSeason := StrToIntDef(String(fJsonList.Child[i].Field['season'].Value), -1);
+      fEpisode := StrToIntDef(String(fJsonList.Child[i].Field['number'].Value), -1);
+      if (fSeason <= 0) or (fEpisode <= 0) then
+        Continue;
+
+      fAirdate := String(fJsonList.Child[i].Field['airdate'].Value);
+      if not ParseEpisodeAirdateToUnix(fAirdate, fAirdateUnix) then
+        Continue;
+
+      if UpsertEpisodeAirdate(aTVMazeID, fSeason, fEpisode, fAirdateUnix) then
+        Inc(Result);
+    end;
+  finally
+    if fJsonList <> nil then
+      fJsonList.Free;
+  end;
+end;
+
 { TTVInfoDB }
 
 procedure TTVInfoDB.setTheTVDbID(const aID: integer);
@@ -751,7 +913,11 @@ begin
   if (fLookupSeason > 0) and (fLookupSeason < 500) and (fLookupEpisode > 0) then
   begin
     if EnsureEpisodeAirdate(tvmaze_id, fLookupSeason, fLookupEpisode, fEpisodeAirdateUnix) then
+    begin
       tr.episode_airdate := fEpisodeAirdateUnix;
+      if GetEpisodeAirdateCount(tvmaze_id) <= 1 then
+        QueueEpisodeBulkBackfill(tvmaze_id);
+    end;
   end;
 
   tr.FLookupDone := True;
@@ -1637,6 +1803,8 @@ begin
 
   if SQLite3Lock = nil then
     SQLite3Lock := TSlCriticalSection2.Create('tvdb');
+  if EpisodeBackfillLock = nil then
+    EpisodeBackfillLock := TSlCriticalSection2.Create('tvdb_episode_backfill');
 
   fDBName := Trim(config.ReadString(section, 'database', 'tvinfos.db'));
 
@@ -1768,6 +1936,12 @@ begin
   tvinfoSQLite3DBCon.MainSQLite3DB.Execute('CREATE UNIQUE INDEX IF NOT EXISTS main.TVEpisodeAirdates ON episode_airdates (tvmaze_id ASC, season ASC, episode ASC);');
 
   LastAddtvmazeIDs := TList<String>.Create;
+  if EpisodeBackfillQueue = nil then
+  begin
+    EpisodeBackfillQueue := TStringList.Create;
+    EpisodeBackfillQueue.Sorted := True;
+    EpisodeBackfillQueue.Duplicates := dupIgnore;
+  end;
 
   Console_Addline('', Format('TVInfo db loaded. %d Series, with %d infos', [getTVInfoSeriesCount, getTVInfoCount]));
 end;
@@ -1794,6 +1968,16 @@ begin
   if Assigned(LastAddtvmazeIDs) then
   begin
     FreeAndNil(LastAddtvmazeIDs);
+  end;
+
+  if Assigned(EpisodeBackfillQueue) then
+  begin
+    FreeAndNil(EpisodeBackfillQueue);
+  end;
+
+  if Assigned(EpisodeBackfillLock) then
+  begin
+    FreeAndNil(EpisodeBackfillLock);
   end;
 end;
 
