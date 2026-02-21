@@ -1,7 +1,8 @@
-import { Alert, Badge, Button, Card, Group, Loader, Modal, Pagination, ScrollArea, Stack, Table, Text, TextInput, Title, Switch } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { Alert, Badge, Button, Card, Group, Loader, Pagination, ScrollArea, Stack, Switch, Table, Text, TextInput, Title } from '@mantine/core';
+import { IconAlertCircle, IconArrowLeft, IconChevronDown, IconChevronUp, IconRefresh, IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { apiClient } from '../api/client';
 
 type RaceLine = {
@@ -15,7 +16,17 @@ type RaceLine = {
   SizeBytes: number;
 };
 
-type SortField = 'TsUnix' | 'SrcSite' | 'DstSite' | 'Section' | 'Release' | 'FileName' | 'SizeBytes';
+type ReleaseSummary = {
+  Release: string;
+  Section: string;
+  EarliestTsUnix: number;
+  LatestTsUnix: number;
+  TransferCount: number;
+  TotalSizeBytes: number;
+};
+
+type ReleaseSortField = 'EarliestTsUnix' | 'LatestTsUnix' | 'Release' | 'Section' | 'TransferCount' | 'TotalSizeBytes';
+type LineSortField = 'TsUnix' | 'SrcSite' | 'DstSite' | 'Section' | 'FileName' | 'SizeBytes';
 type SortDirection = 'asc' | 'desc';
 
 function parseMaybeJsonArray(value: unknown): any[] {
@@ -31,19 +42,88 @@ function parseMaybeJsonArray(value: unknown): any[] {
   return [];
 }
 
+function formatBytes(bytes?: number): string {
+  if (!bytes || !Number.isFinite(bytes) || bytes <= 0) return '';
+  const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+  let value = bytes;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx++;
+  }
+  return `${value.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
+}
+
+function formatTs(tsUnix?: number): string {
+  if (!tsUnix) return '';
+  const d = new Date(tsUnix * 1000);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+}
+
+function renderSectionBadge(section?: string) {
+  const value = (section || '').trim();
+  if (!value) {
+    return (
+      <Badge color="red" variant="filled" size="xs" radius="sm">
+        NO SECTION
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge
+      size="xs"
+      variant="light"
+      radius="sm"
+      styles={{
+        root: {
+          background: 'var(--nav-hover-bg)',
+          border: '1px solid var(--nav-active-border)',
+          color: 'var(--primary-light)',
+        },
+      }}
+    >
+      {value}
+    </Badge>
+  );
+}
+
 export function Races() {
-  const [filter, setFilter] = useState('');
+  const navigate = useNavigate();
+  const { releaseName } = useParams<{ releaseName?: string }>();
+  const selectedRelease = useMemo(() => {
+    if (!releaseName) return '';
+    try {
+      return decodeURIComponent(releaseName);
+    } catch {
+      return releaseName;
+    }
+  }, [releaseName]);
+  const isReleaseView = selectedRelease.length > 0;
+
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [page, setPage] = useState(1);
+  const [releasePage, setReleasePage] = useState(1);
+  const [releaseFilter, setReleaseFilter] = useState('');
+  const [lineFilter, setLineFilter] = useState('');
+
+  const [releaseSortField, setReleaseSortField] = useState<ReleaseSortField>('LatestTsUnix');
+  const [releaseSortDirection, setReleaseSortDirection] = useState<SortDirection>('desc');
+  const [lineSortField, setLineSortField] = useState<LineSortField>('TsUnix');
+  const [lineSortDirection, setLineSortDirection] = useState<SortDirection>('desc');
+
   const pageSize = 500;
   const maxPages = 5;
-  const [selectedRelease, setSelectedRelease] = useState<string | null>(null);
-  const [releasePage, setReleasePage] = useState(1);
-  const [sortField, setSortField] = useState<SortField>('TsUnix');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const {
+    data,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ['races', page],
+    enabled: !isReleaseView,
     queryFn: async () => {
       const res = await apiClient.post('/ApiRacesService/GetRaces', { Page: page, PageSize: pageSize, SinceUnix: 0 });
       let result = res.data;
@@ -61,19 +141,25 @@ export function Races() {
       const items = parsed?.items ? parseMaybeJsonArray(parsed.items) : parseMaybeJsonArray(parsed);
       return items as RaceLine[];
     },
-    refetchInterval: autoRefresh ? 30000 : false,
+    refetchInterval: autoRefresh && !isReleaseView ? 30000 : false,
     refetchOnWindowFocus: false,
   });
 
-  const { data: releaseData, isLoading: releaseLoading, error: releaseError, refetch: refetchRelease, isFetching: releaseFetching } = useQuery({
+  const {
+    data: releaseData,
+    isLoading: releaseLoading,
+    error: releaseError,
+    refetch: refetchRelease,
+    isFetching: releaseFetching,
+  } = useQuery({
     queryKey: ['releaseTransfers', selectedRelease, releasePage],
-    enabled: !!selectedRelease,
+    enabled: isReleaseView,
     queryFn: async () => {
       const res = await apiClient.post('/ApiRacesService/GetReleaseTransfers', {
         Release: selectedRelease,
         Page: releasePage,
         PageSize: pageSize,
-        SinceUnix: 0
+        SinceUnix: 0,
       });
       let result = res.data;
       if (res.data?.result && Array.isArray(res.data.result)) {
@@ -90,237 +176,398 @@ export function Races() {
       const items = parsed?.items ? parseMaybeJsonArray(parsed.items) : parseMaybeJsonArray(parsed);
       return items as RaceLine[];
     },
-    refetchInterval: autoRefresh && !!selectedRelease ? 30000 : false,
+    refetchInterval: autoRefresh && isReleaseView ? 30000 : false,
     refetchOnWindowFocus: false,
   });
 
   const races = Array.isArray(data) ? data : [];
   const releaseTransfers = Array.isArray(releaseData) ? releaseData : [];
+  const shouldCheckReleaseNextPage = isReleaseView && releaseTransfers.length === pageSize && releasePage < maxPages;
 
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    let result = races;
-    
+  const { data: releaseNextPageData, isFetching: releaseNextPageFetching } = useQuery({
+    queryKey: ['releaseTransfersNext', selectedRelease, releasePage],
+    enabled: shouldCheckReleaseNextPage,
+    queryFn: async () => {
+      const res = await apiClient.post('/ApiRacesService/GetReleaseTransfers', {
+        Release: selectedRelease,
+        Page: releasePage + 1,
+        PageSize: pageSize,
+        SinceUnix: 0,
+      });
+      let result = res.data;
+      if (res.data?.result && Array.isArray(res.data.result)) {
+        result = res.data.result[0];
+      }
+      let parsed: any = result;
+      if (typeof result === 'string') {
+        try {
+          parsed = JSON.parse(result);
+        } catch {
+          parsed = {};
+        }
+      }
+      const items = parsed?.items ? parseMaybeJsonArray(parsed.items) : parseMaybeJsonArray(parsed);
+      return items as RaceLine[];
+    },
+    refetchOnWindowFocus: false,
+  });
+  const hasReleaseNextPage = Array.isArray(releaseNextPageData) && releaseNextPageData.length > 0;
+
+  const releaseTotalPages = useMemo(() => {
+    if (!isReleaseView) return maxPages;
+    if (releaseLoading) return Math.max(1, releasePage);
+
+    if (releaseTransfers.length === 0) {
+      if (releasePage > 1) return releasePage - 1;
+      return 1;
+    }
+
+    if (releaseTransfers.length < pageSize) return releasePage;
+    if (releaseNextPageFetching) return Math.min(releasePage + 1, maxPages);
+    return hasReleaseNextPage ? Math.min(releasePage + 1, maxPages) : releasePage;
+  }, [isReleaseView, releaseLoading, releasePage, releaseTransfers.length, releaseNextPageFetching, hasReleaseNextPage]);
+
+  useEffect(() => {
+    if (!isReleaseView) return;
+    if (releasePage <= releaseTotalPages) return;
+    setReleasePage(releaseTotalPages);
+  }, [isReleaseView, releasePage, releaseTotalPages]);
+
+  const releaseSummaries = useMemo(() => {
+    const byRelease = new Map<string, ReleaseSummary>();
+
+    for (const row of races) {
+      const name = (row.Release || '').trim();
+      if (!name) continue;
+
+      const ts = row.TsUnix || 0;
+
+      const existing = byRelease.get(name);
+      if (!existing) {
+        byRelease.set(name, {
+          Release: name,
+          Section: row.Section || '',
+          EarliestTsUnix: ts,
+          LatestTsUnix: ts,
+          TransferCount: 1,
+          TotalSizeBytes: row.SizeBytes || 0,
+        });
+        continue;
+      }
+
+      existing.TransferCount += 1;
+      existing.TotalSizeBytes += row.SizeBytes || 0;
+      if (ts < existing.EarliestTsUnix) {
+        existing.EarliestTsUnix = ts;
+      }
+      if (ts > existing.LatestTsUnix) {
+        existing.LatestTsUnix = ts;
+        existing.Section = row.Section || existing.Section;
+      }
+    }
+
+    return Array.from(byRelease.values());
+  }, [races]);
+
+  const filteredReleases = useMemo(() => {
+    const q = releaseFilter.trim().toLowerCase();
+    let result = releaseSummaries;
+
     if (q) {
-      result = races.filter((r) => {
+      result = releaseSummaries.filter((r) => {
         const release = (r.Release || '').toLowerCase();
+        const section = (r.Section || '').toLowerCase();
+        return release.includes(q) || section.includes(q);
+      });
+    }
+
+    return [...result].sort((a, b) => {
+      let av: string | number = '';
+      let bv: string | number = '';
+
+      switch (releaseSortField) {
+        case 'EarliestTsUnix':
+          av = a.EarliestTsUnix || 0;
+          bv = b.EarliestTsUnix || 0;
+          break;
+        case 'LatestTsUnix':
+          av = a.LatestTsUnix || 0;
+          bv = b.LatestTsUnix || 0;
+          break;
+        case 'Release':
+          av = (a.Release || '').toLowerCase();
+          bv = (b.Release || '').toLowerCase();
+          break;
+        case 'Section':
+          av = (a.Section || '').toLowerCase();
+          bv = (b.Section || '').toLowerCase();
+          break;
+        case 'TransferCount':
+          av = a.TransferCount || 0;
+          bv = b.TransferCount || 0;
+          break;
+        case 'TotalSizeBytes':
+          av = a.TotalSizeBytes || 0;
+          bv = b.TotalSizeBytes || 0;
+          break;
+      }
+
+      if (av < bv) return releaseSortDirection === 'asc' ? -1 : 1;
+      if (av > bv) return releaseSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [releaseSummaries, releaseFilter, releaseSortField, releaseSortDirection]);
+
+  const filteredTransfers = useMemo(() => {
+    const q = lineFilter.trim().toLowerCase();
+    let result = releaseTransfers;
+
+    if (q) {
+      result = releaseTransfers.filter((r) => {
         const fileName = (r.FileName || '').toLowerCase();
         const srcSite = (r.SrcSite || '').toLowerCase();
         const dstSite = (r.DstSite || '').toLowerCase();
         const section = (r.Section || '').toLowerCase();
-        
-        // Search in each field separately for better matching
-        return release.includes(q) || 
-               fileName.includes(q) || 
-               srcSite.includes(q) || 
-               dstSite.includes(q) || 
-               section.includes(q);
+        return fileName.includes(q) || srcSite.includes(q) || dstSite.includes(q) || section.includes(q);
       });
     }
-    
-    // Sort the results
-    result = [...result].sort((a, b) => {
-      let aVal: string | number = '';
-      let bVal: string | number = '';
-      
-      switch (sortField) {
+
+    return [...result].sort((a, b) => {
+      let av: string | number = '';
+      let bv: string | number = '';
+
+      switch (lineSortField) {
         case 'TsUnix':
-          aVal = a.TsUnix || 0;
-          bVal = b.TsUnix || 0;
+          av = a.TsUnix || 0;
+          bv = b.TsUnix || 0;
           break;
         case 'SrcSite':
-          aVal = (a.SrcSite || '').toLowerCase();
-          bVal = (b.SrcSite || '').toLowerCase();
+          av = (a.SrcSite || '').toLowerCase();
+          bv = (b.SrcSite || '').toLowerCase();
           break;
         case 'DstSite':
-          aVal = (a.DstSite || '').toLowerCase();
-          bVal = (b.DstSite || '').toLowerCase();
+          av = (a.DstSite || '').toLowerCase();
+          bv = (b.DstSite || '').toLowerCase();
           break;
         case 'Section':
-          aVal = (a.Section || '').toLowerCase();
-          bVal = (b.Section || '').toLowerCase();
-          break;
-        case 'Release':
-          aVal = (a.Release || '').toLowerCase();
-          bVal = (b.Release || '').toLowerCase();
+          av = (a.Section || '').toLowerCase();
+          bv = (b.Section || '').toLowerCase();
           break;
         case 'FileName':
-          aVal = (a.FileName || '').toLowerCase();
-          bVal = (b.FileName || '').toLowerCase();
+          av = (a.FileName || '').toLowerCase();
+          bv = (b.FileName || '').toLowerCase();
           break;
         case 'SizeBytes':
-          aVal = a.SizeBytes || 0;
-          bVal = b.SizeBytes || 0;
+          av = a.SizeBytes || 0;
+          bv = b.SizeBytes || 0;
           break;
       }
-      
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+
+      if (av < bv) return lineSortDirection === 'asc' ? -1 : 1;
+      if (av > bv) return lineSortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-    
-    return result;
-  }, [races, filter, sortField, sortDirection]);
+  }, [releaseTransfers, lineFilter, lineSortField, lineSortDirection]);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
+  const handleReleaseSort = (field: ReleaseSortField) => {
+    if (releaseSortField === field) {
+      setReleaseSortDirection(releaseSortDirection === 'asc' ? 'desc' : 'asc');
+      return;
     }
+    setReleaseSortField(field);
+    setReleaseSortDirection('asc');
   };
 
-  const SortHeader = ({ field, children, style }: { field: SortField; children: React.ReactNode; style?: React.CSSProperties }) => (
-    <Table.Th 
-      style={{ ...style, cursor: 'pointer', userSelect: 'none' }} 
-      onClick={() => handleSort(field)}
+  const handleLineSort = (field: LineSortField) => {
+    if (lineSortField === field) {
+      setLineSortDirection(lineSortDirection === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setLineSortField(field);
+    setLineSortDirection('asc');
+  };
+
+  const ReleaseSortHeader = ({
+    field,
+    children,
+    style,
+  }: {
+    field: ReleaseSortField;
+    children: ReactNode;
+    style?: CSSProperties;
+  }) => (
+    <Table.Th
+      style={{ ...style, cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => handleReleaseSort(field)}
     >
       <Group gap={4} wrap="nowrap">
         {children}
-        {sortField === field && (
-          sortDirection === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />
-        )}
+        {releaseSortField === field && (releaseSortDirection === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />)}
       </Group>
     </Table.Th>
   );
 
-  const formatBytes = (bytes?: number): string => {
-    if (!bytes || !Number.isFinite(bytes) || bytes <= 0) return '';
-    const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
-    let v = bytes;
-    let idx = 0;
-    while (v >= 1024 && idx < units.length - 1) {
-      v /= 1024;
-      idx++;
+  const LineSortHeader = ({
+    field,
+    children,
+    style,
+  }: {
+    field: LineSortField;
+    children: ReactNode;
+    style?: CSSProperties;
+  }) => (
+    <Table.Th
+      style={{ ...style, cursor: 'pointer', userSelect: 'none' }}
+      onClick={() => handleLineSort(field)}
+    >
+      <Group gap={4} wrap="nowrap">
+        {children}
+        {lineSortField === field && (lineSortDirection === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />)}
+      </Group>
+    </Table.Th>
+  );
+
+  const refresh = () => {
+    if (isReleaseView) {
+      void refetchRelease();
+      return;
     }
-    return `${v.toFixed(idx === 0 ? 0 : 2)} ${units[idx]}`;
+    void refetch();
   };
 
   return (
     <Stack>
       <Group justify="space-between" align="center">
-        <Title order={2}>Races</Title>
+        <Stack gap={2}>
+          <Title order={2}>{isReleaseView ? 'Race Release' : 'Races'}</Title>
+          {isReleaseView && (
+            <Text size="sm" c="dimmed">{selectedRelease}</Text>
+          )}
+        </Stack>
         <Group>
           <Switch
             label="Auto-refresh (30s)"
             checked={autoRefresh}
             onChange={(e) => setAutoRefresh(e.currentTarget.checked)}
           />
-          <Button leftSection={<IconRefresh size="1rem" />} onClick={() => refetch()} loading={isFetching} variant="light">
+          <Button leftSection={<IconRefresh size="1rem" />} onClick={refresh} loading={isReleaseView ? releaseFetching : isFetching} variant="light">
             Refresh
           </Button>
         </Group>
       </Group>
 
-      <Group>
-        <TextInput
-          placeholder="Search..."
-          leftSection={<IconSearch size="1rem" />}
-          value={filter}
-          onChange={(e) => setFilter(e.currentTarget.value)}
-          style={{ width: 360 }}
-        />
-        <Pagination total={maxPages} value={page} onChange={setPage} size="sm" />
-        <Text size="xs" c="dimmed">
-          {filter ? `Showing ${filtered.length} matching lines (Total: ${races.length})` : `Total: ${races.length} lines`}
-        </Text>
-        <Text size="xs" c="dimmed">
-          Page {page}/{maxPages} · {pageSize}/page
-        </Text>
-      </Group>
+      {!isReleaseView ? (
+        <>
+          <Group>
+            <TextInput
+              placeholder="Search releases or section..."
+              leftSection={<IconSearch size="1rem" />}
+              value={releaseFilter}
+              onChange={(e) => setReleaseFilter(e.currentTarget.value)}
+              style={{ width: 360 }}
+            />
+            <Pagination total={maxPages} value={page} onChange={setPage} size="sm" />
+            <Text size="xs" c="dimmed">
+              {releaseFilter ? `Showing ${filteredReleases.length} matching releases (Total: ${releaseSummaries.length})` : `Total: ${releaseSummaries.length} releases`}
+            </Text>
+            <Text size="xs" c="dimmed">
+              Page {page}/{maxPages} · {pageSize}/page
+            </Text>
+          </Group>
 
-      {error && (
-        <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red">
-          {(error as any).message || 'Failed to load races'}
-        </Alert>
-      )}
+          {error && (
+            <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red">
+              {(error as any).message || 'Failed to load races'}
+            </Alert>
+          )}
 
-      <Card withBorder radius="md" p={0}>
-        {isLoading && !data ? (
-          <Group justify="center" p="md"><Loader size="md" /></Group>
-        ) : (
-          <ScrollArea h="calc(100vh - 220px)">
-            <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
-              <Table.Thead>
-                <Table.Tr>
-                  <SortHeader field="TsUnix" style={{ width: 1, whiteSpace: 'nowrap' }}>Time</SortHeader>
-                  <SortHeader field="SrcSite">From → To</SortHeader>
-                  <SortHeader field="Release">Release / File</SortHeader>
-                  <SortHeader field="Section" style={{ width: 120 }}>Section</SortHeader>
-                  <SortHeader field="SizeBytes" style={{ width: 140 }}>Size</SortHeader>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {filtered.map((r) => (
-                  <Table.Tr key={`${r.Id}`}>
-                    <Table.Td style={{ whiteSpace: 'nowrap' }}>
-                      <Text size="xs" style={{ whiteSpace: 'nowrap' }}>
-                        {r.TsUnix
-                          ? `${new Date(r.TsUnix * 1000).toLocaleDateString()} ${new Date(r.TsUnix * 1000).toLocaleTimeString()}`
-                          : ''}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={6} wrap="nowrap">
-                        <Badge variant="light" style={{ maxWidth: 'none', whiteSpace: 'nowrap', background: 'rgba(99, 102, 241, 0.35)', border: '1px solid rgba(99, 102, 241, 0.6)', color: '#fff' }}>
-                          {r.SrcSite || '—'}
-                        </Badge>
-                        <Text size="xs" c="dimmed">→</Text>
-                        <Badge variant="light" style={{ maxWidth: 'none', whiteSpace: 'nowrap', background: 'rgba(168, 85, 247, 0.35)', border: '1px solid rgba(168, 85, 247, 0.6)', color: '#fff' }}>
-                          {r.DstSite || '—'}
-                        </Badge>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Stack gap={2}>
-                        <Text
-                          size="xs"
-                          fw={600}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => {
-                            setSelectedRelease(r.Release || '');
-                            setReleasePage(1);
-                          }}
-                        >
-                          {r.Release || ''}
-                        </Text>
-                        <Text size="xs" c="dimmed" style={{ fontFamily: 'monospace' }}>{r.FileName || ''}</Text>
-                      </Stack>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="xs">{r.Section || ''}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="xs">{formatBytes(r.SizeBytes)}</Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
-        )}
-      </Card>
-
-      <Modal
-        opened={!!selectedRelease}
-        onClose={() => setSelectedRelease(null)}
-        title={`Transfers for: ${selectedRelease || ''}`}
-        size="90%"
-      >
-        <Stack>
+          <Card withBorder radius="md" p={0}>
+            {isLoading && !data ? (
+              <Group justify="center" p="md"><Loader size="md" /></Group>
+            ) : (
+              <ScrollArea h="calc(100vh - 220px)">
+                <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <ReleaseSortHeader field="Release">Release</ReleaseSortHeader>
+                      <ReleaseSortHeader field="EarliestTsUnix" style={{ width: 1, whiteSpace: 'nowrap' }}>Start</ReleaseSortHeader>
+                      <ReleaseSortHeader field="LatestTsUnix" style={{ width: 1, whiteSpace: 'nowrap' }}>End</ReleaseSortHeader>
+                      <ReleaseSortHeader field="Section" style={{ width: 140 }}>Section</ReleaseSortHeader>
+                      <ReleaseSortHeader field="TransferCount" style={{ width: 120 }}>Transfers</ReleaseSortHeader>
+                      <ReleaseSortHeader field="TotalSizeBytes" style={{ width: 140 }}>Size</ReleaseSortHeader>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {filteredReleases.map((r) => (
+                      <Table.Tr key={r.Release}>
+                        <Table.Td>
+                          <Text
+                            size="xs"
+                            fw={600}
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => {
+                              setReleasePage(1);
+                              setLineFilter('');
+                              navigate(`/races/${encodeURIComponent(r.Release)}`);
+                            }}
+                          >
+                            {r.Release}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                          <Text size="xs" style={{ whiteSpace: 'nowrap' }}>
+                            {formatTs(r.EarliestTsUnix)}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                          <Text size="xs" style={{ whiteSpace: 'nowrap' }}>
+                            {formatTs(r.LatestTsUnix)}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          {renderSectionBadge(r.Section)}
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs">{r.TransferCount}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs">{formatBytes(r.TotalSizeBytes)}</Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </ScrollArea>
+            )}
+          </Card>
+        </>
+      ) : (
+        <>
           <Group justify="space-between" align="center">
-            <Pagination total={maxPages} value={releasePage} onChange={setReleasePage} size="sm" />
-            <Group>
-              <Button
-                leftSection={<IconRefresh size="1rem" />}
-                onClick={() => refetchRelease()}
-                loading={releaseFetching}
-                variant="light"
-              >
-                Refresh
-              </Button>
-            </Group>
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size="1rem" />}
+              onClick={() => navigate('/races')}
+            >
+              Back to Releases
+            </Button>
+            <Pagination total={releaseTotalPages} value={releasePage} onChange={setReleasePage} size="sm" />
+          </Group>
+
+          <Group>
+            <TextInput
+              placeholder="Search files, section or sites..."
+              leftSection={<IconSearch size="1rem" />}
+              value={lineFilter}
+              onChange={(e) => setLineFilter(e.currentTarget.value)}
+              style={{ width: 360 }}
+            />
+            <Text size="xs" c="dimmed">
+              {lineFilter ? `Showing ${filteredTransfers.length} matching lines (Total: ${releaseTransfers.length})` : `Total: ${releaseTransfers.length} lines`}
+            </Text>
+            <Text size="xs" c="dimmed">
+              Page {releasePage}/{releaseTotalPages} · {pageSize}/page
+            </Text>
           </Group>
 
           {releaseError && (
@@ -337,21 +584,19 @@ export function Races() {
                 <Table striped highlightOnHover withTableBorder style={{ tableLayout: 'auto' }}>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th style={{ width: 1, whiteSpace: 'nowrap' }}>Time</Table.Th>
-                      <Table.Th>From → To</Table.Th>
-                      <Table.Th style={{ width: 120 }}>Section</Table.Th>
-                      <Table.Th>File</Table.Th>
-                      <Table.Th style={{ width: 140 }}>Size</Table.Th>
+                      <LineSortHeader field="TsUnix" style={{ width: 1, whiteSpace: 'nowrap' }}>Time</LineSortHeader>
+                      <LineSortHeader field="SrcSite">From → To</LineSortHeader>
+                      <LineSortHeader field="Section" style={{ width: 120 }}>Section</LineSortHeader>
+                      <LineSortHeader field="FileName">File</LineSortHeader>
+                      <LineSortHeader field="SizeBytes" style={{ width: 140 }}>Size</LineSortHeader>
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {releaseTransfers.map((t) => (
+                    {filteredTransfers.map((t) => (
                       <Table.Tr key={`rel-${t.Id}`}>
                         <Table.Td style={{ whiteSpace: 'nowrap' }}>
                           <Text size="xs" style={{ whiteSpace: 'nowrap' }}>
-                            {t.TsUnix
-                              ? `${new Date(t.TsUnix * 1000).toLocaleDateString()} ${new Date(t.TsUnix * 1000).toLocaleTimeString()}`
-                              : ''}
+                            {formatTs(t.TsUnix)}
                           </Text>
                         </Table.Td>
                         <Table.Td>
@@ -360,7 +605,7 @@ export function Races() {
                               variant="light"
                               styles={{
                                 root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center', background: 'rgba(99, 102, 241, 0.35)', border: '1px solid rgba(99, 102, 241, 0.6)', color: '#fff' },
-                                label: { overflow: 'visible', textOverflow: 'clip' }
+                                label: { overflow: 'visible', textOverflow: 'clip' },
                               }}
                             >
                               {(t.SrcSite && t.SrcSite.trim()) ? t.SrcSite.trim() : 'unknown'}
@@ -370,7 +615,7 @@ export function Races() {
                               variant="light"
                               styles={{
                                 root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center', background: 'rgba(168, 85, 247, 0.35)', border: '1px solid rgba(168, 85, 247, 0.6)', color: '#fff' },
-                                label: { overflow: 'visible', textOverflow: 'clip' }
+                                label: { overflow: 'visible', textOverflow: 'clip' },
                               }}
                             >
                               {(t.DstSite && t.DstSite.trim()) ? t.DstSite.trim() : 'unknown'}
@@ -378,7 +623,7 @@ export function Races() {
                           </Group>
                         </Table.Td>
                         <Table.Td>
-                          <Text size="xs">{t.Section || ''}</Text>
+                          {renderSectionBadge(t.Section)}
                         </Table.Td>
                         <Table.Td>
                           <Text size="xs" style={{ fontFamily: 'monospace' }}>{t.FileName || ''}</Text>
@@ -393,8 +638,8 @@ export function Races() {
               </ScrollArea>
             )}
           </Card>
-        </Stack>
-      </Modal>
+        </>
+      )}
     </Stack>
   );
 }

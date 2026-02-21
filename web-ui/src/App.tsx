@@ -59,6 +59,7 @@ function App() {
             <Route path="pre" element={<Pre />} />
             <Route path="logs" element={<Logs />} />
             <Route path="races" element={<Races />} />
+            <Route path="races/:releaseName" element={<Races />} />
             <Route path="monitoring" element={<Monitoring />} />
             <Route path="issues" element={<Issues />} />
             <Route path="databases" element={<Databases />} />
