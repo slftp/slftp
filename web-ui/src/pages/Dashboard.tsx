@@ -222,6 +222,7 @@ export function Dashboard() {
   const uptimeStr = formatUptime(stats.Uptime);
   const totalSites = stats.SitesCount;
   const sitesUpPct = totalSites > 0 ? (stats.SitesUp / totalSites) * 100 : 0;
+  const sitesUpPctRounded = Number(sitesUpPct.toFixed(1));
 
   return (
     <Stack gap="lg">
@@ -271,7 +272,7 @@ export function Dashboard() {
           icon={<IconServer size="1.4rem" stroke={1.5} color="white" />}
           iconColor="#00ff88"
           iconGradient="linear-gradient(135deg, #00ff88 0%, #00d4ff 100%)"
-          trend={{ value: sitesUpPct, isPositive: sitesUpPct > 90, showSign: false }}
+          trend={{ value: sitesUpPctRounded, isPositive: sitesUpPct > 90, showSign: false }}
         />
 
         <StatCard

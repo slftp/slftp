@@ -1,26 +1,28 @@
-import { type ReactNode } from 'react';
+import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { Dashboard } from './pages/Dashboard';
-import { SitesList } from './pages/SitesList';
-import { SiteSettings } from './pages/SiteSettings';
-import { Routes as RoutesPage } from './pages/Routes';
-import { Rules } from './pages/Rules';
-import { Sections } from './pages/Sections';
-import { IRC } from './pages/IRC';
-import { Stats } from './pages/Stats';
-import { Logs } from './pages/Logs';
-import { Issues } from './pages/Issues';
-import { Tools } from './pages/Tools';
-import { FileBrowser } from './pages/FileBrowser';
-import { Pre } from './pages/Pre';
-import { Races } from './pages/Races';
-import { Databases } from './pages/Databases';
-import { Help } from './pages/Help';
-import { Cbftp } from './pages/cbftp/Cbftp';
-import { Monitoring } from './pages/Monitoring';
-import Login from './pages/Login';
+import { Center, Loader } from '@mantine/core';
 import { isAuthenticated } from './api/client';
+
+const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+const SitesList = lazy(() => import('./pages/SitesList').then((m) => ({ default: m.SitesList })));
+const SiteSettings = lazy(() => import('./pages/SiteSettings').then((m) => ({ default: m.SiteSettings })));
+const RoutesPage = lazy(() => import('./pages/Routes').then((m) => ({ default: m.Routes })));
+const Rules = lazy(() => import('./pages/Rules').then((m) => ({ default: m.Rules })));
+const Sections = lazy(() => import('./pages/Sections').then((m) => ({ default: m.Sections })));
+const IRC = lazy(() => import('./pages/IRC').then((m) => ({ default: m.IRC })));
+const Stats = lazy(() => import('./pages/Stats').then((m) => ({ default: m.Stats })));
+const Logs = lazy(() => import('./pages/Logs').then((m) => ({ default: m.Logs })));
+const Issues = lazy(() => import('./pages/Issues').then((m) => ({ default: m.Issues })));
+const Tools = lazy(() => import('./pages/Tools').then((m) => ({ default: m.Tools })));
+const FileBrowser = lazy(() => import('./pages/FileBrowser').then((m) => ({ default: m.FileBrowser })));
+const Pre = lazy(() => import('./pages/Pre').then((m) => ({ default: m.Pre })));
+const Races = lazy(() => import('./pages/Races').then((m) => ({ default: m.Races })));
+const Databases = lazy(() => import('./pages/Databases').then((m) => ({ default: m.Databases })));
+const Help = lazy(() => import('./pages/Help').then((m) => ({ default: m.Help })));
+const Cbftp = lazy(() => import('./pages/cbftp/Cbftp').then((m) => ({ default: m.Cbftp })));
+const Monitoring = lazy(() => import('./pages/Monitoring').then((m) => ({ default: m.Monitoring })));
+const Login = lazy(() => import('./pages/Login'));
 
 // Protected Route wrapper
 const ProtectedRoute = ({ children }: { children: ReactNode }) => {
@@ -30,37 +32,47 @@ const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
+function RouteLoader() {
+  return (
+    <Center mih="40vh">
+      <Loader size="lg" />
+    </Center>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="sites" element={<SitesList />} />
-          <Route path="sites/:siteName" element={<SiteSettings />} />
-          <Route path="browser" element={<FileBrowser />} />
-          <Route path="cbftp" element={<Cbftp />} />
-          <Route path="pre" element={<Pre />} />
-          <Route path="logs" element={<Logs />} />
-          <Route path="races" element={<Races />} />
-          <Route path="monitoring" element={<Monitoring />} />
-          <Route path="issues" element={<Issues />} />
-          <Route path="databases" element={<Databases />} />
-          <Route path="routes" element={<RoutesPage />} />
-          <Route path="rules" element={<Rules />} />
-          <Route path="tools" element={<Tools />} />
-          <Route path="help" element={<Help />} />
-          <Route path="sections" element={<Sections />} />
-          <Route path="irc" element={<IRC />} />
-          <Route path="stats" element={<Stats />} />
-        </Route>
-        <Route path="/index.html" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<RouteLoader />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="sites" element={<SitesList />} />
+            <Route path="sites/:siteName" element={<SiteSettings />} />
+            <Route path="browser" element={<FileBrowser />} />
+            <Route path="cbftp" element={<Cbftp />} />
+            <Route path="pre" element={<Pre />} />
+            <Route path="logs" element={<Logs />} />
+            <Route path="races" element={<Races />} />
+            <Route path="monitoring" element={<Monitoring />} />
+            <Route path="issues" element={<Issues />} />
+            <Route path="databases" element={<Databases />} />
+            <Route path="routes" element={<RoutesPage />} />
+            <Route path="rules" element={<Rules />} />
+            <Route path="tools" element={<Tools />} />
+            <Route path="help" element={<Help />} />
+            <Route path="sections" element={<Sections />} />
+            <Route path="irc" element={<IRC />} />
+            <Route path="stats" element={<Stats />} />
+          </Route>
+          <Route path="/index.html" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
