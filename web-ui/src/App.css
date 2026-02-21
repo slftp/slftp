@@ -183,3 +183,19 @@ button, a, input, select, textarea {
   border: 1px solid rgba(255, 77, 77, 0.4);
   box-shadow: 0 0 12px rgba(255, 77, 77, 0.2);
 }
+
+/* Floating save action for long forms/pages */
+.floating-save-action {
+  position: fixed;
+  right: 24px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 220;
+  box-shadow: var(--shadow-lg);
+}
+
+@media (max-width: 768px) {
+  .floating-save-action {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}

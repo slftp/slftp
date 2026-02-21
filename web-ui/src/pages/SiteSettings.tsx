@@ -737,7 +737,7 @@ export function SiteSettings() {
         </Paper>
 
         <Group justify="flex-end">
-            <Button size="lg" leftSection={<IconDeviceFloppy size="1.2rem"/>} loading={saveSettingsMutation.isPending} onClick={() => saveSettingsMutation.mutate()}>
+            <Button className="floating-save-action" size="lg" leftSection={<IconDeviceFloppy size="1.2rem"/>} loading={saveSettingsMutation.isPending} onClick={() => saveSettingsMutation.mutate()}>
                 Save Settings
             </Button>
         </Group>

@@ -835,6 +835,7 @@ export function SectionDirectories() {
               </Text>
               {hasChanges && (
                 <Button
+                  className="floating-save-action"
                   leftSection={<IconDeviceFloppy size="1rem" />}
                   onClick={handleSaveAll}
                   loading={saveAllMutation.isPending}
