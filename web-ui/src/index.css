@@ -642,6 +642,15 @@ body[data-theme="minimal"] .badge-glow-primary {
   box-shadow: 0 0 12px rgba(255, 77, 77, 0.2);
 }
 
+/* Floating save action for long forms/pages */
+.floating-save-action {
+  position: fixed;
+  right: 24px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 220;
+  box-shadow: var(--shadow-lg);
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   :root {
@@ -655,6 +664,11 @@ body[data-theme="minimal"] .badge-glow-primary {
   
   .container-fluid {
     padding: 0 16px;
+  }
+
+  .floating-save-action {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
   }
 }
 
