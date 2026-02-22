@@ -435,7 +435,7 @@ begin
       if fQuery.Step then
       begin
         aAirdateUnix := fQuery.ColumnInt('airdate');
-        Result := aAirdateUnix > 0;
+        Result := True;
       end;
     finally
       fQuery.Free;
@@ -456,7 +456,7 @@ begin
     Exit;
 
   fTVMazeID := StrToIntDef(aTVMazeID, -1);
-  if (fTVMazeID < 0) or (aSeason < 0) or (aEpisode < 0) or (aAirdateUnix <= 0) then
+  if (fTVMazeID < 0) or (aSeason < 0) or (aEpisode < 0) or (aAirdateUnix < 0) then
     Exit;
 
   SQLite3Lock.Enter('UpsertEpisodeAirdate');
@@ -483,6 +483,7 @@ function FetchEpisodeAirdateFromTVMaze(const aTVMazeID: String; const aSeason, a
 var
   url, response, fHttpGetErrMsg, airdate: String;
   js: TlkJSONobject;
+  fStatus: Integer;
 begin
   Result := False;
   aAirdateUnix := -1;
@@ -491,8 +492,14 @@ begin
     Exit;
 
   url := Format('https://api.tvmaze.com/shows/%s/episodebynumber?season=%d&number=%d', [aTVMazeID, aSeason, aEpisode]);
-  if not HttpGetUrl(url, response, fHttpGetErrMsg) then
+  if not HttpGetUrl(url, response, fHttpGetErrMsg, 2, fStatus) then
   begin
+    if fStatus = 404 then
+    begin
+      aAirdateUnix := 0;
+      Result := True;
+      Exit;
+    end;
     Debug(dpSpam, section, Format('[FAILED] TVMaze episode airdate lookup (%s S%dE%d): %s', [aTVMazeID, aSeason, aEpisode, fHttpGetErrMsg]));
     Exit;
   end;
@@ -525,9 +532,11 @@ end;
 
 function EnsureEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: Integer; out aAirdateUnix: Int64): Boolean;
 begin
-  Result := TryGetEpisodeAirdate(aTVMazeID, aSeason, aEpisode, aAirdateUnix);
-  if Result then
+  if TryGetEpisodeAirdate(aTVMazeID, aSeason, aEpisode, aAirdateUnix) then
+  begin
+    Result := aAirdateUnix > 0;
     Exit;
+  end;
 
   if not FetchEpisodeAirdateFromTVMaze(aTVMazeID, aSeason, aEpisode, aAirdateUnix) then
   begin
@@ -913,11 +922,10 @@ begin
   if (fLookupSeason > 0) and (fLookupSeason < 500) and (fLookupEpisode > 0) then
   begin
     if EnsureEpisodeAirdate(tvmaze_id, fLookupSeason, fLookupEpisode, fEpisodeAirdateUnix) then
-    begin
       tr.episode_airdate := fEpisodeAirdateUnix;
-      if GetEpisodeAirdateCount(tvmaze_id) <= 1 then
-        QueueEpisodeBulkBackfill(tvmaze_id);
-    end;
+
+    if GetEpisodeAirdateCount(tvmaze_id) <= 1 then
+      QueueEpisodeBulkBackfill(tvmaze_id);
   end;
 
   tr.FLookupDone := True;
