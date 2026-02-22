@@ -1529,6 +1529,7 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
+  fCurrentTask: TTask;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1541,8 +1542,12 @@ begin
 
       if (todotask <> nil) then
       begin
+        // Capture the task reference now. DestroySocket (called from within Execute)
+        // may set self.todotask := nil, which would cause the cleanup block below to
+        // skip slot1/slot2 cleanup. Using fCurrentTask ensures cleanup always runs.
+        fCurrentTask := todotask;
         try
-          tname := todotask.Name;
+          tname := fCurrentTask.Name;
         except
           on E: Exception do
           begin
@@ -1553,18 +1558,18 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if todotask.Execute(self) then
+          if fCurrentTask.Execute(self) then
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask)
+            if not (fCurrentTask is TIdleTask)
 
               //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
               //then idle tasks would be created again right away
-              and not (todotask is TQuitTask)
+              and not (fCurrentTask is TQuitTask)
 
               //ignore login task if its set to readd (autobnctest)
-              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+              and not ((fCurrentTask is TLoginTask) and TLoginTask(fCurrentTask).readd)
             then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
@@ -1576,7 +1581,7 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            todotask.readyerror := True;
+            fCurrentTask.readyerror := True;
           end;
         end;
 
@@ -1585,18 +1590,21 @@ begin
         uploadingto := False;
         downloadingfrom := False;
 
-        if (todotask <> nil) then
+        // Use fCurrentTask (captured before Execute) instead of self.todotask.
+        // DestroySocket called inside Execute may have already set self.todotask := nil,
+        // which would skip slot1 cleanup and leave the task stuck in the queue.
+        if (fCurrentTask <> nil) then
         begin
           try
             try
-              if todotask is TPazoRaceTask then
+              if fCurrentTask is TPazoRaceTask then
               begin
-                fSite := TSite(TPazoRaceTask(todotask).ssite2);
+                fSite := TSite(TPazoRaceTask(fCurrentTask).ssite2);
                 if fSite <> nil then
                 begin
                   fSite.AcquireSlotsAssignmentLock('RemoveActiveTransfer');
                   try
-                    TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
+                    TPazoRaceTask(fCurrentTask).ps2.RemoveActiveTransfer(TPazoRaceTask(fCurrentTask).dir + TPazoRaceTask(fCurrentTask).filename);
                   finally
                     fSite.ReleaseSlotsAssignmentLock;
                   end;
@@ -1605,7 +1613,7 @@ begin
                 // prepare all possible destination sites for a possible new transfer by firing their queue
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
-                  for fPazoSite in TPazoRaceTask(todotask).mainpazo.PazoSitesList do
+                  for fPazoSite in TPazoRaceTask(fCurrentTask).mainpazo.PazoSitesList do
                   begin
                     for fPair in fPazoSite.destinations do
                     begin
@@ -1616,9 +1624,9 @@ begin
                 end;
               end;
 
-              if (todotask.slot1 <> nil) then
+              if (fCurrentTask.slot1 <> nil) then
               begin
-                todotask.slot1 := nil;
+                fCurrentTask.slot1 := nil;
               end;
             finally
               try
