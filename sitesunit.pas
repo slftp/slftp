@@ -467,6 +467,7 @@ type
     procedure Auto;
 
     procedure RecalcFreeslots;
+    procedure RecalcAllCounters;
     procedure FullLogin;
 
     { function for @link(sw) property to read Site Software from inifile }
@@ -1504,6 +1505,12 @@ begin
       Debug(dpError, section, Format('Exception in DestroySocket: %s', [e.Message]));
     end;
   end;
+  // Reset slot counters immediately after disconnect.
+  // Prevents freeslots/num_dn/num_up staying wrong after unexpected disconnections
+  // (slowkick, kick, credits, ghost). The setters are idempotent and thread-safe.
+  todotask := nil;
+  downloadingfrom := False;
+  uploadingto := False;
   if down then
     status := ssDown
   else
@@ -4383,6 +4390,34 @@ begin
   end;
 end;
 
+procedure TSite.RecalcAllCounters;
+var
+  i, fs, dn, up: Integer;
+  ss: TSiteSlot;
+begin
+  fFreeSlotsCS.Enter('RecalcAllCounters');
+  try
+    fs := 0;
+    dn := 0;
+    up := 0;
+    for i := 0 to slots.Count - 1 do
+    begin
+      ss := TSiteSlot(slots[i]);
+      if ss.todotask = nil then
+        Inc(fs);
+      if ss.downloadingfrom then
+        Inc(dn);
+      if ss.uploadingto then
+        Inc(up);
+    end;
+    ffreeslots := fs;
+    fNumDn := dn;
+    fNumUp := up;
+  finally
+    fFreeSlotsCS.Leave;
+  end;
+end;
+
 procedure TSite.FullLogin;
 var
   i: integer;
@@ -4397,7 +4432,7 @@ begin
     end;
   end;
 
-  RecalcFreeslots;
+  RecalcAllCounters;
 end;
 
 procedure TSite.RebuildSlot(const aSlotNumber: integer);

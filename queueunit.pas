@@ -1844,9 +1844,14 @@ begin
             if (t.slot1 <> nil) then
             begin
               try
-                TSiteSlot(t.slot1).todotask := nil;
-                TSiteSlot(t.slot1).downloadingfrom := False;
-                TSiteSlot(t.slot1).uploadingto := False;
+                // Only reset if slot still belongs to this task.
+                // DestroySocket may have already freed the slot and it could be reused.
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  TSiteSlot(t.slot1).todotask := nil;
+                  TSiteSlot(t.slot1).downloadingfrom := False;
+                  TSiteSlot(t.slot1).uploadingto := False;
+                end;
                 t.slot1 := nil;
                 t.slot1name := '';
               except
@@ -1864,9 +1869,14 @@ begin
                 // we were able to get the slots assignment lock. set the site here to release the lock later.
                 ts2 := TSiteSlot(t.slot2).site;
 
-                TSiteSlot(t.slot2).todotask := nil;
-                TSiteSlot(t.slot2).downloadingfrom := False;
-                TSiteSlot(t.slot2).uploadingto := False;
+                // Only reset if slot still belongs to this task.
+                // DestroySocket may have already freed the slot and it could be reused.
+                if TSiteSlot(t.slot2).todotask = t then
+                begin
+                  TSiteSlot(t.slot2).todotask := nil;
+                  TSiteSlot(t.slot2).downloadingfrom := False;
+                  TSiteSlot(t.slot2).uploadingto := False;
+                end;
                 t.slot2 := nil;
                 t.slot2name := '';
               except
@@ -1938,12 +1948,16 @@ begin
               ss := t.UidText;
               ts.AcquireSlotsAssignmentLock('QueueClean login, quit, idle, mkdir');
               try
-                TSiteSlot(t.slot1).todotask := nil;
+                // Only reset if slot still belongs to this task (slot may have been reused)
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  TSiteSlot(t.slot1).todotask := nil;
+                  TSiteSlot(t.slot1).downloadingfrom := False;
+                  TSiteSlot(t.slot1).uploadingto := False;
+                end;
               finally
                 ts.ReleaseSlotsAssignmentLock;
               end;
-              TSiteSlot(t.slot1).downloadingfrom := False;
-              TSiteSlot(t.slot1).uploadingto := False;
               t.slot1     := nil;
               t.slot1name := '';
             except
