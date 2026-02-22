@@ -2289,11 +2289,49 @@ begin
         irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
         try
           ts.AcquireSlotsAssignmentLock('killall');
-            try
-              tasks.Remove(TPazoTask(fTask));
-            finally
-              ts.ReleaseSlotsAssignmentLock;
+          try
+            // Reset slot1 state before removing the task.
+            // Otherwise todotask stays non-nil (dangling pointer) and
+            // freeslots/num_dn/num_up remain wrong after the task is gone.
+            if fTask.slot1 <> nil then
+            begin
+              if TSiteSlot(fTask.slot1).todotask = fTask then
+              begin
+                TSiteSlot(fTask.slot1).todotask := nil;
+                TSiteSlot(fTask.slot1).downloadingfrom := False;
+                TSiteSlot(fTask.slot1).uploadingto := False;
+              end;
+              fTask.slot1 := nil;
+              fTask.slot1name := '';
             end;
+
+            // Reset slot2 (destination site, may require its own lock)
+            if fTask.slot2 <> nil then
+            begin
+              try
+                TSiteSlot(fTask.slot2).site.AcquireSlotsAssignmentLock('killall destination');
+                try
+                  if TSiteSlot(fTask.slot2).todotask = fTask then
+                  begin
+                    TSiteSlot(fTask.slot2).todotask := nil;
+                    TSiteSlot(fTask.slot2).downloadingfrom := False;
+                    TSiteSlot(fTask.slot2).uploadingto := False;
+                  end;
+                finally
+                  TSiteSlot(fTask.slot2).site.ReleaseSlotsAssignmentLock;
+                end;
+              except
+                on e: Exception do
+                  Debug(dpError, section, Format('[EXCEPTION] IrcKillAll slot2 reset: %s', [e.Message]));
+              end;
+              fTask.slot2 := nil;
+              fTask.slot2name := '';
+            end;
+
+            tasks.Remove(TPazoTask(fTask));
+          finally
+            ts.ReleaseSlotsAssignmentLock;
+          end;
         except
           on e: Exception do
             irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
