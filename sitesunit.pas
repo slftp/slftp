@@ -2073,6 +2073,13 @@ begin
   else
     mSLSetupSocks5(site.proxyname, self, True);
 
+  // Configurable delay before every BNC connection attempt.
+  // Prevents 530 "too many logins" when reconnecting immediately after an unexpected
+  // disconnect (e.g. SRC-REGRESSION, ghost, slowkick): the FTP server needs a moment
+  // to clean up the previous session before accepting a new one.
+  // Controlled by [sites] delay_between_connects (default 200ms).
+  Sleep(delay_between_connects);
+
   //First step to connect
   Host := RCString('bnc_host-' + IntToStr(i), '');
   Port := RCInteger('bnc_port-' + IntToStr(i), 0);
