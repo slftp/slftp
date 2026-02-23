@@ -91,7 +91,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist;
 
 const
   section = 'queue';
@@ -1759,6 +1759,8 @@ var
   ss: String;
   t:  TTask;
   ts, ts2: TSite;
+  fDirlistTask: TPazoDirlistTask;
+  fDirlistSubDir: TDirList;
 begin
 
   try
@@ -1794,6 +1796,29 @@ begin
           try
             t.ready := True;
             Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+
+            // Reset dirlistadded so a new dirlist task can be created when slots
+            // become available. Without this reset, the pazo site would never get
+            // a dirlist after the task is killed, since dirlistadded stays True.
+            if t is TPazoDirlistTask then
+            begin
+              fDirlistTask := TPazoDirlistTask(t);
+              if (fDirlistTask.ps1 <> nil) and (fDirlistTask.ps1.dirlist <> nil) then
+              begin
+                if fDirlistTask.dir = '' then
+                begin
+                  // Source dirlist (created by kb_AddB, dir='')
+                  fDirlistTask.ps1.dirlist.dirlistadded := False;
+                end
+                else
+                begin
+                  // Destination/sub dirlist (created by Tuzelj, dir='some/path')
+                  fDirlistSubDir := fDirlistTask.ps1.dirlist.FindDirlist(fDirlistTask.dir);
+                  if fDirlistSubDir <> nil then
+                    fDirlistSubDir.dirlistadded := False;
+                end;
+              end;
+            end;
           except
             on e: Exception do
             begin
