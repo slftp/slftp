@@ -1803,12 +1803,26 @@ begin
               ts.AcquireSlotsAssignmentLock('QueueClean1 unassigned');
               try
                 if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  // Slot still holds a reference to this task — it may be actively
+                  // executing it. Clear todotask to unblock slot assignment for new
+                  // tasks, but do NOT clear slot1: the slot thread will clear it in
+                  // its own post-execute cleanup after Execute() returns. Clearing
+                  // slot1 here makes the task eligible for removal (ready+slot1=nil)
+                  // while the slot thread still holds fCurrentTask pointing to it,
+                  // causing a use-after-free crash in the removal loop.
                   TSiteSlot(t.slot1).todotask := nil;
+                end
+                else
+                begin
+                  // Slot has moved on (todotask != this task). Safe to clear slot1
+                  // because the slot thread no longer accesses this task via fCurrentTask.
+                  t.slot1 := nil;
+                  t.slot1name := '';
+                end;
               finally
                 ts.ReleaseSlotsAssignmentLock;
               end;
-              t.slot1 := nil;
-              t.slot1name := '';
             end;
           except
             on e: Exception do
