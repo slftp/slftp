@@ -1661,12 +1661,32 @@ begin
                 with TPazoRaceTask(fTask) do
                 if (dst <> nil) then
                 begin
-                  dst.event.SetEvent;
+                  try
+                    dst.event.SetEvent;
+                  except
+                    on e: Exception do
+                      Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
+                  end;
                 end;
               end;
               ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
               try
-                tasks.Remove(fTask);
+                try
+                  tasks.Remove(fTask);
+                except
+                  on e: Exception do
+                  begin
+                    // Destructor raised — item may still be in list in a partially-freed
+                    // state. Remove it by index to prevent repeated AV on future passes.
+                    Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s]', [e.Message, ss]));
+                    try
+                      tasks.OwnsObjects := False;
+                      tasks.Remove(fTask);
+                    finally
+                      tasks.OwnsObjects := True;
+                    end;
+                  end;
+                end;
               finally
                 ts.ReleaseSlotsAssignmentLock;
               end;
