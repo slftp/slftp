@@ -854,6 +854,7 @@ begin
     q := TQuitTask.Create('', '', s.site.Name);
     q.slot1 := s;
     q.slot1name := s.Name;
+    q.assigned := Now();
     s.todotask := q;
     AddTask(q);
     s.Fire;
@@ -882,6 +883,7 @@ begin
     ti := TIdleTask.Create('', '', s.site.Name);
     ti.slot1 := s;
     ti.slot1name := s.Name;
+    ti.assigned := Now();
     s.todotask := ti;
     AddTask(ti);
     s.Fire;
