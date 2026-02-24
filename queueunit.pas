@@ -1936,6 +1936,22 @@ begin
                 end;
               end;
             end;
+            // Tasks created by Add*Task (TIdleTask, TQuitTask) have slot1 set directly
+            // but assigned stays 0. The removal loop requires slot1=nil to remove a
+            // ready task, so without this cleanup the task is stuck in the queue forever
+            // and s.todotask keeps pointing to the dead task, blocking new idle tasks.
+            if t.slot1 <> nil then
+            begin
+              ts.AcquireSlotsAssignmentLock('QueueClean1 unassigned');
+              try
+                if TSiteSlot(t.slot1).todotask = t then
+                  TSiteSlot(t.slot1).todotask := nil;
+              finally
+                ts.ReleaseSlotsAssignmentLock;
+              end;
+              t.slot1 := nil;
+              t.slot1name := '';
+            end;
           except
             on e: Exception do
             begin
