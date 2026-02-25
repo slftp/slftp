@@ -28,6 +28,7 @@ type
 
   private
   tasks:      TObjectList;
+  waiting_tasks: TObjectList;
   queueevent: TEvent;
   fSiteName: String;
   fSite: TObject;
@@ -418,6 +419,7 @@ begin
 
   main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
   tasks      := TObjectList.Create(True);
+  waiting_tasks := TObjectList.Create(True);
   queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
   queue_last_run := Now;
   queueclean_last_run := Now;
@@ -433,6 +435,7 @@ destructor TQueueThread.Destroy;
 begin
   main_lock.Free;
   tasks.Free;
+  waiting_tasks.Free;
   queueevent.Free;
   inherited;
 end;
@@ -947,6 +950,8 @@ var
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
+  fListIndex: Integer;
+  fList: TObjectList;
 begin
   Result := False;
 
@@ -956,26 +961,30 @@ begin
       tpr := TPazoRaceTask(t);
       main_lock.Enter('TaskAlreadyInQueue1');
       try
-        for fTask in tasks do
+        for fListIndex := 0 to 1 do
         begin
-          try
-            if (fTask is TPazoRaceTask) then
-            begin
-              i_tpr := TPazoRaceTask(fTask);
-              if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-                (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
-                (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
-                (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
+          begin
+            try
+              if (fTask is TPazoRaceTask) then
               begin
-                Result := True;
-                exit;
+                i_tpr := TPazoRaceTask(fTask);
+                if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
+                  (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
+                  (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
+                  (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
+                begin
+                  Result := True;
+                  exit;
+                end;
               end;
-            end;
-          except
-            on E: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
-              continue;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
+                continue;
+              end;
             end;
           end;
         end;
@@ -999,25 +1008,29 @@ begin
       tpd := TPazoDirlistTask(t);
       main_lock.Enter('TaskAlreadyInQueue2');
       try
-        for fTask in tasks do
+        for fListIndex := 0 to 1 do
         begin
-          try
-            if (fTask is TPazoDirlistTask) then
-            begin
-              i_tpd := TPazoDirlistTask(fTask);
-              if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
-                (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
-                (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
+          begin
+            try
+              if (fTask is TPazoDirlistTask) then
               begin
-                Result := True;
-                exit;
+                i_tpd := TPazoDirlistTask(fTask);
+                if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
+                  (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
+                  (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
+                begin
+                  Result := True;
+                  exit;
+                end;
               end;
-            end;
-          except
-            on E: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask (loop) : %s', [e.Message]));
-              continue;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask (loop) : %s', [e.Message]));
+                continue;
+              end;
             end;
           end;
         end;
@@ -1041,25 +1054,29 @@ begin
       tpm := TPazoMkdirTask(t);
       main_lock.Enter('TaskAlreadyInQueue3');
       try
-        for fTask in tasks do
+        for fListIndex := 0 to 1 do
         begin
-          try
-            if (fTask is TPazoMkdirTask) then
-            begin
-              i_tpm := TPazoMkdirTask(fTask);
-              if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
-                (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
-                (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
+          begin
+            try
+              if (fTask is TPazoMkdirTask) then
               begin
-                Result := True;
-                exit;
+                i_tpm := TPazoMkdirTask(fTask);
+                if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
+                  (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
+                  (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
+                begin
+                  Result := True;
+                  exit;
+                end;
               end;
-            end;
-          except
-            on E: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask (loop) : %s', [e.Message]));
-              continue;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask (loop) : %s', [e.Message]));
+                continue;
+              end;
             end;
           end;
         end;
@@ -1083,17 +1100,21 @@ begin
       tpl := TLoginTask(t);
       main_lock.enter('TaskAlreadyInQueue4');
       try
-        for fTask in tasks do
+        for fListIndex := 0 to 1 do
         begin
-          if (fTask is TLoginTask) then
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
           begin
-            i_tpl := TLoginTask(fTask);
-            if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
-              (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
-              (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
+            if (fTask is TLoginTask) then
             begin
-              Result := True;
-              exit;
+              i_tpl := TLoginTask(fTask);
+              if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
+                (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
+                (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
+              begin
+                Result := True;
+                exit;
+              end;
             end;
           end;
         end;
@@ -1171,7 +1192,12 @@ begin
         exit;
       end;
 
-      tasks.Add(t);
+      // Add to waiting_tasks if it starts in the future, else to main tasks queue
+      if (t.startat > Now) then
+        waiting_tasks.Add(t)
+      else
+        tasks.Add(t);
+
 
       try
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
@@ -1497,6 +1523,7 @@ var
   fBusyDestinationsTmp: TDictionary<TObject, integer>;
   fNextTaskStartAt: TDateTime;
   fWaitTimerTimeout: Cardinal;
+  bTasksMoved: Boolean;
 begin
   while ((not slshutdown) and (not Terminated)) do
   begin
@@ -1517,10 +1544,34 @@ begin
     ts := TSite(fSite);
     fBusyDestinationsTmp := fBusyDestinations;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
+    fNextTaskStartAt := MaxDateTime;
+    bTasksMoved := False;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
     try
       main_lock.Enter('Execute');
       try
+        // Move mature tasks from waiting_tasks to main tasks queue
+        for i := waiting_tasks.Count - 1 downto 0 do
+        begin
+          if i < 0 then Break;
+          fTask := TTask(waiting_tasks.items[i]);
+          if fTask = nil then Continue;
+          
+          if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
+          begin
+            waiting_tasks.Extract(fTask);
+            tasks.Add(fTask);
+            bTasksMoved := True;
+          end
+          else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
+          begin
+            fNextTaskStartAt := fTask.startat;
+          end;
+        end;
+
+        if bTasksMoved then
+          tasks.Sort(@QueueSorter);
+
         for i := tasks.Count - 1 downto 0 do
         begin
           if i < 0 then
@@ -1563,7 +1614,6 @@ begin
           end;
         end;
 
-        fNextTaskStartAt := MaxDateTime;
         ts.AcquireSlotsAssignmentLock('Queue iterate');
         try
           for fTask in tasks do
