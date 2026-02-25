@@ -504,6 +504,22 @@ begin
       exit;
     end;
 
+    if s2.UploadCooldownActive then
+    begin
+      if not fBusyDestinations.ContainsKey(s2) then
+        fBusyDestinations.Add(s2, 0);
+      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Destination site %s: upload cooldown active, skipping %s',
+        [s2.Name, t.FullName]);
+      exit;
+    end;
+
+    if s1.DownloadCooldownActive then
+    begin
+      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Source site %s: download cooldown active, skipping %s',
+        [s1.Name, t.FullName]);
+      exit;
+    end;
+
     if fBusyDestinations.ContainsKey(s2) then
     begin
       Debug(dpSpam, section, 'Destination site %s is busy, skip race task assign from %s', [s2.Name, s1.Name]);
