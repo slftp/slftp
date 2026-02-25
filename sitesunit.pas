@@ -3315,15 +3315,21 @@ begin
 end;
 
 procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
+var
+  fTaskName: String;
 begin
   if Value <> fDownloadingFrom then
   begin
     fDownloadingFrom := Value;
+    if todotask <> nil then
+      fTaskName := todotask.Name
+    else
+      fTaskName := '?';
     if fDownloadingFrom then
     begin
       {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
-      Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d (slot: %s)',
-        [site.Name, site.num_dn, site.max_dn, Name]);
+      Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d +dn (slot: %s) task: %s',
+        [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
     end
     else
     begin
@@ -3331,26 +3337,32 @@ begin
       if glInterTransferDelayMs > 0 then
       begin
         site.fDownloadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d (slot: %s) - transfer cooldown %dms',
-          [site.Name, site.num_dn, site.max_dn, Name, glInterTransferDelayMs]);
+        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn cooldown %dms (slot: %s) task: %s',
+          [site.Name, site.num_dn, site.max_dn, glInterTransferDelayMs, Name, fTaskName]);
       end
       else
-        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d (slot: %s)',
-          [site.Name, site.num_dn, site.max_dn, Name]);
+        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn (slot: %s) task: %s',
+          [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
     end;
   end;
 end;
 
 procedure TSiteSlot.SetUploadingTo(const Value: boolean);
+var
+  fTaskName: String;
 begin
   if Value <> fUploadingTo then
   begin
     fUploadingTo := Value;
+    if todotask <> nil then
+      fTaskName := todotask.Name
+    else
+      fTaskName := '?';
     if fUploadingTo then
       begin
         {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
-        Debug(dpError, section, '[SLOTS] %s: num_up %d/%d (slot: %s)',
-          [site.Name, site.num_up, site.max_up, Name]);
+        Debug(dpError, section, '[SLOTS] %s: num_up %d/%d +up (slot: %s) task: %s',
+          [site.Name, site.num_up, site.max_up, Name, fTaskName]);
       end
     else
       begin
@@ -3358,34 +3370,40 @@ begin
         if glInterTransferDelayMs > 0 then
         begin
           site.fUploadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d (slot: %s) - transfer cooldown %dms',
-            [site.Name, site.num_up, site.max_up, Name, glInterTransferDelayMs]);
+          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up cooldown %dms (slot: %s) task: %s',
+            [site.Name, site.num_up, site.max_up, glInterTransferDelayMs, Name, fTaskName]);
         end
         else
-          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d (slot: %s)',
-            [site.Name, site.num_up, site.max_up, Name]);
+          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up (slot: %s) task: %s',
+            [site.Name, site.num_up, site.max_up, Name, fTaskName]);
       end;
   end;
 end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
+var
+  fOldTaskName: String;
 begin
   site.fFreeSlotsCS.Enter('SetTodotask');
   try
     if fTodotask <> Value then
     begin
+      if fTodotask <> nil then
+        fOldTaskName := fTodotask.Name
+      else
+        fOldTaskName := '?';
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s)',
-          [site.Name, site.freeslots, site.slots.Count, Name]);
+        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s) task: %s',
+          [site.Name, site.freeslots, site.slots.Count, Name, Value.Name]);
       end
       else
       begin
         site.freeslots := site.freeslots + 1;
-        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s)',
-          [site.Name, site.freeslots, site.slots.Count, Name]);
+        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s) task: %s',
+          [site.Name, site.freeslots, site.slots.Count, Name, fOldTaskName]);
       end;
     end;
   finally
