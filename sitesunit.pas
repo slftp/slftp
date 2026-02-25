@@ -3952,8 +3952,18 @@ begin
 end;
 
 procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
 begin
-  fMaxSimUpCooldownSeconds := 2;
+  if fMaxSimUpCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimUpCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+  fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s) (slot: %s)',
@@ -3961,8 +3971,18 @@ begin
 end;
 
 procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
 begin
-  fMaxSimDownCooldownSeconds := 2;
+  if fMaxSimDownCooldownSeconds = 0 then
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fMaxSimDownCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+  fMaxSimDownCooldownSeconds := fNewCooldown;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s) (slot: %s)',
@@ -4064,8 +4084,18 @@ begin
 end;
 
 procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
 begin
-  fLoginCooldownSeconds := 2;
+  if fLoginCooldownSeconds = 0 then
+    fNewCooldown := LOGIN_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fLoginCooldownSeconds * 2;
+    if fNewCooldown > LOGIN_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := LOGIN_COOLDOWN_MAX_SECONDS;
+  end;
+  fLoginCooldownSeconds := fNewCooldown;
   fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
   fLoginCooldownLastSlot := aSlotName;
 
