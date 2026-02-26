@@ -385,24 +385,27 @@ begin
       end;
 
       // we just inserted the pre time, find out if there's already a KB entry
-      rls_section := FindReleaseInLatestKBList(rls);
-
-      //send event to kb_add to trigger race evaluation
-      if rls_section <> '' then
-        kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '')
-      else if add_to_kb_on_dbaddpre_insert or IsUDPEnabled then
+      if add_to_kb_on_dbaddpre_insert or IsUDPEnabled then
       begin
-        if (fSightingCount >= addpre_sightings_threshold) then
-        begin
-          rls_section := aSection;  // if the precatcher config has a fixed section ... I don't think it makes much sense, but it's possible
-          if rls_section = '' then
-          begin
-            rls_section := ProcessDoReplace(params, rls);
-            rls_section := FindSection(' ' + rls_section + ' ');
-          end;
+        rls_section := FindReleaseInLatestKBList(rls);
 
-          rls_section := PrecatcherSectionMapping(rls, rls_section);
-          kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '');
+        //send event to kb_add to trigger race evaluation
+        if rls_section <> '' then
+          kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '')
+        else
+        begin
+          if (fSightingCount >= addpre_sightings_threshold) then
+          begin
+            rls_section := aSection;  // if the precatcher config has a fixed section ... I don't think it makes much sense, but it's possible
+            if rls_section = '' then
+            begin
+              rls_section := ProcessDoReplace(params, rls);
+              rls_section := FindSection(' ' + rls_section + ' ');
+            end;
+
+            rls_section := PrecatcherSectionMapping(rls, rls_section);
+            kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '');
+          end;
         end;
       end;
     end;
