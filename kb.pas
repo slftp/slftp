@@ -465,7 +465,7 @@ begin
     end;
 
     // sightings threshold check
-    if (add_to_kb_on_dbaddpre_insert) and (addpre_sightings_threshold > 1) and (event <> kbePRE) then
+    if (add_to_kb_on_dbaddpre_insert or IsUDPEnabled) and (addpre_sightings_threshold > 1) and (event <> kbePRE) then
     begin
       i := kb_list.IndexOf(section + '-' + rls);
       if i = -1 then // only for brand new releases
