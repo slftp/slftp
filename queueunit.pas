@@ -1472,10 +1472,19 @@ begin
                 if TSiteSlot(t.slot1).todotask = t then
                 begin
                   fSlotsToRebuild.Add(TSiteSlot(t.slot1));
+                  // Do NOT clear slot1/slot2 here: the slot thread is still executing
+                  // fCurrentTask (= t) inside TSiteSlot.Execute. Clearing slot1 now would
+                  // allow RemoveReady to free the task while the slot thread is still using
+                  // it → use-after-free → AV. The slot thread's cleanup sets
+                  // fCurrentTask.slot1 := nil after Execute() returns. RebuildSlot signals
+                  // shouldquit=True so the FTP operation aborts quickly.
+                end
+                else
+                begin
+                  // Slot has already moved on (todotask != t); safe to clear immediately.
+                  t.slot1 := nil;
+                  t.slot2 := nil;
                 end;
-
-                t.slot1 := nil;
-                t.slot2 := nil;
               end;
             end;
           end;
