@@ -1554,19 +1554,25 @@ procedure TQueueThread.RemovePazoSfv(const aPazoID: integer; const aDir: String)
 var
   fTask: TPazoSiteSfvTask;
   fAbstractTask: TTask;
+  fListIndex: Integer;
+  fList: TObjectList;
 begin
   try
     main_lock.Enter('RemovePazoSfv');
     try
-      for fAbstractTask in tasks do
+      for fListIndex := 0 to 1 do
       begin
-        if (fAbstractTask is TPazoSiteSfvTask) then
+        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+        for fAbstractTask in fList do
         begin
-          fTask := TPazoSiteSfvTask(fAbstractTask);
-          if ((fTask.ready = False) and (fTask.readyerror = False) and (fTask.slot1 = nil) and (fTask.pazo_id = aPazoID) and (fTask.dir = aDir)) then
+          if (fAbstractTask is TPazoSiteSfvTask) then
           begin
-            fTask.ready := True;
-            Debug(dpSpam, 'sfv', Format('Remove SFV task : %s %s %s (%s)', [fTask.mainpazo.rls.rlsname, fTask.dir, fTask.SFVFilename, fTask.site1]));
+            fTask := TPazoSiteSfvTask(fAbstractTask);
+            if ((fTask.ready = False) and (fTask.readyerror = False) and (fTask.slot1 = nil) and (fTask.pazo_id = aPazoID) and (fTask.dir = aDir)) then
+            begin
+              fTask.ready := True;
+              Debug(dpSpam, 'sfv', Format('Remove SFV task : %s %s %s (%s)', [fTask.mainpazo.rls.rlsname, fTask.dir, fTask.SFVFilename, fTask.site1]));
+            end;
           end;
         end;
       end;
