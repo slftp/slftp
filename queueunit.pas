@@ -2145,6 +2145,19 @@ begin
             try
               Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+
+              // Signal the destination WAITTASK to unblock its slot thread,
+              // same as RemoveReady does when collecting a completed RACE task.
+              if (TPazoRaceTask(t).dst <> nil) then
+              begin
+                try
+                  TPazoRaceTask(t).dst.event.SetEvent;
+                except
+                  on e: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] QueueClean race: signal dst event : %s', [e.Message]));
+                end;
+              end;
+
               tasks.Remove(t);
             except
               on e: Exception do
@@ -2165,27 +2178,17 @@ begin
 
         if (t.ClassType = TWaitTask) then
         begin
-          with TWaitTask(t) do
-            event.SetEvent;
+          ss := t.UidText;
+          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
 
-          try
-            //t := NIL;
-            ss := t.UidText;
-            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
-            ts.AcquireSlotsAssignmentLock('QueueClean wait');
-            try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
-              tasks.Remove(t);
-            finally
-              ts.ReleaseSlotsAssignmentLock;
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section,
-                Format('[EXCEPTION] QueueClean: Exception Remove : %s', [e.Message]));
-            end;
-          end;
+          // Wake up the blocking slot thread so it can complete Execute normally.
+          // Do NOT call tasks.Remove here: TWaitTask.Execute blocks in event.WaitFor,
+          // so calling tasks.Remove would free the task object while the slot thread
+          // is still executing it (use-after-free / AV).
+          // The slot thread sets ready := True when Execute returns, clears slot1 in
+          // its cleanup block, and RemoveReady will collect the task on the next pass.
+          TWaitTask(t).event.SetEvent;
+
           Inc(tkill_race);
 
           Console_QueueDel(ss);
