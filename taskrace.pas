@@ -27,6 +27,7 @@ type
     constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
+    function GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
   end;
 
   TPazoMkdirTask = class(TPazoTask)
@@ -78,7 +79,8 @@ implementation
 uses
   Classes, Contnrs, StrUtils, kb, sitesunit, configunit, taskdel, DateUtils,
   SysUtils, mystrings, statsunit, slstack, DebugUnit, queueunit, irc,
-  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers;
+  midnight, speedstatsunit, rulesunit, mainthread, mrdohutils, news, dirlist.helpers,
+  globals, Math;
 
 const
   c_section = 'taskrace';
@@ -184,7 +186,7 @@ var
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
   fSubDirlistTasks: TList<TPazoDirlistTask>;
-  d: TDirList;
+  d, dst_d: TDirList;
   aktdir, fAbsoluteDir: String;
   itwasadded: boolean;
   numerrors: integer;
@@ -592,7 +594,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-      r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+      r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
 
       try
         AddTask(r);
@@ -630,10 +632,11 @@ begin
           if ps.dirlist.Complete then
             Continue;
 
+          dst_d := ps.dirlist;
           if (dir <> '') then
           begin
-            d := ps.dirlist.FindDirlist(dir);
-            if (d <> nil) and (d.error or d.Complete) then
+            dst_d := ps.dirlist.FindDirlist(dir);
+            if (dst_d <> nil) and (dst_d.error or dst_d.Complete) then
               Continue;
           end;
 
@@ -641,9 +644,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre);
-            r.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False);
-            r_dst.startat := IncMilliSecond(Now(), GetNewdirDirlistReaddValue());
+            r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
 
             try
               AddTask(r);
@@ -689,6 +692,46 @@ begin
   end;
 end;
 
+function TPazoDirlistTask.GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
+var
+  baseValue: integer;
+  secondsSinceLastChange: Int64;
+begin
+  baseValue := GetNewdirDirlistReaddValue();
+
+  if (aSite <> nil) and (aDirlist <> nil) then
+  begin
+    secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
+
+    // Intelligence Pack: Engine-Logic Polling
+    // If there are NO active transfers to this site for this release,
+    // we can safely slow down the polling, especially if nothing changed recently.
+    if (aSite.ActiveTransferCount = 0) then
+    begin
+      if (secondsSinceLastChange > 2) then
+      begin
+        if dir = '' then
+          Result := Max(baseValue * 5, 1000)  // Main dir: throttle to 1s
+        else
+          Result := Max(baseValue * 10, 2000); // Subdirs: throttle to 2s
+        exit;
+      end;
+    end
+    else
+    begin
+      // Transfers ARE active on the site. But if THIS specific directory hasn't changed in 5 seconds,
+      // it might be a finished subdir (e.g. /Sample). We can throttle it slightly to focus
+      // the CPU on the active subdirs.
+      if (dir <> '') and (secondsSinceLastChange > 5) then
+      begin
+        Result := Max(baseValue * 5, 1000);
+        exit;
+      end;
+    end;
+  end;
+
+  Result := baseValue;
+end;
 
 { TPazoMkdirTask }
 constructor TPazoMkdirTask.Create(const netname, channel, site: String; pazo: TPazo; const aDependingOnDirlist: TDirList; const dir: String);
