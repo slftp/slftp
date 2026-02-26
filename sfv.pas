@@ -20,6 +20,7 @@ type
     function SetSFVDownloadRunning(const aIsRunning: boolean): boolean; //< Sets the SFV download running flag so that there will not be multiple downloads of the same SFV file at once.
     procedure SetSFVList(const aDir: string; const aFiles: TDictionary<string, integer>); //< Sets the list of files contained in the SFV file after it has been parsed.
     function CheckSFV(const aDir, aFilename, aExtension: string): boolean;  //< Returns true, if the given file exists in the SFV
+    property SFVDownloadRunning: Boolean read FSFVDownloadRunning;
   end;
 
 implementation

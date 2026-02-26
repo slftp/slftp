@@ -14,6 +14,7 @@ type
   public
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer); overload;
+    function IsReadyToBeExecuted: boolean; override;
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
     property Dir: String read FDir;
@@ -71,6 +72,20 @@ begin
   fSfvTask.startat := IncMilliSecond(Now, 50);
   fSfvTask.FInitialTaskCreationTime := self.FInitialTaskCreationTime;
   AddTask(fSfvTask);
+end;
+
+function TPazoSiteSfvTask.IsReadyToBeExecuted: boolean;
+begin
+  // SFV already downloaded by another site — mark for cleanup, no slot needed
+  if mainpazo.PazoSFV.HasSFV(FDir) then
+  begin
+    ready := True;
+    Result := False;
+    exit;
+  end;
+
+  // Another SFV download is in progress — wait without slot, retry next cycle
+  Result := not mainpazo.PazoSFV.SFVDownloadRunning;
 end;
 
 function TPazoSiteSfvTask.Execute(slot: Pointer): boolean;
