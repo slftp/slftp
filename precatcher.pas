@@ -32,6 +32,7 @@ type
   end;
 
 function precatcherauto: boolean;
+procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
 
 procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload: String;
@@ -40,7 +41,7 @@ procedure PrecatcherStart;
 procedure PrecatcherProcessB(net, chan, nick, Data: String);
 procedure PrecatcherProcess(const net, chan, nick, Data: String);
 function precatcher_logfilename: String;
-procedure Precatcher_Init;
+procedure Precatcher_Init(const aSetAuto: boolean);
 procedure Precatcher_Uninit;
 function PrecatcherSectionMapping(const rls, section: String; x_count: integer = 0): String;
 
@@ -895,7 +896,7 @@ begin
   Result := ExtractFilePath(ParamStr(0)) + config.ReadString(rsections, 'debugfile', 'precatcher.log');
 end;
 
-procedure Precatcher_Init;
+procedure Precatcher_Init(const aSetAuto: boolean);
 begin
   cd := THashedStringList.Create;
   cd.CaseSensitive := False;
@@ -927,7 +928,12 @@ begin
   catcherFile := TEncStringList.Create(passphrase);
 
   precatcher_ircdebug := config.ReadBool(rsections, 'precatcher_debug', False);
-  precatcher_auto := sitesdat.ReadBool('precatcher', 'auto', False);
+
+  if aSetAuto then
+    precatcher_auto := True
+  else
+    precatcher_auto := sitesdat.ReadBool('precatcher', 'auto', False);
+
   recursiv_mapping := config.ReadBool(rsections, 'recursiv_mapping', False);
   announce_event := spamcfg.ReadBool('precatcher', 'announce_event', True);
 
@@ -1103,6 +1109,12 @@ end;
 function precatcherauto: boolean;
 begin
   Result := precatcher_auto;
+end;
+
+procedure setprecatcherauto(const aPrecatcherAutoValue: boolean);
+begin
+  precatcher_auto := aPrecatcherAutoValue;
+  sitesdat.WriteBool('precatcher', 'auto', aPrecatcherAutoValue);
 end;
 
 end.
