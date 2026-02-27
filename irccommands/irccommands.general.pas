@@ -333,13 +333,13 @@ begin
   begin
     if params = '0' then
     begin
-      sitesdat.WriteBool('precatcher', 'auto', False);
+      precatcher.setprecatcherauto(False);
       irc_addtext(Netname, Channel, Format('Auto is disabled [%s] now!', [IntToStr(integer(precatcher.precatcherauto))]));
     end;
 
     if params = '1' then
     begin
-      sitesdat.WriteBool('precatcher', 'auto', True);
+      precatcher.setprecatcherauto(True);
       irc_addtext(Netname, Channel, Format('Auto is enabled [%s] now!', [IntToStr(integer(precatcher.precatcherauto))]));
     end;
   end
