@@ -767,6 +767,9 @@ var
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
   gAdminSiteName: String;
   glSpamLoginLogout: boolean;
+  glSocks5: boolean;
+  siteslot_recycle: boolean;
+  slot_down_message_to_irc: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1339,6 +1342,9 @@ begin
   gAdminSiteName := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
   glSpamLoginLogout := spamcfg.readbool(section, 'login_logout', False);
   bnccsere := TSlCriticalSection2.Create('bnccsere');
+  glSocks5 := config.ReadBool(section, 'socks5', False);
+  siteslot_recycle := spamcfg.readbool(section, 'siteslot_recycle', False);
+  slot_down_message_to_irc := spamcfg.readbool(section, 'slot_down', False);
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1658,7 +1664,7 @@ begin
             end;
         else { Timeout reach }
           begin
-            if spamcfg.readbool(section, 'siteslot_recycle', False) then
+            if siteslot_recycle then
               irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
                 Name + ' SiteSlot Recycle 15min');
             Debug(dpSpam, section, 'TSiteSlot.Execute: Force Leave:' +
@@ -2054,7 +2060,7 @@ begin
   end;
 
   if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or (site.proxyname = '')) then
-    SetupSocks5(self, (not RCBool('nosocks5', False)) and (config.ReadBool(section, 'socks5', False)))
+    SetupSocks5(self, (not RCBool('nosocks5', False)) and (glSocks5))
   else
     mSLSetupSocks5(site.proxyname, self, True);
 
@@ -2384,7 +2390,7 @@ begin
       else
       begin
         DestroySocket(False);
-        if spamcfg.readbool(section, 'slot_down', False) then
+        if slot_down_message_to_irc then
           irc_addtext(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
