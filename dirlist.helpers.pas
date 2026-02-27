@@ -348,8 +348,8 @@ end;
 
 procedure DirlistHelperInit;
 begin
-  glSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
-  glSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dir', '\[IMDB\]\W+|\[TvMaze\]\W+');
+  glSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip_files', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
+  glSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dirs', '\[IMDB\]\W+|\[TvMaze\]\W+');
 
   glNewdirMaxUnchanged := config.ReadInteger('taskrace', 'newdir_max_unchanged', 300);
   glNewdirMaxEmpty := config.ReadInteger('taskrace', 'newdir_max_empty', 300);
