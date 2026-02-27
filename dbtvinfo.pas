@@ -126,6 +126,7 @@ uses
 
 const
   section = 'tasktvinfo';
+  EPISODE_AIRDATE_UNKNOWN_TTL_SECS = 86400; // re-fetch unknown/unaired episodes after 24 hours
 
 var
   tvinfoSQLite3DBCon: TSQLDBSQLite3ConnectionProperties = nil; //< SQLite3 database connection for tv info
@@ -412,6 +413,7 @@ function TryGetEpisodeAirdate(const aTVMazeID: String; const aSeason, aEpisode: 
 var
   fQuery: TSqlDBSQLite3Statement;
   fTVMazeID: Integer;
+  fUpdatedAt: Int64;
 begin
   Result := False;
   aAirdateUnix := -1;
@@ -427,7 +429,7 @@ begin
   try
     fQuery := TSqlDBSQLite3Statement.Create(tvinfoSQLite3DBCon.ThreadSafeConnection);
     try
-      fQuery.Prepare('SELECT airdate FROM episode_airdates WHERE tvmaze_id = ? AND season = ? AND episode = ?');
+      fQuery.Prepare('SELECT airdate, updated_at FROM episode_airdates WHERE tvmaze_id = ? AND season = ? AND episode = ?');
       fQuery.Bind(1, fTVMazeID);
       fQuery.Bind(2, aSeason);
       fQuery.Bind(3, aEpisode);
@@ -435,6 +437,12 @@ begin
       if fQuery.Step then
       begin
         aAirdateUnix := fQuery.ColumnInt('airdate');
+        if aAirdateUnix <= 0 then
+        begin
+          fUpdatedAt := fQuery.ColumnInt('updated_at');
+          if (fUpdatedAt < 0) or (DateTimeToUnix(Now) - fUpdatedAt > EPISODE_AIRDATE_UNKNOWN_TTL_SECS) then
+            Exit; // stale unknown entry — force re-fetch
+        end;
         Result := True;
       end;
     finally
@@ -520,7 +528,12 @@ begin
     end;
 
     if (js = nil) or (js.Field['airdate'] = nil) or (js.Field['airdate'].SelfType = jsNull) then
+    begin
+      // episode exists on TVMaze but airdate is not set yet — cache as 0 with TTL
+      aAirdateUnix := 0;
+      Result := True;
       Exit;
+    end;
 
     airdate := String(js.Field['airdate'].Value);
     Result := ParseEpisodeAirdateToUnix(airdate, aAirdateUnix);
