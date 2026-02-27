@@ -3034,6 +3034,7 @@ begin
     Info.DestinationQueueLimit := s.RCInteger('destination_queue_limit', 0);
     if Info.DestinationQueueLimit < 0 then
       Info.DestinationQueueLimit := 0;
+    Info.UseForNFOdownload := Integer(s.UseForNFOdownload);
     Info.SiteFullName := UTF8Encode(s.SiteFullName);
     Info.SiteLinkSpeed := UTF8Encode(s.SiteLinkSpeed);
     Info.SiteSize := UTF8Encode(s.SiteSize);
@@ -3090,6 +3091,8 @@ begin
     if data.GetValueIndex('site_notes') >= 0 then s.SiteNotes := string(data.GetValueOrNull('site_notes'));
     if data.GetValueIndex('ident_response') >= 0 then s.Ident := string(data.GetValueOrNull('ident_response'));
     if data.GetValueIndex('site_infos') >= 0 then s.SiteInfos := string(data.GetValueOrNull('site_infos'));
+    if data.GetValueIndex('usefornfodownload') >= 0 then
+      s.UseForNFOdownload := TUseForNfoDownload(Integer(data.GetValueOrNull('usefornfodownload')));
 
     Debug(dpMessage, section, Format('SetSiteConfig API: %s updated', [UTF8ToString(SiteName)]));
     Result := True;

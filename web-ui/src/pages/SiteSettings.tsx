@@ -74,6 +74,7 @@ export function SiteSettings() {
   const [killOnStalled, setKillOnStalled] = useState<number | ''>('');
   const [sslMethod, setSslMethod] = useState('0');
   const [sslFxp, setSslFxp] = useState('0');
+  const [useForNfoDownload, setUseForNfoDownload] = useState<string>('1');
   const [maxUpPerRip, setMaxUpPerRip] = useState<number | ''>(0);
   const [siteFullName, setSiteFullName] = useState('');
   const [siteLinkSpeed, setSiteLinkSpeed] = useState('');
@@ -141,6 +142,7 @@ export function SiteSettings() {
       setDestinationQueueLimit(siteInfo.DestinationQueueLimit ?? 0);
       setSslMethod(String(siteInfo.SslMethod ?? 0));
       setSslFxp(String(siteInfo.SslFxp ?? 0));
+      setUseForNfoDownload(String(siteInfo.UseForNFOdownload ?? 1));
       setMaxUpPerRip(siteInfo.MaxUpPerRip ?? 0);
       setSiteFullName(siteInfo.SiteFullName || '');
       setSiteLinkSpeed(siteInfo.SiteLinkSpeed || '');
@@ -234,7 +236,8 @@ export function SiteSettings() {
               site_size: siteSize,
               site_notes: siteNotes,
               ident_response: identResponse,
-              site_infos: siteInfos
+              site_infos: siteInfos,
+              usefornfodownload: Number(useForNfoDownload)
           }
       });
     },
@@ -493,6 +496,16 @@ export function SiteSettings() {
                                 { value: '1', label: 'Implicit SSL' },
                                 { value: '2', label: 'AUTH SSL' },
                                 { value: '3', label: 'AUTH TLS' }
+                            ]}
+                        />
+                        <Select
+                            label="NFO Download"
+                            value={useForNfoDownload}
+                            onChange={(val) => setUseForNfoDownload(val || '1')}
+                            data={[
+                                { value: '0', label: 'Disabled' },
+                                { value: '1', label: 'Enabled' },
+                                { value: '2', label: 'Auto-Disabled (by slftp)' }
                             ]}
                         />
                     </SimpleGrid>
