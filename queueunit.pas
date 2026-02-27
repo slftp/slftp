@@ -108,6 +108,7 @@ var
   queueclean_unassigned: Integer;
   queueclean_maxrunning: Integer;
   enable_queueclean: boolean;
+  queue_recycle_post_to_irc: boolean;
 
   StatsList: TObjectList<TQueueStat>;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
@@ -1807,7 +1808,7 @@ begin
       begin
         if fWaitTimerTimeout = GlDefaultIterationWaitTimeout then
         begin
-          if spamcfg.readbool(section, 'queue_recycle', True) then
+          if queue_recycle_post_to_irc then
             irc_Adderror(Format('TQueueThread.Execute: <c2>Force Leave</c>: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
           Debug(dpMessage, section,
             Format('TQueueThread.Execute: Force Leave: TQueueThread Recycle 15s (%s)', [self.fSiteName]));
@@ -1842,6 +1843,7 @@ begin
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
   queueclean_unassigned := config.ReadInteger('queue', 'queueclean_unassigned', 600);
   enable_queueclean := config.ReadBool(section, 'enable_queueclean', False);
+  queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
 end;
