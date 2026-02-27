@@ -947,6 +947,7 @@ var
 begin
   myS:= TMemoryStream.Create;
   List := TStringList.Create;
+  il.Enter('UpdateFile');
   try
     GetStrings(List);
 
@@ -956,13 +957,14 @@ begin
       EncryptStreamToFile(myS, fFilename + '.sltmp', fPassHash, fCompression);
     end else
       list.SaveToFile(fFilename + '.sltmp');
+
+    // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
+    MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
   finally
+    il.Leave;
     List.Free;
     myS.Free;
   end;
-
-  // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
-  MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
 end;
 
 
