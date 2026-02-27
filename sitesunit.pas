@@ -3323,96 +3323,67 @@ begin
 end;
 
 procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
-var
-  fTaskName: String;
 begin
   if Value <> fDownloadingFrom then
   begin
     fDownloadingFrom := Value;
-    if todotask <> nil then
-      fTaskName := todotask.Name
-    else
-      fTaskName := '?';
     if fDownloadingFrom then
     begin
       {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
-      Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d +dn (slot: %s) task: %s',
-        [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
       if glInterTransferDelayMs > 0 then
-      begin
         site.fDownloadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn cooldown %dms (slot: %s) task: %s',
-          [site.Name, site.num_dn, site.max_dn, glInterTransferDelayMs, Name, fTaskName]);
-      end
-      else
-        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn (slot: %s) task: %s',
-          [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
   end;
 end;
 
 procedure TSiteSlot.SetUploadingTo(const Value: boolean);
-var
-  fTaskName: String;
 begin
   if Value <> fUploadingTo then
   begin
     fUploadingTo := Value;
-    if todotask <> nil then
-      fTaskName := todotask.Name
-    else
-      fTaskName := '?';
     if fUploadingTo then
       begin
         {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
-        Debug(dpError, section, '[SLOTS] %s: num_up %d/%d +up (slot: %s) task: %s',
-          [site.Name, site.num_up, site.max_up, Name, fTaskName]);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end
     else
       begin
         {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
         if glInterTransferDelayMs > 0 then
-        begin
           site.fUploadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up cooldown %dms (slot: %s) task: %s',
-            [site.Name, site.num_up, site.max_up, glInterTransferDelayMs, Name, fTaskName]);
-        end
-        else
-          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up (slot: %s) task: %s',
-            [site.Name, site.num_up, site.max_up, Name, fTaskName]);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
   end;
 end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
-var
-  fOldTaskName: String;
 begin
   site.fFreeSlotsCS.Enter('SetTodotask');
   try
     if fTodotask <> Value then
     begin
-      if fTodotask <> nil then
-        fOldTaskName := fTodotask.Name
-      else
-        fOldTaskName := '?';
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s) task: %s',
-          [site.Name, site.freeslots, site.slots.Count, Name, Value.Name]);
       end
       else
       begin
         site.freeslots := site.freeslots + 1;
-        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s) task: %s',
-          [site.Name, site.freeslots, site.slots.Count, Name, fOldTaskName]);
       end;
+
+      if GetDebugVerbosity = dpSpam then
+        Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
     end;
   finally
     site.fFreeSlotsCS.Leave;
@@ -4003,8 +3974,8 @@ begin
   fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
-  Debug(dpError, section, '[COOLDOWN] %s: MaxSim UP cooldown %ds, num_up %d/%d (slot: %s)',
-    [Name, fMaxSimUpCooldownSeconds, num_up, max_up, aSlotName]);
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s) (slot: %s)',
+    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
 end;
 
 procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
@@ -4022,8 +3993,8 @@ begin
   fMaxSimDownCooldownSeconds := fNewCooldown;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
-  Debug(dpError, section, '[COOLDOWN] %s: MaxSim DOWN cooldown %ds, num_dn %d/%d (slot: %s)',
-    [Name, fMaxSimDownCooldownSeconds, num_dn, max_dn, aSlotName]);
+  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s) (slot: %s)',
+    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
 end;
 
 procedure TSite.ResetMaxSimUpCooldown;
@@ -4058,8 +4029,8 @@ begin
   begin
     if fMaxSimUpCooldownSeconds > 0 then
     begin
-      Debug(dpError, section, '[COOLDOWN] %s: MaxSim UP cooldown expired after %ds, num_up %d/%d',
-        [Name, fMaxSimUpCooldownSeconds, num_up, max_up]);
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
+        [Name, fMaxSimUpCooldownSeconds]);
       fMaxSimUpCooldownSeconds := 0;
     end;
     fMaxSimUpCooldownUntil := 0;
@@ -4082,8 +4053,8 @@ begin
   begin
     if fMaxSimDownCooldownSeconds > 0 then
     begin
-      Debug(dpError, section, '[COOLDOWN] %s: MaxSim DOWN cooldown expired after %ds, num_dn %d/%d',
-        [Name, fMaxSimDownCooldownSeconds, num_dn, max_dn]);
+      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
+        [Name, fMaxSimDownCooldownSeconds]);
       fMaxSimDownCooldownSeconds := 0;
     end;
     fMaxSimDownCooldownUntil := 0;
@@ -4136,8 +4107,8 @@ begin
   fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
   fLoginCooldownLastSlot := aSlotName;
 
-  Debug(dpError, section, '[COOLDOWN] %s: Login cooldown %ds, freeslots %d/%d (slot: %s)',
-    [Name, fLoginCooldownSeconds, freeslots, slots.Count, aSlotName]);
+  Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s set to %ds (until %s) (slot: %s)',
+    [Name, fLoginCooldownSeconds, DateTimeToStr(fLoginCooldownUntil), aSlotName]);
 end;
 
 procedure TSite.ResetLoginCooldown;
@@ -4163,8 +4134,16 @@ begin
   begin
     if fLoginCooldownSeconds > 0 then
     begin
-      Debug(dpError, section, '[COOLDOWN] %s: Login cooldown expired after %ds, freeslots %d/%d (slot: %s)',
-        [Name, fLoginCooldownSeconds, freeslots, slots.Count, fLoginCooldownLastSlot]);
+      if fLoginCooldownLastSlot = '' then
+      begin
+        Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s expired after %ds',
+          [Name, fLoginCooldownSeconds]);
+      end
+      else
+      begin
+        Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s expired after %ds (slot: %s)',
+          [Name, fLoginCooldownSeconds, fLoginCooldownLastSlot]);
+      end;
       fLoginCooldownSeconds := 0;
     end;
     fLoginCooldownUntil := 0;
