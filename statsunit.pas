@@ -115,10 +115,11 @@ var
   glTWriteStatsThreadRunning: boolean = False; //< True if the thread which writes stats is running
   glWriteStatsThreadShouldStop: boolean = False; //< True if the thread which writes stats should terminate
   glDeleteAfterDays: integer;
+  glMinFileSize: Int64;
 
 function _GetMinFilesize: Int64; inline;
 begin
-  Result := config.ReadInteger(section, 'min_filesize', 100000);
+  Result := glMinFileSize;
 end;
 
 procedure statsInit;
@@ -131,6 +132,7 @@ begin
   glLastStatsCleanTime := MinDateTime;
   fDBName := Trim(config.ReadString(section, 'database', 'stats.db'));
   glDeleteAfterDays := config.ReadInteger(Section, 'delete_after_days', 0);
+  glMinFileSize := config.ReadInteger(section, 'min_filesize', 100000);
 
   ORMStatsModel := TSQLModel.Create([TSQLStatsRecord, TSQLSitesRecord, TSQLSectionRecord, TSQLFileInfoRecord]);
   try
