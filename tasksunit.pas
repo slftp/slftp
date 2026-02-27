@@ -75,6 +75,7 @@ var
   GlTaskRaceAutoRuleAdd: boolean;
   GlTaskRaceBadCrcEvents: integer;
   GlTaskRaceAutoRemoveDeniedRoutes: boolean;
+  GlPostCrcErrorsToIRC: boolean;
   glTaskraceFilenameNotAllowed: Boolean; //< Cache for spamcfg 'taskrace'/'filename_not_allowed'
   glTaskraceCantCreateDir: Boolean;      //< Cache for spamcfg 'taskrace'/'cant_create_dir'
   glTaskraceDenyingCreationOf: Boolean;  //< Cache for spamcfg 'taskrace'/'denying_creation_of'
@@ -229,6 +230,7 @@ begin
   GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
   GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
   GlTaskRaceAutoRemoveDeniedRoutes := config.ReadBool('taskrace', 'auto_remove_denied_routes', False);
+  GlPostCrcErrorsToIRC := spamcfg.readbool('taskrace', 'crc_error', True);
   glTaskraceFilenameNotAllowed := spamcfg.ReadBool('taskrace', 'filename_not_allowed', True);
   glTaskraceCantCreateDir := spamcfg.ReadBool('taskrace', 'cant_create_dir', True);
   glTaskraceDenyingCreationOf := spamcfg.ReadBool('taskrace', 'denying_creation_of', True);

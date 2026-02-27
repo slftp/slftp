@@ -3547,7 +3547,7 @@ begin
 
     else if (sdst.lastResponse.Contains('CRC-Check: BAD!') or sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3556,7 +3556,7 @@ begin
 
     else if (sdst.lastResponse.Contains('SFV-file: BAD!')) then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3566,7 +3566,7 @@ begin
 
     else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3575,7 +3575,7 @@ begin
 
     else if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
       end;
@@ -3584,7 +3584,7 @@ begin
 
     else if sdst.lastResponse.Contains('NFO-File: DUPE!') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NFO DUPE]</c> %s', [Name]);
       end;
