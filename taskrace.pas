@@ -2516,7 +2516,11 @@ begin
             if sdst <> nil then
             begin
               if sdst.site <> nil then
+              begin
                 sdst.site.RegisterMaxSimUpHit(sdst.Name);
+                if glMaxSimCooldownSpam then
+                  irc_Adderror(sdst.todotask, '<c4>[MAXSIM COOLDOWN]</c> %s UP cooldown activated (%ds)', [sdst.site.Name, sdst.site.MaxSimUpCooldownRemainingSeconds]);
+              end;
               sdst.QuitAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
@@ -2630,7 +2634,11 @@ begin
             if sdst <> nil then
             begin
               if sdst.site <> nil then
+              begin
                 sdst.site.RegisterMaxSimUpHit(sdst.Name);
+                if glMaxSimCooldownSpam then
+                  irc_Adderror(sdst.todotask, '<c4>[MAXSIM COOLDOWN]</c> %s UP cooldown activated (%ds)', [sdst.site.Name, sdst.site.MaxSimUpCooldownRemainingSeconds]);
+              end;
               sdst.QuitAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
@@ -2885,7 +2893,11 @@ begin
             if ssrc <> nil then
             begin
               if ssrc.site <> nil then
+              begin
                 ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
+                if glMaxSimCooldownSpam then
+                  irc_Adderror(sdst.todotask, '<c4>[MAXSIM COOLDOWN]</c> %s DN cooldown activated (%ds)', [ssrc.site.Name, ssrc.site.MaxSimDownCooldownRemainingSeconds]);
+              end;
               ssrc.QuitAndRelogin('Maximum of simultaneous downloads reached');
             end;
 
