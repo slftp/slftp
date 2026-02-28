@@ -3945,7 +3945,10 @@ end;
 
 procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
 begin
-  fMaxSimUpCooldownSeconds := 2;
+  if fMaxSimUpCooldownSeconds = 0 then
+    fMaxSimUpCooldownSeconds := 2
+  else
+    fMaxSimUpCooldownSeconds := Min(fMaxSimUpCooldownSeconds * 2, 20);
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s) (slot: %s)',
@@ -3954,7 +3957,10 @@ end;
 
 procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
 begin
-  fMaxSimDownCooldownSeconds := 2;
+  if fMaxSimDownCooldownSeconds = 0 then
+    fMaxSimDownCooldownSeconds := 2
+  else
+    fMaxSimDownCooldownSeconds := Min(fMaxSimDownCooldownSeconds * 2, 20);
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s) (slot: %s)',
@@ -4027,7 +4033,10 @@ end;
 
 procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
 begin
-  fLoginCooldownSeconds := 2;
+  if fLoginCooldownSeconds = 0 then
+    fLoginCooldownSeconds := 2
+  else
+    fLoginCooldownSeconds := Min(fLoginCooldownSeconds * 2, 20);
   fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
   fLoginCooldownLastSlot := aSlotName;
 
