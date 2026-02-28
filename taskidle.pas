@@ -120,7 +120,7 @@ var
   i: Integer;
 begin
   idlecommands := TStringList.Create;
-  s := config.ReadString(section, 'idlecommands', 'REST 0,STAT -l,PASV,CWD .');
+  s := config.ReadString(section, 'idlecommands', 'REST 0,PASV,CWD .');
   i := 1;
   while (true) do
   begin
