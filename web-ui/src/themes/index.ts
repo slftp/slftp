@@ -486,19 +486,241 @@ export const minimalGrayTheme: MantineThemeOverride = {
   },
 };
 
-export type ThemeType = 'vision' | 'minimal';
+// ============================================================
+// LIGHT THEME - High Contrast Light Alternative
+// ============================================================
+export const lightTheme: MantineThemeOverride = {
+  primaryColor: 'brand',
+  colors: {
+    brand: [
+      '#eff6ff', // 0 - lightest
+      '#dbeafe', // 1
+      '#bfdbfe', // 2
+      '#93c5fd', // 3
+      '#60a5fa', // 4
+      '#3b82f6', // 5 - primary (blue-600)
+      '#2563eb', // 6
+      '#1d4ed8', // 7
+      '#1e40af', // 8
+      '#1e3a8a', // 9 - darkest
+    ],
+    dark: [
+      '#f9fafb',
+      '#f3f4f6',
+      '#e5e7eb',
+      '#d1d5db',
+      '#9ca3af',
+      '#6b7280',
+      '#4b5563',
+      '#374151',
+      '#1f2937',
+      '#111827',
+    ],
+    success: [
+      '#f0fdf4',
+      '#dcfce7',
+      '#bbf7d0',
+      '#86efac',
+      '#4ade80',
+      '#22c55e',
+      '#16a34a',
+      '#15803d',
+      '#166534',
+      '#14532d',
+    ],
+    warning: [
+      '#fffbeb',
+      '#fef3c7',
+      '#fde68a',
+      '#fcd34d',
+      '#fbbf24',
+      '#f59e0b',
+      '#d97706',
+      '#b45309',
+      '#92400e',
+      '#78350f',
+    ],
+    danger: [
+      '#fef2f2',
+      '#fee2e2',
+      '#fecaca',
+      '#fca5a5',
+      '#f87171',
+      '#ef4444',
+      '#dc2626',
+      '#b91c1c',
+      '#991b1b',
+      '#7f1d1d',
+    ],
+  },
+  primaryShade: 6,
+  defaultRadius: 'md',
+  fontFamily: "'Inter', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  fontFamilyMonospace: "'JetBrains Mono', 'Fira Code', 'Monaco', monospace",
+  headings: {
+    fontFamily: "'Inter', 'DM Sans', sans-serif",
+    fontWeight: '700',
+    sizes: {
+      h1: { fontSize: '2.5rem', lineHeight: '1.2' },
+      h2: { fontSize: '2rem', lineHeight: '1.3' },
+      h3: { fontSize: '1.5rem', lineHeight: '1.4' },
+      h4: { fontSize: '1.25rem', lineHeight: '1.5' },
+      h5: { fontSize: '1rem', lineHeight: '1.5' },
+      h6: { fontSize: '0.875rem', lineHeight: '1.5' },
+    },
+  },
+  fontSizes: {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    md: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+  },
+  spacing: {
+    xs: '0.5rem',
+    sm: '0.75rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+  },
+  radius: {
+    xs: '4px',
+    sm: '8px',
+    md: '12px',
+    lg: '16px',
+    xl: '24px',
+  },
+  shadows: {
+    xs: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    sm: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    md: '0 10px 15px rgba(0, 0, 0, 0.1)',
+    lg: '0 20px 25px rgba(0, 0, 0, 0.1)',
+    xl: '0 25px 50px rgba(0, 0, 0, 0.1)',
+  },
+  components: {
+    Button: {
+      defaultProps: {
+        radius: 'md',
+      },
+      styles: {
+        root: {
+          fontWeight: 600,
+        },
+      },
+    },
+    Card: {
+      defaultProps: {
+        radius: 'lg',
+        padding: 'lg',
+      },
+      styles: {
+        root: {
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          '&:hover': {
+            borderColor: '#d1d5db',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+          },
+        },
+      },
+    },
+    Badge: {
+      styles: {
+        root: {
+          fontWeight: 600,
+        },
+      },
+    },
+    Modal: {
+      styles: {
+        content: {
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+        },
+        header: {
+          borderBottom: '1px solid #e5e7eb',
+        },
+      },
+    },
+    Table: {
+      styles: {
+        thead: {
+          background: '#f9fafb',
+        },
+        th: {
+          color: '#4b5563',
+          fontWeight: 600,
+          borderBottom: '2px solid #e5e7eb',
+        },
+        td: {
+          borderBottom: '1px solid #f3f4f6',
+        },
+        tr: {
+          '&:hover': {
+            background: '#f9fafb',
+          },
+        },
+        tbody: {
+          '& tr:nth-of-type(odd)': {
+            background: '#ffffff',
+          },
+          '& tr:nth-of-type(even)': {
+            background: '#fafafa',
+          },
+        },
+      },
+    },
+    NavLink: {
+      styles: {
+        root: {
+          borderRadius: '8px',
+          '&[data-active]': {
+            background: '#eff6ff',
+            color: '#1d4ed8',
+            fontWeight: 600,
+          },
+        },
+      },
+    },
+    Input: {
+      styles: {
+        input: {
+          background: '#ffffff',
+          border: '1px solid #d1d5db',
+          color: '#111827',
+          '&:focus': {
+            borderColor: '#3b82f6',
+          },
+        },
+      },
+    },
+    Progress: {
+      styles: {
+        root: {
+          background: '#f3f4f6',
+        },
+      },
+    },
+  },
+};
+
+export type ThemeType = 'vision' | 'minimal' | 'light';
 
 export const themes = {
   vision: visionTheme,
   minimal: minimalGrayTheme,
+  light: lightTheme,
 };
 
 export const themeLabels: Record<ThemeType, string> = {
   vision: 'Vision (Blue/Purple)',
   minimal: 'Minimal (Gray)',
+  light: 'Light (High Contrast)',
 };
 
 export const themeIcons: Record<ThemeType, string> = {
   vision: '🎨',
   minimal: '⬜',
+  light: '☀️',
 };

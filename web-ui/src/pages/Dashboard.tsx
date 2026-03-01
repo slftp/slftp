@@ -234,7 +234,7 @@ export function Dashboard() {
             <Title 
               order={4}
               style={{
-                background: 'linear-gradient(135deg, #fff 0%, #a3aed0 100%)',
+                background: 'linear-gradient(135deg, var(--text-gradient-start) 0%, var(--text-gradient-end) 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
               }}
@@ -261,7 +261,7 @@ export function Dashboard() {
           title="Uptime"
           value={uptimeStr}
           subtitle={`Version ${stats.Version}`}
-          icon={<IconClock size="1.4rem" stroke={1.5} color="white" />}
+          icon={<IconClock size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           variant="gradient"
         />
 
@@ -269,7 +269,7 @@ export function Dashboard() {
           title="Sites Online"
           value={`${stats.SitesUp} / ${stats.SitesCount}`}
           subtitle={stats.SitesDown > 0 ? `${stats.SitesDown} sites offline` : 'All systems operational'}
-          icon={<IconServer size="1.4rem" stroke={1.5} color="white" />}
+          icon={<IconServer size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           iconColor="#00ff88"
           iconGradient="linear-gradient(135deg, #00ff88 0%, #00d4ff 100%)"
           trend={{ value: sitesUpPctRounded, isPositive: sitesUpPct > 90, showSign: false }}
@@ -279,7 +279,7 @@ export function Dashboard() {
           title="Active Tasks"
           value={stats.ActiveTasks}
           subtitle={`Queue: ${stats.QueueSize} | Dir/sec now: ${stats.DirlistPerSecond?.toFixed(1) ?? 0} | peak: ${stats.DirlistPerSecondMax?.toFixed(1) ?? 0}`}
-          icon={<IconActivity size="1.4rem" stroke={1.5} color="white" />}
+          icon={<IconActivity size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           iconColor="#9b59b6"
           iconGradient="linear-gradient(135deg, #9b59b6 0%, #e74c3c 100%)"
         />
@@ -288,7 +288,7 @@ export function Dashboard() {
           title="Issues (24h)"
           value={issuesSummary?.Total ?? 0}
           subtitle={`Skip: ${issuesSummary?.Skip ?? 0} · Missing: ${issuesSummary?.MissingSection ?? 0}`}
-          icon={<IconAlertTriangle size="1.4rem" stroke={1.5} color="white" />}
+          icon={<IconAlertTriangle size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           iconColor="#ffb547"
           iconGradient="linear-gradient(135deg, #ffb547 0%, #ff6b6b 100%)"
         />
@@ -360,7 +360,7 @@ export function Dashboard() {
               <IconRocket size="1rem" stroke={2} color="white" />
             </ThemeIcon>
             <Box>
-              <Title order={5} style={{ color: '#fff', marginBottom: 2 }}>Recent Releases</Title>
+              <Title order={5} style={{ color: 'var(--text-primary)', marginBottom: 2 }}>Recent Releases</Title>
               <Text size="xs" c="dimmed">Latest racing activity</Text>
             </Box>
           </Group>
@@ -390,7 +390,7 @@ export function Dashboard() {
                 style={{ tableLayout: 'fixed' }}
                 styles={{
                   thead: {
-                    background: 'rgba(30, 41, 59, 0.8)',
+                    background: 'var(--bg-secondary)',
                   },
                   th: {
                     color: 'var(--text-secondary)',
@@ -444,7 +444,7 @@ export function Dashboard() {
                                 fw={500} 
                                 style={{ 
                                   fontFamily: 'monospace',
-                                  color: '#fff',
+                                  color: 'var(--text-primary)',
                                 }} 
                                 truncate
                               >
@@ -642,7 +642,7 @@ export function Dashboard() {
                         fw={500} 
                         style={{ 
                           fontFamily: 'monospace',
-                          color: '#fff',
+                          color: 'var(--text-primary)',
                         }}
                         truncate
                       >
@@ -732,7 +732,7 @@ export function Dashboard() {
 
             {/* Sites Table */}
             <Box>
-              <Title order={6} mb="sm" style={{ color: '#fff' }}>
+              <Title order={6} mb="sm" style={{ color: 'var(--text-primary)' }}>
                 Site Details ({visibleSiteDetails.length} sites)
               </Title>
               
@@ -741,10 +741,10 @@ export function Dashboard() {
                 highlightOnHover
                 styles={{
                   thead: {
-                    background: 'rgba(17, 28, 68, 0.8)',
+                    background: 'var(--bg-secondary)',
                   },
                   th: {
-                    color: '#a3aed0',
+                    color: 'var(--text-secondary)',
                     fontWeight: 600,
                     fontSize: '10px',
                     textTransform: 'uppercase',
@@ -752,7 +752,7 @@ export function Dashboard() {
                     padding: '10px 12px',
                   },
                   td: {
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+                    borderBottom: '1px solid var(--border)',
                     padding: '10px 12px',
                   },
                 }}

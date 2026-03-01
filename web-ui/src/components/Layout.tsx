@@ -142,7 +142,7 @@ export function Layout() {
               onClick={toggle} 
               hiddenFrom="sm" 
               size="sm"
-              color="white"
+              color="var(--burger-color)"
             />
             <Group gap="xs">
               <Avatar 
@@ -157,7 +157,7 @@ export function Layout() {
               <Title 
                 order={5}
                 style={{
-                  background: 'linear-gradient(135deg, #fff 0%, #a3aed0 100%)',
+                  background: 'linear-gradient(135deg, var(--text-gradient-start) 0%, var(--text-gradient-end) 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   margin: 0,
@@ -198,7 +198,7 @@ export function Layout() {
                       <item.icon 
                         size="1rem" 
                         stroke={active ? 2.5 : 1.5}
-                        color={active ? item.color : '#a3aed0'}
+                        color={active ? item.color : 'var(--nav-label-inactive)'}
                       />
                     }
                     onClick={() => {
@@ -224,7 +224,7 @@ export function Layout() {
                         },
                       },
                       label: {
-                        color: active ? '#fff' : '#a3aed0',
+                        color: active ? 'var(--nav-label-active)' : 'var(--nav-label-inactive)',
                         fontWeight: active ? 600 : 500,
                         fontSize: '0.8rem',
                       },

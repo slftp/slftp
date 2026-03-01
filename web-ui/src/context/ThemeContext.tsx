@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import type { MantineThemeOverride } from '@mantine/core';
 import { themes, themeLabels } from '../themes';
 
-export type ThemeType = 'vision' | 'minimal';
+export type ThemeType = 'vision' | 'minimal' | 'light';
 
 interface ThemeContextValue {
   currentTheme: ThemeType;
@@ -27,8 +27,8 @@ export function ThemeProvider({ children, defaultTheme = 'vision' }: ThemeProvid
     // Try to load from localStorage on initial render
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(STORAGE_KEY) as ThemeType | null;
-      if (stored && themes[stored]) {
-        return stored;
+      if (stored && themes[stored as ThemeType]) {
+        return stored as ThemeType;
       }
     }
     return defaultTheme;
@@ -53,16 +53,20 @@ export function ThemeProvider({ children, defaultTheme = 'vision' }: ThemeProvid
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setCurrentTheme(prev => prev === 'vision' ? 'minimal' : 'vision');
+    setCurrentTheme(prev => {
+      if (prev === 'vision') return 'minimal';
+      if (prev === 'minimal') return 'light';
+      return 'vision';
+    });
   }, []);
 
   const theme = themes[currentTheme];
   const themeLabel = themeLabels[currentTheme];
 
-  const availableThemes = Object.keys(themes).map((key) => ({
-    value: key as ThemeType,
-    label: themeLabels[key as ThemeType],
-    icon: key === 'vision' ? '🎨' : '⬜',
+  const availableThemes = (Object.keys(themes) as ThemeType[]).map((key) => ({
+    value: key,
+    label: themeLabels[key],
+    icon: (key === 'vision' ? '🎨' : (key === 'minimal' ? '⬜' : '☀️')),
   }));
 
   const value: ThemeContextValue = {
