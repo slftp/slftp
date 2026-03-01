@@ -1757,14 +1757,9 @@ begin
                   on e: Exception do
                   begin
                     // Destructor raised — item may still be in list in a partially-freed
-                    // state. Remove it by index to prevent repeated AV on future passes.
+                    // state. Extract removes without calling Free again.
                     Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s]', [e.Message, ss]));
-                    try
-                      tasks.OwnsObjects := False;
-                      tasks.Remove(fTask);
-                    finally
-                      tasks.OwnsObjects := True;
-                    end;
+                    tasks.Extract(fTask);
                   end;
                 end;
               finally

@@ -10,6 +10,7 @@ type
     FAttempt: Integer;
     FDir, FSFVFilename: String;
     FInitialTaskCreationTime: TDateTime;
+    FSFVAlreadyDone: boolean; // cached: once True, skip HasSFV lock on every queue iteration
     procedure CreateReattemptTask(const aIncrementAttempts: boolean);
   public
     constructor Create(const netname, channel, site: String; pazo: TPazo; const aDir, aSFVFilename: String; const aAttempt: Integer; const aInitialTaskCreationTime: TDateTime); overload;
@@ -76,8 +77,12 @@ end;
 
 function TPazoSiteSfvTask.IsReadyToBeExecuted: boolean;
 begin
+  // FSFVAlreadyDone is set once and avoids entering the lock on every queue iteration.
+  if not FSFVAlreadyDone then
+    FSFVAlreadyDone := mainpazo.PazoSFV.HasSFV(FDir);
+
   // SFV already downloaded by another site — mark for cleanup, no slot needed
-  if mainpazo.PazoSFV.HasSFV(FDir) then
+  if FSFVAlreadyDone then
   begin
     ready := True;
     Result := False;
