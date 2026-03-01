@@ -2995,7 +2995,7 @@ begin
       if fElapsedMs > 60000 then
       begin
         irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Source complete, target no response after 60s: %s', [tname]));
-        Debug(dpError, c_section, '[FXP TIMEOUT] *** TARGET TIMEOUT *** after source 226 (%d ms / %d s) - disconnecting target | Source code=%d Target code=%d | Task: %s',
+        Debug(dpMessage, c_section, '[FXP TIMEOUT] *** TARGET TIMEOUT *** after source 226 (%d ms / %d s) - disconnecting target | Source code=%d Target code=%d | Task: %s',
           [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
         sdst.DestroySocketAndRelogin('TPazoRaceTask');
         mainpazo.errorreason := 'Target timeout after source 226';
@@ -3018,7 +3018,7 @@ begin
       if fElapsedMs > 60000 then
       begin
         irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Target complete, source no response after 60s: %s', [tname]));
-        Debug(dpError, c_section, '[FXP TIMEOUT] *** SOURCE TIMEOUT *** after target 226 (%d ms / %d s) - disconnecting source | Source code=%d Target code=%d | Task: %s',
+        Debug(dpMessage, c_section, '[FXP TIMEOUT] *** SOURCE TIMEOUT *** after target 226 (%d ms / %d s) - disconnecting source | Source code=%d Target code=%d | Task: %s',
           [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
         ssrc.DestroySocketAndRelogin('TPazoRaceTask');
         mainpazo.errorreason := 'Source timeout after target 226';
