@@ -530,6 +530,7 @@ type
 
     procedure RegisterLoginCooldownHit(const aSlotName: String);
     function LoginCooldownActive: boolean;
+    procedure ResetLoginCooldown;
     function LoginCooldownRemainingSeconds: integer;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
@@ -2525,6 +2526,7 @@ begin
       Result := LoginBnc(i, kill);
       if Result then
       begin
+        site.ResetLoginCooldown;
         Break;
       end;
 
@@ -4066,7 +4068,6 @@ begin
         Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s expired after %ds (slot: %s)',
           [Name, fLoginCooldownSeconds, fLoginCooldownLastSlot]);
       end;
-      fLoginCooldownSeconds := 0;
     end;
     fLoginCooldownUntil := 0;
     Result := False;
@@ -4074,6 +4075,12 @@ begin
   end;
 
   Result := True;
+end;
+
+procedure TSite.ResetLoginCooldown;
+begin
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownUntil := 0;
 end;
 
 function TSite.LoginCooldownRemainingSeconds: integer;
