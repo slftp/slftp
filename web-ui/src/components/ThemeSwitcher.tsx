@@ -14,16 +14,16 @@ export function ThemeSwitcher() {
             size="md"
             radius="md"
             style={{
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              color: '#a3aed0',
+              background: 'var(--nav-hover-bg)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-secondary)',
               transition: 'all 0.2s ease',
             }}
             styles={{
               root: {
                 '&:hover': {
-                  background: 'rgba(255, 255, 255, 0.12)',
-                  color: '#fff',
+                  background: 'var(--nav-active-bg)',
+                  color: 'var(--text-primary)',
                 },
               },
             }}
@@ -84,16 +84,16 @@ export function ThemeToggle() {
         radius="md"
         onClick={toggleTheme}
         style={{
-          background: 'rgba(255, 255, 255, 0.08)',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          color: '#a3aed0',
+          background: 'var(--nav-hover-bg)',
+          border: '1px solid var(--border)',
+          color: 'var(--text-secondary)',
           transition: 'all 0.2s ease',
         }}
         styles={{
           root: {
             '&:hover': {
-              background: 'rgba(255, 255, 255, 0.12)',
-              color: '#fff',
+              background: 'var(--nav-active-bg)',
+              color: 'var(--text-primary)',
             },
           },
         }}

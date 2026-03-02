@@ -177,7 +177,7 @@ begin
       Debug(dpSpam, section, 'SFV Task CWD ' + Name);
       if not fSlot.Cwd(MyIncludeTrailingSlash(ps1.maindir) + fRelativePath) then
       begin
-        Debug(dpError, section, Format('Unable to CWD for SFV download on %s: %s', [self.site1, fRelativePath]));
+        Debug(dpMessage, section, Format('Unable to CWD for SFV download on %s: %s', [self.site1, fRelativePath]));
         readyerror := True;
         exit;
       end;
@@ -192,7 +192,7 @@ begin
       if i <> 1 then
       begin
         if i <> 0 then // LeechFile return value 0 means, currently no slot available
-          Debug(dpError, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
+          Debug(dpMessage, section, Format('SFV download failed on %s: %s', [self.site1, fRelativePath]));
         CreateReattemptTask(i <> 0);  // LeechFile return value 0 means, currently no slot available
         readyerror := True;
         exit;

@@ -29,7 +29,7 @@ type
     constructor Create(const netname, channel, site: String; pazo: TPazo; const dir: String; is_pre: boolean; aIsFromIncompleteFiller: boolean = False; const aDependingOnDirlist: TDirList = nil; aWaitForComplete: boolean = False);
     function Execute(slot: Pointer): boolean; override;
     function Name: String; override;
-    function GetDirlistReaddValue: integer; //< Returns site-specific or global dirlist readd value
+    function GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer; //< Returns site-specific or global dirlist readd value
     function IsReadyToBeExecuted: boolean; override;
   end;
 
@@ -385,7 +385,7 @@ var
   de: TDirListEntry;
   r, r_dst: TPazoDirlistTask;
   fSubDirlistTasks: TList<TPazoDirlistTask>;
-  d: TDirList;
+  d, dst_d: TDirList;
   aktdir, fAbsoluteDir: String;
   itwasadded: boolean;
   numerrors: integer;
@@ -851,7 +851,7 @@ begin
     begin
       // do more dirlist
       r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre, False, FDependingOnDirlist, FWaitForComplete);
-      r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue());
+      r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
 
       try
         AddTask(r);
@@ -889,10 +889,11 @@ begin
           if ps.dirlist.Complete then
             Continue;
 
+          dst_d := ps.dirlist;
           if (dir <> '') then
           begin
-            d := ps.dirlist.FindDirlist(dir);
-            if (d <> nil) and (d.error or d.Complete) then
+            dst_d := ps.dirlist.FindDirlist(dir);
+            if (dst_d <> nil) and (dst_d.error or dst_d.Complete) then
               Continue;
           end;
 
@@ -900,9 +901,9 @@ begin
           begin
             // do more dirlist
             r := TPazoDirlistTask.Create(netname, channel, ps1.Name, mainpazo, dir, is_pre, False, FDependingOnDirlist, FWaitForComplete);
-            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue());
+            r.startat := IncMilliSecond(Now(), r.GetDirlistReaddValue(ps1, d));
             r_dst := TPazoDirlistTask.Create(netname, channel, ps.Name, mainpazo, dir, False, False, FDependingOnDirlist, FWaitForComplete);
-            r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue());
+            r_dst.startat := IncMilliSecond(Now(), r_dst.GetDirlistReaddValue(ps, dst_d));
 
             try
               AddTask(r);
@@ -949,60 +950,40 @@ begin
   end;
 end;
 
-function TPazoDirlistTask.GetDirlistReaddValue: integer;
+function TPazoDirlistTask.GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirList): integer;
 var
-  i: integer;
-  ps: TPazoSite;
-  d: TDirList;
   baseValue: integer;
   secondsSinceLastChange: Int64;
 begin
   baseValue := GetPerformanceAdjustedDirlistReaddValue(FSiteName);
 
-  if (mainpazo <> nil) and (mainpazo.PazoSitesList <> nil) then
+  if (aSite <> nil) and (aDirlist <> nil) then
   begin
-    ps := nil;
-    for i := 0 to mainpazo.PazoSitesList.Count - 1 do
-    begin
-      if AnsiSameText(mainpazo.PazoSitesList[i].Name, FSiteName) then
-      begin
-        ps := mainpazo.PazoSitesList[i];
-        break;
-      end;
-    end;
+    secondsSinceLastChange := SecondsBetween(Now, aDirlist.LastChanged);
 
-    if (ps <> nil) and (ps.dirlist <> nil) then
+    // Intelligence Pack: Engine-Logic Polling
+    // If there are NO active transfers to this site for this release,
+    // we can safely slow down the polling, especially if nothing changed recently.
+    if (aSite.ActiveTransferCount = 0) then
     begin
-      d := ps.dirlist.FindDirlist(dir);
-      if (d <> nil) then
+      if (secondsSinceLastChange > 2) then
       begin
-        secondsSinceLastChange := SecondsBetween(Now, d.LastChanged);
-
-        // Engine-Logic Polling
-        // If there are NO active transfers to this site for this release,
-        // we can safely slow down the polling, especially if nothing changed recently.
-        if (ps.ActiveTransferCount = 0) then
-        begin
-          if (secondsSinceLastChange > 2) then
-          begin
-            if dir = '' then
-              Result := Max(baseValue * 5, 1000)  // Main dir: throttle to 1s
-            else
-              Result := Max(baseValue * 10, 2000); // Subdirs: throttle to 2s
-            exit;
-          end;
-        end
+        if dir = '' then
+          Result := Max(baseValue * 5, 1000)  // Main dir: throttle to 1s
         else
-        begin
-          // Transfers ARE active on the site. But if THIS specific directory hasn't changed in 5 seconds,
-          // it might be a finished subdir (e.g. /Sample). We can throttle it slightly to focus
-          // the CPU on the active subdirs.
-          if (dir <> '') and (secondsSinceLastChange > 5) then
-          begin
-            Result := Max(baseValue * 5, 1000);
-            exit;
-          end;
-        end;
+          Result := Max(baseValue * 10, 2000); // Subdirs: throttle to 2s
+        exit;
+      end;
+    end
+    else
+    begin
+      // Transfers ARE active on the site. But if THIS specific directory hasn't changed in 5 seconds,
+      // it might be a finished subdir (e.g. /Sample). We can throttle it slightly to focus
+      // the CPU on the active subdirs.
+      if (dir <> '') and (secondsSinceLastChange > 5) then
+      begin
+        Result := Max(baseValue * 5, 1000);
+        exit;
       end;
     end;
   end;
@@ -2545,7 +2526,11 @@ begin
             if sdst <> nil then
             begin
               if sdst.site <> nil then
+              begin
                 sdst.site.RegisterMaxSimUpHit(sdst.Name);
+                if glMaxSimCooldownSpam then
+                  irc_Adderror(sdst.todotask, '<c4>[MAXSIM COOLDOWN]</c> %s UP cooldown activated (%ds)', [sdst.site.Name, sdst.site.MaxSimUpCooldownRemainingSeconds]);
+              end;
               sdst.QuitAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
@@ -2659,7 +2644,11 @@ begin
             if sdst <> nil then
             begin
               if sdst.site <> nil then
+              begin
                 sdst.site.RegisterMaxSimUpHit(sdst.Name);
+                if glMaxSimCooldownSpam then
+                  irc_Adderror(sdst.todotask, '<c4>[MAXSIM COOLDOWN]</c> %s UP cooldown activated (%ds)', [sdst.site.Name, sdst.site.MaxSimUpCooldownRemainingSeconds]);
+              end;
               sdst.QuitAndRelogin('Maximum of simultaneous uploads reached');
             end;
 
@@ -2914,7 +2903,11 @@ begin
             if ssrc <> nil then
             begin
               if ssrc.site <> nil then
+              begin
                 ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
+                if glMaxSimCooldownSpam then
+                  irc_Adderror(sdst.todotask, '<c4>[MAXSIM COOLDOWN]</c> %s DN cooldown activated (%ds)', [ssrc.site.Name, ssrc.site.MaxSimDownCooldownRemainingSeconds]);
+              end;
               ssrc.QuitAndRelogin('Maximum of simultaneous downloads reached');
             end;
 
@@ -3012,7 +3005,7 @@ begin
       if fElapsedMs > 60000 then
       begin
         irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Source complete, target no response after 60s: %s', [tname]));
-        Debug(dpError, c_section, '[FXP TIMEOUT] *** TARGET TIMEOUT *** after source 226 (%d ms / %d s) - disconnecting target | Source code=%d Target code=%d | Task: %s',
+        Debug(dpMessage, c_section, '[FXP TIMEOUT] *** TARGET TIMEOUT *** after source 226 (%d ms / %d s) - disconnecting target | Source code=%d Target code=%d | Task: %s',
           [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
         sdst.DestroySocketAndRelogin('TPazoRaceTask');
         mainpazo.errorreason := 'Target timeout after source 226';
@@ -3035,7 +3028,7 @@ begin
       if fElapsedMs > 60000 then
       begin
         irc_Adderror(Format('<c4>[PARTIAL TIMEOUT]</c> Target complete, source no response after 60s: %s', [tname]));
-        Debug(dpError, c_section, '[FXP TIMEOUT] *** SOURCE TIMEOUT *** after target 226 (%d ms / %d s) - disconnecting source | Source code=%d Target code=%d | Task: %s',
+        Debug(dpMessage, c_section, '[FXP TIMEOUT] *** SOURCE TIMEOUT *** after target 226 (%d ms / %d s) - disconnecting source | Source code=%d Target code=%d | Task: %s',
           [fElapsedMs, fElapsedMs div 1000, ssrc.lastResponseCode, sdst.lastResponseCode, tname]);
         ssrc.DestroySocketAndRelogin('TPazoRaceTask');
         mainpazo.errorreason := 'Source timeout after target 226';
@@ -3576,7 +3569,7 @@ begin
 
     else if (sdst.lastResponse.Contains('CRC-Check: BAD!') or sdst.lastResponse.Contains('ZiP-Integrity: BAD!')) then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR CRC]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3585,7 +3578,7 @@ begin
 
     else if (sdst.lastResponse.Contains('SFV-file: BAD!')) then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR BAD SFV]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3595,7 +3588,7 @@ begin
 
     else if sdst.lastResponse.Contains('0byte-file: Not allowed') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR 0BYTE]</c> %s: %d/%d', [Name, ps2.badcrcevents, GlTaskRaceBadCrcEvents]);
       end;
@@ -3604,7 +3597,7 @@ begin
 
     else if sdst.lastResponse.Contains('CRC-Check: Not in sfv!') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[ERROR NOT IN SFV]</c> %s', [Name]);
       end;
@@ -3613,7 +3606,7 @@ begin
 
     else if sdst.lastResponse.Contains('NFO-File: DUPE!') then
     begin
-      if spamcfg.readbool(c_section, 'crc_error', True) then
+      if GlPostCrcErrorsToIRC then
       begin
         irc_Adderror(sdst.todotask, '<c4>[NFO DUPE]</c> %s', [Name]);
       end;

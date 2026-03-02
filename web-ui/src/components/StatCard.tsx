@@ -29,12 +29,15 @@ export function StatCard({
 }: StatCardProps) {
   const { currentTheme } = useTheme();
   const isMinimal = currentTheme === 'minimal';
+  const isLight = currentTheme === 'light';
 
   // Use theme-aware colors if not explicitly provided
-  const effectiveIconColor = iconColor || (isMinimal ? '#6b7280' : '#4318ff');
+  const effectiveIconColor = iconColor || (isMinimal ? '#6b7280' : isLight ? '#2563eb' : '#4318ff');
   const effectiveIconGradient = iconGradient || (isMinimal 
     ? 'linear-gradient(135deg, #4b5563 0%, #6b7280 100%)' 
-    : 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)');
+    : isLight
+      ? 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+      : 'linear-gradient(135deg, #4318ff 0%, #868cff 100%)');
 
   const getCardStyles = () => {
     switch (variant) {
@@ -42,22 +45,24 @@ export function StatCard({
         return {
           background: isMinimal
             ? 'linear-gradient(135deg, rgba(75, 85, 99, 0.15) 0%, rgba(107, 114, 128, 0.05) 100%)'
-            : 'linear-gradient(135deg, rgba(67, 24, 255, 0.15) 0%, rgba(134, 140, 255, 0.05) 100%)',
+            : isLight
+              ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%)'
+              : 'linear-gradient(135deg, rgba(67, 24, 255, 0.15) 0%, rgba(134, 140, 255, 0.05) 100%)',
           border: isMinimal
             ? '1px solid rgba(75, 85, 99, 0.25)'
-            : '1px solid rgba(67, 24, 255, 0.2)',
+            : isLight
+              ? '1px solid rgba(59, 130, 246, 0.2)'
+              : '1px solid rgba(67, 24, 255, 0.2)',
         };
       case 'outline':
         return {
           background: 'transparent',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
+          border: '1px solid var(--border)',
         };
       default:
         return {
-          background: isMinimal 
-            ? 'rgba(31, 41, 55, 0.8)' 
-            : 'rgba(17, 28, 68, 0.6)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
         };
     }
   };
@@ -70,19 +75,15 @@ export function StatCard({
       radius="lg"
       style={{
         ...styles,
-        boxShadow: isMinimal 
-          ? '0 2px 8px rgba(0, 0, 0, 0.2)' 
-          : '0 3px 14px rgba(0, 0, 0, 0.22)',
+        boxShadow: 'var(--shadow)',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
       }}
       styles={{
         root: {
           '&:hover': {
             transform: 'translateY(-2px)',
-            boxShadow: isMinimal 
-              ? '0 4px 12px rgba(0, 0, 0, 0.25)' 
-              : '0 6px 20px rgba(0, 0, 0, 0.3)',
-            borderColor: 'rgba(255, 255, 255, 0.12)',
+            boxShadow: 'var(--shadow-lg)',
+            borderColor: 'var(--border-hover)',
           },
         },
       }}
@@ -109,10 +110,11 @@ export function StatCard({
               truncate
               style={{ 
                 background: variant === 'gradient' 
-                  ? 'linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%)' 
+                  ? 'linear-gradient(135deg, var(--text-gradient-start) 0%, var(--text-gradient-end) 100%)' 
                   : 'none',
                 WebkitBackgroundClip: variant === 'gradient' ? 'text' : 'unset',
-                WebkitTextFillColor: variant === 'gradient' ? 'transparent' : 'white',
+                WebkitTextFillColor: variant === 'gradient' ? 'transparent' : 'var(--text-primary)',
+                color: variant === 'gradient' ? 'transparent' : 'var(--text-primary)',
               }}
             >
               {value}
@@ -178,8 +180,9 @@ interface MiniStatCardProps {
 export function MiniStatCard({ title, value, icon, color, onClick }: MiniStatCardProps) {
   const { currentTheme } = useTheme();
   const isMinimal = currentTheme === 'minimal';
+  const isLight = currentTheme === 'light';
 
-  const effectiveColor = color || (isMinimal ? '#6b7280' : '#4318ff');
+  const effectiveColor = color || (isMinimal ? '#6b7280' : isLight ? '#2563eb' : '#4318ff');
 
   return (
     <Card
@@ -187,20 +190,16 @@ export function MiniStatCard({ title, value, icon, color, onClick }: MiniStatCar
       radius="md"
       onClick={onClick}
       style={{
-        background: isMinimal 
-          ? 'rgba(31, 41, 55, 0.6)' 
-          : 'rgba(17, 28, 68, 0.4)',
-        border: '1px solid rgba(255, 255, 255, 0.05)',
+        background: 'var(--bg-card-secondary)',
+        border: '1px solid var(--border)',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease',
       }}
       styles={{
         root: {
           '&:hover': {
-            background: isMinimal 
-              ? 'rgba(31, 41, 55, 0.8)' 
-              : 'rgba(17, 28, 68, 0.6)',
-            borderColor: 'rgba(255, 255, 255, 0.1)',
+            background: 'var(--nav-hover-bg)',
+            borderColor: 'var(--border-hover)',
             transform: onClick ? 'translateY(-2px)' : 'none',
           },
         },
@@ -211,8 +210,11 @@ export function MiniStatCard({ title, value, icon, color, onClick }: MiniStatCar
           size={32}
           radius="md"
           style={{
-            background: `linear-gradient(135deg, ${effectiveColor}30 0%, ${effectiveColor}15 100%)`,
+            background: isLight 
+              ? `${effectiveColor}15`
+              : `linear-gradient(135deg, ${effectiveColor}30 0%, ${effectiveColor}15 100%)`,
             border: `1px solid ${effectiveColor}30`,
+            color: effectiveColor,
             flexShrink: 0,
           }}
         >
@@ -222,7 +224,7 @@ export function MiniStatCard({ title, value, icon, color, onClick }: MiniStatCar
           <Text size="11px" style={{ color: 'var(--text-muted)' }} truncate>
             {title}
           </Text>
-          <Text fw={700} size="md" truncate>
+          <Text fw={700} size="md" truncate style={{ color: 'var(--text-primary)' }}>
             {value}
           </Text>
         </Stack>

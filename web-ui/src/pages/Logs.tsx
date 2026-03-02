@@ -147,8 +147,8 @@ export function Logs() {
              <Loader size="xl" />
            </Center>
         ) : (
-          <ScrollArea h="100%" viewportRef={viewport} p="xs" bg="dark.8">
-            <Code block bg="transparent" c="gray.4" style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+          <ScrollArea h="100%" viewportRef={viewport} p="xs" style={{ background: 'var(--bg-card-secondary)' }}>
+            <Code block bg="transparent" style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
               {filteredLogs.length > 0 ? filteredLogs.join('\n') : 'No logs found.'}
             </Code>
           </ScrollArea>

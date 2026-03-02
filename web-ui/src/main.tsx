@@ -21,20 +21,30 @@ const queryClient = new QueryClient({
 
 // Inner component that has access to theme context
 function ThemedApp() {
-  const { theme } = useTheme();
+  const { currentTheme, theme } = useTheme();
   const mantineTheme = createTheme(theme);
+  const colorScheme = currentTheme === 'light' ? 'light' : 'dark';
 
   // Dynamic notification styles based on current theme
   const getNotificationStyles = () => {
-    const isMinimal = theme.primaryColor === 'brand' && theme.colors?.brand?.[5] === '#4b5563';
-    
-    if (isMinimal) {
+    if (currentTheme === 'minimal') {
       return {
         notification: {
           background: 'rgba(17, 24, 39, 0.98)',
           backdropFilter: 'blur(20px)',
           border: '1px solid rgba(75, 85, 99, 0.5)',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        },
+      };
+    }
+
+    if (currentTheme === 'light') {
+      return {
+        notification: {
+          background: '#ffffff',
+          border: '1px solid #e5e7eb',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          color: '#111827',
         },
       };
     }
@@ -50,7 +60,7 @@ function ThemedApp() {
   };
 
   return (
-    <MantineProvider theme={mantineTheme} defaultColorScheme="dark">
+    <MantineProvider theme={mantineTheme} forceColorScheme={colorScheme}>
       <Notifications 
         position="top-right"
         styles={getNotificationStyles()}

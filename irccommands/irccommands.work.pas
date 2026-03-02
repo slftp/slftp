@@ -28,7 +28,7 @@ uses
   SysUtils, Classes, math, DateUtils, Contnrs, SyncObjs, irccommandsunit, sitesunit, dirlist, pazo,
   kb, kb.releaseinfo, rulesunit, mystrings, debugunit, queueunit, notify, irc, taskrace, statsunit, nuke,
   globalskipunit, configunit, mainthread, RegExpr, taskraw, sltcp, mygrouphelpers, Generics.Collections,
-  dirlist.helpers;
+  dirlist.helpers, delphimasks;
 
 const
   section = 'irccommands.work';
@@ -166,41 +166,60 @@ var
   sitename: String;
   interval: integer;
   s: TSite;
+  i: integer;
+  found: boolean;
 begin
   Result := False;
   sitename := UpperCase(SubString(params, ' ', 1));
   interval := StrToIntDef(SubString(params, ' ', 2), -1);
 
-  s := FindSiteByName(Netname, sitename);
-  if s = nil then
+  if sitename = '' then
   begin
-    irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
+    irc_addtext(Netname, Channel, '<c4><b>Syntax error</b>.</c> !newdirlistreadd <sitename> [interval in ms]');
     exit;
   end;
 
-  if interval > -1 then
+  found := False;
+  for i := 0 to sites.Count - 1 do
   begin
-    if interval = 0 then
+    s := TSite(sites[i]);
+    if s.Name = getAdminSiteName then
+      continue;
+
+    if MatchesMask(s.Name, sitename) then
     begin
-      s.DeleteKey('newdir_dirlist_readd');
-      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s reset to global default (%d ms)', 
-                  [sitename, GetNewdirDirlistReaddValue()]);
-    end
-    else
-    begin
-      s.NewdirDirlistReadd := interval;
-      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s set to %d ms', 
-                  [sitename, interval]);
+      found := True;
+      if interval > -1 then
+      begin
+        if interval = 0 then
+        begin
+          s.DeleteKey('newdir_dirlist_readd');
+          irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s reset to global default (%d ms)',
+                      [s.Name, GetNewdirDirlistReaddValue()]);
+        end
+        else
+        begin
+          s.NewdirDirlistReadd := interval;
+          irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s set to %d ms',
+                      [s.Name, interval]);
+        end;
+      end
+      else
+      begin
+        if s.NewdirDirlistReadd = 0 then
+          irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s: global default (%d ms)',
+                      [s.Name, GetNewdirDirlistReaddValue()])
+        else
+          irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s: %d ms',
+                      [s.Name, s.NewdirDirlistReadd]);
+      end;
     end;
-  end
-  else
+  end;
+
+  if not found then
   begin
-    if s.NewdirDirlistReadd = 0 then
-      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s: global default (%d ms)', 
-                  [sitename, GetNewdirDirlistReaddValue()])
-    else
-      irc_addtext(Netname, Channel, 'Newdir dirlist readd for %s: %d ms', 
-                  [sitename, s.NewdirDirlistReadd]);
+    irc_addtext(Netname, Channel, 'Site %s not found', [sitename]);
+    exit;
   end;
 
   Result := True;

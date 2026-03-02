@@ -604,7 +604,16 @@ export function Races() {
                             <Badge
                               variant="light"
                               styles={{
-                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center', background: 'rgba(99, 102, 241, 0.35)', border: '1px solid rgba(99, 102, 241, 0.6)', color: '#fff' },
+                                root: { 
+                                  maxWidth: 'none', 
+                                  whiteSpace: 'nowrap', 
+                                  textOverflow: 'clip', 
+                                  minWidth: '50px', 
+                                  textAlign: 'center', 
+                                  background: 'var(--nav-hover-bg)', 
+                                  border: '1px solid var(--nav-active-border)', 
+                                  color: 'var(--primary-light)' 
+                                },
                                 label: { overflow: 'visible', textOverflow: 'clip' },
                               }}
                             >
@@ -614,7 +623,16 @@ export function Races() {
                             <Badge
                               variant="light"
                               styles={{
-                                root: { maxWidth: 'none', whiteSpace: 'nowrap', textOverflow: 'clip', minWidth: '50px', textAlign: 'center', background: 'rgba(168, 85, 247, 0.35)', border: '1px solid rgba(168, 85, 247, 0.6)', color: '#fff' },
+                                root: { 
+                                  maxWidth: 'none', 
+                                  whiteSpace: 'nowrap', 
+                                  textOverflow: 'clip', 
+                                  minWidth: '50px', 
+                                  textAlign: 'center', 
+                                  background: 'var(--nav-active-bg)', 
+                                  border: '1px solid var(--nav-active-border)', 
+                                  color: 'var(--primary-light)' 
+                                },
                                 label: { overflow: 'visible', textOverflow: 'clip' },
                               }}
                             >

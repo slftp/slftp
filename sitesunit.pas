@@ -523,18 +523,16 @@ type
     function isRouteableTo(const sitename: String): boolean;
 
     procedure RegisterMaxSimUpHit(const aSlotName: String);
-    procedure ResetMaxSimUpCooldown;
     function MaxSimUpCooldownActive: boolean;
     function MaxSimUpCooldownRemainingSeconds: integer;
 
     procedure RegisterMaxSimDownHit(const aSlotName: String);
-    procedure ResetMaxSimDownCooldown;
     function MaxSimDownCooldownActive: boolean;
     function MaxSimDownCooldownRemainingSeconds: integer;
 
     procedure RegisterLoginCooldownHit(const aSlotName: String);
-    procedure ResetLoginCooldown;
     function LoginCooldownActive: boolean;
+    procedure ResetLoginCooldown;
     function LoginCooldownRemainingSeconds: integer;
 
     function DownloadCooldownActive: boolean;
@@ -791,7 +789,7 @@ uses
 const
   section = 'sites';
   MAXSIM_COOLDOWN_INITIAL_SECONDS = 5;
-  MAXSIM_COOLDOWN_MAX_SECONDS = 5;
+  MAXSIM_COOLDOWN_MAX_SECONDS = 120;
   LOGIN_COOLDOWN_INITIAL_SECONDS = 5;
   LOGIN_COOLDOWN_MAX_SECONDS = 120;
 
@@ -809,6 +807,10 @@ var
   sitesDict: TDictionary<string, TSite>; //holds sites in a dictionary for faster access by @link(FindSiteByName)
   gAdminSiteName: String;
   glSpamLoginLogout: boolean;
+  glSocks5: boolean;
+  siteslot_recycle: boolean;
+  slot_down_message_to_irc: boolean;
+  glLoginCooldownSpam: boolean;
 
 procedure AddSite(const aSite: TSite);
 begin
@@ -1445,6 +1447,10 @@ begin
   gAdminSiteName := UpperCase(config.ReadString('sites', 'admin_sitename', 'SLFTP'));
   glSpamLoginLogout := spamcfg.readbool(section, 'login_logout', False);
   bnccsere := TSlCriticalSection2.Create('bnccsere');
+  glSocks5 := config.ReadBool(section, 'socks5', False);
+  siteslot_recycle := spamcfg.readbool(section, 'siteslot_recycle', False);
+  slot_down_message_to_irc := spamcfg.readbool(section, 'slot_down', False);
+  glLoginCooldownSpam := spamcfg.ReadBool(section, 'login_cooldown', True);
   sites := TObjectList.Create;
   sitesDict := TDictionary<string, TSite>.Create;
 end;
@@ -1785,7 +1791,7 @@ begin
             end;
         else { Timeout reach }
           begin
-            if spamcfg.readbool(section, 'siteslot_recycle', False) then
+            if siteslot_recycle then
               irc_Adderror('TSiteSlot.Execute: <c2>Force Leave</c>:' +
                 Name + ' SiteSlot Recycle 15min');
             Debug(dpSpam, section, 'TSiteSlot.Execute: Force Leave:' +
@@ -2226,7 +2232,7 @@ begin
   end;
 
   if ((site.proxyname = '!!NOIN!!') or (site.proxyname = '0') or (site.proxyname = '')) then
-    SetupSocks5(self, (not RCBool('nosocks5', False)) and (config.ReadBool(section, 'socks5', False)))
+    SetupSocks5(self, (not RCBool('nosocks5', False)) and (glSocks5))
   else
     mSLSetupSocks5(site.proxyname, self, True);
 
@@ -2539,6 +2545,7 @@ begin
       Result := LoginBnc(i, kill);
       if Result then
       begin
+        site.ResetLoginCooldown;
         Break;
       end;
 
@@ -2549,6 +2556,8 @@ begin
       begin
         irc_Adderror(todotask, '<c4>[ERROR Login]</c> %s@%s:: %s', [Name, bnc, error]);
         site.RegisterLoginCooldownHit(Name);
+        if glLoginCooldownSpam then
+          irc_Adderror(todotask, '<c4>[LOGIN COOLDOWN]</c> %s login cooldown activated (%ds)', [site.Name, site.LoginCooldownRemainingSeconds]);
         DestroySocket(False);
         break;
       end
@@ -2582,7 +2591,7 @@ begin
       else
       begin
         DestroySocket(False);
-        if spamcfg.readbool(section, 'slot_down', False) then
+        if slot_down_message_to_irc then
           irc_Adderror(todotask, '<c4>SLOT <b>%s</b> IS DOWN</c>', [Name]);
       end;
     end;
@@ -3997,26 +4006,6 @@ begin
     [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
 end;
 
-procedure TSite.ResetMaxSimUpCooldown;
-begin
-  if (fMaxSimUpCooldownSeconds <> 0) or (fMaxSimUpCooldownUntil <> 0) then
-  begin
-    fMaxSimUpCooldownSeconds := 0;
-    fMaxSimUpCooldownUntil := 0;
-    Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s cleared', [Name]);
-  end;
-end;
-
-procedure TSite.ResetMaxSimDownCooldown;
-begin
-  if (fMaxSimDownCooldownSeconds <> 0) or (fMaxSimDownCooldownUntil <> 0) then
-  begin
-    fMaxSimDownCooldownSeconds := 0;
-    fMaxSimDownCooldownUntil := 0;
-    Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s cleared', [Name]);
-  end;
-end;
-
 function TSite.MaxSimUpCooldownActive: boolean;
 begin
   if fMaxSimUpCooldownUntil = 0 then
@@ -4111,17 +4100,6 @@ begin
     [Name, fLoginCooldownSeconds, DateTimeToStr(fLoginCooldownUntil), aSlotName]);
 end;
 
-procedure TSite.ResetLoginCooldown;
-begin
-  if (fLoginCooldownSeconds <> 0) or (fLoginCooldownUntil <> 0) then
-  begin
-    fLoginCooldownSeconds := 0;
-    fLoginCooldownUntil := 0;
-    fLoginCooldownLastSlot := '';
-    Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s cleared', [Name]);
-  end;
-end;
-
 function TSite.LoginCooldownActive: boolean;
 begin
   if fLoginCooldownUntil = 0 then
@@ -4144,7 +4122,6 @@ begin
         Debug(dpSpam, section, '[LOGIN COOLDOWN] Login cooldown for %s expired after %ds (slot: %s)',
           [Name, fLoginCooldownSeconds, fLoginCooldownLastSlot]);
       end;
-      fLoginCooldownSeconds := 0;
     end;
     fLoginCooldownUntil := 0;
     Result := False;
@@ -4152,6 +4129,12 @@ begin
   end;
 
   Result := True;
+end;
+
+procedure TSite.ResetLoginCooldown;
+begin
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownUntil := 0;
 end;
 
 function TSite.LoginCooldownRemainingSeconds: integer;

@@ -6,6 +6,7 @@ incomplete=1
 no_such_file_or_directory=1
 reached_max_sim_down=1
 reached_max_sim_up=1
+maxsim_cooldown=1
 turn_on_sslfxp=1
 cant_open_data_connection=1
 denying_creation_of=1
@@ -63,3 +64,5 @@ slot_down=0
 siteslot_recycle=0
 # announce that rules haven't changed (you need to enable autorules first)
 rules_nochange=0
+# announce when a site is placed on login cooldown (site full / max connections exceeded)
+login_cooldown=1

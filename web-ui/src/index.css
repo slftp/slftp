@@ -80,12 +80,20 @@ body:not([data-theme]) {
   
   /* Selection */
   --selection-bg: rgba(79, 70, 229, 0.35);
+  --selection-text: white;
+
+  /* Gradients for Text */
+  --text-gradient-start: white;
+  --text-gradient-end: #94a3b8;
   
   /* Component Specific */
   --nav-active-bg: linear-gradient(135deg, rgba(79, 70, 229, 0.2) 0%, rgba(129, 140, 248, 0.12) 100%);
   --nav-active-border: rgba(79, 70, 229, 0.35);
   --nav-active-shadow: 0 0 20px rgba(79, 70, 229, 0.2);
   --nav-hover-bg: rgba(79, 70, 229, 0.1);
+  --nav-label-active: #ffffff;
+  --nav-label-inactive: #a3aed0;
+  --burger-color: #ffffff;
   --table-row-odd: rgba(15, 23, 42, 0.6);
   --table-row-hover: rgba(79, 70, 229, 0.06);
   --input-focus-border: #818cf8;
@@ -166,12 +174,20 @@ body[data-theme="minimal"] {
   
   /* Selection */
   --selection-bg: rgba(107, 114, 128, 0.3);
+  --selection-text: white;
+
+  /* Gradients for Text */
+  --text-gradient-start: white;
+  --text-gradient-end: #9ca3af;
   
   /* Component Specific */
   --nav-active-bg: rgba(75, 85, 99, 0.3);
   --nav-active-border: rgba(107, 114, 128, 0.5);
   --nav-active-shadow: none;
   --nav-hover-bg: rgba(75, 85, 99, 0.2);
+  --nav-label-active: #ffffff;
+  --nav-label-inactive: #9ca3af;
+  --burger-color: #ffffff;
   --table-row-odd: rgba(17, 24, 39, 0.5);
   --table-row-hover: rgba(75, 85, 99, 0.15);
   --input-focus-border: #6b7280;
@@ -186,6 +202,100 @@ body[data-theme="minimal"] {
   
   /* Border Radius - Slightly smaller */
   --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  
+  background: var(--gradient-body);
+  background-attachment: fixed;
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   LIGHT THEME - High Contrast Light Alternative
+   ============================================================ */
+body[data-theme="light"] {
+  /* Background Colors */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-secondary: #f1f5f9;
+  
+  /* Gradients */
+  --gradient-main: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --gradient-blue: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  --gradient-card: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --gradient-glow: none;
+  --gradient-header: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --gradient-body: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+  
+  /* Primary Colors */
+  --primary: #2563eb;
+  --primary-light: #3b82f6;
+  --primary-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  --secondary: #0891b2;
+  --secondary-gradient: linear-gradient(135deg, #0891b2 0%, #0d9488 100%);
+  
+  /* Accent Colors */
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --info: #0284c7;
+  
+  /* Text Colors */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  
+  /* Borders */
+  --border: #e2e8f0;
+  --border-hover: #cbd5e1;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-glow: none;
+  
+  /* Glass Effect */
+  --glass: rgba(255, 255, 255, 0.9);
+  --glass-border: #e2e8f0;
+  
+  /* Scrollbar */
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  
+  /* Selection */
+  --selection-bg: #bfdbfe;
+  --selection-text: #1e3a8a;
+  
+  /* Gradients for Text */
+  --text-gradient-start: #0f172a;
+  --text-gradient-end: #475569;
+  
+  /* Component Specific */
+  --nav-active-bg: #eff6ff;
+  --nav-active-border: #bfdbfe;
+  --nav-active-shadow: none;
+  --nav-hover-bg: #f1f5f9;
+  --nav-label-active: #1d4ed8;
+  --nav-label-inactive: #475569;
+  --burger-color: #1e293b;
+  --table-row-odd: #ffffff;
+  --table-row-hover: #f8fafc;
+  --input-focus-border: #3b82f6;
+  --input-focus-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  --card-hover-border: #cbd5e1;
+  --card-hover-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  
+  /* Background Orbs - Hidden in light mode */
+  --bg-orb-1: transparent;
+  --bg-orb-2: transparent;
+  --bg-orb-3: transparent;
+  
+  /* Border Radius */
+  --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
@@ -243,7 +353,7 @@ body[data-theme="minimal"]::before {
 /* Selection */
 ::selection {
   background: var(--selection-bg);
-  color: white;
+  color: var(--selection-text, white);
 }
 
 /* Card Style */
@@ -272,7 +382,7 @@ body[data-theme="minimal"]::before {
 
 /* Gradient Text */
 .gradient-text {
-  background: var(--primary-gradient);
+  background: linear-gradient(135deg, var(--text-gradient-start, white) 0%, var(--text-gradient-end, var(--text-secondary)) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -602,7 +712,7 @@ body[data-theme="minimal"] .pulse-glow {
 
 /* Tooltip styles */
 .custom-tooltip {
-  background: var(--bg-secondary);
+  background: var(--bg-card);
   backdrop-filter: blur(10px);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

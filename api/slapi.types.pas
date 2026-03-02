@@ -132,6 +132,7 @@ type
     FSkipBeingUploadedFiles: integer;
     FKillConnectionOnStalledTransferSeconds: integer;
     FDestinationQueueLimit: integer;
+    FUseForNFOdownload: integer;
   published
     property Name: RawUTF8 read FName write FName;
     property Username: RawUTF8 read FUsername write FUsername;
@@ -166,6 +167,7 @@ type
     property SkipBeingUploadedFiles: integer read FSkipBeingUploadedFiles write FSkipBeingUploadedFiles;
     property KillConnectionOnStalledTransferSeconds: integer read FKillConnectionOnStalledTransferSeconds write FKillConnectionOnStalledTransferSeconds;
     property DestinationQueueLimit: integer read FDestinationQueueLimit write FDestinationQueueLimit;
+    property UseForNFOdownload: integer read FUseForNFOdownload write FUseForNFOdownload;
   end;
 
   { Text File Response (e.g. rules files) }
