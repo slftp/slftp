@@ -835,9 +835,9 @@ begin
       Exit;
 
     {$IFDEF FPC}
-      tFormatSettings := DefaultFormatSettings;
+    fFormatSettings := DefaultFormatSettings;
     {$ELSE}
-      fFormatSettings := FormatSettings;
+    fFormatSettings := TFormatSettings.Create;
     {$ENDIF}
     fFormatSettings.DecimalSeparator := '.';
     if not TryStrToFloat(fParts[0], aAvg1, fFormatSettings) then
