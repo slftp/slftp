@@ -834,7 +834,11 @@ begin
     if fParts.Count < 3 then
       Exit;
 
-    fFormatSettings := DefaultFormatSettings;
+    {$IFDEF FPC}
+      tFormatSettings := DefaultFormatSettings;
+    {$ELSE}
+      fFormatSettings := FormatSettings;
+    {$ENDIF}
     fFormatSettings.DecimalSeparator := '.';
     if not TryStrToFloat(fParts[0], aAvg1, fFormatSettings) then
       Exit;

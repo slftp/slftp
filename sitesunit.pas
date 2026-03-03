@@ -109,7 +109,7 @@ type
     event: TEvent;
     FHistory: TQueue<String>;
     FHistoryLock: TCriticalSection;
-    FHistorySeq: QWord;
+    FHistorySeq: UInt64;
     procedure SetOnline(Value: TSlotStatus);
 
     { Processes the response of the FEAT cmd. Also tries to determine the site software if param aDoUpdateSiteSoftware is true.
@@ -199,7 +199,7 @@ type
 
     procedure AddHistory(const aLine: String);
     function GetHistory: TArray<String>;
-    property HistorySeq: QWord read FHistorySeq;
+    property HistorySeq: UInt64 read FHistorySeq;
 
     property uploadingto: boolean read fUploadingTo write SetUploadingTo;
     property downloadingfrom: boolean read fDownloadingFrom write SetDownloadingFrom;

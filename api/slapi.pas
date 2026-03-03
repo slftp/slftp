@@ -31,7 +31,8 @@ uses
   slapi.cbftp,
   configunit,
   debugunit,
-  globals;
+  globals,
+  StrUtils;
 
 type
   { REST API Server for slftp }
@@ -563,7 +564,7 @@ begin
     Call.OutBody := ApiGetSlotHistorySSE(
       QueryParam(sUrl, 'site'),
       StrToIntDef(QueryParam(sUrl, 'slot'), -1),
-      StrToQWordDef(QueryParam(sUrl, 'seq'), 0),
+      StrToUInt64Def(QueryParam(sUrl, 'seq'), 0),
       StrToIntDef(QueryParam(sUrl, 'timeout_ms'), 5000)
     );
     Call.OutStatus := HTTP_SUCCESS;
@@ -614,7 +615,7 @@ begin
       begin
         SetSlotMonitored(siteName, slotNum, isEnable);
         Call.OutBody := Format('{"site":"%s","slot":%d,"enabled":%s}', 
-          [siteName, slotNum, BoolToStr(isEnable, 'true', 'false')]);
+          [siteName, slotNum, IfThen(isEnable, 'true', 'false')]);
         Call.OutStatus := HTTP_SUCCESS;
         Exit(True);
       end;
