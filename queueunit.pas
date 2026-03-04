@@ -645,6 +645,23 @@ begin
     s := TSite(t.ssite1);
     bnc := '';
 
+    // Do not assign new login slots while site-wide login cooldown is active
+    if s.LoginCooldownActive then
+    begin
+      Debug(dpSpam, section, '[LOGIN COOLDOWN] TryToAssignLoginSlot: site %s on cooldown (%ds remaining), skip task %s',
+        [s.Name, s.LoginCooldownRemainingSeconds, t.Name]);
+      exit;
+    end;
+
+    // Limit to 1 concurrent login attempt per site to prevent thundering herd
+    // when multiple wantedslot tasks expire their cooldown simultaneously
+    if s.HasActiveLoginAttempt then
+    begin
+      Debug(dpSpam, section, '[LOGIN COOLDOWN] TryToAssignLoginSlot: site %s already has active login attempt, skip task %s',
+        [s.Name, t.Name]);
+      exit;
+    end;
+
     if (t.wantedslot <> '') then
     begin
       ss := FindSlotByName(t.wantedslot);
@@ -703,6 +720,7 @@ begin
     t.assigned  := Now;
     ss.todotask := t;
     ss.Fire;
+    s.IncrementActiveLoginAttempts;
   except
   on e: Exception do
     begin

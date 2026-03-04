@@ -235,6 +235,7 @@ type
     fLoginCooldownUntil: TDateTime;
     fLoginCooldownSeconds: integer;
     fLoginCooldownLastSlot: String;
+    fActiveLoginAttempts: integer; //< number of currently in-flight login attempts; prevents thundering herd on cooldown expiry
     fReducedSpeedstatWeight: boolean;
     fPermDownStatus: boolean;
     fSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -532,6 +533,10 @@ type
     function LoginCooldownActive: boolean;
     procedure ResetLoginCooldown;
     function LoginCooldownRemainingSeconds: integer;
+
+    procedure IncrementActiveLoginAttempts;
+    procedure DecrementActiveLoginAttempts;
+    function HasActiveLoginAttempt: boolean;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -1731,6 +1736,8 @@ begin
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
+                  if (todotask is TLoginTask) and (TLoginTask(todotask).wantedslot <> '') then
+                    self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                 finally
                   self.site.ReleaseSlotsAssignmentLock;
@@ -1740,6 +1747,8 @@ begin
                 begin
                   // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
                   // This should not really ever happen, other than in a deadlock situation.
+                  if (todotask is TLoginTask) and (TLoginTask(todotask).wantedslot <> '') then
+                    self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                   Debug(dpError, section,
                     Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
@@ -3459,6 +3468,7 @@ begin
   fLoginCooldownUntil := 0;
   fLoginCooldownSeconds := 0;
   fLoginCooldownLastSlot := '';
+  fActiveLoginAttempts := 0;
 
   siteinvited := False;
   foutofannounce := 0;
@@ -4089,6 +4099,22 @@ begin
     Exit(0);
 
   Result := SecondsBetween(Now, fLoginCooldownUntil);
+end;
+
+procedure TSite.IncrementActiveLoginAttempts;
+begin
+  Inc(fActiveLoginAttempts);
+end;
+
+procedure TSite.DecrementActiveLoginAttempts;
+begin
+  if fActiveLoginAttempts > 0 then
+    Dec(fActiveLoginAttempts);
+end;
+
+function TSite.HasActiveLoginAttempt: boolean;
+begin
+  Result := fActiveLoginAttempts > 0;
 end;
 
 function TSite.GetDelayLeechMin(const aSection: String): integer;
