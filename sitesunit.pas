@@ -1638,9 +1638,11 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
+  fIsWantedSlotLoginTask: Boolean;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
+  fIsWantedSlotLoginTask := False;
   console_add_sitewindow(Name);
   while ((not slshutdown) and (not shouldquit)) do
   begin
@@ -1653,6 +1655,10 @@ begin
 
       if (todotask <> nil) then
       begin
+        // Capture before execution: todotask is guaranteed non-nil here.
+        // We use this in the cleanup finally to avoid dereferencing todotask
+        // when it may have become a dangling pointer (e.g. freed by QueueClean).
+        fIsWantedSlotLoginTask := (todotask is TLoginTask) and (TLoginTask(todotask).wantedslot <> '');
         try
           tname := todotask.Name;
         except
@@ -1736,7 +1742,7 @@ begin
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
-                  if (todotask is TLoginTask) and (TLoginTask(todotask).wantedslot <> '') then
+                  if fIsWantedSlotLoginTask then
                     self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                 finally
@@ -1747,7 +1753,7 @@ begin
                 begin
                   // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
                   // This should not really ever happen, other than in a deadlock situation.
-                  if (todotask is TLoginTask) and (TLoginTask(todotask).wantedslot <> '') then
+                  if fIsWantedSlotLoginTask then
                     self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                   Debug(dpError, section,
