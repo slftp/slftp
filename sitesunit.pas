@@ -2774,7 +2774,7 @@ begin
   Inc(numreads);
   if numreads > aMaxNumReads then
   begin
-    Debug(dpError, section, Format('[ERROR] TSiteSlot.Read numreads', []));
+    Debug(dpError, section, '[ERROR] TSiteSlot.Read numreads: cmd=%s reads=%d max=%d slot=%s', [read_cmd, numreads, aMaxNumReads, Name]);
     lastResponse := '';
     lastResponseCode := 0;
     error := 'TSiteSlot.Read numreads';
