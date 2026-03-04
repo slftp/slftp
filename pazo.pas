@@ -598,10 +598,6 @@ begin
       destinationQueueLimit := s.RCInteger('destination_queue_limit', 0);
       if destinationQueueLimit < 0 then
         destinationQueueLimit := 0;
-      if destinationQueueLimit > 0 then
-        destinationQueuedRaceCount := GetPendingRaceTaskCountForDestination(dst.Name)
-      else
-        destinationQueuedRaceCount := 0;
       destinationQueueLimitReached := False;
 
       for de in aDirListEntries do
@@ -715,15 +711,19 @@ begin
           // destination dir is not complete
           if not dstdl.complete then
           begin
-            if (destinationQueueLimit > 0) and (destinationQueuedRaceCount >= destinationQueueLimit) then
+            if destinationQueueLimit > 0 then
             begin
-              if not destinationQueueLimitReached then
+              destinationQueuedRaceCount := GetPendingRaceTaskCountForDestination(dst.Name);
+              if destinationQueuedRaceCount >= destinationQueueLimit then
               begin
-                destinationQueueLimitReached := True;
-                Debug(dpSpam, section, '%s :: Skipping new RACE tasks to %s due destination_queue_limit=%d (queued=%d)',
-                  [fd, dst.Name, destinationQueueLimit, destinationQueuedRaceCount]);
+                if not destinationQueueLimitReached then
+                begin
+                  destinationQueueLimitReached := True;
+                  Debug(dpSpam, section, '%s :: Skipping new RACE tasks to %s due destination_queue_limit=%d (queued=%d)',
+                    [fd, dst.Name, destinationQueueLimit, destinationQueuedRaceCount]);
+                end;
+                Continue;
               end;
-              Continue;
             end;
 
             // skip nfo and sfv if already there
@@ -825,7 +825,6 @@ begin
             // finally we can add the task
             try
               AddTask(pr);
-              Inc(destinationQueuedRaceCount);
               Result := True;
             except
               on e: Exception do
