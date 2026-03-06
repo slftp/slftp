@@ -35,6 +35,7 @@ procedure Initglobalskiplist;
 begin
   Debug(dpSpam, section, 'Loading up global group skiplist...');
   globalgroupskip := THashedStringList.Create;
+  globalgroupskip.CaseSensitive := False;
   Rehashglobalskiplist;
 end;
 
@@ -49,19 +50,34 @@ end;
 function Rehashglobalskiplist: boolean;
 var
   x: TStringlist;
+  i, j: Integer;
+  s: String;
+  y: TStringList;
 begin
   try
     x := TStringlist.Create;
+    y := TStringList.Create;
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.skipgroups');
 
       globalgroupskip.Clear;
-      globalgroupskip.Delimiter := ' ';
-      globalgroupskip.DelimitedText := x.Text;
+      for i := 0 to x.Count - 1 do
+      begin
+        s := Trim(x[i]);
+        if (s = '') or (s[1] = '#') or (s[1] = ';') then
+          continue;
+
+        y.Delimiter := ' ';
+        y.DelimitedText := s;
+        for j := 0 to y.Count - 1 do
+          if Trim(y[j]) <> '' then
+            globalgroupskip.Add(Trim(y[j]));
+      end;
 
       Result := True;
     finally
       x.free;
+      y.free;
     end;
   except on E: Exception do
     begin
