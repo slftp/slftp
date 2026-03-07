@@ -564,7 +564,7 @@ end;
 
 function TConditionTVEpisodeAgeDays.SupplyValue(r: TPazo): integer;
 begin
-  Result := -1;
+  Result := 99999;
 
   if r.rls is TTVRelease then
   begin

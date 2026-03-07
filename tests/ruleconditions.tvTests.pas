@@ -12,7 +12,7 @@ uses
 type
   TTestTVRuleConditions = class(TTestCase)
   published
-    procedure TVEpisodeAgeDaysUnknownReturnsMinusOne;
+    procedure TVEpisodeAgeDaysUnknownReturns99999;
     procedure TVEpisodeAgeDaysReturnsExpectedRange;
   end;
 
@@ -31,7 +31,7 @@ begin
   Result := Name;
 end;
 
-procedure TTestTVRuleConditions.TVEpisodeAgeDaysUnknownReturnsMinusOne;
+procedure TTestTVRuleConditions.TVEpisodeAgeDaysUnknownReturns99999;
 var
   p: TPazo;
   c: TConditionTVEpisodeAgeDaysForTest;
@@ -40,7 +40,7 @@ begin
   p.rls := TTVRelease.Create('Example.Show.S01E01.720p.HDTV.x264-TEST', 'TV');
   c := TConditionTVEpisodeAgeDaysForTest.Create(nil);
   try
-    CheckEquals(-1, c.SupplyValue(p), 'Unknown episode airdate must return -1');
+    CheckEquals(99999, c.SupplyValue(p), 'Unknown episode airdate must return 99999');
   finally
     c.Free;
     p.Free;
