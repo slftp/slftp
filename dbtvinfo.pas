@@ -698,17 +698,28 @@ begin
         Continue;
       if (fJsonList.Child[i].Field['number'] = nil) or (fJsonList.Child[i].Field['number'].SelfType = jsNull) then
         Continue;
-      if (fJsonList.Child[i].Field['airdate'] = nil) or (fJsonList.Child[i].Field['airdate'].SelfType = jsNull) then
-        Continue;
 
       fSeason := StrToIntDef(String(fJsonList.Child[i].Field['season'].Value), -1);
       fEpisode := StrToIntDef(String(fJsonList.Child[i].Field['number'].Value), -1);
       if (fSeason <= 0) or (fEpisode <= 0) then
         Continue;
 
+      if (fJsonList.Child[i].Field['airdate'] = nil) or (fJsonList.Child[i].Field['airdate'].SelfType = jsNull) then
+      begin
+        // episode exists on TVMaze but airdate is not set yet — cache as 0
+        if UpsertEpisodeAirdate(aTVMazeID, fSeason, fEpisode, 0) then
+          Inc(Result);
+        Continue;
+      end;
+
       fAirdate := String(fJsonList.Child[i].Field['airdate'].Value);
       if not ParseEpisodeAirdateToUnix(fAirdate, fAirdateUnix) then
+      begin
+        // unparseable or empty airdate — cache as 0
+        if UpsertEpisodeAirdate(aTVMazeID, fSeason, fEpisode, 0) then
+          Inc(Result);
         Continue;
+      end;
 
       if UpsertEpisodeAirdate(aTVMazeID, fSeason, fEpisode, fAirdateUnix) then
         Inc(Result);
