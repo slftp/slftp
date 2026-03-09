@@ -849,8 +849,8 @@ var
   is_crypted_msg: Boolean;
   i, FishModeArrayIndex, l: Integer;
   b: TIrcChannelSettings;
-  {$I common.inc}
   startTick: Int64;
+  {$I common.inc}
 begin
   startTick := GetTickCount64;
   FishModeArrayIndex := -1;
