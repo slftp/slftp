@@ -21,7 +21,7 @@ type
 
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
-  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
 { Finds a release in latest KB list
@@ -196,7 +196,7 @@ begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 var
   i, j, len: integer;
   r: TRelease;
@@ -539,6 +539,13 @@ begin
       else
       begin
         r := rc.Create(rls, section);
+      end;
+
+      if aDetectedTick <> 0 then
+      begin
+        r.DetectedTick := aDetectedTick;
+        // Approximation for DateTime if only Tick was provided
+        r.DetectedUTC := Now - ((GetTickCount64 - aDetectedTick) / 86400000);
       end;
 
       r.kb_event := event;
@@ -1046,7 +1053,7 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then
@@ -1070,7 +1077,7 @@ begin
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
     Result := kb_AddB(netname, channel, sitename, section, genre,
-      event, rls, cdno, dontFire, forceFire, ts);
+      event, rls, cdno, dontFire, forceFire, ts, aDetectedTick);
     Debug(dpMessage, 'kb', '<-- ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
   except

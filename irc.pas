@@ -850,7 +850,9 @@ var
   i, FishModeArrayIndex, l: Integer;
   b: TIrcChannelSettings;
   {$I common.inc}
+  startTick: Int64;
 begin
+  startTick := GetTickCount64;
   FishModeArrayIndex := -1;
   {
   * full input string 's' looks like:
@@ -1161,7 +1163,7 @@ begin
   // no case from above matched, let's check if we have a catchadd for it
   Debug(dpSpam, section, '--> ' + channel + ' ' + nick + ' ' + msg);
   try
-    PrecatcherProcess(netname, channel, nick, msg);
+    PrecatcherProcess(netname, channel, nick, msg, startTick);
   except
     on e: Exception do
     begin

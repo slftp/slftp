@@ -478,7 +478,7 @@ begin
               begin
                 try
                   asection := PrecatcherSectionMapping(de.filename, section);
-                  kb_add(netname, channel, site1, asection, '', kbeNEWDIR, de.filename, '', False, False, de.timestamp);
+                  kb_add(netname, channel, site1, asection, '', kbeNEWDIR, de.filename, '', False, False, de.timestamp, GetTickCount64);
                 except
                   on e: Exception do
                   begin

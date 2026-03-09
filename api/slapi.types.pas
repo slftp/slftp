@@ -435,6 +435,8 @@ type
     FSiteDetails: RawJSON; // JSON array of TApiReleaseSiteDetail
     FTotalFiles: integer;
     FErrorReason: RawUTF8;
+    FDetectedToAddedMs: integer;
+    FAddedToTasksMs: integer;
   published
     property ReleaseName: RawUTF8 read FReleaseName write FReleaseName;
     property Section: RawUTF8 read FSection write FSection;
@@ -446,6 +448,8 @@ type
     property SiteDetails: RawJSON read FSiteDetails write FSiteDetails;
     property TotalFiles: integer read FTotalFiles write FTotalFiles;
     property ErrorReason: RawUTF8 read FErrorReason write FErrorReason;
+    property DetectedToAddedMs: integer read FDetectedToAddedMs write FDetectedToAddedMs;
+    property AddedToTasksMs: integer read FAddedToTasksMs write FAddedToTasksMs;
   end;
 
   { List of Releases }
