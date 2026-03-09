@@ -1014,6 +1014,9 @@ begin
             // Source site is PRE site for this group
             if ps.status in [rssShouldPre, rssRealPre] then
             begin
+              if p.FDirlistRequestedTick = 0 then
+                p.FDirlistRequestedTick := GetTickCount64;
+
               r.PredOnAnySite := True;
               dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True, False, depDirlist);
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
@@ -1024,6 +1027,9 @@ begin
             // Source site is _not_ a PRE site for this group
             if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
             begin
+              if p.FDirlistRequestedTick = 0 then
+                p.FDirlistRequestedTick := GetTickCount64;
+
               dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False, False, depDirlist);
               irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
               ps.dirlist.dirlistadded := True;

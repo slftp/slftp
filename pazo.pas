@@ -211,7 +211,9 @@ type
     FDetectedUTC: TDateTime;
     FDetectedTick: Int64;
     FAddedTick: Int64;
+    FDirlistRequestedTick: Int64;
     FTasksCreatedTick: Int64;
+    FLastTaskCreatedTick: Int64;
 
     PazoSitesList: TObjectList<TPazoSite>; //< list of @link(TPazoSite) which are part of this @link(TPazo) due to calling @link(AddSites)
     sl: TSkipList;
@@ -1108,7 +1110,9 @@ begin
 
   added := Now;
   FAddedTick := GetTickCount64;
+  FDirlistRequestedTick := 0;
   FTasksCreatedTick := 0;
+  FLastTaskCreatedTick := 0;
 
   if rls <> nil then
   begin

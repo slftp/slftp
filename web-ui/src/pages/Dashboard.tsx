@@ -45,7 +45,9 @@ interface ReleaseInfo {
   QueueNumber: number;
   Sites: string[];
   DetectedToAddedMs?: number;
-  AddedToTasksMs?: number;
+  AddedToDirlistMs?: number;
+  AddedToFirstTaskMs?: number;
+  AddedToLastTaskMs?: number;
 }
 
 interface ReleaseSiteDetail {
@@ -72,7 +74,9 @@ interface ReleaseDetails {
   TotalFiles: number;
   ErrorReason: string;
   DetectedToAddedMs?: number;
-  AddedToTasksMs?: number;
+  AddedToDirlistMs?: number;
+  AddedToFirstTaskMs?: number;
+  AddedToLastTaskMs?: number;
 }
 
 export function Dashboard() {
@@ -565,10 +569,17 @@ export function Dashboard() {
                                   P: {release.DetectedToAddedMs}ms
                                 </Badge>
                               </Tooltip>
-                              {release.AddedToTasksMs && release.AddedToTasksMs > 0 ? (
-                                <Tooltip label={`Logic: ${release.AddedToTasksMs}ms`} withArrow>
+                              {release.AddedToDirlistMs !== undefined && release.AddedToDirlistMs > 0 && (
+                                <Tooltip label={`Dirlist Start: ${release.AddedToDirlistMs}ms`} withArrow>
+                                  <Badge size="xs" variant="outline" color="orange" radius="xs" style={{ borderStyle: 'dashed' }}>
+                                    D: {release.AddedToDirlistMs}ms
+                                  </Badge>
+                                </Tooltip>
+                              )}
+                              {release.AddedToLastTaskMs !== undefined && release.AddedToLastTaskMs > 0 ? (
+                                <Tooltip label={`Total Logic: ${release.AddedToLastTaskMs}ms`} withArrow>
                                   <Badge size="xs" variant="outline" color="cyan" radius="xs" style={{ borderStyle: 'dashed' }}>
-                                    L: {release.AddedToTasksMs}ms
+                                    L: {release.AddedToLastTaskMs}ms
                                   </Badge>
                                 </Tooltip>
                               ) : null}
@@ -758,13 +769,18 @@ export function Dashboard() {
                         <Text size="10px" c="dimmed">(IRC/FTP Detection → Pazo Created)</Text>
                       </Stack>
                       <Stack gap={2}>
-                        <Text size="xs" c="dimmed">Logic Delay</Text>
-                        <Text size="sm" fw={600} color="cyan">{releaseDetails.AddedToTasksMs || 0} ms</Text>
-                        <Text size="10px" c="dimmed">(Rules/Routes → First Task Created)</Text>
+                        <Text size="xs" c="dimmed">Dirlist Delay</Text>
+                        <Text size="sm" fw={600} color="orange">{releaseDetails.AddedToDirlistMs} ms</Text>
+                        <Text size="10px" c="dimmed">(Pazo Created → First Dirlist Queue)</Text>
+                      </Stack>
+                      <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Logic Time (Total)</Text>
+                        <Text size="sm" fw={600} color="cyan">{releaseDetails.AddedToLastTaskMs || 0} ms</Text>
+                        <Text size="10px" c="dimmed">(Pazo Created → All Race Tasks Created)</Text>
                       </Stack>
                       <Stack gap={2}>
                         <Text size="xs" c="dimmed">Total Latency</Text>
-                        <Text size="sm" fw={700} color="indigo">{(releaseDetails.DetectedToAddedMs || 0) + (releaseDetails.AddedToTasksMs || 0)} ms</Text>
+                        <Text size="sm" fw={700} color="indigo">{(releaseDetails.DetectedToAddedMs || 0) + (releaseDetails.AddedToLastTaskMs || 0)} ms</Text>
                         <Text size="10px" c="dimmed">(Total system reaction time)</Text>
                       </Stack>
                     </Group>

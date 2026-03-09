@@ -436,7 +436,9 @@ type
     FTotalFiles: integer;
     FErrorReason: RawUTF8;
     FDetectedToAddedMs: integer;
-    FAddedToTasksMs: integer;
+    FAddedToDirlistMs: integer;
+    FAddedToFirstTaskMs: integer;
+    FAddedToLastTaskMs: integer;
   published
     property ReleaseName: RawUTF8 read FReleaseName write FReleaseName;
     property Section: RawUTF8 read FSection write FSection;
@@ -449,7 +451,9 @@ type
     property TotalFiles: integer read FTotalFiles write FTotalFiles;
     property ErrorReason: RawUTF8 read FErrorReason write FErrorReason;
     property DetectedToAddedMs: integer read FDetectedToAddedMs write FDetectedToAddedMs;
-    property AddedToTasksMs: integer read FAddedToTasksMs write FAddedToTasksMs;
+    property AddedToDirlistMs: integer read FAddedToDirlistMs write FAddedToDirlistMs;
+    property AddedToFirstTaskMs: integer read FAddedToFirstTaskMs write FAddedToFirstTaskMs;
+    property AddedToLastTaskMs: integer read FAddedToLastTaskMs write FAddedToLastTaskMs;
   end;
 
   { List of Releases }
