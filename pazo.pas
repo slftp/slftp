@@ -1839,6 +1839,7 @@ begin
       irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]))
     else
       irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : SPEEDTEST %s @ <b>%s</b>', [dir, Name]));
+    d.dependency_mkdir := '';
     d.need_mkdir := True;
     d.error := True;
   end;

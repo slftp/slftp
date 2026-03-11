@@ -105,7 +105,7 @@ implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist;
 
 const
   section = 'queue';
@@ -502,6 +502,22 @@ begin
     begin
       Debug(dpSpam, section, '[MAXSIM COOLDOWN] Source site %s is on MaxSim DOWN cooldown (%ds remaining), skipping %s',
         [s1.Name, s1.MaxSimDownCooldownRemainingSeconds, t.FullName]);
+      exit;
+    end;
+
+    if s2.UploadCooldownActive then
+    begin
+      if not fBusyDestinations.ContainsKey(s2) then
+        fBusyDestinations.Add(s2, 0);
+      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Destination site %s: upload cooldown active, skipping %s',
+        [s2.Name, t.FullName]);
+      exit;
+    end;
+
+    if s1.DownloadCooldownActive then
+    begin
+      Debug(dpSpam, section, '[TRANSFER COOLDOWN] Source site %s: download cooldown active, skipping %s',
+        [s1.Name, t.FullName]);
       exit;
     end;
 
@@ -917,6 +933,7 @@ begin
     q := TQuitTask.Create('', '', s.site.Name);
     q.slot1 := s;
     q.slot1name := s.Name;
+    q.assigned := Now();
     s.todotask := q;
     AddTask(q);
     s.Fire;
@@ -945,6 +962,7 @@ begin
     ti := TIdleTask.Create('', '', s.site.Name);
     ti.slot1 := s;
     ti.slot1name := s.Name;
+    ti.assigned := Now();
     s.todotask := ti;
     AddTask(ti);
     s.Fire;
@@ -1016,6 +1034,7 @@ var
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
   tpl, i_tpl: TLoginTask;
+  tpsfv, i_tpsfv: TPazoSiteSfvTask;
   fListIndex: Integer;
   fList: TObjectList;
 begin
@@ -1191,6 +1210,54 @@ begin
       on E: Exception do
       begin
         Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TLoginTask : %s', [e.Message]));
+        Result := False;
+        exit;
+      end;
+    end;
+    exit;
+  end;
+
+  if (t is TPazoSiteSfvTask) then
+  begin
+    try
+      tpsfv := TPazoSiteSfvTask(t);
+      main_lock.Enter('TaskAlreadyInQueue5');
+      try
+        for fListIndex := 0 to 1 do
+        begin
+          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+          for fTask in fList do
+          begin
+            try
+              if (fTask is TPazoSiteSfvTask) then
+              begin
+                i_tpsfv := TPazoSiteSfvTask(fTask);
+                if ((i_tpsfv.ready = False) and (i_tpsfv.readyerror = False) and
+                  (i_tpsfv.slot1 = nil) and (i_tpsfv.pazo_id = tpsfv.pazo_id) and
+                  (i_tpsfv.site1 = tpsfv.site1) and
+                  (i_tpsfv.Dir = tpsfv.Dir) and
+                  (i_tpsfv.SFVFilename = tpsfv.SFVFilename)) then
+                begin
+                  Result := True;
+                  exit;
+                end;
+              end;
+            except
+              on E: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask (loop) : %s', [e.Message]));
+                continue;
+              end;
+            end;
+          end;
+        end;
+      finally
+        main_lock.Leave;
+      end;
+    except
+      on E: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoSiteSfvTask : %s', [e.Message]));
         Result := False;
         exit;
       end;
@@ -1548,16 +1615,16 @@ begin
         if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
         for fAbstractTask in fList do
         begin
-        if (fAbstractTask is TPazoSiteSfvTask) then
-        begin
-          fTask := TPazoSiteSfvTask(fAbstractTask);
-          if ((fTask.ready = False) and (fTask.readyerror = False) and (fTask.slot1 = nil) and (fTask.pazo_id = aPazoID) and (fTask.dir = aDir)) then
+          if (fAbstractTask is TPazoSiteSfvTask) then
           begin
-            fTask.ready := True;
-            Debug(dpSpam, 'sfv', Format('Remove SFV task : %s %s %s (%s)', [fTask.mainpazo.rls.rlsname, fTask.dir, fTask.SFVFilename, fTask.site1]));
+            fTask := TPazoSiteSfvTask(fAbstractTask);
+            if ((fTask.ready = False) and (fTask.readyerror = False) and (fTask.slot1 = nil) and (fTask.pazo_id = aPazoID) and (fTask.dir = aDir)) then
+            begin
+              fTask.ready := True;
+              Debug(dpSpam, 'sfv', Format('Remove SFV task : %s %s %s (%s)', [fTask.mainpazo.rls.rlsname, fTask.dir, fTask.SFVFilename, fTask.site1]));
+            end;
           end;
         end;
-      end;
       end;
     finally
       main_lock.Leave;
@@ -1726,12 +1793,27 @@ begin
                 with TPazoRaceTask(fTask) do
                 if (dst <> nil) then
                 begin
-                  dst.event.SetEvent;
+                  try
+                    dst.event.SetEvent;
+                  except
+                    on e: Exception do
+                      Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
+                  end;
                 end;
               end;
               ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
               try
-                fList.Remove(fTask);
+                try
+                  fList.Remove(fTask);
+                except
+                  on e: Exception do
+                  begin
+                    // Destructor raised — item may still be in list in a partially-freed
+                    // state. Extract removes without calling Free again.
+                    Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady Remove): %s [%s]', [e.Message, ss]));
+                    fList.Extract(fTask);
+                  end;
+                end;
               finally
                 ts.ReleaseSlotsAssignmentLock;
               end;
@@ -1945,6 +2027,8 @@ var
   ss: String;
   t:  TTask;
   ts, ts2: TSite;
+  fDirlistTask: TPazoDirlistTask;
+  fDirlistSubDir: TDirList;
   fListIndex: Integer;
   fList: TObjectList;
 begin
@@ -1985,6 +2069,59 @@ begin
           try
             t.ready := True;
             Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+
+            // Reset dirlistadded so a new dirlist task can be created when slots
+            // become available. Without this reset, the pazo site would never get
+            // a dirlist after the task is killed, since dirlistadded stays True.
+            if t is TPazoDirlistTask then
+            begin
+              fDirlistTask := TPazoDirlistTask(t);
+              if (fDirlistTask.ps1 <> nil) and (fDirlistTask.ps1.dirlist <> nil) then
+              begin
+                if fDirlistTask.dir = '' then
+                begin
+                  // Source dirlist (created by kb_AddB, dir='')
+                  fDirlistTask.ps1.dirlist.dirlistadded := False;
+                end
+                else
+                begin
+                  // Destination/sub dirlist (created by Tuzelj, dir='some/path')
+                  fDirlistSubDir := fDirlistTask.ps1.dirlist.FindDirlist(fDirlistTask.dir);
+                  if fDirlistSubDir <> nil then
+                    fDirlistSubDir.dirlistadded := False;
+                end;
+              end;
+            end;
+            // Tasks created by Add*Task (TIdleTask, TQuitTask) have slot1 set directly
+            // but assigned stays 0. The removal loop requires slot1=nil to remove a
+            // ready task, so without this cleanup the task is stuck in the queue forever
+            // and s.todotask keeps pointing to the dead task, blocking new idle tasks.
+            if t.slot1 <> nil then
+            begin
+              ts.AcquireSlotsAssignmentLock('QueueClean1 unassigned');
+              try
+                if TSiteSlot(t.slot1).todotask = t then
+                begin
+                  // Slot still holds a reference to this task — it may be actively
+                  // executing it. Clear todotask to unblock slot assignment for new
+                  // tasks, but do NOT clear slot1: the slot thread will clear it in
+                  // its own post-execute cleanup after Execute() returns. Clearing
+                  // slot1 here makes the task eligible for removal (ready+slot1=nil)
+                  // while the slot thread still holds fCurrentTask pointing to it,
+                  // causing a use-after-free crash in the removal loop.
+                  TSiteSlot(t.slot1).todotask := nil;
+                end
+                else
+                begin
+                  // Slot has moved on (todotask != this task). Safe to clear slot1
+                  // because the slot thread no longer accesses this task via fCurrentTask.
+                  t.slot1 := nil;
+                  t.slot1name := '';
+                end;
+              finally
+                ts.ReleaseSlotsAssignmentLock;
+              end;
+            end;
           except
             on e: Exception do
             begin
@@ -2075,6 +2212,19 @@ begin
             try
               Debug(dpSpam, section, Format('[QUEUECLEAN] Clean race task : %s', [t.Fullname]));
               Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
+
+              // Signal the destination WAITTASK to unblock its slot thread,
+              // same as RemoveReady does when collecting a completed RACE task.
+              if (TPazoRaceTask(t).dst <> nil) then
+              begin
+                try
+                  TPazoRaceTask(t).dst.event.SetEvent;
+                except
+                  on e: Exception do
+                    Debug(dpError, section, Format('[EXCEPTION] QueueClean race: signal dst event : %s', [e.Message]));
+                end;
+              end;
+
               tasks.Remove(t);
             except
               on e: Exception do

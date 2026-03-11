@@ -565,27 +565,37 @@ begin
               //continue to create a new dirlist task below
               Debug(dpMessage, c_section, 'DIRLIST: mkdir not ready: ' + tname);
               
-              // If this site is an upload destination, trigger mkdir immediately
-              if IsSiteUploadDestination(mainpazo, site1) then
+              // If this site is an upload destination, trigger mkdir immediately.
+              // Only create if we have a dirlist entry and no mkdir is already pending.
+              if IsSiteUploadDestination(mainpazo, site1) and (d <> nil) then
               begin
-                // Set need_mkdir flag on the dirlist entry if it exists
-                if d <> nil then
-                  d.need_mkdir := True;
-                
-                // Create mkdir task
+                mkTask := nil;
+                d.dirlist_lock.Enter('TPazoDirlistTask mkdir trigger');
                 try
-                  if dir <> '' then
-                    parentDirlist := ps1.dirlist
-                  else
-                    parentDirlist := nil;
-                    
-                  mkTask := TPazoMkdirTask.Create(netname, channel, site1, mainpazo, parentDirlist, dir);
-                  if ps1.delay_upload > 0 then
-                    mkTask.startat := IncSecond(Now, ps1.delay_upload);
-                  AddTask(mkTask);
-                except
-                  on e: Exception do
-                    Debug(dpError, c_section, '[EXCEPTION] Failed to create MKDIR task: %s', [e.Message]);
+                  if d.dependency_mkdir = '' then
+                  begin
+                    if dir <> '' then
+                      parentDirlist := ps1.dirlist
+                    else
+                      parentDirlist := nil;
+
+                    mkTask := TPazoMkdirTask.Create(netname, channel, site1, mainpazo, parentDirlist, dir);
+                    if ps1.delay_upload > 0 then
+                      mkTask.startat := IncSecond(Now, ps1.delay_upload);
+                    d.dependency_mkdir := mkTask.UidText;
+                  end;
+                finally
+                  d.dirlist_lock.Leave;
+                end;
+
+                if mkTask <> nil then
+                begin
+                  try
+                    AddTask(mkTask);
+                  except
+                    on e: Exception do
+                      Debug(dpError, c_section, '[EXCEPTION] Failed to add MKDIR task: %s', [e.Message]);
+                  end;
                 end;
               end;
             end

@@ -232,6 +232,8 @@ type
     fMaxSimUpCooldownSeconds: integer;
     fMaxSimDownCooldownUntil: TDateTime;
     fMaxSimDownCooldownSeconds: integer;
+    fDownloadCooldownUntil: TDateTime;  // no new download on this site until Now() > this
+    fUploadCooldownUntil: TDateTime;    // no new upload on this site until Now() > this
     fLoginCooldownUntil: TDateTime;
     fLoginCooldownSeconds: integer;
     fLoginCooldownLastSlot: String;
@@ -537,6 +539,8 @@ type
     procedure IncrementActiveLoginAttempts;
     procedure DecrementActiveLoginAttempts;
     function HasActiveLoginAttempt: boolean;
+    function DownloadCooldownActive: boolean;
+    function UploadCooldownActive: boolean;
 
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
@@ -788,6 +792,10 @@ uses
 
 const
   section = 'sites';
+  MAXSIM_COOLDOWN_INITIAL_SECONDS = 5;
+  MAXSIM_COOLDOWN_MAX_SECONDS = 120;
+  LOGIN_COOLDOWN_INITIAL_SECONDS = 5;
+  LOGIN_COOLDOWN_MAX_SECONDS = 120;
 
 var
   bnccsere: TSlCriticalSection2 = nil;
@@ -795,6 +803,7 @@ var
   // Config vars
   maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
+  glInterTransferDelayMs: integer = 0;  // 0 = disabled; set via [sites] inter_transfer_delay_ms
   kill_connection_on_stalled_transfer_seconds: integer = 0;
   admin_siteslots: integer = 10;
   autologin: boolean = False;
@@ -1465,6 +1474,7 @@ begin
   debug(dpSpam, section, 'SitesStart begin');
 
   delay_between_connects := config.readInteger(section, 'delay_between_connects', 200);
+  glInterTransferDelayMs := config.readInteger(section, 'inter_transfer_delay_ms', 0);
   admin_siteslots := config.ReadInteger(section, 'admin_siteslots', 10);
   maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
   autologin := config.ReadBool(section, 'autologin', False);
@@ -1709,6 +1719,9 @@ begin
         uploadingto := False;
         downloadingfrom := False;
 
+        // Use todotask (captured before Execute) instead of self.todotask.
+        // DestroySocket called inside Execute may have already set self.todotask := nil,
+        // which would skip slot1 cleanup and leave the task stuck in the queue.
         if (todotask <> nil) then
         begin
           try
@@ -3347,6 +3360,8 @@ begin
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
+      if glInterTransferDelayMs > 0 then
+        site.fDownloadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
       if GetDebugVerbosity = dpSpam then
         Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
     end;
@@ -3367,6 +3382,8 @@ begin
     else
       begin
         {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
+        if glInterTransferDelayMs > 0 then
+          site.fUploadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
         if GetDebugVerbosity = dpSpam then
           Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
       end;
@@ -3968,11 +3985,18 @@ begin
 end;
 
 procedure TSite.RegisterMaxSimUpHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
 begin
   if fMaxSimUpCooldownSeconds = 0 then
-    fMaxSimUpCooldownSeconds := 2
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
   else
-    fMaxSimUpCooldownSeconds := Min(fMaxSimUpCooldownSeconds * 2, 20);
+  begin
+    fNewCooldown := fMaxSimUpCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+  fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s) (slot: %s)',
@@ -3980,11 +4004,18 @@ begin
 end;
 
 procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
 begin
   if fMaxSimDownCooldownSeconds = 0 then
-    fMaxSimDownCooldownSeconds := 2
+    fNewCooldown := MAXSIM_COOLDOWN_INITIAL_SECONDS
   else
-    fMaxSimDownCooldownSeconds := Min(fMaxSimDownCooldownSeconds * 2, 20);
+  begin
+    fNewCooldown := fMaxSimDownCooldownSeconds * 2;
+    if fNewCooldown > MAXSIM_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := MAXSIM_COOLDOWN_MAX_SECONDS;
+  end;
+  fMaxSimDownCooldownSeconds := fNewCooldown;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
   Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s) (slot: %s)',
@@ -4055,12 +4086,29 @@ begin
   Result := SecondsBetween(Now, fMaxSimDownCooldownUntil);
 end;
 
+function TSite.DownloadCooldownActive: boolean;
+begin
+  Result := (fDownloadCooldownUntil > 0) and (Now() < fDownloadCooldownUntil);
+end;
+
+function TSite.UploadCooldownActive: boolean;
+begin
+  Result := (fUploadCooldownUntil > 0) and (Now() < fUploadCooldownUntil);
+end;
+
 procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
 begin
   if fLoginCooldownSeconds = 0 then
-    fLoginCooldownSeconds := 2
+    fNewCooldown := LOGIN_COOLDOWN_INITIAL_SECONDS
   else
-    fLoginCooldownSeconds := Min(fLoginCooldownSeconds * 2, 20);
+  begin
+    fNewCooldown := fLoginCooldownSeconds * 2;
+    if fNewCooldown > LOGIN_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := LOGIN_COOLDOWN_MAX_SECONDS;
+  end;
+  fLoginCooldownSeconds := fNewCooldown;
   fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
   fLoginCooldownLastSlot := aSlotName;
 
