@@ -1108,6 +1108,19 @@ begin
           releaseJson.Section := UTF8Encode(p.rls.section);
           releaseJson.Added := DateTimeToUnix(p.added);
           releaseJson.PazoId := p.pazo_id;
+          releaseJson.DetectedToAddedMs := p.FAddedTick - p.FDetectedTick;
+          if p.FDirlistRequestedTick > 0 then
+            releaseJson.AddedToDirlistMs := p.FDirlistRequestedTick - p.FAddedTick
+          else
+            releaseJson.AddedToDirlistMs := 0;
+          if p.FTasksCreatedTick > 0 then
+            releaseJson.AddedToFirstTaskMs := p.FTasksCreatedTick - p.FAddedTick
+          else
+            releaseJson.AddedToFirstTaskMs := 0;
+          if p.FLastTaskCreatedTick > 0 then
+            releaseJson.AddedToLastTaskMs := p.FLastTaskCreatedTick - p.FAddedTick
+          else
+            releaseJson.AddedToLastTaskMs := 0;
 
           // Calculate status based on sites
           if p.stopped then
@@ -1312,6 +1325,19 @@ begin
       Response.Section := UTF8Encode(p.rls.section);
       Response.Added := p.added;
       Response.PazoId := p.pazo_id;
+      Response.DetectedToAddedMs := p.FAddedTick - p.FDetectedTick;
+      if p.FDirlistRequestedTick > 0 then
+        Response.AddedToDirlistMs := p.FDirlistRequestedTick - p.FAddedTick
+      else
+        Response.AddedToDirlistMs := 0;
+      if p.FTasksCreatedTick > 0 then
+        Response.AddedToFirstTaskMs := p.FTasksCreatedTick - p.FAddedTick
+      else
+        Response.AddedToFirstTaskMs := 0;
+      if p.FLastTaskCreatedTick > 0 then
+        Response.AddedToLastTaskMs := p.FLastTaskCreatedTick - p.FAddedTick
+      else
+        Response.AddedToLastTaskMs := 0;
       Response.Ready := p.ready;
       Response.Stopped := p.stopped;
       Response.QueueNumber := p.queuenumber.Value;

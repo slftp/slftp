@@ -1446,6 +1446,9 @@ begin
     self.FFilenameForSTORCommand := filename;
 
   self.filesize := filesize;
+
+  if (pazo <> nil) and (pazo.FTasksCreatedTick = 0) then
+    pazo.FTasksCreatedTick := GetTickCount64;
 end;
 
 function GetSitePercent(const aSite: TPazoSite; const aDir: String): Integer;

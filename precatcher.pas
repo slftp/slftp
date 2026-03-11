@@ -65,8 +65,8 @@ procedure Precatcher_DelSiteChans(const sitename: String);
 function PrecatcherReload: String;
 procedure PrecatcherRebuild();
 procedure PrecatcherStart;
-procedure PrecatcherProcessB(net, chan, nick, Data: String);
-procedure PrecatcherProcess(const net, chan, nick, Data: String);
+procedure PrecatcherProcessB(net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
+procedure PrecatcherProcess(const net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
 function precatcher_logfilename: String;
 procedure Precatcher_Init(const aSetAuto: boolean);
 procedure Precatcher_Uninit;
@@ -528,7 +528,7 @@ begin
   Result := rep_s;
 end;
 
-procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEventType; section, rls: String; ts_data: TStringList);
+procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEventType; section, rls: String; ts_data: TStringList; aDetectedTick: Int64 = 0);
 var
   genre, s, oldsection, event: String;
 begin
@@ -622,7 +622,7 @@ begin
       begin
         irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
       end;
-      kb_Add('', '', sitename, section, genre, kb_event, rls, '');
+      kb_Add('', '', sitename, section, genre, kb_event, rls, '', False, False, 0, aDetectedTick);
     except
       on e: Exception do
       begin
@@ -634,7 +634,7 @@ begin
   Debug(dpSpam, rsections, Format('<-- ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
 end;
 
-procedure PrecatcherProcessB(net, chan, nick, Data: String);
+procedure PrecatcherProcessB(net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
 var
   igindex, i, j: integer;
   sc: TSiteChan;
@@ -794,7 +794,7 @@ begin
             if not precatcher_debug then
               _LogMissingSectionIfNeeded(net, sc.sitename, rls_section, rls, 'PRECATCHER', KBEventTypeToString(ss.eventtype));
 
-            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data);
+            ProcessReleaseVege(net, chan, nick, sc.sitename, ss.eventtype, ss.section, rls, ts_data, aDetectedTick);
 
           except
             on e: Exception do
@@ -821,7 +821,7 @@ begin
   end;
 end;
 
-procedure PrecatcherProcess(const net, chan, nick, Data: String);
+procedure PrecatcherProcess(const net, chan, nick, Data: String; aDetectedTick: Int64 = 0);
 begin
   if not precatcherauto then
     Exit;
@@ -831,7 +831,7 @@ begin
   try
 }
     try
-      PrecatcherProcessB(net, chan, nick, Data);
+      PrecatcherProcessB(net, chan, nick, Data, aDetectedTick);
     except
       on e: Exception do
       begin

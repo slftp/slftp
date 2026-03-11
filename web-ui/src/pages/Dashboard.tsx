@@ -44,6 +44,10 @@ interface ReleaseInfo {
   Stopped: boolean;
   QueueNumber: number;
   Sites: string[];
+  DetectedToAddedMs?: number;
+  AddedToDirlistMs?: number;
+  AddedToFirstTaskMs?: number;
+  AddedToLastTaskMs?: number;
 }
 
 interface ReleaseSiteDetail {
@@ -69,6 +73,10 @@ interface ReleaseDetails {
   SiteDetails: ReleaseSiteDetail[];
   TotalFiles: number;
   ErrorReason: string;
+  DetectedToAddedMs?: number;
+  AddedToDirlistMs?: number;
+  AddedToFirstTaskMs?: number;
+  AddedToLastTaskMs?: number;
 }
 
 export function Dashboard() {
@@ -414,11 +422,12 @@ export function Dashboard() {
               >
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th style={{ width: '42%' }}>Release</Table.Th>
-                    <Table.Th style={{ width: '14%' }}>Section</Table.Th>
-                    <Table.Th style={{ width: '24%' }}>Sites</Table.Th>
+                    <Table.Th style={{ width: '35%' }}>Release</Table.Th>
+                    <Table.Th style={{ width: '12%' }}>Section</Table.Th>
+                    <Table.Th style={{ width: '20%' }}>Sites</Table.Th>
                     <Table.Th style={{ width: '10%' }}>Status</Table.Th>
-                    <Table.Th style={{ width: '10%' }}>Queue #</Table.Th>
+                    <Table.Th style={{ width: '15%' }}>Timing</Table.Th>
+                    <Table.Th style={{ width: '8%' }}>Queue #</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -552,6 +561,29 @@ export function Dashboard() {
                                 Racing
                               </Badge>
                             )}
+                          </Table.Td>
+                          <Table.Td>
+                            <Group gap={4}>
+                              <Tooltip label={`Parsing: ${release.DetectedToAddedMs}ms`} withArrow>
+                                <Badge size="xs" variant="outline" color="blue" radius="xs" style={{ borderStyle: 'dashed' }}>
+                                  P: {release.DetectedToAddedMs}ms
+                                </Badge>
+                              </Tooltip>
+                              {release.AddedToDirlistMs !== undefined && release.AddedToDirlistMs > 0 && (
+                                <Tooltip label={`Dirlist Start: ${release.AddedToDirlistMs}ms`} withArrow>
+                                  <Badge size="xs" variant="outline" color="orange" radius="xs" style={{ borderStyle: 'dashed' }}>
+                                    D: {release.AddedToDirlistMs}ms
+                                  </Badge>
+                                </Tooltip>
+                              )}
+                              {release.AddedToLastTaskMs !== undefined && release.AddedToLastTaskMs > 0 ? (
+                                <Tooltip label={`Total Logic: ${release.AddedToLastTaskMs}ms`} withArrow>
+                                  <Badge size="xs" variant="outline" color="cyan" radius="xs" style={{ borderStyle: 'dashed' }}>
+                                    L: {release.AddedToLastTaskMs}ms
+                                  </Badge>
+                                </Tooltip>
+                              ) : null}
+                            </Group>
                           </Table.Td>
                           <Table.Td>
                             <Text size="sm" c="dimmed">#{release.QueueNumber}</Text>
@@ -726,6 +758,33 @@ export function Dashboard() {
                       </Group>
                     )}
                   </Stack>
+                </Grid.Col>
+                <Grid.Col span={12}>
+                  <Box mt={4} pt={10} style={{ borderTop: '1px solid var(--border)' }}>
+                    <Text size="xs" fw={700} mb={8} c="dimmed" style={{ textTransform: 'uppercase' }}>Performance Profiling</Text>
+                    <Group gap="xl">
+                      <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Parsing Delay</Text>
+                        <Text size="sm" fw={600} color="blue">{releaseDetails.DetectedToAddedMs} ms</Text>
+                        <Text size="10px" c="dimmed">(IRC/FTP Detection → Pazo Created)</Text>
+                      </Stack>
+                      <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Dirlist Delay</Text>
+                        <Text size="sm" fw={600} color="orange">{releaseDetails.AddedToDirlistMs} ms</Text>
+                        <Text size="10px" c="dimmed">(Pazo Created → First Dirlist Queue)</Text>
+                      </Stack>
+                      <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Logic Time (Total)</Text>
+                        <Text size="sm" fw={600} color="cyan">{releaseDetails.AddedToLastTaskMs || 0} ms</Text>
+                        <Text size="10px" c="dimmed">(Pazo Created → All Race Tasks Created)</Text>
+                      </Stack>
+                      <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Total Latency</Text>
+                        <Text size="sm" fw={700} color="indigo">{(releaseDetails.DetectedToAddedMs || 0) + (releaseDetails.AddedToLastTaskMs || 0)} ms</Text>
+                        <Text size="10px" c="dimmed">(Total system reaction time)</Text>
+                      </Stack>
+                    </Group>
+                  </Box>
                 </Grid.Col>
               </Grid>
             </Card>

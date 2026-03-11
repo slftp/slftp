@@ -36,6 +36,8 @@ type
     FPretimeUTC: Int64; //< UTC pretime for release
     FPretimeSource: String; // info where we found the pretime (see @link(dbaddpre.TPretimeResult))
     FIsSFVRelease: boolean; //< True if this release will have it's files checked to be in a SFV file before being transfered (if there is a SFV file)
+    FDetectedUTC: TDateTime;
+    FDetectedTick: Int64;
   public
     aktualizalva: boolean;
     aktualizalasfailed: boolean;
@@ -94,6 +96,8 @@ type
     property Pretime: Int64 read FPretimeUTC;
     property PretimeSource: String read FPretimeSource;
     property IsSFVRelease: Boolean read FIsSFVRelease;
+    property DetectedUTC: TDateTime read FDetectedUTC write FDetectedUTC;
+    property DetectedTick: Int64 read FDetectedTick write FDetectedTick;
   end;
 
   { @abstract(Class with support for 0-DAY release information) }
@@ -629,6 +633,8 @@ var
   rrgx: TRegExpr;
 begin
   try
+    FDetectedUTC := Now;
+    FDetectedTick := GetTickCount64;
     aktualizalva := False;
     PredOnAnySite := False;
 
