@@ -1638,11 +1638,8 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
-<<<<<<< HEAD
   fCompletedTask: TTask;
-=======
   fIsWantedSlotLoginTask: Boolean;
->>>>>>> origin/feat/performance-tracking
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1751,12 +1748,8 @@ begin
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
-<<<<<<< HEAD
                   fCompletedTask := todotask;
-                  if (fCompletedTask is TLoginTask) and (TLoginTask(fCompletedTask).wantedslot <> '') then
-=======
                   if fIsWantedSlotLoginTask then
->>>>>>> origin/feat/performance-tracking
                     self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                 finally
@@ -1767,12 +1760,8 @@ begin
                 begin
                   // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
                   // This should not really ever happen, other than in a deadlock situation.
-<<<<<<< HEAD
                   fCompletedTask := todotask;
-                  if (fCompletedTask is TLoginTask) and (TLoginTask(fCompletedTask).wantedslot <> '') then
-=======
                   if fIsWantedSlotLoginTask then
->>>>>>> origin/feat/performance-tracking
                     self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                   Debug(dpError, section,
