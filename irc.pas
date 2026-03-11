@@ -849,8 +849,10 @@ var
   is_crypted_msg: Boolean;
   i, FishModeArrayIndex, l: Integer;
   b: TIrcChannelSettings;
+  startTick: Int64;
   {$I common.inc}
 begin
+  startTick := GetTickCount64;
   FishModeArrayIndex := -1;
   {
   * full input string 's' looks like:
@@ -1161,7 +1163,7 @@ begin
   // no case from above matched, let's check if we have a catchadd for it
   Debug(dpSpam, section, '--> ' + channel + ' ' + nick + ' ' + msg);
   try
-    PrecatcherProcess(netname, channel, nick, msg);
+    PrecatcherProcess(netname, channel, nick, msg, startTick);
   except
     on e: Exception do
     begin

@@ -100,7 +100,7 @@ begin
     kb_add(
       '',
       '',
-      sitename, section, genre, kb_event, rls, cdno
+      sitename, section, genre, kb_event, rls, cdno, False, False, 0, GetTickCount64
     );
   end;
 

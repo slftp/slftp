@@ -208,6 +208,13 @@ type
     errorreason: String;
     lastTouch: TDateTime;
 
+    FDetectedUTC: TDateTime;
+    FDetectedTick: Int64;
+    FAddedTick: Int64;
+    FDirlistRequestedTick: Int64;
+    FTasksCreatedTick: Int64;
+    FLastTaskCreatedTick: Int64;
+
     PazoSitesList: TObjectList<TPazoSite>; //< list of @link(TPazoSite) which are part of this @link(TPazo) due to calling @link(AddSites)
     sl: TSkipList;
 
@@ -1102,6 +1109,22 @@ begin
   end;
 
   added := Now;
+  FAddedTick := GetTickCount64;
+  FDirlistRequestedTick := 0;
+  FTasksCreatedTick := 0;
+  FLastTaskCreatedTick := 0;
+
+  if rls <> nil then
+  begin
+    FDetectedUTC := rls.DetectedUTC;
+    FDetectedTick := rls.DetectedTick;
+  end
+  else
+  begin
+    FDetectedUTC := added;
+    FDetectedTick := FAddedTick;
+  end;
+
   queuenumber := TIdThreadSafeInt32WithEvent.Create;
   queuenumber.OnChange := QueueEvent;
   dirlisttasks := TIdThreadSafeInt32.Create;
