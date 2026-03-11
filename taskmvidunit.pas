@@ -182,6 +182,7 @@ begin
   Result := False;
   s := slot;
 
+  try
   if mainpazo.stopped then
   begin
     readyerror := True;
@@ -298,6 +299,13 @@ ujra:
 
   Result := True;
   ready := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TPazoMVIDTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoMVIDTask.Name: String;

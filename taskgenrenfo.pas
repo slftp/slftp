@@ -90,6 +90,7 @@ begin
   s := slot;
   tname := Name;
 
+  try
   Debug(dpMessage, section, '--> ' + tname);
 
   // exit if pazo is stopped
@@ -281,6 +282,13 @@ begin
   Result := True;
   ready := True;
   Debug(dpMessage, section, '<-- ' + tname);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TPazoGenreNfoTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoGenreNfoTask.Name: String;

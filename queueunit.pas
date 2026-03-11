@@ -1413,13 +1413,12 @@ function TQueueThread.RemovePazo(const pazo_id: integer; const aForce: boolean =
 var
   t: TPazoPlainTask;
   fTask: TTask;
-  fSlotsToRebuild: TList<TSiteSlot>;
   fSlot: TSiteSlot;
+  fSlot2Site: TSite;
   fListIndex: Integer;
   fList: TObjectList;
 begin
   Result := False;
-  fSlotsToRebuild := TList<TSiteSlot>.Create;
   try
     main_lock.Enter('RemovePazo');
     try
@@ -1441,16 +1440,34 @@ begin
               else if aForce then
               begin
                 Debug(dpMessage, section, Format('RemovePazo: Force removal of assigned task: %s', [t.Name]));
-                t.readyerror := True;
-
-                // if the site slot actually has this task assigned, we need to rebuild it
-                if TSiteSlot(t.slot1).todotask = t then
-                begin
-                  fSlotsToRebuild.Add(TSiteSlot(t.slot1));
+                // Clear slot.todotask BEFORE clearing t.slot1, so QueueRun cannot free
+                // the task while the slot thread still holds a reference to it.
+                fSlot := TSiteSlot(t.slot1);
+                fSlot.site.AcquireSlotsAssignmentLock('RemovePazo force slot1');
+                try
+                  fSlot.todotask := nil;
+                  fSlot.downloadingfrom := False;
+                  fSlot.uploadingto := False;
+                  t.slot1 := nil;
+                  t.slot1name := '';
+                finally
+                  fSlot.site.ReleaseSlotsAssignmentLock;
                 end;
-
-                t.slot1 := nil;
-                t.slot2 := nil;
+                if t.slot2 <> nil then
+                begin
+                  fSlot := TSiteSlot(t.slot2);
+                  fSlot2Site := fSlot.site;
+                  fSlot2Site.AcquireSlotsAssignmentLock('RemovePazo force slot2');
+                  try
+                    fSlot.todotask := nil;
+                    fSlot.downloadingfrom := False;
+                    fSlot.uploadingto := False;
+                    t.slot2 := nil;
+                  finally
+                    fSlot2Site.ReleaseSlotsAssignmentLock;
+                  end;
+                end;
+                t.readyerror := True;
               end;
             end;
           end;
@@ -1465,22 +1482,6 @@ begin
     finally
       main_lock.Leave;
     end;
-
-    // now rebuild the slot(s) outside of the queue lock
-    for fSlot in fSlotsToRebuild do
-    begin
-      Debug(dpMessage, section, Format('RemovePazo: Rebuild slot with stuck task: %s', [fSlot.Name]));
-      irc_Addadmin('[SITESLOT]: Rebuild slot with stuck task: %s', [fSlot.Name]);
-      try
-        fSlot.site.RebuildSlot(fSlot.SlotNumber);
-      except
-        on E: Exception do
-        begin
-          Debug(dpError, section, Format('[EXCEPTION] RemovePazo (RebuildSlot): %s', [e.Message]));
-        end;
-      end;
-    end;
-    fSlotsToRebuild.Free;
   except
     on E: Exception do
     begin
@@ -2094,20 +2095,31 @@ begin
 
         if (t.ClassType = TWaitTask) then
         begin
-          with TWaitTask(t) do
-            event.SetEvent;
-
           try
-            //t := NIL;
             ss := t.UidText;
             Debug(dpSpam, section, Format('[QUEUECLEAN] Clean wait task : %s', [t.Fullname]));
             ts.AcquireSlotsAssignmentLock('QueueClean wait');
             try
-              Debug(dpError, section, Format('QueueClean: Remove : %s', [t.Fullname]));
-              tasks.Remove(t);
+              // Clear the slot reference first so the slot thread does not access
+              // the task after it wakes up from WaitFor.
+              if (t.slot1 <> nil) then
+              begin
+                TSiteSlot(t.slot1).todotask := nil;
+                TSiteSlot(t.slot1).downloadingfrom := False;
+                TSiteSlot(t.slot1).uploadingto := False;
+                t.slot1     := nil;
+                t.slot1name := '';
+              end;
+              t.readyerror := True;
             finally
               ts.ReleaseSlotsAssignmentLock;
             end;
+            // Unblock the slot thread after the slot reference is cleared.
+            // Do NOT call tasks.Remove here: QueueRun will free the task once
+            // it sees readyerror=True and slot1=nil, ensuring Execute has fully
+            // returned from event.WaitFor before TWaitTask.Destroy frees the event.
+            TWaitTask(t).event.SetEvent;
+            Debug(dpError, section, Format('QueueClean: Unblocked stale wait task : %s', [ss]));
           except
             on e: Exception do
             begin

@@ -1638,6 +1638,7 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
+  fCompletedTask: TTask;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1688,7 +1689,13 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            todotask.readyerror := True;
+            // guard against fTodotask being nil'd concurrently by RemovePazo
+            try
+              if todotask <> nil then
+                todotask.readyerror := True;
+            except
+              // fTodotask was cleared by another thread while Execute was running
+            end;
           end;
         end;
 
@@ -1699,6 +1706,7 @@ begin
 
         if (todotask <> nil) then
         begin
+          fCompletedTask := nil;
           try
             try
               if todotask is TPazoRaceTask then
@@ -1727,16 +1735,15 @@ begin
                   end;
                 end;
               end;
-
-              if (todotask.slot1 <> nil) then
-              begin
-                todotask.slot1 := nil;
-              end;
             finally
+              // Clear fTodotask FIRST under SlotsAssignmentLock, saving the reference
+              // locally. Only then clear slot1 so QueueRun cannot free the task while
+              // fTodotask still points at it.
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
-                  if (todotask is TLoginTask) and (TLoginTask(todotask).wantedslot <> '') then
+                  fCompletedTask := todotask;
+                  if (fCompletedTask is TLoginTask) and (TLoginTask(fCompletedTask).wantedslot <> '') then
                     self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                 finally
@@ -1747,7 +1754,8 @@ begin
                 begin
                   // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
                   // This should not really ever happen, other than in a deadlock situation.
-                  if (todotask is TLoginTask) and (TLoginTask(todotask).wantedslot <> '') then
+                  fCompletedTask := todotask;
+                  if (fCompletedTask is TLoginTask) and (TLoginTask(fCompletedTask).wantedslot <> '') then
                     self.site.DecrementActiveLoginAttempts;
                   todotask := nil;
                   Debug(dpError, section,
@@ -1762,6 +1770,15 @@ begin
               Debug(dpError, section,
                 Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
                 [e.Message]));
+            end;
+          end;
+          // fTodotask is nil now — safe to clear slot1 and let QueueRun free the task
+          if (fCompletedTask <> nil) and (fCompletedTask.slot1 <> nil) then
+          begin
+            try
+              fCompletedTask.slot1 := nil;
+            except
+              // fCompletedTask may have been freed concurrently by RemovePazo+QueueRun
             end;
           end;
         end;

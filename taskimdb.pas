@@ -83,6 +83,7 @@ var r:TPazoImdbTask;
 begin
   Result:=False;
 
+  try
   if mainpazo.stopped then begin
     readyerror:= True;
     exit;
@@ -146,6 +147,13 @@ begin
 
   Result:= True;
   ready:= True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TPazoImdbTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 destructor TPazoImdbTask.Destroy;

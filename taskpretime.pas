@@ -45,6 +45,7 @@ var
 begin
   Result := True;
 
+  try
   plm := TPretimeLookupMode(config.ReadInteger(section, 'mode', 0));
   if (plm = plmNone) or (mainpazo.rls.pretime <> 0) then
   begin
@@ -77,6 +78,13 @@ begin
   kb_add(netname, channel, site1, mainpazo.rls.section, '', kbeADDPRE, mainpazo.rls.rlsname, '');
   ready := True;
   Result := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TPazoPretimeLookupTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoPretimeLookupTask.Name: String;

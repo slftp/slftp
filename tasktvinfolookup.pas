@@ -544,6 +544,7 @@ var
   ps: TPazoSite;
   fHttpGetErrMsg: String;
 begin
+  try
   tr := TTVRelease(mainpazo.rls);
 
   // Show is in DataBase? Here we could add some Update routine and CurrentAired EP.
@@ -676,6 +677,13 @@ begin
   db_tvinfo.free;
   ready := True;
   Result := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TPazoTVInfoLookupTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoTVInfoLookupTask.Name: String;

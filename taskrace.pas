@@ -405,6 +405,7 @@ begin
   fSubDirlistTasks := nil;
   waitForCompleteSubdirTypes := glWaitForCompleteSubdirTypes;
 
+  try
   if FWaitForComplete then
     Debug(dpSpam, c_section, 'DIRLIST starting now (Parent is COMPLETE): %s (dir=%s)', [site1, dir]);
 
@@ -924,6 +925,13 @@ begin
   GlDirlistCompletedCounter.Increment;
   Result := True;
   ready := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, c_section, '[EXCEPTION] TPazoDirlistTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoDirlistTask.Name: String;
@@ -1026,6 +1034,7 @@ begin
   s := slot;
   tname := Name;
 
+  try
   if mainpazo.stopped then
   begin
     mainpazo.errorreason := 'MainPazo Stopped';
@@ -1038,12 +1047,21 @@ begin
   mainpazo.lastTouch := Now();
 
   TryAgain:
-  if ((ps1.error) or (slshutdown)) then
-  begin
-    readyerror := True;
-    mainpazo.errorreason := 'ERROR PS1 or PS2';
-    Debug(dpSpam, c_section, '<-- ' + tname);
-    exit;
+  try
+    if ((ps1.error) or (slshutdown)) then
+    begin
+      readyerror := True;
+      mainpazo.errorreason := 'ERROR PS1 or PS2';
+      Debug(dpSpam, c_section, '<-- ' + tname);
+      exit;
+    end;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, c_section, '[EXCEPTION] TPazoMkdirTask ps1 check: %s', [e.Message]);
+      readyerror := True;
+      exit;
+    end;
   end;
 
   try
@@ -1397,6 +1415,13 @@ begin
   readyerror := failure;
   ready := True;
   Result := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, c_section, '[EXCEPTION] TPazoMkdirTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoMkdirTask.Name: String;
@@ -1690,7 +1715,7 @@ begin
   fSrcDirlist := nil;
   fDstDirlist := nil;
 
-
+  try
   if mainpazo.stopped then
   begin
     mainpazo.errorreason := 'Mainpazo stopped!';
@@ -3725,6 +3750,13 @@ begin
 
   Result := True;
   ready := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, c_section, '[EXCEPTION] TPazoRaceTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoRaceTask.Name: String;

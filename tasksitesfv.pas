@@ -86,6 +86,7 @@ begin
   fSlot := slot;
   fStream := nil;
 
+  try
   Debug(dpMessage, section, '--> ' + Name);
 
   // exit if pazo is stopped
@@ -204,6 +205,13 @@ begin
   ready := True;
   Result := True;
   Debug(dpMessage, section, '<-- ' + Name);
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TPazoSiteSfvTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoSiteSfvTask.Name: String;
