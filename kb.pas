@@ -1758,6 +1758,8 @@ begin
         // if this source has no destination we dont need to issue a dirlist as it would not yield any race actions
         if ssites_info.Count = 0 then
           Continue;
+        if p.FDirlistRequestedTick = 0 then
+          p.FDirlistRequestedTick := GetTickCount64;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', True);
         AddTask(pdt);
       except
@@ -1774,6 +1776,8 @@ begin
         // if this destination has no matching sources we arent going to fill anything and as such dont need the dirlists
         if dsites_info.Count = 0 then
           Continue;
+        if p.FDirlistRequestedTick = 0 then
+          p.FDirlistRequestedTick := GetTickCount64;
         pdt := TPazoDirlistTask.Create('', '', ps.Name, p, '', False);
         AddTask(pdt);
         irc_Addstats(Format(

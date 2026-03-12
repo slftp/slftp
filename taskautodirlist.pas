@@ -333,6 +333,8 @@ begin
             prestatus := False
           else
             prestatus := True;
+          if p.FDirlistRequestedTick = 0 then
+            p.FDirlistRequestedTick := GetTickCount64;
           pdt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', prestatus);
           AddTask(pdt);
         except

@@ -565,21 +565,48 @@ export function Dashboard() {
                           <Table.Td>
                             <Group gap={4}>
                               <Tooltip label={`Parsing: ${release.DetectedToAddedMs}ms`} withArrow>
-                                <Badge size="xs" variant="outline" color="blue" radius="xs" style={{ borderStyle: 'dashed' }}>
+                                <Badge
+                                  size="xs"
+                                  variant="light"
+                                  radius="sm"
+                                  style={{
+                                    background: 'var(--badge-timing-p-bg)',
+                                    border: '1px solid var(--badge-timing-p-border)',
+                                    color: 'var(--badge-timing-p-color)',
+                                  }}
+                                >
                                   P: {release.DetectedToAddedMs}ms
                                 </Badge>
                               </Tooltip>
                               {release.AddedToDirlistMs !== undefined && release.AddedToDirlistMs > 0 && (
                                 <Tooltip label={`Dirlist Start: ${release.AddedToDirlistMs}ms`} withArrow>
-                                  <Badge size="xs" variant="outline" color="orange" radius="xs" style={{ borderStyle: 'dashed' }}>
+                                  <Badge
+                                    size="xs"
+                                    variant="light"
+                                    radius="sm"
+                                    style={{
+                                      background: 'var(--badge-timing-d-bg)',
+                                      border: '1px solid var(--badge-timing-d-border)',
+                                      color: 'var(--badge-timing-d-color)',
+                                    }}
+                                  >
                                     D: {release.AddedToDirlistMs}ms
                                   </Badge>
                                 </Tooltip>
                               )}
-                              {release.AddedToLastTaskMs !== undefined && release.AddedToLastTaskMs > 0 ? (
-                                <Tooltip label={`Total Logic: ${release.AddedToLastTaskMs}ms`} withArrow>
-                                  <Badge size="xs" variant="outline" color="cyan" radius="xs" style={{ borderStyle: 'dashed' }}>
-                                    L: {release.AddedToLastTaskMs}ms
+                              {release.AddedToFirstTaskMs !== undefined && release.AddedToFirstTaskMs > 0 ? (
+                                <Tooltip label={`Reaction Time: ${release.AddedToFirstTaskMs}ms`} withArrow>
+                                  <Badge
+                                    size="xs"
+                                    variant="light"
+                                    radius="sm"
+                                    style={{
+                                      background: 'var(--badge-timing-l-bg)',
+                                      border: '1px solid var(--badge-timing-l-border)',
+                                      color: 'var(--badge-timing-l-color)',
+                                    }}
+                                  >
+                                    R: {release.AddedToFirstTaskMs}ms
                                   </Badge>
                                 </Tooltip>
                               ) : null}
@@ -774,14 +801,14 @@ export function Dashboard() {
                         <Text size="10px" c="dimmed">(Pazo Created → First Dirlist Queue)</Text>
                       </Stack>
                       <Stack gap={2}>
-                        <Text size="xs" c="dimmed">Logic Time (Total)</Text>
-                        <Text size="sm" fw={600} color="cyan">{releaseDetails.AddedToLastTaskMs || 0} ms</Text>
-                        <Text size="10px" c="dimmed">(Pazo Created → All Race Tasks Created)</Text>
+                        <Text size="xs" c="dimmed">Reaction Time</Text>
+                        <Text size="sm" fw={600} color="cyan">{releaseDetails.AddedToFirstTaskMs || 0} ms</Text>
+                        <Text size="10px" c="dimmed">(Pazo Created → First Race Task Queued)</Text>
                       </Stack>
                       <Stack gap={2}>
                         <Text size="xs" c="dimmed">Total Latency</Text>
-                        <Text size="sm" fw={700} color="indigo">{(releaseDetails.DetectedToAddedMs || 0) + (releaseDetails.AddedToLastTaskMs || 0)} ms</Text>
-                        <Text size="10px" c="dimmed">(Total system reaction time)</Text>
+                        <Text size="sm" fw={700} color="indigo">{(releaseDetails.DetectedToAddedMs || 0) + (releaseDetails.AddedToFirstTaskMs || 0)} ms</Text>
+                        <Text size="10px" c="dimmed">(Detection → First Race Task Queued)</Text>
                       </Stack>
                     </Group>
                   </Box>

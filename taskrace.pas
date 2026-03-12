@@ -1457,8 +1457,12 @@ begin
 
   self.filesize := filesize;
 
-  if (pazo <> nil) and (pazo.FTasksCreatedTick = 0) then
-    pazo.FTasksCreatedTick := GetTickCount64;
+  if pazo <> nil then
+  begin
+    if pazo.FTasksCreatedTick = 0 then
+      pazo.FTasksCreatedTick := GetTickCount64;
+    pazo.FLastTaskCreatedTick := GetTickCount64;
+  end;
 end;
 
 function GetSitePercent(const aSite: TPazoSite; const aDir: String): Integer;

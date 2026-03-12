@@ -68,6 +68,7 @@ var
   ss: String;
   sitename, section, genre, event, rls, cdno: String;
   kb_event: TKBEventType;
+  startTick: Int64;
 begin
 
   while(true) do
@@ -81,6 +82,8 @@ begin
       end;
       Continue;
     end;
+
+    startTick := GetTickCount64;
 
     ss:= Trim(DecryptUDP(ss));
     if ss = '' then Continue;
@@ -100,7 +103,7 @@ begin
     kb_add(
       '',
       '',
-      sitename, section, genre, kb_event, rls, cdno, False, False, 0, GetTickCount64
+      sitename, section, genre, kb_event, rls, cdno, False, False, 0, startTick
     );
   end;
 
