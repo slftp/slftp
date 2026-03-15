@@ -46,7 +46,8 @@ uses
   FastMM5,
   SysUtils,
   commandlineutil,
-  console;
+  console,
+  Winapi.Windows;
 
 {$APPTYPE CONSOLE}
 
@@ -73,4 +74,6 @@ begin
   end;
 
   ConsoleStart;
+  ExitProcess(0);
+  Halt(0);
 end.
