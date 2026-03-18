@@ -108,6 +108,7 @@ type
                                 SslFxp: integer): boolean;
     function SetSiteSslMethod(const SiteName: RawUTF8; SslMethod: integer): boolean;
     function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
+    function SetSiteSkipDirectoryCreation(const SiteName: RawUTF8; Enabled: boolean): boolean;
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
@@ -3065,6 +3066,7 @@ begin
     if Info.DestinationQueueLimit < 0 then
       Info.DestinationQueueLimit := 0;
     Info.UseForNFOdownload := Integer(s.UseForNFOdownload);
+    Info.SkipDirectoryCreation := s.SkipDirectoryCreation;
     Info.SiteFullName := UTF8Encode(s.SiteFullName);
     Info.SiteLinkSpeed := UTF8Encode(s.SiteLinkSpeed);
     Info.SiteSize := UTF8Encode(s.SiteSize);
@@ -3107,6 +3109,7 @@ begin
     if data.GetValueIndex('performance_adjusted_dirlist') >= 0 then s.PerformanceAdjustedDirlist := boolean(data.GetValueOrNull('performance_adjusted_dirlist'));
     if data.GetValueIndex('skip_being_uploaded_files') >= 0 then s.SkipBeingUploadedFiles := TSkipBeingUploaded(Integer(data.GetValueOrNull('skip_being_uploaded_files')));
     if data.GetValueIndex('kill_connection_on_stalled_transfer') >= 0 then s.KillConnectionOnStalledTransferSeconds := data.GetValueOrNull('kill_connection_on_stalled_transfer');
+    if data.GetValueIndex('skip_directory_creation') >= 0 then s.SkipDirectoryCreation := boolean(data.GetValueOrNull('skip_directory_creation'));
     if data.GetValueIndex('destination_queue_limit') >= 0 then
     begin
       fDestinationQueueLimit := data.GetValueOrNull('destination_queue_limit');
@@ -6846,6 +6849,28 @@ begin
   end;
 
   Result := files.ToJSON;
+end;
+
+function TApiSitesServiceImpl.SetSiteSkipDirectoryCreation(const SiteName: RawUTF8; Enabled: boolean): boolean;
+var
+  s: TSite;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    s.SkipDirectoryCreation := Enabled;
+    Debug(dpMessage, section, Format('SetSiteSkipDirectoryCreation API: %s = %s', [UTF8ToString(SiteName), BoolToStr(Enabled, True)]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteSkipDirectoryCreation: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 initialization

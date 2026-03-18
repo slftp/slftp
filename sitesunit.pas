@@ -253,6 +253,7 @@ type
     fIo_timeout: integer;
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
+    fSkipDirectoryCreation: boolean;
     fSpeedFromCS: TSlCriticalSection2;
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
@@ -438,6 +439,10 @@ type
     function GetKillConnectionOnStalledTransferSeconds: integer;
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
+    { Gets a value indicating whether directory creation should be skipped for this site }
+    function GetSkipDirectoryCreation: boolean;
+    { Sets a value indicating whether directory creation should be skipped for this site }
+    procedure SetSkipDirectoryCreation(const Value: boolean);
     function GetSpeed_From: TList<TSpeedFromRouteInfo>;
   public
     emptyQueue: boolean;
@@ -669,6 +674,7 @@ type
     property UseSiteSearchOnReqFill: boolean read GetUseSiteSearchOnReqFill write SetUseSiteSearchOnReqFill; //< a value indicating whether the 'site search' cmd will be used to find requests
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
+    property SkipDirectoryCreation: boolean read GetSkipDirectoryCreation write SetSkipDirectoryCreation; //< a value indicating whether automatic directory creation (MKDIR) should be skipped for this site
     property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
   end;
 
@@ -3489,6 +3495,7 @@ begin
   fIo_timeout := RCInteger('io_timeout', 15);
   fMaxIdle := RCInteger('max_idle', config.ReadInteger(section, 'maxidle', 60));
   fKillConnectionOnStalledTransferSeconds := RCInteger('kill_connection_on_stalled_transfer_seconds', kill_connection_on_stalled_transfer_seconds);
+  fSkipDirectoryCreation := RCBool('skipdirectorycreation', False);
   fMaxUpPerRip := RCInteger('maxupperrip', 0);
   fMaxSimUpCooldownUntil := 0;
   fMaxSimUpCooldownSeconds := 0;
@@ -5300,6 +5307,17 @@ procedure TSite.SetKillConnectionOnStalledTransferSeconds(const Value: integer);
 begin
   fKillConnectionOnStalledTransferSeconds := Value;
   WCInteger('kill_connection_on_stalled_transfer_seconds', Value);
+end;
+
+function TSite.GetSkipDirectoryCreation: boolean;
+begin
+  Result := fSkipDirectoryCreation;
+end;
+
+procedure TSite.SetSkipDirectoryCreation(const Value: boolean);
+begin
+  fSkipDirectoryCreation := Value;
+  WCBool('skipdirectorycreation', Value);
 end;
 
 function _mySpeedComparer({$IFDEF FPC}constref{$ELSE}const{$ENDIF} info1, info2: TSpeedFromRouteInfo): Integer;

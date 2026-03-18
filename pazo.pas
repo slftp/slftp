@@ -646,25 +646,33 @@ begin
           try
             if ((dstdl.need_mkdir) and (dstdl.dependency_mkdir = '')) then
             begin
-              siteSkipList := FindSiteSkipList(dst.Name, pazo.sl.sectionname);
-              if (siteSkipList <> nil) and siteSkipList.ShouldSkipDirUp('_ROOT_', dir) then
+              if FindSiteByName('', dst.Name).SkipDirectoryCreation and (pazo.rls <> nil) and (pazo.rls.kb_event <> kbeREQUEST) then
               begin
-                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping MKDIR for skipped directory %s on %s', [fd, Name, dst.Name, dir, dst.Name]);
+                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping MKDIR for %s on %s (SkipDirectoryCreation enabled)', [fd, Name, dst.Name, dir, dst.Name]);
                 dstdl.need_mkdir := False;
               end
               else
               begin
-                Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
-
-                if (dstdl.parent <> nil) then
-                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                siteSkipList := FindSiteSkipList(dst.Name, pazo.sl.sectionname);
+                if (siteSkipList <> nil) and siteSkipList.ShouldSkipDirUp('_ROOT_', dir) then
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Skipping MKDIR for skipped directory %s on %s', [fd, Name, dst.Name, dir, dst.Name]);
+                  dstdl.need_mkdir := False;
+                end
                 else
-                  pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
+                begin
+                  Debug(dpSpam, section, '%s :: Checking routes from %s to %s :: Adding MKDIR task on %s', [fd, Name, dst.Name, dst.Name]);
 
-                if dst.delay_upload > 0 then
-                  pm.startat := IncSecond(Now, dst.delay_upload);
+                  if (dstdl.parent <> nil) then
+                    pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, dstdl.parent.dirlist, dir)
+                  else
+                    pm := TPazoMkdirTask.Create(netname, channel, dst.Name, pazo, nil, dir);
 
-                dstdl.dependency_mkdir := pm.UidText;
+                  if dst.delay_upload > 0 then
+                    pm.startat := IncSecond(Now, dst.delay_upload);
+
+                  dstdl.dependency_mkdir := pm.UidText;
+                end;
               end;
             end;
             hasMkdirDependency := dstdl.dependency_mkdir <> '';
@@ -1779,6 +1787,7 @@ begin
     try
       d.need_mkdir := False;
       d.dependency_mkdir := '';
+      Debug(dpSpam, section, 'MkdirReady %s/%s: Directory exists, cleared need_mkdir', [Name, dir]);
     finally
       d.dirlist_lock.Leave;
     end;

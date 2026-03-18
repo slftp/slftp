@@ -569,32 +569,40 @@ begin
               // Only create if we have a dirlist entry and no mkdir is already pending.
               if IsSiteUploadDestination(mainpazo, site1) and (d <> nil) then
               begin
-                mkTask := nil;
-                d.dirlist_lock.Enter('TPazoDirlistTask mkdir trigger');
-                try
-                  if d.dependency_mkdir = '' then
-                  begin
-                    if dir <> '' then
-                      parentDirlist := ps1.dirlist
-                    else
-                      parentDirlist := nil;
 
-                    mkTask := TPazoMkdirTask.Create(netname, channel, site1, mainpazo, parentDirlist, dir);
-                    if ps1.delay_upload > 0 then
-                      mkTask.startat := IncSecond(Now, ps1.delay_upload);
-                    d.dependency_mkdir := mkTask.UidText;
-                  end;
-                finally
-                  d.dirlist_lock.Leave;
-                end;
-
-                if mkTask <> nil then
+                if (dir = '') and s.site.SkipDirectoryCreation then
                 begin
+
+                end
+                else
+                begin
+                  mkTask := nil;
+                  d.dirlist_lock.Enter('TPazoDirlistTask mkdir trigger');
                   try
-                    AddTask(mkTask);
-                  except
-                    on e: Exception do
-                      Debug(dpError, c_section, '[EXCEPTION] Failed to add MKDIR task: %s', [e.Message]);
+                    if d.dependency_mkdir = '' then
+                    begin
+                      if dir <> '' then
+                        parentDirlist := ps1.dirlist
+                      else
+                        parentDirlist := nil;
+
+                      mkTask := TPazoMkdirTask.Create(netname, channel, site1, mainpazo, parentDirlist, dir);
+                      if ps1.delay_upload > 0 then
+                        mkTask.startat := IncSecond(Now, ps1.delay_upload);
+                      d.dependency_mkdir := mkTask.UidText;
+                    end;
+                  finally
+                    d.dirlist_lock.Leave;
+                  end;
+
+                  if mkTask <> nil then
+                  begin
+                    try
+                      AddTask(mkTask);
+                    except
+                      on e: Exception do
+                        Debug(dpError, c_section, '[EXCEPTION] Failed to add MKDIR task: %s', [e.Message]);
+                    end;
                   end;
                 end;
               end;
@@ -615,11 +623,15 @@ begin
 
                 if not s.Cwd(fAbsoluteDir, True) then
                 begin
+                  if (dir = '') and s.site.SkipDirectoryCreation then
+                  begin
+                    ready := True;
+                    exit;
+                  end;
+                  
                   irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dir ' + fAbsoluteDir + ' on ' + site1 + ' does not exist']));
                   if (dir = '') then
-                  begin
                     ps1.MarkSiteAsFailed('cant cwd (dirlist)');
-                  end;
                   readyerror := True;
                   mainpazo.errorreason := 'cant cwd (dirlist)';
                   Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
@@ -632,16 +644,19 @@ begin
 
               if (dir = '') then
               begin
+                if s.site.SkipDirectoryCreation then
+                begin
+                  ready := True;
+                  exit;
+                end;
                 ps1.MarkSiteAsFailed('No such directory (dirlist)');
               end
               else
               begin
                 //avoid flood of "550 No such file or directory." for subdirs
                 irc_Adderror(Format('<c4>[DIRLIST SUBDIR]</c> [%s]: %s %s', [tname, dir, s.lastResponse]));
-                begin
-                  d.need_mkdir := True;
-                  d.error := True;
-                end;
+                d.need_mkdir := True;
+                d.error := True;
               end;
 
               readyerror := True;
@@ -1031,7 +1046,13 @@ var
       ps1.MkdirError(dir);
       if (dir = '') then
       begin
-        ps1.MarkSiteAsFailed('cant CWD');
+        if s.site.SkipDirectoryCreation then
+        begin
+          Debug(dpMessage, c_section, 'SkipDirectoryCreation: MKDIR CWD failed for %s, will retry later', [site1]);
+  
+        end
+        else
+          ps1.MarkSiteAsFailed('cant CWD');
       end;
       Result := True;
       readyerror := True;
@@ -1043,6 +1064,13 @@ begin
   Result := False;
   s := slot;
   tname := Name;
+
+  if (s = nil) or (s.site = nil) then
+  begin
+    Debug(dpError, c_section, 'TPazoMkdirTask.Execute: s or s.site is nil!');
+    readyerror := True;
+    exit;
+  end;
 
   try
   if mainpazo.stopped then
@@ -1120,20 +1148,29 @@ begin
 
   if failure then
   begin
-    irc_Adderror(Format('<c4>[ERROR] cant CWD</c> %s', [tname]));
-
     //fix drftpd messed up working directory by reconnect
     if s.site.sw = sswDrftpd then
     begin
+      irc_Adderror(Format('<c4>[ERROR] cant CWD</c> %s', [tname]));
       s.QuitAndRelogin('TPazoMkdirTask');
       goto TryAgain;
     end
     else
     begin
-      ps1.MarkSiteAsFailed('cant CWD');
-      mainpazo.errorreason := ps1.Name + ' marked as failed';
-      readyerror := True;
-      exit;
+      if s.site.SkipDirectoryCreation then
+      begin
+        Debug(dpMessage, c_section, 'SkipDirectoryCreation: MKDIR CWD failed for %s, will retry later', [site1]);
+        ready := True;
+        exit;
+      end
+      else
+      begin
+        irc_Adderror(Format('<c4>[ERROR] cant CWD</c> %s', [tname]));
+        ps1.MarkSiteAsFailed('cant CWD');
+        mainpazo.errorreason := ps1.Name + ' marked as failed';
+        readyerror := True;
+        exit;
+      end;
     end;
   end;
 
@@ -1143,10 +1180,20 @@ begin
     begin
       if not s.Pwd(ps1.maindir) then
       begin
-        ps1.MarkSiteAsFailed('cant PWD');
-        mainpazo.errorreason := ps1.Name + ' marked as failed';
-        readyerror := True;
-        exit;
+        if s.site.SkipDirectoryCreation then
+        begin
+          Debug(dpError, c_section, 'SKIPDIRCREATION MKDIR %s: PWD failed, no MarkSiteAsFailed (ready=True)', [site1]);
+  
+          ready := True;
+          exit;
+        end
+        else
+        begin
+          ps1.MarkSiteAsFailed('cant PWD');
+          mainpazo.errorreason := ps1.Name + ' marked as failed';
+          readyerror := True;
+          exit;
+        end;
       end;
 
       ps1.midnightdone := True;
@@ -1281,12 +1328,30 @@ begin
           end
           else if ((0 <> Pos('the parent of that directory does not exist', s.lastResponse)) and (dir <> '')) then
           begin
-            failure := True;
+            if s.site.SkipDirectoryCreation then
+            begin
+              Debug(dpSpam, c_section, 'SkipDirectoryCreation: Parent dir does not exist for %s, will retry %s later', [site1, dir]);
+              failure := False;
+            end
+            else
+            begin
+              failure := True;
+            end;
           end
 
           else if ((0 <> Pos('Parent directory does not exist', s.lastResponse)) and (dir <> '')) then
           begin
-            failure := True;
+            // Parent doesn't exist - if SkipDirectoryCreation is enabled, this is expected
+            // and we'll retry later when the directory is created externally
+            if s.site.SkipDirectoryCreation then
+            begin
+              Debug(dpSpam, c_section, 'SkipDirectoryCreation: Parent dir does not exist for %s, will retry %s later', [site1, dir]);
+              failure := False;
+            end
+            else
+            begin
+              failure := True;
+            end;
           end
 
           else if (0 <> Pos('Dirscript could not be executed', s.lastResponse)) then
@@ -1304,7 +1369,15 @@ begin
           else if (0 <> Pos('No such file or directory', s.lastResponse)) then
           begin
             // 550 No such file or directory.
-            failure := True;
+            if (dir <> '') and s.site.SkipDirectoryCreation then
+            begin
+              Debug(dpSpam, c_section, 'SkipDirectoryCreation: No such file or directory for %s, will retry %s later', [site1, dir]);
+              failure := False;
+            end
+            else
+            begin
+              failure := True;
+            end;
           end
 
           else if (0 <> Pos('Not allowed to make directories here', s.lastResponse)) then
@@ -1868,12 +1941,14 @@ begin
 
       if not sdst.Cwd(todir2) then
       begin
-        irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dst ' + todir2 + ' on ' + site2 + ' does not exist']));
+        if not sdst.site.SkipDirectoryCreation then
+          irc_Adderror(Format('<c4>[ERROR]</c> %s : %s', [tname, 'Dst ' + todir2 + ' on ' + site2 + ' does not exist']));
         if (dir = '') then
         begin
-          ps2.MarkSiteAsFailed('cant cwd on dst');
+          if not sdst.site.SkipDirectoryCreation then
+            ps2.MarkSiteAsFailed('cant cwd on dst');
         end;
-        readyerror := True;
+        readyerror := not sdst.site.SkipDirectoryCreation;
         mainpazo.errorreason := 'cant cwd on dst';
         Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
         exit;

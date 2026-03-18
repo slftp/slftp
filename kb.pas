@@ -201,7 +201,7 @@ var
   i, j, len: integer;
   r: TRelease;
   rc: TCRelease;
-  s: TSite;
+  s, s2: TSite;
   ss: String;
   p: TPazo;
   ps, psource: TPazoSite;
@@ -990,10 +990,19 @@ begin
                   end
                   else
                   begin
-                    mkt := TPazoMkdirTask.Create(netname, channel, ps.Name, p, nil, '');
-                    if ps.delay_upload > 0 then
-                      mkt.startat := IncSecond(Now, ps.delay_upload);
-                    ps.dirlist.dependency_mkdir := mkt.UidText;
+                    s2 := FindSiteByName('', ps.Name);
+                    if (s2 <> nil) and s2.SkipDirectoryCreation and (p.rls <> nil) and (p.rls.kb_event <> kbeREQUEST) then
+                    begin
+                      Debug(dpSpam, section, 'SkipDirectoryCreation: Skipping root MKDIR for %s', [ps.Name]);
+                      ps.dirlist.need_mkdir := False;
+                    end
+                    else
+                    begin
+                      mkt := TPazoMkdirTask.Create(netname, channel, ps.Name, p, nil, '');
+                      if ps.delay_upload > 0 then
+                        mkt.startat := IncSecond(Now, ps.delay_upload);
+                      ps.dirlist.dependency_mkdir := mkt.UidText;
+                    end;
                   end;
                 end;
                 hasMkdirDependency := ps.dirlist.dependency_mkdir <> '';

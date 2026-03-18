@@ -42,6 +42,7 @@ function IrcSetReverseFxp(const netname, channel, params: String): boolean;
 function IrcUseSiteSearchOnReqfill(const netname, channel, params: String): boolean;
 function IrcReducedSpeedstatWeight(const netname, channel, params: String): boolean;
 function IrcKillConnectionOnStalledTransfer(const netname, channel, params: String): boolean;
+function IrcSkipDirectoryCreation(const netname, channel, params: String): boolean;
 
 implementation
 
@@ -2739,11 +2740,89 @@ begin
     exit;
   end;
 
-  // if no valid value has been given, output the current value
   if fSeconds < 0 then
     irc_addtext(Netname, Channel, 'Site <b>%s</b> seconds after which stalled transfers are killed: %d', [fSite.Name, fSite.KillConnectionOnStalledTransferSeconds])
   else
     fSite.KillConnectionOnStalledTransferSeconds := fSeconds;
+
+  Result := True;
+end;
+
+function IrcSkipDirectoryCreation(const netname, channel, params: String): boolean;
+var
+  fSiteName: String;
+  fValue: String;
+  fSite: TSite;
+  fEnabled: boolean;
+  i: integer;
+  fCount: integer;
+begin
+  Result := False;
+  fSiteName := UpperCase(SubString(params, ' ', 1));
+  fValue := LowerCase(SubString(params, ' ', 2));
+
+  if fSiteName = '*' then
+  begin
+    if (fValue = 'on') or (fValue = '1') or (fValue = 'true') then
+    begin
+      for i := 0 to sites.Count - 1 do
+      begin
+        fSite := TSite(sites.Items[i]);
+        if (fSite.Name = getAdminSiteName) then
+          Continue;
+        fSite.SkipDirectoryCreation := True;
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> SkipDirectoryCreation enabled. MKDIR tasks will be skipped.', [fSite.Name]);
+      end;
+    end
+    else if (fValue = 'off') or (fValue = '0') or (fValue = 'false') then
+    begin
+      for i := 0 to sites.Count - 1 do
+      begin
+        fSite := TSite(sites.Items[i]);
+        if (fSite.Name = getAdminSiteName) then
+          Continue;
+        fSite.SkipDirectoryCreation := False;
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> SkipDirectoryCreation disabled. MKDIR tasks will be created normally.', [fSite.Name]);
+      end;
+    end
+    else if fValue = '' then
+    begin
+      for i := 0 to sites.Count - 1 do
+      begin
+        fSite := TSite(sites.Items[i]);
+        if (fSite.Name = getAdminSiteName) then
+          Continue;
+        irc_addtext(Netname, Channel, 'Site <b>%s</b> SkipDirectoryCreation: %s', [fSite.Name, BoolToStr(fSite.SkipDirectoryCreation, True)]);
+      end;
+    end
+    else
+      irc_addtext(Netname, Channel, 'Invalid value. Use "on", "off", or no value to see all statuses.');
+    
+    Result := True;
+    exit;
+  end;
+
+  fSite := FindSiteByName(netname, fSiteName);
+  if fSite = nil then
+  begin
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [fSiteName]);
+    exit;
+  end;
+
+  if fValue = '' then
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> SkipDirectoryCreation: %s', [fSite.Name, BoolToStr(fSite.SkipDirectoryCreation, True)])
+  else if (fValue = 'on') or (fValue = '1') or (fValue = 'true') then
+  begin
+    fSite.SkipDirectoryCreation := True;
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> SkipDirectoryCreation enabled. MKDIR tasks will be skipped.', [fSite.Name]);
+  end
+  else if (fValue = 'off') or (fValue = '0') or (fValue = 'false') then
+  begin
+    fSite.SkipDirectoryCreation := False;
+    irc_addtext(Netname, Channel, 'Site <b>%s</b> SkipDirectoryCreation disabled. MKDIR tasks will be created normally.', [fSite.Name]);
+  end
+  else
+    irc_addtext(Netname, Channel, 'Invalid value. Use "on", "off", or no value to see current status.');
 
   Result := True;
 end;

@@ -51,7 +51,7 @@ const
     'section', 'simulator', 'kb', 'precatcher', 'speedtest', 'windows');
 
   { Declarations of all IRC commands as @link(TIrcCommand) records }
-  ircCommandsArray: array[1..232] of TIrcCommand = (
+  ircCommandsArray: array[1..233] of TIrcCommand = (
     (cmd: 'GENERAL'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$general'),
     (cmd: 'help'; hnd: IrcHelp; minparams: 0; maxparams: 1; hlpgrp: 'general'),
     (cmd: 'die'; hnd: IrcDie; minparams: 0; maxparams: 0; hlpgrp: 'general'),
@@ -105,6 +105,7 @@ const
     (cmd: 'usesitesearchonreqfill'; hnd: IrcUseSiteSearchOnReqfill; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'reducedspeedstatweight'; hnd: IrcReducedSpeedstatWeight; minparams: 1; maxparams: 2; hlpgrp: 'site'),
     (cmd: 'killconnectiononstalledtransfer'; hnd: IrcKillConnectionOnStalledTransfer; minparams: 1; maxparams: 2; hlpgrp: 'site'),
+    (cmd: 'skipdirectorycreation'; hnd: IrcSkipDirectoryCreation; minparams: 1; maxparams: 2; hlpgrp: 'site'),
 
     (cmd: 'ROUTES'; hnd: IrcHelpHeader; minparams: 0; maxparams: 0; hlpgrp: '$route'),
     (cmd: 'routes'; hnd: IrcSpeeds; minparams: 1; maxparams: 1; hlpgrp: 'route'),

@@ -75,6 +75,7 @@ export function SiteSettings() {
   const [sslMethod, setSslMethod] = useState('0');
   const [sslFxp, setSslFxp] = useState('0');
   const [useForNfoDownload, setUseForNfoDownload] = useState<string>('1');
+  const [skipDirectoryCreation, setSkipDirectoryCreation] = useState(false);
   const [maxUpPerRip, setMaxUpPerRip] = useState<number | ''>(0);
   const [siteFullName, setSiteFullName] = useState('');
   const [siteLinkSpeed, setSiteLinkSpeed] = useState('');
@@ -143,6 +144,7 @@ export function SiteSettings() {
       setSslMethod(String(siteInfo.SslMethod ?? 0));
       setSslFxp(String(siteInfo.SslFxp ?? 0));
       setUseForNfoDownload(String(siteInfo.UseForNFOdownload ?? 1));
+      setSkipDirectoryCreation(Boolean(siteInfo.SkipDirectoryCreation));
       setMaxUpPerRip(siteInfo.MaxUpPerRip ?? 0);
       setSiteFullName(siteInfo.SiteFullName || '');
       setSiteLinkSpeed(siteInfo.SiteLinkSpeed || '');
@@ -237,7 +239,8 @@ export function SiteSettings() {
               site_notes: siteNotes,
               ident_response: identResponse,
               site_infos: siteInfos,
-              usefornfodownload: Number(useForNfoDownload)
+              usefornfodownload: Number(useForNfoDownload),
+              skip_directory_creation: skipDirectoryCreation
           }
       });
     },
@@ -513,6 +516,9 @@ export function SiteSettings() {
                         <Switch label="Auto-Login" checked={autoLogin} onChange={(e) => setAutoLogin(e.currentTarget.checked)} />
                         <Switch label="Legacy CWD" checked={legacyCwd} onChange={(e) => setLegacyCwd(e.currentTarget.checked)} />
                         <Switch label="Permanent Down" checked={permDown} color="red" onChange={(e) => setPermDown(e.currentTarget.checked)} />
+                        <Tooltip label="Don't auto-create release directories (MKDIR). Race tasks will wait until directory exists.">
+                            <div><Switch label="Skip Directory Creation" checked={skipDirectoryCreation} onChange={(e) => setSkipDirectoryCreation(e.currentTarget.checked)} /></div>
+                        </Tooltip>
                     </Group>
                 </div>
 
