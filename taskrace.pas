@@ -1229,6 +1229,8 @@ var
   srcPercentStr, dstPercentStr: String;
   fSrcDirlist: TDirlist;
   fDstDirlist: TDirlist;
+  fSrcFileSize: Int64;
+  fSrcDirlistEntry: TDirlistEntry;
 
   { FXP partial completion timeout tracking }
   fSourceCompleteTimestamp: TDateTime; //< Timestamp when source sent 226 (GetTickCount64)
@@ -1320,6 +1322,7 @@ var
           [tname, fLastSrcUploader, lSrcUser, lSrcFileSize]));
         mainpazo.errorreason := Format('Source uploader switch (%s -> %s)',
           [fLastSrcUploader, lSrcUser]);
+        ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - source uploader switch');
         readyerror := True;
@@ -1348,6 +1351,7 @@ var
         Debug(dpSpam, c_section, '[SRC-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastSrcFileSize, lSrcFileSize, fSrcDiffMSec]);
         mainpazo.errorreason := 'Source regression';
+        ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - source regression');
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - source regression');
         readyerror := True;
@@ -1409,6 +1413,7 @@ var
         end;
         mainpazo.errorreason := Format('Destination uploader switch (%s -> %s)',
           [fLastDstUploader, lDstUser]);
+        sdst.site.RegisterMaxSimUpHit(sdst.Name);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination uploader switch');
         readyerror := True;
@@ -1440,6 +1445,7 @@ var
         Debug(dpSpam, c_section, '[DST-REGRESSION] %s: Size=%d->%d (age=%dms) - slowkicker detected',
           [tname, fLastDstFileSize, lDstFileSize, fDstDiffMSec]);
         mainpazo.errorreason := 'Destination regression';
+        sdst.site.RegisterMaxSimUpHit(sdst.Name);
         sdst.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
         ssrc.DestroySocketAndRelogin('TPazoRaceTask - destination regression');
         readyerror := True;
@@ -2800,10 +2806,28 @@ begin
         // if the dirlist is fairly up to date and shows a file size of 0 bytes,
         // kill the connection to abort the transfer. the ABOR command does not
         // work (at least on glftpd)
+        // only check for stalled if source file is > 100KB to avoid false positives on small files
+        if (fDiffMSec < 200) and (fDirlistEntry.filesize = 0) then
         begin
-          if (fDiffMSec < 200) and (fDirlistEntry.filesize = 0) then
+          fSrcFileSize := 0;
+          if fSrcDirlist = nil then
+            fSrcDirlist := ps1.dirlist.FindDirlist(dir);
+          if fSrcDirlist <> nil then
+          begin
+            fSrcDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
+            try
+              fSrcDirlistEntry := fSrcDirlist.Find(filename);
+              if fSrcDirlistEntry <> nil then
+                fSrcFileSize := fSrcDirlistEntry.filesize;
+            finally
+              fSrcDirlist.dirlist_lock.Leave;
+            end;
+          end;
+          if fSrcFileSize > 102400 then
           begin
             irc_Adderror(Format('<c4>[STALLED]</c> [%s]: File size 0 for %d seconds - kill connection', [tname, fDiffSec]));
+            ssrc.site.RegisterMaxSimDownHit(ssrc.Name);
+            sdst.site.RegisterMaxSimUpHit(sdst.Name);
             sdst.DestroySocketAndRelogin('TPazoRaceTask');
             ssrc.DestroySocketAndRelogin('TPazoRaceTask');
             readyerror := True;
