@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs } from '@mantine/core';
-import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu } from '@tabler/icons-react';
+import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconListCheck } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { apiClient } from '../api/client';
@@ -58,6 +58,11 @@ function parseMaybeJsonArray<T = any>(value: unknown): T[] {
     }
   }
   return [];
+}
+
+// SectionTester component
+function SectionTesterInline() {
+  return <div>Section Tester Component Loaded - V2</div>;
 }
 
 function ReleaseSimulator() {
@@ -312,6 +317,9 @@ export function Simulator() {
           <Tabs.Tab value="simulator" leftSection={<IconCpu size="0.8rem" />}>
             Release Simulator
           </Tabs.Tab>
+          <Tabs.Tab value="sectiontester" leftSection={<IconListCheck size="0.8rem" />}>
+            Section Tester
+          </Tabs.Tab>
           <Tabs.Tab value="speedtest" leftSection={<IconBolt size="0.8rem" />}>
             Speedtests
           </Tabs.Tab>
@@ -319,6 +327,10 @@ export function Simulator() {
 
         <Tabs.Panel value="simulator" pt="xs">
           <ReleaseSimulator />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="sectiontester" pt="xs">
+          <SectionTesterInline />
         </Tabs.Panel>
 
         <Tabs.Panel value="speedtest" pt="xs">

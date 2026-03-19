@@ -306,3 +306,57 @@ export const setSlotMonitoring = async (site: string, slot: number, enabled: boo
     return false;
   }
 };
+
+// Section Tester API
+export interface SectionTestItem {
+  name: string;
+  section: string;
+}
+
+export interface SectionTestResult {
+  releaseName: string;
+  expectedSection: string;
+  detectedSection: string;
+  matched: boolean;
+}
+
+export interface SectionTestStats {
+  total: number;
+  matched: number;
+  failed: number;
+}
+
+export interface SectionTestResponse {
+  success: boolean;
+  error?: string;
+  results: SectionTestResult[];
+  stats: SectionTestStats;
+}
+
+export const batchTestSections = async (items: SectionTestItem[]): Promise<SectionTestResponse> => {
+  const response = await apiClient.post<any>('/ApiSimulatorService/BatchTestSections', {
+    ReleasesJson: JSON.stringify(items)
+  });
+  if (response.data?.result && Array.isArray(response.data.result)) {
+    return response.data.result[0] as SectionTestResponse;
+  }
+  return response.data as SectionTestResponse;
+};
+
+export const saveSectionTesterData = async (content: string): Promise<boolean> => {
+  const response = await apiClient.post<any>('/ApiSimulatorService/SaveSectionTesterData', {
+    Content: content
+  });
+  if (response.data?.result && Array.isArray(response.data.result)) {
+    return response.data.result[0] as boolean;
+  }
+  return response.data as boolean;
+};
+
+export const loadSectionTesterData = async (): Promise<string> => {
+  const response = await apiClient.post<any>('/ApiSimulatorService/LoadSectionTesterData');
+  if (response.data?.result && Array.isArray(response.data.result)) {
+    return response.data.result[0] as string;
+  }
+  return response.data || '';
+};

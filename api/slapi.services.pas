@@ -527,6 +527,18 @@ type
     /// POST /api/simulate/detect-section
     /// Detects section from release name using precatcher logic
     function DetectSection(const ReleaseName: RawUTF8): RawJSON;
+
+    /// POST /api/simulate/batch-test-sections
+    /// Batch tests section detection for multiple releases
+    function BatchTestSections(const ReleasesJson: RawUTF8): RawJSON;
+
+    /// POST /api/simulate/save-tester-data
+    /// Saves section tester test data
+    function SaveSectionTesterData(const Content: RawUTF8): boolean;
+
+    /// POST /api/simulate/load-tester-data
+    /// Loads section tester test data
+    function LoadSectionTesterData(out Content: RawUTF8): boolean;
   end;
 
   { Issues / Alerts API }

@@ -1,8 +1,8 @@
 import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs, Textarea, Modal } from '@mantine/core';
-import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings } from '@tabler/icons-react';
+import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings, IconUpload, IconDeviceFloppy, IconListCheck, IconCheck, IconX } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { apiClient } from '../api/client';
+import { useMemo, useState, useRef } from 'react';
+import { apiClient, batchTestSections, saveSectionTesterData, loadSectionTesterData, type SectionTestItem } from '../api/client';
 import { SpeedTest } from './SpeedTest';
 import { ConfigEditor } from './ConfigEditor';
 
@@ -70,14 +70,6 @@ type DetectSectionDebug = {
   mappingChanged?: boolean;
   compactTrace?: string;
   trace?: string;
-};
-
-type SectionDetectionResult = {
-  ReleaseName: string;
-  Section: string;
-  Error?: string;
-  Success: boolean;
-  Debug?: DetectSectionDebug;
 };
 
 function parseMaybeJsonArray<T = any>(value: unknown): T[] {
@@ -442,222 +434,274 @@ function ReleaseSimulator() {
   );
 }
 
+function parseReleaseText(content: string): SectionTestItem[] {
+  const lines = content.split('\n');
+  const items: SectionTestItem[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    
+    // Parse format: "Release.Name-GRP SECTION"
+    const lastSpaceIdx = trimmed.lastIndexOf(' ');
+    if (lastSpaceIdx > 0) {
+      const releaseName = trimmed.substring(0, lastSpaceIdx).trim();
+      const section = trimmed.substring(lastSpaceIdx + 1).trim();
+      if (releaseName && section) {
+        items.push({ name: releaseName, section: section.toUpperCase() });
+      }
+    }
+  }
+  
+  return items;
+}
+
 function SectionsSimulator() {
-  const [releaseInput, setReleaseInput] = useState('');
-  const [selectedResult, setSelectedResult] = useState<SectionDetectionResult | null>(null);
+  const [content, setContent] = useState<string>('');
+  const [parsedItems, setParsedItems] = useState<SectionTestItem[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const releases = useMemo(() => {
-    const names = releaseInput
-      .split(/\r?\n/)
-      .map((name) => name.trim())
-      .filter((name) => name.length > 0);
-    return [...new Set(names)];
-  }, [releaseInput]);
+  // Load saved data on mount
+  useQuery({
+    queryKey: ['section-tester-data'],
+    queryFn: async () => {
+      const data = await loadSectionTesterData();
+      setContent(data);
+      setParsedItems(parseReleaseText(data));
+      return data;
+    },
+    refetchOnWindowFocus: false,
+  });
 
-  const detectSectionsMutation = useMutation({
-    mutationFn: async (releaseNames: string[]) => {
-      const result = await Promise.all(releaseNames.map(async (releaseName) => {
-        try {
-          const response = await detectSectionByReleaseName(releaseName);
-          if (response?.success && response.section) {
-            return {
-              ReleaseName: releaseName,
-              Section: response.section,
-              Success: true,
-              Debug: response.debug,
-            } as SectionDetectionResult;
-          }
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: saveSectionTesterData,
+  });
 
-          return {
-            ReleaseName: releaseName,
-            Section: '',
-            Error: response?.error || response?.message || 'No section detected',
-            Success: false,
-            Debug: response.debug,
-          } as SectionDetectionResult;
-        } catch (error: any) {
-          return {
-            ReleaseName: releaseName,
-            Section: '',
-            Error: error?.message || 'Request failed',
-            Success: false,
-            Debug: undefined,
-          } as SectionDetectionResult;
-        }
-      }));
-
-      return result;
+  // Test mutation
+  const testMutation = useMutation({
+    mutationFn: async () => {
+      const items = parseReleaseText(content);
+      if (items.length === 0) {
+        throw new Error('No valid releases found in text');
+      }
+      setParsedItems(items);
+      return batchTestSections(items);
     },
   });
 
-  const results = detectSectionsMutation.data || [];
-  const detectedCount = results.filter((r) => r.Success).length;
+  const handleContentChange = (value: string) => {
+    setContent(value);
+    setParsedItems(parseReleaseText(value));
+  };
+
+  const handleSave = () => {
+    saveMutation.mutate(content);
+  };
+
+  const handleRunTest = () => {
+    testMutation.mutate();
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      setContent(text);
+      setParsedItems(parseReleaseText(text));
+    };
+    reader.readAsText(file);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const results = testMutation.data;
+  const hasResults = results && results.success && results.results.length > 0;
 
   return (
-    <Stack>
-      <Card withBorder radius="md" p="md">
-        <Stack gap="md">
-          <Textarea
-            label="Releases"
-            placeholder="One release per line..."
-            value={releaseInput}
-            onChange={(e) => setReleaseInput(e.currentTarget.value)}
-            autosize
-            minRows={8}
-            maxRows={18}
-          />
-
-          <Group justify="space-between" align="center">
-            <Text size="sm" c="dimmed">
-              {releases.length} unique release{releases.length === 1 ? '' : 's'}
-            </Text>
+    <Stack gap="md">
+      {/* Header with stats and buttons */}
+      <Card withBorder radius="md" p="sm">
+        <Group justify="space-between" wrap="wrap">
+          <Group gap="xs">
+            <Badge color="gray" variant="light">Total: {parsedItems.length}</Badge>
+            {hasResults && (
+              <>
+                <Badge color="teal" variant="light">Matched: {results.stats.matched}</Badge>
+                <Badge color="red" variant="light">Failed: {results.stats.failed}</Badge>
+              </>
+            )}
+          </Group>
+          <Group gap="xs">
+            <input
+              type="file"
+              accept=".txt"
+              style={{ display: 'none' }}
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+            <Tooltip label="Upload Release.txt file">
+              <ActionIcon
+                variant="light"
+                color="blue"
+                size="lg"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <IconUpload size="1.125rem" />
+              </ActionIcon>
+            </Tooltip>
+            <Tooltip label="Save test data">
+              <ActionIcon
+                variant="light"
+                color="green"
+                size="lg"
+                onClick={handleSave}
+                loading={saveMutation.isPending}
+              >
+                <IconDeviceFloppy size="1.125rem" />
+              </ActionIcon>
+            </Tooltip>
             <Button
-              leftSection={<IconWand size="1rem" />}
-              onClick={() => detectSectionsMutation.mutate(releases)}
-              loading={detectSectionsMutation.isPending}
-              disabled={releases.length === 0}
+              leftSection={<IconPlayerPlay size="1rem" />}
+              onClick={handleRunTest}
+              loading={testMutation.isPending}
+              disabled={parsedItems.length === 0}
             >
-              Detect Sections
+              Run Test
             </Button>
           </Group>
+        </Group>
+      </Card>
+
+      {/* Content textarea */}
+      <Card withBorder radius="md" p="md">
+        <Stack gap="xs">
+          <Group justify="space-between">
+            <Text size="sm" fw={500}>Release.txt Content</Text>
+            <Text size="xs" c="dimmed">Format: ReleaseName Section (one per line)</Text>
+          </Group>
+          <Textarea
+            value={content}
+            onChange={(e) => handleContentChange(e.currentTarget.value)}
+            placeholder="Example:\nRelease.Name-GRP MP3\nAnother.Release-GRP TV-DVDR-DE"
+            minRows={8}
+            maxRows={15}
+            autosize
+            styles={{
+              input: {
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+              },
+            }}
+          />
         </Stack>
       </Card>
 
-      {detectSectionsMutation.isPending && (
-        <Group justify="center" p="md"><Loader size="md" /></Group>
+      {/* Loading state */}
+      {testMutation.isPending && (
+        <Group justify="center" p="md">
+          <Loader size="md" />
+          <Text size="sm" c="dimmed">Testing sections...</Text>
+        </Group>
       )}
 
-      {detectSectionsMutation.isError && (
+      {/* Error state */}
+      {testMutation.isError && (
         <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red">
-          {(detectSectionsMutation.error as any)?.message || 'Failed to detect sections'}
+          {(testMutation.error as any)?.message || 'Failed to run section test'}
         </Alert>
       )}
 
-      {results.length > 0 && (
-        <>
-          <Card withBorder radius="md" p="sm">
-            <Group gap="xs">
-              <Badge color="gray" variant="light">Total: {results.length}</Badge>
-              <Badge color="teal" variant="light">Detected: {detectedCount}</Badge>
-              <Badge color="red" variant="light">Failed: {results.length - detectedCount}</Badge>
+      {/* Results table */}
+      {hasResults && (
+        <Card withBorder radius="md" p="md">
+          <Stack gap="md">
+            <Group justify="space-between">
+              <Title order={4}>Test Results</Title>
+              <Group gap="xs">
+                <Badge color="teal" leftSection={<IconCheck size="0.8rem" />}>
+                  {results.stats.matched} matched
+                </Badge>
+                <Badge color="red" leftSection={<IconX size="0.8rem" />}>
+                  {results.stats.failed} failed
+                </Badge>
+              </Group>
             </Group>
-          </Card>
 
-          <Card withBorder radius="md" p="md">
             <Table striped highlightOnHover withTableBorder>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Release</Table.Th>
-                  <Table.Th>Section</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Error</Table.Th>
+                  <Table.Th>Expected Section</Table.Th>
+                  <Table.Th>Detected Section</Table.Th>
+                  <Table.Th style={{ width: 100 }}>Status</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {results.map((result) => (
-                  <Table.Tr key={result.ReleaseName}>
+                {results.results.map((result, idx) => (
+                  <Table.Tr 
+                    key={idx}
+                    style={{
+                      backgroundColor: result.matched 
+                        ? 'rgba(0, 150, 0, 0.05)' 
+                        : 'rgba(255, 0, 0, 0.05)',
+                      borderLeft: `4px solid ${result.matched ? '#099268' : '#fa5252'}`,
+                    }}
+                  >
                     <Table.Td>
-                      <Button variant="subtle" size="compact-sm" px={0} onClick={() => setSelectedResult(result)}>
-                        {result.ReleaseName}
-                      </Button>
+                      <Text size="sm" style={{ fontFamily: 'monospace' }}>
+                        {result.releaseName}
+                      </Text>
                     </Table.Td>
-                    <Table.Td><Text size="sm">{result.Section || '-'}</Text></Table.Td>
                     <Table.Td>
-                      <Badge color={result.Success ? 'teal' : 'red'} variant="light">
-                        {result.Success ? 'OK' : 'FAILED'}
-                      </Badge>
+                      <Text size="sm" fw={500}>
+                        {result.expectedSection}
+                      </Text>
                     </Table.Td>
-                    <Table.Td><Text size="sm" c={result.Success ? 'dimmed' : 'red'}>{result.Error || '-'}</Text></Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c={result.matched ? 'dimmed' : 'red'}>
+                        {result.detectedSection || '(none)'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {result.matched ? (
+                        <Badge color="teal" size="sm" leftSection={<IconCheck size="0.7rem" />}>
+                          OK
+                        </Badge>
+                      ) : (
+                        <Badge color="red" size="sm" leftSection={<IconX size="0.7rem" />}>
+                          FAIL
+                        </Badge>
+                      )}
+                    </Table.Td>
                   </Table.Tr>
                 ))}
+                {results.results.length === 0 && (
+                  <Table.Tr>
+                    <Table.Td colSpan={4}>
+                      <Text size="sm" c="dimmed" ta="center" p="md">
+                        No results to display
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                )}
               </Table.Tbody>
             </Table>
-          </Card>
-        </>
+          </Stack>
+        </Card>
       )}
 
-      <Modal
-        opened={selectedResult !== null}
-        onClose={() => setSelectedResult(null)}
-        title="Section Build Details"
-        size="80%"
-        yOffset="2vh"
-      >
-        <Stack gap="xs">
-          <Text size="sm"><b>Release:</b> {selectedResult?.ReleaseName || '-'}</Text>
-          <Text size="sm"><b>Final Section:</b> {selectedResult?.Section || '-'}</Text>
-          <Table withTableBorder withColumnBorders>
-            <Table.Tbody>
-              <Table.Tr>
-                <Table.Td w={180}><Text size="sm">Direct input</Text></Table.Td>
-                <Table.Td><Text size="sm" ff="monospace">{selectedResult?.Debug?.inputDirect || '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Direct section</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionDirect || '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Tried replace fallback</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.usedReplace ? 'yes' : 'no'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Replace changed input</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.usedReplace ? (selectedResult?.Debug?.replaceChanged ? 'yes' : 'no') : '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Resolution mode</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.resolution || '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Input after replace</Text></Table.Td>
-                <Table.Td><Text size="sm" ff="monospace">{selectedResult?.Debug?.inputAfterReplace || '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Section after replace</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionAfterReplace || '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Before mapping</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionBeforeMapping || '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">After mapping</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.sectionAfterMapping || '-'}</Text></Table.Td>
-              </Table.Tr>
-              <Table.Tr>
-                <Table.Td><Text size="sm">Mapping changed</Text></Table.Td>
-                <Table.Td><Text size="sm">{selectedResult?.Debug?.mappingChanged ? 'yes' : 'no'}</Text></Table.Td>
-              </Table.Tr>
-            </Table.Tbody>
-          </Table>
-
-          {selectedResult?.Debug?.compactTrace && (
-            <Textarea
-              label="Compact Trace"
-              readOnly
-              value={selectedResult.Debug.compactTrace}
-              autosize
-              minRows={6}
-              maxRows={16}
-            />
-          )}
-
-          {selectedResult?.Debug?.trace && (
-            <details>
-              <summary>Full Trace</summary>
-              <Textarea
-                label=""
-                readOnly
-                value={selectedResult.Debug.trace}
-                autosize
-                minRows={6}
-                maxRows={14}
-                mt="xs"
-              />
-            </details>
-          )}
-        </Stack>
-      </Modal>
+      {/* Save success notification */}
+      {saveMutation.isSuccess && (
+        <Alert icon={<IconCheck size="1rem" />} color="green" variant="light">
+          Test data saved successfully
+        </Alert>
+      )}
     </Stack>
   );
 }
@@ -674,8 +718,8 @@ export function Tools() {
           <Tabs.Tab value="simulator" leftSection={<IconCpu size="0.8rem" />}>
             Release Simulator
           </Tabs.Tab>
-          <Tabs.Tab value="sections-simulator" leftSection={<IconWand size="0.8rem" />}>
-            Sections Simulator
+          <Tabs.Tab value="sections-simulator" leftSection={<IconListCheck size="0.8rem" />}>
+            Section Tester
           </Tabs.Tab>
           <Tabs.Tab value="speedtest" leftSection={<IconBolt size="0.8rem" />}>
             Speedtests

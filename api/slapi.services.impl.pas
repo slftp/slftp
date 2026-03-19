@@ -238,6 +238,9 @@ type
 	  public
 	    function Simulate(const Section, ReleaseName: RawUTF8; const SimulatePre: boolean): RawJSON;
 	    function DetectSection(const ReleaseName: RawUTF8): RawJSON;
+	    function BatchTestSections(const ReleasesJson: RawUTF8): RawJSON;
+	    function SaveSectionTesterData(const Content: RawUTF8): boolean;
+	    function LoadSectionTesterData(out Content: RawUTF8): boolean;
 	  end;
 
 	  { Issues Service Implementation }
@@ -6227,6 +6230,151 @@ begin
     compactLines.Free;
   if debugLines <> nil then
     debugLines.Free;
+end;
+
+function TApiSimulatorServiceImpl.BatchTestSections(const ReleasesJson: RawUTF8): RawJSON;
+var
+  resultDoc: variant;
+  resultsArr: TDocVariantData;
+  itemDoc: variant;
+  releasesData: variant;
+  releaseName: string;
+  expectedSection: string;
+  detectedSection: string;
+  inputDirect: string;
+  matched: boolean;
+  i: integer;
+  totalCount: integer;
+  matchedCount: integer;
+  failedCount: integer;
+  statsDoc: variant;
+begin
+  Result := '{}';
+  try
+    // Parse the input JSON array
+    releasesData := _Json(ReleasesJson);
+    
+    // Check if it's a DocVariant array (Kind = dvArray)
+    if (TDocVariantData(releasesData).Kind <> dvArray) then
+    begin
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode('Expected JSON array'));
+      Result := VariantSaveJSON(resultDoc);
+      Exit;
+    end;
+    
+    resultsArr.InitFast(dvArray);
+    totalCount := 0;
+    matchedCount := 0;
+    failedCount := 0;
+    
+    for i := 0 to TDocVariantData(releasesData).Count - 1 do
+    begin
+      releaseName := Trim(UTF8ToString(VariantToUTF8(TDocVariantData(releasesData).Values[i].name)));
+      expectedSection := UpperCase(Trim(UTF8ToString(VariantToUTF8(TDocVariantData(releasesData).Values[i].section))));
+      
+      if releaseName = '' then
+        Continue;
+        
+      Inc(totalCount);
+      
+      // Detect section using precatcher logic
+      inputDirect := ' ' + releaseName + ' ';
+      detectedSection := FindSection(inputDirect);
+      
+      // Apply section mapping
+      detectedSection := PrecatcherSectionMapping(releaseName, detectedSection);
+      
+      // Compare sections
+      matched := SameText(detectedSection, expectedSection);
+      
+      if matched then
+        Inc(matchedCount)
+      else
+        Inc(failedCount);
+      
+      TDocVariant.New(itemDoc);
+      TDocVariantData(itemDoc).AddValue('releaseName', UTF8Encode(releaseName));
+      TDocVariantData(itemDoc).AddValue('expectedSection', UTF8Encode(expectedSection));
+      TDocVariantData(itemDoc).AddValue('detectedSection', UTF8Encode(detectedSection));
+      TDocVariantData(itemDoc).AddValue('matched', matched);
+      resultsArr.AddItem(itemDoc);
+    end;
+    
+    // Build stats
+    TDocVariant.New(statsDoc);
+    TDocVariantData(statsDoc).AddValue('total', totalCount);
+    TDocVariantData(statsDoc).AddValue('matched', matchedCount);
+    TDocVariantData(statsDoc).AddValue('failed', failedCount);
+    
+    // Build final result
+    TDocVariant.New(resultDoc);
+    TDocVariantData(resultDoc).AddValue('success', True);
+    TDocVariantData(resultDoc).AddValue('error', '');
+    TDocVariantData(resultDoc).AddValue('results', variant(resultsArr));
+    TDocVariantData(resultDoc).AddValue('stats', statsDoc);
+    Result := VariantSaveJSON(resultDoc);
+    
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] BatchTestSections: %s', [E.Message]));
+      TDocVariant.New(resultDoc);
+      TDocVariantData(resultDoc).AddValue('success', False);
+      TDocVariantData(resultDoc).AddValue('error', UTF8Encode(E.Message));
+      Result := VariantSaveJSON(resultDoc);
+    end;
+  end;
+end;
+
+function TApiSimulatorServiceImpl.SaveSectionTesterData(const Content: RawUTF8): boolean;
+var
+  fileName: string;
+begin
+  Result := False;
+  try
+    fileName := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + 'sectiontester.txt';
+    ForceDirectories(ExtractFilePath(fileName));
+    _WriteUtf8TextFileAtomic(fileName, Content);
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] SaveSectionTesterData: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
+function TApiSimulatorServiceImpl.LoadSectionTesterData(out Content: RawUTF8): boolean;
+var
+  fileName: string;
+  fileContent: RawUTF8;
+begin
+  Result := False;
+  Content := '';
+  try
+    fileName := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + 'sectiontester.txt';
+    if FileExists(fileName) then
+    begin
+      fileContent := StringFromFile(fileName);
+      Content := fileContent;
+      Result := True;
+    end
+    else
+    begin
+      Content := '';
+      Result := True; // Return empty string, not error
+    end;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, 'slapi', Format('[EXCEPTION] LoadSectionTesterData: %s', [E.Message]));
+      Content := '';
+      Result := False;
+    end;
+  end;
 end;
 
 { TApiImdbServiceImpl }
