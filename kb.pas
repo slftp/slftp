@@ -581,9 +581,17 @@ begin
     kb_lock.Leave;
   end;
 
-  Result := p.pazo_id;
-  if p.PazoSitesList.Count = 0 then
-    exit;
+  kb_lock.Enter('kb_AddB_count');
+  try
+    Result := p.pazo_id;
+    if p.PazoSitesList.Count = 0 then
+    begin
+      kb_lock.Leave;
+      exit;
+    end;
+  finally
+    kb_lock.Leave;
+  end;
 
   if ((event <> kbeSPREAD) and (CheckIfGlobalSkippedGroup(rls))) then
   begin
@@ -765,21 +773,15 @@ begin
     end;
 
     // now add all dst
-    for i := p.PazoSitesList.Count - 1 downto 0 do
-    begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
-      ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_5');
-      try
+    kb_lock.Enter('kb_AddB_loop');
+    try
+      for i := p.PazoSitesList.Count - 1 downto 0 do
+      begin
+        ps := TPazoSite(p.PazoSitesList[i]);
         FireRules(p, ps);
-      finally
-        kb_lock.Leave;
       end;
+    finally
+      kb_lock.Leave;
     end;
   except
     on e: Exception do
@@ -1279,10 +1281,13 @@ begin
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
 
-  secs := TStringlist.Create;
-  r := TRegexpr.Create;
-  xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  secs := nil;
+  r := nil;
+  xin := nil;
   try
+    secs := TStringlist.Create;
+    r := TRegexpr.Create;
+    xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
     r.ModifierI := True;
     r.ModifierM := True;
     r.Expression := '^(\#|\/\/)';
@@ -1299,9 +1304,9 @@ begin
     end;
 
   finally
-    xin.Free;
-    r.free;
-    secs.free;
+    FreeAndNil(xin);
+    FreeAndNil(r);
+    FreeAndNil(secs);
   end;
   Result := True;
 end;
