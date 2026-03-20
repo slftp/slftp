@@ -1313,12 +1313,14 @@ var
 
   procedure CreateTVLookupTask;
   begin
+    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB1] Creating TV lookup task: rls=%s, showname=%s', [rlsname, showname]));
     try
       AddTask(TPazoTVInfoLookupTask.Create('', '', getAdminSiteName, pazo, 1));
+      Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB1] TV lookup task added to queue', []));
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('[EXCEPTION] TTVRelease.Aktualizal.AddTask: %s', [e.Message]));
+        Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB1] [EXCEPTION] TTVRelease.Aktualizal.AddTask: %s', [e.Message]));
       end;
     end;
   end;
@@ -1328,9 +1330,19 @@ begin
 
   aktualizalva := True;
   if showname = '' then
+  begin
+    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB0] Exit: showname is empty for rls=%s', [rlsname]));
     exit;
+  end;
 
   pazo := FindPazoByName(section, rlsname);
+  if pazo = nil then
+  begin
+    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB0] Exit: pazo not found for rls=%s, section=%s', [rlsname, section]));
+    exit;
+  end;
+
+  Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB0] Starting lookup: rls=%s, showname=%s', [rlsname, showname]));
 
   // check if we already have this showname in database
   try
@@ -1347,9 +1359,11 @@ begin
   begin
     // showname was found in db
     db_tvinfo.ripname := rlsname;
+    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Found in DB: showname=%s, tvmaze_id=%s', [showname, db_tvinfo.tvmaze_id]));
 
     if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'days_between_last_update', 6) then
     begin
+      Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Data too old, updating: last_updated=%d days ago', [DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now())]));
       // try to update infos in database
       if not db_tvinfo.Update then
       begin
@@ -1363,6 +1377,7 @@ begin
     end
     else
     begin
+      Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Data recent, using cached: last_updated=%d days ago', [DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now())]));
       // we have a recent set of data
       try
         db_tvinfo.SetTVDbRelease(self);
@@ -1378,6 +1393,7 @@ begin
   end
   else
   begin
+    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Not in DB, doing websearch: showname=%s', [showname]));
     // do websearch for a non existing showname in database
     CreateTVLookupTask;
   end;
