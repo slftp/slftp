@@ -1264,11 +1264,13 @@ begin
       begin
         t.readyerror := true;
         Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+        exit;
       end;
     except
       on e: Exception do
       begin
         Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+        exit;
       end;
     end;
   end;
