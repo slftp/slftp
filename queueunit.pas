@@ -524,13 +524,6 @@ begin
     ss1 := nil;
     for i := 0 to s1.slots.Count - 1 do
     begin
-      // Check for concurrent modification - index must be less than Count
-      if i >= s1.slots.Count then
-      begin
-        ss1 := nil;
-        Break;
-      end;
-
       ss1 := TSiteSlot(s1.slots[i]);
       if ss1.todotask = nil then
       begin
@@ -1248,25 +1241,6 @@ begin
         end;
       end;
 
-      // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
-      // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
-      // dependencies of the race task never be resolved and it would remain and pollute the queue.
-      if t is TPazoRaceTask then
-      begin
-        try
-          if TPazoRaceTask(t).ps2.error or
-            ((TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
-          begin
-            t.readyerror := true;
-            Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
-          end;
-        end;
-      end;
     finally
       main_lock.Leave;
     end;
@@ -1276,6 +1250,26 @@ begin
     begin
       Debug(dpError, section, Format('[EXCEPTION] AddTask tasks.Add: %s', [e.Message]));
       exit;
+    end;
+  end;
+
+  // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
+  // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
+  // dependencies of the race task never be resolved and it would remain and pollute the queue.
+  if t is TPazoRaceTask then
+  begin
+    try
+      if TPazoRaceTask(t).ps2.error or
+        ((TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
+      begin
+        t.readyerror := true;
+        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+      end;
     end;
   end;
 

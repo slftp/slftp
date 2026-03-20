@@ -581,17 +581,9 @@ begin
     kb_lock.Leave;
   end;
 
-  kb_lock.Enter('kb_AddB_count');
-  try
-    Result := p.pazo_id;
-    if p.PazoSitesList.Count = 0 then
-    begin
-      kb_lock.Leave;
-      exit;
-    end;
-  finally
-    kb_lock.Leave;
-  end;
+  Result := p.pazo_id;
+  if p.PazoSitesList.Count = 0 then
+    exit;
 
   if ((event <> kbeSPREAD) and (CheckIfGlobalSkippedGroup(rls))) then
   begin
@@ -773,15 +765,21 @@ begin
     end;
 
     // now add all dst
-    kb_lock.Enter('kb_AddB_loop');
-    try
-      for i := p.PazoSitesList.Count - 1 downto 0 do
-      begin
-        ps := TPazoSite(p.PazoSitesList[i]);
-        FireRules(p, ps);
+    for i := p.PazoSitesList.Count - 1 downto 0 do
+    begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
       end;
-    finally
-      kb_lock.Leave;
+      ps := TPazoSite(p.PazoSitesList[i]);
+      kb_lock.Enter('kb_AddB_5');
+      try
+        FireRules(p, ps);
+      finally
+        kb_lock.Leave;
+      end;
     end;
   except
     on e: Exception do
