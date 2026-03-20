@@ -1517,7 +1517,7 @@ begin
   try
     if FLookupDone then
     begin
-      Debug(dpSpam, rsections, Format('[IMDB-FLOW26] Aktualizal: Lookup already done for %s, skipping duplicate call', [rlsname]));
+      Debug(dpError, rsections, Format('[IMDB-FLOW30] Aktualizal: Lookup already done for %s, skipping duplicate call', [rlsname]));
       Result := True;
       Exit;
     end;
@@ -1573,10 +1573,17 @@ begin
         fErrorString := 'imdb_type';
         imdb_type := imdbdata.imdb_type;
         fErrorString := 'FLookupDone';
-        FLookupDone := True;
-        Debug(dpSpam, rsections, Format('[IMDB-FLOW30] Aktualizal: All fields populated from cache, FLookupDone=True for %s', [rlsname]));
-        Result := True;
-        Exit;
+        if imdb_year > 0 then
+        begin
+          FLookupDone := True;
+          Debug(dpError, rsections, Format('[IMDB-FLOW31] Aktualizal: All fields populated from cache, FLookupDone=True for %s', [rlsname]));
+          Result := True;
+          Exit;
+        end
+        else
+        begin
+          Debug(dpError, rsections, Format('[IMDB] Aktualizal (cache): imdb_year=0 for %s, falling through to DB path', [rlsname]));
+        end;
       except
         on e: Exception do
         begin
@@ -1585,12 +1592,12 @@ begin
       end;
     end;
 
-    Debug(dpSpam, rsections, Format('[IMDB-FLOW27] Aktualizal: Checking persistent DB for %s', [rlsname]));
+    Debug(dpError, rsections, Format('[IMDB-FLOW32] Aktualizal: Checking persistent DB for %s', [rlsname]));
     imdbdata := GetImdbMovieData(pazo.rls.rlsname);
     try
       if (imdbdata = nil) or UpdateMovieInDbWithImdbDataNeeded(imdbdata) then
       begin
-        Debug(dpSpam, rsections, Format('[IMDB-FLOW28] Aktualizal: No IMDB data found, starting NFO search for %s', [rlsname]));
+        Debug(dpError, rsections, Format('[IMDB-FLOW33] Aktualizal: No IMDB data found, starting NFO search for %s', [rlsname]));
 
         // Check if NFO lookup already queued
         i := last_addnfo.IndexOf(rlsname);
@@ -1626,7 +1633,7 @@ begin
       end
       else
       begin
-        Debug(dpSpam, rsections, Format('[IMDB-FLOW29] Aktualizal: Found IMDB data in DB, populating fields for %s', [rlsname]));
+        Debug(dpError, rsections, Format('[IMDB-FLOW34] Aktualizal: Found IMDB data in DB, populating fields for %s', [rlsname]));
         try
           fErrorString := 'imdb_id';
           imdb_id := imdbdata.imdb_id;
@@ -1659,8 +1666,15 @@ begin
           fErrorString := 'imdb_type';
           imdb_type := imdbdata.imdb_type;
           fErrorString := 'FLookupDone';
-          FLookupDone := True;
-          Debug(dpSpam, rsections, Format('[IMDB-FLOW30] Aktualizal: All fields populated, FLookupDone=True for %s', [rlsname]));
+          if imdb_year > 0 then
+          begin
+            FLookupDone := True;
+            Debug(dpError, rsections, Format('[IMDB-FLOW35] Aktualizal: All fields populated, FLookupDone=True for %s', [rlsname]));
+          end
+          else
+          begin
+            Debug(dpError, rsections, Format('[IMDB] Aktualizal: imdb_year=0, NOT setting FLookupDone for %s', [rlsname]));
+          end;
         except
           on e: Exception do
           begin

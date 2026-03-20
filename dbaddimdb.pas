@@ -671,7 +671,8 @@ end;
 
 function UpdateMovieInDbWithImdbDataNeeded(const aImdbData: TDbImdbData): Boolean;
 begin
-  Result := DaysBetween(now, aImdbData.UpdatedTime) >= config.ReadInteger(section, 'update_time_in_days', 7);
+  Result := (aImdbData.imdb_year = 0) or
+            (DaysBetween(now, aImdbData.UpdatedTime) >= config.ReadInteger(section, 'update_time_in_days', 7));
 end;
 
 function getCountryFromReleaseName(const aReleaseName: string; const countriesLst: TStringList): string;
@@ -1034,7 +1035,10 @@ begin
   ir.imdb_stvs := imdb_stvs;
   ir.imdb_type := imdb_type;
 
-  ir.SetLookupDone;
+  if imdb_year > 0 then
+    ir.SetLookupDone
+  else
+    Debug(dpError, section, Format('[IMDB] SetIMDBRelease: imdb_year=0, NOT setting LookupDone for %s', [ir.rlsname]));
 end;
 
 { Updates the FLookupDone flag in the knowledge base TIMDBRelease object }
@@ -1067,6 +1071,7 @@ end;
 procedure dbaddimdb_SaveImdbData(rls: String; imdbdata: TDbImdbData);
 var
   fPazo: TPazo;
+  ps: TPazoSite;
 begin
   if imdbdata = nil then
   begin
@@ -1074,7 +1079,7 @@ begin
     Exit;
   end;
 
-  Debug(dpSpam, section, Format('[IMDB-FLOW20] dbaddimdb_SaveImdbData called for release: %s', [rls]));
+  Debug(dpError, section, Format('[IMDB-FLOW20] dbaddimdb_SaveImdbData called for release: %s', [rls]));
   Debug(dpSpam, section, Format('[SAVEIMDB] Countries count before check: %d', [imdbdata.imdb_countries.Count]));
   
   // Log current countries content for debugging
@@ -1104,16 +1109,29 @@ begin
   // Save to persistent database using PostResults method
   try
     imdbdata.PostResults(rls);
-    Debug(dpSpam, section, Format('[IMDB-FLOW21] Data saved to persistent database: %s', [imdbdata.imdb_id]));
+    Debug(dpError, section, Format('[IMDB-FLOW21] Data saved to persistent database: %s', [imdbdata.imdb_id]));
 
     // Populate IMDB fields in knowledge base using SetIMDBRelease (like TV does with SetTVDbRelease)
     try
       fPazo := FindPazoByRls(rls);
       if (fPazo <> nil) and (fPazo.rls is TIMDBRelease) then
       begin
-        Debug(dpSpam, section, Format('[IMDB-FLOW24] Calling SetIMDBRelease for pazo: %s', [rls]));
+        Debug(dpError, section, Format('[IMDB-FLOW22] Calling SetIMDBRelease for pazo: %s', [rls]));
         imdbdata.SetIMDBRelease(TIMDBRelease(fPazo.rls));
-        Debug(dpSpam, section, Format('[IMDB-FLOW25] SetIMDBRelease completed for pazo: %s', [rls]));
+        Debug(dpError, section, Format('[IMDB-FLOW23] SetIMDBRelease completed for pazo: %s', [rls]));
+
+        if imdbdata.imdb_year > 0 then
+        begin
+          ps := FindMostCompleteSite(fPazo);
+          if ((ps = nil) and (fPazo.PazoSitesList.Count > 0)) then
+            ps := TPazoSite(fPazo.PazoSitesList[0]);
+
+          if (ps <> nil) then
+          begin
+            Debug(dpError, section, Format('[IMDB-FLOW24] Firing kb_Add(kbeUPDATE) for %s @ %s', [rls, ps.Name]));
+            kb_Add('', '', ps.Name, fPazo.rls.section, '', kbeUPDATE, rls, '');
+          end;
+        end;
       end
       else
       begin
@@ -1406,6 +1424,7 @@ var
   fRlsFound: boolean;
   fPazo: TPazo;
   fImdbData: TDbImdbData;
+  ps: TPazoSite;
 begin
   Result := False;
   Debug(dpSpam, section, Format('[PROCESS] addimdbcmd value: "%s"', [addimdbcmd]));
@@ -1414,57 +1433,71 @@ begin
   // Check if message starts with addimdbcmd followed by space (not colon like "IMDBiNFO:")
   if (1 = Pos(addimdbcmd + ' ', msg)) then
   begin
-    Debug(dpSpam, section, Format('[IMDB-FLOW1] Command received: net=%s, chan=%s, nick=%s, msg=%s', [net, chan, nick, msg]));
-    Debug(dpSpam, section, Format('[IMDB-FLOW2] Command matched: %s', [addimdbcmd]));
+    Debug(dpError, section, Format('[IMDB-FLOW1] Command received: net=%s, chan=%s, nick=%s, msg=%s', [net, chan, nick, msg]));
+    Debug(dpError, section, Format('[IMDB-FLOW2] Command matched: %s', [addimdbcmd]));
     msg := Copy(msg, length(addimdbcmd + ' ') + 1, 1000);
     Debug(dpSpam, section, Format('[PROCESS] Parsed msg: %s', [msg]));
 
     fRls := '';
     fRls := SubString(msg, ' ', 1);
-    Debug(dpSpam, section, Format('[IMDB-FLOW3] Parsed release: %s', [fRls]));
+    Debug(dpError, section, Format('[IMDB-FLOW3] Parsed release: %s', [fRls]));
     fImdbId := '';
     fImdbId := SubString(msg, ' ', 2);
-    Debug(dpSpam, section, Format('[IMDB-FLOW4] Parsed IMDB-ID: %s', [fImdbId]));
+    Debug(dpError, section, Format('[IMDB-FLOW4] Parsed IMDB-ID: %s', [fImdbId]));
 
     if not check_ImdbId(fImdbId) then
     begin
-      Debug(dpSpam, section, Format('[IMDB-FLOW5] Invalid IMDB-ID for %s: %s', [fRls, fImdbId]));
+      Debug(dpError, section, Format('[IMDB-FLOW5] Invalid IMDB-ID for %s: %s', [fRls, fImdbId]));
       // No IRC error message - only log invalid ID like in original
       exit;
     end;
 
-    Debug(dpSpam, section, Format('[IMDB-FLOW6] IMDB-ID validation passed: %s', [fImdbId]));
+    Debug(dpError, section, Format('[IMDB-FLOW6] IMDB-ID validation passed: %s', [fImdbId]));
 
     if ((fRls <> '') and (fImdbId <> '')) then
     begin
-      Debug(dpSpam, section, Format('[IMDB-FLOW7] Starting processing for release %s with IMDB-ID %s', [fRls, fImdbId]));
+      Debug(dpError, section, Format('[IMDB-FLOW7] Starting processing for release %s with IMDB-ID %s', [fRls, fImdbId]));
 
       // Check if IMDB ID already exists in database
       if foundMovieAlreadyInDbWithImdbId(fImdbId) then
       begin
-        Debug(dpSpam, section, Format('[IMDB-FLOW8] IMDB-ID %s already exists in database for release %s', [fImdbId, fRls]));
+        Debug(dpError, section, Format('[IMDB-FLOW8] IMDB-ID %s already exists in database for release %s', [fImdbId, fRls]));
         irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: IMDB ID %s already in Database!', [fRls, fImdbId]));
 
         // Populate IMDB data from database using the IMDB ID (not release name)
         try
-          Debug(dpSpam, section, Format('[IMDB-FLOW8a] Retrieving IMDB data for ID: %s', [fImdbId]));
+          Debug(dpError, section, Format('[IMDB-FLOW8a] Retrieving IMDB data for ID: %s', [fImdbId]));
           fImdbData := getImdbReleaseFromDatabase(fImdbId);
           if fImdbData <> nil then
           begin
             try
-              Debug(dpSpam, section, Format('[IMDB-FLOW8b] Posting cached IMDB data to IRC for: %s', [fRls]));
+              Debug(dpError, section, Format('[IMDB-FLOW8b] Posting cached IMDB data to IRC for: %s', [fRls]));
               fImdbData.PostResults(fRls);
 
               fPazo := FindPazoByRls(fRls);
               if (fPazo <> nil) and (fPazo.rls is TIMDBRelease) then
               begin
-                Debug(dpSpam, section, Format('[IMDB-FLOW8c] Calling SetIMDBRelease for pazo: %s', [fRls]));
+                Debug(dpError, section, Format('[IMDB-FLOW8c] Calling SetIMDBRelease for pazo: %s', [fRls]));
                 fImdbData.SetIMDBRelease(TIMDBRelease(fPazo.rls));
-                Debug(dpSpam, section, Format('[IMDB-FLOW8d] SetIMDBRelease completed for: %s', [fRls]));
+                Debug(dpError, section, Format('[IMDB-FLOW8d] SetIMDBRelease completed for: %s', [fRls]));
+
+                // Fire kb_Add(kbeUPDATE) to re-check rules after IMDB data is set
+                if fImdbData.imdb_year > 0 then
+                begin
+                  ps := FindMostCompleteSite(fPazo);
+                  if ((ps = nil) and (fPazo.PazoSitesList.Count > 0)) then
+                    ps := TPazoSite(fPazo.PazoSitesList[0]);
+
+                  if (ps <> nil) then
+                  begin
+                    Debug(dpError, section, Format('[IMDB-FLOW8h] Firing kb_Add(kbeUPDATE) for %s @ %s', [fRls, ps.Name]));
+                    kb_Add('', '', ps.Name, fPazo.rls.section, '', kbeUPDATE, fRls, '');
+                  end;
+                end;
               end
               else
               begin
-                Debug(dpSpam, section, Format('[IMDB-FLOW8e] No pazo found or not TIMDBRelease for: %s', [fRls]));
+                Debug(dpError, section, Format('[IMDB-FLOW8e] No pazo found or not TIMDBRelease for: %s', [fRls]));
               end;
             finally
               fImdbData.Free;
@@ -1472,11 +1505,11 @@ begin
           end
           else
           begin
-            Debug(dpSpam, section, Format('[IMDB-FLOW8f] Failed to retrieve IMDB data for ID: %s', [fImdbId]));
+            Debug(dpError, section, Format('[IMDB-FLOW8f] Failed to retrieve IMDB data for ID: %s', [fImdbId]));
           end;
         except
           on e: Exception do
-            Debug(dpSpam, section, Format('[IMDB-FLOW8g] Exception populating IMDB data for %s: %s', [fRls, e.Message]));
+            Debug(dpError, section, Format('[IMDB-FLOW8g] Exception populating IMDB data for %s: %s', [fRls, e.Message]));
         end;
         exit;
       end;
@@ -1492,9 +1525,9 @@ begin
       end;
 
       try
-        Debug(dpSpam, section, Format('[IMDB-FLOW9] Calling dbaddimdb_SaveImdb for %s, %s', [fRls, fImdbId]));
+        Debug(dpError, section, Format('[IMDB-FLOW9] Calling dbaddimdb_SaveImdb for %s, %s', [fRls, fImdbId]));
         dbaddimdb_SaveImdb(fRls, fImdbId);
-        Debug(dpSpam, section, Format('[IMDB-FLOW10] Task queued successfully for %s', [fRls]));
+        Debug(dpError, section, Format('[IMDB-FLOW10] Task queued successfully for %s', [fRls]));
         irc_Addstats(Format('<c7>[iMDB]</c> Successfully added <b>%s</b> with IMDB ID <b>%s</b> to database', [fRls, fImdbId]));
       except
         on e: Exception do
@@ -1521,14 +1554,14 @@ begin
     // Check if data already exists to prevent redundant API calls
     if foundMovieAlreadyInDbWithReleaseName(aReleaseName) then
     begin
-      Debug(dpSpam, section, Format('[IMDB-FLOW12] Release %s already in database, skipping task creation', [aReleaseName]));
+      Debug(dpError, section, Format('[IMDB-FLOW11] Release %s already in database, skipping task creation', [aReleaseName]));
       irc_Addstats(Format('(<c9>i</c>).....<c2><b>IMDB</b></c>........ <c0><b>for : %s</b></c> .......: found in Database!', [aReleaseName]));
       Exit;
     end;
 
     if foundMovieAlreadyInDbWithImdbId(aIMDbId) then
     begin
-      Debug(dpSpam, section, Format('[IMDB-FLOW13] IMDB-ID %s already in database, skipping task creation', [aIMDbId]));
+      Debug(dpError, section, Format('[IMDB-FLOW12] IMDB-ID %s already in database, skipping task creation', [aIMDbId]));
       Exit;
     end;
 
@@ -1537,12 +1570,12 @@ begin
     try
       if pending_imdb_tasks.IndexOf(aReleaseName) <> -1 then
       begin
-        Debug(dpSpam, section, Format('[IMDB-FLOW12] Task already pending for %s, skipping duplicate', [aReleaseName]));
+        Debug(dpError, section, Format('[IMDB-FLOW13] Task already pending for %s, skipping duplicate', [aReleaseName]));
         Exit;
       end;
       if running_imdb_tasks.IndexOf(aReleaseName) <> -1 then
       begin
-        Debug(dpSpam, section, Format('[IMDB-FLOW12] Task already running for %s, skipping duplicate', [aReleaseName]));
+        Debug(dpError, section, Format('[IMDB-FLOW14] Task already running for %s, skipping duplicate', [aReleaseName]));
         Exit;
       end;
       // Add to pending list before creating task to prevent race condition
@@ -1551,9 +1584,9 @@ begin
       dbaddimdb_cs.Leave;
     end;
 
-    Debug(dpSpam, section, Format('[IMDB-FLOW11] Creating IMDB API task for %s, IMDB-ID: %s', [aReleaseName, aIMDbId]));
+    Debug(dpError, section, Format('[IMDB-FLOW15] Creating IMDB API task for %s, IMDB-ID: %s', [aReleaseName, aIMDbId]));
     AddTask(TPazoHTTPImdbTask.Create(aIMDbId, aReleaseName), true);
-    Debug(dpSpam, section, Format('[IMDB-FLOW14] Task object created and added to task queue for %s', [aReleaseName]));
+    Debug(dpError, section, Format('[IMDB-FLOW16] Task object created and added to task queue for %s', [aReleaseName]));
   except
     on e: Exception do
     begin
