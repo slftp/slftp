@@ -60,6 +60,8 @@ type
     FTotalSites: Integer;
     FAllowedSites: Integer;
     FErrorMessage: String;
+    FSkipped: Boolean;
+    FSkipReason: String;
   public
     constructor Create;
     destructor Destroy; override;
@@ -71,6 +73,8 @@ type
     property TotalSites: Integer read FTotalSites write FTotalSites;
     property AllowedSites: Integer read FAllowedSites write FAllowedSites;
     property ErrorMessage: String read FErrorMessage write FErrorMessage;
+    property Skipped: Boolean read FSkipped write FSkipped;
+    property SkipReason: String read FSkipReason write FSkipReason;
   end;
 
 { Simulate how a release would be processed
@@ -92,7 +96,7 @@ implementation
 
 uses
   SysUtils, TypInfo, sitesunit, rulesunit, routeconfig, debugunit, DateUtils, StrUtils, configunit, kb, encinifile,
-  slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, slapi.issueshook {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'simulator';
@@ -118,6 +122,8 @@ begin
   FTotalSites := 0;
   FAllowedSites := 0;
   FErrorMessage := '';
+  FSkipped := False;
+  FSkipReason := '';
 end;
 
 destructor TSimulationResult.Destroy;
@@ -230,6 +236,14 @@ begin
         Result.ErrorMessage := Format('Failed to create release object: %s', [e.Message]);
         Exit;
       end;
+    end;
+
+    if CheckIfGlobalSkippedGroup(aReleasename) then
+    begin
+      Result.Skipped := True;
+      Result.SkipReason := Format('Group %s is in global skip list', [rls.groupname]);
+      rls.Free;
+      Exit;
     end;
 
     // Use timestamp-based ID to guarantee uniqueness across multiple simulator runs
@@ -486,6 +500,13 @@ var
   allowedSites, droppedSites, otherSites: TStringList;
 begin
   Result := TStringList.Create;
+
+  if aResult.Skipped then
+  begin
+    Result.Add(Format('<b>Simulation Results for:</b> <c7>%s</c> (<c8>%s</c>)', [aResult.Releasename, aResult.Section]));
+    Result.Add(Format('<c8>Skipped:</c> %s', [aResult.SkipReason]));
+    Exit;
+  end;
 
   if aResult.ErrorMessage <> '' then
   begin

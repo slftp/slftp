@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs, Textarea, Modal } from '@mantine/core';
-import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings, IconUpload, IconDeviceFloppy, IconListCheck, IconCheck, IconX } from '@tabler/icons-react';
+import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings, IconUpload, IconDeviceFloppy, IconListCheck, IconCheck, IconX, IconBan } from '@tabler/icons-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo, useState, useRef } from 'react';
 import { apiClient, batchTestSections, saveSectionTesterData, loadSectionTesterData, type SectionTestItem } from '../api/client';
@@ -43,6 +43,8 @@ type SimulatorResponse = {
     TotalSites: number;
     AllowedSites: number;
     ErrorMessage: string;
+    Skipped: boolean;
+    SkipReason: string;
     Sites: SimulatorSiteResult[] | string;
     Routes: SimulatorRouteResult[] | string;
   };
@@ -254,7 +256,13 @@ function ReleaseSimulator() {
         </Alert>
       )}
 
-      {sim && (
+      {sim?.Skipped && (
+        <Alert icon={<IconBan size="1rem" />} title="Skipped" color="orange">
+          {sim.SkipReason}
+        </Alert>
+      )}
+
+      {sim && !sim.Skipped && (
         <>
           <Card withBorder radius="md" p="sm">
             <Group justify="space-between">

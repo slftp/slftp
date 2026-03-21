@@ -5924,6 +5924,8 @@ begin
       TDocVariantData(simDoc).AddValue('TotalSites', res.TotalSites);
       TDocVariantData(simDoc).AddValue('AllowedSites', res.AllowedSites);
       TDocVariantData(simDoc).AddValue('ErrorMessage', UTF8Encode(res.ErrorMessage));
+      TDocVariantData(simDoc).AddValue('Skipped', res.Skipped);
+      TDocVariantData(simDoc).AddValue('SkipReason', UTF8Encode(res.SkipReason));
 
       sitesArr.InitFast(dvArray);
       for i := 0 to res.SiteResults.Count - 1 do
