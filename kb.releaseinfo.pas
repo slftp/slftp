@@ -1313,14 +1313,14 @@ var
 
   procedure CreateTVLookupTask;
   begin
-    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB1] Creating TV lookup task: rls=%s, showname=%s', [rlsname, showname]));
+    Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB1] Creating TV lookup task: rls=%s, showname=%s', [rlsname, showname]));
     try
       AddTask(TPazoTVInfoLookupTask.Create('', '', getAdminSiteName, pazo, 1));
-      Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB1] TV lookup task added to queue', []));
+      Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB1] TV lookup task added to queue', []));
     except
       on e: Exception do
       begin
-        Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB1] [EXCEPTION] TTVRelease.Aktualizal.AddTask: %s', [e.Message]));
+        Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB1] [EXCEPTION] TTVRelease.Aktualizal.AddTask: %s', [e.Message]));
       end;
     end;
   end;
@@ -1331,18 +1331,18 @@ begin
   aktualizalva := True;
   if showname = '' then
   begin
-    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB0] Exit: showname is empty for rls=%s', [rlsname]));
+    Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB0] Exit: showname is empty for rls=%s', [rlsname]));
     exit;
   end;
 
   pazo := FindPazoByName(section, rlsname);
   if pazo = nil then
   begin
-    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB0] Exit: pazo not found for rls=%s, section=%s', [rlsname, section]));
+    Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB0] Exit: pazo not found for rls=%s, section=%s', [rlsname, section]));
     exit;
   end;
 
-  Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB0] Starting lookup: rls=%s, showname=%s', [rlsname, showname]));
+  Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB0] Starting lookup: rls=%s, showname=%s', [rlsname, showname]));
 
   // check if we already have this showname in database
   try
@@ -1359,11 +1359,11 @@ begin
   begin
     // showname was found in db
     db_tvinfo.ripname := rlsname;
-    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Found in DB: showname=%s, tvmaze_id=%s', [showname, db_tvinfo.tvmaze_id]));
+    Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB2] Found in DB: showname=%s, tvmaze_id=%s', [showname, db_tvinfo.tvmaze_id]));
 
     if DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now()) >= config.ReadInteger('tasktvinfo', 'days_between_last_update', 6) then
     begin
-      Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Data too old, updating: last_updated=%d days ago', [DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now())]));
+      Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB2] Data too old, updating: last_updated=%d days ago', [DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now())]));
       // try to update infos in database
       if not db_tvinfo.Update then
       begin
@@ -1377,7 +1377,7 @@ begin
     end
     else
     begin
-      Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Data recent, using cached: last_updated=%d days ago', [DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now())]));
+      Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB2] Data recent, using cached: last_updated=%d days ago', [DaysBetween(UnixToDateTime(db_tvinfo.last_updated), now())]));
       // we have a recent set of data
       try
         db_tvinfo.SetTVDbRelease(self);
@@ -1393,7 +1393,7 @@ begin
   end
   else
   begin
-    Debug(dpError, rsections, Format('[TVMAZE-FLOW-KB2] Not in DB, doing websearch: showname=%s', [showname]));
+    Debug(dpSpam, rsections, Format('[TVMAZE-FLOW-KB2] Not in DB, doing websearch: showname=%s', [showname]));
     // do websearch for a non existing showname in database
     CreateTVLookupTask;
   end;
@@ -1533,7 +1533,7 @@ begin
   try
     if FLookupDone then
     begin
-      Debug(dpError, rsections, Format('[IMDB-FLOW30] Aktualizal: Lookup already done for %s, skipping duplicate call', [rlsname]));
+      Debug(dpSpam, rsections, Format('[IMDB-FLOW30] Aktualizal: Lookup already done for %s, skipping duplicate call', [rlsname]));
       Result := True;
       Exit;
     end;
@@ -1592,7 +1592,7 @@ begin
         if imdb_year > 0 then
         begin
           FLookupDone := True;
-          Debug(dpError, rsections, Format('[IMDB-FLOW31] Aktualizal: All fields populated from cache, FLookupDone=True for %s', [rlsname]));
+          Debug(dpSpam, rsections, Format('[IMDB-FLOW31] Aktualizal: All fields populated from cache, FLookupDone=True for %s', [rlsname]));
           Result := True;
           Exit;
         end
@@ -1608,12 +1608,12 @@ begin
       end;
     end;
 
-    Debug(dpError, rsections, Format('[IMDB-FLOW32] Aktualizal: Checking persistent DB for %s', [rlsname]));
+    Debug(dpSpam, rsections, Format('[IMDB-FLOW32] Aktualizal: Checking persistent DB for %s', [rlsname]));
     imdbdata := GetImdbMovieData(pazo.rls.rlsname);
     try
       if (imdbdata = nil) or UpdateMovieInDbWithImdbDataNeeded(imdbdata) then
       begin
-        Debug(dpError, rsections, Format('[IMDB-FLOW33] Aktualizal: No IMDB data found, starting NFO search for %s', [rlsname]));
+        Debug(dpSpam, rsections, Format('[IMDB-FLOW33] Aktualizal: No IMDB data found, starting NFO search for %s', [rlsname]));
 
         // Check if NFO lookup already queued
         i := last_addnfo.IndexOf(rlsname);
@@ -1649,7 +1649,7 @@ begin
       end
       else
       begin
-        Debug(dpError, rsections, Format('[IMDB-FLOW34] Aktualizal: Found IMDB data in DB, populating fields for %s', [rlsname]));
+        Debug(dpSpam, rsections, Format('[IMDB-FLOW34] Aktualizal: Found IMDB data in DB, populating fields for %s', [rlsname]));
         try
           fErrorString := 'imdb_id';
           imdb_id := imdbdata.imdb_id;
@@ -1685,7 +1685,7 @@ begin
           if imdb_year > 0 then
           begin
             FLookupDone := True;
-            Debug(dpError, rsections, Format('[IMDB-FLOW35] Aktualizal: All fields populated, FLookupDone=True for %s', [rlsname]));
+            Debug(dpSpam, rsections, Format('[IMDB-FLOW35] Aktualizal: All fields populated, FLookupDone=True for %s', [rlsname]));
           end
           else
           begin

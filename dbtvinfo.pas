@@ -1709,18 +1709,32 @@ var
   rls: String;
   tv_showid: String;
   dbtvinfo: TTVInfoDB;
+  existingByRls: TTVInfoDB;
 begin
   rls := '';
   rls := SubString(aParams, ' ', 1);
   tv_showid := '';
   tv_showid := SubString(aParams, ' ', 2);
 
-  Debug(dpError, section, Format('[TVMAZE-FLOW2] Parameters parsed: rls=%s, tv_showid=%s', [rls, tv_showid]));
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW2] Parameters parsed: rls=%s, tv_showid=%s', [rls, tv_showid]));
 
   if ((rls <> '') and (tv_showid <> '')) then
   begin
+    // Check if this release name is already mapped to a different TVMaze ID
+    existingByRls := getTVInfoByReleaseName(rls);
+    try
+      if (existingByRls <> nil) and (existingByRls.tvmaze_id <> tv_showid) then
+      begin
+        Debug(dpError, section, Format('[TVMAZE-CONFLICT] Release %s already mapped to ID %s, rejecting ID %s', [rls, existingByRls.tvmaze_id, tv_showid]));
+        SlftpNewsAdd('TVMAZE', Format('ID conflict for <b>%s</b>: existing ID <b>%s</b>, rejected ID <b>%s</b>', [rls, existingByRls.tvmaze_id, tv_showid]), True);
+        exit;
+      end;
+    finally
+      existingByRls.Free;
+    end;
+
     dbtvinfo := getTVInfoByShowID(tv_showid);
-    Debug(dpError, section, Format('[TVMAZE-FLOW3] DB check for ID %s: exists=%s', [tv_showid, BoolToStr(dbtvinfo <> nil, True)]));
+    Debug(dpSpam, section, Format('[TVMAZE-FLOW3] DB check for ID %s: exists=%s', [tv_showid, BoolToStr(dbtvinfo <> nil, True)]));
     try
       if (dbtvinfo = nil) then
       begin
@@ -1735,13 +1749,13 @@ begin
 
           // create an INSERT task for non existing show
           try
-            Debug(dpError, section, Format('[TVMAZE-FLOW4] Creating TPazoHTTPTVInfoTask for rls=%s, tv_showid=%s', [rls, tv_showid]));
+            Debug(dpSpam, section, Format('[TVMAZE-FLOW4] Creating TPazoHTTPTVInfoTask for rls=%s, tv_showid=%s', [rls, tv_showid]));
             AddTask(TPazoHTTPTVInfoTask.Create(tv_showid, rls));
-            Debug(dpError, section, Format('[TVMAZE-FLOW4] Task added to queue successfully', []));
+            Debug(dpSpam, section, Format('[TVMAZE-FLOW4] Task added to queue successfully', []));
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[TVMAZE-FLOW4] [EXCEPTION] addTVInfos: %s', [e.Message]));
+              Debug(dpSpam, section, Format('[TVMAZE-FLOW4] [EXCEPTION] addTVInfos: %s', [e.Message]));
               exit;
             end;
           end;
@@ -2023,7 +2037,7 @@ begin
   Result := False;
   if (1 = Pos(addtinfodbcmd, aMSG)) then
   begin
-    Debug(dpError, section, Format('[TVMAZE-FLOW1] Command matched: %s, Full message: %s', [addtinfodbcmd, aMSG]));
+    Debug(dpSpam, section, Format('[TVMAZE-FLOW1] Command matched: %s, Full message: %s', [addtinfodbcmd, aMSG]));
     aMSG := Copy(aMSG, length(addtinfodbcmd + ' ') + 1, 1000);
     addTVInfos(aMSG);
     Result := True;
