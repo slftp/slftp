@@ -653,7 +653,7 @@ begin
             TDocVariantData(resultDoc).AddValue('status', 'ready');
             TDocVariantData(resultDoc).AddValue('files', _JsonFast(entry.Data));
             TDocVariantData(resultDoc).AddValue('path', UTF8Encode(fPath));
-            TDocVariantData(resultDoc).AddValue('timestamp', DateTimeToUnix(entry.Timestamp));
+            TDocVariantData(resultDoc).AddValue('timestamp', DateTimeToUnix(entry.Timestamp, False));
           end;
           bcsError:
           begin
@@ -1110,7 +1110,7 @@ begin
           TDocVariant.New(releaseJson);
           releaseJson.ReleaseName := UTF8Encode(p.rls.rlsname);
           releaseJson.Section := UTF8Encode(p.rls.section);
-          releaseJson.Added := DateTimeToUnix(p.added);
+          releaseJson.Added := DateTimeToUnix(p.added, False);
           releaseJson.PazoId := p.pazo_id;
           releaseJson.DetectedToAddedMs := p.FAddedTick - p.FDetectedTick;
           if p.FDirlistRequestedTick > 0 then
@@ -5558,7 +5558,7 @@ begin
     begin
       TDocVariant.New(hitDoc);
       TDocVariantData(hitDoc).AddValue('id', hits[i].Id);
-      TDocVariantData(hitDoc).AddValue('atUnix', DateTimeToUnix(hits[i].At));
+      TDocVariantData(hitDoc).AddValue('atUnix', DateTimeToUnix(hits[i].At, False));
       TDocVariantData(hitDoc).AddValue('netname', UTF8Encode(hits[i].Netname));
       TDocVariantData(hitDoc).AddValue('channel', UTF8Encode(hits[i].Channel));
       TDocVariantData(hitDoc).AddValue('nick', UTF8Encode(hits[i].Nick));
