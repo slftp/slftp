@@ -2479,6 +2479,20 @@ begin
   Result := True;
 end;
 
+function _IrcKillSingleSite(const netname, channel: String; s: TSite): boolean;
+begin
+  Result := False;
+  if s = nil then
+    exit;
+  if (s.Name = getAdminSiteName) then
+    exit;
+
+  if _Bnctest(Netname, Channel, s, nil, True) then
+    s.QueueFire;
+
+  Result := True;
+end;
+
 function IrcKill(const netname, channel, params: String): boolean;
 var
   sitename: String;
@@ -2497,14 +2511,8 @@ begin
     for i := 0 to sites.Count - 1 do
     begin
       s := TSite(sites.Items[i]);
-      if s.Name = getAdminSiteName then
-        Continue;
-
-      if _Bnctest(Netname, Channel, s, nil, True) then
-      begin
-        s.QueueFire;
+      if _IrcKillSingleSite(netname, channel, s) then
         Inc(killCount);
-      end;
     end;
 
     if killCount > 0 then
@@ -2521,11 +2529,7 @@ begin
     exit;
   end;
 
-  if (s.Name = getAdminSiteName) then
-    exit;
-
-  if _Bnctest(Netname, Channel, s, nil, True) then
-    s.QueueFire;
+  Result := _IrcKillSingleSite(netname, channel, s);
 
   Result := True;
 end;
