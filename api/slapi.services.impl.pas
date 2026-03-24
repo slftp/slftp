@@ -1853,6 +1853,23 @@ var
     end;
   end;
 
+  function AgeMilliseconds(const aWhen, aNow: TDateTime): Int64;
+  var
+    delta: Int64;
+  begin
+    Result := -1;
+    if aWhen <= 0 then
+      Exit;
+    try
+      delta := MillisecondsBetween(aNow, aWhen);
+      if delta < 0 then
+        delta := 0;
+      Result := delta;
+    except
+      Result := -1;
+    end;
+  end;
+
   function DirectionText(const aUploading, aDownloading: boolean): RawUTF8;
   begin
     if aUploading and aDownloading then
@@ -1948,9 +1965,9 @@ begin
             TDocVariantData(slotDoc).AddValue('uploading', ss.uploadingto);
             TDocVariantData(slotDoc).AddValue('downloading', ss.downloadingfrom);
             TDocVariantData(slotDoc).AddValue('direction', DirectionText(ss.uploadingto, ss.downloadingfrom));
-            TDocVariantData(slotDoc).AddValue('last_io_sec', AgeSeconds(ss.LastIO, nowTs));
-            TDocVariantData(slotDoc).AddValue('last_task_sec', AgeSeconds(ss.LastTaskExecution, nowTs));
-            TDocVariantData(slotDoc).AddValue('last_non_idle_task_sec', AgeSeconds(ss.LastNonIdleTaskExecution, nowTs));
+            TDocVariantData(slotDoc).AddValue('last_io_ms', AgeMilliseconds(ss.LastIO, nowTs));
+            TDocVariantData(slotDoc).AddValue('last_task_ms', AgeMilliseconds(ss.LastTaskExecution, nowTs));
+            TDocVariantData(slotDoc).AddValue('last_non_idle_task_ms', AgeMilliseconds(ss.LastNonIdleTaskExecution, nowTs));
             TDocVariantData(slotDoc).AddValue('response_code', ss.lastResponseCode);
             TDocVariantData(slotsDoc).AddItem(slotDoc);
           end;

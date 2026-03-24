@@ -288,7 +288,7 @@ begin
     if not CheckConsoleCriticalOverload(w) then
     begin
       if add_time_stamp then
-        app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss', now), WrapText(msg, (slScreen.GetWidth() - 2))])))
+        app.AddConsoleTask(TTextBoxAddLineTask.Create(w, Format('[%s] %s',[FormatDateTime('hh:nn:ss.zzz', now), WrapText(msg, (slScreen.GetWidth() - 2))])))
       else
         app.AddConsoleTask(TTextBoxAddLineTask.Create(w, WrapText(msg, (slScreen.GetWidth() - 2))));
 

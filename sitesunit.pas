@@ -1901,7 +1901,7 @@ begin
     end;
   end;
     
-  sLine := Format('[%s] %s', [FormatDateTime('hh:nn:ss', Now), aLine]);
+  sLine := Format('[%s] %s', [FormatDateTime('hh:nn:ss.zzz', Now), aLine]);
   FHistoryLock.Acquire;
   try
     while FHistory.Count >= 5000 do

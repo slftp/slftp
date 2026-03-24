@@ -198,9 +198,9 @@ export interface SlotRuntime {
   uploading: boolean;
   downloading: boolean;
   direction: string;
-  last_io_sec: number;
-  last_task_sec: number;
-  last_non_idle_task_sec: number;
+  last_io_ms: number;
+  last_task_ms: number;
+  last_non_idle_task_ms: number;
   response_code: number;
 }
 

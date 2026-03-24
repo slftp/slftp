@@ -1036,7 +1036,7 @@ begin
     exit;
   end;
 
-  console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), nick, msg]));
+  console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss.zzz', Now), nick, msg]));
 
   if (b.HasThisChanRole('ADDPRE')) then
   begin
@@ -1481,7 +1481,7 @@ begin
   begin
     fChanSettingsObj := FindIrcChannelSettings(netname, channel);
     IrcWrite('PRIVMSG ' + channel + ' :' + fChanSettingsObj.EncryptMessage(plainmsg));
-    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss', Now), FCurrentIrcNick, plainmsg]));
+    console_addline(netname + ' ' + channel, Format('[%s] <%s> %s', [FormatDateTime('hh:nn:ss.zzz', Now), FCurrentIrcNick, plainmsg]));
   end
   else
   begin
