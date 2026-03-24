@@ -127,7 +127,8 @@ type
     site: TSite; //< links to corresponding @link(TSite) class of slot
     procedure DestroySocket(down: boolean);
     { Invokes Relogin after invoking DestroySocket.
-      @param(aMessage Info which task is issuing this command.) }
+      @param(aMessage Info which task is issuing this command.)
+      @param(kill If @true, forces immediate disconnection without graceful shutdown.) }
     procedure DestroySocketAndRelogin(const aMessage: string; kill: boolean = False);
     procedure Quit;
     { Invokes Relogin after invoking Quit.
