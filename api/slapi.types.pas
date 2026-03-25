@@ -134,6 +134,7 @@ type
     FDestinationQueueLimit: integer;
     FUseForNFOdownload: integer;
     FSkipDirectoryCreation: boolean;
+    FRankLock: integer;
   published
     property Name: RawUTF8 read FName write FName;
     property Username: RawUTF8 read FUsername write FUsername;
@@ -170,6 +171,7 @@ type
     property DestinationQueueLimit: integer read FDestinationQueueLimit write FDestinationQueueLimit;
     property UseForNFOdownload: integer read FUseForNFOdownload write FUseForNFOdownload;
     property SkipDirectoryCreation: boolean read FSkipDirectoryCreation write FSkipDirectoryCreation;
+    property RankLock: integer read FRankLock write FRankLock;
   end;
 
   { Text File Response (e.g. rules files) }
@@ -612,6 +614,20 @@ type
     property Rating: Integer read FRating write FRating;
     property Airdays: RawUTF8 read FAirdays write FAirdays;
     property TVLanguage: RawUTF8 read FTVLanguage write FTVLanguage;
+  end;
+
+  { News list response }
+  TApiNewsList = class(TOrm)
+  private
+    FTotal: integer;
+    FUnread: integer;
+    FEnabled: boolean;
+    FEntries: RawJSON;
+  published
+    property Total: integer read FTotal write FTotal;
+    property Unread: integer read FUnread write FUnread;
+    property Enabled: boolean read FEnabled write FEnabled;
+    property Entries: RawJSON read FEntries write FEntries;
   end;
 
   TSeries = class(TOrm)

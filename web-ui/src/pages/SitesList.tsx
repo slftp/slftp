@@ -278,6 +278,12 @@ export function SitesList() {
             <Text size="sm" c="dimmed">-</Text>
           )}
         </Table.Td>
+        <Table.Td>
+          {(site.ranklock ?? 0) === 0
+            ? <Badge color="gray" variant="light">Dynamic</Badge>
+            : <Badge color="yellow" variant="light">{site.ranklock}</Badge>
+          }
+        </Table.Td>
 	      <Table.Td>
 	        <Group gap="xs">
           <Tooltip label="Run BNC Test (!bnctest)">
@@ -344,6 +350,7 @@ export function SitesList() {
 	          <Table.Th>Free Slots</Table.Th>
 	          <Table.Th>Active DN/UP</Table.Th>
             <Table.Th>Credits (Ratio)</Table.Th>
+            <Table.Th>Rank</Table.Th>
 	          <Table.Th>Actions</Table.Th>
 	        </Table.Tr>
 	      </Table.Thead>

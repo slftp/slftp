@@ -86,6 +86,7 @@ type
     function SetSiteMaxPreDn(const SiteName: RawUTF8; MaxPreDn: integer): boolean;
     function SetSitePermDown(const SiteName: RawUTF8; PermDown: boolean): boolean;
     function SetSiteAutoLogin(const SiteName: RawUTF8; Enabled: boolean): boolean;
+    function SetSiteRankLock(const SiteName: RawUTF8; RankLock: integer): boolean;
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
     function SetSiteAffils(const SiteName, Affils: RawUTF8): boolean;
     function SetSiteIrcNick(const SiteName, IrcNick: RawUTF8): boolean;
@@ -307,6 +308,14 @@ type
     function SearchHelpDocs(const Query: RawUTF8): RawJSON;
   end;
 
+  TApiNewsServiceImpl = class(TInjectableObjectRest, IApiNewsService)
+  public
+    function GetNews(out Response: TApiNewsList): boolean;
+    function DeleteNewsEntry(const Id: integer): boolean;
+    function DeleteAllNews: boolean;
+    function SetNewsEnabled(const Enabled: boolean): boolean;
+  end;
+
 implementation
 
 uses
@@ -333,7 +342,8 @@ uses
   mormot.orm.core,
   mormot.orm.base,
   mormot.db.raw.sqlite3,
-  mormot.rest.sqlite3;
+  mormot.rest.sqlite3,
+  news;
 
 {$I ../slftp.inc}
 
@@ -1493,6 +1503,7 @@ type
     NewdirDirlistReadd: integer;
     PerformanceAdjustedDirlist: boolean;
     DestinationQueueLimit: integer;
+    RankLock: integer;
   end;
 var
   i: integer;
@@ -1676,6 +1687,13 @@ begin
           // ignore
         end;
 
+        snapshots[snapshotCount].RankLock := 0;
+        try
+          snapshots[snapshotCount].RankLock := s.RCInteger('ranklock', 0);
+        except
+          // ignore
+        end;
+
         Inc(snapshotCount);
       end;
     except
@@ -1745,6 +1763,7 @@ begin
         TDocVariantData(siteDoc).AddValue('newdir_dirlist_readd', snapshot.NewdirDirlistReadd);
         TDocVariantData(siteDoc).AddValue('performance_adjusted_dirlist', snapshot.PerformanceAdjustedDirlist);
         TDocVariantData(siteDoc).AddValue('destination_queue_limit', snapshot.DestinationQueueLimit);
+        TDocVariantData(siteDoc).AddValue('ranklock', snapshot.RankLock);
       except
         // ignore add failures
       end;
@@ -2681,6 +2700,28 @@ begin
   end;
 end;
 
+function TApiSitesServiceImpl.SetSiteRankLock(const SiteName: RawUTF8; RankLock: integer): boolean;
+var
+  s: TSite;
+begin
+  Result := False;
+  try
+    s := FindSiteByName('', UTF8ToString(SiteName));
+    if s = nil then
+      Exit;
+
+    s.SetRankLock('*', RankLock);
+    Debug(dpMessage, section, Format('SetSiteRankLock API: %s -> %d', [UTF8ToString(SiteName), RankLock]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] SetSiteRankLock: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
+end;
+
 function TApiSitesServiceImpl.SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
 var
   s: TSite;
@@ -3087,6 +3128,7 @@ begin
       Info.DestinationQueueLimit := 0;
     Info.UseForNFOdownload := Integer(s.UseForNFOdownload);
     Info.SkipDirectoryCreation := s.SkipDirectoryCreation;
+    Info.RankLock := s.RCInteger('ranklock', 0);
     Info.SiteFullName := UTF8Encode(s.SiteFullName);
     Info.SiteLinkSpeed := UTF8Encode(s.SiteLinkSpeed);
     Info.SiteSize := UTF8Encode(s.SiteSize);
@@ -7039,6 +7081,85 @@ begin
     end;
   end;
 end;
+
+{ TApiNewsServiceImpl }
+
+function TApiNewsServiceImpl.GetNews(out Response: TApiNewsList): boolean;
+var
+  fJson: RawByteString;
+  i: integer;
+  fUnread: integer;
+  fTotal: integer;
+begin
+  Result := False;
+  Response := TApiNewsList.Create;
+  try
+    fJson := SlftpNewsGetJson;
+    // Count total and unread from raw JSON (simple scan)
+    fTotal := 0;
+    fUnread := 0;
+    // Parse via news unit status counts - reuse existing logic
+    i := Pos('"Status":"UNREAD"', string(fJson));
+    // Count occurrences of "Id": as total
+    fTotal := 0;
+    fUnread := 0;
+    i := 1;
+    while i <= Length(string(fJson)) do
+    begin
+      if Copy(string(fJson), i, 5) = '"Id":' then
+        Inc(fTotal);
+      if Copy(string(fJson), i, 17) = '"Status":"UNREAD"' then
+        Inc(fUnread);
+      Inc(i);
+    end;
+
+    Response.Total := fTotal;
+    Response.Unread := fUnread;
+    Response.Enabled := NewsEnabled;
+    Response.Entries := RawJSON(fJson);
+    Result := True;
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] GetNews: %s', [E.Message]));
+  end;
+end;
+
+function TApiNewsServiceImpl.DeleteNewsEntry(const Id: integer): boolean;
+begin
+  Result := False;
+  try
+    Result := SlftpNewsDelete('', '', Id);
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] DeleteNewsEntry: %s', [E.Message]));
+  end;
+end;
+
+function TApiNewsServiceImpl.DeleteAllNews: boolean;
+begin
+  Result := False;
+  try
+    Result := SlftpNewsDelete('', '', -1);
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] DeleteAllNews: %s', [E.Message]));
+  end;
+end;
+
+function TApiNewsServiceImpl.SetNewsEnabled(const Enabled: boolean): boolean;
+begin
+  Result := False;
+  try
+    config.WriteBool('news', 'news_enabled', Enabled);
+    config.UpdateFile;
+    Result := True;
+    Debug(dpMessage, section, Format('SetNewsEnabled API: %s', [BoolToStr(Enabled, True)]));
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] SetNewsEnabled: %s', [E.Message]));
+  end;
+end;
+
 
 initialization
   glSiteCreditsCacheLock := TSlCriticalSection2.Create('ApiSiteCreditsCache');

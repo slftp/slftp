@@ -115,6 +115,10 @@ type
     /// Enable/disable autologin
     function SetSiteAutoLogin(const SiteName: RawUTF8; Enabled: boolean): boolean;
 
+    /// PATCH /api/sites/{name}/ranklock
+    /// Sets global ranklock (0 = dynamic)
+    function SetSiteRankLock(const SiteName: RawUTF8; RankLock: integer): boolean;
+
     /// PATCH /api/sites/{name}/autorules
     /// Enable/disable autorules interval (seconds, 0 = off)
     function SetSiteAutoRules(const SiteName: RawUTF8; IntervalSeconds: integer): boolean;
@@ -672,6 +676,15 @@ type
     /// GET /api/help/search
     /// Returns list of matching documents by name or content
     function SearchHelpDocs(const Query: RawUTF8): RawJSON;
+  end;
+
+  { News Service }
+  IApiNewsService = interface(IInvokable)
+    ['{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}']
+    function GetNews(out Response: TApiNewsList): boolean;
+    function DeleteNewsEntry(const Id: integer): boolean;
+    function DeleteAllNews: boolean;
+    function SetNewsEnabled(const Enabled: boolean): boolean;
   end;
 
 implementation

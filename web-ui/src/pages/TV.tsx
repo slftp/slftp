@@ -55,7 +55,7 @@ function TruncatedCell({ children, width }: { children: React.ReactNode; width: 
   );
 }
 
-type SortField = 'TVMazeId' | 'Showname' | 'Country' | 'Status' | 'Network' | 'Genre' | 'PremieredYear' | 'Rating' | 'LastUpdated';
+type SortField = 'TVMazeId' | 'Showname' | 'Country' | 'Status' | 'Network' | 'Genre' | 'Language' | 'PremieredYear' | 'Rating' | 'LastUpdated';
 type SortDirection = 'asc' | 'desc';
 
 function SortableHeader({
@@ -165,6 +165,7 @@ export function TV() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [networkFilter, setNetworkFilter] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
+  const [languageFilter, setLanguageFilter] = useState('');
   const [yearMin, setYearMin] = useState<number | string>('');
   const [yearMax, setYearMax] = useState<number | string>('');
   const [ratingMin, setRatingMin] = useState<number | string>('');
@@ -239,6 +240,10 @@ export function TV() {
       result = result.filter(r => matchesFilter(r.Genre, genreFilter));
     }
 
+    if (languageFilter) {
+      result = result.filter(r => matchesFilter(r.Language, languageFilter));
+    }
+
     if (yearMin !== '' && yearMin !== null) {
       result = result.filter(r => r.PremieredYear >= Number(yearMin));
     }
@@ -268,7 +273,7 @@ export function TV() {
     });
 
     return sorted;
-  }, [data, shownameFilter, countryFilter, statusFilter, networkFilter, genreFilter, yearMin, yearMax, ratingMin, sortField, sortDirection]);
+  }, [data, shownameFilter, countryFilter, statusFilter, networkFilter, genreFilter, languageFilter, yearMin, yearMax, ratingMin, sortField, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -487,6 +492,14 @@ export function TV() {
                 resetPage();
               }}
             />
+            <TextInput
+              placeholder="Language (English or *English*)"
+              value={languageFilter}
+              onChange={(e) => {
+                setLanguageFilter(e.currentTarget.value);
+                resetPage();
+              }}
+            />
           </Group>
           <Group grow>
             <NumberInput
@@ -547,6 +560,9 @@ export function TV() {
                 <SortableHeader field="Genre" currentField={sortField} direction={sortDirection} onClick={handleSort} width="120px">
                   Genre
                 </SortableHeader>
+                <SortableHeader field="Language" currentField={sortField} direction={sortDirection} onClick={handleSort} width="100px">
+                  Language
+                </SortableHeader>
                 <SortableHeader field="PremieredYear" currentField={sortField} direction={sortDirection} onClick={handleSort} width="70px">
                   Year
                 </SortableHeader>
@@ -562,13 +578,13 @@ export function TV() {
             <Table.Tbody>
               {isLoading ? (
                 <Table.Tr>
-                  <Table.Td colSpan={10}>
+                  <Table.Td colSpan={11}>
                     <Text ta="center">Loading...</Text>
                   </Table.Td>
                 </Table.Tr>
               ) : filtered.length === 0 ? (
                 <Table.Tr>
-                  <Table.Td colSpan={10}>
+                  <Table.Td colSpan={11}>
                     <Text ta="center">No records found</Text>
                   </Table.Td>
                 </Table.Tr>
@@ -593,6 +609,7 @@ export function TV() {
                     <Table.Td style={{ width: '100px' }}>{record.Status}</Table.Td>
                     <TruncatedCell width={150}>{record.Network}</TruncatedCell>
                     <TruncatedCell width={120}>{record.Genre}</TruncatedCell>
+                    <TruncatedCell width={100}>{record.Language}</TruncatedCell>
                     <Table.Td style={{ width: '70px' }}>{record.PremieredYear}</Table.Td>
                     <Table.Td style={{ width: '70px' }}>{record.Rating}</Table.Td>
                     <Table.Td style={{ width: '100px' }}>

@@ -55,6 +55,7 @@ export function SiteSettings() {
   const [status, setStatus] = useState<'UP' | 'DOWN' | ''>('');
   const [permDown, setPermDown] = useState(false);
   const [autoLogin, setAutoLogin] = useState(false);
+  const [rankLock, setRankLock] = useState<number | ''>(0);
   const [autoRulesInterval, setAutoRulesInterval] = useState<number | ''>('');
   const [maxIdle, setMaxIdle] = useState<number | ''>(0);
   const [idleInterval, setIdleInterval] = useState<number | ''>(30);
@@ -141,6 +142,7 @@ export function SiteSettings() {
       setSkipUploaded(String(siteInfo.SkipBeingUploadedFiles ?? 0));
       setKillOnStalled(siteInfo.KillConnectionOnStalledTransferSeconds ?? 0);
       setDestinationQueueLimit(siteInfo.DestinationQueueLimit ?? 0);
+      setRankLock(siteInfo.RankLock ?? 0);
       setSslMethod(String(siteInfo.SslMethod ?? 0));
       setSslFxp(String(siteInfo.SslFxp ?? 0));
       setUseForNfoDownload(String(siteInfo.UseForNFOdownload ?? 1));
@@ -216,6 +218,7 @@ export function SiteSettings() {
       await apiClient.post('/ApiSitesService/SetSiteCredentials', { SiteName: siteName, Username: username, Password: password, BncsJson: JSON.stringify(bncs), MaxIdle: Number(maxIdle), IdleInterval: Number(idleInterval), LegacyCwd: legacyCwd, SslFxp: Number(sslFxp) });
       await apiClient.post('/ApiSitesService/SetSiteStatus', { SiteName: siteName, Status: status });
       await apiClient.post('/ApiSitesService/SetSiteSslMethod', { SiteName: siteName, SslMethod: Number(sslMethod) });
+      await apiClient.post('/ApiSitesService/SetSiteRankLock', { SiteName: siteName, RankLock: Number(rankLock) || 0 });
       
       // New Config endpoint
       await apiClient.post('/ApiSitesService/SetSiteConfig', { 
@@ -417,6 +420,24 @@ export function SiteSettings() {
                             placeholder="0 = no limit"
                         />
                     </SimpleGrid>
+                    <NumberInput
+                        label={
+                            <Group gap={6} align="center" wrap="nowrap">
+                                <span>Global Ranklock</span>
+                                <Tooltip withArrow label="0 = dynamic (auto-calculated)">
+                                    <ActionIcon variant="subtle" color="gray" size="xs" radius="xl">
+                                        <IconInfoCircle size={14} />
+                                    </ActionIcon>
+                                </Tooltip>
+                            </Group>
+                        }
+                        value={rankLock}
+                        min={0}
+                        onChange={(val) => setRankLock(val === '' ? '' : Number(val))}
+                        placeholder="0"
+                        mt="sm"
+                        w={200}
+                    />
                 </div>
 
                 <Divider />

@@ -102,6 +102,7 @@ export interface Site {
   autologin?: boolean;
   autorules_interval?: number;
   destination_queue_limit?: number;
+  ranklock?: number;
 }
 
 export interface SitesListResponse {

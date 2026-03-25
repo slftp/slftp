@@ -48,6 +48,7 @@ Sites (ApiSitesService)
 - SetSiteMaxPreDn: Body {"SiteName":"<name>","MaxPreDn":<int>}
 - SetSitePermDown: Body {"SiteName":"<name>","PermDown":true|false}
 - SetSiteAutoLogin: Body {"SiteName":"<name>","Enabled":true|false}
+- SetSiteRankLock: Body {"SiteName":"<name>","RankLock":<int>}. Sets global ranklock (0 = dynamic).
 - SetSiteAutoRules: Body {"SiteName":"<name>","IntervalSeconds":<int>}
 - SetSiteAffils: Body {"SiteName":"<name>","Affils":"GRP1 GRP2"}
 - SetSiteIrcNick: Body {"SiteName":"<name>","IrcNick":"..."}
@@ -187,6 +188,12 @@ TV Database (ApiTVService)
 - CreateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
 - UpdateTVRecord: Body {"TVMazeId":"1234","Showname":"...","Country":"...","Status":"...","Classification":"...","Network":"...","Genre":"...","Language":"...","PremieredYear":2024,"Rating":80}
 - DeleteTVRecord: Body {"TVMazeId":"1234"}
+
+News (ApiNewsService)
+- GetNews: Body {}. Returns {Total, Unread, Enabled, Entries:[{Id, Status:"READ|UNREAD", Date, Category, Message}]}.
+- DeleteNewsEntry: Body {"Id":<int>}. Deletes a single news entry by 1-based index.
+- DeleteAllNews: Body {}. Deletes all news entries.
+- SetNewsEnabled: Body {"Enabled":true|false}. Enables or disables news generation (config key news_enabled in [news] section).
 
 Config (ApiConfigService)
 - GetConfigList: Body {}. Returns list of editable config files.

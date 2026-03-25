@@ -1,6 +1,7 @@
-import { Alert, Badge, Button, Card, Group, Loader, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs, Textarea, Modal } from '@mantine/core';
-import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings, IconUpload, IconDeviceFloppy, IconListCheck, IconCheck, IconX, IconBan } from '@tabler/icons-react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { Alert, Badge, Button, Card, Center, Group, Loader, ScrollArea, Stack, Switch, Table, Text, TextInput, Title, Autocomplete, ActionIcon, Tooltip, Tabs, Textarea, Modal } from '@mantine/core';
+import { IconAlertCircle, IconPlayerPlay, IconWand, IconBolt, IconCpu, IconSettings, IconUpload, IconDeviceFloppy, IconListCheck, IconCheck, IconX, IconBan, IconNews, IconTrash } from '@tabler/icons-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
 import { useMemo, useState, useRef } from 'react';
 import { apiClient, batchTestSections, saveSectionTesterData, loadSectionTesterData, type SectionTestItem } from '../api/client';
 import { SpeedTest } from './SpeedTest';
@@ -714,6 +715,138 @@ function SectionsSimulator() {
   );
 }
 
+interface NewsEntry {
+  Id: number;
+  Status: 'READ' | 'UNREAD';
+  Date: string;
+  Category: string;
+  Message: string;
+}
+
+interface NewsResponse {
+  Total: number;
+  Unread: number;
+  Enabled: boolean;
+  Entries: NewsEntry[];
+}
+
+function NewsViewer() {
+  const queryClient = useQueryClient();
+
+  const { data: newsData } = useQuery<NewsResponse>({
+    queryKey: ['news'],
+    queryFn: async () => {
+      const res = await apiClient.post('/ApiNewsService/GetNews', {});
+      const d = res.data?.result?.[0] || res.data;
+      const entries = typeof d.Entries === 'string' ? JSON.parse(d.Entries) : (d.Entries || []);
+      return { ...d, Entries: entries } as NewsResponse;
+    },
+    refetchInterval: 60000,
+    refetchOnWindowFocus: false,
+  });
+
+  const deleteNewsEntryMutation = useMutation({
+    mutationFn: async (id: number) => apiClient.post('/ApiNewsService/DeleteNewsEntry', { Id: id }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['news'] }),
+    onError: () => notifications.show({ title: 'Error', message: 'Failed to delete entry', color: 'red' }),
+  });
+
+  const deleteAllNewsMutation = useMutation({
+    mutationFn: async () => apiClient.post('/ApiNewsService/DeleteAllNews', {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['news'] }),
+    onError: () => notifications.show({ title: 'Error', message: 'Failed to clear news', color: 'red' }),
+  });
+
+  const setNewsEnabledMutation = useMutation({
+    mutationFn: async (enabled: boolean) => apiClient.post('/ApiNewsService/SetNewsEnabled', { Enabled: enabled }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['news'] }),
+    onError: () => notifications.show({ title: 'Error', message: 'Failed to update news setting', color: 'red' }),
+  });
+
+  return (
+    <Stack gap="md">
+      <Card withBorder radius="md" p="md">
+        <Group justify="space-between" mb="md">
+          <Group gap="xs">
+            <Text fw={500}>slftp.news</Text>
+            {newsData && (
+              <>
+                <Badge size="sm" color="blue" variant="light">{newsData.Unread} unread</Badge>
+                <Badge size="sm" color="gray" variant="light">{newsData.Total} total</Badge>
+              </>
+            )}
+          </Group>
+          <Group gap="sm">
+            <Tooltip label={newsData?.Enabled ? 'News enabled — click to disable' : 'News disabled — click to enable'} withArrow>
+              <Switch
+                checked={newsData?.Enabled ?? true}
+                onChange={(e) => setNewsEnabledMutation.mutate(e.currentTarget.checked)}
+                size="sm"
+                label={newsData?.Enabled ? 'Enabled' : 'Disabled'}
+              />
+            </Tooltip>
+            <Tooltip label="Clear all news" withArrow>
+              <ActionIcon
+                variant="light"
+                color="red"
+                onClick={() => { if (confirm('Delete all news entries?')) deleteAllNewsMutation.mutate(); }}
+                loading={deleteAllNewsMutation.isPending}
+              >
+                <IconTrash size="1rem" />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </Group>
+
+        {newsData && newsData.Entries.length > 0 ? (
+          <ScrollArea>
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th style={{ width: 70 }}>Status</Table.Th>
+                  <Table.Th style={{ width: 120 }}>Date</Table.Th>
+                  <Table.Th style={{ width: 110 }}>Category</Table.Th>
+                  <Table.Th>Message</Table.Th>
+                  <Table.Th style={{ width: 40 }}></Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {newsData.Entries.map((entry) => (
+                  <Table.Tr key={entry.Id}>
+                    <Table.Td>
+                      <Badge size="xs" color={entry.Status === 'UNREAD' ? 'blue' : 'gray'} variant="light">
+                        {entry.Status}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{entry.Date}</Text></Table.Td>
+                    <Table.Td><Badge size="xs" variant="outline">{entry.Category}</Badge></Table.Td>
+                    <Table.Td><Text size="sm">{entry.Message}</Text></Table.Td>
+                    <Table.Td>
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        size="sm"
+                        onClick={() => deleteNewsEntryMutation.mutate(entry.Id)}
+                        loading={deleteNewsEntryMutation.isPending}
+                      >
+                        <IconTrash size={12} />
+                      </ActionIcon>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea>
+        ) : (
+          <Center h={100}>
+            <Text size="sm" c="dimmed">No news entries</Text>
+          </Center>
+        )}
+      </Card>
+    </Stack>
+  );
+}
+
 export function Tools() {
   const [activeTab, setActiveTab] = useState<string | null>('simulator');
 
@@ -735,6 +868,9 @@ export function Tools() {
           <Tabs.Tab value="config" leftSection={<IconSettings size="0.8rem" />}>
             Config Editor
           </Tabs.Tab>
+          <Tabs.Tab value="news" leftSection={<IconNews size="0.8rem" />}>
+            News
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="simulator" pt="xs">
@@ -751,6 +887,10 @@ export function Tools() {
 
         <Tabs.Panel value="config" pt="xs">
           <ConfigEditor />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="news" pt="xs">
+          <NewsViewer />
         </Tabs.Panel>
       </Tabs>
     </Stack>
