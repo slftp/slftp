@@ -2138,7 +2138,15 @@ begin
                   // slot1 here makes the task eligible for removal (ready+slot1=nil)
                   // while the slot thread still holds fCurrentTask pointing to it,
                   // causing a use-after-free crash in the removal loop.
+                  //
+                  // IMPORTANT: Set dontremove=True to prevent this task from being
+                  // processed again in future QueueClean cycles. Without this flag,
+                  // the task would be re-detected as "unassigned" on every cycle
+                  // (since assigned=0, slot1<>nil) and spam the logs with duplicate
+                  // "Remove Unassigned" messages until the slot thread finally clears
+                  // slot1 during its post-execute cleanup.
                   TSiteSlot(t.slot1).todotask := nil;
+                  t.dontremove := True;
                 end
                 else
                 begin
