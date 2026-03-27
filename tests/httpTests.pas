@@ -30,14 +30,14 @@ var
   Result: Boolean;
   fURL, fHTML, fErrMsg: String;
 begin
-  fURL := 'https://www.imdb.com/title/tt6966692/';
+  fURL := 'https://api.imdbapi.dev/titles/tt6966692';
   Result := HttpGetUrl(fURL, fHTML, fErrMsg);
 
   CheckEqualsString('', fErrMsg, 'Error message for IMDB is unexpected');
   CheckTrue(Result, 'The HTTP fetch should work!');
-  CheckNotEquals(0, Length(fHTML), 'Length of HTML code should be longer than 0');
-  CheckTrue(ContainsText(fHTML, '<title>Green Book'), 'HTML content should include title');
-  CheckTrue(ContainsText(fHTML, '<meta property="og:title" content="Green Book'), 'HTML content should include meta name title');
+  CheckNotEquals(0, Length(fHTML), 'Length of JSON response should be longer than 0');
+  CheckTrue(ContainsText(fHTML, 'tt6966692'), 'JSON response should include IMDB ID tt6966692');
+  CheckTrue(ContainsText(fHTML, 'Green Book'), 'JSON response should include title Green Book');
 end;
 
 procedure TTestHTTP.TestBOMHTTPS;
