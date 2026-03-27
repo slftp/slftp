@@ -290,7 +290,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
         begin
@@ -299,7 +299,7 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else
         begin
@@ -320,7 +320,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
         begin
@@ -329,7 +329,7 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else
         begin
@@ -350,7 +350,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
         begin
@@ -359,7 +359,7 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else
         begin
@@ -380,7 +380,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
         begin
@@ -389,7 +389,7 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
-          exit;
+          if (Result <> 0) then exit;
         end
         else
         begin
