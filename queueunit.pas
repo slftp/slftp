@@ -280,7 +280,7 @@ begin
         exit;
       end;
 
-      // Sample dir priority
+      // Sample dir priority - checked first for highest priority
       if (tpr1.IsSample) or (tpr2.IsSample) then
       begin
         if ((tpr1.IsSample) and (not tpr2.IsSample)) then
@@ -290,6 +290,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
+          exit;
         end
         else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
         begin
@@ -298,12 +299,18 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
+          exit;
         end
         else
+        begin
+          // both are sample or both are not sample
           Result := CompareValue(tpr2.rank, tpr1.rank);
+          if (Result <> 0) then
+            exit;
+        end;
       end;
 
-      // Proof priority
+      // Proof priority - second priority level
       if (tpr1.IsProof) or (tpr2.IsProof) then
       begin
         if ((tpr1.IsProof) and (not tpr2.IsProof)) then
@@ -313,6 +320,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
+          exit;
         end
         else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
         begin
@@ -321,12 +329,18 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
+          exit;
         end
         else
+        begin
+          // both are proof or both are not proof
           Result := CompareValue(tpr2.rank, tpr1.rank);
+          if (Result <> 0) then
+            exit;
+        end;
       end;
 
-      // Subs priority
+      // Subs priority - third priority level
       if (tpr1.IsSubs) or (tpr2.IsSubs) then
       begin
         if ((tpr1.IsSubs) and (not tpr2.IsSubs)) then
@@ -336,6 +350,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
+          exit;
         end
         else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
         begin
@@ -344,12 +359,18 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
+          exit;
         end
         else
+        begin
+          // both are subs or both are not subs
           Result := CompareValue(tpr2.rank, tpr1.rank);
+          if (Result <> 0) then
+            exit;
+        end;
       end;
 
-      // Covers priority
+      // Covers priority - fourth priority level
       if (tpr1.IsCovers) or (tpr2.IsCovers) then
       begin
         if ((tpr1.IsCovers) and (not tpr2.IsCovers)) then
@@ -359,6 +380,7 @@ begin
             1: Result := -1;
             2: Result := 1;
           end;
+          exit;
         end
         else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
         begin
@@ -367,11 +389,18 @@ begin
             1: Result := 1;
             2: Result := -1;
           end;
+          exit;
         end
         else
+        begin
+          // both are covers or both are not covers
           Result := CompareValue(tpr2.rank, tpr1.rank);
+          if (Result <> 0) then
+            exit;
+        end;
       end;
 
+      // Final tiebreaker: filesize
       if (Result = 0) then
         Result := CompareValue(tpr2.filesize, tpr1.filesize);
 
