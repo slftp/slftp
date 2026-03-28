@@ -1,5 +1,5 @@
-import { Alert, Button, Card, Code, Grid, Group, Loader, ScrollArea, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconAlertCircle, IconRefresh } from '@tabler/icons-react';
+import { Alert, Button, Card, Code, Grid, Group, Loader, ScrollArea, Stack, Text, TextInput, Title, Tabs } from '@mantine/core';
+import { IconAlertCircle, IconRefresh, IconBook, IconTerminal } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
@@ -12,16 +12,22 @@ function parseApiResult<T>(response: any, fallback: T): T {
   return (result ?? fallback) as T;
 }
 
+type Category = 'docs' | 'help';
+
 export function Help() {
+  const [activeTab, setActiveTab] = useState<Category>('help');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
 
   const { data: docs, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['help-docs', search],
+    queryKey: ['help-docs', activeTab, search],
     queryFn: async () => {
       const query = search.trim();
       const endpoint = query ? '/ApiHelpService/SearchHelpDocs' : '/ApiHelpService/GetHelpDocs';
-      const res = await apiClient.post(endpoint, query ? { Query: query } : {});
+      const res = await apiClient.post(endpoint, query 
+        ? { Category: activeTab, Query: query } 
+        : { Category: activeTab }
+      );
       const result = parseApiResult<any>(res, []);
       if (typeof result === 'string') {
         try {
@@ -36,15 +42,24 @@ export function Help() {
   });
 
   const { data: content, isLoading: isLoadingContent, error: contentError } = useQuery({
-    queryKey: ['help-doc', selected],
+    queryKey: ['help-doc', activeTab, selected],
     queryFn: async () => {
-      const res = await apiClient.post('/ApiHelpService/GetHelpDocContent', { Name: selected });
+      const res = await apiClient.post('/ApiHelpService/GetHelpDocContent', { 
+        Category: activeTab, 
+        Name: selected 
+      });
       const result = parseApiResult<any>(res, '');
       return typeof result === 'string' ? result : String(result ?? '');
     },
     enabled: !!selected,
     refetchOnWindowFocus: false,
   });
+
+  // Reset selection when tab changes
+  useEffect(() => {
+    setSelected(null);
+    setSearch('');
+  }, [activeTab]);
 
   useEffect(() => {
     if (docs && docs.length > 0) {
@@ -55,6 +70,13 @@ export function Help() {
       setSelected(null);
     }
   }, [docs, selected]);
+
+  const displayName = (name: string) => {
+    if (activeTab === 'help' && name.endsWith('.txt')) {
+      return name.slice(0, -4);
+    }
+    return name;
+  };
 
   return (
     <Stack>
@@ -70,9 +92,20 @@ export function Help() {
         </Button>
       </Group>
 
+      <Tabs value={activeTab} onChange={(v) => setActiveTab(v as Category)}>
+        <Tabs.List>
+          <Tabs.Tab value="help" leftSection={<IconTerminal size="1rem" />}>
+            Help
+          </Tabs.Tab>
+          <Tabs.Tab value="docs" leftSection={<IconBook size="1rem" />}>
+            Docs
+          </Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+
       <Group justify="space-between">
         <TextInput
-          placeholder="Search docs..."
+          placeholder={activeTab === 'help' ? "Search commands..." : "Search docs..."}
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
           style={{ width: 320 }}
@@ -92,7 +125,7 @@ export function Help() {
             withBorder
             radius="md"
             p="xs"
-            style={{ height: 'calc(100vh - 220px)', maxWidth: 240, minWidth: 200 }}
+            style={{ height: 'calc(100vh - 260px)', maxWidth: 240, minWidth: 200 }}
           >
             {isLoading ? (
               <Group justify="center" p="md"><Loader size="md" /></Group>
@@ -108,7 +141,7 @@ export function Help() {
                       size="xs"
                       style={{ justifyContent: 'flex-start', whiteSpace: 'nowrap' }}
                     >
-                      {name}
+                      {displayName(name)}
                     </Button>
                   ))}
                   {(docs || []).length === 0 && (
@@ -120,7 +153,7 @@ export function Help() {
           </Card>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 9 }}>
-          <Card withBorder radius="md" p="sm" style={{ height: 'calc(100vh - 220px)' }}>
+          <Card withBorder radius="md" p="sm" style={{ height: 'calc(100vh - 260px)' }}>
             {contentError && (
               <Alert icon={<IconAlertCircle size="1rem" />} title="Error" color="red" mb="sm">
                 {(contentError as any)?.message || 'Failed to load document'}
@@ -131,7 +164,7 @@ export function Help() {
             )}
             {selected && (
               <Stack gap="xs" style={{ height: '100%' }}>
-                <Title order={5}>{selected}</Title>
+                <Title order={5}>{displayName(selected)}</Title>
                 <ScrollArea h="100%">
                   <Code block style={{ fontSize: '0.75rem' }}>
                     {isLoadingContent ? 'Loading...' : (content || 'No content.')}

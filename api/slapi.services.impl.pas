@@ -303,9 +303,9 @@ type
 
   TApiHelpServiceImpl = class(TInjectableObjectRest, IApiHelpService)
   public
-    function GetHelpDocs: RawJSON;
-    function GetHelpDocContent(const Name: RawUTF8): RawJSON;
-    function SearchHelpDocs(const Query: RawUTF8): RawJSON;
+    function GetHelpDocs(const Category: RawUTF8): RawJSON;
+    function GetHelpDocContent(const Category, Name: RawUTF8): RawJSON;
+    function SearchHelpDocs(const Category, Query: RawUTF8): RawJSON;
   end;
 
   TApiNewsServiceImpl = class(TInjectableObjectRest, IApiNewsService)
@@ -6970,25 +6970,38 @@ begin
   // slftp.ini and slftp.scheduler currently require restart
 end;
 
-function GetHelpDocsRoot: string;
+function GetHelpDocsRoot(const Category: string): string;
+var
+  fExeDir: string;
 begin
-  Result := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0))) + 'docs';
+  fExeDir := IncludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
+  if Category = 'help' then
+  begin
+    // Use 'help' if it exists (production), otherwise fallback to 'helpfiles' (dev)
+    if DirectoryExists(fExeDir + 'help') then
+      Result := fExeDir + 'help'
+    else
+      Result := fExeDir + 'helpfiles';
+  end
+  else
+    Result := fExeDir + 'docs';
 end;
 
 function IsHelpDocNameSafe(const Name: string): boolean;
 begin
-  Result := (Name <> '') and (ExtractFileExt(Name) = '') and
+  // Allow .txt files (helpfiles) and files without extension (docs compatibility)
+  Result := (Name <> '') and
     (Pos('/', Name) = 0) and (Pos('\', Name) = 0) and (Pos('..', Name) = 0);
 end;
 
-function TApiHelpServiceImpl.GetHelpDocs: RawJSON;
+function TApiHelpServiceImpl.GetHelpDocs(const Category: RawUTF8): RawJSON;
 var
   files: TDocVariantData;
   root: string;
   sr: TSearchRec;
 begin
   files.Init(JSON_FAST, dvArray);
-  root := GetHelpDocsRoot;
+  root := GetHelpDocsRoot(UTF8ToString(Category));
 
   if FindFirst(IncludeTrailingPathDelimiter(root) + '*', faAnyFile, sr) = 0 then
   try
@@ -7006,12 +7019,12 @@ begin
   Result := files.ToJSON;
 end;
 
-function TApiHelpServiceImpl.GetHelpDocContent(const Name: RawUTF8): RawJSON;
+function TApiHelpServiceImpl.GetHelpDocContent(const Category, Name: RawUTF8): RawJSON;
 var
   root, docName, fullPath: string;
 begin
   Result := '""';
-  root := GetHelpDocsRoot;
+  root := GetHelpDocsRoot(UTF8ToString(Category));
   docName := UTF8ToString(Name);
 
   if not IsHelpDocNameSafe(docName) then
@@ -7022,14 +7035,14 @@ begin
     Result := VariantSaveJSON(StringFromFile(fullPath));
 end;
 
-function TApiHelpServiceImpl.SearchHelpDocs(const Query: RawUTF8): RawJSON;
+function TApiHelpServiceImpl.SearchHelpDocs(const Category, Query: RawUTF8): RawJSON;
 var
   files: TDocVariantData;
   root, queryLower, nameLower, contentLower, content: string;
   sr: TSearchRec;
 begin
   files.Init(JSON_FAST, dvArray);
-  root := GetHelpDocsRoot;
+  root := GetHelpDocsRoot(UTF8ToString(Category));
   queryLower := LowerCase(UTF8ToString(Query));
 
   if FindFirst(IncludeTrailingPathDelimiter(root) + '*', faAnyFile, sr) = 0 then

@@ -665,17 +665,17 @@ type
   IApiHelpService = interface(IInvokable)
     ['{D4E5F6A7-B8C9-0D1E-2F3A-4B5C6D7E8F90}']
 
-    /// GET /api/help/docs
-    /// Returns list of help documents
-    function GetHelpDocs: RawJSON;
+    /// POST /api/help/docs
+    /// Returns list of help documents. Category: 'docs' or 'help'
+    function GetHelpDocs(const Category: RawUTF8): RawJSON;
 
-    /// GET /api/help/doc/{name}
-    /// Returns content of a help document
-    function GetHelpDocContent(const Name: RawUTF8): RawJSON;
+    /// POST /api/help/doc
+    /// Returns content of a help document. Category: 'docs' or 'help'
+    function GetHelpDocContent(const Category, Name: RawUTF8): RawJSON;
 
-    /// GET /api/help/search
-    /// Returns list of matching documents by name or content
-    function SearchHelpDocs(const Query: RawUTF8): RawJSON;
+    /// POST /api/help/search
+    /// Returns list of matching documents by name or content. Category: 'docs' or 'help'
+    function SearchHelpDocs(const Category, Query: RawUTF8): RawJSON;
   end;
 
   { News Service }
