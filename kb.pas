@@ -1279,10 +1279,13 @@ begin
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
 
-  secs := TStringlist.Create;
-  r := TRegexpr.Create;
-  xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  secs := nil;
+  r := nil;
+  xin := nil;
   try
+    secs := TStringlist.Create;
+    r := TRegexpr.Create;
+    xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
     r.ModifierI := True;
     r.ModifierM := True;
     r.Expression := '^(\#|\/\/)';
@@ -1299,9 +1302,9 @@ begin
     end;
 
   finally
-    xin.Free;
-    r.free;
-    secs.free;
+    FreeAndNil(xin);
+    FreeAndNil(r);
+    FreeAndNil(secs);
   end;
   Result := True;
 end;
