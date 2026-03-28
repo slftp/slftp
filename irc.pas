@@ -605,7 +605,7 @@ begin
   irc_last_written := Now;
   shouldquit := False;
   shouldrestart := False;
-  flood := RCInt('flood', 333);
+  flood := config_irc_spamchan_delay;
   console_add_ircwindow(aNetname);
 
   // TODO: remove this as its not needed anymore
