@@ -426,23 +426,44 @@ end;
 
 constructor TQueueThread.Create(const aSiteName: String);
 begin
+  main_lock := nil;
+  tasks := nil;
+  waiting_tasks := nil;
+  queueevent := nil;
+  fQueueStat := nil;
+  fBusyDestinations := nil;
+
   inherited Create(False);
   {$IFDEF DEBUG}
     NameThreadForDebugging('Queue/' + aSiteName, self.ThreadID);
   {$ENDIF}
 
-  main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
-  tasks      := TObjectList.Create(True);
-  waiting_tasks := TObjectList.Create(True);
-  queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
-  queue_last_run := Now;
-  queueclean_last_run := Now;
-  queue_last_stat_update := Now;
-  FreeOnTerminate := True;
-  fQueueStat := TQueueStat.Create();
-  StatsList.Add(fQueueStat);
-  fSiteName := aSiteName;
-  fBusyDestinations := TDictionary<TObject, integer>.Create;
+  try
+    main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
+    tasks := TObjectList.Create(True);
+    waiting_tasks := TObjectList.Create(True);
+    queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
+    queue_last_run := Now;
+    queueclean_last_run := Now;
+    queue_last_stat_update := Now;
+    FreeOnTerminate := True;
+    fQueueStat := TQueueStat.Create();
+    StatsList.Add(fQueueStat);
+    fSiteName := aSiteName;
+    fBusyDestinations := TDictionary<TObject, integer>.Create;
+  except
+    FreeAndNil(fBusyDestinations);
+    if fQueueStat <> nil then
+    begin
+      StatsList.Remove(fQueueStat);
+      FreeAndNil(fQueueStat);
+    end;
+    FreeAndNil(queueevent);
+    FreeAndNil(waiting_tasks);
+    FreeAndNil(tasks);
+    FreeAndNil(main_lock);
+    raise;
+  end;
 end;
 
 destructor TQueueThread.Destroy;
@@ -553,12 +574,6 @@ begin
     ss1 := nil;
     for i := 0 to s1.slots.Count - 1 do
     begin
-      if i > s1.slots.Count then
-      begin
-        ss1 := nil;
-        Break;
-      end;
-
       ss1 := TSiteSlot(s1.slots[i]);
       if ss1.todotask = nil then
       begin
@@ -1351,6 +1366,7 @@ begin
           Debug(dpError, section, Format('[EXCEPTION] AddTask TryToAssignSlots: %s', [e.Message]));
         end;
       end;
+
     finally
       main_lock.Leave;
     end;
@@ -1366,22 +1382,22 @@ begin
   // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
   // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
   // dependencies of the race task never be resolved and it would remain and pollute the queue.
-  try
-    if t is TPazoRaceTask and (TPazoRaceTask(t).ps2.error or
-
-      // for subdirs that fail there might only be that dir marked as failed, so if a dir is given, check this as well
-      (TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
-    begin
-      t.readyerror := true;
-      Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
-      exit
-    end;
-  except
-    on e: Exception do
-    begin
-      // expect to get some exceptions because we are outside of the queue lock and accessing a task
-      Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
-      exit;
+  if t is TPazoRaceTask then
+  begin
+    try
+      if TPazoRaceTask(t).ps2.error or
+        ((TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
+      begin
+        t.readyerror := true;
+        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+        exit;
+      end;
+    except
+      on e: Exception do
+      begin
+        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+        exit;
+      end;
     end;
   end;
 
