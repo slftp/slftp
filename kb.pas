@@ -21,7 +21,7 @@ type
 
 function renameCheck(const pattern, i, len: integer; const rls: String): boolean;
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String;
-  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+  dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 function FindReleaseInKbList(const rls: String): String;
 
 { Finds a release in latest KB list
@@ -46,6 +46,12 @@ function FindSectionHandler(const section: String): TCRelease;
 { Returns the number of items in the KB
       @returns(The number of items in the KB) }
 function GetKBCount: integer;
+
+{ @abstract(Returns a reference to the KB list for direct read access - caller must hold KB lock) }
+function GetKBList: TStringList;
+
+{ @abstract(Returns a reference to the KB lock for thread-safe access) }
+function GetKBLock: TSlCriticalSection2;
 
 { Lists all KB entries to IRC which match the given section
       @param(section The section to show the KB entries of.)
@@ -74,7 +80,7 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -111,6 +117,16 @@ function GetKBCount: integer;
 begin
   // access to Count is thread safe, so no lock required
   Result := kb_list.Count;
+end;
+
+function GetKBList: TStringList;
+begin
+  Result := kb_list;
+end;
+
+function GetKBLock: TSlCriticalSection2;
+begin
+  Result := kb_lock;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
@@ -178,7 +194,7 @@ begin
   Result := False;
 end;
 
-function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_AddB(const netname, channel, sitename, section, genre: String; event: TKBEventType; rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 var
   i, j, len: integer;
   r: TRelease;
@@ -871,7 +887,7 @@ begin
     integer(forceFire)]);
 end;
 
-function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;
+function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0; aDetectedTick: Int64 = 0): integer;
 begin
   Result := 0;
   if (Trim(sitename) = '') then

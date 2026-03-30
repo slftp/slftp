@@ -21,6 +21,14 @@ type
     property Message: String read FMessage;
   end;
 
+  { @abstract(Callback type for hooking into IRC message output) }
+  TIrcLogHook = procedure(const Netname, Channel, Msg: String);
+
+var
+  { @abstract(Optional hook called for every IRC output message; used by API speed test monitoring) }
+  GlIrcLogHook: TIrcLogHook = nil;
+
+type
   TIRCChannroles = record
     Name: String;
     Description: String;
@@ -238,6 +246,9 @@ var
   end;
 
 begin
+  if Assigned(GlIrcLogHook) then
+    GlIrcLogHook(netname, channel, msg);
+
   if slshutdown then
     exit;
 
