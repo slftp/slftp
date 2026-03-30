@@ -51,6 +51,13 @@ function SlftpNewsDelete(const Netname, Channel: String; const category: String;
 { Status text for @link(IrcShowAppStatus) command, shows read/unread messages }
 function SlftpNewsStatus(): String;
 
+{ Returns true if news generation is enabled (config key news_enabled in [news] section, default 1) }
+function NewsEnabled: boolean;
+
+// Reads all news entries and returns them as a JSON array string.
+// Each entry: Id, Status (READ|UNREAD), Date, Category, Message
+function SlftpNewsGetJson: RawByteString;
+
 var
   last_news_announce: TDateTime; //< time value when @link(SlftpNewsStatus) was triggered the last time
 
@@ -126,6 +133,12 @@ begin
 {$IFNDEF BSD}
   Result := False;
   dontadd := False;
+
+  if not NewsEnabled then
+  begin
+    Result := True;
+    Exit;
+  end;
 
   i := CheckForValidCategory(category);
   if i = -1 then
@@ -433,6 +446,106 @@ begin
   end;
 {$ENDIF}
   Result := True;
+end;
+
+function NewsEnabled: boolean;
+begin
+  Result := config.ReadBool('news', 'news_enabled', True);
+end;
+
+function SlftpNewsGetJson: RawByteString;
+var
+  x: TEncStringList;
+  i: integer;
+  actualmsg: TStringList;
+  sb: TStringList;
+  statusStr, dateStr, categoryStr, messageStr: string;
+
+  function JsonEscape(const s: string): string;
+  var
+    j: integer;
+    c: char;
+  begin
+    Result := '';
+    for j := 1 to Length(s) do
+    begin
+      c := s[j];
+      case c of
+        '"': Result := Result + '\"';
+        '\': Result := Result + '\\';
+        #8: Result := Result + '\b';
+        #9: Result := Result + '\t';
+        #10: Result := Result + '\n';
+        #13: Result := Result + '\r';
+        #12: Result := Result + '\f';
+      else
+        Result := Result + c;
+      end;
+    end;
+  end;
+
+begin
+{$IFNDEF BSD}
+  Result := '[]';
+  x := TEncStringList.Create(passphrase);
+  try
+    NewsMultiReadSingleWriteLock.AcquireRead;
+    try
+      x.LoadFromFile(SlftpNewsFilename);
+    finally
+      NewsMultiReadSingleWriteLock.ReleaseRead;
+    end;
+
+    sb := TStringList.Create;
+    try
+      actualmsg := TStringList.Create;
+      try
+        for i := 0 to x.Count - 1 do
+        begin
+          actualmsg.CommaText := x[i];
+          if actualmsg.Count < 4 then
+            Continue;
+
+          if actualmsg[0] = cREAD_IDENTIFIER then
+            statusStr := 'READ'
+          else
+            statusStr := 'UNREAD';
+
+          dateStr    := JsonEscape(actualmsg[1]);
+          categoryStr := JsonEscape(actualmsg[2]);
+          messageStr  := JsonEscape(actualmsg[3]);
+
+          sb.Add(Format('{"Id":%d,"Status":"%s","Date":"%s","Category":"%s","Message":"%s"}',
+            [i + 1, statusStr, dateStr, categoryStr, messageStr]));
+        end;
+      finally
+        actualmsg.Free;
+      end;
+
+      Result := RawByteString('[' + sb.DelimitedText.Replace(',', ',') + ']');
+      // build proper comma-joined array
+      if sb.Count = 0 then
+        Result := '[]'
+      else
+      begin
+        Result := '[';
+        for i := 0 to sb.Count - 1 do
+        begin
+          if i > 0 then
+            Result := Result + ',';
+          Result := Result + RawByteString(sb[i]);
+        end;
+        Result := Result + ']';
+      end;
+    finally
+      sb.Free;
+    end;
+  finally
+    x.Free;
+  end;
+{$ELSE}
+  Result := '[]';
+{$ENDIF}
 end;
 
 function SlftpNewsStatus(): String;
