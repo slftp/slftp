@@ -44,6 +44,8 @@ type
       @returns(Recognized DirType see @link(globals.TDirType), @link(globals.TDirType.IsUnknown) otherwise) }
     FIsNFO: Boolean; //< True when this is a NFO file.
     FIsSFV: Boolean; //< True when this is a SFV file.
+    FIsSymlink: Boolean; //< @true if entry is a symlink
+    FSymlinkTarget: String; //< target of symlink (if applicable)
     function RecognizeDirTypeFromDirname(const aDirname: String): TDirType;
   public
     dirlist: TDirList;
@@ -80,6 +82,8 @@ type
     property IsBeingUploaded: Boolean read FIsBeingUploaded write FIsBeingUploaded;
     property IsNFO: Boolean read FIsNFO;
     property IsSFV: Boolean read FIsSFV;
+    property IsSymlink: Boolean read FIsSymlink;
+    property SymlinkTarget: string read FSymlinkTarget;
   end;
 
   { @abstract(Information for a single release dirlist) }
@@ -720,6 +724,8 @@ begin
 
         de.FUsername := fParsedDirlistEntry.Username;
         de.FGroupname := fParsedDirlistEntry.Groupname;
+        de.FIsSymlink := fParsedDirlistEntry.IsSymlink;
+        de.FSymlinkTarget := fParsedDirlistEntry.SymlinkTarget;
         de.timestamp := akttimestamp;
         de.justadded := True;
 
@@ -797,6 +803,8 @@ begin
 
       // entry is a file and is being uploaded (glftpd only?)
       de.FIsBeingUploaded := (fParsedDirlistEntry.DirMask[1] <> 'd') and ((fParsedDirlistEntry.DirMask[7] = 'x') and (fParsedDirlistEntry.DirMask[10] = 'x'));
+      de.FIsSymlink := fParsedDirlistEntry.IsSymlink;
+      de.FSymlinkTarget := fParsedDirlistEntry.SymlinkTarget;
 
       de.IsOnSite := True;
     end;
@@ -1453,6 +1461,8 @@ begin
   end;
 
   self.FDirectory := aIsDirectory;
+  self.FIsSymlink := False;
+  self.FSymlinkTarget := '';
   self.dirlist := dirlist;
   self.filename := filename;
   self.FRacedByMe := False;
