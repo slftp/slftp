@@ -179,9 +179,6 @@ type
       @param(de The TDirListEntry of the file)
       @returns(filesize in bytes which could be @link(aFilesize) or bigger if seen somewhere else) }
     function PRegisterFile(const aDir: String; const de: TDirListEntry): Int64;
-    { Returns the amount of files for the release, includes files in subdirs
-      @returns(Total file count of @link(rls)) }
-    function GetCountOfCachedFiles: integer;
 
     procedure QueueEvent(Sender: TObject; Value: integer);
 
@@ -203,6 +200,12 @@ type
     readyerror: boolean;
     errorreason: String;
     lastTouch: TDateTime;
+    FDetectedUTC: TDateTime; //< UTC timestamp of release detection
+    FDetectedTick: Int64;    //< GetTickCount64 at detection time
+    FAddedTick: Int64;       //< GetTickCount64 at pazo creation time
+    FDirlistRequestedTick: Int64;  //< GetTickCount64 when first dirlist was requested
+    FTasksCreatedTick: Int64;      //< GetTickCount64 when first tasks were created
+    FLastTaskCreatedTick: Int64;   //< GetTickCount64 when most recent task was created
 
     PazoSitesList: TObjectList<TPazoSite>; //< list of @link(TPazoSite) which are part of this @link(TPazo) due to calling @link(AddSites)
     sl: TSkipList;
@@ -225,6 +228,8 @@ type
     function AsText: String;
     { Show headline for [ROUTES] announce and print infos for each item in @link(PazoSitesList) if different then previous @link(lastannounceroutes) }
     function RoutesText: String;
+    { @abstract(Returns true if UDP announce is enabled and configured) }
+    function IsUDPEnabled: Boolean;
     function Stats(const console: boolean; withdirlist: boolean = True): String;
     { Generate site completion times statistics relative to pazo added time
       @param(console @true if output is for console, @false for IRC)
@@ -246,6 +251,9 @@ type
       @param(aFilename Name of the file)
       @returns(filesize in bytes, -1 if not found or unknown file) }
     function PFileSize(const aDir, aFilename: String): Int64;
+    { Returns the amount of files for the release, includes files in subdirs
+      @returns(Total file count of @link(rls)) }
+    function GetCountOfCachedFiles: integer;
 
     property ExcludeFromIncfiller: Boolean read FExcludeFromIncfiller write FExcludeFromIncfiller;
     property PazoSFV: TPazoSFV read FPazoSFV;
@@ -802,6 +810,11 @@ begin
   Result := FUniqueFileListOfRelease.Count;
 end;
 
+function TPazo.IsUDPEnabled: Boolean;
+begin
+  Result := False; // UDP announce integration not enabled in this build
+end;
+
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
 begin
   if rls <> nil then
@@ -817,6 +830,12 @@ begin
   end;
 
   added := Now;
+  FAddedTick := GetTickCount64;
+  FDirlistRequestedTick := 0;
+  FTasksCreatedTick := 0;
+  FLastTaskCreatedTick := 0;
+  FDetectedTick := 0;
+  FDetectedUTC := 0;
   queuenumber := TIdThreadSafeInt32WithEvent.Create;
   queuenumber.OnChange := QueueEvent;
   dirlisttasks := TIdThreadSafeInt32.Create;

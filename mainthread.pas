@@ -48,6 +48,7 @@ function Main_Restart: boolean;
 var
   slshutdown: boolean;
   started: TDateTime;
+  mainthread_started: TDateTime;
   glStartupGhostKillDone: boolean = False;
 
 implementation
@@ -58,7 +59,7 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist, slcriticalsection2, mormot.core.unicode;
+  taskautodirlist, slcriticalsection2, mormot.core.unicode, slapi, slapi.services.impl;
 
 {$I slftp.inc}
 
@@ -281,6 +282,8 @@ begin
   Initglobalskiplist;
   console_addline('Admin', 'Init Autodirlist', True);
   AutoDirlistInit;
+  console_addline('Admin', 'Init REST API', True);
+  ApiInit;
 
   queue_fire := config.readInteger('queue', 'queue_fire', 900);
   queueclean_interval := config.ReadInteger('queue', 'queueclean_interval', 1800);
@@ -351,15 +354,16 @@ begin
     end;
   end;
 
-  // number of tasks in queue shown in console
+  // number of tasks in queue shown in console + update system status peaks
   if MilliSecondsBetween(Now, QueueStatUpdateDateTime) > queue_stat_interval then
   begin
     try
       QueueStatAll;
+      UpdateSystemStatusPeaks;
     except
       on e: Exception do
       begin
-        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueClean): %s', [e.Message]);
+        Debug(dpError, section, '[EXCEPTION] Main_Iter(QueueStat): %s', [e.Message]);
       end;
     end;
   end;
@@ -462,6 +466,7 @@ begin
   {$ENDIF}
 
   started := Now();
+  mainthread_started := Now();
 
   // Decrypt sites.dat
   console_addline('Admin', 'Decrypt sites.dat', True);
@@ -528,6 +533,8 @@ begin
   slshutdown := False;
   console_addline('Admin', 'Start Queue', True);
   QueueStart();
+  console_addline('Admin', 'Start REST API', True);
+  ApiStart;
 end;
 
 procedure Main_Stop;
@@ -598,6 +605,7 @@ begin
   NewsUnInit;
   AutodirlistUninit;
   DirlistUnInit;
+  ApiUninit;
   SlCriticalSection2Uninit;
 
   // TSQLite3LibraryDynamic

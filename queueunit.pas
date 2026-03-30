@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
 
 
 type TQueueStat = class
@@ -11,11 +11,15 @@ type TQueueStat = class
     FDirlistTaskCount: integer;
     FAutoTaskCount: integer;
     FOtherTaskCount: integer;
+    FActiveTaskCount: integer; //< tasks currently running (status=Running)
 end;
 
 type TQueueTask = class
   FFullname: string;
   FType: TClass;
+  FTryToAssign: integer;
+  FRunnable: boolean;
+  FDestinationSite: string;
 end;
 
 type
@@ -37,6 +41,8 @@ type
   queue_last_run: TDateTime;
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
+  fLastDirlistCheckTime: TDateTime;
+  fLastDirlistCount: Integer;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
@@ -73,6 +79,8 @@ function FetchAutoBnctest: TLoginTask;
 function FetchAutoRules: TRulesTask;
 function FetchAutoDirlist: TAutoDirlistTask;
 function FetchAutoNuke: TAutoNukeTask;
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
 
 { Send the current tasks to the queue console window. }
 procedure QueueSendCurrentTasksToConsole;
@@ -84,15 +92,22 @@ property QueueCleanLastRun: TDateTime read queueclean_last_run;
 procedure QueueInit;
 procedure QueueUninit;
 procedure QueueStatAll;
+{ @abstract(Returns total task counts broken down by type across all queue threads) }
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
+{ @abstract(Returns count of pending race tasks targeting the given destination site, across all queues) }
+function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
 
 var
   QueueStatUpdateDateTime: TDateTime;
+  GlDirlistCompletedCounter: TIdThreadSafeInt32;
+  GlDirlistRate: Double;
+  GlDirlistRateMax: Double;
 
 implementation
 
 uses
   SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit;
+  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist;
 
 const
   section = 'queue';
@@ -111,6 +126,7 @@ var
   queue_recycle_post_to_irc: boolean;
 
   StatsList: TObjectList<TQueueStat>;
+  Queues: TObjectList<TQueueThread>;
   GlDefaultIterationWaitTimeout: Cardinal = 15 * 1000;
 
 procedure TQueueThread.QueueFire;
@@ -436,10 +452,12 @@ begin
     FreeOnTerminate := True;
     fQueueStat := TQueueStat.Create();
     StatsList.Add(fQueueStat);
+    Queues.Add(self);
     fSiteName := aSiteName;
     fBusyDestinations := TDictionary<TObject, integer>.Create;
   except
     FreeAndNil(fBusyDestinations);
+    Queues.Extract(self);
     if fQueueStat <> nil then
     begin
       StatsList.Remove(fQueueStat);
@@ -455,6 +473,8 @@ end;
 
 destructor TQueueThread.Destroy;
 begin
+  if Queues <> nil then
+    Queues.Extract(self);
   main_lock.Free;
   tasks.Free;
   waiting_tasks.Free;
@@ -1883,11 +1903,17 @@ begin
   queue_recycle_post_to_irc := spamcfg.readbool(section, 'queue_recycle', True);
 
   StatsList := TObjectList<TQueueStat>.Create(True);
+  Queues := TObjectList<TQueueThread>.Create(False);
+  GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
+  GlDirlistRate := 0;
+  GlDirlistRateMax := 0;
 end;
 
 procedure QueueUninit;
 begin
+  FreeAndNil(GlDirlistCompletedCounter);
   StatsList.Free;
+  FreeAndNil(Queues);
 end;
 
 procedure TQueueThread.QueueClean(run_now: boolean = False);
@@ -2240,6 +2266,37 @@ begin
   Console_QueueStat(t_race + t_dir + t_auto + t_other, t_race, t_dir, t_auto, t_other);
 end;
 
+procedure GetQueueTotals(out total, race, dirlist, autotasks, other: integer);
+var
+  fQueueStat: TQueueStat;
+begin
+  race := 0;
+  dirlist := 0;
+  autotasks := 0;
+  other := 0;
+
+  for fQueueStat in StatsList do
+  begin
+    race := race + fQueueStat.FRaceTaskCount;
+    dirlist := dirlist + fQueueStat.FDirlistTaskCount;
+    autotasks := autotasks + fQueueStat.FAutoTaskCount;
+    other := other + fQueueStat.FOtherTaskCount;
+  end;
+
+  total := race + dirlist + autotasks + other;
+end;
+
+function GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
+var
+  fQueueThread: TQueueThread;
+begin
+  Result := 0;
+  if aDestinationSiteName = '' then
+    Exit;
+  for fQueueThread in Queues do
+    Result := Result + fQueueThread.GetPendingRaceTasksToDestination(aDestinationSiteName);
+end;
+
 procedure TQueueThread.QueueSendCurrentTasksToConsole;
 var
   fTask: TTask;
@@ -2489,6 +2546,39 @@ begin
   Result := True;
 end;
 
+
+function TQueueThread.GetPendingRaceTasksToDestination(const aDestinationSiteName: String): integer;
+var
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+  fListIndex: Integer;
+  fList: TObjectList;
+begin
+  Result := 0;
+  if aDestinationSiteName = '' then
+    Exit;
+
+  main_lock.Enter('GetPendingRaceTasksToDestination');
+  try
+    for fListIndex := 0 to 1 do
+    begin
+      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+      for fTask in fList do
+      begin
+        if not (fTask is TPazoRaceTask) then
+          Continue;
+        fRaceTask := TPazoRaceTask(fTask);
+        if (not fRaceTask.ready) and (not fRaceTask.readyerror) and (fRaceTask.slot1 = nil) and
+          SameText(fRaceTask.site2, aDestinationSiteName) then
+        begin
+          Inc(Result);
+        end;
+      end;
+    end;
+  finally
+    main_lock.Leave;
+  end;
+end;
 
   procedure TQueueThread.GetCurrentTasks(const taskLst: Contnrs.TObjectList);
   var
