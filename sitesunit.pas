@@ -96,6 +96,12 @@ type
     FLastIO: TDateTime;
     FLastTaskExecution: TDateTime;
     FLastNonIdleTaskExecution: TDateTime;
+    FCurrentAction: String; //< latest live action/command for slot view
+    FCurrentActionCS: TCriticalSection;
+    FAktDirIsRemote: boolean; //< true if aktdir is a remote path (for slot view)
+    FHistory: TQueue<String>; //< ring buffer of recent slot commands (lazy init)
+    FHistoryLock: TCriticalSection;
+    FHistorySeq: UInt64; //< monotonically increasing sequence for SSE change detection
     mdtmre: TRegExpr; //< regex for parsing MDTM ftpd response
     aktdir: String;
     prot: TProtection;
@@ -113,6 +119,8 @@ type
     procedure SetDownloadingFrom(const Value: boolean);
     procedure SetUploadingTo(const Value: boolean);
     procedure SetTodotask(Value: TTask);
+    function GetCurrentAction: String;
+    procedure SetCurrentAction(const Value: String);
   public
     //    pre: Boolean;
     localport: integer;
@@ -127,8 +135,9 @@ type
     site: TSite; //< links to corresponding @link(TSite) class of slot
     procedure DestroySocket(down: boolean);
     { Invokes Relogin after invoking DestroySocket.
-      @param(aMessage Info which task is issuing this command.) }
-    procedure DestroySocketAndRelogin(const aMessage: string);
+      @param(aMessage Info which task is issuing this command.)
+      @param(aKill If @true, passes kill=True to Relogin.) }
+    procedure DestroySocketAndRelogin(const aMessage: string; const aKill: boolean = False);
     procedure Quit;
     { Invokes Relogin after invoking Quit.
       @param(aMessage Info which task is issuing this command.) }
@@ -196,6 +205,14 @@ type
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
     property SlotNumber: integer read FSlotNumber;
+    { @abstract(Adds a line to this slot's command history (only if monitored)) }
+    procedure AddHistory(const aLine: String);
+    { @abstract(Returns a snapshot of the slot's command history) }
+    function GetHistory: TArray<String>;
+    { @abstract(Monotonically increasing sequence number, incremented on each history entry) }
+    property HistorySeq: UInt64 read FHistorySeq;
+    { @abstract(Latest live action/command description for slot view) }
+    property CurrentAction: String read GetCurrentAction write SetCurrentAction;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -226,6 +243,15 @@ type
     flegacydirlist: boolean;
     fSlotsAssignmentLock: TSlCriticalSection2;
     fFailedNfoCounter: integer;
+    fDownloadCooldownUntil: TDateTime; //< no new download on this site until Now() > this
+    fUploadCooldownUntil: TDateTime;   //< no new upload on this site until Now() > this
+    fLoginCooldownUntil: TDateTime;
+    fLoginCooldownSeconds: integer;
+    fLoginCooldownLastSlot: String;
+    fActiveLoginAttempts: integer; //< in-flight login attempts; prevents thundering herd on cooldown expiry
+    FSocketInitErrorCount: integer; //< site-wide counter for socket initialization errors
+    fFirstLoginDone: Boolean; //< tracks if first login after startup was done
+    fSkipDirectoryCreation: boolean;
     fConnect_timeout: integer;
     fIdleInterval: integer;
     fIo_timeout: integer;
@@ -411,6 +437,14 @@ type
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
     function GetSpeed_From: TList<TSpeedFromRouteInfo>;
+    function GetSkipDirectoryCreation: boolean;
+    procedure SetSkipDirectoryCreation(const Value: boolean);
+    function GetNewdirDirlistReadd: integer;
+    procedure SetNewdirDirlistReadd(const Value: integer);
+    function GetDirlistPriority: integer;
+    procedure SetDirlistPriority(const Value: integer);
+    function GetPerformanceAdjustedDirlist: Boolean;
+    procedure SetPerformanceAdjustedDirlist(const Value: Boolean);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -563,6 +597,25 @@ type
     { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
     procedure MigrateSpeedLockAndSpeedToConfig;
 
+    { @abstract(Register a failed login attempt hit for exponential backoff cooldown) }
+    procedure RegisterLoginCooldownHit(const aSlotName: String);
+    { @abstract(Returns true if site is currently in login cooldown) }
+    function LoginCooldownActive: boolean;
+    { @abstract(Reset login cooldown state) }
+    procedure ResetLoginCooldown;
+    { @abstract(Returns remaining login cooldown seconds) }
+    function LoginCooldownRemainingSeconds: integer;
+    { @abstract(Increment active login attempt counter) }
+    procedure IncrementActiveLoginAttempts;
+    { @abstract(Decrement active login attempt counter) }
+    procedure DecrementActiveLoginAttempts;
+    { @abstract(Returns true if there is at least one active login attempt in flight) }
+    function HasActiveLoginAttempt: boolean;
+    { @abstract(Returns true if download cooldown is currently active) }
+    function DownloadCooldownActive: boolean;
+    { @abstract(Returns true if upload cooldown is currently active) }
+    function UploadCooldownActive: boolean;
+
     property sections: String read GetSections write SettSections;
     property sectiondir[const Name: String]: String read GetSectionDir write SetSectionDir;
     property sectionprecmd[Name: String]: String read GetSectionPreCmd write SetSectionPrecmd;
@@ -630,7 +683,19 @@ type
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
     property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
+    { @abstract(Skip directory creation when racing) }
+    property SkipDirectoryCreation: boolean read GetSkipDirectoryCreation write SetSkipDirectoryCreation;
+    { @abstract(Re-add dirlist task after new directory detection; 0 = disabled) }
+    property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd;
+    { @abstract(Priority level for dirlist tasks) }
+    property DirlistPriority: integer read GetDirlistPriority write SetDirlistPriority;
+    { @abstract(Auto-reduce dirlist rate based on system load) }
+    property PerformanceAdjustedDirlist: Boolean read GetPerformanceAdjustedDirlist write SetPerformanceAdjustedDirlist;
   end;
+
+const
+  LOGIN_COOLDOWN_INITIAL_SECONDS = 5;
+  LOGIN_COOLDOWN_MAX_SECONDS = 120;
 
 function ReadSites(): boolean;
 procedure SlotsFire;
@@ -737,6 +802,9 @@ procedure AddSite(const aSite: TSite);
 { Deletes a site from the relevant data structures.
   @param(aSite The @link(TSite) object to delete.) }
 procedure DeleteSite(const aSite: TSite);
+
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
 
 var
   sitesdat: TEncIniFile = nil; //< the inifile @link(encinifile.TEncIniFile) object for sites.dat
@@ -1465,6 +1533,13 @@ begin
   LastTaskExecution := Now();
   SSCNEnabled := False;
 
+  FCurrentActionCS := TCriticalSection.Create;
+  FCurrentAction := 'Initializing...';
+  FHistory := nil; // lazy init - only created when slot is monitored
+  FHistoryLock := TCriticalSection.Create;
+  FHistorySeq := 0;
+  FAktDirIsRemote := False;
+
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
 
@@ -1516,10 +1591,82 @@ begin
     status := ssOffline;
 end;
 
-procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string);
+procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string; const aKill: boolean = False);
 begin
   DestroySocket(False);
-  Relogin(0, False, aMessage);
+  Relogin(0, aKill, aMessage);
+end;
+
+procedure TSiteSlot.AddHistory(const aLine: String);
+var
+  fSiteName: string;
+  fLine: String;
+begin
+  fSiteName := '';
+  if Self.site <> nil then
+    fSiteName := Self.site.Name;
+  if not IsSlotMonitored(fSiteName, Self.FSlotNumber) then
+    Exit;
+
+  // Lazy init: create history queue on first use
+  if FHistory = nil then
+  begin
+    FHistoryLock.Acquire;
+    try
+      if FHistory = nil then
+        FHistory := TQueue<String>.Create;
+    finally
+      FHistoryLock.Release;
+    end;
+  end;
+
+  fLine := Format('[%s] %s', [FormatDateTime('hh:nn:ss.zzz', Now), aLine]);
+  FHistoryLock.Acquire;
+  try
+    while FHistory.Count >= 5000 do
+      FHistory.Dequeue;
+    FHistory.Enqueue(fLine);
+    Inc(FHistorySeq);
+  finally
+    FHistoryLock.Release;
+  end;
+end;
+
+function TSiteSlot.GetHistory: TArray<String>;
+begin
+  FHistoryLock.Acquire;
+  try
+    if FHistory = nil then
+      FHistory := TQueue<String>.Create;
+    Result := FHistory.ToArray;
+  finally
+    FHistoryLock.Release;
+  end;
+end;
+
+function TSiteSlot.GetCurrentAction: String;
+begin
+  Result := '';
+  if FCurrentActionCS = nil then
+    Exit;
+  FCurrentActionCS.Enter;
+  try
+    Result := FCurrentAction;
+  finally
+    FCurrentActionCS.Leave;
+  end;
+end;
+
+procedure TSiteSlot.SetCurrentAction(const Value: String);
+begin
+  if FCurrentActionCS = nil then
+    Exit;
+  FCurrentActionCS.Enter;
+  try
+    FCurrentAction := Value;
+  finally
+    FCurrentActionCS.Leave;
+  end;
 end;
 
 procedure TSiteSlot.Execute;
@@ -1720,6 +1867,9 @@ begin
 
   FreeAndNil(event);
   mdtmre.Free;
+  FreeAndNil(FHistoryLock);
+  FreeAndNil(FHistory);
+  FreeAndNil(FCurrentActionCS);
 
   inherited;
   Debug(dpSpam, section, 'Slot %s destroy end', [Name]);
@@ -3154,6 +3304,15 @@ begin
   fMaxUp := RCInteger('max_up', 2);
   fMaxPreDn := RCInteger('max_pre_dn', max_dn);
   fFailedNfoCounter := 0;
+  fDownloadCooldownUntil := 0;
+  fUploadCooldownUntil := 0;
+  fLoginCooldownUntil := 0;
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownLastSlot := '';
+  fActiveLoginAttempts := 0;
+  FSocketInitErrorCount := 0;
+  fFirstLoginDone := False;
+  fSkipDirectoryCreation := RCBool('skipdirectorycreation', False);
 
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
@@ -5017,6 +5176,130 @@ begin
     fStringList.Free;
   end;
 
+end;
+
+function TSite.DownloadCooldownActive: boolean;
+begin
+  Result := (fDownloadCooldownUntil > 0) and (Now < fDownloadCooldownUntil);
+end;
+
+function TSite.UploadCooldownActive: boolean;
+begin
+  Result := (fUploadCooldownUntil > 0) and (Now < fUploadCooldownUntil);
+end;
+
+procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fLoginCooldownSeconds = 0 then
+    fNewCooldown := LOGIN_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fLoginCooldownSeconds * 2;
+    if fNewCooldown > LOGIN_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := LOGIN_COOLDOWN_MAX_SECONDS;
+  end;
+  fLoginCooldownSeconds := fNewCooldown;
+  fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
+  fLoginCooldownLastSlot := aSlotName;
+  Debug(dpSpam, section, '[LOGIN COOLDOWN] %s: cooldown set to %ds (slot: %s)',
+    [Name, fLoginCooldownSeconds, aSlotName]);
+end;
+
+function TSite.LoginCooldownActive: boolean;
+begin
+  if fLoginCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+  if Now >= fLoginCooldownUntil then
+  begin
+    if fLoginCooldownSeconds > 0 then
+      Debug(dpSpam, section, '[LOGIN COOLDOWN] %s: cooldown expired after %ds', [Name, fLoginCooldownSeconds]);
+    fLoginCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+  Result := True;
+end;
+
+procedure TSite.ResetLoginCooldown;
+begin
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownUntil := 0;
+end;
+
+function TSite.LoginCooldownRemainingSeconds: integer;
+begin
+  if not LoginCooldownActive then
+    Result := 0
+  else
+    Result := SecondsBetween(Now, fLoginCooldownUntil);
+end;
+
+procedure TSite.IncrementActiveLoginAttempts;
+begin
+  Inc(fActiveLoginAttempts);
+end;
+
+procedure TSite.DecrementActiveLoginAttempts;
+begin
+  if fActiveLoginAttempts > 0 then
+    Dec(fActiveLoginAttempts);
+end;
+
+function TSite.HasActiveLoginAttempt: boolean;
+begin
+  Result := fActiveLoginAttempts > 0;
+end;
+
+function TSite.GetSkipDirectoryCreation: boolean;
+begin
+  Result := fSkipDirectoryCreation;
+end;
+
+procedure TSite.SetSkipDirectoryCreation(const Value: boolean);
+begin
+  fSkipDirectoryCreation := Value;
+  WCBool('skipdirectorycreation', Value);
+end;
+
+function TSite.GetNewdirDirlistReadd: integer;
+begin
+  Result := RCInteger('newdir_dirlist_readd', 0);
+end;
+
+procedure TSite.SetNewdirDirlistReadd(const Value: integer);
+begin
+  WCInteger('newdir_dirlist_readd', Value);
+end;
+
+function TSite.GetDirlistPriority: integer;
+begin
+  Result := RCInteger('dirlist_priority', 2);
+end;
+
+procedure TSite.SetDirlistPriority(const Value: integer);
+begin
+  WCInteger('dirlist_priority', Value);
+end;
+
+function TSite.GetPerformanceAdjustedDirlist: Boolean;
+begin
+  Result := RCBool('performance_adjusted_dirlist', True);
+end;
+
+procedure TSite.SetPerformanceAdjustedDirlist(const Value: Boolean);
+begin
+  WCBool('performance_adjusted_dirlist', Value);
+end;
+
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
+begin
+  Result := GetPendingRaceTasksToDestination(aDestinationSiteName);
 end;
 
 end.
