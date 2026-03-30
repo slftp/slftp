@@ -27,6 +27,15 @@ type
     function Name: String; override;
   end;
 
+  TPazoTVEpisodeBulkBackfillTask = class(TTask)
+  private
+    tvmaze_id: String;
+  public
+    constructor Create(const aTVMazeID: String);
+    function Execute(slot: Pointer): boolean; override;
+    function Name: String; override;
+  end;
+
 function parseTVMazeInfos(const jsonStr, Showname, uurl: String): TTVInfoDB;
 function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
 
@@ -49,6 +58,7 @@ var
   tv_country, showName, year, country: String;
   jl: TlkJSONlist;
   fHttpGetErrMsg: String;
+  fSearchUrl: String;
 begin
   result := 'FAILED';
   hadYear := False;
@@ -56,6 +66,7 @@ begin
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
 
   showName := name;
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO1] Auto lookup by name started: name=%s, fromIRC=%s', [name, BoolToStr(fromIRC, True)]));
 
   x := TRegExpr.Create;
   try
@@ -88,16 +99,22 @@ begin
     x.free;
   end;
 
-  if not HttpGetUrl('https://api.tvmaze.com/search/shows?q=' + replaceTVShowChars(showName, True), resp, fHttpGetErrMsg) then
+  fSearchUrl := 'https://api.tvmaze.com/search/shows?q=' + replaceTVShowChars(showName, True);
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO2] HTTP search request: url=%s', [fSearchUrl]));
+  
+  if not HttpGetUrl(fSearchUrl, resp, fHttpGetErrMsg) then
   begin
     irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API search by Name for %s --> %s', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
-    Debug(dpError, section, Format('[FAILED] TVMAZE API search by Name for %s --> %s ', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
+    Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO2] HTTP FAILED: %s', [fHttpGetErrMsg]));
     exit;
   end;
+
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO2] HTTP response received: length=%d', [Length(resp)]));
 
   if ((resp = '') or (resp = '[]')) then
   begin
     irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [ReplaceText(showName, '.', ' '), replaceTVShowChars(showName, true)]);
+    Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO2] Empty response or no results', []));
     Exit;
   end;
 
@@ -117,13 +134,18 @@ begin
     res := TStringlist.Create;
     ddate := TStringlist.Create;
     try
+      Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO3] Parsing %d results from API', [jl.Count]));
+      
       for I := 0 to jl.Count - 1 do
       begin
         showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
         showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
 
+        Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO4] Comparing: showA=%s, showB=%s, score=%f', [showA, showB, Double(jl.Child[i].Field['score'].Value)]));
+
         if (CompareText(showA,showB)= 0) then
         begin
+          Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO5] MATCH FOUND: ID=%s, Name=%s', [String(jl.Child[i].Field['show'].Field['id'].Value), String(jl.Child[i].Field['show'].Field['name'].Value)]));
           if hadCountry then
           begin
             if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
@@ -199,6 +221,9 @@ begin
         else
           result := res.CommaText;
       end;
+      
+      if result = 'FAILED' then
+        Debug(dpSpam, section, Format('[TVMAZE-FLOW-AUTO6] No match found for: %s', [showName]));
     finally
       ddate.free;
       res.free;
@@ -397,7 +422,7 @@ begin
     if js = nil then
       Exit;
 
-    tvr.tv_showname := String(js.Field['name'].Value);
+    tvr.tv_showname := UTF8Encode(WideString(js.Field['name'].Value));
 
     if LowerCase(tvr.tv_showname) = 'not found' then
     begin
@@ -406,22 +431,22 @@ begin
     end;
 
     tvr.tvmaze_id := String(js.Field['id'].Value);
-    tvr.tv_url := String(js.Field['url'].Value);
+    tvr.tv_url := UTF8Encode(WideString(js.Field['url'].Value));
 
     if js.Field['language'].SelfType <> jsNull then
-      tvr.tv_language:=String(js.Field['language'].Value)
+      tvr.tv_language:=UTF8Encode(WideString(js.Field['language'].Value)
     else
-      tvr.tv_language := 'unknown';
+      tvr.tv_language := 'unknown');
 
     if js.Field['status'].SelfType = jsNull then
       tvr.tv_status := 'unknown'
     else
-      tvr.tv_status := String(js.Field['status'].Value);
+      tvr.tv_status := UTF8Encode(WideString(js.Field['status'].Value));
 
     if js.Field['type'].SelfType = jsNull then
       tvr.tv_classification := 'unknown'
     else
-      tvr.tv_classification := String(js.Field['type'].Value);
+      tvr.tv_classification := UTF8Encode(WideString(js.Field['type'].Value));
 
     tvr.tv_running := Boolean( (lowercase(tvr.tv_status) = 'running') or (lowercase(tvr.tv_status) = 'in development') );
     tvr.tv_scripted := Boolean(lowercase(tvr.tv_classification) = 'scripted');
@@ -437,7 +462,7 @@ begin
     begin
       if js.Field['webChannel'].SelfType <> jsNull then
       begin
-        tvr.tv_network := String(js.Field['webChannel'].Field['name'].Value);
+        tvr.tv_network := UTF8Encode(WideString(js.Field['webChannel'].Field['name'].Value));
 
         if js.Field['webChannel'].Field['country'].SelfType = jsNull then
           tvr.tv_country := 'unknown'
@@ -452,7 +477,7 @@ begin
     end
     else
     begin
-      tvr.tv_network := String(js.Field['network'].Field['name'].Value);
+      tvr.tv_network := UTF8Encode(WideString(js.Field['network'].Field['name'].Value));
 
       if js.Field['network'].Field['country'].SelfType = jsNull then
         tvr.tv_country := 'unknown'
@@ -467,12 +492,12 @@ begin
 
     if js.Field['schedule'].SelfType <> jsNull then
       for i := 0 to js.Field['schedule'].Field['days'].Count - 1 do
-        tvr.tv_days.Add(string(js.Field['schedule'].Field['days'].Child[i].Value));
+        tvr.tv_days.Add(UTF8Encode(WideString(js.Field['schedule'].Field['days'].Child[i].Value)));
 
     if js.Field['genres'].SelfType <> jsNull then
     begin
       for I := 0 to js.Field['genres'].Count - 1 do
-        tvr.tv_genres.Add(string(js.Field['genres'].Child[i].Value));
+        tvr.tv_genres.Add(UTF8Encode(WideString(js.Field['genres'].Child[i].Value)));
     end;
     Debug(dpSpam, section, 'parseTVMazeInfos (genres): tvmaze_id: %s Genres: %s URL: %s', [tvr.tvmaze_id, tvr.tv_genres.CommaText, uurl]);
 
@@ -537,13 +562,16 @@ var
   ps: TPazoSite;
   fHttpGetErrMsg: String;
 begin
+  try
   tr := TTVRelease(mainpazo.rls);
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW-LOOKUP1] Auto lookup task started: rls=%s, showname=%s, attempt=%d', [tr.rlsname, tr.showname, attempt]));
 
   // Show is in DataBase? Here we could add some Update routine and CurrentAired EP.
   try
     db_tvinfo := getTVInfoByShowName(tr.showname);
     if (db_tvinfo <> nil) then
     begin
+      Debug(dpSpam, section, Format('[TVMAZE-FLOW-LOOKUP2] Found in DB: showname=%s', [tr.showname]));
       db_tvinfo.SetTVDbRelease(tr);
       ready := True;
       Result := True;
@@ -552,20 +580,23 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('Exception in getTVInfoByShowName: %s', [e.Message])); // anpassen.
+      Debug(dpSpam, section, Format('[TVMAZE-FLOW-LOOKUP2] Exception in getTVInfoByShowName: %s', [e.Message]));
       ready := True;
       Result := True;
       exit;
     end;
   end;
 
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW-LOOKUP2] Not in DB, searching TVMaze API: showname=%s', [tr.showname]));
   sid := findTVMazeIDByName(tr.showname);
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW-LOOKUP3] TVMaze search result: sid=%s', [sid]));
 
   //Show is not found in the DB.
   if sid = 'FAILED' then
   begin
     if attempt < config.readInteger(section, 'readd_attempts', 5) then
     begin
+      Debug(dpSpam, section, Format('[TVMAZE-FLOW-LOOKUP4] No match, scheduling retry %d/%d for %s', [attempt + 1, config.readInteger(section, 'readd_attempts', 5), tr.showname]));
       debug(dpSpam, section, 'READD: retrying TVMaze lookup for %s later', [tr.showname]);
       r := TPazoTVInfoLookupTask.Create(netname, channel, initial_site, mainpazo, attempt + 1);
       r.startat := IncSecond(Now, config.ReadInteger(section, 'readd_interval', 60));
@@ -669,6 +700,13 @@ begin
   db_tvinfo.free;
   ready := True;
   Result := True;
+  except
+    on e: Exception do
+    begin
+      Debug(dpError, section, '[EXCEPTION] TPazoTVInfoLookupTask.Execute: %s', [e.Message]);
+      readyerror := True;
+    end;
+  end;
 end;
 
 function TPazoTVInfoLookupTask.Name: String;
@@ -705,15 +743,19 @@ var
   fHttpGetErrMsg: String;
   url: String;
 begin
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW5] Task started: rls=%s, tvmaze_id=%s', [rls, tvmaze_id]));
+  
   // remove 'scene' tagging
   getShowValues(rls, sname);
   ReplaceText(sname, '.', ' ');
   ReplaceText(sname, '_', ' ');
 
   url := Format('https://api.tvmaze.com/shows/%s?embed[]=nextepisode&embed[]=previousepisode', [tvmaze_id]);
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW6] HTTP Request: url=%s', [url]));
 
   if not HttpGetUrl(url, response, fHttpGetErrMsg) then
   begin
+    Debug(dpSpam, section, Format('[TVMAZE-FLOW7] HTTP FAILED: %s', [fHttpGetErrMsg]));
     Debug(dpMessage, section, Format('[FAILED] No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
     irc_Adderror(Format('<c4>[FAILED]</c> No TVMAZE Infos for %s (%s : %s) from addtvmaze channel : %s', [rls, sname, tvmaze_id, fHttpGetErrMsg]));
     Result := True;
@@ -721,21 +763,67 @@ begin
     exit;
   end;
 
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW7] HTTP Response received: length=%d', [Length(response)]));
+
   if ((response = '') or (response = '[]')) then
   begin
     irc_Adderror(Format('<c4><b>ERROR</b></c> HTTP Response is empty for %s (%s) from addtvmaze channel', [sname, tvmaze_id]));
-    Debug(dpSpam, section, 'ERROR HTTP Response is empty for %s (%s) from addtvmaze channel', [sname, tvmaze_id]);
+    Debug(dpSpam, section, Format('[TVMAZE-FLOW7] HTTP Response is empty', []));
     Result := True;
     readyerror := True;
     exit;
   end;
 
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW8] Parsing JSON...', []));
   tvdb := parseTVMazeInfos(response, sname, url);
   try
     if tvdb <> nil then
+    begin
+      Debug(dpSpam, section, Format('[TVMAZE-FLOW9] Saving TV infos: showname=%s, tvmaze_id=%s', [tvdb.tv_showname, tvmaze_id]));
       saveTVInfos(tvmaze_id, tvdb, rls, False);
+      Debug(dpSpam, section, Format('[TVMAZE-FLOW9] TV infos saved successfully', []));
+    end
+    else
+      Debug(dpSpam, section, Format('[TVMAZE-FLOW8] parseTVMazeInfos returned nil', []));
   finally
     tvdb.free;
+  end;
+
+  ready := True;
+  Result := True;
+  Debug(dpSpam, section, Format('[TVMAZE-FLOW5] Task completed: rls=%s', [rls]));
+end;
+
+{ TPazoTVEpisodeBulkBackfillTask }
+
+constructor TPazoTVEpisodeBulkBackfillTask.Create(const aTVMazeID: String);
+begin
+  inherited Create('', '', getAdminSiteName);
+  tvmaze_id := aTVMazeID;
+end;
+
+function TPazoTVEpisodeBulkBackfillTask.Name: String;
+begin
+  Result := Format('TV episode bulk backfill for TVMaze ID %s', [tvmaze_id]);
+end;
+
+function TPazoTVEpisodeBulkBackfillTask.Execute(slot: Pointer): boolean;
+var
+  fCount: Integer;
+begin
+  try
+    try
+      fCount := ExecuteEpisodeBulkBackfill(tvmaze_id);
+      Debug(dpSpam, section, 'TV episode bulk backfill finished for ID %s (%d rows)', [tvmaze_id, fCount]);
+      irc_Addstats(Format('<c10>[<b>TVInfo</b>]</c> Episode bulk backfill finished for ID %s (%d rows)', [tvmaze_id, fCount]));
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, Format('[EXCEPTION] TPazoTVEpisodeBulkBackfillTask.Execute(%s): %s', [tvmaze_id, e.Message]));
+      end;
+    end;
+  finally
+    ReleaseEpisodeBackfillSlot(tvmaze_id);
   end;
 
   ready := True;
