@@ -122,13 +122,13 @@ revpatchrevert: FORCE
 
 # Build web UI (requires Node.js and npm)
 web-ui-build: FORCE
-	@cd web-ui && npm install && npm run build
+	cd web-ui && npm install && npm run build
 
 # Deploy built web UI to deployment directory
 web-ui-deploy: FORCE
-	@if [ -z "$(WEB_DEPLOY_DIR)" ]; then echo "WEB_DEPLOY_DIR not set"; exit 1; fi
-	@mkdir -p $(WEB_DEPLOY_DIR)
-	@cp -r web-ui/dist/* $(WEB_DEPLOY_DIR)/
+	if [ -z "$(WEB_DEPLOY_DIR)" ]; then echo "WEB_DEPLOY_DIR not set"; exit 1; fi
+	mkdir -p $(WEB_DEPLOY_DIR)
+	cp -r web-ui/dist/* $(WEB_DEPLOY_DIR)/
 
 # Build and deploy web UI
 web-ui-prod: web-ui-build web-ui-deploy
