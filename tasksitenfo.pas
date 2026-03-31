@@ -83,6 +83,13 @@ begin
     exit;
   end;
 
+  if mainpazo.IsUDPEnabled then
+  begin
+    ready := True;
+    Result := True;
+    exit;
+  end;
+
   // exit if imdb info is already known in last_imdbdata
   dbaddimdb_cs.Enter('TPazoSiteNfoTask.Execute');
   try
