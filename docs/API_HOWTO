@@ -1,0 +1,100 @@
+slftp API Quickstart
+Note: API is early beta; Windows use is currently untested.
+
+For Web UI instructions, see docs/WEB_UI_HOWTO.
+
+Prerequisites
+- Configure config/slftp.ini.
+- Build backend with Free Pascal (make).
+
+Configure API
+Edit config/slftp.ini:
+[api]
+enabled=1
+host=127.0.0.1
+port=8089
+apikey=<your_long_secret_here>
+- Use 127.0.0.1 for local-only; 0.0.0.0 if you intentionally expose it (prefer behind TLS/proxy).
+- Set a strong apikey. If set, send Authorization: Bearer <apikey> on API calls.
+
+Cbftp proxy (optional)
+- If cbftp HTTPS/JSON API is enabled, slftp can proxy it under /api/cbftp.
+- Configure config/slftp.ini:
+  [UDPConfig]
+  IP=127.0.0.1
+  ApiPort=55477
+  Password=<cbftp_api_password>
+- Access via: http://<host>:<port>/api/cbftp/...
+- The Web UI exposes only a subset of cbftp features (more to come).
+
+Build backend
+make        # or make slftp_debug
+
+Deploy & Run
+
+Linux/Mac:
+# Stop running slftp
+killall slftp  # or Ctrl+C
+
+# Deploy backend binary
+cp slftp /your/slftp/path/
+
+# Start slftp in production directory
+cd /your/slftp/path
+./slftp
+
+Windows (PowerShell):
+# Stop slftp (Ctrl+C)
+
+# Deploy backend binary
+Copy-Item slftp.exe C:\your\slftp\path\
+
+# Start slftp
+cd C:\your\slftp\path
+.\slftp.exe
+
+If building and running in same directory:
+./slftp
+
+API base: http://<host>:<port>/api
+
+Call the API (curl examples, only implemented endpoints)
+- System status:
+  curl -X POST -H "Authorization: Bearer <apikey>" \
+    http://127.0.0.1:8089/api/ApiSystemService/GetStatus
+
+- Sites list:
+  curl -X POST -H "Authorization: Bearer <apikey>" -H "Content-Type: application/json" \
+    -d '{"Filter":""}' \
+    http://127.0.0.1:8089/api/ApiSitesService/GetSites
+
+- Queue stats:
+  curl -X POST -H "Authorization: Bearer <apikey>" -H "Content-Type: application/json" \
+    -d '{"SiteName":""}' \
+    http://127.0.0.1:8089/api/ApiQueueService/GetQueueStats
+
+- Browser path (used by Web UI Sections auto-mapping):
+  curl -X POST -H "Authorization: Bearer <apikey>" -H "Content-Type: application/json" \
+    -d '{"SiteName":"<site>", "Path":"/", "ForceRefresh":true}' \
+    http://127.0.0.1:8089/api/ApiBrowserService/GetPath
+
+See API_DOCUMENTATION for the list of endpoints; many are used by the Web UI (Browser, Help, Precatcher config, Speed tests, and queue transfer APIs).
+
+Updating after code changes
+
+If you changed backend code (Pascal files):
+Linux/Mac:
+1. Rebuild: make clean && make slftp
+2. Stop slftp: killall slftp (or Ctrl+C)
+3. Deploy (if different dir): cp slftp /your/slftp/path/
+4. Restart: cd /your/slftp/path && ./slftp
+
+Windows:
+1. Rebuild: fpc -MDelphi -O3 -Xs slftp.lpr
+2. Stop slftp (Ctrl+C)
+3. Deploy (if different dir): Copy-Item slftp.exe C:\your\slftp\path\
+4. Restart: cd C:\your\slftp\path; .\slftp.exe
+
+Security notes
+- Keep apikey secret and prefer binding to localhost unless fronted by TLS/proxy.
+- API key protection currently only applies to /api/* endpoints.

@@ -1,0 +1,216 @@
+# cbftp Integration Guide
+
+## ⚠️ Important Notice
+
+**This is NOT an official, actively maintained feature.** The cbftp/UDP integration was **not designed** for slftp to serve cbftp - it is a "dirty" workaround that happens to work. The slftp developers **do not actively test or support** this integration.
+
+Use at your own risk. If you encounter issues, you may need to debug and fix them yourself or revert to native slftp mode.
+
+## Overview
+
+When `EnableUDP=1` is configured in `slftp.ini`, slftp switches to **cbftp mode**:
+- slftp handles: IRC announces → Rule evaluation → UDP commands to cbftp
+- cbftp handles: All actual FTP transfers, connections, and file racing
+
+This offloads the FTP work to cbftp but comes with important limitations regarding NFO-based metadata extraction.
+
+## Configuration
+
+Add to your `slftp.ini`:
+
+```ini
+[UDPConfig]
+EnableUDP=True          # Enable cbftp integration
+IP=127.0.0.1           # cbftp host
+Port=5696              # UDP port for race commands
+ApiPort=55477          # cbftp HTTPS/JSON API port
+Password=<password>    # cbftp API password
+```
+
+## What Works
+
+### Core Features (Unaffected)
+- ✅ IRC announce processing
+- ✅ Rule evaluation (allow/block decisions)
+- ✅ Route calculation and speed-based routing
+- ✅ Site status tracking
+- ✅ Section matching
+- ✅ Affil detection
+- ✅ Pretime filtering
+
+### Rule Conditions (API-Based)
+These continue to work because they use external APIs:
+- ✅ `tvgenres` (TVMaze API)
+- ✅ `imdbgenre`, `imdbrating`, etc. (IMDB API)
+- ✅ `mp3year`, `mp3lang`, `mp3source` (parsed from announce)
+- ✅ All general conditions (section, group, size, etc.)
+
+## What Breaks or Is Limited
+
+### NFO-Based Genre Detection (BROKEN)
+When `EnableUDP=1`, NFO download tasks are skipped or exit early:
+
+| Condition | Type | Status | Reason |
+|-----------|------|--------|--------|
+| `mp3genre` | MP3 | ❌ Broken | GenreDirlistTask not created |
+| `nfogenre` | MDVDR/MVID | ❌ Broken | GenreNfoTask not created |
+| `mvidgenre` | MVID | ❌ Broken | MVIDTask needs slots (see below) |
+| `mvidlookupdone` | MVID | ❌ Broken | MVIDTask needs slots |
+
+### Code Details
+
+**Tasks never created with UDP:**
+```pascal
+// kb.releaseinfo.pas
+if not pazo.IsUDPEnabled then
+  AddTask(TPazoGenreDirlistTask.Create(...));  // Skipped
+
+if not pazo.IsUDPEnabled then
+  AddTask(TPazoGenreNfoTask.Create(...));      // Skipped
+
+// pazo.pas  
+if not IsUDPEnabled then
+  AddTask(TPazoSiteSfvTask.Create(...));       // Skipped
+```
+
+**Tasks that exit early (do nothing):**
+```pascal
+// tasksitenfo.pas, taskgenrenfo.pas, taskgenredirlist.pas, taskimdb.pas
+if mainpazo.IsUDPEnabled then
+begin
+  ready := True;
+  Result := True;
+  exit;  // Task completes without action
+end;
+```
+
+### MVID/TV Lookup - Partially Affected
+
+| Task | Created? | Works with UDP? | Needs Slots? |
+|------|----------|-----------------|--------------|
+| `TPazoTVInfoLookupTask` | ✅ Yes | ✅ Yes | ❌ No |
+| `TPazoMVIDTask` | ✅ Yes | ✅ Yes | ✅ **Yes** |
+
+**Important:** `TPazoMVIDTask` requires FTP slots to download NFO files. If you set sites to permdown (recommended with UDP), MVID genre detection won't work because no slots are available.
+
+### Other Disabled Features
+- ❌ Race stats in IRC (output suppressed)
+- ❌ SFV verification tasks (skipped)
+- ❌ Native FTP racing (`Tuzelj()` exits immediately)
+- ❌ IMDB NFO leeching (task exits early)
+
+## Site Configuration
+
+### Recommended Setup
+
+With `EnableUDP=1`, set all sites to **permdown**:
+
+```irc
+!setpermdown * 1
+```
+
+**Why?**
+- cbftp handles all FTP connections
+- Saves slftp resources (no login/bnctest attempts)
+- Rules still work (permdown check is bypassed when `IsUDPEnabled=True`)
+
+### Trade-off: Slots vs Features
+
+| Setup | Slots Used | NFO Genre | MVID Genre | TV Info |
+|-------|-----------|-----------|------------|---------|
+| Sites UP | All configured | ✅ Works | ✅ Works | ✅ Works |
+| Sites PermDown | 0 | ❌ Broken | ❌ Broken* | ✅ Works |
+
+\* MVIDTask needs slots to download NFOs; with permdown sites, no slots are available.
+
+**Bottom line:** If you need `mvidgenre` rules, you must keep sites UP with slots allocated, even with `EnableUDP=1`.
+
+## Technical Details
+
+### Task Behavior Matrix
+
+| Task | Created with UDP? | Functions with UDP? | Needs Slots? |
+|------|------------------|---------------------|--------------|
+| `TPazoRaceTask` | ❌ No | N/A (cbftp handles) | N/A |
+| `TPazoGenreDirlistTask` | ❌ No | N/A | N/A |
+| `TPazoGenreNfoTask` | ❌ No | N/A | N/A |
+| `TPazoSiteNfoTask` | ⚠️ Partially* | ❌ Exits early | ✅ Yes |
+| `TPazoTVInfoLookupTask` | ✅ Yes | ✅ Yes | ❌ No |
+| `TPazoMVIDTask` | ✅ Yes | ✅ Yes | ✅ **Yes** |
+| `TPazoImdbTask` | ⚠️ Partially* | ❌ Exits early | ✅ Yes |
+| `TPazoSiteSfvTask` | ❌ No | N/A | N/A |
+
+\* Created in some code paths but exits immediately without doing work.
+
+### Rule Evaluation
+
+Rules are evaluated regardless of permdown status when UDP is enabled:
+```pascal
+// rulesunit.pas FireRules()
+if (not p.IsUDPEnabled) and ps_s.PermDown then exit;  // Only blocks without UDP
+```
+
+With `EnableUDP=1`, permdown sites still participate in rule evaluation.
+
+## Migration Checklist
+
+When switching to cbftp (`EnableUDP=1`):
+
+1. **Review your rules** - Identify any using:
+   - `mp3genre` - Will NOT work
+   - `nfogenre` - Will NOT work  
+   - `mvidgenre` - Will NOT work (unless you keep sites UP)
+
+2. **Alternative approaches**:
+   - Use section-based rules instead of genre
+   - Use group-based allowlists/blocklists
+   - Use `tvgenres` or `imdbgenre` (API-based, work fine)
+   - Keep slftp native mode if genre rules are critical
+
+3. **Decide on site configuration**:
+   - PermDown (recommended): Zero slots, but no MVID genres
+   - UP with slots: Works for all features, but wastes slots
+
+4. **Configure cbftp** - Mirror your slftp site/section setup
+
+## Troubleshooting
+
+### "My mp3genre rules don't work!"
+**Expected behavior.** MP3 genre requires `TPazoGenreDirlistTask` which is not created when UDP is enabled. Use section or group rules instead.
+
+### "My mvidgenre rules don't work even though I have sites UP!"
+Check that sites have `UseForNFOdownload` enabled and available download slots.
+
+### "Sites show as down but rules still match"
+**Expected behavior.** With UDP enabled, permdown sites still participate in rule evaluation (only FTP operations are disabled).
+
+### "No race stats in IRC"
+**Expected behavior.** Race stats output is suppressed when UDP is enabled. Check cbftp directly for transfer status.
+
+## Summary
+
+| Feature | Native Mode (UDP=0) | cbftp Mode (UDP=1) |
+|---------|---------------------|-------------------|
+| FTP Transfers | slftp | cbftp |
+| MP3 Genre Rules | ✅ Works | ❌ Broken |
+| NFO Genre Rules | ✅ Works | ❌ Broken |
+| MVID Genre (with slots) | ✅ Works | ✅ Works* |
+| MVID Genre (permdown) | N/A | ❌ Broken |
+| TV/IMDB API Rules | ✅ Works | ✅ Works |
+| Slot Usage | All configured | 0 (or keep for MVID) |
+| Race Stats | IRC output | Suppressed |
+
+\* Only if you keep sites UP with slots allocated (defeats purpose of cbftp mode).
+
+---
+
+## ⚠️ Final Warning
+
+**This integration is not officially supported.** The slftp codebase was designed as a standalone FTP client, not as a feeder for cbftp. The UDP functionality exists in the code but is not part of the project's core design or testing strategy.
+
+If you depend on cbftp integration working reliably, consider:
+- Contributing fixes/improvements to the codebase
+- Using cbftp's native announce handling instead
+- Accepting that this may break in future updates without warning
+
+**Recommendation:** Use `EnableUDP=1` only if you don't rely on NFO-parsed genre conditions (`mp3genre`, `nfogenre`, `mvidgenre`). If these are critical, stay in native slftp mode or accept that you need to keep some slots allocated for MVID NFO downloads.
