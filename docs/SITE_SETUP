@@ -1,0 +1,979 @@
+Site Setup Guide (Web UI)
+
+This guide walks through setting up a complete site configuration from scratch using
+the Web UI. By the end, you'll have a site receiving IRC announces, applying rules,
+and routing files to other sites.
+
+===============================================================================
+Prerequisites
+===============================================================================
+
+Before starting:
+- slftp.ini configured with [api] section enabled
+- slftp binary running (./slftp or slftp.exe)
+- Web UI deployed to web/ folder and accessible at http://host:port/
+- IRC network accessible with site bot announcing in a channel
+- Access to site credentials (user, password, host:port)
+
+If you haven't set up the Web UI yet, see docs/WEB_UI_HOWTO.
+
+===============================================================================
+Overview
+===============================================================================
+
+Setup steps:
+1. Create the site (credentials, connection)
+2. Define sections and directories (ISOGAMES -> /GAMES/, MP3 -> /MP3/, etc.)
+3. Add IRC network and channel (where site bot announces)
+4. Configure precatcher rules (catch NEWDIR announces from site bot)
+5. Add trading rules (what to allow/drop based on release properties)
+6. Add routes (which sites trade to which other sites)
+7. Enable auto mode (start racing)
+
+===============================================================================
+1) Create the Site
+===============================================================================
+
+Web UI: Sites Manager -> Add Site
+
+Required fields:
+- Site name: Short identifier (e.g., SITE1, FASTSITE)
+- Username: FTP username for this site
+- Password: FTP password
+- Host:Port: FTP server address (e.g., 192.168.1.10:1234)
+
+Optional:
+- Additional BNCs: If site has multiple bounce IPs, add them after creation
+  (use the site detail page to add extra BNC addresses)
+
+After saving, verify the site appears in the Sites list.
+
+Tip: Test connection by checking site status in the Web UI. If connection fails,
+     verify credentials and network connectivity.
+
+===============================================================================
+2) Define Sections and Directories
+===============================================================================
+
+Web UI: Sites -> [click site name] -> Sections tab
+
+What are sections?
+- Sections are logical categories (MP3, TV, XVID, 0DAY, etc.)
+- Each section maps to a physical directory on the FTP site
+- Section names MUST match slftp.precatcher configuration
+
+Common section examples:
+- Section: ISOGAMES  -> Directory: /GAMES/
+- Section: MP3       -> Directory: /MP3/
+- Section: TV-X264   -> Directory: /TV-X264/
+- Section: XVID      -> Directory: /XVID/
+- Section: 0DAY      -> Directory: /0DAY/
+
+Add each section your site supports:
+1. Enter section name (match precatcher defaults, e.g., ISOGAMES)
+2. Enter directory path (e.g., /GAMES/)
+3. Click Add
+
+Important notes:
+- If a section is not defined on a site, slftp will skip racing releases there
+- Directory paths typically start and end with / (e.g., /MP3/)
+- Section names are case-sensitive and should match precatcher exactly
+
+-------------------------------------------------------------------------------
+How Section Processing Works (slftp.precatcher)
+-------------------------------------------------------------------------------
+
+The precatcher determines the section for each release in TWO sequential steps.
+Understanding these steps helps configure your setup correctly.
+
+Step 1: Section Detection ([sections] block)
+---------------------------------------------
+
+The precatcher searches the cleaned IRC announce text for section aliases
+defined in the [sections] block.
+
+Format:
+  SECTION_NAME=alias1,alias2,alias3
+
+Example:
+  MP3=MP3,MUSIC
+
+How it works:
+- IRC announce: "( MP3 ) . Artist-Album-2025-GROUP . in /MP3/"
+- After cleaning: "MP3 Artist Album 2025 GROUP in MP3"
+- FindSection() searches for "MP3" or "MUSIC" in cleaned text
+- Match found → Section = "MP3"
+- No match → Section remains empty (not fatal, mapping step may fill it)
+
+More examples:
+  ISOGAMES=ISOGAMES,ISO GAMES,GAMES ISO,GAMES
+  0DAY=0DAY,0 DAY,0 DAYS,0DAYS
+  XVID=XVID,DIVX
+
+Note: Some aliases contain spaces (e.g., "ISO GAMES") because the precatcher
+converts certain characters (like "-") to spaces during text cleaning.
+
+Key points:
+- Search is case-insensitive
+- Requires full word match
+- First matching alias wins
+- If no match found, section = empty string (continues to Step 2)
+
+Step 2: Section Mapping ([mappings] block)
+-------------------------------------------
+
+After section detection, the precatcher applies mapping rules to remap the
+section based on release name patterns. ALL mappings are processed in order,
+and the first matching mapping wins.
+
+There are THREE types of mapping entries:
+
+Type 1: Global Mappings (applies to any section)
+-------------------------------------------------
+
+Format:
+  ;TARGET_SECTION;/regex_pattern/i
+
+The semicolon at the start creates an empty source section field, making
+this a "global mapping" that applies to ANY release.
+
+IMPORTANT: The semicolon (;) is NOT a comment character! Only # and // are
+comments. Lines starting with ; are ACTIVE mappings.
+
+Examples:
+  ;FLAC;/(-FLAC-)/i
+  ;EBOOK;/[._-](EBOOK)[._-]/i
+  ;CHARTS;/(-(MCG)$)/i
+
+How it works:
+- Checks ALL releases during first mapping pass
+- If release name matches regex → Map to target section
+- Example: Release "Artist-Album-2025-FLAC-GROUP"
+  Matches: ;FLAC;/(-FLAC-)/
+  Result: Section = FLAC (even if Step 1 found nothing)
+
+Use cases:
+- Detecting sections from release name when not announced in IRC
+- Catching releases by group name (e.g., MVID groups)
+- Fallback section detection when [sections] aliases don't match
+
+Type 2: Specific Mappings (applies only to specific source section)
+--------------------------------------------------------------------
+
+Format (Regex):
+  SOURCE_SECTION;TARGET_SECTION;/regex_pattern/i
+
+Format (Wildcard):
+  SOURCE_SECTION;TARGET_SECTION;mask1,mask2,mask3
+
+These mappings only apply if the current section matches SOURCE_SECTION.
+
+Examples - Language-based remapping:
+  EBOOK;EBOOK-DE;/[._](German)[._]/i
+  EBOOK;EBOOK-ES;/[._](SPAN[iI]SH|ES)[._]/
+  0DAY;0DAY-FR;/[._](FRENCH|TRUEFRENCH|FR)[._]/i
+
+How it works:
+- Only processed if current section = SOURCE_SECTION
+- Example: Release "Some.Book.German.EBOOK-GROUP"
+  Step 1: Detected as EBOOK (via [sections])
+  Step 2: Matches EBOOK;EBOOK-DE;/[._](German)[._]/i
+  Result: Section remapped to EBOOK-DE
+
+Examples - Resolution-based remapping:
+  SPORTS-SD;SPORTS-720P;/(720p)/i
+  SPORTS-SD;SPORTS-1080P;/(1080p)/i
+
+How it works:
+- Release detected as SPORTS-SD in Step 1
+- If name contains "720p" → Remap to SPORTS-720P
+- If name contains "1080p" → Remap to SPORTS-1080P
+
+Examples - Category-based remapping (wildcards):
+  ISOGAMES;CLONEGAMES;*clone*,*clonedvd*,*clones*
+  ISOGAMES;MACGAMES;*MAC*,*MACOSX*,*OSX*,*APPLE*
+
+How it works:
+- Release detected as ISOGAMES in Step 1
+- If name contains "clone" wildcard → Remap to CLONEGAMES
+- If name contains "MAC" wildcard → Remap to MACGAMES
+
+Wildcard vs Regex:
+- Wildcard: *pattern* (simpler, glob-style matching)
+- Regex: /pattern/i (Free Pascal TRegExpr, powerful pattern matching)
+
+Type 3: Recursive Mappings
+---------------------------
+
+If recursive_mapping is enabled in config, mapped sections can be mapped again.
+
+Example:
+  ;SPORTS-SD;/^(Football|Hockey)/i
+  SPORTS-SD;SPORTS-720P;/(720p)/i
+
+How it works:
+- Release "Football.Match.720p.x264-GROUP"
+- Global mapping matches → SPORTS-SD
+- Specific mapping matches → SPORTS-720P (recursive)
+
+Comment Syntax in slftp.precatcher
+-----------------------------------
+
+IMPORTANT: Understanding comment syntax is critical to avoid configuration errors.
+
+Valid comment characters:
+- # → Line comment (example: # This is a comment)
+- // → Line comment (example: // This is also a comment)
+
+NOT a comment character:
+- ; → This is a FIELD SEPARATOR in mapping format, NOT a comment marker!
+
+Examples from production config:
+  # This is a comment line
+  // This is also a comment line
+
+  [sections]
+  MP3=MP3,MUSIC
+
+  [mappings]
+  ;FLAC;/(-FLAC-)/i                              ← NOT a comment! Global mapping
+  ;EBOOK;/[._-](EBOOK)[._-]/i                    ← NOT a comment! Global mapping
+  EBOOK;EBOOK-DE;/[._](German)[._]/i             ← Specific mapping
+  # ;OLD;/pattern/                               ← This IS a comment (starts with #)
+
+Common mistake:
+Users often think `;SECTION;/regex/` lines are "commented out" and inactive.
+This is WRONG. These lines are ACTIVE global mappings that are processed
+during the mapping phase.
+
+-------------------------------------------------------------------------------
+Processing Order
+-------------------------------------------------------------------------------
+
+When precatcher receives IRC announce, processing happens in this order:
+
+1. Text Cleaning ([replace] block)
+   - Strip colors, formatting
+   - Apply replacements (e.g., "-" → space, "(" → "", etc.)
+   - Remove control characters
+
+2. Release Name Extraction
+   - Find longest phrase with at least one "-" character
+   - This is the release name
+
+3. Step 1: Section Detection (FindSection function)
+   - Search [sections] aliases in cleaned IRC text
+   - Case-insensitive, full word match
+   - Returns first matching section name or empty string
+
+4. Step 2: Section Mapping (PrecatcherSectionMapping function)
+   - Apply [mappings] rules to current section
+   - Process ALL mappings in order:
+     a. Global mappings (;TARGET;/regex/) checked on first pass
+     b. Specific mappings (SOURCE;TARGET;/regex/) if section matches SOURCE
+     c. First matching mapping wins
+   - Supports recursive mapping if enabled
+
+5. Validation
+   - If section still empty and event is not COMPLETE/NUKE → Error: "No section?!"
+   - Error message shows sitename and release name
+
+6. Send to Knowledge Base
+   - KB receives: sitename, section, release name, event type
+   - KB triggers rule evaluation and transfers
+
+-------------------------------------------------------------------------------
+Practical Configuration Guide
+-------------------------------------------------------------------------------
+
+Scenario 1: Add new section (FLAC) - Not announced in IRC
+----------------------------------------------------------
+
+Problem: FLAC releases are not announced as "FLAC" in IRC, but "-FLAC-" appears
+in the release name.
+
+Solution:
+  1. Add global mapping to slftp.precatcher [mappings]:
+     ;FLAC;/(-FLAC-)/i
+
+  2. Add section to site (Web UI):
+     Section: FLAC, Directory: /FLAC/
+
+How it works:
+- Step 1 (Detection): No match in [sections], section = empty
+- Step 2 (Mapping): Global mapping ;FLAC;/(-FLAC-)/ checks ALL releases
+  Release "Artist-Album-2025-FLAC-GROUP" matches → Section = FLAC
+- Result: Release processed with FLAC section
+
+Alternative (if "FLAC" IS announced in IRC):
+  1. Add to [sections]: FLAC=FLAC,LOSSLESS
+  2. Add section to site
+  (Global mapping not needed in this case)
+
+Scenario 2: Split section by language (German ebooks)
+------------------------------------------------------
+
+Goal: Separate German ebooks from general ebooks
+
+Solution:
+  1. Ensure EBOOK detection works:
+     Option A: Add to [sections]: EBOOK=EBOOK,EBOOKS,E-BOOK
+     Option B: Add global mapping: ;EBOOK;/[._-](EBOOK)[._-]/i
+     Option C: Both (recommended for reliability)
+
+  2. Add language-specific mapping to [mappings]:
+     EBOOK;EBOOK-DE;/[._](German|DE)[._]/i
+
+  3. Add both sections to site (Web UI):
+     Section: EBOOK, Directory: /EBOOK/
+     Section: EBOOK-DE, Directory: /EBOOK-DE/
+
+How it works:
+- Release "Some.Book.EBOOK-GROUP"
+  Step 1: Detected as EBOOK
+  Step 2: No language match → Stays EBOOK
+  Result: Goes to /EBOOK/
+
+- Release "Some.Book.German.EBOOK-GROUP"
+  Step 1: Detected as EBOOK
+  Step 2: Matches EBOOK;EBOOK-DE → Remapped to EBOOK-DE
+  Result: Goes to /EBOOK-DE/
+
+Scenario 3: Split section by resolution (TV shows)
+---------------------------------------------------
+
+Goal: Separate TV shows by resolution (720p vs 1080p)
+
+Solution:
+  1. Ensure TV section exists:
+     Add to [sections]: TV-X264=TV-X264,TV X264,TVX264
+
+  2. Add resolution mappings to [mappings]:
+     TV-X264;TV-720P;/(720p)/i
+     TV-X264;TV-1080P;/(1080p)/i
+
+  3. Add sections to site (Web UI):
+     Section: TV-720P, Directory: /TV-720P/
+     Section: TV-1080P, Directory: /TV-1080P/
+
+How it works:
+- Release "Show.Name.S01E01.720p.x264-GROUP"
+  Step 1: Detected as TV-X264
+  Step 2: Matches /(720p)/ → Remapped to TV-720P
+  Result: Goes to /TV-720P/
+
+Scenario 4: Catch releases by group name (MVID)
+------------------------------------------------
+
+Goal: Catch music video releases based on group names, not IRC announce
+
+Solution:
+  1. Add global mapping to slftp.precatcher [mappings]:
+     ;MVID;/(-(GRMV|SRP|VFi|SNO|PmV)$)/i
+
+  2. Add section to site (Web UI):
+     Section: MVID, Directory: /MVID/
+
+How it works:
+- Release "Artist-Video-2025-SRP"
+  Step 1: No match in [sections], section = empty
+  Step 2: Global mapping matches /(-(SRP)$)/ → Section = MVID
+  Result: Processed as MVID
+
+Why global mapping?
+- MVID is not typically announced in IRC text
+- Group names are the reliable indicator
+- Global mapping catches it from release name
+
+Scenario 5: Combine detection and mapping (comprehensive)
+----------------------------------------------------------
+
+Goal: Robust SPORTS section handling with resolution splitting
+
+Solution:
+  1. Add to [sections]:
+     SPORTS=SPORTS,SPORT,FOOTBALL,HOCKEY,BASEBALL
+
+  2. Add global mapping as fallback:
+     ;SPORTS-SD;/^(Football|Hockey|Baseball|NBA|NFL)/i
+
+  3. Add resolution mappings:
+     SPORTS-SD;SPORTS-720P;/(720p)/i
+     SPORTS-SD;SPORTS-1080P;/(1080p)/i
+
+  4. Add sections to site:
+     Section: SPORTS-720P, Directory: /SPORTS-720P/
+     Section: SPORTS-1080P, Directory: /SPORTS-1080P/
+
+How it works:
+- Release "Football.Match.720p.x264-GROUP"
+  Step 1: May or may not match [sections] SPORTS alias
+  Step 2a: If not matched, global mapping catches it → SPORTS-SD
+  Step 2b: Resolution mapping matches → SPORTS-720P
+  Result: Goes to /SPORTS-720P/ (reliable even if IRC doesn't announce "SPORTS")
+
+-------------------------------------------------------------------------------
+Troubleshooting
+-------------------------------------------------------------------------------
+
+Problem: "No section?!" error in logs
+--------------------------------------
+
+Error message:
+  "Section on SITENAME for Release-Name-GROUP was not found. Add Sectionname
+   to slftp.precatcher under [sections] and/or [mappings]."
+
+Causes:
+- Step 1: No [sections] alias matched in IRC announce
+- Step 2: No global mapping matched release name
+- Result: Section remains empty
+
+Solutions:
+  Option A: Add alias to [sections]
+    Example: FLAC=FLAC,LOSSLESS
+
+  Option B: Add global mapping to [mappings]
+    Example: ;FLAC;/(-FLAC-)/i
+
+  Option C: Both (recommended)
+    Provides redundancy if IRC announce format changes
+
+Problem: Wrong section detected
+--------------------------------
+
+Cause:
+- Multiple [sections] aliases overlap
+- Example: SPORTS=SPORTS,SPORT and SPORTS-4K=SPORTS-4K,SPORT-4K
+- IRC announces "SPORT" → First match wins
+
+Solutions:
+  1. Make aliases more specific
+     Before: SPORTS=SPORTS,SPORT
+     After: SPORTS=SPORTS (remove generic "SPORT")
+
+  2. Use mapping to fix after detection
+     Add: SPORTS;SPORTS-4K;/(2160p|4K)/i
+
+  3. Rely on global mappings instead of [sections]
+     Remove from [sections], use ;SPORTS;/pattern/ in [mappings]
+
+Problem: Mapping not working
+----------------------------
+
+Checklist:
+  1. Verify mapping is NOT commented
+     ✓ Correct: ;FLAC;/(-FLAC-)/i
+     ✗ Wrong: # ;FLAC;/(-FLAC-)/i (commented with #)
+
+  2. Verify semicolon count = 2
+     ✓ Correct: ;SECTION;/regex/i (2 semicolons)
+     ✗ Wrong: SECTION;/regex/i (1 semicolon, invalid format)
+
+  3. Test regex syntax
+     Use online regex tester with release name
+     Ensure regex is TRegExpr compatible (Free Pascal regex engine)
+
+  4. Check source section (for specific mappings)
+     Example: EBOOK;EBOOK-DE;/German/
+     Only works if current section = "EBOOK"
+     If section is empty or different, mapping is skipped
+
+  5. Check mapping order
+     Mappings are processed in order, first match wins
+     If earlier mapping already remapped section, later ones may not apply
+
+Problem: Section exists but releases not racing
+------------------------------------------------
+
+Checklist:
+  1. Section added to destination site (Web UI)?
+     Check: Sites -> [site] -> Sections
+     Must have matching section name
+
+  2. Routes configured between sites?
+     Check: Routes page
+     Need bidirectional routes for trading
+
+  3. Rules dropping release?
+     Check: Logs page for rule evaluation
+     Use Rules test tool to debug
+
+  4. Precatcher catching announces?
+     Check: IRC -> Channels -> Precatcher tab
+     Verify bot nick, event type, words filter
+
+Config reload after changes
+----------------------------
+
+After editing slftp.precatcher, you must reload the configuration:
+
+Method 1: IRC command (preferred)
+  !catchreload
+
+Method 2: Restart slftp
+  Stop and restart the slftp binary
+
+Note: The Web UI does not have a reload button for precatcher config.
+      You must use IRC or restart.
+
+===============================================================================
+3) Add IRC Network and Channel
+===============================================================================
+
+Step 3a: Add IRC Network
+-------------------------
+Web UI: IRC -> Networks -> Add Network
+
+Fields:
+- Network name: Short identifier (e.g., LINKNET, EFNet)
+- Host: IRC server address (e.g., irc.link-net.org)
+- Port: IRC server port (e.g., 7000 for SSL, 6667 for plain)
+- SSL: Enable if server supports SSL/TLS (recommended)
+- Password: Server/ZNC password (for ZNC: user:pass or user/network:pass)
+- Nick: IRC nickname (defaults to slftp.ini setting if empty)
+- Ident: IRC identity/realname (defaults to config + "@soulless.ftp")
+- User: IRC username (defaults to slftp.ini setting if empty)
+
+Example (direct connection):
+  Network: LINKNET
+  Host: eu.link-net.org:7000
+  SSL: Yes
+
+Example (ZNC bouncer):
+  Network: MyBNC
+  Host: bouncer.example.com:1337
+  SSL: Yes
+  User: myznc:mypassword
+  (For multiple ZNC networks: myznc/linknet:mypassword)
+
+After saving, check connection status in IRC -> Networks list.
+
+Step 3b: Add IRC Channel
+-------------------------
+Web UI: IRC -> Channels -> Add Channel
+
+Fields:
+- Network: Select network from dropdown
+- Channel: Channel name (e.g., #sitechan)
+- Key: Channel password (if required)
+- Blowfish: Encryption key (if channel uses +CBC encryption)
+- Roles: Space or comma-separated roles (see below)
+
+Blowfish notes:
+- For CBC encryption, prefix key with "cbc:" (e.g., cbc:secretkey123)
+- For admin channels, blowfish is REQUIRED
+- If using ZNC with fish, you may skip this (ZNC handles encryption)
+
+IRC Channel Roles (critical field!):
+
+Common roles:
+- ADMIN: Required for admin commands (addsite, catchadd, rules) - admin channel only
+- STATS: Announces race stats and KB hits
+- ERROR: Announces all error messages (useful for debugging)
+- KB: Allows manual KB commands (lookups, additions)
+- ADDPRE: Required for pretime checking (set on pre bot channels)
+- PRECATCHSTATS: Shows detailed race progress
+
+Additional roles:
+- NUKE: Allows manual nuke commands
+- GROUP: Allows group commands (pre, spread, batch, check)
+- INFO: Announces IMDB/TVMaze metadata fetch results
+- ADDIMDB, ADDTVMAZE, ADDGN: Parse metadata from IRC posts
+- ADDIMDBECHO, ADDTVMAZEECHO, ADDGNECHO: Echo metadata to help other clients
+- RACESTATS, RANKSTATS, SPEEDSTATS: Detailed performance announcements
+- ROUTEINFOS: Route order announcements during races
+- SKIPLOG: Announces skipped files/dirs
+- IRCEVENT: Announces NICK/KICK/JOIN/TOPIC/PART events
+- INDEXER: Announces autoindexer process messages
+
+See docs/ircchanroles_description for complete list and detailed descriptions.
+
+Important: If you want slftp to accept admin commands, at least one channel
+           must have the ADMIN role set.
+
+===============================================================================
+4) Add Precatcher Rules (Catch Announces)
+===============================================================================
+
+Web UI: IRC -> Channels -> [click channel] -> Precatcher tab
+
+What is the precatcher?
+- Monitors IRC channel for site bot announces
+- Extracts release name, section, event type (NEWDIR, COMPLETE, etc.)
+- Sends parsed info to Knowledge Base (KB) which triggers rules/transfers
+
+How it works:
+When site bot announces: "( MP3 ) . Artist-Album-2025-GROUP . in /MP3/"
+
+Precatcher:
+1. Strips colors/formatting
+2. Extracts release name: Artist-Album-2025-GROUP
+3. Identifies section: MP3 (matches [sections] in slftp.precatcher)
+4. Detects event: NEWDIR (default) or COMPLETE (if "complete"/"done" in announce)
+5. Sends to KB for rule evaluation
+
+Adding a precatcher entry:
+- Network: IRC network where announces come from
+- Channel: IRC channel on that network
+- Site: Select site this announce is for
+- Bot Nicks: IRC nick(s) of site bot (comma-separated, e.g., SiteBot,SITE1)
+- Event: Usually NEWDIR (recommended), or PRE/ADDPRE/COMPLETE/NUKE
+- Words: Comma-separated keywords in IRC announce (e.g., NEW,RACE,MKDIR,COMPLETE)
+
+Example:
+  Network: LINKNET
+  Channel: #sitechan
+  Site: SITE1
+  Bot Nicks: SITE1Bot
+  Event: NEWDIR
+  Words: NEW,RACE,MKDIR,COMPLETE
+
+The "words" field filters IRC announces. These are keywords that appear in the
+actual IRC announce text (like "NEW", "RACE"), NOT section names. If any word
+matches, the line is processed by the precatcher.
+
+Testing precatcher:
+Use the Test tool in the Precatcher tab (equivalent to !catchtest command).
+Paste a real announce line and verify:
+- Release name extracted correctly
+- Section identified
+- Event detected
+
+Example test:
+Input: "( MP3 ) . Artist-Album-2025-GROUP . in /MP3/"
+Output:
+  Release: Artist-Album-2025-GROUP
+  Section: MP3
+  Event: NEWDIR
+  Result: OK
+
+Troubleshooting:
+- "No section?!" error: Section not defined in slftp.precatcher [sections]
+  Solution: Add section alias in slftp.precatcher or use different section name
+
+- Release not caught: Check "words" filter, ensure at least one word matches
+
+- Wrong section detected: Check section aliases in slftp.precatcher [sections]
+  Overlapping aliases (e.g., "TV" and "TV-X264") might conflict
+
+Important: If a section is not defined in slftp.precatcher, precatcher will NOT
+           send events for that section to KB, even if the site has that section.
+
+===============================================================================
+5) Add Trading Rules
+===============================================================================
+
+Web UI: Rules -> Add Rule
+
+What are rules?
+- Rules filter releases based on properties (group, year, genre, country, etc.)
+- Applied per site + section combination
+- Decide whether to ALLOW or DROP a release
+
+Rule evaluation:
+- Rules evaluated in order (rule #1, #2, #3, ...)
+- First matching ALLOW rule wins (release allowed)
+- If no ALLOW matches, release is dropped
+- Exception: Global rules (site=*, section=*) always evaluated first
+
+Rule syntax:
+  if <condition> then ALLOW/DROP
+
+Available conditions (use !rulelist or Web UI help):
+- default: Always true (catch-all)
+- group: Release group (e.g., group = INTERNAL, group in GRP1, GRP2)
+- releasename: Release name mask (e.g., releasename =~ *PROPER*)
+- age: Release age in seconds (e.g., age > 3600)
+- internal: Internal release flag
+- mp3year, mp3genre, mp3language, mp3source, mp3numdisks: MP3 metadata
+- tvlookupdone, tvcountry, tvscripted: TV metadata (requires TVMaze lookup)
+- imdblookupdone, imdbyear, imdbrating: IMDB metadata
+
+Operators:
+- = : Equal
+- != : Not equal
+- @ : Site name equality (e.g., site @ SITE1)
+- =~ : Mask match (*wildcard*) or regex (/pattern/)
+- !~ : Not mask/regex match
+- in : List match (e.g., group in GRP1, GRP2, GRP3)
+- notin : Not in list
+- < <= >= > : Numeric comparison
+
+Rule strategy:
+1. Start with DROP rules (blacklist)
+2. Add specific ALLOW rules (whitelist)
+3. End with default DROP or ALLOW
+
+Example 1: Allow everything in XVID section
+  Site: SITE1
+  Section: XVID
+  Rule: if default then ALLOW
+
+Example 2: MP3 rules (year >= 2009, CD/Vinyl only, English, no bootlegs)
+  # Drop old releases (pretime > 60 minutes)
+  Rule 1: if age > 3600 then DROP
+
+  # Drop failure groups
+  Rule 2: if group in EOSINT, FiH then DROP
+
+  # Drop internal releases
+  Rule 3: if internal then DROP
+
+  # Drop non-English
+  Rule 4: if not mp3language in en then DROP
+
+  # Drop bad sources
+  Rule 5: ifnot mp3source in CD, CDR, Vinyl, WEB then DROP
+
+  # Drop bootlegs
+  Rule 6: if mp3type in audiobook, bootleg then DROP
+
+  # Drop old releases
+  Rule 7: if mp3year < 2009 then DROP
+
+  # Allow everything else
+  Rule 8: if default then ALLOW
+
+Example 3: TV rules (USA/UK scripted shows only)
+  # Wait for TVMaze lookup before evaluating
+  Rule 1: ifnot tvlookupdone then DROP
+
+  # Drop non-USA/UK shows
+  Rule 2: if tvcountry notin USA, UK then DROP
+
+  # Drop non-scripted (reality TV, etc.)
+  Rule 3: ifnot tvscripted then DROP
+
+  # Drop episodes older than 180 days (based on SxxEyy airdate)
+  Rule 4: if tvepisodeagedays > 180 then DROP
+
+  # Allow everything else
+  Rule 5: if default then ALLOW
+
+Important: Lookup-dependent rules
+For TV/IMDB/MP3 lookups to work, configure [kb] section in slftp.ini:
+  TMP3Release=MP3,FLAC
+  TTVRelease=TV,TV-X264,TV-XVID
+  TIMDBRelease=XVID,X264,DVDR,BLURAY
+
+Use *lookupdone rules to prevent early drops:
+- tvlookupdone: Wait for TVMaze lookup
+- imdblookupdone: Wait for IMDB lookup
+- mvidlookupdone: Wait for music video lookup
+
+Without these, releases will be dropped before metadata is available.
+
+When lookup completes, an UPDATE event is fired which re-evaluates rules with
+full metadata.
+
+Testing rules:
+Use the Test tool in Rules page to simulate rule evaluation on an existing release.
+
+===============================================================================
+6) Add Routes
+===============================================================================
+
+Web UI: Routes -> Add Route
+
+What are routes?
+- Routes define which sites transfer to which other sites
+- Each route has a weight (1-9, higher = preferred)
+- No route = no transfer (even if rules allow it)
+
+Route properties:
+- Source site: Where files come from
+- Destination site: Where files go to
+- Weight: Initial priority (0-9)
+  9 = highest priority (try first)
+  1 = lowest priority (backup route)
+  0 = deletes the route
+
+Dynamic routing:
+slftp automatically adjusts route weights based on:
+- Transfer speed (faster routes get higher weight)
+- Success rate (failing routes get lower weight)
+- Site ranking (site performance over time)
+
+See docs/chains for detailed routing algorithm explanation.
+
+Example setup (3 sites: SITE1, SITE2, SITE3):
+  Route 1: SITE1 -> SITE2 (weight 9)
+  Route 2: SITE1 -> SITE3 (weight 7)
+  Route 3: SITE2 -> SITE1 (weight 9)
+  Route 4: SITE2 -> SITE3 (weight 8)
+  Route 5: SITE3 -> SITE1 (weight 8)
+  Route 6: SITE3 -> SITE2 (weight 9)
+
+This creates a full mesh where every site can transfer to every other site.
+
+Bidirectional routes:
+To set up bidirectional routing (SITE1 <-> SITE2), add both directions:
+  SITE1 -> SITE2 (weight 9)
+  SITE2 -> SITE1 (weight 9)
+
+Strategy:
+- Start simple (full mesh with weight 9)
+- Run speedtests (Web UI: Speedtest page)
+- Adjust weights based on results (or let slftp auto-adjust)
+
+Important: Without routes, files won't transfer even if rules allow them.
+
+===============================================================================
+7) Enable Auto Mode (Precatcher Auto)
+===============================================================================
+
+Web UI: Header (top right) -> Auto switch
+
+What is Precatcher Auto mode?
+- When disabled: slftp catches IRC announces but doesn't automatically process them
+- When enabled: slftp automatically processes caught announces through rules and KB
+
+Note: This controls the precatcher auto processing, not file transfers themselves.
+Transfers still require matching rules and routes to be configured.
+
+Before enabling auto:
+1. Verify precatcher is working (test with Test tool)
+2. Verify rules are correct (test with existing releases)
+3. Verify routes are set up
+4. Check Logs page for any errors
+
+When you enable auto:
+- New announces will trigger rule evaluation
+- Matching releases will start transferring according to routes
+- Stats will appear in Races page
+
+===============================================================================
+8) Verification and Monitoring
+===============================================================================
+
+After enabling auto, monitor these pages:
+
+Logs page:
+- Check for connection errors
+- Check for precatcher parse errors
+- Check for rule evaluation errors
+
+Issues page:
+- Shows failed transfers
+- Shows connection problems
+- Shows duplicate/nuke warnings
+
+Races page:
+- Shows active transfers
+- Shows completed races
+- Shows race statistics
+
+Stats page:
+- Shows site performance over time
+- Shows transfer speeds
+- Shows success rates
+
+IRC channel (with STATS role):
+- Real-time race stats
+- KB hit announcements
+- Route info announcements
+
+Troubleshooting common issues:
+
+Issue: Announces caught but no transfers
+- Check routes exist between sites
+- Check rules allow the release (test with Rules page)
+- Check destination site has the section configured
+- Check Logs page for errors
+
+Issue: Wrong section detected
+- Check slftp.precatcher [sections] aliases
+- Test with Precatcher test tool
+- Adjust section aliases or add mapping
+
+Issue: Releases dropped by rules
+- Check rule order (DROP rules before ALLOW rules)
+- Check for *lookupdone rules (tvlookupdone, imdblookupdone)
+- Test rules with Rules test tool
+- Check [kb] section in slftp.ini for lookup sections
+
+Issue: Site connection fails
+- Verify credentials (username, password)
+- Verify host:port is correct
+- Check network connectivity
+- Check site is online (test with FTP client)
+
+===============================================================================
+Advanced Topics
+===============================================================================
+
+Admin Network Setup:
+If you want to use IRC commands (!addsite, !catchadd, etc.) in addition to
+Web UI, set up an admin network:
+- Choose network with "fakelag" disabled or OPER privileges
+- Add network and channel with ADMIN role
+- Set blowfish encryption (required for admin channel)
+- Use !help in channel to see available commands
+
+See docs/usage for full IRC command reference.
+
+Section Mapping:
+Remap sections based on release name patterns.
+Edit slftp.precatcher [mappings]:
+  ISOGAMES;CLONEGAMES;*clone*,*clonedvd*
+  ISOGAMES;MACGAMES;*MAC*,*MACOSX*,*OSX*
+  X264;HD720;*.720p.*
+  X264;HD1080;*.1080p.*
+
+Speedtest:
+Run speedtests to optimize routes:
+Web UI: Speedtest page
+- Local Speedtest: Tests a single site's local speed
+- Outbound (Site-to-Site): Tests transfers from one source to multiple destinations
+- Inbound (Site-to-Site): Tests transfers from multiple sources to one destination
+- Matrix Test: Tests all site pair combinations
+- Cleanup: Cleanup test tasks
+- Results update route weights automatically
+
+Ranking:
+slftp tracks site performance (speed, reliability) and adjusts internal ranking.
+Sites with better ranking get prioritized in route selection.
+See docs/chains for ranking algorithm details.
+
+===============================================================================
+Quick Reference: Common Tasks
+===============================================================================
+
+Add a new site:
+1. Sites -> Add Site (name, user, pass, host:port)
+2. Site detail -> Add sections (ISOGAMES -> /GAMES/, MP3 -> /MP3/)
+3. Rules -> Add rules for new site
+4. Routes -> Add routes (new site <-> existing sites)
+
+Add a new IRC channel:
+1. IRC -> Channels -> Add Channel
+2. Set channel roles (ADMIN, STATS, ADDPRE, etc.)
+3. Add precatcher entries (bot nick, event, words)
+4. Test with Precatcher test tool
+
+Modify rules:
+1. Rules page -> Find site/section
+2. Edit or delete existing rules
+3. Add new rules (remember order matters!)
+4. Test with Rules test tool
+
+Check why release was dropped:
+1. Logs page -> Search for release name
+2. Check rule evaluation messages
+3. Check "No route" or "No section" errors
+4. Use Rules test tool to simulate evaluation
+
+===============================================================================
+References
+===============================================================================
+
+- docs/installation: Initial setup, first-time configuration
+- docs/usage: IRC command reference (addsite, catchadd, rules, routes)
+- docs/precatcher: Detailed precatcher mechanics and configuration
+- docs/ircchanroles_description: Full list of IRC channel roles
+- docs/chains: Routing algorithm and ranking system
+- docs/WEB_UI_HOWTO: Web UI build and deployment
+- docs/API_HOWTO: API configuration
+- docs/masks: Mask and regex syntax for rules
+
+===============================================================================
