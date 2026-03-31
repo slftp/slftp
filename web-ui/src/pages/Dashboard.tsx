@@ -17,8 +17,6 @@ import {
   Tooltip,
   Box,
   Grid,
-  ActionIcon,
-  Switch,
 } from '@mantine/core';
 import {
   IconClock,
@@ -30,11 +28,8 @@ import {
   IconActivity,
   IconCpu,
   IconHash,
-  IconNews,
-  IconTrash,
 } from '@tabler/icons-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import type { SystemStatus, IssuesSummary } from '../api/client';
 import { useMemo, useState } from 'react';
@@ -84,23 +79,8 @@ interface ReleaseDetails {
   AddedToLastTaskMs?: number;
 }
 
-interface NewsEntry {
-  Id: number;
-  Status: 'READ' | 'UNREAD';
-  Date: string;
-  Category: string;
-  Message: string;
-}
-
-interface NewsResponse {
-  Total: number;
-  Unread: number;
-  Enabled: boolean;
-  Entries: NewsEntry[];
-}
 
 export function Dashboard() {
-  const queryClient = useQueryClient();
   const [selectedPazoId, setSelectedPazoId] = useState<number | null>(null);
   const [modalOpened, setModalOpened] = useState(false);
 
@@ -158,35 +138,6 @@ export function Dashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: newsData } = useQuery<NewsResponse>({
-    queryKey: ['news'],
-    queryFn: async () => {
-      const res = await apiClient.post('/ApiNewsService/GetNews', {});
-      const d = res.data?.result?.[0] || res.data;
-      const entries = typeof d.Entries === 'string' ? JSON.parse(d.Entries) : (d.Entries || []);
-      return { ...d, Entries: entries } as NewsResponse;
-    },
-    refetchInterval: 60000,
-    refetchOnWindowFocus: false,
-  });
-
-  const deleteNewsEntryMutation = useMutation({
-    mutationFn: async (id: number) => apiClient.post('/ApiNewsService/DeleteNewsEntry', { Id: id }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['news'] }),
-    onError: () => notifications.show({ title: 'Error', message: 'Failed to delete entry', color: 'red' }),
-  });
-
-  const deleteAllNewsMutation = useMutation({
-    mutationFn: async () => apiClient.post('/ApiNewsService/DeleteAllNews', {}),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['news'] }),
-    onError: () => notifications.show({ title: 'Error', message: 'Failed to clear news', color: 'red' }),
-  });
-
-  const setNewsEnabledMutation = useMutation({
-    mutationFn: async (enabled: boolean) => apiClient.post('/ApiNewsService/SetNewsEnabled', { Enabled: enabled }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['news'] }),
-    onError: () => notifications.show({ title: 'Error', message: 'Failed to update news setting', color: 'red' }),
-  });
 
   const { data: releaseDetails, isLoading: detailsLoading } = useQuery({
     queryKey: ['releaseDetails', selectedPazoId],
@@ -1020,76 +971,6 @@ export function Dashboard() {
         )}
       </Modal>
 
-      {/* News Widget */}
-      <Card radius="xl" padding="lg" style={{ background: 'var(--gradient-card)', backdropFilter: 'blur(10px)', border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-        <Group justify="space-between" mb="md">
-          <Group gap="sm">
-            <ThemeIcon size={36} radius="lg" style={{ background: 'var(--primary-gradient)', boxShadow: 'var(--shadow-sm)' }}>
-              <IconNews size="1rem" stroke={2} color="white" />
-            </ThemeIcon>
-            <Box>
-              <Title order={5} style={{ color: 'var(--text-primary)', marginBottom: 2 }}>slftp.news</Title>
-              <Text size="xs" c="dimmed">
-                {newsData ? `${newsData.Unread} unread / ${newsData.Total} total` : 'Loading...'}
-              </Text>
-            </Box>
-          </Group>
-          <Group gap="sm">
-            <Tooltip label={newsData?.Enabled ? 'News enabled' : 'News disabled'} withArrow>
-              <Switch
-                checked={newsData?.Enabled ?? true}
-                onChange={(e) => setNewsEnabledMutation.mutate(e.currentTarget.checked)}
-                size="sm"
-              />
-            </Tooltip>
-            <Tooltip label="Clear all news" withArrow>
-              <ActionIcon variant="light" color="red" onClick={() => { if (confirm('Delete all news entries?')) deleteAllNewsMutation.mutate(); }}>
-                <IconTrash size="1rem" />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </Group>
-        {newsData && newsData.Entries.length > 0 ? (
-          <ScrollArea h={250}>
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th style={{ width: 60 }}>Status</Table.Th>
-                  <Table.Th style={{ width: 110 }}>Date</Table.Th>
-                  <Table.Th style={{ width: 100 }}>Category</Table.Th>
-                  <Table.Th>Message</Table.Th>
-                  <Table.Th style={{ width: 40 }}></Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {newsData.Entries.map((entry) => (
-                  <Table.Tr key={entry.Id}>
-                    <Table.Td>
-                      <Badge size="xs" color={entry.Status === 'UNREAD' ? 'blue' : 'gray'} variant="light">
-                        {entry.Status}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td><Text size="xs" c="dimmed">{entry.Date}</Text></Table.Td>
-                    <Table.Td><Badge size="xs" variant="outline">{entry.Category}</Badge></Table.Td>
-                    <Table.Td>
-                      <Text size="xs" style={{ wordBreak: 'break-word' }}>{entry.Message}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <ActionIcon variant="subtle" color="red" size="sm" onClick={() => deleteNewsEntryMutation.mutate(entry.Id)}>
-                        <IconTrash size={12} />
-                      </ActionIcon>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </ScrollArea>
-        ) : (
-          <Center h={80}>
-            <Text size="sm" c="dimmed">No news entries</Text>
-          </Center>
-        )}
-      </Card>
     </Stack>
   );
 }
