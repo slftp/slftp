@@ -428,7 +428,6 @@ export function Dashboard() {
                     <Table.Th style={{ width: '12%' }}>Section</Table.Th>
                     <Table.Th style={{ width: '20%' }}>Sites</Table.Th>
                     <Table.Th style={{ width: '10%' }}>Status</Table.Th>
-                    <Table.Th style={{ width: '15%' }}>Timing</Table.Th>
                     <Table.Th style={{ width: '8%' }}>Queue #</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
@@ -563,56 +562,6 @@ export function Dashboard() {
                                 Racing
                               </Badge>
                             )}
-                          </Table.Td>
-                          <Table.Td>
-                            <Group gap={4}>
-                              <Tooltip label={`Parsing: ${release.DetectedToAddedMs}ms`} withArrow>
-                                <Badge
-                                  size="xs"
-                                  variant="light"
-                                  radius="sm"
-                                  style={{
-                                    background: 'var(--badge-timing-p-bg)',
-                                    border: '1px solid var(--badge-timing-p-border)',
-                                    color: 'var(--badge-timing-p-color)',
-                                  }}
-                                >
-                                  P: {release.DetectedToAddedMs}ms
-                                </Badge>
-                              </Tooltip>
-                              {release.AddedToDirlistMs !== undefined && release.AddedToDirlistMs > 0 && (
-                                <Tooltip label={`Dirlist Start: ${release.AddedToDirlistMs}ms`} withArrow>
-                                  <Badge
-                                    size="xs"
-                                    variant="light"
-                                    radius="sm"
-                                    style={{
-                                      background: 'var(--badge-timing-d-bg)',
-                                      border: '1px solid var(--badge-timing-d-border)',
-                                      color: 'var(--badge-timing-d-color)',
-                                    }}
-                                  >
-                                    D: {release.AddedToDirlistMs}ms
-                                  </Badge>
-                                </Tooltip>
-                              )}
-                              {release.AddedToFirstTaskMs !== undefined && release.AddedToFirstTaskMs > 0 ? (
-                                <Tooltip label={`Reaction Time: ${release.AddedToFirstTaskMs}ms`} withArrow>
-                                  <Badge
-                                    size="xs"
-                                    variant="light"
-                                    radius="sm"
-                                    style={{
-                                      background: 'var(--badge-timing-l-bg)',
-                                      border: '1px solid var(--badge-timing-l-border)',
-                                      color: 'var(--badge-timing-l-color)',
-                                    }}
-                                  >
-                                    R: {release.AddedToFirstTaskMs}ms
-                                  </Badge>
-                                </Tooltip>
-                              ) : null}
-                            </Group>
                           </Table.Td>
                           <Table.Td>
                             <Text size="sm" c="dimmed">#{release.QueueNumber}</Text>

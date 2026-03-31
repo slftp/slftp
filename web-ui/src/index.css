@@ -101,17 +101,6 @@ body:not([data-theme]) {
   --card-hover-border: rgba(255, 255, 255, 0.15);
   --card-hover-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 80px rgba(79, 70, 229, 0.15);
 
-  /* Timing Badges */
-  --badge-timing-p-bg: rgba(59, 130, 246, 0.12);
-  --badge-timing-p-border: rgba(59, 130, 246, 0.25);
-  --badge-timing-p-color: #3b82f6;
-  --badge-timing-d-bg: rgba(249, 115, 22, 0.12);
-  --badge-timing-d-border: rgba(249, 115, 22, 0.25);
-  --badge-timing-d-color: #f97316;
-  --badge-timing-l-bg: rgba(6, 182, 212, 0.12);
-  --badge-timing-l-border: rgba(6, 182, 212, 0.25);
-  --badge-timing-l-color: #06b6d4;
-
   /* Background Orbs */
   --bg-orb-1: rgba(79, 70, 229, 0.12);
   --bg-orb-2: rgba(34, 211, 238, 0.08);
@@ -206,17 +195,6 @@ body[data-theme="minimal"] {
   --card-hover-border: rgba(107, 114, 128, 0.6);
   --card-hover-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
 
-  /* Timing Badges */
-  --badge-timing-p-bg: rgba(59, 130, 246, 0.12);
-  --badge-timing-p-border: rgba(59, 130, 246, 0.25);
-  --badge-timing-p-color: #3b82f6;
-  --badge-timing-d-bg: rgba(249, 115, 22, 0.12);
-  --badge-timing-d-border: rgba(249, 115, 22, 0.25);
-  --badge-timing-d-color: #f97316;
-  --badge-timing-l-bg: rgba(6, 182, 212, 0.12);
-  --badge-timing-l-border: rgba(6, 182, 212, 0.25);
-  --badge-timing-l-color: #06b6d4;
-
   /* Background - No colorful orbs */
   --bg-orb-1: transparent;
   --bg-orb-2: transparent;
@@ -310,17 +288,6 @@ body[data-theme="light"] {
   --input-focus-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   --card-hover-border: #cbd5e1;
   --card-hover-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-
-  /* Timing Badges */
-  --badge-timing-p-bg: rgba(37, 99, 235, 0.08);
-  --badge-timing-p-border: rgba(37, 99, 235, 0.30);
-  --badge-timing-p-color: #1d4ed8;
-  --badge-timing-d-bg: rgba(217, 119, 6, 0.08);
-  --badge-timing-d-border: rgba(217, 119, 6, 0.30);
-  --badge-timing-d-color: #b45309;
-  --badge-timing-l-bg: rgba(8, 145, 178, 0.08);
-  --badge-timing-l-border: rgba(8, 145, 178, 0.30);
-  --badge-timing-l-color: #0e7490;
 
   /* Background Orbs - Hidden in light mode */
   --bg-orb-1: transparent;
