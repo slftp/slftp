@@ -812,7 +812,7 @@ end;
 
 function TPazo.IsUDPEnabled: Boolean;
 begin
-  Result := False; // UDP announce integration not enabled in this build
+  Result := config.ReadBool('UDPConfig', 'EnableUDP', False);
 end;
 
 constructor TPazo.Create(const rls: TRelease; const pazo_id: integer);
