@@ -209,6 +209,19 @@ var
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
 
+  function IsUDPEnabled: Boolean;
+  var
+    rawEnable: String;
+    udpIp: String;
+    udpPort: Integer;
+  begin
+    rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+    udpIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+    udpPort := config.ReadInteger('UDPConfig', 'Port', 0);
+    Result := (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) and
+      (udpIp <> '') and (udpPort >= 1) and (udpPort <= 65535);
+  end;
+
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
   begin
@@ -435,8 +448,9 @@ begin
       if (event = kbeCOMPLETE) then
       begin
         // complet an old rls not in kb
-        irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
-          [section, rls, '<b>' + sitename + '</b>']));
+        if not IsUDPEnabled then
+          irc_Addstats(Format('<c7>[COMPLETE]</c> %s %s @ %s (not in kb)',
+            [section, rls, '<b>' + sitename + '</b>']));
         exit;
       end;
 
@@ -671,7 +685,7 @@ begin
     end;
 
     s := FindSiteByName(netname, psource.Name);
-    if ((s <> nil) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
+    if ((s <> nil) and (not p.IsUDPEnabled) and (not (s.WorkingStatus in [sstUnknown, sstUp]))) then
       exit;
 
     psource.ircevent := True;
@@ -810,66 +824,65 @@ begin
 
   // status changed
   ss := p.RoutesText;
-  if ss <> '' then
-  begin
-    irc_SendROUTEINFOS(ss);
-  end;
 
   if (psource <> nil) and (psource.Status = rssNotAllowed) then
   begin
     psource.Status := rssNotAllowedButItsThere;
   end;
 
-  // now add dirlist
+  // now add dirlist (skip when UDP is enabled)
   try
     if (event in [kbeNEWDIR, kbePRE, kbeSPREAD, kbeADDPRE, kbeUPDATE]) then
     begin
-      for i := p.PazoSitesList.Count - 1 downto 0 do
+      if not p.IsUDPEnabled then
       begin
-        try
-          if i < 0 then
+        for i := p.PazoSitesList.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
             Break;
-        except
-          Break;
-        end;
-        try
-          ps := TPazoSite(p.PazoSitesList[i]);
-
-          // dirlist not available
-          if ps.dirlist = nil then
-          begin
-            Debug(dpError, section, 'ERROR: ps.dirlist = nil');
-            Continue;
           end;
+          try
+            ps := TPazoSite(p.PazoSitesList[i]);
 
-          // dirlist task already added
-          if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
-            Continue;
+            // dirlist not available
+            if ps.dirlist = nil then
+            begin
+              Debug(dpError, section, 'ERROR: ps.dirlist = nil');
+              Continue;
+            end;
 
-          // Source site is PRE site for this group
-          if ps.status in [rssShouldPre, rssRealPre] then
-          begin
-            r.PredOnAnySite := True;
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
+            // dirlist task already added
+            if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
+              Continue;
 
-          // Source site is _not_ a PRE site for this group
-          if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
-          begin
-            dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
-            irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
-            ps.dirlist.dirlistadded := True;
-            AddTask(dlt, true);
-          end;
+            // Source site is PRE site for this group
+            if ps.status in [rssShouldPre, rssRealPre] then
+            begin
+              r.PredOnAnySite := True;
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', True);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
 
-        except
-          on E: Exception do
-          begin
-            Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
-            continue;
+            // Source site is _not_ a PRE site for this group
+            if ps.status in [rssNotAllowedButItsThere, rssAllowed, rssComplete] then
+            begin
+              dlt := TPazoDirlistTask.Create(netname, channel, ps.Name, p, '', False);
+              irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
+              ps.dirlist.dirlistadded := True;
+              AddTask(dlt, true);
+            end;
+
+          except
+            on E: Exception do
+            begin
+              Debug(dpError, section, Format('[EXCEPTION] kb_Add add dirlist iterate: %s', [e.Message]));
+              continue;
+            end;
           end;
         end;
       end;
