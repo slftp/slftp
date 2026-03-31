@@ -99,6 +99,13 @@ begin
     exit;
   end;
 
+  if mainpazo.IsUDPEnabled then
+  begin
+    ready := True;
+    Result := True;
+    exit;
+  end;
+
   // exit if nfo is already in dbaddnfo
   try
     i := last_addnfo.IndexOf(mainpazo.rls.rlsname);

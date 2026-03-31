@@ -326,6 +326,19 @@ var
   rls_section: String;
   kb_entry: String;
   p: Integer;
+
+  function IsUDPEnabled: Boolean;
+  var
+    rawEnable: String;
+    udpIp: String;
+    udpPort: Integer;
+  begin
+    rawEnable := Trim(config.ReadString('UDPConfig', 'EnableUDP', 'False'));
+    udpIp := Trim(config.ReadString('UDPConfig', 'IP', ''));
+    udpPort := config.ReadInteger('UDPConfig', 'Port', 0);
+    Result := (SameText(rawEnable, 'True') or SameText(rawEnable, '1')) and
+      (udpIp <> '') and (udpPort >= 1) and (udpPort <= 65535);
+  end;
 begin
   Result := False;
 
@@ -344,7 +357,7 @@ begin
         //send event to kb_add to trigger race evaluation
         if rls_section <> '' then
           kb_Add(netname, channel, getAdminSiteName, rls_section, '', event, rls, '')
-        else if add_to_kb_on_dbaddpre_insert then
+        else if add_to_kb_on_dbaddpre_insert or IsUDPEnabled then
         begin
           rls_section := aSection;  // if the precatcher config has a fixed section ... I don't think it makes much sense, but it's possible
           if rls_section = '' then
