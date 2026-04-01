@@ -1,16 +1,20 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, Stack, Table, TextInput, Text, Tooltip, Tabs, Select, Switch, NumberInput, ScrollArea, Paper } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconAlertCircle, IconEye, IconEdit, IconTrash, IconPlus, IconSearch, IconFolder } from '@tabler/icons-react';
+import { IconAlertCircle, IconEye, IconEdit, IconTrash, IconPlus, IconSearch, IconFolder, IconCoins } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { getSites, getSite, createSite, updateSite, deleteSite, getSiteSections, createSiteSection, updateSiteSection, deleteSiteSection } from '../../api/cbftpClient';
-import type { CbftpSite, SiteSection, Skiplist } from '../../api/cbftpClient';
+import { getSites, getSite, createSite, updateSite, deleteSite, getSiteSections, createSiteSection, updateSiteSection, deleteSiteSection, getSiteCredits } from '../../api/cbftpClient';
+import type { CbftpSite, SiteSection, Skiplist, SiteCreditsResponse } from '../../api/cbftpClient';
 
 export function Sites() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [siteCredits, setSiteCredits] = useState<Record<string, SiteCreditsResponse & { fetchedAtMs: number }>>({});
+  const [creditsLoadingSite, setCreditsLoadingSite] = useState<string | null>(null);
+  const creditsInFlightRef = useRef<Set<string>>(new Set());
+  const siteCreditsRef = useRef<Record<string, SiteCreditsResponse & { fetchedAtMs: number }>>({});
   const [detailsOpened, { open: openDetails, close: closeDetails }] = useDisclosure(false);
   const [formOpened, { open: openForm, close: closeForm }] = useDisclosure(false);
   const [deleteOpened, { open: openDelete, close: closeDelete }] = useDisclosure(false);
@@ -94,6 +98,71 @@ export function Sites() {
       notifications.show({ title: 'Error', message: error.message, color: 'red' });
     },
   });
+
+  const fetchCreditsMutation = useMutation({
+    mutationFn: async (siteName: string) => {
+      const data = await getSiteCredits(siteName);
+      setSiteCredits((prev) => ({ ...prev, [siteName]: { ...data, fetchedAtMs: Date.now() } }));
+      return data;
+    },
+    onMutate: (siteName) => setCreditsLoadingSite(siteName),
+    onError: (err: any, siteName) => {
+      notifications.show({ title: 'Error', message: err.message || `Failed to fetch credits for ${siteName}`, color: 'red' });
+    },
+    onSettled: () => setCreditsLoadingSite(null),
+  });
+
+  // Auto-refresh credits/ratio at most once per hour per site
+  const CREDITS_REFRESH_MS = 60 * 60 * 1000;
+  const CREDITS_POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+  const [creditsPollTick, setCreditsPollTick] = useState(0);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setCreditsPollTick((t) => t + 1), CREDITS_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    siteCreditsRef.current = siteCredits;
+  }, [siteCredits]);
+
+  // Background fetch: only for enabled sites with missing/stale credits
+  const allSiteNames = siteNames || [];
+  useEffect(() => {
+    if (!allSiteNames.length || !siteDetailsByName.size) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const now = Date.now();
+      for (const siteName of allSiteNames) {
+        if (cancelled) return;
+
+        const siteDetails = siteDetailsByName.get(siteName);
+        if (siteDetails?.disabled) continue;
+
+        const existing = siteCreditsRef.current[siteName];
+        if (!existing || (now - existing.fetchedAtMs) > CREDITS_REFRESH_MS) {
+          if (creditsInFlightRef.current.has(siteName)) continue;
+          creditsInFlightRef.current.add(siteName);
+          try {
+            const data = await getSiteCredits(siteName);
+            if (!cancelled) {
+              setSiteCredits((prev) => ({ ...prev, [siteName]: { ...data, fetchedAtMs: Date.now() } }));
+            }
+          } catch {
+            // silent in background
+          } finally {
+            creditsInFlightRef.current.delete(siteName);
+          }
+        }
+      }
+    };
+    run().catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [creditsPollTick, allSiteNames.join('|'), siteDetailsByName]);
 
   // Site Sections query and mutations
   const { data: siteSections, refetch: refetchSections } = useQuery<SiteSection[]>({
@@ -438,6 +507,7 @@ export function Sites() {
             <Table.Th>Status</Table.Th>
             <Table.Th>TLS Mode</Table.Th>
             <Table.Th>Priority</Table.Th>
+            <Table.Th>Credits (Ratio)</Table.Th>
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
         </Table.Thead>
@@ -464,10 +534,29 @@ export function Sites() {
                 <Badge>{formatPriority(details?.priority)}</Badge>
               </Table.Td>
               <Table.Td>
+                {siteCredits[siteName]?.Ok ? (
+                  <Text size="sm">
+                    {(siteCredits[siteName].Credits || '-')} ({(siteCredits[siteName].Ratio || '-')})
+                  </Text>
+                ) : (
+                  <Text size="sm" c="dimmed">-</Text>
+                )}
+              </Table.Td>
+              <Table.Td>
                 <Group gap="xs">
                   <Tooltip label="View Details">
                     <ActionIcon variant="light" onClick={() => handleViewDetails(siteName)}>
                       <IconEye size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Fetch credits/ratio (SITE STAT)">
+                    <ActionIcon
+                      variant="light"
+                      color="grape"
+                      loading={creditsLoadingSite === siteName}
+                      onClick={() => fetchCreditsMutation.mutate(siteName)}
+                    >
+                      <IconCoins size={16} />
                     </ActionIcon>
                   </Tooltip>
                   <Tooltip label="Edit">
