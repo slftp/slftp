@@ -21,7 +21,7 @@ const Races = lazy(() => import('./pages/Races').then((m) => ({ default: m.Races
 const Databases = lazy(() => import('./pages/Databases').then((m) => ({ default: m.Databases })));
 const Help = lazy(() => import('./pages/Help').then((m) => ({ default: m.Help })));
 const Cbftp = lazy(() => import('./pages/cbftp/Cbftp').then((m) => ({ default: m.Cbftp })));
-const Monitoring = lazy(() => import('./pages/Monitoring').then((m) => ({ default: m.Monitoring })));
+
 const Login = lazy(() => import('./pages/Login'));
 
 // Protected Route wrapper
@@ -60,7 +60,7 @@ function App() {
             <Route path="logs" element={<Logs />} />
             <Route path="races" element={<Races />} />
             <Route path="races/:releaseName" element={<Races />} />
-            <Route path="monitoring" element={<Monitoring />} />
+
             <Route path="issues" element={<Issues />} />
             <Route path="databases" element={<Databases />} />
             <Route path="routes" element={<RoutesPage />} />

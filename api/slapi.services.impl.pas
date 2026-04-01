@@ -47,8 +47,9 @@ uses
   slcriticalsection2,
   globals;
 
-function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
-function ApiGetSlotHistorySSE(const aSiteName: string; aSlotNumber: integer; aSeq: QWord; aTimeoutMs: integer): RawUTF8;
+{ MONITORING FEATURE DISABLED - Functions kept as stubs for API compatibility
+  function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
+  function ApiGetSlotHistorySSE(const aSiteName: string; aSlotNumber: integer; aSeq: QWord; aTimeoutMs: integer): RawUTF8; }
 
 { Updates system status peak values (load avg, CPU, queue size).
   Called periodically from Main_Iter so peaks are tracked independently of API calls. }
@@ -1816,299 +1817,23 @@ begin
 end;
 
 function ApiGetSlotsRuntimeJson(const SiteName: RawUTF8): RawJSON;
-var
-  sitesArray: TDocVariantData;
-  siteDoc, slotsDoc, slotDoc: variant;
-  filterSite: string;
-  i, j: integer;
-  s: TSite;
-  ss: TSiteSlot;
-  task: TTask;
-  taskName: string;
-  taskUid: Int64;
-  nowTs: TDateTime;
-  lockAcquired: boolean;
-  totalSlots: integer;
-  freeSlots: integer;
-  activeSlots: integer;
-  siteStatus: RawUTF8;
-
-  function AgeSeconds(const aWhen, aNow: TDateTime): integer;
-  var
-    delta: Int64;
-  begin
-    Result := -1;
-    if aWhen <= 0 then
-      Exit;
-    try
-      delta := SecondsBetween(aNow, aWhen);
-      if delta < 0 then
-        delta := 0;
-      if delta > High(Integer) then
-        delta := High(Integer);
-      Result := integer(delta);
-    except
-      Result := -1;
-    end;
-  end;
-
-  function AgeMilliseconds(const aWhen, aNow: TDateTime): Int64;
-  var
-    delta: Int64;
-  begin
-    Result := -1;
-    if aWhen <= 0 then
-      Exit;
-    try
-      delta := MillisecondsBetween(aNow, aWhen);
-      if delta < 0 then
-        delta := 0;
-      Result := delta;
-    except
-      Result := -1;
-    end;
-  end;
-
-  function DirectionText(const aUploading, aDownloading: boolean): RawUTF8;
-  begin
-    if aUploading and aDownloading then
-      Result := 'up+down'
-    else if aUploading then
-      Result := 'up'
-    else if aDownloading then
-      Result := 'down'
-    else
-      Result := 'idle';
-  end;
-
 begin
+  // MONITORING FEATURE DISABLED - Feature removed due to stability issues
+  // The slot streaming and history endpoints caused memory leaks and race conditions
+  // and the CurrentAction tracking was never properly implemented.
   Result := '[]';
-  sitesArray.InitFast(dvArray);
-  filterSite := Trim(UTF8ToString(SiteName));
-  nowTs := Now;
-
-  try
-    if sitesunit.sites = nil then
-    begin
-      Result := sitesArray.ToJSON;
-      Exit;
-    end;
-
-    for i := 0 to sitesunit.sites.Count - 1 do
-    begin
-      s := TSite(sitesunit.sites[i]);
-      if s = nil then
-        Continue;
-      if s.Name = sitesunit.getAdminSiteName then
-        Continue;
-      if (filterSite <> '') and (filterSite <> '*') and (CompareText(s.Name, filterSite) <> 0) then
-        Continue;
-
-      case s.WorkingStatus of
-        sstUp: siteStatus := 'UP';
-        sstDown, sstTempDown: siteStatus := 'DOWN';
-        sstMarkedAsDownByUser: siteStatus := 'DOWN_BY_USER';
-      else
-        siteStatus := 'UNKNOWN';
-      end;
-
-      totalSlots := 0;
-      freeSlots := -1;
-      activeSlots := 0;
-      TDocVariant.New(slotsDoc);
-      TDocVariantData(slotsDoc).InitFast(dvArray);
-      lockAcquired := s.AcquireSlotsAssignmentLock(150, 'GetSlotsRuntime');
-      try
-        if lockAcquired then
-        begin
-          if s.slots <> nil then
-            totalSlots := s.slots.Count;
-          freeSlots := s.freeslots;
-
-          for j := 0 to totalSlots - 1 do
-          begin
-            ss := TSiteSlot(s.slots[j]);
-            if ss = nil then
-              Continue;
-
-            TDocVariant.New(slotDoc);
-            TDocVariantData(slotDoc).AddValue('slot', ss.SlotNumber);
-            TDocVariantData(slotDoc).AddValue('name', UTF8Encode(ss.Name));
-            TDocVariantData(slotDoc).AddValue('status', UTF8Encode(SlotStatusToString(ss.Status)));
-
-            task := ss.todotask;
-            taskName := 'Idle';
-            taskUid := 0;
-            if task <> nil then
-            begin
-              taskName := 'Task';
-              try
-                taskName := task.Name;
-              except
-                // keep fallback task name
-              end;
-              if taskName = '' then
-                taskName := 'Task';
-              try
-                taskUid := task.uid;
-              except
-                taskUid := 0;
-              end;
-              Inc(activeSlots);
-            end;
-
-            TDocVariantData(slotDoc).AddValue('task', UTF8Encode(taskName));
-            if taskUid > 0 then
-              TDocVariantData(slotDoc).AddValue('task_uid', taskUid);
-            TDocVariantData(slotDoc).AddValue('action', UTF8Encode(ss.CurrentAction));
-            TDocVariantData(slotDoc).AddValue('uploading', ss.uploadingto);
-            TDocVariantData(slotDoc).AddValue('downloading', ss.downloadingfrom);
-            TDocVariantData(slotDoc).AddValue('direction', DirectionText(ss.uploadingto, ss.downloadingfrom));
-            TDocVariantData(slotDoc).AddValue('last_io_ms', AgeMilliseconds(ss.LastIO, nowTs));
-            TDocVariantData(slotDoc).AddValue('last_task_ms', AgeMilliseconds(ss.LastTaskExecution, nowTs));
-            TDocVariantData(slotDoc).AddValue('last_non_idle_task_ms', AgeMilliseconds(ss.LastNonIdleTaskExecution, nowTs));
-            TDocVariantData(slotDoc).AddValue('response_code', ss.lastResponseCode);
-            TDocVariantData(slotsDoc).AddItem(slotDoc);
-          end;
-        end;
-      finally
-        if lockAcquired then
-          s.ReleaseSlotsAssignmentLock;
-      end;
-
-      TDocVariant.New(siteDoc);
-      TDocVariantData(siteDoc).AddValue('site', UTF8Encode(s.Name));
-      TDocVariantData(siteDoc).AddValue('site_status', siteStatus);
-      TDocVariantData(siteDoc).AddValue('locked', not lockAcquired);
-      TDocVariantData(siteDoc).AddValue('slots_total', totalSlots);
-      TDocVariantData(siteDoc).AddValue('slots_free', freeSlots);
-      TDocVariantData(siteDoc).AddValue('active_slots', activeSlots);
-      TDocVariantData(siteDoc).AddValue('slots', slotsDoc);
-      sitesArray.AddItem(siteDoc);
-    end;
-
-    Result := sitesArray.ToJSON;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSlotsRuntime: %s', [E.Message]));
-      Result := '[]';
-    end;
-  end;
 end;
 
 function TApiSitesServiceImpl.GetSlotsRuntime(const SiteName: RawUTF8): RawJSON;
 begin
-  Result := ApiGetSlotsRuntimeJson(SiteName);
+  // MONITORING FEATURE DISABLED - Feature removed due to stability issues
+  Result := '[]';
 end;
 
 function ApiGetSlotHistorySSE(const aSiteName: string; aSlotNumber: integer; aSeq: QWord; aTimeoutMs: integer): RawUTF8;
-var
-  doc: TDocVariantData;
-  linesArr: TDocVariantData;
-  s: TSite;
-  ss: TSiteSlot;
-  lines: TArray<String>;
-  currentSeq: QWord;
-  i: integer;
-  lockAcquired: boolean;
-  startTick: QWord;
-  changed: boolean;
-  clampedTimeout: integer;
-  dataJson: RawUTF8;
 begin
-  Result := 'retry: 250'#10'event: ping'#10'data: {}'#10#10;
-
-  clampedTimeout := aTimeoutMs;
-  if clampedTimeout < 500 then
-    clampedTimeout := 500;
-  if clampedTimeout > 15000 then
-    clampedTimeout := 15000;
-
-  try
-    s := sitesunit.FindSiteByName('', aSiteName);
-    if s = nil then
-      Exit;
-
-    // Resolve the slot once (outside the poll loop)
-    lockAcquired := s.AcquireSlotsAssignmentLock(150, 'GetSlotHistory');
-    try
-      if not lockAcquired then
-        Exit;
-      if (s.slots = nil) or (aSlotNumber < 0) or (aSlotNumber >= s.slots.Count) then
-        Exit;
-      ss := TSiteSlot(s.slots[aSlotNumber]);
-    finally
-      if lockAcquired then
-        s.ReleaseSlotsAssignmentLock;
-    end;
-
-    if ss = nil then
-      Exit;
-
-    // Long-poll: wait until seq changes or timeout
-    startTick := GetTickCount64;
-    changed := False;
-    repeat
-      currentSeq := ss.HistorySeq;
-      if (aSeq = 0) or (currentSeq <> aSeq) then
-      begin
-        changed := True;
-        Break;
-      end;
-      Sleep(100);
-    until (GetTickCount64 - startTick) >= QWord(clampedTimeout);
-
-    if not changed then
-    begin
-      Result := 'retry: 250'#10 +
-        'event: ping'#10 +
-        'data: {"seq":' + UTF8Encode(IntToStr(currentSeq)) + '}'#10#10;
-      Exit;
-    end;
-
-    // Fetch history snapshot
-    lines := ss.GetHistory;
-    currentSeq := ss.HistorySeq;
-
-    doc.InitFast(dvObject);
-    linesArr.InitFast(dvArray);
-
-    if (aSeq = 0) then
-    begin
-      // Initial load: send full buffer
-      for i := 0 to High(lines) do
-        linesArr.AddItem(UTF8Encode(lines[i]));
-    end
-    else
-    begin
-      // Delta: only send new lines since last seq
-      // newCount = how many lines were added since aSeq
-      // but cap to available lines in buffer
-      i := High(lines) - integer(currentSeq - aSeq) + 1;
-      if i < 0 then
-        i := 0;
-      while i <= High(lines) do
-      begin
-        linesArr.AddItem(UTF8Encode(lines[i]));
-        Inc(i);
-      end;
-    end;
-
-    doc.AddValue('seq', Int64(currentSeq));
-    doc.AddValue('full', aSeq = 0);
-    doc.AddValue('lines', Variant(linesArr));
-    dataJson := doc.ToJSON;
-
-    Result := 'retry: 250'#10 +
-      'event: history'#10 +
-      'data: ' + dataJson + #10#10;
-  except
-    on E: Exception do
-    begin
-      Debug(dpError, section, Format('[EXCEPTION] ApiGetSlotHistorySSE: %s', [E.Message]));
-    end;
-  end;
+  // MONITORING FEATURE DISABLED - Feature removed due to stability issues
+  Result := 'retry: 250'#10'event: error'#10'data: {"error":"Monitoring disabled"}'#10#10;
 end;
 
 function TApiSitesServiceImpl.GetSiteCredits(const SiteName: RawUTF8; ForceRefresh: boolean; out Credits: TApiSiteCredits): boolean;
