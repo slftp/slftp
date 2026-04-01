@@ -8,7 +8,8 @@ interface
   @param(aErrMsg Holds Exception text, webserver response text for occured failure code or a message if reply was empty)
   @param(aMaxTries Max. number of retries when http get failed - default 2)
   @returns(@true on success, @false on failure, exception or if response was empty) }
-function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer = 2): boolean;
+function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer = 2): boolean; overload;
+function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer; out aOutStatus: Integer): boolean; overload;
 
 implementation
 
@@ -26,19 +27,25 @@ const
   );
 
 function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer): boolean;
+var
+  fStatus: Integer;
+begin
+  Result := HttpGetUrl(aUrl, aRecvStr, aErrMsg, aMaxTries, fStatus);
+end;
+
+function HttpGetUrl(const aUrl: String; out aRecvStr: String; out aErrMsg: String; aMaxTries: Integer; out aOutStatus: Integer): boolean;
 label
   TryAgain;
 var
   fNumErrors: Integer;
   fOutHeaders: RawUtf8;
-  fOutStatus: integer;
   fInHeaders: RawUtf8;
   fRandomUserAgent: String;
 begin
   Result := False;
   fNumErrors := 0;
   fOutHeaders := '';
-  fOutStatus := 0;
+  aOutStatus := 0;
 
   // Select random User-Agent
   fRandomUserAgent := UserAgents[Random(UserAgentsCount + 1)];
@@ -52,7 +59,7 @@ begin
     aErrMsg := '';
     // load website
     try
-      aRecvStr := HttpGet(aUrl, fInHeaders, @fOutHeaders, {forceNotSocket:}False, @fOutStatus, {timeout:}0, {forcesocket:}False, {ignoreTlsCertError:}True);
+      aRecvStr := HttpGet(aUrl, fInHeaders, @fOutHeaders, {forceNotSocket:}False, @aOutStatus, {timeout:}0, {forcesocket:}False, {ignoreTlsCertError:}True);
     except
       on e: Exception do
       begin
@@ -64,8 +71,14 @@ begin
 
     if (Length(aRecvStr) = 0) and (aErrMsg = '') then
     begin
-      Debug(dpError, section, Format('HTTP GET reply for %s is empty (%s / %d).', [aUrl, Utf8ToString(fOutHeaders), fOutStatus]));
-      aErrMsg := Format('HTTP GET reply is empty. (%s / %d)', [Utf8ToString(fOutHeaders), fOutStatus]);
+      if aOutStatus = 404 then
+      begin
+        aErrMsg := Format('HTTP GET failed with 404 Not Found. (%s)', [aUrl]);
+        exit; // don't retry on 404
+      end;
+
+      Debug(dpError, section, Format('HTTP GET reply for %s is empty (%s / %d).', [aUrl, Utf8ToString(fOutHeaders), aOutStatus]));
+      aErrMsg := Format('HTTP GET reply is empty. (%s / %d)', [Utf8ToString(fOutHeaders), aOutStatus]);
     end;
 
     if aErrMsg <> '' then
