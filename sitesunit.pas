@@ -96,12 +96,6 @@ type
     FLastIO: TDateTime;
     FLastTaskExecution: TDateTime;
     FLastNonIdleTaskExecution: TDateTime;
-    FCurrentAction: String; //< latest live action/command for slot view
-    FCurrentActionCS: TCriticalSection;
-    FAktDirIsRemote: boolean; //< true if aktdir is a remote path (for slot view)
-    FHistory: TQueue<String>; //< ring buffer of recent slot commands (lazy init)
-    FHistoryLock: TCriticalSection;
-    FHistorySeq: UInt64; //< monotonically increasing sequence for SSE change detection
     mdtmre: TRegExpr; //< regex for parsing MDTM ftpd response
     aktdir: String;
     prot: TProtection;
@@ -119,8 +113,6 @@ type
     procedure SetDownloadingFrom(const Value: boolean);
     procedure SetUploadingTo(const Value: boolean);
     procedure SetTodotask(Value: TTask);
-    function GetCurrentAction: String;
-    procedure SetCurrentAction(const Value: String);
   public
     //    pre: Boolean;
     localport: integer;
@@ -205,14 +197,6 @@ type
     property LastTaskExecution: TDateTime read FLastTaskExecution write FLastTaskExecution; //< time of last execution of any assigned @link(todotask) task
     property LastNonIdleTaskExecution: TDateTime read FLastNonIdleTaskExecution write FLastNonIdleTaskExecution; //< time of last execution of a non @link(taskidle.TIdleTask) task
     property SlotNumber: integer read FSlotNumber;
-    { @abstract(Adds a line to this slot's command history (only if monitored)) }
-    procedure AddHistory(const aLine: String);
-    { @abstract(Returns a snapshot of the slot's command history) }
-    function GetHistory: TArray<String>;
-    { @abstract(Monotonically increasing sequence number, incremented on each history entry) }
-    property HistorySeq: UInt64 read FHistorySeq;
-    { @abstract(Latest live action/command description for slot view) }
-    property CurrentAction: String read GetCurrentAction write SetCurrentAction;
   published
     property Status: TSlotStatus read fstatus write SetOnline;
   end;
@@ -1533,13 +1517,6 @@ begin
   LastTaskExecution := Now();
   SSCNEnabled := False;
 
-  FCurrentActionCS := TCriticalSection.Create;
-  FCurrentAction := 'Initializing...';
-  FHistory := nil; // lazy init - only created when slot is monitored
-  FHistoryLock := TCriticalSection.Create;
-  FHistorySeq := 0;
-  FAktDirIsRemote := False;
-
   mdtmre := TRegExpr.Create;
   mdtmre.Expression := '(\d{4})(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)';
 
@@ -1595,78 +1572,6 @@ procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string; const aKill:
 begin
   DestroySocket(False);
   Relogin(0, aKill, aMessage);
-end;
-
-procedure TSiteSlot.AddHistory(const aLine: String);
-var
-  fSiteName: string;
-  fLine: String;
-begin
-  fSiteName := '';
-  if Self.site <> nil then
-    fSiteName := Self.site.Name;
-  if not IsSlotMonitored(fSiteName, Self.FSlotNumber) then
-    Exit;
-
-  // Lazy init: create history queue on first use
-  if FHistory = nil then
-  begin
-    FHistoryLock.Acquire;
-    try
-      if FHistory = nil then
-        FHistory := TQueue<String>.Create;
-    finally
-      FHistoryLock.Release;
-    end;
-  end;
-
-  fLine := Format('[%s] %s', [FormatDateTime('hh:nn:ss.zzz', Now), aLine]);
-  FHistoryLock.Acquire;
-  try
-    while FHistory.Count >= 5000 do
-      FHistory.Dequeue;
-    FHistory.Enqueue(fLine);
-    Inc(FHistorySeq);
-  finally
-    FHistoryLock.Release;
-  end;
-end;
-
-function TSiteSlot.GetHistory: TArray<String>;
-begin
-  FHistoryLock.Acquire;
-  try
-    if FHistory = nil then
-      FHistory := TQueue<String>.Create;
-    Result := FHistory.ToArray;
-  finally
-    FHistoryLock.Release;
-  end;
-end;
-
-function TSiteSlot.GetCurrentAction: String;
-begin
-  Result := '';
-  if FCurrentActionCS = nil then
-    Exit;
-  FCurrentActionCS.Enter;
-  try
-    Result := FCurrentAction;
-  finally
-    FCurrentActionCS.Leave;
-  end;
-end;
-
-procedure TSiteSlot.SetCurrentAction(const Value: String);
-begin
-  if FCurrentActionCS = nil then
-    Exit;
-  FCurrentActionCS.Enter;
-  try
-    FCurrentAction := Value;
-  finally
-    FCurrentActionCS.Leave;
-  end;
 end;
 
 procedure TSiteSlot.Execute;
@@ -1867,9 +1772,6 @@ begin
 
   FreeAndNil(event);
   mdtmre.Free;
-  FreeAndNil(FHistoryLock);
-  FreeAndNil(FHistory);
-  FreeAndNil(FCurrentActionCS);
 
   inherited;
   Debug(dpSpam, section, 'Slot %s destroy end', [Name]);
