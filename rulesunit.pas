@@ -2459,6 +2459,7 @@ begin
   conditions.Add(TConditionTVCurrentOnAir);
   conditions.Add(TConditionTVDailyShow);
   conditions.Add(TConditionTVRating);
+  conditions.Add(TConditionTVEpisodeAgeDays);
 
   conditions.Add(TConditionIMDBLookupDone);
   conditions.Add(TConditionIMDBYear);
