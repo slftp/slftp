@@ -353,6 +353,95 @@ export const isCbftpEnabled = async (): Promise<boolean> => {
   }
 };
 
+// Site Credits
+export interface SiteCreditsResponse {
+  Ok: boolean;
+  Credits?: string;
+  Ratio?: string;
+  Message?: string;
+}
+
+// Convert MiB/GiB/TiB/PiB to human readable GB/TB/PB
+const formatCredits = (value: string, unit: string): string => {
+  const num = parseFloat(value.replace(',', '.'));
+  if (isNaN(num)) return value + ' ' + unit;
+
+  const unitLower = unit.toLowerCase();
+  let gb = 0;
+
+  if (unitLower === 'mib') {
+    gb = num / 1024;
+  } else if (unitLower === 'gib') {
+    gb = num;
+  } else if (unitLower === 'tib') {
+    gb = num * 1024;
+  } else if (unitLower === 'pib') {
+    gb = num * 1024 * 1024;
+  } else {
+    return value + ' ' + unit;
+  }
+
+  if (gb >= 1000) {
+    return (gb / 1024).toFixed(2) + ' TB';
+  }
+
+  return gb.toFixed(2) + ' GB';
+};
+
+const parseSiteStatResponse = (result: string): SiteCreditsResponse => {
+  if (!result) {
+    return { Ok: false, Message: 'Empty response' };
+  }
+
+  // Extract Credits
+  const creditsMatch = result.match(/credits[:\s]+([\d.,]+)\s?([kmgtp]ib)/i);
+  let credits = '';
+  if (creditsMatch) {
+    credits = formatCredits(creditsMatch[1], creditsMatch[2]);
+  }
+
+  // Extract ratio — check ul&dl first, then ul-only
+  const ulDlRatioMatch = result.match(/ratio[:\s]+(ul&dl[:\s]+[^\]]+)/i);
+  const ulRatioMatch = result.match(/ratio[:\s]+.*?(ul[:\s]+[^|]+)/i);
+
+  let ratio = '';
+  if (ulDlRatioMatch) {
+    ratio = ulDlRatioMatch[1].trim();
+  } else if (ulRatioMatch) {
+    ratio = ulRatioMatch[1].trim();
+  }
+
+  if (credits || ratio) {
+    return { Ok: true, Credits: credits, Ratio: ratio };
+  }
+
+  return { Ok: false, Message: 'Could not parse credits from response' };
+};
+
+export const getSiteCredits = async (siteName: string): Promise<SiteCreditsResponse> => {
+  try {
+    const response = await sendRawCommand({
+      command: 'site stat',
+      sites: [siteName],
+      timeout: 10,
+      async: false,
+    });
+
+    if (response.failures && response.failures.length > 0) {
+      return { Ok: false, Message: response.failures[0].error || response.failures[0].reason || 'Command failed' };
+    }
+
+    if (response.successes && response.successes.length > 0) {
+      const result = response.successes[0].result || '';
+      return parseSiteStatResponse(result);
+    }
+
+    return { Ok: false, Message: 'No response from site' };
+  } catch (error: any) {
+    return { Ok: false, Message: error.message || 'Failed to fetch credits' };
+  }
+};
+
 // Info
 export const getInfo = async (): Promise<CbftpInfo> => {
   const response = await cbftpClient.get('/cbftp/info');
