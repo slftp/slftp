@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, Stack, Table, TextInput, Text, Tooltip, Select, MultiSelect, Switch, Box, Paper } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Group, Loader, Modal, ScrollArea, Stack, Table, TextInput, Text, Tooltip, Select, MultiSelect, Switch, Box, Paper } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -45,9 +45,11 @@ export function SpreadJobs() {
     refetchInterval: 30000,
   });
 
+  const JOBS_LIMIT = 500;
+
   const jobNames = useMemo(() => {
     if (!jobNamesRaw) return [];
-    return [...jobNamesRaw].reverse();
+    return [...jobNamesRaw].reverse().slice(0, JOBS_LIMIT);
   }, [jobNamesRaw]);
 
   const { data: jobDetailsList } = useQuery<CbftpSpreadJob[]>({
@@ -232,16 +234,16 @@ export function SpreadJobs() {
 
   const getProfileBadge = (profile: string) => {
     const color = profile === 'RACE' ? 'blue' : profile === 'DISTRIBUTE' ? 'green' : 'orange';
-    return <Badge color={color}>{profile}</Badge>;
+    return <Badge size="xs" color={color} variant="light">{profile}</Badge>;
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'RUNNING': return <Badge color="blue">Running</Badge>;
-      case 'DONE': return <Badge color="green">Done</Badge>;
-      case 'ABORTED': return <Badge color="red">Aborted</Badge>;
-      case 'PREPARED': return <Badge color="yellow">Prepared</Badge>;
-      default: return <Badge>{status}</Badge>;
+      case 'RUNNING': return <Badge size="xs" color="blue">Running</Badge>;
+      case 'DONE': return <Badge size="xs" color="green">Done</Badge>;
+      case 'ABORTED': return <Badge size="xs" color="red">Aborted</Badge>;
+      case 'PREPARED': return <Badge size="xs" color="yellow">Prepared</Badge>;
+      default: return <Badge size="xs">{status}</Badge>;
     }
   };
 
@@ -299,69 +301,73 @@ export function SpreadJobs() {
         </Button>
       </Group>
 
-      <Text mb="md">Total Jobs: {jobNames?.length || 0}</Text>
+      <Text mb="md" size="sm" c="dimmed">
+        Showing {jobNames?.length || 0} of {jobNamesRaw?.length || 0} jobs (newest first, max {JOBS_LIMIT})
+      </Text>
 
-      <Table striped highlightOnHover>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Section</Table.Th>
-            <Table.Th>Profile</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Sites</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {jobNames?.map((jobName) => (
-            <Table.Tr key={jobName}>
-              {(() => {
-                const details = jobDetailsByName.get(jobName);
-                const section = details?.section;
-                const profile = details?.profile;
-                const status = details?.status;
-                const sitesCount = details?.sites?.length;
-                return (
-                  <>
-                    <Table.Td>{jobName}</Table.Td>
-                    <Table.Td>
-                      {section ? <Badge>{section}</Badge> : <Badge color="gray">Unknown</Badge>}
-                    </Table.Td>
-                    <Table.Td>
-                      {profile ? getProfileBadge(profile) : <Badge color="gray">Unknown</Badge>}
-                    </Table.Td>
-                    <Table.Td>
-                      {status ? getStatusBadge(status) : <Badge color="gray">Unknown</Badge>}
-                    </Table.Td>
-                    <Table.Td>
-                      {typeof sitesCount === 'number' ? sitesCount : '-'}
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap="xs">
-                        <Tooltip label="View Details">
-                          <ActionIcon variant="light" onClick={() => handleViewDetails(jobName)}>
-                            <IconEye size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label="Reset">
-                          <ActionIcon variant="light" color="blue" onClick={() => handleResetClick(jobName)}>
-                            <IconRefresh size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label="Abort">
-                          <ActionIcon variant="light" color="red" onClick={() => handleAbortClick(jobName)}>
-                            <IconPlayerStop size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Group>
-                    </Table.Td>
-                  </>
-                );
-              })()}
+      <ScrollArea>
+        <Table striped highlightOnHover fz="xs" verticalSpacing={4} style={{ tableLayout: 'fixed', width: '100%' }}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th style={{ width: '40%' }}>Name</Table.Th>
+              <Table.Th style={{ width: '15%' }}>Section</Table.Th>
+              <Table.Th style={{ width: '10%' }}>Profile</Table.Th>
+              <Table.Th style={{ width: '10%' }}>Status</Table.Th>
+              <Table.Th style={{ width: '5%' }}>Sites</Table.Th>
+              <Table.Th style={{ width: '20%' }}>Actions</Table.Th>
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+          </Table.Thead>
+          <Table.Tbody>
+            {jobNames?.map((jobName) => {
+              const details = jobDetailsByName.get(jobName);
+              return (
+                <Table.Tr key={jobName}>
+                  <Table.Td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <Tooltip label={jobName} openDelay={400}>
+                      <Text size="xs" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {jobName}
+                      </Text>
+                    </Tooltip>
+                  </Table.Td>
+                  <Table.Td style={{ overflow: 'hidden' }}>
+                    {details?.section
+                      ? <Badge size="xs" variant="light">{details.section}</Badge>
+                      : <Badge size="xs" color="gray" variant="light">-</Badge>}
+                  </Table.Td>
+                  <Table.Td>
+                    {details?.profile ? getProfileBadge(details.profile) : <Badge size="xs" color="gray" variant="light">-</Badge>}
+                  </Table.Td>
+                  <Table.Td>
+                    {details?.status ? getStatusBadge(details.status) : <Badge size="xs" color="gray" variant="light">-</Badge>}
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{typeof details?.sites?.length === 'number' ? details.sites.length : '-'}</Text>
+                  </Table.Td>
+                  <Table.Td style={{ whiteSpace: 'nowrap' }}>
+                    <Group gap={4} wrap="nowrap">
+                      <Tooltip label="View Details">
+                        <ActionIcon size="sm" variant="light" onClick={() => handleViewDetails(jobName)}>
+                          <IconEye size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Reset">
+                        <ActionIcon size="sm" variant="light" color="blue" onClick={() => handleResetClick(jobName)}>
+                          <IconRefresh size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                      <Tooltip label="Abort">
+                        <ActionIcon size="sm" variant="light" color="red" onClick={() => handleAbortClick(jobName)}>
+                          <IconPlayerStop size={14} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      </ScrollArea>
 
       {/* Details Modal */}
       <Modal opened={detailsOpened} onClose={closeDetails} title={`Job Details: ${selectedJob}`} size="lg">
