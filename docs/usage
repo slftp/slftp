@@ -284,6 +284,7 @@ Let's say our site only allows scripted tv shows from the UK and the USA.
 	# !ruleadd SITENAME TV-720 ifnot tvlookupdone then DROP
 	# !ruleadd SITENAME TV-720 if tvcountry notin USA, UK then DROP
 	# !ruleadd SITENAME TV-720 ifnot tvscripted then DROP
+	# !ruleadd SITENAME TV-720 if tvepisodeagedays > 180 then DROP
 	# !ruleadd SITENAME TV-720 if default then ALLOW
 
 The tvlookupdone rule ensures the rest of the rules are only evaluated after the tvmaze lookup has been performed.
