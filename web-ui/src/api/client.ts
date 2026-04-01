@@ -189,31 +189,7 @@ export interface BrowserResponse {
   timestamp?: number;
 }
 
-export interface SlotRuntime {
-  slot: number;
-  name: string;
-  status: string;
-  task: string;
-  task_uid?: number;
-  action?: string;
-  uploading: boolean;
-  downloading: boolean;
-  direction: string;
-  last_io_ms: number;
-  last_task_ms: number;
-  last_non_idle_task_ms: number;
-  response_code: number;
-}
 
-export interface SiteSlotsRuntime {
-  site: string;
-  site_status: string;
-  locked: boolean;
-  slots_total: number;
-  slots_free: number;
-  active_slots: number;
-  slots: SlotRuntime[];
-}
 
 export const fetchBrowserPath = async (site: string, path: string, refresh: boolean = false): Promise<BrowserResponse> => {
   const response = await apiClient.post<any>('/ApiBrowserService/GetPath', {
@@ -267,46 +243,7 @@ export const reloadConfig = async (filename: string): Promise<boolean> => {
   return false;
 };
 
-export interface SlotHistory {
-  seq: number;
-  full: boolean;
-  lines: string[];
-}
 
-export const fetchSlotsRuntime = async (siteName: string = ''): Promise<SiteSlotsRuntime[]> => {
-  const response = await apiClient.post<any>('/ApiSitesService/GetSlotsRuntime', {
-    SiteName: siteName
-  });
-
-  const payload = response?.data?.result && Array.isArray(response.data.result)
-    ? response.data.result[0]
-    : response.data;
-
-  if (Array.isArray(payload)) {
-    return payload as SiteSlotsRuntime[];
-  }
-
-  if (typeof payload === 'string') {
-    try {
-      const parsed = JSON.parse(payload);
-      return Array.isArray(parsed) ? (parsed as SiteSlotsRuntime[]) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-};
-
-export const setSlotMonitoring = async (site: string, slot: number, enabled: boolean): Promise<boolean> => {
-  const action = enabled ? 'enable' : 'disable';
-  try {
-    const response = await apiClient.post(`/monitoring/${action}/${site}/${slot}`);
-    return response.status === 200;
-  } catch {
-    return false;
-  }
-};
 
 // Section Tester API
 export interface SectionTestItem {

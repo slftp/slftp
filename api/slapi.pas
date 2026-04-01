@@ -307,22 +307,6 @@ var
   isCbftpEnabledEndpoint: Boolean;
   isSlotsStreamCall: Boolean;
   isSlotsHistoryCall: Boolean;
-  siteFilter: string;
-  requestedHash: string;
-  currentHash: string;
-  timeoutMs: integer;
-  startTick: QWord;
-  slotsJson: RawUTF8;
-  streamBody: RawUTF8;
-  streamChanged: boolean;
-  // Slot monitoring endpoint vars
-  siteName: string;
-  slotNum: integer;
-  isEnable: Boolean;
-  restOfUrl: string;
-  qPos: integer;
-  slashPos: integer;
-  slotStr: string;
   
   function GetMimeType(const FN: TFileName): RawUTF8;
   var
@@ -488,143 +472,16 @@ begin
     Exit(Result);
   end;
 
-  if isSlotsStreamCall then
-  begin
-    if not RequireApiAuth then
-      Exit(True); // Rejected by auth
-
-    if UpperCase(UTF8ToString(Call.Method)) <> 'GET' then
-    begin
-      Call.OutStatus := HTTP_NOTALLOWED;
-      Call.OutBody := 'Method not allowed';
-      Exit(True);
-    end;
-
-    siteFilter := QueryParam(sUrl, 'site');
-    requestedHash := LowerCase(QueryParam(sUrl, 'hash'));
-    timeoutMs := StrToIntDef(QueryParam(sUrl, 'timeout_ms'), 15000);
-    if timeoutMs < 1000 then
-      timeoutMs := 1000;
-    if timeoutMs > 30000 then
-      timeoutMs := 30000;
-
-    startTick := GetTickCount64;
-    streamChanged := False;
-    currentHash := '';
-    slotsJson := '[]';
-
-    repeat
-      slotsJson := ApiGetSlotsRuntimeJson(UTF8Encode(siteFilter));
-      currentHash := CalcFnv1a32Hex(slotsJson);
-      if (requestedHash = '') or (requestedHash <> currentHash) then
-      begin
-        streamChanged := True;
-        Break;
-      end;
-      Sleep(100);
-    until (GetTickCount64 - startTick) >= QWord(timeoutMs);
-
-    streamBody := 'retry: 250'#10;
-    if streamChanged then
-    begin
-      streamBody := streamBody + 'event: slots'#10 +
-        'data: {"hash":"' + UTF8Encode(currentHash) + '","slots":' + slotsJson + '}'#10#10;
-    end
-    else
-    begin
-      streamBody := streamBody + 'event: ping'#10 +
-        'data: {"hash":"' + UTF8Encode(currentHash) + '"}'#10#10;
-    end;
-
-    Call.OutHead :=
-      'Content-Type: text/event-stream; charset=utf-8'#13#10 +
-      'Cache-Control: no-cache, no-transform'#13#10 +
-      'Connection: keep-alive'#13#10 +
-      'X-Accel-Buffering: no';
-    Call.OutBody := streamBody;
-    Call.OutStatus := HTTP_SUCCESS;
-    Exit(True);
-  end;
-
-  if isSlotsHistoryCall then
+  // MONITORING ENDPOINTS DISABLED - Feature removed due to stability issues
+  // The slot streaming and history endpoints caused memory leaks and race conditions
+  // and the CurrentAction tracking was never properly implemented.
+  if isSlotsStreamCall or isSlotsHistoryCall or
+     (Pos('/api/monitoring/', sUrlLower) = 1) then
   begin
     if not RequireApiAuth then
       Exit(True);
-
-    if UpperCase(UTF8ToString(Call.Method)) <> 'GET' then
-    begin
-      Call.OutStatus := HTTP_NOTALLOWED;
-      Call.OutBody := 'Method not allowed';
-      Exit(True);
-    end;
-
-    Call.OutHead :=
-      'Content-Type: text/event-stream; charset=utf-8'#13#10 +
-      'Cache-Control: no-cache, no-transform'#13#10 +
-      'Connection: keep-alive'#13#10 +
-      'X-Accel-Buffering: no';
-    Call.OutBody := ApiGetSlotHistorySSE(
-      QueryParam(sUrl, 'site'),
-      StrToIntDef(QueryParam(sUrl, 'slot'), -1),
-      StrToUInt64Def(QueryParam(sUrl, 'seq'), 0),
-      StrToIntDef(QueryParam(sUrl, 'timeout_ms'), 5000)
-    );
-    Call.OutStatus := HTTP_SUCCESS;
-    Exit(True);
-  end;
-
-  // Slot monitoring enable/disable endpoint for specific site/slot
-  // URL format: /api/monitoring/enable/SITE/SLOT or /api/monitoring/disable/SITE/SLOT
-  Debug(dpMessage, rsection, Format('Checking monitoring endpoint: url=%s method=%s', 
-    [sUrl, UTF8ToString(Call.Method)]));
-  if (Pos('/api/monitoring/enable/', sUrlLower) = 1) or
-     (Pos('/api/monitoring/disable/', sUrlLower) = 1) then
-  begin
-    Debug(dpMessage, rsection, 'Monitoring endpoint matched!');
-    if not RequireApiAuth then
-      Exit(True);
-
-    if UpperCase(UTF8ToString(Call.Method)) <> 'POST' then
-    begin
-      Call.OutStatus := HTTP_NOTALLOWED;
-      Call.OutBody := '{"error":"Method not allowed"}';
-      Exit(True);
-    end;
-
-    // Determine enable/disable
-    isEnable := Pos('/api/monitoring/enable/', sUrlLower) = 1;
-    
-    // Extract site and slot from URL after the prefix
-    if isEnable then
-      restOfUrl := Copy(sUrl, Length('/api/monitoring/enable/') + 1, MaxInt)
-    else
-      restOfUrl := Copy(sUrl, Length('/api/monitoring/disable/') + 1, MaxInt);
-      
-    // Remove query string if any
-    qPos := Pos('?', restOfUrl);
-    if qPos > 0 then
-      restOfUrl := Copy(restOfUrl, 1, qPos - 1);
-    
-    // Split by '/' to get site and slot
-    slashPos := Pos('/', restOfUrl);
-    if slashPos > 0 then
-    begin
-      siteName := UpperCase(Copy(restOfUrl, 1, slashPos - 1));
-      slotStr := Copy(restOfUrl, slashPos + 1, MaxInt);
-      slotNum := StrToIntDef(slotStr, -1);
-      
-      if (siteName <> '') and (slotNum >= 0) then
-      begin
-        SetSlotMonitored(siteName, slotNum, isEnable);
-        Call.OutBody := Format('{"site":"%s","slot":%d,"enabled":%s}', 
-          [siteName, slotNum, IfThen(isEnable, 'true', 'false')]);
-        Call.OutStatus := HTTP_SUCCESS;
-        Exit(True);
-      end;
-    end;
-    
-    Call.OutStatus := HTTP_BADREQUEST;
-    Call.OutBody := '{"error":"Invalid format. Use /api/monitoring/enable/SITE/SLOT"}';
+    Call.OutStatus := HTTP_NOTFOUND;
+    Call.OutBody := '{"error":"Monitoring feature disabled"}';
     Exit(True);
   end;
 

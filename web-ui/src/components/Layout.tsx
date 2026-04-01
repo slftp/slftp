@@ -78,7 +78,6 @@ export function Layout() {
 
   const navItemsBase: NavItem[] = [
     { icon: IconDashboard, label: 'Dashboard', to: '/', color: '#4318ff' },
-    { icon: IconActivity, label: 'Monitoring', to: '/monitoring', color: '#22d3ee' },
     { icon: IconActivity, label: 'Races', to: '/races', color: '#00ff88' },
     { icon: IconBolt, label: 'PRE', to: '/pre', color: '#ffb547' },
     { icon: IconServer, label: 'Sites', to: '/sites', color: '#00d4ff' },
