@@ -637,7 +637,12 @@ begin
         end;
 
         if t.kill then
+        begin
+          // Only use slot 0 for ghost kill to avoid disrupting active transfers
+          if i > 0 then
+            ss := nil;
           Break;
+        end;
 
         if ss.Status <> ssOnline then
           Break
