@@ -2272,10 +2272,37 @@ function IrcKill(const netname, channel, params: String): boolean;
 var
   sitename: String;
   s: TSite;
+  i: Integer;
+  killCount: Integer;
 begin
   Result := False;
 
   sitename := UpperCase(params);
+
+  if sitename = '*' then
+  begin
+    Result := True;
+    killCount := 0;
+    for i := 0 to sites.Count - 1 do
+    begin
+      s := TSite(sites.Items[i]);
+      if s.Name = getAdminSiteName then
+        Continue;
+
+      if _Bnctest(Netname, Channel, s, nil, True) then
+      begin
+        s.QueueFire;
+        Inc(killCount);
+      end;
+    end;
+
+    if killCount > 0 then
+      irc_addtext(Netname, Channel, 'Ghost connections killed on <b>%d</b> sites.', [killCount])
+    else
+      irc_addtext(Netname, Channel, 'No ghost connections found to kill.');
+    exit;
+  end;
+
   s := FindSiteByName(Netname, sitename);
   if s = nil then
   begin
@@ -2284,9 +2311,7 @@ begin
   end;
 
   if (s.Name = getAdminSiteName) then
-  begin
     exit;
-  end;
 
   if _Bnctest(Netname, Channel, s, nil, True) then
     s.QueueFire;
