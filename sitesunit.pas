@@ -127,9 +127,8 @@ type
     site: TSite; //< links to corresponding @link(TSite) class of slot
     procedure DestroySocket(down: boolean);
     { Invokes Relogin after invoking DestroySocket.
-      @param(aMessage Info which task is issuing this command.)
-      @param(aKill If @true, passes kill=True to Relogin.) }
-    procedure DestroySocketAndRelogin(const aMessage: string; const aKill: boolean = False);
+      @param(aMessage Info which task is issuing this command.) }
+    procedure DestroySocketAndRelogin(const aMessage: string; kill: boolean = False);
     procedure Quit;
     { Invokes Relogin after invoking Quit.
       @param(aMessage Info which task is issuing this command.) }
@@ -234,7 +233,6 @@ type
     fLoginCooldownLastSlot: String;
     fActiveLoginAttempts: integer; //< in-flight login attempts; prevents thundering herd on cooldown expiry
     FSocketInitErrorCount: integer; //< site-wide counter for socket initialization errors
-    fFirstLoginDone: Boolean; //< tracks if first login after startup was done
     fSkipDirectoryCreation: boolean;
     fConnect_timeout: integer;
     fIdleInterval: integer;
@@ -1595,10 +1593,10 @@ begin
     status := ssOffline;
 end;
 
-procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string; const aKill: boolean = False);
+procedure TSiteSlot.DestroySocketAndRelogin(const aMessage: string; kill: boolean = False);
 begin
   DestroySocket(False);
-  Relogin(0, aKill, aMessage);
+  Relogin(0, kill, aMessage);
 end;
 
 procedure TSiteSlot.Execute;
@@ -2236,6 +2234,7 @@ begin
     error := Trim(lastResponse);
     exit;
   end;
+
 
   tryToGetSiteSoftwareAndVersionFromLastResponse;
 
@@ -3217,6 +3216,7 @@ begin
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
 
+
   if (Name = getAdminSiteName) then
   begin
     WorkingStatus := sstUp;
@@ -3240,7 +3240,7 @@ begin
   fLoginCooldownLastSlot := '';
   fActiveLoginAttempts := 0;
   FSocketInitErrorCount := 0;
-  fFirstLoginDone := False;
+
   fSkipDirectoryCreation := RCBool('skipdirectorycreation', False);
 
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;

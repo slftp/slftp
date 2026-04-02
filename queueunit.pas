@@ -650,10 +650,9 @@ begin
     begin
       ss := FindSlotByName(t.wantedslot);
       if (ss = nil) then
-        //invalid slot name, should not happen, just exit here
         exit;
       if (ss.todotask <> nil) then
-        exit;  //the slot is already in use, cannot assign the login task
+        exit;
     end
     else
     begin

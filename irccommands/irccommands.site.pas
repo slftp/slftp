@@ -2315,7 +2315,6 @@ begin
   begin
     irc_addtext(Netname, Channel, 'Site <b>%s</b> not found.', [sitename]);
     exit;
-  end;
 
   Result := _IrcKillSingleSite(netname, channel, s);
 end;
