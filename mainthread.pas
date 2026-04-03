@@ -48,6 +48,7 @@ function Main_Restart: boolean;
 var
   slshutdown: boolean;
   started: TDateTime;
+  glStartupGhostKillDone: boolean = False;
 
 implementation
 
@@ -55,7 +56,7 @@ uses
   identserver, tasksunit, dirlist, ircchansettings, sltcp, slssl, kb, fake, console, sllanguagebase, irc, mycrypto, queueunit,
   sitesunit, versioninfo, pazo, rulesunit, skiplists, DateUtils, configunit, precatcher, notify, tags, taskidle, knowngroups, slvision, nuke,
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
-  dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
+  dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
   taskautodirlist, slcriticalsection2, mormot.core.unicode;
 
@@ -293,11 +294,34 @@ begin
 end;
 
 procedure Main_Iter;
+var
+  i: integer;
+  fSite: TSite;
 begin
   if slshutdown then
   begin
     slapp.shouldquit := True;
     exit;
+  end;
+
+  // Delayed startup ghost kill trigger
+  if (not glStartupGhostKillDone) and (SecondsBetween(Now, started) >= 15) then
+  begin
+    glStartupGhostKillDone := True;
+    if config.ReadBool('sites', 'kill_ghosts_on_startup', True) then
+    begin
+      Debug(dpMessage, section, 'Startup: Triggering automatic ghost kill for all sites...');
+      for i := 0 to sites.Count - 1 do
+      begin
+        fSite := TSite(sites.Items[i]);
+        if (fSite.Name <> getAdminSiteName) then
+        begin
+          Debug(dpMessage, section, 'Startup: Adding ghost kill task for site %s', [fSite.Name]);
+          AddTask(TLoginTask.Create('', '', fSite.Name, True, False));
+          fSite.QueueFire;
+        end;
+      end;
+    end;
   end;
 
   // fire queue scheduler
