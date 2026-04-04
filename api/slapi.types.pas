@@ -133,7 +133,6 @@ type
     FKillConnectionOnStalledTransferSeconds: integer;
     FDestinationQueueLimit: integer;
     FUseForNFOdownload: integer;
-    FSkipDirectoryCreation: boolean;
     FRankLock: integer;
   published
     property Name: RawUTF8 read FName write FName;
@@ -170,7 +169,6 @@ type
     property KillConnectionOnStalledTransferSeconds: integer read FKillConnectionOnStalledTransferSeconds write FKillConnectionOnStalledTransferSeconds;
     property DestinationQueueLimit: integer read FDestinationQueueLimit write FDestinationQueueLimit;
     property UseForNFOdownload: integer read FUseForNFOdownload write FUseForNFOdownload;
-    property SkipDirectoryCreation: boolean read FSkipDirectoryCreation write FSkipDirectoryCreation;
     property RankLock: integer read FRankLock write FRankLock;
   end;
 
