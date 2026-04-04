@@ -189,10 +189,6 @@ type
     ///   usefornfodownload (0=Disabled, 1=Enabled, 2=Auto-Disabled)
     function SetSiteConfig(const SiteName: RawUTF8; const Config: RawJSON): boolean;
 
-    /// PATCH /api/sites/{name}/skipdirectorycreation
-    /// Enable/disable skip directory creation
-    function SetSiteSkipDirectoryCreation(const SiteName: RawUTF8; Enabled: boolean): boolean;
-
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;

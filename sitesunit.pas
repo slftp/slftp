@@ -233,7 +233,6 @@ type
     fLoginCooldownLastSlot: String;
     fActiveLoginAttempts: integer; //< in-flight login attempts; prevents thundering herd on cooldown expiry
     FSocketInitErrorCount: integer; //< site-wide counter for socket initialization errors
-    fSkipDirectoryCreation: boolean;
     fConnect_timeout: integer;
     fIdleInterval: integer;
     fIo_timeout: integer;
@@ -419,8 +418,6 @@ type
     { Sets a value saying after how many seconds a stalled transfer should be ended by destroying the socket }
     procedure SetKillConnectionOnStalledTransferSeconds(const Value: integer);
     function GetSpeed_From: TList<TSpeedFromRouteInfo>;
-    function GetSkipDirectoryCreation: boolean;
-    procedure SetSkipDirectoryCreation(const Value: boolean);
     function GetNewdirDirlistReadd: integer;
     procedure SetNewdirDirlistReadd(const Value: integer);
     function GetDirlistPriority: integer;
@@ -668,8 +665,6 @@ type
     property ReducedSpeedstatWeight: boolean read GetReducedSpeedstatWeight write SetReducedSpeedstatWeight; //< a value indicating whether speedstats should not change calculated rank for this destination site
     property KillConnectionOnStalledTransferSeconds: integer read GetKillConnectionOnStalledTransferSeconds write SetKillConnectionOnStalledTransferSeconds; //< a value saying after how many seconds a stalled transfer should be ended by destroying the socket
     property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
-    { @abstract(Skip directory creation when racing) }
-    property SkipDirectoryCreation: boolean read GetSkipDirectoryCreation write SetSkipDirectoryCreation;
     { @abstract(Re-add dirlist task after new directory detection; 0 = disabled) }
     property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd;
     { @abstract(Priority level for dirlist tasks) }
@@ -3241,8 +3236,6 @@ begin
   fActiveLoginAttempts := 0;
   FSocketInitErrorCount := 0;
 
-  fSkipDirectoryCreation := RCBool('skipdirectorycreation', False);
-
   fReducedSpeedstatWeight := RCBool('reduced_speedstat_weight', config.ReadBool('speedstats', 'reduced_speedstat_weight', False));;
   fPermDownStatus := RCBool('permdown', False);
   fSkipBeingUploadedFiles := TSkipBeingUploaded(RCInteger('skip_being_uploaded_files', config.ReadInteger('dirlist', 'skip_being_uploaded_files', 0)));
@@ -5211,17 +5204,6 @@ end;
 function TSite.HasActiveLoginAttempt: boolean;
 begin
   Result := fActiveLoginAttempts > 0;
-end;
-
-function TSite.GetSkipDirectoryCreation: boolean;
-begin
-  Result := fSkipDirectoryCreation;
-end;
-
-procedure TSite.SetSkipDirectoryCreation(const Value: boolean);
-begin
-  fSkipDirectoryCreation := Value;
-  WCBool('skipdirectorycreation', Value);
 end;
 
 function TSite.GetNewdirDirlistReadd: integer;
