@@ -125,10 +125,8 @@ type
     FAutoIndexInterval: integer;
     FAutoNukeInterval: integer;
     FCountry: RawUTF8;
-    FDirlistPriority: integer;
     FNewdirDirlistReadd: integer;
     FGlobalDirlistInterval: integer;
-    FPerformanceAdjustedDirlist: boolean;
     FSkipBeingUploadedFiles: integer;
     FKillConnectionOnStalledTransferSeconds: integer;
     FDestinationQueueLimit: integer;
@@ -161,10 +159,8 @@ type
     property AutoIndexInterval: integer read FAutoIndexInterval write FAutoIndexInterval;
     property AutoNukeInterval: integer read FAutoNukeInterval write FAutoNukeInterval;
     property Country: RawUTF8 read FCountry write FCountry;
-    property DirlistPriority: integer read FDirlistPriority write FDirlistPriority;
     property NewdirDirlistReadd: integer read FNewdirDirlistReadd write FNewdirDirlistReadd;
     property GlobalDirlistInterval: integer read FGlobalDirlistInterval write FGlobalDirlistInterval;
-    property PerformanceAdjustedDirlist: boolean read FPerformanceAdjustedDirlist write FPerformanceAdjustedDirlist;
     property SkipBeingUploadedFiles: integer read FSkipBeingUploadedFiles write FSkipBeingUploadedFiles;
     property KillConnectionOnStalledTransferSeconds: integer read FKillConnectionOnStalledTransferSeconds write FKillConnectionOnStalledTransferSeconds;
     property DestinationQueueLimit: integer read FDestinationQueueLimit write FDestinationQueueLimit;

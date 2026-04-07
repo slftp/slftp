@@ -420,10 +420,6 @@ type
     function GetSpeed_From: TList<TSpeedFromRouteInfo>;
     function GetNewdirDirlistReadd: integer;
     procedure SetNewdirDirlistReadd(const Value: integer);
-    function GetDirlistPriority: integer;
-    procedure SetDirlistPriority(const Value: integer);
-    function GetPerformanceAdjustedDirlist: Boolean;
-    procedure SetPerformanceAdjustedDirlist(const Value: Boolean);
   public
     emptyQueue: boolean;
     siteinvited: boolean;
@@ -664,10 +660,6 @@ type
     property Speed_From: TList<TSpeedFromRouteInfo> read GetSpeed_From; //< Access cached speed-from speedstats. Creates a new TStringList which you need to free yourself after use
     { @abstract(Re-add dirlist task after new directory detection; 0 = disabled) }
     property NewdirDirlistReadd: integer read GetNewdirDirlistReadd write SetNewdirDirlistReadd;
-    { @abstract(Priority level for dirlist tasks) }
-    property DirlistPriority: integer read GetDirlistPriority write SetDirlistPriority;
-    { @abstract(Auto-reduce dirlist rate based on system load) }
-    property PerformanceAdjustedDirlist: Boolean read GetPerformanceAdjustedDirlist write SetPerformanceAdjustedDirlist;
   end;
 
 const
@@ -5168,25 +5160,6 @@ begin
   WCInteger('newdir_dirlist_readd', Value);
 end;
 
-function TSite.GetDirlistPriority: integer;
-begin
-  Result := RCInteger('dirlist_priority', 2);
-end;
-
-procedure TSite.SetDirlistPriority(const Value: integer);
-begin
-  WCInteger('dirlist_priority', Value);
-end;
-
-function TSite.GetPerformanceAdjustedDirlist: Boolean;
-begin
-  Result := RCBool('performance_adjusted_dirlist', True);
-end;
-
-procedure TSite.SetPerformanceAdjustedDirlist(const Value: Boolean);
-begin
-  WCBool('performance_adjusted_dirlist', Value);
-end;
 
 { @abstract(Returns count of pending race tasks targeting the given destination site) }
 function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;

@@ -1479,9 +1479,7 @@ type
     AutoLogin: boolean;
     AutoRulesInterval: integer;
     IrcNick: string;
-    DirlistPriority: integer;
     NewdirDirlistReadd: integer;
-    PerformanceAdjustedDirlist: boolean;
     DestinationQueueLimit: integer;
     RankLock: integer;
   end;
@@ -1637,23 +1635,9 @@ begin
           // ignore
         end;
 
-        snapshots[snapshotCount].DirlistPriority := 2; // spNormal
-        try
-          snapshots[snapshotCount].DirlistPriority := s.DirlistPriority;
-        except
-          // ignore
-        end;
-
         snapshots[snapshotCount].NewdirDirlistReadd := 0;
         try
           snapshots[snapshotCount].NewdirDirlistReadd := s.NewdirDirlistReadd;
-        except
-          // ignore
-        end;
-
-        snapshots[snapshotCount].PerformanceAdjustedDirlist := False;
-        try
-          snapshots[snapshotCount].PerformanceAdjustedDirlist := s.PerformanceAdjustedDirlist;
         except
           // ignore
         end;
@@ -1739,9 +1723,7 @@ begin
         TDocVariantData(siteDoc).AddValue('autologin', snapshot.AutoLogin);
         TDocVariantData(siteDoc).AddValue('autorules_interval', snapshot.AutoRulesInterval);
         TDocVariantData(siteDoc).AddValue('ircnick', UTF8Encode(snapshot.IrcNick));
-        TDocVariantData(siteDoc).AddValue('dirlist_priority', snapshot.DirlistPriority);
         TDocVariantData(siteDoc).AddValue('newdir_dirlist_readd', snapshot.NewdirDirlistReadd);
-        TDocVariantData(siteDoc).AddValue('performance_adjusted_dirlist', snapshot.PerformanceAdjustedDirlist);
         TDocVariantData(siteDoc).AddValue('destination_queue_limit', snapshot.DestinationQueueLimit);
         TDocVariantData(siteDoc).AddValue('ranklock', snapshot.RankLock);
       except
@@ -2821,10 +2803,8 @@ begin
     Info.AutoIndexInterval := s.AutoIndexInterval;
     Info.AutoNukeInterval := s.AutoNukeInterval;
     Info.Country := UTF8Encode(s.Country);
-    Info.DirlistPriority := s.DirlistPriority;
     Info.NewdirDirlistReadd := s.NewdirDirlistReadd;
     Info.GlobalDirlistInterval := GetNewdirDirlistReaddValue();
-    Info.PerformanceAdjustedDirlist := s.PerformanceAdjustedDirlist;
     Info.SkipBeingUploadedFiles := Integer(s.SkipBeingUploadedFiles);
     Info.KillConnectionOnStalledTransferSeconds := s.KillConnectionOnStalledTransferSeconds;
     Info.DestinationQueueLimit := s.RCInteger('destination_queue_limit', 0);
@@ -2869,9 +2849,7 @@ begin
     if data.GetValueIndex('autoindex') >= 0 then s.AutoIndexInterval := data.GetValueOrNull('autoindex');
     if data.GetValueIndex('autonuke') >= 0 then s.AutoNukeInterval := data.GetValueOrNull('autonuke');
     if data.GetValueIndex('country') >= 0 then s.Country := string(data.GetValueOrNull('country'));
-    if data.GetValueIndex('dirlist_priority') >= 0 then s.DirlistPriority := data.GetValueOrNull('dirlist_priority');
     if data.GetValueIndex('newdir_dirlist_readd') >= 0 then s.NewdirDirlistReadd := data.GetValueOrNull('newdir_dirlist_readd');
-    if data.GetValueIndex('performance_adjusted_dirlist') >= 0 then s.PerformanceAdjustedDirlist := boolean(data.GetValueOrNull('performance_adjusted_dirlist'));
     if data.GetValueIndex('skip_being_uploaded_files') >= 0 then s.SkipBeingUploadedFiles := TSkipBeingUploaded(Integer(data.GetValueOrNull('skip_being_uploaded_files')));
     if data.GetValueIndex('kill_connection_on_stalled_transfer') >= 0 then s.KillConnectionOnStalledTransferSeconds := data.GetValueOrNull('kill_connection_on_stalled_transfer');
     if data.GetValueIndex('destination_queue_limit') >= 0 then
