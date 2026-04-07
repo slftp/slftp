@@ -182,8 +182,7 @@ type
     /// POST /api/sites/{name}/config
     /// Sets various site configuration options (autobnctest, autodirlist, country, etc.)
     /// Accepted Config fields: autobnctest, autodirlist, autoindex, autonuke, country,
-    ///   dirlist_priority, newdir_dirlist_readd, performance_adjusted_dirlist,
-    ///   skip_being_uploaded_files, kill_connection_on_stalled_transfer,
+    ///   newdir_dirlist_readd, skip_being_uploaded_files, kill_connection_on_stalled_transfer,
     ///   destination_queue_limit, maxupperrip, site_full_name, site_link_speed,
     ///   site_size, site_notes, ident_response, site_infos,
     ///   usefornfodownload (0=Disabled, 1=Enabled, 2=Auto-Disabled)
