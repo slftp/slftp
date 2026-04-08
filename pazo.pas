@@ -728,6 +728,11 @@ begin
                 pr.startat := IncSecond(Now, dst.delay_upload);
             end;
 
+            if pr = nil then
+              Debug(dpError, section, 'CRITICAL LOG: pr (TPazoRaceTask) is nil right before AddTask!')
+            else if pr.mainpazo = nil then
+              Debug(dpError, section, 'CRITICAL LOG: pr.mainpazo is nil right before AddTask!');
+
             // finally we can add the task
             try
               AddTask(pr);
