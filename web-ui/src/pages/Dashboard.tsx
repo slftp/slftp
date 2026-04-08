@@ -288,7 +288,7 @@ export function Dashboard() {
         <StatCard
           title="Active Tasks"
           value={stats.ActiveTasks}
-          subtitle={`Queue: ${stats.QueueSize} | Dir/sec now: ${stats.DirlistPerSecond?.toFixed(1) ?? 0} | peak: ${stats.DirlistPerSecondMax?.toFixed(1) ?? 0}`}
+          subtitle={`Race: ${stats.QueueRaceCount ?? 0} · Dir: ${stats.QueueDirlistCount ?? 0} · Auto: ${stats.QueueAutoCount ?? 0} | ${stats.DirlistPerSecond?.toFixed(1) ?? 0} dir/s (peak: ${stats.DirlistPerSecondMax?.toFixed(1) ?? 0})`}
           icon={<IconActivity size="1.4rem" stroke={1.5} color="var(--text-primary)" />}
           iconColor="#9b59b6"
           iconGradient="linear-gradient(135deg, #9b59b6 0%, #e74c3c 100%)"
@@ -328,22 +328,7 @@ export function Dashboard() {
           icon={<IconHash size="1rem" />}
           color="#9b59b6"
         />
-        {stats.CpuLoadAvailable && (
-          <MiniStatCard
-            title="CPU Load"
-            value={`${stats.CpuLoadCurrent}%`}
-            icon={<IconCpu size="1rem" />}
-            color={stats.CpuLoadCurrent > 80 ? '#e74c3c' : stats.CpuLoadCurrent > 60 ? '#ffb547' : '#00ff88'}
-          />
-        )}
-        {stats.CpuLoadAvailable && stats.PerformanceLevel > 0 && (
-          <MiniStatCard
-            title="Perf Level"
-            value={stats.PerformanceLevel}
-            icon={<IconActivity size="1rem" />}
-            color={stats.PerformanceLevel >= 7 ? '#00ff88' : stats.PerformanceLevel >= 4 ? '#ffb547' : '#ff6b6b'}
-          />
-        )}
+
       </SimpleGrid>
 
       {/* Recent Releases Table */}

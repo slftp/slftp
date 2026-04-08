@@ -74,12 +74,12 @@ export interface SystemStatus {
   LoadAvgPeak5: number;
   LoadAvgPeak15: number;
   LoadAvgAvailable: boolean;
-  CpuLoadCurrent: number;
-  CpuLoadMax: number;
-  CpuLoadAvailable: boolean;
-  PerformanceLevel: number;
   DirlistPerSecond: number;
   DirlistPerSecondMax: number;
+  QueueRaceCount: number;
+  QueueDirlistCount: number;
+  QueueAutoCount: number;
+  QueueOtherCount: number;
 }
 
 export interface Bnc {

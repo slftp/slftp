@@ -19,7 +19,7 @@ type
 implementation
 
 uses
-  sitesunit, SysUtils, mystrings, DebugUnit;
+  sitesunit, SysUtils, mystrings, DebugUnit, queueunit;
 
 const
   section = 'taskdirlist';
@@ -76,6 +76,9 @@ ujra:
 
   Result := True;
   ready := True;
+
+  if GlDirlistCompletedCounter <> nil then
+    GlDirlistCompletedCounter.Increment;
 end;
 
 function TDirlistTask.Name: String;

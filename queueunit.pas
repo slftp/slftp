@@ -116,6 +116,8 @@ var
   // config
   maxassign: integer;
   maxassign_delay: integer;
+  glLastDirlistCheckTime: TDateTime;
+  glLastDirlistCount: Integer;
   sample_dirs_priority: Integer; //< value for priority in queue sorter for sample dirs from slftp.ini
   proof_dirs_priority: Integer; //< value for priority in queue sorter for proof dirs from slftp.ini
   subs_dirs_priority: Integer; //< value for priority in queue sorter for subtitle dirs from slftp.ini
@@ -1930,6 +1932,8 @@ begin
   GlDirlistCompletedCounter := TIdThreadSafeInt32.Create;
   GlDirlistRate := 0;
   GlDirlistRateMax := 0;
+  glLastDirlistCheckTime := 0;
+  glLastDirlistCount := 0;
 end;
 
 procedure QueueUninit;
@@ -2283,6 +2287,20 @@ begin
     t_dir := t_dir + queueStat.FDirlistTaskCount;
     t_auto := t_auto + queueStat.FAutoTaskCount;
     t_other := t_other + queueStat.FOtherTaskCount;
+  end;
+
+  if glLastDirlistCheckTime = 0 then
+  begin
+    glLastDirlistCheckTime := Now;
+    glLastDirlistCount := GlDirlistCompletedCounter.Value;
+  end
+  else if MilliSecondsBetween(Now, glLastDirlistCheckTime) >= 1000 then
+  begin
+    GlDirlistRate := (GlDirlistCompletedCounter.Value - glLastDirlistCount) / (MilliSecondsBetween(Now, glLastDirlistCheckTime) / 1000);
+    if GlDirlistRate > GlDirlistRateMax then
+      GlDirlistRateMax := GlDirlistRate;
+    glLastDirlistCount := GlDirlistCompletedCounter.Value;
+    glLastDirlistCheckTime := Now;
   end;
 
   QueueStatUpdateDateTime := Now;
