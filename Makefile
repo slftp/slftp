@@ -84,6 +84,7 @@ slftp_debug_vtune:	FORCE
 
 test:	FORCE
 	$(MAKE) clean
+	@mkdir -p tests/databases
 	$(CC) $(CFLAGS) $(CINCLUDES) $(CTESTINCLUDES) tests/slftpUnitTests.lpr
 	./tests/slftpUnitTests
 	$(MAKE) cleanuptestdir
@@ -99,6 +100,7 @@ cleanuptestdir:
 	@find tests -name "*.o" -type f -delete
 	@rm -f tests/*.ppu tests/*.o tests/slftpUnitTests tests/*.exe
 	@rm -f tests/*.res tests/*.or
+	@rm -rf tests/databases
 
 install:
 	@cp slftp $(SLFTPPATH)/slftp
