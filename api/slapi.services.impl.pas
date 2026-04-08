@@ -398,7 +398,7 @@ var
   glBrowserCache: TObjectDictionary<string, TBrowserCacheEntry>;
   glPrecatcherDebugCaptureLock: TSlCriticalSection2;
   glSystemStatusQueueSizeMax: integer = 0;
-  glSystemStatusCpuLoadMax: integer = 0;
+
   glSystemStatusLoadAvgPeak1: Double = 0;
   glSystemStatusLoadAvgPeak5: Double = 0;
   glSystemStatusLoadAvgPeak15: Double = 0;
@@ -557,7 +557,7 @@ var
 begin
   Result := '{}';
   try
-    fSiteName := UTF8ToString(SiteName);
+    fSiteName := UpperCase(UTF8ToString(SiteName));
     fPath := UTF8ToString(Path);
     
     // Normalize path
@@ -952,8 +952,11 @@ begin
     GetQueueTotals(qTotal, qRace, qDir, qAuto, qOther);
     Response.QueueSize := qTotal;
     Response.QueueSizeMax := glSystemStatusQueueSizeMax;
-    // Treat all queued tasks as active for dashboard purposes; transfers also counted via activeSum
     Response.ActiveTasks := qTotal;
+    Response.QueueRaceCount := qRace;
+    Response.QueueDirlistCount := qDir;
+    Response.QueueAutoCount := qAuto;
+    Response.QueueOtherCount := qOther;
 
     loadAvgAvailable := TryGetLoadAverage(currentLoadAvg1, currentLoadAvg5, currentLoadAvg15);
     Response.LoadAvgAvailable := loadAvgAvailable;
@@ -975,11 +978,6 @@ begin
       Response.LoadAvgPeak5 := 0;
       Response.LoadAvgPeak15 := 0;
     end;
-
-    Response.CpuLoadAvailable := False;
-    Response.CpuLoadCurrent := 0;
-    Response.CpuLoadMax := 0;
-    Response.PerformanceLevel := 0;
 
     // Use global rate calculated by QueueThread
     Response.DirlistPerSecond := GlDirlistRate;
@@ -1764,7 +1762,7 @@ begin
   Info := TApiSiteInfo.Create;
 
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
     begin
       Debug(dpError, section, Format('Site not found: %s', [UTF8ToString(SiteName)]));
@@ -1861,7 +1859,7 @@ begin
       end;
     end;
 
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
     begin
       Credits.Message := 'Site not found';
@@ -1967,7 +1965,7 @@ begin
   Info.Output := '';
 
   try
-    fSiteNameStr := UTF8ToString(SiteName);
+    fSiteNameStr := UpperCase(UTF8ToString(SiteName));
     fSite := FindSiteByName('', fSiteNameStr);
     if fSite = nil then
     begin
@@ -2082,7 +2080,7 @@ var
 begin
   Result := False;
   try
-    siteNameStr := UTF8ToString(Name);
+    siteNameStr := UpperCase(UTF8ToString(Name));
     Debug(dpMessage, section, Format('AddSite API: %s@%s:%d', [siteNameStr, UTF8ToString(Host), Port]));
 
     if FindSiteByName('', siteNameStr) <> nil then
@@ -2104,6 +2102,9 @@ begin
 
     sitesunit.AddSite(s);
 
+    if sitesdat <> nil then
+      sitesdat.UpdateFile;
+
     Result := True;
   except
     on E: Exception do
@@ -2121,7 +2122,7 @@ var
   i: integer;
 begin
   Result := False;
-  sname := UTF8ToString(SiteName);
+  sname := UpperCase(UTF8ToString(SiteName));
 
   try
     s := FindSiteByName('', sname);
@@ -2210,7 +2211,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2240,7 +2241,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2287,7 +2288,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2323,7 +2324,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2348,7 +2349,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2370,7 +2371,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2392,7 +2393,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2414,7 +2415,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2440,7 +2441,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2467,7 +2468,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2490,7 +2491,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2517,7 +2518,7 @@ begin
   Result := False;
   Routes := nil;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2614,7 +2615,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2684,7 +2685,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2707,7 +2708,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2753,7 +2754,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2838,7 +2839,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2895,7 +2896,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -2950,7 +2951,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
       Exit;
 
@@ -3009,7 +3010,7 @@ begin
   Result := '';
   siteSections := nil;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
     begin
       Debug(dpError, section, Format('Site not found: %s', [UTF8ToString(SiteName)]));
@@ -3060,7 +3061,7 @@ var
 begin
   Result := False;
   try
-    s := FindSiteByName('', UTF8ToString(SiteName));
+    s := FindSiteByName('', UpperCase(UTF8ToString(SiteName)));
     if s = nil then
     begin
       Debug(dpError, section, Format('Site not found: %s', [UTF8ToString(SiteName)]));

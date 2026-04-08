@@ -57,12 +57,12 @@ type
     FLoadAvgPeak5: Double;
     FLoadAvgPeak15: Double;
     FLoadAvgAvailable: boolean;
-    FCpuLoadCurrent: integer;
-    FCpuLoadMax: integer;
-    FCpuLoadAvailable: boolean;
-    FPerformanceLevel: integer;
     FDirlistPerSecond: Double;
     FDirlistPerSecondMax: Double;
+    FQueueRaceCount: integer;
+    FQueueDirlistCount: integer;
+    FQueueAutoCount: integer;
+    FQueueOtherCount: integer;
   published
     property Version: RawUTF8 read FVersion write FVersion;
     property Uptime: Int64 read FUptime write FUptime;
@@ -79,12 +79,12 @@ type
     property LoadAvgPeak5: Double read FLoadAvgPeak5 write FLoadAvgPeak5;
     property LoadAvgPeak15: Double read FLoadAvgPeak15 write FLoadAvgPeak15;
     property LoadAvgAvailable: boolean read FLoadAvgAvailable write FLoadAvgAvailable;
-    property CpuLoadCurrent: integer read FCpuLoadCurrent write FCpuLoadCurrent;
-    property CpuLoadMax: integer read FCpuLoadMax write FCpuLoadMax;
-    property CpuLoadAvailable: boolean read FCpuLoadAvailable write FCpuLoadAvailable;
-    property PerformanceLevel: integer read FPerformanceLevel write FPerformanceLevel;
     property DirlistPerSecond: Double read FDirlistPerSecond write FDirlistPerSecond;
     property DirlistPerSecondMax: Double read FDirlistPerSecondMax write FDirlistPerSecondMax;
+    property QueueRaceCount: integer read FQueueRaceCount write FQueueRaceCount;
+    property QueueDirlistCount: integer read FQueueDirlistCount write FQueueDirlistCount;
+    property QueueAutoCount: integer read FQueueAutoCount write FQueueAutoCount;
+    property QueueOtherCount: integer read FQueueOtherCount write FQueueOtherCount;
   end;
 
   { Site Status Enum }

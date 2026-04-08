@@ -416,6 +416,9 @@ begin
   end
   else
   begin
+    if GlDirlistCompletedCounter <> nil then
+      GlDirlistCompletedCounter.Increment;
+
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
