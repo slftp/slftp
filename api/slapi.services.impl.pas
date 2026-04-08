@@ -362,7 +362,7 @@ var
   GlApiPrecatcherFileLock: TSLCriticalSection2;
 
   TVDatabase: TSQLRestClientDB;
-  TVDBModel: TSQLModel;
+  TVDatabaseInitLock: TSLCriticalSection2;
 
 type
   TSiteCreditsCacheEntry = record
@@ -555,6 +555,9 @@ var
   fSiteName: string;
   cacheKey: string;
   entry: TBrowserCacheEntry;
+  evictEntry: TBrowserCacheEntry;
+  evictKeys: TArray<string>;
+  evictKey: string;
   needsFetch: boolean;
   resultDoc: variant;
   task: TBrowserDirlistTask;
@@ -574,6 +577,23 @@ begin
       
     cacheKey := UpperCase(fSiteName) + '|' + fPath;
     needsFetch := False;
+    
+    // Evict stale browser cache entries (older than 5 minutes)
+    glBrowserCacheLock.Enter('GetPath_Evict');
+    try
+      evictKeys := glBrowserCache.Keys.ToArray;
+      for evictKey in evictKeys do
+      begin
+        if glBrowserCache.TryGetValue(evictKey, evictEntry) then
+        begin
+          if (evictEntry.Status in [bcsReady, bcsError]) and
+             (SecondsBetween(Now, evictEntry.Timestamp) > 300) then
+            glBrowserCache.Remove(evictKey);
+        end;
+      end;
+    finally
+      glBrowserCacheLock.Leave;
+    end;
     
     // Check Cache
     glBrowserCacheLock.Enter('GetPath_CheckCache');
@@ -3591,6 +3611,15 @@ begin
     begin
       Info.Status := 'completed';
       Info.Completed := Now;
+      if GlApiTaskToPazoId <> nil then
+      begin
+        GlApiTaskToPazoIdLock.Enter('ApiTaskMap.Remove');
+        try
+          GlApiTaskToPazoId.Remove(TaskUid);
+        finally
+          GlApiTaskToPazoIdLock.Leave;
+        end;
+      end;
       Exit(True);
     end;
 
@@ -3600,11 +3629,29 @@ begin
       Info.Status := 'failed';
       Info.Completed := Now;
       Info.Error := UTF8Encode(fPazo.errorreason);
+      if GlApiTaskToPazoId <> nil then
+      begin
+        GlApiTaskToPazoIdLock.Enter('ApiTaskMap.Remove');
+        try
+          GlApiTaskToPazoId.Remove(TaskUid);
+        finally
+          GlApiTaskToPazoIdLock.Leave;
+        end;
+      end;
     end
     else if fPazo.ready then
     begin
       Info.Status := 'completed';
       Info.Completed := Now;
+      if GlApiTaskToPazoId <> nil then
+      begin
+        GlApiTaskToPazoIdLock.Enter('ApiTaskMap.Remove');
+        try
+          GlApiTaskToPazoId.Remove(TaskUid);
+        finally
+          GlApiTaskToPazoIdLock.Leave;
+        end;
+      end;
     end
     else
     begin
@@ -6455,20 +6502,28 @@ end;
 procedure InitTVDatabase;
 var
   dbPath: String;
+  dbModel: TSQLModel;
 begin
   if TVDatabase <> nil then
     Exit;
 
-  dbPath := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
-  if dbPath = '' then
-    dbPath := 'tvinfos.db';
-  if ExtractFilePath(dbPath) = '' then
-    dbPath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim + dbPath;
-  TVDBModel := TSQLModel.Create([TInfos, TSeries]);
-  TVDatabase := TSQLRestClientDB.Create(TVDBModel, nil, dbPath, TSQLRestServerDB, False, '');
-  // Don't create missing tables - use existing database as-is
-  TVDatabase.DB.LockingMode := lmNormal;
-  TVDatabase.DB.Synchronous := smNormal;
+  TVDatabaseInitLock.Enter('InitTVDatabase');
+  try
+    if TVDatabase <> nil then
+      Exit;
+
+    dbPath := Trim(config.ReadString('tasktvinfo', 'database', 'tvinfos.db'));
+    if dbPath = '' then
+      dbPath := 'tvinfos.db';
+    if ExtractFilePath(dbPath) = '' then
+      dbPath := ExtractFilePath(ParamStr(0)) + DATABASEFOLDERNAME + PathDelim + dbPath;
+    dbModel := TSQLModel.Create([TInfos, TSeries]);
+    TVDatabase := TSQLRestClientDB.Create(dbModel, nil, dbPath, TSQLRestServerDB, False, '');
+    TVDatabase.DB.LockingMode := lmNormal;
+    TVDatabase.DB.Synchronous := smNormal;
+  finally
+    TVDatabaseInitLock.Leave;
+  end;
 end;
 
 { TV Service Implementation }
@@ -6842,6 +6897,7 @@ end;
 function TApiNewsServiceImpl.GetNews(out Response: TApiNewsList): boolean;
 var
   fJson: RawByteString;
+  fJsonStr: string;
   i: integer;
   fUnread: integer;
   fTotal: integer;
@@ -6853,19 +6909,22 @@ begin
     // Count total and unread from raw JSON (simple scan)
     fTotal := 0;
     fUnread := 0;
-    // Parse via news unit status counts - reuse existing logic
-    i := Pos('"Status":"UNREAD"', string(fJson));
-    // Count occurrences of "Id": as total
-    fTotal := 0;
-    fUnread := 0;
+    fJsonStr := string(fJson);
     i := 1;
-    while i <= Length(string(fJson)) do
+    while True do
     begin
-      if Copy(string(fJson), i, 5) = '"Id":' then
-        Inc(fTotal);
-      if Copy(string(fJson), i, 17) = '"Status":"UNREAD"' then
-        Inc(fUnread);
-      Inc(i);
+      i := Pos('"Id":', fJsonStr, i);
+      if i = 0 then Break;
+      Inc(fTotal);
+      Inc(i, 5);
+    end;
+    i := 1;
+    while True do
+    begin
+      i := Pos('"Status":"UNREAD"', fJsonStr, i);
+      if i = 0 then Break;
+      Inc(fUnread);
+      Inc(i, 17);
     end;
 
     Response.Total := fTotal;
@@ -6931,6 +6990,7 @@ initialization
   GlApiSitesListLock := TSLCriticalSection2.Create('ApiSitesList');
   GlApiIrcThreadsLock := TSLCriticalSection2.Create('ApiIrcThreads');
   GlApiPrecatcherFileLock := TSLCriticalSection2.Create('ApiPrecatcherFile');
+  TVDatabaseInitLock := TSLCriticalSection2.Create('TVDatabaseInit');
 
 finalization
   glSiteCreditsCache.Free;
@@ -6943,11 +7003,9 @@ finalization
   GlApiSitesListLock.Free;
   GlApiIrcThreadsLock.Free;
   GlApiPrecatcherFileLock.Free;
+  TVDatabaseInitLock.Free;
 
   if TVDatabase <> nil then
-  begin
-    TVDatabase.Free;
-    TVDBModel.Free;
-  end;
+    FreeAndNil(TVDatabase);
 
 end.

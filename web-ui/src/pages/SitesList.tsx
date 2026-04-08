@@ -113,8 +113,9 @@ export function SitesList() {
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
 
-  const fetchCredits = async (siteName: string, forceRefresh: boolean, silent: boolean): Promise<SiteCreditsResponse> => {
+  const fetchCredits = async (siteName: string, forceRefresh: boolean, silent: boolean, cancelCheck?: () => boolean): Promise<SiteCreditsResponse> => {
     const res = await apiClient.post('/ApiSitesService/GetSiteCredits', { SiteName: siteName, ForceRefresh: forceRefresh });
+    if (cancelCheck?.()) return res.data.result?.[0] || res.data;
     const data: SiteCreditsResponse = res.data.result?.[0] || res.data;
     setSiteCredits((prev) => ({ ...prev, [siteName]: { ...data, fetchedAtMs: Date.now() } }));
     if (!silent && data?.Ok === false) {
@@ -228,7 +229,7 @@ export function SitesList() {
           if (creditsInFlightRef.current.has(s.name)) continue;
           creditsInFlightRef.current.add(s.name);
           try {
-            await fetchCredits(s.name, false, true);
+            await fetchCredits(s.name, false, true, () => cancelled);
           } catch {
             // silent in background
           } finally {

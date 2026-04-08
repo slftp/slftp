@@ -524,30 +524,36 @@ export function Routes() {
       const routesMap = new Map<string, RouteEntry[]>();
       if (!sites) return routesMap;
 
-      for (const site of sites) {
-        try {
-          const res = await apiClient.post('/ApiSitesService/GetSiteRoutes', { SiteName: site.name });
-          let responseData = res.data;
-          if (res.data.result && Array.isArray(res.data.result)) {
-            responseData = res.data.result[0];
-          }
-          const rawRoutes = responseData.Routes;
-
-          if (rawRoutes) {
-            let routes: RouteEntry[] = [];
-            if (typeof rawRoutes === 'string') {
-              routes = JSON.parse(rawRoutes);
-            } else if (Array.isArray(rawRoutes)) {
-              routes = rawRoutes;
+      const results = await Promise.all(
+        sites.map(async (site): Promise<[string, RouteEntry[]]> => {
+          try {
+            const res = await apiClient.post('/ApiSitesService/GetSiteRoutes', { SiteName: site.name });
+            let responseData = res.data;
+            if (res.data.result && Array.isArray(res.data.result)) {
+              responseData = res.data.result[0];
             }
-            routesMap.set(site.name, routes);
-          } else {
-            routesMap.set(site.name, []);
+            const rawRoutes = responseData.Routes;
+
+            if (rawRoutes) {
+              let routes: RouteEntry[] = [];
+              if (typeof rawRoutes === 'string') {
+                routes = JSON.parse(rawRoutes);
+              } else if (Array.isArray(rawRoutes)) {
+                routes = rawRoutes;
+              }
+              return [site.name, routes];
+            } else {
+              return [site.name, []];
+            }
+          } catch (e) {
+            console.error(`Failed to fetch routes for ${site.name}`, e);
+            return [site.name, []];
           }
-        } catch (e) {
-          console.error(`Failed to fetch routes for ${site.name}`, e);
-          routesMap.set(site.name, []);
-        }
+        })
+      );
+
+      for (const [name, routes] of results) {
+        routesMap.set(name, routes);
       }
 
       return routesMap;
