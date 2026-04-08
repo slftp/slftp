@@ -14,13 +14,15 @@ function IsCbftpEnabled: Boolean;
 implementation
 
 uses
-  SysUtils, StrUtils, configunit, debugunit, mormot.core.unicode, mormot.core.json;
+  SysUtils, StrUtils, configunit, debugunit, mormot.core.unicode, mormot.core.json,
+  slcriticalsection2;
 
 const
   section = 'slapi.cbftp';
 
 var
   GlobalCbftpClient: TCbftpClient = nil;
+  GlobalCbftpClientLock: TSLCriticalSection2;
 
 function IsCbftpEnabled: Boolean;
 var
@@ -38,26 +40,35 @@ var
 begin
   if GlobalCbftpClient = nil then
   begin
-    // Read cbftp config from slftp.ini
-    host := StringToUtf8(config.ReadString('UDPConfig', 'IP', '127.0.0.1'));
-    // Read cbftp REST API port from config (required)
-    port := config.ReadInteger('UDPConfig', 'ApiPort', 0);
-    password := StringToUtf8(config.ReadString('UDPConfig', 'Password', ''));
+    GlobalCbftpClientLock.Enter('GetCbftpClient');
+    try
+      if GlobalCbftpClient <> nil then
+      begin
+        Result := GlobalCbftpClient;
+        Exit;
+      end;
 
-    if (port <= 0) then
-    begin
-      Debug(dpError, section, 'cbftp API port not configured in [UDPConfig] (ApiPort)');
-      Exit(nil);
+      host := StringToUtf8(config.ReadString('UDPConfig', 'IP', '127.0.0.1'));
+      port := config.ReadInteger('UDPConfig', 'ApiPort', 0);
+      password := StringToUtf8(config.ReadString('UDPConfig', 'Password', ''));
+
+      if (port <= 0) then
+      begin
+        Debug(dpError, section, 'cbftp API port not configured in [UDPConfig] (ApiPort)');
+        Exit(nil);
+      end;
+
+      if password = '' then
+      begin
+        Debug(dpError, section, 'cbftp password not configured in [UDPConfig]');
+        Exit(nil);
+      end;
+
+      GlobalCbftpClient := TCbftpClient.Create(host, port, password);
+      Debug(dpMessage, section, Format('cbftp client initialized: %s:%d', [host, port]));
+    finally
+      GlobalCbftpClientLock.Leave;
     end;
-
-    if password = '' then
-    begin
-      Debug(dpError, section, 'cbftp password not configured in [UDPConfig]');
-      Exit(nil);
-    end;
-
-    GlobalCbftpClient := TCbftpClient.Create(host, port, password);
-    Debug(dpMessage, section, Format('cbftp client initialized: %s:%d', [host, port]));
   end;
 
   Result := GlobalCbftpClient;
@@ -378,8 +389,10 @@ begin
 end;
 
 initialization
+  GlobalCbftpClientLock := TSLCriticalSection2.Create('CbftpClient');
 
 finalization
   FreeAndNil(GlobalCbftpClient);
+  FreeAndNil(GlobalCbftpClientLock);
 
 end.

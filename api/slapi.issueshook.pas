@@ -16,9 +16,12 @@ implementation
 
 procedure IssueLog(const aIssueType, aSection, aReleaseName, aSiteName, aReason, aKbEvent: string;
   const aDedupKey: string; const aDedupTtlSeconds: integer);
+var
+  proc: TIssueLogProc;
 begin
-  if Assigned(GlIssueLogProc) then
-    GlIssueLogProc(aIssueType, aSection, aReleaseName, aSiteName, aReason, aKbEvent, aDedupKey, aDedupTtlSeconds);
+  proc := GlIssueLogProc;
+  if Assigned(proc) then
+    proc(aIssueType, aSection, aReleaseName, aSiteName, aReason, aKbEvent, aDedupKey, aDedupTtlSeconds);
 end;
 
 end.

@@ -1,7 +1,7 @@
 import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch, ScrollArea, MultiSelect } from '@mantine/core';
 import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch, IconListCheck, IconCopy } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { apiClient } from '../api/client';
 import type { Site } from '../api/client';
 import { notifications } from '@mantine/notifications';
@@ -459,7 +459,7 @@ export function IRC() {
     return false;
   };
 
-  const matchesByRelease = (() => {
+  const matchesByRelease = useMemo(() => {
     const map = new Map<string, { hits: PrecatcherHit[]; sites: Set<string>; lastAt: number }>();
     for (const hit of precatcherHits || []) {
       if (!isMatchAnnounceEvent(hit.event)) continue;
@@ -475,7 +475,7 @@ export function IRC() {
       }
     }
     return map;
-  })();
+  }, [precatcherHits]);
 
   const filteredReleases = (recentReleases || []).filter((r) => {
     if (!matchesFilter) return true;
