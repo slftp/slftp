@@ -1026,14 +1026,17 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+  if rls <> nil then
+    FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id))
+  else
+    FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_SPEEDTEST_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
   self.cleared := False;
 
   FExcludeFromIncfiller := False;
-  if rls.IsSFVRelease then
+  if (rls <> nil) and rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
 
   FUDPConfigLoaded := False;
@@ -1049,7 +1052,10 @@ end;
 
 destructor TPazo.Destroy;
 begin
-  Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  if rls <> nil then
+    Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname])
+  else
+    Debug(dpSpam, section, 'TPazo.Destroy: SPEEDTEST');
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
