@@ -3490,6 +3490,9 @@ begin
     if slotInfo = '' then
       siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
 
+    if mainpazo = nil then
+      Debug(dpError, c_section, 'CRITICAL LOG: TPazoRaceTask.Name called but mainpazo is nil!');
+
     if mainpazo.rls = nil then
       Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
         [pazo_id, siteInfo, slotInfo, filename, rank])
