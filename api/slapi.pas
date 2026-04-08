@@ -606,7 +606,8 @@ begin
       on E: Exception do
       begin
         Debug(dpError, rsection, Format('[EXCEPTION] Start failed: %s', [E.Message]));
-        FreeAndNil(model);
+        FreeAndNil(FHttpServer);
+        FreeAndNil(FRestServer);
         Result := False;
       end;
     end;

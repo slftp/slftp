@@ -113,10 +113,15 @@ destructor TSpeedTestContext.Destroy;
 begin
   if Thread <> nil then
   begin
-    // We don't free the thread here usually if FreeOnTerminate is true,
-    // but we might want to wait? For now assume thread handles itself or is referenced safely.
-    // Actually if thread is running, destroying context is bad.
-    // Tests should be kept until thread finishes.
+    Lock.Enter('Destroy-Abort');
+    try
+      Aborted := True;
+    finally
+      Lock.Leave;
+    end;
+    Thread.FreeOnTerminate := False;
+    Thread.WaitFor;
+    FreeAndNil(Thread);
   end;
   Log.Free;
   Results.Free;
