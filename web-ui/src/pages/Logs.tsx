@@ -14,7 +14,7 @@ export function Logs() {
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['logs'],
     queryFn: async () => {
-      const res = await apiClient.post('/ApiLogService/GetLogs', { Lines: 50000 });
+      const res = await apiClient.post('/ApiLogService/GetLogs', { Lines: 2000 });
       let result = res.data;
       if (res.data.result && Array.isArray(res.data.result)) {
          // mORMot wrapper

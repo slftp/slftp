@@ -348,14 +348,18 @@ uses
 
 const
   section = 'slapi.services';
-  CGetSiteCreditsTimeoutMs = 30000;
+  CGetSiteCreditsTimeoutMs = 10000;
   CGetSiteCreditsCacheSeconds = 3600;
-  CGetSiteUserTimeoutMs = 30000;
+  CGetSiteUserTimeoutMs = 10000;
   CBrowserCacheSeconds = 60; // Cache duration for browser listings
 
 var
   GlApiTaskToPazoId: TDictionary<Int64, Integer>;
   GlApiTaskToPazoIdLock: TSLCriticalSection2;
+
+  GlApiSitesListLock: TSLCriticalSection2;
+  GlApiIrcThreadsLock: TSLCriticalSection2;
+  GlApiPrecatcherFileLock: TSLCriticalSection2;
 
   TVDatabase: TSQLRestClientDB;
   TVDBModel: TSQLModel;
@@ -756,8 +760,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSummary: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSummary: %s', [E.Message]));
+        FreeAndNil(Response);
+        Result := False;
     end;
   end;
 end;
@@ -796,8 +801,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetIssues: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetIssues: %s', [E.Message]));
+        FreeAndNil(Response);
+        Result := False;
     end;
   end;
 end;
@@ -916,30 +922,35 @@ begin
     siteCount := 0;
     activeSum := 0;
 
-    if sitesunit.sites <> nil then
-    begin
-      for i := 0 to sitesunit.sites.Count - 1 do
+    GlApiSitesListLock.Enter('GetStatus');
+    try
+      if sitesunit.sites <> nil then
       begin
-        s := TSite(sitesunit.sites[i]);
-        if s = nil then
-          Continue;
+        for i := 0 to sitesunit.sites.Count - 1 do
+        begin
+          s := TSite(sitesunit.sites[i]);
+          if s = nil then
+            Continue;
 
-        // Skip admin site (SLFTP) in count
-        if s.Name = sitesunit.getAdminSiteName then
-          Continue;
+          // Skip admin site (SLFTP) in count
+          if s.Name = sitesunit.getAdminSiteName then
+            Continue;
 
-        Inc(siteCount);
+          Inc(siteCount);
 
-        if s.WorkingStatus = sstUp then
-          Inc(upCount)
-        else if s.PermDown then
-          Inc(downCount)
-        else if (s.WorkingStatus = sstDown) or (s.WorkingStatus = sstMarkedAsDownByUser) then
-          Inc(downCount);
+          if s.WorkingStatus = sstUp then
+            Inc(upCount)
+          else if s.PermDown then
+            Inc(downCount)
+          else if (s.WorkingStatus = sstDown) or (s.WorkingStatus = sstMarkedAsDownByUser) then
+            Inc(downCount);
 
-        // Sum current active transfers (download+upload)
-        activeSum := activeSum + s.num_dn + s.num_up;
+          // Sum current active transfers (download+upload)
+          activeSum := activeSum + s.num_dn + s.num_up;
+        end;
       end;
+    finally
+      GlApiSitesListLock.Leave;
     end;
 
     Response.SitesCount := siteCount;
@@ -987,8 +998,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetStatus: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetStatus: %s', [E.Message]));
+        FreeAndNil(Response);
+        Result := False;
     end;
   end;
 end;
@@ -1255,19 +1267,20 @@ begin
       end;
 
       Response.Total := count;
-      // Convert the releasesArray to JSON and store it
-      Response.Releases := TDocVariantData(releasesArray).ToJSON;
-      Result := True;
 
     finally
       kbLock.Leave;
     end;
 
+    Response.Releases := TDocVariantData(releasesArray).ToJSON;
+    Result := True;
+
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetRecentReleases: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetRecentReleases: %s', [E.Message]));
+        FreeAndNil(Response);
+        Result := False;
     end;
   end;
 end;
@@ -1442,8 +1455,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetReleaseDetails: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetReleaseDetails: %s', [E.Message]));
+        FreeAndNil(Response);
+        Result := False;
     end;
   end;
 end;
@@ -1502,30 +1516,32 @@ begin
   snapshotCount := 0;
 
   try
-    if sitesunit.sites = nil then
-    begin
-      Sites.Total := 0;
-      Sites.Up := 0;
-      Sites.Down := 0;
-      Sites.Sites := '[]';
-      Result := True;
-      Exit;
-    end;
-
-    if sitesunit.sites.Count = 0 then
-    begin
-      Sites.Total := 0;
-      Sites.Up := 0;
-      Sites.Down := 0;
-      Sites.Sites := '[]';
-      Result := True;
-      Exit;
-    end;
-
-    // Quickly snapshot all site data in one pass
-    SetLength(snapshots, sitesunit.sites.Count);
+    GlApiSitesListLock.Enter('GetSites');
     try
-      for i := 0 to sitesunit.sites.Count - 1 do
+      if sitesunit.sites = nil then
+      begin
+        Sites.Total := 0;
+        Sites.Up := 0;
+        Sites.Down := 0;
+        Sites.Sites := '[]';
+        Result := True;
+        Exit;
+      end;
+
+      if sitesunit.sites.Count = 0 then
+      begin
+        Sites.Total := 0;
+        Sites.Up := 0;
+        Sites.Down := 0;
+        Sites.Sites := '[]';
+        Result := True;
+        Exit;
+      end;
+
+      // Quickly snapshot all site data in one pass
+      SetLength(snapshots, sitesunit.sites.Count);
+      try
+        for i := 0 to sitesunit.sites.Count - 1 do
       begin
         s := TSite(sitesunit.sites[i]);
         if s = nil then
@@ -1662,6 +1678,9 @@ begin
       on E: Exception do
         Debug(dpError, section, Format('[EXCEPTION] GetSites snapshotting: %s', [E.Message]));
     end;
+    finally
+      GlApiSitesListLock.Leave;
+    end;
 
     // Now process the snapshots (no more TSite access)
     for i := 0 to snapshotCount - 1 do
@@ -1748,8 +1767,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSites: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSites: %s', [E.Message]));
+        FreeAndNil(Sites);
+        Result := False;
     end;
   end;
 end;
@@ -1789,8 +1809,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSite: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSite: %s', [E.Message]));
+        FreeAndNil(Info);
+        Result := False;
     end;
   end;
 end;
@@ -1938,8 +1959,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSiteCredits: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSiteCredits: %s', [E.Message]));
+        FreeAndNil(Credits);
+        Result := False;
     end;
   end;
 end;
@@ -2065,8 +2087,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSiteUser: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSiteUser: %s', [E.Message]));
+        FreeAndNil(Info);
+        Result := False;
     end;
   end;
 end;
@@ -2545,8 +2568,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSiteRoutes: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSiteRoutes: %s', [E.Message]));
+        FreeAndNil(Routes);
+        Result := False;
     end;
   end;
 end;
@@ -2825,8 +2849,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSiteInfo: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSiteInfo: %s', [E.Message]));
+        FreeAndNil(Info);
+        Result := False;
     end;
   end;
 end;
@@ -3195,8 +3220,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSiteRtpl: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSiteRtpl: %s', [E.Message]));
+        FreeAndNil(FileInfo);
+        Result := False;
     end;
   end;
 end;
@@ -3240,8 +3266,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetSiteRulesSnapshot: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetSiteRulesSnapshot: %s', [E.Message]));
+        FreeAndNil(FileInfo);
+        Result := False;
     end;
   end;
 end;
@@ -3358,8 +3385,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] ValidateRtpl: %s', [E.Message]));
-      Exit(False);
+        Debug(dpError, section, Format('[EXCEPTION] ValidateRtpl: %s', [E.Message]));
+        FreeAndNil(Validation);
+        Exit(False);
     end;
   end;
 end;
@@ -3423,8 +3451,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] SaveSiteRtpl: %s', [E.Message]));
-      Exit(False);
+        Debug(dpError, section, Format('[EXCEPTION] SaveSiteRtpl: %s', [E.Message]));
+        FreeAndNil(SaveResult);
+        Exit(False);
     end;
   end;
 end;
@@ -3502,8 +3531,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetQueueStats: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetQueueStats: %s', [E.Message]));
+        FreeAndNil(Stats);
+        Result := False;
     end;
   end;
 end;
@@ -3939,9 +3969,11 @@ begin
   try
     networksArray.InitFast(dvArray);
 
-    if myIrcThreads <> nil then
-    begin
-      for i := 0 to myIrcThreads.Count - 1 do
+    GlApiIrcThreadsLock.Enter('GetNetworks');
+    try
+      if myIrcThreads <> nil then
+      begin
+        for i := 0 to myIrcThreads.Count - 1 do
       begin
         try
           th := TMyIrcThread(myIrcThreads[i]);
@@ -3970,6 +4002,9 @@ begin
           end;
         end;
       end;
+    end;
+    finally
+      GlApiIrcThreadsLock.Leave;
     end;
 
     Result := networksArray.ToJSON;
@@ -4026,8 +4061,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, 'slapi', Format('[EXCEPTION] GetNetworkConfig: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, 'slapi', Format('[EXCEPTION] GetNetworkConfig: %s', [E.Message]));
+        FreeAndNil(Info);
+        Result := False;
     end;
   end;
 end;
@@ -4050,20 +4086,25 @@ begin
 
     // Find the IRC thread for this network
     th := nil;
-    if myIrcThreads <> nil then
-    begin
-      for i := 0 to myIrcThreads.Count - 1 do
+    GlApiIrcThreadsLock.Enter('GetChannels');
+    try
+      if myIrcThreads <> nil then
       begin
-        try
-          th := TMyIrcThread(myIrcThreads[i]);
-          if (th <> nil) and SameText(th.netname, netNameStr) then
-            Break
-          else
+        for i := 0 to myIrcThreads.Count - 1 do
+        begin
+          try
+            th := TMyIrcThread(myIrcThreads[i]);
+            if (th <> nil) and SameText(th.netname, netNameStr) then
+              Break
+            else
+              th := nil;
+          except
             th := nil;
-        except
-          th := nil;
+          end;
         end;
       end;
+    finally
+      GlApiIrcThreadsLock.Leave;
     end;
 
     // If thread found, iterate through actual connected channels
@@ -4185,8 +4226,13 @@ begin
     if ircth <> nil then
     begin
       ircth.shouldrestart := True;
-      myIrcThreads.Remove(ircth);
-      myIrcThreads.Add(TMyIrcThread.Create(netNameStr));
+      GlApiIrcThreadsLock.Enter('JumpServer');
+      try
+        myIrcThreads.Remove(ircth);
+        myIrcThreads.Add(TMyIrcThread.Create(netNameStr));
+      finally
+        GlApiIrcThreadsLock.Leave;
+      end;
       Debug(dpMessage, 'slapi', Format('JumpServer: Restarting IRC network %s', [netNameStr]));
       Result := True;
     end
@@ -4488,7 +4534,14 @@ begin
     if ircThread <> nil then
       ircThread.shouldrestart := True
     else
-      myIrcThreads.Add(TMyIrcThread.Create(netNameStr));
+    begin
+      GlApiIrcThreadsLock.Enter('SetNetworkConfig');
+      try
+        myIrcThreads.Add(TMyIrcThread.Create(netNameStr));
+      finally
+        GlApiIrcThreadsLock.Leave;
+      end;
+    end;
 
     Debug(dpMessage, 'slapi', Format('SetNetworkConfig: Updated IRC network %s', [netNameStr]));
     Result := True;
@@ -4719,30 +4772,35 @@ begin
   try
     rulesArray.InitFast(dvArray);
 
-    if catcherFile <> nil then
-    begin
-      for i := 0 to catcherFile.Count - 1 do
+    GlApiPrecatcherFileLock.Enter('GetPrecatcherRules');
+    try
+      if catcherFile <> nil then
       begin
-        netname := SubString(catcherFile[i], ';', 1);
-        channel := SubString(catcherFile[i], ';', 2);
-        botnicks := SubString(catcherFile[i], ';', 3);
-        sitename := SubString(catcherFile[i], ';', 4);
-        event := SubString(catcherFile[i], ';', 5);
-        words := SubString(catcherFile[i], ';', 6);
-        section := SubString(catcherFile[i], ';', 7);
+        for i := 0 to catcherFile.Count - 1 do
+        begin
+          netname := SubString(catcherFile[i], ';', 1);
+          channel := SubString(catcherFile[i], ';', 2);
+          botnicks := SubString(catcherFile[i], ';', 3);
+          sitename := SubString(catcherFile[i], ';', 4);
+          event := SubString(catcherFile[i], ';', 5);
+          words := SubString(catcherFile[i], ';', 6);
+          section := SubString(catcherFile[i], ';', 7);
 
-        TDocVariant.New(ruleDoc);
-        TDocVariantData(ruleDoc).AddValue('id', i);
-        TDocVariantData(ruleDoc).AddValue('netname', UTF8Encode(netname));
-        TDocVariantData(ruleDoc).AddValue('channel', UTF8Encode(channel));
-        TDocVariantData(ruleDoc).AddValue('botnicks', UTF8Encode(botnicks));
-        TDocVariantData(ruleDoc).AddValue('sitename', UTF8Encode(sitename));
-        TDocVariantData(ruleDoc).AddValue('event', UTF8Encode(event));
-        TDocVariantData(ruleDoc).AddValue('words', UTF8Encode(words));
-        TDocVariantData(ruleDoc).AddValue('section', UTF8Encode(section));
+          TDocVariant.New(ruleDoc);
+          TDocVariantData(ruleDoc).AddValue('id', i);
+          TDocVariantData(ruleDoc).AddValue('netname', UTF8Encode(netname));
+          TDocVariantData(ruleDoc).AddValue('channel', UTF8Encode(channel));
+          TDocVariantData(ruleDoc).AddValue('botnicks', UTF8Encode(botnicks));
+          TDocVariantData(ruleDoc).AddValue('sitename', UTF8Encode(sitename));
+          TDocVariantData(ruleDoc).AddValue('event', UTF8Encode(event));
+          TDocVariantData(ruleDoc).AddValue('words', UTF8Encode(words));
+          TDocVariantData(ruleDoc).AddValue('section', UTF8Encode(section));
 
-        rulesArray.AddItem(ruleDoc);
+          rulesArray.AddItem(ruleDoc);
+        end;
       end;
+    finally
+      GlApiPrecatcherFileLock.Leave;
     end;
 
     Result := rulesArray.ToJSON;
@@ -4892,11 +4950,16 @@ begin
     Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Channel OK');
 
     // Add rule to catcherFile
-    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Adding rule to catcherFile (count before=%d)', [catcherFile.Count]));
-    catcherFile.Add(Format('%s;%s;%s;%s;%s;%s;%s',
-      [netname, channel, botnicks, sitename, event, words, section]));
-    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Added rule line=%s', [catcherFile[catcherFile.Count - 1]]));
-    Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: catcherFile count after add=%d', [catcherFile.Count]));
+    GlApiPrecatcherFileLock.Enter('AddPrecatcherRule');
+    try
+      Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Adding rule to catcherFile (count before=%d)', [catcherFile.Count]));
+      catcherFile.Add(Format('%s;%s;%s;%s;%s;%s;%s',
+        [netname, channel, botnicks, sitename, event, words, section]));
+      Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: Added rule line=%s', [catcherFile[catcherFile.Count - 1]]));
+      Debug(dpSpam, 'slapi', Format('AddPrecatcherRule: catcherFile count after add=%d', [catcherFile.Count]));
+    finally
+      GlApiPrecatcherFileLock.Leave;
+    end;
 
     // Rebuild precatcher
     Debug(dpSpam, 'slapi', 'AddPrecatcherRule: Rebuilding precatcher');
@@ -4968,10 +5031,16 @@ var
 begin
   Result := False;
   try
-    if (RuleId < 0) or (RuleId >= catcherFile.Count) then
-    begin
-      Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid rule ID: %d', [RuleId]));
-      Exit;
+    GlApiPrecatcherFileLock.Enter('UpdatePrecatcherRule');
+    try
+      if (RuleId < 0) or (RuleId >= catcherFile.Count) then
+      begin
+        GlApiPrecatcherFileLock.Leave;
+        Debug(dpError, 'slapi', Format('UpdatePrecatcherRule: Invalid rule ID: %d', [RuleId]));
+        Exit;
+      end;
+    finally
+      GlApiPrecatcherFileLock.Leave;
     end;
 
     Debug(dpSpam, 'slapi', Format('UpdatePrecatcherRule: Incoming payload len=%d', [Length(RuleData)]));
@@ -5056,8 +5125,13 @@ begin
     end;
 
     // Update rule in catcherFile
-    catcherFile[RuleId] := Format('%s;%s;%s;%s;%s;%s;%s',
-      [netname, channel, botnicks, sitename, event, words, section]);
+    GlApiPrecatcherFileLock.Enter('UpdatePrecatcherRule');
+    try
+      catcherFile[RuleId] := Format('%s;%s;%s;%s;%s;%s;%s',
+        [netname, channel, botnicks, sitename, event, words, section]);
+    finally
+      GlApiPrecatcherFileLock.Leave;
+    end;
 
     // Rebuild precatcher
     PrecatcherRebuild;
@@ -5077,13 +5151,19 @@ function TApiPrecatcherServiceImpl.DeletePrecatcherRule(RuleId: integer): boolea
 begin
   Result := False;
   try
-    if (RuleId < 0) or (RuleId >= catcherFile.Count) then
-    begin
-      Debug(dpError, 'slapi', Format('DeletePrecatcherRule: Invalid rule ID: %d', [RuleId]));
-      Exit;
-    end;
+    GlApiPrecatcherFileLock.Enter('DeletePrecatcherRule');
+    try
+      if (RuleId < 0) or (RuleId >= catcherFile.Count) then
+      begin
+        GlApiPrecatcherFileLock.Leave;
+        Debug(dpError, 'slapi', Format('DeletePrecatcherRule: Invalid rule ID: %d', [RuleId]));
+        Exit;
+      end;
 
-    catcherFile.Delete(RuleId);
+      catcherFile.Delete(RuleId);
+    finally
+      GlApiPrecatcherFileLock.Leave;
+    end;
     PrecatcherRebuild;
 
     Debug(dpMessage, 'slapi', Format('DeletePrecatcherRule: Deleted rule #%d', [RuleId]));
@@ -6170,8 +6250,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetAllImdbRecords: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetAllImdbRecords: %s', [E.Message]));
+        FreeAndNil(Response);
+        Result := False;
     end;
   end;
 end;
@@ -6213,8 +6294,9 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] GetImdbRecordById: %s', [E.Message]));
-      Result := False;
+        Debug(dpError, section, Format('[EXCEPTION] GetImdbRecordById: %s', [E.Message]));
+        FreeAndNil(Response);
+        Result := False;
     end;
   end;
 end;
@@ -6793,7 +6875,11 @@ begin
     Result := True;
   except
     on E: Exception do
+    begin
       Debug(dpError, section, Format('[EXCEPTION] GetNews: %s', [E.Message]));
+      FreeAndNil(Response);
+      Result := False;
+    end;
   end;
 end;
 
@@ -6842,6 +6928,9 @@ initialization
   glPrecatcherDebugCaptureLock := TSlCriticalSection2.Create('ApiPrecatcherDebugCapture');
   GlApiTaskToPazoIdLock := TSLCriticalSection2.Create('ApiTaskMap');
   GlApiTaskToPazoId := TDictionary<Int64, Integer>.Create;
+  GlApiSitesListLock := TSLCriticalSection2.Create('ApiSitesList');
+  GlApiIrcThreadsLock := TSLCriticalSection2.Create('ApiIrcThreads');
+  GlApiPrecatcherFileLock := TSLCriticalSection2.Create('ApiPrecatcherFile');
 
 finalization
   glSiteCreditsCache.Free;
@@ -6851,6 +6940,9 @@ finalization
   glPrecatcherDebugCaptureLock.Free;
   GlApiTaskToPazoId.Free;
   GlApiTaskToPazoIdLock.Free;
+  GlApiSitesListLock.Free;
+  GlApiIrcThreadsLock.Free;
+  GlApiPrecatcherFileLock.Free;
 
   if TVDatabase <> nil then
   begin
