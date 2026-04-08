@@ -1218,11 +1218,15 @@ procedure TQueueThread.AddTask(t: TTask);
 var
   tname: String;
   fCheckSiteSlotsSite: TSite;
+  step: String;
 begin
+  step := 'init';
   try
     fCheckSiteSlotsSite := nil;
+    step := 'reading t.Name';
     tname := t.Name;
 
+    step := 'checking ssite1 conditions';
     //do this check before the task might have been freed already
     //for races (pazo tasks) the site slots are checked when the site is added to the race,
     //check here for any other tasks that might come along
@@ -1240,10 +1244,12 @@ begin
       fCheckSiteSlotsSite := t.ssite1;
     end;
 
-    Debug(dpSpam, section, Format('[iNFO] adding : %s', [t.Name]));
+    Debug(dpSpam, section, Format('[iNFO] adding : %s', [tname]));
 
+    step := 'entering main_lock';
     main_lock.Enter('AddTask');
     try
+      step := 'TaskAlreadyInQueue check';
       if TaskAlreadyInQueue(t) then
       begin
         // don't add the task to the queue, just notify and free right away if it's a duplicate
@@ -1254,13 +1260,14 @@ begin
         exit;
       end;
 
+      step := 'Adding to list';
       // Add to waiting_tasks if it starts in the future, else to main tasks queue
       if (t.startat > Now) then
         waiting_tasks.Add(t)
       else
         tasks.Add(t);
 
-
+      step := 'Race slot checks';
       try
         if ((t is TPazoRaceTask) and (not t.ready) and t.IsReadyToBeExecuted and (TSite(fSite).freeslots > 0)) then
         begin
@@ -1288,28 +1295,34 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] AddTask tasks.Add: %s', [e.Message]));
-      exit;
+      Debug(dpError, section, Format('[EXCEPTION] AddTask tasks.Add (Step: %s): %s', [step, e.Message]));
+      raise; // re-raise
     end;
   end;
 
+  step := 'Checking failed race conditions';
   // check if the race has failed on either source or destination site (in case of race tasks). This can happen when a dirlist task is running and
   // adding new race tasks while the mkdir task on the destination fails at the same time and sets the site failed. This would lead to the
   // dependencies of the race task never be resolved and it would remain and pollute the queue.
   if t is TPazoRaceTask then
   begin
     try
-      if TPazoRaceTask(t).ps2.error or
-        ((TPazoRaceTask(t).dir <> '') and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
+      step := 'Checking ps2 / dirlist';
+      if TPazoRaceTask(t).ps2 = nil then
+      begin
+        // just a safe-check, do nothing
+      end
+      else if TPazoRaceTask(t).ps2.error or
+        ((TPazoRaceTask(t).dir <> '') and (TPazoRaceTask(t).ps2.dirlist <> nil) and (TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir) <> nil) and TPazoRaceTask(t).ps2.dirlist.FindDirList(TPazoRaceTask(t).dir).error) then
       begin
         t.readyerror := true;
-        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [t.Name]));
+        Debug(dpSpam, section, Format('AddTask: race failed on source or destination site: %s', [tname]));
         exit;
       end;
     except
       on e: Exception do
       begin
-        Debug(dpSpam, section, Format('[EXCEPTION] AddTask check for failed pazo: %s', [e.Message]));
+        Debug(dpError, section, Format('[EXCEPTION] AddTask check for failed pazo (Step: %s): %s', [step, e.Message]));
         exit;
       end;
     end;
@@ -1317,9 +1330,20 @@ begin
 
   if fCheckSiteSlotsSite <> nil then
   begin
-    CheckSiteSlots(fCheckSiteSlotsSite);
+    step := 'CheckSiteSlots';
+    try
+      CheckSiteSlots(fCheckSiteSlotsSite);
+    except
+    end;
   end;
-  AddTaskToConsole(t);
+  
+  step := 'AddTaskToConsole';
+  try
+    AddTaskToConsole(t);
+  except
+    on e: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] AddTaskToConsole (Step: %s): %s', [step, e.Message]));
+  end;
 end;
 
 procedure TQueueThread.RemoveRaceTasks(const pazo_id: integer; const sitename: String);
