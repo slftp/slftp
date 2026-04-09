@@ -4510,21 +4510,31 @@ end;
 
 function TApiIrcServiceImpl.AddNetwork(const NetName, Host: RawUTF8; Port: integer; Ssl: boolean; const Password, Nick, Ident, User: RawUTF8): boolean;
 var
-  params: string;
-  sslStr: string;
+  netNameStr: string;
 begin
   Result := False;
   try
-    if Ssl then
-      sslStr := '1'
-    else
-      sslStr := '0';
-    params := UTF8ToString(NetName) + ' ' + UTF8ToString(Host) + ':' + IntToStr(Port) + ' ' + sslStr + ' ' + UTF8ToString(Password) + ' ' + UTF8ToString(Nick) + ' ' + UTF8ToString(Ident) + ' ' + UTF8ToString(User);
-    Result := IrcAddnet('', '', params);
+    netNameStr := UpperCase(UTF8ToString(NetName));
+    if (netNameStr = '') or (Pos('-', netNameStr) > 0) or (netNameStr = 'CONSOLE') then
+    begin
+      Debug(dpError, 'slapi', Format('AddNetwork: Invalid network name: %s', [netNameStr]));
+      Exit;
+    end;
+    if Port <= 0 then
+    begin
+      Debug(dpError, 'slapi', 'AddNetwork: Invalid port');
+      Exit;
+    end;
+    if FindIrcnetwork(netNameStr) <> nil then
+    begin
+      Debug(dpError, 'slapi', Format('AddNetwork: Network %s already exists', [netNameStr]));
+      Exit;
+    end;
+    Result := SetNetworkConfig(NetName, Host, Port, Ssl, Password, Nick, Ident, User);
     if Result then
-      Debug(dpMessage, 'slapi', Format('AddNetwork: Added IRC network %s', [UTF8ToString(NetName)]))
+      Debug(dpMessage, 'slapi', Format('AddNetwork: Added IRC network %s', [netNameStr]))
     else
-      Debug(dpError, 'slapi', Format('AddNetwork: Failed to add IRC network %s', [UTF8ToString(NetName)]));
+      Debug(dpError, 'slapi', Format('AddNetwork: Failed to add IRC network %s', [netNameStr]));
   except
     on E: Exception do
     begin
