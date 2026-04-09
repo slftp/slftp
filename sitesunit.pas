@@ -3,7 +3,7 @@ unit sitesunit;
 interface
 
 uses
-  Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
+  Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
   variantcache, routeconfig;
@@ -782,8 +782,8 @@ var
 implementation
 
 uses
-  SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, knowngroups, mygrouphelpers,
-  mystrings, versioninfo, mainthread, IniFiles, Math, mrdohutils, globals, taskidle, taskquit, IdGlobal,
+  SysUtils, irc, DateUtils, configunit, debugunit, socks5, console, mygrouphelpers,
+  mystrings, versioninfo, mainthread, Math, mrdohutils, globals, taskidle, taskquit,
   dirlist.helpers, tags, Generics.Defaults;
 
 const

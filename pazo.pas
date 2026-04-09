@@ -5,7 +5,7 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
+  Classes, kb.releaseinfo, SyncObjs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, sfv, slcriticalsection2,
   routeconfig;
 
 type
@@ -252,6 +252,8 @@ type
       @param(aIsSpreadJob Set it to @true if its a spread job for purpose of preeing (skips some checks), @false otherwise)
       @returns(@true if at least one site was added, @false otherwise) }
     function AddSites(const aIsSpreadJob: boolean): boolean; overload;
+    { Sorts @link(PazoSitesList) by site rank for the release section (highest rank first) }
+    procedure SortPazoSitesByRank;
     { Returns the filesize for given filname of the release
       @param(aDir Location of the file inside releasedir)
       @param(aFilename Name of the file)
@@ -273,9 +275,9 @@ function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 implementation
 
 uses
-  SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
-  taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
-  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  SysUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
+  taskrace, mystrings, irc, Math, taskpretime, configunit,
+  Generics.Defaults, kb, tasksitesfv,
   mormot.core.base, mormot.core.unicode, mormot.net.sock;
 
 const
@@ -1449,6 +1451,42 @@ begin
     end;
 
     Result := True;
+  end;
+
+  // sort PazoSitesList by site rank (highest first) so dirlists and
+  // destination creation process high-ranked sites before low-ranked ones
+  SortPazoSitesByRank;
+end;
+
+procedure TPazo.SortPazoSitesByRank;
+var
+  i, j: Integer;
+  fSection: String;
+  fRankI, fRankJ: Integer;
+  fSiteI, fSiteJ: TSite;
+  fTemp: TPazoSite;
+begin
+  fSection := rls.section;
+  // insertion sort by rank descending (list is typically small)
+  for i := 1 to PazoSitesList.Count - 1 do
+  begin
+    j := i;
+    while j > 0 do
+    begin
+      fRankJ := 0;
+      fRankI := 0;
+      fSiteJ := FindSiteByName('', PazoSitesList[j].Name);
+      if fSiteJ <> nil then
+        fRankJ := fSiteJ.GetRank(fSection);
+      fSiteI := FindSiteByName('', PazoSitesList[j - 1].Name);
+      if fSiteI <> nil then
+        fRankI := fSiteI.GetRank(fSection);
+      if fRankJ > fRankI then
+        PazoSitesList.Exchange(j, j - 1)
+      else
+        Break;
+      Dec(j);
+    end;
   end;
 end;
 

@@ -76,10 +76,10 @@ implementation
 uses
   debugunit, mainthread, taskgenrenfo, taskgenredirlist, configunit, console,
   taskrace, sitesunit, queueunit, irc, SysUtils, fake, mystrings, tasksunit,
-  rulesunit, Math, DateUtils, StrUtils, precatcher, tasktvinfolookup, encinifile,
-  slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
-  sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
-  mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
+  rulesunit, Math, DateUtils, StrUtils, precatcher, encinifile,
+  slvision, tasksitenfo, RegExpr, taskpretime, mygrouphelpers, routeconfig,
+  sllanguagebase, dbaddpre,
+  mrdohutils, ranksunit, tasklogin, dirlist, IniFiles,
   globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
@@ -770,15 +770,9 @@ begin
   end;
 
   try
-    // check rules for site only if needed
-    for i := p.PazoSitesList.Count - 1 downto 0 do
+    // check rules for site only if needed (iterate by rank, highest first)
+    for i := 0 to p.PazoSitesList.Count - 1 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
       ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter('kb_AddB_4');
       try
@@ -794,15 +788,9 @@ begin
       end;
     end;
 
-    // now add all dst
-    for i := p.PazoSitesList.Count - 1 downto 0 do
+    // now add all dst (iterate by rank, highest first)
+    for i := 0 to p.PazoSitesList.Count - 1 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
       ps := TPazoSite(p.PazoSitesList[i]);
       kb_lock.Enter('kb_AddB_5');
       try
@@ -836,14 +824,8 @@ begin
     begin
       if not p.IsUDPEnabled then
       begin
-        for i := p.PazoSitesList.Count - 1 downto 0 do
+        for i := 0 to p.PazoSitesList.Count - 1 do
         begin
-          try
-            if i < 0 then
-              Break;
-          except
-            Break;
-          end;
           try
             ps := TPazoSite(p.PazoSitesList[i]);
 

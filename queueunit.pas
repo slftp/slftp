@@ -3,7 +3,7 @@ unit queueunit;
 interface
 
 uses
-  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, taskidle, taskquit, tasklogin, RegExpr, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
+  Classes, Contnrs, tasksunit, taskrace, SyncObjs, slcriticalsection2, pazo, tasklogin, taskautoindex, taskrules, taskautodirlist, taskautonuke, Generics.Collections, IdThreadSafe;
 
 
 type TQueueStat = class
@@ -106,8 +106,8 @@ var
 implementation
 
 uses
-  SysUtils, Types, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
-  tasktvinfolookup, taskhttpnfo, tasksitenfo, tasksitesfv, sitesunit, dirlist;
+  SysUtils, irc, DateUtils, debugunit, notify, console, kb, mainthread, Math, configunit, mrdohutils,
+  tasksitesfv, sitesunit, dirlist, taskidle, taskquit, RegExpr;
 
 const
   section = 'queue';
