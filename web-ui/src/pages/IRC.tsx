@@ -904,7 +904,7 @@ export function IRC() {
 
   const addNetworkMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post('/ApiIrcService/AddNetwork', {
+      const res = await apiClient.post('/ApiIrcService/AddNetwork', {
         NetName: newNetworkName,
         Host: newNetworkHost,
         Port: parseInt(newNetworkPort, 10),
@@ -914,6 +914,10 @@ export function IRC() {
         Ident: newNetworkIdent,
         User: newNetworkUser,
       });
+      const success = res.data?.result?.[0];
+      if (success === false) {
+        throw new Error('Failed to add network — name may already exist or be invalid');
+      }
     },
     onSuccess: () => {
       notifications.show({
