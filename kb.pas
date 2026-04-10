@@ -824,6 +824,8 @@ begin
 
   // status changed
   ss := p.RoutesText;
+  if (ss <> '') and (not p.IsUDPEnabled) then
+    irc_SendROUTEINFOS(ss);
 
   if (psource <> nil) and (psource.Status = rssNotAllowed) then
   begin
