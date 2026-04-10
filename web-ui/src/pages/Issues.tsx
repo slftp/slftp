@@ -344,7 +344,7 @@ export function Issues() {
     const u = (t || '').toUpperCase();
     if (u === 'SKIP') return { background: 'rgba(251, 191, 36, 0.25)', border: '1px solid rgba(251, 191, 36, 0.5)', color: '#fbbf24' };
     if (u === 'DONT_MATCH' || u === 'DONTMATCH') return { background: 'rgba(248, 113, 113, 0.25)', border: '1px solid rgba(248, 113, 113, 0.5)', color: '#f87171' };
-    if (u === 'MISSING_SECTION' || u === 'MISSING_SECTION_DIR') return { background: 'rgba(250, 204, 21, 0.25)', border: '1px solid rgba(250, 204, 21, 0.5)', color: '#facc15' };
+    if (u === 'MISSING_SECTION' || u === 'MISSING_SECTION_DIR') return { background: 'rgba(251, 146, 60, 0.25)', border: '1px solid rgba(251, 146, 60, 0.5)', color: '#fb923c' };
     if (u === 'NUKE') return { background: 'rgba(168, 85, 247, 0.25)', border: '1px solid rgba(168, 85, 247, 0.5)', color: '#a855f7' };
     return { background: 'rgba(100, 116, 139, 0.25)', border: '1px solid rgba(100, 116, 139, 0.5)', color: '#94a3b8' };
   };
@@ -403,11 +403,11 @@ export function Issues() {
                 </Badge>
                 <Badge
                   variant="light"
-                  style={{ 
+                  style={{
                     cursor: 'pointer',
-                    background: 'rgba(250, 204, 21, 0.25)',
-                    border: '1px solid rgba(250, 204, 21, 0.5)',
-                    color: '#facc15'
+                    background: 'rgba(251, 146, 60, 0.25)',
+                    border: '1px solid rgba(251, 146, 60, 0.5)',
+                    color: '#fb923c'
                   }}
                   onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'MISSING_SECTION'))}
                 >
