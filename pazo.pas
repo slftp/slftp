@@ -730,7 +730,8 @@ begin
 
   for ps in PazoSitesList do
   begin
-    Result := Result + ps.RoutesText;
+    if not (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+      Result := Result + ps.RoutesText;
   end;
 
   if (Result <> lastannounceroutes) then
