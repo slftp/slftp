@@ -61,8 +61,10 @@ begin
   begin
     if kill then
     begin
+      Debug(dpError, section, 'GhostKill %s: executing on slot %s, disconnecting...', [site1, s.Name]);
       s.Quit;
       Result := s.ReLogin(1, True, section, readd);
+      Debug(dpError, section, 'GhostKill %s: slot %s reconnect result: %s', [site1, s.Name, BoolToStr(Result, 'ok', 'failed')]);
     end
     else if not readd or (not(s.site.WorkingStatus in [sstMarkedAsDownByUser, sstUp])) then
     begin

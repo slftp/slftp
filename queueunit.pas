@@ -632,15 +632,15 @@ begin
 
         if ss.todotask <> nil then
         begin
+          if t.kill then
+            Debug(dpError, section, 'GhostKill %s: slot %s is busy, trying next', [t.site1, ss.Name]);
           ss := nil;
           Continue;
         end;
 
         if t.kill then
         begin
-          // Only use slot 0 for ghost kill to avoid disrupting active transfers
-          if i > 0 then
-            ss := nil;
+          Debug(dpError, section, 'GhostKill %s: using slot %s', [t.site1, ss.Name]);
           Break;
         end;
 
@@ -655,6 +655,7 @@ begin
     begin
       if t.kill then
       begin
+        Debug(dpError, section, 'GhostKill %s: no free slot found, ghost kill skipped', [t.site1]);
         if not t.noannounce then
           irc_Addtext(t, '<c4>Unable to kill ghosts on <b>%s</b>: all slots busy</c>', [t.site1]);
       end
