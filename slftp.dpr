@@ -46,7 +46,10 @@ uses
   FastMM5,
   SysUtils,
   commandlineutil,
-  console;
+  console
+  {$IFDEF MSWINDOWS}
+  , Winapi.Windows
+  {$ENDIF};
 
 {$APPTYPE CONSOLE}
 
@@ -73,4 +76,8 @@ begin
   end;
 
   ConsoleStart;
+  {$IFDEF MSWINDOWS}
+  ExitProcess(0);
+  {$ENDIF}
+  Halt(0);
 end.
