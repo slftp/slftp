@@ -39,11 +39,12 @@
     NEW slftp.ini parameter(s):
       SFVRelease=
       event_based_locking=0
-	  monitor_lock_times=0
-	  mode=0 in [dbaddpre] for in-memory pre DB
-	  add_to_kb_on_dbaddpre_insert=0
-	  show_complete_time_stats=0
-	  enable_boxofficemojo_lookup=0 in [dbaddimdb] - fetches screen counts from Box Office Mojo (~5-6s added to IMDB lookup)
+      monitor_lock_times=0
+      mode=0 in [dbaddpre] for in-memory pre DB
+      add_to_kb_on_dbaddpre_insert=0
+      kill_ghosts_on_startup=0
+      show_complete_time_stats=0
+      enable_boxofficemojo_lookup=0 in [dbaddimdb] - fetches screen counts from Box Office Mojo (~5-6s added to IMDB lookup)
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -71,6 +72,7 @@
     {+} Monitor files of running transfers and detect changes of username and file size regressions to abort a transfer immediately
         which would else block a slot and fail later.
     {+} Kill a connection if one site has reported the transfer as completed but the other one is still waiting.
+    {+} Set kill_ghosts_on_startup=1 to issue a ghost kick login for every site after startup.
     {+} Enable setting show_complete_time_stats to display the complete times relative to race start additional to the ones relative 
         to the the first site that completed the race
     {^} Rewrite rules unit for faster race start

@@ -648,7 +648,20 @@ begin
         ss := TSiteSlot(s.slots[i]);
         if ss.Status = ssOnline then
           bnc := ss.bnc;
-        if ((ss.todotask = nil) and (ss.Status <> ssOnline)) then
+
+        if ss.todotask <> nil then
+        begin
+          ss := nil;
+          Continue;
+        end;
+
+        if t.kill then
+        begin
+          // if we want to kill ghost connections, we would also want to do that on an online slot
+          Break;
+        end;
+
+        if ss.Status <> ssOnline then
           Break
         else
           ss := nil;
@@ -657,16 +670,24 @@ begin
 
     if ss = nil then
     begin
-      // all slots are busy, which means they are already logged in, we can stop here
-      if not t.noannounce then
+      if t.kill then
+      begin
+        Debug(dpError, section, 'GhostKill %s: no free slot found, ghost kill skipped', [t.site1]);
+        if not t.noannounce then
+          irc_Addtext(t, '<c4>Unable to kill ghosts on <b>%s</b>: all slots busy</c>', [t.site1]);
+      end
+      else if not t.noannounce then
       begin
         if bnc = '' then
           irc_Addtext(t, '<b>%s</b> IS ALREADY BEING TESTED', [t.site1])
         else
           irc_Addtext(t, '<b>%s</b> IS ALREADY UP: %s', [t.site1, bnc]);
       end;
-      s.WorkingStatus := sstUp;
-      debug(dpMessage, section, '%s IS UP', [t.site1]);
+      if not t.kill then
+      begin
+        s.WorkingStatus := sstUp;
+        debug(dpMessage, section, '%s IS UP', [t.site1]);
+      end;
       t.ready := True;
       exit;
     end;
