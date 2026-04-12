@@ -218,6 +218,12 @@ type
     fMaxSimUpCooldownSeconds: integer;
     fMaxSimDownCooldownUntil: TDateTime;
     fMaxSimDownCooldownSeconds: integer;
+    fDownloadCooldownUntil: TDateTime;
+    fUploadCooldownUntil: TDateTime;
+    fLoginCooldownUntil: TDateTime;
+    fLoginCooldownSeconds: integer;
+    fLoginCooldownLastSlot: String;
+    fActiveLoginAttempts: integer;
     fReducedSpeedstatWeight: boolean;
     fPermDownStatus: boolean;
     fSkipBeingUploadedFiles: TSkipBeingUploaded;
@@ -505,6 +511,16 @@ type
     function MaxSimDownCooldownActive: boolean;
     function MaxSimDownCooldownRemainingSeconds: integer;
 
+    function DownloadCooldownActive: boolean;
+    function UploadCooldownActive: boolean;
+    procedure RegisterLoginCooldownHit(const aSlotName: String);
+    function LoginCooldownActive: boolean;
+    procedure ResetLoginCooldown;
+    function LoginCooldownRemainingSeconds: integer;
+    procedure IncrementActiveLoginAttempts;
+    procedure DecrementActiveLoginAttempts;
+    function HasActiveLoginAttempt: boolean;
+
     { helper function for getting delayleech (see @link(delayleech)) min value from inifile.
       @param(aSection sectionname)
       @returns(minvalue if set, otherwise 0) }
@@ -648,6 +664,7 @@ procedure RemoveRaceTasks(const aPazoID: integer; const aSitename: String);
 procedure RemovePazoDirTasks(const aPazoID: integer; const aSitename: String);
 procedure RemovePazoSfv(const aPazoID: integer; const aDir: string);
 function IrcQueueShow(const netname, channel, params: String): boolean;
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
 procedure QueueEmpty(const sitename: String);
 procedure QueueStart;
 
@@ -756,6 +773,8 @@ const
   section = 'sites';
   MAXSIM_COOLDOWN_INITIAL_SECONDS = 5;
   MAXSIM_COOLDOWN_MAX_SECONDS = 120;
+  LOGIN_COOLDOWN_INITIAL_SECONDS = 5;
+  LOGIN_COOLDOWN_MAX_SECONDS = 120;
 
 var
   bnccsere: TSlCriticalSection2 = nil;
@@ -763,6 +782,7 @@ var
   // Config vars
   maxrelogins: integer = 3;
   delay_between_connects: integer = 200;
+  glInterTransferDelayMs: integer = 0;  // 0 = disabled; set via [sites] inter_transfer_delay_ms
   kill_connection_on_stalled_transfer_seconds: integer = 0;
   admin_siteslots: integer = 10;
   autologin: boolean = False;
@@ -1391,6 +1411,7 @@ begin
   debug(dpSpam, section, 'SitesStart begin');
 
   delay_between_connects := config.readInteger(section, 'delay_between_connects', 200);
+  glInterTransferDelayMs := config.readInteger(section, 'inter_transfer_delay_ms', 0);
   admin_siteslots := config.ReadInteger(section, 'admin_siteslots', 10);
   maxrelogins := config.ReadInteger(section, 'maxrelogins', 3);
   autologin := config.ReadBool(section, 'autologin', False);
@@ -1555,6 +1576,7 @@ var
   fPazoSite: TPazoSite;
   fPair: TDestinationRank;
   fSite: TSite;
+  fCurrentTask: TTask;
 begin
   Debug(dpSpam, section, 'Slot %s has started', [Name]);
   tname := 'nil';
@@ -1567,8 +1589,12 @@ begin
 
       if (todotask <> nil) then
       begin
+        // Capture the task reference now. DestroySocket (called from within Execute)
+        // may set self.todotask := nil, which would cause the cleanup block below to
+        // skip slot1/slot2 cleanup. Using fCurrentTask ensures cleanup always runs.
+        fCurrentTask := todotask;
         try
-          tname := todotask.Name;
+          tname := fCurrentTask.Name;
         except
           on E: Exception do
           begin
@@ -1579,18 +1605,18 @@ begin
         Debug(dpSpam, section, Format('--> %s', [Name]));
 
         try
-          if todotask.Execute(self) then
+          if fCurrentTask.Execute(self) then
           begin
             LastTaskExecution := Now();
 
-            if not (todotask is TIdleTask)
+            if not (fCurrentTask is TIdleTask)
 
               //if maxidle is reached, there will be a quit task. we don't want this to count as non-idle operation because
               //then idle tasks would be created again right away
-              and not (todotask is TQuitTask)
+              and not (fCurrentTask is TQuitTask)
 
               //ignore login task if its set to readd (autobnctest)
-              and not ((todotask is TLoginTask) and TLoginTask(todotask).readd)
+              and not ((fCurrentTask is TLoginTask) and TLoginTask(fCurrentTask).readd)
             then
             begin
               LastNonIdleTaskExecution := LastTaskExecution;
@@ -1602,7 +1628,7 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            todotask.readyerror := True;
+            fCurrentTask.readyerror := True;
           end;
         end;
 
@@ -1611,18 +1637,21 @@ begin
         uploadingto := False;
         downloadingfrom := False;
 
-        if (todotask <> nil) then
+        // Use fCurrentTask (captured before Execute) instead of self.todotask.
+        // DestroySocket called inside Execute may have already set self.todotask := nil,
+        // which would skip slot1 cleanup and leave the task stuck in the queue.
+        if (fCurrentTask <> nil) then
         begin
           try
             try
-              if todotask is TPazoRaceTask then
+              if fCurrentTask is TPazoRaceTask then
               begin
-                fSite := TSite(TPazoRaceTask(todotask).ssite2);
+                fSite := TSite(TPazoRaceTask(fCurrentTask).ssite2);
                 if fSite <> nil then
                 begin
                   fSite.AcquireSlotsAssignmentLock('RemoveActiveTransfer');
                   try
-                    TPazoRaceTask(todotask).ps2.RemoveActiveTransfer(TPazoRaceTask(todotask).dir + TPazoRaceTask(todotask).filename);
+                    TPazoRaceTask(fCurrentTask).ps2.RemoveActiveTransfer(TPazoRaceTask(fCurrentTask).dir + TPazoRaceTask(fCurrentTask).filename);
                   finally
                     fSite.ReleaseSlotsAssignmentLock;
                   end;
@@ -1631,7 +1660,7 @@ begin
                 // prepare all possible destination sites for a possible new transfer by firing their queue
                 if ((not shouldquit) and (not slshutdown)) then
                 begin
-                  for fPazoSite in TPazoRaceTask(todotask).mainpazo.PazoSitesList do
+                  for fPazoSite in TPazoRaceTask(fCurrentTask).mainpazo.PazoSitesList do
                   begin
                     for fPair in fPazoSite.destinations do
                     begin
@@ -1642,9 +1671,9 @@ begin
                 end;
               end;
 
-              if (todotask.slot1 <> nil) then
+              if (fCurrentTask.slot1 <> nil) then
               begin
-                todotask.slot1 := nil;
+                fCurrentTask.slot1 := nil;
               end;
             finally
               try
@@ -3084,66 +3113,99 @@ begin
 end;
 
 procedure TSiteSlot.SetDownloadingFrom(const Value: boolean);
+var
+  fTaskName: String;
 begin
   if Value <> fDownloadingFrom then
   begin
     fDownloadingFrom := Value;
+    if todotask <> nil then
+      fTaskName := todotask.Name
+    else
+      fTaskName := '?';
     if fDownloadingFrom then
     begin
       {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
-      if GetDebugVerbosity = dpSpam then
-        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d +dn (slot: %s) task: %s',
+        [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
     end
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
-      if GetDebugVerbosity = dpSpam then
-        Debug(dpSpam, section, 'Site %s: Download slots in use: %d!', [site.Name,site.num_dn ]);
+      if glInterTransferDelayMs > 0 then
+      begin
+        site.fDownloadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
+        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn cooldown %dms (slot: %s) task: %s',
+          [site.Name, site.num_dn, site.max_dn, glInterTransferDelayMs, Name, fTaskName]);
+      end
+      else
+        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn (slot: %s) task: %s',
+          [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
     end;
   end;
 end;
 
 procedure TSiteSlot.SetUploadingTo(const Value: boolean);
+var
+  fTaskName: String;
 begin
   if Value <> fUploadingTo then
   begin
     fUploadingTo := Value;
+    if todotask <> nil then
+      fTaskName := todotask.Name
+    else
+      fTaskName := '?';
     if fUploadingTo then
       begin
         {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
-        if GetDebugVerbosity = dpSpam then
-          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        Debug(dpError, section, '[SLOTS] %s: num_up %d/%d +up (slot: %s) task: %s',
+          [site.Name, site.num_up, site.max_up, Name, fTaskName]);
       end
     else
       begin
         {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
-        if GetDebugVerbosity = dpSpam then
-          Debug(dpSpam, section, 'Site %s: Upload slots in use: %d!', [site.Name,site.num_up ]);
+        if glInterTransferDelayMs > 0 then
+        begin
+          site.fUploadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
+          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up cooldown %dms (slot: %s) task: %s',
+            [site.Name, site.num_up, site.max_up, glInterTransferDelayMs, Name, fTaskName]);
+        end
+        else
+          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up (slot: %s) task: %s',
+            [site.Name, site.num_up, site.max_up, Name, fTaskName]);
       end;
   end;
 end;
 
 procedure TSiteSlot.SetTodotask(Value: TTask);
+var
+  fOldTaskName: String;
 begin
-  if fTodotask <> Value then
-  begin
-    site.fFreeSlotsCS.Enter('SetTodotask');
-    try
+  site.fFreeSlotsCS.Enter('SetTodotask');
+  try
+    if fTodotask <> Value then
+    begin
+      if fTodotask <> nil then
+        fOldTaskName := fTodotask.Name
+      else
+        fOldTaskName := '?';
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
+        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s) task: %s',
+          [site.Name, site.freeslots, site.slots.Count, Name, Value.Name]);
       end
       else
       begin
         site.freeslots := site.freeslots + 1;
+        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s) task: %s',
+          [site.Name, site.freeslots, site.slots.Count, Name, fOldTaskName]);
       end;
-    finally
-      site.fFreeSlotsCS.Leave;
     end;
-
-    if GetDebugVerbosity = dpSpam then
-      Debug(dpSpam, section, 'Site %s: Free slots: %d!', [site.Name,site.freeslots ]);
+  finally
+    site.fFreeSlotsCS.Leave;
   end;
 end;
 
@@ -3701,8 +3763,8 @@ begin
   fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
-  Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s set to %ds (until %s)(slot: %s)',
-    [Name, fMaxSimUpCooldownSeconds, DateTimeToStr(fMaxSimUpCooldownUntil), aSlotName]);
+  Debug(dpError, section, '[COOLDOWN] %s: MaxSim UP cooldown %ds, num_up %d/%d (slot: %s)',
+    [Name, fMaxSimUpCooldownSeconds, num_up, max_up, aSlotName]);
 end;
 
 procedure TSite.RegisterMaxSimDownHit(const aSlotName: String);
@@ -3721,8 +3783,8 @@ begin
   fMaxSimDownCooldownSeconds := fNewCooldown;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
-  Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s set to %ds (until %s)(slot: %s)',
-    [Name, fMaxSimDownCooldownSeconds, DateTimeToStr(fMaxSimDownCooldownUntil), aSlotName]);
+  Debug(dpError, section, '[COOLDOWN] %s: MaxSim DOWN cooldown %ds, num_dn %d/%d (slot: %s)',
+    [Name, fMaxSimDownCooldownSeconds, num_dn, max_dn, aSlotName]);
 end;
 
 procedure TSite.ResetMaxSimUpCooldown;
@@ -3757,8 +3819,8 @@ begin
   begin
     if fMaxSimUpCooldownSeconds > 0 then
     begin
-      Debug(dpSpam, section, '[MAXSIM COOLDOWN] UP cooldown for %s expired after %ds',
-        [Name, fMaxSimUpCooldownSeconds]);
+      Debug(dpError, section, '[COOLDOWN] %s: MaxSim UP cooldown expired after %ds, num_up %d/%d',
+        [Name, fMaxSimUpCooldownSeconds, num_up, max_up]);
       fMaxSimUpCooldownSeconds := 0;
     end;
     fMaxSimUpCooldownUntil := 0;
@@ -3781,8 +3843,8 @@ begin
   begin
     if fMaxSimDownCooldownSeconds > 0 then
     begin
-      Debug(dpSpam, section, '[MAXSIM COOLDOWN] DOWN cooldown for %s expired after %ds',
-        [Name, fMaxSimDownCooldownSeconds]);
+      Debug(dpError, section, '[COOLDOWN] %s: MaxSim DOWN cooldown expired after %ds, num_dn %d/%d',
+        [Name, fMaxSimDownCooldownSeconds, num_dn, max_dn]);
       fMaxSimDownCooldownSeconds := 0;
     end;
     fMaxSimDownCooldownUntil := 0;
@@ -5075,4 +5137,109 @@ begin
 
 end;
 
+function TSite.DownloadCooldownActive: boolean;
+begin
+  Result := (fDownloadCooldownUntil > 0) and (Now < fDownloadCooldownUntil);
+end;
+
+function TSite.UploadCooldownActive: boolean;
+begin
+  Result := (fUploadCooldownUntil > 0) and (Now < fUploadCooldownUntil);
+end;
+
+procedure TSite.RegisterLoginCooldownHit(const aSlotName: String);
+var
+  fNewCooldown: integer;
+begin
+  if fLoginCooldownSeconds = 0 then
+    fNewCooldown := LOGIN_COOLDOWN_INITIAL_SECONDS
+  else
+  begin
+    fNewCooldown := fLoginCooldownSeconds * 2;
+    if fNewCooldown > LOGIN_COOLDOWN_MAX_SECONDS then
+      fNewCooldown := LOGIN_COOLDOWN_MAX_SECONDS;
+  end;
+  fLoginCooldownSeconds := fNewCooldown;
+  fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
+  fLoginCooldownLastSlot := aSlotName;
+  Debug(dpError, section, '[COOLDOWN] %s: Login cooldown %ds, freeslots %d/%d (slot: %s)',
+    [Name, fLoginCooldownSeconds, freeslots, slots.Count, aSlotName]);
+end;
+
+function TSite.LoginCooldownActive: boolean;
+begin
+  if fLoginCooldownUntil = 0 then
+  begin
+    Result := False;
+    Exit;
+  end;
+  if Now >= fLoginCooldownUntil then
+  begin
+    if fLoginCooldownSeconds > 0 then
+      Debug(dpError, section, '[COOLDOWN] %s: Login cooldown expired after %ds, freeslots %d/%d (slot: %s)',
+        [Name, fLoginCooldownSeconds, freeslots, slots.Count, fLoginCooldownLastSlot]);
+    fLoginCooldownUntil := 0;
+    Result := False;
+    Exit;
+  end;
+  Result := True;
+end;
+
+procedure TSite.ResetLoginCooldown;
+begin
+  fLoginCooldownSeconds := 0;
+  fLoginCooldownUntil := 0;
+end;
+
+function TSite.LoginCooldownRemainingSeconds: integer;
+begin
+  if not LoginCooldownActive then
+    Result := 0
+  else
+    Result := SecondsBetween(Now, fLoginCooldownUntil);
+end;
+
+procedure TSite.IncrementActiveLoginAttempts;
+begin
+  Inc(fActiveLoginAttempts);
+end;
+
+procedure TSite.DecrementActiveLoginAttempts;
+begin
+  if fActiveLoginAttempts > 0 then
+    Dec(fActiveLoginAttempts);
+end;
+
+function TSite.HasActiveLoginAttempt: boolean;
+begin
+  Result := fActiveLoginAttempts > 0;
+end;
+
+function TSite.GetNewdirDirlistReadd: integer;
+begin
+  Result := RCInteger('newdir_dirlist_readd', 0);
+end;
+
+procedure TSite.SetNewdirDirlistReadd(const Value: integer);
+begin
+  WCInteger('newdir_dirlist_readd', Value);
+end;
+
+
+{ @abstract(Returns count of pending race tasks targeting the given destination site) }
+function GetPendingRaceTaskCountForDestination(const aDestinationSiteName: String): integer;
+var
+  fSite: TSite;
+  fI: Integer;
+begin
+  Result := 0;
+  if aDestinationSiteName = '' then
+    Exit;
+  for fI := 0 to sites.Count - 1 do
+  begin
+    fSite := TSite(sites[fI]);
+    if (fSite <> nil) and (fSite.fQueue <> nil) then
+      Result := Result + fSite.fQueue.GetPendingRaceTasksToDestination(aDestinationSiteName);
+  end;
+end;
 end.
