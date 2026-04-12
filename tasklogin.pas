@@ -61,7 +61,7 @@ begin
   begin
     if kill then
     begin
-      Debug(dpError, section, 'GhostKill %s: executing on slot %s, disconnecting...', [site1, s.Name]);
+      Debug(dpSpam, section, 'GhostKill %s: executing on slot %s, disconnecting...', [site1, s.Name]);
       s.Quit;
       Result := s.ReLogin(1, True, section, readd);
       Debug(dpError, section, 'GhostKill %s: slot %s reconnect result: %s', [site1, s.Name, BoolToStr(Result, 'ok', 'failed')]);

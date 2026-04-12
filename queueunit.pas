@@ -632,15 +632,13 @@ begin
 
         if ss.todotask <> nil then
         begin
-          if t.kill then
-            Debug(dpError, section, 'GhostKill %s: slot %s is busy, trying next', [t.site1, ss.Name]);
           ss := nil;
           Continue;
         end;
 
         if t.kill then
         begin
-          Debug(dpError, section, 'GhostKill %s: using slot %s', [t.site1, ss.Name]);
+          // if we want to kill ghost connections, we would also want to do that on an online slot
           Break;
         end;
 
