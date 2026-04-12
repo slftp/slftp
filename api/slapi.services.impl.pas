@@ -4414,6 +4414,7 @@ function TApiIrcServiceImpl.AddChannel(const NetName, Channel, ChanKey, Blowkey,
 var
   netNameStr, channelStr, chankeyStr, blowkeyStr, rolesStr: string;
   cbc: boolean;
+  ircth: TMyIrcThread;
 begin
   Result := False;
   try
@@ -4423,14 +4424,19 @@ begin
     blowkeyStr := UTF8ToString(Blowkey);
     rolesStr := UTF8ToString(Roles);
 
-    // Check if channel already exists
+    ircth := FindIrcnetwork(netNameStr);
+    if ircth = nil then
+    begin
+      Debug(dpError, 'slapi', Format('AddChannel: Network %s not found', [netNameStr]));
+      Exit;
+    end;
+
     if FindIrcChannelSettings(netNameStr, channelStr) <> nil then
     begin
       Debug(dpError, 'slapi', Format('AddChannel: Channel %s@%s already exists', [channelStr, netNameStr]));
       Exit;
     end;
 
-    // Check if blowkey starts with 'cbc:' prefix (for CBC mode)
     cbc := False;
     if Copy(LowerCase(blowkeyStr), 1, 4) = 'cbc:' then
     begin
@@ -4438,15 +4444,12 @@ begin
       cbc := True;
     end;
 
-    // Write to config if blowkey is set
+    sitesdat.WriteString('channel-' + netNameStr + '-' + channelStr, 'blowkey', blowkeyStr);
     if blowkeyStr <> '' then
-    begin
-      sitesdat.WriteString('channel-' + netNameStr + '-' + channelStr, 'blowkey', blowkeyStr);
       sitesdat.WriteBool('channel-' + netNameStr + '-' + channelStr, 'cbc', cbc);
-    end;
 
-    // Use RegisterChannelSettings to add the channel
     RegisterChannelSettings(netNameStr, channelStr, rolesStr, blowkeyStr, chankeyStr, False, cbc);
+    ircth.shouldjoin := True;
 
     Debug(dpMessage, 'slapi', Format('AddChannel: Added channel %s@%s (CBC: %s)', [channelStr, netNameStr, BoolToStr(cbc, True)]));
     Result := True;
