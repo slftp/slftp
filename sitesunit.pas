@@ -3155,7 +3155,7 @@ begin
     if fDownloadingFrom then
     begin
       {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
-      Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d +dn (slot: %s) task: %s',
+      Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d +dn (slot: %s) task: %s',
         [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
     end
     else
@@ -3164,11 +3164,11 @@ begin
       if glInterTransferDelayMs > 0 then
       begin
         site.fDownloadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn cooldown %dms (slot: %s) task: %s',
+        Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d -dn cooldown %dms (slot: %s) task: %s',
           [site.Name, site.num_dn, site.max_dn, glInterTransferDelayMs, Name, fTaskName]);
       end
       else
-        Debug(dpError, section, '[SLOTS] %s: num_dn %d/%d -dn (slot: %s) task: %s',
+        Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d -dn (slot: %s) task: %s',
           [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
     end;
   end;
@@ -3188,7 +3188,7 @@ begin
     if fUploadingTo then
       begin
         {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
-        Debug(dpError, section, '[SLOTS] %s: num_up %d/%d +up (slot: %s) task: %s',
+        Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d +up (slot: %s) task: %s',
           [site.Name, site.num_up, site.max_up, Name, fTaskName]);
       end
     else
@@ -3197,11 +3197,11 @@ begin
         if glInterTransferDelayMs > 0 then
         begin
           site.fUploadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up cooldown %dms (slot: %s) task: %s',
+          Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d -up cooldown %dms (slot: %s) task: %s',
             [site.Name, site.num_up, site.max_up, glInterTransferDelayMs, Name, fTaskName]);
         end
         else
-          Debug(dpError, section, '[SLOTS] %s: num_up %d/%d -up (slot: %s) task: %s',
+          Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d -up (slot: %s) task: %s',
             [site.Name, site.num_up, site.max_up, Name, fTaskName]);
       end;
   end;
@@ -3223,13 +3223,13 @@ begin
       if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s) task: %s',
+        Debug(dpSpam, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s) task: %s',
           [site.Name, site.freeslots, site.slots.Count, Name, Value.Name]);
       end
       else
       begin
         site.freeslots := site.freeslots + 1;
-        Debug(dpError, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s) task: %s',
+        Debug(dpSpam, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s) task: %s',
           [site.Name, site.freeslots, site.slots.Count, Name, fOldTaskName]);
       end;
     end;
@@ -3800,7 +3800,7 @@ begin
   fMaxSimUpCooldownSeconds := fNewCooldown;
   fMaxSimUpCooldownUntil := IncSecond(Now, fMaxSimUpCooldownSeconds);
 
-  Debug(dpError, section, '[COOLDOWN] %s: MaxSim UP cooldown %ds, num_up %d/%d (slot: %s)',
+  Debug(dpSpam, section, '[COOLDOWN] %s: MaxSim UP cooldown %ds, num_up %d/%d (slot: %s)',
     [Name, fMaxSimUpCooldownSeconds, num_up, max_up, aSlotName]);
 end;
 
@@ -3820,7 +3820,7 @@ begin
   fMaxSimDownCooldownSeconds := fNewCooldown;
   fMaxSimDownCooldownUntil := IncSecond(Now, fMaxSimDownCooldownSeconds);
 
-  Debug(dpError, section, '[COOLDOWN] %s: MaxSim DOWN cooldown %ds, num_dn %d/%d (slot: %s)',
+  Debug(dpSpam, section, '[COOLDOWN] %s: MaxSim DOWN cooldown %ds, num_dn %d/%d (slot: %s)',
     [Name, fMaxSimDownCooldownSeconds, num_dn, max_dn, aSlotName]);
 end;
 
@@ -3856,7 +3856,7 @@ begin
   begin
     if fMaxSimUpCooldownSeconds > 0 then
     begin
-      Debug(dpError, section, '[COOLDOWN] %s: MaxSim UP cooldown expired after %ds, num_up %d/%d',
+      Debug(dpSpam, section, '[COOLDOWN] %s: MaxSim UP cooldown expired after %ds, num_up %d/%d',
         [Name, fMaxSimUpCooldownSeconds, num_up, max_up]);
       fMaxSimUpCooldownSeconds := 0;
     end;
@@ -3880,7 +3880,7 @@ begin
   begin
     if fMaxSimDownCooldownSeconds > 0 then
     begin
-      Debug(dpError, section, '[COOLDOWN] %s: MaxSim DOWN cooldown expired after %ds, num_dn %d/%d',
+      Debug(dpSpam, section, '[COOLDOWN] %s: MaxSim DOWN cooldown expired after %ds, num_dn %d/%d',
         [Name, fMaxSimDownCooldownSeconds, num_dn, max_dn]);
       fMaxSimDownCooldownSeconds := 0;
     end;
@@ -5199,7 +5199,7 @@ begin
   fLoginCooldownSeconds := fNewCooldown;
   fLoginCooldownUntil := IncSecond(Now, fLoginCooldownSeconds);
   fLoginCooldownLastSlot := aSlotName;
-  Debug(dpError, section, '[COOLDOWN] %s: Login cooldown %ds, freeslots %d/%d (slot: %s)',
+  Debug(dpSpam, section, '[COOLDOWN] %s: Login cooldown %ds, freeslots %d/%d (slot: %s)',
     [Name, fLoginCooldownSeconds, freeslots, slots.Count, aSlotName]);
 end;
 
@@ -5213,7 +5213,7 @@ begin
   if Now >= fLoginCooldownUntil then
   begin
     if fLoginCooldownSeconds > 0 then
-      Debug(dpError, section, '[COOLDOWN] %s: Login cooldown expired after %ds, freeslots %d/%d (slot: %s)',
+      Debug(dpSpam, section, '[COOLDOWN] %s: Login cooldown expired after %ds, freeslots %d/%d (slot: %s)',
         [Name, fLoginCooldownSeconds, freeslots, slots.Count, fLoginCooldownLastSlot]);
     fLoginCooldownUntil := 0;
     Result := False;
