@@ -3,13 +3,13 @@ unit slcriticalsection;
 interface
 
 uses
-  SyncObjs, Contnrs, IdGlobal;
+  SyncObjs, Contnrs;
 
 type
   TslCriticalSection = class
   private
     rc: Integer;
-    rt: TIdThreadId;
+    rt: TThreadID;
     w: TObjectList;
     l: TCriticalSection;
     slshutdown: Boolean;
@@ -24,7 +24,7 @@ type
 implementation
 
 uses
-  Classes, Types, SysUtils, irc, debugunit;
+  Classes, Types, SysUtils, irc, debugunit, mormot.core.os;
 
 var
   ec: Cardinal = 0;
@@ -85,11 +85,11 @@ function TslCriticalSection.Enter(sname: String = ''): Boolean;
 label
   ujra;
 var
-  procId: TIdThreadId;
+  procId: TThreadID;
   event: TEvent;
 begin
   Result := False;
-  procId := IdGlobal.CurrentThreadId;
+  procId := GetCurrentThreadId;
 
 ujra:
   if slshutdown then exit;
@@ -144,9 +144,9 @@ end;
 
 procedure TslCriticalSection.Leave;
 var
-  procId: TIdThreadId;
+  procId: TThreadID;
 begin
-  procId := IdGlobal.CurrentThreadId;
+  procId := GetCurrentThreadId;
   try
     l.Enter;
     try

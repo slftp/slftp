@@ -72,10 +72,12 @@ var
   GlTaskPretimeReaddInterval: integer;
   GlTaskRaceAutoRuleAdd: boolean;
   GlTaskRaceBadCrcEvents: integer;
+  GlPostCrcErrorsToIRC: boolean;
+  GlPostFilenameNotAllowedToIRC: boolean;
 
 implementation
 
-uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify;
+uses SysUtils, Contnrs, SyncObjs, debugunit, queueunit, sitesunit, configunit, notify, mrdohutils;
 
 const
   section = 'tasks';
@@ -181,6 +183,8 @@ begin
   GlTaskPretimeReaddInterval := config.ReadInteger('taskpretime', 'readd_interval', 3);
   GlTaskRaceAutoRuleAdd := config.ReadBool('taskrace', 'autoruleadd', True);
   GlTaskRaceBadCrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
+  GlPostCrcErrorsToIRC := spamcfg.readbool('taskrace', 'crc_error', True);
+  GlPostFilenameNotAllowedToIRC := spamcfg.ReadBool('taskrace', 'filename_not_allowed', True)
 end;
 
 procedure Tasks_Uninit;

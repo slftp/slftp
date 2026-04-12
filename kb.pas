@@ -486,7 +486,7 @@ begin
       if (event = kbeADDPRE) then
       begin
         if spamcfg.ReadBool('kb', 'new_rls', True) then
-          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s', [section, rls]));
+          irc_Addstats(Format('<c3>[ADDPRE]</c> %s %s @ <b>%s</b>', [section, rls, channel]));
       end
       else if (event = kbePRE) then
       begin
@@ -1279,10 +1279,13 @@ begin
   kb_sections.Sorted := True;
   kb_sections.Duplicates := dupIgnore;
 
-  secs := TStringlist.Create;
-  r := TRegexpr.Create;
-  xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
+  secs := nil;
+  r := nil;
+  xin := nil;
   try
+    secs := TStringlist.Create;
+    r := TRegexpr.Create;
+    xin := Tinifile.Create(ExtractFilePath(ParamStr(0)) + 'slftp.precatcher');
     r.ModifierI := True;
     r.ModifierM := True;
     r.Expression := '^(\#|\/\/)';
@@ -1299,9 +1302,9 @@ begin
     end;
 
   finally
-    xin.Free;
-    r.free;
-    secs.free;
+    FreeAndNil(xin);
+    FreeAndNil(r);
+    FreeAndNil(secs);
   end;
   Result := True;
 end;

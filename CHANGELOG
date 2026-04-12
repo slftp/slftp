@@ -43,6 +43,8 @@
       mode=0 in [dbaddpre] for in-memory pre DB
       add_to_kb_on_dbaddpre_insert=0
       kill_ghosts_on_startup=0
+      show_complete_time_stats=0
+      enable_boxofficemojo_lookup=0 in [dbaddimdb] - fetches screen counts from Box Office Mojo (~5-6s added to IMDB lookup)
 
     1. compare your slftp.ini with the provided one in /config folder
     2. update your helpfiles with the provided ones in /helpfiles folder
@@ -51,6 +53,10 @@
 --==============================( KNOWN BUGS )====================================-
 
     Statsoutput sometimes screwed -> NEGATIVE BYTES (due to parsing of x-dupe response)
+
+--=============================( IMDBAPI MIGRATION )================================-
+    {#} Fix BOM screen count lookup fetching re-release page instead of Original Release, resulting in 0 screens for wide movies
+    {+} Add enable_boxofficemojo_lookup option in [dbaddimdb] to fetch screen counts from Box Office Mojo (adds ~5-6s to IMDB lookup)
 
 --=============================( SLFTP v1.5.11 )==================================-
     {#} Fix error when trying to install openssl 1.1.1w via the libinstaller
@@ -67,6 +73,8 @@
         which would else block a slot and fail later.
     {+} Kill a connection if one site has reported the transfer as completed but the other one is still waiting.
     {+} Set kill_ghosts_on_startup=1 to issue a ghost kick login for every site after startup.
+    {+} Enable setting show_complete_time_stats to display the complete times relative to race start additional to the ones relative 
+        to the the first site that completed the race
     {^} Rewrite rules unit for faster race start
     {^} Rewrite of in-memory pre DB which now uses in-memory SQLite. Enable by using mode=0 in [dbaddpre] section of slftp.ini
     {^} Added support for OpenSSL 3

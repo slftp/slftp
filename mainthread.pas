@@ -257,7 +257,7 @@ begin
   console_addline('Admin', 'Init Prebot', True);
   PrebotInit;
   console_addline('Admin', 'Init Precatcher', True);
-  Precatcher_Init;
+  Precatcher_Init(False);
   console_addline('Admin', 'Init Rules', True);
   RulesInit;
   console_addline('Admin', 'Init Skiplists', True);
