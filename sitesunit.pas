@@ -1646,7 +1646,13 @@ begin
             Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
-            fCurrentTask.readyerror := True;
+            try
+              fCurrentTask.readyerror := True;
+            except
+              // fCurrentTask may point to already-freed memory (use-after-free).
+              // Swallow the AV to prevent it from skipping the cleanup block below
+              // which MUST clear todotask to avoid an infinite AV loop.
+            end;
           end;
         end;
 
@@ -1716,6 +1722,10 @@ begin
           except
             on e: Exception do
             begin
+              // Even if the cleanup block AVs (dangling fCurrentTask), todotask MUST
+              // be cleared. Otherwise the while loop will spin forever trying to
+              // access the freed task object on every iteration.
+              todotask := nil;
               Debug(dpError, section,
                 Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask : %s',
                 [e.Message]));
