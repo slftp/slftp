@@ -1680,6 +1680,7 @@ begin
   begin
     debug(dpSpam, section, 'MkdirError ' + Name + ' ' + dir);
     irc_Addstats(Format('<c7>[MKDIR ERROR]</c> : %s %s/%s @ <b>%s</b>', [pazo.rls.section, pazo.rls.rlsname, dir, Name]));
+    d.dependency_mkdir := '';
     d.need_mkdir := True;
     d.error := True;
   end;
