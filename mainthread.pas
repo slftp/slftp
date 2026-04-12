@@ -308,7 +308,7 @@ begin
   if (not glStartupGhostKillDone) and (SecondsBetween(Now, started) >= 15) then
   begin
     glStartupGhostKillDone := True;
-    if config.ReadBool('sites', 'kill_ghosts_on_startup', True) then
+    if config.ReadBool('sites', 'kill_ghosts_on_startup', False) then
     begin
       Debug(dpError, section, 'Startup: Triggering automatic ghost kill for all sites...');
       for i := 0 to sites.Count - 1 do
