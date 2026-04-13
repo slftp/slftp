@@ -1695,11 +1695,13 @@ begin
                 end;
               end;
 
-              if (fCurrentTask.slot1 <> nil) then
-              begin
-                fCurrentTask.slot1 := nil;
-              end;
             finally
+              // IMPORTANT: Set todotask := nil BEFORE clearing slot1.
+              // RemoveReady frees tasks where (ready/readyerror=True AND slot1=nil).
+              // If we clear slot1 first, RemoveReady can free the task while we still
+              // need fTodotask in SetTodotask (to read .Name and adjust freeslots).
+              // By clearing todotask first (while slot1 still prevents freeing), the
+              // SetTodotask call safely accesses fTodotask before it can be freed.
               try
                 self.site.AcquireSlotsAssignmentLock('Reset TodoTask');
                 try
@@ -1710,13 +1712,18 @@ begin
               except
                 on E: Exception do
                 begin
-                  // could not reset todotask with the slots assignment lock, but we should reset the todotask anyway.
-                  // This should not really ever happen, other than in a deadlock situation.
                   todotask := nil;
                   Debug(dpError, section,
                     Format('[EXCEPTION] TSiteSlot.Execute : Exception remove todotask with slots assignment lock. Proceed without the lock : %s',
                     [e.Message]));
                 end;
+              end;
+
+              // Now clear slot1 — this makes the task eligible for removal by RemoveReady.
+              // We no longer access fCurrentTask after this point.
+              if (fCurrentTask.slot1 <> nil) then
+              begin
+                fCurrentTask.slot1 := nil;
               end;
             end;
           except

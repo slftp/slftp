@@ -1744,7 +1744,10 @@ begin
 
     ss := '';
     ts := TSite(fSite);
-    fBusyDestinations.Clear;
+    if fBusyDestinations <> nil then
+      fBusyDestinations.Clear
+    else
+      fBusyDestinations := TDictionary<TObject, integer>.Create;
     fNextTaskStartAt := MaxDateTime;
     bTasksMoved := False;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
