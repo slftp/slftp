@@ -232,6 +232,9 @@ end;
 
 procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
 begin
+  // Short-circuit: skip expensive Format() call when priority won't be logged
+  if glCachedDebugPriority = dpNone then exit;
+  if glCachedDebugPriority < priority then exit;
   try
     Debug(priority, section, Format(FormatStr, Args));
   except

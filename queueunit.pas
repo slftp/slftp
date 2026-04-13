@@ -1722,7 +1722,6 @@ var
   s:    TSiteSlot;
   ss:   String;
   ts:   TSite;
-  fBusyDestinationsTmp: TDictionary<TObject, integer>;
   fNextTaskStartAt: TDateTime;
   fWaitTimerTimeout: Cardinal;
   bTasksMoved: Boolean;
@@ -1746,8 +1745,7 @@ begin
 
     ss := '';
     ts := TSite(fSite);
-    fBusyDestinationsTmp := fBusyDestinations;
-    fBusyDestinations := TDictionary<TObject, integer>.Create;
+    fBusyDestinations.Clear;
     fNextTaskStartAt := MaxDateTime;
     bTasksMoved := False;
     //Debug(dpSpam, section, 'Queue Iteration begin (%s) [%d tasks]', [ts.Name, tasks.Count]);
@@ -1776,41 +1774,42 @@ begin
         if bTasksMoved then
           tasks.Sort(@QueueSorter);
 
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for i := fList.Count - 1 downto 0 do
+        // Acquire lock once for the entire RemoveReady pass instead of per-task
+        ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
+        try
+          for fListIndex := 0 to 1 do
           begin
-            if i < 0 then
-              Break;
-
-            fTask := TTask(fList.items[i]);
-
-          if fTask = nil then
-            Continue;
-
-          try
-            if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
+            if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+            for i := fList.Count - 1 downto 0 do
             begin
-              ss := fTask.uidtext;
-              if fTask.IsNotifyTask then
-                TaskReady(fTask);
+              if i < 0 then
+                Break;
 
-              if (fTask.ClassType = TPazoRaceTask) then
+              fTask := TTask(fList.items[i]);
+
+            if fTask = nil then
+              Continue;
+
+            try
+              if (((fTask.ready) or (fTask.readyerror)) and (fTask.slot1 = nil)) then
               begin
-                with TPazoRaceTask(fTask) do
-                if (dst <> nil) then
+                ss := fTask.uidtext;
+                if fTask.IsNotifyTask then
+                  TaskReady(fTask);
+
+                if (fTask.ClassType = TPazoRaceTask) then
                 begin
-                  try
-                    dst.event.SetEvent;
-                  except
-                    on e: Exception do
-                      Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
+                  with TPazoRaceTask(fTask) do
+                  if (dst <> nil) then
+                  begin
+                    try
+                      dst.event.SetEvent;
+                    except
+                      on e: Exception do
+                        Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady SetEvent): %s [%s]', [e.Message, ss]));
+                    end;
                   end;
                 end;
-              end;
-              ts.AcquireSlotsAssignmentLock('Queue remove ready tasks');
-              try
                 try
                   fList.Remove(fTask);
                 except
@@ -1827,19 +1826,19 @@ begin
                     end;
                   end;
                 end;
-              finally
-                ts.ReleaseSlotsAssignmentLock;
+                Console_QueueDel(ss);
               end;
-              Console_QueueDel(ss);
-            end;
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
-              Continue;
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section, Format('[EXCEPTION] TQueueThread.Execute (RemoveReady): %s', [e.Message]));
+                Continue;
+              end;
             end;
           end;
-        end;
+          end;
+        finally
+          ts.ReleaseSlotsAssignmentLock;
         end;
 
         ts.AcquireSlotsAssignmentLock('Queue iterate');
@@ -1883,7 +1882,6 @@ begin
         end;
       finally
         main_lock.Leave;
-        fBusyDestinationsTmp.Free;
       end;
 
       QueueStat;
