@@ -821,7 +821,7 @@ var
   sitelist: String;
   shouldSendUDP: Boolean;
   udpSocket: TNetSocket;
-  udpMessage: RawUtf8;
+  udpMessage: RawByteString;
   destAddr: TNetAddr;
   res: TNetResult;
 begin
