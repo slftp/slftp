@@ -21,7 +21,7 @@ implementation
 
 uses
   SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings,
-  mormot.lib.openssl11, DynLibs;
+  mormot.lib.openssl11, DynLibs, slcriticalsection2;
 
 const
   section = 'crypto';
@@ -46,27 +46,33 @@ var
   _EVP_EncryptFinal_ex: TEVP_EncryptFinal_ex = nil;
   _PKCS5_PBKDF2_HMAC: TPKCS5_PBKDF2_HMAC = nil;
   _CryptoLibLoaded: Boolean = False;
+  _CryptoLoadLock: TSlCriticalSection2 = nil;
 
 procedure LoadCryptoFunctions;
 var
   lib: TLibHandle;
 begin
-  if _CryptoLibLoaded then
-    Exit;
-  _CryptoLibLoaded := True;
-  lib := LoadLibrary('libcrypto.so.3');
-  if lib = NilHandle then
-    lib := LoadLibrary('libcrypto.so.1.1');
-  if lib = NilHandle then
-    lib := LoadLibrary('libcrypto.so');
-  if lib = NilHandle then
-  begin
-    Debug(dpError, section, 'CbftpEncryptAES: could not load libcrypto');
-    Exit;
+  _CryptoLoadLock.Enter('LoadCryptoFunctions');
+  try
+    if _CryptoLibLoaded then
+      Exit;
+    _CryptoLibLoaded := True;
+    lib := LoadLibrary('libcrypto.so.3');
+    if lib = NilHandle then
+      lib := LoadLibrary('libcrypto.so.1.1');
+    if lib = NilHandle then
+      lib := LoadLibrary('libcrypto.so');
+    if lib = NilHandle then
+    begin
+      Debug(dpError, section, 'CbftpEncryptAES: could not load libcrypto');
+      Exit;
+    end;
+    _EVP_EncryptInit_ex := TEVP_EncryptInit_ex(GetProcAddress(lib, 'EVP_EncryptInit_ex'));
+    _EVP_EncryptFinal_ex := TEVP_EncryptFinal_ex(GetProcAddress(lib, 'EVP_EncryptFinal_ex'));
+    _PKCS5_PBKDF2_HMAC := TPKCS5_PBKDF2_HMAC(GetProcAddress(lib, 'PKCS5_PBKDF2_HMAC'));
+  finally
+    _CryptoLoadLock.Leave;
   end;
-  _EVP_EncryptInit_ex := TEVP_EncryptInit_ex(GetProcAddress(lib, 'EVP_EncryptInit_ex'));
-  _EVP_EncryptFinal_ex := TEVP_EncryptFinal_ex(GetProcAddress(lib, 'EVP_EncryptFinal_ex'));
-  _PKCS5_PBKDF2_HMAC := TPKCS5_PBKDF2_HMAC(GetProcAddress(lib, 'PKCS5_PBKDF2_HMAC'));
 end;
 
 procedure MyCryptoInit;
@@ -133,14 +139,13 @@ var
   tmpKeyIV: array[0..AES256_KEY_LENGTH + AES256_IV_LENGTH - 1] of Byte;
   outLen, finalLen: Integer;
   salt: array[0..CBFTP_SALT_LENGTH - 1] of Byte;
-  i: Integer;
 begin
   Result := '';
   if (aData = '') or (aPassword = '') then
     Exit;
 
   LoadCryptoFunctions;
-  if (@_EVP_EncryptInit_ex = nil) or (@_EVP_EncryptFinal_ex = nil) or (@_PKCS5_PBKDF2_HMAC = nil) then
+  if not Assigned(_EVP_EncryptInit_ex) or not Assigned(_EVP_EncryptFinal_ex) or not Assigned(_PKCS5_PBKDF2_HMAC) then
   begin
     Debug(dpError, section, 'CbftpEncryptAES: required OpenSSL functions not available');
     Exit;
@@ -154,8 +159,11 @@ begin
     Exit;
   end;
 
-  for i := 0 to CBFTP_SALT_LENGTH - 1 do
-    salt[i] := Byte(Random(256));
+  if RAND_bytes(@salt[0], CBFTP_SALT_LENGTH) <> 1 then
+  begin
+    Debug(dpError, section, 'CbftpEncryptAES: RAND_bytes failed');
+    Exit;
+  end;
 
   _PKCS5_PBKDF2_HMAC(PAnsiChar(aPassword), Length(aPassword),
     @salt[0], CBFTP_SALT_LENGTH, CBFTP_KDF_ITERATIONS, md,
@@ -203,5 +211,11 @@ begin
     EVP_CIPHER_CTX_free(ctx);
   end;
 end;
+
+initialization
+  _CryptoLoadLock := TSlCriticalSection2.Create('mycrypto_load');
+
+finalization
+  FreeAndNil(_CryptoLoadLock);
 
 end.
