@@ -11,19 +11,63 @@ procedure MycryptoStop;
 function DecryptUDP(const s: String): String;
 function EncryptUDP(const s: String): String;
 
+{ AES-256-CBC encryption compatible with cbftp's Crypto::encrypt format.
+  Output: "Salted__" (8 bytes) + random salt (8 bytes) + AES-256-CBC encrypted data.
+  Key derivation: PBKDF2-HMAC-SHA256 with 10000 iterations using aPassword and the random salt.
+  Returns empty string on error. }
+function CbftpEncryptAES(const aData: RawByteString; const aPassword: RawByteString): RawByteString;
+
 implementation
 
 uses
-  SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings;
+  SysUtils, delphiblowfish, configunit, debugunit, Math, mystrings,
+  mormot.lib.openssl11, DynLibs;
 
 const
   section = 'crypto';
   UDP_MIN_PADDING = 8;
   UDP_MAX_PADDING = 32;
   MAX_UDP_PACKET = 16384;
+  CBFTP_SALT_LENGTH = 8;
+  CBFTP_SALT_HEADER_LENGTH = 16;
+  CBFTP_KDF_ITERATIONS = 10000;
+  AES256_BLOCK_SIZE = 16;
+  AES256_KEY_LENGTH = 32;
+  AES256_IV_LENGTH = 16;
+
+type
+  TEVP_EncryptInit_ex = function(ctx: PEVP_CIPHER_CTX; cipher: PEVP_CIPHER; eng: Pointer; key: PByte; iv: PByte): Integer; cdecl;
+  TEVP_EncryptFinal_ex = function(ctx: PEVP_CIPHER_CTX; out_: PByte; outl: PInteger): Integer; cdecl;
+  TPKCS5_PBKDF2_HMAC = function(pass: PAnsiChar; passlen: Integer; salt: PByte; saltlen: Integer; iter: Integer; digest: PEVP_MD; keylen: Integer; out_: PByte): Integer; cdecl;
 
 var
   KeyData: TBlowfishData;
+  _EVP_EncryptInit_ex: TEVP_EncryptInit_ex = nil;
+  _EVP_EncryptFinal_ex: TEVP_EncryptFinal_ex = nil;
+  _PKCS5_PBKDF2_HMAC: TPKCS5_PBKDF2_HMAC = nil;
+  _CryptoLibLoaded: Boolean = False;
+
+procedure LoadCryptoFunctions;
+var
+  lib: TLibHandle;
+begin
+  if _CryptoLibLoaded then
+    Exit;
+  _CryptoLibLoaded := True;
+  lib := LoadLibrary('libcrypto.so.3');
+  if lib = NilHandle then
+    lib := LoadLibrary('libcrypto.so.1.1');
+  if lib = NilHandle then
+    lib := LoadLibrary('libcrypto.so');
+  if lib = NilHandle then
+  begin
+    Debug(dpError, section, 'CbftpEncryptAES: could not load libcrypto');
+    Exit;
+  end;
+  _EVP_EncryptInit_ex := TEVP_EncryptInit_ex(GetProcAddress(lib, 'EVP_EncryptInit_ex'));
+  _EVP_EncryptFinal_ex := TEVP_EncryptFinal_ex(GetProcAddress(lib, 'EVP_EncryptFinal_ex'));
+  _PKCS5_PBKDF2_HMAC := TPKCS5_PBKDF2_HMAC(GetProcAddress(lib, 'PKCS5_PBKDF2_HMAC'));
+end;
 
 procedure MyCryptoInit;
 begin
@@ -79,6 +123,85 @@ begin
   BlowfishEncryptCFB(KeyData, @block, @block, p+1+length(s));
   SetLength(Result, p + Length(s) + 1);
   Move(block[0], Result[1], p + 1 + Length(s));
+end;
+
+function CbftpEncryptAES(const aData: RawByteString; const aPassword: RawByteString): RawByteString;
+var
+  ctx: PEVP_CIPHER_CTX;
+  cipher: PEVP_CIPHER;
+  md: PEVP_MD;
+  tmpKeyIV: array[0..AES256_KEY_LENGTH + AES256_IV_LENGTH - 1] of Byte;
+  outLen, finalLen: Integer;
+  salt: array[0..CBFTP_SALT_LENGTH - 1] of Byte;
+  i: Integer;
+begin
+  Result := '';
+  if (aData = '') or (aPassword = '') then
+    Exit;
+
+  LoadCryptoFunctions;
+  if (@_EVP_EncryptInit_ex = nil) or (@_EVP_EncryptFinal_ex = nil) or (@_PKCS5_PBKDF2_HMAC = nil) then
+  begin
+    Debug(dpError, section, 'CbftpEncryptAES: required OpenSSL functions not available');
+    Exit;
+  end;
+
+  cipher := EVP_aes_256_cbc;
+  md := EVP_sha256;
+  if (cipher = nil) or (md = nil) then
+  begin
+    Debug(dpError, section, 'CbftpEncryptAES: OpenSSL AES-256-CBC or SHA256 not available');
+    Exit;
+  end;
+
+  for i := 0 to CBFTP_SALT_LENGTH - 1 do
+    salt[i] := Byte(Random(256));
+
+  _PKCS5_PBKDF2_HMAC(PAnsiChar(aPassword), Length(aPassword),
+    @salt[0], CBFTP_SALT_LENGTH, CBFTP_KDF_ITERATIONS, md,
+    AES256_KEY_LENGTH + AES256_IV_LENGTH, @tmpKeyIV[0]);
+
+  SetLength(Result, CBFTP_SALT_HEADER_LENGTH + Length(aData) + AES256_BLOCK_SIZE);
+
+  Move(PAnsiChar('Salted__')^, Result[1], 8);
+  Move(salt[0], Result[9], CBFTP_SALT_LENGTH);
+
+  ctx := EVP_CIPHER_CTX_new;
+  if ctx = nil then
+  begin
+    Debug(dpError, section, 'CbftpEncryptAES: EVP_CIPHER_CTX_new failed');
+    Result := '';
+    Exit;
+  end;
+  try
+    if _EVP_EncryptInit_ex(ctx, cipher, nil, @tmpKeyIV[0], @tmpKeyIV[AES256_KEY_LENGTH]) <> 1 then
+    begin
+      Debug(dpError, section, 'CbftpEncryptAES: EVP_EncryptInit_ex failed');
+      Result := '';
+      Exit;
+    end;
+
+    outLen := 0;
+    if EVP_EncryptUpdate(ctx, @Result[CBFTP_SALT_HEADER_LENGTH + 1], @outLen,
+      @aData[1], Length(aData)) <> 1 then
+    begin
+      Debug(dpError, section, 'CbftpEncryptAES: EVP_EncryptUpdate failed');
+      Result := '';
+      Exit;
+    end;
+
+    finalLen := 0;
+    if _EVP_EncryptFinal_ex(ctx, @Result[CBFTP_SALT_HEADER_LENGTH + 1 + outLen], @finalLen) <> 1 then
+    begin
+      Debug(dpError, section, 'CbftpEncryptAES: EVP_EncryptFinal_ex failed');
+      Result := '';
+      Exit;
+    end;
+
+    SetLength(Result, CBFTP_SALT_HEADER_LENGTH + outLen + finalLen);
+  finally
+    EVP_CIPHER_CTX_free(ctx);
+  end;
 end;
 
 end.
