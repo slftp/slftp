@@ -178,6 +178,7 @@ type
     FUDPPort: Integer;
     FUDPPassword: String;
     FUDPConfigLoaded: Boolean;
+    FEncryptUDP: Boolean;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -276,7 +277,7 @@ uses
   SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
   taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
   mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
-  mormot.core.base, mormot.core.unicode, mormot.net.sock;
+  mormot.core.base, mormot.core.unicode, mormot.net.sock, mycrypto;
 
 const
   section = 'pazo';
@@ -445,6 +446,7 @@ begin
   FUDPIp := '';
   FUDPPort := 0;
   FUDPPassword := '';
+  FEncryptUDP := True;
 
   if not Assigned(config) then
   begin
@@ -457,6 +459,7 @@ begin
   FUDPPort := config.ReadInteger('UDPConfig', 'Port', 0);
   FUDPPassword := config.ReadString('UDPConfig', 'Password', '');
   FUDPEnabled := SameText(rawEnable, 'True') or SameText(rawEnable, '1');
+  FEncryptUDP := config.ReadBool('UDPConfig', 'EncryptUDP', True);
 
   if FUDPEnabled then
   begin
@@ -879,6 +882,17 @@ begin
   if shouldSendUDP then
   begin
     udpMessage := StringToUtf8(FUDPPassword + ' race ' + rls.section + ' ' + rls.rlsname + ' ' + sitelist);
+
+    if FEncryptUDP then
+    begin
+      udpMessage := CbftpEncryptAES(udpMessage, StringToUtf8(FUDPPassword));
+      if udpMessage = '' then
+      begin
+        Debug(dpError, section, 'UDP AES encryption failed');
+        lastannounceroutes := '';
+        Exit;
+      end;
+    end;
     udpSocket := nil;
     try
       // Create UDP socket
