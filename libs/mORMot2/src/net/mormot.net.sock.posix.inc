@@ -6,6 +6,8 @@
   make any difference in terms of stability or performance.
 }
 
+{$ifdef FPC}
+
 uses
   baseunix,
   termio,
@@ -15,9 +17,20 @@ uses
   {$endif OSLINUXANDROID}
   initc;  // link clib='c' for our socket purpose
 
+{$else}
+
+uses
+  Posix.Errno,  // to inline cerrno function
+  mormot.core.os.delphi;
+
+{$endif FPC}
+
+{$undef HASACCEPT4}
 {$ifdef OSLINUX}
-  {$define HASACCEPT4} // use Linux-specific accept4() enhanced API call
-  // define OLDLIBC conditional to disable this feature and fallback to accept()
+  {$ifndef OLDLIBC}
+    {$define HASACCEPT4} // use Linux-specific accept4() enhanced API call
+    // define OLDLIBC conditional to disable this API and fallback to accept()
+  {$endif OLDLIBC}
 {$endif OSLINUX}
 
 {$ifdef OSBSDDARWIN}
@@ -44,6 +57,7 @@ const
   WSAEMFILE        = ESysEMFILE;
   WSAECONNREFUSED  = ESysECONNREFUSED;
   WSAEINPROGRESS   = ESysEINPROGRESS;
+  WSAIOPENDING     = ESysEALREADY;
 
   {$ifdef OSLINUX}
   SOCK_NONBLOCK = O_NONBLOCK; // see net.h
@@ -61,14 +75,13 @@ const
   NI_NUMERICSERV = 2;
   {$endif OSFREEBSD}
 
-  FIONREAD = termio.FIONREAD;
-  FIONBIO  = termio.FIONBIO;
-
   {$ifdef OSBSDDARWIN}
 
     {$ifndef OSOPENBSD}
     {$ifdef OSDARWIN}
     SO_NOSIGPIPE = $1022;
+    SO_REUSEPORT = $0200;
+    AF_LINK      = 18;
     {$else}
     SO_NOSIGPIPE = $800;
     {$endif OSDARWIN}
@@ -76,55 +89,105 @@ const
 
     {$ifndef OSOPENBSD}
     // Works under MAC OS X and FreeBSD, but is undocumented, so FPC doesn't include it
-    MSG_NOSIGNAL  = $20000;  // Do not generate SIGPIPE.
+    MSG_NOSIGNAL  = $20000;
     {$else}
     MSG_NOSIGNAL  = $400;
     {$endif OSOPENBSD}
   {$else}
 
     {$ifdef SUNOS}
-    MSG_NOSIGNAL = $20000;  // Do not generate SIGPIPE.
+    MSG_NOSIGNAL = $20000;
     {$else}
-    MSG_NOSIGNAL = sockets.MSG_NOSIGNAL; // Do not generate SIGPIPE
+    MSG_NOSIGNAL = $4000; // don't generate SIGPIPE on Linux
     {$endif SUNOS}
 
   {$endif OSBSDDARWIN}
 
-  _ST: array[TNetLayer] of integer = (
+  {$ifdef FPC} // or defined in mormot.core.os.delphi.pas
+
+  {$packrecords C}
+
+  FIONREAD = termio.FIONREAD;
+  FIONBIO  = termio.FIONBIO;
+
+  {$endif FPC}
+
+  _ST: array[TNetLayer] of cint = (
     SOCK_STREAM,
     SOCK_DGRAM,
     SOCK_STREAM);
-  _IP: array[TNetLayer] of integer = (
+  _IP: array[TNetLayer] of cint = (
     IPPROTO_TCP,
     IPPROTO_UDP,
     0);
-  _SF: array[TNetFamily] of integer = (
+  _SF: array[TNetFamily] of cint = (
     0,
     AF_INET,
     AF_INET6,
     AF_UNIX);
-
-{$packrecords C}
 
 type
   /// a socket is always cint = 32-bit integer sized on POSIX
   // - but we use PtrInt on POSIX to cast it as TNetSocket = ^PNetSocketWrap
   TSocket = PtrInt;
 
-  PSockAddrIn6 = ^sockaddr_in6;
+  // we redefined most of the sockaddr structs due to OpenBSD FPC RTL bug
+  // and to share the same fields between FPC and Delphi POSIX
+
+  {$ifdef SOCK_HAS_SINLEN} // as set in mormot.defines.inc (and FPC RTL)
+  sa_family_t = cuchar;    // 8-bit to follow a 8-bit sa_len field
+  {$else}
+  sa_family_t = cushort;   // 16-bit on Linux as on Windows
+  {$endif SOCK_HAS_SINLEN}
+
+  TSockAddrIn = packed record
+    {$ifdef SOCK_HAS_SINLEN}
+    sa_len: cuchar;   // could be 0 on FreeBSD/Darwin but properly set on OpenBSD
+    {$endif SOCK_HAS_SINLEN}
+    case integer of
+      0: (sa_family:  sa_family_t;
+          sa_data:    packed array[0..13] of cuchar);
+      1: (sin_family: sa_family_t;
+          sin_port:   cushort;
+          sin_addr:   TNetIP4;
+          sin_zero:   packed array[0..7] of cuchar);
+  end;
+  PSockAddrIn = ^TSockAddrIn;
+
+  TSockAddrIn6 = packed record
+    {$ifdef SOCK_HAS_SINLEN}
+    sin6_len: cuchar; // could be 0 on FreeBSD/Darwin but properly set on OpenBSD
+    {$endif SOCK_HAS_SINLEN}
+    sin6_family:   sa_family_t;
+    sin6_port:     cushort;
+    sin6_flowinfo: cuint;
+    sin6_addr:     TNetIP6;
+    sin6_scope_id: cuint;
+  end;
+  PSockAddrIn6 = ^TSockAddrIn6;
+
+  TSockAddrUnix = packed record
+    {$ifdef SOCK_HAS_SINLEN}
+    sun_len:    cuchar; // could be 0 on FreeBSD/Darwin but not on OpenBSD
+    {$endif SOCK_HAS_SINLEN}
+    sun_family: sa_family_t;
+    sun_path:   array[0..107] of AnsiChar;
+  end;
+  PSockAddrUnix = ^TSockAddrUnix;
+
+  // structure used by kernel to store most addresses
+  TSockAddr = TSockAddrIn;
+  PSockAddr = ^TSockAddr;
 
   THostEnt = record
     h_name: PAnsiChar;
     h_aliases: PPAnsiChar;
-    h_addrtype: integer;
-    h_length: socklen_t;
+    h_addrtype: cint;
+    h_length: TSockLen;
     case integer of
-       0: (
-          h_addr_list: PPAnsiChar);
-       1: (
-          h_addr: ^pin_addr);
-       2: (
-          h_addr6: ^pin6_addr);
+       0: (h_addr_list: PPAnsiChar);
+       1: (h_addr:      ^PNetIP4);
+       2: (h_addr6:     ^PNetIP6);
   end;
   PHostEnt = ^THostEnt;
 
@@ -156,13 +219,13 @@ type
   /// polling request data structure for poll()
   TPollFD = record
     /// file descriptor to poll
-    fd: integer;
+    fd: cint;
     /// types of events poller cares about
     // - mainly POLLIN and/or POLLOUT
-    events: Smallint;
+    events: cshort;
     /// types of events that actually occurred
     // - caller could just reset revents := 0 to reuse the structure
-    revents: Smallint;
+    revents: cshort;
   end;
   PPollFD = ^TPollFD;
 
@@ -171,10 +234,6 @@ type
 
 // note: POSIX sockets are fd = C int = 32-bit integer, not our TSocket = PtrInt
 //       so we use plain integer in the Sockets API calls below
-
-{$ifdef OLDLIBC}
-  {$undef HASACCEPT4}
-{$endif OLDLIBC}
 
 {.$define SOCKDIRECTSYSCALL} // no noticeable performance or stability change
 
@@ -213,7 +272,7 @@ end;
 
 function closesocket(s: integer): integer; inline;
 begin
-  result := fpclose(s);
+  result := FileClose(s);
 end;
 
 function getnameinfo(addr: PSockAddr; namelen: TSockLen; host: PAnsiChar;
@@ -336,16 +395,16 @@ function accept(s: integer; addr: PSockAddr; var addrlen: TSockLen): integer; cd
 
 function accept4(s: integer; addr: PSockAddr; var addrlen: TSockLen; flags: integer): integer;
   cdecl; external clib name 'accept4'  // no LIBC_SUFFIX: libc 2.10 is required
-    {$ifdef OSLINUXINTEL} + '@GLIBC_2.10' {$endif} ;
+    {$ifdef FPC}{$ifdef OSLINUXINTEL} + '@GLIBC_2.10' {$endif}{$endif} ;
 
 {$endif HASACCEPT4}
 
 function connect(s: integer; name: PSockAddr; namelen: TSockLen): integer; cdecl;
   external clib name 'connect' + LIBC_SUFFIX;
 
-function select(nfds: integer; readfds, writefds, exceptfds: PFDSet;
+{function select(nfds: integer; readfds, writefds, exceptfds: PFDSet;
    timeout: PTimeVal): integer; cdecl;
-  external clib name 'select' + LIBC_SUFFIX;
+  external clib name 'select' + LIBC_SUFFIX;} // use poll() on POSIX
 
 function recv(s: integer; Buf: pointer; len: size_t; flags: integer): ssize_t; cdecl;
   external clib name 'recv' + LIBC_SUFFIX;
@@ -425,33 +484,42 @@ var
   // since this may take some time, we use a pthread mutex, not a TLightLock
 
 procedure TNetAddr.Clear;
-var
-  ad4: sockaddr absolute Addr;
 begin
-  PInteger(@ad4.sin_family)^ := 0; // sin_family and sin_port = 0
+  PInteger(@Addr)^ := 0; // sa_len = sin_family = sin_port = 0
 end; // other fields are not supposed/required to be initialized on POSIX
+
+procedure TNetAddr.SetFamily(fam: cardinal);
+begin
+  PSockAddr(@Addr)^.sin_family := fam;
+  {$ifdef SOCK_HAS_SINLEN}
+  PSockAddr(@Addr)^.sa_len := Size; // for OpenBSD - FreeBSD/Darwin allow 0
+  {$endif SOCK_HAS_SINLEN}
+end;
 
 function TNetAddr.SetFrom(const address, addrport: RawUtf8;
   layer: TNetLayer): TNetResult;
 var
   h: PHostEnt;
-  ad4: sockaddr absolute Addr;
+  ad4: TSockAddr absolute Addr;
 begin
-  PInteger(@ad4.sin_family)^ := 0; // sin_family and sin_port = 0 are enough
+  Clear;
   result := nrNotFound;
   if address = '' then
     exit;
-  // handle domain socket name
+  // handle unix domain socket path from address (ignoring addrport)
   if layer = nlUnix then
   begin
     // socket file name is just copied to the address struct
-    with psockaddr_un(@Addr)^ do
+    with PSockAddrUnix(@Addr)^ do
       if length(address) >= SizeOf(sun_path) then
         // avoid buffer overflow or truncated socket name
-        result := nrFatalError
+        result := nrInvalidParameter
       else
       begin
         sun_family := AF_UNIX;
+        {$ifdef SOCK_HAS_SINLEN}
+        sun_len := SOCKADDR_SIZE; // mandatory on OpenBSD - FreeBSD/Darwin allow 0
+        {$endif SOCK_HAS_SINLEN}
         MoveFast(pointer(address)^, sun_path, length(address) + 1); // +1 for #0
         result := nrOK;
       end;
@@ -474,12 +542,12 @@ begin
       result := nrNotFound
     else
     begin
-      ad4.sin_family := h^.h_addrtype;
+      SetFamily(h^.h_addrtype);
       case h^.h_addrtype of
         AF_INET:
-           ad4.sin_addr.s_addr := h^.h_addr^^.s_addr;
+           ad4.sin_addr := h^.h_addr^^;
         AF_INET6:
-           psockaddr6(@Addr)^.sin6_addr := h^.h_addr6^^;
+           PSockAddrIn6(@Addr)^.sin6_addr := h^.h_addr6^^;
       else
         result := nrNotImplemented;
       end;
@@ -596,7 +664,7 @@ begin
 end;
 
 function TNetSocketWrap.WaitFor(ms: integer; scope: TNetEvents;
-  loerr: system.PInteger): TNetEvents;
+  loerr: PNetErrorInt): TNetEvents;
 var
   res: integer;
   p: TPollFD; // select() limits p.fd<FD_SETSIZE=1024 on POSIX -> use poll()
@@ -618,10 +686,10 @@ begin
   res := poll(@p, 1, ms);
   if res < 0 then
   begin
-    res := RawSocketErrNo;
+    res := cerrno;
     if loerr <> nil then
       loerr^ := res;
-    if res = ESysEAGAIN then
+    if res in [ESysEAGAIN, ESysEINTR] then
       // timeout, not a true error
       result := [];
     exit;
@@ -635,6 +703,40 @@ begin
     include(result, neError);
   if p.revents and POLLHUP <> 0 then
     include(result, neClosed); // may return neClosed + neRead e.g. on HTTP/1.0
+end;
+
+function NewUnixSocket(const path: RawUtf8; out netsocket: TNetSocket;
+  asstream: boolean): TNetResult;
+var
+  addr: TNetAddr;
+  sock: PtrUInt;
+  st: TStat;
+begin
+  netsocket := nil;
+  // first validate the address is an existing unix socket file
+  result := nrNotFound;
+  if (path = '') or
+     (fpStat(pointer(path), st) <> 0) or
+     not fpS_ISSOCK(st.st_mode) then
+    exit;
+  // compute the proper TNetAddr and create a unix DGRAM/STREAM socket
+  result := addr.SetFrom(path, '', nlUnix);
+  if result <> nrOk then
+    exit;
+  sock := SOCK_DGRAM;
+  if asstream then
+    sock := SOCK_STREAM;
+  sock := socket(AF_UNIX, sock, 0);
+  if sock = 0 then
+    result := NetLastError
+  // try to connect to this unix socket
+  else if connect(sock, @addr, addr.Size) = NO_ERROR then
+    netsocket := TNetSocket(sock)
+  else
+  begin
+    result := NetLastError;
+    closesocket(sock);
+  end;
 end;
 
 
@@ -654,12 +756,24 @@ const
 
   {$else}
 
+const
   // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/if_arp.h
   ARPHRD_ETHER     = 1;
   ARPHRD_PPP       = 512;
   ARPHRD_TUNNEL    = 768;
   ARPHRD_TUNNEL6   = 769;
   ARPHRD_IEEE80211 = 801;
+
+  ETH_P_IP  = $0800;
+  ETH_P_ARP = $0806;
+
+  ARPOP_REQUEST   = 1;  // ARP request
+  ARPOP_REPLY     = 2;  // ARP reply
+  ARPOP_RREQUEST  = 3;  // RARP request
+  ARPOP_RREPLY    = 4;  // RARP reply
+  ARPOP_InREQUEST = 8;  // InARP request
+  ARPOP_InREPLY   = 8;  // InARP reply
+  ARPOP_NAK       = 10; // (ATM)ARP NAK
 
   {$endif OSBSDDARWIN}
 
@@ -672,9 +786,10 @@ const
   {$define USE_IFADDRS}
   // Android BIONIC seems to implement it since Android N (API level 24)
   // https://android.googlesource.com/platform/bionic/+/master/docs/status.md
-{$endif OSANDROID}
+{$endif OSANDROIDARM64}
 
 {$ifdef OSLINUX}
+
 procedure RetrieveEnhancedInfo(var a: TMacAddress; var procnetroute: RawUtf8);
 var
   fn: ShortString;
@@ -682,7 +797,7 @@ var
   s: RawUtf8;
   p: PUtf8Char;
   l: PtrInt;
-  ip: cardinal;
+  ip: TNetIP4;
 begin
   // see https://www.kernel.org/doc/Documentation/ABI/testing/fn-class-net
   fn := '/sys/class/net/';
@@ -703,8 +818,9 @@ begin
   if procnetroute = '' then // get routes list once
     procnetroute := StringFromFileNoSize('/proc/net/route');
   p := pointer(procnetroute);
-  while p <> nil do
-  begin
+  if p = nil then
+    exit;
+  repeat
     if (MemCmp(pointer(p), pointer(a.Name), l) = 0) and
        (p[l] in [#9, ' ']) then
     begin
@@ -718,9 +834,10 @@ begin
         break;
       end;
     end;
-    p := GotoNextLine(p);
-  end;
+    p := GotoNextLineSmall(p);
+  until p^ = #0;
 end;
+
 {$endif OSLINUX}
 
 {$ifdef USE_IFADDRS}
@@ -735,37 +852,37 @@ type
     // mainly IFF_UP, IFF_BROADCAST and IFF_LOOPBACK
     ifa_flags: cardinal;
     // Address of interface
-    ifa_addr: Psockaddr;
+    ifa_addr: PSockAddr;
     // netmask associated with ifa_addr (may be nil)
-    ifa_netmask: Psockaddr;
+    ifa_netmask: PSockAddr;
     // if IFF_BROADCAST is set, the broadcast address associated with ifa_addr
-    ifa_broadaddr: Psockaddr;
+    ifa_broadaddr: PSockAddr;
     // address-family-specific data - e.g. statistics on AF_PACKET
     ifa_data: pointer;
   end;
 
   {$ifdef OSBSDDARWIN} // from bsd/net/if_dl.h
-  psockaddr_dl = ^sockaddr_dl;
-  sockaddr_dl = record
-    sdl_len: byte;       // Total length of sockaddr
-    sdl_family: byte;    // AF_LINK
-    sdl_index: word;     // if != 0, system given index for interface
-    sdl_type: byte;      // interface type
-    sdl_nlen: byte;      // interface name length, no trailing 0 required
-    sdl_alen: byte;      // link level address length
-    sdl_slen: byte;      // link layer selector length
+  PSockAddr_dl = ^SockAddr_dl;
+  SockAddr_dl = record
+    sdl_len: byte;         // Total length of TSockAddr
+    sdl_family: byte;      // AF_LINK
+    sdl_index: word;       // if != 0, system given index for interface
+    sdl_type: byte;        // interface type
+    sdl_nlen: byte;        // interface name length, no trailing 0 required
+    sdl_alen: byte;        // link level address length
+    sdl_slen: byte;        // link layer selector length
     sdl_data: TByteToByte; // interface name + link level address
   end;
   {$else}
-  psockaddr_ll = ^sockaddr_ll;
-  sockaddr_ll = record
+  PSockAddr_ll = ^SockAddr_ll;
+  SockAddr_ll = record
     sll_family: word;
     sll_protocol: word;
     sll_ifindex: integer;
     sll_hatype: word;
     sll_pkttype: byte;
     sll_halen: byte;
-    sll_addr: TByteToByte;
+    sll_addr: array[0..7] of byte;
   end;
   {$endif OSBSDDARWIN}
 
@@ -824,6 +941,7 @@ var
   list, info: pifaddrs;
   i, n: PtrInt;
   mac: RawUtf8;
+  m: PMacAddress;
   {$ifdef OSLINUX}
   procnetroute: RawUtf8; // retrieve routes once for all MAC addresses
   {$endif OSLINUX}
@@ -832,6 +950,7 @@ begin
   result := nil;
   if getifaddrs(list) = NO_ERROR then
   try
+    // first loop to identify the main interfaces (AF_LINK/AF_PACKET)
     n := 0;
     info := list;
     repeat
@@ -846,7 +965,7 @@ begin
           (info^.ifa_addr^.sa_family = AF_LINK)) then
       begin
         if info^.ifa_addr <> nil then
-          with psockaddr_dl(info^.ifa_addr)^ do
+          with PSockAddr_dl(info^.ifa_addr)^ do
             if sdl_alen = 6 then
               // #define LLADDR(s) ((caddr_t)((s)->sdl_data + (s)->sdl_nlen))
               {$ifdef OSDARWIN}
@@ -858,7 +977,7 @@ begin
           (info^.ifa_addr^.sa_family = AF_PACKET)) then
       begin
         if info^.ifa_addr <> nil then
-          mac := MacToText(@psockaddr_ll(info^.ifa_addr)^.sll_addr);
+          mac := MacToText(@PSockAddr_ll(info^.ifa_addr)^.sll_addr);
       {$endif OSBSDDARWIN}
         if mac = '' then
           mac := '00:00:00:00:00:00' // for makSoftware (e.g. tunnel)
@@ -873,74 +992,73 @@ begin
         begin
           if n = length(result) then
             SetLength(result, NextGrow(n));
-          with result[n] do
+          m := @result[n];
+          m^.Name := info^.ifa_name; // e.g. 'eth0' on Linux
+          m^.AdapterName := m^.Name;
+          m^.Address := mac;
+          if info^.ifa_addr <> nil then
           begin
-            Name := info^.ifa_name; // e.g. 'eth0' on Linux
-            AdapterName := Name;
-            Address := mac;
-            if info^.ifa_addr <> nil then
-            begin
-              {$ifdef OSBSDDARWIN}
-              // BSD/DARWIN do name the networks from their manufacturer
-              // -> parse net.wlan.devices ?
-              IfIndex := psockaddr_dl(info^.ifa_addr)^.sdl_index;
-              case psockaddr_dl(info^.ifa_addr)^.sdl_type of
-                IFT_ETHER:
-                  Kind := makEthernet;
-                IFT_PPP:
-                  Kind := makPpp;
-                IFT_CELLULAR:
-                  Kind := makCellular;
-              {$else}
-              IfIndex := psockaddr_ll(info^.ifa_addr)^.sll_ifindex;
-              case psockaddr_ll(info^.ifa_addr)^.sll_hatype of
-                ARPHRD_ETHER:
-                  begin
-                    Kind := makEthernet;
-                    if Name <> '' then
-                      // set also for some wifi adapters
-                      if PWord(Name)^ = ord('w') + ord('l') shl 8 then
-                        Kind := makWifi; // detect by convention
-                  end;
-                ARPHRD_IEEE80211:
-                  Kind := makWifi;
-                ARPHRD_TUNNEL,
-                ARPHRD_TUNNEL6:
-                  Kind := makTunnel;
-                ARPHRD_PPP:
-                  Kind := makPpp;
+            {$ifdef OSBSDDARWIN}
+            // BSD/DARWIN do name the networks from their manufacturer
+            // -> parse net.wlan.devices ?
+            m^.IfIndex := PSockAddr_dl(info^.ifa_addr)^.sdl_index;
+            case PSockAddr_dl(info^.ifa_addr)^.sdl_type of
+              IFT_ETHER:
+                m^.Kind := makEthernet;
+              IFT_PPP:
+                m^.Kind := makPpp;
+              IFT_CELLULAR:
+                m^.Kind := makCellular;
+            {$else}
+            m^.IfIndex := PSockAddr_ll(info^.ifa_addr)^.sll_ifindex;
+            case PSockAddr_ll(info^.ifa_addr)^.sll_hatype of
+              ARPHRD_ETHER:
+                begin
+                  m^.Kind := makEthernet;
+                  if m^.Name <> '' then
+                    // set also for some wifi adapters
+                    if PWord(m^.Name)^ = ord('w') + ord('l') shl 8 then
+                      m^.Kind := makWifi; // detect by convention
+                end;
+              ARPHRD_IEEE80211:
+                m^.Kind := makWifi;
+              ARPHRD_TUNNEL,
+              ARPHRD_TUNNEL6:
+                m^.Kind := makTunnel;
+              ARPHRD_PPP:
+                m^.Kind := makPpp;
             {$endif OSBSDDARWIN}
-              else
-                // https://systemd.io/PREDICTABLE_INTERFACE_NAMES
-                if Name <> '' then
-                  case PWord(Name)^ of
-                    ord('e') + ord('t') shl 8,  // 'ethX'
-                    ord('e') + ord('n') shl 8:  // systemd v197 'enpXsX'
-                      Kind := makEthernet;
-                    ord('w') + ord('l') shl 8:  // 'wlanX' and systemd v197 'wlX'
-                      Kind := makWifi;
-                  end;
-              end;
-            end
             else
-            begin
-              IfIndex := -1; // non physical interface
-              Kind := makSoftware;
-            end
+              // https://systemd.io/PREDICTABLE_INTERFACE_NAMES
+              if m^.Name <> '' then
+                case cardinal(PWord(m^.Name)^) of
+                  ord('e') + ord('t') shl 8,  // 'ethX'
+                  ord('e') + ord('n') shl 8:  // systemd v197 'enpXsX'
+                    m^.Kind := makEthernet;
+                  ord('w') + ord('l') shl 8:  // 'wlanX' and systemd v197 'wlX'
+                    m^.Kind := makWifi;
+                end;
+            end;
+          end
+          else
+          begin
+            m^.IfIndex := -1; // non physical interface
+            m^.Kind := makSoftware;
           end;
-          {$ifdef OSLINUX}
+          {$ifdef OSLINUX} // retrieve e.g. m^.Gateway from /proc/net/route
           if info^.ifa_flags and IFF_UP <> 0 then
-            RetrieveEnhancedInfo(result[n], procnetroute);
+            RetrieveEnhancedInfo(m^, procnetroute);
           {$endif OSLINUX}
-          // on POSIX, there is no such things as per-interface DNS, and
-          // no standard way of knowing the Gateway
+          // on POSIX, there is no such things as per-interface DNS
+          // on BSD, there is no standard way of knowing the Gateway
           inc(n);
         end;
       end;
       info := info^.ifa_next;
     until info = nil;
-    SetLength(result, n);
-    // retrieve the IP configuration from a second loop
+    if n <> 0 then
+      DynArrayFakeLength(result, n);
+    // retrieve the IP configuration (AF_INET) from a second loop
     info := list;
     repeat
       if (info^.ifa_addr <> nil) and
@@ -972,6 +1090,129 @@ begin
     freeifaddrs(list);
   end;
 end;
+
+{$ifdef OSLINUX} // SOCK_RAW linux-specific code (requiring root or CAP_NET_RAW)
+
+type
+  // a low-level ARP frame binary content, with its SOCK_RAW ethernet header
+  TRawARP = packed record
+    Dest: TNetMac;
+    Src: TNetMac;
+    EType: word;
+    HType: word;
+    PType: word;
+    HLen: byte;
+    PLen: byte;
+    Op:  word;
+    SHA: TNetMac;
+    SPA: TNetIP4;
+    THA: TNetMac;
+    TPA: TNetIP4;
+  end;
+  PRawARP = ^TRawARP;
+
+const
+  MAC_BROADCAST: TNetMac = ($ff, $ff, $ff, $ff, $ff, $ff);
+  MAC_ZERO:      TNetMac = ($00, $00, $00, $00, $00, $00);
+
+var
+  SharedArpLock: TLightLock; // thread-safe reuse of a shared SOCK_RAW socket
+  SharedArpSock: TSocket;
+
+function GetRemoteMacAddress(const IP: RawUtf8; TimeoutMS: integer): RawUtf8;
+var
+  s: TSocket;
+  ns: TNetSocket absolute s;
+  local: TMacAddress;
+  arp: TRawARP;
+  addr: SockAddr_ll;
+  resp: RawByteString;
+  retry: integer;
+  start: Int64;
+begin
+  result := '';
+  // validate and prepare input parameters
+  if not NetIsIP4(pointer(IP), @arp.TPA) or
+     not GetLocalMacAddress(IP, local) or // ask the kernel routage table
+     not NetIsIP4(pointer(local.IP), @arp.SPA) or
+     not TextToMac(pointer(local.Address), @arp.Src) then
+    exit;
+  if arp.TPA = arp.SPA then
+  begin
+    result := local.Address; // handle case of self IP
+    exit;
+  end;
+  arp.Dest  := MAC_BROADCAST;
+  arp.EType := bswap16(ETH_P_ARP);
+  arp.HType := bswap16(ARPHRD_ETHER);
+  arp.PType := bswap16(ETH_P_IP);
+  arp.HLen  := SizeOf(TNetMac);
+  arp.PLen  := SizeOf(TNetIP4);
+  arp.Op    := bswap16(ARPOP_REQUEST);
+  arp.SHA   := arp.Src;
+  arp.THA   := MAC_ZERO;
+  FillCharFast(addr, SizeOf(addr), 0);
+  addr.sll_family   := AF_PACKET;
+  addr.sll_protocol := bswap16(ETH_P_ARP);
+  addr.sll_ifindex  := local.IfIndex;
+  addr.sll_halen    := SizeOf(MAC_BROADCAST);
+  PNetMac(@addr.sll_addr)^ := MAC_BROADCAST;
+  // acquire a SOCK_RAW - shared between calls since closesocket() is slow
+  if SharedArpLock.TryLock then
+  begin
+    if SharedArpSock = 0 then
+      SharedArpSock := socket(AF_PACKET, SOCK_RAW, bswap16(ETH_P_ARP));
+    s := SharedArpSock;
+    if s <= 0 then // typically not root or CAP_NET_RAW
+    begin
+      SharedArpLock.UnLock; // no retry any more since SharedArpSock=-1 now
+      exit;
+    end;
+  end
+  else
+  begin
+    s := socket(AF_PACKET, SOCK_RAW, bswap16(ETH_P_ARP)); // transient socket
+    if s <= 0 then
+      exit; // paranoid (e.g. fd exhaustion)
+  end;
+  // main send/recv loop
+  start := 0;
+  if TimeoutMS > 0 then
+    start := GetTickCount64;
+  for retry := 0 to 4 do // with some exponential backoff on network congestion
+  begin
+    if sendto(s, @arp, SizeOf(arp), 0, @addr, SizeOf(addr)) >= 0 then
+    begin
+      if ns.RecvWait(100 + retry * 50, resp) = nrOK then
+        repeat
+          if length(resp) >= SizeOf(TRawArp) then
+            with PRawARP(resp)^ do
+              if (Op = bswap16(ARPOP_REPLY)) and // reply
+                 (TPA = arp.SPA) and             // from expected IPs
+                 (SPA = arp.TPA) then
+              begin
+                result := MacToText(@SHA);
+                break;
+              end;
+        until ns.RecvWait(20, resp) <> nrOK; // get all responses
+      if result <> '' then
+        break; // found one
+    end
+    else if retry > 0 then
+      break; // allow one sendto() failure for the first occurence
+    SleepHiRes(50); // avoid mini flood detection between retries
+    if (TimeoutMS > 0) and
+       (GetTickCount64 - start > TimeoutMS) then
+      break; // don't wait too long
+  end;
+  // resource cleanup
+  if s = SharedArpSock then
+    SharedArpLock.UnLock // can be reused
+  else
+    ns.Close; // release transient socket - 35 ms on my Debian
+end;
+
+{$endif OSLINUX}
 
 {$else}
 
@@ -1047,10 +1288,10 @@ var
   i: PtrInt;
 begin
   result := false;
-  local := GetLocalIpAddress(Remote);
+  local := GetLocalIpAddress(Remote); // ask the kernel routage table
   if local = '' then
     exit;
-  all := GetMacAddresses;
+  all := GetMacAddresses; // fast refcnt threadsafe access, with a 65 secs cache
   for i := 0 to high(all) do
     if all[i].IP = local then
     begin
@@ -1060,7 +1301,8 @@ begin
     end;
 end;
 
-procedure NetAddRawUtf8(var Values: TRawUtf8DynArray; const Value: RawUtf8); forward;
+var
+  EtcResolve, EtcResolveEnv: TCachedValue; // 64 seconds thread-safe cache
 
 function _GetDnsAddresses(usePosixEnv, getAD: boolean): TRawUtf8DynArray;
 var
@@ -1070,14 +1312,15 @@ var
 begin
   result := nil;
   if usePosixEnv then
-    resolv := StringFromFile(GetEnvironmentVariable('ETC'));
+    resolv := StringFromFileCached(GetSystemEnvString('ETC'), EtcResolveEnv);
   if resolv = '' then
     // all systems are likely to have or generate this file
     // - even the libc seems to read it when implementing gethostname()
-    resolv := StringFromFile('/etc/resolv.conf');
+    resolv := StringFromFileCached('/etc/resolv.conf', EtcResolve);
   p := pointer(resolv);
-  while p <> nil do
-  begin
+  if p = nil then
+    exit;
+  repeat
     while p^ in [#9, ' '] do
       inc(p);
     if p^ in [#0, '#'] then
@@ -1096,11 +1339,11 @@ begin
         one := NetGetNextSpaced(p);
         if one = '' then
           break;
-        NetAddRawUtf8(result, one);
+        _addutf8(result, one);
       until false;
     end;
-    p := GotoNextLine(p);
-  end;
+    p := GotoNextLineSmall(p);
+  until p^ = #0;
 end;
 
 
@@ -1250,7 +1493,11 @@ end;
 function PollEventToPse(r: integer): TPollSocketEvents; inline;
 begin
   if r = POLLIN then
+    {$ifdef FPC}
     byte(result) := byte([pseRead]) // optimized for the most common case
+    {$else}
+    result := [pseRead]
+    {$endif FPC}
   else
   begin
     byte(result) := 0;
@@ -1425,7 +1672,7 @@ procedure TPollSocketEpoll.Terminate;
 begin
   if fEPFD <= 0 then
     exit;
-  fpClose(fEPFD);
+  FileClose(fEPFD);
   fEPFD := -1;
 end;
 
@@ -1542,7 +1789,11 @@ begin
   er := pointer(results.Events);
   repeat
     ev := ee^.events;
+    {$ifdef FPC}
     byte(e) := byte([pseRead]); // optimized for the most common case
+    {$else}
+    e := [pseRead];
+    {$endif FPC}
     if ev <> EPOLLIN then
     begin
       if ev and (EPOLLIN or EPOLLPRI) = 0 then
@@ -1579,13 +1830,18 @@ end;
 
 procedure InitializeUnit;
 begin
-  SocketAPIVersion := OSVersionShort +
-    {$ifdef USEPOLL} ' poll' {$else} ' epoll' {$endif USEPOLL};
+  Join([OSVersionShort , {$ifdef USEPOLL} ' poll' {$else} ' epoll' {$endif}],
+    SocketAPIVersion);
   _gethostbynamesafe.Init;
 end;
 
 procedure FinalizeUnit;
 begin
   _gethostbynamesafe.Done;
+  {$ifdef OSLINUX}
+  if SharedArpSock <> 0 then
+    TNetSocket(SharedArpSock).Close;
+  {$endif OSLINUX}
+
 end;
 

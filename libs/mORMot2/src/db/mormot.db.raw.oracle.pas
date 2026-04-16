@@ -736,7 +736,7 @@ const
 type
   /// Oracle native number low-level representation
   OCINumber = packed record
-    OCINumberPart: array [0..OCI_NUMBER_SIZE-1] of ub1;
+    OCINumberPart: array[0..OCI_NUMBER_SIZE - 1] of ub1;
   end;
 
 
@@ -1013,6 +1013,8 @@ implementation
 // see http://download.oracle.com/docs/cd/B28359_01/appdev.111/b28395/oci03typ.htm#sthref389
 
 function TOracleDate.ToDateTime: TDateTime;
+var
+  time: TDateTime;
 begin
   if (PInteger(@self)^ = 0) and
      (PInteger(PtrUInt(@self) + 3)^ = 0) then
@@ -1020,21 +1022,23 @@ begin
     result := 0
   else
   begin
-    if Cent <= 100 then
+    if (Cent <= 100) or
       // avoid TDateTime values < 0 (generates wrong DecodeTime)
-      result := 0
-    else
-      result := EncodeDate((Cent - 100) * 100 + Year - 100, Month, Day);
+      not mormot.core.datetime.TryEncodeDate(
+            (Cent - 100) * 100 + Year - 100, Month, Day, result) then
+      result := 0;
     if (Hour > 1) or
        (Min > 1) or
        (Sec > 1) then
-      result := result + EncodeTime(Hour - 1, Min - 1, Sec - 1, 0);
+      if mormot.core.datetime.TryEncodeTime(
+           Hour - 1, Min - 1, Sec - 1, 0, time) then
+        result := result + time;
   end;
 end;
 
 procedure TOracleDate.ToIso8601(var aIso8601: RawUtf8);
 var
-  tmp: array[0..23] of AnsiChar;
+  tmp: TTemp24;
 begin
   if (PInteger(@self)^ = 0) and
      (PInteger(PtrUInt(@self) + 3)^ = 0) then
@@ -1610,11 +1614,11 @@ begin
 end;
 
 var
-  _NLSLANG: AnsiString = '';
+  _NLSLANG: RawUtf8 = '';
 
 procedure SetNlsLang;
 begin
-  _NLSLANG := AnsiString(GetEnvironmentVariable('NLS_LANG'));
+  _NLSLANG := GetSystemEnv('NLS_LANG');
   if _NLSLANG = '' then
     _NLSLANG := '-';
 end;
@@ -1678,7 +1682,7 @@ begin
         l2 := Executable.ProgramFilePath + 'OracleInstantClient';
     l2 := l2 + PathDelim + LibraryFileName;
   end;
-  l3 := GetEnvironmentVariable('ORACLE_HOME');
+  l3 := GetSystemEnvString('ORACLE_HOME');
   if l3 <> '' then
     l3 := MakePath([l3, 'bin', LibraryFileName]);
   try

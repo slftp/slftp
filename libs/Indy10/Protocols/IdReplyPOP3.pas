@@ -341,9 +341,15 @@ begin
   end;
 end;
 
+procedure RaisePOP3Error(const ACode, AText: string);
+  {$IFDEF USE_NORETURN}noreturn;{$ENDIF}
+begin
+  raise EIdReplyPOP3Error.CreateError(ACode, AText);
+end;
+
 procedure TIdReplyPOP3.RaiseReplyError;
 begin
-  raise EIdReplyPOP3Error.CreateError(Code, Text.Text);
+  RaisePOP3Error(Code, Text.Text);
 end;
 
 procedure TIdReplyPOP3.SetEnhancedCode(const AValue: String);

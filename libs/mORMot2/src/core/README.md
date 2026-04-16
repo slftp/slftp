@@ -10,7 +10,7 @@ With "Core Units", we mean units implementing shared basic functionality of our 
 
 - Uncoupled reusable bricks to process files, text, JSON, compression, encryption, network, RTTI, potentially with optimized asm;
 - Other higher level features, like ORM, SOA or database access are built on top of those bricks, and are located in the parent folder;
-- Cross-Platform and Cross-Compiler: ensure the same code would compile on both FPC and Delphi, on any support platform, regardless the RTL, Operating System, or CPU.
+- Cross-Platform and Cross-Compiler: ensure the same code would compile on both FPC and Delphi, on any supported platform, regardless the RTL, Operating System, or CPU.
 
 ## Units Presentation
 
@@ -23,11 +23,12 @@ Basic types and reusable stand-alone functions shared by all framework units
 - Integer Arrays Manipulation
 - `ObjArray` `PtrArray` `InterfaceArray` Wrapper Functions
 - Low-level Types Mapping Binary or Bits Structures
+- Low-level CPU Detection and Intrinsics
+- Faster Alternative to RTL Standard Functions
 - Buffers (e.g. Hashing and SynLZ compression) Raw Functions
 - Efficient `Variant` Values Conversion
 - Sorting/Comparison Functions
 - Some Convenient `TStream` descendants and File access functions
-- Faster Alternative to RTL Standard Functions
 - Raw Shared Types Definitions
 
 Aim of those types and functions is to be cross-platform and cross-compiler, without any dependency but the main FPC/Delphi RTL. It also detects the kind of Intel/AMD it runs on, to adapt to the fastest asm version available. It is the main unit where x86_64 or i386 asm stubs are included.
@@ -49,6 +50,14 @@ In practice, no "Windows", nor "Linux/Unix" reference should be needed in regula
 
 See `mormot.core.os.mac.pas` and `mormot.core.os.security.pas` units for completion.
 
+### mormot.core.os.delphi
+
+Map FPC cross-platform API types and functions into Delphi POSIX units
+- Core POSIX Operating Systems API for Delphi
+- Network POSIX Operating Systems API for Delphi
+
+This unit is called by mormot.core.os.posix.inc and mormot.net.sock.posix.inc as a compatibility layer with the FPC POSIX units.
+
 ### mormot.core.os.mac
 
 MacOS API calls for FPC, as injected to `mormot.core.os.pas`
@@ -66,6 +75,9 @@ Cross-Platform Operating System Security Definitions
 - Active Directory Definitions
 - Security Descriptor Definition Language (SDDL)
 - `TSecurityDescriptor` Wrapper Object
+- Kerberos KeyTab File Support
+- Basic ASN.1 Support
+- Operating System Certificates Operation
 - Windows API Specific Security Types and Functions
 
 Even if most of those security definitions comes from the Windows/AD world, our framework (re)implemented them in a cross-platform way.
@@ -91,8 +103,7 @@ Text Processing functions shared by all framework units
 - CSV-like Iterations over Text Buffers
 - `TTextWriter` parent class for Text Generation
 - Numbers (integers or floats) and Variants to Text Conversion
-- Text Formatting functions
-- Resource and Time Functions
+- Text Formatting Functions
 - HTTP/REST Common Headers Parsing (e.g. cookies)
 - `ESynException` class
 - Hexadecimal Text And Binary Conversion
@@ -100,6 +111,7 @@ Text Processing functions shared by all framework units
 ### mormot.core.datetime
 
 Date and Time definitions and process shared by all framework units
+- Size and Elapsed Time to Text Conversion
 - ISO-8601 Compatible Date/Time Text Encoding
 - `TSynDate` / `TSynDateTime` / `TSynSystemTime` High-Level objects
 - `TUnixTime` / `TUnixMSTime` POSIX Epoch Compatible 64-bit date/time
@@ -137,14 +149,12 @@ Low-Level Memory Buffers Processing Functions shared by all framework units
 - Basic MIME Content Types Support
 - Text Memory Buffers and Files
 - `TStreamRedirect` and other Hash process
-- Markup (e.g. HTML or Emoji) process
 - `RawByteString` Buffers Aggregation via `TRawByteStringGroup`
 
 ### mormot.core.data
 
 Low-Level Data Processing Functions shared by all framework units
 - RTL `TPersistent` or Root Classes with Custom Constructor
-- `IAutoFree` and `IAutoLocker` Reference-Counted Process
 - `TSynList` `TSynObjectList` `TSynLocker` classes
 - `TObjectStore` with proper Binary Serialization
 - INI Files and In-memory Access
@@ -158,12 +168,27 @@ Low-Level Data Processing Functions shared by all framework units
 
 JSON functions shared by all framework units
 - Low-Level JSON Processing Functions
-- `TTextWriter` class with proper JSON escaping and `WriteObject()` support
-- JSON-aware `TSynNameValue` `TObjectStoreJson`
+- `TJsonWriter` class with proper JSON escaping and `WriteObject()` support
+- JSON Formats Conversion
 - JSON-aware `TSynDictionary` Storage
 - JSON Unserialization for any kind of Values
 - JSON Serialization Wrapper Functions
 - Abstract Classes with Auto-Create-Fields
+
+Our JSON engine uses a very efficient SAX-like kernel and full RTTI support.
+
+### mormot.core.fmt
+
+Binary, JSON and Text Advanced Formatting Functions
+- HTML Text Conversions
+- Basic XML Conversions
+- Markup (e.g. Markdown or Emoji) process
+- INI Files In-memory Access
+- `TSynJsonFileSettings` Parent Class
+- JSON and Text Preprocessor
+- Source Code Generation Functions
+
+This unit contains some advanced features, not included by default in `mormot.core.json.pas` and `mormot.core.text.pas`.
 
 ### mormot.core.collections
 
@@ -188,9 +213,13 @@ Use `Collections.NewList<T>` and `Collections.NewKeyValue<TKey, TValue>` factori
 - JSON Parsing into `Variant`
 - `Variant` Binary Serialization
 
+Variants are first class citizens in *mORMot*. The `TDocVariant` and `IDocAny` allow efficient runtime processing of schema-less JSON arrays of objects.
+
 ### mormot.core.search
 
 Several Indexing and Search Engines, as used by other parts of the framework
+- SAX-oriented JSON buffers access
+- JSON-aware `TSynNameValue` `TSynCache` `TObjectStoreJson`
 - Files Search in Folders
 - ScanUtf8, GLOB and SOUNDEX Text Search
 - Efficient CSV Parsing using RTTI
@@ -223,6 +252,8 @@ Performance Monitoring functions shared by all framework units
 ### mormot.core.threads
 
 High-Level Multi-Threading features shared by all framework units
+- `TThreads` thread-safe wrapper
+- `IAutoFree` and `IAutoLocker` Reference-Counted Process
 - Thread-Safe `TSynQueue` and `TPendingTaskList`
 - Thread-Safe `ILockedDocVariant` Storage
 - Background Thread Processing
@@ -232,10 +263,12 @@ High-Level Multi-Threading features shared by all framework units
 ### mormot.core.zip
 
 High-Level Zip/Deflate Compression features shared by all framework units
-- `TSynZipCompressor` Stream Class
+- `TSynZipCompressor` and `TSynZipDecompressor` Stream Classes
 - GZ Read/Write Support
 - `.zip` Archive File Support
 - `TAlgoDeflate` and `TAlgoGZ` High-Level Compression Algorithms
+
+With proper Unicode and ZIP64 support, and faster libdeflate usage if available.
 
 ### mormot.core.mustache
 
@@ -243,34 +276,53 @@ Logic-Less `{{Mustache}}` Templates Rendering
 - *Mustache* Execution Data Context Types
 - `TSynMustache` Template Processing
 
+The `TSynMustache` data context could be a `TDocVariant` document, or any kind of data using direct RTTI lookup.
+
 ### mormot.core.interfaces
 
 Implements SOLID Process via Interface types
 - `IInvokable` Interface Methods and Parameters RTTI Extraction
 - `TInterfaceFactory` Generating Runtime Implementation Class
 - `TInterfaceResolver` `TInjectableObject` for IoC / Dependency Injection
-- `TInterfaceStub` `TInterfaceMock` for Dependency Mocking
+- `TInterfaceStub` for Dependency Stubbing/Mocking
 - `TInterfacedObjectFake` with JITted Methods Execution
 - `TInterfaceMethodExecute` for Method Execution from JSON
 - `SetWeak` and `SetWeakZero` Weak Interface Reference Functions
+- Code/Documentation Generation Logic Extraction from RTTI
+- Documentation Extraction from Source Code Comments
+
+### mormot.core.mvc
+
+Model-View-Controller (MVC) pattern and Mustache
+- Web Views Implementation using Mustache
+- ViewModel/Controller Sessions using Cookies
+- Web Renderer Returning Mustache Views or Json
+- Application ViewModel/Controller using Interfaces
+
+Abstract MVC logic over *Mustache*, as used by `mormot.rest.mvc.pas` and `mormot.net.mvc.pas`.
 
 ### mormot.core.test
 
 Testing functions shared by all framework units
 - Unit-Testing classes and functions
+- `TInterfaceMock` for Dependency Mocking
 
 ### mormot.core.fpcx64mm
 
 An (optional) Multi-thread Friendly Memory Manager for FPC written in x86_64 assembly
-- targetting Linux (and Windows) multi-threaded Services
+- should be included as the very first unit of your project uses clause
+- targetting Linux and Windows medium size Services
 - only for FPC on the x86_64 target - use the RTL MM on Delphi or ARM
-- based on FastMM4 proven algorithms by Pierre le Riche
-- code has been reduced to the only necessary featureset for production
-- deep asm refactoring for cross-platform, compactness and efficiency
 - can report detailed statistics (with threads contention and memory leaks)
-- mremap() makes large block ReallocMem a breeze on Linux :)
-- inlined SSE2 movaps loop is more efficient that subfunction(s)
-- lockless round-robin of tiny blocks (<=128/256 bytes) for better scaling
-- optional lockless bin list to avoid freemem() thread contention
+- based on proven FastMM4 by Pierre le Riche, reduced and optimized
 - three app modes: default mono-thread friendly, `FPCMM_SERVER` or `FPCMM_BOOST`
+
+### mormot.core.fpclibcmm
+
+Wrap the libc Memory Manager on FPC POSIX systems
+- should be included as the very first unit of your project uses clause
+- `mormot.core.fpcx64mm.pas` shines on standard load over a few cores
+- `mormot.core.fpclibcmm.pas` scales better on heavy load on > 16 cores
+- glibc free/realloc may scale better, but do abort/SIG_KILL on any GPF
+
 

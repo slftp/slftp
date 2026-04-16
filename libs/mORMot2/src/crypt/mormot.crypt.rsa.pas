@@ -26,10 +26,12 @@ uses
   sysutils,
   mormot.core.base,
   mormot.core.os,
-  mormot.core.rtti,
+  mormot.core.os.security,
   mormot.core.unicode,
   mormot.core.text,
   mormot.core.buffers,
+  mormot.core.rtti,
+  mormot.core.variants,
   mormot.crypt.core,
   mormot.crypt.secure;
   
@@ -240,11 +242,12 @@ type
     function MatchKnownPrime(Extend: TBigIntSimplePrime): boolean;
     /// check if the number is (likely to be) a prime following HAC 4.44
     // - can set a known simple primes Extend and Miller-Rabin tests Iterations
+    // - can reuse a TLecuyer instance between calls as probing random source
     function IsPrime(Extend: TBigIntSimplePrime = bspMost;
-      Iterations: integer = 10): boolean;
+      Iterations: integer = 10; Lecuyer: PLecuyer = nil): boolean;
     /// guess a random prime number of the exact current size
-    // - a secret is generated from several audited sources (OS, cpu RdRand),
-    // then looped over TAesPrng.Fill and IsPrime method within a timeout period
+    // - a secret is generated from audited sources (OS, cpu RdRand), then
+    // looped over TAesPrng.Fill and IsPrime method within a timeout period
     // - if Iterations is too low, FIPS 4.48 recommendation will be forced
     function FillPrime(Extend: TBigIntSimplePrime; Iterations: integer;
       EndTix: Int64): boolean;
@@ -362,6 +365,7 @@ var
   /// runtime-computed 4KB table of all known 2, 3, 5, 7, ... 17989 prime numbers
   // - as used by TBigInt.MatchKnownPrime
   // - published in interface section for TTestCoreCrypto._RSA validation
+  // - computed when needed at runtime from 1KB of nibble-encoded deltas
   BIGINT_PRIMES: array[0 .. 2063] of word;
 
 /// compute the base-10 decimal text from a Big Integer binary buffer
@@ -404,6 +408,8 @@ type
     /// unserialize a public key from binary PKCS#1 DER format
     // - will try and fallback to a ASN1_SEQ, as stored in a X509 certificate
     function FromDer(const der: TCertDer): boolean;
+    /// unserialize a public key from JSON "n" and "e" fields of a "kty":"RSA" JWK
+    function FromJwk(const Json: RawUtf8): boolean;
   end;
 
   /// store a RSA private key
@@ -521,6 +527,8 @@ type
     function LoadFromPublicKeyPem(const Pem: TCertPem): boolean;
     /// load a public key from an hexadecimal E and M fields concatenation
     procedure LoadFromPublicKeyHexa(const Hexa: RawUtf8);
+    /// load a public key from "n" and "e" fields of a "kty":"RSA" JWK
+    function LoadFromPublicKeyJwk(const Json: RawUtf8): boolean;
     /// load a private key from a decoded TRsaPrivateKey record
     procedure LoadFromPrivateKey(const PrivateKey: TRsaPrivateKey);
     /// load a private key from PKCS#1 or PKCS#8 DER format
@@ -670,6 +678,10 @@ const
     nil,      // ckaEcc256k
     nil);     // ckaEdDSA
 
+var
+  /// the RSA key size used by TCryptPrivateKeyRsa.Generate()
+  RSA_INTERNAL_DEFAULT_GENERATION_BITS: integer = RSA_DEFAULT_GENERATION_BITS;
+
 type
   /// store a RSA public key in ICryptPublicKey format
   // - using our pure pascal TRsa/TRsaPss engines of this unit
@@ -725,24 +737,6 @@ implementation
 
 { **************** RSA Oriented Big-Integer Computation }
 
-function Min(a, b: integer): integer;
-  {$ifdef HASINLINE} inline; {$endif}
-begin
-  if a < b then
-    result := a
-  else
-    result := b;
-end;
-
-function Max(a, b: integer): integer;
-  {$ifdef HASINLINE} inline; {$endif}
-begin
-  if a > b then
-    result := a
-  else
-    result := b;
-end;
-
 function CompareBI(A, B: HalfUInt): integer;
 begin
   result := ord(A > B) - ord(A < B);
@@ -778,7 +772,7 @@ begin
   if n > Capacity then
   begin
     Capacity := NextGrow(n); // reserve a bit more for faster size-up
-    ReAllocMem(Value, Capacity * HALF_BYTES);
+    ReallocMem(Value, Capacity * HALF_BYTES);
   end;
   if not nozero and
      (n > Size) then
@@ -1035,10 +1029,10 @@ begin
   // see https://www.di-mgt.com.au/euclidean.html#code-binarygcd
   if IsZero or
      b^.IsZero then
-    raise ERsaException.Create('Unexpected TBigInt.GreatestCommonDivisor(0)');
+    ERsaException.RaiseU('Unexpected TBigInt.GreatestCommonDivisor(0)');
   ta := Clone;
   tb := b.Clone;
-  z := Min(ta.FindMinBit, tb.FindMinBit);
+  z := MinPtrInt(ta.FindMinBit, tb.FindMinBit);
   while not ta.IsZero do
   begin
     // divisions by 2 preserve the invariant
@@ -1104,13 +1098,13 @@ var
 begin
   if not b^.IsZero then
   begin
-    n := Max(Size, b^.Size);
+    n := MaxPtrInt(Size, b^.Size);
     Resize(n + 1);
     b^.Resize(n);
     pa := pointer(Value);
     pb := pointer(b^.Value);
     v := 0;
-    {$ifdef CPUINTEL}
+    {$ifdef ASMINTEL}
     while n >= _xasmaddn div HALF_BYTES do // 512/1024-bit per iteration
     begin
       v := _xasmadd(pa, pb, v);
@@ -1119,7 +1113,7 @@ begin
       dec(n, _xasmaddn div HALF_BYTES);
     end;
     if n > 0 then
-    {$endif CPUINTEL}
+    {$endif ASMINTEL}
       repeat
         inc(v, PtrUInt(pa^) + pb^); // 16/32-bit per iteration
         pa^ := v;
@@ -1148,7 +1142,7 @@ begin
     pa := pointer(Value);
     pb := pointer(b^.Value);
     v := 0;
-    {$ifdef CPUINTEL}
+    {$ifdef ASMINTEL}
     while n >= _xasmsubn div HALF_BYTES do // 512/1024-bit per iteration
     begin
       v := _xasmsub(pa, pb, v);
@@ -1157,7 +1151,7 @@ begin
       dec(n, _xasmsubn div HALF_BYTES);
     end;
     if n > 0 then
-    {$endif CPUINTEL}
+    {$endif ASMINTEL}
       repeat // 16/32-bit per iteration
         v := PtrUInt(pa^) - pb^ - v;
         pa^ := v;
@@ -1186,7 +1180,7 @@ begin
   r := pointer(result^.Value);
   v := 0;
   n := Size;
-  {$ifdef CPUINTEL}
+  {$ifdef ASMINTEL}
   while n >= _xasmmuln div HALF_BYTES do // 256/512-bit per iteration
   begin
     v := _xasmmul(a, r, b, v);
@@ -1195,7 +1189,7 @@ begin
     dec(n, _xasmmuln div HALF_BYTES);
   end;
   if n > 0 then
-  {$endif CPUINTEL}
+  {$endif ASMINTEL}
     repeat // 16/32-bit per iteration
       inc(v, PtrUInt(a^) * b);
       r^ := v;
@@ -1218,7 +1212,7 @@ begin
   n := Size;
   a := @Value[n];
   v := 0;
-  {$ifdef CPUINTEL}
+  {$ifdef ASMINTEL}
   while n >= _xasmdivn div HALF_BYTES do // 512/1024-bit per iteration
   begin
     dec(PByte(a), _xasmdivn);
@@ -1226,7 +1220,7 @@ begin
     dec(n, _xasmdivn div HALF_BYTES);
   end;
   if n > 0 then
-  {$endif CPUINTEL}
+  {$endif ASMINTEL}
     repeat // 16/32-bit per iteration
       dec(a);
       v := (v shl HALF_BITS) + a^; // inject carry as high bits
@@ -1250,7 +1244,7 @@ begin
   n := Size;
   v := @Value[n];
   result := 0;
-  {$ifdef CPUINTEL}
+  {$ifdef ASMINTEL}
   while n >= _xasmmodn div HALF_BYTES do // 512/1024-bit per iteration
   begin
     dec(PByte(v), _xasmmodn);
@@ -1258,7 +1252,7 @@ begin
     dec(n, _xasmmodn div HALF_BYTES);
   end;
   if n > 0 then
-  {$endif CPUINTEL}
+  {$endif ASMINTEL}
     repeat // 16/32-bit per iteration
       dec(v);
       result := ((result shl HALF_BITS) + v^) mod bb;
@@ -1295,7 +1289,7 @@ var
 begin
   // see https://www.di-mgt.com.au/euclidean.html#code-modinv
   if m.Compare(1) <= 0 then
-    raise ERsaException.Create('Unexpected TBigInt.ModInverse(0,1)');
+    ERsaException.RaiseU('Unexpected TBigInt.ModInverse(0,1)');
   u1 := Owner.AllocateFrom(1);
   u3 := Clone;
   v1 := Owner.AllocateFrom(0);
@@ -1420,11 +1414,11 @@ var
   i: PtrInt;
 begin
   if BIGINT_PRIMES[high(BIGINT_PRIMES)] = 0 then // should equal 17989
-    ComputeAllPrimes; // delayed initialization
+    ComputeAllPrimes; // delayed initialization - thread safe by design
   if not IsZero then
   begin
     result := true;
-    if IsEven then // same as IntMod(2) = 0
+    if IsEven then // same as IntMod(BIGINT_PRIMES[0]) = 0
       exit;
     for i := 1 to BIGINT_PRIMES_LAST[Extend] do
       if IntMod(BIGINT_PRIMES[i]) = 0 then // 3, 5, 7, 11, ...
@@ -1433,20 +1427,25 @@ begin
   result := false;
 end;
 
-function TBigInt.IsPrime(Extend: TBigIntSimplePrime; Iterations: integer): boolean;
+function TBigInt.IsPrime(Extend: TBigIntSimplePrime; Iterations: integer;
+  Lecuyer: PLecuyer): boolean;
 var
   r, a, w: PBigInt;
   s, n, attempt, bak: integer;
   v: PtrUInt;
-  gen: PLecuyer; // a generator with a period of 2^88 is strong enough
+  rnd: TLecuyer;
 begin
-  result := false;
   // first check if not a factor of a well-known small prime
-  if IsZero or
+  result := (Size = (32 div HALF_BITS)) and
+            (PCardinal(Value)^ = 65537); // common Exponent from FIPS 5.4 (e)
+  if result or // result = true for common 65537 prime > BIGINT_PRIMES[]
+     IsZero or
      (Iterations <= 0) or
      MatchKnownPrime(Extend) then // detect most of the composite integers
     exit;
   // validate is a prime number using Miller-Rabin iterative tests (HAC 4.24)
+  if Lecuyer = nil then // 88-bit CSPRNG seed - if not supplied by caller
+    Lecuyer := RandomLecuyer(rnd); // new gsl_rng_taus2 uniform distribution
   bak := RefCnt;
   RefCnt := -1; // make permanent for use as modulo below
   w := Clone.IntSub(1); // w = value-1
@@ -1456,7 +1455,6 @@ begin
     // compute s = lsb(w) and r = w shr s
     s := r.FindMinBit;
     r.ShrBits(s);
-    gen := Lecuyer;
     while Iterations > 0 do
     begin
       dec(Iterations);
@@ -1469,9 +1467,9 @@ begin
         if Size > 2 then
         begin
           repeat
-            n := gen^.Next(Size);
+            n := Lecuyer^.Next(Size);
           until n > 1;
-          gen^.Fill(@a^.Value[0], n * HALF_BYTES);
+          Lecuyer^.Fill(@a^.Value[0], n * HALF_BYTES); // TLecuyer generator
           a^.Value[0] := a^.Value[0] or 1; // odd
           a^.Size := n;
           a^.Trim;
@@ -1479,9 +1477,9 @@ begin
         else
         begin
           if Size = 1 then
-            v := gen^.Next(Value[0]) // ensure a<w
+            v := Lecuyer^.Next(Value[0]) // ensure a<w
           else
-            v := gen^.Next; // only lower HalfUInt is enough for a<w
+            v := Lecuyer^.Next; // only lower HalfUInt is enough for a<w
           a^.Value[0] := v or 1; // odd
           a^.Size := 1;
         end;
@@ -1535,10 +1533,11 @@ var
   min, bytes: integer;
   last32: PCardinal;
   rnd: RawByteString;
+  lecuyer: TLecuyer; // convenient local thread-safe randomness source
 begin
   // ensure it is worth searching (paranoid)
   if Size <= 2 then
-    raise ERsaException.Create('TBigInt.FillPrime: unsupported size');
+    ERsaException.RaiseU('TBigInt.FillPrime: unsupported size');
   // never wait forever - 1 min seems enough even on slow Arm (tested on RaspPi)
   if EndTix <= 0 then
     EndTix := GetTickCount64 + MilliSecsPerMin; // time on Intel is around 1 sec
@@ -1555,11 +1554,13 @@ begin
   bytes := Size * HALF_BYTES;
   pointer(rnd) := FastNewString(bytes);
   FillSystemRandom(pointer(rnd), bytes, {mayblock=}true); // official OS API
-  {$ifdef CPUINTEL} // claimed to be NIST SP 800-90A and FIPS 140-2 compliant
-  RdRand32(pointer(Value), bytes shr 2); // xor with HW CPU prng
-  {$endif CPUINTEL}
+  {$ifdef ASMINTEL} // claimed to be NIST SP 800-90A and FIPS 140-2 compliant
+  RdRand32(pointer(rnd), bytes shr 2); // xor with HW CPU prng
+  {$endif ASMINTEL}
   AFDiffusion(pointer(Value), pointer(rnd), bytes); // sha-256 diffusion
-  FillZero(rnd);
+  DefaultHasher128(@lecuyer, pointer(rnd), bytes);  // may be AesNiHash128
+  lecuyer.SeedGenerator; // setup 88-bit gsl_rng_taus2 uniform distribution
+  FillZero(rnd);         // anti-forensic counter measure
   repeat
     // xor the original trusted sources with our CSPRNG until we get enough bits
     TAesPrng.Main.XorRandom(Value, bytes);
@@ -1569,7 +1570,7 @@ begin
       // - with our TAesPrng, it never occurred after 1,000,000,000 trials
       dec(min);
       if min = 0 then // paranoid
-        raise ERsaException.Create('TBigInt.FillPrime: weak CSPRNG');
+        ERsaException.RaiseU('TBigInt.FillPrime: weak CSPRNG');
       continue;
     end;
     // should be a big enough odd number
@@ -1579,12 +1580,12 @@ begin
     if (Value[Size - 1] or (RSA_RADIX shr 1) <> 0) and // absolute big enough
        (last32^ >= FIPS_MIN) then
       break;
-    raise ERsaException.Create('TBigInt.FillPrime FIPS_MIN'); // paranoid
+    ERsaException.RaiseU('TBigInt.FillPrime FIPS_MIN'); // paranoid
   until false;
   // brute force search for the next prime starting at this point
-  result := true; 
+  result := true;
   repeat
-    if IsPrime(Extend, Iterations) then
+    if IsPrime(Extend, Iterations, @lecuyer) then
       exit; // we got lucky
     IntAdd(2); // incremental search of odd number - see HAC 4.51
     while last32^ < FIPS_MIN do
@@ -1602,7 +1603,9 @@ begin
     //      with keysize >= 2048-bit (FIPS 186-4 appendix B.3.1 item A)
     // - see https://security.stackexchange.com/a/176396/155098
     //   and https://crypto.stackexchange.com/a/15761/40200
-  until GetTickCount64 > EndTix; // IsPrime() may be slow for sure
+    inc(min);
+  until (min and 63 = 0) and       // check only once in a while (avoid OS call)
+        (GetTickCount64 > EndTix); // IsPrime() may be slow for sure
   result := false; // timed out
 end;
 
@@ -1644,7 +1647,7 @@ end;
 function TBigInt.ToText(noclone: boolean): RawUtf8;
 var
   v: PBigInt;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
   p: PByte;
 begin
   if @self = nil then
@@ -1817,7 +1820,7 @@ var
   carry: PtrUInt;
 begin
   carry := 0; // initial carry value
-  {$ifdef CPUINTEL}
+  {$ifdef ASMINTEL}
   while n >= _xasmmuladdn div HALF_BYTES do // 256/512-bit per loop
   begin
     carry := _xasmmuladd(src, dst, factor, carry);
@@ -1826,7 +1829,7 @@ begin
     dec(n, _xasmmuladdn div HALF_BYTES);
   end;
   if n > 0 then
-  {$endif CPUINTEL}
+  {$endif ASMINTEL}
     repeat // 16/32-bit per iteration
       inc(carry, PtrUInt(dst^) + PtrUInt(src^) * factor);
       dst^ := carry;
@@ -1995,7 +1998,7 @@ begin
 end;
 
 const
-  // fair enough overallocation
+  // fair enough over-allocation
   RSA_DEFAULT_ALLOCATE = RSA_DEFAULT_GENERATION_BITS shr HALF_SHR;
 
 function TRsaContext.Allocate(n: integer; opt: TRsaAllocate): PBigint;
@@ -2029,8 +2032,8 @@ begin
   begin
     if raExactSize in opt then
       result^.Capacity := n // e.g. from LoadPermanent()
-    else
-      result^.Capacity := NextGrow(Max(RSA_DEFAULT_ALLOCATE, n)); // over-alloc
+    else // with some over-alloc
+      result^.Capacity := NextGrow(MaxPtrInt(RSA_DEFAULT_ALLOCATE, n));
     GetMem(result^.Value, result^.Capacity * HALF_BYTES);
   end;
   result^.RefCnt := 1;
@@ -2253,7 +2256,7 @@ var
 begin
   if (Modulus <> '') or
      (Exponent <> '') then
-    raise ERsaException.Create('TRsaPublicKey.FromDer over an existing key');
+    ERsaException.RaiseU('TRsaPublicKey.FromDer over an existing key');
   // first try PKCS#1 format
   result := DerToRsa(der, ASN1_BITSTR, nil, [
               @Modulus,
@@ -2264,6 +2267,19 @@ begin
     result := (AsnNext(pos, der) = ASN1_SEQ) and
               AsnNextBigInt(pos, der, Modulus) and
               AsnNextBigInt(pos, der, Exponent);
+end;
+
+function TRsaPublicKey.FromJwk(const Json: RawUtf8): boolean;
+var
+  jwk: TDocVariantData;
+  n, e: RawUtf8;
+begin
+  result := jwk.InitJson(Json, JSON_FAST) and
+            (jwk.CompareText('kty', 'RSA') = 0) and
+            jwk.GetAsRawUtf8('n', n) and
+            jwk.GetAsRawUtf8('e', e) and
+            Base64uriToBin(pointer(n), length(n), Modulus) and
+            Base64uriToBin(pointer(e), length(e), Exponent);
 end;
 
 
@@ -2303,7 +2319,7 @@ var
 begin
   if (Modulus <> '') or
      (PublicExponent <> '') then
-    raise ERsaException.Create('TRsaPrivateKey.FromDer over an existing key');
+    ERsaException.RaiseU('TRsaPrivateKey.FromDer over an existing key');
   // first try the openssl PKCS#8 layout
   result := DerToRsa(der, ASN1_OCTSTR, @Version, [
               @Modulus,
@@ -2616,6 +2632,19 @@ begin
     length(PublicKey.Modulus), length(PublicKey.Exponent));
 end;
 
+function TRsa.LoadFromPublicKeyJwk(const Json: RawUtf8): boolean;
+var
+  key: TRsaPublicKey;
+begin
+  result := key.FromJwk(Json);
+  if result then
+    try
+      LoadFromPublicKey(key);
+    except
+      result := false;
+    end;
+end;
+
 procedure TRsa.LoadFromPrivateKey(const PrivateKey: TRsaPrivateKey);
 begin
   if not fM.IsZero then
@@ -2816,7 +2845,7 @@ begin
   else
   begin
     r[1] := 2; // block type 2
-    SharedRandom.Fill(@r[2], padding); // Lecuyer is enough for public padding
+    SharedRandom.Fill(@r[2], padding); // TLecuyer is enough for public padding
     inc(padding, 2);
     for i := 2 to padding - 1 do
       if r[i] = 0 then
@@ -3026,7 +3055,7 @@ begin
      not HasPublicKey then
     exit;
   // generate the ephemeral secret key and IV within the corresponding header
-  SharedRandom.Fill(@head.iv, SizeOf(head.iv)); // use Lecuyer for public random
+  Random128(@head.iv); // unpredictable
   try
     TAesPrng.Main.FillRandom(key); // use strong CSPRNG for the private secret
     // encrypt the ephemeral secret using the current RSA public key
@@ -3201,7 +3230,7 @@ begin
   bits := ModulusBits - 1;
   len := (bits + 7) shr 3; // could be one less than ModulusLen
   // RFC 8017 9.1.1 encoding operation with saltlen = hashlen
-  SharedRandom.Fill(@salt, hlen); // Lecuyer is good enough for public salt
+  SharedRandom.Fill(@salt, hlen); // TLecuyer is good enough for public salt
   RsaPssComputeSaltedHash(Hash, @salt, HashAlgo, hlen, h);
   pslen := len - (hlen * 2 + 2);
   if pslen < 0 then
@@ -3247,7 +3276,7 @@ type
 
 constructor TCryptAsymRsa.Create(const name: RawUtf8);
 begin
-  case PWord(name)^ of
+  case cardinal(PWord(name)^) of
     ord('R') + ord('S') shl 8:
       fRsaClass := TRsa;
     ord('P') + ord('S') shl 8:
@@ -3342,7 +3371,8 @@ begin
     exit; // invalid or unsupported
   rsa := fRsaClass.Create;
   try
-    if not rsa.LoadFromPublicKeyPem(pub) then // handle PEM or DER
+    if not rsa.LoadFromPublicKeyPem(pub) and  // handle PEM or DER
+       not rsa.LoadFromPublicKeyJwk(pub) then // handle JWT JSON
       exit;
     FillZero(digest.b);
     hasher.Full(msg, msglen, digest);
@@ -3374,7 +3404,8 @@ begin
     ckaRsaPss:
       begin
         fRsa := CKA_TO_RSA[Algorithm].Create;
-        if fRsa.LoadFromPublicKeyPem(PublicKeySaved) then
+        if fRsa.LoadFromPublicKeyPem(PublicKeySaved) or   // PEM or DER
+           fRsa.LoadFromPublicKeyJwk(PublicKeySaved) then // JWT JSON
         begin
           fKeyAlgo := Algorithm;
           result := true;
@@ -3465,7 +3496,7 @@ begin
     if fRsa = nil then
     begin
       fKeyAlgo := CAA_CKA[Algorithm];
-      fRsa := CKA_TO_RSA[fKeyAlgo].GenerateNew(RSA_DEFAULT_GENERATION_BITS);
+      fRsa := CKA_TO_RSA[fKeyAlgo].GenerateNew(RSA_INTERNAL_DEFAULT_GENERATION_BITS);
       if fRsa = nil then
         exit;
       result := fRsa.SavePublicKey.ToSubjectPublicKey;

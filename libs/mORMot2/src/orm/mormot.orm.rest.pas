@@ -100,7 +100,7 @@ type
     fCache: TOrmCache;
     fTransactionActiveSession: cardinal;
     fTransactionTable: TOrmClass;
-    fTempJsonWriter: TJsonWriter;
+    fTempJsonWriter: TJsonWriter; // shared with a 64KB internal buffer
     /// compute SELECT ... FROM TABLE WHERE ...
     function SqlComputeForSelect(TableModelIndex: integer; Table: TOrmClass;
       const FieldNames, WhereClause: RawUtf8): RawUtf8;
@@ -154,14 +154,16 @@ type
     // this value as insertion ID
     // - override this method for proper calling the database engine
     // - this method must be implemented in a thread-safe manner
-    function EngineAdd(TableModelIndex: integer; const SentData: RawUtf8): TID; virtual; abstract;
+    function EngineAdd(TableModelIndex: integer;
+      const SentData: RawUtf8): TID; virtual; abstract;
     /// update a member
     // - implements REST PUT collection
     // - SentData can contain the JSON object with field values to be added
     // - returns true on success
     // - override this method for proper calling the database engine
     // - this method must be implemented in a thread-safe manner
-    function EngineUpdate(TableModelIndex: integer; ID: TID; const SentData: RawUtf8): boolean; virtual; abstract;
+    function EngineUpdate(TableModelIndex: integer; ID: TID;
+      const SentData: RawUtf8): boolean; virtual; abstract;
     /// delete a member
     // - implements REST DELETE collection
     // - returns true on success
@@ -259,13 +261,16 @@ type
     /// internal TOrm value serialization to a JSON object
     // - will use shared AcquireJsonWriter instance if available
     procedure GetJsonValue(Value: TOrm; withID: boolean;
-      const Fields: TFieldBits; out Json: RawUtf8); overload;
+      const Fields: TFieldBits; var Json: RawUtf8); overload;
     /// internal TOrm value serialization to a JSON object
     // - will use shared AcquireJsonWriter instance if available
     procedure GetJsonValue(Value: TOrm; withID: boolean; Occasion: TOrmOccasion;
       var Json: RawUtf8); overload;
       {$ifdef FPC_OR_DELPHIXE} inline; {$endif} // avoid URW1111 on Delphi 2010
     /// access to a thread-safe internal cached TJsonWriter instance
+    // - with a TRawByteStringStream and 128KB of non-resizable working buffer
+    // - sharing an instance make sense because it is likely to be needed
+    // within a TSqlDatabase global Lock on SQLite3
     function AcquireJsonWriter(var tmp: TTextWriterStackBuffer): TJsonWriter;
       {$ifdef HASINLINE} inline; {$endif}
     /// release the thread-safe cached TJsonWriter returned by AcquireJsonWriter
@@ -534,15 +539,15 @@ type
       const Value: variant); overload;
     /// define a new field to be stored in this table
     // - returns the internal index of the newly created field
-    function AddField(const FieldName: RawUtf8): integer; overload;
+    function AddField(const FieldName: RawUtf8): PtrInt; overload;
     /// define a new field to be stored in this table
     // - returns the internal index of the newly created field
     function AddField(const FieldName: RawUtf8; FieldType: TOrmFieldType;
-      FieldTypeInfo: pointer = nil; FieldSize: integer = -1): integer; overload;
+      FieldTypeInfo: pointer = nil; FieldSize: integer = -1): PtrInt; overload;
     /// define a TOrm property to be stored as new table field
     // - returns the internal index of the newly created field
     function AddField(const FieldName: RawUtf8; FieldTable: TOrmClass;
-      const FieldTableName: RawUtf8 = ''): integer; overload;
+      const FieldTableName: RawUtf8 = ''): PtrInt; overload;
     /// append/merge data from a secondary TOrmTable
     // - you should specify the primary keys on which the data rows are merged
     // - merged data will point to From.fResults[] content: so the From instance
@@ -602,7 +607,8 @@ implementation
 constructor TRestOrm.Create(aRest: TRest);
 begin
   inherited Create;
-  fTempJsonWriter := TJsonWriter.CreateOwnedStream(16384, {nosharedstream=}true);
+  fTempJsonWriter := TJsonWriter.CreateOwnedStream(128 shl 10);
+  fTempJsonWriter.FlushToStreamNoAutoResize := true; // stick to 128KB buffer
   if aRest = nil then
     exit;
   fRest := aRest;
@@ -678,10 +684,10 @@ begin
 end;
 
 procedure TRestOrm.GetJsonValue(Value: TOrm; withID: boolean;
-  const Fields: TFieldBits; out Json: RawUtf8);
+  const Fields: TFieldBits; var Json: RawUtf8);
 var
   WR: TJsonWriter;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   // faster than Json := Value.GetJsonValues(true, withID, Fields);
   WR := AcquireJsonWriter(tmp);
@@ -724,10 +730,11 @@ begin
     ForceID := false;
   props := Value.Orm;
   if CustomFields <> nil then
-    if DoNotAutoComputeFields then
-      fields := CustomFields^ * props.CopiableFieldsBits
-    else
-      fields := CustomFields^ * props.CopiableFieldsBits + props.ComputeBeforeAddFieldsBits
+  begin
+    fields := CustomFields^ * props.CopiableFieldsBits; // refine from ALL_FIELDS
+    if not DoNotAutoComputeFields then
+      fields := fields + props.ComputeBeforeAddFieldsBits;
+  end
   else if WithBlobs then
     fields := props.CopiableFieldsBits
   else
@@ -1090,7 +1097,7 @@ begin
         '=':
           begin
             // SELECT RowID from Table where RowID=10
-            P := GotoNextNotSpace(P + 1);
+            P := IgnoreAndGotoNextNotSpace(P);
             if PWord(P)^ = ord(':') + ord('(') shl 8 then
               inc(P, 2); // handle inlined parameters
             SetInt64(P, V);
@@ -1109,7 +1116,7 @@ begin
             // SELECT RowID from Table where RowID in [1,2,3]
             P := GotoNextNotSpace(P + 2);
             if (P^ = '(') and
-               (GotoNextNotSpace(P + 1)^ in ['0'..'9']) then
+               (IgnoreAndGotoNextNotSpace(P)^ in ['0'..'9']) then
             begin
               CsvToInt64DynArray(P + 1, Data);
               if Data <> nil then
@@ -1367,9 +1374,9 @@ begin
   if (self = nil) or
      (Value = nil) then
     exit;
-  sql := TrimU(SqlWhere);
+  TrimU(SqlWhere, sql);
   if not EndWith(sql, ' LIMIT 1') then
-    sql := sql + ' LIMIT 1'; // we keep a single record below
+    Append(sql, ' LIMIT 1'); // we keep a single record below
   T := MultiFieldValues(POrmClass(Value)^, FieldsCsv, sql);
   if T <> nil then
   try
@@ -2619,59 +2626,64 @@ end;
 
 { TOrmTableWritable }
 
-function TOrmTableWritable.AddField(const FieldName: RawUtf8): integer;
+function TOrmTableWritable.AddField(const FieldName: RawUtf8): PtrInt;
 var
-  prev: TOrmTableJsonDataArray;
+  newdata: TPUtf8CharDynArray; // new fDataSafe[] as done by SetResultsSafe()
+  n, o: PtrInt;
+  r, f: integer;
+  p: PPUtf8Char;
   {$ifndef NOTORMTABLELEN}
-  prevlen: TIntegerDynArray;
+  newlen: TIntegerDynArray;
+  l: PInteger;
   {$endif NOTORMTABLELEN}
-  rowlen, i, n: PtrInt;
-  S, D: PByte;
 begin
   if (FieldName = '') or
      (FieldIndex(FieldName) >= 0) then
     EOrmTable.RaiseUtf8('%.AddField(%) invalid fieldname', [self, FieldName]);
+  // prepare internal storage
+  n := (fRowCount + 1) * (fFieldCount + 1);
+  SetLength(newdata, n);
+  p := pointer(newdata);
+  {$ifndef NOTORMTABLELEN}
+  SetLength(newlen, n);
+  l := pointer(newlen);
+  {$endif NOTORMTABLELEN}
+  // adjust data rows
+  o := 0;
+  for r := 0 to fRowCount do // include first row = field names
+  begin
+    for f := 1 to fFieldCount do
+    begin
+      p^ := GetResults(o); // from fData[] or fDataSafe[]
+      inc(p);
+      {$ifndef NOTORMTABLELEN}
+      l^ := fLen[o];
+      inc(l);
+      {$endif NOTORMTABLELEN}
+      inc(o);
+    end;
+    inc(p); // leave new field value as fDataSafe[]=nil
+    {$ifndef NOTORMTABLELEN}
+    inc(l); // leave fLen[]=0
+    {$endif NOTORMTABLELEN}
+  end;
+  {$ifdef NOPOINTEROFFSET}
+  fJsonData := newdata; // just replace pointers
+  fData := pointer(fJsonData);
+  {$else}
+  fDataSafe := newdata; // just replace
+  fData := nil;         // as SetResultsSafe()
+  {$endif NOPOINTEROFFSET}
+  {$ifndef NOTORMTABLELEN}
+  fLen := newlen;
+  {$endif NOTORMTABLELEN}
   // register the new field
   result := fFieldCount;
   inc(fFieldCount);
   SetLength(fFieldNames, fFieldCount);
   fFieldNames[result] := FieldName;
+  SetResultsSafe(result, pointer(fFieldNames[result])); // new field in row=0
   QuickSortIndexedPUtf8Char(pointer(fFieldNames), fFieldCount, fFieldNameOrder);
-  // prepare internal storage
-  prev := fJsonData;
-  fJsonData := nil;
-  {$ifndef NOTORMTABLELEN}
-  prevlen := fLen;
-  fLen := nil; // now to ensure SetResultsSafe() won't try to set fLen[]
-  {$endif NOTORMTABLELEN}
-  n := (fRowCount + 1) * fFieldCount;
-  // adjust data rows
-  SetLength(fJsonData, n);
-  fData := pointer(fJsonData);
-  SetResultsSafe(result, pointer(FieldName)); // set new field name in row=0
-  S := pointer(prev);
-  D := pointer(fJsonData);
-  rowlen := result * SizeOf(fJsonData[0]);
-  for i := 0 to fRowCount do
-  begin
-    MoveFast(S^, D^, rowlen);
-    inc(S, rowlen);
-    inc(D, rowlen + SizeOf(fJsonData[0])); // leave new field value as D^=nil
-  end;
-  {$ifndef NOTORMTABLELEN}
-  // also adjust the internal fLen[] array
-  SetLength(fLen, n);
-  fLen[result] := length(fFieldNames[result]); // we know the new field length
-  S := pointer(prevlen);
-  D := pointer(fLen);
-  rowlen := result shl 2;
-  for i := 0 to fRowCount do
-  begin
-    MoveFast(S^, D^, rowlen);
-    inc(S, rowlen);
-    inc(D, rowlen + 4); // leave new field value as fLen[]=0
-  end;
-  {$endif NOTORMTABLELEN}
 end;
 
 procedure TOrmTableWritable.Update(Row: PtrInt; const FieldName, Value: RawUtf8);
@@ -2687,7 +2699,6 @@ var
 begin
   // update the content
   if (self = nil) or
-     (fData = nil) or
      (Row <= 0) or
      (Row > fRowCount) or
      (PtrUInt(Field) >= PtrUInt(fFieldCount)) then
@@ -2721,14 +2732,14 @@ begin
 end;
 
 function TOrmTableWritable.AddField(const FieldName: RawUtf8;
-  FieldType: TOrmFieldType; FieldTypeInfo: pointer; FieldSize: integer): integer;
+  FieldType: TOrmFieldType; FieldTypeInfo: pointer; FieldSize: integer): PtrInt;
 begin
   result := AddField(FieldName);
   SetFieldType(result, FieldType, FieldTypeInfo, FieldSize);
 end;
 
 function TOrmTableWritable.AddField(const FieldName: RawUtf8;
-  FieldTable: TOrmClass; const FieldTableName: RawUtf8): integer;
+  FieldTable: TOrmClass; const FieldTableName: RawUtf8): PtrInt;
 var
   prop: TOrmPropInfo;
   nfo: PRttiInfo;
@@ -2743,10 +2754,9 @@ begin
       prop := ByRawUtf8Name(FieldName);
   if prop = nil then
     exit;
+  nfo := nil;
   if prop.InheritsFrom(TOrmPropInfoRtti) then
-    nfo := TOrmPropInfoRtti(prop).PropType
-  else
-    nfo := nil;
+    nfo := TOrmPropInfoRtti(prop).PropType;
   SetFieldType(result, prop.OrmFieldTypeStored, nfo, prop.FieldWidth,
     PtrArrayAddOnce(fQueryTables, FieldTable));
 end;
@@ -2766,7 +2776,8 @@ begin
   Update(Row, Field, U);
 end;
 
-procedure TOrmTableWritable.Join(From: TOrmTable; const FromKeyField, KeyField: RawUtf8);
+procedure TOrmTableWritable.Join(From: TOrmTable;
+  const FromKeyField, KeyField: RawUtf8);
 var
   fk, dk, f, i, k, ndx: integer;
   n, fn: RawUtf8;

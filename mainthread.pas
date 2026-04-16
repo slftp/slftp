@@ -59,7 +59,8 @@ uses
   mslproxys, speedstatsunit, socks5, taskspeedtest, indexer, statsunit, ranksunit, dbaddpre, dbaddimdb, dbaddnfo, dbaddurl,
   dbaddgenre, globalskipunit, backupunit, debugunit, midnight, irccolorunit, mrdohutils, dbtvinfo, taskhttpimdb, tasklogin, {$IFNDEF MSWINDOWS}slconsole,{$ENDIF}
   StrUtils, news, dbhandler, mormot.db.raw.sqlite3, mormot.db.sql.sqlite3, ZPlainMySqlDriver, mormot.db.sql.zeos, mormot.db.core, irccommands.prebot,
-  taskautodirlist, slcriticalsection2, mormot.core.unicode, slapi, slapi.services.impl;
+  taskautodirlist, slcriticalsection2, mormot.core.unicode, mormot.core.base, slapi, slapi.services.impl,
+  IdGlobal, ZClasses, FLRE, RegExpr;
 
 {$I slftp.inc}
 
@@ -456,13 +457,30 @@ begin
 end;
 
 procedure Main_Run;
+var
+  fLibVersion: String;
 begin
   Debug(dpError, section, '%s started', [GetFullVersionString]);
-  Debug(dpMessage, section, Format('OpenSSL version: %s', [GetOpenSSLVersion]));
-  Debug(dpMessage, section, Format('SQLite3 version: %s', [sqlite3.Version]));
+  fLibVersion := 'FPC version: ' + {$I %FPCVERSION%};
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('OpenSSL version: %s', [GetOpenSSLVersion]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('SQLite3 version: %s', [UTF8ToString(sqlite3.VersionText)]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
   {$IFNDEF MSWINDOWS}
-    Debug(dpMessage, section, Format('ncurses version: %s', [Ncurses_Version]));
+  fLibVersion := Format('ncurses version: %s', [Ncurses_Version]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
   {$ENDIF}
+  fLibVersion := Format('mORMot2 version: %s', [SYNOPSE_FRAMEWORK_VERSION]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('Indy10 version: %s', [gsIdVersion]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('ZeosLib version: %s', [ZEOS_VERSION]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('FLRE version: %s', [FLREVersionString]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
+  fLibVersion := Format('TRegExpr version: %d.%d', [TRegExpr.VersionMajor, TRegExpr.VersionMinor]);
+  console_addline('Admin', fLibVersion); Debug(dpMessage, section, fLibVersion);
 
   started := Now();
   mainthread_started := Now();

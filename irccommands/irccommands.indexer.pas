@@ -45,7 +45,7 @@ begin
   try
     try
       fCLReader.allowDOSStyle := True;
-      fCLReader.automaticalShowError := False;
+      fCLReader.showErrorAutomatically := False;
       fCLReader.declareString('limit', '', '');
       fCLReader.addAbbreviation('l', 'limit');
       fCLReader.parse(params);

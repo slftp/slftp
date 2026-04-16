@@ -1,8 +1,8 @@
 # mORMot Framework Licencing Terms
 
-**The mORMot framework. Copyright (C) 2025 Arnaud Bouchez**
+**The mORMot framework. Copyright (C) 2026 Arnaud Bouchez**
 
-**Synopse Informatique - https://synopse.info**
+**https://synopse.info**
 
 The files in this repository are part of the mORMot framework 2, and are released under a disjunctive MPL 1.1/GPL 2.0/LGPL 2.1 three-license. Its use in any project expects the full acceptance of its licensing terms.
 
@@ -47,7 +47,7 @@ For instance, if you select the MPL license, here are the requirements:
 - You accept the license terms with no restriction - see http://www.mozilla.org/MPL/2.0/FAQ.html for additional information;
 - You have to publish any modified unit in a public web site (e.g. http://YourSoftwareCompany.com/MPL), with a description of applied modifications, and no removal of the original license header in source code;
 - You make appear some notice available in the program (About box, documentation, online help), stating e.g.
-*This software uses some third-party code of the Synopse mORMot framework (C) 2025 Arnaud Bouchez - https://synopse.info - under Mozilla Public License 1.1; modified source code is available at http://SoftwareCompany.com/MPL*
+*This software uses some third-party code of the Synopse mORMot framework (C) 2026 Arnaud Bouchez - https://synopse.info - under Mozilla Public License 1.1; modified source code is available at http://SoftwareCompany.com/MPL*
 
 
 ## Derivate Open Source Works
@@ -64,8 +64,7 @@ If you want to include part of the framework source code in your own open-source
       Sample based on official mORMot's sample
       "SQLite3\Samples\09 - HttpApi web server\HttpApiServer.dpr"
 
-      Synopse mORMot framework. Copyright (C) 2025 Arnaud Bouchez
-        Synopse Informatique - https://synopse.info
+      Synopse mORMot framework. Copyright (C) 2026 Arnaud Bouchez https://synopse.info
       Original tri-license: MPL 1.1/GPL 2.0/LGPL 2.1
     }
 
@@ -79,5 +78,4 @@ Even though our libraries are Open Source with permissive licenses, some users w
 
 For instance, you may want to hold a tangible legal document as evidence that you have the legal right to use and distribute your software containing our library code, or, more likely, your legal department tells you that you have to purchase a license.
 
-If you feel like you really have to purchase a license for our libraries, *Synopse*, the company that employs the architect and principal developer of the libray, will sell you one. Please contact us directly for a contract proposal.
-
+If you really have to purchase a license for our libraries, feel free to contact Arnaud Bouchez, owner of the source code base.

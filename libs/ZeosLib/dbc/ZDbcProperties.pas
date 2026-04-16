@@ -270,7 +270,7 @@ const
 
   { Parameters common for several drivers }
 
-{$IF DEFINED(ENABLE_ORACLE) OR DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB)}
+{$IF DEFINED(ENABLE_ORACLE) OR DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB) OR DEFINED(ENABLE_SQLANY)}
   { Parameters that are for datasets and statements but could be set for connections
     (see comment above) }
 
@@ -299,12 +299,10 @@ const
 
 {$IFEND}
 
-{$IF DEFINED(ENABLE_ORACLE) OR DEFINED(ENABLE_POSTGRESQL) OR DEFINED(ENABLE_INTERBASE) OR DEFINED(ENABLE_FIREBIRD)}
   // Type: STR, like Field1[, Field2, ...] (separators: "," or ";")
   // List of fields which will get their values on INSERT
   // (by INSERT...RETURNING) construction.
   DSProps_InsertReturningFields = 'InsertReturningFields';
-{$IFEND}
 
 {$IF DEFINED(ENABLE_ADO) OR DEFINED(ENABLE_OLEDB)}
   /// <summary>Defines the driver Provider as a String. This property is used
@@ -319,7 +317,7 @@ const
   ConnProps_TrustedConnection = 'Trusted_Connection';
 {$IFEND}
 
-{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB)}
+{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_OLEDB) OR DEFINED(ENABLE_ADO)}
   // Type: BOOLEAN
   // Defer the prepare?
   DSProps_DeferPrepare = 'DeferPrepare';
@@ -359,9 +357,6 @@ const
   // If set, executes 'SET ANSI_PADDING ON' on connect
   ConnProps_AnsiPadding = 'ANSI_PADDING';
   // Type: STR
-  // The application name to send to the server
-  ConnProps_AppName = 'AppName';
-  // Type: STR
   // The language the server should use for messages
   ConnProps_Language = 'language';
   // Type: STR
@@ -383,6 +378,12 @@ const
   ConnProps_Secure = 'secure';
   ConnProps_Trusted = 'trusted';
 {$ENDIF}
+
+{$IF DEFINED(ENABLE_DBLIB) OR DEFINED(ENABLE_SQLANY)}
+  // Type: STR
+  // The application name to send to the server
+  ConnProps_AppName = 'AppName';
+{$IFEND}
 
 {$IFDEF ENABLE_MYSQL}
 
@@ -561,6 +562,12 @@ const
   /// <summary>Sets Listener interval in milliseconds.</summary>
   /// <default>250</default>
   ELProps_ListernerInterval = 'ListernerInterval';
+  // Type: BOOLEAN
+  // By default Zeos will use the hostaddr parameter if it detects an IP address.
+  // This parameter disables this behavior. This an help in setups where GSSAPI
+  // gets used. See the following thread in the forums:
+  // https://zeoslib.sourceforge.io/viewtopic.php?t=249508
+  DSProps_PgNeverUseHostAddr = 'pg_never_use_hostaddr';
 {$ENDIF}
 
 {$IF defined(ENABLE_INTERBASE) OR DEFINED(ENABLE_FIREBIRD)}
@@ -874,17 +881,19 @@ const
   ConnProps_OCIMultiThreaded = 'OCIMultiThreaded';
 {$ENDIF}
 
-{$IFDEF ENABLE_ASA}
   { Parameters used for constructing ConnectionString.
     Refer to ASA manual for types and acceptable values of these parameters }
     //see: http://infocenter.sybase.com/help/topic/com.sybase.help.sqlanywhere.12.0.1/dbadmin/how-introduction-connect.html
+{$IF DEFINED(ENABLE_ASA) OR DEFINED(ENABLE_SQLANY) OR DEFINED(ENABLE_ODBC)}
+  ConnProps_CharSet = 'CharSet';
+{$IFEND}
+{$IF DEFINED(ENABLE_ASA) OR DEFINED(ENABLE_SQLANY)}
   ConnProps_APP = 'APP';
   ConnProps_AppInfo = 'AppInfo';
   ConnProps_AutoStart = 'AutoStart';
   ConnProps_ASTART = 'ASTART';
   ConnProps_AutoStop = 'AutoStop';
   ConnProps_ASTOP = 'ASTOP';
-  ConnProps_CharSet = 'CharSet';
   ConnProps_CS = 'CS';
   ConnProps_CommBufferSize = 'CommBufferSize';
   ConnProps_CBSIZE = 'CBSIZE';
@@ -962,7 +971,7 @@ const
   ConnProps_UNC = 'UNC';
   { Parameters that are for datasets and statements but could be set for connections
     (see comment above) }
-{$ENDIF}
+{$IFEND}
 
 {$IFDEF ENABLE_OLEDB}
   // Type: INT
@@ -990,15 +999,18 @@ const
   ///  for the ODBC connection only. Example:
   ///  Properties.Values[ConnProps_DRIVER]={SQL Server Native Client 11.0}</summary>
   ConnProps_DRIVER = 'DRIVER';
-  /// <summary>Defines the server as a String. This property is used
-  ///  for the ODBC connection only. Example:
-  ///  Properties.Values[ConnProps_Server]=(localdb)\ZeosLib</summary>
-  ConnProps_Server = 'Server';
   // Type: Number
   // Default is 380 which is mapped to version 3.8
   // Also allowed is 3 which is mapped to version 3.0
   ConnProps_ODBC_Version = 'ODBC_Version';
 {$ENDIF}
+
+{$IF DEFINED(ENABLE_ODBC) OR DEFINED(ENABLE_SQLANY)}
+  /// <summary>Defines the server as a String. This property is used
+  ///  for the ODBC connection only. Example:
+  ///  Properties.Values[ConnProps_Server]=(localdb)\ZeosLib</summary>
+  ConnProps_Server = 'Server';
+{$IFEND}
 
 {$IFNDEF ZEOS_DISABLE_PROXY}
   /// <summary>

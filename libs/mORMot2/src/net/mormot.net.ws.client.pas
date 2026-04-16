@@ -34,6 +34,7 @@ uses
   mormot.core.rtti,
   mormot.core.json,
   mormot.core.buffers,
+  mormot.core.interfaces,
   mormot.crypt.core,
   mormot.crypt.ecc,
   mormot.crypt.secure, // IProtocol definition
@@ -142,7 +143,7 @@ type
     // - after WebSocketsUpgrade() call, will use WebSockets for the communication
     function Request(const url, method: RawUtf8; KeepAlive: cardinal;
       const header: RawUtf8; const Data: RawByteString; const DataType: RawUtf8;
-      retry: boolean; InStream: TStream = nil; OutStream: TStream = nil): integer; override;
+      AsRetry: boolean; InStream: TStream = nil; OutStream: TStream = nil): integer; override;
     /// upgrade the HTTP client connection to a specified WebSockets protocol
     // - i.e. 'synopsebin' and optionally 'synopsejson' modes
     // - you may specify an URI to as expected by the server for upgrade
@@ -342,6 +343,14 @@ type
     function Emit(out Dest: TDocVariantData; const EventName: RawUtf8;
       const Data: RawUtf8 = ''; const NameSpace: RawUtf8 = '';
       WaitTimeoutMS: integer = 0): boolean; overload;
+    /// disable a callback for a given packet ID
+    // - e.g. when a form is called and we don't need any notification any more
+    function Discard(aAckID: TSocketIOAckID;
+      const aNameSpace: RawUtf8 = ''): boolean; overload;
+    /// disable a given callback from any packet ID redirecting to it
+    // - e.g. when a form is called and we don't need any notification any more
+    function Discard(const aOnAck: TOnSocketIOAck;
+      const aNameSpace: RawUtf8 = ''): boolean; overload;
     /// refine the TSocketsIOClient process
     property Options: TSocketsIOClientOptions
       read fOptions write fOptions;
@@ -366,6 +375,7 @@ type
   TWebSocketSocketIOClientProtocol = class(TWebSocketSocketIOProtocol)
   protected
     fClient: TSocketsIOClient; // weak reference (owned by TSocketsIOClient)
+    fPendingMessage: TSocketIOMessage;
     procedure AfterUpgrade(aProcess: TWebSocketProcess); override;
     procedure EnginePacketReceived(Sender: TWebSocketProcess; PacketType: TEngineIOPacket;
       PayLoad: PUtf8Char; PayLoadLen: PtrInt; PayLoadBinary: boolean); override;
@@ -414,7 +424,7 @@ end;
 destructor TWebSocketProcessClient.Destroy;
 var
   t: TWebSocketProcessClientThread;
-  tix: Int64;
+  tix: cardinal;
   {%H-}log: ISynLog;
 begin
   t := fOwnerThread as TWebSocketProcessClientThread;
@@ -422,9 +432,9 @@ begin
   try
     // focConnectionClose would be handled in this thread -> close client thread
     t.Terminate;
-    tix := GetTickCount64 + 7000; // never wait forever
+    tix := GetTickSec + 7; // never wait forever
     while (t.fThreadState = sRun) and
-          (GetTickCount64 < tix) do
+          (GetTickSec < tix) do
       SleepHiRes(1);
     t.fProcess := nil;
   finally
@@ -593,7 +603,7 @@ end;
 
 function THttpClientWebSockets.Request(const url, method: RawUtf8;
   KeepAlive: cardinal; const header: RawUtf8; const Data: RawByteString;
-  const DataType: RawUtf8; retry: boolean; InStream, OutStream: TStream): integer;
+  const DataType: RawUtf8; AsRetry: boolean; InStream, OutStream: TStream): integer;
 var
   t: TWebSocketProcessClientThread;
   Ctxt: THttpServerRequest;
@@ -604,10 +614,10 @@ begin
   begin
     // standard HTTP/1.1 REST request (before WebSocketsUpgrade call)
     result := inherited Request(url, method, KeepAlive, header, Data, DataType,
-      retry, InStream, OutStream);
+      AsRetry, InStream, OutStream);
     exit;
   end;
-  // WebSocketsUpgrade() did succeed: use the upgraded connection
+  // after successfull WebSocketsUpgrade(): emulate REST over WebSockets
   t := fProcess.fOwnerThread as TWebSocketProcessClientThread;
   if t.fThreadState = sCreate then
     SleepHiRes(10); // paranoid warmup of TWebSocketProcessClientThread.Execute
@@ -625,11 +635,14 @@ begin
     if InStream <> nil then
       body := body + StreamToRawByteString(InStream);
     Ctxt.PrepareDirect(url, method, header, body, DataType, '');
+    // see TRestHttpClientWebsockets.CallbackModeSetHeader
+    block := wscBlockWithAnswer;
     FindNameValue(header, 'SEC-WEBSOCKET-REST:', resthead);
-    if resthead = 'NonBlocking' then
-      block := wscNonBlockWithoutAnswer
-    else
-      block := wscBlockWithAnswer;
+    if resthead <> '' then
+      if resthead = 'NonBlocking' then
+        block := wscNonBlockWithoutAnswer
+      else if resthead = 'WithoutAnswer' then
+       block := wscBlockWithoutAnswer;
     result := fProcess.NotifyCallback(Ctxt, block);
     if IsContentTypeJsonU(Ctxt.OutContentType) then
       HeaderSetText(Ctxt.OutCustomHeaders) // OutContentType='' means JSON
@@ -702,7 +715,7 @@ begin
       aProtocol.OnBeforeIncomingFrame := fOnBeforeIncomingFrame;
       // send initial upgrade request
       RequestSendHeader(aWebSocketsURI, 'GET');
-      SharedRandom.Fill(@key, SizeOf(key)); // Lecuyer is enough for public random
+      Random128(@key); // unpredictable
       bin1 := BinToBase64(@key, SizeOf(key));
       SockSendLine(['Content-Length: 0'#13#10 +
                     'Connection: Upgrade'#13#10 +
@@ -717,7 +730,7 @@ begin
          (extout <> '') then // e.g. for TEcdheProtocol
         SockSendLine(['Sec-WebSocket-Extensions: ', extout]);
       if aCustomHeaders <> '' then
-        SockSendHeaders(pointer(aCustomHeaders)); // normalizing CRLF
+        SockSendHeaders(aCustomHeaders); // normalizing CRLF
       SockSendCRLF;
       SockSendFlush('');
       // validate the response as WebSockets upgrade
@@ -762,14 +775,9 @@ begin
           exit;
       end;
       // if we reached here, connection is successfully upgraded to WebSockets
-      if (Server = 'localhost') or
-         (Server = '127.0.0.1') then
-      begin
-        aProtocol.RemoteIP := '127.0.0.1';
-        aProtocol.RemoteLocalhost := true;
-      end
-      else
-        aProtocol.RemoteIP := Server;
+      aProtocol.RemoteIP := RemoteIP;
+      aProtocol.RemoteLocalhost := (RemoteIP = '') or
+                                   (PCardinal(RemoteIP)^ = HOST_127);
       // initialize the TWebSocketProcess
       result := ''; // no error message = success
       SetInt64(pointer(HeaderGetValue('SEC-WEBSOCKET-CONNECTION-ID')), id);
@@ -1148,7 +1156,7 @@ begin
     exit;
   dest := fWaitEventData;
   if dest <> nil then
-    Message.DataGet(dest^);
+    Message.DataParse(dest^);
   WaitEventDone(wepEmit);
   fWaitEventAckID := SIO_NO_ACK;
 end;
@@ -1176,6 +1184,17 @@ begin
   fWaitEventAckID := SIO_NO_ACK
 end;
 
+function TSocketsIOClient.Discard(aAckID: TSocketIOAckID;
+  const aNameSpace: RawUtf8): boolean;
+begin
+  result := TSocketIORemoteNamespace(GetRemote(aNameSpace)).Discard(aAckID);
+end;
+
+function TSocketsIOClient.Discard(const aOnAck: TOnSocketIOAck;
+  const aNameSpace: RawUtf8): boolean;
+begin
+  result := TSocketIORemoteNamespace(GetRemote(aNameSpace)).Discard(aOnAck);
+end;
 
 
 { TWebSocketEngineIOClientProtocol }
@@ -1202,8 +1221,6 @@ end;
 procedure TWebSocketSocketIOClientProtocol.EnginePacketReceived(
   Sender: TWebSocketProcess; PacketType: TEngineIOPacket;
   PayLoad: PUtf8Char; PayLoadLen: PtrInt; PayLoadBinary: boolean);
-var
-  msg: TSocketIOMessage;
 begin
   if fClient = nil then
     ESocketIO.RaiseUtf8('Unexpected %.EnginePacketReceived', [self]);
@@ -1211,11 +1228,27 @@ begin
     eioOpen:
       fClient.AfterOpen(PayLoad);
     eioMessage:
-      // decode the raw Engine.IO packet into a TSocketIOMessage
-      if msg.InitBuffer(PayLoad, PayLoadLen, PayLoadBinary, Sender) then
-        SocketPacketReceived(msg)
-      else
-        ESocketIO.RaiseUtf8('%.EnginePacketReceived: invalid Payload', [self]);
+      begin
+        // decode the raw Engine.IO packet into a TSocketIOMessage
+        if PayLoadBinary then
+        begin
+          // binary attachements are receieved as focBinary frames
+          if not fPendingMessage.AddBinaryAttachment(PayLoad, PayLoadLen) then
+            exit; // not all attachements are available yet
+          // AddBinaryAttachment=true means we got all BinaryAttachment frames
+        end
+        else if not fPendingMessage.InitBuffer(PayLoad, PayLoadLen, Sender) then
+          // the frame should be valid text payload
+          ESocketIO.RaiseUtf8('%.EnginePacketReceived: invalid Payload', [self])
+        else if fPendingMessage.BinaryAttachment <> 0 then
+          if fPendingMessage.PacketType in SIO_BINARY then
+            exit // wait until received all upcoming focBinary frames
+          else
+            fPendingMessage.RaiseESockIO('BinaryAttachment EnginePacketReceived');
+        // if we reached here, we got a full message with its attachements
+        SocketPacketReceived(fPendingMessage);
+        fPendingMessage.Reset; // better safe than sorry
+      end;
   end;
 end;
 
@@ -1228,15 +1261,19 @@ begin
     sioConnect,
     sioConnectError:
       fClient.AfterNamespaceConnect(Message);
-    sioEvent:
+    sioEvent,
+    sioBinaryEvent:
       fClient.OnEvent(Message);
-    sioAck:
+    sioAck,
+    sioBinaryAck:
       fClient.OnAck(Message);
   else
     ESocketIO.RaiseUtf8('%.SocketPacketReceived: not supported packet type: %',
       [self, ToText(Message.PacketType)^]);
   end;
 end;
+
+
 
 end.
 

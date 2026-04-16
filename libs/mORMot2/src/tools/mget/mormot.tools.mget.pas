@@ -173,12 +173,12 @@ end;
 
 function TMGetProcess.GetTcpTimeoutSec: integer;
 begin
-  result := Options.CreateTimeoutMS * 1000;
+  result := Options.CreateTimeoutMS div 1000;
 end;
 
 procedure TMGetProcess.SetTcpTimeoutSec(Seconds: integer);
 begin
-  Options.CreateTimeoutMS := Seconds div 1000;
+  Options.CreateTimeoutMS := Seconds * 1000;
 end;
 
 constructor TMGetProcess.Create;
@@ -205,16 +205,17 @@ begin
   if not Peer then
     exit;
   // first check if the network interface changed
-  if fPeerCache <> nil then
-    if TrackNetwork and
-       fPeerCache.NetworkInterfaceChanged then
-    begin
-      Log.EnterLocal(l, self, 'StartPeerCache: NetworkInterfaceChanged');
-      PeerCacheStopping;
-      fPeerCache := nil; // force re-create just below
-      fPeerCacheInterface := '';
-      l := nil;
-    end;
+  if fPeerCache = nil then
+    MacIPAddressFlush // force reload network interfaces from OS API at startup
+  else if TrackNetwork and
+          fPeerCache.NetworkInterfaceChanged then
+  begin
+    Log.EnterLocal(l, self, 'StartPeerCache: NetworkInterfaceChanged');
+    PeerCacheStopping;
+    fPeerCache := nil; // release IWGetAlternate to force re-create just below
+    fPeerCacheInterface := '';
+    l := nil;
+  end;
   // (re)create the peer-cache background process if necessary
   if fPeerCache <> nil then
     exit;
@@ -225,7 +226,7 @@ begin
   try
     peerinstance := THttpPeerCache.Create(fPeerSettings, fPeerSecret,
       nil, 2, self.Log, @ServerTls, @ClientTls);
-    fPeerCache := peerinstance;
+    fPeerCache := peerinstance; // stored as IWGetAlternate
     fPeerCacheInterface := peerinstance.IpPort;
     peerinstance.OnDirectOptions := fOnPeerCacheDirectOptions;
     // THttpAsyncServer could also be tried with rfProgressiveStatic
@@ -233,9 +234,8 @@ begin
   except
     // don't disable Peer: we would try on next Execute()
     on E: Exception do
-      if Assigned(l) then
-        l.Log(sllTrace,
-          'StartPeerCache raised %: will retry next time', [E.ClassType]);
+      Log.Add.Log(sllDebug,
+        'StartPeerCache raised %: will retry next time', [PClass(E)^]);
   end;
 end;
 
@@ -326,7 +326,7 @@ begin
     wget.HashCacheDir := EnsureDirectoryExists(CacheFolder);
   if Peer then
   begin
-    wget.Alternate := fPeerCache; // reuse THttpPeerCache on background
+    wget.Alternate := fPeerCache; // reuse background THttpPeerCache
     wget.AlternateOptions := fPeerRequest;
   end;
   // make the actual request

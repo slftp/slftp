@@ -1,2 +1,2 @@
-4ec5b305f000a3b60357732a10f59c0321cae0ed
-Rebuild the precompiled BorlndMM.dll libraries from the latest source using Delphi 11.3.
+6aa4609202af4eea120c0c38cb6f07dd1ee3bafb
+Fix the memory leak summary displaying an empty leak list if the size of the leak summary report exceeds 32K characters. It will now be truncated at 32K characters instead.
