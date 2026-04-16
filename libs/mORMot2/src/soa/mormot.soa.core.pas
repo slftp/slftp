@@ -62,6 +62,8 @@ type
     /// overriden method creating an index on the Method/MicroSec columns
     class procedure InitializeTable(const Server: IRestOrmServer;
       const FieldName: RawUtf8; Options: TOrmInitializeTableOptions); override;
+    /// fill Input as TDocVariantData
+    procedure SetInput(Json: PUtf8Char; Capacity: PtrInt);
   published
     /// the 'interface.method' identifier of this call
     // - this column will be indexed, for fast SQL queries, with the MicroSec
@@ -261,7 +263,9 @@ type
   // ! Server.ServiceRegister(TServiceCalculator,[TypeInfo(ICalculator)],sicShared);
   // - TRestClientUri will have to register an interface remote access as:
   // ! Client.ServiceRegister([TypeInfo(ICalculator)],sicShared));
-  // note that the implementation (TServiceCalculator) remain on the server side
+  // but after Client.SetUser() you could directly call Client.Services.Resolve<>
+  // which will register the interface type using the "soa" information - note
+  // that the implementation (TServiceCalculator) remain on the server side
   // only: the client only needs the ICalculator interface
   // - then TRestServer and TRestClientUri will both have access to the
   // service, via their Services property, e.g. as:
@@ -272,6 +276,9 @@ type
   // !   result := I.Add(10,20);
   // which is in practice to be used with the faster wrapper method:
   // ! if Services.Resolve(ICalculator,I) then
+  // !   result := I.Add(10,20);
+  // or, using generics:
+  // ! if Services.Resolve<ICalculator>(I) then
   // !   result := I.Add(10,20);
   TServiceFactory = class(TInjectableObject)
   protected
@@ -348,6 +355,7 @@ type
       read fContract;
     /// the published service contract, as expected by both client and server
     // - by default, will contain ContractHash property value (for security)
+    // - already quoted as '"xxxxx"' (or '"*"' for SERVICE_CONTRACT_NONE_EXPECTED)
     // - but you can override this value using plain Contract or any custom
     // value (e.g. a custom version number) - in this case, both TServiceFactoryClient
     // and TServiceFactoryServer instances must have a matching ContractExpected
@@ -409,6 +417,21 @@ function ToText(si: TServiceInstanceImplementation): PShortString; overload;
 { ************ TServiceFactoryServerAbstract Abstract Service Provider }
 
 type
+  /// available execution options for an interface-based service provider
+  // - mimics TServiceFactoryServer homonymous boolean properties
+  TInterfaceOption = (
+    optByPassAuthentication,
+    optResultAsJsonObject,
+    optResultAsJsonObjectWithoutResult,
+    optResultAsXMLObject,
+    optResultAsXMLObjectIfAcceptOnlyXML,
+    optExcludeServiceLogCustomAnswer);
+
+  /// set of execution options for an interface-based service provider
+  // - mimics TServiceFactoryServer homonymous boolean properties
+  // - as used by TServiceFactoryServerAbstract.SetWholeOptions()
+  TInterfaceOptions = set of TInterfaceOption;
+
   /// abstract TServiceFactoryServer parent with a fluent interface for options
   // - defining methods to customize the service implementation on Server side
   // - as returned by TRestServer.ServiceDefine and ServiceRegister overloaded methods
@@ -419,13 +442,13 @@ type
   // and mormot.soa.server.pas
   TServiceFactoryServerAbstract = class(TServiceFactory)
   protected
-    fByPassAuthentication: boolean;
-    fResultAsJsonObject: boolean;
-    fResultAsJsonObjectWithoutResult: boolean;
-    fResultAsXMLObject: boolean;
-    fResultAsXMLObjectIfAcceptOnlyXML: boolean;
+    fOptions: TInterfaceOptions;    // 8-bit
+    fMethods: TUriMethods;          // 16-bit
+    fInterfaceMethodIndex: integer; // 32-bit
     fResultAsXMLObjectNameSpace: RawUtf8;
-    fExcludeServiceLogCustomAnswer: boolean;
+    function GetOption(const opt: TInterfaceOption): boolean;
+      {$ifdef HASINLINE} inline; {$endif}
+    procedure SetOption(const opt: TInterfaceOption; const enable: boolean);
     function GetAuthGroupIDs(const aGroup: array of RawUtf8;
       out IDs: TIDDynArray): boolean;
   public
@@ -525,6 +548,12 @@ type
     function SetOptions(const aMethod: array of RawUtf8;
       aOptions: TInterfaceMethodOptions;
       aAction: TServiceMethodOptionsAction = moaReplace): TServiceFactoryServerAbstract;
+    /// define the HTTP methods used for TRestServerUriContext.UriComputeRoutes
+    /// - by default, only [mGET, mPOST] are allowed, but you can set any other
+    // set, e.g. [mGET, mPOST, mPUT, mDELETE] if you want to allow more HTTP verbs
+    // - this method returns self in order to allow direct chaining of settings
+    // calls, in a fluent interface
+    function SetMethods(const aMethods: TUriMethods): TServiceFactoryServerAbstract;
     /// define execution options for the whole interface
     // - fluent alternative of setting homonymous boolean properties of this class
     // - this method returns self in order to allow direct chaining of settings
@@ -556,7 +585,7 @@ type
     // (e.g. for returning some HTML content from a public URI, or to implement
     // a public service catalog)
     property ByPassAuthentication: boolean
-      read fByPassAuthentication write fByPassAuthentication;
+      index optByPassAuthentication read GetOption write SetOption;
     /// set to TRUE to return the interface's methods result as JSON object
     // - by default (FALSE), any method execution will return a JSON array with
     // all VAR/OUT parameters, in order
@@ -568,14 +597,14 @@ type
     // - this value can be overridden by setting ForceServiceResultAsJsonObject
     // for a given TRestServerUriContext (e.g. for server-side JavaScript work)
     property ResultAsJsonObject: boolean
-      read fResultAsJsonObject write fResultAsJsonObject;
+      index optResultAsJsonObject read GetOption write SetOption;
     /// set to TRUE to return the interface's methods result as JSON object
     // with no '{"result":{...}}' nesting
     // - could be used e.g. for plain non mORMot REST Client with in sicSingle
     // or sicShared mode kind of services
     // - on client side, consider using TRestClientUri.ServiceDefineSharedApi
     property ResultAsJsonObjectWithoutResult: boolean
-      read fResultAsJsonObjectWithoutResult write fResultAsJsonObjectWithoutResult;
+      index optResultAsJsonObjectWithoutResult read GetOption write SetOption;
     /// set to TRUE to return the interface's methods result as XML object
     // - by default (FALSE), method execution will return a JSON array with
     // all VAR/OUT parameters, or a JSON object if ResultAsJsonObject is TRUE
@@ -587,7 +616,7 @@ type
     // - this value can be overridden by setting ForceServiceResultAsXMLObject
     // for a given TRestServerUriContext instance
     property ResultAsXMLObject: boolean
-      read fResultAsXMLObject write fResultAsXMLObject;
+      index optResultAsXMLObject read GetOption write SetOption;
     /// set to TRUE to return XML objects for the interface's methods result
     // if the Accept: HTTP header is exactly 'application/xml' or 'text/xml'
     // - the header should be exactly 'Accept: application/xml' or
@@ -597,7 +626,7 @@ type
     // - using this method allows to mix standard JSON requests (from JSON
     // or AJAX clients) and XML requests (from XML-only clients)
     property ResultAsXMLObjectIfAcceptOnlyXML: boolean
-      read fResultAsXMLObjectIfAcceptOnlyXML write fResultAsXMLObjectIfAcceptOnlyXML;
+      index optResultAsXMLObjectIfAcceptOnlyXML read GetOption write SetOption;
     /// specify a custom name space content when returning a XML object
     // - by default, no name space will be appended - but such rough XML will
     // have potential validation problems
@@ -608,7 +637,17 @@ type
     /// disable base64-encoded TOrmServiceLog.Output for methods
     // returning TServiceCustomAnswer record (to reduce storage size)
     property ExcludeServiceLogCustomAnswer: boolean
-      read fExcludeServiceLogCustomAnswer write fExcludeServiceLogCustomAnswer;
+      index optExcludeServiceLogCustomAnswer read GetOption write SetOption;
+    /// the HTTP methods used for TRestServerUriContext.UriComputeRoutes
+    // - call fluent SetMethods() to customize it
+    property Methods: TUriMethods
+      read fMethods;
+    /// index of the first method of this interface in the global container
+    // TRestServer.Services.InterfaceMethod[] array
+    // - used e.g. by TAuthSession.StatsInterfaces to gather stats for each
+    // method as ctxt.Service^.InterfaceMethodIndex + ctxt.ServiceMethodIndex
+    property InterfaceMethodIndex: integer
+      read fInterfaceMethodIndex;
   end;
 
 
@@ -650,7 +689,7 @@ type
   /// used to store all methods in a global list of interface-based services
   TServiceContainerInterfaceMethods = array of TServiceContainerInterfaceMethod;
 
-  /// used in TServiceContainer to identify fListInterfaceMethod[] entries
+  /// used to identify TServiceContainer.InterfaceMethod[] entries
   // - maximum bit count of 255 is a limitation of the pascal compiler itself
   TServiceContainerInterfaceMethodBits = set of 0..255;
 
@@ -661,13 +700,13 @@ type
   TServiceContainer = class(TInterfaceResolverInjected)
   protected
     fOwner: TInterfaceResolver; // is a TRest instance
-    // list of services ['Calculator',...]
-    fInterface: TServiceContainerInterfaces;
+    fInterface: TServiceContainerInterfaces; // array of InterfaceName/Service
     fInterfaces: TDynArrayHashed;
     // list of service.method ['Calculator.Add','Calculator.Multiply',...]
-    fInterfaceMethod: TServiceContainerInterfaceMethods;
+    fInterfaceMethod: TServiceContainerInterfaceMethods; // dynamic array
     fInterfaceMethods: TDynArrayHashed;
     fExpectMangledUri: boolean;
+    fAsSoa: TDocVariantData;
     procedure SetExpectMangledUri(Mangled: boolean);
     procedure SetInterfaceMethodBits(MethodNamesCsv: PUtf8Char;
       IncludePseudoMethods: boolean; out bits: TServiceContainerInterfaceMethodBits);
@@ -693,7 +732,7 @@ type
       {$ifdef HASINLINE}inline;{$endif}
     /// retrieve a service provider from its index in the list
     // - returns nil if out of range index
-    function Index(aIndex: integer): TServiceFactory; overload;
+    function Index(aIndex: PtrInt): TServiceFactory; overload;
       {$ifdef HASINLINE}inline;{$endif}
     /// retrieve a service provider from its GUID / Interface type
     // - you shall have registered the interface by a previous call to
@@ -723,9 +762,14 @@ type
     // - i.e. all interface names without the initial 'I', e.g. 'Calculator' for
     // ICalculator
     procedure SetInterfaceNames(out Names: TRawUtf8DynArray);
-    /// retrieve all registered Services contracts as a JSON array
+    /// retrieve all registered Services contracts as a verbose JSON array
     // - i.e. a JSON array of TServiceFactory.Contract JSON objects
     function AsJson: RawJson;
+    /// retrieve all registered Services as a short TDocVariant array
+    // - defined as ["name","contractexpected",ord(sic*),...] triplets e.g.
+    // ["Calculator","*",0,...] for a sicSingle ICalculator with no contract
+    // - used e.g. for "soa" in TRestServerAuthentication.SessionCreateReturns
+    function AsSoa: variant;
     /// retrieve a service provider from its URI
     // - it expects the supplied URI variable  to be e.g. '00amyWGct0y_ze4lIsj2Mw'
     // or 'Calculator', depending on the ExpectMangledUri property
@@ -794,8 +838,8 @@ type
     ['{8D518FCB-62C3-42EB-9AE7-96ED322140F7}']
     /// will be called when a callback is released on the client side
     // - this method matches the TInterfaceFactory.MethodIndexCallbackReleased
-    // signature, so that it will be called with the interface instance by
-    // TServiceContainerServer.ReleaseFakeCallback
+    // signature, so that it will be called as POST root/cacheflush/_callback_
+    // to execute TServiceContainerServer.ClientFakeCallbackRelease()
     // - you may use it as such - see sample restws_chatserver.dpr:
     // ! procedure TChatService.CallbackReleased(const callback: IInvokable;
     // !   const interfaceName: RawUtf8);
@@ -960,7 +1004,7 @@ type
     // a TServicesPublishedInterfaces JSON array, e.g.
     // $ [{"PublicUri":{"Address":"1.2.3.4","Port":"123","Root":"root"},"Names":['Calculator']},...]
     procedure FindServiceAll(const aServiceName: RawUtf8;
-      aWriter: TJsonWriter); overload;
+      aWriter: TJsonWriter; aTix64: Int64 = 0); overload;
     /// the number of milliseconds after which an entry expires
     // - is 0 by default, meaning no expiration
     // - you can set it to a value so that any service URI registered with
@@ -983,6 +1027,11 @@ begin
   inherited;
   if FieldName = '' then
     Server.CreateSqlMultiIndex(self, ['Method', 'MicroSec'], false);
+end;
+
+procedure TOrmServiceLog.SetInput(Json: PUtf8Char; Capacity: PtrInt);
+begin
+  PDocVariantData(@fInput)^.InitJsonInPlace(Json, JSON_FAST_EXTENDED, nil, Capacity);
 end;
 
 
@@ -1061,10 +1110,9 @@ begin
   inherited CreateWithResolver(aOwner, {raiseIfNotFound=}true);
   fInterface := TInterfaceFactory.Get(aInterface);
   if fInterface = nil then // paranoid
-    EServiceException.RaiseUtf8('%.Create: no I%', [self, aInterface^.RawName]);
+    EServiceException.RaiseUtf8('%.Create: no %', [self, aInterface^.RawName]);
   fInstanceCreation := aInstanceCreation;
-  fInterfaceMangledUri :=
-    BinToBase64Uri(PAnsiChar(fInterface.InterfaceGuid), SizeOf(TGuid));
+  fInterfaceMangledUri := BinToBase64Uri(PHash128(fInterface.InterfaceGuid)^);
   fInterfaceUri := fInterface.InterfaceUri;
   if fOrm = nil then
     EServiceException.RaiseUtf8('%.Create: I% has no ORM', [self, fInterfaceUri]);
@@ -1076,17 +1124,17 @@ begin
   FormatUtf8('{"contract":"%","implementation":"%","methods":%}',
     [fInterfaceUri, LowerCase(TrimLeftLowerCaseShort(ToText(InstanceCreation))),
      fInterface.Contract], fContract);
-  fContractHash := '"' + CardinalToHex(Hash32(fContract)) +
-    CardinalToHex(crc32(0, pointer(fContract), length(fContract))) + '"';
-    // 2 hashes to avoid collision
+  // combine two 32-bit hashes to avoid collision (paranoid)
+  Join(['"', CardinalToHex(Hash32(fContract)), CardinalToHex(
+        crc32(0, pointer(fContract), length(fContract))), '"'], fContractHash);
   if aContractExpected <> '' then // override default contract
     if aContractExpected[1] <> '"' then
       // stored as JSON string
-      fContractExpected := '"' + aContractExpected + '"'
+      Join(['"', aContractExpected, '"'], fContractExpected)
     else
       fContractExpected := aContractExpected
   else
-    fContractExpected := fContractHash; // for security
+    fContractExpected := fContractHash; // default to safe and short hash
 end;
 
 function TServiceFactory.ServiceMethodIndex(const aUri: RawUtf8): PtrInt;
@@ -1245,6 +1293,20 @@ end;
 
 
 { TServiceFactoryServerAbstract }
+
+function TServiceFactoryServerAbstract.GetOption(const opt: TInterfaceOption): boolean;
+begin
+  result := (opt in fOptions);
+end;
+
+procedure TServiceFactoryServerAbstract.SetOption(const opt: TInterfaceOption;
+  const enable: boolean);
+begin
+  if enable then
+    include(fOptions, opt)
+  else
+    exclude(fOptions, opt);
+end;
 
 function TServiceFactoryServerAbstract.GetAuthGroupIDs(
   const aGroup: array of RawUtf8; out IDs: TIDDynArray): boolean;
@@ -1442,14 +1504,15 @@ function TServiceFactoryServerAbstract.SetWholeOptions(
   aOptions: TInterfaceOptions): TServiceFactoryServerAbstract;
 begin
   if self <> nil then
-  begin
-    fByPassAuthentication := (optByPassAuthentication in aOptions);
-    fResultAsJsonObject := (optResultAsJsonObject in aOptions);
-    fResultAsJsonObjectWithoutResult := (optResultAsJsonObjectWithoutResult in aOptions);
-    fResultAsXMLObject := (optResultAsXMLObject in aOptions);
-    fResultAsXMLObjectIfAcceptOnlyXML := (optResultAsXMLObjectIfAcceptOnlyXML in aOptions);
-    fExcludeServiceLogCustomAnswer := (optExcludeServiceLogCustomAnswer in aOptions);
-  end;
+    fOptions := aOptions;
+  result := self;
+end;
+
+function TServiceFactoryServerAbstract.SetMethods(
+  const aMethods: TUriMethods): TServiceFactoryServerAbstract;
+begin
+  if self <> nil then
+    fMethods := aMethods;
   result := self;
 end;
 
@@ -1506,6 +1569,7 @@ var
   ndx: integer;
   im: TServiceInternalMethod;
   m: PtrInt;
+  int: PServiceContainerInterface;
   uri: RawUtf8;
 begin
   if (self = nil) or
@@ -1516,10 +1580,10 @@ begin
     uri := aService.fInterfaceMangledUri
   else
     uri := aService.fInterfaceUri;
-  PServiceContainerInterface(fInterfaces.AddUniqueName(uri, @result))^.
-    Service := aService;
+  int := fInterfaces.AddUniqueName(uri, @result);
+  int^.Service := aService;
   // add associated methods - first SERVICE_PSEUDO_METHOD[], then from interface
-  uri := uri + '.';
+  Append(uri, '.');
   ndx := 0;
   for im := Low(im) to High(im) do
     AddServiceMethodInternal(uri + SERVICE_PSEUDO_METHOD[im], aService, ndx);
@@ -1704,7 +1768,7 @@ function TServiceContainer.AsJson: RawJson;
 var
   WR: TTextWriter;
   i: PtrInt;
-  temp: TTextWriterStackBuffer;
+  temp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   result := '';
   if (self = nil) or
@@ -1715,14 +1779,37 @@ begin
     WR.AddDirect('[');
     for i := 0 to high(fInterface) do
     begin
-      WR.AddString(fInterface[i].Service.Contract);
+      WR.AddString(fInterface[i].Service.Contract); // as JSON object
       WR.AddComma;
     end;
-    WR.CancelLastComma(']');
+    WR.ReplaceLastComma(']');
     WR.SetText(RawUtf8(result));
   finally
     WR.Free;
   end;
+end;
+
+procedure _Set(var v: TDocVariantData; p: PServiceContainerInterface; n: integer);
+begin
+  v.InitFast(n * 3, dvArray);
+  repeat
+    v.AddItems([p^.InterfaceName,
+                UnQuoteSqlString(p^.Service.ContractExpected),
+                ord(p^.Service.InstanceCreation)]);
+    inc(p);
+    dec(n);
+  until n = 0;
+end;
+
+function TServiceContainer.AsSoa: variant;
+begin
+  VarClear(result);
+  if (self = nil) or
+     (fInterface = nil) then
+    exit;
+  if fAsSoa.Count = 0 then
+    _Set(fAsSoa, pointer(fInterface), length(fInterface)); // compute once
+  result := PVariant(@fAsSoa)^;
 end;
 
 function TServiceContainer.TryResolve(aInterface: PRttiInfo; out Obj): boolean;
@@ -1736,10 +1823,10 @@ begin
     result := factory.Get(Obj);
 end;
 
-function TServiceContainer.Index(aIndex: integer): TServiceFactory;
+function TServiceContainer.Index(aIndex: PtrInt): TServiceFactory;
 begin
   if (self = nil) or
-     (cardinal(aIndex) > cardinal(high(fInterface))) then
+     (PtrUInt(aIndex) > PtrUInt(high(fInterface))) then
     result := nil
   else
     result := fInterface[aIndex].Service;
@@ -1861,12 +1948,12 @@ begin
 end;
 
 procedure TServicesPublishedInterfacesList.FindServiceAll(
-  const aServiceName: RawUtf8; aWriter: TJsonWriter);
+  const aServiceName: RawUtf8; aWriter: TJsonWriter; aTix64: Int64);
 var
   i: PtrInt;
-  tix: Int64;
 begin
-  tix := GetTickCount64;
+  if aTix64 = 0 then
+    aTix64 := GetTickCount64;
   Safe.ReadLock;
   try
     aWriter.Add('[');
@@ -1875,7 +1962,7 @@ begin
       // for RegisterFromServer: return all TServicesPublishedInterfaces
       for i := 0 to Count - 1 do
         if (fTimeOut = 0) or
-           (fTimeoutTix[i] < tix) then
+           (fTimeoutTix[i] < aTix64) then
         begin
           aWriter.AddRecordJson(@List[i], TypeInfo(TServicesPublishedInterfaces));
           aWriter.AddComma;
@@ -1887,12 +1974,12 @@ begin
       for i := Count - 1 downto 0 do        // downwards to return the latest first
         if FindPropName(List[i].Names, aServiceName) >= 0 then
           if (fTimeOut = 0) or
-             (fTimeoutTix[i] < tix) then
+             (fTimeoutTix[i] < aTix64) then
           begin
             aWriter.AddRecordJson(@List[i].PublicUri, TypeInfo(TRestServerUri));
             aWriter.AddComma;
           end;
-    aWriter.CancelLastComma(']');
+    aWriter.ReplaceLastComma(']');
   finally
     Safe.ReadUnLock;
   end;
@@ -1992,7 +2079,7 @@ const
   _TRestServerUri =
     'Address,Port,Root: RawUtf8';
   _TServicesPublishedInterfaces =
-    'PublicUri:TRestServerUri Names: array of RawUtf8';
+    'PublicUri:TRestServerUri Names:array of RawUtf8';
 
 procedure InitializeUnit;
 begin

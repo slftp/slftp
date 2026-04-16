@@ -3766,7 +3766,6 @@ const
   EVP_PKEY_SM2 = NID_sm2;
   EVP_PKEY_HMAC = NID_hmac;
   EVP_PKEY_CMAC = NID_cmac;
-  EVP_PKEY_SCRYPT = NID_id_scrypt;
   EVP_PKEY_TLS1_PRF = NID_tls1_prf;
   EVP_PKEY_HKDF = NID_hkdf;
   EVP_PKEY_SIPHASH = NID_siphash;
@@ -8871,7 +8870,7 @@ type
   PWHIRLPOOL_CTX = ^WHIRLPOOL_CTX;
 
   aes_key_st = record
-    rd_key: array [0..59] of cardinal;
+    rd_key: array[0..59] of cardinal;
     rounds: integer;
   end;
 
@@ -9235,14 +9234,14 @@ type
   PPASYNC_WAIT_CTX = ^PASYNC_WAIT_CTX;
 
   bf_key_st = record
-    P: array [0..17] of cardinal;
-    S: array [0..1023] of cardinal;
+    P: array[0..17] of cardinal;
+    S: array[0..1023] of cardinal;
   end;
 
   BF_KEY = bf_key_st;
   PBF_KEY = ^BF_KEY;
 
-  KEY_TABLE_TYPE = array [0..67] of cardinal;
+  KEY_TABLE_TYPE = array[0..67] of cardinal;
 
   _anonymous_type_2 = record
     case integer of
@@ -9260,7 +9259,7 @@ type
   PCAMELLIA_KEY = ^CAMELLIA_KEY;
 
   cast_key_st = record
-    data: array [0..31] of cardinal;
+    data: TBlock1024;
     short_key: integer;
   end;
 
@@ -9286,7 +9285,7 @@ type
 
   evp_cipher_info_st = record
     cipher: PEVP_CIPHER;
-    iv: array [0..15] of Byte;
+    iv: array[0..15] of Byte;
   end;
 
   EVP_CIPHER_INFO = evp_cipher_info_st;
@@ -9321,7 +9320,7 @@ type
     h4: cardinal;
     Nl: cardinal;
     Nh: cardinal;
-    data: array [0..15] of cardinal;
+    data: array[0..15] of cardinal;
     num: cardinal;
   end;
 
@@ -9329,10 +9328,10 @@ type
   PSHA_CTX = ^SHA_CTX;
 
   SHA256state_st = record
-    h: array [0..7] of cardinal;
+    h: array[0..7] of cardinal;
     Nl: cardinal;
     Nh: cardinal;
-    data: array [0..15] of cardinal;
+    data: array[0..15] of cardinal;
     num: cardinal;
     md_len: cardinal;
   end;
@@ -9342,13 +9341,13 @@ type
 
   _anonymous_type_3 = record
     case integer of
-      0: (d: array [0..15] of Qword);
-      1: (p: array [0..127] of Byte);
+      0: (d: array[0..15] of Qword);
+      1: (p: array[0..127] of Byte);
   end;
   P_anonymous_type_3 = ^_anonymous_type_3;
 
   SHA512state_st = record
-    h: array [0..7] of Qword;
+    h: array[0..7] of Qword;
     Nl: Qword;
     Nh: Qword;
     u: _anonymous_type_3;
@@ -10361,20 +10360,20 @@ type
 
   DES_LONG = cardinal;
   PDES_LONG = ^DES_LONG;
-  DES_cblock = array [0..7] of Byte;
+  DES_cblock = array[0..7] of Byte;
   PDES_cblock = ^DES_cblock;
-  const_DES_cblock = array [0..7] of Byte;
+  const_DES_cblock = array[0..7] of Byte;
   Pconst_DES_cblock = ^const_DES_cblock;
 
   _anonymous_type_12 = record
     case integer of
       0: (cblock: DES_cblock);
-      1: (deslong: array [0..1] of DES_LONG);
+      1: (deslong: array[0..1] of DES_LONG);
   end;
   P_anonymous_type_12 = ^_anonymous_type_12;
 
   DES_ks = record
-    ks: array [0..15] of _anonymous_type_12;
+    ks: array[0..15] of _anonymous_type_12;
   end;
 
   DES_key_schedule = DES_ks;
@@ -10411,12 +10410,12 @@ type
   PUI_string_types = ^UI_string_types;
 
   err_state_st = record
-    err_flags: array [0..15] of integer;
-    err_buffer: array [0..15] of cardinal;
-    err_data: array [0..15] of PUtf8Char;
-    err_data_flags: array [0..15] of integer;
-    err_file: array [0..15] of PUtf8Char;
-    err_line: array [0..15] of integer;
+    err_flags: array[0..15] of integer;
+    err_buffer: array[0..15] of cardinal;
+    err_data: array[0..15] of PUtf8Char;
+    err_data_flags: array[0..15] of integer;
+    err_file: array[0..15] of PUtf8Char;
+    err_line: array[0..15] of integer;
     top: integer;
     bottom: integer;
   end;
@@ -10486,7 +10485,7 @@ type
   IDEA_INT = cardinal;
 
   idea_key_st = record
-    data: array [0..8] of array [0..5] of IDEA_INT;
+    data: array[0..8] of array[0..5] of IDEA_INT;
   end;
 
   IDEA_KEY_SCHEDULE = idea_key_st;
@@ -10499,7 +10498,7 @@ type
     D: cardinal;
     Nl: cardinal;
     Nh: cardinal;
-    data: array [0..15] of cardinal;
+    data: array[0..15] of cardinal;
     num: cardinal;
   end;
 
@@ -10513,7 +10512,7 @@ type
     D: cardinal;
     Nl: cardinal;
     Nh: cardinal;
-    data: array [0..15] of cardinal;
+    data: array[0..15] of cardinal;
     num: cardinal;
   end;
 
@@ -10522,7 +10521,7 @@ type
 
   mdc2_ctx_st = record
     num: cardinal;
-    data: array [0..7] of Byte;
+    data: array[0..7] of Byte;
     h: DES_cblock;
     hh: DES_cblock;
     pad_type: integer;
@@ -10548,7 +10547,7 @@ type
   PArray = pointer;
 
   ocb128_f = procedure(_in: PByte; _out: PByte; blocks: PtrUInt; key: pointer;
-    start_block_num: PtrUInt; offset_i: PByte; L_: PArray {Parray [0..15] of Byte};
+    start_block_num: PtrUInt; offset_i: PByte; L_: PArray {Parray[0..15] of Byte};
     checksum: PByte); cdecl;
 
   POCSP_CERTID = pointer;
@@ -10615,7 +10614,7 @@ type
   RC2_INT = cardinal;
 
   rc2_key_st = record
-    data: array [0..63] of RC2_INT;
+    data: array[0..63] of RC2_INT;
   end;
 
   RC2_KEY = rc2_key_st;
@@ -10624,7 +10623,7 @@ type
   rc4_key_st = record
     x: cardinal;
     y: cardinal;
-    data: array [0..255] of cardinal;
+    data: array[0..255] of cardinal;
   end;
 
   RC4_KEY = rc4_key_st;
@@ -10638,7 +10637,7 @@ type
     E: cardinal;
     Nl: cardinal;
     Nh: cardinal;
-    data: array [0..15] of cardinal;
+    data: array[0..15] of cardinal;
     num: cardinal;
   end;
 
@@ -10646,7 +10645,7 @@ type
   PRIPEMD160_CTX = ^RIPEMD160_CTX;
 
   seed_key_st = record
-    data: array [0..31] of cardinal;
+    data: TBlock1024;
   end;
 
   SEED_KEY_SCHEDULE = seed_key_st;
@@ -10860,16 +10859,16 @@ type
 
   _anonymous_type_14 = record
     case integer of
-      0: (c: array [0..63] of Byte);
-      1: (q: array [0..7] of Double);
+      0: (c: array[0..63] of Byte);
+      1: (q: array[0..7] of Double);
   end;
   P_anonymous_type_14 = ^_anonymous_type_14;
 
   WHIRLPOOL_CTX = record
     H: _anonymous_type_14;
-    data: array [0..63] of Byte;
+    data: array[0..63] of Byte;
     bitoff: cardinal;
-    bitlen: array [0..3] of PtrUInt;
+    bitlen: array[0..3] of PtrUInt;
   end;
 
   PPasn1_ps_func = pointer;
@@ -14420,9 +14419,6 @@ function EVP_PKEY_set1_engine(pkey: PEVP_PKEY; e: PENGINE): integer; cdecl;
 function EVP_PKEY_get0_engine(pkey: PEVP_PKEY): PENGINE; cdecl;
   external LIB_CRYPTO name _PU + 'EVP_PKEY_get0_engine';
 
-function EVP_PKEY_assign(pkey: PEVP_PKEY; typ: integer; key: pointer): integer; cdecl;
-  external LIB_CRYPTO name _PU + 'EVP_PKEY_assign';
-
 function EVP_PKEY_get0(pkey: PEVP_PKEY): pointer; cdecl;
   external LIB_CRYPTO name _PU + 'EVP_PKEY_get0';
 
@@ -14464,9 +14460,6 @@ function EVP_PKEY_set1_EC_KEY(pkey: PEVP_PKEY; key: Pec_key_st): integer; cdecl;
 
 function EVP_PKEY_get1_EC_KEY(pkey: PEVP_PKEY): Pec_key_st; cdecl;
   external LIB_CRYPTO name _PU + 'EVP_PKEY_get1_EC_KEY';
-
-function EVP_PKEY_new(): PEVP_PKEY; cdecl;
-  external LIB_CRYPTO name _PU + 'EVP_PKEY_new';
 
 function EVP_PKEY_up_ref(pkey: PEVP_PKEY): integer; cdecl;
   external LIB_CRYPTO name _PU + 'EVP_PKEY_up_ref';
@@ -15099,9 +15092,6 @@ function EC_POINT_set_Jprojective_coordinates_GFp(group: PEC_GROUP; p: PEC_POINT
 function EC_POINT_get_Jprojective_coordinates_GFp(group: PEC_GROUP; p: PEC_POINT; x: PBIGNUM; y: PBIGNUM; z: PBIGNUM; ctx: PBN_CTX): integer; cdecl;
   external LIB_CRYPTO name _PU + 'EC_POINT_get_Jprojective_coordinates_GFp';
 
-function EC_POINT_set_affine_coordinates(group: PEC_GROUP; p: PEC_POINT; x: PBIGNUM; y: PBIGNUM; ctx: PBN_CTX): integer; cdecl;
-  external LIB_CRYPTO name _PU + 'EC_POINT_set_affine_coordinates';
-
 function EC_POINT_get_affine_coordinates(group: PEC_GROUP; p: PEC_POINT; x: PBIGNUM; y: PBIGNUM; ctx: PBN_CTX): integer; cdecl;
   external LIB_CRYPTO name _PU + 'EC_POINT_get_affine_coordinates';
 
@@ -15426,9 +15416,6 @@ function RSA_size(rsa: PRSA): integer; cdecl;
 function RSA_security_bits(rsa: PRSA): integer; cdecl;
   external LIB_CRYPTO name _PU + 'RSA_security_bits';
 
-function RSA_set0_key(r: PRSA; n: PBIGNUM; e: PBIGNUM; d: PBIGNUM): integer; cdecl;
-  external LIB_CRYPTO name _PU + 'RSA_set0_key';
-
 function RSA_set0_factors(r: PRSA; p: PBIGNUM; q: PBIGNUM): integer; cdecl;
   external LIB_CRYPTO name _PU + 'RSA_set0_factors';
 
@@ -15515,9 +15502,6 @@ function RSA_check_key(p1: PRSA): integer; cdecl;
 
 function RSA_check_key_ex(p1: PRSA; cb: PBN_GENCB): integer; cdecl;
   external LIB_CRYPTO name _PU + 'RSA_check_key_ex';
-
-procedure RSA_free(r: PRSA); cdecl;
-  external LIB_CRYPTO name _PU + 'RSA_free';
 
 function RSA_up_ref(r: PRSA): integer; cdecl;
   external LIB_CRYPTO name _PU + 'RSA_up_ref';

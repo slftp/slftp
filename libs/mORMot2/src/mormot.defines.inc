@@ -7,7 +7,7 @@
 }
 
 
-(********************** User-Trigerred Conditionals **********************)
+(********************** User-Triggered Conditionals **********************)
 
 {  Those conditionals below can be enabled in your project Options,
    to tune the compilation depending your setup or your project expectations. }
@@ -21,7 +21,7 @@
 // -> Delphi Compiler -> Output C/C++ -> C/C++ output file generation
 
 {.$define PUREMORMOT2}
-// if defined, no mORMot 1.18 compatilibity types nor functions would be enabled
+// if defined, no mORMot 1.18 compatibility types nor functions would be enabled
 // - by default, existing projects should (almost) compile with mORMot 2
 // - you should eventually define this conditional to make a perfect code
 // conversion to the new types and methods definitions
@@ -37,8 +37,9 @@
 // from mormot.core.os.pas => disabled by default, to preserve code size
 
 {.$define NOSETTHREADNAME}
-// if defined, SetThreadName() would not raise the exception used to set the
-// thread name: to be defined if you have issues when debugging your application
+// Delphi Wintel only: if defined, SetThreadName() would not raise the "thread
+// name set" fake exception, and DebuggerBreak won't call the "int 3" opcode:
+// could be set on issue when debugging your application in the Delphi IDE
 
 {.$define NODIRECTTHREADMANAGER}
 // on POSIX, omit direct GetThreadManager() API calls and just use RTL functions
@@ -58,7 +59,11 @@
 // - you can enable it if you find out some compatibility problem
 
 {$ifdef CPUX86}
-  {.$define HASNOSSE2} // force x87 code on very very old CPU
+  {.$define HASNOSSE2}
+  // if defined, bypass SSE2 asm on i386 and fallback to pascal code or x87 asm
+  // - SSE2 was introduced with Intel's Pentium 4 (2000) so we assume it
+  // - Windows requires SSE2 since XP SP2, and FireFox/Chrome since 2017
+  // - we keep this possibility for specific applications on deprecated HW
 {$endif CPUX86}
 
 {.$define NOSYNDBZEOS}
@@ -83,8 +88,7 @@
 // disable POSIX mormot.lib.gsssapi support in mormot.rest.client/server units
 
 {.$define NOPOINTEROFFSET}
-// disable TOrmTable offsets on 64-bit if your memory is huge or fragmented
-// note: FPCMM_MEDIUM32BIT may need this for data >256KB
+// disable TOrmTable offsets on 64-bit for JSON > 2GB
 
 {.$define NOTORMTABLELEN}
 // disable TOrmTable internal fLen[] pre-computed table - slower but less memory
@@ -110,7 +114,7 @@
 {.$define OLDLINUXKERNEL}
 // use only oldest Linux syscalls - as in FPC RTL
 
-{$define FORCE_OPENSSL}
+{$define USE_OPENSSL}
 // is defined on POSIX (with late binding) but may be enabled on Windows too
 
 {.$define USELIBCURL}
@@ -120,6 +124,42 @@
 {.$define LIBCURLMULTI}
 // enable the more advanced "multi session" API functions of mormot.lib.curl
 // see https://curl.haxx.se/libcurl/c/libcurl-multi.html interface
+
+(********************** Conditionals **********************
+
+ In mORMot code, we expect the following cross-compiler conditionals:
+
+  common:
+    UNICODE FPC_OR_UNICODE FPC_OR_DELPHIxxx USERECORDWITHMETHODS
+    HASINLINE HASSAFEINLINE HASSAFEFPCINLINE HASINLINEFPC
+    HASCODEPAGE HASVARUSTRING STRCNT32 DACNT32 HASDYNARRAYTYPE
+    HASITERATORS HASIMPLICITOPERATOR HASDBFTWIDE HASDBFNEW
+    HASTTHREADSTART HASTTHREADTERMINATESET HASINTERFACEASTOBJECT
+    HASEXTRECORDRTTI HASSLOWMUL64
+    CPU32 CPU64
+    CPUINTEL CPUX86 CPUX64 CPUARM3264 CPUARM CPUAARCH64 CPUX86NOTPIC
+    NOASMBLOCK
+    ASMINTEL ASMINTELNOTPIC ASMSSE2 ASMAESNI
+    ASMX86 ASMX86NOTPIC ASMX64 ASMX64NOTPIC ASMX64AVX0 ASMX64AVX1
+    ABIX86 ABIX64 ABIWINX64 ABISYSVX64 ABIA32 ABIA64 ABIWINA64 ABISYSVA64
+    TSYNEXTENDED80 EXTENDEDTOSHORT_USESTR DOUBLETOSHORT_USEGRISU
+    OSWINDOWS OSWINTEL OSWINARM
+    OSPOSIX OSBSD OSDARWIN OSBSDDARWIN OSOPENBSD OSFREEBSD
+    OSLINUX OSANDROID OSLINUXINTEL OSLINUXX64 OSLINUXX86
+    OSLINUXANDROID OSANDROIDARM64
+    PUREMORMOT2
+
+  FPC only:
+    FPC FPC_HAS_CONSTREF FPC_32 FPC_64 FPC_X86 FPC_CPUX64 FPC_PIC FPC_INTEL
+    FPC_REQUIRES_PROPER_ALIGNMENT HASINLINEWINAPI HASDIRECTTYPEINFO
+    FPCPOSIX FPCBSD FPCDARWIN FPCLINUX FPCANDROID
+    FPC_X64MM
+
+  Delphi only:
+    ISDELPHI ISDELPHIxxx WIN32DELPHI WIN64DELPHI WINTELDELPHI WINARMDELPHI
+    DISPINVOKEBYVALUE
+
+********************** Conditionals **********************)
 
 
 {$ifdef FPC}
@@ -142,6 +182,7 @@
   {$OBJECTCHECKS OFF} // as expected e.g. when hooking classes
 
   {$define HASINLINE}
+  {$define HASINLINEFPC}      // Delphi can't inline local constants
   {$define HASINLINEWINAPI}   // Delphi has troubles inlining Windows API calls
   {$define HASSAFEINLINE}     // Delphi 2007-2009 have troubles inlining
   {$define HASSAFEFPCINLINE}  // FPC 3.2.0 specific inlining troubles
@@ -162,7 +203,7 @@
   { warnings are defined below, after FPC versions identification }
 
   // -----------
-  // -- identify FPC versions
+  // -- identify FPC compiler revisions
 
   // $if FPC_FULLVERSION>20700 breaks Delphi 6-7 and SynProject :(
   {$ifdef VER2_7}
@@ -194,20 +235,25 @@
       {$undef HASSAFEFPCINLINE} // synopse.info/forum/viewtopic.php?id=7259
     {$endif VER3_2_0}
     {$ifdef VER3_2_2}
-      {$define HASTTHREADTERMINATESET} // introduced TThread.TerminateSet
+      {$define HASTTHREADTERMINATESET} // introduced TThread.TerminatedSet
     {$endif VER3_2_2}
     {$ifdef VER3_2_3}
-      {$define HASTTHREADTERMINATESET}
+      {$define HASTTHREADTERMINATESET} // has TThread.TerminatedSet
       {$define HASDBFNEW} // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
       // https://gitlab.com/freepascal.org/fpc/source/-/commit/254c175b9f7627c92
     {$endif VER3_2_3}
+    {$ifdef VER3_2_4}
+      {$define HASTTHREADTERMINATESET} // has TThread.TerminatedSet
+      {$define HASDBFNEW}    // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
+      {$define HASDBFSINGLE} // ftSingle
+    {$endif VER3_2_4}
   {$endif VER3_2}
   {$ifdef VER3_3} // trunk before 3.4
     {$define ISFPC27}
     {$define ISFPC30}
     {$define ISFPC32}
     {$define ISFPC33}
-    {$define HASTTHREADTERMINATESET} // introduced TThread.TerminateSet
+    {$define HASTTHREADTERMINATESET} // introduced TThread.TerminatedSet
     {$define HASEXTRECORDRTTI}       // latest trunk has extended record RTTI
     {$define HASDBFNEW} // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
     // https://gitlab.com/freepascal.org/fpc/source/-/commit/d68ce429ab6d94c8ffb
@@ -221,10 +267,10 @@
     {$define FPC_PROVIDE_ATTR_TABLE} // introducing TTypeData.AttributeTable
     {$define STRCNT32}               // 32-bit TAnsiRec.Ref even on 64-bit CPU
     // see https://gitlab.com/freepascal.org/fpc/source/-/issues/38018
-    {$define HASTTHREADTERMINATESET} // introduced TThread.TerminateSet
+    {$define HASTTHREADTERMINATESET} // introduced TThread.TerminatedSet
     {$define HASEXTRECORDRTTI}       // extended record RTTI
-    {$define HASDBFNEW} // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
-    {$define HASDBFSINGLE}  // ftSingle
+    {$define HASDBFNEW}    // ftOraTimeStamp,ftShortInt,ftLongWord,ftExtended
+    {$define HASDBFSINGLE} // ftSingle
     // https://gitlab.com/freepascal.org/fpc/source/-/commit/b907920ef392d6b3a2a
   {$endif VER3_4}
   {$if not defined(VER3_0) and not defined(VER3_2) and not defined(VER2)}
@@ -258,13 +304,13 @@
     {$define FPCPOSIX}
     {$ifdef BSD}
       // conditionals for Darwin and BSD family like OpenBSD/FreeBSD
-      {$define OSBSDDARWIN}     // OSBSDDARWIN = OSBSD + OSDARWIN
+      {$define SOCK_HAS_SINLEN}
       {$ifdef DARWIN}
         {$define OSDARWIN}
         {$define FPCDARWIN}
-        {$ifdef CPUINTEL}
+        {$ifdef CPUX86}
           {$define FPC_PIC}     // may have not be defined in compiler options
-        {$endif CPUINTEL}
+        {$endif CPUX86}
         {$define NOPATCHRTL}    // don't mess with asm stuff
         {$define DISABLE_SSE42} // circumvent clang asm bugs
       {$else}
@@ -275,6 +321,7 @@
           {$ifdef CPUX86}
             {$define FPC_PIC}
           {$endif CPUX86}
+          {$define NOPATCHVMT}  // the vmtAutoTable tricks seems to fail
         {$endif OPENBSD}
         {$ifdef FREEBSD}
           {$define OSFREEBSD}
@@ -285,28 +332,15 @@
         // conditionals for Linux
         {$define OSLINUX}       // e.g. to disable epoll API
         {$define FPCLINUX}
-        {$define OSLINUXANDROID}
-        {$ifdef CPUX64}
-          {$define OSLINUXINTEL}
-          {$define OSLINUXX64}
-        {$endif CPUX64}
-        {$ifdef CPUX86}
-          {$define OSLINUXINTEL}
-          {$define OSLINUXX86}
-        {$endif CPUX86}
       {$else}
         {$ifdef ANDROID}
           // conditionals for Android
           {$define OSANDROID}
           {$define FPCANDROID}
-          {$define OSLINUXANDROID}
           {$define NOPATCHRTL}  // don't mess with asm stuff
           {$ifdef CPUX86}
             {$define FPC_PIC}
           {$endif CPUX86}
-          {$ifdef CPUAARCH64}
-            {$define OSANDROIDARM64}
-          {$endif CPUAARCH64}
         {$else}
         'Unsupported Operating System - yet'
         {$endif ANDROID}
@@ -319,22 +353,30 @@
   // -- identify CPU Architectures
 
   {$define FPC_SINGLEABI}      // only on i386 default ABI <> cdecl
+  {$undef ASMAESNI}            // AES-NI is an Intel-specific feature
+  {$ifndef CPUX64}
+    {$undef FPC_X64MM}         // x86_64 only unit
+  {$endif CPUX64}
   {$ifdef CPU64}
     // 64-bit Architecture
     {$define FPC_64}
     {$ifdef CPUX64}
-      {$ASMMODE INTEL}         // as Delphi expects
+      {$define FPC_INTEL}
+      {$ASMMODE INTEL}         // as Delphi requires
       {$define CPUINTEL}
-      {$define FPC_CPUINTEL}
+      {$define ASMINTEL}
+      {$define ASMX64}
+      {$define FPC_CODEALIGN}  // we can use {$CODEALIGN LOOP=16} conditional
       {$define FPC_CPUX64}
       {$ifndef OSDARWIN}       // MachOS has troubles with our asm
-        {$define FPC_ASMX64}
-        {$define ASMX64}     // supports asm with globals
-        {$define ASMINTEL}   // either ASMX86 or ASMX64
-        {$define ASMX64AVX}  // supports AVX/AVX2/AVX512
-        {$define ASMX64AVXNOCONST} // supports AVX with no align32 constant load
-        {$define CPUX64ASM}  // FPC has no problem (not Delphi prior XE7)
-        {$define HASAESNI}   // mormot.crypt.core AES-NI rejected by Darwin asm
+        {$define ASMINTELNOTPIC}
+        {$define ASMAESNI}     // mormot.crypt.core AES-NI rejected by Darwin asm
+        {$define ASMX64NOTPIC} // supports asm with globals
+        {$define ASMX64AVX0}   // basic AVX/AVX2 support (not Delphi prior XE7)
+        {$define ASMX64AVX1}   // enhanced AVX/AVX2 support
+        {$ifdef OSLINUX}
+          {$define ASMX64LINUX} // some specifically tuned asm for FPC x64-linux
+        {$endif OSLINUX}
         {.$define FPC_PICX64}
         // FPC_PIC seems always defined on Linux x86_64: define this to use GOT
         // in our custom asm when generating a .so library on such platform
@@ -343,20 +385,27 @@
     {$ifdef CPUAARCH64}
       {$define CPUARM3264}
       {$define FPC_CPUARM}     // circumvent bug e.g. about sets in registers
+      {$define FPC_CPUAARCH64}
+      {$ifdef OSWINDOWS}
+        {$undef FPC_SINGLEABI} // aarch64-win64 compatibility
+      {$endif OSWINDOWS}
     {$endif CPUAARCH64}
   {$else}
     // 32-bit Architecture
     {$define FPC_32}
     {$ifdef CPUX86}
-      {$ASMMODE INTEL}         // as Delphi expects
+      {$define FPC_INTEL}
+      {$ASMMODE INTEL}         // as Delphi requires
+      {$define ASMINTEL}
+      {$define ASMX86}
       {$define CPUINTEL}
-      {$define FPC_CPUINTEL}
+      {.$define FPC_CODEALIGN} // no need of {$CODEALIGN LOOP=16} conditional
       {$define FPC_X86}
       {$ifndef FPC_PIC}        // MachOS/OpenBSD/Android require PIC on i386
-        {$define ASMX86}       // supports asm with globals
-        {$define ASMINTEL}     // either ASMX86 or ASMX64
+        {$define ASMINTELNOTPIC}
         {$define CPUX86NOTPIC} // use "absolute" instead of local register
-        {$define HASAESNI}
+        {$define ASMX86NOTPIC} // supports asm with globals
+        {$define ASMAESNI}
       {$endif FPC_PIC}
       {$ifdef FPUSSE2}
         {$undef TSYNEXTENDED80}  // no "extended" if -dFPC_SSE2 was defined
@@ -372,9 +421,6 @@
     {$define STRCNT32}         // 32-bit TAnsiRec.Ref
     {$define DACNT32}          // 32-bit TDynArrayRec.refCnt
   {$endif CPU64}
-  {$ifndef CPUX64}
-    {$undef FPC_X64MM}         // x86_64 only unit
-  {$endif CPUX64}
 
 
   // -----------
@@ -420,14 +466,15 @@
     // FPC SEH is not fully efficient and generate some additional code/calls
   {$ifend}
 
-  // note: you may remove all unexpexted hints by setting in your project options
-  // -vm11047,3187,3123,3124,4055,4079,4081,5023,5024,5027,5028,5036,5037,5058,5059,5060,5089,5090,5091,5092,5093,5094,6018,6058
+  // note: you may remove all unexpected hints by setting in your project options
+  // -vm11047,3187,3123,3124,4055,4079,4081,5023,5024,5027,5028,5036,5037,5058,5059,5060,5066,5089,5090,5091,5092,5093,5094,6018,6058
 
   // disable some no-brainer warnings - let FPC align with Delphi in that matter
   {$WARN 5027 off} // local assigned variable never used
   {$WARN 5036 off} // uninitialized local variable 1
   {$WARN 5037 off} // uninitialized local variable 2
   {$WARN 5059 off} // function result variable does not seem to be initialized
+  {$WARN 5066 off} // symbol is deprecated
   {$WARN 5089 off} // uninitialized managed variables 1
   {$WARN 5090 off} // uninitialized managed variables 2
   {$WARN 5091 off} // uninitialized managed variables 3
@@ -439,17 +486,9 @@
     {$WARN 6060 off} // case statement does not handle all possible cases
   {$endif ISFPC33}
 
-
 {$else FPC}
 
 (********************** Delphi Conditionals **********************)
-
-  {$ifndef MSWINDOWS}
-  'Kylix or Delphi for MacOS/Linux/Mobile are unsupported'
-  '-> we recommend using FPC for POSIX platforms'
-  {$endif MSWINDOWS}
-
-  {$define OSWINDOWS}
 
   {$ifndef CONDITIONALEXPRESSIONS}
   'Delphi 2-5 are not supported'
@@ -458,11 +497,44 @@
   'Delphi 6 is not supported'
   {$endif VER140}
 
+  // -----------
+  // -- identify Operating Systems
+
+  {$ifdef MSWINDOWS}
+
+    {$define OSWINDOWS}
+
+  {$else}
+    // 'Delphi for MacOS/Linux/Mobile are not officially supported yet'
+    // '-> we recommend using FPC for POSIX platforms'
+
+    {$define OSPOSIX}
+    {$define DELPHIPOSIX}
+    {$ifdef MACOS}
+      {$define OSDARWIN} // but not OSBSD
+      {$define DELPHIDARWIN}
+      {$define SOCK_HAS_SINLEN}
+    {$endif MACOS}
+    {$ifdef ANDROID}
+      {$define OSANDROID}
+    {$endif ANDROID}
+    {$ifdef LINUX}
+      {$define OSLINUX}
+    {$endif LINUX}
+
+    {$LEGACYIFEND ON} // hint seems to be emitted only on non-Windows targets
+
+  {$endif MSWINDOWS}
+
+// -----------
+  // -- global code generation conditionals
+
   {$A+} // force normal alignment, as expected by our units
 
   {$ifdef UNICODE}
     {$define HASVARUSTRING}
     {$define HASCODEPAGE}
+    {$define ISDELPHIUNICODE}       // FPC trunk has an UNICODE mode too
     {$define FPC_OR_UNICODE}
     {$define USERECORDWITHMETHODS}
     {$define HASGENERICSSYNTAX}     // Delphi 2009+ compiler has TArray<>
@@ -472,34 +544,17 @@
     {$define UNDIRECTDYNARRAY}
   {$else}
     {$define HASNOSTATICRTTI}        // Delphi 7/2007 has no TypeInfo(TGuid)
-  {$endif}
+  {$endif UNICODE}
 
   {$define ISDELPHI}
-  {$define CPUINTEL}          // Delphi only for Intel by now
-  {$define ASMINTEL}          // either ASMX86 or ASMX64
+  {$define NOPATCHRTL}        // FPC only patches
   {$undef FPC_X64MM}          // FPC only unit
-  {$ifdef CPUX64}
-    {$undef CPU32}
-    {$define CPU64}           // Delphi compiler for 64 bit CPU
-    {$define CPU64DELPHI}
-    {$define ASMX64}          // supports asm with globals
-    {$define EXTENDEDTOSHORT_USESTR} // FloatToText() slower in Delphi Win64
-    {$define DOUBLETOSHORT_USEGRISU} // fast DoubleToAscii() - not Delphi Win32
-  {$else CPUX64}
-    {$define CPU32}           // Delphi compiler for 32 bit CPU
-    {$undef CPU64}
-    {$define CPU32DELPHI}
-    {$define CPUX86}          // for compatibility with older versions of Delphi
-    {$define ASMX86}          // supports asm with globals
-    {$define CPUX86NOTPIC}    // use "absolute" instead of local register
-    {$define TSYNEXTENDED80}  // only 32-bit has a true x87 extended type
-  {$endif CPUX64}
-
   {$define DELPHI_OR_FPC_OLDRTTI}
   {$define HASINTERFACERTTI}  // interface RTTI (not oldest FPC)
   {$define HASFASTTRYFINALLY} // Delphi Win32/Win64 efficiently uses SEH
   {$define STRCNT32}          // 32-bit TStrRec.refCnt even on 64-bit CPU
   {$define DACNT32}           // 32-bit TDynArrayRec.refCnt even on 64-bit CPU
+
   {$warn UNSAFE_CODE OFF}     // Delphi for .Net does not exist any more!
   {$warn UNSAFE_TYPE OFF}
   {$warn UNSAFE_CAST OFF}
@@ -507,6 +562,55 @@
   {$warn SYMBOL_PLATFORM OFF}
   {$warn SYMBOL_DEPRECATED OFF}   // for faVolumeID
   {$warn UNIT_PLATFORM OFF}
+
+  // -----------
+  // -- identify CPU Architectures
+
+  {$if CompilerVersion >= 23.0} // = Delphi XE2
+    // Delphi XE2 introduced Win64 as the first non i386 target
+// https://docwiki.embarcadero.com/RADStudio/en/Conditional_compilation_(Delphi)
+    {$ifdef CPUX86}
+      {$define CPU32}
+      {$define CPUINTEL}
+      {$define ASMX86}
+    {$endif CPUX86}
+    {$ifdef CPUX64}
+      {$define CPU64}
+      {$define CPUINTEL}
+      {$define ASMX64}
+    {$endif CPUX64}
+    {$undef CPUARM} // not the same meaning on Delphi and FPC/mORMot :(
+    {$ifdef CPUARM32}
+      {$define CPU32}
+      {$define CPUARM3264}
+      {$define CPUARM}
+    {$endif CPUARM32}
+    {$ifdef CPUARM64}
+      {$define CPU64}
+      {$define CPUARM3264}
+      {$define CPUAARCH64}
+      {$define CPUAARCH64DELPHI}
+    {$endif CPUARM64}
+    {$ifdef CPUINTEL}
+      {$define ASMINTEL}
+    {$else}
+      {$ifdef CPU64BITS}  // handle non INTEL/AMD Delphi targets
+        {$define CPU64}
+      {$else}
+        {$define CPU32}
+      {$endif CPU64BITS}
+    {$endif CPUINTEL}
+  {$else}
+    // before Delphi XE2, all compilers are only x86
+    {$define CPU32}
+    {$define CPUINTEL}
+    {$define CPUX86}
+    {$define ASMINTEL}
+    {$define ASMX86}
+  {$ifend}
+
+  // -----------
+  // -- identify Delphi compiler revisions
 
   {$if CompilerVersion >= 17}     // = Delphi 2005
     {$define ISDELPHI2005ANDUP}
@@ -541,9 +645,9 @@
       {$define ISDELPHI20092010}  // to circumvent some specific bugs
     {$ifend}
     {$if CompilerVersion >= 21.0}
+      {$define ISDELPHI2010}
       {$define HASSAFEINLINE}     // Delphi 2007-2009 have troubles inlining :(
       {$define HASSAFEFPCINLINE}  // FPC specific inlining troubles
-      {$define ISDELPHI2010}
       {$define HASDYNARRAYTYPE}   // eltype2 field, used e.g. for T*ObjArray
       {$define HASEXTRECORDRTTI}     // Delphi 2010 extended RTTI for records
       {$define HASIMPLICITOPERATOR}  // Delphi 2010+ "implicit operator" is ok
@@ -569,7 +673,7 @@
       // e.g. {$ifdef NEEDVCLPREFIX}VCL.Graphics{$else}Graphics{$endif}
       {$define NEEDVCLPREFIX}
       {$define HASVARUSTRARG}
-      {$define HASTTHREADTERMINATESET} // introduced TThread.TerminateSet
+      {$define HASTTHREADTERMINATESET} // introduced TThread.TerminatedSet
     {$ifend}
     {$if CompilerVersion >= 24.0} // = Delphi XE3
       {$define ISDELPHIXE3}
@@ -577,8 +681,8 @@
     {$if CompilerVersion >= 25.0} // = Delphi XE4
       {$define ISDELPHIXE4}
       {$define FPC_OR_DELPHIXE4}  // circumvent Internal Error: C2130 on XE3
-      {$define HASAESNI}
-      {$define HASALIGN}          // .align ### inline assembler directive
+      {$define ASMAESNI}
+      {$define ASMALIGN}          // .align ### inline assembler directive
     {$ifend}
     {$if CompilerVersion >= 26.0} // = Delphi XE5
       {$define ISDELPHIXE5}
@@ -597,9 +701,11 @@
     {$ifend}
     {$if CompilerVersion >= 28.0}
       {$define ISDELPHIXE7}
-      {$ifdef CPU64}
-        {$define CPUX64ASM}       // e.g. XE4 SSE asm is buggy :(
-      {$endif CPU64}
+      {$ifdef CPUINTEL}
+        {$ifdef CPU64}
+          {$define ASMX64AVX0}     // e.g. XE4 SSE/AVX asm is buggy :(
+        {$endif CPU64}
+      {$endif CPUINTEL}
     {$ifend}
     {$if CompilerVersion >= 29.0} // = Delphi XE8
       {$define ISDELPHIXE8}
@@ -628,20 +734,61 @@
     {$ifend}
     {$if CompilerVersion >= 35.0} // = Delphi 11.x Alexandria
       {$define ISDELPHI11}
-      {$ifdef CPU64}
-        {.$define ASMX64AVX}      // initial AVX/AVX2/AVX512 support - but broken
-        {$define ASMX64AVXNOCONST} // supports AVX with no align32 constant load
-      {$endif CPU64}
+      {$ifdef CPUX64}
+        {$define ASMX64AVX1}      // enhanced AVX/AVX2 support
+      {$endif CPUX64}
     {$ifend}
     {$if CompilerVersion >= 36.0} // = Delphi 12 Athens
       {$define ISDELPHI12}
     {$ifend}
-    {$if CompilerVersion >= 37.0} // = Delphi 13 Next
+    {$if CompilerVersion >= 37.0} // = Delphi 13 Florence
       {$define ISDELPHI13}
+      {$define VER370inlinebug} // circumvent Delphi 13 bug
+    {$ifend}
+    {$if CompilerVersion >= 38.0} // = Delphi 14 Next
+      {$define ISDELPHI14}
     {$ifend}
   {$else}
      {$define ISDELPHI7}
   {$ifend CompilerVersion >= 17}
+
+  // -----------
+  // -- compiler-specific code generation conditionals
+
+  {$ifdef OSWINDOWS}
+    {$ifdef CPUX86}
+      {$define WIN32DELPHI}       // Delphi with Win32 inlined asm
+      {$define ASMINTELNOTPIC}
+      {$define ASMX86NOTPIC}      // supports asm with globals
+      {$define CPUX86NOTPIC}      // use "absolute" instead of local register
+      {$define TSYNEXTENDED80}    // only Win32 has a true x87 extended type
+      {$define DISPINVOKEBYVALUE} // DispInvoke() expects varVariant by value
+      {$define WINTELDELPHI}      // Delphi on Windows + Intel/AMD
+    {$endif CPUX86}
+    {$ifdef CPUX64}
+      {$define ASMINTELNOTPIC}
+      {$define ASMX64NOTPIC}      // supports asm with globals
+      {$define WINTELDELPHI}      // Delphi on Windows + Intel/AMD
+    {$endif CPUX64}
+    {$ifdef CPU64}
+      {$define WIN64DELPHI}       // Delphi with Win64 functions
+    {$endif CPU64}
+    {$ifdef CPUARM64}
+      {$define WINARMDELPHI}
+    {$endif CPUARM64}
+  {$else}
+    {$define POSIXDELPHI}
+    {$define NOASMBLOCK}    // no "asm .. end" blocks support by LLVM compilers
+    {$define NOEXCEPTIONINTERCEPT}  // TODO: interception for Delphi POSIX
+  {$endif OSWINDOWS}
+  {$ifdef CPU32}
+    {$define HASSLOWMUL64}  // Delphi 32-bit has slow 64-bit mul: favor shl
+  {$else}
+    {$define EXTENDEDTOSHORT_USESTR} // FloatToText() slower in Delphi Win64
+    {$ifdef CPUINTEL}
+      {$define DOUBLETOSHORT_USEGRISU} // fast DoubleToAscii() - using BSRQWord
+    {$endif CPUINTEL}
+  {$endif CPU32}
 
 {$endif FPC}
 
@@ -653,8 +800,10 @@
 
   {$define MORMOT_TRUNK} // this is not a "stable" release point
 
-  {$define MORMOT22}  // defined since mORMot 2.2 trunk
-  {.$define MORMOT23} // defined since mORMot 2.3 stable
+  {$define MORMOT22}  // defined since mORMot 2.2 stable
+  {$define MORMOT23}  // defined since mORMot 2.3 stable
+  {$define MORMOT24}  // defined since mORMot 2.4 stable
+  {.$define MORMOT25} // defined since mORMot 2.5 stable
 
 // -----------
 // -- about pascal code expectations
@@ -673,52 +822,138 @@
   {$P+} // Open string params
 
   {$ifdef DEBUG}
-    {$assertions on} // assert() may be disabled, e.g. on FPC
+    {$assertions on}   // assert() may be disabled, e.g. on FPC
   {$endif DEBUG}
 
+  // -----------
+  // -- Assembly Code specific conditionals
+
+  // ABI* conditionals as needed e.g. by mormot.core.interfaces
+  {$undef ASMSSE2}
+  {$ifdef CPUINTEL}
+    {$ifdef CPUX86}
+      {$define ABIINTEL}
+      {$define ABIX86}    // with register convention (not stdcall nor c)
+      {$ifndef HASNOSSE2} // conditional to compile for oldest CPUs
+        {$define ASMSSE2}
+      {$endif HASNOSSE2}
+    {$endif CPUX86}
+    {$ifdef CPUX64}
+      {$define ABIINTEL}
+      {$define ABIX64}
+      {$ifdef OSPOSIX}
+        {$define ABISYSVX64}
+      {$endif OSPOSIX}
+      {$ifdef OSWINDOWS}
+        {$define ABIWINX64}
+      {$endif OSWINDOWS}
+      {$define ASMSSE2} // x86_64 has SSE2
+    {$endif CPUX64}
+  {$endif CPUINTEL}
+  {$ifdef CPUARM3264}
+    {$ifdef CPUARM}
+      {$define ABIARM}
+      {$define ABIA32}
+    {$endif CPUARM}
+    {$ifdef CPUAARCH64}
+      {$define ABIARM}
+      {$define ABIA64}
+      {$ifdef OSPOSIX}
+        {$define ABISYSVA64}
+      {$endif OSPOSIX}
+      {$ifdef OSWINDOWS}
+        {$define ABIWINA64}
+      {$endif OSWINDOWS}
+    {$endif CPUAARCH64}
+  {$endif CPUARM3264}
+
+  // trigger pure pascal compilation, e.g. for Delphi LLVM or RISC-V CPUs
+  {$ifdef NOASMBLOCK}
+    {$undef ASMINTEL}
+    {$undef ASMINTELNOTPIC}
+    {$undef ASMSSE2}
+    {$undef ASMAESNI}
+    {$undef ASMX86}
+    {$undef ASMX86NOTPIC}
+    {$undef ASMX64}
+    {$undef ASMX64NOTPIC}
+    {$undef ASMX64AVX0}
+    {$undef ASMX64AVX1}
+    {$undef ASMX64LINUX}
+    {$undef CPUARM3264}
+    {$undef CPUARM}
+    {$undef CPUAARCH64}
+    {$undef FPC_CPUARM}
+    {$undef FPC_X86}
+    {$undef FPC_CPUX64}
+    {$undef FPC_PICX64}
+    {$undef FPC_CPUAARCH64}
+    // the vmtAutoTable tricks seems to fail
+    {$define NOPATCHVMT}
+    // no static linking
+    {$define NOLIBCSTATIC}
+    {$define NOSQLITE3STATIC}
+    {$define NOLIBDEFLATESTATIC}
+  {$endif NOASMBLOCK}
+
+// -----------
+// -- Operating Systems specific conditionals (e.g. define expected ABI)
+
+{$ifdef OSWINDOWS}
+  {$ifdef ABIINTEL}
+    {$define OSWINTEL}
+  {$endif ABIINTEL}
+  {$ifdef ABIARM}
+    {$define OSWINARM}
+  {$endif ABIARM}
+  {$define THREADID32}    // TThreadID always 32-bit DWORD on all Windows archs
+{$else}
+  {$ifdef CPU32}
+    {$define THREADID32}    // TThreadID 32-bit on 32-bit systems
+  {$endif CPU32}
+  {$ifdef OSLINUX}
+    {$define OSLINUXANDROID}
+    {$ifdef ABIX86}
+      {$define OSLINUXINTEL}
+      {$define OSLINUXX86}
+    {$endif ABIX86}
+    {$ifdef ABIX64}
+      {$define OSLINUXINTEL}
+      {$define OSLINUXX64}
+    {$endif ABIX64}
+    {$ifdef CPU32}
+      {$define OSLINUX32}
+    {$endif CPU32}
+    {$ifdef CPU64}
+      {$define OSLINUX64}
+    {$endif CPU64}
+  {$endif OSLINUX}
+  {$ifdef OSANDROID}
+    {$define OSLINUXANDROID}
+    {$ifdef ABIA64}
+      {$define OSANDROIDARM64}
+    {$endif ABIA64}
+  {$endif OSANDROID}
+  {$ifdef OSDARWIN}
+    {$define OSBSDDARWIN}     // OSBSDDARWIN = OSBSD or OSDARWIN
+  {$endif OSDARWIN}
+  {$ifdef OSBSD}
+    {$define OSBSDDARWIN}     // OSBSDDARWIN = OSBSD or OSDARWIN
+  {$endif OSBSD}
+{$endif OSWINDOW}
 
 // -----------
 // -- CPU specific conditionals
 
-{$ifdef CPUINTEL}
-  {$ifdef OSWINDOWS}
-    {$define OSWINTEL}
-    {$ifdef CPUX64}
-      {$define WIN64ABI}    // for asm on x86_64
-      {$define OSWINDOWS64} // Win64
-    {$else}
-      {$define OSWINDOWS32} // Win32
-    {$endif CPUX64}
-    {$define THREADID32}    // TThreadID = 32-bit DWORD on Win32 and Win64
-  {$endif OSWINDOWS}
-  {$ifdef OSPOSIX}
-    {$ifdef CPUX64}
-      {$define SYSVABI}     // for asm on x86_64
-    {$else}
-      {$define THREADID32}  // TThreadID = PtrUInt/pointer on pthread
-    {$endif CPUX64}
-  {$endif OSPOSIX}
-  {$define CPUINTELARM}
-{$else}
-  {$ifdef OSWINDOWS}
-    {$ifdef CPUAARCH64}
-      {$define OSWINARM}    // Windows for ARM 64
-    {$endif CPUAARCH64}
-    {$define THREADID32}    // TThreadID = 32-bit DWORD on win64-aarch64
-  {$endif OSWINDOWS}
-  {$undef HASAESNI}         // AES-NI is an Intel-specific feature
-  {$ifdef CPUARM3264}
-    {$define CPUINTELARM}
-  {$endif CPUARM3264}
-  {$ifdef CPU32}
-    {$define THREADID32}    // TThreadID = PtrUInt/pointer on pthread
-  {$endif CPU32}
-{$endif CPUINTEL}
-
 {$ifdef CPU32}
   {$define NOPOINTEROFFSET} // 32-bit CPU will always store pointers
 {$endif CPU32}
-
+{$ifdef ASMINTEL}
+  {$define HASCPUFEATURES}  // TIntelCpuFeatures requires inlined asm
+{$endif ASMINTEL}
+{$ifdef CPUARM3264}
+  {$define HASCPUFEATURES}  // CpuFeatures: TArmHwCaps
+{$endif CPUARM3264}
 
   // -----------
   // -- Libraries linking
@@ -739,8 +974,8 @@
       {$undef LIZARD_EXTERNALONLY}  // static liblizard.a
     {$endif CPUINTEL}
     {$ifdef CPUARM}
+      {$define LIBDEFLATESTATIC}    // seems stable enough since mORMot 2.4
       {.$undef LIZARD_EXTERNALONLY} // static liblizard.a is not tested
-      {.$define LIBDEFLATESTATIC}   // compiles, but untested
       {.$define LIBQUICKJSSTATIC}   // compiles, but untested
     {$endif CPUARM}
     {$ifdef CPUAARCH64}
@@ -757,7 +992,7 @@
         {$define LIBQUICKJSSTATIC}
       {$endif CPUX86}
       {$ifdef CPUX64}
-        {.$define LIBDEFLATESTATIC}   // Win64 + FPC 3.2 = internal error 200603061
+        {.$define LIBDEFLATESTATIC} // seems unstable with some FPC compilers :(
         {$define LIBQUICKJSSTATIC}
       {$endif CPUX64}
     {$else}
@@ -772,27 +1007,34 @@
       {$define OSDARWINARM}
       {$define LIZARD_EXTERNALONLY}
       {$define NOLIBCSTATIC}
-    {$endif OSDWARWIN}
+    {$endif OSDARWIN}
   {$endif CPUARM3264}
 {$else}
+  // Delphi
   {$define LIZARD_EXTERNALONLY}     // no static .obj for Delphi Win32/Win64 yet
-  {$ifdef CPUX86}
-    {$define LIBQUICKJSSTATIC}      // our quickjs.obj seems fine on Win32 :)
-  {$endif CPUX86}
-  // there is a linking bug with Delphi XE4 on Win64
-  {$ifdef CPUX64}
-    {$if (CompilerVersion = 23.0) or
-         (CompilerVersion = 25.0) or
-         (CompilerVersion = 28.0) or
-         (CompilerVersion = 29.0)}  // exactly XE2/XE4/XE7/XE8 are known to GPF
-      // other Win32/Win64 Delphi platforms "should work" (tm) as expected
-      {$define NOSQLITE3STATIC}
-    {$ifend}
-    {$define LIBQUICKJSSTATIC}      // seems fine BUT on Delphi 10.4+ Win64
-    {$if CompilerVersion >= 34.0}    // = Delphi 10.4 and later
-      {$undef LIBQUICKJSSTATIC}
-    {$ifend}
-  {$endif}
+  {$ifdef CPUINTEL}
+    {$ifdef CPUX86}
+      {$define LIBQUICKJSSTATIC}      // our quickjs.obj seems fine on Win32 :)
+    {$endif CPUX86}
+    // there is a linking bug with Delphi XE4 on Win64
+    {$ifdef CPUX64}
+      {$if (CompilerVersion = 23.0) or
+           (CompilerVersion = 25.0) or
+           (CompilerVersion = 28.0) or
+           (CompilerVersion = 29.0)}  // exactly XE2/XE4/XE7/XE8 are known to GPF
+        // other Win32/Win64 Delphi platforms "should work" (tm) as expected
+        {$define NOSQLITE3STATIC}
+      {$ifend}
+      {$define LIBQUICKJSSTATIC}      // seems fine BUT on Delphi 10.4+ Win64
+      {$if CompilerVersion >= 34.0}    // = Delphi 10.4 and later
+        {$undef LIBQUICKJSSTATIC}
+      {$ifend}
+    {$endif CPUX64}
+  {$else}
+    // Delphi for WinArm has no SQlite3/QuickJS static support yet
+    {$define NOSQLITE3STATIC}
+    {$undef LIBQUICKJSSTATIC}
+  {$endif CPUINTEL}
 {$endif FPC}
 
 {$ifdef OSWINDOWS}
@@ -830,6 +1072,7 @@
   {$define USE_WINIOCP}     // I/O completion ports API is fine under Windows
   // (as used by mormot.core.threads and mormot.net.async)
   // (under Linux/POSIX, we fallback to a classical event-driven pool)
+  {$define USE_THREADWINIOCP} // IOCP is needed by the WebSocketsAPI thread pool
 
   {$ifndef NOSSPIAUTH}        // from mormot.lib.sspi
     {$define DOMAINRESTAUTH}  // enable SSPI in mormot.rest.client/server
@@ -841,12 +1084,15 @@
 
   {$define ONLYUSEHTTPSOCKET} // efficient cross-platform Socket + OpenSSL API
   {$undef USE_WINIOCP}        // disable any Windows-specific code
+  {$undef USE_THREADWINIOCP}
 
   {$ifdef OSANDROID}
 
     // for Android, consider using https://github.com/gcesarmza/curl-android-ios
     // static libraries and force USELIBCURL in the project conditionals
-    {$define LIBCURLSTATIC}
+    {$ifdef CPUARM3264}
+      {$define LIBCURLSTATIC}
+    {$endif CPUARM3264}
 
   {$else}
 

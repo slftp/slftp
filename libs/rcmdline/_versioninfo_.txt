@@ -1,4 +1,2 @@
-d8b69ae135527a99308d6dbb4e616c8deaeaedff
-Add overloads to allow compilation with Delphi
-
-now also FPC in Delphi mode compiles this unit
+e539c03fce78ddb25712fc46a8c253b530ccef30
+fix cgi mode compilation

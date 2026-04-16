@@ -182,7 +182,7 @@ end;
 
 function GetOpenSSLShortVersion: String;
 begin
-    Result := Int64(High(OpenSSL_version_num)).ToString();
+  Result := UTF8ToString(OpenSslVersionText);
 end;
 
 function InitOpenSSLConnectionContext(out aError: String): Boolean;

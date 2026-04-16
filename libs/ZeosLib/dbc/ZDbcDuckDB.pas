@@ -63,10 +63,12 @@ uses
 
 type
 
-  {** Implements DBC Proxy Driver. }
+  {** Implements DBC DuckDb Driver. }
   TZDbcDuckDBDriver = class(TZAbstractDriver)
   public
     constructor Create; override;
+    destructor Destroy; override;
+
     function Connect(const Url: TZURL): IZConnection; override;
     function GetMajorVersion: Integer; override;
     function GetMinorVersion: Integer; override;
@@ -75,15 +77,15 @@ type
     function GetStatementAnalyser: IZStatementAnalyser; override;
   end;
 
-  {** Represents a DBC Proxy specific connection interface. }
+  {** Represents a DBC DuckDb specific connection interface. }
   IZDbcDuckDBConnection = interface (IZConnection)
-    ['{C6ACB283-1126-426B-9637-B4CFD430BB33}']
+    ['{ABA70EDA-E0E4-4886-8FA5-53D3A8D4607B}']
     function GetPlainDriver: TZDuckDBPlainDriver;
     function GetConnectionHandle: TDuckDB_Connection;
     procedure CheckDuckDbError(AResult: PDuckDB_Result);
   end;
 
-  {** Implements DBC Proxy Database Connection. }
+  {** Implements DBC DuckDb Database Connection. }
 
   { TZDuckDBConnection }
 
@@ -93,6 +95,8 @@ type
     FPlainDriver: TZDuckDBPlainDriver;
     FDatabase: TDuckDB_Database;
     FConnection: TDuckDB_Connection;
+    FSchema: string;
+    FHostVersion: Integer;
   protected
     procedure CheckDuckDBError(Res: TDuckDB_State; AMessage: String); overload;
     procedure CheckDuckDbError(AResult: PDuckDB_Result); overload;
@@ -232,6 +236,9 @@ const
   UseMetadataStr = 'usemetadata';
   ServerProviderStr = 'serverprovider';
 
+var
+  GInstanceCache: TDuckdb_Instance_Cache;
+
 { TZDbcDuckDBDriver }
 
 {**
@@ -241,6 +248,33 @@ constructor TZDbcDuckDBDriver.Create;
 begin
   inherited Create;
   AddSupportedProtocol(AddPlainDriverToCache(TZDuckDBPlainDriver.Create));
+end;
+
+destructor TZDbcDuckDBDriver.Destroy;
+var
+  TempPlainDriver: TZDuckDBPlainDriver;
+  TempZURL: TZURL;
+begin
+  if Assigned(GInstanceCache) then
+  begin
+    // There must be a better way to do this!
+    TempZURL := TZURL.Create;
+    try
+      TempZURL.Protocol := 'DuckDB';
+      TempPlainDriver := GetPlainDriver(TempZURL, True) as TZDuckDBPlainDriver;
+    finally
+      TempZURL.Free;
+    end;
+    if Assigned(TempPlainDriver) then
+    begin
+      if Assigned(TempPlainDriver.duckdb_destroy_instance_cache) then
+      begin
+        TempPlainDriver.duckdb_destroy_instance_cache(@GInstanceCache);
+        GInstanceCache := nil;
+      end;
+    end;
+  end;
+  inherited;
 end;
 
 {**
@@ -307,7 +341,7 @@ begin
   Result := TZGenericStatementAnalyser.Create; { thread save! Allways return a new Analyser! }
 end;
 
-{ TZDbcProxyConnection }
+{ TZDbcDuckDbConnection }
 
 procedure TZDbcDuckDBConnection.CheckDuckDBError(Res: TDuckDB_State; AMessage: String);
 begin
@@ -320,7 +354,7 @@ var
   ErrorMsg: UTF8String;
 begin
   ErrorMsg := FPlainDriver.DuckDB_Result_Error(AResult);
-  raise EZSQLException.Create({$IFDEF UNICODE}UTF8Decode(ErrorMsg){$ELSE}ErrorMsg{$ENDIF});
+  raise EZSQLException.Create({$IFDEF UNICODE}UTF8ToString(ErrorMsg){$ELSE}ErrorMsg{$ENDIF});
 end;
 
 {**
@@ -329,7 +363,10 @@ end;
 procedure TZDbcDuckDBConnection.AfterConstruction;
 begin
   FPlainDriver := PlainDriver.GetInstance as TZDuckDBPlainDriver;
+  if GInstanceCache = nil then
+    GInstanceCache := FPlainDriver.duckdb_create_instance_cache;
   FMetadata := TZDuckDBDatabaseMetadata.Create(Self, Url);
+  FHostVersion := -1;
   inherited AfterConstruction;
 end;
 
@@ -341,14 +378,15 @@ var
   LogMessage: String;
   DatabasePath: {$IFDEF UNICODE}UTF8String{$ELSE}String{$ENDIF};
   Res: TDuckDB_State;
+  ErrorMessage: PAnsiChar;
 begin
   if not Closed then
     Exit;
 
   LogMessage := 'CONNECT TO "'+ URL.Database + '" AS USER "' + URL.UserName + '"';
   DatabasePath := {$IFDEF UNICODE}UTF8Encode(URL.Database){$ELSE}URL.Database{$ENDIF};
-  Res := FPlainDriver.DuckDB_Open(PAnsiChar(DatabasePath), @FDatabase);
-  CheckDuckDBError(Res, Format('Could not open DuckDB Database %s.', [URL.Database]));
+  Res := FPlainDriver.duckdb_get_or_create_from_cache(GInstanceCache, PAnsiChar(DatabasePath), @FDatabase, nil, @ErrorMessage);
+  CheckDuckDBError(Res, {$IFDEF UNICODE}UTF8ToString({$ENDIF}ErrorMessage{$IFDEF UNICODE}){$ENDIF});
   Res := FPlainDriver.Duckdb_Connect(FDatabase, @FConnection);
   CheckDuckDBError(Res, Format('Could not connect to DuckDB Database %s.', [URL.Database]));
 
@@ -359,6 +397,11 @@ begin
   ConSettings.ClientCodePage.Encoding := ceUTF8;
   ConSettings.ClientCodePage.CharWidth := 4;
   ConSettings.ClientCodePage.CP := zCP_UTF8;
+
+  if FSchema <> '' then begin
+    LogMessage := FSchema;
+    SetCatalog(LogMessage);
+  end;
 end;
 
 function TZDbcDuckDBConnection.CreateStatementWithParams(Info: TStrings): IZStatement;
@@ -387,40 +430,39 @@ end;
 
 procedure TZDbcDuckDBConnection.Commit;
 begin
-  raise Exception.Create('Transactions are not supported yet.');
-  {
-  if not Closed then
-    if not GetAutoCommit then begin
-      FConnIntf.Commit;
-      Dec(FTransactionLevel);
-      AutoCommit := FTransactionLevel = 0;
-    end else
-      raise EZSQLException.Create(SInvalidOpInAutoCommit);
-  }
+  // raise Exception.Create('Transactions are not supported yet.');
+  if Closed then
+    raise EZSQLException.Create(SConnectionIsNotOpened);
+  if AutoCommit then
+    raise EZSQLException.Create(SCannotUseCommit);
+  ExecuteImmediat('COMMIT', lcTransaction);
+  AutoCommit := not FRestartTransaction;
 end;
 
 procedure TZDbcDuckDBConnection.Rollback;
 begin
-  raise Exception.Create('Transactions are not supported yet.');
-  {
-  if not Closed then
-    if not GetAutoCommit then begin
-      FConnIntf.Rollback;
-      Dec(FTransactionLevel);
-      AutoCommit := FTransactionLevel = 0;
-    end else
-      raise EZSQLException.Create(SInvalidOpInAutoCommit);
-  }
+  // raise Exception.Create('Transactions are not supported yet.');
+  if Closed then
+    raise EZSQLException.Create(SConnectionIsNotOpened);
+  if AutoCommit then
+    raise EZSQLException.Create(SCannotUseRollback);
+  ExecuteImmediat('ROLLBACK', lcTransaction);
+  AutoCommit := not FRestartTransaction;
 end;
 
 function TZDbcDuckDBConnection.StartTransaction: Integer;
 begin
-  raise Exception.Create('Transactions are not supported yet.');
-  {
-  Result := FConnIntf.StartTransaction;
-  AutoCommit := False;
-  FTransactionLevel := Result;
-  }
+  // raise Exception.Create('Transactions are not supported yet.');
+  if Closed then
+    Open;
+  if AutoCommit then begin
+    // Docs say to use "begin transaction" but note that "start transaction" also seems to work.
+    ExecuteImmediat('BEGIN TRANSACTION', lcTransaction);
+    AutoCommit := False;
+    Result := 1;
+  end
+  else
+    raise EZSQLException.Create('DuckDB does not support savepoints or nested transactions.');
 end;
 
 function TZDbcDuckDBConnection.GetTransactionLevel: Integer;
@@ -458,7 +500,7 @@ end;
 
 function TZDbcDuckDBConnection.GetClientVersion: Integer;
 begin
-  Result := 1000;
+  Result := GetHostVersion;
 end;
 
 {**
@@ -496,8 +538,45 @@ begin
 end;
 
 function TZDbcDuckDBConnection.GetHostVersion: Integer;
+var
+  VerString: String;
+  P, PDot, PEnd: PChar;
+  MajorVersion: Integer;
+  MiniorVersion: Integer;
+  SubVersion: Integer;
 begin
-  Result := 0;
+  // This code is borrowed from SQLServerProductToHostVersion
+  if not Closed and (FHostVersion = -1) then begin
+    VerString := GetMetadata.GetDatabaseInfo.GetDatabaseProductVersion;
+    MajorVersion := 0;
+    MiniorVersion := 0;
+    SubVersion := 0;
+    P := Pointer(VerString);
+    PEnd := p + Length(VerString);
+    // Skip any letters at beginning
+    while (P < PEnd) and ((Ord(P^) < Ord('0')) or (Ord(P^) > Ord('9'))) do
+      Inc(P);
+    PDot := P;
+    while (PDot < PEnd) and ((Ord(PDot^) >= Ord('0')) and (Ord(PDot^) <= Ord('9'))) do
+      Inc(PDot);
+    if PDot^ = '.' then begin
+      MajorVersion := {$IFDEF UNICODE}UnicodeToIntDef{$ELSE}RawToIntDef{$ENDIF}(P, PDot, 0);
+      P := PDot +1;
+      PDot := P +1;
+      while (PDot < PEnd) and ((Ord(PDot^) >= Ord('0')) and (Ord(PDot^) <= Ord('9'))) do
+        Inc(PDot);
+      if PDot^ = '.' then begin
+        MiniorVersion := {$IFDEF UNICODE}UnicodeToIntDef{$ELSE}RawToIntDef{$ENDIF}(P, PDot, 0);
+        P := PDot +1;
+        PDot := P +1;
+        while (PDot < PEnd) and ((Ord(PDot^) >= Ord('0')) and (Ord(PDot^) <= Ord('9'))) do
+          Inc(PDot);
+        SubVersion := {$IFDEF UNICODE}UnicodeToIntDef{$ELSE}RawToIntDef{$ENDIF}(P, PDot, 0);
+      end;
+    end;
+    FHostVersion := EncodeSQLVersioning(Majorversion, MiniorVersion, SubVersion);
+  end;
+  Result := FHostVersion;
 end;
 
 function TZDbcDuckDBConnection.GetServerProvider: TZServerProvider;
@@ -535,16 +614,23 @@ end;
 
 procedure TZDbcDuckDBConnection.SetCatalog(const Catalog: string);
 begin
-  if Closed then
-    Open;
-
-  if (Catalog <> 'main') and (Catalog <> '') then
-    raise Exception.Create('Changing the schema is not supported yet');
+  if Catalog <> FSchema then begin
+    FSchema := Catalog;
+    if not Closed and (FSchema <> '') then
+      ExecuteImmediat('SET SCHEMA = ''' + FSchema + '''', lcOther);
+  end;
 end;
 
 function TZDbcDuckDBConnection.GetCatalog: string;
 begin
-  Result := 'main';
+  if not Closed and (FSchema = '') then
+    with CreateStatementWithParams(nil).ExecuteQuery('select current_schema()') do
+    begin
+      if Next then
+        FSchema := GetString(FirstDBCIndex);
+      Close;
+    end;
+  Result := FSchema;
 end;
 
 procedure TZDbcDuckDBConnection.SetTransactionIsolation(Level: TZTransactIsolationLevel);

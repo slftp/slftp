@@ -43,8 +43,8 @@ interface
 //    TDynArray and TSynDictionary, then specialization helps a little more
 {.$define NOSPECIALIZE}
 
-// you could try to define this conditional to generate even less code, which
-// may be slightly slower - perhaps not really noticeable on production
+// try to define this conditional to generate even less code for IKeyValue<>
+// - may be slightly slower (not really noticeable on production)
 {.$define SMALLGENERICS}
 
 uses
@@ -261,6 +261,14 @@ type
     /// add some items from another IList<T> instance
     procedure AddFrom(const Another: IList<T>; Offset: PtrInt = 0;
       Limit: PtrInt = -1);
+    /// wrapper around Data^.SaveToJson to be used e.g. with SOA methods
+    function ToJson: RawJson;
+    /// wrapper around Data^.LoadFromJson to be used e.g. with SOA methods
+    function TryFromJson(const Json: RawJson): boolean;
+    /// wrapper around Data^.SaveToBinary
+    function ToBinary: RawByteString;
+    /// wrapper around Data^.LoadFromBinary
+    function TryFromBinary(const Binary: RawByteString): boolean;
     /// high-level access to the stored values from their associated indexes
     // - raise EIList if the supplied index is out of range
     // - SetItem() will raise EIList if loCreateUniqueIndex is defined
@@ -287,8 +295,6 @@ type
     // - TRWLock is spinning on wait, so locks are expected to be released ASAP
     function Safe: PRWLock;
     /// low-level access to the internal TDynArray wrapper
-    // - you can use e.g. Data.SaveToJson/SaveTo and
-    // Data.LoadFromJson/LoadFromBinary
     function Data: PDynArray;
   end;
 
@@ -366,6 +372,14 @@ type
     function Sorted: boolean;
     /// low-level IList<> method to access the first item of the collection
     function First: pointer; inline;
+    /// IList<> method wrapper around Data^.SaveToJson
+    function ToJson: RawJson;
+    /// IList<> method wrapper around Data^.LoadFromJson
+    function TryFromJson(const Json: RawJson): boolean;
+    /// IList<> method wrapper around Data^.SaveToBinary
+    function ToBinary: RawByteString;
+    /// IList<> method wrapper around Data^.LoadFromBinary
+    function TryFromBinary(const Binary: RawByteString): boolean;
     /// IList<> method to return the number of items actually stored
     property Count: PtrInt
       read GetCount write SetCount;
@@ -530,6 +544,14 @@ type
     // - this is not thread-safe so to be protected by ReadLock/ReadUnLock if
     // you want to use the Key[] Value[] indexed properties
     function Count: integer;
+    /// wrapper around Data^.SaveToJson to be used e.g. with SOA methods
+    function ToJson: RawJson;
+    /// wrapper around Data^.LoadFromJson to be used e.g. with SOA methods
+    function TryFromJson(const Json: RawJson): boolean;
+    /// wrapper around Data^.SaveToBinary
+    function ToBinary: RawByteString;
+    /// wrapper around Data^.LoadFromBinary
+    function TryFromBinary(const Binary: RawByteString): boolean;
     /// high-level access to the stored values from their associated keys
     // - GetItem() raise an EIKeyValue if the key is not available, unless
     // kvoDefaultIfNotFound option was set - use TryGetValue() if you want to
@@ -559,8 +581,7 @@ type
     /// low-level access to the internal TSynDictionary storage
     // - which handles a lot of other useful methods not included as generics
     // to reduce the executable code size
-    // - you can use e.g. Data.Keys/Data.Values or Data.SaveToJson/SaveToBinary
-    // and Data.LoadFromJson/LoadFromBinary
+    // - you can use e.g. Data.Keys/Data.Values or other advanced methods
     function Data: TSynDictionary;
   end;
 
@@ -626,6 +647,14 @@ type
     procedure Clear;
     /// IKeyValue<> method to get the number of key/value pairs actually stored
     function Count: integer;
+    /// IKeyValue<> method wrapper around Data^.SaveToJson
+    function ToJson: RawJson;
+    /// IKeyValue<> method wrapper around Data^.LoadFromJson
+    function TryFromJson(const Json: RawJson): boolean;
+    /// IKeyValue<> method wrapper around Data^.SaveToBinary
+    function ToBinary: RawByteString;
+    /// IKeyValue<> method wrapper around Data^.LoadFromBinary
+    function TryFromBinary(const Binary: RawByteString): boolean;
     /// IKeyValue<> method to get the internal TSynDictionary capacity
     property Capacity: integer
       read GetCapacity write SetCapacity;
@@ -888,8 +917,8 @@ begin
   fOptions := aOptions;
   if (aDynArrayTypeInfo = nil) or
      (aDynArrayTypeInfo^.Kind <> rkDynArray) then
-     EIList.RaiseUtf8('%.Create: % should be a dynamic array of T',
-       [self, aDynArrayTypeInfo^.Name^]);
+    EIList.RaiseUtf8('%.Create: % should be a dynamic array of T',
+      [self, aDynArrayTypeInfo^.Name^]);
   CreateRtti(Rtti.RegisterType(aDynArrayTypeInfo), aItemTypeInfo, aOptions, aSortAs);
 end;
 
@@ -899,16 +928,19 @@ begin
   fDynArray.InitRtti(aDynArray, fValue, @fCount);
   aSortAs := fDynArray.SetParserType(aSortAs, // aSortAs=ptNone->RTTI
     loCaseInsensitive in fOptions);
-  if (fDynArray.Info.ArrayRtti = nil) or
-     (fDynArray.Info.ArrayRtti.Kind <> aItemTypeInfo^.Kind)  then
+  if fDynArray.Info.ArrayRtti = nil then
+    EIList.RaiseUtf8('%.Create<%> (%) has % ArrayRtti=nil',
+      [self, aItemTypeInfo^.Name^, ToText(aItemTypeInfo^.Kind)^,
+       aDynArray.Info^.Name^]);
+  if fDynArray.Info.ArrayRtti.Kind <> aItemTypeInfo^.Kind  then
     EIList.RaiseUtf8('%.Create<%> (%) does not match % (%)',
-      [self, aItemTypeInfo^.RawName, ToText(aItemTypeInfo^.Kind)^,
-       aDynArray.Info^.RawName, ToText(fDynArray.Info.ArrayRtti.Kind)^]);
+      [self, aItemTypeInfo^.Name^, ToText(aItemTypeInfo^.Kind)^,
+       aDynArray.Info^.Name^, ToText(fDynArray.Info.ArrayRtti.Kind)^]);
   if loNoFinalize in fOptions then
     fDynArray.NoFinalize := true; // force weak references
   if loCreateUniqueIndex in fOptions then
   begin
-    fHasher := AllocMem(SizeOf(fHasher^));
+    fHasher := AllocMem(SizeOf(fHasher^)); // on-demand hashing
     fHasher^.InitSpecific(@fDynArray, aSortAs, loCaseInsensitive in fOptions, nil);
   end;
 end;
@@ -1157,6 +1189,26 @@ begin
   result := fValue;
 end;
 
+function TIListParent.ToJson: RawJson;
+begin
+  fDynArray.SaveToJson(RawUtf8(result));
+end;
+
+function TIListParent.TryFromJson(const Json: RawJson): boolean;
+begin
+  result := fDynArray.LoadFromJson(Json);
+end;
+
+function TIListParent.ToBinary: RawByteString;
+begin
+  result := fDynArray.SaveTo;
+end;
+
+function TIListParent.TryFromBinary(const Binary: RawByteString): boolean;
+begin
+  result := fDynArray.LoadFromBinary(Binary);
+end;
+
 function TIListParent.Data: PDynArray;
 begin
   result := @fDynArray;
@@ -1355,11 +1407,11 @@ begin
   if (fData.Keys.Info.ArrayRtti = nil) or
      (fData.Keys.Info.ArrayRtti.Kind <> aContext.KeyItemTypeInfo^.Kind) then
     EIKeyValue.RaiseUtf8('%.Create: TKey does not match %',
-      [self, aContext.KeyArrayTypeInfo^.RawName]);
+      [self, aContext.KeyArrayTypeInfo^.Name^]);
   if (fData.Values.Info.ArrayRtti = nil) or
      (fData.Values.Info.ArrayRtti.Kind <> aContext.ValueItemTypeInfo^.Kind) then
     EIKeyValue.RaiseUtf8('%.Create: TValue does not match %',
-      [self, aContext.ValueArrayTypeInfo^.RawName]);
+      [self, aContext.ValueArrayTypeInfo^.Name^]);
 end;
 
 destructor TIKeyValueParent.Destroy;
@@ -1444,6 +1496,26 @@ end;
 function TIKeyValueParent.Count: integer;
 begin
   result := fData.Count;
+end;
+
+function TIKeyValueParent.ToJson: RawJson;
+begin
+  result := fData.SaveToJson;
+end;
+
+function TIKeyValueParent.TryFromJson(const Json: RawJson): boolean;
+begin
+  result := fData.LoadFromJson(Json, nil);
+end;
+
+function TIKeyValueParent.ToBinary: RawByteString;
+begin
+  result := fData.SaveToBinary({nocompression=}true);
+end;
+
+function TIKeyValueParent.TryFromBinary(const Binary: RawByteString): boolean;
+begin
+  result := fData.LoadFromBinary(Binary);
 end;
 
 function TIKeyValueParent.Data: TSynDictionary;
@@ -1597,12 +1669,21 @@ end;
 // since Delphi XE8 or FPC 3.2: generate the most common type specializations
 // in this very unit, to reduce units and executable code size
 
+// we tried Delphi XE2 "at ReturnAddress" but disabled to avoid internal errors
+{$ifdef WIN32DELPHI}
+function ReturnAddr: pointer;
+asm
+  mov  eax, [ebp + 4]
+end;
+{$endif WIN32DELPHI}
+
 {$ifdef ISDELPHI} {$HINTS OFF} {$endif}
 class function Collections.{%H-}RaiseUseNewPlainList(aItemTypeInfo: PRttiInfo): pointer;
 begin
   raise EIList.CreateUtf8('Collections.NewList<>: Type is too complex - ' +
-    'use Collections.NewPlainList<%> instead', [aItemTypeInfo.Name^]);
-    // we tried Delphi' "at ReturnAddress" but disabled to avoid internal errors
+    'use Collections.NewPlainList<%> instead', [aItemTypeInfo.Name^])
+    {$ifdef FPC} at get_caller_addr(get_frame), get_caller_frame(get_frame)
+    {$else} {$ifdef WIN32DELPHI} at ReturnAddr {$endif} {$endif}
 end;
 
 class function Collections.{%H-}RaiseUseNewPlainKeyValue(
@@ -1610,7 +1691,9 @@ class function Collections.{%H-}RaiseUseNewPlainKeyValue(
 begin
   raise EIList.CreateUtf8('Collections.NewKeyValue<>: Types are too ' +
     'complex - use Collections.NewPlainKeyValue<%, %> instead',
-    [aContext.KeyItemTypeInfo.Name^, aContext.ValueItemTypeInfo.Name^]);
+    [aContext.KeyItemTypeInfo.Name^, aContext.ValueItemTypeInfo.Name^])
+    {$ifdef FPC} at get_caller_addr(get_frame), get_caller_frame(get_frame)
+    {$else} {$ifdef WIN32DELPHI} at ReturnAddr {$endif} {$endif}
 end;
 {$ifdef ISDELPHI} {$HINTS ON} {$endif}
 

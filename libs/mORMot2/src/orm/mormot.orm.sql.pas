@@ -192,7 +192,7 @@ type
     // - you should not use this, but rather call OrmMapExternal()
     // - OrmProps.ExternalDatabase will map the associated TSqlDBConnectionProperties
     // - OrmProps.ExternalTableName will retrieve the real full table name,
-    // e.g. including any databas<e schema prefix
+    // e.g. including any database schema prefix
     constructor Create(aClass: TOrmClass; aServer: TRestOrmServer); override;
     /// delete a row, calling the external engine with SQL
     // - made public since a TRestStorage instance may be created
@@ -245,13 +245,6 @@ type
     function CreateSqlMultiIndex(Table: TOrmClass;
       const FieldNames: array of RawUtf8;
       Unique: boolean; IndexName: RawUtf8 = ''): boolean; override;
-    /// this method is called by TRestServer.EndCurrentThread method just
-    // before a thread is finished to ensure that the associated external DB
-    // connection will be released for this thread
-    // - this overridden implementation will clean thread-specific connections,
-    // i.e. call TSqlDBConnectionPropertiesThreadSafe.EndCurrentThread method
-    // - this method shall be called directly, nor from the main thread
-    procedure EndCurrentThread(Sender: TThread); override;
     /// reset the internal cache of external table maximum ID
     // - next EngineAdd/BatchAdd will execute SELECT max(ID) FROM externaltable
     // - is a lighter alternative to EngineAddUseSelectMaxID=TRUE, since this
@@ -313,7 +306,7 @@ type
 { *********** TOrmVirtualTableExternal for External SQL Virtual Tables }
 
 type
-    /// A Virtual Table cursor for reading a TSqlDBStatement content
+  /// A Virtual Table cursor for reading a TSqlDBStatement content
   // - this is the cursor class associated to TOrmVirtualTableExternal
   TOrmVirtualTableCursorExternal = class(TOrmVirtualTableCursor)
   protected
@@ -1420,7 +1413,7 @@ function TRestStorageExternal.EngineRetrieve(TableModelIndex: integer;
 var
   stmt: ISqlDBStatement;
   w: TJsonWriter;
-  tmp: TTextWriterStackBuffer;
+  tmp: TTextWriterStackBuffer; // 8KB work buffer on stack
 begin
   // TableModelIndex is not useful here
   result := '';
@@ -2164,12 +2157,6 @@ begin
   end;
 end;
 
-procedure TRestStorageExternal.EndCurrentThread(Sender: TThread);
-begin
-  if fProperties.InheritsFrom(TSqlDBConnectionPropertiesThreadSafe) then
-    TSqlDBConnectionPropertiesThreadSafe(fProperties).EndCurrentThread;
-end;
-
 function TRestStorageExternal.InternalFieldNameToFieldExternalIndex(
   const InternalFieldName: RawUtf8): integer;
 begin
@@ -2236,7 +2223,7 @@ begin
 end;
 
 const
-  SQL_OPER_WITH_PARAM: array[soEqualTo..soGreaterThanOrEqualTo] of string[3] = (
+  SQL_OPER_WITH_PARAM: array[soEqualTo..soGreaterThanOrEqualTo] of TShort3 = (
     '=?',      // soEqualTo
     '<>?',     // soNotEqualTo
     '<?',      // soLessThan
@@ -2657,6 +2644,7 @@ function TRestExternalDBCreate(aModel: TOrmModel;
 var
   propsClass: TSqlDBConnectionPropertiesClass;
   props: TSqlDBConnectionProperties;
+  pwd: SpiUtf8;
 begin
   result := nil;
   if aDefinition = nil then
@@ -2667,8 +2655,9 @@ begin
     props := nil;
     try
       // aDefinition.Kind was a TSqlDBConnectionProperties -> all external DB
+      aDefinition.GetPasswordSafe(pwd);
       props := propsClass.Create(aDefinition.ServerName,
-        aDefinition.DatabaseName, aDefinition.User, aDefinition.PassWordPlain);
+        aDefinition.DatabaseName, aDefinition.User, pwd);
       OrmMapExternalAll(aModel, props, aExternalOptions);
       // instantiate either a SQLite3 :memory: DB or a TRestServerFullMemory
       result := CreateInMemoryServer(
@@ -2677,6 +2666,7 @@ begin
       FreeAndNilSafe(result);
       props.Free;  // avoid memory leak
     end;
+    FillZero(pwd);
   end
   else
     // not external DB -> try if aDefinition.Kind is a TRest class

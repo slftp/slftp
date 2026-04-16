@@ -357,7 +357,7 @@ type
   /// <summary>Defines the server type.</summary>
   TZServerProvider = (spUnknown, spMSSQL, spMSJet, spOracle, spASE, spASA,
     spPostgreSQL, spIB_FB, spMySQL, spNexusDB, spSQLite, spDB2, spAS400,
-    spInformix, spCUBRID, spFoxPro, spDuckDB);
+    spInformix, spCUBRID, spFoxPro, spDuckDB, spQuestDB);
 
   /// <summary>Defines a LOB stream mode.</summary>
   TZLobStreamMode = (lsmRead, lsmWrite, lsmReadWrite);
@@ -1989,6 +1989,7 @@ type
     /// <summary>Result a unique internal Id per class.</summary>
     /// <returns>the the new class id.</returns>
     function GetStatementId: NativeUInt;
+    procedure SetTransaction(ATransaction: IZTransaction);
   end;
 
   /// <summary>Defines prepared SQL statement interface.</summary>

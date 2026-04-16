@@ -49,7 +49,6 @@ type
     fOids: TWordDynArray; // O(n) search in L1 cache - use SSE2 on FPC x86_64
     fOidsFieldTypes: TSqlDBFieldTypeDynArray;
     fOidsCount: integer;
-    fArrayParamsAsBinary: boolean;
     procedure GetForeignKeys; override;
     /// fill mapping of standard OID
     // - at runtime mapping can be defined using Oid2FieldType() method
@@ -85,7 +84,7 @@ type
     // - set this property to true so that binary is sent over the wire for
     // INT4ARRAYOID/INT8ARRAYOID parameters
     property ArrayParamsAsBinary: boolean
-      read fArrayParamsAsBinary write fArrayParamsAsBinary;
+      index cpfArrayParamsAsBinary read GetFlag write SetFlag;
   end;
 
   /// implements a connection via the libpq access layer
@@ -367,7 +366,7 @@ type
   // - allow to execute several statements within an PostgreSQL pipeline, and
   // return the results using asynchronous callbacks from a background thread
   // - inherits from TSynLocked so you can use Lock/UnLock
-  TSqlDBPostgresAsync = class(TSynLocked)
+  TSqlDBPostgresAsync = class(TObjectOSLock)
   protected
     fConnection: TSqlDBPostgresConnection;
     fStatements: array of TSqlDBPostgresAsyncStatement;
@@ -735,14 +734,14 @@ constructor TSqlDBPostgresConnectionProperties.Create(
 begin
   PostgresLibraryInitialize; // raise an ESqlDBPostgres on loading failure
   if PQ.IsThreadSafe <> 1 then
-    raise ESqlDBPostgres.CreateU('libpq should be compiled in threadsafe mode');
+    ESqlDBPostgres.RaiseU('libpq should be compiled in threadsafe mode');
   fDbms := dPostgreSQL;
   FillOidMapping;
   inherited Create(aServerName, aDatabaseName, aUserID, aPassWord);
   // JsonDecodedPrepareToSql will detect cPostgreBulkArray and set
   // DecodedFieldTypesToUnnest -> fast bulk insert/delete/update
   fBatchSendingAbilities := [cCreate, cDelete, cUpdate, cPostgreBulkArray];
-  fNoBlobBindArray := true; // no BindArray() on ftBlob
+  NoBlobBindArray := true; // no BindArray() on ftBlob
   // disable MultiInsert SQL and rely on cPostgreBulkArray process for cCreate
   fOnBatchInsert := nil; // see TRestStorageExternal.InternalBatchStop
 end;
@@ -781,7 +780,7 @@ var
 begin
   if cOID > 65535 then
     ESqlDBPostgres.RaiseUtf8('Out of range %.MapOid(%)', [self, cOID]);
-  i := WordScanIndex(pointer(fOids), fOidsCount, cOID);
+  i := WordScanIndex(pointer(fOids), fOidsCount, cOID); // may use SSE2
   if i < 0 then
   begin
     i := FOidsCount;
@@ -821,7 +820,7 @@ begin
   for c := 0 to nCols - 1 do
   begin
     p := PQ.fname(fRes, c);
-    FastSetString(cName, p, StrLen(p));
+    FastSetString(cName, p, mormot.core.base.StrLen(p));
     with AddColumn(cName)^ do
     begin
       ColumnAttr := PQ.ftype(fRes, c);
@@ -918,8 +917,8 @@ begin
             DoubleToStr(PDouble(@p^.VInt64)^, RawUtf8(p^.VData));
         ftDate:
           // libpq expects space instead of T in ISO-8601 expanded format
-          DateTimeToIso8601Var(PDateTime(@p^.VInt64)^,
-            {expand=}true, fForceDateWithMS, ' ', #0, RawUtf8(p^.VData));
+          DateTimeToIso8601Var(PDateTime(@p^.VInt64)^, {expand=}true,
+            dsfForceDateWithMS in fFlags, ' ', #0, RawUtf8(p^.VData));
         ftUtf8:
           ; // UTF-8 text already in p^.VData buffer
         ftBlob:
@@ -1241,7 +1240,7 @@ var
 begin
   CheckColAndRowset(Col);
   P := PQ.GetValue(fRes, fCurrentRow, Col);
-  Iso8601ToDateTimePUtf8CharVar(P, StrLen(P), result);
+  Iso8601ToDateTimePUtf8CharVar(P, mormot.core.base.StrLen(P), result);
 end;
 
 function TSqlDBPostgresStatement.ColumnCurrency(Col: integer): currency;
@@ -1277,133 +1276,136 @@ function TSqlDBPostgresStatement.ColumnToVariant(
   Col: integer; var Value: Variant; ForceUtf8: boolean): TSqlDBFieldType;
 var
   c: PSqlDBColumnProperty;
-  P: pointer;
+  v: pointer;
   L: PtrInt;
   NoDecimal: boolean;
-  v: TSynVarData absolute Value;
+  d: TSynVarData absolute Value;
 begin
-  if v.VType <> 0 then
-    VarClearProc(v.Data);
+  if d.VType <> 0 then
+    VarClearProc(d.Data);
   CheckColAndRowset(Col);
   c := @fColumns[Col];
   result := c^.ColumnType;
-  P := PQ.GetValue(fRes, fCurrentRow, Col);
-  if ((P = nil) or (PUtf8Char(P)^ = #0)) and
+  v := PQ.GetValue(fRes, fCurrentRow, Col);
+  if ((v = nil) or (PUtf8Char(v)^ = #0)) and
      (PQ.GetIsNull(fRes, fCurrentRow, Col) = 1) then
     result := ftNull;
-  v.VType := MAP_FIELDTYPE2VARTYPE[result];
-  v.VAny := nil; // avoid GPF below
+  d.VType := MAP_FIELDTYPE2VARTYPE[result];
   case result of
     ftNull:
       ;
     ftInt64:
       if c^.ColumnAttr = BOOLOID then // = PQ.ftype(fRes, Col)
       begin
-        v.VType := varBoolean;
-        v.VInteger := ord((P <> nil) and (PUtf8Char(P)^ = 't'))
+        d.VType := varBoolean;
+        d.VInteger := ord((v <> nil) and (PUtf8Char(v)^ = 't'))
       end
       else
-        SetInt64(P, v.VInt64);
+        SetInt64(v, d.VInt64);
     ftDouble:
-      v.VDouble := GetExtended(P);
+      d.VDouble := GetExtended(v);
     ftDate:
-      Iso8601ToDateTimePUtf8CharVar(P, StrLen(P), v.VDate);
+      Iso8601ToDateTimePUtf8CharVar(v, mormot.core.base.StrLen(v), d.VDate);
     ftCurrency:
       begin
-        v.VInt64 := StrToCurr64(P, @NoDecimal);
+        d.VInt64 := StrToCurr64(v, @NoDecimal);
         if NoDecimal then
         begin
-          v.VType := varInt64;
+          d.VType := varInt64;
           result := ftInt64;
         end;
       end;
     ftUtf8:
       begin
+        d.VAny := nil; // avoid GPF below
         L := PQ.GetLength(fRes, fCurrentRow, Col);
-        if (P = nil) or
+        if (v = nil) or
            (L = 0) then
-          v.VType := varString // avoid obscure "Invalid variant type" in FPC
+          d.VType := varString // avoid obscure "Invalid variant type" in FPC
         else if ForceUtf8 then
         begin
-          v.VType := varString;
-          FastSetString(RawUtf8(v.VAny), P, L);
+          d.VType := varString;
+          FastSetString(RawUtf8(d.VAny), v, L);
         end
         {$ifndef UNICODE}
         else if (fConnection <> nil) and
              not fConnection.Properties.VariantStringAsWideString then
         begin
-          v.VType := varString;
-          CurrentAnsiConvert.Utf8BufferToAnsi(P, L, RawByteString(v.VAny));
+          d.VType := varString;
+          CurrentAnsiConvert.Utf8BufferToAnsi(v, L, RawByteString(d.VAny));
         end
         {$endif UNICODE}
         else
-          Utf8ToSynUnicode(P, L, SynUnicode(v.VAny));
+          Utf8ToSynUnicode(v, L, SynUnicode(d.VAny));
       end;
     ftBlob:
-      if fForceBlobAsNull then
-        v.VType := varNull
+      if dsfForceBlobAsNull in fFlags then
+        d.VType := varNull
       else
-        FastSetRawByteString(RawByteString(v.VAny), P,
-          BlobInPlaceDecode(P, PQ.GetLength(fRes, fCurrentRow, col)));
+      begin
+        d.VAny := nil;
+        FastSetRawByteString(RawByteString(d.VAny), v,
+          BlobInPlaceDecode(v, PQ.GetLength(fRes, fCurrentRow, col)));
+      end;
   end;
 end;
 
 procedure TSqlDBPostgresStatement.ColumnToJson(Col: integer; W: TJsonWriter);
 var
-  P: pointer;
-  c: PSqlDBColumnProperty;
+  v: pointer;
+  p: PSqlDBColumnProperty;
 begin
   if (fRes = nil) or
      (fResStatus <> PGRES_TUPLES_OK) or
      (fCurrentRow < 0) then
     ESqlDBPostgres.RaiseUtf8('Unexpected %.ColumnToJson', [self]);
-  P := PQ.GetValue(fRes, fCurrentRow, Col);
-  if ((P = nil) or (PUtf8Char(P)^ = #0)) and
+  v := PQ.GetValue(fRes, fCurrentRow, Col);
+  if ((v = nil) or (PUtf8Char(v)^ = #0)) and
      (PQ.GetIsNull(fRes, fCurrentRow, Col) = 1) then
-    W.AddNull
-  else
   begin
-    c := @fColumns[Col];
-    case c^.ColumnType of
-      ftNull:
-        W.AddNull;
-      ftInt64,
-      ftDouble,
-      ftCurrency:
-        if c^.ColumnAttr = BOOLOID then // = PQ.ftype(fRes, Col)
-          W.Add((P <> nil) and (PUtf8Char(P)^ = 't'))
-        else
-          // note: StrLen slightly faster than PQ.GetLength for small content
-          W.AddShort(P, StrLen(P));
-      ftUtf8:
-        if (c^.ColumnAttr = JSONOID) or
-           (c^.ColumnAttr = JSONBOID) then
-          W.AddShort(P, PQ.GetLength(fRes, fCurrentRow, Col))
-        else
-        begin
-          W.Add('"');
-          W.AddJsonEscape(P, 0); // Len=0 is faster than StrLen/GetLength
-          W.AddDirect('"');
-        end;
-      ftDate:
-        begin
-          W.Add('"');
-          if (StrLen(P) > 10) and
-             (PAnsiChar(P)[10] = ' ') then
-            PAnsiChar(P)[10] := 'T'; // ensure strict ISO-8601 encoding
-          W.AddJsonEscape(P, 0);
-          W.AddDirect('"');
-        end;
-      ftBlob:
-        if fForceBlobAsNull then
-          W.AddNull
-        else
-          W.WrBase64(P, BlobInPlaceDecode(P,
-            PQ.GetLength(fRes, fCurrentRow, Col)), {withmagic=}true);
-    else
-      ESqlDBPostgres.RaiseUtf8('%.ColumnToJson: ColumnType=%?',
-        [self, ord(c^.ColumnType)]);
-    end;
+    W.AddShort4(NULL_LOW);
+    exit;
+  end;
+  p := @fColumns[Col];
+  case p^.ColumnType of
+    ftNull:
+      W.AddNull;
+    ftInt64,
+    ftDouble,
+    ftCurrency:
+      if p^.ColumnAttr = BOOLOID then // = PQ.ftype(fRes, Col)
+        W.Add((v <> nil) and (PUtf8Char(v)^ = 't'))
+      else
+        // note: StrLen slightly faster than PQ.GetLength for small content
+        W.AddShort(v, mormot.core.base.StrLen(v));
+    ftUtf8:
+      if (p^.ColumnAttr = JSONOID) or
+         (p^.ColumnAttr = JSONBOID) then
+        W.AddShort(v, PQ.GetLength(fRes, fCurrentRow, Col))
+      else
+      begin
+        W.Add('"');
+        W.AddJsonEscape(v, 0); // Len=0 is faster than StrLen/GetLength
+        W.AddDirect('"');
+      end;
+    ftDate:
+      begin
+        W.Add('"');
+        if (mormot.core.base.StrLen(v) > 10) and
+           (PAnsiChar(v)[10] = ' ') then
+          PAnsiChar(v)[10] := 'T'; // ensure strict ISO-8601 encoding
+        W.AddJsonEscape(v, 0);
+        W.AddDirect('"');
+      end;
+    ftBlob:
+      if dsfForceBlobAsNull in fFlags then
+        W.AddNull
+      else
+        W.WrBase64(v, BlobInPlaceDecode(v,
+          PQ.GetLength(fRes, fCurrentRow, Col)), {withmagic=}true);
+  else
+    ESqlDBPostgres.RaiseUtf8('%.ColumnToJson(%): ColumnType=%?',
+      [self, col, ord(p^.ColumnType)]);
   end;
 end;
 
@@ -1541,7 +1543,7 @@ begin
           // on fatal DB error don't go any further and notify the callbacks
           if Assigned(log) then
             log.Log(sllWarning, 'Execute: % during %',
-              [E.ClassType, task.Statement.Sql], self);
+              [PClass(E)^, task.Statement.Sql], self);
           if Assigned(task.OnFinished) then
             fOwner.fTasks.Push(task); // task.OnFinished() was never called
           fOwner.DoExecuteAsyncError;
@@ -1550,12 +1552,12 @@ begin
     until Terminated;
   except
     on E: Exception do
-      SynDBLog.Add.Log(sllWarning, 'Execute raised a % -> terminate thread %',
-          [E.ClassType, fName], self);
+      SynDBLog.Add.Log(sllWarning, 'Execute raised % -> terminate thread %',
+        [PClass(E)^, fName], self);
   end;
   fProcessing := false;
   log := nil;
-  SynDBLog.Add.NotifyThreadEnded;
+  SynDBLog.NotifyThreadEnded;
 end;
 
 
@@ -1599,7 +1601,7 @@ end;
 function TSqlDBPostgresAsync.Prepare(const Sql: RawUtf8; ExpectResults: boolean;
   Options: TSqlDBPostgresAsyncStatementOptions): TSqlDBPostgresAsyncStatement;
 var
-  tix, endtix: Int64;
+  tix32, endtix: cardinal;
   i: PtrInt;
 begin
   // initialize the background thread and connection if needed
@@ -1635,10 +1637,10 @@ begin
       Unlock; // there may be some tasks pending in the background thread
     end;
     SleepHiRes(1);
-    tix := GetTickCount64;
+    tix32 := GetTickSec;
     if endtix = 0 then
-      endtix := tix + 5000 // never wait forever
-    else if tix > endtix then
+      endtix := tix32 + 5 // never wait forever
+    else if tix32 > endtix then
       ESqlDBPostgresAsync.RaiseUtf8('%.NewStatement timeout', [self]);
   until false;
   // initialize the new statement within the acquired lock
@@ -1655,7 +1657,7 @@ begin
   finally
     Unlock;
   end;
-  ObjArrayAdd(fStatements, result); // statements are owned by this class
+  PtrArrayAdd(fStatements, result); // statements are owned by this class
 end;
 
 function TSqlDBPostgresAsync.PrepareLocked(const Sql: RawUtf8; ExpectResults: boolean;

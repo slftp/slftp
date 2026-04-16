@@ -30,6 +30,7 @@ uses
   mormot.core.rtti,
   mormot.core.data,
   mormot.core.variants,
+  mormot.core.json,
   mormot.db.core,
   mormot.db.rad,
   {$ifdef ISDELPHIXE2}
@@ -307,7 +308,7 @@ function TVirtualDataSet.GetFieldData(Field: TField; Buffer: pointer): boolean;
 {$endif ISDELPHIXE3}
 var
   data, dest: pointer;
-  ndx, len, maxlen: integer;
+  ndx, len, maxlen: integer; // len: not a PtrInt
   tmp: RawByteString;
   onlytestfornull: boolean;
   ts: TTimeStamp;
@@ -387,7 +388,7 @@ function TVirtualDataSet.GetBlobStream(Field: TField;
   RowIndex: integer): TStream;
 var
   data: pointer;
-  len: integer;
+  len: integer; // not a PtrInt
 begin
   data := GetRowFieldData(Field, RowIndex, len, false);
   if (data = nil) or
@@ -565,7 +566,7 @@ function TVirtualDataSet.GetFieldVarData(Field: TField; RowIndex: integer;
   out Value: TVarData): boolean;
 var
   p: pointer;
-  plen: integer;
+  plen: integer; // not a PtrInt
   v: TSynVarData absolute Value;
 begin
   result := false; // returns true if caller needs to call VarClearProc(Value)
@@ -838,7 +839,7 @@ begin
       W.AddDirect('}', ',');
       Data.Next;
     until Data.Eof;
-    W.CancelLastComma(']');
+    W.ReplaceLastComma(']');
     W.SetText(RawUtf8(result));
   finally
     W.Free;

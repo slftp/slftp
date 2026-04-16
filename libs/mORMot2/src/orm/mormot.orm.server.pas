@@ -62,6 +62,8 @@ type
   // engine for TRestOrmServerFullMemory or SQLite3 for TRestOrmServerDB
   // - is able to register and redirect some TOrm classes to their own
   // dedicated TRestStorage
+  // - you should NEVER instantiate this class, but use e.g. TRestServerDB.Server
+  // and use IRestOrmServer methods or TRest.Orm and use IRestOrm methods
   TRestOrmServer = class(TRestOrm, IRestOrmServer)
   protected
     fOwner: TRestServer;
@@ -175,6 +177,7 @@ type
     OnBlobUpdateEvent: TOnOrmFieldEvent;
 
     /// initialize the class, and associated to a TRest and its TOrmModel
+    // - you should NEVER use this constructor, but use e.g. TRestServerDB.Server
     constructor Create(aRest: TRest); override;
     /// release memory and any existing associated resource
     destructor Destroy; override;
@@ -528,7 +531,7 @@ type
     procedure OnError(E: Exception);
     procedure DoLog;
   public
-    /// intialize the TRestBatch server-side processing
+    /// initialize the TRestBatch server-side processing
     constructor Create(aRest: TRestOrmServer; aTable: TOrmClass;
       var aData: RawUtf8; aExpectedResultsCount: integer); reintroduce;
     /// execute the TRestBatch server-side processing
@@ -1541,7 +1544,7 @@ begin
     result := Rest.EngineList(TableIndex, aSql)
   else
     // complex TOrmVirtualTableJson/External queries will rely on virtual table
-    result := MainEngineList(SQL, false, nil);
+    result := MainEngineList(SQL, {ajax=}false, nil);
   if result = '[]'#$A then
     result := '';
 end;
@@ -1951,7 +1954,7 @@ begin
   fOrm := aRest;
   fTable := aTable;
   fData := aData;
-  fUriContext := ServiceRunningRequest;
+  fUriContext := ServiceRunningRequest; // access the threadvar once
   fRunningBatchEncoding := encPost;
   fRunTableIndex := -1;
 end;
@@ -2069,7 +2072,7 @@ begin
     else
     begin
       // e.g. '[...,"POST@Table",{object},...]'
-      cmdtable := PosChar(fCommand, '@');
+      cmdtable := PosChar(fCommand, '@'); // use fast SSE2 asm on x86_64
       if cmdtable <> nil then
       begin
         cmdtable^ := #0; // isolate 'POST' or 'hex'/'ihex' prefix
@@ -2087,7 +2090,7 @@ begin
       fRunningRest := fRunStatic;
     include(fFlags, fNeedAcquireExecutionWrite); // default paranoid thread-safe
     // retrieve fCommandEncoding/fValueDirectFields
-    case PWord(fCommand)^ of // enough to check the first 2 chars
+    case cardinal(PWord(fCommand)^) of // enough to check the first 2 chars
       ord('P') + ord('O') shl 8:
         // {"Table":[...,"POST",{object},...]} [...,"POST@Table",{object},...]
         fCommandEncoding := encPost;
@@ -2426,6 +2429,21 @@ begin
 end;
 
 procedure TRestOrmServerBatchSend.ParseAndExecute;
+
+  procedure HandleCleanup; // sub-function for FPC Win64-aarch64 compilation
+  begin
+    try
+      if fRunningBatchRest <> nil then
+        fRunningBatchRest.InternalBatchStop;
+    finally
+      if fAcquiredExecutionWrite in fFlags then
+        fOrm.Owner.AcquireExecution[execOrmWrite].Safe.UnLock;
+      if Assigned(fLog) and
+         (LOG_TRACEERROR[fErrors <> 0] in fLog.Instance.Family.Level) then
+        DoLog;
+    end;
+  end;
+
 begin
   fLog := fOrm.LogClass.Enter('EngineBatchSend % inlen=%',
     [fTable, length(fData)], self);
@@ -2460,16 +2478,7 @@ begin
         AutomaticCommit;
     finally
       // send pending rows, and release Safe.Lock
-      try
-        if fRunningBatchRest <> nil then
-          fRunningBatchRest.InternalBatchStop;
-      finally
-        if fAcquiredExecutionWrite in fFlags then
-          fOrm.Owner.AcquireExecution[execOrmWrite].Safe.UnLock;
-        if Assigned(fLog) and
-           (LOG_TRACEERROR[fErrors <> 0] in fLog.Instance.Family.Level) then
-          DoLog;
-      end;
+      HandleCleanup;
     end;
   except
     on E: Exception do

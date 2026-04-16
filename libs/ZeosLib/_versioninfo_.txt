@@ -1,11 +1,5 @@
-f9315bde7dc89d5bb4c8469c13712a5fecb2a4a4
-merged revisions 8306, 8321 from trunk:
-A possible fix for the bug in the forum:
-https://zeoslib.sourceforge.io/viewtopic.php?t=236422
-
-........
-Add a second column to the TZOracleDatabaseMetadata.UncachedGetSchemas query so CopyToVirtualResultSet works again.
-........
+a07183ff4a9fe7e91e963b0058e32d80bca26d34
+Fixes by dddwwwbbb in PR131 on Github
 
 
 ## Original repository is located at https://sourceforge.net/projects/zeoslib/ ##

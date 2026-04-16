@@ -41,10 +41,13 @@ uses
   sysutils,
   mormot.core.base,
   mormot.core.os,
+  mormot.core.os.security,
   mormot.core.rtti,
   mormot.core.unicode,
   mormot.core.text,
   mormot.core.buffers,
+  mormot.core.datetime,
+  mormot.core.variants,
   mormot.lib.openssl11,
   mormot.crypt.core,
   mormot.crypt.ecc256r1,
@@ -143,35 +146,41 @@ type
   end;
 
   /// OpenSSL AES cypher/uncypher without chaining (ECB)
-  // - this mode is known to be less secure than the others
+  // - this mode is known to be less secure than the others, and should not be
+  // needed in practice, but from some legacy / unsafe purposes
   TAesEcbOsl = class(TAesAbstractOsl)
   protected
     procedure AfterCreate; override;
   end;
 
   /// OpenSSL AES cypher/uncypher with Cipher-block chaining (CBC)
+  // - on x86_64, our TAesCbc class is slower than OpenSSL 3.0:
+  // $  mormot aes-128-cbc in 4.48ms i.e. 544.9K/s or 1.1 GB/s
+  // $  mormot aes-256-cbc in 5.46ms i.e. 446.9K/s or 0.9 GB/s
+  // $  openssl aes-128-cbc in 3.23ms i.e. 755.6K/s or 1.6 GB/s
+  // $  openssl aes-256-cbc in 4.04ms i.e. 602.9K/s or 1.2 GB/s
   TAesCbcOsl = class(TAesAbstractOsl)
   protected
     procedure AfterCreate; override;
   end;
 
   /// OpenSSL AES cypher/uncypher with Cipher feedback (CFB)
-  // - our TAesCfb class is faster than OpenSSL on x86_64:
-  // $  mormot aes-128-cfb in 6.95ms i.e. 359247/s or 764.5 MB/s
-  // $  mormot aes-256-cfb in 9.40ms i.e. 265816/s or 565.7 MB/s
-  // $  openssl aes-128-cfb in 10.53ms i.e. 237326/s or 505 MB/s
-  // $  openssl aes-256-cfb in 13.18ms i.e. 189652/s or 403.6 MB/s
+  // - on x86_64, our TAesCfb class is really faster than OpenSSL 3.0:
+  // $  mormot aes-128-cfb in 2.64ms i.e. 0.9M/s or 1.9 GB/s
+  // $  mormot aes-256-cfb in 3.48ms i.e. 700.7K/s or 1.4 GB/s
+  // $  openssl aes-128-cfb in 4.95ms i.e. 492.4K/s or 1 GB/s
+  // $  openssl aes-256-cfb in 5.80ms i.e. 420.6K/s or 0.9 GB/s
   TAesCfbOsl = class(TAesAbstractOsl)
   protected
     procedure AfterCreate; override;
   end;
 
   /// OpenSSL AES cypher/uncypher with Output feedback (OFB)
-  // - our TAesOfb class is faster than OpenSSL on x86_64:
-  // $  mormot aes-128-ofb in 6.88ms i.e. 363002/s or 772.5 MB/s
-  // $  mormot aes-256-ofb in 9.37ms i.e. 266808/s or 567.8 MB/s
-  // $  openssl aes-128-ofb in 7.82ms i.e. 319693/s or 680.3 MB/s
-  // $  openssl aes-256-ofb in 10.39ms i.e. 240523/s or 511.8 MB/s
+  // - on x86_64, our TAesOfb class is faster than OpenSSL 1.1:
+  // $  mormot aes-128-ofb in 2.62ms i.e. 0.9M/s or 1.9 GB/s
+  // $  mormot aes-256-ofb in 3.49ms i.e. 699.3K/s or 1.4 GB/s
+  // $  openssl aes-128-ofb in 3.49ms i.e. 698.7K/s or 1.4 GB/s
+  // $  openssl aes-256-ofb in 4.36ms i.e. 558.8K/s or 1.1 GB/s
   TAesOfbOsl = class(TAesAbstractOsl)
   protected
     procedure AfterCreate; override;
@@ -180,10 +189,16 @@ type
   /// OpenSSL AES cypher/uncypher with 128-bit Counter mode (CTR)
   // - similar to TAesCtrNist, not our proprietary TAesCtrAny with a 64-bit CTR
   // - our TAesCtrNist class is faster than OpenSSL on x86_64:
-  // $  mormot aes-128-ctr in 1.99ms i.e. 1254390/s or 2.6 GB/s
-  // $  mormot aes-256-ctr in 2.64ms i.e. 945179/s or 1.9 GB/s
-  // $  openssl aes-128-ctr in 2.23ms i.e. 1121076/s or 2.3 GB/s
-  // $  openssl aes-256-ctr in 2.80ms i.e. 891901/s or 1.8 GB/s
+  // $  mormot aes-128-ctr in 596us i.e. 4M/s or 8.7 GB/s
+  // $  mormot aes-256-ctr in 716us i.e. 3.3M/s or 7.2 GB/s
+  // $  openssl aes-128-ctr in 1.13ms i.e. 2.1M/s or 4.5 GB/s
+  // $  openssl aes-256-ctr in 1.27ms i.e. 1.8M/s or 4 GB/s
+  // - on i386, numbers shows that our own 4x interleaved asm works great
+  // (here in comparison with OpenSSL 3.5 on Win32):
+  // $  mormot aes-128-ctr in 644us i.e. 3.7M/s or 8 GB/s
+  // $  mormot aes-256-ctr in 836us i.e. 2.8M/s or 6.2 GB/s
+  // $  openssl aes-128-ctr in 1.52ms i.e. 1.5M/s or 3.4 GB/s
+  // $  openssl aes-256-ctr in 1.68ms i.e. 1.4M/s or 3 GB/s
   TAesCtrOsl = class(TAesAbstractOsl)
   protected
     procedure AfterCreate; override;
@@ -192,11 +207,23 @@ type
   /// OpenSSL AES-GCM cypher/uncypher
   // - implements AEAD (authenticated-encryption with associated-data) process
   // via MacSetNonce/MacEncrypt or AesGcmAad/AesGcmFinal methods
-  // - OpenSSL is faster than our TAesGcm class, but not so much:
-  // $  openssl aes-128-gcm in 2.86ms i.e. 874125/s or 1.8 GB/s
-  // $  openssl aes-256-gcm in 3.43ms i.e. 727590/s or 1.5 GB/s
-  // $  mormot aes-128-gcm in 3.45ms i.e. 722752/s or 1.5 GB/s
-  // $  mormot aes-256-gcm in 4.11ms i.e. 607385/s or 1.2 GB/s
+  // - our TAesGcm class is 8x interleaved for both GMAC and AES-CTR on x86_64,
+  // and noticeably faster than OpenSSL 3.0 (for small buffers):
+  // $  mormot aes-128-gcm in 1.03ms i.e. 2.3M/s or 5 GB/s
+  // $  mormot aes-256-gcm in 1.18ms i.e. 2M/s or 4.4 GB/s
+  // $  openssl aes-128-gcm in 2.50ms i.e. 0.9M/s or 2 GB/s
+  // $  openssl aes-256-gcm in 2.64ms i.e. 0.9M/s or 1.9 GB/s
+  // - on i386, mormot numbers are only slightly lower than OpenSSL after 2KB,
+  // but still much faster for small blocks:
+  // $  mormot aes-128-gcm in 5.18ms i.e. 470.8K/s or 1 GB/s
+  // $  mormot aes-256-gcm in 5.34ms i.e. 456.5K/s or 0.9 GB/s
+  // $  openssl aes-128-gcm in 3.83ms i.e. 635.9K/s or 1.3 GB/s
+  // $  openssl aes-256-gcm in 4.02ms i.e. 606.4K/s or 1.2 GB/s
+  // 50 bytes:
+  // $  mormot aes-128-gcm in 97us i.e. 4.9M/s, aver. 194ns, 245.7 MB/s
+  // $  mormot aes-256-gcm in 102us i.e. 4.6M/s, aver. 204ns, 233.7 MB/s
+  // $  openssl aes-128-gcm in 515us i.e. 0.9M/s, aver. 1.03us, 46.2 MB/s
+  // $  openssl aes-256-gcm in 541us i.e. 0.8M/s, aver. 1.08us, 44 MB/s
   // - WARNING: AEAD associated information is currently unsupported by
   // TAesGcmOsl, due to some obscure OpenSSL padding issue in our code - GMAC
   // will be properly handled by TAesGcmOsl, but you should use plain TAesGcm
@@ -275,14 +302,19 @@ type
   private
     fCtx: PEVP_MD_CTX;
     fXof: boolean;
+    procedure Init(MD: PEVP_MD; HashSize: cardinal);
   public
     /// initialize the internal hashing structure for a specific algorithm
-    // - Algorithm is one of `openssl list -digest-algorithms`
-    // - if Algorithm is not specified, EVP_sha256 will be used
+    // - for XOF hash functions such as 'shake256', the hashSize option
+    // can be used to specify the desired output length in bytes
+    constructor Create(Algorithm: THashAlgo; HashSize: cardinal = 0); overload;
+    /// initialize the internal hashing structure for a specific algorithm
+    // - Algorithm is one of "openssl list -digest-algorithms"
+    // - if Algorithm is not specified, EVP_sha256 (aka 'sha256') will be used
     // - for XOF hash functions such as 'shake256', the hashSize option
     // can be used to specify the desired output length in bytes
     // - raise an EOpenSslHash exception on unknown/unsupported algorithm
-    constructor Create(const Algorithm: RawUtf8; HashSize: cardinal = 0);
+    constructor Create(const Algorithm: RawUtf8; HashSize: cardinal = 0); overload;
     /// call this method for each continuous message block
     // - iterate over all message blocks, then call Digest to retrieve the Hash
     procedure Update(Data: pointer; DataLength: integer); override;
@@ -291,9 +323,12 @@ type
     // which is typically a THash256 or THash512 variable
     // - returns actual DigestValue/Dest buffer length, i.e. DigestSize
     function Digest(Dest: pointer = nil): cardinal; override;
-    /// compute the message authentication code using `Algorithm` as hash function
+    /// compute the message authentication code using the supplied hash function
+    class function Hash(Algorithm: THashAlgo; const Data: RawByteString;
+      HashSize: cardinal = 0): RawUtf8; overload;
+    /// compute the message authentication code using "Algorithm" OpenSSL digest
     class function Hash(const Algorithm: RawUtf8; const Data: RawByteString;
-      HashSize: cardinal = 0): RawUtf8;
+      HashSize: cardinal = 0): RawUtf8; overload;
     /// release the digest context
     destructor Destroy; override;
   end;
@@ -302,10 +337,14 @@ type
   TOpenSslHmac = class(TOpenSslDigestAbstract)
   private
     fCtx: PHMAC_CTX;
+    procedure Init(md: PEVP_MD; Key: pointer; KeyLength: cardinal);
   public
     /// initialize the internal HMAC structure for a specific Algorithm and Key
-    // - Algorithm is one of `openssl list -digest-algorithms`
-    // - if Algorithm is not specified, EVP_sha256 will be used
+    // - Key/KeyLen define the HMAC associated salt
+    constructor Create(Algorithm: THashAlgo; Key: pointer; KeyLength: cardinal); overload;
+    /// initialize the internal HMAC structure for a specific Algorithm and Key
+    // - Algorithm is one of "openssl list -digest-algorithms"
+    // - if Algorithm is not specified, EVP_sha256 (aka 'sha256') will be used
     // - Key/KeyLen define the HMAC associated salt
     // - raise an EOpenSslHash exception on unknown/unsupported algorithm
     constructor Create(const Algorithm: RawUtf8;
@@ -321,11 +360,17 @@ type
     // which is typically a THash256 or THash512 variable
     // - returns actual DigestValue/Dest buffer length, i.e. DigestSize
     function Digest(Dest: pointer = nil): cardinal; override;
-    /// compute the HMAC using `algorithm` as hash function
+    /// compute the HMAC using "Algorithm" OpenSSL digest (e.g. 'sha256')
     class function Hmac(const Algorithm: RawUtf8; const Data: RawByteString;
       Key: pointer; KeyLength: cardinal): RawUtf8; overload;
-    /// compute the HMAC using `algorithm` as hash function
+    /// compute the HMAC using "Algorithm" OpenSSL digest (e.g. 'sha256')
     class function Hmac(const Algorithm: RawUtf8;
+      const Data, Key: RawByteString): RawUtf8; overload;
+    /// compute the HMAC using the supplied hash function
+    class function Hmac(Algorithm: THashAlgo;
+      const Data: RawByteString; Key: pointer; KeyLength: cardinal): RawUtf8; overload;
+    /// compute the HMAC using the supplied hash function
+    class function Hmac(Algorithm: THashAlgo;
       const Data, Key: RawByteString): RawUtf8; overload;
     /// release the digest context
     destructor Destroy; override;
@@ -404,6 +449,28 @@ procedure OpenSslGenerateKeys(EvpType, BitsOrCurve: integer;
 procedure OpenSslGenerateBinaryKeys(EvpType, BitsOrCurve: integer;
   out PrivateKey, PublicKey: RawByteString; const PrivateKeyPassWord: SpiUtf8 = '');
 
+/// load a public key from its raw binary parameters, e.g. from JWK fields
+// - if EvpType is EVP_PKEY_RSA or EVP_PKEY_RSA_PSS BitsOrCurve is the number of
+// bits of the key
+// - if EvpType is EVP_PKEY_EC, BitsOrCurve is the Elliptic curve NID (e.g.
+// - for ECC, returns the x,y coordinates
+// - for RSA, x is set to the Exponent (e), and y to the Modulus (n)
+// - caller should make result.Free once done with the result
+function OpenSslLoadPublicKeyFromParams(EvpType, BitsOrCurve: integer;
+  const X, Y: RawByteString): PEVP_PKEY; overload;
+
+/// load a public key from its raw binary parameters, e.g. from JWK fields
+// - for ECC, returns the x,y coordinates
+// - for RSA, x is set to the Exponent (e), and y to the Modulus (n)
+// - caller should make result.Free once done with the result
+function OpenSslLoadPublicKeyFromParams(algo: TCryptKeyAlgo;
+  const x, y: RawByteString): PEVP_PKEY; overload;
+
+/// load a RSA or ECC public key from JWK JSON content
+// - caller should make result.Free once done with the result
+// - if algo is ckaNone, the proper algorithm will be guessed from "kty" (+"crv")
+function OpenSslLoadPublicKeyFromJwk(const jwk: RawUtf8; algo: TCryptKeyAlgo = ckaNone): PEVP_PKEY;
+
 {
 /// compute the (e.g. ECDH) shared secret from a public/private keys inverted pair
 function OpenSslSharedSecret(EvpType, BitsOrCurve: integer;
@@ -472,6 +539,9 @@ const
     EVP_PKEY_RSA_PSS,     // caaPS512
     EVP_PKEY_ED25519);    // caaEdDSA
 
+var
+  /// the default parameters used for keys generation
+  // - use OpenSslDefaultRsaBits() to change RSA keysize globally for OpenSSL
   CAA_BITSORCURVE: array[TCryptAsymAlgo] of integer = (
     NID_X9_62_prime256v1,        // caaES256
     NID_secp384r1,               // caaES384
@@ -501,8 +571,8 @@ type
     fPrivKey, fPubKey: PEVP_PKEY;
     fAsymAlgo: TCryptAsymAlgo;
     function ComputeSignature(const headpayload: RawUtf8): RawUtf8; override;
-    procedure CheckSignature(const headpayload: RawUtf8; const signature: RawByteString;
-      var jwt: TJwtContent); override;
+    function CheckSignature(headpayload: PValuePUtf8Char;
+      const signature: RawByteString): TJwtResult; override;
   public
     /// initialize the JWT processing instance using any supported OpenSSL algorithm
     constructor Create(const aJwtAlgorithm, aHashAlgorithm: RawUtf8;
@@ -668,6 +738,11 @@ function ToText(u: TX509Usages): ShortString; overload;
 // - assigned to mormot.core.secure X509Parse() redirection by RegisterOpenSsl
 function OpenSslX509Parse(const Cert: RawByteString; out Info: TX509Parsed): boolean;
 
+/// globally override default RSA_DEFAULT_GENERATION_BITS = 2048 for OpenSSL
+// - works at runtime after RegisterOpenSsl - expects bits = 2048/3072/4096/7680
+// - updates global CAA_BITSORCURVE[] and existing CryptAsymOpenSsl[] classes
+procedure OpenSslDefaultRsaBits(bits: integer);
+
 /// call once at program startup to use OpenSSL when its performance matters
 // - to be typically called after function OpenSslInitialize() by your project
 // - redirects TAesGcmFast (and TAesCtrFast on i386) globals to OpenSSL
@@ -748,8 +823,7 @@ begin
   EOpenSslCrypto.CheckAvailable(PClass(Owner)^, 'Create');
   Cipher := EVP_get_cipherbyname(aCipherName);
   if Cipher = nil then
-    raise EOpenSslCrypto.CreateFmt('%s.Create: unknown ''%s'' cipher',
-      [ClassNameShort(Owner)^, aCipherName]);
+    EOpenSslCrypto.RaiseFmt(Owner, 'Create: unknown ''%s'' cipher', [aCipherName]);
 end;
 
 procedure TAesOsl.Done;
@@ -1056,18 +1130,8 @@ end;
 
 { TOpenSslHash }
 
-constructor TOpenSslHash.Create(const Algorithm: RawUtf8; HashSize: cardinal);
-var
-  md: PEVP_MD;
+procedure TOpenSslHash.Init(MD: PEVP_MD; HashSize: cardinal);
 begin
-  EOpenSslHash.CheckAvailable(PClass(self)^, 'Create');
-  if Algorithm = '' then
-    md := EVP_sha256
-  else
-    md := EVP_get_digestbyname(pointer(Algorithm));
-  if md = nil then
-    raise EOpenSslHash.CreateFmt(
-      'TOpenSslHash.Create(''%s''): Unknown algorithm', [Algorithm]);
   fCtx := EVP_MD_CTX_new;
   EOpenSslHash.Check(self, 'Create',
     EVP_DigestInit_ex(fCtx, md, nil));
@@ -1076,11 +1140,20 @@ begin
   if (hashSize <> 0)  and
      (fDigestSize <> HashSize) then
     if fXof then
-      // custom size in XOF mode
-      fDigestSize := hashSize
+      fDigestSize := hashSize // custom size in XOF mode
     else
-      raise EOpenSslHash.CreateFmt('TOpenSslHash.Create: Incorrect HashSize=' +
-        '%d to a non-XOF hash function ''%s''', [HashSize, Algorithm]);
+      EOpenSslHash.RaiseFmt(self, 'Create: Unexpected HashSize=' +
+        '%d to a non-XOF hash function', [HashSize]);
+end;
+
+constructor TOpenSslHash.Create(const Algorithm: RawUtf8; HashSize: cardinal);
+begin
+  Init(OpenSslGetMdByName(Algorithm, 'TOpenSslHash.Create'), HashSize);
+end;
+
+constructor TOpenSslHash.Create(Algorithm: THashAlgo; HashSize: cardinal);
+begin
+  Init(OpenSslGetMd(Algorithm), HashSize);
 end;
 
 procedure TOpenSslHash.Update(Data: pointer; DataLength: integer);
@@ -1094,8 +1167,7 @@ begin
   result := EVP_MD_CTX_size(fCtx);
   if Dest = nil then
     if result > SizeOf(fDigestValue) then
-      raise EOpenSslHash.CreateFmt(
-        'TOpenSslHash.Digest(nil): size=%d overflow', [result])
+      EOpenSslHash.RaiseFmt(self, 'Digest(nil): size=%d overflow', [result])
     else
       Dest := @fDigestValue;
   if fXof then
@@ -1134,26 +1206,44 @@ begin
     end;
 end;
 
+class function TOpenSslHash.Hash(Algorithm: THashAlgo;
+  const Data: RawByteString; HashSize: cardinal): RawUtf8;
+begin
+  with Create(Algorithm, HashSize) do
+    try
+      Update(Data);
+      result := DigestHex;
+    finally
+      Free;
+    end;
+end;
+
 
 { TOpenSslHmac }
 
-constructor TOpenSslHmac.Create(const Algorithm: RawUtf8;
-  Key: pointer; KeyLength: cardinal);
-var
-  md: PEVP_MD;
+procedure TOpenSslHmac.Init(md: PEVP_MD; Key: pointer; KeyLength: cardinal);
 begin
   EOpenSslHash.CheckAvailable(PClass(self)^, 'Create');
-   if Algorithm = '' then
-     md := EVP_sha256
-   else
-     md := EVP_get_digestbyname(pointer(Algorithm));
   if md = nil then
-    raise EOpenSslHash.CreateFmt(
-      'TOpenSslHmac.Create(''%s''): Unknown algorithm', [Algorithm]);
+    EOpenSslHash.RaiseFmt(self, 'Create: Unknown algorithm', []);
   fDigestSize := EVP_MD_size(md);
   fCtx := HMAC_CTX_new;
+  if Key = nil then // Key=null for OpenSSL means "reuse previous"
+    Key := self;    // Key<>nul but keep KeyLength=0 so that it uses Key=''
   EOpenSslHash.Check(self, 'Create',
     HMAC_Init_ex(fCtx, Key, KeyLength, md, nil));
+end;
+
+constructor TOpenSslHmac.Create(Algorithm: THashAlgo;
+  Key: pointer; KeyLength: cardinal);
+begin
+  Init(OpenSslGetMd(Algorithm), Key, KeyLength);
+end;
+
+constructor TOpenSslHmac.Create(const Algorithm: RawUtf8;
+  Key: pointer; KeyLength: cardinal);
+begin
+  Init(OpenSslGetMdByName(Algorithm, 'TOpenSslHmac.Create'), Key, KeyLength);
 end;
 
 constructor TOpenSslHmac.Create(const Algorithm: RawUtf8;
@@ -1195,6 +1285,24 @@ begin
   result := HMac(Algorithm, Data, pointer(Key), length(Key));
 end;
 
+class function TOpenSslHmac.Hmac(Algorithm: THashAlgo;
+  const Data: RawByteString; Key: pointer; KeyLength: cardinal): RawUtf8;
+begin
+  with Create(Algorithm, Key, KeyLength) do
+    try
+      Update(Data);
+      result := DigestHex;
+    finally
+      Free;
+    end;
+end;
+
+class function TOpenSslHmac.Hmac(Algorithm: THashAlgo;
+  const Data, Key: RawByteString): RawUtf8;
+begin
+  result := HMac(Algorithm, Data, pointer(Key), length(Key));
+end;
+
 destructor TOpenSslHmac.Destroy;
 begin
   if fCtx <> nil then
@@ -1216,13 +1324,13 @@ begin
       else
         result := EVP_get_digestbyname(pointer(Algorithm));
       if result = nil then
-        raise EOpenSslHash.CreateFmt(
+        EOpenSslHash.RaiseFmt(nil,
           '%s: unknown [%s] algorithm', [Caller, Algorithm]);
     end;
 end;
 
 var
-  _HashAlgoMd: array[THashAlgo] of PEVP_MD;
+  _HashAlgoMd: array[THashAlgo]      of PEVP_MD;
   _AsymAlgoMd: array[TCryptAsymAlgo] of PEVP_MD;
 
 const
@@ -1235,7 +1343,11 @@ const
     'sha512-256', // hfSHA512_256
     'sha3-256',   // hfSHA3_256
     'sha3-512',   // hfSHA3_512
-    'sha224');    // hfSHA224
+    'sha224',     // hfSHA224
+    'sha3-224',   // hfSHA3_224
+    'sha3-384',   // hfSHA3_384
+    'shake128',   // hfShake128
+    'shake256');  // hfShake256
 
   CAA_MD: array[TCryptAsymAlgo] of RawUtf8 = (
     'SHA256', // caaES256
@@ -1415,7 +1527,7 @@ var
 begin
   keys := OpenSslGenerateKeys(EvpType, BitsOrCurve);
   if keys = nil then
-    raise EOpenSslHash.CreateFmt(
+    EOpenSslHash.RaiseFmt(nil,
       'OpenSslGenerateKeys(%d,%d) failed', [EvpType, BitsOrCurve]);
   keys.ToPem(PrivateKey, PublicKey, PrivateKeyPassWord);
   keys.Free;
@@ -1428,11 +1540,170 @@ var
 begin
   keys := OpenSslGenerateKeys(EvpType, BitsOrCurve);
   if keys = nil then
-    raise EOpenSslHash.CreateFmt(
+    EOpenSslHash.RaiseFmt(nil,
       'OpenSslGenerateBinaryKeys(%d,%d) failed', [EvpType, BitsOrCurve]);
   PrivateKey := keys.PrivateToDer(PrivateKeyPassWord);
   PublicKey := keys.PublicToDer;
   keys.Free;
+end;
+
+function OpenSslLoadPublicKeyFromParams(EvpType, BitsOrCurve: integer;
+  const X, Y: RawByteString): PEVP_PKEY;
+var
+  bx, by: PBIGNUM;
+  rsa: PRSA;
+  ec: PEC_KEY;
+  g: PEC_GROUP;
+  p: PEC_POINT;
+begin
+  result := nil;
+  if (X = '') or
+     (Y = '') then
+    exit;
+  EOpenSslAsymmetric.CheckAvailable(nil, 'OpenSslLoadPublicKeyFromParams');
+  case EvpType of
+    EVP_PKEY_RSA,
+    EVP_PKEY_RSA_PSS:
+      begin
+        rsa := RSA_new;
+        if rsa = nil then
+          exit;
+        bx := BN_bin2bn(pointer(X), length(X), nil); // x = Exponent (e)
+        by := BN_bin2bn(pointer(Y), length(Y), nil); // y = Modulus (n)
+        if (bx <> nil) and
+           (by <> nil) and
+           (RSA_set0_key(rsa, by, bx, nil) = OPENSSLSUCCESS) then
+        begin
+          result := EVP_PKEY_new;
+          if result <> nil then
+            if EVP_PKEY_assign_RSA(result, rsa) = OPENSSLSUCCESS then
+              exit; // bx/by/rsa are owned by result from now on
+        end;
+        bx.Free;
+        by.Free;
+        RSA_free(rsa);
+      end;
+    EVP_PKEY_EC:
+      begin
+        g := EC_GROUP_new_by_curve_name(BitsOrCurve);
+        if g = nil then
+          exit;
+        ec := EC_KEY_new;
+        if (ec <> nil) and
+           (EC_KEY_set_group(ec, g) = OPENSSLSUCCESS) then
+        begin
+          p := EC_POINT_new(g);
+          if p <> nil then
+          begin
+            bx := BN_bin2bn(pointer(X), length(X), nil);
+            by := BN_bin2bn(pointer(Y), length(Y), nil);
+            if (bx <> nil) and
+               (by <> nil) then
+              if (EC_POINT_set_affine_coordinates(g, p, bx, by, nil) = OPENSSLSUCCESS) and
+                 (EC_KEY_set_public_key(ec, p) = OPENSSLSUCCESS) then
+              begin
+                result := EVP_PKEY_new;
+                if result <> nil then
+                  if EVP_PKEY_assign_EC_KEY(result, ec) = OPENSSLSUCCESS then
+                    ec := nil // result EVP_PKEY will own ec
+                  else
+                  begin
+                    result.Free;
+                    result := nil;
+                  end;
+              end; // else writeln(OpenSSL_error(ERR_get_error));
+            bx.Free;
+            by.Free;
+            EC_POINT_free(p);
+          end;
+        end; // EVP_PKEY_ED25519 only needs "x"
+        if ec <> nil then
+          EC_KEY_free(ec);
+        EC_GROUP_free(g);
+      end;
+  end;
+end;
+
+const
+  CKA_EVPTYPE: array[TCryptKeyAlgo] of integer = (
+    0,                  // ckaNone
+    EVP_PKEY_RSA,       // ckaRsa
+    EVP_PKEY_RSA_PSS,   // ckaRsaPss
+    EVP_PKEY_EC,        // ckaEcc256
+    EVP_PKEY_EC,        // ckaEcc384
+    EVP_PKEY_EC,        // ckaEcc512
+    EVP_PKEY_EC,        // ckaEcc256k
+    EVP_PKEY_ED25519);  // ckaEdDSA
+
+  CKA_BITSORCURVE: array[TCryptKeyAlgo] of integer = (
+    0,                            // ckaNone
+    RSA_DEFAULT_GENERATION_BITS,  // ckaRsa
+    RSA_DEFAULT_GENERATION_BITS,  // ckaRsaPss
+    NID_X9_62_prime256v1,         // ckaEcc256
+    NID_secp384r1,                // ckaEcc384
+    NID_secp521r1,                // ckaEcc512
+    NID_secp256k1,                // ckaEcc256k
+    0);                           // ckaEdDSA
+
+  CKA_JWK: array[ckaEcc256 .. ckaEcc256k] of RawUtf8 = (
+    'P-256',        // ckaEcc256
+    'P-384',        // ckaEcc384
+    'P-521',        // ckaEcc512
+    'secp256k1');   // ckaEcc256k
+    // 'Ed25519');  // ckaEdDSA is not yet supported nor tested
+
+function OpenSslLoadPublicKeyFromParams(algo: TCryptKeyAlgo;
+  const x, y: RawByteString): PEVP_PKEY;
+begin
+  result := OpenSslLoadPublicKeyFromParams(
+    CKA_EVPTYPE[algo], CKA_BITSORCURVE[algo], x, y);
+end;
+
+function OpenSslLoadPublicKeyFromJwk(const jwk: RawUtf8; algo: TCryptKeyAlgo): PEVP_PKEY;
+var
+  v: TDocVariantData;
+  kty, crv, x, y: RawUtf8;
+  bx, by: RawByteString;
+  i: PtrInt;
+  a: TCryptKeyAlgo;
+begin
+  result := nil;
+  if not v.InitJson(jwk, JSON_FAST) or
+     not v.GetAsRawUtf8('kty', kty) then
+    exit;
+  if kty = 'RSA' then
+  begin
+    if algo = ckaNone then
+      algo := ckaRsa // ckaRsaPss is ignored below anyway
+    else if not (algo in CKA_RSA) then
+      exit;
+    if not v.GetAsRawUtf8('e', x) or   // x = Exponent (e)
+       not v.GetAsRawUtf8('n', y) then // y = Modulus (n)
+      exit;
+  end else if kty = 'EC' then
+  begin
+    if not v.GetAsRawUtf8('crv', crv) or
+       (crv = '') or
+       not v.GetAsRawUtf8('x', x) or
+       not v.GetAsRawUtf8('y', y) then
+      exit;
+    i := FindRawUtf8(CKA_JWK, crv);
+    if i < 0 then
+      exit;
+    a := TCryptKeyAlgo(i + ord(low(CKA_JWK)));
+    if algo = ckaNone then
+      algo := a
+    else if algo <> a then
+      exit;
+  end
+  else
+    exit;
+  if (x = '') or
+     (y = '') or
+     not Base64uriToBin(pointer(x), length(x), bx) or
+     not Base64uriToBin(pointer(y), length(y), by) then
+    exit;
+  result := OpenSslLoadPublicKeyFromParams(algo, bx, by);
 end;
 
 {
@@ -1649,10 +1920,11 @@ constructor TEcc256r1VerifyOsl.Create(const pub: TEccPublicKey);
 begin
   inherited Create(pub);
   EOpenSslAsymmetric.CheckAvailable(PClass(self)^, 'Create');
-  if not NewPrime256v1Key(fKey) or
-     not PublicKeyToPoint(pub, fPoint) or
-     (EC_KEY_set_public_key(fKey, fPoint) <> OPENSSLSUCCESS) then
-    raise EOpenSslAsymmetric.CreateFmt('%s.Create failed', [ClassNameShort(self)^]);
+  if NewPrime256v1Key(fKey) and
+     PublicKeyToPoint(pub, fPoint) then
+    EOpenSslAsymmetric.Check(self, 'Create', EC_KEY_set_public_key(fKey, fPoint))
+  else
+    EOpenSslAsymmetric.CheckFailed(self, 'Create');
 end;
 
 destructor TEcc256r1VerifyOsl.Destroy;
@@ -1687,8 +1959,7 @@ constructor TJwtOpenSsl.Create(const aJwtAlgorithm, aHashAlgorithm: RawUtf8;
 begin
   EOpenSsl.CheckAvailable(PClass(self)^, 'Create');
   if not OpenSslSupports(aGenEvpType) then
-    raise EOpenSsl.CreateFmt('%s.Create: unsupported %s',
-      [ClassNameShort(self)^, aJwtAlgorithm]);
+    EOpenSsl.RaiseFmt(self, 'Create: unsupported %s', [aJwtAlgorithm]);
   fAlgoMd := OpenSslGetMdByName(aHashAlgorithm, 'TJwtOpenSsl.Create');
   fHashAlgorithm := aHashAlgorithm;
   fGenEvpType := aGenEvpType;
@@ -1730,19 +2001,19 @@ begin
   result := GetSignatureSecurityRaw(fAsymAlgo, sig); // into base-64 encoded raw
 end;
 
-procedure TJwtOpenSsl.CheckSignature(const headpayload: RawUtf8;
-  const signature: RawByteString; var jwt: TJwtContent);
+function TJwtOpenSsl.CheckSignature(headpayload: PValuePUtf8Char;
+  const signature: RawByteString): TJwtResult;
 var
   der: RawByteString;
 begin
   if fPubKey = nil then
     fPubKey := LoadPublicKey(fPublicKey, fPublicKeyPassword);
   der := SetSignatureSecurityRaw(fAsymAlgo, signature);
-  if fPubKey^.Verify(fAlgoMd, pointer(der), pointer(headpayload),
-      length(der), length(headpayload)) then
-    jwt.result := jwtValid
+  if fPubKey^.Verify(fAlgoMd, pointer(der), headpayload^.Text,
+      length(der), headpayload^.Len) then
+    result := jwtValid
   else
-    jwt.result := jwtInvalidSignature;
+    result := jwtInvalidSignature;
 end;
 
 
@@ -1950,9 +2221,11 @@ begin
      (PublicKeySaved = '') or
      (fPubKey <> nil) then
     exit;
-  fPubKey := LoadPublicKey(X509PubKeyToDer(Algorithm, PublicKeySaved));
+  fPubKey := LoadPublicKey(X509PubKeyToDer(Algorithm, PublicKeySaved)); // DER/PEM
   if fPubKey = nil then
     fPubKey := LoadPublicKey(PublicKeySaved); // try full PKCS format
+  if fPubKey = nil then
+    fPubKey := OpenSslLoadPublicKeyFromJwk(PublicKeySaved, Algorithm); // JWK
   if fPubKey = nil then
     exit;
   fKeyAlgo := Algorithm;
@@ -1969,12 +2242,14 @@ end;
 function TCryptPublicKeyOpenSsl.GetParams(out x, y: RawByteString): boolean;
 begin
   result := true;
-  if fKeyAlgo in CKA_ECC then
-    fPubKey.EccGetPubKeyUncompressed(x, y)
-  else if fKeyAlgo in CKA_RSA then
-    fPubKey.RsaGetPubKey(x, y)
+  case fKeyAlgo of
+    ckaEcc256, ckaEcc384, ckaEcc512, ckaEcc256k:
+      fPubKey.EccGetPubKeyUncompressed(x, y);
+    ckaRsa, ckaRsaPss:
+      fPubKey.RsaGetPubKey(x, y);
   else
-    result := false;
+    result := false; // ckaEdDSA is unsupported (yet)
+  end;
 end;
 
 function TCryptPublicKeyOpenSsl.Seal(const Message: RawByteString;
@@ -2918,11 +3193,17 @@ begin
 end;
 
 function TCryptCertOpenSsl.GetKeyParams(out x, y: RawByteString): boolean;
+var
+  a: TCryptAsymAlgo;
 begin
   result := true;
-  if AsymAlgo in CAA_ECC then
-    fPrivKey.EccGetPubKeyUncompressed(x, y)
-  else if AsymAlgo in CAA_RSA then
+  a := AsymAlgo;
+  if a in CAA_ECC then
+    if a = caaEdDSA then
+      result := false // unsupported (yet)
+    else
+      fPrivKey.EccGetPubKeyUncompressed(x, y)
+  else if a in CAA_RSA then
     fPrivKey.RsaGetPubKey({e=}x, {n=}y)
   else
     result := false;
@@ -2968,7 +3249,7 @@ begin
   // since DER has no simple binary array format, use PEM serialization
   with TTextWriter.CreateOwnedStream(tmp) do
   try
-    // first write any X.509 certificates
+    // first write any X.509 certificates as PEM text
     x := fStore.CertificatesLocked;
     for i := 0 to length(x) - 1 do
     begin
@@ -2976,7 +3257,7 @@ begin
       AddDirectNewLine; // = #13#10 on Windows, #10 on POSIX
     end;
     fStore.UnLock;
-    // followed by X.509 CRLs
+    // followed by X.509 CRLs as PEM text
     c := fStore.CrlsLocked;
     for i := 0 to length(c) - 1 do
     begin
@@ -3144,8 +3425,7 @@ begin
     exit;
   r := FromReason(Reason);
   if r = CRL_REASON_NONE then
-    raise EOpenSslCert.CreateFmt(
-      'TCryptStoreOpenSsl.Revoke: unsupported %s', [ToText(Reason)^]);
+    EOpenSslCert.RaiseFmt(self, 'Revoke: unsupported %s', [ToText(Reason)^]);
   c := fStore.MainCrlAcquired;
   if c <> nil then
     try
@@ -3392,7 +3672,27 @@ begin
     end;
 end;
 
-
+procedure OpenSslDefaultRsaBits(bits: integer);
+var
+  caa: TCryptAsymAlgo;
+begin
+  if (bits = 2048) or
+     (bits = 3072) or
+     (bits = 4096) or
+     (bits = 7680) then // reject weak/unrealistic RSA key size
+    for caa := caaRS256 to caaPS512 do
+    begin
+      // global variable for any new instances
+      CAA_BITSORCURVE[caa] := bits;
+      // existing TCryptAsymOsl/TCryptCertAlgoOpenSsl instances
+      if (CryptAsymOpenSsl[caa] <> nil) and
+         CryptAsymOpenSsl[caa].InheritsFrom(TCryptAsymOsl) then
+        TCryptAsymOsl(CryptAsymOpenSsl[caa]).fBitsOrCurve := bits;
+      if (CryptCertOpenSsl[caa] <> nil) and
+         CryptCertOpenSsl[caa].InheritsFrom(TCryptCertAlgoOpenSsl) then
+        TCryptCertAlgoOpenSsl(CryptCertOpenSsl[caa]).fBitsOrCurve := bits;
+    end;
+end;
 
 procedure RegisterOpenSsl;
 var
@@ -3403,19 +3703,20 @@ begin
     exit;
   HasOpenSsl := true; // global mormot.crypt.core flag
   // set the fastest AES implementation classes according to the actual platform
-  {$ifdef HASAESNI}
+  {$ifdef ASMAESNI}
   if (OpenSslVersion < OPENSSL3_VERNUM) or
      (OpenSslVersion >= OPENSSL31_VERNUM) then
      // OpenSSL 3.0 has a performance regression (as API overhead)
-  {$endif HASAESNI}
+  {$endif ASMAESNI}
   begin
     TAesFast[mGcm] := TAesGcmOsl;
-    {$ifdef HASAESNI}
-      // mormot.crypt.core x86_64 asm is faster than OpenSSL - but GCM
-      {$ifndef CPUX64}
-      // our AES-CTR x86_64 asm is faster than OpenSSL's
+    {$ifdef ASMAESNI}
+    // mormot.crypt.core i386/x86_64 asm is faster than OpenSSL - but GCM
+    if (daAesNiSse41 in DisabledAsm) or
+       (not (cfAESNI in CpuFeatures)) or
+       (not (cfSSE41 in CpuFeatures)) then
+      // our AES-CTR x4 x8 asm is faster than OpenSSL's
       TAesFast[mCtr] := TAesCtrOsl;
-      {$endif CPUX64}
     {$else}
     // ARM/Aarch64 would rather use OpenSSL than our purepascal code
     TAesFast[mEcb] := TAesEcbOsl;
@@ -3423,7 +3724,7 @@ begin
     TAesFast[mCfb] := TAesCfbOsl;
     TAesFast[mOfb] := TAesOfbOsl;
     TAesFast[mCtr] := TAesCtrOsl;
-    {$endif HASAESNI}
+    {$endif ASMAESNI}
   end;
   // redirects raw mormot.crypt.ecc256r1 functions to faster OpenSSL wrappers
   @Ecc256r1MakeKey      := @ecc_make_key_osl;
@@ -3443,13 +3744,19 @@ begin
       CryptAsymOpenSsl[caa] := TCryptAsymOsl.Create(caa);
       CryptCertOpenSsl[caa] := TCryptCertAlgoOpenSsl.Create(caa);
       CryptCert[caa] := CryptCertOpenSsl[caa]; // favor OpenSSL for X.509 work
-      if caa = caaES256 then
+      if caa <> caaES256 then
+      begin
         // mormot.crypt.ecc has less overhead (at least with OpenSSL 3.0)
-        continue;
-      CryptPublicKey[CAA_CKA[caa]]  := TCryptPublicKeyOpenSsl;
-      CryptPrivateKey[CAA_CKA[caa]] := TCryptPrivateKeyOpenSsl;
+        CryptPublicKey[CAA_CKA[caa]]  := TCryptPublicKeyOpenSsl;
+        CryptPrivateKey[CAA_CKA[caa]] := TCryptPrivateKeyOpenSsl;
+      end;
     end;
   CryptStoreOpenSsl := TCryptStoreAlgoOpenSsl.Implements(['x509-store']);
+  // OpenSSL is slower than our SSE2 mormot.crypt.other.pas RawSCrypt() :)
+  {$ifndef ASMSSE2}
+  if OpenSslVersion >= OPENSSL3_VERNUM then // OpenSSL 1.1 has only macros
+    SCrypt := @OpenSslSCrypt;
+  {$endif ASMSSE2}
   // we can use OpenSSL for StuffExeCertificate() stuffed certificate generation
   CreateDummyCertificate := _CreateDummyCertificate;
   // and also for X.509 parsing
