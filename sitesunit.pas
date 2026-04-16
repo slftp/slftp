@@ -3136,28 +3136,31 @@ begin
   if Value <> fDownloadingFrom then
   begin
     fDownloadingFrom := Value;
-    if todotask <> nil then
-      fTaskName := todotask.Name
-    else
-      fTaskName := '?';
     if fDownloadingFrom then
     begin
       {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumDn);
-      Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d +dn (slot: %s) task: %s',
-        [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
+      if GetDebugVerbosity = dpSpam then
+      begin
+        if todotask <> nil then fTaskName := todotask.Name else fTaskName := '?';
+        Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d +dn (slot: %s) task: %s',
+          [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
+      end;
     end
     else
     begin
       {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumDn);
       if glInterTransferDelayMs > 0 then
-      begin
         site.fDownloadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-        Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d -dn cooldown %dms (slot: %s) task: %s',
-          [site.Name, site.num_dn, site.max_dn, glInterTransferDelayMs, Name, fTaskName]);
-      end
-      else
-        Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d -dn (slot: %s) task: %s',
-          [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
+      if GetDebugVerbosity = dpSpam then
+      begin
+        if todotask <> nil then fTaskName := todotask.Name else fTaskName := '?';
+        if glInterTransferDelayMs > 0 then
+          Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d -dn cooldown %dms (slot: %s) task: %s',
+            [site.Name, site.num_dn, site.max_dn, glInterTransferDelayMs, Name, fTaskName])
+        else
+          Debug(dpSpam, section, '[SLOTS] %s: num_dn %d/%d -dn (slot: %s) task: %s',
+            [site.Name, site.num_dn, site.max_dn, Name, fTaskName]);
+      end;
     end;
   end;
 end;
@@ -3169,28 +3172,31 @@ begin
   if Value <> fUploadingTo then
   begin
     fUploadingTo := Value;
-    if todotask <> nil then
-      fTaskName := todotask.Name
-    else
-      fTaskName := '?';
     if fUploadingTo then
       begin
         {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(site.fNumUp);
-        Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d +up (slot: %s) task: %s',
-          [site.Name, site.num_up, site.max_up, Name, fTaskName]);
+        if GetDebugVerbosity = dpSpam then
+        begin
+          if todotask <> nil then fTaskName := todotask.Name else fTaskName := '?';
+          Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d +up (slot: %s) task: %s',
+            [site.Name, site.num_up, site.max_up, Name, fTaskName]);
+        end;
       end
     else
       begin
         {$IFDEF FPC}InterlockedDecrement{$ELSE}AtomicDecrement{$ENDIF}(site.fNumUp);
         if glInterTransferDelayMs > 0 then
-        begin
           site.fUploadCooldownUntil := IncMilliSecond(Now(), glInterTransferDelayMs);
-          Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d -up cooldown %dms (slot: %s) task: %s',
-            [site.Name, site.num_up, site.max_up, glInterTransferDelayMs, Name, fTaskName]);
-        end
-        else
-          Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d -up (slot: %s) task: %s',
-            [site.Name, site.num_up, site.max_up, Name, fTaskName]);
+        if GetDebugVerbosity = dpSpam then
+        begin
+          if todotask <> nil then fTaskName := todotask.Name else fTaskName := '?';
+          if glInterTransferDelayMs > 0 then
+            Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d -up cooldown %dms (slot: %s) task: %s',
+              [site.Name, site.num_up, site.max_up, glInterTransferDelayMs, Name, fTaskName])
+          else
+            Debug(dpSpam, section, '[SLOTS] %s: num_up %d/%d -up (slot: %s) task: %s',
+              [site.Name, site.num_up, site.max_up, Name, fTaskName]);
+        end;
       end;
   end;
 end;
@@ -3203,22 +3209,27 @@ begin
   try
     if fTodotask <> Value then
     begin
-      if fTodotask <> nil then
-        fOldTaskName := fTodotask.Name
-      else
-        fOldTaskName := '?';
+      if GetDebugVerbosity = dpSpam then
+      begin
+        if fTodotask <> nil then
+          fOldTaskName := fTodotask.Name
+        else
+          fOldTaskName := '?';
+      end;
       fTodotask := Value;
       if fTodoTask <> nil then
       begin
         site.freeslots := site.freeslots - 1;
-        Debug(dpSpam, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s) task: %s',
-          [site.Name, site.freeslots, site.slots.Count, Name, Value.Name]);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, '[SLOTS] %s: freeslots %d/%d assigned (slot: %s) task: %s',
+            [site.Name, site.freeslots, site.slots.Count, Name, Value.Name]);
       end
       else
       begin
         site.freeslots := site.freeslots + 1;
-        Debug(dpSpam, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s) task: %s',
-          [site.Name, site.freeslots, site.slots.Count, Name, fOldTaskName]);
+        if GetDebugVerbosity = dpSpam then
+          Debug(dpSpam, section, '[SLOTS] %s: freeslots %d/%d released (slot: %s) task: %s',
+            [site.Name, site.freeslots, site.slots.Count, Name, fOldTaskName]);
       end;
     end;
   finally
