@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center, Pill } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink, IconTrash } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -156,6 +156,28 @@ export function Issues() {
     },
     refetchInterval: 30000,
     refetchOnWindowFocus: false,
+  });
+
+  const clearIssuesMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post('/ApiIssuesService/ClearIssues');
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['issuesList'], []);
+      refetchSummary();
+      notifications.show({
+        title: 'Success',
+        message: 'Issues cleared.',
+        color: 'green'
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message || 'Failed to clear issues',
+        color: 'red'
+      });
+    },
   });
 
   const { data: browserData, isLoading: browserLoading, isRefetching: browserRefetching } = useQuery({
@@ -353,9 +375,14 @@ export function Issues() {
     <Stack>
       <Group justify="space-between" align="center">
         <Title order={2}>Issues</Title>
-        <Button leftSection={<IconRefresh size="1rem" />} onClick={() => refetch()} loading={isFetching} variant="light">
-          Refresh
-        </Button>
+        <Group gap="xs">
+          <Button leftSection={<IconTrash size="1rem" />} variant="light" color="gray" onClick={() => clearIssuesMutation.mutate()} loading={clearIssuesMutation.isPending}>
+            Clear
+          </Button>
+          <Button leftSection={<IconRefresh size="1rem" />} onClick={() => refetch()} loading={isFetching} variant="light">
+            Refresh
+          </Button>
+        </Group>
       </Group>
 
       <Group>
