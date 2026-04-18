@@ -76,8 +76,5 @@ begin
   end;
 
   ConsoleStart;
-  {$IFDEF MSWINDOWS}
-  ExitProcess(0);
-  {$ENDIF}
   Halt(0);
 end.
