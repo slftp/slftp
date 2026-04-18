@@ -386,7 +386,7 @@ begin
   if app = nil then exit;
 
   try
-    slvision_lock.Enter('console_delwindow');
+    slvision_lock.Enter('console_delwindow', 1000, false);
     try
       t := MyFindWindow(windowtitle);
       if t <> nil then t.Free;

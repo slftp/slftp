@@ -50,7 +50,7 @@ program slftp;
 
 uses
   {$IFDEF UNIX}
-    cthreads,
+    cthreads, BaseUnix,
   {$ENDIF}
   {$IFDEF CPUX86_64}
     mormot.core.fpcx64mm,
@@ -78,8 +78,16 @@ begin
     fCmdLine := fCmdLine.Trim;
 
     ParseCommandLine(fBinaryFilename, fCmdLine);
-    Exit;
+    {$IFDEF UNIX}
+    FpExit(0);
+    {$ENDIF}
+    Halt(0);
   end;
 
   ConsoleStart;
+
+  {$IFDEF UNIX}
+  FpExit(0);
+  {$ENDIF}
+  Halt(0);
 end.
