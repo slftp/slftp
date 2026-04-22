@@ -1,5 +1,5 @@
 import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center, Pill } from '@mantine/core';
-import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink } from '@tabler/icons-react';
+import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink, IconTrash } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -156,6 +156,28 @@ export function Issues() {
     },
     refetchInterval: 30000,
     refetchOnWindowFocus: false,
+  });
+
+  const clearIssuesMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post('/ApiIssuesService/ClearIssues');
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['issuesList'], []);
+      refetchSummary();
+      notifications.show({
+        title: 'Success',
+        message: 'Issues cleared.',
+        color: 'green'
+      });
+    },
+    onError: (err: any) => {
+      notifications.show({
+        title: 'Error',
+        message: err.message || 'Failed to clear issues',
+        color: 'red'
+      });
+    },
   });
 
   const { data: browserData, isLoading: browserLoading, isRefetching: browserRefetching } = useQuery({
@@ -344,7 +366,7 @@ export function Issues() {
     const u = (t || '').toUpperCase();
     if (u === 'SKIP') return { background: 'rgba(251, 191, 36, 0.25)', border: '1px solid rgba(251, 191, 36, 0.5)', color: '#fbbf24' };
     if (u === 'DONT_MATCH' || u === 'DONTMATCH') return { background: 'rgba(248, 113, 113, 0.25)', border: '1px solid rgba(248, 113, 113, 0.5)', color: '#f87171' };
-    if (u === 'MISSING_SECTION' || u === 'MISSING_SECTION_DIR') return { background: 'rgba(250, 204, 21, 0.25)', border: '1px solid rgba(250, 204, 21, 0.5)', color: '#facc15' };
+    if (u === 'MISSING_SECTION' || u === 'MISSING_SECTION_DIR') return { background: 'rgba(251, 146, 60, 0.25)', border: '1px solid rgba(251, 146, 60, 0.5)', color: '#fb923c' };
     if (u === 'NUKE') return { background: 'rgba(168, 85, 247, 0.25)', border: '1px solid rgba(168, 85, 247, 0.5)', color: '#a855f7' };
     return { background: 'rgba(100, 116, 139, 0.25)', border: '1px solid rgba(100, 116, 139, 0.5)', color: '#94a3b8' };
   };
@@ -353,9 +375,14 @@ export function Issues() {
     <Stack>
       <Group justify="space-between" align="center">
         <Title order={2}>Issues</Title>
-        <Button leftSection={<IconRefresh size="1rem" />} onClick={() => refetch()} loading={isFetching} variant="light">
-          Refresh
-        </Button>
+        <Group gap="xs">
+          <Button leftSection={<IconTrash size="1rem" />} variant="light" color="gray" onClick={() => clearIssuesMutation.mutate()} loading={clearIssuesMutation.isPending}>
+            Clear
+          </Button>
+          <Button leftSection={<IconRefresh size="1rem" />} onClick={() => refetch()} loading={isFetching} variant="light">
+            Refresh
+          </Button>
+        </Group>
       </Group>
 
       <Group>
@@ -403,11 +430,11 @@ export function Issues() {
                 </Badge>
                 <Badge
                   variant="light"
-                  style={{ 
+                  style={{
                     cursor: 'pointer',
-                    background: 'rgba(250, 204, 21, 0.25)',
-                    border: '1px solid rgba(250, 204, 21, 0.5)',
-                    color: '#facc15'
+                    background: 'rgba(251, 146, 60, 0.25)',
+                    border: '1px solid rgba(251, 146, 60, 0.5)',
+                    color: '#fb923c'
                   }}
                   onClick={() => setFilter((prev) => upsertFilterField(prev, 'type', 'MISSING_SECTION'))}
                 >

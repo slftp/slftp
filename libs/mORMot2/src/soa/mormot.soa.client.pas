@@ -247,19 +247,22 @@ type
   /// a services provider class to be used on the client side
   // - this will maintain a list of fake implementation classes, which will
   // remotely call the server to make the actual process
+  // - after Client.SetUser(), you could just call Client.Services.Resolve<>()
+  // to register and retrieve an interface instance on the client side
   TServiceContainerClient = class(TServiceContainerClientAbstract)
   protected
     fDisableAutoRegisterAsClientDriven: boolean;
   public
     /// retrieve a service provider from its type information
-    // - this overridden method will register the interface, if was not yet made
-    // - in this case, the interface will be registered with sicClientDriven
-    // implementation method, unless DisableAutoRegisterAsClientDriven is TRUE
+    // - overridden to register the interface, if was not yet made, using "soa"
+    // information as retrieved during SetUser(), or fallback to sicClientDriven
+    // implementation, unless DisableAutoRegisterAsClientDriven is TRUE
     function Info(aTypeInfo: PRttiInfo): TServiceFactory; overload; override;
     /// notify the other side that the given Callback event interface is released
     // - this overriden implementation will check the private fFakeCallbacks list
     function CallBackUnRegister(const Callback: IInvokable): boolean; override;
     /// allow to disable the automatic registration as sicClientDriven in Info()
+    // - note "soa" authentication information is used instead after SetUser()
     property DisableAutoRegisterAsClientDriven: boolean
       read fDisableAutoRegisterAsClientDriven write fDisableAutoRegisterAsClientDriven;
   end;
@@ -322,6 +325,7 @@ type
   protected
     fClient: TServiceFactoryClient;
     fRemote: TRest;
+    fAtomicPending: integer;
     fRetryPeriodSeconds: integer;
     procedure InternalExecute; override;
     procedure ProcessPendingNotification;
@@ -374,7 +378,7 @@ begin
     if pending.IDValue = 0 then
     begin
       pendings := GetPendingCountFromDB;
-      fSafe.LockedInt64[0] := pendings;
+      fAtomicPending := pendings;
       if pendings = 0 then
         exit
       else
@@ -382,7 +386,7 @@ begin
           '%.ProcessPendingNotification pending=% with no DB row',
           [self, pendings]);
     end;
-    pendings := fSafe.LockedInt64[0];
+    pendings := fAtomicPending;
     timer.Start;
     _VariantSaveJson(pending.Input, twJsonEscape, params);
     if (params <> '') and
@@ -415,7 +419,7 @@ begin
     pending.Sent := TimeLogNowUtc;
     pending.MicroSec := timer.LastTimeInMicroSec;
     fClient.fSendNotificationsRest.ORM.Update(pending, 'MicroSec,Sent', true);
-    fSafe.LockedInt64Increment(0, -1);
+    LockedDec32(@fAtomicPending);
   finally
     pending.Free;
   end;
@@ -425,18 +429,18 @@ procedure TServiceFactoryClientNotificationThread.InternalExecute;
 var
   delay: integer;
 begin
-  fSafe.LockedInt64[0] := GetPendingCountFromDB;
+  fAtomicPending := GetPendingCountFromDB;
   delay := 50;
   while not Terminated do
   begin
-    while fSafe.LockedInt64[0] > 0 do
+    while fAtomicPending > 0 do
     try
       ProcessPendingNotification;
       delay := 0;
       if Terminated then
         exit;
     except
-      SleepOrTerminated(fRetryPeriodSeconds * MilliSecsPerSec); // wait before retry
+      SleepOrTerminated(fRetryPeriodSeconds * MilliSecsPerSec); // wait and retry
     end;
     if Terminated then
       exit;
@@ -530,9 +534,10 @@ begin
   else
     notify := nil;
   result := TInterfacedObjectFakeClient.Create(self, Invoke, notify);
-  if not fDelayedInstance and
+  if (not fDelayedInstance) and
      (fInstanceCreation = sicClientDriven) and
-    InternalInvoke(SERVICE_PSEUDO_METHOD[imInstance], '', @id) then
+     // call 'root/InterfaceName._instance_' endpoint
+     InternalInvoke(SERVICE_PSEUDO_METHOD[imInstance], '', @id) then
     // thread-safe initialization of the TInterfacedObjectFakeID
     TInterfacedObjectFakeClient(result).fFakeID := GetCardinal(pointer(id));
 end;
@@ -546,13 +551,17 @@ function TServiceFactoryClient.Invoke(const aMethod: TInterfaceMethod;
   var
     pending: TOrmServiceNotifications;
     input: TDocVariantData;
-    json: RawUtf8;
+    json: TSynTempAdder;
   begin
     pending := fSendNotificationsLogClass.Create;
     try
       pending.Method := aMethod.Uri;
-      json := '[' + aParams + ']';
-      input.InitJsonInPlace(pointer(json), JSON_FAST_EXTENDED);
+      json.Init(length(aParams) + 10);
+      json.AddDirect('[');
+      json.Add(aParams);
+      json.AddDirect(']', #0);
+      pending.SetInput(json.Buffer, aMethod.ArgsInputValuesCount);
+      json.Store.Done;
       pending.Input := variant(input);
       if (aFakeID <> nil) and
          (aFakeID^ <> 0) then
@@ -573,8 +582,8 @@ begin
   begin
     SendNotificationsLog;
     if fSendNotificationsThread <> nil then
-      TServiceFactoryClientNotificationThread(fSendNotificationsThread).
-        Safe.LockedInt64Increment(0, 1);
+      LockedInc32(@TServiceFactoryClientNotificationThread(
+        fSendNotificationsThread).fAtomicPending);
     result := true;
   end
   else
@@ -586,21 +595,21 @@ class function TServiceFactoryClient.GetErrorMessage(status: integer): RawUtf8;
 begin
   case status of
     // client-side exception
-    HTTP_CLIENTERROR:
+    HTTP_CLIENTERROR:    // 666
       result := 'Server not reachable or broken network/connection';
     // real server-side errors
-    HTTP_UNAVAILABLE:
+    HTTP_UNAVAILABLE:    // 503
       result := 'Server may be temporary down for maintenance or overloaded';
-    HTTP_NOTALLOWED:
+    HTTP_NOTALLOWED:     // 405
       result := 'Method forbidden for this User group';
-    HTTP_UNAUTHORIZED:
+    HTTP_UNAUTHORIZED:   // 401
       result := 'No active session';
-    HTTP_FORBIDDEN:
+    HTTP_FORBIDDEN:      // 403
       result := 'Security error';
-    HTTP_NOTACCEPTABLE:
+    HTTP_NOTACCEPTABLE:  // 406
       result := 'Invalid input parameters';
-    HTTP_NOTFOUND,
-    HTTP_NOTIMPLEMENTED:
+    HTTP_NOTFOUND,       // 404
+    HTTP_NOTIMPLEMENTED: // 501
       result := 'Server does not support this request';
   else
     result := '';
@@ -635,9 +644,8 @@ var
          (clientDrivenID = '') then
         sent := service^.ArgsArrayToObject(pointer(sent), true);
       if fNonBlockWithoutAnswer and
-         (head = '') and
          (service^.ArgsOutputValuesCount = 0) then
-        rcu.CallbackNonBlockingSetHeader(head);
+        rcu.CallbackModeSetHeader(wscNonBlockWithoutAnswer, head);
     end;
     // makes the actual HTTP/HTTPS call
     status := rcu.Uri(uri, 'POST', @resp, @head, @sent);
@@ -669,7 +677,12 @@ begin
                not (optNoLogInput in fExecution[m].Options);
   if withinput then
     // include non-sensitive input in log
-    p := aParams;
+    if (service <> nil) and
+       ((length(aParams) > 256) or
+        (imfInputIsOctetStream in service^.Flags)) then
+      Make(['len=', length(aParams)], p)
+    else
+      p := aParams;
   fClient.LogClass.EnterLocal(log, 'InternalInvoke I%.%(%) %',
     [fInterfaceUri, aMethod, {%H-}p, clientDrivenID], self);
   // call remote server according to current routing scheme
@@ -794,16 +807,75 @@ end;
 constructor TServiceFactoryClient.Create(aRest: TRest; aInterface: PRttiInfo;
   aInstanceCreation: TServiceInstanceImplementation; const aContractExpected: RawUtf8);
 var
-  Error, RemoteContract: RawUtf8;
+  err, contract: RawUtf8;
+  cli: TRestClientUri absolute aRest;
+  s: PRestClientService;
+  n: TDALen;
+
+  procedure RaiseWrongClient(const contract: RawUtf8);
+  begin
+    EServiceException.RaiseUtf8('%.Create(): server''s I% contract ' +
+      'differs from client''s: expected %, received % - you may need to ' +
+      'upgrade your % client to match % server expectations',
+      [self, fInterfaceUri, ContractExpected, contract,
+       Executable.Version.DetailedOrVoid, cli.Session.Version]);
+  end;
+
 begin
-  // extract interface RTTI and create fake interface (and any shared instance)
+  // ensure we are working with an associated TRestClientUri instance
   if not aRest.InheritsFrom(TRestClientUri) then
-    EServiceException.RaiseUtf8('%.Create(): % interface requires a Client',
-      [self, aInterface^.Name]);
+    EServiceException.RaiseUtf8('Unexpected %.Create(%,%)',
+      [self, aInterface^.Name, aRest]);
   if fClient = nil then
     fClient := aRest;
+  // extract interface RTTI and create fake interface
   inherited Create(aRest, aInterface, aInstanceCreation, aContractExpected);
-  // initialize a shared instance (if needed)
+  // validate the interface from its server side contract
+  s := pointer(cli.Session.Services);
+  if s = nil then
+    s := cli.ParseSoa(nil); // make GET stat/soa once if we are before SetUser()
+  if s <> nil then
+  begin
+    // verify interface from authentication "soa" info without _contract_ call
+    n := PDALen(PAnsiChar(s) - _DALEN)^ + _DAOFF;
+    repeat
+      if PropNameEquals(s^.Name, fInterfaceUri) then
+      begin
+        if fInstanceCreation <> s^.Creation then
+          EServiceException.RaiseUtf8('%.Create(): I% service %<>%',
+            [self, fInterfaceUri, ToText(fInstanceCreation)^, ToText(s^.Creation)^]);
+        if (PosExChar(SERVICE_CONTRACT_NONE_EXPECTED, ContractExpected) = 0) and
+           (PosExChar(SERVICE_CONTRACT_NONE_EXPECTED, s^.ExpectedContract) = 0) and
+           (ContractExpected <> s^.ExpectedContract) then
+          RaiseWrongClient(s^.ExpectedContract);
+        break; // valid
+      end;
+      dec(n);
+      if n = 0 then
+        EServiceException.RaiseUtf8('%.Create(): I% service ' +
+          'not supported by this server', [self, fInterfaceUri]);
+      inc(s);
+    until false;
+  end
+  else if PosExChar(SERVICE_CONTRACT_NONE_EXPECTED, ContractExpected) = 0 then
+  begin
+    // call 'root/InterfaceName._contract_' endpoint to verify this endpoint
+    // (legacy mORMot 1.18-2.4 behavior)
+    if InternalInvoke(SERVICE_PSEUDO_METHOD[imContract],
+         cli.ServicePublishOwnInterfaces, @contract, @err) and
+       (contract <> '') then
+      if contract[1] = '[' then
+        contract := copy(contract, 2, length(contract) - 2)
+      else if StartWithExact(contract, '{"contract":"') then
+        contract := copy(contract, 13, length(contract) - 13) else
+    else
+      EServiceException.RaiseUtf8('%.Create(): I% interface or % routing ' +
+        'not supported by this server [%]',
+         [self, fInterfaceUri, cli.ServicesRouting, err]);
+    if ContractExpected <> contract then
+      RaiseWrongClient(contract);
+  end;
+  // interface seems valid: initialize a shared instance (if needed)
   case fInstanceCreation of
     sicShared,
     sicPerSession,
@@ -815,22 +887,6 @@ begin
         fSharedInstance := CreateFakeInstance;
         IInterface(fSharedInstance)._AddRef; // force stay alive
       end;
-  end;
-  // check if this interface is supported on the server
-  if PosEx(SERVICE_CONTRACT_NONE_EXPECTED, ContractExpected) = 0 then
-  begin
-    if not InternalInvoke(SERVICE_PSEUDO_METHOD[imContract],
-       TRestClientUri(fClient).ServicePublishOwnInterfaces, @RemoteContract, @Error) then
-      EServiceException.RaiseUtf8('%.Create(): I% interface or % routing not ' +
-        'supported by server [%]', [self, fInterfaceUri,
-         TRestClientUri(fClient).ServicesRouting, Error]);
-    if ('[' + ContractExpected + ']' <> RemoteContract) and
-       ('{"contract":' + ContractExpected + '}' <> RemoteContract) then
-      EServiceException.RaiseUtf8('%.Create(): server''s I% contract ' +
-        'differs from client''s: expected [%], received % - you may need to ' +
-        'upgrade your % client to match % server expectations',
-        [self, fInterfaceUri, ContractExpected, RemoteContract,
-         Executable.Version.DetailedOrVoid, TRestClientUri(fClient).Session.Version]);
   end;
 end;
 
@@ -943,7 +999,7 @@ begin
   if SendNotificationsPending <> 0 then
     with fClient.LogClass.Enter do
     begin
-      timeOut := GetTickCount64 + aTimeOutSeconds shl MilliSecsPerSecShl;
+      timeOut := GetTickCount64 + aTimeOutSeconds * MilliSecsPerSec;
       repeat
         SleepHiRes(5);
         if SendNotificationsPending = 0 then
@@ -972,11 +1028,41 @@ end;
 { TServiceContainerClient }
 
 function TServiceContainerClient.Info(aTypeInfo: PRttiInfo): TServiceFactory;
+var
+  s: PRestClientService;
+  n: TDALen;
+  sic: TServiceInstanceImplementation;
 begin
+  // first try any already registered interface type
   result := inherited Info(aTypeInfo);
-  if (result = nil) and
-     not fDisableAutoRegisterAsClientDriven then
-    result := AddInterface(aTypeInfo, sicClientDriven);
+  if result <> nil then
+    exit; // found
+  // allow late registration of this interface type
+  sic := sicClientDriven; // make Delphi compiler happy
+  s := pointer((fOwner as TRestClientUri).Session.Services);
+  if s = nil then // make GET stat/soa once if we are before SetUser()
+    s := TRestClientUri(fOwner).ParseSoa(nil);
+  if s <> nil then
+  begin
+    // register using accurate SetUser() "soa" server-side information
+    n := PDALen(PAnsiChar(s) - _DALEN)^ + _DAOFF;
+    repeat
+      if PropNameEquals(s^.Name, @aTypeInfo^.RawName[2], ord(aTypeInfo^.RawName[0]) - 1) then
+      begin
+        sic := s^.Creation; // found - AddInterface() will verify "contract"
+        break;
+      end;
+      dec(n);
+      if n = 0 then
+        exit; // an interface not present in "soa" would not work for sure
+      inc(s);
+    until false;
+  end
+  // no "soa": default as sicClientDriven (mORMot 1.18 way)
+  else if fDisableAutoRegisterAsClientDriven then
+    exit; // if not disabled
+  // this will verify this interface and register it to the internal list
+  result := AddInterface(aTypeInfo, sic);
 end;
 
 function TServiceContainerClient.CallBackUnRegister(const Callback: IInvokable): boolean;

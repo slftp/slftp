@@ -175,6 +175,7 @@
     {$DEFINE VER150BELOW}                   //found in ZTestBugCompPostgreSql.pas
     {$DEFINE WITH_OVERLOAD_BUG}             //D7 Bug -> ambiguous overload error when both Func(Integer) and Func(Cardinal) exist and Func(a: Byte/Word) is called
     {$IF CompilerVersion >= 16} //Delphi 8+
+      {$DEFINE WITH_WIDECHAR_STRLEN}
       {$IF CompilerVersion >= 17} //Delphi 2005+
         {$DEFINE WITH_INLINE}          // compiler supports inline methodes
         {$DEFINE WITH_C5242_OR_C4963_INTERNAL_ERROR} //D2005..2009 Has an internal error with some inlined endian swap code.
@@ -267,6 +268,7 @@
                   {$DEFINE WITH_RTLCONSTS_SInvalidGuidArray}
                   {$DEFINE HAVE_BCDTOSTR_FORMATSETTINGS} //(Try)BCDToStr/StrToBCD has parameter FormatSettings
                   {$DEFINE WITH_TOBJECTLIST_REQUIRES_CLASSES}       //TObjectList.Remove, add ... are inlined need unit classes
+				  {$DEFINE HAVE_TFORMATSETTINGS_CREATE}
                   {$UNDEF WITH_INFINATE_DECLARED_IN_UNIT_WINDOWS} // the INFINATE constant is now declared in System.pas
                   {$IF CompilerVersion >= 23} //Delphi XE2+
 				    {$DEFINE BCDTOSTR_WITH_FORMATSETTINGS} // Delphi has a BcdToStr function with TFormatSettings as a parameter
@@ -369,9 +371,14 @@
                               {$UNDEF WITH_DBTABLES} //M.A. In Delphi XE7 no BDE
                               {$DEFINE WITH_LIFECYCLES} //TDataSet.DefaultFields is deprecated use LifeCycles instead
                               {$IF CompilerVersion >= 29} //Delphi XE8+
+						        {$DEFINE ISTREAM_SEEK_LARGEUINT}
                                 {$IF CompilerVersion >= 30} //Delphi XE10 Seattle+
+								  {$DEFINE HAVE_UNIT_URLCLIENT}
                                   {$IF CompilerVersion >= 31} //Delphi XE10.1 Berlin+
                                     {$IF CompilerVersion >= 32} //Delphi XE10.2 Tokyo+
+                                      {$IF DEFINED(LINUX)}
+                                        {$DEFINE NO_SAFECALL}
+                                      {$IFEND DEFINED(LINUX)}
                                       {$DEFINE WITH_TRYFINALLY_RESULT_EXCEPTION_CHECK} //the compiler is able to see through try finally block, which have nothing todo initializing the result
                                       {$DEFINE WITH_VIRTUAL_TFIELD_GETASGUID} //TField has now a virtual GetAsGUID function
                                       {$DEFINE WITH_IProviderSupportNG}   //TDataset now supports IProviderSupportNG
@@ -394,11 +401,18 @@
                                           {$UNDEF WITH_TMEMOFIELD_GETASVARIANT_varNULL_BUG} //The bug is resolved.
                                           {$DEFINE USE_SYNCOBJS_FOR_INLINING} //Add SyncObjs unit to the uses list to resolve a warning about inlining
                                           {$IF CompilerVersion >= 35} //Delphi 11 Alexandria
+										    {$IFDEF ANDROID}
+											  {$DEFINE ANSISTRCOMP_REQUIRES_POSIXSTRING}
+											{$ENDIF}
                                             {$DEFINE TCERTIFICATE_HAS_PUBLICKEY}
                                             {$DEFINE MEMORYSTREAM_REALLOC_NATIVEINT} // TMemoryStream.Realloc uses NativeInt instead of Longint
                                             {$IF CompilerVersion >= 36} //Delphi 12 Athens
                                               {$DEFINE NATIVEINT_WEAK_REFERENCE} // TMemoryStream.Realloc uses NativeInt instead of Longint
                                               {$UNDEF MISS_MATH_NATIVEUINT_MIN_MAX_OVERLOAD}
+                                              {$IF CompilerVersion >= 37} //Delphi 13 Florence
+                                                {$DEFINE WITH_FTLARGEUINT}
+												{$WEAKLINKRTTI OFF} //Enable extended RTTI, otherwise we get compiler errors on Delphi 13 for Android
+                                              {$IFEND CompilerVersion >= 37} // Delphi 13 Athens
                                             {$IFEND CompilerVersion >= 36} // Delphi 12 Athens
                                           {$IFEND CompilerVersion >= 35} // Delphi 11 Alexandria
                                         {$IFEND CompilerVersion >= 34}

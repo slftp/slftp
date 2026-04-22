@@ -5,7 +5,7 @@ unit pazo;
 interface
 
 uses
-  Classes, kb.releaseinfo, SyncObjs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, sfv, slcriticalsection2,
+  Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
   routeconfig;
 
 type
@@ -178,6 +178,7 @@ type
     FUDPPort: Integer;
     FUDPPassword: String;
     FUDPConfigLoaded: Boolean;
+    FEncryptUDP: Boolean;
 
     { Creates/Updates the filesize for given subdir and filename combination
       @param(aDir Location of the file inside releasedir)
@@ -252,8 +253,6 @@ type
       @param(aIsSpreadJob Set it to @true if its a spread job for purpose of preeing (skips some checks), @false otherwise)
       @returns(@true if at least one site was added, @false otherwise) }
     function AddSites(const aIsSpreadJob: boolean): boolean; overload;
-    { Sorts @link(PazoSitesList) by site rank for the release section (highest rank first) }
-    procedure SortPazoSitesByRank;
     { Returns the filesize for given filname of the release
       @param(aDir Location of the file inside releasedir)
       @param(aFilename Name of the file)
@@ -275,10 +274,10 @@ function FindMostCompleteSite(pazo: TPazo): TPazoSite;
 implementation
 
 uses
-  SysUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
-  taskrace, mystrings, irc, Math, taskpretime, configunit,
-  Generics.Defaults, kb, tasksitesfv,
-  mormot.core.base, mormot.core.unicode, mormot.net.sock;
+  SysUtils, StrUtils, mainthread, sitesunit, DateUtils, debugunit, queueunit,
+  taskrace, mystrings, irc, sltcp, slhelper, Math, taskpretime, configunit,
+  mrdohutils, console, RegExpr, statsunit, Generics.Defaults, kb, tasksitesfv,
+  mormot.core.base, mormot.core.unicode, mormot.net.sock, mycrypto;
 
 const
   section = 'pazo';
@@ -353,10 +352,14 @@ var
 begin
   Result := nil;
   try
-    // PazoSitesList is sorted by rank descending (highest rank at index 0).
-    // Iterate 0 to Count-1 so we prefer the highest-ranked matching site.
-    for i := 0 to pazo.PazoSitesList.Count - 1 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if ps.lookupforcedhere then
       begin
@@ -366,8 +369,14 @@ begin
       end;
     end;
 
-    for i := 0 to pazo.PazoSitesList.Count - 1 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if ps.ts <> 0 then
       begin
@@ -376,8 +385,14 @@ begin
       end;
     end;
 
-    for i := 0 to pazo.PazoSitesList.Count - 1 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.Complete) then
       begin
@@ -386,8 +401,14 @@ begin
       end;
     end;
 
-    for i := 0 to pazo.PazoSitesList.Count - 1 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.ircevent) then
       begin
@@ -396,8 +417,14 @@ begin
       end;
     end;
 
-    for i := 0 to pazo.PazoSitesList.Count - 1 do
+    for i := pazo.PazoSitesList.Count - 1 downto 0 do
     begin
+      try
+        if i < 0 then
+          Break;
+      except
+        Break;
+      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.status in [rssAllowed, rssRealPre, rssComplete]) then
       begin
@@ -419,6 +446,7 @@ begin
   FUDPIp := '';
   FUDPPort := 0;
   FUDPPassword := '';
+  FEncryptUDP := True;
 
   if not Assigned(config) then
   begin
@@ -431,6 +459,7 @@ begin
   FUDPPort := config.ReadInteger('UDPConfig', 'Port', 0);
   FUDPPassword := config.ReadString('UDPConfig', 'Password', '');
   FUDPEnabled := SameText(rawEnable, 'True') or SameText(rawEnable, '1');
+  FEncryptUDP := config.ReadBool('UDPConfig', 'EncryptUDP', True);
 
   if FUDPEnabled then
   begin
@@ -792,7 +821,7 @@ var
   sitelist: String;
   shouldSendUDP: Boolean;
   udpSocket: TNetSocket;
-  udpMessage: RawUtf8;
+  udpMessage: RawByteString;
   destAddr: TNetAddr;
   res: TNetResult;
 begin
@@ -807,7 +836,8 @@ begin
 
   for ps in PazoSitesList do
   begin
-    Result := Result + ps.RoutesText;
+    if not (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
+      Result := Result + ps.RoutesText;
   end;
 
   cbftpLine := '';
@@ -852,6 +882,17 @@ begin
   if shouldSendUDP then
   begin
     udpMessage := StringToUtf8(FUDPPassword + ' race ' + rls.section + ' ' + rls.rlsname + ' ' + sitelist);
+
+    if FEncryptUDP then
+    begin
+      udpMessage := CbftpEncryptAES(udpMessage, StringToUtf8(FUDPPassword));
+      if udpMessage = '' then
+      begin
+        Debug(dpError, section, 'UDP AES encryption failed');
+        lastannounceroutes := '';
+        Exit;
+      end;
+    end;
     udpSocket := nil;
     try
       // Create UDP socket
@@ -1000,14 +1041,17 @@ begin
   stopped := False;
   ready := False;
   lastTouch := Now();
-  FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id));
+  if rls <> nil then
+    FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_' + rls.Name + '_' + IntToStr(pazo_id))
+  else
+    FUniqueFileListOfRelease_cs := TSlCriticalSection2.Create('UniqueFileList_SPEEDTEST_' + IntToStr(pazo_id));
   FUniqueFileListOfRelease := TDictionary<String, Int64>.Create;
 
   self.stated := False;
   self.cleared := False;
 
   FExcludeFromIncfiller := False;
-  if rls.IsSFVRelease then
+  if (rls <> nil) and rls.IsSFVRelease then
     FPazoSFV := TPazoSFV.Create;
 
   FUDPConfigLoaded := False;
@@ -1023,7 +1067,10 @@ end;
 
 destructor TPazo.Destroy;
 begin
-  Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname]);
+  if rls <> nil then
+    Debug(dpSpam, section, 'TPazo.Destroy: %s', [rls.rlsname])
+  else
+    Debug(dpSpam, section, 'TPazo.Destroy: SPEEDTEST');
   Clear;
   PazoSitesList.Free;
   queuenumber.Free;
@@ -1423,51 +1470,6 @@ begin
     end;
 
     Result := True;
-  end;
-
-  // sort PazoSitesList by site rank (highest first) so dirlists and
-  // destination creation process high-ranked sites before low-ranked ones
-  SortPazoSitesByRank;
-end;
-
-procedure TPazo.SortPazoSitesByRank;
-var
-  i, j: Integer;
-  fSection: String;
-  fSite: TSite;
-  fRanks: array of Integer;
-  fTmpRank: Integer;
-begin
-  if PazoSitesList.Count <= 1 then
-    exit;
-
-  fSection := rls.section;
-
-  // Pre-fetch all ranks once to avoid repeated FindSiteByName during sort
-  SetLength(fRanks, PazoSitesList.Count);
-  for i := 0 to PazoSitesList.Count - 1 do
-  begin
-    fSite := FindSiteByName('', PazoSitesList[i].Name);
-    if fSite <> nil then
-      fRanks[i] := fSite.GetRank(fSection)
-    else
-      fRanks[i] := 0;
-  end;
-
-  // Insertion sort by rank descending (highest rank at index 0).
-  // List is typically small (5-30 sites), so insertion sort is fine.
-  for i := 1 to PazoSitesList.Count - 1 do
-  begin
-    j := i;
-    while (j > 0) and (fRanks[j] > fRanks[j - 1]) do
-    begin
-      PazoSitesList.Exchange(j, j - 1);
-      // keep rank array in sync with the list
-      fTmpRank := fRanks[j];
-      fRanks[j] := fRanks[j - 1];
-      fRanks[j - 1] := fTmpRank;
-      Dec(j);
-    end;
   end;
 end;
 

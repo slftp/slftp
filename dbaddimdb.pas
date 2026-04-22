@@ -786,9 +786,10 @@ var
   fItem: TMapLanguageCountry;
 begin
   Result := True;
-  Debug(dpSpam, section, Format('[EXCLUDECOUNTRY] Checking country: "%s"', [aCountryname]));
-  Debug(dpSpam, section, Format('[EXCLUDECOUNTRY] glLanguageCountryMappingList count: %d', [glLanguageCountryMappingList.Count]));
-  
+
+  if glLanguageCountryMappingList = nil then
+    Exit;
+
   for fItem in glLanguageCountryMappingList do
   begin
     if (fItem.Country = 'UK') or (fItem.Country = 'USA') then
@@ -1206,6 +1207,8 @@ begin
   last_imdbdata := THashedStringList.Create;
   last_imdbdata.CaseSensitive := False;
 
+  glLanguageCountryMappingList := TObjectList<TMapLanguageCountry>.Create(True);
+
   ImdbDBModel := CreateIMDBModel;
   try
     ImdbDatabase := CreateORMSQLite3DB(ImdbDBModel, fDBName, '');
@@ -1223,8 +1226,6 @@ begin
   
   Debug(dpSpam, section, Format('[INIT] addimdbcmd initialized to: "%s"', [addimdbcmd]));
   Debug(dpSpam, section, '[INIT] rx_imdbid regex initialized');
-
-  glLanguageCountryMappingList := TObjectList<TMapLanguageCountry>.Create(True);
   fStrList := TStringList.Create;
   try
     Debug(dpSpam, section, Format('[INIT] Loading country mapping from: %s', [ExtractFilePath(ParamStr(0)) + 'slftp.imdbcountries']));

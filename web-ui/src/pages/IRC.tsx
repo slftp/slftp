@@ -1,7 +1,7 @@
 import { Card, Title, Table, Loader, Center, Tabs, Badge, Button, Group, Text, ActionIcon, Tooltip, Stack, TextInput, Modal, Select, Textarea, Switch, ScrollArea, MultiSelect } from '@mantine/core';
 import { IconNetwork, IconHash, IconRefresh, IconEdit, IconCheck, IconX, IconPlus, IconTrash, IconFilter, IconFlask, IconSearch, IconListCheck, IconCopy } from '@tabler/icons-react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { apiClient } from '../api/client';
 import type { Site } from '../api/client';
 import { notifications } from '@mantine/notifications';
@@ -459,7 +459,7 @@ export function IRC() {
     return false;
   };
 
-  const matchesByRelease = (() => {
+  const matchesByRelease = useMemo(() => {
     const map = new Map<string, { hits: PrecatcherHit[]; sites: Set<string>; lastAt: number }>();
     for (const hit of precatcherHits || []) {
       if (!isMatchAnnounceEvent(hit.event)) continue;
@@ -475,7 +475,7 @@ export function IRC() {
       }
     }
     return map;
-  })();
+  }, [precatcherHits]);
 
   const filteredReleases = (recentReleases || []).filter((r) => {
     if (!matchesFilter) return true;
@@ -904,7 +904,7 @@ export function IRC() {
 
   const addNetworkMutation = useMutation({
     mutationFn: async () => {
-      await apiClient.post('/ApiIrcService/AddNetwork', {
+      const res = await apiClient.post('/ApiIrcService/AddNetwork', {
         NetName: newNetworkName,
         Host: newNetworkHost,
         Port: parseInt(newNetworkPort, 10),
@@ -914,6 +914,10 @@ export function IRC() {
         Ident: newNetworkIdent,
         User: newNetworkUser,
       });
+      const success = res.data?.result?.[0];
+      if (success === false) {
+        throw new Error('Failed to add network — name may already exist or be invalid');
+      }
     },
     onSuccess: () => {
       notifications.show({

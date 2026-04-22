@@ -22,7 +22,8 @@
     "postcss-preset-mantine": "^1.18.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.10.1"
+    "react-router-dom": "^7.10.1",
+    "react-virtuoso": "^4.18.4"
   },
   "overrides": {
     "dompurify": "^3.3.3"

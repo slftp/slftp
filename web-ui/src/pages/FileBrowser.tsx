@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Title, Group, Button, Grid, Paper, Stack, Text, Badge, Tooltip, Menu, Tabs } from '@mantine/core';
 import { IconArrowRight, IconArrowLeft, IconArrowsExchange, IconDots, IconBolt, IconFolders, IconArrowsLeftRight } from '@tabler/icons-react';
 import { FileBrowserPane } from './FileBrowserPane';
@@ -18,6 +18,10 @@ export function FileBrowser() {
   const [leftSelection, setLeftSelection] = useState<FileEntry[]>([]);
   const [rightSelection, setRightSelection] = useState<FileEntry[]>([]);
   const [transferring, setTransferring] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const refreshPanesOnce = async () => {
     const ls = leftSite;
@@ -39,7 +43,9 @@ export function FileBrowser() {
     const remaining = new Set(taskUids);
 
     while (remaining.size > 0 && Date.now() < deadline) {
+      if (!mountedRef.current) return;
       for (const uid of Array.from(remaining)) {
+        if (!mountedRef.current) return;
         const res = await apiClient.post('/ApiQueueService/GetTask', { TaskUid: uid });
         const info = Array.isArray(res.data?.result) ? res.data.result[0] : res.data?.result?.[0] ?? res.data?.result ?? res.data;
         const status = String(info?.Status ?? '').toLowerCase();
@@ -56,6 +62,7 @@ export function FileBrowser() {
       await sleep(1500);
     }
 
+    if (!mountedRef.current) return;
     if (remaining.size > 0) {
       throw new Error('Timed out waiting for transfer completion');
     }

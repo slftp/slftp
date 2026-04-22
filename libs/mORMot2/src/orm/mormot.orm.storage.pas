@@ -520,6 +520,9 @@ type
     procedure RecordVersionFieldHandle(Occasion: TOrmOccasion;
       var Decoder: TJsonObjectDecoder);
     function GetStoredClassName: RawUtf8;
+    /// may be used as a slightly faster alternative to TOrmClass.Create
+    function NewOrmInstance: pointer;
+      {$ifdef HASINLINE}inline;{$endif}
   public
     /// initialize the abstract storage data
     constructor Create(aClass: TOrmClass; aServer: TRestOrmServer); reintroduce; virtual;
@@ -757,7 +760,7 @@ type
     procedure InternalTrackChangeUpdated(aRec: TOrm; const Fields: TFieldBits);
       {$ifdef HASINLINE}inline;{$endif}
     procedure SetFileName(const aFileName: TFileName);
-    procedure ComputeStateAfterLoad(var loaded: TPrecisionTimer; binary: boolean);
+    procedure ComputeStateAfterLoad(loadstart: Int64; binary: boolean);
     procedure SetBinaryFile(aBinary: boolean);
     procedure GetJsonValuesEvent(aDest: pointer; aRec: TOrm; aIndex: integer);
     /// used to create the JSON content from a SELECT parsed command
@@ -1712,14 +1715,6 @@ end;
 
 class function TOrmVirtualTable.ModuleName: RawUtf8;
 const
-  NAM: array[0..6] of PUtf8Char = (
-    'TSQLVIRTUALTABLE',
-    'TSQLVIRTUAL',
-    'TSQL',
-    'TORMVIRTUALTABLE',
-    'TORMVIRTUAL',
-    'TORM',
-    nil);
   LEN: array[-1..5] of byte = (
     1,  // 'T'
     16, // 'TSQLVIRTUALTABLE'
@@ -1734,7 +1729,8 @@ begin
   else
   begin
     ClassToText(self, result);
-    system.delete(result, 1, LEN[IdemPPChar(pointer(result), @NAM)]);
+    system.delete(result, 1, LEN[IdemPCharSep(pointer(result),
+      'TSQLVIRTUALTABLE|TSQLVIRTUAL|TSQL|TORMVIRTUALTABLE|TORMVIRTUAL|TORM|')]);
   end;
 end;
 
@@ -2050,6 +2046,14 @@ begin
     ClassToText(fStoredClass, result);
 end;
 
+function TRestStorage.NewOrmInstance: pointer;
+var
+  rtti: TRttiCustom;
+begin // inlined TRttiCustom.ClassNewInstance
+  rtti := fStoredClassRecordProps.TableRtti;
+  result := TRttiCustomNewInstance(rtti.Cache.NewInstance)(rtti);
+end;
+
 
 
 { ************ TRestStorageInMemory as Stand-Alone JSON/Binary Storage }
@@ -2065,9 +2069,9 @@ begin
   result := 0; // mark error
   if TableModelIndex <> fStoredClassProps.TableIndex then
     exit;
-  rec := fStoredClass.Create;
+  rec := NewOrmInstance; // faster fStoredClass.Create
   try
-    rec.FillFrom(SentData);
+    rec.FillFrom(SentData); // make an internal copy of SentData
     StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'EngineAdd'{$endif});
     try
       result := AddOne(rec, rec.IDValue > 0, SentData);
@@ -2121,7 +2125,7 @@ begin
       exit; // invalid input
   end;
   // same logic than EngineAdd/EngineUpdate but with no memory alloc
-  rec := fStoredClass.Create;
+  rec := NewOrmInstance; // faster fStoredClass.Create
   try
     if rec.FillFromArray(Fields, Sent) then
     begin
@@ -2161,7 +2165,7 @@ begin
     result := false; // mark error
     exit;
   end;
-  rec := fStoredClass.Create;
+  rec := NewOrmInstance; // faster fStoredClass.Create
   try
     rec.FillFrom(SentData, @fields);
     rec.IDValue := ID;
@@ -2182,7 +2186,7 @@ begin
     result := false; // mark error
     exit;
   end;
-  rec := fStoredClass.Create;
+  rec := NewOrmInstance; // faster fStoredClass.Create
   try
     rec.SetFieldSqlVars(Values);
     rec.IDValue := ID;
@@ -2251,7 +2255,7 @@ begin
       [self, aClass]);
   fFileName := aFileName;
   fBinaryFile := aBinaryFile;
-  fSearchRec := fStoredClass.Create; // used to searched values
+  fSearchRec := NewOrmInstance; // used to searched values
   // hashed and compared by ID, with proper T*ObjArray (fake) RTTI information
   fValues.InitRtti(fStoredClassRecordProps.TableObjArrayRtti, fValue,
     TObjectWithIDDynArrayHashOne, TObjectWithIDDynArrayCompare, nil, @fCount);
@@ -3146,8 +3150,8 @@ begin
   else
     KnownRowsCount := 0;
   Stmt.SelectFieldBits(bits, withID);
-  wr := fStoredClassRecordProps.CreateJsonWriter(
-    Stream, Expand, withID, bits, KnownRowsCount, 65500, tmp);
+  wr := fStoredClassRecordProps.CreateJsonWriter(Stream,
+          Expand, withID, bits, KnownRowsCount, 65500, tmp);
   if wr <> nil then
   try
     if Expand then
@@ -3274,9 +3278,11 @@ begin
   result := '';
   ResCount := 0;
   if PropNameEquals(fBasicSqlCount, SQL) then
+    // SELECT COUNT(*) FROM tablename
     SetCount(TableRowCount(fStoredClass))
   else if PropNameEquals(fBasicSqlHasRows[false], SQL) or
           PropNameEquals(fBasicSqlHasRows[true], SQL) then
+    // SELECT ID FROM tablename LIMIT 1
     if TableHasRows(fStoredClass) then
     begin
       // return one expanded row with fake ID=1 - enough for the ORM usecase
@@ -3417,19 +3423,18 @@ begin
 end;
 
 procedure TRestStorageInMemory.ComputeStateAfterLoad(
-  var loaded: TPrecisionTimer; binary: boolean);
+  loadstart: Int64; binary: boolean);
 const
-  _CALLER: array[boolean] of string[7] = (
+  _CALLER: array[boolean] of TShort7 = (
     'Json', 'Binary');
 var
   f: PtrInt;
   dup: integer; // should be an integer and not a PtrInt for ForceRehash(@dup)
   dupfield: RawUtf8;
-  timer: TPrecisionTimer;
+  start: Int64;
 begin
   // now fValue[] contains the just loaded data
-  loaded.Pause;
-  timer.Start;
+  QueryPerformanceMicroSeconds(start);
   fCount := length(fValue);
   fValues.Hasher.ForceReHash(@dup);
   if dup > 0 then
@@ -3464,17 +3469,18 @@ begin
     // JSON may have been tempered, so we actually ensure IDs are sorted
     fMaxID := FindMaxIDAndCheckSorted(pointer(fValue), fCount, fUnSortedID);
   InternalLog('LoadFrom% % count=% load=% index=%',
-    [_CALLER[binary], fStoredClass, fCount, loaded.Stop, timer.Stop]);
+    [_CALLER[binary], fStoredClass, fCount,
+     MicroSecToString(start - loadstart), MicroSecFrom(start)]);
 end;
 
 function TRestStorageInMemory.LoadFromJson(
   JsonBuffer: PUtf8Char; JsonBufferLen: PtrInt): boolean;
 var
   T: TOrmTableJson;
-  timer: TPrecisionTimer;
+  start: Int64;
 begin
   result := false;
-  timer.Start;
+  QueryPerformanceMicroSeconds(start);
   StorageLock(true {$ifdef DEBUGSTORAGELOCK}, 'LoadFromJson' {$endif});
   try
     if fCount > 0 then
@@ -3491,7 +3497,7 @@ begin
     finally
       T.Free;
     end;
-    ComputeStateAfterLoad(timer, {binary=}false);
+    ComputeStateAfterLoad(start, {binary=}false);
   finally
     StorageUnLock;
   end;
@@ -3499,7 +3505,7 @@ end;
 
 procedure TRestStorageInMemory.SaveToJson(Stream: TStream; Expand: boolean);
 var
-  i, j: PtrInt;
+  i: PtrInt;
   W: TOrmWriter;
   ndx: TIntegerDynArray;
 begin
@@ -3509,8 +3515,8 @@ begin
   try
     if fUnSortedID then
       fValues.CreateOrderedIndex(ndx, nil); // write in ascending ID order
-    W := fStoredClassRecordProps.CreateJsonWriter(Stream, Expand, true,
-      ALL_FIELDS, fCount, {bufsize=}1 shl 20);
+    W := fStoredClassRecordProps.CreateJsonWriter(Stream,
+      Expand, true, ALL_FIELDS, fCount, {bufsize=}1 shl 20);
     try
       if Expand then
         W.Add('[');
@@ -3519,10 +3525,9 @@ begin
         if Expand then
           W.AddCR; // for better readability
         if ndx = nil then
-          j := i
+          fValue[i].GetJsonValues(W)
         else
-          j := ndx[i];
-        fValue[j].GetJsonValues(W);
+          fValue[ndx[i]].GetJsonValues(W);
         W.AddComma;
       end;
       W.EndJsonObject(fCount, fCount);
@@ -3582,13 +3587,13 @@ var
   rec: TOrm;
   id: QWord;
   s: RawUtf8;
-  prop: TOrmPropInfo;
-  timer: TPrecisionTimer;
+  nfo: TOrmPropInfo;
+  start: Int64;
 begin
   result := false;
   if self = nil then
     exit;
-  timer.Start;
+  QueryPerformanceMicroSeconds(start);
   MS := AlgoSynLZ.StreamUnCompress(Stream, TRESTSTORAGEINMEMORY_MAGIC);
   if MS = nil then
     exit;
@@ -3616,7 +3621,7 @@ begin
         id := 0;
         for i := 0 to n - 1 do
         begin
-          rec := fStoredClass.Create;
+          rec := NewOrmInstance; // faster Create
           inc(id, R.VarUInt64);
           rec.IDValue := id;
           fValue[i] := rec;
@@ -3626,18 +3631,18 @@ begin
         // ReadVarUInt32Array() decoded TID into ID32[]
         for i := 0 to n - 1 do
         begin
-          rec := fStoredClass.Create;
+          rec := NewOrmInstance; // faster Create
           rec.IDValue := ID32[i];
           fValue[i] := rec;
         end;
       // read content, grouped by field (for better compression)
       for f := 0 to fStoredClassRecordProps.Fields.Count - 1 do
       begin
-        prop := fStoredClassRecordProps.Fields.List[f];
+        nfo := fStoredClassRecordProps.Fields.List[f];
         for i := 0 to n - 1 do
-          prop.SetBinary(fValue[i], R);
+          nfo.SetBinary(fValue[i], R);
       end;
-      ComputeStateAfterLoad(timer, {binary=}true);
+      ComputeStateAfterLoad(start, {binary=}true);
       result := true;
     except
       DropValues(false); // on error, reset all values and return false
@@ -3679,15 +3684,86 @@ begin
   end;
 end;
 
+function SaveID32(v: POrmArray; ndx, id32: PIntegerArray; n: PtrInt): boolean;
+var
+  i: PtrInt;
+  id: TID;
+begin
+  result := false;
+  i := 0;
+  if n <> 0 then
+    if ndx = nil then
+      repeat
+        id := v[i].IDValue;
+        id32[i] := id;
+        inc(i);
+        id := id shr 32; // optimized for FPC 64-bit
+        if id <> 0 then
+          exit;          // need to call SaveID64()
+      until i = n
+    else
+      repeat
+        id := v[ndx[i]].IDValue; // version following ndx[] order
+        id32[i] := id;
+        inc(i);
+        id := id shr 32;
+        if id <> 0 then
+          exit;
+      until i = n;
+  result := true; // perfect match for wkSorted
+end;
+
+procedure SaveID64(v: POrmArray; ndx: PIntegerArray; W: TBufferWriter; n: PtrInt);
+var
+  i: PtrInt;
+  lastID, newID: TID;
+begin
+  lastID := 0;
+  i := 0;
+  repeat
+    if ndx <> nil then
+      newID := v[ndx[i]].IDValue
+    else
+      newID := v[i].IDValue;
+    if newID <= lastID then
+      ERestStorage.RaiseUtf8('SaveToBinary: duplicated ID=%', [newID]);
+    // a bit less efficient than wkSorted (no optimization of +1 diff)
+    W.WriteVarUInt64(newID - lastID);
+    lastID := newID;
+    inc(i);
+  until i = n;
+end;
+
+procedure SaveContent(v: POrmArray; W: TBufferWriter; nfo: TOrmPropInfo; n: PtrInt);
+var
+  i: PtrInt;
+begin
+  i := 0;
+  repeat
+    nfo.GetBinary(v[i], W);
+    inc(i);
+  until i = n;
+end;
+
+procedure SaveContentIndexed(v: POrmArray; ndx: PIntegerArray; W: TBufferWriter;
+  nfo: TOrmPropInfo; n: PtrInt);
+var
+  i: PtrInt;
+begin
+  i := 0;
+  repeat
+    nfo.GetBinary(v[ndx[i]], W); // version following ndx[] order
+    inc(i);
+  until i = n;
+end;
+
 function TRestStorageInMemory.SaveToBinary(Stream: TStream): integer;
 var
   W: TBufferWriter;
   MS: TMemoryStream;
-  i, j, f: PtrInt;
-  hasInt64ID: boolean;
-  p: PID;
-  lastID, newID: TID;
+  f: PtrInt;
   ndx, id32: TIntegerDynArray;
+  nfo: TOrmPropInfo;
 begin
   result := 0;
   if (self = nil) or
@@ -3705,55 +3781,26 @@ begin
       if fUnSortedID then
         fValues.CreateOrderedIndex(ndx, nil);
       SetLength(id32, fCount);
-      hasInt64ID := false;
-      for i := 0 to fCount - 1 do
-      begin
-        if ndx = nil then
-          j := i
-        else
-          j := ndx[i];
-        p := @fValue[j].IDValue;
-        if p^ > high(cardinal) then
-        begin
-          hasInt64ID := true;
-          break;
-        end
-        else
-          id32[i] := PInteger(p)^;
-      end;
-      if hasInt64ID then
+      if SaveID32(pointer(fValue), pointer(ndx), pointer(id32), fCount) then
+        // we can use the efficient wkSorted algorithm on id32[] values
+        W.WriteVarUInt32Values(pointer(id32), fCount, wkSorted)
+      else
       begin
         // some IDs are 64-bit -> manual store difference as WriteVarUInt64
         W.WriteVarUInt32(fCount);
-        W.Write1(ord(wkFakeMarker)); // fake marker
-        lastID := 0;
-        for i := 0 to fCount - 1 do
-        begin
-          // a bit less efficient than wkSorted (no optimization of +1 diff)
-          if ndx = nil then
-            j := i
-          else
-            j := ndx[i];
-          newID := fValue[j].IDValue;
-          if newID <= lastID then
-            ERestStorage.RaiseUtf8('%.SaveToBinary(%): duplicated ID',
-              [self, fStoredClass]);
-          W.WriteVarUInt64(newID - lastID);
-          lastID := newID;
-        end;
-      end
-      else
-        // we can use the efficient wkSorted algorithm on id32[] values
-        W.WriteVarUInt32Values(pointer(id32), fCount, wkSorted);
+        W.Write1(ord(wkFakeMarker)); // notify not real WriteVarUInt32Values()
+        SaveID64(pointer(fValue), pointer(ndx), W, fCount);
+      end;
       // write content, grouped by field (for better compression)
-      for f := 0 to fStoredClassRecordProps.Fields.Count - 1 do
-        with fStoredClassRecordProps.Fields.List[f] do
+      if fCount <> 0 then
+        for f := 0 to fStoredClassRecordProps.Fields.Count - 1 do
+        begin
+          nfo := fStoredClassRecordProps.Fields.List[f];
           if ndx = nil then
-            for i := 0 to fCount - 1 do
-              GetBinary(fValue[i], W)
+            SaveContent(pointer(fValue), W, nfo, fCount)
           else
-            for i := 0 to fCount - 1 do
-              GetBinary(fValue[ndx[i]], W);
+            SaveContentIndexed(pointer(fValue), pointer(ndx), W, nfo, fCount);
+        end;
     finally
       StorageUnLock;
     end;
@@ -4079,8 +4126,8 @@ begin
       fOwner.InternalUpdateEvent(oeUpdate, fStoredClassProps.TableIndex,
         ID, '', nil, fValue[i]);
     if fTrackChangesFieldBitsOffset <> 0 then
-      InternalTrackChangeUpdated(
-        fValue[i], fStoredClassRecordProps.CopiableFieldsBits);
+      InternalTrackChangeUpdated(fValue[i],
+                                 fStoredClassRecordProps.CopiableFieldsBits);
   finally
     StorageUnLock;
   end;
@@ -4297,7 +4344,7 @@ begin
   else
   begin
     json := RawUtf8FromFile(fFileName);
-    result := LoadFromJson(pointer(json), length(json)); // buffer parsed in-place
+    result := LoadFromJson(pointer(json), length(json)); // parsed in-place
   end;
 end;
 

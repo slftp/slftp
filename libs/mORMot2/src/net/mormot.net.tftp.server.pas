@@ -27,6 +27,7 @@ uses
   mormot.core.os,
   mormot.core.unicode,
   mormot.core.text,
+  mormot.core.datetime,
   mormot.core.data,
   mormot.core.threads,
   mormot.core.log,
@@ -53,7 +54,9 @@ type
   // - ttoAllowSubFolders will allow RRW/WRQ to access nested files in
   // TTftpServerThread.FileFolder sub-directories
   // - ttoLowLevelLog will log each incoming/outgoing TFTP/UDP frames
-  // - ttoDropPriviledges on POSIX would impersonate the process as 'nobody'
+  // - ttoDropPriviledges on POSIX would impersonate the process as 'nobody' -
+  // but note that it is incompatible with the AutoRebind := true feature with
+  // any port < 1024 which requires root priviledged for socket binding
   // - ttoChangeRoot on POSIX would make the FileFolder the root folder
   // - ttoCaseInsensitiveFileName on POSIX would make file names case-insensitive
   // as they are on Windows (using an in-memory cache, refreshed every minute)
@@ -127,8 +130,8 @@ type
     function SetWrqStream(var Context: TTftpContext): TTftpError; virtual;
     // main processing methods for all incoming frames
     procedure OnFrameReceived(len: integer; var remote: TNetAddr); override;
-    procedure OnIdle(tix64: Int64); override;
-    procedure OnShutdown; override; // = Destroy
+    procedure OnIdle(tix64: Int64); override; // called every second
+    procedure OnShutdown; override; // from Destroy
     procedure NotifyShutdown;
   public
     /// initialize and bind the server instance, in non-suspended state
@@ -216,17 +219,19 @@ destructor TTftpConnectionThread.Destroy;
 begin
   Terminate;
   fContext.Shutdown;
-  fOwner.fConnection.Remove(self); // ownobject=false: just decrease Count
+  if Assigned(fOwner.fConnection) then // may be nil from fOwner.Destroy
+    fOwner.fConnection.Remove(self); // ownobject=false: just decrease Count
   inherited Destroy;
-  Freemem(fLastSent);
+  FreeMem(fLastSent);
   FreeMem(fContext.Frame);
 end;
 
 procedure TTftpConnectionThread.DoExecute;
 var
   len: integer;
-  res: TTftpError;
+  te: TTftpError;
   nr: TNetResult;
+  ev: TNetEvents;
   tix: Int64;
   fn: RawUtf8;
 begin
@@ -235,34 +240,48 @@ begin
     [fContext.Remote.IPShort({withport=}true), TFTP_OPCODE[fContext.OpCode],
      fContext.FileName, fContext.FileNameFull], self);
   StringToUtf8(ExtractFileName(Utf8ToString(fContext.FileName)), fn);
-  fContext.RetryCount := fOwner.MaxRetry;
-  fContext.Sock.SetReceiveTimeout(1000); // check fTerminated every second
   repeat
-    // try to receive a frame on this UDP/IP link
-    PInteger(fContext.Frame)^ := 0;
-    len := fContext.Sock.RecvFrom(fContext.Frame, fFrameMaxSize, fContext.Remote);
-    if len > 0 then
-      PByteArray(fContext.Frame)^[len] := 0; // 0 ended for StrLen() safety
+    // use poll/select and wait up to one second
+    ev := fContext.Sock.WaitFor(1000, [neRead, neError]);
+    if Terminated or
+       (neError in ev) then // socket error (maybe ICMP error on Windows)
+    begin
+      fLogClass.Add.Log(sllWarning, 'DoExecute: abort after WaitFor', self);
+      break;
+    end;
+    len := 0;
+    if neRead in ev then
+    begin
+      // receive the pending data
+      PInteger(fContext.Frame)^ := 0;
+      len := fContext.Sock.RecvFrom(fContext.Frame, fFrameMaxSize, fContext.Remote);
+      if Terminated then
+        break;
+      if len >= 0 then
+      begin
+        nr := nrOK;
+        PByteArray(fContext.Frame)^[len] := 0; // #0 ended for StrLen() safety
+      end
+      else
+        nr := NetLastError;
+      if ttoLowLevelLog in fOwner.fOptions then
+        fLog.Log(sllTrace, '% recv=% % %/%',
+          [fn, _NR[nr], ToText(fContext.Frame^, len),
+           CardinalToHexShort(fContext.CurrentSize), CardinalToHexShort(fFileSize)]);
+      if (len <= 0) and
+         (nr <> nrRetry) then // on Windows, ICMP error = WSAECONNRESET=nrClosed
+      begin
+        fLogClass.Add.Log(sllWarning, 'DoExecute: abort % after len=% RecvFrom=%',
+          [fn, len, _NR[nr]], self);
+        break; // len<0 = raw socket error, len=0 = ICMP error on POSIX
+      end;
+    end;
     if Terminated then
       break;
-    if ttoLowLevelLog in fOwner.fOptions then
-      fLog.Log(LOG_TRACEWARNING[len <= 0], '% recv % %/%',
-        [fn, ToText(fContext.Frame^, len),
-         CardinalToHexShort(fContext.CurrentSize), CardinalToHexShort(fFileSize)]);
-    if Terminated or
-       (len = 0) then // -1=error, 0=shutdown
-      break;
-    if len < 0 then
+    if len <= 0 then
     begin
-      // network error (may be timeout)
-      nr := NetLastError;
-      if nr <> nrRetry then
-      begin
-        fLog.Log(sllError, 'DoExecute % recvfrom failed: %',
-          [fn, ToText(nr)^], self);
-        break;
-      end;
-      if mormot.core.os.GetTickCount64 < fContext.TimeoutTix then
+      // handle WaitFor() timeout
+      if GetTickSec <= fContext.TimeoutTicks then // set by fContext.SendFrame
         // wait for incoming UDP packet within the timeout period
         continue;
       // retry after timeout
@@ -282,15 +301,15 @@ begin
     end
     else
     begin
-      // parse incoming DAT/ACK and generate the answer
-      res := fContext.ParseData(len);
+      // parse incoming len>0 DAT/ACK and generate the answer
+      te := fContext.ParseData(len);
       if Terminated then
         break;
-      if res <> teNoError then
+      if te <> teNoError then
       begin
-        if res <> teFinished then
+        if te <> teFinished then
           // fatal error - e.g. teDiskFull
-          fContext.SendErrorAndShutdown(res, fLog, self, 'DoExecute');
+          fContext.SendErrorAndShutdown(te, fLog, self, 'DoExecute'); // and log
         break;
       end;
       MoveFast(fContext.Frame^, fLastSent^, fContext.FrameLen); // backup
@@ -306,15 +325,16 @@ begin
     if nr <> nrOk then
     begin
       fLog.Log(sllDebug, 'DoExecute %: % abort sending %',
-        [fn, ToText(nr)^, ToText(fContext.Frame^)], self);
+        [fn, _NR[nr], ToText(fContext.Frame^)], self);
       break;
     end;
   until Terminated;
-  // Destroy will call fContext.Shutdown and remove the connection
+  // thread/socket was aborted or we reached teFinished
   tix := mormot.core.os.GetTickCount64 - tix;
   if tix <> 0 then
-    fLog.Log(sllDebug, 'DoExecute: % finished at %/s',
-      [fn, KB((fFileSize * 1000) div tix)], self);
+    fLog.Log(sllDebug, 'DoExecute: % finished at %/s - shutdown=%',
+      [fn, KB((fFileSize * 1000) div tix), BOOL_STR[Terminated]], self);
+  // note: Destroy will call fContext.Shutdown and remove the connection
 end;
 
 
@@ -335,13 +355,19 @@ begin
   fMaxConnections := 100; // = 100 threads, good enough for regular TFTP server
   fMaxRetry := 2;
   fOptions := Options;
-  inherited Create(LogClass, BindAddress, BindPort, ProcessName, 5000); // bind
+  // bind and launch the thread to start serving content
+  fAutoRebind := true; // make it resilient on raw socket errors
+  inherited Create(LogClass, BindAddress, BindPort, ProcessName, 5000);
+  // setup the execution parameters
   {$ifdef OSPOSIX}
   if ttoDropPriviledges in fOptions then
   begin
     ok := DropPriviledges;
     if not ok then
-      exclude(fOptions, ttoDropPriviledges);
+      exclude(fOptions, ttoDropPriviledges)
+    else if fAutoRebind and
+            (GetInteger(pointer(BindPort)) < 1024) then
+      fAutoRebind := false; // only root can bind low ports
     LogClass.Add.Log(LOG_INFOWARNING[not ok],
       'Create: DropPriviledges(nobody)=%', [ok], self);
   end;
@@ -369,18 +395,19 @@ destructor TTftpServerThread.Destroy;
 begin
   inherited Destroy;
   fFileCache.Free;
+  FreeAndNil(fConnection); // paranoid (usually done in OnShutdown)
+  {$ifdef OSPOSIX}
+  FreeAndNil(fPosixFileNames);
+  {$endif OSPOSIX}
 end;
 
 procedure TTftpServerThread.OnShutdown;
 begin
-  // called by Executed on Terminated
+  // called by Executed on Terminated or AutoRebind
   if fConnection = nil then
     exit;
   NotifyShutdown;
-  FreeAndNil(fConnection);
-  {$ifdef OSPOSIX}
-  FreeAndNil(fPosixFileNames);
-  {$endif OSPOSIX}
+  fConnection.Clear;
 end;
 
 procedure TTftpServerThread.NotifyShutdown;
@@ -444,22 +471,27 @@ end;
 
 function TTftpServerThread.GetFileName(const RequestedFileName: RawUtf8): TFileName;
 var
+  u: RawUtf8;
   fn: TFileName;
   {$ifdef OSPOSIX}
   readms: integer;
   {$endif OSPOSIX}
 begin
   result := '';
-  fn := NormalizeFileName(Utf8ToString(RequestedFileName));
-  if fn = '' then
-    exit;
-  while (fn[1] = '/') or
-        (fn[1] = '\') do
-    delete(fn, 1, 1); // trim any leading root (we start from fFileFolder anyway)
-  if SafeFileName(fn) and
+  u := RequestedFileName;
+  NormalizeFileNameU(u);
+  repeat
+    if u = '' then
+      exit;
+    if not (u[1] in ['/', '\']) then
+      break;
+    delete(u, 1, 1); // trim any leading path delimiter
+  until false;
+  if SafeFileNameU(u) and
      ((ttoAllowSubFolders in fOptions) or
-      (Pos(PathDelim, result) = 0)) then
+      (PosExChar(PathDelim, u) = 0)) then
   begin
+    Utf8ToFileName(u, fn);
     {$ifdef OSPOSIX}
     if Assigned(fPosixFileNames) then
     begin
@@ -571,7 +603,8 @@ begin
   fLog.Log(sllDebug, 'OnFrameReceived: % %',
     [remote.IPShort, ToText(PTftpFrame(fFrame)^, len)], self);
   op := ToOpCode(PTftpFrame(fFrame)^);
-  if not (op in [toRrq, toWrq]) then
+  if (fConnection = nil) or
+     not (op in [toRrq, toWrq]) then
     exit; // just ignore to avoid DoS on fuzzing
   if fConnection.Count >= fMaxConnections then
   begin
@@ -649,7 +682,7 @@ begin
   begin
     c.Shutdown;
     fLog.Log(sllDebug, 'OnFrameReceived: [%] sending %',
-      [ToText(nr)^, ToText(c.Frame^)], self);
+      [_NR[nr], ToText(c.Frame^)], self);
   end;
 end;
 

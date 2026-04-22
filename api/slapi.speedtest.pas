@@ -51,6 +51,7 @@ type
     FTests: TObjectDictionary<string, TSpeedTestContext>;
     FLock: TSLCriticalSection2;
     class var FInstance: TSpeedTestManager;
+    class var FInstanceLock: TSLCriticalSection2;
     constructor Create;
   public
     class function Instance: TSpeedTestManager;
@@ -113,10 +114,15 @@ destructor TSpeedTestContext.Destroy;
 begin
   if Thread <> nil then
   begin
-    // We don't free the thread here usually if FreeOnTerminate is true,
-    // but we might want to wait? For now assume thread handles itself or is referenced safely.
-    // Actually if thread is running, destroying context is bad.
-    // Tests should be kept until thread finishes.
+    Lock.Enter('Destroy-Abort');
+    try
+      Aborted := True;
+    finally
+      Lock.Leave;
+    end;
+    Thread.FreeOnTerminate := False;
+    Thread.WaitFor;
+    FreeAndNil(Thread);
   end;
   Log.Free;
   Results.Free;
@@ -389,7 +395,15 @@ end;
 class function TSpeedTestManager.Instance: TSpeedTestManager;
 begin
   if FInstance = nil then
-    FInstance := TSpeedTestManager.Create;
+  begin
+    FInstanceLock.Enter('Instance');
+    try
+      if FInstance = nil then
+        FInstance := TSpeedTestManager.Create;
+    finally
+      FInstanceLock.Leave;
+    end;
+  end;
   Result := FInstance;
 end;
 
@@ -1137,12 +1151,13 @@ begin
 end;
 
 initialization
-  //irccommands.speed.config := configunit.config;
+  TSpeedTestManager.FInstanceLock := TSLCriticalSection2.Create('SpeedTestInstance');
   irc.GlIrcLogHook := SpeedTestLogHookWrapper;
-  TSpeedTestManager.Instance; // Initialize singleton immediately to avoid race conditions
+  TSpeedTestManager.Instance;
 
 finalization
   if TSpeedTestManager.FInstance <> nil then
-    TSpeedTestManager.FInstance.Free;
+    FreeAndNil(TSpeedTestManager.FInstance);
+  FreeAndNil(TSpeedTestManager.FInstanceLock);
     
 end.

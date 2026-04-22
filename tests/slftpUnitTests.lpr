@@ -69,6 +69,7 @@ uses
   variantCacheTests,
   sltimerTests,
   ruleconditions.tvTests,
+  mycryptoTests,
   mormot.db.raw.sqlite3.static,
   mormot.db.sql.sqlite3;
 

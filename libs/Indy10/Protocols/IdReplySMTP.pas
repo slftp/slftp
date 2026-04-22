@@ -511,9 +511,15 @@ begin
   end;
 end;
 
+procedure RaiseSMTPError(ANumericCode: Integer; AEnhancedCode: TIdSMTPEnhancedCode; const AText: String);
+  {$IFDEF USE_NORETURN}noreturn;{$ENDIF}
+begin
+  raise EIdSMTPReplyError.CreateError(ANumericCode, AEnhancedCode, AText);
+end;
+
 procedure TIdReplySMTP.RaiseReplyError;
 begin
-  raise EIdSMTPReplyError.CreateError(NumericCode, FEnhancedCode, Text.Text);
+  RaiseSMTPError(NumericCode, FEnhancedCode, Text.Text);
 end;
 
 procedure TIdReplySMTP.SetEnhancedCode(AValue: TIdSMTPEnhancedCode);

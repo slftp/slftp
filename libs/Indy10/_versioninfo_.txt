@@ -1,4 +1,2 @@
-51703ed50652984203e8ea55189ad5a5b1c3f629
-Updating CompUtil for upcoming RAD Studio 13.
-
-Further tweaks to PkgGen.
+152f3a0462c734ec0ab19fac4904974c1237df6d
+Bumping version number

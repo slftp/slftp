@@ -77,6 +77,9 @@ const
 type
   TSqlDBOleDBConnection = class;
 
+  /// meta-class of all OleDB connection properties classes
+  TSqlDBOleDBConnectionPropertiesClass = class of TSqlDBOleDBConnectionProperties;
+
   TSqlDBOleDBOnCustomError = function(Connection: TSqlDBOleDBConnection;
     ErrorRecords: IErrorRecords; RecordNum: cardinal): boolean of object;
 
@@ -208,7 +211,7 @@ type
   {$endif CPU64}
   TSqlDBOleDBStatementParam = record
     /// storage used for BLOB (ftBlob) values
-    // - will be refered as DBTYPE_BYREF when sent as OleDB parameters, to
+    // - will be referred as DBTYPE_BYREF when sent as OleDB parameters, to
     // avoid unnecessary memory copy
     VBlob: RawByteString;
     /// storage used for TEXT (ftUtf8) values
@@ -262,7 +265,6 @@ type
     fCommand: ICommandText;
     fRowSet: IRowSet;
     fRowSetAccessor: HACCESSOR;
-    fRowSize: integer;
     fRowStepResult: HRESULT;
     fRowStepHandleRetrieved: PtrUInt;
     fRowStepHandleCurrent: PtrUInt;
@@ -270,11 +272,12 @@ type
     fRowSetData: TBytes;
     fParamBindings: TDBBindingDynArray;
     fColumnBindings: TDBBindingDynArray;
-    fHasColumnValueByRef: boolean;
     fOleDBConnection: TSqlDBOleDBConnection;
     fDBParams: TDBParams;
+    fRowSize: integer;
     fRowBufferSize: integer;
     fUpdateCount: integer;
+    fHasColumnValueByRef: boolean;
     fAlignBuffer: boolean;
     procedure SetRowBufferSize(Value: integer);
     /// resize fParams[] if necessary, set the VType and return pointer to
@@ -539,7 +542,6 @@ type
     // - will handle Microsoft SQL Server error messages (if any)
     function MSOnCustomError(Connection: TSqlDBOleDBConnection;
       ErrorRecords: IErrorRecords; RecordNum: cardinal): boolean;
-  public
   end;
 
   /// OleDB connection properties to Microsoft SQL Server 2005, via
@@ -664,20 +666,20 @@ type
 {$ifndef PUREMORMOT2}
 
 type
-  TOleDBConnectionProperties = TSqlDBOleDBConnectionProperties;
-  TOleDBOracleConnectionProperties = TSqlDBOleDBOracleConnectionProperties;
-  TOleDBMSOracleConnectionProperties = TSqlDBOleDBMSOracleConnectionProperties;
-  TOleDBMSSQLConnectionProperties = TSqlDBOleDBMSSQLConnectionProperties;
+  TOleDBConnectionProperties          = TSqlDBOleDBConnectionProperties;
+  TOleDBOracleConnectionProperties    = TSqlDBOleDBOracleConnectionProperties;
+  TOleDBMSOracleConnectionProperties  = TSqlDBOleDBMSOracleConnectionProperties;
+  TOleDBMSSQLConnectionProperties     = TSqlDBOleDBMSSQLConnectionProperties;
   TOleDBMSSQL2005ConnectionProperties = TSqlDBOleDBMSSQL2005ConnectionProperties;
   TOleDBMSSQL2008ConnectionProperties = TSqlDBOleDBMSSQL2008ConnectionProperties;
   TOleDBMSSQL2012ConnectionProperties = TSqlDBOleDBMSSQL2012ConnectionProperties;
-  TOleDBMySQLConnectionProperties = TSqlDBOleDBMySQLConnectionProperties;
+  TOleDBMySQLConnectionProperties     = TSqlDBOleDBMySQLConnectionProperties;
   {$ifdef CPU32} // Jet is not available on Win64
-  TOleDBJetConnectionProperties = TSqlDBOleDBJetConnectionProperties;
+  TOleDBJetConnectionProperties       = TSqlDBOleDBJetConnectionProperties;
   {$endif CPU32}
-  TOleDBACEConnectionProperties = TSqlDBOleDBACEConnectionProperties;
-  TOleDBAS400ConnectionProperties = TSqlDBOleDBAS400ConnectionProperties;
-  TOleDBOdbcSQLConnectionProperties = TSqlDBOleDBOdbcSQLConnectionProperties;
+  TOleDBACEConnectionProperties       = TSqlDBOleDBACEConnectionProperties;
+  TOleDBAS400ConnectionProperties     = TSqlDBOleDBAS400ConnectionProperties;
+  TOleDBOdbcSQLConnectionProperties   = TSqlDBOleDBOdbcSQLConnectionProperties;
 
 {$endif PUREMORMOT2}
 
@@ -842,16 +844,11 @@ type
     Status: PtrInt;
     Length: PtrUInt; // ignored for alignment
     case integer of
-      0:
-        (Int64: Int64);
-      1:
-        (Double: double);
-      2:
-        (ValueInlined: byte); // for TSqlDBColumnProperty.ColumnValueInlined
-      3:
-        (ByRef: pointer); // DBTYPE_BYREF PWideChar/PAnsiChar
+      0: (Int64: Int64);
+      1: (Double: double);
+      2: (ValueInlined: byte); // for TSqlDBColumnProperty.ColumnValueInlined
+      3: (ByRef: pointer);     // DBTYPE_BYREF PWideChar/PAnsiChar
   end;
-
   PColumnValue = ^TColumnValue;
 
 procedure TSqlDBOleDBStatement.LogStatusError(Status: integer;
@@ -1038,67 +1035,65 @@ begin
       ftCurrency:
         result := Curr64ToString(V^.Int64);
       ftDate:
-        result := Ansi7ToString(DateTimeToIso8601Text(V^.Double));
+        Ansi7ToString(DateTimeToIso8601Text(V^.Double), result);
       ftUtf8:
         result := RawUnicodeToString(ColPtr(C, V), V^.Length shr 1);
       ftBlob:
-        result := Ansi7ToString(BinToBase64WithMagic(ColPtr(C, V), V^.Length));
+        Ansi7ToString(BinToBase64WithMagic(ColPtr(C, V), V^.Length), result);
     end;
 end;
 
 function TSqlDBOleDBStatement.ColumnToVariant(
   Col: integer; var Value: Variant; ForceUtf8: boolean): TSqlDBFieldType;
 var
-  C: PSqlDBColumnProperty;
-  V: PColumnValue;
-  P: pointer;
+  c: PSqlDBColumnProperty;
+  cv: PColumnValue;
+  p: pointer;
+  v: TSynVarData absolute Value;
 begin
   // dedicated version to avoid as much memory allocation than possible
-  V := GetCol(Col, C);
-  if V = nil then
+  cv := GetCol(Col, c);
+  if cv = nil then
     result := ftNull
   else
-    result := C^.ColumnType;
+    result := c^.ColumnType;
   VarClear(Value);
-  with TVarData(Value) do
-  begin
-    VType := MAP_FIELDTYPE2VARTYPE[result];
-    case result of
-      ftInt64,
-      ftDouble,
-      ftCurrency,
-      ftDate:
-        VInt64 := V^.Int64; // copy 64 bit content
-      ftUtf8: // VType is varSynUnicode unless ForceUtf8 is set
+  v.VType := MAP_FIELDTYPE2VARTYPE[result];
+  case result of
+    ftInt64,
+    ftDouble,
+    ftCurrency,
+    ftDate:
+      v.VInt64 := cv^.Int64; // copy 64 bit content
+    ftUtf8: // VType is varSynUnicode unless ForceUtf8 is set
+      begin
+        p := ColPtr(c, cv);
+        v.VAny := nil;
+        if ForceUtf8 or
+           (p = nil) or
+           (cv^.Length = 0) then
         begin
-          P := ColPtr(C, V);
-          VAny := nil;
-          if ForceUtf8 or
-             (P = nil) or
-             (V^.Length = 0) then
-          begin
-            VType := varString;
-            RawUnicodeToUtf8(P, V^.Length shr 1, RawUtf8(VAny));
-          end
-          {$ifndef UNICODE}
-          else if not Connection.Properties.VariantStringAsWideString then
-          begin
-            VType := varString;
-            RawUnicodeToString(P, V^.Length shr 1, AnsiString(VAny));
-          end
-          {$endif UNICODE}
-          else
-            FastSynUnicode(SynUnicode(VAny), P, V^.Length shr 1);
-        end;
-      ftBlob: // as varString
-        if fForceBlobAsNull then
-          VType := varNull
+          v.VType := varString;
+          RawUnicodeToUtf8(p, cv^.Length shr 1, RawUtf8(v.VAny));
+        end
+        {$ifndef UNICODE}
+        else if not Connection.Properties.VariantStringAsWideString then
+        begin
+          v.VType := varString;
+          RawUnicodeToString(p, cv^.Length shr 1, AnsiString(v.VAny));
+        end
+        {$endif UNICODE}
         else
-        begin
-          VAny := nil;
-          FastSetRawByteString(RawByteString(VAny), ColPtr(C, V), V^.Length);
-        end;
-    end;
+          FastSynUnicode(SynUnicode(v.VAny), p, cv^.Length shr 1);
+      end;
+    ftBlob: // as varString
+      if dsfForceBlobAsNull in fFlags then
+        v.VType := varNull
+      else
+      begin
+        v.VAny := nil;
+        FastSetRawByteString(RawByteString(v.VAny), ColPtr(c, cv), cv^.Length);
+      end;
   end;
 end;
 
@@ -1126,7 +1121,7 @@ Write:case c^.ColumnType of
         ftDate:
           begin
             W.Add('"');
-            W.AddDateTime(@V^.Double, 'T', #0, fForceDateWithMS);
+            W.AddDateTime(@V^.Double, 'T', #0, dsfForceDateWithMS in fFlags);
             W.AddDirect('"');
           end;
         ftUtf8:
@@ -1137,7 +1132,7 @@ Write:case c^.ColumnType of
             W.AddDirect('"');
           end;
         ftBlob:
-          if fForceBlobAsNull then
+          if dsfForceBlobAsNull in fFlags then
             W.AddNull
           else
             W.WrBase64(ColPtr(C, V), V^.Length, true); // withMagic=true
@@ -1181,7 +1176,7 @@ begin
       ftCurrency:
         Value := PCurrency(@VInt64)^;
       ftDate:
-        Value := PDateTime(@VInt64)^;
+        Value := unaligned(PDateTime(@VInt64)^);
       ftUtf8:
         Value := VText; // returned as WideString/OleStr variant
       ftBlob:
@@ -1464,15 +1459,24 @@ end;
 
 procedure TSqlDBOleDBStatement.FlushRowSetData;
 var
-  c: PtrInt;
+  c: integer;
+  p: PSqlDBColumnProperty;
+  byref: pointer;
 begin
   if fHasColumnValueByRef then
-    for c := 0 to fColumnCount - 1 do
-      with fColumns[c] do
-        if not ColumnValueInlined then // release DBTYPE_BYREF memory
-          with PColumnValue(@fRowSetData[ColumnAttr])^ do
-            if ByRef <> nil then
-              OleDBConnection.fMalloc.Free(ByRef);
+  begin
+    p := pointer(fColumns);
+    for c := 1 to fColumnCount do
+    begin
+      if not p^.ColumnValueInlined then // release DBTYPE_BYREF memory
+      begin
+        byref := PColumnValue(@fRowSetData[p^.ColumnAttr])^.ByRef;
+        if byref <> nil then
+          OleDBConnection.fMalloc.Free(byref);
+      end;
+      inc(p);
+    end;
+  end;
   FillcharFast(fRowSetData[0], fRowSize, 0);
 end;
 
@@ -1861,9 +1865,7 @@ procedure TSqlDBOleDBConnection.OleDBCheck(aStmt: TSqlDBStatement;
     if not Succeeded(aResult) or
            (fOleDBErrorMessage <> '') then
     begin
-      s := string(GetErrorText(aResult));
-      if s = '' then
-        s := 'OLEDB Error ' + IntToHex(aResult, 8);
+      s := WinLastError('OleDB', aResult);
       if s <> fOleDBErrorMessage then
         fOleDBErrorMessage := s + ' - ' + fOleDBErrorMessage;
     end;

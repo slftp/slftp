@@ -1,0 +1,10 @@
+{$IFDEF CAN_PUSHPOP_OPTIONS}
+  {$IFDEF FPC}
+    {$POP}
+  {$ELSE}
+    {$IFDEF DCC}
+      {$WARN POPOPT_WITH_NO_MATCHING OFF}
+      {$POPOPT}
+    {$ENDIF}
+  {$ENDIF}
+{$ENDIF}

@@ -499,7 +499,7 @@ begin
   if StrToBoolDef(fUrl.Properties.Values['syndb_singleconnection'], false) then
     ThreadingMode := tmMainConnection;
   // caching disabled by default - enabled if stable enough
-  fUseCache := {$ifdef ZEOS72UP}true{$else}false{$endif ZEOS72UP};
+  UseCache := {$ifdef ZEOS72UP}true{$else}false{$endif ZEOS72UP};
   case fDbms of
     dSQLite:
       begin
@@ -518,7 +518,7 @@ begin
               SQLCreateDatabase(StringToUtf8(fUrl.Database))));
         end;
         fUrl.Properties.Add('codepage=UTF8');
-        fUseCache := true; // caching rocks with Firebird ZDBC provider :)
+        UseCache := true; // caching rocks with Firebird ZDBC provider :)
       end;
     dOracle,
     dPostgreSQL,
@@ -526,7 +526,7 @@ begin
     dMariaDB:
       begin
         fUrl.Properties.Add('codepage=UTF8');
-        fUseCache := true;
+        UseCache := true;
       end;
   end;
   fStatementParams := TStringList.Create;
@@ -576,7 +576,7 @@ begin
       end;
     dMSSQL:
       begin
-        fUseCache := true;
+        UseCache := true;
         fStatementParams.Add('enhanced_column_info=false');
         //fStatementParams.Add('use_ole_update_params=True'); //see 'ADO'
         //fStatementParams.Add('internal_buffer_size=131072'); //see 'ADO'
@@ -1160,7 +1160,7 @@ begin
           fStatement.SetBigDecimal(i + FirstDbcIndex, PCurrency(@VInt64)^);
           {$endif ZEOS72UP}
         ftDate:
-          fStatement.SetTimestamp(i + FirstDbcIndex, PDateTime(@VInt64)^);
+          fStatement.SetTimestamp(i + FirstDbcIndex, unaligned(PDateTime(@VInt64)^));
         ftUtf8:
           {$ifdef ZEOS72UP}
           fStatement.SetUTF8String(i + FirstDbcIndex, VData);
@@ -1425,7 +1425,7 @@ begin
           begin
             WR.AddDirect('"');
             WR.AddDateTime(fResultSet.GetTimestamp(col + FirstDbcIndex),
-              fForceDateWithMS);
+              dsfForceDateWithMS in fFlags);
             WR.AddDirect('"');
           end;
         ftUtf8:
@@ -1446,7 +1446,7 @@ begin
             WR.AddDirect('"');
           end;
         ftBlob:
-          if fForceBlobAsNull then
+          if dsfForceBlobAsNull in fFlags then
             WR.AddNull
           else if fDbms in [dMySQL, dMariaDB, dSQLite] then
           begin

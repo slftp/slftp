@@ -205,25 +205,33 @@ begin
 end;
 
 function TSlftpApiServer.OnBeforeUri(Ctxt: TRestServerUriContext): boolean;
+const
+  CMaxBodySize = 10 * 1024 * 1024; // 10 MB max request body
 var
   sUrl: string;
   sUrlLower: string;
 begin
-  Result := True; // By default, let mORMot continue processing
+  Result := True;
 
   if (Ctxt = nil) or (Ctxt.Call = nil) then
     Exit;
 
+  if Length(Ctxt.Call^.InBody) > CMaxBodySize then
+  begin
+    Ctxt.Call^.OutStatus := 413;
+    Ctxt.Call^.OutBody := '{"error":"Request body too large"}';
+    Result := False;
+    Exit;
+  end;
+
   sUrl := UTF8ToString(Ctxt.Call^.Url);
 
-  // Normalize leading slash
   if (sUrl <> '') and (sUrl[1] <> '/') then
     sUrl := '/' + sUrl;
 
   sUrlLower := LowerCase(sUrl);
 
-  // Check for other interceptions if needed
-  Result := True; // By default, let mORMot continue processing
+  Result := True;
 end;
 
 procedure TSlftpApiServer.RegisterServices;
@@ -530,8 +538,11 @@ begin
     Call.OutBody := StringFromFile(FileName);
     ContentType := GetMimeType(FileName);
     Call.OutHead := 'Content-Type: ' + ContentType;
+    if (Pos('.js', FileName) > 0) or (Pos('.css', FileName) > 0) or
+       (Pos('.woff', FileName) > 0) or (Pos('.png', FileName) > 0) or
+       (Pos('.svg', FileName) > 0) or (Pos('.ico', FileName) > 0) then
+      Call.OutHead := Call.OutHead + #13#10 + 'Cache-Control: public, max-age=3600';
     Call.OutStatus := 200;
-    // Result already = True
   end
   else
   begin
@@ -606,7 +617,8 @@ begin
       on E: Exception do
       begin
         Debug(dpError, rsection, Format('[EXCEPTION] Start failed: %s', [E.Message]));
-        FreeAndNil(model);
+        FreeAndNil(FHttpServer);
+        FreeAndNil(FRestServer);
         Result := False;
       end;
     end;

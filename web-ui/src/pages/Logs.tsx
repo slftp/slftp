@@ -1,7 +1,8 @@
-import { Button, Card, Group, ScrollArea, Stack, Switch, Title, Code, Loader, Alert, TextInput, Text, Checkbox } from '@mantine/core';
+import { Button, Card, Group, Stack, Switch, Title, Loader, Alert, TextInput, Text, Checkbox } from '@mantine/core';
 import { IconRefresh, IconAlertCircle, IconDownload } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { apiClient } from '../api/client';
 
 export function Logs() {
@@ -9,12 +10,12 @@ export function Logs() {
   const [filter, setFilter] = useState('');
   const [useRegex, setUseRegex] = useState(false);
   const [caseSensitive, setCaseSensitive] = useState(false);
-  const viewport = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<any>(null);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['logs'],
     queryFn: async () => {
-      const res = await apiClient.post('/ApiLogService/GetLogs', { Lines: 50000 });
+      const res = await apiClient.post('/ApiLogService/GetLogs', { Lines: 2000 });
       let result = res.data;
       if (res.data.result && Array.isArray(res.data.result)) {
          // mORMot wrapper
@@ -43,19 +44,6 @@ export function Logs() {
     refetchInterval: autoRefresh ? 30000 : false,
     refetchOnWindowFocus: false,
   });
-
-  const scrollToBottom = () => {
-    if (viewport.current) {
-      viewport.current.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' });
-    }
-  };
-
-  useEffect(() => {
-    // Only auto-scroll if not filtering, or if user wants it (simplified: always on load/refresh if no filter or filtered results changed)
-    if (data && filter === '') {
-      scrollToBottom();
-    }
-  }, [data, filter]);
 
   const rawLogs = Array.isArray(data) ? data : [];
 
@@ -141,17 +129,24 @@ export function Logs() {
         </Alert>
       )}
 
-      <Card withBorder radius="md" p={0} style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <Card withBorder radius="md" p={0} style={{ flex: 1, overflow: 'hidden' }}>
         {isLoading && !data ? (
            <Center h="100%">
              <Loader size="xl" />
            </Center>
         ) : (
-          <ScrollArea h="100%" viewportRef={viewport} p="xs" style={{ background: 'var(--bg-card-secondary)' }}>
-            <Code block bg="transparent" style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-              {filteredLogs.length > 0 ? filteredLogs.join('\n') : 'No logs found.'}
-            </Code>
-          </ScrollArea>
+          <Virtuoso
+            ref={virtuosoRef}
+            data={filteredLogs}
+            initialTopMostItemIndex={filteredLogs.length - 1}
+            followOutput="smooth"
+            style={{ height: '100%', background: 'var(--bg-card-secondary)' }}
+            itemContent={(_index, line) => (
+              <div style={{ padding: '0 12px', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>
+                {line}
+              </div>
+            )}
+          />
         )}
       </Card>
       

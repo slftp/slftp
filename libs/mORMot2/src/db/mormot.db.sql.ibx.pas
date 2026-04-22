@@ -73,6 +73,7 @@ uses
   mormot.core.rtti,
   mormot.core.log,
   mormot.core.buffers,
+  mormot.core.variants,
   mormot.db.core,
   mormot.db.sql;
 
@@ -193,7 +194,6 @@ type
   /// implements a statement via a IBX/FB Pascal API database connection
   TSqlDBIbxStatement = class(TSqlDBStatementWithParamsAndColumns)
   protected
-    fAutoStartCommitTrans: boolean;
     fStatement: IStatement;
     fResultSet: IResultSet;
     fResults: IResults;
@@ -206,6 +206,7 @@ type
     fInternalTPB: ITPB;
     fInternalTransaction: ITransaction;
     fReadOnlyTransaction: boolean;
+    fAutoStartCommitTrans: boolean;
     procedure InternalStartTransaction;
     procedure InternalCommitTransaction;
     procedure ErrorColAndRowset(const Col: integer);
@@ -452,18 +453,6 @@ begin
   SQLLogEnd;
 end;
 
-function DynRawUtf8ArrayToConst(const aValue: TRawUtf8DynArray): TTVarRecDynArray;
-var
-  ndx: PtrInt;
-begin
-  SetLength(result, Length(aValue));
-  for ndx := 0 to Length(aValue) - 1 do
-  begin
-    result[ndx].VType := vtAnsiString;
-    result[ndx].VAnsiString := pointer(aValue[ndx]);
-  end;
-end;
-
 function Param2Type(const aParam: ISQLParam): RawUtf8;
 begin
   case aParam.GetSQLType of
@@ -523,15 +512,6 @@ begin
     SQL_NULL{FB25}:
        result := 'CHAR(1)';
   end;
-end;
-
-function Min(a, b: PtrInt): PtrInt;
-  {$ifdef HASINLINE}inline;{$endif}
-begin
-  if a < b then
-    result := a
-  else
-    result := b;
 end;
 
 procedure TSqlDBIbxStatement.ExecutePrepared;
@@ -710,7 +690,7 @@ var
     try
       while iStart < fParamsArrayCount do
       begin
-        iEnd := Min(iStart + iStmCount - 1, fParamsArrayCount - 1);
+        iEnd := MinPtrInt(iStart + iStmCount - 1, fParamsArrayCount - 1);
         if (iStart = 0) or
            (iEnd - iStart + 1 <> iStmCount) then
         begin
@@ -738,7 +718,7 @@ var
               FormatUtf8(':p%', [iCnt], aPar[iP]);
               Inc(iCnt);
             end;
-            W.Add(oldSQL, DynRawUtf8ArrayToConst(aPar));
+            W.Add(oldSQL, RawUtf8DynArrayToArrayOfConst(aPar));
             W.AddDirect(';', #10);
           end;
           W.AddDirect('e', 'n', 'd');
@@ -1025,7 +1005,7 @@ begin
       SQL_TYPE_DATE:
         begin
           W.Add('"');
-          W.AddDateTime(fResults[Col].GetAsDateTime, fForceDateWithMS);
+          W.AddDateTime(fResults[Col].GetAsDateTime, dsfForceDateWithMS in fFlags);
           W.AddDirect('"');
         end;
       SQL_BOOLEAN:
@@ -1056,7 +1036,7 @@ begin
         end;
       SQL_BLOB:
         begin
-          if fForceBlobAsNull then
+          if ForceBlobAsNull then
             W.AddNull
           else
           begin
@@ -1417,7 +1397,7 @@ begin
   fBatchMaxSentAtOnce := 10000;  // iters <= 32767 for better performance
   if aServerName = '' then
     ThreadingMode := tmMainConnection;
-  fUseCache := true;
+  UseCache := true;
   inherited Create(aServerName, aDatabaseName, aUserID, aPassWord);
 end;
 
