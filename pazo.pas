@@ -353,14 +353,10 @@ var
 begin
   Result := nil;
   try
-    for i := pazo.PazoSitesList.Count - 1 downto 0 do
+    // PazoSitesList is sorted by rank descending (highest rank at index 0).
+    // Iterate 0 to Count-1 so we prefer the highest-ranked matching site.
+    for i := 0 to pazo.PazoSitesList.Count - 1 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if ps.lookupforcedhere then
       begin
@@ -370,14 +366,8 @@ begin
       end;
     end;
 
-    for i := pazo.PazoSitesList.Count - 1 downto 0 do
+    for i := 0 to pazo.PazoSitesList.Count - 1 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if ps.ts <> 0 then
       begin
@@ -386,14 +376,8 @@ begin
       end;
     end;
 
-    for i := pazo.PazoSitesList.Count - 1 downto 0 do
+    for i := 0 to pazo.PazoSitesList.Count - 1 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.Complete) then
       begin
@@ -402,14 +386,8 @@ begin
       end;
     end;
 
-    for i := pazo.PazoSitesList.Count - 1 downto 0 do
+    for i := 0 to pazo.PazoSitesList.Count - 1 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.ircevent) then
       begin
@@ -418,14 +396,8 @@ begin
       end;
     end;
 
-    for i := pazo.PazoSitesList.Count - 1 downto 0 do
+    for i := 0 to pazo.PazoSitesList.Count - 1 do
     begin
-      try
-        if i < 0 then
-          Break;
-      except
-        Break;
-      end;
       ps := TPazoSite(pazo.PazoSitesList[i]);
       if (ps.status in [rssAllowed, rssRealPre, rssComplete]) then
       begin
@@ -1462,29 +1434,38 @@ procedure TPazo.SortPazoSitesByRank;
 var
   i, j: Integer;
   fSection: String;
-  fRankI, fRankJ: Integer;
-  fSiteI, fSiteJ: TSite;
-  fTemp: TPazoSite;
+  fSite: TSite;
+  fRanks: array of Integer;
+  fTmpRank: Integer;
 begin
+  if PazoSitesList.Count <= 1 then
+    exit;
+
   fSection := rls.section;
-  // insertion sort by rank descending (list is typically small)
+
+  // Pre-fetch all ranks once to avoid repeated FindSiteByName during sort
+  SetLength(fRanks, PazoSitesList.Count);
+  for i := 0 to PazoSitesList.Count - 1 do
+  begin
+    fSite := FindSiteByName('', PazoSitesList[i].Name);
+    if fSite <> nil then
+      fRanks[i] := fSite.GetRank(fSection)
+    else
+      fRanks[i] := 0;
+  end;
+
+  // Insertion sort by rank descending (highest rank at index 0).
+  // List is typically small (5-30 sites), so insertion sort is fine.
   for i := 1 to PazoSitesList.Count - 1 do
   begin
     j := i;
-    while j > 0 do
+    while (j > 0) and (fRanks[j] > fRanks[j - 1]) do
     begin
-      fRankJ := 0;
-      fRankI := 0;
-      fSiteJ := FindSiteByName('', PazoSitesList[j].Name);
-      if fSiteJ <> nil then
-        fRankJ := fSiteJ.GetRank(fSection);
-      fSiteI := FindSiteByName('', PazoSitesList[j - 1].Name);
-      if fSiteI <> nil then
-        fRankI := fSiteI.GetRank(fSection);
-      if fRankJ > fRankI then
-        PazoSitesList.Exchange(j, j - 1)
-      else
-        Break;
+      PazoSitesList.Exchange(j, j - 1);
+      // keep rank array in sync with the list
+      fTmpRank := fRanks[j];
+      fRanks[j] := fRanks[j - 1];
+      fRanks[j - 1] := fTmpRank;
       Dec(j);
     end;
   end;
