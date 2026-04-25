@@ -879,7 +879,9 @@ begin
               Continue;
             end;
 
-            // dirlist task already added
+            // dirlist task already added or failed
+            if (ps.dirlist.error) then
+              Continue;
             if (ps.dirlist.dirlistadded) and (event <> kbeUPDATE) then
               Continue;
 
