@@ -231,6 +231,29 @@ begin
     exit;
   end;
 
+  // Check if dirlist has been marked as errored (e.g. 550 Permission denied)
+  try
+    if ((ps1.dirlist <> nil) and ps1.dirlist.error) then
+    begin
+      readyerror := True;
+      mainpazo.errorreason := Format('Dirlist error on %s', [site1]);
+      Debug(dpSpam, c_section, '<-- ' + tname);
+      exit;
+    end;
+
+    d := ps1.dirlist.FindDirlist(dir);
+    if ((d <> nil) and d.error) then
+    begin
+      readyerror := True;
+      mainpazo.errorreason := Format('Dirlist error on %s for %s', [site1, dir]);
+      Debug(dpSpam, c_section, '<-- ' + tname);
+      exit;
+    end;
+  except
+    on e: Exception do
+      Debug(dpError, c_section, '[EXCEPTION] TPazoDirlistTask dirlist error check: %s', [e.Message]);
+  end;
+
   // Count errors and exit if too many
   try
     Inc(numerrors);
@@ -402,6 +425,24 @@ begin
           end
           else
           begin
+            // 550 Permission denied is not a transient error, don't waste retries
+            if ((0 < Pos('Permission denied', s.lastResponse)) or (0 < Pos('Permission Denied', s.lastResponse))) then
+            begin
+              try
+                d := ps1.dirlist.FindDirlist(dir);
+                if (d <> nil) then
+                  d.error := True;
+              except
+                on e: Exception do
+                  Debug(dpError, c_section, '[EXCEPTION] (dirlist permission denied handling): %s', [e.Message]);
+              end;
+
+              readyerror := True;
+              mainpazo.errorreason := Format('Permission denied on %s', [site1]);
+              Debug(dpMessage, c_section, '<- ' + mainpazo.errorreason + ' ' + tname);
+              exit;
+            end;
+
             Debug(dpSpam, c_section, '[DIRLIST FAILED] %s: %d %s', [tname, s.lastResponseCode, s.lastResponse]);
             goto TryAgain;
           end;
