@@ -2178,14 +2178,13 @@ begin
 
     // Cleanup sites.dat - same logic as IRC IrcDelsite command
     try
-      // Erase speed-from and speed-to sections
-      sitesdat.EraseSection('speed-from-' + sname);
+      // Erase speed-to sections
       sitesdat.EraseSection('speed-to-' + sname);
 
       // Remove this site from other sites' speed routes
       for i := 0 to sites.Count - 1 do
       begin
-        sitesdat.DeleteKey('speed-from-' + TSite(sites.Items[i]).Name, sname);
+        sitesdat.DeleteKey('site-' + TSite(sites.Items[i]).Name, 'speed-from-' + sname);
         sitesdat.DeleteKey('speed-to-' + TSite(sites.Items[i]).Name, sname);
       end;
     except

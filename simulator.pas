@@ -146,19 +146,22 @@ var
 begin
   affilRoutesList := TStringList.Create;
   try
-    sitesdat.ReadSectionValues('affilspeed-from-' + ps.Name, affilRoutesList);
+    sitesdat.ReadSectionValues('site-' + ps.Name, affilRoutesList);
     Debug(dpSpam, rsections, 'Site %s has %d affil routes configured', [ps.Name, affilRoutesList.Count]);
 
     for i := 0 to affilRoutesList.Count - 1 do
     begin
       try
-        sitename := affilRoutesList.Names[i];
+        if not AnsiStartsText('affilspeed-from-', affilRoutesList.Names[i]) then
+          Continue;
+
+        sitename := Copy(affilRoutesList.Names[i], 17, Length(affilRoutesList.Names[i]));
         speed := StrToIntDef(affilRoutesList.ValueFromIndex[i], 0);
 
         if speed = 0 then
           Continue;
 
-        if sitesdat.ReadInteger('speed-from-' + ps.Name, sitename, 0) > 0 then
+        if sitesdat.ReadInteger('site-' + ps.Name, 'speed-from-' + sitename, 0) > 0 then
         begin
           Debug(dpSpam, rsections, 'Skipping affil route %s -> %s (already in normal routes)', [ps.Name, sitename]);
           Continue;

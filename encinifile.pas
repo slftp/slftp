@@ -707,7 +707,7 @@ begin
                 end;
               end;
               if not Found then
-                if (1 = Pos('rank-', S)) or (1 = Pos('bnc_', S)) then
+                if (1 = Pos('bnc_', S)) then
                   Found := True;
 
               if Found then
