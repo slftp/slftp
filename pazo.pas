@@ -481,13 +481,14 @@ end;
 
 function PazoAdd(const rls: TRelease): TPazo;
 begin
-  Result := TPazo.Create(rls, local_pazo_id);
-  Inc(local_pazo_id);
+  // atomic increment guards against duplicate pazo_ids when multiple threads
+  // call PazoAdd concurrently (e.g. IRC, UDP, and API workers)
+  Result := TPazo.Create(rls, {$IFDEF FPC}InterlockedIncrement{$ELSE}AtomicIncrement{$ENDIF}(local_pazo_id));
 end;
 
 procedure PazoInit;
 begin
-  local_pazo_id := 0;
+  local_pazo_id := -1;
   glMaxBadcrcEvents := config.ReadInteger('taskrace', 'badcrcevents', 15);
   glPazoPreTimeLookupMode := TPretimeLookupMOde(config.ReadInteger('taskpretime', 'mode', 0));
   glShowCompleteTimeStats := config.ReadBool('taskrace', 'show_complete_time_stats', False);
