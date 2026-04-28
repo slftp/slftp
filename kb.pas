@@ -80,7 +80,8 @@ uses
   slvision, tasksitenfo, RegExpr, taskpretime, taskgame, mygrouphelpers, routeconfig,
   sllanguagebase, taskmvidunit, dbaddpre, dbaddimdb, dbtvinfo, irccolorunit,
   mrdohutils, ranksunit, tasklogin, dbaddnfo, contnrs, slmasks, dirlist, IniFiles,
-  globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections {$IFDEF MSWINDOWS}, Windows{$ENDIF};
+  globalskipunit, irccommandsunit, slapi.issueshook, Generics.Collections,
+  mormot.core.os {$IFDEF MSWINDOWS}, Windows{$ENDIF};
 
 const
   rsections = 'kb';
@@ -98,6 +99,12 @@ var
   kb_groupcheck_rls: THashedStringList;
   kb_latest: THashedStringList; //< holds release and section as rls=section
   kb_skip: THashedStringList;
+
+  // Per-structure read/write locks - allow multiple concurrent readers without
+  // blocking the kb data lock. Used by phase 2/3 of the kb_lock split.
+  kb_skip_rw: TRWLock;
+  kb_trimmed_rls_rw: TRWLock;
+  kb_groupcheck_rls_rw: TRWLock;
 
   // Config vars
   trimmed_shit_checker: boolean;
@@ -223,18 +230,24 @@ var
       (udpIp <> '') and (udpPort >= 1) and (udpPort <= 65535);
   end;
 
-  { Removes the oldest knowledge base entries }
+  { Removes the oldest knowledge base entries.
+    Uses per-structure RWLocks so it can run outside kb_lock context. }
   procedure KbListsCleanUp;
   begin
     try
-      i := kb_trimmed_rls.Count - 1;
-      if i > 200 then
-      begin
-        while i > 150 do
+      kb_trimmed_rls_rw.WriteLock;
+      try
+        i := kb_trimmed_rls.Count - 1;
+        if i > 200 then
         begin
-          kb_trimmed_rls.Delete(0);
-          i := kb_trimmed_rls.Count - 1;
+          while i > 150 do
+          begin
+            kb_trimmed_rls.Delete(0);
+            i := kb_trimmed_rls.Count - 1;
+          end;
         end;
+      finally
+        kb_trimmed_rls_rw.WriteUnLock;
       end;
     except
       on e: Exception do
@@ -244,14 +257,19 @@ var
     end;
 
     try
-      i := kb_groupcheck_rls.Count - 1;
-      if i > 200 then
-      begin
-        while i > 150 do
+      kb_groupcheck_rls_rw.WriteLock;
+      try
+        i := kb_groupcheck_rls.Count - 1;
+        if i > 200 then
         begin
-          kb_groupcheck_rls.Delete(0);
-          i := kb_groupcheck_rls.Count - 1;
+          while i > 150 do
+          begin
+            kb_groupcheck_rls.Delete(0);
+            i := kb_groupcheck_rls.Count - 1;
+          end;
         end;
+      finally
+        kb_groupcheck_rls_rw.WriteUnLock;
       end;
     except
       on e: Exception do
@@ -278,14 +296,19 @@ var
     end;
 
     try
-      i := kb_skip.Count - 1;
-      if i > 300 then
-      begin
-        while i > 250 do
+      kb_skip_rw.WriteLock;
+      try
+        i := kb_skip.Count - 1;
+        if i > 300 then
         begin
-          kb_skip.Delete(i);
-          i := kb_skip.Count - 1;
+          while i > 250 do
+          begin
+            kb_skip.Delete(i);
+            i := kb_skip.Count - 1;
+          end;
         end;
+      finally
+        kb_skip_rw.WriteUnLock;
       end;
     except
       on e: Exception do
@@ -320,26 +343,41 @@ begin
     end;
 
     // check if rls already skiped
-    if kb_skip.IndexOf(rls) <> -1 then
-    begin
-      if spamcfg.readbool(rsections, 'skipped_release', True) then
-        irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!', [rls, sitename]));
-      exit;
+    kb_skip_rw.ReadOnlyLock;
+    try
+      if kb_skip.IndexOf(rls) <> -1 then
+      begin
+        if spamcfg.readbool(rsections, 'skipped_release', True) then
+          irc_addadmin(format('<b><c4>%s</c> @ %s </b>is in skipped releases list!', [rls, sitename]));
+        exit;
+      end;
+    finally
+      kb_skip_rw.ReadOnlyUnLock;
     end;
 
     if trimmed_shit_checker then
     begin
       try
-        i := kb_trimmed_rls.IndexOf(section + '-' + rls);
-        if i <> -1 then
-        begin
-          irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
-          kb_skip.Insert(0, rls);
-          exit;
-        end;
+        kb_trimmed_rls_rw.WriteLock;
+        try
+          i := kb_trimmed_rls.IndexOf(section + '-' + rls);
+          if i <> -1 then
+          begin
+            irc_addadmin(Format('<b><c4>%s</c> @ %s is trimmed shit!</b>', [rls, sitename]));
+            kb_skip_rw.WriteLock;
+            try
+              kb_skip.Insert(0, rls);
+            finally
+              kb_skip_rw.WriteUnLock;
+            end;
+            exit;
+          end;
 
-        kb_trimmed_rls.Add(section + '-' + Copy(rls, 1, Length(rls) - 1));
-        kb_trimmed_rls.Add(section + '-' + Copy(rls, 2, Length(rls) - 1));
+          kb_trimmed_rls.Add(section + '-' + Copy(rls, 1, Length(rls) - 1));
+          kb_trimmed_rls.Add(section + '-' + Copy(rls, 2, Length(rls) - 1));
+        finally
+          kb_trimmed_rls_rw.WriteUnLock;
+        end;
       except
         on e: Exception do
         begin
@@ -353,23 +391,38 @@ begin
       try
         grp := GetGroupname(rls);
         rlz := RemoveGroupname(rls);
-        ss := kb_groupcheck_rls.Values[rlz];
-        if ss = '' then
-          kb_groupcheck_rls.Values[rlz] := grp
-        else
+        kb_groupcheck_rls_rw.WriteLock;
+        try
+          ss := kb_groupcheck_rls.Values[rlz];
+          if ss = '' then
+            kb_groupcheck_rls.Values[rlz] := grp;
+        finally
+          kb_groupcheck_rls_rw.WriteUnLock;
+        end;
+        if ss <> '' then
         begin
           if uppercase(grp) <> uppercase(ss) then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is renamed group shit! %s vs. %s', [rls, sitename, grp, ss]));
-            kb_skip.Insert(0, rls);
+            kb_skip_rw.WriteLock;
+            try
+              kb_skip.Insert(0, rls);
+            finally
+              kb_skip_rw.WriteUnLock;
+            end;
             exit;
           end;
           if grp <> ss then
           begin
             if spamcfg.readbool(rsections, 'renamed_group', True) then
               irc_addadmin(format('<b><c4>%s</c> @ %s </b>is changed case group shit! %s vs. %s', [rls, sitename, grp, ss]));
-            kb_skip.Insert(0, rls);
+            kb_skip_rw.WriteLock;
+            try
+              kb_skip.Insert(0, rls);
+            finally
+              kb_skip_rw.WriteUnLock;
+            end;
             exit;
           end;
         end;
@@ -408,7 +461,12 @@ begin
                   // release is brand-new but a rename of an already existing release
                   kb_latest.Insert(0, rls + '=' + section);
                   // gonna insert this anyway, because there are sometimes renames of renames
-                  kb_skip.Insert(0, rls);
+                  kb_skip_rw.WriteLock;
+                  try
+                    kb_skip.Insert(0, rls);
+                  finally
+                    kb_skip_rw.WriteUnLock;
+                  end;
                   exit;
                 end;
               end;
@@ -426,12 +484,12 @@ begin
       kb_latest.Insert(0, rls + '=' + section);
     end;
 
-    // Start cleanup lists
-    KbListsCleanUp; // TODO: maybe run it only every 60mins? not needed to run it every time...
-
   finally
     kb_lock.Leave;
   end;
+
+  // Cleanup lists - runs OUTSIDE kb_lock using per-structure RWLocks
+  KbListsCleanUp; // TODO: maybe run it only every 60mins? not needed to run it every time...
 
   kb_lock.Enter('kb_AddB_2');
   try
@@ -1283,22 +1341,27 @@ begin
     x.Free;
   end;
 
-  debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
-  x := TEncStringList.Create(passphrase);
+  kb_skip_rw.ReadOnlyLock;
   try
+    debug(dpSpam, rsections, 'kb_Save - saving %d renames', [kb_skip.Count]);
+    x := TEncStringList.Create(passphrase);
     try
-      for i := 0 to kb_skip.Count - 1 do
-      begin
-        if i > 249 then
-          break;
-        x.Add(kb_skip[i]);
+      try
+        for i := 0 to kb_skip.Count - 1 do
+        begin
+          if i > 249 then
+            break;
+          x.Add(kb_skip[i]);
+        end;
+      except
+        exit;
       end;
-    except
-      exit;
+      x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
+    finally
+      x.Free;
     end;
-    x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.renames');
   finally
-    x.Free;
+    kb_skip_rw.ReadOnlyUnLock;
   end;
 end;
 
@@ -1376,6 +1439,9 @@ begin
 
   kb_lock := TSLCriticalSection2.Create('kb_lock');
   rules_lock := TSLCriticalSection2.Create('rules_lock');
+  kb_skip_rw.Init;
+  kb_trimmed_rls_rw.Init;
+  kb_groupcheck_rls_rw.Init;
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1426,6 +1492,9 @@ begin
 
   KbReleaseUninit;
 
+  kb_skip_rw.AssertDone;
+  kb_trimmed_rls_rw.AssertDone;
+  kb_groupcheck_rls_rw.AssertDone;
   rules_lock.Free;
   kb_lock.Free;
 
