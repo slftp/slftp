@@ -90,6 +90,7 @@ var
   kb_last_saved: TDateTime;
   kb_list: TStringList;
   kb_lock: TSLCriticalSection2;
+  rules_lock: TSLCriticalSection2; //< serializes FireRules / FireRuleSet, separate from kb data lock
 
   // TODO: Using THashedStringList does fuckup cleaning because it does not have a constant index which is used to delete oldest (latest) entries
   // but it's much faster and as we use it very often it's worth it...but maybe there is a better solution
@@ -764,12 +765,12 @@ begin
   // implement firerules, routes, stb. set rs.srcsite:= rss.sitename;
   if (not (event in [kbeNUKE, kbeADDPRE])) then
   begin
-    kb_lock.Enter('kb_AddB_3');
+    rules_lock.Enter('kb_AddB_3');
     try
       rule_result := raDrop;
       rule_result := FireRuleSet(p, psource);
     finally
-      kb_lock.Leave;
+      rules_lock.Leave;
     end;
 
     // announce SKIP and DONT MATCH only if the site is not a PRE site
@@ -803,7 +804,7 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_4');
+      rules_lock.Enter('kb_AddB_4');
       try
         if (ps.status in [rssNotAllowed, rssNotAllowedButItsThere]) then
         begin
@@ -813,7 +814,7 @@ begin
           end;
         end;
       finally
-        kb_lock.Leave;
+        rules_lock.Leave;
       end;
     end;
 
@@ -827,11 +828,11 @@ begin
         Break;
       end;
       ps := TPazoSite(p.PazoSitesList[i]);
-      kb_lock.Enter('kb_AddB_5');
+      rules_lock.Enter('kb_AddB_5');
       try
         FireRules(p, ps);
       finally
-        kb_lock.Leave;
+        rules_lock.Leave;
       end;
     end;
   except
@@ -1374,6 +1375,7 @@ begin
   addpreechocmd := config.ReadString('dbaddpre', 'addpreechocmd', '!sitepre');
 
   kb_lock := TSLCriticalSection2.Create('kb_lock');
+  rules_lock := TSLCriticalSection2.Create('rules_lock');
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1424,6 +1426,7 @@ begin
 
   KbReleaseUninit;
 
+  rules_lock.Free;
   kb_lock.Free;
 
   Debug(dpSpam, rsections, 'Uninit2');
