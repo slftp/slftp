@@ -194,8 +194,8 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
-  fTraceStart, fTraceListStart, fTraceParseStart: TDateTime;
-  fTraceListMs, fTraceParseMs, fTraceEntryCount: Int64;
+  fTraceStart, fTraceListStart, fTraceParseStart, fTraceEligibleAt: TDateTime;
+  fTraceListMs, fTraceParseMs, fTraceEntryCount, fTraceStartatDelayMs, fTraceQueueWaitMs: Int64;
 begin
   numerrors := 0;
   Result := False;
@@ -206,6 +206,14 @@ begin
   fTraceListMs := 0;
   fTraceParseMs := 0;
   fTraceEntryCount := 0;
+  fTraceStartatDelayMs := 0;
+  fTraceEligibleAt := created;
+  if (startat > 0) and (startat > created) then
+  begin
+    fTraceStartatDelayMs := MilliSecondsBetween(startat, created);
+    fTraceEligibleAt := startat;
+  end;
+  fTraceQueueWaitMs := MilliSecondsBetween(fTraceStart, fTraceEligibleAt);
 
   if mainpazo.stopped then
   begin
@@ -215,8 +223,8 @@ begin
   end;
 
   Debug(dpSpam, c_section, '--> ' + tname);
-  Debug(dpMessage, 'trace', '[TRACE] DL-START rls=%s pazo_id=%d site=%s dir=%s queue_wait_ms=%d',
-    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, dir, MilliSecondsBetween(fTraceStart, created)]);
+  Debug(dpMessage, 'trace', '[TRACE] DL-START rls=%s pazo_id=%d site=%s dir=%s queue_wait_ms=%d startat_delay_ms=%d',
+    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, dir, fTraceQueueWaitMs, fTraceStartatDelayMs]);
 
   mainpazo.lastTouch := Now();
 
@@ -1251,6 +1259,8 @@ var
   srcPercentStr, dstPercentStr: String;
   fSrcDirlist: TDirlist;
   fDstDirlist: TDirlist;
+  fTraceEligibleAt: TDateTime;
+  fTraceStartatDelayMs, fTraceQueueWaitMs: Int64;
 
   { FXP partial completion timeout tracking }
   fSourceCompleteTimestamp: TDateTime; //< Timestamp when source sent 226 (GetTickCount64)
@@ -1497,8 +1507,16 @@ begin
 
   mainpazo.lastTouch := Now();
   Debug(dpMessage, c_section, '--> ' + tname);
-  Debug(dpMessage, 'trace', '[TRACE] RACE-START rls=%s pazo_id=%d src=%s dst=%s file=%s size=%d queue_wait_ms=%d',
-    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, site2, filename, filesize, MilliSecondsBetween(Now, created)]);
+  fTraceStartatDelayMs := 0;
+  fTraceEligibleAt := created;
+  if (startat > 0) and (startat > created) then
+  begin
+    fTraceStartatDelayMs := MilliSecondsBetween(startat, created);
+    fTraceEligibleAt := startat;
+  end;
+  fTraceQueueWaitMs := MilliSecondsBetween(Now, fTraceEligibleAt);
+  Debug(dpMessage, 'trace', '[TRACE] RACE-START rls=%s pazo_id=%d src=%s dst=%s file=%s size=%d queue_wait_ms=%d startat_delay_ms=%d',
+    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, site2, filename, filesize, fTraceQueueWaitMs, fTraceStartatDelayMs]);
 
   TryAgain:
   if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (slshutdown)) then
