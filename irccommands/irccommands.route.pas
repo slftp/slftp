@@ -264,18 +264,18 @@ begin
         begin
           if speed > 0 then
           begin
-            sitesdat.WriteString('speed-from-' + source_sites[i], dest_sites[j], fSpeedInfo.ToConfigString);
+            sitesdat.WriteString('site-' + source_sites[i], 'speed-from-' + dest_sites[j], fSpeedInfo.ToConfigString);
             if back then
             begin
-              sitesdat.WriteString('speed-from-' + dest_sites[j], source_sites[i], fSpeedInfo.ToConfigString);
+              sitesdat.WriteString('site-' + dest_sites[j], 'speed-from-' + source_sites[i], fSpeedInfo.ToConfigString);
             end;
           end
           else
           begin
-            sitesdat.DeleteKey('speed-from-' + source_sites[i], dest_sites[j]);
+            sitesdat.DeleteKey('site-' + source_sites[i], 'speed-from-' + dest_sites[j]);
             if back then
             begin
-              sitesdat.DeleteKey('speed-from-' + dest_sites[j], source_sites[i]);
+              sitesdat.DeleteKey('site-' + dest_sites[j], 'speed-from-' + source_sites[i]);
             end;
           end;
 
