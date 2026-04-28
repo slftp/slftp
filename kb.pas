@@ -192,6 +192,9 @@ var
   dlt: TPazoDirlistTask;
   l: TLoginTask;
   fPretimeLookupTask: TPazoPretimeLookupTask;
+  fTraceStart: TDateTime;
+  fTraceLast: TDateTime;
+  fDirlistTasksAdded: integer;
 
   { Removes the oldest knowledge base entries }
   procedure KbListsCleanUp;
@@ -266,7 +269,11 @@ var
   end;
 
 begin
+  fTraceStart := Now;
+  fTraceLast := fTraceStart;
+  fDirlistTasksAdded := 0;
   debug(dpSpam, rsections, '--> %s %s %s %s %s %d %d', [sitename, section, KBEventTypeToString(event), rls, cdno, integer(dontFire), integer(forceFire)]);
+  Debug(dpMessage, 'trace', '[TRACE] KB-IN site=%s event=%s section=%s rls=%s', [sitename, KBEventTypeToString(event), section, rls]);
 
   Result := -1;
 
@@ -474,6 +481,8 @@ begin
 
       // need to search all sites where there is such a section ...
       p.AddSites;
+      Debug(dpMessage, 'trace', '[TRACE] KB-PAZO-NEW rls=%s pazo_id=%d sites=%d setup_ms=%d', [rls, p.pazo_id, p.PazoSitesList.Count, MilliSecondsBetween(Now, fTraceLast)]);
+      fTraceLast := Now;
 
       kb_list.BeginUpdate;
       try
@@ -542,6 +551,7 @@ begin
       debug(dpSpam, rsections,
         'This NEWDIR [event: %s] task was not the first one to hit kb as kb_list already contained an entry for %s in %s',
         [KBEventTypeToString(event), rls, section]);
+      Debug(dpMessage, 'trace', '[TRACE] KB-PAZO-EXIST rls=%s pazo_id=%d sites=%d', [rls, p.pazo_id, p.PazoSitesList.Count]);
 
       if r.rlsname <> rls then
       begin
@@ -682,6 +692,7 @@ begin
     end
     else if ((event = kbeCOMPLETE) and (not psource.StatusRealPreOrShouldPre)) then
     begin
+      Debug(dpMessage, 'trace', '[TRACE] KB-COMPLETE rls=%s pazo_id=%d site=%s cdno=%s', [rls, p.pazo_id, sitename, cdno]);
       psource.dirlist.SetCompleteInfo(FromIrc);
       psource.SetComplete(cdno);
     end;
@@ -788,6 +799,8 @@ begin
         [e.Message]));
     end;
   end;
+  Debug(dpMessage, 'trace', '[TRACE] KB-RULES rls=%s pazo_id=%d rules_ms=%d', [rls, p.pazo_id, MilliSecondsBetween(Now, fTraceLast)]);
+  fTraceLast := Now;
 
   if dontFire then
     exit;
@@ -838,6 +851,8 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt, true);
+            Inc(fDirlistTasksAdded);
+            Debug(dpMessage, 'trace', '[TRACE] KB-DIRLIST-TASK rls=%s pazo_id=%d site=%s presite=1 task_uid=%d', [rls, p.pazo_id, ps.Name, dlt.uid]);
           end;
 
           // Source site is _not_ a PRE site for this group
@@ -847,6 +862,8 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[KB]</c> %s %s Dirlist added to : %s (NOT PRESITE) from event %s', [section, rls, ps.Name, KBEventTypeToString(event)]));
             ps.dirlist.dirlistadded := True;
             AddTask(dlt, true);
+            Inc(fDirlistTasksAdded);
+            Debug(dpMessage, 'trace', '[TRACE] KB-DIRLIST-TASK rls=%s pazo_id=%d site=%s presite=0 task_uid=%d', [rls, p.pazo_id, ps.Name, dlt.uid]);
           end;
 
         except
@@ -869,6 +886,10 @@ begin
   debug(dpSpam, rsections, '<-- %s %s %s %s %s %s %d %d',
     [sitename, section, genre, KBEventTypeToString(event), rls, cdno, integer(dontFire),
     integer(forceFire)]);
+  if p <> nil then
+    Debug(dpMessage, 'trace', '[TRACE] KB-OUT rls=%s pazo_id=%d event=%s dirlist_tasks=%d total_ms=%d', [rls, p.pazo_id, KBEventTypeToString(event), fDirlistTasksAdded, MilliSecondsBetween(Now, fTraceStart)])
+  else
+    Debug(dpMessage, 'trace', '[TRACE] KB-OUT rls=%s pazo_id=0 event=%s dirlist_tasks=%d total_ms=%d', [rls, KBEventTypeToString(event), fDirlistTasksAdded, MilliSecondsBetween(Now, fTraceStart)]);
 end;
 
 function kb_Add(const netname, channel, sitename, section, genre: String; event: TKBEventType; const rls, cdno: String; dontFire: boolean = False; forceFire: boolean = False; ts: TDateTime = 0): integer;

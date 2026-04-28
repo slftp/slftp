@@ -194,12 +194,18 @@ var
   ps: TPazoSite;
   fDestination: TDestinationRank;
   secondsWithNoChange, secondsSinceStart, secondsSinceCompleted: Int64;
+  fTraceStart, fTraceListStart, fTraceParseStart: TDateTime;
+  fTraceListMs, fTraceParseMs, fTraceEntryCount: Int64;
 begin
   numerrors := 0;
   Result := False;
   s := slot;
   tname := Name;
   fSubDirlistTasks := nil;
+  fTraceStart := Now;
+  fTraceListMs := 0;
+  fTraceParseMs := 0;
+  fTraceEntryCount := 0;
 
   if mainpazo.stopped then
   begin
@@ -209,6 +215,8 @@ begin
   end;
 
   Debug(dpSpam, c_section, '--> ' + tname);
+  Debug(dpMessage, 'trace', '[TRACE] DL-START rls=%s pazo_id=%d site=%s dir=%s queue_wait_ms=%d',
+    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, dir, MilliSecondsBetween(fTraceStart, created)]);
 
   mainpazo.lastTouch := Now();
 
@@ -318,9 +326,13 @@ begin
   end;
 
   fAbsoluteDir := MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir;
+  fTraceListStart := Now;
   // Trying to get the dirlist
   if not s.Dirlist(fAbsoluteDir) then
   begin
+    fTraceListMs := MilliSecondsBetween(Now, fTraceListStart);
+    Debug(dpMessage, 'trace', '[TRACE] DL-LIST-FAIL rls=%s pazo_id=%d site=%s dir=%s list_ms=%d code=%d',
+      [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, dir, fTraceListMs, s.lastResponseCode]);
     mainpazo.errorreason := Format('Cannot get the dirlist for source dir %s on %s.', [MyIncludeTrailingSlash(ps1.maindir) + MyIncludeTrailingSlash(mainpazo.rls.rlsname) + dir, site1]);
 
     case s.lastResponseCode of
@@ -416,6 +428,10 @@ begin
   end
   else
   begin
+    fTraceListMs := MilliSecondsBetween(Now, fTraceListStart);
+    Debug(dpMessage, 'trace', '[TRACE] DL-LIST-OK rls=%s pazo_id=%d site=%s dir=%s list_ms=%d resp_size=%d',
+      [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, dir, fTraceListMs, Length(s.lastResponse)]);
+    fTraceParseStart := Now;
     try
       itwasadded := ps1.ParseDirlist(netname, channel, dir, s.lastResponse, is_pre);
     except
@@ -427,6 +443,7 @@ begin
         exit;
       end;
     end;
+    fTraceParseMs := MilliSecondsBetween(Now, fTraceParseStart);
   end;
 
   d := nil;
@@ -673,6 +690,11 @@ begin
   end;
 
   Debug(dpSpam, c_section, '<-- ' + tname);
+
+  if (d <> nil) and (d.entries <> nil) then
+    fTraceEntryCount := d.entries.Count;
+  Debug(dpMessage, 'trace', '[TRACE] DL-DONE rls=%s pazo_id=%d site=%s dir=%s entries=%d list_ms=%d parse_ms=%d total_ms=%d complete=%d',
+    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, dir, fTraceEntryCount, fTraceListMs, fTraceParseMs, MilliSecondsBetween(Now, fTraceStart), Ord((d <> nil) and d.Complete)]);
 
   Result := True;
   ready := True;
@@ -1475,6 +1497,8 @@ begin
 
   mainpazo.lastTouch := Now();
   Debug(dpMessage, c_section, '--> ' + tname);
+  Debug(dpMessage, 'trace', '[TRACE] RACE-START rls=%s pazo_id=%d src=%s dst=%s file=%s size=%d queue_wait_ms=%d',
+    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, site2, filename, filesize, MilliSecondsBetween(Now, created)]);
 
   TryAgain:
   if ((ps1.error) or (ps2.error) or (ps1.status = rssNuked) or (ps2.status = rssNuked) or (slshutdown)) then
@@ -3468,6 +3492,8 @@ begin
   end;
 
   Debug(dpMessage, c_section, '<-- ' + tname);
+  Debug(dpMessage, 'trace', '[TRACE] RACE-DONE rls=%s pazo_id=%d src=%s dst=%s file=%s size=%d transfer_ms=%d total_ms=%d',
+    [mainpazo.rls.rlsname, mainpazo.pazo_id, site1, site2, filename, filesize, time_race, MilliSecondsBetween(Now, created)]);
 
   Result := True;
   ready := True;

@@ -294,12 +294,15 @@ end;
 procedure ProcessReleaseVege(net, chan, nick, sitename: String; kb_event: TKBEventType; section, rls: String; ts_data: TStringList);
 var
   genre, s, oldsection, event: String;
+  fTraceStart: TDateTime;
 begin
+  fTraceStart := Now;
   precatcher_lock.Enter('ProcessReleaseVege');
   try
     event := KBEventTypeToString(kb_event);
     MyDebug('ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]);
     Debug(dpSpam, rsections, Format('--> ProcessReleaseVege %s %s %s %s', [rls, sitename, event, section]));
+    Debug(dpMessage, 'trace', '[TRACE] PCATCH-IN site=%s event=%s rls=%s section_in=%s', [sitename, event, rls, section]);
 
     if (kb_event <> kbeREQUEST) then
     begin
@@ -385,6 +388,7 @@ begin
       begin
         irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[%s]</c> %s %s @ <b>%s</b>', [event, section, rls, sitename]));
       end;
+      Debug(dpMessage, 'trace', '[TRACE] PCATCH-OUT site=%s event=%s section=%s rls=%s precatcher_ms=%d', [sitename, event, section, rls, MilliSecondsBetween(Now, fTraceStart)]);
       kb_Add('', '', sitename, section, genre, kb_event, rls, '');
     except
       on e: Exception do

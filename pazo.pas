@@ -435,6 +435,8 @@ var
   de, dde: TDirListEntry;
   s: TSite;
   fd: String;
+  fTraceStart: TDateTime;
+  fTraceRaceTasks, fTraceMkdirTasks, fTraceDirlistTasks, fTraceDestinations: integer;
 begin
   Result := False;
   dst := nil;
@@ -442,6 +444,11 @@ begin
   dde := nil;
   pm := nil;
   pr := nil;
+  fTraceStart := Now;
+  fTraceRaceTasks := 0;
+  fTraceMkdirTasks := 0;
+  fTraceDirlistTasks := 0;
+  fTraceDestinations := 0;
 
   // something's fucked
   if error then exit;
@@ -465,6 +472,7 @@ begin
   // enumerate possible destinations
   for fDestination in destinations do
   begin
+    Inc(fTraceDestinations);
     dst := fDestination.PazoSite;
     dstrank := fDestination.Rank;
     try
@@ -562,6 +570,7 @@ begin
           begin
             try
               AddTask(pm, True);
+              Inc(fTraceMkdirTasks);
             except
               on e: Exception do
               begin
@@ -582,6 +591,7 @@ begin
             irc_Addtext_by_key('PRECATCHSTATS', Format('<c7>[PAZO]</c> %s %s %s Dirlist added to : %s (DEST SITE)', [fd, pazo.rls.rlsname, dir, dst.Name]));
             dstdl.dirlistadded := True;
             AddTask(pd, true);
+            Inc(fTraceDirlistTasks);
           except
             on e: Exception do
             begin
@@ -647,6 +657,7 @@ begin
             try
               AddTask(pr);
               Result := True;
+              Inc(fTraceRaceTasks);
             except
               on e: Exception do
               begin
@@ -665,6 +676,8 @@ begin
       end;
     end;
   end;
+  Debug(dpMessage, 'trace', '[TRACE] TUZELJ rls=%s pazo_id=%d src=%s dir=%s entries=%d destinations=%d races=%d mkdirs=%d dirlists=%d total_ms=%d',
+    [pazo.rls.rlsname, pazo.pazo_id, Name, dir, aDirListEntries.Count, fTraceDestinations, fTraceRaceTasks, fTraceMkdirTasks, fTraceDirlistTasks, MilliSecondsBetween(Now, fTraceStart)]);
 end;
 
 { TPazo }
