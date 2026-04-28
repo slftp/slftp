@@ -105,6 +105,7 @@ var
   kb_skip_rw: TRWLock;
   kb_trimmed_rls_rw: TRWLock;
   kb_groupcheck_rls_rw: TRWLock;
+  kb_latest_rw: TRWLock;
 
   // Config vars
   trimmed_shit_checker: boolean;
@@ -279,14 +280,19 @@ var
     end;
 
     try
-      i := kb_latest.Count - 1;
-      if i > 200 then
-      begin
-        while i > 150 do
+      kb_latest_rw.WriteLock;
+      try
+        i := kb_latest.Count - 1;
+        if i > 200 then
         begin
-          kb_latest.Delete(i);
-          i := kb_latest.Count - 1;
+          while i > 150 do
+          begin
+            kb_latest.Delete(i);
+            i := kb_latest.Count - 1;
+          end;
         end;
+      finally
+        kb_latest_rw.WriteUnLock;
       end;
     except
       on e: Exception do
@@ -329,17 +335,22 @@ begin
     // deny adding of a release twice with different section
     if (section <> '') then
     begin
-      i := kb_latest.IndexOfName(rls);
-      if i <> -1 then
+      i := -1;
+      ss := '';
+      kb_latest_rw.ReadOnlyLock;
+      try
+        i := kb_latest.IndexOfName(rls);
+        if i <> -1 then
+          ss := kb_latest.ValueFromIndex[i];
+      finally
+        kb_latest_rw.ReadOnlyUnLock;
+      end;
+      if (i <> -1) and (not ss.StartsWith('PRE')) and (ss <> section) then
       begin
-        ss := kb_latest.ValueFromIndex[i];
-        if (not ss.StartsWith('PRE') and (ss <> section)) then
-        begin
-          if spamcfg.readbool(rsections, 'already_in_another_section', True) then
-            irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
-          exit;
-        end;
-      end
+        if spamcfg.readbool(rsections, 'already_in_another_section', True) then
+          irc_addadmin(Format('<b><c4>%s</c> @ %s </b>was caught as section %s but is already in KB with section %s', [rls, sitename, section, ss]));
+        exit;
+      end;
     end;
 
     // check if rls already skiped
@@ -436,52 +447,57 @@ begin
 
     // don't even enter the checking code if the release is already in kb_latest, because then we already handled it and it's clean
     // because kb_skip would've prevented kb_addb being called from kb_add
-    if (kb_latest.IndexOfName(rls) = -1) then
-    begin
-      if (renamed_release_checker) then
+    kb_latest_rw.WriteLock;
+    try
+      if (kb_latest.IndexOfName(rls) = -1) then
       begin
-        try
-          len := Length(rls); // no need to check the release length in every loop
-          for i := 0 to kb_latest.Count - 1 do
-          begin
-            // makes no sense to run this "expensive" operation if both strings aren't equal length
-            // since the current pattern shows only strings of equal length being renames of one another
-            if Length(kb_latest.Names[i]) <> len then
-              Continue;
-            if AnsiCompareText(kb_latest.Names[i], rls) <> 0 then
+        if (renamed_release_checker) then
+        begin
+          try
+            len := Length(rls); // no need to check the release length in every loop
+            for i := 0 to kb_latest.Count - 1 do
             begin
-              // loop through the amount of different patterns, reduces code duplication
-              for j := 0 to rename_patterns - 1 do
+              // makes no sense to run this "expensive" operation if both strings aren't equal length
+              // since the current pattern shows only strings of equal length being renames of one another
+              if Length(kb_latest.Names[i]) <> len then
+                Continue;
+              if AnsiCompareText(kb_latest.Names[i], rls) <> 0 then
               begin
-                if renameCheck(j, i, len, rls) then
+                // loop through the amount of different patterns, reduces code duplication
+                for j := 0 to rename_patterns - 1 do
                 begin
-                  if spamcfg.readbool(rsections, 'renamed_release', True) then
-                    irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest.Names[i]]));
+                  if renameCheck(j, i, len, rls) then
+                  begin
+                    if spamcfg.readbool(rsections, 'renamed_release', True) then
+                      irc_addadmin(format('<b><c4>%s</c> @ %s </b>is a rename of %s!', [rls, sitename, kb_latest.Names[i]]));
 
-                  // release is brand-new but a rename of an already existing release
-                  kb_latest.Insert(0, rls + '=' + section);
-                  // gonna insert this anyway, because there are sometimes renames of renames
-                  kb_skip_rw.WriteLock;
-                  try
-                    kb_skip.Insert(0, rls);
-                  finally
-                    kb_skip_rw.WriteUnLock;
+                    // release is brand-new but a rename of an already existing release
+                    kb_latest.Insert(0, rls + '=' + section);
+                    // gonna insert this anyway, because there are sometimes renames of renames
+                    kb_skip_rw.WriteLock;
+                    try
+                      kb_skip.Insert(0, rls);
+                    finally
+                      kb_skip_rw.WriteUnLock;
+                    end;
+                    exit;
                   end;
-                  exit;
                 end;
               end;
             end;
-          end;
-        except
-          on e: Exception do
-          begin
-            Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_release_checker : %s', [e.Message]);
+          except
+            on e: Exception do
+            begin
+              Debug(dpError, rsections, '[EXCEPTION] kb_AddB renamed_release_checker : %s', [e.Message]);
+            end;
           end;
         end;
-      end;
 
-      // release is fine and brand-new, add it to kb_latest
-      kb_latest.Insert(0, rls + '=' + section);
+        // release is fine and brand-new, add it to kb_latest
+        kb_latest.Insert(0, rls + '=' + section);
+      end;
+    finally
+      kb_latest_rw.WriteUnLock;
     end;
 
   finally
@@ -1040,7 +1056,8 @@ var
   i: integer;
 begin
   Result := '';
-  kb_lock.Enter('FindReleaseInLatestKBList ' + aRls);
+  // Uses per-struct lock instead of kb_lock - parallel reads are now possible.
+  kb_latest_rw.ReadOnlyLock;
   try
     i := kb_latest.IndexOfName(aRls);
     if i <> -1 then
@@ -1048,7 +1065,7 @@ begin
       Result := kb_latest.ValueFromIndex[i];
     end;
   finally
-    kb_lock.Leave;
+    kb_latest_rw.ReadOnlyUnLock;
   end;
 end;
 
@@ -1442,6 +1459,7 @@ begin
   kb_skip_rw.Init;
   kb_trimmed_rls_rw.Init;
   kb_groupcheck_rls_rw.Init;
+  kb_latest_rw.Init;
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1495,6 +1513,7 @@ begin
   kb_skip_rw.AssertDone;
   kb_trimmed_rls_rw.AssertDone;
   kb_groupcheck_rls_rw.AssertDone;
+  kb_latest_rw.AssertDone;
   rules_lock.Free;
   kb_lock.Free;
 
@@ -1761,10 +1780,13 @@ begin
             if p.stated and (fTryToCompleteTimeReached and not fIncFillPazos.Contains(p)) and ((kb_save_entries <= 0) Or (SecondsBetween(Now, p.added) > kb_keep_entries)) then
             begin
               kb_list.Delete(i);
-              j := kb_latest.IndexOf(p.rls.rlsname);
-              if j <> -1 then
-              begin
-                kb_latest.Delete(j);
+              kb_latest_rw.WriteLock;
+              try
+                j := kb_latest.IndexOf(p.rls.rlsname);
+                if j <> -1 then
+                  kb_latest.Delete(j);
+              finally
+                kb_latest_rw.WriteUnLock;
               end;
               fDeletedPazos.Add(p);
             end;
