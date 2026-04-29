@@ -2633,11 +2633,11 @@ begin
       fSpeedInfo.Locked := Locked;
       fSpeedInfo.AffilOnly := AffilOnly;
       fSpeedInfo.NoAffil := NoAffil;
-      sitesdat.WriteString('speed-from-' + srcName, dstName, fSpeedInfo.ToConfigString);
+      sitesdat.WriteString('site-' + srcName, 'speed-from-' + dstName, fSpeedInfo.ToConfigString);
     end
     else
     begin
-      sitesdat.DeleteKey('speed-from-' + srcName, dstName);
+      sitesdat.DeleteKey('site-' + srcName, 'speed-from-' + dstName);
     end;
 
     srcSite.UpdateSpeedFromCache;
