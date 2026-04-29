@@ -47,11 +47,21 @@ function FindSectionHandler(const section: String): TCRelease;
       @returns(The number of items in the KB) }
 function GetKBCount: integer;
 
-{ @abstract(Returns a reference to the KB list for direct read access - caller must hold KB lock) }
+{ @abstract(Returns a reference to the KB list for direct read access - caller must hold KB list read lock) }
 function GetKBList: TStringList;
 
-{ @abstract(Returns a reference to the KB lock for thread-safe access) }
+{ @abstract(Returns a reference to the KB lock for thread-safe access)
+  @deprecated kept for backward compatibility - use LockKBListRead/Write instead for kb_list access }
 function GetKBLock: TSlCriticalSection2;
+
+{ @abstract(Acquire shared read lock on kb_list. Multiple readers can hold this concurrently.) }
+procedure LockKBListRead;
+{ @abstract(Release shared read lock on kb_list.) }
+procedure UnlockKBListRead;
+{ @abstract(Acquire exclusive write lock on kb_list.) }
+procedure LockKBListWrite;
+{ @abstract(Release exclusive write lock on kb_list.) }
+procedure UnlockKBListWrite;
 
 { Lists all KB entries to IRC which match the given section
       @param(section The section to show the KB entries of.)
@@ -101,11 +111,12 @@ var
   kb_skip: THashedStringList;
 
   // Per-structure read/write locks - allow multiple concurrent readers without
-  // blocking the kb data lock. Used by phase 2/3 of the kb_lock split.
+  // blocking the kb data lock. Used by phase 2/3/4 of the kb_lock split.
   kb_skip_rw: TRWLock;
   kb_trimmed_rls_rw: TRWLock;
   kb_groupcheck_rls_rw: TRWLock;
   kb_latest_rw: TRWLock;
+  kb_list_rw: TRWLock;
 
   // Config vars
   trimmed_shit_checker: boolean;
@@ -136,6 +147,26 @@ end;
 function GetKBLock: TSlCriticalSection2;
 begin
   Result := kb_lock;
+end;
+
+procedure LockKBListRead;
+begin
+  kb_list_rw.ReadOnlyLock;
+end;
+
+procedure UnlockKBListRead;
+begin
+  kb_list_rw.ReadOnlyUnLock;
+end;
+
+procedure LockKBListWrite;
+begin
+  kb_list_rw.WriteLock;
+end;
+
+procedure UnlockKBListWrite;
+begin
+  kb_list_rw.WriteUnLock;
 end;
 
 function FindSectionHandler(const section: String): TCRelease;
@@ -509,7 +540,16 @@ begin
 
   kb_lock.Enter('kb_AddB_2');
   try
-    i := kb_list.IndexOf(section + '-' + rls);
+    kb_list_rw.ReadOnlyLock;
+    try
+      i := kb_list.IndexOf(section + '-' + rls);
+      if i <> -1 then
+        p := TPazo(kb_list.Objects[i])
+      else
+        p := nil;
+    finally
+      kb_list_rw.ReadOnlyUnLock;
+    end;
     if i = -1 then
     begin
       if (event = kbeNUKE) then
@@ -582,11 +622,11 @@ begin
       // need to search all sites where there is such a section ...
       p.AddSites;
 
-      kb_list.BeginUpdate;
+      kb_list_rw.WriteLock;
       try
         kb_list.AddObject(section + '-' + rls, p);
       finally
-        kb_list.EndUpdate;
+        kb_list_rw.WriteUnLock;
       end;
 
       // announce event on admin chan
@@ -643,7 +683,7 @@ begin
       end;
 
       // meg kell tudni mi valtozott //you need to know what's changed
-      p := TPazo(kb_list.Objects[i]);
+      // p was already loaded under kb_list_rw.ReadOnlyLock above
       r := p.rls;
 
       debug(dpSpam, rsections,
@@ -1036,7 +1076,8 @@ var
   i: integer;
 begin
   Result := '';
-  kb_lock.Enter('FindReleaseInKbList ' + rls);
+  // Uses per-struct lock instead of kb_lock - parallel reads are now possible.
+  kb_list_rw.ReadOnlyLock;
   try
     for i := 0 to kb_list.Count - 1 do
     begin
@@ -1047,7 +1088,7 @@ begin
       end;
     end;
   finally
-    kb_lock.Leave;
+    kb_list_rw.ReadOnlyUnLock;
   end;
 end;
 
@@ -1075,7 +1116,11 @@ var
   p: TPazo;
 begin
   Result := nil;
-  kb_lock.Enter('FindPazoByRls');
+  // Uses per-struct lock - parallel reads possible. TPazo lifetime is
+  // protected by the state-machine guarantees in TKBThread.Execute (cleared
+  // pazos with lastTouch > 3600s are eligible for free; freshly returned
+  // pazos won't be freed concurrently).
+  kb_list_rw.ReadOnlyLock;
   try
     try
       for i := kb_list.Count - 1 downto 0 do
@@ -1104,7 +1149,7 @@ begin
       end;
     end;
   finally
-    kb_lock.Leave;
+    kb_list_rw.ReadOnlyUnLock;
   end;
 end;
 
@@ -1114,7 +1159,7 @@ var
   p: TPazo;
 begin
   Result := nil;
-  kb_lock.Enter('FindPazoById');
+  kb_list_rw.ReadOnlyLock;
   try
     try
       for i := kb_list.Count - 1 downto 0 do
@@ -1140,7 +1185,7 @@ begin
       end;
     end;
   finally
-    kb_lock.Leave;
+    kb_list_rw.ReadOnlyUnLock;
   end;
 end;
 
@@ -1149,7 +1194,7 @@ var
   i: integer;
 begin
   Result := nil;
-  kb_lock.Enter('FindPazoByKey');
+  kb_list_rw.ReadOnlyLock;
   try
     try
       i := kb_list.IndexOf(aKey);
@@ -1170,7 +1215,7 @@ begin
      end;
     end;
   finally
-     kb_lock.Leave;
+     kb_list_rw.ReadOnlyUnLock;
   end;
 end;
 
@@ -1181,11 +1226,11 @@ end;
 
 procedure AddPazoToKB(const aKey: String; const aPazo: TPazo);
 begin
-  kb_lock.Enter('AddPazoToKB');
+  kb_list_rw.WriteLock;
   try
     kb_list.AddObject(aKey, aPazo);
   finally
-    kb_lock.Leave;
+    kb_list_rw.WriteUnLock;
   end;
 end;
 
@@ -1194,7 +1239,7 @@ var
   db, i: integer;
   p: TPazo;
 begin
-  kb_lock.Enter('ListKBToIRC');
+  kb_list_rw.ReadOnlyLock;
   try
     db := 0;
     for i := kb_list.Count - 1 downto 0 do
@@ -1220,7 +1265,7 @@ begin
       end;
     end;
   finally
-    kb_lock.Leave;
+    kb_list_rw.ReadOnlyUnLock;
   end;
 end;
 
@@ -1266,7 +1311,12 @@ var
     p.stated := True;
     p.cleared := True;
     p.ExcludeFromIncfiller := True;
-    kb_list.AddObject(section + '-' + rlsname, p);
+    kb_list_rw.WriteLock;
+    try
+      kb_list.AddObject(section + '-' + rlsname, p);
+    finally
+      kb_list_rw.WriteUnLock;
+    end;
   end;
 
 begin
@@ -1341,17 +1391,22 @@ begin
   Debug(dpSpam, rsections, 'kb_Save');
   x := TEncStringList.Create(passphrase);
   try
+    kb_list_rw.ReadOnlyLock;
     try
-      for i := 0 to kb_list.Count - 1 do
-      begin
-        p := TPazo(kb_list.Objects[i]);
-        if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
-          (1 <> Pos('REQUEST-', kb_list[i])) and
-          (SecondsBetween(Now, p.added) < kb_keep_entries)) then
-          x.Add(GetKbPazoInfoLine(p));
+      try
+        for i := 0 to kb_list.Count - 1 do
+        begin
+          p := TPazo(kb_list.Objects[i]);
+          if ((p <> nil) and (1 <> Pos('TRANSFER-', kb_list[i])) and
+            (1 <> Pos('REQUEST-', kb_list[i])) and
+            (SecondsBetween(Now, p.added) < kb_keep_entries)) then
+            x.Add(GetKbPazoInfoLine(p));
+        end;
+      except
+        exit;
       end;
-    except
-      exit;
+    finally
+      kb_list_rw.ReadOnlyUnLock;
     end;
     x.SaveToFile(ExtractFilePath(ParamStr(0)) + 'slftp.kb');
   finally
@@ -1460,6 +1515,7 @@ begin
   kb_trimmed_rls_rw.Init;
   kb_groupcheck_rls_rw.Init;
   kb_latest_rw.Init;
+  kb_list_rw.Init;
 
   kb_trimmed_rls := THashedStringList.Create;
   kb_trimmed_rls.CaseSensitive := False;
@@ -1514,6 +1570,7 @@ begin
   kb_trimmed_rls_rw.AssertDone;
   kb_groupcheck_rls_rw.AssertDone;
   kb_latest_rw.AssertDone;
+  kb_list_rw.AssertDone;
   rules_lock.Free;
   kb_lock.Free;
 
@@ -1749,6 +1806,9 @@ begin
         kb_lock.Enter('Execute');
         p := nil;
         try
+          // WriteLock for the whole iteration since we may delete entries inline.
+          kb_list_rw.WriteLock;
+          try
           for i := kb_list.Count - 1 downto 0 do
           begin
             if i < 0 then
@@ -1791,6 +1851,9 @@ begin
               fDeletedPazos.Add(p);
             end;
 
+          end;
+          finally
+            kb_list_rw.WriteUnLock;
           end;
         finally
           kb_lock.Leave;

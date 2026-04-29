@@ -1076,7 +1076,6 @@ var
   sitesArray: TDocVariantData;
   expectedSitesArray: TDocVariantData;
   kbList: TStringList;
-  kbLock: TSlCriticalSection2;
   totalSites, allowedSites, presentSites, expectedSites, notAllowedSites: Integer;
   isNotAllowed: Boolean;
   isPresent: Boolean;
@@ -1095,9 +1094,8 @@ begin
     releasesArray.Init(JSON_FAST, dvArray);
 
     kbList := GetKBList;
-    kbLock := GetKBLock;
 
-    if (kbList = nil) or (kbLock = nil) then
+    if kbList = nil then
     begin
       Debug(dpError, section, 'GetRecentReleases: KB not initialized');
       Response.Releases := '[]';
@@ -1105,7 +1103,7 @@ begin
       Exit;
     end;
 
-    kbLock.Enter('GetRecentReleases');
+    LockKBListRead;
     try
       // Iterate through kb_list backwards (newest first)
       for i := kbList.Count - 1 downto 0 do
@@ -1289,7 +1287,7 @@ begin
       Response.Total := count;
 
     finally
-      kbLock.Leave;
+      UnlockKBListRead;
     end;
 
     Response.Releases := TDocVariantData(releasesArray).ToJSON;
