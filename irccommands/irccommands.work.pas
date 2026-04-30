@@ -260,7 +260,7 @@ var
         begin
           if AnsiStartsText('speed-from-', x.Names[i]) then
           begin
-            s := FindSiteByName('', Copy(x.Names[i], 12, Length(x.Names[i])));
+            s := FindSiteByName('', Copy(x.Names[i], Length('speed-from-') + 1, Length(x.Names[i])));
             if ((s <> nil) and (s.WorkingStatus = sstUp)) then
               Routeable(s.Name, y);
           end;

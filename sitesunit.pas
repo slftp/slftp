@@ -4957,7 +4957,7 @@ begin
       if AnsiStartsText('speed-from-', fKey) then
       begin
         fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
-        fSpeedInfo.Sitename := Copy(fKey, 12, Length(fKey));
+        fSpeedInfo.Sitename := Copy(fKey, Length('speed-from-') + 1, Length(fKey));
         fNewValue.Add(fSpeedInfo);
       end;
     end;
@@ -4994,17 +4994,6 @@ begin
       sitesdat.EraseSection('speed-from-' + Name);
     end;
 
-    fStringList.Clear;
-    sitesdat.ReadSectionValues('affilspeed-from-' + Name, fStringList);
-    if fStringList.Count > 0 then
-    begin
-      irc_addadmin('<c14><b>Info</c></b>: Migrating affilspeed-from routes on %s to the new site config layout.', [self.Name]);
-      for i := 0 to fStringList.Count - 1 do
-      begin
-        WCString('affilspeed-from-' + fStringList.Names[i], fStringList.ValueFromIndex[i]);
-      end;
-      sitesdat.EraseSection('affilspeed-from-' + Name);
-    end;
   finally
     FreeAndNil(fStringList);
   end;
