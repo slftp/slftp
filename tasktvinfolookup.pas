@@ -39,22 +39,233 @@ uses
 const
   section = 'tasktvinfo';
 
-function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
+{ Removes the last whitespace-/dot-/underscore-/hyphen-separated word from
+  aName. Returns True if a word was removed and aName still has at least one
+  word, False otherwise. Used by progressive search reduction. }
+function _ReduceShowNameByOneWord(var aName: String): Boolean;
 var
-  showA, showB, resp: String;
-  x: TRegExpr;
-  i: integer;
-  ddate, res: TStringlist;
-  fromIRC, hadYear, hadCountry: boolean;
-  tv_country, showName, year, country: String;
-  jl: TlkJSONlist;
-  fHttpGetErrMsg: String;
+  i: Integer;
 begin
-  result := 'FAILED';
+  Result := False;
+  aName := TrimRight(aName);
+  i := Length(aName);
+  while (i > 0) and (aName[i] <> ' ') and (aName[i] <> '.') and
+        (aName[i] <> '_') and (aName[i] <> '-') do
+    Dec(i);
+  if i <= 0 then
+    Exit; // no separator -> only one word, can't reduce
+  aName := TrimRight(Copy(aName, 1, i - 1));
+  Result := aName <> '';
+end;
+
+{ Performs ONE TVMaze /search/shows?q=... call and tries to find a matching
+  show. Returns the TVMaze ID on match, '' on no result (caller can retry with
+  a shorter query), or 'FAILED' on a hard error.
+
+  For fromIRC=True, also populates aRes with formatted option lines (the
+  user picks one); for fromIRC=False the first qualifying result wins.
+
+  Match rules (evaluated per result returned from the API):
+  - Exact name match after onlyEnglishAlpha+replaceTVShowChars (existing behavior)
+  - OR (auto-lookup only) prefix match: TVMaze name is a prefix of the original
+    full showName, OR the current query is a prefix of TVMaze name. Combined
+    with a minimum score threshold (aMinScore) this catches localized titles
+    like "Murdoch Mysteries Auf den Spuren..." where TVMaze only knows
+    "Murdoch Mysteries". }
+function _TVMazeSearchOnce(const aQueryName, aOrigShowAlpha, aYear, aCountry: String;
+  aHadYear, aHadCountry, aFromIRC: Boolean; aMinScore: Double; aRes: TStringList): String;
+var
+  resp: String;
+  fHttpGetErrMsg: String;
+  jl: TlkJSONlist;
+  ddate: TStringList;
+  i: Integer;
+  showA, showB: String;
+  tv_country: String;
+  tvScore: Double;
+  exactMatch, prefixMatch: Boolean;
+begin
+  Result := 'FAILED';
+
+  if not HttpGetUrl('https://api.tvmaze.com/search/shows?q=' + replaceTVShowChars(aQueryName, True), resp, fHttpGetErrMsg) then
+  begin
+    Debug(dpError, section, Format('[FAILED] TVMAZE API search by Name for %s --> %s', [replaceTVShowChars(aQueryName, True), fHttpGetErrMsg]));
+    Exit;
+  end;
+
+  if (resp = '') or (resp = '[]') then
+  begin
+    Result := ''; // no result, caller may retry with a shorter query
+    Exit;
+  end;
+
+  jl := nil;
+  try
+    try
+      jl := TlkJSON.ParseText(AnsiString(resp)) as TlkJSONlist;
+    except
+      on e: Exception do
+      begin
+        Debug(dpError, section, '[EXCEPTION] _TVMazeSearchOnce parse: %s', [e.Message]);
+        Exit;
+      end;
+    end;
+
+    if jl = nil then
+      Exit;
+
+    ddate := TStringlist.Create;
+    try
+      for i := 0 to jl.Count - 1 do
+      begin
+        // Read TVMaze score (results are returned in descending score order)
+        try
+          tvScore := jl.Child[i].Field['score'].Value;
+        except
+          tvScore := 0;
+        end;
+
+        showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(aQueryName, '.', ' ')));
+        showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
+
+        exactMatch := (CompareText(showA, showB) = 0);
+        prefixMatch := False;
+        if (not exactMatch) and (not aFromIRC) and (showB <> '') and (aOrigShowAlpha <> '') then
+        begin
+          // TVMaze result name is a prefix of the original full release name
+          // (e.g. result "MurdochMysteries" matches original
+          // "MurdochMysteriesAufdenSpuren..."). Caps the false-positive risk
+          // by combining with the score threshold.
+          if (Length(showB) <= Length(aOrigShowAlpha)) and AnsiStartsText(showB, aOrigShowAlpha) then
+            prefixMatch := True
+          // Or current (already reduced) query is a prefix of the TVMaze name
+          // - useful when reduction overshoots (e.g. query "Middag" against
+          // result "Middag Paa Michelin Restauranterne").
+          else if (showA <> '') and (Length(showA) <= Length(showB)) and AnsiStartsText(showA, showB) then
+            prefixMatch := True;
+        end;
+
+        // Apply score threshold for non-exact matches in auto-lookup
+        if prefixMatch and (tvScore < aMinScore) then
+        begin
+          Debug(dpSpam, section, 'TVMAZE skip prefix match below score threshold: query="%s" candidate="%s" score=%.3f<%.3f',
+            [aQueryName, String(jl.Child[i].Field['show'].Field['name'].Value), tvScore, aMinScore]);
+          prefixMatch := False;
+        end;
+
+        if exactMatch or prefixMatch then
+        begin
+          if aHadCountry then
+          begin
+            tv_country := '';
+            if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
+            begin
+              if jl.Child[i].Field['show'].Field['network'].Field['country'].SelfType <> jsNull then
+                tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
+            end;
+
+            if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
+            begin
+              if jl.Child[i].Field['show'].Field['webChannel'].Field['country'].SelfType <> jsNull then
+                tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
+            end;
+
+            if tv_country = 'GB' then
+              tv_country := 'UK';
+
+            if UpperCase(tv_country) = UpperCase(aCountry) then
+            begin
+              if not aFromIRC then
+              begin
+                Result := String(jl.Child[i].Field['show'].Field['id'].Value);
+                Debug(dpSpam, section, 'TVMAZE match (country): query="%s" matched="%s" id=%s score=%.3f exact=%d prefix=%d',
+                  [aQueryName, String(jl.Child[i].Field['show'].Field['name'].Value), Result, tvScore, Ord(exactMatch), Ord(prefixMatch)]);
+                Break;
+              end;
+            end;
+            aRes.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
+              tv_country, String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(aQueryName, '.', ' '), aCountry])
+            );
+          end;
+
+          if aHadYear then
+          begin
+            ddate.Delimiter := '-';
+            if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
+              ddate.DelimitedText := String(jl.Child[i].Field['show'].Field['premiered'].Value)
+            else
+              ddate.DelimitedText := '1970-01-01';
+            if aYear = ddate.Strings[0] then
+            begin
+              if not aFromIRC then
+              begin
+                Result := String(jl.Child[i].Field['show'].Field['id'].Value);
+                Debug(dpSpam, section, 'TVMAZE match (year): query="%s" matched="%s" id=%s score=%.3f exact=%d prefix=%d',
+                  [aQueryName, String(jl.Child[i].Field['show'].Field['name'].Value), Result, tvScore, Ord(exactMatch), Ord(prefixMatch)]);
+                Break;
+              end;
+            end;
+            aRes.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
+              ddate.Strings[0], String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(aQueryName, '.', ' '), aYear])
+            );
+          end;
+        end;
+
+        if ((not aHadYear) and (not aHadCountry)) then
+        begin
+          // For non-strict auto-lookup: the first result is typically the highest
+          // score. We only accept it if either the names match (exact or prefix)
+          // OR this is the very first attempt (preserves legacy behaviour). The
+          // caller's progressive reduction relies on the prefix check kicking in
+          // for shorter queries to avoid drifting to an unrelated show.
+          if (not aFromIRC) then
+          begin
+            if exactMatch or prefixMatch or (aMinScore <= 0) then
+            begin
+              Result := String(jl.Child[i].Field['show'].Field['id'].Value);
+              Debug(dpSpam, section, 'TVMAZE match: query="%s" matched="%s" id=%s score=%.3f exact=%d prefix=%d',
+                [aQueryName, String(jl.Child[i].Field['show'].Field['name'].Value), Result, tvScore, Ord(exactMatch), Ord(prefixMatch)]);
+              Break;
+            end;
+          end
+          else
+          begin
+            aRes.Add(Format('<b>%s</b>: %s => %saddtvinfo %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
+              String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
+              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(aQueryName, '.', ' ')])
+            );
+          end;
+        end;
+      end;
+    finally
+      ddate.Free;
+    end;
+  finally
+    jl.Free;
+  end;
+end;
+
+function findTVMazeIDByName(const name: String; Netname: String = ''; Channel: String = ''): String;
+const
+  C_MAX_REDUCTION_ATTEMPTS = 5; // 1 initial + up to 4 reductions
+  C_REDUCTION_SLEEP_MS = 300;   // throttle to stay below TVMaze rate limit
+  C_PREFIX_MATCH_MIN_SCORE = 0.7;
+var
+  showName, year, country: String;
+  origShowAlpha: String;
+  hadYear, hadCountry, fromIRC: Boolean;
+  x: TRegExpr;
+  res: TStringList;
+  reducedName: String;
+  attempt: Integer;
+  attemptResult: String;
+begin
+  Result := 'FAILED';
   hadYear := False;
   hadCountry := False;
   fromIRC := Boolean((Netname <> '') and (Channel <> ''));
-
   showName := name;
 
   x := TRegExpr.Create;
@@ -67,8 +278,6 @@ begin
     if x.Exec(showName) then
     begin
       year := x.Match[1];
-
-      //we add 10 years to current year
       if StrToInt(year) < (StrToInt(FormatDateTime('yyyy', Now)) + 10) then
       begin
         showName := x.Replace(showName, '', False);
@@ -85,126 +294,99 @@ begin
       hadCountry := True;
     end;
   finally
-    x.free;
+    x.Free;
   end;
 
-  if not HttpGetUrl('https://api.tvmaze.com/search/shows?q=' + replaceTVShowChars(showName, True), resp, fHttpGetErrMsg) then
-  begin
-    irc_Adderror(Format('<c4>[FAILED]</c> TVMAZE API search by Name for %s --> %s', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
-    Debug(dpError, section, Format('[FAILED] TVMAZE API search by Name for %s --> %s ', [replaceTVShowChars(showName, True), fHttpGetErrMsg]));
-    exit;
-  end;
+  // Captured ONCE before any reduction so prefix-matching always compares
+  // against the full original release name, not the reduced query.
+  origShowAlpha := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
 
-  if ((resp = '') or (resp = '[]')) then
-  begin
-    irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )', [ReplaceText(showName, '.', ' '), replaceTVShowChars(showName, true)]);
-    Exit;
-  end;
-
-  jl := TlkJSONlist.Create;
+  res := TStringList.Create;
   try
-    try
-      jl := TlkJSON.ParseText(AnsiString(resp)) as TlkJSONlist;
-    except
-      on e: Exception do
+    // fromIRC: keep legacy behaviour - single attempt, returns CSV of options
+    if fromIRC then
+    begin
+      attemptResult := _TVMazeSearchOnce(showName, origShowAlpha, year, country,
+        hadYear, hadCountry, fromIRC, 0, res);
+      if (attemptResult = '') then
       begin
-        irc_AddText(Netname, Channel, '<c4>[EXCEPTION]</c> findTVMazeIDByName (parsing): %s', [e.Message]);
-        Debug(dpError, section, '[EXCEPTION] findTVMazeIDByName (parsing): %s', [e.Message]);
+        irc_addtext(Netname, Channel, '<c5><b>TVInfo</c></b>: No search result for %s ( %s )',
+          [ReplaceText(showName, '.', ' '), replaceTVShowChars(showName, True)]);
         Exit;
       end;
+      if attemptResult = 'FAILED' then
+      begin
+        irc_AddText(Netname, Channel, '<c4>[FAILED]</c> TVMAZE API search by Name for %s',
+          [replaceTVShowChars(showName, True)]);
+        Exit;
+      end;
+      if res.Count = 0 then
+        Result := 'FAILED'
+      else
+        Result := res.CommaText;
+      Exit;
     end;
 
-    res := TStringlist.Create;
-    ddate := TStringlist.Create;
-    try
-      for I := 0 to jl.Count - 1 do
-      begin
-        showA := onlyEnglishAlpha(replaceTVShowChars(ReplaceText(showName, '.', ' ')));
-        showB := onlyEnglishAlpha(replaceTVShowChars(jl.Child[i].Field['show'].Field['name'].Value));
-
-        if (CompareText(showA,showB)= 0) then
-        begin
-          if hadCountry then
-          begin
-            if jl.Child[i].Field['show'].Field['network'].SelfType <> jsNull then
-            begin
-              if jl.Child[i].Field['show'].Field['network'].Field['country'].SelfType <> jsNull then
-                tv_country := String(jl.Child[i].Field['show'].Field['network'].Field['country'].Field['code'].Value);
-            end;
-
-            if jl.Child[i].Field['show'].Field['webChannel'].SelfType <> jsNull then
-            begin
-              if jl.Child[i].Field['show'].Field['webChannel'].Field['country'].SelfType <> jsNull then
-                tv_country := String(jl.Child[i].Field['show'].Field['webChannel'].Field['country'].Field['code'].Value);
-            end;
-
-            if tv_country = 'GB' then
-              tv_country := 'UK';
-
-            if UpperCase(tv_country) = UpperCase(country) then
-            begin
-              if not fromIRC then
-              begin
-                result := String(jl.Child[i].Field['show'].Field['id'].Value);
-                Break;
-              end;
-            end;
-            res.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
-              tv_country, String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' '), country])
-            );
-          end;
-
-          if hadYear then
-          begin
-            ddate.Delimiter := '-';
-            if jl.Child[i].Field['show'].Field['premiered'].SelfType <> jsNull then
-              ddate.DelimitedText := String(jl.Child[i].Field['show'].Field['premiered'].Value)
-            else
-              ddate.DelimitedText := '1970-01-01';
-            if year = ddate.Strings[0] then
-            begin
-              if not fromIRC then
-              begin
-                result := String(jl.Child[i].Field['show'].Field['id'].Value);
-                Break;
-              end;
-            end;
-            res.Add(Format('<b>%s %s</b>: %s => %saddtvinfo %s %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
-              ddate.Strings[0], String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' '), year])
-            );
-          end;
-        end;
-
-        if ((not hadYear) and (not hadCountry)) then
-        begin
-          if not fromIRC then
-          begin
-            result := String(jl.Child[i].Field['show'].Field['id'].Value);
-            Break;
-          end;
-
-            res.Add(Format('<b>%s</b>: %s => %saddtvinfo %s %s', [String(jl.Child[i].Field['show'].Field['name'].Value),
-              String(jl.Child[i].Field['show'].Field['url'].Value), irccmdprefix,
-              String(jl.Child[i].Field['show'].Field['id'].Value), ReplaceText(showName, '.', ' ')])
-            );
-        end;
-      end;
-
-      if fromIRC then
-      begin
-        if (res.Count = 0) then
-          result := 'FAILED'
-        else
-          result := res.CommaText;
-      end;
-    finally
-      ddate.free;
-      res.free;
+    // Strict mode (year or country given): also single attempt, no reduction
+    if hadYear or hadCountry then
+    begin
+      attemptResult := _TVMazeSearchOnce(showName, origShowAlpha, year, country,
+        hadYear, hadCountry, False, 0, res);
+      if (attemptResult <> '') and (attemptResult <> 'FAILED') then
+        Result := attemptResult;
+      if attemptResult = '' then
+        Debug(dpSpam, section, 'TVMAZE: no search result for "%s" (strict mode, hadYear=%d hadCountry=%d)',
+          [showName, Ord(hadYear), Ord(hadCountry)]);
+      Exit;
     end;
+
+    // Auto-lookup without year/country: progressive word reduction with
+    // score+prefix filter on the reduced attempts.
+    reducedName := showName;
+    for attempt := 0 to C_MAX_REDUCTION_ATTEMPTS - 1 do
+    begin
+      if attempt > 0 then
+        Sleep(C_REDUCTION_SLEEP_MS); // rate-limit protection (TVMaze ~20/10s)
+
+      // First attempt uses the original lenient behavior (aMinScore=0 means
+      // accept the highest-scored result like the legacy code did). Subsequent
+      // attempts on a reduced query require a prefix match with a non-trivial
+      // score so we don't accept totally unrelated shows.
+      if attempt = 0 then
+        attemptResult := _TVMazeSearchOnce(reducedName, origShowAlpha, year, country,
+          hadYear, hadCountry, False, 0, res)
+      else
+        attemptResult := _TVMazeSearchOnce(reducedName, origShowAlpha, year, country,
+          hadYear, hadCountry, False, C_PREFIX_MATCH_MIN_SCORE, res);
+
+      if (attemptResult <> '') and (attemptResult <> 'FAILED') then
+      begin
+        Result := attemptResult;
+        if attempt > 0 then
+          Debug(dpSpam, section, 'TVMAZE: matched after %d reduction(s): "%s" -> id=%s',
+            [attempt, reducedName, Result]);
+        Exit;
+      end;
+
+      // Hard error - don't keep hammering the API
+      if attemptResult = 'FAILED' then
+        Exit;
+
+      // Try one more reduction
+      if not _ReduceShowNameByOneWord(reducedName) then
+      begin
+        Debug(dpSpam, section, 'TVMAZE: no further reduction possible for "%s" after %d attempt(s)',
+          [showName, attempt + 1]);
+        Break;
+      end;
+      Debug(dpSpam, section, 'TVMAZE: no result, reducing query to "%s" (attempt %d/%d)',
+        [reducedName, attempt + 1, C_MAX_REDUCTION_ATTEMPTS]);
+    end;
+
+    // No match after all attempts
+    Debug(dpSpam, section, 'TVMAZE: no match for "%s" after progressive reduction', [showName]);
   finally
-    jl.free;
+    res.Free;
   end;
 end;
 
