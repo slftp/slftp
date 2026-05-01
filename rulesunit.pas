@@ -1848,7 +1848,9 @@ end;
 function GetGlobalIdForRule(const aRule: TRule): integer;
 var
   fRulesPerSite: TPair<String, TDictionary<string, TObjectList<TRule>>>;
-  fRulesPerSection: TPair<String, TObjectList<TRule>>;
+  fSectionNames: TStringList;
+  fSectionName: String;
+  fRulesForSection: TObjectList<TRule>;
   fRule: TRule;
 begin
   Result := 0;
@@ -1856,9 +1858,15 @@ begin
   // iterate all sites/sections and count the rules until we find the given one
   for fRulesPerSite in rules do
   begin
-    for fRulesPerSection in fRulesPerSite.Value do
+    if not rulesSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+      Continue;
+
+    for fSectionName in fSectionNames do
     begin
-      for fRule in fRulesPerSection.Value do
+      if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+        Continue;
+
+      for fRule in fRulesForSection do
       begin
         if fRule = aRule then
           exit;
@@ -2134,7 +2142,9 @@ end;
 function FindIrcRules(const sitename, section: string): TList<String>;
 var
   fRulesPerSite: TPair<String, TDictionary<string, TObjectList<TRule>>>;
-  fRulesPerSection: TPair<String, TObjectList<TRule>>;
+  fSectionNames: TStringList;
+  fSectionName: String;
+  fRulesForSection: TObjectList<TRule>;
   r: TRule;
   i: integer;
 begin
@@ -2145,11 +2155,17 @@ begin
   begin
     for fRulesPerSite in rtpl do
     begin
-      for fRulesPerSection in fRulesPerSite.Value do
+      if not rtplSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+        Continue;
+
+      for fSectionName in fSectionNames do
       begin
-        for i := 0 to fRulesPerSection.Value.Count - 1 do
+        if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+          Continue;
+
+        for i := 0 to fRulesForSection.Count - 1 do
         begin
-          r := TRule(fRulesPerSection.Value[i]);
+          r := TRule(fRulesForSection[i]);
           if ((r.sitename = '*') and (r.section = '*')) then
           begin
             Result.Add(Format('rtpl-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
@@ -2159,11 +2175,17 @@ begin
     end;
     for fRulesPerSite in rules do
     begin
-      for fRulesPerSection in fRulesPerSite.Value do
+      if not rulesSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+        Continue;
+
+      for fSectionName in fSectionNames do
       begin
-        for i := 0 to fRulesPerSection.Value.Count - 1 do
+        if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+          Continue;
+
+        for i := 0 to fRulesForSection.Count - 1 do
         begin
-          r := TRule(fRulesPerSection.Value[i]);
+          r := TRule(fRulesForSection[i]);
           if ((r.sitename = '*') and (r.section = '*')) then
           begin
             Result.Add(Format('rule-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
@@ -2178,11 +2200,17 @@ begin
   begin
     for fRulesPerSite in rtpl do
     begin
-      for fRulesPerSection in fRulesPerSite.Value do
+      if not rtplSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+        Continue;
+
+      for fSectionName in fSectionNames do
       begin
-        for i := 0 to fRulesPerSection.Value.Count - 1 do
+        if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+          Continue;
+
+        for i := 0 to fRulesForSection.Count - 1 do
         begin
-          r := TRule(fRulesPerSection.Value[i]);
+          r := TRule(fRulesForSection[i]);
           if ((r.sitename = '*') and (r.section = section)) then
           begin
             Result.Add(Format('rtpl-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
@@ -2192,11 +2220,17 @@ begin
     end;
     for fRulesPerSite in rules do
     begin
-      for fRulesPerSection in fRulesPerSite.Value do
+      if not rulesSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+        Continue;
+
+      for fSectionName in fSectionNames do
       begin
-        for i := 0 to fRulesPerSection.Value.Count - 1 do
+        if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+          Continue;
+
+        for i := 0 to fRulesForSection.Count - 1 do
         begin
-          r := TRule(fRulesPerSection.Value[i]);
+          r := TRule(fRulesForSection[i]);
           if ((r.sitename = '*') and (r.section = section)) then
           begin
             Result.Add(Format('rule-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
@@ -2210,11 +2244,17 @@ begin
     begin
       for fRulesPerSite in rtpl do
       begin
-        for fRulesPerSection in fRulesPerSite.Value do
+        if not rtplSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+          Continue;
+
+        for fSectionName in fSectionNames do
         begin
-          for i := 0 to fRulesPerSection.Value.Count - 1 do
+          if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+            Continue;
+
+          for i := 0 to fRulesForSection.Count - 1 do
           begin
-            r := TRule(fRulesPerSection.Value[i]);
+            r := TRule(fRulesForSection[i]);
             if ((r.sitename = sitename) and (r.section = '*')) then
             begin
               Result.Add(Format('rtpl-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
@@ -2224,11 +2264,17 @@ begin
       end;
       for fRulesPerSite in rules do
       begin
-        for fRulesPerSection in fRulesPerSite.Value do
+        if not rulesSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+          Continue;
+
+        for fSectionName in fSectionNames do
         begin
-          for i := 0 to fRulesPerSection.Value.Count - 1 do
+          if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+            Continue;
+
+          for i := 0 to fRulesForSection.Count - 1 do
           begin
-            r := TRule(fRulesPerSection.Value[i]);
+            r := TRule(fRulesForSection[i]);
             if ((r.sitename = sitename) and (r.section = '*')) then
             begin
               Result.Add(Format('rule-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
@@ -2243,11 +2289,17 @@ begin
     begin
       for fRulesPerSite in rtpl do
       begin
-        for fRulesPerSection in fRulesPerSite.Value do
+        if not rtplSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+          Continue;
+
+        for fSectionName in fSectionNames do
         begin
-          for i := 0 to fRulesPerSection.Value.Count - 1 do
+          if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+            Continue;
+
+          for i := 0 to fRulesForSection.Count - 1 do
           begin
-            r := TRule(fRulesPerSection.Value[i]);
+            r := TRule(fRulesForSection[i]);
             if ((r.sitename = sitename) and (r.section = section)) then
             begin
               Result.Add(Format('rtpl-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
@@ -2257,11 +2309,17 @@ begin
       end;
       for fRulesPerSite in rules do
       begin
-        for fRulesPerSection in fRulesPerSite.Value do
+        if not rulesSectionOrder.TryGetValue(fRulesPerSite.Key, fSectionNames) then
+          Continue;
+
+        for fSectionName in fSectionNames do
         begin
-          for i := 0 to fRulesPerSection.Value.Count - 1 do
+          if not fRulesPerSite.Value.TryGetValue(fSectionName, fRulesForSection) then
+            Continue;
+
+          for i := 0 to fRulesForSection.Count - 1 do
           begin
-            r := TRule(fRulesPerSection.Value[i]);
+            r := TRule(fRulesForSection[i]);
             if ((r.sitename = sitename) and (r.section = section)) then
             begin
               Result.Add(Format('rule-%d %s', [GetGlobalIdForRule(r), r.AsText(True)]));
