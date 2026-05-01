@@ -1846,6 +1846,8 @@ function DoAddRule(const rule: String; var error: String; const aNotAddToRtpl: b
 var
   r: TRule;
   fRulesPerSite: TDictionary<string, TObjectList<TRule>>;
+  fExistingRules: TObjectList<TRule>;
+  fExistingRule: TRule;
 begin
   error := '';
   Result := TPair<TRule, integer>.Create(nil, -1);
@@ -1855,42 +1857,76 @@ begin
   begin
     error := r.error;
     r.Free;
+    Exit;
+  end;
+
+  // Check for duplicate rule before adding
+  if aNotAddToRtpl then
+  begin
+    if rules.TryGetValue(r.sitename, fRulesPerSite) then
+    begin
+      if fRulesPerSite.TryGetValue(r.section, fExistingRules) then
+      begin
+        for fExistingRule in fExistingRules do
+        begin
+          if fExistingRule.AsText(False) = r.AsText(False) then
+          begin
+            error := Format('Duplicate rule for %s %s', [r.sitename, r.section]);
+            r.Free;
+            Exit;
+          end;
+        end;
+      end;
+    end;
   end
   else
   begin
-    if r <> nil then
+    if rtpl.TryGetValue(r.sitename, fRulesPerSite) then
     begin
-      Result.Key := r;
-      if aNotAddToRtpl then
+      if fRulesPerSite.TryGetValue(r.section, fExistingRules) then
       begin
-        if not rules.ContainsKey(r.sitename) then
-          rules.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
-
-        fRulesPerSite := rules[r.sitename];
-        if not fRulesPerSite.ContainsKey(r.section) then
+        for fExistingRule in fExistingRules do
         begin
-          fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
+          if fExistingRule.AsText(False) = r.AsText(False) then
+          begin
+            error := Format('Duplicate rule for %s %s', [r.sitename, r.section]);
+            r.Free;
+            Exit;
+          end;
         end;
-
-        fRulesPerSite[r.section].Add(r);
-        Result.Value := GetGlobalIdForRule(r);
-      end
-      else
-      begin
-        if not rtpl.ContainsKey(r.sitename) then
-          rtpl.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
-
-        fRulesPerSite := rtpl[r.sitename];
-        if not fRulesPerSite.ContainsKey(r.section) then
-        begin
-          fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
-        end;
-
-        fRulesPerSite[r.section].Add(r);
-        // I think we don't need the ID for the rtpl case
-        Result.Value := -1;
       end;
-    end
+    end;
+  end;
+
+  Result.Key := r;
+  if aNotAddToRtpl then
+  begin
+    if not rules.ContainsKey(r.sitename) then
+      rules.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
+
+    fRulesPerSite := rules[r.sitename];
+    if not fRulesPerSite.ContainsKey(r.section) then
+    begin
+      fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
+    end;
+
+    fRulesPerSite[r.section].Add(r);
+    Result.Value := GetGlobalIdForRule(r);
+  end
+  else
+  begin
+    if not rtpl.ContainsKey(r.sitename) then
+      rtpl.add(r.sitename, TDictionary<string, TObjectList<TRule>>.Create);
+
+    fRulesPerSite := rtpl[r.sitename];
+    if not fRulesPerSite.ContainsKey(r.section) then
+    begin
+      fRulesPerSite.Add(r.section, TObjectList<TRule>.Create);
+    end;
+
+    fRulesPerSite[r.section].Add(r);
+    // I think we don't need the ID for the rtpl case
+    Result.Value := -1;
   end;
 end;
 
