@@ -416,12 +416,11 @@ begin
     end;
 
     try
-      sitesdat.EraseSection('speed-from-' + sitename);
       sitesdat.EraseSection('speed-to-' + sitename);
 
       for i := 0 to sites.Count - 1 do
       begin
-        sitesdat.DeleteKey('speed-from-' + TSite(sites.Items[i]).Name, sitename);
+        sitesdat.DeleteKey('site-' + TSite(sites.Items[i]).Name, 'speed-from-' + sitename);
         sitesdat.DeleteKey('speed-to-' + TSite(sites.Items[i]).Name, sitename);
       end;
 
