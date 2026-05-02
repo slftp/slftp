@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig;
+  variantcache, routeconfig, StrUtils;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -559,6 +559,9 @@ type
 
     { Updates the speed-from cache of this site from the sites.dat. }
     procedure UpdateSpeedFromCache;
+
+    { Migrates old speed-from config values to the new combined route config. }
+    procedure MigrateSpeedFromConfig;
 
     { Migrates old speedlock config values to the new speed-from config and remove all speed-to configs which we don't need anymore. }
     procedure MigrateSpeedLockAndSpeedToConfig;
@@ -3183,6 +3186,7 @@ begin
 
   RecalcFreeslots;
   MigrateSpeedLockAndSpeedToConfig;
+  MigrateSpeedFromConfig;
 
   debug(dpSpam, section, 'Site %s has been created', [Name]);
 end;
@@ -4939,18 +4943,23 @@ var
   fSpeedInfo: TSpeedFromRouteInfo;
   fStringList: TStringList;
   i: Integer;
+  fKey: string;
 begin
   fNewValue := TList<TSpeedFromRouteInfo>.Create;
   fStringList := TStringList.Create;
-  sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+  sitesdat.ReadSectionValues('site-' + Name, fStringList);
 
   if fStringList.Count > 0 then
   begin
     for i := 0 to fStringList.Count - 1 do
     begin
-      fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
-      fSpeedInfo.Sitename := fStringList.Names[i];
-      fNewValue.Add(fSpeedInfo);
+      fKey := fStringList.Names[i];
+      if AnsiStartsText('speed-from-', fKey) then
+      begin
+        fSpeedInfo := TSpeedFromRouteInfo.CreateFromConfigString(fStringList.ValueFromIndex[i]);
+        fSpeedInfo.Sitename := Copy(fKey, Length('speed-from-') + 1, Length(fKey));
+        fNewValue.Add(fSpeedInfo);
+      end;
     end;
   end;
 
@@ -4965,6 +4974,29 @@ begin
 
   FreeAndNil(fOldValue);
   FreeAndNil(fStringList);
+end;
+
+procedure TSite.MigrateSpeedFromConfig;
+var
+  fStringList: TStringList;
+  i: Integer;
+begin
+  fStringList := TStringList.Create;
+  try
+    sitesdat.ReadSectionValues('speed-from-' + Name, fStringList);
+    if fStringList.Count > 0 then
+    begin
+      irc_addadmin('<c14><b>Info</c></b>: Migrating speed-from routes on %s to the new site config layout.', [self.Name]);
+      for i := 0 to fStringList.Count - 1 do
+      begin
+        WCString('speed-from-' + fStringList.Names[i], fStringList.ValueFromIndex[i]);
+      end;
+      sitesdat.EraseSection('speed-from-' + Name);
+    end;
+
+  finally
+    FreeAndNil(fStringList);
+  end;
 end;
 
 procedure TSite.MigrateSpeedLockAndSpeedToConfig;
