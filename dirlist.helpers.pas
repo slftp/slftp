@@ -79,6 +79,26 @@ function GetNewdirMaxCreatedValue(): integer;
   @returns(@glNewdirDirlistReadd) }
 function GetNewdirDirlistReaddValue(): integer;
 
+{ Calculates the load-adjusted dirlist readd value from base value, load, and threshold.
+  If aLoad1 < aThreshold: returns aBaseValue unchanged.
+  If aLoad1 >= aThreshold: scales as aBaseValue * (aLoad1 - aThreshold + 2)
+  Example: base=10, threshold=4.0, load=4.0 -> 20; load=5.0 -> 30; load=6.0 -> 40 }
+function CalculateLoadAdjustedDirlistReadd(const aBaseValue: Integer; const aLoad1, aThreshold: Double): Integer;
+
+{ Calculates the load-adjusted dirlist readd value using explicit step values.
+  aSteps[0] is used for load at threshold, aSteps[1] for threshold+1, etc.
+  If load exceeds the highest step, the last step value is used.
+  If aSteps is empty, falls back to CalculateLoadAdjustedDirlistReadd formula. }
+function CalculateLoadAdjustedDirlistReaddWithSteps(const aBaseValue: Integer; const aLoad1, aThreshold: Double; const aSteps: array of Integer): Integer;
+
+{ Reads current system load and applies load adjustment to the given base value.
+  Uses glNewdirDirlistReaddLoadEnabled and glNewdirDirlistReaddLoadThreshold globals.
+  If newdir_dirlist_readd_load_steps is configured, uses explicit steps instead of formula. }
+function GetNewdirDirlistReaddLoadAdjustedValue(const aBaseValue: Integer): Integer;
+
+{ Returns whether load-based dirlist readd adjustment is enabled }
+function IsNewdirDirlistReaddLoadEnabled(): Boolean;
+
 function ParseStatResponse(s: String): TObjectList<TParsedDirlistEntry>;
 
 { Just a helper function to initialize @link(glSkiplistFilesRegex) and @link(glSkiplistDirsRegex) }
@@ -90,7 +110,8 @@ procedure CleanupDirlistThreadVars;
 implementation
 
 uses
-  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings;
+  SysUtils, IdGlobal, RegExpr, globals, StrUtils, debugunit, configunit, mystrings,
+  mormot.core.os, DateUtils, slcriticalsection2, Classes, Math;
 
 const
   section = 'dirlist.helpers';
@@ -103,6 +124,12 @@ var
   glNewdirMaxCompleted: Integer;
   glNewdirMaxCreated: Integer;
   glNewdirDirlistReadd: Integer;
+  glNewdirDirlistReaddLoadEnabled: Boolean;
+  glNewdirDirlistReaddLoadThreshold: Double;
+  glNewdirDirlistReaddLoadSteps: array of Integer;
+  glLastLoggedLoadAdjustedValue: Integer = -1;
+  glLastLoggedLoadAdjustedTime: TDateTime = 0;
+  glLoadAdjustedLogLock: TSlCriticalSection2;
 
 threadvar
   glSkiplistFilesRegexInstance: TRegExpr;
@@ -286,6 +313,10 @@ begin
 end;
 
 procedure DirlistHelperInit;
+var
+  fStepsStr: String;
+  fParts: TStringList;
+  i: Integer;
 begin
   glSkiplistFilesRegex := config.ReadString('dirlist', 'global_skip_files', '^(tvmaze|imdb)\.nfo$|\-missing$|\-offline$|^\.|^file\_id\.diz$|\.htm$|\.html|\.bad$|\[IMDB\]\W+');
   glSkiplistDirsRegex := config.ReadString('dirlist', 'global_skip_dirs', '\[IMDB\]\W+|\[TvMaze\]\W+');
@@ -295,6 +326,25 @@ begin
   glNewdirMaxCompleted := config.ReadInteger('taskrace', 'newdir_max_completed', 300);
   glNewdirMaxCreated := config.ReadInteger('taskrace', 'newdir_max_created', 600);
   glNewdirDirlistReadd := config.ReadInteger('taskrace', 'newdir_dirlist_readd', 100);
+  glNewdirDirlistReaddLoadEnabled := config.ReadBool('taskrace', 'newdir_dirlist_readd_load_enabled', False);
+  glNewdirDirlistReaddLoadThreshold := config.ReadFloat('taskrace', 'newdir_dirlist_readd_load_threshold', CpuThreads);
+  glLoadAdjustedLogLock := TSlCriticalSection2.Create('LoadAdjustedLogLock');
+
+  // Parse optional explicit load steps (comma-separated list)
+  // Example: 20,30,50,100 means: at threshold -> 20ms, +1 -> 30ms, +2 -> 50ms, +3+ -> 100ms
+  fStepsStr := config.ReadString('taskrace', 'newdir_dirlist_readd_load_steps', '');
+  if fStepsStr <> '' then
+  begin
+    fParts := TStringList.Create;
+    try
+      ExtractStrings([','], [], PChar(fStepsStr), fParts);
+      SetLength(glNewdirDirlistReaddLoadSteps, fParts.Count);
+      for i := 0 to fParts.Count - 1 do
+        glNewdirDirlistReaddLoadSteps[i] := StrToIntDef(Trim(fParts[i]), 0);
+    finally
+      fParts.Free;
+    end;
+  end;
 end;
 
 function GetNewdirMaxUnchangedValue(): integer;
@@ -320,6 +370,119 @@ end;
 function GetNewdirDirlistReaddValue(): integer;
 begin
   Result := glNewdirDirlistReadd;
+end;
+
+function IsNewdirDirlistReaddLoadEnabled(): Boolean;
+begin
+  Result := glNewdirDirlistReaddLoadEnabled;
+end;
+
+function CalculateLoadAdjustedDirlistReadd(const aBaseValue: Integer; const aLoad1, aThreshold: Double): Integer;
+var
+  fMultiplier: Double;
+begin
+  if aLoad1 < aThreshold then
+    Result := aBaseValue
+  else
+  begin
+    fMultiplier := aLoad1 - aThreshold + 2;
+    Result := Round(aBaseValue * fMultiplier);
+  end;
+end;
+
+function CalculateLoadAdjustedDirlistReaddWithSteps(const aBaseValue: Integer; const aLoad1, aThreshold: Double; const aSteps: array of Integer): Integer;
+var
+  fStepIndex: Integer;
+begin
+  if Length(aSteps) = 0 then
+  begin
+    Result := CalculateLoadAdjustedDirlistReadd(aBaseValue, aLoad1, aThreshold);
+    Exit;
+  end;
+
+  fStepIndex := Floor(aLoad1 - aThreshold);
+  if fStepIndex < 0 then
+    Result := aBaseValue
+  else if fStepIndex >= Length(aSteps) then
+    Result := aSteps[High(aSteps)]
+  else
+    Result := aSteps[fStepIndex];
+end;
+
+function GetNewdirDirlistReaddLoadAdjustedValue(const aBaseValue: Integer): Integer;
+var
+  f: TextFile;
+  fLine: String;
+  fLoad1: Double;
+  fFormatSettings: TFormatSettings;
+begin
+  Result := aBaseValue;
+
+  if not glNewdirDirlistReaddLoadEnabled then
+    Exit;
+
+  {$I-}
+  AssignFile(f, '/proc/loadavg');
+  Reset(f);
+  if IOResult <> 0 then
+  begin
+    {$I+}
+    Exit;
+  end;
+
+  try
+    ReadLn(f, fLine);
+    if IOResult <> 0 then
+      Exit;
+
+    fLine := Trim(fLine);
+    if fLine = '' then
+      Exit;
+
+    // Extract first word (1min load average)
+    fLine := Copy(fLine, 1, Pos(' ', fLine) - 1);
+    if fLine = '' then
+      Exit;
+
+    fFormatSettings := DefaultFormatSettings;
+    fFormatSettings.DecimalSeparator := '.';
+
+    if not TryStrToFloat(fLine, fLoad1, fFormatSettings) then
+      Exit;
+
+    // Round load to 0.5 steps to prevent flapping on minor fluctuations
+    fLoad1 := Round(fLoad1 * 2) / 2;
+
+    if Length(glNewdirDirlistReaddLoadSteps) > 0 then
+      Result := CalculateLoadAdjustedDirlistReaddWithSteps(aBaseValue, fLoad1, glNewdirDirlistReaddLoadThreshold, glNewdirDirlistReaddLoadSteps)
+    else
+      Result := CalculateLoadAdjustedDirlistReadd(aBaseValue, fLoad1, glNewdirDirlistReaddLoadThreshold);
+
+    glLoadAdjustedLogLock.Enter('GetNewdirDirlistReaddLoadAdjustedValue');
+    try
+      if (Result <> aBaseValue) and ((Result <> glLastLoggedLoadAdjustedValue) or (MilliSecondsBetween(Now, glLastLoggedLoadAdjustedTime) >= 5000)) then
+      begin
+        Debug(dpMessage, section, Format('Load adjustment triggered: load=%.2f threshold=%.2f base=%dms -> adjusted=%dms',
+          [fLoad1, glNewdirDirlistReaddLoadThreshold, aBaseValue, Result]));
+        glLastLoggedLoadAdjustedValue := Result;
+        glLastLoggedLoadAdjustedTime := Now;
+      end
+      else if (Result = aBaseValue) and (glLastLoggedLoadAdjustedValue <> aBaseValue) and
+              (glLastLoggedLoadAdjustedTime > 0) and
+              (MilliSecondsBetween(Now, glLastLoggedLoadAdjustedTime) >= 5000) then
+      begin
+        Debug(dpMessage, section, Format('Load adjustment cleared: load=%.2f threshold=%.2f back to base=%dms',
+          [fLoad1, glNewdirDirlistReaddLoadThreshold, aBaseValue]));
+        glLastLoggedLoadAdjustedValue := Result;
+        glLastLoggedLoadAdjustedTime := Now;
+      end;
+    finally
+      glLoadAdjustedLogLock.Leave;
+    end;
+  finally
+    CloseFile(f);
+  end;
+  {$I+}
 end;
 
 procedure CleanupDirlistThreadVars;

@@ -1013,6 +1013,8 @@ begin
     // Use global rate calculated by QueueThread
     Response.DirlistPerSecond := GlDirlistRate;
     Response.DirlistPerSecondMax := GlDirlistRateMax;
+    Response.NewdirDirlistReaddEffective := GetNewdirDirlistReaddLoadAdjustedValue(GetNewdirDirlistReaddValue());
+    Response.NewdirDirlistReaddLoadEnabled := IsNewdirDirlistReaddLoadEnabled();
 
     Result := True;
   except

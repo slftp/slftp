@@ -29,6 +29,13 @@ type
     procedure TestIsValidFilename3;
     procedure TestIsValidDirname1;
     procedure TestIsValidDirname2;
+    procedure TestCalculateLoadAdjustedDirlistReaddBelowThreshold;
+    procedure TestCalculateLoadAdjustedDirlistReaddAtThreshold;
+    procedure TestCalculateLoadAdjustedDirlistReaddAboveThreshold;
+    procedure TestCalculateLoadAdjustedDirlistReaddWithStepsBelowThreshold;
+    procedure TestCalculateLoadAdjustedDirlistReaddWithStepsAtThreshold;
+    procedure TestCalculateLoadAdjustedDirlistReaddWithStepsAboveThreshold;
+    procedure TestCalculateLoadAdjustedDirlistReaddWithStepsExceedsLength;
   end;
 
 implementation
@@ -297,6 +304,52 @@ begin
 
   fFilename := 'Proof';
   CheckTrue(IsValidDirname(fFilename), 'This is a valid dirname.');
+end;
+
+procedure TTestDirlistHelpers.TestCalculateLoadAdjustedDirlistReaddBelowThreshold;
+begin
+  CheckEquals(10, CalculateLoadAdjustedDirlistReadd(10, 2.0, 4.0), 'Load below threshold should not change value');
+  CheckEquals(10, CalculateLoadAdjustedDirlistReadd(10, 3.9, 4.0), 'Load just below threshold should not change value');
+  CheckEquals(100, CalculateLoadAdjustedDirlistReadd(100, 1.0, 4.0), 'Load below threshold with different base value');
+end;
+
+procedure TTestDirlistHelpers.TestCalculateLoadAdjustedDirlistReaddAtThreshold;
+begin
+  CheckEquals(20, CalculateLoadAdjustedDirlistReadd(10, 4.0, 4.0), 'Load at threshold should double the value');
+  CheckEquals(200, CalculateLoadAdjustedDirlistReadd(100, 4.0, 4.0), 'Load at threshold with base 100 should be 200');
+end;
+
+procedure TTestDirlistHelpers.TestCalculateLoadAdjustedDirlistReaddAboveThreshold;
+begin
+  CheckEquals(30, CalculateLoadAdjustedDirlistReadd(10, 5.0, 4.0), 'Load 5.0 with threshold 4.0 should be 30');
+  CheckEquals(40, CalculateLoadAdjustedDirlistReadd(10, 6.0, 4.0), 'Load 6.0 with threshold 4.0 should be 40');
+  CheckEquals(50, CalculateLoadAdjustedDirlistReadd(10, 7.0, 4.0), 'Load 7.0 with threshold 4.0 should be 50');
+  CheckEquals(25, CalculateLoadAdjustedDirlistReadd(10, 4.5, 4.0), 'Load 4.5 with threshold 4.0 should be 25');
+end;
+
+procedure TTestDirlistHelpers.TestCalculateLoadAdjustedDirlistReaddWithStepsBelowThreshold;
+begin
+  CheckEquals(10, CalculateLoadAdjustedDirlistReaddWithSteps(10, 2.0, 4.0, [20, 30, 50, 100]), 'Load below threshold should return base value');
+  CheckEquals(10, CalculateLoadAdjustedDirlistReaddWithSteps(10, 3.9, 4.0, [20, 30, 50, 100]), 'Load just below threshold should return base value');
+end;
+
+procedure TTestDirlistHelpers.TestCalculateLoadAdjustedDirlistReaddWithStepsAtThreshold;
+begin
+  CheckEquals(20, CalculateLoadAdjustedDirlistReaddWithSteps(10, 4.0, 4.0, [20, 30, 50, 100]), 'Load at threshold should use first step');
+  CheckEquals(20, CalculateLoadAdjustedDirlistReaddWithSteps(10, 4.4, 4.0, [20, 30, 50, 100]), 'Load at threshold+0.4 should still use first step');
+end;
+
+procedure TTestDirlistHelpers.TestCalculateLoadAdjustedDirlistReaddWithStepsAboveThreshold;
+begin
+  CheckEquals(30, CalculateLoadAdjustedDirlistReaddWithSteps(10, 5.0, 4.0, [20, 30, 50, 100]), 'Load threshold+1 should use second step');
+  CheckEquals(50, CalculateLoadAdjustedDirlistReaddWithSteps(10, 6.0, 4.0, [20, 30, 50, 100]), 'Load threshold+2 should use third step');
+  CheckEquals(100, CalculateLoadAdjustedDirlistReaddWithSteps(10, 7.0, 4.0, [20, 30, 50, 100]), 'Load threshold+3 should use fourth step');
+end;
+
+procedure TTestDirlistHelpers.TestCalculateLoadAdjustedDirlistReaddWithStepsExceedsLength;
+begin
+  CheckEquals(100, CalculateLoadAdjustedDirlistReaddWithSteps(10, 8.0, 4.0, [20, 30, 50, 100]), 'Load beyond last step should use last step value');
+  CheckEquals(100, CalculateLoadAdjustedDirlistReaddWithSteps(10, 12.0, 4.0, [20, 30, 50, 100]), 'Load far beyond last step should use last step value');
 end;
 
 initialization

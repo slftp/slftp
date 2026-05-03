@@ -59,6 +59,8 @@ type
     FLoadAvgAvailable: boolean;
     FDirlistPerSecond: Double;
     FDirlistPerSecondMax: Double;
+    FNewdirDirlistReaddEffective: Integer;
+    FNewdirDirlistReaddLoadEnabled: Boolean;
     FQueueRaceCount: integer;
     FQueueDirlistCount: integer;
     FQueueAutoCount: integer;
@@ -81,6 +83,8 @@ type
     property LoadAvgAvailable: boolean read FLoadAvgAvailable write FLoadAvgAvailable;
     property DirlistPerSecond: Double read FDirlistPerSecond write FDirlistPerSecond;
     property DirlistPerSecondMax: Double read FDirlistPerSecondMax write FDirlistPerSecondMax;
+    property NewdirDirlistReaddEffective: integer read FNewdirDirlistReaddEffective write FNewdirDirlistReaddEffective;
+    property NewdirDirlistReaddLoadEnabled: boolean read FNewdirDirlistReaddLoadEnabled write FNewdirDirlistReaddLoadEnabled;
     property QueueRaceCount: integer read FQueueRaceCount write FQueueRaceCount;
     property QueueDirlistCount: integer read FQueueDirlistCount write FQueueDirlistCount;
     property QueueAutoCount: integer read FQueueAutoCount write FQueueAutoCount;

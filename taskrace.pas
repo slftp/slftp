@@ -742,6 +742,7 @@ var
   secondsSinceLastChange: Int64;
 begin
   baseValue := GetNewdirDirlistReaddValue();
+  baseValue := GetNewdirDirlistReaddLoadAdjustedValue(baseValue);
 
   if (aSite <> nil) and (aDirlist <> nil) then
   begin

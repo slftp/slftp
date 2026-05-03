@@ -328,6 +328,14 @@ export function Dashboard() {
           icon={<IconHash size="1rem" />}
           color="#9b59b6"
         />
+        {stats.NewdirDirlistReaddLoadEnabled && (
+          <MiniStatCard
+            title="Dirlist Readd"
+            value={`${stats.NewdirDirlistReaddEffective ?? 0}ms`}
+            icon={<IconActivity size="1rem" />}
+            color="#00ff88"
+          />
+        )}
 
       </SimpleGrid>
 
