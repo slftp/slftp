@@ -2,7 +2,7 @@ unit encinifile;
 
 interface
 
-uses Classes, slmd5, SyncObjs, StrUtils, slcriticalsection2;
+uses Classes, slmd5, SyncObjs, StrUtils, slcriticalsection2, mormot.core.os;
 
 type
   TEncStringlist = class(TStringList)
@@ -97,7 +97,7 @@ type
   // threadsafe TIniFile with encryption support
   TEncIniFile = class(TMyCustomIniFile)
   private
-    il: TSlCriticalSection2;
+    il: TRWLock; //< RWLock - parallel ReadString/Read* calls scale; mutations are exclusive
     fSima: Boolean;
     FFilename: String;
     FPassHash: TslMD5Data;
@@ -546,7 +546,7 @@ end;
 constructor TEncIniFile.Create(const FileName: String; Passphrase: TslMD5Data; autoupdate: Boolean = False; compression: Boolean = True);
 begin
   inherited Create(FileName);
-  il:= TSlCriticalSection2.Create('encinifile_' + FileName);
+  il.Init;
   fPassHash:= Passphrase;
   self.AutoUpdate:= autoupdate;
   FFilename:= FileName;
@@ -573,7 +573,7 @@ begin
   if FSections <> nil then
     Clear;
   FSections.Free;
-  il.Free;
+  il.AssertDone;
   inherited Destroy;
 end;
 
@@ -593,13 +593,13 @@ procedure TEncIniFile.Clear;
 var
   I: Integer;
 begin
-  il.Enter('Clear');
+  il.WriteLock;
   try
     for I := 0 to FSections.Count - 1 do
       TObject(FSections.Objects[I]).Free;
     FSections.Clear;
   finally
-    il.Leave;
+    il.WriteUnLock;
   end;
 end;
 
@@ -608,7 +608,7 @@ var
   I, J: Integer;
   Strings: TStrings;
 begin
-  il.Enter('DeleteKey');
+  il.WriteLock;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -623,7 +623,7 @@ begin
       UpdateFile;
 
   finally
-    il.Leave;
+    il.WriteUnLock;
   end;
 end;
 
@@ -631,7 +631,7 @@ procedure TEncIniFile.EraseSection(const Section: String);
 var
   I: Integer;
 begin
-  il.Enter('EraseSection');
+  il.WriteLock;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -644,7 +644,7 @@ begin
       UpdateFile;
 
   finally
-    il.Leave;
+    il.WriteUnLock;
   end;
 end;
 
@@ -783,7 +783,7 @@ var
   I, J: Integer;
   SectionStrings: TStrings;
 begin
-  il.Enter('ReadSection');
+  il.ReadOnlyLock;
   Strings.BeginUpdate;
   try
     Strings.Clear;
@@ -796,17 +796,17 @@ begin
     end;
   finally
     Strings.EndUpdate;
-    il.Leave;
+    il.ReadOnlyUnLock;
   end;
 end;
 
 procedure TEncIniFile.ReadSections(Strings: TStrings);
 begin
-  il.Enter('ReadSections');
+  il.ReadOnlyLock;
   try
     Strings.Assign(FSections);
   finally
-    il.Leave;
+    il.ReadOnlyUnLock;
   end;
 end;
 
@@ -815,7 +815,7 @@ procedure TEncIniFile.ReadSectionValues(const Section: String;
 var
   I: Integer;
 begin
-  il.Enter('ReadSectionValues');
+  il.ReadOnlyLock;
   Strings.BeginUpdate;
   try
     Strings.Clear;
@@ -824,7 +824,7 @@ begin
       Strings.Assign(TStrings(FSections.Objects[I]));
   finally
     Strings.EndUpdate;
-    il.Leave;
+    il.ReadOnlyUnLock;
   end;
 end;
 
@@ -835,7 +835,7 @@ var
   Strings: TStrings;
 begin
   Result := Default;
-  il.Enter('ReadString');
+  il.ReadOnlyLock;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -846,7 +846,7 @@ begin
         Result := Copy(Strings[I], Length(Ident) + 2, Maxint);
     end;
   finally
-    il.Leave;
+    il.ReadOnlyUnLock;
   end;
 end;
 
@@ -855,7 +855,7 @@ procedure TEncIniFile.SetCaseSensitive(Value: Boolean);
 var
   I: Integer;
 begin
-  il.Enter('SetCaseSensitive');
+  il.WriteLock;
   try
     if Value <> FSections.CaseSensitive then
     begin
@@ -869,7 +869,7 @@ begin
       TMyHashedStringList(FSections).Changed;
     end;
   finally
-    il.Leave;
+    il.WriteUnLock;
   end;
 end;
 
@@ -882,7 +882,7 @@ var
   split_site_data: Boolean;
 begin
   Clear;
-  il.Enter('SetStrings');
+  il.WriteLock;
   try
     Strings := nil;
 
@@ -936,7 +936,7 @@ begin
           end;
     end;
   finally
-    il.Leave;
+    il.WriteUnLock;
   end;
 end;
 
@@ -947,7 +947,9 @@ var
 begin
   myS:= TMemoryStream.Create;
   List := TStringList.Create;
-  il.Enter('UpdateFile');
+  // WriteLock so it nests safely inside DeleteKey/EraseSection/WriteString/SetStrings/LoadUnencrypted
+  // (TRWLock WriteLock is reentrant within the same thread).
+  il.WriteLock;
   try
     GetStrings(List);
 
@@ -961,7 +963,7 @@ begin
     // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
     MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
   finally
-    il.Leave;
+    il.WriteUnLock;
     List.Free;
     myS.Free;
   end;
@@ -981,7 +983,7 @@ var
   S: String;
   Strings: TStrings;
 begin
-  il.Enter('WriteString');
+  il.WriteLock;
   try
     I := FSections.IndexOf(Section);
     if I >= 0 then
@@ -999,7 +1001,7 @@ begin
       UpdateFile;
 
   finally
-    il.Leave;
+    il.WriteUnLock;
   end;
 end;
 
@@ -1007,7 +1009,7 @@ procedure TEncIniFile.SaveUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter('SaveUnencrypted');
+  il.ReadOnlyLock;
   List := TStringList.Create;
   try
     GetStrings(List);
@@ -1015,7 +1017,7 @@ begin
     List.SaveToFile(filename);
   finally
     List.Free;
-    il.Leave;
+    il.ReadOnlyUnLock;
   end;
 end;
 
@@ -1024,7 +1026,7 @@ procedure TEncIniFile.LoadUnencrypted(filename: String);
 var
   List: TStringList;
 begin
-  il.Enter('LoadUnencrypted');
+  il.WriteLock;
   try
     if (FileName <> '') and FileExists(FileName) then
     begin
@@ -1039,7 +1041,7 @@ begin
     else
       Clear;
   finally
-    il.Leave;
+    il.WriteUnLock;
   end;
 end;
 
