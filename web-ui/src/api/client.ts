@@ -76,6 +76,8 @@ export interface SystemStatus {
   LoadAvgAvailable: boolean;
   DirlistPerSecond: number;
   DirlistPerSecondMax: number;
+  NewdirDirlistReaddEffective: number;
+  NewdirDirlistReaddLoadEnabled: boolean;
   QueueRaceCount: number;
   QueueDirlistCount: number;
   QueueAutoCount: number;
