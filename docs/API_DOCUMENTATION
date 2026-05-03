@@ -57,7 +57,7 @@ Sites (ApiSitesService)
 - SetSiteConfig: Body {"SiteName":"<name>", "Config":{...}}. Sets misc options (autobnctest, country, etc).
 - RunSiteAutoRules: Body {"SiteName":"<name>"}
 - GetSiteRoutes: Body {"SiteName":"<name>"}
-- SetSiteRoute: Body {"SourceSite":"...", "DestSite":"...", "Speed":<int>, "Locked":bool, "AffilOnly":bool, "NoAffil":bool}
+- SetSiteRoute: Body {"SourceSite":"...", "DestSite":"...", "Speed":<int>, "Locked":bool, "AffilOnly":bool, "NoAffil":bool} (Updates the route configuration inside the respective site section)
 - TestSite: Body {"SiteName":"<name>"}
 - ResolveHostname: Body {"Hostname":"..."}
 - GhostSite: Body {"SiteName":"<name>"}
