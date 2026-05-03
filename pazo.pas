@@ -6,7 +6,7 @@ interface
 
 uses
   Classes, kb.releaseinfo, SyncObjs, Contnrs, dirlist, skiplists, globals, IdThreadSafe, Generics.Collections, IniFiles, sfv, slcriticalsection2,
-  routeconfig;
+  routeconfig, mormot.core.os;
 
 type
   TQueueNotifyEvent = procedure(Sender: TObject; Value: integer) of object;
@@ -53,7 +53,7 @@ type
     cds: String;
     FDestinations: TList<TDestinationRank>; //< destination sites and ranks
     FActiveTransfers: TDictionary<string, string>; //< stores which files have an active tranfer to this destination site. Key: filepath, Value: source site
-    FActiveTransfersCS: TCriticalSection;
+    FActiveTransfersCS: TRWLock; //< RWLock - HasActiveTransfer is called per file in Tuzelj, Add/Remove only on race start/end
     function Tuzelj(const netname, channel, dir: String; aDirListEntries: TList<TDirListEntry>): boolean;
     function GetDirlistGaveUp: boolean;
     procedure SetDirlistGaveUp(const aGaveUp: boolean);
@@ -1579,7 +1579,7 @@ begin
   Name := aName;
 
   FActiveTransfers := TDictionary<string, string>.Create(GetCaseInsensitveStringComparer);
-  FActiveTransfersCS := TCriticalSection.Create;
+  FActiveTransfersCS.Init;
   ts := 0;
   firesourcesinstead := False;
   badcrcevents := 0;
@@ -1609,7 +1609,7 @@ destructor TPazoSite.Destroy;
 begin
   Debug(dpSpam, section, 'TPazoSite.Destroy: %s', [Name]);
   FActiveTransfers.Free;
-  FActiveTransfersCS.Free;
+  FActiveTransfersCS.AssertDone;
   destinations.Free;
   destinations_cs.Free;
   dirlist.Free;
@@ -2298,7 +2298,7 @@ end;
 
 procedure TPazoSite.RemoveActiveTransfer(const aFilepath: String);
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.WriteLock;
   try
     try
       FActiveTransfers.Remove(aFilepath);
@@ -2309,17 +2309,17 @@ begin
       end;
     end;
   finally
-    FActiveTransfersCS.Leave;
+    FActiveTransfersCS.WriteUnLock;
   end;
 end;
 
 function TPazoSite.HasActiveTransfer(const aFilepath: String): boolean;
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.ReadOnlyLock;
   try
     Result := FActiveTransfers.ContainsKey(aFilepath);
   finally
-    FActiveTransfersCS.Leave;
+    FActiveTransfersCS.ReadOnlyUnLock;
   end;
 end;
 
@@ -2327,24 +2327,24 @@ function TPazoSite.HasActiveTransfer(const aFilepath, aSourceSite: String): bool
 var
   fSourceSiteName: string;
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.ReadOnlyLock;
   try
     Result := FActiveTransfers.TryGetValue(aFilepath, fSourceSiteName) and (fSourceSiteName = aSourceSite);
   finally
-    FActiveTransfersCS.Leave;
+    FActiveTransfersCS.ReadOnlyUnLock;
   end;
 end;
 
 procedure TPazoSite.AddActiveTransfer(const aFilepath, aSourceSite: String);
 begin
-  FActiveTransfersCS.Enter;
+  FActiveTransfersCS.WriteLock;
   try
     if not FActiveTransfers.TryAdd(aFilepath, aSourceSite) then
     begin
       Debug(dpError, section, Format('[WARN] TPazoSite.AddActiveTransfer: Tried to add active transfer, but it was already there %s: %s', [Name, aFilepath]));
     end;
   finally
-    FActiveTransfersCS.Leave;
+    FActiveTransfersCS.WriteUnLock;
   end;
 end;
 
