@@ -127,6 +127,9 @@ begin
   begin
     mainpazo.racetasks.Increment;
     ps1.s_racetasks.Increment;
+    if mainpazo.FTasksCreatedTick = 0 then
+      mainpazo.FTasksCreatedTick := GetTickCount64;
+    mainpazo.FLastTaskCreatedTick := GetTickCount64;
   end;
   if ClassType = TPazoMkdirTask then
   begin
@@ -137,6 +140,8 @@ begin
   begin
     mainpazo.dirlisttasks.Increment;
     ps1.s_dirlisttasks.Increment;
+    if mainpazo.FDirlistRequestedTick = 0 then
+      mainpazo.FDirlistRequestedTick := GetTickCount64;
   end;
 end;
 

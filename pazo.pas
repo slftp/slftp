@@ -1027,8 +1027,16 @@ begin
   FDirlistRequestedTick := 0;
   FTasksCreatedTick := 0;
   FLastTaskCreatedTick := 0;
-  FDetectedTick := 0;
-  FDetectedUTC := 0;
+  if rls <> nil then
+  begin
+    FDetectedTick := rls.DetectedTick;
+    FDetectedUTC := rls.DetectedUTC;
+  end
+  else
+  begin
+    FDetectedTick := 0;
+    FDetectedUTC := 0;
+  end;
   queuenumber := TIdThreadSafeInt32WithEvent.Create;
   queuenumber.OnChange := QueueEvent;
   dirlisttasks := TIdThreadSafeInt32.Create;
