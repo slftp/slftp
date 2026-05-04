@@ -2,6 +2,9 @@ unit debugunit;
 
 interface
 
+uses
+  SysUtils;
+
 type
   {
   @value(dpError logs only important issues/errors = 0)
@@ -26,6 +29,12 @@ procedure Debug(const priority: TDebugPriority; const section, msg: String); ove
   @param(FormatStr formatting text for RTL Format())
   @param(Args formatting argments for RTL Format()) }
 procedure Debug(const priority: TDebugPriority; const section, FormatStr: String; const Args: array of const); overload;
+{ Writes exception message and stack trace to logfile
+  @param(priority priority of message)
+  @param(section debug section for message)
+  @param(aContext context describing where the exception occurred)
+  @param(aE the exception instance) }
+procedure DebugException(const priority: TDebugPriority; const section, aContext: String; const aE: Exception);
 { Reads up to @link(aMaxLinesToRead) lines from logfile
   @param(aMaxLinesToRead number of lines to read from logfile)
   @returns(logfile lines) }
@@ -41,7 +50,7 @@ function GetDebugVerbosity: TDebugPriority;
 implementation
 
 uses
-  SysUtils, Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, slcriticalsection2;
+  Classes, StrUtils, SyncObjs, DateUtils, configunit, irc, IdGlobal, slcriticalsection2;
 
 const
   section = 'debug';
@@ -240,6 +249,52 @@ begin
       irc_Adderror(Format('<c4>[EXCEPTION]</c> Debug: %s', [e.Message]));
       exit;
     end;
+  end;
+end;
+
+procedure DebugException(const priority: TDebugPriority; const section, aContext: String; const aE: Exception);
+var
+  nowstr, logtext: String;
+begin
+  if glCachedDebugPriority = dpNone then
+    exit;
+
+  if (glCachedDebugPriority < priority) then
+    exit;
+
+  if aE = nil then
+    exit;
+
+  if (_GetDebugCategories <> ',verbose,') and (not {$IFDEF UNICODE}ContainsText{$ELSE}AnsiContainsText{$ENDIF}(_GetDebugCategories, section)) then
+    exit;
+
+  DateTimeToString(nowstr, 'mm-dd hh:nn:ss.zzz', Now());
+  logtext := Format('%s (%s) [%-25s] [EXCEPTION] %s: %s', [nowstr, 'NA', section, aContext, aE.Message]);
+
+  if debug_lock = nil then
+    exit;
+
+  debug_lock.Enter('DebugException');
+  try
+    try
+      WriteLn(f, logtext);
+      DumpExceptionBackTrace(f);
+      if glFlushLines then
+      begin
+        Flush(f);
+        {$IFDEF FPC}
+        FileFlush(TTextRec(f).Handle);
+        {$ENDIF}
+      end;
+    except
+      on e: Exception do
+      begin
+        irc_Adderror(Format('<c4>[EXCEPTION]</c> DebugException: %s', [e.Message]));
+        exit;
+      end;
+    end;
+  finally
+    debug_lock.Leave;
   end;
 end;
 
