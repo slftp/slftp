@@ -1,5 +1,5 @@
-import { Card, Title, Stack, Group, Text, NumberInput, Button, Checkbox, ScrollArea, Badge, Table, Loader, Center, MultiSelect, SegmentedControl, Tooltip, Modal, ActionIcon, TextInput, CloseButton, Paper } from '@mantine/core';
-import { IconRoute, IconRefresh, IconGridDots, IconBolt, IconEdit, IconSearch } from '@tabler/icons-react';
+import { Card, Title, Stack, Group, Text, NumberInput, Button, Checkbox, ScrollArea, Badge, Table, Loader, Center, MultiSelect, SegmentedControl, Tooltip, Modal, ActionIcon, TextInput, CloseButton, Paper, FileButton } from '@mantine/core';
+import { IconRoute, IconRefresh, IconGridDots, IconBolt, IconEdit, IconSearch, IconDownload, IconUpload } from '@tabler/icons-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useMemo, useRef, useState } from 'react';
 import { apiClient } from '../api/client';
@@ -492,6 +492,9 @@ export function Routes() {
   const matrixViewportRef = useRef<HTMLDivElement>(null);
   const isDraggingSiteRef = useRef(false);
 
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+
   const { data: sites, isLoading: sitesLoading } = useQuery({
     queryKey: ['sites'],
     queryFn: async () => {
@@ -516,6 +519,82 @@ export function Routes() {
       return [];
     }
   });
+
+  const handleExport = async () => {
+    if (!sites) return;
+    setExportLoading(true);
+    try {
+      const exportData: Record<string, RouteEntry[]> = {};
+      for (const site of sites) {
+        const res = await apiClient.post('/ApiSitesService/GetSiteRoutes', { SiteName: site.name });
+        let responseData = res.data;
+        if (res.data.result && Array.isArray(res.data.result)) {
+          responseData = res.data.result[0];
+        }
+        if (responseData.Routes) {
+          let routes: RouteEntry[] = [];
+          if (typeof responseData.Routes === 'string') {
+            routes = JSON.parse(responseData.Routes);
+          } else if (Array.isArray(responseData.Routes)) {
+            routes = responseData.Routes;
+          }
+          exportData[site.name] = routes;
+        } else {
+          exportData[site.name] = [];
+        }
+      }
+
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'slftp-routes-backup.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      notifications.show({ title: 'Success', message: 'Routes exported successfully.', color: 'green' });
+    } catch (e) {
+      console.error('Export failed', e);
+      notifications.show({ title: 'Error', message: 'Failed to export routes', color: 'red' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleImport = async (file: File | null) => {
+    if (!file) return;
+    setImportLoading(true);
+    try {
+      const text = await file.text();
+      const importData = JSON.parse(text) as Record<string, RouteEntry[]>;
+      let count = 0;
+
+      for (const [sourceSite, routes] of Object.entries(importData)) {
+        for (const route of routes) {
+          await setRouteMutation.mutateAsync({
+            source: sourceSite,
+            dest: route.dest,
+            speed: route.speed,
+            locked: route.locked || false,
+            affilOnly: route.affil_only || false,
+            noAffil: route.no_affil || false
+          });
+          count++;
+        }
+      }
+
+      notifications.show({ title: 'Success', message: `Imported ${count} routes successfully.`, color: 'green' });
+      setRefreshKey(prev => prev + 1);
+    } catch (e) {
+      console.error('Import failed', e);
+      notifications.show({ title: 'Error', message: 'Failed to import routes. Ensure file is valid JSON.', color: 'red' });
+    } finally {
+      setImportLoading(false);
+    }
+  };
 
   // Load all routes once for incoming view
   const { data: allRoutesMap, isLoading: allRoutesLoading } = useQuery({
@@ -564,9 +643,6 @@ export function Routes() {
   const setRouteMutation = useMutation({
     mutationFn: async ({ source, dest, speed, locked, affilOnly, noAffil }: { source: string; dest: string; speed: number; locked: boolean; affilOnly: boolean; noAffil: boolean }) => {
       await apiClient.post('/ApiSitesService/SetSiteRoute', { SourceSite: source, DestSite: dest, Speed: speed, Locked: locked, AffilOnly: affilOnly, NoAffil: noAffil });
-    },
-    onSuccess: () => {
-      notifications.show({ title: 'Route updated', message: 'Route successfully saved.', color: 'green' });
     },
     onError: (err) => notifications.show({ title: 'Error', message: err.message, color: 'red' })
   });
@@ -650,10 +726,34 @@ export function Routes() {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
+      <Group justify="space-between" align="center">
         <Group gap="xs">
           <IconRoute size="2rem" />
           <Title order={2}>Routes Management</Title>
+          <Group gap="xs" ml="lg">
+            <Button
+              variant="default"
+              size="sm"
+              leftSection={<IconDownload size="1rem" />}
+              loading={exportLoading}
+              onClick={handleExport}
+            >
+              Export JSON
+            </Button>
+            <FileButton onChange={handleImport} accept="application/json">
+              {(props) => (
+                <Button
+                  {...props}
+                  variant="default"
+                  size="sm"
+                  leftSection={<IconUpload size="1rem" />}
+                  loading={importLoading}
+                >
+                  Import JSON
+                </Button>
+              )}
+            </FileButton>
+          </Group>
         </Group>
         <SegmentedControl
           value={viewMode}
