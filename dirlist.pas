@@ -132,7 +132,7 @@ type
     procedure CalculateMultiCD;
     class function Timestamp(ts: String): TDateTime;
   public
-    dirlist_lock: TSlCriticalSection2;
+    dirlist_lock: TslRWLock;
     dirlistadded: Boolean;
     site_name: String; //< sitename
     error: Boolean;
@@ -365,7 +365,7 @@ begin
         Result := True;
 
         // check if all multi-cd subdirs are complete
-        dirlist_lock.Enter('TDirList.Complete');
+        dirlist_lock.EnterReadOnly('TDirList.Complete');
         try
           for d in entries.Values do
           begin
@@ -384,7 +384,7 @@ begin
             end;
           end;
         finally
-          dirlist_lock.Leave;
+          dirlist_lock.LeaveReadOnly;
         end;
       end;
     end;
@@ -426,12 +426,11 @@ begin
     finally
       uid_lock.Leave;
     end;
-    dirlist_lock := TSlCriticalSection2.Create('dirlist_' + site_name + '_' + uid.ToString());
+    dirlist_lock := TslRWLock.Create('dirlist_' + site_name + '_' + uid.ToString());
   end
   else
   begin
-    // no need for a unique name if we do not use timeout locking
-    dirlist_lock := TSlCriticalSection2.Create('dirlist_create');
+    dirlist_lock := TslRWLock.Create('dirlist_create');
   end;
 
   biggestcd:= 0;
@@ -502,7 +501,7 @@ begin
   finally
     dirlist_lock.Leave;
   end;
-  dirlist_lock.Free;
+  FreeAndNil(dirlist_lock);
   inherited;
 end;
 
@@ -1103,7 +1102,7 @@ begin
   files := 0;
   size := 0;
 
-  dirlist_lock.Enter('TDirList.Usefulfiles');
+  dirlist_lock.EnterReadOnly('TDirList.Usefulfiles');
   try
     for de in entries.Values do
     begin
@@ -1130,7 +1129,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1140,11 +1139,11 @@ begin
   if entries.Count = 0 then
     exit;
 
-  dirlist_lock.Enter('TDirList.Find');
+  dirlist_lock.EnterReadOnly('TDirList.Find');
   try
     entries.TryGetValue(filename, Result);
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1182,9 +1181,16 @@ begin
       lastdir := '';
     end;
 
+    // Inline the lookup (instead of calling Find which would try a nested
+    // EnterReadOnly while we hold WriteLock). On createit the WriteLock is
+    // necessary to safely add to entries; otherwise a ReadOnlyLock would do
+    // but we keep WriteLock since the path is rarely hot and reentrancy is safer.
     dirlist_lock.Enter('TDirList.FindDirlist');
     try
-      d := Find(firstdir);
+      if entries.Count = 0 then
+        d := nil
+      else if not entries.TryGetValue(firstdir, d) then
+        d := nil;
       if d = nil then
       begin
         if not createit then
@@ -1225,7 +1231,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter('TDirList.Done');
+  dirlist_lock.EnterReadOnly('TDirList.Done');
   try
     for de in entries.Values do
     begin
@@ -1247,7 +1253,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1257,7 +1263,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter('TDirList.FilesRacedByMe');
+  dirlist_lock.EnterReadOnly('TDirList.FilesRacedByMe');
   try
     for de in entries.Values do
     begin
@@ -1286,7 +1292,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1296,7 +1302,7 @@ var
 begin
   Result := 0;
 
-  dirlist_lock.Enter('TDirList.SizeRacedByMe');
+  dirlist_lock.EnterReadOnly('TDirList.SizeRacedByMe');
   try
     for de in entries.Values do
     begin
@@ -1325,7 +1331,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
@@ -1380,7 +1386,7 @@ var de: TDirlistEntry;
 begin
   Result := nil;
 
-  dirlist_lock.Enter('TDirList.FindNfo');
+  dirlist_lock.EnterReadOnly('TDirList.FindNfo');
   try
     for de in entries.Values do
     begin
@@ -1399,7 +1405,7 @@ begin
       end;
     end;
   finally
-    dirlist_lock.Leave;
+    dirlist_lock.LeaveReadOnly;
   end;
 end;
 
