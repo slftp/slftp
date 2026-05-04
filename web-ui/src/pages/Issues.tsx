@@ -321,14 +321,13 @@ export function Issues() {
 
   const breadcrumbItems = useMemo(() => {
     const parts = browserPath === '/' ? [] : browserPath.split('/').filter(Boolean);
-    const items = [
-      { label: '/', path: '/' },
-      ...parts.map((part, idx) => ({
-        label: part,
-        path: '/' + parts.slice(0, idx + 1).join('/'),
-      })),
-    ];
-    return items;
+    if (parts.length === 0) {
+      return [{ label: '/', path: '/' }];
+    }
+    return parts.map((part, idx) => ({
+      label: '/' + part,
+      path: '/' + parts.slice(0, idx + 1).join('/'),
+    }));
   }, [browserPath]);
 
   const filtered = useMemo(() => {
@@ -700,7 +699,7 @@ export function Issues() {
             </Button>
           </Group>
 
-          <Breadcrumbs>
+          <Breadcrumbs separator={null}>
             {breadcrumbItems.map((item) => (
               <Button
                 key={item.path}
