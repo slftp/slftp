@@ -578,7 +578,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj General: %s', [e.Message]));
+          DebugException(dpError, section, 'TPazoSite.Tuzelj General', e);
           Break;
         end;
       end;
@@ -607,7 +607,7 @@ begin
         except
           on e: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj dstdl.Find: %s', [e.Message]));
+            DebugException(dpError, section, 'TPazoSite.Tuzelj dstdl.Find', e);
             Continue;
           end;
         end;
@@ -653,7 +653,7 @@ begin
             except
               on e: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pm): %s', [e.Message]));
+                DebugException(dpError, section, 'TPazoSite.Tuzelj AddTask(pm)', e);
                 Break;
               end;
             end;
@@ -673,7 +673,7 @@ begin
           except
             on e: Exception do
             begin
-              Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj AddTask(pd): %s', [e.Message]));
+              DebugException(dpError, section, 'TPazoSite.Tuzelj AddTask(pd)', e);
               Break;
             end;
           end;
@@ -743,7 +743,7 @@ begin
             except
               on e: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (AddTask(pr)): %s', [e.Message]));
+                DebugException(dpError, section, 'TPazoSite.Tuzelj (AddTask(pr))', e);
                 Break;
               end;
             end;
@@ -753,7 +753,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Tuzelj (Loop): %s', [e.Message]));
+        DebugException(dpError, section, 'TPazoSite.Tuzelj (Loop)', e);
         Break;
       end;
     end;
@@ -931,7 +931,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.RoutesText: UDP operation failed: %s', [E.Message]));
+        DebugException(dpError, section, 'TPazo.RoutesText: UDP operation failed', E);
         lastannounceroutes := '';
       end;
     end;
@@ -1110,7 +1110,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazo.FindSite: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazo.FindSite', e);
       Result := nil;
     end;
   end;
@@ -1263,7 +1263,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpError, section, Format('[EXCEPTION] TPazo.Stats: %s', [e.Message]));
+          DebugException(dpError, section, 'TPazo.Stats', e);
           Continue;
         end;
       end;
@@ -1354,7 +1354,7 @@ begin
       except
         on e: Exception do
         begin
-          Debug(dpSpam, section, Format('[EXCEPTION] TPazo.SiteCompleteTimesStats: %s', [e.Message]));
+          DebugException(dpSpam, section, 'TPazo.SiteCompleteTimesStats', e);
           Continue;
         end;
       end;
@@ -1398,7 +1398,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TPazo.Clear : %s', [e.Message]);
+      DebugException(dpError, section, 'TPazo.Clear ', e);
       exit;
     end;
   end;
@@ -1472,7 +1472,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazo.AddSites: %s', [e.Message]));
+        DebugException(dpError, section, 'TPazo.AddSites', e);
         Continue;
       end;
     end;
@@ -1515,7 +1515,7 @@ begin
     except
       on e: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
+        DebugException(dpError, section, 'TPazoSite.AddDestination', e);
         Result := False;
       end;
     end;
@@ -1559,7 +1559,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.AddDestination: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.AddDestination', e);
       Result := False;
     end;
   end;
@@ -1736,7 +1736,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDirlist (dirlist.FindDirlist): %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.ParseDirlist (dirlist.FindDirlist)', e);
       exit;
     end;
   end;
@@ -1751,7 +1751,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TPazoSite.ParseDirlist (d.ParseDirlist): %s', [e.Message]);
+      DebugException(dpError, section, 'TPazoSite.ParseDirlist (d.ParseDirlist)', e);
       exit;
     end;
   end;
@@ -1862,7 +1862,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.SetFileError: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.SetFileError', e);
       Result := False;
     end;
   end;
@@ -1961,7 +1961,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
+        DebugException(dpError, section, 'TPazoSite.ParseDupe', e);
       end;
     end;
   finally
@@ -1986,7 +1986,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ParseDupe: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.ParseDupe', e);
     end;
   end;
 end;
@@ -2016,7 +2016,7 @@ begin
   except
     on E: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.ProcessXDupeResponse: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.ProcessXDupeResponse', e);
     end;
   end;
 end;
@@ -2075,7 +2075,7 @@ begin
             except
               on E: Exception do
               begin
-                Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Stats: %s', [e.Message]));
+                DebugException(dpError, section, 'TPazoSite.Stats', e);
                 Continue;
               end;
             end;
@@ -2251,7 +2251,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.Clear: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.Clear', e);
     end;
   end;
 end;
@@ -2273,7 +2273,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TPazoSite.MarkSiteAsFailed: %s', [e.Message]));
+      DebugException(dpError, section, 'TPazoSite.MarkSiteAsFailed', e);
     end;
   end;
 
@@ -2313,7 +2313,7 @@ begin
     except
       on E: Exception do
       begin
-        Debug(dpError, section, Format('[EXCEPTION] TSite.RemoveActiveTransfer: %s', [E.Message]));
+        DebugException(dpError, section, 'TSite.RemoveActiveTransfer', E);
       end;
     end;
   finally
