@@ -135,5 +135,8 @@ web-ui-deploy: FORCE
 # Build and deploy web UI
 web-ui-prod: web-ui-build web-ui-deploy
 
+# Alias for web-ui-prod (shorthand)
+webui-deploy: web-ui-prod
+
 # Build slftp and web UI together
 all-with-ui: slftp web-ui-prod
