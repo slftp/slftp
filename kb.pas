@@ -488,6 +488,9 @@ begin
         r := rc.Create(rls, section);
       end;
 
+      if aDetectedTick > 0 then
+        r.DetectedTick := aDetectedTick;
+
       r.kb_event := event;
 
       if genre <> '' then
@@ -943,7 +946,7 @@ begin
     Debug(dpMessage, 'kb', '--> ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
     Result := kb_AddB(netname, channel, sitename, section, genre,
-      event, rls, cdno, dontFire, forceFire, ts);
+      event, rls, cdno, dontFire, forceFire, ts, aDetectedTick);
     Debug(dpMessage, 'kb', '<-- ' + Format('%s: %s %s @ %s (%s%s)',
       [KBEventTypeToString(event), section, rls, sitename, genre, cdno]));
   except
