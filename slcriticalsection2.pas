@@ -3,7 +3,7 @@ unit slcriticalsection2;
 interface
 
 uses
-  SyncObjs, Generics.Collections, sltimer, Generics.Defaults;
+  SyncObjs, Generics.Collections, sltimer, Generics.Defaults, mormot.core.os;
 
 {
   TslCriticalSection
@@ -14,6 +14,36 @@ uses
 
 
 type
+  { TslRWLock - shared/exclusive lock built on mORMot2 TRWLock with the same
+    naming and Enter/Leave wrapper style as TslCriticalSection2.
+    - Enter / Leave             -> exclusive write lock (replaces a critical section)
+    - EnterReadOnly / LeaveReadOnly -> shared read lock (multiple readers in parallel)
+    Reentrant semantics match TRWLock: WriteLock is reentrant within the same
+    thread; WriteLock-inside-ReadOnlyLock would deadlock so callers must not
+    upgrade. No timeout support (TRWLock spins on wait), so the deadlock-debug
+    timeout from TslCriticalSection2 does not apply here. }
+  TslRWLock = class
+  private
+    FName: string;
+    FRWLock: TRWLock;
+  public
+    constructor Create(const aName: string);
+    destructor Destroy; override;
+
+    { Acquire exclusive write lock. aLockOwnerName is currently informational only
+      for parity with TslCriticalSection2.Enter. Returns True (kept for API symmetry). }
+    function Enter(const aLockOwnerName: string = ''): boolean;
+    { Release exclusive write lock. }
+    procedure Leave;
+
+    { Acquire shared read lock - multiple callers may hold this concurrently. }
+    function EnterReadOnly(const aLockOwnerName: string = ''): boolean;
+    { Release shared read lock. }
+    procedure LeaveReadOnly;
+
+    property Name: string read FName;
+  end;
+
   TslCriticalSection2 = class
   private
     FInternalCriticalSection: TCriticalSection;
@@ -84,7 +114,44 @@ type
 
 implementation
   uses
-    SysUtils, debugunit, Classes, Math, mormot.core.os;
+    SysUtils, debugunit, Classes, Math;
+
+  { TslRWLock }
+
+  constructor TslRWLock.Create(const aName: string);
+  begin
+    inherited Create;
+    FName := aName;
+    FRWLock.Init;
+  end;
+
+  destructor TslRWLock.Destroy;
+  begin
+    FRWLock.AssertDone;
+    inherited;
+  end;
+
+  function TslRWLock.Enter(const aLockOwnerName: string): boolean;
+  begin
+    FRWLock.WriteLock;
+    Result := True;
+  end;
+
+  procedure TslRWLock.Leave;
+  begin
+    FRWLock.WriteUnLock;
+  end;
+
+  function TslRWLock.EnterReadOnly(const aLockOwnerName: string): boolean;
+  begin
+    FRWLock.ReadOnlyLock;
+    Result := True;
+  end;
+
+  procedure TslRWLock.LeaveReadOnly;
+  begin
+    FRWLock.ReadOnlyUnLock;
+  end;
 
   // these types are used for timer log output
   type
