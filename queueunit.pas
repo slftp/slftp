@@ -2519,40 +2519,44 @@ begin
   try
     rx.ModifierI := False;
     rx.Expression := 'AUTOLOGIN';
+    // Nested try/finally so a failure between regex setup and Enter doesn't
+    // hit Leave on an unheld lock (which would underflow TRWLock.Flags).
     main_lock.Enter('IrcKillAll');
-
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for i := fList.Count - 1 downto 0 do
+    try
+      for fListIndex := 0 to 1 do
       begin
-        try
-          if i < 0 then
+        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+        for i := fList.Count - 1 downto 0 do
+        begin
+          try
+            if i < 0 then
+              Break;
+          except
             Break;
-        except
-          Break;
-        end;
+          end;
 
-        fTask := TTask(fList.items[i]);
-      if not rx.Exec(TPazoTask(fTask).FullName) then
-      begin
-        irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
-        try
-          ts.AcquireSlotsAssignmentLock('killall');
+          fTask := TTask(fList.items[i]);
+          if not rx.Exec(TPazoTask(fTask).FullName) then
+          begin
+            irc_Addtext(netname, channel, 'Removing Task -> %s', [TPazoTask(fTask).FullName]);
             try
-              fList.Remove(TPazoTask(fTask));
-            finally
-              ts.ReleaseSlotsAssignmentLock;
+              ts.AcquireSlotsAssignmentLock('killall');
+              try
+                fList.Remove(TPazoTask(fTask));
+              finally
+                ts.ReleaseSlotsAssignmentLock;
+              end;
+            except
+              on e: Exception do
+                irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
             end;
-        except
-          on e: Exception do
-            irc_Addtext(netname, channel, '<c4><b>ERROR</c></b>: IrcKillAll.tasks.Remove: %s', [e.Message]);
+          end;
         end;
-      end
       end;
+    finally
+      main_lock.Leave;
     end;
   finally
-    main_lock.Leave;
     rx.Free;
   end;
 
