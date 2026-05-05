@@ -24,7 +24,7 @@ end;
 
 type
   TQueueThread = class(TThread)
-    main_lock: TSlCriticalSection2;
+    main_lock: TslRWLock;
     fQueueStat: TQueueStat;
     destructor Destroy; override;
     procedure Execute; override;
@@ -444,7 +444,7 @@ begin
   {$ENDIF}
 
   try
-    main_lock := TSLCriticalSection2.Create('Queue_' + aSiteName);
+    main_lock := TslRWLock.Create('Queue_' + aSiteName);
     tasks := TObjectList.Create(True);
     waiting_tasks := TObjectList.Create(True);
     queueevent := TEvent.Create(nil, False, False, 'SLFTP_queue_event_' + aSiteName);
@@ -1024,7 +1024,7 @@ begin
   begin
     try
       tpr := TPazoRaceTask(t);
-      main_lock.Enter('TaskAlreadyInQueue1');
+      main_lock.EnterReadOnly('TaskAlreadyInQueue1');
       try
         for fListIndex := 0 to 1 do
         begin
@@ -1054,7 +1054,7 @@ begin
           end;
         end;
       finally
-        main_lock.Leave;
+        main_lock.LeaveReadOnly;
       end;
     except
       on E: Exception do
@@ -1071,7 +1071,7 @@ begin
   begin
     try
       tpd := TPazoDirlistTask(t);
-      main_lock.Enter('TaskAlreadyInQueue2');
+      main_lock.EnterReadOnly('TaskAlreadyInQueue2');
       try
         for fListIndex := 0 to 1 do
         begin
@@ -1100,7 +1100,7 @@ begin
           end;
         end;
       finally
-        main_lock.Leave;
+        main_lock.LeaveReadOnly;
       end;
     except
       on E: Exception do
@@ -1117,7 +1117,7 @@ begin
   begin
     try
       tpm := TPazoMkdirTask(t);
-      main_lock.Enter('TaskAlreadyInQueue3');
+      main_lock.EnterReadOnly('TaskAlreadyInQueue3');
       try
         for fListIndex := 0 to 1 do
         begin
@@ -1146,7 +1146,7 @@ begin
           end;
         end;
       finally
-        main_lock.Leave;
+        main_lock.LeaveReadOnly;
       end;
     except
       on E: Exception do
@@ -1163,7 +1163,7 @@ begin
   begin
     try
       tpl := TLoginTask(t);
-      main_lock.enter('TaskAlreadyInQueue4');
+      main_lock.EnterReadOnly('TaskAlreadyInQueue4');
       try
         for fListIndex := 0 to 1 do
         begin
@@ -1184,7 +1184,7 @@ begin
           end;
         end;
       finally
-        main_lock.Leave;
+        main_lock.LeaveReadOnly;
       end;
     except
       on E: Exception do
@@ -2235,7 +2235,7 @@ begin
   t_auto  := 0;
   t_other := 0;
 
-  main_lock.Enter('QueueStat');
+  main_lock.EnterReadOnly('QueueStat');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2263,7 +2263,7 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 
   fQueueStat.FRaceTaskCount := t_race;
@@ -2345,7 +2345,7 @@ var
   fListIndex: Integer;
   fList: TObjectList;
 begin
-  main_lock.Enter('QueueSendCurrentTasksToConsole');
+  main_lock.EnterReadOnly('QueueSendCurrentTasksToConsole');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2354,7 +2354,7 @@ begin
         AddTaskToConsole(fTask);
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 end;
 
@@ -2365,7 +2365,7 @@ var
   fList: TObjectList;
 begin
   Result := nil;
-  main_lock.Enter('FetchAutoIndex');
+  main_lock.EnterReadOnly('FetchAutoIndex');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2387,7 +2387,7 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 end;
 
@@ -2398,7 +2398,7 @@ var
   fList: TObjectList;
 begin
   Result := nil;
-  main_lock.Enter('FetchAutoDirlist');
+  main_lock.EnterReadOnly('FetchAutoDirlist');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2420,7 +2420,7 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 end;
 
@@ -2431,7 +2431,7 @@ var
   fList: TObjectList;
 begin
   Result := nil;
-  main_lock.Enter('FetchAutoNuke');
+  main_lock.EnterReadOnly('FetchAutoNuke');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2453,7 +2453,7 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 end;
 
@@ -2465,7 +2465,7 @@ var
   fList: TObjectList;
 begin
   Result := nil;
-  main_lock.Enter('FetchAutoBnctest');
+  main_lock.EnterReadOnly('FetchAutoBnctest');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2491,7 +2491,7 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 end;
 
@@ -2502,7 +2502,7 @@ var
   fList: TObjectList;
 begin
   Result := nil;
-  main_lock.Enter('FetchAutoRules');
+  main_lock.EnterReadOnly('FetchAutoRules');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2524,7 +2524,7 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 end;
 
@@ -2600,7 +2600,7 @@ begin
   if aDestinationSiteName = '' then
     Exit;
 
-  main_lock.Enter('GetPendingRaceTasksToDestination');
+  main_lock.EnterReadOnly('GetPendingRaceTasksToDestination');
   try
     for fListIndex := 0 to 1 do
     begin
@@ -2618,7 +2618,7 @@ begin
       end;
     end;
   finally
-    main_lock.Leave;
+    main_lock.LeaveReadOnly;
   end;
 end;
 
@@ -2629,7 +2629,7 @@ end;
   fListIndex: Integer;
   fList: TObjectList;
   begin
-    main_lock.Enter('GetCurrentTasks');
+    main_lock.EnterReadOnly('GetCurrentTasks');
     try
       for fListIndex := 0 to 1 do
       begin
@@ -2643,7 +2643,7 @@ end;
         end;
       end;
     finally
-      main_lock.Leave;
+      main_lock.LeaveReadOnly;
     end;
   end;
 
