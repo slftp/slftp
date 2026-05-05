@@ -1064,6 +1064,18 @@ end;
 
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
 begin
+  if fQueue = nil then
+  begin
+    Debug(dpError, section, Format('CRITICAL LOG: fQueue is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
+
+  if t = nil then
+  begin
+    Debug(dpError, section, Format('CRITICAL LOG: task t is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
+
   fQueue.AddTask(t);
   if queueFire then self.QueueFire;
 end;
@@ -1087,7 +1099,15 @@ begin
 end;
 
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
+var
+  fAdminSite: TSite;
 begin
+  if t = nil then
+  begin
+    Debug(dpError, section, 'CRITICAL LOG: Global AddTask called with nil task!');
+    exit;
+  end;
+
   try
     if not (t.ssite1 = nil) then
     begin
@@ -1097,7 +1117,11 @@ begin
     begin
       if t.ready or t.readyerror then
       begin
-        FindSiteByName('', getAdminSiteName).AddTask(t, queueFire);
+        fAdminSite := FindSiteByName('', getAdminSiteName);
+        if fAdminSite <> nil then
+          fAdminSite.AddTask(t, queueFire)
+        else
+          Debug(dpError, section, Format('AddTask - Admin site not found for task: %s', [t.Name]));
       end
       else
         debug(dpError, section, 'AddTask - No site for task:' + t.Name);
