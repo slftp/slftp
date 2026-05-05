@@ -2296,7 +2296,15 @@ end;
 
 function TPazoSite.GetActiveTransferCount;
 begin
-  Result := FActiveTransfers.Count;
+  // Read .Count under ReadOnlyLock - TDictionary.Count is a simple field read
+  // but a concurrent TryAdd may be in the middle of a rehash, in which case the
+  // observed value (and bucket array) can be inconsistent.
+  FActiveTransfersCS.EnterReadOnly;
+  try
+    Result := FActiveTransfers.Count;
+  finally
+    FActiveTransfersCS.LeaveReadOnly;
+  end;
 end;
 
 procedure TPazoSite.RemoveActiveTransfer(const aFilepath: String);
