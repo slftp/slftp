@@ -119,24 +119,28 @@ begin
   db := 0;
   Result := 0;
 
+  speedstatlock.EnterReadOnly('AvgSpeedByReleasename');
   try
-    for i := speedstats.Count - 1 downto 0 do
-    begin
-      s := TSpeedStat(speedstats[i]);
-      if s.rlsname = rip then
+    try
+      for i := speedstats.Count - 1 downto 0 do
       begin
-        sum := sum + s.speed;
-        inc(db);
+        s := TSpeedStat(speedstats[i]);
+        if s.rlsname = rip then
+        begin
+          sum := sum + s.speed;
+          inc(db);
+        end;
       end;
+      if db <> 0 then
+      begin
+        Result := sum / db / 1024; // kilobyte / sec
+      end;
+    except
+      Result := 0;
     end;
-    if db <> 0 then
-    begin
-      Result := sum / db / 1024; // kilobyte / sec
-    end;
-  except
-    Result := 0;
+  finally
+    speedstatlock.LeaveReadOnly;
   end;
-
 end;
 
 function AvgSpeedBySection(const section: String): Double;
@@ -149,24 +153,28 @@ begin
   db := 0;
   Result := 0;
 
+  speedstatlock.EnterReadOnly('AvgSpeedBySection');
   try
-    for i := speedstats.Count - 1 downto 0 do
-    begin
-      s := TSpeedStat(speedstats[i]);
-      if s.section = section then
+    try
+      for i := speedstats.Count - 1 downto 0 do
       begin
-        sum := sum + s.speed;
-        inc(db);
+        s := TSpeedStat(speedstats[i]);
+        if s.section = section then
+        begin
+          sum := sum + s.speed;
+          inc(db);
+        end;
       end;
+      if db <> 0 then
+      begin
+        Result := sum / db / 1024; // kilobyte / sec
+      end;
+    except
+      Result := 0;
     end;
-    if db <> 0 then
-    begin
-      Result := sum / db / 1024; // kilobyte / sec
-    end;
-  except
-    Result := 0;
+  finally
+    speedstatlock.LeaveReadOnly;
   end;
-
 end;
 
 function AvgSpeed(const src, dst: String): Double; overload;
@@ -179,25 +187,29 @@ begin
   db := 0;
   Result := 0;
 
+  speedstatlock.EnterReadOnly('AvgSpeed(src,dst)');
   try
-    for i := speedstats.Count - 1 downto 0 do
-    begin
-      s := TSpeedStat(speedstats[i]);
-      if ((s.src = src) and (s.dst = dst)) then
+    try
+      for i := speedstats.Count - 1 downto 0 do
       begin
-        if (s.speed > 0) then
-          sum := sum + s.speed;
-        inc(db);
+        s := TSpeedStat(speedstats[i]);
+        if ((s.src = src) and (s.dst = dst)) then
+        begin
+          if (s.speed > 0) then
+            sum := sum + s.speed;
+          inc(db);
+        end;
       end;
+      if db <> 0 then
+      begin
+        Result := sum / db / 1024; // kilobyte / sec
+      end;
+    except
+      Result := 0;
     end;
-    if db <> 0 then
-    begin
-      Result := sum / db / 1024; // kilobyte / sec
-    end;
-  except
-    Result := 0;
+  finally
+    speedstatlock.LeaveReadOnly;
   end;
-
 end;
 
 function AvgSpeed(const src, dst, section: String): Double; overload;
@@ -210,25 +222,29 @@ begin
   db := 0;
   Result := 0;
 
+  speedstatlock.EnterReadOnly('AvgSpeed(src,dst,section)');
   try
-    for i := speedstats.Count - 1 downto 0 do
-    begin
-      s := TSpeedStat(speedstats[i]);
-      if ((s.src = src) and (s.dst = dst) and (s.section = section)) then
+    try
+      for i := speedstats.Count - 1 downto 0 do
       begin
-        if (s.speed > 0) then
-          sum := sum + s.speed;
-        inc(db);
+        s := TSpeedStat(speedstats[i]);
+        if ((s.src = src) and (s.dst = dst) and (s.section = section)) then
+        begin
+          if (s.speed > 0) then
+            sum := sum + s.speed;
+          inc(db);
+        end;
       end;
+      if db <> 0 then
+      begin
+        Result := sum / db / 1024; // kilobyte / sec
+      end;
+    except
+      Result := 0;
     end;
-    if db <> 0 then
-    begin
-      Result := sum / db / 1024; // kilobyte / sec
-    end;
-  except
-    Result := 0;
+  finally
+    speedstatlock.LeaveReadOnly;
   end;
-
 end;
 
 function AvgSpeed(const src, dst, section, rip: String): Double; overload;
@@ -241,23 +257,28 @@ begin
   db := 0;
   Result := 0;
 
+  speedstatlock.EnterReadOnly('AvgSpeed(src,dst,section,rip)');
   try
-    for i := speedstats.Count - 1 downto 0 do
-    begin
-      s := TSpeedStat(speedstats[i]);
-      if ((s.src = src) and (s.dst = dst) and (s.section = section) and (s.rlsname = rip)) then
+    try
+      for i := speedstats.Count - 1 downto 0 do
       begin
-        if (s.speed > 0) then
-          sum := sum + s.speed;
-        inc(db);
+        s := TSpeedStat(speedstats[i]);
+        if ((s.src = src) and (s.dst = dst) and (s.section = section) and (s.rlsname = rip)) then
+        begin
+          if (s.speed > 0) then
+            sum := sum + s.speed;
+          inc(db);
+        end;
       end;
+      if db <> 0 then
+      begin
+        Result := sum / db / 1024; // kilobyte / sec
+      end;
+    except
+      Result := 0;
     end;
-    if db <> 0 then
-    begin
-      Result := sum / db / 1024; // kilobyte / sec
-    end;
-  except
-    Result := 0;
+  finally
+    speedstatlock.LeaveReadOnly;
   end;
 end;
 
@@ -269,30 +290,35 @@ var
 begin
   x.Clear;
 
+  speedstatlock.EnterReadOnly('AddSites');
   try
-    for i := speedstats.Count - 1 downto 0 do
-    begin
-      s := TSpeedStat(speedstats[i]);
-      if ((dst = '') and (s.src = src)) then
+    try
+      for i := speedstats.Count - 1 downto 0 do
       begin
-        if x.IndexOf(s.dst) = -1 then
-          x.Add( s.dst );
-      end
-      else if ((src = '') and (s.dst = dst)) then
-      begin
-        if x.IndexOf(s.src) = -1 then
-          x.Add( s.src );
-      end
-      else if (src ='') and (dst = '') then
-      begin
-        if x.IndexOf(s.src) = -1 then
-          x.Add( s.src );
-        if x.IndexOf(s.dst) = -1 then
-          x.Add( s.dst );
+        s := TSpeedStat(speedstats[i]);
+        if ((dst = '') and (s.src = src)) then
+        begin
+          if x.IndexOf(s.dst) = -1 then
+            x.Add( s.dst );
+        end
+        else if ((src = '') and (s.dst = dst)) then
+        begin
+          if x.IndexOf(s.src) = -1 then
+            x.Add( s.src );
+        end
+        else if (src ='') and (dst = '') then
+        begin
+          if x.IndexOf(s.src) = -1 then
+            x.Add( s.src );
+          if x.IndexOf(s.dst) = -1 then
+            x.Add( s.dst );
+        end;
       end;
+    except
+      x.Clear;
     end;
-  except
-    x.Clear;
+  finally
+    speedstatlock.LeaveReadOnly;
   end;
 end;
 
