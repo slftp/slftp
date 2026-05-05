@@ -1119,6 +1119,10 @@ begin
         Result := True;
         exit;
       end;
+      ps1.MkdirError(dir);
+      readyerror := True;
+      Result := True;
+      exit;
     end;
 
     ps1.MkdirReady(dir);

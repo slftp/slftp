@@ -498,6 +498,15 @@ begin
       exit;
     end;
 
+    // Check if the race has already failed on the destination site or dirlist
+    if t.ps2.error or
+      ((t.dir <> '') and (t.ps2.dirlist <> nil) and (t.ps2.dirlist.FindDirList(t.dir) <> nil) and t.ps2.dirlist.FindDirList(t.dir).error) then
+    begin
+      t.readyerror := True;
+      Debug(dpSpam, section, Format('TryToAssignRaceSlots: race failed on destination site or dirlist: %s', [t.FullName]));
+      exit;
+    end;
+
     // first watch if it is not already in process to upload the same file to the same place
     if t.ps2.HasActiveTransfer(t.dir + t.filename) then
       exit; // we are already sending this file to the same destination site
