@@ -1198,6 +1198,10 @@ begin
     // EnterReadOnly while we hold WriteLock). On createit the WriteLock is
     // necessary to safely add to entries; otherwise a ReadOnlyLock would do
     // but we keep WriteLock since the path is rarely hot and reentrancy is safer.
+    // The subdirlist initialization MUST happen inside the same lock - two
+    // concurrent FindDirlist calls would otherwise both see d.subdirlist=nil
+    // and each create a new TDirList, with the second overwriting the first
+    // and leaking it (and any in-flight readers of the first instance).
     dirlist_lock.Enter('TDirList.FindDirlist');
     try
       if entries.Count = 0 then
@@ -1207,26 +1211,22 @@ begin
       if d = nil then
       begin
         if not createit then
-        begin
           exit;
-        end;
         d := TDirListEntry.Create(firstdir, self, True);
         entries.Add(d.filename, d);
       end;
+
+      if not d.Directory then
+        exit; // d is a file - no subdirlist to recurse into
+
+      if d.subdirlist = nil then
+      begin
+        d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
+        if d.subdirlist <> nil then
+          d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
+      end;
     finally
       dirlist_lock.Leave;
-    end;
-
-    if (not d.Directory) then
-    begin
-      exit;
-    end;
-
-    if d.subdirlist = nil then
-    begin
-      d.subdirlist := TDirlist.Create(site_name, d, skiplist, FPazoSFV);
-      if d.subdirlist <> nil then
-        d.subdirlist.FullPath := MyIncludeTrailingSlash(self.FFullPath) + d.filename;
     end;
   except
     on E: Exception do
@@ -1235,7 +1235,10 @@ begin
       exit;
     end;
   end;
-  Result := d.subdirlist.FindDirlist(lastdir, createit);
+
+  // Recursive descent uses the subdirlist's own lock - safe to do outside ours.
+  if d.subdirlist <> nil then
+    Result := d.subdirlist.FindDirlist(lastdir, createit);
 end;
 
 function TDirList.Done: Integer;
