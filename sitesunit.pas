@@ -1105,9 +1105,16 @@ end;
 procedure TSite.AddTask(const t: TTask; const queueFire: boolean = false);
 begin
   if fQueue = nil then
+  begin
     Debug(dpError, section, Format('CRITICAL LOG: fQueue is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
+
   if t = nil then
+  begin
     Debug(dpError, section, Format('CRITICAL LOG: task t is nil in TSite.AddTask for site %s', [Name]));
+    exit;
+  end;
 
   fQueue.AddTask(t);
   if queueFire then self.QueueFire;
