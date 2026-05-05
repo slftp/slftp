@@ -1835,7 +1835,9 @@ begin
 
     dl.dirlist_lock.Enter('TPazoSite.SetFileError');
     try
-      de := dl.Find(filename);
+      // We hold the write lock - use the *Locked variant to avoid a nested
+      // ReadOnlyLock self-deadlock on TslRWLock.
+      de := dl.FindLocked(filename);
       if de <> nil then
       begin
         de.error := True;
@@ -1885,7 +1887,8 @@ begin
           if not aDirlist.IsValidFilenameCached(fFilename) then
             exit;
 
-          de := aDirlist.Find(fFilename);
+          // We hold the write lock - use the *Locked variant.
+          de := aDirlist.FindLocked(fFilename);
           if de = nil then
           begin
             // this means that it has not been fired

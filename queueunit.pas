@@ -47,6 +47,10 @@ type
     procedure TryToAssignLoginSlot(t: TLoginTask);
     procedure TryToAssignRaceSlots(t: TPazoRaceTask);
     function TaskAlreadyInQueue(t: TTask): boolean;
+    { Same as TaskAlreadyInQueue but assumes the caller already holds main_lock
+      (Enter or EnterReadOnly). Used by AddTask which must not nest a
+      ReadOnlyLock inside its own WriteLock - that would spin-deadlock TRWLock. }
+    function TaskAlreadyInQueueLocked(t: TTask): boolean;
     procedure QueueStat;
 
 public
@@ -1008,9 +1012,9 @@ begin
   Debug(dpSpam, section, 'QueueEmpty end: ' + sitename);
 end;
 
-function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
+function TQueueThread.TaskAlreadyInQueueLocked(t: TTask): boolean;
 var
-  fTask:    TTask;
+  fTask: TTask;
   tpr, i_tpr: TPazoRaceTask;
   tpd, i_tpd: TPazoDirlistTask;
   tpm, i_tpm: TPazoMkdirTask;
@@ -1022,46 +1026,32 @@ begin
 
   if (t is TPazoRaceTask) then
   begin
-    try
-      tpr := TPazoRaceTask(t);
-      main_lock.EnterReadOnly('TaskAlreadyInQueue1');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+    tpr := TPazoRaceTask(t);
+    for fListIndex := 0 to 1 do
+    begin
+      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+      for fTask in fList do
+      begin
+        try
+          if (fTask is TPazoRaceTask) then
           begin
-            try
-              if (fTask is TPazoRaceTask) then
-              begin
-                i_tpr := TPazoRaceTask(fTask);
-                if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
-                  (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
-                  (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
-                  (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask (loop) : %s', [e.Message]));
-                continue;
-              end;
+            i_tpr := TPazoRaceTask(fTask);
+            if ((i_tpr.ready = False) and (i_tpr.readyerror = False) and
+              (i_tpr.slot1 = nil) and (i_tpr.pazo_id = tpr.pazo_id) and
+              (i_tpr.site1 = tpr.site1) and (i_tpr.site2 = tpr.site2) and
+              (i_tpr.dir = tpr.dir) and (i_tpr.filename = tpr.filename)) then
+            begin
+              Result := True;
+              exit;
             end;
           end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueueLocked TPazoRaceTask (loop) : %s', [e.Message]));
+            continue;
+          end;
         end;
-      finally
-        main_lock.LeaveReadOnly;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoRaceTask : %s', [e.Message]));
-        Result := False;
-        exit;
       end;
     end;
     exit;
@@ -1069,45 +1059,31 @@ begin
 
   if (t is TPazoDirlistTask) then
   begin
-    try
-      tpd := TPazoDirlistTask(t);
-      main_lock.EnterReadOnly('TaskAlreadyInQueue2');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+    tpd := TPazoDirlistTask(t);
+    for fListIndex := 0 to 1 do
+    begin
+      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+      for fTask in fList do
+      begin
+        try
+          if (fTask is TPazoDirlistTask) then
           begin
-            try
-              if (fTask is TPazoDirlistTask) then
-              begin
-                i_tpd := TPazoDirlistTask(fTask);
-                if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
-                  (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
-                  (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask (loop) : %s', [e.Message]));
-                continue;
-              end;
+            i_tpd := TPazoDirlistTask(fTask);
+            if ((i_tpd.ready = False) and (i_tpd.readyerror = False) and
+              (i_tpd.slot1 = nil) and (i_tpd.pazo_id = tpd.pazo_id) and
+              (i_tpd.site1 = tpd.site1) and (i_tpd.dir = tpd.dir)) then
+            begin
+              Result := True;
+              exit;
             end;
           end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueueLocked TPazoDirlistTask (loop) : %s', [e.Message]));
+            continue;
+          end;
         end;
-      finally
-        main_lock.LeaveReadOnly;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoDirlistTask : %s', [e.Message]));
-        Result := False;
-        exit;
       end;
     end;
     exit;
@@ -1115,45 +1091,31 @@ begin
 
   if (t is TPazoMkdirTask) then
   begin
-    try
-      tpm := TPazoMkdirTask(t);
-      main_lock.EnterReadOnly('TaskAlreadyInQueue3');
-      try
-        for fListIndex := 0 to 1 do
-        begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+    tpm := TPazoMkdirTask(t);
+    for fListIndex := 0 to 1 do
+    begin
+      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+      for fTask in fList do
+      begin
+        try
+          if (fTask is TPazoMkdirTask) then
           begin
-            try
-              if (fTask is TPazoMkdirTask) then
-              begin
-                i_tpm := TPazoMkdirTask(fTask);
-                if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
-                  (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
-                  (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
-                begin
-                  Result := True;
-                  exit;
-                end;
-              end;
-            except
-              on E: Exception do
-              begin
-                Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask (loop) : %s', [e.Message]));
-                continue;
-              end;
+            i_tpm := TPazoMkdirTask(fTask);
+            if ((i_tpm.ready = False) and (i_tpm.readyerror = False) and
+              (i_tpm.slot1 = nil) and (i_tpm.pazo_id = tpm.pazo_id) and
+              (i_tpm.site1 = tpm.site1) and (i_tpm.dir = tpm.dir)) then
+            begin
+              Result := True;
+              exit;
             end;
           end;
+        except
+          on E: Exception do
+          begin
+            Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueueLocked TPazoMkdirTask (loop) : %s', [e.Message]));
+            continue;
+          end;
         end;
-      finally
-        main_lock.LeaveReadOnly;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TPazoMkdirTask : %s', [e.Message]));
-        Result := False;
-        exit;
       end;
     end;
     exit;
@@ -1161,40 +1123,46 @@ begin
 
   if (t is TLoginTask) then
   begin
-    try
-      tpl := TLoginTask(t);
-      main_lock.EnterReadOnly('TaskAlreadyInQueue4');
-      try
-        for fListIndex := 0 to 1 do
+    tpl := TLoginTask(t);
+    for fListIndex := 0 to 1 do
+    begin
+      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+      for fTask in fList do
+      begin
+        if (fTask is TLoginTask) then
         begin
-          if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-          for fTask in fList do
+          i_tpl := TLoginTask(fTask);
+          if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
+            (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
+            (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
           begin
-            if (fTask is TLoginTask) then
-            begin
-              i_tpl := TLoginTask(fTask);
-              if ((i_tpl.ready = False) and (i_tpl.readyerror = False) and
-                (i_tpl.slot1 = nil) and (i_tpl.site1 = tpl.site1) and
-                (i_tpl.wantedslot = tpl.wantedslot) and (i_tpl.readd = tpl.readd) and (i_tpl.kill = tpl.kill)) then
-              begin
-                Result := True;
-                exit;
-              end;
-            end;
+            Result := True;
+            exit;
           end;
         end;
-      finally
-        main_lock.LeaveReadOnly;
-      end;
-    except
-      on E: Exception do
-      begin
-        Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue TLoginTask : %s', [e.Message]));
-        Result := False;
-        exit;
       end;
     end;
     exit;
+  end;
+end;
+
+function TQueueThread.TaskAlreadyInQueue(t: TTask): boolean;
+begin
+  // Public entry point - takes a single ReadOnlyLock and delegates to the
+  // locked-internal variant. Callers that already hold main_lock (Enter or
+  // EnterReadOnly) MUST call TaskAlreadyInQueueLocked directly to avoid a
+  // self-spin on TRWLock.
+  Result := False;
+  try
+    main_lock.EnterReadOnly('TaskAlreadyInQueue');
+    try
+      Result := TaskAlreadyInQueueLocked(t);
+    finally
+      main_lock.LeaveReadOnly;
+    end;
+  except
+    on E: Exception do
+      Debug(dpError, section, Format('[EXCEPTION] TaskAlreadyInQueue : %s', [e.Message]));
   end;
 end;
 
@@ -1253,7 +1221,10 @@ begin
     main_lock.Enter('AddTask');
     try
       step := 'TaskAlreadyInQueue check';
-      if TaskAlreadyInQueue(t) then
+      // Use the *Locked variant - we already hold the WriteLock and a nested
+      // EnterReadOnly on TslRWLock would self-deadlock (TRWLock.ReadOnlyLock
+      // spins on the writer bit, which we own).
+      if TaskAlreadyInQueueLocked(t) then
       begin
         // don't add the task to the queue, just notify and free right away if it's a duplicate
         if t.IsNotifyTask then

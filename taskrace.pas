@@ -1343,7 +1343,8 @@ var
     begin
       fSrcDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Source');
       try
-        fSrcDirlistEntry := fSrcDirlist.Find(filename);
+        // We hold the write lock - use the *Locked variant.
+        fSrcDirlistEntry := fSrcDirlist.FindLocked(filename);
         if fSrcDirlistEntry <> nil then
         begin
           lSrcFileSize := fSrcDirlistEntry.filesize;
@@ -1428,7 +1429,8 @@ var
     begin
       fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute-Destination');
       try
-        fDstDirlistEntry := fDstDirlist.Find(filename);
+        // We hold the write lock - use the *Locked variant.
+        fDstDirlistEntry := fDstDirlist.FindLocked(filename);
         if fDstDirlistEntry <> nil then
         begin
           lDstFileSize := fDstDirlistEntry.filesize;
@@ -2837,7 +2839,8 @@ begin
           fDstDirlist := ps2.dirlist.FindDirlist(dir);
         fDstDirlist.dirlist_lock.Enter('TPazoRaceTask.Execute');
         try
-          fDirlistEntry := fDstDirlist.Find(filename);
+          // We hold the write lock - use the *Locked variant.
+          fDirlistEntry := fDstDirlist.FindLocked(filename);
           fDiffMSec := MillisecondsBetween(Now, fDstDirlist.LastUpdated);
         finally
           fDstDirlist.dirlist_lock.Leave;

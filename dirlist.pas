@@ -162,6 +162,11 @@ type
     procedure Usefulfiles(out files: Integer; out size: Int64);
     function FindNfo: TDirListEntry;
     function Find(const filename: String): TDirListEntry;
+    { Same as Find but assumes the caller already holds dirlist_lock (Enter or
+      EnterReadOnly). Use this from blocks that already acquired the lock so
+      the call doesn't try to nest a ReadOnlyLock inside an existing WriteLock,
+      which would self-deadlock the TRWLock. }
+    function FindLocked(const filename: String): TDirListEntry;
     function FindDirlist(const dirname: String; createit: Boolean = False): TDirList;
 
 
@@ -1145,6 +1150,14 @@ begin
   finally
     dirlist_lock.LeaveReadOnly;
   end;
+end;
+
+function TDirList.FindLocked(const filename: String): TDirListEntry;
+begin
+  Result := nil;
+  if entries.Count = 0 then
+    exit;
+  entries.TryGetValue(filename, Result);
 end;
 
 procedure TDirList.SetLastChanged(const value: TDateTime);
