@@ -6,7 +6,7 @@ uses
   Classes, encinifile, Contnrs, sltcp, SyncObjs, Regexpr, typinfo,
   taskautodirlist, taskautonuke, taskautoindex, tasklogin, tasksunit,
   taskrules, taskrace, queueunit, Generics.Collections, pazo, slcriticalsection2,
-  variantcache, routeconfig, StrUtils, mormot.core.os;
+  variantcache, routeconfig, StrUtils;
 
 type
   TSlotStatus = (ssNone, ssDown, ssOffline, ssOnline, ssMarkedDown);
@@ -238,7 +238,7 @@ type
     fIo_timeout: integer;
     fMaxIdle: integer;
     fKillConnectionOnStalledTransferSeconds: integer;
-    fSpeedFromCS: TRWLock; //< RWLock - GetSpeed_From called per route lookup, UpdateSpeedFromCache only on site reload
+    fSpeedFromCS: TslRWLock; //< RWLock - GetSpeed_From called per route lookup, UpdateSpeedFromCache only on site reload
     fSpeedFromCache: TList<TSpeedFromRouteInfo>;
     fFreeSlotsCS: TSlCriticalSection2;
     FSettingsCacheDict: TVariantCache; //< Cache for site-settings in the sites.dat to avoid the sites.dat bottleneck (lock)
@@ -3182,7 +3182,7 @@ begin
   features := [];
   fSlotsAssignmentLock := TSlCriticalSection2.Create('SLFTP_SlotsAssignmentMutex_' + Name, True);
   fQueue := TQueueThread.Create(Name);
-  self.fSpeedFromCS.Init;
+  self.fSpeedFromCS := TslRWLock.Create('SpeedFromCS_' + Name);
   self.fSpeedFromCache := nil;
   self.fFreeSlotsCS := TSlCriticalSection2.Create('FreeSlotsCS_' + Name);
   FSettingsCacheDict := TVariantCache.Create;
@@ -3377,7 +3377,7 @@ begin
     fSlot.Free;
   slots.Free;
   fSlotsAssignmentLock.Free;
-  fSpeedFromCS.AssertDone;
+  fSpeedFromCS.Free;
   FreeAndNil(fSpeedFromCache);
   fFreeSlotsCS.Free;
   FSettingsCacheDict.Free;
@@ -4977,21 +4977,21 @@ begin
     // Init phase - WriteLock so we can safely call UpdateSpeedFromCache
     // (which itself acquires WriteLock - TRWLock WriteLock is reentrant within
     // the same thread).
-    self.fSpeedFromCS.WriteLock;
+    self.fSpeedFromCS.Enter;
     try
       if self.fSpeedFromCache = nil then
         self.UpdateSpeedFromCache;
     finally
-      self.fSpeedFromCS.WriteUnLock;
+      self.fSpeedFromCS.Leave;
     end;
   end;
 
   // Read phase - ReadOnlyLock allows multiple concurrent readers
-  self.fSpeedFromCS.ReadOnlyLock;
+  self.fSpeedFromCS.EnterReadOnly;
   try
     Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
   finally
-    self.fSpeedFromCS.ReadOnlyUnLock;
+    self.fSpeedFromCS.LeaveReadOnly;
   end;
 end;
 
@@ -5024,12 +5024,12 @@ begin
   fNewValue.Sort(TComparer<TSpeedFromRouteInfo>.Construct(_mySpeedComparer));
   // Atomic swap of cache pointer. WriteLock is reentrant so this is safe to
   // call from inside GetSpeed_From's init phase.
-  self.fSpeedFromCS.WriteLock;
+  self.fSpeedFromCS.Enter;
   try
     fOldValue := self.fSpeedFromCache;
     self.fSpeedFromCache := fNewValue;
   finally
-    self.fSpeedFromCS.WriteUnLock;
+    self.fSpeedFromCS.Leave;
   end;
 
   FreeAndNil(fOldValue);

@@ -40,18 +40,18 @@ var
 implementation
 
 uses
-  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig, mormot.core.os;
+  irc, sitesunit, Debugunit, mystrings, configunit, encinifile, Math, IdGlobal, slcriticalsection2, routeconfig;
 
 const
   r_section = 'speedstats';
 
 var
-  speedstatlock: TRWLock; //< RWLock - reads (Save, Avg*) hugely outnumber writes (Add on race finish)
+  speedstatlock: TslRWLock; //< RWLock - reads (Save, Avg*) hugely outnumber writes (Add on race finish)
   max_entries: integer;
 
 procedure SpeedStatsInit;
 begin
-  speedstatlock.Init;
+  speedstatlock := TslRWLock.Create('SpeedStats');
   speedstats_last_save := Now;
   speedstats_last_recalc := Now;
   speedStats := TObjectList.Create;
@@ -63,7 +63,7 @@ procedure SpeedStatsUnInit;
 begin
   Debug(dpSpam, r_section, 'Uninit1');
   speedStats.Free;
-  speedstatlock.AssertDone;
+  speedstatlock.Free;
   Debug(dpSpam, r_section, 'Uninit2');
 end;
 
@@ -75,7 +75,7 @@ begin
   debug(dpMessage, r_section, '--> Saving speedstats');
   //irc_Addconsole('--> SpeedStatsSave : '+FormatDateTime('hh:nn:ss', now));
 
-  speedstatlock.ReadOnlyLock;
+  speedstatlock.EnterReadOnly;
   try
     try
       // Cleanup
@@ -101,7 +101,7 @@ begin
       end;
     end;
   finally
-    speedstatlock.ReadOnlyUnLock;
+    speedstatlock.LeaveReadOnly;
   end;
 
   speedstats_last_save:= Now;
@@ -583,7 +583,7 @@ var
 begin
   x := TEncStringlist.Create(passphrase);
   try
-    speedstatlock.WriteLock;
+    speedstatlock.Enter;
     try
       x.LoadFromFile(ExtractFilePath(ParamStr(0)) + 'slftp.speedstats');
       for i := 0 to x.Count - 1 do
@@ -592,7 +592,7 @@ begin
         SpeedStatAdd(s, True);
       end;
     finally
-      speedstatlock.WriteUnLock;
+      speedstatlock.Leave;
     end;
   finally
     x.Free;
@@ -693,7 +693,7 @@ begin
     debug(dpSpam, r_section, 'Speedstat %s -> %s %.1f', [s.src, s.dst, s.speed]);
 
   try
-    speedstatlock.WriteLock;
+    speedstatlock.Enter;
     try
       speedstats.Add(s);
       while (speedstats.Count > max_entries) do
@@ -701,7 +701,7 @@ begin
         speedstats.Delete(0);
       end;
     finally
-      speedstatlock.WriteUnLock;
+      speedstatlock.Leave;
     end;
   except
     on E: Exception do
@@ -715,7 +715,7 @@ procedure RemoveSpeedStats(const sitename, section: String);
 var
   i: integer;
 begin
-  speedstatlock.WriteLock;
+  speedstatlock.Enter;
   try
     for i := 0 to speedstats.Count - 1 do
     begin
@@ -723,7 +723,7 @@ begin
         speedstats.Delete(i);
     end;
   finally
-    speedstatlock.WriteUnLock;
+    speedstatlock.Leave;
   end;
   SpeedStatsSave;
 end;
