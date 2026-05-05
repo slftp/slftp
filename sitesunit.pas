@@ -928,7 +928,7 @@ end;
     except
       on e: Exception do
       begin
-        Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
+        DebugException(dpError, section, 'QueueSorter ', e);
         Result := 0;
       end;
     end;
@@ -997,7 +997,7 @@ end;
         except
           on e: Exception do
           begin
-            Debug(dpError, section, '[EXCEPTION] IrcQueueShow : %s', [e.Message]);
+            DebugException(dpError, section, 'IrcQueueShow ', e);
           end;
         end;
       end;
@@ -1132,9 +1132,14 @@ begin
 end;
 
 procedure AddTask(const t: TTask; const queueFire: boolean = false);
+var
+  fAdminSite: TSite;
 begin
   if t = nil then
+  begin
     Debug(dpError, section, 'CRITICAL LOG: Global AddTask called with nil task!');
+    exit;
+  end;
 
   try
     if not (t.ssite1 = nil) then
@@ -1145,7 +1150,11 @@ begin
     begin
       if t.ready or t.readyerror then
       begin
-        FindSiteByName('', getAdminSiteName).AddTask(t, queueFire);
+        fAdminSite := FindSiteByName('', getAdminSiteName);
+        if fAdminSite <> nil then
+          fAdminSite.AddTask(t, queueFire)
+        else
+          Debug(dpError, section, Format('AddTask - Admin site not found for task: %s', [t.Name]));
       end
       else
         debug(dpError, section, 'AddTask - No site for task:' + t.Name);
@@ -1153,7 +1162,7 @@ begin
     except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.AddTask (%s): %s', [t.Name, e.Message]);
+      DebugException(dpError, section, Format('TSite.AddTask (%s)', [t.Name]), e);
     end;
   end;
 end;
@@ -1166,7 +1175,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
+      DebugException(dpError, section, Format('TSite.QueueFireInverval (%s)', [self.Name]), e);
     end;
   end;
 end;
@@ -1179,7 +1188,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSite.QueueFireInverval (%s): %s', [self.Name, e.Message]);
+      DebugException(dpError, section, Format('TSite.QueueFireInverval (%s)', [self.Name]), e);
     end;
   end;
 end;
@@ -1593,7 +1602,7 @@ begin
         except
           on E: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(todotask.name) %s: %s', [tname, e.Message]));
+            DebugException(dpError, section, 'TSiteSlot.Execute(todotask.name)' + tname, e);
           end;
         end;
 
@@ -1620,7 +1629,7 @@ begin
         except
           on E: Exception do
           begin
-            Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Execute(if todotask.Execute(self) then) %s: %s', [tname, e.Message]));
+            DebugException(dpError, section, 'TSiteSlot.Execute(if todotask.Execute(self) then)' + tname, e);
 
             //make sure the task gets cleaned if an unhandled exception occured when executing the task
             todotask.readyerror := True;
@@ -1749,7 +1758,7 @@ begin
     on e: Exception do
     begin
       try
-        Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.ClearnupThreadVars : %s', [e.Message]));
+        DebugException(dpError, section, 'TSiteSlot.ClearnupThreadVars ', e);
       except
         // ignore this in case the debug unit has already been uninitialized at shutdown or something like that
       end;
@@ -2549,7 +2558,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read: %s', [e.Message]));
+      DebugException(dpError, section, 'TSiteSlot.Read', e);
       lastResponse := '';
       lastResponseCode := 0;
       Result := False;
@@ -2608,7 +2617,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read: %s', [e.Message]));
+      DebugException(dpError, section, 'TSiteSlot.Read', e);
       lastResponse := '';
       lastResponseCode := 0;
       error := 'TSiteSlot.Read';
@@ -2624,8 +2633,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Read ParseResponseCode: %s : %s',
-        [e.Message, lastResponse]));
+      DebugException(dpError, section, Format('TSiteSlot.Read ParseResponseCode: %s', [lastResponse]), e);
       lastResponse := '';
       lastResponseCode := 0;
       error := 'TSiteSlot.Read ParseResponseCode';
@@ -2667,7 +2675,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s', [e.Message, s]));
+      DebugException(dpError, section, Format('TSiteSlot.Send: %s', [s]), e);
       Result := False;
       exit;
     end;
@@ -2681,7 +2689,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.Send: %s : %s', [e.Message, s]));
+      DebugException(dpError, section, Format('TSiteSlot.Send: %s', [s]), e);
       Result := False;
       exit;
     end;
@@ -2816,7 +2824,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSiteSlot.Mkdir: %s', [e.Message]);
+      DebugException(dpError, section, 'TSiteSlot.Mkdir', e);
       Result := False;
     end;
   end;
@@ -2850,7 +2858,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSiteSlot.Pwd: %s', [e.Message]);
+      DebugException(dpError, section, 'TSiteSlot.Pwd', e);
       Result := False;
     end;
   end;
@@ -2948,7 +2956,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, '[EXCEPTION] TSiteSlot.Dirlist: %s', [e.Message]);
+      DebugException(dpError, section, 'TSiteSlot.Dirlist', e);
     end;
   end;
 end;
@@ -3092,7 +3100,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSiteSlot.LeechFile : %s', [e.Message]));
+      DebugException(dpError, section, 'TSiteSlot.LeechFile ', e);
       exit;
     end;
   end;
@@ -4124,7 +4132,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoBnctest AddTask: %s', [e.Message]));
+      DebugException(dpError, section, 'TSite.AutoBnctest AddTask', e);
     end;
   end;
 end;
@@ -4146,7 +4154,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoRules AddTask: %s', [e.Message]));
+      DebugException(dpError, section, 'TSite.AutoRules AddTask', e);
     end;
   end;
 end;
@@ -4169,7 +4177,7 @@ begin
   except
     on e: Exception do
     begin
-      Debug(dpError, section, Format('[EXCEPTION] TSite.AutoDirlist AddTask: %s', [e.Message]));
+      DebugException(dpError, section, 'TSite.AutoDirlist AddTask', e);
     end;
   end;
 end;
