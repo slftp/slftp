@@ -191,6 +191,7 @@ type
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
+    function AddSiteDropRule(const SiteName, Section: RawUTF8): boolean;
 
     /// Loads incoming rules file for a site from rtpl/<site>.rtpl (or admin file for '*')
     function GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;

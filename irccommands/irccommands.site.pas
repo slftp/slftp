@@ -516,6 +516,9 @@ begin
   s.WCString('bnc_host-' + IntToStr(i), bnchost);
   s.WCInteger('bnc_port-' + IntToStr(i), bncport);
 
+  if sitesdat <> nil then
+    sitesdat.UpdateFile;
+
   Result := True;
 end;
 
@@ -581,6 +584,9 @@ begin
     irc_addtext(Netname, Channel, 'Bnc not found.');
     exit;
   end;
+
+  if sitesdat <> nil then
+    sitesdat.UpdateFile;
 
   Result := True;
 end;
