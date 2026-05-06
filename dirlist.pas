@@ -710,7 +710,9 @@ begin
       else
         akttimestamp := MinDateTime;
 
-      de := Find(fParsedDirlistEntry.Filename);
+      // We hold the write lock - use FindLocked to avoid a nested
+      // ReadOnlyLock self-deadlock on TslRWLock.
+      de := FindLocked(fParsedDirlistEntry.Filename);
       if de = nil then
       begin
         de := TDirListEntry.Create(fParsedDirlistEntry.Filename, self, (fParsedDirlistEntry.DirMask[1] = 'd'));
