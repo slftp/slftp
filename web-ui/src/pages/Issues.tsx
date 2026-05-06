@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center, Pill } from '@mantine/core';
+import { Alert, Badge, Button, Card, Checkbox, Group, Loader, ScrollArea, Stack, Table, Text, TextInput, Title, Tooltip, Modal, ActionIcon, Breadcrumbs, Center, Pill } from '@mantine/core';
 import { IconAlertCircle, IconRefresh, IconSearch, IconPlus, IconBook, IconFolderOpen, IconArrowUp, IconChevronUp, IconChevronDown, IconSelector, IconLink, IconTrash } from '@tabler/icons-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
@@ -124,6 +124,7 @@ export function Issues() {
   const [addSectionModalOpened, setAddSectionModalOpened] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [sectionPath, setSectionPath] = useState('');
+  const [addDropRule, setAddDropRule] = useState(false);
 
   // Browser state
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -221,12 +222,18 @@ export function Issues() {
   const issues = Array.isArray(data) ? data : [];
 
   const addSectionMutation = useMutation({
-    mutationFn: async ({ siteName, section, path, issueIds }: { siteName: string; section: string; path: string; issueIds: number[] }) => {
+    mutationFn: async ({ siteName, section, path, issueIds, dropRule }: { siteName: string; section: string; path: string; issueIds: number[]; dropRule: boolean }) => {
       await apiClient.post('/ApiSitesService/SetSiteSection', {
         SiteName: siteName,
         Section: section,
         Dir: path
       });
+      if (dropRule) {
+        await apiClient.post('/ApiSitesService/AddSiteDropRule', {
+          SiteName: siteName,
+          Section: section
+        });
+      }
       // Delete all issues for this site + section combination
       for (const issueId of issueIds) {
         await apiClient.post('/ApiIssuesService/DeleteIssue', { IssueId: issueId });
@@ -241,6 +248,7 @@ export function Issues() {
       });
       setAddSectionModalOpened(false);
       setSectionPath('');
+      setAddDropRule(false);
       setSelectedIssue(null);
       refetch();
       refetchSummary();
@@ -276,6 +284,7 @@ export function Issues() {
       section: selectedIssue.Section,
       path: sectionPath.trim(),
       issueIds: matchingIssueIds,
+      dropRule: addDropRule,
     });
   };
 
@@ -594,6 +603,7 @@ export function Issues() {
         onClose={() => {
           setAddSectionModalOpened(false);
           setSectionPath('');
+          setAddDropRule(false);
           setSelectedIssue(null);
         }}
         title="Add Missing Section"
@@ -654,6 +664,16 @@ export function Issues() {
               </Group>
             </Stack>
           )}
+          <Tooltip
+            label="Typical use case: affil-only sections"
+            withArrow
+          >
+            <Checkbox
+              label="Add drop rule (if default then DROP)"
+              checked={addDropRule}
+              onChange={(e) => setAddDropRule(e.currentTarget.checked)}
+            />
+          </Tooltip>
           <Group justify="flex-end" mt="md">
             <Button variant="light" onClick={() => setAddSectionModalOpened(false)}>
               Cancel

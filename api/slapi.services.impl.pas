@@ -113,6 +113,7 @@ type
     function GetAvailableSections: RawJSON;
     function GetSiteSections(const SiteName: RawUTF8): RawJSON;
     function SetSiteSection(const SiteName, Section, Dir: RawUTF8): boolean;
+    function AddSiteDropRule(const SiteName, Section: RawUTF8): boolean;
     function GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
     function GetSiteRulesSnapshot(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
     function ValidateRtpl(const Content: RawUTF8; out Validation: TApiRulesValidation): boolean;
@@ -2936,6 +2937,7 @@ function TApiSitesServiceImpl.SetSiteCredentials(const SiteName: RawUTF8;
 var
   s: TSite;
   bncsArray: variant;
+  fBncCount: integer;
   i: integer;
   bncHost: string;
   bncPort: integer;
@@ -2960,10 +2962,12 @@ begin
       Inc(i);
     end;
 
+    fBncCount := 0;
     if BncsJson <> '' then
     begin
       bncsArray := _JsonFast(BncsJson);
-      for i := 0 to TDocVariantData(bncsArray).Count - 1 do
+      fBncCount := TDocVariantData(bncsArray).Count;
+      for i := 0 to fBncCount - 1 do
       begin
         bncHost := VariantToUTF8(TDocVariantData(bncsArray).Values[i].host);
         bncPort := TDocVariantData(bncsArray).Values[i].port;
@@ -2980,7 +2984,10 @@ begin
     s.WCBool('legacycwd', LegacyCwd);
     s.WCInteger('sslfxp', SslFxp);
 
-    Debug(dpMessage, section, Format('SetSiteCredentials API: %s (BNCs=%d, SSLFXP=%d)', [UTF8ToString(SiteName), TDocVariantData(bncsArray).Count, SslFxp]));
+    if sitesdat <> nil then
+      sitesdat.UpdateFile;
+
+    Debug(dpMessage, section, Format('SetSiteCredentials API: %s (BNCs=%d, SSLFXP=%d)', [UTF8ToString(SiteName), fBncCount, SslFxp]));
     Result := True;
   except
     on E: Exception do
@@ -3200,6 +3207,32 @@ begin
     Result := ExtractFilePath(ParamStr(0)) + 'rtpl' + PathDelim + resolved + '.siterules'
   else
     Result := ExtractFilePath(ParamStr(0)) + 'rules' + PathDelim + resolved + '.rules';
+end;
+
+function TApiSitesServiceImpl.AddSiteDropRule(const SiteName, Section: RawUTF8): boolean;
+var
+  fRuleText: string;
+  fError: string;
+  fResult: TPair<TRule, integer>;
+begin
+  Result := False;
+  try
+    fRuleText := Format('%s %s if default then DROP', [UpperCase(UTF8ToString(SiteName)), UpperCase(UTF8ToString(Section))]);
+    fResult := rulesunit.AddRule(fRuleText, fError);
+    if fError <> '' then
+    begin
+      Debug(dpError, section, Format('AddSiteDropRule failed for %s %s: %s', [UTF8ToString(SiteName), UTF8ToString(Section), fError]));
+      Exit;
+    end;
+    Debug(dpMessage, section, Format('AddSiteDropRule API: Rule added for %s %s', [UTF8ToString(SiteName), UTF8ToString(Section)]));
+    Result := True;
+  except
+    on E: Exception do
+    begin
+      Debug(dpError, section, Format('[EXCEPTION] AddSiteDropRule: %s', [E.Message]));
+      Result := False;
+    end;
+  end;
 end;
 
 function TApiSitesServiceImpl.GetSiteRtpl(const SiteName: RawUTF8; out FileInfo: TApiTextFile): boolean;
