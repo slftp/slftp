@@ -745,8 +745,18 @@ function TPazoDirlistTask.GetDirlistReaddValue(aSite: TPazoSite; aDirlist: TDirL
 var
   baseValue: integer;
   secondsSinceLastChange: Int64;
+  fSite: TSite;
 begin
   baseValue := GetNewdirDirlistReaddValue();
+
+  // Site-specific override takes precedence over global default
+  if aSite <> nil then
+  begin
+    fSite := FindSiteByName('', aSite.Name);
+    if (fSite <> nil) and (fSite.NewdirDirlistReadd > 0) then
+      baseValue := fSite.NewdirDirlistReadd;
+  end;
+
   baseValue := GetNewdirDirlistReaddLoadAdjustedValue(baseValue);
 
   if (aSite <> nil) and (aDirlist <> nil) then
