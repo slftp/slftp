@@ -1690,6 +1690,7 @@ begin
           if (not de.IsOnSite) then
           begin
             de.IsOnSite := True;
+            de.justadded := True; // ensure next dirlist scan triggers RemovePazoRace for pending tasks
             if not de.skiplisted then
               fFilesToRace.Add(de);
           end;
