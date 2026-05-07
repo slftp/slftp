@@ -4972,21 +4972,28 @@ end;
 
 function TSite.GetSpeed_From: TList<TSpeedFromRouteInfo>;
 begin
-  if self.fSpeedFromCache = nil then
-  begin
-    // Init phase - WriteLock so we can safely call UpdateSpeedFromCache
-    // (which itself acquires WriteLock - TRWLock WriteLock is reentrant within
-    // the same thread).
-    self.fSpeedFromCS.Enter;
-    try
-      if self.fSpeedFromCache = nil then
-        self.UpdateSpeedFromCache;
-    finally
-      self.fSpeedFromCS.Leave;
+  // Hot path: try with ReadOnlyLock first (majority of calls have cache initialized)
+  self.fSpeedFromCS.EnterReadOnly;
+  try
+    if self.fSpeedFromCache <> nil then
+    begin
+      Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));
+      Exit;
     end;
+  finally
+    self.fSpeedFromCS.LeaveReadOnly;
   end;
 
-  // Read phase - ReadOnlyLock allows multiple concurrent readers
+  // Cold path: cache needs initialization
+  self.fSpeedFromCS.Enter;
+  try
+    if self.fSpeedFromCache = nil then
+      self.UpdateSpeedFromCache;
+  finally
+    self.fSpeedFromCS.Leave;
+  end;
+
+  // Read with ReadOnlyLock
   self.fSpeedFromCS.EnterReadOnly;
   try
     Result := TList<TSpeedFromRouteInfo>.Create((self.fSpeedFromCache));

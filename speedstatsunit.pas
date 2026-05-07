@@ -743,7 +743,7 @@ var
 begin
   speedstatlock.Enter;
   try
-    for i := 0 to speedstats.Count - 1 do
+    for i := speedstats.Count - 1 downto 0 do
     begin
       if (((TSpeedStat(speedstats.Items[i]).src = sitename) or (TSpeedStat(speedstats.Items[i]).dst = sitename)) and (TSpeedStat(speedstats.Items[i]).section = section)) then
         speedstats.Delete(i);

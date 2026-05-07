@@ -118,6 +118,7 @@ type
     procedure Clear;
     procedure DeleteKey(const Section, Ident: String); override;
     procedure EraseSection(const Section: String); override;
+    { NOTE: Caller must hold il (ReadOnlyLock or WriteLock) before calling GetStrings. }
     procedure GetStrings(List: TStrings);
     procedure ReadSection(const Section: String; Strings: TStrings); override;
     procedure ReadSections(Strings: TStrings); override;
@@ -673,6 +674,7 @@ begin
     raise Exception.CreateFmt('Cannot move file from %s to %s', [aSourceFileName, aDestinationFileName]);
 end;
 
+{ NOTE: Caller must hold il (ReadOnlyLock or WriteLock). This method does NOT acquire the lock itself. }
 procedure TEncIniFile.GetStrings(List: TStrings);
 var
   I, J: Integer;
@@ -895,9 +897,13 @@ var
   ListSplitFile: TStringList;
   split_site_data: Boolean;
 begin
-  Clear;
   il.Enter;
   try
+    // Clear FSections atomically inside the same lock to prevent readers from observing an empty state
+    for I := 0 to FSections.Count - 1 do
+      TObject(FSections.Objects[I]).Free;
+    FSections.Clear;
+
     Strings := nil;
 
     if config <> nil then begin
