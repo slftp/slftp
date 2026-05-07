@@ -289,15 +289,21 @@ begin
   files := 0;
   size := 0;
 
-  // dir has already been seen as complete
-  if FCachedCompleteResult then
-  begin
-    SetCompleteInfo(FromFtpd);
-    Result := True;
-    exit;
+  // Check cached result under ReadOnlyLock
+  dirlist_lock.EnterReadOnly('TDirList.Complete cache read');
+  try
+    if FCachedCompleteResult then
+    begin
+      SetCompleteInfo(FromFtpd);
+      Result := True;
+      exit;
+    end;
+  finally
+    dirlist_lock.LeaveReadOnly;
   end;
 
-  if error then
+  try
+    if error then
   begin
     if parent <> nil then
       Debug(dpSpam, section, 'TDirlist.Complete ERROR: Site: %s - Dir: %s - DirType: %s', [site_name, FFullPath, parent.DirTypeAsString])
@@ -402,14 +408,17 @@ begin
 
   end;
 
-  // set complete date if not already set
-  if ((Result) and (self.FCompletedTime = 0)) then
-  begin
-    self.FCompletedTime := Now();
+  finally
+    // Cache result under WriteLock
+    dirlist_lock.Enter('TDirList.Complete cache write');
+    try
+      if ((Result) and (self.FCompletedTime = 0)) then
+        self.FCompletedTime := Now();
+      FCachedCompleteResult := Result;
+    finally
+      dirlist_lock.Leave;
+    end;
   end;
-
-  // avoid further execution of TDirlist.Complete if Result is true
-  FCachedCompleteResult := Result;
 end;
 
 constructor TDirList.Create(const site_name: String; parentdir: TDirListEntry; skiplist: TSkipList; const aPazoSFV: TPazoSFV; SpeedTest: boolean = False; FromIrc: boolean = False);

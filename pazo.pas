@@ -2056,7 +2056,7 @@ begin
 
         // get more infos about dirlist entries
         sum := 0;
-        dirlist.dirlist_lock.Enter('TPazoSite.Stats');
+        dirlist.dirlist_lock.EnterReadOnly('TPazoSite.Stats');
         try
           for de in dirlist.entries.Values do
           begin
@@ -2076,7 +2076,7 @@ begin
             end;
           end;
         finally
-          dirlist.dirlist_lock.Leave;
+          dirlist.dirlist_lock.LeaveReadOnly;
         end;
 
       end;
