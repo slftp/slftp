@@ -730,6 +730,12 @@ end;
 function TPazoDirlistTask.Name: String;
 begin
   try
+    if (mainpazo = nil) or (mainpazo.rls = nil) then
+    begin
+      Result := Format('DIRLIST : %d <b>%s</b> %s', [pazo_id, site1, dir]);
+      exit;
+    end;
+
     if is_pre then
       Result := Format('DIRLIST : %d <b>%s</b> <b>PRE</b> %s %s %s %s', [pazo_id, site1, mainpazo.rls.section,
         mainpazo.rls.rlsname, dir, ScheduleText])
@@ -1217,6 +1223,12 @@ end;
 function TPazoMkdirTask.Name: String;
 begin
   try
+    if (mainpazo = nil) or (mainpazo.rls = nil) then
+    begin
+      Result := Format('MKDIR : %d <b>%s</b> %s', [pazo_id, site1, dir]);
+      exit;
+    end;
+
     Result := Format('MKDIR : %d <b>%s</b> %s %s', [pazo_id, site1, mainpazo.rls.rlsname, dir]);
   except
     Result := 'MKDIR';
@@ -3556,7 +3568,12 @@ begin
       siteInfo := Format(' <b>%s</b>-><b>%s</b>', [site1, site2]);
 
     if mainpazo = nil then
+    begin
       Debug(dpError, c_section, 'CRITICAL LOG: TPazoRaceTask.Name called but mainpazo is nil!');
+      Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
+        [pazo_id, siteInfo, slotInfo, filename, rank]);
+      exit;
+    end;
 
     if mainpazo.rls = nil then
       Result := Format('<c7>[RACE]</c> #%d%s%s : <c10>%s</c> <c7>(%d)</c>',
