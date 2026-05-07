@@ -70,6 +70,7 @@ type
 
     delay_leech: integer; //< value of delay for leeching from site in seconds
     delay_upload: integer; //< value of delay for uploading to site in seconds
+    newdir_dirlist_readd: integer; //< site-specific override for newdir dirlist readd delay; 0 = use global default
 
     s_dirlisttasks: TIdThreadSafeInt32;
     s_racetasks: TIdThreadSafeInt32;
@@ -1609,6 +1610,11 @@ begin
   s_mkdirtasks := TIdThreadSafeInt32.Create;
 
   speed_from := fSite.Speed_From;
+
+  if fSite <> nil then
+    newdir_dirlist_readd := fSite.NewdirDirlistReadd
+  else
+    newdir_dirlist_readd := 0;
 
   Debug(dpSpam, section, 'TPazoSite.Create: %s', [Name]);
 end;
