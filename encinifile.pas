@@ -582,7 +582,11 @@ function TEncIniFile.AddSection(const Section: String): TStrings;
 begin
   Result := TMyHashedStringList.Create;
   try
-    TMyHashedStringList(Result).CaseSensitive := CaseSensitive;
+    { Direct field access — AddSection is only called from SetStrings/WriteString
+      which already hold il.Enter. Using the CaseSensitive property would call
+      GetCaseSensitive → EnterReadOnly, causing a self-deadlock because the same
+      thread already holds the write lock. }
+    TMyHashedStringList(Result).CaseSensitive := FSections.CaseSensitive;
     FSections.AddObject(Section, Result);
   except
     Result.Free;

@@ -22,7 +22,7 @@ var
 implementation
 
 uses
-  SysUtils;
+  SysUtils, debugunit;
 
 const
   timeout = 'timeout';
