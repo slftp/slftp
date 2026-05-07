@@ -650,7 +650,12 @@ end;
 
 function TEncIniFile.GetCaseSensitive: Boolean;
 begin
-  Result := FSections.CaseSensitive;
+  il.EnterReadOnly;
+  try
+    Result := FSections.CaseSensitive;
+  finally
+    il.LeaveReadOnly;
+  end;
 end;
 
 procedure TEncIniFile.MoveAndOverwriteFile(const aSourceFileName, aDestinationFileName: string);
@@ -754,22 +759,25 @@ begin
   if (FileName <> '') and FileExists(FileName) then
   begin
     myS:= TMemoryStream.Create;
-    List := TStringList.Create;
     try
-      if not fSima then
-      begin
-        DecryptFileToStream(FFileName, myS, fPassHash, fCompression);
-        List.LoadFromStream(myS);
-      end
-      else
-      begin
-        List.LoadFromFile(FFileName);
+      List := TStringList.Create;
+      try
+        if not fSima then
+        begin
+          DecryptFileToStream(FFileName, myS, fPassHash, fCompression);
+          List.LoadFromStream(myS);
+        end
+        else
+        begin
+          List.LoadFromFile(FFileName);
+        end;
+
+        SetStrings(List);
+
+      finally
+        List.Free;
       end;
-
-      SetStrings(List);
-
     finally
-      List.Free;
       myS.Free;
     end;
   end
@@ -784,18 +792,21 @@ var
   SectionStrings: TStrings;
 begin
   il.EnterReadOnly;
-  Strings.BeginUpdate;
   try
-    Strings.Clear;
-    I := FSections.IndexOf(Section);
-    if I >= 0 then
-    begin
-      SectionStrings := TStrings(FSections.Objects[I]);
-      for J := 0 to SectionStrings.Count - 1 do
-        Strings.Add(SectionStrings.Names[J]);
+    Strings.BeginUpdate;
+    try
+      Strings.Clear;
+      I := FSections.IndexOf(Section);
+      if I >= 0 then
+      begin
+        SectionStrings := TStrings(FSections.Objects[I]);
+        for J := 0 to SectionStrings.Count - 1 do
+          Strings.Add(SectionStrings.Names[J]);
+      end;
+    finally
+      Strings.EndUpdate;
     end;
   finally
-    Strings.EndUpdate;
     il.LeaveReadOnly;
   end;
 end;
@@ -816,14 +827,17 @@ var
   I: Integer;
 begin
   il.EnterReadOnly;
-  Strings.BeginUpdate;
   try
-    Strings.Clear;
-    I := FSections.IndexOf(Section);
-    if I >= 0 then
-      Strings.Assign(TStrings(FSections.Objects[I]));
+    Strings.BeginUpdate;
+    try
+      Strings.Clear;
+      I := FSections.IndexOf(Section);
+      if I >= 0 then
+        Strings.Assign(TStrings(FSections.Objects[I]));
+    finally
+      Strings.EndUpdate;
+    end;
   finally
-    Strings.EndUpdate;
     il.LeaveReadOnly;
   end;
 end;
@@ -945,27 +959,33 @@ var
   List: TStringList;
   myS: TMemoryStream;
 begin
-  myS:= TMemoryStream.Create;
-  List := TStringList.Create;
   // WriteLock so it nests safely inside DeleteKey/EraseSection/WriteString/SetStrings/LoadUnencrypted
   // (TRWLock WriteLock is reentrant within the same thread).
   il.Enter;
   try
-    GetStrings(List);
+    myS:= TMemoryStream.Create;
+    try
+      List := TStringList.Create;
+      try
+        GetStrings(List);
 
-    if not fSima then
-    begin
-      List.SaveToStream(myS);
-      EncryptStreamToFile(myS, fFilename + '.sltmp', fPassHash, fCompression);
-    end else
-      list.SaveToFile(fFilename + '.sltmp');
+        if not fSima then
+        begin
+          List.SaveToStream(myS);
+          EncryptStreamToFile(myS, fFilename + '.sltmp', fPassHash, fCompression);
+        end else
+          list.SaveToFile(fFilename + '.sltmp');
 
-    // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
-    MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
+        // save to temp file and then overwrite to avoid corrupted files when the process crashes or gets killed
+        MoveAndOverwriteFile(fFilename + '.sltmp', fFilename);
+      finally
+        List.Free;
+      end;
+    finally
+      myS.Free;
+    end;
   finally
     il.Leave;
-    List.Free;
-    myS.Free;
   end;
 end;
 
@@ -1010,13 +1030,16 @@ var
   List: TStringList;
 begin
   il.EnterReadOnly;
-  List := TStringList.Create;
   try
-    GetStrings(List);
+    List := TStringList.Create;
+    try
+      GetStrings(List);
 
-    List.SaveToFile(filename);
+      List.SaveToFile(filename);
+    finally
+      List.Free;
+    end;
   finally
-    List.Free;
     il.LeaveReadOnly;
   end;
 end;

@@ -481,9 +481,14 @@ destructor TQueueThread.Destroy;
 begin
   if Queues <> nil then
     Queues.Extract(self);
-  main_lock.Free;
-  tasks.Free;
-  waiting_tasks.Free;
+  main_lock.Enter('Destroy');
+  try
+    tasks.Free;
+    waiting_tasks.Free;
+  finally
+    main_lock.Leave;
+  end;
+  FreeAndNil(main_lock);
   queueevent.Free;
   inherited;
 end;
@@ -524,16 +529,6 @@ begin
       exit;
     end;
 
-    // first watch if it is not already in process to upload the same file to the same place
-    if t.ps2.HasActiveTransfer(t.dir + t.filename) then
-      exit; // we are already sending this file to the same destination site
-
-    if s2.num_up >= s2.max_up then
-      exit;
-
-    if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
-      exit; // we are already sending this file the opposite route
-
     // or use 'if t.ps1.StatusRealPreOrShouldPre then' from pazo.pas but will also pre true when status = rssShouldPre
     //if t.ps1.status = rssRealPre then
     if t.ps1.StatusRealPreOrShouldPre then
@@ -573,7 +568,6 @@ begin
     if ss1 = nil then
       exit;
 
-
     if not s2.AcquireSlotsAssignmentLock(1, 'TryToAssignRaceSlots') then
     begin
       fBusyDestinations.Add(s2, 0);
@@ -585,9 +579,13 @@ begin
       if s2.num_up >= s2.max_up then
         exit;
 
-      // again check if this file is already being sent to the destination now that we have the slot assignment lock
+      // check if this file is already being sent to the destination
       if t.ps2.HasActiveTransfer(t.dir + t.filename) then
         exit; // we are already sending this file to the same destination site
+
+      // check if we are already sending this file the opposite route
+      if t.ps1.HasActiveTransfer(t.dir + t.filename, s2.Name) then
+        exit;
 
       ss2 := nil;
       for fSiteSlotLoop in s2.slots do
