@@ -62,7 +62,12 @@ end;
 procedure SpeedStatsUnInit;
 begin
   Debug(dpSpam, r_section, 'Uninit1');
-  speedStats.Free;
+  speedstatlock.Enter;
+  try
+    speedStats.Free;
+  finally
+    speedstatlock.Leave;
+  end;
   speedstatlock.Free;
   Debug(dpSpam, r_section, 'Uninit2');
 end;

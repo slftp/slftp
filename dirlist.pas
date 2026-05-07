@@ -494,9 +494,9 @@ end;
 
 destructor TDirList.Destroy;
 begin
-  skipped.Free;
   dirlist_lock.Enter('TDirList.Destroy');
   try
+    skipped.Free;
     entries.Free;
     FIsValidFileCache.Free;
     FIsValidDirCache.Free;
@@ -1693,8 +1693,8 @@ var
   i: Integer;
   de: TDirListEntry;
 begin
-  allCdNumbers := '';
-  biggestcd := 0;
+  allCdNumbers := '';
+  biggestcd := 0;
 
   // find the biggest CD
   for de in entries.Values do

@@ -1943,48 +1943,48 @@ begin
   tkill_race      := 0;
   tkill_other     := 0;
 
-  try
     // Check old unassigne task
     main_lock.Enter('QueueClean1');
-    for fListIndex := 0 to 1 do
-    begin
-      if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
-      for t in fList do
+    try
+      for fListIndex := 0 to 1 do
       begin
-      try
-        ss := t.UidText;
-        if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
-          (SecondsBetween(t.created, Now()) >= queueclean_unassigned)) then
+        if fListIndex = 0 then fList := tasks else fList := waiting_tasks;
+        for t in fList do
         begin
-          try
-            t.ready := True;
-            Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
-          except
-            on e: Exception do
-            begin
-              Debug(dpError, section,
-                Format('[EXCEPTION] QueueClean: Exception Remove Unassigned : %s', [e.Message]));
-              Break;
+        try
+          ss := t.UidText;
+          if ((t.assigned = 0) and not t.dontremove and ((t.startat = 0) or (t.startat <= queue_last_run)) and
+            (SecondsBetween(t.created, Now()) >= queueclean_unassigned)) then
+          begin
+            try
+              t.ready := True;
+              Debug(dpError, section, Format('QueueClean: Remove Unassigned : %s', [t.Fullname]));
+            except
+              on e: Exception do
+              begin
+                Debug(dpError, section,
+                  Format('[EXCEPTION] QueueClean: Exception Remove Unassigned : %s', [e.Message]));
+                Break;
+              end;
             end;
-          end;
-          Inc(tkill_unassigne);
+            Inc(tkill_unassigne);
 
-          Console_QueueDel(ss);
-          Debug(dpSpam, section, Format('[QUEUECLEAN] Clean unassigned task : %s', [t.Fullname]));
-        end;
-      except
-        on e: Exception do
-        begin
-          Debug(dpError, section,
-          Format('[EXCEPTION] QueueClean Clean unassigned: Exception : %s', [e.Message]));
-          Break;
+            Console_QueueDel(ss);
+            Debug(dpSpam, section, Format('[QUEUECLEAN] Clean unassigned task : %s', [t.Fullname]));
+          end;
+        except
+          on e: Exception do
+          begin
+            Debug(dpError, section,
+            Format('[EXCEPTION] QueueClean Clean unassigned: Exception : %s', [e.Message]));
+            Break;
+          end;
         end;
       end;
+      end;
+    finally
+      main_lock.Leave;
     end;
-    end;
-  finally
-    main_lock.Leave;
-  end;
 
   // Check old tasks, assigned bu long time wait
   main_lock.Enter('QueueClean2');
