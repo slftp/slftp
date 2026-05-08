@@ -444,7 +444,11 @@ begin
     if fLine = '' then
       Exit;
 
-    fFormatSettings := DefaultFormatSettings;
+    {$IFDEF FPC}
+      fFormatSettings := DefaultFormatSettings;
+    {$ELSE}
+      fFormatSettings := TFormatSettings.Create;
+    {$ENDIF}
     fFormatSettings.DecimalSeparator := '.';
 
     if not TryStrToFloat(fLine, fLoad1, fFormatSettings) then
