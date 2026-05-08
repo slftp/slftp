@@ -45,6 +45,13 @@ type
     saltlen: Integer; iter: Integer; digest: PEVP_MD; keylen: Integer;
     out_: PByte): Integer; cdecl;
 
+{$IFNDEF FPC}
+type
+  TLibHandle = HMODULE;
+const
+  NilHandle = HMODULE(0);
+{$ENDIF}
+
 const
   CBFTP_HEADER_LEN  = 16;
   CBFTP_SALT_OFFSET = 8;

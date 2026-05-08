@@ -46,6 +46,13 @@ type
   TEVP_EncryptFinal_ex = function(ctx: PEVP_CIPHER_CTX; out_: PByte; outl: PInteger): Integer; cdecl;
   TPKCS5_PBKDF2_HMAC = function(pass: PAnsiChar; passlen: Integer; salt: PByte; saltlen: Integer; iter: Integer; digest: PEVP_MD; keylen: Integer; out_: PByte): Integer; cdecl;
 
+{$IFNDEF FPC}
+type
+  TLibHandle = HMODULE;
+const
+  NilHandle = HMODULE(0);
+{$ENDIF}
+
 var
   KeyData: TBlowfishData;
   _EVP_EncryptInit_ex: TEVP_EncryptInit_ex = nil;
