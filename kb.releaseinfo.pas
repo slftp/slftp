@@ -8,10 +8,7 @@ unit kb.releaseinfo;
 interface
 
 uses
-  Classes, knowngroups, Generics.Collections
-  {$IFNDEF FPC}
-  , Winapi.Windows
-  {$ENDIF};
+  Classes, knowngroups, Generics.Collections;
 
 type
   {
