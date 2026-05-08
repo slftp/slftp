@@ -42,6 +42,7 @@ type
   queueclean_last_run: TDateTime;
   queue_last_stat_update: TDateTime;
   fLastDirlistCheckTime: TDateTime;
+  fLastLowPriorityLogTime: TDateTime;
   fLastDirlistCount: Integer;
 
     procedure TryToAssignLoginSlot(t: TLoginTask);
@@ -293,7 +294,7 @@ begin
           case sample_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsSample) and (tpr2.IsSample)) then
@@ -301,7 +302,7 @@ begin
           case sample_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -316,7 +317,7 @@ begin
           case proof_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsProof) and (tpr2.IsProof)) then
@@ -324,7 +325,7 @@ begin
           case proof_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -339,7 +340,7 @@ begin
           case subs_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsSubs) and (tpr2.IsSubs)) then
@@ -347,7 +348,7 @@ begin
           case subs_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -362,7 +363,7 @@ begin
           case cover_dirs_priority of
             0: Result := 0;
             1: Result := -1;
-            2: Result := 1;
+            2, 3: Result := 1;
           end;
         end
         else if ((not tpr1.IsCovers) and (tpr2.IsCovers)) then
@@ -370,7 +371,7 @@ begin
           case cover_dirs_priority of
             0: Result := 0;
             1: Result := 1;
-            2: Result := -1;
+            2, 3: Result := -1;
           end;
         end
         else
@@ -401,6 +402,75 @@ begin
     begin
       Debug(dpError, section, '[EXCEPTION] QueueSorter : %s', [e.Message]);
       Result := 0;
+    end;
+  end;
+end;
+
+function _IsLowPriorityRaceTask(const aTask: TPazoRaceTask): Boolean;
+begin
+  Result := False;
+
+  if (aTask.IsSample) and (sample_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if (aTask.IsProof) and (proof_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if (aTask.IsSubs) and (subs_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  if (aTask.IsCovers) and (cover_dirs_priority = 3) then
+  begin
+    Result := True;
+    exit;
+  end;
+end;
+
+function _HasWaitingNonLowPriorityTasks(const aTasks: Contnrs.TObjectList; const aQueueLastRun: TDateTime): Boolean;
+var
+  i: Integer;
+  fTask: TTask;
+  fRaceTask: TPazoRaceTask;
+begin
+  Result := False;
+
+  for i := 0 to aTasks.Count - 1 do
+  begin
+    fTask := TTask(aTasks.Items[i]);
+    if fTask = nil then
+      Continue;
+
+    // Skip tasks that are already running or done
+    if ((fTask.slot1 <> nil) or (fTask.slot2 <> nil) or fTask.ready or fTask.readyerror) then
+      Continue;
+
+    // Skip tasks that are not yet ready to start
+    if ((fTask is TPazoTask) and (TPazoTask(fTask).startat > 0) and
+        (TPazoTask(fTask).startat > aQueueLastRun)) then
+      Continue;
+
+    // If it's not a race task, it's important (mkdir, dirlist, login, etc.)
+    if not (fTask is TPazoRaceTask) then
+    begin
+      Result := True;
+      exit;
+    end;
+
+    // If it's a race task but not marked as low priority, it's important
+    fRaceTask := TPazoRaceTask(fTask);
+    if not _IsLowPriorityRaceTask(fRaceTask) then
+    begin
+      Result := True;
+      exit;
     end;
   end;
 end;
@@ -1776,7 +1846,23 @@ begin
                 if ((fTask.startat = 0) or (fTask.startat <= queue_last_run)) then
                 begin
                   if fTask.IsReadyToBeExecuted then
-                    TryToAssignSlots(fTask);
+                begin
+                  // Low-priority race tasks only get slots if no important tasks are waiting
+                  if ((fTask is TPazoRaceTask) and _IsLowPriorityRaceTask(TPazoRaceTask(fTask))) then
+                  begin
+                    if _HasWaitingNonLowPriorityTasks(tasks, queue_last_run) then
+                    begin
+                      if SecondsBetween(Now, fLastLowPriorityLogTime) >= 60 then
+                      begin
+                        Debug(dpError, section, 'Low-priority tasks blocked on %s (important tasks waiting)', [fSiteName]);
+                        fLastLowPriorityLogTime := Now;
+                      end;
+                      Continue;
+                    end;
+                  end;
+
+                  TryToAssignSlots(fTask);
+                end;
                 end
                 else if (fTask.startat > 0) and (fTask.startat < fNextTaskStartAt) then
                 begin
@@ -1917,19 +2003,19 @@ begin
   maxassign := config.ReadInteger(section, 'maxassign', 200);
   maxassign_delay := config.ReadInteger(section, 'maxassign_delay', 15);
   sample_dirs_priority := config.ReadInteger(section, 'sample_dirs_priority', 1);
-  if not (sample_dirs_priority in [0..2]) then
+  if not (sample_dirs_priority in [0..3]) then
     sample_dirs_priority := 1;
 
   proof_dirs_priority := config.ReadInteger(section, 'proof_dirs_priority', 2);
-  if not (proof_dirs_priority in [0..2]) then
+  if not (proof_dirs_priority in [0..3]) then
     proof_dirs_priority := 2;
 
   subs_dirs_priority := config.ReadInteger(section, 'subs_dirs_priority', 2);
-  if not (subs_dirs_priority in [0..2]) then
+  if not (subs_dirs_priority in [0..3]) then
     subs_dirs_priority := 2;
 
   cover_dirs_priority := config.ReadInteger(section, 'cover_dirs_priority', 2);
-  if not (cover_dirs_priority in [0..2]) then
+  if not (cover_dirs_priority in [0..3]) then
     cover_dirs_priority := 2;
 
   queueclean_maxrunning := config.ReadInteger('queue', 'queueclean_maxrunning', 900);
